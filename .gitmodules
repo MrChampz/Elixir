@@ -1,0 +1,33 @@
+[submodule "Elixir/Vendor/glfw"]
+	path = Elixir/Vendor/glfw
+	url = git@github.com:glfw/glfw.git
+[submodule "Elixir/Vendor/fastgltf"]
+	path = Elixir/Vendor/fastgltf
+	url = git@github.com:spnda/fastgltf.git
+[submodule "Elixir/Vendor/glm"]
+	path = Elixir/Vendor/glm
+	url = git@github.com:g-truc/glm.git
+[submodule "Elixir/Vendor/stduuid"]
+	path = Elixir/Vendor/stduuid
+	url = git@github.com:mariusbancila/stduuid.git
+[submodule "Elixir/Vendor/spdlog"]
+	path = Elixir/Vendor/spdlog
+	url = git@github.com:gabime/spdlog.git
+[submodule "Elixir/Vendor/imgui"]
+	path = Elixir/Vendor/imgui
+	url = git@github.com:MrChampz/imgui.git
+[submodule "Elixir/Vendor/SPIRV-Cross"]
+	path = Elixir/Vendor/SPIRV-Cross
+	url = git@github.com:KhronosGroup/SPIRV-Cross.git
+[submodule "Elixir/Vendor/vk-bootstrap"]
+	path = Elixir/Vendor/vk-bootstrap
+	url = git@github.com:charles-lunarg/vk-bootstrap.git
+[submodule "Elixir/Vendor/VulkanMemoryAllocator"]
+	path = Elixir/Vendor/VulkanMemoryAllocator
+	url = git@github.com:GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+[submodule "Elixir/Vendor/FiberTaskingLib"]
+	path = Elixir/Vendor/FiberTaskingLib
+	url = git@github.com:RichieSams/FiberTaskingLib.git
+[submodule "Elixir/Vendor/tracy"]
+	path = Elixir/Vendor/tracy
+	url = git@github.com:wolfpld/tracy.git

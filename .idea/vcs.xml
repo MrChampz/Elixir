@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Elixir/Vendor/FiberTaskingLib" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Elixir/Vendor/SPIRV-Cross" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Elixir/Vendor/VulkanMemoryAllocator" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Elixir/Vendor/fastgltf" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Elixir/Vendor/glfw" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Elixir/Vendor/glm" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Elixir/Vendor/imgui" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Elixir/Vendor/spdlog" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Elixir/Vendor/stduuid" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Elixir/Vendor/tracy" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Elixir/Vendor/vk-bootstrap" vcs="Git" />
+  </component>
+</project>

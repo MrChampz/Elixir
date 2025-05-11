@@ -1,0 +1,13 @@
+# Directories
+.vs/
+Build/
+Bin/
+Intermediate/
+out/
+
+# Files
+*.user
+*.log
+*.sln
+CppProperties.json
+.DS_Store

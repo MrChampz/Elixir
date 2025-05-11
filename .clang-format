@@ -1,0 +1,16 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+AllowShortIfStatementsOnASingleLine: false
+BreakTemplateDeclarations: Yes
+BreakBeforeBraces: Allman
+SpacesInParentheses: false
+SpaceBeforeParens: ControlStatements
+ConstructorInitializerIndentWidth: 4
+AlignAfterOpenBracket: Align
+AlignOperands: true
+AlignTrailingComments: true
+PointerAlignment: Left
+IncludeBlocks: Preserve
+SortIncludes: Never
