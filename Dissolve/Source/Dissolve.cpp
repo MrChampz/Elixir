@@ -53,7 +53,7 @@ Dissolve::Dissolve()
     auto logicArgs = ThreadArgs{};
     logicArgs.Name = "Logic";
 
-    //auto thread = Executor::CreateThread(1048576, RenderEntrypoint, &renderArgs, "RenderThread");
+    auto thread = Executor::CreateThread(1048576, RenderEntrypoint, &renderArgs, "RenderThread");
 
     //m_Executor = CreateScope<Executor>();
     //m_Executor->Init();
@@ -67,7 +67,7 @@ Dissolve::Dissolve()
 
     //wg.Wait();
 
-    //Executor::JoinThread(thread);
+    Executor::JoinThread(thread);
 }
 
 void Dissolve::OnGUI(const Timestep frameTime)

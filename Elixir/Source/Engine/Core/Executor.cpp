@@ -5,6 +5,30 @@
 #include <tracy/Tracy.hpp>
 #endif
 
+struct ThreadRoutineData
+{
+    Elixir::ThreadRoutine Routine;
+    void* Args;
+};
+
+#ifdef _WIN32
+    unsigned int __stdcall ThreadRoutineTrampoline(void* arg)
+    {
+        const auto data = static_cast<ThreadRoutineData*>(arg);
+        data->Routine(data->Args);
+        delete data;
+        return 0;
+    }
+#else
+    void* ThreadRoutineTrampoline(void* arg)
+    {
+        const auto data = static_cast<ThreadRoutineData*>(arg);
+        const auto result = data->Routine(data->Args);
+        delete data;
+        return result;
+    }
+#endif
+
 namespace Elixir
 {
     /**
@@ -108,7 +132,22 @@ namespace Elixir
     )
     {
         ftl::ThreadType thread;
-        ftl::CreateThread(stackSize, (ftl::ThreadStartRoutine)routine, args, name, &thread);
+        const auto data = new ThreadRoutineData{ routine, args };
+        ftl::CreateThread(stackSize, ThreadRoutineTrampoline, data, name, &thread);
+        return Thread(name, thread);
+    }
+
+    Thread Executor::CreateThread(
+        const size_t stackSize,
+        const ThreadRoutine routine,
+        void* args,
+        const char* name,
+        const size_t coreAffinity
+    )
+    {
+        ftl::ThreadType thread;
+        const auto data = new ThreadRoutineData{ routine, args };
+        ftl::CreateThread(stackSize, ThreadRoutineTrampoline, data, name, coreAffinity, &thread);
         return Thread(name, thread);
     }
 

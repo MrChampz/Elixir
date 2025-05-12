@@ -100,6 +100,14 @@ namespace Elixir
             const char* name
         );
 
+        static Thread CreateThread(
+            size_t stackSize,
+            ThreadRoutine routine,
+            void* args,
+            const char* name,
+            size_t coreAffinity
+        );
+
         static bool JoinThread(const Thread& thread);
 
     protected:
