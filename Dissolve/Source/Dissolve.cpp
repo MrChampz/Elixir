@@ -3,7 +3,9 @@
 #include <Engine/Core/Entrypoint.h>
 #include <Engine/Core/Executor.h>
 
+#ifdef EE_DEBUG
 #include <tracy/Tracy.hpp>
+#endif
 
 struct ThreadArgs
 {
@@ -12,7 +14,9 @@ struct ThreadArgs
 
 void TaskEntrypoint(ftl::TaskScheduler* scheduler, void* args)
 {
+#ifdef EE_DEBUG
     ZoneScoped;
+#endif
 
     auto* threadArgs = static_cast<ThreadArgs*>(args);
 
@@ -23,7 +27,9 @@ void TaskEntrypoint(ftl::TaskScheduler* scheduler, void* args)
 
 void* RenderEntrypoint(void* args)
 {
+#ifdef EE_DEBUG
     ZoneScoped;
+#endif
 
     auto* threadArgs = static_cast<ThreadArgs*>(args);
 
@@ -35,7 +41,9 @@ void* RenderEntrypoint(void* args)
 
 Dissolve::Dissolve()
 {
+#ifdef EE_DEBUG
     ZoneScoped;
+#endif
 
     m_Window->SetTitle("Dissolve");
 
@@ -45,21 +53,21 @@ Dissolve::Dissolve()
     auto logicArgs = ThreadArgs{};
     logicArgs.Name = "Logic";
 
-    auto thread = Executor::CreateThread(1048576, RenderEntrypoint, &renderArgs, "RenderThread");
+    //auto thread = Executor::CreateThread(1048576, RenderEntrypoint, &renderArgs, "RenderThread");
 
-    m_Executor = CreateScope<Executor>();
-    m_Executor->Init();
+    //m_Executor = CreateScope<Executor>();
+    //m_Executor->Init();
 
     std::ostringstream os;
     os << std::this_thread::get_id();
     EE_CORE_INFO("Init in thread {0}", os.str())
 
-    WaitGroup wg(m_Executor.get());
-    m_Executor->AddTask({ TaskEntrypoint, &logicArgs }, TaskPriority::Normal, &wg);
+    //WaitGroup wg(m_Executor.get());
+    //m_Executor->AddTask({ TaskEntrypoint, &logicArgs }, TaskPriority::Normal, &wg);
 
-    wg.Wait();
+    //wg.Wait();
 
-    Executor::JoinThread(thread);
+    //Executor::JoinThread(thread);
 }
 
 void Dissolve::OnGUI(const Timestep frameTime)

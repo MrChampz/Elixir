@@ -4,7 +4,9 @@
 #include <Engine/Input/InputManager.h>
 #include <Engine/Input/InputCodes.h>
 
+#ifdef EE_DEBUG
 #include <tracy/Tracy.hpp>
+#endif
 
 namespace Elixir
 {
@@ -47,7 +49,9 @@ namespace Elixir
                 OnWindowClose(event);
             }
 
+#ifdef EE_DEBUG
             FrameMark;
+#endif
         }
     }
 

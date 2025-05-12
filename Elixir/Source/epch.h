@@ -25,5 +25,10 @@
 #include <cmath>
 
 #ifdef EE_PLATFORM_WINDOWS
-#include <Windows.h>
+#ifndef NOMINMAX
+    # define NOMINMAX
+#endif
+
+#include <windows.h>
+
 #endif // EE_PLATFORM_WINDOWS

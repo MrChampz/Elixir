@@ -25,8 +25,6 @@ namespace Elixir
         friend class Executor;
 
     public:
-        [[nodiscard]] bool IsValid() const { return m_Thread != nullptr; }
-
         [[nodiscard]] const std::string& GetName() const { return m_Name; }
 
     protected:
@@ -34,7 +32,7 @@ namespace Elixir
             : m_Name(std::move(name)), m_Thread(thread) {}
 
         std::string m_Name;
-        ftl::ThreadType m_Thread = nullptr;
+        ftl::ThreadType m_Thread;
     };
 
     class ELIXIR_API WaitGroup

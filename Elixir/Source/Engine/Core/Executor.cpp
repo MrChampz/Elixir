@@ -1,15 +1,12 @@
 #include "epch.h"
 #include "Executor.h"
 
+#ifdef EE_DEBUG
 #include <tracy/Tracy.hpp>
+#endif
 
 namespace Elixir
 {
-    struct EventContext
-    {
-        ftl::TaskScheduler* Scheduler;
-    };
-
     /**
      * @brief Called when a fiber is attached to a thread
      *
@@ -60,9 +57,9 @@ namespace Elixir
                 options.ThreadPoolSize,
                 ftl::EmptyQueueBehavior::Spin,
                 {
+                    .OnWorkerThreadStarted = OnWorkerThreadStarted,
                     .OnFiberAttached = OnFiberAttached,
                     .OnFiberDetached = OnFiberDetached,
-                    .OnWorkerThreadStarted = OnWorkerThreadStarted,
                 }
             });
             if (result == 0)
@@ -111,18 +108,16 @@ namespace Elixir
     )
     {
         ftl::ThreadType thread;
-        ftl::CreateThread(stackSize, routine, args, name, &thread);
+        ftl::CreateThread(stackSize, (ftl::ThreadStartRoutine)routine, args, name, &thread);
         return Thread(name, thread);
     }
 
     bool Executor::JoinThread(const Thread& thread)
     {
-        if (thread.IsValid())
-        {
-            const auto result = ftl::JoinThread(thread.m_Thread);
-            if (result) tracy::SetThreadName(thread.m_Name.c_str());
-            return result;
-        }
-        return false;
+        const auto result = ftl::JoinThread(thread.m_Thread);
+#ifdef EE_DEBUG
+        if (result) tracy::SetThreadName(thread.m_Name.c_str());
+#endif
+        return result;
     }
 }
