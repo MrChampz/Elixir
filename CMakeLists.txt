@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.30)
 project(Elixir)
 
+# Options
+option(ELIXIR_PROFILE "Enable/disable profiling" OFF)
+
 # Define the valid build types
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release;Dist" CACHE STRING "" FORCE)
 
@@ -21,6 +24,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 # Configurations - Debug
 if(BUILD_TYPE STREQUAL "Debug")
+    option(ELIXIR_PROFILE "" ON)
     set_directory_properties(PROPERTIES COMPILE_DEFINITIONS "_DEBUG")
 endif()
 

@@ -29,6 +29,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 # Compile definitions
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
+    $<$<BOOL:${ELIXIR_PROFILE}>:EE_PROFILE>
     $<$<CONFIG:Debug>:EE_DEBUG>
     $<$<CONFIG:Release>:EE_RELEASE>
     $<$<CONFIG:Dist>:EE_DIST>

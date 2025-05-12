@@ -1,10 +1,6 @@
 #include "epch.h"
 #include "Executor.h"
 
-#ifdef EE_DEBUG
-#include <tracy/Tracy.hpp>
-#endif
-
 struct ThreadRoutineData
 {
     Elixir::ThreadRoutine Routine;
@@ -154,7 +150,7 @@ namespace Elixir
     bool Executor::JoinThread(const Thread& thread)
     {
         const auto result = ftl::JoinThread(thread.m_Thread);
-#ifdef EE_DEBUG
+#ifdef EE_PROFILE
         if (result) tracy::SetThreadName(thread.m_Name.c_str());
 #endif
         return result;

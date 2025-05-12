@@ -4,10 +4,6 @@
 #include <Engine/Input/InputManager.h>
 #include <Engine/Input/InputCodes.h>
 
-#ifdef EE_DEBUG
-#include <tracy/Tracy.hpp>
-#endif
-
 namespace Elixir
 {
     Application* Application::s_Application = nullptr;
@@ -49,9 +45,7 @@ namespace Elixir
                 OnWindowClose(event);
             }
 
-#ifdef EE_DEBUG
-            FrameMark;
-#endif
+            EE_PROFILE_FRAME_MARK()
         }
     }
 

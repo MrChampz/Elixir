@@ -20,15 +20,19 @@
 
 #include <Engine/Core/UUID.h>
 #include <Engine/Core/Log.h>
+#include <Engine/Instrumentation/Profiler.h>
 
 #define _USE_MATH_DEFINES
 #include <cmath>
 
-#ifdef EE_PLATFORM_WINDOWS
-#ifndef NOMINMAX
-    # define NOMINMAX
+#ifdef EE_PROFILE
+    #include <tracy/Tracy.hpp>
 #endif
 
-#include <windows.h>
+#ifdef EE_PLATFORM_WINDOWS
+    #ifndef NOMINMAX
+        # define NOMINMAX
+    #endif
 
-#endif // EE_PLATFORM_WINDOWS
+    #include <windows.h>
+#endif

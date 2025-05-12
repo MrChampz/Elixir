@@ -27,6 +27,7 @@ add_library(${PROJECT_NAME} SHARED
     ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Event/WindowEvent.h
     ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Event/ApplicationEvent.h
     ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Event/EventFormatter.h
+    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Instrumentation/Profiler.h
     ${CMAKE_CURRENT_LIST_DIR}/Source/Platform/GLFW/GLFWWindow.h
     ${CMAKE_CURRENT_LIST_DIR}/Source/Platform/GLFW/GLFWWindow.cpp
     ${CMAKE_CURRENT_LIST_DIR}/Source/Platform/GLFW/GLFWInput.h
@@ -65,8 +66,9 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     GLFW_INCLUDE_NONE
-    TRACY_ENABLE
-    TRACY_FIBERS
+    $<$<BOOL:${ELIXIR_PROFILE}>:TRACY_ENABLE>
+    $<$<BOOL:${ELIXIR_PROFILE}>:TRACY_FIBERS>
+    $<$<BOOL:${ELIXIR_PROFILE}>:EE_PROFILE>
     $<$<CONFIG:Debug>:EE_DEBUG>
     $<$<CONFIG:Release>:EE_RELEASE>
     $<$<CONFIG:Dist>:EE_DIST>
@@ -121,10 +123,9 @@ add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/VulkanMemoryAllocator)
 option(SPIRV_CROSS_ENABLE_TESTS "" OFF)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/SPIRV-Cross)
 
-# Debug-only dependencies
-if (BUILD_TYPE STREQUAL "Debug")
+# Only when profiling is enabled
+if (ELIXIR_PROFILE)
     option(TRACY_ENABLE "" ON)
-    option(TRACY_ON_DEMAND "" ON)
     option(TRACY_FIBERS "" ON)
     add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/tracy)
 endif()
@@ -151,7 +152,7 @@ target_link_libraries(${PROJECT_NAME}
     spirv-cross-cpp
 )
 
-# Debug-only linking
-if (BUILD_TYPE STREQUAL "Debug")
+# Only when profiling is enabled
+if (ELIXIR_PROFILE)
     target_link_libraries(${PROJECT_NAME} Tracy::TracyClient)
 endif()
