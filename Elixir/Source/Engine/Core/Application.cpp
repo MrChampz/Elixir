@@ -10,22 +10,32 @@ namespace Elixir
 
     Application::Application()
     {
+        EE_PROFILE_ZONE_SCOPED()
+
         EE_CORE_ASSERT(!s_Application, "Application already exists!")
         s_Application = this;
 
         m_Window = Window::Create();
         m_Window->SetEventCallback(EE_BIND_EVENT_FN(Application::OnEvent));
+
+        m_GraphicsContext = GraphicsContext::Create(EGraphicsAPI::Vulkan, m_Window.get());
+        m_GraphicsContext->Init();
     }
 
     Application::~Application()
     {
-
+        EE_PROFILE_ZONE_SCOPED()
+        m_GraphicsContext->WaitDeviceIdle();
     }
 
     void Application::Run()
     {
+        EE_PROFILE_ZONE_SCOPED()
+
         while (m_Running)
         {
+            EE_PROFILE_ZONE_SCOPED_NAMED("RunLoop")
+
             const auto frameTime = m_Timer.GetLastFrameTime();
 
             if (!m_Minimized)

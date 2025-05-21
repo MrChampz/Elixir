@@ -6,6 +6,7 @@
 #include <Engine/Core/FrameProfiler.h>
 #include <Engine/Event/Event.h>
 #include <Engine/Event/WindowEvent.h>
+#include <Engine/Graphics/GraphicsContext.h>
 
 namespace Elixir
 {
@@ -29,9 +30,11 @@ namespace Elixir
         bool OnWindowResize(WindowResizeEvent& event);
 
         Scope<Window> m_Window;
+        Scope<GraphicsContext> m_GraphicsContext;
 
         Timer m_Timer;
         FrameProfiler m_Profiler;
+
         bool m_Running = true;
         bool m_Minimized = false;
 

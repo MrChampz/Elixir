@@ -1,16 +1,58 @@
 BasedOnStyle: LLVM
-IndentWidth: 4
-TabWidth: 4
-UseTab: Never
-AllowShortIfStatementsOnASingleLine: false
+AlignAfterOpenBracket: BlockIndent
+AlignConsecutiveAssignments:
+  Enabled: false
+AlignConsecutiveDeclarations:
+  Enabled: false
+AlignOperands: true
+AlignTrailingComments:
+  Kind: Always
+  OverEmptyLines: 1
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLambdasOnASingleLine: None
+BinPackParameters: false
+BreakAfterReturnType: None
 BreakTemplateDeclarations: Yes
 BreakBeforeBraces: Allman
-SpacesInParentheses: false
-SpaceBeforeParens: ControlStatements
+ColumnLimit: 95
 ConstructorInitializerIndentWidth: 4
-AlignAfterOpenBracket: Align
-AlignOperands: true
-AlignTrailingComments: true
-PointerAlignment: Left
+Cpp11BracedListStyle: true
+FixNamespaceComments: false
 IncludeBlocks: Preserve
+IndentCaseLabels: true
+IndentCaseBlocks: true
+IndentWidth: 4
+KeepEmptyLines:
+  AtStartOfBlock: false
+NamespaceIndentation: All
+PointerAlignment: Left
 SortIncludes: Never
+SpaceBeforeParens: ControlStatements
+SpacesBeforeTrailingComments: 3
+SpacesInParentheses: false
+StatementMacros:
+  - EE_PROFILE_FRAME_MARK
+  - EE_PROFILE_FRAME_MARK_NAMED
+  - EE_PROFILE_FRAME_MARK_START
+  - EE_PROFILE_FRAME_MARK_END
+  - EE_PROFILE_ZONE_SCOPED
+  - EE_PROFILE_ZONE_SCOPED_NAMED
+  - EE_PROFILE_ZONE_SCOPED_COLOR
+  - EE_PROFILE_LOG
+  - EE_CORE_TRACE
+  - EE_CORE_INFO
+  - EE_CORE_WARN
+  - EE_CORE_ERROR
+  - EE_CORE_FATAL
+  - EE_CORE_ASSERT
+  - EE_TRACE
+  - EE_INFO
+  - EE_WARN
+  - EE_ERROR
+  - EE_FATAL
+  - EE_ASSERT
+TabWidth: 4
+UseTab: Never

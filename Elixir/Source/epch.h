@@ -7,6 +7,7 @@
 #include <functional>
 #include <filesystem>
 #include <format>
+#include <cstdint>
 
 #include <string>
 #include <sstream>
@@ -19,6 +20,7 @@
 #include <span>
 
 #include <Engine/Core/UUID.h>
+#include <Engine/Core/Types.h>
 #include <Engine/Core/Log.h>
 #include <Engine/Instrumentation/Profiler.h>
 

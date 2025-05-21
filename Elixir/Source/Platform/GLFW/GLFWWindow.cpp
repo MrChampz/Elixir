@@ -72,7 +72,7 @@ namespace Elixir
 
             if (!s_GLFWInitialized)
             {
-                int result = glfwInit();
+                const int result = glfwInit();
                 EE_CORE_ASSERT(result, "Could not initialize GLFW!")
 
                 glfwSetErrorCallback(GLFWErrorCallback);
@@ -80,7 +80,7 @@ namespace Elixir
                 s_GLFWInitialized = true;
             }
 
-            //glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+            glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
             m_Window = glfwCreateWindow(
                 (int)m_Data.Width,

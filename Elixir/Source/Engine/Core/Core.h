@@ -20,8 +20,8 @@
 #endif // EE_DEBUG
 
 #ifdef EE_ENABLE_ASSERTS
-    #define EE_ASSERT(x, ...) { if (!(x)) { EE_ERROR("Assertion failed: {0}", __VA_ARGS__); DEBUG_BREAK(); } }
-    #define EE_CORE_ASSERT(x, ...) { if (!(x)) { EE_CORE_ERROR("Assertion failed: {0}", __VA_ARGS__); DEBUG_BREAK(); } }
+    #define EE_ASSERT(x, message, ...) { if (!(x)) { std::string error = "Assertion failed: " + std::string(message); EE_ERROR(error, ##__VA_ARGS__); DEBUG_BREAK(); } }
+    #define EE_CORE_ASSERT(x, message, ...) { if (!(x)) { std::string error = "Assertion failed: " + std::string(message); EE_CORE_ERROR(error, ##__VA_ARGS__); DEBUG_BREAK(); } }
 #else
     #define EE_ASSERT(x, ...)
     #define EE_CORE_ASSERT(x, ...)

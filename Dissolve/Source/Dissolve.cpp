@@ -61,6 +61,8 @@ Dissolve::Dissolve()
 
 void Dissolve::OnGUI(const Timestep frameTime)
 {
+    EE_PROFILE_ZONE_SCOPED()
+
     Application::OnGUI(frameTime);
 
     if (InputManager::IsGamepadConnected(EE_JOYSTICK_1))
@@ -76,5 +78,6 @@ void Dissolve::OnGUI(const Timestep frameTime)
 
 Application* Elixir::CreateApplication()
 {
+    EE_PROFILE_ZONE_SCOPED()
     return new Dissolve();
 }

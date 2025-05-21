@@ -1,0 +1,14 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Dissolve" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="Dissolve" TARGET_NAME="Dissolve" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="Dissolve" RUN_TARGET_NAME="Dissolve">
+    <envs>
+      <env name="DYLD_LIBRARY_PATH" value="$USER_HOME$/VulkanSDK/1.4.309.0/macOS/lib:${DYLD_LIBRARY_PATH:-}" />
+      <env name="VK_ADD_LAYER_PATH" value="$USER_HOME$/VulkanSDK/1.4.309.0/macOS/share/vulkan/explicit_layer.d" />
+      <env name="VK_DRIVER_FILES" value="$USER_HOME$/VulkanSDK/1.4.309.0/macOS/share/vulkan/icd.d/MoltenVK_icd.json" />
+      <env name="VK_ICD_FILENAMES" value="$USER_HOME$/VulkanSDK/1.4.309.0/macOS/share/vulkan/icd.d/MoltenVK_icd.json" />
+      <env name="VULKAN_SDK" value="$USER_HOME$/VulkanSDK/1.4.309.0/macOS" />
+    </envs>
+    <method v="2">
+      <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+    </method>
+  </configuration>
+</component>

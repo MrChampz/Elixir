@@ -9,6 +9,7 @@
     <mapping directory="$PROJECT_DIR$/Elixir/Vendor/glfw" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/Elixir/Vendor/glm" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/Elixir/Vendor/imgui" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Elixir/Vendor/simdjson" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/Elixir/Vendor/spdlog" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/Elixir/Vendor/stduuid" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/Elixir/Vendor/tracy" vcs="Git" />
