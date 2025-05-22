@@ -5,13 +5,16 @@
 #include <vulkan/vulkan.h>
 
 #define VK_CHECK_RESULT(result)                                                             \
+{                                                                                           \
+    auto res = result;                                                                      \
     EE_CORE_ASSERT(                                                                         \
-        result == VK_SUCCESS,                                                               \
+        res == VK_SUCCESS,                                                                  \
         "VkResult is \"{0}\" in file {1} at line {2}",                                      \
-        Elixir::Vulkan::Utils::GetErrorString(result),                                      \
+        Elixir::Vulkan::Utils::GetErrorString(res),                                         \
         __FILE__,                                                                           \
         __LINE__                                                                            \
-    )
+    )                                                                                       \
+}
 
 namespace Elixir::Vulkan
 {

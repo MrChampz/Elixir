@@ -1,7 +1,6 @@
 #pragma once
 
 #include <memory>
-#include <csignal>
 
 #if defined(EE_PLATFORM_WINDOWS)
     #ifdef EE_BUILD_DLL
@@ -20,11 +19,21 @@
 #endif // EE_DEBUG
 
 #ifdef EE_ENABLE_ASSERTS
-    #define EE_ASSERT(x, message, ...) { if (!(x)) { std::string error = "Assertion failed: " + std::string(message); EE_ERROR(error, ##__VA_ARGS__); DEBUG_BREAK(); } }
-    #define EE_CORE_ASSERT(x, message, ...) { if (!(x)) { std::string error = "Assertion failed: " + std::string(message); EE_CORE_ERROR(error, ##__VA_ARGS__); DEBUG_BREAK(); } }
+    #define EE_ASSERT(x, message, ...)                                                      \
+        if (!(x))                                                                           \
+        {                                                                                   \
+            EE_ERROR(assertion, ##__VA_ARGS__)                                              \
+            DEBUG_BREAK()                                                                   \
+        }
+    #define EE_CORE_ASSERT(x, message, ...)                                                 \
+        if (!(x))                                                                           \
+        {                                                                                   \
+            EE_CORE_ERROR(message, ##__VA_ARGS__)                                           \
+            DEBUG_BREAK()                                                                   \
+        }
 #else
-    #define EE_ASSERT(x, ...)
-    #define EE_CORE_ASSERT(x, ...)
+    #define EE_ASSERT(x, message, ...)
+    #define EE_CORE_ASSERT(x, message, ...)
 #endif // EE_ENABLE_ASSERTS
 
 #if defined(_MSC_VER)

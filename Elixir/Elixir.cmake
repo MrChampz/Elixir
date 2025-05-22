@@ -93,6 +93,10 @@ if (WIN32)
         GLFW_EXPOSE_NATIVE_WIN32
         VK_USE_PLATFORM_WIN32_KHR
     )
+
+    if (MSVC)
+        target_compile_options(${PROJECT_NAME} PRIVATE "/Zc:preprocessor")
+    endif()
 elseif (APPLE)
     target_compile_definitions(${PROJECT_NAME} PRIVATE
         EE_PLATFORM_MACOS
