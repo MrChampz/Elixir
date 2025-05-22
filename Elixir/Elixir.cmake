@@ -77,14 +77,21 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     GLFW_INCLUDE_NONE
-    $<$<BOOL:${ELIXIR_PROFILE}>:TRACY_ENABLE>
-    $<$<BOOL:${ELIXIR_PROFILE}>:TRACY_FIBERS>
-    $<$<BOOL:${ELIXIR_PROFILE}>:EE_PROFILE>
     $<$<CONFIG:Debug>:EE_DEBUG>
     $<$<CONFIG:Release>:EE_RELEASE>
     $<$<CONFIG:Dist>:EE_DIST>
 )
 
+# Profiling compile definitions
+if (ELIXIR_PROFILE)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        TRACY_ENABLE
+        TRACY_FIBERS
+        EE_PROFILE
+    )
+endif()
+
+# Platform-specific compile definitions
 if (WIN32)
     target_compile_definitions(${PROJECT_NAME} PRIVATE
         _CRT_SECURE_NO_WARNINGS
@@ -105,26 +112,26 @@ elseif (APPLE)
 endif()
 
 # Dependencies
-option(UUID_USING_CXX20_SPAN "" ON)
+set(UUID_USING_CXX20_SPAN ON)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/stduuid)
 
-option(FTL_BUILD_TESTS "" OFF)
-option(FTL_BUILD_BENCHMARKS "" OFF)
-option(FTL_BUILD_EXAMPLES "" OFF)
+set(FTL_BUILD_TESTS OFF)
+set(FTL_BUILD_BENCHMARKS OFF)
+set(FTL_BUILD_EXAMPLES OFF)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/FiberTaskingLib)
 
-option(GLM_ENABLE_CXX_20 "" ON)
+set(GLM_ENABLE_CXX_20 ON)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/glm)
 
-option(SPDLOG_USE_STD_FORMAT "" ON)
+set(SPDLOG_USE_STD_FORMAT ON)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/spdlog)
 
-option(FASTGLTF_COMPILE_AS_CPP20 "" ON)
+set(FASTGLTF_COMPILE_AS_CPP20 ON)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/simdjson)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/fastgltf)
 
-option(GLFW_BUILD_DOCS "" OFF)
-option(GLFW_INSTALL "" OFF)
+set(GLFW_BUILD_DOCS OFF)
+set(GLFW_INSTALL OFF)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/glfw)
 
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/imgui)
@@ -135,13 +142,13 @@ find_package(Vulkan REQUIRED)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/vk-bootstrap)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/VulkanMemoryAllocator)
 
-option(SPIRV_CROSS_ENABLE_TESTS "" OFF)
+set(SPIRV_CROSS_ENABLE_TESTS OFF)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/SPIRV-Cross)
 
 # Only when profiling is enabled
 if (ELIXIR_PROFILE)
-    option(TRACY_ENABLE "" ON)
-    option(TRACY_FIBERS "" ON)
+    set(TRACY_ENABLE ON)
+    set(TRACY_FIBERS ON)
     add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/tracy)
 endif()
 

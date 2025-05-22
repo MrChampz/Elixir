@@ -24,7 +24,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 # Configurations - Debug
 if(BUILD_TYPE STREQUAL "Debug")
-    option(ELIXIR_PROFILE "" ON)
+    set(ELIXIR_PROFILE ON)
     set_directory_properties(PROPERTIES COMPILE_DEFINITIONS "_DEBUG")
 endif()
 
