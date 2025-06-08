@@ -1,14 +1,16 @@
 #include "epch.h"
 #include "CommandBuffer.h"
 
+#include <Graphics/Vulkan/VulkanCommandBuffer.h>
+
 namespace Elixir
 {
     Ref<CommandBuffer> CommandBuffer::Create(GraphicsContext* context)
     {
-        switch (GraphicsContext::GetGraphicsAPI())
+        switch (context->GetAPI())
         {
             case EGraphicsAPI::Vulkan:
-                return nullptr;
+                return CreateRef<Vulkan::VulkanCommandBuffer>(context);
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;

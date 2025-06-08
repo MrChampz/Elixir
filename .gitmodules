@@ -34,3 +34,6 @@
 [submodule "Elixir/Vendor/simdjson"]
 	path = Elixir/Vendor/simdjson
 	url = https://github.com/simdjson/simdjson.git
+[submodule "Elixir/Vendor/magic_enum"]
+	path = Elixir/Vendor/magic_enum
+	url = git@github.com:Neargye/magic_enum.git

@@ -7,8 +7,6 @@ add_library(${PROJECT_NAME} SHARED
     ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Core/Color.h
     ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Core/UUID.h
     ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Core/UUID.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Core/Log.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Core/Log.cpp
     ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Core/Timer.h
     ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Core/FrameProfiler.h
     ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Core/Window.h
@@ -27,15 +25,30 @@ add_library(${PROJECT_NAME} SHARED
     ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Event/WindowEvent.h
     ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Event/ApplicationEvent.h
     ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Event/EventFormatter.h
+    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Logging/Log.h
+    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Logging/Log.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Logging/Formatters.h
     ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Instrumentation/Profiler.h
     ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/GraphicsContext.h
     ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/GraphicsContext.cpp
     ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/CommandBuffer.h
     ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/CommandBuffer.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/Image.h
+    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/Image.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/Texture.h
+    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/Texture.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/TextureLoader.h
+    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/TextureLoader.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/Converters.h
+    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/Utils.h
     ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/VulkanGraphicsContext.h
     ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/VulkanGraphicsContext.cpp
     ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/VulkanCommandBuffer.h
     ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/VulkanCommandBuffer.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/VulkanImage.h
+    ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/VulkanImage.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/VulkanTexture.h
+    ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/VulkanTexture.cpp
     ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/Initializers.h
     ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/Converters.h
     ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/Utils.h
@@ -112,6 +125,8 @@ elseif (APPLE)
 endif()
 
 # Dependencies
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/magic_enum)
+
 set(UUID_USING_CXX20_SPAN ON)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/stduuid)
 
@@ -160,6 +175,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 # Linking
 target_link_libraries(${PROJECT_NAME}
+    magic_enum
     stduuid
     ftl
     glm

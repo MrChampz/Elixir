@@ -18,7 +18,7 @@ namespace Elixir
         m_UUID = CreateScope<uuid>(s_Generator());
     }
 
-    UUID::~UUID() = default;
+    UUID::~UUID() {}
 
     std::string UUID::ToString() const
     {

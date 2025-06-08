@@ -3,6 +3,7 @@
 
 #include <Engine/Input/InputManager.h>
 #include <Engine/Input/InputCodes.h>
+#include <Engine/Graphics/TextureLoader.h>
 
 namespace Elixir
 {
@@ -20,6 +21,8 @@ namespace Elixir
 
         m_GraphicsContext = GraphicsContext::Create(EGraphicsAPI::Vulkan, m_Window.get());
         m_GraphicsContext->Init();
+
+        TextureLoader::Initialize(m_GraphicsContext.get());
     }
 
     Application::~Application()

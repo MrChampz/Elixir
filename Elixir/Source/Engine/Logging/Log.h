@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Engine/Core/Log.h>
 #include <Engine/Event/Event.h>
 #include <Engine/Event/EventFormatter.h>
 

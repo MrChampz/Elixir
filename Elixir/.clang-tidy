@@ -11,3 +11,7 @@ CheckOptions:
     value:           CamelCase
   - key:             readability-identifier-naming.StructPrefix
     value:           S
+  - key:             readability-identifier-naming.ClassCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.ClassPrefix
+    value:

@@ -21,7 +21,8 @@
 
 #include <Engine/Core/UUID.h>
 #include <Engine/Core/Types.h>
-#include <Engine/Core/Log.h>
+#include <Engine/Logging/Log.h>
+#include <Engine/Logging/Formatters.h>
 #include <Engine/Instrumentation/Profiler.h>
 
 #define _USE_MATH_DEFINES

@@ -51,12 +51,12 @@ namespace Elixir
         // virtual void BindIndexBuffer(const Ref<IndexBuffer> indexBuffer) = 0;
 
         virtual void SetViewports(
-            const std::vector<Viewport> viewports,
+            const std::vector<Viewport>& viewports,
             uint32_t firstViewport = 0
         ) = 0;
 
         virtual void SetScissors(
-            const std::vector<Rect2D> scissors,
+            const std::vector<Rect2D>& scissors,
             uint32_t firstScissor = 0
         ) = 0;
 

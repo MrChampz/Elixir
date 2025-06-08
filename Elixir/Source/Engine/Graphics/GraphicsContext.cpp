@@ -7,16 +7,12 @@
 
 namespace Elixir
 {
-    EGraphicsAPI GraphicsContext::s_API = EGraphicsAPI::Unknown;
-
     Scope<GraphicsContext> GraphicsContext::Create(const EGraphicsAPI api, const Window* window)
     {
-        s_API = api;
-
-        switch (s_API)
+        switch (api)
         {
             case EGraphicsAPI::Vulkan:
-                return CreateScope<Vulkan::VulkanGraphicsContext>(window);
+                return CreateScope<Vulkan::VulkanGraphicsContext>(api, window);
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;

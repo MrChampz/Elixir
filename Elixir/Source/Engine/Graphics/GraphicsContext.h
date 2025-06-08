@@ -9,8 +9,7 @@ namespace Elixir
 
     enum class EGraphicsAPI
     {
-        Vulkan,
-        Unknown
+        Vulkan
     };
 
     class ELIXIR_API GraphicsContext
@@ -46,6 +45,8 @@ namespace Elixir
 
         Ref<CommandBuffer> CreateCommandBuffer();
 
+        [[nodiscard]] EGraphicsAPI GetAPI() const { return m_API; }
+
         const Window* GetWindow() const { return m_Window; }
 
         const Ref<CommandBuffer>& GetCommandBuffer() const { return m_CommandBuffers[m_FrameNumber % FRAMES]; }
@@ -57,13 +58,13 @@ namespace Elixir
         // virtual Ref<Texture2D> GetCurrentSwapchainImage() const = 0;
         virtual Extent2D GetSwapchainExtent() const = 0;
 
-        static EGraphicsAPI GetGraphicsAPI() { return s_API; }
-
         static Scope<GraphicsContext> Create(EGraphicsAPI api, const Window* window);
 
       protected:
-        explicit GraphicsContext(const Window* window)
-            : m_Window(window), m_CommandBuffers(FRAMES) {}
+        explicit GraphicsContext(const EGraphicsAPI api, const Window* window)
+            : m_API(api), m_Window(window), m_CommandBuffers(FRAMES) {}
+
+        EGraphicsAPI m_API;
 
         const Window* m_Window;
 
@@ -71,7 +72,5 @@ namespace Elixir
         uint32_t m_FrameNumber = 0;
 
         bool m_VSyncEnabled = false;
-
-        static EGraphicsAPI s_API;
     };
 }

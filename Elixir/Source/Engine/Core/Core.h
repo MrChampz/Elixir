@@ -38,8 +38,8 @@
 
 #if defined(_MSC_VER)
     #define DEBUG_BREAK() __debugbreak();
-#elif defined(SIGTRAP)
-    #define DEBUG_BREAK() raise(SIGTRAP);
+#elif defined(__has_builtin) && __has_builtin(__builtin_debugtrap)
+    #define DEBUG_BREAK() __builtin_debugtrap();
 #else
     #define DEBUG_BREAK() raise(SIGABRT);
 #endif // _MSC_VER
@@ -48,6 +48,28 @@
 
 #define EE_BIND_EVENT_FN(fn) std::bind(&fn, this, std::placeholders::_1)
 #define EE_BIND_EVENT_FN_STATIC(fn) std::bind(&fn, std::placeholders::_1)
+
+#define GENERATE_ENUM_CLASS_OPERATORS(EnumClass)                                    \
+inline bool operator&(EnumClass lhs, EnumClass rhs)                                 \
+{                                                                                   \
+	auto lhsType = static_cast<std::underlying_type<EnumClass>::type>(lhs);         \
+	auto rhsType = static_cast<std::underlying_type<EnumClass>::type>(rhs);         \
+	return (lhsType & rhsType) == rhsType;                                          \
+}                                                                                   \
+                                                                                    \
+inline EnumClass operator|(EnumClass lhs, EnumClass rhs)							\
+{																					\
+	return static_cast<EnumClass>(													\
+		static_cast<std::underlying_type<EnumClass>::type>(lhs) |					\
+		static_cast<std::underlying_type<EnumClass>::type>(rhs)						\
+	);																				\
+}																					\
+                                                                                    \
+inline EnumClass operator|=(EnumClass lhs, EnumClass rhs)							\
+{																					\
+	auto enumClass = lhs | rhs;																\
+	return enumClass;																		\
+}																					\
 
 namespace Elixir
 {

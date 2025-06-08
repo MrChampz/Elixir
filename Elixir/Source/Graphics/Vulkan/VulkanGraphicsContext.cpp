@@ -3,7 +3,12 @@
 
 #include "Converters.h"
 #include "Utils.h"
-#include "VkBootstrap.h"
+
+#include <VkBootstrap.h>
+#include <vulkan/vulkan.h>
+
+#define VMA_IMPLEMENTATION
+#include <vk_mem_alloc.h>
 
 #include "GLFW/glfw3.h"
 
@@ -12,28 +17,42 @@ namespace Elixir
     using namespace Vulkan;
     using namespace Vulkan::Converters;
 
+    template <typename T>
+    void LogError(vkb::Result<T> result, std::string preMessage = "")
+    {
+        if (!result)
+        {
+            const auto message = preMessage + result.error().message();
+            EE_CORE_FATAL(message)
+        }
+    }
+
+    /* SDescriptorAllocator */
+
     void SDescriptorAllocator::InitPool(
         const VkDevice device,
         const uint32_t maxSets,
-        std::span<PoolSizeRatio> ratios
+        std::span<SPoolSizeRatio> ratios
     )
     {
         EE_PROFILE_ZONE_SCOPED()
 
-        std::vector<VkDescriptorPoolSize> poolSizes(ratios.size());
+        std::vector<VkDescriptorPoolSize> poolSizes;
+        poolSizes.reserve(ratios.size());
+
         for (auto& [Type, Ratio] : ratios)
         {
             VkDescriptorPoolSize size;
             size.type = Type;
-            size.descriptorCount = static_cast<uint32_t>(Ratio * maxSets);
+            size.descriptorCount = (uint32_t)(Ratio * maxSets);
 
-            poolSizes.push_back(size);
+            poolSizes.emplace_back(size);
         }
 
         VkDescriptorPoolCreateInfo poolInfo = {};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         poolInfo.maxSets = maxSets;
-        poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+        poolInfo.poolSizeCount = (uint32_t)poolSizes.size();
         poolInfo.pPoolSizes = poolSizes.data();
 
         vkCreateDescriptorPool(device, &poolInfo, nullptr, &Pool);
@@ -71,8 +90,10 @@ namespace Elixir
         return set;
     }
 
-    VulkanGraphicsContext::VulkanGraphicsContext(const Window* window)
-        : GraphicsContext(window)
+    /* VulkanGraphicsContext */
+
+    VulkanGraphicsContext::VulkanGraphicsContext(const EGraphicsAPI api, const Window* window)
+        : GraphicsContext(api, window)
     {
         EE_PROFILE_ZONE_SCOPED()
         EE_CORE_ASSERT(window, "Invalid window!")
@@ -178,7 +199,7 @@ namespace Elixir
     void VulkanGraphicsContext::Resize(const Extent2D extent)
     {
         EE_PROFILE_ZONE_SCOPED()
-        m_WindowExtent = GetExtent2D(extent);
+        m_WindowExtent = extent;
         RecreateSwapchain();
     }
 
@@ -205,12 +226,7 @@ namespace Elixir
             .require_api_version(1, 3, 0)
             .build();
 
-        if (!instanceResult)
-        {
-            std::string error = "Vulkan instance creation failed: ";
-            error += instanceResult.error().message();
-            EE_CORE_FATAL(error)
-        }
+        LogError(instanceResult, "Vulkan instance creation failed: ");
 
         const vkb::Instance vkbInstance = instanceResult.value();
         m_Instance = vkbInstance.instance;
@@ -238,23 +254,21 @@ namespace Elixir
 		features12.descriptorIndexing = true;
 
         vkb::PhysicalDeviceSelector selector{ vkbInstance };
-		vkb::PhysicalDevice gpu = selector
+		auto physicalDeviceResult = selector
 			.set_minimum_version(1, 3)
 			.set_required_features_13(features13)
 			.set_required_features_12(features12)
 			.set_surface(m_Surface)
-			.select()
-			.value();
+			.select();
+
+        LogError(physicalDeviceResult, "Vulkan physical device selection failed: ");
+
+        vkb::PhysicalDevice gpu = physicalDeviceResult.value();
 
 		vkb::DeviceBuilder deviceBuilder{ gpu };
         auto deviceResult = deviceBuilder.build();
 
-        if (!deviceResult)
-        {
-            std::string error = "Vulkan device creation failed: ";
-            error += deviceResult.error().message();
-            EE_CORE_FATAL(error)
-        }
+        LogError(deviceResult, "Vulkan device creation failed: ");
 
 		vkb::Device vkbDevice = deviceResult.value();
 
@@ -262,36 +276,107 @@ namespace Elixir
 		m_GPU = gpu.physical_device;
 		m_GPUProperties = gpu.properties;
 
-		m_GraphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
-		m_GraphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
+		auto graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics);
+        LogError(graphicsQueue);
+        m_GraphicsQueue = graphicsQueue.value();
+
+        auto graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics);
+        LogError(graphicsQueueFamily);
+		m_GraphicsQueueFamily = graphicsQueueFamily.value();
     }
 
     void VulkanGraphicsContext::InitAllocator()
     {
         EE_PROFILE_ZONE_SCOPED()
+
+        VmaAllocatorCreateInfo info = {};
+        info.physicalDevice = m_GPU;
+        info.device = m_Device;
+        info.instance = m_Instance;
+        info.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+
+        vmaCreateAllocator(&info, &m_Allocator);
+
+        m_DeletionQueue.Push([&]()
+        {
+            vmaDestroyAllocator(m_Allocator);
+        });
     }
 
     void VulkanGraphicsContext::InitSwapchain()
     {
         EE_PROFILE_ZONE_SCOPED()
+        CreateSwapchain(m_WindowExtent);
     }
 
     void VulkanGraphicsContext::InitCommands()
     {
         EE_PROFILE_ZONE_SCOPED()
+
+        for (auto it = m_CommandBuffers.begin(); it != m_CommandBuffers.end(); ++it)
+        {
+            *it = CreateCommandBuffer();
+        }
     }
 
     void VulkanGraphicsContext::InitSyncStructures()
     {
         EE_PROFILE_ZONE_SCOPED()
+
+        VkFenceCreateInfo fenceInfo = {};
+        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fenceInfo.pNext = nullptr;
+        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+        VkSemaphoreCreateInfo semaphoreInfo = {};
+        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        semaphoreInfo.pNext = nullptr;
+
+        for (int i = 0; i < FRAMES; i++)
+        {
+            VK_CHECK_RESULT(
+                vkCreateFence(
+                    m_Device,
+                    &fenceInfo,
+                    nullptr,
+                    &m_Frames[i].RenderFence
+                )
+            );
+
+            VK_CHECK_RESULT(
+                vkCreateSemaphore(
+                    m_Device,
+                    &semaphoreInfo,
+                    nullptr,
+                    &m_Frames[i].SwapchainSemaphore
+                )
+            );
+
+            VK_CHECK_RESULT(
+                vkCreateSemaphore(
+                    m_Device,
+                    &semaphoreInfo,
+                    nullptr,
+                    &m_Frames[i].RenderSemaphore
+                )
+            );
+        }
     }
 
     void VulkanGraphicsContext::InitDescriptors()
     {
         EE_PROFILE_ZONE_SCOPED()
+
+        std::vector<SDescriptorAllocator::SPoolSizeRatio> sizes =
+        {
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0.5 },
+            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0.5 }
+        };
+
+        m_GlobalDescriptorAllocator.InitPool(m_Device, 10, sizes);
     }
 
-    void VulkanGraphicsContext::CreateSwapchain(uint32_t width, uint32_t height)
+    void VulkanGraphicsContext::CreateSwapchain(Extent2D extent)
     {
         EE_PROFILE_ZONE_SCOPED()
     }
@@ -304,5 +389,10 @@ namespace Elixir
     void VulkanGraphicsContext::RecreateSwapchain()
     {
         EE_PROFILE_ZONE_SCOPED()
+
+        WaitDeviceIdle();
+        DestroySwapchain();
+        CreateSwapchain(m_WindowExtent);
+        m_SwapchainRecreateRequested = false;
     }
 }

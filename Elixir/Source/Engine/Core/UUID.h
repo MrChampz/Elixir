@@ -38,3 +38,15 @@ namespace Elixir
         static uuids::uuid_random_generator s_Generator;
     };
 }
+
+/**
+ * Formatter for seamless UUID output in the logging system.
+ */
+template <>
+struct std::formatter<Elixir::UUID> : std::formatter<std::string>
+{
+    auto format(const Elixir::UUID& uuid, std::format_context& ctx) const
+    {
+        return std::formatter<std::string>::format(uuid.ToString(), ctx);
+    }
+};

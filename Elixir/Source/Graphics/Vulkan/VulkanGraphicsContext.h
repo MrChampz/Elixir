@@ -12,7 +12,7 @@ namespace Elixir::Vulkan
 
     struct SDescriptorAllocator
     {
-        struct PoolSizeRatio
+        struct SPoolSizeRatio
         {
             VkDescriptorType Type;
             float Ratio;
@@ -20,7 +20,7 @@ namespace Elixir::Vulkan
 
         VkDescriptorPool Pool;
 
-        void InitPool(VkDevice device, uint32_t maxSets, std::span<PoolSizeRatio> ratios);
+        void InitPool(VkDevice device, uint32_t maxSets, std::span<SPoolSizeRatio> ratios);
         void Reset(VkDevice device) const;
         void DestroyPool(VkDevice device) const;
 
@@ -57,10 +57,10 @@ namespace Elixir::Vulkan
         SDeletionQueue DeletionQueue;
     };
 
-    class ELIXIR_API VulkanGraphicsContext : public GraphicsContext
+    class ELIXIR_API VulkanGraphicsContext final : public GraphicsContext
     {
       public:
-        explicit VulkanGraphicsContext(const Window* window);
+        explicit VulkanGraphicsContext(const EGraphicsAPI api, const Window* window);
         ~VulkanGraphicsContext() override;
 
         void Init() override;
@@ -102,7 +102,7 @@ namespace Elixir::Vulkan
         void InitSyncStructures();
         void InitDescriptors();
 
-        void CreateSwapchain(uint32_t width, uint32_t height);
+        void CreateSwapchain(Extent2D extent);
         void DestroySwapchain();
         void RecreateSwapchain();
 
@@ -114,7 +114,7 @@ namespace Elixir::Vulkan
         bool m_UseValidationLayers = false;
 #endif
 
-        VkExtent2D m_WindowExtent;
+        Extent2D m_WindowExtent;
 
         VkInstance m_Instance;
         VkDebugUtilsMessengerEXT m_DebugMessenger;
@@ -132,6 +132,9 @@ namespace Elixir::Vulkan
 
         VkQueue m_GraphicsQueue;
         uint32_t m_GraphicsQueueFamily;
+
+        VkQueue m_TransferQueue;
+        uint32_t m_TransferQueueFamily;
 
         VmaAllocator m_Allocator;
         SDescriptorAllocator m_GlobalDescriptorAllocator;
