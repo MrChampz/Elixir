@@ -1,61 +1,12 @@
 project("Elixir")
 
 # Files
+file(GLOB_RECURSE SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/Source/*.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Source/*.cpp"
+)
 add_library(${PROJECT_NAME} SHARED
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Core/Core.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Core/Color.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Core/UUID.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Core/UUID.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Core/Timer.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Core/FrameProfiler.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Core/Window.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Core/Executor.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Core/Executor.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Input/Input.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Input/InputManager.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Input/InputManager.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Input/InputCodes.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Core/Application.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Core/Application.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Core/Entrypoint.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Event/Event.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Event/KeyEvent.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Event/MouseEvent.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Event/WindowEvent.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Event/ApplicationEvent.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Event/EventFormatter.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Logging/Log.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Logging/Log.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Logging/Formatters.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Instrumentation/Profiler.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/GraphicsContext.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/GraphicsContext.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/CommandBuffer.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/CommandBuffer.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/Image.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/Image.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/Texture.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/Texture.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/TextureLoader.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/TextureLoader.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/Converters.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Engine/Graphics/Utils.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/VulkanGraphicsContext.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/VulkanGraphicsContext.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/VulkanCommandBuffer.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/VulkanCommandBuffer.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/VulkanImage.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/VulkanImage.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/VulkanTexture.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/VulkanTexture.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/Initializers.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/Converters.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Graphics/Vulkan/Utils.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Platform/GLFW/GLFWWindow.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Platform/GLFW/GLFWWindow.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Platform/GLFW/GLFWInput.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Platform/GLFW/GLFWInput.cpp
+    ${SOURCES}
     ${CMAKE_CURRENT_LIST_DIR}/Vendor/stb/stb_image.h
     ${CMAKE_CURRENT_LIST_DIR}/Vendor/stb/stb_image.cpp
 )
@@ -70,59 +21,63 @@ set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${PROJECT_NAME}")
 
 # Properties
 
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    CXX_STANDARD 20
-    CXX_STANDARD_REQUIRED YES
-    CXX_EXTENSIONS NO
-    POSITION_INDEPENDENT_CODE True
-    INTERPROCEDURAL_OPTIMIZATION False
-    LINKER_LANGUAGE CXX
-    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
-)
-
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR}/${PROJECT_NAME}"
-    LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}/${PROJECT_NAME}"
-    RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}/${PROJECT_NAME}"
-)
-
-# Compile definitions
-
-target_compile_definitions(${PROJECT_NAME} PRIVATE
-    GLFW_INCLUDE_NONE
-    $<$<CONFIG:Debug>:EE_DEBUG>
-    $<$<CONFIG:Release>:EE_RELEASE>
-    $<$<CONFIG:Dist>:EE_DIST>
-)
-
-# Profiling compile definitions
-if (ELIXIR_PROFILE)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE
-        TRACY_ENABLE
-        TRACY_FIBERS
-        EE_PROFILE
-    )
-endif()
-
-# Platform-specific compile definitions
-if (WIN32)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE
-        _CRT_SECURE_NO_WARNINGS
-        EE_PLATFORM_WINDOWS
-        EE_BUILD_DLL
-        GLFW_EXPOSE_NATIVE_WIN32
-        VK_USE_PLATFORM_WIN32_KHR
+function(apply_properties_and_definitions target)
+    set_target_properties(${target} PROPERTIES
+        CXX_STANDARD 20
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO
+        POSITION_INDEPENDENT_CODE True
+        INTERPROCEDURAL_OPTIMIZATION False
+        LINKER_LANGUAGE CXX
+        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
     )
 
-    if (MSVC)
-        target_compile_options(${PROJECT_NAME} PRIVATE "/Zc:preprocessor")
+    set_target_properties(${target} PROPERTIES
+        ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR}/${target}"
+        LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}/${target}"
+        RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}/${target}"
+    )
+
+    # Compile definitions
+
+    target_compile_definitions(${target} PRIVATE
+        GLFW_INCLUDE_NONE
+        $<$<CONFIG:Debug>:EE_DEBUG>
+        $<$<CONFIG:Release>:EE_RELEASE>
+        $<$<CONFIG:Dist>:EE_DIST>
+    )
+
+    # Profiling compile definitions
+    if (ELIXIR_PROFILE)
+        target_compile_definitions(${target} PRIVATE
+            TRACY_ENABLE
+            TRACY_FIBERS
+            EE_PROFILE
+        )
     endif()
-elseif (APPLE)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE
-        EE_PLATFORM_MACOS
-        GLFW_EXPOSE_NATIVE_COCOA
-    )
-endif()
+
+    # Platform-specific compile definitions
+    if (WIN32)
+        target_compile_definitions(${target} PRIVATE
+            _CRT_SECURE_NO_WARNINGS
+            EE_PLATFORM_WINDOWS
+            EE_BUILD_DLL
+            GLFW_EXPOSE_NATIVE_WIN32
+            VK_USE_PLATFORM_WIN32_KHR
+        )
+
+        if (MSVC)
+            target_compile_options(${target} PRIVATE "/Zc:preprocessor")
+        endif()
+    elseif (APPLE)
+        target_compile_definitions(${target} PRIVATE
+            EE_PLATFORM_MACOS
+            GLFW_EXPOSE_NATIVE_COCOA
+        )
+    endif()
+endfunction()
+
+apply_properties_and_definitions(${PROJECT_NAME})
 
 # Dependencies
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/magic_enum)
@@ -194,3 +149,6 @@ target_link_libraries(${PROJECT_NAME}
 if (ELIXIR_PROFILE)
     target_link_libraries(${PROJECT_NAME} Tracy::TracyClient)
 endif()
+
+# Testing
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Tests)

@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.30)
 project(Elixir)
+include(FetchContent)
+include(CTest)
 
 # Options
 option(ELIXIR_PROFILE "Enable/disable profiling" OFF)
@@ -21,6 +23,7 @@ set(BUILD_TYPE "${CMAKE_BUILD_TYPE}")
 
 # Configurations
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 # Configurations - Debug
 if(BUILD_TYPE STREQUAL "Debug")
@@ -42,6 +45,19 @@ set(CMAKE_SHARED_LINKER_FLAGS_DIST "${CMAKE_SHARED_LINKER_FLAGS_RELEASE}" CACHE 
 
 # Output dir based on build config and arch
 set(OUTPUT_DIR "${CMAKE_BINARY_DIR}/Build/${BUILD_TYPE}/${SYSTEM}/${ARCH}")
+
+# Fetch testing library
+FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG v1.17.0
+)
+
+if (BUILD_TESTING)
+    # For Windows: Prevent overriding the parent project's compiler/linker settings
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
+endif()
 
 include(Elixir/Elixir.cmake)
 include(Dissolve/Dissolve.cmake)

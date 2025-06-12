@@ -1,10 +1,8 @@
 #pragma once
 
 #include <Engine/Event/Event.h>
-#include <Engine/Event/EventFormatter.h>
 
 #include <spdlog/spdlog.h>
-#include <spdlog/fmt/ostr.h>
 
 namespace Elixir
 {

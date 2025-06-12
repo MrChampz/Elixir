@@ -21,6 +21,8 @@
 
 #include <Engine/Core/UUID.h>
 #include <Engine/Core/Types.h>
+#include <Engine/Core/Memory.h>
+#include <Engine/Event/EventFormatter.h>
 #include <Engine/Logging/Log.h>
 #include <Engine/Logging/Formatters.h>
 #include <Engine/Instrumentation/Profiler.h>
