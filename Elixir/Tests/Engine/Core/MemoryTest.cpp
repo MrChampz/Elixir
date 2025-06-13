@@ -1,17 +1,18 @@
-#include "MockMalloc.h"
-
 #include <gtest/gtest.h>
 using namespace testing;
 
 #include <Engine/Core/Memory.h>
 using namespace Elixir;
 
+#include "MockMalloc.h"
+
 class MemoryTest : public Test
 {
   protected:
     void SetUp() override
     {
-        Memory::s_Malloc = Scope<Malloc>(&MockedMalloc);
+        MockedMalloc = new MockMalloc();
+        Memory::s_Malloc = Scope<Malloc>(MockedMalloc);
     }
 
     void TearDown() override
@@ -19,12 +20,12 @@ class MemoryTest : public Test
         Memory::s_Malloc.reset();
     }
 
-    MockMalloc MockedMalloc;
+    MockMalloc* MockedMalloc = nullptr;
 };
 
 TEST_F(MemoryTest, AllocDelegatesToMalloc)
 {
-    EXPECT_CALL(MockedMalloc, Alloc(128, 16))
+    EXPECT_CALL(*MockedMalloc, Alloc(128, 16))
         .Times(1)
         .WillOnce(Return(std::make_tuple(nullptr, 128)));
 
@@ -34,7 +35,7 @@ TEST_F(MemoryTest, AllocDelegatesToMalloc)
 
 TEST_F(MemoryTest, AllocZeroedDelegatesToMalloc)
 {
-    EXPECT_CALL(MockedMalloc, AllocZeroed(128, 16))
+    EXPECT_CALL(*MockedMalloc, AllocZeroed(128, 16))
         .Times(1)
         .WillOnce(Return(std::make_tuple(nullptr, 128)));
 
@@ -44,7 +45,7 @@ TEST_F(MemoryTest, AllocZeroedDelegatesToMalloc)
 
 TEST_F(MemoryTest, ReallocDelegatesToMalloc)
 {
-    EXPECT_CALL(MockedMalloc, Realloc(nullptr, 128, 16))
+    EXPECT_CALL(*MockedMalloc, Realloc(nullptr, 128, 16))
         .Times(1)
         .WillOnce(Return(std::make_tuple(nullptr, 128)));
 
@@ -54,7 +55,7 @@ TEST_F(MemoryTest, ReallocDelegatesToMalloc)
 
 TEST_F(MemoryTest, FreeDelegatesToMalloc)
 {
-    EXPECT_CALL(MockedMalloc, Free(nullptr))
+    EXPECT_CALL(*MockedMalloc, Free(nullptr))
         .Times(1)
         .WillOnce(Return());
 
