@@ -14,19 +14,19 @@ namespace Elixir::Graphics::Utils
     {
         switch (type)
         {
-          case EDataType::Bool:		    return 1;
-		  case EDataType::Float:		return 4;
-		  case EDataType::Vec2:	        return 8;
-		  case EDataType::Vec3:	        return 12;
-		  case EDataType::Vec4:	        return 16;
-		  case EDataType::Int:		    return 4;
-		  case EDataType::IntVec2:		return 8;
-		  case EDataType::IntVec3:		return 12;
-		  case EDataType::IntVec4:		return 16;
-		  case EDataType::Mat3:		    return 36;
-		  case EDataType::Mat4:		    return 64;
-          default:
-            EE_CORE_ASSERT(false, "Unknown DataType!")
+            case EDataType::Bool:		    return 1;
+            case EDataType::Float:		    return 4;
+            case EDataType::Vec2:	        return 8;
+            case EDataType::Vec3:	        return 12;
+            case EDataType::Vec4:	        return 16;
+            case EDataType::Int:		    return 4;
+            case EDataType::IntVec2:		return 8;
+            case EDataType::IntVec3:		return 12;
+            case EDataType::IntVec4:		return 16;
+            case EDataType::Mat3:		    return 36;
+            case EDataType::Mat4:		    return 64;
+            default:
+                EE_CORE_ASSERT(false, "Unknown DataType!")
         }
 
         return 0;
@@ -36,19 +36,19 @@ namespace Elixir::Graphics::Utils
     {
         switch (type)
         {
-          case EDataType::Bool:		    return 1;
-		  case EDataType::Float:		return 1;
-		  case EDataType::Vec2:	        return 2;
-		  case EDataType::Vec3:	        return 3;
-		  case EDataType::Vec4:	        return 4;
-		  case EDataType::Int:		    return 1;
-		  case EDataType::IntVec2:		return 2;
-		  case EDataType::IntVec3:		return 3;
-		  case EDataType::IntVec4:		return 4;
-		  case EDataType::Mat3:		    return 9;
-		  case EDataType::Mat4:		    return 16;
-          default:
-            EE_CORE_ASSERT(false, "Unknown DataType!")
+            case EDataType::Bool:		    return 1;
+            case EDataType::Float:		    return 1;
+            case EDataType::Vec2:	        return 2;
+            case EDataType::Vec3:	        return 3;
+            case EDataType::Vec4:	        return 4;
+            case EDataType::Int:		    return 1;
+            case EDataType::IntVec2:		return 2;
+            case EDataType::IntVec3:		return 3;
+            case EDataType::IntVec4:		return 4;
+            case EDataType::Mat3:		    return 9;
+            case EDataType::Mat4:		    return 16;
+            default:
+                EE_CORE_ASSERT(false, "Unknown DataType!")
         }
 
         return 0;

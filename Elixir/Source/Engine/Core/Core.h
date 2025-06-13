@@ -22,15 +22,15 @@
     #define EE_ASSERT(x, message, ...)                                                      \
         if (!(x))                                                                           \
         {                                                                                   \
-            EE_ERROR(assertion, ##__VA_ARGS__)                                              \
+            EE_ERROR(message, ##__VA_ARGS__)                                                \
             DEBUG_BREAK()                                                                   \
         }
-    #define EE_CORE_ASSERT(x, message, ...)                                                 \
-        if (!(x))                                                                           \
-        {                                                                                   \
-            EE_CORE_ERROR(message, ##__VA_ARGS__)                                           \
-            DEBUG_BREAK()                                                                   \
-        }
+#define EE_CORE_ASSERT(x, message, ...)                                                 \
+if (!(x))                                                                           \
+{                                                                                   \
+    EE_CORE_ERROR(message, ##__VA_ARGS__)                                           \
+    DEBUG_BREAK()                                                                   \
+}
 #else
     #define EE_ASSERT(x, message, ...)
     #define EE_CORE_ASSERT(x, message, ...)
