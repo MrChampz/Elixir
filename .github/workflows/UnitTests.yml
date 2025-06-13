@@ -51,7 +51,7 @@ jobs:
           vulkan-use-cache: true
 
       - name: Install missing deps for Linux env
-        run: sudo apt-get install libxkbcommon-x11-dev libxinerama-dev
+        run: sudo apt-get install libxkbcommon-x11-dev libxinerama-dev libxcursor-dev
         if: matrix.os == 'ubuntu-latest'
 
       - name: Set up CMake
