@@ -35,9 +35,8 @@
 #endif
 
 #ifdef EE_PLATFORM_WINDOWS
-    #ifndef NOMINMAX
-        # define NOMINMAX
-    #endif
-
+    #define NO_RPC
+    #define NOMINMAX
+    #define WIN32_LEAN_AND_MEAN
     #include <windows.h>
 #endif
