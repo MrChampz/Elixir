@@ -27,6 +27,7 @@ namespace Elixir::Graphics::Utils
             case EDataType::Mat4:		    return 64;
             default:
                 EE_CORE_ASSERT(false, "Unknown DataType!")
+                break;
         }
 
         return 0;
