@@ -50,6 +50,10 @@ jobs:
           vulkan-components: Vulkan-Headers, Vulkan-Loader
           vulkan-use-cache: true
 
+      - name: Install missing deps for Linux env
+        run: sudo apt-get install libxkbcommon-x11-dev
+        if: matrix.os == 'ubuntu-latest'
+
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v1
 
