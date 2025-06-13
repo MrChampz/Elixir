@@ -26,10 +26,8 @@
             DEBUG_BREAK()                                                                   \
         }
     #define EE_CORE_ASSERT(x, message, ...)                                                 \
-        {                                                                                   \
             EE_CORE_ERROR(message, ##__VA_ARGS__)                                           \
-            DEBUG_BREAK()                                                                   \
-        }
+            DEBUG_BREAK()
 #else
     #define EE_ASSERT(x, message, ...)
     #define EE_CORE_ASSERT(x, message, ...)
