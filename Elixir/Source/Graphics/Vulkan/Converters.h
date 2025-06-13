@@ -176,6 +176,7 @@ namespace Elixir::Vulkan::Converters
                 return VK_FORMAT_UNDEFINED;
             default:
                 EE_CORE_ASSERT(false, "Unknown ImageFormat!")
+                break;
         }
 
         return VK_FORMAT_UNDEFINED;
@@ -215,6 +216,7 @@ namespace Elixir::Vulkan::Converters
 				return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
             default:
                 EE_CORE_ASSERT(false, "Unknown ImageLayout!")
+                break;
         }
 
         return VK_IMAGE_LAYOUT_UNDEFINED;
@@ -232,6 +234,7 @@ namespace Elixir::Vulkan::Converters
 			return VK_IMAGE_TYPE_3D;
 		default:
 			EE_CORE_ASSERT(false, "Unknown ImageType!")
+		    break;
 		}
 
         return VK_IMAGE_TYPE_MAX_ENUM;
@@ -310,6 +313,7 @@ namespace Elixir::Vulkan::Converters
 			return VK_IMAGE_VIEW_TYPE_3D;
 		default:
 		    EE_CORE_ASSERT(false, "Unknown ImageViewType!")
+		    break;
 		}
 
         return VK_IMAGE_VIEW_TYPE_MAX_ENUM;
