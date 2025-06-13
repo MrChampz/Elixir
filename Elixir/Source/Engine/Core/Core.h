@@ -28,7 +28,7 @@
     #define EE_CORE_ASSERT(x, message, ...)                                                 \
         if (!(x))                                                                           \
         {                                                                                   \
-        }
+        }                                                                                   \
 #else
     #define EE_ASSERT(x, message, ...)
     #define EE_CORE_ASSERT(x, message, ...)
