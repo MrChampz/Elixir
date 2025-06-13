@@ -50,9 +50,15 @@ jobs:
           vulkan-components: Vulkan-Headers, Vulkan-Loader
           vulkan-use-cache: true
 
-      - name: Install missing deps for Linux env
-        run: sudo apt-get install libxkbcommon-x11-dev libxinerama-dev libxcursor-dev
+      - name: Install missing deps (Linux)
+        run: sudo apt-get install libxkbcommon-x11-dev libxinerama-dev libxcursor-dev libxi-dev
         if: matrix.os == 'ubuntu-latest'
+
+      - name: Install Clang (Apple)
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "19.1.7"
+        if: matrix.os == 'macos-latest' && matrix.compiler == 'clang'
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v1
