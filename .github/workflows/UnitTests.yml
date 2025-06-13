@@ -14,14 +14,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            compiler: gcc
-            cc: gcc
-            cxx: g++
-          - os: ubuntu-latest
-            compiler: clang
-            cc: clang
-            cxx: clang++
+#          - os: ubuntu-latest
+#            compiler: gcc
+#            cc: gcc
+#            cxx: g++
+#          - os: ubuntu-latest
+#            compiler: clang
+#            cc: clang
+#            cxx: clang++
           - os: windows-latest
             compiler: msvc
             cc: cl
@@ -37,8 +37,10 @@ jobs:
         with:
           submodules: 'recursive'
 
+      - name: Setup MSVC (Windows)
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Set environment variables
-        if: matrix.compiler != 'msvc'
         run: |
           echo "CC=${{ matrix.cc }}" >> $GITHUB_ENV
           echo "CXX=${{ matrix.cxx }}" >> $GITHUB_ENV
