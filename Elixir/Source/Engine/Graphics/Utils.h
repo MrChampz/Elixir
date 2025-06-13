@@ -50,6 +50,7 @@ namespace Elixir::Graphics::Utils
             case EDataType::Mat4:		    return 16;
             default:
                 EE_CORE_ASSERT(false, "Unknown DataType!")
+                break;
         }
 
         return 0;
@@ -144,6 +145,7 @@ namespace Elixir::Graphics::Utils
                 return 16 * 8;
             default:
                 EE_CORE_ASSERT(false, "Unknown ImageFormat!")
+                break;
         }
 
         return 0;
@@ -219,6 +221,7 @@ namespace Elixir::Graphics::Utils
                 return glm::vec3{4, 4, 1};
             default:
                 EE_CORE_ASSERT(false, "Unknown ImageFormat!")
+                break;
         }
 
         return glm::vec3{};
