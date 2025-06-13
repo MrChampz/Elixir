@@ -61,14 +61,9 @@ function(apply_properties_and_definitions target)
         target_compile_definitions(${target} PRIVATE
             _CRT_SECURE_NO_WARNINGS
             EE_PLATFORM_WINDOWS
-            EE_BUILD_DLL
             GLFW_EXPOSE_NATIVE_WIN32
             VK_USE_PLATFORM_WIN32_KHR
         )
-
-        if (MSVC)
-            target_compile_options(${target} PRIVATE "/Zc:preprocessor")
-        endif()
     elseif (APPLE)
         target_compile_definitions(${target} PRIVATE
             EE_PLATFORM_MACOS
@@ -78,6 +73,12 @@ function(apply_properties_and_definitions target)
 endfunction()
 
 apply_properties_and_definitions(${PROJECT_NAME})
+
+if (WIN32)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        EE_BUILD_DLL
+    )
+endif()
 
 # Dependencies
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/magic_enum)

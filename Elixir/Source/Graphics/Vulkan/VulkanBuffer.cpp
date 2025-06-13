@@ -30,7 +30,7 @@ namespace Elixir
         const size_t size,
         const VkBufferUsageFlags usage,
         const VmaMemoryUsage memoryUsage
-    ) : GraphicsBuffer(context, size), m_Buffer(nullptr), m_Allocation(nullptr),
+    ) : GraphicsBuffer(context, size), m_Buffer(VK_NULL_HANDLE), m_Allocation(nullptr),
         m_Destroyed(false)
     {
         VulkanBaseBuffer::Init(usage, memoryUsage);

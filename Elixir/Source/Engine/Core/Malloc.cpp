@@ -33,7 +33,7 @@ namespace Elixir
 
     size_t Malloc::AlignSize(const size_t size, const uint32_t alignment)
     {
-        return (size + (alignment - 1)) & ~(alignment - 1);
+        return (size + (alignment - 1)) & ~((size_t)alignment - 1);
     }
 
     /* SystemMalloc */
@@ -77,19 +77,22 @@ namespace Elixir
             return Alloc(newSize, alignment);
         }
 
-        if (alignment <= Memory::MaxAlignment)
+        const uint32_t memoryAlignment = GetAlignment(newSize, alignment);
+        const size_t alignedSize = AlignSize(newSize, memoryAlignment);
+
+        if (memoryAlignment <= Memory::MaxAlignment)
         {
-            void* newPtr = realloc(ptr, newSize);
+            void* newPtr = realloc(ptr, alignedSize);
             EE_CORE_ASSERT(newPtr != NULL, "Memory re-allocation failed!")
-            return { newPtr, newSize };
+            return { newPtr, alignedSize };
         }
 
 #if defined(_MSC_VER)
-        void* newPtr = _aligned_realloc(ptr, newSize, alignment);
+        void* newPtr = _aligned_realloc(ptr, alignedSize, memoryAlignment);
         EE_CORE_ASSERT(newPtr != NULL, "Memory re-allocation failed!")
-        return { newPtr, newSize };
-#endif
-        auto [newPtr, allocatedSize] = Alloc(newSize, alignment);
+        return { newPtr, alignedSize };
+#else
+        auto [newPtr, allocatedSize] = Alloc(alignedSize, memoryAlignment);
         EE_CORE_ASSERT(newPtr != NULL, "Memory re-allocation failed!")
 
         size_t usableSize = allocatedSize;
@@ -99,10 +102,11 @@ namespace Elixir
         usableSize = malloc_usable_size(ptr);
 #endif
 
-        Memory::Memcpy(newPtr, ptr, std::min(newSize, usableSize));
+        Memory::Memcpy(newPtr, ptr, std::min(allocatedSize, usableSize));
         free(ptr);
 
         return { newPtr, allocatedSize };
+#endif
     }
 
     void SystemMalloc::Free(void* ptr)

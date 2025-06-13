@@ -25,6 +25,12 @@ set(BUILD_TYPE "${CMAKE_BUILD_TYPE}")
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
+# Enable modern MSVC linker features
+if (MSVC)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /Zc:preprocessor")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:preprocessor")
+endif()
+
 # Configurations - Debug
 if(BUILD_TYPE STREQUAL "Debug")
     set(ELIXIR_PROFILE ON)
