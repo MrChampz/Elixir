@@ -1,6 +1,18 @@
-function (copy_runtime_dlls_for_targets engine_target)
-    get_property(all_targets GLOBAL PROPERTY TARGETS)
-    foreach(target IN LISTS all_targets)
+function (link_target_to_engine target)
+    target_link_libraries(${target} PRIVATE Elixir)
+
+    get_property(dependents GLOBAL PROPERTY "ELIXIR_DEPENDENTS" SET)
+    if (NOT dependents)
+        set_property(GLOBAL PROPERTY "ELIXIR_DEPENDENTS" "")
+    endif()
+
+    get_property(dependents GLOBAL PROPERTY "ELIXIR_DEPENDENTS")
+    list(APPEND dependents ${target})
+    set_property(GLOBAL PROPERTY "ELIXIR_DEPENDENTS" "${dependents}")
+endfunction()
+
+function (copy_runtime_dlls_for_targets)
+    foreach(target IN LISTS ELIXIR_DEPENDENTS)
         get_target_property(target_type "${target}" TYPE)
         if (target_type STREQUAL "EXECUTABLE")
             message(STATUS "Adding post-build DLL copy for target: ${target}")
@@ -19,7 +31,7 @@ function (copy_runtime_dlls_for_targets engine_target)
             add_custom_target("${target}_copy_dlls" DEPENDS
                 "${CMAKE_CURRENT_BINARY_DIR}/${target}_copy_runtime_dlls.stamp"
             )
-            add_dependencies("${target}_copy_dlls" "${engine_target}")
+            add_dependencies("${target}_copy_dlls" "Elixir")
             add_dependencies(${target} "${target}_copy_dlls")
         endif()
     endforeach()

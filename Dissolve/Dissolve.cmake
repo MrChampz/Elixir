@@ -59,4 +59,5 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 add_dependencies(${PROJECT_NAME}
     Elixir
 )
-target_link_libraries(${PROJECT_NAME} PRIVATE Elixir)
+
+link_target_to_engine(${PROJECT_NAME})
