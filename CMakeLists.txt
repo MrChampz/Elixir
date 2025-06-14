@@ -70,5 +70,8 @@ include(Dissolve/Dissolve.cmake)
 
 # Copy Engine .DLL to all targets that depends on it, if needed
 if (WIN32)
+    message(NOTICE "Win32 Build")
+    get_property(all_targets GLOBAL PROPERTY TARGETS)
+    message(NOTICE "Targets: ${all_targets}")
     copy_runtime_dlls_for_targets("Elixir")
 endif()
