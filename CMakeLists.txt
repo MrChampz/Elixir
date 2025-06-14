@@ -65,5 +65,5 @@ if (BUILD_TESTING)
     FetchContent_MakeAvailable(googletest)
 endif()
 
-include(Elixir/Elixir.cmake)
 include(Dissolve/Dissolve.cmake)
+include(Elixir/Elixir.cmake) # <- Make sure this is the last item!

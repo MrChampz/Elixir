@@ -1,3 +1,5 @@
+include (Utils.cmake)
+
 project("Dissolve")
 
 # Files
@@ -58,6 +60,4 @@ add_dependencies(${PROJECT_NAME}
     Elixir
 )
 
-target_link_libraries(${PROJECT_NAME}
-    Elixir
-)
+link_target_to_engine(${PROJECT_NAME})
