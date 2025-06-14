@@ -65,36 +65,10 @@ if (BUILD_TESTING)
     FetchContent_MakeAvailable(googletest)
 endif()
 
-include(Elixir/Elixir.cmake) # <- Make sure this is the last item!
+include(Elixir/Elixir.cmake)
 include(Dissolve/Dissolve.cmake)
 
 # Copy Engine .DLL to all targets that depends on it, if needed
-add_custom_command(
-    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/Dissolve_copy_runtime_dlls.stamp"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            $<TARGET_RUNTIME_DLLS:Dissolve>
-            "$<TARGET_FILE_DIR:Dissolve>"
-    COMMAND "${CMAKE_COMMAND}" -E touch "${CMAKE_CURRENT_BINARY_DIR}/Dissolve_copy_runtime_dlls.stamp"
-    COMMAND_EXPAND_LISTS
-    COMMENT "Copying runtime DLLs for Dissolve to its output directory..."
-    VERBATIM
-)
-
-add_custom_target("Dissolve_copy_dlls" DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/Dissolve_copy_runtime_dlls.stamp")
-add_dependencies("Dissolve_copy_dlls" Elixir)
-add_dependencies(Dissolve "Dissolve_copy_dlls")
-
-add_custom_command(
-    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/Elixir.UnitTests_copy_runtime_dlls.stamp"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            $<TARGET_RUNTIME_DLLS:Elixir.UnitTests>
-            "$<TARGET_FILE_DIR:Elixir.UnitTests>"
-    COMMAND "${CMAKE_COMMAND}" -E touch "${CMAKE_CURRENT_BINARY_DIR}/Elixir.UnitTests_copy_runtime_dlls.stamp"
-    COMMAND_EXPAND_LISTS
-    COMMENT "Copying runtime DLLs for Elixir.UnitTests to its output directory..."
-    VERBATIM
-)
-
-add_custom_target("Elixir.UnitTests_copy_dlls" DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/Elixir.UnitTests_copy_runtime_dlls.stamp")
-add_dependencies("Elixir.UnitTests_copy_dlls" Elixir)
-add_dependencies(Elixir.UnitTests "Elixir.UnitTests_copy_dlls")
+if (WIN32)
+    copy_runtime_dlls_for_targets("Elixir")
+endif()
