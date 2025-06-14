@@ -153,19 +153,3 @@ endif()
 
 # Testing
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Tests)
-
-# Copy Engine .DLL to all targets that depends on it, if needed
-foreach(target IN LISTS ELIXIR_DEPENDENTS)
-    add_custom_command(
-        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${target}_copy_runtime_dlls"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-        $<TARGET_RUNTIME_DLLS:${target}>
-        "$<TARGET_FILE_DIR:${target}>"
-        COMMAND_EXPAND_LISTS
-        COMMENT "Copying runtime DLLs for ${target} to output directory..."
-        VERBATIM
-    )
-
-    add_custom_target("${target}_copy_dlls" DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${target}_copy_runtime_dlls")
-    add_dependencies(${target} "${target}_copy_dlls")
-endforeach()
