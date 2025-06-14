@@ -156,10 +156,15 @@ add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Tests)
 
 # Copy Engine .DLL to all targets that depends on it, if needed
 foreach(target IN LISTS ELIXIR_DEPENDENTS)
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:${PROJECT_NAME}>"
-            "$<TARGET_FILE_DIR:${target}>"
-        COMMENT "Copying ${PROJECT_NAME} DLL to ${target} output directory..."
-    )
+    if (WIN32)
+        add_custom_command (
+            TARGET "${target}" POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E copy -t
+                "$<TARGET_FILE_DIR:${target}>"
+                "$<TARGET_RUNTIME_DLLS:${target}>"
+            USES_TERMINAL COMMAND_EXPAND_LISTS
+            COMMENT "Copying runtime DLLs to ${target} output directory..."
+            VERBATIM
+        )
+    endif()
 endforeach()
