@@ -57,9 +57,6 @@ jobs:
           echo "DYLD_LIBRARY_PATH=$VULKAN_SDK/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
         if: matrix.os == 'macos-latest'
 
-      - name: Test Vulkan
-        run: vkcube
-
       - name: Install missing deps (Linux)
         run: sudo apt-get install libxkbcommon-x11-dev libxinerama-dev libxcursor-dev libxi-dev
         if: matrix.os == 'ubuntu-latest'
