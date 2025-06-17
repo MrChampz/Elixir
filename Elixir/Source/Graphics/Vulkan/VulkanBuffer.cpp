@@ -101,16 +101,16 @@ namespace Elixir::Vulkan
         const auto bufferInfo = Initializers::BufferCreateInfo(info);
         const auto allocInfo = Initializers::AllocationCreateInfo(info.AllocationInfo);
         
-  //       VkBufferCreateInfo bufferInfo = {};
+        VkBufferCreateInfo bufferInfo2 = {};
 		// bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		// bufferInfo.pNext = nullptr;
 		// bufferInfo.size = info.Buffer.Size;
-		// bufferInfo.usage = VERTEX_BUFFER_USAGE;
+		bufferInfo2.usage = VERTEX_BUFFER_USAGE;
         //usage 131234
 
-		// VmaAllocationCreateInfo allocInfo = {};
-		// allocInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-		// allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+		VmaAllocationCreateInfo allocInfo2 = {};
+		allocInfo2.requiredFlags = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+		allocInfo2.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
         // flags 4
         // usage USAGE_GPU_ONLY
         // requiredFlags 4
@@ -118,16 +118,12 @@ namespace Elixir::Vulkan
 
         m_Buffer = VK_NULL_HANDLE;
 
-        VK_CHECK_RESULT(
-            vmaCreateBuffer(
-                m_GraphicsContext->GetAllocator(),
-                &bufferInfo,
-                &allocInfo,
-                &m_Buffer,
-                &m_Allocation,
-                &m_AllocationInfo
-            )
+        const auto res = vmaCreateBuffer(
+            m_GraphicsContext->GetAllocator(), &bufferInfo, &allocInfo, &m_Buffer,
+            &m_Allocation, &m_AllocationInfo
         );
+
+        //VK_CHECK_RESULT(res);
 
         std::cout << "CreateBuffer" << std::endl;
     }
