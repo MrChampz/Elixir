@@ -86,7 +86,7 @@ jobs:
             rm -rf temp-ss-dl/
             sed -i '' "s/..\/..\/..\/lib\/libvk_swiftshader.dylib/.\/libvk_swiftshader.dylib/" "$SWIFTSHADER_DEST_DIR/vk_swiftshader_icd.json" 
             echo "VK_ICD_FILENAMES=$SWIFTSHADER_DEST_DIR/vk_swiftshader_icd.json" >> $GITHUB_ENV
-            export VK_ICD_FILENAMES=$SWIFTSHADER_DEST_DIR/vk_swiftshader_icd.json"
+            export VK_ICD_FILENAMES="$SWIFTSHADER_DEST_DIR/vk_swiftshader_icd.json"
           elif [ "$RUNNER_OS" == "Windows" ]; then
             arch="x64"
             choco install --yes 7zip wget
