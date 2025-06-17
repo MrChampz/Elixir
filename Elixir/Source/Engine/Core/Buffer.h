@@ -10,10 +10,17 @@ namespace Elixir
         void* Data;
         size_t Size;
 
-        SBuffer() : SBuffer(nullptr, 0) {}
+        SBuffer() : SBuffer((void*)nullptr, 0) {}
+        explicit SBuffer(const size_t size) : SBuffer((void*)nullptr, size) {}
+
         SBuffer(void* data, const size_t size) : Data(data), Size(size)
         {
             EE_PROFILE_ZONE_SCOPED()
+        }
+
+        SBuffer(const void* data, const size_t size) : SBuffer(size)
+        {
+            Copy(data, size);
         }
 
         ~SBuffer()

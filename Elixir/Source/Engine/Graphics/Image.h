@@ -190,7 +190,7 @@ namespace Elixir
         // [[nodiscard]] Ref<Sampler> GetSampler() const { return m_Sampler; }
         // void SetSampler(const Ref<Sampler>& sampler); # call UpdateSampler!
 
-        virtual bool operator==(const Image& other) const
+        virtual bool operator==(const Image& other) const final
         {
             return m_UUID == other.m_UUID;
         }

@@ -21,6 +21,6 @@ namespace Elixir
 
     Ref<CommandBuffer> GraphicsContext::CreateCommandBuffer()
     {
-        return nullptr;
+        return CommandBuffer::Create(this);
     }
 }

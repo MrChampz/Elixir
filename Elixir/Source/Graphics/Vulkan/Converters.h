@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Core/Types.h>
+#include <Engine/Graphics/Memory.h>
 #include <Engine/Graphics/Image.h>
 
 #include <vulkan/vulkan.h>
@@ -44,7 +45,63 @@ namespace Elixir::Vulkan::Converters
 		};
 	}
 
-    static VkFormat GetFormat(const EImageFormat format)
+    static VkMemoryPropertyFlags GetMemoryProperties(const EMemoryProperty& properties)
+    {
+        VkMemoryPropertyFlags flags = 0;
+
+        if (properties & EMemoryProperty::DeviceLocal)
+            flags = flags | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+        if (properties & EMemoryProperty::HostVisible)
+            flags = flags | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+
+        if (properties & EMemoryProperty::HostCoherent)
+            flags = flags | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+
+        if (properties & EMemoryProperty::HostCached)
+            flags = flags | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
+
+        if (properties & EMemoryProperty::LazilyAllocated)
+            flags = flags | VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
+
+        return flags;
+    }
+
+    static VkBufferUsageFlags GetBufferUsage(const EBufferUsage& usage)
+    {
+        VkBufferUsageFlags flags = 0;
+
+        if (usage & EBufferUsage::TransferSrc)
+            flags |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+        if (usage & EBufferUsage::TransferDst)
+            flags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+        if (usage & EBufferUsage::UniformTexelBuffer)
+            flags |= VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT;
+
+        if (usage & EBufferUsage::StorageTexelBuffer)
+            flags |= VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT;
+
+        if (usage & EBufferUsage::UniformBuffer)
+            flags |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+
+        if (usage & EBufferUsage::StorageBuffer)
+            flags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+
+        if (usage & EBufferUsage::IndexBuffer)
+            flags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+
+        if (usage & EBufferUsage::VertexBuffer)
+            flags |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+
+        if (usage & EBufferUsage::IndirectBuffer)
+            flags |= VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
+
+        return flags;
+    }
+
+    static VkFormat GetFormat(const EImageFormat& format)
     {
         switch (format)
         {
@@ -182,7 +239,7 @@ namespace Elixir::Vulkan::Converters
         return VK_FORMAT_UNDEFINED;
     }
 
-    static VkImageLayout GetImageLayout(const EImageLayout layout)
+    static VkImageLayout GetImageLayout(const EImageLayout& layout)
     {
         switch (layout)
         {
@@ -222,7 +279,7 @@ namespace Elixir::Vulkan::Converters
         return VK_IMAGE_LAYOUT_UNDEFINED;
     }
 
-    static VkImageType GetImageType(const EImageType type)
+    static VkImageType GetImageType(const EImageType& type)
 	{
 		switch (type)
 		{
@@ -271,7 +328,7 @@ namespace Elixir::Vulkan::Converters
 		return flags;
 	}
 
-    static VkImageAspectFlags GetImageAspect(const EImageAspect aspect)
+    static VkImageAspectFlags GetImageAspect(const EImageAspect& aspect)
 	{
 		VkImageAspectFlags flags = VK_IMAGE_ASPECT_NONE;
 
@@ -299,7 +356,7 @@ namespace Elixir::Vulkan::Converters
 		return flags;
 	}
 
-    static VkImageViewType GetImageViewType(const EImageType type, const uint32_t layers)
+    static VkImageViewType GetImageViewType(const EImageType& type, const uint32_t layers)
 	{
 		switch (type)
 		{

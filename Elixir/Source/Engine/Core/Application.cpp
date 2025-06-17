@@ -60,6 +60,8 @@ namespace Elixir
 
             EE_PROFILE_FRAME_MARK()
         }
+
+        m_GraphicsContext->WaitDeviceIdle();
     }
 
     void Application::OnGUI(Timestep frameTime) {}

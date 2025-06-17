@@ -1,16 +1,10 @@
 #pragma once
 
 #include <Engine/Graphics/GraphicsContext.h>
+#include <Engine/Graphics/Buffer.h>
 
 namespace Elixir
 {
-    struct SBufferCopy
-    {
-        uint64_t SrcOffset = 0;
-        uint64_t DstOffset = 0;
-        uint64_t Size = 0;
-    };
-
     class ELIXIR_API CommandBuffer
     {
     public:
@@ -63,17 +57,17 @@ namespace Elixir
         // virtual void TransitionImage(Image* image, EImageLayout layout);
         // virtual void TransitionImage(const Ref<Image>& image, EImageLayout layout);
 
-        // virtual void CopyBuffer(
-        //     const Ref<BufferBase>& src,
-        //     const Ref<BufferBase>& dst,
-        //     std::span<SBufferCopy> regions = {}
-        // ) = 0;
+        virtual void CopyBuffer(
+            const Ref<Buffer>& src,
+            const Ref<Buffer>& dst,
+            std::span<SBufferCopy> regions = {}
+        );
 
-        // virtual void CopyBuffer(
-        //     const Ref<BufferBase>& src,
-        //     BufferBase* dst,
-        //     std::span<SBufferCopy> regions = {}
-        // ) = 0;
+        virtual void CopyBuffer(
+            const Ref<Buffer>& src,
+            const Buffer* dst,
+            std::span<SBufferCopy> regions = {}
+        );
 
         // virtual void CopyBufferToImage(
         //     const Ref<BufferBase>& src,

@@ -1,9 +1,30 @@
 #pragma once
 
 #include <Graphics/Vulkan/VulkanImage.h>
+#include <Graphics/Vulkan/Converters.h>
 
 namespace Elixir::Vulkan::Initializers
 {
+    static VmaAllocationCreateInfo AllocationCreateInfo(const SAllocationInfo& info)
+    {
+        VmaAllocationCreateInfo allocInfo = {};
+        allocInfo.requiredFlags = Converters::GetMemoryProperties(info.RequiredFlags);
+        allocInfo.preferredFlags = Converters::GetMemoryProperties(info.PreferredFlags);
+
+        return allocInfo;
+    }
+
+    static VkBufferCreateInfo BufferCreateInfo(const SBufferCreateInfo& info)
+    {
+        VkBufferCreateInfo bufferInfo = {};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.pNext = nullptr;
+        bufferInfo.size = (VkDeviceSize)info.Buffer.Size;
+        bufferInfo.usage = Converters::GetBufferUsage(info.Usage);
+
+        return bufferInfo;
+    }
+
     static VkImageSubresourceRange ImageSubresourceRange(const VkImageAspectFlags aspectMask)
     {
         VkImageSubresourceRange range = {};
