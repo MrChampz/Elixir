@@ -53,8 +53,12 @@ jobs:
           vulkan-use-cache: true
 
       - name: Set DYLD_LIBRARY_PATH for Vulkan lib (Apple)
-        run: echo "DYLD_LIBRARY_PATH=$VULKAN_SDK/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
+        run: export DYLD_LIBRARY_PATH="$VULKAN_SDK/lib:$DYLD_LIBRARY_PATH" &&
+          echo "DYLD_LIBRARY_PATH=$VULKAN_SDK/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
         if: matrix.os == 'macos-latest'
+
+      - name: Test Vulkan
+        run: vkcube
 
       - name: Install missing deps (Linux)
         run: sudo apt-get install libxkbcommon-x11-dev libxinerama-dev libxcursor-dev libxi-dev
