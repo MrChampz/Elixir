@@ -52,16 +52,19 @@ jobs:
           vulkan-components: Vulkan-Headers, Vulkan-Loader
           vulkan-use-cache: true
 
+      - name: Set DYLD_LIBRARY_PATH for Vulkan lib (Apple)
+        run: echo "DYLD_LIBRARY_PATH=$VULKAN_SDK/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
+        if: matrix.os == 'macos-latest'
+
       - name: Install missing deps (Linux)
         run: sudo apt-get install libxkbcommon-x11-dev libxinerama-dev libxcursor-dev libxi-dev
         if: matrix.os == 'ubuntu-latest'
 
       - name: Install Swiftshader
         env:
-          SWIFTSHADER_WINDOWS_URL: https://github.com/nikitalita/swiftshader-dist-win/releases/download/2021-12-09_00-02/swiftshader-2021-12-09_00-02-subzero.7z.zip
+          SWIFTSHADER_WINDOWS_URL: https://github.com/nikitalita/swiftshader-dist-win/releases/download/2022-05-27_00-04/swiftshader-2022-05-27_00-04-subzero.7z.zip
           SWIFTSHADER_LINUX_URL: https://github.com/qarmin/gtk_library_store/releases/download/3.24.0/swiftshader2.zip
           SWIFTSHADER_MACOS_URL: https://github.com/nikitalita/swiftshader-builds/releases/download/1.0.0/swiftshader-vulkan-r6216.7997cbc34b-macos-10.15.zip
-          VULKAN_VERSION: 1.3.204.1
         shell: bash
         run: |
           export SWIFTSHADER_DEST_DIR='${{ github.workspace }}'
@@ -101,11 +104,8 @@ jobs:
             echo "$RUNNER_OS not supported"
             exit 1
           fi
-          ls -la $SWIFTSHADER_DEST_DIR
           echo $SWIFTSHADER_DEST_DIR
-          echo '$SWIFTSHADER_DEST_DIR'
-          echo $SWIFTSHADER_DEST_DIR
-          echo "$SWIFTSHADER_DEST_DIR"
+          echo $VK_ICD_FILENAMES
           cat $SWIFTSHADER_DEST_DIR/vk_swiftshader_icd.json
 
       - name: Install Clang (Apple)
