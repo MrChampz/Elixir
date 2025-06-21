@@ -47,6 +47,11 @@ function(apply_properties_and_definitions target)
         $<$<CONFIG:Dist>:EE_DIST>
     )
 
+    # Testing compile definitions
+    if (ELIXIR_TESTING)
+        target_compile_definitions(${target} PRIVATE EE_TESTING)
+    endif()
+
     # Profiling compile definitions
     if (ELIXIR_PROFILE)
         target_compile_definitions(${target} PRIVATE

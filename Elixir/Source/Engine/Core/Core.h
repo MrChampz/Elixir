@@ -52,24 +52,21 @@
 #define GENERATE_ENUM_CLASS_OPERATORS(EnumClass)                                    \
 inline bool operator&(EnumClass lhs, EnumClass rhs)                                 \
 {                                                                                   \
-	auto lhsType = static_cast<std::underlying_type<EnumClass>::type>(lhs);         \
-	auto rhsType = static_cast<std::underlying_type<EnumClass>::type>(rhs);         \
-	return (lhsType & rhsType) == rhsType;                                          \
+	using T = std::underlying_type_t<EnumClass>;                                    \
+    return (static_cast<T>(lhs) & static_cast<T>(rhs)) ==  static_cast<T>(rhs);     \
 }                                                                                   \
                                                                                     \
 inline EnumClass operator|(EnumClass lhs, EnumClass rhs)							\
 {																					\
-	return static_cast<EnumClass>(													\
-		static_cast<std::underlying_type<EnumClass>::type>(lhs) |					\
-		static_cast<std::underlying_type<EnumClass>::type>(rhs)						\
-	);																				\
+	using T = std::underlying_type_t<EnumClass>; 								    \
+    return static_cast<EnumClass>(static_cast<T>(lhs) | static_cast<T>(rhs));       \
 }																					\
                                                                                     \
-inline EnumClass operator|=(EnumClass lhs, EnumClass rhs)							\
+inline EnumClass& operator|=(EnumClass& lhs, EnumClass rhs)							\
 {																					\
-	auto enumClass = lhs | rhs;																\
-	return enumClass;																		\
-}																					\
+	lhs = lhs | rhs;													            \
+	return lhs;															            \
+}
 
 namespace Elixir
 {

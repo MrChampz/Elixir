@@ -14,12 +14,47 @@ class VulkanBufferTest : public Test
         Context->Init();
     }
 
+    static void TearDownTestSuite()
+    {
+        Context->Shutdown();
+    }
+
     static Scope<Window> Window;
     static Scope<GraphicsContext> Context;
 };
 
 Scope<Window> VulkanBufferTest::Window = nullptr;
 Scope<GraphicsContext> VulkanBufferTest::Context = nullptr;
+
+TEST_F(VulkanBufferTest, VulkanBaseBuffer_IsNotConstructibleAndAssignable)
+{
+    EXPECT_FALSE(std::is_constructible_v<VulkanBaseBuffer>);
+    EXPECT_FALSE(std::is_copy_constructible_v<VulkanBaseBuffer>);
+    EXPECT_FALSE(std::is_copy_assignable_v<VulkanBaseBuffer>);
+    EXPECT_FALSE(std::is_move_constructible_v<VulkanBaseBuffer>);
+    EXPECT_FALSE(std::is_move_assignable_v<VulkanBaseBuffer>);
+}
+
+TEST_F(VulkanBufferTest, VulkanDynamicBuffer_IsNotConstructibleAndAssignable)
+{
+    EXPECT_FALSE(std::is_constructible_v<VulkanDynamicBuffer>);
+    EXPECT_FALSE(std::is_copy_constructible_v<VulkanDynamicBuffer>);
+    EXPECT_FALSE(std::is_copy_assignable_v<VulkanDynamicBuffer>);
+    EXPECT_FALSE(std::is_move_constructible_v<VulkanDynamicBuffer>);
+    EXPECT_FALSE(std::is_move_assignable_v<VulkanDynamicBuffer>);
+}
+
+TEST_F(VulkanBufferTest, VulkanBuffer_CopyConstructorIsDeleted)
+{
+    EXPECT_FALSE(std::is_copy_constructible_v<VulkanBuffer>);
+    EXPECT_FALSE(std::is_copy_assignable_v<VulkanBuffer>);
+}
+
+TEST_F(VulkanBufferTest, VulkanBuffer_MoveConstructorIsDeleted)
+{
+    EXPECT_FALSE(std::is_move_constructible_v<VulkanBuffer>);
+    EXPECT_FALSE(std::is_move_assignable_v<VulkanBuffer>);
+}
 
 TEST_F(VulkanBufferTest, VulkanBuffer_CreationAndDestruction)
 {
@@ -35,6 +70,18 @@ TEST_F(VulkanBufferTest, VulkanBuffer_CreationAndDestruction)
 
     buffer->Destroy();
     SUCCEED();
+}
+
+TEST_F(VulkanBufferTest, VulkanStagingBuffer_CopyConstructorIsDeleted)
+{
+    EXPECT_FALSE(std::is_copy_constructible_v<VulkanStagingBuffer>);
+    EXPECT_FALSE(std::is_copy_assignable_v<VulkanStagingBuffer>);
+}
+
+TEST_F(VulkanBufferTest, VulkanStagingBuffer_MoveConstructorIsDeleted)
+{
+    EXPECT_FALSE(std::is_move_constructible_v<VulkanStagingBuffer>);
+    EXPECT_FALSE(std::is_move_assignable_v<VulkanStagingBuffer>);
 }
 
 TEST_F(VulkanBufferTest, VulkanStagingBuffer_CreationAndMapping)
@@ -56,7 +103,19 @@ TEST_F(VulkanBufferTest, VulkanStagingBuffer_CreationAndMapping)
     buffer->Unmap();
     buffer->Destroy();
 
-    SUCCEED();
+    EXPECT_TRUE(buffer->IsDestroyed());
+}
+
+TEST_F(VulkanBufferTest, VulkanVertexBuffer_CopyConstructorIsDeleted)
+{
+    EXPECT_FALSE(std::is_copy_constructible_v<VulkanVertexBuffer>);
+    EXPECT_FALSE(std::is_copy_assignable_v<VulkanVertexBuffer>);
+}
+
+TEST_F(VulkanBufferTest, VulkanVertexBuffer_MoveConstructorIsDeleted)
+{
+    EXPECT_FALSE(std::is_move_constructible_v<VulkanVertexBuffer>);
+    EXPECT_FALSE(std::is_move_assignable_v<VulkanVertexBuffer>);
 }
 
 TEST_F(VulkanBufferTest, VulkanVertexBuffer_CreationAndAddress)
@@ -70,7 +129,20 @@ TEST_F(VulkanBufferTest, VulkanVertexBuffer_CreationAndAddress)
     EXPECT_GT(buffer->GetAddress(), 0);
 
     buffer->Destroy();
-    SUCCEED();
+
+    EXPECT_TRUE(buffer->IsDestroyed());
+}
+
+TEST_F(VulkanBufferTest, VulkanIndexBuffer_CopyConstructorIsDeleted)
+{
+    EXPECT_FALSE(std::is_copy_constructible_v<VulkanIndexBuffer>);
+    EXPECT_FALSE(std::is_copy_assignable_v<VulkanIndexBuffer>);
+}
+
+TEST_F(VulkanBufferTest, VulkanIndexBuffer_MoveConstructorIsDeleted)
+{
+    EXPECT_FALSE(std::is_move_constructible_v<VulkanIndexBuffer>);
+    EXPECT_FALSE(std::is_move_assignable_v<VulkanIndexBuffer>);
 }
 
 TEST_F(VulkanBufferTest, VulkanIndexBuffer_CreationAndIndexType)
@@ -89,5 +161,6 @@ TEST_F(VulkanBufferTest, VulkanIndexBuffer_CreationAndIndexType)
     EXPECT_EQ(buffer->GetIndexType(), EIndexType::UInt32);
 
     buffer->Destroy();
-    SUCCEED();
+
+    EXPECT_TRUE(buffer->IsDestroyed());
 }

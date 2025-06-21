@@ -6,6 +6,8 @@
 
 namespace Elixir
 {
+	namespace Vulkan { class VulkanBaseBuffer; }
+
     struct SBufferCopy
     {
         uint64_t SrcOffset = 0;
@@ -13,7 +15,7 @@ namespace Elixir
         uint64_t Size = 0;
     };
 
-    enum class EDataType
+    enum class EDataType : uint32_t
     {
         Bool, Float, Vec2, Vec3, Vec4, Int, IntVec2, IntVec3, IntVec4, Mat3, Mat4
     };
@@ -54,7 +56,7 @@ namespace Elixir
 
     typedef uint64_t BufferAddress;
 
-    enum class EBufferUsage
+    enum class EBufferUsage : uint32_t
     {
         TransferSrc				= 0x00000001,
         TransferDst				= 0x00000002,
@@ -79,6 +81,7 @@ namespace Elixir
 
     class ELIXIR_API Buffer
     {
+		friend class Vulkan::VulkanBaseBuffer;
       public:
         virtual ~Buffer() = default;
 
@@ -109,11 +112,15 @@ namespace Elixir
         [[nodiscard]] EBufferUsage GetUsage() const { return m_Usage; }
         [[nodiscard]] size_t GetSize() const { return m_Size; }
         [[nodiscard]] const SAllocationInfo& GetAllocationInfo() const { return m_AllocationInfo; }
+        [[nodiscard]] bool IsDestroyed() const { return m_Destroyed; }
 
         virtual bool operator==(const Buffer& other) const final
         {
             return m_UUID == other.m_UUID;
         }
+
+        Buffer& operator=(const Buffer&) = delete;
+        Buffer& operator=(Buffer&&) = delete;
 
         static Ref<Buffer> Create(
             const GraphicsContext* context,
@@ -122,6 +129,8 @@ namespace Elixir
 
       protected:
         Buffer(const GraphicsContext* context, const SBufferCreateInfo& info);
+        Buffer(const Buffer&) = delete;
+        Buffer(Buffer&&) = delete;
 
         virtual void CreateBuffer(const SBufferCreateInfo& info) = 0;
         virtual void InitBufferWithData(const SBuffer& buffer) = 0;
@@ -146,14 +155,19 @@ namespace Elixir
         virtual void* Map() = 0;
         virtual void Unmap() = 0;
 
+        DynamicBuffer& operator=(const DynamicBuffer&) = delete;
+
       protected:
         DynamicBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
+        DynamicBuffer(const DynamicBuffer&) = delete;
     };
 
     class ELIXIR_API StagingBuffer : public DynamicBuffer
     {
     public:
         ~StagingBuffer() override = default;
+
+        StagingBuffer& operator=(const StagingBuffer&) = delete;
 
         static Ref<StagingBuffer> Create(
             const GraphicsContext* context,
@@ -168,6 +182,7 @@ namespace Elixir
             const void* data = nullptr
         );
         StagingBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
+        StagingBuffer(const StagingBuffer&) = delete;
 
         static SBufferCreateInfo CreateBufferInfo(size_t size, const void* data);
     };
@@ -182,6 +197,8 @@ namespace Elixir
 
         [[nodiscard]] BufferAddress GetAddress() const { return m_Address; }
 
+        VertexBuffer& operator=(const VertexBuffer&) = delete;
+
         static Ref<VertexBuffer> Create(
             const GraphicsContext* context,
             size_t size,
@@ -191,6 +208,7 @@ namespace Elixir
       protected:
         VertexBuffer(const GraphicsContext* context, size_t size, const void* data = nullptr);
         VertexBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
+        VertexBuffer(const VertexBuffer&) = delete;
 
         virtual void CreateBufferAddress() = 0;
 
@@ -212,6 +230,8 @@ namespace Elixir
 
         [[nodiscard]] EIndexType GetIndexType() const { return m_IndexType; }
 
+        IndexBuffer& operator=(const IndexBuffer&) = delete;
+
         static Ref<IndexBuffer> Create(
             const GraphicsContext* context,
             size_t size,
@@ -231,6 +251,7 @@ namespace Elixir
             const SBufferCreateInfo& info,
             EIndexType type = EIndexType::UInt32
         );
+        IndexBuffer(const IndexBuffer&) = delete;
 
         static SBufferCreateInfo CreateBufferInfo(size_t size, const void* data);
 

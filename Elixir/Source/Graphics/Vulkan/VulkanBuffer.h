@@ -8,16 +8,12 @@
 
 namespace Elixir::Vulkan
 {
-    template <class>
     class VulkanBaseBuffer
     {
       public:
         virtual ~VulkanBaseBuffer() = default;
 
-        virtual void Destroy();
-
-        virtual void* Map();
-        virtual void Unmap();
+        virtual void Destroy(Buffer* buffer);
 
         virtual void Copy(
             const CommandBuffer* cmd,
@@ -28,8 +24,13 @@ namespace Elixir::Vulkan
         VkBuffer GetVulkanBuffer() const { return m_Buffer; }
         const VmaAllocationInfo& GetVulkanAllocationInfo() const { return m_AllocationInfo; }
 
+        VulkanBaseBuffer& operator=(const VulkanBaseBuffer&) = delete;
+        VulkanBaseBuffer& operator=(VulkanBaseBuffer&&) = delete;
+
       protected:
         VulkanBaseBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
+        VulkanBaseBuffer(const VulkanBaseBuffer&) = delete;
+        VulkanBaseBuffer(VulkanBaseBuffer&&) = delete;
 
         virtual void CreateBuffer(const SBufferCreateInfo& info);
         virtual void InitBufferWithData(const SBuffer& buffer);
@@ -43,20 +44,28 @@ namespace Elixir::Vulkan
         const VulkanGraphicsContext* m_GraphicsContext;
     };
 
-    class ELIXIR_API VulkanBuffer final : public Buffer,
-        public VulkanBaseBuffer<VulkanBuffer>
+    class VulkanDynamicBuffer : public VulkanBaseBuffer
     {
-        template <class> friend class VulkanBaseBuffer;
+      public:
+        virtual void* Map();
+        virtual void Unmap();
+
+        VulkanDynamicBuffer& operator=(const VulkanDynamicBuffer&) = delete;
+        VulkanDynamicBuffer& operator=(VulkanDynamicBuffer&&) = delete;
+
+      protected:
+        VulkanDynamicBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
+        VulkanDynamicBuffer(const VulkanDynamicBuffer&) = delete;
+        VulkanDynamicBuffer(VulkanDynamicBuffer&&) = delete;
+    };
+
+    class ELIXIR_API VulkanBuffer final : public Buffer, public VulkanBaseBuffer
+    {
       public:
         VulkanBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
+        ~VulkanBuffer() override;
 
-        ~VulkanBuffer() override
-        {
-            EE_PROFILE_ZONE_SCOPED()
-            Destroy();
-        }
-
-        void Destroy() override { VulkanBaseBuffer::Destroy(); }
+        void Destroy() override { VulkanBaseBuffer::Destroy(this); }
 
         void Copy(
             const CommandBuffer* cmd,
@@ -79,28 +88,21 @@ namespace Elixir::Vulkan
         }
     };
 
-    class ELIXIR_API VulkanStagingBuffer final : public StagingBuffer,
-        public VulkanBaseBuffer<VulkanStagingBuffer>
+    class ELIXIR_API VulkanStagingBuffer final : public StagingBuffer, public VulkanDynamicBuffer
     {
-        template <class> friend class VulkanBaseBuffer;
-      public:
+    public:
         VulkanStagingBuffer(
             const GraphicsContext* context,
             size_t size,
             const void* data = nullptr
         );
         VulkanStagingBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
+        ~VulkanStagingBuffer() override;
 
-        ~VulkanStagingBuffer() override
-        {
-            EE_PROFILE_ZONE_SCOPED()
-            Destroy();
-        }
+        void Destroy() override { VulkanBaseBuffer::Destroy(this); }
 
-        void Destroy() override { VulkanBaseBuffer::Destroy(); }
-
-        void* Map() override { return VulkanBaseBuffer::Map(); }
-        void Unmap() override { VulkanBaseBuffer::Unmap(); }
+        void* Map() override { return VulkanDynamicBuffer::Map(); }
+        void Unmap() override { VulkanDynamicBuffer::Unmap(); }
 
         void Copy(
             const CommandBuffer* cmd,
@@ -111,7 +113,7 @@ namespace Elixir::Vulkan
             VulkanBaseBuffer::Copy(cmd, dst, regions);
         }
 
-      protected:
+    protected:
         void CreateBuffer(const SBufferCreateInfo& info) override
         {
             VulkanBaseBuffer::CreateBuffer(info);
@@ -120,10 +122,8 @@ namespace Elixir::Vulkan
         void InitBufferWithData(const SBuffer& buffer) override;
     };
 
-    class ELIXIR_API VulkanVertexBuffer final : public VertexBuffer,
-        public VulkanBaseBuffer<VulkanVertexBuffer>
+    class ELIXIR_API VulkanVertexBuffer final : public VertexBuffer, public VulkanBaseBuffer
     {
-        template <class> friend class VulkanBaseBuffer;
       public:
         VulkanVertexBuffer(
             const GraphicsContext* context,
@@ -131,14 +131,9 @@ namespace Elixir::Vulkan
             const void* data = nullptr
         );
         VulkanVertexBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
+        ~VulkanVertexBuffer() override;
 
-        ~VulkanVertexBuffer() override
-        {
-            EE_PROFILE_ZONE_SCOPED()
-            Destroy();
-        }
-
-        void Destroy() override { VulkanBaseBuffer::Destroy(); }
+        void Destroy() override { VulkanBaseBuffer::Destroy(this); }
 
         void Copy(
             const CommandBuffer* cmd,
@@ -160,16 +155,11 @@ namespace Elixir::Vulkan
             VulkanBaseBuffer::InitBufferWithData(buffer);
         }
 
-        void CreateBufferAddress() override
-        {
-            m_Address = CreateAndReturnBufferAddress();
-        }
+        void CreateBufferAddress() override;
     };
 
-    class ELIXIR_API VulkanIndexBuffer final : public IndexBuffer,
-        public VulkanBaseBuffer<VulkanIndexBuffer>
+    class ELIXIR_API VulkanIndexBuffer final : public IndexBuffer, public VulkanBaseBuffer
     {
-        template <class> friend class VulkanBaseBuffer;
       public:
         VulkanIndexBuffer(
             const GraphicsContext* context,
@@ -182,14 +172,9 @@ namespace Elixir::Vulkan
             const SBufferCreateInfo& info,
             EIndexType type = EIndexType::UInt32
         );
-        
-        ~VulkanIndexBuffer() override
-        {
-            EE_PROFILE_ZONE_SCOPED()
-            Destroy();
-        }
+        ~VulkanIndexBuffer() override;
 
-        void Destroy() override { VulkanBaseBuffer::Destroy(); }
+        void Destroy() override { VulkanBaseBuffer::Destroy(this); }
 
         void Copy(
             const CommandBuffer* cmd,

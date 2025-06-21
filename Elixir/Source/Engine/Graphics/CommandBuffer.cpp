@@ -17,7 +17,7 @@ namespace Elixir
     void CommandBuffer::CopyBuffer(
         const Ref<Buffer>& src,
         const Buffer* dst,
-        std::span<SBufferCopy> regions
+        const std::span<SBufferCopy> regions
     )
     {
         src->Copy(this, dst, regions);

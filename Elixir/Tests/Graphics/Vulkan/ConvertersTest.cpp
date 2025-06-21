@@ -15,8 +15,9 @@ TEST(ConvertersTest_GetMemoryProperties, SingleFlag)
 
 TEST(ConvertersTest_GetMemoryProperties, MultipleFlags)
 {
-    EMemoryProperty props = EMemoryProperty::DeviceLocal | EMemoryProperty::HostVisible |
-                            EMemoryProperty::HostCoherent;
+    const EMemoryProperty props = EMemoryProperty::DeviceLocal |
+        EMemoryProperty::HostVisible |
+        EMemoryProperty::HostCoherent;
 
     EXPECT_EQ(GetMemoryProperties(props),
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
@@ -27,8 +28,16 @@ TEST(ConvertersTest_GetMemoryProperties, MultipleFlags)
 
 TEST(ConvertersTest_GetMemoryProperties, NoFlags)
 {
-    auto props = static_cast<EMemoryProperty>(0);
+    constexpr auto props = static_cast<EMemoryProperty>(0);
     EXPECT_EQ(GetMemoryProperties(props), 0u);
+}
+
+TEST(ConvertersTest_GetMemoryProperties, HasSameValueAsVulkan)
+{
+    const auto properties = EMemoryProperty::HostVisible |
+        EMemoryProperty::HostCoherent;
+
+    EXPECT_EQ(GetMemoryProperties(properties), 6);
 }
 
 TEST(ConvertersTest_GetBufferUsage, SingleFlag)
@@ -55,6 +64,16 @@ TEST(ConvertersTest_GetBufferUsage, MultipleFlags)
 
 TEST(ConvertersTest_GetBufferUsage, NoFlags)
 {
-    auto usage = static_cast<EBufferUsage>(0);
+    constexpr auto usage = static_cast<EBufferUsage>(0);
     EXPECT_EQ(GetBufferUsage(usage), 0u);
+}
+
+TEST(ConvertersTest_GetBufferUsage, HasSameValueAsVulkan)
+{
+    const auto usage = EBufferUsage::VertexBuffer |
+        EBufferUsage::StorageBuffer |
+        EBufferUsage::TransferDst |
+        EBufferUsage::ShaderDeviceAddress;
+
+    EXPECT_EQ(GetBufferUsage(usage), 131234);
 }

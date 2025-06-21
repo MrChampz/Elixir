@@ -108,7 +108,7 @@ namespace Elixir
     VulkanGraphicsContext::~VulkanGraphicsContext()
     {
         EE_PROFILE_ZONE_SCOPED()
-        VulkanGraphicsContext::Shutdown();
+        Shutdown();
     }
 
     void VulkanGraphicsContext::Init()

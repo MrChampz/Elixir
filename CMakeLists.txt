@@ -60,6 +60,12 @@ FetchContent_Declare(
 )
 
 if (BUILD_TESTING)
+    # Enable testing flag
+    set(ELIXIR_TESTING ON)
+
+    # Disable profiling for testing build
+    set(ELIXIR_PROFILE OFF)
+
     # For Windows: Prevent overriding the parent project's compiler/linker settings
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)

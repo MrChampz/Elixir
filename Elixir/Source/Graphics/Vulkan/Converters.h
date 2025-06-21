@@ -45,7 +45,7 @@ namespace Elixir::Vulkan::Converters
 		};
 	}
 
-    static VkMemoryPropertyFlags GetMemoryProperties(const EMemoryProperty& properties)
+    static VkMemoryPropertyFlags GetMemoryProperties(const EMemoryProperty properties)
     {
         VkMemoryPropertyFlags flags = 0;
 
@@ -67,7 +67,7 @@ namespace Elixir::Vulkan::Converters
         return flags;
     }
 
-    static VkBufferUsageFlags GetBufferUsage(const EBufferUsage& usage)
+    static VkBufferUsageFlags GetBufferUsage(const EBufferUsage usage)
     {
         VkBufferUsageFlags flags = 0;
 
@@ -98,10 +98,13 @@ namespace Elixir::Vulkan::Converters
         if (usage & EBufferUsage::IndirectBuffer)
             flags |= VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
 
+        if (usage & EBufferUsage::ShaderDeviceAddress)
+            flags |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+
         return flags;
     }
 
-    static VkFormat GetFormat(const EImageFormat& format)
+    static VkFormat GetFormat(const EImageFormat format)
     {
         switch (format)
         {
@@ -239,7 +242,7 @@ namespace Elixir::Vulkan::Converters
         return VK_FORMAT_UNDEFINED;
     }
 
-    static VkImageLayout GetImageLayout(const EImageLayout& layout)
+    static VkImageLayout GetImageLayout(const EImageLayout layout)
     {
         switch (layout)
         {
@@ -279,7 +282,7 @@ namespace Elixir::Vulkan::Converters
         return VK_IMAGE_LAYOUT_UNDEFINED;
     }
 
-    static VkImageType GetImageType(const EImageType& type)
+    static VkImageType GetImageType(const EImageType type)
 	{
 		switch (type)
 		{
@@ -328,7 +331,7 @@ namespace Elixir::Vulkan::Converters
 		return flags;
 	}
 
-    static VkImageAspectFlags GetImageAspect(const EImageAspect& aspect)
+    static VkImageAspectFlags GetImageAspect(const EImageAspect aspect)
 	{
 		VkImageAspectFlags flags = VK_IMAGE_ASPECT_NONE;
 
@@ -356,7 +359,7 @@ namespace Elixir::Vulkan::Converters
 		return flags;
 	}
 
-    static VkImageViewType GetImageViewType(const EImageType& type, const uint32_t layers)
+    static VkImageViewType GetImageViewType(const EImageType type, const uint32_t layers)
 	{
 		switch (type)
 		{
