@@ -30,13 +30,13 @@ jobs:
           - os: macos-13
             arch: x64
             compiler: clang
-            cc: /opt/homebrew/opt/llvm/bin/clang
-            cxx: /opt/homebrew/opt/llvm/bin/clang++
+            cc: clang
+            cxx: clang++
           - os: macos-15
             arch: arm64
             compiler: clang
-            cc: /opt/homebrew/opt/llvm/bin/clang
-            cxx: /opt/homebrew/opt/llvm/bin/clang++
+            cc: clang
+            cxx: clang++
 
     steps:
       - name: Checkout code
@@ -62,7 +62,9 @@ jobs:
         if: runner.os == 'Linux'
 
       - name: Install Clang (Apple)
-        run: brew install llvm@19
+        run: |
+          brew install llvm@19
+          echo "/usr/local/opt/llvm@19/bin" >> "GITHUB_PATH"
         if: runner.os == 'macOS' && matrix.compiler == 'clang'
 
       - name: Set up CMake
