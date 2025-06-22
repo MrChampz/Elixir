@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-and-test:
-    name: ${{ matrix.os }} - ${{ matrix.compiler }}
+    name: ${{ matrix.os }} - ${{ matrix.arch }} - ${{ matrix.compiler }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -23,18 +23,17 @@ jobs:
 #            cc: clang
 #            cxx: clang++
           - os: windows-2025
-            compiler: msvc
-            cc: cl
-            cxx: cl
-          - os: windows-11-arm
+            arch: x64
             compiler: msvc
             cc: cl
             cxx: cl
           - os: macos-13
+            arch: x64
             compiler: clang
             cc: clang
             cxx: clang++
           - os: macos-15
+            arch: arm64
             compiler: clang
             cc: clang
             cxx: clang++
@@ -54,7 +53,7 @@ jobs:
           echo "CXX=${{ matrix.cxx }}" >> $GITHUB_ENV
 
       - name: Setup Vulkan
-        uses: MrChampz/VulkanCI@vnext
+        uses: MrChampz/VulkanCI@1.4.313.0
         with:
           sdkVersion: 1.4.313.0
 
