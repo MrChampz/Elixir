@@ -30,13 +30,13 @@ jobs:
           - os: macos-13
             arch: x64
             compiler: clang
-            cc: clang
-            cxx: clang++
+            cc: /opt/homebrew/opt/llvm/bin/clang
+            cxx: /opt/homebrew/opt/llvm/bin/clang++
           - os: macos-15
             arch: arm64
             compiler: clang
-            cc: clang
-            cxx: clang++
+            cc: /opt/homebrew/opt/llvm/bin/clang
+            cxx: /opt/homebrew/opt/llvm/bin/clang++
 
     steps:
       - name: Checkout code
@@ -62,9 +62,7 @@ jobs:
         if: runner.os == 'Linux'
 
       - name: Install Clang (Apple)
-        uses: rush-lang/setup-llvm-action@v1
-        with:
-          llvm-version: "19.1.7"
+        run: brew install llvm@19
         if: runner.os == 'macOS' && matrix.compiler == 'clang'
 
       - name: Set up CMake
