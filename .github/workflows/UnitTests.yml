@@ -22,11 +22,19 @@ jobs:
 #            compiler: clang
 #            cc: clang
 #            cxx: clang++
-          - os: windows-latest
+          - os: windows-2025
             compiler: msvc
             cc: cl
             cxx: cl
-          - os: macos-latest
+          - os: windows-11-arm
+            compiler: msvc
+            cc: cl
+            cxx: cl
+          - os: macos-13
+            compiler: clang
+            cc: clang
+            cxx: clang++
+          - os: macos-15
             compiler: clang
             cc: clang
             cxx: clang++
@@ -45,27 +53,20 @@ jobs:
           echo "CC=${{ matrix.cc }}" >> $GITHUB_ENV
           echo "CXX=${{ matrix.cxx }}" >> $GITHUB_ENV
 
-#      - name: Setup Vulkan SDK
-#        uses: humbletim/setup-vulkan-sdk@v1.2.1
-#        with:
-#          vulkan-query-version: 1.4.313.0
-#          vulkan-components: Vulkan-Headers, Vulkan-Loader
-#          vulkan-use-cache: true
-
       - name: Setup Vulkan
-        uses: NcStudios/VulkanCI@v1.2
+        uses: MrChampz/VulkanCI@vnext
         with:
-          sdkVersion: 1.4.309.0
+          sdkVersion: 1.4.313.0
 
       - name: Install missing deps (Linux)
         run: sudo apt-get install libxkbcommon-x11-dev libxinerama-dev libxcursor-dev libxi-dev
-        if: matrix.os == 'ubuntu-latest'
+        if: runner.os == 'Linux'
 
       - name: Install Clang (Apple)
         uses: KyleMayes/install-llvm-action@v2
         with:
           version: "19.1.7"
-        if: matrix.os == 'macos-latest' && matrix.compiler == 'clang'
+        if: runner.os == 'macOS' && matrix.compiler == 'clang'
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v1
