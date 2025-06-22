@@ -53,7 +53,7 @@ jobs:
 #          vulkan-use-cache: true
 
       - name: Setup Vulkan
-        uses: NcStudios/VulkanCI@v1.0
+        uses: NcStudios/VulkanCI@v1.2
         with:
           sdkVersion: 1.4.309.0
 
