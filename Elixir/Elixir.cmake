@@ -156,5 +156,7 @@ if (ELIXIR_PROFILE)
     target_link_libraries(${PROJECT_NAME} Tracy::TracyClient)
 endif()
 
+target_link_options(${PROJECT_NAME} PRIVATE -stdlib=libc++ -lc++abi -lunwind)
+
 # Testing
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Tests)

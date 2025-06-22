@@ -65,6 +65,7 @@ jobs:
         uses: KyleMayes/install-llvm-action@v2
         with:
           version: "19.1.7"
+          env: true
         if: runner.os == 'macOS' && matrix.compiler == 'clang'
 
       - name: Set up CMake
