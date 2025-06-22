@@ -64,7 +64,9 @@ jobs:
       - name: Install Clang (Apple)
         run: |
           brew install llvm@19
-          echo "/usr/local/opt/llvm@19/bin" >> "GITHUB_PATH"
+          echo "/usr/local/opt/llvm@19/bin" >> "$GITHUB_PATH"
+          echo "CC=/usr/local/opt/llvm@19/bin/clang" >> "$GITHUB_ENV"
+          echo "CXX=/usr/local/opt/llvm@19/bin/clang++" >> "$GITHUB_ENV"
         if: runner.os == 'macOS' && matrix.compiler == 'clang'
 
       - name: Set up CMake
