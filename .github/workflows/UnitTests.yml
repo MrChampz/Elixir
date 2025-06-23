@@ -80,7 +80,7 @@ jobs:
         run: cmake --build . --config Release
 
       - name: Vulkan driver test
-        run: ls "$env:VULKAN_SDK\bin"
+        run: echo $env:VK_DRIVER_FILES && cat $env:VK_DRIVER_FILES
         if: runner.os == 'Windows'
 
       - name: Run tests
