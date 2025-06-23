@@ -83,7 +83,9 @@ jobs:
         run: |
           $dir = Split-Path ${{ env.VK_DRIVER_FILES }} -Parent
           Copy-Item "${{ env.VULKAN_SDK }}\bin\vulkan-1.dll" $dir
-          ls "$dir"
+          echo "VK_DRIVER_FILES: $VK_DRIVER_FILES"
+          echo "VK_ICD_FILENAMES: VK_ICD_FILENAMES"
+          ls "D:\a\Elixir\Elixir\build\Build\Release\Windows\amd64\Elixir.UnitTests\"
         if: runner.os == 'Windows'
 
       - name: Run tests
