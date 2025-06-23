@@ -81,7 +81,7 @@ jobs:
 
       - name: Vulkan driver test
         run: ls "$VULKAN_SDK/bin"
-        if: runner.os == 'Linux'
+        if: runner.os == 'Windows'
 
       - name: Run tests
         working-directory: build
