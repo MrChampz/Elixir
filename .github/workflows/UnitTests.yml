@@ -53,15 +53,9 @@ jobs:
           echo "CXX=${{ matrix.cxx }}" >> $GITHUB_ENV
 
       - name: Setup Vulkan
-        uses: NcStudios/VulkanCI@v1.2
+        uses: MrChampz/VulkanCI@1.4.313.0
         with:
-          sdkVersion: 1.4.309.0
-
-      - name: Install Vulkan SDK
-        uses: humbletim/install-vulkan-sdk@v1.2
-        with:
-          version: 1.4.309.0
-          cache: true
+          sdkVersion: 1.4.313.0
 
       - name: Install missing deps (Linux)
         run: sudo apt-get install libxkbcommon-x11-dev libxinerama-dev libxcursor-dev libxi-dev
@@ -85,17 +79,6 @@ jobs:
         working-directory: build
         run: cmake --build . --config Release
 
-      - name: Vulkan driver test
-        run: |
-          Invoke-WebRequest -Uri "https://github.com/jakoch/rasterizers/releases/download/20250610/lavapipe-win64-25.0.0.zip" -OutFile "llvmpipe.zip"
-          Expand-Archive -Path "llvmpipe.zip" -DestinationPath "llvmpipe"
-          ls "D:/a/Elixir/Elixir/llvmpipe/share/vulkan/icd.d/" 
-          echo "VK_DRIVER_FILES=D:/a/Elixir/Elixir/llvmpipe/share/vulkan/icd.d/lvp_icd.x86_64.json" >> $GITHUB_ENV
-          vulkaninfoSDK.exe --summary
-        if: runner.os == 'Windows'
-
       - name: Run tests
-        env:
-          VK_DRIVER_FILES: "D:/a/Elixir/Elixir/llvmpipe/share/vulkan/icd.d/lvp_icd.x86_64.json"
         working-directory: build
         run: ctest --output-on-failure --verbose -C Release
