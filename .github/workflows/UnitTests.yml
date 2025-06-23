@@ -80,7 +80,7 @@ jobs:
         run: cmake --build . --config Release
 
       - name: Vulkan driver test
-        run: vulkaninfo --summary
+        run: $env:VK_ICD_FILENAMES = $env:VK_DRIVER_FILES
         if: runner.os == 'Windows'
 
       - name: Run tests
