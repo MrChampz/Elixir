@@ -82,8 +82,8 @@ jobs:
       - name: Vulkan driver test
         run: |
           $dir = Split-Path $env:VK_DRIVER_FILES -Parent
-          Copy-Item "$dir\vk_swiftshader.dll" "$env:VULKAN_SDK\bin\vulkan-1.dll"
-          ls "$env:VULKAN_SDK\bin"
+          Copy-Item "$dir\vk_swiftshader.dll" "D:\a\Elixir\Elixir\build\Elixir\Tests\vulkan-1.dll"
+          ls "D:\a\Elixir\Elixir\build\Elixir\Tests"
         if: runner.os == 'Windows'
 
       - name: Run tests
