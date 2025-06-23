@@ -57,6 +57,12 @@ jobs:
         with:
           sdkVersion: 1.4.313.0
 
+      - name: Install Vulkan SDK
+        uses: humbletim/install-vulkan-sdk@v1.2
+        with:
+          version: 1.4.313.0
+          cache: true
+
       - name: Install missing deps (Linux)
         run: sudo apt-get install libxkbcommon-x11-dev libxinerama-dev libxcursor-dev libxi-dev
         if: runner.os == 'Linux'
@@ -85,7 +91,7 @@ jobs:
           Copy-Item "${{ env.VULKAN_SDK }}\bin\vulkan-1.dll" $dir
           echo "VK_DRIVER_FILES: $env:VK_DRIVER_FILES"
           echo "VK_ICD_FILENAMES: $env:VK_ICD_FILENAMES"
-          ls "D:\a\Elixir\Elixir\build\Build\Release\Windows\amd64\Elixir.UnitTests\"
+          vulkaninfo --summary
         if: runner.os == 'Windows'
 
       - name: Run tests
