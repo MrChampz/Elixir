@@ -92,7 +92,7 @@ jobs:
           echo "VK_ICD_FILENAMES=$env:VK_ICD_FILENAMES" >> $GITHUB_ENV
           echo "VK_DRIVER_FILES: $env:VK_DRIVER_FILES"
           echo "VK_ICD_FILENAMES: $env:VK_ICD_FILENAMES"
-          ls "${{ env.VULKAN_SDK }}\bin"
+          vulkaninfoSDK.exe --summary
         if: runner.os == 'Windows'
 
       - name: Run tests
