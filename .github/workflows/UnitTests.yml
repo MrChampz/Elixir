@@ -89,9 +89,10 @@ jobs:
         run: |
           $dir = Split-Path ${{ env.VK_DRIVER_FILES }} -Parent
           Copy-Item "${{ env.VULKAN_SDK }}\bin\vulkan-1.dll" $dir
+          echo "VK_ICD_FILENAMES=$env:VK_ICD_FILENAMES" >> $GITHUB_ENV
           echo "VK_DRIVER_FILES: $env:VK_DRIVER_FILES"
           echo "VK_ICD_FILENAMES: $env:VK_ICD_FILENAMES"
-          vulkaninfo --summary
+          ls "${{ env.VULKAN_SDK }}\bin"
         if: runner.os == 'Windows'
 
       - name: Run tests
