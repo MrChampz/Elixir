@@ -86,12 +86,17 @@ jobs:
         run: cmake --build . --config Release
 
       - name: Vulkan driver test
-        run: vulkaninfoSDK.exe --summary
+        run: |
+          llvmpipe_version=$(curl -sL https://github.com/jakoch/rasterizers/releases/latest/download/versions.json | jq -r ".latest[\"mesa-lavapipe-win64\"].url")
+          curl -sLO "llvmpipe_version" -o llvmpipe.zip
+          unzip llvmpipe.zip -d llvmpipe
+          ls "D:/a/Elixir/Elixir/llvmpipe/share/vulkan/icd.d/" 
+          echo "VK_DRIVER_FILES=D:/a/Elixir/Elixir/llvmpipe/share/vulkan/icd.d/lvp_icd.x86_64.json" >> $GITHUB_ENV
+          vulkaninfoSDK.exe --summary
         if: runner.os == 'Windows'
 
       - name: Run tests
         env:
-          VK_ICD_FILENAMES: "D:/a/Elixir/Elixir/swiftshader/vk_swiftshader_icd.json"
-          VK_DRIVER_FILES: "D:/a/Elixir/Elixir/swiftshader/vk_swiftshader_icd.json"
+          VK_DRIVER_FILES: "D:/a/Elixir/Elixir/llvmpipe/share/vulkan/icd.d/lvp_icd.x86_64.json"
         working-directory: build
         run: ctest --output-on-failure --verbose -C Release
