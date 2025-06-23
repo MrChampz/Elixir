@@ -87,9 +87,7 @@ jobs:
 
       - name: Vulkan driver test
         run: |
-          $response = Invoke-RestMethod -Uri "https://github.com/jakoch/rasterizers/releases/latest/download/versions.json"
-          $llvmpipe_version = $response.latest.'mesa-lavapipe-win64'.url
-          Invoke-WebRequest -Uri $llvmpipe_version -OutFile "llvmpipe.zip"
+          Invoke-WebRequest -Uri "https://github.com/jakoch/rasterizers/releases/download/20250610/lavapipe-win64-25.0.0.zip" -OutFile "llvmpipe.zip"
           Expand-Archive -Path "llvmpipe.zip" -DestinationPath "llvmpipe"
           ls "D:/a/Elixir/Elixir/llvmpipe/share/vulkan/icd.d/" 
           echo "VK_DRIVER_FILES=D:/a/Elixir/Elixir/llvmpipe/share/vulkan/icd.d/lvp_icd.x86_64.json" >> $GITHUB_ENV
