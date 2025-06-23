@@ -53,9 +53,9 @@ jobs:
           echo "CXX=${{ matrix.cxx }}" >> $GITHUB_ENV
 
       - name: Setup Vulkan
-        uses: MrChampz/VulkanCI@1.4.313.0
+        uses: NcStudios/VulkanCI@v1.2
         with:
-          sdkVersion: 1.4.313.0
+          sdkVersion: 1.4.309.0
 
       - name: Install Vulkan SDK
         uses: humbletim/install-vulkan-sdk@v1.2
