@@ -79,6 +79,10 @@ jobs:
         working-directory: build
         run: cmake --build . --config Release
 
+      - name: Vulkan driver test
+        run: ls "$VULKAN_SDK/bin"
+        if: runner.os == 'Linux'
+
       - name: Run tests
         working-directory: build
         run: ctest --output-on-failure --verbose -C Release
