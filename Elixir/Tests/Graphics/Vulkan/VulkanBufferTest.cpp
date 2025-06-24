@@ -9,6 +9,7 @@ class VulkanBufferTest : public Test
   protected:
     static void SetUpTestSuite()
     {
+        Memory::s_Malloc = CreateScope<SystemMalloc>();
         Window = Window::Create();
         Context = GraphicsContext::Create(EGraphicsAPI::Vulkan, Window.get());
         Context->Init();

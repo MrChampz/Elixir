@@ -41,6 +41,9 @@ TEST(InitializersTest_BufferCreateInfo, SetsCorrectFields)
     EXPECT_EQ(bufferInfo.pNext, nullptr);
     EXPECT_EQ(bufferInfo.size, (VkDeviceSize)info.Buffer.Size);
     EXPECT_EQ(bufferInfo.usage, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+
+
+
 }
 
 TEST(InitializersTest_BufferCreateInfo, ZeroSize)

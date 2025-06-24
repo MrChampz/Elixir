@@ -7,18 +7,21 @@ namespace Elixir
 {
     struct SBuffer
     {
-        void* Data;
+        std::byte* Data;
         size_t Size;
 
-        SBuffer() : SBuffer((void*)nullptr, 0) {}
-        explicit SBuffer(const size_t size) : SBuffer((void*)nullptr, size) {}
+        SBuffer() : SBuffer((std::byte*)nullptr, 0) {}
+        explicit SBuffer(const size_t size) : SBuffer((std::byte*)nullptr, size) {}
 
-        SBuffer(void* data, const size_t size) : Data(data), Size(size)
+        SBuffer(void* data, const size_t size) : SBuffer((std::byte*)data, size) {}
+        SBuffer(const void* data, const size_t size) : SBuffer((const std::byte*)data, size) {}
+
+        SBuffer(std::byte* data, const size_t size) : Data(data), Size(size)
         {
             EE_PROFILE_ZONE_SCOPED()
         }
 
-        SBuffer(const void* data, const size_t size) : SBuffer(size)
+        SBuffer(const std::byte* data, const size_t size) : SBuffer(size)
         {
             Copy(data, size);
         }
@@ -26,28 +29,20 @@ namespace Elixir
         ~SBuffer()
         {
             EE_PROFILE_ZONE_SCOPED()
-            delete[] Data;
-            //Memory::Free(Data);
+            FreeInternalData();
         }
 
         void Allocate(const size_t size)
         {
             EE_PROFILE_ZONE_SCOPED()
-            delete[] Data;
-            Data = nullptr;
-            // if (Data)
-            // {
-            //     Memory::Free(Data);
-            //     Data = nullptr;
-            // }
+
+            FreeInternalData();
 
             if (size == 0) return;
 
-            Data = new Byte[size];
-            Size = size;
-            // auto [ptr, allocatedSize] = Memory::Alloc(size);
-            // Data = ptr;
-            // Size = allocatedSize;
+            auto [ptr, allocatedSize] = Memory::Alloc(size);
+            Data = (std::byte*)ptr;
+            Size = allocatedSize;
         }
 
         void Copy(const void* data, const size_t size)
@@ -67,7 +62,7 @@ namespace Elixir
         {
             EE_PROFILE_ZONE_SCOPED()
             EE_CORE_ASSERT(offset + size <= Size, "Buffer overflow!")
-            //Memory::Memcpy(Data + offset, data, size);
+            Memory::Memcpy(Data + offset, data, size);
         }
 
         template <typename T>
@@ -78,6 +73,17 @@ namespace Elixir
             SBuffer buffer;
             buffer.Copy(data, size);
             return buffer;
+        }
+
+    private:
+        void FreeInternalData()
+        {
+            EE_PROFILE_ZONE_SCOPED()
+            if (Data)
+            {
+                Memory::Free(Data);
+                Data = nullptr;
+            }
         }
     };
 }
