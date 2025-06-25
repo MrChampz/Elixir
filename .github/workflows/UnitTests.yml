@@ -81,4 +81,4 @@ jobs:
 
       - name: Run tests
         working-directory: build
-        run: ctest --output-on-failure --verbose -C Release
+        run: ctest --output-on-failure -C Release

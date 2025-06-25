@@ -10,15 +10,15 @@ namespace Elixir::Vulkan
 {
     /* VulkanBaseBuffer */
 
-    void VulkanBaseBuffer::Destroy(Buffer* buffer)
+    void VulkanBaseBuffer::Destroy()
     {
         EE_PROFILE_ZONE_SCOPED()
 
-        if (buffer->m_Destroyed) return;
+        if (m_Destroyed) return;
 
         vmaDestroyBuffer(m_GraphicsContext->GetAllocator(), m_Buffer, m_Allocation);
         m_Buffer = VK_NULL_HANDLE;
-        buffer->m_Destroyed = true;
+        m_Destroyed = true;
     }
 
     void VulkanBaseBuffer::Copy(
@@ -36,14 +36,12 @@ namespace Elixir::Vulkan
         EE_CORE_ASSERT(vk_Dst->GetVulkanBuffer() != VK_NULL_HANDLE, "Invalid destination buffer!")
 
         std::span copyRegions = regions;
-        std::array<SBufferCopy, 1> defaultRegion;
 
         if (copyRegions.empty())
         {
-            defaultRegion = std::array<SBufferCopy, 1>({
-                SBufferCopy{ .Size = dynamic_cast<const Buffer*>(this)->GetSize() }
-            });
-            copyRegions = defaultRegion;
+            const auto& size = dynamic_cast<const Buffer*>(this)->GetSize();
+            SBufferCopy defaultRegion[] = {{ .Size = size }};
+            copyRegions = std::span(defaultRegion);
         }
 
         vkCmdCopyBuffer(
@@ -58,7 +56,7 @@ namespace Elixir::Vulkan
     VulkanBaseBuffer::VulkanBaseBuffer(
         const GraphicsContext* context,
         const SBufferCreateInfo& info
-    ) : m_Buffer(VK_NULL_HANDLE), m_Allocation(nullptr), m_AllocationInfo{}
+    ) : m_Buffer(VK_NULL_HANDLE), m_Allocation(nullptr), m_AllocationInfo{}, m_Destroyed(false)
     {
         EE_PROFILE_ZONE_SCOPED()
         m_GraphicsContext = static_cast<const VulkanGraphicsContext*>(context);

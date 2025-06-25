@@ -1,3 +1,5 @@
+#include "Engine/Graphics/CommandBuffer.h"
+
 #include <gtest/gtest.h>
 using namespace testing;
 
@@ -70,6 +72,46 @@ TEST_F(VulkanBufferTest, VulkanBuffer_CreationAndDestruction)
     EXPECT_EQ(buffer->GetUsage(), EBufferUsage::TransferDst);
 
     buffer->Destroy();
+    SUCCEED();
+}
+
+TEST_F(VulkanBufferTest, VulkanBuffer_DestroyAfterCopy)
+{
+    SBufferCreateInfo info{};
+    info.Buffer = SBuffer(256);
+    info.Usage = EBufferUsage::TransferDst;
+    info.AllocationInfo = {};
+
+    const auto staging = StagingBuffer::Create(Context.get(), info.Buffer.Size);
+    const auto target = Buffer::Create(Context.get(), info);
+
+    const auto cmd = Context->GetCommandBuffer();
+    cmd->Begin();
+    staging->Copy(cmd, target);
+    cmd->End();
+    cmd->Flush();
+
+    staging->Destroy();
+    target->Destroy();
+
+    SUCCEED();
+}
+
+TEST_F(VulkanBufferTest, VulkanBuffer_DoubleDestroyIsSafe)
+{
+    SBufferCreateInfo info{};
+    info.Buffer = SBuffer(256);
+    info.Usage = EBufferUsage::TransferDst;
+    info.AllocationInfo = {};
+
+    const auto buffer = Buffer::Create(Context.get(), info);
+
+    // First destroy
+    buffer->Destroy();
+
+    // Second destroy should be a no-op
+    buffer->Destroy();
+
     SUCCEED();
 }
 

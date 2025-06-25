@@ -13,7 +13,7 @@ namespace Elixir::Vulkan
       public:
         virtual ~VulkanBaseBuffer() = default;
 
-        virtual void Destroy(Buffer* buffer);
+        virtual void Destroy();
 
         virtual void Copy(
             const CommandBuffer* cmd,
@@ -21,8 +21,9 @@ namespace Elixir::Vulkan
             std::span<SBufferCopy> regions = {}
         );
 
-        VkBuffer GetVulkanBuffer() const { return m_Buffer; }
-        const VmaAllocationInfo& GetVulkanAllocationInfo() const { return m_AllocationInfo; }
+        [[nodiscard]] VkBuffer GetVulkanBuffer() const { return m_Buffer; }
+        [[nodiscard]] const VmaAllocationInfo& GetVulkanAllocationInfo() const { return m_AllocationInfo; }
+        [[nodiscard]] virtual bool IsDestroyed() const { return m_Destroyed;}
 
         VulkanBaseBuffer& operator=(const VulkanBaseBuffer&) = delete;
         VulkanBaseBuffer& operator=(VulkanBaseBuffer&&) = delete;
@@ -40,6 +41,8 @@ namespace Elixir::Vulkan
         VkBuffer m_Buffer;
         VmaAllocation m_Allocation;
         VmaAllocationInfo m_AllocationInfo;
+
+        bool m_Destroyed;
 
         const VulkanGraphicsContext* m_GraphicsContext;
     };
@@ -65,7 +68,7 @@ namespace Elixir::Vulkan
         VulkanBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
         ~VulkanBuffer() override;
 
-        void Destroy() override { VulkanBaseBuffer::Destroy(this); }
+        void Destroy() override { VulkanBaseBuffer::Destroy(); }
 
         void Copy(
             const CommandBuffer* cmd,
@@ -74,6 +77,11 @@ namespace Elixir::Vulkan
         ) override
         {
             VulkanBaseBuffer::Copy(cmd, dst, regions);
+        }
+
+        [[nodiscard]] bool IsDestroyed() const override
+        {
+            return VulkanBaseBuffer::IsDestroyed();
         }
 
       protected:
@@ -99,7 +107,7 @@ namespace Elixir::Vulkan
         VulkanStagingBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
         ~VulkanStagingBuffer() override;
 
-        void Destroy() override { VulkanBaseBuffer::Destroy(this); }
+        void Destroy() override { VulkanBaseBuffer::Destroy(); }
 
         void* Map() override { return VulkanDynamicBuffer::Map(); }
         void Unmap() override { VulkanDynamicBuffer::Unmap(); }
@@ -111,6 +119,11 @@ namespace Elixir::Vulkan
         ) override
         {
             VulkanBaseBuffer::Copy(cmd, dst, regions);
+        }
+
+        [[nodiscard]] bool IsDestroyed() const override
+        {
+            return VulkanBaseBuffer::IsDestroyed();
         }
 
     protected:
@@ -133,7 +146,7 @@ namespace Elixir::Vulkan
         VulkanVertexBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
         ~VulkanVertexBuffer() override;
 
-        void Destroy() override { VulkanBaseBuffer::Destroy(this); }
+        void Destroy() override { VulkanBaseBuffer::Destroy(); }
 
         void Copy(
             const CommandBuffer* cmd,
@@ -142,6 +155,11 @@ namespace Elixir::Vulkan
         ) override
         {
             VulkanBaseBuffer::Copy(cmd, dst, regions);
+        }
+
+        [[nodiscard]] bool IsDestroyed() const override
+        {
+            return VulkanBaseBuffer::IsDestroyed();
         }
 
       protected:
@@ -174,7 +192,7 @@ namespace Elixir::Vulkan
         );
         ~VulkanIndexBuffer() override;
 
-        void Destroy() override { VulkanBaseBuffer::Destroy(this); }
+        void Destroy() override { VulkanBaseBuffer::Destroy(); }
 
         void Copy(
             const CommandBuffer* cmd,
@@ -183,6 +201,11 @@ namespace Elixir::Vulkan
         ) override
         {
             VulkanBaseBuffer::Copy(cmd, dst, regions);
+        }
+
+        [[nodiscard]] bool IsDestroyed() const override
+        {
+            return VulkanBaseBuffer::IsDestroyed();
         }
 
       protected:

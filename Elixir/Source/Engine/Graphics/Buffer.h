@@ -108,11 +108,12 @@ namespace Elixir
             std::span<SBufferCopy> regions = {}
         ) = 0;
 
+        [[nodiscard]] virtual bool IsDestroyed() const = 0;
+
         [[nodiscard]] const UUID& GetUUID() const { return m_UUID; }
         [[nodiscard]] EBufferUsage GetUsage() const { return m_Usage; }
         [[nodiscard]] size_t GetSize() const { return m_Size; }
         [[nodiscard]] const SAllocationInfo& GetAllocationInfo() const { return m_AllocationInfo; }
-        [[nodiscard]] bool IsDestroyed() const { return m_Destroyed; }
 
         virtual bool operator==(const Buffer& other) const final
         {
@@ -142,8 +143,6 @@ namespace Elixir
 
         SAllocationInfo m_AllocationInfo;
 
-        bool m_Destroyed;
-
         const GraphicsContext* m_GraphicsContext;
     };
 
@@ -152,7 +151,7 @@ namespace Elixir
       public:
         ~DynamicBuffer() override = default;
 
-        virtual void* Map() = 0;
+        [[nodiscard]] virtual void* Map() = 0;
         virtual void Unmap() = 0;
 
         DynamicBuffer& operator=(const DynamicBuffer&) = delete;

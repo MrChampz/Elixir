@@ -86,7 +86,7 @@ namespace Elixir
 
     Buffer::Buffer(const GraphicsContext* context, const SBufferCreateInfo& info)
         : m_Usage(info.Usage), m_Size(info.Buffer.Size), m_AllocationInfo(info.AllocationInfo),
-          m_Destroyed(false), m_GraphicsContext(context)
+          m_GraphicsContext(context)
     {
         EE_PROFILE_ZONE_SCOPED()
     }
