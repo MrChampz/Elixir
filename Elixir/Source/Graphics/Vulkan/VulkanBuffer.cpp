@@ -56,7 +56,8 @@ namespace Elixir::Vulkan
     VulkanBaseBuffer::VulkanBaseBuffer(
         const GraphicsContext* context,
         const SBufferCreateInfo& info
-    ) : m_Buffer(VK_NULL_HANDLE), m_Allocation(nullptr), m_AllocationInfo{}, m_Destroyed(false)
+    ) : m_Buffer(VK_NULL_HANDLE), m_Allocation(nullptr), m_AllocationInfo{}, m_DescriptorInfo{},
+        m_Destroyed(false)
     {
         EE_PROFILE_ZONE_SCOPED()
         m_GraphicsContext = static_cast<const VulkanGraphicsContext*>(context);
@@ -75,6 +76,11 @@ namespace Elixir::Vulkan
                 &m_Allocation, &m_AllocationInfo
             )
         );
+
+        m_DescriptorInfo = {};
+        m_DescriptorInfo.buffer = m_Buffer;
+        m_DescriptorInfo.offset = 0;
+        m_DescriptorInfo.range = VK_WHOLE_SIZE;
     }
 
     void VulkanBaseBuffer::InitBufferWithData(const SBuffer& buffer)
@@ -232,5 +238,40 @@ namespace Elixir::Vulkan
     {
         EE_PROFILE_ZONE_SCOPED()
         Destroy();
+    }
+
+    /* VulkanUniformBuffer */
+
+    VulkanUniformBuffer::VulkanUniformBuffer(
+        const GraphicsContext* context,
+        size_t size,
+        const void* data
+    ) : VulkanUniformBuffer(context, CreateBufferInfo(size, data)) {}
+
+    VulkanUniformBuffer::VulkanUniformBuffer(
+        const GraphicsContext* context,
+        const SBufferCreateInfo& info
+    ) : UniformBuffer(context, info), VulkanDynamicBuffer(context, info)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        CreateBuffer(info);
+        InitBufferWithData(info.Buffer);
+    }
+
+    VulkanUniformBuffer::~VulkanUniformBuffer()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        Destroy();
+    }
+
+    void VulkanUniformBuffer::InitBufferWithData(const SBuffer& buffer)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        if (buffer.Data)
+        {
+            void* mapped = Map();
+            Memory::Memcpy(mapped, buffer.Data, m_Size);
+            Unmap();
+        }
     }
 }

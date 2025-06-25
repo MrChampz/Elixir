@@ -207,3 +207,37 @@ TEST_F(VulkanBufferTest, VulkanIndexBuffer_CreationAndIndexType)
 
     EXPECT_TRUE(buffer->IsDestroyed());
 }
+
+TEST_F(VulkanBufferTest, VulkanUniformBuffer_CopyConstructorIsDeleted)
+{
+    EXPECT_FALSE(std::is_copy_constructible_v<VulkanUniformBuffer>);
+    EXPECT_FALSE(std::is_copy_assignable_v<VulkanUniformBuffer>);
+}
+
+TEST_F(VulkanBufferTest, VulkanUniformBuffer_MoveConstructorIsDeleted)
+{
+    EXPECT_FALSE(std::is_move_constructible_v<VulkanUniformBuffer>);
+    EXPECT_FALSE(std::is_move_assignable_v<VulkanUniformBuffer>);
+}
+
+TEST_F(VulkanBufferTest, VulkanUniformBuffer_CreationAndMapping)
+{
+    constexpr size_t size = 128;
+    const std::vector<uint8_t> data(size, 0xFF);
+
+    const auto buffer = UniformBuffer::Create(Context.get(), size, data.data());
+
+    EXPECT_EQ(buffer->GetSize(), size);
+    EXPECT_EQ(buffer->GetUsage(), EBufferUsage::UniformBuffer);
+
+    void* mapped = buffer->Map();
+    ASSERT_NE(mapped, nullptr);
+
+    EXPECT_EQ(std::memcmp(mapped, data.data(), size), 0)
+        << "Buffer contents do not match expected data.";
+
+    buffer->Unmap();
+    buffer->Destroy();
+
+    EXPECT_TRUE(buffer->IsDestroyed());
+}

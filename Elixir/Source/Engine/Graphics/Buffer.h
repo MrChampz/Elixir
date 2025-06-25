@@ -154,8 +154,6 @@ namespace Elixir
         [[nodiscard]] virtual void* Map() = 0;
         virtual void Unmap() = 0;
 
-        DynamicBuffer& operator=(const DynamicBuffer&) = delete;
-
       protected:
         DynamicBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
         DynamicBuffer(const DynamicBuffer&) = delete;
@@ -174,6 +172,8 @@ namespace Elixir
             const void* data = nullptr
         );
 
+        static SBufferCreateInfo CreateBufferInfo(size_t size, const void* data);
+
     protected:
         StagingBuffer(
             const GraphicsContext* context,
@@ -182,8 +182,6 @@ namespace Elixir
         );
         StagingBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
         StagingBuffer(const StagingBuffer&) = delete;
-
-        static SBufferCreateInfo CreateBufferInfo(size_t size, const void* data);
     };
 
     class ELIXIR_API VertexBuffer : public Buffer
@@ -196,13 +194,13 @@ namespace Elixir
 
         [[nodiscard]] BufferAddress GetAddress() const { return m_Address; }
 
-        VertexBuffer& operator=(const VertexBuffer&) = delete;
-
         static Ref<VertexBuffer> Create(
             const GraphicsContext* context,
             size_t size,
             const void* data = nullptr
         );
+
+        static SBufferCreateInfo CreateBufferInfo(size_t size, const void* data);
 
       protected:
         VertexBuffer(const GraphicsContext* context, size_t size, const void* data = nullptr);
@@ -210,8 +208,6 @@ namespace Elixir
         VertexBuffer(const VertexBuffer&) = delete;
 
         virtual void CreateBufferAddress() = 0;
-
-        static SBufferCreateInfo CreateBufferInfo(size_t size, const void* data);
 
         BufferLayout m_Layout;
         BufferAddress m_Address;
@@ -229,14 +225,14 @@ namespace Elixir
 
         [[nodiscard]] EIndexType GetIndexType() const { return m_IndexType; }
 
-        IndexBuffer& operator=(const IndexBuffer&) = delete;
-
         static Ref<IndexBuffer> Create(
             const GraphicsContext* context,
             size_t size,
             const void* data = nullptr,
             EIndexType type = EIndexType::UInt32
         );
+
+        static SBufferCreateInfo CreateBufferInfo(size_t size, const void* data);
 
       protected:
         IndexBuffer(
@@ -252,8 +248,28 @@ namespace Elixir
         );
         IndexBuffer(const IndexBuffer&) = delete;
 
+        EIndexType m_IndexType;
+    };
+
+    class ELIXIR_API UniformBuffer : public DynamicBuffer
+    {
+    public:
+        ~UniformBuffer() override = default;
+
+        static Ref<UniformBuffer> Create(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr
+        );
+
         static SBufferCreateInfo CreateBufferInfo(size_t size, const void* data);
 
-        EIndexType m_IndexType;
+    protected:
+        UniformBuffer(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr
+        );
+        UniformBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
     };
 }

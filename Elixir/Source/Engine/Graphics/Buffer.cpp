@@ -119,6 +119,18 @@ namespace Elixir
         }
     }
 
+    SBufferCreateInfo StagingBuffer::CreateBufferInfo(const size_t size, const void* data)
+    {
+        return {
+            .Buffer = SBuffer(data, size),
+            .Usage = EBufferUsage::TransferSrc,
+            .AllocationInfo = {
+                .RequiredFlags = EMemoryProperty::HostVisible | EMemoryProperty::HostCoherent,
+                .PreferredFlags = EMemoryProperty::HostCached
+            }
+        };
+    }
+
     StagingBuffer::StagingBuffer(
         const GraphicsContext* context,
         const size_t size,
@@ -131,18 +143,6 @@ namespace Elixir
     ) : DynamicBuffer(context, info)
     {
         EE_PROFILE_ZONE_SCOPED()
-    }
-
-    SBufferCreateInfo StagingBuffer::CreateBufferInfo(const size_t size, const void* data)
-    {
-        return {
-            .Buffer = SBuffer(data, size),
-            .Usage = EBufferUsage::TransferSrc,
-            .AllocationInfo = {
-                .RequiredFlags = EMemoryProperty::HostVisible | EMemoryProperty::HostCoherent,
-                .PreferredFlags = EMemoryProperty::HostCached
-            }
-        };
     }
 
     /* VertexBuffer */
@@ -169,6 +169,17 @@ namespace Elixir
         }
     }
 
+    SBufferCreateInfo VertexBuffer::CreateBufferInfo(const size_t size, const void* data)
+    {
+        return {
+            .Buffer = SBuffer(data, size),
+            .Usage = VERTEX_BUFFER_USAGE,
+            .AllocationInfo = {
+                .PreferredFlags = EMemoryProperty::DeviceLocal
+            }
+        };
+    }
+
     VertexBuffer::VertexBuffer(
         const GraphicsContext* context,
         const size_t size,
@@ -179,17 +190,6 @@ namespace Elixir
         : Buffer(context, info), m_Address(0)
     {
         EE_PROFILE_ZONE_SCOPED()
-    }
-
-    SBufferCreateInfo VertexBuffer::CreateBufferInfo(const size_t size, const void* data)
-    {
-        return {
-            .Buffer = SBuffer(data, size),
-            .Usage = VERTEX_BUFFER_USAGE,
-            .AllocationInfo = {
-                .PreferredFlags = EMemoryProperty::DeviceLocal
-            }
-        };
     }
 
     /* IndexBuffer */
@@ -219,6 +219,17 @@ namespace Elixir
         }
     }
 
+    SBufferCreateInfo IndexBuffer::CreateBufferInfo(const size_t size, const void* data)
+    {
+        return {
+            .Buffer = SBuffer(data, size),
+            .Usage = INDEX_BUFFER_USAGE,
+            .AllocationInfo = {
+                .PreferredFlags = EMemoryProperty::DeviceLocal
+            }
+        };
+    }
+
     IndexBuffer::IndexBuffer(
         const GraphicsContext* context,
         const size_t size,
@@ -230,19 +241,54 @@ namespace Elixir
         const GraphicsContext* context,
         const SBufferCreateInfo& info,
         const EIndexType type
-    ) : Buffer(context, info), m_IndexType(type)
+    )
+        : Buffer(context, info), m_IndexType(type)
     {
         EE_PROFILE_ZONE_SCOPED()
     }
 
-    SBufferCreateInfo IndexBuffer::CreateBufferInfo(const size_t size, const void* data)
+    /* UniformBuffer */
+
+    Ref<UniformBuffer> UniformBuffer::Create(
+        const GraphicsContext* context,
+        size_t size,
+        const void* data
+    )
+    {
+        switch (context->GetAPI())
+        {
+            case EGraphicsAPI::Vulkan:
+                return CreateRef<Vulkan::VulkanUniformBuffer>(
+                    context,
+                    size,
+                    data
+                );
+            default:
+                EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
+                return nullptr;
+        }
+    }
+
+    SBufferCreateInfo UniformBuffer::CreateBufferInfo(const size_t size, const void* data)
     {
         return {
             .Buffer = SBuffer(data, size),
-            .Usage = INDEX_BUFFER_USAGE,
+            .Usage = EBufferUsage::UniformBuffer,
             .AllocationInfo = {
-                .PreferredFlags = EMemoryProperty::DeviceLocal
+                .PreferredFlags = EMemoryProperty::HostVisible | EMemoryProperty::HostCoherent
             }
         };
+    }
+
+    UniformBuffer::UniformBuffer(
+        const GraphicsContext* context,
+        const size_t size,
+        const void* data
+    ) : UniformBuffer(context, CreateBufferInfo(size, data)) {}
+
+    UniformBuffer::UniformBuffer(const GraphicsContext* context, const SBufferCreateInfo& info)
+        : DynamicBuffer(context, info)
+    {
+        EE_PROFILE_ZONE_SCOPED()
     }
 }

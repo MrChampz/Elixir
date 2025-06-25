@@ -23,6 +23,7 @@ namespace Elixir::Vulkan
 
         [[nodiscard]] VkBuffer GetVulkanBuffer() const { return m_Buffer; }
         [[nodiscard]] const VmaAllocationInfo& GetVulkanAllocationInfo() const { return m_AllocationInfo; }
+        [[nodiscard]] const VkDescriptorBufferInfo& GetVulkanDescriptorInfo() const { return m_DescriptorInfo; }
         [[nodiscard]] virtual bool IsDestroyed() const { return m_Destroyed;}
 
         VulkanBaseBuffer& operator=(const VulkanBaseBuffer&) = delete;
@@ -41,6 +42,7 @@ namespace Elixir::Vulkan
         VkBuffer m_Buffer;
         VmaAllocation m_Allocation;
         VmaAllocationInfo m_AllocationInfo;
+        VkDescriptorBufferInfo m_DescriptorInfo;
 
         bool m_Destroyed;
 
@@ -218,5 +220,47 @@ namespace Elixir::Vulkan
         {
             VulkanBaseBuffer::InitBufferWithData(buffer);
         }
+    };
+
+    class ELIXIR_API VulkanUniformBuffer final : public UniformBuffer, public VulkanDynamicBuffer
+    {
+    public:
+        VulkanUniformBuffer(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr
+        );
+        VulkanUniformBuffer(
+            const GraphicsContext* context,
+            const SBufferCreateInfo& info
+        );
+        ~VulkanUniformBuffer() override;
+
+        void Destroy() override { VulkanBaseBuffer::Destroy(); }
+
+        void* Map() override { return VulkanDynamicBuffer::Map(); }
+        void Unmap() override { VulkanDynamicBuffer::Unmap(); }
+
+        void Copy(
+            const CommandBuffer* cmd,
+            const Buffer* dst,
+            const std::span<SBufferCopy> regions = {}
+        ) override
+        {
+            VulkanBaseBuffer::Copy(cmd, dst, regions);
+        }
+
+        [[nodiscard]] bool IsDestroyed() const override
+        {
+            return VulkanBaseBuffer::IsDestroyed();
+        }
+
+    protected:
+        void CreateBuffer(const SBufferCreateInfo& info) override
+        {
+            VulkanBaseBuffer::CreateBuffer(info);
+        }
+
+        void InitBufferWithData(const SBuffer& buffer) override;
     };
 }
