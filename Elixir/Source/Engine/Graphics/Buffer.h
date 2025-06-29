@@ -6,15 +6,6 @@
 
 namespace Elixir
 {
-	namespace Vulkan { class VulkanBaseBuffer; }
-
-    struct SBufferCopy
-    {
-        uint64_t SrcOffset = 0;
-        uint64_t DstOffset = 0;
-        uint64_t Size = 0;
-    };
-
     enum class EDataType : uint32_t
     {
         Bool, Float, Vec2, Vec3, Vec4, Int, IntVec2, IntVec3, IntVec4, Mat3, Mat4
@@ -72,6 +63,18 @@ namespace Elixir
 
     GENERATE_ENUM_CLASS_OPERATORS(EBufferUsage)
 
+    struct SBufferCopy
+    {
+        size_t SrcOffset = 0;
+        size_t DstOffset = 0;
+        size_t Size = 0;
+
+        static SBufferCopy Default(const size_t size = 0)
+        {
+            return { .Size = size };
+        }
+    };
+
     struct SBufferCreateInfo
     {
         SBuffer Buffer;
@@ -81,7 +84,6 @@ namespace Elixir
 
     class ELIXIR_API Buffer
     {
-		friend class Vulkan::VulkanBaseBuffer;
       public:
         virtual ~Buffer() = default;
 

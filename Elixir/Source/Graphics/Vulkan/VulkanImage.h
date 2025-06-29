@@ -1,8 +1,7 @@
 #pragma once
 
-#include "VulkanGraphicsContext.h"
-
 #include <Engine/Graphics/Image.h>
+#include <Graphics/Vulkan/VulkanGraphicsContext.h>
 
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
@@ -11,49 +10,61 @@ namespace Elixir::Vulkan
 {
     using namespace Elixir;
 
-    class VulkanBaseImage : public virtual Image
+    template <class Base>
+    class VulkanImageBase : public Base
     {
       public:
-        ~VulkanBaseImage() override;
+        virtual void Destroy() override;
 
-        void Transition(const CommandBuffer* cmd, EImageLayout layout) override;
+        using Image::Transition;
+        virtual void Transition(const CommandBuffer* cmd, EImageLayout layout) override;
 
-        void Copy(
+        using Image::Copy;
+        virtual void Copy(
             const CommandBuffer* cmd,
-            const Ref<Image>& dst,
+            const Image* dst,
             const Extent3D& srcExtent,
             const Extent3D& dstExtent
         ) override;
 
-        VkFormat GetVulkanFormat() const;
-        VkExtent3D GetVulkanExtent() const;
+        using Image::CopyFrom;
+        virtual void CopyFrom(
+            const CommandBuffer* cmd,
+            const Buffer* src,
+            std::span<SBufferImageCopy> regions = {}
+        ) override;
 
-        VkImage GetImage() const { return m_Image;}
-        VkImageView GetImageView() const { return m_ImageView; }
-        VkDescriptorImageInfo GetDescriptorInfo() const { return m_DescriptorInfo; }
+        [[nodiscard]] bool IsDestroyed() const override { return m_Destroyed; }
+
+        [[nodiscard]] VkImage GetVulkanImage() const { return m_Image; }
+
+        VulkanImageBase& operator=(const VulkanImageBase&) = delete;
+        VulkanImageBase& operator=(VulkanImageBase&&) = delete;
 
       protected:
-        VulkanBaseImage(
-            const GraphicsContext* context,
-            EImageFormat format,
-            uint32_t width,
-            void* data = nullptr
-        );
+        VulkanImageBase(const GraphicsContext* context, const SImageCreateInfo& info);
+        VulkanImageBase(const VulkanImageBase&) = delete;
+        VulkanImageBase(VulkanImageBase&&) = delete;
 
-        void CreateImage(void* data) override;
+        void CreateImage(const SImageCreateInfo& info);
+        void InitImage(const SImageCreateInfo& info);
+        void CreateImageView();
+        void CreateDescriptorInfo();
         void UpdateSampler() override;
 
+      private:
         VkImage m_Image = VK_NULL_HANDLE;
         VkImageView m_ImageView = VK_NULL_HANDLE;
         VkDescriptorImageInfo m_DescriptorInfo{};
+
         VmaAllocation m_Allocation = VK_NULL_HANDLE;
 
         bool m_Destroyed = false;
 
-        const VulkanGraphicsContext* m_GraphicsContext;
+        const VulkanGraphicsContext* m_GraphicsContext = nullptr;
     };
 
-    class ELIXIR_API VulkanImage final : public VulkanBaseImage
+    class ELIXIR_API VulkanImage final : public VulkanImageBase<Image>
     {
       public:
         VulkanImage(
@@ -62,10 +73,11 @@ namespace Elixir::Vulkan
             uint32_t width,
             void* data = nullptr
         );
+        VulkanImage(const GraphicsContext* context, const SImageCreateInfo& info);
+        ~VulkanImage() override;
     };
 
-    class ELIXIR_API VulkanDepthStencilImage final
-        : public DepthStencilImage, public VulkanBaseImage
+    class ELIXIR_API VulkanDepthStencilImage final : public VulkanImageBase<DepthStencilImage>
     {
       public:
         VulkanDepthStencilImage(
@@ -74,22 +86,18 @@ namespace Elixir::Vulkan
             uint32_t width,
             uint32_t height
         );
-
-      protected:
-        void CreateImage(void* data) override;
+        VulkanDepthStencilImage(const GraphicsContext* context, const SImageCreateInfo& info);
+        ~VulkanDepthStencilImage() override;
     };
 
-    class ELIXIR_API VulkanStorageImage final : public StorageImage, public VulkanBaseImage
+    inline VkImage GetVulkanImageHandler(const Image* image)
     {
-    public:
-        VulkanStorageImage(
-            const GraphicsContext* context,
-            EImageFormat format,
-            uint32_t width,
-            uint32_t height
-        );
+        if (auto* img = dynamic_cast<const VulkanImageBase<DepthStencilImage>*>(image))
+            return img->GetVulkanImage();
+        if (auto* img = dynamic_cast<const VulkanImageBase<Image>*>(image))
+            return img->GetVulkanImage();
 
-    protected:
-        void CreateImage(void* data) override;
-    };
+        EE_CORE_ASSERT(false, "Unsupported image type!")
+        return VK_NULL_HANDLE;
+    }
 }

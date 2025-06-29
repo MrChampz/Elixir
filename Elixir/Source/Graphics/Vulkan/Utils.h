@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Engine/Graphics/Utils.h>
 #include <Graphics/Vulkan/Initializers.h>
 
 #include <vulkan/vulkan.h>

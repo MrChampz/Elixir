@@ -1,8 +1,7 @@
-#include "Engine/Graphics/CommandBuffer.h"
-
 #include <gtest/gtest.h>
 using namespace testing;
 
+#include <Engine/Graphics/CommandBuffer.h>
 #include <Graphics/Vulkan/VulkanBuffer.h>
 using namespace Elixir::Vulkan;
 

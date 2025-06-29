@@ -1,12 +1,20 @@
 #pragma once
 
 #include <Engine/Core/Core.h>
+#include <Engine/Graphics/Buffer.h>
+#include <Engine/Graphics/Sampler.h>
+#include <Engine/Graphics/CommandBuffer.h>
 #include <Engine/Graphics/GraphicsContext.h>
 
 namespace Elixir
 {
-    class CommandBuffer;
-    struct SBufferImageCopy;
+    class Image;
+
+    namespace Vulkan
+    {
+        template <typename>
+        class VulkanImageBase;
+    }
 
     enum class EImageLayout
     {
@@ -135,42 +143,120 @@ namespace Elixir
 		X8_D24_UNORM_PACK32 = 504
 	};
 
+    struct SImageLayeredSubresource
+    {
+        EImageAspect AspectMask;
+        uint32_t MipLevel = 0;
+        uint32_t BaseArrayLayer = 0;
+        uint32_t LayerCount = 1;
+
+        static SImageLayeredSubresource Default()
+        {
+            return {
+                .AspectMask = EImageAspect::Color,
+            };
+        }
+    };
+
+    struct SBufferImageCopy
+    {
+        uint64_t BufferOffset = 0;
+        uint32_t BufferRowLength = 0;
+        uint32_t BufferImageHeight = 0;
+        SImageLayeredSubresource ImageSubresource;
+        Offset3D ImageOffset;
+        Extent3D ImageExtent;
+
+        static SBufferImageCopy Default(const Extent3D& extent = Extent3D())
+        {
+            return {
+                .ImageSubresource = SImageLayeredSubresource::Default(),
+                .ImageExtent = extent,
+            };
+        }
+    };
+
+    struct SImageCreateInfo
+    {
+        void* InitialData = nullptr;
+        uint32_t Width = 0;
+        uint32_t Height = 1;
+        uint32_t Depth = 1;
+        EImageType Type;
+        EImageFormat Format;
+        uint32_t MipLevels = 1;
+        uint32_t ArrayLayers = 1;
+        EImageUsage Usage;
+        EImageLayout InitialLayout = EImageLayout::Undefined;
+        SAllocationInfo AllocationInfo;
+    };
+
     class ELIXIR_API Image
     {
         friend class TextureLoader;
+
+        template <typename>
+        friend class Vulkan::VulkanImageBase;
     public:
         virtual ~Image() = default;
 
-        // TODO: secure pointer and raw pointer versions needed?
-        virtual void Transition(const Ref<CommandBuffer>& cmd, EImageLayout layout);
+        virtual void Destroy() = 0;
+
+        void Transition(const Ref<CommandBuffer>& cmd, EImageLayout layout);
         virtual void Transition(const CommandBuffer* cmd, EImageLayout layout) = 0;
 
-        // TODO: secure pointer and raw pointer versions needed?
-        virtual void Copy(const Ref<CommandBuffer>& cmd, const Ref<Image>& dst);
-        virtual void Copy(
+        void Copy(const Ref<CommandBuffer>& cmd, const Ref<Image>& dst);
+        void Copy(const Ref<CommandBuffer>& cmd, const Image* dst);
+        void Copy(const CommandBuffer* cmd, const Ref<Image>& dst);
+        void Copy(const CommandBuffer* cmd, const Image* dst);
+
+        void Copy(
             const Ref<CommandBuffer>& cmd,
             const Ref<Image>& dst,
             const Extent3D& srcExtent,
             const Extent3D& dstExtent
         );
-        virtual void Copy(const CommandBuffer* cmd, const Ref<Image>& dst);
-        virtual void Copy(
+        void Copy(
+            const Ref<CommandBuffer>& cmd,
+            const Image* dst,
+            const Extent3D& srcExtent,
+            const Extent3D& dstExtent
+        );
+        void Copy(
             const CommandBuffer* cmd,
             const Ref<Image>& dst,
             const Extent3D& srcExtent,
             const Extent3D& dstExtent
+        );
+        virtual void Copy(
+            const CommandBuffer* cmd,
+            const Image* dst,
+            const Extent3D& srcExtent,
+            const Extent3D& dstExtent
         ) = 0;
 
-        // virtual void CopyFromBuffer(
-        //     const Ref<CommandBuffer>& cmd,
-        //     const Ref<BufferBase>& src,
-        //     std::span<BufferImageCopy> regions = {}
-        // );
+        void CopyFrom(
+            const Ref<CommandBuffer>& cmd,
+            const Ref<Buffer>& src,
+            std::span<SBufferImageCopy> regions = {}
+        );
+        void CopyFrom(
+            const Ref<CommandBuffer>& cmd,
+            const Buffer* src,
+            std::span<SBufferImageCopy> regions = {}
+        );
+        void CopyFrom(
+            const CommandBuffer* cmd,
+            const Ref<Buffer>& src,
+            std::span<SBufferImageCopy> regions = {}
+        );
+        virtual void CopyFrom(
+            const CommandBuffer* cmd,
+            const Buffer* src,
+            std::span<SBufferImageCopy> regions = {}
+        ) = 0;
 
-        [[nodiscard]] virtual Extent3D GetExtent() const
-        {
-            return { m_Width, 1, 1};
-        }
+        [[nodiscard]] virtual bool IsDestroyed() const = 0;
 
         [[nodiscard]] const UUID& GetUUID() const { return m_UUID; }
 
@@ -180,20 +266,27 @@ namespace Elixir
         [[nodiscard]] EImageUsage GetUsage() const { return m_Usage; }
         [[nodiscard]] EImageAspect GetAspect() const { return m_Aspect; }
 
-        [[nodiscard]] uint32_t GetWidth() const { return m_Width; }
+        [[nodiscard]] Extent3D GetExtent() const { return m_Extent; }
+        [[nodiscard]] uint32_t GetWidth() const { return m_Extent.Width; }
+
+        [[nodiscard]] uint32_t GetMipLevels() const { return m_MipLevels; }
+        [[nodiscard]] uint32_t GetArrayLayers() const { return m_ArrayLayers; }
 
         [[nodiscard]] uint32_t GetBitsPerPixel() const { return m_BitsPerPixel; }
         [[nodiscard]] size_t GetSize() const { return m_Size; }
 
-        [[nodiscard]] bool IsHDR() const { return m_IsHDR; }
+        [[nodiscard]] bool IsHDR() const { return m_HDR; }
 
-        // [[nodiscard]] Ref<Sampler> GetSampler() const { return m_Sampler; }
-        // void SetSampler(const Ref<Sampler>& sampler); # call UpdateSampler!
+        [[nodiscard]] const Ref<Sampler>& GetSampler() const { return m_Sampler; }
+        void SetSampler(const Ref<Sampler>& sampler);
 
         virtual bool operator==(const Image& other) const final
         {
             return m_UUID == other.m_UUID;
         }
+
+        Image& operator=(const Image&) = delete;
+        Image& operator=(Image&&) = delete;
 
         static Ref<Image> Create(
             const GraphicsContext* context,
@@ -202,15 +295,17 @@ namespace Elixir
             void* data = nullptr
         );
 
-      protected:
-        Image(
-            const GraphicsContext* context,
+        static SImageCreateInfo CreateImageInfo(
             EImageFormat format,
             uint32_t width,
             void* data = nullptr
         );
 
-        virtual void CreateImage(void* data) = 0;
+      protected:
+        Image(const GraphicsContext* context, const SImageCreateInfo& info);
+        Image(const Image&) = delete;
+        Image(Image&&) = delete;
+
         virtual void UpdateSampler() = 0;
 
         UUID m_UUID;
@@ -221,29 +316,27 @@ namespace Elixir
         EImageUsage m_Usage;
         EImageAspect m_Aspect;
 
-        uint32_t m_Width;
+        Extent3D m_Extent;
+
+        uint32_t m_MipLevels;
+        uint32_t m_ArrayLayers;
 
         uint32_t m_BitsPerPixel;
         size_t m_Size;
 
-        bool m_IsHDR = false;
+        bool m_HDR = false;
 
-        //Ref<Sampler> m_Sampler;
+        Ref<Sampler> m_Sampler;
 
         const GraphicsContext* m_GraphicsContext;
     };
 
-    class ELIXIR_API DepthStencilImage : public virtual Image
+    class ELIXIR_API DepthStencilImage : public Image
     {
       public:
         ~DepthStencilImage() override = default;
 
-        [[nodiscard]] Extent3D GetExtent() const override
-        {
-            return { m_Width, m_Height, 1 };
-        }
-
-        [[nodiscard]] virtual uint32_t GetHeight() const { return m_Height; }
+        [[nodiscard]] virtual uint32_t GetHeight() const { return m_Extent.Height; }
 
         static Ref<DepthStencilImage> Create(
             const GraphicsContext* context,
@@ -252,45 +345,13 @@ namespace Elixir
             uint32_t height
         );
 
-      protected:
-        DepthStencilImage(
-            const GraphicsContext* context,
+        static SImageCreateInfo CreateImageInfo(
             EDepthStencilImageFormat format,
             uint32_t width,
             uint32_t height
         );
 
-      private:
-        uint32_t m_Height;
-    };
-
-    class ELIXIR_API StorageImage : public virtual Image
-    {
-      public:
-        ~StorageImage() override = default;
-
-        [[nodiscard]] Extent3D GetExtent() const override
-        {
-            return { m_Width, m_Height, 1 };
-        }
-
-        [[nodiscard]] virtual uint32_t GetHeight() const { return m_Height; }
-
-        static Ref<StorageImage> Create(
-            const GraphicsContext* context,
-            EImageFormat format,
-            uint32_t width,
-            uint32_t height
-        );
-
       protected:
-        StorageImage(
-            const GraphicsContext* context,
-            EImageFormat format,
-            uint32_t width,
-            uint32_t height
-        );
-
-        uint32_t m_Height;
+        DepthStencilImage(const GraphicsContext* context, const SImageCreateInfo& info);
     };
 }

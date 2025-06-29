@@ -21,10 +21,10 @@ namespace Elixir::Vulkan
             std::span<SBufferCopy> regions = {}
         );
 
+        [[nodiscard]] virtual bool IsDestroyed() const { return m_Destroyed; }
+
         [[nodiscard]] VkBuffer GetVulkanBuffer() const { return m_Buffer; }
-        [[nodiscard]] const VmaAllocationInfo& GetVulkanAllocationInfo() const { return m_AllocationInfo; }
         [[nodiscard]] const VkDescriptorBufferInfo& GetVulkanDescriptorInfo() const { return m_DescriptorInfo; }
-        [[nodiscard]] virtual bool IsDestroyed() const { return m_Destroyed;}
 
         VulkanBaseBuffer& operator=(const VulkanBaseBuffer&) = delete;
         VulkanBaseBuffer& operator=(VulkanBaseBuffer&&) = delete;
@@ -39,12 +39,12 @@ namespace Elixir::Vulkan
 
         BufferAddress CreateAndReturnBufferAddress() const;
 
-        VkBuffer m_Buffer;
-        VmaAllocation m_Allocation;
-        VmaAllocationInfo m_AllocationInfo;
-        VkDescriptorBufferInfo m_DescriptorInfo;
+        VkBuffer m_Buffer = VK_NULL_HANDLE;
+        VkDescriptorBufferInfo m_DescriptorInfo{};
 
-        bool m_Destroyed;
+        VmaAllocation m_Allocation = VK_NULL_HANDLE;
+
+        bool m_Destroyed = false;
 
         const VulkanGraphicsContext* m_GraphicsContext;
     };

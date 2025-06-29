@@ -40,24 +40,31 @@ namespace Elixir::Vulkan
         if (copyRegions.empty())
         {
             const auto& size = dynamic_cast<const Buffer*>(this)->GetSize();
-            SBufferCopy defaultRegion[] = {{ .Size = size }};
+            SBufferCopy defaultRegion[] = { SBufferCopy::Default(size) };
             copyRegions = std::span(defaultRegion);
         }
+
+        std::vector<VkBufferCopy> bufferCopies(copyRegions.size());
+
+        std::ranges::transform(
+            copyRegions,
+            bufferCopies.begin(),
+            Converters::GetBufferCopy
+        );
 
         vkCmdCopyBuffer(
             vk_Cmd->GetVulkanCommandBuffer(),
             GetVulkanBuffer(),
             vk_Dst->GetVulkanBuffer(),
-            copyRegions.size(),
-            (const VkBufferCopy*)copyRegions.data()
+            bufferCopies.size(),
+            bufferCopies.data()
         );
     }
 
     VulkanBaseBuffer::VulkanBaseBuffer(
         const GraphicsContext* context,
         const SBufferCreateInfo& info
-    ) : m_Buffer(VK_NULL_HANDLE), m_Allocation(nullptr), m_AllocationInfo{}, m_DescriptorInfo{},
-        m_Destroyed(false)
+    )
     {
         EE_PROFILE_ZONE_SCOPED()
         m_GraphicsContext = static_cast<const VulkanGraphicsContext*>(context);
@@ -73,7 +80,7 @@ namespace Elixir::Vulkan
         VK_CHECK_RESULT(
             vmaCreateBuffer(
                 m_GraphicsContext->GetAllocator(), &bufferInfo, &allocInfo, &m_Buffer,
-                &m_Allocation, &m_AllocationInfo
+                &m_Allocation, nullptr
             )
         );
 

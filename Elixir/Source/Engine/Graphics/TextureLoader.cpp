@@ -80,7 +80,7 @@ namespace Elixir
             data,
             pathStr
         );
-        texture->m_IsHDR = isHdr;
+        texture->m_HDR = isHdr;
         EE_CORE_TRACE("Loaded texture: {0} [{1}].", pathStr, texture->GetUUID())
 
         stbi_image_free(data);

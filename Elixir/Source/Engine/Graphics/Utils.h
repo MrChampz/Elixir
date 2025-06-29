@@ -227,19 +227,37 @@ namespace Elixir::Graphics::Utils
         return glm::vec3{};
     }
 
+    static EImageLayout CalculateImageLayout(const EImageUsage usage, const EImageFormat format)
+    {
+        if (usage & EImageUsage::DepthStencilAttachment)
+        {
+            switch (format)
+            {
+                case EImageFormat::D16_UNORM:
+                case EImageFormat::D32_SFLOAT:
+                case EImageFormat::X8_D24_UNORM_PACK32:
+                    return EImageLayout::DepthAttachment;
+                case EImageFormat::D24_UNORM_S8_UINT:
+                case EImageFormat::D32_SFLOAT_S8_UINT:
+                    return EImageLayout::DepthStencilAttachment;
+                default:
+                    EE_CORE_ASSERT(false, "Unknown depth ImageFormat!");
+            }
+
+            if (usage & EImageUsage::Sampled)
+                return EImageLayout::ShaderReadOnly;
+
+            if (usage & EImageUsage::ColorAttachment)
+                return EImageLayout::ColorAttachment;
+
+            return EImageLayout::Undefined;
+        }
+
+        return EImageLayout::Undefined;
+    }
+
     static EImageAspect CalculateImageAspect(const EImageUsage usage, const EImageFormat format)
 	{
-		auto aspect = EImageAspect::None;
-
-		if (usage & EImageUsage::ColorAttachment)
-			aspect = aspect | EImageAspect::Color;
-
-		if (usage & EImageUsage::Sampled)
-			aspect = aspect | EImageAspect::Color;
-
-		if (usage & EImageUsage::Storage)
-			aspect = aspect | EImageAspect::Color;
-
 		if (usage & EImageUsage::DepthStencilAttachment)
 		{
 			switch (format)
@@ -247,17 +265,25 @@ namespace Elixir::Graphics::Utils
 			case EImageFormat::D16_UNORM:
 			case EImageFormat::D32_SFLOAT:
 			case EImageFormat::X8_D24_UNORM_PACK32:
-				aspect = aspect | EImageAspect::Depth;
-				break;
+				return EImageAspect::Depth;
 			case EImageFormat::D24_UNORM_S8_UINT:
 			case EImageFormat::D32_SFLOAT_S8_UINT:
-				aspect = aspect | EImageAspect::Depth | EImageAspect::Stencil;
-				break;
+				return EImageAspect::Depth | EImageAspect::Stencil;
 			default:
+			    EE_CORE_ASSERT(false, "Unknown depth ImageFormat!");
 				break;
 			}
 		}
 
-		return aspect;
+        if (usage & EImageUsage::ColorAttachment)
+            return EImageAspect::Color;
+
+        if (usage & EImageUsage::Sampled)
+            return EImageAspect::Color;
+
+        if (usage & EImageUsage::Storage)
+            return EImageAspect::Color;
+
+		return EImageAspect::None;
 	}
 }

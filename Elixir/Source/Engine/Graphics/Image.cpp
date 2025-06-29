@@ -38,7 +38,22 @@ namespace Elixir
 
     void Image::Copy(const Ref<CommandBuffer>& cmd, const Ref<Image>& dst)
     {
+        Copy(cmd.get(), dst.get());
+    }
+
+    void Image::Copy(const Ref<CommandBuffer>& cmd, const Image* dst)
+    {
         Copy(cmd.get(), dst);
+    }
+
+    void Image::Copy(const CommandBuffer* cmd, const Ref<Image>& dst)
+    {
+        Copy(cmd, dst.get());
+    }
+
+    void Image::Copy(const CommandBuffer* cmd, const Image* dst)
+    {
+        Copy(cmd, dst, GetExtent(), dst->GetExtent());
     }
 
     void Image::Copy(
@@ -48,12 +63,60 @@ namespace Elixir
         const Extent3D& dstExtent
     )
     {
+        Copy(cmd.get(), dst.get(), srcExtent, dstExtent);
+    }
+
+    void Image::Copy(
+        const Ref<CommandBuffer>& cmd,
+        const Image* dst,
+        const Extent3D& srcExtent,
+        const Extent3D& dstExtent
+    )
+    {
         Copy(cmd.get(), dst, srcExtent, dstExtent);
     }
 
-    void Image::Copy(const CommandBuffer* cmd, const Ref<Image>& dst)
+    void Image::Copy(
+        const CommandBuffer* cmd,
+        const Ref<Image>& dst,
+        const Extent3D& srcExtent,
+        const Extent3D& dstExtent
+    )
     {
-        Copy(cmd, dst, GetExtent(), dst->GetExtent());
+        Copy(cmd, dst.get(), srcExtent, dstExtent);
+    }
+
+    void Image::CopyFrom(
+        const Ref<CommandBuffer>& cmd,
+        const Ref<Buffer>& src,
+        const std::span<SBufferImageCopy> regions
+    )
+    {
+        CopyFrom(cmd.get(), src.get(), regions);
+    }
+
+    void Image::CopyFrom(
+        const Ref<CommandBuffer>& cmd,
+        const Buffer* src,
+        const std::span<SBufferImageCopy> regions
+    )
+    {
+        CopyFrom(cmd.get(), src, regions);
+    }
+
+    void Image::CopyFrom(
+        const CommandBuffer* cmd,
+        const Ref<Buffer>& src,
+        const std::span<SBufferImageCopy> regions
+    )
+    {
+        CopyFrom(cmd, src.get(), regions);
+    }
+
+    void Image::SetSampler(const Ref<Sampler>& sampler)
+    {
+        m_Sampler = sampler;
+        UpdateSampler();
     }
 
     Ref<Image> Image::Create(
@@ -73,17 +136,36 @@ namespace Elixir
         }
     }
 
-    Image::Image(
-        const GraphicsContext* context,
+    SImageCreateInfo Image::CreateImageInfo(
         const EImageFormat format,
         const uint32_t width,
         void* data
-    ) : m_Format(format), m_Width(width), m_GraphicsContext(context)
+    )
+    {
+        return {
+            .InitialData = data,
+            .Width = width,
+            .Type = EImageType::_1D,
+            .Format = format,
+            .Usage = EImageUsage::Sampled,
+            .AllocationInfo = {
+                .RequiredFlags = EMemoryProperty::DeviceLocal
+            }
+        };
+    }
+
+    Image::Image(const GraphicsContext* context, const SImageCreateInfo& info)
+        : m_GraphicsContext(context)
     {
         EE_PROFILE_ZONE_SCOPED()
-        m_Type = EImageType::_1D;
+
+        m_Extent = Extent3D(info.Width, info.Height, info.Depth);
+        m_Type = info.Type;
+        m_Format = info.Format;
+        m_MipLevels = info.MipLevels;
+        m_ArrayLayers = info.ArrayLayers;
+        m_Usage = info.Usage;
         m_Layout = EImageLayout::Undefined;
-        m_Usage = EImageUsage::Sampled | EImageUsage::TransferDst;
         m_Aspect = Utils::CalculateImageAspect(m_Usage, m_Format);
         m_BitsPerPixel = CalculateBitsPerPixel(this);
         m_Size = CalculateSize(this);
@@ -102,10 +184,7 @@ namespace Elixir
         {
             case EGraphicsAPI::Vulkan:
                 return CreateRef<Vulkan::VulkanDepthStencilImage>(
-                    context,
-                    format,
-                    width,
-                    height
+                    context, format, width, height
                 );
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
@@ -113,35 +192,53 @@ namespace Elixir
         }
     }
 
-    DepthStencilImage::DepthStencilImage(
-        const GraphicsContext* context,
+    SImageCreateInfo DepthStencilImage::CreateImageInfo(
         const EDepthStencilImageFormat format,
         const uint32_t width,
         const uint32_t height
-    ) : Image(context, Converters::GetImageFormat(format), width), m_Height(height)
+    )
+    {
+        const auto imageFormat = Converters::GetImageFormat(format);
+        const auto usage = EImageUsage::Sampled | EImageUsage::DepthStencilAttachment;
+        return {
+            .Width = width,
+            .Height = height,
+            .Type = EImageType::_2D,
+            .Format = imageFormat,
+            .Usage = usage,
+            .InitialLayout = Utils::CalculateImageLayout(usage, imageFormat),
+            .AllocationInfo = {
+                .RequiredFlags = EMemoryProperty::DeviceLocal
+            }
+        };
+    }
+
+    DepthStencilImage::DepthStencilImage(
+        const GraphicsContext* context,
+        const SImageCreateInfo& info
+    ) : Image(context, info)
     {
         EE_PROFILE_ZONE_SCOPED()
-        m_Type = EImageType::_2D;
-        m_Usage = EImageUsage::DepthStencilAttachment;
-        m_Aspect = Utils::CalculateImageAspect(m_Usage, m_Format);
+
+        m_Size = CalculateSize(this);
     }
 
     /* StorageImage */
 
-    StorageImage::StorageImage(
-        const GraphicsContext* context,
-        const EImageFormat format,
-        const uint32_t width,
-        const uint32_t height
-    ) : Image(context, format, width), m_Height(height)
-    {
-        EE_PROFILE_ZONE_SCOPED()
-        m_Type = EImageType::_2D;
-        m_Layout = EImageLayout::General;
-        m_Usage = EImageUsage::Storage |
-            EImageUsage::TransferSrc |
-            EImageUsage::TransferDst |
-            EImageUsage::ColorAttachment;
-        m_Aspect = Utils::CalculateImageAspect(m_Usage, m_Format);
-    }
+    // StorageImage::StorageImage(
+    //     const GraphicsContext* context,
+    //     const EImageFormat format,
+    //     const uint32_t width,
+    //     const uint32_t height
+    // ) : Image(context, format, width), m_Height(height)
+    // {
+    //     EE_PROFILE_ZONE_SCOPED()
+    //     m_Type = EImageType::_2D;
+    //     m_Layout = EImageLayout::General;
+    //     m_Usage = EImageUsage::Storage |
+    //         EImageUsage::TransferSrc |
+    //         EImageUsage::TransferDst |
+    //         EImageUsage::ColorAttachment;
+    //     m_Aspect = Utils::CalculateImageAspect(m_Usage, m_Format);
+    // }
 }

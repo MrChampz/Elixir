@@ -28,6 +28,7 @@
 #include <Engine/Graphics/CommandBuffer.h>
 #include <Engine/Graphics/Memory.h>
 #include <Engine/Graphics/Buffer.h>
+#include <Engine/Graphics/Sampler.h>
 #include <Engine/Graphics/Image.h>
 #include <Engine/Graphics/Texture.h>
 #include <Engine/Graphics/TextureLoader.h>

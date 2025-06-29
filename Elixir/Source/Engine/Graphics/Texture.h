@@ -4,7 +4,7 @@
 
 namespace Elixir
 {
-    class ELIXIR_API Texture : public virtual Image
+    class ELIXIR_API Texture : public Image
     {
       public:
         ~Texture() override = default;
@@ -25,7 +25,12 @@ namespace Elixir
             EImageFormat format,
             uint32_t width,
             void* data = nullptr,
-            std::string path = ""
+            const std::string& path = ""
+        );
+        Texture(
+            const GraphicsContext* context,
+            const SImageCreateInfo& info,
+            const std::string& path = ""
         );
 
         std::string m_Path;
@@ -36,12 +41,7 @@ namespace Elixir
       public:
         ~Texture2D() override = default;
 
-        [[nodiscard]] Extent3D GetExtent() const override
-        {
-            return { m_Width, m_Height, 1 };
-        }
-
-        [[nodiscard]] uint32_t GetHeight() const { return m_Height; }
+        [[nodiscard]] uint32_t GetHeight() const { return m_Extent.Height; }
 
         static Ref<Texture2D> Create(
             const GraphicsContext* context,
@@ -50,6 +50,13 @@ namespace Elixir
             uint32_t height,
             void* data = nullptr,
             const std::string& path = ""
+        );
+
+        static SImageCreateInfo CreateImageInfo(
+            EImageFormat format,
+            uint32_t width,
+            uint32_t height,
+            void* data = nullptr
         );
 
       protected:
@@ -61,8 +68,11 @@ namespace Elixir
             void* data = nullptr,
             const std::string& path = ""
         );
-
-        uint32_t m_Height;
+        Texture2D(
+            const GraphicsContext* context,
+            const SImageCreateInfo& info,
+            const std::string& path = ""
+        );
     };
 
     class ELIXIR_API Texture3D : public Texture2D
@@ -70,12 +80,7 @@ namespace Elixir
     public:
         ~Texture3D() override = default;
 
-        [[nodiscard]] Extent3D GetExtent() const override
-        {
-            return { m_Width, m_Height, m_Depth };
-        }
-
-        [[nodiscard]] uint32_t GetDepth() const { return m_Depth; }
+        [[nodiscard]] uint32_t GetDepth() const { return m_Extent.Depth; }
 
         static Ref<Texture3D> Create(
             const GraphicsContext* context,
@@ -85,6 +90,14 @@ namespace Elixir
             uint32_t depth,
             void* data = nullptr,
             const std::string& path = ""
+        );
+
+        static SImageCreateInfo CreateImageInfo(
+            EImageFormat format,
+            uint32_t width,
+            uint32_t height,
+            uint32_t depth,
+            void* data = nullptr
         );
 
     protected:
@@ -97,7 +110,10 @@ namespace Elixir
             void* data = nullptr,
             const std::string& path = ""
         );
-
-        uint32_t m_Depth;
+        Texture3D(
+            const GraphicsContext* context,
+            const SImageCreateInfo& info,
+            const std::string& path = ""
+        );
     };
 }

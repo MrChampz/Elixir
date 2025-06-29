@@ -5,7 +5,7 @@
 
 namespace Elixir::Vulkan
 {
-    class ELIXIR_API VulkanTexture final : public Texture, public VulkanBaseImage
+    class ELIXIR_API VulkanTexture final : public VulkanImageBase<Texture>
     {
       public:
         VulkanTexture(
@@ -15,11 +15,23 @@ namespace Elixir::Vulkan
             void* data = nullptr,
             const std::string& path = ""
         );
+        ~VulkanTexture() override;
+
+        using Image::Transition;
+        using Image::Copy;
+        using Image::CopyFrom;
+
+      protected:
+        VulkanTexture(
+            const GraphicsContext* context,
+            const SImageCreateInfo& info,
+            const std::string& path = ""
+        );
     };
 
-    class ELIXIR_API VulkanTexture2D final : public Texture2D, public VulkanBaseImage
+    class ELIXIR_API VulkanTexture2D final : public VulkanImageBase<Texture2D>
     {
-    public:
+      public:
         VulkanTexture2D(
             const GraphicsContext* context,
             EImageFormat format,
@@ -28,37 +40,19 @@ namespace Elixir::Vulkan
             void* data = nullptr,
             const std::string& path = ""
         );
-
-        // TODO: Remove
-        VulkanTexture2D(
-            const GraphicsContext* context,
-            EImageFormat format,
-            VkImage image,
-            VkImageView imageView,
-            VkExtent2D extent,
-            EImageUsage usage
-        );
-
-        ~VulkanTexture2D();
-
-        // TODO: Remove
-        static Ref<VulkanTexture2D> FromSwapchain(
-            const GraphicsContext* context,
-            EImageFormat format,
-            VkImage image,
-            VkImageView imageView,
-            VkExtent2D extent,
-            EImageUsage usage = EImageUsage::ColorAttachment
-        );
+        ~VulkanTexture2D() override;
 
       protected:
-        // TODO: Remove
-        bool m_IsSwapchainImage = false;
+        VulkanTexture2D(
+            const GraphicsContext* context,
+            const SImageCreateInfo& info,
+            const std::string& path = ""
+        );
     };
 
-    class ELIXIR_API VulkanTexture3D final : public Texture3D, public VulkanBaseImage
+    class ELIXIR_API VulkanTexture3D final : public VulkanImageBase<Texture3D>
     {
-    public:
+      public:
         VulkanTexture3D(
             const GraphicsContext* context,
             EImageFormat format,
@@ -66,6 +60,14 @@ namespace Elixir::Vulkan
             uint32_t height,
             uint32_t depth,
             void* data = nullptr,
+            const std::string& path = ""
+        );
+        ~VulkanTexture3D() override;
+
+      protected:
+        VulkanTexture3D(
+            const GraphicsContext* context,
+            const SImageCreateInfo& info,
             const std::string& path = ""
         );
     };

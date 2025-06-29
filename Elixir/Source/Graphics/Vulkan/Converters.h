@@ -104,6 +104,78 @@ namespace Elixir::Vulkan::Converters
         return flags;
     }
 
+    static VkFilter GetSamplerFilter(const ESamplerFilter filter)
+	{
+		switch (filter)
+		{
+		case ESamplerFilter::Nearest:
+			return VK_FILTER_NEAREST;
+		case ESamplerFilter::Linear:
+			return VK_FILTER_LINEAR;
+		default:
+		    EE_CORE_ERROR("Unknown sampler filter!")
+		}
+
+		return VK_FILTER_MAX_ENUM;
+	}
+
+	static VkSamplerMipmapMode GetSamplerMipmapMode(const ESamplerMipmapMode mode)
+	{
+		switch (mode)
+		{
+		    case ESamplerMipmapMode::Nearest:
+			    return VK_SAMPLER_MIPMAP_MODE_NEAREST;
+		    case ESamplerMipmapMode::Linear:
+			    return VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		    default:
+		        EE_CORE_ERROR("Unknown sampler mipmap mode!")
+		}
+
+        return VK_SAMPLER_MIPMAP_MODE_MAX_ENUM;
+	}
+
+	static VkSamplerAddressMode GetSamplerAddressMode(const ESamplerAddressMode mode)
+	{
+		switch (mode)
+		{
+		    case ESamplerAddressMode::Repeat:
+			    return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		    case ESamplerAddressMode::MirroredRepeat:
+			    return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+		    case ESamplerAddressMode::ClampToEdge:
+			    return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		    case ESamplerAddressMode::ClampToBorder:
+			    return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+		    default:
+		        EE_CORE_ERROR("Unknown sampler address mode!")
+		}
+
+		return VK_SAMPLER_ADDRESS_MODE_MAX_ENUM;
+	}
+
+	static VkBorderColor GetSamplerBorderColor(const ESamplerBorderColor color)
+	{
+		switch (color)
+		{
+		    case ESamplerBorderColor::FloatTransparentBlack:
+			    return VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+		    case ESamplerBorderColor::IntTransparentBlack:
+			    return VK_BORDER_COLOR_INT_TRANSPARENT_BLACK;
+		    case ESamplerBorderColor::FloatOpaqueBlack:
+			    return VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+		    case ESamplerBorderColor::IntOpaqueBlack:
+			    return VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+		    case ESamplerBorderColor::FloatOpaqueWhite:
+			    return VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+		    case ESamplerBorderColor::IntOpaqueWhite:
+			    return VK_BORDER_COLOR_INT_OPAQUE_WHITE;
+		    default:
+		        EE_CORE_ERROR("Unknown sampler border color!")
+		}
+
+		return VK_BORDER_COLOR_MAX_ENUM;
+	}
+
     static VkFormat GetFormat(const EImageFormat format)
     {
         switch (format)
@@ -359,9 +431,11 @@ namespace Elixir::Vulkan::Converters
 		return flags;
 	}
 
-    static VkImageViewType GetImageViewType(const EImageType type, const uint32_t layers)
+    static VkImageViewType GetImageViewType(const Image* image)
 	{
-		switch (type)
+        const auto layers = image->GetArrayLayers();
+
+		switch (image->GetType())
 		{
 		case EImageType::_1D:
 			if (layers > 1) return VK_IMAGE_VIEW_TYPE_1D_ARRAY;
@@ -378,4 +452,34 @@ namespace Elixir::Vulkan::Converters
 
         return VK_IMAGE_VIEW_TYPE_MAX_ENUM;
 	}
+
+    static VkBufferCopy GetBufferCopy(const SBufferCopy& copy)
+    {
+        VkBufferCopy region = {};
+
+        region.srcOffset = copy.SrcOffset;
+        region.dstOffset = copy.DstOffset;
+        region.size = copy.Size;
+
+        return region;
+    }
+
+    static VkBufferImageCopy GetBufferImageCopy(const SBufferImageCopy& copy)
+    {
+        VkBufferImageCopy region = {};
+
+        region.bufferOffset = copy.BufferOffset;
+        region.bufferRowLength = copy.BufferRowLength;
+        region.bufferImageHeight = copy.BufferImageHeight;
+        region.imageSubresource = {
+            .aspectMask = GetImageAspect(copy.ImageSubresource.AspectMask),
+            .mipLevel = copy.ImageSubresource.MipLevel,
+            .baseArrayLayer = copy.ImageSubresource.BaseArrayLayer,
+            .layerCount = copy.ImageSubresource.LayerCount
+        };
+        region.imageOffset = GetOffset3D(copy.ImageOffset);
+        region.imageExtent = GetExtent3D(copy.ImageExtent);
+
+        return region;
+    }
 }

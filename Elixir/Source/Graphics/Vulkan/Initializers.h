@@ -37,42 +37,46 @@ namespace Elixir::Vulkan::Initializers
         return range;
     }
 
-    static VkImageCreateInfo ImageCreateInfo(
-        const VkFormat format,
-        const VkImageUsageFlags usage,
-        const VkExtent3D extent
-    )
+    static VkImageSubresourceRange ImageSubresourceRange(const EImageAspect aspectMask)
     {
-        VkImageCreateInfo info = {};
-        info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        info.pNext = nullptr;
-        info.imageType = VK_IMAGE_TYPE_2D;
-        info.format = format;
-        info.extent = extent;
-        info.mipLevels = 1;
-        info.arrayLayers = 1;
-        info.tiling = VK_IMAGE_TILING_OPTIMAL;
-        info.usage = usage;
-
-        // FOR MSAA
-        info.samples = VK_SAMPLE_COUNT_1_BIT;
-
-        return info;
+        return ImageSubresourceRange(Converters::GetImageAspect(aspectMask));
     }
 
-    static VkImageViewCreateInfo ImageViewCreateInfo(
-        const VkFormat format,
-        const VkImage image,
-        const VkImageAspectFlags aspectMask
+    static VkImageCreateInfo ImageCreateInfo(
+        const SImageCreateInfo& info,
+        const uint32_t queueFamily
     )
     {
+        VkImageCreateInfo imageInfo = {};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.pNext = nullptr;
+        imageInfo.imageType = Converters::GetImageType(info.Type);
+        imageInfo.format = Converters::GetFormat(info.Format);
+        imageInfo.extent = { info.Width, info.Height, info.Depth };
+        imageInfo.mipLevels = info.MipLevels;
+        imageInfo.arrayLayers = info.ArrayLayers;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.usage = Converters::GetImageUsage(info.Usage);
+        imageInfo.pQueueFamilyIndices = &queueFamily;
+        imageInfo.queueFamilyIndexCount = 1;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+        return imageInfo;
+    }
+
+    static VkImageViewCreateInfo ImageViewCreateInfo(const Image* image)
+    {
+        const auto vk_Image = GetVulkanImageHandler(image);
+        EE_CORE_ASSERT(vk_Image != nullptr, "Image is invalid!");
+
         VkImageViewCreateInfo info = {};
         info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         info.pNext = nullptr;
-        info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        info.image = image;
-        info.format = format;
-        info.subresourceRange = ImageSubresourceRange(aspectMask);
+        info.viewType = Converters::GetImageViewType(image);
+        info.image = vk_Image;
+        info.format = Converters::GetFormat(image->GetFormat());
+        info.subresourceRange = ImageSubresourceRange(image->GetAspect());
 
         return info;
     }
