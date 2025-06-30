@@ -25,6 +25,29 @@ namespace Elixir::Vulkan::Initializers
         return bufferInfo;
     }
 
+    static VkSamplerCreateInfo SamplerCreateInfo(const SSamplerCreateInfo& info)
+    {
+        VkSamplerCreateInfo samplerInfo = {};
+        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerInfo.magFilter = Converters::GetSamplerFilter(info.MagFilter);
+        samplerInfo.minFilter = Converters::GetSamplerFilter(info.MinFilter);
+        samplerInfo.mipmapMode = Converters::GetSamplerMipmapMode(info.MipmapMode);
+        samplerInfo.addressModeU = Converters::GetSamplerAddressMode(info.AddressModeU);
+        samplerInfo.addressModeV = Converters::GetSamplerAddressMode(info.AddressModeV);
+        samplerInfo.addressModeW = Converters::GetSamplerAddressMode(info.AddressModeW);
+        samplerInfo.mipLodBias = info.MipLodBias;
+        samplerInfo.minLod = info.MinLod;
+        samplerInfo.maxLod = info.MaxLod;
+        samplerInfo.anisotropyEnable = info.AnisotropyEnabled;
+        samplerInfo.maxAnisotropy = info.MaxAnisotropy;
+        samplerInfo.compareEnable = info.CompareEnabled;
+        samplerInfo.compareOp = Converters::GetCompareOp(info.CompareOp);
+        samplerInfo.borderColor = Converters::GetSamplerBorderColor(info.BorderColor);
+        samplerInfo.unnormalizedCoordinates = info.UnnormalizedCoordinates;
+
+        return samplerInfo;
+    }
+
     static VkImageSubresourceRange ImageSubresourceRange(const VkImageAspectFlags aspectMask)
     {
         VkImageSubresourceRange range = {};

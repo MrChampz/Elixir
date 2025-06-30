@@ -5,37 +5,45 @@
 
 namespace Elixir
 {
-    Ref<Sampler> Sampler::Create(const GraphicsContext* context)
+    Ref<Sampler> Sampler::Create(
+        const GraphicsContext* context,
+        const SSamplerCreateInfo& info
+    )
     {
         switch (context->GetAPI())
         {
             case EGraphicsAPI::Vulkan:
-                return CreateRef<Vulkan::VulkanSampler>(context);
+                return CreateRef<Vulkan::VulkanSampler>(context, info);
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;
         }
     }
     
-    Sampler::Sampler(const GraphicsContext* context)
+    Sampler::Sampler(const GraphicsContext* context, const SSamplerCreateInfo& info)
         : m_GraphicsContext(context)
     {
-        m_MagFilter = ESamplerFilter::Linear;
-		m_MinFilter = ESamplerFilter::Linear;
+        m_MagFilter = info.MagFilter;
+		m_MinFilter = info.MinFilter;
 
-		m_MipmapMode = ESamplerMipmapMode::Linear;
+		m_MipmapMode = info.MipmapMode;
 		
-		m_AddressModeU = ESamplerAddressMode::Repeat;
-		m_AddressModeV = ESamplerAddressMode::Repeat;
-		m_AddressModeW = ESamplerAddressMode::Repeat;
-		
-		m_MipLodBias = 0;
-		m_MinLod = 0;
-		m_MaxLod = 0;
+		m_AddressModeU = info.AddressModeU;
+		m_AddressModeV = info.AddressModeV;
+		m_AddressModeW = info.AddressModeW;
 
-		m_AnisotropyEnabled = false;
-		m_MaxAnisotropy = 0;
+		m_MipLodBias = info.MipLodBias;
+		m_MinLod = info.MinLod;
+		m_MaxLod = info.MaxLod;
 
-		m_BorderColor = ESamplerBorderColor::FloatTransparentBlack;
+		m_AnisotropyEnabled = info.AnisotropyEnabled;
+		m_MaxAnisotropy = info.MaxAnisotropy;
+
+        m_CompareEnabled = info.CompareEnabled;
+        m_CompareOp = info.CompareOp;
+
+		m_BorderColor = info.BorderColor;
+
+        m_UnnormalizedCoordinates = info.UnnormalizedCoordinates;
     }
 }

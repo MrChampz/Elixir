@@ -10,22 +10,19 @@ namespace Elixir::Vulkan
     class ELIXIR_API VulkanSampler final : public Sampler
     {
       public:
-        VulkanSampler(const GraphicsContext* context);
-        ~VulkanSampler();
+        VulkanSampler(const GraphicsContext* context, const SSamplerCreateInfo& info);
+        ~VulkanSampler() override;
 
-        void Destroy() override;
-
-        [[nodiscard]] bool IsDestroyed() const override { return m_Destroyed; }
+        [[nodiscard]] bool IsValid() const override { return m_Sampler != VK_NULL_HANDLE; }
 
         VkSampler GetVulkanSampler() const { return m_Sampler; }
 
       protected:
-        void UpdateSampler() override;
+        void Create(const SSamplerCreateInfo& info);
+        void Destroy() override;
 
       private:
         VkSampler m_Sampler = VK_NULL_HANDLE;
-        bool m_Destroyed = true;
-
         const VulkanGraphicsContext* m_GraphicsContext;
     };
 }

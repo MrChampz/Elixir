@@ -176,6 +176,26 @@ namespace Elixir::Vulkan::Converters
 		return VK_BORDER_COLOR_MAX_ENUM;
 	}
 
+    static VkCompareOp GetCompareOp(const ECompareOp op)
+    {
+        switch (op)
+        {
+            case ECompareOp::Never:             return VK_COMPARE_OP_NEVER;
+            case ECompareOp::Less:              return VK_COMPARE_OP_LESS;
+            case ECompareOp::Equal:             return VK_COMPARE_OP_EQUAL;
+            case ECompareOp::LessOrEqual:       return VK_COMPARE_OP_LESS_OR_EQUAL;
+            case ECompareOp::Greater:           return VK_COMPARE_OP_GREATER;
+            case ECompareOp::NotEqual:          return VK_COMPARE_OP_NOT_EQUAL;
+            case ECompareOp::GreaterOrEqual:    return VK_COMPARE_OP_GREATER_OR_EQUAL;
+            case ECompareOp::Always:            return VK_COMPARE_OP_ALWAYS;
+            default:
+                EE_CORE_ASSERT(false, "Unknown compare op!")
+                break;
+        }
+
+        return VK_COMPARE_OP_MAX_ENUM;
+    }
+
     static VkFormat GetFormat(const EImageFormat format)
     {
         switch (format)
