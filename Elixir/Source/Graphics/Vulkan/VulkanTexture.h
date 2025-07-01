@@ -5,7 +5,7 @@
 
 namespace Elixir::Vulkan
 {
-    class ELIXIR_API VulkanTexture final : public VulkanImageBase<Texture>
+    class ELIXIR_API VulkanTexture final : public VulkanBaseImage<Texture>
     {
       public:
         VulkanTexture(
@@ -29,7 +29,7 @@ namespace Elixir::Vulkan
         );
     };
 
-    class ELIXIR_API VulkanTexture2D final : public VulkanImageBase<Texture2D>
+    class ELIXIR_API VulkanTexture2D final : public VulkanBaseImage<Texture2D>
     {
       public:
         VulkanTexture2D(
@@ -50,7 +50,7 @@ namespace Elixir::Vulkan
         );
     };
 
-    class ELIXIR_API VulkanTexture3D final : public VulkanImageBase<Texture3D>
+    class ELIXIR_API VulkanTexture3D final : public VulkanBaseImage<Texture3D>
     {
       public:
         VulkanTexture3D(

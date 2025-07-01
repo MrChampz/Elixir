@@ -1,5 +1,8 @@
 #pragma once
 
+#include <functional>
+#include <tuple>
+
 namespace Elixir
 {
     enum class ESamplerFilter : uint32_t

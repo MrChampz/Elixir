@@ -8,23 +8,33 @@
 
 namespace Elixir::Vulkan
 {
-    class VulkanBaseBuffer
+    VkBuffer TryToGetVulkanBuffer(const Buffer* buffer);
+
+    template <class Base>
+    class VulkanBaseBuffer : public Base
     {
       public:
         virtual ~VulkanBaseBuffer() = default;
 
-        virtual void Destroy();
+        virtual void Destroy() override;
 
+        using Buffer::Copy;
         virtual void Copy(
             const CommandBuffer* cmd,
             const Buffer* dst,
             std::span<SBufferCopy> regions = {}
-        );
+        ) override;
 
-        [[nodiscard]] virtual bool IsDestroyed() const { return m_Destroyed; }
+        [[nodiscard]] virtual bool IsValid() const override
+        {
+            return m_Buffer != VK_NULL_HANDLE;
+        }
 
         [[nodiscard]] VkBuffer GetVulkanBuffer() const { return m_Buffer; }
-        [[nodiscard]] const VkDescriptorBufferInfo& GetVulkanDescriptorInfo() const { return m_DescriptorInfo; }
+        [[nodiscard]] const VkDescriptorBufferInfo& GetVulkanDescriptorInfo() const
+        {
+            return m_DescriptorInfo;
+        }
 
         VulkanBaseBuffer& operator=(const VulkanBaseBuffer&) = delete;
         VulkanBaseBuffer& operator=(VulkanBaseBuffer&&) = delete;
@@ -35,70 +45,36 @@ namespace Elixir::Vulkan
         VulkanBaseBuffer(VulkanBaseBuffer&&) = delete;
 
         virtual void CreateBuffer(const SBufferCreateInfo& info);
-        virtual void InitBufferWithData(const SBuffer& buffer);
-
-        BufferAddress CreateAndReturnBufferAddress() const;
+        virtual void InitBuffer(const SBuffer& buffer);
+        virtual void CreateDescriptorInfo();
 
         VkBuffer m_Buffer = VK_NULL_HANDLE;
         VkDescriptorBufferInfo m_DescriptorInfo{};
 
         VmaAllocation m_Allocation = VK_NULL_HANDLE;
 
-        bool m_Destroyed = false;
-
         const VulkanGraphicsContext* m_GraphicsContext;
     };
 
-    class VulkanDynamicBuffer : public VulkanBaseBuffer
+    template <class Base>
+    class VulkanDynamicBuffer : public VulkanBaseBuffer<Base>
     {
       public:
-        virtual void* Map();
-        virtual void Unmap();
-
-        VulkanDynamicBuffer& operator=(const VulkanDynamicBuffer&) = delete;
-        VulkanDynamicBuffer& operator=(VulkanDynamicBuffer&&) = delete;
+        virtual void* Map() override;
+        virtual void Unmap() override;
 
       protected:
         VulkanDynamicBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
-        VulkanDynamicBuffer(const VulkanDynamicBuffer&) = delete;
-        VulkanDynamicBuffer(VulkanDynamicBuffer&&) = delete;
     };
 
-    class ELIXIR_API VulkanBuffer final : public Buffer, public VulkanBaseBuffer
+    class ELIXIR_API VulkanBuffer final : public VulkanBaseBuffer<Buffer>
     {
       public:
         VulkanBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
         ~VulkanBuffer() override;
-
-        void Destroy() override { VulkanBaseBuffer::Destroy(); }
-
-        void Copy(
-            const CommandBuffer* cmd,
-            const Buffer* dst,
-            const std::span<SBufferCopy> regions = {}
-        ) override
-        {
-            VulkanBaseBuffer::Copy(cmd, dst, regions);
-        }
-
-        [[nodiscard]] bool IsDestroyed() const override
-        {
-            return VulkanBaseBuffer::IsDestroyed();
-        }
-
-      protected:
-        void CreateBuffer(const SBufferCreateInfo& info) override
-        {
-            VulkanBaseBuffer::CreateBuffer(info);
-        }
-
-        void InitBufferWithData(const SBuffer& buffer) override
-        {
-            VulkanBaseBuffer::InitBufferWithData(buffer);
-        }
     };
 
-    class ELIXIR_API VulkanStagingBuffer final : public StagingBuffer, public VulkanDynamicBuffer
+    class ELIXIR_API VulkanStagingBuffer final : public VulkanDynamicBuffer<StagingBuffer>
     {
     public:
         VulkanStagingBuffer(
@@ -109,35 +85,11 @@ namespace Elixir::Vulkan
         VulkanStagingBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
         ~VulkanStagingBuffer() override;
 
-        void Destroy() override { VulkanBaseBuffer::Destroy(); }
-
-        void* Map() override { return VulkanDynamicBuffer::Map(); }
-        void Unmap() override { VulkanDynamicBuffer::Unmap(); }
-
-        void Copy(
-            const CommandBuffer* cmd,
-            const Buffer* dst,
-            const std::span<SBufferCopy> regions = {}
-        ) override
-        {
-            VulkanBaseBuffer::Copy(cmd, dst, regions);
-        }
-
-        [[nodiscard]] bool IsDestroyed() const override
-        {
-            return VulkanBaseBuffer::IsDestroyed();
-        }
-
     protected:
-        void CreateBuffer(const SBufferCreateInfo& info) override
-        {
-            VulkanBaseBuffer::CreateBuffer(info);
-        }
-
-        void InitBufferWithData(const SBuffer& buffer) override;
+        void InitBuffer(const SBuffer& buffer) override;
     };
 
-    class ELIXIR_API VulkanVertexBuffer final : public VertexBuffer, public VulkanBaseBuffer
+    class ELIXIR_API VulkanVertexBuffer final : public VulkanBaseBuffer<VertexBuffer>
     {
       public:
         VulkanVertexBuffer(
@@ -148,37 +100,11 @@ namespace Elixir::Vulkan
         VulkanVertexBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
         ~VulkanVertexBuffer() override;
 
-        void Destroy() override { VulkanBaseBuffer::Destroy(); }
-
-        void Copy(
-            const CommandBuffer* cmd,
-            const Buffer* dst,
-            const std::span<SBufferCopy> regions = {}
-        ) override
-        {
-            VulkanBaseBuffer::Copy(cmd, dst, regions);
-        }
-
-        [[nodiscard]] bool IsDestroyed() const override
-        {
-            return VulkanBaseBuffer::IsDestroyed();
-        }
-
       protected:
-        void CreateBuffer(const SBufferCreateInfo& info) override
-        {
-            VulkanBaseBuffer::CreateBuffer(info);
-        }
-
-        void InitBufferWithData(const SBuffer& buffer) override
-        {
-            VulkanBaseBuffer::InitBufferWithData(buffer);
-        }
-
         void CreateBufferAddress() override;
     };
 
-    class ELIXIR_API VulkanIndexBuffer final : public IndexBuffer, public VulkanBaseBuffer
+    class ELIXIR_API VulkanIndexBuffer final : public VulkanBaseBuffer<IndexBuffer>
     {
       public:
         VulkanIndexBuffer(
@@ -193,36 +119,9 @@ namespace Elixir::Vulkan
             EIndexType type = EIndexType::UInt32
         );
         ~VulkanIndexBuffer() override;
-
-        void Destroy() override { VulkanBaseBuffer::Destroy(); }
-
-        void Copy(
-            const CommandBuffer* cmd,
-            const Buffer* dst,
-            const std::span<SBufferCopy> regions = {}
-        ) override
-        {
-            VulkanBaseBuffer::Copy(cmd, dst, regions);
-        }
-
-        [[nodiscard]] bool IsDestroyed() const override
-        {
-            return VulkanBaseBuffer::IsDestroyed();
-        }
-
-      protected:
-        void CreateBuffer(const SBufferCreateInfo& info) override
-        {
-            VulkanBaseBuffer::CreateBuffer(info);
-        }
-
-        void InitBufferWithData(const SBuffer& buffer) override
-        {
-            VulkanBaseBuffer::InitBufferWithData(buffer);
-        }
     };
 
-    class ELIXIR_API VulkanUniformBuffer final : public UniformBuffer, public VulkanDynamicBuffer
+    class ELIXIR_API VulkanUniformBuffer final : public VulkanDynamicBuffer<UniformBuffer>
     {
     public:
         VulkanUniformBuffer(
@@ -236,31 +135,7 @@ namespace Elixir::Vulkan
         );
         ~VulkanUniformBuffer() override;
 
-        void Destroy() override { VulkanBaseBuffer::Destroy(); }
-
-        void* Map() override { return VulkanDynamicBuffer::Map(); }
-        void Unmap() override { VulkanDynamicBuffer::Unmap(); }
-
-        void Copy(
-            const CommandBuffer* cmd,
-            const Buffer* dst,
-            const std::span<SBufferCopy> regions = {}
-        ) override
-        {
-            VulkanBaseBuffer::Copy(cmd, dst, regions);
-        }
-
-        [[nodiscard]] bool IsDestroyed() const override
-        {
-            return VulkanBaseBuffer::IsDestroyed();
-        }
-
     protected:
-        void CreateBuffer(const SBufferCreateInfo& info) override
-        {
-            VulkanBaseBuffer::CreateBuffer(info);
-        }
-
-        void InitBufferWithData(const SBuffer& buffer) override;
+        void InitBuffer(const SBuffer& buffer) override;
     };
 }

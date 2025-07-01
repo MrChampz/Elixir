@@ -30,20 +30,20 @@ Scope<GraphicsContext> VulkanBufferTest::Context = nullptr;
 
 TEST_F(VulkanBufferTest, VulkanBaseBuffer_IsNotConstructibleAndAssignable)
 {
-    EXPECT_FALSE(std::is_constructible_v<VulkanBaseBuffer>);
-    EXPECT_FALSE(std::is_copy_constructible_v<VulkanBaseBuffer>);
-    EXPECT_FALSE(std::is_copy_assignable_v<VulkanBaseBuffer>);
-    EXPECT_FALSE(std::is_move_constructible_v<VulkanBaseBuffer>);
-    EXPECT_FALSE(std::is_move_assignable_v<VulkanBaseBuffer>);
+    EXPECT_FALSE(std::is_constructible_v<VulkanBaseBuffer<Buffer>>);
+    EXPECT_FALSE(std::is_copy_constructible_v<VulkanBaseBuffer<Buffer>>);
+    EXPECT_FALSE(std::is_copy_assignable_v<VulkanBaseBuffer<Buffer>>);
+    EXPECT_FALSE(std::is_move_constructible_v<VulkanBaseBuffer<Buffer>>);
+    EXPECT_FALSE(std::is_move_assignable_v<VulkanBaseBuffer<Buffer>>);
 }
 
 TEST_F(VulkanBufferTest, VulkanDynamicBuffer_IsNotConstructibleAndAssignable)
 {
-    EXPECT_FALSE(std::is_constructible_v<VulkanDynamicBuffer>);
-    EXPECT_FALSE(std::is_copy_constructible_v<VulkanDynamicBuffer>);
-    EXPECT_FALSE(std::is_copy_assignable_v<VulkanDynamicBuffer>);
-    EXPECT_FALSE(std::is_move_constructible_v<VulkanDynamicBuffer>);
-    EXPECT_FALSE(std::is_move_assignable_v<VulkanDynamicBuffer>);
+    EXPECT_FALSE(std::is_constructible_v<VulkanDynamicBuffer<StagingBuffer>>);
+    EXPECT_FALSE(std::is_copy_constructible_v<VulkanDynamicBuffer<StagingBuffer>>);
+    EXPECT_FALSE(std::is_copy_assignable_v<VulkanDynamicBuffer<StagingBuffer>>);
+    EXPECT_FALSE(std::is_move_constructible_v<VulkanDynamicBuffer<StagingBuffer>>);
+    EXPECT_FALSE(std::is_move_assignable_v<VulkanDynamicBuffer<StagingBuffer>>);
 }
 
 TEST_F(VulkanBufferTest, VulkanBuffer_CopyConstructorIsDeleted)
@@ -145,7 +145,7 @@ TEST_F(VulkanBufferTest, VulkanStagingBuffer_CreationAndMapping)
     buffer->Unmap();
     buffer->Destroy();
 
-    EXPECT_TRUE(buffer->IsDestroyed());
+    EXPECT_FALSE(buffer->IsValid());
 }
 
 TEST_F(VulkanBufferTest, VulkanVertexBuffer_CopyConstructorIsDeleted)
@@ -172,7 +172,7 @@ TEST_F(VulkanBufferTest, VulkanVertexBuffer_CreationAndAddress)
 
     buffer->Destroy();
 
-    EXPECT_TRUE(buffer->IsDestroyed());
+    EXPECT_FALSE(buffer->IsValid());
 }
 
 TEST_F(VulkanBufferTest, VulkanIndexBuffer_CopyConstructorIsDeleted)
@@ -204,7 +204,7 @@ TEST_F(VulkanBufferTest, VulkanIndexBuffer_CreationAndIndexType)
 
     buffer->Destroy();
 
-    EXPECT_TRUE(buffer->IsDestroyed());
+    EXPECT_FALSE(buffer->IsValid());
 }
 
 TEST_F(VulkanBufferTest, VulkanUniformBuffer_CopyConstructorIsDeleted)
@@ -238,5 +238,5 @@ TEST_F(VulkanBufferTest, VulkanUniformBuffer_CreationAndMapping)
     buffer->Unmap();
     buffer->Destroy();
 
-    EXPECT_TRUE(buffer->IsDestroyed());
+    EXPECT_FALSE(buffer->IsValid());
 }

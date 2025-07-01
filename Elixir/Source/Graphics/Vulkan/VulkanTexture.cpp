@@ -16,14 +16,14 @@ namespace Elixir::Vulkan
     VulkanTexture::~VulkanTexture()
     {
         EE_PROFILE_ZONE_SCOPED()
-        VulkanImageBase::Destroy();
+        VulkanBaseImage::Destroy();
     }
 
     VulkanTexture::VulkanTexture(
         const GraphicsContext* context,
         const SImageCreateInfo& info,
         const std::string& path
-    ) : VulkanImageBase(context, info)
+    ) : VulkanBaseImage(context, info)
     {
         EE_PROFILE_ZONE_SCOPED()
         m_Path = path;
@@ -43,14 +43,14 @@ namespace Elixir::Vulkan
     VulkanTexture2D::~VulkanTexture2D()
     {
         EE_PROFILE_ZONE_SCOPED()
-        VulkanImageBase::Destroy();
+        VulkanBaseImage::Destroy();
     }
 
     VulkanTexture2D::VulkanTexture2D(
         const GraphicsContext* context,
         const SImageCreateInfo& info,
         const std::string& path
-    ) : VulkanImageBase(context, info)
+    ) : VulkanBaseImage(context, info)
     {
         EE_PROFILE_ZONE_SCOPED()
         m_Path = path;
@@ -71,14 +71,14 @@ namespace Elixir::Vulkan
     VulkanTexture3D::~VulkanTexture3D()
     {
         EE_PROFILE_ZONE_SCOPED()
-        VulkanImageBase::Destroy();
+        VulkanBaseImage::Destroy();
     }
 
     VulkanTexture3D::VulkanTexture3D(
         const GraphicsContext* context,
         const SImageCreateInfo& info,
         const std::string& path
-    ) : VulkanImageBase(context, info)
+    ) : VulkanBaseImage(context, info)
     {
         EE_PROFILE_ZONE_SCOPED()
         m_Path = path;

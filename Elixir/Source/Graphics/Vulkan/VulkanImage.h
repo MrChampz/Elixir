@@ -10,8 +10,10 @@ namespace Elixir::Vulkan
 {
     using namespace Elixir;
 
+    VkImage TryToGetVulkanImage(const Image* image);
+
     template <class Base>
-    class VulkanImageBase : public Base
+    class VulkanBaseImage : public Base
     {
       public:
         virtual void Destroy() override;
@@ -34,17 +36,18 @@ namespace Elixir::Vulkan
             std::span<SBufferImageCopy> regions = {}
         ) override;
 
-        [[nodiscard]] bool IsDestroyed() const override { return m_Destroyed; }
+        [[nodiscard]] bool IsValid() const override { return m_Image != VK_NULL_HANDLE; }
 
         [[nodiscard]] VkImage GetVulkanImage() const { return m_Image; }
+        [[nodiscard]] const VkDescriptorImageInfo& GetVulkanDescriptorInfo() const { return m_DescriptorInfo; }
 
-        VulkanImageBase& operator=(const VulkanImageBase&) = delete;
-        VulkanImageBase& operator=(VulkanImageBase&&) = delete;
+        VulkanBaseImage& operator=(const VulkanBaseImage&) = delete;
+        VulkanBaseImage& operator=(VulkanBaseImage&&) = delete;
 
       protected:
-        VulkanImageBase(const GraphicsContext* context, const SImageCreateInfo& info);
-        VulkanImageBase(const VulkanImageBase&) = delete;
-        VulkanImageBase(VulkanImageBase&&) = delete;
+        VulkanBaseImage(const GraphicsContext* context, const SImageCreateInfo& info);
+        VulkanBaseImage(const VulkanBaseImage&) = delete;
+        VulkanBaseImage(VulkanBaseImage&&) = delete;
 
         void CreateImage(const SImageCreateInfo& info);
         void InitImage(const SImageCreateInfo& info);
@@ -59,12 +62,10 @@ namespace Elixir::Vulkan
 
         VmaAllocation m_Allocation = VK_NULL_HANDLE;
 
-        bool m_Destroyed = false;
-
         const VulkanGraphicsContext* m_GraphicsContext = nullptr;
     };
 
-    class ELIXIR_API VulkanImage final : public VulkanImageBase<Image>
+    class ELIXIR_API VulkanImage final : public VulkanBaseImage<Image>
     {
       public:
         VulkanImage(
@@ -77,7 +78,7 @@ namespace Elixir::Vulkan
         ~VulkanImage() override;
     };
 
-    class ELIXIR_API VulkanDepthStencilImage final : public VulkanImageBase<DepthStencilImage>
+    class ELIXIR_API VulkanDepthStencilImage final : public VulkanBaseImage<DepthStencilImage>
     {
       public:
         VulkanDepthStencilImage(
@@ -89,15 +90,4 @@ namespace Elixir::Vulkan
         VulkanDepthStencilImage(const GraphicsContext* context, const SImageCreateInfo& info);
         ~VulkanDepthStencilImage() override;
     };
-
-    inline VkImage GetVulkanImageHandler(const Image* image)
-    {
-        if (auto* img = dynamic_cast<const VulkanImageBase<DepthStencilImage>*>(image))
-            return img->GetVulkanImage();
-        if (auto* img = dynamic_cast<const VulkanImageBase<Image>*>(image))
-            return img->GetVulkanImage();
-
-        EE_CORE_ASSERT(false, "Unsupported image type!")
-        return VK_NULL_HANDLE;
-    }
 }

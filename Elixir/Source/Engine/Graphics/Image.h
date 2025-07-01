@@ -256,7 +256,7 @@ namespace Elixir
             std::span<SBufferImageCopy> regions = {}
         ) = 0;
 
-        [[nodiscard]] virtual bool IsDestroyed() const = 0;
+        [[nodiscard]] virtual bool IsValid() const = 0;
 
         [[nodiscard]] const UUID& GetUUID() const { return m_UUID; }
 

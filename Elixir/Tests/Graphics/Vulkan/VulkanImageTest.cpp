@@ -29,13 +29,13 @@ class VulkanImageTest : public Test
 Scope<Window> VulkanImageTest::Window = nullptr;
 Scope<GraphicsContext> VulkanImageTest::Context = nullptr;
 
-TEST_F(VulkanImageTest, VulkanImageBase_IsNotConstructibleAndAssignable)
+TEST_F(VulkanImageTest, VulkanBaseImage_IsNotConstructibleAndAssignable)
 {
-    EXPECT_FALSE(std::is_constructible_v<VulkanImageBase<Image>>);
-    EXPECT_FALSE(std::is_copy_constructible_v<VulkanImageBase<Image>>);
-    EXPECT_FALSE(std::is_copy_assignable_v<VulkanImageBase<Image>>);
-    EXPECT_FALSE(std::is_move_constructible_v<VulkanImageBase<Image>>);
-    EXPECT_FALSE(std::is_move_assignable_v<VulkanImageBase<Image>>);
+    EXPECT_FALSE(std::is_constructible_v<VulkanBaseImage<Image>>);
+    EXPECT_FALSE(std::is_copy_constructible_v<VulkanBaseImage<Image>>);
+    EXPECT_FALSE(std::is_copy_assignable_v<VulkanBaseImage<Image>>);
+    EXPECT_FALSE(std::is_move_constructible_v<VulkanBaseImage<Image>>);
+    EXPECT_FALSE(std::is_move_assignable_v<VulkanBaseImage<Image>>);
 }
 
 TEST_F(VulkanImageTest, VulkanImage_CopyConstructorIsDeleted)
@@ -54,7 +54,7 @@ TEST_F(VulkanImageTest, VulkanImage_CreationAndDestruction)
 {
     const auto image = Image::Create(Context.get(), EImageFormat::R8G8B8A8_SRGB, 800);
 
-    const auto vk_Image = dynamic_cast<VulkanImageBase<Image>*>(image.get());
+    const auto vk_Image = dynamic_cast<VulkanBaseImage<Image>*>(image.get());
     ASSERT_TRUE(vk_Image != nullptr);
     ASSERT_NE(vk_Image->GetVulkanImage(), VK_NULL_HANDLE);
 
@@ -80,7 +80,7 @@ TEST_F(VulkanImageTest, VulkanDepthStencilImage_DepthOnly)
         800, 600
     );
 
-    const auto vk_Image = dynamic_cast<VulkanImageBase<DepthStencilImage>*>(image.get());
+    const auto vk_Image = dynamic_cast<VulkanBaseImage<DepthStencilImage>*>(image.get());
     ASSERT_TRUE(vk_Image != nullptr);
     ASSERT_NE(vk_Image->GetVulkanImage(), VK_NULL_HANDLE);
 
@@ -107,7 +107,7 @@ TEST_F(VulkanImageTest, VulkanDepthStencilImage_DepthStencil)
         800, 600
     );
 
-    const auto vk_Image = dynamic_cast<VulkanImageBase<DepthStencilImage>*>(image.get());
+    const auto vk_Image = dynamic_cast<VulkanBaseImage<DepthStencilImage>*>(image.get());
     ASSERT_TRUE(vk_Image != nullptr);
     ASSERT_NE(vk_Image->GetVulkanImage(), VK_NULL_HANDLE);
 
@@ -147,25 +147,25 @@ TEST_F(VulkanImageTest, VulkanImage_LayoutTransition) {
 
 TEST_F(VulkanImageTest, VulkanImage_ImageDestruction) {
     const auto image = Image::Create(Context.get(), EImageFormat::R8G8B8A8_SRGB, 128);
-    EXPECT_FALSE(image->IsDestroyed());
+    EXPECT_TRUE(image->IsValid());
 
     image->Destroy();
-    EXPECT_TRUE(image->IsDestroyed());
+    EXPECT_FALSE(image->IsValid());
 
     // Calling destroy again should be safe
     EXPECT_NO_THROW(image->Destroy());
-    EXPECT_TRUE(image->IsDestroyed());
+    EXPECT_FALSE(image->IsValid());
 }
 
-TEST_F(VulkanImageTest, GetVulkanImageHandler) {
+TEST_F(VulkanImageTest, TryToGetVulkanImage) {
     SImageCreateInfo info = Image::CreateImageInfo(EImageFormat::R8G8B8A8_UNORM, 32);
     VulkanImage image(Context.get(), info);
 
     SImageCreateInfo dsInfo = DepthStencilImage::CreateImageInfo(EDepthStencilImageFormat::D16_UNORM, 64, 64);
     VulkanDepthStencilImage dstImage(Context.get(), dsInfo);
 
-    VkImage imgHandle = GetVulkanImageHandler(&image);
-    VkImage dstImgHandle = GetVulkanImageHandler(&dstImage);
+    VkImage imgHandle = TryToGetVulkanImage(&image);
+    VkImage dstImgHandle = TryToGetVulkanImage(&dstImage);
 
     EXPECT_EQ(imgHandle, image.GetVulkanImage());
     EXPECT_EQ(dstImgHandle, dstImage.GetVulkanImage());

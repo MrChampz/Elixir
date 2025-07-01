@@ -110,7 +110,7 @@ namespace Elixir
             std::span<SBufferCopy> regions = {}
         ) = 0;
 
-        [[nodiscard]] virtual bool IsDestroyed() const = 0;
+        [[nodiscard]] virtual bool IsValid() const = 0;
 
         [[nodiscard]] const UUID& GetUUID() const { return m_UUID; }
         [[nodiscard]] EBufferUsage GetUsage() const { return m_Usage; }
@@ -134,9 +134,6 @@ namespace Elixir
         Buffer(const GraphicsContext* context, const SBufferCreateInfo& info);
         Buffer(const Buffer&) = delete;
         Buffer(Buffer&&) = delete;
-
-        virtual void CreateBuffer(const SBufferCreateInfo& info) = 0;
-        virtual void InitBufferWithData(const SBuffer& buffer) = 0;
 
         UUID m_UUID;
 

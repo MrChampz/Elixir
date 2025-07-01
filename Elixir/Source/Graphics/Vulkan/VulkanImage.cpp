@@ -15,22 +15,58 @@ namespace Elixir::Vulkan
     using namespace Elixir::Graphics::Utils;
     using namespace Elixir::Vulkan;
 
-    /* VulkanImageBase */
+    namespace
+    {
+        using VulkanImageTypes = std::tuple<
+            VulkanBaseImage<DepthStencilImage>,
+            VulkanBaseImage<Image>
+        >;
+
+        template <size_t I = 0>
+        VkImage TryToGetVulkanImageHandle(const Image* image)
+        {
+            if constexpr (I < std::tuple_size_v<VulkanImageTypes>)
+            {
+                using ImageType = std::tuple_element_t<I, VulkanImageTypes>;
+
+                if (auto* img = dynamic_cast<const ImageType*>(image))
+                {
+                    return img->GetVulkanImage();
+                }
+
+                return TryToGetVulkanImageHandle<I + 1>(image);
+            }
+
+            EE_CORE_ASSERT(false, "Unsupported image type!")
+            return VK_NULL_HANDLE;
+        }
+    }
+
+    VkImage TryToGetVulkanImage(const Image* image)
+    {
+        if (!image) return VK_NULL_HANDLE;
+        return TryToGetVulkanImageHandle(image);
+    }
+
+    /* VulkanBaseImage */
 
     template <typename Base>
-    void VulkanImageBase<Base>::Destroy()
+    void VulkanBaseImage<Base>::Destroy()
     {
         EE_PROFILE_ZONE_SCOPED()
 
-        if (m_Destroyed) return;
+        if (!IsValid()) return;
 
         vkDestroyImageView(m_GraphicsContext->GetDevice(), m_ImageView, nullptr);
         vmaDestroyImage(m_GraphicsContext->GetAllocator(), m_Image, m_Allocation);
-        m_Destroyed = true;
+        m_Image = VK_NULL_HANDLE;
+        m_ImageView = VK_NULL_HANDLE;
+        m_Allocation = VK_NULL_HANDLE;
+        m_DescriptorInfo = {};
     }
 
     template <typename Base>
-    void VulkanImageBase<Base>::Transition(const CommandBuffer* cmd, const EImageLayout layout)
+    void VulkanBaseImage<Base>::Transition(const CommandBuffer* cmd, const EImageLayout layout)
     {
         EE_PROFILE_ZONE_SCOPED()
 
@@ -47,7 +83,7 @@ namespace Elixir::Vulkan
     }
 
     template <typename Base>
-    void VulkanImageBase<Base>::Copy(
+    void VulkanBaseImage<Base>::Copy(
         const CommandBuffer* cmd,
         const Image* dst,
         const Extent3D& srcExtent,
@@ -57,7 +93,7 @@ namespace Elixir::Vulkan
         EE_PROFILE_ZONE_SCOPED()
 
         const auto vk_Cmd = static_cast<const VulkanCommandBuffer*>(cmd);
-        const auto vk_Dst = GetVulkanImageHandler(dst);
+        const auto vk_Dst = TryToGetVulkanImage(dst);
 
         EE_CORE_ASSERT(vk_Dst != nullptr, "Invalid destination image!")
         EE_CORE_ASSERT(vk_Dst != VK_NULL_HANDLE, "Invalid destination image!")
@@ -69,7 +105,7 @@ namespace Elixir::Vulkan
     }
 
     template <typename Base>
-    void VulkanImageBase<Base>::CopyFrom(
+    void VulkanBaseImage<Base>::CopyFrom(
         const CommandBuffer* cmd,
         const Buffer* src,
         const std::span<SBufferImageCopy> regions
@@ -78,10 +114,9 @@ namespace Elixir::Vulkan
         EE_PROFILE_ZONE_SCOPED()
 
         const auto vk_Cmd = static_cast<const VulkanCommandBuffer*>(cmd);
-        const auto vk_Src = dynamic_cast<const VulkanBaseBuffer*>(src);
+        const auto vk_Src = TryToGetVulkanBuffer(src);
 
-        EE_CORE_ASSERT(vk_Src != nullptr, "Invalid source buffer!")
-        EE_CORE_ASSERT(vk_Src->GetVulkanBuffer() != VK_NULL_HANDLE, "Invalid source buffer!")
+        EE_CORE_ASSERT(vk_Src != VK_NULL_HANDLE, "Invalid source buffer!")
 
         std::span copyRegions = regions;
 
@@ -100,14 +135,14 @@ namespace Elixir::Vulkan
         );
 
         vkCmdCopyBufferToImage(
-            vk_Cmd->GetVulkanCommandBuffer(), vk_Src->GetVulkanBuffer(), m_Image,
+            vk_Cmd->GetVulkanCommandBuffer(), vk_Src, m_Image,
             Converters::GetImageLayout(this->GetLayout()), imageCopies.size(),
             imageCopies.data()
         );
     }
 
     template <typename Base>
-    VulkanImageBase<Base>::VulkanImageBase(
+    VulkanBaseImage<Base>::VulkanBaseImage(
         const GraphicsContext* context,
         const SImageCreateInfo& info
     ) : Base(context, info)
@@ -123,7 +158,7 @@ namespace Elixir::Vulkan
     }
 
     template <typename Base>
-    void VulkanImageBase<Base>::CreateImage(const SImageCreateInfo& info)
+    void VulkanBaseImage<Base>::CreateImage(const SImageCreateInfo& info)
     {
         EE_PROFILE_ZONE_SCOPED()
 
@@ -145,7 +180,7 @@ namespace Elixir::Vulkan
     }
 
     template <typename Base>
-    void VulkanImageBase<Base>::InitImage(const SImageCreateInfo& info)
+    void VulkanBaseImage<Base>::InitImage(const SImageCreateInfo& info)
     {
         EE_PROFILE_ZONE_SCOPED()
 
@@ -185,7 +220,7 @@ namespace Elixir::Vulkan
     }
 
     template <typename Base>
-    void VulkanImageBase<Base>::CreateImageView()
+    void VulkanBaseImage<Base>::CreateImageView()
     {
         EE_PROFILE_ZONE_SCOPED()
 
@@ -201,7 +236,7 @@ namespace Elixir::Vulkan
     }
 
     template <typename Base>
-    void VulkanImageBase<Base>::CreateDescriptorInfo()
+    void VulkanBaseImage<Base>::CreateDescriptorInfo()
     {
         EE_PROFILE_ZONE_SCOPED()
         m_DescriptorInfo = VkDescriptorImageInfo{};
@@ -210,7 +245,7 @@ namespace Elixir::Vulkan
     }
 
     template <class Base>
-    void VulkanImageBase<Base>::UpdateSampler()
+    void VulkanBaseImage<Base>::UpdateSampler()
     {
         auto vk_Sampler = std::static_pointer_cast<VulkanSampler>(this->GetSampler());
         m_DescriptorInfo.sampler = vk_Sampler->GetVulkanSampler();
@@ -226,7 +261,7 @@ namespace Elixir::Vulkan
     ) : VulkanImage(context, CreateImageInfo(format, width, data)) {}
 
     VulkanImage::VulkanImage(const GraphicsContext* context, const SImageCreateInfo& info)
-        : VulkanImageBase(context, info)
+        : VulkanBaseImage(context, info)
     {
         EE_PROFILE_ZONE_SCOPED()
 
@@ -242,7 +277,7 @@ namespace Elixir::Vulkan
     VulkanImage::~VulkanImage()
     {
         EE_PROFILE_ZONE_SCOPED()
-        VulkanImageBase::Destroy();
+        VulkanBaseImage::Destroy();
     }
 
     /* VulkanDepthStencilImage */
@@ -258,17 +293,17 @@ namespace Elixir::Vulkan
         const GraphicsContext* context,
         const SImageCreateInfo& info
     )
-        : VulkanImageBase(context, info)
+        : VulkanBaseImage(context, info)
     {
     }
 
     VulkanDepthStencilImage::~VulkanDepthStencilImage()
     {
         EE_PROFILE_ZONE_SCOPED()
-        VulkanImageBase::Destroy();
+        VulkanBaseImage::Destroy();
     }
 
-    template class VulkanImageBase<Texture>;
-    template class VulkanImageBase<Texture2D>;
-    template class VulkanImageBase<Texture3D>;
+    template class VulkanBaseImage<Texture>;
+    template class VulkanBaseImage<Texture2D>;
+    template class VulkanBaseImage<Texture3D>;
 }

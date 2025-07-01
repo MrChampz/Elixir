@@ -90,7 +90,7 @@ namespace Elixir::Vulkan::Initializers
 
     static VkImageViewCreateInfo ImageViewCreateInfo(const Image* image)
     {
-        const auto vk_Image = GetVulkanImageHandler(image);
+        const auto vk_Image = TryToGetVulkanImage(image);
         EE_CORE_ASSERT(vk_Image != nullptr, "Image is invalid!");
 
         VkImageViewCreateInfo info = {};
