@@ -92,7 +92,7 @@ namespace Elixir
 
     void Executor::AddTask(
         const Task task,
-        const TaskPriority priority,
+        const ETaskPriority priority,
         WaitGroup* waitGroup
     )
     {
@@ -107,7 +107,7 @@ namespace Elixir
     void Executor::AddTasks(
         const uint32_t numTasks,
         Task* tasks,
-        const TaskPriority priority,
+        const ETaskPriority priority,
         WaitGroup* waitGroup
     )
     {

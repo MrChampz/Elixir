@@ -10,12 +10,12 @@ namespace Elixir
 {
     class Executor;
 
-    using TaskPriority = ftl::TaskPriority;
+    using ETaskPriority = ftl::TaskPriority;
     using TaskFunction = void (*)(ftl::TaskScheduler* scheduler, void* arg);
 
     struct Task {
         TaskFunction Function;
-        void* ArgData;
+        void* ArgData = nullptr;
     };
 
     using ThreadRoutine = void* (*)(void* arg);
@@ -82,12 +82,12 @@ namespace Elixir
          */
         bool Init(ExecutorInitOptions options = ExecutorInitOptions());
 
-        void AddTask(Task task, TaskPriority priority, WaitGroup* waitGroup = nullptr);
+        void AddTask(Task task, ETaskPriority priority, WaitGroup* waitGroup = nullptr);
 
         void AddTasks(
             uint32_t numTasks,
             Task* tasks,
-            TaskPriority priority,
+            ETaskPriority priority,
             WaitGroup* waitGroup = nullptr
         );
 

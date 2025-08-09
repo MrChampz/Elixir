@@ -18,30 +18,70 @@
     #define EE_ENABLE_ASSERTS
 #endif // EE_DEBUG
 
+#ifndef LIKELY
+    #if (defined(__GNUC__) || defined(__clang__))
+        // Hints compiler that expression is likely to be true, allows (penalized by worse
+        // performance) expression to be false
+        #define LIKELY(x)     __builtin_expect(!!(x), 1)
+    #else
+        // the additional "!!" is added to silence "warning: equality comparison with
+        // extraneous parentheses" messages on android
+        #define LIKELY(x)     (!!(x))
+    #endif
+#endif
+
+#ifndef UNLIKELY
+    #if (defined(__GNUC__) || defined(__clang__))
+        // Hints compiler that expression is unlikely to be true, allows (penalized by worse
+        // performance) expression to be true
+        #define UNLIKELY(x)     __builtin_expect(!!(x), 0)
+    #else
+        // the additional "!!" is added to silence "warning: equality comparison with
+        // extraneous parentheses" messages on android
+        #define UNLIKELY(x)     (!!(x))
+    #endif
+#endif
+
+#if defined(_MSC_VER)
+    #define CA_ASSUME(expr)     __analysis_assume(!!(expr))
+#elif defined(__clang__)
+    #define CA_ASSUME(expr)     __builtin_assume(expr)
+#elif defined(__GNUC__)
+    #define CA_ASSUME(expr)     do { if (!(expr)) __builtin_unreachable(); } while(0)
+#else
+    #define CA_ASSUME(expr)
+#endif
+
 #ifdef EE_ENABLE_ASSERTS
     #define EE_ASSERT(x, message, ...)                                                      \
-        if (!(x))                                                                           \
+        if (UNLIKELY(!(x)))                                                                 \
         {                                                                                   \
             EE_ERROR(message __VA_OPT__(,) __VA_ARGS__)                                     \
-            DEBUG_BREAK()                                                                   \
+            DEBUG_BREAK();                                                                  \
+            CA_ASSUME(false);                                                               \
         }
     #define EE_CORE_ASSERT(x, message, ...)                                                 \
-        if (!(x))                                                                           \
+        if (UNLIKELY(!(x)))                                                                 \
         {                                                                                   \
             EE_CORE_ERROR(message __VA_OPT__(,) __VA_ARGS__)                                \
-            DEBUG_BREAK()                                                                   \
+            DEBUG_BREAK();                                                                  \
+            CA_ASSUME(false);                                                               \
         }
+#ifndef check
+    #define check(expr)     EE_CORE_ASSERT(expr, "")
+#endif
 #else
     #define EE_ASSERT(x, message, ...)
     #define EE_CORE_ASSERT(x, message, ...)
+    #define check(expr)
 #endif // EE_ENABLE_ASSERTS
 
 #if defined(_MSC_VER)
-    #define DEBUG_BREAK() __debugbreak();
+    #define DEBUG_BREAK() __debugbreak()
 #elif defined(__has_builtin) && __has_builtin(__builtin_debugtrap)
-    #define DEBUG_BREAK() __builtin_debugtrap();
+    #define DEBUG_BREAK() __builtin_debugtrap()
 #else
-    #define DEBUG_BREAK() raise(SIGABRT);
+    #define DEBUG_BREAK() raise(SIGABRT)
 #endif // _MSC_VER
 
 #define BIT(x) (1 << x)

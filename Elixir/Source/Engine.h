@@ -4,6 +4,7 @@
 #include <Engine/Core/Types.h>
 #include <Engine/Core/Color.h>
 #include <Engine/Core/Timer.h>
+#include <Engine/Core/Handle.h>
 #include <Engine/Core/Malloc.h>
 #include <Engine/Core/Memory.h>
 #include <Engine/Core/Buffer.h>

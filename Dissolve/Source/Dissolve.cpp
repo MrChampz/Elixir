@@ -2,61 +2,40 @@
 
 #include <Engine/Core/Entrypoint.h>
 #include <Engine/Core/Executor.h>
-
-struct ThreadArgs
-{
-    std::string Name;
-};
-
-void TaskEntrypoint(ftl::TaskScheduler* scheduler, void* args)
-{
-    EE_PROFILE_ZONE_SCOPED()
-
-    auto* threadArgs = static_cast<ThreadArgs*>(args);
-
-    std::ostringstream os;
-    os << std::this_thread::get_id();
-    EE_CORE_INFO("Task routine in thread {0} - {1}", os.str(), threadArgs->Name)
-}
-
-void* RenderEntrypoint(void* args)
-{
-    EE_PROFILE_ZONE_SCOPED()
-
-    auto* threadArgs = static_cast<ThreadArgs*>(args);
-
-    std::ostringstream os;
-    os << std::this_thread::get_id();
-    EE_CORE_INFO("Render routine in thread {0} - {1}", os.str(), threadArgs->Name)
-    return nullptr;
-}
+#include <Engine/Renderer/RenderGraph.h>
+using namespace Elixir::Renderer;
 
 Dissolve::Dissolve()
 {
     EE_PROFILE_ZONE_SCOPED()
 
-    m_Window->SetTitle("Dissolve");
-
-    auto renderArgs = ThreadArgs{};
-    renderArgs.Name = "Render";
-
-    auto logicArgs = ThreadArgs{};
-    logicArgs.Name = "Logic";
-
-    // auto thread = Executor::CreateThread(1048576, RenderEntrypoint, &renderArgs, "RenderThread");
-
     m_Executor = CreateScope<Executor>();
     m_Executor->Init();
 
-    std::ostringstream os;
-    os << std::this_thread::get_id();
-    EE_CORE_INFO("Init in thread {0}", os.str())
+    m_Window->SetTitle("Dissolve");
 
-    WaitGroup wg(m_Executor.get());
-    m_Executor->AddTask({ TaskEntrypoint, &logicArgs }, TaskPriority::Normal, &wg);
-    wg.Wait();
+    RenderGraph rg(m_Executor.get());
 
-    // Executor::JoinThread(thread);
+    auto tex1 = rg.CreateResource({ ERGResourceType::Texture, 900, 600 });
+    auto tex2 = rg.CreateResource({ ERGResourceType::Texture, 900, 600 });
+
+    rg.AddPass("Pass 1", {}, { tex1 }, []()
+    {
+       std::cout << "Pass 1 - " << std::this_thread::get_id() << std::endl;
+    });
+
+    rg.AddPass("Pass 2", { tex2 }, {}, []()
+    {
+       std::cout << "Pass 2 - " << std::this_thread::get_id() << std::endl;
+    });
+
+    rg.AddPass("Pass 3", { tex1 }, { tex2 }, []()
+    {
+       std::cout << "Pass 3 - " << std::this_thread::get_id() << std::endl;
+    });
+
+    rg.Compile();
+    rg.Execute();
 }
 
 void Dissolve::OnGUI(const Timestep frameTime)
