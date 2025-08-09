@@ -14,7 +14,7 @@ namespace Elixir::Renderer
         return handle;
     }
 
-    void RenderGraph::MarkExternalOutput(RGResourceHandle handle)
+    void RenderGraph::MarkExternalOutput(const RGResourceHandle handle)
     {
         m_ExternalOutputs.insert(handle);
     }
@@ -40,6 +40,7 @@ namespace Elixir::Renderer
     {
         GeneratePassLookup();
         BuildDependencies();
+        CullUnusedPasses();
         SortPassesTopologically();
         m_Compiled = true;
     }
@@ -75,7 +76,8 @@ namespace Elixir::Renderer
     {
         std::unordered_map<RGResourceHandle, RGPassHandle> producers;
 
-        for (auto& p : m_Passes) p.Dependents.clear();
+        for (auto& p : m_Passes)
+            p.Dependents.clear();
 
         for (const auto& pass : m_Passes)
         {
@@ -103,6 +105,51 @@ namespace Elixir::Renderer
             }
 
             m_UnresolvedDeps[pass.Handle].store(deps);
+        }
+    }
+
+    void RenderGraph::CullUnusedPasses()
+    {
+        // Mark all resources that are interesting for graph
+        // (is used as input by some node or is external).
+        std::unordered_set<RGResourceHandle> interestingResources = m_ExternalOutputs;
+
+        // Mark passes that generate or perform some operation on interesting resources.
+        std::vector interestingPasses(m_Passes.size(), false);
+
+        for (int i = m_Passes.size() - 1; i >= 0; --i)
+        {
+            auto& pass = m_Passes[i];
+            bool interesting = false;
+
+            for (const auto& output : pass.Outputs)
+            {
+                if (interestingResources.contains(output))
+                {
+                    interesting = true;
+                    break;
+                }
+            }
+
+            if (interesting)
+            {
+                interestingPasses[i] = true;
+
+                for (const auto& input : pass.Inputs)
+                {
+                    interestingResources.insert(input);
+                }
+
+                for (const auto& output : pass.Outputs)
+                {
+                    interestingResources.insert(output);
+                }
+            }
+        }
+
+        for (auto i = 0; i < m_Passes.size(); ++i)
+        {
+            m_Passes[i].Culled = !interestingPasses[i];
         }
     }
 
@@ -193,7 +240,7 @@ namespace Elixir::Renderer
     void RenderGraph::ExecutePass(const RGPassHandle handle)
     {
         const auto* pass = FindPass(handle);
-        if (!pass || pass->Culled || pass->Executed)
+        if (!pass || pass->Culled || pass->Executed.load())
             return;
 
         struct Payload { RenderGraph* rg; RGPassHandle handle; };
@@ -213,7 +260,7 @@ namespace Elixir::Renderer
                 if (pass->ExecuteCallback)
                     pass->ExecuteCallback();
 
-                pass->Executed = true;
+                pass->Executed.store(true);
 
                 for (const auto dependent : pass->Dependents)
                 {

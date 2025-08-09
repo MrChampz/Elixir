@@ -47,7 +47,57 @@ namespace Elixir::Renderer
         std::vector<RGPassHandle> Dependents;
 
         bool Culled = false;
-        bool Executed = false;
+        std::atomic<bool> Executed = false;
+
+        SRGPass() = default;
+
+        SRGPass(const SRGPass& other)
+            : Handle(other.Handle),
+              Name(other.Name),
+              Inputs(other.Inputs),
+              Outputs(other.Outputs),
+              ExecuteCallback(other.ExecuteCallback),
+              Dependents(other.Dependents),
+              Culled(other.Culled),
+              Executed(other.Executed.load())
+        {}
+
+        SRGPass(SRGPass&& other) noexcept
+            : Handle(std::move(other.Handle)),
+              Name(std::move(other.Name)),
+              Inputs(std::move(other.Inputs)),
+              Outputs(std::move(other.Outputs)),
+              ExecuteCallback(std::move(other.ExecuteCallback)),
+              Dependents(std::move(other.Dependents)),
+              Culled(other.Culled),
+              Executed(other.Executed.load())
+        {}
+
+        SRGPass& operator=(const SRGPass& other)
+        {
+            Handle = other.Handle;
+            Name = other.Name;
+            Inputs = other.Inputs;
+            Outputs = other.Outputs;
+            ExecuteCallback = other.ExecuteCallback;
+            Dependents = other.Dependents;
+            Culled = other.Culled;
+            Executed.store(other.Executed.load());
+            return *this;
+        }
+
+        SRGPass& operator=(SRGPass&& other) noexcept
+        {
+            Handle = std::move(other.Handle);
+            Name = std::move(other.Name);
+            Inputs = std::move(other.Inputs);
+            Outputs = std::move(other.Outputs);
+            ExecuteCallback = std::move(other.ExecuteCallback);
+            Dependents = std::move(other.Dependents);
+            Culled = other.Culled;
+            Executed.store(other.Executed.load());
+            return *this;
+        }
     };
 
     class ELIXIR_API RenderGraph
@@ -83,6 +133,7 @@ namespace Elixir::Renderer
       private:
         void GeneratePassLookup();
         void BuildDependencies();
+        void CullUnusedPasses();
         void SortPassesTopologically();
         void ReorderPasses(const std::vector<RGPassHandle>& passes);
         void ExecutePass(RGPassHandle handle);

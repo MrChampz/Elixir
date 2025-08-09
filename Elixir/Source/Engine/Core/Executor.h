@@ -64,11 +64,12 @@ namespace Elixir
         unsigned ThreadPoolSize = 0;
     };
 
-    class ELIXIR_API Executor
+    class ELIXIR_API Executor final
     {
         friend class WaitGroup;
 
     public:
+        virtual ~Executor() = default;
         Executor() = default;
 
         /**
