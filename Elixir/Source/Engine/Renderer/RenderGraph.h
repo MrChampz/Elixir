@@ -2,38 +2,70 @@
 
 #include <Engine/Core/Handle.h>
 #include <Engine/Core/Executor.h>
+#include <Engine/Graphics/Buffer.h>
+#include <Engine/Graphics/Texture.h>
+
+#include <cstddef>
+#include <functional>
 
 namespace Elixir::Renderer
 {
     typedef Handle<uint32_t> RGPassHandle;
     typedef Handle<uint32_t> RGResourceHandle;
 
-    enum class ERGResourceType
+    struct SRGBufferDesc
     {
-        Texture,
-        Buffer
+        uint32_t Size = 0;
     };
 
-    enum class ERGResourceUsage
+    struct SRGBuffer
     {
-        Read,
-        Write
+        SRGBufferDesc Desc;
+        RGResourceHandle Handle;
+        Scope<Buffer> Buffer = nullptr;
+
+        bool operator==(const SRGBuffer& other) const {
+            return other.Handle == Handle;
+        }
     };
 
-    struct SRGResourceDesc
+    struct SRGTextureDesc
     {
-        ERGResourceType Type;
         uint32_t Width = 0;
         uint32_t Height = 0;
     };
 
-    struct SRGResource
+    struct SRGTexture
     {
+        SRGTextureDesc Desc;
         RGResourceHandle Handle;
-        SRGResourceDesc Desc;
-        std::vector<ERGResourceUsage> Usage;
+        Scope<Texture> Texture = nullptr;
+
+        bool operator==(const SRGTexture& other) const {
+            return other.Handle == Handle;
+        }
+    };
+}
+
+namespace std
+{
+    template<>
+    struct std::hash<Renderer::SRGBuffer> {
+        std::size_t operator()(const Renderer::SRGBuffer& buf) const noexcept {
+            return Hash::HashValues(buf.Handle);
+        }
     };
 
+    template<>
+    struct std::hash<Renderer::SRGTexture> {
+        std::size_t operator()(const Renderer::SRGTexture& tex) const noexcept {
+            return Hash::HashValues(tex.Handle);
+        }
+    };
+}
+
+namespace Elixir::Renderer
+{
     struct SRGPass
     {
         RGPassHandle Handle;
@@ -114,7 +146,8 @@ namespace Elixir::Renderer
             EE_PROFILE_ZONE_SCOPED()
         }
 
-        RGResourceHandle CreateResource(const SRGResourceDesc& desc);
+        RGResourceHandle CreateBuffer(const SRGBufferDesc& desc);
+        RGResourceHandle CreateTexture(const SRGTextureDesc& desc);
         void MarkExternalOutput(RGResourceHandle handle);
 
         void AddPass(
@@ -142,7 +175,12 @@ namespace Elixir::Renderer
 
         std::vector<SRGPass> m_Passes;
         std::unordered_map<RGPassHandle, SRGPass*> m_PassLookup;
-        //std::unordered_set<SRGResource> m_Resources;
+
+        std::unordered_set<SRGBuffer> m_Buffers;
+        std::unordered_set<SRGTexture> m_Textures;
+        // TODO: make resources global handles, so a resource produced
+        //       by one RG can be used by another without problems
+        uint32_t m_ResourcesCount = 0;
 
         std::unordered_set<RGResourceHandle> m_ExternalOutputs;
 

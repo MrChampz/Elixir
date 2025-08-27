@@ -16,20 +16,22 @@ Dissolve::Dissolve()
 
     RenderGraph rg(m_Executor.get());
 
-    auto tex1 = rg.CreateResource({ ERGResourceType::Texture, 900, 600 });
-    auto tex2 = rg.CreateResource({ ERGResourceType::Texture, 900, 600 });
+    auto tex1 = rg.CreateTexture({ 900, 600 });
+
+    auto buf1 = rg.CreateBuffer({ 900 });
+    rg.MarkExternalOutput(buf1);
 
     rg.AddPass("Pass 1", {}, { tex1 }, []()
     {
        std::cout << "Pass 1 - " << std::this_thread::get_id() << std::endl;
     });
 
-    rg.AddPass("Pass 2", { tex2 }, {}, []()
+    rg.AddPass("Pass 2", { buf1 }, {}, []()
     {
        std::cout << "Pass 2 - " << std::this_thread::get_id() << std::endl;
     });
 
-    rg.AddPass("Pass 3", { tex1 }, { tex2 }, []()
+    rg.AddPass("Pass 3", { tex1 }, { buf1 }, []()
     {
        std::cout << "Pass 3 - " << std::this_thread::get_id() << std::endl;
     });

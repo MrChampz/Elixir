@@ -5,12 +5,27 @@
 
 namespace Elixir::Renderer
 {
-    static uint32_t g_ResourceCount = 0;
-
-    RGResourceHandle RenderGraph::CreateResource(const SRGResourceDesc& desc)
+    RGResourceHandle RenderGraph::CreateBuffer(const SRGBufferDesc& desc)
     {
-        const auto handle = RGResourceHandle(g_ResourceCount++);
-        //m_Resources[handle] = desc;
+        const auto handle = RGResourceHandle(m_ResourcesCount++);
+
+        auto buffer = SRGBuffer{};
+        buffer.Handle = handle;
+        buffer.Desc = std::move(desc);
+
+        m_Buffers.insert(std::move(buffer));
+        return handle;
+    }
+
+    RGResourceHandle RenderGraph::CreateTexture(const SRGTextureDesc& desc)
+    {
+        const auto handle = RGResourceHandle(m_ResourcesCount++);
+
+        auto texture = SRGTexture{};
+        texture.Handle = handle;
+        texture.Desc = std::move(desc);
+
+        m_Textures.insert(std::move(texture));
         return handle;
     }
 

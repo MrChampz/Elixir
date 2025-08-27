@@ -24,22 +24,22 @@ TEST_F(RenderGraphTest, PassExecutionOrder)
 
     RenderGraph rg(m_Executor.get());
 
-    auto tex1 = rg.CreateResource({ ERGResourceType::Texture, 900, 600 });
-    auto tex2 = rg.CreateResource({ ERGResourceType::Texture, 900, 600 });
+    auto tex1 = rg.CreateTexture({ 900, 600 });
+    auto buf1 = rg.CreateBuffer({ 600 });
     rg.MarkExternalOutput(tex1);
-    rg.MarkExternalOutput(tex2);
+    rg.MarkExternalOutput(buf1);
 
     rg.AddPass("Pass 1", {}, { tex1 }, [&]()
     {
         logs.push_back("Pass 1");
     });
 
-    rg.AddPass("Pass 2", { tex2 }, {}, [&]()
+    rg.AddPass("Pass 2", { buf1 }, {}, [&]()
     {
         logs.push_back("Pass 2");
     });
 
-    rg.AddPass("Pass 3", { tex1 }, { tex2 }, [&]()
+    rg.AddPass("Pass 3", { tex1 }, { buf1 }, [&]()
     {
         logs.push_back("Pass 3");
     });
@@ -58,16 +58,16 @@ TEST_F(RenderGraphTest, CullUnusedPasses)
 
     RenderGraph rg(m_Executor.get());
 
-    auto tex1 = rg.CreateResource({ ERGResourceType::Texture, 900, 600 });
-    auto tex2 = rg.CreateResource({ ERGResourceType::Texture, 900, 600 });
-    rg.MarkExternalOutput(tex2);
+    auto tex1 = rg.CreateTexture({ 900, 600 });
+    auto buf1 = rg.CreateBuffer({ 600 });
+    rg.MarkExternalOutput(buf1);
 
     rg.AddPass("Pass 1", {}, { tex1 }, [&]()
     {
         logs.push_back("Pass 1");
     });
 
-    rg.AddPass("Pass 2", { tex2 }, {}, [&]()
+    rg.AddPass("Pass 2", { buf1 }, {}, [&]()
     {
         logs.push_back("Pass 2");
     });
@@ -77,7 +77,7 @@ TEST_F(RenderGraphTest, CullUnusedPasses)
         logs.push_back("Pass 3");
     });
 
-    rg.AddPass("Pass 4", { tex1 }, { tex2 }, [&]()
+    rg.AddPass("Pass 4", { tex1 }, { buf1 }, [&]()
     {
         logs.push_back("Pass 4");
     });
