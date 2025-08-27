@@ -45,27 +45,7 @@ namespace Elixir::Renderer
             return other.Handle == Handle;
         }
     };
-}
 
-namespace std
-{
-    template<>
-    struct std::hash<Renderer::SRGBuffer> {
-        std::size_t operator()(const Renderer::SRGBuffer& buf) const noexcept {
-            return Hash::HashValues(buf.Handle);
-        }
-    };
-
-    template<>
-    struct std::hash<Renderer::SRGTexture> {
-        std::size_t operator()(const Renderer::SRGTexture& tex) const noexcept {
-            return Hash::HashValues(tex.Handle);
-        }
-    };
-}
-
-namespace Elixir::Renderer
-{
     struct SRGPass
     {
         RGPassHandle Handle;
@@ -131,7 +111,28 @@ namespace Elixir::Renderer
             return *this;
         }
     };
+}
 
+namespace std
+{
+    // TODO: Create a macro to define these std::hash definitions
+    template<>
+    struct std::hash<Renderer::SRGBuffer> {
+        std::size_t operator()(const Renderer::SRGBuffer& buf) const noexcept {
+            return Hash::HashValues(buf.Handle);
+        }
+    };
+
+    template<>
+    struct std::hash<Renderer::SRGTexture> {
+        std::size_t operator()(const Renderer::SRGTexture& tex) const noexcept {
+            return Hash::HashValues(tex.Handle);
+        }
+    };
+}
+
+namespace Elixir::Renderer
+{
     class ELIXIR_API RenderGraph
     {
       public:
