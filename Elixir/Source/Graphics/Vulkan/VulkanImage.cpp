@@ -23,7 +23,7 @@ namespace Elixir::Vulkan
         >;
 
         template <size_t I = 0>
-        VkImage TryToGetVulkanImageHandle(const Image* image)
+        const VulkanBaseImageBase* TryToGetVulkanImageImpl(const Image* image)
         {
             if constexpr (I < std::tuple_size_v<VulkanImageTypes>)
             {
@@ -31,21 +31,33 @@ namespace Elixir::Vulkan
 
                 if (auto* img = dynamic_cast<const ImageType*>(image))
                 {
-                    return img->GetVulkanImage();
+                    return img;
                 }
 
-                return TryToGetVulkanImageHandle<I + 1>(image);
+                return TryToGetVulkanImageImpl<I + 1>(image);
             }
 
             EE_CORE_ASSERT(false, "Unsupported image type!")
-            return VK_NULL_HANDLE;
+            return nullptr;
+        }
+
+        template <size_t I = 0>
+        VkImage TryToGetVulkanImageHandleImpl(const Image* image)
+        {
+            return TryToGetVulkanImageImpl<I>(image)->GetVulkanImage();
         }
     }
 
-    VkImage TryToGetVulkanImage(const Image* image)
+    const VulkanBaseImageBase* TryToGetVulkanImage(const Image* image)
+    {
+        if (!image) return nullptr;
+        return TryToGetVulkanImageImpl(image);
+    }
+
+    VkImage TryToGetVulkanImageHandle(const Image* image)
     {
         if (!image) return VK_NULL_HANDLE;
-        return TryToGetVulkanImageHandle(image);
+        return TryToGetVulkanImageHandleImpl(image);
     }
 
     /* VulkanBaseImage */
@@ -93,7 +105,7 @@ namespace Elixir::Vulkan
         EE_PROFILE_ZONE_SCOPED()
 
         const auto vk_Cmd = static_cast<const VulkanCommandBuffer*>(cmd);
-        const auto vk_Dst = TryToGetVulkanImage(dst);
+        const auto vk_Dst = TryToGetVulkanImageHandle(dst);
 
         EE_CORE_ASSERT(vk_Dst != nullptr, "Invalid destination image!")
         EE_CORE_ASSERT(vk_Dst != VK_NULL_HANDLE, "Invalid destination image!")
@@ -145,7 +157,7 @@ namespace Elixir::Vulkan
     VulkanBaseImage<Base>::VulkanBaseImage(
         const GraphicsContext* context,
         const SImageCreateInfo& info
-    ) : Base(context, info)
+    ) : VulkanBaseImageBase(context, info)
     {
         EE_PROFILE_ZONE_SCOPED()
 

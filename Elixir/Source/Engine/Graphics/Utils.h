@@ -4,6 +4,7 @@
 #include <Engine/Logging/Log.h>
 #include <Engine/Graphics/Buffer.h>
 #include <Engine/Graphics/Image.h>
+#include <Engine/Graphics/Shader/ShaderParameter.h>
 
 #include <magic_enum/magic_enum.hpp>
 #include <glm/glm.hpp>
@@ -50,6 +51,29 @@ namespace Elixir::Graphics::Utils
             case EDataType::Mat4:		    return 16;
             default:
                 EE_CORE_ASSERT(false, "Unknown DataType!")
+                break;
+        }
+
+        return 0;
+    }
+
+    inline size_t GetShaderConstantTypeSize(const EConstantType type)
+    {
+        switch (type)
+        {
+            case EConstantType::Bool:		    return 1;
+            case EConstantType::Float:		    return 4;
+            case EConstantType::Vec2:	        return 8;
+            case EConstantType::Vec3:	        return 12;
+            case EConstantType::Vec4:	        return 16;
+            case EConstantType::Int:		    return 4;
+            case EConstantType::IntVec2:		return 8;
+            case EConstantType::IntVec3:		return 12;
+            case EConstantType::IntVec4:		return 16;
+            case EConstantType::Mat3:		    return 36;
+            case EConstantType::Mat4:		    return 64;
+            default:
+                EE_CORE_ASSERT(false, "Unknown ShaderConstantType!")
                 break;
         }
 

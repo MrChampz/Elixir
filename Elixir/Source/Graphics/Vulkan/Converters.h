@@ -502,4 +502,24 @@ namespace Elixir::Vulkan::Converters
 
         return region;
     }
+
+    static VkDescriptorType GetDescriptorType(const EResourceType type)
+    {
+        switch (type)
+        {
+            case EResourceType::Image:
+                return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            case EResourceType::SampledImage:
+                return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+            case EResourceType::StorageImage:
+                return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            case EResourceType::Sampler:
+                return VK_DESCRIPTOR_TYPE_SAMPLER;
+            default:
+                EE_CORE_ASSERT(false, "Unknown ResourceType!")
+                break;
+        }
+
+        return VK_DESCRIPTOR_TYPE_MAX_ENUM;
+    }
 }

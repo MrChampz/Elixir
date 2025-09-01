@@ -10,10 +10,23 @@ namespace Elixir::Vulkan
 {
     using namespace Elixir;
 
-    VkImage TryToGetVulkanImage(const Image* image);
+    VkImage TryToGetVulkanImageHandle(const Image* image);
+
+    class VulkanBaseImageBase : public Image
+    {
+      public:
+        virtual VkImage GetVulkanImage() const = 0;
+        virtual const VkDescriptorImageInfo& GetVulkanDescriptorInfo() const = 0;
+
+    protected:
+        VulkanBaseImageBase(const GraphicsContext* context, const SImageCreateInfo& info)
+            : Image(context, info) {}
+    };
+
+    const VulkanBaseImageBase* TryToGetVulkanImage(const Image* image);
 
     template <class Base>
-    class VulkanBaseImage : public Base
+    class VulkanBaseImage : public Base, public VulkanBaseImageBase
     {
       public:
         virtual void Destroy() override;
@@ -38,8 +51,8 @@ namespace Elixir::Vulkan
 
         [[nodiscard]] bool IsValid() const override { return m_Image != VK_NULL_HANDLE; }
 
-        [[nodiscard]] VkImage GetVulkanImage() const { return m_Image; }
-        [[nodiscard]] const VkDescriptorImageInfo& GetVulkanDescriptorInfo() const { return m_DescriptorInfo; }
+        [[nodiscard]] VkImage GetVulkanImage() const override { return m_Image; }
+        [[nodiscard]] const VkDescriptorImageInfo& GetVulkanDescriptorInfo() const override { return m_DescriptorInfo; }
 
         VulkanBaseImage& operator=(const VulkanBaseImage&) = delete;
         VulkanBaseImage& operator=(VulkanBaseImage&&) = delete;
