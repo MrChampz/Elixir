@@ -7,34 +7,30 @@ namespace Elixir::Vulkan
 {
     using namespace Elixir;
 
-    class ELIXIR_API VulkanShader : public Shader
+    class ELIXIR_API VulkanShader final : public Shader
     {
       public:
+        VulkanShader(const GraphicsContext* context, SShaderCreateInfo&& info);
         ~VulkanShader() override;
 
       protected:
-        VulkanShader(const GraphicsContext* context, SShaderCreateInfo& info);
-
         void CreateDescriptorSetLayouts();
         void CreateDescriptorSets();
 
         void UpdateDescriptorSets();
 
         VkWriteDescriptorSet GetWriteDescriptorSet(
-            const SShaderBinding& binding,
+            SShaderBinding binding,
             const Ref<Texture>& texture
         ) const;
-        void UpdateDescriptorSet(
-            const SShaderBinding& binding,
-            const Ref<Texture>& texture
-        ) const;
+        void UpdateDescriptorSet(SShaderBinding binding, const Ref<Texture>& texture) const;
 
         VkWriteDescriptorSet GetWriteDescriptorSet(
-            const SShaderBinding& binding,
+            SShaderBinding binding,
             const Ref<UniformBuffer>& buffer
         ) const;
         void UpdateDescriptorSet(
-            const SShaderBinding& binding,
+            SShaderBinding binding,
             const Ref<UniformBuffer>& buffer
         ) const;
 

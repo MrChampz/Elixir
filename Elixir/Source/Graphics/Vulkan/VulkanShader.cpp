@@ -7,54 +7,49 @@
 
 namespace Elixir::Vulkan
 {
-    VulkanShader::~VulkanShader()
+    VulkanShader::VulkanShader(const GraphicsContext* context, SShaderCreateInfo&& info)
+        : Shader(context, std::move(info))
     {
         EE_PROFILE_ZONE_SCOPED()
-    }
-
-    VulkanShader::VulkanShader(const GraphicsContext* context, SShaderCreateInfo& info)
-        : Shader(context, info)
-    {
-        EE_PROFILE_ZONE_SCOPED()
+        m_GraphicsContext = static_cast<const VulkanGraphicsContext*>(context);
 
         CreateDescriptorSetLayouts();
         CreateDescriptorSets();
+    }
+
+    VulkanShader::~VulkanShader()
+    {
+        EE_PROFILE_ZONE_SCOPED()
     }
 
     void VulkanShader::CreateDescriptorSetLayouts()
     {
         std::unordered_map<uint32_t, std::vector<VkDescriptorSetLayoutBinding>> bindings;
 
-        for (const auto& buffers : m_Resources.ConstantBuffers)
+        for (const auto& [_, buffer] : m_Resources.ConstantBuffers)
         {
-            for (const auto& buffer : buffers)
-            {
-                const auto set = buffer.GetSet();
+            const auto set = buffer.GetSet();
 
-                VkDescriptorSetLayoutBinding binding = {};
-                binding.binding = buffer.GetBinding();
-                binding.descriptorCount = 1;
-                binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-                binding.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS; // TODO: GetShaderState(buffer->GetStage());
+            VkDescriptorSetLayoutBinding binding = {};
+            binding.binding = buffer.GetBinding();
+            binding.descriptorCount = 1;
+            binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            binding.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS; // TODO: GetShaderState(buffer->GetStage());
 
-                bindings[set].push_back(binding);
-            }
+            bindings[set].push_back(binding);
         }
 
-        for (const auto& resources : m_Resources.Resources)
+        for (const auto& [_, resource] : m_Resources.Resources)
         {
-            for (const auto& resource : resources)
-            {
-                const auto set = resource.GetSet();
+            const auto set = resource.GetSet();
 
-                VkDescriptorSetLayoutBinding binding = {};
-                binding.binding = resource.GetBinding();
-                binding.descriptorCount = resource.GetCount();
-                binding.descriptorType = Converters::GetDescriptorType(resource.GetType());
-                binding.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS; // TODO: GetShaderState(resource->GetStage());
+            VkDescriptorSetLayoutBinding binding = {};
+            binding.binding = resource.GetBinding();
+            binding.descriptorCount = resource.GetCount();
+            binding.descriptorType = Converters::GetDescriptorType(resource.GetType());
+            binding.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS; // TODO: GetShaderState(resource->GetStage());
 
-                bindings[set].push_back(binding);
-            }
+            bindings[set].push_back(binding);
         }
 
         m_DescriptorSetLayouts.reserve(bindings.size());
@@ -122,11 +117,11 @@ namespace Elixir::Vulkan
     }
 
     VkWriteDescriptorSet VulkanShader::GetWriteDescriptorSet(
-        const SShaderBinding& binding,
+        const SShaderBinding binding,
         const Ref<Texture>& texture
     ) const
     {
-        const auto& resource = m_Resources.Resources[binding.Set][binding.Binding];
+        const auto& resource = m_Resources.Resources.at(binding);
 
         // TODO: Support arrays of textures
         const auto count = 1;   // resource->GetCount();
@@ -150,7 +145,7 @@ namespace Elixir::Vulkan
     }
 
     void VulkanShader::UpdateDescriptorSet(
-        const SShaderBinding& binding,
+        const SShaderBinding binding,
         const Ref<Texture>& texture
     ) const
     {
@@ -166,11 +161,11 @@ namespace Elixir::Vulkan
     }
 
     VkWriteDescriptorSet VulkanShader::GetWriteDescriptorSet(
-        const SShaderBinding& binding,
+        const SShaderBinding binding,
         const Ref<UniformBuffer>& buffer
     ) const
     {
-        const auto& resource = m_Resources.ConstantBuffers[binding.Set][binding.Binding];
+        const auto& resource = m_Resources.ConstantBuffers.at(binding);
         const auto buf = std::static_pointer_cast<VulkanUniformBuffer>(buffer);
 
         VkWriteDescriptorSet writeSet = {};
@@ -185,7 +180,7 @@ namespace Elixir::Vulkan
     }
 
     void VulkanShader::UpdateDescriptorSet(
-        const SShaderBinding& binding,
+        const SShaderBinding binding,
         const Ref<UniformBuffer>& buffer
     ) const
     {

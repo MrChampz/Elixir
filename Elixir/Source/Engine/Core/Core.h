@@ -68,6 +68,26 @@ inline EnumClass& operator|=(EnumClass& lhs, EnumClass rhs)							\
 	return lhs;															            \
 }
 
+template <typename, typename = void>
+struct HasGetHashParams : std::false_type {};
+
+template <typename T>
+struct HasGetHashParams<T, std::void_t<decltype(std::declval<T>().GetHashParams())>>
+    : std::true_type {};
+
+#define GENERATE_HASH_FUNCTION(T)                                                                \
+namespace std                                                                                    \
+{                                                                                                \
+    template <>                                                                                  \
+    struct hash<T> {                                                                             \
+        size_t operator()(const T& obj) const noexcept                                           \
+        {                                                                                        \
+            static_assert(HasGetHashParams<T>::value, #T " must define GetHashParams()");        \
+            return Elixir::Hash::HashValues(obj.GetHashParams());                                                                            \
+        }                                                                                        \
+    };                                                                                           \
+}
+
 namespace Elixir
 {
     template <typename T>
@@ -91,5 +111,33 @@ namespace Elixir
     template <typename T>
     using Weak = std::weak_ptr<T>;
 
-    using Byte = uint8_t;
+    using Byte = std::byte;
+
+    namespace Hash
+    {
+        inline void HashCombine(std::size_t& seed, std::size_t value)
+        {
+            // Similar to boost::hash_combine
+            seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
+        }
+
+        template <typename... T>
+        std::size_t HashValues(const T&... values)
+        {
+            std::size_t seed = 0;
+            (HashCombine(seed, std::hash<T>()(values)), ...);
+            return seed;
+        }
+
+        template <typename... T>
+        std::size_t HashValues(const std::tuple<T...>& values)
+        {
+            return std::apply([](const T&... args)
+                {
+                    return HashValues(args...);
+                },
+                values
+            );
+        }
+    }
 }

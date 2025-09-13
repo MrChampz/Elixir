@@ -10,16 +10,17 @@ namespace Elixir::Vulkan
     class ELIXIR_API VulkanShaderModule final : public ShaderModule
     {
       public:
-        ~VulkanShaderModule() override;
-
-      protected:
         VulkanShaderModule(
             const GraphicsContext* context,
             EShaderStage stage,
-            const SShaderModuleCreateInfo& info
+            const std::string& entrypoint,
+            const std::vector<Byte>& bytecode,
+            const std::filesystem::path& path = ""
         );
+        ~VulkanShaderModule() override;
 
-        void CreateShaderModule(const SShaderModuleCreateInfo& info);
+      protected:
+        void CreateShaderModule(const std::vector<Byte>& bytecode);
 
         VkShaderModule m_Module;
 

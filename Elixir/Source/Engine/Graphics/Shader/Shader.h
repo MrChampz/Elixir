@@ -2,10 +2,41 @@
 
 #include <Engine/Graphics/Texture.h>
 #include <Engine/Graphics/Sampler.h>
+#include <Engine/Graphics/Shader/ShaderBinding.h>
 #include <Engine/Graphics/Shader/ShaderModule.h>
 
 namespace Elixir
 {
+    template <typename T, auto EnumValue>
+    using EnumIndexedArray = std::array<T, static_cast<size_t>(EnumValue)>;
+
+    template <typename T>
+    using BindingTable = std::unordered_map<SShaderBinding, T>;
+
+    struct SShaderResources
+    {
+        BindingTable<ShaderResource> Resources;
+        BindingTable<ShaderConstantBuffer> ConstantBuffers;
+        BindingTable<ShaderPushConstant> PushConstants;
+    };
+
+    struct SShaderModuleCreateInfo
+    {
+        std::filesystem::path Path;
+        std::string Entrypoint;
+        std::vector<ShaderResource> Resources;
+        std::vector<ShaderConstantBuffer> ConstantBuffers;
+        std::vector<ShaderPushConstant> PushConstants;
+        std::vector<Byte> Bytecode;
+
+        SShaderModuleCreateInfo() = default;
+        SShaderModuleCreateInfo(SShaderModuleCreateInfo&&) noexcept = default;
+        SShaderModuleCreateInfo(const SShaderModuleCreateInfo&) = delete;
+
+        SShaderModuleCreateInfo& operator=(SShaderModuleCreateInfo&&) noexcept = default;
+        SShaderModuleCreateInfo& operator=(const SShaderModuleCreateInfo&) = delete;
+    };
+
     struct SShaderCreateInfo
     {
         std::string Name;
@@ -14,50 +45,45 @@ namespace Elixir
         Scope<SShaderModuleCreateInfo> Compute;
     };
 
-    struct SShaderBinding
-    {
-        uint32_t Set;
-        uint32_t Binding;
-
-        bool operator==(const SShaderBinding& other) const noexcept
-        {
-            return Set == other.Set && Binding == other.Binding;
-        }
-    };
-
     class ELIXIR_API Shader
     {
       public:
         virtual ~Shader() = default;
 
-        virtual void SetPushConstant(const std::string& name, void* data, size_t size);
-
-        virtual void SetConstantBuffer(const std::string& name, void* data, size_t size);
-
-        virtual void BindTexture(const std::string& name, const Ref<Texture>& texture) = 0;
+        virtual void SetPushConstant(const std::string& name, void* data, size_t size) {}
+        virtual void SetConstantBuffer(const std::string& name, void* data, size_t size) {}
+        virtual void BindTexture(const std::string& name, const Ref<Texture>& texture) {}
 
         [[nodiscard]] virtual Ref<Texture> GetTexture(const std::string& name) const;
         [[nodiscard]] virtual Ref<Texture> GetTexture(SShaderBinding binding) const;
 
         [[nodiscard]] const std::string& GetName() const { return m_Name; }
-        [[nodiscard]] const Ref<ShaderModule>& GetModule(EShaderStage stage) const;
+        [[nodiscard]] Ref<ShaderModule> GetModule(EShaderStage stage) const;
 
         static Ref<Shader> Create(
             const GraphicsContext* context,
-            const SShaderCreateInfo& info
+            SShaderCreateInfo&& info
         );
 
       protected:
-        explicit Shader(const GraphicsContext* context, SShaderCreateInfo& info);
+        explicit Shader(const GraphicsContext* context, SShaderCreateInfo&& info);
 
-        void CreateBindingTable();
+        Ref<ShaderModule> CreateModule(
+            EShaderStage stage,
+            const Scope<SShaderModuleCreateInfo>& info
+        );
+
+        const ShaderResource* AddResourceToBindingTable(ShaderResource resource);
+        const ShaderConstantBuffer* AddConstantBufferToBindingTable(ShaderConstantBuffer buffer);
+        const ShaderPushConstant* AddPushConstantToBindingTable(ShaderPushConstant constant);
+
         void CreateBindingLookup();
 
         void SaveShaderBindingToLookup(const std::string& name, SShaderBinding binding);
         const SShaderBinding* GetShaderBinding(const std::string& name) const;
 
         std::string m_Name;
-        std::array<Ref<ShaderModule>, EShaderStage> m_Modules;
+        EnumIndexedArray<Ref<ShaderModule>, EShaderStage::Count> m_Modules;
 
         // Shader resources declarations
         SShaderResources m_Resources;

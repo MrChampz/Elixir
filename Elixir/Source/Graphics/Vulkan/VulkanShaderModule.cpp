@@ -5,29 +5,36 @@
 
 namespace Elixir::Vulkan
 {
-    VulkanShaderModule::~VulkanShaderModule()
+    const uint32_t* ConvertBytecode(const std::vector<Byte>& bytecode)
     {
-        EE_PROFILE_ZONE_SCOPED()
+        return reinterpret_cast<const uint32_t*>(bytecode.data());
     }
 
     VulkanShaderModule::VulkanShaderModule(
         const GraphicsContext* context,
         const EShaderStage stage,
-        const SShaderModuleCreateInfo& info
-    ) : ShaderModule(context, stage, info)
+        const std::string& entrypoint,
+        const std::vector<Byte>& bytecode,
+        const std::filesystem::path& path
+    ) : ShaderModule(context, stage, entrypoint, path)
     {
         EE_PROFILE_ZONE_SCOPED()
         m_GraphicsContext = static_cast<const VulkanGraphicsContext*>(context);
 
-        CreateShaderModule(info);
+        CreateShaderModule(bytecode);
     }
 
-    void VulkanShaderModule::CreateShaderModule(const SShaderModuleCreateInfo& info)
+    VulkanShaderModule::~VulkanShaderModule()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+    }
+
+    void VulkanShaderModule::CreateShaderModule(const std::vector<Byte>& bytecode)
     {
         VkShaderModuleCreateInfo moduleInfo{};
         moduleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        moduleInfo.pCode = info.Bytecode.data();
-        moduleInfo.codeSize = info.Bytecode.size() * sizeof(uint32_t);
+        moduleInfo.pCode = ConvertBytecode(bytecode);
+        moduleInfo.codeSize = bytecode.size();
 
         VK_CHECK_RESULT(
             vkCreateShaderModule(

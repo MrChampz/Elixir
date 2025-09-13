@@ -1,6 +1,8 @@
 #include "epch.h"
 #include "VulkanGraphicsContext.h"
 
+#include <Graphics/SpirV/SpirVShaderBackend.h>
+
 #include "Converters.h"
 #include "Utils.h"
 
@@ -16,6 +18,7 @@ namespace Elixir
 {
     using namespace Vulkan;
     using namespace Vulkan::Converters;
+    using namespace SpirV;
 
     template <typename T>
     void LogError(vkb::Result<T> result, std::string preMessage = "")
@@ -103,6 +106,8 @@ namespace Elixir
             reinterpret_cast<int*>(&m_SwapchainExtent.width),
             reinterpret_cast<int*>(&m_SwapchainExtent.height)
         );
+
+        m_ShaderBackend = CreateScope<SpirVShaderBackend>();
     }
 
     VulkanGraphicsContext::~VulkanGraphicsContext()

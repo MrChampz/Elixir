@@ -5,6 +5,11 @@
 
 namespace Elixir
 {
+    constexpr size_t GetStageIndex(EShaderStage stage) noexcept
+    {
+        return static_cast<size_t>(stage);
+    }
+
     Ref<Texture> Shader::GetTexture(const std::string& name) const
     {
         if (const auto binding = GetShaderBinding(name))
@@ -23,23 +28,31 @@ namespace Elixir
             return m_Textures.at(binding);
         }
 
-        EE_CORE_ERROR("No texture set for (set \"{0}\", binding \"{1}\") in shader...", binding.Set, binding.Binding)
+        EE_CORE_ERROR(
+            "No texture set for (set \"{0}\", binding \"{1}\") in shader...", binding.Set,
+            binding.Binding
+        )
         return nullptr;
     }
 
-    Ref<Shader> Shader::Create(const GraphicsContext* context, const SShaderCreateInfo& info)
+    Ref<ShaderModule> Shader::GetModule(const EShaderStage stage) const
+    {
+        return m_Modules[GetStageIndex(stage)];
+    }
+
+    Ref<Shader> Shader::Create(const GraphicsContext* context, SShaderCreateInfo&& info)
     {
         switch (context->GetAPI())
         {
             case EGraphicsAPI::Vulkan:
-                return CreateRef<Vulkan::VulkanShader>(context, info);
+                return CreateRef<Vulkan::VulkanShader>(context, std::move(info));
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;
         }
     }
 
-    Shader::Shader(const GraphicsContext* context, SShaderCreateInfo& info)
+    Shader::Shader(const GraphicsContext* context, SShaderCreateInfo&& info)
         : m_Name(info.Name), m_GraphicsContext(context)
     {
         struct ShaderModuleInfo
@@ -48,62 +61,103 @@ namespace Elixir
             Scope<SShaderModuleCreateInfo> Module;
         };
 
-        auto modules = {
-            ShaderModuleInfo{EShaderStage::Vertex, std::move(info.Vertex)},
-            ShaderModuleInfo{EShaderStage::Pixel, std::move(info.Pixel)},
-            ShaderModuleInfo{EShaderStage::Compute, std::move(info.Compute)},
+        ShaderModuleInfo modules[] = {
+            {EShaderStage::Vertex, std::move(info.Vertex)},
+            {EShaderStage::Pixel, std::move(info.Pixel)},
+            {EShaderStage::Compute, std::move(info.Compute)},
         };
 
-        for (auto& [stage, createInfo] : modules)
+        for (auto& entry : modules)
         {
-            if (!createInfo)
+            if (!entry.Module)
                 continue;
 
-            auto module = ShaderModule::Create(m_GraphicsContext, stage, *createInfo);
-            m_Modules.push_back(module);
+            const auto module = CreateModule(entry.Stage, entry.Module);
+            m_Modules[GetStageIndex(entry.Stage)] = module;
         }
 
         CreateBindingLookup();
     }
 
-    void Shader::CreateBindingTable()
+    Ref<ShaderModule> Shader::CreateModule(
+        const EShaderStage stage,
+        const Scope<SShaderModuleCreateInfo>& info
+    )
     {
-        // TODO: For each module, get all resources, process them into sets/bindings.
+        const auto module = ShaderModule::Create(
+            m_GraphicsContext, stage, info->Entrypoint, info->Bytecode, info->Path
+        );
+
+        for (const auto& resource : info->Resources)
+        {
+            const auto ref = AddResourceToBindingTable(resource);
+            module->AddResource(ref);
+        }
+
+        for (const auto& buffer : info->ConstantBuffers)
+        {
+            const auto ref = AddConstantBufferToBindingTable(buffer);
+            module->AddConstantBuffer(ref);
+        }
+
+        for (const auto& constant : info->PushConstants)
+        {
+            const auto ref = AddPushConstantToBindingTable(constant);
+            module->AddPushConstant(ref);
+        }
+
+        return module;
+    }
+
+    const ShaderResource* Shader::AddResourceToBindingTable(ShaderResource resource)
+    {
+        const auto set = resource.GetSet();
+        const auto binding = resource.GetBinding();
+
+        const auto& [it, _] = m_Resources.Resources
+            .insert_or_assign({set, binding}, resource);
+        return &it->second;
+    }
+
+    const ShaderConstantBuffer* Shader::AddConstantBufferToBindingTable(
+        ShaderConstantBuffer buffer
+    )
+    {
+        const auto set = buffer.GetSet();
+        const auto binding = buffer.GetBinding();
+
+        const auto& [it, _] = m_Resources.ConstantBuffers
+            .insert_or_assign({set, binding}, buffer);
+        return &it->second;
+    }
+
+    const ShaderPushConstant* Shader::AddPushConstantToBindingTable(
+        ShaderPushConstant constant
+    )
+    {
+        const auto set = constant.GetSet();
+        const auto binding = constant.GetBinding();
+
+        const auto& [it, _] = m_Resources.PushConstants
+            .insert_or_assign({set, binding}, constant);
+        return &it->second;
     }
 
     void Shader::CreateBindingLookup()
     {
-        for (const auto& bindings : m_Resources.Resources)
+        for (const auto& [binding, resource] : m_Resources.Resources)
         {
-            for (const auto& resource : bindings)
-            {
-                const auto name = resource.GetName();
-                const auto set = resource.GetSet();
-                const auto binding = resource.GetBinding();
-                SaveShaderBindingToLookup(name, { set, binding });
-            }
+            SaveShaderBindingToLookup(resource.GetName(), binding);
         }
 
-        for (const auto& bindings : m_Resources.ConstantBuffers)
+        for (const auto& [binding, buffer] : m_Resources.ConstantBuffers)
         {
-            for (const auto& buffer : bindings)
-            {
-                const auto name = buffer.GetName();
-                const auto set = buffer.GetSet();
-                const auto binding = buffer.GetBinding();
-                SaveShaderBindingToLookup(name, { set, binding });
-            }
+            SaveShaderBindingToLookup(buffer.GetName(), binding);
         }
 
-        for (const auto& bindings : m_Resources.PushConstants)
+        for (const auto& [binding, constant] : m_Resources.PushConstants)
         {
-            for (const auto& pushConstant : bindings)
-            {
-                const auto name = pushConstant.GetName();
-                const auto set = pushConstant.GetSet();
-                const auto binding = pushConstant.GetBinding();
-                SaveShaderBindingToLookup(name, { set, binding });
-            }
+            SaveShaderBindingToLookup(constant.GetName(), binding);
         }
     }
 

@@ -17,14 +17,6 @@ namespace Elixir
     class ShaderResource final
     {
       public:
-        [[nodiscard]] const std::string& GetName() const { return m_Name; }
-		[[nodiscard]] uint32_t GetSet() const { return m_Set; }
-		[[nodiscard]] uint32_t GetBinding() const { return m_Binding; }
-		[[nodiscard]] EResourceType GetType() const { return m_Type; }
-		[[nodiscard]] EResourceDimension GetDimension() const { return m_Dimension; }
-		[[nodiscard]] uint32_t GetCount() const { return m_Count; }
-
-      protected:
         ShaderResource(
             const std::string& name,
             uint32_t set,
@@ -34,6 +26,20 @@ namespace Elixir
             uint32_t count
         );
 
+        ShaderResource(const ShaderResource&) = default;
+        ShaderResource(ShaderResource&&) noexcept = default;
+
+        [[nodiscard]] const std::string& GetName() const { return m_Name; }
+		[[nodiscard]] uint32_t GetSet() const { return m_Set; }
+		[[nodiscard]] uint32_t GetBinding() const { return m_Binding; }
+		[[nodiscard]] EResourceType GetType() const { return m_Type; }
+		[[nodiscard]] EResourceDimension GetDimension() const { return m_Dimension; }
+		[[nodiscard]] uint32_t GetCount() const { return m_Count; }
+
+        ShaderResource& operator=(const ShaderResource&) = default;
+        ShaderResource& operator=(ShaderResource&&) noexcept = default;
+
+      protected:
         std::string m_Name;
         uint32_t m_Set;
         uint32_t m_Binding;
@@ -60,15 +66,6 @@ namespace Elixir
         friend class ShaderPushConstant;
 
       public:
-        [[nodiscard]] std::string GetName() const { return m_Name; }
-        [[nodiscard]] EConstantType GetType() const { return m_Type; }
-        [[nodiscard]] uint32_t GetCount() const { return m_Count; }
-        [[nodiscard]] bool IsPointer() const { return m_Pointer; }
-        [[nodiscard]] bool IsArray() const { return m_Count > 1; }
-        [[nodiscard]] uint32_t GetSize() const { return m_Size; }
-        [[nodiscard]] uint32_t GetOffset() const { return m_Offset; }
-
-      protected:
         ShaderConstant(
             const std::string& name,
             EConstantType type,
@@ -78,17 +75,32 @@ namespace Elixir
 
         ShaderConstant(
             const std::string& name,
-            Scope<ShaderConstantStruct> structure,
+            Ref<ShaderConstantStruct> structure,
             uint32_t count,
             bool pointer
         );
 
+        ShaderConstant(const ShaderConstant&) = default;
+        ShaderConstant(ShaderConstant&&) noexcept = default;
+
+        [[nodiscard]] std::string GetName() const { return m_Name; }
+        [[nodiscard]] EConstantType GetType() const { return m_Type; }
+        [[nodiscard]] uint32_t GetCount() const { return m_Count; }
+        [[nodiscard]] bool IsPointer() const { return m_Pointer; }
+        [[nodiscard]] bool IsArray() const { return m_Count > 1; }
+        [[nodiscard]] uint32_t GetSize() const { return m_Size; }
+        [[nodiscard]] uint32_t GetOffset() const { return m_Offset; }
+
+        ShaderConstant& operator=(const ShaderConstant&) = default;
+        ShaderConstant& operator=(ShaderConstant&&) noexcept = default;
+
+      protected:
         void SetOffset(uint32_t offset);
 
       private:
         std::string m_Name;
         EConstantType m_Type;
-        Scope<ShaderConstantStruct> m_Struct;
+        Ref<ShaderConstantStruct> m_Struct;
         uint32_t m_Count = 0;
         bool m_Pointer = false;
 
@@ -101,7 +113,9 @@ namespace Elixir
         friend class ShaderConstant;
 
       public:
-        ~ShaderConstantStruct();
+        explicit ShaderConstantStruct(const std::string& name) : m_Name(name) {}
+
+        void AddField(ShaderConstant&& field);
 
         [[nodiscard]] std::string GetName() const { return m_Name; }
         [[nodiscard]] uint32_t GetSize() const { return m_Size; }
@@ -109,10 +123,8 @@ namespace Elixir
         [[nodiscard]] const std::vector<ShaderConstant>& GetFields() const { return m_Fields; }
 
       protected:
-        explicit ShaderConstantStruct(const std::string& name)
-            : m_Name(name) {}
-
-        void AddField(ShaderConstant* field);
+        ShaderConstantStruct(const ShaderConstantStruct&) = delete;
+        ShaderConstantStruct& operator=(const ShaderConstantStruct&) = delete;
 
         void SetOffset(const uint32_t offset) { m_Offset = offset; }
 
@@ -126,7 +138,12 @@ namespace Elixir
     class ShaderConstantBuffer final
     {
       public:
-        ~ShaderConstantBuffer();
+        ShaderConstantBuffer(const std::string& name, uint32_t set, uint32_t binding);
+        ShaderConstantBuffer(const ShaderConstantBuffer&) = default;
+        ShaderConstantBuffer(ShaderConstantBuffer&&) noexcept = default;
+
+        void PushConstant(ShaderConstant&& constant);
+        [[nodiscard]] const ShaderConstant* FindConstant(const std::string& name);
 
         [[nodiscard]] const std::string& GetName() const { return m_Name; }
         [[nodiscard]] uint32_t GetSet() const { return m_Set; }
@@ -134,12 +151,9 @@ namespace Elixir
         [[nodiscard]] uint32_t GetSize() const { return m_Size; }
         [[nodiscard]] const std::vector<ShaderConstant>& GetConstants() const { return m_Constants; }
 
+        ShaderConstantBuffer& operator=(const ShaderConstantBuffer&) = default;
+
       protected:
-        ShaderConstantBuffer(const std::string& name, uint32_t set, uint32_t binding);
-
-        void PushConstant(ShaderConstant* constant);
-        [[nodiscard]] ShaderConstant* FindConstant(const std::string& name);
-
         std::string m_Name;
         uint32_t m_Set = 0;
         uint32_t m_Binding = 0;
@@ -151,7 +165,18 @@ namespace Elixir
     class ShaderPushConstant final
     {
       public:
-        ~ShaderPushConstant();
+        ShaderPushConstant(
+            const std::string& name,
+            uint32_t set,
+            uint32_t binding,
+            uint32_t offset
+        );
+
+        ShaderPushConstant(const ShaderPushConstant&) noexcept = default;
+        ShaderPushConstant(ShaderPushConstant&&) noexcept = default;
+
+        void PushConstant(ShaderConstant&& constant);
+        [[nodiscard]] const ShaderConstant* FindConstant(const std::string& name);
 
         [[nodiscard]] const std::string& GetName() const { return m_Name; }
 		[[nodiscard]] uint32_t GetSet() const { return m_Set; }
@@ -159,18 +184,11 @@ namespace Elixir
 		[[nodiscard]] uint32_t GetSize() const { return m_Size; }
 		[[nodiscard]] uint32_t GetOffset() const { return m_Offset; }
 		[[nodiscard]] const std::vector<ShaderConstant>& GetConstants() const { return m_Constants; }
-		
-      protected:
-        ShaderPushConstant(
-            const std::string& name,
-            uint32_t set,
-			uint32_t binding,
-			uint32_t offset
-        );
 
-        void PushConstant(ShaderConstant* constant);
-        [[nodiscard]] ShaderConstant* FindConstant(const std::string& name);
-        
+        ShaderPushConstant& operator=(const ShaderPushConstant&) = default;
+        ShaderPushConstant& operator=(ShaderPushConstant&&) noexcept = default;
+
+      protected:
         std::string m_Name;
         uint32_t m_Set = 0;
         uint32_t m_Binding = 0;

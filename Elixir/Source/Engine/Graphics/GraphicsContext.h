@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Engine/Graphics/Shader/ShaderBackend.h>
+
 #include <glm/glm.hpp>
 
 namespace Elixir
@@ -48,6 +50,7 @@ namespace Elixir
         [[nodiscard]] EGraphicsAPI GetAPI() const { return m_API; }
 
         const Window* GetWindow() const { return m_Window; }
+        const Scope<ShaderBackend>& GetShaderBackend() const { return m_ShaderBackend; }
 
         const Ref<CommandBuffer>& GetCommandBuffer() const { return m_CommandBuffers[m_FrameNumber % FRAMES]; }
         uint32_t GetFrameNumber() const { return m_FrameNumber; }
@@ -70,6 +73,8 @@ namespace Elixir
 
         std::vector<Ref<CommandBuffer>> m_CommandBuffers;
         uint32_t m_FrameNumber = 0;
+
+        Scope<ShaderBackend> m_ShaderBackend = nullptr;
 
         bool m_VSyncEnabled = false;
     };

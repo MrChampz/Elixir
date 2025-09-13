@@ -6,62 +6,52 @@ namespace Elixir
 {
     enum class EShaderStage : uint8_t
     {
-        Vertex					= 0x00000001,
-		Hull		            = 0x00000002,
-		Domain	                = 0x00000004,
-		Geometry				= 0x00000008,
-		Pixel				    = 0x00000010,
-		Compute					= 0x00000020
+        Vertex = 0,
+		Hull,
+		Domain,
+		Geometry,
+		Pixel,
+		Compute,
+        Count
     };
 
     GENERATE_ENUM_CLASS_OPERATORS(EShaderStage)
-
-    template <typename T>
-    typedef std::vector<std::vector<T>> BindingTable;
-
-    struct SShaderResources
-    {
-        BindingTable<ShaderResource> Resources;
-        BindingTable<ShaderConstantBuffer> ConstantBuffers;
-        BindingTable<ShaderPushConstant> PushConstants;
-    };
-
-    struct SShaderModuleCreateInfo
-    {
-        std::string Path;
-        std::string Entrypoint;
-        SShaderResources Resources;
-        std::vector<uint32_t> Bytecode;
-    };
 
     class ELIXIR_API ShaderModule
     {
       public:
         virtual ~ShaderModule() = default;
 
+        void AddResource(const ShaderResource* resource);
+        void AddConstantBuffer(const ShaderConstantBuffer* buffer);
+        void AddPushConstant(const ShaderPushConstant* constant);
+
         [[nodiscard]] EShaderStage GetStage() const { return m_Stage; }
 
         static Ref<ShaderModule> Create(
             const GraphicsContext* context,
             EShaderStage stage,
-            const SShaderModuleCreateInfo& info
+            const std::string& entrypoint,
+            const std::vector<Byte>& bytecode,
+            const std::filesystem::path& path = ""
         );
 
       protected:
         explicit ShaderModule(
             const GraphicsContext* context,
             EShaderStage stage,
-            const SShaderModuleCreateInfo& info
+            const std::string& entrypoint,
+            const std::filesystem::path& path = ""
         );
 
-        std::string m_Path;
+        std::filesystem::path m_Path;
         std::string m_Entrypoint;
         EShaderStage m_Stage;
 
         // Shader resources declarations
-        std::vector<ShaderResource*> m_Resources;
-        std::vector<ShaderConstantBuffer*> m_ConstantBuffers;
-        std::vector<ShaderPushConstant*> m_PushConstants;
+        std::vector<const ShaderResource*> m_Resources;
+        std::vector<const ShaderConstantBuffer*> m_ConstantBuffers;
+        std::vector<const ShaderPushConstant*> m_PushConstants;
 
         const GraphicsContext* m_GraphicsContext;
     };

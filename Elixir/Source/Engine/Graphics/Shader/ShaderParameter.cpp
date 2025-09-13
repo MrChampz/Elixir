@@ -37,7 +37,7 @@ namespace Elixir
 
     ShaderConstant::ShaderConstant(
         const std::string& name,
-        Scope<ShaderConstantStruct> structure,
+        Ref<ShaderConstantStruct> structure,
         const uint32_t count,
         const bool pointer
     )
@@ -64,31 +64,19 @@ namespace Elixir
      * ShaderConstantStruct
      */
 
-    ShaderConstantStruct::~ShaderConstantStruct()
+    void ShaderConstantStruct::AddField(ShaderConstant&& field)
     {
-        std::ranges::for_each(m_Fields, [](auto field) { delete field; });
-        m_Fields.clear();
-    }
-
-    void ShaderConstantStruct::AddField(ShaderConstant* field)
-    {
-        m_Size += field->GetSize();
+        m_Size += field.GetSize();
 
         uint32_t offset = 0;
         if (m_Fields.size() > 0)
         {
-            const auto previous = m_Fields.back();
-            offset = previous->GetOffset() + previous->GetSize();
+            const auto& previous = m_Fields.back();
+            offset = previous.GetOffset() + previous.GetSize();
         }
 
-        field->SetOffset(offset);
-        m_Fields.push_back(field);
-    }
-
-    ShaderConstantBuffer::~ShaderConstantBuffer()
-    {
-        std::ranges::for_each(m_Constants, [](auto constant) { delete constant; });
-        m_Constants.clear();
+        field.SetOffset(offset);
+        m_Fields.push_back(std::move(field));
     }
 
     /**
@@ -101,37 +89,31 @@ namespace Elixir
         const uint32_t binding
     ) : m_Name(name), m_Set(set), m_Binding(binding) {}
 
-    void ShaderConstantBuffer::PushConstant(ShaderConstant* constant)
+    void ShaderConstantBuffer::PushConstant(ShaderConstant&& constant)
     {
         uint32_t offset = 0;
 
         if (m_Constants.size())
         {
-            const auto previous = m_Constants.back();
-            offset = previous->GetOffset() + previous->GetSize();
+            const auto& previous = m_Constants.back();
+            offset = previous.GetOffset() + previous.GetSize();
         }
 
-        constant->SetOffset(offset);
-        m_Size += constant->GetSize();
-        m_Constants.push_back(constant);
+        constant.SetOffset(offset);
+        m_Size += constant.GetSize();
+        m_Constants.push_back(std::move(constant));
     }
 
-    ShaderConstant* ShaderConstantBuffer::FindConstant(const std::string& name)
+    const ShaderConstant* ShaderConstantBuffer::FindConstant(const std::string& name)
     {
         const auto it = std::ranges::find_if(
             m_Constants,
-            [&](auto& constant)
+            [&](const auto& constant)
             {
-                return constant->GetName() == name;
+                return constant.GetName() == name;
             }
         );
-        return it != m_Constants.end() ? *it : nullptr;
-    }
-
-    ShaderPushConstant::~ShaderPushConstant()
-    {
-        std::ranges::for_each(m_Constants, [](auto constant) { delete constant; });
-        m_Constants.clear();
+        return it != m_Constants.end() ? &(*it) : nullptr;
     }
 
     /**
@@ -145,27 +127,30 @@ namespace Elixir
         const uint32_t offset
     ) : m_Name(name), m_Set(set), m_Binding(binding), m_Offset(offset) {}
 
-    void ShaderPushConstant::PushConstant(ShaderConstant* constant)
+    void ShaderPushConstant::PushConstant(ShaderConstant&& constant)
     {
         uint32_t offset = 0;
 
         if (m_Constants.size())
         {
-            const auto previous = m_Constants.back();
-            offset = previous->GetOffset() + previous->GetSize();
+            const auto& previous = m_Constants.back();
+            offset = previous.GetOffset() + previous.GetSize();
         }
 
-        constant->SetOffset(offset);
-        m_Size += constant->GetSize();
-        m_Constants.push_back(constant);
+        constant.SetOffset(offset);
+        m_Size += constant.GetSize();
+        m_Constants.push_back(std::move(constant));
     }
 
-    ShaderConstant* ShaderPushConstant::FindConstant(const std::string& name)
+    const ShaderConstant* ShaderPushConstant::FindConstant(const std::string& name)
     {
-        const auto it = std::ranges::find_if(m_Constants, [&](auto& constant)
-        {
-            return constant->GetName() == name;
-        });
-        return it != m_Constants.end() ? *it : nullptr;
+        const auto it = std::ranges::find_if(
+            m_Constants,
+            [&](const auto& constant)
+            {
+                return constant.GetName() == name;
+            }
+        );
+        return it != m_Constants.end() ? &(*it) : nullptr;
     }
 }

@@ -157,7 +157,7 @@ namespace Elixir::Vulkan
     VulkanBaseImage<Base>::VulkanBaseImage(
         const GraphicsContext* context,
         const SImageCreateInfo& info
-    ) : VulkanBaseImageBase(context, info)
+    ) : Base(context, info), VulkanBaseImageBase()
     {
         EE_PROFILE_ZONE_SCOPED()
 

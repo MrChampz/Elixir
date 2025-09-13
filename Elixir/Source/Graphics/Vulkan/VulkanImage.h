@@ -12,15 +12,16 @@ namespace Elixir::Vulkan
 
     VkImage TryToGetVulkanImageHandle(const Image* image);
 
-    class VulkanBaseImageBase : public Image
+    class VulkanBaseImageBase
     {
       public:
+        virtual ~VulkanBaseImageBase() = default;
+
         virtual VkImage GetVulkanImage() const = 0;
         virtual const VkDescriptorImageInfo& GetVulkanDescriptorInfo() const = 0;
 
-    protected:
-        VulkanBaseImageBase(const GraphicsContext* context, const SImageCreateInfo& info)
-            : Image(context, info) {}
+      protected:
+        VulkanBaseImageBase() = default;
     };
 
     const VulkanBaseImageBase* TryToGetVulkanImage(const Image* image);
