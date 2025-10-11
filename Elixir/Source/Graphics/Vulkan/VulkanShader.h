@@ -20,6 +20,7 @@ namespace Elixir::Vulkan
       protected:
         void CreateDescriptorSetLayouts();
         void CreateDescriptorSets();
+        void CreatePipelineLayout();
 
         void UpdateDescriptorSets();
 
@@ -40,6 +41,8 @@ namespace Elixir::Vulkan
 
         std::vector<VkDescriptorSet> m_DescriptorSets;
         std::vector<VkDescriptorSetLayout> m_DescriptorSetLayouts;
+
+        VkPipelineLayout m_PipelineLayout;
 
         mutable std::unordered_map<SShaderBinding, std::vector<VkDescriptorImageInfo>> m_ImageInfoCache;
         mutable std::unordered_map<SShaderBinding, VkDescriptorBufferInfo> m_BufferInfoCache;

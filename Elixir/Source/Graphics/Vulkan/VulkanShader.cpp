@@ -17,11 +17,18 @@ namespace Elixir::Vulkan
 
         CreateDescriptorSetLayouts();
         CreateDescriptorSets();
+        CreatePipelineLayout();
     }
 
     VulkanShader::~VulkanShader()
     {
         EE_PROFILE_ZONE_SCOPED()
+
+        vkDestroyPipelineLayout(
+            m_GraphicsContext->GetDevice(),
+            m_PipelineLayout,
+            nullptr
+        );
 
         // TODO: Set descriptor sets as unused in Command Pool
         VK_CHECK_RESULT(
@@ -185,6 +192,23 @@ namespace Elixir::Vulkan
         }
 
         UpdateDescriptorSets();
+    }
+
+    void VulkanShader::CreatePipelineLayout()
+    {
+        VkPipelineLayoutCreateInfo info = {};
+        info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        info.setLayoutCount = (uint32_t)m_DescriptorSetLayouts.size();
+        info.pSetLayouts = m_DescriptorSetLayouts.data();
+
+        VK_CHECK_RESULT(
+            vkCreatePipelineLayout(
+                m_GraphicsContext->GetDevice(),
+                &info,
+                nullptr,
+                &m_PipelineLayout
+            )
+        );
     }
 
     void VulkanShader::UpdateDescriptorSets()
