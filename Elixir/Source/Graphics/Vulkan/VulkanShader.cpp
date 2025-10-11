@@ -45,6 +45,49 @@ namespace Elixir::Vulkan
         m_DescriptorSetLayouts.clear();
     }
 
+    void VulkanShader::SetPushConstant(const std::string& name, void* data, size_t size)
+    {
+
+    }
+
+    void VulkanShader::SetConstantBuffer(const std::string& name, void* data, const size_t size)
+    {
+        if (const auto binding = GetShaderBinding(name))
+        {
+            if (m_ConstantBuffers.contains(*binding))
+            {
+                const auto& buffer = m_ConstantBuffers.at(*binding);
+                const auto mapped = buffer->Map();
+                Memory::Memcpy(mapped, data, size);
+                buffer->Unmap();
+            }
+            else
+            {
+                m_ConstantBuffers[*binding] = UniformBuffer::Create(
+                    m_GraphicsContext,
+                    size,
+                    data
+                );
+                UpdateDescriptorSet(*binding, m_ConstantBuffers[*binding]);
+            }
+            return;
+        }
+
+        EE_CORE_ERROR("No cbuffer binding named \"{0}\" found in shader...", name)
+    }
+
+    void VulkanShader::BindTexture(const std::string& name, const Ref<Texture>& texture)
+    {
+        if (const auto binding = GetShaderBinding(name))
+        {
+            m_Textures[*binding] = texture;
+            UpdateDescriptorSet(*binding, texture);
+            return;
+        }
+
+        EE_CORE_ERROR("No texture binding named \"{0}\" found in shader...", name)
+    }
+
     void VulkanShader::CreateDescriptorSetLayouts()
     {
         std::unordered_map<uint32_t, std::vector<VkDescriptorSetLayoutBinding>> sets;
@@ -62,6 +105,22 @@ namespace Elixir::Vulkan
             sets[set].push_back(binding);
         }
 
+        VkSamplerCreateInfo samplerInfo{};
+        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerInfo.magFilter = VK_FILTER_LINEAR;
+        samplerInfo.minFilter = VK_FILTER_LINEAR;
+        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.anisotropyEnable = VK_FALSE;
+        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        samplerInfo.unnormalizedCoordinates = VK_FALSE;
+        samplerInfo.compareEnable = VK_FALSE;
+        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+
+        VkSampler immutableSampler;
+        vkCreateSampler(m_GraphicsContext->GetDevice(), &samplerInfo, nullptr, &immutableSampler);
+
         for (const auto& resource : std::views::values(m_Resources.Resources))
         {
             const auto set = resource.GetSet();
@@ -72,12 +131,15 @@ namespace Elixir::Vulkan
             binding.descriptorType = Converters::GetDescriptorType(resource.GetType());
             binding.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS; // TODO: GetShaderState(resource->GetStage());
 
+            // TODO: Use global immutable sampler
+            binding.pImmutableSamplers = &immutableSampler;
+
             sets[set].push_back(binding);
         }
 
-        m_DescriptorSetLayouts.reserve(sets.size());
+        m_DescriptorSetLayouts.resize(sets.size());
 
-        for (const auto& bindings : std::views::values(sets))
+        for (const auto& [set, bindings] : sets)
         {
             VkDescriptorSetLayoutCreateInfo layoutInfo = {};
             layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -94,7 +156,7 @@ namespace Elixir::Vulkan
                 )
             );
 
-            m_DescriptorSetLayouts.push_back(layout);
+            m_DescriptorSetLayouts[set] = layout;
         }
     }
 
@@ -103,16 +165,24 @@ namespace Elixir::Vulkan
         if (m_DescriptorSetLayouts.empty())
             return;
 
-        VkDescriptorSetAllocateInfo allocInfo = {};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.pSetLayouts = m_DescriptorSetLayouts.data();
-        allocInfo.descriptorSetCount = m_DescriptorSetLayouts.size();
-        allocInfo.descriptorPool = m_GraphicsContext->GetDescriptorPool();
-
         m_DescriptorSets.resize(m_DescriptorSetLayouts.size());
-        VK_CHECK_RESULT(vkAllocateDescriptorSets(
-            m_GraphicsContext->GetDevice(), &allocInfo, m_DescriptorSets.data()
-        ));
+
+        for (auto i = 0; i < m_DescriptorSetLayouts.size(); i++)
+        {
+            VkDescriptorSetAllocateInfo allocInfo = {};
+            allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+            allocInfo.pSetLayouts = &m_DescriptorSetLayouts[i];
+            allocInfo.descriptorSetCount = 1;
+            allocInfo.descriptorPool = m_GraphicsContext->GetDescriptorPool();
+
+            VK_CHECK_RESULT(
+                vkAllocateDescriptorSets(
+                    m_GraphicsContext->GetDevice(),
+                    &allocInfo,
+                    &m_DescriptorSets[i]
+                )
+            );
+        }
 
         UpdateDescriptorSets();
     }
@@ -148,21 +218,24 @@ namespace Elixir::Vulkan
 
         // TODO: Support arrays of textures
         const auto count = 1;   // resource->GetCount();
-        const auto imageInfos = new VkDescriptorImageInfo[count];
+        std::vector<VkDescriptorImageInfo> imageInfos;
+        imageInfos.reserve(count);
 
         for (auto i = 0; i < count; i++)
         {
             const auto tex = TryToGetVulkanImage(texture.get());
-            imageInfos[i] = tex->GetVulkanDescriptorInfo();
+            imageInfos.push_back(tex->GetVulkanDescriptorInfo());
         }
+
+        m_ImageInfoCache[binding] = std::move(imageInfos);
 
         VkWriteDescriptorSet writeSet = {};
         writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         writeSet.dstSet = m_DescriptorSets[resource.GetSet()];
         writeSet.dstBinding = resource.GetBinding();
         writeSet.descriptorType = Converters::GetDescriptorType(resource.GetType());
-        writeSet.descriptorCount = count;
-        writeSet.pImageInfo = imageInfos;
+        writeSet.descriptorCount = m_ImageInfoCache[binding].size();
+        writeSet.pImageInfo = m_ImageInfoCache[binding].data();
 
         return writeSet;
     }
@@ -191,13 +264,15 @@ namespace Elixir::Vulkan
         const auto& resource = m_Resources.ConstantBuffers.at(binding);
         const auto buf = std::static_pointer_cast<VulkanUniformBuffer>(buffer);
 
+        m_BufferInfoCache[binding] = buf->GetVulkanDescriptorInfo();
+
         VkWriteDescriptorSet writeSet = {};
         writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         writeSet.dstSet = m_DescriptorSets[resource.GetSet()];
         writeSet.dstBinding = resource.GetBinding();
         writeSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         writeSet.descriptorCount = 1;
-        writeSet.pBufferInfo = &buf->GetVulkanDescriptorInfo();
+        writeSet.pBufferInfo = &m_BufferInfoCache[binding];
 
         return writeSet;
     }

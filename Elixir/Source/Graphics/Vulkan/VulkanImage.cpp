@@ -18,6 +18,9 @@ namespace Elixir::Vulkan
     namespace
     {
         using VulkanImageTypes = std::tuple<
+            VulkanBaseImage<Texture3D>,
+            VulkanBaseImage<Texture2D>,
+            VulkanBaseImage<Texture>,
             VulkanBaseImage<DepthStencilImage>,
             VulkanBaseImage<Image>
         >;
@@ -254,6 +257,7 @@ namespace Elixir::Vulkan
         m_DescriptorInfo = VkDescriptorImageInfo{};
         m_DescriptorInfo.imageLayout = Converters::GetImageLayout(this->GetLayout());
         m_DescriptorInfo.imageView = m_ImageView;
+        // TODO: Bind sampler
     }
 
     template <class Base>

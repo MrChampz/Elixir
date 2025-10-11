@@ -26,6 +26,26 @@ namespace Elixir
         }
     }
 
+    SImageCreateInfo Texture::CreateImageInfo(
+        const EImageFormat format,
+        const uint32_t width,
+        void* data,
+        const std::string& path
+    )
+    {
+        return {
+            .InitialData = data,
+            .Width = width,
+            .Type = EImageType::_1D,
+            .Format = format,
+            .Usage = EImageUsage::Sampled | EImageUsage::TransferDst,
+            .InitialLayout = EImageLayout::ShaderReadOnly,
+            .AllocationInfo = {
+                .RequiredFlags = EMemoryProperty::DeviceLocal
+            }
+        };
+    }
+
     Texture::Texture(
         const GraphicsContext* context,
         const EImageFormat format,
@@ -77,7 +97,8 @@ namespace Elixir
             .Height = height,
             .Type = EImageType::_2D,
             .Format = format,
-            .Usage = EImageUsage::Sampled,
+            .Usage = EImageUsage::Sampled | EImageUsage::TransferDst,
+            .InitialLayout = EImageLayout::ShaderReadOnly,
             .AllocationInfo = {
                 .RequiredFlags = EMemoryProperty::DeviceLocal
             }
@@ -139,7 +160,8 @@ namespace Elixir
             .Depth = depth,
             .Type = EImageType::_3D,
             .Format = format,
-            .Usage = EImageUsage::Sampled,
+            .Usage = EImageUsage::Sampled | EImageUsage::TransferDst,
+            .InitialLayout = EImageLayout::ShaderReadOnly,
             .AllocationInfo = {
                 .RequiredFlags = EMemoryProperty::DeviceLocal
             }

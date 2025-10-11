@@ -19,6 +19,13 @@ namespace Elixir
             const std::string& path = ""
         );
 
+        static SImageCreateInfo CreateImageInfo(
+            EImageFormat format,
+            uint32_t width,
+            void* data = nullptr,
+            const std::string& path = ""
+        );
+
       protected:
         Texture(
             const GraphicsContext* context,

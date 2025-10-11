@@ -10,13 +10,18 @@ Dissolve::Dissolve()
 
     m_Window->SetTitle("Dissolve");
 
+    TextureLoader::Initialize(m_GraphicsContext.get());
+    const auto tex = TextureLoader::Load("./Assets/Bricks.png");
+
     const auto loader = CreateScope<ShaderLoader>(m_GraphicsContext.get());
 
-    const auto shader = loader->LoadShader("./Shaders/", "Basic");
-    shader->GetName();
+    //const auto shader = loader->LoadShader("./Shaders/", "Basic");
+    //shader->GetName();
 
     const auto shader1 = loader->LoadShader("./Shaders/", "Texture");
+    shader1->BindTexture("texture", tex);
     shader1->GetName();
+
 }
 
 void Dissolve::OnGUI(const Timestep frameTime)
