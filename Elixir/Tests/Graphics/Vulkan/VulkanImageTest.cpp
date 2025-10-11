@@ -157,15 +157,15 @@ TEST_F(VulkanImageTest, VulkanImage_ImageDestruction) {
     EXPECT_FALSE(image->IsValid());
 }
 
-TEST_F(VulkanImageTest, TryToGetVulkanImage) {
+TEST_F(VulkanImageTest, TryToGetVulkanImageHandle) {
     SImageCreateInfo info = Image::CreateImageInfo(EImageFormat::R8G8B8A8_UNORM, 32);
     VulkanImage image(Context.get(), info);
 
     SImageCreateInfo dsInfo = DepthStencilImage::CreateImageInfo(EDepthStencilImageFormat::D16_UNORM, 64, 64);
     VulkanDepthStencilImage dstImage(Context.get(), dsInfo);
 
-    VkImage imgHandle = TryToGetVulkanImage(&image);
-    VkImage dstImgHandle = TryToGetVulkanImage(&dstImage);
+    VkImage imgHandle = TryToGetVulkanImageHandle(&image);
+    VkImage dstImgHandle = TryToGetVulkanImageHandle(&dstImage);
 
     EXPECT_EQ(imgHandle, image.GetVulkanImage());
     EXPECT_EQ(dstImgHandle, dstImage.GetVulkanImage());

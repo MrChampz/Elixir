@@ -48,6 +48,11 @@ elseif (APPLE)
     )
 endif()
 
+if (APPLE)
+    target_compile_options(${PROJECT_NAME} PRIVATE -stdlib=libc++)
+    target_link_options(${PROJECT_NAME} PRIVATE -stdlib=libc++)
+endif()
+
 # Include dirs
 
 target_include_directories(${PROJECT_NAME} PRIVATE

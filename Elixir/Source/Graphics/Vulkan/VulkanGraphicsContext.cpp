@@ -57,6 +57,7 @@ namespace Elixir
         poolInfo.maxSets = maxSets;
         poolInfo.poolSizeCount = (uint32_t)poolSizes.size();
         poolInfo.pPoolSizes = poolSizes.data();
+        poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 
         vkCreateDescriptorPool(device, &poolInfo, nullptr, &Pool);
     }
@@ -146,8 +147,11 @@ namespace Elixir
             vkDeviceWaitIdle(m_Device);
 
             m_DeletionQueue.Flush();
-
             m_CommandBuffers.clear();
+
+            DestroySwapchain();
+
+            m_GlobalDescriptorAllocator.DestroyPool(m_Device);
 
             for (int i = 0; i < FRAMES; i++)
             {
@@ -156,13 +160,10 @@ namespace Elixir
                 vkDestroySemaphore(m_Device, m_Frames[i].SwapchainSemaphore, nullptr);
             }
 
-            DestroySwapchain();
-
-            vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
             vkDestroyDevice(m_Device, nullptr);
 
             vkb::destroy_debug_utils_messenger(m_Instance, m_DebugMessenger);
-
+            vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
             vkDestroyInstance(m_Instance, nullptr);
 
             m_IsInitialized = false;

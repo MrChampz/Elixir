@@ -38,6 +38,9 @@ function(apply_properties_and_definitions target)
         RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}/${target}"
     )
 
+    target_compile_options(${target} PRIVATE -stdlib=libc++)
+    target_link_options(${target} PRIVATE -stdlib=libc++)
+
     # Compile definitions
 
     target_compile_definitions(${target} PRIVATE

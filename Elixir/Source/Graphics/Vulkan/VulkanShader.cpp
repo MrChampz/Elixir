@@ -5,6 +5,8 @@
 #include "Converters.h"
 #include "Utils.h"
 
+#include <ranges>
+
 namespace Elixir::Vulkan
 {
     VulkanShader::VulkanShader(const GraphicsContext* context, SShaderCreateInfo&& info)
@@ -20,13 +22,34 @@ namespace Elixir::Vulkan
     VulkanShader::~VulkanShader()
     {
         EE_PROFILE_ZONE_SCOPED()
+
+        // TODO: Set descriptor sets as unused in Command Pool
+        VK_CHECK_RESULT(
+            vkFreeDescriptorSets(
+                m_GraphicsContext->GetDevice(),
+                m_GraphicsContext->GetDescriptorPool(),
+                m_DescriptorSets.size(),
+                m_DescriptorSets.data()
+            )
+        );
+
+        for (const auto& layout : m_DescriptorSetLayouts)
+        {
+            vkDestroyDescriptorSetLayout(
+                m_GraphicsContext->GetDevice(),
+                layout,
+                nullptr
+            );
+        }
+
+        m_DescriptorSetLayouts.clear();
     }
 
     void VulkanShader::CreateDescriptorSetLayouts()
     {
-        std::unordered_map<uint32_t, std::vector<VkDescriptorSetLayoutBinding>> bindings;
+        std::unordered_map<uint32_t, std::vector<VkDescriptorSetLayoutBinding>> sets;
 
-        for (const auto& [_, buffer] : m_Resources.ConstantBuffers)
+        for (const auto& buffer : std::views::values(m_Resources.ConstantBuffers))
         {
             const auto set = buffer.GetSet();
 
@@ -36,10 +59,10 @@ namespace Elixir::Vulkan
             binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
             binding.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS; // TODO: GetShaderState(buffer->GetStage());
 
-            bindings[set].push_back(binding);
+            sets[set].push_back(binding);
         }
 
-        for (const auto& [_, resource] : m_Resources.Resources)
+        for (const auto& resource : std::views::values(m_Resources.Resources))
         {
             const auto set = resource.GetSet();
 
@@ -49,12 +72,12 @@ namespace Elixir::Vulkan
             binding.descriptorType = Converters::GetDescriptorType(resource.GetType());
             binding.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS; // TODO: GetShaderState(resource->GetStage());
 
-            bindings[set].push_back(binding);
+            sets[set].push_back(binding);
         }
 
-        m_DescriptorSetLayouts.reserve(bindings.size());
+        m_DescriptorSetLayouts.reserve(sets.size());
 
-        for (const auto& [set, bindings] : bindings)
+        for (const auto& bindings : std::views::values(sets))
         {
             VkDescriptorSetLayoutCreateInfo layoutInfo = {};
             layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;

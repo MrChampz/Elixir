@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.30)
 project(Elixir)
+
+if(APPLE)
+    add_compile_options(-stdlib=libc++)
+    add_link_options(-stdlib=libc++)
+endif()
+
 include(FetchContent)
 include(CTest)
 

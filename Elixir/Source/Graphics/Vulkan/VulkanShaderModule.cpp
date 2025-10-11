@@ -27,6 +27,12 @@ namespace Elixir::Vulkan
     VulkanShaderModule::~VulkanShaderModule()
     {
         EE_PROFILE_ZONE_SCOPED()
+
+        vkDestroyShaderModule(
+            m_GraphicsContext->GetDevice(),
+            m_Module,
+            nullptr
+        );
     }
 
     void VulkanShaderModule::CreateShaderModule(const std::vector<Byte>& bytecode)
