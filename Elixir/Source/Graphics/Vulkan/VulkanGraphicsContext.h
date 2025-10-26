@@ -2,6 +2,7 @@
 
 #include <Engine/Core/Window.h>
 #include <Engine/Graphics/GraphicsContext.h>
+#include <Graphics/Vulkan/VulkanTexture.h>
 
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
@@ -57,10 +58,16 @@ namespace Elixir::Vulkan
         SDeletionQueue DeletionQueue;
     };
 
+    struct SSwapchainImage
+    {
+        VkImage Image;
+        VkImageView View;
+    };
+
     class ELIXIR_API VulkanGraphicsContext final : public GraphicsContext
     {
       public:
-        explicit VulkanGraphicsContext(const EGraphicsAPI api, const Window* window);
+        explicit VulkanGraphicsContext(EGraphicsAPI api, const Window* window);
         ~VulkanGraphicsContext() override;
 
         void Init() override;
@@ -94,7 +101,7 @@ namespace Elixir::Vulkan
         VkFormat GetSwapchainImageFormat() const { return m_SwapchainImageFormat; }
         VkExtent2D GetSwapchainVulkanExtent() const { return m_SwapchainExtent; }
 
-    private:
+      private:
         void InitVulkan();
         void InitAllocator();
         void InitSwapchain();
@@ -102,9 +109,11 @@ namespace Elixir::Vulkan
         void InitSyncStructures();
         void InitDescriptors();
 
-        void CreateSwapchain(Extent2D extent);
+        void CreateSwapchain(const Extent2D& extent);
         void DestroySwapchain();
         void RecreateSwapchain();
+
+        void CreateRenderTarget() override;
 
         bool m_IsInitialized = false;
 
@@ -126,7 +135,7 @@ namespace Elixir::Vulkan
         VkSwapchainKHR m_Swapchain;
         VkFormat m_SwapchainImageFormat;
         VkExtent2D m_SwapchainExtent;
-        //std::vector<Ref<VulkanTexture2D>> m_SwapchainImages;
+        std::array<SSwapchainImage, FRAMES> m_SwapchainImages;
         uint32_t m_CurrentSwapchainImageIndex = 0;
         bool m_SwapchainRecreateRequested = false;
 

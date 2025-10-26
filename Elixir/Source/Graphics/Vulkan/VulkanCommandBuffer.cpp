@@ -72,7 +72,7 @@ namespace Elixir::Vulkan
 
         if (m_Ended) return;
 
-        vkEndCommandBuffer(m_CommandBuffer);
+        VK_CHECK_RESULT(vkEndCommandBuffer(m_CommandBuffer));
         m_Ended = true;
     }
 
@@ -171,7 +171,7 @@ namespace Elixir::Vulkan
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submitInfo.signalSemaphoreCount = 0;
         submitInfo.waitSemaphoreCount = 0;
-        submitInfo.commandBufferCount = 1;
+        submitInfo.commandBufferCount = 0;
         submitInfo.pCommandBuffers = &m_CommandBuffer;
 
         VkFenceCreateInfo fenceInfo = {};

@@ -130,7 +130,7 @@ namespace Elixir::Vulkan
     {
         if (buffer.Data)
         {
-            auto& cmd = m_GraphicsContext->GetCommandBuffer();   // TODO: Should have a TRANSFER only command buffer
+            auto cmd = m_GraphicsContext->GetCommandBuffer();   // TODO: Should have a TRANSFER only command buffer
             const auto staging = StagingBuffer::Create(
                 m_GraphicsContext,
                 buffer.Size,

@@ -88,7 +88,8 @@ namespace Elixir::Vulkan
         const auto vk_Cmd = static_cast<const VulkanCommandBuffer*>(cmd);
 
         CommandUtils::TransitionImage(
-            vk_Cmd->GetVulkanCommandBuffer(), m_Image,
+            vk_Cmd->GetVulkanCommandBuffer(),
+            m_Image,
             Converters::GetImageLayout(this->GetLayout()),
             Converters::GetImageLayout(layout),
             Converters::GetImageAspect(this->GetAspect())
@@ -114,8 +115,11 @@ namespace Elixir::Vulkan
         EE_CORE_ASSERT(vk_Dst != VK_NULL_HANDLE, "Invalid destination image!")
 
         CommandUtils::CopyImageToImage(
-            vk_Cmd->GetVulkanCommandBuffer(), m_Image, vk_Dst,
-            Converters::GetExtent3D(srcExtent), Converters::GetExtent3D(dstExtent)
+            vk_Cmd->GetVulkanCommandBuffer(),
+            m_Image,
+            vk_Dst,
+            Converters::GetExtent3D(srcExtent),
+            Converters::GetExtent3D(dstExtent)
         );
     }
 
@@ -199,7 +203,7 @@ namespace Elixir::Vulkan
     {
         EE_PROFILE_ZONE_SCOPED()
 
-        auto& cmd = m_GraphicsContext->GetCommandBuffer();   // TODO: Should have a TRANSFER only command buffer
+        auto cmd = m_GraphicsContext->GetCommandBuffer();   // TODO: Should have a TRANSFER only command buffer
         auto vk_Cmd = std::static_pointer_cast<VulkanCommandBuffer>(cmd);
 
         cmd->Begin();

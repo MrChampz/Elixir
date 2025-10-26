@@ -60,6 +60,14 @@ namespace Elixir
         [[nodiscard]] const std::string& GetName() const { return m_Name; }
         [[nodiscard]] Ref<ShaderModule> GetModule(EShaderStage stage) const;
 
+        [[nodiscard]] auto GetModules() const
+        {
+            return m_Modules | std::views::filter([] (const Ref<ShaderModule>& module)
+            {
+                return module != nullptr;
+            });
+        }
+
         static Ref<Shader> Create(
             const GraphicsContext* context,
             SShaderCreateInfo&& info

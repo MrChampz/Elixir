@@ -18,7 +18,8 @@ namespace Elixir
 
         void Run();
 
-        virtual void OnGUI(Timestep frameTime);
+        virtual void OnGUI(Timestep frameTime) {}
+        virtual void OnRender(Timestep frameTime) {}
         void OnEvent(Event& event);
 
         [[nodiscard]] const Window* GetWindow() const { return m_Window.get(); }

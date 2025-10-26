@@ -1,7 +1,6 @@
 #pragma once
 
-#include <functional>
-#include <tuple>
+#include <Engine/Graphics/GraphicsTypes.h>
 
 namespace Elixir
 {
@@ -21,18 +20,6 @@ namespace Elixir
         MirroredRepeat,
         ClampToEdge,
         ClampToBorder
-    };
-
-    enum class ECompareOp : uint32_t
-    {
-        Never,
-        Less,
-        Equal,
-        LessOrEqual,
-        Greater,
-        NotEqual,
-        GreaterOrEqual,
-        Always
     };
 
     enum class ESamplerBorderColor : uint32_t

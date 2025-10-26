@@ -31,7 +31,7 @@ namespace Elixir
         m_GraphicsContext->WaitDeviceIdle();
     }
 
-    void Application::Run()
+    void Application::  Run()
     {
         EE_PROFILE_ZONE_SCOPED()
 
@@ -45,9 +45,20 @@ namespace Elixir
             {
                 m_Window->ShowFPSAndFrameTime(m_Profiler.GetFPS(), frameTime);
 
+                m_GraphicsContext->Prepare();
+
                 OnGUI(frameTime);
+                OnRender(frameTime);
+
+                m_GraphicsContext->Submit();
+                m_GraphicsContext->Present();
 
                 m_Profiler.OnUpdate(frameTime);
+            }
+            else
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                continue;
             }
 
             m_Window->OnUpdate();
@@ -63,8 +74,6 @@ namespace Elixir
 
         m_GraphicsContext->WaitDeviceIdle();
     }
-
-    void Application::OnGUI(Timestep frameTime) {}
 
     void Application::OnEvent(Event& event)
     {

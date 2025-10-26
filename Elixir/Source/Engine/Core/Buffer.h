@@ -7,21 +7,21 @@ namespace Elixir
 {
     struct SBuffer
     {
-        std::byte* Data;
+        Byte* Data;
         size_t Size;
 
-        SBuffer() : SBuffer((std::byte*)nullptr, 0) {}
-        explicit SBuffer(const size_t size) : SBuffer((std::byte*)nullptr, size) {}
+        SBuffer() : SBuffer((Byte*)nullptr, 0) {}
+        explicit SBuffer(const size_t size) : SBuffer((Byte*)nullptr, size) {}
 
-        SBuffer(void* data, const size_t size) : SBuffer((std::byte*)data, size) {}
-        SBuffer(const void* data, const size_t size) : SBuffer((const std::byte*)data, size) {}
+        // SBuffer(void* data, const size_t size) : SBuffer((std::byte*)data, size) {}
+        // SBuffer(const void* data, const size_t size) : SBuffer((const std::byte*)data, size) {}
 
-        SBuffer(std::byte* data, const size_t size) : Data(data), Size(size)
+        SBuffer(Byte* data, const size_t size) : Data(data), Size(size)
         {
             EE_PROFILE_ZONE_SCOPED()
         }
 
-        SBuffer(const std::byte* data, const size_t size) : SBuffer(size)
+        SBuffer(const Byte* data, const size_t size) : SBuffer(size)
         {
             Copy(data, size);
         }
@@ -41,11 +41,11 @@ namespace Elixir
             if (size == 0) return;
 
             auto [ptr, allocatedSize] = Memory::Alloc(size);
-            Data = (std::byte*)ptr;
+            Data = (Byte*)ptr;
             Size = allocatedSize;
         }
 
-        void Copy(const void* data, const size_t size)
+        void Copy(const Byte* data, const size_t size)
         {
             EE_PROFILE_ZONE_SCOPED()
             Allocate(size);
@@ -58,7 +58,7 @@ namespace Elixir
             if (Data) Memory::Memzero(Data, Size);
         }
 
-        void Write(const void* data, const size_t size, const size_t offset = 0) const
+        void Write(const Byte* data, const size_t size, const size_t offset = 0) const
         {
             EE_PROFILE_ZONE_SCOPED()
             EE_CORE_ASSERT(offset + size <= Size, "Buffer overflow!")
@@ -68,7 +68,7 @@ namespace Elixir
         template <typename T>
         T* As() { return static_cast<T*>(Data); }
 
-        static SBuffer FromData(const void* data, const size_t size)
+        static SBuffer FromData(const Byte* data, const size_t size)
         {
             SBuffer buffer;
             buffer.Copy(data, size);

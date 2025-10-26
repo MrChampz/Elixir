@@ -2,14 +2,17 @@
 
 #include <Engine.h>
 
-class Dissolve final : public Elixir::Application
+class Dissolve final : public Application
 {
 public:
     Dissolve();
     ~Dissolve() override = default;
 
-    void OnGUI(Elixir::Timestep frameTime) override;
+    void OnGUI(Timestep frameTime) override;
+    void OnRender(Timestep frameTime) override;
 
 private:
-    Elixir::Scope<Elixir::Executor> m_Executor;
+    void DrawGeometry(const Ref<CommandBuffer>& cmd);
+
+    Scope<Executor> m_Executor;
 };

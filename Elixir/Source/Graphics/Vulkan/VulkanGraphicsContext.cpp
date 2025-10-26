@@ -10,6 +10,8 @@
 #include <vulkan/vulkan.h>
 
 #define VMA_IMPLEMENTATION
+#include "VulkanCommandBuffer.h"
+
 #include <vk_mem_alloc.h>
 
 #include "GLFW/glfw3.h"
@@ -103,9 +105,9 @@ namespace Elixir
         EE_CORE_ASSERT(window, "Invalid window!")
 
         glfwGetFramebufferSize(
-            static_cast<GLFWwindow*>(m_Window->GetNativeWindow()),
-            reinterpret_cast<int*>(&m_SwapchainExtent.width),
-            reinterpret_cast<int*>(&m_SwapchainExtent.height)
+            (GLFWwindow*)m_Window->GetNativeWindow(),
+            (int*)&m_WindowExtent.Width,
+            (int*)&m_WindowExtent.Height
         );
 
         m_ShaderBackend = CreateScope<SpirVShaderBackend>();
@@ -127,6 +129,7 @@ namespace Elixir
         InitCommands();
         InitSyncStructures();
         InitDescriptors();
+        CreateRenderTarget();
 
         SetClearColor({ 0.0f, 0.0f, 0.0f, 1.0f });
 
@@ -173,16 +176,121 @@ namespace Elixir
     void VulkanGraphicsContext::Prepare()
     {
         EE_PROFILE_ZONE_SCOPED()
+
+        auto& frame = GetCurrentFrame();
+        const auto cmd = std::static_pointer_cast<VulkanCommandBuffer>(GetCommandBuffer());
+
+        if (m_SwapchainRecreateRequested)
+            RecreateSwapchain();
+
+        // Wait until the gpu has finished rendering the last frame. Timeout of 1 second.
+        auto result = vkWaitForFences(
+            m_Device,
+            1,
+            &frame.RenderFence,
+            true,
+            1000000000
+        );
+        VK_CHECK_RESULT(result);
+
+        frame.DeletionQueue.Flush();
+
+        VK_CHECK_RESULT(vkResetFences(m_Device, 1, &frame.RenderFence));
+
+        result = vkAcquireNextImageKHR(
+            m_Device,
+            m_Swapchain,
+            1000000000,
+            frame.SwapchainSemaphore,
+            nullptr,
+            &m_CurrentSwapchainImageIndex
+        );
+
+        if (result == VK_ERROR_OUT_OF_DATE_KHR)
+        {
+            m_SwapchainRecreateRequested = true;
+            return;
+        }
+
+        VK_CHECK_RESULT(result);
+
+        VK_CHECK_RESULT(vkResetCommandBuffer(cmd->GetVulkanCommandBuffer(), 0));
+
+        cmd->Begin();
+
+        const auto& image = m_SwapchainImages[m_CurrentSwapchainImageIndex].Image;
+
+        CommandUtils::TransitionImage(
+            cmd->GetVulkanCommandBuffer(),
+            image,
+            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+            VK_IMAGE_LAYOUT_GENERAL,
+            VK_IMAGE_ASPECT_COLOR_BIT
+        );
     }
 
     void VulkanGraphicsContext::Submit()
     {
         EE_PROFILE_ZONE_SCOPED()
+
+        // // set swapchain image layout to Present so we can show it on the screen
+        // vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        //
+        // //finalize the command buffer (we can no longer add commands, but it can now be executed)
+        // VK_CHECK(vkEndCommandBuffer(cmd));
+        //
+        // VkCommandBufferSubmitInfo cmdinfo = vkinit::command_buffer_submit_info(cmd);
+        //
+        // VkSemaphoreSubmitInfo waitInfo = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,get_current_frame()._swapchainSemaphore);
+        // VkSemaphoreSubmitInfo signalInfo = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,get_current_frame(). _renderSemaphore);
+        //
+        // VkSubmitInfo2 submit = vkinit::submit_info(&cmdinfo,&signalInfo,&waitInfo);
+        //
+        // //submit command buffer to the queue and execute it.
+        // // _renderFence will now block until the graphic commands finish execution
+        // VK_CHECK(vkQueueSubmit2(_graphicsQueue, 1, &submit, get_current_frame()._renderFence));
     }
 
     void VulkanGraphicsContext::Present()
     {
         EE_PROFILE_ZONE_SCOPED()
+
+        const auto& frame = GetCurrentFrame();
+        const auto cmd = std::static_pointer_cast<VulkanCommandBuffer>(GetCommandBuffer());
+
+        const auto& image = m_SwapchainImages[m_CurrentSwapchainImageIndex].Image;
+
+        CommandUtils::TransitionImage(
+            cmd->GetVulkanCommandBuffer(),
+            image,
+            VK_IMAGE_LAYOUT_GENERAL,
+            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+            VK_IMAGE_ASPECT_COLOR_BIT
+        );
+
+        cmd->End();
+        cmd->Submit(frame.SwapchainSemaphore, frame.RenderSemaphore, frame.RenderFence);
+
+        VkPresentInfoKHR presentInfo = {};
+        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+        presentInfo.pNext = nullptr;
+        presentInfo.pSwapchains = &m_Swapchain;
+        presentInfo.swapchainCount = 1;
+        presentInfo.pWaitSemaphores = &frame.RenderSemaphore;
+        presentInfo.waitSemaphoreCount = 1;
+        presentInfo.pImageIndices = &m_CurrentSwapchainImageIndex;
+
+        const auto result = vkQueuePresentKHR(m_GraphicsQueue, &presentInfo);
+
+        if (result == VK_ERROR_OUT_OF_DATE_KHR)
+        {
+            m_SwapchainRecreateRequested = true;
+            return;
+        }
+
+        VK_CHECK_RESULT(result);
+
+        m_FrameNumber++;
     }
 
     void VulkanGraphicsContext::WaitDeviceIdle()
@@ -200,6 +308,18 @@ namespace Elixir
     void VulkanGraphicsContext::Clear()
     {
         EE_PROFILE_ZONE_SCOPED()
+
+        const auto cmd = std::static_pointer_cast<VulkanCommandBuffer>(GetCommandBuffer());
+
+        const auto range = Initializers::ImageSubresourceRange(EImageAspect::Color);
+        vkCmdClearColorImage(
+            cmd->GetVulkanCommandBuffer(),
+            m_SwapchainImages[m_CurrentSwapchainImageIndex].Image,
+            VK_IMAGE_LAYOUT_GENERAL,
+            &m_ClearColor,
+            1,
+            &range
+        );
     }
 
     void VulkanGraphicsContext::Resize(const Extent2D extent)
@@ -212,6 +332,7 @@ namespace Elixir
     void VulkanGraphicsContext::FlushCommandBuffer(CommandBuffer& cmd) const
     {
         EE_PROFILE_ZONE_SCOPED()
+        cmd.Flush();
     }
 
     Extent2D VulkanGraphicsContext::GetSwapchainExtent() const
@@ -228,6 +349,7 @@ namespace Elixir
         auto instanceResult = builder
             .set_app_name("Elixir Engine")
             .request_validation_layers(m_UseValidationLayers)
+            .add_debug_messenger_severity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT)
             .set_debug_callback(DeviceUtils::DebugCallback)
             .require_api_version(1, 3, 0)
             .build();
@@ -376,20 +498,55 @@ namespace Elixir
         std::vector<SDescriptorAllocator::SPoolSizeRatio> sizes =
         {
             { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0.5 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0.5 }
+            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0.25 },
+            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0.25 }
         };
 
         m_GlobalDescriptorAllocator.InitPool(m_Device, 10, sizes);
     }
 
-    void VulkanGraphicsContext::CreateSwapchain(Extent2D extent)
+    void VulkanGraphicsContext::CreateSwapchain(const Extent2D& extent)
     {
         EE_PROFILE_ZONE_SCOPED()
+
+        m_SwapchainImageFormat = VK_FORMAT_R8G8B8A8_UNORM;
+        constexpr auto colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+
+        vkb::SwapchainBuilder builder{ m_GPU, m_Device, m_Surface };
+
+        auto result = builder
+            .set_desired_format({ .format = m_SwapchainImageFormat, .colorSpace = colorSpace })
+            .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
+            .set_desired_extent(extent.Width, extent.Height)
+            .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+            .build();
+
+        LogError(result, "Swapchain creation failed: ");
+
+        m_Swapchain = result.value().swapchain;
+        m_SwapchainExtent = result.value().extent;
+
+        const auto images = result.value().get_images().value();
+        const auto views = result.value().get_image_views().value();
+
+        uint32_t index = 0;
+        for (const auto image : images)
+        {
+            m_SwapchainImages[index] = { .Image = image, .View = views[index] };
+            index++;
+        }
     }
 
     void VulkanGraphicsContext::DestroySwapchain()
     {
         EE_PROFILE_ZONE_SCOPED()
+
+        for (const auto& [_, view] : m_SwapchainImages)
+        {
+            vkDestroyImageView(m_Device, view, nullptr);
+        }
+
+        vkDestroySwapchainKHR(m_Device, m_Swapchain, nullptr);
     }
 
     void VulkanGraphicsContext::RecreateSwapchain()
@@ -400,5 +557,12 @@ namespace Elixir
         DestroySwapchain();
         CreateSwapchain(m_WindowExtent);
         m_SwapchainRecreateRequested = false;
+    }
+
+    void VulkanGraphicsContext::CreateRenderTarget()
+    {
+        int width, height;
+        glfwGetFramebufferSize((GLFWwindow*)m_Window->GetNativeWindow(), &width, &height);
+        //m_RenderTarget = Texture2D::Create(this, EImageFormat::R8G8B8A8_UNORM, width, height);
     }
 }

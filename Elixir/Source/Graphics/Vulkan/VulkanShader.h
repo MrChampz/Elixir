@@ -17,6 +17,8 @@ namespace Elixir::Vulkan
         void SetConstantBuffer(const std::string& name, void* data, size_t size) override;
         void BindTexture(const std::string& name, const Ref<Texture>& texture) override;
 
+        [[nodiscard]] const VkPipelineLayout& GetPipelineLayout() const { return m_PipelineLayout; }
+
       protected:
         void CreateDescriptorSetLayouts();
         void CreateDescriptorSets();

@@ -18,9 +18,10 @@
 #include <optional>
 #include <deque>
 #include <span>
+#include <ranges>
 
 #include <Engine/Core/UUID.h>
-#include <Engine/Core/Types.h>
+#include <Engine/Core/CoreTypes.h>
 #include <Engine/Core/Memory.h>
 #include <Engine/Event/EventFormatter.h>
 #include <Engine/Logging/Log.h>

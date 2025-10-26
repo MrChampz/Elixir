@@ -122,7 +122,7 @@ namespace Elixir
     SBufferCreateInfo StagingBuffer::CreateBufferInfo(const size_t size, const void* data)
     {
         return {
-            .Buffer = SBuffer(data, size),
+            .Buffer = SBuffer((Byte*)data, size),
             .Usage = EBufferUsage::TransferSrc,
             .AllocationInfo = {
                 .RequiredFlags = EMemoryProperty::HostVisible | EMemoryProperty::HostCoherent,
@@ -172,7 +172,7 @@ namespace Elixir
     SBufferCreateInfo VertexBuffer::CreateBufferInfo(const size_t size, const void* data)
     {
         return {
-            .Buffer = SBuffer(data, size),
+            .Buffer = SBuffer((Byte*)data, size),
             .Usage = VERTEX_BUFFER_USAGE,
             .AllocationInfo = {
                 .PreferredFlags = EMemoryProperty::DeviceLocal
@@ -222,7 +222,7 @@ namespace Elixir
     SBufferCreateInfo IndexBuffer::CreateBufferInfo(const size_t size, const void* data)
     {
         return {
-            .Buffer = SBuffer(data, size),
+            .Buffer = SBuffer((Byte*)data, size),
             .Usage = INDEX_BUFFER_USAGE,
             .AllocationInfo = {
                 .PreferredFlags = EMemoryProperty::DeviceLocal
@@ -272,7 +272,7 @@ namespace Elixir
     SBufferCreateInfo UniformBuffer::CreateBufferInfo(const size_t size, const void* data)
     {
         return {
-            .Buffer = SBuffer(data, size),
+            .Buffer = SBuffer((Byte*)data, size),
             .Usage = EBufferUsage::UniformBuffer,
             .AllocationInfo = {
                 .PreferredFlags = EMemoryProperty::HostVisible | EMemoryProperty::HostCoherent

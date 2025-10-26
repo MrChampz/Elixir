@@ -7,7 +7,9 @@
 namespace Elixir
 {
     class Window;
+    class Texture2D;
     class CommandBuffer;
+    class Pipeline;
 
     enum class EGraphicsAPI
     {
@@ -52,24 +54,34 @@ namespace Elixir
         const Window* GetWindow() const { return m_Window; }
         const Scope<ShaderBackend>& GetShaderBackend() const { return m_ShaderBackend; }
 
-        const Ref<CommandBuffer>& GetCommandBuffer() const { return m_CommandBuffers[m_FrameNumber % FRAMES]; }
+        Ref<CommandBuffer> GetCommandBuffer() const { return m_CommandBuffers[m_FrameNumber % FRAMES]; }
         uint32_t GetFrameNumber() const { return m_FrameNumber; }
 
         virtual void SetVSyncEnabled(const bool enabled) { m_VSyncEnabled = enabled; }
         bool IsVSyncEnabled() const { return m_VSyncEnabled; }
 
-        // virtual Ref<Texture2D> GetCurrentSwapchainImage() const = 0;
+        Ref<Texture2D> GetRenderTarget() const { return m_RenderTarget; }
+
         virtual Extent2D GetSwapchainExtent() const = 0;
 
         static Scope<GraphicsContext> Create(EGraphicsAPI api, const Window* window);
 
       protected:
         explicit GraphicsContext(const EGraphicsAPI api, const Window* window)
-            : m_API(api), m_Window(window), m_CommandBuffers(FRAMES) {}
+            : m_API(api), m_Window(window), m_CommandBuffers(FRAMES)
+        {
+            EE_PROFILE_ZONE_SCOPED()
+        }
 
+      private:
+        virtual void CreateRenderTarget() = 0;
+
+      protected:
         EGraphicsAPI m_API;
 
         const Window* m_Window;
+
+        Ref<Texture2D> m_RenderTarget;
 
         std::vector<Ref<CommandBuffer>> m_CommandBuffers;
         uint32_t m_FrameNumber = 0;

@@ -19,6 +19,8 @@ namespace Elixir::Vulkan
         );
         ~VulkanShaderModule() override;
 
+        [[nodiscard]] VkShaderModule GetVulkanShaderModule() const { return m_Module; }
+
       protected:
         void CreateShaderModule(const std::vector<Byte>& bytecode);
 

@@ -1,8 +1,10 @@
 #pragma once
 
-#include <Engine/Core/Types.h>
+#include <Engine/Core/CoreTypes.h>
+#include <Engine/Graphics/GraphicsTypes.h>
 #include <Engine/Graphics/Memory.h>
 #include <Engine/Graphics/Image.h>
+#include <Engine/Graphics/Pipeline/Pipeline.h>
 
 #include <vulkan/vulkan.h>
 
@@ -194,6 +196,34 @@ namespace Elixir::Vulkan::Converters
         }
 
         return VK_COMPARE_OP_MAX_ENUM;
+    }
+
+    static VkFormat GetFormat(const EDataType type)
+    {
+        switch (type)
+        {
+            case EDataType::Float:
+                return VK_FORMAT_R32_SFLOAT;
+            case EDataType::Vec2:
+                return VK_FORMAT_R32G32_SFLOAT;
+            case EDataType::Vec3:
+                return VK_FORMAT_R32G32B32_SFLOAT;
+            case EDataType::Vec4:
+                return VK_FORMAT_R32G32B32A32_SFLOAT;
+            case EDataType::Int:
+                return VK_FORMAT_R32_SINT;
+            case EDataType::IntVec2:
+                return VK_FORMAT_R32G32_SINT;
+            case EDataType::IntVec3:
+                return VK_FORMAT_R32G32B32_SINT;
+            case EDataType::IntVec4:
+                return VK_FORMAT_R32G32B32A32_SINT;
+            default:
+                EE_CORE_ASSERT(false, "Unknown data type!")
+                break;
+        }
+
+        return VK_FORMAT_UNDEFINED;
     }
 
     static VkFormat GetFormat(const EImageFormat format)
@@ -521,5 +551,336 @@ namespace Elixir::Vulkan::Converters
         }
 
         return VK_DESCRIPTOR_TYPE_MAX_ENUM;
+    }
+
+    static VkPrimitiveTopology GetPrimitiveTopology(const EPrimitiveTopology topology)
+    {
+        switch (topology)
+        {
+            case EPrimitiveTopology::PointList:
+                return VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+            case EPrimitiveTopology::LineList:
+                return VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+            case EPrimitiveTopology::LineStrip:
+                return VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
+            case EPrimitiveTopology::TriangleList:
+                return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            case EPrimitiveTopology::TriangleStrip:
+                return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+            case EPrimitiveTopology::TriangleFan:
+                return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
+            case EPrimitiveTopology::LineListWithAdjacency:
+                return VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY;
+            case EPrimitiveTopology::LineStripWithAdjacency:
+                return VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY;
+            case EPrimitiveTopology::TriangleListWithAdjacency:
+                return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY;
+            case EPrimitiveTopology::TriangleStripWithAdjacency:
+                return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY;
+            case EPrimitiveTopology::PatchList:
+                return VK_PRIMITIVE_TOPOLOGY_PATCH_LIST;
+            default:
+                EE_CORE_ASSERT(false, "Unknown PrimitiveTopology!")
+                break;
+        }
+
+        return VK_PRIMITIVE_TOPOLOGY_MAX_ENUM;
+    }
+
+    static VkPolygonMode GetPolygonMode(const EPolygonMode mode)
+    {
+        switch (mode)
+        {
+            case EPolygonMode::Fill:
+                return VK_POLYGON_MODE_FILL;
+            case EPolygonMode::Line:
+                return VK_POLYGON_MODE_LINE;
+            case EPolygonMode::Point:
+                return VK_POLYGON_MODE_POINT;
+            default:
+                EE_CORE_ASSERT(false, "Unknown PolygonMode!")
+                break;
+        }
+
+        return VK_POLYGON_MODE_MAX_ENUM;
+    }
+
+    static VkCullModeFlags GetCullMode(const ECullMode mode)
+    {
+        VkCullModeFlags flags = VK_CULL_MODE_NONE;
+
+        if (mode & ECullMode::Front)
+            flags = flags | VK_CULL_MODE_FRONT_BIT;
+        if (mode & ECullMode::Back)
+            flags = flags | VK_CULL_MODE_BACK_BIT;
+        if (mode & ECullMode::FrontAndBack)
+            flags = flags | VK_CULL_MODE_FRONT_AND_BACK;
+
+        return flags;
+    }
+
+    static VkFrontFace GetFrontFace(const EFrontFace face)
+    {
+        switch (face)
+        {
+            case EFrontFace::CounterClockwise:
+                return VK_FRONT_FACE_COUNTER_CLOCKWISE;
+            case EFrontFace::Clockwise:
+                return VK_FRONT_FACE_CLOCKWISE;
+            default:
+                EE_CORE_ASSERT(false, "Unknown FrontFace!")
+        }
+
+        return VK_FRONT_FACE_MAX_ENUM;
+    }
+
+    static VkSampleCountFlagBits GetSampleCount(const ESampleCount count)
+    {
+        switch (count)
+        {
+            case ESampleCount::_1:
+                return VK_SAMPLE_COUNT_1_BIT;
+            case ESampleCount::_2:
+                return VK_SAMPLE_COUNT_2_BIT;
+            case ESampleCount::_4:
+                return VK_SAMPLE_COUNT_4_BIT;
+            case ESampleCount::_8:
+                return VK_SAMPLE_COUNT_8_BIT;
+            case ESampleCount::_16:
+                return VK_SAMPLE_COUNT_16_BIT;
+            case ESampleCount::_32:
+                return VK_SAMPLE_COUNT_32_BIT;
+            case ESampleCount::_64:
+                return VK_SAMPLE_COUNT_64_BIT;
+            default:
+                EE_CORE_ASSERT(false, "Unknown SampleCount!")
+                break;
+        }
+
+        return VK_SAMPLE_COUNT_1_BIT;
+    }
+
+    static VkBlendFactor GetBlendFactor(const EBlendFactor factor)
+    {
+        switch (factor)
+        {
+            case EBlendFactor::Zero:
+                return VK_BLEND_FACTOR_ZERO;
+            case EBlendFactor::One:
+                return VK_BLEND_FACTOR_ONE;
+            case EBlendFactor::SrcColor:
+                return VK_BLEND_FACTOR_SRC_COLOR;
+            case EBlendFactor::OneMinusSrcColor:
+                return VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+            case EBlendFactor::DstColor:
+                return VK_BLEND_FACTOR_DST_COLOR;
+            case EBlendFactor::OneMinusDstColor:
+                return VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+            case EBlendFactor::SrcAlpha:
+                return VK_BLEND_FACTOR_SRC_ALPHA;
+            case EBlendFactor::OneMinusSrcAlpha:
+                return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            case EBlendFactor::DstAlpha:
+                return VK_BLEND_FACTOR_DST_ALPHA;
+            case EBlendFactor::OneMinusDstAlpha:
+                return VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+            case EBlendFactor::ConstantColor:
+                return VK_BLEND_FACTOR_CONSTANT_COLOR;
+            case EBlendFactor::OneMinusConstantColor:
+                return VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+            case EBlendFactor::ConstantAlpha:
+                return VK_BLEND_FACTOR_CONSTANT_ALPHA;
+            case EBlendFactor::OneMinusConstantAlpha:
+                return VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+            case EBlendFactor::SrcAlphaSaturate:
+                return VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
+            case EBlendFactor::Src1Color:
+                return VK_BLEND_FACTOR_SRC1_COLOR;
+            case EBlendFactor::OneMinusSrc1Color:
+                return VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR;
+            case EBlendFactor::Src1Alpha:
+                return VK_BLEND_FACTOR_SRC1_ALPHA;
+            case EBlendFactor::OneMinusSrc1Alpha:
+                return VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA;
+            default:
+                EE_CORE_ASSERT(false, "Unknown BlendFactor!")
+                break;
+        }
+
+        return VK_BLEND_FACTOR_MAX_ENUM;
+    }
+
+    static VkBlendOp GetBlendOp(const EBlendOp op)
+    {
+        switch (op)
+        {
+            case EBlendOp::Add:
+                return VK_BLEND_OP_ADD;
+            case EBlendOp::Subtract:
+                return VK_BLEND_OP_SUBTRACT;
+            case EBlendOp::ReverseSubtract:
+                return VK_BLEND_OP_REVERSE_SUBTRACT;
+            case EBlendOp::Min:
+                return VK_BLEND_OP_MIN;
+            case EBlendOp::Max:
+                return VK_BLEND_OP_MAX;
+        }
+
+        EE_CORE_ASSERT(false, "Unknown BlendOp!")
+        return VK_BLEND_OP_MAX_ENUM;
+    }
+
+    static VkColorComponentFlags GetColorComponents(const EColorComponent components)
+    {
+        VkColorComponentFlags flags = 0;
+
+        if (components & EColorComponent::R)
+            flags = flags | VK_COLOR_COMPONENT_R_BIT;
+
+        if (components & EColorComponent::G)
+            flags = flags | VK_COLOR_COMPONENT_G_BIT;
+
+        if (components & EColorComponent::B)
+            flags = flags | VK_COLOR_COMPONENT_B_BIT;
+
+        if (components & EColorComponent::A)
+            flags = flags | VK_COLOR_COMPONENT_A_BIT;
+
+        return flags;
+    }
+
+    static VkLogicOp GetLogicOp(const ELogicOp op)
+    {
+        switch (op)
+        {
+            case ELogicOp::Clear:
+                return VK_LOGIC_OP_CLEAR;
+            case ELogicOp::And:
+                return VK_LOGIC_OP_AND;
+            case ELogicOp::AndReverse:
+                return VK_LOGIC_OP_AND_REVERSE;
+            case ELogicOp::Copy:
+                return VK_LOGIC_OP_COPY;
+            case ELogicOp::AndInverted:
+                return VK_LOGIC_OP_AND_INVERTED;
+            case ELogicOp::NoOp:
+                return VK_LOGIC_OP_NO_OP;
+            case ELogicOp::Xor:
+                return VK_LOGIC_OP_XOR;
+            case ELogicOp::Or:
+                return VK_LOGIC_OP_OR;
+            case ELogicOp::Nor:
+                return VK_LOGIC_OP_NOR;
+            case ELogicOp::Equivalent:
+                return VK_LOGIC_OP_EQUIVALENT;
+            case ELogicOp::Invert:
+                return VK_LOGIC_OP_INVERT;
+            case ELogicOp::OrReverse:
+                return VK_LOGIC_OP_OR_REVERSE;
+            case ELogicOp::CopyInverted:
+                return VK_LOGIC_OP_COPY_INVERTED;
+            case ELogicOp::OrInverted:
+                return VK_LOGIC_OP_OR_INVERTED;
+            case ELogicOp::Nand:
+                return VK_LOGIC_OP_NAND;
+            case ELogicOp::Set:
+                return VK_LOGIC_OP_SET;
+            default:
+                EE_CORE_ASSERT(false, "Unknown LogicOp!")
+                break;
+        }
+
+        return VK_LOGIC_OP_MAX_ENUM;
+    }
+
+    static VkStencilOp GetStencilOp(const EStencilOp op)
+    {
+        switch (op)
+        {
+            case EStencilOp::Keep:
+                return VK_STENCIL_OP_KEEP;
+            case EStencilOp::Zero:
+                return VK_STENCIL_OP_ZERO;
+            case EStencilOp::Replace:
+                return VK_STENCIL_OP_REPLACE;
+            case EStencilOp::IncrementAndClamp:
+                return VK_STENCIL_OP_INCREMENT_AND_CLAMP;
+            case EStencilOp::DecrementAndClamp:
+                return VK_STENCIL_OP_DECREMENT_AND_CLAMP;
+            case EStencilOp::Invert:
+                return VK_STENCIL_OP_INVERT;
+            case EStencilOp::IncrementAndWrap:
+                return VK_STENCIL_OP_INCREMENT_AND_WRAP;
+            case EStencilOp::DecrementAndWrap:
+                return VK_STENCIL_OP_DECREMENT_AND_WRAP;
+            default:
+                EE_CORE_ASSERT(false, "Unknown StencilOp!")
+                break;
+        }
+
+        return VK_STENCIL_OP_MAX_ENUM;
+    }
+
+    static VkStencilOpState GetStencilOpState(const SStencilOpState& state)
+    {
+        VkStencilOpState op = {};
+        op.failOp = GetStencilOp(state.FailOp);
+        op.passOp = GetStencilOp(state.PassOp);
+        op.depthFailOp = GetStencilOp(state.DepthFailOp);
+        op.compareOp = GetCompareOp(state.CompareOp);
+        op.compareMask = state.CompareMask;
+        op.writeMask = state.WriteMask;
+        op.reference = state.Reference;
+
+        return op;
+    }
+
+    static VkShaderStageFlagBits GetShaderStage(const EShaderStage stage)
+    {
+        if (stage == EShaderStage::Vertex)
+            return VK_SHADER_STAGE_VERTEX_BIT;
+
+        if (stage == EShaderStage::Hull)
+            return VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
+
+        if (stage == EShaderStage::Domain)
+            return VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
+
+        if (stage == EShaderStage::Geometry)
+            return VK_SHADER_STAGE_GEOMETRY_BIT;
+
+        if (stage == EShaderStage::Pixel)
+            return VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        if (stage == EShaderStage::Compute)
+            return VK_SHADER_STAGE_COMPUTE_BIT;
+
+        EE_CORE_ASSERT(false, "Unknown ShaderStage!")
+        return VK_SHADER_STAGE_ALL;
+    }
+
+    static VkShaderStageFlags GetShaderStages(const EShaderStage stage)
+    {
+        VkShaderStageFlags flags = 0;
+
+        if (stage & EShaderStage::Vertex)
+            flags = flags | VK_SHADER_STAGE_VERTEX_BIT;
+
+        if (stage & EShaderStage::Hull)
+            flags = flags | VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
+
+        if (stage & EShaderStage::Domain)
+            flags = flags | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
+
+        if (stage & EShaderStage::Geometry)
+            flags = flags | VK_SHADER_STAGE_GEOMETRY_BIT;
+
+        if (stage & EShaderStage::Pixel)
+            flags = flags | VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        if (stage & EShaderStage::Compute)
+            flags = flags | VK_SHADER_STAGE_COMPUTE_BIT;
+
+        return flags;
     }
 }

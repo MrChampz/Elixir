@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Engine/Graphics/Image.h>
-#include <Graphics/Vulkan/VulkanGraphicsContext.h>
 
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
@@ -9,6 +8,8 @@
 namespace Elixir::Vulkan
 {
     using namespace Elixir;
+
+    class VulkanGraphicsContext;
 
     VkImage TryToGetVulkanImageHandle(const Image* image);
 
@@ -69,7 +70,6 @@ namespace Elixir::Vulkan
         void CreateDescriptorInfo();
         void UpdateSampler() override;
 
-      private:
         VkImage m_Image = VK_NULL_HANDLE;
         VkImageView m_ImageView = VK_NULL_HANDLE;
         VkDescriptorImageInfo m_DescriptorInfo{};

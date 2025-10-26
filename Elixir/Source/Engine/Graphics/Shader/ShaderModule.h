@@ -1,22 +1,10 @@
 #pragma once
 
+#include <Engine/Graphics/GraphicsTypes.h>
 #include <Engine/Graphics/Shader/ShaderParameter.h>
 
 namespace Elixir
 {
-    enum class EShaderStage : uint8_t
-    {
-        Vertex = 0,
-		Hull,
-		Domain,
-		Geometry,
-		Pixel,
-		Compute,
-        Count
-    };
-
-    GENERATE_ENUM_CLASS_OPERATORS(EShaderStage)
-
     class ELIXIR_API ShaderModule
     {
       public:
@@ -27,6 +15,8 @@ namespace Elixir
         void AddPushConstant(const ShaderPushConstant* constant);
 
         [[nodiscard]] EShaderStage GetStage() const { return m_Stage; }
+        [[nodiscard]] const std::string& GetEntrypoint() const { return m_Entrypoint; }
+        [[nodiscard]] const std::filesystem::path& GetPath() const { return m_Path; }
 
         static Ref<ShaderModule> Create(
             const GraphicsContext* context,

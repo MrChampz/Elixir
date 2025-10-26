@@ -5,6 +5,8 @@
 
 #include <Graphics/Vulkan/VulkanGraphicsContext.h>
 
+#include <GLFW/glfw3.h>
+
 namespace Elixir
 {
     Scope<GraphicsContext> GraphicsContext::Create(const EGraphicsAPI api, const Window* window)
