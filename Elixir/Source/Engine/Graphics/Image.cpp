@@ -26,7 +26,7 @@ namespace Elixir
         EE_PROFILE_ZONE_SCOPED()
 
         const auto extent = image->GetExtent();
-        return extent.Width * extent.Height * extent.Depth * image->GetBitsPerPixel();
+        return extent.Width * extent.Height * extent.Depth * (image->GetBitsPerPixel() / 8);
     }
 
     /* Image */

@@ -31,7 +31,7 @@ namespace Elixir
         m_GraphicsContext->WaitDeviceIdle();
     }
 
-    void Application::  Run()
+    void Application::Run()
     {
         EE_PROFILE_ZONE_SCOPED()
 

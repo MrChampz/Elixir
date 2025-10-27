@@ -103,4 +103,14 @@ namespace Elixir::Vulkan::Initializers
 
         return info;
     }
+
+    static VkSemaphoreCreateInfo SemaphoreCreateInfo(VkSemaphoreCreateFlags flags = 0)
+    {
+        VkSemaphoreCreateInfo info = {};
+        info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        info.pNext = nullptr;
+        info.flags = flags;
+
+        return info;
+    }
 }

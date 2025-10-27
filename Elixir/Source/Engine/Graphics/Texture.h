@@ -55,7 +55,7 @@ namespace Elixir
             EImageFormat format,
             uint32_t width,
             uint32_t height,
-            void* data = nullptr,
+            const void* data = nullptr,
             const std::string& path = ""
         );
 
@@ -63,7 +63,7 @@ namespace Elixir
             EImageFormat format,
             uint32_t width,
             uint32_t height,
-            void* data = nullptr
+            const void* data = nullptr
         );
 
       protected:
@@ -72,7 +72,7 @@ namespace Elixir
             EImageFormat format,
             uint32_t width,
             uint32_t height,
-            void* data = nullptr,
+            const void* data = nullptr,
             const std::string& path = ""
         );
         Texture2D(

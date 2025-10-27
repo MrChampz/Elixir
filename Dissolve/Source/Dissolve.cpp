@@ -10,7 +10,7 @@ Dissolve::Dissolve()
 
     m_Window->SetTitle("Dissolve");
 
-    const auto tex = TextureLoader::Load("./Assets/Bricks.png");
+    //const auto tex = TextureLoader::Load("./Assets/Bricks.png");
 
     const auto loader = CreateScope<ShaderLoader>(m_GraphicsContext.get());
 
@@ -18,7 +18,7 @@ Dissolve::Dissolve()
     //shader->GetName();
 
     const auto shader1 = loader->LoadShader("./Shaders/", "Texture");
-    shader1->BindTexture("texture", tex);
+    //shader1->BindTexture("texture", tex);
     shader1->GetName();
 
     BufferLayout bufferLayout({
@@ -35,7 +35,7 @@ Dissolve::Dissolve()
     builder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
     builder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
     builder.SetBufferLayout(bufferLayout);
-    const auto pipeline = builder.Build(m_GraphicsContext.get());
+    //const auto pipeline = builder.Build(m_GraphicsContext.get());
 
 
 }

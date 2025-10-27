@@ -8,7 +8,7 @@
 namespace Elixir::Vulkan
 {
     VulkanCommandBuffer::VulkanCommandBuffer(GraphicsContext* context)
-        : m_Ended(false)
+        : m_Ended(true)
     {
         EE_PROFILE_ZONE_SCOPED()
 
@@ -56,6 +56,8 @@ namespace Elixir::Vulkan
     {
         EE_PROFILE_ZONE_SCOPED()
 
+        if (!m_Ended) return;
+
         VkCommandBufferBeginInfo beginInfo = {};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.pNext = nullptr;
@@ -74,6 +76,12 @@ namespace Elixir::Vulkan
 
         VK_CHECK_RESULT(vkEndCommandBuffer(m_CommandBuffer));
         m_Ended = true;
+    }
+
+    void VulkanCommandBuffer::Reset()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        VK_CHECK_RESULT(vkResetCommandBuffer(m_CommandBuffer, 0));
     }
 
     void VulkanCommandBuffer::EndRendering()
@@ -171,7 +179,7 @@ namespace Elixir::Vulkan
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submitInfo.signalSemaphoreCount = 0;
         submitInfo.waitSemaphoreCount = 0;
-        submitInfo.commandBufferCount = 0;
+        submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &m_CommandBuffer;
 
         VkFenceCreateInfo fenceInfo = {};
@@ -210,7 +218,7 @@ namespace Elixir::Vulkan
         waitInfo.semaphore = swapchainSemaphore;
         waitInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
         waitInfo.deviceIndex = 0;
-        waitInfo.value = 1;
+        waitInfo.value = 0;
 
         VkSemaphoreSubmitInfo signalInfo = {};
         signalInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
@@ -218,7 +226,7 @@ namespace Elixir::Vulkan
         signalInfo.semaphore = renderSemaphore;
         signalInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT;  // NOTE: Possible optimization.
         signalInfo.deviceIndex = 0;
-        signalInfo.value = 1;
+        signalInfo.value = 0;
 
         VkSubmitInfo2 submitInfo = {};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;

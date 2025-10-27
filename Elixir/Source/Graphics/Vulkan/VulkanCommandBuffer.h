@@ -19,6 +19,8 @@ namespace Elixir::Vulkan
         void Begin() override;
         void End() override;
 
+        void Reset() override;
+
         void EndRendering() override;
 
         void Draw(

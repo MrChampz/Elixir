@@ -159,7 +159,6 @@ namespace Elixir
             for (int i = 0; i < FRAMES; i++)
             {
                 vkDestroyFence(m_Device, m_Frames[i].RenderFence, nullptr);
-                vkDestroySemaphore(m_Device, m_Frames[i].RenderSemaphore, nullptr);
                 vkDestroySemaphore(m_Device, m_Frames[i].SwapchainSemaphore, nullptr);
             }
 
@@ -188,21 +187,20 @@ namespace Elixir
             m_Device,
             1,
             &frame.RenderFence,
-            true,
-            1000000000
+            VK_TRUE,
+            UINT64_MAX
         );
         VK_CHECK_RESULT(result);
+        VK_CHECK_RESULT(vkResetFences(m_Device, 1, &frame.RenderFence));
 
         frame.DeletionQueue.Flush();
-
-        VK_CHECK_RESULT(vkResetFences(m_Device, 1, &frame.RenderFence));
 
         result = vkAcquireNextImageKHR(
             m_Device,
             m_Swapchain,
-            1000000000,
+            UINT64_MAX,
             frame.SwapchainSemaphore,
-            nullptr,
+            VK_NULL_HANDLE,
             &m_CurrentSwapchainImageIndex
         );
 
@@ -214,17 +212,16 @@ namespace Elixir
 
         VK_CHECK_RESULT(result);
 
-        VK_CHECK_RESULT(vkResetCommandBuffer(cmd->GetVulkanCommandBuffer(), 0));
-
+        cmd->Reset();
         cmd->Begin();
 
-        const auto& image = m_SwapchainImages[m_CurrentSwapchainImageIndex].Image;
+        const auto& swapchain = GetCurrentSwapchainImage();
 
         CommandUtils::TransitionImage(
             cmd->GetVulkanCommandBuffer(),
-            image,
-            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-            VK_IMAGE_LAYOUT_GENERAL,
+            swapchain.Image,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             VK_IMAGE_ASPECT_COLOR_BIT
         );
     }
@@ -256,33 +253,32 @@ namespace Elixir
         EE_PROFILE_ZONE_SCOPED()
 
         const auto& frame = GetCurrentFrame();
+        const auto& swapchain = GetCurrentSwapchainImage();
         const auto cmd = std::static_pointer_cast<VulkanCommandBuffer>(GetCommandBuffer());
-
-        const auto& image = m_SwapchainImages[m_CurrentSwapchainImageIndex].Image;
 
         CommandUtils::TransitionImage(
             cmd->GetVulkanCommandBuffer(),
-            image,
-            VK_IMAGE_LAYOUT_GENERAL,
+            swapchain.Image,
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
             VK_IMAGE_ASPECT_COLOR_BIT
         );
 
         cmd->End();
-        cmd->Submit(frame.SwapchainSemaphore, frame.RenderSemaphore, frame.RenderFence);
+        cmd->Submit(frame.SwapchainSemaphore, swapchain.RenderSemaphore, frame.RenderFence);
 
         VkPresentInfoKHR presentInfo = {};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
         presentInfo.pNext = nullptr;
         presentInfo.pSwapchains = &m_Swapchain;
         presentInfo.swapchainCount = 1;
-        presentInfo.pWaitSemaphores = &frame.RenderSemaphore;
+        presentInfo.pWaitSemaphores = &swapchain.RenderSemaphore;
         presentInfo.waitSemaphoreCount = 1;
         presentInfo.pImageIndices = &m_CurrentSwapchainImageIndex;
 
         const auto result = vkQueuePresentKHR(m_GraphicsQueue, &presentInfo);
 
-        if (result == VK_ERROR_OUT_OF_DATE_KHR)
+        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
         {
             m_SwapchainRecreateRequested = true;
             return;
@@ -479,15 +475,6 @@ namespace Elixir
                     &m_Frames[i].SwapchainSemaphore
                 )
             );
-
-            VK_CHECK_RESULT(
-                vkCreateSemaphore(
-                    m_Device,
-                    &semaphoreInfo,
-                    nullptr,
-                    &m_Frames[i].RenderSemaphore
-                )
-            );
         }
     }
 
@@ -498,11 +485,12 @@ namespace Elixir
         std::vector<SDescriptorAllocator::SPoolSizeRatio> sizes =
         {
             { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0.5 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0.25 },
-            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0.25 }
+            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0.2 },
+            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0.15 },
+            { VK_DESCRIPTOR_TYPE_SAMPLER, 0.15 }
         };
 
-        m_GlobalDescriptorAllocator.InitPool(m_Device, 10, sizes);
+        m_GlobalDescriptorAllocator.InitPool(m_Device, 20, sizes);
     }
 
     void VulkanGraphicsContext::CreateSwapchain(const Extent2D& extent)
@@ -529,11 +517,26 @@ namespace Elixir
         const auto images = result.value().get_images().value();
         const auto views = result.value().get_image_views().value();
 
-        uint32_t index = 0;
-        for (const auto image : images)
+        m_SwapchainImages.reserve(images.size());
+
+        const auto semaphoreInfo = Initializers::SemaphoreCreateInfo();
+        for (int i = 0; i < images.size(); i++)
         {
-            m_SwapchainImages[index] = { .Image = image, .View = views[index] };
-            index++;
+            VkSemaphore semaphore;
+            VK_CHECK_RESULT(
+                vkCreateSemaphore(
+                    m_Device,
+                    &semaphoreInfo,
+                    nullptr,
+                    &semaphore
+                )
+            );
+
+            m_SwapchainImages.push_back({
+                .Image = images[i],
+                .View = views[i],
+                .RenderSemaphore = semaphore
+            });
         }
     }
 
@@ -541,8 +544,9 @@ namespace Elixir
     {
         EE_PROFILE_ZONE_SCOPED()
 
-        for (const auto& [_, view] : m_SwapchainImages)
+        for (const auto& [_, view, semaphore] : m_SwapchainImages)
         {
+            vkDestroySemaphore(m_Device, semaphore, nullptr);
             vkDestroyImageView(m_Device, view, nullptr);
         }
 

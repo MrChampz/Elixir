@@ -37,7 +37,7 @@ namespace Elixir::Vulkan
             EImageFormat format,
             uint32_t width,
             uint32_t height,
-            void* data = nullptr,
+            const void* data = nullptr,
             const std::string& path = ""
         );
         ~VulkanTexture2D() override;

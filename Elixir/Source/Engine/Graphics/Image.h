@@ -176,7 +176,7 @@ namespace Elixir
 
     struct SImageCreateInfo
     {
-        void* InitialData = nullptr;
+        const void* InitialData = nullptr;
         uint32_t Width = 0;
         uint32_t Height = 1;
         uint32_t Depth = 1;
@@ -278,7 +278,7 @@ namespace Elixir
         [[nodiscard]] const Ref<Sampler>& GetSampler() const { return m_Sampler; }
         void SetSampler(const Ref<Sampler>& sampler);
 
-        virtual bool operator==(const Image& other) const final
+        bool operator==(const Image& other) const
         {
             return m_UUID == other.m_UUID;
         }

@@ -70,7 +70,7 @@ namespace Elixir
         EImageFormat format,
         uint32_t width,
         uint32_t height,
-        void* data,
+        const void* data,
         const std::string& path
     )
     {
@@ -88,7 +88,7 @@ namespace Elixir
         const EImageFormat format,
         const uint32_t width,
         const uint32_t height,
-        void* data
+        const void* data
     )
     {
         return {
@@ -110,7 +110,7 @@ namespace Elixir
         const EImageFormat format,
         const uint32_t width,
         const uint32_t height,
-        void* data,
+        const void* data,
         const std::string& path
     ) : Texture2D(context, CreateImageInfo(format, width, height, data), path) {}
 

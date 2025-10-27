@@ -36,7 +36,7 @@ namespace Elixir::Vulkan
         const EImageFormat format,
         const uint32_t width,
         const uint32_t height,
-        void* data,
+        const void* data,
         const std::string& path
     ) : VulkanTexture2D(context, CreateImageInfo(format, width, height, data), path) {}
 

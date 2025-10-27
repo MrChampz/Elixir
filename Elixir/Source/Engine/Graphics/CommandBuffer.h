@@ -13,6 +13,8 @@ namespace Elixir
         virtual void Begin() = 0;
         virtual void End() = 0;
 
+        virtual void Reset() = 0;
+
         //virtual void BeginRendering(const Ref<Texture>& colorAttachment, Extent2D renderArea) = 0;
         // virtual void BeginRendering(
         //     const Ref<Texture>& colorAttachment,

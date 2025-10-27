@@ -52,7 +52,7 @@ namespace Elixir::Vulkan
 
     struct SFrameData
     {
-        VkSemaphore SwapchainSemaphore, RenderSemaphore;
+        VkSemaphore SwapchainSemaphore;
         VkFence RenderFence;
 
         SDeletionQueue DeletionQueue;
@@ -60,8 +60,9 @@ namespace Elixir::Vulkan
 
     struct SSwapchainImage
     {
-        VkImage Image;
-        VkImageView View;
+        VkImage Image = VK_NULL_HANDLE;
+        VkImageView View = VK_NULL_HANDLE;
+        VkSemaphore RenderSemaphore = VK_NULL_HANDLE;
     };
 
     class ELIXIR_API VulkanGraphicsContext final : public GraphicsContext
@@ -98,6 +99,7 @@ namespace Elixir::Vulkan
         VmaAllocator GetAllocator() const { return m_Allocator; }
         const VkDescriptorPool& GetDescriptorPool() const { return m_GlobalDescriptorAllocator.Pool; }
 
+        SSwapchainImage& GetCurrentSwapchainImage() { return m_SwapchainImages[m_CurrentSwapchainImageIndex]; }
         VkFormat GetSwapchainImageFormat() const { return m_SwapchainImageFormat; }
         VkExtent2D GetSwapchainVulkanExtent() const { return m_SwapchainExtent; }
 
@@ -135,7 +137,7 @@ namespace Elixir::Vulkan
         VkSwapchainKHR m_Swapchain;
         VkFormat m_SwapchainImageFormat;
         VkExtent2D m_SwapchainExtent;
-        std::array<SSwapchainImage, FRAMES> m_SwapchainImages;
+        std::vector<SSwapchainImage> m_SwapchainImages;
         uint32_t m_CurrentSwapchainImageIndex = 0;
         bool m_SwapchainRecreateRequested = false;
 

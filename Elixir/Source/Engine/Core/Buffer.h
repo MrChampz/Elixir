@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Core/Core.h>
+#include <Engine/Core/Memory.h>
 #include <Engine/Instrumentation/Profiler.h>
 
 namespace Elixir

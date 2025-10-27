@@ -122,7 +122,7 @@ namespace Elixir
     SBufferCreateInfo StagingBuffer::CreateBufferInfo(const size_t size, const void* data)
     {
         return {
-            .Buffer = SBuffer((Byte*)data, size),
+            .Buffer = SBuffer((const Byte*)data, size),
             .Usage = EBufferUsage::TransferSrc,
             .AllocationInfo = {
                 .RequiredFlags = EMemoryProperty::HostVisible | EMemoryProperty::HostCoherent,
