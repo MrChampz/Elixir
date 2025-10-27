@@ -299,15 +299,6 @@ namespace Elixir::Graphics::Utils
 			}
 		}
 
-        if (usage & EImageUsage::ColorAttachment)
-            return EImageAspect::Color;
-
-        if (usage & EImageUsage::Sampled)
-            return EImageAspect::Color;
-
-        if (usage & EImageUsage::Storage)
-            return EImageAspect::Color;
-
-		return EImageAspect::None;
+		return EImageAspect::Color;
 	}
 }

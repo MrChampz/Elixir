@@ -117,7 +117,7 @@ namespace Elixir
         [[nodiscard]] size_t GetSize() const { return m_Size; }
         [[nodiscard]] const SAllocationInfo& GetAllocationInfo() const { return m_AllocationInfo; }
 
-        virtual bool operator==(const Buffer& other) const final
+        bool operator==(const Buffer& other) const
         {
             return m_UUID == other.m_UUID;
         }
@@ -136,6 +136,7 @@ namespace Elixir
         Buffer(Buffer&&) = delete;
 
         UUID m_UUID;
+        std::string m_DebugName;
 
         EBufferUsage m_Usage;
         size_t m_Size;

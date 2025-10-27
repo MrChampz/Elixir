@@ -16,6 +16,8 @@
 
 #include "GLFW/glfw3.h"
 
+#include <fstream>
+
 namespace Elixir
 {
     using namespace Vulkan;
@@ -29,6 +31,25 @@ namespace Elixir
         {
             const auto message = preMessage + result.error().message();
             EE_CORE_FATAL(message)
+        }
+    }
+
+    void DumpAllocatorStats(
+        const VmaAllocator allocator,
+        const std::string& filename = "AllocatorStats.json"
+    )
+    {
+        std::ofstream statsFile(filename);
+        if (statsFile.is_open())
+        {
+            char* stats;
+            vmaBuildStatsString(allocator, &stats, VK_TRUE);
+            statsFile << stats;
+
+            vmaFreeStatsString(allocator, stats);
+            statsFile.close();
+
+            EE_CORE_INFO("Allocator stats dumped to {0}.", filename);
         }
     }
 
@@ -149,6 +170,9 @@ namespace Elixir
         {
             vkDeviceWaitIdle(m_Device);
 
+            m_RenderTarget.reset();
+
+            DumpAllocatorStats(m_Allocator);
             m_DeletionQueue.Flush();
             m_CommandBuffers.clear();
 
@@ -215,37 +239,36 @@ namespace Elixir
         cmd->Reset();
         cmd->Begin();
 
-        const auto& swapchain = GetCurrentSwapchainImage();
-
-        CommandUtils::TransitionImage(
-            cmd->GetVulkanCommandBuffer(),
-            swapchain.Image,
-            VK_IMAGE_LAYOUT_UNDEFINED,
-            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            VK_IMAGE_ASPECT_COLOR_BIT
-        );
+        m_RenderTarget->Transition(cmd, EImageLayout::General);
     }
 
     void VulkanGraphicsContext::Submit()
     {
         EE_PROFILE_ZONE_SCOPED()
 
+        const auto& swapchain = GetCurrentSwapchainImage();
+        const auto cmd = std::static_pointer_cast<VulkanCommandBuffer>(GetCommandBuffer());
+
+        m_RenderTarget->Transition(cmd, EImageLayout::TransferSrc);
+
+        CommandUtils::TransitionImage(
+            cmd->GetVulkanCommandBuffer(),
+            swapchain.Image,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_IMAGE_ASPECT_COLOR_BIT
+        );
+
+        CommandUtils::CopyImageToImage(
+            cmd->GetVulkanCommandBuffer(),
+            TryToGetVulkanImage(m_RenderTarget.get())->GetVulkanImage(),
+            swapchain.Image,
+            GetExtent3D(m_RenderTarget->GetExtent()),
+            m_SwapchainExtent
+        );
+
         // // set swapchain image layout to Present so we can show it on the screen
-        // vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-        //
-        // //finalize the command buffer (we can no longer add commands, but it can now be executed)
-        // VK_CHECK(vkEndCommandBuffer(cmd));
-        //
-        // VkCommandBufferSubmitInfo cmdinfo = vkinit::command_buffer_submit_info(cmd);
-        //
-        // VkSemaphoreSubmitInfo waitInfo = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,get_current_frame()._swapchainSemaphore);
-        // VkSemaphoreSubmitInfo signalInfo = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,get_current_frame(). _renderSemaphore);
-        //
-        // VkSubmitInfo2 submit = vkinit::submit_info(&cmdinfo,&signalInfo,&waitInfo);
-        //
-        // //submit command buffer to the queue and execute it.
-        // // _renderFence will now block until the graphic commands finish execution
-        // VK_CHECK(vkQueueSubmit2(_graphicsQueue, 1, &submit, get_current_frame()._renderFence));
+        // vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
     }
 
     void VulkanGraphicsContext::Present()
@@ -259,7 +282,7 @@ namespace Elixir
         CommandUtils::TransitionImage(
             cmd->GetVulkanCommandBuffer(),
             swapchain.Image,
-            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
             VK_IMAGE_ASPECT_COLOR_BIT
         );
@@ -310,7 +333,7 @@ namespace Elixir
         const auto range = Initializers::ImageSubresourceRange(EImageAspect::Color);
         vkCmdClearColorImage(
             cmd->GetVulkanCommandBuffer(),
-            m_SwapchainImages[m_CurrentSwapchainImageIndex].Image,
+            TryToGetVulkanImage(m_RenderTarget.get())->GetVulkanImage(),
             VK_IMAGE_LAYOUT_GENERAL,
             &m_ClearColor,
             1,
@@ -511,8 +534,13 @@ namespace Elixir
 
         LogError(result, "Swapchain creation failed: ");
 
-        m_Swapchain = result.value().swapchain;
-        m_SwapchainExtent = result.value().extent;
+        const auto swapchain = result.value();
+        m_Swapchain = swapchain.swapchain;
+        m_SwapchainExtent = {
+            .width = swapchain.extent.width,
+            .height = swapchain.extent.height,
+            .depth = 1
+        };
 
         const auto images = result.value().get_images().value();
         const auto views = result.value().get_image_views().value();
@@ -567,6 +595,10 @@ namespace Elixir
     {
         int width, height;
         glfwGetFramebufferSize((GLFWwindow*)m_Window->GetNativeWindow(), &width, &height);
-        //m_RenderTarget = Texture2D::Create(this, EImageFormat::R8G8B8A8_UNORM, width, height);
+
+        auto info = Texture2D::CreateImageInfo(EImageFormat::R8G8B8A8_UNORM, width, height);
+        info.Usage = EImageUsage::ColorAttachment | EImageUsage::TransferSrc | EImageUsage::TransferDst;
+        info.InitialLayout = EImageLayout::General;
+        m_RenderTarget = CreateRef<VulkanTexture2D>(this, info);
     }
 }

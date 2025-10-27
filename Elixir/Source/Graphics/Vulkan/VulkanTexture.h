@@ -40,14 +40,14 @@ namespace Elixir::Vulkan
             const void* data = nullptr,
             const std::string& path = ""
         );
-        ~VulkanTexture2D() override;
 
-      protected:
         VulkanTexture2D(
             const GraphicsContext* context,
             const SImageCreateInfo& info,
             const std::string& path = ""
         );
+
+        ~VulkanTexture2D() override;
     };
 
     class ELIXIR_API VulkanTexture3D final : public VulkanBaseImage<Texture3D>

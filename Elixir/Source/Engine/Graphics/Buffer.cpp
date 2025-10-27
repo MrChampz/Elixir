@@ -89,6 +89,10 @@ namespace Elixir
           m_GraphicsContext(context)
     {
         EE_PROFILE_ZONE_SCOPED()
+
+#ifdef EE_DEBUG
+        m_DebugName = "Buffer[" + m_UUID.ToString() + "]";
+#endif
     }
 
     /* DynamicBuffer */
@@ -99,6 +103,10 @@ namespace Elixir
     ) : Buffer(context, info)
     {
         EE_PROFILE_ZONE_SCOPED()
+
+#ifdef EE_DEBUG
+m_DebugName = "DynamicBuffer[" + m_UUID.ToString() + "]";
+#endif
     }
 
     /* StagingBuffer */
@@ -143,6 +151,10 @@ namespace Elixir
     ) : DynamicBuffer(context, info)
     {
         EE_PROFILE_ZONE_SCOPED()
+
+#ifdef EE_DEBUG
+m_DebugName = "StagingBuffer[" + m_UUID.ToString() + "]";
+#endif
     }
 
     /* VertexBuffer */
@@ -190,6 +202,10 @@ namespace Elixir
         : Buffer(context, info), m_Address(0)
     {
         EE_PROFILE_ZONE_SCOPED()
+
+#ifdef EE_DEBUG
+m_DebugName = "VertexBuffer[" + m_UUID.ToString() + "]";
+#endif
     }
 
     /* IndexBuffer */
@@ -245,6 +261,10 @@ namespace Elixir
         : Buffer(context, info), m_IndexType(type)
     {
         EE_PROFILE_ZONE_SCOPED()
+
+#ifdef EE_DEBUG
+m_DebugName = "IndexBuffer[" + m_UUID.ToString() + "]";
+#endif
     }
 
     /* UniformBuffer */
@@ -290,5 +310,9 @@ namespace Elixir
         : DynamicBuffer(context, info)
     {
         EE_PROFILE_ZONE_SCOPED()
+
+#ifdef EE_DEBUG
+m_DebugName = "ConstantBuffer[" + m_UUID.ToString() + "]";
+#endif
     }
 }

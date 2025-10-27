@@ -307,6 +307,7 @@ namespace Elixir
         virtual void UpdateSampler() = 0;
 
         UUID m_UUID;
+        std::string m_DebugName;
 
         EImageType m_Type;
         EImageLayout m_Layout;

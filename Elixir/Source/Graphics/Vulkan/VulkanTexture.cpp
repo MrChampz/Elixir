@@ -40,12 +40,6 @@ namespace Elixir::Vulkan
         const std::string& path
     ) : VulkanTexture2D(context, CreateImageInfo(format, width, height, data), path) {}
 
-    VulkanTexture2D::~VulkanTexture2D()
-    {
-        EE_PROFILE_ZONE_SCOPED()
-        VulkanBaseImage::Destroy();
-    }
-
     VulkanTexture2D::VulkanTexture2D(
         const GraphicsContext* context,
         const SImageCreateInfo& info,
@@ -54,6 +48,12 @@ namespace Elixir::Vulkan
     {
         EE_PROFILE_ZONE_SCOPED()
         m_Path = path;
+    }
+
+    VulkanTexture2D::~VulkanTexture2D()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        VulkanBaseImage::Destroy();
     }
 
     /* VulkanTexture3D */

@@ -196,6 +196,15 @@ namespace Elixir::Vulkan
                 nullptr
             )
         );
+
+        if (!this->m_DebugName.empty())
+        {
+            vmaSetAllocationName(
+                m_GraphicsContext->GetAllocator(),
+                m_Allocation,
+                this->m_DebugName.c_str()
+            );
+        }
     }
 
     template <typename Base>

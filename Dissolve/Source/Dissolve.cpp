@@ -10,7 +10,7 @@ Dissolve::Dissolve()
 
     m_Window->SetTitle("Dissolve");
 
-    //const auto tex = TextureLoader::Load("./Assets/Bricks.png");
+    const auto tex = TextureLoader::Load("./Assets/Bricks.png");
 
     const auto loader = CreateScope<ShaderLoader>(m_GraphicsContext.get());
 
@@ -18,7 +18,7 @@ Dissolve::Dissolve()
     //shader->GetName();
 
     const auto shader1 = loader->LoadShader("./Shaders/", "Texture");
-    //shader1->BindTexture("texture", tex);
+    shader1->BindTexture("texture", tex);
     shader1->GetName();
 
     BufferLayout bufferLayout({
@@ -45,6 +45,7 @@ void Dissolve::OnGUI(const Timestep frameTime)
     EE_PROFILE_ZONE_SCOPED()
     Application::OnGUI(frameTime);
 }
+
 void Dissolve::OnRender(const Timestep frameTime)
 {
     EE_PROFILE_ZONE_SCOPED()
@@ -54,11 +55,12 @@ void Dissolve::OnRender(const Timestep frameTime)
     const auto cmd = m_GraphicsContext->GetCommandBuffer();
     cmd->Begin();
 
-    // Transition swapchain image to color attachment
+    float flash = std::abs(std::sin(m_GraphicsContext->GetFrameNumber() / 120.f));
+
+    m_GraphicsContext->SetClearColor({ 0.0f, 0.0f, flash, 1.0 });
+    m_GraphicsContext->Clear();
 
     DrawGeometry(cmd);
-
-    // Transition swapchain image to present
 }
 
 void Dissolve::DrawGeometry(const Ref<CommandBuffer>& cmd)

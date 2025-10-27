@@ -169,6 +169,10 @@ namespace Elixir
         m_Aspect = Utils::CalculateImageAspect(m_Usage, m_Format);
         m_BitsPerPixel = CalculateBitsPerPixel(this);
         m_Size = CalculateSize(this);
+
+#ifdef EE_DEBUG
+        m_DebugName = "Image[" + m_UUID.ToString() + "]";
+#endif
     }
 
     /* DepthStencilImage */
@@ -221,6 +225,10 @@ namespace Elixir
         EE_PROFILE_ZONE_SCOPED()
 
         m_Size = CalculateSize(this);
+
+#ifdef EE_DEBUG
+        m_DebugName = "DepthStencilImage[" + m_UUID.ToString() + "]";
+#endif
     }
 
     /* StorageImage */

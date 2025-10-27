@@ -61,6 +61,10 @@ namespace Elixir
     ) : Image(context, info), m_Path(std::move(path))
     {
         EE_PROFILE_ZONE_SCOPED()
+
+#ifdef EE_DEBUG
+        m_DebugName = "Texture[" + m_UUID.ToString() + "]";
+#endif
     }
 
     /* Texture2D */
@@ -121,6 +125,10 @@ namespace Elixir
     ) : Texture(context, info, path)
     {
         EE_PROFILE_ZONE_SCOPED()
+
+#ifdef EE_DEBUG
+        m_DebugName = "Texture2D[" + m_UUID.ToString() + "]";
+#endif
     }
 
     /* Texture3D */
@@ -185,5 +193,9 @@ namespace Elixir
     ) : Texture2D(context, info, path)
     {
         EE_PROFILE_ZONE_SCOPED()
+
+#ifdef EE_DEBUG
+        m_DebugName = "Texture3D[" + m_UUID.ToString() + "]";
+#endif
     }
 }

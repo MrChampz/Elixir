@@ -41,7 +41,7 @@ namespace Elixir::Vulkan
         void Flush()
         {
             // Reverse iterate the deletion queue to execute in the correct order.
-            for (auto it = Deletors.rbegin(); it != Deletors.rend(); it++)
+            for (auto it = Deletors.rbegin(); it != Deletors.rend(); ++it)
             {
                 (*it)();
             }
@@ -101,7 +101,7 @@ namespace Elixir::Vulkan
 
         SSwapchainImage& GetCurrentSwapchainImage() { return m_SwapchainImages[m_CurrentSwapchainImageIndex]; }
         VkFormat GetSwapchainImageFormat() const { return m_SwapchainImageFormat; }
-        VkExtent2D GetSwapchainVulkanExtent() const { return m_SwapchainExtent; }
+        VkExtent3D GetSwapchainVulkanExtent() const { return m_SwapchainExtent; }
 
       private:
         void InitVulkan();
@@ -136,7 +136,7 @@ namespace Elixir::Vulkan
 
         VkSwapchainKHR m_Swapchain;
         VkFormat m_SwapchainImageFormat;
-        VkExtent2D m_SwapchainExtent;
+        VkExtent3D m_SwapchainExtent;
         std::vector<SSwapchainImage> m_SwapchainImages;
         uint32_t m_CurrentSwapchainImageIndex = 0;
         bool m_SwapchainRecreateRequested = false;
