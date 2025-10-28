@@ -271,6 +271,7 @@ namespace Elixir
         [[nodiscard]] uint32_t GetArrayLayers() const { return m_ArrayLayers; }
 
         [[nodiscard]] uint32_t GetBitsPerPixel() const { return m_BitsPerPixel; }
+        [[nodiscard]] uint32_t GetBytesPerPixel() const { return m_BitsPerPixel / CHAR_BIT; }
         [[nodiscard]] size_t GetSize() const { return m_Size; }
 
         [[nodiscard]] bool IsHDR() const { return m_HDR; }
@@ -290,13 +291,13 @@ namespace Elixir
             const GraphicsContext* context,
             EImageFormat format,
             uint32_t width,
-            void* data = nullptr
+            const void* data = nullptr
         );
 
         static SImageCreateInfo CreateImageInfo(
             EImageFormat format,
             uint32_t width,
-            void* data = nullptr
+            const void* data = nullptr
         );
 
       protected:

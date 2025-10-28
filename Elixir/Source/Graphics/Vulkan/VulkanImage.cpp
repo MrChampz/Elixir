@@ -286,7 +286,7 @@ namespace Elixir::Vulkan
         const GraphicsContext* context,
         const EImageFormat format,
         const uint32_t width,
-        void* data
+        const void* data
     ) : VulkanImage(context, CreateImageInfo(format, width, data)) {}
 
     VulkanImage::VulkanImage(const GraphicsContext* context, const SImageCreateInfo& info)

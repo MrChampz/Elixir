@@ -12,21 +12,21 @@ namespace Elixir::Vulkan
             const GraphicsContext* context,
             EImageFormat format,
             uint32_t width,
-            void* data = nullptr,
+            const void* data = nullptr,
             const std::string& path = ""
         );
-        ~VulkanTexture() override;
 
-        using Image::Transition;
-        using Image::Copy;
-        using Image::CopyFrom;
-
-      protected:
         VulkanTexture(
             const GraphicsContext* context,
             const SImageCreateInfo& info,
             const std::string& path = ""
         );
+
+        ~VulkanTexture() override;
+
+        using Image::Transition;
+        using Image::Copy;
+        using Image::CopyFrom;
     };
 
     class ELIXIR_API VulkanTexture2D final : public VulkanBaseImage<Texture2D>
@@ -59,16 +59,16 @@ namespace Elixir::Vulkan
             uint32_t width,
             uint32_t height,
             uint32_t depth,
-            void* data = nullptr,
+            const void* data = nullptr,
             const std::string& path = ""
         );
-        ~VulkanTexture3D() override;
 
-      protected:
         VulkanTexture3D(
             const GraphicsContext* context,
             const SImageCreateInfo& info,
             const std::string& path = ""
         );
+
+        ~VulkanTexture3D() override;
     };
 }

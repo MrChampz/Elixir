@@ -26,7 +26,7 @@ namespace Elixir
         virtual void Init() = 0;
         virtual void Shutdown() = 0;
 
-        virtual void Prepare() = 0;
+        virtual bool Prepare() = 0;
         virtual void Submit() = 0;
         virtual void Present() = 0;
 

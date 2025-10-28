@@ -26,7 +26,7 @@ namespace Elixir
         EE_PROFILE_ZONE_SCOPED()
 
         const auto extent = image->GetExtent();
-        return extent.Width * extent.Height * extent.Depth * (image->GetBitsPerPixel() / 8);
+        return extent.Width * extent.Height * extent.Depth * image->GetBytesPerPixel();
     }
 
     /* Image */
@@ -123,7 +123,7 @@ namespace Elixir
         const GraphicsContext* context,
         EImageFormat format,
         uint32_t width,
-        void* data
+        const void* data
     )
     {
         switch (context->GetAPI())
@@ -139,7 +139,7 @@ namespace Elixir
     SImageCreateInfo Image::CreateImageInfo(
         const EImageFormat format,
         const uint32_t width,
-        void* data
+        const void* data
     )
     {
         return {

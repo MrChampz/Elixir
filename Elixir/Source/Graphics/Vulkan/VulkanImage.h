@@ -86,7 +86,7 @@ namespace Elixir::Vulkan
             const GraphicsContext* context,
             EImageFormat format,
             uint32_t width,
-            void* data = nullptr
+            const void* data = nullptr
         );
         VulkanImage(const GraphicsContext* context, const SImageCreateInfo& info);
         ~VulkanImage() override;

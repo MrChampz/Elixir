@@ -9,15 +9,9 @@ namespace Elixir::Vulkan
         const GraphicsContext* context,
         const EImageFormat format,
         const uint32_t width,
-        void* data,
+        const void* data,
         const std::string& path
     ) : VulkanTexture(context, CreateImageInfo(format, width, data), path) {}
-
-    VulkanTexture::~VulkanTexture()
-    {
-        EE_PROFILE_ZONE_SCOPED()
-        VulkanBaseImage::Destroy();
-    }
 
     VulkanTexture::VulkanTexture(
         const GraphicsContext* context,
@@ -27,6 +21,12 @@ namespace Elixir::Vulkan
     {
         EE_PROFILE_ZONE_SCOPED()
         m_Path = path;
+    }
+
+    VulkanTexture::~VulkanTexture()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        VulkanBaseImage::Destroy();
     }
 
     /* VulkanTexture2D */
@@ -64,15 +64,9 @@ namespace Elixir::Vulkan
         const uint32_t width,
         const uint32_t height,
         const uint32_t depth,
-        void* data,
+        const void* data,
         const std::string& path
     ) : VulkanTexture3D(context, CreateImageInfo(format, width, height, depth, data), path) {}
-
-    VulkanTexture3D::~VulkanTexture3D()
-    {
-        EE_PROFILE_ZONE_SCOPED()
-        VulkanBaseImage::Destroy();
-    }
 
     VulkanTexture3D::VulkanTexture3D(
         const GraphicsContext* context,
@@ -90,5 +84,11 @@ namespace Elixir::Vulkan
         // 	.Build();
 
         // SetSampler(sampler);
+    }
+
+    VulkanTexture3D::~VulkanTexture3D()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        VulkanBaseImage::Destroy();
     }
 }

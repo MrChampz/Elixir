@@ -74,7 +74,7 @@ namespace Elixir::Vulkan
         void Init() override;
         void Shutdown() override;
 
-        void Prepare() override;
+        bool Prepare() override;
         void Submit() override;
         void Present() override;
 

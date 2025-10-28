@@ -12,7 +12,7 @@ namespace Elixir
         const GraphicsContext* context,
         EImageFormat format,
         uint32_t width,
-        void* data,
+        const void* data,
         const std::string& path
     )
     {
@@ -29,7 +29,7 @@ namespace Elixir
     SImageCreateInfo Texture::CreateImageInfo(
         const EImageFormat format,
         const uint32_t width,
-        void* data,
+        const void* data,
         const std::string& path
     )
     {
@@ -50,7 +50,7 @@ namespace Elixir
         const GraphicsContext* context,
         const EImageFormat format,
         const uint32_t width,
-        void* data,
+        const void* data,
         const std::string& path
     ) : Texture(context, CreateImageInfo(format, width, data), path) {}
 
@@ -139,7 +139,7 @@ namespace Elixir
         uint32_t width,
         uint32_t height,
         uint32_t depth,
-        void* data,
+        const void* data,
         const std::string& path
     )
     {
@@ -158,7 +158,7 @@ namespace Elixir
         const uint32_t width,
         const uint32_t height,
         const uint32_t depth,
-        void* data
+        const void* data
     )
     {
         return {
@@ -182,7 +182,7 @@ namespace Elixir
         const uint32_t width,
         const uint32_t height,
         const uint32_t depth,
-        void* data,
+        const void* data,
         const std::string& path
     ) : Texture3D(context, CreateImageInfo(format, width, height, depth, data), path) {}
 

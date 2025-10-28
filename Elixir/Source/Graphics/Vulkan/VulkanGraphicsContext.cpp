@@ -196,7 +196,7 @@ namespace Elixir
         }
     }
 
-    void VulkanGraphicsContext::Prepare()
+    bool VulkanGraphicsContext::Prepare()
     {
         EE_PROFILE_ZONE_SCOPED()
 
@@ -231,15 +231,18 @@ namespace Elixir
         if (result == VK_ERROR_OUT_OF_DATE_KHR)
         {
             m_SwapchainRecreateRequested = true;
-            return;
+            return false;
         }
 
-        VK_CHECK_RESULT(result);
+        if (result != VK_SUBOPTIMAL_KHR)
+            VK_CHECK_RESULT(result);
 
         cmd->Reset();
         cmd->Begin();
 
         m_RenderTarget->Transition(cmd, EImageLayout::General);
+
+        return true;
     }
 
     void VulkanGraphicsContext::Submit()
@@ -266,9 +269,6 @@ namespace Elixir
             GetExtent3D(m_RenderTarget->GetExtent()),
             m_SwapchainExtent
         );
-
-        // // set swapchain image layout to Present so we can show it on the screen
-        // vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
     }
 
     void VulkanGraphicsContext::Present()
@@ -301,13 +301,14 @@ namespace Elixir
 
         const auto result = vkQueuePresentKHR(m_GraphicsQueue, &presentInfo);
 
-        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+        if (result == VK_ERROR_OUT_OF_DATE_KHR)
         {
             m_SwapchainRecreateRequested = true;
             return;
         }
 
-        VK_CHECK_RESULT(result);
+        if (result != VK_SUBOPTIMAL_KHR)
+            VK_CHECK_RESULT(result);
 
         m_FrameNumber++;
     }
@@ -345,7 +346,7 @@ namespace Elixir
     {
         EE_PROFILE_ZONE_SCOPED()
         m_WindowExtent = extent;
-        RecreateSwapchain();
+        m_SwapchainRecreateRequested = true;
     }
 
     void VulkanGraphicsContext::FlushCommandBuffer(CommandBuffer& cmd) const
@@ -368,7 +369,6 @@ namespace Elixir
         auto instanceResult = builder
             .set_app_name("Elixir Engine")
             .request_validation_layers(m_UseValidationLayers)
-            .add_debug_messenger_severity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT)
             .set_debug_callback(DeviceUtils::DebugCallback)
             .require_api_version(1, 3, 0)
             .build();
@@ -520,6 +520,8 @@ namespace Elixir
     {
         EE_PROFILE_ZONE_SCOPED()
 
+        if (extent.Width == 0 || extent.Height == 0) return;
+
         m_SwapchainImageFormat = VK_FORMAT_R8G8B8A8_UNORM;
         constexpr auto colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 
@@ -545,7 +547,7 @@ namespace Elixir
         const auto images = result.value().get_images().value();
         const auto views = result.value().get_image_views().value();
 
-        m_SwapchainImages.reserve(images.size());
+        m_SwapchainImages.resize(images.size());
 
         const auto semaphoreInfo = Initializers::SemaphoreCreateInfo();
         for (int i = 0; i < images.size(); i++)
@@ -560,12 +562,14 @@ namespace Elixir
                 )
             );
 
-            m_SwapchainImages.push_back({
+            m_SwapchainImages[i] = {
                 .Image = images[i],
                 .View = views[i],
                 .RenderSemaphore = semaphore
-            });
+            };
         }
+
+        m_CurrentSwapchainImageIndex = 0;
     }
 
     void VulkanGraphicsContext::DestroySwapchain()
@@ -578,7 +582,9 @@ namespace Elixir
             vkDestroyImageView(m_Device, view, nullptr);
         }
 
+        m_SwapchainImages.clear();
         vkDestroySwapchainKHR(m_Device, m_Swapchain, nullptr);
+        m_Swapchain = VK_NULL_HANDLE;
     }
 
     void VulkanGraphicsContext::RecreateSwapchain()

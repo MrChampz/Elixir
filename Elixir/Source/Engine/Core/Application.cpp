@@ -41,26 +41,7 @@ namespace Elixir
 
             const auto frameTime = m_Timer.GetLastFrameTime();
 
-            if (!m_Minimized)
-            {
-                m_Window->ShowFPSAndFrameTime(m_Profiler.GetFPS(), frameTime);
-
-                m_GraphicsContext->Prepare();
-
-                OnGUI(frameTime);
-                OnRender(frameTime);
-
-                m_GraphicsContext->Submit();
-                m_GraphicsContext->Present();
-
-                m_Profiler.OnUpdate(frameTime);
-            }
-            else
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                continue;
-            }
-
+            m_Profiler.OnUpdate(frameTime);
             m_Window->OnUpdate();
 
             if (InputManager::IsKeyPressed(EE_KEY_ESCAPE))
@@ -68,6 +49,22 @@ namespace Elixir
                 auto event = WindowCloseEvent();
                 OnWindowClose(event);
             }
+
+            if (m_Minimized)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                continue;
+            }
+
+            m_Window->ShowFPSAndFrameTime(m_Profiler.GetFPS(), frameTime);
+
+            if (!m_GraphicsContext->Prepare()) continue;
+
+            OnGUI(frameTime);
+            OnRender(frameTime);
+
+            m_GraphicsContext->Submit();
+            m_GraphicsContext->Present();
 
             EE_PROFILE_FRAME_MARK()
         }

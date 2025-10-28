@@ -15,14 +15,14 @@ namespace Elixir
             const GraphicsContext* context,
             EImageFormat format,
             uint32_t width,
-            void* data = nullptr,
+            const void* data = nullptr,
             const std::string& path = ""
         );
 
         static SImageCreateInfo CreateImageInfo(
             EImageFormat format,
             uint32_t width,
-            void* data = nullptr,
+            const void* data = nullptr,
             const std::string& path = ""
         );
 
@@ -31,7 +31,7 @@ namespace Elixir
             const GraphicsContext* context,
             EImageFormat format,
             uint32_t width,
-            void* data = nullptr,
+            const void* data = nullptr,
             const std::string& path = ""
         );
         Texture(
@@ -95,7 +95,7 @@ namespace Elixir
             uint32_t width,
             uint32_t height,
             uint32_t depth,
-            void* data = nullptr,
+            const void* data = nullptr,
             const std::string& path = ""
         );
 
@@ -104,7 +104,7 @@ namespace Elixir
             uint32_t width,
             uint32_t height,
             uint32_t depth,
-            void* data = nullptr
+            const void* data = nullptr
         );
 
     protected:
@@ -114,7 +114,7 @@ namespace Elixir
             uint32_t width,
             uint32_t height,
             uint32_t depth,
-            void* data = nullptr,
+            const void* data = nullptr,
             const std::string& path = ""
         );
         Texture3D(
