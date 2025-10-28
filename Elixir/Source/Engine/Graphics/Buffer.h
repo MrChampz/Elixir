@@ -114,7 +114,13 @@ namespace Elixir
 
         [[nodiscard]] const UUID& GetUUID() const { return m_UUID; }
         [[nodiscard]] EBufferUsage GetUsage() const { return m_Usage; }
+
+        /**
+         * Returns the buffer size in bytes.
+         * @return The buffer size in bytes.
+         */
         [[nodiscard]] size_t GetSize() const { return m_Size; }
+
         [[nodiscard]] const SAllocationInfo& GetAllocationInfo() const { return m_AllocationInfo; }
 
         bool operator==(const Buffer& other) const

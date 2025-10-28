@@ -1,9 +1,11 @@
 #include <gtest/gtest.h>
 using namespace testing;
 
+#include <Engine/Core/Window.h>
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Graphics/CommandBuffer.h>
 #include <Graphics/Vulkan/VulkanImage.h>
+using namespace Elixir;
 using namespace Elixir::Vulkan;
 
 class VulkanImageTest : public Test
@@ -12,7 +14,7 @@ class VulkanImageTest : public Test
     static void SetUpTestSuite()
     {
         Memory::s_Malloc = CreateScope<SystemMalloc>();
-        Window = Window::Create();
+        Window =    Window::Create();
         Context = GraphicsContext::Create(EGraphicsAPI::Vulkan, Window.get());
         Context->Init();
     }
@@ -59,7 +61,7 @@ TEST_F(VulkanImageTest, VulkanImage_CreationAndDestruction)
     ASSERT_NE(vk_Image->GetVulkanImage(), VK_NULL_HANDLE);
 
     EXPECT_EQ(image->GetWidth(), 800);
-    EXPECT_EQ(image->GetSize(), 800 * 32);
+    EXPECT_EQ(image->GetSize(), 800 * 4);
     EXPECT_EQ(image->GetType(), EImageType::_1D);
     EXPECT_EQ(image->GetFormat(), EImageFormat::R8G8B8A8_SRGB);
     EXPECT_EQ(image->GetMipLevels(), 1);
@@ -86,7 +88,7 @@ TEST_F(VulkanImageTest, VulkanDepthStencilImage_DepthOnly)
 
     EXPECT_EQ(image->GetWidth(), 800);
     EXPECT_EQ(image->GetHeight(), 600);
-    EXPECT_EQ(image->GetSize(), 800 * 600 * 32);
+    EXPECT_EQ(image->GetSize(), 800 * 600 * 4);
     EXPECT_EQ(image->GetType(), EImageType::_2D);
     EXPECT_EQ(image->GetFormat(), EImageFormat::D32_SFLOAT);
     EXPECT_EQ(image->GetMipLevels(), 1);
@@ -113,7 +115,7 @@ TEST_F(VulkanImageTest, VulkanDepthStencilImage_DepthStencil)
 
     EXPECT_EQ(image->GetWidth(), 800);
     EXPECT_EQ(image->GetHeight(), 600);
-    EXPECT_EQ(image->GetSize(), 800 * 600 * 40);
+    EXPECT_EQ(image->GetSize(), 800 * 600 * 5);
     EXPECT_EQ(image->GetType(), EImageType::_2D);
     EXPECT_EQ(image->GetFormat(), EImageFormat::D32_SFLOAT_S8_UINT);
     EXPECT_EQ(image->GetMipLevels(), 1);

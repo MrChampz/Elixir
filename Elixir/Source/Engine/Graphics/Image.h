@@ -272,6 +272,11 @@ namespace Elixir
 
         [[nodiscard]] uint32_t GetBitsPerPixel() const { return m_BitsPerPixel; }
         [[nodiscard]] uint32_t GetBytesPerPixel() const { return m_BitsPerPixel / CHAR_BIT; }
+
+        /**
+         * Returns the image/texture size in bytes.
+         * @return The image/texture size in bytes.
+         */
         [[nodiscard]] size_t GetSize() const { return m_Size; }
 
         [[nodiscard]] bool IsHDR() const { return m_HDR; }

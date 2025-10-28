@@ -30,7 +30,7 @@ namespace Elixir
          * Try to allocate memory, asserts if valid result.
          * @returns a tuple containing the ptr and the size of allocated memory.
          */
-        static std::tuple<void*, size_t> Alloc(const size_t size, const uint32_t alignment = DefaultAlignment)
+        static std::tuple<Byte*, size_t> Alloc(const size_t size, const uint32_t alignment = DefaultAlignment)
         {
             auto [ptr, allocatedSize] = s_Malloc->Alloc(size, alignment);
             EE_PROFILE_MEMORY_ALLOC(ptr, allocatedSize)
@@ -41,7 +41,7 @@ namespace Elixir
          * Try to allocate zeroed memory, asserts if valid result.
          * @returns a tuple containing the ptr and the size of allocated memory.
          */
-        static std::tuple<void*, size_t> AllocZeroed(const size_t size, const uint32_t alignment = DefaultAlignment)
+        static std::tuple<Byte*, size_t> AllocZeroed(const size_t size, const uint32_t alignment = DefaultAlignment)
         {
             auto [ptr, allocatedSize] = s_Malloc->AllocZeroed(size, alignment);
             EE_PROFILE_MEMORY_ALLOC(ptr, allocatedSize)
@@ -54,7 +54,7 @@ namespace Elixir
          * The final allocated size will be padded to alignment if unaligned size is provided.
          * @returns a tuple containing the ptr and the size of re-allocated memory.
          */
-        static std::tuple<void*, size_t> Realloc(void* ptr, const size_t newSize, const  uint32_t alignment = DefaultAlignment)
+        static std::tuple<Byte*, size_t> Realloc(Byte* ptr, const size_t newSize, const  uint32_t alignment = DefaultAlignment)
         {
             EE_PROFILE_MEMORY_FREE(ptr);
             auto [newPtr, allocatedSize] = s_Malloc->Realloc(ptr, newSize, alignment);
@@ -65,7 +65,7 @@ namespace Elixir
         /**
          * Free allocated memory.
          */
-        static void Free(void* ptr)
+        static void Free(Byte* ptr)
         {
             EE_PROFILE_MEMORY_FREE(ptr)
             s_Malloc->Free(ptr);
@@ -80,7 +80,7 @@ namespace Elixir
         static void Memset(void* dst, const uint8_t value, const size_t size)
         {
             EE_PROFILE_ZONE_SCOPED()
-            memset(dst, (int)value, size);
+            memset(dst, value, size);
         }
 
         static void Memzero(void* dst, const size_t size)

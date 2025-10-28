@@ -13,7 +13,7 @@ namespace Elixir
 {
     /* Malloc */
 
-    std::tuple<void*, size_t> Malloc::AllocZeroed(const size_t size, const uint32_t alignment)
+    std::tuple<Byte*, size_t> Malloc::AllocZeroed(const size_t size, const uint32_t alignment)
     {
         EE_PROFILE_ZONE_SCOPED()
         auto [ptr, allocatedSize] = Alloc(size, alignment);
@@ -38,7 +38,7 @@ namespace Elixir
 
     /* SystemMalloc */
 
-    std::tuple<void*, size_t> SystemMalloc::Alloc(const size_t size, const uint32_t alignment)
+    std::tuple<Byte*, size_t> SystemMalloc::Alloc(const size_t size, const uint32_t alignment)
     {
         EE_PROFILE_ZONE_SCOPED()
 
@@ -55,11 +55,11 @@ namespace Elixir
 
         EE_CORE_ASSERT(ptr != NULL, "Memory allocation failed!")
 
-        return { ptr, alignedSize };
+        return { (Byte*)ptr, alignedSize };
     }
 
-    std::tuple<void*, size_t> SystemMalloc::Realloc(
-        void* ptr,
+    std::tuple<Byte*, size_t> SystemMalloc::Realloc(
+        Byte* ptr,
         const size_t newSize,
         const uint32_t alignment
     )
@@ -84,18 +84,18 @@ namespace Elixir
         {
             void* newPtr = realloc(ptr, alignedSize);
             EE_CORE_ASSERT(newPtr != NULL, "Memory re-allocation failed!")
-            return { newPtr, alignedSize };
+            return { (Byte*)newPtr, alignedSize };
         }
 
 #if defined(_MSC_VER)
         void* newPtr = _aligned_realloc(ptr, alignedSize, memoryAlignment);
         EE_CORE_ASSERT(newPtr != NULL, "Memory re-allocation failed!")
-        return { newPtr, alignedSize };
+        return { (Byte*)newPtr, alignedSize };
 #else
         auto [newPtr, allocatedSize] = Alloc(alignedSize, memoryAlignment);
         EE_CORE_ASSERT(newPtr != NULL, "Memory re-allocation failed!")
 
-        size_t usableSize = allocatedSize;
+        size_t usableSize = 0;
 #if defined(__APPLE__)
         usableSize = malloc_size(ptr);
 #else
@@ -109,7 +109,7 @@ namespace Elixir
 #endif
     }
 
-    void SystemMalloc::Free(void* ptr)
+    void SystemMalloc::Free(Byte* ptr)
     {
         EE_PROFILE_ZONE_SCOPED()
 #if defined(_MSC_VER)

@@ -130,7 +130,7 @@ m_DebugName = "DynamicBuffer[" + m_UUID.ToString() + "]";
     SBufferCreateInfo StagingBuffer::CreateBufferInfo(const size_t size, const void* data)
     {
         return {
-            .Buffer = SBuffer((const Byte*)data, size),
+            .Buffer = SBuffer(data, size),
             .Usage = EBufferUsage::TransferSrc,
             .AllocationInfo = {
                 .RequiredFlags = EMemoryProperty::HostVisible | EMemoryProperty::HostCoherent,
@@ -184,7 +184,7 @@ m_DebugName = "StagingBuffer[" + m_UUID.ToString() + "]";
     SBufferCreateInfo VertexBuffer::CreateBufferInfo(const size_t size, const void* data)
     {
         return {
-            .Buffer = SBuffer((Byte*)data, size),
+            .Buffer = SBuffer(data, size),
             .Usage = VERTEX_BUFFER_USAGE,
             .AllocationInfo = {
                 .PreferredFlags = EMemoryProperty::DeviceLocal
@@ -238,7 +238,7 @@ m_DebugName = "VertexBuffer[" + m_UUID.ToString() + "]";
     SBufferCreateInfo IndexBuffer::CreateBufferInfo(const size_t size, const void* data)
     {
         return {
-            .Buffer = SBuffer((Byte*)data, size),
+            .Buffer = SBuffer(data, size),
             .Usage = INDEX_BUFFER_USAGE,
             .AllocationInfo = {
                 .PreferredFlags = EMemoryProperty::DeviceLocal
@@ -292,7 +292,7 @@ m_DebugName = "IndexBuffer[" + m_UUID.ToString() + "]";
     SBufferCreateInfo UniformBuffer::CreateBufferInfo(const size_t size, const void* data)
     {
         return {
-            .Buffer = SBuffer((Byte*)data, size),
+            .Buffer = SBuffer(data, size),
             .Usage = EBufferUsage::UniformBuffer,
             .AllocationInfo = {
                 .PreferredFlags = EMemoryProperty::HostVisible | EMemoryProperty::HostCoherent

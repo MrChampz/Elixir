@@ -14,8 +14,8 @@ namespace Elixir
         SBuffer() : SBuffer((Byte*)nullptr, 0) {}
         explicit SBuffer(const size_t size) : SBuffer((Byte*)nullptr, size) {}
 
-        // SBuffer(void* data, const size_t size) : SBuffer((std::byte*)data, size) {}
-        // SBuffer(const void* data, const size_t size) : SBuffer((const std::byte*)data, size) {}
+        SBuffer(void* data, const size_t size) : SBuffer((Byte*)data, size) {}
+        SBuffer(const void* data, const size_t size) : SBuffer((const Byte*)data, size) {}
 
         SBuffer(Byte* data, const size_t size) : Data(data), Size(size)
         {
@@ -42,7 +42,7 @@ namespace Elixir
             if (size == 0) return;
 
             auto [ptr, allocatedSize] = Memory::Alloc(size);
-            Data = (Byte*)ptr;
+            Data = ptr;
             Size = allocatedSize;
         }
 

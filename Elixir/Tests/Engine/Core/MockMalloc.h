@@ -10,8 +10,8 @@ class MockMalloc final : public Malloc
     MockMalloc() = default;
     ~MockMalloc() override = default;
 
-    MOCK_METHOD((std::tuple<void*, size_t>), Alloc, (size_t, uint32_t), (override));
-    MOCK_METHOD((std::tuple<void*, size_t>), AllocZeroed, (size_t, uint32_t), (override));
-    MOCK_METHOD((std::tuple<void*, size_t>), Realloc, (void*, size_t, uint32_t), (override));
-    MOCK_METHOD(void, Free, (void*), (override));
+    MOCK_METHOD((std::tuple<Byte*, size_t>), Alloc, (size_t, uint32_t), (override));
+    MOCK_METHOD((std::tuple<Byte*, size_t>), AllocZeroed, (size_t, uint32_t), (override));
+    MOCK_METHOD((std::tuple<Byte*, size_t>), Realloc, (Byte*, size_t, uint32_t), (override));
+    MOCK_METHOD(void, Free, (Byte*), (override));
 };

@@ -163,7 +163,7 @@ TEST_F(VulkanBufferTest, VulkanVertexBuffer_MoveConstructorIsDeleted)
 TEST_F(VulkanBufferTest, VulkanVertexBuffer_CreationAndAddress)
 {
     constexpr size_t size = 512;
-    const std::vector<uint8_t> data(size, 0xAA);
+    const std::vector data(size, (Byte)0xAA);
 
     const auto buffer = VertexBuffer::Create(Context.get(), size, data.data());
 

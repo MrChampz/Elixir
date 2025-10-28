@@ -68,10 +68,9 @@ TEST_F(SystemMallocTest, AllocZeroedReturnsZeroedMemory)
     ASSERT_NE(ptr, nullptr);
     ASSERT_EQ(size, 32u);
 
-    const auto* data = static_cast<uint8_t*>(ptr);
     for (size_t i = 0; i < size; ++i)
     {
-        EXPECT_EQ(data[i], 0u) << "Byte at index " << i << " not zeroed";
+        EXPECT_EQ(ptr[i], (Byte)0) << "Byte at index " << i << " not zeroed";
     }
 
     Malloc.Free(ptr);
@@ -81,16 +80,15 @@ TEST_F(SystemMallocTest, ReallocExpandsAndPreservesData)
 {
     auto [ptr, oldSize] = Malloc.Alloc(64);
     ASSERT_NE(ptr, nullptr);
-    std:memset(ptr, 0xCD, oldSize);
+    memset(ptr, 0xCD, oldSize);
 
     auto [newPtr, newSize] = Malloc.Realloc(ptr, 128);
     ASSERT_NE(newPtr, nullptr);
     ASSERT_EQ(newSize, 128u);
 
-    const auto* data = static_cast<uint8_t*>(newPtr);
     for (size_t i = 0; i < oldSize; ++i)
     {
-        EXPECT_EQ(data[i], 0xCD) << "Byte at index " << i << " not preserved after realloc";
+        EXPECT_EQ(newPtr[i], (Byte)0xCD) << "Byte at index " << i << " not preserved after realloc";
     }
 
     Malloc.Free(newPtr);
