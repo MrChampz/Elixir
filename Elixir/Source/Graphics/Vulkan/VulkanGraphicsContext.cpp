@@ -602,7 +602,7 @@ namespace Elixir
         int width, height;
         glfwGetFramebufferSize((GLFWwindow*)m_Window->GetNativeWindow(), &width, &height);
 
-        auto info = Texture2D::CreateImageInfo(EImageFormat::R8G8B8A8_UNORM, width, height);
+        auto info = Texture2D::CreateImageInfo(EImageFormat::R8G8B8A8_SRGB, width, height);
         info.Usage = EImageUsage::ColorAttachment | EImageUsage::TransferSrc | EImageUsage::TransferDst;
         info.InitialLayout = EImageLayout::General;
         m_RenderTarget = CreateRef<VulkanTexture2D>(this, info);

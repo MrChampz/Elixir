@@ -101,10 +101,25 @@ namespace Elixir
         BufferLayout VertexBufferLayout;
     };
 
-    class ELIXIR_API GraphicsPipeline
+    class ELIXIR_API Pipeline
+    {
+    public:
+        virtual ~Pipeline() = default;
+
+        virtual void Bind(const Ref<CommandBuffer>& cmd) = 0;
+
+        const Ref<Shader>& GetShader() const { return m_Shader; }
+
+      protected:
+        explicit Pipeline(const SPipelineCreateInfo& info) : m_Shader(info.Shader) {}
+
+        const Ref<Shader> m_Shader;
+    };
+
+    class ELIXIR_API GraphicsPipeline : public Pipeline
     {
       public:
-        virtual ~GraphicsPipeline() = default;
+        ~GraphicsPipeline() override = default;
 
         static Ref<GraphicsPipeline> Create(
             const GraphicsContext* context,
@@ -125,7 +140,6 @@ namespace Elixir
 
         BufferLayout m_BufferLayout;
 
-        const Ref<Shader> m_Shader;
         const GraphicsContext* m_GraphicsContext;
     };
 }

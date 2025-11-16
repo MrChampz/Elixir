@@ -15,4 +15,6 @@ private:
     void DrawGeometry(const Ref<CommandBuffer>& cmd);
 
     Scope<Executor> m_Executor;
+
+    Extent2D m_DrawExtent;
 };

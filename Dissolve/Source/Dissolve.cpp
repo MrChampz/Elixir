@@ -4,11 +4,14 @@
 
 #include <Engine/Core/Entrypoint.h>
 
+Ref<GraphicsPipeline> pipeline;
+
 Dissolve::Dissolve()
 {
     EE_PROFILE_ZONE_SCOPED()
 
     m_Window->SetTitle("Dissolve");
+    m_DrawExtent = { m_Window->GetWidth(), m_Window->GetHeight() };
 
     const auto tex = TextureLoader::Load("./Assets/Bricks.png");
 
@@ -17,14 +20,13 @@ Dissolve::Dissolve()
     //const auto shader = loader->LoadShader("./Shaders/", "Basic");
     //shader->GetName();
 
-    const auto shader1 = loader->LoadShader("./Shaders/", "Texture");
-    shader1->BindTexture("texture", tex);
-    shader1->GetName();
+    const auto shader1 = loader->LoadShader("./Shaders/", "FixedTriangle");
+    //shader1->BindTexture("texture", tex);
 
-    BufferLayout bufferLayout({
-        { EDataType::Vec3, "Pos" },
-        { EDataType::Vec2, "Tex" }
-    });
+    // BufferLayout bufferLayout({
+    //     { EDataType::Vec3, "Pos" },
+    //     { EDataType::Vec2, "Tex" }
+    // });
 
     PipelineBuilder builder;
     builder.SetShader(shader1);
@@ -34,10 +36,8 @@ Dissolve::Dissolve()
     builder.DisableDepthTest();
     builder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
     builder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
-    builder.SetBufferLayout(bufferLayout);
-    //const auto pipeline = builder.Build(m_GraphicsContext.get());
-
-
+    builder.SetBufferLayout({});
+    pipeline = builder.Build(m_GraphicsContext.get());
 }
 
 void Dissolve::OnGUI(const Timestep frameTime)
@@ -65,17 +65,33 @@ void Dissolve::OnRender(const Timestep frameTime)
 
 void Dissolve::DrawGeometry(const Ref<CommandBuffer>& cmd)
 {
-    //cmd->BeginRendering
+    cmd->BeginRendering(
+        m_GraphicsContext->GetRenderTarget(),
+        nullptr,
+        m_DrawExtent
+    );
+    
+    Viewport viewport = {};
+    viewport.X = 0;
+    viewport.Y = 0;
+    viewport.Width = m_DrawExtent.Width;
+    viewport.Height = m_DrawExtent.Height;
+    viewport.MinDepth = 0.0f;
+    viewport.MaxDepth = 1.0f;
 
-    //pipeline->Bind(cmd);
+    cmd->SetViewports({ viewport });
 
-    // Set viewport
+    Rect2D scissor = {};
+    scissor.Offset = { 0, 0 };
+    scissor.Extent = m_DrawExtent;
 
-    // Set scissors
+    cmd->SetScissors({ scissor });
 
-    // cmd->Draw(3);
+    pipeline->Bind(cmd);
 
-    // cmd->EndRendering();
+    cmd->Draw(3);
+
+    cmd->EndRendering();
 }
 
 Application* Elixir::CreateApplication()

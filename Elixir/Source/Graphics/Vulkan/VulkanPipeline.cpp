@@ -2,6 +2,7 @@
 #include "VulkanPipeline.h"
 
 #include "Utils.h"
+#include "VulkanCommandBuffer.h"
 #include "VulkanShader.h"
 #include "VulkanShaderModule.h"
 
@@ -30,6 +31,12 @@ namespace Elixir::Vulkan
 
         m_ShaderStages.clear();
         m_PipelineLayout = VK_NULL_HANDLE;
+    }
+
+    void VulkanGraphicsPipeline::Bind(const Ref<CommandBuffer>& cmd)
+    {
+        cmd->BindPipeline(this);
+        m_Shader->Bind(cmd);
     }
 
     void VulkanGraphicsPipeline::BindShader()
@@ -245,7 +252,7 @@ namespace Elixir::Vulkan
         return info;
     }
 
-    VkPipelineDynamicStateCreateInfo VulkanGraphicsPipeline::CreateDynamicState()
+    VkPipelineDynamicStateCreateInfo VulkanGraphicsPipeline::CreateDynamicState() const
     {
         VkPipelineDynamicStateCreateInfo info = {};
         info.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;

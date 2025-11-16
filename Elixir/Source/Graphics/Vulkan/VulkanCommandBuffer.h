@@ -21,6 +21,13 @@ namespace Elixir::Vulkan
 
         void Reset() override;
 
+        /** Drawing methods **/
+
+        void BeginRendering(
+            const Ref<Texture>& colorAttachment,
+            const Ref<DepthStencilImage>& depthStencilAttachment,
+            Extent2D renderArea
+        ) override;
         void EndRendering() override;
 
         void Draw(
@@ -38,8 +45,24 @@ namespace Elixir::Vulkan
             uint32_t firstInstance
         ) override;
 
+        /** Set methods **/
+
         void SetViewports(const std::vector<Viewport>& viewports, uint32_t firstViewport) override;
         void SetScissors(const std::vector<Rect2D>& scissors, uint32_t firstScissor) override;
+
+        /** Bind methods **/
+
+        void BindPipeline(const GraphicsPipeline* pipeline) override;
+
+        void BindDescriptorSets(
+            VkPipelineLayout layout,
+            uint32_t firstSet,
+            const std::vector<VkDescriptorSet>& descriptorSets,
+            uint32_t dynamicOffsetCount = 0,
+            const uint32_t* dynamicOffsets = nullptr
+        ) const;
+
+        /** Submit and execution methods **/
 
         void Flush() override;
 

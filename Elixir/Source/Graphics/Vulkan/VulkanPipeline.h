@@ -15,6 +15,8 @@ namespace Elixir::Vulkan
         VulkanGraphicsPipeline(const GraphicsContext* context, const SPipelineCreateInfo& info);
         ~VulkanGraphicsPipeline() override;
 
+        void Bind(const Ref<CommandBuffer>& cmd) override;
+
         VkPipeline GetVulkanPipeline() const { return m_Pipeline; }
 
       protected:
@@ -28,7 +30,7 @@ namespace Elixir::Vulkan
         VkPipelineMultisampleStateCreateInfo CreateMultisampleState() const;
         VkPipelineColorBlendStateCreateInfo CreateColorBlendState() const;
         VkPipelineDepthStencilStateCreateInfo CreateDepthStencilState() const;
-        VkPipelineDynamicStateCreateInfo CreateDynamicState();
+        VkPipelineDynamicStateCreateInfo CreateDynamicState() const;
 
         VkPipeline m_Pipeline;
         VkPipelineLayout m_PipelineLayout;

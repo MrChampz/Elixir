@@ -113,4 +113,69 @@ namespace Elixir::Vulkan::Initializers
 
         return info;
     }
+
+    static VkRenderingAttachmentInfo AttachmentInfo(
+        const Ref<Image>& image,
+        const VkClearValue* clear = nullptr,
+        VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED
+    )
+    {
+        const   auto vkImage = TryToGetVulkanImage(image.get());
+
+        VkRenderingAttachmentInfo info = {};
+        info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        info.pNext = nullptr;
+        info.imageView = vkImage->GetVulkanImageView();
+        info.imageLayout = layout == VK_IMAGE_LAYOUT_UNDEFINED
+            ? Converters::GetImageLayout(image->GetLayout())
+            : layout;
+        info.loadOp = clear ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD;
+        info.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+        if (clear)
+            info.clearValue = *clear;
+
+        return info;
+    }
+
+    static VkRenderingAttachmentInfo DepthStencilAttachmentInfo(
+        const Ref<DepthStencilImage>& image,
+        const VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED
+    )
+    {
+        const auto vkImage = TryToGetVulkanImage(image.get());
+
+        VkRenderingAttachmentInfo info = {};
+        info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        info.pNext = nullptr;
+        info.imageView = vkImage->GetVulkanImageView();
+        info.imageLayout = layout == VK_IMAGE_LAYOUT_UNDEFINED
+            ? Converters::GetImageLayout(image->GetLayout())
+            : layout;
+        info.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        info.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        info.clearValue.depthStencil = { 0.0f, 0 };
+
+        return info;
+    }
+
+    static VkRenderingInfo RenderingInfo(
+        const Extent2D& extent,
+        const VkRenderingAttachmentInfo* colorAttachments,
+        const VkRenderingAttachmentInfo* depthAttachment = nullptr
+    )
+    {
+        VkRenderingInfo info = {};
+        info.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+        info.pNext = nullptr;
+        info.renderArea.offset = { 0, 0 };
+        info.renderArea.extent = Converters::GetExtent2D(extent);
+        info.layerCount = 1;
+        info.colorAttachmentCount = 1;
+        info.pColorAttachments = colorAttachments;
+        info.pDepthAttachment = depthAttachment;
+        info.pStencilAttachment = nullptr;
+
+        return info;
+    }
 }

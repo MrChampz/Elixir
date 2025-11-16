@@ -19,6 +19,7 @@ namespace Elixir::Vulkan
         virtual ~VulkanBaseImageBase() = default;
 
         virtual VkImage GetVulkanImage() const = 0;
+        virtual VkImageView GetVulkanImageView() const = 0;
         virtual const VkDescriptorImageInfo& GetVulkanDescriptorInfo() const = 0;
 
       protected:
@@ -54,6 +55,7 @@ namespace Elixir::Vulkan
         [[nodiscard]] bool IsValid() const override { return m_Image != VK_NULL_HANDLE; }
 
         [[nodiscard]] VkImage GetVulkanImage() const override { return m_Image; }
+        [[nodiscard]] VkImageView GetVulkanImageView() const override { return m_ImageView; }
         [[nodiscard]] const VkDescriptorImageInfo& GetVulkanDescriptorInfo() const override { return m_DescriptorInfo; }
 
         VulkanBaseImage& operator=(const VulkanBaseImage&) = delete;

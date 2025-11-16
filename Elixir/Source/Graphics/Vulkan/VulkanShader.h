@@ -13,10 +13,14 @@ namespace Elixir::Vulkan
         VulkanShader(const GraphicsContext* context, SShaderCreateInfo&& info);
         ~VulkanShader() override;
 
+        void Bind(const Ref<CommandBuffer>& cmd) override;
+
         void SetPushConstant(const std::string& name, void* data, size_t size) override;
         void SetConstantBuffer(const std::string& name, void* data, size_t size) override;
         void BindTexture(const std::string& name, const Ref<Texture>& texture) override;
 
+        [[nodiscard]] const std::vector<VkDescriptorSetLayout>& GetDescriptorSetLayouts() const { return m_DescriptorSetLayouts; }
+        [[nodiscard]] const std::vector<VkDescriptorSet>& GetDescriptorSets() const { return m_DescriptorSets; }
         [[nodiscard]] const VkPipelineLayout& GetPipelineLayout() const { return m_PipelineLayout; }
 
       protected:

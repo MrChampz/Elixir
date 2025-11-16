@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Engine/Graphics/Pipeline/Pipeline.h"
+
 #include <Engine/Graphics/Texture.h>
 #include <Engine/Graphics/Sampler.h>
 #include <Engine/Graphics/Shader/ShaderBinding.h>
@@ -49,6 +51,8 @@ namespace Elixir
     {
       public:
         virtual ~Shader() = default;
+
+        virtual void Bind(const Ref<CommandBuffer>& cmd) = 0;
 
         virtual void SetPushConstant(const std::string& name, void* data, size_t size) = 0;
         virtual void SetConstantBuffer(const std::string& name, void* data, size_t size) = 0;

@@ -5,6 +5,9 @@
 
 namespace Elixir
 {
+    class Texture;
+    class GraphicsPipeline;
+
     class ELIXIR_API CommandBuffer
     {
     public:
@@ -15,12 +18,14 @@ namespace Elixir
 
         virtual void Reset() = 0;
 
+        /** Drawing methods **/
+
         //virtual void BeginRendering(const Ref<Texture>& colorAttachment, Extent2D renderArea) = 0;
-        // virtual void BeginRendering(
-        //     const Ref<Texture>& colorAttachment,
-        //     const Ref<DepthStencilImage>& depthStencilAttachment,
-        //     Extent2D renderArea
-        // ) = 0;
+        virtual void BeginRendering(
+            const Ref<Texture>& colorAttachment,
+            const Ref<DepthStencilImage>& depthStencilAttachment,
+            Extent2D renderArea
+        ) = 0;
         virtual void EndRendering() = 0;
 
         virtual void Draw(
@@ -38,13 +43,7 @@ namespace Elixir
             uint32_t firstInstance = 0
         ) = 0;
 
-        // virtual void BindVertexBuffers(
-        //     std::span<const Ref<VertexBuffer>> vertexBuffers,
-        //     std::span<uint64_t> offsets = {},
-        //     uint32_t bindingCount = 1,
-        //     uint32_t firstBinding = 0
-        // ) = 0;
-        // virtual void BindIndexBuffer(const Ref<IndexBuffer> indexBuffer) = 0;
+        /** Set methods **/
 
         virtual void SetViewports(
             const std::vector<Viewport>& viewports,
@@ -55,6 +54,27 @@ namespace Elixir
             const std::vector<Rect2D>& scissors,
             uint32_t firstScissor = 0
         ) = 0;
+
+        /** Bind methods **/
+
+        /**
+         * Binds a pipeline for Command Buffer execution.
+         * NOTE: This method should not be used directly!
+         * It's intended to be used by Pipeline implementation.
+         *
+         * @param pipeline GraphicsPipeline instance to be bound.
+         */
+        virtual void BindPipeline(const GraphicsPipeline* pipeline) = 0;
+
+        // virtual void BindVertexBuffers(
+        //     std::span<const Ref<VertexBuffer>> vertexBuffers,
+        //     std::span<uint64_t> offsets = {},
+        //     uint32_t bindingCount = 1,
+        //     uint32_t firstBinding = 0
+        // ) = 0;
+        // virtual void BindIndexBuffer(const Ref<IndexBuffer> indexBuffer) = 0;
+
+        /** Resource handling methods **/
 
         // virtual void TransitionImage(Image* image, EImageLayout layout);
         // virtual void TransitionImage(const Ref<Image>& image, EImageLayout layout);
@@ -85,6 +105,8 @@ namespace Elixir
 
         // virtual void CopyImage(const Ref<Image>& src, const Ref<Image>& dst);
         // virtual void CopyImage(const Ref<Image>& src, const Ref<Image>& dst, Extent3D dstExtent);
+
+        /** Submit and execution methods **/
 
         // virtual void Submit(
         //     const Ref<Pipeline>& pipeline,

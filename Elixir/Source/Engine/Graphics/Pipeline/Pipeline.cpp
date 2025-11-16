@@ -24,7 +24,7 @@ namespace Elixir
     GraphicsPipeline::GraphicsPipeline(
         const GraphicsContext* context,
         const SPipelineCreateInfo& info
-    ) : m_Shader(info.Shader), m_GraphicsContext(context)
+    ) : Pipeline(info), m_GraphicsContext(context)
     {
         EE_PROFILE_ZONE_SCOPED()
         m_InputAssembly = info.InputAssembly;

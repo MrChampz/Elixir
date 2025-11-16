@@ -4,6 +4,7 @@
 #include "VulkanBuffer.h"
 #include "Converters.h"
 #include "Utils.h"
+#include "VulkanCommandBuffer.h"
 
 #include <ranges>
 
@@ -50,6 +51,17 @@ namespace Elixir::Vulkan
         }
 
         m_DescriptorSetLayouts.clear();
+    }
+
+    void VulkanShader::Bind(const Ref<CommandBuffer>& cmd)
+    {
+        const auto vkCmd = static_pointer_cast<VulkanCommandBuffer>(cmd);
+        vkCmd->BindDescriptorSets(m_PipelineLayout, 0, m_DescriptorSets);
+
+        // for (auto& constant : m_PushConstants)
+        // {
+        //
+        // }
     }
 
     void VulkanShader::SetPushConstant(const std::string& name, void* data, size_t size)

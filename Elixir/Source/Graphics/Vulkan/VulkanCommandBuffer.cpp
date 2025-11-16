@@ -4,6 +4,7 @@
 #include "VulkanGraphicsContext.h"
 #include "Converters.h"
 #include "Utils.h"
+#include "VulkanPipeline.h"
 
 namespace Elixir::Vulkan
 {
@@ -82,6 +83,31 @@ namespace Elixir::Vulkan
     {
         EE_PROFILE_ZONE_SCOPED()
         VK_CHECK_RESULT(vkResetCommandBuffer(m_CommandBuffer, 0));
+    }
+
+    void VulkanCommandBuffer::BeginRendering(
+        const Ref<Texture>& colorAttachment,
+        const Ref<DepthStencilImage>& depthStencilAttachment,
+        const Extent2D renderArea
+    )
+    {
+        const VkRenderingAttachmentInfo* depthStencilInfo = nullptr;
+
+        const auto colorInfo = Initializers::AttachmentInfo(colorAttachment);
+
+        if (depthStencilAttachment)
+        {
+            const auto info = Initializers::DepthStencilAttachmentInfo(depthStencilAttachment);
+            depthStencilInfo = &info;
+        }
+
+        const auto renderInfo = Initializers::RenderingInfo(
+            renderArea,
+            &colorInfo,
+            depthStencilInfo
+        );
+
+        vkCmdBeginRendering(m_CommandBuffer, &renderInfo);
     }
 
     void VulkanCommandBuffer::EndRendering()
@@ -163,6 +189,38 @@ namespace Elixir::Vulkan
             firstScissor,
             (uint32_t)data.size(),
             data.data()
+        );
+    }
+
+    void VulkanCommandBuffer::BindPipeline(const GraphicsPipeline* pipeline)
+    {
+        const auto vkPipeline = static_cast<const VulkanGraphicsPipeline*>(pipeline);
+        vkCmdBindPipeline(
+            m_CommandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            vkPipeline->GetVulkanPipeline()
+        );
+    }
+
+    void VulkanCommandBuffer::BindDescriptorSets(
+        const VkPipelineLayout layout,
+        const uint32_t firstSet,
+        const std::vector<VkDescriptorSet>& descriptorSets,
+        const uint32_t dynamicOffsetCount,
+        const uint32_t* dynamicOffsets
+    ) const
+    {
+        if (descriptorSets.empty()) return;
+
+        vkCmdBindDescriptorSets(
+            m_CommandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            layout,
+            firstSet,
+            descriptorSets.size(),
+            descriptorSets.data(),
+            dynamicOffsetCount,
+            dynamicOffsets
         );
     }
 
