@@ -6,7 +6,7 @@ class Dissolve final : public Application
 {
 public:
     Dissolve();
-    ~Dissolve() override = default;
+    ~Dissolve() override;
 
     void OnGUI(Timestep frameTime) override;
     void OnRender(Timestep frameTime) override;

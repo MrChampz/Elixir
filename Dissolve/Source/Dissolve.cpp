@@ -40,6 +40,11 @@ Dissolve::Dissolve()
     pipeline = builder.Build(m_GraphicsContext.get());
 }
 
+Dissolve::~Dissolve()
+{
+    pipeline.reset();
+}
+
 void Dissolve::OnGUI(const Timestep frameTime)
 {
     EE_PROFILE_ZONE_SCOPED()
@@ -70,7 +75,7 @@ void Dissolve::DrawGeometry(const Ref<CommandBuffer>& cmd)
         nullptr,
         m_DrawExtent
     );
-    
+
     Viewport viewport = {};
     viewport.X = 0;
     viewport.Y = 0;

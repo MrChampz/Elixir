@@ -27,12 +27,12 @@ namespace Elixir
         return str.substr(stage + 1, format - stage - 1);
     }
 
-    constexpr std::optional<EShaderStage> GetShaderStage(const std::filesystem::path& filepath)
+    std::optional<EShaderStage> GetShaderStage(const std::filesystem::path& filepath)
     {
         const auto extension = GetShaderFileExtension(filepath);
 
         using pair = std::pair<std::string_view, EShaderStage>;
-        constexpr std::array<pair, static_cast<size_t>(EShaderStage::Count)> lookup {{
+        static constexpr std::array<pair, static_cast<size_t>(EShaderStage::Count)> lookup {{
             { "vs", EShaderStage::Vertex   },
             { "hs", EShaderStage::Hull     },
             { "ds", EShaderStage::Domain   },
@@ -121,7 +121,7 @@ namespace Elixir
                 const auto& files = GetShaderFilesInDirectory(directory, name);
                 if (files.empty())
                 {
-                    EE_CORE_ERROR("No shader files found at path! [Path = {0}]", directory.c_str())
+                    EE_CORE_ERROR("No shader files found at path! [Path = {0}]", directory.string())
                     return nullptr;
                 }
 
@@ -138,17 +138,17 @@ namespace Elixir
             }
             catch (const std::filesystem::filesystem_error&)
             {
-                EE_CORE_ERROR("Cannot access shader directory! [Path = {0}]", directory.c_str())
+                EE_CORE_ERROR("Cannot access shader directory! [Path = {0}]", directory.string())
                 return nullptr;
             }
             catch (const std::exception& error)
             {
-                EE_CORE_ERROR("Error trying to load shader: \"{0}\", [Path = {1}]", error.what(), directory.c_str())
+                EE_CORE_ERROR("Error trying to load shader: \"{0}\", [Path = {1}]", error.what(), directory.string())
                 return nullptr;
             }
         }
 
-        EE_CORE_ERROR("Shader path is not a directory! [Path = {0}]", directory.c_str())
+        EE_CORE_ERROR("Shader path is not a directory! [Path = {0}]", directory.string())
         return nullptr;
     }
 

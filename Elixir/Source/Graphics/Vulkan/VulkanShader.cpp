@@ -31,15 +31,19 @@ namespace Elixir::Vulkan
             nullptr
         );
 
-        // TODO: Set descriptor sets as unused in Command Pool
-        VK_CHECK_RESULT(
-            vkFreeDescriptorSets(
-                m_GraphicsContext->GetDevice(),
-                m_GraphicsContext->GetDescriptorPool(),
-                m_DescriptorSets.size(),
-                m_DescriptorSets.data()
-            )
-        );
+        if (!m_DescriptorSets.empty())
+        {
+            // TODO: Set descriptor sets as unused in Command Pool
+            VK_CHECK_RESULT(
+                vkFreeDescriptorSets(
+                    m_GraphicsContext->GetDevice(),
+                    m_GraphicsContext->GetDescriptorPool(),
+                    m_DescriptorSets.size(),
+                    m_DescriptorSets.data()
+                )
+            );
+            m_DescriptorSets.clear();
+        }
 
         for (const auto& layout : m_DescriptorSetLayouts)
         {
