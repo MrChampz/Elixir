@@ -1,4 +1,4 @@
-#include "Dissolve.h"
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        #include "Dissolve.h"
 
 #include "Engine/Graphics/Shader/ShaderLoader.h"
 
@@ -32,10 +32,11 @@ Dissolve::Dissolve()
     builder.SetShader(shader1);
     builder.SetInputTopology(EPrimitiveTopology::TriangleList);
     builder.SetPolygonMode(EPolygonMode::Fill);
+    //builder.SetCullMode(ECullMode::None, EFrontFace::Clockwise);
     builder.DisableBlending();
     builder.DisableDepthTest();
     builder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
-    builder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
+    //builder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
     builder.SetBufferLayout({});
     pipeline = builder.Build(m_GraphicsContext.get());
 }

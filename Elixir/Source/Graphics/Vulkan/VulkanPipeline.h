@@ -28,7 +28,7 @@ namespace Elixir::Vulkan
         VkPipelineViewportStateCreateInfo CreateViewportState();
         VkPipelineRasterizationStateCreateInfo CreateRasterizationState() const;
         VkPipelineMultisampleStateCreateInfo CreateMultisampleState() const;
-        VkPipelineColorBlendStateCreateInfo CreateColorBlendState() const;
+        VkPipelineColorBlendStateCreateInfo CreateColorBlendState();
         VkPipelineDepthStencilStateCreateInfo CreateDepthStencilState() const;
         VkPipelineDynamicStateCreateInfo CreateDynamicState() const;
 
@@ -39,6 +39,8 @@ namespace Elixir::Vulkan
         std::vector<VkVertexInputAttributeDescription> m_Attributes;
 
         std::vector<VkPipelineShaderStageCreateInfo> m_ShaderStages;
+
+        std::vector<VkPipelineColorBlendAttachmentState> m_ColorBlendAttachments;
 
         std::array<VkDynamicState, 2> m_DynamicState =
         {

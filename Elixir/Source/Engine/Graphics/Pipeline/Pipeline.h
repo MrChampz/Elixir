@@ -45,14 +45,15 @@ namespace Elixir
 
     struct SColorBlendAttachment
     {
-        bool BlendEnable;
+        bool BlendEnable = false;
         EBlendFactor SrcColorBlendFactor;
         EBlendFactor DstColorBlendFactor;
         EBlendOp ColorBlendOp;
         EBlendFactor SrcAlphaBlendFactor;
         EBlendFactor DstAlphaBlendFactor;
         EBlendOp AlphaBlendOp;
-        EColorComponent ColorWriteMask;
+        EColorComponent ColorWriteMask = EColorComponent::R |
+            EColorComponent::G | EColorComponent::B | EColorComponent::A;;
     };
 
     struct SPipelineColorBlendInfo
@@ -96,7 +97,7 @@ namespace Elixir
         SPipelineColorBlendInfo ColorBlend;
         SPipelineDepthStencilInfo DepthStencil;
         EImageFormat ColorAttachmentFormat;
-        EDepthStencilImageFormat DepthAttachmentFormat;
+        EDepthStencilImageFormat DepthAttachmentFormat = EDepthStencilImageFormat::Undefined;
         Ref<Shader> Shader;
         BufferLayout VertexBufferLayout;
     };

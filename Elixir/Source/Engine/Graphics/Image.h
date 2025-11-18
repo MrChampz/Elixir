@@ -67,6 +67,7 @@ namespace Elixir
 
 	enum class EImageFormat
 	{
+	    Undefined = 1,
 	    R16_SFLOAT,
 	    R8G8B8_UNORM,
         R8G8B8_SNORM,
@@ -128,17 +129,17 @@ namespace Elixir
 		D24_UNORM_S8_UINT = 501,
 		D32_SFLOAT = 502,
 		D32_SFLOAT_S8_UINT = 503,
-		X8_D24_UNORM_PACK32 = 504,
-		Undefined
+		X8_D24_UNORM_PACK32 = 504
 	};
 
 	enum class EDepthStencilImageFormat
 	{
+	    Undefined = 1,
 		D16_UNORM = 500,
 		D24_UNORM_S8_UINT = 501,
 		D32_SFLOAT = 502,
 		D32_SFLOAT_S8_UINT = 503,
-		X8_D24_UNORM_PACK32 = 504
+		X8_D24_UNORM_PACK32 = 504,
 	};
 
     struct SImageLayeredSubresource

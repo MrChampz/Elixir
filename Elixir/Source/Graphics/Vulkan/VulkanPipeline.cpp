@@ -202,10 +202,10 @@ namespace Elixir::Vulkan
         return info;
     }
 
-    VkPipelineColorBlendStateCreateInfo VulkanGraphicsPipeline::CreateColorBlendState() const
+    VkPipelineColorBlendStateCreateInfo VulkanGraphicsPipeline::CreateColorBlendState()
     {
-        std::vector<VkPipelineColorBlendAttachmentState> attachments;
-        attachments.reserve(m_ColorBlend.Attachments.size());
+        m_ColorBlendAttachments.clear();
+        m_ColorBlendAttachments.reserve(m_ColorBlend.Attachments.size());
 
         for (const auto& attachment : m_ColorBlend.Attachments)
         {
@@ -219,7 +219,7 @@ namespace Elixir::Vulkan
             state.alphaBlendOp = Converters::GetBlendOp(attachment.AlphaBlendOp);
             state.colorWriteMask = Converters::GetColorComponents(attachment.ColorWriteMask);
 
-            attachments.push_back(state);
+            m_ColorBlendAttachments.push_back(state);
         }
 
         VkPipelineColorBlendStateCreateInfo info = {};
@@ -227,8 +227,8 @@ namespace Elixir::Vulkan
         info.pNext = nullptr;
         info.logicOpEnable = m_ColorBlend.LogicOpEnable;
         info.logicOp = Converters::GetLogicOp(m_ColorBlend.LogicOp);
-        info.attachmentCount = (uint32_t)attachments.size();
-        info.pAttachments = attachments.data();
+        info.attachmentCount = (uint32_t)m_ColorBlendAttachments.size();
+        info.pAttachments = m_ColorBlendAttachments.data();
         (*info.blendConstants) = m_ColorBlend.BlendConstants[0];
 
         return info;
