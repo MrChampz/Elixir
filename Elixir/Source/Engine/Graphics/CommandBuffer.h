@@ -8,24 +8,25 @@ namespace Elixir
     class Texture;
     class GraphicsPipeline;
 
+    enum class ECommandBufferLevel : uint8_t
+    {
+        Primary = 0,
+        Secondary
+    };
+
     class ELIXIR_API CommandBuffer
     {
     public:
         virtual ~CommandBuffer() = default;
 
-        virtual void Begin() = 0;
+        virtual void Begin(const SRenderingInfo& info = {}) = 0;
         virtual void End() = 0;
 
         virtual void Reset() = 0;
 
         /** Drawing methods **/
 
-        //virtual void BeginRendering(const Ref<Texture>& colorAttachment, Extent2D renderArea) = 0;
-        virtual void BeginRendering(
-            const Ref<Texture>& colorAttachment,
-            const Ref<DepthStencilImage>& depthStencilAttachment,
-            Extent2D renderArea
-        ) = 0;
+        virtual void BeginRendering(const SRenderingInfo& info) = 0;
         virtual void EndRendering() = 0;
 
         virtual void Draw(
@@ -108,6 +109,8 @@ namespace Elixir
 
         /** Submit and execution methods **/
 
+        virtual void ExecuteCommands(std::span<Ref<CommandBuffer>> cmds) = 0;
+
         // virtual void Submit(
         //     const Ref<Pipeline>& pipeline,
         //     const Ref<VertexBuffer>& vertexBuffer,
@@ -117,6 +120,16 @@ namespace Elixir
 
         virtual void Flush() = 0;
 
-        static Ref<CommandBuffer> Create(GraphicsContext* context);
+        [[nodiscard]] ECommandBufferLevel GetLevel() const { return m_Level; }
+        [[nodiscard]] bool IsPrimary() const { return m_Level == ECommandBufferLevel::Primary; }
+        [[nodiscard]] bool IsSecondary() const { return m_Level == ECommandBufferLevel::Secondary; }
+
+      protected:
+        explicit CommandBuffer(const GraphicsContext* context, const ECommandBufferLevel level)
+            : m_Level(level), m_GraphicsContext(context) {}
+
+        ECommandBufferLevel m_Level;
+
+        const GraphicsContext* m_GraphicsContext;
     };
 }

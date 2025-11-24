@@ -179,6 +179,7 @@ namespace Elixir::Vulkan
                 )
             );
 
+            // NOTE: set = 1, m_DescriptorSetLayouts count is 1, how to index?
             m_DescriptorSetLayouts[set] = layout;
         }
     }

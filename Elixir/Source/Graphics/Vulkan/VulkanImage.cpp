@@ -212,7 +212,7 @@ namespace Elixir::Vulkan
     {
         EE_PROFILE_ZONE_SCOPED()
 
-        auto cmd = m_GraphicsContext->GetCommandBuffer();   // TODO: Should have a TRANSFER only command buffer
+        auto cmd = m_GraphicsContext->GetUploadCommandBuffer();
         auto vk_Cmd = std::static_pointer_cast<VulkanCommandBuffer>(cmd);
 
         cmd->Begin();

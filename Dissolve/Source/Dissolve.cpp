@@ -21,7 +21,7 @@ Dissolve::Dissolve()
     //shader->GetName();
 
     const auto shader1 = loader->LoadShader("./Shaders/", "FixedTriangle");
-    //shader1->BindTexture("texture", tex);
+    shader1->BindTexture("texture", tex);
 
     // BufferLayout bufferLayout({
     //     { EDataType::Vec3, "Pos" },
@@ -32,11 +32,9 @@ Dissolve::Dissolve()
     builder.SetShader(shader1);
     builder.SetInputTopology(EPrimitiveTopology::TriangleList);
     builder.SetPolygonMode(EPolygonMode::Fill);
-    //builder.SetCullMode(ECullMode::None, EFrontFace::Clockwise);
     builder.DisableBlending();
     builder.DisableDepthTest();
     builder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
-    //builder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
     builder.SetBufferLayout({});
     pipeline = builder.Build(m_GraphicsContext.get());
 }
@@ -57,25 +55,24 @@ void Dissolve::OnRender(const Timestep frameTime)
     EE_PROFILE_ZONE_SCOPED()
     Application::OnRender(frameTime);
 
-    // begin command buffer
-    const auto cmd = m_GraphicsContext->GetCommandBuffer();
-    cmd->Begin();
-
     float flash = std::abs(std::sin(m_GraphicsContext->GetFrameNumber() / 120.f));
 
     m_GraphicsContext->SetClearColor({ 0.0f, 0.0f, flash, 1.0 });
     m_GraphicsContext->Clear();
 
+    const auto cmd = m_GraphicsContext->GetSecondaryCommandBuffer();
     DrawGeometry(cmd);
 }
 
-void Dissolve::DrawGeometry(const Ref<CommandBuffer>& cmd)
+void Dissolve::DrawGeometry(const Ref<CommandBuffer>& cmd) const
 {
-    cmd->BeginRendering(
-        m_GraphicsContext->GetRenderTarget(),
-        nullptr,
-        m_DrawExtent
-    );
+    const auto renderingInfo = SRenderingInfo
+    {
+        .ColorAttachment = m_GraphicsContext->GetRenderTarget(),
+        .RenderArea = m_DrawExtent
+    };
+
+    cmd->BeginRendering(renderingInfo);
 
     Viewport viewport = {};
     viewport.X = 0;
@@ -98,6 +95,7 @@ void Dissolve::DrawGeometry(const Ref<CommandBuffer>& cmd)
     cmd->Draw(3);
 
     cmd->EndRendering();
+    m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
 }
 
 Application* Elixir::CreateApplication()

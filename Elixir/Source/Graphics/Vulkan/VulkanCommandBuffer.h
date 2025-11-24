@@ -13,21 +13,21 @@ namespace Elixir::Vulkan
         friend class VulkanGraphicsContext;
 
       public:
-        explicit VulkanCommandBuffer(GraphicsContext* context);
+        explicit VulkanCommandBuffer(
+            const GraphicsContext* context,
+            VkCommandPool pool,
+            ECommandBufferLevel level
+        );
         ~VulkanCommandBuffer() override;
 
-        void Begin() override;
+        void Begin(const SRenderingInfo& info = {}) override;
         void End() override;
 
         void Reset() override;
 
         /** Drawing methods **/
 
-        void BeginRendering(
-            const Ref<Texture>& colorAttachment,
-            const Ref<DepthStencilImage>& depthStencilAttachment,
-            Extent2D renderArea
-        ) override;
+        void BeginRendering(const SRenderingInfo& info) override;
         void EndRendering() override;
 
         void Draw(
@@ -64,21 +64,28 @@ namespace Elixir::Vulkan
 
         /** Submit and execution methods **/
 
+        void ExecuteCommands(std::span<Ref<CommandBuffer>> cmds) override;
+
         void Flush() override;
 
+        /** Getters and Setters **/
+
         VkCommandBuffer GetVulkanCommandBuffer() const { return m_CommandBuffer; }
+        VkCommandPool GetVulkanCommandPool() const { return m_CommandPool; }
 
       protected:
+        void AllocateCommandBuffer();
         void Submit(VkSemaphore swapchainSemaphore, VkSemaphore renderSemaphore, VkFence renderFence);
-
-        // VkBufferImageCopy GetDefaultBufferImageCopy(const ) const;
 
       private:
         bool m_Ended;
+        SRenderingInfo m_RenderingInfo;
 
         VkCommandPool m_CommandPool;
         VkCommandBuffer m_CommandBuffer;
 
-        VulkanGraphicsContext* m_GraphicsContext;
+        VkCommandBufferInheritanceInfo* m_InheritanceInfo;
+
+        const VulkanGraphicsContext* m_GraphicsContext;
     };
 }

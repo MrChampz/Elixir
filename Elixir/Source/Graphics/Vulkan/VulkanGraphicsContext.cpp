@@ -1,6 +1,7 @@
 #include "epch.h"
 #include "VulkanGraphicsContext.h"
 
+#include <Graphics/Vulkan/VulkanCommandPool.h>
 #include <Graphics/SpirV/SpirVShaderBackend.h>
 
 #include "Converters.h"
@@ -147,7 +148,7 @@ namespace Elixir
         InitVulkan();
         InitAllocator();
         InitSwapchain();
-        InitCommands();
+        InitCommandPoolManager();
         InitSyncStructures();
         InitDescriptors();
         CreateRenderTarget();
@@ -170,17 +171,18 @@ namespace Elixir
         {
             vkDeviceWaitIdle(m_Device);
 
+            m_CommandPoolManager.reset();
+
             m_RenderTarget.reset();
 
             DumpAllocatorStats(m_Allocator);
             m_DeletionQueue.Flush();
-            m_CommandBuffers.clear();
 
             DestroySwapchain();
 
             m_GlobalDescriptorAllocator.DestroyPool(m_Device);
 
-            for (int i = 0; i < FRAMES; i++)
+            for (int i = 0; i < m_FramesInFlight; i++)
             {
                 vkDestroyFence(m_Device, m_Frames[i].RenderFence, nullptr);
                 vkDestroySemaphore(m_Device, m_Frames[i].SwapchainSemaphore, nullptr);
@@ -201,7 +203,6 @@ namespace Elixir
         EE_PROFILE_ZONE_SCOPED()
 
         auto& frame = GetCurrentFrame();
-        const auto cmd = std::static_pointer_cast<VulkanCommandBuffer>(GetCommandBuffer());
 
         if (m_SwapchainRecreateRequested)
             RecreateSwapchain();
@@ -216,6 +217,11 @@ namespace Elixir
         );
         VK_CHECK_RESULT(result);
         VK_CHECK_RESULT(vkResetFences(m_Device, 1, &frame.RenderFence));
+
+        m_CommandPoolManager->Recycle();
+
+        const auto cmd = m_CommandPoolManager->GetPrimaryCommandBuffer();
+        m_MainCommandBuffer = std::static_pointer_cast<VulkanCommandBuffer>(cmd);
 
         frame.DeletionQueue.Flush();
 
@@ -237,10 +243,9 @@ namespace Elixir
         if (result != VK_SUBOPTIMAL_KHR)
             VK_CHECK_RESULT(result);
 
-        cmd->Reset();
-        cmd->Begin();
+        m_MainCommandBuffer->Begin();
 
-        m_RenderTarget->Transition(cmd, EImageLayout::General);
+        m_RenderTarget->Transition(m_MainCommandBuffer, EImageLayout::General);
 
         return true;
     }
@@ -250,12 +255,13 @@ namespace Elixir
         EE_PROFILE_ZONE_SCOPED()
 
         const auto& swapchain = GetCurrentSwapchainImage();
-        const auto cmd = std::static_pointer_cast<VulkanCommandBuffer>(GetCommandBuffer());
 
-        m_RenderTarget->Transition(cmd, EImageLayout::TransferSrc);
+        m_CommandPoolManager->FlushSecondaryCommandBuffers(m_MainCommandBuffer);
+
+        m_RenderTarget->Transition(m_MainCommandBuffer, EImageLayout::TransferSrc);
 
         CommandUtils::TransitionImage(
-            cmd->GetVulkanCommandBuffer(),
+            m_MainCommandBuffer->GetVulkanCommandBuffer(),
             swapchain.Image,
             VK_IMAGE_LAYOUT_UNDEFINED,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -263,7 +269,7 @@ namespace Elixir
         );
 
         CommandUtils::CopyImageToImage(
-            cmd->GetVulkanCommandBuffer(),
+            m_MainCommandBuffer->GetVulkanCommandBuffer(),
             TryToGetVulkanImage(m_RenderTarget.get())->GetVulkanImage(),
             swapchain.Image,
             GetExtent3D(m_RenderTarget->GetExtent()),
@@ -277,18 +283,23 @@ namespace Elixir
 
         const auto& frame = GetCurrentFrame();
         const auto& swapchain = GetCurrentSwapchainImage();
-        const auto cmd = std::static_pointer_cast<VulkanCommandBuffer>(GetCommandBuffer());
 
         CommandUtils::TransitionImage(
-            cmd->GetVulkanCommandBuffer(),
+            m_MainCommandBuffer->GetVulkanCommandBuffer(),
             swapchain.Image,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
             VK_IMAGE_ASPECT_COLOR_BIT
         );
 
-        cmd->End();
-        cmd->Submit(frame.SwapchainSemaphore, swapchain.RenderSemaphore, frame.RenderFence);
+        m_MainCommandBuffer->End();
+        m_MainCommandBuffer->Submit(
+            frame.SwapchainSemaphore,
+            swapchain.RenderSemaphore,
+            frame.RenderFence
+        );
+
+        m_CommandPoolManager->RecycleCommandBuffer(m_MainCommandBuffer);
 
         VkPresentInfoKHR presentInfo = {};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -329,11 +340,9 @@ namespace Elixir
     {
         EE_PROFILE_ZONE_SCOPED()
 
-        const auto cmd = std::static_pointer_cast<VulkanCommandBuffer>(GetCommandBuffer());
-
         const auto range = Initializers::ImageSubresourceRange(EImageAspect::Color);
         vkCmdClearColorImage(
-            cmd->GetVulkanCommandBuffer(),
+            m_MainCommandBuffer->GetVulkanCommandBuffer(),
             TryToGetVulkanImage(m_RenderTarget.get())->GetVulkanImage(),
             VK_IMAGE_LAYOUT_GENERAL,
             &m_ClearColor,
@@ -349,10 +358,20 @@ namespace Elixir
         m_SwapchainRecreateRequested = true;
     }
 
-    void VulkanGraphicsContext::FlushCommandBuffer(CommandBuffer& cmd) const
+    Ref<CommandBuffer> VulkanGraphicsContext::GetSecondaryCommandBuffer() const
     {
-        EE_PROFILE_ZONE_SCOPED()
-        cmd.Flush();
+        return m_CommandPoolManager->GetSecondaryCommandBuffer();
+    }
+
+    Ref<CommandBuffer> VulkanGraphicsContext::GetUploadCommandBuffer() const
+    {
+        // TODO: Change to transfer upload queue!
+        return m_CommandPoolManager->GetPrimaryCommandBuffer();
+    }
+
+    void VulkanGraphicsContext::EnqueueSecondaryCommandBuffer(const Ref<CommandBuffer>& cmd) const
+    {
+        m_CommandPoolManager->EnqueueSecondaryCommandBuffer(cmd);
     }
 
     Extent2D VulkanGraphicsContext::GetSwapchainExtent() const
@@ -456,14 +475,10 @@ namespace Elixir
         CreateSwapchain(m_WindowExtent);
     }
 
-    void VulkanGraphicsContext::InitCommands()
+    void VulkanGraphicsContext::InitCommandPoolManager()
     {
         EE_PROFILE_ZONE_SCOPED()
-
-        for (auto it = m_CommandBuffers.begin(); it != m_CommandBuffers.end(); ++it)
-        {
-            *it = CreateCommandBuffer();
-        }
+        m_CommandPoolManager = CreateScope<VulkanCommandPoolManager>(this);
     }
 
     void VulkanGraphicsContext::InitSyncStructures()
@@ -479,7 +494,8 @@ namespace Elixir
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
         semaphoreInfo.pNext = nullptr;
 
-        for (int i = 0; i < FRAMES; i++)
+        m_Frames.resize(m_FramesInFlight);
+        for (int i = 0; i < m_FramesInFlight; i++)
         {
             VK_CHECK_RESULT(
                 vkCreateFence(

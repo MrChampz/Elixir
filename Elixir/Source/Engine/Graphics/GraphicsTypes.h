@@ -2,6 +2,9 @@
 
 namespace Elixir
 {
+    class Image;
+    class DepthStencilImage;
+
     enum class EPrimitiveTopology : uint8_t
     {
         PointList = 0,
@@ -144,5 +147,12 @@ namespace Elixir
     };
 
     GENERATE_ENUM_CLASS_OPERATORS(EShaderStage)
+
+    struct SRenderingInfo
+    {
+        Ref<Image> ColorAttachment;
+        Ref<DepthStencilImage> DepthStencilAttachment = nullptr;
+        Extent2D RenderArea;
+    };
 }
 

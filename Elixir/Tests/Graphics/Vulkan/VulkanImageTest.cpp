@@ -137,7 +137,7 @@ TEST_F(VulkanImageTest, VulkanImage_LayoutTransition) {
     VulkanImage image(Context.get(), info);
     EXPECT_EQ(image.GetLayout(), EImageLayout::TransferDst);
 
-    const auto cmd = Context->GetCommandBuffer();
+    const auto cmd = Context->GetSecondaryCommandBuffer();
     cmd->Begin();
 
     // Now perform a manual transition

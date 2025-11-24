@@ -4,6 +4,7 @@
 #include <Engine/Graphics/GraphicsTypes.h>
 #include <Engine/Graphics/Memory.h>
 #include <Engine/Graphics/Image.h>
+#include <Engine/Graphics/CommandBuffer.h>
 #include <Engine/Graphics/Pipeline/Pipeline.h>
 
 #include <vulkan/vulkan.h>
@@ -882,5 +883,19 @@ namespace Elixir::Vulkan::Converters
             flags = flags | VK_SHADER_STAGE_COMPUTE_BIT;
 
         return flags;
+    }
+
+    static VkCommandBufferLevel GetCommandBufferLevel(const ECommandBufferLevel level)
+    {
+        switch (level)
+        {
+            case ECommandBufferLevel::Primary:
+                return VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            case ECommandBufferLevel::Secondary:
+                return VK_COMMAND_BUFFER_LEVEL_SECONDARY;
+            default:
+                EE_CORE_ASSERT(false, "Unknown CommandBufferLevel!")
+                return VK_COMMAND_BUFFER_LEVEL_MAX_ENUM;
+        }
     }
 }

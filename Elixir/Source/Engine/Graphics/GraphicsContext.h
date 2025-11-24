@@ -45,17 +45,46 @@ namespace Elixir
         //            uint32_t groupCountZ = 1
         //        ) = 0;
 
-        virtual void FlushCommandBuffer(CommandBuffer& cmd) const = 0;
-
-        Ref<CommandBuffer> CreateCommandBuffer();
+        /**
+         * Returns a secondary command buffer that can be used to record GPU commands.
+         *
+         * Each call to this method returns a different CommandBuffer — either newly
+         * created or recycled from a pool.
+         *
+         * The returned command buffer must be enqueued for submission using
+         * @ref EnqueueSecondaryCommandBuffer
+         *
+         * All enqueued secondary command buffers are submitted together by a primary
+         * command buffer.
+         *
+         * @return A secondary command buffer.
+         */
+        virtual Ref<CommandBuffer> GetSecondaryCommandBuffer() const = 0;
+        virtual Ref<CommandBuffer> GetUploadCommandBuffer() const = 0;
+        virtual void EnqueueSecondaryCommandBuffer(const Ref<CommandBuffer>& cmd) const = 0;
 
         [[nodiscard]] EGraphicsAPI GetAPI() const { return m_API; }
 
         const Window* GetWindow() const { return m_Window; }
         const Scope<ShaderBackend>& GetShaderBackend() const { return m_ShaderBackend; }
 
-        Ref<CommandBuffer> GetCommandBuffer() const { return m_CommandBuffers[m_FrameNumber % FRAMES]; }
-        uint32_t GetFrameNumber() const { return m_FrameNumber; }
+        /**
+         * The number of frames being processed at a concurrent time. Double buffering.
+         * @return the number of frames.
+         */
+        [[nodiscard]] uint32_t GetFramesInFlight() const { return m_FramesInFlight; }
+
+        /**
+         * Returns the number of frames rendered since the app started.
+         * @return the number of frames since app start.
+         */
+        [[nodiscard]] uint32_t GetFrameNumber() const { return m_FrameNumber; }
+
+        /**
+         * Returns the index of the current frame.
+         * @return the index of the current frame.
+         */
+        [[nodiscard]] uint32_t GetFrameIndex() const { return m_FrameNumber % m_FramesInFlight; }
 
         virtual void SetVSyncEnabled(const bool enabled) { m_VSyncEnabled = enabled; }
         bool IsVSyncEnabled() const { return m_VSyncEnabled; }
@@ -68,7 +97,7 @@ namespace Elixir
 
       protected:
         explicit GraphicsContext(const EGraphicsAPI api, const Window* window)
-            : m_API(api), m_Window(window), m_CommandBuffers(FRAMES)
+            : m_API(api), m_Window(window)
         {
             EE_PROFILE_ZONE_SCOPED()
         }
@@ -77,15 +106,12 @@ namespace Elixir
         virtual void CreateRenderTarget() = 0;
 
       protected:
-        EGraphicsAPI m_API;
-
-        const Window* m_Window;
-
-        Ref<Texture2D> m_RenderTarget;
-
-        std::vector<Ref<CommandBuffer>> m_CommandBuffers;
+        uint32_t m_FramesInFlight = FRAMES;
         uint32_t m_FrameNumber = 0;
 
+        EGraphicsAPI m_API;
+        const Window* m_Window;
+        Ref<Texture2D> m_RenderTarget;
         Scope<ShaderBackend> m_ShaderBackend = nullptr;
 
         bool m_VSyncEnabled = false;

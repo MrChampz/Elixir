@@ -8,61 +8,67 @@
 
 namespace Elixir::Vulkan
 {
-    VulkanCommandBuffer::VulkanCommandBuffer(GraphicsContext* context)
-        : m_Ended(true)
+    VulkanCommandBuffer::VulkanCommandBuffer(
+        const GraphicsContext* context,
+        const VkCommandPool pool,
+        const ECommandBufferLevel level
+    ) : CommandBuffer(context, level), m_Ended(true), m_CommandPool(pool)
     {
         EE_PROFILE_ZONE_SCOPED()
-
-        m_GraphicsContext = static_cast<VulkanGraphicsContext*>(context);
-
-        // TODO: Should use centralized managed command pools!
-        VkCommandPoolCreateInfo poolInfo = {};
-        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        poolInfo.pNext = nullptr;
-        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        poolInfo.queueFamilyIndex = m_GraphicsContext->GetGraphicsQueueFamily();
-
-        auto err = vkCreateCommandPool(
-            m_GraphicsContext->GetDevice(),
-            &poolInfo,
-            nullptr,
-            &m_CommandPool
-        );
-        EE_CORE_ASSERT(err == VK_SUCCESS, "Failed to create command pool!")
-
-        VkCommandBufferAllocateInfo allocInfo = {};
-        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.pNext = nullptr;
-        allocInfo.commandPool = m_CommandPool;
-        allocInfo.commandBufferCount = 1;
-        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-
-        err = vkAllocateCommandBuffers(
-            m_GraphicsContext->GetDevice(),
-            &allocInfo,
-            &m_CommandBuffer
-        );
-        EE_CORE_ASSERT(err == VK_SUCCESS, "Failed to allocate command buffer!")
+        m_GraphicsContext = static_cast<const VulkanGraphicsContext*>(context);
+        AllocateCommandBuffer();
     }
 
     VulkanCommandBuffer::~VulkanCommandBuffer()
     {
         EE_PROFILE_ZONE_SCOPED()
 
-        // TODO: Handle this in a command pool manager!
-        vkDestroyCommandPool(m_GraphicsContext->GetDevice(), m_CommandPool, nullptr);
+        if (m_InheritanceInfo)
+        {
+            delete m_InheritanceInfo;
+            m_InheritanceInfo = nullptr;
+        }
     }
 
-    void VulkanCommandBuffer::Begin()
+    void VulkanCommandBuffer::Begin(const SRenderingInfo& info)
     {
         EE_PROFILE_ZONE_SCOPED()
-
         if (!m_Ended) return;
+
+        m_RenderingInfo = info;
+
+        if (IsSecondary())
+        {
+            if (info.ColorAttachment)
+            {
+                const auto colorFormat = Converters::GetFormat(info.ColorAttachment->GetFormat());
+                const auto depthFormat =
+                    info.DepthStencilAttachment
+                        ? Converters::GetFormat(info.DepthStencilAttachment->GetFormat())
+                        : VK_FORMAT_UNDEFINED;
+
+                VkCommandBufferInheritanceRenderingInfo renderingInfo = {};
+                renderingInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_RENDERING_INFO;
+                renderingInfo.colorAttachmentCount = 1;
+                renderingInfo.pColorAttachmentFormats = &colorFormat;
+                renderingInfo.depthAttachmentFormat = depthFormat;
+                renderingInfo.viewMask = 0;
+                renderingInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+                m_InheritanceInfo = new VkCommandBufferInheritanceInfo();
+                m_InheritanceInfo->sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
+                m_InheritanceInfo->pNext = &renderingInfo;
+            }
+            else
+            {
+                EE_CORE_ASSERT(false, "Secondary command buffers must have at least one color attachment!")
+            }
+        }
 
         VkCommandBufferBeginInfo beginInfo = {};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.pNext = nullptr;
-        beginInfo.pInheritanceInfo = nullptr;
+        beginInfo.pInheritanceInfo = m_InheritanceInfo;
         beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
         VK_CHECK_RESULT(vkBeginCommandBuffer(m_CommandBuffer, &beginInfo));
@@ -85,24 +91,24 @@ namespace Elixir::Vulkan
         VK_CHECK_RESULT(vkResetCommandBuffer(m_CommandBuffer, 0));
     }
 
-    void VulkanCommandBuffer::BeginRendering(
-        const Ref<Texture>& colorAttachment,
-        const Ref<DepthStencilImage>& depthStencilAttachment,
-        const Extent2D renderArea
-    )
+    void VulkanCommandBuffer::BeginRendering(const SRenderingInfo& info)
     {
+        m_RenderingInfo = info;
+        Begin(info);
+
+        const auto colorInfo = Initializers::AttachmentInfo(info.ColorAttachment);
+
         const VkRenderingAttachmentInfo* depthStencilInfo = nullptr;
-
-        const auto colorInfo = Initializers::AttachmentInfo(colorAttachment);
-
-        if (depthStencilAttachment)
+        if (info.DepthStencilAttachment)
         {
-            const auto info = Initializers::DepthStencilAttachmentInfo(depthStencilAttachment);
-            depthStencilInfo = &info;
+            const auto attachment = Initializers::DepthStencilAttachmentInfo(
+                info.DepthStencilAttachment
+            );
+            depthStencilInfo = &attachment;
         }
 
         const auto renderInfo = Initializers::RenderingInfo(
-            renderArea,
+            info.RenderArea,
             &colorInfo,
             depthStencilInfo
         );
@@ -224,6 +230,26 @@ namespace Elixir::Vulkan
         );
     }
 
+    void VulkanCommandBuffer::ExecuteCommands(const std::span<Ref<CommandBuffer>> cmds)
+    {
+        if (cmds.empty()) return;
+
+        std::vector<VkCommandBuffer> vkCmds;
+        vkCmds.reserve(cmds.size());
+
+        for (auto const& cmd : cmds)
+        {
+            const auto vkCmd = std::static_pointer_cast<VulkanCommandBuffer>(cmd);
+            vkCmds.push_back(vkCmd->GetVulkanCommandBuffer());
+        }
+
+        vkCmdExecuteCommands(
+            m_CommandBuffer,
+            (uint32_t)vkCmds.size(),
+            vkCmds.data()
+        );
+    }
+
     void VulkanCommandBuffer::Flush()
     {
         EE_PROFILE_ZONE_SCOPED()
@@ -252,6 +278,24 @@ namespace Elixir::Vulkan
         vkDestroyFence(device, fence, nullptr);
     }
 
+    void VulkanCommandBuffer::AllocateCommandBuffer()
+    {
+        VkCommandBufferAllocateInfo allocInfo = {};
+        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.pNext = nullptr;
+        allocInfo.commandPool = m_CommandPool;
+        allocInfo.commandBufferCount = 1;
+        allocInfo.level = Converters::GetCommandBufferLevel(m_Level);
+
+        VK_CHECK_RESULT(
+            vkAllocateCommandBuffers(
+                m_GraphicsContext->GetDevice(),
+                &allocInfo,
+                &m_CommandBuffer
+            )
+        );
+    }
+
     void VulkanCommandBuffer::Submit(
         const VkSemaphore swapchainSemaphore,
         const VkSemaphore renderSemaphore,
@@ -259,6 +303,7 @@ namespace Elixir::Vulkan
     )
     {
         EE_PROFILE_ZONE_SCOPED()
+        EE_CORE_ASSERT(!IsSecondary(), "Secondary command buffers cannot be submitted!")
 
         const auto graphicsQueue = m_GraphicsContext->GetGraphicsQueue();
 

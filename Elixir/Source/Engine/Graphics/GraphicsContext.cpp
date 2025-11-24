@@ -1,11 +1,7 @@
 #include "epch.h"
 #include "GraphicsContext.h"
 
-#include <Engine/Graphics/CommandBuffer.h>
-
 #include <Graphics/Vulkan/VulkanGraphicsContext.h>
-
-#include <GLFW/glfw3.h>
 
 namespace Elixir
 {
@@ -19,10 +15,5 @@ namespace Elixir
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;
         }
-    }
-
-    Ref<CommandBuffer> GraphicsContext::CreateCommandBuffer()
-    {
-        return CommandBuffer::Create(this);
     }
 }

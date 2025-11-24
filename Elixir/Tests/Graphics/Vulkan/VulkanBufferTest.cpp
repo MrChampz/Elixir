@@ -84,7 +84,7 @@ TEST_F(VulkanBufferTest, VulkanBuffer_DestroyAfterCopy)
     const auto staging = StagingBuffer::Create(Context.get(), info.Buffer.Size);
     const auto target = Buffer::Create(Context.get(), info);
 
-    const auto cmd = Context->GetCommandBuffer();
+    const auto cmd = Context->GetSecondaryCommandBuffer();
     cmd->Begin();
     staging->Copy(cmd, target);
     cmd->End();

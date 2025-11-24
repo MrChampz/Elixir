@@ -12,7 +12,7 @@ public:
     void OnRender(Timestep frameTime) override;
 
 private:
-    void DrawGeometry(const Ref<CommandBuffer>& cmd);
+    void DrawGeometry(const Ref<CommandBuffer>& cmd) const;
 
     Scope<Executor> m_Executor;
 

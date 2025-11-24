@@ -9,7 +9,10 @@
 
 namespace Elixir::Vulkan
 {
+    class VulkanCommandBuffer;
     using Elixir::GraphicsContext;
+
+    class VulkanCommandPoolManager;
 
     struct SDescriptorAllocator
     {
@@ -85,17 +88,21 @@ namespace Elixir::Vulkan
 
         void Resize(Extent2D extent) override;
 
-        void FlushCommandBuffer(CommandBuffer& cmd) const override;
+        Ref<CommandBuffer> GetSecondaryCommandBuffer() const override;
+        Ref<CommandBuffer> GetUploadCommandBuffer() const override;
+        void EnqueueSecondaryCommandBuffer(const Ref<CommandBuffer>& cmd) const override;
 
         Extent2D GetSwapchainExtent() const override;
 
-        SFrameData& GetCurrentFrame() { return m_Frames[m_FrameNumber % FRAMES]; }
+        SFrameData& GetCurrentFrame() { return m_Frames[GetFrameIndex()]; }
 
         VkInstance GetInstance() const { return m_Instance; }
         VkPhysicalDevice GetGPU() const { return m_GPU; }
         VkDevice GetDevice() const { return m_Device; }
         VkQueue GetGraphicsQueue() const { return m_GraphicsQueue; }
         uint32_t GetGraphicsQueueFamily() const { return m_GraphicsQueueFamily; }
+        VkQueue GetTransferQueue() const { return m_TransferQueue; }
+        uint32_t GetTransferQueueFamily() const { return m_TransferQueueFamily; }
         VmaAllocator GetAllocator() const { return m_Allocator; }
         const VkDescriptorPool& GetDescriptorPool() const { return m_GlobalDescriptorAllocator.Pool; }
 
@@ -107,7 +114,7 @@ namespace Elixir::Vulkan
         void InitVulkan();
         void InitAllocator();
         void InitSwapchain();
-        void InitCommands();
+        void InitCommandPoolManager();
         void InitSyncStructures();
         void InitDescriptors();
 
@@ -150,7 +157,10 @@ namespace Elixir::Vulkan
         VmaAllocator m_Allocator;
         SDescriptorAllocator m_GlobalDescriptorAllocator;
 
-        SFrameData m_Frames[FRAMES];
+        Scope<VulkanCommandPoolManager> m_CommandPoolManager;
+        Ref<VulkanCommandBuffer> m_MainCommandBuffer;
+
+        std::vector<SFrameData> m_Frames;
         VkClearColorValue m_ClearColor;
 
         SDeletionQueue m_DeletionQueue;
