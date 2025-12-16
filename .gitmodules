@@ -25,9 +25,6 @@
 [submodule "Elixir/Vendor/VulkanMemoryAllocator"]
 	path = Elixir/Vendor/VulkanMemoryAllocator
 	url = git@github.com:GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
-[submodule "Elixir/Vendor/FiberTaskingLib"]
-	path = Elixir/Vendor/FiberTaskingLib
-	url = git@github.com:RichieSams/FiberTaskingLib.git
 [submodule "Elixir/Vendor/tracy"]
 	path = Elixir/Vendor/tracy
 	url = git@github.com:wolfpld/tracy.git
@@ -37,3 +34,6 @@
 [submodule "Elixir/Vendor/magic_enum"]
 	path = Elixir/Vendor/magic_enum
 	url = git@github.com:Neargye/magic_enum.git
+[submodule "Elixir/Vendor/concurrentqueue"]
+	path = Elixir/Vendor/concurrentqueue
+	url = https://github.com/cameron314/concurrentqueue

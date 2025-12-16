@@ -56,10 +56,11 @@ function(apply_properties_and_definitions target)
     endif()
 
     # Profiling compile definitions
+    message(STATUS "ELIXIR_PROFILE is: ${ELIXIR_PROFILE}")
     if (ELIXIR_PROFILE)
+        message(STATUS "Setting profiling for target: ${target}")
         target_compile_definitions(${target} PRIVATE
             TRACY_ENABLE
-            TRACY_FIBERS
             EE_PROFILE
         )
     endif()
@@ -89,15 +90,12 @@ if (WIN32)
 endif()
 
 # Dependencies
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/concurrentqueue)
+
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/magic_enum)
 
 set(UUID_USING_CXX20_SPAN ON)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/stduuid)
-
-set(FTL_BUILD_TESTS OFF)
-set(FTL_BUILD_BENCHMARKS OFF)
-set(FTL_BUILD_EXAMPLES OFF)
-add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/FiberTaskingLib)
 
 set(GLM_ENABLE_CXX_20 ON)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/glm)
@@ -127,7 +125,6 @@ add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/SPIRV-Cross)
 # Only when profiling is enabled
 if (ELIXIR_PROFILE)
     set(TRACY_ENABLE ON)
-    set(TRACY_FIBERS ON)
     add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/tracy)
 endif()
 
@@ -139,15 +136,14 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 # Linking
 target_link_libraries(${PROJECT_NAME}
+    concurrentqueue
     magic_enum
     stduuid
-    ftl
     glm
     spdlog
     fastgltf
     imgui
     glfw
-    #glad
     Vulkan::Vulkan
     vk-bootstrap
     VulkanMemoryAllocator

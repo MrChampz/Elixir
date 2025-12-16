@@ -1,10 +1,40 @@
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        #include "Dissolve.h"
-
-#include "Engine/Graphics/Shader/ShaderLoader.h"
+#include "Dissolve.h"
 
 #include <Engine/Core/Entrypoint.h>
 
 Ref<GraphicsPipeline> pipeline;
+
+void ThreadsTest(Executor* executor)
+{
+    constexpr int NUM_TASKS = 1000;
+
+    std::cout << "Starting thread test with " << NUM_TASKS << " tasks.." << std::endl;
+
+    const auto start = std::chrono::high_resolution_clock::now();
+
+    auto wg = WaitGroup();
+
+    for (int i = 0; i < NUM_TASKS; ++i)
+    {
+        executor->AddTask([]()
+        {
+            EE_PROFILE_ZONE_SCOPED()
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_int_distribution<> dis(10, 100);
+        }, &wg);
+    }
+
+    wg.Wait();
+
+    const auto end = std::chrono::high_resolution_clock::now();
+    const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+    std::cout << "\nTest completed!" << std::endl;
+    std::cout << "Total time: " << duration.count() << "ms" << std::endl;
+    std::cout << "Average time per task: " << duration.count() / (double)NUM_TASKS << "ms" << std::endl;
+    std::cout << "Tasks per second: " << (NUM_TASKS * 1000.0) / duration.count() << std::endl;
+}
 
 Dissolve::Dissolve()
 {
@@ -12,6 +42,9 @@ Dissolve::Dissolve()
 
     m_Window->SetTitle("Dissolve");
     m_DrawExtent = { m_Window->GetWidth(), m_Window->GetHeight() };
+
+    m_Executor = CreateScope<Executor>();
+    m_Executor->Init();
 
     const auto tex = TextureLoader::Load("./Assets/Bricks.png");
 
@@ -37,6 +70,8 @@ Dissolve::Dissolve()
     builder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
     builder.SetBufferLayout({});
     pipeline = builder.Build(m_GraphicsContext.get());
+
+    ThreadsTest(m_Executor.get());
 }
 
 Dissolve::~Dissolve()
@@ -60,19 +95,16 @@ void Dissolve::OnRender(const Timestep frameTime)
     m_GraphicsContext->SetClearColor({ 0.0f, 0.0f, flash, 1.0 });
     m_GraphicsContext->Clear();
 
-    const auto cmd = m_GraphicsContext->GetSecondaryCommandBuffer();
-    DrawGeometry(cmd);
+    DrawGeometry();
 }
 
-void Dissolve::DrawGeometry(const Ref<CommandBuffer>& cmd) const
+void Dissolve::DrawGeometry()
 {
     const auto renderingInfo = SRenderingInfo
     {
         .ColorAttachment = m_GraphicsContext->GetRenderTarget(),
         .RenderArea = m_DrawExtent
     };
-
-    cmd->BeginRendering(renderingInfo);
 
     Viewport viewport = {};
     viewport.X = 0;
@@ -82,20 +114,31 @@ void Dissolve::DrawGeometry(const Ref<CommandBuffer>& cmd) const
     viewport.MinDepth = 0.0f;
     viewport.MaxDepth = 1.0f;
 
-    cmd->SetViewports({ viewport });
-
     Rect2D scissor = {};
     scissor.Offset = { 0, 0 };
     scissor.Extent = m_DrawExtent;
 
-    cmd->SetScissors({ scissor });
+    struct TaskArgs
+    {
+        GraphicsContext* Ctx;
+        const SRenderingInfo& RenderingInfo;
+        const Viewport& Viewport;
+        const Rect2D& Scissor;
+    };
 
-    pipeline->Bind(cmd);
+    m_Executor->AddTask([this, renderingInfo, viewport, scissor]()
+    {
+        const auto cmd = this->m_GraphicsContext->GetSecondaryCommandBuffer();
+        cmd->BeginRendering(renderingInfo);
+        cmd->SetViewports({ viewport });
+        cmd->SetScissors({ scissor });
+        pipeline->Bind(cmd);
+        cmd->Draw(3);
+        cmd->EndRendering();
+        this->m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
+    }, &m_WaitGroup);
 
-    cmd->Draw(3);
-
-    cmd->EndRendering();
-    m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
+    m_WaitGroup.Wait();
 }
 
 Application* Elixir::CreateApplication()

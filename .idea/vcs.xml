@@ -3,9 +3,9 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/Debug/_deps/googletest-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/Elixir/Vendor/FiberTaskingLib" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/Elixir/Vendor/SPIRV-Cross" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/Elixir/Vendor/VulkanMemoryAllocator" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Elixir/Vendor/concurrentqueue" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/Elixir/Vendor/fastgltf" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/Elixir/Vendor/glfw" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/Elixir/Vendor/glm" vcs="Git" />

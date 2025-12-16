@@ -8,8 +8,8 @@
 #include <Engine/Core/Memory.h>
 #include <Engine/Core/Buffer.h>
 #include <Engine/Core/Application.h>
-#include <Engine/Core/Executor.h>
 #include <Engine/Core/FrameProfiler.h>
+#include <Engine/Core/Executor/Executor.h>
 
 #include <Engine/Event/Event.h>
 #include <Engine/Event/ApplicationEvent.h>
