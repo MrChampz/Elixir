@@ -10,6 +10,7 @@
 #include <Engine/Core/Application.h>
 #include <Engine/Core/FrameProfiler.h>
 #include <Engine/Core/Executor/Executor.h>
+#include <Engine/Core/Executor/WaitGroup.h>
 
 #include <Engine/Event/Event.h>
 #include <Engine/Event/ApplicationEvent.h>

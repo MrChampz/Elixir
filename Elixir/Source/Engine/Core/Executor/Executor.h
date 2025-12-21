@@ -4,40 +4,34 @@
 
 namespace Elixir
 {
-    class Executor;
-
-    struct ExecutorInitOptions
-    {
-        /* The size of the thread pool to run. 0 corresponds to the maximum of hardware threads */
-        unsigned ThreadPoolSize = 0;
-    };
-
+    /**
+     * Executor manages the main, rendering, and worker threads and workload.
+     */
     class ELIXIR_API Executor
     {
       public:
-        Executor() = default;
+        Executor(const Executor&) = delete;
 
-        /**
-         * Initializes the Executor and binds the current thread as the "main" thread
-         *
-         * Executor functions can *only* be called from this thread or
-         * inside tasks on the worker threads.
-         *
-         * @param options    The configuration options for the Executor.
-         */
-        void Init(ExecutorInitOptions options = ExecutorInitOptions());
+        static Executor& Get()
+        {
+            static Executor s_Executor;
+            return s_Executor;
+        }
 
         template <typename F, typename... Args>
-        void AddTask(F&& func, Args&&... args, WaitGroup* wg = nullptr)
+        void Enqueue(F&& func, Args&&... args, WaitGroup* wg = nullptr)
         {
-            EE_CORE_ASSERT(IsInitialized(), "Executor was not initialized!")
             m_ThreadPool->Enqueue(func, args..., wg);
         }
 
-        [[nodiscard]] bool IsInitialized() const { return m_Initialized; }
+        Executor& operator=(const Executor&) = delete;
 
       private:
+        Executor()
+        {
+            m_ThreadPool = CreateScope<ThreadPool>();
+        }
+
         Scope<ThreadPool> m_ThreadPool;
-        bool m_Initialized = false;
     };
 }

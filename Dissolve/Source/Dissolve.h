@@ -14,8 +14,6 @@ public:
 private:
     void DrawGeometry();
 
-    Scope<Executor> m_Executor;
     WaitGroup m_WaitGroup;
-
     Extent2D m_DrawExtent;
 };

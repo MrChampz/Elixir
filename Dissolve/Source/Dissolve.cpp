@@ -4,7 +4,7 @@
 
 Ref<GraphicsPipeline> pipeline;
 
-void ThreadsTest(Executor* executor)
+void ThreadsTest(Executor& executor)
 {
     constexpr int NUM_TASKS = 1000;
 
@@ -16,7 +16,7 @@ void ThreadsTest(Executor* executor)
 
     for (int i = 0; i < NUM_TASKS; ++i)
     {
-        executor->AddTask([]()
+        executor.Enqueue([]()
         {
             EE_PROFILE_ZONE_SCOPED()
             std::random_device rd;
@@ -43,9 +43,6 @@ Dissolve::Dissolve()
     m_Window->SetTitle("Dissolve");
     m_DrawExtent = { m_Window->GetWidth(), m_Window->GetHeight() };
 
-    m_Executor = CreateScope<Executor>();
-    m_Executor->Init();
-
     const auto tex = TextureLoader::Load("./Assets/Bricks.png");
 
     const auto loader = CreateScope<ShaderLoader>(m_GraphicsContext.get());
@@ -71,7 +68,7 @@ Dissolve::Dissolve()
     builder.SetBufferLayout({});
     pipeline = builder.Build(m_GraphicsContext.get());
 
-    ThreadsTest(m_Executor.get());
+    ThreadsTest(m_Executor);
 }
 
 Dissolve::~Dissolve()
@@ -118,15 +115,7 @@ void Dissolve::DrawGeometry()
     scissor.Offset = { 0, 0 };
     scissor.Extent = m_DrawExtent;
 
-    struct TaskArgs
-    {
-        GraphicsContext* Ctx;
-        const SRenderingInfo& RenderingInfo;
-        const Viewport& Viewport;
-        const Rect2D& Scissor;
-    };
-
-    m_Executor->AddTask([this, renderingInfo, viewport, scissor]()
+    m_Executor.Enqueue([this, renderingInfo, viewport, scissor]()
     {
         const auto cmd = this->m_GraphicsContext->GetSecondaryCommandBuffer();
         cmd->BeginRendering(renderingInfo);

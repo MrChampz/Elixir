@@ -9,7 +9,7 @@ namespace Elixir
 {
     Application* Application::s_Application = nullptr;
 
-    Application::Application()
+    Application::Application() : m_Executor(Executor::Get())
     {
         EE_PROFILE_ZONE_SCOPED()
 

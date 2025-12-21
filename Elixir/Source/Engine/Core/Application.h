@@ -4,6 +4,7 @@
 #include <Engine/Core/Window.h>
 #include <Engine/Core/Timer.h>
 #include <Engine/Core/FrameProfiler.h>
+#include <Engine/Core/Executor/Executor.h>
 #include <Engine/Event/Event.h>
 #include <Engine/Event/WindowEvent.h>
 #include <Engine/Graphics/GraphicsContext.h>
@@ -30,6 +31,7 @@ namespace Elixir
         bool OnWindowClose(WindowCloseEvent& event);
         bool OnWindowResize(WindowResizeEvent& event);
 
+        Executor& m_Executor;
         Scope<Window> m_Window;
         Scope<GraphicsContext> m_GraphicsContext;
 
