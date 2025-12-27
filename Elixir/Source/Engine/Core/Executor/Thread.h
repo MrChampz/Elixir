@@ -40,6 +40,7 @@ namespace Elixir
         explicit WorkerThread(ThreadPool* pool, size_t index, const std::string& name);
 
         void Enqueue(Task task);
+        void ClearQueue();
 
       protected:
         Task StealTask();

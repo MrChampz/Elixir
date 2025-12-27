@@ -18,6 +18,12 @@ namespace Elixir
         m_Queue.enqueue(std::move(task));
     }
 
+    void WorkerThread::ClearQueue()
+    {
+        Task discarted;
+        while (m_Queue.try_dequeue(discarted)) {}
+    }
+
     Task WorkerThread::StealTask()
     {
         Task task;

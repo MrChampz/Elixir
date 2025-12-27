@@ -6,6 +6,7 @@
 
 namespace Elixir
 {
+    class Executor;
     class Window;
     class Texture2D;
     class CommandBuffer;
@@ -93,7 +94,13 @@ namespace Elixir
 
         virtual Extent2D GetSwapchainExtent() const = 0;
 
-        static Scope<GraphicsContext> Create(EGraphicsAPI api, const Window* window);
+        static Scope<GraphicsContext> Create(EGraphicsAPI api, Executor* executor, const Window* window);
+
+        virtual void BeginFrame() = 0;
+        virtual void RenderFrame(std::function<void()> callback) = 0;
+        virtual void WaitForFrame() = 0;
+        virtual void WaitForAllFrames() = 0;
+        virtual void FlushAndWait() = 0;
 
       protected:
         explicit GraphicsContext(const EGraphicsAPI api, const Window* window)

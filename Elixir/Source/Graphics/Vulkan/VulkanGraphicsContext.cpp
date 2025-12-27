@@ -120,10 +120,11 @@ namespace Elixir
 
     /* VulkanGraphicsContext */
 
-    VulkanGraphicsContext::VulkanGraphicsContext(const EGraphicsAPI api, const Window* window)
-        : GraphicsContext(api, window)
+    VulkanGraphicsContext::VulkanGraphicsContext(const EGraphicsAPI api, Executor* executor, const Window* window)
+        : GraphicsContext(api, window), m_Executor(executor)
     {
         EE_PROFILE_ZONE_SCOPED()
+        EE_CORE_ASSERT(executor, "Invalid executor!")
         EE_CORE_ASSERT(window, "Invalid window!")
 
         glfwGetFramebufferSize(
@@ -169,7 +170,12 @@ namespace Elixir
 
         if (m_IsInitialized)
         {
-            vkDeviceWaitIdle(m_Device);
+            if (m_AcceptingFrames.load())
+            {
+                FlushAndWait();
+            }
+
+            EE_CORE_INFO("[SHUTDOWN] Starting cleanup");
 
             m_CommandPoolManager.reset();
 
@@ -195,6 +201,7 @@ namespace Elixir
             vkDestroyInstance(m_Instance, nullptr);
 
             m_IsInitialized = false;
+            EE_CORE_INFO("[SHUTDOWN] Complete");
         }
     }
 
@@ -204,19 +211,28 @@ namespace Elixir
 
         auto& frame = GetCurrentFrame();
 
+        if (frame.InUseByRenderThread.load())
+        {
+            // Wait until the gpu has finished rendering the last frame. Timeout of 1 second.
+            VK_CHECK_RESULT(
+                vkWaitForFences(
+                    m_Device,
+                    1,
+                    &frame.RenderFence,
+                    VK_TRUE,
+                    UINT64_MAX
+                )
+            );
+
+            frame.InUseByRenderThread = false;
+        }
+
+        VK_CHECK_RESULT(vkResetFences(m_Device, 1, &frame.RenderFence));
+
+        frame.InUseByRenderThread = true;
+
         if (m_SwapchainRecreateRequested)
             RecreateSwapchain();
-
-        // Wait until the gpu has finished rendering the last frame. Timeout of 1 second.
-        auto result = vkWaitForFences(
-            m_Device,
-            1,
-            &frame.RenderFence,
-            VK_TRUE,
-            UINT64_MAX
-        );
-        VK_CHECK_RESULT(result);
-        VK_CHECK_RESULT(vkResetFences(m_Device, 1, &frame.RenderFence));
 
         m_CommandPoolManager->Recycle();
 
@@ -225,7 +241,7 @@ namespace Elixir
 
         frame.DeletionQueue.Flush();
 
-        result = vkAcquireNextImageKHR(
+        const auto result = vkAcquireNextImageKHR(
             m_Device,
             m_Swapchain,
             UINT64_MAX,
@@ -237,6 +253,7 @@ namespace Elixir
         if (result == VK_ERROR_OUT_OF_DATE_KHR)
         {
             m_SwapchainRecreateRequested = true;
+            frame.InUseByRenderThread = false;
             return false;
         }
 
@@ -281,7 +298,7 @@ namespace Elixir
     {
         EE_PROFILE_ZONE_SCOPED()
 
-        const auto& frame = GetCurrentFrame();
+        auto& frame = GetCurrentFrame();
         const auto& swapchain = GetCurrentSwapchainImage();
 
         CommandUtils::TransitionImage(
@@ -315,6 +332,7 @@ namespace Elixir
         if (result == VK_ERROR_OUT_OF_DATE_KHR)
         {
             m_SwapchainRecreateRequested = true;
+            frame.InUseByRenderThread = false;
             return;
         }
 
@@ -377,6 +395,90 @@ namespace Elixir
     Extent2D VulkanGraphicsContext::GetSwapchainExtent() const
     {
         return { m_SwapchainExtent.width, m_SwapchainExtent.height };
+    }
+
+    void VulkanGraphicsContext::BeginFrame()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        // WaitForFrame();
+
+        auto& frame = GetCurrentFrame();
+
+        if (frame.InUseByRenderThread.load())
+        {
+            while (frame.InUseByRenderThread.load())
+            {
+                std::this_thread::yield();
+            }
+        }
+
+        frame.InUseByRenderThread = true;
+
+        //m_FrameInFlight = true;
+    }
+
+    void VulkanGraphicsContext::RenderFrame(std::function<void()> callback)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        // Don't accept new frames during shutdown
+        if (!m_AcceptingFrames.load())
+        {
+            EE_CORE_WARN("RenderFrame called during shutdown - ignoring");
+            return;
+        }
+
+        m_Executor->Enqueue(EThreadName::Rendering, [this, callback]()
+        {
+            if (!Prepare())
+                return;
+
+            if (callback)
+                callback();
+
+            Submit();
+            Present();
+        });
+    }
+
+    void VulkanGraphicsContext::WaitForFrame()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        // if (m_FrameInFlight.load())
+        // {
+        //     m_FrameWaitGroup.Wait();
+        // }
+    }
+
+    void VulkanGraphicsContext::WaitForAllFrames()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        for (auto& frame : m_Frames)
+        {
+            frame.InUseByRenderThread = false;
+        }
+    }
+
+    void VulkanGraphicsContext::FlushAndWait()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        if (!m_IsInitialized)
+            return;
+
+        EE_CORE_INFO("[FLUSH] Stopping frame acceptance");
+        m_AcceptingFrames = false;
+
+        m_Executor->WaitForRenderPool();
+
+        vkDeviceWaitIdle(m_Device);
+
+        WaitForAllFrames();
+
+        EE_CORE_INFO("[FLUSH] Complete");
     }
 
     void VulkanGraphicsContext::InitVulkan()

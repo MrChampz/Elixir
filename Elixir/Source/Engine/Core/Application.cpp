@@ -19,7 +19,7 @@ namespace Elixir
         m_Window = Window::Create();
         m_Window->SetEventCallback(EE_BIND_EVENT_FN(Application::OnEvent));
 
-        m_GraphicsContext = GraphicsContext::Create(EGraphicsAPI::Vulkan, m_Window.get());
+        m_GraphicsContext = GraphicsContext::Create(EGraphicsAPI::Vulkan, &m_Executor, m_Window.get());
         m_GraphicsContext->Init();
 
         TextureLoader::Initialize(m_GraphicsContext.get());
@@ -28,7 +28,8 @@ namespace Elixir
     Application::~Application()
     {
         EE_PROFILE_ZONE_SCOPED()
-        m_GraphicsContext->WaitDeviceIdle();
+        EE_CORE_INFO("[SHUTDOWN] Application destructor started");
+        // m_GraphicsContext->WaitDeviceIdle();
     }
 
     void Application::Run()
@@ -58,18 +59,28 @@ namespace Elixir
 
             m_Window->ShowFPSAndFrameTime(m_Profiler.GetFPS(), frameTime);
 
-            if (!m_GraphicsContext->Prepare()) continue;
+            // if (!m_GraphicsContext->Prepare()) continue;
+            //m_GraphicsContext->BeginFrame();
 
             OnGUI(frameTime);
-            OnRender(frameTime);
+            //OnRender(frameTime);
 
-            m_GraphicsContext->Submit();
-            m_GraphicsContext->Present();
+            m_GraphicsContext->RenderFrame([this, frameTime]()
+            {
+                OnRender(frameTime);
+            });
+
+            // m_GraphicsContext->Submit();
+            // m_GraphicsContext->Present();
 
             EE_PROFILE_FRAME_MARK()
         }
 
-        m_GraphicsContext->WaitDeviceIdle();
+        EE_CORE_INFO("Main loop ended");
+        m_GraphicsContext->FlushAndWait();
+        EE_CORE_INFO("Ready for shutdown")
+        //m_GraphicsContext->WaitForAllFrames();
+        //m_GraphicsContext->WaitDeviceIdle();
     }
 
     void Application::OnEvent(Event& event)

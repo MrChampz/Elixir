@@ -47,7 +47,11 @@ namespace Elixir
             m_Condition.notify_one();
         }
 
+        void WaitForAllTasks() const;
+
         bool IsRunning() const { return m_Running; }
+
+        void Shutdown();
 
         ThreadPool &operator=(ThreadPool const &) = delete;
         ThreadPool &operator=(ThreadPool &&) noexcept = delete;
@@ -68,5 +72,6 @@ namespace Elixir
         std::condition_variable m_Condition;
 
         std::atomic<bool> m_Running{true};
+        std::atomic<size_t> m_ActiveTasks{0};
     };
 }

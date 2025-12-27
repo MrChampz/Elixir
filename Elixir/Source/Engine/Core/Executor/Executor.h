@@ -4,6 +4,11 @@
 
 namespace Elixir
 {
+    enum class EThreadName : uint8_t
+    {
+        Rendering, Worker
+    };
+
     /**
      * Executor manages the main, rendering, and worker threads and workload.
      */
@@ -21,7 +26,29 @@ namespace Elixir
         template <typename F, typename... Args>
         void Enqueue(F&& func, Args&&... args, WaitGroup* wg = nullptr)
         {
-            m_ThreadPool->Enqueue(func, args..., wg);
+            Enqueue(EThreadName::Worker, std::forward<F>(func), std::forward<Args>(args)..., wg);
+        }
+
+        template <typename F, typename... Args>
+        void Enqueue(const EThreadName thread, F&& func, Args&&... args, WaitGroup* wg = nullptr)
+        {
+            if (thread == EThreadName::Rendering)
+            {
+                m_RenderPool->Enqueue(func, args..., wg);
+                return;
+            }
+
+            m_WorkerPool->Enqueue(func, args..., wg);
+        }
+
+        void WaitForRenderPool() const
+        {
+            m_RenderPool->WaitForAllTasks();
+        }
+
+        void ShutdownRenderPool()
+        {
+            m_RenderPool->Shutdown();
         }
 
         Executor& operator=(const Executor&) = delete;
@@ -29,9 +56,14 @@ namespace Elixir
       private:
         Executor()
         {
-            m_ThreadPool = CreateScope<ThreadPool>();
+            m_RenderPool = CreateScope<ThreadPool>(1);
+
+            // Num hardware threads subtracted by 1 render thread and 1 main thread.
+            const auto workers = GetNumHardwareThreads() - 2;
+            m_WorkerPool = CreateScope<ThreadPool>(workers);
         }
 
-        Scope<ThreadPool> m_ThreadPool;
+        Scope<ThreadPool> m_RenderPool;
+        Scope<ThreadPool> m_WorkerPool;
     };
 }

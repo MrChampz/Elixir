@@ -20,8 +20,49 @@ namespace Elixir
 
     ThreadPool::~ThreadPool()
     {
+        if (m_Running)
+        {
+            Task discarted;
+            while (m_Queue.try_dequeue(discarted)) {}
+
+            for (const auto&    worker : m_Workers)
+                worker->ClearQueue();
+        }
+
+        while (m_ActiveTasks.load() > 0)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+
         m_Running = false;
         m_Condition.notify_all();
+    }
+
+    void ThreadPool::Shutdown()
+    {
+        // Aguardar tarefas ativas terminarem
+        while (m_ActiveTasks.load() > 0)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+
+        // Parar as threads
+        m_Running = false;
+        m_Condition.notify_all();
+
+        // Unir as threads dos workers
+        for (auto& worker : m_Workers)
+        {
+            worker->Join();  // Assumindo que WorkerThread::Join() faz join na std::thread
+        }
+    }
+
+    void ThreadPool::WaitForAllTasks() const
+    {
+        while (m_ActiveTasks.load() > 0)
+        {
+            std::this_thread::yield();
+        }
     }
 
     Task ThreadPool::GetTaskForWorker(const size_t workerIndex)
@@ -31,13 +72,51 @@ namespace Elixir
         // Try global queue
         if (m_Queue.try_dequeue(task))
         {
-            return task;
+            if (task)
+            {
+                m_ActiveTasks.fetch_add(1);
+
+                return [this, originalTask = std::move(task)]() mutable
+                {
+                    try
+                    {
+                        originalTask();
+                    }
+                    catch (...)
+                    {
+                        m_ActiveTasks.fetch_sub(1);
+                        throw;
+                    }
+
+                    m_ActiveTasks.fetch_sub(1);
+                };
+            }
         }
 
         // Try stealing from other workers (FIFO)
         task = StealWork(workerIndex);
 
-        return task;
+        if (task)
+        {
+            m_ActiveTasks.fetch_add(1);
+
+            return [this, originalTask = std::move(task)]() mutable
+            {
+                try
+                {
+                    originalTask();
+                }
+                catch (...)
+                {
+                    m_ActiveTasks.fetch_sub(1);
+                    throw;
+                }
+
+                m_ActiveTasks.fetch_sub(1);
+            };
+        }
+
+        return nullptr;
     }
 
     void ThreadPool::WaitForWork()

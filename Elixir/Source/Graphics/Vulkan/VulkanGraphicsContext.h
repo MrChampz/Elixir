@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Core/Window.h>
+#include <Engine/Core/Executor/Executor.h>
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Graphics/Vulkan/VulkanTexture.h>
 
@@ -59,6 +60,21 @@ namespace Elixir::Vulkan
         VkFence RenderFence;
 
         SDeletionQueue DeletionQueue;
+
+        std::atomic<bool> InUseByRenderThread{false};
+
+        SFrameData() = default;
+        SFrameData(const SFrameData&) = delete;
+        SFrameData(SFrameData&& other) noexcept
+            : SwapchainSemaphore(other.SwapchainSemaphore), RenderFence(other.RenderFence),
+              DeletionQueue(std::move(other.DeletionQueue)),
+              InUseByRenderThread(other.InUseByRenderThread.load())
+        {
+            other.SwapchainSemaphore = VK_NULL_HANDLE;
+            other.RenderFence = VK_NULL_HANDLE;
+        }
+
+        SFrameData& operator=(const SFrameData&) = delete;
     };
 
     struct SSwapchainImage
@@ -71,7 +87,7 @@ namespace Elixir::Vulkan
     class ELIXIR_API VulkanGraphicsContext final : public GraphicsContext
     {
       public:
-        explicit VulkanGraphicsContext(EGraphicsAPI api, const Window* window);
+        explicit VulkanGraphicsContext(EGraphicsAPI api, Executor* executor, const Window* window);
         ~VulkanGraphicsContext() override;
 
         void Init() override;
@@ -109,6 +125,12 @@ namespace Elixir::Vulkan
         SSwapchainImage& GetCurrentSwapchainImage() { return m_SwapchainImages[m_CurrentSwapchainImageIndex]; }
         VkFormat GetSwapchainImageFormat() const { return m_SwapchainImageFormat; }
         VkExtent3D GetSwapchainVulkanExtent() const { return m_SwapchainExtent; }
+
+        void BeginFrame() override;
+        void RenderFrame(std::function<void()> callback) override;
+        void WaitForFrame() override;
+        void WaitForAllFrames() override;
+        void FlushAndWait() override;
 
       private:
         void InitVulkan();
@@ -164,5 +186,12 @@ namespace Elixir::Vulkan
         VkClearColorValue m_ClearColor;
 
         SDeletionQueue m_DeletionQueue;
+
+        Executor* m_Executor;
+
+        // Frame completion tracking
+        //std::atomic<bool> m_FrameInFlight{false};
+        WaitGroup m_RenderWaitGroup;
+        std::atomic<bool> m_AcceptingFrames{true};
     };
 }
