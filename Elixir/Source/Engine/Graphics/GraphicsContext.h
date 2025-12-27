@@ -27,11 +27,8 @@ namespace Elixir
         virtual void Init() = 0;
         virtual void Shutdown() = 0;
 
-        virtual bool Prepare() = 0;
-        virtual void Submit() = 0;
-        virtual void Present() = 0;
-
-        virtual void WaitDeviceIdle() = 0;
+        virtual void RenderFrame(std::function<void()> callback) = 0;
+        virtual void DrainRenderQueue() = 0;
 
         virtual void SetClearColor(const glm::vec4& color) = 0;
         virtual void Clear() = 0;
@@ -95,12 +92,6 @@ namespace Elixir
         virtual Extent2D GetSwapchainExtent() const = 0;
 
         static Scope<GraphicsContext> Create(EGraphicsAPI api, Executor* executor, const Window* window);
-
-        virtual void BeginFrame() = 0;
-        virtual void RenderFrame(std::function<void()> callback) = 0;
-        virtual void WaitForFrame() = 0;
-        virtual void WaitForAllFrames() = 0;
-        virtual void DrainRenderQueue() = 0;
 
         std::mutex& GetGraphicsQueueMutex() { return m_GraphicsQueueMutex; }
 

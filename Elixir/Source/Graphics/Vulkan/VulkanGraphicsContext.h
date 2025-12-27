@@ -93,11 +93,8 @@ namespace Elixir::Vulkan
         void Init() override;
         void Shutdown() override;
 
-        bool Prepare() override;
-        void Submit() override;
-        void Present() override;
-
-        void WaitDeviceIdle() override;
+        void RenderFrame(std::function<void()> callback) override;
+        void DrainRenderQueue() override;
 
         void SetClearColor(const glm::vec4& color) override;
         void Clear() override;
@@ -126,12 +123,6 @@ namespace Elixir::Vulkan
         VkFormat GetSwapchainImageFormat() const { return m_SwapchainImageFormat; }
         VkExtent3D GetSwapchainVulkanExtent() const { return m_SwapchainExtent; }
 
-        void BeginFrame() override;
-        void RenderFrame(std::function<void()> callback) override;
-        void WaitForFrame() override;
-        void WaitForAllFrames() override;
-        void DrainRenderQueue() override;
-
       private:
         void InitVulkan();
         void InitAllocator();
@@ -145,6 +136,13 @@ namespace Elixir::Vulkan
         void RecreateSwapchain();
 
         void CreateRenderTarget() override;
+
+        void WaitDeviceIdle() const;
+        void WaitForAllFrames();
+
+        bool Prepare();
+        void Submit();
+        void Present();
 
         bool m_IsInitialized = false;
 
@@ -188,10 +186,6 @@ namespace Elixir::Vulkan
         SDeletionQueue m_DeletionQueue;
 
         Executor* m_Executor;
-
-        // Frame completion tracking
-        //std::atomic<bool> m_FrameInFlight{false};
-        WaitGroup m_RenderWaitGroup;
         std::atomic<bool> m_AcceptingFrames{true};
     };
 }

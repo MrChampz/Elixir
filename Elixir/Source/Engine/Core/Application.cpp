@@ -28,9 +28,6 @@ namespace Elixir
     Application::~Application()
     {
         EE_PROFILE_ZONE_SCOPED()
-        EE_CORE_INFO("[SHUTDOWN] Application destructor started");
-        // m_GraphicsContext->WaitDeviceIdle();
-
         m_Running = false;
     }
 
@@ -61,19 +58,12 @@ namespace Elixir
 
             m_Window->ShowFPSAndFrameTime(m_Profiler.GetFPS(), frameTime);
 
-            // if (!m_GraphicsContext->Prepare()) continue;
-            //m_GraphicsContext->BeginFrame();
-
             OnGUI(frameTime);
-            //OnRender(frameTime);
 
             m_GraphicsContext->RenderFrame([this, frameTime]()
             {
                 OnRender(frameTime);
             });
-
-            // m_GraphicsContext->Submit();
-            // m_GraphicsContext->Present();
 
             EE_PROFILE_FRAME_MARK()
         }

@@ -199,151 +199,44 @@ namespace Elixir
         }
     }
 
-    bool VulkanGraphicsContext::Prepare()
+    void VulkanGraphicsContext::RenderFrame(std::function<void()> callback)
     {
         EE_PROFILE_ZONE_SCOPED()
 
-        auto& frame = GetCurrentFrame();
+        // Don't accept new frames during shutdown
+        if (!m_AcceptingFrames.load())
+            return;
 
-        if (frame.InUseByRenderThread.load())
+        m_Executor->Enqueue(EThreadName::Rendering, [this, callback]()
         {
-            // Wait until the gpu has finished rendering the last frame. Timeout of 1 second.
-            VK_CHECK_RESULT(
-                vkWaitForFences(
-                    m_Device,
-                    1,
-                    &frame.RenderFence,
-                    VK_TRUE,
-                    UINT64_MAX
-                )
-            );
+            if (!Prepare())
+                return;
 
-            frame.InUseByRenderThread = false;
-        }
+            if (callback)
+                callback();
 
-        VK_CHECK_RESULT(vkResetFences(m_Device, 1, &frame.RenderFence));
-
-        frame.InUseByRenderThread = true;
-
-        if (m_SwapchainRecreateRequested)
-            RecreateSwapchain();
-
-        m_CommandPoolManager->Recycle();
-
-        const auto cmd = m_CommandPoolManager->GetPrimaryCommandBuffer();
-        m_MainCommandBuffer = std::static_pointer_cast<VulkanCommandBuffer>(cmd);
-
-        frame.DeletionQueue.Flush();
-
-        const auto result = vkAcquireNextImageKHR(
-            m_Device,
-            m_Swapchain,
-            UINT64_MAX,
-            frame.SwapchainSemaphore,
-            VK_NULL_HANDLE,
-            &m_CurrentSwapchainImageIndex
-        );
-
-        if (result == VK_ERROR_OUT_OF_DATE_KHR)
-        {
-            m_SwapchainRecreateRequested = true;
-            frame.InUseByRenderThread = false;
-            return false;
-        }
-
-        if (result != VK_SUBOPTIMAL_KHR)
-            VK_CHECK_RESULT(result);
-
-        m_MainCommandBuffer->Begin();
-
-        m_RenderTarget->Transition(m_MainCommandBuffer, EImageLayout::General);
-
-        return true;
+            Submit();
+            Present();
+        });
     }
 
-    void VulkanGraphicsContext::Submit()
+    void VulkanGraphicsContext::DrainRenderQueue()
     {
         EE_PROFILE_ZONE_SCOPED()
 
-        const auto& swapchain = GetCurrentSwapchainImage();
+        if (!m_IsInitialized)
+            return;
 
-        m_CommandPoolManager->FlushSecondaryCommandBuffers(m_MainCommandBuffer);
+        m_AcceptingFrames = false;
 
-        m_RenderTarget->Transition(m_MainCommandBuffer, EImageLayout::TransferSrc);
+        m_Executor->Reset();
 
-        CommandUtils::TransitionImage(
-            m_MainCommandBuffer->GetVulkanCommandBuffer(),
-            swapchain.Image,
-            VK_IMAGE_LAYOUT_UNDEFINED,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            VK_IMAGE_ASPECT_COLOR_BIT
-        );
-
-        CommandUtils::CopyImageToImage(
-            m_MainCommandBuffer->GetVulkanCommandBuffer(),
-            TryToGetVulkanImage(m_RenderTarget.get())->GetVulkanImage(),
-            swapchain.Image,
-            GetExtent3D(m_RenderTarget->GetExtent()),
-            m_SwapchainExtent
-        );
-    }
-
-    void VulkanGraphicsContext::Present()
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-        auto& frame = GetCurrentFrame();
-        const auto& swapchain = GetCurrentSwapchainImage();
-
-        CommandUtils::TransitionImage(
-            m_MainCommandBuffer->GetVulkanCommandBuffer(),
-            swapchain.Image,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-            VK_IMAGE_ASPECT_COLOR_BIT
-        );
-
-        m_MainCommandBuffer->End();
-        m_MainCommandBuffer->Submit(
-            frame.SwapchainSemaphore,
-            swapchain.RenderSemaphore,
-            frame.RenderFence
-        );
-
-        m_CommandPoolManager->RecycleCommandBuffer(m_MainCommandBuffer);
-
-        VkPresentInfoKHR presentInfo = {};
-        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-        presentInfo.pNext = nullptr;
-        presentInfo.pSwapchains = &m_Swapchain;
-        presentInfo.swapchainCount = 1;
-        presentInfo.pWaitSemaphores = &swapchain.RenderSemaphore;
-        presentInfo.waitSemaphoreCount = 1;
-        presentInfo.pImageIndices = &m_CurrentSwapchainImageIndex;
-
-        VkResult result;
         {
             std::lock_guard lock(m_GraphicsQueueMutex);
-            result = vkQueuePresentKHR(m_GraphicsQueue, &presentInfo);
+            WaitDeviceIdle();
         }
 
-        if (result == VK_ERROR_OUT_OF_DATE_KHR)
-        {
-            m_SwapchainRecreateRequested = true;
-            frame.InUseByRenderThread = false;
-            return;
-        }
-
-        if (result != VK_SUBOPTIMAL_KHR)
-            VK_CHECK_RESULT(result);
-
-        m_FrameNumber++;
-    }
-
-    void VulkanGraphicsContext::WaitDeviceIdle()
-    {
-        EE_PROFILE_ZONE_SCOPED()
-        VK_CHECK_RESULT(vkDeviceWaitIdle(m_Device));
+        WaitForAllFrames();
     }
 
     void VulkanGraphicsContext::SetClearColor(const glm::vec4& color)
@@ -393,93 +286,6 @@ namespace Elixir
     Extent2D VulkanGraphicsContext::GetSwapchainExtent() const
     {
         return { m_SwapchainExtent.width, m_SwapchainExtent.height };
-    }
-
-    void VulkanGraphicsContext::BeginFrame()
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-        // WaitForFrame();
-
-        auto& frame = GetCurrentFrame();
-
-        if (frame.InUseByRenderThread.load())
-        {
-            while (frame.InUseByRenderThread.load())
-            {
-                std::this_thread::yield();
-            }
-        }
-
-        frame.InUseByRenderThread = true;
-
-        //m_FrameInFlight = true;
-    }
-
-    void VulkanGraphicsContext::RenderFrame(std::function<void()> callback)
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-        // Don't accept new frames during shutdown
-        if (!m_AcceptingFrames.load())
-        {
-            EE_CORE_WARN("RenderFrame called during shutdown - ignoring");
-            return;
-        }
-
-        m_Executor->Enqueue(EThreadName::Rendering, [this, callback]()
-        {
-            if (!Prepare())
-                return;
-
-            if (callback)
-                callback();
-
-            Submit();
-            Present();
-        });
-    }
-
-    void VulkanGraphicsContext::WaitForFrame()
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-        // if (m_FrameInFlight.load())
-        // {
-        //     m_FrameWaitGroup.Wait();
-        // }
-    }
-
-    void VulkanGraphicsContext::WaitForAllFrames()
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-        for (auto& frame : m_Frames)
-        {
-            frame.InUseByRenderThread = false;
-        }
-    }
-
-    void VulkanGraphicsContext::DrainRenderQueue()
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-        if (!m_IsInitialized)
-            return;
-
-        m_AcceptingFrames = false;
-
-        m_Executor->Reset();
-
-        {
-            std::lock_guard lock(m_GraphicsQueueMutex);
-            WaitDeviceIdle();
-        }
-
-        for (auto& frame :  m_Frames)
-        {
-            frame.InUseByRenderThread = false;
-        }
     }
 
     void VulkanGraphicsContext::InitVulkan()
@@ -725,5 +531,162 @@ namespace Elixir
         info.Usage = EImageUsage::ColorAttachment | EImageUsage::TransferSrc | EImageUsage::TransferDst;
         info.InitialLayout = EImageLayout::General;
         m_RenderTarget = CreateRef<VulkanTexture2D>(this, info);
+    }
+
+    void VulkanGraphicsContext::WaitDeviceIdle() const
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        VK_CHECK_RESULT(vkDeviceWaitIdle(m_Device));
+    }
+
+    void VulkanGraphicsContext::WaitForAllFrames()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        for (auto& frame : m_Frames)
+        {
+            frame.InUseByRenderThread = false;
+        }
+    }
+
+    bool VulkanGraphicsContext::Prepare()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        auto& frame = GetCurrentFrame();
+
+        if (frame.InUseByRenderThread.load())
+        {
+            // Wait until the gpu has finished rendering the last frame. Timeout of 1 second.
+            VK_CHECK_RESULT(
+                vkWaitForFences(
+                    m_Device,
+                    1,
+                    &frame.RenderFence,
+                    VK_TRUE,
+                    UINT64_MAX
+                )
+            );
+
+            frame.InUseByRenderThread = false;
+        }
+
+        VK_CHECK_RESULT(vkResetFences(m_Device, 1, &frame.RenderFence));
+
+        frame.InUseByRenderThread = true;
+
+        if (m_SwapchainRecreateRequested)
+            RecreateSwapchain();
+
+        m_CommandPoolManager->Recycle();
+
+        const auto cmd = m_CommandPoolManager->GetPrimaryCommandBuffer();
+        m_MainCommandBuffer = std::static_pointer_cast<VulkanCommandBuffer>(cmd);
+
+        frame.DeletionQueue.Flush();
+
+        const auto result = vkAcquireNextImageKHR(
+            m_Device,
+            m_Swapchain,
+            UINT64_MAX,
+            frame.SwapchainSemaphore,
+            VK_NULL_HANDLE,
+            &m_CurrentSwapchainImageIndex
+        );
+
+        if (result == VK_ERROR_OUT_OF_DATE_KHR)
+        {
+            m_SwapchainRecreateRequested = true;
+            frame.InUseByRenderThread = false;
+            return false;
+        }
+
+        if (result != VK_SUBOPTIMAL_KHR)
+            VK_CHECK_RESULT(result);
+
+        m_MainCommandBuffer->Begin();
+
+        m_RenderTarget->Transition(m_MainCommandBuffer, EImageLayout::General);
+
+        return true;
+    }
+
+    void VulkanGraphicsContext::Submit()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        const auto& swapchain = GetCurrentSwapchainImage();
+
+        m_CommandPoolManager->FlushSecondaryCommandBuffers(m_MainCommandBuffer);
+
+        m_RenderTarget->Transition(m_MainCommandBuffer, EImageLayout::TransferSrc);
+
+        CommandUtils::TransitionImage(
+            m_MainCommandBuffer->GetVulkanCommandBuffer(),
+            swapchain.Image,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_IMAGE_ASPECT_COLOR_BIT
+        );
+
+        CommandUtils::CopyImageToImage(
+            m_MainCommandBuffer->GetVulkanCommandBuffer(),
+            TryToGetVulkanImage(m_RenderTarget.get())->GetVulkanImage(),
+            swapchain.Image,
+            GetExtent3D(m_RenderTarget->GetExtent()),
+            m_SwapchainExtent
+        );
+    }
+
+    void VulkanGraphicsContext::Present()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        auto& frame = GetCurrentFrame();
+        const auto& swapchain = GetCurrentSwapchainImage();
+
+        CommandUtils::TransitionImage(
+            m_MainCommandBuffer->GetVulkanCommandBuffer(),
+            swapchain.Image,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+            VK_IMAGE_ASPECT_COLOR_BIT
+        );
+
+        m_MainCommandBuffer->End();
+        m_MainCommandBuffer->Submit(
+            frame.SwapchainSemaphore,
+            swapchain.RenderSemaphore,
+            frame.RenderFence
+        );
+
+        m_CommandPoolManager->RecycleCommandBuffer(m_MainCommandBuffer);
+
+        VkPresentInfoKHR presentInfo = {};
+        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+        presentInfo.pNext = nullptr;
+        presentInfo.pSwapchains = &m_Swapchain;
+        presentInfo.swapchainCount = 1;
+        presentInfo.pWaitSemaphores = &swapchain.RenderSemaphore;
+        presentInfo.waitSemaphoreCount = 1;
+        presentInfo.pImageIndices = &m_CurrentSwapchainImageIndex;
+
+        VkResult result;
+        {
+            std::lock_guard lock(m_GraphicsQueueMutex);
+            result = vkQueuePresentKHR(m_GraphicsQueue, &presentInfo);
+        }
+
+        if (result == VK_ERROR_OUT_OF_DATE_KHR)
+        {
+            m_SwapchainRecreateRequested = true;
+            frame.InUseByRenderThread = false;
+            return;
+        }
+
+        if (result != VK_SUBOPTIMAL_KHR)
+            VK_CHECK_RESULT(result);
+
+        m_FrameNumber++;
     }
 }
