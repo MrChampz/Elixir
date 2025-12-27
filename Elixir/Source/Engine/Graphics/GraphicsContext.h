@@ -93,8 +93,6 @@ namespace Elixir
 
         static Scope<GraphicsContext> Create(EGraphicsAPI api, Executor* executor, const Window* window);
 
-        std::mutex& GetGraphicsQueueMutex() { return m_GraphicsQueueMutex; }
-
       protected:
         explicit GraphicsContext(const EGraphicsAPI api, const Window* window)
             : m_API(api), m_Window(window)
@@ -115,7 +113,5 @@ namespace Elixir
         Scope<ShaderBackend> m_ShaderBackend = nullptr;
 
         bool m_VSyncEnabled = false;
-
-        std::mutex m_GraphicsQueueMutex;
     };
 }

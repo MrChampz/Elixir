@@ -14,7 +14,7 @@ namespace Elixir::Vulkan
 
       public:
         explicit VulkanCommandBuffer(
-            GraphicsContext* context,
+            const GraphicsContext* context,
             VkCommandPool pool,
             ECommandBufferLevel level
         );
@@ -86,6 +86,6 @@ namespace Elixir::Vulkan
 
         VkCommandBufferInheritanceInfo* m_InheritanceInfo;
 
-        VulkanGraphicsContext* m_GraphicsContext;
+        const VulkanGraphicsContext* m_GraphicsContext;
     };
 }

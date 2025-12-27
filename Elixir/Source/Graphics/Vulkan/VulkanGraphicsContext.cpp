@@ -231,11 +231,7 @@ namespace Elixir
 
         m_Executor->Reset();
 
-        {
-            std::lock_guard lock(m_GraphicsQueueMutex);
-            WaitDeviceIdle();
-        }
-
+        WaitDeviceIdle();
         WaitForAllFrames();
     }
 
@@ -671,11 +667,7 @@ namespace Elixir
         presentInfo.waitSemaphoreCount = 1;
         presentInfo.pImageIndices = &m_CurrentSwapchainImageIndex;
 
-        VkResult result;
-        {
-            std::lock_guard lock(m_GraphicsQueueMutex);
-            result = vkQueuePresentKHR(m_GraphicsQueue, &presentInfo);
-        }
+        const auto result = vkQueuePresentKHR(m_GraphicsQueue, &presentInfo);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR)
         {

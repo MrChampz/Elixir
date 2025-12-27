@@ -9,13 +9,13 @@
 namespace Elixir::Vulkan
 {
     VulkanCommandBuffer::VulkanCommandBuffer(
-        GraphicsContext* context,
+        const GraphicsContext* context,
         const VkCommandPool pool,
         const ECommandBufferLevel level
     ) : CommandBuffer(context, level), m_Ended(true), m_CommandPool(pool)
     {
         EE_PROFILE_ZONE_SCOPED()
-        m_GraphicsContext = static_cast<VulkanGraphicsContext*>(context);
+        m_GraphicsContext = static_cast<const VulkanGraphicsContext*>(context);
         AllocateCommandBuffer();
     }
 
@@ -272,10 +272,7 @@ namespace Elixir::Vulkan
         VkFence fence;
         VK_CHECK_RESULT(vkCreateFence(device, &fenceInfo, nullptr, &fence));
 
-        {
-            std::lock_guard lock(m_GraphicsContext->GetGraphicsQueueMutex());
-            VK_CHECK_RESULT(vkQueueSubmit(graphicsQueue, 1, &submitInfo, fence));
-        }
+        VK_CHECK_RESULT(vkQueueSubmit(graphicsQueue, 1, &submitInfo, fence));
 
         VK_CHECK_RESULT(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX));
         vkDestroyFence(device, fence, nullptr);
@@ -344,9 +341,6 @@ namespace Elixir::Vulkan
         submitInfo.commandBufferInfoCount = 1;
         submitInfo.pCommandBufferInfos = &cmdInfo;
 
-        {
-            std::lock_guard lock(m_GraphicsContext->GetGraphicsQueueMutex());
-            VK_CHECK_RESULT(vkQueueSubmit2(graphicsQueue, 1, &submitInfo, renderFence));
-        }
+        VK_CHECK_RESULT(vkQueueSubmit2(graphicsQueue, 1, &submitInfo, renderFence));
     }
 }
