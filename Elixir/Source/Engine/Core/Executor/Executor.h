@@ -46,9 +46,17 @@ namespace Elixir
             m_RenderPool->WaitForAllTasks();
         }
 
-        void ShutdownRenderPool()
+        void WaitForAllTasks() const
         {
-            m_RenderPool->Shutdown();
+            m_RenderPool->WaitForAllTasks();
+            m_WorkerPool->WaitForAllTasks();
+        }
+
+        void Reset()
+        {
+            WaitForAllTasks();
+            m_RenderPool.reset(new ThreadPool(1));
+            m_WorkerPool.reset(new ThreadPool(GetNumHardwareThreads() - 2));
         }
 
         Executor& operator=(const Executor&) = delete;

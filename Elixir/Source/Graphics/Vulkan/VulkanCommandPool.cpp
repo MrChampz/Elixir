@@ -8,7 +8,7 @@ namespace Elixir::Vulkan
 {
     /* VulkanCommandPool */
     VulkanCommandPool::VulkanCommandPool(
-        const VulkanGraphicsContext* context,
+        VulkanGraphicsContext* context,
         const uint32_t queueFamily,
         const bool transient
     )
@@ -116,7 +116,7 @@ namespace Elixir::Vulkan
 
     thread_local VulkanCommandPool* VulkanCommandPoolManager::s_ThreadPool = nullptr;
 
-    VulkanCommandPoolManager::VulkanCommandPoolManager(const VulkanGraphicsContext* context)
+    VulkanCommandPoolManager::VulkanCommandPoolManager(VulkanGraphicsContext* context)
         : m_GraphicsContext(context)
     {
         m_GraphicsQueueFamily = m_GraphicsContext->GetGraphicsQueueFamily();

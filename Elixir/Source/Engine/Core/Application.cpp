@@ -30,6 +30,8 @@ namespace Elixir
         EE_PROFILE_ZONE_SCOPED()
         EE_CORE_INFO("[SHUTDOWN] Application destructor started");
         // m_GraphicsContext->WaitDeviceIdle();
+
+        m_Running = false;
     }
 
     void Application::Run()
@@ -76,11 +78,7 @@ namespace Elixir
             EE_PROFILE_FRAME_MARK()
         }
 
-        EE_CORE_INFO("Main loop ended");
-        m_GraphicsContext->FlushAndWait();
-        EE_CORE_INFO("Ready for shutdown")
-        //m_GraphicsContext->WaitForAllFrames();
-        //m_GraphicsContext->WaitDeviceIdle();
+        m_GraphicsContext->DrainRenderQueue();
     }
 
     void Application::OnEvent(Event& event)

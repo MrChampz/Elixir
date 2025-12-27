@@ -100,7 +100,9 @@ namespace Elixir
         virtual void RenderFrame(std::function<void()> callback) = 0;
         virtual void WaitForFrame() = 0;
         virtual void WaitForAllFrames() = 0;
-        virtual void FlushAndWait() = 0;
+        virtual void DrainRenderQueue() = 0;
+
+        std::mutex& GetGraphicsQueueMutex() { return m_GraphicsQueueMutex; }
 
       protected:
         explicit GraphicsContext(const EGraphicsAPI api, const Window* window)
@@ -122,5 +124,7 @@ namespace Elixir
         Scope<ShaderBackend> m_ShaderBackend = nullptr;
 
         bool m_VSyncEnabled = false;
+
+        std::mutex m_GraphicsQueueMutex;
     };
 }

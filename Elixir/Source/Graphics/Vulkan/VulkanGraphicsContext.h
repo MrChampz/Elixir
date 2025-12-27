@@ -130,7 +130,7 @@ namespace Elixir::Vulkan
         void RenderFrame(std::function<void()> callback) override;
         void WaitForFrame() override;
         void WaitForAllFrames() override;
-        void FlushAndWait() override;
+        void DrainRenderQueue() override;
 
       private:
         void InitVulkan();

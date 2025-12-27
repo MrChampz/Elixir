@@ -25,7 +25,7 @@ namespace Elixir
             Task discarted;
             while (m_Queue.try_dequeue(discarted)) {}
 
-            for (const auto&    worker : m_Workers)
+            for (const auto& worker : m_Workers)
                 worker->ClearQueue();
         }
 
@@ -36,25 +36,6 @@ namespace Elixir
 
         m_Running = false;
         m_Condition.notify_all();
-    }
-
-    void ThreadPool::Shutdown()
-    {
-        // Aguardar tarefas ativas terminarem
-        while (m_ActiveTasks.load() > 0)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
-
-        // Parar as threads
-        m_Running = false;
-        m_Condition.notify_all();
-
-        // Unir as threads dos workers
-        for (auto& worker : m_Workers)
-        {
-            worker->Join();  // Assumindo que WorkerThread::Join() faz join na std::thread
-        }
     }
 
     void ThreadPool::WaitForAllTasks() const

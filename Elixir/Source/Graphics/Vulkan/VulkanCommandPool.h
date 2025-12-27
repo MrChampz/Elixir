@@ -9,7 +9,7 @@ namespace Elixir::Vulkan
     {
       public:
         explicit VulkanCommandPool(
-            const VulkanGraphicsContext* context,
+            VulkanGraphicsContext* context,
             uint32_t queueFamily,
             bool transient
         );
@@ -33,7 +33,7 @@ namespace Elixir::Vulkan
 
         std::vector<std::vector<Ref<CommandBuffer>>> m_RecycledCommands;
 
-        const VulkanGraphicsContext* m_GraphicsContext;
+        VulkanGraphicsContext* m_GraphicsContext;
     };
 
     using CommandBufferLookup = std::vector<std::pair<VulkanCommandPool*, std::vector<Ref<CommandBuffer>>>>;
@@ -41,7 +41,7 @@ namespace Elixir::Vulkan
     class ELIXIR_API VulkanCommandPoolManager
     {
       public:
-        explicit VulkanCommandPoolManager(const VulkanGraphicsContext* context);
+        explicit VulkanCommandPoolManager(VulkanGraphicsContext* context);
         ~VulkanCommandPoolManager();
 
         VulkanCommandPool* GetCommandPool();
@@ -94,6 +94,6 @@ namespace Elixir::Vulkan
          */
         std::vector<std::vector<Ref<CommandBuffer>>> m_PendingRecycles;
 
-        const VulkanGraphicsContext* m_GraphicsContext;
+        VulkanGraphicsContext* m_GraphicsContext;
     };
 }

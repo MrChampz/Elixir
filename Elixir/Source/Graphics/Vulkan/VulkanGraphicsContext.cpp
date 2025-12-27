@@ -170,12 +170,7 @@ namespace Elixir
 
         if (m_IsInitialized)
         {
-            if (m_AcceptingFrames.load())
-            {
-                FlushAndWait();
-            }
-
-            EE_CORE_INFO("[SHUTDOWN] Starting cleanup");
+            DrainRenderQueue();
 
             m_CommandPoolManager.reset();
 
@@ -201,7 +196,6 @@ namespace Elixir
             vkDestroyInstance(m_Instance, nullptr);
 
             m_IsInitialized = false;
-            EE_CORE_INFO("[SHUTDOWN] Complete");
         }
     }
 
@@ -327,7 +321,11 @@ namespace Elixir
         presentInfo.waitSemaphoreCount = 1;
         presentInfo.pImageIndices = &m_CurrentSwapchainImageIndex;
 
-        const auto result = vkQueuePresentKHR(m_GraphicsQueue, &presentInfo);
+        VkResult result;
+        {
+            std::lock_guard lock(m_GraphicsQueueMutex);
+            result = vkQueuePresentKHR(m_GraphicsQueue, &presentInfo);
+        }
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR)
         {
@@ -462,23 +460,26 @@ namespace Elixir
         }
     }
 
-    void VulkanGraphicsContext::FlushAndWait()
+    void VulkanGraphicsContext::DrainRenderQueue()
     {
         EE_PROFILE_ZONE_SCOPED()
 
         if (!m_IsInitialized)
             return;
 
-        EE_CORE_INFO("[FLUSH] Stopping frame acceptance");
         m_AcceptingFrames = false;
 
-        m_Executor->WaitForRenderPool();
+        m_Executor->Reset();
 
-        vkDeviceWaitIdle(m_Device);
+        {
+            std::lock_guard lock(m_GraphicsQueueMutex);
+            WaitDeviceIdle();
+        }
 
-        WaitForAllFrames();
-
-        EE_CORE_INFO("[FLUSH] Complete");
+        for (auto& frame :  m_Frames)
+        {
+            frame.InUseByRenderThread = false;
+        }
     }
 
     void VulkanGraphicsContext::InitVulkan()

@@ -51,8 +51,6 @@ namespace Elixir
 
         bool IsRunning() const { return m_Running; }
 
-        void Shutdown();
-
         ThreadPool &operator=(ThreadPool const &) = delete;
         ThreadPool &operator=(ThreadPool &&) noexcept = delete;
 
