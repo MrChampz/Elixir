@@ -3,7 +3,8 @@
 
 namespace Elixir
 {
-    ThreadPool::ThreadPool(const size_t numThreads)
+    ThreadPool::ThreadPool(const size_t numThreads, const std::string& name)
+        : m_Name(name)
     {
         const auto threads = numThreads == 0
             ? GetNumHardwareThreads()
@@ -37,70 +38,24 @@ namespace Elixir
         for (const auto& worker : m_Workers)
             worker->Join();
 
-        Task discarted;
+        Executable discarted;
         while (m_Queue.try_dequeue(discarted)) {}
     }
 
-    void ThreadPool::WaitForAllTasks() const
+    Executable ThreadPool::GetExecutableForWorker(const size_t workerIndex)
     {
-        while (m_ActiveTasks.load() > 0)
-        {
-            std::this_thread::yield();
-        }
-    }
-
-    Task ThreadPool::GetTaskForWorker(const size_t workerIndex)
-    {
-        Task task;
+        Executable executable;
 
         // Try global queue
-        if (m_Queue.try_dequeue(task))
+        if (m_Queue.try_dequeue(executable))
         {
-            if (task)
-            {
-                m_ActiveTasks.fetch_add(1);
-
-                return [this, originalTask = std::move(task)]() mutable
-                {
-                    try
-                    {
-                        originalTask();
-                    }
-                    catch (...)
-                    {
-                        m_ActiveTasks.fetch_sub(1);
-                        throw;
-                    }
-
-                    m_ActiveTasks.fetch_sub(1);
-                };
-            }
+            return executable;
         }
 
         // Try stealing from other workers (FIFO)
-        task = StealWork(workerIndex);
+        executable = StealWork(workerIndex);
 
-        if (task)
-        {
-            m_ActiveTasks.fetch_add(1);
-
-            return [this, originalTask = std::move(task)]() mutable
-            {
-                try
-                {
-                    originalTask();
-                }
-                catch (...)
-                {
-                    m_ActiveTasks.fetch_sub(1);
-                    throw;
-                }
-
-                m_ActiveTasks.fetch_sub(1);
-            };
-        }
-
-        return nullptr;
+        return executable;
     }
 
     void ThreadPool::WaitForWork()
@@ -112,15 +67,15 @@ namespace Elixir
         });
     }
 
-    Task ThreadPool::StealWork(const size_t thiefIndex) const
+    Executable ThreadPool::StealWork(const size_t thiefIndex) const
     {
         // Try stealing from other workers in round-robin fashion
         for (size_t i = 1; i < m_Workers.size(); ++i)
         {
             const auto victimIndex = (thiefIndex + i) % m_Workers.size();
 
-            if (auto task = m_Workers[victimIndex]->StealTask())
-                return task;
+            if (auto exec = m_Workers[victimIndex]->StealWork())
+                return exec;
         }
 
         return nullptr;

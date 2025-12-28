@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Core/Executor/Thread.h>
+#include <Engine/Core/Executor/Executable.h>
 #include <Engine/Core/Executor/WaitGroup.h>
 
 namespace Elixir
@@ -11,10 +12,10 @@ namespace Elixir
 
     class ELIXIR_API ThreadPool
     {
-        friend class WorkerThread;
+        friend class Thread;
 
       public:
-        explicit ThreadPool(size_t numThreads = GetNumHardwareThreads());
+        explicit ThreadPool(size_t numThreads = GetNumHardwareThreads(), const std::string& name = nullptr);
         ThreadPool(ThreadPool const &) = delete;
         ThreadPool(ThreadPool &&) noexcept = delete;
 
@@ -25,11 +26,11 @@ namespace Elixir
         template <typename F, typename... Args>
         void Enqueue(F&& func, Args&&... args, WaitGroup* wg = nullptr)
         {
-            EE_CORE_ASSERT(m_Running, "ThreadPool is not running!")
+            EE_CORE_ASSERT(m_Running, "ThreadPool [{0}] is not running!", m_Name)
 
             if (wg) wg->Add(1);
 
-            Task task = [func = std::forward<F>(func), ... args = std::forward<Args>(args), wg]() mutable
+            Executable exec = [func = std::forward<F>(func), ... args = std::forward<Args>(args), wg]() mutable
             {
                 try
                 {
@@ -45,33 +46,34 @@ namespace Elixir
                 if (wg) wg->Done();
             };
 
-            m_Queue.enqueue(std::move(task));
+            m_Queue.enqueue(std::move(exec));
             m_Condition.notify_one();
         }
 
-        void WaitForAllTasks() const;
-
         bool IsRunning() const { return m_Running; }
+
+        [[nodiscard]] const std::string& GetName() const { return m_Name; }
 
         ThreadPool &operator=(ThreadPool const &) = delete;
         ThreadPool &operator=(ThreadPool &&) noexcept = delete;
 
       protected:
-        Task GetTaskForWorker(size_t workerIndex);
+        Executable GetExecutableForWorker(size_t workerIndex);
         void WaitForWork();
 
       private:
-        Task StealWork(size_t thiefIndex) const;
+        Executable StealWork(size_t thiefIndex) const;
 
-        std::vector<Scope<WorkerThread>> m_Workers;
+        std::string m_Name;
+    
+        std::vector<Scope<Thread>> m_Workers;
 
         // Global queue
-        moodycamel::ConcurrentQueue<Task> m_Queue;
+        moodycamel::ConcurrentQueue<Executable> m_Queue;
 
         std::mutex m_Mutex;
         std::condition_variable m_Condition;
 
         std::atomic<bool> m_Running{true};
-        std::atomic<size_t> m_ActiveTasks{0};
     };
 }

@@ -3,19 +3,6 @@
 
 namespace Elixir
 {
-    void WaitGroup::Add(const int delta)
-    {
-        std::lock_guard lock(m_Mutex);
-        m_Count += delta;
-    }
-
-    void WaitGroup::Done()
-    {
-        std::unique_lock lock(m_Mutex);
-        if (--m_Count <= 0)
-            m_Condition.notify_all();
-    }
-
     void WaitGroup::Wait()
     {
         std::unique_lock lock(m_Mutex);
@@ -32,5 +19,18 @@ namespace Elixir
     {
         std::lock_guard lock(m_Mutex);
         return m_Count;
+    }
+
+    void WaitGroup::Add(const int delta)
+    {
+        std::lock_guard lock(m_Mutex);
+        m_Count += delta;
+    }
+
+    void WaitGroup::Done()
+    {
+        std::unique_lock lock(m_Mutex);
+        if (--m_Count <= 0)
+            m_Condition.notify_all();
     }
 }

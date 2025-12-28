@@ -5,65 +5,78 @@
 
 namespace Elixir
 {
-    WorkerThread::WorkerThread(ThreadPool* pool, const size_t index, const std::string& name)
-        : Thread(name, std::thread(&WorkerThread::WorkerLoop, this)),
-          m_Pool(pool),
-          m_WorkerIndex(index)
+    Thread::Thread(ThreadPool* pool, const size_t index, const std::string& name)
+        : Thread(pool, index, name, std::thread(&Thread::WorkerLoop, this)) {}
+    
+    Thread::Thread(
+        ThreadPool* pool,
+        const size_t index,
+        const std::string& name,
+        std::thread thread
+    ) : m_Pool(pool), m_WorkerIndex(index), m_Name(name), m_Thread(std::move(thread))
     {
-        EE_CORE_TRACE("Worker thread created: {0}", m_Name)
+        EE_CORE_TRACE("Thread created: [Name = {0}, ThreadPool = {1}]", m_Name, m_Pool->GetName())
     }
 
-    void WorkerThread::Enqueue(Task task)
+    Thread::~Thread()
     {
-        m_Queue.enqueue(std::move(task));
+        Join();
     }
 
-    void WorkerThread::ClearQueue()
+    void Thread::Enqueue(Executable executable)
     {
-        Task discarted;
-        while (m_Queue.try_dequeue(discarted)) {}
+        m_Queue.enqueue(std::move(executable));
     }
 
-    Task WorkerThread::StealTask()
+    void Thread::Join()
     {
-        Task task;
-        if (m_Queue.try_dequeue(task))
+        if (m_Thread.joinable())
         {
-            return task;
+            m_Thread.join();
+            EE_CORE_TRACE("Thread joined: [Name = {0}, ThreadPool = {1}]", m_Name, m_Pool->GetName())
+        }
+    }
+
+    Executable Thread::StealWork()
+    {
+        Executable executable;
+        if (m_Queue.try_dequeue(executable))
+        {
+            return executable;
         }
 
         return nullptr;
     }
 
-    void WorkerThread::WorkerLoop()
+    void Thread::WorkerLoop()
     {
-        EE_CORE_TRACE("Worker thread started: {0}", m_Name)
+        EE_CORE_TRACE("Thread started: [Name = {0}, ThreadPool = {1}]", m_Name, m_Pool->GetName())
         tracy::SetThreadName(m_Name.c_str());
 
         while (m_Pool->IsRunning())
         {
-            if (const auto task = AcquireTask())
-                task();
+            if (const auto executable = AcquireWork())
+                executable();
         }
     }
 
-    Task WorkerThread::AcquireTask()
+    Executable Thread::AcquireWork()
     {
-        Task task;
+        Executable executable;
 
         // Try the local queue first
-        if (m_Queue.try_dequeue(task))
+        if (m_Queue.try_dequeue(executable))
         {
-            return task;
+            return executable;
         }
 
         // Delegate to ThreadPool for global/stealing logic.
-        task = m_Pool->GetTaskForWorker(m_WorkerIndex);
+        executable = m_Pool->GetExecutableForWorker(m_WorkerIndex);
 
-        // If no task, wait briefly.
-        if (!task)
+        // If no work, wait briefly.
+        if (!executable)
             m_Pool->WaitForWork();
 
-        return task;
+        return executable;
     }
 }

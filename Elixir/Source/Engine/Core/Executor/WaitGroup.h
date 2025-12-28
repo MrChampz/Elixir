@@ -8,13 +8,14 @@ namespace Elixir
       public:
         WaitGroup() : m_Count(0) {}
 
-        void Add(int delta = 1);
-        void Done();
-
         void Wait();
         bool WaitFor(std::chrono::milliseconds timeout);
 
         int GetCount() const;
+
+      protected:
+        void Add(int delta = 1);
+        void Done();
 
       private:
         mutable std::mutex m_Mutex;

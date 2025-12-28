@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/Core/Executor/Task.h>
+#include <Engine/Core/Executor/Executable.h>
 
 #include <concurrentqueue.h>
 
@@ -8,55 +8,38 @@ namespace Elixir
 {
     class ThreadPool;
 
-    class ELIXIR_API Thread
+    class ELIXIR_API Thread final
     {
         friend class ThreadPool;
 
       public:
-        explicit Thread(const std::string& name, std::thread thread)
-            : m_Name(name), m_Thread(std::move(thread)) {}
+        explicit Thread(ThreadPool* pool, size_t index, const std::string& name);
+        Thread(
+          ThreadPool* pool,
+          size_t index,
+          const std::string& name,
+          std::thread thread
+        );
 
-        virtual ~Thread()
-        {
-            Join();
-        }
-
-        void Join()
-        {
-            if (m_Thread.joinable())
-            {
-                m_Thread.join();
-                EE_CORE_TRACE("Thread joined: {}", m_Name)
-            }
-        }
+        ~Thread();
+        
+        void Enqueue(Executable executable);
+        void Join();
 
         [[nodiscard]] const std::string& GetName() const { return m_Name; }
 
       protected:
-        std::string m_Name;
-        std::thread m_Thread;
-    };
-
-    class ELIXIR_API WorkerThread final : public Thread
-    {
-        friend class ThreadPool;
-
-      public:
-        explicit WorkerThread(ThreadPool* pool, size_t index, const std::string& name);
-
-        void Enqueue(Task task);
-        void ClearQueue();
-
-      protected:
-        Task StealTask();
+        Executable StealWork();
 
       private:
         void WorkerLoop();
-        Task AcquireTask();
-
-        moodycamel::ConcurrentQueue<Task> m_Queue;
+        Executable AcquireWork();
 
         ThreadPool* m_Pool;
         size_t m_WorkerIndex;
+
+        std::string m_Name;
+        std::thread m_Thread;
+        moodycamel::ConcurrentQueue<Executable> m_Queue;
     };
 }

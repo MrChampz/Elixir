@@ -10,7 +10,12 @@ namespace Elixir
     };
 
     /**
-     * Executor manages the main, rendering, and worker threads and workload.
+     * @class Executor
+     * @brief Represents an abstraction for executing tasks or commands.
+     *
+     * The Executor class provides a framework for managing and executing tasks asynchronously.
+     * It allows users to submit tasks, manage their execution lifecycle, and
+     * handle concurrency efficiently.
      */
     class ELIXIR_API Executor
     {
@@ -46,12 +51,6 @@ namespace Elixir
             m_WorkerPool->Enqueue(func, args..., wg);
         }
 
-        void WaitForAllTasks() const
-        {
-            m_RenderPool->WaitForAllTasks();
-            m_WorkerPool->WaitForAllTasks();
-        }
-
         void ShutdownRenderPool()
         {
             if (m_RenderPool)
@@ -81,11 +80,11 @@ namespace Elixir
       private:
         Executor()
         {
-            m_RenderPool = CreateScope<ThreadPool>(1);
+            m_RenderPool = CreateScope<ThreadPool>(1, "Rendering");
 
-            // Num hardware threads subtracted by 1 render thread and 1 main thread.
+            // Max hardware threads subtracted by 1 render thread and 1 main thread.
             const auto workers = GetNumHardwareThreads() - 2;
-            m_WorkerPool = CreateScope<ThreadPool>(workers);
+            m_WorkerPool = CreateScope<ThreadPool>(workers, "Workers");
         }
 
         Scope<ThreadPool> m_RenderPool;
