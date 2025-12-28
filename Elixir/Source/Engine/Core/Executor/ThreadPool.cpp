@@ -14,7 +14,7 @@ namespace Elixir
 
         for (size_t i = 0; i < threads; ++i)
         {
-            auto worker = CreateScope<WorkerThread>(this, i, "Worker " + std::to_string(i));
+            auto worker = CreateScope<Thread>(this, i, "Worker " + std::to_string(i));
             m_Workers.push_back(std::move(worker));
         }
     }
