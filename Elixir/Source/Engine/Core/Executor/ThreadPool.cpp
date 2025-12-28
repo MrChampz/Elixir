@@ -22,20 +22,23 @@ namespace Elixir
     {
         if (m_Running)
         {
-            Task discarted;
-            while (m_Queue.try_dequeue(discarted)) {}
-
-            for (const auto& worker : m_Workers)
-                worker->ClearQueue();
+            Shutdown();
         }
+    }
 
-        while (m_ActiveTasks.load() > 0)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
+    void ThreadPool::Shutdown()
+    {
+        if (!m_Running)
+            return;
 
         m_Running = false;
         m_Condition.notify_all();
+
+        for (const auto& worker : m_Workers)
+            worker->Join();
+
+        Task discarted;
+        while (m_Queue.try_dequeue(discarted)) {}
     }
 
     void ThreadPool::WaitForAllTasks() const

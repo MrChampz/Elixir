@@ -229,7 +229,7 @@ namespace Elixir
 
         m_AcceptingFrames = false;
 
-        m_Executor->Reset();
+        m_Executor->ShutdownRenderPool();
 
         WaitDeviceIdle();
         WaitForAllFrames();

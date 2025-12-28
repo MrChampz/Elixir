@@ -20,6 +20,8 @@ namespace Elixir
 
         ~ThreadPool();
 
+        void Shutdown();
+
         template <typename F, typename... Args>
         void Enqueue(F&& func, Args&&... args, WaitGroup* wg = nullptr)
         {

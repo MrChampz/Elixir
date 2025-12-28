@@ -17,6 +17,11 @@ namespace Elixir
       public:
         Executor(const Executor&) = delete;
 
+        ~Executor()
+        {
+            Shutdown();
+        }
+
         static Executor& Get()
         {
             static Executor s_Executor;
@@ -41,22 +46,34 @@ namespace Elixir
             m_WorkerPool->Enqueue(func, args..., wg);
         }
 
-        void WaitForRenderPool() const
-        {
-            m_RenderPool->WaitForAllTasks();
-        }
-
         void WaitForAllTasks() const
         {
             m_RenderPool->WaitForAllTasks();
             m_WorkerPool->WaitForAllTasks();
         }
 
-        void Reset()
+        void ShutdownRenderPool()
         {
-            WaitForAllTasks();
-            m_RenderPool.reset(new ThreadPool(1));
-            m_WorkerPool.reset(new ThreadPool(GetNumHardwareThreads() - 2));
+            if (m_RenderPool)
+            {
+                m_RenderPool->Shutdown();
+                m_RenderPool.reset();
+            }
+        }
+
+        void ShutdownWorkerPool()
+        {
+            if (m_WorkerPool)
+            {
+                m_WorkerPool->Shutdown();
+                m_WorkerPool.reset();
+            }
+        }
+
+        void Shutdown()
+        {
+            ShutdownRenderPool();
+            ShutdownWorkerPool();
         }
 
         Executor& operator=(const Executor&) = delete;

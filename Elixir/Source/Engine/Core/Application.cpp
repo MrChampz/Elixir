@@ -69,6 +69,7 @@ namespace Elixir
         }
 
         m_GraphicsContext->DrainRenderQueue();
+        EE_CORE_INFO("Finished running app!")
     }
 
     void Application::OnEvent(Event& event)

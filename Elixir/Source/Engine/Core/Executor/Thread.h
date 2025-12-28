@@ -18,6 +18,11 @@ namespace Elixir
 
         virtual ~Thread()
         {
+            Join();
+        }
+
+        void Join()
+        {
             if (m_Thread.joinable())
             {
                 m_Thread.join();
