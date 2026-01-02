@@ -203,6 +203,8 @@ namespace Elixir
     {
         EE_PROFILE_ZONE_SCOPED()
 
+        m_FrameSemaphore.acquire();
+
         // Don't accept new frames during shutdown
         if (!m_AcceptingFrames.load())
             return;
@@ -210,13 +212,18 @@ namespace Elixir
         m_Executor->Enqueue(EThreadName::Rendering, [this, callback]()
         {
             if (!Prepare())
+            {
+                m_FrameSemaphore.release();
                 return;
+            }
 
             if (callback)
                 callback();
 
             Submit();
             Present();
+
+            m_FrameSemaphore.release();
         });
     }
 
@@ -634,6 +641,8 @@ namespace Elixir
         );
     }
 
+    const auto EE_PROFILE_RENDER = "Render";
+
     void VulkanGraphicsContext::Present()
     {
         EE_PROFILE_ZONE_SCOPED()
@@ -680,5 +689,7 @@ namespace Elixir
             VK_CHECK_RESULT(result);
 
         m_FrameNumber++;
+
+        EE_PROFILE_FRAME_MARK_NAMED(EE_PROFILE_RENDER)
     }
 }

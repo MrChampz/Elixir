@@ -51,7 +51,10 @@ namespace Elixir
     void Thread::WorkerLoop()
     {
         EE_CORE_TRACE("Thread started: [Name = {0}, ThreadPool = {1}]", m_Name, m_Pool->GetName())
-        tracy::SetThreadName(m_Name.c_str());
+
+        std::ostringstream name;
+        name << "[" << m_Pool->GetName() << "] " << m_Name;
+        tracy::SetThreadName(name.str().c_str());
 
         while (m_Pool->IsRunning())
         {

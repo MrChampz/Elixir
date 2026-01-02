@@ -1,5 +1,6 @@
 #pragma once
 
+#include <semaphore>
 #include <Engine/Core/Window.h>
 #include <Engine/Core/Executor/Executor.h>
 #include <Engine/Graphics/GraphicsContext.h>
@@ -187,5 +188,6 @@ namespace Elixir::Vulkan
 
         Executor* m_Executor;
         std::atomic<bool> m_AcceptingFrames{true};
+        std::counting_semaphore<2> m_FrameSemaphore{2};
     };
 }

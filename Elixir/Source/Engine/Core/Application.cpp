@@ -31,6 +31,8 @@ namespace Elixir
         m_Running = false;
     }
 
+    const auto EE_PROFILE_MAIN_LOOP = "Main Loop";
+
     void Application::Run()
     {
         EE_PROFILE_ZONE_SCOPED()
@@ -65,7 +67,7 @@ namespace Elixir
                 OnRender(frameTime);
             });
 
-            EE_PROFILE_FRAME_MARK()
+            EE_PROFILE_FRAME_MARK_NAMED(EE_PROFILE_MAIN_LOOP)
         }
 
         m_GraphicsContext->DrainRenderQueue();
