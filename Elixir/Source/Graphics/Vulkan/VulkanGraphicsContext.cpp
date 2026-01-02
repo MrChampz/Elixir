@@ -203,11 +203,11 @@ namespace Elixir
     {
         EE_PROFILE_ZONE_SCOPED()
 
-        m_FrameSemaphore.acquire();
-
         // Don't accept new frames during shutdown
         if (!m_AcceptingFrames.load())
             return;
+
+        m_FrameSemaphore.acquire();
 
         m_Executor->Enqueue(EThreadName::Rendering, [this, callback]()
         {
