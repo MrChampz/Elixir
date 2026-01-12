@@ -1,6 +1,9 @@
 #include "epch.h"
 #include "Application.h"
 
+#include "Engine/GUI/Button.h"
+
+#include <Engine/GUI/Panel.h>
 #include <Engine/Input/InputManager.h>
 #include <Engine/Input/InputCodes.h>
 #include <Engine/Graphics/TextureLoader.h>
@@ -21,6 +24,22 @@ namespace Elixir
 
         m_GraphicsContext = GraphicsContext::Create(EGraphicsAPI::Vulkan, &m_Executor, m_Window.get());
         m_GraphicsContext->Init();
+
+        m_ShaderLoader = CreateScope<ShaderLoader>(m_GraphicsContext.get());
+
+        m_GUIManager = CreateScope<GUI::Manager>();
+        m_GUIManager->Initialize(
+            m_GraphicsContext.get(),
+            m_ShaderLoader.get(),
+            { m_Window->GetWidth(), m_Window->GetHeight() }
+        );
+
+        const auto panel = CreateRef<GUI::Panel>(GUI::ELayoutMode::Horizontal);
+        const auto button = CreateRef<GUI::Button>();
+        const auto button2 = CreateRef<GUI::Button>();
+        panel->AddChild(button);
+        panel->AddChild(button2);
+        m_GUIManager->SetRoot(panel);
 
         TextureLoader::Initialize(m_GraphicsContext.get());
     }
@@ -61,10 +80,13 @@ namespace Elixir
             m_Window->ShowFPSAndFrameTime(m_Profiler.GetFPS(), frameTime);
 
             OnGUI(frameTime);
+            m_GUIManager->ArrangeLayout({ m_Window->GetWidth(), m_Window->GetHeight() });
+            m_GUIManager->Tick(frameTime);
 
             m_GraphicsContext->RenderFrame([this, frameTime]()
             {
                 OnRender(frameTime);
+                m_GUIManager->Render();
             });
 
             EE_PROFILE_FRAME_MARK_NAMED(EE_PROFILE_MAIN_LOOP)
@@ -100,6 +122,8 @@ namespace Elixir
         }
 
         m_Minimized = false;
+
+        m_GUIManager->OnWindowResize(event);
 
         return false;
     }

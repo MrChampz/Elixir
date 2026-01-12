@@ -107,6 +107,19 @@ namespace Elixir::Vulkan::Converters
         return flags;
     }
 
+    static VkIndexType GetIndexType(const EIndexType type)
+    {
+        switch (type)
+        {
+            case EIndexType::UInt16:
+                return VK_INDEX_TYPE_UINT16;
+            case EIndexType::UInt32:
+                return VK_INDEX_TYPE_UINT32;
+        }
+
+        EE_CORE_ERROR("Unknown index type!")
+    }
+
     static VkFilter GetSamplerFilter(const ESamplerFilter filter)
 	{
 		switch (filter)

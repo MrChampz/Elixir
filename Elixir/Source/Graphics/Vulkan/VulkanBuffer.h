@@ -104,6 +104,23 @@ namespace Elixir::Vulkan
         void CreateBufferAddress() override;
     };
 
+    class ELIXIR_API VulkanDynamicVertexBuffer final
+        : public VulkanDynamicBuffer<DynamicVertexBuffer>
+    {
+    public:
+        VulkanDynamicVertexBuffer(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr
+        );
+        VulkanDynamicVertexBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
+        ~VulkanDynamicVertexBuffer() override;
+
+    protected:
+        void InitBuffer(const SBuffer& buffer) override;
+        void CreateBufferAddress() override;
+    };
+
     class ELIXIR_API VulkanIndexBuffer final : public VulkanBaseBuffer<IndexBuffer>
     {
       public:
@@ -119,6 +136,27 @@ namespace Elixir::Vulkan
             EIndexType type = EIndexType::UInt32
         );
         ~VulkanIndexBuffer() override;
+    };
+
+    class ELIXIR_API VulkanDynamicIndexBuffer final
+        : public VulkanDynamicBuffer<DynamicIndexBuffer>
+    {
+    public:
+        VulkanDynamicIndexBuffer(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr,
+            EIndexType type = EIndexType::UInt32
+        );
+        VulkanDynamicIndexBuffer(
+            const GraphicsContext* context,
+            const SBufferCreateInfo& info,
+            EIndexType type = EIndexType::UInt32
+        );
+        ~VulkanDynamicIndexBuffer() override;
+
+      protected:
+        void InitBuffer(const SBuffer& buffer) override;
     };
 
     class ELIXIR_API VulkanUniformBuffer final : public VulkanDynamicBuffer<UniformBuffer>

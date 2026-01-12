@@ -45,12 +45,10 @@ Dissolve::Dissolve()
 
     const auto tex = TextureLoader::Load("./Assets/Bricks.png");
 
-    const auto loader = CreateScope<ShaderLoader>(m_GraphicsContext.get());
-
     //const auto shader = loader->LoadShader("./Shaders/", "Basic");
     //shader->GetName();
 
-    const auto shader1 = loader->LoadShader("./Shaders/", "FixedTriangle");
+    const auto shader1 = m_ShaderLoader->LoadShader("./Shaders/", "FixedTriangle");
     shader1->BindTexture("texture", tex);
 
     // BufferLayout bufferLayout({
@@ -115,7 +113,7 @@ void Dissolve::DrawGeometry()
     scissor.Offset = { 0, 0 };
     scissor.Extent = m_DrawExtent;
 
-    m_Executor.Enqueue([this, renderingInfo, viewport, scissor]()
+        m_Executor.Enqueue([this, renderingInfo, viewport, scissor]()
     {
         const auto cmd = this->m_GraphicsContext->GetSecondaryCommandBuffer();
         cmd->BeginRendering(renderingInfo);

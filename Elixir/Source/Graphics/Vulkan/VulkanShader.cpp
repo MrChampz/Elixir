@@ -86,12 +86,12 @@ namespace Elixir::Vulkan
             }
             else
             {
-                m_ConstantBuffers[*binding] = UniformBuffer::Create(
+                const auto buffer = UniformBuffer::Create(
                     m_GraphicsContext,
                     size,
                     data
                 );
-                UpdateDescriptorSet(*binding, m_ConstantBuffers[*binding]);
+                BindConstantBuffer(name, buffer);
             }
             return;
         }
@@ -109,6 +109,21 @@ namespace Elixir::Vulkan
         }
 
         EE_CORE_ERROR("No texture binding named \"{0}\" found in shader...", name)
+    }
+
+    void VulkanShader::BindConstantBuffer(
+        const std::string& name,
+        const Ref<UniformBuffer>& buffer
+    )
+    {
+        if (const auto binding = GetShaderBinding(name))
+        {
+            m_ConstantBuffers[*binding] = buffer;
+            UpdateDescriptorSet(*binding, buffer);
+            return;
+        }
+
+        EE_CORE_ERROR("No constant buffer binding named \"{0}\" found in shader...", name)
     }
 
     void VulkanShader::CreateDescriptorSetLayouts()

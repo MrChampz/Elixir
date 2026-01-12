@@ -67,13 +67,20 @@ namespace Elixir
          */
         virtual void BindPipeline(const GraphicsPipeline* pipeline) = 0;
 
-        // virtual void BindVertexBuffers(
-        //     std::span<const Ref<VertexBuffer>> vertexBuffers,
-        //     std::span<uint64_t> offsets = {},
-        //     uint32_t bindingCount = 1,
-        //     uint32_t firstBinding = 0
-        // ) = 0;
-        // virtual void BindIndexBuffer(const Ref<IndexBuffer> indexBuffer) = 0;
+        virtual void BindVertexBuffers(
+            std::span<const VertexBuffer*> vertexBuffers,
+            std::span<uint64_t> offsets = {},
+            uint32_t bindingCount = 1,
+            uint32_t firstBinding = 0
+        ) = 0;
+        virtual void BindVertexBuffers(
+            std::span<const DynamicVertexBuffer*> vertexBuffers,
+            std::span<uint64_t> offsets = {},
+            uint32_t bindingCount = 1,
+            uint32_t firstBinding = 0
+        ) = 0;
+        virtual void BindIndexBuffer(const IndexBuffer* indexBuffer) = 0;
+        virtual void BindIndexBuffer(const DynamicIndexBuffer* indexBuffer) = 0;
 
         /** Resource handling methods **/
 

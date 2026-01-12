@@ -57,6 +57,7 @@ namespace Elixir
         virtual void SetPushConstant(const std::string& name, void* data, size_t size) = 0;
         virtual void SetConstantBuffer(const std::string& name, void* data, size_t size) = 0;
         virtual void BindTexture(const std::string& name, const Ref<Texture>& texture) = 0;
+        virtual void BindConstantBuffer(const std::string& name, const Ref<UniformBuffer>& buffer) = 0;
 
         [[nodiscard]] virtual Ref<Texture> GetTexture(const std::string& name) const;
         [[nodiscard]] virtual Ref<Texture> GetTexture(SShaderBinding binding) const;

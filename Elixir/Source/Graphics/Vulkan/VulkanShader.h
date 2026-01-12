@@ -18,6 +18,7 @@ namespace Elixir::Vulkan
         void SetPushConstant(const std::string& name, void* data, size_t size) override;
         void SetConstantBuffer(const std::string& name, void* data, size_t size) override;
         void BindTexture(const std::string& name, const Ref<Texture>& texture) override;
+        void BindConstantBuffer(const std::string& name, const Ref<UniformBuffer>& buffer) override;
 
         [[nodiscard]] const std::vector<VkDescriptorSetLayout>& GetDescriptorSetLayouts() const { return m_DescriptorSetLayouts; }
         [[nodiscard]] const std::vector<VkDescriptorSet>& GetDescriptorSets() const { return m_DescriptorSets; }

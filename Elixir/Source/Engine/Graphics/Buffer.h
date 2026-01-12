@@ -195,6 +195,8 @@ namespace Elixir
       public:
         ~VertexBuffer() override = default;
 
+        void Bind(const Ref<CommandBuffer>& cmd);
+
         [[nodiscard]] const BufferLayout& GetLayout() const { return m_Layout; }
         void SetLayout(const BufferLayout& layout) { m_Layout = layout; }
 
@@ -219,6 +221,40 @@ namespace Elixir
         BufferAddress m_Address;
     };
 
+    class ELIXIR_API DynamicVertexBuffer : public DynamicBuffer
+    {
+    public:
+        ~DynamicVertexBuffer() override = default;
+
+        void Bind(const Ref<CommandBuffer>& cmd);
+
+        void UpdateData(const void* data, size_t size, size_t offset = 0) const;
+
+        [[nodiscard]] const BufferLayout& GetLayout() const { return m_Layout; }
+        void SetLayout(const BufferLayout& layout) { m_Layout = layout; }
+
+        [[nodiscard]] BufferAddress GetAddress() const { return m_Address; }
+
+        static Ref<DynamicVertexBuffer> Create(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr
+        );
+
+        static SBufferCreateInfo CreateBufferInfo(size_t size, const void* data);
+
+    protected:
+        DynamicVertexBuffer(const GraphicsContext* context, size_t size, const void* data = nullptr);
+        DynamicVertexBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
+        DynamicVertexBuffer(const DynamicVertexBuffer&) = delete;
+
+        virtual void CreateBufferAddress() = 0;
+
+        BufferLayout m_Layout;
+        BufferAddress m_Address;
+        void* m_PersistentMapping = nullptr;
+    };
+
     enum class EIndexType
     {
         UInt16, UInt32
@@ -228,6 +264,8 @@ namespace Elixir
     {
       public:
         ~IndexBuffer() override = default;
+
+        void Bind(const Ref<CommandBuffer>& cmd) const;
 
         [[nodiscard]] EIndexType GetIndexType() const { return m_IndexType; }
 
@@ -257,10 +295,50 @@ namespace Elixir
         EIndexType m_IndexType;
     };
 
+    class ELIXIR_API DynamicIndexBuffer : public DynamicBuffer
+    {
+    public:
+        ~DynamicIndexBuffer() override = default;
+
+        void Bind(const Ref<CommandBuffer>& cmd) const;
+
+        void UpdateData(const void* data, size_t size, size_t offset = 0) const;
+
+        [[nodiscard]] EIndexType GetIndexType() const { return m_IndexType; }
+
+        static Ref<DynamicIndexBuffer> Create(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr,
+            EIndexType type = EIndexType::UInt32
+        );
+
+        static SBufferCreateInfo CreateBufferInfo(size_t size, const void* data);
+
+    protected:
+        DynamicIndexBuffer(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr,
+            EIndexType type = EIndexType::UInt32
+        );
+        DynamicIndexBuffer(
+            const GraphicsContext* context,
+            const SBufferCreateInfo& info,
+            EIndexType type = EIndexType::UInt32
+        );
+        DynamicIndexBuffer(const IndexBuffer&) = delete;
+
+        EIndexType m_IndexType;
+        void* m_PersistentMapping = nullptr;
+    };
+
     class ELIXIR_API UniformBuffer : public DynamicBuffer
     {
     public:
         ~UniformBuffer() override = default;
+
+        void UpdateData(const void* data, size_t size, size_t offset = 0);
 
         static Ref<UniformBuffer> Create(
             const GraphicsContext* context,

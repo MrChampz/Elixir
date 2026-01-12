@@ -8,6 +8,7 @@
 #include <Engine/Event/Event.h>
 #include <Engine/Event/WindowEvent.h>
 #include <Engine/Graphics/GraphicsContext.h>
+#include <Engine/GUI/Manager.h>
 
 namespace Elixir
 {
@@ -34,6 +35,9 @@ namespace Elixir
         Executor& m_Executor;
         Scope<Window> m_Window;
         Scope<GraphicsContext> m_GraphicsContext;
+
+        Scope<ShaderLoader> m_ShaderLoader;
+        Scope<GUI::Manager> m_GUIManager;
 
         Timer m_Timer;
         FrameProfiler m_Profiler;
