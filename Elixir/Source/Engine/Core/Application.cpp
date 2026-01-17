@@ -27,6 +27,9 @@ namespace Elixir
 
         m_ShaderLoader = CreateScope<ShaderLoader>(m_GraphicsContext.get());
 
+        TextureLoader::Initialize(m_GraphicsContext.get());
+        GUI::FontManager::Initialize(m_GraphicsContext.get());
+
         m_GUIManager = CreateScope<GUI::Manager>();
         m_GUIManager->Initialize(
             m_GraphicsContext.get(),
@@ -35,18 +38,17 @@ namespace Elixir
         );
 
         const auto panel = CreateRef<GUI::Panel>(GUI::ELayoutMode::Horizontal);
-        const auto button = CreateRef<GUI::Button>();
+        const auto button = CreateRef<GUI::Button>("Hello World");
         const auto button2 = CreateRef<GUI::Button>();
         panel->AddChild(button);
         panel->AddChild(button2);
         m_GUIManager->SetRoot(panel);
-
-        TextureLoader::Initialize(m_GraphicsContext.get());
     }
 
     Application::~Application()
     {
         EE_PROFILE_ZONE_SCOPED()
+        GUI::FontManager::Shutdown();
         m_Running = false;
     }
 

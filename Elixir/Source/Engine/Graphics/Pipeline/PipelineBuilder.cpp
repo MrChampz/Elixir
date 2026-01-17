@@ -36,6 +36,16 @@ namespace Elixir
         m_Multisample.AlphaToOneEnable = false;
     }
 
+    void PipelineBuilder::EnableAlphaBlending()
+    {
+        m_ColorBlendAttachment.BlendEnable = true;
+        m_ColorBlendAttachment.SrcColorBlendFactor = EBlendFactor::SrcAlpha;
+        m_ColorBlendAttachment.DstColorBlendFactor = EBlendFactor::OneMinusSrcAlpha;
+        m_ColorBlendAttachment.ColorBlendOp = EBlendOp::Add;
+        m_ColorBlendAttachment.ColorWriteMask = EColorComponent::R |
+            EColorComponent::G | EColorComponent::B | EColorComponent::A;
+    }
+
     void PipelineBuilder::DisableBlending()
     {
         m_ColorBlendAttachment.BlendEnable = false;
@@ -85,6 +95,7 @@ namespace Elixir
         m_ColorBlendAttachment = {};
         m_Shader = nullptr;
         m_VertexBufferLayout = {};
+        m_DepthAttachmentFormat = EDepthStencilImageFormat::Undefined;
     }
 
     Ref<GraphicsPipeline> PipelineBuilder::Build(const GraphicsContext* context) const

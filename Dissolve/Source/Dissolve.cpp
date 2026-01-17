@@ -113,7 +113,7 @@ void Dissolve::DrawGeometry()
     scissor.Offset = { 0, 0 };
     scissor.Extent = m_DrawExtent;
 
-        m_Executor.Enqueue([this, renderingInfo, viewport, scissor]()
+    m_Executor.Enqueue([this, renderingInfo, viewport, scissor]()
     {
         const auto cmd = this->m_GraphicsContext->GetSecondaryCommandBuffer();
         cmd->BeginRendering(renderingInfo);

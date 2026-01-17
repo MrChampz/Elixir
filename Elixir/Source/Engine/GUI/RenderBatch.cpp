@@ -29,4 +29,40 @@ namespace Elixir::GUI
 
         m_Commands.push_back(cmd);
     }
+
+    void RenderBatch::AddText(
+        const std::string& text,
+        const glm::vec2& position,
+        const float fontSize,
+        const SColor& color,
+        const int zOrder
+    )
+    {
+        SDrawCommand cmd;
+        cmd.Type = SDrawCommand::EType::Text;
+        cmd.Geometry = { position, {0, 0} };
+        cmd.Color = color;
+        cmd.Text = text;
+        cmd.FontSize = fontSize;
+        cmd.ZOrder = zOrder;
+
+        m_Commands.push_back(cmd);
+    }
+
+    void RenderBatch::AddTexture(
+        const Ref<Texture2D>& texture,
+        const SRect& rect,
+        const SColor& tint,
+        const int zOrder
+    )
+    {
+        SDrawCommand cmd;
+        cmd.Type = SDrawCommand::EType::Texture;
+        cmd.Geometry = rect;
+        cmd.Color = tint;
+        cmd.Texture = texture;
+        cmd.ZOrder = zOrder;
+
+        m_Commands.push_back(cmd);
+    }
 }

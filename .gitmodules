@@ -37,3 +37,6 @@
 [submodule "Elixir/Vendor/concurrentqueue"]
 	path = Elixir/Vendor/concurrentqueue
 	url = https://github.com/cameron314/concurrentqueue
+[submodule "msdf-atlas-gen"]
+	path = Elixir/Vendor/msdf-atlas-gen
+	url = https://github.com/Chlumsky/msdf-atlas-gen

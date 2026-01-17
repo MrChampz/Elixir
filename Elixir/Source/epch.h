@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <format>
 #include <cstdint>
+#include <fstream>
 
 #include <string>
 #include <sstream>

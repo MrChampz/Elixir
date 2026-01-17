@@ -7,11 +7,14 @@ namespace Elixir::GUI
     class ELIXIR_API Button : public Widget
     {
       public:
-        Button();
+        Button(const std::string& text = "");
 
       private:
         void GenerateDrawCommands(RenderBatch& batch, int zOrder) override;
 
+        std::string m_Text;
+
         SColor m_NormalColor{0.3f, 0.3f, 0.8f, 1.0f};
+        SColor m_TextColor{1.0f, 1.0f, 1.0f, 1.0f};
     };
 }

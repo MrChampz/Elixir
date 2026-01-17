@@ -9,7 +9,10 @@ namespace Elixir
       public:
         static void Initialize(const GraphicsContext* context);
 
-        static Ref<Texture> Load(const std::filesystem::path& path);
+        static Ref<Texture> Load(
+            const std::filesystem::path& path,
+            EImageFormat format = EImageFormat::R8G8B8A8_SRGB
+        );
 
     private:
         static const GraphicsContext* s_Context;

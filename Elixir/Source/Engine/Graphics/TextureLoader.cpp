@@ -31,14 +31,16 @@ namespace Elixir
         s_Initialized = true;
     }
 
-    Ref<Texture> TextureLoader::Load(const std::filesystem::path& path)
+    Ref<Texture> TextureLoader::Load(
+        const std::filesystem::path& path,
+        const EImageFormat format
+    )
     {
         EE_CORE_ASSERT(s_Initialized, "TextureLoader is not initialized!")
 
         void* data;
         bool isHdr = false;
         int width, height, channels;
-        EImageFormat format;
 
         const auto pathStr = path.string();
 
@@ -54,7 +56,6 @@ namespace Elixir
                 &channels,
                 STBI_rgb_alpha
             );
-            format = EImageFormat::R16G16B16A16_SFLOAT;
         }
         else
         {
@@ -65,7 +66,6 @@ namespace Elixir
                 &channels,
                 STBI_rgb_alpha
             );
-            format = EImageFormat::R8G8B8A8_SRGB;
         }
 
         EE_CORE_ASSERT(data, "Could not read texture data!")

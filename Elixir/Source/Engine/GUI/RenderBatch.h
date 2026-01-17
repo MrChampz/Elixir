@@ -21,6 +21,7 @@ namespace Elixir::GUI
         float FontSize = 16.0f;
 
         // For texture rendering
+        Ref<Texture2D> Texture;
         SRect TexCoords;
 
         // Z-order for sorting
@@ -34,6 +35,8 @@ namespace Elixir::GUI
         void Clear();
 
         void AddRect(const SRect& rect, const SColor& color, int zOrder = 0);
+        void AddText(const std::string& text, const glm::vec2& position, float fontSize, const SColor& color, int zOrder = 0);
+        void AddTexture(const Ref<Texture2D>& texture, const SRect& rect, const SColor& tint, int zOrder = 0);
 
         const std::vector<SDrawCommand>& GetCommands() const { return m_Commands; }
 
