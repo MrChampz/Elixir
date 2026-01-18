@@ -34,20 +34,19 @@ float screenPxRange(float2 texCoord)
 
 float4 main(PS_INPUT input) : SV_TARGET
 {
+    // pxRange = 4
+    // width, Height = 306
+    float2 unitRange = float2(4.0 / 256.0, 4.0 / 256.0);
+
     // Sample all four channels (RGB = MSD, A = true SDF)
     float4 mtsdf = atlas.Sample(atlasSampler, input.TexCoord);
 
     float msdf = median(mtsdf.r, mtsdf.g, mtsdf.b);
-
-    // Get texture dimensions
-    uint width, height;
-    atlas.GetDimensions(width, height);
-
-    float dx = ddx(input.TexCoord.x) * width;
-    float dy = ddy(input.TexCoord.y) * height;
-
-    float w = fwidth(mtsdf.a);
-    float opacity = smoothstep(0.5 - w, 0.5 + w, mtsdf.a);
-
-    return float4(input.Color.rgb, mtsdf.r);
+    float2 screenTexSize = 1.0f / fwidth(input.TexCoord);
+    float screenPxRange = max(0.5f * dot(unitRange, screenTexSize), 1.0f);
+    float screenPxDistance = screenPxRange * (msdf - 0.5f);
+    float alphaFill = clamp(screenPxDistance + 0.5f, 0.0f, 1.0f);
+    float4 color = float4(input.Color.rgb, 1.0);
+    color.a *= alphaFill;
+    return color;
 }
