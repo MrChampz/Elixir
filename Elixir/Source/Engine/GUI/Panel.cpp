@@ -12,6 +12,11 @@ namespace Elixir::GUI
                 child->GenerateDrawCommands(batch, zOrder + 1);
             }
         }
+
+        if (m_Background.A > 0.0f)
+        {
+            batch.AddRect(m_Geometry, m_Background, zOrder);
+        }
     }
 
     glm::vec2 Panel::ComputeDesiredSize()

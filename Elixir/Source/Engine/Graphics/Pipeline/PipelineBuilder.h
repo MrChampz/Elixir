@@ -22,6 +22,8 @@ namespace Elixir
         void SetBufferLayout(const BufferLayout& layout);
 
         void Clear();
+
+        SPipelineCreateInfo GetCreateInfo() const;
         Ref<GraphicsPipeline> Build(const GraphicsContext* context) const;
 
       protected:

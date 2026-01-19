@@ -36,13 +36,19 @@ namespace Elixir::GUI
 
         // Text rendering render entities
 
-        m_Font = FontManager::Load("./Assets/Fonts/PlayfairDisplay-Regular.ttf");
+        m_Font = FontManager::Load("./Assets/Fonts/SF-Pro-Display-Regular.otf");
+        //m_Font = FontManager::LoadPrecompiled("./Assets/Fonts/", "PlayfairDisplay-Regular");
 
         m_TextBatchContext.Shader = shaderLoader->LoadShader(
             "./Shaders/",
             std::array<std::string_view, 2>{ "GUI", "GUIText" },
             "GUIText"
         );
+
+        m_TextData.UnitRange = {
+            m_Font->Atlas.Info.PxRange / m_Font->Atlas.Info.Width,
+            m_Font->Atlas.Info.PxRange / m_Font->Atlas.Info.Height
+        };
 
         SSamplerCreateInfo samplerInfo{};
         samplerInfo.MagFilter = ESamplerFilter::Linear;
@@ -53,9 +59,10 @@ namespace Elixir::GUI
         samplerInfo.AnisotropyEnabled = false;
         samplerInfo.MaxLod = 0.0f;
         auto sampler = Sampler::Create(m_GraphicsContext, samplerInfo);
-        m_Font->Atlas.Texture->SetSampler(sampler);
+        //m_Font->Atlas.Texture->SetSampler(sampler);
 
-        m_TextBatchContext.Shader->BindTexture("atlas", m_Font->Atlas.Texture);
+        m_TextBatchContext.Shader->BindTexture("hardmask", m_Font->Atlas.HardmaskTexture);
+        m_TextBatchContext.Shader->BindTexture("mtsdf", m_Font->Atlas.MTSDFTexture);
 
         builder.SetShader(m_TextBatchContext.Shader);
         m_TextBatchContext.Pipeline = builder.Build(context);
@@ -88,6 +95,14 @@ namespace Elixir::GUI
         );
         m_TextBatchContext.Shader->BindConstantBuffer("cbPerFrame", m_PerFrameConstantBuffer);
         m_GUIBatchContext.Shader->BindConstantBuffer("cbPerFrame", m_PerFrameConstantBuffer);
+
+        m_TextData.FontSize = 20.0f;
+        m_TextConstantBuffer = UniformBuffer::Create(
+            context,
+            sizeof(STextData),
+            &m_TextData
+        );
+        m_TextBatchContext.Shader->BindConstantBuffer("cbText", m_TextConstantBuffer);
     }
 
     void Renderer::Shutdown()
@@ -216,6 +231,9 @@ namespace Elixir::GUI
 
                 charCmd.TexCoords.Position = texCoordMin;
                 charCmd.TexCoords.Size     = texCoordMax;
+
+                charCmd.TexCoords.Position.y = 1.0f - charCmd.TexCoords.Position.y;
+                charCmd.TexCoords.Size.y = 1.0f - charCmd.TexCoords.Size.y;
 
                 BuildTextureGeometry(charCmd, batchContext);
                 cursorX += scale * glyph->Advance * cmd.FontSize;

@@ -23,7 +23,7 @@ namespace Elixir::GUI
             textPos.x -= (m_Text.length() * 18.0f) * 0.5f;
             textPos.y -= m_Geometry.Size.y * 0.4f;
 
-            batch.AddText(m_Text, textPos,18.0f, m_TextColor, zOrder + 1);
+            batch.AddText(m_Text, textPos, 16.0f, m_TextColor, zOrder + 1);
         }
     }
 }

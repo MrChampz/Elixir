@@ -89,6 +89,14 @@ namespace Elixir::Graphics::Utils
     {
         switch (image->GetFormat())
         {
+            case EImageFormat::R8_UNORM:
+            case EImageFormat::R8_SNORM:
+            case EImageFormat::R8_USCALED:
+            case EImageFormat::R8_SSCALED:
+            case EImageFormat::R8_UINT:
+            case EImageFormat::R8_SINT:
+            case EImageFormat::R8_SRGB:
+                return 8;
             case EImageFormat::R16_SFLOAT:
                 return 16;
             case EImageFormat::R8G8B8_UNORM:
@@ -179,6 +187,13 @@ namespace Elixir::Graphics::Utils
     {
         switch (image->GetFormat())
         {
+            case EImageFormat::R8_UNORM:
+            case EImageFormat::R8_SNORM:
+            case EImageFormat::R8_USCALED:
+            case EImageFormat::R8_SSCALED:
+            case EImageFormat::R8_UINT:
+            case EImageFormat::R8_SINT:
+            case EImageFormat::R8_SRGB:
             case EImageFormat::R16_SFLOAT:
             case EImageFormat::R8G8B8_UNORM:
             case EImageFormat::R8G8B8_SNORM:

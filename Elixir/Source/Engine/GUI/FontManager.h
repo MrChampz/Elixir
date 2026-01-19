@@ -15,6 +15,7 @@ namespace Elixir::GUI
 
     struct SAtlasInfo
     {
+        float PxRange;
         float AscenderY;
         float DescenderY;
         int Width;
@@ -24,7 +25,8 @@ namespace Elixir::GUI
     struct SAtlas
     {
         SAtlasInfo Info;
-        Ref<Texture> Texture;
+        Ref<Texture> HardmaskTexture;
+        Ref<Texture> MTSDFTexture;
     };
 
     struct SFont
@@ -52,6 +54,7 @@ namespace Elixir::GUI
         static void Shutdown();
 
         static Ref<SFont> Load(const std::filesystem::path& filepath);
+        static Ref<SFont> LoadPrecompiled(const std::filesystem::path& directory, const std::string& name);
 
       private:
         FontManager() = delete;

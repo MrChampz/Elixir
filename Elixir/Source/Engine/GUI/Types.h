@@ -14,8 +14,10 @@ struct SRect {
 
 struct SColor
 {
-    float R, G, B, A;
+    float R = 0, G = 0, B = 0, A = 0;
 
-    explicit SColor(const float r = 1, const float g = 1, const float b = 1, const float a = 1)
+    SColor(const float r = 0, const float g = 0, const float b = 0, const float a = 0)
         : R(r), G(g), B(b), A(a) {}
+
+    SColor(const SColor& color) : R(color.R), G(color.G), B(color.B), A(color.A) {}
 };

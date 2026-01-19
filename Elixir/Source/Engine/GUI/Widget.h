@@ -25,7 +25,7 @@ namespace Elixir::GUI
         bool IsVisible() const { return m_IsVisible; }
 
       protected:
-        SRect m_Geometry;
+        SRect m_Geometry{};
         glm::vec2 m_DesiredSize{100, 30};
 
         Widget* m_Parent = nullptr;

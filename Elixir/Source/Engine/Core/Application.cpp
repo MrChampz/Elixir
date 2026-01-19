@@ -38,6 +38,7 @@ namespace Elixir
         );
 
         const auto panel = CreateRef<GUI::Panel>(GUI::ELayoutMode::Horizontal);
+        panel->SetBackground({ 1.0f, 0.0f, 0.0f, 1.0f });
         const auto button = CreateRef<GUI::Button>("Hello World");
         const auto button2 = CreateRef<GUI::Button>();
         panel->AddChild(button);

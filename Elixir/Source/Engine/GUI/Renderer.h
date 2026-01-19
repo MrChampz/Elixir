@@ -21,6 +21,13 @@ namespace Elixir::GUI
         glm::vec2 Padding;
     };
 
+    struct STextData
+    {
+        glm::vec2 UnitRange;
+        float FontSize;
+        float Padding;
+    };
+
     struct SQuad
     {
         SRect Geometry;
@@ -120,6 +127,9 @@ namespace Elixir::GUI
 
         SPerFrameData m_PerFrameData{};
         Ref<UniformBuffer> m_PerFrameConstantBuffer;
+
+        STextData m_TextData{};
+        Ref<UniformBuffer> m_TextConstantBuffer;
 
         Ref<SFont> m_Font;
 
