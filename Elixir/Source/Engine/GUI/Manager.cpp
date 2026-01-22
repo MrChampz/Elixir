@@ -31,7 +31,7 @@ namespace Elixir::GUI
 
     void Manager::Render()
     {
-        if (!m_RootWidget || !m_RootWidget->IsVisible()) return;
+        //if (!m_RootWidget || !m_RootWidget->IsVisible()) return;
 
         m_RenderBatch.Clear();
         m_RootWidget->GenerateDrawCommands(m_RenderBatch);
@@ -51,12 +51,7 @@ namespace Elixir::GUI
         if (m_RootWidget)
         {
             const SRect rootGeometry = { { 0, 0 }, { extent.Width, extent.Height } };
-            m_RootWidget->SetGeometry(rootGeometry);
-
-            if (const auto panel = std::dynamic_pointer_cast<Panel>(m_RootWidget))
-            {
-                panel->ArrangeChildren();
-            }
+            m_RootWidget->ArrangeChildren(rootGeometry);
         }
     }
 }

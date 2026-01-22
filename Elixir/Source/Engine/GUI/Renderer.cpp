@@ -41,7 +41,7 @@ namespace Elixir::GUI
 
         m_TextBatchContext.Shader = shaderLoader->LoadShader(
             "./Shaders/",
-            std::array<std::string_view, 2>{ "GUI", "GUIText" },
+            std::array<std::string_view, 2>{ "GUI", "GUI_Text" },
             "GUIText"
         );
 
@@ -76,7 +76,11 @@ namespace Elixir::GUI
 
         // GUI rendering render entities
 
-        m_GUIBatchContext.Shader = shaderLoader->LoadShader("./Shaders/", "GUI");
+        m_GUIBatchContext.Shader = shaderLoader->LoadShader(
+            "./Shaders/",
+            std::array<std::string_view, 2>{ "GUI", "GUI" },
+            "GUICorners"
+        );
 
         builder.SetShader(m_GUIBatchContext.Shader);
         m_GUIBatchContext.Pipeline = builder.Build(context);

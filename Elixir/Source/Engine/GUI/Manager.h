@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Engine/GUI/Renderer.h>
-#include <Engine/GUI/Widget.h>
+#include <Engine/GUI/Panel.h>
 
 namespace Elixir
 {
@@ -26,12 +26,12 @@ namespace Elixir::GUI
 
         void OnWindowResize(const WindowResizeEvent& event) const;
 
-        void SetRoot(const Ref<Widget>& root) { m_RootWidget = root; }
+        void SetRoot(const Ref<Panel>& root) { m_RootWidget = root; }
 
       private:
         Scope<Renderer> m_Renderer;
         RenderBatch m_RenderBatch;
-        Ref<Widget> m_RootWidget;
+        Ref<Panel> m_RootWidget;
 
         bool m_Initialized = false;
     };

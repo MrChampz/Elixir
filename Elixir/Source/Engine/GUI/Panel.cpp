@@ -5,11 +5,11 @@ namespace Elixir::GUI
 {
     void Panel::GenerateDrawCommands(RenderBatch& batch, const int zOrder)
     {
-        for (const auto& child : m_Children)
+        for (const auto& slot : m_Slots)
         {
-            if (child->IsVisible())
+            if (slot.IsVisible())
             {
-                child->GenerateDrawCommands(batch, zOrder + 1);
+                slot.Content->GenerateDrawCommands(batch, zOrder + 1);
             }
         }
 
@@ -19,79 +19,98 @@ namespace Elixir::GUI
         }
     }
 
-    glm::vec2 Panel::ComputeDesiredSize()
+    SSlot& Panel::AddChild(const Ref<Widget>& child, SSlot slot)
     {
-        if (m_Children.empty()) return { 0, 0 };
-
-        glm::vec2 size = { 0, 0 };
-
-        switch (m_LayoutMode)
-        {
-            case ELayoutMode::Horizontal:
-                for (const auto& child : m_Children)
-                {
-                    auto childSize = child->ComputeDesiredSize();
-                    size.x += childSize.x + m_Padding;
-                    size.y = std::max(size.y, childSize.y);
-                }
-                size.x -= m_Padding; // Remove last padding
-                break;
-
-            case ELayoutMode::Vertical:
-                for (const auto& child : m_Children)
-                {
-                    auto childSize = child->ComputeDesiredSize();
-                    size.x = std::max(size.x, childSize.x);
-                    size.y += childSize.y + m_Padding;
-                }
-                size.y -= m_Padding; // Remove last padding
-                break;
-
-            case ELayoutMode::Overlay:
-                for (const auto& child : m_Children)
-                {
-                    auto childSize = child->ComputeDesiredSize();
-                    size.x = std::max(size.x, childSize.x);
-                    size.y = std::max(size.y, childSize.y);
-                }
-                break;
-        }
-
-        return size;
+        slot.Content = child;
+        m_Slots.emplace_back(slot);
+        return m_Slots.back();
     }
 
-    void Panel::ArrangeChildren() const
+    SRect Panel::AlignChild(
+        const glm::vec2& childSize,
+        const SRect& availableSpace,
+        const EHorizontalAlignment hAlignment,
+        const EVerticalAlignment vAlignment,
+        const SMargin& margin
+    )
     {
-        auto currentPos = m_Geometry.Position;
+        SRect result = ApplyMargin(availableSpace, margin);
+        result = AlignHorizontally(childSize, result, hAlignment);
+        result = AlignVertically(childSize, result, vAlignment);
 
-        for (const auto& child : m_Children)
+        return result;
+    }
+
+    SRect Panel::ApplyMargin(const SRect& availableSpace, const SMargin& margin)
+    {
+        SRect result;
+        result.Position.x = availableSpace.Position.x + margin.Left;
+        result.Position.y = availableSpace.Position.y + margin.Top;
+        result.Size.x = availableSpace.Size.x - margin.GetTotalHorizontal();
+        result.Size.y = availableSpace.Size.y - margin.GetTotalVertical();
+
+        return result;
+    }
+
+    SRect Panel::AlignHorizontally(
+        const glm::vec2& childSize,
+        const SRect& availableSpace,
+        const EHorizontalAlignment alignment
+    )
+    {
+        SRect result = availableSpace;
+
+        switch (alignment)
         {
-            if (!child->IsVisible()) continue;
-
-            const auto childSize = child->ComputeDesiredSize();
-            SRect childGeometry = { currentPos, childSize };
-
-            switch (m_LayoutMode)
-            {
-                case ELayoutMode::Horizontal:
-                    currentPos.x += childSize.x + m_Padding;
-                    break;
-
-                case ELayoutMode::Vertical:
-                    currentPos.y += childSize.y + m_Padding;
-                    break;
-
-                case ELayoutMode::Overlay:
-                    break;
-            }
-
-            child->SetGeometry(childGeometry);
-
-            // Recursively arrange if the child is also a panel
-            if (const auto panel = std::dynamic_pointer_cast<Panel>(child))
-            {
-                panel->ArrangeChildren();
-            }
+            case EHorizontalAlignment::Left:
+                result.Position.x = availableSpace.Position.x;
+                result.Size.x = childSize.x;
+                break;
+            case EHorizontalAlignment::Center:
+                result.Position.x = availableSpace.Position.x + (availableSpace.Size.x - childSize.x) * 0.5f;
+                result.Size.x = childSize.x;
+                break;
+            case EHorizontalAlignment::Right:
+                result.Position.x = availableSpace.Position.x + availableSpace.Size.x - childSize.x;
+                result.Size.x = childSize.x;
+                break;
+            case EHorizontalAlignment::Stretch:
+                result.Position.x = availableSpace.Position.x;
+                result.Size.x = availableSpace.Size.x;
+                break;
         }
+
+        return result;
+    }
+
+    SRect Panel::AlignVertically(
+        const glm::vec2& childSize,
+        const SRect& availableSpace,
+        const EVerticalAlignment alignment
+    )
+    {
+        SRect result = availableSpace;
+
+        switch (alignment)
+        {
+            case EVerticalAlignment::Top:
+                result.Position.y = availableSpace.Position.y;
+                result.Size.y = childSize.y;
+                break;
+            case EVerticalAlignment::Center:
+                result.Position.y = availableSpace.Position.y + (availableSpace.Size.y - childSize.y) * 0.5f;
+                result.Size.y = childSize.y;
+                break;
+            case EVerticalAlignment::Bottom:
+                result.Position.y = availableSpace.Position.y + availableSpace.Size.y - childSize.y;
+                result.Size.y = childSize.y;
+                break;
+            case EVerticalAlignment::Stretch:
+                result.Position.y = availableSpace.Position.y;
+                result.Size.y = availableSpace.Size.y;
+                break;
+        }
+
+        return result;
     }
 }

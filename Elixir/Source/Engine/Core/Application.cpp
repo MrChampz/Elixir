@@ -2,8 +2,11 @@
 #include "Application.h"
 
 #include "Engine/GUI/Button.h"
+#include "Engine/GUI/Canvas.h"
+#include "Engine/GUI/HorizontalBox.h"
+#include "Engine/GUI/Overlay.h"
 
-#include <Engine/GUI/Panel.h>
+#include <Engine/GUI/VerticalBox.h>
 #include <Engine/Input/InputManager.h>
 #include <Engine/Input/InputCodes.h>
 #include <Engine/Graphics/TextureLoader.h>
@@ -37,12 +40,21 @@ namespace Elixir
             { m_Window->GetWidth(), m_Window->GetHeight() }
         );
 
-        const auto panel = CreateRef<GUI::Panel>(GUI::ELayoutMode::Horizontal);
+        const auto panel = CreateRef<GUI::Canvas>();
         panel->SetBackground({ 1.0f, 0.0f, 0.0f, 1.0f });
+        panel->SetPadding({ 10, 20, 10, 10 });
         const auto button = CreateRef<GUI::Button>("Hello World");
         const auto button2 = CreateRef<GUI::Button>();
-        panel->AddChild(button);
-        panel->AddChild(button2);
+
+        panel->AddChild(button)
+            .SetAnchor(GUI::SAnchor::TopLeft())
+            .SetPosition({ 10, 10 })
+            .SetSize({ 100, 40 });
+
+        auto x = panel->AddChild(button2)
+            .SetAnchor(GUI::SAnchor::MiddleCenter())
+            .SetAlignment({ 0.5f, 0.5f });
+
         m_GUIManager->SetRoot(panel);
     }
 

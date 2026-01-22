@@ -9,6 +9,11 @@ namespace Elixir::GUI
         m_DesiredSize = { 120.0f, 40.0f };
     }
 
+    glm::vec2 Button::ComputeDesiredSize()
+    {
+        return m_DesiredSize;
+    }
+
     void Button::GenerateDrawCommands(RenderBatch& batch, const int zOrder)
     {
         auto buttonColor = m_NormalColor;

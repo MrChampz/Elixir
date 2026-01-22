@@ -1,34 +1,84 @@
 #pragma once
 
-#include <Engine/GUI/Widget.h>
+#include <Engine/GUI/Slot.h>
 
 namespace Elixir::GUI
 {
     class Manager;
 
-    enum class ELayoutMode : uint8_t
+    class ELIXIR_API Panel : public Widget
     {
-        Horizontal, Vertical, Overlay
-    };
-
-    class ELIXIR_API Panel final : public Widget
-    {
-        friend class Manager;
       public:
-        explicit Panel(const ELayoutMode mode = ELayoutMode::Vertical) : m_LayoutMode(mode) {}
+        void GenerateDrawCommands(RenderBatch& batch, int zOrder = 0) override;
 
-        void GenerateDrawCommands(RenderBatch& batch, int zOrder) override;
-        glm::vec2 ComputeDesiredSize() override;
+        virtual SSlot& AddChild(const Ref<Widget>& child, SSlot slot = SSlot{});
 
-        void SetPadding(const float padding) { m_Padding = padding; }
+        SPadding GetPadding() const { return m_Padding; }
+        void SetPadding(const SPadding& padding) { m_Padding = padding; }
+
+        SColor GetBackground() const { return m_Background; }
         void SetBackground(const SColor& color) { m_Background = color; }
 
-      protected:
-        void ArrangeChildren() const;
+        SSlot& operator[](const Ref<Widget>& child)
+        {
+            return AddChild(child);
+        }
 
-      private:
-        ELayoutMode m_LayoutMode;
-        float m_Padding = 5.0f;
+      protected:
+        /**
+         * Helper method: Apply alignment to a rectangle within available space.
+         * @param childSize
+         * @param availableSpace
+         * @param hAlignment horizontal alignment
+         * @param vAlignment vertical alignment
+         * @param margin margin
+         * @return
+         */
+        static SRect AlignChild(
+            const glm::vec2& childSize,
+            const SRect& availableSpace,
+            EHorizontalAlignment hAlignment,
+            EVerticalAlignment vAlignment,
+            const SMargin& margin
+        );
+
+        /**
+         * Apply margin to a rectangle delimited by the available space.
+         * @param availableSpace available space, the margin will be applied to.
+         * @param margin margin to be applied.
+         * @return a new rect, inside availableSpace with margin applied.
+         */
+        static SRect ApplyMargin(const SRect& availableSpace, const SMargin& margin);
+
+        /**
+         * Helper method: Apply horizontal alignment to a rectangle within available space.
+         * @param childSize child widget size (width, height)
+         * @param availableSpace available space
+         * @param alignment horizontal alignment
+         * @return a rect aligned.
+         */
+        static SRect AlignHorizontally(
+            const glm::vec2& childSize,
+            const SRect& availableSpace,
+            EHorizontalAlignment alignment
+        );
+
+        /**
+         * Helper method: Apply vertical alignment to a rectangle within available space.
+         * @param childSize child widget size (width, height)
+         * @param availableSpace available space
+         * @param alignment vertical alignment
+         * @return a rect aligned.
+         */
+        static SRect AlignVertically(
+            const glm::vec2& childSize,
+            const SRect& availableSpace,
+            EVerticalAlignment alignment
+        );
+
+        SPadding m_Padding;
         SColor m_Background;
+
+        std::vector<SSlot> m_Slots;
     };
 }

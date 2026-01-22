@@ -1,0 +1,120 @@
+#include "epch.h"
+#include "VerticalBox.h"
+
+namespace Elixir::GUI
+{
+    glm::vec2 VerticalBox::ComputeDesiredSize()
+    {
+        glm::vec2 totalSize = { 0, 0 };
+
+        for (auto& slot : m_Slots)
+        {
+            auto childSize = slot.Content->ComputeDesiredSize();
+
+            // Add margin
+            childSize.x += slot.Margin.GetTotalHorizontal();
+            childSize.y += slot.Margin.GetTotalVertical();
+
+            // Width is the maximum
+            totalSize.x = std::max(totalSize.x, childSize.x);
+
+            // Height accumulates
+            totalSize.y += childSize.y;
+        }
+
+        // Add panel padding
+        totalSize.x += m_Padding.GetTotalHorizontal();
+        totalSize.y += m_Padding.GetTotalVertical();
+
+        m_DesiredSize = totalSize;
+        return totalSize;
+    }
+
+    void VerticalBox::ArrangeChildren(const SRect& allocatedSpace)
+    {
+        m_Geometry = allocatedSpace;
+
+        // Calculate available space after padding
+        SRect innerSpace;
+        innerSpace.Position.x = allocatedSpace.Position.x + m_Padding.Left;
+        innerSpace.Position.y = allocatedSpace.Position.y + m_Padding.Top;
+        innerSpace.Size.x = allocatedSpace.Size.x - m_Padding.GetTotalHorizontal();
+        innerSpace.Size.y = allocatedSpace.Size.y - m_Padding.GetTotalVertical();
+
+        // First: calculate fixed sizes
+        float usedSpace = 0.0f;
+
+        for (auto& slot : m_Slots)
+        {
+            if (slot.VAlignment != EVerticalAlignment::Stretch)
+            {
+                const glm::vec2 childSize = slot.Content->ComputeDesiredSize();
+                usedSpace += childSize.y + slot.Margin.GetTotalVertical();
+            }
+        }
+
+        // Calculate space available for fill slots
+        const float availableForFill = std::max(0.0f, innerSpace.Size.y - usedSpace);
+
+        // Second: Arrange children
+        float currentY = innerSpace.Position.y;
+
+        for (auto& slot : m_Slots)
+        {
+            const glm::vec2 childSize = slot.Content->ComputeDesiredSize();
+
+            // Calculate child height
+            float childHeight;
+
+            if (slot.VAlignment == EVerticalAlignment::Stretch && slot.FillRatio > 0.0f)
+            {
+                // Proportional fill
+                childHeight = availableForFill * slot.FillRatio - slot.Margin.GetTotalVertical();
+            }
+            else
+            {
+                // Use the desired height
+                childHeight = childSize.y;
+            }
+
+            // Clamp to min/max constraints
+            childHeight = std::max(slot.MinSize.y, std::min(slot.MaxSize.y, childHeight));
+
+            // Calculate child width based on alignment
+            float childWidth;
+
+            if (slot.HAlignment == EHorizontalAlignment::Stretch)
+            {
+                childWidth = innerSpace.Size.x - slot.Margin.GetTotalHorizontal();
+            }
+            else
+            {
+                childWidth = childSize.x;
+            }
+
+            childWidth = std::max(slot.MinSize.x, std::min(slot.MaxSize.x, childWidth));
+
+            // Create available space for this child
+            SRect childAvailableSpace;
+            childAvailableSpace.Position.x = innerSpace.Position.x;
+            childAvailableSpace.Position.y = currentY;
+            childAvailableSpace.Size.x = innerSpace.Size.x;
+            childAvailableSpace.Size.y = childHeight + slot.Margin.GetTotalVertical();
+
+            // Align child within available space
+            SRect childGeometry = AlignChild(
+                glm::vec2(childWidth, childHeight),
+                childAvailableSpace,
+                slot.HAlignment,
+                EVerticalAlignment::Top,
+                slot.Margin
+            );
+
+            // Arrange the child
+            slot.Content->ArrangeChildren(childGeometry);
+
+            // Advance position
+            currentY += childHeight + slot.Margin.GetTotalVertical();
+        }
+    }
+}

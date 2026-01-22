@@ -9,9 +9,10 @@ namespace Elixir::GUI
       public:
         Button(const std::string& text = "");
 
-      private:
+        glm::vec2 ComputeDesiredSize() override;
         void GenerateDrawCommands(RenderBatch& batch, int zOrder) override;
 
+      private:
         std::string m_Text;
 
         SColor m_NormalColor{0.3f, 0.3f, 0.8f, 1.0f};
