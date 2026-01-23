@@ -35,7 +35,7 @@ namespace Elixir::Vulkan
         VkPipeline m_Pipeline;
         VkPipelineLayout m_PipelineLayout;
 
-        VkVertexInputBindingDescription m_Binding;
+        std::vector<VkVertexInputBindingDescription> m_Bindings;
         std::vector<VkVertexInputAttributeDescription> m_Attributes;
 
         std::vector<VkPipelineShaderStageCreateInfo> m_ShaderStages;

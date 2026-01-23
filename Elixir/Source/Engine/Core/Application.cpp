@@ -45,6 +45,7 @@ namespace Elixir
         panel->SetPadding({ 10, 20, 10, 10 });
         const auto button = CreateRef<GUI::Button>("Hello World");
         const auto button2 = CreateRef<GUI::Button>();
+        button2->SetNormalColor({ 0.0f, 1.0f, 0.0f, 1.0f });
 
         panel->AddChild(button)
             .SetAnchor(GUI::SAnchor::TopLeft())

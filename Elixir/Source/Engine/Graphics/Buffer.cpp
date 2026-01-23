@@ -10,41 +10,6 @@ namespace Elixir
 {
     using namespace Elixir::Graphics;
 
-    /* SBufferElement */
-
-    SBufferElement::SBufferElement(
-        const EDataType type,
-        const std::string& name,
-        const bool normalized
-    ) : Name(name), Type(type), Offset(0), Size(Utils::GetDataTypeSize(type)),
-        Normalized(normalized) {}
-
-    uint32_t SBufferElement::GetComponentCount() const
-    {
-        return Utils::GetDataTypeComponentCount(Type);
-    }
-
-    /* BufferLayout */
-
-    BufferLayout::BufferLayout(const std::initializer_list<SBufferElement>& elements)
-        : m_Elements(elements), m_Stride(0)
-    {
-        CalculateOffsetsAndStride();
-    }
-
-    void BufferLayout::CalculateOffsetsAndStride()
-    {
-        m_Stride = 0;
-
-        size_t offset = 0;
-        for (auto& element : m_Elements)
-        {
-            element.Offset = offset;
-            offset += element.Size;
-            m_Stride += element.Size;
-        }
-    }
-
     /* Buffer */
 
     void Buffer::Copy(
@@ -159,10 +124,14 @@ namespace Elixir
 #endif
     }
 
-    void VertexBuffer::Bind(const Ref<CommandBuffer>& cmd)
+    void VertexBuffer::Bind(
+        const Ref<CommandBuffer>& cmd,
+        const uint32_t bindingCount,
+        const uint32_t firstBinding
+    ) const
     {
         const VertexBuffer* buffers[] = { this };
-        cmd->BindVertexBuffers(buffers);
+        cmd->BindVertexBuffers(buffers, {}, bindingCount, firstBinding);
     }
 
     /* VertexBuffer */
@@ -223,10 +192,14 @@ namespace Elixir
         EBufferUsage::StorageBuffer |
         EBufferUsage::ShaderDeviceAddress;
 
-    void DynamicVertexBuffer::Bind(const Ref<CommandBuffer>& cmd)
+    void DynamicVertexBuffer::Bind(
+        const Ref<CommandBuffer>& cmd,
+        const uint32_t bindingCount,
+        const uint32_t firstBinding
+    ) const
     {
         const DynamicVertexBuffer* buffers[] = { this };
-        cmd->BindVertexBuffers(buffers);
+        cmd->BindVertexBuffers(buffers, {}, bindingCount, firstBinding);
     }
 
     void DynamicVertexBuffer::UpdateData(

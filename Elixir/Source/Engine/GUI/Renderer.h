@@ -12,6 +12,16 @@ namespace Elixir::GUI
     {
         glm::vec2 Position;
         glm::vec2 TexCoord;
+    };
+
+    struct SQuadData
+    {
+        glm::vec2 Position;
+        glm::vec2 Size;
+
+        float CornerRadius = 0.0f;
+        float Padding;
+
         SColor Color;
     };
 
@@ -60,10 +70,10 @@ namespace Elixir::GUI
             const auto topRightUV = glm::vec2{ quad.TexCoords.Size.x, quad.TexCoords.Size.y };
             const auto bottomLeftUV = glm::vec2{ quad.TexCoords.Position.x, quad.TexCoords.Position.y };
 
-            Vertices.push_back({ topLeft,     topLeftUV,     quad.Color });
-            Vertices.push_back({ topRight,    topRightUV,    quad.Color });
-            Vertices.push_back({ bottomRight, bottomRightUV, quad.Color });
-            Vertices.push_back({ bottomLeft,  bottomLeftUV,  quad.Color });
+            Vertices.push_back({ topLeft,     topLeftUV     });
+            Vertices.push_back({ topRight,    topRightUV    });
+            Vertices.push_back({ bottomRight, bottomRightUV });
+            Vertices.push_back({ bottomLeft,  bottomLeftUV  });
 
             // Two triangles (6 indices)
             Indices.push_back(baseIndex + 0);
@@ -114,10 +124,10 @@ namespace Elixir::GUI
         void Render(const RenderBatch& batch);
 
       private:
-        void BuildRectGeometry(const SDrawCommand& cmd, SBatchContext& batchContext);
-        void BuildRectOutlineGeometry(const SDrawCommand& cmd, SBatchContext& batchContext);
+        void BuildRectGeometry(const SDrawCommand& cmd);
+        void BuildRectOutlineGeometry(const SDrawCommand& cmd);
         void BuildTextGeometry(const SDrawCommand& cmd, SBatchContext& batchContext);
-        void BuildTextureGeometry(const SDrawCommand& cmd, SBatchContext& batchContext);
+        void BuildTextureGeometry(const SDrawCommand& cmd);
 
         size_t m_MaxVertices = 10000;
         size_t m_MaxIndices = 15000;
@@ -135,5 +145,18 @@ namespace Elixir::GUI
 
         Extent2D m_RenderExtent{};
         const GraphicsContext* m_GraphicsContext = nullptr;
+
+
+
+
+        std::vector<SVertex> Vertices;
+        std::vector<uint32_t> Indices;
+        std::vector<SQuadData> m_Quads;
+
+        Ref<Shader> Shader;
+        Ref<GraphicsPipeline> Pipeline;
+        Ref<VertexBuffer> m_VertexBuffer;
+        Ref<DynamicVertexBuffer> m_QuadBuffer;
+        Ref<IndexBuffer> m_IndexBuffer;
     };
 }

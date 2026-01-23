@@ -1,50 +1,12 @@
 #pragma once
 
 #include <Engine/Core/Buffer.h>
+#include <Engine/Graphics/BufferLayout.h>
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Graphics/Memory.h>
 
 namespace Elixir
 {
-    enum class EDataType : uint32_t
-    {
-        Bool, Float, Vec2, Vec3, Vec4, Int, IntVec2, IntVec3, IntVec4, Mat3, Mat4
-    };
-
-    struct SBufferElement
-    {
-        SBufferElement(EDataType type, const std::string& name, bool normalized = false);
-
-        uint32_t GetComponentCount() const;
-
-        std::string Name;
-        EDataType Type;
-        size_t Offset;
-        size_t Size;
-        bool Normalized;
-    };
-
-    class BufferLayout
-    {
-      public:
-        BufferLayout() : m_Stride(0) {}
-        BufferLayout(const std::initializer_list<SBufferElement>& elements);
-
-        [[nodiscard]] const std::vector<SBufferElement>& GetElements() const { return m_Elements; }
-        [[nodiscard]] size_t GetStride() const { return m_Stride; }
-
-        std::vector<SBufferElement>::iterator begin() { return m_Elements.begin(); }
-		std::vector<SBufferElement>::iterator end() { return m_Elements.end(); }
-		std::vector<SBufferElement>::const_iterator begin() const { return m_Elements.begin(); }
-		std::vector<SBufferElement>::const_iterator end() const { return m_Elements.end(); }
-
-      private:
-        void CalculateOffsetsAndStride();
-
-        std::vector<SBufferElement> m_Elements;
-        size_t m_Stride;
-    };
-
     typedef uint64_t BufferAddress;
 
     enum class EBufferUsage : uint32_t
@@ -195,7 +157,11 @@ namespace Elixir
       public:
         ~VertexBuffer() override = default;
 
-        void Bind(const Ref<CommandBuffer>& cmd);
+        void Bind(
+            const Ref<CommandBuffer>& cmd,
+            uint32_t bindingCount = 1,
+            uint32_t firstBinding = 0
+        ) const;
 
         [[nodiscard]] const BufferLayout& GetLayout() const { return m_Layout; }
         void SetLayout(const BufferLayout& layout) { m_Layout = layout; }
@@ -226,7 +192,11 @@ namespace Elixir
     public:
         ~DynamicVertexBuffer() override = default;
 
-        void Bind(const Ref<CommandBuffer>& cmd);
+        void Bind(
+            const Ref<CommandBuffer>& cmd,
+            uint32_t bindingCount = 1,
+            uint32_t firstBinding = 0
+        ) const;
 
         void UpdateData(const void* data, size_t size, size_t offset = 0) const;
 

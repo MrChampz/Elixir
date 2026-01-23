@@ -432,6 +432,22 @@ namespace Elixir::Vulkan::Converters
         return VK_IMAGE_LAYOUT_UNDEFINED;
     }
 
+    static VkVertexInputRate GetInputRate(const EInputRate rate)
+    {
+        switch (rate)
+        {
+            case EInputRate::Vertex:
+                return VK_VERTEX_INPUT_RATE_VERTEX;
+            case EInputRate::Instance:
+                return VK_VERTEX_INPUT_RATE_INSTANCE;
+            default:
+                EE_CORE_ASSERT(false, "Unknown InputRate!")
+                break;
+        }
+
+        return VK_VERTEX_INPUT_RATE_MAX_ENUM;
+    }
+
     static VkImageType GetImageType(const EImageType type)
 	{
 		switch (type)
