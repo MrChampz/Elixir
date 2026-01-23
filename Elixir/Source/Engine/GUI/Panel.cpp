@@ -7,9 +7,9 @@ namespace Elixir::GUI
     {
         for (const auto& slot : m_Slots)
         {
-            if (slot.IsVisible())
+            if (slot->IsVisible())
             {
-                slot.Content->GenerateDrawCommands(batch, zOrder + 1);
+                slot->GetWidget()->GenerateDrawCommands(batch, zOrder + 1);
             }
         }
 
@@ -17,13 +17,6 @@ namespace Elixir::GUI
         {
             batch.AddRect(m_Geometry, m_Background, zOrder);
         }
-    }
-
-    SSlot& Panel::AddChild(const Ref<Widget>& child, SSlot slot)
-    {
-        slot.Content = child;
-        m_Slots.emplace_back(slot);
-        return m_Slots.back();
     }
 
     SRect Panel::AlignChild(

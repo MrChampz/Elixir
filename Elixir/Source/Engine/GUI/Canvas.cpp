@@ -7,6 +7,13 @@ namespace Elixir::GUI
         m_DesiredSize = { 800.0f, 600.0f };
     }
 
+    CanvasSlot& Canvas::AddChild(const Ref<Widget>& child)
+    {
+        const auto slot = CreateRef<CanvasSlot>(child);
+        m_Slots.push_back(slot);
+        return *slot;
+    }
+
     glm::vec2 Canvas::ComputeDesiredSize()
     {
         return m_DesiredSize;
@@ -19,30 +26,31 @@ namespace Elixir::GUI
         // Arrange each child based on its anchors and constraints
         for (const auto& slot : m_Slots)
         {
-            SRect childGeometry = ComputeChildGeometry(slot, allocatedSpace.Size);
-            slot.Content->ArrangeChildren(childGeometry);
+            const auto canvasSlot = std::static_pointer_cast<CanvasSlot>(slot);
+            SRect childGeometry = ComputeChildGeometry(canvasSlot, allocatedSpace.Size);
+            slot->GetWidget()->ArrangeChildren(childGeometry);
         }
     }
 
-    SRect Canvas::ComputeChildGeometry(const SSlot& slot, const glm::vec2& canvasSize) const
+    SRect Canvas::ComputeChildGeometry(const Ref<CanvasSlot>& slot, const glm::vec2& canvasSize) const
     {
-        const SAnchor& anchor = slot.Anchor;
-        const SConstraint& constraint = slot.Constraint;
+        const SAnchors& anchors = slot->GetAnchors();
+        const SConstraint& constraint = slot->GetConstraint();
 
         SRect result;
 
         // Calculate anchor positions in canvas space
         const glm::vec2 anchorMin = {
-            canvasSize.x * anchor.MinX,
-            canvasSize.y * anchor.MinY
+            canvasSize.x * anchors.MinX,
+            canvasSize.y * anchors.MinY
         };
 
         const glm::vec2 anchorMax = {
-            canvasSize.x * anchor.MaxX,
-            canvasSize.y * anchor.MaxY
+            canvasSize.x * anchors.MaxX,
+            canvasSize.y * anchors.MaxY
         };
 
-        if (anchor.IsNonStretching())
+        if (anchors.IsNonStretching())
         {
             // NON-STRETCHING MODE
             // Widget has explicit size and position offset from anchor
@@ -65,7 +73,7 @@ namespace Elixir::GUI
             // STRETCHING MODE
             // Widget stretches between anchor points with margin offsets
 
-            if (anchor.IsStretchingHorizontally())
+            if (anchors.IsStretchingHorizontally())
             {
                 // Stretch horizontally
                 result.Position.x = m_Geometry.Position.x + anchorMin.x + constraint.Offsets.Left;
@@ -80,7 +88,7 @@ namespace Elixir::GUI
                 result.Size.x = constraint.Size.x;
             }
 
-            if (anchor.IsStretchingVertically())
+            if (anchors.IsStretchingVertically())
             {
                 // Stretch vertically
                 result.Position.y = m_Geometry.Position.y + anchorMin.y + constraint.Offsets.Top;

@@ -50,11 +50,22 @@ namespace Elixir::GUI
          */
         SRect GetGeometry() const { return m_Geometry; }
 
+        float GetOpacity() const { return Opacity; }
+        void SetOpacity(float opacity) { Opacity = opacity; }
+
+        EVisibility GetVisibility() const { return Visibility; }
+        void SetVisibility(const EVisibility visibility) { Visibility = visibility; }
+        bool IsVisible() const;
+
         //const std::vector<Ref<Widget>>& GetChildren() const { return m_Children; }
 
       protected:
         SRect m_Geometry{};
         glm::vec2 m_DesiredSize{};
+
+        float Opacity = 1.0f;
+
+        EVisibility Visibility = EVisibility::Visible;
 
         std::vector<Ref<Widget>> m_Children;
     };

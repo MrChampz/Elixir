@@ -3,17 +3,27 @@
 
 namespace Elixir::GUI
 {
+    LayoutSlot& HorizontalBox::AddChild(const Ref<Widget>& child)
+    {
+        const auto slot = CreateRef<LayoutSlot>(child);
+        m_Slots.push_back(slot);
+        return *slot;
+    }
+
     glm::vec2 HorizontalBox::ComputeDesiredSize()
     {
         glm::vec2 totalSize = { 0, 0 };
 
         for (auto& slot : m_Slots)
         {
-            auto childSize = slot.Content->ComputeDesiredSize();
+            const auto layoutSlot = std::static_pointer_cast<LayoutSlot>(slot);
+
+            auto childSize = slot->GetWidget()->ComputeDesiredSize();
+            const auto margin = layoutSlot->GetMargin();
 
             // Add margin
-            childSize.x += slot.Margin.GetTotalHorizontal();
-            childSize.y += slot.Margin.GetTotalVertical();
+            childSize.x += margin.GetTotalHorizontal();
+            childSize.y += margin.GetTotalVertical();
 
             // Width accumulates
             totalSize.x += childSize.x;
@@ -46,10 +56,15 @@ namespace Elixir::GUI
 
         for (auto& slot : m_Slots)
         {
-            if (slot.HAlignment != EHorizontalAlignment::Stretch)
+            const auto layoutSlot = std::static_pointer_cast<LayoutSlot>(slot);
+
+            const auto margin = layoutSlot->GetMargin();
+            const auto hAlignment = layoutSlot->GetHorizontalAlignment();
+
+            if (hAlignment != EHorizontalAlignment::Stretch)
             {
-                const glm::vec2 childSize = slot.Content->ComputeDesiredSize();
-                usedSpace += childSize.x + slot.Margin.GetTotalHorizontal();
+                const glm::vec2 childSize = slot->GetWidget()->ComputeDesiredSize();
+                usedSpace += childSize.x + margin.GetTotalHorizontal();
             }
         }
 
@@ -61,15 +76,23 @@ namespace Elixir::GUI
 
         for (auto& slot : m_Slots)
         {
-            const glm::vec2 childSize = slot.Content->ComputeDesiredSize();
+            const auto layoutSlot = std::static_pointer_cast<LayoutSlot>(slot);
+
+            const glm::vec2 childSize = slot->GetWidget()->ComputeDesiredSize();
+            const auto margin = layoutSlot->GetMargin();
+            const auto hAlignment = layoutSlot->GetHorizontalAlignment();
+            const auto vAlignment = layoutSlot->GetVerticalAlignment();
+            const auto fillRatio = layoutSlot->GetFillRatio();
+            const auto minSize = layoutSlot->GetMinSize();
+            const auto maxSize = layoutSlot->GetMaxSize();
 
             // Calculate child width
             float childWidth;
 
-            if (slot.HAlignment == EHorizontalAlignment::Stretch && slot.FillRatio > 0.0f)
+            if (hAlignment == EHorizontalAlignment::Stretch && fillRatio > 0.0f)
             {
                 // Proportional fill
-                childWidth = availableForFill * slot.FillRatio - slot.Margin.GetTotalHorizontal();
+                childWidth = availableForFill * fillRatio - margin.GetTotalHorizontal();
             }
             else
             {
@@ -78,27 +101,27 @@ namespace Elixir::GUI
             }
 
             // Clamp to min/max constraints
-            childWidth = std::max(slot.MinSize.x, std::min(slot.MaxSize.x, childWidth));
+            childWidth = std::max(minSize.x, std::min(maxSize.x, childWidth));
 
             // Calculate child height based on alignment
             float childHeight;
 
-            if (slot.VAlignment == EVerticalAlignment::Stretch)
+            if (vAlignment == EVerticalAlignment::Stretch)
             {
-                childHeight = innerSpace.Size.y - slot.Margin.GetTotalVertical();
+                childHeight = innerSpace.Size.y - margin.GetTotalVertical();
             }
             else
             {
                 childHeight = childSize.y;
             }
 
-            childHeight = std::max(slot.MinSize.y, std::min(slot.MaxSize.y, childHeight));
+            childHeight = std::max(minSize.y, std::min(maxSize.y, childHeight));
 
             // Create available space for this child
             SRect childAvailableSpace;
             childAvailableSpace.Position.x = currentX;
             childAvailableSpace.Position.y = innerSpace.Position.y;
-            childAvailableSpace.Size.x = childWidth + slot.Margin.GetTotalHorizontal();
+            childAvailableSpace.Size.x = childWidth + margin.GetTotalHorizontal();
             childAvailableSpace.Size.y = innerSpace.Size.y;
 
             // Align child within available space
@@ -106,15 +129,15 @@ namespace Elixir::GUI
                 glm::vec2(childWidth, childHeight),
                 childAvailableSpace,
                 EHorizontalAlignment::Left,
-                slot.VAlignment,
-                slot.Margin
+                vAlignment,
+                margin
             );
 
             // Arrange the child
-            slot.Content->ArrangeChildren(childGeometry);
+            slot->GetWidget()->ArrangeChildren(childGeometry);
 
             // Advance position
-            currentX += childWidth + slot.Margin.GetTotalHorizontal();
+            currentX += childWidth + margin.GetTotalHorizontal();
         }
     }
 }

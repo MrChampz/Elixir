@@ -49,6 +49,6 @@ namespace Elixir
         static Application* s_Application;
     };
 
-    // NOTE: To be defined in client
+    // NOTE: To be defined in the client
     extern Application* CreateApplication();
 }

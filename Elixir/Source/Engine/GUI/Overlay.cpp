@@ -5,19 +5,29 @@
 
 namespace Elixir::GUI
 {
+    LayoutSlot& Overlay::AddChild(const Ref<Widget>& child)
+    {
+        const auto slot = CreateRef<LayoutSlot>(child);
+        m_Slots.push_back(slot);
+        return *slot;
+    }
+
     glm::vec2 Overlay::ComputeDesiredSize()
     {
         glm::vec2 totalSize = { 0, 0 };
 
         for (auto& slot : m_Slots)
         {
-            auto childSize = slot.Content->ComputeDesiredSize();
+            const auto layoutSlot = std::static_pointer_cast<LayoutSlot>(slot);
+
+            auto childSize = slot->GetWidget()->ComputeDesiredSize();
+            const auto margin = layoutSlot->GetMargin();
 
             // Add margin
-            childSize.x += slot.Margin.GetTotalHorizontal();
-            childSize.y += slot.Margin.GetTotalVertical();
+            childSize.x += margin.GetTotalHorizontal();
+            childSize.y += margin.GetTotalVertical();
 
-            // Width and height     are the maximum
+            // Width and height are the maximum
             totalSize.x = std::max(totalSize.x, childSize.x);
             totalSize.y = std::max(totalSize.y, childSize.y);
         }
@@ -43,25 +53,30 @@ namespace Elixir::GUI
 
         for (auto& slot : m_Slots)
         {
-            const glm::vec2 childSize = slot.Content->ComputeDesiredSize();
+            const auto layoutSlot = std::static_pointer_cast<LayoutSlot>(slot);
+
+            const glm::vec2 childSize = slot->GetWidget()->ComputeDesiredSize();
+            const auto margin = layoutSlot->GetMargin();
+            const auto hAlignment = layoutSlot->GetHorizontalAlignment();
+            const auto vAlignment = layoutSlot->GetVerticalAlignment();
 
             // Handle fill alignment
-            float childWidth = (slot.HAlignment == EHorizontalAlignment::Stretch)
-                ? innerSpace.Size.x - slot.Margin.GetTotalHorizontal() : childSize.x;
-            float childHeight = (slot.VAlignment == EVerticalAlignment::Stretch)
-                ? innerSpace.Size.y - slot.Margin.GetTotalVertical() : childSize.y;
+            const float childWidth = (hAlignment == EHorizontalAlignment::Stretch)
+                ? innerSpace.Size.x - margin.GetTotalHorizontal() : childSize.x;
+            const float childHeight = (vAlignment == EVerticalAlignment::Stretch)
+                ? innerSpace.Size.y - margin.GetTotalVertical() : childSize.y;
 
             // Align within the overlay space
             SRect childGeometry = AlignChild(
                 glm::vec2(childWidth, childHeight),
                 innerSpace,
-                slot.HAlignment,
-                slot.VAlignment,
-                slot.Margin
+                hAlignment,
+                vAlignment,
+                margin
             );
 
             // Arrange the child
-            slot.Content->ArrangeChildren(childGeometry);
+            slot->GetWidget()->ArrangeChildren(childGeometry);
         }
     }
 }

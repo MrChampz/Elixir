@@ -66,15 +66,15 @@ namespace Elixir::GUI
 
     typedef SMargin SPadding;
 
-    struct SAnchor
+    struct SAnchors
     {
         // Normalized positions (0-1) relative to parent.
         // (0, 0) = top-left, (1, 1) = bottom-right.
         float MinX, MinY;   // Anchor minimum (top-left anchor point)
         float MaxX, MaxY;   // Anchor maximum (bottom-right anchor point)
 
-        SAnchor() = default;
-        SAnchor(
+        SAnchors() = default;
+        SAnchors(
             const float minX,
             const float minY,
             const float maxX,
@@ -94,22 +94,22 @@ namespace Elixir::GUI
         bool IsStretchingVertically() const { return MinY != MaxY; }
 
         // Common presets
-        static SAnchor TopLeft() { return { 0.0f, 0.0f, 0.0f, 0.0f }; }
-        static SAnchor TopCenter() { return { 0.5f, 0.0f, 0.5f, 0.0f }; }
-        static SAnchor TopRight() { return { 1.0f, 0.0f, 1.0f, 0.0f }; }
+        static SAnchors TopLeft() { return { 0.0f, 0.0f, 0.0f, 0.0f }; }
+        static SAnchors TopCenter() { return { 0.5f, 0.0f, 0.5f, 0.0f }; }
+        static SAnchors TopRight() { return { 1.0f, 0.0f, 1.0f, 0.0f }; }
 
-        static SAnchor MiddleLeft() { return { 0.0f, 0.5f, 0.0f, 0.5f }; }
-        static SAnchor MiddleCenter() { return { 0.5f, 0.5f, 0.5f, 0.5f }; }
-        static SAnchor MiddleRight() { return { 1.0f, 0.5f, 1.0f, 0.5f }; }
+        static SAnchors MiddleLeft() { return { 0.0f, 0.5f, 0.0f, 0.5f }; }
+        static SAnchors MiddleCenter() { return { 0.5f, 0.5f, 0.5f, 0.5f }; }
+        static SAnchors MiddleRight() { return { 1.0f, 0.5f, 1.0f, 0.5f }; }
 
-        static SAnchor BottomLeft() { return { 0.0f, 1.0f, 0.0f, 1.0f }; }
-        static SAnchor BottomCenter() { return { 0.5f, 1.0f, 0.5f, 1.0f }; }
-        static SAnchor BottomRight() { return { 1.0f, 1.0f, 1.0f, 1.0f }; }
+        static SAnchors                                                                                                                              BottomLeft() { return { 0.0f, 1.0f, 0.0f, 1.0f }; }
+        static SAnchors BottomCenter() { return { 0.5f, 1.0f, 0.5f, 1.0f }; }
+        static SAnchors BottomRight() { return { 1.0f, 1.0f, 1.0f, 1.0f }; }
 
         // Stretch presets
-        static SAnchor StretchHorizontal() { return { 0.0f, 0.5f, 1.0f, 0.5f }; }
-        static SAnchor StretchVertical() { return { 0.5f, 0.0f, 0.5f, 1.0f }; }
-        static SAnchor StretchAll() { return { 0.0f, 0.0f, 1.0f, 1.0f }; }
+        static SAnchors StretchHorizontal() { return { 0.0f, 0.5f, 1.0f, 0.5f }; }
+        static SAnchors sStretchVertical() { return { 0.5f, 0.0f, 0.5f, 1.0f }; }
+        static SAnchors StretchAll() { return { 0.0f, 0.0f, 1.0f, 1.0f }; }
     };
 
     struct SConstraint
@@ -117,7 +117,7 @@ namespace Elixir::GUI
         // When anchors are the same (non-stretching):
         // Position = offset from anchor point.
         // Size = explicit size.
-        glm::vec2 Position;     // Also called "offset"
+        glm::vec2 Position;
         glm::vec2 Size;
 
         // When anchors are different (stretching):
@@ -126,7 +126,6 @@ namespace Elixir::GUI
         // Right offset = distance from right anchor (usually negative)
         // Top offset = distance from top anchor
         // Bottom offset = distance from bottom anchor (usually negative)
-
         struct SOffsets
         {
             float Left, Top, Right, Bottom;
@@ -136,32 +135,9 @@ namespace Elixir::GUI
         // 0.0 = left/top, 0.5 = center, 1.0 = right/bottom
         glm::vec2 Alignment{0.0f, 0.0f};
 
-        // Z-order for overlapping widgets
-        int ZOrder = 0;
-
         SConstraint() :
             Position(0.0f, 0.0f),
             Size(100.0f, 100.0f),
             Offsets{0, 0, 0, 0} {}
-
-        static SConstraint FromPositionAndSize(const glm::vec2& pos, const glm::vec2& size)
-        {
-            SConstraint constraint;
-            constraint.Position = pos;
-            constraint.Size = size;
-            return constraint;
-        }
-
-        static SConstraint FromOffsets(
-            const float left,
-            const float top,
-            const float right,
-            const float bottom
-        )
-        {
-            SConstraint constraint;
-            constraint.Offsets = { left, top, right, bottom };
-            return constraint;
-        }
     };
 }

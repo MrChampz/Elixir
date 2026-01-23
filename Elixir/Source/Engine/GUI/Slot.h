@@ -6,120 +6,82 @@
 
 namespace Elixir::GUI
 {
-    struct SSlot
+    class ELIXIR_API Slot
     {
-        Ref<Widget> Content = nullptr;
-
-        // Only used for Canvas layout
-        SAnchor Anchor = SAnchor::TopLeft();
-        SConstraint Constraint;
-
-        EHorizontalAlignment HAlignment = EHorizontalAlignment::Center;
-        EVerticalAlignment VAlignment = EVerticalAlignment::Center;
-
-        // Only used for Box layouts
-        SMargin Margin;
-
-        glm::vec2 MinSize{0, 0};
-        glm::vec2 MaxSize{FLT_MAX, FLT_MAX};
-
-        // For proportional layouts (like Flexbox flex property)
-        // Work only with Stretch alignment
-        float FillRatio = 1.0f;
-
-        float Opacity = 1.0f;
-
-        EVisibility Visibility = EVisibility::Visible;
-
-        SSlot() = default;
-        explicit SSlot(const Ref<Widget>& content) : Content(content) {}
-
-        SSlot& SetHorizontalAlignment(const EHorizontalAlignment alignment)
-        {
-            HAlignment = alignment;
-            return *this;
-        }
-
-        SSlot& SetVerticalAlignment(const EVerticalAlignment alignment)
-        {
-            VAlignment = alignment;
-            return *this;
-        }
-
-        SSlot& SetMargin(const SMargin& margin)
-        {
-            Margin = margin;
-            return *this;
-        }
-
-        SSlot& SetMinSize(const glm::vec2& size)
-        {
-            MinSize = size;
-            return *this;
-        }
-
-        SSlot& SetMaxSize(const glm::vec2& size)
-        {
-            MaxSize = size;
-            return *this;
-        }
-
-        SSlot& SetFillRatio(const float ratio)
-        {
-            FillRatio = ratio;
-            return *this;
-        }
-
-        SSlot& SetOpacity(const float opacity)
-        {
-            Opacity = opacity;
-            return *this;
-        }
-
-        SSlot& SetAnchor(const SAnchor& anchor)
-        {
-            Anchor = anchor;
-            return *this;
-        }
-
-        SSlot& SetPosition(const glm::vec2& pos)
-        {
-            Constraint.Position = pos;
-            return *this;
-        }
-
-        SSlot& SetSize(const glm::vec2& size)
-        {
-            Constraint.Size = size;
-            return *this;
-        }
-
-        SSlot& SetOffsets(
-            const float left,
-            const float top,
-            const float right,
-            const float bottom
-        )
-        {
-            Constraint.Offsets = { left, top, right, bottom };
-            return *this;
-        }
-
-        SSlot& SetAlignment(const glm::vec2& alignment)
-        {
-            Constraint.Alignment = alignment;
-            return *this;
-        }
-
-        SSlot& SetZOrder(const int zOrder)
-        {
-            Constraint.ZOrder = zOrder;
-            return *this;
-        }
+      public:
+        virtual ~Slot() = default;
 
         bool IsVisible() const
         {
-            return Visibility == EVisibility::Visible && Opacity > 0.0f;
+            return m_Widget && m_Widget->IsVisible();
         }
+
+        Ref<Widget> GetWidget() const { return m_Widget; }
+        void SetWidget(const Ref<Widget>& widget) { m_Widget = widget; }
+
+      protected:
+        Ref<Widget> m_Widget = nullptr;
+    };
+
+    class ELIXIR_API LayoutSlot final : public Slot
+    {
+      public:
+        explicit LayoutSlot(const Ref<Widget>& widget) { m_Widget = widget; }
+
+        EHorizontalAlignment GetHorizontalAlignment() const { return m_HAlignment; }
+        LayoutSlot& SetHorizontalAlignment(const EHorizontalAlignment alignment)
+        {
+            m_HAlignment = alignment;
+            return *this;
+        }
+
+        EVerticalAlignment GetVerticalAlignment() const { return m_VAlignment; }
+        LayoutSlot& SetVerticalAlignment(const EVerticalAlignment alignment)
+        {
+            m_VAlignment = alignment;
+            return *this;
+        }
+
+        SMargin GetMargin() const { return m_Margin; }
+        LayoutSlot& SetMargin(const SMargin& margin)
+        {
+            m_Margin = margin;
+            return *this;
+        }
+
+        glm::vec2 GetMinSize() const { return m_MinSize; }
+        LayoutSlot& SetMinSize(const glm::vec2& size)
+        {
+            m_MinSize = size;
+            return *this;
+        }
+
+
+        glm::vec2 GetMaxSize() const { return m_MaxSize; }
+        LayoutSlot& SetMaxSize(const glm::vec2& size)
+        {
+            m_MaxSize = size;
+            return *this;
+        }
+
+        float GetFillRatio() const { return m_FillRatio; }
+        LayoutSlot& SetFillRatio(const float ratio)
+        {
+            m_FillRatio = ratio;
+            return *this;
+        }
+
+    private:
+        EHorizontalAlignment m_HAlignment = EHorizontalAlignment::Center;
+        EVerticalAlignment m_VAlignment = EVerticalAlignment::Center;
+
+        SMargin m_Margin;
+
+        glm::vec2 m_MinSize{0, 0};
+        glm::vec2 m_MaxSize{FLT_MAX, FLT_MAX};
+
+        // For proportional layouts (like Flexbox flex property)
+        // Work only with Stretch alignment
+        float m_FillRatio = 1.0f;
     };
 }

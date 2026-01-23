@@ -6,7 +6,10 @@ namespace Elixir::GUI
 {
     class ELIXIR_API HorizontalBox final : public Panel
     {
-    protected:
+      public:
+        LayoutSlot& AddChild(const Ref<Widget>& child);
+
+      protected:
         glm::vec2 ComputeDesiredSize() override;
         void ArrangeChildren(const SRect& allocatedSpace) override;
     };

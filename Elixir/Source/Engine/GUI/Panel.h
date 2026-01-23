@@ -11,18 +11,11 @@ namespace Elixir::GUI
       public:
         void GenerateDrawCommands(RenderBatch& batch, int zOrder = 0) override;
 
-        virtual SSlot& AddChild(const Ref<Widget>& child, SSlot slot = SSlot{});
-
         SPadding GetPadding() const { return m_Padding; }
         void SetPadding(const SPadding& padding) { m_Padding = padding; }
 
         SColor GetBackground() const { return m_Background; }
         void SetBackground(const SColor& color) { m_Background = color; }
-
-        SSlot& operator[](const Ref<Widget>& child)
-        {
-            return AddChild(child);
-        }
 
       protected:
         /**
@@ -79,6 +72,6 @@ namespace Elixir::GUI
         SPadding m_Padding;
         SColor m_Background;
 
-        std::vector<SSlot> m_Slots;
+        std::vector<Ref<Slot>> m_Slots;
     };
 }

@@ -14,6 +14,11 @@ namespace Elixir::GUI
         // }
     }
 
+    bool Widget::IsVisible() const
+    {
+        return Visibility == EVisibility::Visible && Opacity > 0.0f;
+    }
+
     // void Widget::AddChild(const Ref<Widget>& child)
     // {
     //     m_Children.push_back(child);

@@ -48,12 +48,12 @@ namespace Elixir
         button2->SetNormalColor({ 0.0f, 1.0f, 0.0f, 1.0f });
 
         panel->AddChild(button)
-            .SetAnchor(GUI::SAnchor::TopLeft())
+            .SetAnchors(GUI::SAnchors::TopLeft())
             .SetPosition({ 10, 10 })
             .SetSize({ 100, 40 });
 
         auto x = panel->AddChild(button2)
-            .SetAnchor(GUI::SAnchor::MiddleCenter())
+            .SetAnchors(GUI::SAnchors::MiddleCenter())
             .SetAlignment({ 0.5f, 0.5f });
 
         m_GUIManager->SetRoot(panel);
