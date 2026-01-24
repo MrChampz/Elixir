@@ -38,7 +38,7 @@ namespace Elixir::Vulkan
 
     using CommandBufferLookup = std::vector<std::pair<VulkanCommandPool*, std::vector<Ref<CommandBuffer>>>>;
 
-    class ELIXIR_API VulkanCommandPoolManager
+    class VulkanCommandPoolManager
     {
       public:
         explicit VulkanCommandPoolManager(const VulkanGraphicsContext* context);

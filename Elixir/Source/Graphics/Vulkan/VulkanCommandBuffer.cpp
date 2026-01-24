@@ -13,7 +13,8 @@ namespace Elixir::Vulkan
         const GraphicsContext* context,
         const VkCommandPool pool,
         const ECommandBufferLevel level
-    ) : CommandBuffer(context, level), m_Ended(true), m_CommandPool(pool)
+    ) : CommandBuffer(context, level), m_Ended(true), m_CommandPool(pool),
+        m_InheritanceInfo(nullptr)
     {
         EE_PROFILE_ZONE_SCOPED()
         m_GraphicsContext = static_cast<const VulkanGraphicsContext*>(context);

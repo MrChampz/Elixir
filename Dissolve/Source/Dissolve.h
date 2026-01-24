@@ -2,7 +2,7 @@
 
 #include <Engine.h>
 
-class Dissolve final : public Application
+class Dissolve final : public Elixir::Application
 {
 public:
     Dissolve();

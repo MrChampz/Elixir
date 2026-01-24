@@ -5,11 +5,11 @@
 
 #include <simdjson.h>
 #include <msdf-atlas-gen/msdf-atlas-gen.h>
-
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include <stb_image_write.h>
-
-using namespace msdf_atlas;
+#include <msdfgen/msdfgen.h>
+#include <msdfgen/msdfgen-ext.h>
+#include <ft2build.h>
+#include FT_FREETYPE_H
+using namespace msdf_atlas;                                                     
 
 namespace Elixir::GUI
 {
@@ -127,7 +127,7 @@ namespace Elixir::GUI
 
         if (msdfgen::FreetypeHandle* ft = msdfgen::initializeFreetype())
         {
-            if (msdfgen::FontHandle* font = msdfgen::loadFont(ft, filepath.c_str()))
+            if (msdfgen::FontHandle* font = msdfgen::loadFont(ft, filepath.string().c_str()))
             {
                 const auto name = filepath.stem().string();
                 constexpr auto pxRange = 4.0;
@@ -275,7 +275,7 @@ namespace Elixir::GUI
 
                 // Load and parse JSON
                 simdjson::ondemand::parser parser;
-                const auto json = simdjson::padded_string::load(fontJsonPath.c_str());
+                const auto json = simdjson::padded_string::load(fontJsonPath.string().c_str());
                 simdjson::ondemand::document fontData = parser.iterate(json);
 
                 font->Atlas = LoadAtlas(fontData, fontAtlasPath);

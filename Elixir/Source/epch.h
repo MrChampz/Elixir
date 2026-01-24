@@ -18,6 +18,7 @@
 #include <unordered_set>
 #include <optional>
 #include <deque>
+#include <queue>
 #include <span>
 #include <ranges>
 

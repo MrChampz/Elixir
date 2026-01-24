@@ -95,35 +95,35 @@ void Dissolve::OnRender(const Timestep frameTime)
 
 void Dissolve::DrawGeometry()
 {
-    const auto renderingInfo = SRenderingInfo
-    {
-        .ColorAttachment = m_GraphicsContext->GetRenderTarget(),
-        .RenderArea = m_DrawExtent
-    };
+     const auto renderingInfo = SRenderingInfo
+     {
+         .ColorAttachment = m_GraphicsContext->GetRenderTarget(),
+         .RenderArea = m_DrawExtent
+     };
 
-    Viewport viewport = {};
-    viewport.X = 0;
-    viewport.Y = 0;
-    viewport.Width = m_DrawExtent.Width;
-    viewport.Height = m_DrawExtent.Height;
-    viewport.MinDepth = 0.0f;
-    viewport.MaxDepth = 1.0f;
+     Viewport viewport = {};
+     viewport.X = 0;
+     viewport.Y = 0;
+     viewport.Width = m_DrawExtent.Width;
+     viewport.Height = m_DrawExtent.Height;
+     viewport.MinDepth = 0.0f;
+     viewport.MaxDepth = 1.0f;
 
-    Rect2D scissor = {};
-    scissor.Offset = { 0, 0 };
-    scissor.Extent = m_DrawExtent;
+     Rect2D scissor = {};
+     scissor.Offset = { 0, 0 };
+     scissor.Extent = m_DrawExtent;
 
-    m_Executor.Enqueue([this, renderingInfo, viewport, scissor]()
-    {
-        const auto cmd = this->m_GraphicsContext->GetSecondaryCommandBuffer();
-        cmd->BeginRendering(renderingInfo);
-        cmd->SetViewports({ viewport });
-        cmd->SetScissors({ scissor });
-        pipeline->Bind(cmd);
-        cmd->Draw(3);
-        cmd->EndRendering();
-        this->m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
-    }, &m_WaitGroup);
+     m_Executor.Enqueue([this, renderingInfo, viewport, scissor]()
+     {
+         const auto cmd = this->m_GraphicsContext->GetSecondaryCommandBuffer();
+         cmd->BeginRendering(renderingInfo);
+         cmd->SetViewports({ viewport });
+         cmd->SetScissors({ scissor });
+         pipeline->Bind(cmd);
+         cmd->Draw(3);
+         cmd->EndRendering();
+         this->m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
+     }, &m_WaitGroup);
 
     m_WaitGroup.Wait();
 }

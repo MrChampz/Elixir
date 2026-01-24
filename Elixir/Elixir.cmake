@@ -112,6 +112,7 @@ set(MSDF_ATLAS_USE_VCPKG OFF)
 set(MSDF_ATLAS_BUILD_STANDALONE OFF)
 set(MSDF_ATLAS_USE_SKIA ON)
 set(MSDF_ATLAS_NO_ARTERY_FONT ON)
+set(MSDF_ATLAS_DYNAMIC_RUNTIME ON)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/msdf-atlas-gen)
 
 set(GLFW_BUILD_DOCS OFF)
@@ -128,6 +129,8 @@ add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/VulkanMemoryAllocator)
 
 set(SPIRV_CROSS_ENABLE_TESTS OFF)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/SPIRV-Cross)
+
+find_package(Freetype REQUIRED)
 
 # Only when profiling is enabled
 if (ELIXIR_PROFILE)
@@ -157,6 +160,7 @@ target_link_libraries(${PROJECT_NAME}
     vk-bootstrap
     VulkanMemoryAllocator
     spirv-cross-cpp
+    Freetype::Freetype
 )
 
 # Only when profiling is enabled
