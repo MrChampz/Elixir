@@ -19,7 +19,7 @@ namespace Elixir::GUI
         m_Commands.clear();
     }
 
-    void RenderBatch::AddRect(const SRect& rect, const SColor& color, const float cornerRadius, const int zOrder)
+    void RenderBatch::AddRect(const SRect& rect, const SColor& color, const glm::vec4 cornerRadius, const int zOrder)
     {
         SDrawCommand cmd;
         cmd.Type = SDrawCommand::EType::Rect;

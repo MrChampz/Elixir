@@ -14,7 +14,12 @@ namespace Elixir::GUI
         EType Type;
         SRect Geometry;
         SColor Color;
-        float CornerRadius = 0.0f;
+
+        /**
+         * top-left, top-right, bottom-right, bottom-left
+         */
+        glm::vec4 CornerRadius;
+
         float BorderWidth = 1.0f;
 
         // For text rendering
@@ -35,7 +40,7 @@ namespace Elixir::GUI
         void Sort();
         void Clear();
 
-        void AddRect(const SRect& rect, const SColor& color, float cornerRadius, int zOrder = 0);
+        void AddRect(const SRect& rect, const SColor& color, glm::vec4 cornerRadius, int zOrder = 0);
         void AddText(const std::string& text, const glm::vec2& position, float fontSize, const SColor& color, int zOrder = 0);
         void AddTexture(const Ref<Texture2D>& texture, const SRect& rect, const SColor& tint, int zOrder = 0);
 

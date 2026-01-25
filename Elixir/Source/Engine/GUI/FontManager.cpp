@@ -234,11 +234,13 @@ namespace Elixir::GUI
                 }
 
                 msdfgen::destroyFont(font);
+                msdfgen::deinitializeFreetype(ft);
 
                 s_Fonts[name] = std::move(fontc);
                 return s_Fonts[name];
             }
 
+            EE_CORE_FATAL("Cannot load font! [Path={0}]", filepath.string())
             msdfgen::deinitializeFreetype(ft);
         }
 

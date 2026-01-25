@@ -19,8 +19,10 @@ namespace Elixir::GUI
         glm::vec2 Position;
         glm::vec2 Size;
 
-        float CornerRadius = 0.0f;
-        float Padding;
+        /**
+         * top-left, top-right, bottom-right, bottom-left
+         */
+        glm::vec4 CornerRadius;
 
         SColor Color;
     };

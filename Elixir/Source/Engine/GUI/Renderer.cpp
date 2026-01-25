@@ -22,11 +22,10 @@ namespace Elixir::GUI
         const BufferLayout bufferLayout({
             {
                 {
-                    { EDataType::Vec2,  "Position"     },
-                    { EDataType::Vec2,  "Size"         },
-                    { EDataType::Float, "CornerRadius" },
-                    { EDataType::Float, "Padding"      },
-                    { EDataType::Vec4,  "Color"        },
+                    { EDataType::Vec2, "Position"     },
+                    { EDataType::Vec2, "Size"         },
+                    { EDataType::Vec4, "CornerRadius" },
+                    { EDataType::Vec4, "Color"        },
                 },
                 EInputRate::Instance
             }
