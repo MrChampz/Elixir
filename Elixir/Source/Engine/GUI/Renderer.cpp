@@ -21,21 +21,14 @@ namespace Elixir::GUI
 
         const BufferLayout bufferLayout({
             {
-                EInputRate::Vertex,
                 {
-                    { EDataType::Vec2, "Position"  },
-                    { EDataType::Vec2, "TexCoord"  },
-                }
-            },
-            {
-                EInputRate::Instance,
-                {
-                    { EDataType::Vec2,  "InstancePos"  },
-                    { EDataType::Vec2,  "InstanceSize" },
+                    { EDataType::Vec2,  "Position"     },
+                    { EDataType::Vec2,  "Size"         },
                     { EDataType::Float, "CornerRadius" },
                     { EDataType::Float, "Padding"      },
                     { EDataType::Vec4,  "Color"        },
-                }
+                },
+                EInputRate::Instance
             }
         });
 
@@ -53,86 +46,75 @@ namespace Elixir::GUI
         m_Font = FontManager::Load("./Assets/Fonts/SF-Pro-Display-Regular.otf");
         //m_Font = FontManager::LoadPrecompiled("./Assets/Fonts/", "PlayfairDisplay-Regular");
 
-        // m_TextBatchContext.Shader = shaderLoader->LoadShader(
-        //     "./Shaders/",
-        //     std::array<std::string_view, 2>{ "GUI", "GUI_Text" },
-        //     "GUIText"
-        // );
-        //
-        // m_TextData.UnitRange = {
-        //     m_Font->Atlas.Info.PxRange / m_Font->Atlas.Info.Width,
-        //     m_Font->Atlas.Info.PxRange / m_Font->Atlas.Info.Height
-        // };
-        //
-        // SSamplerCreateInfo samplerInfo{};
-        // samplerInfo.MagFilter = ESamplerFilter::Linear;
-        // samplerInfo.MinFilter = ESamplerFilter::Linear;
-        // samplerInfo.MipmapMode = ESamplerMipmapMode::Linear;
-        // samplerInfo.AddressModeU = ESamplerAddressMode::ClampToEdge;
-        // samplerInfo.AddressModeV = ESamplerAddressMode::ClampToEdge;
-        // samplerInfo.AnisotropyEnabled = false;
-        // samplerInfo.MaxLod = 0.0f;
-        // auto sampler = Sampler::Create(m_GraphicsContext, samplerInfo);
-        // //m_Font->Atlas.Texture->SetSampler(sampler);
-        //
-        // m_TextBatchContext.Shader->BindTexture("hardmask", m_Font->Atlas.HardmaskTexture);
-        // m_TextBatchContext.Shader->BindTexture("mtsdf", m_Font->Atlas.MTSDFTexture);
-        //
-        // builder.SetShader(m_TextBatchContext.Shader);
-        // m_TextBatchContext.Pipeline = builder.Build(context);
-        //
-        // m_TextBatchContext.Vertices.reserve(m_MaxVertices);
-        // m_TextBatchContext.VertexBuffer = DynamicVertexBuffer::Create(context, m_MaxVertices * sizeof(SVertex));
-        // m_TextBatchContext.VertexBuffer->SetLayout(bufferLayout);
-        //
-        // m_TextBatchContext.Indices.reserve(m_MaxIndices);
-        // m_TextBatchContext.IndexBuffer = DynamicIndexBuffer::Create(context, m_MaxIndices * sizeof(uint32_t));
+        m_TextBatchContext.Shader = shaderLoader->LoadShader("./Shaders/", "Text");
 
-        // GUI rendering render entities
-
-        Shader = shaderLoader->LoadShader(
-            "./Shaders/",
-            std::array<std::string_view, 2>{ "GUI", "GUI" },
-            "GUICorners"
-        );
-
-        builder.SetShader(Shader);
-        Pipeline = builder.Build(context);
-
-        constexpr SVertex templateQuad[4] = {
-            {{0, 0}, {0, 0}},
-            {{1, 0}, {1, 0}},
-            {{1, 1}, {1, 1}},
-            {{0, 1}, {0, 1}}
+        m_TextData.UnitRange = {
+            m_Font->Atlas.Info.PxRange / m_Font->Atlas.Info.Width,
+            m_Font->Atlas.Info.PxRange / m_Font->Atlas.Info.Height
         };
 
-        //Vertices.reserve(m_MaxVertices);
-        m_VertexBuffer = VertexBuffer::Create(context, sizeof(templateQuad), templateQuad);
-        m_VertexBuffer->SetLayout(bufferLayout);
+        SSamplerCreateInfo samplerInfo{};
+        samplerInfo.MagFilter = ESamplerFilter::Linear;
+        samplerInfo.MinFilter = ESamplerFilter::Linear;
+        samplerInfo.MipmapMode = ESamplerMipmapMode::Linear;
+        samplerInfo.AddressModeU = ESamplerAddressMode::ClampToEdge;
+        samplerInfo.AddressModeV = ESamplerAddressMode::ClampToEdge;
+        samplerInfo.AnisotropyEnabled = false;
+        samplerInfo.MaxLod = 0.0f;
+        auto sampler = Sampler::Create(m_GraphicsContext, samplerInfo);
+        //m_Font->Atlas.Texture->SetSampler(sampler);
+
+        m_TextBatchContext.Shader->BindTexture("hardmask", m_Font->Atlas.HardmaskTexture);
+        m_TextBatchContext.Shader->BindTexture("mtsdf", m_Font->Atlas.MTSDFTexture);
+
+        const BufferLayout bufferLayout1({
+            {
+                {
+                    { EDataType::Vec2,  "Position" },
+                    { EDataType::Vec2,  "TexCoord" }
+                }
+            }
+        });
+
+        builder.SetShader(m_TextBatchContext.Shader);
+        builder.SetBufferLayout(bufferLayout1);
+
+        m_TextBatchContext.Pipeline = builder.Build(context);
+
+        m_TextBatchContext.Vertices.reserve(m_MaxVertices);
+        m_TextBatchContext.VertexBuffer = DynamicVertexBuffer::Create(context, m_MaxVertices * sizeof(SVertex));
+        m_TextBatchContext.VertexBuffer->SetLayout(bufferLayout1);
+
+        m_TextBatchContext.Indices.reserve(m_MaxIndices);
+        m_TextBatchContext.IndexBuffer = DynamicIndexBuffer::Create(context, m_MaxIndices * sizeof(uint32_t));
+
+        // GUI rendering render entities
+        m_Shader = shaderLoader->LoadShader("./Shaders/", "GUI");
+
+
+        builder.SetShader(m_Shader);
+        builder.SetBufferLayout(bufferLayout);
+        m_Pipeline = builder.Build(context);
 
         m_Quads.reserve(m_MaxVertices);
         m_QuadBuffer = DynamicVertexBuffer::Create(context, m_MaxVertices * sizeof(SQuadData));
         m_QuadBuffer->SetLayout(bufferLayout);
-
-        //Indices.reserve(m_MaxIndices);
-        constexpr uint32_t indices[6] = {0, 2, 1, 0, 3, 2};
-        m_IndexBuffer = IndexBuffer::Create(context, sizeof(indices), indices);
 
         m_PerFrameConstantBuffer = UniformBuffer::Create(
             context,
             sizeof(SPerFrameData),
             &m_PerFrameData
         );
-        // m_TextBatchContext.Shader->BindConstantBuffer("cbPerFrame", m_PerFrameConstantBuffer);
-        Shader->BindConstantBuffer("cbPerFrame", m_PerFrameConstantBuffer);
+        m_TextBatchContext.Shader->BindConstantBuffer("cbPerFrame", m_PerFrameConstantBuffer);
+        m_Shader->BindConstantBuffer("cbPerFrame", m_PerFrameConstantBuffer);
 
-        // m_TextData.FontSize = 20.0f;
-        // m_TextConstantBuffer = UniformBuffer::Create(
-        //     context,
-        //     sizeof(STextData),
-        //     &m_TextData
-        // );
-        // m_TextBatchContext.Shader->BindConstantBuffer("cbText", m_TextConstantBuffer);
+        m_TextData.FontSize = 20.0f;
+        m_TextConstantBuffer = UniformBuffer::Create(
+            context,
+            sizeof(STextData),
+            &m_TextData
+        );
+        m_TextBatchContext.Shader->BindConstantBuffer("cbText", m_TextConstantBuffer);
     }
 
     void Renderer::Shutdown()
@@ -152,7 +134,6 @@ namespace Elixir::GUI
     void Renderer::Render(const RenderBatch& batch)
     {
         m_TextBatchContext.Clear();
-        //m_GUIBatchContext.Clear();
         m_Quads.clear();
 
         for (const auto& drawCmd : batch.GetCommands())
@@ -166,7 +147,7 @@ namespace Elixir::GUI
                     BuildRectOutlineGeometry(drawCmd);
                     break;
                 case SDrawCommand::EType::Text:
-                    BuildTextGeometry(drawCmd, m_TextBatchContext);
+                    BuildTextGeometry(drawCmd);
                     break;
                 case SDrawCommand::EType::Texture:
                     BuildTextureGeometry(drawCmd);
@@ -178,8 +159,7 @@ namespace Elixir::GUI
 
         if (!m_Quads.empty())
         {
-            //m_TextBatchContext.UpdateBuffers();
-            //m_GUIBatchContext.UpdateBuffers();
+            m_TextBatchContext.UpdateBuffers();
             m_QuadBuffer->UpdateData(m_Quads.data(),  m_Quads.size() * sizeof(SQuadData));
 
             const auto renderingInfo = SRenderingInfo
@@ -205,15 +185,11 @@ namespace Elixir::GUI
             cmd->SetViewports({ viewport });
             cmd->SetScissors({ scissor });
 
-            //m_GUIBatchContext.Draw(cmd);
-            Pipeline->Bind(cmd);
-            m_VertexBuffer->Bind(cmd, 1);
+            m_Pipeline->Bind(cmd);
+            m_QuadBuffer->Bind(cmd);
+            cmd->Draw(6, m_Quads.size());
 
-            m_QuadBuffer->Bind(cmd, 1, 1);
-
-            m_IndexBuffer->Bind(cmd);
-            cmd->DrawIndexed(6, m_Quads.size());
-            // m_TextBatchContext.Draw(cmd);
+            m_TextBatchContext.Draw(cmd);
 
             cmd->EndRendering();
             m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
@@ -230,13 +206,11 @@ namespace Elixir::GUI
         SQuadData data = {
             .Position = cmd.Geometry.Position,
             .Size = cmd.Geometry.Size,
-            .CornerRadius = 10.0,
+            .CornerRadius = cmd.CornerRadius,
             .Color = cmd.Color
         };
 
         m_Quads.push_back(data);
-
-        //batchContext.AddQuad(quad);
     }
 
     void Renderer::BuildRectOutlineGeometry(const SDrawCommand& cmd)
@@ -244,7 +218,7 @@ namespace Elixir::GUI
 
     }
 
-    void Renderer::BuildTextGeometry(const SDrawCommand& cmd, SBatchContext& batchContext)
+    void Renderer::BuildTextGeometry(const SDrawCommand& cmd)
     {
         float cursorX = cmd.Geometry.Position.x;
         float cursorY = cmd.Geometry.Position.y;
@@ -283,7 +257,7 @@ namespace Elixir::GUI
                 charCmd.TexCoords.Position.y = 1.0f - charCmd.TexCoords.Position.y;
                 charCmd.TexCoords.Size.y = 1.0f - charCmd.TexCoords.Size.y;
 
-                //BuildTextureGeometry(charCmd, batchContext);
+                BuildTextureGeometry(charCmd);
                 cursorX += scale * glyph->Advance * cmd.FontSize;
             }
         }
@@ -296,6 +270,6 @@ namespace Elixir::GUI
         quad.TexCoords = cmd.TexCoords;
         quad.Color = cmd.Color;
 
-        //batchContext.AddQuad(quad);
+        m_TextBatchContext.AddQuad(quad);
     }
 }

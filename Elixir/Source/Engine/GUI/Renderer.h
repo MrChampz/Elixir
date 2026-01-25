@@ -126,14 +126,13 @@ namespace Elixir::GUI
       private:
         void BuildRectGeometry(const SDrawCommand& cmd);
         void BuildRectOutlineGeometry(const SDrawCommand& cmd);
-        void BuildTextGeometry(const SDrawCommand& cmd, SBatchContext& batchContext);
+        void BuildTextGeometry(const SDrawCommand& cmd);
         void BuildTextureGeometry(const SDrawCommand& cmd);
 
         size_t m_MaxVertices = 10000;
         size_t m_MaxIndices = 15000;
 
         SBatchContext m_TextBatchContext{};
-        SBatchContext m_GUIBatchContext{};
 
         SPerFrameData m_PerFrameData{};
         Ref<UniformBuffer> m_PerFrameConstantBuffer;
@@ -148,15 +147,10 @@ namespace Elixir::GUI
 
 
 
-
-        std::vector<SVertex> Vertices;
-        std::vector<uint32_t> Indices;
         std::vector<SQuadData> m_Quads;
 
-        Ref<Shader> Shader;
-        Ref<GraphicsPipeline> Pipeline;
-        Ref<VertexBuffer> m_VertexBuffer;
+        Ref<Shader> m_Shader;
+        Ref<GraphicsPipeline> m_Pipeline;
         Ref<DynamicVertexBuffer> m_QuadBuffer;
-        Ref<IndexBuffer> m_IndexBuffer;
     };
 }

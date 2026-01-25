@@ -51,7 +51,7 @@ namespace Elixir::GUI
         SRect GetGeometry() const { return m_Geometry; }
 
         float GetOpacity() const { return Opacity; }
-        void SetOpacity(float opacity) { Opacity = opacity; }
+        void SetOpacity(const float opacity) { Opacity = opacity; }
 
         EVisibility GetVisibility() const { return Visibility; }
         void SetVisibility(const EVisibility visibility) { Visibility = visibility; }

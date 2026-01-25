@@ -19,7 +19,7 @@ namespace Elixir::GUI
         auto buttonColor = m_NormalColor;
 
         // Background
-        batch.AddRect(m_Geometry, buttonColor, zOrder);
+        batch.AddRect(m_Geometry, buttonColor, m_CornerRadius, zOrder);
 
         // Text (centered)
         if (!m_Text.empty())

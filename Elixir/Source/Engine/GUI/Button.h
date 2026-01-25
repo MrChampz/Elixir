@@ -14,6 +14,8 @@ namespace Elixir::GUI
 
         const std::string& GetText() const { return m_Text; }
         void SetText(const std::string& text) { m_Text = text; }
+        float GetCornerRadius() const { return m_CornerRadius; }
+        void SetCornerRadius(const float radius) { m_CornerRadius = radius; }
         SColor GetNormalColor() const { return m_NormalColor; }
         void SetNormalColor(const SColor& color) { m_NormalColor = color; }
         SColor GetTextColor() const { return m_TextColor; }
@@ -21,6 +23,8 @@ namespace Elixir::GUI
 
       private:
         std::string m_Text;
+
+        float m_CornerRadius = 0.0f;
 
         SColor m_NormalColor{0.3f, 0.3f, 0.8f, 1.0f};
         SColor m_TextColor{1.0f, 1.0f, 1.0f, 1.0f};

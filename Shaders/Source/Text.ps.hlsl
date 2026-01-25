@@ -19,7 +19,6 @@ struct PS_INPUT
 {
     float4 Position : SV_POSITION;  // Clip space position
     float2 TexCoord : TEXCOORD0;    // UV coordinates
-    float4 Color    : COLOR0;       // Vertex color
 };
 
 float median(float r, float g, float b)
@@ -77,5 +76,5 @@ float4 main(PS_INPUT input) : SV_TARGET
         alpha = hardmask.Sample(atlasSampler, input.TexCoord).r;
     }
 
-    return float4(input.Color.rgb, alpha);
+    return float4(1.0f, 1.0f, 1.0f, alpha);
 }

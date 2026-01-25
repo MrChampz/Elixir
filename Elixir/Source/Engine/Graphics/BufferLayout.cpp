@@ -20,8 +20,8 @@ namespace Elixir
     /* BufferBinding */
 
     BufferBinding::BufferBinding(
-        const EInputRate inputRate,
-        const std::initializer_list<BufferAttribute>& attributes
+        const std::initializer_list<BufferAttribute>& attributes,
+        const EInputRate inputRate
     ) : m_InputRate(inputRate), m_Attributes(attributes)
     {
         CalculateOffsetsAndStride();

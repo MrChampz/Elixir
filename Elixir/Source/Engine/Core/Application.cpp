@@ -44,8 +44,11 @@ namespace Elixir
         panel->SetBackground({ 1.0f, 0.0f, 0.0f, 1.0f });
         panel->SetPadding({ 10, 20, 10, 10 });
         const auto button = CreateRef<GUI::Button>("Hello World");
+        button->SetCornerRadius(4.0);
+
         const auto button2 = CreateRef<GUI::Button>();
         button2->SetNormalColor({ 0.0f, 1.0f, 0.0f, 1.0f });
+        button2->SetCornerRadius(12);
 
         panel->AddChild(button)
             .SetAnchors(GUI::SAnchors::TopLeft())

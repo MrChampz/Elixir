@@ -7,25 +7,23 @@ cbuffer cbPerFrame : register(b0)
 
 struct VS_INPUT
 {
-    // Per vertex
-    float2 Position : POSITION;                 // Screen-space position
-    float2 TexCoord : TEXCOORD0;                // UV coordinates
-
     // Per quad
-    float2 InstancePos  : INSTANCE_POSITION;    // Instance position in screen-space
-    float2 InstanceSize : INSTANCE_SIZE;        // Instance size in screen-space
+    float2 Position     : INSTANCE_POSITION;    // Instance position in screen-space
+    float2 Size         : INSTANCE_SIZE;        // Instance size in screen-space
     float CornerRadius  : CORNER_RADIUS;        // Corner radius for rounded quad
     float Padding       : PADDING;              // Padding for alignment
     float4 Color        : COLOR0;               // Instance color
+
+    uint VertexId : SV_VertexID;
+    uint InstanceId : SV_InstanceID;
 };
 
 struct VS_OUTPUT
 {
-    float4 Position : SV_POSITION;  // Clip-space position
-    float2 TexCoord : TEXCOORD0;    // UV coordinates
-
-    float2 InstancePos  : INSTANCE_POSITION;    // Instance position in screen-space
-    float2 InstanceSize : INSTANCE_SIZE;        // Instance size in screen-space
+    float4 ClipPos      : SV_POSITION;          // Clip-space position
+    float2 LocalPos     : INSTANCE_POSITION;    // Quad position in local-space
+    float2 Size         : INSTANCE_SIZE;        // Quad size in screen-space
+    float2 TexCoord     : TEXCOORD0;            // UV coordinates
     float CornerRadius  : CORNER_RADIUS;        // Corner radius for rounded quad
     float4 Color        : COLOR0;               // Instance color
 };
@@ -34,19 +32,35 @@ VS_OUTPUT main(VS_INPUT input)
 {
     VS_OUTPUT output;
 
+    // Generate quad positions using bit manipulation
+    // Positions: 0,0 -> 1,1 -> 1,0 -> 0,0 -> 0,1 -> 1,1
+    // Indices:   0      1      2      3      4      5
+    // x: 0, 1, 1, 0, 0, 1 = bits: 100110 = 0x26
+    // y: 0, 1, 0, 0, 1, 1 = bits: 110010 = 0x32
+    const uint xBits = 0x26;
+    const uint yBits = 0x32;
+
+    float2 normalizedPos;
+    normalizedPos.x = float((xBits >> input.VertexId) & 1);
+    normalizedPos.y = float((yBits >> input.VertexId) & 1);
+
+    // Calculate local-space position
+    output.LocalPos = normalizedPos * input.Size;
+
+    // Calculate screen-space position
+    float2 screenPos = output.LocalPos + input.Position;
+
     // Convert from screen-space [0, RenderExtent] to clip-space [-1, 1]
     // Note: Y is flipped because screen coordinates have origin at top-left.
-    float2 pos = input.Position * input.InstanceSize + input.InstancePos;
-    output.Position.x = (pos.x / RenderExtent.x) * 2.0f - 1.0f;
-    output.Position.y = (pos.y / RenderExtent.y) * 2.0f - 1.0f;
-    output.Position.z = 0.0f;
-    output.Position.w = 1.0f;
+    output.ClipPos.x = (screenPos.x / RenderExtent.x) * 2.0f - 1.0f;
+    output.ClipPos.y = (screenPos.y / RenderExtent.y) * 2.0f - 1.0f;
+    output.ClipPos.z = 0.0f;
+    output.ClipPos.w = 1.0f;
 
-    output.TexCoord = input.TexCoord;
-    output.InstancePos  = input.InstancePos;
-    output.InstanceSize = input.InstanceSize;
+    output.Size = input.Size;
+    output.TexCoord = normalizedPos;
     output.CornerRadius  = input.CornerRadius;
-    output.Color    = input.Color;
+    output.Color = input.Color;
 
     return output;
 }

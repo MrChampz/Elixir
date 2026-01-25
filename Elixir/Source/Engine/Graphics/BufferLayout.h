@@ -40,8 +40,8 @@ namespace Elixir
       public:
         BufferBinding() = default;
         BufferBinding(
-            EInputRate inputRate,
-            const std::initializer_list<BufferAttribute>& attributes
+            const std::initializer_list<BufferAttribute>& attributes,
+            EInputRate inputRate = EInputRate::Vertex
         );
 
         uint32_t GetBinding() const { return m_Binding; }
