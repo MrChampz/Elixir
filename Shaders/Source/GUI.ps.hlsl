@@ -4,17 +4,45 @@ struct PS_INPUT
     float2 LocalPos     : INSTANCE_POSITION;    // Quad position in local-space
     float2 Size         : INSTANCE_SIZE;        // Quad size in screen-space
     float2 TexCoord     : TEXCOORD0;            // UV coordinates
-    float CornerRadius  : CORNER_RADIUS;        // Corner radius for rounded quadv
+    float4 CornerRadius : CORNER_RADIUS;        // Corner radius (top-left, top-right, bottom-right, bottom-left)
     float4 Color        : COLOR0;               // Instance color
 };
 
-float sdRoundedBox(float2 p, float2 b, float r)
+float sdRoundedBox(float2 p, float2 b, float4 r)
 {
-    float2 q = abs(p) - b + r;
-    return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
+    // Default: top-left
+    float radius = r.x;
+
+    // Determine corner radius based on quadrant
+    if (p.x >= 0.0 && p.y >= 0.0)
+    {
+        radius = r.y; // top-right
+    }
+    else if (p.x >= 0.0 && p.y < 0.0)
+    {
+        radius = r.z; // bottom-right
+    }
+    else if (p.x < 0.0 && p.y < 0.0)
+    {
+        radius = r.w; // bottom-left
+    }
+    else
+    {
+        radius = r.x; // top-left
+    }
+
+    float2 q = abs(p) - b + radius;
+    return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - radius;
 }
 
-float4 applyCornerRadius(float2 pos, float2 size, float4 color, float cornerRadius)
+/**
+ * Applies rounded corners to a quad.
+ * pos: local-space quad position
+ * size: quad size in screen-space
+ * color: quad color
+ * cornerRadius: top-left, top-right, bottom-right, bottom-left
+ */
+float4 applyCornerRadius(float2 pos, float2 size, float4 color, float4 cornerRadius)
 {
     float2 center = size * 0.5;
     float2 halfSize = center;
@@ -35,7 +63,7 @@ float4 main(PS_INPUT input) : SV_TARGET
     float4 color = input.Color;
     if (color.a == 0.0f) discard;
 
-    if (input.CornerRadius > 0.0f)
+    if (dot(input.CornerRadius, float4(1, 1, 1, 1)) > 0.0f)
     {
         color = applyCornerRadius(input.LocalPos, input.Size, color, input.CornerRadius);
     }

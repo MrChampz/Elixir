@@ -10,8 +10,7 @@ struct VS_INPUT
     // Per quad
     float2 Position     : INSTANCE_POSITION;    // Instance position in screen-space
     float2 Size         : INSTANCE_SIZE;        // Instance size in screen-space
-    float CornerRadius  : CORNER_RADIUS;        // Corner radius for rounded quad
-    float Padding       : PADDING;              // Padding for alignment
+    float4 CornerRadius : CORNER_RADIUS;        // Corner radius (top-left, top-right, bottom-right, bottom-left)
     float4 Color        : COLOR0;               // Instance color
 
     uint VertexId : SV_VertexID;
@@ -24,7 +23,7 @@ struct VS_OUTPUT
     float2 LocalPos     : INSTANCE_POSITION;    // Quad position in local-space
     float2 Size         : INSTANCE_SIZE;        // Quad size in screen-space
     float2 TexCoord     : TEXCOORD0;            // UV coordinates
-    float CornerRadius  : CORNER_RADIUS;        // Corner radius for rounded quad
+    float4 CornerRadius : CORNER_RADIUS;        // Corner radius (top-left, top-right, bottom-right, bottom-left)
     float4 Color        : COLOR0;               // Instance color
 };
 
