@@ -1,8 +1,8 @@
 #pragma once
 
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     #include <Engine/Core/Timer.h>
-#include <Engine/GUI/Types.h>
-#include <Engine/GUI/RenderBatch.h>
+#include                                                            <Engine/GUI/Types.h>
+#include <Engine/GUI/Renderer/RenderBatch.h>
 
 namespace Elixir::GUI
 {

@@ -1,3 +1,9 @@
+[[vk::binding(1, 0)]]
+Texture2D texture : register(t0);
+
+[[vk::binding(1, 1)]]
+SamplerState samplerState : register(s0);
+
 struct PS_INPUT
 {
     float4 ClipPos      : SV_POSITION;          // Clip-space position
@@ -61,6 +67,10 @@ float4 applyCornerRadius(float2 pos, float2 size, float4 color, float4 cornerRad
 float4 main(PS_INPUT input) : SV_TARGET
 {
     float4 color = input.Color;
+    if (color.a == 0.0f) discard;
+
+    float4 tex = texture.Sample(samplerState, input.TexCoord);
+    color *= tex;
     if (color.a == 0.0f) discard;
 
     if (dot(input.CornerRadius, float4(1, 1, 1, 1)) > 0.0f)

@@ -8,7 +8,7 @@ namespace Elixir::GUI
     {
         enum class EType : uint8_t
         {
-            Rect, RectOutline, Text, Texture
+            Rect, Text
         };
 
         EType Type;

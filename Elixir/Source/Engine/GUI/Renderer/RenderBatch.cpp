@@ -58,7 +58,7 @@ namespace Elixir::GUI
     )
     {
         SDrawCommand cmd;
-        cmd.Type = SDrawCommand::EType::Texture;
+        cmd.Type = SDrawCommand::EType::Rect;
         cmd.Geometry = rect;
         cmd.Color = tint;
         cmd.Texture = texture;

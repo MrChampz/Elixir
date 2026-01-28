@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/GUI/Renderer.h>
+#include <Engine/GUI/Renderer/Renderer.h>
 #include <Engine/GUI/Panel.h>
 
 namespace Elixir

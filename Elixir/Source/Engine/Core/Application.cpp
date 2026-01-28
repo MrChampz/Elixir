@@ -1,6 +1,7 @@
 #include "epch.h"
 #include "Application.h"
 
+#include "Engine/GUI/FontManager.h"
 #include "Engine/GUI/Button.h"
 #include "Engine/GUI/Canvas.h"
 #include "Engine/GUI/HorizontalBox.h"

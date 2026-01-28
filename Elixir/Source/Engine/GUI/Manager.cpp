@@ -12,14 +12,12 @@ namespace Elixir::GUI
         const Extent2D& extent
     )
     {
-        m_Renderer = CreateScope<Renderer>();
-        m_Renderer->Initialize(context, shaderLoader, extent);
+        m_Renderer = CreateScope<Renderer>(context, shaderLoader, extent);
         m_Initialized = true;
     }
 
     void Manager::Shutdown()
     {
-        m_Renderer->Shutdown();
         m_Initialized = false;
     }
 
@@ -31,7 +29,7 @@ namespace Elixir::GUI
 
     void Manager::Render()
     {
-        //if (!m_RootWidget || !m_RootWidget->IsVisible()) return;
+        if (!m_RootWidget || !m_RootWidget->IsVisible()) return;
 
         m_RenderBatch.Clear();
         m_RootWidget->GenerateDrawCommands(m_RenderBatch);

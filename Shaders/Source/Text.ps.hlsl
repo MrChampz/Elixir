@@ -1,5 +1,5 @@
 [[vk::binding(1, 0)]]
-cbuffer cbText : register(b0)
+cbuffer cbFont : register(b0)
 {
     float2 UnitRange;    // Calculated unit range for selected font
     float FontSize;      // Font size in pixels
