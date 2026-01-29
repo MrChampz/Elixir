@@ -36,7 +36,7 @@ namespace Elixir::GUI
 
         if (!m_Vertices.empty())
         {
-            m_VertexBuffer->UpdateData(m_Vertices.data(),  m_Vertices.size() * sizeof(STextVertex));
+            m_VertexBuffer->UpdateData(m_Vertices.data(),  m_Vertices.size() * sizeof(SVertex));
             m_IndexBuffer->UpdateData(m_Indices.data(),  m_Indices.size() * sizeof(uint32_t));
         }
     }
@@ -97,7 +97,7 @@ namespace Elixir::GUI
         m_Pipeline = builder.Build(m_GraphicsContext);
 
         m_Vertices.reserve(MAX_VERTICES);
-        m_VertexBuffer = DynamicVertexBuffer::Create(m_GraphicsContext, MAX_VERTICES * sizeof(STextVertex));
+        m_VertexBuffer = DynamicVertexBuffer::Create(m_GraphicsContext, MAX_VERTICES * sizeof(SVertex));
         m_VertexBuffer->SetLayout(bufferLayout);
 
         m_Indices.reserve(MAX_INDICES);
@@ -114,8 +114,8 @@ namespace Elixir::GUI
     {
         m_Shader->BindConstantBuffer("cbPerFrame", m_PerFrameConstantBuffer);
         m_Shader->BindConstantBuffer("cbFont", m_FontConstantBuffer);
-        m_Shader->BindTexture("hardmask", m_Font->Atlas.HardmaskTexture);
-        m_Shader->BindTexture("mtsdf", m_Font->Atlas.MTSDFTexture);
+            m_Shader->BindTexture("hardmask", m_Font->Atlas.HardmaskTexture);
+            m_Shader->BindTexture("mtsdf", m_Font->Atlas.MTSDFTexture);
     }
 
     void TextRenderPass::BuildTextGeometry(const SDrawCommand& cmd)
@@ -165,23 +165,18 @@ namespace Elixir::GUI
 
     void TextRenderPass::BuildTextureGeometry(const SDrawCommand& cmd)
     {
-        STextQuad quad;
-        quad.Geometry = cmd.Geometry;
-        quad.TexCoords = cmd.TexCoords;
-        quad.Color = cmd.Color;
-
         const auto baseIndex = m_Vertices.size();
 
         // Create 4 vertices for the quad
-        const auto topLeft = quad.Geometry.Position;
-        const auto bottomRight = quad.Geometry.Position + quad.Geometry.Size;
+        const auto topLeft = cmd.Geometry.Position;
+        const auto bottomRight = cmd.Geometry.Position + cmd.Geometry.Size;
         const auto topRight = glm::vec2{ bottomRight.x, topLeft.y };
         const auto bottomLeft = glm::vec2{ topLeft.x, bottomRight.y };
 
-        const auto topLeftUV = glm::vec2{ quad.TexCoords.Position.x, quad.TexCoords.Size.y };
-        const auto bottomRightUV = glm::vec2{ quad.TexCoords.Size.x, quad.TexCoords.Position.y };
-        const auto topRightUV = glm::vec2{ quad.TexCoords.Size.x, quad.TexCoords.Size.y };
-        const auto bottomLeftUV = glm::vec2{ quad.TexCoords.Position.x, quad.TexCoords.Position.y };
+        const auto topLeftUV = glm::vec2{ cmd.TexCoords.Position.x, cmd.TexCoords.Size.y };
+        const auto bottomRightUV = glm::vec2{ cmd.TexCoords.Size.x, cmd.TexCoords.Position.y };
+        const auto topRightUV = glm::vec2{ cmd.TexCoords.Size.x, cmd.TexCoords.Size.y };
+        const auto bottomLeftUV = glm::vec2{ cmd.TexCoords.Position.x, cmd.TexCoords.Position.y };
 
         m_Vertices.push_back({ topLeft,     topLeftUV     });
         m_Vertices.push_back({ topRight,    topRightUV    });

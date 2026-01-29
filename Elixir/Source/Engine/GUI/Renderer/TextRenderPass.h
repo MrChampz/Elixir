@@ -7,19 +7,6 @@
 
 namespace Elixir::GUI
 {
-    struct STextVertex
-    {
-        glm::vec2 Position;
-        glm::vec2 TexCoord;
-    };
-
-    struct STextQuad
-    {
-        SRect Geometry;
-        SRect TexCoords;
-        SColor Color;
-    };
-
     struct SFontData
     {
         glm::vec2 UnitRange;
@@ -57,7 +44,13 @@ namespace Elixir::GUI
         SFontData m_FontData{};
         Ref<UniformBuffer> m_FontConstantBuffer;
 
-        std::vector<STextVertex> m_Vertices;
+        struct SVertex
+        {
+            glm::vec2 Position;
+            glm::vec2 TexCoord;
+        };
+
+        std::vector<SVertex> m_Vertices;
         std::vector<uint32_t> m_Indices;
 
         Ref<Shader> m_Shader;

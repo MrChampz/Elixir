@@ -7,19 +7,6 @@
 
 namespace Elixir::GUI
 {
-    struct SQuad
-    {
-        glm::vec2 Position;
-        glm::vec2 Size;
-
-        /**
-         * top-left, top-right, bottom-right, bottom-left
-         */
-        glm::vec4 CornerRadius;
-
-        SColor Color;
-    };
-
     class QuadRenderPass final : public RenderPass
     {
       public:
@@ -41,6 +28,17 @@ namespace Elixir::GUI
         void BindShaderParameters() const;
 
         void BuildRectGeometry(const SDrawCommand& cmd);
+
+        struct SQuad
+        {
+            glm::vec2 Position;
+            glm::vec2 Size;
+
+            // top-left, top-right, bottom-right, bottom-left
+            glm::vec4 CornerRadius;
+
+            SColor Color;
+        };
 
         std::vector<SQuad> m_Quads;
 
