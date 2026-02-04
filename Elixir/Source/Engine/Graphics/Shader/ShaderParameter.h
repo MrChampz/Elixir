@@ -23,7 +23,8 @@ namespace Elixir
             uint32_t binding,
             EResourceType type,
             EResourceDimension dimension,
-            uint32_t count
+            uint32_t count,
+            bool bindless = false
         );
 
         ShaderResource(const ShaderResource&) = default;
@@ -35,6 +36,7 @@ namespace Elixir
 		[[nodiscard]] EResourceType GetType() const { return m_Type; }
 		[[nodiscard]] EResourceDimension GetDimension() const { return m_Dimension; }
 		[[nodiscard]] uint32_t GetCount() const { return m_Count; }
+        [[nodiscard]] bool IsBindless() const { return m_IsBindless; }
 
         ShaderResource& operator=(const ShaderResource&) = default;
         ShaderResource& operator=(ShaderResource&&) noexcept = default;
@@ -46,6 +48,7 @@ namespace Elixir
         EResourceType m_Type;
         EResourceDimension m_Dimension;
         uint32_t m_Count;
+        bool m_IsBindless;
     };
 
     enum class EConstantType : uint8_t
@@ -54,6 +57,7 @@ namespace Elixir
         Bool,
         Float, Vec2, Vec3, Vec4,
         Int, IntVec2, IntVec3, IntVec4,
+        UInt, UIntVec2, UIntVec3, UIntVec4,
         Mat3, Mat4
     };
 

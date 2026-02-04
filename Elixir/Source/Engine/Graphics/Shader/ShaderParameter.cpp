@@ -13,13 +13,15 @@ namespace Elixir
         const uint32_t binding,
         const EResourceType type,
         const EResourceDimension dimension,
-        const uint32_t count
+        const uint32_t count,
+        const bool bindless
     ) : m_Name(name),
         m_Set(set),
         m_Binding(binding),
         m_Type(type),
         m_Dimension(dimension),
-        m_Count(count) {}
+        m_Count(count),
+        m_IsBindless(bindless) {}
 
     /**
      * ShaderConstant

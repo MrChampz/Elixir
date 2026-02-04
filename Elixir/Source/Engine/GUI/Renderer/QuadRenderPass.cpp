@@ -3,6 +3,7 @@
 
 #include <Engine/Core/Color.h>
 #include <Engine/Graphics/Pipeline/PipelineBuilder.h>
+#include <Engine/Graphics/SamplerBuilder.h>
 
 namespace Elixir::GUI
 {
@@ -12,7 +13,7 @@ namespace Elixir::GUI
         const Ref<UniformBuffer>& perFrameCB
     ) : m_PerFrameConstantBuffer(perFrameCB), m_GraphicsContext(context)
     {
-        EE_CORE_INFO("Initializing GUI: QuadRenderPass.")
+        EE_CORE_TRACE("Initializing GUI: QuadRenderPass.")
         InitRenderPass(shaderLoader);
         BindShaderParameters();
     }
@@ -65,6 +66,7 @@ namespace Elixir::GUI
                     { EDataType::Vec2, "Size"         },
                     { EDataType::Vec4, "CornerRadius" },
                     { EDataType::Vec4, "Color"        },
+                    { EDataType::UInt, "TextureIndex" },
                 },
                 EInputRate::Instance
             }
@@ -87,28 +89,42 @@ namespace Elixir::GUI
         m_QuadBuffer = DynamicVertexBuffer::Create(m_GraphicsContext, MAX_QUADS * sizeof(SQuad));
         m_QuadBuffer->SetLayout(bufferLayout);
 
+        const auto sampler = SamplerBuilder()
+            .SetMagFilter(ESamplerFilter::Linear)
+            .SetMinFilter(ESamplerFilter::Linear)
+            .Build(m_GraphicsContext);
+        m_Shader->BindSampler("samplerState", sampler);
+
         m_WhiteTexture = Texture2D::Create(
             m_GraphicsContext,
             EImageFormat::R8G8B8A8_SRGB,
             1, 1,
             &Color::WhiteAlpha
         );
+
+        m_TextureSet = TextureSet::Create(m_GraphicsContext);
+        m_TextureSet->AddTexture(m_WhiteTexture);
     }
 
     void QuadRenderPass::BindShaderParameters() const
     {
         m_Shader->BindConstantBuffer("cbPerFrame", m_PerFrameConstantBuffer);
-        m_Shader->BindTexture("texture", m_WhiteTexture);
+        m_Shader->BindTextureSet("textures", m_TextureSet);
     }
 
     void QuadRenderPass::BuildRectGeometry(const SDrawCommand& cmd)
     {
-        const SQuad quad = {
+        SQuad quad = {
             .Position = cmd.Geometry.Position,
             .Size = cmd.Geometry.Size,
             .CornerRadius = cmd.CornerRadius,
             .Color = cmd.Color
         };
+
+        if (cmd.Texture)
+        {
+            quad.TextureIndex = m_TextureSet->AddTexture(cmd.Texture);
+        }
 
         m_Quads.push_back(quad);
     }

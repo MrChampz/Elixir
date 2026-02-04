@@ -13,6 +13,7 @@ namespace Elixir::Vulkan
         EE_PROFILE_ZONE_SCOPED()
         m_GraphicsContext = static_cast<const VulkanGraphicsContext*>(context);
         Create(info);
+        CreateDescriptorInfo();
     }
 
     VulkanSampler::~VulkanSampler()
@@ -37,6 +38,12 @@ namespace Elixir::Vulkan
         );
     }
 
+    void VulkanSampler::CreateDescriptorInfo()
+    {
+        m_DescriptorInfo = VkDescriptorImageInfo{};
+        m_DescriptorInfo.sampler = m_Sampler;
+    }
+
     void VulkanSampler::Destroy()
     {
         EE_PROFILE_ZONE_SCOPED()
@@ -44,5 +51,6 @@ namespace Elixir::Vulkan
         if (!IsValid()) return;
 
         vkDestroySampler(m_GraphicsContext->GetDevice(), m_Sampler, nullptr);
+        m_DescriptorInfo = {};
     }
 }

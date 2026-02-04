@@ -17,12 +17,12 @@ namespace Elixir::GUI
 
         /**
          * Get corner radius for each corner individually.
-         * @return vector(top-left, top-right, bottom-right, bottom-left)
+         * @return vector (top-left, top-right, bottom-right, bottom-left)
          */
         glm::vec4 GetCornerRadius() const { return m_CornerRadius; }
 
         /**
-         * Set same radius for all corners.
+         * Set the same radius for all corners.
          * @param radius corner radius in pixels
          */
         void SetCornerRadius(const float radius)
@@ -31,8 +31,8 @@ namespace Elixir::GUI
         }
 
         /**
-         * Set radius for each corner individually.
-         * @param radius vector(top-left, top-right, bottom-right, bottom-left)
+         * Set a radius for each corner individually.
+         * @param radius vector (top-left, top-right, bottom-right, bottom-left)
          */
         void SetCornerRadius(const glm::vec4& radius) { m_CornerRadius = radius; }
 
@@ -42,6 +42,9 @@ namespace Elixir::GUI
         SColor GetTextColor() const { return m_TextColor; }
         void SetTextColor(const SColor& color) { m_TextColor = color; }
 
+        const Ref<Texture2D>& GetNormalBackground() const { return m_NormalBackground; }
+        void SetNormalBackground(const Ref<Texture2D>& texture) { m_NormalBackground = texture; }
+
       private:
         std::string m_Text;
 
@@ -50,5 +53,7 @@ namespace Elixir::GUI
 
         SColor m_NormalColor{0.3f, 0.3f, 0.8f, 1.0f};
         SColor m_TextColor{1.0f, 1.0f, 1.0f, 1.0f};
+
+        Ref<Texture2D> m_NormalBackground;
     };
 }

@@ -12,6 +12,7 @@ struct VS_INPUT
     float2 Size         : INSTANCE_SIZE;        // Instance size in screen-space
     float4 CornerRadius : CORNER_RADIUS;        // Corner radius (top-left, top-right, bottom-right, bottom-left)
     float4 Color        : COLOR0;               // Instance color
+    uint   TextureIndex : TEXTURE;              // Texture index
 
     uint VertexId : SV_VertexID;
     uint InstanceId : SV_InstanceID;
@@ -25,6 +26,7 @@ struct VS_OUTPUT
     float2 TexCoord     : TEXCOORD0;            // UV coordinates
     float4 CornerRadius : CORNER_RADIUS;        // Corner radius (top-left, top-right, bottom-right, bottom-left)
     float4 Color        : COLOR0;               // Instance color
+    uint   TextureIndex : TEXTURE;              // Texture index
 };
 
 VS_OUTPUT main(VS_INPUT input)
@@ -60,6 +62,7 @@ VS_OUTPUT main(VS_INPUT input)
     output.TexCoord = normalizedPos;
     output.CornerRadius  = input.CornerRadius;
     output.Color = input.Color;
+    output.TextureIndex = input.TextureIndex;
 
     return output;
 }

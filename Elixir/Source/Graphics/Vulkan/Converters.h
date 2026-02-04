@@ -232,6 +232,14 @@ namespace Elixir::Vulkan::Converters
                 return VK_FORMAT_R32G32B32_SINT;
             case EDataType::IntVec4:
                 return VK_FORMAT_R32G32B32A32_SINT;
+            case EDataType::UInt:
+                return VK_FORMAT_R32_UINT;
+            case EDataType::UIntVec2:
+                return VK_FORMAT_R32G32_UINT;
+            case EDataType::UIntVec3:
+                return VK_FORMAT_R32G32B32_UINT;
+            case EDataType::UIntVec4:
+                return VK_FORMAT_R32G32B32A32_UINT;
             default:
                 EE_CORE_ASSERT(false, "Unknown data type!")
                 break;
@@ -582,9 +590,9 @@ namespace Elixir::Vulkan::Converters
         switch (type)
         {
             case EResourceType::Image:
-                return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            case EResourceType::SampledImage:
                 return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+            case EResourceType::SampledImage:
+                return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             case EResourceType::StorageImage:
                 return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
             case EResourceType::Sampler:

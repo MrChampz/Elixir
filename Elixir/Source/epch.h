@@ -21,6 +21,7 @@
 #include <queue>
 #include <span>
 #include <ranges>
+#include <semaphore>
 
 #include <Engine/Core/UUID.h>
 #include <Engine/Core/CoreTypes.h>

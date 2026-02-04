@@ -2,6 +2,7 @@
 #include "TextRenderPass.h"
 
 #include <Engine/Graphics/Pipeline/PipelineBuilder.h>
+#include <Engine/Graphics/SamplerBuilder.h>
 
 namespace Elixir::GUI
 {
@@ -11,7 +12,7 @@ namespace Elixir::GUI
         const Ref<UniformBuffer>& perFrameCB
     ) : m_PerFrameConstantBuffer(perFrameCB), m_GraphicsContext(context)
     {
-        EE_CORE_INFO("Initializing GUI: TextRenderPass.")
+        EE_CORE_TRACE("Initializing GUI: TextRenderPass.")
         InitFontData();
         InitRenderPass(shaderLoader);
         BindShaderParameters();
@@ -114,8 +115,14 @@ namespace Elixir::GUI
     {
         m_Shader->BindConstantBuffer("cbPerFrame", m_PerFrameConstantBuffer);
         m_Shader->BindConstantBuffer("cbFont", m_FontConstantBuffer);
-            m_Shader->BindTexture("hardmask", m_Font->Atlas.HardmaskTexture);
-            m_Shader->BindTexture("mtsdf", m_Font->Atlas.MTSDFTexture);
+        m_Shader->BindTexture("hardmask", m_Font->Atlas.HardmaskTexture);
+        m_Shader->BindTexture("mtsdf", m_Font->Atlas.MTSDFTexture);
+
+        const auto sampler = SamplerBuilder()
+            .SetMagFilter(ESamplerFilter::Linear)
+            .SetMinFilter(ESamplerFilter::Linear)
+            .Build(m_GraphicsContext);
+        m_Shader->BindSampler("atlasSampler", sampler);
     }
 
     void TextRenderPass::BuildTextGeometry(const SDrawCommand& cmd)

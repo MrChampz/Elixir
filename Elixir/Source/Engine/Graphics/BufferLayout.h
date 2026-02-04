@@ -4,7 +4,11 @@ namespace Elixir
 {
     enum class EDataType : uint8_t
     {
-        Bool, Float, Vec2, Vec3, Vec4, Int, IntVec2, IntVec3, IntVec4, Mat3, Mat4
+        Bool,
+        Float, Vec2, Vec3, Vec4,
+        Int, IntVec2, IntVec3, IntVec4,
+        UInt, UIntVec2, UIntVec3, UIntVec4,
+        Mat3, Mat4
     };
 
     enum class EInputRate : uint8_t

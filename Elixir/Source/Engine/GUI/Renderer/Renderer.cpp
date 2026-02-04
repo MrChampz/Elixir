@@ -55,7 +55,7 @@ namespace Elixir::GUI
     void Renderer::RegisterRenderPass(const Ref<RenderPass>& pass)
     {
         m_RenderPasses.push_back(pass);
-        EE_CORE_INFO("GUI: Registered RenderPass.")
+        EE_CORE_TRACE("GUI: Registered RenderPass.")
     }
 
     void Renderer::InitPerFrameData()

@@ -1,10 +1,9 @@
 #pragma once
 
-#include <semaphore>
 #include <Engine/Core/Window.h>
 #include <Engine/Core/Executor/Executor.h>
 #include <Engine/Graphics/GraphicsContext.h>
-#include <Graphics/Vulkan/VulkanTexture.h>
+#include <Graphics/Vulkan/VulkanDescriptorAllocator.h>
 
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
@@ -15,23 +14,6 @@ namespace Elixir::Vulkan
     using Elixir::GraphicsContext;
 
     class VulkanCommandPoolManager;
-
-    struct SDescriptorAllocator
-    {
-        struct SPoolSizeRatio
-        {
-            VkDescriptorType Type;
-            float Ratio;
-        };
-
-        VkDescriptorPool Pool;
-
-        void InitPool(VkDevice device, uint32_t maxSets, std::span<SPoolSizeRatio> ratios);
-        void Reset(VkDevice device) const;
-        void DestroyPool(VkDevice device) const;
-
-        VkDescriptorSet Allocate(VkDevice device, VkDescriptorSetLayout layout) const;
-    };
 
     // TODO: Move to Core?
     struct SDeletionQueue
@@ -118,7 +100,7 @@ namespace Elixir::Vulkan
         VkQueue GetTransferQueue() const { return m_TransferQueue; }
         uint32_t GetTransferQueueFamily() const { return m_TransferQueueFamily; }
         VmaAllocator GetAllocator() const { return m_Allocator; }
-        const VkDescriptorPool& GetDescriptorPool() const { return m_GlobalDescriptorAllocator.Pool; }
+        VkDescriptorPool GetDescriptorPool(const bool bindless = false) const { return bindless ? m_BindlessDescriptorAllocator->GetPool() : m_DescriptorAllocator->GetPool(); }
 
         SSwapchainImage& GetCurrentSwapchainImage() { return m_SwapchainImages[m_CurrentSwapchainImageIndex]; }
         VkFormat GetSwapchainImageFormat() const { return m_SwapchainImageFormat; }
@@ -176,7 +158,8 @@ namespace Elixir::Vulkan
         uint32_t m_TransferQueueFamily;
 
         VmaAllocator m_Allocator;
-        SDescriptorAllocator m_GlobalDescriptorAllocator;
+        Ref<VulkanDescriptorAllocator> m_DescriptorAllocator;
+        Ref<VulkanDescriptorAllocator> m_BindlessDescriptorAllocator;
 
         Scope<VulkanCommandPoolManager> m_CommandPoolManager;
         Ref<VulkanCommandBuffer> m_MainCommandBuffer;

@@ -2,6 +2,7 @@
 
 #include <Engine/GUI/Renderer/RenderBatch.h>
 #include <Engine/GUI/Renderer/RenderPass.h>
+#include <Engine/Graphics/TextureSet.h>
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
 
@@ -38,6 +39,8 @@ namespace Elixir::GUI
             glm::vec4 CornerRadius;
 
             SColor Color;
+
+            uint32_t TextureIndex = 0;
         };
 
         std::vector<SQuad> m_Quads;
@@ -47,6 +50,7 @@ namespace Elixir::GUI
         Ref<DynamicVertexBuffer> m_QuadBuffer;
 
         Ref<Texture2D> m_WhiteTexture;
+        Ref<TextureSet> m_TextureSet;
 
         Ref<UniformBuffer> m_PerFrameConstantBuffer;
         const GraphicsContext* m_GraphicsContext;

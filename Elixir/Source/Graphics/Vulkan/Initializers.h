@@ -38,9 +38,9 @@ namespace Elixir::Vulkan::Initializers
         samplerInfo.mipLodBias = info.MipLodBias;
         samplerInfo.minLod = info.MinLod;
         samplerInfo.maxLod = info.MaxLod;
-        samplerInfo.anisotropyEnable = info.AnisotropyEnabled;
+        samplerInfo.anisotropyEnable = info.AnisotropyEnable;
         samplerInfo.maxAnisotropy = info.MaxAnisotropy;
-        samplerInfo.compareEnable = info.CompareEnabled;
+        samplerInfo.compareEnable = info.CompareEnable;
         samplerInfo.compareOp = Converters::GetCompareOp(info.CompareOp);
         samplerInfo.borderColor = Converters::GetSamplerBorderColor(info.BorderColor);
         samplerInfo.unnormalizedCoordinates = info.UnnormalizedCoordinates;

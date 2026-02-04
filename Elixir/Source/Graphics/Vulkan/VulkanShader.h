@@ -18,6 +18,8 @@ namespace Elixir::Vulkan
         void SetPushConstant(const std::string& name, void* data, size_t size) override;
         void SetConstantBuffer(const std::string& name, void* data, size_t size) override;
         void BindTexture(const std::string& name, const Ref<Texture>& texture) override;
+        void BindTextureSet(const std::string& name, const Ref<TextureSet>& set) override;
+        void BindSampler(const std::string& name, const Ref<Sampler>& sampler) override;
         void BindConstantBuffer(const std::string& name, const Ref<UniformBuffer>& buffer) override;
 
         [[nodiscard]] const std::vector<VkDescriptorSetLayout>& GetDescriptorSetLayouts() const { return m_DescriptorSetLayouts; }
@@ -37,6 +39,18 @@ namespace Elixir::Vulkan
         ) const;
         void UpdateDescriptorSet(SShaderBinding binding, const Ref<Texture>& texture) const;
 
+        std::vector<VkWriteDescriptorSet> GetWriteDescriptorSets(
+            SShaderBinding binding,
+            const Ref<TextureSet>& set
+        ) const;
+        void UpdateDescriptorSet(SShaderBinding binding, const Ref<TextureSet>& set) const;
+
+        VkWriteDescriptorSet GetWriteDescriptorSet(
+            SShaderBinding binding,
+            const Ref<Sampler>& sampler
+        ) const;
+        void UpdateDescriptorSet(SShaderBinding binding, const Ref<Sampler>& sampler) const;
+
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding,
             const Ref<UniformBuffer>& buffer
@@ -48,6 +62,7 @@ namespace Elixir::Vulkan
 
         std::vector<VkDescriptorSet> m_DescriptorSets;
         std::vector<VkDescriptorSetLayout> m_DescriptorSetLayouts;
+        std::unordered_map<uint32_t, bool> m_BindlessLookup;
 
         VkPipelineLayout m_PipelineLayout;
 

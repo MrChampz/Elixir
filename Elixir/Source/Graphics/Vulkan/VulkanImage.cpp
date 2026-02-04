@@ -1,6 +1,8 @@
 #include "epch.h"
 #include "VulkanImage.h"
 
+#include <Engine/Graphics/GraphicsContext.h>
+#include <Engine/Graphics/SamplerBuilder.h>
 #include <Engine/Graphics/Texture.h>
 #include <Engine/Graphics/Converters.h>
 #include <Graphics/Vulkan/VulkanBuffer.h>
@@ -270,7 +272,6 @@ namespace Elixir::Vulkan
         m_DescriptorInfo = VkDescriptorImageInfo{};
         m_DescriptorInfo.imageLayout = Converters::GetImageLayout(this->GetLayout());
         m_DescriptorInfo.imageView = m_ImageView;
-        // TODO: Bind sampler
     }
 
     template <class Base>
@@ -278,6 +279,7 @@ namespace Elixir::Vulkan
     {
         auto vk_Sampler = std::static_pointer_cast<VulkanSampler>(this->GetSampler());
         m_DescriptorInfo.sampler = vk_Sampler->GetVulkanSampler();
+        // TODO: Should update in shader too!
     }
 
     /* VulkanImage */
@@ -286,7 +288,7 @@ namespace Elixir::Vulkan
         const GraphicsContext* context,
         const EImageFormat format,
         const uint32_t width,
-        const void* data
+            const void* data
     ) : VulkanImage(context, CreateImageInfo(format, width, data)) {}
 
     VulkanImage::VulkanImage(const GraphicsContext* context, const SImageCreateInfo& info)

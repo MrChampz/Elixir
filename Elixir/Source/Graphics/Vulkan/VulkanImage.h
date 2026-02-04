@@ -52,11 +52,11 @@ namespace Elixir::Vulkan
             std::span<SBufferImageCopy> regions = {}
         ) override;
 
-        [[nodiscard]] bool IsValid() const override { return m_Image != VK_NULL_HANDLE; }
+        bool IsValid() const override { return m_Image != VK_NULL_HANDLE; }
 
-        [[nodiscard]] VkImage GetVulkanImage() const override { return m_Image; }
-        [[nodiscard]] VkImageView GetVulkanImageView() const override { return m_ImageView; }
-        [[nodiscard]] const VkDescriptorImageInfo& GetVulkanDescriptorInfo() const override { return m_DescriptorInfo; }
+        VkImage GetVulkanImage() const override { return m_Image; }
+        VkImageView GetVulkanImageView() const override { return m_ImageView; }
+        const VkDescriptorImageInfo& GetVulkanDescriptorInfo() const override { return m_DescriptorInfo; }
 
         VulkanBaseImage& operator=(const VulkanBaseImage&) = delete;
         VulkanBaseImage& operator=(VulkanBaseImage&&) = delete;

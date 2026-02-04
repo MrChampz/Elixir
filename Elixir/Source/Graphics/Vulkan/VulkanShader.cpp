@@ -5,6 +5,8 @@
 #include "Converters.h"
 #include "Utils.h"
 #include "VulkanCommandBuffer.h"
+#include "VulkanSampler.h"
+#include "VulkanTextureSet.h"
 
 #include <ranges>
 
@@ -111,6 +113,49 @@ namespace Elixir::Vulkan
         EE_CORE_ERROR("No texture binding named \"{0}\" found in shader...", name)
     }
 
+    void VulkanShader::BindTextureSet(const std::string& name, const Ref<TextureSet>& set)
+    {
+        if (const auto binding = GetShaderBinding(name))
+        {
+            m_TextureSets[*binding] = set;
+            //UpdateDescriptorSet(*binding, texture);
+
+            // Update descriptor set (get binding...)
+
+            // TODO: bindless, deve liberar o descriptorSet e utilizar o vindo do set
+            //  Gerar previamente com outro layout? Gerar na hora do binding?
+            const auto descriptorSet = m_DescriptorSets[binding->Set];
+
+            // vkFreeDescriptorSets(
+            //     m_GraphicsContext->GetDevice(),
+            //     m_GraphicsContext->GetDescriptorPool(true),
+            //     1,
+            //     &descriptorSet
+            // );
+
+            auto vk_Set = std::static_pointer_cast<VulkanTextureSet>(set);
+            m_DescriptorSets[binding->Set] = vk_Set->AllocateDescriptorSet(m_DescriptorSetLayouts[binding->Set]);
+
+            UpdateDescriptorSet(*binding, set);
+
+            return;
+        }
+
+        EE_CORE_ERROR("No texture set binding named \"{0}\" found in shader...", name)
+    }
+
+    void VulkanShader::BindSampler(const std::string& name, const Ref<Sampler>& sampler)
+    {
+        if (const auto binding = GetShaderBinding(name))
+        {
+            m_Samplers[*binding] = sampler;
+            UpdateDescriptorSet(*binding, sampler);
+            return;
+        }
+
+        EE_CORE_ERROR("No texture binding named \"{0}\" found in shader...", name)
+    }
+
     void VulkanShader::BindConstantBuffer(
         const std::string& name,
         const Ref<UniformBuffer>& buffer
@@ -143,36 +188,19 @@ namespace Elixir::Vulkan
             sets[set].push_back(binding);
         }
 
-        VkSamplerCreateInfo samplerInfo{};
-        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        samplerInfo.magFilter = VK_FILTER_LINEAR;
-        samplerInfo.minFilter = VK_FILTER_LINEAR;
-        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.anisotropyEnable = VK_FALSE;
-        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-        samplerInfo.unnormalizedCoordinates = VK_FALSE;
-        samplerInfo.compareEnable = VK_FALSE;
-        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-
-        VkSampler immutableSampler;
-        vkCreateSampler(m_GraphicsContext->GetDevice(), &samplerInfo, nullptr, &immutableSampler);
-
         for (const auto& resource : std::views::values(m_Resources.Resources))
         {
             const auto set = resource.GetSet();
 
             VkDescriptorSetLayoutBinding binding = {};
             binding.binding = resource.GetBinding();
-            binding.descriptorCount = resource.GetCount();
+            binding.descriptorCount = resource.IsBindless() ? 1024 : resource.GetCount(); // TODO: bindless, put the real max textures
             binding.descriptorType = Converters::GetDescriptorType(resource.GetType());
             binding.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS; // TODO: GetShaderState(resource->GetStage());
-
-            // TODO: Use global immutable sampler
-            binding.pImmutableSamplers = &immutableSampler;
+            binding.pImmutableSamplers = nullptr;
 
             sets[set].push_back(binding);
+            m_BindlessLookup[set] = resource.IsBindless();
         }
 
         m_DescriptorSetLayouts.resize(sets.size());
@@ -183,6 +211,26 @@ namespace Elixir::Vulkan
             layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
             layoutInfo.pBindings = bindings.data();
             layoutInfo.bindingCount = bindings.size();
+
+            std::vector<VkDescriptorBindingFlags> bindlessFlags;
+            if (m_BindlessLookup[set])
+            {
+                layoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+
+                VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+                                                 VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+                bindlessFlags.resize(bindings.size());
+                //std::ranges::fill(bindlessFlags, flags);
+                bindlessFlags.push_back(flags);
+                bindlessFlags.push_back(0);
+
+                VkDescriptorSetLayoutBindingFlagsCreateInfoEXT bindingFlags = {};
+                bindingFlags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+                bindingFlags.bindingCount = bindings.size();
+                bindingFlags.pBindingFlags = bindlessFlags.data();
+
+                layoutInfo.pNext = &bindingFlags;
+            }
 
             VkDescriptorSetLayout layout;
             VK_CHECK_RESULT(
@@ -208,11 +256,13 @@ namespace Elixir::Vulkan
 
         for (auto i = 0; i < m_DescriptorSetLayouts.size(); i++)
         {
+            const auto bindless = m_BindlessLookup[i];
+
             VkDescriptorSetAllocateInfo allocInfo = {};
             allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
             allocInfo.pSetLayouts = &m_DescriptorSetLayouts[i];
             allocInfo.descriptorSetCount = 1;
-            allocInfo.descriptorPool = m_GraphicsContext->GetDescriptorPool();
+            allocInfo.descriptorPool = m_GraphicsContext->GetDescriptorPool(bindless);
 
             VK_CHECK_RESULT(
                 vkAllocateDescriptorSets(
@@ -302,6 +352,103 @@ namespace Elixir::Vulkan
     ) const
     {
         const auto writeSet = GetWriteDescriptorSet(binding, texture);
+
+        vkUpdateDescriptorSets(
+            m_GraphicsContext->GetDevice(),
+            1,
+            &writeSet,
+            0,
+            nullptr
+        );
+    }
+
+    std::vector<VkWriteDescriptorSet> VulkanShader::GetWriteDescriptorSets(
+        const SShaderBinding binding,
+        const Ref<TextureSet>& set
+    ) const
+    {
+        const auto& resource = m_Resources.Resources.at(binding);
+
+        std::vector<VkWriteDescriptorSet> writeSets;
+        writeSets.reserve(set->GetTextureCount());
+
+        const auto vk_Set = std::static_pointer_cast<VulkanTextureSet>(set);
+        m_ImageInfoCache[binding] = vk_Set->GetImageInfos();
+
+        for (const auto& tex : set->GetTextures())
+        {
+            if (!tex) continue;
+
+            const auto index = set->GetTextureIndex(tex);
+
+            VkWriteDescriptorSet writeSet = {};
+            writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writeSet.dstSet = m_DescriptorSets[resource.GetSet()];
+            writeSet.dstBinding = resource.GetBinding();
+            writeSet.dstArrayElement = index;
+            writeSet.descriptorType = Converters::GetDescriptorType(resource.GetType());
+            writeSet.descriptorCount = 1;
+            writeSet.pImageInfo = &m_ImageInfoCache[binding][index];
+
+            writeSets.push_back(writeSet);
+        }
+
+        return writeSets;
+    }
+
+    void VulkanShader::UpdateDescriptorSet(
+        const SShaderBinding binding,
+        const Ref<TextureSet>& set
+    ) const
+    {
+        const auto writeSets = GetWriteDescriptorSets(binding, set);
+
+        vkUpdateDescriptorSets(
+            m_GraphicsContext->GetDevice(),
+            writeSets.size(),
+            writeSets.data(),
+            0,
+            nullptr
+        );
+    }
+
+    VkWriteDescriptorSet VulkanShader::GetWriteDescriptorSet(
+        const SShaderBinding binding,
+        const Ref<Sampler>& sampler
+    ) const
+    {
+        const auto& resource = m_Resources.Resources.at(binding);
+
+        // TODO: Support arrays of samplers
+        const auto count = 1;   // resource->GetCount();
+        std::vector<VkDescriptorImageInfo> imageInfos;
+        imageInfos.reserve(count);
+
+        for (auto i = 0; i < count; i++)
+        {
+            const auto vk_Sampler = std::static_pointer_cast<VulkanSampler>(sampler);
+            imageInfos.push_back(vk_Sampler->GetVulkanDescriptorInfo());
+        }
+
+        m_ImageInfoCache[binding] = std::move(imageInfos);
+
+        VkWriteDescriptorSet writeSet = {};
+        writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writeSet.dstSet = m_DescriptorSets[resource.GetSet()];
+        writeSet.dstBinding = resource.GetBinding();
+        writeSet.descriptorType = Converters::GetDescriptorType(resource.GetType());
+        writeSet.descriptorCount = m_ImageInfoCache[binding].size();
+        writeSet.pImageInfo = m_ImageInfoCache[binding].data();
+
+        return writeSet;
+    }
+
+    void VulkanShader::UpdateDescriptorSet(
+        SShaderBinding binding,
+        const Ref<Sampler>& sampler
+    ) const
+    {
+        const auto writeSet = GetWriteDescriptorSet(binding, sampler);
 
         vkUpdateDescriptorSets(
             m_GraphicsContext->GetDevice(),

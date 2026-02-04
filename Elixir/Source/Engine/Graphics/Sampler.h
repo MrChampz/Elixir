@@ -41,9 +41,9 @@ namespace Elixir
         ESamplerAddressMode AddressModeV    = ESamplerAddressMode::Repeat;
         ESamplerAddressMode AddressModeW    = ESamplerAddressMode::Repeat;
         float MipLodBias                    = 0.0f;
-        bool AnisotropyEnabled              = false;
+        bool AnisotropyEnable               = false;
         float MaxAnisotropy                 = 0.0f;
-        bool CompareEnabled                 = false;
+        bool CompareEnable                  = false;
         ECompareOp CompareOp                = ECompareOp::Always;
         float MinLod                        = 0.0f;
         float MaxLod                        = 0.0f;
@@ -71,9 +71,9 @@ namespace Elixir
         [[nodiscard]] float GetMipLodBias() const { return m_MipLodBias; }
         [[nodiscard]] float GetMinLod() const { return m_MinLod; }
         [[nodiscard]] float GetMaxLod() const { return m_MaxLod; }
-        [[nodiscard]] bool IsAnisotropyEnabled() const { return m_AnisotropyEnabled; }
+        [[nodiscard]] bool IsAnisotropyEnable() const { return m_AnisotropyEnable; }
         [[nodiscard]] float GetMaxAnisotropy() const { return m_MaxAnisotropy; }
-        [[nodiscard]] bool IsCompareEnabled() const { return m_CompareEnabled; }
+        [[nodiscard]] bool IsCompareEnable() const { return m_CompareEnable; }
         [[nodiscard]] ECompareOp GetCompareOp() const { return m_CompareOp; }
         [[nodiscard]] ESamplerBorderColor GetBorderColor() const { return m_BorderColor; }
         [[nodiscard]] bool IsUnnormalizedCoordinates() const { return m_UnnormalizedCoordinates; }
@@ -108,10 +108,10 @@ namespace Elixir
         float m_MinLod;
         float m_MaxLod;
 
-        bool m_AnisotropyEnabled;
+        bool m_AnisotropyEnable;
         float m_MaxAnisotropy;
 
-        bool m_CompareEnabled;
+        bool m_CompareEnable;
         ECompareOp m_CompareOp;
 
         ESamplerBorderColor m_BorderColor;

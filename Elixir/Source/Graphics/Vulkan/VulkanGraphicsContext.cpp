@@ -1,11 +1,11 @@
 #include "epch.h"
 #include "VulkanGraphicsContext.h"
 
-#include <Graphics/Vulkan/VulkanCommandPool.h>
 #include <Graphics/SpirV/SpirVShaderBackend.h>
-
-#include "Converters.h"
-#include "Utils.h"
+#include <Graphics/Vulkan/VulkanCommandPool.h>
+#include <Graphics/Vulkan/VulkanTexture.h>
+#include <Graphics/Vulkan/Converters.h>
+#include <Graphics/Vulkan/Utils.h>
 
 #include <VkBootstrap.h>
 #include <vulkan/vulkan.h>
@@ -52,70 +52,6 @@ namespace Elixir
 
             EE_CORE_INFO("Allocator stats dumped to {0}.", filename);
         }
-    }
-
-    /* SDescriptorAllocator */
-
-    void SDescriptorAllocator::InitPool(
-        const VkDevice device,
-        const uint32_t maxSets,
-        std::span<SPoolSizeRatio> ratios
-    )
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-        std::vector<VkDescriptorPoolSize> poolSizes;
-        poolSizes.reserve(ratios.size());
-
-        for (auto& [Type, Ratio] : ratios)
-        {
-            VkDescriptorPoolSize size;
-            size.type = Type;
-            size.descriptorCount = (uint32_t)(Ratio * maxSets);
-
-            poolSizes.emplace_back(size);
-        }
-
-        VkDescriptorPoolCreateInfo poolInfo = {};
-        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.maxSets = maxSets;
-        poolInfo.poolSizeCount = (uint32_t)poolSizes.size();
-        poolInfo.pPoolSizes = poolSizes.data();
-        poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-
-        vkCreateDescriptorPool(device, &poolInfo, nullptr, &Pool);
-    }
-
-    void SDescriptorAllocator::Reset(const VkDevice device) const
-    {
-        EE_PROFILE_ZONE_SCOPED()
-        vkResetDescriptorPool(device, Pool, 0);
-    }
-
-    void SDescriptorAllocator::DestroyPool(const VkDevice device) const
-    {
-        EE_PROFILE_ZONE_SCOPED()
-        vkDestroyDescriptorPool(device, Pool, nullptr);
-    }
-
-    VkDescriptorSet SDescriptorAllocator::Allocate(
-        const VkDevice device,
-        const VkDescriptorSetLayout layout
-    ) const
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-        VkDescriptorSetAllocateInfo allocInfo = {};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.pNext = nullptr;
-        allocInfo.descriptorPool = Pool;
-        allocInfo.descriptorSetCount = 1;
-        allocInfo.pSetLayouts = &layout;
-
-        VkDescriptorSet set;
-        VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &set));
-
-        return set;
     }
 
     /* VulkanGraphicsContext */
@@ -181,7 +117,8 @@ namespace Elixir
 
             DestroySwapchain();
 
-            m_GlobalDescriptorAllocator.DestroyPool(m_Device);
+            m_DescriptorAllocator.reset();
+            m_BindlessDescriptorAllocator.reset();
 
             for (int i = 0; i < m_FramesInFlight; i++)
             {
@@ -330,6 +267,10 @@ namespace Elixir
 		features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
 		features12.bufferDeviceAddress = true;
 		features12.descriptorIndexing = true;
+        features12.descriptorBindingPartiallyBound = true;
+        features12.runtimeDescriptorArray = true;
+        features12.descriptorBindingSampledImageUpdateAfterBind = true;
+        features12.descriptorBindingUniformBufferUpdateAfterBind = true;
 
         vkb::PhysicalDeviceSelector selector{ vkbInstance };
 		auto physicalDeviceResult = selector
@@ -433,7 +374,7 @@ namespace Elixir
     {
         EE_PROFILE_ZONE_SCOPED()
 
-        std::vector<SDescriptorAllocator::SPoolSizeRatio> sizes =
+        std::vector<SDescriptorPoolSizeRatio> sizes =
         {
             { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0.5 },
             { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0.2 },
@@ -441,7 +382,17 @@ namespace Elixir
             { VK_DESCRIPTOR_TYPE_SAMPLER, 0.15 }
         };
 
-        m_GlobalDescriptorAllocator.InitPool(m_Device, 20, sizes);
+        m_DescriptorAllocator = CreateRef<VulkanDescriptorAllocator>(this, 20, sizes);
+
+        std::vector<SDescriptorPoolSizeRatio> bindlessSizes =
+        {
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0.45 },
+            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0.45 },
+            { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 0.05 },
+            { VK_DESCRIPTOR_TYPE_SAMPLER, 0.05 }
+        };
+
+        m_BindlessDescriptorAllocator = CreateRef<VulkanDescriptorAllocator>(this, 4096, bindlessSizes, true);
     }
 
     void VulkanGraphicsContext::CreateSwapchain(const Extent2D& extent)

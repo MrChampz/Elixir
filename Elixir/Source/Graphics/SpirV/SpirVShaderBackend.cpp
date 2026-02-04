@@ -91,7 +91,17 @@ namespace Elixir::SpirV
             const auto count = CalculateResourceCount(type);
             const auto dimension = GetResourceDimension(baseType.image.dim);
 
-            auto image = ShaderResource(name, set, binding, EResourceType::Image, dimension, count);
+            const auto bindless = type.array.size() > 0 && type.array[0] == 0;
+
+            auto image = ShaderResource(
+                name,
+                set,
+                binding,
+                EResourceType::Image,
+                dimension,
+                count,
+                bindless
+            );
             result.push_back(std::move(image));
         }
 
@@ -107,7 +117,17 @@ namespace Elixir::SpirV
             const auto count = CalculateResourceCount(type);
             const auto dimension = GetResourceDimension(baseType.image.dim);
 
-            auto image = ShaderResource(name, set, binding, EResourceType::SampledImage, dimension, count);
+            const auto bindless = type.array.size() > 0 && type.array[0] == 0;
+
+            auto image = ShaderResource(
+                name,
+                set,
+                binding,
+                EResourceType::SampledImage,
+                dimension,
+                count,
+                bindless
+            );
             result.push_back(std::move(image));
         }
 
@@ -123,7 +143,17 @@ namespace Elixir::SpirV
             const auto count = CalculateResourceCount(type);
             const auto dimension = GetResourceDimension(baseType.image.dim);
 
-            auto image = ShaderResource(name, set, binding, EResourceType::StorageImage, dimension, count);
+            const auto bindless = type.array.size() > 0 && type.array[0] == 0;
+
+            auto image = ShaderResource(
+                name,
+                set,
+                binding,
+                EResourceType::StorageImage,
+                dimension,
+                count,
+                bindless
+            );
             result.push_back(std::move(image));
         }
 
@@ -137,7 +167,17 @@ namespace Elixir::SpirV
 
             const auto count = CalculateResourceCount(type);
 
-            auto image = ShaderResource(name, set, binding, EResourceType::Sampler, EResourceDimension::None, count);
+            const auto bindless = type.array.size() > 0 && type.array[0] == 0;
+
+            auto image = ShaderResource(
+                name,
+                set,
+                binding,
+                EResourceType::Sampler,
+                EResourceDimension::None,
+                count,
+                bindless
+            );
             result.push_back(std::move(image));
         }
 

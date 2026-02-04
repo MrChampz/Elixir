@@ -1,5 +1,7 @@
 #include "Dissolve.h"
 
+#include "Engine/Graphics/SamplerBuilder.h"
+
 #include <Engine/Core/Entrypoint.h>
 
 Ref<GraphicsPipeline> pipeline;
@@ -43,6 +45,9 @@ Dissolve::Dissolve()
     m_Window->SetTitle("Dissolve");
     m_DrawExtent = { m_Window->GetWidth(), m_Window->GetHeight() };
 
+    const auto sampler = SamplerBuilder()
+        .Build(m_GraphicsContext.get());
+
     const auto tex = TextureLoader::Load("./Assets/Bricks.png");
 
     //const auto shader = loader->LoadShader("./Shaders/", "Basic");
@@ -50,6 +55,7 @@ Dissolve::Dissolve()
 
     const auto shader1 = m_ShaderLoader->LoadShader("./Shaders/", "FixedTriangle");
     shader1->BindTexture("texture", tex);
+    shader1->BindSampler("sampl", sampler);
 
     // BufferLayout bufferLayout({
     //     { EDataType::Vec3, "Pos" },

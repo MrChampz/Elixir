@@ -3,6 +3,7 @@
     <words>
       <w>concurrentqueue</w>
       <w>memcpy</w>
+      <w>spirv</w>
       <w>swapchain</w>
     </words>
   </dictionary>

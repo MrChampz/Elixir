@@ -41,11 +41,14 @@ namespace Elixir
             { m_Window->GetWidth(), m_Window->GetHeight() }
         );
 
+        const auto buttonBg = TextureLoader::Load("./Assets/Button_Background.png");
+
         const auto panel = CreateRef<GUI::Canvas>();
         panel->SetBackground({ 1.0f, 0.0f, 0.0f, 1.0f });
         panel->SetPadding({ 10, 20, 10, 10 });
         const auto button = CreateRef<GUI::Button>("Hello World");
         button->SetCornerRadius(4.0);
+        button->SetNormalBackground(std::dynamic_pointer_cast<Texture2D>(buttonBg));
 
         const auto button2 = CreateRef<GUI::Button>();
         button2->SetNormalColor({ 0.0f, 1.0f, 0.0f, 1.0f });

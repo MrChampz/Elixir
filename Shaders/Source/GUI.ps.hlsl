@@ -1,5 +1,5 @@
-[[vk::binding(1, 0)]]
-Texture2D texture : register(t0);
+[[vk::binding(0, 1)]] // binding, set
+Texture2D textures[] : register(t0);
 
 [[vk::binding(1, 1)]]
 SamplerState samplerState : register(s0);
@@ -12,6 +12,7 @@ struct PS_INPUT
     float2 TexCoord     : TEXCOORD0;            // UV coordinates
     float4 CornerRadius : CORNER_RADIUS;        // Corner radius (top-left, top-right, bottom-right, bottom-left)
     float4 Color        : COLOR0;               // Instance color
+    uint   TextureIndex : TEXTURE;              // Texture index
 };
 
 float sdRoundedBox(float2 p, float2 b, float4 r)
@@ -69,7 +70,7 @@ float4 main(PS_INPUT input) : SV_TARGET
     float4 color = input.Color;
     if (color.a == 0.0f) discard;
 
-    float4 tex = texture.Sample(samplerState, input.TexCoord);
+    float4 tex = textures[input.TextureIndex].Sample(samplerState, input.TexCoord);
     color *= tex;
     if (color.a == 0.0f) discard;
 

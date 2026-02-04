@@ -36,10 +36,10 @@ namespace Elixir
 		m_MinLod = info.MinLod;
 		m_MaxLod = info.MaxLod;
 
-		m_AnisotropyEnabled = info.AnisotropyEnabled;
+		m_AnisotropyEnable = info.AnisotropyEnable;
 		m_MaxAnisotropy = info.MaxAnisotropy;
 
-        m_CompareEnabled = info.CompareEnabled;
+        m_CompareEnable = info.CompareEnable;
         m_CompareOp = info.CompareOp;
 
 		m_BorderColor = info.BorderColor;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/GUI/Types.h>
+#include <Engine/Graphics/Texture.h>
 
 namespace Elixir::GUI
 {

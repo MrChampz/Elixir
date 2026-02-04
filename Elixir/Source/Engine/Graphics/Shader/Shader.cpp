@@ -29,7 +29,57 @@ namespace Elixir
         }
 
         EE_CORE_ERROR(
+            "No texture for (set \"{0}\", binding \"{1}\") in shader...", binding.Set,
+            binding.Binding
+        )
+        return nullptr;
+    }
+
+    Ref<TextureSet> Shader::GetTextureSet(const std::string& name) const
+    {
+        if (const auto binding = GetShaderBinding(name))
+        {
+            return GetTextureSet(*binding);
+        }
+
+        EE_CORE_ERROR("No texture set binding named \"{0}\" found in shader...", name)
+        return nullptr;
+    }
+
+    Ref<TextureSet> Shader::GetTextureSet(SShaderBinding binding) const
+    {
+        if (m_TextureSets.contains(binding))
+        {
+            return m_TextureSets.at(binding);
+        }
+
+        EE_CORE_ERROR(
             "No texture set for (set \"{0}\", binding \"{1}\") in shader...", binding.Set,
+            binding.Binding
+        )
+        return nullptr;
+    }
+
+    Ref<Sampler> Shader::GetSampler(const std::string& name) const
+    {
+        if (const auto binding = GetShaderBinding(name))
+        {
+            return GetSampler(*binding);
+        }
+
+        EE_CORE_ERROR("No sampler binding named \"{0}\" found in shader...", name)
+        return nullptr;
+    }
+
+    Ref<Sampler> Shader::GetSampler(SShaderBinding binding) const
+    {
+        if (m_Samplers.contains(binding))
+        {
+            return m_Samplers.at(binding);
+        }
+
+        EE_CORE_ERROR(
+            "No sampler for (set \"{0}\", binding \"{1}\") in shader...", binding.Set,
             binding.Binding
         )
         return nullptr;
