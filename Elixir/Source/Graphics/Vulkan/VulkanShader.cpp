@@ -61,6 +61,12 @@ namespace Elixir::Vulkan
 
     void VulkanShader::Bind(const Ref<CommandBuffer>& cmd)
     {
+        // Bind texture sets
+        for (const auto [binding, set] : m_TextureSets)
+        {
+            set->Bind(this, binding);
+        }
+
         const auto vkCmd = static_pointer_cast<VulkanCommandBuffer>(cmd);
         vkCmd->BindDescriptorSets(m_PipelineLayout, 0, m_DescriptorSets);
 
@@ -106,7 +112,7 @@ namespace Elixir::Vulkan
         if (const auto binding = GetShaderBinding(name))
         {
             m_Textures[*binding] = texture;
-            UpdateDescriptorSet(*binding, texture);
+            UpdateDescriptorSet(*binding, texture.get());
             return;
         }
 
@@ -133,10 +139,10 @@ namespace Elixir::Vulkan
             //     &descriptorSet
             // );
 
-            auto vk_Set = std::static_pointer_cast<VulkanTextureSet>(set);
+            const auto vk_Set = std::static_pointer_cast<VulkanTextureSet>(set);
             m_DescriptorSets[binding->Set] = vk_Set->AllocateDescriptorSet(m_DescriptorSetLayouts[binding->Set]);
 
-            UpdateDescriptorSet(*binding, set);
+            UpdateDescriptorSet(*binding, set.get());
 
             return;
         }
@@ -299,8 +305,14 @@ namespace Elixir::Vulkan
 
         for (const auto [binding, texture] : m_Textures)
         {
-            const auto writeSet = GetWriteDescriptorSet(binding, texture);
+            const auto writeSet = GetWriteDescriptorSet(binding, texture.get());
             writeDescriptorSets.push_back(writeSet);
+        }
+
+        for (const auto [binding, set] : m_TextureSets)
+        {
+            const auto writeSet = GetWriteDescriptorSets(binding, set.get());
+            writeDescriptorSets.insert(writeDescriptorSets.end(), writeSet.begin(), writeSet.end());
         }
 
         for (const auto [binding, buffer] : m_ConstantBuffers)
@@ -317,7 +329,7 @@ namespace Elixir::Vulkan
 
     VkWriteDescriptorSet VulkanShader::GetWriteDescriptorSet(
         const SShaderBinding binding,
-        const Ref<Texture>& texture
+        Texture* texture
     ) const
     {
         const auto& resource = m_Resources.Resources.at(binding);
@@ -329,7 +341,7 @@ namespace Elixir::Vulkan
 
         for (auto i = 0; i < count; i++)
         {
-            const auto tex = TryToGetVulkanImage(texture.get());
+            const auto tex = TryToGetVulkanImage(texture);
             imageInfos.push_back(tex->GetVulkanDescriptorInfo());
         }
 
@@ -348,7 +360,7 @@ namespace Elixir::Vulkan
 
     void VulkanShader::UpdateDescriptorSet(
         const SShaderBinding binding,
-        const Ref<Texture>& texture
+        Texture*                 texture
     ) const
     {
         const auto writeSet = GetWriteDescriptorSet(binding, texture);
@@ -364,7 +376,7 @@ namespace Elixir::Vulkan
 
     std::vector<VkWriteDescriptorSet> VulkanShader::GetWriteDescriptorSets(
         const SShaderBinding binding,
-        const Ref<TextureSet>& set
+        TextureSet* set
     ) const
     {
         const auto& resource = m_Resources.Resources.at(binding);
@@ -372,7 +384,7 @@ namespace Elixir::Vulkan
         std::vector<VkWriteDescriptorSet> writeSets;
         writeSets.reserve(set->GetTextureCount());
 
-        const auto vk_Set = std::static_pointer_cast<VulkanTextureSet>(set);
+        const auto vk_Set = static_cast<VulkanTextureSet*>(set);
         m_ImageInfoCache[binding] = vk_Set->GetImageInfos();
 
         for (const auto& tex : set->GetTextures())
@@ -398,7 +410,7 @@ namespace Elixir::Vulkan
 
     void VulkanShader::UpdateDescriptorSet(
         const SShaderBinding binding,
-        const Ref<TextureSet>& set
+        TextureSet* set
     ) const
     {
         const auto writeSets = GetWriteDescriptorSets(binding, set);

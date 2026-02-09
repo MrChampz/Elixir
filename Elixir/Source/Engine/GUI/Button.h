@@ -39,6 +39,9 @@ namespace Elixir::GUI
         SColor GetNormalColor() const { return m_NormalColor; }
         void SetNormalColor(const SColor& color) { m_NormalColor = color; }
 
+        SColor GetHoverColor() const { return m_HoverColor; }
+        void SetHoverColor(const SColor& color) { m_HoverColor = color; }
+
         SColor GetTextColor() const { return m_TextColor; }
         void SetTextColor(const SColor& color) { m_TextColor = color; }
 
@@ -52,6 +55,7 @@ namespace Elixir::GUI
         glm::vec4 m_CornerRadius = {0.0f, 0.0f, 0.0f, 0.0f};
 
         SColor m_NormalColor{0.3f, 0.3f, 0.8f, 1.0f};
+        SColor m_HoverColor{1.0f, 0.0f, 0.0f, 1.0f};
         SColor m_TextColor{1.0f, 1.0f, 1.0f, 1.0f};
 
         Ref<Texture2D> m_NormalBackground;

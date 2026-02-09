@@ -35,10 +35,29 @@ namespace Elixir::GUI
             glm::vec2 Position;
             glm::vec2 Size;
 
-            // top-left, top-right, bottom-right, bottom-left
-            glm::vec4 CornerRadius;
+            /**
+             * When texture is used, this represents the borders of 9-patch texture.
+             * Border mapping = (left, top, right, bottom).
+             *
+             * When not used, this represents the corner radius of the quad.
+             * Corner Radius mapping = (top-left, top-right, bottom-right, bottom-left).
+             */
+            glm::vec4 Border = glm::vec4(0.0f);
+
+            /**
+             * Shadow offset (x, y), blur (z) and intensity (w).
+             */
+            glm::vec4 InsetShadow = glm::vec4(0.0f);
+
+            /**
+             * Shadow offset (x, y), blur (z) and intensity (w).
+             */
+            glm::vec4 DropShadow = glm::vec4(0.0f);
 
             SColor Color;
+
+            SColor OutlineColor;
+            float OutlineThickness = 0.0f;
 
             uint32_t TextureIndex = 0;
         };

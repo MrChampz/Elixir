@@ -15,7 +15,15 @@ namespace Elixir::GUI
 
         if (m_Background.A > 0.0f)
         {
-            batch.AddRect(m_Geometry, m_Background, m_CornerRadius, zOrder);
+            batch.AddRect(
+                m_Geometry,
+                m_Background,
+                m_CornerRadius,
+                m_InsetShadow,
+                m_DropShadow,
+                m_Outline,
+                zOrder
+            );
         }
     }
 

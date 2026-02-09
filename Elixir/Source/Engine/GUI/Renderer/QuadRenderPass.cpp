@@ -1,6 +1,8 @@
 #include "epch.h"
 #include "QuadRenderPass.h"
 
+#include "Engine/Graphics/TextureLoader.h"
+
 #include <Engine/Core/Color.h>
 #include <Engine/Graphics/Pipeline/PipelineBuilder.h>
 #include <Engine/Graphics/SamplerBuilder.h>
@@ -62,11 +64,15 @@ namespace Elixir::GUI
         const BufferLayout bufferLayout({
             {
                 {
-                    { EDataType::Vec2, "Position"     },
-                    { EDataType::Vec2, "Size"         },
-                    { EDataType::Vec4, "CornerRadius" },
-                    { EDataType::Vec4, "Color"        },
-                    { EDataType::UInt, "TextureIndex" },
+                    { EDataType::Vec2,  "Position"          },
+                    { EDataType::Vec2,  "Size"              },
+                    { EDataType::Vec4,  "Border"            },
+                    { EDataType::Vec4,  "InsetShadow"       },
+                    { EDataType::Vec4,  "DropShadow"        },
+                    { EDataType::Vec4,  "Color"             },
+                    { EDataType::Vec4,  "OutlineColor"      },
+                    { EDataType::Float, "OutlineThickness" },
+                    { EDataType::UInt,  "TextureIndex"      },
                 },
                 EInputRate::Instance
             }
@@ -89,12 +95,6 @@ namespace Elixir::GUI
         m_QuadBuffer = DynamicVertexBuffer::Create(m_GraphicsContext, MAX_QUADS * sizeof(SQuad));
         m_QuadBuffer->SetLayout(bufferLayout);
 
-        const auto sampler = SamplerBuilder()
-            .SetMagFilter(ESamplerFilter::Linear)
-            .SetMinFilter(ESamplerFilter::Linear)
-            .Build(m_GraphicsContext);
-        m_Shader->BindSampler("samplerState", sampler);
-
         m_WhiteTexture = Texture2D::Create(
             m_GraphicsContext,
             EImageFormat::R8G8B8A8_SRGB,
@@ -110,6 +110,12 @@ namespace Elixir::GUI
     {
         m_Shader->BindConstantBuffer("cbPerFrame", m_PerFrameConstantBuffer);
         m_Shader->BindTextureSet("textures", m_TextureSet);
+
+        const auto sampler = SamplerBuilder()
+            .SetMagFilter(ESamplerFilter::Linear)
+            .SetMinFilter(ESamplerFilter::Linear)
+            .Build(m_GraphicsContext);
+        m_Shader->BindSampler("samplerState", sampler);
     }
 
     void QuadRenderPass::BuildRectGeometry(const SDrawCommand& cmd)
@@ -117,8 +123,12 @@ namespace Elixir::GUI
         SQuad quad = {
             .Position = cmd.Geometry.Position,
             .Size = cmd.Geometry.Size,
-            .CornerRadius = cmd.CornerRadius,
-            .Color = cmd.Color
+            .Border = cmd.Border,
+            .InsetShadow = cmd.InsetShadow,
+            .DropShadow = cmd.DropShadow,
+            .Color = cmd.Color,
+            .OutlineColor = cmd.Outline.Color,
+            .OutlineThickness = cmd.Outline.Thickness,
         };
 
         if (cmd.Texture)

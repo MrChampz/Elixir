@@ -1,8 +1,8 @@
 #include "epch.h"
 #include "VulkanTextureSet.h"
 
-#include "VulkanTexture.h"
-
+#include <Graphics/Vulkan/VulkanTexture.h>
+#include <Graphics/Vulkan/VulkanShader.h>
 #include <Graphics/Vulkan/VulkanGraphicsContext.h>
 #include <Graphics/Vulkan/Utils.h>
 
@@ -35,6 +35,16 @@ namespace Elixir::Vulkan
         }
 
         m_DescriptorSet = VK_NULL_HANDLE;
+    }
+
+    void VulkanTextureSet::Bind(const Shader* shader, SShaderBinding binding)
+    {
+        if (m_IsDirty)
+        {
+            const auto vk_Shader = static_cast<const VulkanShader*>(shader);
+            vk_Shader->UpdateDescriptorSet(binding, this);
+            m_IsDirty = false;
+        }
     }
 
     void VulkanTextureSet::SetTexture(const uint32_t index, const Ref<Texture>& texture)
@@ -106,9 +116,8 @@ namespace Elixir::Vulkan
     {
         std::vector<SDescriptorPoolSizeRatio> sizes =
         {
-            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0.35 },
-            { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 0.35 },
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0.2 },
+            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0.8 },
+            { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1 },
             { VK_DESCRIPTOR_TYPE_SAMPLER, 0.1 }
         };
 
@@ -134,7 +143,7 @@ namespace Elixir::Vulkan
 
     void VulkanTextureSet::UpdateDescriptors()
     {
-        if (!m_NeedsUpdate)
+        if (!m_IsDirty)
             return;
 
         VkWriteDescriptorSet writeSet = {};
@@ -154,6 +163,6 @@ namespace Elixir::Vulkan
             nullptr
         );
 
-        m_NeedsUpdate = false;
+        m_IsDirty = false;
     }
 }

@@ -19,13 +19,24 @@ namespace Elixir::GUI
         m_Commands.clear();
     }
 
-    void RenderBatch::AddRect(const SRect& rect, const SColor& color, const glm::vec4 cornerRadius, const int zOrder)
+    void RenderBatch::AddRect(
+        const SRect& rect,
+        const SColor& color,
+        const glm::vec4 cornerRadius,
+        const glm::vec4 insetShadow,
+        const glm::vec4 dropShadow,
+        const SOutline outline,
+        const int zOrder
+    )
     {
         SDrawCommand cmd;
         cmd.Type = SDrawCommand::EType::Rect;
         cmd.Geometry = rect;
         cmd.Color = color;
-        cmd.CornerRadius = cornerRadius;
+        cmd.Border = cornerRadius;
+        cmd.InsetShadow = insetShadow;
+        cmd.DropShadow = dropShadow;
+        cmd.Outline = outline;
         cmd.ZOrder = zOrder;
 
         m_Commands.push_back(cmd);
@@ -62,7 +73,18 @@ namespace Elixir::GUI
         cmd.Geometry = rect;
         cmd.Color = tint;
         cmd.Texture = texture;
+        cmd.Border = glm::vec4{ 30.0f, 30.0f, 30.0f, 30.0f }; // TODO: Add to widget properties
         cmd.ZOrder = zOrder;
+
+        m_Commands.push_back(cmd);
+    }
+
+    void RenderBatch::AddDebugRect(const SRect& rect, const SColor& color)
+    {
+        SDrawCommand cmd;
+        cmd.Type = SDrawCommand::EType::DebugRect;
+        cmd.Geometry = rect;
+        cmd.Color = color;
 
         m_Commands.push_back(cmd);
     }

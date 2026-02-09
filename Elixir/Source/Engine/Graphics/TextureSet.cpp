@@ -10,7 +10,7 @@ namespace Elixir
           m_TextureCount(other.m_TextureCount),
           m_Textures(std::move(other.m_Textures)),
           m_FreeSlots(std::move(other.m_FreeSlots)),
-          m_NeedsUpdate(other.m_NeedsUpdate),
+          m_IsDirty(other.m_IsDirty),
           m_GraphicsContext(other.m_GraphicsContext)
     {
         other.m_TextureCount = 0;
@@ -24,7 +24,7 @@ namespace Elixir
             m_TextureCount = other.m_TextureCount;
             m_Textures = std::move(other.m_Textures);
             m_FreeSlots = std::move(other.m_FreeSlots);
-            m_NeedsUpdate = other.m_NeedsUpdate;
+            m_IsDirty = other.m_IsDirty;
             m_GraphicsContext = other.m_GraphicsContext;
 
             other.m_TextureCount = 0;
@@ -70,7 +70,7 @@ namespace Elixir
         }
 
         m_Textures[index] = texture;
-        m_NeedsUpdate = true;
+        m_IsDirty = true;
     }
 
     void TextureSet::RemoveTexture(const uint32_t index)
@@ -83,7 +83,7 @@ namespace Elixir
             m_Textures[index].reset();
             m_TextureCount--;
             m_FreeSlots.push_back(index);
-            m_NeedsUpdate = true;
+            m_IsDirty = true;
         }
     }
 

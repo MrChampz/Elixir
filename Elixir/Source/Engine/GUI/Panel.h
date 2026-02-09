@@ -38,6 +38,8 @@ namespace Elixir::GUI
          */
         void SetCornerRadius(const glm::vec4& radius) { m_CornerRadius = radius; }
 
+        const std::vector<Ref<Slot>>& GetSlots() const { return m_Slots; }
+
       protected:
         /**
          * Helper method: Apply alignment to a rectangle within available space.

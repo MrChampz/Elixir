@@ -24,6 +24,12 @@ namespace Elixir::GUI
         SColor(const SColor& color) : R(color.R), G(color.G), B(color.B), A(color.A) {}
     };
 
+    struct SOutline
+    {
+        SColor Color;
+        float Thickness = 0.0f;
+    };
+
     enum class ELayoutMode : uint8_t
     {
         Horizontal, Vertical, Overlay

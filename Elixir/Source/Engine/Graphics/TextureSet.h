@@ -1,5 +1,7 @@
 #pragma once
-#include "Texture.h"
+
+#include <Engine/Graphics/Texture.h>
+#include <Engine/Graphics/Shader/ShaderBinding.h>
 
 namespace Elixir
 {
@@ -15,6 +17,13 @@ namespace Elixir
         TextureSet& operator=(const TextureSet&) = delete;
         TextureSet(TextureSet&&) noexcept;
         TextureSet& operator=(TextureSet&&) noexcept;
+
+        /**
+         * Bind the TextureSet to shader.
+         * @param shader The shader this TextureSet is bound to.
+         * @param binding The binding this TextureSet is bound to inside Shader.
+         */
+        virtual void Bind(const Shader* shader, SShaderBinding binding) = 0;
 
         /**
          * Clear all textures
@@ -97,7 +106,7 @@ namespace Elixir
         uint32_t m_TextureCount = 0;
         std::vector<Ref<Texture>> m_Textures;
         std::vector<uint32_t> m_FreeSlots;
-        bool m_NeedsUpdate = false;
+        bool m_IsDirty = false;
 
         const GraphicsContext* m_GraphicsContext;
     };

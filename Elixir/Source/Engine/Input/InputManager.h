@@ -12,6 +12,8 @@ namespace Elixir
         static bool IsKeyPressed(int keyCode);
 
         static bool IsMouseButtonPressed(int button);
+        static bool IsMouseButtonDown(int button);
+        static bool IsMouseButtonUp(int button);
         static std::pair<float, float> GetMousePosition();
         static float GetMouseX();
         static float GetMouseY();

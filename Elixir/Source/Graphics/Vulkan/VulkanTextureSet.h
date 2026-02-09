@@ -15,6 +15,8 @@ namespace Elixir::Vulkan
         );
         ~VulkanTextureSet() override;
 
+        void Bind(const Shader* shader, SShaderBinding binding) override;
+
         void SetTexture(uint32_t index, const Ref<Texture>& texture) override;
         void RemoveTexture(uint32_t index) override;
 

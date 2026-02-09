@@ -44,24 +44,44 @@ namespace Elixir
         const auto buttonBg = TextureLoader::Load("./Assets/Button_Background.png");
 
         const auto panel = CreateRef<GUI::Canvas>();
-        panel->SetBackground({ 1.0f, 0.0f, 0.0f, 1.0f });
+        //panel->SetBackground({ 1.0f, 0.0f, 0.0f, 1.0f });
         panel->SetPadding({ 10, 20, 10, 10 });
         const auto button = CreateRef<GUI::Button>("Hello World");
         button->SetCornerRadius(4.0);
         button->SetNormalBackground(std::dynamic_pointer_cast<Texture2D>(buttonBg));
 
         const auto button2 = CreateRef<GUI::Button>();
-        button2->SetNormalColor({ 0.0f, 1.0f, 0.0f, 1.0f });
-        button2->SetCornerRadius(12);
+        button2->SetNormalColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+        button2->SetHoverColor({ 0.8f, 0.8f, 1.0f, 1.0f });
+        //button2->SetCornerRadius(12);
+        button2->SetInsetShadow({ 10, 10    , 2, 0.3 });
+        button2->SetDropShadow({ 20, 20, 10, 1 });
+        button2->SetOutline({ { 1, 1, 0, 1 }, 5.0f });
+        button2->OnMouseEnter([&]() { EE_CORE_INFO("Mouse entered button!"); });
+        button2->OnMouseLeave([&]() { EE_CORE_INFO("Mouse left button!"); });
+        button2->OnMouseDown([&]() { EE_CORE_INFO("Mouse down on button!"); });
+        button2->OnMouseUp([&]() { EE_CORE_INFO("Mouse up on button!"); });
+        button2->OnClick([&]() { EE_CORE_INFO("Button clicked!"); });
+
+        const auto button3 = CreateRef<GUI::Button>();
+        button3->SetNormalColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+        button3->SetNormalBackground(std::dynamic_pointer_cast<Texture2D>(buttonBg));
+        button3->SetCornerRadius(12);
 
         panel->AddChild(button)
             .SetAnchors(GUI::SAnchors::TopLeft())
             .SetPosition({ 10, 10 })
             .SetSize({ 100, 40 });
 
-        auto x = panel->AddChild(button2)
+        panel->AddChild(button2)
             .SetAnchors(GUI::SAnchors::MiddleCenter())
-            .SetAlignment({ 0.5f, 0.5f });
+            .SetAlignment({ 0.5f, 0.5f })
+            .SetPosition({ 300, 0 });
+
+        panel->AddChild(button3)
+            .SetAnchors(GUI::SAnchors::MiddleCenter())
+            .SetSize({ 200, 60 })
+            .SetAlignment({ 0.5f, 2.0f });
 
         m_GUIManager->SetRoot(panel);
     }
@@ -85,8 +105,8 @@ namespace Elixir
 
             const auto frameTime = m_Timer.GetLastFrameTime();
 
-            m_Profiler.OnUpdate(frameTime);
-            m_Window->OnUpdate();
+            m_Profiler.OnUpdate(frameTime); // TODO: Refactor to Update
+            m_Window->OnUpdate(); // TODO: Refactor to Update
 
             if (InputManager::IsKeyPressed(EE_KEY_ESCAPE))
             {
@@ -126,6 +146,7 @@ namespace Elixir
         dispatcher.Dispatch<WindowResizeEvent>(EE_BIND_EVENT_FN(Application::OnWindowResize));
 
         InputManager::OnEvent(event);
+        m_GUIManager->OnEvent(event);
     }
 
     bool Application::OnWindowClose(WindowCloseEvent& event)
@@ -145,8 +166,6 @@ namespace Elixir
         }
 
         m_Minimized = false;
-
-        m_GUIManager->OnWindowResize(event);
 
         return false;
     }

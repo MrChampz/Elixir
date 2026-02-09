@@ -18,6 +18,11 @@ namespace Elixir::GUI
     {
         auto buttonColor = m_NormalColor;
 
+        if (m_IsHovered)
+        {
+            buttonColor = m_HoverColor;
+        }
+
         // Background
         if (m_NormalBackground)
         {
@@ -25,7 +30,15 @@ namespace Elixir::GUI
         }
         else
         {
-            batch.AddRect(m_Geometry, buttonColor, m_CornerRadius, zOrder);
+            batch.AddRect(
+                m_Geometry,
+                buttonColor,
+                m_CornerRadius,
+                m_InsetShadow,
+                m_DropShadow,
+                m_Outline,
+                zOrder
+            );
         }
 
         // Text (centered)

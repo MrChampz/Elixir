@@ -26,22 +26,6 @@ float median(float r, float g, float b)
     return max(min(r, g), min(max(r, g), b));
 }
 
-// float screenPxRange(float2 texCoord)
-// {
-//     const float pxRange = 6.0;
-//
-//     float2 dx = ddx(texCoord);
-//     float2 dy = ddy(texCoord);
-//     float2 duv = float2(length(dx), length(dy));
-//     float screenPx = max(duv.x, duv.y);
-//
-//     // Get texture dimensions
-//     uint width, height;
-//     atlas.GetDimensions(width, height);
-//
-//     return pxRange / (screenPx * width);
-// }
-
 float screenPxRange(float2 texCoord)
 {
     float2 screenTexSize = 1.0f / fwidth(texCoord);

@@ -4,6 +4,7 @@
 #include <Engine/Core/Color.h>
 #include <Engine/GUI/Renderer/QuadRenderPass.h>
 #include <Engine/GUI/Renderer/TextRenderPass.h>
+#include <Engine/GUI/Renderer/DebugRenderPass.h>
 #include <Engine/Graphics/Pipeline/PipelineBuilder.h>
 #include <Engine/Graphics/CommandBuffer.h>
 
@@ -87,6 +88,13 @@ namespace Elixir::GUI
             m_PerFrameConstantBuffer
         );
         RegisterRenderPass(text);
+
+        const auto& debug = CreateRef<DebugRenderPass>(
+            m_GraphicsContext,
+            shaderLoader,
+            m_PerFrameConstantBuffer
+        );
+        RegisterRenderPass(debug);
     }
 
     void Renderer::BeginRendering(const Ref<CommandBuffer>& cmd) const
