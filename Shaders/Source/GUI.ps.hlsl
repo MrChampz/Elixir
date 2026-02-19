@@ -1,15 +1,16 @@
 #include "SDF.hlsl"
 
-[[vk::binding(0, 1)]] // binding, set
+// Global bindless resources (binding 0 = cis, binding 1 = textures, binding 2 = samplers)
+[[vk::binding(1, 1)]] // binding, set
 Texture2D textures[] : register(t0);
 
-[[vk::binding(1, 1)]]
+[[vk::binding(1, 0)]]
 SamplerState samplerState : register(s0);
 
 struct PS_INPUT
 {
     float4 ClipPos          : SV_POSITION;          // Clip-space position
-    float2 LocalPos         : INSTANCE_POSITION;    // // Quad position in EXPANDED local-space
+    float2 LocalPos         : INSTANCE_POSITION;    // Quad position in EXPANDED local-space
     float2 ContentPos       : CONTENT_POSITION;     // Original content position (for distance calc)
     float2 ContentSize      : CONTENT_SIZE;         // Original content size (for distance calc)
     float2 TexCoord         : TEXCOORD0;            // UV coordinates
