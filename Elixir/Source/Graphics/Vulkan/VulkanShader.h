@@ -25,9 +25,9 @@ namespace Elixir::Vulkan
         void BindSampler(const std::string& name, const Ref<Sampler>& sampler) override;
         void BindConstantBuffer(const std::string& name, const Ref<UniformBuffer>& buffer) override;
 
-        [[nodiscard]] const std::vector<VkDescriptorSetLayout>& GetDescriptorSetLayouts() const { return m_DescriptorSetLayouts; }
-        [[nodiscard]] const std::vector<VkDescriptorSet>& GetDescriptorSets() const { return m_DescriptorSets; }
-        [[nodiscard]] const VkPipelineLayout& GetPipelineLayout() const { return m_PipelineLayout; }
+        const std::vector<VkDescriptorSetLayout>& GetDescriptorSetLayouts() const { return m_DescriptorSetLayouts; }
+        std::vector<VkDescriptorSet> GetDescriptorSets() const;
+        const VkPipelineLayout& GetPipelineLayout() const { return m_PipelineLayout; }
 
       protected:
         void CreateDescriptorSetLayouts();
@@ -37,16 +37,9 @@ namespace Elixir::Vulkan
         void UpdateDescriptorSets();
 
         VkWriteDescriptorSet GetWriteDescriptorSet(
-            SShaderBinding binding,
-            Texture* texture
+            SShaderBinding binding, const Texture* texture
         ) const;
-        void UpdateDescriptorSet(SShaderBinding binding, Texture* texture) const;
-
-        std::vector<VkWriteDescriptorSet> GetWriteDescriptorSets(
-            SShaderBinding binding,
-            TextureSet* set
-        ) const;
-        void UpdateDescriptorSet(SShaderBinding binding, TextureSet* set) const;
+        void UpdateDescriptorSet(SShaderBinding binding, const Texture* texture) const;
 
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding,
@@ -63,9 +56,10 @@ namespace Elixir::Vulkan
             const Ref<UniformBuffer>& buffer
         ) const;
 
+        bool m_BindlessSet = false;
+
         std::vector<VkDescriptorSet> m_DescriptorSets;
         std::vector<VkDescriptorSetLayout> m_DescriptorSetLayouts;
-        std::unordered_map<uint32_t, bool> m_BindlessLookup;
 
         VkPipelineLayout m_PipelineLayout;
 

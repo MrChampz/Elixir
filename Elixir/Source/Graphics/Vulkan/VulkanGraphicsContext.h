@@ -1,9 +1,10 @@
 #pragma once
 
 #include <Engine/Core/Window.h>
+#include <Engine/Core/DeletionQueue.h>
 #include <Engine/Core/Executor/Executor.h>
 #include <Engine/Graphics/GraphicsContext.h>
-#include <Graphics/Vulkan/VulkanDescriptorAllocator.h>
+#include <Graphics/Vulkan/VulkanDescriptorPool.h>
 
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
@@ -11,31 +12,8 @@
 namespace Elixir::Vulkan
 {
     class VulkanCommandBuffer;
-    using Elixir::GraphicsContext;
-
     class VulkanCommandPoolManager;
-
-    // TODO: Move to Core?
-    struct SDeletionQueue
-    {
-        std::deque<std::function<void()>> Deletors;
-
-        void Push(std::function<void()>&& fn)
-        {
-            Deletors.push_back(fn);
-        }
-
-        void Flush()
-        {
-            // Reverse iterate the deletion queue to execute in the correct order.
-            for (auto it = Deletors.rbegin(); it != Deletors.rend(); ++it)
-            {
-                (*it)();
-            }
-
-            Deletors.clear();
-        }
-    };
+    using Elixir::GraphicsContext;
 
     struct SFrameData
     {
@@ -100,7 +78,8 @@ namespace Elixir::Vulkan
         VkQueue GetTransferQueue() const { return m_TransferQueue; }
         uint32_t GetTransferQueueFamily() const { return m_TransferQueueFamily; }
         VmaAllocator GetAllocator() const { return m_Allocator; }
-        VkDescriptorPool GetDescriptorPool(const bool bindless = false) const { return bindless ? m_BindlessDescriptorAllocator->GetPool() : m_DescriptorAllocator->GetPool(); }
+        Ref<VulkanDescriptorPool> GetDescriptorPool() const { return m_DescriptorPool; }
+        Ref<VulkanBindlessDescriptorPool> GetBindlessDescriptorPool() const { return m_BindlessDescriptorPool; }
 
         SSwapchainImage& GetCurrentSwapchainImage() { return m_SwapchainImages[m_CurrentSwapchainImageIndex]; }
         VkFormat GetSwapchainImageFormat() const { return m_SwapchainImageFormat; }
@@ -158,8 +137,8 @@ namespace Elixir::Vulkan
         uint32_t m_TransferQueueFamily;
 
         VmaAllocator m_Allocator;
-        Ref<VulkanDescriptorAllocator> m_DescriptorAllocator;
-        Ref<VulkanDescriptorAllocator> m_BindlessDescriptorAllocator;
+        Ref<VulkanDescriptorPool> m_DescriptorPool;
+        Ref<VulkanBindlessDescriptorPool> m_BindlessDescriptorPool;
 
         Scope<VulkanCommandPoolManager> m_CommandPoolManager;
         Ref<VulkanCommandBuffer> m_MainCommandBuffer;

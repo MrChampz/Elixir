@@ -51,4 +51,16 @@ namespace Elixir::GUI
             batch.AddText(m_Text, textPos, 16.0f, m_TextColor, zOrder + 1);
         }
     }
+
+    void Button::HandleMouseEnter()
+    {
+        Widget::HandleMouseEnter();
+        // TODO: Show pointer cursor
+    }
+
+    void Button::HandleMouseLeave()
+    {
+        Widget::HandleMouseLeave();
+        // TODO: Show default cursor
+    }
 }

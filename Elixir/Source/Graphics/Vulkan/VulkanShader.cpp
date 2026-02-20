@@ -35,15 +35,7 @@ namespace Elixir::Vulkan
 
         if (!m_DescriptorSets.empty())
         {
-            // TODO: Set descriptor sets as unused in Command Pool
-            VK_CHECK_RESULT(
-                vkFreeDescriptorSets(
-                    m_GraphicsContext->GetDevice(),
-                    m_GraphicsContext->GetDescriptorPool(),
-                    m_DescriptorSets.size(),
-                    m_DescriptorSets.data()
-                )
-            );
+            m_GraphicsContext->GetDescriptorPool()->FreeDescriptorSets(m_DescriptorSets);
             m_DescriptorSets.clear();
         }
 
@@ -61,14 +53,9 @@ namespace Elixir::Vulkan
 
     void VulkanShader::Bind(const Ref<CommandBuffer>& cmd)
     {
-        // Bind texture sets
-        for (const auto [binding, set] : m_TextureSets)
-        {
-            set->Bind(this, binding);
-        }
-
         const auto vkCmd = static_pointer_cast<VulkanCommandBuffer>(cmd);
-        vkCmd->BindDescriptorSets(m_PipelineLayout, 0, m_DescriptorSets);
+
+        vkCmd->BindDescriptorSets(m_PipelineLayout, 0, GetDescriptorSets());
 
         // for (auto& constant : m_PushConstants)
         // {
@@ -124,26 +111,6 @@ namespace Elixir::Vulkan
         if (const auto binding = GetShaderBinding(name))
         {
             m_TextureSets[*binding] = set;
-            //UpdateDescriptorSet(*binding, texture);
-
-            // Update descriptor set (get binding...)
-
-            // TODO: bindless, deve liberar o descriptorSet e utilizar o vindo do set
-            //  Gerar previamente com outro layout? Gerar na hora do binding?
-            const auto descriptorSet = m_DescriptorSets[binding->Set];
-
-            // vkFreeDescriptorSets(
-            //     m_GraphicsContext->GetDevice(),
-            //     m_GraphicsContext->GetDescriptorPool(true),
-            //     1,
-            //     &descriptorSet
-            // );
-
-            const auto vk_Set = std::static_pointer_cast<VulkanTextureSet>(set);
-            m_DescriptorSets[binding->Set] = vk_Set->AllocateDescriptorSet(m_DescriptorSetLayouts[binding->Set]);
-
-            UpdateDescriptorSet(*binding, set.get());
-
             return;
         }
 
@@ -177,6 +144,18 @@ namespace Elixir::Vulkan
         EE_CORE_ERROR("No constant buffer binding named \"{0}\" found in shader...", name)
     }
 
+    std::vector<VkDescriptorSet> VulkanShader::GetDescriptorSets() const
+    {
+        std::vector sets(m_DescriptorSets);
+        if (m_BindlessSet)
+        {
+            const auto bindlessPool = m_GraphicsContext->GetBindlessDescriptorPool();
+            sets.push_back(bindlessPool->GetDescriptorSet());
+        }
+
+        return std::move(sets);
+    }
+
     void VulkanShader::CreateDescriptorSetLayouts()
     {
         std::unordered_map<uint32_t, std::vector<VkDescriptorSetLayoutBinding>> sets;
@@ -196,17 +175,22 @@ namespace Elixir::Vulkan
 
         for (const auto& resource : std::views::values(m_Resources.Resources))
         {
+            if (resource.IsBindless())
+            {
+                m_BindlessSet = true;
+                continue;
+            }
+
             const auto set = resource.GetSet();
 
             VkDescriptorSetLayoutBinding binding = {};
             binding.binding = resource.GetBinding();
-            binding.descriptorCount = resource.IsBindless() ? 1024 : resource.GetCount(); // TODO: bindless, put the real max textures
+            binding.descriptorCount = resource.GetCount();
             binding.descriptorType = Converters::GetDescriptorType(resource.GetType());
             binding.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS; // TODO: GetShaderState(resource->GetStage());
             binding.pImmutableSamplers = nullptr;
 
             sets[set].push_back(binding);
-            m_BindlessLookup[set] = resource.IsBindless();
         }
 
         m_DescriptorSetLayouts.resize(sets.size());
@@ -217,26 +201,6 @@ namespace Elixir::Vulkan
             layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
             layoutInfo.pBindings = bindings.data();
             layoutInfo.bindingCount = bindings.size();
-
-            std::vector<VkDescriptorBindingFlags> bindlessFlags;
-            if (m_BindlessLookup[set])
-            {
-                layoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
-
-                VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
-                                                 VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
-                bindlessFlags.resize(bindings.size());
-                //std::ranges::fill(bindlessFlags, flags);
-                bindlessFlags.push_back(flags);
-                bindlessFlags.push_back(0);
-
-                VkDescriptorSetLayoutBindingFlagsCreateInfoEXT bindingFlags = {};
-                bindingFlags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
-                bindingFlags.bindingCount = bindings.size();
-                bindingFlags.pBindingFlags = bindlessFlags.data();
-
-                layoutInfo.pNext = &bindingFlags;
-            }
 
             VkDescriptorSetLayout layout;
             VK_CHECK_RESULT(
@@ -262,13 +226,11 @@ namespace Elixir::Vulkan
 
         for (auto i = 0; i < m_DescriptorSetLayouts.size(); i++)
         {
-            const auto bindless = m_BindlessLookup[i];
-
             VkDescriptorSetAllocateInfo allocInfo = {};
             allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
             allocInfo.pSetLayouts = &m_DescriptorSetLayouts[i];
             allocInfo.descriptorSetCount = 1;
-            allocInfo.descriptorPool = m_GraphicsContext->GetDescriptorPool(bindless);
+            allocInfo.descriptorPool = m_GraphicsContext->GetDescriptorPool()->GetVulkanDescriptorPool();
 
             VK_CHECK_RESULT(
                 vkAllocateDescriptorSets(
@@ -284,10 +246,19 @@ namespace Elixir::Vulkan
 
     void VulkanShader::CreatePipelineLayout()
     {
+        std::vector layouts(m_DescriptorSetLayouts);
+
+        if (m_BindlessSet)
+        {
+            const auto bindlessPool = m_GraphicsContext->GetBindlessDescriptorPool();
+            const auto bindlessLayout = bindlessPool->GetDescriptorSetLayout();
+            layouts.push_back(bindlessLayout);
+        }
+
         VkPipelineLayoutCreateInfo info = {};
         info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        info.setLayoutCount = (uint32_t)m_DescriptorSetLayouts.size();
-        info.pSetLayouts = m_DescriptorSetLayouts.data();
+        info.setLayoutCount = (uint32_t)layouts.size();
+        info.pSetLayouts = layouts.data();
 
         VK_CHECK_RESULT(
             vkCreatePipelineLayout(
@@ -309,12 +280,6 @@ namespace Elixir::Vulkan
             writeDescriptorSets.push_back(writeSet);
         }
 
-        for (const auto [binding, set] : m_TextureSets)
-        {
-            const auto writeSet = GetWriteDescriptorSets(binding, set.get());
-            writeDescriptorSets.insert(writeDescriptorSets.end(), writeSet.begin(), writeSet.end());
-        }
-
         for (const auto [binding, buffer] : m_ConstantBuffers)
         {
             const auto writeSet = GetWriteDescriptorSet(binding, buffer);
@@ -329,7 +294,7 @@ namespace Elixir::Vulkan
 
     VkWriteDescriptorSet VulkanShader::GetWriteDescriptorSet(
         const SShaderBinding binding,
-        Texture* texture
+        const Texture* texture
     ) const
     {
         const auto& resource = m_Resources.Resources.at(binding);
@@ -360,7 +325,7 @@ namespace Elixir::Vulkan
 
     void VulkanShader::UpdateDescriptorSet(
         const SShaderBinding binding,
-        Texture*                 texture
+        const Texture* texture
     ) const
     {
         const auto writeSet = GetWriteDescriptorSet(binding, texture);
@@ -369,56 +334,6 @@ namespace Elixir::Vulkan
             m_GraphicsContext->GetDevice(),
             1,
             &writeSet,
-            0,
-            nullptr
-        );
-    }
-
-    std::vector<VkWriteDescriptorSet> VulkanShader::GetWriteDescriptorSets(
-        const SShaderBinding binding,
-        TextureSet* set
-    ) const
-    {
-        const auto& resource = m_Resources.Resources.at(binding);
-
-        std::vector<VkWriteDescriptorSet> writeSets;
-        writeSets.reserve(set->GetTextureCount());
-
-        const auto vk_Set = static_cast<VulkanTextureSet*>(set);
-        m_ImageInfoCache[binding] = vk_Set->GetImageInfos();
-
-        for (const auto& tex : set->GetTextures())
-        {
-            if (!tex) continue;
-
-            const auto index = set->GetTextureIndex(tex);
-
-            VkWriteDescriptorSet writeSet = {};
-            writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            writeSet.dstSet = m_DescriptorSets[resource.GetSet()];
-            writeSet.dstBinding = resource.GetBinding();
-            writeSet.dstArrayElement = index;
-            writeSet.descriptorType = Converters::GetDescriptorType(resource.GetType());
-            writeSet.descriptorCount = 1;
-            writeSet.pImageInfo = &m_ImageInfoCache[binding][index];
-
-            writeSets.push_back(writeSet);
-        }
-
-        return writeSets;
-    }
-
-    void VulkanShader::UpdateDescriptorSet(
-        const SShaderBinding binding,
-        TextureSet* set
-    ) const
-    {
-        const auto writeSets = GetWriteDescriptorSets(binding, set);
-
-        vkUpdateDescriptorSets(
-            m_GraphicsContext->GetDevice(),
-            writeSets.size(),
-            writeSets.data(),
             0,
             nullptr
         );
@@ -456,7 +371,7 @@ namespace Elixir::Vulkan
     }
 
     void VulkanShader::UpdateDescriptorSet(
-        SShaderBinding binding,
+        const SShaderBinding binding,
         const Ref<Sampler>& sampler
     ) const
     {

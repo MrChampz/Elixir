@@ -20,6 +20,12 @@ namespace Elixir::GUI
         BindShaderParameters();
     }
 
+    QuadRenderPass::~QuadRenderPass()
+    {
+        m_Quads.clear();
+        m_WhiteTexture.reset();
+    }
+
     void QuadRenderPass::GenerateDrawCommands(const RenderBatch& batch)
     {
         m_Quads.clear();
@@ -103,7 +109,7 @@ namespace Elixir::GUI
         );
 
         m_TextureSet = TextureSet::Create(m_GraphicsContext);
-        m_TextureSet->AddTexture(m_WhiteTexture);
+        m_WhiteTextureHandle = m_TextureSet->AddTexture(m_WhiteTexture);
     }
 
     void QuadRenderPass::BindShaderParameters() const
@@ -129,12 +135,10 @@ namespace Elixir::GUI
             .Color = cmd.Color,
             .OutlineColor = cmd.Outline.Color,
             .OutlineThickness = cmd.Outline.Thickness,
+            .TextureIndex = cmd.Texture
+                ? m_TextureSet->AddTexture(cmd.Texture).Index
+                : m_WhiteTextureHandle.Index
         };
-
-        if (cmd.Texture)
-        {
-            quad.TextureIndex = m_TextureSet->AddTexture(cmd.Texture);
-        }
 
         m_Quads.push_back(quad);
     }

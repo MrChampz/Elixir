@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Engine/Graphics/Definitions.h>
 #include <Engine/Graphics/Texture.h>
 #include <Engine/Graphics/Shader/ShaderBinding.h>
 
@@ -8,22 +9,7 @@ namespace Elixir
     class ELIXIR_API TextureSet
     {
       public:
-        static constexpr uint32_t MAX_TEXTURES = 1024;
-
         virtual ~TextureSet() = default;
-
-        // Disable copy, enable move
-        TextureSet(const TextureSet&) = delete;
-        TextureSet& operator=(const TextureSet&) = delete;
-        TextureSet(TextureSet&&) noexcept;
-        TextureSet& operator=(TextureSet&&) noexcept;
-
-        /**
-         * Bind the TextureSet to shader.
-         * @param shader The shader this TextureSet is bound to.
-         * @param binding The binding this TextureSet is bound to inside Shader.
-         */
-        virtual void Bind(const Shader* shader, SShaderBinding binding) = 0;
 
         /**
          * Clear all textures
@@ -31,51 +17,17 @@ namespace Elixir
         void Clear();
 
         /**
-         * Add a texture to the set and get its index.
+         * Add a texture to the set and get its handle.
          * @param texture Reference to the texture
-         * @return The texture index in the set
+         * @return The texture handle in the set
          */
-        uint32_t AddTexture(const Ref<Texture>& texture);
+        virtual SResourceHandle AddTexture(const Ref<Texture>& texture) = 0;
 
         /**
-         * Add a texture at a specific index (overwrites if already exists).
-         * @param index Texture index
-         * @param texture Reference to the texture
+         * Remove a texture by its handle.
+         * @param handle Texture handle
          */
-        virtual void SetTexture(uint32_t index, const Ref<Texture>& texture);
-
-        /**
-         * Remove a texture by index (frees the slot for reuse).
-         * @param index Texture index
-         */
-        virtual void RemoveTexture(uint32_t index);
-
-        /**
-         * Check if a slot is occupied.
-         * @param index Texture index
-         * @return True if a texture exists at the specified index
-         */
-        bool HasTexture(uint32_t index) const;
-
-        /**
-         * Get the texture at a specific index
-         * @param index Texture index
-         * @return Reference to the texture
-         */
-        Ref<Texture> GetTexture(uint32_t index) const;
-
-        /**
-         * Get the list of textures in the set.
-         * @return The list of textures in the set.
-         */
-        const std::vector<Ref<Texture>>& GetTextures() const { return m_Textures; }
-
-        /**
-         * Get the index of a specific texture in the set.
-         * @param texture Reference to the texture
-         * @return The texture index in the set.
-         */
-        uint32_t GetTextureIndex(const Ref<Texture>& texture) const;
+        virtual void RemoveTexture(SResourceHandle handle) = 0;
 
         /**
          * Get the number of textures currently in the set.
@@ -83,30 +35,13 @@ namespace Elixir
          */
         uint32_t GetTextureCount() const { return m_TextureCount; }
 
-        /**
-         * Get the maximum capacity.
-         * @return The maximum number of textures supported by the set.
-         */
-        uint32_t GetMaxTextures() const { return m_MaxTextures; }
-
-        static Ref<TextureSet> Create(
-            const GraphicsContext* context,
-            uint32_t maxTextures = MAX_TEXTURES
-        );
+        static Ref<TextureSet> Create(const GraphicsContext* context);
 
       protected:
-        explicit TextureSet(
-            const GraphicsContext* context,
-            uint32_t maxTextures = MAX_TEXTURES
-        );
+        explicit TextureSet(const GraphicsContext* context);
 
-        uint32_t FindFreeSlot() const;
-
-        uint32_t m_MaxTextures;
         uint32_t m_TextureCount = 0;
-        std::vector<Ref<Texture>> m_Textures;
-        std::vector<uint32_t> m_FreeSlots;
-        bool m_IsDirty = false;
+        std::unordered_map<SResourceHandle, Ref<Texture>> m_Textures;
 
         const GraphicsContext* m_GraphicsContext;
     };

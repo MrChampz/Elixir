@@ -48,6 +48,10 @@ namespace Elixir::GUI
         const Ref<Texture2D>& GetNormalBackground() const { return m_NormalBackground; }
         void SetNormalBackground(const Ref<Texture2D>& texture) { m_NormalBackground = texture; }
 
+      protected:
+        void HandleMouseEnter() override;
+        void HandleMouseLeave() override;
+
       private:
         std::string m_Text;
 

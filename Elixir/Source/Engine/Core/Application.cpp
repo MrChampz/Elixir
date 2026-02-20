@@ -124,7 +124,7 @@ namespace Elixir
 
             OnGUI(frameTime);
             m_GUIManager->ArrangeLayout({ m_Window->GetWidth(), m_Window->GetHeight() });
-            m_GUIManager->Tick(frameTime);
+            m_GUIManager->Update(frameTime);
 
             m_GraphicsContext->RenderFrame([this, frameTime]()
             {

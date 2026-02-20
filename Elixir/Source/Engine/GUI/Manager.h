@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/GUI/Renderer/Renderer.h>
+#include <Engine/GUI/InputManager.h>
 #include <Engine/GUI/Panel.h>
 
 namespace Elixir
@@ -21,26 +22,23 @@ namespace Elixir::GUI
         void Shutdown();
 
         void ArrangeLayout(const Extent2D& extent) const;
-        void Tick(Timestep frameTime);
+        void Update(Timestep frameTime);
         void Render();
 
         void OnEvent(Event& event);
         bool OnWindowResize(const WindowResizeEvent& event) const;
 
-        void SetRoot(const Ref<Panel>& root) { m_RootWidget = root; }
+        void SetRoot(const Ref<Panel>& root)
+        {
+            m_RootWidget = root;
+            m_InputManager.SetRoot(m_RootWidget);
+        }
 
       private:
-        void ProcessInputRecursive(const Ref<Widget>& widget);
-
         Scope<Renderer> m_Renderer;
         RenderBatch m_RenderBatch;
+        InputManager m_InputManager;
         Ref<Panel> m_RootWidget;
-        Ref<Widget> m_PressedWidget;
-
-        glm::vec2 m_MousePos{};
-        bool m_WasMouseDown = false;
-        bool m_MousePressed = false;
-        bool m_MouseReleased = false;
 
         bool m_Initialized = false;
     };

@@ -6,11 +6,11 @@
 
 namespace Elixir::GUI
 {
-    class Manager;
+    class InputManager;
 
     class ELIXIR_API Widget
     {
-        friend class Manager;
+        friend class InputManager;
       public:
         virtual ~Widget() = default;
 
@@ -18,7 +18,7 @@ namespace Elixir::GUI
          * Handles the update logic for the widget.
          * @param frameTime time since the last tick.
          */
-        virtual void Tick(Timestep frameTime);
+        virtual void Update(Timestep frameTime);
 
         //void AddChild(const Ref<Widget>& child);
 
@@ -99,11 +99,11 @@ namespace Elixir::GUI
         bool IsPressed() const { return m_IsPressed; }
 
       protected:
-        virtual void InternalOnMouseEnter();
-        virtual void InternalOnMouseLeave();
-        virtual void InternalOnMouseDown();
-        virtual void InternalOnMouseUp();
-        virtual void InternalOnClick();
+        virtual void HandleMouseEnter();
+        virtual void HandleMouseLeave();
+        virtual void HandleMouseDown();
+        virtual void HandleMouseUp();
+        virtual void HandleClick();
 
         SRect m_Geometry{};
         glm::vec2 m_DesiredSize{};

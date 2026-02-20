@@ -2,6 +2,7 @@
 #include "VulkanGraphicsContext.h"
 
 #include <Graphics/SpirV/SpirVShaderBackend.h>
+#include <Graphics/Vulkan/VulkanCommandBuffer.h>
 #include <Graphics/Vulkan/VulkanCommandPool.h>
 #include <Graphics/Vulkan/VulkanTexture.h>
 #include <Graphics/Vulkan/Converters.h>
@@ -11,8 +12,6 @@
 #include <vulkan/vulkan.h>
 
 #define VMA_IMPLEMENTATION
-#include "VulkanCommandBuffer.h"
-
 #include <vk_mem_alloc.h>
 
 #include "GLFW/glfw3.h"
@@ -117,8 +116,8 @@ namespace Elixir
 
             DestroySwapchain();
 
-            m_DescriptorAllocator.reset();
-            m_BindlessDescriptorAllocator.reset();
+            m_DescriptorPool.reset();
+            m_BindlessDescriptorPool.reset();
 
             for (int i = 0; i < m_FramesInFlight; i++)
             {
@@ -256,6 +255,10 @@ namespace Elixir
             )
         );
 
+        // Vulkan core features
+        VkPhysicalDeviceFeatures features{};
+        features.fillModeNonSolid = true;
+
         // Vulkan 1.3 features.
 		VkPhysicalDeviceVulkan13Features features13{};
 		features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
@@ -271,12 +274,14 @@ namespace Elixir
         features12.runtimeDescriptorArray = true;
         features12.descriptorBindingSampledImageUpdateAfterBind = true;
         features12.descriptorBindingUniformBufferUpdateAfterBind = true;
+        features12.descriptorBindingUpdateUnusedWhilePending = true;
 
         vkb::PhysicalDeviceSelector selector{ vkbInstance };
 		auto physicalDeviceResult = selector
 			.set_minimum_version(1, 3)
 			.set_required_features_13(features13)
 			.set_required_features_12(features12)
+            .set_required_features(features)
 			.set_surface(m_Surface)
 			.select();
 
@@ -382,17 +387,8 @@ namespace Elixir
             { VK_DESCRIPTOR_TYPE_SAMPLER, 0.15 }
         };
 
-        m_DescriptorAllocator = CreateRef<VulkanDescriptorAllocator>(this, 20, sizes);
-
-        std::vector<SDescriptorPoolSizeRatio> bindlessSizes =
-        {
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0.45 },
-            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0.45 },
-            { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 0.05 },
-            { VK_DESCRIPTOR_TYPE_SAMPLER, 0.05 }
-        };
-
-        m_BindlessDescriptorAllocator = CreateRef<VulkanDescriptorAllocator>(this, 4096, bindlessSizes, true);
+        m_DescriptorPool = CreateRef<VulkanDescriptorPool>(*this, 20, sizes);
+        m_BindlessDescriptorPool = CreateRef<VulkanBindlessDescriptorPool>(*this);
     }
 
     void VulkanGraphicsContext::CreateSwapchain(const Extent2D& extent)
@@ -508,6 +504,9 @@ namespace Elixir
         EE_PROFILE_ZONE_SCOPED()
 
         auto& frame = GetCurrentFrame();
+
+        // Flush dirty descriptors
+        m_BindlessDescriptorPool->FlushDescriptors();
 
         if (frame.InUseByRenderThread.load())
         {

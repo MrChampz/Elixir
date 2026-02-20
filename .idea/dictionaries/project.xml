@@ -2,6 +2,7 @@
   <dictionary name="project">
     <words>
       <w>concurrentqueue</w>
+      <w>deletors</w>
       <w>memcpy</w>
       <w>spirv</w>
       <w>swapchain</w>

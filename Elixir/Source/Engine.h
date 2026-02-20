@@ -7,6 +7,7 @@
 #include <Engine/Core/Malloc.h>
 #include <Engine/Core/Memory.h>
 #include <Engine/Core/Buffer.h>
+#include <Engine/Core/DeletionQueue.h>
 #include <Engine/Core/Application.h>
 #include <Engine/Core/FrameProfiler.h>
 #include <Engine/Core/Executor/Executor.h>
@@ -33,6 +34,14 @@
 #include <Engine/Graphics/Sampler.h>
 #include <Engine/Graphics/Image.h>
 #include <Engine/Graphics/Texture.h>
+#include <Engine/Graphics/TextureSet.h>
 #include <Engine/Graphics/TextureLoader.h>
 #include <Engine/Graphics/Pipeline/PipelineBuilder.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
+
+#include <Engine/GUI/Canvas.h>
+#include <Engine/GUI/HorizontalBox.h>
+#include <Engine/GUI/VerticalBox.h>
+#include <Engine/GUI/Overlay.h>
+#include <Engine/GUI/Button.h>
+#include <Engine/GUI/TextBlock.h>

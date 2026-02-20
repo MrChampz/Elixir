@@ -19,6 +19,8 @@ namespace Elixir::GUI
             const Ref<UniformBuffer>& perFrameCB
         );
 
+        ~QuadRenderPass() override;
+
         void GenerateDrawCommands(const RenderBatch& batch) override;
         void Render(const Ref<CommandBuffer>& cmd) override;
         bool HasData() const override;
@@ -67,9 +69,10 @@ namespace Elixir::GUI
         Ref<Shader> m_Shader;
         Ref<GraphicsPipeline> m_Pipeline;
         Ref<DynamicVertexBuffer> m_QuadBuffer;
+        Ref<TextureSet> m_TextureSet;
 
         Ref<Texture2D> m_WhiteTexture;
-        Ref<TextureSet> m_TextureSet;
+        SResourceHandle m_WhiteTextureHandle;
 
         Ref<UniformBuffer> m_PerFrameConstantBuffer;
         const GraphicsContext* m_GraphicsContext;

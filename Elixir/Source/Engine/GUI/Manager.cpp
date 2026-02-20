@@ -1,9 +1,6 @@
 #include "epch.h"
 #include "Manager.h"
 
-#include "Engine/Input/InputCodes.h"
-#include "Engine/Input/InputManager.h"
-
 #include <Engine/GUI/Panel.h>
 #include <Engine/Event/WindowEvent.h>
 
@@ -33,38 +30,12 @@ namespace Elixir::GUI
         }
     }
 
-    void Manager::Tick(const Timestep frameTime)
+    void Manager::Update(const Timestep frameTime)
     {
-        const auto [x, y] = InputManager::GetMousePosition();
-        m_MousePos = { x, y };
-
-        const auto isMouseDown = InputManager::IsMouseButtonDown(EE_MOUSE_BUTTON_LEFT);
-
-        if (isMouseDown && !m_WasMouseDown)
-        {
-            m_MousePressed = true;
-        }
-        if (!isMouseDown && m_WasMouseDown)
-        {
-            m_MouseReleased = true;
-        }
-
-        m_WasMouseDown = isMouseDown;
+        m_InputManager.Update();
 
         if (m_RootWidget)
-        {
-            m_RootWidget->Tick(frameTime);
-            ProcessInputRecursive(m_RootWidget);
-
-            if (m_MouseReleased && m_PressedWidget)
-            {
-                m_PressedWidget->InternalOnMouseUp();
-                m_PressedWidget = nullptr;
-            }
-        }
-
-        m_MousePressed = false;
-        m_MouseReleased = false;
+            m_RootWidget->Update(frameTime);
     }
 
     void Manager::Render()
@@ -90,36 +61,5 @@ namespace Elixir::GUI
         ArrangeLayout(extent);
 
         return false;
-    }
-
-    void Manager::ProcessInputRecursive(const Ref<Widget>& widget)
-    {
-        if (!widget || !widget->IsVisible()) return;
-
-        const auto geometry = widget->GetGeometry();
-        const bool isOver = geometry.Contains(m_MousePos);
-
-        if (isOver && !widget->IsHovered())
-        {
-            widget->InternalOnMouseEnter();
-        }
-        else if (!isOver && widget->IsHovered())
-        {
-            widget->InternalOnMouseLeave();
-        }
-
-        if (isOver && m_MousePressed)
-        {
-            widget->InternalOnMouseDown();
-            m_PressedWidget = widget;
-        }
-
-        if (const auto panel = std::dynamic_pointer_cast<Panel>(widget))
-        {
-            for (auto& slot : panel->GetSlots())
-            {
-                ProcessInputRecursive(slot->GetWidget());
-            }
-        }
     }
 }

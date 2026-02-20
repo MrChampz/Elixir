@@ -3,7 +3,7 @@
 
 namespace Elixir::GUI
 {
-    void Widget::Tick(const Timestep frameTime)
+    void Widget::Update(const Timestep frameTime)
     {
         // for (const auto& child : m_Children)
         // {
@@ -19,25 +19,25 @@ namespace Elixir::GUI
         return m_Visibility == EVisibility::Visible && m_Opacity > 0.0f;
     }
 
-    void Widget::InternalOnMouseEnter()
+    void Widget::HandleMouseEnter()
     {
         m_IsHovered = true;
         if (m_OnMouseEnterCallback) m_OnMouseEnterCallback();
     }
 
-    void Widget::InternalOnMouseLeave()
+    void Widget::HandleMouseLeave()
     {
         m_IsHovered = false;
         if (m_OnMouseLeaveCallback) m_OnMouseLeaveCallback();
     }
 
-    void Widget::InternalOnMouseDown()
+    void Widget::HandleMouseDown()
     {
         m_IsPressed = true;
         if (m_OnMouseDownCallback) m_OnMouseDownCallback();
     }
 
-    void Widget::InternalOnMouseUp()
+    void Widget::HandleMouseUp()
     {
         if (m_IsPressed)
         {
@@ -45,13 +45,13 @@ namespace Elixir::GUI
                 m_OnMouseUpCallback();
 
             if (m_IsHovered)
-                InternalOnClick();
+                HandleClick();
         }
 
         m_IsPressed = false;
     }
 
-    void Widget::InternalOnClick()
+    void Widget::HandleClick()
     {
         if (m_OnClickCallback) m_OnClickCallback();
     }
