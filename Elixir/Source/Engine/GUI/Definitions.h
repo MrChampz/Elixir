@@ -37,12 +37,12 @@ namespace Elixir::GUI
 
     enum class EHorizontalAlignment : uint8_t
     {
-        Left, Center, Right, Stretch
+        Left, Center, Right
     };
 
     enum class EVerticalAlignment : uint8_t
     {
-        Top, Center, Bottom, Stretch
+        Top, Center, Bottom
     };
 
     enum class EVisibility : uint8_t
@@ -139,7 +139,7 @@ namespace Elixir::GUI
 
         // Alignment within the anchor space (0-1)
         // 0.0 = left/top, 0.5 = center, 1.0 = right/bottom
-        glm::vec2 Alignment{0.0f, 0.0f};
+        glm::vec2 Alignment{0.0f, 0.0f}; // TODO: Use Horizontal/Vertical alignment!
 
         SConstraint() :
             Position(0.0f, 0.0f),

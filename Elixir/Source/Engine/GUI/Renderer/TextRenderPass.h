@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/GUI/FontManager.h>
+#include <Engine/Font/FontManager.h>
 #include <Engine/GUI/Renderer/RenderBatch.h>
 #include <Engine/GUI/Renderer/RenderPass.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
@@ -17,8 +17,7 @@ namespace Elixir::GUI
     class ELIXIR_API TextRenderPass final : public RenderPass
     {
       public:
-        static constexpr size_t MAX_VERTICES = 10000;
-        static constexpr size_t MAX_INDICES = 15000;
+        static constexpr size_t MAX_CHARACTERS = 16000;
 
         TextRenderPass(
             const GraphicsContext* context,
@@ -44,19 +43,22 @@ namespace Elixir::GUI
         SFontData m_FontData{};
         Ref<UniformBuffer> m_FontConstantBuffer;
 
-        struct SVertex
+        struct SQuad
         {
             glm::vec2 Position;
-            glm::vec2 TexCoord;
+            glm::vec2 Size;
+
+            // Position = Tex min, Size = Tex max
+            SRect TexCoords;
+
+            SColor Color;
         };
 
-        std::vector<SVertex> m_Vertices;
-        std::vector<uint32_t> m_Indices;
+        std::vector<SQuad> m_Quads;
 
         Ref<Shader> m_Shader;
         Ref<GraphicsPipeline> m_Pipeline;
-        Ref<DynamicVertexBuffer> m_VertexBuffer;
-        Ref<DynamicIndexBuffer> m_IndexBuffer;
+        Ref<DynamicVertexBuffer> m_QuadBuffer;
 
         Ref<UniformBuffer> m_PerFrameConstantBuffer;
         const GraphicsContext* m_GraphicsContext = nullptr;

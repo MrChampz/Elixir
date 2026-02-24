@@ -20,8 +20,7 @@ namespace Elixir::GUI
 
     void TextRenderPass::GenerateDrawCommands(const RenderBatch& batch)
     {
-        m_Vertices.clear();
-        m_Indices.clear();
+        m_Quads.clear();
 
         for (const auto& drawCmd : batch.GetCommands())
         {
@@ -35,36 +34,32 @@ namespace Elixir::GUI
             }
         }
 
-        if (!m_Vertices.empty())
+        if (!m_Quads.empty())
         {
-            m_VertexBuffer->UpdateData(m_Vertices.data(),  m_Vertices.size() * sizeof(SVertex));
-            m_IndexBuffer->UpdateData(m_Indices.data(),  m_Indices.size() * sizeof(uint32_t));
+            m_QuadBuffer->UpdateData(m_Quads.data(),  m_Quads.size() * sizeof(SQuad));
         }
     }
 
     void TextRenderPass::Render(const Ref<CommandBuffer>& cmd)
     {
         m_Pipeline->Bind(cmd);
-        m_VertexBuffer->Bind(cmd);
-        m_IndexBuffer->Bind(cmd);
-        cmd->DrawIndexed(m_Indices.size());
+        m_QuadBuffer->Bind(cmd);
+        cmd->Draw(6, m_Quads.size());
     }
 
     bool TextRenderPass::HasData() const
     {
-        return !m_Vertices.empty();
+        return !m_Quads.empty();
     }
 
     void TextRenderPass::Clear()
     {
-        m_Vertices.clear();
-        m_Indices.clear();
+        m_Quads.clear();
     }
 
     void TextRenderPass::InitFontData()
     {
         m_Font = FontManager::Load("./Assets/Fonts/SF-Pro-Display-Regular.otf");
-        //m_Font = FontManager::LoadPrecompiled("./Assets/Fonts/", "PlayfairDisplay-Regular");
 
         m_FontData.FontSize = 20.0f;
         m_FontData.UnitRange = {
@@ -78,9 +73,12 @@ namespace Elixir::GUI
         const BufferLayout bufferLayout({
             {
                 {
-                    { EDataType::Vec2,  "Position" },
-                    { EDataType::Vec2,  "TexCoord" }
-                }
+                    { EDataType::Vec2, "Position"  },
+                    { EDataType::Vec2, "Size"      },
+                    { EDataType::Vec4, "TexCoords" },
+                    { EDataType::Vec4, "Color"     },
+                },
+                EInputRate::Instance
             }
         });
 
@@ -97,12 +95,9 @@ namespace Elixir::GUI
         builder.SetBufferLayout(bufferLayout);
         m_Pipeline = builder.Build(m_GraphicsContext);
 
-        m_Vertices.reserve(MAX_VERTICES);
-        m_VertexBuffer = DynamicVertexBuffer::Create(m_GraphicsContext, MAX_VERTICES * sizeof(SVertex));
-        m_VertexBuffer->SetLayout(bufferLayout);
-
-        m_Indices.reserve(MAX_INDICES);
-        m_IndexBuffer = DynamicIndexBuffer::Create(m_GraphicsContext, MAX_INDICES * sizeof(uint32_t));
+        m_Quads.reserve(MAX_CHARACTERS);
+        m_QuadBuffer = DynamicVertexBuffer::Create(m_GraphicsContext, MAX_CHARACTERS * sizeof(SQuad));
+        m_QuadBuffer->SetLayout(bufferLayout);
 
         m_FontConstantBuffer = UniformBuffer::Create(
             m_GraphicsContext,
@@ -115,8 +110,7 @@ namespace Elixir::GUI
     {
         m_Shader->BindConstantBuffer("cbPerFrame", m_PerFrameConstantBuffer);
         m_Shader->BindConstantBuffer("cbFont", m_FontConstantBuffer);
-        m_Shader->BindTexture("hardmask", m_Font->Atlas.HardmaskTexture);
-        m_Shader->BindTexture("mtsdf", m_Font->Atlas.MTSDFTexture);
+        m_Shader->BindTexture("mtsdf", m_Font->Atlas.MTSDF);
 
         const auto sampler = SamplerBuilder()
             .SetMagFilter(ESamplerFilter::Linear)
@@ -127,9 +121,13 @@ namespace Elixir::GUI
 
     void TextRenderPass::BuildTextGeometry(const SDrawCommand& cmd)
     {
+        const float ascenderY = m_Font->Atlas.Info.AscenderY;
+        const float descenderY = m_Font->Atlas.Info.DescenderY;
+        const float scale = 1.0f / (ascenderY - descenderY);
+        const float lineHeight = scale * (ascenderY - descenderY) * cmd.FontSize;
+
         float cursorX = cmd.Geometry.Position.x;
-        float cursorY = cmd.Geometry.Position.y;
-        float scale = 1.0f / (m_Font->Atlas.Info.AscenderY - m_Font->Atlas.Info.DescenderY);
+        const float cursorY = cmd.Geometry.Position.y + (cmd.Geometry.Size.y - lineHeight) * 0.5f;
 
         for (const char c : cmd.Text)
         {
@@ -141,20 +139,24 @@ namespace Elixir::GUI
 
                 const auto& planeBounds = glyph.value().PlaneBounds.value();
 
-                float bearingX = planeBounds.Position.x;
-                float bearingY = planeBounds.Position.y + planeBounds.Size.y;
+                const float glyphWidth = planeBounds.Size.x - planeBounds.Position.x;
+                const float glyphHeight = planeBounds.Size.y - planeBounds.Position.y;
+
+                const float bearingX = planeBounds.Position.x;
+                const float bearingY = planeBounds.Size.y;
 
                 charCmd.Geometry.Position.x = cursorX + scale * bearingX * cmd.FontSize;
-                charCmd.Geometry.Position.y = cursorY - scale * bearingY * cmd.FontSize;
-                charCmd.Geometry.Size       = scale * planeBounds.Size * cmd.FontSize;
+                charCmd.Geometry.Position.y = cursorY + scale * (ascenderY - bearingY) * cmd.FontSize;
+                charCmd.Geometry.Size.x     = glyphWidth * scale * cmd.FontSize;
+                charCmd.Geometry.Size.y     = glyphHeight * scale * cmd.FontSize;
 
                 const auto& atlasBounds = glyph.value().AtlasBounds.value();
 
                 glm::vec2 texCoordMin = atlasBounds.Position;
                 glm::vec2 texCoordMax = atlasBounds.Size;
 
-                float texelWidth = 1.0f / m_Font->Atlas.Info.Width;
-                float texelHeight = 1.0f / m_Font->Atlas.Info.Height;
+                const float texelWidth = 1.0f / m_Font->Atlas.Info.Width;
+                const float texelHeight = 1.0f / m_Font->Atlas.Info.Height;
                 texCoordMin *= glm::vec2(texelWidth, texelHeight);
                 texCoordMax *= glm::vec2(texelWidth, texelHeight);
 
@@ -172,30 +174,13 @@ namespace Elixir::GUI
 
     void TextRenderPass::BuildTextureGeometry(const SDrawCommand& cmd)
     {
-        const auto baseIndex = m_Vertices.size();
+        const SQuad quad = {
+            .Position = cmd.Geometry.Position,
+            .Size = cmd.Geometry.Size,
+            .TexCoords = cmd.TexCoords,
+            .Color = cmd.Color,
+        };
 
-        // Create 4 vertices for the quad
-        const auto topLeft = cmd.Geometry.Position;
-        const auto bottomRight = cmd.Geometry.Position + cmd.Geometry.Size;
-        const auto topRight = glm::vec2{ bottomRight.x, topLeft.y };
-        const auto bottomLeft = glm::vec2{ topLeft.x, bottomRight.y };
-
-        const auto topLeftUV = glm::vec2{ cmd.TexCoords.Position.x, cmd.TexCoords.Size.y };
-        const auto bottomRightUV = glm::vec2{ cmd.TexCoords.Size.x, cmd.TexCoords.Position.y };
-        const auto topRightUV = glm::vec2{ cmd.TexCoords.Size.x, cmd.TexCoords.Size.y };
-        const auto bottomLeftUV = glm::vec2{ cmd.TexCoords.Position.x, cmd.TexCoords.Position.y };
-
-        m_Vertices.push_back({ topLeft,     topLeftUV     });
-        m_Vertices.push_back({ topRight,    topRightUV    });
-        m_Vertices.push_back({ bottomRight, bottomRightUV });
-        m_Vertices.push_back({ bottomLeft,  bottomLeftUV  });
-
-        // Two triangles (6 indices)
-        m_Indices.push_back(baseIndex + 0);
-        m_Indices.push_back(baseIndex + 2);
-        m_Indices.push_back(baseIndex + 1);
-        m_Indices.push_back(baseIndex + 0);
-        m_Indices.push_back(baseIndex + 3);
-        m_Indices.push_back(baseIndex + 2);
+        m_Quads.push_back(quad);
     }
 }

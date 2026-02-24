@@ -75,10 +75,6 @@ namespace Elixir::GUI
                 result.Position.x = availableSpace.Position.x + availableSpace.Size.x - childSize.x;
                 result.Size.x = childSize.x;
                 break;
-            case EHorizontalAlignment::Stretch:
-                result.Position.x = availableSpace.Position.x;
-                result.Size.x = availableSpace.Size.x;
-                break;
         }
 
         return result;
@@ -105,10 +101,6 @@ namespace Elixir::GUI
             case EVerticalAlignment::Bottom:
                 result.Position.y = availableSpace.Position.y + availableSpace.Size.y - childSize.y;
                 result.Size.y = childSize.y;
-                break;
-            case EVerticalAlignment::Stretch:
-                result.Position.y = availableSpace.Position.y;
-                result.Size.y = availableSpace.Size.y;
                 break;
         }
 

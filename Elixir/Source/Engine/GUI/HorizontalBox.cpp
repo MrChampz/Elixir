@@ -61,7 +61,7 @@ namespace Elixir::GUI
             const auto margin = layoutSlot->GetMargin();
             const auto hAlignment = layoutSlot->GetHorizontalAlignment();
 
-            if (hAlignment != EHorizontalAlignment::Stretch)
+            if (m_Stretching)
             {
                 const glm::vec2 childSize = slot->GetWidget()->ComputeDesiredSize();
                 usedSpace += childSize.x + margin.GetTotalHorizontal();
@@ -89,7 +89,7 @@ namespace Elixir::GUI
             // Calculate child width
             float childWidth;
 
-            if (hAlignment == EHorizontalAlignment::Stretch && fillRatio > 0.0f)
+            if (m_Stretching && fillRatio > 0.0f)
             {
                 // Proportional fill
                 childWidth = availableForFill * fillRatio - margin.GetTotalHorizontal();
@@ -106,7 +106,7 @@ namespace Elixir::GUI
             // Calculate child height based on alignment
             float childHeight;
 
-            if (vAlignment == EVerticalAlignment::Stretch)
+            if (m_Stretching)
             {
                 childHeight = innerSpace.Size.y - margin.GetTotalVertical();
             }

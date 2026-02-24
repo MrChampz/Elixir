@@ -1,8 +1,6 @@
 #include "epch.h"
 #include "Overlay.h"
 
-#include "Types.h"
-
 namespace Elixir::GUI
 {
     LayoutSlot& Overlay::AddChild(const Ref<Widget>& child)
@@ -61,10 +59,12 @@ namespace Elixir::GUI
             const auto vAlignment = layoutSlot->GetVerticalAlignment();
 
             // Handle fill alignment
-            const float childWidth = (hAlignment == EHorizontalAlignment::Stretch)
-                ? innerSpace.Size.x - margin.GetTotalHorizontal() : childSize.x;
-            const float childHeight = (vAlignment == EVerticalAlignment::Stretch)
-                ? innerSpace.Size.y - margin.GetTotalVertical() : childSize.y;
+            const float childWidth = m_Stretching
+                ? innerSpace.Size.x - margin.GetTotalHorizontal()
+                : childSize.x;
+            const float childHeight = m_Stretching
+                ? innerSpace.Size.y - margin.GetTotalVertical()
+                : childSize.y;
 
             // Align within the overlay space
             SRect childGeometry = AlignChild(

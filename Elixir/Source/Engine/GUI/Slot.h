@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Engine/Core/Core.h>
-#include <Engine/GUI/Types.h>
+#include <Engine/GUI/Definitions.h>
 #include <Engine/GUI/Widget.h>
 
 namespace Elixir::GUI

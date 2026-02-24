@@ -1,10 +1,12 @@
 #pragma once
 
+#include <Engine/GUI/Definitions.h>
 #include <Engine/Graphics/Texture.h>
-#include <Engine/GUI/Types.h>
 
-namespace Elixir::GUI
+namespace Elixir
 {
+    using namespace Elixir::GUI;
+
     struct SGlyph
     {
         int Unicode;
@@ -25,8 +27,7 @@ namespace Elixir::GUI
     struct SAtlas
     {
         SAtlasInfo Info;
-        Ref<Texture> HardmaskTexture;
-        Ref<Texture> MTSDFTexture;
+        Ref<Texture> MTSDF;
     };
 
     struct SFont
@@ -45,24 +46,5 @@ namespace Elixir::GUI
 
             return found != Glyphs.end() ? std::optional{ *found } : std::nullopt;
         }
-    };
-
-    class ELIXIR_API FontManager
-    {
-      public:
-        static void Initialize(const GraphicsContext* context);
-        static void Shutdown();
-
-        static Ref<SFont> Load(const std::filesystem::path& filepath);
-        static Ref<SFont> LoadPrecompiled(const std::filesystem::path& directory, const std::string& name);
-
-      private:
-        FontManager() = delete;
-        FontManager(const FontManager&) = delete;
-        FontManager& operator=(const FontManager&) = delete;
-
-        static bool s_Initialized;
-        static std::unordered_map<std::string, Ref<SFont>> s_Fonts;
-        static const GraphicsContext* s_GraphicsContext;
     };
 }

@@ -1,11 +1,16 @@
 #include "epch.h"
 #include "Button.h"
 
+#include "imgui_internal.h"
+
+#include <Engine/Font/FontManager.h>
+
 namespace Elixir::GUI
 {
     Button::Button(const std::string& text)
         : m_Text(text)
     {
+        m_Font = FontManager::GetDefaultFont();
         m_DesiredSize = { 120.0f, 40.0f };
     }
 
@@ -41,15 +46,52 @@ namespace Elixir::GUI
             );
         }
 
+        batch.AddDebugRect(m_Geometry);
+
         // Text (centered)
         if (!m_Text.empty())
         {
-            auto textPos = m_Geometry.Position + m_Geometry.Size;
-            textPos.x -= (m_Text.length() * 18.0f) * 0.5f;
-            textPos.y -= m_Geometry.Size.y * 0.4f;
+            const float availableWidth = m_Geometry.Size.x - m_Padding.GetTotalHorizontal();
 
-            batch.AddText(m_Text, textPos, 16.0f, m_TextColor, zOrder + 1);
+            const auto displayText = ProcessText(m_Text, availableWidth);
+            const auto textSize = MeasureTextSize(displayText);
+            const auto textPos = CalculateTextPosition(textSize);
+
+            batch.AddDebugRect({ textPos, textSize });
+            batch.AddText(displayText, { textPos, textSize }, m_FontSize, m_TextColor, zOrder + 1);
         }
+    }
+
+    std::string Button::ProcessText(const std::string& text, const float availableWidth)
+    {
+        const float charWidth = m_FontSize * 0.38f; // TODO: Get chat width from font metrics
+        const int maxChars = int(availableWidth / charWidth);
+
+        if (text.length() > maxChars)
+        {
+            return text.substr(0, maxChars - 3) + "...";
+        }
+
+        return text;
+    }
+
+    glm::vec2 Button::MeasureTextSize(const std::string& text)
+    {
+        return FontManager::MeasureText(text, m_Font, m_FontSize);
+    }
+
+    glm::vec2 Button::CalculateTextPosition(const glm::vec2 textSize)
+    {
+        const glm::vec2 contentPos = m_Geometry.Position + glm::vec2(
+            m_Padding.Left,
+            m_Padding.Top
+        );
+        const glm::vec2 contentSize = m_Geometry.Size - glm::vec2(
+            m_Padding.GetTotalHorizontal(),
+            m_Padding.GetTotalVertical()
+        );
+
+        return contentPos + (contentSize - textSize) * 0.5f;
     }
 
     void Button::HandleMouseEnter()

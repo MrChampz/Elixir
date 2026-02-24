@@ -1,13 +1,11 @@
 #pragma once
 
 #include <Engine/Core/Timer.h>
-#include <Engine/GUI/Types.h>
+#include <Engine/GUI/Definitions.h>
 #include <Engine/GUI/Renderer/RenderBatch.h>
 
 namespace Elixir::GUI
 {
-    class InputManager;
-
     class ELIXIR_API Widget
     {
         friend class InputManager;

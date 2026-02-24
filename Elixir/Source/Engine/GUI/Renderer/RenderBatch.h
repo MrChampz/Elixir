@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/GUI/Types.h>
+#include <Engine/GUI/Definitions.h>
 #include <Engine/Graphics/Texture.h>
 
 namespace Elixir::GUI
@@ -65,7 +65,7 @@ namespace Elixir::GUI
             int zOrder = 0
         );
 
-        void AddText(const std::string& text, const glm::vec2& position, float fontSize, const SColor& color, int zOrder = 0);
+        void AddText(const std::string& text, const SRect& rect, float fontSize, const SColor& color, int zOrder = 0);
         void AddTexture(const Ref<Texture2D>& texture, const SRect& rect, const SColor& tint, int zOrder = 0);
 
         void AddDebugRect(const SRect& rect, const SColor& color = { 1.0f, 0.0f, 0.0f, 1.0f });

@@ -1,15 +1,15 @@
 #include "epch.h"
 #include "Application.h"
 
-#include "Engine/GUI/FontManager.h"
 #include "Engine/GUI/Button.h"
 #include "Engine/GUI/Canvas.h"
 #include "Engine/GUI/HorizontalBox.h"
 #include "Engine/GUI/Overlay.h"
+#include "Engine/GUI/TextBlock.h"
 
-#include <Engine/GUI/VerticalBox.h>
 #include <Engine/Input/InputManager.h>
 #include <Engine/Input/InputCodes.h>
+#include <Engine/Font/FontManager.h>
 #include <Engine/Graphics/TextureLoader.h>
 
 namespace Elixir
@@ -32,7 +32,7 @@ namespace Elixir
         m_ShaderLoader = CreateScope<ShaderLoader>(m_GraphicsContext.get());
 
         TextureLoader::Initialize(m_GraphicsContext.get());
-        GUI::FontManager::Initialize(m_GraphicsContext.get());
+        FontManager::Initialize(m_GraphicsContext.get());
 
         m_GUIManager = CreateScope<GUI::Manager>();
         m_GUIManager->Initialize(
@@ -46,7 +46,7 @@ namespace Elixir
         const auto panel = CreateRef<GUI::Canvas>();
         //panel->SetBackground({ 1.0f, 0.0f, 0.0f, 1.0f });
         panel->SetPadding({ 10, 20, 10, 10 });
-        const auto button = CreateRef<GUI::Button>("Hello World");
+        const auto button = CreateRef<GUI::Button>("Hello World until");
         button->SetCornerRadius(4.0);
         button->SetNormalBackground(std::dynamic_pointer_cast<Texture2D>(buttonBg));
 
@@ -68,6 +68,10 @@ namespace Elixir
         button3->SetNormalBackground(std::dynamic_pointer_cast<Texture2D>(buttonBg));
         button3->SetCornerRadius(12);
 
+        const auto txt = CreateRef<GUI::TextBlock>("A pretty text block..");
+        txt->SetFontSize(33.0f);
+        txt->SetColor({ 0.0f, 1.0f, 0.0f, 1.0f });
+
         panel->AddChild(button)
             .SetAnchors(GUI::SAnchors::TopLeft())
             .SetPosition({ 10, 10 })
@@ -82,6 +86,11 @@ namespace Elixir
             .SetAnchors(GUI::SAnchors::MiddleCenter())
             .SetSize({ 200, 60 })
             .SetAlignment({ 0.5f, 2.0f });
+
+        panel->AddChild(txt)
+            .SetAnchors(GUI::SAnchors::BottomRight())
+            .SetAlignment({ 1.0f, 1.0f })
+            .SetPosition({ -500, -10 });
 
         m_GUIManager->SetRoot(panel);
     }
@@ -108,7 +117,7 @@ namespace Elixir
             m_Profiler.OnUpdate(frameTime); // TODO: Refactor to Update
             m_Window->OnUpdate(); // TODO: Refactor to Update
 
-            if (InputManager::IsKeyPressed(EE_KEY_ESCAPE))
+            if (::InputManager::IsKeyPressed(EE_KEY_ESCAPE))
             {
                 auto event = WindowCloseEvent();
                 OnWindowClose(event);
@@ -145,7 +154,7 @@ namespace Elixir
         dispatcher.Dispatch<WindowCloseEvent>(EE_BIND_EVENT_FN(Application::OnWindowClose));
         dispatcher.Dispatch<WindowResizeEvent>(EE_BIND_EVENT_FN(Application::OnWindowResize));
 
-        InputManager::OnEvent(event);
+        ::InputManager::OnEvent(event);
         m_GUIManager->OnEvent(event);
     }
 

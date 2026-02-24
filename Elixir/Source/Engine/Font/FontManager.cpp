@@ -1,0 +1,96 @@
+#include "epch.h"
+#include "FontManager.h"
+
+#include <Platform/FreeType/FreeTypeFontBackend.h>
+
+namespace Elixir::GUI
+{
+    bool FontManager::s_Initialized = false;
+    Scope<FontBackend> FontManager::s_FontBackend = nullptr;
+    const GraphicsContext* FontManager::s_GraphicsContext = nullptr;
+    std::unordered_map<std::string, Ref<SFont>> FontManager::s_Fonts;
+
+    void FontManager::Initialize(const GraphicsContext* context)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        if (!s_Initialized)
+        {
+            s_GraphicsContext = context;
+            s_FontBackend = CreateScope<FreeTypeFontBackend>(s_GraphicsContext);
+            s_Initialized = true;
+            EE_CORE_INFO("Font Manager initialized.")
+
+            // Load the default font
+            Load("./Assets/Fonts/" + DEFAULT_FONT_NAME + ".otf");
+        }
+    }
+
+    void FontManager::Shutdown()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        s_Fonts.clear();
+        s_FontBackend.reset();
+        EE_CORE_INFO("Font Manager shutdown.")
+    }
+
+    Ref<SFont> FontManager::GetDefaultFont()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        EE_CORE_ASSERT(!s_Fonts.empty(), "Default font should be loaded before calling GetDefaultFont()!")
+
+        const auto it = s_Fonts.find(DEFAULT_FONT_NAME);
+        if (it != s_Fonts.end())
+            return it->second;
+
+        return s_Fonts.begin()->second;
+    }
+
+    Ref<SFont> FontManager::GetFont(const std::string& name)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        const auto it = s_Fonts.find(name);
+        if (it != s_Fonts.end())
+            return it->second;
+
+        EE_CORE_WARN("Font not found: {0}", name)
+        return nullptr;
+    }
+
+    Ref<SFont> FontManager::Load(const std::filesystem::path& filepath)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        const auto name = filepath.stem().string();
+
+        // Try to get from cache
+        const auto it = s_Fonts.find(name);
+        if (it != s_Fonts.end())
+            return it->second;
+
+        // If not found, call the backend to load it
+        EE_CORE_TRACE("Loading font: {0}", filepath.string())
+        const auto font = s_FontBackend->Load(filepath);
+        s_Fonts[name] = std::move(font);
+
+        EE_CORE_TRACE("Loaded font: {0}", filepath.string())
+        return s_Fonts[name];
+    }
+
+    glm::vec2 FontManager::MeasureText(
+        const std::string& text,
+        const Ref<SFont>& font,
+        const float fontSize
+    )
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        return s_FontBackend->MeasureText(text, font, fontSize);
+    }
+
+    float FontManager::GetLineHeight(const Ref<SFont>& font, const float fontSize)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        return s_FontBackend->GetLineHeight(font, fontSize);
+    }
+}
