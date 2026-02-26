@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Engine/Font/Font.h>
 #include <Engine/GUI/Definitions.h>
 #include <Engine/Graphics/Texture.h>
 
@@ -39,6 +40,7 @@ namespace Elixir::GUI
 
         // For text rendering
         std::string Text;
+        Ref<Font> Font;
         float FontSize = 16.0f;
 
         // For texture rendering
@@ -65,7 +67,7 @@ namespace Elixir::GUI
             int zOrder = 0
         );
 
-        void AddText(const std::string& text, const SRect& rect, float fontSize, const SColor& color, int zOrder = 0);
+        void AddText(const std::string& text, const SRect& rect, const Ref<Font>& font, float fontSize, const SColor& color, int zOrder = 0);
         void AddTexture(const Ref<Texture2D>& texture, const SRect& rect, const SColor& tint, int zOrder = 0);
 
         void AddDebugRect(const SRect& rect, const SColor& color = { 1.0f, 0.0f, 0.0f, 1.0f });

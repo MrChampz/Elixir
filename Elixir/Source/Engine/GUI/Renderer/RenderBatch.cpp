@@ -45,6 +45,7 @@ namespace Elixir::GUI
     void RenderBatch::AddText(
         const std::string& text,
         const SRect& rect,
+        const Ref<Font>& font,
         const float fontSize,
         const SColor& color,
         const int zOrder
@@ -55,6 +56,7 @@ namespace Elixir::GUI
         cmd.Geometry = rect;
         cmd.Color = color;
         cmd.Text = text;
+        cmd.Font = font;
         cmd.FontSize = fontSize;
         cmd.ZOrder = zOrder;
 

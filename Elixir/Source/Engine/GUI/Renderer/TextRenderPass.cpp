@@ -1,6 +1,7 @@
 #include "epch.h"
 #include "TextRenderPass.h"
 
+#include <Engine/Font/FontManager.h>
 #include <Engine/Graphics/Pipeline/PipelineBuilder.h>
 #include <Engine/Graphics/SamplerBuilder.h>
 
@@ -59,13 +60,8 @@ namespace Elixir::GUI
 
     void TextRenderPass::InitFontData()
     {
-        m_Font = FontManager::Load("./Assets/Fonts/SF-Pro-Display-Regular.otf");
-
         m_FontData.FontSize = 20.0f;
-        m_FontData.UnitRange = {
-            m_Font->Atlas.Info.PxRange / m_Font->Atlas.Info.Width,
-            m_Font->Atlas.Info.PxRange / m_Font->Atlas.Info.Height
-        };
+        m_FontData.UnitRange = FontManager::GetDefaultFont()->GetUnitRange(); // TODO: Pass as shader input attr
     }
 
     void TextRenderPass::InitRenderPass(const ShaderLoader* shaderLoader)
@@ -110,7 +106,9 @@ namespace Elixir::GUI
     {
         m_Shader->BindConstantBuffer("cbPerFrame", m_PerFrameConstantBuffer);
         m_Shader->BindConstantBuffer("cbFont", m_FontConstantBuffer);
-        m_Shader->BindTexture("mtsdf", m_Font->Atlas.MTSDF);
+
+        // TODO: Replace by a TextureSet with all font textures
+        m_Shader->BindTexture("mtsdf", FontManager::GetDefaultFont()->GetMTSDF());
 
         const auto sampler = SamplerBuilder()
             .SetMagFilter(ESamplerFilter::Linear)
@@ -121,17 +119,18 @@ namespace Elixir::GUI
 
     void TextRenderPass::BuildTextGeometry(const SDrawCommand& cmd)
     {
-        const float ascenderY = m_Font->Atlas.Info.AscenderY;
-        const float descenderY = m_Font->Atlas.Info.DescenderY;
-        const float scale = 1.0f / (ascenderY - descenderY);
-        const float lineHeight = scale * (ascenderY - descenderY) * cmd.FontSize;
+        const auto font = cmd.Font;
+
+        const float ascenderY = font->GetAscenderY();
+        const float scale = font->GetScale();
+        const float lineHeight = FontManager::GetLineHeight(font, cmd.FontSize);
 
         float cursorX = cmd.Geometry.Position.x;
         const float cursorY = cmd.Geometry.Position.y + (cmd.Geometry.Size.y - lineHeight) * 0.5f;
 
         for (const char c : cmd.Text)
         {
-            auto glyph = m_Font->GetGlyph(c);
+            auto glyph = font->GetGlyph(c);
 
             if (glyph.has_value() && glyph.value().PlaneBounds.has_value())
             {
@@ -155,8 +154,9 @@ namespace Elixir::GUI
                 glm::vec2 texCoordMin = atlasBounds.Position;
                 glm::vec2 texCoordMax = atlasBounds.Size;
 
-                const float texelWidth = 1.0f / m_Font->Atlas.Info.Width;
-                const float texelHeight = 1.0f / m_Font->Atlas.Info.Height;
+                const auto atlas = font->GetAtlas();
+                const float texelWidth = 1.0f / atlas.Info.Width;
+                const float texelHeight = 1.0f / atlas.Info.Height;
                 texCoordMin *= glm::vec2(texelWidth, texelHeight);
                 texCoordMax *= glm::vec2(texelWidth, texelHeight);
 

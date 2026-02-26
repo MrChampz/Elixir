@@ -46,9 +46,10 @@ namespace Elixir
         const auto panel = CreateRef<GUI::Canvas>();
         //panel->SetBackground({ 1.0f, 0.0f, 0.0f, 1.0f });
         panel->SetPadding({ 10, 20, 10, 10 });
-        const auto button = CreateRef<GUI::Button>("Hello World until");
+        const auto button = CreateRef<GUI::Button>("Hello World until 2020");
         button->SetCornerRadius(4.0);
         button->SetNormalBackground(std::dynamic_pointer_cast<Texture2D>(buttonBg));
+        button->SetPadding({ 20.0f, 0.0f });
 
         const auto button2 = CreateRef<GUI::Button>();
         button2->SetNormalColor({ 1.0f, 1.0f, 1.0f, 1.0f });
@@ -63,14 +64,23 @@ namespace Elixir
         button2->OnMouseUp([&]() { EE_CORE_INFO("Mouse up on button!"); });
         button2->OnClick([&]() { EE_CORE_INFO("Button clicked!"); });
 
+        const auto txt2 = CreateRef<GUI::TextBlock>("Button Button");
+        txt2->SetColor({ 0.0, 1.0f, 0.0f, 1.0f });
+        button2->SetContent(txt2)
+            .SetHorizontalAlignment(EHorizontalAlignment::Right)
+            .SetVerticalAlignment(EVerticalAlignment::Center)
+            .SetMargin({ 10, 20, 10, 10 });
+
         const auto button3 = CreateRef<GUI::Button>();
         button3->SetNormalColor({ 1.0f, 1.0f, 1.0f, 1.0f });
         button3->SetNormalBackground(std::dynamic_pointer_cast<Texture2D>(buttonBg));
         button3->SetCornerRadius(12);
 
-        const auto txt = CreateRef<GUI::TextBlock>("A pretty text block..");
+        const auto font2 = FontManager::Load("./Assets/Fonts/PlayfairDisplay-Regular.ttf");
+        const auto txt = CreateRef<GUI::TextBlock>("Everyone, A pretty text block..");
         txt->SetFontSize(33.0f);
         txt->SetColor({ 0.0f, 1.0f, 0.0f, 1.0f });
+        txt->SetFont(font2);
 
         panel->AddChild(button)
             .SetAnchors(GUI::SAnchors::TopLeft())
@@ -90,6 +100,7 @@ namespace Elixir
         panel->AddChild(txt)
             .SetAnchors(GUI::SAnchors::BottomRight())
             .SetAlignment({ 1.0f, 1.0f })
+            .SetSize({ 200, 40 })
             .SetPosition({ -500, -10 });
 
         m_GUIManager->SetRoot(panel);

@@ -17,7 +17,7 @@ namespace Elixir::GUI
          * Get the default font.
          * @return A reference to the default font.
          */
-        static Ref<SFont> GetDefaultFont();
+        static Ref<Font> GetDefaultFont();
 
         /**
          * Get a loaded font by name.
@@ -25,14 +25,14 @@ namespace Elixir::GUI
          * @return A reference to the font with the specified name, or nullptr if the font is
          * not found.
          */
-        static Ref<SFont> GetFont(const std::string& name);
+        static Ref<Font> GetFont(const std::string& name);
 
         /**
          * Load a font from a file path. Supported formats: (TTF, OTF).
          * @param filepath The file path to the font file to be loaded.
          * @return A reference to the loaded font, or nullptr if the font cannot be loaded.
          */
-        static Ref<SFont> Load(const std::filesystem::path& filepath);
+        static Ref<Font> Load(const std::filesystem::path& filepath);
 
         /**
          * Measure the width and height of the rendered text in pixels, based on the font
@@ -44,7 +44,7 @@ namespace Elixir::GUI
          */
         static glm::vec2 MeasureText(
             const std::string& text,
-            const Ref<SFont>& font,
+            const Ref<Font>& font,
             float fontSize
         );
 
@@ -56,7 +56,7 @@ namespace Elixir::GUI
          * @return The line height in pixels, which is the distance from the baseline of one
          * line of text to the baseline of the next line of text.
          */
-        static float GetLineHeight(const Ref<SFont>& font, float fontSize);
+        static float GetLineHeight(const Ref<Font>& font, float fontSize);
 
       private:
         FontManager() = delete;
@@ -65,7 +65,7 @@ namespace Elixir::GUI
 
         static bool s_Initialized;
         static Scope<FontBackend> s_FontBackend;
-        static std::unordered_map<std::string, Ref<SFont>> s_Fonts;
+        static std::unordered_map<std::string, Ref<Font>> s_Fonts;
         static const GraphicsContext* s_GraphicsContext;
     };
 }

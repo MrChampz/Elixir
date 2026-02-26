@@ -5,7 +5,7 @@
 
 namespace Elixir::GUI
 {
-    class ELIXIR_API Button : public Widget
+    class ELIXIR_API Button : public ContentWidget
     {
       public:
         explicit Button(const std::string& text = "");
@@ -19,8 +19,8 @@ namespace Elixir::GUI
         SColor GetTextColor() const { return m_TextColor; }
         void SetTextColor(const SColor& color) { m_TextColor = color; }
 
-        const Ref<SFont>& GetFont() const { return m_Font; }
-        void SetFont(const Ref<SFont>& font) { m_Font = font; }
+        const Ref<Font>& GetFont() const { return m_Font; }
+        void SetFont(const Ref<Font>& font) { m_Font = font; }
 
         float GetFontSize() const { return m_FontSize; }
         void SetFontSize(const float size) { m_FontSize = size; }
@@ -58,6 +58,8 @@ namespace Elixir::GUI
         const Ref<Texture2D>& GetNormalBackground() const { return m_NormalBackground; }
         void SetNormalBackground(const Ref<Texture2D>& texture) { m_NormalBackground = texture; }
 
+        void ArrangeChildren(const SRect& allocatedSpace) override;
+
       protected:
         virtual std::string ProcessText(const std::string& text, float availableWidth);
         virtual glm::vec2 MeasureTextSize(const std::string& text);
@@ -69,7 +71,7 @@ namespace Elixir::GUI
       private:
         std::string m_Text;
         SColor m_TextColor{1.0f, 0.0f, 0.0f, 1.0f};
-        Ref<SFont> m_Font;
+        Ref<Font> m_Font;
         float m_FontSize = 16.0f;
 
         SPadding m_Padding;

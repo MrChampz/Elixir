@@ -14,15 +14,7 @@ namespace Elixir
         explicit FreeTypeFontBackend(const GraphicsContext* context);
         ~FreeTypeFontBackend() override;
 
-        Ref<SFont> Load(const std::filesystem::path& filepath) override;
-
-        glm::vec2 MeasureText(
-            const std::string& text,
-            const Ref<SFont>& font,
-            float fontSize
-        ) override;
-
-        float GetLineHeight(const Ref<SFont>& font, float fontSize) override;
+        Ref<Font> Load(const std::filesystem::path& filepath) override;
 
       private:
         FT_Library m_Library;

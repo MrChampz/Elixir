@@ -6,9 +6,12 @@
 
 namespace Elixir::GUI
 {
+    class Manager;
+    class ContentSlot;
+
     class ELIXIR_API Widget
     {
-        friend class InputManager;
+        friend class Manager;
       public:
         virtual ~Widget() = default;
 
@@ -16,9 +19,7 @@ namespace Elixir::GUI
          * Handles the update logic for the widget.
          * @param frameTime time since the last tick.
          */
-        virtual void Update(Timestep frameTime);
-
-        //void AddChild(const Ref<Widget>& child);
+        virtual void Update(Timestep frameTime) {}
 
         /**
          * Generate the draw commands for this widget.
@@ -91,12 +92,69 @@ namespace Elixir::GUI
         void SetOutlineColor(const SColor& color) { m_Outline.Color = color; }
         void SetOutlineThickness(const float thickness) { m_Outline.Thickness = thickness; }
 
-        //const std::vector<Ref<Widget>>& GetChildren() const { return m_Children; }
-
         bool IsHovered() const { return m_IsHovered; }
         bool IsPressed() const { return m_IsPressed; }
 
       protected:
+        /**
+         * Apply padding  to a rectangle delimited by the available space.
+         * @param availableSpace available space, the padding will be applied to.
+         * @param padding padding to be applied.
+         * @return a new rect, inside availableSpace with padding applied.
+         */
+        static SRect ApplyPadding(const SRect& availableSpace, const SPadding& padding);
+
+        /**
+         * Apply margin to a rectangle delimited by the available space.
+         * @param availableSpace available space, the margin will be applied to.
+         * @param margin margin to be applied.
+         * @return a new rect, inside availableSpace with margin applied.
+         */
+        static SRect ApplyMargin(const SRect& availableSpace, const SMargin& margin);
+
+        /**
+         * Helper method: Apply alignment to a rectangle within available space.
+         * @param childSize
+         * @param availableSpace
+         * @param hAlignment horizontal alignment
+         * @param vAlignment vertical alignment
+         * @param margin margin
+         * @return
+         */
+        static SRect AlignChild(
+            const glm::vec2& childSize,
+            const SRect& availableSpace,
+            EHorizontalAlignment hAlignment,
+            EVerticalAlignment vAlignment,
+            const SMargin& margin
+        );
+
+        /**
+         * Helper method: Apply horizontal alignment to a rectangle within available space.
+         * @param childSize child widget size (width, height)
+         * @param availableSpace available space
+         * @param alignment horizontal alignment
+         * @return a rect aligned.
+         */
+        static SRect AlignHorizontally(
+            const glm::vec2& childSize,
+            const SRect& availableSpace,
+            EHorizontalAlignment alignment
+        );
+
+        /**
+         * Helper method: Apply vertical alignment to a rectangle within available space.
+         * @param childSize child widget size (width, height)
+         * @param availableSpace available space
+         * @param alignment vertical alignment
+         * @return a rect aligned.
+         */
+        static SRect AlignVertically(
+            const glm::vec2& childSize,
+            const SRect& availableSpace,
+            EVerticalAlignment alignment
+        );
+
         virtual void HandleMouseEnter();
         virtual void HandleMouseLeave();
         virtual void HandleMouseDown();
@@ -115,8 +173,6 @@ namespace Elixir::GUI
 
         SOutline m_Outline = {};
 
-        std::vector<Ref<Widget>> m_Children;
-
         bool m_IsHovered = false;
         bool m_IsPressed = false;
         std::function<void()> m_OnMouseEnterCallback;
@@ -124,5 +180,25 @@ namespace Elixir::GUI
         std::function<void()> m_OnMouseDownCallback;
         std::function<void()> m_OnMouseUpCallback;
         std::function<void()> m_OnClickCallback;
+    };
+
+    class ELIXIR_API ContentWidget : public Widget
+    {
+      public:
+        void Update(Timestep frameTime) override;
+
+        ContentSlot& SetContent(const Ref<Widget>& widget)
+        {
+            m_ContentSlot = CreateRef<ContentSlot>(widget);
+            return *m_ContentSlot;
+        }
+
+        Ref<ContentSlot> GetContentSlot() const { return m_ContentSlot; }
+        void SetContentSlot(const Ref<ContentSlot>& slot) { m_ContentSlot = slot; }
+
+        bool HasContent() const { return m_ContentSlot != nullptr; }
+
+      protected:
+        Ref<ContentSlot> m_ContentSlot;
     };
 }

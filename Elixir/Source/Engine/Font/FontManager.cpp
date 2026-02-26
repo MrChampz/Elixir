@@ -8,7 +8,7 @@ namespace Elixir::GUI
     bool FontManager::s_Initialized = false;
     Scope<FontBackend> FontManager::s_FontBackend = nullptr;
     const GraphicsContext* FontManager::s_GraphicsContext = nullptr;
-    std::unordered_map<std::string, Ref<SFont>> FontManager::s_Fonts;
+    std::unordered_map<std::string, Ref<Font>> FontManager::s_Fonts;
 
     void FontManager::Initialize(const GraphicsContext* context)
     {
@@ -34,7 +34,7 @@ namespace Elixir::GUI
         EE_CORE_INFO("Font Manager shutdown.")
     }
 
-    Ref<SFont> FontManager::GetDefaultFont()
+    Ref<Font> FontManager::GetDefaultFont()
     {
         EE_PROFILE_ZONE_SCOPED()
         EE_CORE_ASSERT(!s_Fonts.empty(), "Default font should be loaded before calling GetDefaultFont()!")
@@ -46,7 +46,7 @@ namespace Elixir::GUI
         return s_Fonts.begin()->second;
     }
 
-    Ref<SFont> FontManager::GetFont(const std::string& name)
+    Ref<Font> FontManager::GetFont(const std::string& name)
     {
         EE_PROFILE_ZONE_SCOPED()
 
@@ -58,7 +58,7 @@ namespace Elixir::GUI
         return nullptr;
     }
 
-    Ref<SFont> FontManager::Load(const std::filesystem::path& filepath)
+    Ref<Font> FontManager::Load(const std::filesystem::path& filepath)
     {
         EE_PROFILE_ZONE_SCOPED()
 
@@ -80,17 +80,17 @@ namespace Elixir::GUI
 
     glm::vec2 FontManager::MeasureText(
         const std::string& text,
-        const Ref<SFont>& font,
+        const Ref<Font>& font,
         const float fontSize
     )
     {
         EE_PROFILE_ZONE_SCOPED()
-        return s_FontBackend->MeasureText(text, font, fontSize);
+        return font->MeasureText(text, fontSize);
     }
 
-    float FontManager::GetLineHeight(const Ref<SFont>& font, const float fontSize)
+    float FontManager::GetLineHeight(const Ref<Font>& font, const float fontSize)
     {
         EE_PROFILE_ZONE_SCOPED()
-        return s_FontBackend->GetLineHeight(font, fontSize);
+        return font->GetLineHeight(fontSize);
     }
 }

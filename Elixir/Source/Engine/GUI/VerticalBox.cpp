@@ -45,11 +45,7 @@ namespace Elixir::GUI
         m_Geometry = allocatedSpace;
 
         // Calculate available space after padding
-        SRect innerSpace;
-        innerSpace.Position.x = allocatedSpace.Position.x + m_Padding.Left;
-        innerSpace.Position.y = allocatedSpace.Position.y + m_Padding.Top;
-        innerSpace.Size.x = allocatedSpace.Size.x - m_Padding.GetTotalHorizontal();
-        innerSpace.Size.y = allocatedSpace.Size.y - m_Padding.GetTotalVertical();
+        const SRect innerSpace = ApplyPadding(allocatedSpace, m_Padding);
 
         // First: calculate fixed sizes
         float usedSpace = 0.0f;

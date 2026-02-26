@@ -23,6 +23,38 @@ namespace Elixir::GUI
         Ref<Widget> m_Widget = nullptr;
     };
 
+    class ELIXIR_API ContentSlot final : public Slot
+    {
+    public:
+        explicit ContentSlot(const Ref<Widget>& widget) { m_Widget = widget; }
+
+        EHorizontalAlignment GetHorizontalAlignment() const { return m_HAlignment; }
+        ContentSlot& SetHorizontalAlignment(const EHorizontalAlignment alignment)
+        {
+            m_HAlignment = alignment;
+            return *this;
+        }
+
+        EVerticalAlignment GetVerticalAlignment() const { return m_VAlignment; }
+        ContentSlot& SetVerticalAlignment(const EVerticalAlignment alignment)
+        {
+            m_VAlignment = alignment;
+            return *this;
+        }
+
+        SMargin GetMargin() const { return m_Margin; }
+        ContentSlot& SetMargin(const SMargin& margin)
+        {
+            m_Margin = margin;
+            return *this;
+        }
+
+    private:
+        EHorizontalAlignment m_HAlignment = EHorizontalAlignment::Center;
+        EVerticalAlignment m_VAlignment = EVerticalAlignment::Center;
+        SMargin m_Margin;
+    };
+
     class ELIXIR_API LayoutSlot final : public Slot
     {
       public:

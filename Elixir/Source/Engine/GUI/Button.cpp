@@ -1,9 +1,8 @@
 #include "epch.h"
 #include "Button.h"
 
-#include "imgui_internal.h"
-
 #include <Engine/Font/FontManager.h>
+#include <Engine/GUI/Slot.h>
 
 namespace Elixir::GUI
 {
@@ -48,8 +47,12 @@ namespace Elixir::GUI
 
         batch.AddDebugRect(m_Geometry);
 
-        // Text (centered)
-        if (!m_Text.empty())
+        if (HasContent())
+        {
+            batch.AddDebugRect(m_ContentSlot->GetWidget()->GetGeometry());
+            m_ContentSlot->GetWidget()->GenerateDrawCommands(batch, zOrder + 1);
+        }
+        else if (!m_Text.empty())
         {
             const float availableWidth = m_Geometry.Size.x - m_Padding.GetTotalHorizontal();
 
@@ -58,21 +61,53 @@ namespace Elixir::GUI
             const auto textPos = CalculateTextPosition(textSize);
 
             batch.AddDebugRect({ textPos, textSize });
-            batch.AddText(displayText, { textPos, textSize }, m_FontSize, m_TextColor, zOrder + 1);
+            batch.AddText(displayText, { textPos, textSize }, m_Font, m_FontSize, m_TextColor, zOrder + 1);
+        }
+    }
+
+    void Button::ArrangeChildren(const SRect& allocatedSpace)
+    {
+        m_Geometry = allocatedSpace;
+
+        if (HasContent())
+        {
+            const glm::vec2 childSize = m_ContentSlot->GetWidget()->ComputeDesiredSize();
+            const SRect innerSpace = ApplyPadding(allocatedSpace, m_Padding);
+
+            const SRect childRect  = AlignChild(
+                childSize,
+                innerSpace,
+                m_ContentSlot->GetHorizontalAlignment(),
+                m_ContentSlot->GetVerticalAlignment(),
+                m_ContentSlot->GetMargin()
+            );
+
+            m_ContentSlot->GetWidget()->ArrangeChildren(childRect);
         }
     }
 
     std::string Button::ProcessText(const std::string& text, const float availableWidth)
     {
-        const float charWidth = m_FontSize * 0.38f; // TODO: Get chat width from font metrics
-        const int maxChars = int(availableWidth / charWidth);
+        auto size = FontManager::MeasureText(text, m_Font, m_FontSize);
+        if (size.x <= availableWidth)
+            return text;
 
-        if (text.length() > maxChars)
+        const std::string ellipsis = "...";
+        const float ellipsisWidth = FontManager::MeasureText(ellipsis, m_Font, m_FontSize).x;
+
+        if (ellipsisWidth >= availableWidth)
+            return ellipsis;
+
+        std::string truncated = text;
+        while (!truncated.empty())
         {
-            return text.substr(0, maxChars - 3) + "...";
+            truncated.pop_back();
+            size = FontManager::MeasureText(truncated, m_Font, m_FontSize);
+            if (size.x + ellipsisWidth <= availableWidth)
+                return truncated + ellipsis;
         }
 
-        return text;
+        return ellipsis;
     }
 
     glm::vec2 Button::MeasureTextSize(const std::string& text)

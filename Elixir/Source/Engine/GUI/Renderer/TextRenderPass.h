@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Engine/Font/FontManager.h>
 #include <Engine/GUI/Renderer/RenderBatch.h>
 #include <Engine/GUI/Renderer/RenderPass.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
@@ -37,8 +36,6 @@ namespace Elixir::GUI
 
         void BuildTextGeometry(const SDrawCommand& cmd);
         void BuildTextureGeometry(const SDrawCommand& cmd);
-
-        Ref<SFont> m_Font;
 
         SFontData m_FontData{};
         Ref<UniformBuffer> m_FontConstantBuffer;
