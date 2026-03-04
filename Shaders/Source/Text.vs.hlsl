@@ -10,14 +10,16 @@ cbuffer cbPerFrame : register(b0)
 struct VS_INPUT
 {
     // Per quad
-    float2 Position         : INSTANCE_POSITION;    // Instance position in screen-space
-    float2 Size             : INSTANCE_SIZE;        // Instance size in screen-space
-    float4 TexCoords        : TEXCOORD0;            // Instance UV coordinates; offset(x, y), size (z, w)
+    float2 Position           : INSTANCE_POSITION;    // Instance position in screen-space
+    float2 Size               : INSTANCE_SIZE;        // Instance size in screen-space
+    float4 TexCoords          : TEXCOORD0;            // Instance UV coordinates; offset(x, y), size (z, w)
     //float4 DropShadow       : SHADOW1;              // Shadow offset (x, y), blur (z) and intensity (w)
-    float4 Color            : COLOR0;               // Instance color
+    float4 Color              : COLOR0;               // Instance color
     //float4 OutlineColor     : OUTLINE0;             // Outline color
     //float  OutlineThickness : OUTLINE1;             // Outline thickness
-    //uint   TextureIndex     : TEXTURE;              // Texture index
+    uint   AtlasIndex         : TEXTURE;              // Atlas index in the texture set
+    float2 UnitRange          : UNITRANGE;            // Unit range for the selected font (for distance calc)
+    float4 ScissorRect        : SCISSOR;              // Scissor rect (x, y, width, height)
 
     uint VertexId : SV_VertexID;
     uint InstanceId : SV_InstanceID;
@@ -25,16 +27,18 @@ struct VS_INPUT
 
 struct VS_OUTPUT
 {
-    float4 ClipPos          : SV_POSITION;          // Clip-space position
-    float2 LocalPos         : INSTANCE_POSITION;    // Quad position in EXPANDED local-space
-    float2 ContentPos       : CONTENT_POSITION;     // Original content position (for distance calc)
-    float2 ContentSize      : CONTENT_SIZE;         // Original content size (for distance calc)
-    float2 TexCoords        : TEXCOORD0;            // UV coordinates
+    float4 ClipPos            : SV_POSITION;          // Clip-space position
+    float2 LocalPos           : INSTANCE_POSITION;    // Quad position in EXPANDED local-space
+    float2 ContentPos         : CONTENT_POSITION;     // Original content position (for distance calc)
+    float2 ContentSize        : CONTENT_SIZE;         // Original content size (for distance calc)
+    float2 TexCoords          : TEXCOORD0;            // UV coordinates
     //float4 DropShadow       : SHADOW1;              // Shadow offset (x, y), blur (z) and intensity (w)
-    float4 Color            : COLOR0;               // Instance color
+    float4 Color              : COLOR0;               // Instance color
     //float4 OutlineColor     : OUTLINE0;             // Outline color
     //float  OutlineThickness : OUTLINE1;             // Outline thickness
-    //uint   TextureIndex     : TEXTURE;              // Texture index
+    uint   AtlasIndex         : TEXTURE;              // Atlas index in the texture set
+    float2 UnitRange          : UNITRANGE;            // Unit range for the selected font (for distance calc)
+    float4 ScissorRect        : SCISSOR;              // Scissor rect (x, y, width, height)
 };
 
 VS_OUTPUT main(VS_INPUT input)
@@ -94,7 +98,9 @@ VS_OUTPUT main(VS_INPUT input)
     output.Color = input.Color;
     //output.OutlineColor = input.OutlineColor;
     //output.OutlineThickness = input.OutlineThickness;
-    //output.TextureIndex = input.TextureIndex;
+    output.AtlasIndex = input.AtlasIndex;
+    output.UnitRange = input.UnitRange;
+    output.ScissorRect = input.ScissorRect;
 
     return output;
 }

@@ -22,7 +22,7 @@ namespace Elixir::GUI
     {
         auto buttonColor = m_NormalColor;
 
-        if (m_IsHovered)
+        if (m_Hovered)
         {
             buttonColor = m_HoverColor;
         }
@@ -45,11 +45,8 @@ namespace Elixir::GUI
             );
         }
 
-        batch.AddDebugRect(m_Geometry);
-
         if (HasContent())
         {
-            batch.AddDebugRect(m_ContentSlot->GetWidget()->GetGeometry());
             m_ContentSlot->GetWidget()->GenerateDrawCommands(batch, zOrder + 1);
         }
         else if (!m_Text.empty())
@@ -60,8 +57,15 @@ namespace Elixir::GUI
             const auto textSize = MeasureTextSize(displayText);
             const auto textPos = CalculateTextPosition(textSize);
 
-            batch.AddDebugRect({ textPos, textSize });
-            batch.AddText(displayText, { textPos, textSize }, m_Font, m_FontSize, m_TextColor, zOrder + 1);
+            batch.AddText(
+                displayText,
+                { textPos, textSize },
+                m_Font,
+                m_FontSize,
+                m_TextColor,
+                zOrder + 1,
+                m_Geometry
+            );
         }
     }
 

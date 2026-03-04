@@ -135,13 +135,10 @@ namespace Elixir::Vulkan
     // Binding 0: Texture array (combined image samplers)
     // Binding 1: Texture array (sampled images)
     // Binding 2: Sampler array
-    // Binding 3: Constant buffer array
-    // Binding 4: Storage buffer array
     static constexpr std::array BINDLESS_LAYOUT_BINDINGS = {
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
         VK_DESCRIPTOR_TYPE_SAMPLER,
-        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
     };
 
     constexpr uint32_t GetBinding(const VkDescriptorType type)
@@ -151,7 +148,6 @@ namespace Elixir::Vulkan
             case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: return 0;
             case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE: return 1;
             case VK_DESCRIPTOR_TYPE_SAMPLER: return 2;
-            case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER: return 3;
             default: return 0;
         }
     }
@@ -159,25 +155,22 @@ namespace Elixir::Vulkan
     VulkanBindlessDescriptorPool::VulkanBindlessDescriptorPool(
         const VulkanGraphicsContext& context,
         const uint32_t maxTextures,
-        const uint32_t maxSamplers,
-        const uint32_t maxConstantBuffers
+        const uint32_t maxSamplers
     ):  VulkanBaseDescriptorPool(context, 1),
         m_MaxTextures(maxTextures),
-        m_MaxSamplers(maxSamplers),
-        m_MaxConstantBuffers(maxConstantBuffers)
+        m_MaxSamplers(maxSamplers)
     {
         EE_PROFILE_ZONE_SCOPED()
         EE_CORE_ASSERT(maxTextures > 0, "Max textures must be greater than 0!")
         EE_CORE_TRACE(
-            "Initializing bindless descriptor pool with capacity for {0} textures, {1} samplers, and {2} constant buffers",
-            maxTextures, maxSamplers, maxConstantBuffers
+            "Initializing bindless descriptor pool with capacity for {0} textures and {1} samplers",
+            maxTextures, maxSamplers
         );
 
         std::vector<VkDescriptorPoolSize> sizes = {
             { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_MaxTextures },
             { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, m_MaxTextures          },
-            { VK_DESCRIPTOR_TYPE_SAMPLER, m_MaxSamplers                },
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, m_MaxConstantBuffers  }
+            { VK_DESCRIPTOR_TYPE_SAMPLER, m_MaxSamplers                }
         };
 
         VulkanBaseDescriptorPool::InitPool(
@@ -215,6 +208,7 @@ namespace Elixir::Vulkan
 
     void VulkanBindlessDescriptorPool::FlushDescriptors()
     {
+        std::lock_guard lock(m_TextureMutex);
         if (!m_DirtyTextures.empty())
         {
             UpdateTextureDescriptors(m_DirtyTextures);
@@ -312,6 +306,11 @@ namespace Elixir::Vulkan
         return m_TextureLookup.at(texture.get());
     }
 
+    Ref<Texture> VulkanBindlessDescriptorPool::GetTexture(const SResourceHandle handle) const
+    {
+        return m_Textures[handle.Index].Texture;
+    }
+
     std::vector<VkDescriptorSetLayoutBinding>
     VulkanBindlessDescriptorPool::GetDescriptorSetLayoutBindings() const
     {
@@ -392,12 +391,15 @@ namespace Elixir::Vulkan
     ) const
     {
         std::vector<VkWriteDescriptorSet> writeSets;
+        std::vector<VkDescriptorImageInfo> imageInfos;
+
         writeSets.reserve(textures.size());
+        imageInfos.reserve(textures.size());
 
         for (const auto& texture : textures)
         {
             const auto vkTexture = TryToGetVulkanImage(texture.get());
-            const auto imageInfo = vkTexture->GetVulkanDescriptorInfo();
+            imageInfos.push_back(vkTexture->GetVulkanDescriptorInfo());
 
             VkWriteDescriptorSet writeSet = {};
             writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -406,14 +408,14 @@ namespace Elixir::Vulkan
             writeSet.dstArrayElement = GetTextureHandle(texture).Index;
             writeSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
             writeSet.descriptorCount = 1,
-            writeSet.pImageInfo = &imageInfo;
+            writeSet.pImageInfo = &imageInfos.back();
 
             writeSets.push_back(writeSet);
         }
 
         vkUpdateDescriptorSets(
             m_GraphicsContext->GetDevice(),
-            writeSets.size(),
+            (uint32_t)writeSets.size(),
             writeSets.data(),
             0,
             nullptr
@@ -456,8 +458,6 @@ namespace Elixir::Vulkan
                 return m_MaxTextures;
             case VK_DESCRIPTOR_TYPE_SAMPLER:
                 return m_MaxSamplers;
-            case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
-                return m_MaxConstantBuffers;
             default:
                 return 0;
         }

@@ -465,4 +465,35 @@ namespace Elixir
         m_DebugName = "ConstantBuffer[" + m_UUID.ToString() + "]";
 #endif
     }
+
+    /* PushConstantBuffer */
+
+    PushConstantBuffer::PushConstantBuffer(
+        const GraphicsContext* context,
+        const size_t size,
+        const void* data
+    ) : m_GraphicsContext(context)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        m_Buffer.Copy((Byte*)data, size);
+
+#ifdef EE_DEBUG
+        m_DebugName = "PushConstantBuffer[" + m_UUID.ToString() + "]";
+#endif
+    }
+
+    void* PushConstantBuffer::Map()
+    {
+        return m_Buffer.Data;
+    }
+
+    Ref<PushConstantBuffer> PushConstantBuffer::Create(
+        const GraphicsContext* context,
+        size_t size,
+        const void* data
+    )
+    {
+        return CreateRef<PushConstantBuffer>(context, size, data);
+    }
 }

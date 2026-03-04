@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/GUI/Definitions.h>
+#include <Engine/Graphics/Definitions.h>
 #include <Engine/Graphics/Texture.h>
 
 namespace Elixir
@@ -39,6 +40,7 @@ namespace Elixir
 
     class Font
     {
+        friend class FontManager;
       public:
         explicit Font(const SFontCreateInfo& info);
 
@@ -60,15 +62,15 @@ namespace Elixir
          * @return The line height in pixels, which is the distance from the baseline of one
          * line of text to the baseline of the next line of text.
          */
-        float GetLineHeight(const float fontSize) const;
+        float GetLineHeight(float fontSize) const;
 
         /**
          * Get the glyph information for a given character.
-         * @param character The Unicode code point of the character.
+         * @param codepoint The Unicode code point of the character.
          * @return An optional containing the glyph information for the given character,
          * or std::nullopt if the character is not found in the font.
          */
-        std::optional<const SGlyph> GetGlyph(int character) const;
+        std::optional<const SGlyph> GetGlyph(int codepoint) const;
 
         /**
          * Get the kerning adjustment in pixels between two characters, which is the amount of
@@ -95,6 +97,7 @@ namespace Elixir
         void SetKerning(int a, int b, float kerning);
 
         const std::string& GetName() const { return m_Name; }
+        const SResourceHandle& GetAtlasHandle() const { return m_AtlasHandle; }
         const SAtlas& GetAtlas() const { return m_Atlas; }
         float GetAscenderY() const { return m_AscenderY; }
         float GetDescenderY() const { return m_DescenderY; }
@@ -114,11 +117,16 @@ namespace Elixir
          */
         Ref<Texture2D> GetMTSDF() const { return std::dynamic_pointer_cast<Texture2D>(m_Atlas.MTSDF); }
 
+      protected:
+        void SetAtlasHandle(const SResourceHandle handle) { m_AtlasHandle = handle; }
+
       private:
         void InitGlyphs(const SFontCreateInfo& info);
 
         std::string m_Name;
 
+        // A handle to the atlas in the font manager's texture set.
+        SResourceHandle m_AtlasHandle;
         SAtlas m_Atlas = {};
         std::unordered_map<int, SGlyph> m_Glyphs;
         std::unordered_map<uint64_t, float> m_Kerning;

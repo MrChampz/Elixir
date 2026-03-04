@@ -1,6 +1,8 @@
 #pragma once
 
 #include <Engine/Core/Timer.h>
+#include <Engine/Event/KeyEvent.h>
+#include <Engine/Event/MouseEvent.h>
 #include <Engine/GUI/Definitions.h>
 #include <Engine/GUI/Renderer/RenderBatch.h>
 
@@ -49,8 +51,12 @@ namespace Elixir::GUI
          */
         SRect GetGeometry() const { return m_Geometry; }
 
+        glm::vec2 GetDesiredSize() const { return m_DesiredSize; }
+
         /* Callbacks */
 
+        void OnFocus(const std::function<void()>& callback) { m_OnFocusCallback = callback; }
+        void OnLostFocus(const std::function<void()>& callback) { m_OnLostFocusCallback = callback; }
         void OnClick(const std::function<void()>& callback) { m_OnClickCallback = callback; }
         void OnMouseEnter(const std::function<void()>& callback) { m_OnMouseEnterCallback = callback; }
         void OnMouseLeave(const std::function<void()>& callback) { m_OnMouseLeaveCallback = callback; }
@@ -92,10 +98,22 @@ namespace Elixir::GUI
         void SetOutlineColor(const SColor& color) { m_Outline.Color = color; }
         void SetOutlineThickness(const float thickness) { m_Outline.Thickness = thickness; }
 
-        bool IsHovered() const { return m_IsHovered; }
-        bool IsPressed() const { return m_IsPressed; }
+        bool IsHovered() const { return m_Hovered; }
+        bool IsPressed() const { return m_Pressed; }
+        bool IsFocused() const { return m_Focused; }
 
       protected:
+        virtual void HandleMouseEnter();
+        virtual void HandleMouseLeave();
+        virtual void HandleMouseDown(const MouseButtonPressedEvent& event);
+        virtual void HandleMouseUp(const MouseButtonReleasedEvent& event);
+        virtual void HandleMouseMove(const MouseMovedEvent&  event) {}
+        virtual void HandleKeyPressed(const KeyPressedEvent& event) {}
+        virtual void HandleKeyTyped(const KeyTypedEvent& event) {}
+        virtual void HandleFocus();
+        virtual void HandleLostFocus();
+        virtual void HandleClick();
+
         /**
          * Apply padding  to a rectangle delimited by the available space.
          * @param availableSpace available space, the padding will be applied to.
@@ -155,12 +173,6 @@ namespace Elixir::GUI
             EVerticalAlignment alignment
         );
 
-        virtual void HandleMouseEnter();
-        virtual void HandleMouseLeave();
-        virtual void HandleMouseDown();
-        virtual void HandleMouseUp();
-        virtual void HandleClick();
-
         SRect m_Geometry{};
         glm::vec2 m_DesiredSize{};
 
@@ -173,12 +185,15 @@ namespace Elixir::GUI
 
         SOutline m_Outline = {};
 
-        bool m_IsHovered = false;
-        bool m_IsPressed = false;
+        bool m_Hovered = false;
+        bool m_Pressed = false;
+        bool m_Focused = false;
         std::function<void()> m_OnMouseEnterCallback;
         std::function<void()> m_OnMouseLeaveCallback;
         std::function<void()> m_OnMouseDownCallback;
         std::function<void()> m_OnMouseUpCallback;
+        std::function<void()> m_OnFocusCallback;
+        std::function<void()> m_OnLostFocusCallback;
         std::function<void()> m_OnClickCallback;
     };
 

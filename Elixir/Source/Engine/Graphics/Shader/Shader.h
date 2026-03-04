@@ -116,7 +116,7 @@ namespace Elixir
         std::unordered_map<SShaderBinding, Ref<Sampler>> m_Samplers;
         // TODO: Rename to ConstantBuffer
         std::unordered_map<SShaderBinding, Ref<UniformBuffer>> m_ConstantBuffers;
-        //std::unordered_map<std::string, Ref<PushConstantBuffer>> m_PushConstants;
+        std::unordered_map<SShaderBinding, Ref<PushConstantBuffer>> m_PushConstants;
 
         const GraphicsContext* m_GraphicsContext;
     };

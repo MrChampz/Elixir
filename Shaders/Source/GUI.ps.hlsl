@@ -7,6 +7,12 @@ Texture2D textures[] : register(t0);
 [[vk::binding(1, 0)]]
 SamplerState samplerState : register(s0);
 
+struct WhiteTexturePushConstant
+{
+    uint WhiteTextureIndex;
+};
+[[vk::push_constant]] WhiteTexturePushConstant pcWhiteTexture;
+
 struct PS_INPUT
 {
     float4 ClipPos          : SV_POSITION;          // Clip-space position
@@ -216,14 +222,19 @@ float4 main(PS_INPUT input) : SV_TARGET
     float4 color = input.Color;
     float2 texCoords = input.TexCoord;
 
-    if (input.TextureIndex > 0)
+    if (input.TextureIndex > pcWhiteTexture.WhiteTextureIndex)
     {
-        texCoords = calculateTexCoords(input.TextureIndex, input.TexCoord, input.ContentSize, input.Border);
+        texCoords = calculateTexCoords(
+            input.TextureIndex,
+            input.TexCoord,
+            input.ContentSize,
+            input.Border
+        );
     }
 
     float4 tex = textures[input.TextureIndex].Sample(samplerState, texCoords);
     color *= tex;
-    if (input.TextureIndex > 0) return color;
+    if (input.TextureIndex > pcWhiteTexture.WhiteTextureIndex) return color;
 
     float2 halfSize = input.ContentSize * 0.5;
     float2 contentCenter = input.ContentPos + halfSize;

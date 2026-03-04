@@ -16,16 +16,22 @@ namespace Elixir
     glm::vec2 Font::MeasureText(const std::string& text, const float fontSize) const
     {
         const float scale = 1.0f / (m_AscenderY - m_DescenderY);
-
         float width = 0.0f;
-        for (const auto c : text)
+
+        int i = 0;
+        while (i < (int)text.size())
         {
-            const auto glyph = GetGlyph(c);
+            const auto charLen = UTF8::UTF8CharLength(text[i]);
+            const auto codepoint = UTF8::UTF8ToCodepoint(text, i);
+
+            const auto glyph = GetGlyph(codepoint);
 
             if (glyph.has_value())
             {
                 width += glyph->Advance * scale * fontSize;
             }
+
+            i += charLen;
         }
 
         float height = GetLineHeight(fontSize);
@@ -43,10 +49,10 @@ namespace Elixir
         return (m_AscenderY - m_DescenderY) * GetScale() * fontSize;
     }
 
-    std::optional<const SGlyph> Font::GetGlyph(const int character) const
+    std::optional<const SGlyph> Font::GetGlyph(const int codepoint) const
     {
-        if (m_Glyphs.contains(character))
-            return std::optional(m_Glyphs.at(character));
+        if (m_Glyphs.contains(codepoint))
+            return std::optional(m_Glyphs.at(codepoint));
 
         return std::nullopt;
     }

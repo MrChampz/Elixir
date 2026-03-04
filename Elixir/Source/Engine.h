@@ -39,6 +39,10 @@
 #include <Engine/Graphics/Pipeline/PipelineBuilder.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
 
+#include <Engine/Font/Font.h>
+#include <Engine/Font/FontManager.h>
+#include <Engine/Font/UTF8.h>
+
 #include <Engine/GUI/Canvas.h>
 #include <Engine/GUI/HorizontalBox.h>
 #include <Engine/GUI/VerticalBox.h>

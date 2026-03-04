@@ -28,6 +28,7 @@ namespace Elixir::Vulkan
         const std::vector<VkDescriptorSetLayout>& GetDescriptorSetLayouts() const { return m_DescriptorSetLayouts; }
         std::vector<VkDescriptorSet> GetDescriptorSets() const;
         const VkPipelineLayout& GetPipelineLayout() const { return m_PipelineLayout; }
+        std::vector<VkPushConstantRange> GetPushConstantRanges() const;
 
       protected:
         void CreateDescriptorSetLayouts();

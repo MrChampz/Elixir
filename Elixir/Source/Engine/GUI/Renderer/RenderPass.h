@@ -8,7 +8,7 @@ namespace Elixir::GUI
 
     class RenderPass
     {
-      public:
+    public:
         virtual ~RenderPass() = default;
 
         virtual void GenerateDrawCommands(const RenderBatch& batch) = 0;

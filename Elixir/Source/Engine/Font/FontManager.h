@@ -1,9 +1,11 @@
 #pragma once
 
+#include "Engine/Graphics/TextureSet.h"
+
 #include <Engine/Font/Font.h>
 #include <Engine/Font/FontBackend.h>
 
-namespace Elixir::GUI
+namespace Elixir
 {
     class ELIXIR_API FontManager
     {
@@ -58,6 +60,12 @@ namespace Elixir::GUI
          */
         static float GetLineHeight(const Ref<Font>& font, float fontSize);
 
+        /**
+         * Get the TextureSet containing all loaded font atlases.
+         * @return The TextureSet containing all loaded font atlases.
+         */
+        static Ref<TextureSet> GetAtlasesTextureSet() { return s_FontsAtlases; }
+
       private:
         FontManager() = delete;
         FontManager(const FontManager&) = delete;
@@ -65,6 +73,7 @@ namespace Elixir::GUI
 
         static bool s_Initialized;
         static Scope<FontBackend> s_FontBackend;
+        static Ref<TextureSet> s_FontsAtlases;
         static std::unordered_map<std::string, Ref<Font>> s_Fonts;
         static const GraphicsContext* s_GraphicsContext;
     };

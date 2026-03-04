@@ -12,6 +12,57 @@ namespace Elixir::GUI
         return m_Visibility == EVisibility::Visible && m_Opacity > 0.0f;
     }
 
+
+
+    void Widget::HandleMouseEnter()
+    {
+        m_Hovered = true;
+        if (m_OnMouseEnterCallback) m_OnMouseEnterCallback();
+    }
+
+    void Widget::HandleMouseLeave()
+    {
+        m_Hovered = false;
+        if (m_OnMouseLeaveCallback) m_OnMouseLeaveCallback();
+    }
+
+    void Widget::HandleMouseDown(const MouseButtonPressedEvent& event)
+    {
+        m_Pressed = true;
+        if (m_OnMouseDownCallback) m_OnMouseDownCallback();
+    }
+
+    void Widget::HandleMouseUp(const MouseButtonReleasedEvent& event)
+    {
+        if (m_Pressed)
+        {
+            if (m_OnMouseUpCallback)
+                m_OnMouseUpCallback();
+
+            if (m_Hovered)
+                HandleClick();
+        }
+
+        m_Pressed = false;
+    }
+
+    void Widget::HandleFocus()
+    {
+        m_Focused = true;
+        if (m_OnFocusCallback) m_OnFocusCallback();
+    }
+
+    void Widget::HandleLostFocus()
+    {
+        m_Focused = false;
+        if (m_OnLostFocusCallback) m_OnLostFocusCallback();
+    }
+
+    void Widget::HandleClick()
+    {
+        if (m_OnClickCallback) m_OnClickCallback();
+    }
+
     SRect Widget::ApplyPadding(const SRect& availableSpace, const SPadding& padding)
     {
         SRect result;
@@ -101,43 +152,6 @@ namespace Elixir::GUI
         }
 
         return result;
-    }
-
-    void Widget::HandleMouseEnter()
-    {
-        m_IsHovered = true;
-        if (m_OnMouseEnterCallback) m_OnMouseEnterCallback();
-    }
-
-    void Widget::HandleMouseLeave()
-    {
-        m_IsHovered = false;
-        if (m_OnMouseLeaveCallback) m_OnMouseLeaveCallback();
-    }
-
-    void Widget::HandleMouseDown()
-    {
-        m_IsPressed = true;
-        if (m_OnMouseDownCallback) m_OnMouseDownCallback();
-    }
-
-    void Widget::HandleMouseUp()
-    {
-        if (m_IsPressed)
-        {
-            if (m_OnMouseUpCallback)
-                m_OnMouseUpCallback();
-
-            if (m_IsHovered)
-                HandleClick();
-        }
-
-        m_IsPressed = false;
-    }
-
-    void Widget::HandleClick()
-    {
-        if (m_OnClickCallback) m_OnClickCallback();
     }
 
     /* ContentWidget */

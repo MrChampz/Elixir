@@ -3,12 +3,13 @@
 
 #include <Platform/FreeType/FreeTypeFontBackend.h>
 
-namespace Elixir::GUI
+namespace Elixir
 {
     bool FontManager::s_Initialized = false;
     Scope<FontBackend> FontManager::s_FontBackend = nullptr;
-    const GraphicsContext* FontManager::s_GraphicsContext = nullptr;
+    Ref<TextureSet> FontManager::s_FontsAtlases = nullptr;
     std::unordered_map<std::string, Ref<Font>> FontManager::s_Fonts;
+    const GraphicsContext* FontManager::s_GraphicsContext = nullptr;
 
     void FontManager::Initialize(const GraphicsContext* context)
     {
@@ -18,6 +19,7 @@ namespace Elixir::GUI
         {
             s_GraphicsContext = context;
             s_FontBackend = CreateScope<FreeTypeFontBackend>(s_GraphicsContext);
+            s_FontsAtlases = TextureSet::Create(context);
             s_Initialized = true;
             EE_CORE_INFO("Font Manager initialized.")
 
@@ -72,9 +74,13 @@ namespace Elixir::GUI
         // If not found, call the backend to load it
         EE_CORE_TRACE("Loading font: {0}", filepath.string())
         const auto font = s_FontBackend->Load(filepath);
-        s_Fonts[name] = std::move(font);
+
+        // Bind the atlas to atlases texture set and save the returned index
+        const auto handle = s_FontsAtlases->AddTexture(font->GetMTSDF());
+        font->SetAtlasHandle(handle);
 
         EE_CORE_TRACE("Loaded font: {0}", filepath.string())
+        s_Fonts[name] = std::move(font);
         return s_Fonts[name];
     }
 

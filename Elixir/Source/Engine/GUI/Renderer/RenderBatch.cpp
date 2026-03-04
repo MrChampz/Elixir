@@ -48,7 +48,8 @@ namespace Elixir::GUI
         const Ref<Font>& font,
         const float fontSize,
         const SColor& color,
-        const int zOrder
+        const int zOrder,
+        const SRect& scissorRect
     )
     {
         SDrawCommand cmd;
@@ -59,6 +60,7 @@ namespace Elixir::GUI
         cmd.Font = font;
         cmd.FontSize = fontSize;
         cmd.ZOrder = zOrder;
+        cmd.ScissorRect = scissorRect.IsValid() ? scissorRect : rect;
 
         m_Commands.push_back(cmd);
     }

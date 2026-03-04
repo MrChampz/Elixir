@@ -7,26 +7,30 @@ namespace Elixir::GUI
     class ELIXIR_API CanvasSlot final : public Slot
     {
       public:
-        explicit CanvasSlot(const Ref<Widget>& widget) { m_Widget = widget; }
+        explicit CanvasSlot(const Ref<Widget>& widget)
+        {
+            m_Widget = widget;
+            m_Constraint.Size = widget->GetDesiredSize();
+        }
 
-        const SAnchors& GetAnchors() const { return Anchors; }
+        const SAnchors& GetAnchors() const { return m_Anchors; }
         CanvasSlot& SetAnchors(const SAnchors& anchors)
         {
-            Anchors = anchors;
+            m_Anchors = anchors;
             return *this;
         }
 
-        const SConstraint& GetConstraint() const { return Constraint; }
+        const SConstraint& GetConstraint() const { return m_Constraint; }
 
         CanvasSlot& SetPosition(const glm::vec2& pos)
         {
-            Constraint.Position = pos;
+            m_Constraint.Position = pos;
             return *this;
         }
 
         CanvasSlot& SetSize(const glm::vec2& size)
         {
-            Constraint.Size = size;
+            m_Constraint.Size = size;
             return *this;
         }
 
@@ -37,19 +41,19 @@ namespace Elixir::GUI
             const float bottom
         )
         {
-            Constraint.Offsets = { left, top, right, bottom };
+            m_Constraint.Offsets = { left, top, right, bottom };
             return *this;
         }
 
         CanvasSlot& SetAlignment(const glm::vec2& alignment)
         {
-            Constraint.Alignment = alignment;
+            m_Constraint.Alignment = alignment;
             return *this;
         }
 
       private:
-        SAnchors Anchors = SAnchors::TopLeft();
-        SConstraint Constraint;
+        SAnchors m_Anchors = SAnchors::TopLeft();
+        SConstraint m_Constraint;
     };
 
     class ELIXIR_API Canvas final : public Panel

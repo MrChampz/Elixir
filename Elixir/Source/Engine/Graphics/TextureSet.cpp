@@ -7,7 +7,7 @@ namespace Elixir
 {
     void TextureSet::Clear()
     {
-        for (const auto& handle : m_Textures | std::views::keys)
+        for (const auto& handle : m_Textures | std::views::values)
             RemoveTexture(handle);
     }
 

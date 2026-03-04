@@ -8,9 +8,15 @@ namespace Elixir::GUI
         glm::vec2 Position;
         glm::vec2 Size;
 
-        bool Contains(const glm::vec2& point) const {
+        bool Contains(const glm::vec2& point) const
+        {
             return point.x >= Position.x && point.x <= Position.x + Size.x &&
                    point.y >= Position.y && point.y <= Position.y + Size.y;
+        }
+
+        bool IsValid() const
+        {
+            return Size.x > 0 && Size.y > 0;
         }
     };
 

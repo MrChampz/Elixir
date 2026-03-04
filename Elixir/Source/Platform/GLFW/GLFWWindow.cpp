@@ -115,11 +115,15 @@ namespace Elixir
             {
                 WindowData& data = *(WindowData*)glfwGetWindowUserPointer(window);
 
+                const bool ctrl  = (mods & GLFW_MOD_CONTROL) != 0;
+                const bool alt   = (mods & GLFW_MOD_ALT)     != 0;
+                const bool shift = (mods & GLFW_MOD_SHIFT)   != 0;
+
                 switch (action)
                 {
                 case GLFW_PRESS:
                 {
-                    KeyPressedEvent event(key, 0);
+                    KeyPressedEvent event(key, 0, ctrl, alt, shift);
                     data.EventCallback(event);
                     break;
                 }
@@ -131,7 +135,7 @@ namespace Elixir
                 }
                 case GLFW_REPEAT:
                 {
-                    KeyPressedEvent event(key, 1);
+                    KeyPressedEvent event(key, 1, ctrl, alt, shift);
                     data.EventCallback(event);
                     break;
                 }

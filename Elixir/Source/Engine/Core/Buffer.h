@@ -76,6 +76,11 @@ namespace Elixir
             return buffer;
         }
 
+        explicit operator bool() const
+        {
+            return Data != nullptr && Size > 0;
+        }
+
     private:
         void FreeInternalData()
         {

@@ -41,7 +41,7 @@ namespace Elixir
         explicit TextureSet(const GraphicsContext* context);
 
         uint32_t m_TextureCount = 0;
-        std::unordered_map<SResourceHandle, Ref<Texture>> m_Textures;
+        std::unordered_map<Ref<Texture>, SResourceHandle> m_Textures;
 
         const GraphicsContext* m_GraphicsContext;
     };

@@ -61,13 +61,11 @@ namespace Elixir::Vulkan
       public:
         static constexpr uint32_t MAX_TEXTURES = 16384;
         static constexpr uint32_t MAX_SAMPLERS = 256;
-        static constexpr uint32_t MAX_CONSTANT_BUFFERS = 4096;
 
         explicit VulkanBindlessDescriptorPool(
             const VulkanGraphicsContext& context,
             uint32_t maxTextures = MAX_TEXTURES,
-            uint32_t maxSamplers = MAX_SAMPLERS,
-            uint32_t maxConstantBuffers = MAX_CONSTANT_BUFFERS
+            uint32_t maxSamplers = MAX_SAMPLERS
         );
 
         ~VulkanBindlessDescriptorPool() override;
@@ -113,6 +111,13 @@ namespace Elixir::Vulkan
         SResourceHandle GetTextureHandle(const Ref<Texture>& texture) const;
 
         /**
+         * Get the texture associated with a handle.
+         * @param handle The handle to look up.
+         * @return The texture associated with the handle, or nullptr if not found.
+         */
+        Ref<Texture> GetTexture(SResourceHandle handle) const;
+
+        /**
          * Get the maximum number of textures.
          */
         uint32_t GetMaxTextures() const { return m_MaxTextures; }
@@ -140,7 +145,6 @@ namespace Elixir::Vulkan
 
         uint32_t m_MaxTextures;
         uint32_t m_MaxSamplers;
-        uint32_t m_MaxConstantBuffers;
 
         VkDescriptorSetLayout m_DescriptorSetLayout = VK_NULL_HANDLE;
         VkDescriptorSet m_DescriptorSet = VK_NULL_HANDLE;

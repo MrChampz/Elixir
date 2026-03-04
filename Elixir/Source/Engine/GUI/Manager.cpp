@@ -53,28 +53,51 @@ namespace Elixir::GUI
     void Manager::OnEvent(Event& event)
     {
         EventDispatcher dispatcher(event);
-        dispatcher.Dispatch<WindowResizeEvent>(EE_BIND_EVENT_FN(Manager::OnWindowResize));
+        dispatcher.Dispatch<WindowResizeEvent>(EE_BIND_EVENT_FN(Manager::HandleWindowResize));
+        dispatcher.Dispatch<KeyPressedEvent>(EE_BIND_EVENT_FN(Manager::HandleKeyPressed));
+        dispatcher.Dispatch<KeyTypedEvent>(EE_BIND_EVENT_FN(Manager::HandleKeyTyped));
     }
 
-    bool Manager::OnWindowResize(const WindowResizeEvent& event) const
+    bool Manager::HandleWindowResize(const WindowResizeEvent& event) const
     {
         const Extent2D extent = { event.GetWidth(), event.GetHeight() };
         m_Renderer->Resize(extent);
         ArrangeLayout(extent);
 
-        return false;
+        return true;
+    }
+
+    bool Manager::HandleKeyPressed(const KeyPressedEvent& event)
+    {
+        if (m_FocusedWidget)
+        {
+            ProcessKeyPressedRecursive(m_FocusedWidget, event);
+        }
+
+        return true;
+    }
+
+    bool Manager::HandleKeyTyped(const KeyTypedEvent& event)
+    {
+        if (m_FocusedWidget)
+        {
+            ProcessKeyTypedRecursive(m_FocusedWidget, event);
+        }
+
+        return true;
     }
 
     void Manager::ProcessInput()
     {
         const auto [x, y] = InputManager::GetMousePosition();
+        m_LastMousePos = m_MousePos;
         m_MousePos = { x, y };
+        m_MouseMoved = m_MousePos != m_LastMousePos;
 
         const auto isMouseDown = InputManager::IsMouseButtonDown(EE_MOUSE_BUTTON_LEFT);
 
         m_MousePressed = isMouseDown && !m_WasMouseDown;
         m_MouseReleased = !isMouseDown && m_WasMouseDown;
-
         m_WasMouseDown = isMouseDown;
 
         if (m_RootWidget)
@@ -83,8 +106,23 @@ namespace Elixir::GUI
 
             if (m_MouseReleased && m_PressedWidget)
             {
-                m_PressedWidget->HandleMouseUp();
+                const auto event = MouseButtonReleasedEvent(EE_MOUSE_BUTTON_LEFT, m_MousePos);
+                m_PressedWidget->HandleMouseUp(event);
                 m_PressedWidget = nullptr;
+            }
+
+            // If user clicked but nothing captured focus, clear it
+            if (m_MousePressed && !m_PressedWidget && m_FocusedWidget)
+            {
+                m_FocusedWidget->HandleLostFocus();
+                m_FocusedWidget = nullptr;
+            }
+
+            // Mouse move, notify pressed widget (for dragging/selection)
+            if (m_MouseMoved && m_PressedWidget)
+            {
+                const auto event = MouseMovedEvent(m_MousePos);
+                m_PressedWidget->HandleMouseMove(event);
             }
         }
     }
@@ -96,6 +134,7 @@ namespace Elixir::GUI
         const auto geometry = widget->GetGeometry();
         const bool isOver = geometry.Contains(m_MousePos);
 
+        // Hover
         if (isOver && !widget->IsHovered())
         {
             widget->HandleMouseEnter();
@@ -105,15 +144,29 @@ namespace Elixir::GUI
             widget->HandleMouseLeave();
         }
 
+        // Press + Focus
         if (isOver && m_MousePressed)
         {
-            widget->HandleMouseDown();
+            const auto event = MouseButtonPressedEvent(EE_MOUSE_BUTTON_LEFT, m_MousePos);
+            widget->HandleMouseDown(event);
             m_PressedWidget = widget;
+
+            // Focus: only change if clicking a different widget
+            if (m_FocusedWidget != widget)
+            {
+                if (m_FocusedWidget)
+                    m_FocusedWidget->HandleLostFocus();
+
+                m_FocusedWidget = widget;
+                m_FocusedWidget->HandleFocus();
+            }
         }
 
+        // Click
         if (isOver && m_MouseReleased)
         {
-            widget->HandleMouseUp();
+            const auto event = MouseButtonReleasedEvent(EE_MOUSE_BUTTON_LEFT, m_MousePos);
+            widget->HandleMouseUp(event);
 
             if (widget->IsPressed() && m_PressedWidget == widget)
                 widget->HandleClick();
@@ -136,6 +189,49 @@ namespace Elixir::GUI
             for (auto& slot : panel->GetSlots())
             {
                 ProcessInputRecursive(slot->GetWidget());
+            }
+        }
+    }
+
+    void Manager::ProcessKeyPressedRecursive(
+        const Ref<Widget>& widget,
+        const KeyPressedEvent& event
+    )
+    {
+        widget->HandleKeyPressed(event);
+
+        if (const auto contentWidget = std::dynamic_pointer_cast<ContentWidget>(widget))
+        {
+            if (const auto slot = contentWidget->GetContentSlot())
+            {
+                ProcessKeyPressedRecursive(slot->GetWidget(), event);
+            }
+        }
+        else if (const auto panel = std::dynamic_pointer_cast<Panel>(widget))
+        {
+            for (auto& slot : panel->GetSlots())
+            {
+                ProcessKeyPressedRecursive(slot->GetWidget(), event);
+            }
+        }
+    }
+
+    void Manager::ProcessKeyTypedRecursive(const Ref<Widget>& widget, const KeyTypedEvent& event)
+    {
+        widget->HandleKeyTyped(event);
+
+        if (const auto contentWidget = std::dynamic_pointer_cast<ContentWidget>(widget))
+        {
+            if (const auto slot = contentWidget->GetContentSlot())
+            {
+                ProcessKeyTypedRecursive(slot->GetWidget(), event);
+            }
+        }
+        else if (const auto panel = std::dynamic_pointer_cast<Panel>(widget))
+        {
+            for (auto& slot : panel->GetSlots())
+            {
+                ProcessKeyTypedRecursive(slot->GetWidget(), event);
             }
         }
     }

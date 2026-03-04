@@ -30,6 +30,7 @@
 #include <Engine/Logging/Log.h>
 #include <Engine/Logging/Formatters.h>
 #include <Engine/Instrumentation/Profiler.h>
+#include <Engine/Font/UTF8.h>
 
 #define _USE_MATH_DEFINES
 #include <cmath>

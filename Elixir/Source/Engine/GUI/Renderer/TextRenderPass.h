@@ -6,13 +6,6 @@
 
 namespace Elixir::GUI
 {
-    struct SFontData
-    {
-        glm::vec2 UnitRange;
-        float FontSize;
-        float Padding;
-    };
-
     class ELIXIR_API TextRenderPass final : public RenderPass
     {
       public:
@@ -30,25 +23,21 @@ namespace Elixir::GUI
         void Clear() override;
 
       private:
-        void InitFontData();
         void InitRenderPass(const ShaderLoader* shaderLoader);
         void BindShaderParameters() const;
 
         void BuildTextGeometry(const SDrawCommand& cmd);
         void BuildTextureGeometry(const SDrawCommand& cmd);
 
-        SFontData m_FontData{};
-        Ref<UniformBuffer> m_FontConstantBuffer;
-
         struct SQuad
         {
             glm::vec2 Position;
             glm::vec2 Size;
-
-            // Position = Tex min, Size = Tex max
-            SRect TexCoords;
-
+            SRect TexCoords; // Position = Tex min, Size = Tex max
             SColor Color;
+            uint32_t AtlasIndex = 0;
+            glm::vec2 UnitRange;
+            SRect ScissorRect;
         };
 
         std::vector<SQuad> m_Quads;

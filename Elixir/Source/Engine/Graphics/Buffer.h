@@ -326,4 +326,44 @@ namespace Elixir
         );
         UniformBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
     };
+
+    class ELIXIR_API PushConstantBuffer
+    {
+    public:
+        PushConstantBuffer(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr
+        );
+
+        virtual ~PushConstantBuffer() = default;
+
+        virtual void* Map();
+        virtual void Unmap(uint32_t size) {}
+        virtual void Unmap(uint32_t offset, uint32_t size) {}
+
+        const UUID& GetUUID() const { return m_UUID; }
+        virtual SBuffer& GetBuffer() { return m_Buffer; }
+        virtual const SBuffer& GetBuffer() const { return m_Buffer; }
+        virtual uint32_t GetSize() const { return m_Buffer.Size; }
+
+        bool operator==(const PushConstantBuffer& other) const
+        {
+            return m_UUID == other.m_UUID;
+        }
+
+        static Ref<PushConstantBuffer> Create(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr
+        );
+
+    protected:
+        UUID m_UUID;
+        std::string m_DebugName;
+
+        SBuffer m_Buffer;
+
+        const GraphicsContext* m_GraphicsContext;
+    };
 }

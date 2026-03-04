@@ -14,7 +14,6 @@ namespace Elixir::GUI
     ) : m_PerFrameConstantBuffer(perFrameCB), m_GraphicsContext(context)
     {
         EE_CORE_TRACE("Initializing GUI: TextRenderPass.")
-        InitFontData();
         InitRenderPass(shaderLoader);
         BindShaderParameters();
     }
@@ -58,21 +57,18 @@ namespace Elixir::GUI
         m_Quads.clear();
     }
 
-    void TextRenderPass::InitFontData()
-    {
-        m_FontData.FontSize = 20.0f;
-        m_FontData.UnitRange = FontManager::GetDefaultFont()->GetUnitRange(); // TODO: Pass as shader input attr
-    }
-
     void TextRenderPass::InitRenderPass(const ShaderLoader* shaderLoader)
     {
         const BufferLayout bufferLayout({
             {
                 {
-                    { EDataType::Vec2, "Position"  },
-                    { EDataType::Vec2, "Size"      },
-                    { EDataType::Vec4, "TexCoords" },
-                    { EDataType::Vec4, "Color"     },
+                    { EDataType::Vec2, "Position"    },
+                    { EDataType::Vec2, "Size"        },
+                    { EDataType::Vec4, "TexCoords"   },
+                    { EDataType::Vec4, "Color"       },
+                    { EDataType::UInt, "AtlasIndex"  },
+                    { EDataType::Vec2, "UnitRange"   },
+                    { EDataType::Vec4, "ScissorRect" },
                 },
                 EInputRate::Instance
             }
@@ -94,21 +90,12 @@ namespace Elixir::GUI
         m_Quads.reserve(MAX_CHARACTERS);
         m_QuadBuffer = DynamicVertexBuffer::Create(m_GraphicsContext, MAX_CHARACTERS * sizeof(SQuad));
         m_QuadBuffer->SetLayout(bufferLayout);
-
-        m_FontConstantBuffer = UniformBuffer::Create(
-            m_GraphicsContext,
-            sizeof(SFontData),
-            &m_FontData
-        );
     }
 
     void TextRenderPass::BindShaderParameters() const
     {
         m_Shader->BindConstantBuffer("cbPerFrame", m_PerFrameConstantBuffer);
-        m_Shader->BindConstantBuffer("cbFont", m_FontConstantBuffer);
-
-        // TODO: Replace by a TextureSet with all font textures
-        m_Shader->BindTexture("mtsdf", FontManager::GetDefaultFont()->GetMTSDF());
+        m_Shader->BindTextureSet("atlases", FontManager::GetAtlasesTextureSet());
 
         const auto sampler = SamplerBuilder()
             .SetMagFilter(ESamplerFilter::Linear)
@@ -128,9 +115,13 @@ namespace Elixir::GUI
         float cursorX = cmd.Geometry.Position.x;
         const float cursorY = cmd.Geometry.Position.y + (cmd.Geometry.Size.y - lineHeight) * 0.5f;
 
-        for (const char c : cmd.Text)
+        int i = 0;
+        while (i < (int)cmd.Text.size())
         {
-            auto glyph = font->GetGlyph(c);
+            const auto charLen = UTF8::UTF8CharLength(cmd.Text[i]);
+            const auto codepoint = UTF8::UTF8ToCodepoint(cmd.Text, i);
+
+            auto glyph = font->GetGlyph(codepoint);
 
             if (glyph.has_value() && glyph.value().PlaneBounds.has_value())
             {
@@ -169,6 +160,7 @@ namespace Elixir::GUI
                 BuildTextureGeometry(charCmd);
                 cursorX += scale * glyph->Advance * cmd.FontSize;
             }
+            i += charLen;
         }
     }
 
@@ -179,6 +171,9 @@ namespace Elixir::GUI
             .Size = cmd.Geometry.Size,
             .TexCoords = cmd.TexCoords,
             .Color = cmd.Color,
+            .AtlasIndex = cmd.Font->GetAtlasHandle().Index,
+            .UnitRange = cmd.Font->GetUnitRange(),
+            .ScissorRect = cmd.ScissorRect
         };
 
         m_Quads.push_back(quad);

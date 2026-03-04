@@ -57,15 +57,47 @@ namespace Elixir::Vulkan
 
         vkCmd->BindDescriptorSets(m_PipelineLayout, 0, GetDescriptorSets());
 
-        // for (auto& constant : m_PushConstants)
-        // {
-        //
-        // }
+        for (const auto& [binding, constant] : m_Resources.PushConstants)
+        {
+            if (m_PushConstants.contains(binding))
+            {
+                auto& data = m_PushConstants[binding]->GetBuffer();
+                vkCmdPushConstants(
+                    vkCmd->GetVulkanCommandBuffer(),
+                    m_PipelineLayout,
+                    VK_SHADER_STAGE_ALL_GRAPHICS, // TODO: GetShaderState(constant->GetStages()),
+                    0,
+                    constant.GetSize(),
+                    data.As<void>()
+                );
+            }
+        }
     }
 
-    void VulkanShader::SetPushConstant(const std::string& name, void* data, size_t size)
+    void VulkanShader::SetPushConstant(const std::string& name, void* data, const size_t size)
     {
+        if (const auto binding = GetShaderBinding(name))
+        {
+            if (m_PushConstants.contains(*binding))
+            {
+                const auto& buffer = m_PushConstants.at(*binding);
+                const auto mapped = buffer->Map();
+                Memory::Memcpy(mapped, data, size);
+                buffer->Unmap(size);
+            }
+            else
+            {
+                const auto buffer = PushConstantBuffer::Create(
+                    m_GraphicsContext,
+                    size,
+                    data
+                );
+                m_PushConstants[*binding] = buffer;
+            }
+            return;
+        }
 
+        EE_CORE_ERROR("No push constant binding named \"{0}\" found in shader...", name)
     }
 
     void VulkanShader::SetConstantBuffer(const std::string& name, void* data, const size_t size)
@@ -91,7 +123,7 @@ namespace Elixir::Vulkan
             return;
         }
 
-        EE_CORE_ERROR("No cbuffer binding named \"{0}\" found in shader...", name)
+        EE_CORE_ERROR("No constant buffer binding named \"{0}\" found in shader...", name)
     }
 
     void VulkanShader::BindTexture(const std::string& name, const Ref<Texture>& texture)
@@ -154,6 +186,24 @@ namespace Elixir::Vulkan
         }
 
         return std::move(sets);
+    }
+
+    std::vector<VkPushConstantRange> VulkanShader::GetPushConstantRanges() const
+    {
+        std::vector<VkPushConstantRange> ranges;
+        ranges.reserve(m_PushConstants.size());
+
+        for (const auto& constant : m_Resources.PushConstants | std::views::values)
+        {
+            VkPushConstantRange range = {};
+            range.offset = constant.GetOffset();
+            range.size = constant.GetSize();
+            range.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS; // TODO: GetShaderState(constant->GetStage());
+
+            ranges.push_back(range);
+        }
+
+        return std::move(ranges);
     }
 
     void VulkanShader::CreateDescriptorSetLayouts()
@@ -247,6 +297,7 @@ namespace Elixir::Vulkan
     void VulkanShader::CreatePipelineLayout()
     {
         std::vector layouts(m_DescriptorSetLayouts);
+        std::vector ranges = GetPushConstantRanges();
 
         if (m_BindlessSet)
         {
@@ -259,6 +310,8 @@ namespace Elixir::Vulkan
         info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         info.setLayoutCount = (uint32_t)layouts.size();
         info.pSetLayouts = layouts.data();
+        info.pushConstantRangeCount = (uint32_t)ranges.size();
+        info.pPushConstantRanges = ranges.data();
 
         VK_CHECK_RESULT(
             vkCreatePipelineLayout(

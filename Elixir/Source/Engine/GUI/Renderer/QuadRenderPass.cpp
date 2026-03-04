@@ -116,6 +116,7 @@ namespace Elixir::GUI
     {
         m_Shader->BindConstantBuffer("cbPerFrame", m_PerFrameConstantBuffer);
         m_Shader->BindTextureSet("textures", m_TextureSet);
+        m_Shader->SetPushConstant("pcWhiteTexture", (void*)&m_WhiteTextureHandle.Index, sizeof(uint32_t));
 
         const auto sampler = SamplerBuilder()
             .SetMagFilter(ESamplerFilter::Linear)

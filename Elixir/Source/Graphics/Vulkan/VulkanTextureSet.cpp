@@ -24,17 +24,24 @@ namespace Elixir::Vulkan
 
     SResourceHandle VulkanTextureSet::AddTexture(const Ref<Texture>& texture)
     {
+        if (m_Textures.contains(texture))
+        {
+            return m_Textures[texture];
+        }
+
         const auto handle = m_Pool->RegisterTexture(texture);
-        m_Textures[handle] = texture;
+        m_Textures[texture] = handle;
         m_TextureCount++;
         return handle;
     }
 
     void VulkanTextureSet::RemoveTexture(const SResourceHandle handle)
     {
+
+        const auto texture = m_Pool->GetTexture(handle);
         m_Pool->UnregisterTexture(handle);
 
-        if (const auto it = m_Textures.find(handle); it != m_Textures.end())
+        if (const auto it = m_Textures.find(texture); it != m_Textures.end())
         {
             m_Textures.erase(it);
             m_TextureCount--;

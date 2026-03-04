@@ -6,6 +6,7 @@
 #include "Engine/GUI/HorizontalBox.h"
 #include "Engine/GUI/Overlay.h"
 #include "Engine/GUI/TextBlock.h"
+#include "Engine/GUI/TextField.h"
 
 #include <Engine/Input/InputManager.h>
 #include <Engine/Input/InputCodes.h>
@@ -14,6 +15,10 @@
 
 namespace Elixir
 {
+    namespace GUI
+    {
+        class Input;
+    }
     Application* Application::s_Application = nullptr;
 
     Application::Application() : m_Executor(Executor::Get())
@@ -78,9 +83,11 @@ namespace Elixir
 
         const auto font2 = FontManager::Load("./Assets/Fonts/PlayfairDisplay-Regular.ttf");
         const auto txt = CreateRef<GUI::TextBlock>("Everyone, A pretty text block..");
-        txt->SetFontSize(33.0f);
+        txt->SetFontSize(90.0f);
         txt->SetColor({ 0.0f, 1.0f, 0.0f, 1.0f });
         txt->SetFont(font2);
+
+        const auto input = CreateRef<GUI::TextField>("Type here...");
 
         panel->AddChild(button)
             .SetAnchors(GUI::SAnchors::TopLeft())
@@ -100,8 +107,13 @@ namespace Elixir
         panel->AddChild(txt)
             .SetAnchors(GUI::SAnchors::BottomRight())
             .SetAlignment({ 1.0f, 1.0f })
-            .SetSize({ 200, 40 })
+            .SetSize({ 500, 90 })
             .SetPosition({ -500, -10 });
+
+        panel->AddChild(input)
+            .SetAnchors(GUI::SAnchors::BottomLeft())
+            .SetAlignment({ 0.0f, 1.0f })
+            .SetPosition({ 10, -10 });
 
         m_GUIManager->SetRoot(panel);
     }
@@ -109,7 +121,7 @@ namespace Elixir
     Application::~Application()
     {
         EE_PROFILE_ZONE_SCOPED()
-        GUI::FontManager::Shutdown();
+        FontManager::Shutdown();
         m_Running = false;
     }
 
