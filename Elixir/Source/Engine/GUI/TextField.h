@@ -64,6 +64,9 @@ namespace Elixir::GUI
         SColor GetBackgroundColor() const { return m_BackgroundColor; }
         void SetBackgroundColor(const SColor& color) { m_BackgroundColor = color; }
 
+        const glm::vec4& GetBackgroundBorders() const { return m_BackgroundBorders; }
+        void SetBackgroundBorders(const glm::vec4& borders) { m_BackgroundBorders = borders; }
+
         const Ref<Texture2D>& GetBackground() const { return m_Background; }
         void SetBackground(const Ref<Texture2D>& texture) { m_Background = texture; }
 
@@ -106,8 +109,9 @@ namespace Elixir::GUI
         void InsertText(const std::string& text);
         void ClearNextCharacter();
         void ClearPreviousCharacter();
-        void CopyToClipboard(const std::string& text);
-        std::string GetFromClipboard();
+
+        static void CopyToClipboard(const std::string& text);
+        static std::string GetFromClipboard();
 
       private:
         Ref<Font> m_Font;
@@ -126,6 +130,10 @@ namespace Elixir::GUI
 
         // Colors for different states
         SColor m_BackgroundColor{1.0f, 1.0f, 1.0f, 1.0f};
+
+        // When texture is used, this represents the borders of 9-patch texture.
+        // Border mapping = (left, top, right, bottom).
+        glm::vec4 m_BackgroundBorders = {30.0f, 30.0f, 30.0f, 30.0f};
 
         // Textures for different states
         Ref<Texture2D> m_Background;

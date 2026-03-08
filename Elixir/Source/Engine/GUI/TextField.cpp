@@ -1,6 +1,7 @@
 #include "epch.h"
 #include "TextField.h"
 
+#include <Engine/Core/Platform.h>
 #include <Engine/Input/InputCodes.h>
 #include <Engine/Font/FontManager.h>
 #include <Engine/GUI/Slot.h>
@@ -31,7 +32,13 @@ namespace Elixir::GUI
         // Background
         if (m_Background)
         {
-            batch.AddTexture(m_Background, m_Geometry, m_BackgroundColor, zOrder);
+            batch.AddTexture(
+                m_Background,
+                m_Geometry,
+                m_BackgroundBorders,
+                m_BackgroundColor,
+                zOrder
+            );
         }
         else
         {
@@ -66,7 +73,8 @@ namespace Elixir::GUI
                 { selectionPos, selectionSize },
                 m_SelectionColor,
                 {}, {}, {}, {},
-                zOrder + 1
+                zOrder + 1,
+                m_Geometry
             );
         }
 
@@ -105,32 +113,37 @@ namespace Elixir::GUI
             const float cursorX = textPos.x + textWidth + 0.5f;
             const float cursorHeight = textSize.y + 1.0f;
             const auto cursorPos = glm::vec2(cursorX, textPos.y - 0.5f);
-            batch.AddRect(
-                { cursorPos, { 1.5f, cursorHeight } },
-                m_CursorColor,
-                {}, {}, {}, {},
-                zOrder + 3
-            );
+
+            if (cursorX >= m_Geometry.Position.x + m_Padding.Left &&
+                cursorX <= m_Geometry.Position.x + m_Geometry.Size.x + m_Padding.Right)
+            {
+                batch.AddRect(
+                    { cursorPos, { 1.5f, cursorHeight } },
+                    m_CursorColor,
+                    {}, {}, {}, {},
+                    zOrder + 3
+                );
+            }
         }
     }
 
     void TextField::HandleMouseEnter()
     {
         Widget::HandleMouseEnter();
-        // TODO: Show input cursor
+        Platform::Get().SetCursorShape(ECursorShape::IBeam);
     }
 
     void TextField::HandleMouseLeave()
     {
         Widget::HandleMouseLeave();
-        // TODO: Show default cursor
+        Platform::Get().SetPreviousCursorShape();
     }
 
     void TextField::HandleMouseDown(const MouseButtonPressedEvent& event)
     {
         Widget::HandleMouseDown(event);
 
-        float x = event.GetX() - m_Geometry.Position.x - m_Padding.Left + m_ScrollOffset;
+        const auto x = event.GetX() - m_Geometry.Position.x - m_Padding.Left + m_ScrollOffset;
         m_CursorPosition = GetCharIndexAtX(m_Text, x);
         m_SelectionStart = m_CursorPosition;
         m_SelectionEnd = m_CursorPosition;
@@ -146,7 +159,7 @@ namespace Elixir::GUI
         // Only extend selection if mouse button is held (widget is pressed)
         if (!IsPressed()) return;
 
-        float x = event.GetX() - m_Geometry.Position.x - m_Padding.Left + m_ScrollOffset;
+        const auto x = event.GetX() - m_Geometry.Position.x - m_Padding.Left + m_ScrollOffset;
         m_CursorPosition = GetCharIndexAtX(m_Text, x);
         m_SelectionEnd = m_CursorPosition;
 
@@ -385,6 +398,16 @@ namespace Elixir::GUI
 
     void TextField::InsertText(const std::string& text)
     {
+        // Delete selection first if any
+        if (m_SelectionStart != -1 && m_SelectionStart != m_SelectionEnd)
+        {
+            const auto start = std::min(m_SelectionStart, m_SelectionEnd);
+            const auto end = std::max(m_SelectionStart, m_SelectionEnd);
+            m_Text.erase(start, end - start);
+            m_CursorPosition = start;
+            ClearSelection();
+        }
+
         m_Text.insert(m_CursorPosition, text);
         m_CursorPosition += text.size();
         UpdateScrollOffset();
@@ -420,12 +443,11 @@ namespace Elixir::GUI
 
     void TextField::CopyToClipboard(const std::string& text)
     {
-        // TODO: Platform-specific clipboard handling
+        Platform::Get().SetClipboardText(text);
     }
 
     std::string TextField::GetFromClipboard()
     {
-        // TODO: Platform-specific clipboard handling
-        return "Test";
+        return Platform::Get().GetClipboardText();
     }
 }

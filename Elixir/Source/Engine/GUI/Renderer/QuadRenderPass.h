@@ -62,6 +62,8 @@ namespace Elixir::GUI
             float OutlineThickness = 0.0f;
 
             uint32_t TextureIndex = 0;
+
+            SRect ScissorRect;
         };
 
         std::vector<SQuad> m_Quads;

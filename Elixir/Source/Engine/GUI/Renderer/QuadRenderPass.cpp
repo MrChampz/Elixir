@@ -77,8 +77,9 @@ namespace Elixir::GUI
                     { EDataType::Vec4,  "DropShadow"        },
                     { EDataType::Vec4,  "Color"             },
                     { EDataType::Vec4,  "OutlineColor"      },
-                    { EDataType::Float, "OutlineThickness" },
+                    { EDataType::Float, "OutlineThickness"  },
                     { EDataType::UInt,  "TextureIndex"      },
+                    { EDataType::Vec4,  "ScissorRect"       },
                 },
                 EInputRate::Instance
             }
@@ -127,7 +128,7 @@ namespace Elixir::GUI
 
     void QuadRenderPass::BuildRectGeometry(const SDrawCommand& cmd)
     {
-        SQuad quad = {
+        const SQuad quad = {
             .Position = cmd.Geometry.Position,
             .Size = cmd.Geometry.Size,
             .Border = cmd.Border,
@@ -138,7 +139,8 @@ namespace Elixir::GUI
             .OutlineThickness = cmd.Outline.Thickness,
             .TextureIndex = cmd.Texture
                 ? m_TextureSet->AddTexture(cmd.Texture).Index
-                : m_WhiteTextureHandle.Index
+                : m_WhiteTextureHandle.Index,
+            .ScissorRect = cmd.ScissorRect
         };
 
         m_Quads.push_back(quad);

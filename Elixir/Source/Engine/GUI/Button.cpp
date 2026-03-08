@@ -1,6 +1,7 @@
 #include "epch.h"
 #include "Button.h"
 
+#include <Engine/Core/Platform.h>
 #include <Engine/Font/FontManager.h>
 #include <Engine/GUI/Slot.h>
 
@@ -30,7 +31,13 @@ namespace Elixir::GUI
         // Background
         if (m_NormalBackground)
         {
-            batch.AddTexture(m_NormalBackground, m_Geometry, buttonColor, zOrder);
+            batch.AddTexture(
+                m_NormalBackground,
+                m_Geometry,
+                m_BackgroundBorders,
+                buttonColor,
+                zOrder
+            );
         }
         else
         {
@@ -136,12 +143,12 @@ namespace Elixir::GUI
     void Button::HandleMouseEnter()
     {
         Widget::HandleMouseEnter();
-        // TODO: Show pointer cursor
+        Platform::Get().SetCursorShape(ECursorShape::Hand);
     }
 
     void Button::HandleMouseLeave()
     {
         Widget::HandleMouseLeave();
-        // TODO: Show default cursor
+        Platform::Get().SetPreviousCursorShape();
     }
 }

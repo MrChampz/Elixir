@@ -55,6 +55,9 @@ namespace Elixir::GUI
         SColor GetHoverColor() const { return m_HoverColor; }
         void SetHoverColor(const SColor& color) { m_HoverColor = color; }
 
+        const glm::vec4& GetBackgroundBorders() const { return m_BackgroundBorders; }
+        void SetBackgroundBorders(const glm::vec4& borders) { m_BackgroundBorders = borders; }
+
         const Ref<Texture2D>& GetNormalBackground() const { return m_NormalBackground; }
         void SetNormalBackground(const Ref<Texture2D>& texture) { m_NormalBackground = texture; }
 
@@ -82,6 +85,10 @@ namespace Elixir::GUI
         // Colors for different states
         SColor m_NormalColor{0.3f, 0.3f, 0.8f, 1.0f};
         SColor m_HoverColor{1.0f, 0.0f, 0.0f, 1.0f};
+
+        // When texture is used, this represents the borders of 9-patch texture.
+        // Border mapping = (left, top, right, bottom).
+        glm::vec4 m_BackgroundBorders = {30.0f, 30.0f, 30.0f, 30.0f};
 
         // Textures for different states
         Ref<Texture2D> m_NormalBackground;

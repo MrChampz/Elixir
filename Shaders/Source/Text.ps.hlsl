@@ -1,3 +1,5 @@
+#include "Scissor.hlsl"
+
 // Global bindless resources (binding 1 = textures)
 [[vk::binding(1, 1)]] // binding, set
 Texture2D atlases[] : register(t0);
@@ -34,16 +36,17 @@ float screenPxRange(float2 texCoord, float2 unitRange)
 
 float4 main(PS_INPUT input) : SV_TARGET
 {
-    float alpha = 0.0f;
-
     // Discard pixels outside the scissor rect
-    if (input.ClipPos.x < input.ScissorRect.x ||
+    if (isScissorRectValid(input.ScissorRect) &&
+       (input.ClipPos.x < input.ScissorRect.x ||
         input.ClipPos.y < input.ScissorRect.y ||
         input.ClipPos.x > input.ScissorRect.x + input.ScissorRect.z ||
-        input.ClipPos.y > input.ScissorRect.y + input.ScissorRect.w)
+        input.ClipPos.y > input.ScissorRect.y + input.ScissorRect.w))
     {
         discard;
     }
+
+    float alpha = 0.0f;
 
     // Sample all four channels (RGB = MSD, A = true SDF)
     float4 atlas = atlases[input.AtlasIndex].Sample(atlasSampler, input.TexCoords);

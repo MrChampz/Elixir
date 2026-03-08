@@ -8,6 +8,7 @@
 #include "Engine/GUI/TextBlock.h"
 #include "Engine/GUI/TextField.h"
 
+#include <Engine/Core/Platform.h>
 #include <Engine/Input/InputManager.h>
 #include <Engine/Input/InputCodes.h>
 #include <Engine/Font/FontManager.h>
@@ -15,10 +16,6 @@
 
 namespace Elixir
 {
-    namespace GUI
-    {
-        class Input;
-    }
     Application* Application::s_Application = nullptr;
 
     Application::Application() : m_Executor(Executor::Get())
@@ -30,6 +27,8 @@ namespace Elixir
 
         m_Window = Window::Create();
         m_Window->SetEventCallback(EE_BIND_EVENT_FN(Application::OnEvent));
+
+        Platform::Initialize(m_Window.get());
 
         m_GraphicsContext = GraphicsContext::Create(EGraphicsAPI::Vulkan, &m_Executor, m_Window.get());
         m_GraphicsContext->Init();
@@ -122,10 +121,12 @@ namespace Elixir
     {
         EE_PROFILE_ZONE_SCOPED()
         FontManager::Shutdown();
+        Platform::Shutdown();
         m_Running = false;
     }
 
-    const auto EE_PROFILE_MAIN_LOOP = "Main Loop";
+    constexpr auto EE_PROFILE_MAIN_LOOP = "Main Loop";
+    constexpr auto EE_PROFILE_RUN_LOOP = "Run Loop";
 
     void Application::Run()
     {
@@ -133,14 +134,14 @@ namespace Elixir
 
         while (m_Running)
         {
-            EE_PROFILE_ZONE_SCOPED_NAMED("RunLoop")
+            EE_PROFILE_ZONE_SCOPED_NAMED(EE_PROFILE_RUN_LOOP)
 
             const auto frameTime = m_Timer.GetLastFrameTime();
 
             m_Profiler.OnUpdate(frameTime); // TODO: Refactor to Update
             m_Window->OnUpdate(); // TODO: Refactor to Update
 
-            if (::InputManager::IsKeyPressed(EE_KEY_ESCAPE))
+            if (InputManager::IsKeyPressed(EE_KEY_ESCAPE))
             {
                 auto event = WindowCloseEvent();
                 OnWindowClose(event);

@@ -26,7 +26,8 @@ namespace Elixir::GUI
         const glm::vec4 insetShadow,
         const glm::vec4 dropShadow,
         const SOutline outline,
-        const int zOrder
+        const int zOrder,
+        const SRect& scissorRect
     )
     {
         SDrawCommand cmd;
@@ -38,6 +39,7 @@ namespace Elixir::GUI
         cmd.DropShadow = dropShadow;
         cmd.Outline = outline;
         cmd.ZOrder = zOrder;
+        cmd.ScissorRect = scissorRect;
 
         m_Commands.push_back(cmd);
     }
@@ -60,7 +62,7 @@ namespace Elixir::GUI
         cmd.Font = font;
         cmd.FontSize = fontSize;
         cmd.ZOrder = zOrder;
-        cmd.ScissorRect = scissorRect.IsValid() ? scissorRect : rect;
+        cmd.ScissorRect = scissorRect;
 
         m_Commands.push_back(cmd);
     }
@@ -68,8 +70,10 @@ namespace Elixir::GUI
     void RenderBatch::AddTexture(
         const Ref<Texture2D>& texture,
         const SRect& rect,
+        const glm::vec4& borders,
         const SColor& tint,
-        const int zOrder
+        const int zOrder,
+        const SRect& scissorRect
     )
     {
         SDrawCommand cmd;
@@ -77,8 +81,9 @@ namespace Elixir::GUI
         cmd.Geometry = rect;
         cmd.Color = tint;
         cmd.Texture = texture;
-        cmd.Border = glm::vec4{ 30.0f, 30.0f, 30.0f, 30.0f }; // TODO: Add to widget properties
+        cmd.Border = borders;
         cmd.ZOrder = zOrder;
+        cmd.ScissorRect = scissorRect;
 
         m_Commands.push_back(cmd);
     }

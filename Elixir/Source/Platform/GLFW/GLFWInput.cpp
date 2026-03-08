@@ -8,10 +8,10 @@
 
 namespace Elixir
 {
-    Scope<Input> InputManager::s_Input = CreateScope<Platform::GLFW::GLFWInput>();
+    Scope<Input> InputManager::s_Input = CreateScope<GLFW::GLFWInput>();
 }
 
-namespace Elixir::Platform::GLFW
+namespace Elixir::GLFW
 {
     GLFWwindow* GetWindow()
     {

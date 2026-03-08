@@ -4,7 +4,7 @@
 
 #include <GLFW/glfw3.h>
 
-namespace Elixir::Platform::GLFW
+namespace Elixir::GLFW
 {
     struct WindowData
     {
@@ -13,7 +13,7 @@ namespace Elixir::Platform::GLFW
         Window::EventCallbackFn EventCallback;
     };
 
-    class GLFWWindow : public Window
+    class GLFWWindow final : public Window
     {
       public:
         explicit GLFWWindow(const WindowProps& props);

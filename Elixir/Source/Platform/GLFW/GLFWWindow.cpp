@@ -10,10 +10,10 @@ namespace Elixir
 {
     Scope<Window> Window::Create(const WindowProps& props)
     {
-        return CreateScope<Platform::GLFW::GLFWWindow>(props);
+        return CreateScope<GLFW::GLFWWindow>(props);
     }
 
-    namespace Platform::GLFW
+    namespace GLFW
     {
         static bool s_GLFWInitialized = false;
 

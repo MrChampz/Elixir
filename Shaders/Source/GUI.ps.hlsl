@@ -1,3 +1,4 @@
+#include "Scissor.hlsl"
 #include "SDF.hlsl"
 
 // Global bindless resources (binding 0 = cis, binding 1 = textures, binding 2 = samplers)
@@ -31,6 +32,7 @@ struct PS_INPUT
     float4 OutlineColor     : OUTLINE0;             // Outline color
     float  OutlineThickness : OUTLINE1;             // Outline thickness
     uint   TextureIndex     : TEXTURE;              // Texture index
+    float4 ScissorRect      : SCISSOR;              // Scissor rect (x, y, width, height)
 };
 
 #define SCALE 6.0f // in pixels
@@ -219,6 +221,16 @@ float4 applyInsetShadow(float4 color, float4 shadow, float2 localPos, float2 hal
 
 float4 main(PS_INPUT input) : SV_TARGET
 {
+    // Discard pixels outside the scissor rect
+    if (isScissorRectValid(input.ScissorRect) &&
+       (input.ClipPos.x < input.ScissorRect.x ||
+        input.ClipPos.y < input.ScissorRect.y ||
+        input.ClipPos.x > input.ScissorRect.x + input.ScissorRect.z ||
+        input.ClipPos.y > input.ScissorRect.y + input.ScissorRect.w))
+    {
+        discard;
+    }
+
     float4 color = input.Color;
     float2 texCoords = input.TexCoord;
 
