@@ -109,17 +109,24 @@ namespace Elixir::GUI
         const auto font = cmd.Font;
 
         const float ascenderY = font->GetAscenderY();
+        constexpr auto dpiScale = 2.0f; // TODO: Handle DPI scaling
         const float scale = font->GetScale();
         const float lineHeight = FontManager::GetLineHeight(font, cmd.FontSize);
 
         float cursorX = cmd.Geometry.Position.x;
-        const float cursorY = cmd.Geometry.Position.y + (cmd.Geometry.Size.y - lineHeight) * 0.5f;
+        float cursorY = cmd.Geometry.Position.y + (cmd.Geometry.Size.y - lineHeight) * 0.5f;
 
         int i = 0;
         while (i < (int)cmd.Text.size())
         {
             const auto charLen = UTF8::UTF8CharLength(cmd.Text[i]);
             const auto codepoint = UTF8::UTF8ToCodepoint(cmd.Text, i);
+
+            if (codepoint == '\n') {
+                cursorX = cmd.Geometry.Position.x;
+                cursorY += lineHeight;
+                continue;
+            }
 
             auto glyph = font->GetGlyph(codepoint);
 

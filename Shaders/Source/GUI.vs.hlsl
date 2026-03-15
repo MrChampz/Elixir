@@ -3,8 +3,7 @@
 [[vk::binding(0, 0)]]
 cbuffer cbPerFrame : register(b0)
 {
-    float2 RenderExtent;    // Render extent for coordinates conversion
-    float2 Padding;         // Padding for alignment
+    float4x4 Proj;          // Projection matrix for orthographic projection
 }
 
 struct VS_INPUT
@@ -86,12 +85,8 @@ VS_OUTPUT main(VS_INPUT input)
     // Calculate screen-space position with expansion
     float2 screenPos = output.LocalPos + (input.Position - expansionOffset);
 
-    // Convert from screen-space [0, RenderExtent] to clip-space [-1, 1]
-    // Note: Y is flipped because screen coordinates have origin at top-left.
-    output.ClipPos.x = (screenPos.x / RenderExtent.x) * 2.0f - 1.0f;
-    output.ClipPos.y = (screenPos.y / RenderExtent.y) * 2.0f - 1.0f;
-    output.ClipPos.z = 0.0f;
-    output.ClipPos.w = 1.0f;
+    // Apply orthographic projection to get clip-space position.
+    output.ClipPos = mul(Proj, float4(screenPos, 0.0f, 1.0f));
 
     // UV coordinates should map to the CONTENT area, not the expanded area
     output.TexCoord = normalizedPos;

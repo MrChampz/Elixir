@@ -8,8 +8,7 @@ namespace Elixir::GUI
 {
     struct SPerFrameData
     {
-        glm::vec2 RenderExtent;
-        glm::vec2 Padding;
+        glm::mat4 Proj;
     };
 
     class ELIXIR_API Renderer final
@@ -32,6 +31,8 @@ namespace Elixir::GUI
 
         void BeginRendering(const Ref<CommandBuffer>& cmd) const;
         void EndRendering(const Ref<CommandBuffer>& cmd) const;
+
+        void CalculateProjectionMatrix();
 
         SPerFrameData m_PerFrameData{};
         Ref<UniformBuffer> m_PerFrameConstantBuffer;

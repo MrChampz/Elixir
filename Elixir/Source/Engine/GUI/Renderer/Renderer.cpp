@@ -1,6 +1,8 @@
 #include "epch.h"
 #include "Renderer.h"
 
+#include "glm/ext/matrix_clip_space.hpp"
+
 #include <Engine/Core/Color.h>
 #include <Engine/GUI/Renderer/QuadRenderPass.h>
 #include <Engine/GUI/Renderer/TextRenderPass.h>
@@ -28,7 +30,7 @@ namespace Elixir::GUI
         EE_CORE_INFO("Resizing GUI Renderer [Width={}, Height={}].", extent.Width, extent.Height)
 
         m_RenderExtent = extent;
-        m_PerFrameData.RenderExtent = { (float)extent.Width, (float)extent.Height };
+        CalculateProjectionMatrix();
         m_PerFrameConstantBuffer->UpdateData(&m_PerFrameData, sizeof(SPerFrameData));
     }
 
@@ -61,10 +63,7 @@ namespace Elixir::GUI
 
     void Renderer::InitPerFrameData()
     {
-        m_PerFrameData.RenderExtent = {
-            (float)m_RenderExtent.Width,
-            (float)m_RenderExtent.Height
-        };
+        CalculateProjectionMatrix();
 
         m_PerFrameConstantBuffer = UniformBuffer::Create(
             m_GraphicsContext,
@@ -126,5 +125,11 @@ namespace Elixir::GUI
     {
         cmd->EndRendering();
         m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
+    }
+
+    void Renderer::CalculateProjectionMatrix()
+    {
+        // Orthographic projection
+        m_PerFrameData.Proj = glm::ortho(0.0f, (float)m_RenderExtent.Width, 0.0f, (float)m_RenderExtent.Height);
     }
 }
