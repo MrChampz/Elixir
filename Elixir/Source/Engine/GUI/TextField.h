@@ -107,6 +107,7 @@ namespace Elixir::GUI
         void MoveCursorToEnd();
 
         void InsertText(const std::string& text);
+        void DeleteSelectedText();
         void ClearNextCharacter();
         void ClearPreviousCharacter();
 

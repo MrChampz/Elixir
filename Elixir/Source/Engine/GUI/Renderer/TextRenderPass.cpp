@@ -10,8 +10,9 @@ namespace Elixir::GUI
     TextRenderPass::TextRenderPass(
         const GraphicsContext* context,
         const ShaderLoader* shaderLoader,
+        const float dpiScale,
         const Ref<UniformBuffer>& perFrameCB
-    ) : m_PerFrameConstantBuffer(perFrameCB), m_GraphicsContext(context)
+    ) : m_DPIScale(dpiScale), m_PerFrameConstantBuffer(perFrameCB), m_GraphicsContext(context)
     {
         EE_CORE_TRACE("Initializing GUI: TextRenderPass.")
         InitRenderPass(shaderLoader);
@@ -100,6 +101,8 @@ namespace Elixir::GUI
         const auto sampler = SamplerBuilder()
             .SetMagFilter(ESamplerFilter::Linear)
             .SetMinFilter(ESamplerFilter::Linear)
+            .SetAddressModeU(ESamplerAddressMode::ClampToEdge)
+            .SetAddressModeV(ESamplerAddressMode::ClampToEdge)
             .Build(m_GraphicsContext);
         m_Shader->BindSampler("atlasSampler", sampler);
     }
@@ -109,7 +112,6 @@ namespace Elixir::GUI
         const auto font = cmd.Font;
 
         const float ascenderY = font->GetAscenderY();
-        constexpr auto dpiScale = 2.0f; // TODO: Handle DPI scaling
         const float scale = font->GetScale();
         const float lineHeight = FontManager::GetLineHeight(font, cmd.FontSize);
 
@@ -174,13 +176,15 @@ namespace Elixir::GUI
     void TextRenderPass::BuildTextureGeometry(const SDrawCommand& cmd)
     {
         const SQuad quad = {
-            .Position = cmd.Geometry.Position,
-            .Size = cmd.Geometry.Size,
+            .Position = cmd.Geometry.Position * m_DPIScale,
+            .Size = cmd.Geometry.Size * m_DPIScale,
             .TexCoords = cmd.TexCoords,
             .Color = cmd.Color,
             .AtlasIndex = cmd.Font->GetAtlasHandle().Index,
             .UnitRange = cmd.Font->GetUnitRange(),
-            .ScissorRect = cmd.ScissorRect
+            .ScissorRect = cmd.ScissorRect.IsValid()
+                ? cmd.ScissorRect * m_DPIScale
+                : cmd.ScissorRect
         };
 
         m_Quads.push_back(quad);

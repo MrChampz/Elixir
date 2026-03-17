@@ -14,6 +14,7 @@ namespace Elixir::GUI
         TextRenderPass(
             const GraphicsContext* context,
             const ShaderLoader* shaderLoader,
+            float dpiScale,
             const Ref<UniformBuffer>& perFrameCB
         );
 
@@ -46,6 +47,7 @@ namespace Elixir::GUI
         Ref<GraphicsPipeline> m_Pipeline;
         Ref<DynamicVertexBuffer> m_QuadBuffer;
 
+        float m_DPIScale;
         Ref<UniformBuffer> m_PerFrameConstantBuffer;
         const GraphicsContext* m_GraphicsContext = nullptr;
     };

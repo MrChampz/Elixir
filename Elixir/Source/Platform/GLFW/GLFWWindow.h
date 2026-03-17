@@ -9,7 +9,8 @@ namespace Elixir::GLFW
     struct WindowData
     {
         std::string Title;
-        unsigned int Width, Height;
+        Extent2D WindowExtent;
+        Extent2D FramebufferExtent;
         Window::EventCallbackFn EventCallback;
     };
 
@@ -19,7 +20,7 @@ namespace Elixir::GLFW
         explicit GLFWWindow(const WindowProps& props);
         ~GLFWWindow() override;
 
-        void OnUpdate() override;
+        void Update() override;
 
         void SetTitle(const std::string& title) override;
 
@@ -30,10 +31,15 @@ namespace Elixir::GLFW
 
         void ShowFPSAndFrameTime(int fps, Timestep frameTime) override;
 
-        [[nodiscard]] unsigned int GetWidth() const override { return m_Data.Width; }
-        [[nodiscard]] unsigned int GetHeight() const override { return m_Data.Height; }
+        const Extent2D& GetWindowExtent() const override { return m_Data.WindowExtent; }
+        uint32_t GetWidth() const override { return m_Data.WindowExtent.Width; }
+        uint32_t GetHeight() const override { return m_Data.WindowExtent.Height; }
 
-        [[nodiscard]] void* GetNativeWindow() const override { return m_Window; }
+        const Extent2D& GetFramebufferExtent() const override { return m_Data.FramebufferExtent; }
+
+        float GetDPIScale() const override;
+
+        void* GetHandle() const override { return m_Window; }
 
       private:
         void Init(const WindowProps& props);

@@ -202,11 +202,7 @@ namespace Elixir::GUI
       public:
         void Update(Timestep frameTime) override;
 
-        ContentSlot& SetContent(const Ref<Widget>& widget)
-        {
-            m_ContentSlot = CreateRef<ContentSlot>(widget);
-            return *m_ContentSlot;
-        }
+        ContentSlot& SetContent(const Ref<Widget>& widget);
 
         Ref<ContentSlot> GetContentSlot() const { return m_ContentSlot; }
         void SetContentSlot(const Ref<ContentSlot>& slot) { m_ContentSlot = slot; }

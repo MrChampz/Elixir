@@ -12,8 +12,9 @@ namespace Elixir::GUI
     QuadRenderPass::QuadRenderPass(
         const GraphicsContext* context,
         const ShaderLoader* shaderLoader,
+        const float dpiScale,
         const Ref<UniformBuffer>& perFrameCB
-    ) : m_PerFrameConstantBuffer(perFrameCB), m_GraphicsContext(context)
+    ) : m_DPIScale(dpiScale), m_PerFrameConstantBuffer(perFrameCB), m_GraphicsContext(context)
     {
         EE_CORE_TRACE("Initializing GUI: QuadRenderPass.")
         InitRenderPass(shaderLoader);
@@ -129,18 +130,20 @@ namespace Elixir::GUI
     void QuadRenderPass::BuildRectGeometry(const SDrawCommand& cmd)
     {
         const SQuad quad = {
-            .Position = cmd.Geometry.Position,
-            .Size = cmd.Geometry.Size,
-            .Border = cmd.Border,
-            .InsetShadow = cmd.InsetShadow,
-            .DropShadow = cmd.DropShadow,
+            .Position = cmd.Geometry.Position * m_DPIScale,
+            .Size = cmd.Geometry.Size * m_DPIScale,
+            .Border = cmd.Border * m_DPIScale,
+            .InsetShadow = cmd.InsetShadow * m_DPIScale,
+            .DropShadow = cmd.DropShadow * m_DPIScale,
             .Color = cmd.Color,
             .OutlineColor = cmd.Outline.Color,
-            .OutlineThickness = cmd.Outline.Thickness,
+            .OutlineThickness = cmd.Outline.Thickness * m_DPIScale,
             .TextureIndex = cmd.Texture
                 ? m_TextureSet->AddTexture(cmd.Texture).Index
                 : m_WhiteTextureHandle.Index,
-            .ScissorRect = cmd.ScissorRect
+            .ScissorRect = cmd.ScissorRect.IsValid()
+                ? cmd.ScissorRect * m_DPIScale
+                : cmd.ScissorRect
         };
 
         m_Quads.push_back(quad);

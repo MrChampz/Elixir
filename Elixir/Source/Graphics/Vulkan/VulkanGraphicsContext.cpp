@@ -62,12 +62,6 @@ namespace Elixir
         EE_CORE_ASSERT(executor, "Invalid executor!")
         EE_CORE_ASSERT(window, "Invalid window!")
 
-        glfwGetFramebufferSize(
-            (GLFWwindow*)m_Window->GetNativeWindow(),
-            (int*)&m_WindowExtent.Width,
-            (int*)&m_WindowExtent.Height
-        );
-
         m_ShaderBackend = CreateScope<SpirVShaderBackend>();
     }
 
@@ -133,6 +127,14 @@ namespace Elixir
 
             m_IsInitialized = false;
         }
+    }
+
+    void VulkanGraphicsContext::ProcessEvent(Event& event)
+    {
+        EventDispatcher dispatcher(event);
+        dispatcher.Dispatch<FramebufferResizeEvent>(
+            EE_BIND_EVENT_FN(VulkanGraphicsContext::HandleFramebufferResize)
+        );
     }
 
     void VulkanGraphicsContext::RenderFrame(std::function<void()> callback)
@@ -202,8 +204,9 @@ namespace Elixir
     void VulkanGraphicsContext::Resize(const Extent2D extent)
     {
         EE_PROFILE_ZONE_SCOPED()
-        m_WindowExtent = extent;
+        m_SwapchainExtent = extent;
         m_SwapchainRecreateRequested = true;
+        //m_RenderTarget->Resize(extent);
     }
 
     Ref<CommandBuffer> VulkanGraphicsContext::GetSecondaryCommandBuffer() const
@@ -220,11 +223,6 @@ namespace Elixir
     void VulkanGraphicsContext::EnqueueSecondaryCommandBuffer(const Ref<CommandBuffer>& cmd) const
     {
         m_CommandPoolManager->EnqueueSecondaryCommandBuffer(cmd);
-    }
-
-    Extent2D VulkanGraphicsContext::GetSwapchainExtent() const
-    {
-        return { m_SwapchainExtent.width, m_SwapchainExtent.height };
     }
 
     void VulkanGraphicsContext::InitVulkan()
@@ -249,7 +247,7 @@ namespace Elixir
         VK_CHECK_RESULT(
             glfwCreateWindowSurface(
                 m_Instance,
-                static_cast<GLFWwindow*>(m_Window->GetNativeWindow()),
+                static_cast<GLFWwindow*>(m_Window->GetHandle()),
                 nullptr,
                 &m_Surface
             )
@@ -330,7 +328,8 @@ namespace Elixir
     void VulkanGraphicsContext::InitSwapchain()
     {
         EE_PROFILE_ZONE_SCOPED()
-        CreateSwapchain(m_WindowExtent);
+        m_SwapchainExtent = m_Window->GetFramebufferExtent();
+        CreateSwapchain(m_SwapchainExtent);
     }
 
     void VulkanGraphicsContext::InitCommandPoolManager()
@@ -391,7 +390,7 @@ namespace Elixir
         m_BindlessDescriptorPool = CreateRef<VulkanBindlessDescriptorPool>(*this);
     }
 
-    void VulkanGraphicsContext::CreateSwapchain(const Extent2D& extent)
+    void VulkanGraphicsContext::CreateSwapchain(const Extent3D& extent)
     {
         EE_PROFILE_ZONE_SCOPED()
 
@@ -414,9 +413,9 @@ namespace Elixir
         const auto swapchain = result.value();
         m_Swapchain = swapchain.swapchain;
         m_SwapchainExtent = {
-            .width = swapchain.extent.width,
-            .height = swapchain.extent.height,
-            .depth = 1
+            swapchain.extent.width,
+            swapchain.extent.height,
+            1u
         };
 
         const auto images = result.value().get_images().value();
@@ -468,16 +467,17 @@ namespace Elixir
 
         WaitDeviceIdle();
         DestroySwapchain();
-        CreateSwapchain(m_WindowExtent);
+        CreateSwapchain(m_SwapchainExtent);
         m_SwapchainRecreateRequested = false;
     }
 
     void VulkanGraphicsContext::CreateRenderTarget()
     {
-        int width, height;
-        //glfwGetFramebufferSize((GLFWwindow*)m_Window->GetNativeWindow(), &width, &height);
-
-        auto info = Texture2D::CreateImageInfo(EImageFormat::R8G8B8A8_SRGB, 1280, 720);
+        auto info = Texture2D::CreateImageInfo(
+            EImageFormat::R8G8B8A8_SRGB,
+            m_SwapchainExtent.Width,
+            m_SwapchainExtent.Height
+        );
         info.Usage = EImageUsage::ColorAttachment | EImageUsage::TransferSrc | EImageUsage::TransferDst;
         info.InitialLayout = EImageLayout::General;
         m_RenderTarget = CreateRef<VulkanTexture2D>(this, info);
@@ -587,7 +587,7 @@ namespace Elixir
             TryToGetVulkanImage(m_RenderTarget.get())->GetVulkanImage(),
             swapchain.Image,
             GetExtent3D(m_RenderTarget->GetExtent()),
-            m_SwapchainExtent
+            GetExtent3D(m_SwapchainExtent)
         );
     }
 
@@ -641,5 +641,11 @@ namespace Elixir
         m_FrameNumber++;
 
         EE_PROFILE_FRAME_MARK_NAMED(EE_PROFILE_RENDER)
+    }
+
+    bool VulkanGraphicsContext::HandleFramebufferResize(const FramebufferResizeEvent& event)
+    {
+        Resize(event.GetExtent());
+        return true;
     }
 }

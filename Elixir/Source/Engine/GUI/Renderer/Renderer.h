@@ -39,6 +39,7 @@ namespace Elixir::GUI
 
         std::vector<Ref<RenderPass>> m_RenderPasses;
 
+        float m_DPIScale = 1.0f;
         Extent2D m_RenderExtent{};
         const GraphicsContext* m_GraphicsContext;
     };

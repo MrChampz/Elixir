@@ -1,13 +1,9 @@
 #pragma once
 
 #include <Engine/Event/KeyEvent.h>
+#include <Engine/Event/WindowEvent.h>
 #include <Engine/GUI/Renderer/Renderer.h>
 #include <Engine/GUI/Panel.h>
-
-namespace Elixir
-{
-    class WindowResizeEvent;
-}
 
 namespace Elixir::GUI
 {
@@ -25,7 +21,7 @@ namespace Elixir::GUI
         void Update(Timestep frameTime);
         void Render();
 
-        void OnEvent(Event& event);
+        void ProcessEvent(Event& event);
 
         void SetRoot(const Ref<Panel>& root)
         {
@@ -33,15 +29,16 @@ namespace Elixir::GUI
         }
 
       private:
-        bool HandleWindowResize(const WindowResizeEvent& event) const;
-        bool HandleKeyPressed(const KeyPressedEvent& event);
-        bool HandleKeyTyped(const KeyTypedEvent& event);
+        bool HandleFramebufferResize(const FramebufferResizeEvent& event) const;
+        bool HandleKeyPressed(const KeyPressedEvent& event) const;
+        bool HandleKeyTyped(const KeyTypedEvent& event) const;
 
         void ProcessInput();
         void ProcessWidget(const Ref<Widget>& widget);
         void ProcessInputRecursive(const Ref<Widget>& widget);
-        void ProcessKeyPressedRecursive(const Ref<Widget>& widget, const KeyPressedEvent& event);
-        void ProcessKeyTypedRecursive(const Ref<Widget>& widget, const KeyTypedEvent& event);
+
+        static void ProcessKeyPressedRecursive(const Ref<Widget>& widget, const KeyPressedEvent& event);
+        static void ProcessKeyTypedRecursive(const Ref<Widget>& widget, const KeyTypedEvent& event);
 
         Scope<Renderer> m_Renderer;
         RenderBatch m_RenderBatch;

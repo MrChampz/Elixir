@@ -17,3 +17,17 @@ struct std::formatter<EImageFormat> : std::formatter<std::string>
         return std::formatter<std::string>::format(Utils::GetFormatString(format), ctx);
     }
 };
+
+/**
+ * Formatter for Extent2D output in the logging system.
+ */
+template <>
+struct std::formatter<Extent2D> : std::formatter<std::string>
+{
+    auto format(const Extent2D& extent, std::format_context& ctx) const
+    {
+        auto ss = std::stringstream();
+        ss << "[Width = " << extent.Width << ", Height = " << extent.Height << "]";
+        return std::formatter<std::string>::format(ss.str(), ctx);
+    }
+};

@@ -2,7 +2,6 @@
 #include "Manager.h"
 
 #include <Engine/GUI/Panel.h>
-#include <Engine/Event/WindowEvent.h>
 #include <Engine/Input/InputCodes.h>
 #include <Engine/Input/InputManager.h>
 
@@ -50,24 +49,24 @@ namespace Elixir::GUI
         m_Renderer->Render(m_RenderBatch);
     }
 
-    void Manager::OnEvent(Event& event)
+    void Manager::ProcessEvent(Event& event)
     {
         EventDispatcher dispatcher(event);
-        dispatcher.Dispatch<WindowResizeEvent>(EE_BIND_EVENT_FN(Manager::HandleWindowResize));
+        dispatcher.Dispatch<FramebufferResizeEvent>(EE_BIND_EVENT_FN(Manager::HandleFramebufferResize));
         dispatcher.Dispatch<KeyPressedEvent>(EE_BIND_EVENT_FN(Manager::HandleKeyPressed));
         dispatcher.Dispatch<KeyTypedEvent>(EE_BIND_EVENT_FN(Manager::HandleKeyTyped));
     }
 
-    bool Manager::HandleWindowResize(const WindowResizeEvent& event) const
+    bool Manager::HandleFramebufferResize(const FramebufferResizeEvent& event) const
     {
         const Extent2D extent = { event.GetWidth(), event.GetHeight() };
         m_Renderer->Resize(extent);
-        ArrangeLayout(extent);
+        //ArrangeLayout(extent); // Should use WINDOW extent, not framebuffer
 
         return true;
     }
 
-    bool Manager::HandleKeyPressed(const KeyPressedEvent& event)
+    bool Manager::HandleKeyPressed(const KeyPressedEvent& event) const
     {
         if (m_FocusedWidget)
         {
@@ -77,7 +76,7 @@ namespace Elixir::GUI
         return true;
     }
 
-    bool Manager::HandleKeyTyped(const KeyTypedEvent& event)
+    bool Manager::HandleKeyTyped(const KeyTypedEvent& event) const
     {
         if (m_FocusedWidget)
         {

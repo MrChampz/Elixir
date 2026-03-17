@@ -47,7 +47,7 @@ namespace Elixir
             m_PrevCursor = m_Cursor;
             m_Cursor = shape;
             const auto cursor = glfwCreateStandardCursor(GetGLFWCursor(shape));
-            glfwSetCursor((GLFWwindow*)m_Window->GetNativeWindow(), cursor);
+            glfwSetCursor((GLFWwindow*)m_Window->GetHandle(), cursor);
         }
 
         std::string GLFWPlatform::GetClipboardText()

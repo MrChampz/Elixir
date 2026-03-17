@@ -16,6 +16,7 @@ namespace Elixir::GUI
         QuadRenderPass(
             const GraphicsContext* context,
             const ShaderLoader* shaderLoader,
+            float dpiScale,
             const Ref<UniformBuffer>& perFrameCB
         );
 
@@ -76,6 +77,7 @@ namespace Elixir::GUI
         Ref<Texture2D> m_WhiteTexture;
         SResourceHandle m_WhiteTextureHandle;
 
+        float m_DPIScale;
         Ref<UniformBuffer> m_PerFrameConstantBuffer;
         const GraphicsContext* m_GraphicsContext;
     };

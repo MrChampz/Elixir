@@ -43,7 +43,7 @@ Dissolve::Dissolve()
     EE_PROFILE_ZONE_SCOPED()
 
     m_Window->SetTitle("Dissolve");
-    m_DrawExtent = { m_Window->GetWidth(), m_Window->GetHeight() };
+    m_DrawExtent = m_Window->GetFramebufferExtent();
 
     const auto sampler = SamplerBuilder()
         .Build(m_GraphicsContext.get());

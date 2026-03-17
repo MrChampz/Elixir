@@ -235,14 +235,6 @@ namespace Elixir::GUI
 
         if (!m_Focused) return;
 
-        // Delete selection first
-        if (m_SelectionStart != -1)
-        {
-            m_Text.erase(m_SelectionStart, m_SelectionEnd - m_SelectionStart);
-            m_CursorPosition = m_SelectionStart;
-            ClearSelection();
-        }
-
         ResetCursorState();
 
         // Insert UTF-8 character at cursor position
@@ -399,13 +391,9 @@ namespace Elixir::GUI
     void TextField::InsertText(const std::string& text)
     {
         // Delete selection first if any
-        if (m_SelectionStart != -1 && m_SelectionStart != m_SelectionEnd)
+        if (m_SelectionStart != m_SelectionEnd)
         {
-            const auto start = std::min(m_SelectionStart, m_SelectionEnd);
-            const auto end = std::max(m_SelectionStart, m_SelectionEnd);
-            m_Text.erase(start, end - start);
-            m_CursorPosition = start;
-            ClearSelection();
+            DeleteSelectedText();
         }
 
         m_Text.insert(m_CursorPosition, text);
@@ -416,12 +404,29 @@ namespace Elixir::GUI
         if (m_OnChangeCallback) m_OnChangeCallback(m_Text);
     }
 
+    void TextField::DeleteSelectedText()
+    {
+        const auto start = std::min(m_SelectionStart, m_SelectionEnd);
+        const auto end = std::max(m_SelectionStart, m_SelectionEnd);
+        m_Text.erase(start, end - start);
+        m_CursorPosition = start;
+        ClearSelection();
+    }
+
     void TextField::ClearNextCharacter()
     {
         if (m_CursorPosition >= m_Text.size()) return;
 
-        const auto len = UTF8::UTF8CharLength(m_Text[m_CursorPosition]);
-        m_Text.erase(m_CursorPosition, len);
+        if (m_SelectionStart != m_SelectionEnd)
+        {
+            DeleteSelectedText();
+        }
+        else
+        {
+            const auto len = UTF8::UTF8CharLength(m_Text[m_CursorPosition]);
+            m_Text.erase(m_CursorPosition, len);
+        }
+
         UpdateScrollOffset();
 
         // Fire input changed callback
@@ -432,9 +437,17 @@ namespace Elixir::GUI
     {
         if (m_Text.empty() || m_CursorPosition <= 0) return;
 
-        const auto len = UTF8::UTF8PrevCharLength(m_Text, m_CursorPosition);
-        m_Text.erase(m_CursorPosition - len, len);
-        m_CursorPosition -= len;
+        if (m_SelectionStart != m_SelectionEnd)
+        {
+            DeleteSelectedText();
+        }
+        else
+        {
+            const auto len = UTF8::UTF8PrevCharLength(m_Text, m_CursorPosition);
+            m_Text.erase(m_CursorPosition - len, len);
+            m_CursorPosition -= len;
+        }
+
         UpdateScrollOffset();
 
         // Fire input changed callback
@@ -448,6 +461,14 @@ namespace Elixir::GUI
 
     std::string TextField::GetFromClipboard()
     {
-        return Platform::Get().GetClipboardText();
+        auto text = Platform::Get().GetClipboardText();
+
+        // Replace newlines with spaces to prevent multi-line input
+        std::ranges::replace_if(text, [](const char c)
+        {
+            return c == '\n' || c == '\r';
+        }, ' ');
+
+        return text;
     }
 }

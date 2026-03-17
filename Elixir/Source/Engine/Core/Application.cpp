@@ -42,7 +42,7 @@ namespace Elixir
         m_GUIManager->Initialize(
             m_GraphicsContext.get(),
             m_ShaderLoader.get(),
-            { m_Window->GetWidth(), m_Window->GetHeight() }
+            m_Window->GetFramebufferExtent() // TODO: Get from Ctx->GetRenderTargetExtent()..
         );
 
         const auto buttonBg = TextureLoader::Load("./Assets/Button_Background.png");
@@ -85,7 +85,6 @@ namespace Elixir
         txt->SetFontSize(90.0f);
         txt->SetColor({ 0.0f, 1.0f, 0.0f, 1.0f });
         txt->SetFont(font2);
-
         const auto input = CreateRef<GUI::TextField>("Type here...");
 
         panel->AddChild(button)
@@ -139,7 +138,7 @@ namespace Elixir
             const auto frameTime = m_Timer.GetLastFrameTime();
 
             m_Profiler.OnUpdate(frameTime); // TODO: Refactor to Update
-            m_Window->OnUpdate(); // TODO: Refactor to Update
+            m_Window->Update();
 
             if (InputManager::IsKeyPressed(EE_KEY_ESCAPE))
             {
@@ -156,7 +155,7 @@ namespace Elixir
             m_Window->ShowFPSAndFrameTime(m_Profiler.GetFPS(), frameTime);
 
             OnGUI(frameTime);
-            m_GUIManager->ArrangeLayout({ m_Window->GetWidth(), m_Window->GetHeight() });
+            m_GUIManager->ArrangeLayout(m_Window->GetWindowExtent()); // TODO: Remove from here and handle only when resizing
             m_GUIManager->Update(frameTime);
 
             m_GraphicsContext->RenderFrame([this, frameTime]()
@@ -178,8 +177,9 @@ namespace Elixir
         dispatcher.Dispatch<WindowCloseEvent>(EE_BIND_EVENT_FN(Application::OnWindowClose));
         dispatcher.Dispatch<WindowResizeEvent>(EE_BIND_EVENT_FN(Application::OnWindowResize));
 
+        m_GraphicsContext->ProcessEvent(event);
         ::InputManager::OnEvent(event);
-        m_GUIManager->OnEvent(event);
+        m_GUIManager->ProcessEvent(event);
     }
 
     bool Application::OnWindowClose(WindowCloseEvent& event)

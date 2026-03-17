@@ -33,7 +33,7 @@ namespace Elixir
             Shutdown();
         }
 
-        void GLFWWindow::OnUpdate()
+        void GLFWWindow::Update()
         {
             glfwPollEvents();
         }
@@ -61,11 +61,18 @@ namespace Elixir
             }
         }
 
+        float GLFWWindow::GetDPIScale() const
+        {
+            float scale;
+            glfwGetWindowContentScale(m_Window, &scale, nullptr);
+            return scale;
+        }
+
         void GLFWWindow::Init(const WindowProps& props)
         {
             m_Data.Title = props.Title;
-            m_Data.Width = props.Width;
-            m_Data.Height = props.Height;
+            m_Data.WindowExtent.Width = props.Width;
+            m_Data.WindowExtent.Height = props.Height;
 
             EE_CORE_INFO("Creating window {0} ({1}, {2}).", props.Title,
                          props.Width, props.Height)
@@ -83,24 +90,42 @@ namespace Elixir
             glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
             m_Window = glfwCreateWindow(
-                (int)m_Data.Width,
-                (int)m_Data.Height,
+                (int)m_Data.WindowExtent.Width,
+                (int)m_Data.WindowExtent.Height,
                 m_Data.Title.c_str(),
                 nullptr,
                 nullptr
             );
 
+            glfwGetFramebufferSize(
+                m_Window,
+                (int*)&m_Data.FramebufferExtent.Width,
+                (int*)&m_Data.FramebufferExtent.Height
+            );
+
+            EE_CORE_INFO("Framebuffer size: {0}", m_Data.FramebufferExtent)
+
             glfwSetWindowUserPointer(m_Window, &m_Data);
 
             // Set GLFW callbacks
 
-            glfwSetWindowSizeCallback(m_Window, [](GLFWwindow* window, int width, int height)
+            glfwSetWindowSizeCallback(m_Window, [](GLFWwindow* window, const int width, const int height)
             {
                 auto& data = *(WindowData*)glfwGetWindowUserPointer(window);
-                data.Width = width;
-                data.Height = height;
+                data.WindowExtent.Width = width;
+                data.WindowExtent.Height = height;
 
-                WindowResizeEvent event(width, height);
+                WindowResizeEvent event(data.WindowExtent);
+                data.EventCallback(event);
+            });
+
+            glfwSetFramebufferSizeCallback(m_Window, [](GLFWwindow* window, const int width, const int height)
+            {
+                auto& data = *(WindowData*)glfwGetWindowUserPointer(window);
+                data.FramebufferExtent.Width = width;
+                data.FramebufferExtent.Height = height;
+
+                FramebufferResizeEvent event(data.FramebufferExtent);
                 data.EventCallback(event);
             });
 

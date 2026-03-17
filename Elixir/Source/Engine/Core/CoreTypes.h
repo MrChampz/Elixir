@@ -42,7 +42,7 @@ namespace Elixir
             : Width(width), Height(height), Depth(depth) {
         }
 
-        explicit Extent3D(const Extent2D& extent)
+        Extent3D(const Extent2D& extent)
             : Width(extent.Width), Height(extent.Height), Depth(1) {}
 
         Extent3D(const Extent3D& extent)

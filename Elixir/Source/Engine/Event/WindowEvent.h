@@ -4,30 +4,53 @@
 
 namespace Elixir
 {
-    class ELIXIR_API WindowResizeEvent : public Event
+    class ELIXIR_API WindowResizeEvent final : public Event
     {
       public:
-        WindowResizeEvent(unsigned int width, unsigned int height)
-            : m_Width(width), m_Height(height) {}
+        explicit WindowResizeEvent(const Extent2D& extent) : m_Extent(extent) {}
 
-        [[nodiscard]] std::string ToString() const override
+        std::string ToString() const override
         {
             std::stringstream ss;
-            ss << GetName() << ": " << m_Width << ", " << m_Height << ".";
+            ss << GetName() << ": " << GetWidth() << ", " << GetHeight() << ".";
             return ss.str();
         }
 
-        [[nodiscard]] inline unsigned int GetWidth() const { return m_Width; }
-        [[nodiscard]] inline unsigned int GetHeight() const { return m_Height; }
+        const Extent2D& GetExtent() const { return m_Extent; }
+        uint32_t GetWidth() const { return m_Extent.Width; }
+        uint32_t GetHeight() const { return m_Extent.Height; }
 
         EVENT_CLASS_TYPE(WindowResize)
         EVENT_CLASS_CATEGORY(EventCategoryWindow)
 
       private:
-        unsigned int m_Width, m_Height;
+        Extent2D m_Extent;
     };
 
-    class ELIXIR_API WindowCloseEvent : public Event
+    class ELIXIR_API FramebufferResizeEvent final : public Event
+    {
+    public:
+        explicit FramebufferResizeEvent(const Extent2D& extent) : m_Extent(extent) {}
+
+        std::string ToString() const override
+        {
+            std::stringstream ss;
+            ss << GetName() << ": " << GetWidth() << ", " << GetHeight() << ".";
+            return ss.str();
+        }
+
+        const Extent2D& GetExtent() const { return m_Extent; }
+        uint32_t GetWidth() const { return m_Extent.Width; }
+        uint32_t GetHeight() const { return m_Extent.Height; }
+
+        EVENT_CLASS_TYPE(FramebufferResize)
+        EVENT_CLASS_CATEGORY(EventCategoryWindow)
+
+      private:
+        Extent2D m_Extent;
+    };
+
+    class ELIXIR_API WindowCloseEvent final : public Event
     {
       public:
         WindowCloseEvent() = default;

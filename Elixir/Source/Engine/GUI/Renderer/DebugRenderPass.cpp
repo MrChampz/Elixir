@@ -9,8 +9,9 @@ namespace Elixir::GUI
     DebugRenderPass::DebugRenderPass(
         const GraphicsContext* context,
         const ShaderLoader* shaderLoader,
+        const float dpiScale,
         const Ref<UniformBuffer>& perFrameCB
-    ) : m_PerFrameConstantBuffer(perFrameCB), m_GraphicsContext(context)
+    ) : m_DPIScale(dpiScale), m_PerFrameConstantBuffer(perFrameCB), m_GraphicsContext(context)
     {
         EE_CORE_TRACE("Initializing GUI: DebugRenderPass.")
         InitRenderPass(shaderLoader);
@@ -93,9 +94,9 @@ namespace Elixir::GUI
     void DebugRenderPass::BuildDebugRectGeometry(const SDrawCommand& cmd)
     {
         const auto topLeft = cmd.Geometry.Position;
-        const auto topRight = cmd.Geometry.Position + glm::vec2(cmd.Geometry.Size.x, 0);
-        const auto bottomLeft = cmd.Geometry.Position + glm::vec2(0, cmd.Geometry.Size.y);
-        const auto bottomRight = cmd.Geometry.Position + cmd.Geometry.Size;
+        const auto topRight = (cmd.Geometry.Position + glm::vec2(cmd.Geometry.Size.x, 0));
+        const auto bottomLeft = (cmd.Geometry.Position + glm::vec2(0, cmd.Geometry.Size.y));
+        const auto bottomRight = (cmd.Geometry.Position + cmd.Geometry.Size);
 
         m_Vertices.push_back({ topLeft, cmd.Color });
         m_Vertices.push_back({ topRight, cmd.Color });

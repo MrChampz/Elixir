@@ -28,12 +28,6 @@ float median(float r, float g, float b)
     return max(min(r, g), min(max(r, g), b));
 }
 
-float screenPxRange(float2 texCoord, float2 unitRange)
-{
-    float2 screenTexSize = 1.0f / fwidth(texCoord);
-    return max(0.5f * dot(unitRange, screenTexSize), 1.0f);
-}
-
 float4 main(PS_INPUT input) : SV_TARGET
 {
     // Discard pixels outside the scissor rect
@@ -46,24 +40,17 @@ float4 main(PS_INPUT input) : SV_TARGET
         discard;
     }
 
-    float alpha = 0.0f;
-
-    // Sample all four channels (RGB = MSD, A = true SDF)
+    // Sample MTSDF atlas: RGB = multi-channel SDF, A = true SDF
     float4 atlas = atlases[input.AtlasIndex].Sample(atlasSampler, input.TexCoords);
-    float msdf = median(atlas.r, atlas.g, atlas.b);
-    float sdf = atlas.a;
 
-    // MTSDF blending
-    float sd = lerp(sdf, msdf, saturate(2.0f * abs(msdf - 0.5f)));
+    // Median-of-three reconstructs sharp corners from the multi-channel encoding
+    float sd = median(atlas.r, atlas.g, atlas.b);
 
-    // Screen space derivative of distance
-    // float2 texelDensity = 1.0f / fwidth(input.TexCoord);
-    // float pxRange = max(0.5f * dot(UnitRange, texelDensity), 1.0f);
-    float pxRange = screenPxRange(input.TexCoords, input.UnitRange);
+    // Screen-space derivative of distance for resolution-independent anti-aliasing
+    float screenPxDistance = fwidth(sd);
 
-    // Final alpha
-    float pxDistance = (sd - 0.5f) * pxRange;
-    alpha = saturate(pxDistance + 0.5f);
+    // 0.5 = glyph boundary in the distance field
+    float alpha = smoothstep(0.5f - screenPxDistance, 0.5f + screenPxDistance, sd);
     alpha *= input.Color.a;
 
     return float4(input.Color.rgb, alpha);

@@ -97,7 +97,7 @@ namespace Elixir
             for (auto& glyph : glyphs)
             {
                 constexpr double maxCornerAngle = 3.0;
-                glyph.edgeColoring(&msdfgen::edgeColoringSimple, maxCornerAngle, 0);
+                glyph.edgeColoring(&msdfgen::edgeColoringByDistance, maxCornerAngle, 0);
             }
 
             TightAtlasPacker packer;
@@ -112,7 +112,12 @@ namespace Elixir
             int width = 0, height = 0;
             packer.getDimensions(width, height);
 
+            GeneratorAttributes genAttribs;
+            genAttribs.config.overlapSupport = true;
+            genAttribs.scanlinePass = true;
+
             ImmediateAtlasGenerator<float, 4, mtsdfGenerator, BitmapAtlasStorage<uint8_t, 4>> mtsdfGenerator(width, height);
+            mtsdfGenerator.setAttributes(genAttribs);
             mtsdfGenerator.setThreadCount(8);
 
             mtsdfGenerator.generate(glyphs.data(), glyphs.size());

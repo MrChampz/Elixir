@@ -1,9 +1,10 @@
 #include "epch.h"
 #include "Renderer.h"
 
-#include "glm/ext/matrix_clip_space.hpp"
+#include "glm/gtc/matrix_transform.hpp"
 
 #include <Engine/Core/Color.h>
+#include <Engine/GUI/Widget.h>
 #include <Engine/GUI/Renderer/QuadRenderPass.h>
 #include <Engine/GUI/Renderer/TextRenderPass.h>
 #include <Engine/GUI/Renderer/DebugRenderPass.h>
@@ -16,10 +17,11 @@ namespace Elixir::GUI
         const GraphicsContext* context,
         const ShaderLoader* shaderLoader,
         const Extent2D& extent
-    ) : m_RenderExtent(extent), m_GraphicsContext(context)
+    ) : m_DPIScale(context->GetDPIScale()), m_RenderExtent(extent), m_GraphicsContext(context)
     {
         EE_CORE_ASSERT(extent.Width > 0 && extent.Height > 0, "Render extent must be greater than zero!")
-        EE_CORE_INFO("Initializing GUI Renderer [Width={}, Height={}].", extent.Width, extent.Height)
+        EE_CORE_INFO("Initializing GUI Renderer {}.", extent)
+
         InitPerFrameData();
         InitRenderPasses(shaderLoader);
     }
@@ -27,7 +29,7 @@ namespace Elixir::GUI
     void Renderer::Resize(const Extent2D& extent)
     {
         EE_CORE_ASSERT(extent.Width > 0 && extent.Height > 0, "Render extent must be greater than zero!")
-        EE_CORE_INFO("Resizing GUI Renderer [Width={}, Height={}].", extent.Width, extent.Height)
+        EE_CORE_INFO("Resizing GUI Renderer {}.", extent)
 
         m_RenderExtent = extent;
         CalculateProjectionMatrix();
@@ -77,6 +79,7 @@ namespace Elixir::GUI
         const auto& quad = CreateRef<QuadRenderPass>(
             m_GraphicsContext,
             shaderLoader,
+            m_DPIScale,
             m_PerFrameConstantBuffer
         );
         RegisterRenderPass(quad);
@@ -84,6 +87,7 @@ namespace Elixir::GUI
         const auto& text = CreateRef<TextRenderPass>(
             m_GraphicsContext,
             shaderLoader,
+            m_DPIScale,
             m_PerFrameConstantBuffer
         );
         RegisterRenderPass(text);
@@ -91,6 +95,7 @@ namespace Elixir::GUI
         const auto& debug = CreateRef<DebugRenderPass>(
             m_GraphicsContext,
             shaderLoader,
+            m_DPIScale,
             m_PerFrameConstantBuffer
         );
         RegisterRenderPass(debug);

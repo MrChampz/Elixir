@@ -12,8 +12,6 @@ namespace Elixir::GUI
         return m_Visibility == EVisibility::Visible && m_Opacity > 0.0f;
     }
 
-
-
     void Widget::HandleMouseEnter()
     {
         m_Hovered = true;
@@ -162,5 +160,11 @@ namespace Elixir::GUI
         {
             m_ContentSlot->GetWidget()->Update(frameTime);
         }
+    }
+
+    ContentSlot& ContentWidget::SetContent(const Ref<Widget>& widget)
+    {
+        m_ContentSlot = CreateRef<ContentSlot>(widget);
+        return *m_ContentSlot;
     }
 }

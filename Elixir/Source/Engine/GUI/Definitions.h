@@ -16,7 +16,12 @@ namespace Elixir::GUI
 
         bool IsValid() const
         {
-            return Size.x > 0 && Size.y > 0;
+            return Position.x != -1 && Position.y != -1 && Size.x != -1 && Size.y != -1;
+        }
+
+        SRect operator*(const float scale) const
+        {
+            return SRect(Position * scale, Size * scale);
         }
     };
 
@@ -74,6 +79,11 @@ namespace Elixir::GUI
 
         float GetTotalHorizontal() const { return Left + Right; }
         float GetTotalVertical() const { return Top + Bottom; }
+
+        SMargin operator*(const float scale) const
+        {
+            return SMargin(Left * scale, Top * scale, Right * scale, Bottom * scale);
+        }
     };
 
     typedef SMargin SPadding;
