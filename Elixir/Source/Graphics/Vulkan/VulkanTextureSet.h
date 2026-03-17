@@ -11,6 +11,8 @@ namespace Elixir::Vulkan
         explicit VulkanTextureSet(const GraphicsContext* context);
         ~VulkanTextureSet() override;
 
+        void Clear() override;
+
         SResourceHandle AddTexture(const Ref<Texture>& texture) override;
         void RemoveTexture(SResourceHandle handle) override;
 

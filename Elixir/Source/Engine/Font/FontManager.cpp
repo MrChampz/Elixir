@@ -32,7 +32,9 @@ namespace Elixir
     {
         EE_PROFILE_ZONE_SCOPED()
         s_Fonts.clear();
+        s_FontsAtlases.reset();
         s_FontBackend.reset();
+        s_Initialized = false;
         EE_CORE_INFO("Font Manager shutdown.")
     }
 

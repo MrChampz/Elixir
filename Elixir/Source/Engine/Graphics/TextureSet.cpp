@@ -5,12 +5,6 @@
 
 namespace Elixir
 {
-    void TextureSet::Clear()
-    {
-        for (const auto& handle : m_Textures | std::views::values)
-            RemoveTexture(handle);
-    }
-
     Ref<TextureSet> TextureSet::Create(const GraphicsContext* context)
     {
         switch (context->GetAPI())

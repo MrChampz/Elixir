@@ -19,6 +19,14 @@ namespace Elixir::Vulkan
     VulkanTextureSet::~VulkanTextureSet()
     {
         EE_PROFILE_ZONE_SCOPED()
+        Clear();
+    }
+
+    void VulkanTextureSet::Clear()
+    {
+        for (const auto& handle : m_Textures | std::views::values)
+            m_Pool->UnregisterTexture(handle);
+
         m_Textures.clear();
     }
 

@@ -14,7 +14,7 @@ namespace Elixir
         /**
          * Clear all textures
          */
-        void Clear();
+        virtual void Clear() = 0;
 
         /**
          * Add a texture to the set and get its handle.
