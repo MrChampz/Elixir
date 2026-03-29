@@ -6,7 +6,7 @@ namespace Elixir
 {
     struct SDeletionQueue
     {
-        std::deque<std::function<void()>> Deletors;
+        std::deque<std::function<void()>> Deleters;
 
         void Push(std::function<void()>&& fn)
         {
