@@ -28,6 +28,12 @@
 #include <Engine/Input/InputManager.h>
 #include <Engine/Input/InputCodes.h>
 
+#include <Engine/Camera/OrthographicCamera.h>
+#include <Engine/Camera/PerspectiveCamera.h>
+#include <Engine/Camera/OrthographicCameraController.h>
+#include <Engine/Camera/PerspectiveCameraController.h>
+#include <Engine/Camera/SplineCameraController.h>
+
 #include <Engine/Graphics/GraphicsTypes.h>
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Graphics/CommandBuffer.h>
