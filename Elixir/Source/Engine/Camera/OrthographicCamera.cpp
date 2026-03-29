@@ -39,7 +39,7 @@ namespace Elixir
 
     void OrthographicCamera::SetZoomLevel(const float zoom)
     {
-        m_ZoomLevel = glm::max(zoom, 1.0f);
+        m_ZoomLevel = glm::max(zoom, 0.01f);
         RecalculateProjectionMatrix();
         RecalculateViewProjectionMatrix();
     }
