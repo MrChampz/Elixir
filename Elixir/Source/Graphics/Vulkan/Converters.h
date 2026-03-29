@@ -107,6 +107,19 @@ namespace Elixir::Vulkan::Converters
         return flags;
     }
 
+    static VkIndexType GetIndexType(const EIndexType type)
+    {
+        switch (type)
+        {
+            case EIndexType::UInt16:
+                return VK_INDEX_TYPE_UINT16;
+            case EIndexType::UInt32:
+                return VK_INDEX_TYPE_UINT32;
+        }
+
+        EE_CORE_ERROR("Unknown index type!")
+    }
+
     static VkFilter GetSamplerFilter(const ESamplerFilter filter)
 	{
 		switch (filter)
@@ -219,6 +232,14 @@ namespace Elixir::Vulkan::Converters
                 return VK_FORMAT_R32G32B32_SINT;
             case EDataType::IntVec4:
                 return VK_FORMAT_R32G32B32A32_SINT;
+            case EDataType::UInt:
+                return VK_FORMAT_R32_UINT;
+            case EDataType::UIntVec2:
+                return VK_FORMAT_R32G32_UINT;
+            case EDataType::UIntVec3:
+                return VK_FORMAT_R32G32B32_UINT;
+            case EDataType::UIntVec4:
+                return VK_FORMAT_R32G32B32A32_UINT;
             default:
                 EE_CORE_ASSERT(false, "Unknown data type!")
                 break;
@@ -231,6 +252,20 @@ namespace Elixir::Vulkan::Converters
     {
         switch (format)
         {
+            case EImageFormat::R8_UNORM:
+                return VK_FORMAT_R8_UNORM;
+            case EImageFormat::R8_SNORM:
+                return VK_FORMAT_R8_SNORM;
+            case EImageFormat::R8_USCALED:
+                return VK_FORMAT_R8_USCALED;
+            case EImageFormat::R8_SSCALED:
+                return VK_FORMAT_R8_SSCALED;
+            case EImageFormat::R8_UINT:
+                return VK_FORMAT_R8_UINT;
+            case EImageFormat::R8_SINT:
+                return VK_FORMAT_R8_SINT;
+            case EImageFormat::R8_SRGB:
+                return VK_FORMAT_R8_SRGB;
             case EImageFormat::R16_SFLOAT:
                 return VK_FORMAT_R16_SFLOAT;
             case EImageFormat::R8G8B8_UNORM:
@@ -405,6 +440,22 @@ namespace Elixir::Vulkan::Converters
         return VK_IMAGE_LAYOUT_UNDEFINED;
     }
 
+    static VkVertexInputRate GetInputRate(const EInputRate rate)
+    {
+        switch (rate)
+        {
+            case EInputRate::Vertex:
+                return VK_VERTEX_INPUT_RATE_VERTEX;
+            case EInputRate::Instance:
+                return VK_VERTEX_INPUT_RATE_INSTANCE;
+            default:
+                EE_CORE_ASSERT(false, "Unknown InputRate!")
+                break;
+        }
+
+        return VK_VERTEX_INPUT_RATE_MAX_ENUM;
+    }
+
     static VkImageType GetImageType(const EImageType type)
 	{
 		switch (type)
@@ -539,9 +590,9 @@ namespace Elixir::Vulkan::Converters
         switch (type)
         {
             case EResourceType::Image:
-                return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            case EResourceType::SampledImage:
                 return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+            case EResourceType::SampledImage:
+                return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             case EResourceType::StorageImage:
                 return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
             case EResourceType::Sampler:

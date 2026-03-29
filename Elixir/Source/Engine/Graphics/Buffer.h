@@ -1,50 +1,12 @@
 #pragma once
 
 #include <Engine/Core/Buffer.h>
+#include <Engine/Graphics/BufferLayout.h>
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Graphics/Memory.h>
 
 namespace Elixir
 {
-    enum class EDataType : uint32_t
-    {
-        Bool, Float, Vec2, Vec3, Vec4, Int, IntVec2, IntVec3, IntVec4, Mat3, Mat4
-    };
-
-    struct SBufferElement
-    {
-        SBufferElement(EDataType type, const std::string& name, bool normalized = false);
-
-        uint32_t GetComponentCount() const;
-
-        std::string Name;
-        EDataType Type;
-        size_t Offset;
-        size_t Size;
-        bool Normalized;
-    };
-
-    class BufferLayout
-    {
-      public:
-        BufferLayout() : m_Stride(0) {}
-        BufferLayout(const std::initializer_list<SBufferElement>& elements);
-
-        [[nodiscard]] const std::vector<SBufferElement>& GetElements() const { return m_Elements; }
-        [[nodiscard]] size_t GetStride() const { return m_Stride; }
-
-        std::vector<SBufferElement>::iterator begin() { return m_Elements.begin(); }
-		std::vector<SBufferElement>::iterator end() { return m_Elements.end(); }
-		std::vector<SBufferElement>::const_iterator begin() const { return m_Elements.begin(); }
-		std::vector<SBufferElement>::const_iterator end() const { return m_Elements.end(); }
-
-      private:
-        void CalculateOffsetsAndStride();
-
-        std::vector<SBufferElement> m_Elements;
-        size_t m_Stride;
-    };
-
     typedef uint64_t BufferAddress;
 
     enum class EBufferUsage : uint32_t
@@ -195,6 +157,12 @@ namespace Elixir
       public:
         ~VertexBuffer() override = default;
 
+        void Bind(
+            const Ref<CommandBuffer>& cmd,
+            uint32_t bindingCount = 1,
+            uint32_t firstBinding = 0
+        ) const;
+
         [[nodiscard]] const BufferLayout& GetLayout() const { return m_Layout; }
         void SetLayout(const BufferLayout& layout) { m_Layout = layout; }
 
@@ -219,6 +187,44 @@ namespace Elixir
         BufferAddress m_Address;
     };
 
+    class ELIXIR_API DynamicVertexBuffer : public DynamicBuffer
+    {
+    public:
+        ~DynamicVertexBuffer() override = default;
+
+        void Bind(
+            const Ref<CommandBuffer>& cmd,
+            uint32_t bindingCount = 1,
+            uint32_t firstBinding = 0
+        ) const;
+
+        void UpdateData(const void* data, size_t size, size_t offset = 0) const;
+
+        [[nodiscard]] const BufferLayout& GetLayout() const { return m_Layout; }
+        void SetLayout(const BufferLayout& layout) { m_Layout = layout; }
+
+        [[nodiscard]] BufferAddress GetAddress() const { return m_Address; }
+
+        static Ref<DynamicVertexBuffer> Create(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr
+        );
+
+        static SBufferCreateInfo CreateBufferInfo(size_t size, const void* data);
+
+    protected:
+        DynamicVertexBuffer(const GraphicsContext* context, size_t size, const void* data = nullptr);
+        DynamicVertexBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
+        DynamicVertexBuffer(const DynamicVertexBuffer&) = delete;
+
+        virtual void CreateBufferAddress() = 0;
+
+        BufferLayout m_Layout;
+        BufferAddress m_Address;
+        void* m_PersistentMapping = nullptr;
+    };
+
     enum class EIndexType
     {
         UInt16, UInt32
@@ -228,6 +234,8 @@ namespace Elixir
     {
       public:
         ~IndexBuffer() override = default;
+
+        void Bind(const Ref<CommandBuffer>& cmd) const;
 
         [[nodiscard]] EIndexType GetIndexType() const { return m_IndexType; }
 
@@ -257,10 +265,50 @@ namespace Elixir
         EIndexType m_IndexType;
     };
 
+    class ELIXIR_API DynamicIndexBuffer : public DynamicBuffer
+    {
+    public:
+        ~DynamicIndexBuffer() override = default;
+
+        void Bind(const Ref<CommandBuffer>& cmd) const;
+
+        void UpdateData(const void* data, size_t size, size_t offset = 0) const;
+
+        [[nodiscard]] EIndexType GetIndexType() const { return m_IndexType; }
+
+        static Ref<DynamicIndexBuffer> Create(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr,
+            EIndexType type = EIndexType::UInt32
+        );
+
+        static SBufferCreateInfo CreateBufferInfo(size_t size, const void* data);
+
+    protected:
+        DynamicIndexBuffer(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr,
+            EIndexType type = EIndexType::UInt32
+        );
+        DynamicIndexBuffer(
+            const GraphicsContext* context,
+            const SBufferCreateInfo& info,
+            EIndexType type = EIndexType::UInt32
+        );
+        DynamicIndexBuffer(const IndexBuffer&) = delete;
+
+        EIndexType m_IndexType;
+        void* m_PersistentMapping = nullptr;
+    };
+
     class ELIXIR_API UniformBuffer : public DynamicBuffer
     {
     public:
         ~UniformBuffer() override = default;
+
+        void UpdateData(const void* data, size_t size, size_t offset = 0);
 
         static Ref<UniformBuffer> Create(
             const GraphicsContext* context,
@@ -277,5 +325,45 @@ namespace Elixir
             const void* data = nullptr
         );
         UniformBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
+    };
+
+    class ELIXIR_API PushConstantBuffer
+    {
+    public:
+        PushConstantBuffer(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr
+        );
+
+        virtual ~PushConstantBuffer() = default;
+
+        virtual void* Map();
+        virtual void Unmap(uint32_t size) {}
+        virtual void Unmap(uint32_t offset, uint32_t size) {}
+
+        const UUID& GetUUID() const { return m_UUID; }
+        virtual SBuffer& GetBuffer() { return m_Buffer; }
+        virtual const SBuffer& GetBuffer() const { return m_Buffer; }
+        virtual uint32_t GetSize() const { return m_Buffer.Size; }
+
+        bool operator==(const PushConstantBuffer& other) const
+        {
+            return m_UUID == other.m_UUID;
+        }
+
+        static Ref<PushConstantBuffer> Create(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr
+        );
+
+    protected:
+        UUID m_UUID;
+        std::string m_DebugName;
+
+        SBuffer m_Buffer;
+
+        const GraphicsContext* m_GraphicsContext;
     };
 }

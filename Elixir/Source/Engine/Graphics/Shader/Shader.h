@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Engine/Graphics/Pipeline/Pipeline.h"
-
-#include <Engine/Graphics/Texture.h>
 #include <Engine/Graphics/Sampler.h>
+#include <Engine/Graphics/Texture.h>
+#include <Engine/Graphics/TextureSet.h>
+#include <Engine/Graphics/Pipeline/Pipeline.h>
 #include <Engine/Graphics/Shader/ShaderBinding.h>
 #include <Engine/Graphics/Shader/ShaderModule.h>
 
@@ -57,14 +57,23 @@ namespace Elixir
         virtual void SetPushConstant(const std::string& name, void* data, size_t size) = 0;
         virtual void SetConstantBuffer(const std::string& name, void* data, size_t size) = 0;
         virtual void BindTexture(const std::string& name, const Ref<Texture>& texture) = 0;
+        virtual void BindTextureSet(const std::string& name, const Ref<TextureSet>& set) = 0;
+        virtual void BindSampler(const std::string& name, const Ref<Sampler>& sampler) = 0;
+        virtual void BindConstantBuffer(const std::string& name, const Ref<UniformBuffer>& buffer) = 0;
 
-        [[nodiscard]] virtual Ref<Texture> GetTexture(const std::string& name) const;
-        [[nodiscard]] virtual Ref<Texture> GetTexture(SShaderBinding binding) const;
+        virtual Ref<Texture> GetTexture(const std::string& name) const;
+        virtual Ref<Texture> GetTexture(SShaderBinding binding) const;
 
-        [[nodiscard]] const std::string& GetName() const { return m_Name; }
-        [[nodiscard]] Ref<ShaderModule> GetModule(EShaderStage stage) const;
+        virtual Ref<TextureSet> GetTextureSet(const std::string& name) const;
+        virtual Ref<TextureSet> GetTextureSet(SShaderBinding binding) const;
 
-        [[nodiscard]] auto GetModules() const
+        virtual Ref<Sampler> GetSampler(const std::string& name) const;
+        virtual Ref<Sampler> GetSampler(SShaderBinding binding) const;
+
+        const std::string& GetName() const { return m_Name; }
+        Ref<ShaderModule> GetModule(EShaderStage stage) const;
+
+        auto GetModules() const
         {
             return m_Modules | std::views::filter([] (const Ref<ShaderModule>& module)
             {
@@ -103,10 +112,11 @@ namespace Elixir
         // Shader resources
         std::unordered_map<std::string, SShaderBinding> m_BindingLookup;
         std::unordered_map<SShaderBinding, Ref<Texture>> m_Textures;
+        std::unordered_map<SShaderBinding, Ref<TextureSet>> m_TextureSets;
         std::unordered_map<SShaderBinding, Ref<Sampler>> m_Samplers;
         // TODO: Rename to ConstantBuffer
         std::unordered_map<SShaderBinding, Ref<UniformBuffer>> m_ConstantBuffers;
-        //std::unordered_map<std::string, Ref<PushConstantBuffer>> m_PushConstants;
+        std::unordered_map<SShaderBinding, Ref<PushConstantBuffer>> m_PushConstants;
 
         const GraphicsContext* m_GraphicsContext;
     };

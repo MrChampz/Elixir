@@ -2,7 +2,7 @@
 
 #include <Engine/Input/Input.h>
 
-namespace Elixir::Platform::GLFW
+namespace Elixir::GLFW
 {
     class GLFWInput final : public Input
     {

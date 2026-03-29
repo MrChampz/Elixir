@@ -54,6 +54,21 @@ namespace Elixir::Vulkan
 
         void BindPipeline(const GraphicsPipeline* pipeline) override;
 
+        void BindVertexBuffers(
+            std::span<const VertexBuffer*> vertexBuffers,
+            std::span<uint64_t> offsets,
+            uint32_t bindingCount,
+            uint32_t firstBinding
+        ) override;
+        void BindVertexBuffers(
+            std::span<const DynamicVertexBuffer*> vertexBuffers,
+            std::span<uint64_t> offsets,
+            uint32_t bindingCount,
+            uint32_t firstBinding
+        ) override;
+        void BindIndexBuffer(const IndexBuffer* indexBuffer) override;
+        void BindIndexBuffer(const DynamicIndexBuffer* indexBuffer) override;
+
         void BindDescriptorSets(
             VkPipelineLayout layout,
             uint32_t firstSet,

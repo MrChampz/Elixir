@@ -9,6 +9,7 @@ add_library(${PROJECT_NAME} SHARED
     ${SOURCES}
     ${CMAKE_CURRENT_LIST_DIR}/Vendor/stb/stb_image.h
     ${CMAKE_CURRENT_LIST_DIR}/Vendor/stb/stb_image.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/Vendor/stb/stb_image_write.h
 )
 
 # PCH
@@ -107,6 +108,13 @@ set(FASTGLTF_COMPILE_AS_CPP20 ON)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/simdjson)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/fastgltf)
 
+set(MSDF_ATLAS_USE_VCPKG OFF)
+set(MSDF_ATLAS_BUILD_STANDALONE OFF)
+set(MSDF_ATLAS_USE_SKIA ON)
+set(MSDF_ATLAS_NO_ARTERY_FONT ON)
+set(MSDF_ATLAS_DYNAMIC_RUNTIME ON)
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/msdf-atlas-gen)
+
 set(GLFW_BUILD_DOCS OFF)
 set(GLFW_INSTALL OFF)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/glfw)
@@ -121,6 +129,8 @@ add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/VulkanMemoryAllocator)
 
 set(SPIRV_CROSS_ENABLE_TESTS OFF)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/SPIRV-Cross)
+
+find_package(Freetype REQUIRED)
 
 # Only when profiling is enabled
 if (ELIXIR_PROFILE)
@@ -141,13 +151,16 @@ target_link_libraries(${PROJECT_NAME}
     stduuid
     glm
     spdlog
+    simdjson
     fastgltf
+    msdf-atlas-gen
     imgui
     glfw
     Vulkan::Vulkan
     vk-bootstrap
     VulkanMemoryAllocator
     spirv-cross-cpp
+    Freetype::Freetype
 )
 
 # Only when profiling is enabled

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <glm/vec2.hpp>
+
 namespace Elixir
 {
     typedef struct Offset2D
@@ -40,7 +42,7 @@ namespace Elixir
             : Width(width), Height(height), Depth(depth) {
         }
 
-        explicit Extent3D(const Extent2D& extent)
+        Extent3D(const Extent2D& extent)
             : Width(extent.Width), Height(extent.Height), Depth(1) {}
 
         Extent3D(const Extent3D& extent)
@@ -49,8 +51,8 @@ namespace Elixir
 
     typedef struct Rect2D
     {
-        Offset2D Offset;
-        Extent2D Extent;
+        Offset2D Offset = { 0, 0 };
+        Extent2D Extent = { 0, 0 };
     } Rect2D;
 
     typedef struct Viewport

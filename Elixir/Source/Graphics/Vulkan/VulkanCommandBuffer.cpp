@@ -4,6 +4,7 @@
 #include "VulkanGraphicsContext.h"
 #include "Converters.h"
 #include "Utils.h"
+#include "VulkanBuffer.h"
 #include "VulkanPipeline.h"
 
 namespace Elixir::Vulkan
@@ -12,7 +13,8 @@ namespace Elixir::Vulkan
         const GraphicsContext* context,
         const VkCommandPool pool,
         const ECommandBufferLevel level
-    ) : CommandBuffer(context, level), m_Ended(true), m_CommandPool(pool)
+    ) : CommandBuffer(context, level), m_Ended(true), m_CommandPool(pool),
+        m_InheritanceInfo(nullptr)
     {
         EE_PROFILE_ZONE_SCOPED()
         m_GraphicsContext = static_cast<const VulkanGraphicsContext*>(context);
@@ -205,6 +207,90 @@ namespace Elixir::Vulkan
             m_CommandBuffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
             vkPipeline->GetVulkanPipeline()
+        );
+    }
+
+    void VulkanCommandBuffer::BindVertexBuffers(
+        const std::span<const VertexBuffer*> vertexBuffers,
+        std::span<uint64_t> offsets,
+        const uint32_t bindingCount,
+        const uint32_t firstBinding
+    )
+    {
+        std::vector<VkBuffer> buffers;
+        buffers.reserve(vertexBuffers.size());
+
+        for (const auto& buffer : vertexBuffers)
+        {
+            const auto vkBuffer = static_cast<const VulkanVertexBuffer*>(buffer);
+            buffers.push_back(vkBuffer->GetVulkanBuffer());
+        }
+
+        if (offsets.size() == 0)
+        {
+            std::array<uint64_t, 1> defaultOffset = { 0 };
+            offsets = defaultOffset;
+        }
+
+        vkCmdBindVertexBuffers(
+            m_CommandBuffer,
+            firstBinding,
+            bindingCount,
+            buffers.data(),
+            offsets.data()
+        );
+    }
+
+    void VulkanCommandBuffer::BindVertexBuffers(
+        const std::span<const DynamicVertexBuffer*> vertexBuffers,
+        std::span<uint64_t> offsets,
+        const uint32_t bindingCount,
+        const uint32_t firstBinding
+    )
+    {
+        std::vector<VkBuffer> buffers;
+        buffers.reserve(vertexBuffers.size());
+
+        for (const auto& buffer : vertexBuffers)
+        {
+            const auto vkBuffer = static_cast<const VulkanDynamicVertexBuffer*>(buffer);
+            buffers.push_back(vkBuffer->GetVulkanBuffer());
+        }
+
+        if (offsets.size() == 0)
+        {
+            std::array<uint64_t, 1> defaultOffset = { 0 };
+            offsets = defaultOffset;
+        }
+
+        vkCmdBindVertexBuffers(
+            m_CommandBuffer,
+            firstBinding,
+            bindingCount,
+            buffers.data(),
+            offsets.data()
+        );
+    }
+
+    void VulkanCommandBuffer::BindIndexBuffer(const IndexBuffer* indexBuffer)
+    {
+        const auto vkBuffer = static_cast<const VulkanIndexBuffer*>(indexBuffer);
+        vkCmdBindIndexBuffer(
+            m_CommandBuffer,
+            vkBuffer->GetVulkanBuffer(),
+            0,
+            Converters::GetIndexType(indexBuffer->GetIndexType())
+        );
+    }
+
+    void VulkanCommandBuffer::BindIndexBuffer(const DynamicIndexBuffer* indexBuffer)
+    {
+        const auto vkBuffer = static_cast<const VulkanDynamicIndexBuffer*>(indexBuffer);
+        vkCmdBindIndexBuffer(
+            m_CommandBuffer,
+            vkBuffer->GetVulkanBuffer(),
+            0,
+            Converters::GetIndexType(indexBuffer->GetIndexType())
         );
     }
 

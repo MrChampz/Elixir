@@ -16,6 +16,8 @@ namespace Elixir
     {
       public:
         MouseMovedEvent(const float x, const float y) : m_MouseX(x), m_MouseY(y) {}
+        explicit MouseMovedEvent(const glm::vec2 position)
+            : MouseMovedEvent(position.x, position.y) {}
 
         [[nodiscard]] std::string ToString() const override
         {
@@ -62,22 +64,34 @@ namespace Elixir
         [[nodiscard]] std::string ToString() const override
         {
             std::stringstream ss;
-            ss << GetName() << ": " << GetMouseButton() << ".";
+            ss << GetName() << ": " << GetMouseButton() << " [" << GetX() << ", " << GetY() << "].";
             return ss.str();
         }
 
-        [[nodiscard]] int GetMouseButton() const { return m_Button; }
+        int GetMouseButton() const { return m_Button; }
+        float GetX() const { return m_MouseX; }
+        float GetY() const { return m_MouseY; }
+        std::pair<float, float> GetPosition() const { return { m_MouseX, m_MouseY }; }
 
       protected:
-        explicit MouseButtonEvent(const int button) : m_Button(button) {}
+        explicit MouseButtonEvent(const int button, const float x, const float y)
+            : m_Button(button), m_MouseX(x), m_MouseY(y) {}
 
         int m_Button;
+        float m_MouseX, m_MouseY;
     };
 
     class ELIXIR_API MouseButtonPressedEvent final : public MouseButtonEvent
     {
       public:
-        explicit MouseButtonPressedEvent(const int button) : MouseButtonEvent(button) {}
+        explicit MouseButtonPressedEvent(
+            const int button,
+            const float x = 0.0f,
+            const float y = 0.0f
+        ) : MouseButtonEvent(button, x, y) {}
+
+        explicit MouseButtonPressedEvent(const int button, const glm::vec2 position)
+            : MouseButtonEvent(button, position.x, position.y) {}
 
         EVENT_CLASS_TYPE(MouseButtonPressed)
     };
@@ -85,7 +99,14 @@ namespace Elixir
     class ELIXIR_API MouseButtonReleasedEvent final : public MouseButtonEvent
     {
       public:
-        explicit MouseButtonReleasedEvent(const int button) : MouseButtonEvent(button) {}
+        explicit MouseButtonReleasedEvent(
+            const int button,
+            const float x = 0.0f,
+            const float y = 0.0f
+        ) : MouseButtonEvent(button, x, y) {}
+
+        explicit MouseButtonReleasedEvent(const int button, const glm::vec2 position)
+            : MouseButtonEvent(button, position.x, position.y) {}
 
         EVENT_CLASS_TYPE(MouseButtonReleased)
     };

@@ -8,6 +8,7 @@
 #include <Engine/Event/Event.h>
 #include <Engine/Event/WindowEvent.h>
 #include <Engine/Graphics/GraphicsContext.h>
+#include <Engine/GUI/Manager.h>
 
 namespace Elixir
 {
@@ -21,7 +22,7 @@ namespace Elixir
 
         virtual void OnGUI(Timestep frameTime) {}
         virtual void OnRender(Timestep frameTime) {}
-        void OnEvent(Event& event);
+        virtual void OnEvent(Event& event);
 
         [[nodiscard]] const Window* GetWindow() const { return m_Window.get(); }
 
@@ -35,6 +36,9 @@ namespace Elixir
         Scope<Window> m_Window;
         Scope<GraphicsContext> m_GraphicsContext;
 
+        Scope<ShaderLoader> m_ShaderLoader;
+        Scope<GUI::Manager> m_GUIManager;
+
         Timer m_Timer;
         FrameProfiler m_Profiler;
 
@@ -45,6 +49,6 @@ namespace Elixir
         static Application* s_Application;
     };
 
-    // NOTE: To be defined in client
+    // NOTE: To be defined in the client
     extern Application* CreateApplication();
 }

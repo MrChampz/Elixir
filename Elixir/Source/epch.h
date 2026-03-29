@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <format>
 #include <cstdint>
+#include <fstream>
 
 #include <string>
 #include <sstream>
@@ -17,8 +18,10 @@
 #include <unordered_set>
 #include <optional>
 #include <deque>
+#include <queue>
 #include <span>
 #include <ranges>
+#include <semaphore>
 
 #include <Engine/Core/UUID.h>
 #include <Engine/Core/CoreTypes.h>
@@ -27,6 +30,7 @@
 #include <Engine/Logging/Log.h>
 #include <Engine/Logging/Formatters.h>
 #include <Engine/Instrumentation/Profiler.h>
+#include <Engine/Font/UTF8.h>
 
 #define _USE_MATH_DEFINES
 #include <cmath>

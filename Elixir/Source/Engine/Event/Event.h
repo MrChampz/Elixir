@@ -23,6 +23,7 @@ namespace Elixir
     {
         None,
         WindowClose, WindowResize, WindowFocus, WindowLostFocus, WindowMoved,
+        FramebufferResize,
         AppTick, AppUpdate, AppRender,
         KeyPressed, KeyReleased, KeyTyped,
         MouseButtonPressed, MouseButtonReleased, MouseMoved, MouseScrolled

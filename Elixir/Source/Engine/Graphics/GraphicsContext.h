@@ -27,6 +27,8 @@ namespace Elixir
         virtual void Init() = 0;
         virtual void Shutdown() = 0;
 
+        virtual void ProcessEvent(Event& event) = 0;
+
         virtual void RenderFrame(std::function<void()> callback) = 0;
         virtual void DrainRenderQueue() = 0;
 
@@ -64,6 +66,8 @@ namespace Elixir
         [[nodiscard]] EGraphicsAPI GetAPI() const { return m_API; }
 
         const Window* GetWindow() const { return m_Window; }
+        float GetDPIScale() const;
+
         const Scope<ShaderBackend>& GetShaderBackend() const { return m_ShaderBackend; }
 
         /**
@@ -89,7 +93,7 @@ namespace Elixir
 
         Ref<Texture2D> GetRenderTarget() const { return m_RenderTarget; }
 
-        virtual Extent2D GetSwapchainExtent() const = 0;
+        virtual Extent3D GetSwapchainExtent() const = 0;
 
         static Scope<GraphicsContext> Create(EGraphicsAPI api, Executor* executor, const Window* window);
 

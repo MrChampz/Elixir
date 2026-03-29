@@ -8,14 +8,14 @@
 
 namespace Elixir
 {
-    Scope<Input> InputManager::s_Input = CreateScope<Platform::GLFW::GLFWInput>();
+    Scope<Input> InputManager::s_Input = CreateScope<GLFW::GLFWInput>();
 }
 
-namespace Elixir::Platform::GLFW
+namespace Elixir::GLFW
 {
     GLFWwindow* GetWindow()
     {
-        const auto window = Application::Get().GetWindow()->GetNativeWindow();
+        const auto window = Application::Get().GetWindow()->GetHandle();
         return static_cast<GLFWwindow*>(window);
     }
 

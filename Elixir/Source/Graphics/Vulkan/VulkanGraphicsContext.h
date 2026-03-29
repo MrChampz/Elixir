@@ -1,10 +1,12 @@
 #pragma once
 
-#include <semaphore>
 #include <Engine/Core/Window.h>
+#include <Engine/Core/DeletionQueue.h>
 #include <Engine/Core/Executor/Executor.h>
+#include <Engine/Event/WindowEvent.h>
 #include <Engine/Graphics/GraphicsContext.h>
-#include <Graphics/Vulkan/VulkanTexture.h>
+#include <Graphics/Vulkan/Converters.h>
+#include <Graphics/Vulkan/VulkanDescriptorPool.h>
 
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
@@ -12,48 +14,8 @@
 namespace Elixir::Vulkan
 {
     class VulkanCommandBuffer;
-    using Elixir::GraphicsContext;
-
     class VulkanCommandPoolManager;
-
-    struct SDescriptorAllocator
-    {
-        struct SPoolSizeRatio
-        {
-            VkDescriptorType Type;
-            float Ratio;
-        };
-
-        VkDescriptorPool Pool;
-
-        void InitPool(VkDevice device, uint32_t maxSets, std::span<SPoolSizeRatio> ratios);
-        void Reset(VkDevice device) const;
-        void DestroyPool(VkDevice device) const;
-
-        VkDescriptorSet Allocate(VkDevice device, VkDescriptorSetLayout layout) const;
-    };
-
-    // TODO: Move to Core?
-    struct SDeletionQueue
-    {
-        std::deque<std::function<void()>> Deletors;
-
-        void Push(std::function<void()>&& fn)
-        {
-            Deletors.push_back(fn);
-        }
-
-        void Flush()
-        {
-            // Reverse iterate the deletion queue to execute in the correct order.
-            for (auto it = Deletors.rbegin(); it != Deletors.rend(); ++it)
-            {
-                (*it)();
-            }
-
-            Deletors.clear();
-        }
-    };
+    using Elixir::GraphicsContext;
 
     struct SFrameData
     {
@@ -94,6 +56,8 @@ namespace Elixir::Vulkan
         void Init() override;
         void Shutdown() override;
 
+        void ProcessEvent(Event& event) override;
+
         void RenderFrame(std::function<void()> callback) override;
         void DrainRenderQueue() override;
 
@@ -106,7 +70,7 @@ namespace Elixir::Vulkan
         Ref<CommandBuffer> GetUploadCommandBuffer() const override;
         void EnqueueSecondaryCommandBuffer(const Ref<CommandBuffer>& cmd) const override;
 
-        Extent2D GetSwapchainExtent() const override;
+        Extent3D GetSwapchainExtent() const override { return m_SwapchainExtent;}
 
         SFrameData& GetCurrentFrame() { return m_Frames[GetFrameIndex()]; }
 
@@ -118,11 +82,12 @@ namespace Elixir::Vulkan
         VkQueue GetTransferQueue() const { return m_TransferQueue; }
         uint32_t GetTransferQueueFamily() const { return m_TransferQueueFamily; }
         VmaAllocator GetAllocator() const { return m_Allocator; }
-        const VkDescriptorPool& GetDescriptorPool() const { return m_GlobalDescriptorAllocator.Pool; }
+        Ref<VulkanDescriptorPool> GetDescriptorPool() const { return m_DescriptorPool; }
+        Ref<VulkanBindlessDescriptorPool> GetBindlessDescriptorPool() const { return m_BindlessDescriptorPool; }
 
         SSwapchainImage& GetCurrentSwapchainImage() { return m_SwapchainImages[m_CurrentSwapchainImageIndex]; }
         VkFormat GetSwapchainImageFormat() const { return m_SwapchainImageFormat; }
-        VkExtent3D GetSwapchainVulkanExtent() const { return m_SwapchainExtent; }
+        VkExtent3D GetSwapchainVulkanExtent() const { return Converters::GetExtent3D(m_SwapchainExtent); }
 
       private:
         void InitVulkan();
@@ -132,7 +97,7 @@ namespace Elixir::Vulkan
         void InitSyncStructures();
         void InitDescriptors();
 
-        void CreateSwapchain(const Extent2D& extent);
+        void CreateSwapchain(const Extent3D& extent);
         void DestroySwapchain();
         void RecreateSwapchain();
 
@@ -145,6 +110,8 @@ namespace Elixir::Vulkan
         void Submit();
         void Present();
 
+        bool HandleFramebufferResize(const FramebufferResizeEvent& event);
+
         bool m_IsInitialized = false;
 
 #ifdef EE_DEBUG
@@ -152,8 +119,6 @@ namespace Elixir::Vulkan
 #else
         bool m_UseValidationLayers = false;
 #endif
-
-        Extent2D m_WindowExtent;
 
         VkInstance m_Instance;
         VkDebugUtilsMessengerEXT m_DebugMessenger;
@@ -164,7 +129,7 @@ namespace Elixir::Vulkan
 
         VkSwapchainKHR m_Swapchain;
         VkFormat m_SwapchainImageFormat;
-        VkExtent3D m_SwapchainExtent;
+        Extent3D m_SwapchainExtent;
         std::vector<SSwapchainImage> m_SwapchainImages;
         uint32_t m_CurrentSwapchainImageIndex = 0;
         bool m_SwapchainRecreateRequested = false;
@@ -176,7 +141,8 @@ namespace Elixir::Vulkan
         uint32_t m_TransferQueueFamily;
 
         VmaAllocator m_Allocator;
-        SDescriptorAllocator m_GlobalDescriptorAllocator;
+        Ref<VulkanDescriptorPool> m_DescriptorPool;
+        Ref<VulkanBindlessDescriptorPool> m_BindlessDescriptorPool;
 
         Scope<VulkanCommandPoolManager> m_CommandPoolManager;
         Ref<VulkanCommandBuffer> m_MainCommandBuffer;

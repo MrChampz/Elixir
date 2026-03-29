@@ -36,6 +36,21 @@ namespace Elixir
         m_Multisample.AlphaToOneEnable = false;
     }
 
+    void PipelineBuilder::EnableAlphaBlending()
+    {
+        m_ColorBlendAttachment.BlendEnable = true;
+        m_ColorBlendAttachment.SrcColorBlendFactor = EBlendFactor::SrcAlpha;
+        m_ColorBlendAttachment.DstColorBlendFactor = EBlendFactor::OneMinusSrcAlpha;
+        m_ColorBlendAttachment.ColorBlendOp = EBlendOp::Add;
+        m_ColorBlendAttachment.SrcAlphaBlendFactor = EBlendFactor::One;
+        m_ColorBlendAttachment.DstAlphaBlendFactor = EBlendFactor::OneMinusSrcAlpha;
+        m_ColorBlendAttachment.AlphaBlendOp = EBlendOp::Add;
+        m_ColorBlendAttachment.ColorWriteMask = EColorComponent::R |
+            EColorComponent::G | EColorComponent::B | EColorComponent::A;
+
+        m_Multisample.RasterizationSamples = ESampleCount::_1;
+    }
+
     void PipelineBuilder::DisableBlending()
     {
         m_ColorBlendAttachment.BlendEnable = false;
@@ -85,9 +100,10 @@ namespace Elixir
         m_ColorBlendAttachment = {};
         m_Shader = nullptr;
         m_VertexBufferLayout = {};
+        m_DepthAttachmentFormat = EDepthStencilImageFormat::Undefined;
     }
 
-    Ref<GraphicsPipeline> PipelineBuilder::Build(const GraphicsContext* context) const
+    SPipelineCreateInfo PipelineBuilder::GetCreateInfo() const
     {
         SPipelineColorBlendInfo colorBlend{};
         colorBlend.LogicOpEnable = false;
@@ -105,6 +121,11 @@ namespace Elixir
         info.Shader = m_Shader;
         info.VertexBufferLayout = m_VertexBufferLayout;
 
-        return GraphicsPipeline::Create(context, info);
+        return info;
+    }
+
+    Ref<GraphicsPipeline> PipelineBuilder::Build(const GraphicsContext* context) const
+    {
+        return GraphicsPipeline::Create(context, GetCreateInfo());
     }
 }

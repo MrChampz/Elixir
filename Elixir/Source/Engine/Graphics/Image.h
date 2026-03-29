@@ -68,6 +68,13 @@ namespace Elixir
 	enum class EImageFormat
 	{
 	    Undefined = 1,
+	    R8_UNORM,
+        R8_SNORM,
+        R8_USCALED,
+        R8_SSCALED,
+        R8_UINT,
+        R8_SINT,
+        R8_SRGB,
 	    R16_SFLOAT,
 	    R8G8B8_UNORM,
         R8G8B8_SNORM,

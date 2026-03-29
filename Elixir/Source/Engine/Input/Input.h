@@ -14,8 +14,28 @@ namespace Elixir
             m_MousePosition = event.GetPosition();
         }
 
+        virtual void OnMouseButtonPressed(MouseButtonPressedEvent& event)
+        {
+            m_MouseButtons[event.GetMouseButton()] = true;
+        }
+
+        virtual void OnMouseButtonReleased(MouseButtonReleasedEvent& event)
+        {
+            m_MouseButtons[event.GetMouseButton()] = false;
+        }
+
         virtual bool IsKeyPressed(int keyCode) = 0;
         virtual bool IsMouseButtonPressed(int button) = 0;
+
+        virtual bool IsMouseButtonDown(const int button)
+        {
+            return m_MouseButtons[button];
+        }
+
+        virtual bool IsMouseButtonUp(const int button)
+        {
+            return !m_MouseButtons[button];
+        }
 
         virtual std::pair<float, float> GetMousePosition() { return m_MousePosition; }
         virtual float GetMouseX() { return m_MousePosition.first; }
@@ -28,5 +48,6 @@ namespace Elixir
 
     protected:
         std::pair<float, float> m_MousePosition;
+        std::unordered_map<int, bool> m_MouseButtons;
     };
 }

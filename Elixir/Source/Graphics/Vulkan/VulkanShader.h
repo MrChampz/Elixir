@@ -7,8 +7,11 @@ namespace Elixir::Vulkan
 {
     using namespace Elixir;
 
+    class VulkanTextureSet;
+
     class ELIXIR_API VulkanShader final : public Shader
     {
+        friend class VulkanTextureSet;
       public:
         VulkanShader(const GraphicsContext* context, SShaderCreateInfo&& info);
         ~VulkanShader() override;
@@ -18,10 +21,14 @@ namespace Elixir::Vulkan
         void SetPushConstant(const std::string& name, void* data, size_t size) override;
         void SetConstantBuffer(const std::string& name, void* data, size_t size) override;
         void BindTexture(const std::string& name, const Ref<Texture>& texture) override;
+        void BindTextureSet(const std::string& name, const Ref<TextureSet>& set) override;
+        void BindSampler(const std::string& name, const Ref<Sampler>& sampler) override;
+        void BindConstantBuffer(const std::string& name, const Ref<UniformBuffer>& buffer) override;
 
-        [[nodiscard]] const std::vector<VkDescriptorSetLayout>& GetDescriptorSetLayouts() const { return m_DescriptorSetLayouts; }
-        [[nodiscard]] const std::vector<VkDescriptorSet>& GetDescriptorSets() const { return m_DescriptorSets; }
-        [[nodiscard]] const VkPipelineLayout& GetPipelineLayout() const { return m_PipelineLayout; }
+        const std::vector<VkDescriptorSetLayout>& GetDescriptorSetLayouts() const { return m_DescriptorSetLayouts; }
+        std::vector<VkDescriptorSet> GetDescriptorSets() const;
+        const VkPipelineLayout& GetPipelineLayout() const { return m_PipelineLayout; }
+        std::vector<VkPushConstantRange> GetPushConstantRanges() const;
 
       protected:
         void CreateDescriptorSetLayouts();
@@ -31,10 +38,15 @@ namespace Elixir::Vulkan
         void UpdateDescriptorSets();
 
         VkWriteDescriptorSet GetWriteDescriptorSet(
-            SShaderBinding binding,
-            const Ref<Texture>& texture
+            SShaderBinding binding, const Texture* texture
         ) const;
-        void UpdateDescriptorSet(SShaderBinding binding, const Ref<Texture>& texture) const;
+        void UpdateDescriptorSet(SShaderBinding binding, const Texture* texture) const;
+
+        VkWriteDescriptorSet GetWriteDescriptorSet(
+            SShaderBinding binding,
+            const Ref<Sampler>& sampler
+        ) const;
+        void UpdateDescriptorSet(SShaderBinding binding, const Ref<Sampler>& sampler) const;
 
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding,
@@ -44,6 +56,8 @@ namespace Elixir::Vulkan
             SShaderBinding binding,
             const Ref<UniformBuffer>& buffer
         ) const;
+
+        bool m_BindlessSet = false;
 
         std::vector<VkDescriptorSet> m_DescriptorSets;
         std::vector<VkDescriptorSetLayout> m_DescriptorSetLayouts;

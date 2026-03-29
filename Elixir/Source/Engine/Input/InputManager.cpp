@@ -11,9 +11,22 @@ namespace Elixir
     void InputManager::OnEvent(Event& event)
     {
         EventDispatcher dispatcher(event);
+
         dispatcher.Dispatch<MouseMovedEvent>([&](MouseMovedEvent& ev)
         {
             s_Input->OnMouseMoved(ev);
+            return true;
+        });
+
+        dispatcher.Dispatch<MouseButtonPressedEvent>([&](MouseButtonPressedEvent& ev)
+        {
+            s_Input->OnMouseButtonPressed(ev);
+            return true;
+        });
+
+        dispatcher.Dispatch<MouseButtonReleasedEvent>([&](MouseButtonReleasedEvent& ev)
+        {
+            s_Input->OnMouseButtonReleased(ev);
             return true;
         });
     }
@@ -28,6 +41,18 @@ namespace Elixir
     {
         AssertInputInitialized(s_Input.get());
         return s_Input->IsMouseButtonPressed(button);
+    }
+
+    bool InputManager::IsMouseButtonDown(const int button)
+    {
+        AssertInputInitialized(s_Input.get());
+        return s_Input->IsMouseButtonDown(button);
+    }
+
+    bool InputManager::IsMouseButtonUp(const int button)
+    {
+        AssertInputInitialized(s_Input.get());
+        return s_Input->IsMouseButtonUp(button);
     }
 
     std::pair<float, float> InputManager::GetMousePosition()

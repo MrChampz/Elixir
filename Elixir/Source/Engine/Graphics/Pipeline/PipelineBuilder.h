@@ -13,6 +13,7 @@ namespace Elixir
         void SetPolygonMode(EPolygonMode mode);
         void SetCullMode(ECullMode mode, EFrontFace frontFace);
         void SetMultisamplingNone();
+        void EnableAlphaBlending();
         void DisableBlending();
         void DisableDepthTest();
         void SetColorAttachmentFormat(EImageFormat format);
@@ -21,6 +22,8 @@ namespace Elixir
         void SetBufferLayout(const BufferLayout& layout);
 
         void Clear();
+
+        SPipelineCreateInfo GetCreateInfo() const;
         Ref<GraphicsPipeline> Build(const GraphicsContext* context) const;
 
       protected:

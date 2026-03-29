@@ -116,30 +116,37 @@ namespace Elixir::Vulkan
 
     VkPipelineVertexInputStateCreateInfo VulkanGraphicsPipeline::CreateVertexInputState()
     {
-        m_Binding.binding = 0;
-        m_Binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-        m_Binding.stride = m_BufferLayout.GetStride();
-
-        m_Attributes.resize(m_BufferLayout.GetElements().size());
+        m_Bindings.reserve(m_BufferLayout.GetBindingCount());
+        m_Attributes.reserve(m_BufferLayout.GetAttributeCount());
 
         uint32_t location = 0;
-        for (const auto& element : m_BufferLayout)
+        for (const auto& binding : m_BufferLayout)
         {
-            VkVertexInputAttributeDescription attribute = {};
-            attribute.binding = m_Binding.binding;
-            attribute.location = location;
-            attribute.format = Converters::GetFormat(element.Type);
-            attribute.offset = element.Offset;
+            VkVertexInputBindingDescription bindingDesc = {};
+            bindingDesc.binding = binding.GetBinding();
+            bindingDesc.inputRate = Converters::GetInputRate(binding.GetInputRate());
+            bindingDesc.stride = binding.GetStride();
 
-            m_Attributes[location] = attribute;
-            location++;
+            m_Bindings.push_back(bindingDesc);
+
+            for (const auto& attribute : binding)
+            {
+                VkVertexInputAttributeDescription attributeDesc = {};
+                attributeDesc.binding = binding.GetBinding();
+                attributeDesc.location = location;
+                attributeDesc.format = Converters::GetFormat(attribute.GetType());
+                attributeDesc.offset = attribute.GetOffset();
+
+                m_Attributes.push_back(attributeDesc);
+                location++;
+            }
         }
 
         VkPipelineVertexInputStateCreateInfo info = {};
         info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
         info.pNext = nullptr;
-        info.vertexBindingDescriptionCount = 1;
-        info.pVertexBindingDescriptions = &m_Binding;
+        info.vertexBindingDescriptionCount = (uint32_t)m_Bindings.size();
+        info.pVertexBindingDescriptions = m_Bindings.data();
         info.vertexAttributeDescriptionCount = (uint32_t)m_Attributes.size();
         info.pVertexAttributeDescriptions = m_Attributes.data();
 

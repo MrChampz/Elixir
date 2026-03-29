@@ -282,6 +282,55 @@ namespace Elixir::Vulkan
         m_Address = vkGetBufferDeviceAddress(m_GraphicsContext->GetDevice(), &addressInfo);
     }
 
+    /* VulkanDynamicVertexBuffer */
+
+    VulkanDynamicVertexBuffer::VulkanDynamicVertexBuffer(
+        const GraphicsContext* context,
+        const size_t size,
+        const void* data
+    ) : VulkanDynamicVertexBuffer(context, CreateBufferInfo(size, data)) {}
+
+    VulkanDynamicVertexBuffer::VulkanDynamicVertexBuffer(
+        const GraphicsContext* context,
+        const SBufferCreateInfo& info
+    ) : VulkanDynamicBuffer(context, info)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        VulkanDynamicVertexBuffer::CreateBuffer(info);
+        VulkanDynamicVertexBuffer::InitBuffer(info.Buffer);
+        VulkanDynamicVertexBuffer::CreateDescriptorInfo();
+        CreateBufferAddress();
+    }
+
+    VulkanDynamicVertexBuffer::~VulkanDynamicVertexBuffer()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        if (m_PersistentMapping)
+            VulkanDynamicBuffer::Unmap();
+        VulkanDynamicVertexBuffer::Destroy();
+    }
+
+    void VulkanDynamicVertexBuffer::InitBuffer(const SBuffer& buffer)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        m_PersistentMapping = Map();
+
+        if (buffer.Data)
+        {
+            Memory::Memcpy(m_PersistentMapping, buffer.Data, m_Size);
+        }
+    }
+
+    void VulkanDynamicVertexBuffer::CreateBufferAddress()
+    {
+        VkBufferDeviceAddressInfo addressInfo = {};
+        addressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+        addressInfo.buffer = m_Buffer;
+
+        m_Address = vkGetBufferDeviceAddress(m_GraphicsContext->GetDevice(), &addressInfo);
+    }
+
     /* VulkanIndexBuffer */
 
     VulkanIndexBuffer::VulkanIndexBuffer(
@@ -308,6 +357,45 @@ namespace Elixir::Vulkan
     {
         EE_PROFILE_ZONE_SCOPED()
         VulkanIndexBuffer::Destroy();
+    }
+
+    /* VulkanDynamicIndexBuffer */
+
+    VulkanDynamicIndexBuffer::VulkanDynamicIndexBuffer(
+        const GraphicsContext* context,
+        const size_t size,
+        const void* data,
+        const EIndexType type
+    ) : VulkanDynamicIndexBuffer(context, CreateBufferInfo(size, data), type) {}
+
+    VulkanDynamicIndexBuffer::VulkanDynamicIndexBuffer(
+        const GraphicsContext* context,
+        const SBufferCreateInfo& info,
+        const EIndexType type
+    ) : VulkanDynamicBuffer(context, info)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        VulkanDynamicIndexBuffer::CreateBuffer(info);
+        VulkanDynamicIndexBuffer::InitBuffer(info.Buffer);
+        VulkanDynamicIndexBuffer::CreateDescriptorInfo();
+    }
+
+    VulkanDynamicIndexBuffer::~VulkanDynamicIndexBuffer()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        if (m_PersistentMapping)
+            VulkanDynamicBuffer::Unmap();
+        VulkanDynamicIndexBuffer::Destroy();
+    }
+
+    void VulkanDynamicIndexBuffer::InitBuffer(const SBuffer& buffer)
+    {
+        m_PersistentMapping = Map();
+
+        if (buffer.Data)
+        {
+            Memory::Memcpy(m_PersistentMapping, buffer.Data, m_Size);
+        }
     }
 
     /* VulkanUniformBuffer */

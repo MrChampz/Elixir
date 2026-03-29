@@ -1,0 +1,68 @@
+#include "epch.h"
+#include "VulkanTextureSet.h"
+
+#include <Graphics/Vulkan/VulkanTexture.h>
+#include <Graphics/Vulkan/VulkanShader.h>
+#include <Graphics/Vulkan/VulkanGraphicsContext.h>
+#include <Graphics/Vulkan/Utils.h>
+
+namespace Elixir::Vulkan
+{
+    VulkanTextureSet::VulkanTextureSet(const GraphicsContext* context)
+        : TextureSet(context)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        m_GraphicsContext = static_cast<const VulkanGraphicsContext*>(context);
+        m_Pool = m_GraphicsContext->GetBindlessDescriptorPool();
+    }
+
+    VulkanTextureSet::~VulkanTextureSet()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        Clear();
+    }
+
+    void VulkanTextureSet::Clear()
+    {
+        for (const auto& handle : m_Textures | std::views::values)
+            m_Pool->UnregisterTexture(handle);
+
+        m_Textures.clear();
+    }
+
+    SResourceHandle VulkanTextureSet::AddTexture(const Ref<Texture>& texture)
+    {
+        if (m_Textures.contains(texture))
+        {
+            return m_Textures[texture];
+        }
+
+        const auto handle = m_Pool->RegisterTexture(texture);
+        m_Textures[texture] = handle;
+        m_TextureCount++;
+        return handle;
+    }
+
+    void VulkanTextureSet::RemoveTexture(const SResourceHandle handle)
+    {
+
+        const auto texture = m_Pool->GetTexture(handle);
+        m_Pool->UnregisterTexture(handle);
+
+        if (const auto it = m_Textures.find(texture); it != m_Textures.end())
+        {
+            m_Textures.erase(it);
+            m_TextureCount--;
+        }
+    }
+
+    VkDescriptorSet VulkanTextureSet::GetDescriptorSet() const
+    {
+        return m_Pool->GetDescriptorSet();
+    }
+
+    VkDescriptorSetLayout VulkanTextureSet::GetDescriptorSetLayout() const
+    {
+        return m_Pool->GetDescriptorSetLayout();
+    }
+}

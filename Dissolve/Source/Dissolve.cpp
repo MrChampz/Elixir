@@ -1,65 +1,39 @@
 #include "Dissolve.h"
 
+#include "Engine/Graphics/SamplerBuilder.h"
+
 #include <Engine/Core/Entrypoint.h>
 
 Ref<GraphicsPipeline> pipeline;
-
-void ThreadsTest(Executor& executor)
-{
-    constexpr int NUM_TASKS = 1000;
-
-    std::cout << "Starting thread test with " << NUM_TASKS << " tasks.." << std::endl;
-
-    const auto start = std::chrono::high_resolution_clock::now();
-
-    auto wg = WaitGroup();
-
-    for (int i = 0; i < NUM_TASKS; ++i)
-    {
-        executor.Enqueue([]()
-        {
-            EE_PROFILE_ZONE_SCOPED()
-            std::random_device rd;
-            std::mt19937 gen(rd());
-            std::uniform_int_distribution<> dis(10, 100);
-        }, &wg);
-    }
-
-    wg.Wait();
-
-    const auto end = std::chrono::high_resolution_clock::now();
-    const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-
-    std::cout << "\nTest completed!" << std::endl;
-    std::cout << "Total time: " << duration.count() << "ms" << std::endl;
-    std::cout << "Average time per task: " << duration.count() / (double)NUM_TASKS << "ms" << std::endl;
-    std::cout << "Tasks per second: " << (NUM_TASKS * 1000.0) / duration.count() << std::endl;
-}
 
 Dissolve::Dissolve()
 {
     EE_PROFILE_ZONE_SCOPED()
 
     m_Window->SetTitle("Dissolve");
-    m_DrawExtent = { m_Window->GetWidth(), m_Window->GetHeight() };
+    m_DrawExtent = m_Window->GetFramebufferExtent();
+
+    const auto aspectRatio = (float)m_DrawExtent.Width / (float)m_DrawExtent.Height;
+    m_CameraController = CreateScope<SplineCameraController>(aspectRatio);
+    m_CameraController->AddKeyframe({ { 0.0f, 0.5f, 5.0f }, { 0.0f, 0.0f, 0.0f }, 60.0f });
+    m_CameraController->AddKeyframe({ { 1.0f, 0.3f, 2.5f }, { 0.0f, 0.0f, 0.0f }, 50.0f });
+    m_CameraController->AddKeyframe({ { 0.0f, 0.0f, 1.5f }, { 0.0f, 0.0f, 0.0f }, 40.0f });
+    m_CameraController->SetDuration(4.0f);
+    m_CameraController->SetLooping(true);
+    m_CameraController->Play();
+    m_FrameData.ViewProj = m_CameraController->GetCamera().GetViewProjectionMatrix();
+
+    const auto sampler = SamplerBuilder()
+        .Build(m_GraphicsContext.get());
 
     const auto tex = TextureLoader::Load("./Assets/Bricks.png");
 
-    const auto loader = CreateScope<ShaderLoader>(m_GraphicsContext.get());
-
-    //const auto shader = loader->LoadShader("./Shaders/", "Basic");
-    //shader->GetName();
-
-    const auto shader1 = loader->LoadShader("./Shaders/", "FixedTriangle");
-    shader1->BindTexture("texture", tex);
-
-    // BufferLayout bufferLayout({
-    //     { EDataType::Vec3, "Pos" },
-    //     { EDataType::Vec2, "Tex" }
-    // });
+    const auto shader = m_ShaderLoader->LoadShader("./Shaders/", "FixedTriangle");
+    shader->BindTexture("texture", tex);
+    shader->BindSampler("sampl", sampler);
 
     PipelineBuilder builder;
-    builder.SetShader(shader1);
+    builder.SetShader(shader);
     builder.SetInputTopology(EPrimitiveTopology::TriangleList);
     builder.SetPolygonMode(EPolygonMode::Fill);
     builder.DisableBlending();
@@ -68,7 +42,13 @@ Dissolve::Dissolve()
     builder.SetBufferLayout({});
     pipeline = builder.Build(m_GraphicsContext.get());
 
-    ThreadsTest(m_Executor);
+    m_FrameConstantBuffer = UniformBuffer::Create(
+        m_GraphicsContext.get(),
+        sizeof(SFrameData),
+        &m_FrameData
+    );
+
+    shader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
 }
 
 Dissolve::~Dissolve()
@@ -87,6 +67,10 @@ void Dissolve::OnRender(const Timestep frameTime)
     EE_PROFILE_ZONE_SCOPED()
     Application::OnRender(frameTime);
 
+    m_CameraController->Update(frameTime);
+    m_FrameData.ViewProj = m_CameraController->GetCamera().GetViewProjectionMatrix();
+    m_FrameConstantBuffer->UpdateData(&m_FrameData, sizeof(SFrameData));
+
     float flash = std::abs(std::sin(m_GraphicsContext->GetFrameNumber() / 120.f));
 
     m_GraphicsContext->SetClearColor({ 0.0f, 0.0f, flash, 1.0 });
@@ -95,37 +79,43 @@ void Dissolve::OnRender(const Timestep frameTime)
     DrawGeometry();
 }
 
+void Dissolve::OnEvent(Event& event)
+{
+    Application::OnEvent(event);
+    m_CameraController->ProcessEvent(event);
+}
+
 void Dissolve::DrawGeometry()
 {
-    const auto renderingInfo = SRenderingInfo
-    {
-        .ColorAttachment = m_GraphicsContext->GetRenderTarget(),
-        .RenderArea = m_DrawExtent
-    };
+     const auto renderingInfo = SRenderingInfo
+     {
+         .ColorAttachment = m_GraphicsContext->GetRenderTarget(),
+         .RenderArea = m_DrawExtent
+     };
 
-    Viewport viewport = {};
-    viewport.X = 0;
-    viewport.Y = 0;
-    viewport.Width = m_DrawExtent.Width;
-    viewport.Height = m_DrawExtent.Height;
-    viewport.MinDepth = 0.0f;
-    viewport.MaxDepth = 1.0f;
+     Viewport viewport = {};
+     viewport.X = 0;
+     viewport.Y = 0;
+     viewport.Width = m_DrawExtent.Width;
+     viewport.Height = m_DrawExtent.Height;
+     viewport.MinDepth = 0.0f;
+     viewport.MaxDepth = 1.0f;
 
-    Rect2D scissor = {};
-    scissor.Offset = { 0, 0 };
-    scissor.Extent = m_DrawExtent;
+     Rect2D scissor = {};
+     scissor.Offset = { 0, 0 };
+     scissor.Extent = m_DrawExtent;
 
-    m_Executor.Enqueue([this, renderingInfo, viewport, scissor]()
-    {
-        const auto cmd = this->m_GraphicsContext->GetSecondaryCommandBuffer();
-        cmd->BeginRendering(renderingInfo);
-        cmd->SetViewports({ viewport });
-        cmd->SetScissors({ scissor });
-        pipeline->Bind(cmd);
-        cmd->Draw(3);
-        cmd->EndRendering();
-        this->m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
-    }, &m_WaitGroup);
+     m_Executor.Enqueue([this, renderingInfo, viewport, scissor]()
+     {
+         const auto cmd = this->m_GraphicsContext->GetSecondaryCommandBuffer();
+         cmd->BeginRendering(renderingInfo);
+         cmd->SetViewports({ viewport });
+         cmd->SetScissors({ scissor });
+         pipeline->Bind(cmd);
+         cmd->Draw(3);
+         cmd->EndRendering();
+         this->m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
+     }, &m_WaitGroup);
 
     m_WaitGroup.Wait();
 }

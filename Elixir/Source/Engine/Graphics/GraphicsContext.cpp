@@ -5,6 +5,11 @@
 
 namespace Elixir
 {
+    float GraphicsContext::GetDPIScale() const
+    {
+        return m_Window->GetDPIScale();
+    }
+
     Scope<GraphicsContext> GraphicsContext::Create(const EGraphicsAPI api, Executor* executor, const Window* window)
     {
         switch (api)

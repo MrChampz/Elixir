@@ -27,13 +27,28 @@ namespace Elixir
     class ELIXIR_API KeyPressedEvent : public KeyEvent
     {
       public:
-        KeyPressedEvent(int keyCode, int repeatCount)
-            : KeyEvent(keyCode), m_RepeatCount(repeatCount) {}
+        KeyPressedEvent(
+            const int keyCode,
+            const int repeatCount,
+            const bool ctrl,
+            const bool alt,
+            const bool shift
+        ) : KeyEvent(keyCode),
+            m_RepeatCount(repeatCount),
+            m_CtrlPressed(ctrl),
+            m_AltPressed(alt),
+            m_ShiftPressed(shift) {}
 
-        [[nodiscard]] std::string ToString() const override
+        std::string ToString() const override
         {
             std::stringstream ss;
             ss << GetName() << ": " << GetKeyCode();
+
+            ss << " [";
+            ss << "Ctrl = " << m_CtrlPressed;
+            ss << ", Alt = " << m_AltPressed;
+            ss << ", Shift = " << m_ShiftPressed;
+            ss << "]";
 
             if (m_RepeatCount > 1)
                 ss << " (" << GetRepeatCount() << " times).";
@@ -43,12 +58,18 @@ namespace Elixir
             return ss.str();
         }
 
-        [[nodiscard]] inline int GetRepeatCount() const { return m_RepeatCount; }
+        int GetRepeatCount() const { return m_RepeatCount; }
+        bool IsCtrlPressed() const { return m_CtrlPressed; }
+        bool IsAltPressed() const { return m_AltPressed; }
+        bool IsShiftPressed() const { return m_ShiftPressed; }
 
         EVENT_CLASS_TYPE(KeyPressed)
 
       private:
         int m_RepeatCount;
+        bool m_CtrlPressed;
+        bool m_AltPressed;
+        bool m_ShiftPressed;
     };
 
     class ELIXIR_API KeyReleasedEvent : public KeyEvent

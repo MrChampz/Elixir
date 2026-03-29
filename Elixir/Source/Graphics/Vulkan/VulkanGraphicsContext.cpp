@@ -1,18 +1,17 @@
 #include "epch.h"
 #include "VulkanGraphicsContext.h"
 
-#include <Graphics/Vulkan/VulkanCommandPool.h>
 #include <Graphics/SpirV/SpirVShaderBackend.h>
-
-#include "Converters.h"
-#include "Utils.h"
+#include <Graphics/Vulkan/VulkanCommandBuffer.h>
+#include <Graphics/Vulkan/VulkanCommandPool.h>
+#include <Graphics/Vulkan/VulkanTexture.h>
+#include <Graphics/Vulkan/Converters.h>
+#include <Graphics/Vulkan/Utils.h>
 
 #include <VkBootstrap.h>
 #include <vulkan/vulkan.h>
 
 #define VMA_IMPLEMENTATION
-#include "VulkanCommandBuffer.h"
-
 #include <vk_mem_alloc.h>
 
 #include "GLFW/glfw3.h"
@@ -54,70 +53,6 @@ namespace Elixir
         }
     }
 
-    /* SDescriptorAllocator */
-
-    void SDescriptorAllocator::InitPool(
-        const VkDevice device,
-        const uint32_t maxSets,
-        std::span<SPoolSizeRatio> ratios
-    )
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-        std::vector<VkDescriptorPoolSize> poolSizes;
-        poolSizes.reserve(ratios.size());
-
-        for (auto& [Type, Ratio] : ratios)
-        {
-            VkDescriptorPoolSize size;
-            size.type = Type;
-            size.descriptorCount = (uint32_t)(Ratio * maxSets);
-
-            poolSizes.emplace_back(size);
-        }
-
-        VkDescriptorPoolCreateInfo poolInfo = {};
-        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.maxSets = maxSets;
-        poolInfo.poolSizeCount = (uint32_t)poolSizes.size();
-        poolInfo.pPoolSizes = poolSizes.data();
-        poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-
-        vkCreateDescriptorPool(device, &poolInfo, nullptr, &Pool);
-    }
-
-    void SDescriptorAllocator::Reset(const VkDevice device) const
-    {
-        EE_PROFILE_ZONE_SCOPED()
-        vkResetDescriptorPool(device, Pool, 0);
-    }
-
-    void SDescriptorAllocator::DestroyPool(const VkDevice device) const
-    {
-        EE_PROFILE_ZONE_SCOPED()
-        vkDestroyDescriptorPool(device, Pool, nullptr);
-    }
-
-    VkDescriptorSet SDescriptorAllocator::Allocate(
-        const VkDevice device,
-        const VkDescriptorSetLayout layout
-    ) const
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-        VkDescriptorSetAllocateInfo allocInfo = {};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.pNext = nullptr;
-        allocInfo.descriptorPool = Pool;
-        allocInfo.descriptorSetCount = 1;
-        allocInfo.pSetLayouts = &layout;
-
-        VkDescriptorSet set;
-        VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &set));
-
-        return set;
-    }
-
     /* VulkanGraphicsContext */
 
     VulkanGraphicsContext::VulkanGraphicsContext(const EGraphicsAPI api, Executor* executor, const Window* window)
@@ -126,12 +61,6 @@ namespace Elixir
         EE_PROFILE_ZONE_SCOPED()
         EE_CORE_ASSERT(executor, "Invalid executor!")
         EE_CORE_ASSERT(window, "Invalid window!")
-
-        glfwGetFramebufferSize(
-            (GLFWwindow*)m_Window->GetNativeWindow(),
-            (int*)&m_WindowExtent.Width,
-            (int*)&m_WindowExtent.Height
-        );
 
         m_ShaderBackend = CreateScope<SpirVShaderBackend>();
     }
@@ -181,7 +110,8 @@ namespace Elixir
 
             DestroySwapchain();
 
-            m_GlobalDescriptorAllocator.DestroyPool(m_Device);
+            m_DescriptorPool.reset();
+            m_BindlessDescriptorPool.reset();
 
             for (int i = 0; i < m_FramesInFlight; i++)
             {
@@ -197,6 +127,14 @@ namespace Elixir
 
             m_IsInitialized = false;
         }
+    }
+
+    void VulkanGraphicsContext::ProcessEvent(Event& event)
+    {
+        EventDispatcher dispatcher(event);
+        dispatcher.Dispatch<FramebufferResizeEvent>(
+            EE_BIND_EVENT_FN(VulkanGraphicsContext::HandleFramebufferResize)
+        );
     }
 
     void VulkanGraphicsContext::RenderFrame(std::function<void()> callback)
@@ -266,8 +204,9 @@ namespace Elixir
     void VulkanGraphicsContext::Resize(const Extent2D extent)
     {
         EE_PROFILE_ZONE_SCOPED()
-        m_WindowExtent = extent;
+        m_SwapchainExtent = extent;
         m_SwapchainRecreateRequested = true;
+        //m_RenderTarget->Resize(extent);
     }
 
     Ref<CommandBuffer> VulkanGraphicsContext::GetSecondaryCommandBuffer() const
@@ -284,11 +223,6 @@ namespace Elixir
     void VulkanGraphicsContext::EnqueueSecondaryCommandBuffer(const Ref<CommandBuffer>& cmd) const
     {
         m_CommandPoolManager->EnqueueSecondaryCommandBuffer(cmd);
-    }
-
-    Extent2D VulkanGraphicsContext::GetSwapchainExtent() const
-    {
-        return { m_SwapchainExtent.width, m_SwapchainExtent.height };
     }
 
     void VulkanGraphicsContext::InitVulkan()
@@ -313,11 +247,15 @@ namespace Elixir
         VK_CHECK_RESULT(
             glfwCreateWindowSurface(
                 m_Instance,
-                static_cast<GLFWwindow*>(m_Window->GetNativeWindow()),
+                static_cast<GLFWwindow*>(m_Window->GetHandle()),
                 nullptr,
                 &m_Surface
             )
         );
+
+        // Vulkan core features
+        VkPhysicalDeviceFeatures features{};
+        features.fillModeNonSolid = true;
 
         // Vulkan 1.3 features.
 		VkPhysicalDeviceVulkan13Features features13{};
@@ -330,12 +268,18 @@ namespace Elixir
 		features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
 		features12.bufferDeviceAddress = true;
 		features12.descriptorIndexing = true;
+        features12.descriptorBindingPartiallyBound = true;
+        features12.runtimeDescriptorArray = true;
+        features12.descriptorBindingSampledImageUpdateAfterBind = true;
+        features12.descriptorBindingUniformBufferUpdateAfterBind = true;
+        features12.descriptorBindingUpdateUnusedWhilePending = true;
 
         vkb::PhysicalDeviceSelector selector{ vkbInstance };
 		auto physicalDeviceResult = selector
 			.set_minimum_version(1, 3)
 			.set_required_features_13(features13)
 			.set_required_features_12(features12)
+            .set_required_features(features)
 			.set_surface(m_Surface)
 			.select();
 
@@ -384,7 +328,8 @@ namespace Elixir
     void VulkanGraphicsContext::InitSwapchain()
     {
         EE_PROFILE_ZONE_SCOPED()
-        CreateSwapchain(m_WindowExtent);
+        m_SwapchainExtent = m_Window->GetFramebufferExtent();
+        CreateSwapchain(m_SwapchainExtent);
     }
 
     void VulkanGraphicsContext::InitCommandPoolManager()
@@ -433,7 +378,7 @@ namespace Elixir
     {
         EE_PROFILE_ZONE_SCOPED()
 
-        std::vector<SDescriptorAllocator::SPoolSizeRatio> sizes =
+        std::vector<SDescriptorPoolSizeRatio> sizes =
         {
             { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0.5 },
             { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0.2 },
@@ -441,10 +386,11 @@ namespace Elixir
             { VK_DESCRIPTOR_TYPE_SAMPLER, 0.15 }
         };
 
-        m_GlobalDescriptorAllocator.InitPool(m_Device, 20, sizes);
+        m_DescriptorPool = CreateRef<VulkanDescriptorPool>(*this, 20, sizes);
+        m_BindlessDescriptorPool = CreateRef<VulkanBindlessDescriptorPool>(*this);
     }
 
-    void VulkanGraphicsContext::CreateSwapchain(const Extent2D& extent)
+    void VulkanGraphicsContext::CreateSwapchain(const Extent3D& extent)
     {
         EE_PROFILE_ZONE_SCOPED()
 
@@ -467,9 +413,9 @@ namespace Elixir
         const auto swapchain = result.value();
         m_Swapchain = swapchain.swapchain;
         m_SwapchainExtent = {
-            .width = swapchain.extent.width,
-            .height = swapchain.extent.height,
-            .depth = 1
+            swapchain.extent.width,
+            swapchain.extent.height,
+            1u
         };
 
         const auto images = result.value().get_images().value();
@@ -521,16 +467,17 @@ namespace Elixir
 
         WaitDeviceIdle();
         DestroySwapchain();
-        CreateSwapchain(m_WindowExtent);
+        CreateSwapchain(m_SwapchainExtent);
         m_SwapchainRecreateRequested = false;
     }
 
     void VulkanGraphicsContext::CreateRenderTarget()
     {
-        int width, height;
-        //glfwGetFramebufferSize((GLFWwindow*)m_Window->GetNativeWindow(), &width, &height);
-
-        auto info = Texture2D::CreateImageInfo(EImageFormat::R8G8B8A8_SRGB, 1280, 720);
+        auto info = Texture2D::CreateImageInfo(
+            EImageFormat::R8G8B8A8_SRGB,
+            m_SwapchainExtent.Width,
+            m_SwapchainExtent.Height
+        );
         info.Usage = EImageUsage::ColorAttachment | EImageUsage::TransferSrc | EImageUsage::TransferDst;
         info.InitialLayout = EImageLayout::General;
         m_RenderTarget = CreateRef<VulkanTexture2D>(this, info);
@@ -557,6 +504,9 @@ namespace Elixir
         EE_PROFILE_ZONE_SCOPED()
 
         auto& frame = GetCurrentFrame();
+
+        // Flush dirty descriptors
+        m_BindlessDescriptorPool->FlushDescriptors();
 
         if (frame.InUseByRenderThread.load())
         {
@@ -637,7 +587,7 @@ namespace Elixir
             TryToGetVulkanImage(m_RenderTarget.get())->GetVulkanImage(),
             swapchain.Image,
             GetExtent3D(m_RenderTarget->GetExtent()),
-            m_SwapchainExtent
+            GetExtent3D(m_SwapchainExtent)
         );
     }
 
@@ -691,5 +641,11 @@ namespace Elixir
         m_FrameNumber++;
 
         EE_PROFILE_FRAME_MARK_NAMED(EE_PROFILE_RENDER)
+    }
+
+    bool VulkanGraphicsContext::HandleFramebufferResize(const FramebufferResizeEvent& event)
+    {
+        Resize(event.GetExtent());
+        return true;
     }
 }

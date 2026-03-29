@@ -1,47 +1,14 @@
 #include "epch.h"
 #include "Buffer.h"
 
+#include "CommandBuffer.h"
+
 #include <Engine/Graphics/Utils.h>
 #include <Graphics/Vulkan/VulkanBuffer.h>
 
 namespace Elixir
 {
     using namespace Elixir::Graphics;
-
-    /* SBufferElement */
-
-    SBufferElement::SBufferElement(
-        const EDataType type,
-        const std::string& name,
-        const bool normalized
-    ) : Name(name), Type(type), Offset(0), Size(Utils::GetDataTypeSize(type)),
-        Normalized(normalized) {}
-
-    uint32_t SBufferElement::GetComponentCount() const
-    {
-        return Utils::GetDataTypeComponentCount(Type);
-    }
-
-    /* BufferLayout */
-
-    BufferLayout::BufferLayout(const std::initializer_list<SBufferElement>& elements)
-        : m_Elements(elements), m_Stride(0)
-    {
-        CalculateOffsetsAndStride();
-    }
-
-    void BufferLayout::CalculateOffsetsAndStride()
-    {
-        m_Stride = 0;
-
-        size_t offset = 0;
-        for (auto& element : m_Elements)
-        {
-            element.Offset = offset;
-            offset += element.Size;
-            m_Stride += element.Size;
-        }
-    }
 
     /* Buffer */
 
@@ -105,7 +72,7 @@ namespace Elixir
         EE_PROFILE_ZONE_SCOPED()
 
 #ifdef EE_DEBUG
-m_DebugName = "DynamicBuffer[" + m_UUID.ToString() + "]";
+        m_DebugName = "DynamicBuffer[" + m_UUID.ToString() + "]";
 #endif
     }
 
@@ -153,8 +120,18 @@ m_DebugName = "DynamicBuffer[" + m_UUID.ToString() + "]";
         EE_PROFILE_ZONE_SCOPED()
 
 #ifdef EE_DEBUG
-m_DebugName = "StagingBuffer[" + m_UUID.ToString() + "]";
+        m_DebugName = "StagingBuffer[" + m_UUID.ToString() + "]";
 #endif
+    }
+
+    void VertexBuffer::Bind(
+        const Ref<CommandBuffer>& cmd,
+        const uint32_t bindingCount,
+        const uint32_t firstBinding
+    ) const
+    {
+        const VertexBuffer* buffers[] = { this };
+        cmd->BindVertexBuffers(buffers, {}, bindingCount, firstBinding);
     }
 
     /* VertexBuffer */
@@ -204,7 +181,86 @@ m_DebugName = "StagingBuffer[" + m_UUID.ToString() + "]";
         EE_PROFILE_ZONE_SCOPED()
 
 #ifdef EE_DEBUG
-m_DebugName = "VertexBuffer[" + m_UUID.ToString() + "]";
+        m_DebugName = "VertexBuffer[" + m_UUID.ToString() + "]";
+#endif
+    }
+
+    /* DynamicVertexBuffer */
+
+    const auto DYNAMIC_VERTEX_BUFFER_USAGE =
+        EBufferUsage::VertexBuffer |
+        EBufferUsage::StorageBuffer |
+        EBufferUsage::ShaderDeviceAddress;
+
+    void DynamicVertexBuffer::Bind(
+        const Ref<CommandBuffer>& cmd,
+        const uint32_t bindingCount,
+        const uint32_t firstBinding
+    ) const
+    {
+        const DynamicVertexBuffer* buffers[] = { this };
+        cmd->BindVertexBuffers(buffers, {}, bindingCount, firstBinding);
+    }
+
+    void DynamicVertexBuffer::UpdateData(
+        const void* data,
+        const size_t size,
+        const size_t offset
+    ) const
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        EE_CORE_ASSERT(offset + size <= m_Size, "Buffer overflow!")
+        EE_CORE_ASSERT(m_PersistentMapping, "Persistent mapping is required for dynamic buffers!")
+
+        if (m_PersistentMapping)
+        {
+            Memory::Memcpy((uint8_t*)m_PersistentMapping + offset, data, size);
+        }
+    }
+
+    Ref<DynamicVertexBuffer> DynamicVertexBuffer::Create(
+        const GraphicsContext* context,
+        size_t size,
+        const void* data
+    )
+    {
+        switch (context->GetAPI())
+        {
+            case EGraphicsAPI::Vulkan:
+                return CreateRef<Vulkan::VulkanDynamicVertexBuffer>(context, size, data);
+            default:
+                EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
+                return nullptr;
+        }
+    }
+
+    SBufferCreateInfo DynamicVertexBuffer::CreateBufferInfo(const size_t size, const void* data)
+    {
+        return {
+            .Buffer = SBuffer(data, size),
+            .Usage = DYNAMIC_VERTEX_BUFFER_USAGE,
+            .AllocationInfo = {
+                .RequiredFlags = EMemoryProperty::HostVisible | EMemoryProperty::HostCoherent,
+                .PreferredFlags = EMemoryProperty::HostCached
+            }
+        };
+    }
+
+    DynamicVertexBuffer::DynamicVertexBuffer(
+        const GraphicsContext* context,
+        const size_t size,
+        const void* data
+    ) : DynamicVertexBuffer(context, CreateBufferInfo(size, data)) {}
+
+    DynamicVertexBuffer::DynamicVertexBuffer(
+        const GraphicsContext* context,
+        const SBufferCreateInfo& info
+    ) : DynamicBuffer(context, info), m_Address(0)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+#ifdef EE_DEBUG
+        m_DebugName = "DynamicVertexBuffer[" + m_UUID.ToString() + "]";
 #endif
     }
 
@@ -212,6 +268,11 @@ m_DebugName = "VertexBuffer[" + m_UUID.ToString() + "]";
 
     const auto INDEX_BUFFER_USAGE = EBufferUsage::IndexBuffer |
         EBufferUsage::TransferDst;
+
+    void IndexBuffer::Bind(const Ref<CommandBuffer>& cmd) const
+    {
+        cmd->BindIndexBuffer(this);
+    }
 
     Ref<IndexBuffer> IndexBuffer::Create(
         const GraphicsContext* context,
@@ -263,11 +324,100 @@ m_DebugName = "VertexBuffer[" + m_UUID.ToString() + "]";
         EE_PROFILE_ZONE_SCOPED()
 
 #ifdef EE_DEBUG
-m_DebugName = "IndexBuffer[" + m_UUID.ToString() + "]";
+        m_DebugName = "IndexBuffer[" + m_UUID.ToString() + "]";
+#endif
+    }
+
+    /* DynamicIndexBuffer */
+
+    constexpr auto DYNAMIC_INDEX_BUFFER_USAGE = EBufferUsage::IndexBuffer;
+
+    void DynamicIndexBuffer::Bind(const Ref<CommandBuffer>& cmd) const
+    {
+        cmd->BindIndexBuffer(this);
+    }
+
+    void DynamicIndexBuffer::UpdateData(
+        const void* data,
+        const size_t size,
+        const size_t offset
+    ) const
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        EE_CORE_ASSERT(offset + size <= m_Size, "Buffer overflow!")
+        EE_CORE_ASSERT(m_PersistentMapping, "Persistent mapping is required for dynamic buffers!")
+
+        if (m_PersistentMapping)
+        {
+            Memory::Memcpy((uint8_t*)m_PersistentMapping + offset, data, size);
+        }
+    }
+
+    Ref<DynamicIndexBuffer> DynamicIndexBuffer::Create(
+        const GraphicsContext* context,
+        size_t size,
+        const void* data,
+        EIndexType type
+    )
+    {
+        switch (context->GetAPI())
+        {
+            case EGraphicsAPI::Vulkan:
+                return CreateRef<Vulkan::VulkanDynamicIndexBuffer>(
+                    context,
+                    size,
+                    data,
+                    type
+                );
+            default:
+                EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
+                return nullptr;
+        }
+    }
+
+    SBufferCreateInfo DynamicIndexBuffer::CreateBufferInfo(const size_t size, const void* data)
+    {
+        return {
+            .Buffer = SBuffer(data, size),
+            .Usage = DYNAMIC_INDEX_BUFFER_USAGE,
+            .AllocationInfo = {
+                .RequiredFlags = EMemoryProperty::HostVisible | EMemoryProperty::HostCoherent,
+                .PreferredFlags = EMemoryProperty::HostCached
+            }
+        };
+    }
+
+    DynamicIndexBuffer::DynamicIndexBuffer(
+        const GraphicsContext* context,
+        const size_t size,
+        const void* data,
+        const EIndexType type
+    ) : DynamicIndexBuffer(context, CreateBufferInfo(size, data), type) {}
+
+    DynamicIndexBuffer::DynamicIndexBuffer(
+        const GraphicsContext* context,
+        const SBufferCreateInfo& info,
+        const EIndexType type
+    ) : DynamicBuffer(context, info), m_IndexType(type)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+#ifdef EE_DEBUG
+        m_DebugName = "DynamicIndexBuffer[" + m_UUID.ToString() + "]";
 #endif
     }
 
     /* UniformBuffer */
+
+    void UniformBuffer::UpdateData(const void* data, const size_t size, const size_t offset)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        EE_CORE_ASSERT(offset + size <= m_Size, "Buffer overflow!")
+
+        void* mapped = Map();
+        Memory::Memcpy((uint8_t*)mapped + offset, data, size);
+        Unmap();
+    }
 
     Ref<UniformBuffer> UniformBuffer::Create(
         const GraphicsContext* context,
@@ -312,7 +462,38 @@ m_DebugName = "IndexBuffer[" + m_UUID.ToString() + "]";
         EE_PROFILE_ZONE_SCOPED()
 
 #ifdef EE_DEBUG
-m_DebugName = "ConstantBuffer[" + m_UUID.ToString() + "]";
+        m_DebugName = "ConstantBuffer[" + m_UUID.ToString() + "]";
 #endif
+    }
+
+    /* PushConstantBuffer */
+
+    PushConstantBuffer::PushConstantBuffer(
+        const GraphicsContext* context,
+        const size_t size,
+        const void* data
+    ) : m_GraphicsContext(context)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        m_Buffer.Copy((Byte*)data, size);
+
+#ifdef EE_DEBUG
+        m_DebugName = "PushConstantBuffer[" + m_UUID.ToString() + "]";
+#endif
+    }
+
+    void* PushConstantBuffer::Map()
+    {
+        return m_Buffer.Data;
+    }
+
+    Ref<PushConstantBuffer> PushConstantBuffer::Create(
+        const GraphicsContext* context,
+        size_t size,
+        const void* data
+    )
+    {
+        return CreateRef<PushConstantBuffer>(context, size, data);
     }
 }
