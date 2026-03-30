@@ -91,7 +91,7 @@ namespace Elixir::Vulkan
         SImageCreateInfo info = this->GetCreateInfo();
         info.InitialLayout = EImageLayout::TransferDst;
 
-        const auto staging = new VulkanImage(m_GraphicsContext, info);
+        const auto staging = CreateRef<VulkanImage>(m_GraphicsContext, info);
 
         cmd->Begin();
 
@@ -108,8 +108,6 @@ namespace Elixir::Vulkan
 
         // Flush command buffer
         cmd->Flush();
-
-        delete staging;
 
         EE_CORE_TRACE("Image ({0}) resized: {1}.", this->m_UUID, this->m_Extent)
     }
