@@ -11,7 +11,7 @@ namespace Elixir
     namespace Vulkan
     {
         template <typename>
-        class VulkanImageBase;
+        class VulkanBaseImage;
     }
 
     enum class EImageLayout
@@ -202,19 +202,21 @@ namespace Elixir
         friend class TextureLoader;
 
         template <typename>
-        friend class Vulkan::VulkanImageBase;
+        friend class Vulkan::VulkanBaseImage;
     public:
         virtual ~Image() = default;
 
         virtual void Destroy() = 0;
 
+        virtual void Resize(const Ref<CommandBuffer>& cmd, Extent3D extent) = 0;
+
         void Transition(const Ref<CommandBuffer>& cmd, EImageLayout layout);
         virtual void Transition(const CommandBuffer* cmd, EImageLayout layout) = 0;
 
         void Copy(const Ref<CommandBuffer>& cmd, const Ref<Image>& dst);
-        void Copy(const Ref<CommandBuffer>& cmd, const Image* dst);
+        void Copy(const Ref<CommandBuffer>& cmd, Image* dst);
         void Copy(const CommandBuffer* cmd, const Ref<Image>& dst);
-        void Copy(const CommandBuffer* cmd, const Image* dst);
+        void Copy(const CommandBuffer* cmd, Image* dst);
 
         void Copy(
             const Ref<CommandBuffer>& cmd,
@@ -224,7 +226,7 @@ namespace Elixir
         );
         void Copy(
             const Ref<CommandBuffer>& cmd,
-            const Image* dst,
+            Image* dst,
             const Extent3D& srcExtent,
             const Extent3D& dstExtent
         );
@@ -236,7 +238,7 @@ namespace Elixir
         );
         virtual void Copy(
             const CommandBuffer* cmd,
-            const Image* dst,
+            Image* dst,
             const Extent3D& srcExtent,
             const Extent3D& dstExtent
         ) = 0;
@@ -280,6 +282,8 @@ namespace Elixir
 
         [[nodiscard]] uint32_t GetBitsPerPixel() const { return m_BitsPerPixel; }
         [[nodiscard]] uint32_t GetBytesPerPixel() const { return m_BitsPerPixel / CHAR_BIT; }
+
+        SImageCreateInfo GetCreateInfo() const;
 
         /**
          * Returns the image/texture size in bytes.

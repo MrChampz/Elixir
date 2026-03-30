@@ -59,6 +59,8 @@ namespace Elixir
         const float aspectRatio = (float)event.GetWidth() / (float)event.GetHeight();
         m_Camera.SetAspectRatio(aspectRatio);
 
+        EE_CORE_TRACE("PerspectiveCameraController resized: [AspectRatio: {}, Extent: {}].", aspectRatio, event.GetExtent())
+
         return false;
     }
 

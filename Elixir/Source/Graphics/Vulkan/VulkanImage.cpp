@@ -83,6 +83,36 @@ namespace Elixir::Vulkan
     }
 
     template <typename Base>
+    void VulkanBaseImage<Base>::Resize(const Ref<CommandBuffer>& cmd, const Extent3D extent)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        if (extent.Width <= 0 || extent.Height <= 0 || extent.Depth <= 0) return;
+
+        SImageCreateInfo info = this->GetCreateInfo();
+        info.InitialLayout = EImageLayout::TransferDst;
+
+        const auto staging = CreateRef<VulkanImage>(m_GraphicsContext, info);
+
+        cmd->Begin();
+
+        // First, copy the content to staging image, resizing it
+        Transition(cmd, EImageLayout::TransferSrc);
+        Copy(cmd, staging, this->m_Extent, extent);
+
+        // Transition images
+        staging->Transition(cmd, EImageLayout::TransferSrc);
+        Transition(cmd, EImageLayout::TransferDst);
+
+        // Then, copy back to the original image
+        staging->Copy(cmd, this, extent, extent);
+
+        // Flush command buffer
+        cmd->Flush();
+
+        EE_CORE_TRACE("Image ({0}) resized: {1}.", this->m_UUID, this->m_Extent)
+    }
+
+    template <typename Base>
     void VulkanBaseImage<Base>::Transition(const CommandBuffer* cmd, const EImageLayout layout)
     {
         EE_PROFILE_ZONE_SCOPED()
@@ -103,7 +133,7 @@ namespace Elixir::Vulkan
     template <typename Base>
     void VulkanBaseImage<Base>::Copy(
         const CommandBuffer* cmd,
-        const Image* dst,
+        Image* dst,
         const Extent3D& srcExtent,
         const Extent3D& dstExtent
     )
@@ -123,6 +153,8 @@ namespace Elixir::Vulkan
             Converters::GetExtent3D(srcExtent),
             Converters::GetExtent3D(dstExtent)
         );
+
+        dst->m_Extent = dstExtent;
     }
 
     template <typename Base>

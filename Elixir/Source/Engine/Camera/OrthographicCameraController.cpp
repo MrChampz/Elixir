@@ -65,6 +65,8 @@ namespace Elixir
             m_ZoomLevel
         );
 
+        EE_CORE_TRACE("OrthographicCameraController resized: [AspectRatio: {}, Extent: {}].", m_AspectRatio, event.GetExtent())
+
         return false;
     }
 
