@@ -31,3 +31,17 @@ struct std::formatter<Extent2D> : std::formatter<std::string>
         return std::formatter<std::string>::format(ss.str(), ctx);
     }
 };
+
+/**
+ * Formatter for Extent3D output in the logging system.
+ */
+template <>
+struct std::formatter<Extent3D> : std::formatter<std::string>
+{
+    auto format(const Extent3D& extent, std::format_context& ctx) const
+    {
+        auto ss = std::stringstream();
+        ss << "[Width = " << extent.Width << ", Height = " << extent.Height << ", Depth = " << extent.Depth << "]";
+        return std::formatter<std::string>::format(ss.str(), ctx);
+    }
+};

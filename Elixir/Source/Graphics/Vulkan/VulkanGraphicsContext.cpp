@@ -204,9 +204,13 @@ namespace Elixir
     void VulkanGraphicsContext::Resize(const Extent2D extent)
     {
         EE_PROFILE_ZONE_SCOPED()
+        if (extent.Width <= 0 || extent.Height <= 0) return;
+
         m_SwapchainExtent = extent;
         m_SwapchainRecreateRequested = true;
-        //m_RenderTarget->Resize(extent);
+
+        const auto cmd = GetUploadCommandBuffer();
+        m_RenderTarget->Resize(cmd, extent);
     }
 
     Ref<CommandBuffer> VulkanGraphicsContext::GetSecondaryCommandBuffer() const

@@ -41,7 +41,7 @@ namespace Elixir
         Copy(cmd.get(), dst.get());
     }
 
-    void Image::Copy(const Ref<CommandBuffer>& cmd, const Image* dst)
+    void Image::Copy(const Ref<CommandBuffer>& cmd, Image* dst)
     {
         Copy(cmd.get(), dst);
     }
@@ -51,7 +51,7 @@ namespace Elixir
         Copy(cmd, dst.get());
     }
 
-    void Image::Copy(const CommandBuffer* cmd, const Image* dst)
+    void Image::Copy(const CommandBuffer* cmd, Image* dst)
     {
         Copy(cmd, dst, GetExtent(), dst->GetExtent());
     }
@@ -68,7 +68,7 @@ namespace Elixir
 
     void Image::Copy(
         const Ref<CommandBuffer>& cmd,
-        const Image* dst,
+        Image* dst,
         const Extent3D& srcExtent,
         const Extent3D& dstExtent
     )
@@ -111,6 +111,27 @@ namespace Elixir
     )
     {
         CopyFrom(cmd, src.get(), regions);
+    }
+
+    SImageCreateInfo Image::GetCreateInfo() const
+    {
+        const auto extent = GetExtent();
+        const auto info = SImageCreateInfo{
+            .Width = extent.Width,
+            .Height = extent.Height,
+            .Depth = extent.Depth,
+            .Type = m_Type,
+            .Format = m_Format,
+            .MipLevels = m_MipLevels,
+            .ArrayLayers = m_ArrayLayers,
+            .Usage = m_Usage,
+            .InitialLayout = m_Layout,
+            .AllocationInfo = {
+                .RequiredFlags = EMemoryProperty::DeviceLocal
+            }
+        };
+
+        return info;
     }
 
     void Image::SetSampler(const Ref<Sampler>& sampler)

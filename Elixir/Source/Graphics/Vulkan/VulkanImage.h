@@ -34,13 +34,16 @@ namespace Elixir::Vulkan
       public:
         virtual void Destroy() override;
 
+        using Image::Resize;
+        virtual void Resize(const Ref<CommandBuffer>& cmd, Extent3D extent) override;
+
         using Image::Transition;
         virtual void Transition(const CommandBuffer* cmd, EImageLayout layout) override;
 
         using Image::Copy;
         virtual void Copy(
             const CommandBuffer* cmd,
-            const Image* dst,
+            Image* dst,
             const Extent3D& srcExtent,
             const Extent3D& dstExtent
         ) override;
