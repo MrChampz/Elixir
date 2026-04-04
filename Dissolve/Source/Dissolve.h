@@ -27,5 +27,5 @@ private:
     SFrameData m_FrameData;
     Ref<UniformBuffer> m_FrameConstantBuffer;
 
-    Scope<SplineCameraController> m_CameraController;
+    Scope<ArcBallCameraController> m_CameraController;
 };

@@ -32,6 +32,7 @@
 #include <Engine/Camera/PerspectiveCamera.h>
 #include <Engine/Camera/OrthographicCameraController.h>
 #include <Engine/Camera/PerspectiveCameraController.h>
+#include <Engine/Camera/ArcBallCameraController.h>
 #include <Engine/Camera/SplineCameraController.h>
 
 #include <Engine/Graphics/GraphicsTypes.h>

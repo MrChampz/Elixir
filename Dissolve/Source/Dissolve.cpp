@@ -14,13 +14,14 @@ Dissolve::Dissolve()
     m_DrawExtent = m_Window->GetFramebufferExtent();
 
     const auto aspectRatio = (float)m_DrawExtent.Width / (float)m_DrawExtent.Height;
-    m_CameraController = CreateScope<SplineCameraController>(aspectRatio);
-    m_CameraController->AddKeyframe({ { 0.0f, 0.5f, 5.0f }, { 0.0f, 0.0f, 0.0f }, 60.0f });
-    m_CameraController->AddKeyframe({ { 1.0f, 0.3f, 2.5f }, { 0.0f, 0.0f, 0.0f }, 50.0f });
-    m_CameraController->AddKeyframe({ { 0.0f, 0.0f, 1.5f }, { 0.0f, 0.0f, 0.0f }, 40.0f });
-    m_CameraController->SetDuration(4.0f);
-    m_CameraController->SetLooping(true);
-    m_CameraController->Play();
+    // m_CameraController = CreateScope<SplineCameraController>(aspectRatio);
+    // m_CameraController->AddKeyframe({ { 0.0f, 0.5f, 5.0f }, { 0.0f, 0.0f, 0.0f }, 60.0f });
+    // m_CameraController->AddKeyframe({ { 1.0f, 0.3f, 2.5f }, { 0.0f, 0.0f, 0.0f }, 50.0f });
+    // m_CameraController->AddKeyframe({ { 0.0f, 0.0f, 1.5f }, { 0.0f, 0.0f, 0.0f }, 40.0f });
+    // m_CameraController->SetDuration(4.0f);
+    // m_CameraController->SetLooping(true);
+    // m_CameraController->Play();
+    m_CameraController = CreateScope<ArcBallCameraController>(60.0f, aspectRatio);
     m_FrameData.ViewProj = m_CameraController->GetCamera().GetViewProjectionMatrix();
 
     const auto sampler = SamplerBuilder()

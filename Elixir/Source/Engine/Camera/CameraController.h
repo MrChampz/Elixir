@@ -18,8 +18,8 @@ namespace Elixir
       public:
         virtual ~CameraController() = default;
 
-        virtual void Update(Timestep deltaTime) = 0;
-        virtual void ProcessEvent(Event& event) = 0;
+        virtual void Update(Timestep deltaTime) {}
+        virtual void ProcessEvent(Event& event) {}
 
         virtual Camera& GetCamera() = 0;
         virtual const Camera& GetCamera() const = 0;
