@@ -119,12 +119,14 @@ namespace Elixir
       public:
         ~DynamicBuffer() override = default;
 
-        [[nodiscard]] virtual void* Map() = 0;
+        virtual void* Map() = 0;
         virtual void Unmap() = 0;
 
       protected:
         DynamicBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
         DynamicBuffer(const DynamicBuffer&) = delete;
+
+        void* m_PersistentMapping = nullptr;
     };
 
     class ELIXIR_API StagingBuffer : public DynamicBuffer
@@ -222,7 +224,6 @@ namespace Elixir
 
         BufferLayout m_Layout;
         BufferAddress m_Address;
-        void* m_PersistentMapping = nullptr;
     };
 
     enum class EIndexType
@@ -300,7 +301,6 @@ namespace Elixir
         DynamicIndexBuffer(const IndexBuffer&) = delete;
 
         EIndexType m_IndexType;
-        void* m_PersistentMapping = nullptr;
     };
 
     class ELIXIR_API UniformBuffer : public DynamicBuffer

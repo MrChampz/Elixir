@@ -58,3 +58,6 @@
 #include <Engine/GUI/Overlay.h>
 #include <Engine/GUI/Button.h>
 #include <Engine/GUI/TextBlock.h>
+
+#include <Engine/Aether/System.h>
+#include <Engine/Aether/Modules.h>

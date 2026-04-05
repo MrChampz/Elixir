@@ -167,13 +167,17 @@ namespace Elixir::Vulkan
     void* VulkanDynamicBuffer<Base>::Map()
     {
         EE_PROFILE_ZONE_SCOPED()
-        void* data;
-        VK_CHECK_RESULT(vmaMapMemory(
-            this->m_GraphicsContext->GetAllocator(),
-            this->m_Allocation,
-            &data
-        ));
-        return data;
+
+        if (!this->m_PersistentMapping)
+        {
+            VK_CHECK_RESULT(vmaMapMemory(
+                this->m_GraphicsContext->GetAllocator(),
+                this->m_Allocation,
+                &this->m_PersistentMapping
+            ));
+        }
+
+        return this->m_PersistentMapping;
     }
 
     template <class Base>
@@ -181,6 +185,7 @@ namespace Elixir::Vulkan
     {
         EE_PROFILE_ZONE_SCOPED()
         vmaUnmapMemory(this->m_GraphicsContext->GetAllocator(), this->m_Allocation);
+        this->m_PersistentMapping = nullptr;
     }
 
     template <class Base>

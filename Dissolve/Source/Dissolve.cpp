@@ -1,10 +1,12 @@
 #include "Dissolve.h"
 
-#include "Engine/Graphics/SamplerBuilder.h"
-
 #include <Engine/Core/Entrypoint.h>
+#include <Engine/Graphics/SamplerBuilder.h>
+#include <Engine/Aether/Renderer.h>
 
 Ref<GraphicsPipeline> pipeline;
+Scope<Aether::Renderer> m_ParticlesRenderer;
+Scope<Aether::System> m_ParticleSystem;
 
 Dissolve::Dissolve()
 {
@@ -50,6 +52,25 @@ Dissolve::Dissolve()
     );
 
     shader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
+
+    m_ParticlesRenderer = CreateScope<Aether::Renderer>(m_GraphicsContext.get(), m_ShaderLoader.get());
+
+    m_ParticleSystem = CreateScope<Aether::System>("Fountain");
+    m_ParticleSystem->GetParameters().SetFloat("GravityScale", 1.0f);
+
+    auto& emitter = m_ParticleSystem->AddEmitter("Emitter", 4096, 240.0f);
+    emitter.AddSpawnModule<Aether::SetPositionCircle>(glm::vec2{ 0.0f, -0.78f }, 0.03f);
+    emitter.AddSpawnModule<Aether::SetVelocityCone>(1.1f, 2.05f, 0.45f, 0.95f);
+    emitter.AddSpawnModule<Aether::SetLifetime>(1.2f, 2.5f);
+    emitter.AddSpawnModule<Aether::SetSize>(6.0f, 14.0f);
+    emitter.AddSpawnModule<Aether::SetColor>(glm::vec4{ 1.0f, 0.75f, 0.25f, 1.0f });
+
+    emitter.AddUpdateModule<Aether::ApplyGravity>(glm::vec2{ 0.0f, -0.9f });
+    emitter.AddUpdateModule<Aether::ApplyLinearDrag>(0.18f);
+    emitter.AddUpdateModule<Aether::IntegrateVelocity>();
+    emitter.AddUpdateModule<Aether::ColorOverLife>(glm::vec4{ 1.0f, 0.85f, 0.3f, 0.95f }, glm::vec4{ 0.2f, 0.45f, 1.0f, 0.0f });
+    emitter.AddUpdateModule<Aether::SizeOverLife>(14.0f, 2.0f);
+    emitter.AddUpdateModule<Aether::KillOutsideBounds>(glm::vec2{ -1.25f, -1.25f }, glm::vec2{ 1.25f, 1.25f });
 }
 
 Dissolve::~Dissolve()
@@ -71,13 +92,16 @@ void Dissolve::OnRender(const Timestep frameTime)
     m_CameraController->Update(frameTime);
     m_FrameData.ViewProj = m_CameraController->GetCamera().GetViewProjectionMatrix();
     m_FrameConstantBuffer->UpdateData(&m_FrameData, sizeof(SFrameData));
+    m_ParticleSystem->Update(frameTime);
 
     float flash = std::abs(std::sin(m_GraphicsContext->GetFrameNumber() / 120.f));
 
     m_GraphicsContext->SetClearColor({ 0.0f, 0.0f, flash, 1.0 });
     m_GraphicsContext->Clear();
 
-    DrawGeometry();
+    //DrawGeometry();
+
+    m_ParticlesRenderer->Render(m_ParticleSystem->GetRenderParticles(), m_CameraController->GetCamera());
 }
 
 void Dissolve::OnEvent(Event& event)
