@@ -210,6 +210,16 @@ namespace Elixir::Vulkan
         );
     }
 
+    void VulkanCommandBuffer::BindPipeline(const ComputePipeline* pipeline)
+    {
+        const auto vkPipeline = static_cast<const VulkanComputePipeline*>(pipeline);
+        vkCmdBindPipeline(
+            m_CommandBuffer,
+            VK_PIPELINE_BIND_POINT_COMPUTE,
+            vkPipeline->GetVulkanPipeline()
+        );
+    }
+
     void VulkanCommandBuffer::BindVertexBuffers(
         const std::span<const VertexBuffer*> vertexBuffers,
         std::span<uint64_t> offsets,

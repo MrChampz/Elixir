@@ -7,6 +7,7 @@ namespace Elixir
 {
     class Texture;
     class GraphicsPipeline;
+    class ComputePipeline;
 
     enum class ECommandBufferLevel : uint8_t
     {
@@ -66,6 +67,15 @@ namespace Elixir
          * @param pipeline GraphicsPipeline instance to be bound.
          */
         virtual void BindPipeline(const GraphicsPipeline* pipeline) = 0;
+
+        /**
+         * Binds a pipeline for Command Buffer execution.
+         * NOTE: This method should not be used directly!
+         * It's intended to be used by Pipeline implementation.
+         *
+         * @param pipeline ComputePipeline instance to be bound.
+         */
+        virtual void BindPipeline(const ComputePipeline* pipeline) = 0;
 
         virtual void BindVertexBuffers(
             std::span<const VertexBuffer*> vertexBuffers,

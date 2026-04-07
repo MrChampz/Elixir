@@ -7,6 +7,7 @@
 Ref<GraphicsPipeline> pipeline;
 Scope<Aether::Renderer> m_ParticlesRenderer;
 Scope<Aether::System> m_ParticleSystem;
+Aether::SGPUSystem m_GPUSystem;
 
 Dissolve::Dissolve()
 {
@@ -71,6 +72,8 @@ Dissolve::Dissolve()
     emitter.AddUpdateModule<Aether::ColorOverLife>(glm::vec4{ 1.0f, 0.85f, 0.3f, 0.95f }, glm::vec4{ 0.2f, 0.45f, 1.0f, 0.0f });
     emitter.AddUpdateModule<Aether::SizeOverLife>(14.0f, 2.0f);
     emitter.AddUpdateModule<Aether::KillOutsideBounds>(glm::vec2{ -1.25f, -1.25f }, glm::vec2{ 1.25f, 1.25f });
+
+    m_GPUSystem = m_ParticleSystem->Build();
 }
 
 Dissolve::~Dissolve()
@@ -101,7 +104,7 @@ void Dissolve::OnRender(const Timestep frameTime)
 
     //DrawGeometry();
 
-    m_ParticlesRenderer->Render(m_ParticleSystem->GetRenderParticles(), m_CameraController->GetCamera());
+    m_ParticlesRenderer->Render(m_GPUSystem, m_CameraController->GetCamera());
 }
 
 void Dissolve::OnEvent(Event& event)

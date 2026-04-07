@@ -112,16 +112,18 @@ namespace Elixir
 
     Ref<Shader> ShaderLoader::LoadShader(
         const std::filesystem::path& directory,
-        const std::string& name
+        const std::string& name,
+        const EShaderStage stages
     ) const
     {
-        return LoadShader(directory, std::array<std::string_view, 1>{ name }, name);
+        return LoadShader(directory, std::array<std::string_view, 1>{ name }, name, stages);
     }
 
     Ref<Shader> ShaderLoader::LoadShader(
         const std::filesystem::path& directory,
         const std::span<const std::string_view> filenames,
-        const std::string& name
+        const std::string& name,
+        const EShaderStage stages
     ) const
     {
         if (is_directory(directory))
@@ -140,8 +142,11 @@ namespace Elixir
 
                 for (const auto& [stage, path] : files)
                 {
-                    auto module = LoadModule(path, stage);
-                    AddShaderModule(stage, std::move(module), shaderInfo);
+                    if (stages & stage)
+                    {
+                        auto module = LoadModule(path, stage);
+                        AddShaderModule(stage, std::move(module), shaderInfo);
+                    }
                 }
 
                 return Shader::Create(m_GraphicsContext, std::move(shaderInfo));

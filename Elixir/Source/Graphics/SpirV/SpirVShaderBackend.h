@@ -1,4 +1,4 @@
-                        #pragma once
+#pragma once
 
 #include "spirv_cross.hpp"
 
@@ -37,6 +37,11 @@ namespace Elixir::SpirV
         static std::string GetEntrypoint(const spirv_cross::Compiler& spirv);
 
         static std::vector<ShaderResource> GetResources(
+            const spirv_cross::Compiler& spirv,
+            spirv_cross::ShaderResources& resources
+        );
+
+        static std::vector<ShaderStorageBuffer> GetStorageBuffers(
             const spirv_cross::Compiler& spirv,
             spirv_cross::ShaderResources& resources
         );

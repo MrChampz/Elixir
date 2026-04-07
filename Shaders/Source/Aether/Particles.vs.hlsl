@@ -6,9 +6,8 @@ cbuffer cbFrame : register(b0)
 
 struct VSInput
 {
-    float2 Position      : POSITION;
+    float4 PositionSize  : POSITION;
     float4 Color         : COLOR;
-    float  Size          : SIZE;
 };
 
 struct VSOutput
@@ -24,11 +23,11 @@ VSOutput main(VSInput input)
 {
     VSOutput output;
 
-    float4 pos = float4(input.Position, 0.0f, 1.0f);
+    float4 pos = float4(input.PositionSize.xy, 0.0f, 1.0f);
     output.ClipPos = mul(ViewProj, pos);
 
     output.Color = input.Color;
-    output.Size = input.Size;
+    output.Size = input.PositionSize.z;
 
     return output;
 }

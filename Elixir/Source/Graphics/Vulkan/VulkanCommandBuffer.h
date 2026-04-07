@@ -53,6 +53,7 @@ namespace Elixir::Vulkan
         /** Bind methods **/
 
         void BindPipeline(const GraphicsPipeline* pipeline) override;
+        void BindPipeline(const ComputePipeline* pipeline) override;
 
         void BindVertexBuffers(
             std::span<const VertexBuffer*> vertexBuffers,

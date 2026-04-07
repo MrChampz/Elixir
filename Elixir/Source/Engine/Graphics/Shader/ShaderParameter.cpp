@@ -49,7 +49,7 @@ namespace Elixir
         m_Count(count),
         m_Pointer(pointer)
     {
-        m_Size = pointer ? POINTER_SIZE : structure->GetSize() * count;
+        m_Size = pointer ? POINTER_SIZE : m_Struct->GetSize() * count;
     }
 
     void ShaderConstant::SetOffset(const uint32_t offset)
@@ -79,6 +79,43 @@ namespace Elixir
 
         field.SetOffset(offset);
         m_Fields.push_back(std::move(field));
+    }
+
+    /**
+     * ShaderStorageBuffer
+     */
+
+    ShaderStorageBuffer::ShaderStorageBuffer(
+        const std::string& name,
+        const uint32_t set,
+        const uint32_t binding
+    ) : m_Name(name), m_Set(set), m_Binding(binding) {}
+
+    void ShaderStorageBuffer::PushConstant(ShaderConstant&& constant)
+    {
+        uint32_t offset = 0;
+
+        if (m_Constants.size())
+        {
+            const auto& previous = m_Constants.back();
+            offset = previous.GetOffset() + previous.GetSize();
+        }
+
+        constant.SetOffset(offset);
+        m_Size += constant.GetSize();
+        m_Constants.push_back(std::move(constant));
+    }
+
+    const ShaderConstant* ShaderStorageBuffer::FindConstant(const std::string& name)
+    {
+        const auto it = std::ranges::find_if(
+            m_Constants,
+            [&](const auto& constant)
+            {
+                return constant.GetName() == name;
+            }
+        );
+        return it != m_Constants.end() ? &(*it) : nullptr;
     }
 
     /**

@@ -25,4 +25,17 @@ namespace Elixir::Aether
         m_Emitters.emplace_back(name, maxParticles, spawnRate);
         return m_Emitters.back();
     }
+
+    SGPUSystem System::Build() const
+    {
+        SGPUSystem system;
+        system.Name = m_Name;
+
+        if (!m_Emitters.empty())
+        {
+            system.Emitter = m_Emitters.front().Build(m_Parameters);
+        }
+
+        return system;
+    }
 }

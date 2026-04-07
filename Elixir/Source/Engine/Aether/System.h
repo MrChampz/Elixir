@@ -25,6 +25,12 @@ namespace Elixir::Aether
         float deltaTime = 0.0f;
     };
 
+    struct SGPUSystem
+    {
+        std::string Name;
+        SGPUEmitter Emitter;
+    };
+
     class ELIXIR_API System final
     {
       public:
@@ -33,6 +39,8 @@ namespace Elixir::Aether
         void Update(const Timestep& timestep);
 
         Emitter& AddEmitter(const std::string& name, uint32_t maxParticles, float spawnRate);
+
+        SGPUSystem Build() const;
 
         ParameterStore& GetParameters() { return m_Parameters; }
         const std::vector<SRenderParticle>& GetRenderParticles() const { return m_RenderParticles; }

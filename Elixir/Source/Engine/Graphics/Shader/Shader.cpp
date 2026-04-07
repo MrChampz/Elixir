@@ -5,9 +5,20 @@
 
 namespace Elixir
 {
-    constexpr size_t GetStageIndex(EShaderStage stage) noexcept
+    constexpr size_t GetStageIndex(const EShaderStage stage) noexcept
     {
-        return static_cast<size_t>(stage);
+        switch (stage)
+        {
+            case EShaderStage::Vertex:   return 0;
+            case EShaderStage::Hull:     return 1;
+            case EShaderStage::Domain:   return 2;
+            case EShaderStage::Geometry: return 3;
+            case EShaderStage::Pixel:    return 4;
+            case EShaderStage::Compute:  return 5;
+            default:
+                EE_CORE_ASSERT(false, "Unknown shader stage!");
+                return 0;
+        }
     }
 
     Ref<Texture> Shader::GetTexture(const std::string& name) const
@@ -144,6 +155,12 @@ namespace Elixir
             module->AddResource(ref);
         }
 
+        for (const auto& buffer : info->StorageBuffers)
+        {
+            const auto ref = AddStorageBufferToBindingTable(buffer);
+            module->AddStorageBuffer(ref);
+        }
+
         for (const auto& buffer : info->ConstantBuffers)
         {
             const auto ref = AddConstantBufferToBindingTable(buffer);
@@ -166,6 +183,18 @@ namespace Elixir
 
         const auto& [it, _] = m_Resources.Resources
             .insert_or_assign({set, binding}, resource);
+        return &it->second;
+    }
+
+    const ShaderStorageBuffer* Shader::AddStorageBufferToBindingTable(
+        ShaderStorageBuffer buffer
+    )
+    {
+        const auto set = buffer.GetSet();
+        const auto binding = buffer.GetBinding();
+
+        const auto& [it, _] = m_Resources.StorageBuffers
+            .insert_or_assign({set, binding}, buffer);
         return &it->second;
     }
 

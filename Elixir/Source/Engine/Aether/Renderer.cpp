@@ -19,26 +19,21 @@ namespace Elixir::Aether
         BindShaderParameters();
     }
 
-    void Renderer::Render(const std::vector<SRenderParticle>& renderables, const Camera& camera)
+    void Renderer::Render(const SGPUSystem& system, const Camera& camera)
     {
         m_FrameData.ViewProj = camera.GetViewProjectionMatrix();
         m_FrameConstantBuffer->UpdateData(&m_FrameData, sizeof(SFrameData));
 
-        const std::size_t count = std::min(renderables.size(), MAX_PARTICLES);
-        auto* vertices = static_cast<SVertex*>(m_VertexBuffer->Map());
-        for (std::size_t i = 0; i < count; ++i)
-        {
-            vertices[i].Position = renderables[i].Position;
-            vertices[i].Color = renderables[i].Color;
-            vertices[i].Size = renderables[i].Size;
-        }
+        const auto maxParticles = std::min(system.Emitter.MaxParticles, MAX_PARTICLES);
+
+        UpdateParamsBuffer(system);
 
         const auto cmd = m_GraphicsContext->GetSecondaryCommandBuffer();
         BeginRendering(cmd);
 
-        m_Pipeline->Bind(cmd);
-        m_VertexBuffer->Bind(cmd);
-        cmd->Draw(count);
+        m_RendererPipeline->Bind(cmd);
+        m_ParticleBuffer->Bind(cmd);
+        cmd->Draw(maxParticles);
 
         EndRendering(cmd);
     }
@@ -48,27 +43,41 @@ namespace Elixir::Aether
         const BufferLayout bufferLayout({
             {
                 {
-                    { EDataType::Vec2,  "Position" },
-                    { EDataType::Vec4,  "Color"    },
-                    { EDataType::Float, "Size"     }
+                    { EDataType::Vec4,  "PositionSize" },
+                    { EDataType::Vec4,  "Color"        }
                 }
             }
         });
 
-        m_Shader = shaderLoader->LoadShader("./Shaders/Aether/", "Particles");
+        m_SimulationShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/",
+            std::array<std::string_view, 1>{ "Particles" },
+            "ParticlesSimulation",
+            EShaderStage::Compute
+        );
+
+        m_RendererShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/",
+            std::array<std::string_view, 1>{ "Particles" },
+            "ParticlesRenderer"
+        );
+
+        SPipelineCreateInfo simulationPipelineInfo{};
+        simulationPipelineInfo.Shader = m_SimulationShader;
+        m_SimulationPipeline = ComputePipeline::Create(m_GraphicsContext, simulationPipelineInfo);
 
         PipelineBuilder builder;
-        builder.SetShader(m_Shader);
+        builder.SetShader(m_RendererShader);
         builder.SetPolygonMode(EPolygonMode::Fill);
         builder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
         builder.EnableAlphaBlending();
         builder.DisableDepthTest();
         builder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
         builder.SetBufferLayout(bufferLayout);
-        m_Pipeline = builder.Build(m_GraphicsContext);
+        m_RendererPipeline = builder.Build(m_GraphicsContext);
 
-        m_VertexBuffer = DynamicVertexBuffer::Create(m_GraphicsContext, sizeof(SVertex) * MAX_PARTICLES, m_Vertices.data());
-        m_VertexBuffer->SetLayout(bufferLayout);
+        m_ParticleBuffer = VertexBuffer::Create(m_GraphicsContext, sizeof(SGPUParticleVertex) * MAX_PARTICLES);
+        m_ParticleBuffer->SetLayout(bufferLayout);
     }
 
     void Renderer::InitPerFrameData()
@@ -82,7 +91,8 @@ namespace Elixir::Aether
 
     void Renderer::BindShaderParameters() const
     {
-        m_Shader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
+        m_SimulationShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
+        m_RendererShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
     }
 
     void Renderer::BeginRendering(const Ref<CommandBuffer>& cmd) const
@@ -114,5 +124,10 @@ namespace Elixir::Aether
     {
         cmd->EndRendering();
         m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
+    }
+
+    void Renderer::UpdateParamsBuffer(const SGPUSystem& system)
+    {
+
     }
 }

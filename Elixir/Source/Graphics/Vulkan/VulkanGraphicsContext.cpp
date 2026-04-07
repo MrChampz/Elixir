@@ -386,8 +386,9 @@ namespace Elixir
         {
             { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0.5 },
             { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0.2 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0.15 },
-            { VK_DESCRIPTOR_TYPE_SAMPLER, 0.15 }
+            { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 0.2 },
+            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0.05 },
+            { VK_DESCRIPTOR_TYPE_SAMPLER, 0.05 }
         };
 
         m_DescriptorPool = CreateRef<VulkanDescriptorPool>(*this, 20, sizes);

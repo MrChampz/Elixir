@@ -66,6 +66,7 @@ namespace Elixir
     class ShaderConstant final
     {
         friend class ShaderConstantStruct;
+        friend class ShaderStorageBuffer;
         friend class ShaderConstantBuffer;
         friend class ShaderPushConstant;
 
@@ -139,7 +140,34 @@ namespace Elixir
         uint32_t m_Offset = 0;
     };
 
-    class ShaderConstantBuffer final
+    class ELIXIR_API ShaderStorageBuffer final
+    {
+    public:
+        ShaderStorageBuffer(const std::string& name, uint32_t set, uint32_t binding);
+        ShaderStorageBuffer(const ShaderStorageBuffer&) = default;
+        ShaderStorageBuffer(ShaderStorageBuffer&&) noexcept = default;
+
+        void PushConstant(ShaderConstant&& constant);
+        [[nodiscard]] const ShaderConstant* FindConstant(const std::string& name);
+
+        [[nodiscard]] const std::string& GetName() const { return m_Name; }
+        [[nodiscard]] uint32_t GetSet() const { return m_Set; }
+        [[nodiscard]] uint32_t GetBinding() const { return m_Binding; }
+        [[nodiscard]] uint32_t GetSize() const { return m_Size; }
+        [[nodiscard]] const std::vector<ShaderConstant>& GetConstants() const { return m_Constants; }
+
+        ShaderStorageBuffer& operator=(const ShaderStorageBuffer&) = default;
+
+    protected:
+        std::string m_Name;
+        uint32_t m_Set = 0;
+        uint32_t m_Binding = 0;
+        std::vector<ShaderConstant> m_Constants;
+
+        uint32_t m_Size = 0;
+    };
+
+    class ELIXIR_API ShaderConstantBuffer final
     {
       public:
         ShaderConstantBuffer(const std::string& name, uint32_t set, uint32_t binding);
@@ -166,7 +194,7 @@ namespace Elixir
         uint32_t m_Size = 0;
     };
 
-    class ShaderPushConstant final
+    class ELIXIR_API ShaderPushConstant final
     {
       public:
         ShaderPushConstant(

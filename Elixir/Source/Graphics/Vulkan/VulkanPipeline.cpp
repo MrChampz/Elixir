@@ -8,6 +8,8 @@
 
 namespace Elixir::Vulkan
 {
+    /* VulkanGraphicsPipeline */
+
     VulkanGraphicsPipeline::VulkanGraphicsPipeline(
         const GraphicsContext* context,
         const SPipelineCreateInfo& info
@@ -267,5 +269,75 @@ namespace Elixir::Vulkan
         info.dynamicStateCount = m_DynamicState.size();
 
         return info;
+    }
+
+    /* VulkanComputePipeline */
+
+    VulkanComputePipeline::VulkanComputePipeline(
+        const GraphicsContext* context,
+        const SPipelineCreateInfo& info
+    ): ComputePipeline(context, info), m_Pipeline(VK_NULL_HANDLE)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        m_GraphicsContext = static_cast<const VulkanGraphicsContext*>(context);
+        BindShader();
+        CreatePipeline();
+    }
+
+    VulkanComputePipeline::~VulkanComputePipeline()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        vkDestroyPipeline(
+            m_GraphicsContext->GetDevice(),
+            m_Pipeline,
+            nullptr
+        );
+
+        m_PipelineLayout = VK_NULL_HANDLE;
+    }
+
+    void VulkanComputePipeline::Bind(const Ref<CommandBuffer>& cmd)
+    {
+        cmd->BindPipeline(this);
+        m_Shader->Bind(cmd);
+    }
+
+    void VulkanComputePipeline::BindShader()
+    {
+        const auto vkShader = static_pointer_cast<VulkanShader>(m_Shader);
+
+        m_PipelineLayout = vkShader->GetPipelineLayout();
+
+        const auto computeModule = m_Shader->GetModule(EShaderStage::Compute);
+        EE_CORE_ASSERT(computeModule, "Compute shader module not found in shader!")
+
+        const auto vkModule = static_pointer_cast<VulkanShaderModule>(computeModule);
+
+        m_ShaderStage = {};
+        m_ShaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        m_ShaderStage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+        m_ShaderStage.module = vkModule->GetVulkanShaderModule();
+        m_ShaderStage.pName = computeModule->GetEntrypoint().c_str();
+    }
+
+    void VulkanComputePipeline::CreatePipeline()
+    {
+        VkComputePipelineCreateInfo info = {};
+        info.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        info.pNext = nullptr;
+        info.layout = m_PipelineLayout;
+        info.stage = m_ShaderStage;
+
+        VK_CHECK_RESULT(
+            vkCreateComputePipelines(
+                m_GraphicsContext->GetDevice(),
+                VK_NULL_HANDLE,
+                1,
+                &info,
+                nullptr,
+                &m_Pipeline
+            )
+        );
     }
 }

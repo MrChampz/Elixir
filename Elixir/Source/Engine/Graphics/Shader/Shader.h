@@ -18,6 +18,7 @@ namespace Elixir
     struct SShaderResources
     {
         BindingTable<ShaderResource> Resources;
+        BindingTable<ShaderStorageBuffer> StorageBuffers;
         BindingTable<ShaderConstantBuffer> ConstantBuffers;
         BindingTable<ShaderPushConstant> PushConstants;
     };
@@ -27,6 +28,7 @@ namespace Elixir
         std::filesystem::path Path;
         std::string Entrypoint;
         std::vector<ShaderResource> Resources;
+        std::vector<ShaderStorageBuffer> StorageBuffers;
         std::vector<ShaderConstantBuffer> ConstantBuffers;
         std::vector<ShaderPushConstant> PushConstants;
         std::vector<Byte> Bytecode;
@@ -95,6 +97,7 @@ namespace Elixir
         );
 
         const ShaderResource* AddResourceToBindingTable(ShaderResource resource);
+        const ShaderStorageBuffer* AddStorageBufferToBindingTable(ShaderStorageBuffer buffer);
         const ShaderConstantBuffer* AddConstantBufferToBindingTable(ShaderConstantBuffer buffer);
         const ShaderPushConstant* AddPushConstantToBindingTable(ShaderPushConstant constant);
 

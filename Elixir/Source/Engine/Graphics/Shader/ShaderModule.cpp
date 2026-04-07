@@ -10,6 +10,11 @@ namespace Elixir
         m_Resources.push_back(resource);
     }
 
+    void ShaderModule::AddStorageBuffer(const ShaderStorageBuffer* buffer)
+    {
+        m_StorageBuffers.push_back(buffer);
+    }
+
     void ShaderModule::AddConstantBuffer(const ShaderConstantBuffer* buffer)
     {
         m_ConstantBuffers.push_back(buffer);

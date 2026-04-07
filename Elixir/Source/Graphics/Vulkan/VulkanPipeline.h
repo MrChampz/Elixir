@@ -50,4 +50,26 @@ namespace Elixir::Vulkan
 
         const VulkanGraphicsContext* m_GraphicsContext;
     };
+
+    class ELIXIR_API VulkanComputePipeline final : public ComputePipeline
+    {
+      public:
+        VulkanComputePipeline(const GraphicsContext* context, const SPipelineCreateInfo& info);
+        ~VulkanComputePipeline() override;
+
+        void Bind(const Ref<CommandBuffer>& cmd) override;
+
+        VkPipeline GetVulkanPipeline() const { return m_Pipeline; }
+
+      protected:
+        void BindShader();
+        void CreatePipeline();
+
+        VkPipeline m_Pipeline;
+        VkPipelineLayout m_PipelineLayout;
+
+        VkPipelineShaderStageCreateInfo m_ShaderStage;
+
+        const VulkanGraphicsContext* m_GraphicsContext;
+    };
 }

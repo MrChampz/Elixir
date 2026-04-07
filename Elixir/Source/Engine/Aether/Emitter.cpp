@@ -45,6 +45,73 @@ namespace Elixir::Aether
         }
     }
 
+    SGPUEmitter Emitter::Build(const ParameterStore& params) const
+    {
+        SGPUEmitter emitter;
+        emitter.MaxParticles = (uint32_t)m_Particles.size();
+        emitter.SpawnRatePerSecond = m_SpawnRate;
+        emitter.GravityScale = params.GetFloat("GravityScale", 1.0f);
+
+        for (const auto& module : m_SpawnModules)
+        {
+            if (const auto* typed = dynamic_cast<const SetPositionCircle*>(module.get()))
+            {
+                emitter.SpawnCenter = typed->GetCenter();
+                emitter.SpawnRadius = typed->GetRadius();
+            }
+            else if (const auto* typed = dynamic_cast<const SetVelocityCone*>(module.get()))
+            {
+                emitter.AngleMinRadians = typed->GetMinAngle();
+                emitter.AngleMaxRadians = typed->GetMaxAngle();
+                emitter.SpeedMin = typed->GetMinSpeed();
+                emitter.SpeedMax = typed->GetMaxSpeed();
+            }
+            else if (const auto* typed = dynamic_cast<const SetLifetime*>(module.get()))
+            {
+                emitter.LifetimeMin = typed->GetMinSeconds();
+                emitter.LifetimeMax = typed->GetMinSeconds();
+            }
+            else if (const auto* typed = dynamic_cast<const SetSize*>(module.get()))
+            {
+                emitter.SizeStart = typed->GetMinSize();
+                emitter.SizeEnd = typed->GetMaxSize();
+            }
+            else if (const auto* typed = dynamic_cast<const SetColor*>(module.get()))
+            {
+                emitter.ColorStart = typed->GetColor();
+            }
+        }
+
+        for (const auto& module : m_UpdateModules)
+        {
+            if (const auto* typed = dynamic_cast<const ApplyGravity*>(module.get()))
+            {
+                emitter.Gravity = typed->GetGravity();
+            }
+            else if (const auto* typed = dynamic_cast<const ApplyLinearDrag*>(module.get()))
+            {
+                emitter.Drag = typed->GetDragPerSecond();
+            }
+            else if (const auto* typed = dynamic_cast<const ColorOverLife*>(module.get()))
+            {
+                emitter.ColorStart = typed->GetStartColor();
+                emitter.ColorEnd = typed->GetEndColor();
+            }
+            else if (const auto* typed = dynamic_cast<const SizeOverLife*>(module.get()))
+            {
+                emitter.SizeStart = typed->GetStartSize();
+                emitter.SizeEnd = typed->GetEndSize();
+            }
+            else if (const auto* typed = dynamic_cast<const KillOutsideBounds*>(module.get()))
+            {
+                emitter.MinBounds = typed->GetMin();
+                emitter.MaxBounds = typed->GetMax();
+            }
+        }
+
+        return emitter;
+    }
+
     void Emitter::GatherRenderParticles(std::vector<SRenderParticle>& output) const
     {
         for (const auto& particle : m_Particles)

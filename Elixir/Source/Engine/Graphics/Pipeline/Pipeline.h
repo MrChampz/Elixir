@@ -143,4 +143,20 @@ namespace Elixir
 
         const GraphicsContext* m_GraphicsContext;
     };
+
+    class ELIXIR_API ComputePipeline : public Pipeline
+    {
+      public:
+        ~ComputePipeline() override = default;
+
+        static Ref<ComputePipeline> Create(
+            const GraphicsContext* context,
+            const SPipelineCreateInfo& info
+        );
+
+      protected:
+        ComputePipeline(const GraphicsContext* context, const SPipelineCreateInfo& info);
+
+        const GraphicsContext* m_GraphicsContext;
+    };
 }

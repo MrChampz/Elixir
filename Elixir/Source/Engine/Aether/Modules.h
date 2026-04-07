@@ -30,6 +30,9 @@ namespace Elixir::Aether
 
         void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override;
 
+        glm::vec2 GetCenter() const { return m_Center; }
+        float GetRadius() const { return m_Radius; }
+
       private:
         glm::vec2 m_Center;
         float m_Radius;
@@ -41,6 +44,11 @@ namespace Elixir::Aether
         explicit SetVelocityCone(float minAngle, float maxAngle, float minSpeed, float maxSpeed);
 
         void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override;
+
+        float GetMinAngle() const { return m_MinAngle; }
+        float GetMaxAngle() const { return m_MaxAngle; }
+        float GetMinSpeed() const { return m_MinSpeed; }
+        float GetMaxSpeed() const { return m_MaxSpeed; }
 
       private:
         float m_MinAngle; // radians
@@ -56,6 +64,9 @@ namespace Elixir::Aether
 
         void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override;
 
+        float GetMinSeconds() const { return m_MinSeconds; }
+        float GetMaxSeconds() const { return m_MaxSeconds; }
+
       private:
         float m_MinSeconds;
         float m_MaxSeconds;
@@ -67,6 +78,9 @@ namespace Elixir::Aether
         explicit SetSize(float minSize, float maxSize);
 
         void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override;
+
+        float GetMinSize() const { return m_MinSize; }
+        float GetMaxSize() const { return m_MaxSize; }
 
       private:
         float m_MinSize;
@@ -80,6 +94,8 @@ namespace Elixir::Aether
 
         void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override;
 
+        const glm::vec4& GetColor() const { return m_Color; }
+
       private:
         glm::vec4 m_Color;
     };
@@ -91,6 +107,8 @@ namespace Elixir::Aether
 
         void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override;
 
+        const glm::vec2& GetGravity() const { return m_Gravity; }
+
       private:
         glm::vec2 m_Gravity;
     };
@@ -101,6 +119,8 @@ namespace Elixir::Aether
         explicit ApplyLinearDrag(float dragPerSecond);
 
         void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override;
+
+        float GetDragPerSecond() const { return m_DragPerSecond; }
 
       private:
         float m_DragPerSecond;
@@ -119,6 +139,9 @@ namespace Elixir::Aether
 
         void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override;
 
+        const glm::vec4& GetStartColor() const { return m_StartColor; }
+        const glm::vec4& GetEndColor() const { return m_EndColor; }
+
       private:
         glm::vec4 m_StartColor;
         glm::vec4 m_EndColor;
@@ -130,6 +153,9 @@ namespace Elixir::Aether
         SizeOverLife(float startSize, float endSize);
 
         void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override;
+
+        float GetStartSize() const { return m_StartSize; }
+        float GetEndSize() const { return m_EndSize; }
 
     private:
         float m_StartSize;
@@ -143,6 +169,9 @@ namespace Elixir::Aether
 
         void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override;
 
+        glm::vec2 GetMin() const { return m_Min; }
+        glm::vec2 GetMax() const { return m_Max; }
+        
       private:
         glm::vec2 m_Min;
         glm::vec2 m_Max;
