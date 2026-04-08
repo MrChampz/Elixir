@@ -176,9 +176,6 @@ namespace Elixir::Vulkan
         );
         VulkanStorageBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
         ~VulkanStorageBuffer() override;
-
-    protected:
-        void CreateBufferAddress() override;
     };
 
     class ELIXIR_API VulkanUniformBuffer final : public VulkanDynamicBuffer<UniformBuffer>

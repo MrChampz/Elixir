@@ -244,8 +244,7 @@ namespace Elixir::Vulkan
 
         for (const auto& buffer : vertexBuffers)
         {
-            const auto vkBuffer = static_cast<const VulkanVertexBuffer*>(buffer);
-            buffers.push_back(vkBuffer->GetVulkanBuffer());
+            buffers.push_back(TryToGetVulkanBuffer(buffer));
         }
 
         if (offsets.size() == 0)
@@ -275,8 +274,7 @@ namespace Elixir::Vulkan
 
         for (const auto& buffer : vertexBuffers)
         {
-            const auto vkBuffer = static_cast<const VulkanDynamicVertexBuffer*>(buffer);
-            buffers.push_back(vkBuffer->GetVulkanBuffer());
+            buffers.push_back(TryToGetVulkanBuffer(buffer));
         }
 
         if (offsets.size() == 0)
@@ -295,19 +293,18 @@ namespace Elixir::Vulkan
     }
 
     void VulkanCommandBuffer::BindVertexBuffers(
-        const std::span<const StorageBuffer*> storageBuffers,
+        const std::span<const Buffer*> vertexBuffers,
         std::span<uint64_t> offsets,
         const uint32_t bindingCount,
         const uint32_t firstBinding
     )
     {
         std::vector<VkBuffer> buffers;
-        buffers.reserve(storageBuffers.size());
+        buffers.reserve(vertexBuffers.size());
 
-        for (const auto& buffer : storageBuffers)
+        for (const auto& buffer : vertexBuffers)
         {
-            const auto vkBuffer = static_cast<const VulkanStorageBuffer*>(buffer);
-            buffers.push_back(vkBuffer->GetVulkanBuffer());
+            buffers.push_back(TryToGetVulkanBuffer(buffer));
         }
 
         if (offsets.size() == 0)
@@ -344,6 +341,19 @@ namespace Elixir::Vulkan
             vkBuffer->GetVulkanBuffer(),
             0,
             Converters::GetIndexType(indexBuffer->GetIndexType())
+        );
+    }
+
+    void VulkanCommandBuffer::BindIndexBuffer(
+        const Buffer* indexBuffer,
+        const EIndexType indexType
+    )
+    {
+        vkCmdBindIndexBuffer(
+            m_CommandBuffer,
+            TryToGetVulkanBuffer(indexBuffer),
+            0,
+            Converters::GetIndexType(indexType)
         );
     }
 

@@ -5,39 +5,10 @@
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Graphics/Memory.h>
 #include <Engine/Graphics/GraphicsTypes.h>
+#include <Engine/Graphics/CommandBuffer.h>
 
 namespace Elixir
 {
-    typedef uint64_t BufferAddress;
-
-    enum class EBufferUsage : uint32_t
-    {
-        TransferSrc				= 0x00000001,
-        TransferDst				= 0x00000002,
-        UniformTexelBuffer	    = 0x00000004,
-        StorageTexelBuffer		= 0x00000008,
-        UniformBuffer			= 0x00000010,
-        StorageBuffer	        = 0x00000020,
-        IndexBuffer		        = 0x00000040,
-        VertexBuffer			= 0x00000080,
-        IndirectBuffer			= 0x00000100,
-        ShaderDeviceAddress		= 0x00020000
-    };
-
-    GENERATE_ENUM_CLASS_OPERATORS(EBufferUsage)
-
-    struct SBufferCopy
-    {
-        size_t SrcOffset = 0;
-        size_t DstOffset = 0;
-        size_t Size = 0;
-
-        static SBufferCopy Default(const size_t size = 0)
-        {
-            return { .Size = size };
-        }
-    };
-
     struct SBufferCreateInfo
     {
         SBuffer Buffer;
@@ -233,11 +204,6 @@ namespace Elixir
         BufferAddress m_Address;
     };
 
-    enum class EIndexType
-    {
-        UInt16, UInt32
-    };
-
     class ELIXIR_API IndexBuffer : public Buffer
     {
       public:
@@ -315,16 +281,11 @@ namespace Elixir
     public:
         ~StorageBuffer() override = default;
 
-        void Bind(
-            const Ref<CommandBuffer>& cmd,
-            uint32_t bindingCount = 1,
-            uint32_t firstBinding = 0
-        ) const;
-
-        const BufferLayout& GetLayout() const { return m_Layout; }
-        void SetLayout(const BufferLayout& layout) { m_Layout = layout; }
-
-        BufferAddress GetAddress() const { return m_Address; }
+        template <typename T, typename... Args>
+        void BindAs(const Ref<CommandBuffer>& cmd, Args... args)
+        {
+            cmd->BindBuffer<T>(this, args...);
+        }
 
         static Ref<StorageBuffer> Create(
             const GraphicsContext* context,
@@ -338,11 +299,6 @@ namespace Elixir
         StorageBuffer(const GraphicsContext* context, size_t size, const void* data = nullptr);
         StorageBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
         StorageBuffer(const StorageBuffer&) = delete;
-
-        virtual void CreateBufferAddress() = 0;
-
-        BufferLayout m_Layout;
-        BufferAddress m_Address;
     };
 
     class ELIXIR_API UniformBuffer : public DynamicBuffer

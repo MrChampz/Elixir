@@ -447,22 +447,12 @@ namespace Elixir::Vulkan
         VulkanStorageBuffer::CreateBuffer(info);
         VulkanStorageBuffer::InitBuffer(info.Buffer);
         VulkanStorageBuffer::CreateDescriptorInfo();
-        CreateBufferAddress();
     }
 
     VulkanStorageBuffer::~VulkanStorageBuffer()
     {
         EE_PROFILE_ZONE_SCOPED()
         VulkanStorageBuffer::Destroy();
-    }
-
-    void VulkanStorageBuffer::CreateBufferAddress()
-    {
-        VkBufferDeviceAddressInfo addressInfo = {};
-        addressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-        addressInfo.buffer = m_Buffer;
-
-        m_Address = vkGetBufferDeviceAddress(m_GraphicsContext->GetDevice(), &addressInfo);
     }
 
     /* VulkanUniformBuffer */

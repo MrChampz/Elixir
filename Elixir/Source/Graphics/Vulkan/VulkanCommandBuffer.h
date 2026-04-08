@@ -76,13 +76,14 @@ namespace Elixir::Vulkan
             uint32_t firstBinding
         ) override;
         void BindVertexBuffers(
-            std::span<const StorageBuffer*> storageBuffers,
+            std::span<const Buffer*> vertexBuffers,
             std::span<uint64_t> offsets,
             uint32_t bindingCount,
             uint32_t firstBinding
         ) override;
         void BindIndexBuffer(const IndexBuffer* indexBuffer) override;
         void BindIndexBuffer(const DynamicIndexBuffer* indexBuffer) override;
+        void BindIndexBuffer(const Buffer* indexBuffer, EIndexType indexType) override;
 
         void BindDescriptorSets(
             const Pipeline* pipeline,

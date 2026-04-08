@@ -47,7 +47,7 @@ namespace Elixir::Aether
         BeginRendering(cmd);
 
         m_RendererPipeline->Bind(cmd);
-        m_ParticleBuffer->Bind(cmd);
+        m_ParticleBuffer->BindAs<VertexBuffer>(cmd);
         cmd->Draw(maxParticles);
 
         EndRendering(cmd);
@@ -92,7 +92,6 @@ namespace Elixir::Aether
         m_RendererPipeline = builder.Build(m_GraphicsContext);
 
         m_ParticleBuffer = StorageBuffer::Create(m_GraphicsContext, sizeof(SGPUParticleVertex) * MAX_PARTICLES);
-        m_ParticleBuffer->SetLayout(bufferLayout);
 
         m_ParamsBuffer = UniformBuffer::Create(m_GraphicsContext, sizeof(SParamsData));
     }

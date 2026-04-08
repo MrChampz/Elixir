@@ -424,16 +424,6 @@ namespace Elixir
         EBufferUsage::TransferDst |
         EBufferUsage::ShaderDeviceAddress;
 
-    void StorageBuffer::Bind(
-        const Ref<CommandBuffer>& cmd,
-        const uint32_t bindingCount,
-        const uint32_t firstBinding
-    ) const
-    {
-        const StorageBuffer* buffers[] = { this };
-        cmd->BindVertexBuffers(buffers, {}, bindingCount, firstBinding);
-    }
-
     Ref<StorageBuffer> StorageBuffer::Create(
         const GraphicsContext* context,
         size_t size,
@@ -468,7 +458,7 @@ namespace Elixir
     ) : StorageBuffer(context, CreateBufferInfo(size, data)) {}
 
     StorageBuffer::StorageBuffer(const GraphicsContext* context, const SBufferCreateInfo& info)
-        : Buffer(context, info), m_Address(0)
+        : Buffer(context, info)
     {
         EE_PROFILE_ZONE_SCOPED()
 
