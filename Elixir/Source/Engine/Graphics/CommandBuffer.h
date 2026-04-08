@@ -25,6 +25,14 @@ namespace Elixir
 
         virtual void Reset() = 0;
 
+        /** Dispatching compute methods */
+
+        virtual void Dispatch(
+            uint32_t groupCountX,
+            uint32_t groupCountY = 1,
+            uint32_t groupCountZ = 1
+        ) = 0;
+
         /** Drawing methods **/
 
         virtual void BeginRendering(const SRenderingInfo& info) = 0;
@@ -85,6 +93,12 @@ namespace Elixir
         ) = 0;
         virtual void BindVertexBuffers(
             std::span<const DynamicVertexBuffer*> vertexBuffers,
+            std::span<uint64_t> offsets = {},
+            uint32_t bindingCount = 1,
+            uint32_t firstBinding = 0
+        ) = 0;
+        virtual void BindVertexBuffers(
+            std::span<const StorageBuffer*> storageBuffers,
             std::span<uint64_t> offsets = {},
             uint32_t bindingCount = 1,
             uint32_t firstBinding = 0

@@ -25,6 +25,14 @@ namespace Elixir::Vulkan
 
         void Reset() override;
 
+        /** Dispatching compute methods */
+
+        void Dispatch(
+            uint32_t groupCountX,
+            uint32_t groupCountY,
+            uint32_t groupCountZ
+        ) override;
+
         /** Drawing methods **/
 
         void BeginRendering(const SRenderingInfo& info) override;
@@ -67,10 +75,17 @@ namespace Elixir::Vulkan
             uint32_t bindingCount,
             uint32_t firstBinding
         ) override;
+        void BindVertexBuffers(
+            std::span<const StorageBuffer*> storageBuffers,
+            std::span<uint64_t> offsets,
+            uint32_t bindingCount,
+            uint32_t firstBinding
+        ) override;
         void BindIndexBuffer(const IndexBuffer* indexBuffer) override;
         void BindIndexBuffer(const DynamicIndexBuffer* indexBuffer) override;
 
         void BindDescriptorSets(
+            const Pipeline* pipeline,
             VkPipelineLayout layout,
             uint32_t firstSet,
             const std::vector<VkDescriptorSet>& descriptorSets,

@@ -93,8 +93,20 @@ namespace Elixir::Vulkan
         VK_CHECK_RESULT(vkResetCommandBuffer(m_CommandBuffer, 0));
     }
 
+    void VulkanCommandBuffer::Dispatch(
+        const uint32_t groupCountX,
+        const uint32_t groupCountY,
+        const uint32_t groupCountZ
+    )
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        vkCmdDispatch(m_CommandBuffer, groupCountX, groupCountY, groupCountZ);
+    }
+
     void VulkanCommandBuffer::BeginRendering(const SRenderingInfo& info)
     {
+        EE_PROFILE_ZONE_SCOPED()
+
         m_RenderingInfo = info;
         Begin(info);
 
@@ -282,6 +294,37 @@ namespace Elixir::Vulkan
         );
     }
 
+    void VulkanCommandBuffer::BindVertexBuffers(
+        const std::span<const StorageBuffer*> storageBuffers,
+        std::span<uint64_t> offsets,
+        const uint32_t bindingCount,
+        const uint32_t firstBinding
+    )
+    {
+        std::vector<VkBuffer> buffers;
+        buffers.reserve(storageBuffers.size());
+
+        for (const auto& buffer : storageBuffers)
+        {
+            const auto vkBuffer = static_cast<const VulkanStorageBuffer*>(buffer);
+            buffers.push_back(vkBuffer->GetVulkanBuffer());
+        }
+
+        if (offsets.size() == 0)
+        {
+            std::array<uint64_t, 1> defaultOffset = { 0 };
+            offsets = defaultOffset;
+        }
+
+        vkCmdBindVertexBuffers(
+            m_CommandBuffer,
+            firstBinding,
+            bindingCount,
+            buffers.data(),
+            offsets.data()
+        );
+    }
+
     void VulkanCommandBuffer::BindIndexBuffer(const IndexBuffer* indexBuffer)
     {
         const auto vkBuffer = static_cast<const VulkanIndexBuffer*>(indexBuffer);
@@ -305,6 +348,7 @@ namespace Elixir::Vulkan
     }
 
     void VulkanCommandBuffer::BindDescriptorSets(
+        const Pipeline* pipeline,
         const VkPipelineLayout layout,
         const uint32_t firstSet,
         const std::vector<VkDescriptorSet>& descriptorSets,
@@ -316,7 +360,9 @@ namespace Elixir::Vulkan
 
         vkCmdBindDescriptorSets(
             m_CommandBuffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            pipeline->IsGraphics()
+                ? VK_PIPELINE_BIND_POINT_GRAPHICS
+                : VK_PIPELINE_BIND_POINT_COMPUTE,
             layout,
             firstSet,
             descriptorSets.size(),

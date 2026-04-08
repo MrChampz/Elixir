@@ -32,6 +32,7 @@ namespace Elixir::Aether
 
         Renderer(const GraphicsContext* context, const ShaderLoader* shaderLoader);
 
+        void Update(const Timestep& timestep);
         void Render(const SGPUSystem& system, const Camera& camera);
 
       private:
@@ -57,8 +58,10 @@ namespace Elixir::Aether
         Ref<ComputePipeline> m_SimulationPipeline;
         Ref<Shader> m_RendererShader;
         Ref<GraphicsPipeline> m_RendererPipeline;
-        Ref<VertexBuffer> m_ParticleBuffer;
+        Ref<StorageBuffer> m_ParticleBuffer;
         Ref<UniformBuffer> m_ParamsBuffer;
+
+        float m_ElapsedTimeSeconds = 0.0f;
 
         Extent2D m_RenderExtent{};
         const GraphicsContext* m_GraphicsContext;

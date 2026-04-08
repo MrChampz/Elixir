@@ -911,7 +911,7 @@ namespace Elixir::Vulkan::Converters
         return VK_SHADER_STAGE_ALL;
     }
 
-    static VkShaderStageFlags GetShaderStages(const EShaderStage stage)
+    static VkShaderStageFlags GetShaderStages(const EShaderStage& stage)
     {
         VkShaderStageFlags flags = 0;
 
@@ -932,6 +932,119 @@ namespace Elixir::Vulkan::Converters
 
         if (stage & EShaderStage::Compute)
             flags = flags | VK_SHADER_STAGE_COMPUTE_BIT;
+
+        if (stage & EShaderStage::All)
+            flags = flags | VK_SHADER_STAGE_ALL_GRAPHICS;
+
+        return flags;
+    }
+
+    static VkPipelineStageFlags2 GetPipelineStageFlags(const EPipelineStage& stage)
+    {
+        VkPipelineStageFlags2 flags = 0;
+
+        if (stage & EPipelineStage::TopOfPipe)
+            flags = flags | VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+
+        if (stage & EPipelineStage::DrawIndirect)
+            flags = flags | VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT;
+
+        if (stage & EPipelineStage::VertexInput)
+            flags = flags | VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT;
+
+        if (stage & EPipelineStage::VertexShader)
+            flags = flags | VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
+
+        if (stage & EPipelineStage::HullShader)
+            flags = flags | VK_PIPELINE_STAGE_2_TESSELLATION_CONTROL_SHADER_BIT;
+
+        if (stage & EPipelineStage::DomainShader)
+            flags = flags | VK_PIPELINE_STAGE_2_TESSELLATION_EVALUATION_SHADER_BIT;
+
+        if (stage & EPipelineStage::GeometryShader)
+            flags = flags | VK_PIPELINE_STAGE_2_GEOMETRY_SHADER_BIT;
+
+        if (stage & EPipelineStage::PixelShader)
+            flags = flags | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+
+        if (stage & EPipelineStage::ComputeShader)
+            flags = flags | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+
+        if (stage & EPipelineStage::AllTransfer)
+            flags = flags | VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
+
+        if (stage & EPipelineStage::Transfer)
+            flags = flags | VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+
+        if (stage & EPipelineStage::BottomOfPipe)
+            flags = flags | VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+
+        return flags;
+    }
+
+    static VkAccessFlags2 GetPipelineAccessFlags(const EPipelineAccess& access)
+    {
+        VkAccessFlags2 flags = 0;
+
+        if (access & EPipelineAccess::IndirectCommandRead)
+            flags = flags | VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+
+        if (access & EPipelineAccess::IndexRead)
+            flags = flags | VK_ACCESS_2_INDEX_READ_BIT;
+
+        if (access & EPipelineAccess::VertexAttributeRead)
+            flags = flags | VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT;
+
+        if (access & EPipelineAccess::UniformRead)
+            flags = flags | VK_ACCESS_2_UNIFORM_READ_BIT;
+
+        if (access & EPipelineAccess::InputAttachmentRead)
+            flags = flags | VK_ACCESS_2_INPUT_ATTACHMENT_READ_BIT;
+
+        if (access & EPipelineAccess::ShaderRead)
+            flags = flags | VK_ACCESS_2_SHADER_READ_BIT;
+
+        if (access & EPipelineAccess::ShaderWrite)
+            flags = flags | VK_ACCESS_2_SHADER_WRITE_BIT;
+
+        if (access & EPipelineAccess::ColorAttachmentRead)
+            flags = flags | VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT;
+
+        if (access & EPipelineAccess::ColorAttachmentWrite)
+            flags = flags | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+
+        if (access & EPipelineAccess::DepthStencilAttachmentRead)
+            flags = flags | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+
+        if (access & EPipelineAccess::DepthStencilAttachmentWrite)
+            flags = flags | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+        if (access & EPipelineAccess::TransferRead)
+            flags = flags | VK_ACCESS_2_TRANSFER_READ_BIT;
+
+        if (access & EPipelineAccess::TransferWrite)
+            flags = flags | VK_ACCESS_2_TRANSFER_WRITE_BIT;
+
+        if (access & EPipelineAccess::HostRead)
+            flags = flags | VK_ACCESS_2_HOST_READ_BIT;
+
+        if (access & EPipelineAccess::HostWrite)
+            flags = flags | VK_ACCESS_2_HOST_WRITE_BIT;
+
+        if (access & EPipelineAccess::MemoryRead)
+            flags = flags | VK_ACCESS_2_MEMORY_READ_BIT;
+
+        if (access & EPipelineAccess::MemoryWrite)
+            flags = flags | VK_ACCESS_2_MEMORY_WRITE_BIT;
+
+        if (access & EPipelineAccess::ShaderSampledRead)
+            flags = flags | VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+
+        if (access & EPipelineAccess::ShaderStorageRead)
+            flags = flags | VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
+
+        if (access & EPipelineAccess::ShaderStorageWrite)
+            flags = flags | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
 
         return flags;
     }

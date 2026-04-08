@@ -16,13 +16,14 @@ namespace Elixir::Vulkan
         VulkanShader(const GraphicsContext* context, SShaderCreateInfo&& info);
         ~VulkanShader() override;
 
-        void Bind(const Ref<CommandBuffer>& cmd) override;
+        void Bind(const Ref<CommandBuffer>& cmd, const Pipeline* pipeline) override;
 
         void SetPushConstant(const std::string& name, void* data, size_t size) override;
         void SetConstantBuffer(const std::string& name, void* data, size_t size) override;
         void BindTexture(const std::string& name, const Ref<Texture>& texture) override;
         void BindTextureSet(const std::string& name, const Ref<TextureSet>& set) override;
         void BindSampler(const std::string& name, const Ref<Sampler>& sampler) override;
+        void BindStorageBuffer(const std::string& name, const Ref<StorageBuffer>& buffer) override;
         void BindConstantBuffer(const std::string& name, const Ref<UniformBuffer>& buffer) override;
 
         const std::vector<VkDescriptorSetLayout>& GetDescriptorSetLayouts() const { return m_DescriptorSetLayouts; }
@@ -47,6 +48,15 @@ namespace Elixir::Vulkan
             const Ref<Sampler>& sampler
         ) const;
         void UpdateDescriptorSet(SShaderBinding binding, const Ref<Sampler>& sampler) const;
+
+        VkWriteDescriptorSet GetWriteDescriptorSet(
+            SShaderBinding binding,
+            const Ref<StorageBuffer>& buffer
+        ) const;
+        void UpdateDescriptorSet(
+            SShaderBinding binding,
+            const Ref<StorageBuffer>& buffer
+        ) const;
 
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding,

@@ -54,13 +54,14 @@ namespace Elixir
       public:
         virtual ~Shader() = default;
 
-        virtual void Bind(const Ref<CommandBuffer>& cmd) = 0;
+        virtual void Bind(const Ref<CommandBuffer>& cmd, const Pipeline* pipeline) = 0;
 
         virtual void SetPushConstant(const std::string& name, void* data, size_t size) = 0;
         virtual void SetConstantBuffer(const std::string& name, void* data, size_t size) = 0;
         virtual void BindTexture(const std::string& name, const Ref<Texture>& texture) = 0;
         virtual void BindTextureSet(const std::string& name, const Ref<TextureSet>& set) = 0;
         virtual void BindSampler(const std::string& name, const Ref<Sampler>& sampler) = 0;
+        virtual void BindStorageBuffer(const std::string& name, const Ref<StorageBuffer>& buffer) = 0;
         virtual void BindConstantBuffer(const std::string& name, const Ref<UniformBuffer>& buffer) = 0;
 
         virtual Ref<Texture> GetTexture(const std::string& name) const;
@@ -96,10 +97,10 @@ namespace Elixir
             const Scope<SShaderModuleCreateInfo>& info
         );
 
-        const ShaderResource* AddResourceToBindingTable(ShaderResource resource);
-        const ShaderStorageBuffer* AddStorageBufferToBindingTable(ShaderStorageBuffer buffer);
-        const ShaderConstantBuffer* AddConstantBufferToBindingTable(ShaderConstantBuffer buffer);
-        const ShaderPushConstant* AddPushConstantToBindingTable(ShaderPushConstant constant);
+        ShaderResource* AddResourceToBindingTable(ShaderResource resource);
+        ShaderStorageBuffer* AddStorageBufferToBindingTable(ShaderStorageBuffer buffer);
+        ShaderConstantBuffer* AddConstantBufferToBindingTable(ShaderConstantBuffer buffer);
+        ShaderPushConstant* AddPushConstantToBindingTable(ShaderPushConstant constant);
 
         void CreateBindingLookup();
 
@@ -118,6 +119,7 @@ namespace Elixir
         std::unordered_map<SShaderBinding, Ref<TextureSet>> m_TextureSets;
         std::unordered_map<SShaderBinding, Ref<Sampler>> m_Samplers;
         // TODO: Rename to ConstantBuffer
+        std::unordered_map<SShaderBinding, Ref<StorageBuffer>> m_StorageBuffers;
         std::unordered_map<SShaderBinding, Ref<UniformBuffer>> m_ConstantBuffers;
         std::unordered_map<SShaderBinding, Ref<PushConstantBuffer>> m_PushConstants;
 

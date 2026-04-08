@@ -13,8 +13,11 @@ namespace Elixir::Vulkan
         using VulkanBufferTypes = std::tuple<
             VulkanDynamicBuffer<StagingBuffer>,
             VulkanDynamicBuffer<UniformBuffer>,
+            VulkanBaseBuffer<StorageBuffer>,
             VulkanBaseBuffer<VertexBuffer>,
+            VulkanDynamicBuffer<DynamicVertexBuffer>,
             VulkanBaseBuffer<IndexBuffer>,
+            VulkanDynamicBuffer<DynamicIndexBuffer>,
             VulkanBaseBuffer<Buffer>
         >;
 
@@ -57,6 +60,30 @@ namespace Elixir::Vulkan
         m_Buffer = VK_NULL_HANDLE;
         m_Allocation = VK_NULL_HANDLE;
         m_DescriptorInfo = {};
+    }
+
+    template <class Base>
+    void VulkanBaseBuffer<Base>::Barrier(
+        const CommandBuffer* cmd,
+        const EPipelineStage stage,
+        const EPipelineAccess access
+    )
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        const auto vkCmd = static_cast<const VulkanCommandBuffer*>(cmd);
+
+        CommandUtils::BufferBarrier(
+            vkCmd->GetVulkanCommandBuffer(),
+            m_Buffer,
+            Converters::GetPipelineStageFlags(this->m_PipelineStage),
+            Converters::GetPipelineAccessFlags(this->m_PipelineAccess),
+            Converters::GetPipelineStageFlags(stage),
+            Converters::GetPipelineAccessFlags(access)
+        );
+
+        this->m_PipelineStage = stage;
+        this->m_PipelineAccess = access;
     }
 
     template <class Base>
@@ -401,6 +428,41 @@ namespace Elixir::Vulkan
         {
             Memory::Memcpy(m_PersistentMapping, buffer.Data, m_Size);
         }
+    }
+
+    /* VulkanStorageBuffer */
+
+    VulkanStorageBuffer::VulkanStorageBuffer(
+        const GraphicsContext* context,
+        const size_t size,
+        const void* data
+    ) : VulkanStorageBuffer(context, CreateBufferInfo(size, data)) {}
+
+    VulkanStorageBuffer::VulkanStorageBuffer(
+        const GraphicsContext* context,
+        const SBufferCreateInfo& info
+    ) : VulkanBaseBuffer(context, info)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        VulkanStorageBuffer::CreateBuffer(info);
+        VulkanStorageBuffer::InitBuffer(info.Buffer);
+        VulkanStorageBuffer::CreateDescriptorInfo();
+        CreateBufferAddress();
+    }
+
+    VulkanStorageBuffer::~VulkanStorageBuffer()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        VulkanStorageBuffer::Destroy();
+    }
+
+    void VulkanStorageBuffer::CreateBufferAddress()
+    {
+        VkBufferDeviceAddressInfo addressInfo = {};
+        addressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+        addressInfo.buffer = m_Buffer;
+
+        m_Address = vkGetBufferDeviceAddress(m_GraphicsContext->GetDevice(), &addressInfo);
     }
 
     /* VulkanUniformBuffer */

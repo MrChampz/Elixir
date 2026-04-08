@@ -18,6 +18,13 @@ namespace Elixir::Vulkan
 
         virtual void Destroy() override;
 
+        using Buffer::Barrier;
+        virtual void Barrier(
+            const CommandBuffer* cmd,
+            EPipelineStage stage,
+            EPipelineAccess access
+        ) override;
+
         using Buffer::Copy;
         virtual void Copy(
             const CommandBuffer* cmd,
@@ -157,6 +164,21 @@ namespace Elixir::Vulkan
 
       protected:
         void InitBuffer(const SBuffer& buffer) override;
+    };
+
+    class ELIXIR_API VulkanStorageBuffer final : public VulkanBaseBuffer<StorageBuffer>
+    {
+    public:
+        VulkanStorageBuffer(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr
+        );
+        VulkanStorageBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
+        ~VulkanStorageBuffer() override;
+
+    protected:
+        void CreateBufferAddress() override;
     };
 
     class ELIXIR_API VulkanUniformBuffer final : public VulkanDynamicBuffer<UniformBuffer>

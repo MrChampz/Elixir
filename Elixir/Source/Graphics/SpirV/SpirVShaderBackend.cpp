@@ -470,55 +470,55 @@ namespace Elixir::SpirV
 
         for (auto i = 0; i < type.member_types.size(); i++)
         {
-            auto& fieldType = spirv.get_type(type.member_types[i]);
+            auto& baseType = spirv.get_type(type.member_types[i]);
             auto& fieldName = spirv.get_member_name(type.self, i);
 
-            auto type = EConstantType::Struct;
+            auto fieldType = EConstantType::Struct;
             Ref<ShaderConstantStruct> fieldStruct = nullptr;
 
-            switch (fieldType.basetype)
+            switch (baseType.basetype)
             {
                 case spirv_cross::SPIRType::Struct:
-                    fieldStruct = ParseConstantStruct(spirv, fieldType, fieldName);
+                    fieldStruct = ParseConstantStruct(spirv, baseType, fieldName);
                     break;
                 case spirv_cross::SPIRType::Boolean:
-                    type = EConstantType::Bool;
+                    fieldType = EConstantType::Bool;
                     break;
                 case spirv_cross::SPIRType::Int:
-                    type = EConstantType::Int;
+                    fieldType = EConstantType::Int;
                     break;
                 case spirv_cross::SPIRType::UInt:
-                    type = EConstantType::Int;
+                    fieldType = EConstantType::Int;
                     break;
                 case spirv_cross::SPIRType::Float:
-                    if (fieldType.vecsize == 1)
-                        type = EConstantType::Float;
-                    else if (fieldType.vecsize == 2)
-                        type = EConstantType::Vec2;
-                    else if (fieldType.vecsize == 3)
-                        type = EConstantType::Vec3;
-                    else if (fieldType.vecsize == 4 && fieldType.columns == 1)
-                        type = EConstantType::Vec4;
-                    else if (fieldType.vecsize == 4 && fieldType.columns == 3)
-                        type = EConstantType::Mat3;
-                    else if (fieldType.vecsize == 4 && fieldType.columns == 4)
-                        type = EConstantType::Mat4;
+                    if (baseType.vecsize == 1)
+                        fieldType = EConstantType::Float;
+                    else if (baseType.vecsize == 2)
+                        fieldType = EConstantType::Vec2;
+                    else if (baseType.vecsize == 3)
+                        fieldType = EConstantType::Vec3;
+                    else if (baseType.vecsize == 4 && baseType.columns == 1)
+                        fieldType = EConstantType::Vec4;
+                    else if (baseType.vecsize == 4 && baseType.columns == 3)
+                        fieldType = EConstantType::Mat3;
+                    else if (baseType.vecsize == 4 && baseType.columns == 4)
+                        fieldType = EConstantType::Mat4;
                     break;
                 default:
                     EE_CORE_ASSERT(false, "Unknown Constant Type!");
             }
 
-            const auto count = CalculateResourceCount(fieldType);
+            const auto count = CalculateResourceCount(baseType);
 
             ShaderConstant* constant;
 
             if (fieldStruct)
             {
-                constant = new ShaderConstant(fieldName, fieldStruct, count, fieldType.pointer);
+                constant = new ShaderConstant(fieldName, fieldStruct, count, baseType.pointer);
             }
             else
             {
-                constant = new ShaderConstant(fieldName, type, count, fieldType.pointer);
+                constant = new ShaderConstant(fieldName, fieldType, count, baseType.pointer);
             }
 
             cstruct->AddField(std::move(*constant));

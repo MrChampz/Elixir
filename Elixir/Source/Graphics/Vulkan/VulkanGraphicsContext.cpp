@@ -384,7 +384,8 @@ namespace Elixir
 
         std::vector<SDescriptorPoolSizeRatio> sizes =
         {
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0.5 },
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0.4 },
+            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 0.1 },
             { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0.2 },
             { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 0.2 },
             { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0.05 },

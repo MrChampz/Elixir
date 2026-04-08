@@ -96,6 +96,7 @@ void Dissolve::OnRender(const Timestep frameTime)
     m_FrameData.ViewProj = m_CameraController->GetCamera().GetViewProjectionMatrix();
     m_FrameConstantBuffer->UpdateData(&m_FrameData, sizeof(SFrameData));
     m_ParticleSystem->Update(frameTime);
+    m_ParticlesRenderer->Update(frameTime);
 
     float flash = std::abs(std::sin(m_GraphicsContext->GetFrameNumber() / 120.f));
 

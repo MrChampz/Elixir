@@ -152,31 +152,35 @@ namespace Elixir
         for (const auto& resource : info->Resources)
         {
             const auto ref = AddResourceToBindingTable(resource);
+            ref->m_Stages |= stage;
             module->AddResource(ref);
         }
 
         for (const auto& buffer : info->StorageBuffers)
         {
             const auto ref = AddStorageBufferToBindingTable(buffer);
+            ref->m_Stages |= stage;
             module->AddStorageBuffer(ref);
         }
 
         for (const auto& buffer : info->ConstantBuffers)
         {
             const auto ref = AddConstantBufferToBindingTable(buffer);
+            ref->m_Stages |= stage;
             module->AddConstantBuffer(ref);
         }
 
         for (const auto& constant : info->PushConstants)
         {
             const auto ref = AddPushConstantToBindingTable(constant);
+            ref->m_Stages |= stage;
             module->AddPushConstant(ref);
         }
 
         return module;
     }
 
-    const ShaderResource* Shader::AddResourceToBindingTable(ShaderResource resource)
+    ShaderResource* Shader::AddResourceToBindingTable(ShaderResource resource)
     {
         const auto set = resource.GetSet();
         const auto binding = resource.GetBinding();
@@ -186,9 +190,7 @@ namespace Elixir
         return &it->second;
     }
 
-    const ShaderStorageBuffer* Shader::AddStorageBufferToBindingTable(
-        ShaderStorageBuffer buffer
-    )
+    ShaderStorageBuffer* Shader::AddStorageBufferToBindingTable(ShaderStorageBuffer buffer)
     {
         const auto set = buffer.GetSet();
         const auto binding = buffer.GetBinding();
@@ -198,9 +200,7 @@ namespace Elixir
         return &it->second;
     }
 
-    const ShaderConstantBuffer* Shader::AddConstantBufferToBindingTable(
-        ShaderConstantBuffer buffer
-    )
+    ShaderConstantBuffer* Shader::AddConstantBufferToBindingTable(ShaderConstantBuffer buffer)
     {
         const auto set = buffer.GetSet();
         const auto binding = buffer.GetBinding();
@@ -210,9 +210,7 @@ namespace Elixir
         return &it->second;
     }
 
-    const ShaderPushConstant* Shader::AddPushConstantToBindingTable(
-        ShaderPushConstant constant
-    )
+    ShaderPushConstant* Shader::AddPushConstantToBindingTable(ShaderPushConstant constant)
     {
         const auto set = constant.GetSet();
         const auto binding = constant.GetBinding();
@@ -227,6 +225,11 @@ namespace Elixir
         for (const auto& [binding, resource] : m_Resources.Resources)
         {
             SaveShaderBindingToLookup(resource.GetName(), binding);
+        }
+
+        for (const auto& [binding, buffer] : m_Resources.StorageBuffers)
+        {
+            SaveShaderBindingToLookup(buffer.GetName(), binding);
         }
 
         for (const auto& [binding, buffer] : m_Resources.ConstantBuffers)

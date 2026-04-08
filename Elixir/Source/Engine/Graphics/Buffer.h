@@ -4,6 +4,7 @@
 #include <Engine/Graphics/BufferLayout.h>
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Graphics/Memory.h>
+#include <Engine/Graphics/GraphicsTypes.h>
 
 namespace Elixir
 {
@@ -50,6 +51,9 @@ namespace Elixir
         virtual ~Buffer() = default;
 
         virtual void Destroy() = 0;
+
+        void Barrier(const Ref<CommandBuffer>& cmd, EPipelineStage stage, EPipelineAccess access);
+        virtual void Barrier(const CommandBuffer* cmd, EPipelineStage stage, EPipelineAccess access) = 0;
 
         virtual void Copy(
             const Ref<CommandBuffer>& cmd,
@@ -105,6 +109,9 @@ namespace Elixir
 
         UUID m_UUID;
         std::string m_DebugName;
+
+        EPipelineStage m_PipelineStage = EPipelineStage::None;
+        EPipelineAccess m_PipelineAccess = EPipelineAccess::None;
 
         EBufferUsage m_Usage;
         size_t m_Size;
@@ -301,6 +308,41 @@ namespace Elixir
         DynamicIndexBuffer(const IndexBuffer&) = delete;
 
         EIndexType m_IndexType;
+    };
+
+    class ELIXIR_API StorageBuffer : public Buffer
+    {
+    public:
+        ~StorageBuffer() override = default;
+
+        void Bind(
+            const Ref<CommandBuffer>& cmd,
+            uint32_t bindingCount = 1,
+            uint32_t firstBinding = 0
+        ) const;
+
+        const BufferLayout& GetLayout() const { return m_Layout; }
+        void SetLayout(const BufferLayout& layout) { m_Layout = layout; }
+
+        BufferAddress GetAddress() const { return m_Address; }
+
+        static Ref<StorageBuffer> Create(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr
+        );
+
+        static SBufferCreateInfo CreateBufferInfo(size_t size, const void* data);
+
+    protected:
+        StorageBuffer(const GraphicsContext* context, size_t size, const void* data = nullptr);
+        StorageBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
+        StorageBuffer(const StorageBuffer&) = delete;
+
+        virtual void CreateBufferAddress() = 0;
+
+        BufferLayout m_Layout;
+        BufferAddress m_Address;
     };
 
     class ELIXIR_API UniformBuffer : public DynamicBuffer

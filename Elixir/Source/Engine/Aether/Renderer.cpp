@@ -19,6 +19,11 @@ namespace Elixir::Aether
         BindShaderParameters();
     }
 
+    void Renderer::Update(const Timestep& timestep)
+    {
+        m_ElapsedTimeSeconds += timestep.GetSeconds();
+    }
+
     void Renderer::Render(const SGPUSystem& system, const Camera& camera)
     {
         m_FrameData.ViewProj = camera.GetViewProjectionMatrix();
@@ -29,6 +34,16 @@ namespace Elixir::Aether
         UpdateParamsBuffer(system);
 
         const auto cmd = m_GraphicsContext->GetSecondaryCommandBuffer();
+        cmd->Begin({
+            .ColorAttachment = m_GraphicsContext->GetRenderTarget(),
+            .RenderArea = m_RenderExtent
+        });
+
+        m_SimulationPipeline->Bind(cmd);
+        cmd->Dispatch((maxParticles + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
+
+        m_ParticleBuffer->Barrier(cmd, EPipelineStage::VertexShader, EPipelineAccess::ShaderRead);
+
         BeginRendering(cmd);
 
         m_RendererPipeline->Bind(cmd);
@@ -76,8 +91,10 @@ namespace Elixir::Aether
         builder.SetBufferLayout(bufferLayout);
         m_RendererPipeline = builder.Build(m_GraphicsContext);
 
-        m_ParticleBuffer = VertexBuffer::Create(m_GraphicsContext, sizeof(SGPUParticleVertex) * MAX_PARTICLES);
+        m_ParticleBuffer = StorageBuffer::Create(m_GraphicsContext, sizeof(SGPUParticleVertex) * MAX_PARTICLES);
         m_ParticleBuffer->SetLayout(bufferLayout);
+
+        m_ParamsBuffer = UniformBuffer::Create(m_GraphicsContext, sizeof(SParamsData));
     }
 
     void Renderer::InitPerFrameData()
@@ -91,6 +108,7 @@ namespace Elixir::Aether
 
     void Renderer::BindShaderParameters() const
     {
+        m_SimulationShader->BindStorageBuffer("particles", m_ParticleBuffer);
         m_SimulationShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
         m_RendererShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
     }
@@ -128,6 +146,20 @@ namespace Elixir::Aether
 
     void Renderer::UpdateParamsBuffer(const SGPUSystem& system)
     {
+        SParamsData params{};
 
+        const auto& emitter = system.Emitter;
+
+        params.SpawnCenterRadiusRate = { emitter.SpawnCenter.x, emitter.SpawnCenter.y, emitter.SpawnRadius, emitter.SpawnRatePerSecond };
+        params.AngleSpeed = { emitter.AngleMinRadians, emitter.AngleMaxRadians, emitter.SpeedMin, emitter.SpeedMax };
+        params.LifetimeSize = { emitter.LifetimeMin, emitter.LifetimeMax, emitter.SizeStart, emitter.SizeEnd };
+        params.GravityDragTime = { emitter.Gravity.x, emitter.Gravity.y, emitter.Drag, m_ElapsedTimeSeconds };
+        params.BoundsMin = { emitter.MinBounds.x, emitter.MinBounds.y, 0.0f, 0.0f };
+        params.BoundsMax = { emitter.MaxBounds.x, emitter.MaxBounds.y, 0.0f, 0.0f };
+        params.ColorStart = emitter.ColorStart;
+        params.ColorEnd = emitter.ColorEnd;
+        params.Meta = { (float)emitter.MaxParticles, emitter.GravityScale, 0.0f, 0.0f };
+
+        m_ParamsBuffer->UpdateData(&params, sizeof(SParamsData));
     }
 }

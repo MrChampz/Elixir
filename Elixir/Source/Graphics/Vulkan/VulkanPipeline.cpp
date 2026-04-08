@@ -38,7 +38,7 @@ namespace Elixir::Vulkan
     void VulkanGraphicsPipeline::Bind(const Ref<CommandBuffer>& cmd)
     {
         cmd->BindPipeline(this);
-        m_Shader->Bind(cmd);
+        m_Shader->Bind(cmd, this);
     }
 
     void VulkanGraphicsPipeline::BindShader()
@@ -300,7 +300,7 @@ namespace Elixir::Vulkan
     void VulkanComputePipeline::Bind(const Ref<CommandBuffer>& cmd)
     {
         cmd->BindPipeline(this);
-        m_Shader->Bind(cmd);
+        m_Shader->Bind(cmd, this);
     }
 
     void VulkanComputePipeline::BindShader()

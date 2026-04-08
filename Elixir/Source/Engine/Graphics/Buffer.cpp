@@ -12,6 +12,15 @@ namespace Elixir
 
     /* Buffer */
 
+    void Buffer::Barrier(
+        const Ref<CommandBuffer>& cmd,
+        const EPipelineStage stage,
+        const EPipelineAccess access
+    )
+    {
+        Barrier(cmd.get(), stage, access);
+    }
+
     void Buffer::Copy(
         const Ref<CommandBuffer>& cmd,
         const Ref<Buffer>& dst,
@@ -124,6 +133,14 @@ namespace Elixir
 #endif
     }
 
+    /* VertexBuffer */
+
+    const auto VERTEX_BUFFER_USAGE =
+        EBufferUsage::VertexBuffer |
+        EBufferUsage::StorageBuffer |
+        EBufferUsage::TransferDst |
+        EBufferUsage::ShaderDeviceAddress;
+
     void VertexBuffer::Bind(
         const Ref<CommandBuffer>& cmd,
         const uint32_t bindingCount,
@@ -133,14 +150,6 @@ namespace Elixir
         const VertexBuffer* buffers[] = { this };
         cmd->BindVertexBuffers(buffers, {}, bindingCount, firstBinding);
     }
-
-    /* VertexBuffer */
-
-    const auto VERTEX_BUFFER_USAGE =
-        EBufferUsage::VertexBuffer |
-        EBufferUsage::StorageBuffer |
-        EBufferUsage::TransferDst |
-        EBufferUsage::ShaderDeviceAddress;
 
     Ref<VertexBuffer> VertexBuffer::Create(
         const GraphicsContext* context,
@@ -404,6 +413,67 @@ namespace Elixir
 
 #ifdef EE_DEBUG
         m_DebugName = "DynamicIndexBuffer[" + m_UUID.ToString() + "]";
+#endif
+    }
+
+    /* StorageBuffer */
+
+    const auto STORAGE_BUFFER_USAGE =
+        EBufferUsage::StorageBuffer |
+        EBufferUsage::VertexBuffer |
+        EBufferUsage::TransferDst |
+        EBufferUsage::ShaderDeviceAddress;
+
+    void StorageBuffer::Bind(
+        const Ref<CommandBuffer>& cmd,
+        const uint32_t bindingCount,
+        const uint32_t firstBinding
+    ) const
+    {
+        const StorageBuffer* buffers[] = { this };
+        cmd->BindVertexBuffers(buffers, {}, bindingCount, firstBinding);
+    }
+
+    Ref<StorageBuffer> StorageBuffer::Create(
+        const GraphicsContext* context,
+        size_t size,
+        const void* data
+    )
+    {
+        switch (context->GetAPI())
+        {
+            case EGraphicsAPI::Vulkan:
+                return CreateRef<Vulkan::VulkanStorageBuffer>(context, size, data);
+            default:
+                EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
+                return nullptr;
+        }
+    }
+
+    SBufferCreateInfo StorageBuffer::CreateBufferInfo(const size_t size, const void* data)
+    {
+        return {
+            .Buffer = SBuffer(data, size),
+            .Usage = STORAGE_BUFFER_USAGE,
+            .AllocationInfo = {
+                .PreferredFlags = EMemoryProperty::DeviceLocal
+            }
+        };
+    }
+
+    StorageBuffer::StorageBuffer(
+        const GraphicsContext* context,
+        const size_t size,
+        const void* data
+    ) : StorageBuffer(context, CreateBufferInfo(size, data)) {}
+
+    StorageBuffer::StorageBuffer(const GraphicsContext* context, const SBufferCreateInfo& info)
+        : Buffer(context, info), m_Address(0)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+#ifdef EE_DEBUG
+        m_DebugName = "StorageBuffer[" + m_UUID.ToString() + "]";
 #endif
     }
 

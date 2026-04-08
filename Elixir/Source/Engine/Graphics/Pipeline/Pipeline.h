@@ -111,6 +111,9 @@ namespace Elixir
 
         const Ref<Shader>& GetShader() const { return m_Shader; }
 
+        virtual bool IsGraphics() const = 0;
+        virtual bool IsCompute() const = 0;
+
       protected:
         explicit Pipeline(const SPipelineCreateInfo& info) : m_Shader(info.Shader) {}
 
@@ -121,6 +124,9 @@ namespace Elixir
     {
       public:
         ~GraphicsPipeline() override = default;
+
+        bool IsGraphics() const override { return true; }
+        bool IsCompute() const override { return false; }
 
         static Ref<GraphicsPipeline> Create(
             const GraphicsContext* context,
@@ -148,6 +154,9 @@ namespace Elixir
     {
       public:
         ~ComputePipeline() override = default;
+
+        bool IsGraphics() const override { return false; }
+        bool IsCompute() const override { return true; }
 
         static Ref<ComputePipeline> Create(
             const GraphicsContext* context,

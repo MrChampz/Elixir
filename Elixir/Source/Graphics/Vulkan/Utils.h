@@ -141,6 +141,41 @@ namespace Elixir::Vulkan
 
     namespace CommandUtils
     {
+        static void BufferBarrier(
+            const VkCommandBuffer cmd,
+            const VkBuffer buffer,
+            const VkPipelineStageFlags2 srcStage,
+            const VkAccessFlags2 srcAccess,
+            const VkPipelineStageFlags dstStage,
+            const VkAccessFlags2 dstAccess,
+            const VkDeviceSize offset = 0,
+            const VkDeviceSize size = VK_WHOLE_SIZE
+        )
+        {
+            EE_PROFILE_ZONE_SCOPED()
+
+            VkBufferMemoryBarrier2 barrier = {};
+            barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+            barrier.pNext = nullptr;
+            barrier.srcStageMask = srcStage;
+            barrier.srcAccessMask = srcAccess;
+            barrier.dstStageMask = dstStage;
+            barrier.dstAccessMask = dstAccess;
+            barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.buffer = buffer;
+            barrier.offset = offset;
+            barrier.size = size;
+
+            VkDependencyInfo depInfo = {};
+            depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+            depInfo.pNext = nullptr;
+            depInfo.bufferMemoryBarrierCount = 1;
+            depInfo.pBufferMemoryBarriers = &barrier;
+
+            vkCmdPipelineBarrier2(cmd, &depInfo);
+        }
+
         static void TransitionImage(
             const VkCommandBuffer cmd,
             const VkImage image,
