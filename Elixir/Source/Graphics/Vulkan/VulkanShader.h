@@ -19,7 +19,15 @@ namespace Elixir::Vulkan
         void Bind(const Ref<CommandBuffer>& cmd, const Pipeline* pipeline) override;
 
         void SetPushConstant(const std::string& name, void* data, size_t size) override;
+        void SetPushConstant(
+            const Ref<CommandBuffer>& cmd,
+            const std::string& name,
+            void* data,
+            size_t size
+        ) override;
+
         void SetConstantBuffer(const std::string& name, void* data, size_t size) override;
+
         void BindTexture(const std::string& name, const Ref<Texture>& texture) override;
         void BindTextureSet(const std::string& name, const Ref<TextureSet>& set) override;
         void BindSampler(const std::string& name, const Ref<Sampler>& sampler) override;

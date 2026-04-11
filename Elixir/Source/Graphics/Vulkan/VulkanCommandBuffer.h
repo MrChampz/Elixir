@@ -11,7 +11,6 @@ namespace Elixir::Vulkan
     class ELIXIR_API VulkanCommandBuffer final : public CommandBuffer
     {
         friend class VulkanGraphicsContext;
-
       public:
         explicit VulkanCommandBuffer(
             const GraphicsContext* context,
@@ -57,6 +56,12 @@ namespace Elixir::Vulkan
 
         void SetViewports(const std::vector<Viewport>& viewports, uint32_t firstViewport) override;
         void SetScissors(const std::vector<Rect2D>& scissors, uint32_t firstScissor) override;
+
+        void SetPushConstant(
+            const Ref<PushConstantBuffer>& buffer,
+            const Shader* shader,
+            EShaderStage stages
+        ) override;
 
         /** Bind methods **/
 

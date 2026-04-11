@@ -6,6 +6,7 @@
 namespace Elixir
 {
     class Texture;
+    class PushConstantBuffer;
     class GraphicsPipeline;
     class ComputePipeline;
     class Buffer;
@@ -68,6 +69,17 @@ namespace Elixir
         virtual void SetScissors(
             const std::vector<Rect2D>& scissors,
             uint32_t firstScissor = 0
+        ) = 0;
+
+        virtual void SetPushConstant(
+            const Ref<PushConstantBuffer>& buffer,
+            const Ref<Shader>& shader,
+            EShaderStage stages
+        );
+        virtual void SetPushConstant(
+            const Ref<PushConstantBuffer>& buffer,
+            const Shader* shader,
+            EShaderStage stages
         ) = 0;
 
         /** Bind methods **/

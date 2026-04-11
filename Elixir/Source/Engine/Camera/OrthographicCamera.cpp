@@ -64,5 +64,6 @@ namespace Elixir
             m_Bottom * m_ZoomLevel,
             m_Top * m_ZoomLevel
         );
+        m_ProjectionMatrix[1][1] *= -1.0f;
     }
 }

@@ -56,24 +56,40 @@ Dissolve::Dissolve()
 
     m_ParticlesRenderer = CreateScope<Aether::Renderer>(m_GraphicsContext.get(), m_ShaderLoader.get());
 
-    m_ParticleSystem = CreateScope<Aether::System>("Fountain");
+    m_ParticleSystem = CreateScope<Aether::System>("Aurora Garden");
     m_ParticleSystem->GetParameters().SetFloat("GravityScale", 1.0f);
 
-    auto& emitter = m_ParticleSystem->AddEmitter("Emitter", 4096, 240.0f);
-    emitter.AddSpawnModule<Aether::SetPositionCircle>(glm::vec2{ 0.0f, -0.78f }, 0.03f);
-    emitter.AddSpawnModule<Aether::SetVelocityCone>(1.1f, 2.05f, 0.45f, 0.95f);
-    emitter.AddSpawnModule<Aether::SetLifetime>(1.2f, 2.5f);
-    emitter.AddSpawnModule<Aether::SetSize>(6.0f, 14.0f);
-    emitter.AddSpawnModule<Aether::SetColor>(glm::vec4{ 1.0f, 0.75f, 0.25f, 1.0f });
+    auto& canopy = m_ParticleSystem->AddEmitter("CanopyMist", 4096, 160.0f);
+    canopy.AddSpawnModule<Aether::SetPositionCircle>(glm::vec2{ 0.0f, -0.86f }, 0.18f);
+    canopy.AddSpawnModule<Aether::SetVelocityCone>(1.26f, 1.88f, 0.24f, 0.56f);
+    canopy.AddSpawnModule<Aether::SetLifetime>(3.8f, 6.2f);
+    canopy.AddSpawnModule<Aether::SetSize>(14.0f, 28.0f);
+    canopy.AddSpawnModule<Aether::SetColor>(glm::vec4{ 0.70f, 0.96f, 1.0f, 0.72f });
 
-    emitter.AddUpdateModule<Aether::ApplyGravity>(glm::vec2{ 0.0f, -0.9f });
-    emitter.AddUpdateModule<Aether::ApplyLinearDrag>(0.18f);
-    emitter.AddUpdateModule<Aether::IntegrateVelocity>();
-    emitter.AddUpdateModule<Aether::ColorOverLife>(glm::vec4{ 1.0f, 0.85f, 0.3f, 0.95f }, glm::vec4{ 0.2f, 0.45f, 1.0f, 0.0f });
-    emitter.AddUpdateModule<Aether::SizeOverLife>(14.0f, 2.0f);
-    emitter.AddUpdateModule<Aether::KillOutsideBounds>(glm::vec2{ -1.25f, -1.25f }, glm::vec2{ 1.25f, 1.25f });
+    canopy.AddUpdateModule<Aether::ApplyGravity>(glm::vec2{ 0.0f, -0.10f });
+    canopy.AddUpdateModule<Aether::ApplyLinearDrag>(0.04f);
+    canopy.AddUpdateModule<Aether::IntegrateVelocity>();
+    canopy.AddUpdateModule<Aether::ColorOverLife>(glm::vec4{ 0.70f, 0.96f, 1.0f, 0.78f }, glm::vec4{ 0.4f, 0.18f, 0.72f, 0.0f });
+    canopy.AddUpdateModule<Aether::SizeOverLife>(28.0f, 6.0f);
+    canopy.AddUpdateModule<Aether::KillOutsideBounds>(glm::vec2{ -1.45f, -1.2f }, glm::vec2{ 1.45f, 1.35f });
+
+    auto& sparks = m_ParticleSystem->AddEmitter("RoseSparks", 2048, 120.0f);
+    sparks.AddSpawnModule<Aether::SetPositionCircle>(glm::vec2{ 0.0f, -0.8f }, 0.08f);
+    sparks.AddSpawnModule<Aether::SetVelocityCone>(1.08f, 2.04f, 0.36f, 0.84f);
+    sparks.AddSpawnModule<Aether::SetLifetime>(1.8f, 3.0f);
+    sparks.AddSpawnModule<Aether::SetSize>(8.0f, 16.0f);
+    sparks.AddSpawnModule<Aether::SetColor>(glm::vec4{ 1.0f, 0.68f, 0.88f, 0.95f });
+
+    sparks.AddUpdateModule<Aether::ApplyGravity>(glm::vec2{ 0.0f, -0.28f });
+    sparks.AddUpdateModule<Aether::ApplyLinearDrag>(0.08f);
+    sparks.AddUpdateModule<Aether::IntegrateVelocity>();
+    sparks.AddUpdateModule<Aether::ColorOverLife>(glm::vec4{ 1.0f, 0.72f, 0.9f, 0.95f }, glm::vec4{ 1.0f, 0.36f, 0.48f, 0.0f });
+    sparks.AddUpdateModule<Aether::SizeOverLife>(16.0f, 2.5f);
+    sparks.AddUpdateModule<Aether::KillOutsideBounds>(glm::vec2{ -1.45f, -1.2f }, glm::vec2{ 1.45f, 1.35f });
 
     m_GPUSystem = m_ParticleSystem->Build();
+
+    m_GraphicsContext->SetClearColor({ 0.015f, 0.025f, 0.06f, 1.0f });
 }
 
 Dissolve::~Dissolve()
@@ -98,9 +114,6 @@ void Dissolve::OnRender(const Timestep frameTime)
     m_ParticleSystem->Update(frameTime);
     m_ParticlesRenderer->Update(frameTime);
 
-    float flash = std::abs(std::sin(m_GraphicsContext->GetFrameNumber() / 120.f));
-
-    m_GraphicsContext->SetClearColor({ 0.0f, 0.0f, flash, 1.0 });
     m_GraphicsContext->Clear();
 
     //DrawGeometry();

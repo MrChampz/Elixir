@@ -48,6 +48,7 @@ namespace Elixir::Aether
     SGPUEmitter Emitter::Build(const ParameterStore& params) const
     {
         SGPUEmitter emitter;
+        emitter.Name = m_Name;
         emitter.MaxParticles = (uint32_t)m_Particles.size();
         emitter.SpawnRatePerSecond = m_SpawnRate;
         emitter.GravityScale = params.GetFloat("GravityScale", 1.0f);
@@ -69,7 +70,7 @@ namespace Elixir::Aether
             else if (const auto* typed = dynamic_cast<const SetLifetime*>(module.get()))
             {
                 emitter.LifetimeMin = typed->GetMinSeconds();
-                emitter.LifetimeMax = typed->GetMinSeconds();
+                emitter.LifetimeMax = typed->GetMaxSeconds();
             }
             else if (const auto* typed = dynamic_cast<const SetSize*>(module.get()))
             {

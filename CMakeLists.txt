@@ -74,8 +74,15 @@ if (BUILD_TESTING)
     FetchContent_MakeAvailable(googletest)
 endif()
 
+include(Shaders/Shaders.cmake)
 include(Elixir/Elixir.cmake)
 include(Dissolve/Dissolve.cmake)
+
+# Ensure shaders are compiled before the engine builds
+add_dependencies(Elixir CompileShaders)
+
+# Copy compiled shaders into each target's output directory
+copy_shaders_for_targets()
 
 # Copy Engine .DLL to all targets that depends on it, if needed
 if (WIN32)

@@ -61,14 +61,10 @@ namespace Elixir::Vulkan
         {
             if (m_PushConstants.contains(binding))
             {
-                auto& data = m_PushConstants[binding]->GetBuffer();
-                vkCmdPushConstants(
-                    vkCmd->GetVulkanCommandBuffer(),
-                    m_PipelineLayout,
-                    Converters::GetShaderStages(constant.GetShaderStages()),
-                    0,
-                    constant.GetSize(),
-                    data.As<void>()
+                cmd->SetPushConstant(
+                    m_PushConstants[binding],
+                    this,
+                    constant.GetShaderStages()
                 );
             }
         }
@@ -76,24 +72,44 @@ namespace Elixir::Vulkan
 
     void VulkanShader::SetPushConstant(const std::string& name, void* data, const size_t size)
     {
+        SetPushConstant(nullptr, name, data, size);
+    }
+
+    void VulkanShader::SetPushConstant(
+        const Ref<CommandBuffer>& cmd,
+        const std::string& name,
+        void* data,
+        const size_t size
+    )
+    {
         if (const auto binding = GetShaderBinding(name))
         {
+            Ref<PushConstantBuffer> buffer = nullptr;
+
             if (m_PushConstants.contains(*binding))
             {
-                const auto& buffer = m_PushConstants.at(*binding);
+                buffer = m_PushConstants.at(*binding);
                 const auto mapped = buffer->Map();
                 Memory::Memcpy(mapped, data, size);
                 buffer->Unmap(size);
             }
             else
             {
-                const auto buffer = PushConstantBuffer::Create(
+                buffer = PushConstantBuffer::Create(
                     m_GraphicsContext,
                     size,
                     data
                 );
                 m_PushConstants[*binding] = buffer;
             }
+
+            // If cmd was provided we can set the push constant immediately.
+            if (cmd)
+            {
+                const auto descriptor = m_Resources.PushConstants.at(*binding);
+                cmd->SetPushConstant(buffer, this, descriptor.GetShaderStages());
+            }
+
             return;
         }
 

@@ -14,6 +14,8 @@ namespace Elixir::Aether
 
     struct SGPUEmitter
     {
+        std::string Name;
+        uint32_t ParticleOffset = 0;
         glm::vec2 SpawnCenter{};
         float SpawnRadius = 0.01f;
         float SpawnRatePerSecond = 1.0f;

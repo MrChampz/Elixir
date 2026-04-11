@@ -6,6 +6,7 @@
 #include "Utils.h"
 #include "VulkanBuffer.h"
 #include "VulkanPipeline.h"
+#include "VulkanShader.h"
 
 namespace Elixir::Vulkan
 {
@@ -209,6 +210,24 @@ namespace Elixir::Vulkan
             firstScissor,
             (uint32_t)data.size(),
             data.data()
+        );
+    }
+
+    void VulkanCommandBuffer::SetPushConstant(
+        const Ref<PushConstantBuffer>& buffer,
+        const Shader* shader,
+        const EShaderStage stages
+    )
+    {
+        const auto vkShader = static_cast<const VulkanShader*>(shader);
+        auto& data = buffer->GetBuffer();
+        vkCmdPushConstants(
+            m_CommandBuffer,
+            vkShader->GetPipelineLayout(),
+            Converters::GetShaderStages(stages),
+            0,
+            buffer->GetSize(),
+            data.As<void>()
         );
     }
 

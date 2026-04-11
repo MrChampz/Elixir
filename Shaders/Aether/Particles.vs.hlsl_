@@ -7,7 +7,9 @@ cbuffer cbFrame : register(b0)
 struct VSInput
 {
     float4 PositionSize  : POSITION;
+    float4 VelocityAge   : TEXCOORD0;
     float4 Color         : COLOR;
+    float4 Metadata      : TEXCOORD1;
 };
 
 struct VSOutput

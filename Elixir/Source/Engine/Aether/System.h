@@ -28,7 +28,8 @@ namespace Elixir::Aether
     struct SGPUSystem
     {
         std::string Name;
-        SGPUEmitter Emitter;
+        std::vector<SGPUEmitter> Emitters;
+        uint32_t TotalMaxParticles = 0;
     };
 
     class ELIXIR_API System final

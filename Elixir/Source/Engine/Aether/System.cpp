@@ -31,9 +31,18 @@ namespace Elixir::Aether
         SGPUSystem system;
         system.Name = m_Name;
 
-        if (!m_Emitters.empty())
+        uint32_t particleOffset = 0;
+        system.Emitters.reserve(m_Emitters.size());
+
+        for (const auto& emitter : m_Emitters)
         {
-            system.Emitter = m_Emitters.front().Build(m_Parameters);
+            auto desc = emitter.Build(m_Parameters);
+            desc.ParticleOffset = particleOffset;
+
+            particleOffset += desc.MaxParticles;
+            system.TotalMaxParticles += desc.MaxParticles;
+
+            system.Emitters.push_back(desc);
         }
 
         return system;
