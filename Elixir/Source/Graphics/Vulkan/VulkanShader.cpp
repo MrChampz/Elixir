@@ -192,6 +192,21 @@ namespace Elixir::Vulkan
         EE_CORE_ERROR("No storage buffer binding named \"{0}\" found in shader...", name)
     }
 
+    void VulkanShader::BindStorageBuffer(
+        const std::string& name,
+        const Ref<DynamicStorageBuffer>& buffer
+    )
+    {
+        if (const auto binding = GetShaderBinding(name))
+        {
+            m_DynStorageBuffers[*binding] = buffer;
+            UpdateDescriptorSet(*binding, buffer);
+            return;
+        }
+
+        EE_CORE_ERROR("No storage buffer binding named \"{0}\" found in shader...", name)
+    }
+
     void VulkanShader::BindConstantBuffer(
         const std::string& name,
         const Ref<UniformBuffer>& buffer
@@ -383,6 +398,12 @@ namespace Elixir::Vulkan
             writeDescriptorSets.push_back(writeSet);
         }
 
+        for (const auto [binding, buffer] : m_DynStorageBuffers)
+        {
+            const auto writeSet = GetWriteDescriptorSet(binding, buffer);
+            writeDescriptorSets.push_back(writeSet);
+        }
+
         for (const auto [binding, buffer] : m_ConstantBuffers)
         {
             const auto writeSet = GetWriteDescriptorSet(binding, buffer);
@@ -513,6 +534,43 @@ namespace Elixir::Vulkan
     void VulkanShader::UpdateDescriptorSet(
         const SShaderBinding binding,
         const Ref<StorageBuffer>& buffer
+    ) const
+    {
+        const auto writeSet = GetWriteDescriptorSet(binding, buffer);
+
+        vkUpdateDescriptorSets(
+            m_GraphicsContext->GetDevice(),
+            1,
+            &writeSet,
+            0,
+            nullptr
+        );
+    }
+
+    VkWriteDescriptorSet VulkanShader::GetWriteDescriptorSet(
+        const SShaderBinding binding,
+        const Ref<DynamicStorageBuffer>& buffer
+    ) const
+    {
+        const auto& resource = m_Resources.StorageBuffers.at(binding);
+        const auto buf = std::static_pointer_cast<VulkanDynamicStorageBuffer>(buffer);
+
+        m_BufferInfoCache[binding] = buf->GetVulkanDescriptorInfo();
+
+        VkWriteDescriptorSet writeSet = {};
+        writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writeSet.dstSet = m_DescriptorSets[resource.GetSet()];
+        writeSet.dstBinding = resource.GetBinding();
+        writeSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writeSet.descriptorCount = 1;
+        writeSet.pBufferInfo = &m_BufferInfoCache[binding];
+
+        return writeSet;
+    }
+
+    void VulkanShader::UpdateDescriptorSet(
+        const SShaderBinding binding,
+        const Ref<DynamicStorageBuffer>& buffer
     ) const
     {
         const auto writeSet = GetWriteDescriptorSet(binding, buffer);

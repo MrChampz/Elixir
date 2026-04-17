@@ -11,24 +11,44 @@ RWStructuredBuffer<ParticleState> particles;
 
 struct Emitter
 {
-    float4 SpawnCenterRadiusRate;
-    float4 AngleSpeed;
-    float4 LifetimeSize;             // x = start lifetime, y = end lifetime, z = start size, w = end size
-    float4 GravityDrag;              // xy = gravity, z = gravity scale, w = drag
-    float4 BoundsMin;
-    float4 BoundsMax;
-    float4 ColorStart;
-    float4 ColorEnd;
-    float4 MetaA;                    // x = offset in particle buffer, y = max particles in emitter
-    float4 MetaB;                    // x = spawn cursor, y = spawn count
+    float4 MetaA; // x = offset in particle buffer, y = emitter count, z = module offset(spawn), w = module count(spawn)
+    float4 MetaB; // x = module offset(update), y = module count(update), z = spawn cursor, w = spawn count
 };
 
 [[vk::binding(1, 0)]]
+StructuredBuffer<Emitter> emitters;
+
+struct Module
+{
+    float4 Header; // x = type, y = unused, z = parameter 0 index, w = parameter 1 index
+    float4 Data0;
+    float4 Data1;
+};
+
+[[vk::binding(2, 0)]]
+StructuredBuffer<Module> modules;
+
+struct Parameter
+{
+    float4 Value;
+};
+
+[[vk::binding(3, 0)]]
+StructuredBuffer<Parameter> parameters;
+
+[[vk::binding(0, 1)]]
 cbuffer cbParams : register(b0)
 {
     float4 TimeData;                  // x = delta time, y = total time, z = total particle count, w = max particle count
-    Emitter Emitters[8];
 };
+
+float4 ResolveValue(int parameterIndex, float4 fallbackValue)
+{
+    if (parameterIndex < 0)
+        return fallbackValue;
+
+    return parameters[parameterIndex].Value;
+}
 
 [numthreads(256, 1, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
@@ -47,19 +67,58 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     }
 
     uint emitterIndex = (uint)(state.Metadata.x + 0.5);
-    Emitter emitter = Emitters[emitterIndex];
+    Emitter emitter = emitters[emitterIndex];
     float dt = TimeData.x;
 
+    float2 position = state.PositionSize.xy;
+    float2 velocity = state.VelocityAge.xy;
+    float4 color = float4(1.0, 1.0, 1.0, 1.0);
+    float size = state.PositionSize.z;
     float age = state.VelocityAge.z + dt;
     float lifetime = max(state.VelocityAge.w, 0.001);
-    float2 velocity = state.VelocityAge.xy + (emitter.GravityDrag.xy * emitter.GravityDrag.z * dt);
-    velocity *= max(0.0, 1.0 - (emitter.GravityDrag.w * dt));
-    float2 position = state.PositionSize.xy + (velocity * dt);
+    float life = clamp(age / lifetime, 0.0, 1.0);
+    bool kill = age >= lifetime;
 
-    bool outsideBounds = position.x < emitter.BoundsMin.x || position.x > emitter.BoundsMax.x ||
-                         position.y < emitter.BoundsMin.y || position.y > emitter.BoundsMax.y;
+    uint moduleOffset = (uint)emitter.MetaB.x;
+    uint moduleCount = (uint)emitter.MetaB.y;
 
-    if (age >= lifetime || outsideBounds)
+    for (uint i = 0u; i < moduleCount; ++i)
+    {
+        Module module = modules[moduleOffset + i];
+        uint type = (uint)module.Header.x;
+
+        int param0 = (int)module.Header.z;
+        int param1 = (int)module.Header.w;
+
+        if (type == 6u) // ApplyGravity
+        {
+            velocity += module.Data0.xy * module.Data0.z * dt;
+        }
+        else if (type == 7u) // ApplyLinearDrag
+        {
+            velocity *= max(0.0, 1.0 - (module.Data0.x * dt));
+        }
+        else if (type == 8u) // ColorOverLife
+        {
+            float4 startColor = ResolveValue(param0, module.Data0);
+            float4 endColor = ResolveValue(param1, module.Data1);
+            color = lerp(startColor, endColor, life);
+        }
+        else if (type == 9u) // SizeOverLife
+        {
+            size = lerp(module.Data0.x, module.Data0.y, life);
+        }
+        else if (type == 10u) // KillOutsideBounds
+        {
+            bool outsideBounds = position.x < module.Data0.x || position.x > module.Data1.x ||
+                                 position.y < module.Data0.y || position.y > module.Data1.y;
+            kill = kill || outsideBounds;
+        }
+    }
+
+    position += velocity * dt;
+
+    if (kill)
     {
         state.PositionSize = float4(position, 0.0, 0.0);
         state.VelocityAge = float4(0.0, 0.0, 0.0, 0.0);
@@ -69,10 +128,9 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         return;
     }
 
-    float lifeAlpha = clamp(age / lifetime, 0.0, 1.0);
-    state.PositionSize = float4(position, lerp(emitter.LifetimeSize.z, emitter.LifetimeSize.w, lifeAlpha), 1.0);
+    state.PositionSize = float4(position, size, 1.0);
     state.VelocityAge = float4(velocity, age, lifetime);
-    state.Color = lerp(emitter.ColorStart, emitter.ColorEnd, lifeAlpha);
+    state.Color = color;
 
     particles[particleIndex] = state;
 }

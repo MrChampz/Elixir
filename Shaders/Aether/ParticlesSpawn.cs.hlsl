@@ -11,23 +11,35 @@ RWStructuredBuffer<ParticleState> particles;
 
 struct Emitter
 {
-    float4 SpawnCenterRadiusRate;
-    float4 AngleSpeed;
-    float4 LifetimeSize;
-    float4 GravityDrag;
-    float4 BoundsMin;
-    float4 BoundsMax;
-    float4 ColorStart;
-    float4 ColorEnd;
-    float4 MetaA;                    // x = offset in particle buffer, y = max particles in emitter
-    float4 MetaB;                    // x = spawn cursor, y = spawn count
+    float4 MetaA; // x = offset in particle buffer, y = emitter count, z = module offset(spawn), w = module count(spawn)
+    float4 MetaB; // x = module offset(update), y = module count(update), z = spawn cursor, w = spawn count
 };
 
 [[vk::binding(1, 0)]]
+StructuredBuffer<Emitter> emitters;
+
+struct Module
+{
+    float4 Header; // x = type, y = unused, z = parameter 0 index, w = parameter 1 index
+    float4 Data0;
+    float4 Data1;
+};
+
+[[vk::binding(2, 0)]]
+StructuredBuffer<Module> modules;
+
+struct Parameter
+{
+    float4 Value;
+};
+
+[[vk::binding(3, 0)]]
+StructuredBuffer<Parameter> parameters;
+
+[[vk::binding(0, 1)]]
 cbuffer cbParams : register(b0)
 {
     float4 TimeData;
-    Emitter Emitters[8];
 };
 
 struct PushConstants {
@@ -37,14 +49,22 @@ struct PushConstants {
 [[vk::push_constant]]
 PushConstants pc;
 
-float hash1(float x)
+float Hash1(float x)
 {
     return frac(sin(x * 91.3458 + 12.345) * 45678.5453);
 }
 
-float hash2(float2 p)
+float Hash2(float2 p)
 {
     return frac(sin(dot(p, float2(127.1, 311.7))) * 43758.5453123);
+}
+
+float4 ResolveValue(int parameterIndex, float4 fallbackValue)
+{
+    if (parameterIndex < 0)
+        return fallbackValue;
+
+    return parameters[parameterIndex].Value;
 }
 
 /**
@@ -57,7 +77,7 @@ float hash2(float2 p)
  * @param capacity The total capacity of the buffer (used for wrap-around).
  * @return true if localIndex is within the spawn range, false otherwise.
  */
-bool inSpawnRange(uint localIndex, uint start, uint count, uint capacity)
+bool InSpawnRange(uint localIndex, uint start, uint count, uint capacity)
 {
     if (count == 0)
         return false;
@@ -77,37 +97,69 @@ bool inSpawnRange(uint localIndex, uint start, uint count, uint capacity)
 [numthreads(256, 1, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
-    Emitter emitter = Emitters[pc.EmitterIndex];
+    Emitter emitter = emitters[pc.EmitterIndex];
     uint localIndex = dispatchThreadId.x;
     uint emitterCount = (uint)emitter.MetaA.y;
     if (localIndex >= emitterCount)
         return;
 
-    uint spawnCursor = (uint)emitter.MetaB.x;
-    uint spawnCount = (uint)emitter.MetaB.y;
-    if (!inSpawnRange(localIndex, spawnCursor, spawnCount, emitterCount))
+    uint spawnCursor = (uint)emitter.MetaB.z;
+    uint spawnCount = (uint)emitter.MetaB.w;
+    if (!InSpawnRange(localIndex, spawnCursor, spawnCount, emitterCount))
         return;
 
-    uint globalIndex = (uint)emitter.MetaA.x + localIndex;
+    uint globalIndex = (uint)(emitter.MetaA.x + localIndex);
     float2 seedBase = float2(float(globalIndex), TimeData.y + float(spawnCursor));
 
-    float angleRandom = hash2(seedBase + float2(3.17, 9.41));
-    float speedRandom = hash2(seedBase + float2(5.23, 2.19));
-    float radiusRandom = sqrt(hash2(seedBase + float2(8.63, 6.33)));
-    float arcRandom = hash2(seedBase + float2(4.71, 1.29));
-    float lifetimeRandom = hash2(seedBase + float2(1.37, 7.11));
+    float2 position = float2(0.0, 0.0);
+    float2 velocity = float2(0.0, 0.0);
+    float4 color = float4(1.0, 1.0, 1.0, 1.0);
+    float lifetime = 1.0;
+    float size = 6.0;
 
-    float angle = lerp(emitter.AngleSpeed.x, emitter.AngleSpeed.y, angleRandom);
-    float speed = lerp(emitter.AngleSpeed.z, emitter.AngleSpeed.w, speedRandom);
-    float spawnAngle = arcRandom * 6.28318530718; // 2 * PI
-    float radius = emitter.SpawnCenterRadiusRate.z * radiusRandom;
-    float lifetime = lerp(emitter.LifetimeSize.x, emitter.LifetimeSize.y, lifetimeRandom);
+    uint moduleOffset = (uint)emitter.MetaA.z;
+    uint moduleCount = (uint)emitter.MetaA.w;
 
-    float2 spawnPosition = emitter.SpawnCenterRadiusRate.xy + float2(cos(spawnAngle), sin(spawnAngle)) * radius;
-    float2 initialVelocity = float2(cos(angle), sin(angle)) * speed;
+    for (uint i = 0u; i < moduleCount; ++i)
+    {
+        Module module = modules[moduleOffset + i];
+        uint type = (uint)module.Header.x;
 
-    particles[globalIndex].PositionSize = float4(spawnPosition, emitter.LifetimeSize.z, 1.0);
-    particles[globalIndex].VelocityAge = float4(initialVelocity, 0.0, lifetime);
-    particles[globalIndex].Color = emitter.ColorStart;
-    particles[globalIndex].Metadata = float4(float(pc.EmitterIndex), hash1(float(globalIndex)), 0.0, 0.0);
+        int param0 = (int)module.Header.z;
+
+        if (type == 1u) // SetPositionCircle
+        {
+            float radiusRandom = sqrt(Hash2(seedBase + float2(8.63, 6.53)));
+            float arcRandom = Hash2(seedBase + float2(4.71, 1.29));
+            float spawnAngle = arcRandom * 6.28318530718;
+            float radius = module.Data0.z * radiusRandom;
+            position = module.Data0.xy + float2(cos(spawnAngle), sin(spawnAngle)) * radius;
+        }
+        else if (type == 2u) // SetVelocityCone
+        {
+            float angleRandom = Hash2(seedBase + float2(3.17, 9.41));
+            float speedRandom = Hash2(seedBase + float2(5.23, 2.19));
+            float angle = lerp(module.Data0.x, module.Data0.y, angleRandom);
+            float speed = lerp(module.Data0.z, module.Data0.w, speedRandom);
+            velocity = float2(cos(angle), sin(angle)) * speed;
+        }
+        else if (type == 3u) // SetLifetime
+        {
+            float lifetimeRandom = Hash2(seedBase + float2(1.37, 7.11));
+            lifetime = lerp(module.Data0.x, module.Data0.y, lifetimeRandom);
+        }
+        else if (type == 4u) // SetSize
+        {
+            size = module.Data0.x;
+        }
+        else if (type == 5u) // SetColor
+        {
+            color = ResolveValue(param0, module.Data0);
+        }
+    }
+
+    particles[globalIndex].PositionSize = float4(position, size, 1.0);
+    particles[globalIndex].VelocityAge = float4(velocity, 0.0, lifetime);
+    particles[globalIndex].Color = color;
+    particles[globalIndex].Metadata = float4(float(pc.EmitterIndex), Hash1(float(globalIndex)), 0.0, 0.0);
 }

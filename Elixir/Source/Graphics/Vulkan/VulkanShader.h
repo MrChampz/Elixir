@@ -32,6 +32,7 @@ namespace Elixir::Vulkan
         void BindTextureSet(const std::string& name, const Ref<TextureSet>& set) override;
         void BindSampler(const std::string& name, const Ref<Sampler>& sampler) override;
         void BindStorageBuffer(const std::string& name, const Ref<StorageBuffer>& buffer) override;
+        void BindStorageBuffer(const std::string& name, const Ref<DynamicStorageBuffer>& buffer) override;
         void BindConstantBuffer(const std::string& name, const Ref<UniformBuffer>& buffer) override;
 
         const std::vector<VkDescriptorSetLayout>& GetDescriptorSetLayouts() const { return m_DescriptorSetLayouts; }
@@ -64,6 +65,15 @@ namespace Elixir::Vulkan
         void UpdateDescriptorSet(
             SShaderBinding binding,
             const Ref<StorageBuffer>& buffer
+        ) const;
+
+        VkWriteDescriptorSet GetWriteDescriptorSet(
+            SShaderBinding binding,
+            const Ref<DynamicStorageBuffer>& buffer
+        ) const;
+        void UpdateDescriptorSet(
+            SShaderBinding binding,
+            const Ref<DynamicStorageBuffer>& buffer
         ) const;
 
         VkWriteDescriptorSet GetWriteDescriptorSet(

@@ -29,6 +29,8 @@ namespace Elixir::Aether
     {
         std::string Name;
         std::vector<SGPUEmitter> Emitters;
+        std::vector<SGPUModule> Modules;
+        std::vector<SGPUParameter> Parameters;
         uint32_t TotalMaxParticles = 0;
     };
 

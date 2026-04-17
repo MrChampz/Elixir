@@ -70,6 +70,7 @@ namespace Elixir
         virtual void BindTextureSet(const std::string& name, const Ref<TextureSet>& set) = 0;
         virtual void BindSampler(const std::string& name, const Ref<Sampler>& sampler) = 0;
         virtual void BindStorageBuffer(const std::string& name, const Ref<StorageBuffer>& buffer) = 0;
+        virtual void BindStorageBuffer(const std::string& name, const Ref<DynamicStorageBuffer>& buffer) = 0;
         virtual void BindConstantBuffer(const std::string& name, const Ref<UniformBuffer>& buffer) = 0;
 
         virtual Ref<Texture> GetTexture(const std::string& name) const;
@@ -126,8 +127,9 @@ namespace Elixir
         std::unordered_map<SShaderBinding, Ref<Texture>> m_Textures;
         std::unordered_map<SShaderBinding, Ref<TextureSet>> m_TextureSets;
         std::unordered_map<SShaderBinding, Ref<Sampler>> m_Samplers;
-        // TODO: Rename to ConstantBuffer
         std::unordered_map<SShaderBinding, Ref<StorageBuffer>> m_StorageBuffers;
+        std::unordered_map<SShaderBinding, Ref<DynamicStorageBuffer>> m_DynStorageBuffers;
+        // TODO: Rename to ConstantBuffer
         std::unordered_map<SShaderBinding, Ref<UniformBuffer>> m_ConstantBuffers;
         std::unordered_map<SShaderBinding, Ref<PushConstantBuffer>> m_PushConstants;
 

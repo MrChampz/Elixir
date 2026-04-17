@@ -1,4 +1,5 @@
 #pragma once
+#include "Particle.h"
 
 namespace Elixir::Aether
 {
@@ -6,6 +7,31 @@ namespace Elixir::Aether
     struct SSpawnContext;
     struct SUpdateContext;
     class ParameterStore;
+
+    enum class EModuleType : uint32_t
+    {
+        SpawnRate = 0,
+        SetPositionCircle,
+        SetVelocityCone,
+        SetLifetime,
+        SetSize,
+        SetColor,
+        ApplyGravity,
+        ApplyLinearDrag,
+        ColorOverLife,
+        SizeOverLife,
+        KillOutsideBounds
+    };
+
+    struct SGPUModule
+    {
+        EModuleType Type;
+        EParticleAttribute Target;
+        uint32_t Parameter0Index = UINT32_MAX;
+        uint32_t Parameter1Index = UINT32_MAX;
+        glm::vec4 Data0{};
+        glm::vec4 Data1{};
+    };
 
     class ParticleSpawnModule
     {
@@ -171,7 +197,7 @@ namespace Elixir::Aether
 
         glm::vec2 GetMin() const { return m_Min; }
         glm::vec2 GetMax() const { return m_Max; }
-        
+
       private:
         glm::vec2 m_Min;
         glm::vec2 m_Max;

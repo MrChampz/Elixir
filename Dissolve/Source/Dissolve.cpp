@@ -58,6 +58,10 @@ Dissolve::Dissolve()
 
     m_ParticleSystem = CreateScope<Aether::System>("Aurora Garden");
     m_ParticleSystem->GetParameters().SetFloat("GravityScale", 1.0f);
+    m_ParticleSystem->GetParameters().SetFloat4("CanopyColorStart", { 0.70f, 0.96f, 1.0f, 0.78f });
+    m_ParticleSystem->GetParameters().SetFloat4("CanopyColorEnd", { 0.40f, 0.18f, 0.72f, 0.0f });
+    m_ParticleSystem->GetParameters().SetFloat4("SparkColorStart", { 1.0f, 0.72f, 0.90f, 0.95f });
+    m_ParticleSystem->GetParameters().SetFloat4("SparkColorEnd", { 1.0f, 0.36f, 0.48f, 0.0f });
 
     auto& canopy = m_ParticleSystem->AddEmitter("CanopyMist", 4096, 160.0f);
     canopy.AddSpawnModule<Aether::SetPositionCircle>(glm::vec2{ 0.0f, -0.86f }, 0.18f);

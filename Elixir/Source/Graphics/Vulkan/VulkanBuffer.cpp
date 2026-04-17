@@ -455,6 +455,45 @@ namespace Elixir::Vulkan
         VulkanStorageBuffer::Destroy();
     }
 
+    /* VulkanDynamicStorageBuffer */
+
+    VulkanDynamicStorageBuffer::VulkanDynamicStorageBuffer(
+        const GraphicsContext* context,
+        const size_t size,
+        const void* data
+    ) : VulkanDynamicStorageBuffer(context, CreateBufferInfo(size, data)) {}
+
+    VulkanDynamicStorageBuffer::VulkanDynamicStorageBuffer(
+        const GraphicsContext* context,
+        const SBufferCreateInfo& info
+    ) : VulkanDynamicBuffer(context, info)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        VulkanDynamicStorageBuffer::CreateBuffer(info);
+        VulkanDynamicStorageBuffer::InitBuffer(info.Buffer);
+        VulkanDynamicStorageBuffer::CreateDescriptorInfo();
+    }
+
+    VulkanDynamicStorageBuffer::~VulkanDynamicStorageBuffer()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        if (m_PersistentMapping)
+            VulkanDynamicBuffer::Unmap();
+        VulkanDynamicStorageBuffer::Destroy();
+    }
+
+    void VulkanDynamicStorageBuffer::InitBuffer(const SBuffer& buffer)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        m_PersistentMapping = Map();
+
+        if (buffer.Data)
+        {
+            Memory::Memcpy(m_PersistentMapping, buffer.Data, m_Size);
+        }
+    }
+
     /* VulkanUniformBuffer */
 
     VulkanUniformBuffer::VulkanUniformBuffer(

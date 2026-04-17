@@ -7,6 +7,51 @@
 
 namespace Elixir::Aether
 {
+    SEmitterData ToEmitterDescription(const SGPUEmitter& emitter)
+    {
+        SEmitterData desc{};
+        desc.MetaA = {
+            emitter.ParticleOffset,
+            emitter.MaxParticles,
+            emitter.SpawnModuleOffset,
+            emitter.SpawnModuleCount
+        };
+
+        desc.MetaB = {
+            emitter.UpdateModuleOffset,
+            emitter.UpdateModuleCount,
+            emitter.SpawnRatePerSecond,
+            emitter.GravityScale
+        };
+
+        return desc;
+    }
+
+    SModuleData ToModuleDescription(const SGPUModule& module)
+    {
+        SModuleData desc{};
+
+        desc.Header = {
+            (float)(uint32_t)module.Type,
+            (float)module.Target,
+            module.Parameter0Index == UINT32_MAX ? -1.0f : module.Parameter0Index,
+            module.Parameter1Index == UINT32_MAX ? -1.0f : module.Parameter1Index
+        };
+
+        desc.Data0 = module.Data0;
+        desc.Data1 = module.Data1;
+
+        return desc;
+    }
+
+    SParameterData ToParameterDescription(const SGPUParameter& parameter)
+    {
+        SParameterData desc{};
+        desc.Value = parameter.Value;
+
+        return desc;
+    }
+
     Renderer::Renderer(const GraphicsContext* context, const ShaderLoader* shaderLoader)
         : m_GraphicsContext(context)
     {
@@ -14,6 +59,7 @@ namespace Elixir::Aether
 
         InitRingBuffer();
         InitRenderPass(shaderLoader);
+        CreateBuffers();
         InitPerFrameData();
         BindShaderParameters();
     }
@@ -42,10 +88,12 @@ namespace Elixir::Aether
             .RenderArea = m_RenderExtent
         });
 
+        const auto* emitters = static_cast<const SEmitterData*>(m_EmitterBuffer->Map());
+
         m_SpawnPipeline->Bind(cmd);
         for (uint32_t i = 0; i < emitterCount; ++i)
         {
-            const auto particleCount = system.Emitters[i].MaxParticles;
+            const auto particleCount = (uint32_t)emitters[i].MetaA.y;
             if (particleCount == 0) continue;
 
             const SSpawnPushConstants pushConstants{ i };
@@ -124,12 +172,14 @@ namespace Elixir::Aether
         builder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
         builder.SetBufferLayout(bufferLayout);
         m_RendererPipeline = builder.Build(m_GraphicsContext);
+    }
 
-        auto initialData = new SGPUParticleState[MAX_PARTICLES]{};
-        Memory::Memset(initialData, 0, sizeof(SGPUParticleState) * MAX_PARTICLES);
-        m_ParticleBuffer = StorageBuffer::Create(m_GraphicsContext, sizeof(SGPUParticleState) * MAX_PARTICLES, initialData);
-        delete[] initialData;
-
+    void Renderer::CreateBuffers()
+    {
+        m_EmitterBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SEmitterData) * MAX_EMITTERS);
+        m_ModuleBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SModuleData) * MAX_MODULES);
+        m_ParameterBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SParameterData) * MAX_PARAMETERS);
+        m_ParticleBuffer = StorageBuffer::Create(m_GraphicsContext, sizeof(SGPUParticleState) * MAX_PARTICLES);
         m_ParamsBuffer = UniformBuffer::Create(m_GraphicsContext, sizeof(SParamsData));
     }
 
@@ -147,9 +197,17 @@ namespace Elixir::Aether
         constexpr SSpawnPushConstants pushConstants{ 0 };
         m_SpawnShader->SetPushConstant("pc", (void*)&pushConstants, sizeof(SSpawnPushConstants));
         m_SpawnShader->BindStorageBuffer("particles", m_ParticleBuffer);
-        m_UpdateShader->BindStorageBuffer("particles", m_ParticleBuffer);
+        m_SpawnShader->BindStorageBuffer("emitters", m_EmitterBuffer);
+        m_SpawnShader->BindStorageBuffer("modules", m_ModuleBuffer);
+        m_SpawnShader->BindStorageBuffer("parameters", m_ParameterBuffer);
         m_SpawnShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
+
+        m_UpdateShader->BindStorageBuffer("particles", m_ParticleBuffer);
+        m_UpdateShader->BindStorageBuffer("emitters", m_EmitterBuffer);
+        m_UpdateShader->BindStorageBuffer("modules", m_ModuleBuffer);
+        m_UpdateShader->BindStorageBuffer("parameters", m_ParameterBuffer);
         m_UpdateShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
+
         m_RendererShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
     }
 
@@ -195,12 +253,20 @@ namespace Elixir::Aether
             (float)system.Emitters.size(),
         };
 
+        m_ParamsBuffer->UpdateData(&params, sizeof(SParamsData));
+
         const auto emitterCount = std::min(system.Emitters.size(), (size_t)MAX_EMITTERS);
 
         if (m_SpawnAccumulators.size() != emitterCount)
         {
             m_SpawnAccumulators.assign(emitterCount, 0.0f);
             m_SpawnCursors.assign(emitterCount, 0u);
+        }
+
+        auto* emitters = (SEmitterData*)m_EmitterBuffer->Map();
+        for (uint32_t i = 0; i < MAX_EMITTERS; ++i)
+        {
+            emitters[i] = {};
         }
 
         for (auto i = 0; i < emitterCount; ++i)
@@ -212,23 +278,29 @@ namespace Elixir::Aether
             if (spawnCount > 0)
                 m_SpawnAccumulators[i] -= (float)spawnCount;
 
-            auto& desc = params.Emitters[i];
+            auto desc = ToEmitterDescription(emitter);
 
-            desc.SpawnCenterRadiusRate = { emitter.SpawnCenter.x, emitter.SpawnCenter.y, emitter.SpawnRadius, emitter.SpawnRatePerSecond };
-            desc.AngleSpeed = { emitter.AngleMinRadians, emitter.AngleMaxRadians, emitter.SpeedMin, emitter.SpeedMax };
-            desc.LifetimeSize = { emitter.LifetimeMin, emitter.LifetimeMax, emitter.SizeStart, emitter.SizeEnd };
-            desc.GravityDrag = { emitter.Gravity.x, emitter.Gravity.y, emitter.GravityScale, emitter.Drag };
-            desc.BoundsMin = { emitter.MinBounds.x, emitter.MinBounds.y, 0.0f, 0.0f };
-            desc.BoundsMax = { emitter.MaxBounds.x, emitter.MaxBounds.y, 0.0f, 0.0f };
-            desc.ColorStart = emitter.ColorStart;
-            desc.ColorEnd = emitter.ColorEnd;
-            desc.MetaA = { (float)emitter.ParticleOffset, (float)emitter.MaxParticles, 0.0f, 0.0f };
-            desc.MetaB = { (float)m_SpawnCursors[i], (float)spawnCount, 0.0f, 0.0f };
+            desc.MetaB.x = (float)emitter.UpdateModuleOffset;
+            desc.MetaB.y = (float)emitter.UpdateModuleCount;
+            desc.MetaB.z = (float)m_SpawnCursors[i];
+            desc.MetaB.w = (float)spawnCount;
+
+            emitters[i] = desc;
 
             if (emitter.MaxParticles > 0)
                 m_SpawnCursors[i] = (m_SpawnCursors[i] + spawnCount) % emitter.MaxParticles;
         }
 
-        m_ParamsBuffer->UpdateData(&params, sizeof(SParamsData));
+        auto* modules = (SModuleData*)m_ModuleBuffer->Map();
+        for (size_t i = 0; i < system.Modules.size(); ++i)
+        {
+            modules[i] = ToModuleDescription(system.Modules[i]);
+        }
+
+        auto* parameters = (SParameterData*)m_ParameterBuffer->Map();
+        for (size_t i = 0; i < system.Parameters.size(); ++i)
+        {
+            parameters[i] = ToParameterDescription(system.Parameters[i]);
+        }
     }
 }

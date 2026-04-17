@@ -4,6 +4,16 @@
 
 namespace Elixir::Aether
 {
+    enum class EParticleAttribute : uint32_t
+    {
+        None = 0,
+        Position,
+        Velocity,
+        Color,
+        Size,
+        Lifetime
+    };
+
     struct SParticle
     {
         glm::vec2 Position;

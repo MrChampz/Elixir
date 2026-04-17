@@ -911,9 +911,12 @@ namespace Elixir::Vulkan::Converters
         return VK_SHADER_STAGE_ALL;
     }
 
-    static VkShaderStageFlags GetShaderStages(const EShaderStage& stage)
+    static VkShaderStageFlags GetShaderStages(const EShaderStage stage)
     {
         VkShaderStageFlags flags = 0;
+
+        if (stage & EShaderStage::All)
+            return VK_SHADER_STAGE_ALL_GRAPHICS;
 
         if (stage & EShaderStage::Vertex)
             flags = flags | VK_SHADER_STAGE_VERTEX_BIT;
@@ -932,9 +935,6 @@ namespace Elixir::Vulkan::Converters
 
         if (stage & EShaderStage::Compute)
             flags = flags | VK_SHADER_STAGE_COMPUTE_BIT;
-
-        if (stage & EShaderStage::All)
-            flags = flags | VK_SHADER_STAGE_ALL_GRAPHICS;
 
         return flags;
     }

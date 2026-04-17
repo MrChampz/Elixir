@@ -13,22 +13,25 @@ namespace Elixir::Aether
 
     struct alignas(16) SEmitterData
     {
-        glm::vec4 SpawnCenterRadiusRate{};
-        glm::vec4 AngleSpeed{};
-        glm::vec4 LifetimeSize{};
-        glm::vec4 GravityDrag{};
-        glm::vec4 BoundsMin{};
-        glm::vec4 BoundsMax{};
-        glm::vec4 ColorStart{};
-        glm::vec4 ColorEnd{};
         glm::vec4 MetaA{};
         glm::vec4 MetaB{};
+    };
+
+    struct alignas(16) SModuleData
+    {
+        glm::vec4 Header{};
+        glm::vec4 Data0{};
+        glm::vec4 Data1{};
+    };
+
+    struct alignas(16) SParameterData
+    {
+        glm::vec4 Value{};
     };
 
     struct alignas(16) SParamsData
     {
         glm::vec4 Time;
-        std::array<SEmitterData, 8> Emitters{};
     };
 
     struct SSpawnPushConstants
@@ -41,6 +44,8 @@ namespace Elixir::Aether
       public:
         static constexpr uint32_t MAX_EMITTERS = 8;
         static constexpr uint32_t MAX_PARTICLES = 10000;
+        static constexpr uint32_t MAX_MODULES = 128;
+        static constexpr uint32_t MAX_PARAMETERS = 64;
         static constexpr uint32_t COMPUTE_GROUP_SIZE = 256;
 
         Renderer(const GraphicsContext* context, const ShaderLoader* shaderLoader);
@@ -51,6 +56,7 @@ namespace Elixir::Aether
       private:
         void InitRingBuffer();
         void InitRenderPass(const ShaderLoader* shaderLoader);
+        void CreateBuffers();
         void InitPerFrameData();
         void BindShaderParameters() const;
 
@@ -76,7 +82,11 @@ namespace Elixir::Aether
         Ref<ComputePipeline> m_UpdatePipeline;
         Ref<Shader> m_RendererShader;
         Ref<GraphicsPipeline> m_RendererPipeline;
+
         Ref<StorageBuffer> m_ParticleBuffer;
+        Ref<DynamicStorageBuffer> m_EmitterBuffer;
+        Ref<DynamicStorageBuffer> m_ModuleBuffer;
+        Ref<DynamicStorageBuffer> m_ParameterBuffer;
         Ref<UniformBuffer> m_ParamsBuffer;
 
         std::vector<float> m_SpawnAccumulators;

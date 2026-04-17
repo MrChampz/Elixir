@@ -178,6 +178,22 @@ namespace Elixir::Vulkan
         ~VulkanStorageBuffer() override;
     };
 
+    class ELIXIR_API VulkanDynamicStorageBuffer final
+        : public VulkanDynamicBuffer<DynamicStorageBuffer>
+    {
+    public:
+        VulkanDynamicStorageBuffer(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr
+        );
+        VulkanDynamicStorageBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
+        ~VulkanDynamicStorageBuffer() override;
+
+    protected:
+        void InitBuffer(const SBuffer& buffer) override;
+    };
+
     class ELIXIR_API VulkanUniformBuffer final : public VulkanDynamicBuffer<UniformBuffer>
     {
     public:

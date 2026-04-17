@@ -301,6 +301,33 @@ namespace Elixir
         StorageBuffer(const StorageBuffer&) = delete;
     };
 
+    class ELIXIR_API DynamicStorageBuffer : public DynamicBuffer
+    {
+    public:
+        ~DynamicStorageBuffer() override = default;
+
+        template <typename T, typename... Args>
+        void BindAs(const Ref<CommandBuffer>& cmd, Args... args)
+        {
+            cmd->BindBuffer<T>(this, args...);
+        }
+
+        void UpdateData(const void* data, size_t size, size_t offset = 0) const;
+
+        static Ref<DynamicStorageBuffer> Create(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr
+        );
+
+        static SBufferCreateInfo CreateBufferInfo(size_t size, const void* data);
+
+    protected:
+        DynamicStorageBuffer(const GraphicsContext* context, size_t size, const void* data = nullptr);
+        DynamicStorageBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
+        DynamicStorageBuffer(const DynamicStorageBuffer&) = delete;
+    };
+
     class ELIXIR_API UniformBuffer : public DynamicBuffer
     {
     public:
@@ -325,7 +352,7 @@ namespace Elixir
         UniformBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
     };
 
-    class ELIXIR_API PushConstantBuffer
+    class ELIXIR_API PushConstantBuffer final
     {
     public:
         PushConstantBuffer(
@@ -343,7 +370,7 @@ namespace Elixir
         const UUID& GetUUID() const { return m_UUID; }
         virtual SBuffer& GetBuffer() { return m_Buffer; }
         virtual const SBuffer& GetBuffer() const { return m_Buffer; }
-        virtual uint32_t GetSize() const { return m_Buffer.Size; }
+        virtual uint32_t GetSize() const { return m_Size; }
 
         bool operator==(const PushConstantBuffer& other) const
         {
@@ -361,6 +388,7 @@ namespace Elixir
         std::string m_DebugName;
 
         SBuffer m_Buffer;
+        uint32_t m_Size;
 
         const GraphicsContext* m_GraphicsContext;
     };

@@ -421,8 +421,8 @@ namespace Elixir
     const auto STORAGE_BUFFER_USAGE =
         EBufferUsage::StorageBuffer |
         EBufferUsage::VertexBuffer |
-        EBufferUsage::TransferDst |
-        EBufferUsage::ShaderDeviceAddress;
+        EBufferUsage::IndexBuffer |
+        EBufferUsage::TransferDst;
 
     Ref<StorageBuffer> StorageBuffer::Create(
         const GraphicsContext* context,
@@ -464,6 +464,76 @@ namespace Elixir
 
 #ifdef EE_DEBUG
         m_DebugName = "StorageBuffer[" + m_UUID.ToString() + "]";
+#endif
+    }
+
+    /* DynamicStorageBuffer */
+
+    const auto DYNAMIC_STORAGE_BUFFER_USAGE =
+        EBufferUsage::StorageBuffer |
+        EBufferUsage::VertexBuffer |
+        EBufferUsage::IndexBuffer |
+        EBufferUsage::TransferDst;
+
+    void DynamicStorageBuffer::UpdateData(
+        const void* data,
+        const size_t size,
+        const size_t offset
+    ) const
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        EE_CORE_ASSERT(offset + size <= m_Size, "Buffer overflow!")
+        EE_CORE_ASSERT(m_PersistentMapping, "Persistent mapping is required for dynamic buffers!")
+
+        if (m_PersistentMapping)
+        {
+            Memory::Memcpy((uint8_t*)m_PersistentMapping + offset, data, size);
+        }
+    }
+
+    Ref<DynamicStorageBuffer> DynamicStorageBuffer::Create(
+        const GraphicsContext* context,
+        size_t size,
+        const void* data
+    )
+    {
+        switch (context->GetAPI())
+        {
+            case EGraphicsAPI::Vulkan:
+                return CreateRef<Vulkan::VulkanDynamicStorageBuffer>(context, size, data);
+            default:
+                EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
+                return nullptr;
+        }
+    }
+
+    SBufferCreateInfo DynamicStorageBuffer::CreateBufferInfo(const size_t size, const void* data)
+    {
+        return {
+            .Buffer = SBuffer(data, size),
+            .Usage = DYNAMIC_STORAGE_BUFFER_USAGE,
+            .AllocationInfo = {
+                .RequiredFlags = EMemoryProperty::HostVisible | EMemoryProperty::HostCoherent,
+                .PreferredFlags = EMemoryProperty::HostCached
+            }
+        };
+    }
+
+    DynamicStorageBuffer::DynamicStorageBuffer(
+        const GraphicsContext* context,
+        const size_t size,
+        const void* data
+    ) : DynamicStorageBuffer(context, CreateBufferInfo(size, data)) {}
+
+    DynamicStorageBuffer::DynamicStorageBuffer(
+        const GraphicsContext* context,
+        const SBufferCreateInfo& info
+    ) : DynamicBuffer(context, info)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+#ifdef EE_DEBUG
+        m_DebugName = "DynamicStorageBuffer[" + m_UUID.ToString() + "]";
 #endif
     }
 
@@ -532,7 +602,7 @@ namespace Elixir
         const GraphicsContext* context,
         const size_t size,
         const void* data
-    ) : m_GraphicsContext(context)
+    ) : m_GraphicsContext(context), m_Size(size)
     {
         EE_PROFILE_ZONE_SCOPED()
 
