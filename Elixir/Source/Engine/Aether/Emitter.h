@@ -12,9 +12,16 @@ namespace Elixir::Aether
     struct SRenderParticle;
     class ParameterStore;
 
+    enum class EParticleRenderMode : uint8_t
+    {
+        Sprite = 0,
+        Ribbon
+    };
+
     struct SGPUEmitter
     {
         std::string Name;
+        EParticleRenderMode RenderMode = EParticleRenderMode::Sprite;
         uint32_t ParticleOffset = 0;
         float SpawnRatePerSecond = 1.0f;
         float GravityScale = 1.0f;
@@ -50,6 +57,8 @@ namespace Elixir::Aether
             return ref;
         }
 
+        void SetRenderMode(EParticleRenderMode mode) { m_RenderMode = mode; }
+
         SGPUEmitter Build(const ParameterStore& params, std::vector<SGPUModule>& modules) const;
 
         const std::string& GetName() const { return m_Name; }
@@ -59,6 +68,7 @@ namespace Elixir::Aether
         void SpawnParticle(SSpawnContext& context, const ParameterStore& params);
 
         std::string m_Name;
+        EParticleRenderMode m_RenderMode;
         std::vector<SParticle> m_Particles;
         std::vector<Scope<ParticleSpawnModule>> m_SpawnModules;
         std::vector<Scope<ParticleUpdateModule>> m_UpdateModules;

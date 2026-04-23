@@ -52,6 +52,7 @@ namespace Elixir::Aether
     {
         SGPUEmitter emitter;
         emitter.Name = m_Name;
+        emitter.RenderMode = m_RenderMode;
         emitter.MaxParticles = (uint32_t)m_Particles.size();
         emitter.SpawnRatePerSecond = m_SpawnRate;
         emitter.GravityScale = params.GetFloat("GravityScale", 1.0f);

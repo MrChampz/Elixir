@@ -15,6 +15,7 @@ namespace Elixir::Aether
     {
         glm::vec4 MetaA{};
         glm::vec4 MetaB{};
+        glm::vec4 MetaC{};
     };
 
     struct alignas(16) SModuleData
@@ -31,12 +32,8 @@ namespace Elixir::Aether
 
     struct alignas(16) SParamsData
     {
-        glm::vec4 Time;
-    };
-
-    struct SSpawnPushConstants
-    {
-        uint32_t EmitterIndex = 0;
+        glm::vec4 Time{};
+        glm::vec4 Viewport{};
     };
 
     class ELIXIR_API Renderer final
@@ -82,6 +79,8 @@ namespace Elixir::Aether
         Ref<ComputePipeline> m_UpdatePipeline;
         Ref<Shader> m_RendererShader;
         Ref<GraphicsPipeline> m_RendererPipeline;
+        Ref<Shader> m_RibbonShader;
+        Ref<GraphicsPipeline> m_RibbonPipeline;
 
         Ref<StorageBuffer> m_ParticleBuffer;
         Ref<DynamicStorageBuffer> m_EmitterBuffer;
@@ -89,8 +88,11 @@ namespace Elixir::Aether
         Ref<DynamicStorageBuffer> m_ParameterBuffer;
         Ref<UniformBuffer> m_ParamsBuffer;
 
+        std::vector<SGPUEmitter> m_ActiveEmitters;
+
         std::vector<float> m_SpawnAccumulators;
         std::vector<uint32_t> m_SpawnCursors;
+        std::vector<uint32_t> m_SpawnedCounts;
 
         float m_LastDeltaTimeSeconds = 0.0f;
         float m_ElapsedTimeSeconds = 0.0f;
