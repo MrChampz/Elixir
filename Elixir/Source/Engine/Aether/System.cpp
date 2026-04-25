@@ -24,8 +24,8 @@ namespace Elixir::Aether
 
         for (auto& emitter : m_Emitters)
         {
-            emitter.Update(timestep, m_Parameters);
-            emitter.GatherRenderParticles(m_RenderParticles);
+            emitter->Update(timestep, m_Parameters);
+            emitter->GatherRenderParticles(m_RenderParticles);
         }
     }
 
@@ -35,8 +35,8 @@ namespace Elixir::Aether
         float spawnRate
     )
     {
-        m_Emitters.emplace_back(name, maxParticles, spawnRate);
-        return m_Emitters.back();
+        m_Emitters.push_back(CreateScope<Emitter>(name, maxParticles, spawnRate));
+        return *m_Emitters.back();
     }
 
     SGPUSystem System::Build() const
@@ -51,7 +51,7 @@ namespace Elixir::Aether
 
         for (const auto& emitter : m_Emitters)
         {
-            auto desc = emitter.Build(m_Parameters, system.Modules);
+            auto desc = emitter->Build(m_Parameters, system.Modules);
             desc.ParticleOffset = particleOffset;
 
             particleOffset += desc.MaxParticles;

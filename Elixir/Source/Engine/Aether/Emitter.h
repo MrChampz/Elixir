@@ -37,6 +37,12 @@ namespace Elixir::Aether
       public:
         Emitter(const std::string& name, uint32_t maxParticles, float spawnRate);
 
+        Emitter(Emitter&&) = default;
+        Emitter& operator=(Emitter&&) = default;
+
+        Emitter(const Emitter&) = delete;
+        Emitter& operator=(const Emitter&) = delete;
+
         void Update(const Timestep& timestep, const ParameterStore& params);
 
         template <typename Module, typename... Args>

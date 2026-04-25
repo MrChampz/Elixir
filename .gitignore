@@ -5,6 +5,7 @@ Build/
 Bin/
 Intermediate/
 out/
+vcpkg_installed/
 
 # Files
 *.user

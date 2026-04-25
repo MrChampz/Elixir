@@ -39,6 +39,12 @@ namespace Elixir::Aether
       public:
         explicit System(const std::string& name);
 
+        System(System&&) = default;
+        System& operator=(System&&) = default;
+
+        System(const System&) = delete;
+        System& operator=(const System&) = delete;
+
         void Update(const Timestep& timestep);
 
         Emitter& AddEmitter(const std::string& name, uint32_t maxParticles, float spawnRate);
@@ -51,7 +57,7 @@ namespace Elixir::Aether
       private:
         std::string m_Name;
         ParameterStore m_Parameters;
-        std::vector<Emitter> m_Emitters;
+        std::vector<Scope<Emitter>> m_Emitters;
         std::vector<SRenderParticle> m_RenderParticles;
     };
 }

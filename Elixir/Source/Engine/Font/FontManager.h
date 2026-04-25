@@ -10,7 +10,7 @@ namespace Elixir
     class ELIXIR_API FontManager
     {
       public:
-        static constexpr std::string DEFAULT_FONT_NAME = "SF-Pro-Display-Regular";
+        static constexpr std::string_view DEFAULT_FONT_NAME = "SF-Pro-Display-Regular";
 
         static void Initialize(const GraphicsContext* context);
         static void Shutdown();
@@ -74,7 +74,7 @@ namespace Elixir
         static bool s_Initialized;
         static Scope<FontBackend> s_FontBackend;
         static Ref<TextureSet> s_FontsAtlases;
-        static std::unordered_map<std::string, Ref<Font>> s_Fonts;
+        static std::unordered_map<std::string_view, Ref<Font>> s_Fonts;
         static const GraphicsContext* s_GraphicsContext;
     };
 }
