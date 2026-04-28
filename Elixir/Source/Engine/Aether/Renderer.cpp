@@ -24,6 +24,13 @@ namespace Elixir::Aether
             emitter.GravityScale
         };
 
+        desc.MetaC = {
+            (float)emitter.RenderMode,
+            0.0f,
+            0.0f,
+            0.0f
+        };
+
         return desc;
     }
 

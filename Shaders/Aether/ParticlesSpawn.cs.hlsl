@@ -13,6 +13,7 @@ struct Emitter
 {
     float4 MetaA; // x = offset in particle buffer, y = emitter count, z = module offset(spawn), w = module count(spawn)
     float4 MetaB; // x = module offset(update), y = module count(update), z = spawn cursor, w = spawn count
+    float4 MetaC; // x = render mode
 };
 
 [[vk::binding(1, 0)]]

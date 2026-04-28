@@ -13,6 +13,7 @@ struct Emitter
 {
     float4 MetaA; // x = offset in particle buffer, y = emitter count, z = module offset(spawn), w = module count(spawn)
     float4 MetaB; // x = module offset(update), y = module count(update), z = spawn cursor, w = spawn count
+    float4 MetaC; // x = render mode
 };
 
 [[vk::binding(1, 0)]]
@@ -69,6 +70,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     uint emitterIndex = (uint)(state.Metadata.x + 0.5);
     Emitter emitter = emitters[emitterIndex];
     float dt = TimeData.x;
+    bool isRibbon = ((uint)(emitter.MetaC.x + 0.5)) == 1u;
 
     float2 position = state.PositionSize.xy;
     float2 velocity = state.VelocityAge.xy;
@@ -76,8 +78,10 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     float size = state.PositionSize.z;
     float age = state.VelocityAge.z + dt;
     float lifetime = max(state.VelocityAge.w, 0.001);
+    if (isRibbon)
+        age = min(age, lifetime * 0.995);
     float life = clamp(age / lifetime, 0.0, 1.0);
-    bool kill = age >= lifetime;
+    bool kill = !isRibbon && age >= lifetime;
 
     uint moduleOffset = (uint)emitter.MetaB.x;
     uint moduleCount = (uint)emitter.MetaB.y;
@@ -112,7 +116,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         {
             bool outsideBounds = position.x < module.Data0.x || position.x > module.Data1.x ||
                                  position.y < module.Data0.y || position.y > module.Data1.y;
-            kill = kill || outsideBounds;
+            kill = kill || (!isRibbon && outsideBounds);
         }
     }
 

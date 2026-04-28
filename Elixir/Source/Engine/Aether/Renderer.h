@@ -15,6 +15,7 @@ namespace Elixir::Aether
     {
         glm::vec4 MetaA{};
         glm::vec4 MetaB{};
+        glm::vec4 MetaC{};
     };
 
     struct alignas(16) SModuleData
