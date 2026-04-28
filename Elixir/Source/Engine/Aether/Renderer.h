@@ -39,6 +39,13 @@ namespace Elixir::Aether
         uint32_t EmitterIndex = 0;
     };
 
+    struct SRibbonPushConstants
+    {
+        uint32_t ParticleOffset = 0;
+        uint32_t MaxParticles = 0;
+        float WidthScale = 1.0f;
+    };
+
     class ELIXIR_API Renderer final
     {
       public:
@@ -82,6 +89,8 @@ namespace Elixir::Aether
         Ref<ComputePipeline> m_UpdatePipeline;
         Ref<Shader> m_RendererShader;
         Ref<GraphicsPipeline> m_RendererPipeline;
+        Ref<Shader> m_RibbonShader;
+        Ref<GraphicsPipeline> m_RibbonPipeline;
 
         Ref<StorageBuffer> m_ParticleBuffer;
         Ref<DynamicStorageBuffer> m_EmitterBuffer;

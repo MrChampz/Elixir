@@ -55,6 +55,8 @@ namespace Elixir::Aether
         emitter.MaxParticles = (uint32_t)m_Particles.size();
         emitter.SpawnRatePerSecond = m_SpawnRate;
         emitter.GravityScale = params.GetFloat("GravityScale", 1.0f);
+        emitter.RenderMode = m_RenderMode;
+        emitter.RibbonWidthScale = m_RibbonWidthScale;
         emitter.SpawnModuleOffset = (uint32_t)modules.size();
 
         modules.push_back({
