@@ -101,7 +101,7 @@ Dissolve::Dissolve()
     ribbon.AddSpawnModule<Aether::SetPositionBezierLoop>(
         glm::vec2{ 0.0f, 0.42f },
         glm::vec2{ 0.78f, 0.70f },
-        glm::vec2{ -0.84f, -0.74f },
+        glm::vec2{ -0.78f, 0.14f },
         ribbonLifetime
     );
     ribbon.AddSpawnModule<Aether::SetLifetime>(ribbonLifetime, ribbonLifetime);

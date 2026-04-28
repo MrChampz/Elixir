@@ -78,6 +78,70 @@ float2 CubicBezier(float2 p0, float2 p1, float2 p2, float2 p3, float t)
         (t * t * t * p3);
 }
 
+float2 CubicBezierDerivative(float2 p0, float2 p1, float2 p2, float2 p3, float t)
+{
+    float u = 1.0 - t;
+    return (3.0 * u * u * (p1 - p0)) +
+        (6.0 * u * t * (p2 - p1)) +
+        (3.0 * t * t * (p3 - p2));
+}
+
+float2 SafeNormalize(float2 value, float2 fallback)
+{
+    float lengthSquared = dot(value, value);
+    if (lengthSquared < 0.000001)
+        return fallback;
+
+    return value * rsqrt(lengthSquared);
+}
+
+float BezierArcLength(float2 p0, float2 p1, float2 p2, float2 p3)
+{
+    static const uint steps = 32u;
+    float2 previous = p0;
+    float length = 0.0;
+
+    [unroll]
+    for (uint i = 1u; i <= steps; ++i)
+    {
+        float t = float(i) / float(steps);
+        float2 current = CubicBezier(p0, p1, p2, p3, t);
+        length += distance(previous, current);
+        previous = current;
+    }
+
+    return length;
+}
+
+float BezierTAtArcLength(float2 p0, float2 p1, float2 p2, float2 p3, float normalizedDistance)
+{
+    static const uint steps = 32u;
+    float totalLength = max(BezierArcLength(p0, p1, p2, p3), 0.000001);
+    float targetLength = frac(normalizedDistance) * totalLength;
+    float walkedLength = 0.0;
+    float2 previous = p0;
+
+    [unroll]
+    for (uint i = 1u; i <= steps; ++i)
+    {
+        float previousT = float(i - 1u) / float(steps);
+        float currentT = float(i) / float(steps);
+        float2 current = CubicBezier(p0, p1, p2, p3, currentT);
+        float segmentLength = distance(previous, current);
+
+        if (walkedLength + segmentLength >= targetLength)
+        {
+            float segmentT = (targetLength - walkedLength) / max(segmentLength, 0.000001);
+            return lerp(previousT, currentT, saturate(segmentT));
+        }
+
+        walkedLength += segmentLength;
+        previous = current;
+    }
+
+    return 1.0;
+}
+
 bool InSpawnRange(uint localIndex, uint start, uint count, uint capacity)
 {
     if (count == 0)
@@ -117,6 +181,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     float4 color = float4(1.0, 1.0, 1.0, 1.0);
     float lifetime = 1.0;
     float size = 6.0;
+    float2 tangent = float2(1.0, 0.0);
 
     uint moduleOffset = (uint)emitter.MetaA.z;
     uint moduleCount = (uint)emitter.MetaA.w;
@@ -135,6 +200,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             float spawnAngle = arcRandom * 6.28318530718;
             float radius = module.Data0.z * radiusRandom;
             position = module.Data0.xy + float2(cos(spawnAngle), sin(spawnAngle)) * radius;
+            tangent = float2(-sin(spawnAngle), cos(spawnAngle));
         }
         else if (type == 2u) // SetVelocityCone
         {
@@ -143,6 +209,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             float angle = lerp(module.Data0.x, module.Data0.y, angleRandom);
             float speed = lerp(module.Data0.z, module.Data0.w, speedRandom);
             velocity = float2(cos(angle), sin(angle)) * speed;
+            tangent = SafeNormalize(velocity, tangent);
         }
         else if (type == 3u) // SetLifetime
         {
@@ -165,6 +232,8 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             float startAngle = module.Data1.x;
             float angle = TimeData.y * angularSpeed + startAngle;
             position = center + float2(cos(angle), sin(angle)) * radius;
+            float tangentSign = angularSpeed < 0.0 ? -1.0 : 1.0;
+            tangent = float2(-sin(angle), cos(angle)) * tangentSign;
         }
         else if (type == 12u) // SetPositionBezierLoop
         {
@@ -174,13 +243,14 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             float2 p3 = module.Data1.zw;
             float duration = max(module.Data2.x, 0.001);
             float startOffset = module.Data2.y;
-            float t = frac((TimeData.y + startOffset) / duration);
+            float t = BezierTAtArcLength(p0, p1, p2, p3, (TimeData.y + startOffset) / duration);
             position = CubicBezier(p0, p1, p2, p3, t);
+            tangent = SafeNormalize(CubicBezierDerivative(p0, p1, p2, p3, t), tangent);
         }
     }
 
     particles[globalIndex].PositionSize = float4(position, size, 1.0);
     particles[globalIndex].VelocityAge = float4(velocity, 0.0, lifetime);
     particles[globalIndex].Color = color;
-    particles[globalIndex].Metadata = float4(float(pc.EmitterIndex), Hash1(float(globalIndex)), 0.0, 0.0);
+    particles[globalIndex].Metadata = float4(float(pc.EmitterIndex), Hash1(float(globalIndex)), tangent);
 }

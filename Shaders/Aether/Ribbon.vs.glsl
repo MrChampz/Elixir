@@ -32,6 +32,15 @@ uint chronoToBuffer(uint chrono) {
     return pc.ParticleOffset + ringIndex;
 }
 
+vec2 safeNormalize(vec2 value, vec2 fallback) {
+    float lengthSquared = dot(value, value);
+    if (lengthSquared < 1e-6) {
+        return fallback;
+    }
+
+    return value * inversesqrt(lengthSquared);
+}
+
 void main() {
     uint vertexIndex = uint(gl_VertexIndex);
     uint segmentIndex = vertexIndex / 6u;
@@ -50,9 +59,11 @@ void main() {
     float size1 = p1.PositionSize.z;
 
     vec2 delta = pos1 - pos0;
-    float len = length(delta);
-    vec2 tangent = (len > 1e-6) ? (delta / len) : vec2(1.0, 0.0);
-    vec2 normal = vec2(-tangent.y, tangent.x);
+    vec2 fallbackTangent = safeNormalize(delta, vec2(1.0, 0.0));
+    vec2 tangent0 = safeNormalize(p0.Metadata.zw, fallbackTangent);
+    vec2 tangent1 = safeNormalize(p1.Metadata.zw, fallbackTangent);
+    vec2 normal0 = vec2(-tangent0.y, tangent0.x);
+    vec2 normal1 = vec2(-tangent1.y, tangent1.x);
 
     bool isTip = corner >= 2u;
     bool isRight = (corner & 1u) == 1u;
@@ -61,9 +72,10 @@ void main() {
     vec2 basePos = isTip ? pos1 : pos0;
     float baseSize = isTip ? size1 : size0;
     vec4 baseColor = isTip ? p1.Color : p0.Color;
+    vec2 baseNormal = isTip ? normal1 : normal0;
 
     float halfWidth = baseSize * 0.5 * pc.WidthScale;
-    vec2 worldPos = basePos + normal * halfWidth * side;
+    vec2 worldPos = basePos + baseNormal * halfWidth * side;
 
     bool alive0 = p0.PositionSize.w > 0.5;
     bool alive1 = p1.PositionSize.w > 0.5;
