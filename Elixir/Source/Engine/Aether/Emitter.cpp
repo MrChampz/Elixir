@@ -52,10 +52,11 @@ namespace Elixir::Aether
     {
         SGPUEmitter emitter;
         emitter.Name = m_Name;
-        emitter.RenderMode = m_RenderMode;
         emitter.MaxParticles = (uint32_t)m_Particles.size();
         emitter.SpawnRatePerSecond = m_SpawnRate;
         emitter.GravityScale = params.GetFloat("GravityScale", 1.0f);
+        emitter.RenderMode = m_RenderMode;
+        emitter.RibbonWidthScale = m_RibbonWidthScale;
         emitter.SpawnModuleOffset = (uint32_t)modules.size();
 
         modules.push_back({
@@ -78,6 +79,17 @@ namespace Elixir::Aether
                     UINT32_MAX,
                     { typed->GetCenter(), typed->GetRadius(), 0.0f },
                     {}
+                });
+            }
+            else if (const auto* typed = dynamic_cast<const SetPositionOnCircle*>(module.get()))
+            {
+                modules.push_back({
+                    EModuleType::SetPositionOnCircle,
+                    EParticleAttribute::Position,
+                    UINT32_MAX,
+                    UINT32_MAX,
+                    { typed->GetCenter(), typed->GetRadius(), typed->GetAngularSpeed() },
+                    { typed->GetStartAngle(), 0.0f, 0.0f, 0.0f }
                 });
             }
             else if (const auto* typed = dynamic_cast<const SetVelocityCone*>(module.get()))

@@ -21,7 +21,6 @@ namespace Elixir::Aether
     struct SGPUEmitter
     {
         std::string Name;
-        EParticleRenderMode RenderMode = EParticleRenderMode::Sprite;
         uint32_t ParticleOffset = 0;
         float SpawnRatePerSecond = 1.0f;
         float GravityScale = 1.0f;
@@ -30,6 +29,8 @@ namespace Elixir::Aether
         uint32_t SpawnModuleCount = 0;
         uint32_t UpdateModuleOffset = 0;
         uint32_t UpdateModuleCount = 0;
+        EParticleRenderMode RenderMode = EParticleRenderMode::Sprite;
+        float RibbonWidthScale = 1.0f;
     };
 
     class ELIXIR_API Emitter final
@@ -63,23 +64,26 @@ namespace Elixir::Aether
             return ref;
         }
 
-        void SetRenderMode(EParticleRenderMode mode) { m_RenderMode = mode; }
-
         SGPUEmitter Build(const ParameterStore& params, std::vector<SGPUModule>& modules) const;
 
         const std::string& GetName() const { return m_Name; }
         void GatherRenderParticles(std::vector<SRenderParticle>& output) const;
 
+        void SetRenderMode(EParticleRenderMode mode) { m_RenderMode = mode; }
+        void SetRibbonWidthScale(float scale) { m_RibbonWidthScale = scale; }
+        EParticleRenderMode GetRenderMode() const { return m_RenderMode; }
+
       private:
         void SpawnParticle(SSpawnContext& context, const ParameterStore& params);
 
         std::string m_Name;
-        EParticleRenderMode m_RenderMode;
         std::vector<SParticle> m_Particles;
         std::vector<Scope<ParticleSpawnModule>> m_SpawnModules;
         std::vector<Scope<ParticleUpdateModule>> m_UpdateModules;
         float m_SpawnRate = 0.0f; // per seconds
         float m_SpawnAccumulator = 0.0f;
         std::mt19937 m_RNG;
+        EParticleRenderMode m_RenderMode = EParticleRenderMode::Sprite;
+        float m_RibbonWidthScale = 1.0f;
     };
 }
