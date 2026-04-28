@@ -108,22 +108,6 @@ void SetAttribute(inout AttributeTable table, uint attrId, float4 value)
         table.Lifetime = value;
 }
 
-uint SpawnOrderInBatch(uint localIndex, uint start, uint capacity)
-{
-    if (localIndex >= start)
-        return localIndex - start;
-
-    return (capacity - start) + localIndex;
-}
-
-float2 RibbonPath(float timeSeconds)
-{
-    float phase = timeSeconds * 1.08;
-    float x = (0.56 * sin(phase)) + (0.14 * sin(phase * 2.1));
-    float y = (-0.18 + (0.38 * sin((phase * 0.58) + 0.65))) + (0.12 * cos((phase * 1.34) - 0.4));
-    return float2(x, y);
-}
-
 /**
  * Determines if a given local index falls within the spawn range defined by start and count,
  * considering wrap-around.
@@ -220,17 +204,16 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             float4 color = ResolveValue(param0, module.Data0);
             SetAttribute(attributes, target, color);
         }
-    }
-
-    uint renderMode = (uint)(emitter.MetaC.x + 0.5);
-    if (renderMode == 1u) // Ribbon
-    {
-        float spawnRate = max(emitter.MetaC.y, 1.0);
-        uint spawnOrder = SpawnOrderInBatch(localIndex, spawnCursor, emitterCount);
-        float timeOffset = float((spawnCount - 1u) - spawnOrder) / spawnRate;
-        float2 pathPosition = RibbonPath(TimeData.y - timeOffset);
-        SetAttribute(attributes, 1u, float4(pathPosition, 0.0, 1.0));
-        SetAttribute(attributes, 2u, float4(0.0, 0.0, 0.0, 0.0));
+        else if (type == 11u) // SetPositionOnCircle
+        {
+            float2 center = module.Data0.xy;
+            float radius = module.Data0.z;
+            float angularSpeed = module.Data0.w;
+            float startAngle = module.Data1.x;
+            float angle = TimeData.y * angularSpeed + startAngle;
+            float2 position = center + float2(cos(angle), sin(angle)) * radius;
+            SetAttribute(attributes, target, float4(position, 0.0, 0.0));
+        }
     }
 
     particles[globalIndex].PositionSize = float4(GetAttribute(attributes, 1u).xy, GetAttribute(attributes, 4u).x, 1.0);

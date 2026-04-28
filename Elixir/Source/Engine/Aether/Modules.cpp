@@ -34,6 +34,24 @@ namespace Elixir::Aether
         particle.Position = m_Center + (fromAngle(angle) * distance);
     }
 
+    /* SetPositionOnCircle */
+
+    SetPositionOnCircle::SetPositionOnCircle(
+        const glm::vec2 center,
+        const float radius,
+        const float angularSpeed,
+        const float startAngle
+    ) : m_Center(center), m_Radius(radius), m_AngularSpeed(angularSpeed), m_StartAngle(startAngle) {}
+
+    void SetPositionOnCircle::Apply(
+        SParticle& particle,
+        SSpawnContext& context,
+        const ParameterStore& params
+    ) const
+    {
+        particle.Position = m_Center + (fromAngle(m_StartAngle) * m_Radius);
+    }
+
     /* SetVelocityCone */
 
     SetVelocityCone::SetVelocityCone(

@@ -92,7 +92,6 @@ namespace Elixir::Aether
 
         std::vector<float> m_SpawnAccumulators;
         std::vector<uint32_t> m_SpawnCursors;
-        std::vector<uint32_t> m_SpawnedCounts;
 
         float m_LastDeltaTimeSeconds = 0.0f;
         float m_ElapsedTimeSeconds = 0.0f;

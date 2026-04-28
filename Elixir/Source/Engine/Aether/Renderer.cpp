@@ -15,9 +15,8 @@ namespace Elixir::Aether
     struct SRibbonPushConstants
     {
         uint32_t ParticleOffset = 0;
-        uint32_t ParticleCapacity = 0;
-        uint32_t StartIndex = 0;
-        uint32_t ParticleCount = 0;
+        uint32_t MaxParticles = 0;
+        uint32_t HeadIndex = 0;
         float WidthScale = 1.0f;
     };
 
@@ -137,25 +136,22 @@ namespace Elixir::Aether
 
             if (emitter.RenderMode == EParticleRenderMode::Ribbon)
             {
-                const uint32_t particleCount = m_SpawnedCounts[i];
-
-                if (particleCount < 2 || emitter.MaxParticles == 0)
+                if (emitter.MaxParticles < 2)
                     continue;
 
-                const uint32_t startIndex = particleCount < emitter.MaxParticles ? 0u : m_SpawnCursors[i];
+                const uint32_t headIndex = (m_SpawnCursors[i] + emitter.MaxParticles - 1u) % emitter.MaxParticles;
 
                 const SRibbonPushConstants pushConstants
                 {
                     emitter.ParticleOffset,
                     emitter.MaxParticles,
-                    startIndex,
-                    particleCount,
+                    headIndex,
                     0.28f
                 };
 
                 m_RibbonShader->SetPushConstant(cmd, "pc", (void*)&pushConstants, sizeof(SRibbonPushConstants));
                 m_RibbonPipeline->Bind(cmd);
-                cmd->Draw((particleCount - 1) * 6);
+                cmd->Draw((emitter.MaxParticles - 1u) * 6u);
                 continue;
             }
 
@@ -171,7 +167,6 @@ namespace Elixir::Aether
     {
         m_SpawnAccumulators.assign(MAX_EMITTERS, 0.0f);
         m_SpawnCursors.assign(MAX_EMITTERS, 0u);
-        m_SpawnedCounts.assign(MAX_EMITTERS, 0u);
     }
 
     void Renderer::InitRenderPass(const ShaderLoader* shaderLoader)
@@ -338,7 +333,6 @@ namespace Elixir::Aether
         {
             m_SpawnAccumulators.assign(emitterCount, 0.0f);
             m_SpawnCursors.assign(emitterCount, 0u);
-            m_SpawnedCounts.assign(emitterCount, 0u);
         }
 
         auto* emitters = (SEmitterData*)m_EmitterBuffer->Map();
@@ -355,7 +349,6 @@ namespace Elixir::Aether
             const uint32_t spawnCount = std::min((uint32_t)m_SpawnAccumulators[i], emitter.MaxParticles);
             if (spawnCount > 0)
                 m_SpawnAccumulators[i] -= (float)spawnCount;
-            m_SpawnedCounts[i] = std::min(emitter.MaxParticles, m_SpawnedCounts[i] + spawnCount);
 
             auto desc = ToEmitterDescription(emitter);
 
