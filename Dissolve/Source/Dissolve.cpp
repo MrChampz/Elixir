@@ -98,11 +98,51 @@ Dissolve::Dissolve()
     auto& ribbon = m_ParticleSystem->AddEmitter("AuroraRibbon", ribbonParticles, ribbonSpawnRate);
     ribbon.SetRenderMode(Aether::EParticleRenderMode::Ribbon);
     ribbon.SetRibbonWidthScale(0.01f);
+
+    constexpr float bezierKappa = 0.55228475f;
+    constexpr glm::vec2 ribbonCenter{ 0.0f, 0.08f };
+    constexpr glm::vec2 ribbonRadius{ 0.58f, 0.42f };
+    constexpr float segmentDuration = 0.25f;
+
     ribbon.AddSpawnModule<Aether::SetPositionBezierLoop>(
-        glm::vec2{ 0.0f, 0.42f },
-        glm::vec2{ 0.78f, 0.70f },
-        glm::vec2{ -0.78f, 0.14f },
-        ribbonLifetime
+        ribbonCenter + glm::vec2{ 0.0f, ribbonRadius.y },
+        ribbonCenter + glm::vec2{ ribbonRadius.x * bezierKappa, ribbonRadius.y },
+        ribbonCenter + glm::vec2{ ribbonRadius.x, ribbonRadius.y * bezierKappa },
+        ribbonCenter + glm::vec2{ ribbonRadius.x, 0.0f },
+        ribbonLifetime,
+        0.0f,
+        0.0f,
+        segmentDuration
+    );
+    ribbon.AddSpawnModule<Aether::SetPositionBezierLoop>(
+        ribbonCenter + glm::vec2{ ribbonRadius.x, 0.0f },
+        ribbonCenter + glm::vec2{ ribbonRadius.x, -ribbonRadius.y * bezierKappa },
+        ribbonCenter + glm::vec2{ ribbonRadius.x * bezierKappa, -ribbonRadius.y },
+        ribbonCenter + glm::vec2{ 0.0f, -ribbonRadius.y },
+        ribbonLifetime,
+        0.0f,
+        0.25f,
+        segmentDuration
+    );
+    ribbon.AddSpawnModule<Aether::SetPositionBezierLoop>(
+        ribbonCenter + glm::vec2{ 0.0f, -ribbonRadius.y },
+        ribbonCenter + glm::vec2{ -ribbonRadius.x * bezierKappa, -ribbonRadius.y },
+        ribbonCenter + glm::vec2{ -ribbonRadius.x, -ribbonRadius.y * bezierKappa },
+        ribbonCenter + glm::vec2{ -ribbonRadius.x, 0.0f },
+        ribbonLifetime,
+        0.0f,
+        0.5f,
+        segmentDuration
+    );
+    ribbon.AddSpawnModule<Aether::SetPositionBezierLoop>(
+        ribbonCenter + glm::vec2{ -ribbonRadius.x, 0.0f },
+        ribbonCenter + glm::vec2{ -ribbonRadius.x, ribbonRadius.y * bezierKappa },
+        ribbonCenter + glm::vec2{ -ribbonRadius.x * bezierKappa, ribbonRadius.y },
+        ribbonCenter + glm::vec2{ 0.0f, ribbonRadius.y },
+        ribbonLifetime,
+        0.0f,
+        0.75f,
+        segmentDuration
     );
     ribbon.AddSpawnModule<Aether::SetLifetime>(ribbonLifetime, ribbonLifetime);
     ribbon.AddSpawnModule<Aether::SetSize>(8.0f, 8.0f);

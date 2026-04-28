@@ -99,9 +99,9 @@ namespace Elixir::Aether
                     EParticleAttribute::Position,
                     UINT32_MAX,
                     UINT32_MAX,
-                    { typed->GetAnchor(), typed->GetControlA() },
-                    { typed->GetControlB(), typed->GetAnchor() },
-                    { typed->GetDuration(), typed->GetStartOffset(), 0.0f, 0.0f }
+                    { typed->GetStart(), typed->GetControlA() },
+                    { typed->GetControlB(), typed->GetEnd() },
+                    { typed->GetDuration(), typed->GetStartOffset(), typed->GetSegmentStart(), typed->GetSegmentLength() }
                 });
             }
             else if (const auto* typed = dynamic_cast<const SetVelocityCone*>(module.get()))

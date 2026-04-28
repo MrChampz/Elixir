@@ -90,27 +90,36 @@ namespace Elixir::Aether
     {
       public:
         explicit SetPositionBezierLoop(
-            glm::vec2 anchor,
+            glm::vec2 start,
             glm::vec2 controlA,
             glm::vec2 controlB,
+            glm::vec2 end,
             float duration,
-            float startOffset = 0.0f
+            float startOffset = 0.0f,
+            float segmentStart = 0.0f,
+            float segmentLength = 1.0f
         );
 
         void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override;
 
-        glm::vec2 GetAnchor() const { return m_Anchor; }
+        glm::vec2 GetStart() const { return m_Start; }
         glm::vec2 GetControlA() const { return m_ControlA; }
         glm::vec2 GetControlB() const { return m_ControlB; }
+        glm::vec2 GetEnd() const { return m_End; }
         float GetDuration() const { return m_Duration; }
         float GetStartOffset() const { return m_StartOffset; }
+        float GetSegmentStart() const { return m_SegmentStart; }
+        float GetSegmentLength() const { return m_SegmentLength; }
 
       private:
-        glm::vec2 m_Anchor;
+        glm::vec2 m_Start;
         glm::vec2 m_ControlA;
         glm::vec2 m_ControlB;
+        glm::vec2 m_End;
         float m_Duration;
         float m_StartOffset;
+        float m_SegmentStart;
+        float m_SegmentLength;
     };
 
     class ELIXIR_API SetVelocityCone final : public ParticleSpawnModule

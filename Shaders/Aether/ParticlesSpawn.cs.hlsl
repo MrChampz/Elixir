@@ -142,6 +142,15 @@ float BezierTAtArcLength(float2 p0, float2 p1, float2 p2, float2 p3, float norma
     return 1.0;
 }
 
+bool InLoopSegment(float phase, float segmentStart, float segmentLength, out float segmentPhase)
+{
+    float length = max(segmentLength, 0.000001);
+    float start = frac(segmentStart);
+    float delta = frac(phase - start + 1.0);
+    segmentPhase = saturate(delta / length);
+    return delta < length;
+}
+
 bool InSpawnRange(uint localIndex, uint start, uint count, uint capacity)
 {
     if (count == 0)
@@ -243,9 +252,17 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             float2 p3 = module.Data1.zw;
             float duration = max(module.Data2.x, 0.001);
             float startOffset = module.Data2.y;
-            float t = BezierTAtArcLength(p0, p1, p2, p3, (TimeData.y + startOffset) / duration);
-            position = CubicBezier(p0, p1, p2, p3, t);
-            tangent = SafeNormalize(CubicBezierDerivative(p0, p1, p2, p3, t), tangent);
+            float segmentStart = module.Data2.z;
+            float segmentLength = module.Data2.w;
+            float phase = frac((TimeData.y + startOffset) / duration);
+            float segmentPhase = 0.0;
+
+            if (InLoopSegment(phase, segmentStart, segmentLength, segmentPhase))
+            {
+                float t = BezierTAtArcLength(p0, p1, p2, p3, segmentPhase);
+                position = CubicBezier(p0, p1, p2, p3, t);
+                tangent = SafeNormalize(CubicBezierDerivative(p0, p1, p2, p3, t), tangent);
+            }
         }
     }
 
