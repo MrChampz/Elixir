@@ -18,6 +18,7 @@ layout(set = 0, binding = 1, std430) readonly buffer ParticlesBuffer {
 layout(push_constant) uniform PushConstants {
     uint ParticleOffset;
     uint MaxParticles;
+    uint HeadIndex;
     float WidthScale;
 } pc;
 
@@ -26,14 +27,19 @@ layout(location = 1) out vec2 outUV;
 
 const uint kCornerLUT[6] = uint[6](0u, 1u, 2u, 1u, 3u, 2u);
 
+uint chronoToBuffer(uint chrono) {
+    uint ringIndex = (pc.HeadIndex + pc.MaxParticles - chrono) % pc.MaxParticles;
+    return pc.ParticleOffset + ringIndex;
+}
+
 void main() {
     uint vertexIndex = uint(gl_VertexIndex);
     uint segmentIndex = vertexIndex / 6u;
     uint cornerIndex = vertexIndex % 6u;
     uint corner = kCornerLUT[cornerIndex];
 
-    uint i0 = pc.ParticleOffset + segmentIndex;
-    uint i1 = pc.ParticleOffset + segmentIndex + 1u;
+    uint i0 = chronoToBuffer(segmentIndex);
+    uint i1 = chronoToBuffer(segmentIndex + 1u);
 
     ParticleState p0 = particles.data[i0];
     ParticleState p1 = particles.data[i1];

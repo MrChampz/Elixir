@@ -129,9 +129,13 @@ namespace Elixir::Aether
                     spritePipelineBound = false;
                 }
 
+                const uint32_t headIndex =
+                    (m_SpawnCursors[i] + emitter.MaxParticles - 1u) % emitter.MaxParticles;
+
                 const SRibbonPushConstants ribbonPushConstants{
                     emitter.ParticleOffset,
                     emitter.MaxParticles,
+                    headIndex,
                     emitter.RibbonWidthScale
                 };
                 m_RibbonShader->SetPushConstant(cmd, "pc", (void*)&ribbonPushConstants, sizeof(SRibbonPushConstants));

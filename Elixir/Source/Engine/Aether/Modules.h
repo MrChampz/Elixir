@@ -20,7 +20,8 @@ namespace Elixir::Aether
         ApplyLinearDrag,
         ColorOverLife,
         SizeOverLife,
-        KillOutsideBounds
+        KillOutsideBounds,
+        SetPositionOnCircle
     };
 
     struct SGPUModule
@@ -62,6 +63,25 @@ namespace Elixir::Aether
       private:
         glm::vec2 m_Center;
         float m_Radius;
+    };
+
+    class ELIXIR_API SetPositionOnCircle final : public ParticleSpawnModule
+    {
+      public:
+        explicit SetPositionOnCircle(glm::vec2 center, float radius, float angularSpeed, float startAngle = 0.0f);
+
+        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override;
+
+        glm::vec2 GetCenter() const { return m_Center; }
+        float GetRadius() const { return m_Radius; }
+        float GetAngularSpeed() const { return m_AngularSpeed; }
+        float GetStartAngle() const { return m_StartAngle; }
+
+      private:
+        glm::vec2 m_Center;
+        float m_Radius;
+        float m_AngularSpeed;
+        float m_StartAngle;
     };
 
     class ELIXIR_API SetVelocityCone final : public ParticleSpawnModule

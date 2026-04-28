@@ -43,6 +43,7 @@ namespace Elixir::Aether
     {
         uint32_t ParticleOffset = 0;
         uint32_t MaxParticles = 0;
+        uint32_t HeadIndex = 0;
         float WidthScale = 1.0f;
     };
 

@@ -156,6 +156,15 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         {
             color = ResolveValue(param0, module.Data0);
         }
+        else if (type == 11u) // SetPositionOnCircle
+        {
+            float2 center = module.Data0.xy;
+            float radius = module.Data0.z;
+            float angularSpeed = module.Data0.w;
+            float startAngle = module.Data1.x;
+            float angle = TimeData.y * angularSpeed + startAngle;
+            position = center + float2(cos(angle), sin(angle)) * radius;
+        }
     }
 
     particles[globalIndex].PositionSize = float4(position, size, 1.0);

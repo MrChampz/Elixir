@@ -91,20 +91,20 @@ Dissolve::Dissolve()
     sparks.AddUpdateModule<Aether::SizeOverLife>(16.0f, 2.5f);
     sparks.AddUpdateModule<Aether::KillOutsideBounds>(glm::vec2{ -1.45f, -1.2f }, glm::vec2{ 1.45f, 1.35f });
 
-    auto& ribbon = m_ParticleSystem->AddEmitter("AuroraRibbon", 256, 80.0f);
+    constexpr uint32_t ribbonParticles = 256;
+    constexpr float ribbonLifetime = 4.0f;
+    constexpr float ribbonSpawnRate = (float)ribbonParticles / ribbonLifetime;
+    constexpr float ribbonAngularSpeed = 6.28318530718f / ribbonLifetime;
+
+    auto& ribbon = m_ParticleSystem->AddEmitter("AuroraRibbon", ribbonParticles, ribbonSpawnRate);
     ribbon.SetRenderMode(Aether::EParticleRenderMode::Ribbon);
-    ribbon.SetRibbonWidthScale(0.012f);
-    ribbon.AddSpawnModule<Aether::SetPositionCircle>(glm::vec2{ 0.0f, 0.2f }, 0.02f);
-    ribbon.AddSpawnModule<Aether::SetVelocityCone>(0.6f, 2.55f, 0.42f, 0.62f);
-    ribbon.AddSpawnModule<Aether::SetLifetime>(2.4f, 3.2f);
-    ribbon.AddSpawnModule<Aether::SetSize>(18.0f, 18.0f);
+    ribbon.SetRibbonWidthScale(0.01f);
+    ribbon.AddSpawnModule<Aether::SetPositionOnCircle>(glm::vec2{ 0.0f, 0.0f }, 0.5f, ribbonAngularSpeed);
+    ribbon.AddSpawnModule<Aether::SetLifetime>(ribbonLifetime, ribbonLifetime);
+    ribbon.AddSpawnModule<Aether::SetSize>(8.0f, 8.0f);
     ribbon.AddSpawnModule<Aether::SetColor>(glm::vec4{ 0.55f, 0.92f, 1.0f, 0.95f });
 
-    ribbon.AddUpdateModule<Aether::ApplyGravity>(glm::vec2{ 0.0f, -0.05f });
-    ribbon.AddUpdateModule<Aether::ApplyLinearDrag>(0.12f);
-    ribbon.AddUpdateModule<Aether::IntegrateVelocity>();
     ribbon.AddUpdateModule<Aether::ColorOverLife>(glm::vec4{ 0.55f, 0.92f, 1.0f, 0.95f }, glm::vec4{ 0.78f, 0.36f, 1.0f, 0.0f });
-    ribbon.AddUpdateModule<Aether::KillOutsideBounds>(glm::vec2{ -1.45f, -1.2f }, glm::vec2{ 1.45f, 1.35f });
 
     m_GPUSystem = m_ParticleSystem->Build();
 
