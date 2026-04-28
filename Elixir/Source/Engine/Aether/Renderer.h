@@ -23,6 +23,7 @@ namespace Elixir::Aether
         glm::vec4 Header{};
         glm::vec4 Data0{};
         glm::vec4 Data1{};
+        glm::vec4 Data2{};
     };
 
     struct alignas(16) SParameterData

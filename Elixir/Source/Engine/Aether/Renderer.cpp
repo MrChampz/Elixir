@@ -47,6 +47,7 @@ namespace Elixir::Aether
 
         desc.Data0 = module.Data0;
         desc.Data1 = module.Data1;
+        desc.Data2 = module.Data2;
 
         return desc;
     }

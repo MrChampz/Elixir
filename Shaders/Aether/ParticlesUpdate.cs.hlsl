@@ -24,6 +24,7 @@ struct Module
     float4 Header; // x = type, y = unused, z = parameter 0 index, w = parameter 1 index
     float4 Data0;
     float4 Data1;
+    float4 Data2;
 };
 
 [[vk::binding(2, 0)]]

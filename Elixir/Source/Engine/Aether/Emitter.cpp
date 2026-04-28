@@ -92,6 +92,18 @@ namespace Elixir::Aether
                     { typed->GetStartAngle(), 0.0f, 0.0f, 0.0f }
                 });
             }
+            else if (const auto* typed = dynamic_cast<const SetPositionBezierLoop*>(module.get()))
+            {
+                modules.push_back({
+                    EModuleType::SetPositionBezierLoop,
+                    EParticleAttribute::Position,
+                    UINT32_MAX,
+                    UINT32_MAX,
+                    { typed->GetAnchor(), typed->GetControlA() },
+                    { typed->GetControlB(), typed->GetAnchor() },
+                    { typed->GetDuration(), typed->GetStartOffset(), 0.0f, 0.0f }
+                });
+            }
             else if (const auto* typed = dynamic_cast<const SetVelocityCone*>(module.get()))
             {
                 modules.push_back({

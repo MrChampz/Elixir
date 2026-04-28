@@ -21,7 +21,8 @@ namespace Elixir::Aether
         ColorOverLife,
         SizeOverLife,
         KillOutsideBounds,
-        SetPositionOnCircle
+        SetPositionOnCircle,
+        SetPositionBezierLoop
     };
 
     struct SGPUModule
@@ -32,6 +33,7 @@ namespace Elixir::Aether
         uint32_t Parameter1Index = UINT32_MAX;
         glm::vec4 Data0{};
         glm::vec4 Data1{};
+        glm::vec4 Data2{};
     };
 
     class ParticleSpawnModule
@@ -82,6 +84,33 @@ namespace Elixir::Aether
         float m_Radius;
         float m_AngularSpeed;
         float m_StartAngle;
+    };
+
+    class ELIXIR_API SetPositionBezierLoop final : public ParticleSpawnModule
+    {
+      public:
+        explicit SetPositionBezierLoop(
+            glm::vec2 anchor,
+            glm::vec2 controlA,
+            glm::vec2 controlB,
+            float duration,
+            float startOffset = 0.0f
+        );
+
+        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override;
+
+        glm::vec2 GetAnchor() const { return m_Anchor; }
+        glm::vec2 GetControlA() const { return m_ControlA; }
+        glm::vec2 GetControlB() const { return m_ControlB; }
+        float GetDuration() const { return m_Duration; }
+        float GetStartOffset() const { return m_StartOffset; }
+
+      private:
+        glm::vec2 m_Anchor;
+        glm::vec2 m_ControlA;
+        glm::vec2 m_ControlB;
+        float m_Duration;
+        float m_StartOffset;
     };
 
     class ELIXIR_API SetVelocityCone final : public ParticleSpawnModule

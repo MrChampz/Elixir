@@ -56,6 +56,30 @@ namespace Elixir::Aether
         particle.Position = m_Center + fromAngle(m_StartAngle) * m_Radius;
     }
 
+    /* SetPositionBezierLoop */
+
+    SetPositionBezierLoop::SetPositionBezierLoop(
+        const glm::vec2 anchor,
+        const glm::vec2 controlA,
+        const glm::vec2 controlB,
+        const float duration,
+        const float startOffset
+    ) : m_Anchor(anchor),
+        m_ControlA(controlA),
+        m_ControlB(controlB),
+        m_Duration(duration),
+        m_StartOffset(startOffset) {}
+
+    void SetPositionBezierLoop::Apply(
+        SParticle& particle,
+        SSpawnContext& context,
+        const ParameterStore& params
+    ) const
+    {
+        // CPU stub: GPU spawn shader advances along the loop using elapsed time.
+        particle.Position = m_Anchor;
+    }
+
     /* SetVelocityCone */
 
     SetVelocityCone::SetVelocityCone(

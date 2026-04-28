@@ -24,6 +24,7 @@ struct Module
     float4 Header; // x = type, y = unused, z = parameter 0 index, w = parameter 1 index
     float4 Data0;
     float4 Data1;
+    float4 Data2;
 };
 
 [[vk::binding(2, 0)]]
@@ -66,6 +67,15 @@ float4 ResolveValue(int parameterIndex, float4 fallbackValue)
         return fallbackValue;
 
     return parameters[parameterIndex].Value;
+}
+
+float2 CubicBezier(float2 p0, float2 p1, float2 p2, float2 p3, float t)
+{
+    float u = 1.0 - t;
+    return (u * u * u * p0) +
+        (3.0 * u * u * t * p1) +
+        (3.0 * u * t * t * p2) +
+        (t * t * t * p3);
 }
 
 bool InSpawnRange(uint localIndex, uint start, uint count, uint capacity)
@@ -155,6 +165,17 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             float startAngle = module.Data1.x;
             float angle = TimeData.y * angularSpeed + startAngle;
             position = center + float2(cos(angle), sin(angle)) * radius;
+        }
+        else if (type == 12u) // SetPositionBezierLoop
+        {
+            float2 p0 = module.Data0.xy;
+            float2 p1 = module.Data0.zw;
+            float2 p2 = module.Data1.xy;
+            float2 p3 = module.Data1.zw;
+            float duration = max(module.Data2.x, 0.001);
+            float startOffset = module.Data2.y;
+            float t = frac((TimeData.y + startOffset) / duration);
+            position = CubicBezier(p0, p1, p2, p3, t);
         }
     }
 
