@@ -103,15 +103,16 @@ Dissolve::Dissolve()
     ribbon.SetRenderMode(Aether::EParticleRenderMode::Ribbon);
     ribbon.SetRibbonWidthScale(0.005f);
 
-    const glm::vec2 ribbonCenter{ 0.0f, 0.04f };
-    const std::array<glm::vec2, 7> ribbonAnchors{
-        ribbonCenter + glm::vec2{ -0.18f,  0.55f },
-        ribbonCenter + glm::vec2{  0.46f,  0.46f },
-        ribbonCenter + glm::vec2{  0.70f,  0.04f },
-        ribbonCenter + glm::vec2{  0.32f, -0.42f },
-        ribbonCenter + glm::vec2{ -0.28f, -0.50f },
-        ribbonCenter + glm::vec2{ -0.66f, -0.12f },
-        ribbonCenter + glm::vec2{ -0.52f,  0.36f }
+    const glm::vec2 ribbonCenter{ 0.0f, 0.06f };
+    const std::array<glm::vec2, 8> ribbonAnchors{
+        ribbonCenter + glm::vec2{  0.00f,  0.00f },
+        ribbonCenter + glm::vec2{  0.34f,  0.34f },
+        ribbonCenter + glm::vec2{  0.70f,  0.00f },
+        ribbonCenter + glm::vec2{  0.34f, -0.34f },
+        ribbonCenter + glm::vec2{  0.00f,  0.00f },
+        ribbonCenter + glm::vec2{ -0.34f,  0.34f },
+        ribbonCenter + glm::vec2{ -0.70f,  0.00f },
+        ribbonCenter + glm::vec2{ -0.34f, -0.34f }
     };
 
     std::vector<Aether::SBezierCurve> ribbonPath;
