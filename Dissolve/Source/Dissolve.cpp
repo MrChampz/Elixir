@@ -4,6 +4,10 @@
 #include <Engine/Graphics/SamplerBuilder.h>
 #include <Engine/Aether/Renderer.h>
 
+#include <array>
+#include <utility>
+#include <vector>
+
 Ref<GraphicsPipeline> pipeline;
 Scope<Aether::Renderer> m_ParticlesRenderer;
 Scope<Aether::System> m_ParticleSystem;
@@ -97,53 +101,36 @@ Dissolve::Dissolve()
 
     auto& ribbon = m_ParticleSystem->AddEmitter("AuroraRibbon", ribbonParticles, ribbonSpawnRate);
     ribbon.SetRenderMode(Aether::EParticleRenderMode::Ribbon);
-    ribbon.SetRibbonWidthScale(0.01f);
+    ribbon.SetRibbonWidthScale(0.005f);
 
-    constexpr float bezierKappa = 0.55228475f;
-    constexpr glm::vec2 ribbonCenter{ 0.0f, 0.08f };
-    constexpr glm::vec2 ribbonRadius{ 0.58f, 0.42f };
-    constexpr float segmentDuration = 0.25f;
+    const glm::vec2 ribbonCenter{ 0.0f, 0.04f };
+    const std::array<glm::vec2, 7> ribbonAnchors{
+        ribbonCenter + glm::vec2{ -0.18f,  0.55f },
+        ribbonCenter + glm::vec2{  0.46f,  0.46f },
+        ribbonCenter + glm::vec2{  0.70f,  0.04f },
+        ribbonCenter + glm::vec2{  0.32f, -0.42f },
+        ribbonCenter + glm::vec2{ -0.28f, -0.50f },
+        ribbonCenter + glm::vec2{ -0.66f, -0.12f },
+        ribbonCenter + glm::vec2{ -0.52f,  0.36f }
+    };
 
-    ribbon.AddSpawnModule<Aether::SetPositionBezierLoop>(
-        ribbonCenter + glm::vec2{ 0.0f, ribbonRadius.y },
-        ribbonCenter + glm::vec2{ ribbonRadius.x * bezierKappa, ribbonRadius.y },
-        ribbonCenter + glm::vec2{ ribbonRadius.x, ribbonRadius.y * bezierKappa },
-        ribbonCenter + glm::vec2{ ribbonRadius.x, 0.0f },
-        ribbonLifetime,
-        0.0f,
-        0.0f,
-        segmentDuration
-    );
-    ribbon.AddSpawnModule<Aether::SetPositionBezierLoop>(
-        ribbonCenter + glm::vec2{ ribbonRadius.x, 0.0f },
-        ribbonCenter + glm::vec2{ ribbonRadius.x, -ribbonRadius.y * bezierKappa },
-        ribbonCenter + glm::vec2{ ribbonRadius.x * bezierKappa, -ribbonRadius.y },
-        ribbonCenter + glm::vec2{ 0.0f, -ribbonRadius.y },
-        ribbonLifetime,
-        0.0f,
-        0.25f,
-        segmentDuration
-    );
-    ribbon.AddSpawnModule<Aether::SetPositionBezierLoop>(
-        ribbonCenter + glm::vec2{ 0.0f, -ribbonRadius.y },
-        ribbonCenter + glm::vec2{ -ribbonRadius.x * bezierKappa, -ribbonRadius.y },
-        ribbonCenter + glm::vec2{ -ribbonRadius.x, -ribbonRadius.y * bezierKappa },
-        ribbonCenter + glm::vec2{ -ribbonRadius.x, 0.0f },
-        ribbonLifetime,
-        0.0f,
-        0.5f,
-        segmentDuration
-    );
-    ribbon.AddSpawnModule<Aether::SetPositionBezierLoop>(
-        ribbonCenter + glm::vec2{ -ribbonRadius.x, 0.0f },
-        ribbonCenter + glm::vec2{ -ribbonRadius.x, ribbonRadius.y * bezierKappa },
-        ribbonCenter + glm::vec2{ -ribbonRadius.x * bezierKappa, ribbonRadius.y },
-        ribbonCenter + glm::vec2{ 0.0f, ribbonRadius.y },
-        ribbonLifetime,
-        0.0f,
-        0.75f,
-        segmentDuration
-    );
+    std::vector<Aether::SBezierCurve> ribbonPath;
+    ribbonPath.reserve(ribbonAnchors.size());
+
+    constexpr float bezierTension = 1.0f;
+    for (size_t i = 0; i < ribbonAnchors.size(); ++i)
+    {
+        const auto previous = ribbonAnchors[(i + ribbonAnchors.size() - 1) % ribbonAnchors.size()];
+        const auto start = ribbonAnchors[i];
+        const auto end = ribbonAnchors[(i + 1) % ribbonAnchors.size()];
+        const auto next = ribbonAnchors[(i + 2) % ribbonAnchors.size()];
+
+        const auto controlA = start + ((end - previous) * (bezierTension / 6.0f));
+        const auto controlB = end - ((next - start) * (bezierTension / 6.0f));
+        ribbonPath.push_back({ start, controlA, controlB, end });
+    }
+
+    ribbon.AddSpawnModule<Aether::SetPositionBezierLoop>(std::move(ribbonPath), ribbonLifetime);
     ribbon.AddSpawnModule<Aether::SetLifetime>(ribbonLifetime, ribbonLifetime);
     ribbon.AddSpawnModule<Aether::SetSize>(8.0f, 8.0f);
     ribbon.AddSpawnModule<Aether::SetColor>(glm::vec4{ 0.55f, 0.92f, 1.0f, 0.95f });

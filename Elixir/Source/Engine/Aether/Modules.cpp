@@ -59,22 +59,12 @@ namespace Elixir::Aether
     /* SetPositionBezierLoop */
 
     SetPositionBezierLoop::SetPositionBezierLoop(
-        const glm::vec2 start,
-        const glm::vec2 controlA,
-        const glm::vec2 controlB,
-        const glm::vec2 end,
+        std::vector<SBezierCurve> curves,
         const float duration,
-        const float startOffset,
-        const float segmentStart,
-        const float segmentLength
-    ) : m_Start(start),
-        m_ControlA(controlA),
-        m_ControlB(controlB),
-        m_End(end),
+        const float startOffset
+    ) : m_Curves(std::move(curves)),
         m_Duration(duration),
-        m_StartOffset(startOffset),
-        m_SegmentStart(segmentStart),
-        m_SegmentLength(segmentLength) {}
+        m_StartOffset(startOffset) {}
 
     void SetPositionBezierLoop::Apply(
         SParticle& particle,
@@ -83,7 +73,8 @@ namespace Elixir::Aether
     ) const
     {
         // CPU stub: GPU spawn shader advances along the loop using elapsed time.
-        particle.Position = m_Start;
+        if (!m_Curves.empty())
+            particle.Position = m_Curves.front().Start;
     }
 
     /* SetVelocityCone */

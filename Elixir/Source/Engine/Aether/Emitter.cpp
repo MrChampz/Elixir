@@ -5,6 +5,38 @@
 
 namespace Elixir::Aether
 {
+    glm::vec2 cubicBezier(
+        const glm::vec2 p0,
+        const glm::vec2 p1,
+        const glm::vec2 p2,
+        const glm::vec2 p3,
+        const float t
+    )
+    {
+        const float u = 1.0f - t;
+        return (u * u * u * p0) +
+            (3.0f * u * u * t * p1) +
+            (3.0f * u * t * t * p2) +
+            (t * t * t * p3);
+    }
+
+    float approximateBezierLength(const SBezierCurve& curve)
+    {
+        constexpr uint32_t steps = 24;
+        glm::vec2 previous = curve.Start;
+        float length = 0.0f;
+
+        for (uint32_t i = 1; i <= steps; ++i)
+        {
+            const float t = (float)i / (float)steps;
+            const glm::vec2 current = cubicBezier(curve.Start, curve.ControlA, curve.ControlB, curve.End, t);
+            length += glm::length(current - previous);
+            previous = current;
+        }
+
+        return length;
+    }
+
     Emitter::Emitter(
         const std::string& name,
         const uint32_t maxParticles,
@@ -94,15 +126,43 @@ namespace Elixir::Aether
             }
             else if (const auto* typed = dynamic_cast<const SetPositionBezierLoop*>(module.get()))
             {
-                modules.push_back({
-                    EModuleType::SetPositionBezierLoop,
-                    EParticleAttribute::Position,
-                    UINT32_MAX,
-                    UINT32_MAX,
-                    { typed->GetStart(), typed->GetControlA() },
-                    { typed->GetControlB(), typed->GetEnd() },
-                    { typed->GetDuration(), typed->GetStartOffset(), typed->GetSegmentStart(), typed->GetSegmentLength() }
-                });
+                const auto& curves = typed->GetCurves();
+                if (curves.empty())
+                    continue;
+
+                std::vector<float> lengths;
+                lengths.reserve(curves.size());
+
+                float totalLength = 0.0f;
+                for (const auto& curve : curves)
+                {
+                    const float length = approximateBezierLength(curve);
+                    lengths.push_back(length);
+                    totalLength += length;
+                }
+
+                const bool useEqualSegments = totalLength <= 0.0001f;
+                float segmentStart = 0.0f;
+
+                for (size_t curveIndex = 0; curveIndex < curves.size(); ++curveIndex)
+                {
+                    const auto& curve = curves[curveIndex];
+                    const float segmentLength = curveIndex + 1 == curves.size()
+                        ? 1.0f - segmentStart
+                        : (useEqualSegments ? (1.0f / (float)curves.size()) : (lengths[curveIndex] / totalLength));
+
+                    modules.push_back({
+                        EModuleType::SetPositionBezierLoop,
+                        EParticleAttribute::Position,
+                        UINT32_MAX,
+                        UINT32_MAX,
+                        { curve.Start, curve.ControlA },
+                        { curve.ControlB, curve.End },
+                        { typed->GetDuration(), typed->GetStartOffset(), segmentStart, segmentLength }
+                    });
+
+                    segmentStart += segmentLength;
+                }
             }
             else if (const auto* typed = dynamic_cast<const SetVelocityCone*>(module.get()))
             {
