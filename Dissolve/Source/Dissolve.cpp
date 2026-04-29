@@ -63,15 +63,19 @@ Dissolve::Dissolve()
     m_ParticleSystem->GetParameters().SetFloat4("SparkColorStart", { 0.98f, 0.62f, 1.0f, 0.92f });
     m_ParticleSystem->GetParameters().SetFloat4("SparkColorEnd", { 0.44f, 0.1f, 0.78f, 0.0f });
 
-    auto& ribbon = m_ParticleSystem->AddEmitter("PathRibbon", 240, 90.0f);
-    ribbon.SetRenderMode(Aether::EParticleRenderMode::Ribbon);
-    ribbon.AddSpawnModule<Aether::SetLifetime>(2.2f, 2.8f);
-    ribbon.AddSpawnModule<Aether::SetSize>(14.0f, 20.0f);
-    ribbon.AddSpawnModule<Aether::SetColor>(glm::vec4{ 0.74f, 0.94f, 1.0f, 0.74f });
+    constexpr uint32_t ribbonParticles = 256;
+    constexpr float ribbonLifetime = 4.0f;
+    constexpr float ribbonSpawnRate = (float)ribbonParticles / ribbonLifetime;
+    constexpr float ribbonAngularSpeed = 6.28318530718f / ribbonLifetime;
 
-    ribbon.AddUpdateModule<Aether::ColorOverLife>(glm::vec4{ 0.74f, 0.94f, 1.0f, 0.74f }, glm::vec4{ 0.2f, 0.46f, 0.88f, 0.0f });
-    ribbon.AddUpdateModule<Aether::SizeOverLife>(18.0f, 3.0f);
-    ribbon.AddUpdateModule<Aether::KillOutsideBounds>(glm::vec2{ -1.45f, -1.2f }, glm::vec2{ 1.45f, 1.35f });
+    auto& ribbon = m_ParticleSystem->AddEmitter("AuroraRibbon", ribbonParticles, ribbonSpawnRate);
+    ribbon.SetRenderMode(Aether::EParticleRenderMode::Ribbon);
+    ribbon.AddSpawnModule<Aether::SetPositionOnCircle>(glm::vec2{ 0.0f, 0.0f }, 0.5f, ribbonAngularSpeed);
+    ribbon.AddSpawnModule<Aether::SetLifetime>(ribbonLifetime, ribbonLifetime);
+    ribbon.AddSpawnModule<Aether::SetSize>(14.0f, 20.0f);
+    ribbon.AddSpawnModule<Aether::SetColor>(glm::vec4{ 0.55f, 0.92f, 1.0f, 0.95f });
+
+    ribbon.AddUpdateModule<Aether::ColorOverLife>(glm::vec4{ 0.55f, 0.92f, 1.0f, 0.95f }, glm::vec4{ 0.78f, 0.36f, 1.0f, 0.0f });
 
     auto& fountain = m_ParticleSystem->AddEmitter("PurpleFountain", 1600, 120.0f);
     fountain.AddSpawnModule<Aether::SetPositionCircle>(glm::vec2{ 0.0f, -0.86f }, 0.07f);

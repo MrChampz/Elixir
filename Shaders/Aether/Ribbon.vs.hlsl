@@ -1,6 +1,6 @@
 struct ParticleState
 {
-    float4 PositionSize;    // xy = position, z = size
+    float4 PositionSize;    // xy = position, z = size, w = alive
     float4 VelocityAge;     // xy = velocity, z = age, w = lifetime
     float4 Color;
     float4 Metadata;        // x = emitter index, y = random seed
@@ -24,9 +24,8 @@ cbuffer cbParams : register(b1)
 
 struct PushConstants {
     uint ParticleOffset;
-    uint ParticleCapacity;
-    uint StartIndex;
-    uint ParticleCount;
+    uint MaxParticles;
+    uint HeadIndex;
     float WidthScale;
 };
 
@@ -40,23 +39,23 @@ struct VSOutput
     float2 UV            : TEXCOORD0;
 };
 
-uint GetGlobalParticleIndex(uint localIndex)
+uint ChronoToBuffer(uint chrono)
 {
-    uint wrappedIndex = (pc.StartIndex + localIndex) % max(pc.ParticleCapacity, 1u);
-    return pc.ParticleOffset + wrappedIndex;
+    uint capacity = max(pc.MaxParticles, 1u);
+    uint ringIndex = (pc.HeadIndex + capacity - chrono) % capacity;
+    return pc.ParticleOffset + ringIndex;
 }
 
-ParticleState LoadParticle(uint localIndex)
+ParticleState LoadChrono(uint chrono)
 {
-    uint index = GetGlobalParticleIndex(localIndex);
-    return particles[index];
+    return particles[ChronoToBuffer(chrono)];
 }
 
 float2 GetSafeDirection(float2 direction)
 {
     float lengthSquared = dot(direction, direction);
     if (lengthSquared < 0.000001)
-        return float2(0.0, 1.0); // Default direction if the input direction is too small
+        return float2(0.0, 1.0);
 
     return direction * rsqrt(lengthSquared);
 }
@@ -67,20 +66,22 @@ VSOutput main(uint vertexId : SV_VertexID)
 
     uint segmentIndex = vertexId / 6u;
     uint cornerIndex = vertexId % 6u;
-    uint particleCount = max(pc.ParticleCount, 1u);
+    uint maxParticles = max(pc.MaxParticles, 1u);
 
-    const uint localIndices[6] = { segmentIndex, segmentIndex, segmentIndex + 1u, segmentIndex, segmentIndex + 1u, segmentIndex + 1u };
-    const float sides[6] = { -1.0f, 1.0f, 1.0f, -1.0, 1.0, -1.0 };
+    const uint chronos[6] = { segmentIndex, segmentIndex, segmentIndex + 1u, segmentIndex, segmentIndex + 1u, segmentIndex + 1u };
+    const float sides[6] = { -1.0f, 1.0f, 1.0f, -1.0f, 1.0f, -1.0f };
     const float longitudinal[6] = { 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f };
 
-    uint localIndex = min(localIndices[cornerIndex], particleCount - 1u);
-    ParticleState current = LoadParticle(localIndex);
-    uint nextIndex = min(localIndex + 1u, particleCount - 1u);
-    ParticleState next = LoadParticle(nextIndex);
+    uint chrono = min(chronos[cornerIndex], maxParticles - 1u);
+    ParticleState current = LoadChrono(chrono);
+    uint nextChrono = min(chrono + 1u, maxParticles - 1u);
+    ParticleState next = LoadChrono(nextChrono);
 
     float2 currentPosition = current.PositionSize.xy;
     float2 nextPosition = next.PositionSize.xy;
-    float2 tangent = GetSafeDirection(nextPosition - currentPosition);
+
+    // Tangent points from older to newer (head direction); for chrono ordering newer = lower chrono.
+    float2 tangent = GetSafeDirection(currentPosition - nextPosition);
     float2 normal = float2(-tangent.y, tangent.x);
 
     float side = sides[cornerIndex];
@@ -100,7 +101,7 @@ VSOutput main(uint vertexId : SV_VertexID)
     output.Color = float4(color.rgb, color.a * alive);
 
     float2 uv = float2(
-        particleCount > 1u ? ((float)localIndex / (float)(particleCount - 1u)) : 0.0f,
+        maxParticles > 1u ? ((float)chrono / (float)(maxParticles - 1u)) : 0.0f,
         side > 0.0 ? 1.0 : 0.0
     );
     output.UV = uv;
