@@ -49,6 +49,20 @@ namespace Elixir::Aether
         float WidthScale = 1.0f;
     };
 
+    struct SEmitterState
+    {
+        float Accumulator = 0.0f;
+        uint32_t BufferCursor = 0u;
+        uint32_t SpawnedParticles = 0u;
+
+        void Reset()
+        {
+            Accumulator = 0.0f;
+            BufferCursor = 0u;
+            SpawnedParticles = 0u;
+        }
+    };
+
     class ELIXIR_API Renderer final
     {
       public:
@@ -64,7 +78,7 @@ namespace Elixir::Aether
         void Render(const SGPUSystem& system, const Camera& camera);
 
       private:
-        void InitRingBuffer();
+        void InitEmitterState();
         void InitRenderPass(const ShaderLoader* shaderLoader);
         void CreateBuffers();
         void InitPerFrameData();
@@ -96,13 +110,12 @@ namespace Elixir::Aether
         Ref<GraphicsPipeline> m_RibbonPipeline;
 
         Ref<StorageBuffer> m_ParticleBuffer;
+        std::vector<SEmitterState> m_EmitterState;
+
         Ref<DynamicStorageBuffer> m_EmitterBuffer;
         Ref<DynamicStorageBuffer> m_ModuleBuffer;
         Ref<DynamicStorageBuffer> m_ParameterBuffer;
         Ref<UniformBuffer> m_ParamsBuffer;
-
-        std::vector<float> m_SpawnAccumulators;
-        std::vector<uint32_t> m_SpawnCursors;
 
         float m_LastDeltaTimeSeconds = 0.0f;
         float m_ElapsedTimeSeconds = 0.0f;
