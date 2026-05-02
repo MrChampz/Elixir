@@ -71,7 +71,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     uint emitterIndex = (uint)(state.Metadata.x + 0.5);
     Emitter emitter = emitters[emitterIndex];
     float dt = TimeData.x;
-    bool isRibbon = ((uint)(emitter.MetaC.x + 0.5)) == 1u;
+    bool isImmortal = state.PositionSize.w >= 1.5;
 
     float2 position = state.PositionSize.xy;
     float2 velocity = state.VelocityAge.xy;
@@ -79,10 +79,8 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     float size = state.PositionSize.z;
     float age = state.VelocityAge.z + dt;
     float lifetime = max(state.VelocityAge.w, 0.001);
-    if (isRibbon)
-        age = min(age, lifetime * 0.995);
     float life = clamp(age / lifetime, 0.0, 1.0);
-    bool kill = !isRibbon && age >= lifetime;
+    bool kill = !isImmortal && age >= lifetime;
 
     uint moduleOffset = (uint)emitter.MetaB.x;
     uint moduleCount = (uint)emitter.MetaB.y;
@@ -117,7 +115,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         {
             bool outsideBounds = position.x < module.Data0.x || position.x > module.Data1.x ||
                                  position.y < module.Data0.y || position.y > module.Data1.y;
-            kill = kill || (!isRibbon && outsideBounds);
+            kill = kill || (!isImmortal && outsideBounds);
         }
     }
 

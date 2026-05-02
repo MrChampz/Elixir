@@ -7,6 +7,20 @@
 
 namespace Elixir::Aether
 {
+    struct SSpawnPushConstants
+    {
+        uint32_t EmitterIndex = 0;
+    };
+
+    struct SRibbonPushConstants
+    {
+        uint32_t ParticleOffset = 0;
+        uint32_t MaxParticles = 0;
+        uint32_t HeadIndex = 0;
+        uint32_t ParticleCount = 0;
+        float WidthScale = 1.0f;
+    };
+
     SEmitterData ToEmitterDescription(const SGPUEmitter& emitter)
     {
         SEmitterData desc{};
@@ -147,6 +161,7 @@ namespace Elixir::Aether
                     emitter.ParticleOffset,
                     emitter.MaxParticles,
                     headIndex,
+                    particleCount,
                     emitter.RibbonWidthScale
                 };
                 m_RibbonShader->SetPushConstant(cmd, "pc", (void*)&ribbonPushConstants, sizeof(SRibbonPushConstants));
@@ -246,10 +261,10 @@ namespace Elixir::Aether
 
     void Renderer::CreateBuffers()
     {
+        m_ParticleBuffer = StorageBuffer::Create(m_GraphicsContext, sizeof(SGPUParticleState) * MAX_PARTICLES);
         m_EmitterBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SEmitterData) * MAX_EMITTERS);
         m_ModuleBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SModuleData) * MAX_MODULES);
         m_ParameterBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SParameterData) * MAX_PARAMETERS);
-        m_ParticleBuffer = StorageBuffer::Create(m_GraphicsContext, sizeof(SGPUParticleState) * MAX_PARTICLES);
         m_ParamsBuffer = UniformBuffer::Create(m_GraphicsContext, sizeof(SParamsData));
     }
 

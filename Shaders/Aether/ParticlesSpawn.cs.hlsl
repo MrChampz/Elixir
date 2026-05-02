@@ -194,6 +194,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
     uint moduleOffset = (uint)emitter.MetaA.z;
     uint moduleCount = (uint)emitter.MetaA.w;
+	bool isRibbon = ((uint)(emitter.MetaC.x + 0.5)) == 1u;
 
     for (uint i = 0u; i < moduleCount; ++i)
     {
@@ -270,4 +271,9 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     particles[globalIndex].VelocityAge = float4(velocity, 0.0, lifetime);
     particles[globalIndex].Color = color;
     particles[globalIndex].Metadata = float4(float(pc.EmitterIndex), Hash1(float(globalIndex)), tangent);
+
+	if (isRibbon)
+	{
+		particles[globalIndex].PositionSize.w = 2.0f; // immortal particle
+	}
 }

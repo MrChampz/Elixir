@@ -36,19 +36,6 @@ namespace Elixir::Aether
         glm::vec4 Time;
     };
 
-    struct SSpawnPushConstants
-    {
-        uint32_t EmitterIndex = 0;
-    };
-
-    struct SRibbonPushConstants
-    {
-        uint32_t ParticleOffset = 0;
-        uint32_t MaxParticles = 0;
-        uint32_t HeadIndex = 0;
-        float WidthScale = 1.0f;
-    };
-
     struct SEmitterState
     {
         float Accumulator = 0.0f;

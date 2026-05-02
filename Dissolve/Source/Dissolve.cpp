@@ -132,6 +132,7 @@ Dissolve::Dissolve()
     }
 
     ribbon.AddSpawnModule<Aether::SetPositionBezierLoop>(std::move(ribbonPath), ribbonLifetime);
+    //ribbon.AddSpawnModule<Aether::SetPositionOnCircle>(glm::vec2{ 0.0f, 0.0f }, 2.0f, 1.0f);
     ribbon.AddSpawnModule<Aether::SetLifetime>(ribbonLifetime, ribbonLifetime);
     ribbon.AddSpawnModule<Aether::SetSize>(8.0f, 8.0f);
     ribbon.AddSpawnModule<Aether::SetColor>(glm::vec4{ 0.55f, 0.92f, 1.0f, 0.95f });

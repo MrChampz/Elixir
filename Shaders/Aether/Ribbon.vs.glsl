@@ -19,6 +19,7 @@ layout(push_constant) uniform PushConstants {
     uint ParticleOffset;
     uint MaxParticles;
     uint HeadIndex;
+    uint ParticleCount;
     float WidthScale;
 } pc;
 
@@ -47,11 +48,14 @@ void main() {
     uint cornerIndex = vertexIndex % 6u;
     uint corner = kCornerLUT[cornerIndex];
 
-    uint i0 = chronoToBuffer(segmentIndex);
-    uint i1 = chronoToBuffer(segmentIndex + 1u);
+    uint nextChrono = (segmentIndex > 0u) ? segmentIndex - 1u : 0u;
+    uint prevChrono = (segmentIndex + 1u < pc.ParticleCount) ? segmentIndex + 1u : segmentIndex;
 
-    ParticleState p0 = particles.data[i0];
-    ParticleState p1 = particles.data[i1];
+    uint prev = chronoToBuffer(prevChrono);
+    uint curr = chronoToBuffer(segmentIndex);
+
+    ParticleState p0 = particles.data[prev];
+    ParticleState p1 = particles.data[curr];
 
     vec2 pos0 = p0.PositionSize.xy;
     vec2 pos1 = p1.PositionSize.xy;
@@ -83,8 +87,8 @@ void main() {
         baseColor.a = 0.0;
     }
 
-    float along = (pc.MaxParticles > 1u)
-        ? float(segmentIndex + (isTip ? 1u : 0u)) / float(pc.MaxParticles - 1u)
+    float along = (pc.ParticleCount > 1u)
+        ? float(segmentIndex + (isTip ? 1u : 0u)) / float(pc.ParticleCount - 1u)
         : 0.0;
 
     gl_Position = cbFrame.ViewProj * vec4(worldPos, 0.0, 1.0);
