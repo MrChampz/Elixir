@@ -15,8 +15,8 @@ namespace Elixir::Aether
     struct SRibbonPushConstants
     {
         uint32_t ParticleOffset = 0;
-        uint32_t ParticleCapacity = 0;
-        uint32_t StartIndex = 0;
+        uint32_t MaxParticles = 0;
+        uint32_t HeadIndex = 0;
         uint32_t ParticleCount = 0;
         float WidthScale = 1.0f;
     };
@@ -34,14 +34,14 @@ namespace Elixir::Aether
         desc.MetaB = {
             emitter.UpdateModuleOffset,
             emitter.UpdateModuleCount,
-            0.0f,
-            0.0f
+            emitter.SpawnRatePerSecond,
+            emitter.GravityScale
         };
 
         desc.MetaC = {
             (float)emitter.RenderMode,
-            emitter.SpawnRatePerSecond,
-            emitter.GravityScale,
+            0.0f,
+            0.0f,
             0.0f
         };
 
@@ -61,6 +61,7 @@ namespace Elixir::Aether
 
         desc.Data0 = module.Data0;
         desc.Data1 = module.Data1;
+        desc.Data2 = module.Data2;
 
         return desc;
     }
@@ -78,7 +79,7 @@ namespace Elixir::Aether
     {
         EE_CORE_INFO("Initializing Aether Renderer.")
 
-        InitRingBuffer();
+        InitEmitterState();
         InitRenderPass(shaderLoader);
         CreateBuffers();
         InitPerFrameData();
@@ -131,47 +132,62 @@ namespace Elixir::Aether
 
         BeginRendering(cmd);
 
-        for (uint32_t i = 0; i < m_ActiveEmitters.size(); ++i)
+        bool spritePipelineBound = false;
+        bool ribbonPipelineBound = false;
+
+        for (uint32_t i = 0; i < emitterCount; ++i)
         {
-            const auto& emitter = m_ActiveEmitters[i];
+            const auto& emitterState = m_EmitterState[i];
+            const auto& emitter = system.Emitters[i];
+
+            if (emitter.MaxParticles == 0) continue;
 
             if (emitter.RenderMode == EParticleRenderMode::Ribbon)
             {
-                const uint32_t particleCount = m_SpawnedCounts[i];
+                const uint32_t particleCount = emitterState.SpawnedParticles;
 
-                if (particleCount < 2 || emitter.MaxParticles == 0)
-                    continue;
+                if (particleCount < 2) continue;
 
-                const uint32_t startIndex = particleCount < emitter.MaxParticles ? 0u : m_SpawnCursors[i];
-
-                const SRibbonPushConstants pushConstants
+                if (!ribbonPipelineBound)
                 {
+                    m_RibbonPipeline->Bind(cmd);
+                    ribbonPipelineBound = true;
+                    spritePipelineBound = false;
+                }
+
+                const uint32_t headIndex = (emitterState.BufferCursor + particleCount - 1u) % particleCount;
+
+                const SRibbonPushConstants ribbonPushConstants{
                     emitter.ParticleOffset,
                     emitter.MaxParticles,
-                    startIndex,
+                    headIndex,
                     particleCount,
-                    0.28f
+                    emitter.RibbonWidthScale
                 };
+                m_RibbonShader->SetPushConstant(cmd, "pc", (void*)&ribbonPushConstants, sizeof(SRibbonPushConstants));
 
-                m_RibbonShader->SetPushConstant(cmd, "pc", (void*)&pushConstants, sizeof(SRibbonPushConstants));
-                m_RibbonPipeline->Bind(cmd);
-                cmd->Draw((particleCount - 1) * 6);
-                continue;
+                cmd->Draw((particleCount - 1u) * 6);
             }
+            else
+            {
+                if (!spritePipelineBound)
+                {
+                    m_RendererPipeline->Bind(cmd);
+                    m_ParticleBuffer->BindAs<VertexBuffer>(cmd);
+                    spritePipelineBound = true;
+                    ribbonPipelineBound = false;
+                }
 
-            m_RendererPipeline->Bind(cmd);
-            m_ParticleBuffer->BindAs<VertexBuffer>(cmd);
-            cmd->Draw(emitter.MaxParticles, 1, emitter.ParticleOffset);
+                cmd->Draw(emitter.MaxParticles, 1, emitter.ParticleOffset, 0);
+            }
         }
 
         EndRendering(cmd);
     }
 
-    void Renderer::InitRingBuffer()
+    void Renderer::InitEmitterState()
     {
-        m_SpawnAccumulators.assign(MAX_EMITTERS, 0.0f);
-        m_SpawnCursors.assign(MAX_EMITTERS, 0u);
-        m_SpawnedCounts.assign(MAX_EMITTERS, 0u);
+        m_EmitterState.assign(MAX_EMITTERS, {});
     }
 
     void Renderer::InitRenderPass(const ShaderLoader* shaderLoader)
@@ -231,18 +247,24 @@ namespace Elixir::Aether
         builder.SetBufferLayout(bufferLayout);
         m_RendererPipeline = builder.Build(m_GraphicsContext);
 
-        builder.SetShader(m_RibbonShader);
-        builder.SetInputTopology(EPrimitiveTopology::TriangleList);
-        builder.SetBufferLayout({});
-        m_RibbonPipeline = builder.Build(m_GraphicsContext);
+        PipelineBuilder ribbonBuilder;
+        ribbonBuilder.SetShader(m_RibbonShader);
+        ribbonBuilder.SetInputTopology(EPrimitiveTopology::TriangleList);
+        ribbonBuilder.SetPolygonMode(EPolygonMode::Fill);
+        ribbonBuilder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
+        ribbonBuilder.EnableAlphaBlending();
+        ribbonBuilder.DisableDepthTest();
+        ribbonBuilder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
+        ribbonBuilder.SetBufferLayout({});
+        m_RibbonPipeline = ribbonBuilder.Build(m_GraphicsContext);
     }
 
     void Renderer::CreateBuffers()
     {
+        m_ParticleBuffer = StorageBuffer::Create(m_GraphicsContext, sizeof(SGPUParticleState) * MAX_PARTICLES);
         m_EmitterBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SEmitterData) * MAX_EMITTERS);
         m_ModuleBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SModuleData) * MAX_MODULES);
         m_ParameterBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SParameterData) * MAX_PARAMETERS);
-        m_ParticleBuffer = StorageBuffer::Create(m_GraphicsContext, sizeof(SGPUParticleState) * MAX_PARTICLES);
         m_ParamsBuffer = UniformBuffer::Create(m_GraphicsContext, sizeof(SParamsData));
     }
 
@@ -273,11 +295,10 @@ namespace Elixir::Aether
 
         m_RendererShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
 
-        constexpr SRibbonPushConstants ribbonPc{};
-        m_RibbonShader->SetPushConstant("pc", (void*)&ribbonPc, sizeof(SRibbonPushConstants));
+        constexpr SRibbonPushConstants ribbonPushConstants{};
+        m_RibbonShader->SetPushConstant("pc", (void*)&ribbonPushConstants, sizeof(SRibbonPushConstants));
         m_RibbonShader->BindStorageBuffer("particles", m_ParticleBuffer);
         m_RibbonShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
-        m_RibbonShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
     }
 
     void Renderer::BeginRendering(const Ref<CommandBuffer>& cmd) const
@@ -322,23 +343,16 @@ namespace Elixir::Aether
             (float)system.Emitters.size(),
         };
 
-        params.Viewport = {
-            (float)m_RenderExtent.Width,
-            (float)m_RenderExtent.Height,
-            0.0f,
-            0.0f
-        };
-
         m_ParamsBuffer->UpdateData(&params, sizeof(SParamsData));
 
         const auto emitterCount = std::min(system.Emitters.size(), (size_t)MAX_EMITTERS);
-        m_ActiveEmitters.assign(system.Emitters.begin(), system.Emitters.begin() + emitterCount);
 
-        if (m_SpawnAccumulators.size() != emitterCount)
+        if (m_EmitterState.size() != emitterCount)
         {
-            m_SpawnAccumulators.assign(emitterCount, 0.0f);
-            m_SpawnCursors.assign(emitterCount, 0u);
-            m_SpawnedCounts.assign(emitterCount, 0u);
+            for (auto state : m_EmitterState)
+            {
+                state.Reset();
+            }
         }
 
         auto* emitters = (SEmitterData*)m_EmitterBuffer->Map();
@@ -349,25 +363,28 @@ namespace Elixir::Aether
 
         for (auto i = 0; i < emitterCount; ++i)
         {
+            auto& emitterState = m_EmitterState[i];
             const auto& emitter = system.Emitters[i];
-            m_SpawnAccumulators[i] += emitter.SpawnRatePerSecond * m_LastDeltaTimeSeconds;
 
-            const uint32_t spawnCount = std::min((uint32_t)m_SpawnAccumulators[i], emitter.MaxParticles);
+            emitterState.Accumulator += emitter.SpawnRatePerSecond * m_LastDeltaTimeSeconds;
+
+            const uint32_t spawnCount = std::min((uint32_t)emitterState.Accumulator, emitter.MaxParticles);
             if (spawnCount > 0)
-                m_SpawnAccumulators[i] -= (float)spawnCount;
-            m_SpawnedCounts[i] = std::min(emitter.MaxParticles, m_SpawnedCounts[i] + spawnCount);
+                emitterState.Accumulator -= (float)spawnCount;
+
+            emitterState.SpawnedParticles = std::min(emitter.MaxParticles, emitterState.SpawnedParticles + spawnCount);
 
             auto desc = ToEmitterDescription(emitter);
 
             desc.MetaB.x = (float)emitter.UpdateModuleOffset;
             desc.MetaB.y = (float)emitter.UpdateModuleCount;
-            desc.MetaB.z = (float)m_SpawnCursors[i];
+            desc.MetaB.z = (float)emitterState.BufferCursor;
             desc.MetaB.w = (float)spawnCount;
 
             emitters[i] = desc;
 
             if (emitter.MaxParticles > 0)
-                m_SpawnCursors[i] = (m_SpawnCursors[i] + spawnCount) % emitter.MaxParticles;
+                emitterState.BufferCursor = (emitterState.BufferCursor + spawnCount) % emitter.MaxParticles;
         }
 
         auto* modules = (SModuleData*)m_ModuleBuffer->Map();

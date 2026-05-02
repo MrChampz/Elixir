@@ -34,6 +34,49 @@ namespace Elixir::Aether
         particle.Position = m_Center + (fromAngle(angle) * distance);
     }
 
+    /* SetPositionOnCircle */
+
+    SetPositionOnCircle::SetPositionOnCircle(
+        const glm::vec2 center,
+        const float radius,
+        const float angularSpeed,
+        const float startAngle
+    ) : m_Center(center),
+        m_Radius(radius),
+        m_AngularSpeed(angularSpeed),
+        m_StartAngle(startAngle) {}
+
+    void SetPositionOnCircle::Apply(
+        SParticle& particle,
+        SSpawnContext& context,
+        const ParameterStore& params
+    ) const
+    {
+        // CPU stub: GPU spawn shader uses elapsed time; CPU path drops the sample at startAngle.
+        particle.Position = m_Center + fromAngle(m_StartAngle) * m_Radius;
+    }
+
+    /* SetPositionBezierLoop */
+
+    SetPositionBezierLoop::SetPositionBezierLoop(
+        std::vector<SBezierCurve> curves,
+        const float duration,
+        const float startOffset
+    ) : m_Curves(std::move(curves)),
+        m_Duration(duration),
+        m_StartOffset(startOffset) {}
+
+    void SetPositionBezierLoop::Apply(
+        SParticle& particle,
+        SSpawnContext& context,
+        const ParameterStore& params
+    ) const
+    {
+        // CPU stub: GPU spawn shader advances along the loop using elapsed time.
+        if (!m_Curves.empty())
+            particle.Position = m_Curves.front().Start;
+    }
+
     /* SetVelocityCone */
 
     SetVelocityCone::SetVelocityCone(

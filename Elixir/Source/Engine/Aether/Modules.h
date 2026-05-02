@@ -1,6 +1,8 @@
 #pragma once
 #include "Particle.h"
 
+#include <vector>
+
 namespace Elixir::Aether
 {
     struct SParticle;
@@ -20,7 +22,9 @@ namespace Elixir::Aether
         ApplyLinearDrag,
         ColorOverLife,
         SizeOverLife,
-        KillOutsideBounds
+        KillOutsideBounds,
+        SetPositionOnCircle,
+        SetPositionBezierLoop
     };
 
     struct SGPUModule
@@ -31,6 +35,7 @@ namespace Elixir::Aether
         uint32_t Parameter1Index = UINT32_MAX;
         glm::vec4 Data0{};
         glm::vec4 Data1{};
+        glm::vec4 Data2{};
     };
 
     class ParticleSpawnModule
@@ -62,6 +67,50 @@ namespace Elixir::Aether
       private:
         glm::vec2 m_Center;
         float m_Radius;
+    };
+
+    class ELIXIR_API SetPositionOnCircle final : public ParticleSpawnModule
+    {
+      public:
+        explicit SetPositionOnCircle(glm::vec2 center, float radius, float angularSpeed, float startAngle = 0.0f);
+
+        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override;
+
+        glm::vec2 GetCenter() const { return m_Center; }
+        float GetRadius() const { return m_Radius; }
+        float GetAngularSpeed() const { return m_AngularSpeed; }
+        float GetStartAngle() const { return m_StartAngle; }
+
+      private:
+        glm::vec2 m_Center;
+        float m_Radius;
+        float m_AngularSpeed;
+        float m_StartAngle;
+    };
+
+    struct SBezierCurve
+    {
+        glm::vec2 Start;
+        glm::vec2 ControlA;
+        glm::vec2 ControlB;
+        glm::vec2 End;
+    };
+
+    class ELIXIR_API SetPositionBezierLoop final : public ParticleSpawnModule
+    {
+      public:
+        explicit SetPositionBezierLoop(std::vector<SBezierCurve> curves, float duration, float startOffset = 0.0f);
+
+        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override;
+
+        const std::vector<SBezierCurve>& GetCurves() const { return m_Curves; }
+        float GetDuration() const { return m_Duration; }
+        float GetStartOffset() const { return m_StartOffset; }
+
+      private:
+        std::vector<SBezierCurve> m_Curves;
+        float m_Duration;
+        float m_StartOffset;
     };
 
     class ELIXIR_API SetVelocityCone final : public ParticleSpawnModule
