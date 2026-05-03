@@ -65,6 +65,7 @@ Dissolve::Dissolve()
 
     auto& ribbon = m_ParticleSystem->AddEmitter("PathRibbon", 240, 90.0f);
     ribbon.SetRenderMode(Aether::EParticleRenderMode::Ribbon);
+    ribbon.AddSpawnModule<Aether::SetPositionOnCircle>(glm::vec2{ 0.0f, 0.0f }, 2.0f, 1.0f);
     ribbon.AddSpawnModule<Aether::SetLifetime>(2.2f, 2.8f);
     ribbon.AddSpawnModule<Aether::SetSize>(14.0f, 20.0f);
     ribbon.AddSpawnModule<Aether::SetColor>(glm::vec4{ 0.74f, 0.94f, 1.0f, 0.74f });

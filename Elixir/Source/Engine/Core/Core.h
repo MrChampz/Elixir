@@ -121,11 +121,35 @@ namespace Elixir
             seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
         }
 
+        template <typename T, typename = void>
+        struct HasToString : std::false_type {};
+
+        template <typename T>
+        struct HasToString<T, std::void_t<decltype(std::declval<const T&>().ToString())>>
+            : std::true_type {};
+
+        template <typename T>
+        std::size_t HashValue(const T& value)
+        {
+            if constexpr (requires { std::hash<T>{}(value); })
+            {
+                return std::hash<T>{}(value);
+            }
+            else if constexpr (HasToString<T>::value)
+            {
+                return std::hash<std::string>{}(value.ToString());
+            }
+            else
+            {
+                static_assert(sizeof(T) == 0, "Type is not hashable and has no ToString()");
+            }
+        }
+
         template <typename... T>
         std::size_t HashValues(const T&... values)
         {
             std::size_t seed = 0;
-            (HashCombine(seed, std::hash<T>()(values)), ...);
+            (HashCombine(seed, HashValue(values)), ...);
             return seed;
         }
 

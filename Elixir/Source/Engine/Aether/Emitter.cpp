@@ -51,6 +51,7 @@ namespace Elixir::Aether
     ) const
     {
         SGPUEmitter emitter;
+        emitter.m_UUID = m_UUID;
         emitter.Name = m_Name;
         emitter.RenderMode = m_RenderMode;
         emitter.MaxParticles = (uint32_t)m_Particles.size();
@@ -122,6 +123,17 @@ namespace Elixir::Aether
                     UINT32_MAX,
                     typed->GetColor(),
                     {}
+                });
+            }
+            else if (const auto* typed = dynamic_cast<const SetPositionOnCircle*>(module.get()))
+            {
+                modules.push_back({
+                    EModuleType::SetPositionOnCircle,
+                    EParticleAttribute::Position,
+                    UINT32_MAX,
+                    UINT32_MAX,
+                    { typed->GetCenter(), typed->GetRadius(), typed->GetAngularSpeed() },
+                    { typed->GetStartAngle(), 0.0f, 0.0f, 0.0f }
                 });
             }
         }

@@ -1,6 +1,3 @@
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "cert-msc51-cpp"
-
 #include "epch.h"
 #include "UUID.h"
 
@@ -18,7 +15,26 @@ namespace Elixir
         m_UUID = CreateScope<uuid>(s_Generator());
     }
 
-    UUID::~UUID() {}
+    UUID::UUID(const UUID& other)
+    {
+        if (other.m_UUID)
+            m_UUID = CreateScope<uuid>(*other.m_UUID);
+    }
+
+    UUID::UUID(UUID&& other) noexcept = default;
+
+    UUID::~UUID() = default;
+
+    UUID& UUID::operator=(const UUID& other)
+    {
+        if (this == &other)
+            return *this;
+
+        m_UUID = other.m_UUID ? CreateScope<uuid>(*other.m_UUID) : nullptr;
+        return *this;
+    }
+
+    UUID& UUID::operator=(UUID&& other) noexcept = default;
 
     std::string UUID::ToString() const
     {
@@ -30,5 +46,3 @@ namespace Elixir
         return *m_UUID == *other.m_UUID;
     }
 }
-
-#pragma clang diagnostic pop

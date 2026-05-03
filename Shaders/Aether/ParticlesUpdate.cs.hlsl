@@ -13,7 +13,7 @@ struct Emitter
 {
     float4 MetaA; // x = offset in particle buffer, y = emitter count, z = module offset(spawn), w = module count(spawn)
     float4 MetaB; // x = module offset(update), y = module count(update), z = spawn cursor, w = spawn count
-    float4 MetaC; //
+    float4 MetaC; // x = render mode
 };
 
 [[vk::binding(1, 0)]]
@@ -24,6 +24,7 @@ struct Module
     float4 Header; // x = type, y = unused, z = parameter 0 index, w = parameter 1 index
     float4 Data0;
     float4 Data1;
+    float4 Data2;
 };
 
 [[vk::binding(2, 0)]]
@@ -44,6 +45,7 @@ struct AttributeTable
     float4 Color;
     float4 Size;
     float4 Lifetime;
+    float4 Tangent;
 };
 
 [[vk::binding(0, 1)]]
@@ -129,13 +131,13 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     uint emitterIndex = (uint)(state.Metadata.x + 0.5);
     Emitter emitter = emitters[emitterIndex];
     float dt = TimeData.x;
-    uint renderMode = (uint)(emitter.MetaC.x + 0.5);
+    bool isImmortal = state.PositionSize.w >= 1.5;
 
     AttributeTable attributes = LoadAttributes(state);
     float age = state.VelocityAge.z + dt;
-    float lifetime = max(state.VelocityAge.w, 0.0001);
+    float lifetime = max(state.VelocityAge.w, 0.001);
     float life = clamp(age / lifetime, 0.0, 1.0);
-    bool kill = age >= lifetime;
+    bool kill = !isImmortal && age >= lifetime;
 
     uint moduleOffset = (uint)emitter.MetaB.x;
     uint moduleCount = (uint)emitter.MetaB.y;
@@ -178,18 +180,15 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             float4 position = GetAttribute(attributes, 1u);
             bool outsideBounds = position.x < module.Data0.x || position.x > module.Data1.x ||
                                  position.y < module.Data0.y || position.y > module.Data1.y;
-            kill = kill || outsideBounds;
+            kill = kill || (!isImmortal && outsideBounds);
         }
     }
 
     float4 position = GetAttribute(attributes, 1u);
     float4 velocity = GetAttribute(attributes, 2u);
 
-    if (renderMode != 1u) // Non-ribbon particles are affected by velocity in a simple Euler manner
-    {
-        position.xy += velocity.xy * dt;
-        SetAttribute(attributes, 1u, position);
-    }
+    position.xy += velocity.xy * dt;
+    SetAttribute(attributes, 1u, position);
 
     if (kill)
     {

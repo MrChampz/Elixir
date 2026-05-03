@@ -2,6 +2,7 @@
 
 #include "ParameterStore.h"
 
+#include <Engine/Core/UUID.h>
 #include <Engine/Core/Timer.h>
 #include <Engine/Aether/Particle.h>
 #include <Engine/Aether/Modules.h>
@@ -20,6 +21,7 @@ namespace Elixir::Aether
 
     struct SGPUEmitter
     {
+        UUID m_UUID;
         std::string Name;
         EParticleRenderMode RenderMode = EParticleRenderMode::Sprite;
         uint32_t ParticleOffset = 0;
@@ -30,8 +32,23 @@ namespace Elixir::Aether
         uint32_t SpawnModuleCount = 0;
         uint32_t UpdateModuleOffset = 0;
         uint32_t UpdateModuleCount = 0;
-    };
 
+        bool operator==(const SGPUEmitter& other) const noexcept
+        {
+            return m_UUID == other.m_UUID;
+        }
+
+        auto GetHashParams() const
+        {
+            return m_UUID;
+        }
+    };
+}
+
+GENERATE_HASH_FUNCTION(Elixir::Aether::SGPUEmitter)
+
+namespace Elixir::Aether
+{
     class ELIXIR_API Emitter final
     {
       public:
@@ -73,6 +90,7 @@ namespace Elixir::Aether
       private:
         void SpawnParticle(SSpawnContext& context, const ParameterStore& params);
 
+        UUID m_UUID;
         std::string m_Name;
         EParticleRenderMode m_RenderMode;
         std::vector<SParticle> m_Particles;

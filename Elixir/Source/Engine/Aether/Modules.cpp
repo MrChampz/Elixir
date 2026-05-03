@@ -98,6 +98,18 @@ namespace Elixir::Aether
         particle.Color = m_Color;
     }
 
+    /* SetPositionOnCircle */
+
+    SetPositionOnCircle::SetPositionOnCircle(
+        const glm::vec2 center,
+        const float radius,
+        const float angularSpeed,
+        const float startAngle
+    ) : m_Center(center),
+        m_Radius(radius),
+        m_AngularSpeed(angularSpeed),
+        m_StartAngle(startAngle) {}
+
     /* ApplyGravity */
 
     ApplyGravity::ApplyGravity(const glm::vec2 gravity) : m_Gravity(gravity) {}
