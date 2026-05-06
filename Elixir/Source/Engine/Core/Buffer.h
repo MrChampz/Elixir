@@ -49,8 +49,10 @@ namespace Elixir
         void Copy(const Byte* data, const size_t size)
         {
             EE_PROFILE_ZONE_SCOPED()
+            if (!data || size == 0) return;
+
             Allocate(size);
-            if (data) Memory::Memcpy(Data, data, size);
+            Memory::Memcpy(Data, data, size);
         }
 
         void ZeroInitialize() const

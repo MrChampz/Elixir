@@ -50,6 +50,31 @@ namespace Elixir::Vulkan
     /* VulkanBaseBuffer */
 
     template <class Base>
+    void VulkanBaseBuffer<Base>::Fill(
+        const Ref<CommandBuffer>& cmd,
+        const uint32_t data,
+        int32_t offset,
+        size_t size
+    )
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        EE_CORE_ASSERT(offset < this->GetSize(), "Fill offset exceeds buffer size!")
+        EE_CORE_ASSERT(size <= this->GetSize(), "Fill size exceeds buffer size!")
+
+        if (!this->IsValid()) return;
+
+        const auto vkCmd = std::static_pointer_cast<const VulkanCommandBuffer>(cmd);
+
+        vkCmdFillBuffer(
+            vkCmd->GetVulkanCommandBuffer(),
+            m_Buffer,
+            offset,
+            size == 0 ? VK_WHOLE_SIZE : size,
+            data
+        );
+    }
+
+    template <class Base>
     void VulkanBaseBuffer<Base>::Destroy()
     {
         EE_PROFILE_ZONE_SCOPED()
@@ -176,6 +201,10 @@ namespace Elixir::Vulkan
             cmd->Begin();
             cmd->CopyBuffer(staging, this);
             cmd->Flush();
+        }
+        else
+        {
+            Base::Clear();
         }
     }
 

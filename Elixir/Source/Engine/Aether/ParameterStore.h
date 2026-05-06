@@ -13,8 +13,8 @@ namespace Elixir::Aether
     class ELIXIR_API ParameterStore
     {
       public:
-        float GetFloat(const std::string& name, const float fallback = 0.0f) const;
-        void SetFloat(const std::string& name, const float value);
+        float GetFloat(const std::string& name, float fallback = 0.0f) const;
+        void SetFloat(const std::string& name, float value);
 
         glm::vec4 GetFloat4(const std::string& name, const glm::vec4& fallback = glm::vec4()) const;
         void SetFloat4(const std::string& name, const glm::vec4& value);

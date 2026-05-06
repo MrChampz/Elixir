@@ -70,15 +70,15 @@ namespace Elixir::Aether
 
         for (const auto& module : m_SpawnModules)
         {
-            if (const auto* typed = dynamic_cast<const SetPositionCircle*>(module.get()))
+            if (const auto* typed = dynamic_cast<const SetPositionDisk*>(module.get()))
             {
                 modules.push_back({
-                    EModuleType::SetPositionCircle,
+                    EModuleType::SetPositionDisk,
                     EParticleAttribute::Position,
                     UINT32_MAX,
                     UINT32_MAX,
-                    { typed->GetCenter(), typed->GetRadius(), 0.0f },
-                    {}
+                    { typed->GetCenter(), typed->GetRadius() },
+                    { typed-> GetNormal(), 0.0f }
                 });
             }
             else if (const auto* typed = dynamic_cast<const SetVelocityCone*>(module.get()))
@@ -88,8 +88,8 @@ namespace Elixir::Aether
                     EParticleAttribute::Velocity,
                     UINT32_MAX,
                     UINT32_MAX,
-                    { typed->GetMinAngle(), typed->GetMaxAngle(), typed->GetMinSpeed(), typed->GetMaxSpeed() },
-                    {}
+                    { typed->GetDirection(), typed->GetAngle() },
+                    { typed->GetMinSpeed(), typed->GetMaxSpeed(), 0.0f, 0.0f }
                 });
             }
             else if (const auto* typed = dynamic_cast<const SetLifetime*>(module.get()))
@@ -127,13 +127,25 @@ namespace Elixir::Aether
             }
             else if (const auto* typed = dynamic_cast<const SetPositionOnCircle*>(module.get()))
             {
+                // modules.push_back({
+                //     EModuleType::SetPositionOnCircle,
+                //     EParticleAttribute::Position,
+                //     UINT32_MAX,
+                //     UINT32_MAX,
+                //     { typed->GetCenter(), typed->GetRadius(), typed->GetAngularSpeed() },
+                //     { typed->GetStartAngle(), 0.0f, 0.0f, 0.0f }
+                // });
+            }
+            else if (const auto* typed = dynamic_cast<const SetPositionCircularPath*>(module.get()))
+            {
                 modules.push_back({
-                    EModuleType::SetPositionOnCircle,
+                    EModuleType::SetPositionCircularPath,
                     EParticleAttribute::Position,
                     UINT32_MAX,
                     UINT32_MAX,
-                    { typed->GetCenter(), typed->GetRadius(), typed->GetAngularSpeed() },
-                    { typed->GetStartAngle(), 0.0f, 0.0f, 0.0f }
+                    { typed->GetBaseOffset(), typed->GetTimeScale() },
+                    { typed->GetPrimaryAmplitude(), 0.0 },
+                    { typed->GetSecondaryAmplitude(), 0.0 }
                 });
             }
         }
@@ -150,7 +162,7 @@ namespace Elixir::Aether
                     EParticleAttribute::Velocity,
                     UINT32_MAX,
                     UINT32_MAX,
-                    { typed->GetGravity(), emitter.GravityScale, 0.0f },
+                    { typed->GetGravity(), emitter.GravityScale },
                     {}
                 });
             }
@@ -194,8 +206,8 @@ namespace Elixir::Aether
                     EParticleAttribute::Position,
                     UINT32_MAX,
                     UINT32_MAX,
-                    { typed->GetMin(), 0.0f, 0.0f },
-                    { typed->GetMax(), 0.0f, 0.0f }
+                    { typed->GetMin(), 0.0f },
+                    { typed->GetMax(), 0.0f }
                 });
             }
         }

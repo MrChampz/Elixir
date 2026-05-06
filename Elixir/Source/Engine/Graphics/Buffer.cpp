@@ -12,6 +12,27 @@ namespace Elixir
 
     /* Buffer */
 
+    void Buffer::Fill(const uint32_t data, const int32_t offset, const size_t size)
+    {
+        const auto cmd = m_GraphicsContext->GetUploadCommandBuffer();
+        cmd->Begin();
+        Fill(cmd, data, offset, size);
+        cmd->Flush();
+    }
+
+    void Buffer::Clear()
+    {
+        const auto cmd = m_GraphicsContext->GetUploadCommandBuffer();
+        cmd->Begin();
+        Clear(cmd);
+        cmd->Flush();
+    }
+
+    void Buffer::Clear(const Ref<CommandBuffer>& cmd)
+    {
+        Fill(cmd, 0);
+    }
+
     void Buffer::Barrier(
         const Ref<CommandBuffer>& cmd,
         const EPipelineStage stage,

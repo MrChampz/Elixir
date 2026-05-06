@@ -14,6 +14,7 @@ namespace Elixir
         void SetCullMode(ECullMode mode, EFrontFace frontFace);
         void SetMultisamplingNone();
         void EnableAlphaBlending();
+        void EnableAlphaBlendingMax();
         void DisableBlending();
         void DisableDepthTest();
         void SetColorAttachmentFormat(EImageFormat format);

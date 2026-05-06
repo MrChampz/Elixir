@@ -16,6 +16,13 @@ namespace Elixir::Vulkan
       public:
         virtual ~VulkanBaseBuffer() = default;
 
+        virtual void Fill(
+            const Ref<CommandBuffer>& cmd,
+            uint32_t data,
+            int32_t offset = 0,
+            size_t size = 0
+        ) override;
+
         virtual void Destroy() override;
 
         using Buffer::Barrier;

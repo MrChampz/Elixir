@@ -1,9 +1,10 @@
 struct ParticleState
 {
-    float4 PositionSize;    // xy = position, z = size, w = alive (0 or 1)
-    float4 VelocityAge;     // xy = velocity, z = age, w = lifetime
+    float4 PositionSize;    // xyz = position, w = size
+    float4 VelocityAge;     // xyz = velocity, w = age
+    float4 Tangent;         // xyz = tangent, w = unused
     float4 Color;
-    float4 Metadata;        // x = emitter index, y = random seed
+    float4 Metadata;        // x = emitter index, y = random seed, z = lifetime, w = alive
 };
 
 [[vk::binding(0, 0)]]
@@ -11,9 +12,9 @@ RWStructuredBuffer<ParticleState> particles;
 
 struct Emitter
 {
-    float4 MetaA; // x = offset in particle buffer, y = emitter count, z = module offset(spawn), w = module count(spawn)
-    float4 MetaB; // x = module offset(update), y = module count(update), z = spawn cursor, w = spawn count
-    float4 MetaC; // x = render mode
+    float4 MetaA; // x = offset in particle buffer, y = max particles, z = module offset(spawn), w = module count(spawn)
+    float4 MetaB; // x = module offset(update), y = module count(update), z = buffer cursor, w = spawn count
+    float4 MetaC; // x = render mode, y = spawn rate seconds, z = gravity scale
 };
 
 [[vk::binding(1, 0)]]
@@ -66,19 +67,22 @@ float4 ResolveValue(int parameterIndex, float4 fallbackValue)
 AttributeTable LoadAttributes(ParticleState state)
 {
     AttributeTable table;
-    table.Position = float4(state.PositionSize.xy, 0.0, state.PositionSize.w);
-    table.Velocity = float4(state.VelocityAge.xy, 0.0, 0.0);
+    table.Position = float4(state.PositionSize.xyz, state.Metadata.w);
+    table.Velocity = float4(state.VelocityAge.xyz, 0.0);
+    table.Tangent = float4(state.Tangent.xyz, 0.0);
     table.Color = state.Color;
-    table.Size = float4(state.PositionSize.z, 0.0, 0.0, 0.0);
-    table.Lifetime = float4(state.VelocityAge.w, state.VelocityAge.z, 0.0, 0.0);
+    table.Size = float4(state.PositionSize.w, 0.0, 0.0, 0.0);
+    table.Lifetime = float4(state.Metadata.z, state.VelocityAge.w, 0.0, 0.0);
     return table;
 }
 
 ParticleState StoreAttributes(ParticleState state, AttributeTable table, float age)
 {
-    state.PositionSize = float4(table.Position.xy, table.Size.x, table.Position.w);
-    state.VelocityAge = float4(table.Velocity.xy, age, table.Lifetime.x);
+    state.PositionSize = float4(table.Position.xyz, table.Size.x);
+    state.VelocityAge = float4(table.Velocity.xyz, age);
+    state.Tangent = float4(table.Tangent.xyz, 0.0);
     state.Color = table.Color;
+    state.Metadata = float4(state.Metadata.xy, table.Lifetime.x, table.Position.w);
     return state;
 }
 
@@ -121,9 +125,9 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         return;
 
     ParticleState state = particles[particleIndex];
-    if (state.PositionSize.w < 0.5)
+    if (state.Metadata.w < 0.5)
     {
-        particles[particleIndex].PositionSize.z = 0.0;
+        particles[particleIndex].PositionSize.w = 0.0;
         particles[particleIndex].Color.a = 0.0;
         return;
     }
@@ -131,13 +135,12 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     uint emitterIndex = (uint)(state.Metadata.x + 0.5);
     Emitter emitter = emitters[emitterIndex];
     float dt = TimeData.x;
-    bool isImmortal = state.PositionSize.w >= 1.5;
 
     AttributeTable attributes = LoadAttributes(state);
-    float age = state.VelocityAge.z + dt;
-    float lifetime = max(state.VelocityAge.w, 0.001);
+    float age = state.VelocityAge.w + dt;
+    float lifetime = max(state.Metadata.z, 0.001);
     float life = clamp(age / lifetime, 0.0, 1.0);
-    bool kill = !isImmortal && age >= lifetime;
+    bool kill = age >= lifetime;
 
     uint moduleOffset = (uint)emitter.MetaB.x;
     uint moduleCount = (uint)emitter.MetaB.y;
@@ -154,13 +157,13 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         if (type == 6u) // ApplyGravity
         {
             float4 value = GetAttribute(attributes, target);
-            value.xy += module.Data0.xy * module.Data0.z * dt;
+            value.xyz += module.Data0.xyz * module.Data0.w * dt;
             SetAttribute(attributes, target, value);
         }
         else if (type == 7u) // ApplyLinearDrag
         {
             float4 value = GetAttribute(attributes, target);
-            value.xy *= max(0.0, 1.0 - (module.Data0.x * dt));
+            value.xyz *= max(0.0, 1.0 - (module.Data0.x * dt));
             SetAttribute(attributes, target, value);
         }
         else if (type == 8u) // ColorOverLife
@@ -179,22 +182,24 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         {
             float4 position = GetAttribute(attributes, 1u);
             bool outsideBounds = position.x < module.Data0.x || position.x > module.Data1.x ||
-                                 position.y < module.Data0.y || position.y > module.Data1.y;
-            kill = kill || (!isImmortal && outsideBounds);
+                                 position.y < module.Data0.y || position.y > module.Data1.y ||
+                                 position.z < module.Data0.z || position.z > module.Data1.z;
+            kill = kill || outsideBounds;
         }
     }
 
     float4 position = GetAttribute(attributes, 1u);
     float4 velocity = GetAttribute(attributes, 2u);
 
-    position.xy += velocity.xy * dt;
+    position.xyz += velocity.xyz * dt;
     SetAttribute(attributes, 1u, position);
 
     if (kill)
     {
-        state.PositionSize = float4(position.xy, 0.0, 0.0);
+        state.PositionSize = float4(position.xyz, 0.0);
         state.VelocityAge = float4(0.0, 0.0, 0.0, 0.0);
         state.Color = float4(0.0, 0.0, 0.0, 0.0);
+        state.Metadata.w = 0.0;
 
         particles[particleIndex] = state;
         return;

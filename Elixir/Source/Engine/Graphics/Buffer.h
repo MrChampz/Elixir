@@ -21,6 +21,46 @@ namespace Elixir
       public:
         virtual ~Buffer() = default;
 
+        /**
+         * Fill all bytes of the buffer with the specified 32-bit value.
+         *
+         * @param data 32-bit value to fill the buffer with. The value will be repeated to fill the entire buffer.
+         * @param offset Byte offset into the buffer where the data should be copied. Defaults to 0.
+         * @param size Size of the data to copy in bytes. If 0, it will copy until the end of the buffer.
+         */
+        virtual void Fill(uint32_t data, int32_t offset = 0, size_t size = 0);
+
+        /**
+         * Fill all bytes of the buffer with the specified 32-bit value.
+         * This version does not flush the command buffer, it's up to the caller to flush it
+         * after recording the fill operation.
+         *
+         * @param cmd The command buffer to record the fill operation into.
+         * @param data 32-bit value to fill the buffer with. The value will be repeated to fill the entire buffer.
+         * @param offset Byte offset into the buffer where the data should be copied. Defaults to 0.
+         * @param size Size of the data to copy in bytes. If 0, it will copy until the end of the buffer.
+         */
+        virtual void Fill(
+            const Ref<CommandBuffer>& cmd,
+            uint32_t data,
+            int32_t offset = 0,
+            size_t size = 0
+        ) = 0;
+
+        /**
+         * Clears the buffer's contents, filling it with zeros.
+         */
+        virtual void Clear();
+
+        /**
+         * Clears the buffer's contents, filling it with zeros.
+         * This version does not flush the command buffer, it's up to the caller to flush it
+         * after recording the clear operation.
+         *
+         * @param cmd The command buffer to record the clear operation into.
+         */
+        virtual void Clear(const Ref<CommandBuffer>& cmd);
+
         virtual void Destroy() = 0;
 
         void Barrier(const Ref<CommandBuffer>& cmd, EPipelineStage stage, EPipelineAccess access);

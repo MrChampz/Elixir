@@ -9,6 +9,7 @@ namespace Elixir::Aether
     struct SFrameData
     {
         glm::mat4 ViewProj;
+        glm::vec3 CameraPosition;
     };
 
     struct alignas(16) SEmitterData
@@ -76,6 +77,7 @@ namespace Elixir::Aether
         {
             glm::vec4 PositionSize{};
             glm::vec4 VelocityAge{};
+            glm::vec4 Tangent{};
             glm::vec4 Color{};
             glm::vec4 Metadata{};
         };
@@ -86,8 +88,8 @@ namespace Elixir::Aether
         Ref<ComputePipeline> m_UpdatePipeline;
         Ref<Shader> m_RendererShader;
         Ref<GraphicsPipeline> m_RendererPipeline;
-        Ref<Shader> m_RibbonShader;
-        Ref<GraphicsPipeline> m_RibbonPipeline;
+        //Ref<Shader> m_RibbonShader;
+        //Ref<GraphicsPipeline> m_RibbonPipeline;
 
         Ref<StorageBuffer> m_ParticleBuffer;
         std::unordered_map<SGPUEmitter, SEmitterState> m_EmittersState;

@@ -1,7 +1,6 @@
 #include "epch.h"
 #include "Renderer.h"
 
-#include "Engine/GUI/Renderer/QuadRenderPass.h"
 #include "Engine/Graphics/CommandBuffer.h"
 #include "Engine/Graphics/Pipeline/PipelineBuilder.h"
 
@@ -10,15 +9,6 @@ namespace Elixir::Aether
     struct SSpawnPushConstants
     {
         uint32_t EmitterIndex = 0;
-    };
-
-    struct SRibbonPushConstants
-    {
-        uint32_t ParticleOffset = 0;
-        uint32_t MaxParticles = 0;
-        uint32_t StartIndex = 0;
-        uint32_t ParticleCount = 0;
-        float WidthScale = 1.0f;
     };
 
     SEmitterData ToEmitterDescription(const SGPUEmitter& emitter)
@@ -34,14 +24,14 @@ namespace Elixir::Aether
         desc.MetaB = {
             emitter.UpdateModuleOffset,
             emitter.UpdateModuleCount,
-            emitter.SpawnRatePerSecond,
-            emitter.GravityScale,
+            0.0,
+            0.0
         };
 
         desc.MetaC = {
             (float)emitter.RenderMode,
-            0.0f,
-            0.0f,
+            emitter.SpawnRatePerSecond,
+            emitter.GravityScale,
             0.0f
         };
 
@@ -96,10 +86,19 @@ namespace Elixir::Aether
         m_RenderExtent = m_GraphicsContext->GetRenderTarget()->GetExtent();
 
         m_FrameData.ViewProj = camera.GetViewProjectionMatrix();
+        m_FrameData.CameraPosition = camera.GetPosition();
         m_FrameConstantBuffer->UpdateData(&m_FrameData, sizeof(SFrameData));
 
         const auto emitterCount = std::min((uint32_t)system.Emitters.size(), MAX_EMITTERS);
         const auto maxParticles = std::min(system.TotalMaxParticles, MAX_PARTICLES);
+
+        // const auto layoutHash = CalculateLayoutHash(system);
+        // if (!m_HasSystemLayoutHash || layoutHash != m_SystemLayoutHash)
+        // {
+        //     ResetParticleState();
+        //     m_SystemLayoutHash = layoutHash;
+        //     m_HasSystemLayoutHash = true;
+        // }
 
         UpdateBuffers(system);
 
@@ -141,46 +140,15 @@ namespace Elixir::Aether
 
             if (emitter.MaxParticles == 0) continue;
 
-            if (emitter.RenderMode == EParticleRenderMode::Ribbon)
+            if (!spritePipelineBound)
             {
-                const uint32_t particleCount = emitterState.SpawnedParticles;
-
-                if (particleCount < 2) continue;
-
-                if (!ribbonPipelineBound)
-                {
-                    m_RibbonPipeline->Bind(cmd);
-                    ribbonPipelineBound = true;
-                    spritePipelineBound = false;
-                }
-
-                const uint32_t startIndex = (emitterState.BufferCursor + particleCount - 1u) % particleCount;
-
-                const SRibbonPushConstants pushConstants
-                {
-                    emitter.ParticleOffset,
-                    emitter.MaxParticles,
-                    startIndex,
-                    particleCount,
-                    0.005f
-                };
-
-                m_RibbonShader->SetPushConstant(cmd, "pc", (void*)&pushConstants, sizeof(SRibbonPushConstants));
-
-                cmd->Draw((particleCount - 1u) * 6);
+                m_RendererPipeline->Bind(cmd);
+                m_ParticleBuffer->BindAs<VertexBuffer>(cmd);
+                spritePipelineBound = true;
+                ribbonPipelineBound = false;
             }
-            else
-            {
-                if (!spritePipelineBound)
-                {
-                    m_RendererPipeline->Bind(cmd);
-                    m_ParticleBuffer->BindAs<VertexBuffer>(cmd);
-                    spritePipelineBound = true;
-                    ribbonPipelineBound = false;
-                }
 
-                cmd->Draw(emitter.MaxParticles, 1, emitter.ParticleOffset);
-            }
+            cmd->Draw(emitter.MaxParticles, 1, emitter.ParticleOffset);
         }
 
         EndRendering(cmd);
@@ -193,6 +161,7 @@ namespace Elixir::Aether
                 {
                     { EDataType::Vec4,  "PositionSize" },
                     { EDataType::Vec4,  "VelocityAge"  },
+                    { EDataType::Vec4,  "Tangent"      },
                     { EDataType::Vec4,  "Color"        },
                     { EDataType::Vec4,  "Metadata"     }
                 }
@@ -219,11 +188,11 @@ namespace Elixir::Aether
             "ParticlesRenderer"
         );
 
-        m_RibbonShader = shaderLoader->LoadShader(
-            "./Shaders/Aether/",
-            std::array<std::string_view, 1>{ "Ribbon" },
-            "RibbonRenderer"
-        );
+        // m_RibbonShader = shaderLoader->LoadShader(
+        //     "./Shaders/Aether/",
+        //     std::array<std::string_view, 1>{ "Ribbon" },
+        //     "RibbonRenderer"
+        // );
 
         SPipelineCreateInfo pipelineInfo{};
         pipelineInfo.Shader = m_SpawnShader;
@@ -243,10 +212,16 @@ namespace Elixir::Aether
         builder.SetBufferLayout(bufferLayout);
         m_RendererPipeline = builder.Build(m_GraphicsContext);
 
-        builder.SetShader(m_RibbonShader);
-        builder.SetInputTopology(EPrimitiveTopology::TriangleList);
-        builder.SetBufferLayout({});
-        m_RibbonPipeline = builder.Build(m_GraphicsContext);
+        // PipelineBuilder ribbonBuilder;
+        // ribbonBuilder.SetShader(m_RibbonShader);
+        // ribbonBuilder.SetInputTopology(EPrimitiveTopology::TriangleList);
+        // ribbonBuilder.SetPolygonMode(EPolygonMode::Fill);
+        // ribbonBuilder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
+        // ribbonBuilder.EnableAlphaBlending();
+        // ribbonBuilder.DisableDepthTest();
+        // ribbonBuilder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
+        // ribbonBuilder.SetBufferLayout({});
+        // m_RibbonPipeline = ribbonBuilder.Build(m_GraphicsContext);
     }
 
     void Renderer::CreateBuffers()
@@ -285,11 +260,11 @@ namespace Elixir::Aether
 
         m_RendererShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
 
-        constexpr SRibbonPushConstants ribbonPc{};
-        m_RibbonShader->SetPushConstant("pc", (void*)&ribbonPc, sizeof(SRibbonPushConstants));
-        m_RibbonShader->BindStorageBuffer("particles", m_ParticleBuffer);
-        m_RibbonShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
-        m_RibbonShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
+        // constexpr SRibbonPushConstants ribbonPc{};
+        // m_RibbonShader->SetPushConstant("pc", (void*)&ribbonPc, sizeof(SRibbonPushConstants));
+        // m_RibbonShader->BindStorageBuffer("particles", m_ParticleBuffer);
+        // m_RibbonShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
+        // m_RibbonShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
     }
 
     void Renderer::BeginRendering(const Ref<CommandBuffer>& cmd) const
