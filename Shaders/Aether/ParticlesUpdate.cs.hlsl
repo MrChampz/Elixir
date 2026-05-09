@@ -2,7 +2,7 @@ struct ParticleState
 {
     float4 PositionSize;    // xyz = position, w = size
     float4 VelocityAge;     // xyz = velocity, w = age
-    float4 Tangent;         // xyz = tangent, w = unused
+    float4 Tangent;         // xyz = tangent, w = ribbon id
     float4 Color;
     float4 Metadata;        // x = emitter index, y = random seed, z = lifetime, w = alive
 };
@@ -14,7 +14,8 @@ struct Emitter
 {
     float4 MetaA; // x = offset in particle buffer, y = max particles, z = module offset(spawn), w = module count(spawn)
     float4 MetaB; // x = module offset(update), y = module count(update), z = buffer cursor, w = spawn count
-    float4 MetaC; // x = render mode, y = spawn rate seconds, z = gravity scale
+    float4 MetaC; // x = render mode, y = spawn rate seconds, z = gravity scale, w = next buffer cursor
+    float4 MetaD; // x = spawn serial at the start of this dispatch
 };
 
 [[vk::binding(1, 0)]]
@@ -47,6 +48,7 @@ struct AttributeTable
     float4 Size;
     float4 Lifetime;
     float4 Tangent;
+    float4 RibbonId;
 };
 
 [[vk::binding(0, 1)]]
@@ -70,6 +72,7 @@ AttributeTable LoadAttributes(ParticleState state)
     table.Position = float4(state.PositionSize.xyz, state.Metadata.w);
     table.Velocity = float4(state.VelocityAge.xyz, 0.0);
     table.Tangent = float4(state.Tangent.xyz, 0.0);
+    table.RibbonId = float4(state.Tangent.w, 0.0, 0.0, 0.0);
     table.Color = state.Color;
     table.Size = float4(state.PositionSize.w, 0.0, 0.0, 0.0);
     table.Lifetime = float4(state.Metadata.z, state.VelocityAge.w, 0.0, 0.0);
@@ -80,7 +83,7 @@ ParticleState StoreAttributes(ParticleState state, AttributeTable table, float a
 {
     state.PositionSize = float4(table.Position.xyz, table.Size.x);
     state.VelocityAge = float4(table.Velocity.xyz, age);
-    state.Tangent = float4(table.Tangent.xyz, 0.0);
+    state.Tangent = float4(table.Tangent.xyz, table.RibbonId.x);
     state.Color = table.Color;
     state.Metadata = float4(state.Metadata.xy, table.Lifetime.x, table.Position.w);
     return state;
@@ -98,6 +101,10 @@ float4 GetAttribute(AttributeTable table, uint attrId)
         return table.Size;
     if (attrId == 5u)
         return table.Lifetime;
+    if (attrId == 6u)
+        return table.Tangent;
+    if (attrId == 7u)
+        return table.RibbonId;
 
     return float4(0.0, 0.0, 0.0, 0.0);
 }
@@ -114,6 +121,10 @@ void SetAttribute(inout AttributeTable table, uint attrId, float4 value)
         table.Size = value;
     else if (attrId == 5u)
         table.Lifetime = value;
+    else if (attrId == 6u)
+        table.Tangent = value;
+    else if (attrId == 7u)
+        table.RibbonId = value;
 }
 
 [numthreads(256, 1, 1)]

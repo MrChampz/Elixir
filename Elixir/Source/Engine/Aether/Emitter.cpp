@@ -125,6 +125,33 @@ namespace Elixir::Aether
                     {}
                 });
             }
+            else if (const auto* typed = dynamic_cast<const SetRibbonId*>(module.get()))
+            {
+                modules.push_back({
+                    EModuleType::SetRibbonId,
+                    EParticleAttribute::RibbonId,
+                    UINT32_MAX,
+                    UINT32_MAX,
+                    { static_cast<float>(typed->GetRibbonId()), 0.0f, 0.0f, 0.0f },
+                    {}
+                });
+            }
+            else if (const auto* typed = dynamic_cast<const SetRibbonIdFromSpawnOrder*>(module.get()))
+            {
+                modules.push_back({
+                    EModuleType::SetRibbonIdFromSpawnOrder,
+                    EParticleAttribute::RibbonId,
+                    UINT32_MAX,
+                    UINT32_MAX,
+                    {
+                        static_cast<float>(typed->GetRibbonCount()),
+                        static_cast<float>(typed->GetFirstRibbonId()),
+                        0.0f,
+                        0.0f
+                    },
+                    {}
+                });
+            }
             else if (const auto* typed = dynamic_cast<const SetPositionOnCircle*>(module.get()))
             {
                 // modules.push_back({

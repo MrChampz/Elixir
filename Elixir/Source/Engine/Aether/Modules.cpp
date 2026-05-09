@@ -36,6 +36,19 @@ namespace Elixir::Aether
 
     SetColor::SetColor(const glm::vec4 color) : m_Color(color) {}
 
+    /* SetRibbonId */
+
+    SetRibbonId::SetRibbonId(const uint32_t ribbonId)
+        : m_RibbonId(ribbonId) {}
+
+    /* SetRibbonIdFromSpawnOrder */
+
+    SetRibbonIdFromSpawnOrder::SetRibbonIdFromSpawnOrder(
+        const uint32_t ribbonCount,
+        const uint32_t firstRibbonId
+    ) : m_RibbonCount(std::max(1u, ribbonCount)),
+        m_FirstRibbonId(firstRibbonId) {}
+
     /* SetPositionOnCircle */
 
     SetPositionOnCircle::SetPositionOnCircle(

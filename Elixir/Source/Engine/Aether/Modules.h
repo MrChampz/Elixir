@@ -24,6 +24,8 @@ namespace Elixir::Aether
         SetPositionOnCircle,
         SetPositionBezierLoop,
         SetPositionCircularPath,
+        SetRibbonId,
+        SetRibbonIdFromSpawnOrder,
     };
 
     struct SGPUModule
@@ -130,6 +132,34 @@ namespace Elixir::Aether
 
       private:
         glm::vec4 m_Color;
+    };
+
+    class ELIXIR_API SetRibbonId final : public ParticleSpawnModule
+    {
+      public:
+        explicit SetRibbonId(uint32_t ribbonId);
+
+        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
+
+        uint32_t GetRibbonId() const { return m_RibbonId; }
+
+      private:
+        uint32_t m_RibbonId;
+    };
+
+    class ELIXIR_API SetRibbonIdFromSpawnOrder final : public ParticleSpawnModule
+    {
+      public:
+        explicit SetRibbonIdFromSpawnOrder(uint32_t ribbonCount, uint32_t firstRibbonId = 0);
+
+        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
+
+        uint32_t GetRibbonCount() const { return m_RibbonCount; }
+        uint32_t GetFirstRibbonId() const { return m_FirstRibbonId; }
+
+      private:
+        uint32_t m_RibbonCount;
+        uint32_t m_FirstRibbonId;
     };
 
     class ELIXIR_API SetPositionOnCircle final : public ParticleSpawnModule

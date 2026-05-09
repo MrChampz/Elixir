@@ -2,7 +2,7 @@ struct ParticleState
 {
     float4 PositionSize;    // xyz = position, w = size
     float4 VelocityAge;     // xyz = velocity, w = age
-    float4 Tangent;         // xyz = tangent, w = unused
+    float4 Tangent;         // xyz = tangent, w = ribbon id
     float4 Color;
     float4 Metadata;        // x = emitter index, y = random seed, z = lifetime, w = alive
 };
@@ -14,7 +14,8 @@ struct Emitter
 {
     float4 MetaA; // x = offset in particle buffer, y = max particles, z = module offset(spawn), w = module count(spawn)
     float4 MetaB; // x = module offset(update), y = module count(update), z = buffer cursor, w = spawn count
-    float4 MetaC; // x = render mode, y = spawn rate seconds, z = gravity scale
+    float4 MetaC; // x = render mode, y = spawn rate seconds, z = gravity scale, w = next buffer cursor
+    float4 MetaD; // x = spawn serial at the start of this dispatch
 };
 
 [[vk::binding(1, 0)]]
@@ -47,6 +48,7 @@ struct AttributeTable
     float4 Size;
     float4 Lifetime;
     float4 Tangent;
+    float4 RibbonId;
 };
 
 [[vk::binding(0, 1)]]
@@ -95,6 +97,8 @@ float4 GetAttribute(AttributeTable table, uint attrId)
         return table.Lifetime;
     if (attrId == 6u)
         return table.Tangent;
+    if (attrId == 7u)
+        return table.RibbonId;
 
     return float4(0.0, 0.0, 0.0, 0.0);
 }
@@ -113,6 +117,8 @@ void SetAttribute(inout AttributeTable table, uint attrId, float4 value)
         table.Lifetime = value;
     else if (attrId == 6u)
         table.Tangent = value;
+    else if (attrId == 7u)
+        table.RibbonId = value;
 }
 
 float3 SafeNormalize(float3 value, float3 fallback)
@@ -187,6 +193,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     attributes.Size = float4(6.0, 0.0, 0.0, 0.0);
     attributes.Lifetime = float4(1.0, 0.0, 0.0, 0.0);
     attributes.Tangent = float4(1.0, 0.0, 0.0, 0.0);
+    attributes.RibbonId = float4(0.0, 0.0, 0.0, 0.0);
 
     uint moduleOffset = (uint)emitter.MetaA.z;
     uint moduleCount = (uint)emitter.MetaA.w;
@@ -318,11 +325,24 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
             SetAttribute(attributes, 6u, float4(tangent, 0.0));
         }
+        else if (type == 14u) // SetRibbonId
+        {
+            SetAttribute(attributes, target, float4(module.Data0.x, 0.0, 0.0, 0.0));
+        }
+        else if (type == 15u) // SetRibbonIdFromSpawnOrder
+        {
+            uint ribbonCount = max(1u, (uint)module.Data0.x);
+            uint firstRibbonId = (uint)module.Data0.y;
+            uint spawnOrder = SpawnOrderInBatch(localIndex, spawnCursor, emitterCount);
+            uint spawnSerial = (uint)emitter.MetaD.x + spawnOrder;
+            uint ribbonId = firstRibbonId + (spawnSerial % ribbonCount);
+            SetAttribute(attributes, target, float4(float(ribbonId), 0.0, 0.0, 0.0));
+        }
     }
 
     particles[globalIndex].PositionSize = float4(GetAttribute(attributes, 1u).xyz, GetAttribute(attributes, 4u).x);
     particles[globalIndex].VelocityAge = float4(GetAttribute(attributes, 2u).xyz, 0.0);
-    particles[globalIndex].Tangent = float4(GetAttribute(attributes, 6u).xyz, 0.0);
+    particles[globalIndex].Tangent = float4(GetAttribute(attributes, 6u).xyz, GetAttribute(attributes, 7u).x);
     particles[globalIndex].Color = GetAttribute(attributes, 3u);
     particles[globalIndex].Metadata = float4(float(pc.EmitterIndex), Hash1(float(globalIndex)), GetAttribute(attributes, 5u).x, 1.0);
 }

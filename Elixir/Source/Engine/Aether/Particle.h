@@ -2,6 +2,8 @@
 
 #include <glm/glm.hpp>
 
+#include <cstdint>
+
 namespace Elixir::Aether
 {
     enum class EParticleAttribute : uint32_t
@@ -11,7 +13,9 @@ namespace Elixir::Aether
         Velocity,
         Color,
         Size,
-        Lifetime
+        Lifetime,
+        Tangent,
+        RibbonId
     };
 
     struct SParticle
@@ -22,6 +26,7 @@ namespace Elixir::Aether
         float Lifetime = 1.0f;
         float Age = 0.0f;
         float Size = 4.0f;
+        uint32_t RibbonId = 0;
         bool Alive = false;
     };
 }

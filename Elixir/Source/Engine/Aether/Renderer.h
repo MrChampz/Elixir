@@ -17,6 +17,7 @@ namespace Elixir::Aether
         glm::vec4 MetaA{};
         glm::vec4 MetaB{};
         glm::vec4 MetaC{};
+        glm::vec4 MetaD{};
     };
 
     struct alignas(16) SModuleData
@@ -42,7 +43,7 @@ namespace Elixir::Aether
     {
         float Accumulator = 0.0f;
         uint32_t BufferCursor = 0u;
-        uint32_t SpawnedParticles = 0u;
+        uint32_t SpawnSerial = 0u;
     };
 
     class ELIXIR_API Renderer final
@@ -88,8 +89,8 @@ namespace Elixir::Aether
         Ref<ComputePipeline> m_UpdatePipeline;
         Ref<Shader> m_RendererShader;
         Ref<GraphicsPipeline> m_RendererPipeline;
-        //Ref<Shader> m_RibbonShader;
-        //Ref<GraphicsPipeline> m_RibbonPipeline;
+        Ref<Shader> m_RibbonShader;
+        Ref<GraphicsPipeline> m_RibbonPipeline;
 
         Ref<StorageBuffer> m_ParticleBuffer;
         std::unordered_map<SGPUEmitter, SEmitterState> m_EmittersState;
