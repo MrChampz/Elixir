@@ -6,10 +6,11 @@
 
 namespace Elixir::Aether
 {
-    struct SFrameData
+    struct alignas(16) SFrameData
     {
         glm::mat4 ViewProj;
         glm::vec3 CameraPosition;
+        float _Padding = 0.0f;
     };
 
     struct alignas(16) SEmitterData

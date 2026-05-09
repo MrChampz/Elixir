@@ -72,6 +72,9 @@ namespace Elixir::Vulkan
             size == 0 ? VK_WHOLE_SIZE : size,
             data
         );
+
+        this->m_PipelineStage = EPipelineStage::Transfer;
+        this->m_PipelineAccess = EPipelineAccess::TransferWrite;
     }
 
     template <class Base>

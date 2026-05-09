@@ -122,6 +122,9 @@ namespace Elixir::Aether
 
         const auto* emitters = static_cast<const SEmitterData*>(m_EmitterBuffer->Map());
 
+        const auto particleComputeAccess = EPipelineAccess::ShaderRead | EPipelineAccess::ShaderWrite;
+        m_ParticleBuffer->Barrier(cmd, EPipelineStage::ComputeShader, particleComputeAccess);
+
         m_SpawnPipeline->Bind(cmd);
         for (uint32_t i = 0; i < emitterCount; ++i)
         {
@@ -133,12 +136,16 @@ namespace Elixir::Aether
             cmd->Dispatch((particleCount + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
         }
 
-        m_ParticleBuffer->Barrier(cmd, EPipelineStage::ComputeShader, EPipelineAccess::ShaderWrite);
+        m_ParticleBuffer->Barrier(cmd, EPipelineStage::ComputeShader, particleComputeAccess);
 
         m_UpdatePipeline->Bind(cmd);
         cmd->Dispatch((maxParticles + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
 
-        m_ParticleBuffer->Barrier(cmd, EPipelineStage::VertexShader, EPipelineAccess::ShaderRead);
+        m_ParticleBuffer->Barrier(
+            cmd,
+            EPipelineStage::VertexShader | EPipelineStage::VertexInput,
+            EPipelineAccess::ShaderRead | EPipelineAccess::VertexAttributeRead
+        );
 
         BeginRendering(cmd);
 
@@ -243,7 +250,7 @@ namespace Elixir::Aether
         ribbonBuilder.SetInputTopology(EPrimitiveTopology::TriangleList);
         ribbonBuilder.SetPolygonMode(EPolygonMode::Fill);
         ribbonBuilder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
-        ribbonBuilder.EnableAlphaBlending();
+        ribbonBuilder.EnableAlphaBlendingMax();
         ribbonBuilder.DisableDepthTest();
         ribbonBuilder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
         ribbonBuilder.SetBufferLayout({});

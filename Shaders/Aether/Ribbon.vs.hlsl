@@ -42,6 +42,7 @@ struct VSOutput
     float4 ClipPos : SV_POSITION;
     float4 Color : COLOR0;
     float2 UV : TEXCOORD0;
+    nointerpolation float Valid : TEXCOORD1;
 };
 
 static const float RIBBON_WORLD_SIZE_SCALE = 0.01;
@@ -142,52 +143,36 @@ bool TryFindAdjacentParticle(
     return false;
 }
 
-float3 BuildCameraFacingSide(uint localIndex, Emitter emitter, ParticleState particle)
+float3 BuildSegmentSide(float3 p0, float3 p1, ParticleState startParticle, ParticleState endParticle)
 {
-    ParticleState previousParticle;
-    ParticleState nextParticle;
-    bool hasPrevious = TryFindAdjacentParticle(localIndex, emitter, particle.Tangent.w, false, previousParticle);
-    bool hasNext = TryFindAdjacentParticle(localIndex, emitter, particle.Tangent.w, true, nextParticle);
+    float3 tangentFallback = SafeNormalize(
+        startParticle.Tangent.xyz + endParticle.Tangent.xyz,
+        float3(1.0, 0.0, 0.0)
+    );
+    float3 segmentDirection = SafeNormalize(p1 - p0, tangentFallback);
+    float3 segmentCenter = (p0 + p1) * 0.5;
+    float3 viewDirection = SafeNormalize(CameraPosition - segmentCenter, float3(0.0, 0.0, 1.0));
+    float3 side = cross(viewDirection, segmentDirection);
 
-    float3 tangent = particle.Tangent.xyz;
-    if (hasPrevious && hasNext)
-        tangent = nextParticle.PositionSize.xyz - previousParticle.PositionSize.xyz;
-    else if (hasNext)
-        tangent = nextParticle.PositionSize.xyz - particle.PositionSize.xyz;
-    else if (hasPrevious)
-        tangent = particle.PositionSize.xyz - previousParticle.PositionSize.xyz;
+    float3 helper = abs(segmentDirection.y) < 0.99 ? float3(0.0, 1.0, 0.0) : float3(1.0, 0.0, 0.0);
+    float3 fallbackSide = SafeNormalize(cross(helper, segmentDirection), float3(1.0, 0.0, 0.0));
+    return SafeNormalize(side, fallbackSide);
+}
 
-    tangent = SafeNormalize(tangent, float3(1.0, 0.0, 0.0));
-
-    float3 viewDirection = SafeNormalize(CameraPosition - particle.PositionSize.xyz, float3(0.0, 0.0, 1.0));
-    float3 side = cross(viewDirection, tangent);
-
-    float3 helper = abs(tangent.y) < 0.99 ? float3(0.0, 1.0, 0.0) : float3(1.0, 0.0, 0.0);
-    float3 fallbackSide = SafeNormalize(cross(helper, tangent), float3(1.0, 0.0, 0.0));
-    side = SafeNormalize(side, fallbackSide);
-
-    if (hasPrevious)
-    {
-        float3 previousDirection = SafeNormalize(
-            particle.PositionSize.xyz - previousParticle.PositionSize.xyz,
-            tangent
-        );
-        float3 previousSide = SafeNormalize(cross(viewDirection, previousDirection), side);
-        if (dot(side, previousSide) < 0.0)
-            side = -side;
-    }
-    else if (hasNext)
-    {
-        float3 nextDirection = SafeNormalize(
-            nextParticle.PositionSize.xyz - particle.PositionSize.xyz,
-            tangent
-        );
-        float3 nextSide = SafeNormalize(cross(viewDirection, nextDirection), side);
-        if (dot(side, nextSide) < 0.0)
-            side = -side;
-    }
+float3 BuildDirectionSide(float3 viewDirection, float3 direction, float3 referenceSide)
+{
+    float3 side = SafeNormalize(cross(viewDirection, direction), referenceSide);
+    if (dot(side, referenceSide) < 0.0)
+        side = -side;
 
     return side;
+}
+
+float3 BuildParticleSide(ParticleState particle, float3 referenceSide)
+{
+    float3 tangentFallback = SafeNormalize(particle.Tangent.xyz, float3(1.0, 0.0, 0.0));
+    float3 viewDirection = SafeNormalize(CameraPosition - particle.PositionSize.xyz, float3(0.0, 0.0, 1.0));
+    return BuildDirectionSide(viewDirection, tangentFallback, referenceSide);
 }
 
 VSOutput EmptyVertex()
@@ -196,6 +181,7 @@ VSOutput EmptyVertex()
     output.ClipPos = float4(0.0, 0.0, 0.0, 1.0);
     output.Color = float4(0.0, 0.0, 0.0, 0.0);
     output.UV = float2(0.5, 0.0);
+    output.Valid = 0.0;
     return output;
 }
 
@@ -221,20 +207,22 @@ VSOutput main(uint vertexId : SV_VertexID)
     float3 p1 = endParticle.PositionSize.xyz;
     float width0 = max(startParticle.PositionSize.w * RIBBON_WORLD_SIZE_SCALE, 0.0001);
     float width1 = max(endParticle.PositionSize.w * RIBBON_WORLD_SIZE_SCALE, 0.0001);
+    float3 segmentSide = BuildSegmentSide(p0, p1, startParticle, endParticle);
+    float3 startSide = BuildParticleSide(startParticle, segmentSide);
+    float3 endSide = BuildParticleSide(endParticle, segmentSide);
 
     bool useEndParticle = vertexInSegment == 1u || vertexInSegment == 2u || vertexInSegment == 4u;
     bool usePositiveSide = vertexInSegment == 2u || vertexInSegment == 4u || vertexInSegment == 5u;
 
     float3 center = useEndParticle ? p1 : p0;
     float width = useEndParticle ? width1 : width0;
-    float3 side = useEndParticle
-        ? BuildCameraFacingSide(endLocalIndex, emitter, endParticle)
-        : BuildCameraFacingSide(segmentIndex, emitter, startParticle);
+    float3 side = useEndParticle ? endSide : startSide;
     float sideSign = usePositiveSide ? 1.0 : -1.0;
 
     VSOutput output;
     output.ClipPos = mul(ViewProj, float4(center + side * (width * 0.5 * sideSign), 1.0));
     output.Color = useEndParticle ? endParticle.Color : startParticle.Color;
     output.UV = float2(usePositiveSide ? 1.0 : 0.0, useEndParticle ? 1.0 : 0.0);
+    output.Valid = 1.0;
     return output;
 }
