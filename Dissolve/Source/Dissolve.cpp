@@ -84,8 +84,19 @@ Dissolve::Dissolve()
     orbitRibbon.AddSpawnModule<Aether::SetLifetime>(2.4f, 2.4f);
     orbitRibbon.AddSpawnModule<Aether::SetSize>(10.0f, 10.0f);
     orbitRibbon.AddSpawnModule<Aether::SetColor>(glm::vec4{ 0.80f, 1.0f, 0.92f, 0.82f });
-    orbitRibbon.AddUpdateModule<Aether::ColorOverLife>(glm::vec4{ 0.80f, 1.0f, 0.92f, 0.82f }, glm::vec4{ 0.18f, 0.58f, 1.0f, 0.0f });
-    orbitRibbon.AddUpdateModule<Aether::SizeOverLife>(10.0f, 2.0f);
+
+    auto& helixRibbon = m_ParticleSystem->AddEmitter("HelixRibbon", 768, 150.0f);
+    helixRibbon.SetRenderMode(Aether::EParticleRenderMode::Ribbon);
+    helixRibbon.AddSpawnModule<Aether::SetRibbonId>(1);
+    helixRibbon.AddSpawnModule<Aether::SetPositionCircularPath>(
+        glm::vec3{ 0.0f, 0.12f, -0.28f },
+        glm::vec3{ 0.38f, 0.28f, 0.46f },
+        glm::vec3{ 0.10f, 0.18f, 0.08f },
+        -3.1f
+    );
+    helixRibbon.AddSpawnModule<Aether::SetLifetime>(2.0f, 2.0f);
+    helixRibbon.AddSpawnModule<Aether::SetSize>(7.0f, 7.0f);
+    helixRibbon.AddSpawnModule<Aether::SetColor>(glm::vec4{ 1.0f, 0.62f, 0.90f, 0.76f });
 
     auto& sparks = m_ParticleSystem->AddEmitter("RoseSparks", 2048, 120.0f);
     sparks.AddSpawnModule<Aether::SetPositionDisk>(glm::vec3{ 0.0f, -0.8f, 0.0f }, 0.08f);
