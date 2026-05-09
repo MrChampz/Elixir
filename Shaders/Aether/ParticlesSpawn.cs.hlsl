@@ -4,7 +4,7 @@ struct ParticleState
     float4 VelocityAge;     // xyz = velocity, w = age
     float4 Tangent;         // xyz = tangent, w = ribbon id
     float4 Color;
-    float4 Metadata;        // x = emitter index, y = random seed, z = lifetime, w = alive
+    float4 Metadata;        // x = emitter index, y = ribbon link order, z = lifetime, w = alive
 };
 
 [[vk::binding(0, 0)]]
@@ -64,11 +64,6 @@ struct PushConstants {
 
 [[vk::push_constant]]
 PushConstants pc;
-
-float Hash1(float x)
-{
-    return frac(sin(x * 91.3458 + 12.345) * 45678.5453);
-}
 
 float Hash2(float2 p)
 {
@@ -185,6 +180,9 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
     uint globalIndex = (uint)(emitter.MetaA.x + localIndex);
     float2 seedBase = float2(float(globalIndex), TimeData.y + float(spawnCursor));
+    uint spawnOrder = SpawnOrderInBatch(localIndex, spawnCursor, emitterCount);
+    spawnOrder = min(spawnOrder, spawnCount - 1u);
+    uint spawnSerial = (uint)emitter.MetaD.x + spawnOrder;
 
     AttributeTable attributes;
     attributes.Position = float4(0.0, 0.0, 0.0, 0.0);
@@ -302,8 +300,6 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             float timeScale = module.Data0.w;
 
             float spawnRate = max(emitter.MetaC.y, 0.001);
-            uint spawnOrder = SpawnOrderInBatch(localIndex, spawnCursor, emitterCount);
-            spawnOrder = min(spawnOrder, spawnCount - 1u);
             float timeOffset = float((spawnCount - 1u) - spawnOrder) / spawnRate;
             float sampleTime = TimeData.y - timeOffset;
 
@@ -333,8 +329,6 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         {
             uint ribbonCount = max(1u, (uint)module.Data0.x);
             uint firstRibbonId = (uint)module.Data0.y;
-            uint spawnOrder = SpawnOrderInBatch(localIndex, spawnCursor, emitterCount);
-            uint spawnSerial = (uint)emitter.MetaD.x + spawnOrder;
             uint ribbonId = firstRibbonId + (spawnSerial % ribbonCount);
             SetAttribute(attributes, target, float4(float(ribbonId), 0.0, 0.0, 0.0));
         }
@@ -344,5 +338,5 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     particles[globalIndex].VelocityAge = float4(GetAttribute(attributes, 2u).xyz, 0.0);
     particles[globalIndex].Tangent = float4(GetAttribute(attributes, 6u).xyz, GetAttribute(attributes, 7u).x);
     particles[globalIndex].Color = GetAttribute(attributes, 3u);
-    particles[globalIndex].Metadata = float4(float(pc.EmitterIndex), Hash1(float(globalIndex)), GetAttribute(attributes, 5u).x, 1.0);
+    particles[globalIndex].Metadata = float4(float(pc.EmitterIndex), float(spawnSerial), GetAttribute(attributes, 5u).x, 1.0);
 }

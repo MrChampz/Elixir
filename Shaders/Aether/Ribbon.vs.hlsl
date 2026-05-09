@@ -4,7 +4,7 @@ struct ParticleState
     float4 VelocityAge;     // xyz = velocity, w = age
     float4 Tangent;         // xyz = tangent, w = ribbon id
     float4 Color;
-    float4 Metadata;        // x = emitter index, y = random seed, z = lifetime, w = alive
+    float4 Metadata;        // x = emitter index, y = ribbon link order, z = lifetime, w = alive
 };
 
 struct Emitter
@@ -68,6 +68,11 @@ bool SameRibbon(float a, float b)
     return abs(a - b) < 0.5;
 }
 
+float LinkOrder(ParticleState particle)
+{
+    return particle.Metadata.y;
+}
+
 bool TryBuildSegment(
     uint localIndex,
     Emitter emitter,
@@ -78,7 +83,6 @@ bool TryBuildSegment(
 {
     uint particleOffset = (uint)emitter.MetaA.x;
     uint particleCount = (uint)emitter.MetaA.y;
-    uint nextCursor = (uint)emitter.MetaC.w;
 
     startParticle = particles[particleOffset + localIndex];
     endParticle = startParticle;
@@ -88,23 +92,30 @@ bool TryBuildSegment(
         return false;
 
     float ribbonId = startParticle.Tangent.w;
+    float startLinkOrder = LinkOrder(startParticle);
+    float bestLinkDelta = 3.402823466e+38;
+    bool found = false;
 
-    for (uint step = 1u; step < particleCount; ++step)
+    for (uint candidateLocalIndex = 0u; candidateLocalIndex < particleCount; ++candidateLocalIndex)
     {
-        uint candidateLocalIndex = (localIndex + step) % particleCount;
-        if (candidateLocalIndex == nextCursor)
-            break;
+        if (candidateLocalIndex == localIndex)
+            continue;
 
         ParticleState candidate = particles[particleOffset + candidateLocalIndex];
-        if (IsAlive(candidate) && SameRibbon(candidate.Tangent.w, ribbonId))
-        {
-            endParticle = candidate;
-            endLocalIndex = candidateLocalIndex;
-            return true;
-        }
+        float candidateLinkDelta = LinkOrder(candidate) - startLinkOrder;
+        if (!IsAlive(candidate) ||
+            !SameRibbon(candidate.Tangent.w, ribbonId) ||
+            candidateLinkDelta <= 0.0 ||
+            candidateLinkDelta >= bestLinkDelta)
+            continue;
+
+        endParticle = candidate;
+        endLocalIndex = candidateLocalIndex;
+        bestLinkDelta = candidateLinkDelta;
+        found = true;
     }
 
-    return false;
+    return found;
 }
 
 bool TryFindAdjacentParticle(

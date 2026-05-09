@@ -4,7 +4,7 @@ struct ParticleState
     float4 VelocityAge;     // xyz = velocity, w = age
     float4 Tangent;         // xyz = tangent, w = ribbon id
     float4 Color;
-    float4 Metadata;        // x = emitter index, y = random seed, z = lifetime, w = alive
+    float4 Metadata;        // x = emitter index, y = ribbon link order, z = lifetime, w = alive
 };
 
 [[vk::binding(0, 0)]]
