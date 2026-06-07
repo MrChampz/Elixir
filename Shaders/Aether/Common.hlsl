@@ -19,10 +19,18 @@ bool SameRibbon(float a, float b)
     return abs(a - b) < 0.5;
 }
 
-float LinkOrder(ParticleState particle)
+uint LinkOrder(ParticleState particle)
 {
-    return particle.Metadata.y;
+    return asuint(particle.Metadata.y);
 }
+
+// Maximum number of interleaved ribbons per emitter. Particles belonging to the
+// same ribbon are spaced exactly (ribbonCount) slots apart in the circular buffer
+// because emissionIndex increments by 1 per spawn and ribbons are assigned round-robin.
+// Searching only this many slots forward reduces TryBuildSegment from O(N) to O(W),
+// turning the overall O(N²) vertex shader cost into O(W·N).
+// Raise this value only if an emitter needs more than 32 simultaneous ribbons.
+#define RIBBON_SEARCH_WINDOW 32
 
 bool TryBuildSegment(
     uint localIndex,
@@ -33,77 +41,50 @@ bool TryBuildSegment(
 )
 {
     uint particleOffset = (uint)emitter.MetaA.x;
-    uint particleCount = (uint)emitter.MetaA.y;
+    uint particleCount  = (uint)emitter.MetaA.y;
 
     startParticle = particles[particleOffset + localIndex];
-    endParticle = startParticle;
+    endParticle   = startParticle;
     endLocalIndex = localIndex;
 
     if (!IsAlive(startParticle))
         return false;
 
-    float ribbonId = startParticle.Tangent.w;
-    float startLinkOrder = LinkOrder(startParticle);
-    float bestLinkDelta = 3.402823466e+38;
-    bool found = false;
+    float ribbonId      = startParticle.Tangent.w;
+    uint startLinkOrder = LinkOrder(startParticle);
+    uint bestLinkDelta  = 0xFFFFFFFFu; // UINT_MAX
+    bool  found         = false;
 
-    for (uint candidateLocalIndex = 0u; candidateLocalIndex < particleCount; ++candidateLocalIndex)
+    // Ribbons are assigned round-robin at spawn time, so the successor particle
+    // in a ribbon is always within RIBBON_SEARCH_WINDOW slots ahead in the
+    // circular buffer. We search forward only, relying on the invariant that a
+    // valid successor has a positive and minimal linkOrder delta.
+    uint windowSize = min(RIBBON_SEARCH_WINDOW, particleCount - 1u);
+    for (uint step = 1u; step <= windowSize; ++step)
     {
-        if (candidateLocalIndex == localIndex)
-            continue;
+        uint candidateLocalIndex = (localIndex + step) % particleCount;
+        ParticleState candidate  = particles[particleOffset + candidateLocalIndex];
+        uint candidateLinkOrder  = LinkOrder(candidate);
 
-        ParticleState candidate = particles[particleOffset + candidateLocalIndex];
-        float candidateLinkDelta = LinkOrder(candidate) - startLinkOrder;
-
+        // Compare before subtracting: if candidateLinkOrder <= startLinkOrder the
+        // subtraction would wrap around to a near-UINT_MAX value and falsely pass
+        // the range check, connecting the ribbon start to stale/old-cycle particles.
         if (!IsAlive(candidate) ||
             !SameRibbon(candidate.Tangent.w, ribbonId) ||
-            candidateLinkDelta <= 0.0 ||
-            candidateLinkDelta >= bestLinkDelta)
+            candidateLinkOrder <= startLinkOrder)
             continue;
 
-        endParticle = candidate;
-        endLocalIndex = candidateLocalIndex;
-        bestLinkDelta = candidateLinkDelta;
-        found = true;
-    }
-
-    return found;
-}
-
-bool TryFindAdjacentParticle(
-    uint localIndex,
-    Emitter emitter,
-    float ribbonId,
-    bool forward,
-    out ParticleState adjacentParticle
-)
-{
-    uint particleOffset = (uint)emitter.MetaA.x;
-    uint particleCount = (uint)emitter.MetaA.y;
-    uint nextCursor = (uint)emitter.MetaC.w;
-    uint newestLocalIndex = (nextCursor + particleCount - 1u) % particleCount;
-
-    adjacentParticle = particles[particleOffset + localIndex];
-
-    for (uint step = 1u; step < particleCount; ++step)
-    {
-        uint candidateLocalIndex = forward
-            ? (localIndex + step) % particleCount
-            : (localIndex + particleCount - step) % particleCount;
-
-        if ((forward && candidateLocalIndex == nextCursor) ||
-            (!forward && candidateLocalIndex == newestLocalIndex))
-            break;
-
-        ParticleState candidate = particles[particleOffset + candidateLocalIndex];
-        if (IsAlive(candidate) && SameRibbon(candidate.Tangent.w, ribbonId))
+        uint candidateLinkDelta = candidateLinkOrder - startLinkOrder;
+        if (candidateLinkDelta < bestLinkDelta)
         {
-            adjacentParticle = candidate;
-            return true;
+            endParticle   = candidate;
+            endLocalIndex = candidateLocalIndex;
+            bestLinkDelta = candidateLinkDelta;
+            found         = true;
         }
     }
 
-    return false;
+    return found;
 }
 
 float3 BuildSegmentSide(

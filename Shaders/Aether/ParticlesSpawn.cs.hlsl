@@ -338,5 +338,5 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     particles[globalIndex].VelocityAge = float4(GetAttribute(attributes, 2u).xyz, 0.0);
     particles[globalIndex].Tangent = float4(GetAttribute(attributes, 6u).xyz, GetAttribute(attributes, 7u).x);
     particles[globalIndex].Color = GetAttribute(attributes, 3u);
-    particles[globalIndex].Metadata = float4(float(pc.EmitterIndex), float(emissionIndex), GetAttribute(attributes, 5u).x, 1.0);
+    particles[globalIndex].Metadata = float4(float(pc.EmitterIndex), asfloat(emissionIndex), GetAttribute(attributes, 5u).x, 1.0);
 }
