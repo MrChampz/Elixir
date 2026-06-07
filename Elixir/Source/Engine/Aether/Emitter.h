@@ -92,7 +92,7 @@ namespace Elixir::Aether
 
         UUID m_UUID;
         std::string m_Name;
-        EParticleRenderMode m_RenderMode;
+        EParticleRenderMode m_RenderMode = EParticleRenderMode::Sprite;
         std::vector<SParticle> m_Particles;
         std::vector<Scope<ParticleSpawnModule>> m_SpawnModules;
         std::vector<Scope<ParticleUpdateModule>> m_UpdateModules;

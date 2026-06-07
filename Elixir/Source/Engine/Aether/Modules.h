@@ -24,6 +24,8 @@ namespace Elixir::Aether
         SetPositionOnCircle,
         SetPositionBezierLoop,
         SetPositionCircularPath,
+        SetRibbonId,
+        SetRibbonIdFromSpawnOrder,
     };
 
     struct SGPUModule
@@ -39,7 +41,7 @@ namespace Elixir::Aether
 
     class ParticleSpawnModule
     {
-      public:
+    public:
         virtual ~ParticleSpawnModule() = default;
 
         virtual void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const = 0;
@@ -47,7 +49,7 @@ namespace Elixir::Aether
 
     class ParticleUpdateModule
     {
-      public:
+    public:
         virtual ~ParticleUpdateModule() = default;
 
         virtual void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const = 0;
@@ -55,7 +57,7 @@ namespace Elixir::Aether
 
     class ELIXIR_API SetPositionDisk final : public ParticleSpawnModule
     {
-      public:
+    public:
         explicit SetPositionDisk(glm::vec3 center, float radius, glm::vec3 normal = { 0, 1, 0 });
 
         void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
@@ -64,7 +66,7 @@ namespace Elixir::Aether
         glm::vec3 GetNormal() const { return m_Normal; }
         float GetRadius() const { return m_Radius; }
 
-      private:
+    private:
         glm::vec3 m_Center;
         glm::vec3 m_Normal;
         float m_Radius;
@@ -72,7 +74,7 @@ namespace Elixir::Aether
 
     class ELIXIR_API SetVelocityCone final : public ParticleSpawnModule
     {
-      public:
+    public:
         explicit SetVelocityCone(glm::vec3 direction, float angle, float minSpeed, float maxSpeed);
 
         void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
@@ -82,7 +84,7 @@ namespace Elixir::Aether
         float GetMinSpeed() const { return m_MinSpeed; }
         float GetMaxSpeed() const { return m_MaxSpeed; }
 
-      private:
+    private:
         glm::vec3 m_Direction;
         float m_Angle;      // radians
         float m_MinSpeed;
@@ -91,7 +93,7 @@ namespace Elixir::Aether
 
     class ELIXIR_API SetLifetime final : public ParticleSpawnModule
     {
-      public:
+    public:
         explicit SetLifetime(float minSeconds, float maxSeconds);
 
         void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
@@ -99,14 +101,14 @@ namespace Elixir::Aether
         float GetMinSeconds() const { return m_MinSeconds; }
         float GetMaxSeconds() const { return m_MaxSeconds; }
 
-      private:
+    private:
         float m_MinSeconds;
         float m_MaxSeconds;
     };
 
     class ELIXIR_API SetSize final : public ParticleSpawnModule
     {
-      public:
+    public:
         explicit SetSize(float minSize, float maxSize);
 
         void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
@@ -114,27 +116,27 @@ namespace Elixir::Aether
         float GetMinSize() const { return m_MinSize; }
         float GetMaxSize() const { return m_MaxSize; }
 
-      private:
+    private:
         float m_MinSize;
         float m_MaxSize;
     };
 
     class ELIXIR_API SetColor final : public ParticleSpawnModule
     {
-      public:
+    public:
         explicit SetColor(glm::vec4 color);
 
         void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
 
         const glm::vec4& GetColor() const { return m_Color; }
 
-      private:
+    private:
         glm::vec4 m_Color;
     };
 
     class ELIXIR_API SetPositionOnCircle final : public ParticleSpawnModule
     {
-      public:
+    public:
         explicit SetPositionOnCircle(glm::vec3 center, float radius, float angularSpeed, float startAngle = 0.0f);
 
         void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
@@ -144,7 +146,7 @@ namespace Elixir::Aether
         float GetAngularSpeed() const { return m_AngularSpeed; }
         float GetStartAngle() const { return m_StartAngle; }
 
-      private:
+    private:
         glm::vec3 m_Center;
         float m_Radius;
         float m_AngularSpeed;
@@ -173,6 +175,34 @@ namespace Elixir::Aether
         glm::vec3 m_PrimaryAmplitude;
         glm::vec3 m_SecondaryAmplitude;
         float m_TimeScale;
+    };
+
+    class ELIXIR_API SetRibbonId final : public ParticleSpawnModule
+    {
+      public:
+        explicit SetRibbonId(uint32_t ribbonId);
+
+        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
+
+        uint32_t GetRibbonId() const { return m_RibbonId; }
+
+      private:
+        uint32_t m_RibbonId;
+    };
+
+    class ELIXIR_API SetRibbonIdFromSpawnOrder final : public ParticleSpawnModule
+    {
+      public:
+        explicit SetRibbonIdFromSpawnOrder(uint32_t ribbonCount, uint32_t firstRibbonId = 0);
+
+        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
+
+        uint32_t GetRibbonCount() const { return m_RibbonCount; }
+        uint32_t GetFirstRibbonId() const { return m_FirstRibbonId; }
+
+      private:
+        uint32_t m_RibbonCount;
+        uint32_t m_FirstRibbonId;
     };
 
     class ELIXIR_API ApplyGravity final : public ParticleUpdateModule

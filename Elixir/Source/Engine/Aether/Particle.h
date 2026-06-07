@@ -11,7 +11,9 @@ namespace Elixir::Aether
         Velocity,
         Color,
         Size,
-        Lifetime
+        Lifetime,
+        Tangent,
+        RibbonId
     };
 
     struct SParticle
@@ -23,5 +25,6 @@ namespace Elixir::Aether
         float Age = 0.0f;
         float Size = 4.0f;
         bool Alive = false;
+        uint32_t RibbonId = 0;
     };
 }

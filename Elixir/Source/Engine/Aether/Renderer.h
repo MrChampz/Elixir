@@ -6,11 +6,13 @@
 
 namespace Elixir::Aether
 {
-    struct SFrameData
+    struct alignas(16) SFrameData
     {
         glm::mat4 View;
         glm::mat4 Proj;
         glm::mat4 ViewProj;
+        glm::vec3 CameraPos;
+        float _Padding = 0.0f;
     };
 
     struct alignas(16) SEmitterData
@@ -18,6 +20,7 @@ namespace Elixir::Aether
         glm::vec4 MetaA{};
         glm::vec4 MetaB{};
         glm::vec4 MetaC{};
+        glm::vec4 MetaD{};
     };
 
     struct alignas(16) SModuleData
@@ -43,7 +46,7 @@ namespace Elixir::Aether
     {
         float Accumulator = 0.0f;
         uint32_t BufferCursor = 0u;
-        uint32_t SpawnedParticles = 0u;
+        uint32_t EmissionIndex = 0u;
     };
 
     class ELIXIR_API Renderer final
