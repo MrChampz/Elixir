@@ -59,44 +59,44 @@ Dissolve::Dissolve()
     m_ParticleSystem = CreateScope<Aether::System>("Ribbon Garden");
     m_ParticleSystem->GetParameters().SetFloat("GravityScale", 1.0f);
 
-    // auto& canopy = m_ParticleSystem->AddEmitter("CanopyMist", 4096, 160.0f);
-    // canopy.AddSpawnModule<Aether::SetPositionDisk>(glm::vec3{ 0.0f, -0.86f, 0.0f }, 0.18f);
-    // canopy.AddSpawnModule<Aether::SetVelocityCone>(glm::vec3{ 0.0f, 1.0f, 0.0f }, 0.62f, 0.24f, 0.56f);
-    // canopy.AddSpawnModule<Aether::SetLifetime>(3.8f, 6.2f);
-    // canopy.AddSpawnModule<Aether::SetSize>(14.0f, 28.0f);
-    // canopy.AddSpawnModule<Aether::SetColor>(glm::vec4{ 0.70f, 0.96f, 1.0f, 0.72f });
-    //
-    // canopy.AddUpdateModule<Aether::ApplyGravity>(glm::vec3{ 0.0f, -0.10f, 0.0f });
-    // canopy.AddUpdateModule<Aether::ApplyLinearDrag>(0.04f);
-    // canopy.AddUpdateModule<Aether::ColorOverLife>(glm::vec4{ 0.70f, 0.96f, 1.0f, 0.78f }, glm::vec4{ 0.4f, 0.18f, 0.72f, 0.0f });
-    // canopy.AddUpdateModule<Aether::SizeOverLife>(28.0f, 6.0f);
-    // canopy.AddUpdateModule<Aether::KillOutsideBounds>(glm::vec3{ -1.45f, -1.2f, -2.0f }, glm::vec3{ 1.45f, 1.35f, 2.0f });
-    //
-    // auto& sparks = m_ParticleSystem->AddEmitter("RoseSparks", 2048, 120.0f);
-    // sparks.AddSpawnModule<Aether::SetPositionDisk>(glm::vec3{ 0.0f, -0.8f, 0.0f }, 0.08f);
-    // sparks.AddSpawnModule<Aether::SetVelocityCone>(glm::vec3{ 0.0f, 1.0f, 0.0f }, 0.96f, 0.36f, 0.84f);
-    // sparks.AddSpawnModule<Aether::SetLifetime>(1.8f, 3.0f);
-    // sparks.AddSpawnModule<Aether::SetSize>(8.0f, 16.0f);
-    // sparks.AddSpawnModule<Aether::SetColor>(glm::vec4{ 1.0f, 0.68f, 0.88f, 0.95f });
-    //
-    // sparks.AddUpdateModule<Aether::ApplyGravity>(glm::vec3{ 0.0f, -0.28f, 0.0f });
-    // sparks.AddUpdateModule<Aether::ApplyLinearDrag>(0.08f);
-    // sparks.AddUpdateModule<Aether::ColorOverLife>(glm::vec4{ 1.0f, 0.72f, 0.9f, 0.95f }, glm::vec4{ 1.0f, 0.36f, 0.48f, 0.0f });
-    // sparks.AddUpdateModule<Aether::SizeOverLife>(16.0f, 2.5f);
-    // sparks.AddUpdateModule<Aether::KillOutsideBounds>(glm::vec3{ -1.45f, -1.2f, -2.0f }, glm::vec3{ 1.45f, 1.35f, 2.0f });
-    //
-    // auto& sparks2 = m_ParticleSystem->AddEmitter("GreenSparks", 2048, 120.0f);
-    // sparks2.AddSpawnModule<Aether::SetPositionDisk>(glm::vec3{ 0.0f, -0.8f, 0.0f }, 0.08f);
-    // sparks2.AddSpawnModule<Aether::SetVelocityCone>(glm::vec3{ 0.0f, 1.0f, 0.0f }, 0.96f, 0.36f, 0.84f);
-    // sparks2.AddSpawnModule<Aether::SetLifetime>(1.8f, 3.0f);
-    // sparks2.AddSpawnModule<Aether::SetSize>(8.0f, 16.0f);
-    // sparks2.AddSpawnModule<Aether::SetColor>(glm::vec4{ 1.0f, 0.68f, 0.88f, 0.95f });
-    //
-    // sparks2.AddUpdateModule<Aether::ApplyGravity>(glm::vec3{ 0.0f, -0.28f, 0.0f });
-    // sparks2.AddUpdateModule<Aether::ApplyLinearDrag>(0.08f);
-    // sparks2.AddUpdateModule<Aether::ColorOverLife>(glm::vec4{ 0.0f, 0.73f, 0.12f, 0.8f }, glm::vec4{ 0.0f, 0.73f, 0.12f, 0.0f });
-    // sparks2.AddUpdateModule<Aether::SizeOverLife>(16.0f, 2.5f);
-    // sparks2.AddUpdateModule<Aether::KillOutsideBounds>(glm::vec3{ -1.45f, -1.2f, -2.0f }, glm::vec3{ 1.45f, 1.35f, 2.0f });
+    auto& canopy = m_ParticleSystem->AddEmitter("CanopyMist", 4096, 160.0f);
+    canopy.AddSpawnModule<Aether::SetPositionDisk>(glm::vec3{ 0.0f, -0.86f, 0.0f }, 0.18f);
+    canopy.AddSpawnModule<Aether::SetVelocityCone>(glm::vec3{ 0.0f, 1.0f, 0.0f }, 0.62f, 0.24f, 0.56f);
+    canopy.AddSpawnModule<Aether::SetLifetime>(3.8f, 6.2f);
+    canopy.AddSpawnModule<Aether::SetSize>(14.0f, 28.0f);
+    canopy.AddSpawnModule<Aether::SetColor>(glm::vec4{ 0.70f, 0.96f, 1.0f, 0.72f });
+
+    canopy.AddUpdateModule<Aether::ApplyGravity>(glm::vec3{ 0.0f, -0.10f, 0.0f });
+    canopy.AddUpdateModule<Aether::ApplyLinearDrag>(0.04f);
+    canopy.AddUpdateModule<Aether::ColorOverLife>(glm::vec4{ 0.70f, 0.96f, 1.0f, 0.78f }, glm::vec4{ 0.4f, 0.18f, 0.72f, 0.0f });
+    canopy.AddUpdateModule<Aether::SizeOverLife>(28.0f, 6.0f);
+    canopy.AddUpdateModule<Aether::KillOutsideBounds>(glm::vec3{ -1.45f, -1.2f, -2.0f }, glm::vec3{ 1.45f, 1.35f, 2.0f });
+
+    auto& sparks = m_ParticleSystem->AddEmitter("RoseSparks", 2048, 120.0f);
+    sparks.AddSpawnModule<Aether::SetPositionDisk>(glm::vec3{ 0.0f, -0.8f, 0.0f }, 0.08f);
+    sparks.AddSpawnModule<Aether::SetVelocityCone>(glm::vec3{ 0.0f, 1.0f, 0.0f }, 0.96f, 0.36f, 0.84f);
+    sparks.AddSpawnModule<Aether::SetLifetime>(1.8f, 3.0f);
+    sparks.AddSpawnModule<Aether::SetSize>(8.0f, 16.0f);
+    sparks.AddSpawnModule<Aether::SetColor>(glm::vec4{ 1.0f, 0.68f, 0.88f, 0.95f });
+
+    sparks.AddUpdateModule<Aether::ApplyGravity>(glm::vec3{ 0.0f, -0.28f, 0.0f });
+    sparks.AddUpdateModule<Aether::ApplyLinearDrag>(0.08f);
+    sparks.AddUpdateModule<Aether::ColorOverLife>(glm::vec4{ 1.0f, 0.72f, 0.9f, 0.95f }, glm::vec4{ 1.0f, 0.36f, 0.48f, 0.0f });
+    sparks.AddUpdateModule<Aether::SizeOverLife>(16.0f, 2.5f);
+    sparks.AddUpdateModule<Aether::KillOutsideBounds>(glm::vec3{ -1.45f, -1.2f, -2.0f }, glm::vec3{ 1.45f, 1.35f, 2.0f });
+
+    auto& sparks2 = m_ParticleSystem->AddEmitter("GreenSparks", 2048, 120.0f);
+    sparks2.AddSpawnModule<Aether::SetPositionDisk>(glm::vec3{ 0.0f, -0.8f, 0.0f }, 0.08f);
+    sparks2.AddSpawnModule<Aether::SetVelocityCone>(glm::vec3{ 0.0f, 1.0f, 0.0f }, 0.96f, 0.36f, 0.84f);
+    sparks2.AddSpawnModule<Aether::SetLifetime>(1.8f, 3.0f);
+    sparks2.AddSpawnModule<Aether::SetSize>(8.0f, 16.0f);
+    sparks2.AddSpawnModule<Aether::SetColor>(glm::vec4{ 1.0f, 0.68f, 0.88f, 0.95f });
+
+    sparks2.AddUpdateModule<Aether::ApplyGravity>(glm::vec3{ 0.0f, -0.28f, 0.0f });
+    sparks2.AddUpdateModule<Aether::ApplyLinearDrag>(0.08f);
+    sparks2.AddUpdateModule<Aether::ColorOverLife>(glm::vec4{ 0.0f, 0.73f, 0.12f, 0.8f }, glm::vec4{ 0.0f, 0.73f, 0.12f, 0.0f });
+    sparks2.AddUpdateModule<Aether::SizeOverLife>(16.0f, 2.5f);
+    sparks2.AddUpdateModule<Aether::KillOutsideBounds>(glm::vec3{ -1.45f, -1.2f, -2.0f }, glm::vec3{ 1.45f, 1.35f, 2.0f });
 
     constexpr uint32_t ribbonParticles = 256;
     constexpr float ribbonLifetime = 4.0f;

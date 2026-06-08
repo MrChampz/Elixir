@@ -351,10 +351,6 @@ namespace Elixir::Aether
         const auto emitterCount = std::min(system.Emitters.size(), (size_t)MAX_EMITTERS);
 
         auto* emitters = (SEmitterData*)m_EmitterBuffer->Map();
-        for (uint32_t i = 0; i < MAX_EMITTERS; ++i)
-        {
-            emitters[i] = {};
-        }
 
         for (auto i = 0; i < emitterCount; ++i)
         {
@@ -386,6 +382,14 @@ namespace Elixir::Aether
 
             if (emitter.MaxParticles > 0)
                 emitterState.BufferCursor = nextBufferCursor;
+        }
+
+        // Zero-out inactive slots so removed emitters don't leave stale data.
+        // This is done AFTER writing the active slots to avoid a window where
+        // the GPU could briefly read zeroed MetaA fields for an active emitter.
+        for (auto i = emitterCount; i < MAX_EMITTERS; ++i)
+        {
+            emitters[i] = {};
         }
 
         auto* modules = (SModuleData*)m_ModuleBuffer->Map();
