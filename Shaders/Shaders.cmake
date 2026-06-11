@@ -8,9 +8,17 @@ set(SHADER_SOURCE_DIR "${CMAKE_SOURCE_DIR}/Shaders")
 set(SHADER_STAGING_DIR "${CMAKE_BINARY_DIR}/Shaders")
 
 # --- Locate compilers ---
+# Search the Vulkan SDK bin dirs (layout varies per platform) and the PATH.
+# When a compiler is missing the corresponding shaders are skipped (see below)
+# instead of failing the configure step, so the project still builds in
+# environments without a full SDK (e.g. headless CI).
 
-find_program(DXC dxc HINTS "$ENV{VULKAN_SDK}/bin")
-find_program(GLSLC glslc HINTS "$ENV{VULKAN_SDK}/bin")
+find_program(DXC dxc HINTS "$ENV{VULKAN_SDK}/bin" "$ENV{VULKAN_SDK}/macOS/bin")
+find_program(GLSLC glslc HINTS "$ENV{VULKAN_SDK}/bin" "$ENV{VULKAN_SDK}/macOS/bin")
+
+# Ensure the staging dir always exists so the copy step has a valid source
+# even when no shaders were compiled.
+file(MAKE_DIRECTORY "${SHADER_STAGING_DIR}")
 
 # --- Collect shader sources ---
 
@@ -102,11 +110,13 @@ endfunction()
 set(ALL_SPIRV_OUTPUTS "")
 
 # HLSL shaders (compiled with dxc)
-if(COMPILABLE_HLSL)
-    if(NOT DXC)
-        message(FATAL_ERROR "dxc not found. Install the Vulkan SDK or set VULKAN_SDK environment variable.")
-    endif()
+if(COMPILABLE_HLSL AND NOT DXC)
+    message(WARNING
+        "dxc not found - HLSL shaders will not be compiled. "
+        "Install the Vulkan SDK or set the VULKAN_SDK environment variable to enable shader compilation.")
+endif()
 
+if(COMPILABLE_HLSL AND DXC)
     foreach(SHADER_FILE IN LISTS COMPILABLE_HLSL)
         get_shader_stage("${SHADER_FILE}" STAGE)
         get_dxc_profile("${STAGE}" PROFILE)
@@ -133,11 +143,13 @@ if(COMPILABLE_HLSL)
 endif()
 
 # GLSL shaders (compiled with glslc)
-if(COMPILABLE_GLSL)
-    if(NOT GLSLC)
-        message(FATAL_ERROR "glslc not found. Install the Vulkan SDK or set VULKAN_SDK environment variable.")
-    endif()
+if(COMPILABLE_GLSL AND NOT GLSLC)
+    message(WARNING
+        "glslc not found - GLSL shaders will not be compiled. "
+        "Install the Vulkan SDK or set the VULKAN_SDK environment variable to enable shader compilation.")
+endif()
 
+if(COMPILABLE_GLSL AND GLSLC)
     foreach(SHADER_FILE IN LISTS COMPILABLE_GLSL)
         get_shader_stage("${SHADER_FILE}" STAGE)
         get_glslc_stage("${STAGE}" GLSLC_STAGE)
