@@ -53,9 +53,9 @@ jobs:
           echo "CXX=${{ matrix.cxx }}" >> $GITHUB_ENV
 
       - name: Setup Vulkan
-        uses: MrChampz/VulkanCI@1.4.313.0
+        uses: MrChampz/VulkanCI@1.4.328.1
         with:
-          sdkVersion: 1.4.313.0
+          sdkVersion: 1.4.328.1
 
       - name: Install missing deps (Linux)
         run: sudo apt-get install libxkbcommon-x11-dev libxinerama-dev libxcursor-dev libxi-dev
