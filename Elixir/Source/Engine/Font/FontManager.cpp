@@ -8,7 +8,7 @@ namespace Elixir
     bool FontManager::s_Initialized = false;
     Scope<FontBackend> FontManager::s_FontBackend = nullptr;
     Ref<TextureSet> FontManager::s_FontsAtlases = nullptr;
-    std::unordered_map<std::string_view, Ref<Font>> FontManager::s_Fonts;
+    std::unordered_map<std::string, Ref<Font>> FontManager::s_Fonts;
     const GraphicsContext* FontManager::s_GraphicsContext = nullptr;
 
     void FontManager::Initialize(const GraphicsContext* context)
