@@ -13,8 +13,14 @@ set(SHADER_STAGING_DIR "${CMAKE_BINARY_DIR}/Shaders")
 # instead of failing the configure step, so the project still builds in
 # environments without a full SDK (e.g. headless CI).
 
-find_program(DXC dxc HINTS "$ENV{VULKAN_SDK}/bin" "$ENV{VULKAN_SDK}/macOS/bin")
-find_program(GLSLC glslc HINTS "$ENV{VULKAN_SDK}/bin" "$ENV{VULKAN_SDK}/macOS/bin")
+# Restrict discovery to the Vulkan SDK: a system dxc (e.g. the one shipped with
+# the Windows SDK) is built without SPIR-V codegen and cannot emit our shaders.
+find_program(DXC dxc
+    PATHS "$ENV{VULKAN_SDK}/bin" "$ENV{VULKAN_SDK}/Bin" "$ENV{VULKAN_SDK}/macOS/bin"
+    NO_DEFAULT_PATH)
+find_program(GLSLC glslc
+    PATHS "$ENV{VULKAN_SDK}/bin" "$ENV{VULKAN_SDK}/Bin" "$ENV{VULKAN_SDK}/macOS/bin"
+    NO_DEFAULT_PATH)
 
 # Ensure the staging dir always exists so the copy step has a valid source
 # even when no shaders were compiled.
