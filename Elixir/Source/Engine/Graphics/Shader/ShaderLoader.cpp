@@ -101,6 +101,7 @@ namespace Elixir
                 break;
             default:
                 EE_CORE_ASSERT(false, "Unknown Shader Stage!")
+                break;
         }
     }
 

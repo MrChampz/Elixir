@@ -80,4 +80,7 @@ jobs:
 
       - name: Run tests
         working-directory: build
-        run: ctest --output-on-failure -C Release
+        # Exclude GPU integration tests (label "gpu"): they require a Vulkan
+        # device with the engine's full feature set, unavailable on the CI's
+        # SwiftShader software rasterizer.
+        run: ctest --output-on-failure -C Release -LE gpu
