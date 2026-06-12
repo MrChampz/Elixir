@@ -11,7 +11,7 @@ namespace Elixir::Vulkan
 
     class VulkanGraphicsContext;
 
-    VkImage TryToGetVulkanImageHandle(const Image* image);
+    ELIXIR_API VkImage TryToGetVulkanImageHandle(const Image* image);
 
     class VulkanBaseImageBase
     {
