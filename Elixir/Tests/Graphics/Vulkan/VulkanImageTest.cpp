@@ -2,6 +2,7 @@
 using namespace testing;
 
 #include <Engine/Core/Window.h>
+#include <Engine/Core/Executor/Executor.h>
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Graphics/CommandBuffer.h>
 #include <Graphics/Vulkan/VulkanImage.h>
@@ -15,7 +16,7 @@ class VulkanImageTest : public Test
     {
         Memory::s_Malloc = CreateScope<SystemMalloc>();
         Window =    Window::Create();
-        Context = GraphicsContext::Create(EGraphicsAPI::Vulkan, Window.get());
+        Context = GraphicsContext::Create(EGraphicsAPI::Vulkan, &Elixir::Executor::Get(), Window.get());
         Context->Init();
     }
 

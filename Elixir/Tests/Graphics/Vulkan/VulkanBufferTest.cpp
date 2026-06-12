@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 using namespace testing;
 
+#include <Engine/Core/Executor/Executor.h>
 #include <Engine/Graphics/CommandBuffer.h>
 #include <Graphics/Vulkan/VulkanBuffer.h>
 using namespace Elixir::Vulkan;
@@ -12,7 +13,7 @@ class VulkanBufferTest : public Test
     {
         Memory::s_Malloc = CreateScope<SystemMalloc>();
         Window = Window::Create();
-        Context = GraphicsContext::Create(EGraphicsAPI::Vulkan, Window.get());
+        Context = GraphicsContext::Create(EGraphicsAPI::Vulkan, &Elixir::Executor::Get(), Window.get());
         Context->Init();
     }
 

@@ -681,6 +681,7 @@ namespace Elixir::Vulkan::Converters
                 return VK_FRONT_FACE_CLOCKWISE;
             default:
                 EE_CORE_ASSERT(false, "Unknown FrontFace!")
+                break;
         }
 
         return VK_FRONT_FACE_MAX_ENUM;
