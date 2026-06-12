@@ -27,11 +27,6 @@ jobs:
             compiler: msvc
             cc: cl
             cxx: cl
-          - os: macos-13
-            arch: x64
-            compiler: clang
-            cc: /usr/local/opt/llvm@19/bin/clang
-            cxx: /usr/local/opt/llvm@19/bin/clang++
           - os: macos-15
             arch: arm64
             compiler: clang
