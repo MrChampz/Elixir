@@ -73,7 +73,11 @@ jobs:
 
       - name: Configure with CMake
         working-directory: build
-        run: cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release
+        shell: bash
+        run: >
+          cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DELIXIR_USE_VCPKG=ON
+          -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
 
       - name: Build tests
         working-directory: build
