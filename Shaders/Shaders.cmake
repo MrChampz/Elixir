@@ -196,6 +196,8 @@ function(copy_shaders_for_targets)
 
         add_custom_command(
             OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${target}_copy_shaders.stamp"
+            COMMAND "${CMAKE_COMMAND}" -E rm -rf "${TARGET_SHADER_DIR}"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "${TARGET_SHADER_DIR}"
             COMMAND "${CMAKE_COMMAND}" -E copy_directory
                     "${SHADER_STAGING_DIR}"
                     "${TARGET_SHADER_DIR}"

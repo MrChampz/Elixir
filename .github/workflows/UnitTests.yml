@@ -52,6 +52,12 @@ jobs:
         with:
           sdkVersion: 1.4.328.1
 
+      - name: Verify vcpkg installation
+        shell: bash
+        run: |
+          test -f "$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" || {
+            echo "Missing vcpkg toolchain: $VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"; exit 1; }
+
       - name: Install missing deps (Linux)
         run: sudo apt-get install libxkbcommon-x11-dev libxinerama-dev libxcursor-dev libxi-dev
         if: runner.os == 'Linux'
