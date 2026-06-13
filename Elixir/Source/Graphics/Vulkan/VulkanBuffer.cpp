@@ -59,7 +59,7 @@ namespace Elixir::Vulkan
     {
         EE_PROFILE_ZONE_SCOPED()
         EE_CORE_ASSERT(offset < this->GetSize(), "Fill offset exceeds buffer size!")
-        EE_CORE_ASSERT(size <= this->GetSize(), "Fill size exceeds buffer size!")
+        EE_CORE_ASSERT(size == 0 || (offset + size <= this->GetSize()), "Fill range exceeds buffer size!")
 
         if (!this->IsValid()) return;
 

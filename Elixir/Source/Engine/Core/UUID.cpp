@@ -17,8 +17,8 @@ namespace Elixir
 
     UUID::UUID(const UUID& other)
     {
-        if (other.m_UUID)
-            m_UUID = CreateScope<uuid>(*other.m_UUID);
+        EE_CORE_ASSERT(other.m_UUID, "Invalid source UUID!");
+        m_UUID = CreateScope<uuid>(*other.m_UUID);
     }
 
     UUID::UUID(UUID&& other) noexcept = default;
@@ -27,10 +27,11 @@ namespace Elixir
 
     UUID& UUID::operator=(const UUID& other)
     {
-        if (this == &other)
-            return *this;
+        EE_CORE_ASSERT(other.m_UUID, "Invalid source UUID!");
 
-        m_UUID = other.m_UUID ? CreateScope<uuid>(*other.m_UUID) : nullptr;
+        if (this == &other) return *this;
+
+        m_UUID = CreateScope<uuid>(*other.m_UUID);
         return *this;
     }
 

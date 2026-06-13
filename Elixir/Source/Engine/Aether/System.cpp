@@ -60,6 +60,7 @@ namespace Elixir::Aether
             system.Emitters.push_back(desc);
         }
 
+        // TEMPORARY
         const uint32_t canopyColorStart = FindParameterIndex(system.Parameters, "CanopyColorStart");
         const uint32_t canopyColorEnd = FindParameterIndex(system.Parameters, "CanopyColorEnd");
         const uint32_t sparksColorStart = FindParameterIndex(system.Parameters, "SparkColorStart");
