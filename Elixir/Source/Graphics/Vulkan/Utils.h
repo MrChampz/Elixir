@@ -146,7 +146,7 @@ namespace Elixir::Vulkan
             const VkBuffer buffer,
             const VkPipelineStageFlags2 srcStage,
             const VkAccessFlags2 srcAccess,
-            const VkPipelineStageFlags dstStage,
+            const VkPipelineStageFlags2 dstStage,
             const VkAccessFlags2 dstAccess,
             const VkDeviceSize offset = 0,
             const VkDeviceSize size = VK_WHOLE_SIZE

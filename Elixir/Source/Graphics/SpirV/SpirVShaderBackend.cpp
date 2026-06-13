@@ -224,7 +224,7 @@ namespace Elixir::SpirV
                         type = EConstantType::Int;
                         break;
                     case spirv_cross::SPIRType::UInt:
-                        type = EConstantType::Int;
+                        type = EConstantType::UInt;
                         break;
                     case spirv_cross::SPIRType::Float:
                         if (memberType.vecsize == 1)
@@ -246,18 +246,18 @@ namespace Elixir::SpirV
 
                 const auto count = CalculateResourceCount(memberType);
 
-                ShaderConstant* constant;
-
                 if (cstruct)
                 {
-                    constant = new ShaderConstant(memberName, cstruct, count, memberType.pointer);
+                    buffer.PushConstant(
+                        ShaderConstant(memberName, cstruct, count, memberType.pointer)
+                    );
                 }
                 else
                 {
-                    constant = new ShaderConstant(memberName, type, count, memberType.pointer);
+                    buffer.PushConstant(
+                        ShaderConstant(memberName, type, count, memberType.pointer)
+                    );
                 }
-
-                buffer.PushConstant(std::move(*constant));
             }
 
             result.push_back(std::move(buffer));
@@ -305,7 +305,7 @@ namespace Elixir::SpirV
                         type = EConstantType::Int;
                         break;
                     case spirv_cross::SPIRType::UInt:
-                        type = EConstantType::Int;
+                        type = EConstantType::UInt;
                         break;
                     case spirv_cross::SPIRType::Float:
                         if (memberType.vecsize == 1)
@@ -327,18 +327,18 @@ namespace Elixir::SpirV
 
                 const auto count = CalculateResourceCount(memberType);
 
-                ShaderConstant* constant;
-
                 if (cstruct)
                 {
-                    constant = new ShaderConstant(memberName, std::move(cstruct), count, memberType.pointer);
+                    buffer.PushConstant(
+                        ShaderConstant(memberName, std::move(cstruct), count, memberType.pointer)
+                    );
                 }
                 else
                 {
-                    constant = new ShaderConstant(memberName, type, count, memberType.pointer);
+                    buffer.PushConstant(
+                        ShaderConstant(memberName, type, count, memberType.pointer)
+                    );
                 }
-
-                buffer.PushConstant(std::move(*constant));
             }
 
             result.push_back(std::move(buffer));
@@ -387,7 +387,7 @@ namespace Elixir::SpirV
                         type = EConstantType::Int;
                         break;
                     case spirv_cross::SPIRType::UInt:
-                        type = EConstantType::Int;
+                        type = EConstantType::UInt;
                         break;
                     case spirv_cross::SPIRType::Float:
                         if (memberType.vecsize == 1)
@@ -409,18 +409,18 @@ namespace Elixir::SpirV
 
                 const auto count = CalculateResourceCount(memberType);
 
-                ShaderConstant* constant;
-
                 if (cstruct)
                 {
-                    constant = new ShaderConstant(memberName, std::move(cstruct), count, memberType.pointer);
+                    buffer.PushConstant(
+                        ShaderConstant(memberName, std::move(cstruct), count, memberType.pointer)
+                    );
                 }
                 else
                 {
-                    constant = new ShaderConstant(memberName, type, count, memberType.pointer);
+                    buffer.PushConstant(
+                        ShaderConstant(memberName, type, count, memberType.pointer)
+                    );
                 }
-
-                buffer.PushConstant(std::move(*constant));
             }
 
             result.push_back(std::move(buffer));
@@ -488,7 +488,7 @@ namespace Elixir::SpirV
                     fieldType = EConstantType::Int;
                     break;
                 case spirv_cross::SPIRType::UInt:
-                    fieldType = EConstantType::Int;
+                    fieldType = EConstantType::UInt;
                     break;
                 case spirv_cross::SPIRType::Float:
                     if (baseType.vecsize == 1)
@@ -510,18 +510,18 @@ namespace Elixir::SpirV
 
             const auto count = CalculateResourceCount(baseType);
 
-            ShaderConstant* constant;
-
             if (fieldStruct)
             {
-                constant = new ShaderConstant(fieldName, fieldStruct, count, baseType.pointer);
+                cstruct->AddField(
+                    ShaderConstant(fieldName, fieldStruct, count, baseType.pointer)
+                );
             }
             else
             {
-                constant = new ShaderConstant(fieldName, fieldType, count, baseType.pointer);
+                cstruct->AddField(
+                    ShaderConstant(fieldName, fieldType, count, baseType.pointer)
+                );
             }
-
-            cstruct->AddField(std::move(*constant));
         }
 
         return cstruct;

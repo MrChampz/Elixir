@@ -120,7 +120,10 @@ namespace Elixir::Aether
         m_SpawnPipeline->Bind(cmd);
         for (uint32_t i = 0; i < emitterCount; ++i)
         {
-            const auto particleCount = (uint32_t)emitters[i].MetaA.y;
+            const auto offset = (uint32_t)emitters[i].MetaA.x;
+            if (offset >= MAX_PARTICLES) continue;
+
+            const auto particleCount = std::min((uint32_t)emitters[i].MetaA.y, MAX_PARTICLES - offset);
             if (particleCount == 0) continue;
 
             const SSpawnPushConstants pushConstants{ i };
@@ -348,11 +351,10 @@ namespace Elixir::Aether
 
         m_ParamsBuffer->UpdateData(&params, sizeof(SParamsData));
 
+        auto* emitters = (SEmitterData*)m_EmitterBuffer->Map();
         const auto emitterCount = std::min(system.Emitters.size(), (size_t)MAX_EMITTERS);
 
-        auto* emitters = (SEmitterData*)m_EmitterBuffer->Map();
-
-        for (auto i = 0; i < emitterCount; ++i)
+        for (size_t i = 0; i < emitterCount; ++i)
         {
             const auto& emitter = system.Emitters[i];
             auto& emitterState = m_EmittersState[emitter];
@@ -387,21 +389,21 @@ namespace Elixir::Aether
         // Zero-out inactive slots so removed emitters don't leave stale data.
         // This is done AFTER writing the active slots to avoid a window where
         // the GPU could briefly read zeroed MetaA fields for an active emitter.
-        for (auto i = emitterCount; i < MAX_EMITTERS; ++i)
-        {
+        for (size_t i = emitterCount; i < MAX_EMITTERS; ++i)
             emitters[i] = {};
-        }
 
         auto* modules = (SModuleData*)m_ModuleBuffer->Map();
-        for (size_t i = 0; i < system.Modules.size(); ++i)
-        {
+        const size_t moduleCount = std::min(system.Modules.size(), (size_t)MAX_MODULES);
+        for (size_t i = 0; i < moduleCount; ++i)
             modules[i] = ToModuleDescription(system.Modules[i]);
-        }
+        for (size_t i = moduleCount; i < MAX_MODULES; ++i)
+            modules[i] = {};
 
         auto* parameters = (SParameterData*)m_ParameterBuffer->Map();
-        for (size_t i = 0; i < system.Parameters.size(); ++i)
-        {
+        const size_t parameterCount = std::min(system.Parameters.size(), (size_t)MAX_PARAMETERS);
+        for (size_t i = 0; i < parameterCount; ++i)
             parameters[i] = ToParameterDescription(system.Parameters[i]);
-        }
+        for (size_t i = parameterCount; i < MAX_PARAMETERS; ++i)
+            parameters[i] = {};
     }
 }
