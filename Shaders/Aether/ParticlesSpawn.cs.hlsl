@@ -267,7 +267,10 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         }
         else if (type == 4u) // SetSize
         {
-            float size = module.Data0.x;
+            float minSize = module.Data0.x;
+            float maxSize = module.Data0.y;
+            float sizeRandom = Hash2(seedBase + float2(9.23, 3.47));
+            float size = lerp(minSize, maxSize, sizeRandom);
             SetAttribute(attributes, target, float4(size, 0.0, 0.0, 0.0));
         }
         else if (type == 5u) // SetColor
