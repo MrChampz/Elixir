@@ -14,14 +14,14 @@ namespace Elixir
         Ref<Shader> LoadShader(
             const std::filesystem::path& directory,
             const std::string& name,
-            EShaderStage stages = EShaderStage::All
+            EShaderStage stages = EShaderStage::Graphics
         ) const;
 
         Ref<Shader> LoadShader(
             const std::filesystem::path& directory,
             std::span<const std::string_view> filenames,
             const std::string& name,
-            EShaderStage stages = EShaderStage::All
+            EShaderStage stages = EShaderStage::Graphics
         ) const;
 
       private:

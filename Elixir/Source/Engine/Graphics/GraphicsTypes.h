@@ -144,7 +144,8 @@ namespace Elixir
         Geometry    = 1 << 3,
         Pixel       = 1 << 4,
         Compute     = 1 << 5,
-        All         = Vertex | Hull | Domain | Geometry | Pixel,
+        Graphics    = Vertex | Hull | Domain | Geometry | Pixel,
+        All         = Graphics | Compute,
         Count       = 6,
     };
 

@@ -917,6 +917,9 @@ namespace Elixir::Vulkan::Converters
         VkShaderStageFlags flags = 0;
 
         if (stage & EShaderStage::All)
+            return VK_SHADER_STAGE_ALL;
+
+        if (stage & EShaderStage::Graphics)
             return VK_SHADER_STAGE_ALL_GRAPHICS;
 
         if (stage & EShaderStage::Vertex)
