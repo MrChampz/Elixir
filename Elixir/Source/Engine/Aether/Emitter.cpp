@@ -127,14 +127,14 @@ namespace Elixir::Aether
             }
             else if (const auto* typed = dynamic_cast<const SetPositionOnCircle*>(module.get()))
             {
-                // modules.push_back({
-                //     EModuleType::SetPositionOnCircle,
-                //     EParticleAttribute::Position,
-                //     UINT32_MAX,
-                //     UINT32_MAX,
-                //     { typed->GetCenter(), typed->GetRadius(), typed->GetAngularSpeed() },
-                //     { typed->GetStartAngle(), 0.0f, 0.0f, 0.0f }
-                // });
+                modules.push_back({
+                    EModuleType::SetPositionOnCircle,
+                    EParticleAttribute::Position,
+                    UINT32_MAX,
+                    UINT32_MAX,
+                    { typed->GetCenter(), typed->GetRadius() },
+                    { typed->GetAngularSpeed(), typed->GetStartAngle(), 0.0, 0.0 }
+                });
             }
             else if (const auto* typed = dynamic_cast<const SetPositionCircularPath*>(module.get()))
             {

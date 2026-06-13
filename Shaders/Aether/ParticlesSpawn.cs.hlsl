@@ -277,18 +277,18 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         }
         else if (type == 11u) // SetPositionOnCircle
         {
-            float2 center = module.Data0.xy;
-            float radius = module.Data0.z;
-            float angularSpeed = module.Data0.w;
-            float startAngle = module.Data1.x;
+            float3 center = module.Data0.xyz;
+            float radius = module.Data0.w;
+            float angularSpeed = module.Data1.x;
+            float startAngle = module.Data1.y;
             float angle = TimeData.y * angularSpeed + startAngle;
 
-            float2 position = center + float2(cos(angle), sin(angle)) * radius;
-            SetAttribute(attributes, target, float4(position, 0.0, 1.0));
+            float3 position = center + float3(cos(angle), sin(angle), 0.0) * radius;
+            SetAttribute(attributes, target, float4(position, 1.0));
 
             float orientation = angularSpeed < 0.0 ? -1.0 : 1.0;
-            float2 tangent = float2(-sin(angle), cos(angle)) * orientation;
-            SetAttribute(attributes, 6u, float4(tangent, 0.0, 0.0));
+            float3 tangent = float3(-sin(angle), cos(angle), 0.0) * orientation;
+            SetAttribute(attributes, 6u, float4(tangent, 0.0));
 
             SetAttribute(attributes, 2u, float4(0.0, 0.0, 0.0, 0.0));
         }

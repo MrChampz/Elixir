@@ -104,13 +104,13 @@ Dissolve::Dissolve()
 
     auto& ribbon = m_ParticleSystem->AddEmitter("AuroraRibbon", ribbonParticles, ribbonSpawnRate);
     ribbon.SetRenderMode(Aether::EParticleRenderMode::Ribbon);
-    ribbon.AddSpawnModule<Aether::SetPositionCircularPath>(
-        glm::vec3{ 0.0f, -0.25f, 0.0f },
-        glm::vec3{ 1.05f, 0.38f, 0.28f },
-        glm::vec3{ 0.32f, 0.16f, 0.18f },
-        1.15f
-    );
-    //ribbon.AddSpawnModule<Aether::SetPositionOnCircle>(glm::vec2{ 0.0f, 0.0f }, 2.0f, 1.0f);
+    // ribbon.AddSpawnModule<Aether::SetPositionCircularPath>(
+    //     glm::vec3{ 0.0f, -0.25f, 0.0f },
+    //     glm::vec3{ 1.05f, 0.38f, 0.28f },
+    //     glm::vec3{ 0.32f, 0.16f, 0.18f },
+    //     1.15f
+    // );
+    ribbon.AddSpawnModule<Aether::SetPositionOnCircle>(glm::vec3{ 0.0f, 0.0f, 0.0f }, 2.0f, 1.0f);
     ribbon.AddSpawnModule<Aether::SetLifetime>(ribbonLifetime, ribbonLifetime);
     ribbon.AddSpawnModule<Aether::SetSize>(8.0f, 8.0f);
     ribbon.AddSpawnModule<Aether::SetColor>(glm::vec4{ 0.55f, 0.92f, 1.0f, 0.95f });
