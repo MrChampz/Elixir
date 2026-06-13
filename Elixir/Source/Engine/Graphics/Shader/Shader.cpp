@@ -186,7 +186,7 @@ namespace Elixir
         const auto binding = resource.GetBinding();
 
         const auto& [it, _] = m_Resources.Resources
-            .insert_or_assign({set, binding}, resource);
+            .try_emplace({ set, binding }, resource);
         return &it->second;
     }
 
@@ -196,7 +196,7 @@ namespace Elixir
         const auto binding = buffer.GetBinding();
 
         const auto& [it, _] = m_Resources.StorageBuffers
-            .insert_or_assign({set, binding}, buffer);
+            .try_emplace({ set, binding }, buffer);
         return &it->second;
     }
 
@@ -206,7 +206,7 @@ namespace Elixir
         const auto binding = buffer.GetBinding();
 
         const auto& [it, _] = m_Resources.ConstantBuffers
-            .insert_or_assign({set, binding}, buffer);
+            .try_emplace({ set, binding }, buffer);
         return &it->second;
     }
 
@@ -216,7 +216,7 @@ namespace Elixir
         const auto binding = constant.GetBinding();
 
         const auto& [it, _] = m_Resources.PushConstants
-            .insert_or_assign({set, binding}, constant);
+            .try_emplace({ set, binding }, constant);
         return &it->second;
     }
 
