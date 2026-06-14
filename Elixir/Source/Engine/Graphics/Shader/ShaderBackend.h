@@ -1,7 +1,5 @@
 #pragma once
 
-//#include <Engine/Graphics/Shader/Shader.h>
-
 #include <filesystem>
 
 namespace Elixir

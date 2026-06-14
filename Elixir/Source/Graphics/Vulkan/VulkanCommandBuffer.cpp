@@ -6,6 +6,7 @@
 #include "Utils.h"
 #include "VulkanBuffer.h"
 #include "VulkanPipeline.h"
+#include "VulkanShader.h"
 
 namespace Elixir::Vulkan
 {
@@ -93,8 +94,20 @@ namespace Elixir::Vulkan
         VK_CHECK_RESULT(vkResetCommandBuffer(m_CommandBuffer, 0));
     }
 
+    void VulkanCommandBuffer::Dispatch(
+        const uint32_t groupCountX,
+        const uint32_t groupCountY,
+        const uint32_t groupCountZ
+    )
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        vkCmdDispatch(m_CommandBuffer, groupCountX, groupCountY, groupCountZ);
+    }
+
     void VulkanCommandBuffer::BeginRendering(const SRenderingInfo& info)
     {
+        EE_PROFILE_ZONE_SCOPED()
+
         m_RenderingInfo = info;
         Begin(info);
 
@@ -200,12 +213,40 @@ namespace Elixir::Vulkan
         );
     }
 
+    void VulkanCommandBuffer::SetPushConstant(
+        const Ref<PushConstantBuffer>& buffer,
+        const Shader* shader,
+        const EShaderStage stages
+    )
+    {
+        const auto vkShader = static_cast<const VulkanShader*>(shader);
+        auto& data = buffer->GetBuffer();
+        vkCmdPushConstants(
+            m_CommandBuffer,
+            vkShader->GetPipelineLayout(),
+            Converters::GetShaderStages(stages),
+            0,
+            buffer->GetSize(),
+            data.As<void>()
+        );
+    }
+
     void VulkanCommandBuffer::BindPipeline(const GraphicsPipeline* pipeline)
     {
         const auto vkPipeline = static_cast<const VulkanGraphicsPipeline*>(pipeline);
         vkCmdBindPipeline(
             m_CommandBuffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
+            vkPipeline->GetVulkanPipeline()
+        );
+    }
+
+    void VulkanCommandBuffer::BindPipeline(const ComputePipeline* pipeline)
+    {
+        const auto vkPipeline = static_cast<const VulkanComputePipeline*>(pipeline);
+        vkCmdBindPipeline(
+            m_CommandBuffer,
+            VK_PIPELINE_BIND_POINT_COMPUTE,
             vkPipeline->GetVulkanPipeline()
         );
     }
@@ -222,8 +263,7 @@ namespace Elixir::Vulkan
 
         for (const auto& buffer : vertexBuffers)
         {
-            const auto vkBuffer = static_cast<const VulkanVertexBuffer*>(buffer);
-            buffers.push_back(vkBuffer->GetVulkanBuffer());
+            buffers.push_back(TryToGetVulkanBuffer(buffer));
         }
 
         if (offsets.size() == 0)
@@ -253,8 +293,37 @@ namespace Elixir::Vulkan
 
         for (const auto& buffer : vertexBuffers)
         {
-            const auto vkBuffer = static_cast<const VulkanDynamicVertexBuffer*>(buffer);
-            buffers.push_back(vkBuffer->GetVulkanBuffer());
+            buffers.push_back(TryToGetVulkanBuffer(buffer));
+        }
+
+        if (offsets.size() == 0)
+        {
+            std::array<uint64_t, 1> defaultOffset = { 0 };
+            offsets = defaultOffset;
+        }
+
+        vkCmdBindVertexBuffers(
+            m_CommandBuffer,
+            firstBinding,
+            bindingCount,
+            buffers.data(),
+            offsets.data()
+        );
+    }
+
+    void VulkanCommandBuffer::BindVertexBuffers(
+        const std::span<const Buffer*> vertexBuffers,
+        std::span<uint64_t> offsets,
+        const uint32_t bindingCount,
+        const uint32_t firstBinding
+    )
+    {
+        std::vector<VkBuffer> buffers;
+        buffers.reserve(vertexBuffers.size());
+
+        for (const auto& buffer : vertexBuffers)
+        {
+            buffers.push_back(TryToGetVulkanBuffer(buffer));
         }
 
         if (offsets.size() == 0)
@@ -294,7 +363,21 @@ namespace Elixir::Vulkan
         );
     }
 
+    void VulkanCommandBuffer::BindIndexBuffer(
+        const Buffer* indexBuffer,
+        const EIndexType indexType
+    )
+    {
+        vkCmdBindIndexBuffer(
+            m_CommandBuffer,
+            TryToGetVulkanBuffer(indexBuffer),
+            0,
+            Converters::GetIndexType(indexType)
+        );
+    }
+
     void VulkanCommandBuffer::BindDescriptorSets(
+        const Pipeline* pipeline,
         const VkPipelineLayout layout,
         const uint32_t firstSet,
         const std::vector<VkDescriptorSet>& descriptorSets,
@@ -306,7 +389,9 @@ namespace Elixir::Vulkan
 
         vkCmdBindDescriptorSets(
             m_CommandBuffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            pipeline->IsGraphics()
+                ? VK_PIPELINE_BIND_POINT_GRAPHICS
+                : VK_PIPELINE_BIND_POINT_COMPUTE,
             layout,
             firstSet,
             descriptorSets.size(),

@@ -60,6 +60,7 @@ namespace Elixir::SpirV
 
         auto resources = compiler.get_shader_resources();
         module.Resources = GetResources(compiler, resources);
+        module.StorageBuffers = GetStorageBuffers(compiler, resources);
         module.ConstantBuffers = GetConstantBuffers(compiler, resources);
         module.PushConstants = GetPushConstants(compiler, resources);
 
@@ -184,6 +185,87 @@ namespace Elixir::SpirV
         return result;
     }
 
+    std::vector<ShaderStorageBuffer> SpirVShaderBackend::GetStorageBuffers(
+        const spirv_cross::Compiler& spirv,
+        spirv_cross::ShaderResources& resources
+    )
+    {
+        std::vector<ShaderStorageBuffer> result;
+
+        for (const auto& resource : resources.storage_buffers)
+        {
+            auto& name = spirv.get_name(resource.id);
+            const auto set = spirv.get_decoration(resource.id, spv::DecorationDescriptorSet);
+            const auto binding = spirv.get_decoration(resource.id, spv::DecorationBinding);
+
+            const auto& baseType = spirv.get_type(resource.base_type_id);
+
+            auto buffer = ShaderStorageBuffer(name, set, binding);
+
+            // Loop through all members of the Storage Buffer, and create a ShaderConstant
+            // for each them.
+            for (auto i = 0; i < baseType.member_types.size(); i++)
+            {
+                const auto& memberType = spirv.get_type(baseType.member_types[i]);
+                const auto& memberName = spirv.get_member_name(baseType.self, i);
+
+                auto type = EConstantType::Struct;
+                Ref<ShaderConstantStruct> cstruct = nullptr;
+
+                switch (memberType.basetype)
+                {
+                    case spirv_cross::SPIRType::Struct:
+                        cstruct = ParseConstantStruct(spirv, memberType, memberName);
+                        break;
+                    case spirv_cross::SPIRType::Boolean:
+                        type = EConstantType::Bool;
+                        break;
+                    case spirv_cross::SPIRType::Int:
+                        type = EConstantType::Int;
+                        break;
+                    case spirv_cross::SPIRType::UInt:
+                        type = EConstantType::UInt;
+                        break;
+                    case spirv_cross::SPIRType::Float:
+                        if (memberType.vecsize == 1)
+                            type = EConstantType::Float;
+                        else if (memberType.vecsize == 2)
+                            type = EConstantType::Vec2;
+                        else if (memberType.vecsize == 3)
+                            type = EConstantType::Vec3;
+                        else if (memberType.vecsize == 4 && memberType.columns == 1)
+                            type = EConstantType::Vec4;
+                        else if (memberType.vecsize == 4 && memberType.columns == 3)
+                            type = EConstantType::Mat3;
+                        else if (memberType.vecsize == 4 && memberType.columns == 4)
+                            type = EConstantType::Mat4;
+                        break;
+                    default:
+                        EE_CORE_ASSERT(false, "Unknown Constant Type!");
+                }
+
+                const auto count = CalculateResourceCount(memberType);
+
+                if (cstruct)
+                {
+                    buffer.PushConstant(
+                        ShaderConstant(memberName, cstruct, count, memberType.pointer)
+                    );
+                }
+                else
+                {
+                    buffer.PushConstant(
+                        ShaderConstant(memberName, type, count, memberType.pointer)
+                    );
+                }
+            }
+
+            result.push_back(std::move(buffer));
+        }
+
+        return std::move(result);
+    }
+
     std::vector<ShaderConstantBuffer> SpirVShaderBackend::GetConstantBuffers(
         const spirv_cross::Compiler& spirv,
         spirv_cross::ShaderResources& resources
@@ -223,7 +305,7 @@ namespace Elixir::SpirV
                         type = EConstantType::Int;
                         break;
                     case spirv_cross::SPIRType::UInt:
-                        type = EConstantType::Int;
+                        type = EConstantType::UInt;
                         break;
                     case spirv_cross::SPIRType::Float:
                         if (memberType.vecsize == 1)
@@ -245,18 +327,18 @@ namespace Elixir::SpirV
 
                 const auto count = CalculateResourceCount(memberType);
 
-                ShaderConstant* constant;
-
                 if (cstruct)
                 {
-                    constant = new ShaderConstant(memberName, std::move(cstruct), count, memberType.pointer);
+                    buffer.PushConstant(
+                        ShaderConstant(memberName, std::move(cstruct), count, memberType.pointer)
+                    );
                 }
                 else
                 {
-                    constant = new ShaderConstant(memberName, type, count, memberType.pointer);
+                    buffer.PushConstant(
+                        ShaderConstant(memberName, type, count, memberType.pointer)
+                    );
                 }
-
-                buffer.PushConstant(std::move(*constant));
             }
 
             result.push_back(std::move(buffer));
@@ -305,7 +387,7 @@ namespace Elixir::SpirV
                         type = EConstantType::Int;
                         break;
                     case spirv_cross::SPIRType::UInt:
-                        type = EConstantType::Int;
+                        type = EConstantType::UInt;
                         break;
                     case spirv_cross::SPIRType::Float:
                         if (memberType.vecsize == 1)
@@ -327,18 +409,18 @@ namespace Elixir::SpirV
 
                 const auto count = CalculateResourceCount(memberType);
 
-                ShaderConstant* constant;
-
                 if (cstruct)
                 {
-                    constant = new ShaderConstant(memberName, std::move(cstruct), count, memberType.pointer);
+                    buffer.PushConstant(
+                        ShaderConstant(memberName, std::move(cstruct), count, memberType.pointer)
+                    );
                 }
                 else
                 {
-                    constant = new ShaderConstant(memberName, type, count, memberType.pointer);
+                    buffer.PushConstant(
+                        ShaderConstant(memberName, type, count, memberType.pointer)
+                    );
                 }
-
-                buffer.PushConstant(std::move(*constant));
             }
 
             result.push_back(std::move(buffer));
@@ -388,58 +470,58 @@ namespace Elixir::SpirV
 
         for (auto i = 0; i < type.member_types.size(); i++)
         {
-            auto& fieldType = spirv.get_type(type.member_types[i]);
+            auto& baseType = spirv.get_type(type.member_types[i]);
             auto& fieldName = spirv.get_member_name(type.self, i);
 
-            auto type = EConstantType::Struct;
+            auto fieldType = EConstantType::Struct;
             Ref<ShaderConstantStruct> fieldStruct = nullptr;
 
-            switch (fieldType.basetype)
+            switch (baseType.basetype)
             {
                 case spirv_cross::SPIRType::Struct:
-                    fieldStruct = ParseConstantStruct(spirv, fieldType, fieldName);
+                    fieldStruct = ParseConstantStruct(spirv, baseType, fieldName);
                     break;
                 case spirv_cross::SPIRType::Boolean:
-                    type = EConstantType::Bool;
+                    fieldType = EConstantType::Bool;
                     break;
                 case spirv_cross::SPIRType::Int:
-                    type = EConstantType::Int;
+                    fieldType = EConstantType::Int;
                     break;
                 case spirv_cross::SPIRType::UInt:
-                    type = EConstantType::Int;
+                    fieldType = EConstantType::UInt;
                     break;
                 case spirv_cross::SPIRType::Float:
-                    if (fieldType.vecsize == 1)
-                        type = EConstantType::Float;
-                    else if (fieldType.vecsize == 2)
-                        type = EConstantType::Vec2;
-                    else if (fieldType.vecsize == 3)
-                        type = EConstantType::Vec3;
-                    else if (fieldType.vecsize == 4 && fieldType.columns == 1)
-                        type = EConstantType::Vec4;
-                    else if (fieldType.vecsize == 4 && fieldType.columns == 3)
-                        type = EConstantType::Mat3;
-                    else if (fieldType.vecsize == 4 && fieldType.columns == 4)
-                        type = EConstantType::Mat4;
+                    if (baseType.vecsize == 1)
+                        fieldType = EConstantType::Float;
+                    else if (baseType.vecsize == 2)
+                        fieldType = EConstantType::Vec2;
+                    else if (baseType.vecsize == 3)
+                        fieldType = EConstantType::Vec3;
+                    else if (baseType.vecsize == 4 && baseType.columns == 1)
+                        fieldType = EConstantType::Vec4;
+                    else if (baseType.vecsize == 4 && baseType.columns == 3)
+                        fieldType = EConstantType::Mat3;
+                    else if (baseType.vecsize == 4 && baseType.columns == 4)
+                        fieldType = EConstantType::Mat4;
                     break;
                 default:
                     EE_CORE_ASSERT(false, "Unknown Constant Type!");
             }
 
-            const auto count = CalculateResourceCount(fieldType);
+            const auto count = CalculateResourceCount(baseType);
 
-            ShaderConstant* constant;
-
-            if (cstruct)
+            if (fieldStruct)
             {
-                constant = new ShaderConstant(fieldName, std::move(fieldStruct), count, fieldType.pointer);
+                cstruct->AddField(
+                    ShaderConstant(fieldName, fieldStruct, count, baseType.pointer)
+                );
             }
             else
             {
-                constant = new ShaderConstant(fieldName, type, count, fieldType.pointer);
+                cstruct->AddField(
+                    ShaderConstant(fieldName, fieldType, count, baseType.pointer)
+                );
             }
-
-            cstruct->AddField(std::move(*constant));
         }
 
         return cstruct;

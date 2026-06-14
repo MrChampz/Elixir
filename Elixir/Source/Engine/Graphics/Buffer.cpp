@@ -12,6 +12,36 @@ namespace Elixir
 
     /* Buffer */
 
+    void Buffer::Fill(const uint32_t data, const int32_t offset, const size_t size)
+    {
+        const auto cmd = m_GraphicsContext->GetUploadCommandBuffer();
+        cmd->Begin();
+        Fill(cmd, data, offset, size);
+        cmd->Flush();
+    }
+
+    void Buffer::Clear()
+    {
+        const auto cmd = m_GraphicsContext->GetUploadCommandBuffer();
+        cmd->Begin();
+        Clear(cmd);
+        cmd->Flush();
+    }
+
+    void Buffer::Clear(const Ref<CommandBuffer>& cmd)
+    {
+        Fill(cmd, 0);
+    }
+
+    void Buffer::Barrier(
+        const Ref<CommandBuffer>& cmd,
+        const EPipelineStage stage,
+        const EPipelineAccess access
+    )
+    {
+        Barrier(cmd.get(), stage, access);
+    }
+
     void Buffer::Copy(
         const Ref<CommandBuffer>& cmd,
         const Ref<Buffer>& dst,
@@ -124,6 +154,14 @@ namespace Elixir
 #endif
     }
 
+    /* VertexBuffer */
+
+    const auto VERTEX_BUFFER_USAGE =
+        EBufferUsage::VertexBuffer |
+        EBufferUsage::StorageBuffer |
+        EBufferUsage::TransferDst |
+        EBufferUsage::ShaderDeviceAddress;
+
     void VertexBuffer::Bind(
         const Ref<CommandBuffer>& cmd,
         const uint32_t bindingCount,
@@ -133,14 +171,6 @@ namespace Elixir
         const VertexBuffer* buffers[] = { this };
         cmd->BindVertexBuffers(buffers, {}, bindingCount, firstBinding);
     }
-
-    /* VertexBuffer */
-
-    const auto VERTEX_BUFFER_USAGE =
-        EBufferUsage::VertexBuffer |
-        EBufferUsage::StorageBuffer |
-        EBufferUsage::TransferDst |
-        EBufferUsage::ShaderDeviceAddress;
 
     Ref<VertexBuffer> VertexBuffer::Create(
         const GraphicsContext* context,
@@ -407,6 +437,127 @@ namespace Elixir
 #endif
     }
 
+    /* StorageBuffer */
+
+    const auto STORAGE_BUFFER_USAGE =
+        EBufferUsage::StorageBuffer |
+        EBufferUsage::VertexBuffer |
+        EBufferUsage::IndexBuffer |
+        EBufferUsage::TransferDst;
+
+    Ref<StorageBuffer> StorageBuffer::Create(
+        const GraphicsContext* context,
+        size_t size,
+        const void* data
+    )
+    {
+        switch (context->GetAPI())
+        {
+            case EGraphicsAPI::Vulkan:
+                return CreateRef<Vulkan::VulkanStorageBuffer>(context, size, data);
+            default:
+                EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
+                return nullptr;
+        }
+    }
+
+    SBufferCreateInfo StorageBuffer::CreateBufferInfo(const size_t size, const void* data)
+    {
+        return {
+            .Buffer = SBuffer(data, size),
+            .Usage = STORAGE_BUFFER_USAGE,
+            .AllocationInfo = {
+                .PreferredFlags = EMemoryProperty::DeviceLocal
+            }
+        };
+    }
+
+    StorageBuffer::StorageBuffer(
+        const GraphicsContext* context,
+        const size_t size,
+        const void* data
+    ) : StorageBuffer(context, CreateBufferInfo(size, data)) {}
+
+    StorageBuffer::StorageBuffer(const GraphicsContext* context, const SBufferCreateInfo& info)
+        : Buffer(context, info)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+#ifdef EE_DEBUG
+        m_DebugName = "StorageBuffer[" + m_UUID.ToString() + "]";
+#endif
+    }
+
+    /* DynamicStorageBuffer */
+
+    const auto DYNAMIC_STORAGE_BUFFER_USAGE =
+        EBufferUsage::StorageBuffer |
+        EBufferUsage::VertexBuffer |
+        EBufferUsage::IndexBuffer |
+        EBufferUsage::TransferDst;
+
+    void DynamicStorageBuffer::UpdateData(
+        const void* data,
+        const size_t size,
+        const size_t offset
+    ) const
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        EE_CORE_ASSERT(offset + size <= m_Size, "Buffer overflow!")
+        EE_CORE_ASSERT(m_PersistentMapping, "Persistent mapping is required for dynamic buffers!")
+
+        if (m_PersistentMapping)
+        {
+            Memory::Memcpy((uint8_t*)m_PersistentMapping + offset, data, size);
+        }
+    }
+
+    Ref<DynamicStorageBuffer> DynamicStorageBuffer::Create(
+        const GraphicsContext* context,
+        size_t size,
+        const void* data
+    )
+    {
+        switch (context->GetAPI())
+        {
+            case EGraphicsAPI::Vulkan:
+                return CreateRef<Vulkan::VulkanDynamicStorageBuffer>(context, size, data);
+            default:
+                EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
+                return nullptr;
+        }
+    }
+
+    SBufferCreateInfo DynamicStorageBuffer::CreateBufferInfo(const size_t size, const void* data)
+    {
+        return {
+            .Buffer = SBuffer(data, size),
+            .Usage = DYNAMIC_STORAGE_BUFFER_USAGE,
+            .AllocationInfo = {
+                .RequiredFlags = EMemoryProperty::HostVisible | EMemoryProperty::HostCoherent,
+                .PreferredFlags = EMemoryProperty::HostCached
+            }
+        };
+    }
+
+    DynamicStorageBuffer::DynamicStorageBuffer(
+        const GraphicsContext* context,
+        const size_t size,
+        const void* data
+    ) : DynamicStorageBuffer(context, CreateBufferInfo(size, data)) {}
+
+    DynamicStorageBuffer::DynamicStorageBuffer(
+        const GraphicsContext* context,
+        const SBufferCreateInfo& info
+    ) : DynamicBuffer(context, info)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+#ifdef EE_DEBUG
+        m_DebugName = "DynamicStorageBuffer[" + m_UUID.ToString() + "]";
+#endif
+    }
+
     /* UniformBuffer */
 
     void UniformBuffer::UpdateData(const void* data, const size_t size, const size_t offset)
@@ -472,7 +623,7 @@ namespace Elixir
         const GraphicsContext* context,
         const size_t size,
         const void* data
-    ) : m_GraphicsContext(context)
+    ) : m_GraphicsContext(context), m_Size(size)
     {
         EE_PROFILE_ZONE_SCOPED()
 

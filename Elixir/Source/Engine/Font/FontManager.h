@@ -10,7 +10,7 @@ namespace Elixir
     class ELIXIR_API FontManager
     {
       public:
-        static constexpr std::string DEFAULT_FONT_NAME = "SF-Pro-Display-Regular";
+        static inline const std::string DEFAULT_FONT_NAME = "SF-Pro-Display-Regular";
 
         static void Initialize(const GraphicsContext* context);
         static void Shutdown();

@@ -13,8 +13,11 @@ namespace Elixir::Vulkan
         using VulkanBufferTypes = std::tuple<
             VulkanDynamicBuffer<StagingBuffer>,
             VulkanDynamicBuffer<UniformBuffer>,
+            VulkanBaseBuffer<StorageBuffer>,
             VulkanBaseBuffer<VertexBuffer>,
+            VulkanDynamicBuffer<DynamicVertexBuffer>,
             VulkanBaseBuffer<IndexBuffer>,
+            VulkanDynamicBuffer<DynamicIndexBuffer>,
             VulkanBaseBuffer<Buffer>
         >;
 
@@ -47,6 +50,34 @@ namespace Elixir::Vulkan
     /* VulkanBaseBuffer */
 
     template <class Base>
+    void VulkanBaseBuffer<Base>::Fill(
+        const Ref<CommandBuffer>& cmd,
+        const uint32_t data,
+        int32_t offset,
+        size_t size
+    )
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        EE_CORE_ASSERT(offset < this->GetSize(), "Fill offset exceeds buffer size!")
+        EE_CORE_ASSERT(size == 0 || (offset + size <= this->GetSize()), "Fill range exceeds buffer size!")
+
+        if (!this->IsValid()) return;
+
+        const auto vkCmd = std::static_pointer_cast<const VulkanCommandBuffer>(cmd);
+
+        vkCmdFillBuffer(
+            vkCmd->GetVulkanCommandBuffer(),
+            m_Buffer,
+            offset,
+            size == 0 ? VK_WHOLE_SIZE : size,
+            data
+        );
+
+        this->m_PipelineStage = EPipelineStage::Transfer;
+        this->m_PipelineAccess = EPipelineAccess::TransferWrite;
+    }
+
+    template <class Base>
     void VulkanBaseBuffer<Base>::Destroy()
     {
         EE_PROFILE_ZONE_SCOPED()
@@ -57,6 +88,30 @@ namespace Elixir::Vulkan
         m_Buffer = VK_NULL_HANDLE;
         m_Allocation = VK_NULL_HANDLE;
         m_DescriptorInfo = {};
+    }
+
+    template <class Base>
+    void VulkanBaseBuffer<Base>::Barrier(
+        const CommandBuffer* cmd,
+        const EPipelineStage stage,
+        const EPipelineAccess access
+    )
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        const auto vkCmd = static_cast<const VulkanCommandBuffer*>(cmd);
+
+        CommandUtils::BufferBarrier(
+            vkCmd->GetVulkanCommandBuffer(),
+            m_Buffer,
+            Converters::GetPipelineStageFlags(this->m_PipelineStage),
+            Converters::GetPipelineAccessFlags(this->m_PipelineAccess),
+            Converters::GetPipelineStageFlags(stage),
+            Converters::GetPipelineAccessFlags(access)
+        );
+
+        this->m_PipelineStage = stage;
+        this->m_PipelineAccess = access;
     }
 
     template <class Base>
@@ -150,6 +205,10 @@ namespace Elixir::Vulkan
             cmd->CopyBuffer(staging, this);
             cmd->Flush();
         }
+        else
+        {
+            Base::Clear();
+        }
     }
 
     template <class Base>
@@ -167,13 +226,17 @@ namespace Elixir::Vulkan
     void* VulkanDynamicBuffer<Base>::Map()
     {
         EE_PROFILE_ZONE_SCOPED()
-        void* data;
-        VK_CHECK_RESULT(vmaMapMemory(
-            this->m_GraphicsContext->GetAllocator(),
-            this->m_Allocation,
-            &data
-        ));
-        return data;
+
+        if (!this->m_PersistentMapping)
+        {
+            VK_CHECK_RESULT(vmaMapMemory(
+                this->m_GraphicsContext->GetAllocator(),
+                this->m_Allocation,
+                &this->m_PersistentMapping
+            ));
+        }
+
+        return this->m_PersistentMapping;
     }
 
     template <class Base>
@@ -181,6 +244,7 @@ namespace Elixir::Vulkan
     {
         EE_PROFILE_ZONE_SCOPED()
         vmaUnmapMemory(this->m_GraphicsContext->GetAllocator(), this->m_Allocation);
+        this->m_PersistentMapping = nullptr;
     }
 
     template <class Base>
@@ -390,6 +454,70 @@ namespace Elixir::Vulkan
 
     void VulkanDynamicIndexBuffer::InitBuffer(const SBuffer& buffer)
     {
+        m_PersistentMapping = Map();
+
+        if (buffer.Data)
+        {
+            Memory::Memcpy(m_PersistentMapping, buffer.Data, m_Size);
+        }
+    }
+
+    /* VulkanStorageBuffer */
+
+    VulkanStorageBuffer::VulkanStorageBuffer(
+        const GraphicsContext* context,
+        const size_t size,
+        const void* data
+    ) : VulkanStorageBuffer(context, CreateBufferInfo(size, data)) {}
+
+    VulkanStorageBuffer::VulkanStorageBuffer(
+        const GraphicsContext* context,
+        const SBufferCreateInfo& info
+    ) : VulkanBaseBuffer(context, info)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        VulkanStorageBuffer::CreateBuffer(info);
+        VulkanStorageBuffer::InitBuffer(info.Buffer);
+        VulkanStorageBuffer::CreateDescriptorInfo();
+    }
+
+    VulkanStorageBuffer::~VulkanStorageBuffer()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        VulkanStorageBuffer::Destroy();
+    }
+
+    /* VulkanDynamicStorageBuffer */
+
+    VulkanDynamicStorageBuffer::VulkanDynamicStorageBuffer(
+        const GraphicsContext* context,
+        const size_t size,
+        const void* data
+    ) : VulkanDynamicStorageBuffer(context, CreateBufferInfo(size, data)) {}
+
+    VulkanDynamicStorageBuffer::VulkanDynamicStorageBuffer(
+        const GraphicsContext* context,
+        const SBufferCreateInfo& info
+    ) : VulkanDynamicBuffer(context, info)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        VulkanDynamicStorageBuffer::CreateBuffer(info);
+        VulkanDynamicStorageBuffer::InitBuffer(info.Buffer);
+        VulkanDynamicStorageBuffer::CreateDescriptorInfo();
+    }
+
+    VulkanDynamicStorageBuffer::~VulkanDynamicStorageBuffer()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        if (m_PersistentMapping)
+            VulkanDynamicBuffer::Unmap();
+        VulkanDynamicStorageBuffer::Destroy();
+    }
+
+    void VulkanDynamicStorageBuffer::InitBuffer(const SBuffer& buffer)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
         m_PersistentMapping = Map();
 
         if (buffer.Data)

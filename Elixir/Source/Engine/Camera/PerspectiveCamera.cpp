@@ -75,6 +75,7 @@ namespace Elixir
             m_NearPlane,
             m_FarPlane
         );
+        m_ProjectionMatrix[1][1] *= -1.0f;
     }
 
     void PerspectiveCamera::UpdateDirectionVectors()

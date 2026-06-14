@@ -11,7 +11,6 @@ namespace Elixir::Vulkan
     class ELIXIR_API VulkanCommandBuffer final : public CommandBuffer
     {
         friend class VulkanGraphicsContext;
-
       public:
         explicit VulkanCommandBuffer(
             const GraphicsContext* context,
@@ -24,6 +23,14 @@ namespace Elixir::Vulkan
         void End() override;
 
         void Reset() override;
+
+        /** Dispatching compute methods */
+
+        void Dispatch(
+            uint32_t groupCountX,
+            uint32_t groupCountY,
+            uint32_t groupCountZ
+        ) override;
 
         /** Drawing methods **/
 
@@ -50,9 +57,16 @@ namespace Elixir::Vulkan
         void SetViewports(const std::vector<Viewport>& viewports, uint32_t firstViewport) override;
         void SetScissors(const std::vector<Rect2D>& scissors, uint32_t firstScissor) override;
 
+        void SetPushConstant(
+            const Ref<PushConstantBuffer>& buffer,
+            const Shader* shader,
+            EShaderStage stages
+        ) override;
+
         /** Bind methods **/
 
         void BindPipeline(const GraphicsPipeline* pipeline) override;
+        void BindPipeline(const ComputePipeline* pipeline) override;
 
         void BindVertexBuffers(
             std::span<const VertexBuffer*> vertexBuffers,
@@ -66,10 +80,18 @@ namespace Elixir::Vulkan
             uint32_t bindingCount,
             uint32_t firstBinding
         ) override;
+        void BindVertexBuffers(
+            std::span<const Buffer*> vertexBuffers,
+            std::span<uint64_t> offsets,
+            uint32_t bindingCount,
+            uint32_t firstBinding
+        ) override;
         void BindIndexBuffer(const IndexBuffer* indexBuffer) override;
         void BindIndexBuffer(const DynamicIndexBuffer* indexBuffer) override;
+        void BindIndexBuffer(const Buffer* indexBuffer, EIndexType indexType) override;
 
         void BindDescriptorSets(
+            const Pipeline* pipeline,
             VkPipelineLayout layout,
             uint32_t firstSet,
             const std::vector<VkDescriptorSet>& descriptorSets,

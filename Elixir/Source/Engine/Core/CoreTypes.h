@@ -4,6 +4,8 @@
 
 namespace Elixir
 {
+    struct Extent3D;
+
     typedef struct Offset2D
     {
         int32_t X, Y;
@@ -29,6 +31,8 @@ namespace Elixir
 
         Extent2D() = default;
         Extent2D(const uint32_t width, const uint32_t height) : Width(width), Height(height) {}
+        Extent2D(const Extent3D& extent);
+
         Extent2D(const Extent2D& extent) : Width(extent.Width), Height(extent.Height) {}
     } Extent2D;
 
@@ -48,6 +52,9 @@ namespace Elixir
         Extent3D(const Extent3D& extent)
             : Width(extent.Width), Height(extent.Height), Depth(extent.Depth) {}
     } Extent3D;
+
+    inline Extent2D::Extent2D(const Extent3D& extent)
+        : Width(extent.Width), Height(extent.Height) {}
 
     typedef struct Rect2D
     {

@@ -6,6 +6,8 @@
 
 namespace Elixir
 {
+    /* GraphicsPipeline */
+
     Ref<GraphicsPipeline> GraphicsPipeline::Create(
         const GraphicsContext* context,
         const SPipelineCreateInfo& info
@@ -36,5 +38,30 @@ namespace Elixir
         m_ColorAttachmentFormat = info.ColorAttachmentFormat;
         m_DepthAttachmentFormat = Converters::GetImageFormat(info.DepthAttachmentFormat);
         m_BufferLayout = info.VertexBufferLayout;
+    }
+
+    /* ComputePipeline */
+
+    Ref<ComputePipeline> ComputePipeline::Create(
+        const GraphicsContext* context,
+        const SPipelineCreateInfo& info
+    )
+    {
+        switch (context->GetAPI())
+        {
+            case EGraphicsAPI::Vulkan:
+                return CreateRef<Vulkan::VulkanComputePipeline>(context, std::move(info));
+            default:
+                EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
+                return nullptr;
+        }
+    }
+
+    ComputePipeline::ComputePipeline(
+        const GraphicsContext* context,
+        const SPipelineCreateInfo& info
+    ) : Pipeline(info), m_GraphicsContext(context)
+    {
+        EE_PROFILE_ZONE_SCOPED()
     }
 }

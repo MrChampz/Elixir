@@ -11,6 +11,7 @@ namespace Elixir
         virtual ~ShaderModule() = default;
 
         void AddResource(const ShaderResource* resource);
+        void AddStorageBuffer(const ShaderStorageBuffer* buffer);
         void AddConstantBuffer(const ShaderConstantBuffer* buffer);
         void AddPushConstant(const ShaderPushConstant* constant);
 
@@ -40,6 +41,7 @@ namespace Elixir
 
         // Shader resources declarations
         std::vector<const ShaderResource*> m_Resources;
+        std::vector<const ShaderStorageBuffer*> m_StorageBuffers;
         std::vector<const ShaderConstantBuffer*> m_ConstantBuffers;
         std::vector<const ShaderPushConstant*> m_PushConstants;
 

@@ -108,9 +108,13 @@ set(FASTGLTF_COMPILE_AS_CPP20 ON)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/simdjson)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/fastgltf)
 
-set(MSDF_ATLAS_USE_VCPKG OFF)
+# Resolve msdf-atlas-gen dependencies (skia, freetype, png) through vcpkg.
+# Enabled in CI (-DELIXIR_USE_VCPKG=ON) where those libraries are not installed
+# system-wide; defaults OFF so local builds keep using system packages.
+option(ELIXIR_USE_VCPKG "Resolve font dependencies (skia, freetype, png) via vcpkg" OFF)
+set(MSDF_ATLAS_USE_VCPKG ${ELIXIR_USE_VCPKG})
 set(MSDF_ATLAS_BUILD_STANDALONE OFF)
-set(MSDF_ATLAS_USE_SKIA ON)
+set(MSDF_ATLAS_USE_SKIA OFF)
 set(MSDF_ATLAS_NO_ARTERY_FONT ON)
 set(MSDF_ATLAS_DYNAMIC_RUNTIME ON)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/msdf-atlas-gen)

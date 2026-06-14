@@ -54,7 +54,7 @@ namespace Elixir
 
         std::ostringstream name;
         name << "[" << m_Pool->GetName() << "] " << m_Name;
-        tracy::SetThreadName(name.str().c_str());
+        EE_PROFILE_SET_THREAD_NAME(name.str().c_str());
 
         while (m_Pool->IsRunning())
         {

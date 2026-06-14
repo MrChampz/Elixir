@@ -24,7 +24,7 @@ namespace Elixir
 
         SBuffer(const Byte* data, const size_t size) : SBuffer(size)
         {
-            Copy(data, size);
+            data ? Copy(data, size) : Allocate(size);
         }
 
         ~SBuffer()
@@ -49,8 +49,17 @@ namespace Elixir
         void Copy(const Byte* data, const size_t size)
         {
             EE_PROFILE_ZONE_SCOPED()
+
+            if (size == 0)
+            {
+                FreeInternalData();
+                return;
+            }
+
+            EE_CORE_ASSERT(data, "Cannot copy from null data!")
+
             Allocate(size);
-            if (data) Memory::Memcpy(Data, data, size);
+            Memory::Memcpy(Data, data, size);
         }
 
         void ZeroInitialize() const
@@ -85,11 +94,14 @@ namespace Elixir
         void FreeInternalData()
         {
             EE_PROFILE_ZONE_SCOPED()
+
             if (Data)
             {
                 Memory::Free(Data);
                 Data = nullptr;
             }
+
+            Size = 0;
         }
     };
 }

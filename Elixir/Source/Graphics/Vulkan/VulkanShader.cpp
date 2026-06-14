@@ -51,24 +51,20 @@ namespace Elixir::Vulkan
         m_DescriptorSetLayouts.clear();
     }
 
-    void VulkanShader::Bind(const Ref<CommandBuffer>& cmd)
+    void VulkanShader::Bind(const Ref<CommandBuffer>& cmd, const Pipeline* pipeline)
     {
         const auto vkCmd = static_pointer_cast<VulkanCommandBuffer>(cmd);
 
-        vkCmd->BindDescriptorSets(m_PipelineLayout, 0, GetDescriptorSets());
+        vkCmd->BindDescriptorSets(pipeline, m_PipelineLayout, 0, GetDescriptorSets());
 
         for (const auto& [binding, constant] : m_Resources.PushConstants)
         {
             if (m_PushConstants.contains(binding))
             {
-                auto& data = m_PushConstants[binding]->GetBuffer();
-                vkCmdPushConstants(
-                    vkCmd->GetVulkanCommandBuffer(),
-                    m_PipelineLayout,
-                    VK_SHADER_STAGE_ALL_GRAPHICS, // TODO: GetShaderState(constant->GetStages()),
-                    0,
-                    constant.GetSize(),
-                    data.As<void>()
+                cmd->SetPushConstant(
+                    m_PushConstants[binding],
+                    this,
+                    constant.GetShaderStages()
                 );
             }
         }
@@ -76,24 +72,44 @@ namespace Elixir::Vulkan
 
     void VulkanShader::SetPushConstant(const std::string& name, void* data, const size_t size)
     {
+        SetPushConstant(nullptr, name, data, size);
+    }
+
+    void VulkanShader::SetPushConstant(
+        const Ref<CommandBuffer>& cmd,
+        const std::string& name,
+        void* data,
+        const size_t size
+    )
+    {
         if (const auto binding = GetShaderBinding(name))
         {
+            Ref<PushConstantBuffer> buffer = nullptr;
+
             if (m_PushConstants.contains(*binding))
             {
-                const auto& buffer = m_PushConstants.at(*binding);
+                buffer = m_PushConstants.at(*binding);
                 const auto mapped = buffer->Map();
                 Memory::Memcpy(mapped, data, size);
                 buffer->Unmap(size);
             }
             else
             {
-                const auto buffer = PushConstantBuffer::Create(
+                buffer = PushConstantBuffer::Create(
                     m_GraphicsContext,
                     size,
                     data
                 );
                 m_PushConstants[*binding] = buffer;
             }
+
+            // If cmd was provided we can set the push constant immediately.
+            if (cmd)
+            {
+                const auto descriptor = m_Resources.PushConstants.at(*binding);
+                cmd->SetPushConstant(buffer, this, descriptor.GetShaderStages());
+            }
+
             return;
         }
 
@@ -161,6 +177,36 @@ namespace Elixir::Vulkan
         EE_CORE_ERROR("No texture binding named \"{0}\" found in shader...", name)
     }
 
+    void VulkanShader::BindStorageBuffer(
+        const std::string& name,
+        const Ref<StorageBuffer>& buffer
+    )
+    {
+        if (const auto binding = GetShaderBinding(name))
+        {
+            m_StorageBuffers[*binding] = buffer;
+            UpdateDescriptorSet(*binding, buffer);
+            return;
+        }
+
+        EE_CORE_ERROR("No storage buffer binding named \"{0}\" found in shader...", name)
+    }
+
+    void VulkanShader::BindStorageBuffer(
+        const std::string& name,
+        const Ref<DynamicStorageBuffer>& buffer
+    )
+    {
+        if (const auto binding = GetShaderBinding(name))
+        {
+            m_DynStorageBuffers[*binding] = buffer;
+            UpdateDescriptorSet(*binding, buffer);
+            return;
+        }
+
+        EE_CORE_ERROR("No storage buffer binding named \"{0}\" found in shader...", name)
+    }
+
     void VulkanShader::BindConstantBuffer(
         const std::string& name,
         const Ref<UniformBuffer>& buffer
@@ -198,7 +244,7 @@ namespace Elixir::Vulkan
             VkPushConstantRange range = {};
             range.offset = constant.GetOffset();
             range.size = constant.GetSize();
-            range.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS; // TODO: GetShaderState(constant->GetStage());
+            range.stageFlags = Converters::GetShaderStages(constant.GetShaderStages());
 
             ranges.push_back(range);
         }
@@ -210,6 +256,19 @@ namespace Elixir::Vulkan
     {
         std::unordered_map<uint32_t, std::vector<VkDescriptorSetLayoutBinding>> sets;
 
+        for (const auto& buffer : std::views::values(m_Resources.StorageBuffers))
+        {
+            const auto set = buffer.GetSet();
+
+            VkDescriptorSetLayoutBinding binding = {};
+            binding.binding = buffer.GetBinding();
+            binding.descriptorCount = 1;
+            binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            binding.stageFlags = Converters::GetShaderStages(buffer.GetShaderStages());
+
+            sets[set].push_back(binding);
+        }
+
         for (const auto& buffer : std::views::values(m_Resources.ConstantBuffers))
         {
             const auto set = buffer.GetSet();
@@ -218,7 +277,7 @@ namespace Elixir::Vulkan
             binding.binding = buffer.GetBinding();
             binding.descriptorCount = 1;
             binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            binding.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS; // TODO: GetShaderState(buffer->GetStage());
+            binding.stageFlags = Converters::GetShaderStages(buffer.GetShaderStages());
 
             sets[set].push_back(binding);
         }
@@ -237,7 +296,7 @@ namespace Elixir::Vulkan
             binding.binding = resource.GetBinding();
             binding.descriptorCount = resource.GetCount();
             binding.descriptorType = Converters::GetDescriptorType(resource.GetType());
-            binding.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS; // TODO: GetShaderState(resource->GetStage());
+            binding.stageFlags = Converters::GetShaderStages(resource.GetShaderStages());
             binding.pImmutableSamplers = nullptr;
 
             sets[set].push_back(binding);
@@ -297,7 +356,7 @@ namespace Elixir::Vulkan
     void VulkanShader::CreatePipelineLayout()
     {
         std::vector layouts(m_DescriptorSetLayouts);
-        std::vector ranges = GetPushConstantRanges();
+        const std::vector ranges = GetPushConstantRanges();
 
         if (m_BindlessSet)
         {
@@ -330,6 +389,18 @@ namespace Elixir::Vulkan
         for (const auto [binding, texture] : m_Textures)
         {
             const auto writeSet = GetWriteDescriptorSet(binding, texture.get());
+            writeDescriptorSets.push_back(writeSet);
+        }
+
+        for (const auto [binding, buffer] : m_StorageBuffers)
+        {
+            const auto writeSet = GetWriteDescriptorSet(binding, buffer);
+            writeDescriptorSets.push_back(writeSet);
+        }
+
+        for (const auto [binding, buffer] : m_DynStorageBuffers)
+        {
+            const auto writeSet = GetWriteDescriptorSet(binding, buffer);
             writeDescriptorSets.push_back(writeSet);
         }
 
@@ -429,6 +500,80 @@ namespace Elixir::Vulkan
     ) const
     {
         const auto writeSet = GetWriteDescriptorSet(binding, sampler);
+
+        vkUpdateDescriptorSets(
+            m_GraphicsContext->GetDevice(),
+            1,
+            &writeSet,
+            0,
+            nullptr
+        );
+    }
+
+    VkWriteDescriptorSet VulkanShader::GetWriteDescriptorSet(
+        const SShaderBinding binding,
+        const Ref<StorageBuffer>& buffer
+    ) const
+    {
+        const auto& resource = m_Resources.StorageBuffers.at(binding);
+        const auto buf = std::static_pointer_cast<VulkanStorageBuffer>(buffer);
+
+        m_BufferInfoCache[binding] = buf->GetVulkanDescriptorInfo();
+
+        VkWriteDescriptorSet writeSet = {};
+        writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writeSet.dstSet = m_DescriptorSets[resource.GetSet()];
+        writeSet.dstBinding = resource.GetBinding();
+        writeSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writeSet.descriptorCount = 1;
+        writeSet.pBufferInfo = &m_BufferInfoCache[binding];
+
+        return writeSet;
+    }
+
+    void VulkanShader::UpdateDescriptorSet(
+        const SShaderBinding binding,
+        const Ref<StorageBuffer>& buffer
+    ) const
+    {
+        const auto writeSet = GetWriteDescriptorSet(binding, buffer);
+
+        vkUpdateDescriptorSets(
+            m_GraphicsContext->GetDevice(),
+            1,
+            &writeSet,
+            0,
+            nullptr
+        );
+    }
+
+    VkWriteDescriptorSet VulkanShader::GetWriteDescriptorSet(
+        const SShaderBinding binding,
+        const Ref<DynamicStorageBuffer>& buffer
+    ) const
+    {
+        const auto& resource = m_Resources.StorageBuffers.at(binding);
+        const auto buf = std::static_pointer_cast<VulkanDynamicStorageBuffer>(buffer);
+
+        m_BufferInfoCache[binding] = buf->GetVulkanDescriptorInfo();
+
+        VkWriteDescriptorSet writeSet = {};
+        writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writeSet.dstSet = m_DescriptorSets[resource.GetSet()];
+        writeSet.dstBinding = resource.GetBinding();
+        writeSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writeSet.descriptorCount = 1;
+        writeSet.pBufferInfo = &m_BufferInfoCache[binding];
+
+        return writeSet;
+    }
+
+    void VulkanShader::UpdateDescriptorSet(
+        const SShaderBinding binding,
+        const Ref<DynamicStorageBuffer>& buffer
+    ) const
+    {
+        const auto writeSet = GetWriteDescriptorSet(binding, buffer);
 
         vkUpdateDescriptorSets(
             m_GraphicsContext->GetDevice(),

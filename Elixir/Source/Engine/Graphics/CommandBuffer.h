@@ -1,12 +1,19 @@
 #pragma once
 
 #include <Engine/Graphics/GraphicsContext.h>
-#include <Engine/Graphics/Buffer.h>
+#include <Engine/Graphics/GraphicsTypes.h>
 
 namespace Elixir
 {
     class Texture;
+    class PushConstantBuffer;
     class GraphicsPipeline;
+    class ComputePipeline;
+    class Buffer;
+    class VertexBuffer;
+    class DynamicVertexBuffer;
+    class IndexBuffer;
+    class DynamicIndexBuffer;
 
     enum class ECommandBufferLevel : uint8_t
     {
@@ -23,6 +30,14 @@ namespace Elixir
         virtual void End() = 0;
 
         virtual void Reset() = 0;
+
+        /** Dispatching compute methods */
+
+        virtual void Dispatch(
+            uint32_t groupCountX,
+            uint32_t groupCountY = 1,
+            uint32_t groupCountZ = 1
+        ) = 0;
 
         /** Drawing methods **/
 
@@ -56,6 +71,17 @@ namespace Elixir
             uint32_t firstScissor = 0
         ) = 0;
 
+        virtual void SetPushConstant(
+            const Ref<PushConstantBuffer>& buffer,
+            const Ref<Shader>& shader,
+            EShaderStage stages
+        );
+        virtual void SetPushConstant(
+            const Ref<PushConstantBuffer>& buffer,
+            const Shader* shader,
+            EShaderStage stages
+        ) = 0;
+
         /** Bind methods **/
 
         /**
@@ -66,6 +92,15 @@ namespace Elixir
          * @param pipeline GraphicsPipeline instance to be bound.
          */
         virtual void BindPipeline(const GraphicsPipeline* pipeline) = 0;
+
+        /**
+         * Binds a pipeline for Command Buffer execution.
+         * NOTE: This method should not be used directly!
+         * It's intended to be used by Pipeline implementation.
+         *
+         * @param pipeline ComputePipeline instance to be bound.
+         */
+        virtual void BindPipeline(const ComputePipeline* pipeline) = 0;
 
         virtual void BindVertexBuffers(
             std::span<const VertexBuffer*> vertexBuffers,
@@ -79,8 +114,21 @@ namespace Elixir
             uint32_t bindingCount = 1,
             uint32_t firstBinding = 0
         ) = 0;
+        virtual void BindVertexBuffers(
+            std::span<const Buffer*> vertexBuffers,
+            std::span<uint64_t> offsets = {},
+            uint32_t bindingCount = 1,
+            uint32_t firstBinding = 0
+        ) = 0;
         virtual void BindIndexBuffer(const IndexBuffer* indexBuffer) = 0;
         virtual void BindIndexBuffer(const DynamicIndexBuffer* indexBuffer) = 0;
+        virtual void BindIndexBuffer(
+            const Buffer* indexBuffer,
+            EIndexType indexType = EIndexType::UInt32
+        ) = 0;
+
+        template <typename T, typename... Args>
+        void BindBuffer(const Buffer* buffer, Args... args);
 
         /** Resource handling methods **/
 
@@ -139,4 +187,22 @@ namespace Elixir
 
         const GraphicsContext* m_GraphicsContext;
     };
+
+    template <typename T, typename... Args>
+    void CommandBuffer::BindBuffer(const Buffer* buffer, Args... args)
+    {
+        if constexpr (std::is_same_v<T, VertexBuffer> || std::is_same_v<T, DynamicVertexBuffer>)
+        {
+            const Buffer* buffers[] = { buffer };
+            BindVertexBuffers(buffers, args...);
+        }
+        else if constexpr (std::is_same_v<T, IndexBuffer> || std::is_same_v<T, DynamicIndexBuffer>)
+        {
+            BindIndexBuffer(buffer, args...);
+        }
+        else
+        {
+            EE_CORE_ASSERT(false, "Unsupported buffer type!")
+        }
+    }
 }

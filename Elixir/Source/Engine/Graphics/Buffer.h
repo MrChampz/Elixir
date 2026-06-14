@@ -4,39 +4,11 @@
 #include <Engine/Graphics/BufferLayout.h>
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Graphics/Memory.h>
+#include <Engine/Graphics/GraphicsTypes.h>
+#include <Engine/Graphics/CommandBuffer.h>
 
 namespace Elixir
 {
-    typedef uint64_t BufferAddress;
-
-    enum class EBufferUsage : uint32_t
-    {
-        TransferSrc				= 0x00000001,
-        TransferDst				= 0x00000002,
-        UniformTexelBuffer	    = 0x00000004,
-        StorageTexelBuffer		= 0x00000008,
-        UniformBuffer			= 0x00000010,
-        StorageBuffer	        = 0x00000020,
-        IndexBuffer		        = 0x00000040,
-        VertexBuffer			= 0x00000080,
-        IndirectBuffer			= 0x00000100,
-        ShaderDeviceAddress		= 0x00020000
-    };
-
-    GENERATE_ENUM_CLASS_OPERATORS(EBufferUsage)
-
-    struct SBufferCopy
-    {
-        size_t SrcOffset = 0;
-        size_t DstOffset = 0;
-        size_t Size = 0;
-
-        static SBufferCopy Default(const size_t size = 0)
-        {
-            return { .Size = size };
-        }
-    };
-
     struct SBufferCreateInfo
     {
         SBuffer Buffer;
@@ -49,7 +21,50 @@ namespace Elixir
       public:
         virtual ~Buffer() = default;
 
+        /**
+         * Fill all bytes of the buffer with the specified 32-bit value.
+         *
+         * @param data 32-bit value to fill the buffer with. The value will be repeated to fill the entire buffer.
+         * @param offset Byte offset into the buffer where the data should be copied. Defaults to 0.
+         * @param size Size of the data to copy in bytes. If 0, it will copy until the end of the buffer.
+         */
+        virtual void Fill(uint32_t data, int32_t offset = 0, size_t size = 0);
+
+        /**
+         * Fill all bytes of the buffer with the specified 32-bit value.
+         * This version does not flush the command buffer, it's up to the caller to flush it
+         * after recording the fill operation.
+         *
+         * @param cmd The command buffer to record the fill operation into.
+         * @param data 32-bit value to fill the buffer with. The value will be repeated to fill the entire buffer.
+         * @param offset Byte offset into the buffer where the data should be copied. Defaults to 0.
+         * @param size Size of the data to copy in bytes. If 0, it will copy until the end of the buffer.
+         */
+        virtual void Fill(
+            const Ref<CommandBuffer>& cmd,
+            uint32_t data,
+            int32_t offset = 0,
+            size_t size = 0
+        ) = 0;
+
+        /**
+         * Clears the buffer's contents, filling it with zeros.
+         */
+        virtual void Clear();
+
+        /**
+         * Clears the buffer's contents, filling it with zeros.
+         * This version does not flush the command buffer, it's up to the caller to flush it
+         * after recording the clear operation.
+         *
+         * @param cmd The command buffer to record the clear operation into.
+         */
+        virtual void Clear(const Ref<CommandBuffer>& cmd);
+
         virtual void Destroy() = 0;
+
+        void Barrier(const Ref<CommandBuffer>& cmd, EPipelineStage stage, EPipelineAccess access);
+        virtual void Barrier(const CommandBuffer* cmd, EPipelineStage stage, EPipelineAccess access) = 0;
 
         virtual void Copy(
             const Ref<CommandBuffer>& cmd,
@@ -106,6 +121,9 @@ namespace Elixir
         UUID m_UUID;
         std::string m_DebugName;
 
+        EPipelineStage m_PipelineStage = EPipelineStage::None;
+        EPipelineAccess m_PipelineAccess = EPipelineAccess::None;
+
         EBufferUsage m_Usage;
         size_t m_Size;
 
@@ -119,12 +137,14 @@ namespace Elixir
       public:
         ~DynamicBuffer() override = default;
 
-        [[nodiscard]] virtual void* Map() = 0;
+        virtual void* Map() = 0;
         virtual void Unmap() = 0;
 
       protected:
         DynamicBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
         DynamicBuffer(const DynamicBuffer&) = delete;
+
+        void* m_PersistentMapping = nullptr;
     };
 
     class ELIXIR_API StagingBuffer : public DynamicBuffer
@@ -222,12 +242,6 @@ namespace Elixir
 
         BufferLayout m_Layout;
         BufferAddress m_Address;
-        void* m_PersistentMapping = nullptr;
-    };
-
-    enum class EIndexType
-    {
-        UInt16, UInt32
     };
 
     class ELIXIR_API IndexBuffer : public Buffer
@@ -300,7 +314,58 @@ namespace Elixir
         DynamicIndexBuffer(const IndexBuffer&) = delete;
 
         EIndexType m_IndexType;
-        void* m_PersistentMapping = nullptr;
+    };
+
+    class ELIXIR_API StorageBuffer : public Buffer
+    {
+    public:
+        ~StorageBuffer() override = default;
+
+        template <typename T, typename... Args>
+        void BindAs(const Ref<CommandBuffer>& cmd, Args... args)
+        {
+            cmd->BindBuffer<T>(this, args...);
+        }
+
+        static Ref<StorageBuffer> Create(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr
+        );
+
+        static SBufferCreateInfo CreateBufferInfo(size_t size, const void* data);
+
+    protected:
+        StorageBuffer(const GraphicsContext* context, size_t size, const void* data = nullptr);
+        StorageBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
+        StorageBuffer(const StorageBuffer&) = delete;
+    };
+
+    class ELIXIR_API DynamicStorageBuffer : public DynamicBuffer
+    {
+    public:
+        ~DynamicStorageBuffer() override = default;
+
+        template <typename T, typename... Args>
+        void BindAs(const Ref<CommandBuffer>& cmd, Args... args)
+        {
+            cmd->BindBuffer<T>(this, args...);
+        }
+
+        void UpdateData(const void* data, size_t size, size_t offset = 0) const;
+
+        static Ref<DynamicStorageBuffer> Create(
+            const GraphicsContext* context,
+            size_t size,
+            const void* data = nullptr
+        );
+
+        static SBufferCreateInfo CreateBufferInfo(size_t size, const void* data);
+
+    protected:
+        DynamicStorageBuffer(const GraphicsContext* context, size_t size, const void* data = nullptr);
+        DynamicStorageBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
+        DynamicStorageBuffer(const DynamicStorageBuffer&) = delete;
     };
 
     class ELIXIR_API UniformBuffer : public DynamicBuffer
@@ -327,7 +392,7 @@ namespace Elixir
         UniformBuffer(const GraphicsContext* context, const SBufferCreateInfo& info);
     };
 
-    class ELIXIR_API PushConstantBuffer
+    class ELIXIR_API PushConstantBuffer final
     {
     public:
         PushConstantBuffer(
@@ -345,7 +410,7 @@ namespace Elixir
         const UUID& GetUUID() const { return m_UUID; }
         virtual SBuffer& GetBuffer() { return m_Buffer; }
         virtual const SBuffer& GetBuffer() const { return m_Buffer; }
-        virtual uint32_t GetSize() const { return m_Buffer.Size; }
+        virtual uint32_t GetSize() const { return m_Size; }
 
         bool operator==(const PushConstantBuffer& other) const
         {
@@ -363,6 +428,7 @@ namespace Elixir
         std::string m_DebugName;
 
         SBuffer m_Buffer;
+        uint32_t m_Size;
 
         const GraphicsContext* m_GraphicsContext;
     };

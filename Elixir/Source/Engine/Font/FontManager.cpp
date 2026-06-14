@@ -24,7 +24,7 @@ namespace Elixir
             EE_CORE_INFO("Font Manager initialized.")
 
             // Load the default font
-            Load("./Assets/Fonts/" + DEFAULT_FONT_NAME + ".otf");
+            Load(std::format("./Assets/Fonts/{0}.otf", DEFAULT_FONT_NAME));
         }
     }
 

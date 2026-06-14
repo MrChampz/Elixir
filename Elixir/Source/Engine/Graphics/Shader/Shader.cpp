@@ -5,9 +5,20 @@
 
 namespace Elixir
 {
-    constexpr size_t GetStageIndex(EShaderStage stage) noexcept
+    constexpr size_t GetStageIndex(const EShaderStage stage) noexcept
     {
-        return static_cast<size_t>(stage);
+        switch (stage)
+        {
+            case EShaderStage::Vertex:   return 0;
+            case EShaderStage::Hull:     return 1;
+            case EShaderStage::Domain:   return 2;
+            case EShaderStage::Geometry: return 3;
+            case EShaderStage::Pixel:    return 4;
+            case EShaderStage::Compute:  return 5;
+            default:
+                EE_CORE_ASSERT(false, "Unknown shader stage!");
+                return 0;
+        }
     }
 
     Ref<Texture> Shader::GetTexture(const std::string& name) const
@@ -141,55 +152,71 @@ namespace Elixir
         for (const auto& resource : info->Resources)
         {
             const auto ref = AddResourceToBindingTable(resource);
+            ref->m_Stages |= stage;
             module->AddResource(ref);
+        }
+
+        for (const auto& buffer : info->StorageBuffers)
+        {
+            const auto ref = AddStorageBufferToBindingTable(buffer);
+            ref->m_Stages |= stage;
+            module->AddStorageBuffer(ref);
         }
 
         for (const auto& buffer : info->ConstantBuffers)
         {
             const auto ref = AddConstantBufferToBindingTable(buffer);
+            ref->m_Stages |= stage;
             module->AddConstantBuffer(ref);
         }
 
         for (const auto& constant : info->PushConstants)
         {
             const auto ref = AddPushConstantToBindingTable(constant);
+            ref->m_Stages |= stage;
             module->AddPushConstant(ref);
         }
 
         return module;
     }
 
-    const ShaderResource* Shader::AddResourceToBindingTable(ShaderResource resource)
+    ShaderResource* Shader::AddResourceToBindingTable(ShaderResource resource)
     {
         const auto set = resource.GetSet();
         const auto binding = resource.GetBinding();
 
         const auto& [it, _] = m_Resources.Resources
-            .insert_or_assign({set, binding}, resource);
+            .try_emplace({ set, binding }, resource);
         return &it->second;
     }
 
-    const ShaderConstantBuffer* Shader::AddConstantBufferToBindingTable(
-        ShaderConstantBuffer buffer
-    )
+    ShaderStorageBuffer* Shader::AddStorageBufferToBindingTable(ShaderStorageBuffer buffer)
+    {
+        const auto set = buffer.GetSet();
+        const auto binding = buffer.GetBinding();
+
+        const auto& [it, _] = m_Resources.StorageBuffers
+            .try_emplace({ set, binding }, buffer);
+        return &it->second;
+    }
+
+    ShaderConstantBuffer* Shader::AddConstantBufferToBindingTable(ShaderConstantBuffer buffer)
     {
         const auto set = buffer.GetSet();
         const auto binding = buffer.GetBinding();
 
         const auto& [it, _] = m_Resources.ConstantBuffers
-            .insert_or_assign({set, binding}, buffer);
+            .try_emplace({ set, binding }, buffer);
         return &it->second;
     }
 
-    const ShaderPushConstant* Shader::AddPushConstantToBindingTable(
-        ShaderPushConstant constant
-    )
+    ShaderPushConstant* Shader::AddPushConstantToBindingTable(ShaderPushConstant constant)
     {
         const auto set = constant.GetSet();
         const auto binding = constant.GetBinding();
 
         const auto& [it, _] = m_Resources.PushConstants
-            .insert_or_assign({set, binding}, constant);
+            .try_emplace({ set, binding }, constant);
         return &it->second;
     }
 
@@ -198,6 +225,11 @@ namespace Elixir
         for (const auto& [binding, resource] : m_Resources.Resources)
         {
             SaveShaderBindingToLookup(resource.GetName(), binding);
+        }
+
+        for (const auto& [binding, buffer] : m_Resources.StorageBuffers)
+        {
+            SaveShaderBindingToLookup(buffer.GetName(), binding);
         }
 
         for (const auto& [binding, buffer] : m_Resources.ConstantBuffers)

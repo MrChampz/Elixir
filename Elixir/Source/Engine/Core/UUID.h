@@ -20,7 +20,12 @@ namespace Elixir
     {
       public:
         UUID();
+        UUID(const UUID& other);
+        UUID(UUID&& other) noexcept;
         ~UUID();
+
+        UUID& operator=(const UUID& other);
+        UUID& operator=(UUID&& other) noexcept;
 
         std::string ToString() const;
 

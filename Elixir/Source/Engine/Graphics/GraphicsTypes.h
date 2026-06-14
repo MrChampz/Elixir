@@ -137,16 +137,100 @@ namespace Elixir
 
     enum class EShaderStage : uint8_t
     {
-        Vertex = 0,
-        Hull,
-        Domain,
-        Geometry,
-        Pixel,
-        Compute,
-        Count
+        None        = 0,
+        Vertex      = 1 << 0,
+        Hull        = 1 << 1,
+        Domain      = 1 << 2,
+        Geometry    = 1 << 3,
+        Pixel       = 1 << 4,
+        Compute     = 1 << 5,
+        Graphics    = Vertex | Hull | Domain | Geometry | Pixel,
+        All         = Graphics | Compute,
+        Count       = 6,
     };
 
     GENERATE_ENUM_CLASS_OPERATORS(EShaderStage)
+
+    enum class EPipelineStage : uint32_t
+    {
+        None = 0,
+        TopOfPipe           = 1 << 0,
+        DrawIndirect        = 1 << 1,
+        VertexInput         = 1 << 2,
+        VertexShader        = 1 << 3,
+        HullShader          = 1 << 4,
+        DomainShader        = 1 << 5,
+        GeometryShader      = 1 << 6,
+        PixelShader         = 1 << 7,
+        ComputeShader       = 1 << 8,
+        AllTransfer         = 1 << 9,
+        Transfer            = 1 << 10,
+        BottomOfPipe        = 1 << 11
+    };
+
+    GENERATE_ENUM_CLASS_OPERATORS(EPipelineStage)
+
+    enum class EPipelineAccess : uint32_t
+    {
+        None = 0,
+        IndirectCommandRead             = 1 << 0,
+        IndexRead                       = 1 << 1,
+        VertexAttributeRead             = 1 << 2,
+        UniformRead                     = 1 << 3,
+        InputAttachmentRead             = 1 << 4,
+        ShaderRead                      = 1 << 5,
+        ShaderWrite                     = 1 << 6,
+        ColorAttachmentRead             = 1 << 7,
+        ColorAttachmentWrite            = 1 << 8,
+        DepthStencilAttachmentRead      = 1 << 9,
+        DepthStencilAttachmentWrite     = 1 << 10,
+        TransferRead                    = 1 << 11,
+        TransferWrite                   = 1 << 12,
+        HostRead                        = 1 << 13,
+        HostWrite                       = 1 << 14,
+        MemoryRead                      = 1 << 15,
+        MemoryWrite                     = 1 << 16,
+        ShaderSampledRead               = 1 << 17,
+        ShaderStorageRead               = 1 << 18,
+        ShaderStorageWrite              = 1 << 19,
+    };
+
+    GENERATE_ENUM_CLASS_OPERATORS(EPipelineAccess)
+
+    enum class EIndexType
+    {
+        UInt16, UInt32
+    };
+
+    typedef uint64_t BufferAddress;
+
+    enum class EBufferUsage : uint32_t
+    {
+        TransferSrc				= 0x00000001,
+        TransferDst				= 0x00000002,
+        UniformTexelBuffer	    = 0x00000004,
+        StorageTexelBuffer		= 0x00000008,
+        UniformBuffer			= 0x00000010,
+        StorageBuffer	        = 0x00000020,
+        IndexBuffer		        = 0x00000040,
+        VertexBuffer			= 0x00000080,
+        IndirectBuffer			= 0x00000100,
+        ShaderDeviceAddress		= 0x00020000
+    };
+
+    GENERATE_ENUM_CLASS_OPERATORS(EBufferUsage)
+
+    struct SBufferCopy
+    {
+        size_t SrcOffset = 0;
+        size_t DstOffset = 0;
+        size_t Size = 0;
+
+        static SBufferCopy Default(const size_t size = 0)
+        {
+            return { .Size = size };
+        }
+    };
 
     struct SRenderingInfo
     {

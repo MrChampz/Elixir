@@ -51,6 +51,21 @@ namespace Elixir
         m_Multisample.RasterizationSamples = ESampleCount::_1;
     }
 
+    void PipelineBuilder::EnableAlphaBlendingMax()
+    {
+        m_ColorBlendAttachment.BlendEnable = true;
+        m_ColorBlendAttachment.SrcColorBlendFactor = EBlendFactor::SrcAlpha;
+        m_ColorBlendAttachment.DstColorBlendFactor = EBlendFactor::OneMinusSrcAlpha;
+        m_ColorBlendAttachment.ColorBlendOp = EBlendOp::Max;
+        m_ColorBlendAttachment.SrcAlphaBlendFactor = EBlendFactor::One;
+        m_ColorBlendAttachment.DstAlphaBlendFactor = EBlendFactor::OneMinusSrcAlpha;
+        m_ColorBlendAttachment.AlphaBlendOp = EBlendOp::Max;
+        m_ColorBlendAttachment.ColorWriteMask = EColorComponent::R |
+            EColorComponent::G | EColorComponent::B | EColorComponent::A;
+
+        m_Multisample.RasterizationSamples = ESampleCount::_1;
+    }
+
     void PipelineBuilder::DisableBlending()
     {
         m_ColorBlendAttachment.BlendEnable = false;
