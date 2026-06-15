@@ -1,6 +1,7 @@
 # Directories
 .vs/
 .cache/
+.idea/
 Build/
 Bin/
 Intermediate/

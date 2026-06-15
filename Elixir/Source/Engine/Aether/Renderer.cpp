@@ -6,6 +6,12 @@
 
 namespace Elixir::Aether
 {
+    struct MeshVertex
+    {
+        glm::vec3 Position;
+        glm::vec3 Normal;
+    };
+
     struct SSpawnPushConstants
     {
         uint32_t EmitterIndex = 0;
@@ -106,6 +112,7 @@ namespace Elixir::Aether
         const auto cmd = m_GraphicsContext->GetSecondaryCommandBuffer();
         cmd->Begin({
             .ColorAttachment = m_GraphicsContext->GetRenderTarget(),
+            .DepthStencilAttachment = m_GraphicsContext->GetDepthStencilRenderTarget(),
             .RenderArea = m_RenderExtent
         });
 
@@ -155,7 +162,28 @@ namespace Elixir::Aether
         {
             const auto& emitter = system.Emitters[i];
 
-            if (emitter.MaxParticles == 0) continue;
+            if (emitter.RenderMode != EParticleRenderMode::Mesh || emitter.MaxParticles == 0)
+                continue;
+
+            m_MeshPipeline->Bind(cmd);
+            m_MeshVertexBuffer->Bind(cmd);
+            // TODO: Enhance this api
+            m_ParticleBuffer->BindAs<VertexBuffer>(cmd, std::span<uint64_t>{}, 1, 1);
+
+            cmd->Draw(
+                m_MeshVertexCount,
+                emitter.MaxParticles,
+                0,
+                emitter.ParticleOffset
+            );
+        }
+
+        for (uint32_t i = 0; i < emitterCount; ++i)
+        {
+            const auto& emitter = system.Emitters[i];
+
+            if (emitter.RenderMode == EParticleRenderMode::Mesh || emitter.MaxParticles == 0)
+                continue;
 
             if (emitter.RenderMode == EParticleRenderMode::Ribbon)
             {
@@ -227,6 +255,12 @@ namespace Elixir::Aether
             "RibbonRenderer"
         );
 
+        m_MeshShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/",
+            std::array<std::string_view, 1>{ "Mesh" },
+            "MeshRenderer"
+        );
+
         SPipelineCreateInfo pipelineInfo{};
         pipelineInfo.Shader = m_SpawnShader;
         m_SpawnPipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
@@ -242,6 +276,7 @@ namespace Elixir::Aether
         builder.EnableAlphaBlending();
         builder.DisableDepthTest();
         builder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
+        builder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
         builder.SetBufferLayout(bufferLayout);
         m_RendererPipeline = builder.Build(m_GraphicsContext);
 
@@ -253,8 +288,46 @@ namespace Elixir::Aether
         ribbonBuilder.EnableAlphaBlendingMax();
         ribbonBuilder.DisableDepthTest();
         ribbonBuilder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
+        ribbonBuilder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
         ribbonBuilder.SetBufferLayout({});
         m_RibbonPipeline = ribbonBuilder.Build(m_GraphicsContext);
+
+        const BufferLayout meshBufferLayout({
+            {
+                {
+                    { EDataType::Vec3,  "Position" },
+                    { EDataType::Vec3,  "Normal"   },
+                },
+                EInputRate::Vertex
+            },
+            {
+                {
+                    { EDataType::Vec4,  "PositionSize" },
+                    { EDataType::Vec4,  "VelocityAge"  },
+                    { EDataType::Vec4,  "Tangent"      },
+                    { EDataType::Vec4,  "Color"        },
+                    { EDataType::Vec4,  "Metadata"     }
+                },
+                EInputRate::Instance
+            }
+        });
+
+        PipelineBuilder meshBuilder;
+        meshBuilder.SetShader(m_MeshShader);
+        meshBuilder.SetInputTopology(EPrimitiveTopology::TriangleList);
+        meshBuilder.SetPolygonMode(EPolygonMode::Fill);
+        meshBuilder.SetCullMode(ECullMode::Back, EFrontFace::CounterClockwise);
+        meshBuilder.EnableAlphaBlendingMax();
+        meshBuilder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
+        meshBuilder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
+        meshBuilder.SetBufferLayout(meshBufferLayout);
+
+        auto info = meshBuilder.GetCreateInfo();
+        info.DepthStencil.DepthTestEnable = true;
+        info.DepthStencil.DepthWriteEnable = true;
+        info.DepthStencil.DepthCompareOp = ECompareOp::LessOrEqual;
+
+        m_MeshPipeline = GraphicsPipeline::Create(m_GraphicsContext, info);
     }
 
     void Renderer::CreateBuffers()
@@ -264,6 +337,64 @@ namespace Elixir::Aether
         m_ModuleBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SModuleData) * MAX_MODULES);
         m_ParameterBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SParameterData) * MAX_PARAMETERS);
         m_ParamsBuffer = UniformBuffer::Create(m_GraphicsContext, sizeof(SParamsData));
+
+        CreateMeshVertexBuffer();
+    }
+
+    void Renderer::CreateMeshVertexBuffer()
+    {
+        static constexpr std::array<MeshVertex, 36> vertices = {{
+            {{-0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+            {{0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+            {{0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+            {{-0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+            {{0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+            {{-0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+
+            {{0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}},
+            {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}},
+            {{-0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}},
+            {{0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}},
+            {{-0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}},
+            {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}},
+
+            {{-0.5f, -0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}},
+            {{-0.5f, -0.5f, 0.5f}, {-1.0f, 0.0f, 0.0f}},
+            {{-0.5f, 0.5f, 0.5f}, {-1.0f, 0.0f, 0.0f}},
+            {{-0.5f, -0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}},
+            {{-0.5f, 0.5f, 0.5f}, {-1.0f, 0.0f, 0.0f}},
+            {{-0.5f, 0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}},
+
+            {{0.5f, -0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}},
+            {{0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+            {{0.5f, 0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+            {{0.5f, -0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}},
+            {{0.5f, 0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+            {{0.5f, 0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}},
+
+            {{-0.5f, 0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+            {{0.5f, 0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+            {{0.5f, 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+            {{-0.5f, 0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+            {{0.5f, 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+            {{-0.5f, 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+
+            {{-0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}},
+            {{0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}},
+            {{0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}},
+            {{-0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}},
+            {{0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}},
+            {{-0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}},
+        }};
+
+        m_MeshVertexCount = (uint32_t)vertices.size();
+        m_MeshVertexBuffer = VertexBuffer::Create(
+            m_GraphicsContext,
+            sizeof(MeshVertex) * vertices.size(),
+            vertices.data()
+        );
+
+        m_MeshVertexBuffer->SetLayout(m_MeshPipeline->GetBufferLayout());
     }
 
     void Renderer::InitPerFrameData()
@@ -298,6 +429,8 @@ namespace Elixir::Aether
         m_RibbonShader->BindStorageBuffer("particles", m_ParticleBuffer);
         m_RibbonShader->BindStorageBuffer("emitters", m_EmitterBuffer);
         m_RibbonShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
+
+        m_MeshShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
     }
 
     void Renderer::BeginRendering(const Ref<CommandBuffer>& cmd) const
@@ -305,6 +438,7 @@ namespace Elixir::Aether
         const auto renderingInfo = SRenderingInfo
         {
             .ColorAttachment = m_GraphicsContext->GetRenderTarget(),
+            .DepthStencilAttachment = m_GraphicsContext->GetDepthStencilRenderTarget(),
             .RenderArea = m_RenderExtent
         };
 

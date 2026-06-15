@@ -302,27 +302,35 @@ namespace Elixir::Vulkan
             sets[set].push_back(binding);
         }
 
-        m_DescriptorSetLayouts.resize(sets.size());
+        uint32_t maxSet = 0;
+        for (const auto& set : sets | std::views::keys)
+            maxSet = std::max(maxSet, set);
 
-        for (const auto& [set, bindings] : sets)
+        const auto setCount = sets.empty() ? 0 : maxSet + 1;
+        m_DescriptorSetLayouts.resize(setCount);
+
+        for (uint32_t set = 0; set < setCount; ++set)
         {
+            const auto it = sets.find(set);
+
             VkDescriptorSetLayoutCreateInfo layoutInfo = {};
             layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-            layoutInfo.pBindings = bindings.data();
-            layoutInfo.bindingCount = bindings.size();
 
-            VkDescriptorSetLayout layout;
+            if (it != sets.end())
+            {
+                const auto& bindings = it->second;
+                layoutInfo.pBindings = bindings.data();
+                layoutInfo.bindingCount = (uint32_t)bindings.size();
+            }
+
             VK_CHECK_RESULT(
                 vkCreateDescriptorSetLayout(
                     m_GraphicsContext->GetDevice(),
                     &layoutInfo,
                     nullptr,
-                    &layout
+                    &m_DescriptorSetLayouts[set]
                 )
             );
-
-            // NOTE: set = 1, m_DescriptorSetLayouts count is 1, how to index?
-            m_DescriptorSetLayouts[set] = layout;
         }
     }
 

@@ -66,6 +66,7 @@ namespace Elixir::Aether
       private:
         void InitRenderPass(const ShaderLoader* shaderLoader);
         void CreateBuffers();
+        void CreateMeshVertexBuffer();
         void InitPerFrameData();
         void BindShaderParameters() const;
 
@@ -94,6 +95,8 @@ namespace Elixir::Aether
         Ref<GraphicsPipeline> m_RendererPipeline;
         Ref<Shader> m_RibbonShader;
         Ref<GraphicsPipeline> m_RibbonPipeline;
+        Ref<Shader> m_MeshShader;
+        Ref<GraphicsPipeline> m_MeshPipeline;
 
         Ref<StorageBuffer> m_ParticleBuffer;
         std::unordered_map<SGPUEmitter, SEmitterState> m_EmittersState;
@@ -102,6 +105,9 @@ namespace Elixir::Aether
         Ref<DynamicStorageBuffer> m_ModuleBuffer;
         Ref<DynamicStorageBuffer> m_ParameterBuffer;
         Ref<UniformBuffer> m_ParamsBuffer;
+
+        uint32_t m_MeshVertexCount = 0;
+        Ref<VertexBuffer> m_MeshVertexBuffer;
 
         float m_LastDeltaTimeSeconds = 0.0f;
         float m_ElapsedTimeSeconds = 0.0f;

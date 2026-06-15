@@ -236,6 +236,7 @@ namespace Elixir
     {
         Ref<Image> ColorAttachment;
         Ref<DepthStencilImage> DepthStencilAttachment = nullptr;
+        float DepthClearValue = 1.0f;
         Extent2D RenderArea;
     };
 }

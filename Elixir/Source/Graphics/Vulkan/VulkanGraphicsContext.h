@@ -101,7 +101,7 @@ namespace Elixir::Vulkan
         void DestroySwapchain();
         void RecreateSwapchain();
 
-        void CreateRenderTarget() override;
+        void CreateRenderTargets() override;
 
         void WaitDeviceIdle() const;
         void WaitForAllFrames();
