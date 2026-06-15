@@ -128,6 +128,8 @@ namespace Elixir
         bool IsGraphics() const override { return true; }
         bool IsCompute() const override { return false; }
 
+        const BufferLayout& GetBufferLayout() const { return m_BufferLayout; }
+
         static Ref<GraphicsPipeline> Create(
             const GraphicsContext* context,
             const SPipelineCreateInfo& info

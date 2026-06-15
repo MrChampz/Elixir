@@ -117,7 +117,8 @@ namespace Elixir::Vulkan
         if (info.DepthStencilAttachment)
         {
             const auto attachment = Initializers::DepthStencilAttachmentInfo(
-                info.DepthStencilAttachment
+                info.DepthStencilAttachment,
+                info.DepthClearValue
             );
             depthStencilInfo = &attachment;
         }

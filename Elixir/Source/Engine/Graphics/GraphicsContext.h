@@ -8,6 +8,7 @@ namespace Elixir
 {
     class Executor;
     class Window;
+    class DepthStencilImage;
     class Texture2D;
     class CommandBuffer;
     class Pipeline;
@@ -36,14 +37,6 @@ namespace Elixir
         virtual void Clear() = 0;
 
         virtual void Resize(Extent2D extent) = 0;
-
-        //        virtual void Dispatch(
-        //            const Ref<CommandBuffer>& cmd,
-        //            const Ref<Pipeline>& pipeline,
-        //            uint32_t groupCountX,
-        //            uint32_t groupCountY,
-        //            uint32_t groupCountZ = 1
-        //        ) = 0;
 
         /**
          * Returns a secondary command buffer that can be used to record GPU commands.
@@ -92,6 +85,7 @@ namespace Elixir
         bool IsVSyncEnabled() const { return m_VSyncEnabled; }
 
         Ref<Texture2D> GetRenderTarget() const { return m_RenderTarget; }
+        Ref<DepthStencilImage> GetDepthStencilRenderTarget() const { return m_DepthStencilRenderTarget; }
 
         virtual Extent3D GetSwapchainExtent() const = 0;
 
@@ -105,7 +99,7 @@ namespace Elixir
         }
 
       private:
-        virtual void CreateRenderTarget() = 0;
+        virtual void CreateRenderTargets() = 0;
 
       protected:
         uint32_t m_FramesInFlight = FRAMES;
@@ -114,6 +108,7 @@ namespace Elixir
         EGraphicsAPI m_API;
         const Window* m_Window;
         Ref<Texture2D> m_RenderTarget;
+        Ref<DepthStencilImage> m_DepthStencilRenderTarget;
         Scope<ShaderBackend> m_ShaderBackend = nullptr;
 
         bool m_VSyncEnabled = false;

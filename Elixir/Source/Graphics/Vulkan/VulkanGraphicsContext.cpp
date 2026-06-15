@@ -81,7 +81,7 @@ namespace Elixir
         InitCommandPoolManager();
         InitSyncStructures();
         InitDescriptors();
-        CreateRenderTarget();
+        CreateRenderTargets();
 
         SetClearColor({ 0.0f, 0.0f, 0.0f, 1.0f });
 
@@ -477,16 +477,23 @@ namespace Elixir
         m_SwapchainRecreateRequested = false;
     }
 
-    void VulkanGraphicsContext::CreateRenderTarget()
+    void VulkanGraphicsContext::CreateRenderTargets()
     {
-        auto info = Texture2D::CreateImageInfo(
+        auto colorInfo = Texture2D::CreateImageInfo(
             EImageFormat::R8G8B8A8_SRGB,
             m_SwapchainExtent.Width,
             m_SwapchainExtent.Height
         );
-        info.Usage = EImageUsage::ColorAttachment | EImageUsage::TransferSrc | EImageUsage::TransferDst;
-        info.InitialLayout = EImageLayout::General;
-        m_RenderTarget = CreateRef<VulkanTexture2D>(this, info);
+        colorInfo.Usage = EImageUsage::ColorAttachment | EImageUsage::TransferSrc | EImageUsage::TransferDst;
+        colorInfo.InitialLayout = EImageLayout::General;
+        m_RenderTarget = CreateRef<VulkanTexture2D>(this, colorInfo);
+
+        auto depthStencilInfo = DepthStencilImage::CreateImageInfo(
+            EDepthStencilImageFormat::D32_SFLOAT,
+            m_SwapchainExtent.Width,
+            m_SwapchainExtent.Height
+        );
+        m_DepthStencilRenderTarget = CreateRef<VulkanDepthStencilImage>(this, depthStencilInfo);
     }
 
     void VulkanGraphicsContext::WaitDeviceIdle() const

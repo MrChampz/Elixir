@@ -16,7 +16,8 @@ namespace Elixir::Aether
     enum class EParticleRenderMode : uint8_t
     {
         Sprite = 0,
-        Ribbon
+        Ribbon = 1,
+        Mesh   = 2
     };
 
     struct SGPUEmitter

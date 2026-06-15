@@ -10,7 +10,7 @@ layout(set = 0, binding = 0) uniform FrameData {
     mat4 Proj;
     mat4 ViewProj;
     vec3 CameraPos;
-    float m_Padding;
+    float _Padding;
 } cbFrame;
 
 void main() {

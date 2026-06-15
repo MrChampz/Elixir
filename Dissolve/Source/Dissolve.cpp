@@ -117,6 +117,19 @@ Dissolve::Dissolve()
 
     ribbon.AddUpdateModule<Aether::ColorOverLife>(glm::vec4{ 0.55f, 0.92f, 1.0f, 0.95f }, glm::vec4{ 0.78f, 0.36f, 1.0f, 0.0f });
 
+    auto& shards = m_ParticleSystem->AddEmitter("CrystalShards", 220, 26.0f);
+    shards.SetRenderMode(Aether::EParticleRenderMode::Mesh);
+    shards.AddSpawnModule<Aether::SetPositionDisk>(glm::vec3{ 0.0f, -0.64f, 0.0f }, 0.22f);
+    shards.AddSpawnModule<Aether::SetVelocityCone>(glm::vec3{ 0.94f }, 2.20f, 0.14f, 0.36f);
+    shards.AddSpawnModule<Aether::SetLifetime>(2.6f, 3.8f);
+    shards.AddSpawnModule<Aether::SetSize>(10.0f, 18.0f);
+    shards.AddSpawnModule<Aether::SetColor>(glm::vec4{ 0.86f, 0.94f, 1.0f, 0.62f });
+
+    shards.AddUpdateModule<Aether::ApplyGravity>(glm::vec3{ 0.0f, -0.28f, 0.0f });
+    shards.AddUpdateModule<Aether::ApplyLinearDrag>(0.03f);
+    shards.AddUpdateModule<Aether::SizeOverLife>(18.0f, 3.0f);
+    shards.AddUpdateModule<Aether::KillOutsideBounds>(glm::vec3{ -1.45f, -1.2f, -1.45f }, glm::vec3{ 1.45f, 1.35f, 1.45f });
+
     m_GPUSystem = m_ParticleSystem->Build();
 
     m_GraphicsContext->SetClearColor({ 0.015f, 0.025f, 0.06f, 1.0f });
