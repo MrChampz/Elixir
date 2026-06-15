@@ -113,20 +113,19 @@ namespace Elixir::Vulkan
 
         const auto colorInfo = Initializers::AttachmentInfo(info.ColorAttachment);
 
-        const VkRenderingAttachmentInfo* depthStencilInfo = nullptr;
+        VkRenderingAttachmentInfo depthStencilInfo{};
         if (info.DepthStencilAttachment)
         {
-            const auto attachment = Initializers::DepthStencilAttachmentInfo(
+            depthStencilInfo = Initializers::DepthStencilAttachmentInfo(
                 info.DepthStencilAttachment,
                 info.DepthClearValue
             );
-            depthStencilInfo = &attachment;
         }
 
         const auto renderInfo = Initializers::RenderingInfo(
             info.RenderArea,
             &colorInfo,
-            depthStencilInfo
+            info.DepthStencilAttachment ? &depthStencilInfo : nullptr
         );
 
         vkCmdBeginRendering(m_CommandBuffer, &renderInfo);

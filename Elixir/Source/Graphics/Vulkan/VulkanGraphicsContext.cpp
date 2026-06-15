@@ -104,6 +104,7 @@ namespace Elixir
             m_CommandPoolManager.reset();
 
             m_RenderTarget.reset();
+            m_DepthStencilRenderTarget.reset();
 
             DumpAllocatorStats(m_Allocator);
             m_DeletionQueue.Flush();
@@ -211,6 +212,7 @@ namespace Elixir
 
         const auto cmd = GetUploadCommandBuffer();
         m_RenderTarget->Resize(cmd, extent);
+        m_DepthStencilRenderTarget->Resize(cmd, extent);
     }
 
     Ref<CommandBuffer> VulkanGraphicsContext::GetSecondaryCommandBuffer() const
