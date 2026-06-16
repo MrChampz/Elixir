@@ -82,7 +82,8 @@ namespace Elixir::Aether
         {
             glm::vec4 PositionSize{};
             glm::vec4 VelocityAge{};
-            glm::vec4 Tangent{};
+            glm::vec4 Transform{};
+            glm::vec4 TangentRibbonId{};
             glm::vec4 Color{};
             glm::vec4 Metadata{};
         };

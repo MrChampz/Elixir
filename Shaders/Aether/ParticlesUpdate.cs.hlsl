@@ -2,7 +2,8 @@ struct ParticleState
 {
     float4 PositionSize;    // xyz = position, w = size
     float4 VelocityAge;     // xyz = velocity, w = age
-    float4 Tangent;         // xyz = tangent, w = ribbon id
+    float4 Transform;       // x = rotation, y = scale
+    float4 TangentRibbonId; // xyz = tangent, w = ribbon id
     float4 Color;
     float4 Metadata;        // x = emitter index, y = ribbon link order, z = lifetime, w = alive
 };
@@ -43,6 +44,8 @@ StructuredBuffer<Parameter> parameters;
 struct AttributeTable
 {
     float4 Position;
+    float4 Rotation;
+    float4 Scale;
     float4 Velocity;
     float4 Color;
     float4 Size;
@@ -70,12 +73,14 @@ AttributeTable LoadAttributes(ParticleState state)
 {
     AttributeTable table;
     table.Position = float4(state.PositionSize.xyz, state.Metadata.w);
+    table.Rotation = float4(state.Transform.x, 0.0, 0.0, 0.0);
+    table.Scale = float4(state.Transform.y, 0.0, 0.0, 0.0);
     table.Velocity = float4(state.VelocityAge.xyz, 0.0);
-    table.Tangent = float4(state.Tangent.xyz, 0.0);
+    table.Tangent = float4(state.TangentRibbonId.xyz, 0.0);
     table.Color = state.Color;
     table.Size = float4(state.PositionSize.w, 0.0, 0.0, 0.0);
     table.Lifetime = float4(state.Metadata.z, state.VelocityAge.w, 0.0, 0.0);
-    table.RibbonId = float4(state.Tangent.w, 0.0, 0.0, 0.0);
+    table.RibbonId = float4(state.TangentRibbonId.w, 0.0, 0.0, 0.0);
     return table;
 }
 
@@ -83,7 +88,8 @@ ParticleState StoreAttributes(ParticleState state, AttributeTable table, float a
 {
     state.PositionSize = float4(table.Position.xyz, table.Size.x);
     state.VelocityAge = float4(table.Velocity.xyz, age);
-    state.Tangent = float4(table.Tangent.xyz, table.RibbonId.x);
+    state.Transform = float4(table.Rotation.x, table.Scale.x, 0.0, 0.0);
+    state.TangentRibbonId = float4(table.Tangent.xyz, table.RibbonId.x);
     state.Color = table.Color;
     state.Metadata = float4(state.Metadata.xy, table.Lifetime.x, table.Position.w);
     return state;
@@ -94,16 +100,20 @@ float4 GetAttribute(AttributeTable table, uint attrId)
     if (attrId == 1u)
         return table.Position;
     if (attrId == 2u)
-        return table.Velocity;
+        return table.Rotation;
     if (attrId == 3u)
-        return table.Color;
+        return table.Scale;
     if (attrId == 4u)
-        return table.Size;
+        return table.Velocity;
     if (attrId == 5u)
-        return table.Lifetime;
+        return table.Color;
     if (attrId == 6u)
-        return table.Tangent;
+        return table.Size;
     if (attrId == 7u)
+        return table.Lifetime;
+    if (attrId == 8u)
+        return table.Tangent;
+    if (attrId == 9u)
         return table.RibbonId;
 
     return float4(0.0, 0.0, 0.0, 0.0);
@@ -114,16 +124,20 @@ void SetAttribute(inout AttributeTable table, uint attrId, float4 value)
     if (attrId == 1u)
         table.Position = value;
     else if (attrId == 2u)
-        table.Velocity = value;
+        table.Rotation = value;
     else if (attrId == 3u)
-        table.Color = value;
+        table.Scale = value;
     else if (attrId == 4u)
-        table.Size = value;
+        table.Velocity = value;
     else if (attrId == 5u)
-        table.Lifetime = value;
+        table.Color = value;
     else if (attrId == 6u)
-        table.Tangent = value;
+        table.Size = value;
     else if (attrId == 7u)
+        table.Lifetime = value;
+    else if (attrId == 8u)
+        table.Tangent = value;
+    else if (attrId == 9u)
         table.RibbonId = value;
 }
 
@@ -165,31 +179,42 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         int param0 = (int)module.Header.z;
         int param1 = (int)module.Header.w;
 
-        if (type == 6u) // ApplyGravity
+        if (type == 8u) // ApplyGravity
         {
             float4 value = GetAttribute(attributes, target);
             value.xyz += module.Data0.xyz * module.Data0.w * dt;
             SetAttribute(attributes, target, value);
         }
-        else if (type == 7u) // ApplyLinearDrag
+        else if (type == 9u) // ApplyLinearDrag
         {
             float4 value = GetAttribute(attributes, target);
             value.xyz *= max(0.0, 1.0 - (module.Data0.x * dt));
             SetAttribute(attributes, target, value);
         }
-        else if (type == 8u) // ColorOverLife
+        else if (type == 10u) // ApplyAngularVelocity
+        {
+            float4 value = GetAttribute(attributes, target);
+            value.x += module.Data0.x * dt;
+            SetAttribute(attributes, target, value);
+        }
+        else if (type == 11u) // ColorOverLife
         {
             float4 startColor = ResolveValue(param0, module.Data0);
             float4 endColor = ResolveValue(param1, module.Data1);
             float4 color = lerp(startColor, endColor, life);
             SetAttribute(attributes, target, color);
         }
-        else if (type == 9u) // SizeOverLife
+        else if (type == 12u) // SizeOverLife
         {
             float size = lerp(module.Data0.x, module.Data0.y, life);
             SetAttribute(attributes, target, float4(size, 0.0, 0.0, 0.0));
         }
-        else if (type == 10u) // KillOutsideBounds
+        else if (type == 13u) // ScaleOverLife
+        {
+            float scale = lerp(module.Data0.x, module.Data0.y, life);
+            SetAttribute(attributes, target, float4(scale, 0.0, 0.0, 0.0));
+        }
+        else if (type == 14u) // KillOutsideBounds
         {
             float4 position = GetAttribute(attributes, 1u);
             bool outsideBounds = position.x < module.Data0.x || position.x > module.Data1.x ||
@@ -200,7 +225,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     }
 
     float4 position = GetAttribute(attributes, 1u);
-    float4 velocity = GetAttribute(attributes, 2u);
+    float4 velocity = GetAttribute(attributes, 4u);
 
     position.xyz += velocity.xyz * dt;
     SetAttribute(attributes, 1u, position);

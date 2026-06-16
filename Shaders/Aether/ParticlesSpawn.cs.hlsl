@@ -2,7 +2,8 @@ struct ParticleState
 {
     float4 PositionSize;    // xyz = position, w = size
     float4 VelocityAge;     // xyz = velocity, w = age
-    float4 Tangent;         // xyz = tangent, w = ribbon id
+    float4 Transform;       // x = rotation, y = scale
+    float4 TangentRibbonId; // xyz = tangent, w = ribbon id
     float4 Color;
     float4 Metadata;        // x = emitter index, y = ribbon link order, z = lifetime, w = alive
 };
@@ -43,6 +44,8 @@ StructuredBuffer<Parameter> parameters;
 struct AttributeTable
 {
     float4 Position;
+    float4 Rotation;
+    float4 Scale;
     float4 Velocity;
     float4 Color;
     float4 Size;
@@ -83,16 +86,20 @@ float4 GetAttribute(AttributeTable table, uint attrId)
     if (attrId == 1u)
         return table.Position;
     if (attrId == 2u)
-        return table.Velocity;
+        return table.Rotation;
     if (attrId == 3u)
-        return table.Color;
+        return table.Scale;
     if (attrId == 4u)
-        return table.Size;
+        return table.Velocity;
     if (attrId == 5u)
-        return table.Lifetime;
+        return table.Color;
     if (attrId == 6u)
-        return table.Tangent;
+        return table.Size;
     if (attrId == 7u)
+        return table.Lifetime;
+    if (attrId == 8u)
+        return table.Tangent;
+    if (attrId == 9u)
         return table.RibbonId;
 
     return float4(0.0, 0.0, 0.0, 0.0);
@@ -103,16 +110,20 @@ void SetAttribute(inout AttributeTable table, uint attrId, float4 value)
     if (attrId == 1u)
         table.Position = value;
     else if (attrId == 2u)
-        table.Velocity = value;
+        table.Rotation = value;
     else if (attrId == 3u)
-        table.Color = value;
+        table.Scale = value;
     else if (attrId == 4u)
-        table.Size = value;
+        table.Velocity = value;
     else if (attrId == 5u)
-        table.Lifetime = value;
+        table.Color = value;
     else if (attrId == 6u)
-        table.Tangent = value;
+        table.Size = value;
     else if (attrId == 7u)
+        table.Lifetime = value;
+    else if (attrId == 8u)
+        table.Tangent = value;
+    else if (attrId == 9u)
         table.RibbonId = value;
 }
 
@@ -186,6 +197,8 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
     AttributeTable attributes;
     attributes.Position = float4(0.0, 0.0, 0.0, 0.0);
+    attributes.Rotation = float4(0.0, 0.0, 0.0, 0.0);
+    attributes.Scale = float4(1.0, 0.0, 0.0, 0.0);
     attributes.Velocity = float4(0.0, 0.0, 0.0, 0.0);
     attributes.Color = float4(1.0, 1.0, 1.0, 1.0);
     attributes.Size = float4(6.0, 0.0, 0.0, 0.0);
@@ -227,7 +240,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
             float3 tangent = right * -sin(spawnAngle) + up * cos(spawnAngle);
             tangent = SafeNormalize(tangent, right);
-            SetAttribute(attributes, 6u, float4(tangent, 0.0));
+            SetAttribute(attributes, 8u, float4(tangent, 0.0));
         }
         else if (type == 2u) // SetVelocityCone
         {
@@ -257,7 +270,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             SetAttribute(attributes, target, float4(velocity, 0.0));
 
             float3 tangent = SafeNormalize(velocity, GetAttribute(attributes, 6u).xyz);
-            SetAttribute(attributes, 6u, float4(tangent, 0.0));
+            SetAttribute(attributes, 8u, float4(tangent, 0.0));
         }
         else if (type == 3u) // SetLifetime
         {
@@ -269,7 +282,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         {
             float minSize = module.Data0.x;
             float maxSize = module.Data0.y;
-            float sizeRandom = Hash2(seedBase + float2(9.23, 3.47));
+            float sizeRandom = Hash2(seedBase + float2(6.91, 3.73));
             float size = lerp(minSize, maxSize, sizeRandom);
             SetAttribute(attributes, target, float4(size, 0.0, 0.0, 0.0));
         }
@@ -278,7 +291,23 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             float4 color = ResolveValue(param0, module.Data0);
             SetAttribute(attributes, target, color);
         }
-        else if (type == 11u) // SetPositionOnCircle
+        else if (type == 6u) // SetRotation
+        {
+            float minRotation = module.Data0.x;
+            float maxRotation = module.Data0.y;
+            float rotationRandom = Hash2(seedBase + float2(7.87, 5.19));
+            float rotation = lerp(minRotation, maxRotation, rotationRandom);
+            SetAttribute(attributes, target, float4(rotation, 0.0, 0.0, 0.0));
+        }
+        else if (type == 7u) // SetScale
+        {
+            float minScale = module.Data0.x;
+            float maxScale = module.Data0.y;
+            float scaleRandom = Hash2(seedBase + float2(2.59, 4.97));
+            float scale = lerp(minScale, maxScale, scaleRandom);
+            SetAttribute(attributes, target, float4(scale, 0.0, 0.0, 0.0));
+        }
+        else if (type == 15u) // SetPositionOnCircle
         {
             float3 center = module.Data0.xyz;
             float radius = module.Data0.w;
@@ -291,11 +320,11 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
             float orientation = angularSpeed < 0.0 ? -1.0 : 1.0;
             float3 tangent = float3(-sin(angle), cos(angle), 0.0) * orientation;
-            SetAttribute(attributes, 6u, float4(tangent, 0.0));
+            SetAttribute(attributes, 8u, float4(tangent, 0.0));
 
-            SetAttribute(attributes, 2u, float4(0.0, 0.0, 0.0, 0.0));
+            SetAttribute(attributes, 4u, float4(0.0, 0.0, 0.0, 0.0));
         }
-        else if (type == 13u) // SetPositionCircularPath
+        else if (type == 17u) // SetPositionCircularPath
         {
             float3 baseOffset = module.Data0.xyz;
             float3 primaryAmplitude = module.Data1.xyz;
@@ -315,20 +344,20 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
                 (secondaryAmplitude.z * sin((phase * 1.61) - 0.2));
 
             SetAttribute(attributes, target, float4(x, y, z, 1.0));
-            SetAttribute(attributes, 2u, float4(0.0, 0.0, 0.0, 0.0));
+            SetAttribute(attributes, 4u, float4(0.0, 0.0, 0.0, 0.0));
 
             float dx = primaryAmplitude.x * cos(phase) + secondaryAmplitude.x * 2.1 * cos(phase * 2.1);
             float dy = primaryAmplitude.y * 0.58 * cos(phase * 0.58 + 0.65) - secondaryAmplitude.y * 1.34 * sin(phase * 1.34 - 0.4);
             float dz = -primaryAmplitude.z * 0.72 * sin((phase * 0.72) + 0.35) + secondaryAmplitude.z * 1.61 * cos((phase * 1.61) - 0.2);
             float3 tangent = SafeNormalize(float3(dx, dy, dz), float3(1.0, 0.0, 0.0));
 
-            SetAttribute(attributes, 6u, float4(tangent, 0.0));
+            SetAttribute(attributes, 8u, float4(tangent, 0.0));
         }
-        else if (type == 14u) // SetRibbonId
+        else if (type == 18u) // SetRibbonId
         {
             SetAttribute(attributes, target, float4(module.Data0.x, 0.0, 0.0, 0.0));
         }
-        else if (type == 15u) // SetRibbonIdFromSpawnOrder
+        else if (type == 19u) // SetRibbonIdFromSpawnOrder
         {
             uint ribbonCount = max(1u, (uint)module.Data0.x);
             uint firstRibbonId = (uint)module.Data0.y;
@@ -337,9 +366,10 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         }
     }
 
-    particles[globalIndex].PositionSize = float4(GetAttribute(attributes, 1u).xyz, GetAttribute(attributes, 4u).x);
-    particles[globalIndex].VelocityAge = float4(GetAttribute(attributes, 2u).xyz, 0.0);
-    particles[globalIndex].Tangent = float4(GetAttribute(attributes, 6u).xyz, GetAttribute(attributes, 7u).x);
-    particles[globalIndex].Color = GetAttribute(attributes, 3u);
-    particles[globalIndex].Metadata = float4(float(pc.EmitterIndex), asfloat(emissionIndex), GetAttribute(attributes, 5u).x, 1.0);
+    particles[globalIndex].PositionSize = float4(GetAttribute(attributes, 1u).xyz, GetAttribute(attributes, 6u).x);
+    particles[globalIndex].VelocityAge = float4(GetAttribute(attributes, 4u).xyz, 0.0);
+    particles[globalIndex].Transform = float4(GetAttribute(attributes, 2u).x, GetAttribute(attributes, 3u).x, 0.0, 0.0);
+    particles[globalIndex].TangentRibbonId = float4(GetAttribute(attributes, 8u).xyz, GetAttribute(attributes, 9u).x);
+    particles[globalIndex].Color = GetAttribute(attributes, 5u);
+    particles[globalIndex].Metadata = float4(float(pc.EmitterIndex), asfloat(emissionIndex), GetAttribute(attributes, 7u).x, 1.0);
 }

@@ -16,10 +16,14 @@ namespace Elixir::Aether
         SetLifetime,
         SetSize,
         SetColor,
+        SetRotation,
+        SetScale,
         ApplyGravity,
         ApplyLinearDrag,
+        ApplyAngularVelocity,
         ColorOverLife,
         SizeOverLife,
+        ScaleOverLife,
         KillOutsideBounds,
         SetPositionOnCircle,
         SetPositionBezierLoop,
@@ -134,6 +138,36 @@ namespace Elixir::Aether
         glm::vec4 m_Color;
     };
 
+    class ELIXIR_API SetRotation final : public ParticleSpawnModule
+    {
+    public:
+        explicit SetRotation(float minRotation, float maxRotation);
+
+        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
+
+        float GetMinRotation() const { return m_MinRotation; }
+        float GetMaxRotation() const { return m_MaxRotation; }
+
+    private:
+        float m_MinRotation;
+        float m_MaxRotation;
+    };
+
+    class ELIXIR_API SetScale final : public ParticleSpawnModule
+    {
+    public:
+        explicit SetScale(float minScale, float maxScale);
+
+        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
+
+        float GetMinScale() const { return m_MinScale; }
+        float GetMaxScale() const { return m_MaxScale; }
+
+    private:
+        float m_MinScale;
+        float m_MaxScale;
+    };
+
     class ELIXIR_API SetPositionOnCircle final : public ParticleSpawnModule
     {
     public:
@@ -231,6 +265,19 @@ namespace Elixir::Aether
         float m_DragPerSecond;
     };
 
+    class ELIXIR_API ApplyAngularVelocity final : public ParticleUpdateModule
+    {
+    public:
+        explicit ApplyAngularVelocity(float radiansPerSecond);
+
+        void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override {}
+
+        float GetRadiansPerSecond() const { return m_RadiansPerSecond; }
+
+    private:
+        float m_RadiansPerSecond;
+    };
+
     class ELIXIR_API ColorOverLife final : public ParticleUpdateModule
     {
       public:
@@ -259,6 +306,21 @@ namespace Elixir::Aether
     private:
         float m_StartSize;
         float m_EndSize;
+    };
+
+    class ELIXIR_API ScaleOverLife final : public ParticleUpdateModule
+    {
+    public:
+        ScaleOverLife(float startScale, float endScale);
+
+        void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override {}
+
+        float GetStartScale() const { return m_StartScale; }
+        float GetEndScale() const { return m_EndScale; }
+
+    private:
+        float m_StartScale;
+        float m_EndScale;
     };
 
     class ELIXIR_API KillOutsideBounds final : public ParticleUpdateModule

@@ -125,6 +125,28 @@ namespace Elixir::Aether
                     {}
                 });
             }
+            else if (const auto* typed = dynamic_cast<const SetRotation*>(module.get()))
+            {
+                modules.push_back({
+                    EModuleType::SetRotation,
+                    EParticleAttribute::Rotation,
+                    UINT32_MAX,
+                    UINT32_MAX,
+                    { typed->GetMinRotation(), typed->GetMaxRotation(), 0.0f, 0.0f },
+                    {}
+                });
+            }
+            else if (const auto* typed = dynamic_cast<const SetScale*>(module.get()))
+            {
+                modules.push_back({
+                    EModuleType::SetScale,
+                    EParticleAttribute::Scale,
+                    UINT32_MAX,
+                    UINT32_MAX,
+                    { typed->GetMinScale(), typed->GetMaxScale(), 0.0f, 0.0f },
+                    {}
+                });
+            }
             else if (const auto* typed = dynamic_cast<const SetPositionOnCircle*>(module.get()))
             {
                 modules.push_back({
@@ -201,6 +223,17 @@ namespace Elixir::Aether
                     {}
                 });
             }
+            else if (const auto* typed = dynamic_cast<const ApplyAngularVelocity*>(module.get()))
+            {
+                modules.push_back({
+                    EModuleType::ApplyAngularVelocity,
+                    EParticleAttribute::Rotation,
+                    UINT32_MAX,
+                    UINT32_MAX,
+                    { typed->GetRadiansPerSecond(), 0.0f, 0.0f, 0.0f },
+                    {}
+                });
+            }
             else if (const auto* typed = dynamic_cast<const ColorOverLife*>(module.get()))
             {
                 modules.push_back({
@@ -220,6 +253,17 @@ namespace Elixir::Aether
                     UINT32_MAX,
                     UINT32_MAX,
                     { typed->GetStartSize(), typed->GetEndSize(), 0.0f, 0.0f },
+                    {}
+                });
+            }
+            else if (const auto* typed = dynamic_cast<const ScaleOverLife*>(module.get()))
+            {
+                modules.push_back({
+                    EModuleType::ScaleOverLife,
+                    EParticleAttribute::Scale,
+                    UINT32_MAX,
+                    UINT32_MAX,
+                    { typed->GetStartScale(), typed->GetEndScale(), 0.0f, 0.0f },
                     {}
                 });
             }

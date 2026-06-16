@@ -64,6 +64,7 @@ Dissolve::Dissolve()
     canopy.AddSpawnModule<Aether::SetVelocityCone>(glm::vec3{ 0.0f, 1.0f, 0.0f }, 0.62f, 0.24f, 0.56f);
     canopy.AddSpawnModule<Aether::SetLifetime>(3.8f, 6.2f);
     canopy.AddSpawnModule<Aether::SetSize>(14.0f, 28.0f);
+    canopy.AddSpawnModule<Aether::SetScale>(0.72f, 1.08f);
     canopy.AddSpawnModule<Aether::SetColor>(glm::vec4{ 0.70f, 0.96f, 1.0f, 0.72f });
 
     canopy.AddUpdateModule<Aether::ApplyGravity>(glm::vec3{ 0.0f, -0.10f, 0.0f });
@@ -90,12 +91,14 @@ Dissolve::Dissolve()
     sparks2.AddSpawnModule<Aether::SetVelocityCone>(glm::vec3{ 0.0f, 1.0f, 0.0f }, 0.96f, 0.36f, 0.84f);
     sparks2.AddSpawnModule<Aether::SetLifetime>(1.8f, 3.0f);
     sparks2.AddSpawnModule<Aether::SetSize>(8.0f, 16.0f);
+    sparks2.AddSpawnModule<Aether::SetScale>(0.9f, 1.35f);
     sparks2.AddSpawnModule<Aether::SetColor>(glm::vec4{ 1.0f, 0.68f, 0.88f, 0.95f });
 
     sparks2.AddUpdateModule<Aether::ApplyGravity>(glm::vec3{ 0.0f, -0.28f, 0.0f });
     sparks2.AddUpdateModule<Aether::ApplyLinearDrag>(0.08f);
     sparks2.AddUpdateModule<Aether::ColorOverLife>(glm::vec4{ 0.0f, 0.73f, 0.12f, 0.8f }, glm::vec4{ 0.0f, 0.73f, 0.12f, 0.0f });
     sparks2.AddUpdateModule<Aether::SizeOverLife>(16.0f, 2.5f);
+    sparks2.AddUpdateModule<Aether::ScaleOverLife>(1.0f, 0.35f);
     sparks2.AddUpdateModule<Aether::KillOutsideBounds>(glm::vec3{ -1.45f, -1.2f, -2.0f }, glm::vec3{ 1.45f, 1.35f, 2.0f });
 
     constexpr uint32_t ribbonParticles = 256;
@@ -123,11 +126,15 @@ Dissolve::Dissolve()
     shards.AddSpawnModule<Aether::SetVelocityCone>(glm::vec3{ 0.94f }, 2.20f, 0.14f, 0.36f);
     shards.AddSpawnModule<Aether::SetLifetime>(2.6f, 3.8f);
     shards.AddSpawnModule<Aether::SetSize>(10.0f, 18.0f);
+    shards.AddSpawnModule<Aether::SetScale>(0.82f, 1.45f);
+    shards.AddSpawnModule<Aether::SetRotation>(0.0f, 6.28318530718f);
     shards.AddSpawnModule<Aether::SetColor>(glm::vec4{ 0.86f, 0.94f, 1.0f, 0.62f });
 
     shards.AddUpdateModule<Aether::ApplyGravity>(glm::vec3{ 0.0f, -0.28f, 0.0f });
     shards.AddUpdateModule<Aether::ApplyLinearDrag>(0.03f);
+    shards.AddUpdateModule<Aether::ApplyAngularVelocity>(1.2f);
     shards.AddUpdateModule<Aether::SizeOverLife>(18.0f, 3.0f);
+    shards.AddUpdateModule<Aether::ScaleOverLife>(1.15f, 0.28f);
     shards.AddUpdateModule<Aether::KillOutsideBounds>(glm::vec3{ -1.45f, -1.2f, -1.45f }, glm::vec3{ 1.45f, 1.35f, 1.45f });
 
     m_GPUSystem = m_ParticleSystem->Build();

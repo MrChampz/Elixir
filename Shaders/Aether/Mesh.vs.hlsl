@@ -46,13 +46,14 @@ cbuffer cbFrame : register(b0)
 
 struct VSInput
 {
-    float3 LocalPos      : POSITION0;
-    float3 LocalNormal   : NORMAL0;
-    float4 PositionSize  : POSITION1;
-    float4 VelocityAge   : TEXCOORD0;
-    float4 Tangent       : TANGENT;
-    float4 Color         : COLOR;
-    float4 Metadata      : TEXCOORD1;
+    float3 LocalPos        : POSITION0;
+    float3 LocalNormal     : NORMAL0;
+    float4 PositionSize    : POSITION1;
+    float4 VelocityAge     : TEXCOORD0;
+    float4 Transform       : TEXCOORD1;
+    float4 TangentRibbonId : TANGENT;
+    float4 Color           : COLOR;
+    float4 Metadata        : TEXCOORD2;
 };
 
 struct VSOutput
@@ -81,16 +82,16 @@ VSOutput main(VSInput input)
     float alive = input.Metadata.w >= 0.5 ? 1.0 : 0.0;
     float age = input.VelocityAge.w;
     float lifetime = max(input.Metadata.z, 0.001);
-    float lifeAlpha = clamp(age / lifetime, 0.0, 1.0);
     float seed  = Hash01(id);
     float phase = Hash01(id ^ 0x9e3779b9u);
 
     float scale = lerp(0.045, 0.085, clamp(input.PositionSize.w / 18.0, 0.0, 1.0));
-    scale *= lerp(1.0, 0.55, lifeAlpha);
+    scale *= max(input.Transform.y, 0.0);
 
-    float rotX = (seed * 5.1) + age * lerp(-0.9, 1.1, frac(seed * 9.7));
-    float rotY = (seed * 8.4) + age * lerp(0.6, 1.4, frac(seed * 3.1));
-    float rotZ = (phase * 6.28318) + age * 0.45;
+    float baseRotation = input.Transform.x;
+    float rotX = baseRotation + (seed * 1.7);
+    float rotY = baseRotation * 0.7 + (phase * 6.28318);
+    float rotZ = baseRotation * 1.2 + (seed * 2.3);
     float3x3 rotation = mul(RotationY(rotY), mul(RotationX(rotX), RotationZ(rotZ)));
 
     float3 worldPos = input.PositionSize.xyz + mul(mul(rotation, input.LocalPos * scale), alive);

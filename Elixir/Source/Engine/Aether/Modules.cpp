@@ -36,6 +36,16 @@ namespace Elixir::Aether
 
     SetColor::SetColor(const glm::vec4 color) : m_Color(color) {}
 
+    /* SetRotation */
+
+    SetRotation::SetRotation(const float minRotation, const float maxRotation)
+        : m_MinRotation(minRotation), m_MaxRotation(maxRotation) {}
+
+    /* SetScale */
+
+    SetScale::SetScale(const float minScale, const float maxScale)
+        : m_MinScale(minScale), m_MaxScale(maxScale) {}
+
     /* SetPositionOnCircle */
 
     SetPositionOnCircle::SetPositionOnCircle(
@@ -81,6 +91,11 @@ namespace Elixir::Aether
     ApplyLinearDrag::ApplyLinearDrag(const float dragPerSecond)
         : m_DragPerSecond(dragPerSecond) {}
 
+    /* ApplyAngularVelocity */
+
+    ApplyAngularVelocity::ApplyAngularVelocity(const float radiansPerSecond)
+        : m_RadiansPerSecond(radiansPerSecond) {}
+
     /* ColorOverLife */
 
     ColorOverLife::ColorOverLife(const glm::vec4 startColor, const glm::vec4 endColor)
@@ -90,6 +105,11 @@ namespace Elixir::Aether
 
     SizeOverLife::SizeOverLife(const float startSize, const float endSize)
         : m_StartSize(startSize), m_EndSize(endSize) {}
+
+    /* ScaleOverLife */
+
+    ScaleOverLife::ScaleOverLife(const float startScale, const float endScale)
+        : m_StartScale(startScale), m_EndScale(endScale) {}
 
     /* KillOutsideBounds */
 

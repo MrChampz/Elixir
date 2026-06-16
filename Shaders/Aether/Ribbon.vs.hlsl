@@ -2,7 +2,8 @@ struct ParticleState
 {
     float4 PositionSize;    // xyz = position, w = size
     float4 VelocityAge;     // xyz = velocity, w = age
-    float4 Tangent;         // xyz = tangent, w = ribbon id
+    float4 Transform;       // x = rotation, y = scale
+    float4 TangentRibbonId; // xyz = tangent, w = ribbon id
     float4 Color;
     float4 Metadata;        // x = emitter index, y = ribbon link order, z = lifetime, w = alive
 };
@@ -82,8 +83,10 @@ VSOutput main(uint vertexId : SV_VertexID)
 
     float3 p0 = startParticle.PositionSize.xyz;
     float3 p1 = endParticle.PositionSize.xyz;
-    float width0 = max(startParticle.PositionSize.w * RIBBON_WORLD_SIZE_SCALE, 0.0001);
-    float width1 = max(endParticle.PositionSize.w * RIBBON_WORLD_SIZE_SCALE, 0.0001);
+    float scale0 = max(startParticle.Transform.y, 0.0);
+    float scale1 = max(endParticle.Transform.y, 0.0);
+    float width0 = max(startParticle.PositionSize.w * scale0 * RIBBON_WORLD_SIZE_SCALE, 0.0001);
+    float width1 = max(endParticle.PositionSize.w * scale1 * RIBBON_WORLD_SIZE_SCALE, 0.0001);
     float3 segmentSide = BuildSegmentSide(p0, p1, startParticle, endParticle);
     float3 startSide = BuildParticleSide(startParticle, segmentSide);
     float3 endSide = BuildParticleSide(endParticle, segmentSide);

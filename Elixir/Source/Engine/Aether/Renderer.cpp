@@ -58,8 +58,8 @@ namespace Elixir::Aether
         desc.Header = {
             (float)(uint32_t)module.Type,
             (float)module.Target,
-            module.Parameter0Index == UINT32_MAX ? -1.0f : module.Parameter0Index,
-            module.Parameter1Index == UINT32_MAX ? -1.0f : module.Parameter1Index
+            module.Parameter0Index == UINT32_MAX ? -1.0f : (float)module.Parameter0Index,
+            module.Parameter1Index == UINT32_MAX ? -1.0f : (float)module.Parameter1Index
         };
 
         desc.Data0 = module.Data0;
@@ -220,11 +220,12 @@ namespace Elixir::Aether
         const BufferLayout bufferLayout({
             {
                 {
-                    { EDataType::Vec4,  "PositionSize" },
-                    { EDataType::Vec4,  "VelocityAge"  },
-                    { EDataType::Vec4,  "Tangent"      },
-                    { EDataType::Vec4,  "Color"        },
-                    { EDataType::Vec4,  "Metadata"     }
+                    { EDataType::Vec4,  "PositionSize"    },
+                    { EDataType::Vec4,  "VelocityAge"     },
+                    { EDataType::Vec4,  "Transform"       },
+                    { EDataType::Vec4,  "TangentRibbonId" },
+                    { EDataType::Vec4,  "Color"           },
+                    { EDataType::Vec4,  "Metadata"        }
                 }
             }
         });
@@ -302,11 +303,12 @@ namespace Elixir::Aether
             },
             {
                 {
-                    { EDataType::Vec4,  "PositionSize" },
-                    { EDataType::Vec4,  "VelocityAge"  },
-                    { EDataType::Vec4,  "Tangent"      },
-                    { EDataType::Vec4,  "Color"        },
-                    { EDataType::Vec4,  "Metadata"     }
+                    { EDataType::Vec4,  "PositionSize"    },
+                    { EDataType::Vec4,  "VelocityAge"     },
+                    { EDataType::Vec4,  "Transform"       },
+                    { EDataType::Vec4,  "TangentRibbonId" },
+                    { EDataType::Vec4,  "Color"           },
+                    { EDataType::Vec4,  "Metadata"        }
                 },
                 EInputRate::Instance
             }
@@ -445,8 +447,8 @@ namespace Elixir::Aether
         Viewport viewport = {};
         viewport.X = 0;
         viewport.Y = 0;
-        viewport.Width = m_RenderExtent.Width;
-        viewport.Height = m_RenderExtent.Height;
+        viewport.Width = (float)m_RenderExtent.Width;
+        viewport.Height = (float)m_RenderExtent.Height;
         viewport.MinDepth = 0.0f;
         viewport.MaxDepth = 1.0f;
 
