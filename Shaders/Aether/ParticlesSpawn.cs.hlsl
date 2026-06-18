@@ -13,8 +13,8 @@ RWStructuredBuffer<ParticleState> particles;
 
 struct Emitter
 {
-    float4 MetaA; // x = offset in particle buffer, y = max particles, z = module offset(spawn), w = module count(spawn)
-    float4 MetaB; // x = module offset(update), y = module count(update), z = buffer cursor, w = spawn count
+    float4 MetaA; // x = offset in particle buffer, y = max particles, z = op offset(spawn), w = op count(spawn)
+    float4 MetaB; // x = op offset(update), y = op count(update), z = buffer cursor, w = spawn count
     float4 MetaC; // x = render mode, y = spawn rate seconds, z = gravity scale, w = next buffer cursor
 	float4 MetaD; // x = emission index
 };
@@ -22,7 +22,7 @@ struct Emitter
 [[vk::binding(1, 0)]]
 StructuredBuffer<Emitter> emitters;
 
-struct Module
+struct Op
 {
     float4 Header; // x = type, y = unused, z = parameter 0 index, w = parameter 1 index
     float4 Data0;
@@ -31,7 +31,7 @@ struct Module
 };
 
 [[vk::binding(2, 0)]]
-StructuredBuffer<Module> modules;
+StructuredBuffer<Op> ops;
 
 struct Parameter
 {
@@ -68,9 +68,23 @@ struct PushConstants {
 [[vk::push_constant]]
 PushConstants pc;
 
+float Hash1(float x) {
+  return frac(sin(x * 91.3458 + 12.345) * 45678.5453);
+}
+
 float Hash2(float2 p)
 {
     return frac(sin(dot(p, float2(127.1, 311.7))) * 43758.5453123);
+}
+
+float4 RandomVector(float2 seed)
+{
+    return float4(
+        Hash2(seed + float2(1.31, 2.17)),
+        Hash2(seed + float2(3.11, 4.29)),
+        Hash2(seed + float2(5.71, 6.13)),
+        Hash2(seed + float2(7.43, 8.59))
+    );
 }
 
 float4 ResolveValue(int parameterIndex, float4 fallbackValue)
@@ -79,6 +93,46 @@ float4 ResolveValue(int parameterIndex, float4 fallbackValue)
         return fallbackValue;
 
     return parameters[parameterIndex].Value;
+}
+
+float ResolveDynamicInput(uint inputType, float randomValue, float particleSeed)
+{
+    if (inputType == 1u) // DeltaTime
+        return TimeData.x;
+
+    if (inputType == 2u) // NormalizedAge
+        return 0.0;
+
+    if (inputType == 3u) // EmitterTime
+        return TimeData.y;
+
+    if (inputType == 4u) // Random
+        return randomValue;
+
+    if (inputType == 5u) // ParticleSeed
+        return particleSeed;
+
+    return 1.0;
+}
+
+float SampleCurve(int baseParameterIndex, float t)
+{
+    if (baseParameterIndex < 0)
+        return 0.0;
+
+    float4 a = parameters[baseParameterIndex].Value;
+    float4 b = parameters[baseParameterIndex + 1].Value;
+
+    float samples[8] = { a.x, a.y, a.z, a.w, b.x, b.y, b.z, b.w };
+
+    float clampedT = clamp(t, 0.0, 1.0);
+    float samplePosition = clampedT * 7.0;
+
+    uint lowerIndex = (uint)floor(samplePosition);
+    uint upperIndex = min(lowerIndex + 1u, 7u);
+    float fraction = frac(samplePosition);
+
+    return lerp(samples[lowerIndex], samples[upperIndex], fraction);
 }
 
 float4 GetAttribute(AttributeTable table, uint attrId)
@@ -190,7 +244,9 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         return;
 
     uint globalIndex = (uint)(emitter.MetaA.x + localIndex);
-    float2 seedBase = float2(float(globalIndex), TimeData.y + float(spawnCursor));
+    float2 seedBase = float2((float)globalIndex, TimeData.y + float(spawnCursor));
+    float particleSeed = Hash1((float)globalIndex);
+    float randomInput = Hash2(seedBase + float2(8.11, 3.41));
     uint spawnOrder = SpawnOrderInBatch(localIndex, spawnCursor, emitterCount);
     spawnOrder = min(spawnOrder, spawnCount - 1u);
     uint emissionIndex = (uint)emitter.MetaD.x + spawnOrder;
@@ -206,22 +262,36 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     attributes.Tangent = float4(1.0, 0.0, 0.0, 0.0);
     attributes.RibbonId = float4(0.0, 0.0, 0.0, 0.0);
 
-    uint moduleOffset = (uint)emitter.MetaA.z;
-    uint moduleCount = (uint)emitter.MetaA.w;
+    uint opOffset = (uint)emitter.MetaA.z;
+    uint opCount = (uint)emitter.MetaA.w;
 
-    for (uint i = 0u; i < moduleCount; ++i)
+    for (uint i = 0u; i < opCount; ++i)
     {
-        Module module = modules[moduleOffset + i];
-        uint type = (uint)module.Header.x;
-        uint target = (uint)module.Header.y;
+        Op op = ops[opOffset + i];
+        uint type = (uint)op.Header.x;
+        uint target = (uint)op.Header.y;
 
-        int param0 = (int)module.Header.z;
+        int param0 = (int)op.Header.z;
+        int param1 = (int)op.Header.w;
 
-        if (type == 1u) // SetPositionDisk
+        if (type == 0u) // SetLiteral
         {
-            float3 center = module.Data0.xyz;
-            float3 normal = module.Data1.xyz;
-            float maxRadius = module.Data0.w;
+            SetAttribute(attributes, target, ResolveValue(param0, op.Data0));
+        }
+        else if (type == 1u) // RandomRange
+        {
+            float2 seed = seedBase + float2(float(i) * 1.7, float(target) * 2.3);
+            float4 randomValue = RandomVector(seed);
+            float4 value0 = ResolveValue(param0, op.Data0);
+            float4 value1 = ResolveValue(param1, op.Data1);
+            float4 value = lerp(value0, value1, randomValue);
+            SetAttribute(attributes, target, value);
+        }
+        else if (type == 2u) // SampleDisk
+        {
+            float3 center = op.Data0.xyz;
+            float3 normal = op.Data1.xyz;
+            float maxRadius = op.Data0.w;
 
             float radiusRandom = sqrt(Hash2(seedBase + float2(8.63, 6.53)));
             float arcRandom = Hash2(seedBase + float2(4.71, 1.29));
@@ -242,16 +312,16 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             tangent = SafeNormalize(tangent, right);
             SetAttribute(attributes, 8u, float4(tangent, 0.0));
         }
-        else if (type == 2u) // SetVelocityCone
+        else if (type == 3u) // SampleCone
         {
-            float3 axis = SafeNormalize(module.Data0.xyz, float3(0.0, 1.0, 0.0));
-            float angle = module.Data0.w * 0.5;
+            float3 axis = SafeNormalize(op.Data0.xyz, float3(0.0, 1.0, 0.0));
+            float angle = op.Data0.w * 0.5;
 
             float angleRandom = Hash2(seedBase + float2(3.17, 9.41));
             float speedRandom = Hash2(seedBase + float2(5.23, 2.19));
             float coneRandom = Hash2(seedBase + float2(8.41, 4.77));
 
-            float speed = lerp(module.Data1.x, module.Data1.y, speedRandom);
+            float speed = lerp(op.Data1.x, op.Data1.y, speedRandom);
 
             float cosTheta = lerp(1.0, cos(angle), coneRandom);
             float sinTheta = sqrt(max(0.0, 1.0 - cosTheta * cosTheta));
@@ -272,47 +342,12 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             float3 tangent = SafeNormalize(velocity, GetAttribute(attributes, 6u).xyz);
             SetAttribute(attributes, 8u, float4(tangent, 0.0));
         }
-        else if (type == 3u) // SetLifetime
+        else if (type == 9u) // SetPositionOnCircle
         {
-            float lifetimeRandom = Hash2(seedBase + float2(1.37, 7.11));
-            float lifetime = lerp(module.Data0.x, module.Data0.y, lifetimeRandom);
-            SetAttribute(attributes, target, float4(lifetime, 0.0, 0.0, 0.0));
-        }
-        else if (type == 4u) // SetSize
-        {
-            float minSize = module.Data0.x;
-            float maxSize = module.Data0.y;
-            float sizeRandom = Hash2(seedBase + float2(6.91, 3.73));
-            float size = lerp(minSize, maxSize, sizeRandom);
-            SetAttribute(attributes, target, float4(size, 0.0, 0.0, 0.0));
-        }
-        else if (type == 5u) // SetColor
-        {
-            float4 color = ResolveValue(param0, module.Data0);
-            SetAttribute(attributes, target, color);
-        }
-        else if (type == 6u) // SetRotation
-        {
-            float minRotation = module.Data0.x;
-            float maxRotation = module.Data0.y;
-            float rotationRandom = Hash2(seedBase + float2(7.87, 5.19));
-            float rotation = lerp(minRotation, maxRotation, rotationRandom);
-            SetAttribute(attributes, target, float4(rotation, 0.0, 0.0, 0.0));
-        }
-        else if (type == 7u) // SetScale
-        {
-            float minScale = module.Data0.x;
-            float maxScale = module.Data0.y;
-            float scaleRandom = Hash2(seedBase + float2(2.59, 4.97));
-            float scale = lerp(minScale, maxScale, scaleRandom);
-            SetAttribute(attributes, target, float4(scale, 0.0, 0.0, 0.0));
-        }
-        else if (type == 15u) // SetPositionOnCircle
-        {
-            float3 center = module.Data0.xyz;
-            float radius = module.Data0.w;
-            float angularSpeed = module.Data1.x;
-            float startAngle = module.Data1.y;
+            float3 center = op.Data0.xyz;
+            float radius = op.Data0.w;
+            float angularSpeed = op.Data1.x;
+            float startAngle = op.Data1.y;
             float angle = TimeData.y * angularSpeed + startAngle;
 
             float3 position = center + float3(cos(angle), sin(angle), 0.0) * radius;
@@ -324,12 +359,12 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
             SetAttribute(attributes, 4u, float4(0.0, 0.0, 0.0, 0.0));
         }
-        else if (type == 17u) // SetPositionCircularPath
+        else if (type == 10u) // SetPositionCircularPath
         {
-            float3 baseOffset = module.Data0.xyz;
-            float3 primaryAmplitude = module.Data1.xyz;
-            float3 secondaryAmplitude = module.Data2.xyz;
-            float timeScale = module.Data0.w;
+            float3 baseOffset = op.Data0.xyz;
+            float3 primaryAmplitude = op.Data1.xyz;
+            float3 secondaryAmplitude = op.Data2.xyz;
+            float timeScale = op.Data0.w;
 
             float spawnRate = max(emitter.MetaC.y, 0.001);
             float timeOffset = float((spawnCount - 1u) - spawnOrder) / spawnRate;
@@ -353,16 +388,18 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
             SetAttribute(attributes, 8u, float4(tangent, 0.0));
         }
-        else if (type == 18u) // SetRibbonId
+        else if (type == 11u) // SetRibbonIdFromSpawnOrder
         {
-            SetAttribute(attributes, target, float4(module.Data0.x, 0.0, 0.0, 0.0));
-        }
-        else if (type == 19u) // SetRibbonIdFromSpawnOrder
-        {
-            uint ribbonCount = max(1u, (uint)module.Data0.x);
-            uint firstRibbonId = (uint)module.Data0.y;
+            uint ribbonCount = max(1u, (uint)op.Data0.x);
+            uint firstRibbonId = (uint)op.Data0.y;
             uint ribbonId = firstRibbonId + (emissionIndex % ribbonCount);
             SetAttribute(attributes, target, float4(float(ribbonId), 0.0, 0.0, 0.0));
+        }
+        else if (type == 12u) // SampleCurve
+        {
+            float inputValue = ResolveDynamicInput(uint(op.Data0.x + 0.5), randomInput, particleSeed);
+            float value = SampleCurve(param0, inputValue);
+            SetAttribute(attributes, target, float4(value, 0.0, 0.0, 0.0));
         }
     }
 
