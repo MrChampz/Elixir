@@ -1,11 +1,11 @@
 #pragma once
 
-#include "ParameterStore.h"
-
 #include <Engine/Core/UUID.h>
 #include <Engine/Core/Timer.h>
 #include <Engine/Aether/Particle.h>
 #include <Engine/Aether/Modules.h>
+#include <Engine/Aether/ParameterStore.h>
+#include <Engine/Aether/CurveStore.h>
 
 namespace Elixir::Aether
 {
@@ -29,10 +29,10 @@ namespace Elixir::Aether
         float SpawnRatePerSecond = 1.0f;
         float GravityScale = 1.0f;
         uint32_t MaxParticles = 0;
-        uint32_t SpawnModuleOffset = 0;
-        uint32_t SpawnModuleCount = 0;
-        uint32_t UpdateModuleOffset = 0;
-        uint32_t UpdateModuleCount = 0;
+        uint32_t SpawnOpOffset = 0;
+        uint32_t SpawnOpCount = 0;
+        uint32_t UpdateOpOffset = 0;
+        uint32_t UpdateOpCount = 0;
 
         bool operator==(const SGPUEmitter& other) const noexcept
         {
@@ -81,11 +81,23 @@ namespace Elixir::Aether
             return ref;
         }
 
-        void SetRenderMode(EParticleRenderMode mode) { m_RenderMode = mode; }
+        void SetRenderMode(const EParticleRenderMode mode) { m_RenderMode = mode; }
 
-        SGPUEmitter Build(const ParameterStore& params, std::vector<SGPUModule>& modules) const;
+        SGPUEmitter Build(
+            const ParameterStore& paramStore,
+            std::vector<SGPUParameter>& params,
+            std::vector<SGPUParticleOp>& ops
+        ) const;
 
         const std::string& GetName() const { return m_Name; }
+        ParameterStore& GetParameters() { return m_Parameters; }
+        const ParameterStore& GetParameters() const { return m_Parameters; }
+        CurveStore& GetCurves() { return m_Curves; }
+        const CurveStore& GetCurves() const { return m_Curves; }
+
+        const std::string& GetSpawnRateParamName() const { return m_SpawnRateParamName; }
+        void SetSpawnRateParamName(const std::string& paramName) { m_SpawnRateParamName = paramName; }
+
         void GatherRenderParticles(std::vector<SRenderParticle>& output) const;
 
       private:
@@ -97,8 +109,13 @@ namespace Elixir::Aether
         std::vector<SParticle> m_Particles;
         std::vector<Scope<ParticleSpawnModule>> m_SpawnModules;
         std::vector<Scope<ParticleUpdateModule>> m_UpdateModules;
+        std::string m_SpawnRateParamName;
         float m_SpawnRate = 0.0f; // per seconds
         float m_SpawnAccumulator = 0.0f;
+
+        ParameterStore m_Parameters;
+        CurveStore m_Curves;
+
         std::mt19937 m_RNG;
     };
 }

@@ -28,16 +28,16 @@ namespace Elixir::Aether
         m_Float4[name] = value;
     }
 
-    std::vector<SGPUParameter> ParameterStore::Compile() const
+    std::vector<SGPUParameter> ParameterStore::Compile(const std::string& prefix) const
     {
         std::vector<SGPUParameter> parameters;
         parameters.reserve(m_Float.size() + m_Float4.size());
 
         for (const auto& [name, value] : m_Float)
-            parameters.push_back({ name, { value, 0.0f, 0.0f, 0.0f } });
+            parameters.push_back({ prefix + name, { value, 0.0f, 0.0f, 0.0f } });
 
         for (const auto& [name, value] : m_Float4)
-            parameters.push_back({ name, value });
+            parameters.push_back({ prefix + name, value });
 
         return parameters;
     }

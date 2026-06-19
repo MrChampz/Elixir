@@ -23,7 +23,7 @@ namespace Elixir::Aether
         glm::vec4 MetaD{};
     };
 
-    struct alignas(16) SModuleData
+    struct alignas(16) SParticleOpData
     {
         glm::vec4 Header{};
         glm::vec4 Data0{};
@@ -54,7 +54,7 @@ namespace Elixir::Aether
       public:
         static constexpr uint32_t MAX_EMITTERS = 8;
         static constexpr uint32_t MAX_PARTICLES = 10000;
-        static constexpr uint32_t MAX_MODULES = 128;
+        static constexpr uint32_t MAX_OPS = 128;
         static constexpr uint32_t MAX_PARAMETERS = 64;
         static constexpr uint32_t COMPUTE_GROUP_SIZE = 256;
 
@@ -92,8 +92,8 @@ namespace Elixir::Aether
         Ref<ComputePipeline> m_SpawnPipeline;
         Ref<Shader> m_UpdateShader;
         Ref<ComputePipeline> m_UpdatePipeline;
-        Ref<Shader> m_RendererShader;
-        Ref<GraphicsPipeline> m_RendererPipeline;
+        Ref<Shader> m_SpriteShader;
+        Ref<GraphicsPipeline> m_SpritePipeline;
         Ref<Shader> m_RibbonShader;
         Ref<GraphicsPipeline> m_RibbonPipeline;
         Ref<Shader> m_MeshShader;
@@ -103,7 +103,7 @@ namespace Elixir::Aether
         std::unordered_map<SGPUEmitter, SEmitterState> m_EmittersState;
 
         Ref<DynamicStorageBuffer> m_EmitterBuffer;
-        Ref<DynamicStorageBuffer> m_ModuleBuffer;
+        Ref<DynamicStorageBuffer> m_OpBuffer;
         Ref<DynamicStorageBuffer> m_ParameterBuffer;
         Ref<UniformBuffer> m_ParamsBuffer;
 

@@ -8,39 +8,42 @@ namespace Elixir::Aether
     struct SUpdateContext;
     class ParameterStore;
 
-    enum class EModuleType : uint32_t
+    enum class EParticleOp : uint32_t
     {
-        SpawnRate = 0,
-        SetPositionDisk,
-        SetVelocityCone,
-        SetLifetime,
-        SetSize,
-        SetColor,
-        SetRotation,
-        SetScale,
-        ApplyGravity,
-        ApplyLinearDrag,
-        ApplyAngularVelocity,
-        ColorOverLife,
-        SizeOverLife,
-        ScaleOverLife,
+        SetLiteral = 0,
+        RandomRange,
+        SampleDisk,
+        SampleCone,
+        AddWithDelta,
+        Dampen,
+        LerpOverLife,
         KillOutsideBounds,
+        AddFromAttribute,
         SetPositionOnCircle,
-        SetPositionBezierLoop,
         SetPositionCircularPath,
-        SetRibbonId,
         SetRibbonIdFromSpawnOrder,
+        SampleCurve
     };
 
-    struct SGPUModule
+    struct SGPUParticleOp
     {
-        EModuleType Type;
-        EParticleAttribute Target;
+        EParticleOp Type = EParticleOp::SetLiteral;
+        EParticleAttribute Target = EParticleAttribute::None;
         uint32_t Parameter0Index = UINT32_MAX;
         uint32_t Parameter1Index = UINT32_MAX;
         glm::vec4 Data0{};
         glm::vec4 Data1{};
         glm::vec4 Data2{};
+    };
+
+    enum class EDynamicInput : uint32_t
+    {
+        None = 0,
+        DeltaTime,
+        NormalizedAge,
+        EmitterTime,
+        Random,
+        ParticleSeed
     };
 
     class ParticleSpawnModule
@@ -81,6 +84,8 @@ namespace Elixir::Aether
     public:
         explicit SetVelocityCone(glm::vec3 direction, float angle, float minSpeed, float maxSpeed);
 
+        SetVelocityCone& BindParameters(std::string angleParam, std::string minSpeedParam, std::string maxSpeedParam);
+
         void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
 
         glm::vec3 GetDirection() const { return m_Direction; }
@@ -88,11 +93,18 @@ namespace Elixir::Aether
         float GetMinSpeed() const { return m_MinSpeed; }
         float GetMaxSpeed() const { return m_MaxSpeed; }
 
+        const std::string& GetAngleParamName() const { return m_AngleParamName; }
+        const std::string& GetMinSpeedParamName() const { return m_MinSpeedParamName; }
+        const std::string& GetMaxSpeedParamName() const { return m_MaxSpeedParamName; }
+
     private:
         glm::vec3 m_Direction;
         float m_Angle;      // radians
         float m_MinSpeed;
         float m_MaxSpeed;
+        std::string m_AngleParamName;
+        std::string m_MinSpeedParamName;
+        std::string m_MaxSpeedParamName;
     };
 
     class ELIXIR_API SetLifetime final : public ParticleSpawnModule
@@ -102,12 +114,18 @@ namespace Elixir::Aether
 
         void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
 
+        SetLifetime& BindParameters(std::string minSecondsParam, std::string maxSecondsParam);
+
         float GetMinSeconds() const { return m_MinSeconds; }
         float GetMaxSeconds() const { return m_MaxSeconds; }
+        const std::string& GetMinSecondsParamName() const { return m_MinSecondsParamName; }
+        const std::string& GetMaxSecondsParamName() const { return m_MaxSecondsParamName; }
 
     private:
         float m_MinSeconds;
         float m_MaxSeconds;
+        std::string m_MinSecondsParamName;
+        std::string m_MaxSecondsParamName;
     };
 
     class ELIXIR_API SetSize final : public ParticleSpawnModule
@@ -117,12 +135,18 @@ namespace Elixir::Aether
 
         void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
 
+        SetSize& BindParameters(std::string minSizeParam, std::string maxSizeParam);
+
         float GetMinSize() const { return m_MinSize; }
         float GetMaxSize() const { return m_MaxSize; }
+        const std::string& GetMinSizeParamName() const { return m_MinSizeParamName; }
+        const std::string& GetMaxSizeParamName() const { return m_MaxSizeParamName; }
 
     private:
         float m_MinSize;
         float m_MaxSize;
+        std::string m_MinSizeParamName;
+        std::string m_MaxSizeParamName;
     };
 
     class ELIXIR_API SetColor final : public ParticleSpawnModule
@@ -132,10 +156,14 @@ namespace Elixir::Aether
 
         void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
 
+        SetColor& BindParameter(std::string paramName);
+
         const glm::vec4& GetColor() const { return m_Color; }
+        const std::string& GetParamName() const { return m_ParamName; }
 
     private:
         glm::vec4 m_Color;
+        std::string m_ParamName;
     };
 
     class ELIXIR_API SetRotation final : public ParticleSpawnModule
@@ -145,12 +173,19 @@ namespace Elixir::Aether
 
         void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
 
+        SetRotation& BindParameters(std::string minRotationParam, std::string maxRotationParam);
+
         float GetMinRotation() const { return m_MinRotation; }
         float GetMaxRotation() const { return m_MaxRotation; }
+        const std::string& GetMinRotationParamName() const { return m_MinRotationParamName; }
+        const std::string& GetMaxRotationParamName() const { return m_MaxRotationParamName; }
 
     private:
         float m_MinRotation;
         float m_MaxRotation;
+        std::string m_MinRotationParamName;
+        std::string m_MaxRotationParamName;
+
     };
 
     class ELIXIR_API SetScale final : public ParticleSpawnModule
@@ -160,12 +195,18 @@ namespace Elixir::Aether
 
         void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
 
+        SetScale& BindParameters(std::string minScaleParam, std::string maxScaleParam);
+
         float GetMinScale() const { return m_MinScale; }
         float GetMaxScale() const { return m_MaxScale; }
+        const std::string& GetMinScaleParamName() const { return m_MinScaleParamName; }
+        const std::string& GetMaxScaleParamName() const { return m_MaxScaleParamName; }
 
     private:
         float m_MinScale;
         float m_MaxScale;
+        std::string m_MinScaleParamName;
+        std::string m_MaxScaleParamName;
     };
 
     class ELIXIR_API SetPositionOnCircle final : public ParticleSpawnModule
@@ -244,12 +285,16 @@ namespace Elixir::Aether
       public:
         explicit ApplyGravity(glm::vec3 gravity);
 
+        ApplyGravity& BindParameter(std::string paramName);
+
         void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override {}
 
         const glm::vec3& GetGravity() const { return m_Gravity; }
+        const std::string& GetParamName() const { return m_ParamName; }
 
       private:
         glm::vec3 m_Gravity;
+        std::string m_ParamName;
     };
 
     class ELIXIR_API ApplyLinearDrag final : public ParticleUpdateModule
@@ -257,12 +302,16 @@ namespace Elixir::Aether
       public:
         explicit ApplyLinearDrag(float dragPerSecond);
 
+        ApplyLinearDrag& BindParameter(std::string paramName);
+
         void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override {}
 
         float GetDragPerSecond() const { return m_DragPerSecond; }
+        const std::string& GetParamName() const { return m_ParamName; }
 
       private:
         float m_DragPerSecond;
+        std::string m_ParamName;
     };
 
     class ELIXIR_API ApplyAngularVelocity final : public ParticleUpdateModule
@@ -270,12 +319,19 @@ namespace Elixir::Aether
     public:
         explicit ApplyAngularVelocity(float radiansPerSecond);
 
+        ApplyAngularVelocity& BindParameter(std::string paramName);
+        ApplyAngularVelocity& BindInput(EDynamicInput input);
+
         void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override {}
 
         float GetRadiansPerSecond() const { return m_RadiansPerSecond; }
+        const std::string& GetParamName() const { return m_ParamName; }
+        EDynamicInput GetInput() const { return m_Input; }
 
     private:
         float m_RadiansPerSecond;
+        std::string m_ParamName;
+        EDynamicInput m_Input = EDynamicInput::None;
     };
 
     class ELIXIR_API ColorOverLife final : public ParticleUpdateModule
@@ -283,14 +339,20 @@ namespace Elixir::Aether
       public:
         explicit ColorOverLife(glm::vec4 startColor, glm::vec4 endColor);
 
+        ColorOverLife& BindParameters(std::string startColorParam, std::string endColorParam);
+
         void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override {}
 
         const glm::vec4& GetStartColor() const { return m_StartColor; }
         const glm::vec4& GetEndColor() const { return m_EndColor; }
+        const std::string& GetStartColorParamName() const { return m_StartColorParamName; }
+        const std::string& GetEndColorParamName() const { return m_EndColorParamName; }
 
       private:
         glm::vec4 m_StartColor;
         glm::vec4 m_EndColor;
+        std::string m_StartColorParamName;
+        std::string m_EndColorParamName;
     };
 
     class ELIXIR_API SizeOverLife final : public ParticleUpdateModule
@@ -298,14 +360,20 @@ namespace Elixir::Aether
     public:
         SizeOverLife(float startSize, float endSize);
 
+        SizeOverLife& BindParameters(std::string startSizeParam, std::string endSizeParam);
+
         void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override {}
 
         float GetStartSize() const { return m_StartSize; }
         float GetEndSize() const { return m_EndSize; }
+        const std::string& GetStartSizeParamName() const { return m_StartSizeParamName; }
+        const std::string& GetEndSizeParamName() const { return m_EndSizeParamName; }
 
     private:
         float m_StartSize;
         float m_EndSize;
+        std::string m_StartSizeParamName;
+        std::string m_EndSizeParamName;
     };
 
     class ELIXIR_API ScaleOverLife final : public ParticleUpdateModule
@@ -313,14 +381,25 @@ namespace Elixir::Aether
     public:
         ScaleOverLife(float startScale, float endScale);
 
+        ScaleOverLife& BindParameters(std::string startScaleParam, std::string endScaleParam);
+        ScaleOverLife& BindCurve(std::string curveName, EDynamicInput input = EDynamicInput::NormalizedAge);
+
         void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override {}
 
         float GetStartScale() const { return m_StartScale; }
         float GetEndScale() const { return m_EndScale; }
+        const std::string& GetStartScaleParamName() const { return m_StartScaleParamName; }
+        const std::string& GetEndScaleParamName() const { return m_EndScaleParamName; }
+        const std::string& GetCurveName() const { return m_CurveName; }
+        EDynamicInput GetCurveInput() const { return m_CurveInput; }
 
     private:
         float m_StartScale;
         float m_EndScale;
+        std::string m_StartScaleParamName;
+        std::string m_EndScaleParamName;
+        std::string m_CurveName;
+        EDynamicInput m_CurveInput = EDynamicInput::None;
     };
 
     class ELIXIR_API KillOutsideBounds final : public ParticleUpdateModule
