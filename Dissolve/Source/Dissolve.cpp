@@ -59,6 +59,11 @@ Dissolve::Dissolve()
     m_ParticlesRenderer = CreateScope<Aether::Renderer>(m_GraphicsContext.get(), m_ShaderLoader.get());
 
     m_ParticleSystem = Aether::LoadEffectFile("./Assets/VFX/RibbonGarden.json");
+    if (!m_ParticleSystem)
+    {
+        EE_FATAL("Failed to load particle effect; falling back to an empty system.")
+        m_ParticleSystem = CreateRef<Aether::System>("Empty");
+    }
     // m_ParticleSystem = CreateScope<Aether::System>("Ribbon Garden");
     // m_ParticleSystem->GetParameters().SetFloat("GravityScale", 1.0f);
     //
