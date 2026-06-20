@@ -16,12 +16,12 @@
     {
       "name": "PathRibbon",
       "renderMode": "Ribbon",
-      "maxParticles": 240,
+      "maxParticles": 256,
       "spawnRate": "$spawn_rate",
       "parameters": {
-        "spawn_rate": 90.0,
-        "trail_lifetime_min": 2.2,
-        "trail_lifetime_max": 2.8,
+        "spawn_rate": 64.0,
+        "trail_lifetime_min": 4.0,
+        "trail_lifetime_max": 4.0,
         "trail_size_min": 14.0,
         "trail_size_max": 20.0,
         "trail_scale_min": 0.72,
@@ -29,6 +29,7 @@
         "trail_scale_end": 0.48
       },
       "spawnModules": [
+        { "type": "SetPositionOnCircle", "center": [0.0, 0.0, 0.0], "radius": 2.0, "angularSpeed": 1.0 },
         { "type": "SetLifetime", "min": "$trail_lifetime_min", "max": "$trail_lifetime_max" },
         { "type": "SetSize", "min": "$trail_size_min", "max": "$trail_size_max" },
         { "type": "SetScale", "min": "$trail_scale_min", "max": "$trail_scale_max" },
@@ -37,8 +38,7 @@
       "updateModules": [
         { "type": "ColorOverLife", "start": "$canopy_color_start", "end": "$canopy_color_end" },
         { "type": "SizeOverLife", "start": 18.0, "end": 3.0 },
-        { "type": "ScaleOverLife", "start": 1.0, "end": "$trail_scale_end", "curve": "trail_scale_curve", "input": "NormalizedAge" },
-        { "type": "KillOutsideBounds", "min": [-1.45, -1.2, -1.45], "max": [1.45, 1.35, 1.45] }
+        { "type": "ScaleOverLife", "start": 1.0, "end": "$trail_scale_end", "curve": "trail_scale_curve", "input": "NormalizedAge" }
       ]
     },
     {
@@ -56,7 +56,7 @@
       },
       "spawnModules": [
         { "type": "SetPositionDisk", "center": [0.0, -0.86, 0.0], "radius": 0.07 },
-        { "type": "SetVelocityCone", "angle": 1.18, "minSpeed": 0.34, "maxSpeed": 0.82 },
+        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 1.18, "minSpeed": 0.34, "maxSpeed": 0.82 },
         { "type": "SetLifetime", "min": 1.8, "max": 2.9 },
         { "type": "SetSize", "min": 7.0, "max": 14.0 },
         { "type": "SetScale", "min": "$spawn_scale_min", "max": "$spawn_scale_max" },
@@ -89,7 +89,7 @@
       },
       "spawnModules": [
         { "type": "SetPositionDisk", "center": [0.0, -0.64, 0.0], "radius": 0.22 },
-        { "type": "SetVelocityCone", "angle": 0.94, "minSpeed": 0.14, "maxSpeed": 0.36 },
+        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 0.94, "minSpeed": 0.14, "maxSpeed": 0.36 },
         { "type": "SetLifetime", "min": 2.6, "max": 3.8 },
         { "type": "SetSize", "min": 10.0, "max": 18.0 },
         { "type": "SetScale", "min": "$spawn_scale_min", "max": "$spawn_scale_max" },
