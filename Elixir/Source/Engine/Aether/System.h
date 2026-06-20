@@ -3,6 +3,7 @@
 #include <Engine/Aether/Emitter.h>
 #include <Engine/Aether/ParameterStore.h>
 #include <Engine/Aether/CurveStore.h>
+#include <Engine/Aether/ColorCurveStore.h>
 
 #include <random>
 
@@ -33,6 +34,7 @@ namespace Elixir::Aether
         std::vector<SGPUParticleOp> Ops;
         std::vector<SGPUParameter> Parameters;
         std::vector<SGPUCurve> Curves;
+        std::vector<SGPUColorCurve> ColorCurves;
         uint32_t TotalMaxParticles = 0;
     };
 
@@ -55,12 +57,14 @@ namespace Elixir::Aether
 
         ParameterStore& GetParameters() { return m_Parameters; }
         CurveStore& GetCurves() { return m_Curves; }
+        ColorCurveStore& GetColorCurves() { return m_ColorCurves; }
         const std::vector<SRenderParticle>& GetRenderParticles() const { return m_RenderParticles; }
 
       private:
         std::string m_Name;
         ParameterStore m_Parameters;
         CurveStore m_Curves;
+        ColorCurveStore m_ColorCurves;
         std::vector<Scope<Emitter>> m_Emitters;
         std::vector<SRenderParticle> m_RenderParticles;
     };

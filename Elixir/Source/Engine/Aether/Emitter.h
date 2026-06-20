@@ -6,6 +6,7 @@
 #include <Engine/Aether/Modules.h>
 #include <Engine/Aether/ParameterStore.h>
 #include <Engine/Aether/CurveStore.h>
+#include <Engine/Aether/ColorCurveStore.h>
 
 namespace Elixir::Aether
 {
@@ -94,6 +95,8 @@ namespace Elixir::Aether
         const ParameterStore& GetParameters() const { return m_Parameters; }
         CurveStore& GetCurves() { return m_Curves; }
         const CurveStore& GetCurves() const { return m_Curves; }
+        ColorCurveStore& GetColorCurves() { return m_ColorCurves; }
+        const ColorCurveStore& GetColorCurves() const { return m_ColorCurves; }
 
         const std::string& GetSpawnRateParamName() const { return m_SpawnRateParamName; }
         void SetSpawnRateParamName(const std::string& paramName) { m_SpawnRateParamName = paramName; }
@@ -115,6 +118,7 @@ namespace Elixir::Aether
 
         ParameterStore m_Parameters;
         CurveStore m_Curves;
+        ColorCurveStore m_ColorCurves;
 
         std::mt19937 m_RNG;
     };

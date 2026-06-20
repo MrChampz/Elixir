@@ -185,6 +185,13 @@ namespace Elixir::Aether
         return *this;
     }
 
+    ColorOverLife& ColorOverLife::BindCurve(std::string name, EDynamicInput input)
+    {
+        m_CurveName = std::move(name);
+        m_CurveInput = input;
+        return *this;
+    }
+
     /* SizeOverLife */
 
     SizeOverLife::SizeOverLife(const float startSize, const float endSize)

@@ -22,7 +22,11 @@ namespace Elixir::Aether
         SetPositionOnCircle,
         SetPositionCircularPath,
         SetRibbonIdFromSpawnOrder,
-        SampleCurve
+        SampleCurve,
+        SampleColorCurve,
+        Add,
+        Mul,
+        Clamp
     };
 
     struct SGPUParticleOp
@@ -340,6 +344,7 @@ namespace Elixir::Aether
         explicit ColorOverLife(glm::vec4 startColor, glm::vec4 endColor);
 
         ColorOverLife& BindParameters(std::string startColorParam, std::string endColorParam);
+        ColorOverLife& BindCurve(std::string name, EDynamicInput input = EDynamicInput::NormalizedAge);
 
         void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override {}
 
@@ -347,12 +352,16 @@ namespace Elixir::Aether
         const glm::vec4& GetEndColor() const { return m_EndColor; }
         const std::string& GetStartColorParamName() const { return m_StartColorParamName; }
         const std::string& GetEndColorParamName() const { return m_EndColorParamName; }
+        const std::string& GetCurveName() const { return m_CurveName; }
+        EDynamicInput GetCurveInput() const { return m_CurveInput; }
 
       private:
         glm::vec4 m_StartColor;
         glm::vec4 m_EndColor;
         std::string m_StartColorParamName;
         std::string m_EndColorParamName;
+        std::string m_CurveName;
+        EDynamicInput m_CurveInput = EDynamicInput::None;
     };
 
     class ELIXIR_API SizeOverLife final : public ParticleUpdateModule

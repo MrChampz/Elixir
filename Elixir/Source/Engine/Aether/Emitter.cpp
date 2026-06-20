@@ -232,14 +232,27 @@ namespace Elixir::Aether
             }
             else if (const auto* typed = dynamic_cast<const ColorOverLife*>(module.get()))
             {
-                ops.push_back({
-                    EParticleOp::LerpOverLife,
-                    EParticleAttribute::Color,
-                    FindScopedParameterIndex(params, m_Name, typed->GetStartColorParamName()),
-                    FindScopedParameterIndex(params, m_Name, typed->GetEndColorParamName()),
-                    typed->GetStartColor(),
-                    typed->GetEndColor()
-                });
+                if (!typed->GetCurveName().empty())
+                {
+                    ops.push_back({
+                        EParticleOp::SampleColorCurve,
+                        EParticleAttribute::Color,
+                        FindCurveParameterIndex(params, m_Name, typed->GetCurveName()),
+                        UINT32_MAX,
+                        { (float)((uint32_t)typed->GetCurveInput()), 0.0f, 0.0f, 0.0f },
+                    });
+                }
+                else
+                {
+                    ops.push_back({
+                        EParticleOp::LerpOverLife,
+                        EParticleAttribute::Color,
+                        FindScopedParameterIndex(params, m_Name, typed->GetStartColorParamName()),
+                        FindScopedParameterIndex(params, m_Name, typed->GetEndColorParamName()),
+                        typed->GetStartColor(),
+                        typed->GetEndColor()
+                    });
+                }
             }
             else if (const auto* typed = dynamic_cast<const SizeOverLife*>(module.get()))
             {
@@ -262,6 +275,38 @@ namespace Elixir::Aether
                         FindCurveParameterIndex(params, m_Name, typed->GetCurveName()),
                         UINT32_MAX,
                         { (float)((uint32_t)typed->GetCurveInput()), 0.0f, 0.0f, 0.0f },
+                    });
+
+                    const float scaleRange = typed->GetEndScale() - typed->GetStartScale();
+                    if (std::abs(scaleRange - 1.0f) > 0.0001f)
+                    {
+                        ops.push_back({
+                            EParticleOp::Mul,
+                            EParticleAttribute::Scale,
+                            UINT32_MAX,
+                            UINT32_MAX,
+                            { scaleRange, 0.0f, 0.0f, 0.0f },
+                        });
+                    }
+
+                    if (std::abs(typed->GetStartScale()) > 0.0001f)
+                    {
+                        ops.push_back({
+                            EParticleOp::Add,
+                            EParticleAttribute::Scale,
+                            UINT32_MAX,
+                            UINT32_MAX,
+                            { typed->GetStartScale(), 0.0f, 0.0f, 0.0f },
+                        });
+                    }
+
+                    ops.push_back({
+                        EParticleOp::Clamp,
+                        EParticleAttribute::Scale,
+                        UINT32_MAX,
+                        UINT32_MAX,
+                        glm::vec4(0.0f),
+                        glm::vec4(4.0f),
                     });
                 }
                 else

@@ -113,6 +113,33 @@ float SampleCurve(int baseParameterIndex, float t)
     return lerp(samples[lowerIndex], samples[upperIndex], fraction);
 }
 
+float4 SampleColorCurve(int baseParameterIndex, float t)
+{
+    if (baseParameterIndex < 0)
+        return 1.0;
+
+    float4 samples[8] =
+    {
+        parameters[baseParameterIndex + 0].Value,
+        parameters[baseParameterIndex + 1].Value,
+        parameters[baseParameterIndex + 2].Value,
+        parameters[baseParameterIndex + 3].Value,
+        parameters[baseParameterIndex + 4].Value,
+        parameters[baseParameterIndex + 5].Value,
+        parameters[baseParameterIndex + 6].Value,
+        parameters[baseParameterIndex + 7].Value
+    };
+
+    float clampedT = clamp(t, 0.0, 1.0);
+    float samplePosition = clampedT * 7.0;
+
+    uint lowerIndex = (uint)floor(samplePosition);
+    uint upperIndex = min(lowerIndex + 1u, 7u);
+    float fraction = frac(samplePosition);
+
+    return lerp(samples[lowerIndex], samples[upperIndex], fraction);
+}
+
 AttributeTable LoadAttributes(ParticleState state)
 {
     AttributeTable table;
@@ -271,6 +298,32 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             float inputValue = ResolveDynamicInput(uint(op.Data0.x + 0.5), life, particleSeed);
             float value = SampleCurve(param0, inputValue);
             SetAttribute(attributes, target, float4(value, 0.0, 0.0, 0.0));
+        }
+        else if (type == 13u) // SampleColorCurve
+        {
+            float inputValue = ResolveDynamicInput(uint(op.Data0.x + 0.5), life, particleSeed);
+            float4 value = SampleColorCurve(param0, inputValue);
+            SetAttribute(attributes, target, value);
+        }
+        else if (type == 14u) // Add
+        {
+            float4 value = GetAttribute(attributes, target);
+            value += ResolveValue(param0, op.Data0);
+            SetAttribute(attributes, target, value);
+        }
+        else if (type == 15u) // Mul
+        {
+            float4 value = GetAttribute(attributes, target);
+            value *= ResolveValue(param0, op.Data0);
+            SetAttribute(attributes, target, value);
+        }
+        else if (type == 16u) // Clamp
+        {
+            float4 value = GetAttribute(attributes, target);
+            float4 minValue = ResolveValue(param0, op.Data0);
+            float4 maxValue = ResolveValue(param1, op.Data1);
+            value = clamp(value, minValue, maxValue);
+            SetAttribute(attributes, target, value);
         }
     }
 

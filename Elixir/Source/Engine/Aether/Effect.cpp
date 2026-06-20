@@ -78,7 +78,7 @@ namespace Elixir::Aether
 
             uint32_t RequireUInt(od::object& object, std::string_view key)
             {
-                if (m_Failed) return 0.0f;
+                if (m_Failed) return 0;
 
                 auto field = object[key];
                 uint64_t value;
@@ -267,7 +267,7 @@ namespace Elixir::Aether
 
             /* Enums */
 
-            EParticleRenderMode ParseRenderMode(od::object object, const std::string_view key)
+            EParticleRenderMode ParseRenderMode(od::object& object, const std::string_view key)
             {
                 constexpr auto result = EParticleRenderMode::Sprite;
 
@@ -396,6 +396,49 @@ namespace Elixir::Aether
                 }
             }
 
+            void LoadColorCurvesFromObject(ColorCurveStore& store, od::object curves)
+            {
+                for (auto curve : curves)
+                {
+                    if (m_Failed) return;
+
+                    std::string_view key;
+                    if (curve.unescaped_key().get(key))
+                    {
+                        Fail("Invalid curve name.");
+                        return;
+                    }
+
+                    const std::string name{ key };
+
+                    od::array array;
+                    if (curve.value().get_array().get(array))
+                    {
+                        Fail("Curve '{}' must be an array.", name);
+                        return;
+                    }
+
+                    std::vector<glm::vec4> samples;
+                    for (auto sample : array)
+                    {
+                        od::array array;
+
+                        if (sample.get_array().get(array))
+                        {
+                            Fail("Curve '{}' sample must be a Float4.", name);
+                            return;
+                        }
+
+                        const auto value = ParseFloatVec<4>(array);
+                        if (m_Failed) return;
+
+                        samples.push_back(value);
+                    }
+
+                    store.SetCurve(name, std::move(samples));
+                }
+            }
+
             void LoadParameters(od::object& parent, ParameterStore& store)
             {
                 if (m_Failed) return;
@@ -430,6 +473,24 @@ namespace Elixir::Aether
                 }
 
                 LoadCurvesFromObject(store, curves);
+            }
+
+            void LoadColorCurves(od::object& parent, ColorCurveStore& store)
+            {
+                if (m_Failed) return;
+
+                auto field = parent["colorCurves"];
+                if (field.error())
+                    return;
+
+                od::object curves;
+                if (field.get_object().get(curves))
+                {
+                    Fail("'colorCurves' must be an object.");
+                    return;
+                }
+
+                LoadColorCurvesFromObject(store, curves);
             }
 
             /* Dispatch */
@@ -682,6 +743,7 @@ namespace Elixir::Aether
 
                 LoadParameters(json, emitter.GetParameters());
                 LoadCurves(json, emitter.GetCurves());
+                LoadColorCurves(json, emitter.GetColorCurves());
                 LoadModules(json, "spawnModules", emitter, true);
                 LoadModules(json, "updateModules", emitter, false);
             }
@@ -699,6 +761,7 @@ namespace Elixir::Aether
 
             LoadParameters(root, system->GetParameters());
             LoadCurves(root, system->GetCurves());
+            LoadColorCurves(root, system->GetColorCurves());
             if (m_Failed) return nullptr;
 
             auto emittersField = root["emitters"];
