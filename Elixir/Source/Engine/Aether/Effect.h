@@ -4,5 +4,5 @@
 
 namespace Elixir::Aether
 {
-    Ref<System> LoadEffectFile(const std::filesystem::path& filepath);
+    ELIXIR_API Ref<System> LoadEffectFile(const std::filesystem::path& filepath);
 }

@@ -49,12 +49,14 @@ namespace Elixir::Aether
 
         private:
             template <typename... Args>
-            void Fail(const std::string& error, Args&&... args)
+            void Fail(const std::string_view message, Args&&... args)
             {
                 if (m_Failed) return;
 
-                EE_CORE_ERROR(error, std::forward<Args>(args)...);
-                EE_CORE_ERROR("    in effect asset: {}", m_Filepath.c_str());
+                const std::string error = std::vformat(message, std::make_format_args(args...));
+
+                EE_CORE_ERROR("{}", error);
+                EE_CORE_ERROR("    in effect asset: {}", m_Filepath.string());
                 m_Failed = true;
             }
 
@@ -799,7 +801,7 @@ namespace Elixir::Aether
         if (const auto error = json.error())
         {
             const auto message = simdjson::error_message(error);
-            EE_CORE_ERROR("Failed to open effect asset '{}': {}", filepath.c_str(), message)
+            EE_CORE_ERROR("Failed to open effect asset '{}': {}", filepath.string(), message)
             return nullptr;
         }
 
@@ -807,14 +809,14 @@ namespace Elixir::Aether
         if (const auto error = document.error())
         {
             const auto message = simdjson::error_message(error);
-            EE_CORE_ERROR("Failed to parse effect asset '{}': {}", filepath.c_str(), message)
+            EE_CORE_ERROR("Failed to parse effect asset '{}': {}", filepath.string(), message)
             return nullptr;
         }
 
         od::object root;
         if (document.get_object().get(root))
         {
-            EE_CORE_ERROR("Effect asset root must be an object: {}", filepath.c_str())
+            EE_CORE_ERROR("Effect asset root must be an object: {}", filepath.string())
             return nullptr;
         }
 
