@@ -261,7 +261,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             float4 value = GetAttribute(attributes, target);
             float inputMultiplier = ResolveDynamicInput(uint(op.Data1.x + 0.5), life, particleSeed);
 
-            value += ResolveValue(param0, op.Data0) * (dt * inputMultiplier);;
+            value += ResolveValue(param0, op.Data0) * (dt * inputMultiplier);
 
             SetAttribute(attributes, target, value);
         }

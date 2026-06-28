@@ -5,17 +5,6 @@ namespace Elixir::Aether
 {
     System::System(const std::string& name) : m_Name(name) {}
 
-    void System::Update(const Timestep& timestep)
-    {
-        m_RenderParticles.clear();
-
-        for (auto& emitter : m_Emitters)
-        {
-            emitter->Update(timestep, m_Parameters);
-            emitter->GatherRenderParticles(m_RenderParticles);
-        }
-    }
-
     Emitter& System::AddEmitter(
         const std::string& name,
         uint32_t maxParticles,
@@ -86,32 +75,6 @@ namespace Elixir::Aether
             system.TotalMaxParticles += desc.MaxParticles;
 
             system.Emitters.push_back(desc);
-        }
-
-        // TEMPORARY
-        const uint32_t canopyColorStart = FindParameterIndex(system.Parameters, "CanopyColorStart");
-        const uint32_t canopyColorEnd = FindParameterIndex(system.Parameters, "CanopyColorEnd");
-        const uint32_t sparksColorStart = FindParameterIndex(system.Parameters, "SparkColorStart");
-        const uint32_t sparksColorEnd = FindParameterIndex(system.Parameters, "SparkColorEnd");
-
-        for (auto& op : system.Ops)
-        {
-            if (op.Type != EParticleOp::LerpOverLife ||
-                op.Target != EParticleAttribute::Color ||
-                op.Parameter0Index != UINT32_MAX ||
-                op.Parameter1Index != UINT32_MAX)
-                continue;
-
-            if (op.Data0.x < 0.8f)
-            {
-                op.Parameter0Index = canopyColorStart;
-                op.Parameter1Index = canopyColorEnd;
-            }
-            else
-            {
-                op.Parameter0Index = sparksColorStart;
-                op.Parameter1Index = sparksColorEnd;
-            }
         }
 
         return system;

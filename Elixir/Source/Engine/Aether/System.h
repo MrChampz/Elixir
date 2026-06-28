@@ -5,28 +5,8 @@
 #include <Engine/Aether/CurveStore.h>
 #include <Engine/Aether/ColorCurveStore.h>
 
-#include <random>
-
 namespace Elixir::Aether
 {
-    struct SRenderParticle
-    {
-        glm::vec2 Position;
-        glm::vec4 Color;
-        float Size = 1.0f;
-    };
-
-    struct SSpawnContext
-    {
-        float deltaTime = 0.0f;
-        std::mt19937 RNG;
-    };
-
-    struct SUpdateContext
-    {
-        float deltaTime = 0.0f;
-    };
-
     struct SGPUSystem
     {
         std::string Name;
@@ -54,8 +34,6 @@ namespace Elixir::Aether
         System(const System&) = delete;
         System& operator=(const System&) = delete;
 
-        void Update(const Timestep& timestep);
-
         Emitter& AddEmitter(const std::string& name, uint32_t maxParticles, float spawnRate);
 
         SGPUSystem Build() const;
@@ -63,7 +41,6 @@ namespace Elixir::Aether
         ParameterStore& GetParameters() { return m_Parameters; }
         CurveStore& GetCurves() { return m_Curves; }
         ColorCurveStore& GetColorCurves() { return m_ColorCurves; }
-        const std::vector<SRenderParticle>& GetRenderParticles() const { return m_RenderParticles; }
 
       private:
         std::string m_Name;
@@ -73,6 +50,5 @@ namespace Elixir::Aether
         ColorCurveStore m_ColorCurves;
 
         std::vector<Scope<Emitter>> m_Emitters;
-        std::vector<SRenderParticle> m_RenderParticles;
     };
 }

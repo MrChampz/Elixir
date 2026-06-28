@@ -1,8 +1,6 @@
 #pragma once
 
 #include <Engine/Core/UUID.h>
-#include <Engine/Core/Timer.h>
-#include <Engine/Aether/Particle.h>
 #include <Engine/Aether/Modules.h>
 #include <Engine/Aether/ParameterStore.h>
 #include <Engine/Aether/CurveStore.h>
@@ -10,8 +8,6 @@
 
 namespace Elixir::Aether
 {
-    struct SSpawnContext;
-    struct SRenderParticle;
     class ParameterStore;
 
     enum class EParticleRenderMode : uint8_t
@@ -65,8 +61,6 @@ namespace Elixir::Aether
         Emitter(const Emitter&) = delete;
         Emitter& operator=(const Emitter&) = delete;
 
-        void Update(const Timestep& timestep, const ParameterStore& params);
-
         template <typename Module, typename... Args>
         Module& AddSpawnModule(Args&&... args)
         {
@@ -89,11 +83,12 @@ namespace Elixir::Aether
 
         SGPUEmitter Build(
             const ParameterStore& paramStore,
-            std::vector<SGPUParameter>& params,
+            const std::vector<SGPUParameter>& params,
             std::vector<SGPUParticleOp>& ops
         ) const;
 
         const std::string& GetName() const { return m_Name; }
+        uint32_t GetMaxParticles() const { return m_MaxParticles; }
 
         const Ref<Texture2D>& GetSpriteTexture() const { return m_SpriteTexture; }
         void SetSpriteTexture(const Ref<Texture2D>& texture) { m_SpriteTexture = texture; }
@@ -108,17 +103,13 @@ namespace Elixir::Aether
         const std::string& GetSpawnRateParamName() const { return m_SpawnRateParamName; }
         void SetSpawnRateParamName(const std::string& paramName) { m_SpawnRateParamName = paramName; }
 
-        void GatherRenderParticles(std::vector<SRenderParticle>& output) const;
-
       private:
-        void SpawnParticle(SSpawnContext& context, const ParameterStore& params);
-
         UUID m_UUID;
         std::string m_Name;
         EParticleRenderMode m_RenderMode = EParticleRenderMode::Sprite;
         Ref<Texture2D> m_SpriteTexture;
+        uint32_t m_MaxParticles;
 
-        std::vector<SParticle> m_Particles;
         std::vector<Scope<ParticleSpawnModule>> m_SpawnModules;
         std::vector<Scope<ParticleUpdateModule>> m_UpdateModules;
 
@@ -129,7 +120,5 @@ namespace Elixir::Aether
         ParameterStore m_Parameters;
         CurveStore m_Curves;
         ColorCurveStore m_ColorCurves;
-
-        std::mt19937 m_RNG;
     };
 }

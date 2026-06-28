@@ -1,4 +1,4 @@
-#include "epch.h";
+#include "epch.h"
 #include "CurveStore.h"
 
 namespace Elixir::Aether

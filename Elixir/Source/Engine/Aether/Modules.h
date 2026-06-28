@@ -4,8 +4,6 @@
 namespace Elixir::Aether
 {
     struct SParticle;
-    struct SSpawnContext;
-    struct SUpdateContext;
     class ParameterStore;
 
     enum class EParticleOp : uint32_t
@@ -55,24 +53,18 @@ namespace Elixir::Aether
     {
     public:
         virtual ~ParticleSpawnModule() = default;
-
-        virtual void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const = 0;
     };
 
     class ParticleUpdateModule
     {
     public:
         virtual ~ParticleUpdateModule() = default;
-
-        virtual void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const = 0;
     };
 
     class ELIXIR_API SetPositionDisk final : public ParticleSpawnModule
     {
     public:
         explicit SetPositionDisk(glm::vec3 center, float radius, glm::vec3 normal = { 0, 1, 0 });
-
-        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
 
         glm::vec3 GetCenter() const { return m_Center; }
         glm::vec3 GetNormal() const { return m_Normal; }
@@ -89,8 +81,6 @@ namespace Elixir::Aether
     public:
         explicit SetPositionBox(glm::vec3 minBounds, glm::vec3 maxBounds);
 
-        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
-
         glm::vec3 GetMinBounds() const { return m_MinBounds; }
         glm::vec3 GetMaxBounds() const { return m_MaxBounds; }
 
@@ -105,8 +95,6 @@ namespace Elixir::Aether
         explicit SetVelocityCone(glm::vec3 direction, float angle, float minSpeed, float maxSpeed);
 
         SetVelocityCone& BindParameters(std::string angleParam, std::string minSpeedParam, std::string maxSpeedParam);
-
-        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
 
         glm::vec3 GetDirection() const { return m_Direction; }
         float GetAngle() const { return m_Angle; }
@@ -132,8 +120,6 @@ namespace Elixir::Aether
     public:
         explicit SetLifetime(float minSeconds, float maxSeconds);
 
-        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
-
         SetLifetime& BindParameters(std::string minSecondsParam, std::string maxSecondsParam);
 
         float GetMinSeconds() const { return m_MinSeconds; }
@@ -152,8 +138,6 @@ namespace Elixir::Aether
     {
     public:
         explicit SetSize(float minSize, float maxSize);
-
-        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
 
         SetSize& BindParameters(std::string minSizeParam, std::string maxSizeParam);
 
@@ -174,8 +158,6 @@ namespace Elixir::Aether
     public:
         explicit SetColor(glm::vec4 color);
 
-        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
-
         SetColor& BindParameter(std::string paramName);
 
         const glm::vec4& GetColor() const { return m_Color; }
@@ -190,8 +172,6 @@ namespace Elixir::Aether
     {
     public:
         explicit SetRotation(float minRotation, float maxRotation);
-
-        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
 
         SetRotation& BindParameters(std::string minRotationParam, std::string maxRotationParam);
 
@@ -213,8 +193,6 @@ namespace Elixir::Aether
     public:
         explicit SetScale(float minScale, float maxScale);
 
-        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
-
         SetScale& BindParameters(std::string minScaleParam, std::string maxScaleParam);
 
         float GetMinScale() const { return m_MinScale; }
@@ -233,8 +211,6 @@ namespace Elixir::Aether
     {
     public:
         explicit SetPositionOnCircle(glm::vec3 center, float radius, float angularSpeed, float startAngle = 0.0f);
-
-        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
 
         glm::vec3 GetCenter() const { return m_Center; }
         float GetRadius() const { return m_Radius; }
@@ -258,8 +234,6 @@ namespace Elixir::Aether
             float timeScale
         );
 
-        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
-
         glm::vec3 GetBaseOffset() const { return m_BaseOffset; }
         glm::vec3 GetPrimaryAmplitude() const { return m_PrimaryAmplitude; }
         glm::vec3 GetSecondaryAmplitude() const { return m_SecondaryAmplitude; }
@@ -277,8 +251,6 @@ namespace Elixir::Aether
       public:
         explicit SetRibbonId(uint32_t ribbonId);
 
-        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
-
         uint32_t GetRibbonId() const { return m_RibbonId; }
 
       private:
@@ -289,8 +261,6 @@ namespace Elixir::Aether
     {
       public:
         explicit SetRibbonIdFromSpawnOrder(uint32_t ribbonCount, uint32_t firstRibbonId = 0);
-
-        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
 
         uint32_t GetRibbonCount() const { return m_RibbonCount; }
         uint32_t GetFirstRibbonId() const { return m_FirstRibbonId; }
@@ -307,8 +277,6 @@ namespace Elixir::Aether
 
         ApplyGravity& BindParameter(std::string paramName);
 
-        void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override {}
-
         const glm::vec3& GetGravity() const { return m_Gravity; }
         const std::string& GetParamName() const { return m_ParamName; }
 
@@ -323,8 +291,6 @@ namespace Elixir::Aether
         explicit ApplyLinearDrag(float dragPerSecond);
 
         ApplyLinearDrag& BindParameter(std::string paramName);
-
-        void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override {}
 
         float GetDragPerSecond() const { return m_DragPerSecond; }
         const std::string& GetParamName() const { return m_ParamName; }
@@ -341,8 +307,6 @@ namespace Elixir::Aether
 
         ApplyAngularVelocity& BindParameter(std::string paramName);
         ApplyAngularVelocity& BindInput(EDynamicInput input);
-
-        void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override {}
 
         float GetRadiansPerSecond() const { return m_RadiansPerSecond; }
         const std::string& GetParamName() const { return m_ParamName; }
@@ -361,8 +325,6 @@ namespace Elixir::Aether
 
         ColorOverLife& BindParameters(std::string startColorParam, std::string endColorParam);
         ColorOverLife& BindCurve(std::string name, EDynamicInput input = EDynamicInput::NormalizedAge);
-
-        void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override {}
 
         const glm::vec4& GetStartColor() const { return m_StartColor; }
         const glm::vec4& GetEndColor() const { return m_EndColor; }
@@ -387,8 +349,6 @@ namespace Elixir::Aether
 
         SizeOverLife& BindParameters(std::string startSizeParam, std::string endSizeParam);
 
-        void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override {}
-
         float GetStartSize() const { return m_StartSize; }
         float GetEndSize() const { return m_EndSize; }
         const std::string& GetStartSizeParamName() const { return m_StartSizeParamName; }
@@ -408,8 +368,6 @@ namespace Elixir::Aether
 
         ScaleOverLife& BindParameters(std::string startScaleParam, std::string endScaleParam);
         ScaleOverLife& BindCurve(std::string curveName, EDynamicInput input = EDynamicInput::NormalizedAge);
-
-        void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override {}
 
         float GetStartScale() const { return m_StartScale; }
         float GetEndScale() const { return m_EndScale; }
@@ -431,8 +389,6 @@ namespace Elixir::Aether
     {
       public:
         explicit KillOutsideBounds(glm::vec3 min, glm::vec3 max);
-
-        void Apply(SParticle& particle, SUpdateContext& context, const ParameterStore& params) const override {}
 
         glm::vec3 GetMin() const { return m_Min; }
         glm::vec3 GetMax() const { return m_Max; }
