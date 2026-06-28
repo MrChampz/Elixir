@@ -26,9 +26,12 @@ namespace Elixir::Aether
         UUID m_UUID;
         std::string Name;
         EParticleRenderMode RenderMode = EParticleRenderMode::Sprite;
-        uint32_t ParticleOffset = 0;
+        Ref<Texture2D> SpriteTexture;
+
         float SpawnRatePerSecond = 1.0f;
         float GravityScale = 1.0f;
+
+        uint32_t ParticleOffset = 0;
         uint32_t MaxParticles = 0;
         uint32_t SpawnOpOffset = 0;
         uint32_t SpawnOpCount = 0;
@@ -91,6 +94,10 @@ namespace Elixir::Aether
         ) const;
 
         const std::string& GetName() const { return m_Name; }
+
+        const Ref<Texture2D>& GetSpriteTexture() const { return m_SpriteTexture; }
+        void SetSpriteTexture(const Ref<Texture2D>& texture) { m_SpriteTexture = texture; }
+
         ParameterStore& GetParameters() { return m_Parameters; }
         const ParameterStore& GetParameters() const { return m_Parameters; }
         CurveStore& GetCurves() { return m_Curves; }
@@ -109,9 +116,12 @@ namespace Elixir::Aether
         UUID m_UUID;
         std::string m_Name;
         EParticleRenderMode m_RenderMode = EParticleRenderMode::Sprite;
+        Ref<Texture2D> m_SpriteTexture;
+
         std::vector<SParticle> m_Particles;
         std::vector<Scope<ParticleSpawnModule>> m_SpawnModules;
         std::vector<Scope<ParticleUpdateModule>> m_UpdateModules;
+
         std::string m_SpawnRateParamName;
         float m_SpawnRate = 0.0f; // per seconds
         float m_SpawnAccumulator = 0.0f;

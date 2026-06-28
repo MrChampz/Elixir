@@ -342,7 +342,18 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             float3 tangent = SafeNormalize(velocity, GetAttribute(attributes, 6u).xyz);
             SetAttribute(attributes, 8u, float4(tangent, 0.0));
         }
-        else if (type == 9u) // SetPositionOnCircle
+        else if (type == 4u) // SampleBox
+        {
+            float3 minBounds = op.Data0.xyz;
+            float3 maxBounds = op.Data1.xyz;
+
+            float2 seed = seedBase + float2(float(i) * 1.3, 5.7);
+            float3 random = RandomVector(seed).xyz;
+
+            float3 position = lerp(minBounds, maxBounds, random);
+            SetAttribute(attributes, target, float4(position, 0.0));
+        }
+        else if (type == 10u) // SetPositionOnCircle
         {
             float3 center = op.Data0.xyz;
             float radius = op.Data0.w;
@@ -359,7 +370,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
             SetAttribute(attributes, 4u, float4(0.0, 0.0, 0.0, 0.0));
         }
-        else if (type == 10u) // SetPositionCircularPath
+        else if (type == 11u) // SetPositionCircularPath
         {
             float3 baseOffset = op.Data0.xyz;
             float3 primaryAmplitude = op.Data1.xyz;
@@ -388,14 +399,14 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
             SetAttribute(attributes, 8u, float4(tangent, 0.0));
         }
-        else if (type == 11u) // SetRibbonIdFromSpawnOrder
+        else if (type == 12u) // SetRibbonIdFromSpawnOrder
         {
             uint ribbonCount = max(1u, (uint)op.Data0.x);
             uint firstRibbonId = (uint)op.Data0.y;
             uint ribbonId = firstRibbonId + (emissionIndex % ribbonCount);
             SetAttribute(attributes, target, float4(float(ribbonId), 0.0, 0.0, 0.0));
         }
-        else if (type == 12u) // SampleCurve
+        else if (type == 13u) // SampleCurve
         {
             float inputValue = ResolveDynamicInput(uint(op.Data0.x + 0.5), randomInput, particleSeed);
             float value = SampleCurve(param0, inputValue);

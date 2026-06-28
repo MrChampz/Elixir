@@ -55,6 +55,7 @@ namespace Elixir::Aether
         emitter.m_UUID = m_UUID;
         emitter.Name = m_Name;
         emitter.RenderMode = m_RenderMode;
+        emitter.SpriteTexture = m_SpriteTexture;
         emitter.MaxParticles = (uint32_t)m_Particles.size();
         emitter.GravityScale = paramStore.GetFloat("GravityScale", 1.0f);
         emitter.SpawnOpOffset = (uint32_t)ops.size();
@@ -76,6 +77,17 @@ namespace Elixir::Aether
                     UINT32_MAX,
                     { typed->GetCenter(), typed->GetRadius() },
                     { typed-> GetNormal(), 0.0f }
+                });
+            }
+            else if (const auto* typed = dynamic_cast<const SetPositionBox*>(module.get()))
+            {
+                ops.push_back({
+                    EParticleOp::SampleBox,
+                    EParticleAttribute::Position,
+                    UINT32_MAX,
+                    UINT32_MAX,
+                    { typed->GetMinBounds(), 0.0f },
+                    { typed->GetMaxBounds(), 0.0f }
                 });
             }
             else if (const auto* typed = dynamic_cast<const SetVelocityCone*>(module.get()))

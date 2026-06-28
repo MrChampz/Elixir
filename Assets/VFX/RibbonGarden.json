@@ -80,7 +80,7 @@
         { "type": "SetPositionDisk", "center": [0.0, -0.86, 0.0], "radius": 0.07 },
         { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 1.18, "minSpeed": 0.34, "maxSpeed": 0.82 },
         { "type": "SetLifetime", "min": 1.8, "max": 2.9 },
-        { "type": "SetSize", "min": 7.0, "max": 14.0 },
+        { "type": "SetSize", "min": 0.07, "max": 0.14 },
         { "type": "SetScale", "min": "$spawn_scale_min", "max": "$spawn_scale_max" },
         { "type": "SetColor", "color": "$spark_color_start" }
       ],
@@ -88,7 +88,7 @@
         { "type": "ApplyGravity", "gravity": "$gravity" },
         { "type": "ApplyLinearDrag", "drag": "$drag" },
         { "type": "ColorOverLife", "start": "$spark_color_start", "end": "$spark_color_end", "curve": "spark_color_curve", "input": "NormalizedAge" },
-        { "type": "SizeOverLife", "start": 14.0, "end": 2.0 },
+        { "type": "SizeOverLife", "start": 0.14, "end": 0.02 },
         { "type": "ScaleOverLife", "start": 1.0, "end": "$end_scale", "curve": "fountain_scale_curve", "input": "NormalizedAge" },
         { "type": "KillOutsideBounds", "min": [-1.45, -1.2, -1.45], "max": [1.45, 1.35, 1.45] }
       ]

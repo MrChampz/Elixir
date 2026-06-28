@@ -14,6 +14,7 @@ namespace Elixir::Aether
         RandomRange,
         SampleDisk,
         SampleCone,
+        SampleBox,
         AddWithDelta,
         Dampen,
         LerpOverLife,
@@ -81,6 +82,21 @@ namespace Elixir::Aether
         glm::vec3 m_Center;
         glm::vec3 m_Normal;
         float m_Radius;
+    };
+
+    class ELIXIR_API SetPositionBox final : public ParticleSpawnModule
+    {
+    public:
+        explicit SetPositionBox(glm::vec3 minBounds, glm::vec3 maxBounds);
+
+        void Apply(SParticle& particle, SSpawnContext& context, const ParameterStore& params) const override {}
+
+        glm::vec3 GetMinBounds() const { return m_MinBounds; }
+        glm::vec3 GetMaxBounds() const { return m_MaxBounds; }
+
+    private:
+        glm::vec3 m_MinBounds;
+        glm::vec3 m_MaxBounds;
     };
 
     class ELIXIR_API SetVelocityCone final : public ParticleSpawnModule

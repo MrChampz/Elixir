@@ -256,7 +256,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         {
             SetAttribute(attributes, target, ResolveValue(param0, op.Data0));
         }
-        else if (type == 4u) // AddWithDelta
+        else if (type == 5u) // AddWithDelta
         {
             float4 value = GetAttribute(attributes, target);
             float inputMultiplier = ResolveDynamicInput(uint(op.Data1.x + 0.5), life, particleSeed);
@@ -265,20 +265,20 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
             SetAttribute(attributes, target, value);
         }
-        else if (type == 5u) // Dampen
+        else if (type == 6u) // Dampen
         {
             float4 value = GetAttribute(attributes, target);
             value *= max(0.0, 1.0 - (ResolveValue(param0, op.Data0) * dt));
             SetAttribute(attributes, target, value);
         }
-        else if (type == 6u) // LerpOverLife
+        else if (type == 7u) // LerpOverLife
         {
             float4 value0 = ResolveValue(param0, op.Data0);
             float4 value1 = ResolveValue(param1, op.Data1);
             float4 value = lerp(value0, value1, life);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 7u) // KillOutsideBounds
+        else if (type == 8u) // KillOutsideBounds
         {
             float4 position = GetAttribute(attributes, 1u);
             bool outsideBounds = position.x < op.Data0.x || position.x > op.Data1.x ||
@@ -286,38 +286,38 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
                                  position.z < op.Data0.z || position.z > op.Data1.z;
             kill = kill || outsideBounds;
         }
-        else if (type == 8u) // AddFromAttribute
+        else if (type == 9u) // AddFromAttribute
         {
             float4 value = GetAttribute(attributes, target);
             float4 sourceValue = GetAttribute(attributes, uint(op.Data0.x + 0.5));
             value += sourceValue * (op.Data0.y * dt);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 12u) // SampleCurve
+        else if (type == 13u) // SampleCurve
         {
             float inputValue = ResolveDynamicInput(uint(op.Data0.x + 0.5), life, particleSeed);
             float value = SampleCurve(param0, inputValue);
             SetAttribute(attributes, target, float4(value, 0.0, 0.0, 0.0));
         }
-        else if (type == 13u) // SampleColorCurve
+        else if (type == 14u) // SampleColorCurve
         {
             float inputValue = ResolveDynamicInput(uint(op.Data0.x + 0.5), life, particleSeed);
             float4 value = SampleColorCurve(param0, inputValue);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 14u) // Add
+        else if (type == 15u) // Add
         {
             float4 value = GetAttribute(attributes, target);
             value += ResolveValue(param0, op.Data0);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 15u) // Mul
+        else if (type == 16u) // Mul
         {
             float4 value = GetAttribute(attributes, target);
             value *= ResolveValue(param0, op.Data0);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 16u) // Clamp
+        else if (type == 17u) // Clamp
         {
             float4 value = GetAttribute(attributes, target);
             float4 minValue = ResolveValue(param0, op.Data0);

@@ -1,6 +1,8 @@
 #include "epch.h"
 #include "Effect.h"
 
+#include <Engine/Graphics/TextureLoader.h>
+
 #include <magic_enum/magic_enum.hpp>
 #include <simdjson.h>
 
@@ -264,6 +266,39 @@ namespace Elixir::Aether
                 }
 
                 Fail("Field '{}' must be a number or a parameter reference.", key);
+                return result;
+            }
+
+            std::string ParseString(
+                od::object& object,
+                std::string_view key,
+                const std::string_view fallback = ""
+            )
+            {
+                std::string result{ fallback };
+                if (m_Failed) return result;
+
+                auto field = object[key];
+                if (field.error())
+                    return result;
+
+                od::json_type type;
+                if (field.type().get(type))
+                {
+                    Fail("Field '{}' has an invalid type.", key);
+                    return result;
+                }
+
+                if (type == od::json_type::string)
+                {
+                    std::string_view str;
+                    if (!field.get_string().get(str))
+                    {
+                        return std::string{ str };
+                    }
+                }
+
+                Fail("Field '{}' must be a string.", key);
                 return result;
             }
 
@@ -576,6 +611,14 @@ namespace Elixir::Aether
                         }
                     },
                     {
+                        "SetPositionBox", [](EffectParser& p, Emitter& e, od::object& o)
+                        {
+                            const glm::vec3 min = p.RequireFloatVec<3>(o, "min");
+                            const glm::vec3 max = p.RequireFloatVec<3>(o, "max");
+                            e.AddSpawnModule<SetPositionBox>(min, max);
+                        }
+                    },
+                    {
                         "SetVelocityCone", [](EffectParser& p, Emitter& e, od::object& o)
                         {
                             const glm::vec3 dir = p.RequireFloatVec<3>(o, "direction");
@@ -732,6 +775,7 @@ namespace Elixir::Aether
 
                 const std::string name = RequireString(json, "name");
                 const auto renderMode = ParseRenderMode(json, "renderMode");
+                const auto spriteTexture = ParseString(json, "spriteTexture", "");
                 const uint32_t maxParticles = RequireUInt(json, "maxParticles");
                 const auto spawnRate = ParseScalar(json, "spawnRate");
 
@@ -739,6 +783,13 @@ namespace Elixir::Aether
 
                 auto& emitter = system->AddEmitter(name, maxParticles, spawnRate.Value);
                 emitter.SetRenderMode(renderMode);
+
+                if (!spriteTexture.empty())
+                {
+                    const auto texture = TextureLoader::Load(spriteTexture);
+                    const auto tex2d = std::static_pointer_cast<Texture2D>(texture);
+                    emitter.SetSpriteTexture(tex2d);
+                }
 
                 if (!spawnRate.Param.empty())
                     emitter.SetSpawnRateParamName(spawnRate.Param);

@@ -64,11 +64,13 @@ namespace Elixir::Aether
         void Render(const SGPUSystem& system, const Camera& camera);
 
       private:
-        void InitRenderPass(const ShaderLoader* shaderLoader);
+        void Init(const ShaderLoader* shaderLoader);
         void CreateBuffers();
         void CreateMeshVertexBuffer();
         void InitPerFrameData();
-        void BindShaderParameters() const;
+        void BindShaderParameters();
+
+        uint32_t ResolveSpriteIndex(const Ref<Texture2D>& texture);
 
         void BeginRendering(const Ref<CommandBuffer>& cmd) const;
         void EndRendering(const Ref<CommandBuffer>& cmd) const;
@@ -106,6 +108,12 @@ namespace Elixir::Aether
         Ref<DynamicStorageBuffer> m_OpBuffer;
         Ref<DynamicStorageBuffer> m_ParameterBuffer;
         Ref<UniformBuffer> m_ParamsBuffer;
+
+        Ref<TextureSet> m_Sprites;
+        Ref<Sampler> m_SpriteSampler;
+        std::unordered_map<Ref<Texture2D>, SResourceHandle> m_SpriteTextures;
+
+        SResourceHandle m_WhiteTextureHandle{};
 
         uint32_t m_MeshVertexCount = 0;
         Ref<VertexBuffer> m_MeshVertexBuffer;

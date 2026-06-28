@@ -30,11 +30,16 @@ namespace Elixir::Aether
     struct SGPUSystem
     {
         std::string Name;
+
         std::vector<SGPUEmitter> Emitters;
         std::vector<SGPUParticleOp> Ops;
+
         std::vector<SGPUParameter> Parameters;
         std::vector<SGPUCurve> Curves;
         std::vector<SGPUColorCurve> ColorCurves;
+
+        std::vector<std::string> SpriteTextures;
+
         uint32_t TotalMaxParticles = 0;
     };
 
@@ -62,9 +67,11 @@ namespace Elixir::Aether
 
       private:
         std::string m_Name;
+
         ParameterStore m_Parameters;
         CurveStore m_Curves;
         ColorCurveStore m_ColorCurves;
+
         std::vector<Scope<Emitter>> m_Emitters;
         std::vector<SRenderParticle> m_RenderParticles;
     };

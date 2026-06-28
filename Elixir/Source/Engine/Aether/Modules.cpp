@@ -10,6 +10,11 @@ namespace Elixir::Aether
     SetPositionDisk::SetPositionDisk(const glm::vec3 center, const float radius, const glm::vec3 normal)
         : m_Center(center), m_Normal(normal), m_Radius(radius) {}
 
+    /* SetPositionBox */
+
+    SetPositionBox::SetPositionBox(const glm::vec3 minBounds, const glm::vec3 maxBounds)
+        : m_MinBounds(minBounds), m_MaxBounds(maxBounds) {}
+
     /* SetVelocityCone */
 
     SetVelocityCone::SetVelocityCone(

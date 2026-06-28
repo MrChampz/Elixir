@@ -1,7 +1,9 @@
 #include "epch.h"
 #include "Renderer.h"
 
+#include "Engine/Core/Color.h"
 #include "Engine/Graphics/CommandBuffer.h"
+#include "Engine/Graphics/SamplerBuilder.h"
 #include "Engine/Graphics/Pipeline/PipelineBuilder.h"
 
 namespace Elixir::Aether
@@ -15,6 +17,11 @@ namespace Elixir::Aether
     struct SSpawnPushConstants
     {
         uint32_t EmitterIndex = 0;
+    };
+
+    struct SSpritePushConstants
+    {
+        uint32_t SpriteIndex = 0;
     };
 
     struct SRibbonPushConstants
@@ -82,7 +89,7 @@ namespace Elixir::Aether
     {
         EE_CORE_INFO("Initializing Aether Renderer.")
 
-        InitRenderPass(shaderLoader);
+        Init(shaderLoader);
         CreateBuffers();
         InitPerFrameData();
         BindShaderParameters();
@@ -194,8 +201,8 @@ namespace Elixir::Aether
                     spritePipelineBound = false;
                 }
 
-                const SRibbonPushConstants pushConstants{ i };
-                m_RibbonShader->SetPushConstant(cmd, "pc", (void*)&pushConstants, sizeof(SRibbonPushConstants));
+                const SRibbonPushConstants pc{ i };
+                m_RibbonShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(SRibbonPushConstants));
 
                 cmd->Draw(emitter.MaxParticles * 6);
                 continue;
@@ -209,27 +216,17 @@ namespace Elixir::Aether
                 ribbonPipelineBound = false;
             }
 
-            cmd->Draw(emitter.MaxParticles, 1, emitter.ParticleOffset);
+            const SSpritePushConstants pc{ ResolveSpriteIndex(emitter.SpriteTexture) };
+            m_SpriteShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(SSpritePushConstants));
+
+            cmd->Draw(6, emitter.MaxParticles, 0, emitter.ParticleOffset);
         }
 
         EndRendering(cmd);
     }
 
-    void Renderer::InitRenderPass(const ShaderLoader* shaderLoader)
+    void Renderer::Init(const ShaderLoader* shaderLoader)
     {
-        const BufferLayout bufferLayout({
-            {
-                {
-                    { EDataType::Vec4,  "PositionSize"    },
-                    { EDataType::Vec4,  "VelocityAge"     },
-                    { EDataType::Vec4,  "Transform"       },
-                    { EDataType::Vec4,  "TangentRibbonId" },
-                    { EDataType::Vec4,  "Color"           },
-                    { EDataType::Vec4,  "Metadata"        }
-                }
-            }
-        });
-
         m_SpawnShader = shaderLoader->LoadShader(
             "./Shaders/Aether/",
             std::array<std::string_view, 1>{ "ParticlesSpawn" },
@@ -269,17 +266,34 @@ namespace Elixir::Aether
         pipelineInfo.Shader = m_UpdateShader;
         m_UpdatePipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
 
+        const BufferLayout spriteBufferLayout({
+            {
+                {
+                    { EDataType::Vec4,  "PositionSize"    },
+                    { EDataType::Vec4,  "VelocityAge"     },
+                    { EDataType::Vec4,  "Transform"       },
+                    { EDataType::Vec4,  "TangentRibbonId" },
+                    { EDataType::Vec4,  "Color"           },
+                    { EDataType::Vec4,  "Metadata"        }
+                },
+                EInputRate::Instance
+            }
+        });
+
         PipelineBuilder spriteBuilder;
         spriteBuilder.SetShader(m_SpriteShader);
-        spriteBuilder.SetInputTopology(EPrimitiveTopology::PointList);
+        spriteBuilder.SetInputTopology(EPrimitiveTopology::TriangleList);
         spriteBuilder.SetPolygonMode(EPolygonMode::Fill);
         spriteBuilder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
         spriteBuilder.EnableAlphaBlending();
         spriteBuilder.DisableDepthTest();
         spriteBuilder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
         spriteBuilder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
-        spriteBuilder.SetBufferLayout(bufferLayout);
+        spriteBuilder.SetBufferLayout(spriteBufferLayout);
         m_SpritePipeline = spriteBuilder.Build(m_GraphicsContext);
+
+        m_Sprites = TextureSet::Create(m_GraphicsContext);
+        m_SpriteSampler = SamplerBuilder().Build(m_GraphicsContext);
 
         PipelineBuilder ribbonBuilder;
         ribbonBuilder.SetShader(m_RibbonShader);
@@ -408,7 +422,7 @@ namespace Elixir::Aether
         );
     }
 
-    void Renderer::BindShaderParameters() const
+    void Renderer::BindShaderParameters()
     {
         constexpr SSpawnPushConstants pushConstants{ 0 };
         m_SpawnShader->SetPushConstant("pc", (void*)&pushConstants, sizeof(SSpawnPushConstants));
@@ -424,7 +438,20 @@ namespace Elixir::Aether
         m_UpdateShader->BindStorageBuffer("parameters", m_ParameterBuffer);
         m_UpdateShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
 
+        const auto whiteTex = Texture2D::Create(
+            m_GraphicsContext,
+            EImageFormat::R8G8B8A8_SRGB,
+            1, 1,
+            &Color::WhiteAlpha
+        );
+
+        m_WhiteTextureHandle = m_Sprites->AddTexture(whiteTex);
+
+        const SSpritePushConstants spritePc{ m_WhiteTextureHandle.Index };
+        m_SpriteShader->SetPushConstant("pc", (void*)&spritePc, sizeof(SSpritePushConstants));
         m_SpriteShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
+        m_SpriteShader->BindTextureSet("sprites", m_Sprites);
+        m_SpriteShader->BindSampler("spriteSampler", m_SpriteSampler);
 
         constexpr SRibbonPushConstants ribbonPc{ 0 };
         m_RibbonShader->SetPushConstant("pc", (void*)&ribbonPc, sizeof(SRibbonPushConstants));
@@ -433,6 +460,20 @@ namespace Elixir::Aether
         m_RibbonShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
 
         m_MeshShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
+    }
+
+    uint32_t Renderer::ResolveSpriteIndex(const Ref<Texture2D>& texture)
+    {
+        if (!texture)
+            return m_WhiteTextureHandle.Index;
+
+        if (const auto it = m_SpriteTextures.find(texture); it != m_SpriteTextures.end())
+            return it->second.Index;
+
+        const auto handle = m_Sprites->AddTexture(texture);
+        m_SpriteTextures[texture] = handle;
+
+        return handle.Index;
     }
 
     void Renderer::BeginRendering(const Ref<CommandBuffer>& cmd) const
