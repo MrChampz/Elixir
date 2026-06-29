@@ -510,6 +510,29 @@ namespace Elixir::Aether
 
     void Renderer::UpdateBuffers(const SGPUSystem& system)
     {
+        // The GPU buffers are fixed-capacity. If the built system exceeds any of
+        // them, the copy below clamps silently while emitter op offsets/counts
+        // (computed without these limits in Emitter::Build) keep pointing past
+        // the uploaded range — i.e. out-of-bounds reads on the GPU. Surface it
+        // loudly once instead of corrupting the dispatch.
+        if (!m_CapacityErrorReported &&
+            (system.Emitters.size()   > MAX_EMITTERS ||
+             system.Ops.size()        > MAX_OPS      ||
+             system.Parameters.size() > MAX_PARAMETERS))
+        {
+
+            EE_CORE_ERROR(
+                "Aether system '{}' exceeds renderer capacity and will be truncated "
+                "(emitters {}/{}, ops {}/{}, parameters {}/{}).",
+                system.Name,
+                system.Emitters.size(),   MAX_EMITTERS,
+                system.Ops.size(),        MAX_OPS,
+                system.Parameters.size(), MAX_PARAMETERS
+            )
+
+            m_CapacityErrorReported = true;
+        }
+
         SParamsData params{};
 
         params.Time = {

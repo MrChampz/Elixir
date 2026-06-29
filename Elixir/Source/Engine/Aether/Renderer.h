@@ -122,6 +122,8 @@ namespace Elixir::Aether
         float m_LastDeltaTimeSeconds = 0.0f;
         float m_ElapsedTimeSeconds = 0.0f;
 
+        bool m_CapacityErrorReported = false;
+
         Extent2D m_RenderExtent{};
         const GraphicsContext* m_GraphicsContext;
     };

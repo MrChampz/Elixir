@@ -1,6 +1,8 @@
 #include "epch.h"
 #include "Effect.h"
 
+#include <limits>
+
 #include <Engine/Graphics/TextureLoader.h>
 
 #include <magic_enum/magic_enum.hpp>
@@ -90,6 +92,12 @@ namespace Elixir::Aether
                 if (field.error() || field.get_uint64().get(value))
                 {
                     Fail("Field '{}' must be an unsigned integer.", key);
+                    return 0;
+                }
+
+                if (value > std::numeric_limits<uint32_t>::max())
+                {
+                    Fail("Field '{}' exceeds uint32 range.", key);
                     return 0;
                 }
 
