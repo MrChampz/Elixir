@@ -688,7 +688,11 @@ namespace Elixir::Aether
                         {
                             const auto start = s.ParseFloat4(j, "start");
                             const auto end = s.ParseFloat4(j, "end");
-                            e.AddUpdateModule<ColorOverLife>(start.Value, end.Value).BindParameters(start.Param, end.Param);
+                            auto& module = e.AddUpdateModule<ColorOverLife>(start.Value, end.Value);
+                            module.BindParameters(start.Param, end.Param);
+
+                            if (s.HasField(j, "curve"))
+                                module.BindCurve(s.RequireString(j, "curve"), s.ParseDynamicInput(j, "input"));
                         }
                     },
                     {
@@ -720,10 +724,11 @@ namespace Elixir::Aether
                         {
                             const auto start = s.ParseScalar(j, "start");
                             const auto end = s.ParseScalar(j, "end");
-                            auto& m = e.AddUpdateModule<ScaleOverLife>(start.Value, end.Value);
-                            m.BindParameters(start.Param, end.Param);
+                            auto& module = e.AddUpdateModule<ScaleOverLife>(start.Value, end.Value);
+                            module.BindParameters(start.Param, end.Param);
+
                             if (s.HasField(j, "curve"))
-                                m.BindCurve(s.RequireString(j, "curve"), s.ParseDynamicInput(j, "input"));
+                                module.BindCurve(s.RequireString(j, "curve"), s.ParseDynamicInput(j, "input"));
                         }
                     },
                     {
