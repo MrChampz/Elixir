@@ -1,0 +1,95 @@
+{
+  "name": "Rain Storm",
+  "parameters": {
+    "gravityScale": 1.0,
+    "rain_drop_start": [0.78, 0.88, 1.0, 0.82],
+    "rain_drop_end": [0.58, 0.72, 0.94, 0.0],
+    "mist_start": [0.66, 0.74, 0.84, 0.14],
+    "mist_end": [0.40, 0.46, 0.58, 0.0]
+  },
+  "curves": {
+    "rain_scale_curve": [1.0, 0.98, 0.94, 0.82, 0.62, 0.44, 0.26, 0.08],
+    "mist_scale_curve": [0.4, 0.72, 0.94, 1.08, 1.0, 0.82, 0.56, 0.22]
+  },
+  "colorCurves": {
+    "rain_color_curve": [
+      [0.84, 0.92, 1.0, 0.88],
+      [0.78, 0.88, 1.0, 0.82],
+      [0.74, 0.86, 1.0, 0.74],
+      [0.70, 0.82, 0.98, 0.62],
+      [0.66, 0.78, 0.98, 0.46],
+      [0.62, 0.76, 0.96, 0.28],
+      [0.60, 0.74, 0.95, 0.12],
+      [0.58, 0.72, 0.94, 0.0]
+    ],
+    "mist_color_curve": [
+      [0.72, 0.80, 0.88, 0.18],
+      [0.68, 0.76, 0.86, 0.16],
+      [0.64, 0.72, 0.82, 0.14],
+      [0.60, 0.68, 0.78, 0.12],
+      [0.54, 0.62, 0.72, 0.10],
+      [0.48, 0.56, 0.66, 0.07],
+      [0.44, 0.50, 0.60, 0.04],
+      [0.40, 0.46, 0.58, 0.0]
+    ]
+  },
+  "emitters": [
+    {
+      "name": "RainDrops",
+      "renderMode": "Sprite",
+      "spriteTexture": "./Assets/Textures/RainDrop.png",
+      "maxParticles": 5600,
+      "spawnRate": "$spawn_rate",
+      "parameters": {
+        "spawn_rate": 1780.0,
+        "drag": 0.015,
+        "gravity": [0.0, -0.02, 0.0, 0.0],
+        "drop_scale_min": 0.85,
+        "drop_scale_max": 1.35
+      },
+      "spawnModules": [
+        { "type": "SetPositionBox", "min": [-1.65, 1.02, -1.65], "max": [1.65, 1.38, 1.65] },
+        { "type": "SetVelocityCone", "direction": [0.0, -1.0, 0.0], "angle": -1.82, "minSpeed": 2.20, "maxSpeed": 3.60 },
+        { "type": "SetLifetime", "min": 0.75, "max": 1.08 },
+        { "type": "SetSize", "min": 0.065, "max": 0.115 },
+        { "type": "SetScale", "min": "$drop_scale_min", "max": "$drop_scale_max" },
+        { "type": "SetColor", "color": "$rain_drop_start" }
+      ],
+      "updateModules": [
+        { "type": "ApplyGravity", "gravity": "$gravity" },
+        { "type": "ApplyLinearDrag", "drag": "$drag" },
+        { "type": "ColorOverLife", "start": "$rain_drop_start", "end": "$rain_drop_end", "curve": "rain_color_curve", "input": "NormalizedAge" },
+        { "type": "SizeOverLife", "start": 0.1, "end": 0.024 },
+        { "type": "ScaleOverLife", "start": 1.1, "end": 0.18, "curve": "rain_scale_curve", "input": "NormalizedAge" },
+        { "type": "KillOutsideBounds", "min": [-1.7, -1.25, -1.7], "max": [1.7, 1.35, 1.7] }
+      ]
+    },
+    {
+      "name": "GroundMist",
+      "renderMode": "Sprite",
+      "spriteTexture": "./Assets/Textures/RainDrop.png",
+      "maxParticles": 640,
+      "spawnRate": "$spawn_rate",
+      "parameters": {
+        "spawn_rate": 150.0,
+        "drag": 0.06,
+        "gravity": [0.0, 0.02, 0.0, 0.0]
+      },
+      "spawnModules": [
+        { "type": "SetPositionBox", "min": [-1.45, -1.06, -1.45], "max": [1.45, -0.92, 1.45] },
+        { "type": "SetVelocityCone", "direction": [0.0, -1.0, 0.0], "angle": 1.36, "minSpeed": 0.04, "maxSpeed": 0.16 },
+        { "type": "SetLifetime", "min": 1.4, "max": 2.2 },
+        { "type": "SetSize", "min": 0.18, "max": 0.34 },
+        { "type": "SetScale", "min": 0.7, "max": 1.2 },
+        { "type": "SetColor", "color": "$mist_start" }
+      ],
+      "updateModules": [
+        { "type": "ApplyGravity", "gravity": "$gravity" },
+        { "type": "ApplyLinearDrag", "drag": "$drag" },
+        { "type": "ColorOverLife", "start": "$mist_start", "end": "$mist_end", "curve": "mist_color_curve", "input": "NormalizedAge" },
+        { "type": "ScaleOverLife", "start": 0.5, "end": 1.4, "curve": "mist_scale_curve", "input": "NormalizedAge" },
+        { "type": "KillOutsideBounds", "min": [-1.7, -1.25, -1.7], "max": [1.7, 1.35, 1.7] }
+      ]
+    }
+  ]
+}

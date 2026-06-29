@@ -1,7 +1,9 @@
 #include "epch.h"
 #include "Renderer.h"
 
+#include "Engine/Core/Color.h"
 #include "Engine/Graphics/CommandBuffer.h"
+#include "Engine/Graphics/SamplerBuilder.h"
 #include "Engine/Graphics/Pipeline/PipelineBuilder.h"
 
 namespace Elixir::Aether
@@ -17,6 +19,11 @@ namespace Elixir::Aether
         uint32_t EmitterIndex = 0;
     };
 
+    struct SSpritePushConstants
+    {
+        uint32_t SpriteIndex = 0;
+    };
+
     struct SRibbonPushConstants
     {
         uint32_t EmitterIndex = 0;
@@ -28,13 +35,13 @@ namespace Elixir::Aether
         desc.MetaA = {
             emitter.ParticleOffset,
             emitter.MaxParticles,
-            emitter.SpawnModuleOffset,
-            emitter.SpawnModuleCount
+            emitter.SpawnOpOffset,
+            emitter.SpawnOpCount
         };
 
         desc.MetaB = {
-            emitter.UpdateModuleOffset,
-            emitter.UpdateModuleCount,
+            emitter.UpdateOpOffset,
+            emitter.UpdateOpCount,
             0.0,
             0.0
         };
@@ -51,20 +58,20 @@ namespace Elixir::Aether
         return desc;
     }
 
-    SModuleData ToModuleDescription(const SGPUModule& module)
+    SParticleOpData ToOpDescription(const SGPUParticleOp& op)
     {
-        SModuleData desc{};
+        SParticleOpData desc{};
 
         desc.Header = {
-            (float)(uint32_t)module.Type,
-            (float)module.Target,
-            module.Parameter0Index == UINT32_MAX ? -1.0f : module.Parameter0Index,
-            module.Parameter1Index == UINT32_MAX ? -1.0f : module.Parameter1Index
+            (float)(uint32_t)op.Type,
+            (float)op.Target,
+            op.Parameter0Index == UINT32_MAX ? -1.0f : (float)op.Parameter0Index,
+            op.Parameter1Index == UINT32_MAX ? -1.0f : (float)op.Parameter1Index
         };
 
-        desc.Data0 = module.Data0;
-        desc.Data1 = module.Data1;
-        desc.Data2 = module.Data2;
+        desc.Data0 = op.Data0;
+        desc.Data1 = op.Data1;
+        desc.Data2 = op.Data2;
 
         return desc;
     }
@@ -82,7 +89,7 @@ namespace Elixir::Aether
     {
         EE_CORE_INFO("Initializing Aether Renderer.")
 
-        InitRenderPass(shaderLoader);
+        Init(shaderLoader);
         CreateBuffers();
         InitPerFrameData();
         BindShaderParameters();
@@ -194,8 +201,8 @@ namespace Elixir::Aether
                     spritePipelineBound = false;
                 }
 
-                const SRibbonPushConstants pushConstants{ i };
-                m_RibbonShader->SetPushConstant(cmd, "pc", (void*)&pushConstants, sizeof(SRibbonPushConstants));
+                const SRibbonPushConstants pc{ i };
+                m_RibbonShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(SRibbonPushConstants));
 
                 cmd->Draw(emitter.MaxParticles * 6);
                 continue;
@@ -203,32 +210,23 @@ namespace Elixir::Aether
 
             if (!spritePipelineBound)
             {
-                m_RendererPipeline->Bind(cmd);
+                m_SpritePipeline->Bind(cmd);
                 m_ParticleBuffer->BindAs<VertexBuffer>(cmd);
                 spritePipelineBound = true;
                 ribbonPipelineBound = false;
             }
 
-            cmd->Draw(emitter.MaxParticles, 1, emitter.ParticleOffset);
+            const SSpritePushConstants pc{ ResolveSpriteIndex(emitter.SpriteTexture) };
+            m_SpriteShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(SSpritePushConstants));
+
+            cmd->Draw(6, emitter.MaxParticles, 0, emitter.ParticleOffset);
         }
 
         EndRendering(cmd);
     }
 
-    void Renderer::InitRenderPass(const ShaderLoader* shaderLoader)
+    void Renderer::Init(const ShaderLoader* shaderLoader)
     {
-        const BufferLayout bufferLayout({
-            {
-                {
-                    { EDataType::Vec4,  "PositionSize" },
-                    { EDataType::Vec4,  "VelocityAge"  },
-                    { EDataType::Vec4,  "Tangent"      },
-                    { EDataType::Vec4,  "Color"        },
-                    { EDataType::Vec4,  "Metadata"     }
-                }
-            }
-        });
-
         m_SpawnShader = shaderLoader->LoadShader(
             "./Shaders/Aether/",
             std::array<std::string_view, 1>{ "ParticlesSpawn" },
@@ -243,10 +241,10 @@ namespace Elixir::Aether
             EShaderStage::Compute
         );
 
-        m_RendererShader = shaderLoader->LoadShader(
+        m_SpriteShader = shaderLoader->LoadShader(
             "./Shaders/Aether/",
-            std::array<std::string_view, 1>{ "Particles" },
-            "ParticlesRenderer"
+            std::array<std::string_view, 1>{ "Sprite" },
+            "SpriteRenderer"
         );
 
         m_RibbonShader = shaderLoader->LoadShader(
@@ -268,17 +266,34 @@ namespace Elixir::Aether
         pipelineInfo.Shader = m_UpdateShader;
         m_UpdatePipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
 
-        PipelineBuilder builder;
-        builder.SetShader(m_RendererShader);
-        builder.SetInputTopology(EPrimitiveTopology::PointList);
-        builder.SetPolygonMode(EPolygonMode::Fill);
-        builder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
-        builder.EnableAlphaBlending();
-        builder.DisableDepthTest();
-        builder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
-        builder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
-        builder.SetBufferLayout(bufferLayout);
-        m_RendererPipeline = builder.Build(m_GraphicsContext);
+        const BufferLayout spriteBufferLayout({
+            {
+                {
+                    { EDataType::Vec4,  "PositionSize"    },
+                    { EDataType::Vec4,  "VelocityAge"     },
+                    { EDataType::Vec4,  "Transform"       },
+                    { EDataType::Vec4,  "TangentRibbonId" },
+                    { EDataType::Vec4,  "Color"           },
+                    { EDataType::Vec4,  "Metadata"        }
+                },
+                EInputRate::Instance
+            }
+        });
+
+        PipelineBuilder spriteBuilder;
+        spriteBuilder.SetShader(m_SpriteShader);
+        spriteBuilder.SetInputTopology(EPrimitiveTopology::TriangleList);
+        spriteBuilder.SetPolygonMode(EPolygonMode::Fill);
+        spriteBuilder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
+        spriteBuilder.EnableAlphaBlending();
+        spriteBuilder.DisableDepthTest();
+        spriteBuilder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
+        spriteBuilder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
+        spriteBuilder.SetBufferLayout(spriteBufferLayout);
+        m_SpritePipeline = spriteBuilder.Build(m_GraphicsContext);
+
+        m_Sprites = TextureSet::Create(m_GraphicsContext);
+        m_SpriteSampler = SamplerBuilder().Build(m_GraphicsContext);
 
         PipelineBuilder ribbonBuilder;
         ribbonBuilder.SetShader(m_RibbonShader);
@@ -302,11 +317,12 @@ namespace Elixir::Aether
             },
             {
                 {
-                    { EDataType::Vec4,  "PositionSize" },
-                    { EDataType::Vec4,  "VelocityAge"  },
-                    { EDataType::Vec4,  "Tangent"      },
-                    { EDataType::Vec4,  "Color"        },
-                    { EDataType::Vec4,  "Metadata"     }
+                    { EDataType::Vec4,  "PositionSize"    },
+                    { EDataType::Vec4,  "VelocityAge"     },
+                    { EDataType::Vec4,  "Transform"       },
+                    { EDataType::Vec4,  "TangentRibbonId" },
+                    { EDataType::Vec4,  "Color"           },
+                    { EDataType::Vec4,  "Metadata"        }
                 },
                 EInputRate::Instance
             }
@@ -334,7 +350,7 @@ namespace Elixir::Aether
     {
         m_ParticleBuffer = StorageBuffer::Create(m_GraphicsContext, sizeof(SGPUParticleState) * MAX_PARTICLES);
         m_EmitterBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SEmitterData) * MAX_EMITTERS);
-        m_ModuleBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SModuleData) * MAX_MODULES);
+        m_OpBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SParticleOpData) * MAX_OPS);
         m_ParameterBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SParameterData) * MAX_PARAMETERS);
         m_ParamsBuffer = UniformBuffer::Create(m_GraphicsContext, sizeof(SParamsData));
 
@@ -406,23 +422,36 @@ namespace Elixir::Aether
         );
     }
 
-    void Renderer::BindShaderParameters() const
+    void Renderer::BindShaderParameters()
     {
         constexpr SSpawnPushConstants pushConstants{ 0 };
         m_SpawnShader->SetPushConstant("pc", (void*)&pushConstants, sizeof(SSpawnPushConstants));
         m_SpawnShader->BindStorageBuffer("particles", m_ParticleBuffer);
         m_SpawnShader->BindStorageBuffer("emitters", m_EmitterBuffer);
-        m_SpawnShader->BindStorageBuffer("modules", m_ModuleBuffer);
+        m_SpawnShader->BindStorageBuffer("ops", m_OpBuffer);
         m_SpawnShader->BindStorageBuffer("parameters", m_ParameterBuffer);
         m_SpawnShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
 
         m_UpdateShader->BindStorageBuffer("particles", m_ParticleBuffer);
         m_UpdateShader->BindStorageBuffer("emitters", m_EmitterBuffer);
-        m_UpdateShader->BindStorageBuffer("modules", m_ModuleBuffer);
+        m_UpdateShader->BindStorageBuffer("ops", m_OpBuffer);
         m_UpdateShader->BindStorageBuffer("parameters", m_ParameterBuffer);
         m_UpdateShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
 
-        m_RendererShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
+        const auto whiteTex = Texture2D::Create(
+            m_GraphicsContext,
+            EImageFormat::R8G8B8A8_SRGB,
+            1, 1,
+            &Color::WhiteAlpha
+        );
+
+        m_WhiteTextureHandle = m_Sprites->AddTexture(whiteTex);
+
+        const SSpritePushConstants spritePc{ m_WhiteTextureHandle.Index };
+        m_SpriteShader->SetPushConstant("pc", (void*)&spritePc, sizeof(SSpritePushConstants));
+        m_SpriteShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
+        m_SpriteShader->BindTextureSet("sprites", m_Sprites);
+        m_SpriteShader->BindSampler("spriteSampler", m_SpriteSampler);
 
         constexpr SRibbonPushConstants ribbonPc{ 0 };
         m_RibbonShader->SetPushConstant("pc", (void*)&ribbonPc, sizeof(SRibbonPushConstants));
@@ -431,6 +460,20 @@ namespace Elixir::Aether
         m_RibbonShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
 
         m_MeshShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
+    }
+
+    uint32_t Renderer::ResolveSpriteIndex(const Ref<Texture2D>& texture)
+    {
+        if (!texture)
+            return m_WhiteTextureHandle.Index;
+
+        if (const auto it = m_SpriteTextures.find(texture); it != m_SpriteTextures.end())
+            return it->second.Index;
+
+        const auto handle = m_Sprites->AddTexture(texture);
+        m_SpriteTextures[texture] = handle;
+
+        return handle.Index;
     }
 
     void Renderer::BeginRendering(const Ref<CommandBuffer>& cmd) const
@@ -445,8 +488,8 @@ namespace Elixir::Aether
         Viewport viewport = {};
         viewport.X = 0;
         viewport.Y = 0;
-        viewport.Width = m_RenderExtent.Width;
-        viewport.Height = m_RenderExtent.Height;
+        viewport.Width = (float)m_RenderExtent.Width;
+        viewport.Height = (float)m_RenderExtent.Height;
         viewport.MinDepth = 0.0f;
         viewport.MaxDepth = 1.0f;
 
@@ -467,6 +510,29 @@ namespace Elixir::Aether
 
     void Renderer::UpdateBuffers(const SGPUSystem& system)
     {
+        // The GPU buffers are fixed-capacity. If the built system exceeds any of
+        // them, the copy below clamps silently while emitter op offsets/counts
+        // (computed without these limits in Emitter::Build) keep pointing past
+        // the uploaded range — i.e. out-of-bounds reads on the GPU. Surface it
+        // loudly once instead of corrupting the dispatch.
+        if (!m_CapacityErrorReported &&
+            (system.Emitters.size()   > MAX_EMITTERS ||
+             system.Ops.size()        > MAX_OPS      ||
+             system.Parameters.size() > MAX_PARAMETERS))
+        {
+
+            EE_CORE_ERROR(
+                "Aether system '{}' exceeds renderer capacity and will be truncated "
+                "(emitters {}/{}, ops {}/{}, parameters {}/{}).",
+                system.Name,
+                system.Emitters.size(),   MAX_EMITTERS,
+                system.Ops.size(),        MAX_OPS,
+                system.Parameters.size(), MAX_PARAMETERS
+            )
+
+            m_CapacityErrorReported = true;
+        }
+
         SParamsData params{};
 
         params.Time = {
@@ -505,8 +571,8 @@ namespace Elixir::Aether
                 ? (emitterState.BufferCursor + spawnCount) % emitter.MaxParticles
                 : 0u;
 
-            desc.MetaB.x = (float)emitter.UpdateModuleOffset;
-            desc.MetaB.y = (float)emitter.UpdateModuleCount;
+            desc.MetaB.x = (float)emitter.UpdateOpOffset;
+            desc.MetaB.y = (float)emitter.UpdateOpCount;
             desc.MetaB.z = (float)emitterState.BufferCursor;
             desc.MetaB.w = (float)spawnCount;
             desc.MetaC.w = (float)nextBufferCursor;
@@ -526,12 +592,12 @@ namespace Elixir::Aether
         for (size_t i = emitterCount; i < MAX_EMITTERS; ++i)
             emitters[i] = {};
 
-        auto* modules = (SModuleData*)m_ModuleBuffer->Map();
-        const size_t moduleCount = std::min(system.Modules.size(), (size_t)MAX_MODULES);
-        for (size_t i = 0; i < moduleCount; ++i)
-            modules[i] = ToModuleDescription(system.Modules[i]);
-        for (size_t i = moduleCount; i < MAX_MODULES; ++i)
-            modules[i] = {};
+        auto* ops = (SParticleOpData*)m_OpBuffer->Map();
+        const size_t opCount = std::min(system.Ops.size(), (size_t)MAX_OPS);
+        for (size_t i = 0; i < opCount; ++i)
+            ops[i] = ToOpDescription(system.Ops[i]);
+        for (size_t i = opCount; i < MAX_OPS; ++i)
+            ops[i] = {};
 
         auto* parameters = (SParameterData*)m_ParameterBuffer->Map();
         const size_t parameterCount = std::min(system.Parameters.size(), (size_t)MAX_PARAMETERS);

@@ -3,31 +3,7 @@
 
 namespace Elixir::Aether
 {
-    uint32_t FindParameterIndex(
-        const std::vector<SGPUParameter>& parameters,
-        const std::string& name
-    )
-    {
-        for (uint32_t i = 0; i < parameters.size(); ++i)
-        {
-            if (parameters[i].Name == name)
-                return i;
-        }
-        return UINT32_MAX;
-    }
-
     System::System(const std::string& name) : m_Name(name) {}
-
-    void System::Update(const Timestep& timestep)
-    {
-        m_RenderParticles.clear();
-
-        for (auto& emitter : m_Emitters)
-        {
-            emitter->Update(timestep, m_Parameters);
-            emitter->GatherRenderParticles(m_RenderParticles);
-        }
-    }
 
     Emitter& System::AddEmitter(
         const std::string& name,
@@ -46,41 +22,59 @@ namespace Elixir::Aether
 
         system.Parameters = m_Parameters.Compile();
 
+        const auto systemCurves = m_Curves.Compile();
+        system.Curves.insert(system.Curves.end(), systemCurves.begin(), systemCurves.end());
+
+        const auto systemColorCurves = m_ColorCurves.Compile();
+        system.ColorCurves.insert(system.ColorCurves.end(), systemColorCurves.begin(), systemColorCurves.end());
+
+        for (const auto& emitter : m_Emitters)
+        {
+            const auto prefix = emitter->GetName() + ".";
+
+            const auto emitterParams = emitter->GetParameters().Compile(prefix);
+            system.Parameters.insert(system.Parameters.end(), emitterParams.begin(), emitterParams.end());
+
+            const auto emitterCurves = emitter->GetCurves().Compile(prefix);
+            system.Curves.insert(system.Curves.end(), emitterCurves.begin(), emitterCurves.end());
+
+            const auto emitterColorCurves = emitter->GetColorCurves().Compile(prefix);
+            system.ColorCurves.insert(system.ColorCurves.end(), emitterColorCurves.begin(), emitterColorCurves.end());
+        }
+
+        for (const auto& curve : system.Curves)
+        {
+            std::vector<float> samples = curve.Samples;
+
+            if (samples.empty())
+                samples = { 1.0f };
+
+            if (samples.size() < 8)
+                samples.resize(8, samples.back());
+
+            system.Parameters.push_back({ curve.Name + ":0", CurveChunk(samples, 0) });
+            system.Parameters.push_back({ curve.Name + ":1", CurveChunk(samples, 1) });
+        }
+
+        for (const auto& curve : system.ColorCurves)
+        {
+            const auto baked = BakeColorCurve(curve.Samples);
+            for (std::size_t i = 0; i < 8; ++i)
+                system.Parameters.push_back({ curve.Name + ":" + std::to_string(i), baked[i] });
+        }
+
         uint32_t particleOffset = 0;
         system.Emitters.reserve(m_Emitters.size());
 
         for (const auto& emitter : m_Emitters)
         {
-            auto desc = emitter->Build(m_Parameters, system.Modules);
+            auto desc = emitter->Build(m_Parameters, system.Parameters, system.Ops);
             desc.ParticleOffset = particleOffset;
 
             particleOffset += desc.MaxParticles;
             system.TotalMaxParticles += desc.MaxParticles;
 
             system.Emitters.push_back(desc);
-        }
-
-        // TEMPORARY
-        const uint32_t canopyColorStart = FindParameterIndex(system.Parameters, "CanopyColorStart");
-        const uint32_t canopyColorEnd = FindParameterIndex(system.Parameters, "CanopyColorEnd");
-        const uint32_t sparksColorStart = FindParameterIndex(system.Parameters, "SparkColorStart");
-        const uint32_t sparksColorEnd = FindParameterIndex(system.Parameters, "SparkColorEnd");
-
-        for (auto& module : system.Modules)
-        {
-            if (module.Type != EModuleType::ColorOverLife)
-                continue;
-
-            if (module.Data0.x < 0.8f)
-            {
-                module.Parameter0Index = canopyColorStart;
-                module.Parameter1Index = canopyColorEnd;
-            }
-            else
-            {
-                module.Parameter0Index = sparksColorStart;
-                module.Parameter1Index = sparksColorEnd;
-            }
         }
 
         return system;

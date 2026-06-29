@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Engine/Core/Timer.h>
 #include <Engine/Aether/System.h>
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
@@ -23,7 +24,7 @@ namespace Elixir::Aether
         glm::vec4 MetaD{};
     };
 
-    struct alignas(16) SModuleData
+    struct alignas(16) SParticleOpData
     {
         glm::vec4 Header{};
         glm::vec4 Data0{};
@@ -54,7 +55,7 @@ namespace Elixir::Aether
       public:
         static constexpr uint32_t MAX_EMITTERS = 8;
         static constexpr uint32_t MAX_PARTICLES = 10000;
-        static constexpr uint32_t MAX_MODULES = 128;
+        static constexpr uint32_t MAX_OPS = 128;
         static constexpr uint32_t MAX_PARAMETERS = 64;
         static constexpr uint32_t COMPUTE_GROUP_SIZE = 256;
 
@@ -64,11 +65,13 @@ namespace Elixir::Aether
         void Render(const SGPUSystem& system, const Camera& camera);
 
       private:
-        void InitRenderPass(const ShaderLoader* shaderLoader);
+        void Init(const ShaderLoader* shaderLoader);
         void CreateBuffers();
         void CreateMeshVertexBuffer();
         void InitPerFrameData();
-        void BindShaderParameters() const;
+        void BindShaderParameters();
+
+        uint32_t ResolveSpriteIndex(const Ref<Texture2D>& texture);
 
         void BeginRendering(const Ref<CommandBuffer>& cmd) const;
         void EndRendering(const Ref<CommandBuffer>& cmd) const;
@@ -82,7 +85,8 @@ namespace Elixir::Aether
         {
             glm::vec4 PositionSize{};
             glm::vec4 VelocityAge{};
-            glm::vec4 Tangent{};
+            glm::vec4 Transform{};
+            glm::vec4 TangentRibbonId{};
             glm::vec4 Color{};
             glm::vec4 Metadata{};
         };
@@ -91,8 +95,8 @@ namespace Elixir::Aether
         Ref<ComputePipeline> m_SpawnPipeline;
         Ref<Shader> m_UpdateShader;
         Ref<ComputePipeline> m_UpdatePipeline;
-        Ref<Shader> m_RendererShader;
-        Ref<GraphicsPipeline> m_RendererPipeline;
+        Ref<Shader> m_SpriteShader;
+        Ref<GraphicsPipeline> m_SpritePipeline;
         Ref<Shader> m_RibbonShader;
         Ref<GraphicsPipeline> m_RibbonPipeline;
         Ref<Shader> m_MeshShader;
@@ -102,15 +106,23 @@ namespace Elixir::Aether
         std::unordered_map<SGPUEmitter, SEmitterState> m_EmittersState;
 
         Ref<DynamicStorageBuffer> m_EmitterBuffer;
-        Ref<DynamicStorageBuffer> m_ModuleBuffer;
+        Ref<DynamicStorageBuffer> m_OpBuffer;
         Ref<DynamicStorageBuffer> m_ParameterBuffer;
         Ref<UniformBuffer> m_ParamsBuffer;
+
+        Ref<TextureSet> m_Sprites;
+        Ref<Sampler> m_SpriteSampler;
+        std::unordered_map<Ref<Texture2D>, SResourceHandle> m_SpriteTextures;
+
+        SResourceHandle m_WhiteTextureHandle{};
 
         uint32_t m_MeshVertexCount = 0;
         Ref<VertexBuffer> m_MeshVertexBuffer;
 
         float m_LastDeltaTimeSeconds = 0.0f;
         float m_ElapsedTimeSeconds = 0.0f;
+
+        bool m_CapacityErrorReported = false;
 
         Extent2D m_RenderExtent{};
         const GraphicsContext* m_GraphicsContext;

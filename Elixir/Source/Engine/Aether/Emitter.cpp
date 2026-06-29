@@ -10,70 +10,36 @@ namespace Elixir::Aether
         const uint32_t maxParticles,
         const float spawnRate
     ) : m_Name(name),
-        m_Particles(maxParticles),
-        m_SpawnRate(spawnRate),
-        m_RNG(std::random_device{}()) {}
-
-    void Emitter::Update(const Timestep& timestep, const ParameterStore& params)
-    {
-        m_SpawnAccumulator += m_SpawnRate * timestep.GetSeconds();
-
-        SSpawnContext spawnContext{ timestep.GetSeconds(), m_RNG };
-        while (m_SpawnAccumulator >= 1.0f)
-        {
-            SpawnParticle(spawnContext, params);
-            m_SpawnAccumulator -= 1.0f;
-        }
-
-        SUpdateContext updateContext{ timestep.GetSeconds() };
-        for (auto& particle : m_Particles)
-        {
-            if (!particle.Alive) continue;
-
-            particle.Age += timestep.GetSeconds();
-            if (particle.Age >= particle.Lifetime)
-            {
-                particle.Alive = false;
-                continue;
-            }
-
-            for (const auto& module : m_UpdateModules)
-            {
-                module->Apply(particle, updateContext, params);
-                if (!particle.Alive) break;
-            }
-        }
-    }
+        m_MaxParticles(maxParticles),
+        m_SpawnRate(spawnRate) {}
 
     SGPUEmitter Emitter::Build(
-        const ParameterStore& params,
-        std::vector<SGPUModule>& modules
+        const ParameterStore& paramStore,
+        const std::vector<SGPUParameter>& params,
+        std::vector<SGPUParticleOp>& ops
     ) const
     {
         SGPUEmitter emitter;
         emitter.m_UUID = m_UUID;
         emitter.Name = m_Name;
         emitter.RenderMode = m_RenderMode;
-        emitter.MaxParticles = (uint32_t)m_Particles.size();
+        emitter.SpriteTexture = m_SpriteTexture;
+        emitter.MaxParticles = m_MaxParticles;
+        emitter.GravityScale = paramStore.GetFloat("GravityScale", 1.0f);
+        emitter.SpawnOpOffset = (uint32_t)ops.size();
         emitter.SpawnRatePerSecond = m_SpawnRate;
-        emitter.GravityScale = params.GetFloat("GravityScale", 1.0f);
-        emitter.SpawnModuleOffset = (uint32_t)modules.size();
 
-        modules.push_back({
-            EModuleType::SpawnRate,
-            EParticleAttribute::None,
-            UINT32_MAX,
-            UINT32_MAX,
-            { m_SpawnRate, 0.0f, 0.0f, 0.0f },
-            {}
-        });
+        const uint32_t spawnRateParamIndex =
+            FindScopedParameterIndex(params, m_Name, m_SpawnRateParamName);
+        if (spawnRateParamIndex != UINT32_MAX)
+            emitter.SpawnRatePerSecond = params[spawnRateParamIndex].Value.x;
 
         for (const auto& module : m_SpawnModules)
         {
             if (const auto* typed = dynamic_cast<const SetPositionDisk*>(module.get()))
             {
-                modules.push_back({
-                    EModuleType::SetPositionDisk,
+                ops.push_back({
+                    EParticleOp::SampleDisk,
                     EParticleAttribute::Position,
                     UINT32_MAX,
                     UINT32_MAX,
@@ -81,10 +47,21 @@ namespace Elixir::Aether
                     { typed-> GetNormal(), 0.0f }
                 });
             }
+            else if (const auto* typed = dynamic_cast<const SetPositionBox*>(module.get()))
+            {
+                ops.push_back({
+                    EParticleOp::SampleBox,
+                    EParticleAttribute::Position,
+                    UINT32_MAX,
+                    UINT32_MAX,
+                    { typed->GetMinBounds(), 0.0f },
+                    { typed->GetMaxBounds(), 0.0f }
+                });
+            }
             else if (const auto* typed = dynamic_cast<const SetVelocityCone*>(module.get()))
             {
-                modules.push_back({
-                    EModuleType::SetVelocityCone,
+                ops.push_back({
+                    EParticleOp::SampleCone,
                     EParticleAttribute::Velocity,
                     UINT32_MAX,
                     UINT32_MAX,
@@ -94,41 +71,62 @@ namespace Elixir::Aether
             }
             else if (const auto* typed = dynamic_cast<const SetLifetime*>(module.get()))
             {
-                modules.push_back({
-                    EModuleType::SetLifetime,
+                ops.push_back({
+                    EParticleOp::RandomRange,
                     EParticleAttribute::Lifetime,
-                    UINT32_MAX,
-                    UINT32_MAX,
-                    { typed->GetMinSeconds(), typed->GetMaxSeconds(), 0.0f, 0.0f },
-                    {}
+                    FindScopedParameterIndex(params, m_Name, typed->GetMinSecondsParamName()),
+                    FindScopedParameterIndex(params, m_Name, typed->GetMaxSecondsParamName()),
+                    { typed->GetMinSeconds(), 0.0f, 0.0f, 0.0f },
+                    { typed->GetMaxSeconds(), 0.0f, 0.0f, 0.0f }
                 });
             }
             else if (const auto* typed = dynamic_cast<const SetSize*>(module.get()))
             {
-                modules.push_back({
-                    EModuleType::SetSize,
+                ops.push_back({
+                    EParticleOp::RandomRange,
                     EParticleAttribute::Size,
-                    UINT32_MAX,
-                    UINT32_MAX,
-                    { typed->GetMinSize(), typed->GetMaxSize(), 0.0f, 0.0f },
-                    {}
+                    FindScopedParameterIndex(params, m_Name, typed->GetMinSizeParamName()),
+                    FindScopedParameterIndex(params, m_Name, typed->GetMaxSizeParamName()),
+                    { typed->GetMinSize(), 0.0f, 0.0f, 0.0f },
+                    { typed->GetMaxSize(), 0.0f, 0.0f, 0.0f }
                 });
             }
             else if (const auto* typed = dynamic_cast<const SetColor*>(module.get()))
             {
-                modules.push_back({
-                    EModuleType::SetColor,
+                ops.push_back({
+                    EParticleOp::SetLiteral,
                     EParticleAttribute::Color,
-                    UINT32_MAX,
+                    FindScopedParameterIndex(params, m_Name, typed->GetParamName()),
                     UINT32_MAX,
                     typed->GetColor(),
-                    {}
+                });
+            }
+            else if (const auto* typed = dynamic_cast<const SetRotation*>(module.get()))
+            {
+                ops.push_back({
+                    EParticleOp::RandomRange,
+                    EParticleAttribute::Rotation,
+                    FindScopedParameterIndex(params, m_Name, typed->GetMinRotationParamName()),
+                    FindScopedParameterIndex(params, m_Name, typed->GetMaxRotationParamName()),
+                    { typed->GetMinRotation(), 0.0f, 0.0f, 0.0f },
+                    { typed->GetMaxRotation(), 0.0f, 0.0f, 0.0f }
+                });
+            }
+            else if (const auto* typed = dynamic_cast<const SetScale*>(module.get()))
+            {
+                ops.push_back({
+                    EParticleOp::RandomRange,
+                    EParticleAttribute::Scale,
+                    FindScopedParameterIndex(params, m_Name, typed->GetMinScaleParamName()),
+                    FindScopedParameterIndex(params, m_Name, typed->GetMaxScaleParamName()),
+                    { typed->GetMinScale(), 0.0f, 0.0f, 0.0f },
+                    { typed->GetMaxScale(), 0.0f, 0.0f, 0.0f }
                 });
             }
             else if (const auto* typed = dynamic_cast<const SetPositionOnCircle*>(module.get()))
             {
-                modules.push_back({
-                    EModuleType::SetPositionOnCircle,
+                ops.push_back({
+                    EParticleOp::SetPositionOnCircle,
                     EParticleAttribute::Position,
                     UINT32_MAX,
                     UINT32_MAX,
@@ -138,8 +136,8 @@ namespace Elixir::Aether
             }
             else if (const auto* typed = dynamic_cast<const SetPositionCircularPath*>(module.get()))
             {
-                modules.push_back({
-                    EModuleType::SetPositionCircularPath,
+                ops.push_back({
+                    EParticleOp::SetPositionCircularPath,
                     EParticleAttribute::Position,
                     UINT32_MAX,
                     UINT32_MAX,
@@ -150,8 +148,8 @@ namespace Elixir::Aether
             }
             else if (const auto* typed = dynamic_cast<const SetRibbonId*>(module.get()))
             {
-                modules.push_back({
-                    EModuleType::SetRibbonId,
+                ops.push_back({
+                    EParticleOp::SetLiteral,
                     EParticleAttribute::RibbonId,
                     UINT32_MAX,
                     UINT32_MAX,
@@ -160,8 +158,8 @@ namespace Elixir::Aether
             }
             else if (const auto* typed = dynamic_cast<const SetRibbonIdFromSpawnOrder*>(module.get()))
             {
-                modules.push_back({
-                    EModuleType::SetRibbonIdFromSpawnOrder,
+                ops.push_back({
+                    EParticleOp::SetRibbonIdFromSpawnOrder,
                     EParticleAttribute::RibbonId,
                     UINT32_MAX,
                     UINT32_MAX,
@@ -174,59 +172,139 @@ namespace Elixir::Aether
             }
         }
 
-        emitter.SpawnModuleCount = (uint32_t)modules.size() - emitter.SpawnModuleOffset;
-        emitter.UpdateModuleOffset = (uint32_t)modules.size();
+        emitter.SpawnOpCount = (uint32_t)ops.size() - emitter.SpawnOpOffset;
+        emitter.UpdateOpOffset = (uint32_t)ops.size();
 
         for (const auto& module : m_UpdateModules)
         {
             if (const auto* typed = dynamic_cast<const ApplyGravity*>(module.get()))
             {
-                modules.push_back({
-                    EModuleType::ApplyGravity,
+                ops.push_back({
+                    EParticleOp::AddWithDelta,
                     EParticleAttribute::Velocity,
+                    FindScopedParameterIndex(params, m_Name, typed->GetParamName()),
                     UINT32_MAX,
-                    UINT32_MAX,
-                    { typed->GetGravity(), emitter.GravityScale },
+                    { typed->GetGravity() * emitter.GravityScale, 0.0f },
                     {}
                 });
             }
             else if (const auto* typed = dynamic_cast<const ApplyLinearDrag*>(module.get()))
             {
-                modules.push_back({
-                    EModuleType::ApplyLinearDrag,
+                ops.push_back({
+                    EParticleOp::Dampen,
                     EParticleAttribute::Velocity,
-                    UINT32_MAX,
+                    FindScopedParameterIndex(params, m_Name, typed->GetParamName()),
                     UINT32_MAX,
                     { typed->GetDragPerSecond(), 0.0f, 0.0f, 0.0f },
                     {}
                 });
             }
+            else if (const auto* typed = dynamic_cast<const ApplyAngularVelocity*>(module.get()))
+            {
+                ops.push_back({
+                    EParticleOp::AddWithDelta,
+                    EParticleAttribute::Rotation,
+                    FindScopedParameterIndex(params, m_Name, typed->GetParamName()),
+                    UINT32_MAX,
+                    { typed->GetRadiansPerSecond(), 0.0f, 0.0f, 0.0f },
+                    { (float)((uint32_t)typed->GetInput()), 0.0f, 0.0f, 0.0f }
+                });
+            }
             else if (const auto* typed = dynamic_cast<const ColorOverLife*>(module.get()))
             {
-                modules.push_back({
-                    EModuleType::ColorOverLife,
-                    EParticleAttribute::Color,
-                    UINT32_MAX,
-                    UINT32_MAX,
-                    typed->GetStartColor(),
-                    typed->GetEndColor()
-                });
+                if (!typed->GetCurveName().empty())
+                {
+                    ops.push_back({
+                        EParticleOp::SampleColorCurve,
+                        EParticleAttribute::Color,
+                        FindCurveParameterIndex(params, m_Name, typed->GetCurveName()),
+                        UINT32_MAX,
+                        { (float)((uint32_t)typed->GetCurveInput()), 0.0f, 0.0f, 0.0f },
+                    });
+                }
+                else
+                {
+                    ops.push_back({
+                        EParticleOp::LerpOverLife,
+                        EParticleAttribute::Color,
+                        FindScopedParameterIndex(params, m_Name, typed->GetStartColorParamName()),
+                        FindScopedParameterIndex(params, m_Name, typed->GetEndColorParamName()),
+                        typed->GetStartColor(),
+                        typed->GetEndColor()
+                    });
+                }
             }
             else if (const auto* typed = dynamic_cast<const SizeOverLife*>(module.get()))
             {
-                modules.push_back({
-                    EModuleType::SizeOverLife,
+                ops.push_back({
+                    EParticleOp::LerpOverLife,
                     EParticleAttribute::Size,
-                    UINT32_MAX,
-                    UINT32_MAX,
-                    { typed->GetStartSize(), typed->GetEndSize(), 0.0f, 0.0f },
-                    {}
+                    FindScopedParameterIndex(params, m_Name, typed->GetStartSizeParamName()),
+                    FindScopedParameterIndex(params, m_Name, typed->GetEndSizeParamName()),
+                    { typed->GetStartSize(), 0.0f, 0.0f, 0.0f },
+                    { typed->GetEndSize(), 0.0f, 0.0f, 0.0f }
                 });
+            }
+            else if (const auto* typed = dynamic_cast<const ScaleOverLife*>(module.get()))
+            {
+                if (!typed->GetCurveName().empty())
+                {
+                    ops.push_back({
+                        EParticleOp::SampleCurve,
+                        EParticleAttribute::Scale,
+                        FindCurveParameterIndex(params, m_Name, typed->GetCurveName()),
+                        UINT32_MAX,
+                        { (float)((uint32_t)typed->GetCurveInput()), 0.0f, 0.0f, 0.0f },
+                    });
+
+                    const float scaleRange = typed->GetEndScale() - typed->GetStartScale();
+                    if (std::abs(scaleRange - 1.0f) > 0.0001f)
+                    {
+                        ops.push_back({
+                            EParticleOp::Mul,
+                            EParticleAttribute::Scale,
+                            UINT32_MAX,
+                            UINT32_MAX,
+                            { scaleRange, 0.0f, 0.0f, 0.0f },
+                        });
+                    }
+
+                    if (std::abs(typed->GetStartScale()) > 0.0001f)
+                    {
+                        ops.push_back({
+                            EParticleOp::Add,
+                            EParticleAttribute::Scale,
+                            UINT32_MAX,
+                            UINT32_MAX,
+                            { typed->GetStartScale(), 0.0f, 0.0f, 0.0f },
+                        });
+                    }
+
+                    ops.push_back({
+                        EParticleOp::Clamp,
+                        EParticleAttribute::Scale,
+                        UINT32_MAX,
+                        UINT32_MAX,
+                        glm::vec4(0.0f),
+                        glm::vec4(4.0f),
+                    });
+                }
+                else
+                {
+                    ops.push_back({
+                        EParticleOp::LerpOverLife,
+                        EParticleAttribute::Scale,
+                        FindScopedParameterIndex(params, m_Name, typed->GetStartScaleParamName()),
+                        FindScopedParameterIndex(params, m_Name, typed->GetEndScaleParamName()),
+                        { typed->GetStartScale(), 0.0f, 0.0f, 0.0f },
+                        { typed->GetEndScale(), 0.0f, 0.0f, 0.0f }
+                    });
+                }
             }
             else if (const auto* typed = dynamic_cast<const KillOutsideBounds*>(module.get()))
             {
-                modules.push_back({
-                    EModuleType::KillOutsideBounds,
+                ops.push_back({
+                    EParticleOp::KillOutsideBounds,
                     EParticleAttribute::Position,
                     UINT32_MAX,
                     UINT32_MAX,
@@ -236,40 +314,8 @@ namespace Elixir::Aether
             }
         }
 
-        emitter.UpdateModuleCount = (uint32_t)modules.size() - emitter.UpdateModuleOffset;
+        emitter.UpdateOpCount = (uint32_t)ops.size() - emitter.UpdateOpOffset;
 
         return emitter;
-    }
-
-    void Emitter::GatherRenderParticles(std::vector<SRenderParticle>& output) const
-    {
-        for (const auto& particle : m_Particles)
-        {
-            if (!particle.Alive) continue;
-            output.push_back({ particle.Position, particle.Color, particle.Size });
-        }
-    }
-
-    void Emitter::SpawnParticle(SSpawnContext& context, const ParameterStore& params)
-    {
-        const auto available = std::ranges::find_if(m_Particles, [](const auto& particle)
-        {
-            return !particle.Alive;
-        });
-
-        if (available == m_Particles.end()) return;
-
-        SParticle particle{};
-        particle.Color = {1.0f, 1.0f, 1.0f, 1.0f};
-        particle.Lifetime = 1.0f;
-        particle.Size = 4.0f;
-        particle.Alive = true;
-
-        for (const auto& module : m_SpawnModules)
-        {
-            module->Apply(particle, context, params);
-        }
-
-        *available = particle;
     }
 }

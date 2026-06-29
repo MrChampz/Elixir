@@ -2,7 +2,8 @@ struct ParticleState
 {
     float4 PositionSize;    // xyz = position, w = size
     float4 VelocityAge;     // xyz = velocity, w = age
-    float4 Tangent;         // xyz = tangent, w = ribbon id
+    float4 Transform;       // x = rotation, y = scale
+    float4 TangentRibbonId; // xyz = tangent, w = ribbon id
     float4 Color;
     float4 Metadata;        // x = emitter index, y = ribbon link order, z = lifetime, w = alive
 };
@@ -12,8 +13,8 @@ RWStructuredBuffer<ParticleState> particles;
 
 struct Emitter
 {
-    float4 MetaA; // x = offset in particle buffer, y = max particles, z = module offset(spawn), w = module count(spawn)
-    float4 MetaB; // x = module offset(update), y = module count(update), z = buffer cursor, w = spawn count
+    float4 MetaA; // x = offset in particle buffer, y = max particles, z = op offset(spawn), w = op count(spawn)
+    float4 MetaB; // x = op offset(update), y = op count(update), z = buffer cursor, w = spawn count
     float4 MetaC; // x = render mode, y = spawn rate seconds, z = gravity scale, w = next buffer cursor
     float4 MetaD; // x = emission index
 };
@@ -21,7 +22,7 @@ struct Emitter
 [[vk::binding(1, 0)]]
 StructuredBuffer<Emitter> emitters;
 
-struct Module
+struct Op
 {
     float4 Header; // x = type, y = unused, z = parameter 0 index, w = parameter 1 index
     float4 Data0;
@@ -30,7 +31,7 @@ struct Module
 };
 
 [[vk::binding(2, 0)]]
-StructuredBuffer<Module> modules;
+StructuredBuffer<Op> ops;
 
 struct Parameter
 {
@@ -43,6 +44,8 @@ StructuredBuffer<Parameter> parameters;
 struct AttributeTable
 {
     float4 Position;
+    float4 Rotation;
+    float4 Scale;
     float4 Velocity;
     float4 Color;
     float4 Size;
@@ -58,6 +61,10 @@ cbuffer cbParams : register(b0)
     float4 ViewportData; // x = viewport width, y = viewport height, z = unused, w = unused
 };
 
+float Hash1(float x) {
+  return frac(sin(x * 91.3458 + 12.345) * 45678.5453);
+}
+
 float4 ResolveValue(int parameterIndex, float4 fallbackValue)
 {
     if (parameterIndex < 0)
@@ -66,16 +73,85 @@ float4 ResolveValue(int parameterIndex, float4 fallbackValue)
     return parameters[parameterIndex].Value;
 }
 
+float ResolveDynamicInput(uint inputType, float normalizedAge, float particleSeed)
+{
+    if (inputType == 1u) // DeltaTime
+        return TimeData.x;
+
+    if (inputType == 2u) // NormalizedAge
+        return normalizedAge;
+
+    if (inputType == 3u) // EmitterTime
+        return TimeData.y;
+
+    if (inputType == 4u) // Random
+        return frac(sin((particleSeed * 91.37) + TimeData.y * 0.71) * 43758.5453);
+
+    if (inputType == 5u) // ParticleSeed
+        return particleSeed;
+
+    return 1.0;
+}
+
+float SampleCurve(int baseParameterIndex, float t)
+{
+    if (baseParameterIndex < 0)
+        return 0.0;
+
+    float4 a = parameters[baseParameterIndex].Value;
+    float4 b = parameters[baseParameterIndex + 1].Value;
+
+    float samples[8] = { a.x, a.y, a.z, a.w, b.x, b.y, b.z, b.w };
+
+    float clampedT = clamp(t, 0.0, 1.0);
+    float samplePosition = clampedT * 7.0;
+
+    uint lowerIndex = (uint)floor(samplePosition);
+    uint upperIndex = min(lowerIndex + 1u, 7u);
+    float fraction = frac(samplePosition);
+
+    return lerp(samples[lowerIndex], samples[upperIndex], fraction);
+}
+
+float4 SampleColorCurve(int baseParameterIndex, float t)
+{
+    if (baseParameterIndex < 0)
+        return 1.0;
+
+    float4 samples[8] =
+    {
+        parameters[baseParameterIndex + 0].Value,
+        parameters[baseParameterIndex + 1].Value,
+        parameters[baseParameterIndex + 2].Value,
+        parameters[baseParameterIndex + 3].Value,
+        parameters[baseParameterIndex + 4].Value,
+        parameters[baseParameterIndex + 5].Value,
+        parameters[baseParameterIndex + 6].Value,
+        parameters[baseParameterIndex + 7].Value
+    };
+
+    float clampedT = clamp(t, 0.0, 1.0);
+    float samplePosition = clampedT * 7.0;
+
+    uint lowerIndex = (uint)floor(samplePosition);
+    uint upperIndex = min(lowerIndex + 1u, 7u);
+    float fraction = frac(samplePosition);
+
+    return lerp(samples[lowerIndex], samples[upperIndex], fraction);
+}
+
 AttributeTable LoadAttributes(ParticleState state)
 {
     AttributeTable table;
     table.Position = float4(state.PositionSize.xyz, state.Metadata.w);
+    table.Rotation = float4(state.Transform.x, 0.0, 0.0, 0.0);
+    table.Scale = float4(state.Transform.y, 0.0, 0.0, 0.0);
     table.Velocity = float4(state.VelocityAge.xyz, 0.0);
-    table.Tangent = float4(state.Tangent.xyz, 0.0);
+    table.Tangent = float4(state.TangentRibbonId.xyz, 0.0);
     table.Color = state.Color;
     table.Size = float4(state.PositionSize.w, 0.0, 0.0, 0.0);
     table.Lifetime = float4(state.Metadata.z, state.VelocityAge.w, 0.0, 0.0);
-    table.RibbonId = float4(state.Tangent.w, 0.0, 0.0, 0.0);
+    table.RibbonId = float4(state.TangentRibbonId.w, 0.0, 0.0, 0.0);
     return table;
 }
 
@@ -83,7 +159,8 @@ ParticleState StoreAttributes(ParticleState state, AttributeTable table, float a
 {
     state.PositionSize = float4(table.Position.xyz, table.Size.x);
     state.VelocityAge = float4(table.Velocity.xyz, age);
-    state.Tangent = float4(table.Tangent.xyz, table.RibbonId.x);
+    state.Transform = float4(table.Rotation.x, table.Scale.x, 0.0, 0.0);
+    state.TangentRibbonId = float4(table.Tangent.xyz, table.RibbonId.x);
     state.Color = table.Color;
     state.Metadata = float4(state.Metadata.xy, table.Lifetime.x, table.Position.w);
     return state;
@@ -94,16 +171,20 @@ float4 GetAttribute(AttributeTable table, uint attrId)
     if (attrId == 1u)
         return table.Position;
     if (attrId == 2u)
-        return table.Velocity;
+        return table.Rotation;
     if (attrId == 3u)
-        return table.Color;
+        return table.Scale;
     if (attrId == 4u)
-        return table.Size;
+        return table.Velocity;
     if (attrId == 5u)
-        return table.Lifetime;
+        return table.Color;
     if (attrId == 6u)
-        return table.Tangent;
+        return table.Size;
     if (attrId == 7u)
+        return table.Lifetime;
+    if (attrId == 8u)
+        return table.Tangent;
+    if (attrId == 9u)
         return table.RibbonId;
 
     return float4(0.0, 0.0, 0.0, 0.0);
@@ -114,16 +195,20 @@ void SetAttribute(inout AttributeTable table, uint attrId, float4 value)
     if (attrId == 1u)
         table.Position = value;
     else if (attrId == 2u)
-        table.Velocity = value;
+        table.Rotation = value;
     else if (attrId == 3u)
-        table.Color = value;
+        table.Scale = value;
     else if (attrId == 4u)
-        table.Size = value;
+        table.Velocity = value;
     else if (attrId == 5u)
-        table.Lifetime = value;
+        table.Color = value;
     else if (attrId == 6u)
-        table.Tangent = value;
+        table.Size = value;
     else if (attrId == 7u)
+        table.Lifetime = value;
+    else if (attrId == 8u)
+        table.Tangent = value;
+    else if (attrId == 9u)
         table.RibbonId = value;
 }
 
@@ -143,6 +228,8 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         return;
     }
 
+    float particleSeed = Hash1((float)particleIndex);
+
     uint emitterIndex = (uint)(state.Metadata.x + 0.5);
     Emitter emitter = emitters[emitterIndex];
     float dt = TimeData.x;
@@ -153,54 +240,96 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     float life = clamp(age / lifetime, 0.0, 1.0);
     bool kill = age >= lifetime;
 
-    uint moduleOffset = (uint)emitter.MetaB.x;
-    uint moduleCount = (uint)emitter.MetaB.y;
+    uint opOffset = (uint)emitter.MetaB.x;
+    uint opCount = (uint)emitter.MetaB.y;
 
-    for (uint i = 0u; i < moduleCount; ++i)
+    for (uint i = 0u; i < opCount; ++i)
     {
-        Module module = modules[moduleOffset + i];
-        uint type = (uint)module.Header.x;
-        uint target = (uint)module.Header.y;
+        Op op = ops[opOffset + i];
+        uint type = (uint)op.Header.x;
+        uint target = (uint)op.Header.y;
 
-        int param0 = (int)module.Header.z;
-        int param1 = (int)module.Header.w;
+        int param0 = (int)op.Header.z;
+        int param1 = (int)op.Header.w;
 
-        if (type == 6u) // ApplyGravity
+        if (type == 0u) // SetLiteral
+        {
+            SetAttribute(attributes, target, ResolveValue(param0, op.Data0));
+        }
+        else if (type == 5u) // AddWithDelta
         {
             float4 value = GetAttribute(attributes, target);
-            value.xyz += module.Data0.xyz * module.Data0.w * dt;
+            float inputMultiplier = ResolveDynamicInput(uint(op.Data1.x + 0.5), life, particleSeed);
+
+            value += ResolveValue(param0, op.Data0) * (dt * inputMultiplier);
+
             SetAttribute(attributes, target, value);
         }
-        else if (type == 7u) // ApplyLinearDrag
+        else if (type == 6u) // Dampen
         {
             float4 value = GetAttribute(attributes, target);
-            value.xyz *= max(0.0, 1.0 - (module.Data0.x * dt));
+            float drag = ResolveValue(param0, op.Data0).x;
+            value *= max(0.0, 1.0 - drag * dt);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 8u) // ColorOverLife
+        else if (type == 7u) // LerpOverLife
         {
-            float4 startColor = ResolveValue(param0, module.Data0);
-            float4 endColor = ResolveValue(param1, module.Data1);
-            float4 color = lerp(startColor, endColor, life);
-            SetAttribute(attributes, target, color);
+            float4 value0 = ResolveValue(param0, op.Data0);
+            float4 value1 = ResolveValue(param1, op.Data1);
+            float4 value = lerp(value0, value1, life);
+            SetAttribute(attributes, target, value);
         }
-        else if (type == 9u) // SizeOverLife
-        {
-            float size = lerp(module.Data0.x, module.Data0.y, life);
-            SetAttribute(attributes, target, float4(size, 0.0, 0.0, 0.0));
-        }
-        else if (type == 10u) // KillOutsideBounds
+        else if (type == 8u) // KillOutsideBounds
         {
             float4 position = GetAttribute(attributes, 1u);
-            bool outsideBounds = position.x < module.Data0.x || position.x > module.Data1.x ||
-                                 position.y < module.Data0.y || position.y > module.Data1.y ||
-                                 position.z < module.Data0.z || position.z > module.Data1.z;
+            bool outsideBounds = position.x < op.Data0.x || position.x > op.Data1.x ||
+                                 position.y < op.Data0.y || position.y > op.Data1.y ||
+                                 position.z < op.Data0.z || position.z > op.Data1.z;
             kill = kill || outsideBounds;
+        }
+        else if (type == 9u) // AddFromAttribute
+        {
+            float4 value = GetAttribute(attributes, target);
+            float4 sourceValue = GetAttribute(attributes, uint(op.Data0.x + 0.5));
+            value += sourceValue * (op.Data0.y * dt);
+            SetAttribute(attributes, target, value);
+        }
+        else if (type == 13u) // SampleCurve
+        {
+            float inputValue = ResolveDynamicInput(uint(op.Data0.x + 0.5), life, particleSeed);
+            float value = SampleCurve(param0, inputValue);
+            SetAttribute(attributes, target, float4(value, 0.0, 0.0, 0.0));
+        }
+        else if (type == 14u) // SampleColorCurve
+        {
+            float inputValue = ResolveDynamicInput(uint(op.Data0.x + 0.5), life, particleSeed);
+            float4 value = SampleColorCurve(param0, inputValue);
+            SetAttribute(attributes, target, value);
+        }
+        else if (type == 15u) // Add
+        {
+            float4 value = GetAttribute(attributes, target);
+            value += ResolveValue(param0, op.Data0);
+            SetAttribute(attributes, target, value);
+        }
+        else if (type == 16u) // Mul
+        {
+            float4 value = GetAttribute(attributes, target);
+            value *= ResolveValue(param0, op.Data0);
+            SetAttribute(attributes, target, value);
+        }
+        else if (type == 17u) // Clamp
+        {
+            float4 value = GetAttribute(attributes, target);
+            float4 minValue = ResolveValue(param0, op.Data0);
+            float4 maxValue = ResolveValue(param1, op.Data1);
+            value = clamp(value, minValue, maxValue);
+            SetAttribute(attributes, target, value);
         }
     }
 
     float4 position = GetAttribute(attributes, 1u);
-    float4 velocity = GetAttribute(attributes, 2u);
+    float4 velocity = GetAttribute(attributes, 4u);
 
     position.xyz += velocity.xyz * dt;
     SetAttribute(attributes, 1u, position);
@@ -209,6 +338,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     {
         state.PositionSize = float4(position.xyz, 0.0);
         state.VelocityAge = float4(0.0, 0.0, 0.0, 0.0);
+        state.Transform = float4(0.0, 0.0, 0.0, 0.0);
         state.Color = float4(0.0, 0.0, 0.0, 0.0);
         state.Metadata.w = 0.0;
 

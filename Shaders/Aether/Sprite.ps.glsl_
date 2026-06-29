@@ -1,0 +1,18 @@
+#version 450
+#extension GL_EXT_nonuniform_qualifier : require
+
+layout(location = 0) in vec4 inColor;
+layout(location = 0) out vec4 outColor;
+
+// Global bindless resources (binding 0 = cis, binding 1 = textures, binding 2 = samplers)
+layout(set = 1, binding = 1) uniform texture2D sprites[];
+layout(set = 1, binding = 2) uniform sampler spriteSampler;
+
+void main() {
+  vec4 tex = texture(sampler2D(sprites[0], spriteSampler), gl_PointCoord);
+
+  vec3 color = inColor.rgb + max(tex.rgb, vec3(1.0));
+  float alpha = inColor.a * tex.a;
+
+  outColor = vec4(color, alpha);
+}
