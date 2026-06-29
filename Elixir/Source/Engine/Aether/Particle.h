@@ -15,7 +15,11 @@ namespace Elixir::Aether
         Size,
         Lifetime,
         Tangent,
-        RibbonId
+        RibbonId,
+        Temp0,
+        Temp1,
+        Temp2,
+        Temp3,
     };
 
     struct SParticle

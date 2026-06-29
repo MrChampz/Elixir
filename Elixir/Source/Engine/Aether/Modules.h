@@ -25,7 +25,8 @@ namespace Elixir::Aether
         SampleColorCurve,
         Add,
         Mul,
-        Clamp
+        Clamp,
+        CopyFromAttribute,
     };
 
     struct SGPUParticleOp

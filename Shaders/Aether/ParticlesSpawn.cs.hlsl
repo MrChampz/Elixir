@@ -52,6 +52,10 @@ struct AttributeTable
     float4 Lifetime;
     float4 Tangent;
     float4 RibbonId;
+    float4 Temp0;
+    float4 Temp1;
+    float4 Temp2;
+    float4 Temp3;
 };
 
 [[vk::binding(0, 1)]]
@@ -155,6 +159,14 @@ float4 GetAttribute(AttributeTable table, uint attrId)
         return table.Tangent;
     if (attrId == 9u)
         return table.RibbonId;
+    if (attrId == 10u)
+        return table.Temp0;
+    if (attrId == 11u)
+        return table.Temp1;
+    if (attrId == 12u)
+        return table.Temp2;
+    if (attrId == 13u)
+        return table.Temp3;
 
     return float4(0.0, 0.0, 0.0, 0.0);
 }
@@ -179,6 +191,14 @@ void SetAttribute(inout AttributeTable table, uint attrId, float4 value)
         table.Tangent = value;
     else if (attrId == 9u)
         table.RibbonId = value;
+    else if (attrId == 10u)
+        table.Temp0 = value;
+    else if (attrId == 11u)
+        table.Temp1 = value;
+    else if (attrId == 12u)
+        table.Temp2 = value;
+    else if (attrId == 13u)
+        table.Temp3 = value;
 }
 
 float3 SafeNormalize(float3 value, float3 fallback)
@@ -252,15 +272,19 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     uint emissionIndex = (uint)emitter.MetaD.x + spawnOrder;
 
     AttributeTable attributes;
-    attributes.Position = float4(0.0, 0.0, 0.0, 0.0);
-    attributes.Rotation = float4(0.0, 0.0, 0.0, 0.0);
+    attributes.Position = 0.0;
+    attributes.Rotation = 0.0;
     attributes.Scale = float4(1.0, 0.0, 0.0, 0.0);
-    attributes.Velocity = float4(0.0, 0.0, 0.0, 0.0);
-    attributes.Color = float4(1.0, 1.0, 1.0, 1.0);
+    attributes.Velocity = 0.0;
+    attributes.Color = 1.0;
     attributes.Size = float4(6.0, 0.0, 0.0, 0.0);
     attributes.Lifetime = float4(1.0, 0.0, 0.0, 0.0);
     attributes.Tangent = float4(1.0, 0.0, 0.0, 0.0);
-    attributes.RibbonId = float4(0.0, 0.0, 0.0, 0.0);
+    attributes.RibbonId = 0.0;
+    attributes.Temp0 = 0.0;
+    attributes.Temp1 = 0.0;
+    attributes.Temp2 = 0.0;
+    attributes.Temp3 = 0.0;
 
     uint opOffset = (uint)emitter.MetaA.z;
     uint opCount = (uint)emitter.MetaA.w;
@@ -411,6 +435,11 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             float inputValue = ResolveDynamicInput(uint(op.Data0.x + 0.5), randomInput, particleSeed);
             float value = SampleCurve(param0, inputValue);
             SetAttribute(attributes, target, float4(value, 0.0, 0.0, 0.0));
+        }
+        else if (type == 18u) // CopyFromAttribute
+        {
+            float4 value = GetAttribute(attributes, uint(op.Data0.x + 0.5));
+            SetAttribute(attributes, target, value);
         }
     }
 

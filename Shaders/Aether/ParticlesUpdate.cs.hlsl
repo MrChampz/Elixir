@@ -52,6 +52,10 @@ struct AttributeTable
     float4 Lifetime;
     float4 Tangent;
     float4 RibbonId;
+    float4 Temp0;
+    float4 Temp1;
+    float4 Temp2;
+    float4 Temp3;
 };
 
 [[vk::binding(0, 1)]]
@@ -152,6 +156,11 @@ AttributeTable LoadAttributes(ParticleState state)
     table.Size = float4(state.PositionSize.w, 0.0, 0.0, 0.0);
     table.Lifetime = float4(state.Metadata.z, state.VelocityAge.w, 0.0, 0.0);
     table.RibbonId = float4(state.TangentRibbonId.w, 0.0, 0.0, 0.0);
+    table.Temp0 = 0.0;
+    table.Temp1 = 0.0;
+    table.Temp2 = 0.0;
+    table.Temp3 = 0.0;
+
     return table;
 }
 
@@ -186,6 +195,14 @@ float4 GetAttribute(AttributeTable table, uint attrId)
         return table.Tangent;
     if (attrId == 9u)
         return table.RibbonId;
+    if (attrId == 10u)
+        return table.Temp0;
+    if (attrId == 11u)
+        return table.Temp1;
+    if (attrId == 12u)
+        return table.Temp2;
+    if (attrId == 13u)
+        return table.Temp3;
 
     return float4(0.0, 0.0, 0.0, 0.0);
 }
@@ -210,6 +227,14 @@ void SetAttribute(inout AttributeTable table, uint attrId, float4 value)
         table.Tangent = value;
     else if (attrId == 9u)
         table.RibbonId = value;
+    else if (attrId == 10u)
+        table.Temp0 = value;
+    else if (attrId == 11u)
+        table.Temp1 = value;
+    else if (attrId == 12u)
+        table.Temp2 = value;
+    else if (attrId == 13u)
+        table.Temp3 = value;
 }
 
 [numthreads(256, 1, 1)]
@@ -324,6 +349,11 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             float4 minValue = ResolveValue(param0, op.Data0);
             float4 maxValue = ResolveValue(param1, op.Data1);
             value = clamp(value, minValue, maxValue);
+            SetAttribute(attributes, target, value);
+        }
+        else if (type == 18u) // CopyFromAttribute
+        {
+            float4 value = GetAttribute(attributes, uint(op.Data0.x + 0.5));
             SetAttribute(attributes, target, value);
         }
     }

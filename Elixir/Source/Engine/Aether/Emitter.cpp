@@ -216,10 +216,17 @@ namespace Elixir::Aether
                 {
                     ops.push_back({
                         EParticleOp::SampleColorCurve,
-                        EParticleAttribute::Color,
+                        EParticleAttribute::Temp0,
                         FindCurveParameterIndex(params, m_Name, typed->GetCurveName()),
                         UINT32_MAX,
-                        { (float)((uint32_t)typed->GetCurveInput()), 0.0f, 0.0f, 0.0f },
+                        { (float)(uint32_t)typed->GetCurveInput(), 0.0f, 0.0f, 0.0f },
+                    });
+                    ops.push_back({
+                        EParticleOp::CopyFromAttribute,
+                        EParticleAttribute::Color,
+                        UINT32_MAX,
+                        UINT32_MAX,
+                        { (float)(uint32_t)EParticleAttribute::Temp0, 0.0f, 0.0f, 0.0f },
                     });
                 }
                 else
@@ -251,10 +258,10 @@ namespace Elixir::Aether
                 {
                     ops.push_back({
                         EParticleOp::SampleCurve,
-                        EParticleAttribute::Scale,
+                        EParticleAttribute::Temp0,
                         FindCurveParameterIndex(params, m_Name, typed->GetCurveName()),
                         UINT32_MAX,
-                        { (float)((uint32_t)typed->GetCurveInput()), 0.0f, 0.0f, 0.0f },
+                        { (float)(uint32_t)typed->GetCurveInput(), 0.0f, 0.0f, 0.0f },
                     });
 
                     const float scaleRange = typed->GetEndScale() - typed->GetStartScale();
@@ -262,7 +269,7 @@ namespace Elixir::Aether
                     {
                         ops.push_back({
                             EParticleOp::Mul,
-                            EParticleAttribute::Scale,
+                            EParticleAttribute::Temp0,
                             UINT32_MAX,
                             UINT32_MAX,
                             { scaleRange, 0.0f, 0.0f, 0.0f },
@@ -273,7 +280,7 @@ namespace Elixir::Aether
                     {
                         ops.push_back({
                             EParticleOp::Add,
-                            EParticleAttribute::Scale,
+                            EParticleAttribute::Temp0,
                             UINT32_MAX,
                             UINT32_MAX,
                             { typed->GetStartScale(), 0.0f, 0.0f, 0.0f },
@@ -282,11 +289,19 @@ namespace Elixir::Aether
 
                     ops.push_back({
                         EParticleOp::Clamp,
-                        EParticleAttribute::Scale,
+                        EParticleAttribute::Temp0,
                         UINT32_MAX,
                         UINT32_MAX,
                         glm::vec4(0.0f),
                         glm::vec4(4.0f),
+                    });
+
+                    ops.push_back({
+                        EParticleOp::CopyFromAttribute,
+                        EParticleAttribute::Scale,
+                        UINT32_MAX,
+                        UINT32_MAX,
+                        { (float)(uint32_t)EParticleAttribute::Temp0, 0.0f, 0.0f, 0.0f },
                     });
                 }
                 else
