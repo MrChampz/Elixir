@@ -268,7 +268,8 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         else if (type == 6u) // Dampen
         {
             float4 value = GetAttribute(attributes, target);
-            value *= max(0.0, 1.0 - (ResolveValue(param0, op.Data0) * dt));
+            float drag = ResolveValue(param0, op.Data0).x;
+            value *= max(0.0, 1.0 - drag * dt);
             SetAttribute(attributes, target, value);
         }
         else if (type == 7u) // LerpOverLife
