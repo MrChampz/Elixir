@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Engine/Core/Timer.h>
 #include <Engine/Aether/System.h>
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
