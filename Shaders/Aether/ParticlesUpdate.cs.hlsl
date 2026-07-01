@@ -237,6 +237,15 @@ void SetAttribute(inout AttributeTable table, uint attrId, float4 value)
         table.Temp3 = value;
 }
 
+float3 SafeNormalize(float3 value, float3 fallback)
+{
+    float lengthSquared = dot(value, value);
+    if (lengthSquared < 0.000001)
+        return fallback;
+
+    return value * rsqrt(lengthSquared);
+}
+
 [numthreads(256, 1, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
@@ -319,31 +328,31 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             value += sourceValue * (op.Data0.y * dt);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 13u) // SampleCurve
+        else if (type == 14u) // SampleCurve
         {
             float inputValue = ResolveDynamicInput(uint(op.Data0.x + 0.5), life, particleSeed);
             float value = SampleCurve(param0, inputValue);
             SetAttribute(attributes, target, float4(value, 0.0, 0.0, 0.0));
         }
-        else if (type == 14u) // SampleColorCurve
+        else if (type == 15u) // SampleColorCurve
         {
             float inputValue = ResolveDynamicInput(uint(op.Data0.x + 0.5), life, particleSeed);
             float4 value = SampleColorCurve(param0, inputValue);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 15u) // Add
+        else if (type == 16u) // Add
         {
             float4 value = GetAttribute(attributes, target);
             value += ResolveValue(param0, op.Data0);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 16u) // Mul
+        else if (type == 17u) // Mul
         {
             float4 value = GetAttribute(attributes, target);
             value *= ResolveValue(param0, op.Data0);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 17u) // Clamp
+        else if (type == 18u) // Clamp
         {
             float4 value = GetAttribute(attributes, target);
             float4 minValue = ResolveValue(param0, op.Data0);
@@ -351,10 +360,30 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             value = clamp(value, minValue, maxValue);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 18u) // CopyFromAttribute
+        else if (type == 19u) // CopyFromAttribute
         {
             float4 value = GetAttribute(attributes, uint(op.Data0.x + 0.5));
             SetAttribute(attributes, target, value);
+        }
+        else if (type == 20u) // ApplyVortex
+        {
+            float4 velocity = GetAttribute(attributes, target);
+            float4 position = GetAttribute(attributes, 1u);
+
+            float3 center = ResolveValue(param0, op.Data0).xyz;
+            float3 normal = SafeNormalize(ResolveValue(param1, op.Data1).xyz, float3(0.0, 1.0, 0.0));
+            float3 offset = position.xyz - center;
+
+            float3 radial = SafeNormalize(offset, 0.0);
+            float radialStrength = ResolveValue((int)op.Data2.w, float4(op.Data2.y, 0.0, 0.0, 0.0)).x;
+
+            float3 tangent = SafeNormalize(cross(normal, radial), 0.0);
+            float tangentialStrength = ResolveValue((int)op.Data2.z, float4(op.Data2.x, 0.0, 0.0, 0.0)).x;
+
+            velocity.xyz += (tangent * tangentialStrength + radial * radialStrength) * dt;
+
+            SetAttribute(attributes, target, velocity);
+            SetAttribute(attributes, 8u, float4(tangent, 0.0));
         }
     }
 

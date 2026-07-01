@@ -25,14 +25,17 @@ namespace Elixir::Aether
         Ref<Texture2D> SpriteTexture;
 
         float SpawnRatePerSecond = 1.0f;
+        uint32_t BurstCount = 0u;
+        float BurstIntervalSeconds = 0.0f;
+
         float GravityScale = 1.0f;
 
-        uint32_t ParticleOffset = 0;
-        uint32_t MaxParticles = 0;
-        uint32_t SpawnOpOffset = 0;
-        uint32_t SpawnOpCount = 0;
-        uint32_t UpdateOpOffset = 0;
-        uint32_t UpdateOpCount = 0;
+        uint32_t ParticleOffset = 0u;
+        uint32_t MaxParticles = 0u;
+        uint32_t SpawnOpOffset = 0u;
+        uint32_t SpawnOpCount = 0u;
+        uint32_t UpdateOpOffset = 0u;
+        uint32_t UpdateOpCount = 0u;
 
         bool operator==(const SGPUEmitter& other) const noexcept
         {
@@ -81,6 +84,8 @@ namespace Elixir::Aether
 
         void SetRenderMode(const EParticleRenderMode mode) { m_RenderMode = mode; }
 
+        void SetBurst(uint32_t count, float intervalSeconds);
+
         SGPUEmitter Build(
             const ParameterStore& paramStore,
             const std::vector<SGPUParameter>& params,
@@ -92,6 +97,9 @@ namespace Elixir::Aether
 
         const Ref<Texture2D>& GetSpriteTexture() const { return m_SpriteTexture; }
         void SetSpriteTexture(const Ref<Texture2D>& texture) { m_SpriteTexture = texture; }
+
+        uint32_t GetBurstCount() const { return m_BurstCount; }
+        float GetBurstIntervalSeconds() const { return m_BurstIntervalSeconds; }
 
         ParameterStore& GetParameters() { return m_Parameters; }
         const ParameterStore& GetParameters() const { return m_Parameters; }
@@ -115,7 +123,8 @@ namespace Elixir::Aether
 
         std::string m_SpawnRateParamName;
         float m_SpawnRate = 0.0f; // per seconds
-        float m_SpawnAccumulator = 0.0f;
+        uint32_t m_BurstCount = 0u;
+        float m_BurstIntervalSeconds = 0.0f;
 
         ParameterStore m_Parameters;
         CurveStore m_Curves;

@@ -249,6 +249,47 @@ void BuildBasis(float3 axis, out float3 right, out float3 up)
     up = cross(axis, right);
 }
 
+struct VortexRibbonPathParams
+{
+    float3 Center;
+    float  OrbitSpeed;
+    float  BaseRadius;
+    float  RadiusAmplitude;
+    float  RadiusSpeed;
+    float  PulseAmplitude;
+    float  PulseSpeed;
+    float  PulsePhase;
+    float  CurlAmplitude;
+    float2 CurlFrequency;
+    float2 CurlPhase;
+    float  DepthAmplitude;
+    float  DepthFrequency;
+    float  DepthPhase;
+};
+
+float3 VortexRibbonPath(float timeSeconds, VortexRibbonPathParams p)
+{
+    float phase = timeSeconds * p.OrbitSpeed;
+
+    float radialPulse = p.PulseAmplitude * sin((timeSeconds * p.PulseSpeed) + p.PulsePhase);
+
+    float radius =
+        p.BaseRadius +
+        (p.RadiusAmplitude * (0.5 + 0.5 * sin(timeSeconds * p.RadiusSpeed))) +
+        radialPulse;
+
+    float2 swirl = float2(cos(phase), sin(phase * 0.96)) * radius;
+
+    float2 curl = float2(
+        cos(phase * p.CurlFrequency.x + p.CurlPhase.x),
+        sin(phase * p.CurlFrequency.y + p.CurlPhase.y)
+    ) * p.CurlAmplitude;
+
+    float z = p.Center.z + p.DepthAmplitude * sin(phase * p.DepthFrequency + p.DepthPhase);
+
+    return float3(p.Center.xy + swirl + curl, z);
+}
+
 [numthreads(256, 1, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
@@ -414,7 +455,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
                 (secondaryAmplitude.z * sin((phase * 1.61) - 0.2));
 
             SetAttribute(attributes, target, float4(x, y, z, 1.0));
-            SetAttribute(attributes, 4u, float4(0.0, 0.0, 0.0, 0.0));
+            SetAttribute(attributes, 4u, 0.0);
 
             float dx = primaryAmplitude.x * cos(phase) + secondaryAmplitude.x * 2.1 * cos(phase * 2.1);
             float dy = primaryAmplitude.y * 0.58 * cos(phase * 0.58 + 0.65) - secondaryAmplitude.y * 1.34 * sin(phase * 1.34 - 0.4);
@@ -423,20 +464,56 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
             SetAttribute(attributes, 8u, float4(tangent, 0.0));
         }
-        else if (type == 12u) // SetRibbonIdFromSpawnOrder
+        else if (type == 12u) // SetPositionVortexRibbonPath
+        {
+            VortexRibbonPathParams params;
+            params.Center = op.Data0.xyz;
+
+            params.OrbitSpeed = op.Data1.x;
+            params.BaseRadius = op.Data1.y;
+            params.RadiusAmplitude = op.Data1.z;
+            params.RadiusSpeed = op.Data1.w;
+
+            params.PulseAmplitude = op.Data2.x;
+            params.PulseSpeed = op.Data2.y;
+            params.CurlAmplitude = op.Data2.z;
+            params.DepthAmplitude = op.Data2.w;
+
+            params.CurlFrequency = float2(1.9, 1.7);
+            params.CurlPhase = float2(0.6, -0.3);
+            params.DepthAmplitude = 0.10;
+            params.DepthFrequency = 0.73;
+            params.DepthPhase = 0.4;
+
+            float spawnRate = max(emitter.MetaC.y, 0.001);
+            float timeOffset = float((spawnCount - 1u) - spawnOrder) / spawnRate;
+            float sampleTime = TimeData.y - timeOffset;
+
+            float3 position = VortexRibbonPath(sampleTime, params);
+            SetAttribute(attributes, target, float4(position.xyz, 1.0));
+            SetAttribute(attributes, 4u, 0.0);
+
+            float tangentStep = max(1.0 / spawnRate, 0.001);
+            float3 prevPosition = VortexRibbonPath(sampleTime - tangentStep, params);
+            float3 nextPosition = VortexRibbonPath(sampleTime + tangentStep, params);
+            float3 tangent = SafeNormalize(nextPosition - prevPosition, float3(1.0, 0.0, 0.0));
+
+            SetAttribute(attributes, 8u, float4(tangent, 0.0));
+        }
+        else if (type == 13u) // SetRibbonIdFromSpawnOrder
         {
             uint ribbonCount = max(1u, (uint)op.Data0.x);
             uint firstRibbonId = (uint)op.Data0.y;
             uint ribbonId = firstRibbonId + (emissionIndex % ribbonCount);
             SetAttribute(attributes, target, float4(float(ribbonId), 0.0, 0.0, 0.0));
         }
-        else if (type == 13u) // SampleCurve
+        else if (type == 14u) // SampleCurve
         {
             float inputValue = ResolveDynamicInput(uint(op.Data0.x + 0.5), randomInput, particleSeed);
             float value = SampleCurve(param0, inputValue);
             SetAttribute(attributes, target, float4(value, 0.0, 0.0, 0.0));
         }
-        else if (type == 18u) // CopyFromAttribute
+        else if (type == 19u) // CopyFromAttribute
         {
             float4 value = GetAttribute(attributes, uint(op.Data0.x + 0.5));
             SetAttribute(attributes, target, value);

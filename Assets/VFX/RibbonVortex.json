@@ -1,0 +1,277 @@
+{
+  "name": "Ribbon Vortex",
+  "parameters": {
+    "gravityScale": 1.0,
+    "canopy_color_start": [0.74, 0.94, 1.0, 0.74],
+    "canopy_color_end": [0.20, 0.46, 0.88, 0.0],
+    "spark_color_start": [0.98, 0.62, 1.0, 0.92],
+    "spark_color_end": [0.44, 0.10, 0.78, 0.0]
+  },
+  "curves": {
+    "trail_scale_curve": [1.0, 0.96, 0.9, 0.78, 0.62, 0.44, 0.28, 0.14],
+    "fountain_scale_curve": [1.0, 0.94, 0.82, 0.66, 0.48, 0.32, 0.18, 0.08],
+    "shard_scale_curve": [1.1, 1.05, 0.96, 0.82, 0.64, 0.46, 0.28, 0.12]
+  },
+  "colorCurves": {
+    "canopy_color_curve": [
+      [0.82, 0.96, 1.0, 0.80],
+      [0.74, 0.93, 1.0, 0.74],
+      [0.62, 0.84, 0.98, 0.66],
+      [0.48, 0.72, 0.96, 0.56],
+      [0.34, 0.60, 0.92, 0.42],
+      [0.24, 0.48, 0.88, 0.28],
+      [0.20, 0.40, 0.82, 0.14],
+      [0.16, 0.34, 0.76, 0.00]
+    ],
+    "spark_color_curve": [
+      [1.00, 0.76, 1.0, 0.96],
+      [0.98, 0.62, 1.0, 0.90],
+      [0.92, 0.42, 0.96, 0.76],
+      [0.82, 0.28, 0.90, 0.58],
+      [0.68, 0.18, 0.84, 0.40],
+      [0.56, 0.12, 0.80, 0.24],
+      [0.48, 0.10, 0.78, 0.10],
+      [0.44, 0.10, 0.78, 0.00]
+    ]
+  },
+  "emitters": [
+    {
+      "name": "PathRibbon",
+      "renderMode": "Ribbon",
+      "maxParticles": 256,
+      "spawnRate": "$spawn_rate",
+      "parameters": {
+        "spawn_rate": 64.0,
+        "trail_lifetime_min": 4.0,
+        "trail_lifetime_max": 4.0,
+        "trail_size_min": 14.0,
+        "trail_size_max": 20.0,
+        "trail_scale_min": 0.72,
+        "trail_scale_max": 1.08,
+        "trail_scale_end": 0.48
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionVortexRibbonPath",
+          "center": [0.84, -0.10, 0.0],
+          "orbitSpeed": 2.2,
+          "baseRadius": 0.12,
+          "radiusAmplitude": 0.30,
+          "radiusSpeed": 0.42,
+          "pulseAmplitude": 0.10,
+          "pulseSpeed": 0.85,
+          "curlAmplitude": 0.08,
+          "depthAmplitude": 0.10
+        },
+        {
+          "type": "SetLifetime",
+          "min": "$trail_lifetime_min",
+          "max": "$trail_lifetime_max"
+        },
+        {
+          "type": "SetSize",
+          "min": "$trail_size_min",
+          "max": "$trail_size_max"
+        },
+        {
+          "type": "SetScale",
+          "min": "$trail_scale_min",
+          "max": "$trail_scale_max"
+        },
+        {
+          "type": "SetColor",
+          "color": "$canopy_color_start"
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ColorOverLife",
+          "start": "$canopy_color_start",
+          "end": "$canopy_color_end",
+          "curve": "canopy_color_curve",
+          "input": "NormalizedAge"
+        },
+        {
+          "type": "SizeOverLife",
+          "start": 18.0,
+          "end": 3.0
+        },
+        {
+          "type": "ScaleOverLife",
+          "start": 1.0,
+          "end": "$trail_scale_end",
+          "curve": "trail_scale_curve",
+          "input": "NormalizedAge"
+        }
+      ]
+    },
+    {
+      "name": "PurpleFountain",
+      "renderMode": "Sprite",
+      "maxParticles": 1600,
+      "spawnRate": "$spawn_rate",
+      "parameters": {
+        "spawn_rate": 120.0,
+        "drag": 0.08,
+        "gravity": [0.0, -0.30, 0.0, 0.0],
+        "spawn_scale_min": 0.9,
+        "spawn_scale_max": 1.35,
+        "end_scale": 0.35
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionDisk",
+          "center": [0.0, -0.86, 0.0],
+          "radius": 0.07
+        },
+        {
+          "type": "SetVelocityCone",
+          "direction": [0.0, 1.0, 0.0],
+          "angle": 1.18,
+          "minSpeed": 0.34,
+          "maxSpeed": 0.82
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1.8,
+          "max": 2.9
+        },
+        {
+          "type": "SetSize",
+          "min": 0.07,
+          "max": 0.14
+        },
+        {
+          "type": "SetScale",
+          "min": "$spawn_scale_min",
+          "max": "$spawn_scale_max"
+        },
+        {
+          "type": "SetColor",
+          "color": "$spark_color_start"
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "gravity": "$gravity"
+        },
+        {
+          "type": "ApplyLinearDrag",
+          "drag": "$drag"
+        },
+        {
+          "type": "ColorOverLife",
+          "start": "$spark_color_start",
+          "end": "$spark_color_end",
+          "curve": "spark_color_curve",
+          "input": "NormalizedAge"
+        },
+        {
+          "type": "SizeOverLife",
+          "start": 0.14,
+          "end": 0.02
+        },
+        {
+          "type": "ScaleOverLife",
+          "start": 1.0,
+          "end": "$end_scale",
+          "curve": "fountain_scale_curve",
+          "input": "NormalizedAge"
+        },
+        {
+          "type": "KillOutsideBounds",
+          "min": [-1.45, -1.2, -1.45],
+          "max": [1.45, 1.35, 1.45]
+        }
+      ]
+    },
+    {
+      "name": "CrystalShards",
+      "renderMode": "Mesh",
+      "maxParticles": 220,
+      "spawnRate": "$spawn_rate",
+      "parameters": {
+        "spawn_rate": 26.0,
+        "gravity": [0.0, -0.12, 0.0, 0.0],
+        "drag": 0.03,
+        "rotation_min": 0.0,
+        "rotation_max": 6.2831853,
+        "spawn_scale_min": 0.82,
+        "spawn_scale_max": 1.45,
+        "angular_velocity": 1.2,
+        "end_scale": 0.28
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionDisk",
+          "center": [0.0, -0.64, 0.0],
+          "radius": 0.22
+        },
+        {
+          "type": "SetVelocityCone",
+          "direction": [0.0, 1.0, 0.0],
+          "angle": 0.94,
+          "minSpeed": 0.14,
+          "maxSpeed": 0.36
+        },
+        {
+          "type": "SetLifetime",
+          "min": 2.6,
+          "max": 3.8
+        },
+        {
+          "type": "SetSize",
+          "min": 10.0,
+          "max": 18.0
+        },
+        {
+          "type": "SetScale",
+          "min": "$spawn_scale_min",
+          "max": "$spawn_scale_max"
+        },
+        {
+          "type": "SetRotation",
+          "min": "$rotation_min",
+          "max": "$rotation_max"
+        },
+        {
+          "type": "SetColor",
+          "color": [0.86, 0.94, 1.0, 0.62]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "gravity": "$gravity"
+        },
+        {
+          "type": "ApplyLinearDrag",
+          "drag": "$drag"
+        },
+        {
+          "type": "SizeOverLife",
+          "start": 18.0,
+          "end": 3.0
+        },
+        {
+          "type": "ApplyAngularVelocity",
+          "value": "$angular_velocity",
+          "input": "Random"
+        },
+        {
+          "type": "ScaleOverLife",
+          "start": 1.15,
+          "end": "$end_scale",
+          "curve": "shard_scale_curve",
+          "input": "NormalizedAge"
+        },
+        {
+          "type": "KillOutsideBounds",
+          "min": [-1.45, -1.2, -1.45],
+          "max": [1.45, 1.35, 1.45]
+        }
+      ]
+    }
+  ]
+}
