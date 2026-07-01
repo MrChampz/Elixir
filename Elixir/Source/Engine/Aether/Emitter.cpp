@@ -13,6 +13,12 @@ namespace Elixir::Aether
         m_MaxParticles(maxParticles),
         m_SpawnRate(spawnRate) {}
 
+    void Emitter::SetBurst(const uint32_t count, const float intervalSeconds)
+    {
+        m_BurstCount = count;
+        m_BurstIntervalSeconds = intervalSeconds;
+    }
+
     SGPUEmitter Emitter::Build(
         const ParameterStore& paramStore,
         const std::vector<SGPUParameter>& params,
@@ -28,6 +34,8 @@ namespace Elixir::Aether
         emitter.GravityScale = paramStore.GetFloat("GravityScale", 1.0f);
         emitter.SpawnOpOffset = (uint32_t)ops.size();
         emitter.SpawnRatePerSecond = m_SpawnRate;
+        emitter.BurstCount = m_BurstCount;
+        emitter.BurstIntervalSeconds = m_BurstIntervalSeconds;
 
         const uint32_t spawnRateParamIndex =
             FindScopedParameterIndex(params, m_Name, m_SpawnRateParamName);
@@ -146,6 +154,28 @@ namespace Elixir::Aether
                     { typed->GetSecondaryAmplitude(), 0.0 }
                 });
             }
+            else if (const auto* typed = dynamic_cast<const SetPositionVortexRibbonPath*>(module.get()))
+            {
+                ops.push_back({
+                    EParticleOp::SetPositionVortexRibbonPath,
+                    EParticleAttribute::Position,
+                    UINT32_MAX,
+                    UINT32_MAX,
+                    { typed->GetCenter(), 0.0 },
+                    {
+                        typed->GetOrbitSpeed(),
+                        typed->GetBaseRadius(),
+                        typed->GetRadiusAmplitude(),
+                        typed->GetRadiusSpeed()
+                    },
+                    {
+                        typed->GetPulseAmplitude(),
+                        typed->GetPulseSpeed(),
+                        typed->GetCurlAmplitude(),
+                        typed->GetDepthAmplitude()
+                    }
+                });
+            }
             else if (const auto* typed = dynamic_cast<const SetRibbonId*>(module.get()))
             {
                 ops.push_back({
@@ -210,16 +240,43 @@ namespace Elixir::Aether
                     { (float)((uint32_t)typed->GetInput()), 0.0f, 0.0f, 0.0f }
                 });
             }
+            else if (const auto* typed = dynamic_cast<const ApplyVortex*>(module.get()))
+            {
+                const uint32_t tangentialParamIndex = FindScopedParameterIndex(params, m_Name, typed->GetTangentialParamName());
+                const uint32_t radialParamIndex = FindScopedParameterIndex(params, m_Name, typed->GetRadialParamName());
+                ops.push_back({
+                    EParticleOp::ApplyVortex,
+                    EParticleAttribute::Velocity,
+                    FindScopedParameterIndex(params, m_Name, typed->GetCenterParamName()),
+                    FindScopedParameterIndex(params, m_Name, typed->GetNormalParamName()),
+                    { typed->GetCenter(), 0.0f },
+                    { typed->GetNormal(), 0.0f },
+                    {
+                        typed->GetTangentialStrength(),
+                        typed->GetRadialStrength(),
+                        (float)(tangentialParamIndex == UINT32_MAX ? -1 : (int32_t)tangentialParamIndex),
+                        (float)(radialParamIndex == UINT32_MAX ? -1 : (int32_t)radialParamIndex),
+
+                    }
+                });
+            }
             else if (const auto* typed = dynamic_cast<const ColorOverLife*>(module.get()))
             {
                 if (!typed->GetCurveName().empty())
                 {
                     ops.push_back({
                         EParticleOp::SampleColorCurve,
-                        EParticleAttribute::Color,
+                        EParticleAttribute::Temp0,
                         FindCurveParameterIndex(params, m_Name, typed->GetCurveName()),
                         UINT32_MAX,
-                        { (float)((uint32_t)typed->GetCurveInput()), 0.0f, 0.0f, 0.0f },
+                        { (float)(uint32_t)typed->GetCurveInput(), 0.0f, 0.0f, 0.0f },
+                    });
+                    ops.push_back({
+                        EParticleOp::CopyFromAttribute,
+                        EParticleAttribute::Color,
+                        UINT32_MAX,
+                        UINT32_MAX,
+                        { (float)(uint32_t)EParticleAttribute::Temp0, 0.0f, 0.0f, 0.0f },
                     });
                 }
                 else
@@ -251,10 +308,10 @@ namespace Elixir::Aether
                 {
                     ops.push_back({
                         EParticleOp::SampleCurve,
-                        EParticleAttribute::Scale,
+                        EParticleAttribute::Temp0,
                         FindCurveParameterIndex(params, m_Name, typed->GetCurveName()),
                         UINT32_MAX,
-                        { (float)((uint32_t)typed->GetCurveInput()), 0.0f, 0.0f, 0.0f },
+                        { (float)(uint32_t)typed->GetCurveInput(), 0.0f, 0.0f, 0.0f },
                     });
 
                     const float scaleRange = typed->GetEndScale() - typed->GetStartScale();
@@ -262,7 +319,7 @@ namespace Elixir::Aether
                     {
                         ops.push_back({
                             EParticleOp::Mul,
-                            EParticleAttribute::Scale,
+                            EParticleAttribute::Temp0,
                             UINT32_MAX,
                             UINT32_MAX,
                             { scaleRange, 0.0f, 0.0f, 0.0f },
@@ -273,7 +330,7 @@ namespace Elixir::Aether
                     {
                         ops.push_back({
                             EParticleOp::Add,
-                            EParticleAttribute::Scale,
+                            EParticleAttribute::Temp0,
                             UINT32_MAX,
                             UINT32_MAX,
                             { typed->GetStartScale(), 0.0f, 0.0f, 0.0f },
@@ -282,11 +339,19 @@ namespace Elixir::Aether
 
                     ops.push_back({
                         EParticleOp::Clamp,
-                        EParticleAttribute::Scale,
+                        EParticleAttribute::Temp0,
                         UINT32_MAX,
                         UINT32_MAX,
                         glm::vec4(0.0f),
                         glm::vec4(4.0f),
+                    });
+
+                    ops.push_back({
+                        EParticleOp::CopyFromAttribute,
+                        EParticleAttribute::Scale,
+                        UINT32_MAX,
+                        UINT32_MAX,
+                        { (float)(uint32_t)EParticleAttribute::Temp0, 0.0f, 0.0f, 0.0f },
                     });
                 }
                 else

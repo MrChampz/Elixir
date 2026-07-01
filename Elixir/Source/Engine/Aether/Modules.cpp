@@ -125,6 +125,28 @@ namespace Elixir::Aether
         m_SecondaryAmplitude(secondaryAmplitude),
         m_TimeScale(timeScale) {}
 
+    /* SetPositionVortexRibbonPath */
+
+    SetPositionVortexRibbonPath::SetPositionVortexRibbonPath(
+        const glm::vec3 center,
+        const float orbitSpeed,
+        const float baseRadius,
+        const float radiusAmplitude,
+        const float radiusSpeed,
+        const float pulseAmplitude,
+        const float pulseSpeed,
+        const float curlAmplitude,
+        const float depthAmplitude
+    ) : m_Center(center),
+        m_OrbitSpeed(orbitSpeed),
+        m_BaseRadius(baseRadius),
+        m_RadiusAmplitude(radiusAmplitude),
+        m_RadiusSpeed(radiusSpeed),
+        m_PulseAmplitude(pulseAmplitude),
+        m_PulseSpeed(pulseSpeed),
+        m_CurlAmplitude(curlAmplitude),
+        m_DepthAmplitude(depthAmplitude) {}
+
     /* SetRibbonId */
 
     SetRibbonId::SetRibbonId(const uint32_t ribbonId) : m_RibbonId(ribbonId) {}
@@ -169,9 +191,35 @@ namespace Elixir::Aether
         return *this;
     }
 
-    ApplyAngularVelocity& ApplyAngularVelocity::BindInput(EDynamicInput input)
+    ApplyAngularVelocity& ApplyAngularVelocity::BindInput(const EDynamicInput input)
     {
         m_Input = input;
+        return *this;
+    }
+
+    /* ApplyVortex */
+
+    ApplyVortex::ApplyVortex(
+        const glm::vec3 center,
+        const float tangentialStrength,
+        const float radialStrength,
+        glm::vec3 normal
+    ) : m_Center(center),
+        m_Normal(normal),
+        m_TangentialStrength(tangentialStrength),
+        m_RadialStrength(radialStrength) {}
+
+    ApplyVortex& ApplyVortex::BindParameters(
+        std::string centerParam,
+        std::string tangentialParam,
+        std::string radialParam,
+        std::string normalParam
+    )
+    {
+        m_CenterParamName = std::move(centerParam);
+        m_NormalParamName = std::move(normalParam);
+        m_TangentialParamName = std::move(tangentialParam);
+        m_RadialParamName = std::move(radialParam);
         return *this;
     }
 
