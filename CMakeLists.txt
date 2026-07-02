@@ -75,6 +75,7 @@ if (BUILD_TESTING)
 endif()
 
 include(Shaders/Shaders.cmake)
+include(Assets.cmake)
 include(Elixir/Elixir.cmake)
 include(Dissolve/Dissolve.cmake)
 
@@ -83,6 +84,9 @@ add_dependencies(Elixir CompileShaders)
 
 # Copy compiled shaders into each target's output directory
 copy_shaders_for_targets()
+
+# Copy root Assets/ into each target's output directory
+copy_assets_for_targets()
 
 # Copy Engine .DLL to all targets that depends on it, if needed
 if (WIN32)
