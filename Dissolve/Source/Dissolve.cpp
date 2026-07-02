@@ -148,6 +148,9 @@ Dissolve::Dissolve()
 Dissolve::~Dissolve()
 {
     pipeline.reset();
+    m_ParticlesRenderer.reset();
+    m_GPUSystem = {};
+    m_ParticleSystem.reset();
 }
 
 void Dissolve::OnGUI(const Timestep frameTime)

@@ -187,8 +187,6 @@ namespace Elixir::Vulkan
 
     VulkanBindlessDescriptorPool::~VulkanBindlessDescriptorPool()
     {
-        VulkanBaseDescriptorPool::DestroyPool();
-
         if (m_DescriptorSetLayout)
         {
             vkDestroyDescriptorSetLayout(
