@@ -146,12 +146,19 @@ namespace Elixir::Vulkan
         EE_CORE_ASSERT(vk_Dst != nullptr, "Invalid destination image!")
         EE_CORE_ASSERT(vk_Dst != VK_NULL_HANDLE, "Invalid destination image!")
 
+        // Blit with the image's own aspect. Depth/stencil images must use the depth
+        // aspect and a NEAREST filter (linear filtering is invalid for depth formats).
+        const auto aspect = this->GetAspect();
+        const bool isDepthStencil = (aspect & EImageAspect::Depth) || (aspect & EImageAspect::Stencil);
+
         CommandUtils::CopyImageToImage(
             vk_Cmd->GetVulkanCommandBuffer(),
             m_Image,
             vk_Dst,
             Converters::GetExtent3D(srcExtent),
-            Converters::GetExtent3D(dstExtent)
+            Converters::GetExtent3D(dstExtent),
+            Converters::GetImageAspect(aspect),
+            isDepthStencil ? VK_FILTER_NEAREST : VK_FILTER_LINEAR
         );
 
         dst->m_Extent = dstExtent;
