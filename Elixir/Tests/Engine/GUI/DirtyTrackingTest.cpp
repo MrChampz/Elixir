@@ -21,7 +21,7 @@ namespace
 
         glm::vec2 ComputeDesiredSize() override { return m_DesiredSize; }
 
-        void GenerateDrawCommands(RenderBatch& batch, int zOrder) override {}
+        void BuildDrawCommands(RenderBatch& batch, int zOrder) override {}
 
         void ArrangeChildren(const SRect& allocatedSpace) override
         {

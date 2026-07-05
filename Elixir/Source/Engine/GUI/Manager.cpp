@@ -44,7 +44,8 @@ namespace Elixir::GUI
         if (!m_RootWidget || !m_RootWidget->IsVisible()) return;
 
         m_RenderBatch.Clear();
-        m_RootWidget->GenerateDrawCommands(m_RenderBatch);
+        [[maybe_unused]] bool rebuilt = false;
+        m_RootWidget->CollectDrawCommands(m_RenderBatch, 0, rebuilt);
         m_RenderBatch.Sort();
         m_Renderer->Render(m_RenderBatch);
     }

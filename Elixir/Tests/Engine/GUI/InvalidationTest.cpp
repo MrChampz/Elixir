@@ -12,7 +12,7 @@ namespace
     {
       public:
         glm::vec2 ComputeDesiredSize() override { return m_DesiredSize; }
-        void GenerateDrawCommands(RenderBatch& batch, int zOrder) override {}
+        void BuildDrawCommands(RenderBatch& batch, int zOrder) override {}
 
         void SetDesiredSize(const glm::vec2& size)
         {

@@ -19,6 +19,17 @@ namespace Elixir::GUI
         m_Commands.clear();
     }
 
+    void RenderBatch::Append(const RenderBatch& other, const int zOffset)
+    {
+        m_Commands.reserve(m_Commands.size() + other.m_Commands.size());
+        for (const auto& command : other.m_Commands)
+        {
+            SDrawCommand copy = command;
+            copy.ZOrder += zOffset;
+            m_Commands.push_back(std::move(copy));
+        }
+    }
+
     void RenderBatch::AddRect(
         const SRect& rect,
         const SColor& color,

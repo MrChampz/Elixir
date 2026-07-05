@@ -60,6 +60,14 @@ namespace Elixir::GUI
         void Sort();
         void Clear();
 
+        /**
+         * Append another batch's commands to this one, offsetting each command's z-order.
+         * Used to assemble the per-widget command caches into the frame batch.
+         * @param other batch whose commands are copied in.
+         * @param zOffset value added to each appended command's ZOrder.
+         */
+        void Append(const RenderBatch& other, int zOffset);
+
         void AddRect(
             const SRect& rect,
             const SColor& color,

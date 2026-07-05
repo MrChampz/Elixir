@@ -13,7 +13,7 @@ namespace Elixir::GUI
         void Update(Timestep frameTime) override;
 
         glm::vec2 ComputeDesiredSize() override;
-        void GenerateDrawCommands(RenderBatch& batch, int zOrder) override;
+        void BuildDrawCommands(RenderBatch& batch, int zOrder) override;
 
         /* Callbacks */
 

@@ -19,7 +19,7 @@ namespace Elixir::GUI
         return m_DesiredSize;
     }
 
-    void Button::GenerateDrawCommands(RenderBatch& batch, const int zOrder)
+    void Button::BuildDrawCommands(RenderBatch& batch, const int zOrder)
     {
         auto buttonColor = m_NormalColor;
 
@@ -52,11 +52,9 @@ namespace Elixir::GUI
             );
         }
 
-        if (HasContent())
-        {
-            m_ContentSlot->GetWidget()->GenerateDrawCommands(batch, zOrder + 1);
-        }
-        else if (!m_Text.empty())
+        // A content child (if any) is drawn by the tree walk; a Button only draws its own
+        // inline text when it has no content widget.
+        if (!HasContent() && !m_Text.empty())
         {
             const float availableWidth = m_Geometry.Size.x - m_Padding.GetTotalHorizontal();
 
@@ -81,7 +79,7 @@ namespace Elixir::GUI
         if (!m_LayoutDirty && m_LastArrangedSpace == allocatedSpace)
             return;
 
-        m_Geometry = allocatedSpace;
+        SetGeometry(allocatedSpace);
         m_LastArrangedSpace = allocatedSpace;
 
         if (HasContent())

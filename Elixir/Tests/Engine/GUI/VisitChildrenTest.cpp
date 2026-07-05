@@ -12,7 +12,7 @@ namespace
     {
       public:
         glm::vec2 ComputeDesiredSize() override { return {}; }
-        void GenerateDrawCommands(RenderBatch& batch, int zOrder) override {}
+        void BuildDrawCommands(RenderBatch& batch, int zOrder) override {}
     };
 
     // Minimal concrete single-child widget.
@@ -20,7 +20,7 @@ namespace
     {
       public:
         glm::vec2 ComputeDesiredSize() override { return {}; }
-        void GenerateDrawCommands(RenderBatch& batch, int zOrder) override {}
+        void BuildDrawCommands(RenderBatch& batch, int zOrder) override {}
     };
 }
 

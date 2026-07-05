@@ -11,7 +11,7 @@ namespace Elixir::GUI
       public:
         void Update(Timestep frameTime) override;
 
-        void GenerateDrawCommands(RenderBatch& batch, int zOrder = 0) override;
+        void BuildDrawCommands(RenderBatch& batch, int zOrder = 0) override;
 
         void VisitChildren(const std::function<void(const Ref<Widget>&)>& visitor) const override;
 

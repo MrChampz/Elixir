@@ -11,7 +11,7 @@ namespace Elixir::GUI
         explicit Button(const std::string& text = "");
 
         glm::vec2 ComputeDesiredSize() override;
-        void GenerateDrawCommands(RenderBatch& batch, int zOrder) override;
+        void BuildDrawCommands(RenderBatch& batch, int zOrder) override;
 
         const std::string& GetText() const { return m_Text; }
         void SetText(const std::string& text) { m_Text = text; MarkLayoutDirty(); }

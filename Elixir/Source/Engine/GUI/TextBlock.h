@@ -22,7 +22,7 @@ namespace Elixir::GUI
             return m_DesiredSize;
         }
 
-        void GenerateDrawCommands(RenderBatch& batch, const int zOrder) override
+        void BuildDrawCommands(RenderBatch& batch, const int zOrder) override
         {
             if (!m_Text.empty())
             {

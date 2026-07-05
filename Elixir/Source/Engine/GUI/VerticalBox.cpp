@@ -46,7 +46,7 @@ namespace Elixir::GUI
         if (!m_LayoutDirty && m_LastArrangedSpace == allocatedSpace)
             return;
 
-        m_Geometry = allocatedSpace;
+        SetGeometry(allocatedSpace);
         m_LastArrangedSpace = allocatedSpace;
 
         // Calculate available space after padding
