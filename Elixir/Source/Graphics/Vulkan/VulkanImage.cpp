@@ -2,7 +2,6 @@
 #include "VulkanImage.h"
 
 #include <Engine/Graphics/GraphicsContext.h>
-#include <Engine/Graphics/SamplerBuilder.h>
 #include <Engine/Graphics/Texture.h>
 #include <Engine/Graphics/Converters.h>
 #include <Graphics/Vulkan/VulkanBuffer.h>
@@ -87,27 +86,49 @@ namespace Elixir::Vulkan
     {
         EE_PROFILE_ZONE_SCOPED()
         if (extent.Width <= 0 || extent.Height <= 0 || extent.Depth <= 0) return;
+        if (extent.Width == this->m_Extent.Width &&
+            extent.Height == this->m_Extent.Height &&
+            extent.Depth == this->m_Extent.Depth) return;
 
-        SImageCreateInfo info = this->GetCreateInfo();
-        info.InitialLayout = EImageLayout::TransferDst;
+        // Remember the layout the image is currently used in (e.g. depth/color
+        // attachment) so it can be restored after the resize. Otherwise, the image
+        // is left in TransferDst, which is invalid for a rendering attachment.
+        const EImageLayout originalLayout = this->GetLayout();
+        const Extent3D oldExtent = this->m_Extent;
 
-        const auto staging = CreateRef<VulkanImage>(m_GraphicsContext, info);
+        // 1. Preserve the current content in a staging image of the SAME size.
+        //    (The underlying VkImage allocation is fixed at creation, so the image
+        //    must be recreated to actually change its dimensions.)
+        SImageCreateInfo stagingInfo = this->GetCreateInfo();
+        stagingInfo.InitialLayout = EImageLayout::TransferDst;
+        const auto staging = CreateRef<VulkanImage>(m_GraphicsContext, stagingInfo);
 
         cmd->Begin();
-
-        // First, copy the content to staging image, resizing it
         Transition(cmd, EImageLayout::TransferSrc);
-        Copy(cmd, staging, this->m_Extent, extent);
-
-        // Transition images
+        Copy(cmd, staging, oldExtent, oldExtent);
         staging->Transition(cmd, EImageLayout::TransferSrc);
+        cmd->Flush(); // Waits for the GPU; the old image is safe to destroy after.
+
+        // 2. Reallocate this image at the new extent.
+        Destroy();
+        this->m_Extent = extent;
+        this->m_Layout = EImageLayout::Undefined;
+
+        SImageCreateInfo info = this->GetCreateInfo();
+        info.InitialLayout = EImageLayout::Undefined;
+        CreateImage(info);
+        CreateImageView();
+
+        // 3. Blit the preserved content into the resized image, scaling as needed.
+        cmd->Begin();
         Transition(cmd, EImageLayout::TransferDst);
-
-        // Then, copy back to the original image
-        staging->Copy(cmd, this, extent, extent);
-
-        // Flush command buffer
+        staging->Copy(cmd, this, oldExtent, extent);
+        Transition(cmd, originalLayout);
         cmd->Flush();
+
+        // Refresh the descriptor to point at the new view and final layout.
+        CreateDescriptorInfo();
+        if (this->GetSampler()) UpdateSampler();
 
         EE_CORE_TRACE("Image ({0}) resized: {1}.", this->m_UUID, this->m_Extent)
     }
@@ -146,12 +167,19 @@ namespace Elixir::Vulkan
         EE_CORE_ASSERT(vk_Dst != nullptr, "Invalid destination image!")
         EE_CORE_ASSERT(vk_Dst != VK_NULL_HANDLE, "Invalid destination image!")
 
+        // Blit with the image's own aspect. Depth/stencil images must use the depth
+        // aspect and the NEAREST filter (linear filtering is invalid for depth formats).
+        const auto aspect = this->GetAspect();
+        const bool isDepthStencil = (aspect & EImageAspect::Depth) || (aspect & EImageAspect::Stencil);
+
         CommandUtils::CopyImageToImage(
             vk_Cmd->GetVulkanCommandBuffer(),
             m_Image,
             vk_Dst,
             Converters::GetExtent3D(srcExtent),
-            Converters::GetExtent3D(dstExtent)
+            Converters::GetExtent3D(dstExtent),
+            Converters::GetImageAspect(aspect),
+            isDepthStencil ? VK_FILTER_NEAREST : VK_FILTER_LINEAR
         );
 
         dst->m_Extent = dstExtent;

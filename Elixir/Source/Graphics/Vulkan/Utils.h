@@ -212,7 +212,9 @@ namespace Elixir::Vulkan
             const VkImage src,
             const VkImage dst,
             const VkExtent3D srcExtent,
-            const VkExtent3D dstExtent
+            const VkExtent3D dstExtent,
+            const VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            const VkFilter filter = VK_FILTER_LINEAR
         )
         {
             EE_PROFILE_ZONE_SCOPED()
@@ -229,14 +231,12 @@ namespace Elixir::Vulkan
             blitRegion.dstOffsets[1].y = (int32_t)dstExtent.height;
             blitRegion.dstOffsets[1].z = (int32_t)dstExtent.depth;
 
-            // TODO: Get data from src image!
-            blitRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            blitRegion.srcSubresource.aspectMask = aspectMask;
             blitRegion.srcSubresource.baseArrayLayer = 0;
             blitRegion.srcSubresource.layerCount = 1;
             blitRegion.srcSubresource.mipLevel = 0;
 
-            // TODO: Get data from dst image!
-            blitRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            blitRegion.dstSubresource.aspectMask = aspectMask;
             blitRegion.dstSubresource.baseArrayLayer = 0;
             blitRegion.dstSubresource.layerCount = 1;
             blitRegion.dstSubresource.mipLevel = 0;
@@ -248,7 +248,7 @@ namespace Elixir::Vulkan
             blitInfo.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
             blitInfo.dstImage = dst;
             blitInfo.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-            blitInfo.filter = VK_FILTER_LINEAR;
+            blitInfo.filter = filter;
             blitInfo.regionCount = 1;
             blitInfo.pRegions = &blitRegion;
 
