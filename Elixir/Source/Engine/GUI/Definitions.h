@@ -23,6 +23,16 @@ namespace Elixir::GUI
         {
             return SRect(Position * scale, Size * scale);
         }
+
+        bool operator==(const SRect& other) const
+        {
+            return Position == other.Position && Size == other.Size;
+        }
+
+        bool operator!=(const SRect& other) const
+        {
+            return !(*this == other);
+        }
     };
 
     struct SColor

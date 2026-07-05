@@ -78,7 +78,11 @@ namespace Elixir::GUI
 
     void Button::ArrangeChildren(const SRect& allocatedSpace)
     {
+        if (!m_LayoutDirty && m_LastArrangedSpace == allocatedSpace)
+            return;
+
         m_Geometry = allocatedSpace;
+        m_LastArrangedSpace = allocatedSpace;
 
         if (HasContent())
         {
@@ -95,6 +99,8 @@ namespace Elixir::GUI
 
             m_ContentSlot->GetWidget()->ArrangeChildren(childRect);
         }
+
+        m_LayoutDirty = false;
     }
 
     std::string Button::ProcessText(const std::string& text, const float availableWidth)

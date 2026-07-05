@@ -45,6 +45,7 @@ namespace Elixir::GUI
         {
             m_Text = text;
             UpdateTextSize();
+            MarkLayoutDirty();
         }
 
         const Ref<Font>& GetFont() const { return m_Font; }
@@ -52,6 +53,7 @@ namespace Elixir::GUI
         {
             m_Font = font;
             UpdateTextSize();
+            MarkLayoutDirty();
         }
 
         const SColor& GetColor() const { return m_Color; }
@@ -62,6 +64,7 @@ namespace Elixir::GUI
         {
             m_FontSize = size;
             UpdateTextSize();
+            MarkLayoutDirty();
         }
 
     protected:
