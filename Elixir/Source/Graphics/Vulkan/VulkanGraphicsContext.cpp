@@ -495,6 +495,7 @@ namespace Elixir
             m_SwapchainExtent.Width,
             m_SwapchainExtent.Height
         );
+        depthStencilInfo.Usage = depthStencilInfo.Usage | EImageUsage::TransferSrc | EImageUsage::TransferDst;
         m_DepthStencilRenderTarget = CreateRef<VulkanDepthStencilImage>(this, depthStencilInfo);
     }
 
