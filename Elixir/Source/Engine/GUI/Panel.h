@@ -13,6 +13,8 @@ namespace Elixir::GUI
 
         void GenerateDrawCommands(RenderBatch& batch, int zOrder = 0) override;
 
+        void VisitChildren(const std::function<void(const Ref<Widget>&)>& visitor) const override;
+
         SPadding GetPadding() const { return m_Padding; }
         void SetPadding(const SPadding& padding) { m_Padding = padding; MarkLayoutDirty(); }
 

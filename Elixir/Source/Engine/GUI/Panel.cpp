@@ -14,6 +14,15 @@ namespace Elixir::GUI
         }
     }
 
+    void Panel::VisitChildren(const std::function<void(const Ref<Widget>&)>& visitor) const
+    {
+        for (const auto& slot : m_Slots)
+        {
+            if (const auto& child = slot->GetWidget())
+                visitor(child);
+        }
+    }
+
     void Panel::GenerateDrawCommands(RenderBatch& batch, const int zOrder)
     {
         for (const auto& slot : m_Slots)

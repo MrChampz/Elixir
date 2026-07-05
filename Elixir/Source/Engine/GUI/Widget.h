@@ -65,6 +65,14 @@ namespace Elixir::GUI
         bool IsLayoutDirty() const { return m_LayoutDirty; }
 
         /**
+         * Invoke the visitor for each direct child of this widget.
+         * Container widgets override this to expose their children; leaf widgets keep the
+         * default no-op. Lets callers walk the widget tree without knowing concrete types.
+         * @param visitor callback invoked once per child widget.
+         */
+        virtual void VisitChildren(const std::function<void(const Ref<Widget>&)>& visitor) const {}
+
+        /**
          * Get the final computed geometry.
          * @return rect representing the widget geometry.
          */
@@ -239,6 +247,8 @@ namespace Elixir::GUI
     {
       public:
         void Update(Timestep frameTime) override;
+
+        void VisitChildren(const std::function<void(const Ref<Widget>&)>& visitor) const override;
 
         ContentSlot& SetContent(const Ref<Widget>& widget);
 

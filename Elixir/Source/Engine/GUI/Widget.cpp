@@ -162,6 +162,15 @@ namespace Elixir::GUI
         }
     }
 
+    void ContentWidget::VisitChildren(const std::function<void(const Ref<Widget>&)>& visitor) const
+    {
+        if (m_ContentSlot)
+        {
+            if (const auto& child = m_ContentSlot->GetWidget())
+                visitor(child);
+        }
+    }
+
     ContentSlot& ContentWidget::SetContent(const Ref<Widget>& widget)
     {
         m_ContentSlot = CreateRef<ContentSlot>(widget);
