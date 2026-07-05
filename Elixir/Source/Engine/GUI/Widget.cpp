@@ -174,7 +174,7 @@ namespace Elixir::GUI
     ContentSlot& ContentWidget::SetContent(const Ref<Widget>& widget)
     {
         m_ContentSlot = CreateRef<ContentSlot>(widget);
-        AdoptChild(widget);
+        m_ContentSlot->SetOwner(this);
         return *m_ContentSlot;
     }
 }

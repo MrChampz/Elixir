@@ -57,7 +57,7 @@ namespace Elixir::GUI
         }
 
         const SColor& GetColor() const { return m_Color; }
-        void SetColor(const SColor& color) { m_Color = color; }
+        void SetColor(const SColor& color) { m_Color = color; MarkRenderDirty(); }
 
         float GetFontSize() const { return m_FontSize; }
         void SetFontSize(const float size)

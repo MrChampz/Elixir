@@ -19,7 +19,7 @@ namespace Elixir::GUI
         void SetPadding(const SPadding& padding) { m_Padding = padding; MarkLayoutDirty(); }
 
         SColor GetBackground() const { return m_Background; }
-        void SetBackground(const SColor& color) { m_Background = color; }
+        void SetBackground(const SColor& color) { m_Background = color; MarkRenderDirty(); }
 
         /**
          * Get corner radius for each corner individually.
@@ -40,7 +40,7 @@ namespace Elixir::GUI
          * Set radius for each corner individually.
          * @param radius vector(top-left, top-right, bottom-right, bottom-left)
          */
-        void SetCornerRadius(const glm::vec4& radius) { m_CornerRadius = radius; }
+        void SetCornerRadius(const glm::vec4& radius) { m_CornerRadius = radius; MarkRenderDirty(); }
 
         const std::vector<Ref<Slot>>& GetSlots() const { return m_Slots; }
 

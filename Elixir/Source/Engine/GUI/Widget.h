@@ -14,6 +14,7 @@ namespace Elixir::GUI
     class ELIXIR_API Widget
     {
         friend class Manager;
+        friend class Slot;
       public:
         virtual ~Widget() = default;
 
@@ -65,6 +66,16 @@ namespace Elixir::GUI
         bool IsLayoutDirty() const { return m_LayoutDirty; }
 
         /**
+         * Mark this widget's visual output as dirty (colour, opacity, shadows, outline, ...).
+         * Purely visual changes do not affect layout, so this does NOT touch the layout flag
+         * nor propagate to ancestors — each widget owns its own draw commands.
+         */
+        void MarkRenderDirty() { m_RenderDirty = true; }
+
+        bool IsRenderDirty() const { return m_RenderDirty; }
+        void ClearRenderDirty() { m_RenderDirty = false; }
+
+        /**
          * Invoke the visitor for each direct child of this widget.
          * Container widgets override this to expose their children; leaf widgets keep the
          * default no-op. Lets callers walk the widget tree without knowing concrete types.
@@ -91,7 +102,7 @@ namespace Elixir::GUI
         void OnMouseUp(const std::function<void()>& callback) { m_OnMouseUpCallback = callback; }
 
         float GetOpacity() const { return m_Opacity; }
-        void SetOpacity(const float opacity) { m_Opacity = opacity; }
+        void SetOpacity(const float opacity) { m_Opacity = opacity; MarkRenderDirty(); }
 
         EVisibility GetVisibility() const { return m_Visibility; }
         void SetVisibility(const EVisibility visibility) { m_Visibility = visibility; MarkLayoutDirty(); }
@@ -104,44 +115,32 @@ namespace Elixir::GUI
          * Set the inset shadow parameters.
          * @param shadow Shadow offset (x, y), blur (z) and intensity (w).
          */
-        void SetInsetShadow(const glm::vec4& shadow) { m_InsetShadow = shadow; }
+        void SetInsetShadow(const glm::vec4& shadow) { m_InsetShadow = shadow; MarkRenderDirty(); }
 
-        void SetInsetShadowOffset(const glm::vec2& offset) { m_InsetShadow.x = offset.x; m_InsetShadow.y = offset.y; }
-        void SetInsetShadowBlur(const float blur) { m_InsetShadow.z = blur; }
-        void SetInsetShadowIntensity(const float intensity) { m_InsetShadow.w = intensity; }
+        void SetInsetShadowOffset(const glm::vec2& offset) { m_InsetShadow.x = offset.x; m_InsetShadow.y = offset.y; MarkRenderDirty(); }
+        void SetInsetShadowBlur(const float blur) { m_InsetShadow.z = blur; MarkRenderDirty(); }
+        void SetInsetShadowIntensity(const float intensity) { m_InsetShadow.w = intensity; MarkRenderDirty(); }
 
         /**
          * Set the drop shadow parameters.
          * @param shadow Shadow offset (x, y), blur (z) and intensity (w).
          */
-        void SetDropShadow(const glm::vec4& shadow) { m_DropShadow = shadow; }
+        void SetDropShadow(const glm::vec4& shadow) { m_DropShadow = shadow; MarkRenderDirty(); }
 
-        void SetDropShadowOffset(const glm::vec2& offset) { m_DropShadow.x = offset.x; m_DropShadow.y = offset.y; }
-        void SetDropShadowBlur(const float blur) { m_DropShadow.z = blur; }
-        void SetDropShadowIntensity(const float intensity) { m_DropShadow.w = intensity; }
+        void SetDropShadowOffset(const glm::vec2& offset) { m_DropShadow.x = offset.x; m_DropShadow.y = offset.y; MarkRenderDirty(); }
+        void SetDropShadowBlur(const float blur) { m_DropShadow.z = blur; MarkRenderDirty(); }
+        void SetDropShadowIntensity(const float intensity) { m_DropShadow.w = intensity; MarkRenderDirty(); }
 
         SOutline GetOutline() const { return m_Outline; }
-        void SetOutline(const SOutline& outline) { m_Outline = outline; }
-        void SetOutlineColor(const SColor& color) { m_Outline.Color = color; }
-        void SetOutlineThickness(const float thickness) { m_Outline.Thickness = thickness; }
+        void SetOutline(const SOutline& outline) { m_Outline = outline; MarkRenderDirty(); }
+        void SetOutlineColor(const SColor& color) { m_Outline.Color = color; MarkRenderDirty(); }
+        void SetOutlineThickness(const float thickness) { m_Outline.Thickness = thickness; MarkRenderDirty(); }
 
         bool IsHovered() const { return m_Hovered; }
         bool IsPressed() const { return m_Pressed; }
         bool IsFocused() const { return m_Focused; }
 
       protected:
-        /**
-         * Register a widget as a child of this one: sets the child's parent back-pointer
-         * (used for dirty propagation) and marks this widget's layout dirty, since gaining
-         * a child changes layout. Call from container AddChild / SetContent methods.
-         * @param child the widget being attached to this one.
-         */
-        void AdoptChild(const Ref<Widget>& child)
-        {
-            if (child) child->m_Parent = this;
-            MarkLayoutDirty();
-        }
-
         virtual void HandleMouseEnter();
         virtual void HandleMouseLeave();
         virtual void HandleMouseDown(const MouseButtonPressedEvent& event);
@@ -221,6 +220,10 @@ namespace Elixir::GUI
         Widget* m_Parent = nullptr;
         bool m_LayoutDirty = true;
         SRect m_LastArrangedSpace{};
+
+        // Visual dirty flag (colour/opacity/shadow/...). Independent from layout; consumed by
+        // the render-command cache. Starts dirty so the first frame generates commands.
+        bool m_RenderDirty = true;
 
         float m_Opacity = 1.0f;
 

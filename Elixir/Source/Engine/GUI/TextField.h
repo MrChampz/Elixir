@@ -20,25 +20,25 @@ namespace Elixir::GUI
         void OnChange(const std::function<void(const std::string&)>& callback) { m_OnChangeCallback = callback; }
 
         const Ref<Font>& GetFont() const { return m_Font; }
-        void SetFont(const Ref<Font>& font) { m_Font = font; }
+        void SetFont(const Ref<Font>& font) { m_Font = font; MarkRenderDirty(); }
 
         float GetFontSize() const { return m_FontSize; }
-        void SetFontSize(const float size) { m_FontSize = size; }
+        void SetFontSize(const float size) { m_FontSize = size; MarkRenderDirty(); }
 
         const std::string& GetText() const { return m_Text; }
-        void SetText(const std::string& text) { m_Text = text; }
+        void SetText(const std::string& text) { m_Text = text; MarkRenderDirty(); }
 
         SColor GetTextColor() const { return m_TextColor; }
-        void SetTextColor(const SColor& color) { m_TextColor = color; }
+        void SetTextColor(const SColor& color) { m_TextColor = color; MarkRenderDirty(); }
 
         const std::string& GetPlaceholder() const { return m_Placeholder; }
-        void SetPlaceholder(const std::string& placeholder) { m_Placeholder = placeholder; }
+        void SetPlaceholder(const std::string& placeholder) { m_Placeholder = placeholder; MarkRenderDirty(); }
 
         SColor GetPlaceholderColor() const { return m_PlaceholderColor; }
-        void SetPlaceholderColor(const SColor& color) { m_PlaceholderColor = color; }
+        void SetPlaceholderColor(const SColor& color) { m_PlaceholderColor = color; MarkRenderDirty(); }
 
         SPadding GetPadding() const { return m_Padding; }
-        void SetPadding(const SPadding& padding) { m_Padding = padding; }
+        void SetPadding(const SPadding& padding) { m_Padding = padding; MarkRenderDirty(); }
 
         /**
          * Get corner radius for each corner individually.
@@ -59,22 +59,22 @@ namespace Elixir::GUI
          * Set a radius for each corner individually.
          * @param radius vector (top-left, top-right, bottom-right, bottom-left)
          */
-        void SetCornerRadius(const glm::vec4& radius) { m_CornerRadius = radius; }
+        void SetCornerRadius(const glm::vec4& radius) { m_CornerRadius = radius; MarkRenderDirty(); }
 
         SColor GetBackgroundColor() const { return m_BackgroundColor; }
-        void SetBackgroundColor(const SColor& color) { m_BackgroundColor = color; }
+        void SetBackgroundColor(const SColor& color) { m_BackgroundColor = color; MarkRenderDirty(); }
 
         const glm::vec4& GetBackgroundBorders() const { return m_BackgroundBorders; }
-        void SetBackgroundBorders(const glm::vec4& borders) { m_BackgroundBorders = borders; }
+        void SetBackgroundBorders(const glm::vec4& borders) { m_BackgroundBorders = borders; MarkRenderDirty(); }
 
         const Ref<Texture2D>& GetBackground() const { return m_Background; }
-        void SetBackground(const Ref<Texture2D>& texture) { m_Background = texture; }
+        void SetBackground(const Ref<Texture2D>& texture) { m_Background = texture; MarkRenderDirty(); }
 
         SColor GetCursorColor() const { return m_CursorColor; }
-        void SetCursorColor(const SColor& color) { m_CursorColor = color; }
+        void SetCursorColor(const SColor& color) { m_CursorColor = color; MarkRenderDirty(); }
 
         SColor GetSelectionColor() const { return m_SelectionColor; }
-        void SetSelectionColor(const SColor& color) { m_SelectionColor = color; }
+        void SetSelectionColor(const SColor& color) { m_SelectionColor = color; MarkRenderDirty(); }
 
     protected:
         void HandleMouseEnter() override;

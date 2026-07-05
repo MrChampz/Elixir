@@ -11,7 +11,7 @@ namespace Elixir::GUI
     {
         const auto slot = CreateRef<CanvasSlot>(child);
         m_Slots.push_back(slot);
-        AdoptChild(child);
+        slot->SetOwner(this);
         return *slot;
     }
 

@@ -17,7 +17,7 @@ namespace Elixir::GUI
         void SetText(const std::string& text) { m_Text = text; MarkLayoutDirty(); }
 
         SColor GetTextColor() const { return m_TextColor; }
-        void SetTextColor(const SColor& color) { m_TextColor = color; }
+        void SetTextColor(const SColor& color) { m_TextColor = color; MarkRenderDirty(); }
 
         const Ref<Font>& GetFont() const { return m_Font; }
         void SetFont(const Ref<Font>& font) { m_Font = font; MarkLayoutDirty(); }
@@ -47,19 +47,19 @@ namespace Elixir::GUI
          * Set a radius for each corner individually.
          * @param radius vector (top-left, top-right, bottom-right, bottom-left)
          */
-        void SetCornerRadius(const glm::vec4& radius) { m_CornerRadius = radius; }
+        void SetCornerRadius(const glm::vec4& radius) { m_CornerRadius = radius; MarkRenderDirty(); }
 
         SColor GetNormalColor() const { return m_NormalColor; }
-        void SetNormalColor(const SColor& color) { m_NormalColor = color; }
+        void SetNormalColor(const SColor& color) { m_NormalColor = color; MarkRenderDirty(); }
 
         SColor GetHoverColor() const { return m_HoverColor; }
-        void SetHoverColor(const SColor& color) { m_HoverColor = color; }
+        void SetHoverColor(const SColor& color) { m_HoverColor = color; MarkRenderDirty(); }
 
         const glm::vec4& GetBackgroundBorders() const { return m_BackgroundBorders; }
-        void SetBackgroundBorders(const glm::vec4& borders) { m_BackgroundBorders = borders; }
+        void SetBackgroundBorders(const glm::vec4& borders) { m_BackgroundBorders = borders; MarkRenderDirty(); }
 
         const Ref<Texture2D>& GetNormalBackground() const { return m_NormalBackground; }
-        void SetNormalBackground(const Ref<Texture2D>& texture) { m_NormalBackground = texture; }
+        void SetNormalBackground(const Ref<Texture2D>& texture) { m_NormalBackground = texture; MarkRenderDirty(); }
 
         void ArrangeChildren(const SRect& allocatedSpace) override;
 
