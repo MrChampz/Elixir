@@ -20,8 +20,11 @@ namespace Elixir::GUI
     void Widget::MarkLayoutDirty()
     {
         if (m_LayoutDirty) return;
+
         m_LayoutDirty = true;
-        if (m_Parent) m_Parent->MarkLayoutDirty();
+
+        if (const auto parent = m_Parent.lock())
+            parent->MarkLayoutDirty();
     }
 
     void Widget::SetVisibility(const EVisibility visibility)
@@ -35,10 +38,28 @@ namespace Elixir::GUI
         return m_Visibility == EVisibility::Visible && m_Opacity > 0.0f;
     }
 
-    void Widget::AdoptChild(const Ref<Widget>& child)
+    void Widget::AttachChild(const Ref<Widget>& child)
     {
-        if (child) child->m_Parent = this;
+        EE_CORE_ASSERT(!weak_from_this().expired(), "Parent must be owned by a Ref before adopting")
+
+        if (child)
+        {
+            if (const auto prev = child->m_Parent.lock(); prev && prev != shared_from_this())
+                prev->RemoveChild(child);
+
+            child->m_Parent = weak_from_this();
+        }
+
         MarkLayoutDirty();
+    }
+
+    void Widget::DetachChild(const Ref<Widget>& child)
+    {
+        if (child && child->m_Parent.lock().get() == this)
+        {
+            child->m_Parent.reset();
+            MarkLayoutDirty();
+        }
     }
 
     void Widget::HandleMouseEnter()
@@ -193,8 +214,23 @@ namespace Elixir::GUI
 
     ContentSlot& ContentWidget::SetContent(const Ref<Widget>& widget)
     {
+        ClearContent();
         m_ContentSlot = CreateRef<ContentSlot>(widget);
-        AdoptChild(widget);
+        AttachChild(widget);
         return *m_ContentSlot;
+    }
+
+    void ContentWidget::ClearContent()
+    {
+        if (!m_ContentSlot) return;
+
+        DetachChild(m_ContentSlot->GetWidget());
+        m_ContentSlot.reset();
+    }
+
+    void ContentWidget::RemoveChild(const Ref<Widget>& child)
+    {
+        if (m_ContentSlot && m_ContentSlot->GetWidget() == child)
+            ClearContent();
     }
 }

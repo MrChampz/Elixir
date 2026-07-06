@@ -7,7 +7,7 @@ namespace Elixir::GUI
     {
         const auto slot = CreateRef<LayoutSlot>(child);
         m_Slots.push_back(slot);
-        AdoptChild(child);
+        AttachChild(child);
         return *slot;
     }
 

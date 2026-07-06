@@ -11,7 +11,7 @@ namespace Elixir::GUI
     class Manager;
     class ContentSlot;
 
-    class ELIXIR_API Widget
+    class ELIXIR_API Widget : public std::enable_shared_from_this<Widget>
     {
         friend class Manager;
       public:
@@ -109,13 +109,28 @@ namespace Elixir::GUI
         bool IsFocused() const { return m_Focused; }
 
       protected:
+        virtual void RemoveChild(const Ref<Widget>& child) {}
+
         /**
          * Register a widget as a child of this one: sets the child's parent back-pointer
          * (used for dirty propagation) and marks this widget's layout dirty, since gaining
          * a child changes layout. Call from container AddChild / SetContent methods.
+         *
          * @param child the widget being attached to this one.
          */
-        void AdoptChild(const Ref<Widget>& child);
+        void AttachChild(const Ref<Widget>& child);
+
+        /**
+         * Unregister a widget as a child of this one: clears the child's parent back-pointer
+         * so its dirty propagation no longer reaches this widget, and marks this widget's
+         * layout dirty, since losing a child changes layout. Call when detaching or
+         * replacing a child (e.g. from RemoveChild / SetContent).
+         *
+         * Only clears the link if the child is still parented to this widget.
+         *
+         * @param child the widget being detached to this one.
+         */
+        void DetachChild(const Ref<Widget>& child);
 
         virtual void HandleMouseEnter();
         virtual void HandleMouseLeave();
@@ -187,7 +202,7 @@ namespace Elixir::GUI
             EVerticalAlignment alignment
         );
 
-        Widget* m_Parent = nullptr;
+        WeakRef<Widget> m_Parent;
 
         // Layout dirty tracking. A widget starts dirty so the first frame always lays out.
         // m_LastArrangedSpace records the space received on the previous arrangement,
@@ -222,14 +237,41 @@ namespace Elixir::GUI
     class ELIXIR_API ContentWidget : public Widget
     {
       public:
+        /**
+         * Update the content widget: forwards the tick to the current content, if any.
+         * @param frameTime time since the last tick.
+         */
         void Update(Timestep frameTime) override;
 
+        /**
+         * Set the single child of this widget, replacing (and detaching) any previous
+         * content. Adopts the new widget as a child and marks this widget's layout dirty.
+         * @param widget the widget to host as content.
+         * @return the content slot
+         */
         ContentSlot& SetContent(const Ref<Widget>& widget);
 
+        /**
+         * Remove the current content: detaches the child (clearing its parent back-pointer)
+         * and empties the content slot, marking this widget's layout dirty. No-op if there
+         * is no content.
+         */
+        void ClearContent();
+
+        /**
+         * @return true if this widget currently hosts content, false otherwise.
+         */
         bool HasContent() const { return m_ContentSlot != nullptr; }
+
+        /**
+         * Get the slot describing how the content is laid out (alignment, margin, ...).
+         * @return the content slot, or nullptr if no content is set.
+         */
         Ref<ContentSlot> GetContentSlot() const { return m_ContentSlot; }
 
       protected:
+        void RemoveChild(const Ref<Widget>& child) override;
+
         Ref<ContentSlot> m_ContentSlot;
     };
 }

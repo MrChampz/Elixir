@@ -10,7 +10,8 @@ namespace Elixir::GUI
         explicit CanvasSlot(const Ref<Widget>& widget)
         {
             m_Widget = widget;
-            m_Constraint.Size = widget->GetDesiredSize();
+            if (m_Widget)
+                m_Constraint.Size = m_Widget->GetDesiredSize();
         }
 
         const SAnchors& GetAnchors() const { return m_Anchors; }

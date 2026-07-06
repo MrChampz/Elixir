@@ -38,6 +38,32 @@ namespace Elixir::GUI
         }
     }
 
+    void Panel::RemoveChild(const Ref<Widget>& child)
+    {
+        if (!child) return;
+
+        const auto it = std::ranges::find_if(
+            m_Slots,
+            [&](const Ref<Slot>& slot) { return slot->GetWidget() == child; }
+        );
+
+        if (it == m_Slots.end()) return;
+
+        m_Slots.erase(it);
+        DetachChild(child);
+    }
+
+    void Panel::ClearChildren()
+    {
+        if (m_Slots.empty()) return;
+
+        for (const auto& slot : m_Slots)
+            DetachChild(slot->GetWidget());
+
+        m_Slots.clear();
+        MarkLayoutDirty();
+    }
+
     void Panel::SetPadding(const SPadding& padding)
     {
         m_Padding = padding;
