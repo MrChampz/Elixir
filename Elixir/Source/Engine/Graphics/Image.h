@@ -324,6 +324,13 @@ namespace Elixir
 
         virtual void UpdateSampler() = 0;
 
+        /**
+         * Recompute cached size fields (bits-per-pixel and byte size) from the
+         * current format and extent. Call after changing the extent (e.g. on
+         * resize) so GetSize() stays consistent with the actual dimensions.
+         */
+        void RecalculateSize();
+
         UUID m_UUID;
         std::string m_DebugName;
 

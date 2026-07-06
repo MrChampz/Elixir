@@ -113,6 +113,7 @@ namespace Elixir::Vulkan
         Destroy();
         this->m_Extent = extent;
         this->m_Layout = EImageLayout::Undefined;
+        this->RecalculateSize();
 
         SImageCreateInfo info = this->GetCreateInfo();
         info.InitialLayout = EImageLayout::Undefined;
