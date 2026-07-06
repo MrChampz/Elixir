@@ -17,6 +17,7 @@ namespace Elixir::GUI
         CanvasSlot& SetAnchors(const SAnchors& anchors)
         {
             m_Anchors = anchors;
+            if (m_Widget) m_Widget->MarkLayoutDirty();
             return *this;
         }
 
@@ -25,12 +26,14 @@ namespace Elixir::GUI
         CanvasSlot& SetPosition(const glm::vec2& pos)
         {
             m_Constraint.Position = pos;
+            if (m_Widget) m_Widget->MarkLayoutDirty();
             return *this;
         }
 
         CanvasSlot& SetSize(const glm::vec2& size)
         {
             m_Constraint.Size = size;
+            if (m_Widget) m_Widget->MarkLayoutDirty();
             return *this;
         }
 
@@ -42,12 +45,14 @@ namespace Elixir::GUI
         )
         {
             m_Constraint.Offsets = { left, top, right, bottom };
+            if (m_Widget) m_Widget->MarkLayoutDirty();
             return *this;
         }
 
         CanvasSlot& SetAlignment(const glm::vec2& alignment)
         {
             m_Constraint.Alignment = alignment;
+            if (m_Widget) m_Widget->MarkLayoutDirty();
             return *this;
         }
 

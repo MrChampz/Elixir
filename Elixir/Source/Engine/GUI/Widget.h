@@ -226,10 +226,8 @@ namespace Elixir::GUI
 
         ContentSlot& SetContent(const Ref<Widget>& widget);
 
-        Ref<ContentSlot> GetContentSlot() const { return m_ContentSlot; }
-        void SetContentSlot(const Ref<ContentSlot>& slot) { m_ContentSlot = slot; }
-
         bool HasContent() const { return m_ContentSlot != nullptr; }
+        Ref<ContentSlot> GetContentSlot() const { return m_ContentSlot; }
 
       protected:
         Ref<ContentSlot> m_ContentSlot;
