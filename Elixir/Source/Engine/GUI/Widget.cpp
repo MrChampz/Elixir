@@ -215,6 +215,20 @@ namespace Elixir::GUI
     ContentSlot& ContentWidget::SetContent(const Ref<Widget>& widget)
     {
         ClearContent();
+
+        // A null widget means "no content". Guard against it so we never leave a
+        // phantom slot that makes HasContent() report true with no widget to
+        // draw/update. Callers that want to empty the content should use
+        // ClearContent(); reaching here with null is a misuse.
+        EE_CORE_ASSERT(widget, "SetContent called with a null widget; use ClearContent to empty content");
+        if (!widget)
+        {
+            // Release fallback (asserts are compiled out): keep the slot empty and
+            // return an inert sentinel so HasContent() stays truthful.
+            static ContentSlot emptyContent{nullptr};
+            return emptyContent;
+        }
+
         m_ContentSlot = CreateRef<ContentSlot>(widget);
         AttachChild(widget);
         return *m_ContentSlot;
