@@ -94,6 +94,14 @@ namespace Elixir::GUI
         {
             return SMargin(Left * scale, Top * scale, Right * scale, Bottom * scale);
         }
+
+        bool operator==(const SMargin& other) const
+        {
+            return Left == other.Left &&
+                   Top == other.Top &&
+                   Right == other.Right &&
+                   Bottom == other.Bottom;
+        }
     };
 
     typedef SMargin SPadding;

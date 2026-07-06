@@ -29,6 +29,7 @@ namespace Elixir::GUI
 
     void Widget::SetVisibility(const EVisibility visibility)
     {
+        if (m_Visibility == visibility) return;
         m_Visibility = visibility;
         MarkLayoutDirty();
     }
@@ -48,9 +49,8 @@ namespace Elixir::GUI
                 prev->RemoveChild(child);
 
             child->m_Parent = weak_from_this();
+            MarkLayoutDirty();
         }
-
-        MarkLayoutDirty();
     }
 
     void Widget::DetachChild(const Ref<Widget>& child)

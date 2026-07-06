@@ -112,3 +112,37 @@ TEST(DirtyTrackingTest, AllFlagsClearedAfterArrangePass)
     EXPECT_FALSE(a->IsLayoutDirty());
     EXPECT_FALSE(b->IsLayoutDirty());
 }
+
+TEST(DirtyTrackingTest, SettingSamePaddingDoesNotInvalidate)
+{
+    const auto root = CreateRef<VerticalBox>();
+    const auto child = CreateRef<VerticalBox>();
+    root->AddChild(child);
+
+    child->SetPadding(SPadding(5.0f));
+    Arrange(root, { { 0, 0 }, { 100, 100 } });
+    ASSERT_FALSE(root->IsLayoutDirty());
+
+    child->SetPadding(SPadding(5.0f));
+    EXPECT_FALSE(child->IsLayoutDirty());
+    EXPECT_FALSE(root->IsLayoutDirty());
+
+    child->SetPadding(SPadding(8.0f));
+    EXPECT_TRUE(child->IsLayoutDirty());
+}
+
+TEST(DirtyTrackingTest, SettingSameVisibilityDoesNotInvalidate)
+{
+    const auto root = CreateRef<VerticalBox>();
+    const auto child = CreateRef<CountingWidget>();
+    root->AddChild(child);
+
+    Arrange(root, { { 0, 0 }, { 100, 100 } });
+    ASSERT_FALSE(root->IsLayoutDirty());
+
+    child->SetVisibility(EVisibility::Visible);
+    EXPECT_FALSE(root->IsLayoutDirty());
+
+    child->SetVisibility(EVisibility::Hidden);
+    EXPECT_TRUE(root->IsLayoutDirty());
+}

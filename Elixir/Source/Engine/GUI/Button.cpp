@@ -78,12 +78,14 @@ namespace Elixir::GUI
 
     void Button::SetText(const std::string& text)
     {
+        if (m_Text == text) return;
         m_Text = text;
         MarkLayoutDirty();
     }
 
     void Button::SetFont(const Ref<Font>& font)
     {
+        if (m_Font == font) return;
         m_Font = font;
         MarkLayoutDirty();
     }
@@ -96,6 +98,7 @@ namespace Elixir::GUI
 
     void Button::SetPadding(const SPadding& padding)
     {
+        if (m_Padding == padding) return;
         m_Padding = padding;
         MarkLayoutDirty();
     }

@@ -66,6 +66,7 @@ namespace Elixir::GUI
 
     void Panel::SetPadding(const SPadding& padding)
     {
+        if (m_Padding == padding) return;
         m_Padding = padding;
         MarkLayoutDirty();
     }
