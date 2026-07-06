@@ -28,7 +28,7 @@ namespace Elixir::GUI
          * @param batch batch to add draw commands to.
          * @param zOrder z-order for layering.
          */
-        virtual void GenerateDrawCommands(RenderBatch& batch, int zOrder = 0) = 0;
+        virtual void GenerateDrawCommands(RenderBatch& batch, int zOrder) = 0;
 
         /**
          * Compute how much space this widget wants.
@@ -40,10 +40,16 @@ namespace Elixir::GUI
          * Arrange this widget in the given space.
          * @param allocatedSpace the space available for this widget.
          */
-        virtual void ArrangeChildren(const SRect& allocatedSpace)
-        {
-            m_Geometry = allocatedSpace;
-        }
+        virtual void ArrangeChildren(const SRect& allocatedSpace);
+
+        /**
+         * Mark this widget's layout as dirty and propagate the mark to ancestors.
+         * A dirty widget (and any ancestor whose layout depends on it) is re-arranged
+         * on the next frame; clean subtrees are skipped by ArrangeChildren.
+         */
+        void MarkLayoutDirty();
+
+        bool IsLayoutDirty() const { return m_LayoutDirty; }
 
         /**
          * Get the final computed geometry.
@@ -67,7 +73,7 @@ namespace Elixir::GUI
         void SetOpacity(const float opacity) { m_Opacity = opacity; }
 
         EVisibility GetVisibility() const { return m_Visibility; }
-        void SetVisibility(const EVisibility visibility) { m_Visibility = visibility; }
+        void SetVisibility(EVisibility visibility);
         bool IsVisible() const;
 
         glm::vec4 GetInsetShadow() const { return m_InsetShadow; }
@@ -103,6 +109,14 @@ namespace Elixir::GUI
         bool IsFocused() const { return m_Focused; }
 
       protected:
+        /**
+         * Register a widget as a child of this one: sets the child's parent back-pointer
+         * (used for dirty propagation) and marks this widget's layout dirty, since gaining
+         * a child changes layout. Call from container AddChild / SetContent methods.
+         * @param child the widget being attached to this one.
+         */
+        void AdoptChild(const Ref<Widget>& child);
+
         virtual void HandleMouseEnter();
         virtual void HandleMouseLeave();
         virtual void HandleMouseDown(const MouseButtonPressedEvent& event);
@@ -172,6 +186,14 @@ namespace Elixir::GUI
             const SRect& availableSpace,
             EVerticalAlignment alignment
         );
+
+        Widget* m_Parent = nullptr;
+
+        // Layout dirty tracking. A widget starts dirty so the first frame always lays out.
+        // m_LastArrangedSpace records the space received on the previous arrangement,
+        // so a clean widget still re-arranges when its parent hands it a different rectangle.
+        bool m_LayoutDirty = true;
+        SRect m_LastArrangedSpace{};
 
         SRect m_Geometry{};
         glm::vec2 m_DesiredSize{};

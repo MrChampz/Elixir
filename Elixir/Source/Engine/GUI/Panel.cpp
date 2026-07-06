@@ -37,4 +37,10 @@ namespace Elixir::GUI
             );
         }
     }
+
+    void Panel::SetPadding(const SPadding& padding)
+    {
+        m_Padding = padding;
+        MarkLayoutDirty();
+    }
 }

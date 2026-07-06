@@ -7,9 +7,38 @@ namespace Elixir::GUI
 {
     /* Widget */
 
+    void Widget::ArrangeChildren(const SRect& allocatedSpace)
+    {
+        if (!m_LayoutDirty && m_LastArrangedSpace == allocatedSpace)
+            return;
+
+        m_Geometry = allocatedSpace;
+        m_LastArrangedSpace = allocatedSpace;
+        m_LayoutDirty = false;
+    }
+
+    void Widget::MarkLayoutDirty()
+    {
+        if (m_LayoutDirty) return;
+        m_LayoutDirty = true;
+        if (m_Parent) m_Parent->MarkLayoutDirty();
+    }
+
+    void Widget::SetVisibility(const EVisibility visibility)
+    {
+        m_Visibility = visibility;
+        MarkLayoutDirty();
+    }
+
     bool Widget::IsVisible() const
     {
         return m_Visibility == EVisibility::Visible && m_Opacity > 0.0f;
+    }
+
+    void Widget::AdoptChild(const Ref<Widget>& child)
+    {
+        if (child) child->m_Parent = this;
+        MarkLayoutDirty();
     }
 
     void Widget::HandleMouseEnter()
@@ -165,6 +194,7 @@ namespace Elixir::GUI
     ContentSlot& ContentWidget::SetContent(const Ref<Widget>& widget)
     {
         m_ContentSlot = CreateRef<ContentSlot>(widget);
+        AdoptChild(widget);
         return *m_ContentSlot;
     }
 }

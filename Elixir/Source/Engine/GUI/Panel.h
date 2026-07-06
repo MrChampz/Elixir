@@ -14,7 +14,7 @@ namespace Elixir::GUI
         void GenerateDrawCommands(RenderBatch& batch, int zOrder = 0) override;
 
         SPadding GetPadding() const { return m_Padding; }
-        void SetPadding(const SPadding& padding) { m_Padding = padding; }
+        void SetPadding(const SPadding& padding);
 
         SColor GetBackground() const { return m_Background; }
         void SetBackground(const SColor& color) { m_Background = color; }

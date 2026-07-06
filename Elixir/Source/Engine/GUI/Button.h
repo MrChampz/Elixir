@@ -14,19 +14,19 @@ namespace Elixir::GUI
         void GenerateDrawCommands(RenderBatch& batch, int zOrder) override;
 
         const std::string& GetText() const { return m_Text; }
-        void SetText(const std::string& text) { m_Text = text; }
+        void SetText(const std::string& text);
 
         SColor GetTextColor() const { return m_TextColor; }
         void SetTextColor(const SColor& color) { m_TextColor = color; }
 
         const Ref<Font>& GetFont() const { return m_Font; }
-        void SetFont(const Ref<Font>& font) { m_Font = font; }
+        void SetFont(const Ref<Font>& font);
 
         float GetFontSize() const { return m_FontSize; }
-        void SetFontSize(const float size) { m_FontSize = size; }
+        void SetFontSize(float size);
 
         SPadding GetPadding() const { return m_Padding; }
-        void SetPadding(const SPadding& padding) { m_Padding = padding; }
+        void SetPadding(const SPadding& padding);
 
         /**
          * Get corner radius for each corner individually.
