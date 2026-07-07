@@ -23,6 +23,16 @@ namespace Elixir::GUI
         {
             return SRect(Position * scale, Size * scale);
         }
+
+        bool operator==(const SRect& other) const
+        {
+            return Position == other.Position && Size == other.Size;
+        }
+
+        bool operator!=(const SRect& other) const
+        {
+            return !(*this == other);
+        }
     };
 
     struct SColor
@@ -83,6 +93,14 @@ namespace Elixir::GUI
         SMargin operator*(const float scale) const
         {
             return SMargin(Left * scale, Top * scale, Right * scale, Bottom * scale);
+        }
+
+        bool operator==(const SMargin& other) const
+        {
+            return Left == other.Left &&
+                   Top == other.Top &&
+                   Right == other.Right &&
+                   Bottom == other.Bottom;
         }
     };
 

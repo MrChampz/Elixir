@@ -13,8 +13,21 @@ namespace Elixir::GUI
 
         void GenerateDrawCommands(RenderBatch& batch, int zOrder = 0) override;
 
+        /**
+         * Remove a child widget from this panel: drops the slot holding it and clears the
+         * child's parent back-pointer (via DetachChild), marking layout dirty. No-op if the
+         * widget is not a child of this panel. Promotes the Widget hook to public API.
+         * @param child the widget to remove.
+         */
+        void RemoveChild(const Ref<Widget>& child) override;
+
+        /**
+         * Remove all children from this panel, detaching each, and mark layout dirty.
+         */
+        void ClearChildren();
+
         SPadding GetPadding() const { return m_Padding; }
-        void SetPadding(const SPadding& padding) { m_Padding = padding; }
+        void SetPadding(const SPadding& padding);
 
         SColor GetBackground() const { return m_Background; }
         void SetBackground(const SColor& color) { m_Background = color; }

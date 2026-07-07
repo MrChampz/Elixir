@@ -17,7 +17,6 @@ namespace Elixir::GUI
         }
 
         Ref<Widget> GetWidget() const { return m_Widget; }
-        void SetWidget(const Ref<Widget>& widget) { m_Widget = widget; }
 
       protected:
         Ref<Widget> m_Widget = nullptr;
@@ -32,6 +31,7 @@ namespace Elixir::GUI
         ContentSlot& SetHorizontalAlignment(const EHorizontalAlignment alignment)
         {
             m_HAlignment = alignment;
+            if (m_Widget) m_Widget->MarkLayoutDirty();
             return *this;
         }
 
@@ -39,6 +39,7 @@ namespace Elixir::GUI
         ContentSlot& SetVerticalAlignment(const EVerticalAlignment alignment)
         {
             m_VAlignment = alignment;
+            if (m_Widget) m_Widget->MarkLayoutDirty();
             return *this;
         }
 
@@ -46,6 +47,7 @@ namespace Elixir::GUI
         ContentSlot& SetMargin(const SMargin& margin)
         {
             m_Margin = margin;
+            if (m_Widget) m_Widget->MarkLayoutDirty();
             return *this;
         }
 
@@ -64,6 +66,7 @@ namespace Elixir::GUI
         LayoutSlot& SetHorizontalAlignment(const EHorizontalAlignment alignment)
         {
             m_HAlignment = alignment;
+            if (m_Widget) m_Widget->MarkLayoutDirty();
             return *this;
         }
 
@@ -71,6 +74,7 @@ namespace Elixir::GUI
         LayoutSlot& SetVerticalAlignment(const EVerticalAlignment alignment)
         {
             m_VAlignment = alignment;
+            if (m_Widget) m_Widget->MarkLayoutDirty();
             return *this;
         }
 
@@ -78,6 +82,7 @@ namespace Elixir::GUI
         LayoutSlot& SetMargin(const SMargin& margin)
         {
             m_Margin = margin;
+            if (m_Widget) m_Widget->MarkLayoutDirty();
             return *this;
         }
 
@@ -85,6 +90,7 @@ namespace Elixir::GUI
         LayoutSlot& SetMinSize(const glm::vec2& size)
         {
             m_MinSize = size;
+            if (m_Widget) m_Widget->MarkLayoutDirty();
             return *this;
         }
 
@@ -93,6 +99,7 @@ namespace Elixir::GUI
         LayoutSlot& SetMaxSize(const glm::vec2& size)
         {
             m_MaxSize = size;
+            if (m_Widget) m_Widget->MarkLayoutDirty();
             return *this;
         }
 
@@ -100,6 +107,7 @@ namespace Elixir::GUI
         LayoutSlot& SetFillRatio(const float ratio)
         {
             m_FillRatio = ratio;
+            if (m_Widget) m_Widget->MarkLayoutDirty();
             return *this;
         }
 

@@ -7,9 +7,59 @@ namespace Elixir::GUI
 {
     /* Widget */
 
+    void Widget::ArrangeChildren(const SRect& allocatedSpace)
+    {
+        if (!m_LayoutDirty && m_LastArrangedSpace == allocatedSpace)
+            return;
+
+        m_Geometry = allocatedSpace;
+        m_LastArrangedSpace = allocatedSpace;
+        m_LayoutDirty = false;
+    }
+
+    void Widget::MarkLayoutDirty()
+    {
+        if (m_LayoutDirty) return;
+
+        m_LayoutDirty = true;
+
+        if (const auto parent = m_Parent.lock())
+            parent->MarkLayoutDirty();
+    }
+
+    void Widget::SetVisibility(const EVisibility visibility)
+    {
+        if (m_Visibility == visibility) return;
+        m_Visibility = visibility;
+        MarkLayoutDirty();
+    }
+
     bool Widget::IsVisible() const
     {
         return m_Visibility == EVisibility::Visible && m_Opacity > 0.0f;
+    }
+
+    void Widget::AttachChild(const Ref<Widget>& child)
+    {
+        EE_CORE_ASSERT(!weak_from_this().expired(), "Parent must be owned by a Ref before adopting")
+
+        if (child)
+        {
+            if (const auto prev = child->m_Parent.lock(); prev && prev != shared_from_this())
+                prev->RemoveChild(child);
+
+            child->m_Parent = weak_from_this();
+            MarkLayoutDirty();
+        }
+    }
+
+    void Widget::DetachChild(const Ref<Widget>& child)
+    {
+        if (child && child->m_Parent.lock().get() == this)
+        {
+            child->m_Parent.reset();
+            MarkLayoutDirty();
+        }
     }
 
     void Widget::HandleMouseEnter()
@@ -164,7 +214,37 @@ namespace Elixir::GUI
 
     ContentSlot& ContentWidget::SetContent(const Ref<Widget>& widget)
     {
+        ClearContent();
+
+        // A null widget means "no content". Guard against it so we never leave a
+        // phantom slot that makes HasContent() report true with no widget to
+        // draw/update. Callers that want to empty the content should use
+        // ClearContent(); reaching here with null is a misuse.
+        EE_CORE_ASSERT(widget, "SetContent called with a null widget; use ClearContent to empty content");
+        if (!widget)
+        {
+            // Release fallback (asserts are compiled out): keep the slot empty and
+            // return an inert sentinel so HasContent() stays truthful.
+            static ContentSlot emptyContent{nullptr};
+            return emptyContent;
+        }
+
         m_ContentSlot = CreateRef<ContentSlot>(widget);
+        AttachChild(widget);
         return *m_ContentSlot;
+    }
+
+    void ContentWidget::ClearContent()
+    {
+        if (!m_ContentSlot) return;
+
+        DetachChild(m_ContentSlot->GetWidget());
+        m_ContentSlot.reset();
+    }
+
+    void ContentWidget::RemoveChild(const Ref<Widget>& child)
+    {
+        if (m_ContentSlot && m_ContentSlot->GetWidget() == child)
+            ClearContent();
     }
 }

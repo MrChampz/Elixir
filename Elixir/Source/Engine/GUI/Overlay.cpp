@@ -7,6 +7,7 @@ namespace Elixir::GUI
     {
         const auto slot = CreateRef<LayoutSlot>(child);
         m_Slots.push_back(slot);
+        AttachChild(child);
         return *slot;
     }
 
@@ -40,7 +41,11 @@ namespace Elixir::GUI
 
     void Overlay::ArrangeChildren(const SRect& allocatedSpace)
     {
+        if (!m_LayoutDirty && m_LastArrangedSpace == allocatedSpace)
+            return;
+
         m_Geometry = allocatedSpace;
+        m_LastArrangedSpace = allocatedSpace;
 
         // Calculate available space after padding
         const SRect innerSpace = ApplyPadding(allocatedSpace, m_Padding);
@@ -74,5 +79,7 @@ namespace Elixir::GUI
             // Arrange the child
             slot->GetWidget()->ArrangeChildren(childGeometry);
         }
+
+        m_LayoutDirty = false;
     }
 }

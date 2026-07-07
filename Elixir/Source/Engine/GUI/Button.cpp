@@ -76,9 +76,40 @@ namespace Elixir::GUI
         }
     }
 
+    void Button::SetText(const std::string& text)
+    {
+        if (m_Text == text) return;
+        m_Text = text;
+        MarkLayoutDirty();
+    }
+
+    void Button::SetFont(const Ref<Font>& font)
+    {
+        if (m_Font == font) return;
+        m_Font = font;
+        MarkLayoutDirty();
+    }
+
+    void Button::SetFontSize(const float size)
+    {
+        m_FontSize = size;
+        MarkLayoutDirty();
+    }
+
+    void Button::SetPadding(const SPadding& padding)
+    {
+        if (m_Padding == padding) return;
+        m_Padding = padding;
+        MarkLayoutDirty();
+    }
+
     void Button::ArrangeChildren(const SRect& allocatedSpace)
     {
+        if (!m_LayoutDirty && m_LastArrangedSpace == allocatedSpace)
+            return;
+
         m_Geometry = allocatedSpace;
+        m_LastArrangedSpace = allocatedSpace;
 
         if (HasContent())
         {
@@ -95,6 +126,8 @@ namespace Elixir::GUI
 
             m_ContentSlot->GetWidget()->ArrangeChildren(childRect);
         }
+
+        m_LayoutDirty = false;
     }
 
     std::string Button::ProcessText(const std::string& text, const float availableWidth)

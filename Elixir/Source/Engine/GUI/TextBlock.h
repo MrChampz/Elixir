@@ -43,15 +43,19 @@ namespace Elixir::GUI
         const std::string& GetText() const { return m_Text; }
         void SetText(const std::string& text)
         {
+            if (m_Text == text) return;
             m_Text = text;
             UpdateTextSize();
+            MarkLayoutDirty();
         }
 
         const Ref<Font>& GetFont() const { return m_Font; }
         void SetFont(const Ref<Font>& font)
         {
+            if (m_Font == font) return;
             m_Font = font;
             UpdateTextSize();
+            MarkLayoutDirty();
         }
 
         const SColor& GetColor() const { return m_Color; }
@@ -60,8 +64,10 @@ namespace Elixir::GUI
         float GetFontSize() const { return m_FontSize; }
         void SetFontSize(const float size)
         {
+            if (m_FontSize == size) return;
             m_FontSize = size;
             UpdateTextSize();
+            MarkLayoutDirty();
         }
 
     protected:
