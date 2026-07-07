@@ -14,7 +14,7 @@ namespace Elixir::GUI
 
       protected:
         glm::vec2 ComputeDesiredSize() override;
-        void ArrangeChildren(const SRect& allocatedSpace) override;
+        void LayoutChildren(const SRect& allocatedSpace) override;
 
         bool m_Stretching = false;
     };

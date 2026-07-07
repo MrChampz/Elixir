@@ -56,6 +56,14 @@ namespace Elixir::GUI
         const std::vector<Ref<Slot>>& GetSlots() const { return m_Slots; }
 
       protected:
+        /**
+         * Invoke the fn for each direct child of this widget.
+         * Container widgets override this to expose their children; leaf widgets keep the
+         * default no-op. Lets callers walk the widget tree without knowing concrete types.
+         * @param fn callback invoked once per child widget.
+         */
+        void ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const override;
+
         SPadding m_Padding;
         SColor m_Background;
 

@@ -103,14 +103,8 @@ namespace Elixir::GUI
         MarkLayoutDirty();
     }
 
-    void Button::ArrangeChildren(const SRect& allocatedSpace)
+    void Button::LayoutChildren(const SRect& allocatedSpace)
     {
-        if (!m_LayoutDirty && m_LastArrangedSpace == allocatedSpace)
-            return;
-
-        m_Geometry = allocatedSpace;
-        m_LastArrangedSpace = allocatedSpace;
-
         if (HasContent())
         {
             const glm::vec2 childSize = m_ContentSlot->GetWidget()->ComputeDesiredSize();
@@ -126,8 +120,6 @@ namespace Elixir::GUI
 
             m_ContentSlot->GetWidget()->ArrangeChildren(childRect);
         }
-
-        m_LayoutDirty = false;
     }
 
     std::string Button::ProcessText(const std::string& text, const float availableWidth)

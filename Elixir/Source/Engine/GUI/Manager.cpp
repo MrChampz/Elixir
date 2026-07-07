@@ -176,20 +176,10 @@ namespace Elixir::GUI
     {
         ProcessWidget(widget);
 
-        if (const auto contentWidget = std::dynamic_pointer_cast<ContentWidget>(widget))
+        widget->ForEachChild([this](const Ref<Widget>& child)
         {
-            if (const auto slot = contentWidget->GetContentSlot())
-            {
-                ProcessInputRecursive(slot->GetWidget());
-            }
-        }
-        else if (const auto panel = std::dynamic_pointer_cast<Panel>(widget))
-        {
-            for (auto& slot : panel->GetSlots())
-            {
-                ProcessInputRecursive(slot->GetWidget());
-            }
-        }
+            ProcessInputRecursive(child);
+        });
     }
 
     void Manager::ProcessKeyPressedRecursive(
@@ -199,39 +189,19 @@ namespace Elixir::GUI
     {
         widget->HandleKeyPressed(event);
 
-        if (const auto contentWidget = std::dynamic_pointer_cast<ContentWidget>(widget))
+        widget->ForEachChild([&event](const Ref<Widget>& child)
         {
-            if (const auto slot = contentWidget->GetContentSlot())
-            {
-                ProcessKeyPressedRecursive(slot->GetWidget(), event);
-            }
-        }
-        else if (const auto panel = std::dynamic_pointer_cast<Panel>(widget))
-        {
-            for (auto& slot : panel->GetSlots())
-            {
-                ProcessKeyPressedRecursive(slot->GetWidget(), event);
-            }
-        }
+            ProcessKeyPressedRecursive(child, event);
+        });
     }
 
     void Manager::ProcessKeyTypedRecursive(const Ref<Widget>& widget, const KeyTypedEvent& event)
     {
         widget->HandleKeyTyped(event);
 
-        if (const auto contentWidget = std::dynamic_pointer_cast<ContentWidget>(widget))
+        widget->ForEachChild([&event](const Ref<Widget>& child)
         {
-            if (const auto slot = contentWidget->GetContentSlot())
-            {
-                ProcessKeyTypedRecursive(slot->GetWidget(), event);
-            }
-        }
-        else if (const auto panel = std::dynamic_pointer_cast<Panel>(widget))
-        {
-            for (auto& slot : panel->GetSlots())
-            {
-                ProcessKeyTypedRecursive(slot->GetWidget(), event);
-            }
-        }
+            ProcessKeyTypedRecursive(child, event);
+        });
     }
 }

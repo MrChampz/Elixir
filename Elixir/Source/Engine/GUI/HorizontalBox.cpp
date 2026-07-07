@@ -41,14 +41,8 @@ namespace Elixir::GUI
         return totalSize;
     }
 
-    void HorizontalBox::ArrangeChildren(const SRect& allocatedSpace)
+    void HorizontalBox::LayoutChildren(const SRect& allocatedSpace)
     {
-        if (!m_LayoutDirty && m_LastArrangedSpace == allocatedSpace)
-            return;
-
-        m_Geometry = allocatedSpace;
-        m_LastArrangedSpace = allocatedSpace;
-
         // Calculate available space after padding
         const SRect innerSpace = ApplyPadding(allocatedSpace, m_Padding);
 
@@ -140,7 +134,5 @@ namespace Elixir::GUI
             // Advance position
             currentX += childWidth + margin.GetTotalHorizontal();
         }
-
-        m_LayoutDirty = false;
     }
 }

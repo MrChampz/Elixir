@@ -61,9 +61,9 @@ namespace Elixir::GUI
         const Ref<Texture2D>& GetNormalBackground() const { return m_NormalBackground; }
         void SetNormalBackground(const Ref<Texture2D>& texture) { m_NormalBackground = texture; }
 
-        void ArrangeChildren(const SRect& allocatedSpace) override;
-
       protected:
+        void LayoutChildren(const SRect& allocatedSpace) override;
+
         virtual std::string ProcessText(const std::string& text, float availableWidth);
         virtual glm::vec2 MeasureTextSize(const std::string& text);
         virtual glm::vec2 CalculateTextPosition(glm::vec2 textSize);

@@ -7,16 +7,6 @@ namespace Elixir::GUI
 {
     /* Widget */
 
-    void Widget::ArrangeChildren(const SRect& allocatedSpace)
-    {
-        if (!m_LayoutDirty && m_LastArrangedSpace == allocatedSpace)
-            return;
-
-        m_Geometry = allocatedSpace;
-        m_LastArrangedSpace = allocatedSpace;
-        m_LayoutDirty = false;
-    }
-
     void Widget::MarkLayoutDirty()
     {
         if (m_LayoutDirty) return;
@@ -246,5 +236,14 @@ namespace Elixir::GUI
     {
         if (m_ContentSlot && m_ContentSlot->GetWidget() == child)
             ClearContent();
+    }
+
+    void ContentWidget::ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const
+    {
+        if (m_ContentSlot)
+        {
+            if (const auto& child = m_ContentSlot->GetWidget())
+                fn(child);
+        }
     }
 }

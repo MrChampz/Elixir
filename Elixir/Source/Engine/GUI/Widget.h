@@ -37,10 +37,24 @@ namespace Elixir::GUI
         virtual glm::vec2 ComputeDesiredSize() = 0;
 
         /**
-         * Arrange this widget in the given space.
+         * Arrange this widget in the given space. Short-circuits when the layout is clean and
+         * the allocated space is unchanged; otherwise updates geometry and delegates the actual
+         * layout to LayoutChildren before clearing the dirty flag. This is the template
+         * method: it is non-virtual, so subclasses override LayoutChildren instead.
          * @param allocatedSpace the space available for this widget.
          */
-        virtual void ArrangeChildren(const SRect& allocatedSpace);
+        void ArrangeChildren(const SRect& allocatedSpace)
+        {
+            if (!m_LayoutDirty && m_LastArrangedSpace == allocatedSpace)
+                return;
+
+            m_Geometry = allocatedSpace;
+            m_LastArrangedSpace = allocatedSpace;
+
+            LayoutChildren(allocatedSpace);
+
+            m_LayoutDirty = false;
+        }
 
         /**
          * Mark this widget's layout as dirty and propagate the mark to ancestors.
@@ -109,8 +123,6 @@ namespace Elixir::GUI
         bool IsFocused() const { return m_Focused; }
 
       protected:
-        virtual void RemoveChild(const Ref<Widget>& child) {}
-
         /**
          * Register a widget as a child of this one: sets the child's parent back-pointer
          * (used for dirty propagation) and marks this widget's layout dirty, since gaining
@@ -131,6 +143,18 @@ namespace Elixir::GUI
          * @param child the widget being detached to this one.
          */
         void DetachChild(const Ref<Widget>& child);
+
+        virtual void RemoveChild(const Ref<Widget>& child) {}
+        virtual void ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const {}
+
+        /**
+         * Position this widget's children within its (already updated) geometry. Container
+         * widgets override this to lay out their children; leaf widgets keep the default no-op.
+         * Invoked by ArrangeChildren only when a re-arrangement is actually needed, so the
+         * dirty check, geometry update and dirty-flag reset are handled for you.
+         * @param allocatedSpace the space allocated to this widget.
+         */
+        virtual void LayoutChildren(const SRect& allocatedSpace) {}
 
         virtual void HandleMouseEnter();
         virtual void HandleMouseLeave();
@@ -270,7 +294,20 @@ namespace Elixir::GUI
         Ref<ContentSlot> GetContentSlot() const { return m_ContentSlot; }
 
       protected:
+        /**
+         * Remove the given widget if it is the current content: clears the content slot and
+         * detaches the child (clearing its parent back-pointer), marking layout dirty. No-op
+         * if the widget is not this widget's content.
+         * @param child the widget to remove.
+         */
         void RemoveChild(const Ref<Widget>& child) override;
+
+        /**
+         * Invoke fn with this widget's content, if any. Calls fn at most once, since a
+         * ContentWidget hosts a single child; no-op when there is no content.
+         * @param fn callback invoked with the content widget.
+         */
+        void ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const override;
 
         Ref<ContentSlot> m_ContentSlot;
     };

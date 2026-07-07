@@ -70,4 +70,14 @@ namespace Elixir::GUI
         m_Padding = padding;
         MarkLayoutDirty();
     }
+
+    void Panel::ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const
+    {
+        for (const auto& slot : m_Slots)
+        {
+            if (slot->IsVisible())
+                if (const auto& child = slot->GetWidget())
+                    fn(child);
+        }
+    }
 }
