@@ -143,11 +143,17 @@ namespace Elixir::GUI
         /**
          * Walk this subtree appending each widget's cached draw commands to the batch,
          * regenerating only the caches of render-dirty widgets and reusing the rest.
+         *
+         * Threads a monotonic layer cursor in pre-order: a widget's own commands occupy
+         * [zCursor, zCursor + LayerSpan()), children stack above, and the next sibling
+         * starts above this widget's whole subtree — so sibling subtrees never overlap
+         * in z.
+         *
          * @param batch destination batch.
-         * @param baseZOrder z-order offset for this widget's commands (children get +1).
+         * @param zCursor running layer index; advanced past everything this subtree.
          * @param rebuilt set to true if any widget's command cache was regenerated.
          */
-        void CollectDrawCommands(RenderBatch& batch, int baseZOrder, bool& rebuilt);
+        void CollectDrawCommands(RenderBatch& batch, int& zCursor, bool& rebuilt);
 
         /**
          * Build the draw commands for THIS widget only (no children). Containers emit their
@@ -156,7 +162,7 @@ namespace Elixir::GUI
          * @param batch batch to add draw commands to.
          * @param zOrder z-order for layering, relative to this widget.
          */
-        virtual void BuildDrawCommands(RenderBatch& batch, int zOrder = 0) {}
+        virtual void BuildDrawCommands(RenderBatch& batch, int zOrder) {}
 
         /**
          * Mark this widget's layout as dirty and propagate the mark to ancestors.

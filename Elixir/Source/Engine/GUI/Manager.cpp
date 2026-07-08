@@ -61,8 +61,9 @@ namespace Elixir::GUI
 
         if (m_RootWidget && m_RootWidget->IsVisible())
         {
+            int zCursor = 0;
             bool rebuilt = false;
-            m_RootWidget->CollectDrawCommands(m_RenderBatch, 0, rebuilt);
+            m_RootWidget->CollectDrawCommands(m_RenderBatch, zCursor, rebuilt);
         }
 
         m_RenderBatch.Sort();

@@ -16,7 +16,7 @@ namespace Elixir::GUI
 
     void RenderBatch::Sort()
     {
-        std::ranges::sort(
+        std::ranges::stable_sort(
             m_Commands,
             [](const SDrawCommand& a, const SDrawCommand& b)
             {
@@ -28,6 +28,14 @@ namespace Elixir::GUI
     void RenderBatch::Clear()
     {
         m_Commands.clear();
+    }
+
+    int RenderBatch::LayerSpan() const
+    {
+        int maxZ = -1;
+        for (const auto& command : m_Commands)
+            maxZ = std::max(maxZ, command.ZOrder);
+        return maxZ + 1;
     }
 
     void RenderBatch::AddRect(

@@ -68,6 +68,12 @@ namespace Elixir::GUI
         void Sort();
         void Clear();
 
+        /**
+         * Number of distinct z-layers these commands occupy: max ZOrder + 1, or 0 if empty.
+         * Used to advance the layer cursor past a widget's own commands during collection.
+         */
+        int LayerSpan() const;
+
         void AddRect(
             const SRect& rect,
             const SColor& color,

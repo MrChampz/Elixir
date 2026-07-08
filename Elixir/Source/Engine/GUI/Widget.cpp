@@ -131,7 +131,7 @@ namespace Elixir::GUI
         }
     }
 
-    void Widget::CollectDrawCommands(RenderBatch& batch, const int baseZOrder, bool& rebuilt)
+    void Widget::CollectDrawCommands(RenderBatch& batch, int& zCursor, bool& rebuilt)
     {
         if (!IsVisible()) return;
 
@@ -144,11 +144,14 @@ namespace Elixir::GUI
             rebuilt = true;
         }
 
-        batch.Append(m_CachedCommands, baseZOrder);
+        // Own commands occupy [zCursor, zCursor + span); advance so children stack above,
+        // and the next sibling starts above this whole subtree.
+        batch.Append(m_CachedCommands, zCursor);
+        zCursor += m_CachedCommands.LayerSpan();
 
         ForEachChild([&](const Ref<Widget>& child)
         {
-            child->CollectDrawCommands(batch, baseZOrder + 1, rebuilt);
+            child->CollectDrawCommands(batch, zCursor, rebuilt);
         });
     }
 
