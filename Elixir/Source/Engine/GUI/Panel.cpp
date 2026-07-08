@@ -69,16 +69,8 @@ namespace Elixir::GUI
         }
     }
 
-    void Panel::Draw(RenderBatch& batch, const int zOrder)
+    void Panel::BuildDrawCommands(RenderBatch& batch, const int zOrder)
     {
-        for (const auto& slot : m_Slots)
-        {
-            if (slot->IsVisible())
-            {
-                slot->GetWidget()->GenerateDrawCommands(batch, zOrder + 1);
-            }
-        }
-
         if (m_Background.A > 0.0f)
         {
             batch.AddRect(

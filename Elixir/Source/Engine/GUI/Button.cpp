@@ -101,7 +101,7 @@ namespace Elixir::GUI
         }
     }
 
-    void Button::Draw(RenderBatch& batch, const int zOrder)
+    void Button::BuildDrawCommands(RenderBatch& batch, int zOrder)
     {
         auto buttonColor = m_NormalColor;
 
@@ -134,11 +134,7 @@ namespace Elixir::GUI
             );
         }
 
-        if (HasContent())
-        {
-            m_ContentSlot->GetWidget()->GenerateDrawCommands(batch, zOrder + 1);
-        }
-        else if (!m_Text.empty())
+        if (!HasContent() && !m_Text.empty())
         {
             const float availableWidth = m_Geometry.Size.x - m_Padding.GetTotalHorizontal();
 

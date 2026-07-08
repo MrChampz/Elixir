@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 using namespace testing;
 
+#include "ManagerTestUtils.h"
+
 #include <Engine/GUI/VerticalBox.h>
 using namespace Elixir;
 using namespace Elixir::GUI;
@@ -19,12 +21,7 @@ namespace
             MarkLayoutDirty();
         }
 
-        // MarkRenderDirty is protected on Widget; promote it so tests can simulate a
-        // widget dirtying itself without weakening the production API.
         using Widget::MarkRenderDirty;
-
-    protected:
-        void Draw(RenderBatch& batch, int zOrder) override {}
     };
 
     void Arrange(const Ref<Widget>& widget, const SRect& space)
@@ -32,10 +29,11 @@ namespace
         widget->ArrangeChildren(space);
     }
 
-    void Draw(const Ref<Widget>& widget)
+    void Assemble(const Ref<Panel>& panel)
     {
-        RenderBatch batch;
-        widget->GenerateDrawCommands(batch, 0);
+        TestGUIManager manager;
+        manager.SetRoot(panel);
+        manager.AssembleFrame();
     }
 }
 
@@ -43,7 +41,7 @@ TEST(InvalidationTest, VisualSetterMarksRenderDirtyNotLayout)
 {
     const auto box = CreateRef<VerticalBox>();
     Arrange(box, { { 0, 0 }, { 100, 100 } });
-    Draw(box);
+    Assemble(box);
     ASSERT_FALSE(box->IsLayoutDirty());
     ASSERT_FALSE(box->IsRenderDirty());
 
@@ -56,7 +54,7 @@ TEST(InvalidationTest, LayoutSetterDoesNotMarkRenderDirty)
 {
     const auto box = CreateRef<VerticalBox>();
     Arrange(box, { { 0, 0 }, { 100, 100 } });
-    Draw(box);
+    Assemble(box);
 
     box->SetPadding(SPadding(5.0f));
     EXPECT_TRUE(box->IsLayoutDirty());
@@ -69,8 +67,7 @@ TEST(InvalidationTest, RenderDirtyDoesNotPropagateToAncestors)
     const auto child = CreateRef<SizedLeaf>();
     box->AddChild(child);
     Arrange(box, { { 0, 0 }, { 100, 100 } });
-    Draw(box);
-    Draw(child);
+    Assemble(box);
 
     child->MarkRenderDirty();
     EXPECT_TRUE(child->IsRenderDirty());

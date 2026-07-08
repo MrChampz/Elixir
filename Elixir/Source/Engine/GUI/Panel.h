@@ -62,7 +62,7 @@ namespace Elixir::GUI
          */
         void ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const override;
 
-        void Draw(RenderBatch& batch, int zOrder) override;
+        void BuildDrawCommands(RenderBatch& batch, int zOrder) override;
 
         SPadding m_Padding;
         SColor m_Background;

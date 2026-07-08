@@ -47,7 +47,7 @@ namespace Elixir::GUI
         MarkLayoutDirty();
     }
 
-    void TextBlock::Draw(RenderBatch& batch, const int zOrder)
+    void TextBlock::BuildDrawCommands(RenderBatch& batch, const int zOrder)
     {
         if (!m_Text.empty())
         {

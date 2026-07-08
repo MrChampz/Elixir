@@ -14,9 +14,6 @@ namespace
       public:
         glm::vec2 ComputeDesiredSize() override { return {}; }
         using Widget::ForEachChild;
-
-    protected:
-        void Draw(RenderBatch& batch, int zOrder) override {}
     };
 
     // Minimal concrete single-child widget exercising ContentWidget::ForEachChild.
@@ -25,9 +22,6 @@ namespace
       public:
         glm::vec2 ComputeDesiredSize() override { return {}; }
         using ContentWidget::ForEachChild;
-
-    protected:
-        void Draw(RenderBatch& batch, int zOrder) override {}
     };
 
     // Minimal multi-child container exercising Panel::ForEachChild.
@@ -45,9 +39,6 @@ namespace
         }
 
         using Panel::ForEachChild;
-
-    protected:
-        void Draw(RenderBatch& batch, int zOrder) override {}
     };
 }
 

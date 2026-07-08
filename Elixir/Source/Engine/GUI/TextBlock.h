@@ -27,7 +27,7 @@ namespace Elixir::GUI
         void SetFontSize(float size);
 
     protected:
-        void Draw(RenderBatch& batch, int zOrder) override;
+        void BuildDrawCommands(RenderBatch& batch, int zOrder) override;
 
         void UpdateTextSize();
 

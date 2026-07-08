@@ -43,9 +43,7 @@ namespace Elixir::GUI
     {
         if (!m_RootWidget || !m_RootWidget->IsVisible()) return;
 
-        m_RenderBatch.Clear();
-        m_RootWidget->GenerateDrawCommands(m_RenderBatch);
-        m_RenderBatch.Sort();
+        AssembleFrame();
         m_Renderer->Render(m_RenderBatch);
     }
 
@@ -55,6 +53,19 @@ namespace Elixir::GUI
         dispatcher.Dispatch<FramebufferResizeEvent>(EE_BIND_EVENT_FN(Manager::HandleFramebufferResize));
         dispatcher.Dispatch<KeyPressedEvent>(EE_BIND_EVENT_FN(Manager::HandleKeyPressed));
         dispatcher.Dispatch<KeyTypedEvent>(EE_BIND_EVENT_FN(Manager::HandleKeyTyped));
+    }
+
+    void Manager::AssembleFrame()
+    {
+        m_RenderBatch.Clear();
+
+        if (m_RootWidget && m_RootWidget->IsVisible())
+        {
+            bool rebuilt = false;
+            m_RootWidget->CollectDrawCommands(m_RenderBatch, 0, rebuilt);
+        }
+
+        m_RenderBatch.Sort();
     }
 
     bool Manager::HandleFramebufferResize(const FramebufferResizeEvent& event) const

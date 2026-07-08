@@ -62,7 +62,7 @@ namespace Elixir::GUI
 
       protected:
         void LayoutChildren(const SRect& allocatedSpace) override;
-        void Draw(RenderBatch& batch, int zOrder) override;
+        void BuildDrawCommands(RenderBatch& batch, int zOrder) override;
 
         virtual std::string ProcessText(const std::string& text, float availableWidth);
         virtual glm::vec2 MeasureTextSize(const std::string& text);

@@ -9,7 +9,7 @@ namespace Elixir::GUI
 {
     class ELIXIR_API Manager
     {
-      public:
+    public:
         void Initialize(
             const GraphicsContext* context,
             const ShaderLoader* shaderLoader,
@@ -28,7 +28,12 @@ namespace Elixir::GUI
             m_RootWidget = root;
         }
 
-      private:
+        const RenderBatch& GetRenderBatch() const { return m_RenderBatch; }
+
+    protected:
+        void AssembleFrame();
+
+    private:
         bool HandleFramebufferResize(const FramebufferResizeEvent& event) const;
         bool HandleKeyPressed(const KeyPressedEvent& event) const;
         bool HandleKeyTyped(const KeyTypedEvent& event) const;

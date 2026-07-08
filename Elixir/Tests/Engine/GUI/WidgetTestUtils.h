@@ -32,8 +32,6 @@ namespace
         {
             ++ArrangeCount;
         }
-
-        void Draw(RenderBatch& batch, int zOrder) override {}
     };
 
     // Minimal single-child container to exercise ContentWidget lifecycle
@@ -42,9 +40,6 @@ namespace
     {
     public:
         glm::vec2 ComputeDesiredSize() override { return { 10.0f, 10.0f }; }
-
-    protected:
-        void Draw(RenderBatch& batch, int zOrder) override {}
     };
 
     // ArrangeChildren is the non-virtual template method on Widget; call it directly.

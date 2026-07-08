@@ -3,6 +3,17 @@
 
 namespace Elixir::GUI
 {
+    void RenderBatch::Append(const RenderBatch& other, int zOffset)
+    {
+        m_Commands.reserve(m_Commands.size() + other.m_Commands.size());
+        for (const auto& command : other.m_Commands)
+        {
+            SDrawCommand copy = command;
+            copy.ZOrder += zOffset;
+            m_Commands.push_back(std::move(copy));
+        }
+    }
+
     void RenderBatch::Sort()
     {
         std::ranges::sort(

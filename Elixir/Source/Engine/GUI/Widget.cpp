@@ -12,18 +12,14 @@ namespace Elixir::GUI
         if (!m_LayoutDirty && m_LastArrangedSpace == allocatedSpace)
             return;
 
+        if (m_Geometry != allocatedSpace)
+            MarkRenderDirty();
+
         m_Geometry = allocatedSpace;
         m_LastArrangedSpace = allocatedSpace;
 
         LayoutChildren(allocatedSpace);
-
         m_LayoutDirty = false;
-    }
-
-    void Widget::GenerateDrawCommands(RenderBatch& batch, const int zOrder)
-    {
-        m_RenderDirty = false;
-        Draw(batch, zOrder);
     }
 
     void Widget::SetOpacity(const float opacity)
@@ -135,6 +131,27 @@ namespace Elixir::GUI
         }
     }
 
+    void Widget::CollectDrawCommands(RenderBatch& batch, const int baseZOrder, bool& rebuilt)
+    {
+        if (!IsVisible()) return;
+
+        // Regenerate this widget's own commands only when its visuals/geometry changed.
+        if (m_RenderDirty)
+        {
+            m_CachedCommands.Clear();
+            BuildDrawCommands(m_CachedCommands, 0);
+            m_RenderDirty = false;
+            rebuilt = true;
+        }
+
+        batch.Append(m_CachedCommands, baseZOrder);
+
+        ForEachChild([&](const Ref<Widget>& child)
+        {
+            child->CollectDrawCommands(batch, baseZOrder + 1, rebuilt);
+        });
+    }
+
     void Widget::MarkLayoutDirty()
     {
         if (m_LayoutDirty)
@@ -154,18 +171,21 @@ namespace Elixir::GUI
     void Widget::HandleMouseEnter()
     {
         m_Hovered = true;
+        MarkRenderDirty();
         if (m_OnMouseEnterCallback) m_OnMouseEnterCallback();
     }
 
     void Widget::HandleMouseLeave()
     {
         m_Hovered = false;
+        MarkRenderDirty();
         if (m_OnMouseLeaveCallback) m_OnMouseLeaveCallback();
     }
 
     void Widget::HandleMouseDown(const MouseButtonPressedEvent& event)
     {
         m_Pressed = true;
+        MarkRenderDirty();
         if (m_OnMouseDownCallback) m_OnMouseDownCallback();
     }
 
@@ -181,17 +201,20 @@ namespace Elixir::GUI
         }
 
         m_Pressed = false;
+        MarkRenderDirty();
     }
 
     void Widget::HandleFocus()
     {
         m_Focused = true;
+        MarkRenderDirty();
         if (m_OnFocusCallback) m_OnFocusCallback();
     }
 
     void Widget::HandleLostFocus()
     {
         m_Focused = false;
+        MarkRenderDirty();
         if (m_OnLostFocusCallback) m_OnLostFocusCallback();
     }
 

@@ -108,7 +108,7 @@ namespace Elixir::GUI
         MarkRenderDirty();
     }
 
-    void TextField::Draw(RenderBatch& batch, const int zOrder)
+    void TextField::BuildDrawCommands(RenderBatch& batch, const int zOrder)
     {
         // Background
         if (m_Background)
@@ -245,6 +245,7 @@ namespace Elixir::GUI
         m_SelectionEnd = m_CursorPosition;
 
         UpdateScrollOffset();
+        MarkRenderDirty();
     }
 
     void TextField::HandleKeyPressed(const KeyPressedEvent& event)
@@ -308,6 +309,8 @@ namespace Elixir::GUI
             default:
                 break;
         }
+
+        MarkRenderDirty();
     }
 
     void TextField::HandleKeyTyped(const KeyTypedEvent& event)
@@ -321,6 +324,8 @@ namespace Elixir::GUI
         // Insert UTF-8 character at cursor position
         const auto c = UTF8::CodepointToUTF8(event.GetKeyCode());
         InsertText(c);
+
+        MarkRenderDirty();
     }
 
     void TextField::HandleFocus()
@@ -398,6 +403,7 @@ namespace Elixir::GUI
         {
             m_BlinkTimer -= m_BlinkInterval;
             m_CursorVisible = !m_CursorVisible;
+            MarkRenderDirty();
         }
     }
 
