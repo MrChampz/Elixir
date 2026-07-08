@@ -20,6 +20,12 @@ namespace Elixir::GUI
         m_LayoutDirty = false;
     }
 
+    void Widget::GenerateDrawCommands(RenderBatch& batch, const int zOrder)
+    {
+        m_RenderDirty = false;
+        Draw(batch, zOrder);
+    }
+
     void Widget::SetOpacity(const float opacity)
     {
         m_Opacity = opacity;

@@ -147,6 +147,33 @@ TEST(DirtyTrackingTest, SettingSameVisibilityDoesNotInvalidate)
     EXPECT_TRUE(root->IsLayoutDirty());
 }
 
+TEST(DirtyTrackingTest, StretchToggleInvalidatesLayout)
+{
+    const auto root  = CreateRef<VerticalBox>();
+    const auto child = CreateRef<CountingWidget>();
+    root->AddChild(child);
+
+    Arrange(root, { { 0, 0 }, { 100, 100 } });
+    ASSERT_FALSE(root->IsLayoutDirty());
+
+    // Toggling stretch changes how children are sized -> must invalidate layout.
+    root->SetStretching(!root->IsStretching());
+    EXPECT_TRUE(root->IsLayoutDirty());
+}
+
+TEST(DirtyTrackingTest, SettingSameStretchDoesNotInvalidate)
+{
+    const auto root = CreateRef<VerticalBox>();
+    root->AddChild(CreateRef<CountingWidget>());
+
+    Arrange(root, { { 0, 0 }, { 100, 100 } });
+    ASSERT_FALSE(root->IsLayoutDirty());
+
+    // Same value -> guard prevents needless invalidation.
+    root->SetStretching(root->IsStretching());
+    EXPECT_FALSE(root->IsLayoutDirty());
+}
+
 TEST(DirtyTrackingTest, SlotMetadataSetterInvalidatesOwnerNotChild)
 {
     const auto root = CreateRef<VerticalBox>();

@@ -13,9 +13,10 @@ namespace
     {
       public:
         glm::vec2 ComputeDesiredSize() override { return {}; }
-        void GenerateDrawCommands(RenderBatch& batch, int zOrder) override {}
-
         using Widget::ForEachChild;
+
+    protected:
+        void Draw(RenderBatch& batch, int zOrder) override {}
     };
 
     // Minimal concrete single-child widget exercising ContentWidget::ForEachChild.
@@ -23,9 +24,10 @@ namespace
     {
       public:
         glm::vec2 ComputeDesiredSize() override { return {}; }
-        void GenerateDrawCommands(RenderBatch& batch, int zOrder) override {}
-
         using ContentWidget::ForEachChild;
+
+    protected:
+        void Draw(RenderBatch& batch, int zOrder) override {}
     };
 
     // Minimal multi-child container exercising Panel::ForEachChild.
@@ -35,7 +37,6 @@ namespace
     {
       public:
         glm::vec2 ComputeDesiredSize() override { return {}; }
-        void GenerateDrawCommands(RenderBatch& batch, int zOrder) override {}
 
         void AddChild(const Ref<Widget>& child)
         {
@@ -44,6 +45,9 @@ namespace
         }
 
         using Panel::ForEachChild;
+
+    protected:
+        void Draw(RenderBatch& batch, int zOrder) override {}
     };
 }
 

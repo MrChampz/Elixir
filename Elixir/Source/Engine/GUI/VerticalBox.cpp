@@ -11,6 +11,13 @@ namespace Elixir::GUI
         return *slot;
     }
 
+    void VerticalBox::SetStretching(const bool stretching)
+    {
+        if (m_Stretching == stretching) return;
+        m_Stretching = stretching;
+        MarkLayoutDirty();
+    }
+
     glm::vec2 VerticalBox::ComputeDesiredSize()
     {
         glm::vec2 totalSize = { 0, 0 };

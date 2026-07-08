@@ -20,8 +20,11 @@ namespace
 
         glm::vec2 ComputeDesiredSize() override { return m_DesiredSize; }
 
-        void GenerateDrawCommands(RenderBatch& batch, int zOrder) override {}
+        // MarkLayoutDirty is protected on Widget; promote it so tests can simulate a
+        // widget dirtying itself without weakening the production API.
+        using Widget::MarkLayoutDirty;
 
+    protected:
         // LayoutChildren is invoked by the non-virtual ArrangeChildren template method only
         // when a re-arrangement is actually needed (dirty, or the allocated space changed),
         // so counting here records exactly how often real layout work happened.
@@ -30,9 +33,7 @@ namespace
             ++ArrangeCount;
         }
 
-        // MarkLayoutDirty is protected on Widget; promote it so tests can simulate a
-        // widget dirtying itself without weakening the production API.
-        using Widget::MarkLayoutDirty;
+        void Draw(RenderBatch& batch, int zOrder) override {}
     };
 
     // Minimal single-child container to exercise ContentWidget lifecycle
@@ -42,7 +43,8 @@ namespace
     public:
         glm::vec2 ComputeDesiredSize() override { return { 10.0f, 10.0f }; }
 
-        void GenerateDrawCommands(RenderBatch& batch, int zOrder) override {}
+    protected:
+        void Draw(RenderBatch& batch, int zOrder) override {}
     };
 
     // ArrangeChildren is the non-virtual template method on Widget; call it directly.

@@ -14,8 +14,6 @@ namespace Elixir::GUI
 
         glm::vec2 ComputeDesiredSize() override;
 
-        void GenerateDrawCommands(RenderBatch& batch, int zOrder) override;
-
         const std::string& GetText() const { return m_Text; }
         void SetText(const std::string& text);
 
@@ -26,12 +24,14 @@ namespace Elixir::GUI
         void SetColor(const SColor& color);
 
         float GetFontSize() const { return m_FontSize; }
-        void SetFontSize(const float size);
+        void SetFontSize(float size);
 
     protected:
+        void Draw(RenderBatch& batch, int zOrder) override;
+
         void UpdateTextSize();
 
-        std::string ProcessText(const std::string& text, const float availableWidth) const;
+        std::string ProcessText(const std::string& text, float availableWidth) const;
 
       private:
         std::string m_Text;

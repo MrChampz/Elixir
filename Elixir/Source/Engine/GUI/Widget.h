@@ -28,13 +28,6 @@ namespace Elixir::GUI
         virtual void Update(Timestep frameTime) {}
 
         /**
-         * Generate the draw commands for this widget.
-         * @param batch batch to add draw commands to.
-         * @param zOrder z-order for layering.
-         */
-        virtual void GenerateDrawCommands(RenderBatch& batch, int zOrder) = 0;
-
-        /**
          * Compute how much space this widget wants.
          * @return a 2d vector representing width and height.
          */
@@ -49,8 +42,12 @@ namespace Elixir::GUI
          */
         void ArrangeChildren(const SRect& allocatedSpace);
 
-        bool IsLayoutDirty() const { return m_LayoutDirty; }
-        bool IsRenderDirty() const { return m_RenderDirty; }
+        /**
+         * Generate the draw commands for this widget.
+         * @param batch batch to add draw commands to.
+         * @param zOrder z-order for layering.
+         */
+        void GenerateDrawCommands(RenderBatch& batch, int zOrder = 0);
 
         /**
          * Get this widget's parent, or nullptr if it has none (or the parent was destroyed).
@@ -65,6 +62,9 @@ namespace Elixir::GUI
         SRect GetGeometry() const { return m_Geometry; }
 
         glm::vec2 GetDesiredSize() const { return m_DesiredSize; }
+
+        bool IsLayoutDirty() const { return m_LayoutDirty; }
+        bool IsRenderDirty() const { return m_RenderDirty; }
 
         /* Callbacks */
 
@@ -92,8 +92,8 @@ namespace Elixir::GUI
          */
         void SetInsetShadow(const glm::vec4& shadow);
         void SetInsetShadowOffset(const glm::vec2& offset);
-        void SetInsetShadowBlur(const float blur);
-        void SetInsetShadowIntensity(const float intensity);
+        void SetInsetShadowBlur(float blur);
+        void SetInsetShadowIntensity(float intensity);
 
         /**
          * Set the drop shadow parameters.
@@ -146,6 +146,15 @@ namespace Elixir::GUI
          * @param allocatedSpace the space allocated to this widget.
          */
         virtual void LayoutChildren(const SRect& allocatedSpace) {}
+
+        /**
+         * Emit this widget's draw commands into the batch. Every widget implements this to
+         * render itself; containers also recurse into their children. Invoked by
+         * GenerateDrawCommands, which clears the render-dirty flag first.
+         * @param batch batch to add draw commands to.
+         * @param zOrder z-order for layering.
+         */
+        virtual void Draw(RenderBatch& batch, int zOrder) = 0;
 
         /**
          * Mark this widget's layout as dirty and propagate the mark to ancestors.

@@ -11,8 +11,6 @@ namespace Elixir::GUI
       public:
         void Update(Timestep frameTime) override;
 
-        void GenerateDrawCommands(RenderBatch& batch, int zOrder = 0) override;
-
         /**
          * Remove a child widget from this panel: drops the slot holding it and clears the
          * child's parent back-pointer (via DetachChild), marking layout dirty. No-op if the
@@ -30,7 +28,7 @@ namespace Elixir::GUI
         void SetPadding(const SPadding& padding);
 
         SColor GetBackground() const { return m_Background; }
-        void SetBackground(const SColor& color) { m_Background = color; }
+        void SetBackground(const SColor& color);
 
         /**
          * Get corner radius for each corner individually.
@@ -51,7 +49,7 @@ namespace Elixir::GUI
          * Set radius for each corner individually.
          * @param radius vector(top-left, top-right, bottom-right, bottom-left)
          */
-        void SetCornerRadius(const glm::vec4& radius) { m_CornerRadius = radius; }
+        void SetCornerRadius(const glm::vec4& radius);
 
         const std::vector<Ref<Slot>>& GetSlots() const { return m_Slots; }
 
@@ -63,6 +61,8 @@ namespace Elixir::GUI
          * @param fn callback invoked once per child widget.
          */
         void ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const override;
+
+        void Draw(RenderBatch& batch, int zOrder) override;
 
         SPadding m_Padding;
         SColor m_Background;

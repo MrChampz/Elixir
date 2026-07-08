@@ -17,24 +17,6 @@ namespace Elixir::GUI
         return m_DesiredSize;
     }
 
-    void TextBlock::GenerateDrawCommands(RenderBatch& batch, const int zOrder)
-    {
-        if (!m_Text.empty())
-        {
-            const float availableWidth = m_Geometry.Size.x;
-            const auto displayText = ProcessText(m_Text, availableWidth);
-
-            batch.AddText(
-                displayText,
-                m_Geometry,
-                m_Font,
-                m_FontSize,
-                m_Color,
-                zOrder
-            );
-        }
-    }
-
     void TextBlock::SetText(const std::string& text)
     {
         if (m_Text == text) return;
@@ -63,6 +45,24 @@ namespace Elixir::GUI
         m_FontSize = size;
         UpdateTextSize();
         MarkLayoutDirty();
+    }
+
+    void TextBlock::Draw(RenderBatch& batch, const int zOrder)
+    {
+        if (!m_Text.empty())
+        {
+            const float availableWidth = m_Geometry.Size.x;
+            const auto displayText = ProcessText(m_Text, availableWidth);
+
+            batch.AddText(
+                displayText,
+                m_Geometry,
+                m_Font,
+                m_FontSize,
+                m_Color,
+                zOrder
+            );
+        }
     }
 
     void TextBlock::UpdateTextSize()

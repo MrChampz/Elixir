@@ -13,7 +13,6 @@ namespace Elixir::GUI
         void Update(Timestep frameTime) override;
 
         glm::vec2 ComputeDesiredSize() override;
-        void GenerateDrawCommands(RenderBatch& batch, int zOrder) override;
 
         /* Callbacks */
 
@@ -26,7 +25,7 @@ namespace Elixir::GUI
         void SetFont(const Ref<Font>& font);
 
         float GetFontSize() const { return m_FontSize; }
-        void SetFontSize(const float size);
+        void SetFontSize(float size);
 
         const std::string& GetText() const { return m_Text; }
         void SetText(const std::string& text);
@@ -80,6 +79,8 @@ namespace Elixir::GUI
         void SetSelectionColor(const SColor& color);
 
     protected:
+        void Draw(RenderBatch& batch, int zOrder) override;
+
         void HandleMouseEnter() override;
         void HandleMouseLeave() override;
         void HandleMouseDown(const MouseButtonPressedEvent& event) override;

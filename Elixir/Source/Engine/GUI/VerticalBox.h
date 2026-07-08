@@ -10,7 +10,7 @@ namespace Elixir::GUI
         LayoutSlot& AddChild(const Ref<Widget>& child);
 
         bool IsStretching() const { return m_Stretching; }
-        void SetStretching(const bool stretching) { m_Stretching = stretching; }
+        void SetStretching(bool stretching);
 
       protected:
         glm::vec2 ComputeDesiredSize() override;

@@ -19,63 +19,6 @@ namespace Elixir::GUI
         return m_DesiredSize;
     }
 
-    void Button::GenerateDrawCommands(RenderBatch& batch, const int zOrder)
-    {
-        auto buttonColor = m_NormalColor;
-
-        if (m_Hovered)
-        {
-            buttonColor = m_HoverColor;
-        }
-
-        // Background
-        if (m_NormalBackground)
-        {
-            batch.AddTexture(
-                m_NormalBackground,
-                m_Geometry,
-                m_BackgroundBorders,
-                buttonColor,
-                zOrder
-            );
-        }
-        else
-        {
-            batch.AddRect(
-                m_Geometry,
-                buttonColor,
-                m_CornerRadius,
-                m_InsetShadow,
-                m_DropShadow,
-                m_Outline,
-                zOrder
-            );
-        }
-
-        if (HasContent())
-        {
-            m_ContentSlot->GetWidget()->GenerateDrawCommands(batch, zOrder + 1);
-        }
-        else if (!m_Text.empty())
-        {
-            const float availableWidth = m_Geometry.Size.x - m_Padding.GetTotalHorizontal();
-
-            const auto displayText = ProcessText(m_Text, availableWidth);
-            const auto textSize = MeasureTextSize(displayText);
-            const auto textPos = CalculateTextPosition(textSize);
-
-            batch.AddText(
-                displayText,
-                { textPos, textSize },
-                m_Font,
-                m_FontSize,
-                m_TextColor,
-                zOrder + 1,
-                m_Geometry
-            );
-        }
-    }
-
     void Button::SetText(const std::string& text)
     {
         if (m_Text == text) return;
@@ -155,6 +98,63 @@ namespace Elixir::GUI
             );
 
             m_ContentSlot->GetWidget()->ArrangeChildren(childRect);
+        }
+    }
+
+    void Button::Draw(RenderBatch& batch, const int zOrder)
+    {
+        auto buttonColor = m_NormalColor;
+
+        if (m_Hovered)
+        {
+            buttonColor = m_HoverColor;
+        }
+
+        // Background
+        if (m_NormalBackground)
+        {
+            batch.AddTexture(
+                m_NormalBackground,
+                m_Geometry,
+                m_BackgroundBorders,
+                buttonColor,
+                zOrder
+            );
+        }
+        else
+        {
+            batch.AddRect(
+                m_Geometry,
+                buttonColor,
+                m_CornerRadius,
+                m_InsetShadow,
+                m_DropShadow,
+                m_Outline,
+                zOrder
+            );
+        }
+
+        if (HasContent())
+        {
+            m_ContentSlot->GetWidget()->GenerateDrawCommands(batch, zOrder + 1);
+        }
+        else if (!m_Text.empty())
+        {
+            const float availableWidth = m_Geometry.Size.x - m_Padding.GetTotalHorizontal();
+
+            const auto displayText = ProcessText(m_Text, availableWidth);
+            const auto textSize = MeasureTextSize(displayText);
+            const auto textPos = CalculateTextPosition(textSize);
+
+            batch.AddText(
+                displayText,
+                { textPos, textSize },
+                m_Font,
+                m_FontSize,
+                m_TextColor,
+                zOrder + 1,
+                m_Geometry
+            );
         }
     }
 
