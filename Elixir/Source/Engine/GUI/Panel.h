@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/GUI/Slot.h>
+#include <Engine/GUI/Widget.h>
 
 namespace Elixir::GUI
 {

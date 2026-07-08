@@ -83,6 +83,12 @@ namespace Elixir::GUI
         MarkLayoutDirty();
     }
 
+    void Button::SetTextColor(const SColor& color)
+    {
+        m_TextColor = color;
+        MarkRenderDirty();
+    }
+
     void Button::SetFont(const Ref<Font>& font)
     {
         if (m_Font == font) return;
@@ -101,6 +107,36 @@ namespace Elixir::GUI
         if (m_Padding == padding) return;
         m_Padding = padding;
         MarkLayoutDirty();
+    }
+
+    void Button::SetCornerRadius(const glm::vec4& radius)
+    {
+        m_CornerRadius = radius;
+        MarkRenderDirty();
+    }
+
+    void Button::SetNormalColor(const SColor& color)
+    {
+        m_NormalColor = color;
+        MarkRenderDirty();
+    }
+
+    void Button::SetHoverColor(const SColor& color)
+    {
+        m_HoverColor = color;
+        MarkRenderDirty();
+    }
+
+    void Button::SetBackgroundBorders(const glm::vec4& borders)
+    {
+        m_BackgroundBorders = borders;
+        MarkRenderDirty();
+    }
+
+    void Button::SetNormalBackground(const Ref<Texture2D>& texture)
+    {
+        m_NormalBackground = texture;
+        MarkRenderDirty();
     }
 
     void Button::LayoutChildren(const SRect& allocatedSpace)

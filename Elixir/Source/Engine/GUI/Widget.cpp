@@ -7,14 +7,23 @@ namespace Elixir::GUI
 {
     /* Widget */
 
-    void Widget::MarkLayoutDirty()
+    void Widget::ArrangeChildren(const SRect& allocatedSpace)
     {
-        if (m_LayoutDirty) return;
+        if (!m_LayoutDirty && m_LastArrangedSpace == allocatedSpace)
+            return;
 
-        m_LayoutDirty = true;
+        m_Geometry = allocatedSpace;
+        m_LastArrangedSpace = allocatedSpace;
 
-        if (const auto parent = m_Parent.lock())
-            parent->MarkLayoutDirty();
+        LayoutChildren(allocatedSpace);
+
+        m_LayoutDirty = false;
+    }
+
+    void Widget::SetOpacity(const float opacity)
+    {
+        m_Opacity = opacity;
+        MarkRenderDirty();
     }
 
     void Widget::SetVisibility(const EVisibility visibility)
@@ -27,6 +36,74 @@ namespace Elixir::GUI
     bool Widget::IsVisible() const
     {
         return m_Visibility == EVisibility::Visible && m_Opacity > 0.0f;
+    }
+
+    void Widget::SetInsetShadow(const glm::vec4& shadow)
+    {
+        m_InsetShadow = shadow;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetInsetShadowOffset(const glm::vec2& offset)
+    {
+        m_InsetShadow.x = offset.x;
+        m_InsetShadow.y = offset.y;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetInsetShadowBlur(const float blur)
+    {
+        m_InsetShadow.z = blur;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetInsetShadowIntensity(const float intensity)
+    {
+        m_InsetShadow.w = intensity;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetDropShadow(const glm::vec4& shadow)
+    {
+        m_DropShadow = shadow;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetDropShadowOffset(const glm::vec2& offset)
+    {
+        m_DropShadow.x = offset.x;
+        m_DropShadow.y = offset.y;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetDropShadowBlur(const float blur)
+    {
+        m_DropShadow.z = blur;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetDropShadowIntensity(const float intensity)
+    {
+        m_DropShadow.w = intensity;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetOutline(const SOutline& outline)
+    {
+        m_Outline = outline;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetOutlineColor(const SColor& color)
+    {
+        m_Outline.Color = color;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetOutlineThickness(const float thickness)
+    {
+        m_Outline.Thickness = thickness;
+        MarkRenderDirty();
     }
 
     void Widget::AttachChild(const Ref<Widget>& child)
@@ -50,6 +127,22 @@ namespace Elixir::GUI
             child->m_Parent.reset();
             MarkLayoutDirty();
         }
+    }
+
+    void Widget::MarkLayoutDirty()
+    {
+        if (m_LayoutDirty)
+            return;
+
+        m_LayoutDirty = true;
+
+        if (const auto parent = m_Parent.lock())
+            parent->MarkLayoutDirty();
+    }
+
+    void Widget::MarkRenderDirty()
+    {
+        m_RenderDirty = true;
     }
 
     void Widget::HandleMouseEnter()

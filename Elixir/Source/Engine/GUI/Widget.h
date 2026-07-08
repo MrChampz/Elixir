@@ -5,15 +5,19 @@
 #include <Engine/Event/MouseEvent.h>
 #include <Engine/GUI/Definitions.h>
 #include <Engine/GUI/Renderer/RenderBatch.h>
+#include <Engine/GUI/Slot.h>
 
 namespace Elixir::GUI
 {
     class Manager;
-    class ContentSlot;
 
     class ELIXIR_API Widget : public std::enable_shared_from_this<Widget>
     {
         friend class Manager;
+        friend class Slot;
+        friend class ContentSlot;
+        friend class LayoutSlot;
+        friend class CanvasSlot;
       public:
         virtual ~Widget() = default;
 
@@ -43,27 +47,16 @@ namespace Elixir::GUI
          * method: it is non-virtual, so subclasses override LayoutChildren instead.
          * @param allocatedSpace the space available for this widget.
          */
-        void ArrangeChildren(const SRect& allocatedSpace)
-        {
-            if (!m_LayoutDirty && m_LastArrangedSpace == allocatedSpace)
-                return;
-
-            m_Geometry = allocatedSpace;
-            m_LastArrangedSpace = allocatedSpace;
-
-            LayoutChildren(allocatedSpace);
-
-            m_LayoutDirty = false;
-        }
-
-        /**
-         * Mark this widget's layout as dirty and propagate the mark to ancestors.
-         * A dirty widget (and any ancestor whose layout depends on it) is re-arranged
-         * on the next frame; clean subtrees are skipped by ArrangeChildren.
-         */
-        void MarkLayoutDirty();
+        void ArrangeChildren(const SRect& allocatedSpace);
 
         bool IsLayoutDirty() const { return m_LayoutDirty; }
+        bool IsRenderDirty() const { return m_RenderDirty; }
+
+        /**
+         * Get this widget's parent, or nullptr if it has none (or the parent was destroyed).
+         * @return a Ref to the parent, kept alive for the duration of the call.
+         */
+        Ref<Widget> GetParent() const { return m_Parent.lock(); }
 
         /**
          * Get the final computed geometry.
@@ -84,7 +77,7 @@ namespace Elixir::GUI
         void OnMouseUp(const std::function<void()>& callback) { m_OnMouseUpCallback = callback; }
 
         float GetOpacity() const { return m_Opacity; }
-        void SetOpacity(const float opacity) { m_Opacity = opacity; }
+        void SetOpacity(float opacity);
 
         EVisibility GetVisibility() const { return m_Visibility; }
         void SetVisibility(EVisibility visibility);
@@ -97,26 +90,24 @@ namespace Elixir::GUI
          * Set the inset shadow parameters.
          * @param shadow Shadow offset (x, y), blur (z) and intensity (w).
          */
-        void SetInsetShadow(const glm::vec4& shadow) { m_InsetShadow = shadow; }
-
-        void SetInsetShadowOffset(const glm::vec2& offset) { m_InsetShadow.x = offset.x; m_InsetShadow.y = offset.y; }
-        void SetInsetShadowBlur(const float blur) { m_InsetShadow.z = blur; }
-        void SetInsetShadowIntensity(const float intensity) { m_InsetShadow.w = intensity; }
+        void SetInsetShadow(const glm::vec4& shadow);
+        void SetInsetShadowOffset(const glm::vec2& offset);
+        void SetInsetShadowBlur(const float blur);
+        void SetInsetShadowIntensity(const float intensity);
 
         /**
          * Set the drop shadow parameters.
          * @param shadow Shadow offset (x, y), blur (z) and intensity (w).
          */
-        void SetDropShadow(const glm::vec4& shadow) { m_DropShadow = shadow; }
-
-        void SetDropShadowOffset(const glm::vec2& offset) { m_DropShadow.x = offset.x; m_DropShadow.y = offset.y; }
-        void SetDropShadowBlur(const float blur) { m_DropShadow.z = blur; }
-        void SetDropShadowIntensity(const float intensity) { m_DropShadow.w = intensity; }
+        void SetDropShadow(const glm::vec4& shadow);
+        void SetDropShadowOffset(const glm::vec2& offset);
+        void SetDropShadowBlur(float blur);
+        void SetDropShadowIntensity(float intensity);
 
         SOutline GetOutline() const { return m_Outline; }
-        void SetOutline(const SOutline& outline) { m_Outline = outline; }
-        void SetOutlineColor(const SColor& color) { m_Outline.Color = color; }
-        void SetOutlineThickness(const float thickness) { m_Outline.Thickness = thickness; }
+        void SetOutline(const SOutline& outline);
+        void SetOutlineColor(const SColor& color);
+        void SetOutlineThickness(float thickness);
 
         bool IsHovered() const { return m_Hovered; }
         bool IsPressed() const { return m_Pressed; }
@@ -155,6 +146,20 @@ namespace Elixir::GUI
          * @param allocatedSpace the space allocated to this widget.
          */
         virtual void LayoutChildren(const SRect& allocatedSpace) {}
+
+        /**
+         * Mark this widget's layout as dirty and propagate the mark to ancestors.
+         * A dirty widget (and any ancestor whose layout depends on it) is re-arranged
+         * on the next frame; clean subtrees are skipped by ArrangeChildren.
+         */
+        void MarkLayoutDirty();
+
+        /**
+         * Mark this widget's visual output as dirty (color, opacity, shadows, outline, ...).
+         * Purely visual changes do not affect layout, so this does NOT touch the layout flag
+         * nor propagate to ancestors — each widget owns its own draw commands.
+         */
+        void MarkRenderDirty();
 
         virtual void HandleMouseEnter();
         virtual void HandleMouseLeave();
@@ -233,6 +238,10 @@ namespace Elixir::GUI
         // so a clean widget still re-arranges when its parent hands it a different rectangle.
         bool m_LayoutDirty = true;
         SRect m_LastArrangedSpace{};
+
+        // Visual dirty flag (color/opacity/shadow/...). Independent from layout; consumed by
+        // the render-command cache. Starts dirty so the first frame generates commands.
+        bool m_RenderDirty = true;
 
         SRect m_Geometry{};
         glm::vec2 m_DesiredSize{};

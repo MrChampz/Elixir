@@ -146,3 +146,21 @@ TEST(DirtyTrackingTest, SettingSameVisibilityDoesNotInvalidate)
     child->SetVisibility(EVisibility::Hidden);
     EXPECT_TRUE(root->IsLayoutDirty());
 }
+
+TEST(DirtyTrackingTest, SlotMetadataSetterInvalidatesOwnerNotChild)
+{
+    const auto root = CreateRef<VerticalBox>();
+    const auto child = CreateRef<CountingWidget>();
+    LayoutSlot& slot = root->AddChild(child);
+
+    Arrange(root, { { 0, 0 }, { 100, 100 } });
+    ASSERT_FALSE(root->IsLayoutDirty());
+    ASSERT_FALSE(child->IsLayoutDirty());
+
+    // Slot metadata feeds the OWNER's layout: changing it must relayout the owner
+    // (it positions the child), but NOT dirty the child itself - its own content
+    // and measure did not change.
+    slot.SetMargin(SMargin(5.0f));
+    EXPECT_TRUE(root->IsLayoutDirty());
+    EXPECT_FALSE(child->IsLayoutDirty());
+}

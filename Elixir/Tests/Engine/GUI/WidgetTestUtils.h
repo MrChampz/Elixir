@@ -29,6 +29,10 @@ namespace
         {
             ++ArrangeCount;
         }
+
+        // MarkLayoutDirty is protected on Widget; promote it so tests can simulate a
+        // widget dirtying itself without weakening the production API.
+        using Widget::MarkLayoutDirty;
     };
 
     // Minimal single-child container to exercise ContentWidget lifecycle
