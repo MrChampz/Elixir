@@ -29,6 +29,7 @@ namespace Elixir::GUI
 
     void Button::SetTextColor(const SColor& color)
     {
+        if (m_TextColor == color) return;
         m_TextColor = color;
         MarkRenderDirty();
     }
@@ -43,6 +44,7 @@ namespace Elixir::GUI
 
     void Button::SetFontSize(const float size)
     {
+        if (m_FontSize == size) return;
         m_FontSize = size;
         MarkLayoutDirty();
         MarkRenderDirty();
