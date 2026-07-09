@@ -91,7 +91,6 @@ namespace Elixir::GUI
     {
         const Extent2D extent = { event.GetWidth(), event.GetHeight() };
         m_Renderer->Resize(extent);
-        //ArrangeLayout(extent); // Should use WINDOW extent, not framebuffer
 
         return true;
     }
