@@ -55,6 +55,14 @@ namespace Elixir::GUI
         if (m_Padding == padding) return;
         m_Padding = padding;
         MarkLayoutDirty();
+
+        // Padding only affects this button's OWN draw when it renders its own text label.
+        // With content, the background is padding-independent and the child re-renders itself
+        // when its geometry changes during layout.
+        if (!HasContent())
+        {
+            MarkRenderDirty(); // padding shifts the label position/clip in BuildDrawCommands
+        }
     }
 
     void Button::SetCornerRadius(const glm::vec4& radius)

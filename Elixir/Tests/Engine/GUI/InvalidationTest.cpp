@@ -24,6 +24,14 @@ namespace
         using Widget::MarkRenderDirty;
     };
 
+    // Minimal single-child widget to exercise ContentWidget lifecycle without Button's
+    // font-system dependency.
+    class TestContent final : public ContentWidget
+    {
+      public:
+        glm::vec2 ComputeDesiredSize() override { return { 10.0f, 10.0f }; }
+    };
+
     void Arrange(const Ref<Widget>& widget, const SRect& space)
     {
         widget->ArrangeChildren(space);
@@ -104,4 +112,33 @@ TEST(InvalidationTest, ChangingChildSizePropagatesToOwner)
     // A size change on the child propagates up through the parent link established by AddChild.
     child->SetDesiredSize({ 10.0f, 25.0f });
     EXPECT_TRUE(box->IsLayoutDirty());
+}
+
+TEST(InvalidationTest, SetContentMarksOwnerRenderDirty)
+{
+    const auto box = CreateRef<VerticalBox>();
+    const auto content = CreateRef<TestContent>();
+    box->AddChild(content);
+    Arrange(box, { { 0, 0 }, { 100, 100 } });
+    Assemble(box);
+    ASSERT_FALSE(content->IsRenderDirty());
+
+    // Gaining content changes what the widget draws (e.g. a Button hides its own text),
+    // so the owner's cached draw commands must be invalidated.
+    content->SetContent(CreateRef<SizedLeaf>());
+    EXPECT_TRUE(content->IsRenderDirty());
+}
+
+TEST(InvalidationTest, ClearContentMarksOwnerRenderDirty)
+{
+    const auto box = CreateRef<VerticalBox>();
+    const auto content = CreateRef<TestContent>();
+    content->SetContent(CreateRef<SizedLeaf>());
+    box->AddChild(content);
+    Arrange(box, { { 0, 0 }, { 100, 100 } });
+    Assemble(box);
+    ASSERT_FALSE(content->IsRenderDirty());
+
+    content->ClearContent();
+    EXPECT_TRUE(content->IsRenderDirty());
 }
