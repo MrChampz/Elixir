@@ -24,6 +24,7 @@ namespace Elixir::GUI
 
     void Widget::SetOpacity(const float opacity)
     {
+        if (m_Opacity == opacity) return;
         m_Opacity = opacity;
         MarkRenderDirty();
     }
