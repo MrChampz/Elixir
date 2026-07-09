@@ -24,6 +24,7 @@ namespace Elixir::GUI
         if (m_Text == text) return;
         m_Text = text;
         MarkLayoutDirty();
+        MarkRenderDirty(); // the drawn text changes even when geometry does not
     }
 
     void Button::SetTextColor(const SColor& color)
@@ -37,12 +38,14 @@ namespace Elixir::GUI
         if (m_Font == font) return;
         m_Font = font;
         MarkLayoutDirty();
+        MarkRenderDirty();
     }
 
     void Button::SetFontSize(const float size)
     {
         m_FontSize = size;
         MarkLayoutDirty();
+        MarkRenderDirty();
     }
 
     void Button::SetPadding(const SPadding& padding)

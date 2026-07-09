@@ -23,6 +23,7 @@ namespace Elixir::GUI
         m_Text = text;
         UpdateTextSize();
         MarkLayoutDirty();
+        MarkRenderDirty(); // the drawn glyphs change even when geometry does not
     }
 
     void TextBlock::SetFont(const Ref<Font>& font)
@@ -31,6 +32,7 @@ namespace Elixir::GUI
         m_Font = font;
         UpdateTextSize();
         MarkLayoutDirty();
+        MarkRenderDirty();
     }
 
     void TextBlock::SetColor(const SColor& color)
@@ -45,6 +47,7 @@ namespace Elixir::GUI
         m_FontSize = size;
         UpdateTextSize();
         MarkLayoutDirty();
+        MarkRenderDirty();
     }
 
     void TextBlock::BuildDrawCommands(RenderBatch& batch, const int zOrder)
