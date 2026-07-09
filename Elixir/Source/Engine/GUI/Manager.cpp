@@ -43,8 +43,14 @@ namespace Elixir::GUI
     {
         if (!m_RootWidget || !m_RootWidget->IsVisible()) return;
 
-        AssembleFrame();
-        m_Renderer->Render(m_RenderBatch);
+        if (NeedsRebuild())
+        {
+            AssembleFrame();
+            m_Renderer->Rebuild(m_RenderBatch);
+            MarkRebuilt();
+        }
+
+        m_Renderer->Draw();
     }
 
     void Manager::ProcessEvent(Event& event)
@@ -67,6 +73,18 @@ namespace Elixir::GUI
         }
 
         m_RenderBatch.Sort();
+    }
+
+    bool Manager::NeedsRebuild() const
+    {
+        return Widget::CurrentDirtyEpoch() != m_LastRenderedEpoch ||
+            m_RootWidget.get() != m_LastRootWidget;
+    }
+
+    void Manager::MarkRebuilt()
+    {
+        m_LastRenderedEpoch = Widget::CurrentDirtyEpoch();
+        m_LastRootWidget = m_RootWidget.get();
     }
 
     bool Manager::HandleFramebufferResize(const FramebufferResizeEvent& event) const

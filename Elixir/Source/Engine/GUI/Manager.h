@@ -33,6 +33,9 @@ namespace Elixir::GUI
     protected:
         void AssembleFrame();
 
+        bool NeedsRebuild() const;
+        void MarkRebuilt();
+
     private:
         bool HandleFramebufferResize(const FramebufferResizeEvent& event) const;
         bool HandleKeyPressed(const KeyPressedEvent& event) const;
@@ -58,6 +61,13 @@ namespace Elixir::GUI
         bool m_MousePressed = false;
         bool m_MouseReleased = false;
         bool m_MouseMoved = false;
+
+        // Dirty epoch of the last frame we assembled + uploaded. When it still matches the
+        // current epoch, the batch and GPU buffers are reused and only the draws are re-issued.
+        uint64_t m_LastRenderedEpoch = 0;
+
+        // Tracks the last rendered panel, so when changed, can rebuild the render batch.
+        const Panel* m_LastRootWidget = nullptr;
 
         bool m_Initialized = false;
     };

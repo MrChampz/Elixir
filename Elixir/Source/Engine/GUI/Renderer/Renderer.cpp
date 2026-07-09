@@ -36,23 +36,20 @@ namespace Elixir::GUI
         m_PerFrameConstantBuffer->UpdateData(&m_PerFrameData, sizeof(SPerFrameData));
     }
 
-    void Renderer::Render(const RenderBatch& batch) const
+    void Renderer::Rebuild(const RenderBatch& batch) const
     {
         for (const auto& pass : m_RenderPasses)
-        {
             pass->GenerateDrawCommands(batch);
-        }
+    }
 
+    void Renderer::Draw() const
+    {
         const auto cmd = m_GraphicsContext->GetSecondaryCommandBuffer();
         BeginRendering(cmd);
 
         for (const auto& pass : m_RenderPasses)
-        {
             if (pass->HasData())
-            {
                 pass->Render(cmd);
-            }
-        }
 
         EndRendering(cmd);
     }

@@ -10,5 +10,7 @@ namespace
     {
     public:
         using Manager::AssembleFrame;
+        using Manager::NeedsRebuild;
+        using Manager::MarkRebuilt;
     };
 }

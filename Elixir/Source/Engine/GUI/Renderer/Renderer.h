@@ -21,7 +21,19 @@ namespace Elixir::GUI
         );
 
         void Resize(const Extent2D& extent);
-        void Render(const RenderBatch& batch) const;
+
+        /**
+         * Regenerate each pass's GPU geometry from the batch (CPU build + vertex upload).
+         * Only needs to run when the batch changed; the passes retain their buffers otherwise.
+         * @param batch the assembled frame batch.
+         */
+        void Rebuild(const RenderBatch& batch) const;
+
+        /**
+         * Record and submit the draw calls using each pass's current (cached) geometry.
+         * Runs every frame — the GUI is re-composited over the scene each frame.
+         */
+        void Draw() const;
 
         void RegisterRenderPass(const Ref<RenderPass>& pass);
 

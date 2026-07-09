@@ -157,6 +157,10 @@ namespace Elixir::GUI
 
     void Widget::MarkLayoutDirty()
     {
+        // Bump before the short-circuit: a change while already dirty must still be seen by
+        // the Manager's frame gate (layout changes may move geometry -> the batch is stale).
+        ++s_DirtyEpoch;
+
         if (m_LayoutDirty)
             return;
 
@@ -169,6 +173,7 @@ namespace Elixir::GUI
     void Widget::MarkRenderDirty()
     {
         m_RenderDirty = true;
+        ++s_DirtyEpoch;
     }
 
     void Widget::HandleMouseEnter()
