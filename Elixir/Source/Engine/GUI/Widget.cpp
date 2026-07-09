@@ -351,6 +351,7 @@ namespace Elixir::GUI
 
         m_ContentSlot = CreateRef<ContentSlot>(widget);
         AttachChild(widget);
+        MarkRenderDirty();
         return *m_ContentSlot;
     }
 
@@ -360,6 +361,7 @@ namespace Elixir::GUI
 
         DetachChild(m_ContentSlot->GetWidget());
         m_ContentSlot.reset();
+        MarkRenderDirty();
     }
 
     void ContentWidget::RemoveChild(const Ref<Widget>& child)
