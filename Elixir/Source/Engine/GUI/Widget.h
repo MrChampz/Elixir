@@ -59,6 +59,14 @@ namespace Elixir::GUI
         bool IsLayoutDirty() const { return m_LayoutDirty; }
         bool IsRenderDirty() const { return m_RenderDirty; }
 
+        /**
+         * Monotonic counter bumped on every layout/visual invalidation across all widgets.
+         * The Manager compares it between frames to skip re-assembling the batch and
+         * re-uploading GPU buffers when nothing in the GUI changed. O(1) and coarse: any
+         * change anywhere forces a single full rebuild.
+         */
+        static uint64_t CurrentDirtyEpoch() { return s_DirtyEpoch; }
+
         /* Callbacks */
 
         void OnFocus(const std::function<void()>& callback) { m_OnFocusCallback = callback; }
@@ -263,6 +271,10 @@ namespace Elixir::GUI
         // Visual dirty flag (color/opacity/shadow/...).
         // Starts dirty so the first frame generates commands.
         bool m_RenderDirty = true;
+
+        // Monotonic "something changed" counter shared by all widgets; see CurrentDirtyEpoch.
+        // Bumped by MarkLayoutDirty / MarkRenderDirty.
+        inline static uint64_t s_DirtyEpoch = 1;
 
         SRect m_Geometry{};
         glm::vec2 m_DesiredSize{};

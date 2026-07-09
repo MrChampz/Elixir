@@ -59,6 +59,10 @@ namespace Elixir::GUI
         bool m_MouseReleased = false;
         bool m_MouseMoved = false;
 
+        // Dirty epoch of the last frame we assembled + uploaded. When it still matches the
+        // current epoch, the batch and GPU buffers are reused and only the draws are re-issued.
+        uint64_t m_LastRenderedEpoch = 0;
+
         bool m_Initialized = false;
     };
 }

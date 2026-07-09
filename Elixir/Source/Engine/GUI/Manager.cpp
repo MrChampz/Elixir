@@ -43,8 +43,18 @@ namespace Elixir::GUI
     {
         if (!m_RootWidget || !m_RootWidget->IsVisible()) return;
 
-        AssembleFrame();
-        m_Renderer->Render(m_RenderBatch);
+        // Skip re-assembling the batch and re-uploading GPU buffers when nothing in the GUI
+        // has changed since the last rendered frame; always re-issue the draws (the GUI is
+        // composited over the scene every frame).
+        const uint64_t epoch = Widget::CurrentDirtyEpoch();
+        if (epoch != m_LastRenderedEpoch)
+        {
+            AssembleFrame();
+            m_Renderer->Rebuild(m_RenderBatch);
+            m_LastRenderedEpoch = epoch;
+        }
+
+        m_Renderer->Draw();
     }
 
     void Manager::ProcessEvent(Event& event)
