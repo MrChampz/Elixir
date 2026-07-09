@@ -77,14 +77,14 @@ namespace Elixir::GUI
 
     bool Manager::NeedsRebuild() const
     {
-        return Widget::CurrentDirtyEpoch() != m_LastRenderedEpoch ||
-            m_RootWidget.get() != m_LastRootWidget;
+        return Widget::CurrentDirtyEpoch() != m_LastRenderedEpoch
+            || m_LastRenderedRoot.lock() != m_RootWidget;
     }
 
     void Manager::MarkRebuilt()
     {
         m_LastRenderedEpoch = Widget::CurrentDirtyEpoch();
-        m_LastRootWidget = m_RootWidget.get();
+        m_LastRenderedRoot = m_RootWidget;
     }
 
     bool Manager::HandleFramebufferResize(const FramebufferResizeEvent& event) const

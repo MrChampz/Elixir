@@ -67,7 +67,7 @@ namespace Elixir::GUI
         uint64_t m_LastRenderedEpoch = 0;
 
         // Tracks the last rendered panel, so when changed, can rebuild the render batch.
-        const Panel* m_LastRootWidget = nullptr;
+        WeakRef<Panel> m_LastRenderedRoot;
 
         bool m_Initialized = false;
     };

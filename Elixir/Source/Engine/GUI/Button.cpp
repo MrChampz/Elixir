@@ -36,7 +36,9 @@ namespace Elixir::GUI
 
     void Button::SetFont(const Ref<Font>& font)
     {
-        if (m_Font == font) return;
+        EE_CORE_ASSERT(font, "Button::SetFont called with a null font");
+        if (!font || m_Font == font) return;
+
         m_Font = font;
         MarkLayoutDirty();
         MarkRenderDirty();
@@ -173,7 +175,7 @@ namespace Elixir::GUI
         if (size.x <= availableWidth)
             return text;
 
-        const std::string ellipsis = "...";
+        std::string ellipsis = "...";
         const float ellipsisWidth = FontManager::MeasureText(ellipsis, m_Font, m_FontSize).x;
 
         if (ellipsisWidth >= availableWidth)
@@ -182,7 +184,7 @@ namespace Elixir::GUI
         std::string truncated = text;
         while (!truncated.empty())
         {
-            truncated.pop_back();
+            UTF8::UTF8RemoveLastChar(truncated);
             size = FontManager::MeasureText(truncated, m_Font, m_FontSize);
             if (size.x + ellipsisWidth <= availableWidth)
                 return truncated + ellipsis;

@@ -79,6 +79,7 @@ namespace Elixir::GUI
         void SetSelectionColor(const SColor& color);
 
     protected:
+        void LayoutChildren(const SRect& allocatedSpace) override;
         void BuildDrawCommands(RenderBatch& batch, int zOrder) override;
 
         void HandleMouseEnter() override;

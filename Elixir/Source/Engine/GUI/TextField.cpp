@@ -29,7 +29,11 @@ namespace Elixir::GUI
 
     void TextField::SetFont(const Ref<Font>& font)
     {
+        EE_CORE_ASSERT(font, "TextField::SetFont called with a null font");
+        if (!font || m_Font == font) return;
+
         m_Font = font;
+        UpdateScrollOffset();
         MarkRenderDirty();
     }
 
@@ -41,6 +45,7 @@ namespace Elixir::GUI
 
     void TextField::SetText(const std::string& text)
     {
+        if (m_Text == text) return;
         m_Text = text;
         m_CursorPosition = m_Text.size();
         ClearSelection();
@@ -106,6 +111,11 @@ namespace Elixir::GUI
     {
         m_SelectionColor = color;
         MarkRenderDirty();
+    }
+
+    void TextField::LayoutChildren(const SRect&)
+    {
+        UpdateScrollOffset();
     }
 
     void TextField::BuildDrawCommands(RenderBatch& batch, const int zOrder)
@@ -416,6 +426,8 @@ namespace Elixir::GUI
     void TextField::UpdateScrollOffset()
     {
         const float innerWidth = m_Geometry.Size.x - m_Padding.GetTotalHorizontal();
+        if (innerWidth <= 0.0f) return;
+
         const float cursorX = GetTextWidth(m_Text, 0, m_CursorPosition);
 
         // Cursor went past the right edge -> scroll right
