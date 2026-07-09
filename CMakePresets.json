@@ -48,23 +48,6 @@
       "hidden": true
     },
     {
-      "name": "ARM64EC",
-      "architecture": {
-        "value": "arm64ec",
-        "strategy": "external"
-      },
-      "cacheVariables": {
-        "DIRECTX_ARCH": "arm64ec",
-        "VCPKG_TARGET_TRIPLET": "arm64ec-windows",
-        "VCPKG_HOST_TRIPLET": "x64-windows"
-      },
-      "environment": {
-        "CFLAGS": "/arm64EC",
-        "CXXFLAGS": "/arm64EC"
-      },
-      "hidden": true
-    },
-    {
       "name": "Debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"
@@ -167,26 +150,6 @@
       "inherits": [
         "base",
         "ARM64",
-        "Release",
-        "MSVC"
-      ]
-    },
-    {
-      "name": "arm64ec-Debug",
-      "description": "MSVC for ARM64EC (Debug)",
-      "inherits": [
-        "base",
-        "ARM64EC",
-        "Debug",
-        "MSVC"
-      ]
-    },
-    {
-      "name": "arm64ec-Release",
-      "description": "MSVC for ARM64EC (Release)",
-      "inherits": [
-        "base",
-        "ARM64EC",
         "Release",
         "MSVC"
       ]

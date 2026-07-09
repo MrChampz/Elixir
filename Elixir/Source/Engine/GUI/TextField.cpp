@@ -44,6 +44,7 @@ namespace Elixir::GUI
 
     void TextField::SetText(const std::string& text)
     {
+        if (m_Text == text) return;
         m_Text = text;
         m_CursorPosition = m_Text.size();
         ClearSelection();
