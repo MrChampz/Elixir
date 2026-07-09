@@ -7,7 +7,7 @@ using namespace Elixir::GUI;
 namespace
 {
     // Minimal leaf widget that records how many times it actually re-arranged
-    // (i.e. how often ArrangeChildren did work instead of short-circuiting).
+    // (i.e. how often LayoutChildren ran instead of ArrangeChildren short-circuiting).
     class CountingWidget final : public Widget
     {
     public:
@@ -20,17 +20,17 @@ namespace
 
         glm::vec2 ComputeDesiredSize() override { return m_DesiredSize; }
 
-        void GenerateDrawCommands(RenderBatch& batch, int zOrder) override {}
+        // MarkLayoutDirty is protected on Widget; promote it so tests can simulate a
+        // widget dirtying itself without weakening the production API.
+        using Widget::MarkLayoutDirty;
 
-        void ArrangeChildren(const SRect& allocatedSpace) override
+    protected:
+        // LayoutChildren is invoked by the non-virtual ArrangeChildren template method only
+        // when a re-arrangement is actually needed (dirty, or the allocated space changed),
+        // so counting here records exactly how often real layout work happened.
+        void LayoutChildren(const SRect& allocatedSpace) override
         {
-            if (!m_LayoutDirty && m_LastArrangedSpace == allocatedSpace)
-                return;
-
             ++ArrangeCount;
-            m_Geometry = allocatedSpace;
-            m_LastArrangedSpace = allocatedSpace;
-            m_LayoutDirty = false;
         }
     };
 
@@ -40,12 +40,9 @@ namespace
     {
     public:
         glm::vec2 ComputeDesiredSize() override { return { 10.0f, 10.0f }; }
-
-        void GenerateDrawCommands(RenderBatch& batch, int zOrder) override {}
     };
 
-    // Arrange via a Widget reference so the public base overload is used
-    // (containers re-declare ArrangeChildren as protected).
+    // ArrangeChildren is the non-virtual template method on Widget; call it directly.
     void Arrange(const Ref<Widget>& widget, const SRect& space)
     {
         widget->ArrangeChildren(space);

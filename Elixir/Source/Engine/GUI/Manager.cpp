@@ -43,10 +43,14 @@ namespace Elixir::GUI
     {
         if (!m_RootWidget || !m_RootWidget->IsVisible()) return;
 
-        m_RenderBatch.Clear();
-        m_RootWidget->GenerateDrawCommands(m_RenderBatch);
-        m_RenderBatch.Sort();
-        m_Renderer->Render(m_RenderBatch);
+        if (NeedsRebuild())
+        {
+            AssembleFrame();
+            m_Renderer->Rebuild(m_RenderBatch);
+            MarkRebuilt();
+        }
+
+        m_Renderer->Draw();
     }
 
     void Manager::ProcessEvent(Event& event)
@@ -57,11 +61,36 @@ namespace Elixir::GUI
         dispatcher.Dispatch<KeyTypedEvent>(EE_BIND_EVENT_FN(Manager::HandleKeyTyped));
     }
 
+    void Manager::AssembleFrame()
+    {
+        m_RenderBatch.Clear();
+
+        if (m_RootWidget && m_RootWidget->IsVisible())
+        {
+            int zCursor = 0;
+            bool rebuilt = false;
+            m_RootWidget->CollectDrawCommands(m_RenderBatch, zCursor, rebuilt);
+        }
+
+        m_RenderBatch.Sort();
+    }
+
+    bool Manager::NeedsRebuild() const
+    {
+        return Widget::CurrentDirtyEpoch() != m_LastRenderedEpoch
+            || m_LastRenderedRoot.lock() != m_RootWidget;
+    }
+
+    void Manager::MarkRebuilt()
+    {
+        m_LastRenderedEpoch = Widget::CurrentDirtyEpoch();
+        m_LastRenderedRoot = m_RootWidget;
+    }
+
     bool Manager::HandleFramebufferResize(const FramebufferResizeEvent& event) const
     {
         const Extent2D extent = { event.GetWidth(), event.GetHeight() };
         m_Renderer->Resize(extent);
-        //ArrangeLayout(extent); // Should use WINDOW extent, not framebuffer
 
         return true;
     }
@@ -176,20 +205,10 @@ namespace Elixir::GUI
     {
         ProcessWidget(widget);
 
-        if (const auto contentWidget = std::dynamic_pointer_cast<ContentWidget>(widget))
+        widget->ForEachChild([this](const Ref<Widget>& child)
         {
-            if (const auto slot = contentWidget->GetContentSlot())
-            {
-                ProcessInputRecursive(slot->GetWidget());
-            }
-        }
-        else if (const auto panel = std::dynamic_pointer_cast<Panel>(widget))
-        {
-            for (auto& slot : panel->GetSlots())
-            {
-                ProcessInputRecursive(slot->GetWidget());
-            }
-        }
+            ProcessInputRecursive(child);
+        });
     }
 
     void Manager::ProcessKeyPressedRecursive(
@@ -199,39 +218,19 @@ namespace Elixir::GUI
     {
         widget->HandleKeyPressed(event);
 
-        if (const auto contentWidget = std::dynamic_pointer_cast<ContentWidget>(widget))
+        widget->ForEachChild([&event](const Ref<Widget>& child)
         {
-            if (const auto slot = contentWidget->GetContentSlot())
-            {
-                ProcessKeyPressedRecursive(slot->GetWidget(), event);
-            }
-        }
-        else if (const auto panel = std::dynamic_pointer_cast<Panel>(widget))
-        {
-            for (auto& slot : panel->GetSlots())
-            {
-                ProcessKeyPressedRecursive(slot->GetWidget(), event);
-            }
-        }
+            ProcessKeyPressedRecursive(child, event);
+        });
     }
 
     void Manager::ProcessKeyTypedRecursive(const Ref<Widget>& widget, const KeyTypedEvent& event)
     {
         widget->HandleKeyTyped(event);
 
-        if (const auto contentWidget = std::dynamic_pointer_cast<ContentWidget>(widget))
+        widget->ForEachChild([&event](const Ref<Widget>& child)
         {
-            if (const auto slot = contentWidget->GetContentSlot())
-            {
-                ProcessKeyTypedRecursive(slot->GetWidget(), event);
-            }
-        }
-        else if (const auto panel = std::dynamic_pointer_cast<Panel>(widget))
-        {
-            for (auto& slot : panel->GetSlots())
-            {
-                ProcessKeyTypedRecursive(slot->GetWidget(), event);
-            }
-        }
+            ProcessKeyTypedRecursive(child, event);
+        });
     }
 }

@@ -11,6 +11,13 @@ namespace Elixir::GUI
         return *slot;
     }
 
+    void VerticalBox::SetStretching(const bool stretching)
+    {
+        if (m_Stretching == stretching) return;
+        m_Stretching = stretching;
+        MarkLayoutDirty();
+    }
+
     glm::vec2 VerticalBox::ComputeDesiredSize()
     {
         glm::vec2 totalSize = { 0, 0 };
@@ -41,14 +48,8 @@ namespace Elixir::GUI
         return totalSize;
     }
 
-    void VerticalBox::ArrangeChildren(const SRect& allocatedSpace)
+    void VerticalBox::LayoutChildren(const SRect& allocatedSpace)
     {
-        if (!m_LayoutDirty && m_LastArrangedSpace == allocatedSpace)
-            return;
-
-        m_Geometry = allocatedSpace;
-        m_LastArrangedSpace = allocatedSpace;
-
         // Calculate available space after padding
         const SRect innerSpace = ApplyPadding(allocatedSpace, m_Padding);
 
@@ -140,7 +141,5 @@ namespace Elixir::GUI
             // Advance position
             currentY += childHeight + margin.GetTotalVertical();
         }
-
-        m_LayoutDirty = false;
     }
 }

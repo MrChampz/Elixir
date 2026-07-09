@@ -113,6 +113,15 @@ namespace Elixir
             .SetAlignment({ 0.0f, 1.0f })
             .SetPosition({ 10, -10 });
 
+        // FPS / frame-time overlay, pinned to the top-left corner (added last so it draws on top).
+        m_StatsText = CreateRef<GUI::TextBlock>("FPS: --  |  -- ms");
+        m_StatsText->SetFontSize(20.0f);
+        m_StatsText->SetColor({ 1.0f, 1.0f, 0.0f, 1.0f });
+        panel->AddChild(m_StatsText)
+            .SetAnchors(GUI::SAnchors::TopLeft())
+            .SetPosition({ 10, 10 })
+            .SetSize({ 280, 24 });
+
         m_GUIManager->SetRoot(panel);
     }
 
@@ -153,6 +162,15 @@ namespace Elixir
             }
 
             m_Window->ShowFPSAndFrameTime(m_Profiler.GetFPS(), frameTime);
+
+            m_StatsAccumulator += frameTime.GetSeconds();
+            if (m_StatsText && m_StatsAccumulator >= 0.25f)
+            {
+                m_StatsAccumulator = 0.0f;
+                m_StatsText->SetText(
+                    std::format("FPS: {}  |  {:.2f} ms", m_Profiler.GetFPS(), frameTime.GetMilliseconds())
+                );
+            }
 
             OnGUI(frameTime);
             m_GUIManager->ArrangeLayout(m_Window->GetWindowExtent()); // TODO: Remove from here and handle only when resizing

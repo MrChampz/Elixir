@@ -57,8 +57,22 @@ namespace Elixir::GUI
     class ELIXIR_API RenderBatch final
     {
       public:
+        /**
+         * Append another batch's commands to this one, offsetting each command's z-order.
+         * Used to assemble the per-widget command caches into the frame batch.
+         * @param other batch whose commands are copied in.
+         * @param zOffset value added to each appended command's ZOrder.
+         */
+        void Append(const RenderBatch& other, int zOffset);
+
         void Sort();
         void Clear();
+
+        /**
+         * Number of distinct z-layers these commands occupy: max ZOrder + 1, or 0 if empty.
+         * Used to advance the layer cursor past a widget's own commands during collection.
+         */
+        int LayerSpan() const;
 
         void AddRect(
             const SRect& rect,

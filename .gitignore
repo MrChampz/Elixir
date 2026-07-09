@@ -2,6 +2,7 @@
 .vs/
 .cache/
 .idea/
+.claude/
 Build/
 Bin/
 Intermediate/

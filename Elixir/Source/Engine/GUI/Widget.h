@@ -5,15 +5,19 @@
 #include <Engine/Event/MouseEvent.h>
 #include <Engine/GUI/Definitions.h>
 #include <Engine/GUI/Renderer/RenderBatch.h>
+#include <Engine/GUI/Slot.h>
 
 namespace Elixir::GUI
 {
     class Manager;
-    class ContentSlot;
 
     class ELIXIR_API Widget : public std::enable_shared_from_this<Widget>
     {
         friend class Manager;
+        friend class Slot;
+        friend class ContentSlot;
+        friend class LayoutSlot;
+        friend class CanvasSlot;
       public:
         virtual ~Widget() = default;
 
@@ -24,32 +28,25 @@ namespace Elixir::GUI
         virtual void Update(Timestep frameTime) {}
 
         /**
-         * Generate the draw commands for this widget.
-         * @param batch batch to add draw commands to.
-         * @param zOrder z-order for layering.
-         */
-        virtual void GenerateDrawCommands(RenderBatch& batch, int zOrder) = 0;
-
-        /**
          * Compute how much space this widget wants.
          * @return a 2d vector representing width and height.
          */
         virtual glm::vec2 ComputeDesiredSize() = 0;
 
         /**
-         * Arrange this widget in the given space.
+         * Arrange this widget in the given space. Short-circuits when the layout is clean and
+         * the allocated space is unchanged; otherwise updates geometry and delegates the actual
+         * layout to LayoutChildren before clearing the dirty flag. This is the template
+         * method: it is non-virtual, so subclasses override LayoutChildren instead.
          * @param allocatedSpace the space available for this widget.
          */
-        virtual void ArrangeChildren(const SRect& allocatedSpace);
+        void ArrangeChildren(const SRect& allocatedSpace);
 
         /**
-         * Mark this widget's layout as dirty and propagate the mark to ancestors.
-         * A dirty widget (and any ancestor whose layout depends on it) is re-arranged
-         * on the next frame; clean subtrees are skipped by ArrangeChildren.
+         * Get this widget's parent, or nullptr if it has none (or the parent was destroyed).
+         * @return a Ref to the parent, kept alive for the duration of the call.
          */
-        void MarkLayoutDirty();
-
-        bool IsLayoutDirty() const { return m_LayoutDirty; }
+        Ref<Widget> GetParent() const { return m_Parent.lock(); }
 
         /**
          * Get the final computed geometry.
@@ -58,6 +55,17 @@ namespace Elixir::GUI
         SRect GetGeometry() const { return m_Geometry; }
 
         glm::vec2 GetDesiredSize() const { return m_DesiredSize; }
+
+        bool IsLayoutDirty() const { return m_LayoutDirty; }
+        bool IsRenderDirty() const { return m_RenderDirty; }
+
+        /**
+         * Monotonic counter bumped on every layout/visual invalidation across all widgets.
+         * The Manager compares it between frames to skip re-assembling the batch and
+         * re-uploading GPU buffers when nothing in the GUI changed. O(1) and coarse: any
+         * change anywhere forces a single full rebuild.
+         */
+        static uint64_t CurrentDirtyEpoch() { return s_DirtyEpoch; }
 
         /* Callbacks */
 
@@ -70,7 +78,7 @@ namespace Elixir::GUI
         void OnMouseUp(const std::function<void()>& callback) { m_OnMouseUpCallback = callback; }
 
         float GetOpacity() const { return m_Opacity; }
-        void SetOpacity(const float opacity) { m_Opacity = opacity; }
+        void SetOpacity(float opacity);
 
         EVisibility GetVisibility() const { return m_Visibility; }
         void SetVisibility(EVisibility visibility);
@@ -83,34 +91,30 @@ namespace Elixir::GUI
          * Set the inset shadow parameters.
          * @param shadow Shadow offset (x, y), blur (z) and intensity (w).
          */
-        void SetInsetShadow(const glm::vec4& shadow) { m_InsetShadow = shadow; }
-
-        void SetInsetShadowOffset(const glm::vec2& offset) { m_InsetShadow.x = offset.x; m_InsetShadow.y = offset.y; }
-        void SetInsetShadowBlur(const float blur) { m_InsetShadow.z = blur; }
-        void SetInsetShadowIntensity(const float intensity) { m_InsetShadow.w = intensity; }
+        void SetInsetShadow(const glm::vec4& shadow);
+        void SetInsetShadowOffset(const glm::vec2& offset);
+        void SetInsetShadowBlur(float blur);
+        void SetInsetShadowIntensity(float intensity);
 
         /**
          * Set the drop shadow parameters.
          * @param shadow Shadow offset (x, y), blur (z) and intensity (w).
          */
-        void SetDropShadow(const glm::vec4& shadow) { m_DropShadow = shadow; }
-
-        void SetDropShadowOffset(const glm::vec2& offset) { m_DropShadow.x = offset.x; m_DropShadow.y = offset.y; }
-        void SetDropShadowBlur(const float blur) { m_DropShadow.z = blur; }
-        void SetDropShadowIntensity(const float intensity) { m_DropShadow.w = intensity; }
+        void SetDropShadow(const glm::vec4& shadow);
+        void SetDropShadowOffset(const glm::vec2& offset);
+        void SetDropShadowBlur(float blur);
+        void SetDropShadowIntensity(float intensity);
 
         SOutline GetOutline() const { return m_Outline; }
-        void SetOutline(const SOutline& outline) { m_Outline = outline; }
-        void SetOutlineColor(const SColor& color) { m_Outline.Color = color; }
-        void SetOutlineThickness(const float thickness) { m_Outline.Thickness = thickness; }
+        void SetOutline(const SOutline& outline);
+        void SetOutlineColor(const SColor& color);
+        void SetOutlineThickness(float thickness);
 
         bool IsHovered() const { return m_Hovered; }
         bool IsPressed() const { return m_Pressed; }
         bool IsFocused() const { return m_Focused; }
 
       protected:
-        virtual void RemoveChild(const Ref<Widget>& child) {}
-
         /**
          * Register a widget as a child of this one: sets the child's parent back-pointer
          * (used for dirty propagation) and marks this widget's layout dirty, since gaining
@@ -131,6 +135,56 @@ namespace Elixir::GUI
          * @param child the widget being detached to this one.
          */
         void DetachChild(const Ref<Widget>& child);
+
+        virtual void RemoveChild(const Ref<Widget>& child) {}
+        virtual void ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const {}
+
+        /**
+         * Position this widget's children within its (already updated) geometry. Container
+         * widgets override this to lay out their children; leaf widgets keep the default no-op.
+         * Invoked by ArrangeChildren only when a re-arrangement is actually needed, so the
+         * dirty check, geometry update and dirty-flag reset are handled for you.
+         * @param allocatedSpace the space allocated to this widget.
+         */
+        virtual void LayoutChildren(const SRect& allocatedSpace) {}
+
+        /**
+         * Walk this subtree appending each widget's cached draw commands to the batch,
+         * regenerating only the caches of render-dirty widgets and reusing the rest.
+         *
+         * Threads a monotonic layer cursor in pre-order: a widget's own commands occupy
+         * [zCursor, zCursor + LayerSpan()), children stack above, and the next sibling
+         * starts above this widget's whole subtree — so sibling subtrees never overlap
+         * in z.
+         *
+         * @param batch destination batch.
+         * @param zCursor running layer index; advanced past everything this subtree.
+         * @param rebuilt set to true if any widget's command cache was regenerated.
+         */
+        void CollectDrawCommands(RenderBatch& batch, int& zCursor, bool& rebuilt);
+
+        /**
+         * Build the draw commands for THIS widget only (no children). Containers emit their
+         * own visuals (background, text, ...); children are walked separately by
+         * CollectDrawCommands. Default is a no-op for widgets with nothing of their own to draw.
+         * @param batch batch to add draw commands to.
+         * @param zOrder z-order for layering, relative to this widget.
+         */
+        virtual void BuildDrawCommands(RenderBatch& batch, int zOrder) {}
+
+        /**
+         * Mark this widget's layout as dirty and propagate the mark to ancestors.
+         * A dirty widget (and any ancestor whose layout depends on it) is re-arranged
+         * on the next frame; clean subtrees are skipped by ArrangeChildren.
+         */
+        void MarkLayoutDirty();
+
+        /**
+         * Mark this widget's visual output as dirty (color, opacity, shadows, outline, ...).
+         * Purely visual changes do not affect layout, so this does NOT touch the layout flag
+         * nor propagate to ancestors — each widget owns its own draw commands.
+         */
+        void MarkRenderDirty();
 
         virtual void HandleMouseEnter();
         virtual void HandleMouseLeave();
@@ -204,11 +258,23 @@ namespace Elixir::GUI
 
         WeakRef<Widget> m_Parent;
 
+        // This widget's own draw commands (excludes children). Regenerated by
+        // BuildDrawCommands only when render-dirty; reused across frames otherwise.
+        RenderBatch m_CachedCommands;
+
         // Layout dirty tracking. A widget starts dirty so the first frame always lays out.
         // m_LastArrangedSpace records the space received on the previous arrangement,
         // so a clean widget still re-arranges when its parent hands it a different rectangle.
         bool m_LayoutDirty = true;
         SRect m_LastArrangedSpace{};
+
+        // Visual dirty flag (color/opacity/shadow/...).
+        // Starts dirty so the first frame generates commands.
+        bool m_RenderDirty = true;
+
+        // Monotonic "something changed" counter shared by all widgets; see CurrentDirtyEpoch.
+        // Bumped by MarkLayoutDirty / MarkRenderDirty.
+        inline static uint64_t s_DirtyEpoch = 1;
 
         SRect m_Geometry{};
         glm::vec2 m_DesiredSize{};
@@ -270,7 +336,20 @@ namespace Elixir::GUI
         Ref<ContentSlot> GetContentSlot() const { return m_ContentSlot; }
 
       protected:
+        /**
+         * Remove the given widget if it is the current content: clears the content slot and
+         * detaches the child (clearing its parent back-pointer), marking layout dirty. No-op
+         * if the widget is not this widget's content.
+         * @param child the widget to remove.
+         */
         void RemoveChild(const Ref<Widget>& child) override;
+
+        /**
+         * Invoke fn with this widget's content, if any. Calls fn at most once, since a
+         * ContentWidget hosts a single child; no-op when there is no content.
+         * @param fn callback invoked with the content widget.
+         */
+        void ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const override;
 
         Ref<ContentSlot> m_ContentSlot;
     };

@@ -14,30 +14,6 @@ namespace Elixir::GUI
         }
     }
 
-    void Panel::GenerateDrawCommands(RenderBatch& batch, const int zOrder)
-    {
-        for (const auto& slot : m_Slots)
-        {
-            if (slot->IsVisible())
-            {
-                slot->GetWidget()->GenerateDrawCommands(batch, zOrder + 1);
-            }
-        }
-
-        if (m_Background.A > 0.0f)
-        {
-            batch.AddRect(
-                m_Geometry,
-                m_Background,
-                m_CornerRadius,
-                m_InsetShadow,
-                m_DropShadow,
-                m_Outline,
-                zOrder
-            );
-        }
-    }
-
     void Panel::RemoveChild(const Ref<Widget>& child)
     {
         if (!child) return;
@@ -69,5 +45,43 @@ namespace Elixir::GUI
         if (m_Padding == padding) return;
         m_Padding = padding;
         MarkLayoutDirty();
+    }
+
+    void Panel::SetBackground(const SColor& color)
+    {
+        m_Background = color;
+        MarkRenderDirty();
+    }
+
+    void Panel::SetCornerRadius(const glm::vec4& radius)
+    {
+        m_CornerRadius = radius;
+        MarkRenderDirty();
+    }
+
+    void Panel::ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const
+    {
+        for (const auto& slot : m_Slots)
+        {
+            if (slot->IsVisible())
+                if (const auto& child = slot->GetWidget())
+                    fn(child);
+        }
+    }
+
+    void Panel::BuildDrawCommands(RenderBatch& batch, const int zOrder)
+    {
+        if (m_Background.A > 0.0f)
+        {
+            batch.AddRect(
+                m_Geometry,
+                m_Background,
+                m_CornerRadius,
+                m_InsetShadow,
+                m_DropShadow,
+                m_Outline,
+                zOrder
+            );
+        }
     }
 }

@@ -106,4 +106,11 @@ namespace Elixir::UTF8
 
         return len;
     }
+
+    inline void UTF8RemoveLastChar(std::string& str)
+    {
+        if (str.empty()) return;
+        const auto len = UTF8PrevCharLength(str, (int)str.size());
+        str.erase(str.size() - len);
+    }
 }

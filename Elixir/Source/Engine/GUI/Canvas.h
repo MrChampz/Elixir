@@ -70,7 +70,9 @@ namespace Elixir::GUI
         CanvasSlot& AddChild(const Ref<Widget>& child);
 
         glm::vec2 ComputeDesiredSize() override;
-        void ArrangeChildren(const SRect& allocatedSpace) override;
+
+      protected:
+        void LayoutChildren(const SRect& allocatedSpace) override;
 
       private:
         SRect ComputeChildGeometry(const Ref<CanvasSlot>& slot, const glm::vec2& canvasSize) const;
