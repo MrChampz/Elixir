@@ -33,6 +33,7 @@ namespace Elixir::GUI
         if (!font || m_Font == font) return;
 
         m_Font = font;
+        UpdateScrollOffset();
         MarkRenderDirty();
     }
 
