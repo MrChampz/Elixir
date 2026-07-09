@@ -351,7 +351,7 @@ namespace Elixir::GUI
 
         m_ContentSlot = CreateRef<ContentSlot>(widget);
         AttachChild(widget);
-        MarkRenderDirty(); // gaining content changes this widget's own draw (e.g. hides its text)
+        MarkRenderDirty();
         return *m_ContentSlot;
     }
 
@@ -361,7 +361,7 @@ namespace Elixir::GUI
 
         DetachChild(m_ContentSlot->GetWidget());
         m_ContentSlot.reset();
-        MarkRenderDirty(); // losing content changes this widget's own draw
+        MarkRenderDirty();
     }
 
     void ContentWidget::RemoveChild(const Ref<Widget>& child)
