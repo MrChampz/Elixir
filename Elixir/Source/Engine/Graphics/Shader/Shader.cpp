@@ -215,8 +215,17 @@ namespace Elixir
         const auto set = constant.GetSet();
         const auto binding = constant.GetBinding();
 
-        const auto& [it, _] = m_Resources.PushConstants
+        auto [it, inserted] = m_Resources.PushConstants
             .try_emplace({ set, binding }, constant);
+
+        // A push constant block shared across stages (e.g. the sprite block used
+        // by both the vertex and pixel stage) is reflected once per stage. Since
+        // try_emplace keeps the first entry, OR in the later stage's flags so the
+        // pipeline's VkPushConstantRange covers every stage that reads it —
+        // otherwise the constant reads back as garbage in the stage left out.
+        if (!inserted)
+            it->second.m_Stages = it->second.m_Stages | constant.GetShaderStages();
+
         return &it->second;
     }
 
