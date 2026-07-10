@@ -19,6 +19,8 @@ struct SpritePushConstants
     uint FlipBlend;     // 0 = hard frame steps, 1 = cross-fade adjacent frames
     uint GradientIndex; // LUT texture index (pixel stage only)
     uint GradientMode;  // 0 = off, 1 = luminance -> LUT remap
+    uint NormalIndex;   // fake-normal map index (pixel stage only)
+    uint NormalMode;    // 0 = unlit, 1 = fake-normal lighting
 };
 [[vk::push_constant]]
 SpritePushConstants pc;

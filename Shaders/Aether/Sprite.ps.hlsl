@@ -14,6 +14,8 @@ struct SpritePushConstants
     uint FlipBlend;
     uint GradientIndex;
     uint GradientMode;
+    uint NormalIndex;
+    uint NormalMode;
 };
 [[vk::push_constant]]
 SpritePushConstants pc;
@@ -70,6 +72,18 @@ float4 main(PSInput input) : SV_Target0
         t = clamp(t, halfTexel, 1.0f - halfTexel);
 
         rgb = sprites[pc.GradientIndex].Sample(spriteSampler, float2(t, 0.5f)).rgb;
+    }
+
+    // Fake-normal lighting: a radial normal map lets the flat billboard read as a
+    // lit volume (self-shadowing). Sampled at the sprite-local UV (not the atlas
+    // cell) since the normal map is not a flipbook.
+    if (pc.NormalMode != 0u)
+    {
+        float3 n = normalize(sprites[pc.NormalIndex].Sample(spriteSampler, input.QuadUV).xyz * 2.0f - 1.0f);
+        float3 lightDir = normalize(float3(-0.4f, 0.6f, 0.7f)); // billboard space: upper-left, toward camera
+        float ndl = saturate(dot(n, lightDir));
+        const float ambient = 0.35f;
+        rgb *= ambient + (1.0f - ambient) * ndl;
     }
 
     float3 color = input.Color.rgb * rgb;

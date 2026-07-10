@@ -890,6 +890,7 @@ namespace Elixir::Aether
                 const auto blendMode = ParseBlendMode(json, "blendMode");
                 const auto spriteTexture = ParseString(json, "spriteTexture", "");
                 const auto gradientMap = ParseString(json, "gradientMap", "");
+                const auto normalMap = ParseString(json, "normalMap", "");
                 const uint32_t maxParticles = RequireUInt(json, "maxParticles");
                 const auto spawnRate = ParseScalar(json, "spawnRate");
 
@@ -951,6 +952,15 @@ namespace Elixir::Aether
                     const auto texture = TextureLoader::Load(gradientMap);
                     const auto tex2d = std::static_pointer_cast<Texture2D>(texture);
                     emitter.SetGradientTexture(tex2d);
+                }
+
+                if (!normalMap.empty())
+                {
+                    // Normal maps carry direction data, not color — load linear so
+                    // the sRGB curve does not bend the unpacked normals.
+                    const auto texture = TextureLoader::Load(normalMap, EImageFormat::R8G8B8A8_UNORM);
+                    const auto tex2d = std::static_pointer_cast<Texture2D>(texture);
+                    emitter.SetNormalTexture(tex2d);
                 }
 
                 if (!spawnRate.Param.empty())

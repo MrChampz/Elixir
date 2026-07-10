@@ -28,6 +28,8 @@ namespace Elixir::Aether
         uint32_t FlipbookBlend = 0;
         uint32_t GradientIndex = 0;
         uint32_t GradientMode = 0; // 0 = off, 1 = remap sheet luminance through the LUT
+        uint32_t NormalIndex = 0;
+        uint32_t NormalMode = 0;   // 0 = unlit, 1 = fake-normal lighting
     };
 
     struct SRibbonPushConstants
@@ -233,7 +235,9 @@ namespace Elixir::Aether
                 emitter.FlipbookFrames,
                 emitter.FlipbookBlend ? 1u : 0u,
                 emitter.GradientTexture ? ResolveSpriteIndex(emitter.GradientTexture) : m_WhiteTextureHandle.Index,
-                emitter.GradientTexture ? 1u : 0u
+                emitter.GradientTexture ? 1u : 0u,
+                emitter.NormalTexture ? ResolveSpriteIndex(emitter.NormalTexture) : m_WhiteTextureHandle.Index,
+                emitter.NormalTexture ? 1u : 0u
             };
             m_SpriteShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(SSpritePushConstants));
 

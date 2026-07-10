@@ -33,6 +33,9 @@ namespace Elixir::Aether
         // Optional gradient/blackbody LUT: sheet luminance remaps to this ramp's
         // color. Null = disabled (sprite color used as-is).
         Ref<Texture2D> GradientTexture;
+        // Optional fake-normal map (radial): lights the flat billboard as a
+        // volume for self-shadowing. Null = disabled (unlit).
+        Ref<Texture2D> NormalTexture;
 
         float SpawnRatePerSecond = 1.0f;
         uint32_t BurstCount = 0u;
@@ -127,6 +130,9 @@ namespace Elixir::Aether
         const Ref<Texture2D>& GetGradientTexture() const { return m_GradientTexture; }
         void SetGradientTexture(const Ref<Texture2D>& texture) { m_GradientTexture = texture; }
 
+        const Ref<Texture2D>& GetNormalTexture() const { return m_NormalTexture; }
+        void SetNormalTexture(const Ref<Texture2D>& texture) { m_NormalTexture = texture; }
+
         uint32_t GetBurstCount() const { return m_BurstCount; }
         float GetBurstIntervalSeconds() const { return m_BurstIntervalSeconds; }
 
@@ -147,6 +153,7 @@ namespace Elixir::Aether
         EParticleBlendMode m_BlendMode = EParticleBlendMode::Alpha;
         Ref<Texture2D> m_SpriteTexture;
         Ref<Texture2D> m_GradientTexture;
+        Ref<Texture2D> m_NormalTexture;
         uint32_t m_MaxParticles;
 
         std::vector<Scope<ParticleSpawnModule>> m_SpawnModules;
