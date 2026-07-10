@@ -12,6 +12,8 @@ struct SpritePushConstants
     uint FlipRows;
     uint FlipFrames;
     uint FlipBlend;
+    uint GradientIndex;
+    uint GradientMode;
 };
 [[vk::push_constant]]
 SpritePushConstants pc;
@@ -53,7 +55,24 @@ float4 main(PSInput input) : SV_Target0
     float4 frameB = sprites[pc.SpriteIndex].Sample(spriteSampler, uvB);
     float4 sprite = lerp(frameA, frameB, input.Blend);
 
-    float3 color = input.Color.rgb * sprite.rgb;
+    float3 rgb = sprite.rgb;
+
+    // Gradient/blackbody remap: use the sheet's luminance as a lookup into a 1D
+    // ramp (sampled along U). Clamp to the LUT interior so bilinear does not wrap
+    // past the ends (the shared sampler uses Repeat addressing).
+    if (pc.GradientMode != 0u)
+    {
+        float t = dot(sprite.rgb, float3(0.299f, 0.587f, 0.114f));
+
+        uint lutW, lutH;
+        sprites[pc.GradientIndex].GetDimensions(lutW, lutH);
+        float halfTexel = 0.5f / (float)lutW;
+        t = clamp(t, halfTexel, 1.0f - halfTexel);
+
+        rgb = sprites[pc.GradientIndex].Sample(spriteSampler, float2(t, 0.5f)).rgb;
+    }
+
+    float3 color = input.Color.rgb * rgb;
     float alpha = input.Color.a * sprite.a;
 
     return float4(color, alpha);

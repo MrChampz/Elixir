@@ -13,10 +13,12 @@ cbuffer cbFrame : register(b0)
 struct SpritePushConstants
 {
     uint SpriteIndex;
-    uint FlipCols;   // atlas columns (1 = no flipbook)
-    uint FlipRows;   // atlas rows
-    uint FlipFrames; // active frame count (<= cols * rows)
-    uint FlipBlend;  // 0 = hard frame steps, 1 = cross-fade adjacent frames
+    uint FlipCols;      // atlas columns (1 = no flipbook)
+    uint FlipRows;      // atlas rows
+    uint FlipFrames;    // active frame count (<= cols * rows)
+    uint FlipBlend;     // 0 = hard frame steps, 1 = cross-fade adjacent frames
+    uint GradientIndex; // LUT texture index (pixel stage only)
+    uint GradientMode;  // 0 = off, 1 = luminance -> LUT remap
 };
 [[vk::push_constant]]
 SpritePushConstants pc;

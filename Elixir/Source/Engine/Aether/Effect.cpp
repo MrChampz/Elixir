@@ -889,6 +889,7 @@ namespace Elixir::Aether
                 const auto renderMode = ParseRenderMode(json, "renderMode");
                 const auto blendMode = ParseBlendMode(json, "blendMode");
                 const auto spriteTexture = ParseString(json, "spriteTexture", "");
+                const auto gradientMap = ParseString(json, "gradientMap", "");
                 const uint32_t maxParticles = RequireUInt(json, "maxParticles");
                 const auto spawnRate = ParseScalar(json, "spawnRate");
 
@@ -943,6 +944,13 @@ namespace Elixir::Aether
                     const auto texture = TextureLoader::Load(spriteTexture);
                     const auto tex2d = std::static_pointer_cast<Texture2D>(texture);
                     emitter.SetSpriteTexture(tex2d);
+                }
+
+                if (!gradientMap.empty())
+                {
+                    const auto texture = TextureLoader::Load(gradientMap);
+                    const auto tex2d = std::static_pointer_cast<Texture2D>(texture);
+                    emitter.SetGradientTexture(tex2d);
                 }
 
                 if (!spawnRate.Param.empty())

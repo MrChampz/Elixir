@@ -30,6 +30,9 @@ namespace Elixir::Aether
         EParticleRenderMode RenderMode = EParticleRenderMode::Sprite;
         EParticleBlendMode BlendMode = EParticleBlendMode::Alpha;
         Ref<Texture2D> SpriteTexture;
+        // Optional gradient/blackbody LUT: sheet luminance remaps to this ramp's
+        // color. Null = disabled (sprite color used as-is).
+        Ref<Texture2D> GradientTexture;
 
         float SpawnRatePerSecond = 1.0f;
         uint32_t BurstCount = 0u;
@@ -121,6 +124,9 @@ namespace Elixir::Aether
         const Ref<Texture2D>& GetSpriteTexture() const { return m_SpriteTexture; }
         void SetSpriteTexture(const Ref<Texture2D>& texture) { m_SpriteTexture = texture; }
 
+        const Ref<Texture2D>& GetGradientTexture() const { return m_GradientTexture; }
+        void SetGradientTexture(const Ref<Texture2D>& texture) { m_GradientTexture = texture; }
+
         uint32_t GetBurstCount() const { return m_BurstCount; }
         float GetBurstIntervalSeconds() const { return m_BurstIntervalSeconds; }
 
@@ -140,6 +146,7 @@ namespace Elixir::Aether
         EParticleRenderMode m_RenderMode = EParticleRenderMode::Sprite;
         EParticleBlendMode m_BlendMode = EParticleBlendMode::Alpha;
         Ref<Texture2D> m_SpriteTexture;
+        Ref<Texture2D> m_GradientTexture;
         uint32_t m_MaxParticles;
 
         std::vector<Scope<ParticleSpawnModule>> m_SpawnModules;
