@@ -125,6 +125,26 @@ namespace Elixir::Aether
                 return !object[key].error();
             }
 
+            uint32_t ParseUInt(od::object& object, std::string_view key, uint32_t fallback)
+            {
+                if (m_Failed || !HasField(object, key)) return fallback;
+                return RequireUInt(object, key);
+            }
+
+            bool ParseBool(od::object& object, std::string_view key, bool fallback)
+            {
+                if (m_Failed || !HasField(object, key)) return fallback;
+
+                bool value;
+                if (object[key].get_bool().get(value))
+                {
+                    Fail("Field '{}' must be a boolean.", key);
+                    return fallback;
+                }
+
+                return value;
+            }
+
             /* Vector accessors */
 
             template <int N>
@@ -871,6 +891,30 @@ namespace Elixir::Aether
                     const auto burstCount = RequireUInt(burst, "count");
                     const auto burstInterval = RequireFloat(burst, "interval");
                     emitter.SetBurst(burstCount, burstInterval);
+                }
+
+                if (HasField(json, "flipbook"))
+                {
+                    od::object flipbook;
+                    if (json["flipbook"].get_object().get(flipbook))
+                    {
+                        Fail("'flipbook' must be an object.");
+                        return;
+                    }
+
+                    const uint32_t cols = RequireUInt(flipbook, "cols");
+                    const uint32_t rows = RequireUInt(flipbook, "rows");
+                    if (m_Failed) return;
+
+                    const uint32_t frames = ParseUInt(flipbook, "frames", cols * rows);
+                    const bool blend = ParseBool(flipbook, "blend", true);
+
+                    emitter.SetFlipbook(
+                        std::max(cols, 1u),
+                        std::max(rows, 1u),
+                        std::max(frames, 1u),
+                        blend
+                    );
                 }
 
                 if (m_Failed) return;

@@ -36,6 +36,10 @@ namespace Elixir::Aether
         emitter.SpawnRatePerSecond = m_SpawnRate;
         emitter.BurstCount = m_BurstCount;
         emitter.BurstIntervalSeconds = m_BurstIntervalSeconds;
+        emitter.FlipbookCols = m_FlipbookCols;
+        emitter.FlipbookRows = m_FlipbookRows;
+        emitter.FlipbookFrames = m_FlipbookFrames;
+        emitter.FlipbookBlend = m_FlipbookBlend;
 
         const uint32_t spawnRateParamIndex =
             FindScopedParameterIndex(params, m_Name, m_SpawnRateParamName);

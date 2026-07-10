@@ -30,6 +30,13 @@ namespace Elixir::Aether
 
         float GravityScale = 1.0f;
 
+        // Flipbook (sub-UV) animation. Defaults describe a single full-texture
+        // cell, i.e. animation disabled and identical to a plain sprite.
+        uint32_t FlipbookCols = 1u;
+        uint32_t FlipbookRows = 1u;
+        uint32_t FlipbookFrames = 1u;
+        bool FlipbookBlend = false;
+
         uint32_t ParticleOffset = 0u;
         uint32_t MaxParticles = 0u;
         uint32_t SpawnOpOffset = 0u;
@@ -86,6 +93,14 @@ namespace Elixir::Aether
 
         void SetBurst(uint32_t count, float intervalSeconds);
 
+        void SetFlipbook(uint32_t cols, uint32_t rows, uint32_t frames, bool blend)
+        {
+            m_FlipbookCols = cols;
+            m_FlipbookRows = rows;
+            m_FlipbookFrames = frames;
+            m_FlipbookBlend = blend;
+        }
+
         SGPUEmitter Build(
             const ParameterStore& paramStore,
             const std::vector<SGPUParameter>& params,
@@ -125,6 +140,11 @@ namespace Elixir::Aether
         float m_SpawnRate = 0.0f; // per seconds
         uint32_t m_BurstCount = 0u;
         float m_BurstIntervalSeconds = 0.0f;
+
+        uint32_t m_FlipbookCols = 1u;
+        uint32_t m_FlipbookRows = 1u;
+        uint32_t m_FlipbookFrames = 1u;
+        bool m_FlipbookBlend = false;
 
         ParameterStore m_Parameters;
         CurveStore m_Curves;

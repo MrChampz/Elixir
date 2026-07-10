@@ -22,6 +22,10 @@ namespace Elixir::Aether
     struct SSpritePushConstants
     {
         uint32_t SpriteIndex = 0;
+        uint32_t FlipbookCols = 1;
+        uint32_t FlipbookRows = 1;
+        uint32_t FlipbookFrames = 1;
+        uint32_t FlipbookBlend = 0;
     };
 
     struct SRibbonPushConstants
@@ -216,7 +220,13 @@ namespace Elixir::Aether
                 ribbonPipelineBound = false;
             }
 
-            const SSpritePushConstants pc{ ResolveSpriteIndex(emitter.SpriteTexture) };
+            const SSpritePushConstants pc{
+                ResolveSpriteIndex(emitter.SpriteTexture),
+                emitter.FlipbookCols,
+                emitter.FlipbookRows,
+                emitter.FlipbookFrames,
+                emitter.FlipbookBlend ? 1u : 0u
+            };
             m_SpriteShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(SSpritePushConstants));
 
             cmd->Draw(6, emitter.MaxParticles, 0, emitter.ParticleOffset);
