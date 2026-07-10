@@ -349,6 +349,23 @@ namespace Elixir::Aether
                 return result;
             }
 
+            EParticleBlendMode ParseBlendMode(od::object& object, const std::string_view key)
+            {
+                constexpr auto result = EParticleBlendMode::Alpha;
+
+                if (m_Failed || !HasField(object, key))
+                    return result;
+
+                const std::string value = RequireString(object, key);
+                if (m_Failed) return result;
+
+                if (const auto mode = magic_enum::enum_cast<EParticleBlendMode>(value))
+                    return *mode;
+
+                Fail("Unknown blend mode '{}'.", value);
+                return result;
+            }
+
             EDynamicInput ParseDynamicInput(od::object& object, std::string_view key)
             {
                 constexpr auto result = EDynamicInput::None;
@@ -870,6 +887,7 @@ namespace Elixir::Aether
 
                 const std::string name = RequireString(json, "name");
                 const auto renderMode = ParseRenderMode(json, "renderMode");
+                const auto blendMode = ParseBlendMode(json, "blendMode");
                 const auto spriteTexture = ParseString(json, "spriteTexture", "");
                 const uint32_t maxParticles = RequireUInt(json, "maxParticles");
                 const auto spawnRate = ParseScalar(json, "spawnRate");
@@ -878,6 +896,7 @@ namespace Elixir::Aether
 
                 auto& emitter = system->AddEmitter(name, maxParticles, spawnRate.Value);
                 emitter.SetRenderMode(renderMode);
+                emitter.SetBlendMode(blendMode);
 
                 if (HasField(json, "burst"))
                 {

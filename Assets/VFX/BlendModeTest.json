@@ -1,0 +1,85 @@
+{
+  "name": "Blend Mode Test",
+  "parameters": {
+    "gravityScale": 1.0
+  },
+  "colorCurves": {
+    "smoke_alpha": [
+      [1.0, 1.0, 1.0, 0.55],
+      [1.0, 1.0, 1.0, 1.0],
+      [1.0, 1.0, 1.0, 1.0],
+      [1.0, 1.0, 1.0, 1.0],
+      [1.0, 1.0, 1.0, 0.92],
+      [1.0, 1.0, 1.0, 0.70],
+      [1.0, 1.0, 1.0, 0.35],
+      [1.0, 1.0, 1.0, 0.0]
+    ],
+    "fire_color": [
+      [1.00, 0.95, 0.70, 1.00],
+      [1.00, 0.80, 0.35, 1.00],
+      [1.00, 0.60, 0.18, 0.92],
+      [1.00, 0.40, 0.10, 0.74],
+      [0.92, 0.24, 0.06, 0.52],
+      [0.78, 0.14, 0.03, 0.30],
+      [0.60, 0.08, 0.02, 0.12],
+      [0.45, 0.05, 0.01, 0.0]
+    ]
+  },
+  "emitters": [
+    {
+      "name": "FireCore",
+      "renderMode": "Sprite",
+      "blendMode": "Additive",
+      "spriteTexture": "Assets/Textures/SoftGlow.png",
+      "maxParticles": 400,
+      "spawnRate": 120.0,
+      "parameters": {
+        "drag": 0.20,
+        "gravity": [0.0, 0.60, 0.0, 0.0]
+      },
+      "spawnModules": [
+        { "type": "SetPositionDisk", "center": [0.0, -0.5, 0.0], "radius": 0.14 },
+        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 0.55, "minSpeed": 0.25, "maxSpeed": 0.65 },
+        { "type": "SetLifetime", "min": 0.5, "max": 0.9 },
+        { "type": "SetSize", "min": 0.28, "max": 0.5 },
+        { "type": "SetScale", "min": 0.8, "max": 1.2 },
+        { "type": "SetColor", "color": [1.0, 0.9, 0.6, 1.0] }
+      ],
+      "updateModules": [
+        { "type": "ApplyGravity", "gravity": "$gravity" },
+        { "type": "ApplyLinearDrag", "drag": "$drag" },
+        { "type": "ColorOverLife", "start": [1.0, 0.9, 0.6, 1.0], "end": [0.45, 0.05, 0.01, 0.0], "curve": "fire_color", "input": "NormalizedAge" },
+        { "type": "ScaleOverLife", "start": 1.0, "end": 0.25 },
+        { "type": "KillOutsideBounds", "min": [-4, -2, -4], "max": [4, 4, 4] }
+      ]
+    },
+    {
+      "name": "Smoke",
+      "renderMode": "Sprite",
+      "blendMode": "Alpha",
+      "spriteTexture": "Assets/Textures/Smoke_forward_10_8x8.PNG",
+      "maxParticles": 24,
+      "spawnRate": 4.0,
+      "flipbook": { "cols": 8, "rows": 8, "frames": 64, "blend": true },
+      "parameters": {
+        "drag": 0.25,
+        "gravity": [0.0, 0.35, 0.0, 0.0]
+      },
+      "spawnModules": [
+        { "type": "SetPositionDisk", "center": [0.0, -0.2, 0.0], "radius": 0.12 },
+        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 0.35, "minSpeed": 0.10, "maxSpeed": 0.30 },
+        { "type": "SetLifetime", "min": 1.9, "max": 2.4 },
+        { "type": "SetSize", "min": 0.9, "max": 1.3 },
+        { "type": "SetScale", "min": 0.9, "max": 1.2 },
+        { "type": "SetColor", "color": [1.0, 1.0, 1.0, 1.0] }
+      ],
+      "updateModules": [
+        { "type": "ApplyGravity", "gravity": "$gravity" },
+        { "type": "ApplyLinearDrag", "drag": "$drag" },
+        { "type": "ColorOverLife", "start": [1.0, 1.0, 1.0, 1.0], "end": [1.0, 1.0, 1.0, 0.0], "curve": "smoke_alpha", "input": "NormalizedAge" },
+        { "type": "ScaleOverLife", "start": 0.7, "end": 1.6 },
+        { "type": "KillOutsideBounds", "min": [-4, -2, -4], "max": [4, 4, 4] }
+      ]
+    }
+  ]
+}

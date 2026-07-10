@@ -166,7 +166,7 @@ namespace Elixir::Aether
 
         BeginRendering(cmd);
 
-        bool spritePipelineBound = false;
+        const GraphicsPipeline* boundSpritePipeline = nullptr;
         bool ribbonPipelineBound = false;
 
         for (uint32_t i = 0; i < emitterCount; ++i)
@@ -202,7 +202,7 @@ namespace Elixir::Aether
                 {
                     m_RibbonPipeline->Bind(cmd);
                     ribbonPipelineBound = true;
-                    spritePipelineBound = false;
+                    boundSpritePipeline = nullptr;
                 }
 
                 const SRibbonPushConstants pc{ i };
@@ -212,11 +212,15 @@ namespace Elixir::Aether
                 continue;
             }
 
-            if (!spritePipelineBound)
+            const auto& spritePipeline = emitter.BlendMode == EParticleBlendMode::Additive
+                ? m_SpriteAdditivePipeline
+                : m_SpritePipeline;
+
+            if (boundSpritePipeline != spritePipeline.get())
             {
-                m_SpritePipeline->Bind(cmd);
+                spritePipeline->Bind(cmd);
                 m_ParticleBuffer->BindAs<VertexBuffer>(cmd);
-                spritePipelineBound = true;
+                boundSpritePipeline = spritePipeline.get();
                 ribbonPipelineBound = false;
             }
 
@@ -301,6 +305,11 @@ namespace Elixir::Aether
         spriteBuilder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
         spriteBuilder.SetBufferLayout(spriteBufferLayout);
         m_SpritePipeline = spriteBuilder.Build(m_GraphicsContext);
+
+        // Additive variant selected per emitter (fire/sparks); same shader and
+        // vertex layout, only the color-blend state differs.
+        spriteBuilder.EnableAdditiveBlending();
+        m_SpriteAdditivePipeline = spriteBuilder.Build(m_GraphicsContext);
 
         m_Sprites = TextureSet::Create(m_GraphicsContext);
         m_SpriteSampler = SamplerBuilder().Build(m_GraphicsContext);

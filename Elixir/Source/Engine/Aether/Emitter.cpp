@@ -29,6 +29,7 @@ namespace Elixir::Aether
         emitter.m_UUID = m_UUID;
         emitter.Name = m_Name;
         emitter.RenderMode = m_RenderMode;
+        emitter.BlendMode = m_BlendMode;
         emitter.SpriteTexture = m_SpriteTexture;
         emitter.MaxParticles = m_MaxParticles;
         emitter.GravityScale = paramStore.GetFloat("GravityScale", 1.0f);

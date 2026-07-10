@@ -17,11 +17,18 @@ namespace Elixir::Aether
         Mesh   = 2
     };
 
+    enum class EParticleBlendMode : uint8_t
+    {
+        Alpha    = 0, // straight alpha over-blend (smoke, opaque puffs)
+        Additive = 1  // additive glow (fire, sparks, embers)
+    };
+
     struct SGPUEmitter
     {
         UUID m_UUID;
         std::string Name;
         EParticleRenderMode RenderMode = EParticleRenderMode::Sprite;
+        EParticleBlendMode BlendMode = EParticleBlendMode::Alpha;
         Ref<Texture2D> SpriteTexture;
 
         float SpawnRatePerSecond = 1.0f;
@@ -90,6 +97,7 @@ namespace Elixir::Aether
         }
 
         void SetRenderMode(const EParticleRenderMode mode) { m_RenderMode = mode; }
+        void SetBlendMode(const EParticleBlendMode mode) { m_BlendMode = mode; }
 
         void SetBurst(uint32_t count, float intervalSeconds);
 
@@ -130,6 +138,7 @@ namespace Elixir::Aether
         UUID m_UUID;
         std::string m_Name;
         EParticleRenderMode m_RenderMode = EParticleRenderMode::Sprite;
+        EParticleBlendMode m_BlendMode = EParticleBlendMode::Alpha;
         Ref<Texture2D> m_SpriteTexture;
         uint32_t m_MaxParticles;
 

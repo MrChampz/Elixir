@@ -98,6 +98,7 @@ namespace Elixir::Aether
         Ref<ComputePipeline> m_UpdatePipeline;
         Ref<Shader> m_SpriteShader;
         Ref<GraphicsPipeline> m_SpritePipeline;
+        Ref<GraphicsPipeline> m_SpriteAdditivePipeline;
         Ref<Shader> m_RibbonShader;
         Ref<GraphicsPipeline> m_RibbonPipeline;
         Ref<Shader> m_MeshShader;
