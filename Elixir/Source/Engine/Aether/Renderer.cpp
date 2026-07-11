@@ -53,6 +53,26 @@ namespace Elixir::Aether
         float ViewH = 1.0f;
     };
 
+    struct SFogPushConstants
+    {
+        glm::vec3 FogColor = { 0.55f, 0.58f, 0.64f };
+        float Density = 0.16f;
+
+        glm::vec3 BoxCenter = { -4.0f, 0.0f, 0.0f };
+        float SphereRadius = 2.8f;
+
+        glm::vec3 BoxHalfExtents = { 2.4f, 2.4f, 2.4f };
+        float EdgeFeather = 0.9f;
+
+        glm::vec3 SphereCenter = { 4.0f, 0.0f, 0.0f };
+        float Time = 0.0f;
+
+        float MaxDistance = 40.0f;
+        float NoiseScale = 0.22f;
+        float NoiseStrength = 0.7f;
+        float StepCount = 40.0f;
+    };
+
     struct SRibbonPushConstants
     {
         uint32_t EmitterIndex = 0;
@@ -138,6 +158,7 @@ namespace Elixir::Aether
         m_FrameData.Proj = camera.GetProjectionMatrix();
         m_FrameData.ViewProj = camera.GetViewProjectionMatrix();
         m_FrameData.CameraPos = camera.GetPosition();
+        m_FrameData.InvViewProj = glm::inverse(m_FrameData.ViewProj);
         m_FrameConstantBuffer->UpdateData(&m_FrameData, sizeof(SFrameData));
 
         const auto emitterCount = std::min((uint32_t)system.Emitters.size(), MAX_EMITTERS);
@@ -351,6 +372,26 @@ namespace Elixir::Aether
         bloomCmd->Draw(3);
 
         EndRendering(bloomCmd);
+
+        // Volumetric fog: a final fullscreen pass raymarching a height-fog medium
+        // and alpha-blending it over the composited scene.
+        const auto fogCmd = m_GraphicsContext->GetSecondaryCommandBuffer();
+        fogCmd->Begin({
+            .ColorAttachment = m_GraphicsContext->GetRenderTarget(),
+            .DepthStencilAttachment = m_GraphicsContext->GetDepthStencilRenderTarget(),
+            .RenderArea = m_RenderExtent
+        });
+
+        BeginRendering(fogCmd);
+        m_FogPipeline->Bind(fogCmd);
+
+        SFogPushConstants fogPc{};
+        fogPc.Time = m_ElapsedTimeSeconds;
+        m_FogShader->SetPushConstant(fogCmd, "pc", (void*)&fogPc, sizeof(SFogPushConstants));
+
+        fogCmd->Draw(3);
+
+        EndRendering(fogCmd);
     }
 
     void Renderer::Init(const ShaderLoader* shaderLoader)
@@ -465,6 +506,26 @@ namespace Elixir::Aether
         bloomBuilder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
         bloomBuilder.SetBufferLayout({});
         m_BloomPipeline = bloomBuilder.Build(m_GraphicsContext);
+
+        // Volumetric fog: a fullscreen triangle that raymarches a height-fog
+        // medium and alpha-blends the result over the scene.
+        m_FogShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/",
+            std::array<std::string_view, 1>{ "Fog" },
+            "Fog"
+        );
+
+        PipelineBuilder fogBuilder;
+        fogBuilder.SetShader(m_FogShader);
+        fogBuilder.SetInputTopology(EPrimitiveTopology::TriangleList);
+        fogBuilder.SetPolygonMode(EPolygonMode::Fill);
+        fogBuilder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
+        fogBuilder.EnableAlphaBlending();
+        fogBuilder.DisableDepthTest();
+        fogBuilder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
+        fogBuilder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
+        fogBuilder.SetBufferLayout({});
+        m_FogPipeline = fogBuilder.Build(m_GraphicsContext);
 
         m_Sprites = TextureSet::Create(m_GraphicsContext);
         m_SpriteSampler = SamplerBuilder().Build(m_GraphicsContext);
@@ -646,6 +707,10 @@ namespace Elixir::Aether
         m_BloomShader->SetPushConstant("pc", (void*)&bloomPc, sizeof(SBloomPushConstants));
         m_BloomShader->BindSampler("bloomSampler", m_SpriteSampler);
         m_BloomShader->BindTexture("sceneColor", m_GraphicsContext->GetSceneColorTexture());
+
+        const SFogPushConstants fogPc{};
+        m_FogShader->SetPushConstant("pc", (void*)&fogPc, sizeof(SFogPushConstants));
+        m_FogShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
     }
 
     uint32_t Renderer::ResolveSpriteIndex(const Ref<Texture2D>& texture)

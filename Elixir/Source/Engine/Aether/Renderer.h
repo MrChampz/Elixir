@@ -14,6 +14,9 @@ namespace Elixir::Aether
         glm::mat4 ViewProj;
         glm::vec3 CameraPos;
         float _Padding = 0.0f;
+        // Appended after the existing fields so shaders that only declare the
+        // block above keep their offsets; the fog pass reconstructs world rays.
+        glm::mat4 InvViewProj;
     };
 
     struct alignas(16) SEmitterData
@@ -104,6 +107,8 @@ namespace Elixir::Aether
         Ref<GraphicsPipeline> m_DistortionPipeline;
         Ref<Shader> m_BloomShader;
         Ref<GraphicsPipeline> m_BloomPipeline;
+        Ref<Shader> m_FogShader;
+        Ref<GraphicsPipeline> m_FogPipeline;
         Ref<Shader> m_RibbonShader;
         Ref<GraphicsPipeline> m_RibbonPipeline;
         Ref<Shader> m_MeshShader;
