@@ -19,6 +19,27 @@ namespace Elixir::Aether
         glm::mat4 InvViewProj;
     };
 
+    // Shared parameters for the froxel fog passes. Every field is a vec4 to keep
+    // the std140 layout unambiguous across the compute and apply shaders.
+    struct alignas(16) SFroxelData
+    {
+        glm::mat4 InvViewProj;
+        glm::vec4 CameraPos;      // xyz, w = MaxDistance
+        glm::vec4 FogAlbedo;      // xyz, w = Density
+        glm::vec4 BoxCenter;      // xyz, w = SphereRadius
+        glm::vec4 BoxHalfExtents; // xyz, w = EdgeFeather
+        glm::vec4 SphereCenter;   // xyz, w = Time
+        glm::vec4 LightDir;       // xyz, w = NoiseScale
+        glm::vec4 LightColor;     // xyz, w = NoiseStrength
+        glm::vec4 GridSize;       // x=W, y=H, z=D, w = Anisotropy
+        // Appended (apply pass only reads up to GridSize, so its offset stays).
+        glm::vec4 LightParams;    // x=DirIntensity, y=Ambient, z=ScatterStrength, w=PointCount
+        glm::vec4 PointLight0PosRange; // xyz = position, w = range
+        glm::vec4 PointLight0Color;    // xyz = color, w = intensity
+        glm::vec4 PointLight1PosRange;
+        glm::vec4 PointLight1Color;
+    };
+
     struct alignas(16) SEmitterData
     {
         glm::vec4 MetaA{};
@@ -64,6 +85,11 @@ namespace Elixir::Aether
         static constexpr uint32_t MAX_PARAMETERS = 512;
         static constexpr uint32_t COMPUTE_GROUP_SIZE = 256;
 
+        // Froxel (frustum-voxel) grid for volumetric fog.
+        static constexpr uint32_t FROXEL_W = 160;
+        static constexpr uint32_t FROXEL_H = 90;
+        static constexpr uint32_t FROXEL_D = 64;
+
         Renderer(const GraphicsContext* context, const ShaderLoader* shaderLoader);
 
         void Update(const Timestep& timestep);
@@ -100,6 +126,9 @@ namespace Elixir::Aether
         Ref<ComputePipeline> m_SpawnPipeline;
         Ref<Shader> m_UpdateShader;
         Ref<ComputePipeline> m_UpdatePipeline;
+
+        Ref<Shader> m_FroxelBuildShader;
+        Ref<ComputePipeline> m_FroxelBuildPipeline;
         Ref<Shader> m_SpriteShader;
         Ref<GraphicsPipeline> m_SpritePipeline;
         Ref<GraphicsPipeline> m_SpriteAdditivePipeline;
@@ -113,6 +142,10 @@ namespace Elixir::Aether
         Ref<GraphicsPipeline> m_RibbonPipeline;
         Ref<Shader> m_MeshShader;
         Ref<GraphicsPipeline> m_MeshPipeline;
+
+        Ref<StorageBuffer> m_FroxelBuffer;
+        Ref<UniformBuffer> m_FroxelParamsBuffer;
+        SFroxelData m_FroxelData{};
 
         Ref<StorageBuffer> m_ParticleBuffer;
         std::unordered_map<SGPUEmitter, SEmitterState> m_EmittersState;

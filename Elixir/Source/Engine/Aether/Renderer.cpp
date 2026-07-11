@@ -53,25 +53,6 @@ namespace Elixir::Aether
         float ViewH = 1.0f;
     };
 
-    struct SFogPushConstants
-    {
-        glm::vec3 FogColor = { 0.55f, 0.58f, 0.64f };
-        float Density = 0.16f;
-
-        glm::vec3 BoxCenter = { -4.0f, 0.0f, 0.0f };
-        float SphereRadius = 2.8f;
-
-        glm::vec3 BoxHalfExtents = { 2.4f, 2.4f, 2.4f };
-        float EdgeFeather = 0.9f;
-
-        glm::vec3 SphereCenter = { 4.0f, 0.0f, 0.0f };
-        float Time = 0.0f;
-
-        float MaxDistance = 40.0f;
-        float NoiseScale = 0.22f;
-        float NoiseStrength = 0.7f;
-        float StepCount = 40.0f;
-    };
 
     struct SRibbonPushConstants
     {
@@ -161,6 +142,27 @@ namespace Elixir::Aether
         m_FrameData.InvViewProj = glm::inverse(m_FrameData.ViewProj);
         m_FrameConstantBuffer->UpdateData(&m_FrameData, sizeof(SFrameData));
 
+        m_FroxelData.InvViewProj = m_FrameData.InvViewProj;
+        m_FroxelData.CameraPos = glm::vec4(camera.GetPosition(), 40.0f);        // w = MaxDistance
+        m_FroxelData.FogAlbedo = glm::vec4(0.60f, 0.64f, 0.72f, 0.45f);         // w = Density
+        m_FroxelData.BoxCenter = glm::vec4(-4.0f, 0.0f, 0.0f, 2.8f);            // w = SphereRadius
+        m_FroxelData.BoxHalfExtents = glm::vec4(2.4f, 2.4f, 2.4f, 0.9f);        // w = EdgeFeather
+        m_FroxelData.SphereCenter = glm::vec4(4.0f, 0.0f, 0.0f, m_ElapsedTimeSeconds); // w = Time
+        m_FroxelData.LightDir = glm::vec4(glm::normalize(glm::vec3(-0.4f, 0.7f, 0.5f)), 0.30f); // w = NoiseScale
+        m_FroxelData.LightColor = glm::vec4(0.75f, 0.82f, 1.0f, 0.92f);         // cool sun, w = NoiseStrength
+        m_FroxelData.GridSize = glm::vec4((float)FROXEL_W, (float)FROXEL_H, (float)FROXEL_D, 0.35f); // w = Anisotropy
+
+        // x=DirIntensity, y=Ambient, z=ScatterStrength, w=PointLightCount
+        m_FroxelData.LightParams = glm::vec4(2.5f, 0.12f, 4.0f, 1.0f);
+        // Warm point light inside the box volume so it glows locally; the sphere
+        // (no point light nearby) is lit only by the directional light.
+        m_FroxelData.PointLight0PosRange = glm::vec4(-4.0f, 0.0f, 0.0f, 5.0f);
+        m_FroxelData.PointLight0Color = glm::vec4(1.0f, 0.55f, 0.25f, 8.0f); // w = intensity
+        m_FroxelData.PointLight1PosRange = glm::vec4(0.0f);
+        m_FroxelData.PointLight1Color = glm::vec4(0.0f);
+
+        m_FroxelParamsBuffer->UpdateData(&m_FroxelData, sizeof(SFroxelData));
+
         const auto emitterCount = std::min((uint32_t)system.Emitters.size(), MAX_EMITTERS);
         const auto maxParticles = std::min(system.TotalMaxParticles, MAX_PARTICLES);
 
@@ -208,6 +210,16 @@ namespace Elixir::Aether
             cmd,
             EPipelineStage::VertexShader | EPipelineStage::VertexInput,
             EPipelineAccess::ShaderRead | EPipelineAccess::VertexAttributeRead
+        );
+
+        // Build the froxel fog grid (density + integrated in-scattering), then
+        // make it readable by the fog apply pass' fragment shader.
+        m_FroxelBuildPipeline->Bind(cmd);
+        cmd->Dispatch((FROXEL_W + 7) / 8, (FROXEL_H + 7) / 8, 1);
+        m_FroxelBuffer->Barrier(
+            cmd,
+            EPipelineStage::PixelShader,
+            EPipelineAccess::ShaderRead
         );
 
         BeginRendering(cmd);
@@ -373,8 +385,10 @@ namespace Elixir::Aether
 
         EndRendering(bloomCmd);
 
-        // Volumetric fog: a final fullscreen pass raymarching a height-fog medium
-        // and alpha-blending it over the composited scene.
+        // Froxel fog apply: snapshot the composited scene, then a fullscreen pass
+        // samples the integrated froxel grid and composites the fog over it.
+        m_GraphicsContext->GrabSceneColor();
+
         const auto fogCmd = m_GraphicsContext->GetSecondaryCommandBuffer();
         fogCmd->Begin({
             .ColorAttachment = m_GraphicsContext->GetRenderTarget(),
@@ -384,13 +398,7 @@ namespace Elixir::Aether
 
         BeginRendering(fogCmd);
         m_FogPipeline->Bind(fogCmd);
-
-        SFogPushConstants fogPc{};
-        fogPc.Time = m_ElapsedTimeSeconds;
-        m_FogShader->SetPushConstant(fogCmd, "pc", (void*)&fogPc, sizeof(SFogPushConstants));
-
         fogCmd->Draw(3);
-
         EndRendering(fogCmd);
     }
 
@@ -428,12 +436,22 @@ namespace Elixir::Aether
             "MeshRenderer"
         );
 
+        m_FroxelBuildShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/",
+            std::array<std::string_view, 1>{ "FroxelBuild" },
+            "FroxelBuild",
+            EShaderStage::Compute
+        );
+
         SPipelineCreateInfo pipelineInfo{};
         pipelineInfo.Shader = m_SpawnShader;
         m_SpawnPipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
 
         pipelineInfo.Shader = m_UpdateShader;
         m_UpdatePipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
+
+        pipelineInfo.Shader = m_FroxelBuildShader;
+        m_FroxelBuildPipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
 
         const BufferLayout spriteBufferLayout({
             {
@@ -520,7 +538,7 @@ namespace Elixir::Aether
         fogBuilder.SetInputTopology(EPrimitiveTopology::TriangleList);
         fogBuilder.SetPolygonMode(EPolygonMode::Fill);
         fogBuilder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
-        fogBuilder.EnableAlphaBlending();
+        fogBuilder.DisableBlending(); // apply overwrites RT with scene*T + scatter
         fogBuilder.DisableDepthTest();
         fogBuilder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
         fogBuilder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
@@ -588,6 +606,10 @@ namespace Elixir::Aether
         m_OpBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SParticleOpData) * MAX_OPS);
         m_ParameterBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SParameterData) * MAX_PARAMETERS);
         m_ParamsBuffer = UniformBuffer::Create(m_GraphicsContext, sizeof(SParamsData));
+
+        m_FroxelBuffer = StorageBuffer::Create(
+            m_GraphicsContext, sizeof(glm::vec4) * FROXEL_W * FROXEL_H * FROXEL_D);
+        m_FroxelParamsBuffer = UniformBuffer::Create(m_GraphicsContext, sizeof(SFroxelData), &m_FroxelData);
 
         CreateMeshVertexBuffer();
     }
@@ -708,9 +730,15 @@ namespace Elixir::Aether
         m_BloomShader->BindSampler("bloomSampler", m_SpriteSampler);
         m_BloomShader->BindTexture("sceneColor", m_GraphicsContext->GetSceneColorTexture());
 
-        const SFogPushConstants fogPc{};
-        m_FogShader->SetPushConstant("pc", (void*)&fogPc, sizeof(SFogPushConstants));
-        m_FogShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
+        // Froxel build (compute) and fog apply (fullscreen) share the params
+        // uniform and the froxel grid storage buffer.
+        m_FroxelBuildShader->BindStorageBuffer("froxels", m_FroxelBuffer);
+        m_FroxelBuildShader->BindConstantBuffer("cbFroxel", m_FroxelParamsBuffer);
+
+        m_FogShader->BindConstantBuffer("cbFroxel", m_FroxelParamsBuffer);
+        m_FogShader->BindStorageBuffer("froxels", m_FroxelBuffer);
+        m_FogShader->BindSampler("fogSampler", m_SpriteSampler);
+        m_FogShader->BindTexture("sceneColor", m_GraphicsContext->GetSceneColorTexture());
     }
 
     uint32_t Renderer::ResolveSpriteIndex(const Ref<Texture2D>& texture)
