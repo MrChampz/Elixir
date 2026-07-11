@@ -87,6 +87,15 @@ namespace Elixir
         Ref<Texture2D> GetRenderTarget() const { return m_RenderTarget; }
         Ref<DepthStencilImage> GetDepthStencilRenderTarget() const { return m_DepthStencilRenderTarget; }
 
+        // Snapshot of the color target as it stands mid-frame, for effects that
+        // read the scene behind them (e.g. heat-haze refraction).
+        Ref<Texture2D> GetSceneColorTexture() const { return m_SceneColorTexture; }
+
+        // Flush the secondaries recorded so far onto the primary command buffer,
+        // then copy the current render target into the scene-color texture and
+        // leave it shader-readable. Call between the opaque and refraction passes.
+        virtual void GrabSceneColor() const = 0;
+
         virtual Extent3D GetSwapchainExtent() const = 0;
 
         static Scope<GraphicsContext> Create(EGraphicsAPI api, Executor* executor, const Window* window);
@@ -108,6 +117,7 @@ namespace Elixir
         EGraphicsAPI m_API;
         const Window* m_Window;
         Ref<Texture2D> m_RenderTarget;
+        Ref<Texture2D> m_SceneColorTexture;
         Ref<DepthStencilImage> m_DepthStencilRenderTarget;
         Scope<ShaderBackend> m_ShaderBackend = nullptr;
 

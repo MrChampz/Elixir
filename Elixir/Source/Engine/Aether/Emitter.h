@@ -36,6 +36,11 @@ namespace Elixir::Aether
         // Optional fake-normal map (radial): lights the flat billboard as a
         // volume for self-shadowing. Null = disabled (unlit).
         Ref<Texture2D> NormalTexture;
+        // Optional heat-haze: this map's normal offsets the scene-color lookup so
+        // the billboard refracts what is behind it. Null = not a distortion
+        // emitter (drawn in the normal pass). Set = drawn in the refraction pass.
+        Ref<Texture2D> DistortionTexture;
+        float DistortionStrength = 0.02f;
 
         float SpawnRatePerSecond = 1.0f;
         uint32_t BurstCount = 0u;
@@ -133,6 +138,10 @@ namespace Elixir::Aether
         const Ref<Texture2D>& GetNormalTexture() const { return m_NormalTexture; }
         void SetNormalTexture(const Ref<Texture2D>& texture) { m_NormalTexture = texture; }
 
+        const Ref<Texture2D>& GetDistortionTexture() const { return m_DistortionTexture; }
+        void SetDistortionTexture(const Ref<Texture2D>& texture) { m_DistortionTexture = texture; }
+        void SetDistortionStrength(const float strength) { m_DistortionStrength = strength; }
+
         uint32_t GetBurstCount() const { return m_BurstCount; }
         float GetBurstIntervalSeconds() const { return m_BurstIntervalSeconds; }
 
@@ -154,6 +163,8 @@ namespace Elixir::Aether
         Ref<Texture2D> m_SpriteTexture;
         Ref<Texture2D> m_GradientTexture;
         Ref<Texture2D> m_NormalTexture;
+        Ref<Texture2D> m_DistortionTexture;
+        float m_DistortionStrength = 0.02f;
         uint32_t m_MaxParticles;
 
         std::vector<Scope<ParticleSpawnModule>> m_SpawnModules;

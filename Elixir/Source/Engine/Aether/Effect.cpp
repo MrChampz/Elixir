@@ -891,6 +891,7 @@ namespace Elixir::Aether
                 const auto spriteTexture = ParseString(json, "spriteTexture", "");
                 const auto gradientMap = ParseString(json, "gradientMap", "");
                 const auto normalMap = ParseString(json, "normalMap", "");
+                const auto distortionMap = ParseString(json, "distortionMap", "");
                 const uint32_t maxParticles = RequireUInt(json, "maxParticles");
                 const auto spawnRate = ParseScalar(json, "spawnRate");
 
@@ -961,6 +962,16 @@ namespace Elixir::Aether
                     const auto texture = TextureLoader::Load(normalMap, EImageFormat::R8G8B8A8_UNORM);
                     const auto tex2d = std::static_pointer_cast<Texture2D>(texture);
                     emitter.SetNormalTexture(tex2d);
+                }
+
+                if (!distortionMap.empty())
+                {
+                    // Distortion maps are direction data too — load linear.
+                    const auto texture = TextureLoader::Load(distortionMap, EImageFormat::R8G8B8A8_UNORM);
+                    const auto tex2d = std::static_pointer_cast<Texture2D>(texture);
+                    emitter.SetDistortionTexture(tex2d);
+                    if (HasField(json, "distortionStrength"))
+                        emitter.SetDistortionStrength(ParseScalar(json, "distortionStrength").Value);
                 }
 
                 if (!spawnRate.Param.empty())

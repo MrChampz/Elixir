@@ -32,6 +32,16 @@ namespace Elixir::Aether
         uint32_t NormalMode = 0;   // 0 = unlit, 1 = fake-normal lighting
     };
 
+    struct SDistortPushConstants
+    {
+        uint32_t DistortIndex = 0;
+        float Strength = 0.02f;
+        float ScrollX = 0.0f;
+        float ScrollY = 0.0f;
+        float ViewW = 1.0f;
+        float ViewH = 1.0f;
+    };
+
     struct SRibbonPushConstants
     {
         uint32_t EmitterIndex = 0;
@@ -216,6 +226,11 @@ namespace Elixir::Aether
                 continue;
             }
 
+            // Distortion emitters read the scene behind them, so they are drawn
+            // in a separate pass after the scene-color grab (see below).
+            if (emitter.DistortionTexture)
+                continue;
+
             const auto& spritePipeline = emitter.BlendMode == EParticleBlendMode::Additive
                 ? m_SpriteAdditivePipeline
                 : m_SpritePipeline;
@@ -245,6 +260,59 @@ namespace Elixir::Aether
         }
 
         EndRendering(cmd);
+
+        // Refraction pass: distortion emitters read the scene rendered so far.
+        bool hasDistortion = false;
+        for (uint32_t i = 0; i < emitterCount; ++i)
+        {
+            const auto& e = system.Emitters[i];
+            if (e.RenderMode == EParticleRenderMode::Sprite && e.DistortionTexture && e.MaxParticles > 0)
+            {
+                hasDistortion = true;
+                break;
+            }
+        }
+
+        if (hasDistortion)
+        {
+            // Snapshot the scene (flushes the pass above onto the primary buffer).
+            m_GraphicsContext->GrabSceneColor();
+
+            const auto distortCmd = m_GraphicsContext->GetSecondaryCommandBuffer();
+            distortCmd->Begin({
+                .ColorAttachment = m_GraphicsContext->GetRenderTarget(),
+                .DepthStencilAttachment = m_GraphicsContext->GetDepthStencilRenderTarget(),
+                .RenderArea = m_RenderExtent
+            });
+
+            BeginRendering(distortCmd);
+            m_DistortionPipeline->Bind(distortCmd);
+            m_ParticleBuffer->BindAs<VertexBuffer>(distortCmd);
+
+            const float scroll = m_ElapsedTimeSeconds * 0.05f;
+
+            for (uint32_t i = 0; i < emitterCount; ++i)
+            {
+                const auto& emitter = system.Emitters[i];
+                if (emitter.RenderMode != EParticleRenderMode::Sprite ||
+                    !emitter.DistortionTexture || emitter.MaxParticles == 0)
+                    continue;
+
+                const SDistortPushConstants pc{
+                    ResolveSpriteIndex(emitter.DistortionTexture),
+                    emitter.DistortionStrength,
+                    scroll,
+                    scroll * 0.7f,
+                    (float)m_RenderExtent.Width,
+                    (float)m_RenderExtent.Height
+                };
+                m_DistortionShader->SetPushConstant(distortCmd, "pc", (void*)&pc, sizeof(SDistortPushConstants));
+
+                distortCmd->Draw(6, emitter.MaxParticles, 0, emitter.ParticleOffset);
+            }
+
+            EndRendering(distortCmd);
+        }
     }
 
     void Renderer::Init(const ShaderLoader* shaderLoader)
@@ -318,6 +386,27 @@ namespace Elixir::Aether
         // vertex layout, only the color-blend state differs.
         spriteBuilder.EnableAdditiveBlending();
         m_SpriteAdditivePipeline = spriteBuilder.Build(m_GraphicsContext);
+
+        // Distortion pipeline: same instanced billboard layout, but its own
+        // shader samples the grabbed scene color. Alpha-blended so the refracted
+        // region feathers over the scene.
+        m_DistortionShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/",
+            std::array<std::string_view, 1>{ "SpriteDistortion" },
+            "SpriteDistortion"
+        );
+
+        PipelineBuilder distortionBuilder;
+        distortionBuilder.SetShader(m_DistortionShader);
+        distortionBuilder.SetInputTopology(EPrimitiveTopology::TriangleList);
+        distortionBuilder.SetPolygonMode(EPolygonMode::Fill);
+        distortionBuilder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
+        distortionBuilder.EnableAlphaBlending();
+        distortionBuilder.DisableDepthTest();
+        distortionBuilder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
+        distortionBuilder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
+        distortionBuilder.SetBufferLayout(spriteBufferLayout);
+        m_DistortionPipeline = distortionBuilder.Build(m_GraphicsContext);
 
         m_Sprites = TextureSet::Create(m_GraphicsContext);
         m_SpriteSampler = SamplerBuilder().Build(m_GraphicsContext);
@@ -487,6 +576,13 @@ namespace Elixir::Aether
         m_RibbonShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
 
         m_MeshShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
+
+        constexpr SDistortPushConstants distortPc{};
+        m_DistortionShader->SetPushConstant("pc", (void*)&distortPc, sizeof(SDistortPushConstants));
+        m_DistortionShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
+        m_DistortionShader->BindTextureSet("sprites", m_Sprites);
+        m_DistortionShader->BindSampler("spriteSampler", m_SpriteSampler);
+        m_DistortionShader->BindTexture("sceneColor", m_GraphicsContext->GetSceneColorTexture());
     }
 
     uint32_t Renderer::ResolveSpriteIndex(const Ref<Texture2D>& texture)

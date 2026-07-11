@@ -490,6 +490,15 @@ namespace Elixir
         colorInfo.InitialLayout = EImageLayout::General;
         m_RenderTarget = CreateRef<VulkanTexture2D>(this, colorInfo);
 
+        auto sceneColorInfo = Texture2D::CreateImageInfo(
+            EImageFormat::R8G8B8A8_SRGB,
+            m_SwapchainExtent.Width,
+            m_SwapchainExtent.Height
+        );
+        sceneColorInfo.Usage = EImageUsage::Sampled | EImageUsage::TransferDst;
+        sceneColorInfo.InitialLayout = EImageLayout::General;
+        m_SceneColorTexture = CreateRef<VulkanTexture2D>(this, sceneColorInfo);
+
         auto depthStencilInfo = DepthStencilImage::CreateImageInfo(
             EDepthStencilImageFormat::D32_SFLOAT,
             m_SwapchainExtent.Width,
@@ -577,6 +586,33 @@ namespace Elixir
         m_RenderTarget->Transition(m_MainCommandBuffer, EImageLayout::General);
 
         return true;
+    }
+
+    void VulkanGraphicsContext::GrabSceneColor() const
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        // Execute everything recorded so far onto the primary command buffer so
+        // the snapshot reflects the scene as it currently stands, then copy the
+        // render target into the sampleable scene-color texture.
+        m_CommandPoolManager->FlushSecondaryCommandBuffers(m_MainCommandBuffer);
+
+        m_RenderTarget->Transition(m_MainCommandBuffer, EImageLayout::TransferSrc);
+        m_SceneColorTexture->Transition(m_MainCommandBuffer, EImageLayout::TransferDst);
+
+        CommandUtils::CopyImageToImage(
+            m_MainCommandBuffer->GetVulkanCommandBuffer(),
+            TryToGetVulkanImage(m_RenderTarget.get())->GetVulkanImage(),
+            TryToGetVulkanImage(m_SceneColorTexture.get())->GetVulkanImage(),
+            GetExtent3D(m_RenderTarget->GetExtent()),
+            GetExtent3D(m_SceneColorTexture->GetExtent())
+        );
+
+        // Leave it in General (not ShaderReadOnly): the sampled-image descriptor
+        // was written at bind time while the texture was in General, so the pass
+        // that samples it expects that layout.
+        m_SceneColorTexture->Transition(m_MainCommandBuffer, EImageLayout::General);
+        m_RenderTarget->Transition(m_MainCommandBuffer, EImageLayout::General);
     }
 
     void VulkanGraphicsContext::Submit()

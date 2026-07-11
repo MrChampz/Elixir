@@ -70,6 +70,8 @@ namespace Elixir::Vulkan
         Ref<CommandBuffer> GetUploadCommandBuffer() const override;
         void EnqueueSecondaryCommandBuffer(const Ref<CommandBuffer>& cmd) const override;
 
+        void GrabSceneColor() const override;
+
         Extent3D GetSwapchainExtent() const override { return m_SwapchainExtent;}
 
         SFrameData& GetCurrentFrame() { return m_Frames[GetFrameIndex()]; }
