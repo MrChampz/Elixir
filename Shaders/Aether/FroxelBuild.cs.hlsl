@@ -25,6 +25,9 @@ cbuffer cbFroxel : register(b0)
     float4 PointLight0Color; // w = intensity
     float4 PointLight1PosRange;
     float4 PointLight1Color;
+    float4 SpotPosRange;     // xyz = position, w = range
+    float4 SpotDir;          // xyz = direction, w = cos(outer angle)
+    float4 SpotColor;        // xyz = color, w = intensity
 };
 
 float Hash13(float3 p)
@@ -120,6 +123,22 @@ float3 PointLight(float3 p, float3 rayDir, float4 posRange, float4 colorInt, flo
     return colorInt.xyz * colorInt.w * atten * HenyeyGreenstein(dot(rayDir, L), aniso);
 }
 
+// In-scattered radiance from a spot light (cone-limited point light).
+float3 SpotLight(float3 p, float3 rayDir, float aniso)
+{
+    float3 toLight = SpotPosRange.xyz - p;
+    float dist = length(toLight);
+    float3 L = toLight / max(dist, 1e-4f);
+
+    // Cone falloff: angle between the light's aim and the direction to p.
+    float cosAngle = dot(-L, normalize(SpotDir.xyz));
+    float cone = smoothstep(SpotDir.w, SpotDir.w + 0.06f, cosAngle);
+
+    float atten = saturate(1.0f - dist / max(SpotPosRange.w, 1e-4f));
+    atten *= atten;
+    return SpotColor.xyz * SpotColor.w * atten * cone * HenyeyGreenstein(dot(rayDir, L), aniso);
+}
+
 [numthreads(8, 8, 1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
@@ -209,6 +228,13 @@ void main(uint3 id : SV_DispatchThreadID)
             float dL = length(toL);
             float shadow = LightTransmittance(p, toL / max(dL, 1e-4f), min(dL, SHADOW_DIST), SHADOW_STEPS);
             light += PointLight(p, rayDir, PointLight1PosRange, PointLight1Color, aniso) * shadow;
+        }
+        if (SpotColor.w > 0.0f)
+        {
+            float3 toL = SpotPosRange.xyz - p;
+            float dL = length(toL);
+            float shadow = LightTransmittance(p, toL / max(dL, 1e-4f), min(dL, SHADOW_DIST), SHADOW_STEPS);
+            light += SpotLight(p, rayDir, aniso) * shadow;
         }
 
         float3 inScatter = FogAlbedo.xyz * light * (density * LightParams.z);

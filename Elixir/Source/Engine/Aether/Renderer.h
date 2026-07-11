@@ -38,6 +38,9 @@ namespace Elixir::Aether
         glm::vec4 PointLight0Color;    // xyz = color, w = intensity
         glm::vec4 PointLight1PosRange;
         glm::vec4 PointLight1Color;
+        glm::vec4 SpotPosRange;        // xyz = position, w = range
+        glm::vec4 SpotDir;             // xyz = direction, w = cos(outer angle)
+        glm::vec4 SpotColor;           // xyz = color, w = intensity (0 = off)
     };
 
     struct alignas(16) SEmitterData

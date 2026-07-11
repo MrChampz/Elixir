@@ -155,11 +155,17 @@ namespace Elixir::Aether
         m_FroxelData.GridSize = glm::vec4((float)FROXEL_W, (float)FROXEL_H, (float)FROXEL_D, 0.55f); // w = Anisotropy
 
         // x=DirIntensity, y=Ambient, z=ScatterStrength, w=PointLightCount
-        m_FroxelData.LightParams = glm::vec4(7.5f, 0.05f, 3.4f, 0.0f);
-        m_FroxelData.PointLight0PosRange = glm::vec4(0.0f);
-        m_FroxelData.PointLight0Color = glm::vec4(0.0f);
+        m_FroxelData.LightParams = glm::vec4(2.5f, 0.05f, 3.4f, 1.0f);
+        // Warm point light glowing on the left of the haze.
+        m_FroxelData.PointLight0PosRange = glm::vec4(-6.0f, 0.5f, -2.0f, 9.0f);
+        m_FroxelData.PointLight0Color = glm::vec4(1.0f, 0.55f, 0.25f, 8.0f); // w = intensity
         m_FroxelData.PointLight1PosRange = glm::vec4(0.0f);
         m_FroxelData.PointLight1Color = glm::vec4(0.0f);
+        // Cool spot light from the upper right, aimed down into the fog -> a
+        // visible cone/beam of light.
+        m_FroxelData.SpotPosRange = glm::vec4(6.0f, 6.0f, -1.0f, 16.0f);
+        m_FroxelData.SpotDir = glm::vec4(glm::normalize(glm::vec3(-0.3f, -1.0f, -0.2f)), 0.90f); // w = cos(outer)
+        m_FroxelData.SpotColor = glm::vec4(0.45f, 0.65f, 1.0f, 16.0f); // w = intensity
 
         m_FroxelParamsBuffer->UpdateData(&m_FroxelData, sizeof(SFroxelData));
 
