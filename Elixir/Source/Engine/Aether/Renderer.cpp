@@ -142,22 +142,22 @@ namespace Elixir::Aether
         m_FrameData.InvViewProj = glm::inverse(m_FrameData.ViewProj);
         m_FrameConstantBuffer->UpdateData(&m_FrameData, sizeof(SFrameData));
 
+        // Large backlit haze volume: the setting where directional god-ray
+        // shafts actually read (a big foggy space lit from behind).
         m_FroxelData.InvViewProj = m_FrameData.InvViewProj;
-        m_FroxelData.CameraPos = glm::vec4(camera.GetPosition(), 40.0f);        // w = MaxDistance
-        m_FroxelData.FogAlbedo = glm::vec4(0.60f, 0.64f, 0.72f, 0.45f);         // w = Density
-        m_FroxelData.BoxCenter = glm::vec4(-4.0f, 0.0f, 0.0f, 2.8f);            // w = SphereRadius
-        m_FroxelData.BoxHalfExtents = glm::vec4(2.4f, 2.4f, 2.4f, 0.9f);        // w = EdgeFeather
-        m_FroxelData.SphereCenter = glm::vec4(4.0f, 0.0f, 0.0f, m_ElapsedTimeSeconds); // w = Time
-        m_FroxelData.LightDir = glm::vec4(glm::normalize(glm::vec3(-0.4f, 0.7f, 0.5f)), 0.30f); // w = NoiseScale
-        m_FroxelData.LightColor = glm::vec4(0.75f, 0.82f, 1.0f, 0.92f);         // cool sun, w = NoiseStrength
-        m_FroxelData.GridSize = glm::vec4((float)FROXEL_W, (float)FROXEL_H, (float)FROXEL_D, 0.35f); // w = Anisotropy
+        m_FroxelData.CameraPos = glm::vec4(camera.GetPosition(), 45.0f);        // w = MaxDistance
+        m_FroxelData.FogAlbedo = glm::vec4(0.70f, 0.72f, 0.78f, 0.28f);         // haze, w = Density
+        m_FroxelData.BoxCenter = glm::vec4(0.0f, 0.0f, -2.0f, 0.01f);           // big box; w = SphereRadius (~off)
+        m_FroxelData.BoxHalfExtents = glm::vec4(16.0f, 8.0f, 9.0f, 2.5f);       // fills view, w = EdgeFeather
+        m_FroxelData.SphereCenter = glm::vec4(0.0f, -1000.0f, 0.0f, m_ElapsedTimeSeconds); // sphere out of the way
+        m_FroxelData.LightDir = glm::vec4(glm::normalize(glm::vec3(-0.35f, 0.45f, -0.8f)), 0.18f); // backlit, w = NoiseScale
+        m_FroxelData.LightColor = glm::vec4(1.0f, 0.95f, 0.82f, 0.7f);          // warm sun, w = NoiseStrength
+        m_FroxelData.GridSize = glm::vec4((float)FROXEL_W, (float)FROXEL_H, (float)FROXEL_D, 0.55f); // w = Anisotropy
 
         // x=DirIntensity, y=Ambient, z=ScatterStrength, w=PointLightCount
-        m_FroxelData.LightParams = glm::vec4(2.5f, 0.12f, 4.0f, 1.0f);
-        // Warm point light inside the box volume so it glows locally; the sphere
-        // (no point light nearby) is lit only by the directional light.
-        m_FroxelData.PointLight0PosRange = glm::vec4(-4.0f, 0.0f, 0.0f, 5.0f);
-        m_FroxelData.PointLight0Color = glm::vec4(1.0f, 0.55f, 0.25f, 8.0f); // w = intensity
+        m_FroxelData.LightParams = glm::vec4(7.5f, 0.05f, 3.4f, 0.0f);
+        m_FroxelData.PointLight0PosRange = glm::vec4(0.0f);
+        m_FroxelData.PointLight0Color = glm::vec4(0.0f);
         m_FroxelData.PointLight1PosRange = glm::vec4(0.0f);
         m_FroxelData.PointLight1Color = glm::vec4(0.0f);
 

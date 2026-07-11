@@ -86,9 +86,9 @@ namespace Elixir::Aether
         static constexpr uint32_t COMPUTE_GROUP_SIZE = 256;
 
         // Froxel (frustum-voxel) grid for volumetric fog.
-        static constexpr uint32_t FROXEL_W = 160;
-        static constexpr uint32_t FROXEL_H = 90;
-        static constexpr uint32_t FROXEL_D = 64;
+        static constexpr uint32_t FROXEL_W = 240;
+        static constexpr uint32_t FROXEL_H = 135;
+        static constexpr uint32_t FROXEL_D = 96;
 
         Renderer(const GraphicsContext* context, const ShaderLoader* shaderLoader);
 
