@@ -87,7 +87,9 @@ VSOutput main(VSInput input, uint vertexId : SV_VertexID)
     // neighbouring frame across the atlas seams.
     output.CellA = FrameCell(frame0, cols);
     output.CellB = FrameCell(frame1, cols);
-    output.QuadUV = normalizedPos;
+    // Flip V: texture space has v=0 at the top, the billboard quad has y=0 at the
+    // bottom — without this the sheet renders upside down.
+    output.QuadUV = float2(normalizedPos.x, 1.0f - normalizedPos.y);
     output.Blend = (pc.FlipBlend != 0u) ? frac(frameF) : 0.0f;
 
     return output;

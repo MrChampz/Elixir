@@ -40,7 +40,7 @@ VSOutput main(VSInput input, uint vertexId : SV_VertexID)
 
     output.ClipPos = mul(Proj, float4(viewPos, 1.0f));
     output.Color = input.Color;
-    output.QuadUV = normalizedPos;
+    output.QuadUV = float2(normalizedPos.x, 1.0f - normalizedPos.y);
 
     return output;
 }
