@@ -30,6 +30,8 @@ namespace Elixir::Aether
         uint32_t GradientMode = 0; // 0 = off, 1 = remap sheet luminance through the LUT
         uint32_t NormalIndex = 0;
         uint32_t NormalMode = 0;   // 0 = unlit, 1 = fake-normal lighting
+        uint32_t EmissionIndex = 0;
+        float EmissionScale = 0.0f; // 0 = no emission map
     };
 
     struct SDistortPushConstants
@@ -261,7 +263,9 @@ namespace Elixir::Aether
                 emitter.GradientTexture ? ResolveSpriteIndex(emitter.GradientTexture) : m_WhiteTextureHandle.Index,
                 emitter.GradientTexture ? 1u : 0u,
                 emitter.NormalTexture ? ResolveSpriteIndex(emitter.NormalTexture) : m_WhiteTextureHandle.Index,
-                emitter.NormalTexture ? 1u : 0u
+                emitter.NormalTexture ? 1u : 0u,
+                emitter.EmissionTexture ? ResolveSpriteIndex(emitter.EmissionTexture) : m_WhiteTextureHandle.Index,
+                emitter.EmissionTexture ? emitter.EmissionScale : 0.0f
             };
             m_SpriteShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(SSpritePushConstants));
 
@@ -338,7 +342,7 @@ namespace Elixir::Aether
         m_BloomPipeline->Bind(bloomCmd);
 
         const SBloomPushConstants bloomPc{
-            0.6f, 1.4f, 3.0f,
+            0.80f, 1.15f, 3.0f,
             (float)m_RenderExtent.Width,
             (float)m_RenderExtent.Height
         };
@@ -740,6 +744,14 @@ namespace Elixir::Aether
         {
             const auto& emitter = system.Emitters[i];
             auto& emitterState = m_EmittersState[emitter];
+
+            if (!emitterState.Initialized)
+            {
+                // A burst delay is a phase offset on the first burst: start the
+                // accumulator behind so it reaches the interval that much later.
+                emitterState.BurstAccumulator = -emitter.BurstDelaySeconds;
+                emitterState.Initialized = true;
+            }
 
             emitterState.SpawnAccumulator += emitter.SpawnRatePerSecond * m_LastDeltaTimeSeconds;
 

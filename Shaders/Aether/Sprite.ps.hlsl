@@ -16,6 +16,8 @@ struct SpritePushConstants
     uint GradientMode;
     uint NormalIndex;
     uint NormalMode;
+    uint EmissionIndex;
+    float EmissionScale;
 };
 [[vk::push_constant]]
 SpritePushConstants pc;
@@ -87,6 +89,17 @@ float4 main(PSInput input) : SV_Target0
     }
 
     float3 color = input.Color.rgb * rgb;
+
+    // Emission map: a second flipbook (same cells) added on top for baked
+    // fire-in-smoke. Scaled by the particle alpha so it fades with the sprite.
+    if (pc.EmissionScale > 0.0f)
+    {
+        float3 emA = sprites[pc.EmissionIndex].Sample(spriteSampler, uvA).rgb;
+        float3 emB = sprites[pc.EmissionIndex].Sample(spriteSampler, uvB).rgb;
+        float3 emission = lerp(emA, emB, input.Blend);
+        color += emission * pc.EmissionScale * input.Color.a;
+    }
+
     float alpha = input.Color.a * sprite.a;
 
     return float4(color, alpha);

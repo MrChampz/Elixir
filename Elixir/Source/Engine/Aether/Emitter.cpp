@@ -13,10 +13,11 @@ namespace Elixir::Aether
         m_MaxParticles(maxParticles),
         m_SpawnRate(spawnRate) {}
 
-    void Emitter::SetBurst(const uint32_t count, const float intervalSeconds)
+    void Emitter::SetBurst(const uint32_t count, const float intervalSeconds, const float delaySeconds)
     {
         m_BurstCount = count;
         m_BurstIntervalSeconds = intervalSeconds;
+        m_BurstDelaySeconds = delaySeconds;
     }
 
     SGPUEmitter Emitter::Build(
@@ -35,12 +36,15 @@ namespace Elixir::Aether
         emitter.NormalTexture = m_NormalTexture;
         emitter.DistortionTexture = m_DistortionTexture;
         emitter.DistortionStrength = m_DistortionStrength;
+        emitter.EmissionTexture = m_EmissionTexture;
+        emitter.EmissionScale = m_EmissionScale;
         emitter.MaxParticles = m_MaxParticles;
         emitter.GravityScale = paramStore.GetFloat("GravityScale", 1.0f);
         emitter.SpawnOpOffset = (uint32_t)ops.size();
         emitter.SpawnRatePerSecond = m_SpawnRate;
         emitter.BurstCount = m_BurstCount;
         emitter.BurstIntervalSeconds = m_BurstIntervalSeconds;
+        emitter.BurstDelaySeconds = m_BurstDelaySeconds;
         emitter.FlipbookCols = m_FlipbookCols;
         emitter.FlipbookRows = m_FlipbookRows;
         emitter.FlipbookFrames = m_FlipbookFrames;

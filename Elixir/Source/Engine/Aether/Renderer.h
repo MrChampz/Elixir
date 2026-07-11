@@ -49,6 +49,7 @@ namespace Elixir::Aether
         float BurstAccumulator = 0.0f;
         uint32_t BufferCursor = 0u;
         uint32_t EmissionIndex = 0u;
+        bool Initialized = false;
     };
 
     class ELIXIR_API Renderer final

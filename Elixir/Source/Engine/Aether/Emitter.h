@@ -41,10 +41,15 @@ namespace Elixir::Aether
         // emitter (drawn in the normal pass). Set = drawn in the refraction pass.
         Ref<Texture2D> DistortionTexture;
         float DistortionStrength = 0.02f;
+        // Optional emission map (sampled with the same flipbook UV): added on top
+        // of the diffuse for baked fire-in-smoke. Null = no emission.
+        Ref<Texture2D> EmissionTexture;
+        float EmissionScale = 1.0f;
 
         float SpawnRatePerSecond = 1.0f;
         uint32_t BurstCount = 0u;
         float BurstIntervalSeconds = 0.0f;
+        float BurstDelaySeconds = 0.0f; // phase offset of the first burst
 
         float GravityScale = 1.0f;
 
@@ -110,7 +115,7 @@ namespace Elixir::Aether
         void SetRenderMode(const EParticleRenderMode mode) { m_RenderMode = mode; }
         void SetBlendMode(const EParticleBlendMode mode) { m_BlendMode = mode; }
 
-        void SetBurst(uint32_t count, float intervalSeconds);
+        void SetBurst(uint32_t count, float intervalSeconds, float delaySeconds = 0.0f);
 
         void SetFlipbook(uint32_t cols, uint32_t rows, uint32_t frames, bool blend)
         {
@@ -142,6 +147,10 @@ namespace Elixir::Aether
         void SetDistortionTexture(const Ref<Texture2D>& texture) { m_DistortionTexture = texture; }
         void SetDistortionStrength(const float strength) { m_DistortionStrength = strength; }
 
+        const Ref<Texture2D>& GetEmissionTexture() const { return m_EmissionTexture; }
+        void SetEmissionTexture(const Ref<Texture2D>& texture) { m_EmissionTexture = texture; }
+        void SetEmissionScale(const float scale) { m_EmissionScale = scale; }
+
         uint32_t GetBurstCount() const { return m_BurstCount; }
         float GetBurstIntervalSeconds() const { return m_BurstIntervalSeconds; }
 
@@ -165,6 +174,8 @@ namespace Elixir::Aether
         Ref<Texture2D> m_NormalTexture;
         Ref<Texture2D> m_DistortionTexture;
         float m_DistortionStrength = 0.02f;
+        Ref<Texture2D> m_EmissionTexture;
+        float m_EmissionScale = 1.0f;
         uint32_t m_MaxParticles;
 
         std::vector<Scope<ParticleSpawnModule>> m_SpawnModules;
@@ -174,6 +185,7 @@ namespace Elixir::Aether
         float m_SpawnRate = 0.0f; // per seconds
         uint32_t m_BurstCount = 0u;
         float m_BurstIntervalSeconds = 0.0f;
+        float m_BurstDelaySeconds = 0.0f;
 
         uint32_t m_FlipbookCols = 1u;
         uint32_t m_FlipbookRows = 1u;

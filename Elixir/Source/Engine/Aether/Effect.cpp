@@ -892,6 +892,7 @@ namespace Elixir::Aether
                 const auto gradientMap = ParseString(json, "gradientMap", "");
                 const auto normalMap = ParseString(json, "normalMap", "");
                 const auto distortionMap = ParseString(json, "distortionMap", "");
+                const auto emissionMap = ParseString(json, "emissionMap", "");
                 const uint32_t maxParticles = RequireUInt(json, "maxParticles");
                 const auto spawnRate = ParseScalar(json, "spawnRate");
 
@@ -912,7 +913,10 @@ namespace Elixir::Aether
 
                     const auto burstCount = RequireUInt(burst, "count");
                     const auto burstInterval = RequireFloat(burst, "interval");
-                    emitter.SetBurst(burstCount, burstInterval);
+                    const auto burstDelay = HasField(burst, "delay")
+                        ? ParseScalar(burst, "delay").Value
+                        : 0.0f;
+                    emitter.SetBurst(burstCount, burstInterval, burstDelay);
                 }
 
                 if (HasField(json, "flipbook"))
@@ -972,6 +976,15 @@ namespace Elixir::Aether
                     emitter.SetDistortionTexture(tex2d);
                     if (HasField(json, "distortionStrength"))
                         emitter.SetDistortionStrength(ParseScalar(json, "distortionStrength").Value);
+                }
+
+                if (!emissionMap.empty())
+                {
+                    const auto texture = TextureLoader::Load(emissionMap);
+                    const auto tex2d = std::static_pointer_cast<Texture2D>(texture);
+                    emitter.SetEmissionTexture(tex2d);
+                    if (HasField(json, "emissionScale"))
+                        emitter.SetEmissionScale(ParseScalar(json, "emissionScale").Value);
                 }
 
                 if (!spawnRate.Param.empty())

@@ -21,6 +21,8 @@ struct SpritePushConstants
     uint GradientMode;  // 0 = off, 1 = luminance -> LUT remap
     uint NormalIndex;   // fake-normal map index (pixel stage only)
     uint NormalMode;    // 0 = unlit, 1 = fake-normal lighting
+    uint EmissionIndex; // emission map index (pixel stage only)
+    float EmissionScale; // 0 = no emission map
 };
 [[vk::push_constant]]
 SpritePushConstants pc;
