@@ -101,6 +101,8 @@ namespace Elixir::Aether
         Ref<GraphicsPipeline> m_SpriteAdditivePipeline;
         Ref<Shader> m_DistortionShader;
         Ref<GraphicsPipeline> m_DistortionPipeline;
+        Ref<Shader> m_BloomShader;
+        Ref<GraphicsPipeline> m_BloomPipeline;
         Ref<Shader> m_RibbonShader;
         Ref<GraphicsPipeline> m_RibbonPipeline;
         Ref<Shader> m_MeshShader;

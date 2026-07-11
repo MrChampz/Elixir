@@ -42,6 +42,15 @@ namespace Elixir::Aether
         float ViewH = 1.0f;
     };
 
+    struct SBloomPushConstants
+    {
+        float Threshold = 0.6f;
+        float Intensity = 1.4f;
+        float Radius = 3.0f;
+        float ViewW = 1.0f;
+        float ViewH = 1.0f;
+    };
+
     struct SRibbonPushConstants
     {
         uint32_t EmitterIndex = 0;
@@ -313,6 +322,31 @@ namespace Elixir::Aether
 
             EndRendering(distortCmd);
         }
+
+        // Bloom: snapshot the fully-composited scene, then add a blurred bright
+        // pass back onto the render target.
+        m_GraphicsContext->GrabSceneColor();
+
+        const auto bloomCmd = m_GraphicsContext->GetSecondaryCommandBuffer();
+        bloomCmd->Begin({
+            .ColorAttachment = m_GraphicsContext->GetRenderTarget(),
+            .DepthStencilAttachment = m_GraphicsContext->GetDepthStencilRenderTarget(),
+            .RenderArea = m_RenderExtent
+        });
+
+        BeginRendering(bloomCmd);
+        m_BloomPipeline->Bind(bloomCmd);
+
+        const SBloomPushConstants bloomPc{
+            0.6f, 1.4f, 3.0f,
+            (float)m_RenderExtent.Width,
+            (float)m_RenderExtent.Height
+        };
+        m_BloomShader->SetPushConstant(bloomCmd, "pc", (void*)&bloomPc, sizeof(SBloomPushConstants));
+
+        bloomCmd->Draw(3);
+
+        EndRendering(bloomCmd);
     }
 
     void Renderer::Init(const ShaderLoader* shaderLoader)
@@ -407,6 +441,26 @@ namespace Elixir::Aether
         distortionBuilder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
         distortionBuilder.SetBufferLayout(spriteBufferLayout);
         m_DistortionPipeline = distortionBuilder.Build(m_GraphicsContext);
+
+        // Bloom: a fullscreen triangle (no vertex buffer) that samples the scene
+        // color and adds a blurred bright pass back onto the render target.
+        m_BloomShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/",
+            std::array<std::string_view, 1>{ "Bloom" },
+            "Bloom"
+        );
+
+        PipelineBuilder bloomBuilder;
+        bloomBuilder.SetShader(m_BloomShader);
+        bloomBuilder.SetInputTopology(EPrimitiveTopology::TriangleList);
+        bloomBuilder.SetPolygonMode(EPolygonMode::Fill);
+        bloomBuilder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
+        bloomBuilder.EnableAdditiveBlending();
+        bloomBuilder.DisableDepthTest();
+        bloomBuilder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
+        bloomBuilder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
+        bloomBuilder.SetBufferLayout({});
+        m_BloomPipeline = bloomBuilder.Build(m_GraphicsContext);
 
         m_Sprites = TextureSet::Create(m_GraphicsContext);
         m_SpriteSampler = SamplerBuilder().Build(m_GraphicsContext);
@@ -583,6 +637,11 @@ namespace Elixir::Aether
         m_DistortionShader->BindTextureSet("sprites", m_Sprites);
         m_DistortionShader->BindSampler("spriteSampler", m_SpriteSampler);
         m_DistortionShader->BindTexture("sceneColor", m_GraphicsContext->GetSceneColorTexture());
+
+        constexpr SBloomPushConstants bloomPc{};
+        m_BloomShader->SetPushConstant("pc", (void*)&bloomPc, sizeof(SBloomPushConstants));
+        m_BloomShader->BindSampler("bloomSampler", m_SpriteSampler);
+        m_BloomShader->BindTexture("sceneColor", m_GraphicsContext->GetSceneColorTexture());
     }
 
     uint32_t Renderer::ResolveSpriteIndex(const Ref<Texture2D>& texture)
