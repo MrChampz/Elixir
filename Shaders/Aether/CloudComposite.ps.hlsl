@@ -54,11 +54,20 @@ float4 main(PSInput input) : SV_Target0
 {
     float3 scene = sceneColor.Sample(linearSampler, input.UV).rgb;
 
-    // 3x3 tent blur of the clouds only (not the scene/sky) to soften the
-    // half-res raymarch grain, heaviest on the wispy low-density fringes where
-    // it lives. fwidth gives one full-res texel in UV, so the kernel spans a
-    // couple of half-res texels regardless of resolution.
-    float2 o = fwidth(input.UV) * 2.2f;
+    // Reconstruct the world-space view ray (used for the sky and to gauge how
+    // far/grazing this pixel's clouds are).
+    float2 ndc = input.UV * 2.0f - 1.0f;
+    float4 farPoint = mul(InvViewProj, float4(ndc, 1.0f, 1.0f));
+    float3 worldFar = farPoint.xyz / farPoint.w;
+    float3 rd = normalize(worldFar - CameraPos.xyz);
+
+    // Distance-based blur: clouds near the horizon are far and don't need detail,
+    // so widen the tent there to unify the eroded fringes/holes into smooth
+    // masses; clouds overhead stay crisp. rd.y is the distance proxy.
+    float horizonness = 1.0f - smoothstep(0.0f, 0.30f, rd.y);
+    float2 o = fwidth(input.UV) * lerp(1.2f, 4.5f, horizonness);
+    // Full 3x3 tent (9 taps, incl. diagonals) so a wide blur stays smooth
+    // instead of showing the plus/checkerboard of a 5-tap cross.
     float4 cloud = cloudTex.Sample(linearSampler, input.UV) * 0.25f;
     cloud += cloudTex.Sample(linearSampler, input.UV + float2( o.x, 0.0f)) * 0.125f;
     cloud += cloudTex.Sample(linearSampler, input.UV + float2(-o.x, 0.0f)) * 0.125f;
@@ -68,15 +77,8 @@ float4 main(PSInput input) : SV_Target0
     cloud += cloudTex.Sample(linearSampler, input.UV + float2(-o.x,  o.y)) * 0.0625f;
     cloud += cloudTex.Sample(linearSampler, input.UV + float2( o.x, -o.y)) * 0.0625f;
     cloud += cloudTex.Sample(linearSampler, input.UV + float2(-o.x, -o.y)) * 0.0625f;
-
     float3 scatter = cloud.rgb;
     float transmittance = cloud.a;
-
-    // Reconstruct the world-space view ray for the sky.
-    float2 ndc = input.UV * 2.0f - 1.0f;
-    float4 farPoint = mul(InvViewProj, float4(ndc, 1.0f, 1.0f));
-    float3 worldFar = farPoint.xyz / farPoint.w;
-    float3 rd = normalize(worldFar - CameraPos.xyz);
 
     // Sky dome fills the whole empty background (both hemispheres), only where
     // the scene is dark (no geometry) so foreground objects survive.
@@ -85,5 +87,12 @@ float4 main(PSInput input) : SV_Target0
     float3 background = lerp(scene, SkyGradient(rd), skyMask);
 
     float3 col = background * transmittance + scatter;
+
+    // Height fog: a band of horizon-coloured haze at/below the horizon that
+    // overlays everything (including the distant clouds), fading out with
+    // elevation so the cloud deck sinks into the haze toward the horizon.
+    float heightFog = 1.0f - smoothstep(-0.02f, 0.20f, rd.y);
+    col = lerp(col, SkyHorizon.xyz, heightFog * 0.85f);
+
     return float4(col, 1.0f);
 }

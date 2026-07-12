@@ -19,6 +19,8 @@ cbuffer cbCloud : register(b0)
     float4 CloudParams;  // x=Coverage, y=DensityMul, z=BaseScale, w=WindSpeed
     float4 CloudParams2; // x=DetailScale, y=DetailStrength, z=Steps, w=LightSteps
     float4 CloudParams3; // x=CoverageScale, y=PowderStrength, z=AmbientStrength, w=Exposure
+    float4x4 PrevViewProj;
+    float4 TemporalParams; // x=FrameIndex, y=BlendAlpha, z=HistoryValid
 };
 
 struct PSInput
@@ -91,13 +93,12 @@ float HenyeyGreenstein(float cosTheta, float g)
     return (1.0f - g2) / (4.0f * PI * pow(max(1.0f + g2 - 2.0f * g * cosTheta, 1e-4f), 1.5f));
 }
 
-// Static white-noise dither for the raymarch start offset. Unlike Bayer (grid)
-// or interleaved-gradient (diagonal streaks), white noise has no coherent
-// structure, so the composite blur dissolves it into a smooth softness instead
-// of a visible pattern. No time term -> it doesn't shimmer under camera motion.
-float DitherOffset(float2 pix)
+// White-noise dither for the raymarch start offset, animated per frame so the
+// temporal resolve pass averages the offsets to a clean result over a few
+// frames (accumulation is what removes the grain now, not a static pattern).
+float DitherOffset(float2 pix, float frame)
 {
-    return Hash13(float3(pix, 7.0f));
+    return Hash13(float3(pix, frame + 7.0f));
 }
 
 // Vertical density profile: flat rounded base, billowing toward the middle,
@@ -115,7 +116,7 @@ float Coverage(float3 p)
 {
     float time = CameraPos.w;
     float2 uv = p.xz * CloudParams3.x + time * CloudParams.w * 0.02f;
-    float w = Fbm(float3(uv, 0.0f), 3);
+    float w = Fbm(float3(uv, 0.0f), 2);
     // Higher threshold + sharper contrast -> distinct cumulus islands separated
     // by clear blue, rather than one connected deck.
     return saturate((w - 0.40f) * 2.2f) * CloudParams.x;
@@ -165,13 +166,36 @@ float DensityFull(float3 p, float slabBottom, float slabTop)
     // High-frequency Perlin detail erodes the edges into fine wispy tendrils so
     // the cloud reads as a gaseous body rather than a smooth solid/liquid blob.
     // (Perlin, not billow, keeps it wispy instead of spiky.)
-    float detail = Fbm((p + wind * 1.6f) * CloudParams2.x, 4);
+    float detail = Fbm((p + wind * 1.6f) * CloudParams2.x, 3);
     d = saturate((d - detail * CloudParams2.y * (1.0f - d)));
 
     return d * CloudParams.y;
 }
 
-// Optical depth toward the sun (short march of the cheap base density).
+// Cheap density for the secondary (light) march only: coverage * a low-octave
+// perlin shape (no billow/detail). Self-shadowing is low frequency, so this is
+// visually indistinguishable from the full density but far cheaper -- the light
+// march is the dominant cost of the raymarch.
+float DensityShadow(float3 p, float slabBottom, float slabTop)
+{
+    float h = saturate((p.y - slabBottom) / max(slabTop - slabBottom, 1e-3f));
+    float grad = HeightGradient(h);
+    if (grad <= 0.0f)
+        return 0.0f;
+
+    float cov = Coverage(p);
+    if (cov <= 0.0f)
+        return 0.0f;
+
+    float3 wind = float3(1.0f, 0.0f, 0.35f) * CameraPos.w * CloudParams.w;
+    float shape = Fbm((p + wind) * CloudParams.z, 2);
+    float d = saturate((shape - (1.0f - cov) - h * 0.4f) * 2.0f);
+    // 0.7: the detail-less shadow density reads fuller than the real cloud, so
+    // scale it down to keep the bases from over-darkening.
+    return d * grad * CloudParams.y * 0.7f;
+}
+
+// Optical depth toward the sun (short march of the cheap shadow density).
 float LightMarch(float3 p, float slabBottom, float slabTop)
 {
     int lightSteps = (int)CloudParams2.w;
@@ -183,7 +207,7 @@ float LightMarch(float3 p, float slabBottom, float slabTop)
     [loop] for (int i = 0; i < lightSteps; ++i)
     {
         sp += L * stepLen;
-        depth += DensityBase(sp, slabBottom, slabTop) * CloudParams.y * stepLen;
+        depth += DensityShadow(sp, slabBottom, slabTop) * stepLen;
     }
     return depth;
 }
@@ -222,15 +246,17 @@ float4 main(PSInput input) : SV_Target0
 
         if (tExit > tEnter)
         {
-            // March far enough that grazing rays keep hitting cloud all the way
-            // to the horizon (aerial perspective below fades them into haze).
-            const float maxDist = 1600.0f;
+            // March far enough that grazing rays keep hitting cloud toward the
+            // horizon (aerial perspective below fades them into haze). Kept
+            // moderate so the per-step distance -- and thus the grain on grazing
+            // rays -- stays bounded.
+            const float maxDist = 1200.0f;
             tExit = min(tExit, tEnter + maxDist);
 
             int steps = (int)CloudParams2.z;
             float stepLen = (tExit - tEnter) / (float)steps;
 
-            float jitter = DitherOffset(input.Pos.xy);
+            float jitter = DitherOffset(input.Pos.xy, TemporalParams.x);
             float t = tEnter + stepLen * jitter;
 
             [loop] for (int i = 0; i < steps; ++i)

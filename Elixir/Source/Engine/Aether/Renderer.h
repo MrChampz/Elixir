@@ -60,6 +60,9 @@ namespace Elixir::Aether
         glm::vec4 CloudParams;  // x=Coverage, y=DensityMul, z=BaseScale, w=WindSpeed
         glm::vec4 CloudParams2; // x=DetailScale, y=DetailStrength, z=Steps, w=LightSteps
         glm::vec4 CloudParams3; // x=CoverageScale, y=PowderStrength, z=AmbientStrength, w=Exposure
+        // Temporal reprojection (TAA) for the half-res clouds.
+        glm::mat4 PrevViewProj;    // last frame's view-projection, for reprojection
+        glm::vec4 TemporalParams;  // x=FrameIndex, y=BlendAlpha, z=HistoryValid, w=unused
     };
 
     struct alignas(16) SEmitterData
@@ -164,6 +167,8 @@ namespace Elixir::Aether
         Ref<GraphicsPipeline> m_CloudPipeline;
         Ref<Shader> m_CloudCompositeShader;
         Ref<GraphicsPipeline> m_CloudCompositePipeline;
+        Ref<Shader> m_CloudResolveShader;
+        Ref<GraphicsPipeline> m_CloudResolvePipeline;
         Ref<Shader> m_RibbonShader;
         Ref<GraphicsPipeline> m_RibbonPipeline;
         Ref<Shader> m_MeshShader;
@@ -180,6 +185,12 @@ namespace Elixir::Aether
         // composite pass samples.
         Ref<Texture2D> m_CloudHalf;
         Ref<Texture2D> m_CloudFull;
+        // TAA: m_CloudResolve is the temporal blend target, m_CloudHistory the
+        // accumulated result sampled by the composite and reprojected next frame.
+        Ref<Texture2D> m_CloudResolve;
+        Ref<Texture2D> m_CloudHistory;
+        glm::mat4 m_CloudPrevViewProj{ 1.0f };
+        uint32_t m_CloudFrameIndex = 0;
 
         Ref<StorageBuffer> m_ParticleBuffer;
         std::unordered_map<SGPUEmitter, SEmitterState> m_EmittersState;

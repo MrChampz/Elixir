@@ -182,10 +182,18 @@ namespace Elixir::Aether
         m_CloudData.SunColor = glm::vec4(1.0f, 0.95f, 0.84f, 20.0f);         // w = intensity
         m_CloudData.SkyZenith = glm::vec4(0.24f, 0.46f, 0.78f, 38.0f);       // w = cloud bottom
         m_CloudData.SkyHorizon = glm::vec4(0.74f, 0.81f, 0.86f, 108.0f);     // w = cloud top
-        m_CloudData.CloudParams = glm::vec4(1.0f, 1.0f, 0.028f, 1.5f);       // coverage, density, baseScale, wind
-        m_CloudData.CloudParams2 = glm::vec4(0.17f, 0.5f, 48.0f, 6.0f);      // detailScale, detailStr, steps, lightSteps
+        m_CloudData.CloudParams = glm::vec4(1.0f, 1.0f, 0.028f, 0.35f);      // coverage, density, baseScale, wind
+        m_CloudData.CloudParams2 = glm::vec4(0.17f, 0.5f, 50.0f, 6.0f);      // detailScale, detailStr, steps, lightSteps
         m_CloudData.CloudParams3 = glm::vec4(0.006f, 0.3f, 1.5f, 1.25f);     // coverageScale, powder, ambient, exposure
+        // Temporal reprojection: reproject against last frame's VP, and only
+        // trust the history after the first frame.
+        m_CloudData.PrevViewProj = m_CloudPrevViewProj;
+        const float historyValid = m_CloudFrameIndex > 0 ? 1.0f : 0.0f;
+        m_CloudData.TemporalParams = glm::vec4((float)(m_CloudFrameIndex % 64u), 0.04f, historyValid, 0.0f);
         m_CloudParamsBuffer->UpdateData(&m_CloudData, sizeof(SCloudData));
+
+        m_CloudPrevViewProj = m_FrameData.ViewProj;
+        ++m_CloudFrameIndex;
 
         const auto emitterCount = std::min((uint32_t)system.Emitters.size(), MAX_EMITTERS);
         const auto maxParticles = std::min(system.TotalMaxParticles, MAX_PARTICLES);
@@ -444,7 +452,36 @@ namespace Elixir::Aether
         // the cloud pass and provides the read-after-write barrier.
         m_GraphicsContext->BlitToTexture(m_CloudHalf, m_CloudFull);
 
-        // Composite the upscaled clouds over the scene at full resolution.
+        // Temporal resolve: blend the current clouds with the reprojected history
+        // (m_CloudFull = current, m_CloudHistory = previous) into m_CloudResolve.
+        const auto cloudResolveCmd = m_GraphicsContext->GetSecondaryCommandBuffer();
+        const SRenderingInfo resolveInfo{
+            .ColorAttachment = m_CloudResolve,
+            .DepthStencilAttachment = nullptr,
+            .RenderArea = m_RenderExtent
+        };
+        cloudResolveCmd->Begin(resolveInfo);
+        cloudResolveCmd->BeginRendering(resolveInfo);
+
+        Viewport resolveViewport{};
+        resolveViewport.Width = (float)m_RenderExtent.Width;
+        resolveViewport.Height = (float)m_RenderExtent.Height;
+        resolveViewport.MaxDepth = 1.0f;
+
+        Rect2D resolveScissor{};
+        resolveScissor.Extent = m_RenderExtent;
+
+        cloudResolveCmd->SetViewports({ resolveViewport });
+        cloudResolveCmd->SetScissors({ resolveScissor });
+        m_CloudResolvePipeline->Bind(cloudResolveCmd);
+        cloudResolveCmd->Draw(3);
+        EndRendering(cloudResolveCmd);
+
+        // Store the accumulated result as the history for next frame (and the
+        // source the composite samples); the blit also flushes + barriers it.
+        m_GraphicsContext->BlitToTexture(m_CloudResolve, m_CloudHistory);
+
+        // Composite the accumulated clouds over the scene at full resolution.
         m_GraphicsContext->GrabSceneColor();
 
         const auto cloudCompositeCmd = m_GraphicsContext->GetSecondaryCommandBuffer();
@@ -661,6 +698,26 @@ namespace Elixir::Aether
         compositeBuilder.SetBufferLayout({});
         m_CloudCompositePipeline = compositeBuilder.Build(m_GraphicsContext);
 
+        // Cloud temporal resolve: full-res blend of current + reprojected history
+        // into the (UNORM, no-depth) resolve target.
+        m_CloudResolveShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/",
+            std::array<std::string_view, 1>{ "CloudResolve" },
+            "CloudResolve"
+        );
+
+        PipelineBuilder resolveBuilder;
+        resolveBuilder.SetShader(m_CloudResolveShader);
+        resolveBuilder.SetInputTopology(EPrimitiveTopology::TriangleList);
+        resolveBuilder.SetPolygonMode(EPolygonMode::Fill);
+        resolveBuilder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
+        resolveBuilder.DisableBlending();
+        resolveBuilder.DisableDepthTest();
+        resolveBuilder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_UNORM);
+        resolveBuilder.SetDepthAttachmentFormat(EDepthStencilImageFormat::Undefined);
+        resolveBuilder.SetBufferLayout({});
+        m_CloudResolvePipeline = resolveBuilder.Build(m_GraphicsContext);
+
         m_Sprites = TextureSet::Create(m_GraphicsContext);
         m_SpriteSampler = SamplerBuilder().Build(m_GraphicsContext);
 
@@ -742,6 +799,19 @@ namespace Elixir::Aether
         fullInfo.Usage = EImageUsage::Sampled | EImageUsage::TransferDst;
         fullInfo.InitialLayout = EImageLayout::General;
         m_CloudFull = Texture2D::Create(m_GraphicsContext, fullInfo);
+
+        // TAA targets: the resolve pass renders the temporal blend, then it is
+        // blitted into the history (sampled by the composite and reprojected next
+        // frame).
+        auto resolveInfo = Texture2D::CreateImageInfo(EImageFormat::R8G8B8A8_UNORM, fullW, fullH);
+        resolveInfo.Usage = EImageUsage::ColorAttachment | EImageUsage::TransferSrc | EImageUsage::Sampled;
+        resolveInfo.InitialLayout = EImageLayout::General;
+        m_CloudResolve = Texture2D::Create(m_GraphicsContext, resolveInfo);
+
+        auto historyInfo = Texture2D::CreateImageInfo(EImageFormat::R8G8B8A8_UNORM, fullW, fullH);
+        historyInfo.Usage = EImageUsage::Sampled | EImageUsage::TransferDst;
+        historyInfo.InitialLayout = EImageLayout::General;
+        m_CloudHistory = Texture2D::Create(m_GraphicsContext, historyInfo);
 
         CreateMeshVertexBuffer();
     }
@@ -874,10 +944,17 @@ namespace Elixir::Aether
 
         m_CloudShader->BindConstantBuffer("cbCloud", m_CloudParamsBuffer);
 
+        // Temporal resolve blends the current upscaled clouds with the history.
+        m_CloudResolveShader->BindConstantBuffer("cbCloud", m_CloudParamsBuffer);
+        m_CloudResolveShader->BindSampler("linearSampler", m_SpriteSampler);
+        m_CloudResolveShader->BindTexture("cloudCurrent", m_CloudFull);
+        m_CloudResolveShader->BindTexture("cloudHistory", m_CloudHistory);
+
+        // Composite samples the temporally-accumulated history.
         m_CloudCompositeShader->BindConstantBuffer("cbCloud", m_CloudParamsBuffer);
         m_CloudCompositeShader->BindSampler("linearSampler", m_SpriteSampler);
         m_CloudCompositeShader->BindTexture("sceneColor", m_GraphicsContext->GetSceneColorTexture());
-        m_CloudCompositeShader->BindTexture("cloudTex", m_CloudFull);
+        m_CloudCompositeShader->BindTexture("cloudTex", m_CloudHistory);
     }
 
     uint32_t Renderer::ResolveSpriteIndex(const Ref<Texture2D>& texture)
