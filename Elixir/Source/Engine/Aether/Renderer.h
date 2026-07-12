@@ -62,7 +62,7 @@ namespace Elixir::Aether
         glm::vec4 CloudParams3; // x=CoverageScale, y=PowderStrength, z=AmbientStrength, w=Exposure
         // Temporal reprojection (TAA) for the half-res clouds.
         glm::mat4 PrevViewProj;    // last frame's view-projection, for reprojection
-        glm::vec4 TemporalParams;  // x=FrameIndex, y=BlendAlpha, z=HistoryValid, w=unused
+        glm::vec4 TemporalParams;  // x=FrameIndex, y=BlendAlpha, z=HistoryValid, w=PrevTime
     };
 
     struct alignas(16) SEmitterData
@@ -190,6 +190,7 @@ namespace Elixir::Aether
         Ref<Texture2D> m_CloudResolve;
         Ref<Texture2D> m_CloudHistory;
         glm::mat4 m_CloudPrevViewProj{ 1.0f };
+        float m_CloudPrevTime = 0.0f;
         uint32_t m_CloudFrameIndex = 0;
 
         Ref<StorageBuffer> m_ParticleBuffer;

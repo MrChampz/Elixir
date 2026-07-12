@@ -18,7 +18,7 @@ cbuffer cbCloud : register(b0)
     float4 CloudParams2;
     float4 CloudParams3;
     float4x4 PrevViewProj;
-    float4 TemporalParams; // x=FrameIndex, y=BlendAlpha, z=HistoryValid
+    float4 TemporalParams; // x=FrameIndex, y=BlendAlpha, z=HistoryValid, w=PrevTime
 };
 
 [[vk::binding(0, 1)]]
@@ -40,13 +40,28 @@ float4 main(PSInput input) : SV_Target0
 {
     float4 current = cloudCurrent.Sample(linearSampler, input.UV);
 
-    // Reproject this pixel into the previous frame. Take a far point along the
-    // current view ray and project it with the previous view-projection.
+    // Reproject this pixel into the previous frame, accounting for BOTH camera
+    // motion (previous view-projection) and the clouds' own wind motion.
     float2 ndc = input.UV * 2.0f - 1.0f;
     float4 farPoint = mul(InvViewProj, float4(ndc, 1.0f, 1.0f));
-    float3 world = farPoint.xyz / farPoint.w;
+    float3 worldFar = farPoint.xyz / farPoint.w;
+    float3 rd = normalize(worldFar - CameraPos.xyz);
 
-    float4 prevClip = mul(PrevViewProj, float4(world, 1.0f));
+    // A representative cloud world position: intersect the ray with the middle
+    // of the cloud slab (clouds have no single depth; this is a good proxy).
+    float midY = (SkyZenith.w + SkyHorizon.w) * 0.5f;
+    float tMid = (midY - CameraPos.y) / rd.y;
+    float3 worldCloud = (abs(rd.y) > 1e-4f && tMid > 0.0f)
+        ? CameraPos.xyz + rd * tMid
+        : worldFar;
+
+    // Cloud motion: density is Fbm((p + windDir*speed*t)*scale), so the feature
+    // seen here was at worldCloud + windDir*speed*dt in the previous frame.
+    float dt = CameraPos.w - TemporalParams.w;
+    float3 windVec = float3(1.0f, 0.0f, 0.35f) * CloudParams.w;
+    float3 worldPrev = worldCloud + windVec * dt;
+
+    float4 prevClip = mul(PrevViewProj, float4(worldPrev, 1.0f));
     float2 prevUV = (prevClip.xy / prevClip.w) * 0.5f + 0.5f;
 
     bool onScreen = all(prevUV == saturate(prevUV)) && prevClip.w > 0.0f;

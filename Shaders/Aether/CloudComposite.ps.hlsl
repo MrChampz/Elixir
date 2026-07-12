@@ -92,7 +92,7 @@ float4 main(PSInput input) : SV_Target0
     // overlays everything (including the distant clouds), fading out with
     // elevation so the cloud deck sinks into the haze toward the horizon.
     float heightFog = 1.0f - smoothstep(-0.02f, 0.20f, rd.y);
-    col = lerp(col, SkyHorizon.xyz, heightFog * 0.85f);
+    col = lerp(col, SkyHorizon.xyz, heightFog * 0.6f);
 
     return float4(col, 1.0f);
 }

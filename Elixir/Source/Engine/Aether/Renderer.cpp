@@ -182,17 +182,18 @@ namespace Elixir::Aether
         m_CloudData.SunColor = glm::vec4(1.0f, 0.95f, 0.84f, 20.0f);         // w = intensity
         m_CloudData.SkyZenith = glm::vec4(0.24f, 0.46f, 0.78f, 38.0f);       // w = cloud bottom
         m_CloudData.SkyHorizon = glm::vec4(0.74f, 0.81f, 0.86f, 108.0f);     // w = cloud top
-        m_CloudData.CloudParams = glm::vec4(1.0f, 1.0f, 0.028f, 0.35f);      // coverage, density, baseScale, wind
-        m_CloudData.CloudParams2 = glm::vec4(0.17f, 0.5f, 50.0f, 6.0f);      // detailScale, detailStr, steps, lightSteps
+        m_CloudData.CloudParams = glm::vec4(1.0f, 0.4f, 0.028f, 0.6f);       // coverage, density, baseScale, wind
+        m_CloudData.CloudParams2 = glm::vec4(0.17f, 0.5f, 56.0f, 6.0f);      // detailScale, detailStr, steps, lightSteps
         m_CloudData.CloudParams3 = glm::vec4(0.006f, 0.3f, 1.5f, 1.25f);     // coverageScale, powder, ambient, exposure
         // Temporal reprojection: reproject against last frame's VP, and only
         // trust the history after the first frame.
         m_CloudData.PrevViewProj = m_CloudPrevViewProj;
         const float historyValid = m_CloudFrameIndex > 0 ? 1.0f : 0.0f;
-        m_CloudData.TemporalParams = glm::vec4((float)(m_CloudFrameIndex % 64u), 0.04f, historyValid, 0.0f);
+        m_CloudData.TemporalParams = glm::vec4((float)(m_CloudFrameIndex % 64u), 0.04f, historyValid, m_CloudPrevTime);
         m_CloudParamsBuffer->UpdateData(&m_CloudData, sizeof(SCloudData));
 
         m_CloudPrevViewProj = m_FrameData.ViewProj;
+        m_CloudPrevTime = m_ElapsedTimeSeconds;
         ++m_CloudFrameIndex;
 
         const auto emitterCount = std::min((uint32_t)system.Emitters.size(), MAX_EMITTERS);
