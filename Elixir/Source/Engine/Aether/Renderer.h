@@ -41,6 +41,11 @@ namespace Elixir::Aether
         glm::vec4 SpotPosRange;        // xyz = position, w = range
         glm::vec4 SpotDir;             // xyz = direction, w = cos(outer angle)
         glm::vec4 SpotColor;           // xyz = color, w = intensity (0 = off)
+        // Emissive volume (stand-in for a future emissive material channel): the
+        // fog glows with this colour inside the cube region.
+        glm::vec4 EmissiveCubeCenter;      // xyz = center
+        glm::vec4 EmissiveCubeHalfExtents; // xyz = half extents, w = edge softness
+        glm::vec4 EmissiveCubeColor;       // xyz = color, w = intensity (0 = off)
     };
 
     struct alignas(16) SEmitterData

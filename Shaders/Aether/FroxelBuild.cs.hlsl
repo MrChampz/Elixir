@@ -28,6 +28,9 @@ cbuffer cbFroxel : register(b0)
     float4 SpotPosRange;     // xyz = position, w = range
     float4 SpotDir;          // xyz = direction, w = cos(outer angle)
     float4 SpotColor;        // xyz = color, w = intensity
+    float4 EmissiveCubeCenter;
+    float4 EmissiveCubeHalfExtents; // w = softness
+    float4 EmissiveCubeColor;       // w = intensity
 };
 
 float Hash13(float3 p)
@@ -237,7 +240,16 @@ void main(uint3 id : SV_DispatchThreadID)
             light += SpotLight(p, rayDir, aniso) * shadow;
         }
 
-        float3 inScatter = FogAlbedo.xyz * light * (density * LightParams.z);
+        // Emissive volume: the fog glows on its own inside the cube (added
+        // directly, scaled by density so it reads as the fog reacting).
+        // Full emissive inside the cube, then an exponential halo bleeding into
+        // the surrounding fog (w = halo radius).
+        float3 eq = abs(p - EmissiveCubeCenter.xyz) - EmissiveCubeHalfExtents.xyz;
+        float outsideDist = length(max(eq, 0.0f));
+        float eMask = exp(-outsideDist / max(EmissiveCubeHalfExtents.w, 1e-3f));
+        float3 emissive = EmissiveCubeColor.xyz * EmissiveCubeColor.w * eMask;
+
+        float3 inScatter = FogAlbedo.xyz * light * (density * LightParams.z) + emissive * density;
 
         float t = exp(-density * stepDepth);
         scatterAccum += transmittance * inScatter * stepDepth;

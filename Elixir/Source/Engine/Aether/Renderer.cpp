@@ -166,6 +166,11 @@ namespace Elixir::Aether
         m_FroxelData.SpotPosRange = glm::vec4(6.0f, 6.0f, -1.0f, 16.0f);
         m_FroxelData.SpotDir = glm::vec4(glm::normalize(glm::vec3(-0.3f, -1.0f, -0.2f)), 0.90f); // w = cos(outer)
         m_FroxelData.SpotColor = glm::vec4(0.45f, 0.65f, 1.0f, 16.0f); // w = intensity
+        // Emissive cube (prototype of a material emissive channel): the fog glows
+        // green inside it.
+        m_FroxelData.EmissiveCubeCenter = glm::vec4(0.0f, -2.0f, -2.0f, 0.0f);
+        m_FroxelData.EmissiveCubeHalfExtents = glm::vec4(2.2f, 2.2f, 2.2f, 1.6f); // w = halo radius
+        m_FroxelData.EmissiveCubeColor = glm::vec4(0.20f, 1.0f, 0.45f, 1.5f);     // w = intensity
 
         m_FroxelParamsBuffer->UpdateData(&m_FroxelData, sizeof(SFroxelData));
 
@@ -212,12 +217,6 @@ namespace Elixir::Aether
         m_UpdatePipeline->Bind(cmd);
         cmd->Dispatch((maxParticles + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
 
-        m_ParticleBuffer->Barrier(
-            cmd,
-            EPipelineStage::VertexShader | EPipelineStage::VertexInput,
-            EPipelineAccess::ShaderRead | EPipelineAccess::VertexAttributeRead
-        );
-
         // Build the froxel fog grid (density + integrated in-scattering), then
         // make it readable by the fog apply pass' fragment shader.
         m_FroxelBuildPipeline->Bind(cmd);
@@ -226,6 +225,13 @@ namespace Elixir::Aether
             cmd,
             EPipelineStage::PixelShader,
             EPipelineAccess::ShaderRead
+        );
+
+        // Particle buffer for the sprite draws.
+        m_ParticleBuffer->Barrier(
+            cmd,
+            EPipelineStage::VertexShader | EPipelineStage::VertexInput,
+            EPipelineAccess::ShaderRead | EPipelineAccess::VertexAttributeRead
         );
 
         BeginRendering(cmd);
