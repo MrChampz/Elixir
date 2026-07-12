@@ -174,6 +174,19 @@ namespace Elixir::Aether
 
         m_FroxelParamsBuffer->UpdateData(&m_FroxelData, sizeof(SFroxelData));
 
+        // Volumetric clouds: a high slab of raymarched cumulus lit by the sun.
+        const glm::vec3 sunDir = glm::normalize(glm::vec3(0.35f, 0.55f, 0.30f));
+        m_CloudData.InvViewProj = m_FrameData.InvViewProj;
+        m_CloudData.CameraPos = glm::vec4(m_FrameData.CameraPos, m_ElapsedTimeSeconds);
+        m_CloudData.SunDir = glm::vec4(sunDir, 0.5f);                        // w = phase g (forward)
+        m_CloudData.SunColor = glm::vec4(1.0f, 0.95f, 0.84f, 20.0f);         // w = intensity
+        m_CloudData.SkyZenith = glm::vec4(0.24f, 0.46f, 0.78f, 38.0f);       // w = cloud bottom
+        m_CloudData.SkyHorizon = glm::vec4(0.74f, 0.81f, 0.86f, 108.0f);     // w = cloud top
+        m_CloudData.CloudParams = glm::vec4(1.0f, 1.0f, 0.028f, 1.5f);       // coverage, density, baseScale, wind
+        m_CloudData.CloudParams2 = glm::vec4(0.17f, 0.5f, 48.0f, 6.0f);      // detailScale, detailStr, steps, lightSteps
+        m_CloudData.CloudParams3 = glm::vec4(0.006f, 0.3f, 1.5f, 1.25f);     // coverageScale, powder, ambient, exposure
+        m_CloudParamsBuffer->UpdateData(&m_CloudData, sizeof(SCloudData));
+
         const auto emitterCount = std::min((uint32_t)system.Emitters.size(), MAX_EMITTERS);
         const auto maxParticles = std::min(system.TotalMaxParticles, MAX_PARTICLES);
 
@@ -397,6 +410,55 @@ namespace Elixir::Aether
 
         EndRendering(bloomCmd);
 
+        // Volumetric clouds: raymarch the cloud layer at half resolution into an
+        // offscreen target, blit-upscale it (linear, which also smooths the
+        // per-pixel jitter), then composite it over the full-res scene + sky.
+        const uint32_t halfW = m_CloudHalf->GetWidth();
+        const uint32_t halfH = m_CloudHalf->GetHeight();
+        const Extent2D halfExtent{ halfW, halfH };
+
+        const auto cloudCmd = m_GraphicsContext->GetSecondaryCommandBuffer();
+        const SRenderingInfo cloudInfo{
+            .ColorAttachment = m_CloudHalf,
+            .DepthStencilAttachment = nullptr,
+            .RenderArea = halfExtent
+        };
+        cloudCmd->Begin(cloudInfo);
+        cloudCmd->BeginRendering(cloudInfo);
+
+        Viewport cloudViewport{};
+        cloudViewport.Width = (float)halfW;
+        cloudViewport.Height = (float)halfH;
+        cloudViewport.MaxDepth = 1.0f;
+
+        Rect2D cloudScissor{};
+        cloudScissor.Extent = halfExtent;
+
+        cloudCmd->SetViewports({ cloudViewport });
+        cloudCmd->SetScissors({ cloudScissor });
+        m_CloudPipeline->Bind(cloudCmd);
+        cloudCmd->Draw(3);
+        EndRendering(cloudCmd);
+
+        // Upscale the half-res clouds to full res (linear blit); this also flushes
+        // the cloud pass and provides the read-after-write barrier.
+        m_GraphicsContext->BlitToTexture(m_CloudHalf, m_CloudFull);
+
+        // Composite the upscaled clouds over the scene at full resolution.
+        m_GraphicsContext->GrabSceneColor();
+
+        const auto cloudCompositeCmd = m_GraphicsContext->GetSecondaryCommandBuffer();
+        cloudCompositeCmd->Begin({
+            .ColorAttachment = m_GraphicsContext->GetRenderTarget(),
+            .DepthStencilAttachment = m_GraphicsContext->GetDepthStencilRenderTarget(),
+            .RenderArea = m_RenderExtent
+        });
+
+        BeginRendering(cloudCompositeCmd);
+        m_CloudCompositePipeline->Bind(cloudCompositeCmd);
+        cloudCompositeCmd->Draw(3);
+        EndRendering(cloudCompositeCmd);
+
         // Froxel fog apply: snapshot the composited scene, then a fullscreen pass
         // samples the integrated froxel grid and composites the fog over it.
         m_GraphicsContext->GrabSceneColor();
@@ -557,6 +619,48 @@ namespace Elixir::Aether
         fogBuilder.SetBufferLayout({});
         m_FogPipeline = fogBuilder.Build(m_GraphicsContext);
 
+        // Volumetric clouds: a fullscreen triangle that raymarches a high cloud
+        // slab and composites it over the scene as distant sky.
+        m_CloudShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/",
+            std::array<std::string_view, 1>{ "Clouds" },
+            "Clouds"
+        );
+
+        // Cloud raymarch renders to the half-res target only (no depth, so the
+        // single attachment stays MoltenVK/Metal-friendly).
+        PipelineBuilder cloudBuilder;
+        cloudBuilder.SetShader(m_CloudShader);
+        cloudBuilder.SetInputTopology(EPrimitiveTopology::TriangleList);
+        cloudBuilder.SetPolygonMode(EPolygonMode::Fill);
+        cloudBuilder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
+        cloudBuilder.DisableBlending();
+        cloudBuilder.DisableDepthTest();
+        cloudBuilder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_UNORM);
+        cloudBuilder.SetDepthAttachmentFormat(EDepthStencilImageFormat::Undefined);
+        cloudBuilder.SetBufferLayout({});
+        m_CloudPipeline = cloudBuilder.Build(m_GraphicsContext);
+
+        // Cloud composite: full-res pass that upsamples the cloud result over the
+        // scene and paints the procedural sky behind it.
+        m_CloudCompositeShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/",
+            std::array<std::string_view, 1>{ "CloudComposite" },
+            "CloudComposite"
+        );
+
+        PipelineBuilder compositeBuilder;
+        compositeBuilder.SetShader(m_CloudCompositeShader);
+        compositeBuilder.SetInputTopology(EPrimitiveTopology::TriangleList);
+        compositeBuilder.SetPolygonMode(EPolygonMode::Fill);
+        compositeBuilder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
+        compositeBuilder.DisableBlending(); // overwrites RT with background*T + scatter
+        compositeBuilder.DisableDepthTest();
+        compositeBuilder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
+        compositeBuilder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
+        compositeBuilder.SetBufferLayout({});
+        m_CloudCompositePipeline = compositeBuilder.Build(m_GraphicsContext);
+
         m_Sprites = TextureSet::Create(m_GraphicsContext);
         m_SpriteSampler = SamplerBuilder().Build(m_GraphicsContext);
 
@@ -622,6 +726,22 @@ namespace Elixir::Aether
         m_FroxelBuffer = StorageBuffer::Create(
             m_GraphicsContext, sizeof(glm::vec4) * FROXEL_W * FROXEL_H * FROXEL_D);
         m_FroxelParamsBuffer = UniformBuffer::Create(m_GraphicsContext, sizeof(SFroxelData), &m_FroxelData);
+        m_CloudParamsBuffer = UniformBuffer::Create(m_GraphicsContext, sizeof(SCloudData), &m_CloudData);
+
+        // Half-res cloud render target + its full-res upscaled copy.
+        const auto sc = m_GraphicsContext->GetSwapchainExtent();
+        const uint32_t fullW = sc.Width, fullH = sc.Height;
+        const uint32_t halfW = (fullW + 1) / 2, halfH = (fullH + 1) / 2;
+
+        auto halfInfo = Texture2D::CreateImageInfo(EImageFormat::R8G8B8A8_UNORM, halfW, halfH);
+        halfInfo.Usage = EImageUsage::ColorAttachment | EImageUsage::TransferSrc | EImageUsage::Sampled;
+        halfInfo.InitialLayout = EImageLayout::General;
+        m_CloudHalf = Texture2D::Create(m_GraphicsContext, halfInfo);
+
+        auto fullInfo = Texture2D::CreateImageInfo(EImageFormat::R8G8B8A8_UNORM, fullW, fullH);
+        fullInfo.Usage = EImageUsage::Sampled | EImageUsage::TransferDst;
+        fullInfo.InitialLayout = EImageLayout::General;
+        m_CloudFull = Texture2D::Create(m_GraphicsContext, fullInfo);
 
         CreateMeshVertexBuffer();
     }
@@ -751,6 +871,13 @@ namespace Elixir::Aether
         m_FogShader->BindStorageBuffer("froxels", m_FroxelBuffer);
         m_FogShader->BindSampler("fogSampler", m_SpriteSampler);
         m_FogShader->BindTexture("sceneColor", m_GraphicsContext->GetSceneColorTexture());
+
+        m_CloudShader->BindConstantBuffer("cbCloud", m_CloudParamsBuffer);
+
+        m_CloudCompositeShader->BindConstantBuffer("cbCloud", m_CloudParamsBuffer);
+        m_CloudCompositeShader->BindSampler("linearSampler", m_SpriteSampler);
+        m_CloudCompositeShader->BindTexture("sceneColor", m_GraphicsContext->GetSceneColorTexture());
+        m_CloudCompositeShader->BindTexture("cloudTex", m_CloudFull);
     }
 
     uint32_t Renderer::ResolveSpriteIndex(const Ref<Texture2D>& texture)

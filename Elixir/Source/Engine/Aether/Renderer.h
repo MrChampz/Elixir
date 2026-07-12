@@ -48,6 +48,20 @@ namespace Elixir::Aether
         glm::vec4 EmissiveCubeColor;       // xyz = color, w = intensity (0 = off)
     };
 
+    // Volumetric clouds pass. All vec4 to keep the std140 layout unambiguous.
+    struct alignas(16) SCloudData
+    {
+        glm::mat4 InvViewProj;
+        glm::vec4 CameraPos;    // xyz, w = Time
+        glm::vec4 SunDir;       // xyz = toward sun, w = PhaseG
+        glm::vec4 SunColor;     // xyz = color, w = Intensity
+        glm::vec4 SkyZenith;    // xyz = sky/ambient color, w = CloudBottom altitude
+        glm::vec4 SkyHorizon;   // xyz = horizon ambient, w = CloudTop altitude
+        glm::vec4 CloudParams;  // x=Coverage, y=DensityMul, z=BaseScale, w=WindSpeed
+        glm::vec4 CloudParams2; // x=DetailScale, y=DetailStrength, z=Steps, w=LightSteps
+        glm::vec4 CloudParams3; // x=CoverageScale, y=PowderStrength, z=AmbientStrength, w=Exposure
+    };
+
     struct alignas(16) SEmitterData
     {
         glm::vec4 MetaA{};
@@ -146,6 +160,10 @@ namespace Elixir::Aether
         Ref<GraphicsPipeline> m_BloomPipeline;
         Ref<Shader> m_FogShader;
         Ref<GraphicsPipeline> m_FogPipeline;
+        Ref<Shader> m_CloudShader;
+        Ref<GraphicsPipeline> m_CloudPipeline;
+        Ref<Shader> m_CloudCompositeShader;
+        Ref<GraphicsPipeline> m_CloudCompositePipeline;
         Ref<Shader> m_RibbonShader;
         Ref<GraphicsPipeline> m_RibbonPipeline;
         Ref<Shader> m_MeshShader;
@@ -154,6 +172,14 @@ namespace Elixir::Aether
         Ref<StorageBuffer> m_FroxelBuffer;
         Ref<UniformBuffer> m_FroxelParamsBuffer;
         SFroxelData m_FroxelData{};
+
+        Ref<UniformBuffer> m_CloudParamsBuffer;
+        SCloudData m_CloudData{};
+        // Clouds are raymarched at half resolution then upscaled: m_CloudHalf is
+        // the render target, m_CloudFull the linear-blit upscaled copy the
+        // composite pass samples.
+        Ref<Texture2D> m_CloudHalf;
+        Ref<Texture2D> m_CloudFull;
 
         Ref<StorageBuffer> m_ParticleBuffer;
         std::unordered_map<SGPUEmitter, SEmitterState> m_EmittersState;
