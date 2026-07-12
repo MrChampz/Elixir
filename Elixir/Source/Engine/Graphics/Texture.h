@@ -59,6 +59,14 @@ namespace Elixir
             const std::string& path = ""
         );
 
+        // Full-control factory: lets callers set usage (e.g. ColorAttachment for
+        // an offscreen render target), layout and format directly.
+        static Ref<Texture2D> Create(
+            const GraphicsContext* context,
+            const SImageCreateInfo& info,
+            const std::string& path = ""
+        );
+
         static SImageCreateInfo CreateImageInfo(
             EImageFormat format,
             uint32_t width,

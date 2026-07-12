@@ -71,6 +71,7 @@ namespace Elixir::Vulkan
         void EnqueueSecondaryCommandBuffer(const Ref<CommandBuffer>& cmd) const override;
 
         void GrabSceneColor() const override;
+        void BlitToTexture(const Ref<Texture2D>& src, const Ref<Texture2D>& dst) const override;
 
         Extent3D GetSwapchainExtent() const override { return m_SwapchainExtent;}
 

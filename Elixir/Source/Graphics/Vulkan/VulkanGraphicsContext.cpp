@@ -615,6 +615,31 @@ namespace Elixir
         m_RenderTarget->Transition(m_MainCommandBuffer, EImageLayout::General);
     }
 
+    void VulkanGraphicsContext::BlitToTexture(const Ref<Texture2D>& src, const Ref<Texture2D>& dst) const
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        // Execute everything recorded so far, then scale-blit src into dst. The
+        // flush + layout transitions provide the synchronisation so a later pass
+        // can safely sample dst (left in General, matching how sampled-image
+        // descriptors are bound on this backend).
+        m_CommandPoolManager->FlushSecondaryCommandBuffers(m_MainCommandBuffer);
+
+        src->Transition(m_MainCommandBuffer, EImageLayout::TransferSrc);
+        dst->Transition(m_MainCommandBuffer, EImageLayout::TransferDst);
+
+        CommandUtils::CopyImageToImage(
+            m_MainCommandBuffer->GetVulkanCommandBuffer(),
+            TryToGetVulkanImage(src.get())->GetVulkanImage(),
+            TryToGetVulkanImage(dst.get())->GetVulkanImage(),
+            GetExtent3D(src->GetExtent()),
+            GetExtent3D(dst->GetExtent())
+        );
+
+        dst->Transition(m_MainCommandBuffer, EImageLayout::General);
+        src->Transition(m_MainCommandBuffer, EImageLayout::General);
+    }
+
     void VulkanGraphicsContext::Submit()
     {
         EE_PROFILE_ZONE_SCOPED()

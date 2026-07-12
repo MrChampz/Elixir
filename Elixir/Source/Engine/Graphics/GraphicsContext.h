@@ -96,6 +96,12 @@ namespace Elixir
         // leave it shader-readable. Call between the opaque and refraction passes.
         virtual void GrabSceneColor() const = 0;
 
+        // Flush the secondaries recorded so far, then blit `src` into `dst`
+        // (scaled with a linear filter) leaving both in General. Lets a pass
+        // render at a lower resolution and be upscaled for a later pass to
+        // sample (e.g. half-res volumetric clouds).
+        virtual void BlitToTexture(const Ref<Texture2D>& src, const Ref<Texture2D>& dst) const = 0;
+
         virtual Extent3D GetSwapchainExtent() const = 0;
 
         static Scope<GraphicsContext> Create(EGraphicsAPI api, Executor* executor, const Window* window);
