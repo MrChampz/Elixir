@@ -2,6 +2,9 @@
 
 #include <Engine.h>
 
+#include <Engine/Graphics/Model.h>
+#include <Engine/Graphics/MeshRenderer.h>
+
 struct SFrameData
 {
     glm::mat4 ViewProj;
@@ -28,4 +31,7 @@ private:
     Ref<UniformBuffer> m_FrameConstantBuffer;
 
     Scope<ArcBallCameraController> m_CameraController;
+
+    Scope<MeshRenderer> m_MeshRenderer;
+    Ref<Model> m_Model;
 };

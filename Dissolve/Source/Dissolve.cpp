@@ -58,6 +58,9 @@ Dissolve::Dissolve()
 
     m_ParticlesRenderer = CreateScope<Aether::Renderer>(m_GraphicsContext.get(), m_ShaderLoader.get());
 
+    m_MeshRenderer = CreateScope<MeshRenderer>(m_GraphicsContext.get(), m_ShaderLoader.get());
+    m_Model = Model::Load(m_GraphicsContext.get(), "./Assets/Meshes/McLaren/scene.gltf");
+
     m_ParticleSystem = Aether::LoadEffectFile("./Assets/VFX/RibbonVortex.json");
     // m_ParticleSystem = CreateScope<Aether::System>("Ribbon Garden");
     // m_ParticleSystem->GetParameters().SetFloat("GravityScale", 1.0f);
@@ -171,7 +174,8 @@ void Dissolve::OnRender(const Timestep frameTime)
 
     //DrawGeometry();
 
-    m_ParticlesRenderer->Render(m_GPUSystem, m_CameraController->GetCamera());
+    // m_ParticlesRenderer->Render(m_GPUSystem, m_CameraController->GetCamera());
+    m_MeshRenderer->Render(m_Model, m_CameraController->GetCamera());
 }
 
 void Dissolve::OnEvent(Event& event)
