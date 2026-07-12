@@ -9,7 +9,7 @@ struct ParticleState
 };
 
 [[vk::binding(1, 0)]]
-StructuredBuffer<ParticleState> particles;
+StructuredBuffer<ParticleState> particles : register(t1);
 
 struct Emitter
 {
@@ -20,7 +20,7 @@ struct Emitter
 };
 
 [[vk::binding(2, 0)]]
-StructuredBuffer<Emitter> emitters;
+StructuredBuffer<Emitter> emitters : register(t2);
 
 [[vk::binding(0, 0)]]
 cbuffer cbFrame : register(b0)
@@ -37,8 +37,12 @@ struct PushConstants
     uint EmitterIndex;
 };
 
+#ifdef ELIXIR_D3D12
+ConstantBuffer<PushConstants> pc : register(b0, space1);
+#else
 [[vk::push_constant]]
 PushConstants pc;
+#endif
 
 struct VSOutput
 {

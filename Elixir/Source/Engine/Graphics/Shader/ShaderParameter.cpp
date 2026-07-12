@@ -1,6 +1,8 @@
 #include "epch.h"
 #include "ShaderParameter.h"
 
+#include <Engine/Graphics/Utils.h>
+
 namespace Elixir
 {
     /**
@@ -34,7 +36,7 @@ namespace Elixir
         const bool pointer
     ) : m_Name(name), m_Type(type), m_Count(count), m_Pointer(pointer)
     {
-        m_Size = pointer ? POINTER_SIZE : Utils::GetShaderConstantTypeSize(type) * count;
+        m_Size = pointer ? POINTER_SIZE : Graphics::Utils::GetShaderConstantTypeSize(type) * count;
     }
 
     ShaderConstant::ShaderConstant(

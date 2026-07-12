@@ -81,7 +81,7 @@ namespace Elixir::GUI
         builder.SetShader(m_Shader);
         builder.SetInputTopology(EPrimitiveTopology::TriangleList);
         builder.SetPolygonMode(EPolygonMode::Fill);
-        builder.SetCullMode(ECullMode::Back, EFrontFace::CounterClockwise);
+        builder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
         builder.EnableAlphaBlending();
         builder.DisableDepthTest();
         builder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);

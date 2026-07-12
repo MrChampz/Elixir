@@ -1,5 +1,6 @@
 # Shader Compilation
 # Automatically compiles HLSL and GLSL shaders to SPIR-V when source files change.
+# On Windows, HLSL shaders are also compiled to DXIL for the D3D12 backend.
 # Source:  Shaders/**/*.{hlsl,glsl}
 # Staging: ${CMAKE_BINARY_DIR}/Shaders/**/*.spirv  (mirrors source tree, stripping "Source/" prefix)
 # Output:  Copied into each dependent target's output directory as Shaders/
@@ -21,6 +22,9 @@ find_program(DXC dxc
 find_program(GLSLC glslc
     PATHS "$ENV{VULKAN_SDK}/bin" "$ENV{VULKAN_SDK}/Bin" "$ENV{VULKAN_SDK}/macOS/bin"
     NO_DEFAULT_PATH)
+
+find_program(DXC_D3D12 dxc
+    PATHS "$ENV{VULKAN_SDK}/bin" "$ENV{VULKAN_SDK}/Bin" "$ENV{VULKAN_SDK}/macOS/bin")
 
 # Ensure the staging dir always exists so the copy step has a valid source
 # even when no shaders were compiled.
@@ -103,6 +107,12 @@ function(get_spirv_output_path SHADER_FILE OUT_PATH)
     set(${OUT_PATH} "${SHADER_STAGING_DIR}/${REL_SPIRV}" PARENT_SCOPE)
 endfunction()
 
+function(get_dxil_output_path SHADER_FILE OUT_PATH)
+    file(RELATIVE_PATH REL_PATH "${SHADER_SOURCE_DIR}" "${SHADER_FILE}")
+    string(REGEX REPLACE "\\.hlsl$" ".dxil" REL_DXIL "${REL_PATH}")
+    set(${OUT_PATH} "${SHADER_STAGING_DIR}/${REL_DXIL}" PARENT_SCOPE)
+endfunction()
+
 # --- Extract stage suffix from filename ---
 
 function(get_shader_stage SHADER_FILE OUT_STAGE)
@@ -113,7 +123,7 @@ endfunction()
 
 # --- Add compilation commands ---
 
-set(ALL_SPIRV_OUTPUTS "")
+set(ALL_SHADER_OUTPUTS "")
 
 # HLSL shaders (compiled with dxc)
 if(COMPILABLE_HLSL AND NOT DXC)
@@ -144,7 +154,39 @@ if(COMPILABLE_HLSL AND DXC)
             VERBATIM
         )
 
-        list(APPEND ALL_SPIRV_OUTPUTS "${SPIRV_OUTPUT}")
+        list(APPEND ALL_SHADER_OUTPUTS "${SPIRV_OUTPUT}")
+    endforeach()
+endif()
+
+if(WIN32 AND COMPILABLE_HLSL AND NOT DXC_D3D12)
+    message(WARNING
+        "dxc not found - D3D12 DXIL shaders will not be compiled. "
+        "Install the Vulkan SDK or DirectX Shader Compiler to enable the D3D12 backend.")
+endif()
+
+if(WIN32 AND COMPILABLE_HLSL AND DXC_D3D12)
+    foreach(SHADER_FILE IN LISTS COMPILABLE_HLSL)
+        get_shader_stage("${SHADER_FILE}" STAGE)
+        get_dxc_profile("${STAGE}" PROFILE)
+        get_dxil_output_path("${SHADER_FILE}" DXIL_OUTPUT)
+
+        get_filename_component(SHADER_DIR "${SHADER_FILE}" DIRECTORY)
+        get_filename_component(DXIL_OUTPUT_DIR "${DXIL_OUTPUT}" DIRECTORY)
+        file(MAKE_DIRECTORY "${DXIL_OUTPUT_DIR}")
+
+        add_custom_command(
+            OUTPUT "${DXIL_OUTPUT}"
+            COMMAND "${DXC_D3D12}" -T ${PROFILE} -E main
+                    -D ELIXIR_D3D12=1
+                    -I "${SHADER_DIR}"
+                    "${SHADER_FILE}"
+                    -Fo "${DXIL_OUTPUT}"
+            DEPENDS "${SHADER_FILE}" ${SHADER_INCLUDES}
+            COMMENT "Compiling HLSL DXIL: ${SHADER_FILE} -> ${DXIL_OUTPUT}"
+            VERBATIM
+        )
+
+        list(APPEND ALL_SHADER_OUTPUTS "${DXIL_OUTPUT}")
     endforeach()
 endif()
 
@@ -177,13 +219,13 @@ if(COMPILABLE_GLSL AND GLSLC)
             VERBATIM
         )
 
-        list(APPEND ALL_SPIRV_OUTPUTS "${SPIRV_OUTPUT}")
+        list(APPEND ALL_SHADER_OUTPUTS "${SPIRV_OUTPUT}")
     endforeach()
 endif()
 
 # --- CompileShaders target (compiles all shaders to the staging dir) ---
 
-add_custom_target(CompileShaders ALL DEPENDS ${ALL_SPIRV_OUTPUTS})
+add_custom_target(CompileShaders ALL DEPENDS ${ALL_SHADER_OUTPUTS})
 
 # --- Copy compiled shaders into each engine-dependent target's output directory ---
 # Call copy_shaders_for_targets() after all targets have been defined (from root CMakeLists.txt).
@@ -203,7 +245,7 @@ function(copy_shaders_for_targets)
                     "${TARGET_SHADER_DIR}"
             COMMAND "${CMAKE_COMMAND}" -E touch
                     "${CMAKE_CURRENT_BINARY_DIR}/${target}_copy_shaders.stamp"
-            DEPENDS ${ALL_SPIRV_OUTPUTS}
+            DEPENDS ${ALL_SHADER_OUTPUTS}
             COMMENT "Copying compiled shaders to ${TARGET_SHADER_DIR}..."
             VERBATIM
         )

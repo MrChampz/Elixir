@@ -27,6 +27,42 @@ namespace Elixir
             data ? Copy(data, size) : Allocate(size);
         }
 
+        SBuffer(const SBuffer& other) : SBuffer()
+        {
+            if (other.Data)
+                Copy(other.Data, other.Size);
+            else
+                Allocate(other.Size);
+        }
+
+        SBuffer(SBuffer&& other) noexcept
+            : Data(std::exchange(other.Data, nullptr)), Size(std::exchange(other.Size, 0))
+        {
+        }
+
+        SBuffer& operator=(const SBuffer& other)
+        {
+            if (this == &other)
+                return *this;
+
+            if (other.Data)
+                Copy(other.Data, other.Size);
+            else
+                Allocate(other.Size);
+            return *this;
+        }
+
+        SBuffer& operator=(SBuffer&& other) noexcept
+        {
+            if (this == &other)
+                return *this;
+
+            FreeInternalData();
+            Data = std::exchange(other.Data, nullptr);
+            Size = std::exchange(other.Size, 0);
+            return *this;
+        }
+
         ~SBuffer()
         {
             EE_PROFILE_ZONE_SCOPED()

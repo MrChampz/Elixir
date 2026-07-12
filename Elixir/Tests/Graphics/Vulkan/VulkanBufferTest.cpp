@@ -4,6 +4,7 @@ using namespace testing;
 #include <Engine/Core/Executor/Executor.h>
 #include <Engine/Graphics/CommandBuffer.h>
 #include <Graphics/Vulkan/VulkanBuffer.h>
+using namespace Elixir;
 using namespace Elixir::Vulkan;
 
 class VulkanBufferTest : public Test

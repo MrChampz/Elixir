@@ -167,6 +167,14 @@ target_link_libraries(${PROJECT_NAME}
     Freetype::Freetype
 )
 
+if (WIN32)
+    target_link_libraries(${PROJECT_NAME}
+        d3d12
+        dxgi
+        dxguid
+    )
+endif()
+
 # Only when profiling is enabled
 if (ELIXIR_PROFILE)
     target_link_libraries(${PROJECT_NAME} Tracy::TracyClient)

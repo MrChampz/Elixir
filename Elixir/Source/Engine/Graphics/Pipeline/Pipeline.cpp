@@ -1,6 +1,9 @@
 #include "epch.h"
 #include "Pipeline.h"
 
+#ifdef EE_PLATFORM_WINDOWS
+#include <Graphics/D3D12/D3D12Pipeline.h>
+#endif
 #include <Graphics/Vulkan/VulkanPipeline.h>
 #include <Engine/Graphics/Converters.h>
 
@@ -17,6 +20,10 @@ namespace Elixir
         {
             case EGraphicsAPI::Vulkan:
                 return CreateRef<Vulkan::VulkanGraphicsPipeline>(context, std::move(info));
+#ifdef EE_PLATFORM_WINDOWS
+            case EGraphicsAPI::D3D12:
+                return CreateRef<D3D12::D3D12GraphicsPipeline>(context, std::move(info));
+#endif
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;
@@ -36,7 +43,7 @@ namespace Elixir
         m_ColorBlend = info.ColorBlend;
         m_DepthStencil = info.DepthStencil;
         m_ColorAttachmentFormat = info.ColorAttachmentFormat;
-        m_DepthAttachmentFormat = Converters::GetImageFormat(info.DepthAttachmentFormat);
+        m_DepthAttachmentFormat = Graphics::Converters::GetImageFormat(info.DepthAttachmentFormat);
         m_BufferLayout = info.VertexBufferLayout;
     }
 
@@ -51,6 +58,10 @@ namespace Elixir
         {
             case EGraphicsAPI::Vulkan:
                 return CreateRef<Vulkan::VulkanComputePipeline>(context, std::move(info));
+#ifdef EE_PLATFORM_WINDOWS
+            case EGraphicsAPI::D3D12:
+                return CreateRef<D3D12::D3D12ComputePipeline>(context, std::move(info));
+#endif
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;

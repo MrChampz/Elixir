@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <string_view>
 
 namespace Elixir
 {
@@ -17,5 +18,7 @@ namespace Elixir
             const std::filesystem::path& filepath,
             EShaderStage stage
         ) const = 0;
+
+        virtual std::string_view GetModuleFileExtension() const = 0;
     };
 }

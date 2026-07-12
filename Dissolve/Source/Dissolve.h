@@ -13,19 +13,19 @@ public:
     Dissolve();
     ~Dissolve() override;
 
-    void OnGUI(Timestep frameTime) override;
-    void OnRender(Timestep frameTime) override;
+    void OnGUI(Elixir::Timestep frameTime) override;
+    void OnRender(Elixir::Timestep frameTime) override;
 
-    void OnEvent(Event& event) override;
+    void OnEvent(Elixir::Event& event) override;
 
 private:
     void DrawGeometry();
 
-    WaitGroup m_WaitGroup;
-    Extent2D m_DrawExtent;
+    Elixir::WaitGroup m_WaitGroup;
+    Elixir::Extent2D m_DrawExtent;
 
     SFrameData m_FrameData;
-    Ref<UniformBuffer> m_FrameConstantBuffer;
+    Elixir::Ref<Elixir::UniformBuffer> m_FrameConstantBuffer;
 
-    Scope<ArcBallCameraController> m_CameraController;
+    Elixir::Scope<Elixir::ArcBallCameraController> m_CameraController;
 };

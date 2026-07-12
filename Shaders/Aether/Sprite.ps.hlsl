@@ -9,8 +9,13 @@ struct SpritePushConstants
 {
     uint SpriteIndex;
 };
+
+#ifdef ELIXIR_D3D12
+ConstantBuffer<SpritePushConstants> pc : register(b0, space1);
+#else
 [[vk::push_constant]]
 SpritePushConstants pc;
+#endif
 
 struct PSInput
 {

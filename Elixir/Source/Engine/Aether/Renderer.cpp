@@ -107,7 +107,9 @@ namespace Elixir::Aether
 
         m_FrameData.View = camera.GetViewMatrix();
         m_FrameData.Proj = camera.GetProjectionMatrix();
-        m_FrameData.ViewProj = camera.GetViewProjectionMatrix();
+        if (m_GraphicsContext->GetAPI() == EGraphicsAPI::D3D12)
+            m_FrameData.Proj[1][1] *= -1.0f;
+        m_FrameData.ViewProj = m_FrameData.Proj * m_FrameData.View;
         m_FrameData.CameraPos = camera.GetPosition();
         m_FrameConstantBuffer->UpdateData(&m_FrameData, sizeof(SFrameData));
 
@@ -348,7 +350,14 @@ namespace Elixir::Aether
 
     void Renderer::CreateBuffers()
     {
-        m_ParticleBuffer = StorageBuffer::Create(m_GraphicsContext, sizeof(SGPUParticleState) * MAX_PARTICLES);
+        // Every slot is drawn. A zeroed alive flag prevents unspawned GPU memory
+        // from being interpreted as particles with arbitrary size and color.
+        const std::vector<SGPUParticleState> initialParticles(MAX_PARTICLES);
+        m_ParticleBuffer = StorageBuffer::Create(
+            m_GraphicsContext,
+            sizeof(SGPUParticleState) * initialParticles.size(),
+            initialParticles.data()
+        );
         m_EmitterBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SEmitterData) * MAX_EMITTERS);
         m_OpBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SParticleOpData) * MAX_OPS);
         m_ParameterBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SParameterData) * MAX_PARAMETERS);

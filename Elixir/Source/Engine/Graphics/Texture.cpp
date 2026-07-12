@@ -2,6 +2,9 @@
 #include "Texture.h"
 
 #include <Engine/Graphics/GraphicsContext.h>
+#ifdef EE_PLATFORM_WINDOWS
+#include <Graphics/D3D12/D3D12Image.h>
+#endif
 #include <Graphics/Vulkan/VulkanTexture.h>
 
 namespace Elixir
@@ -20,6 +23,10 @@ namespace Elixir
         {
             case EGraphicsAPI::Vulkan:
                 return CreateRef<Vulkan::VulkanTexture>(context, format, width, data, path);
+#ifdef EE_PLATFORM_WINDOWS
+            case EGraphicsAPI::D3D12:
+                return CreateRef<D3D12::D3D12Texture>(context, format, width, data, path);
+#endif
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;
@@ -82,6 +89,10 @@ namespace Elixir
         {
             case EGraphicsAPI::Vulkan:
                 return CreateRef<Vulkan::VulkanTexture2D>(context, format, width, height, data, path);
+#ifdef EE_PLATFORM_WINDOWS
+            case EGraphicsAPI::D3D12:
+                return CreateRef<D3D12::D3D12Texture2D>(context, format, width, height, data, path);
+#endif
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;
@@ -147,6 +158,18 @@ namespace Elixir
         {
             case EGraphicsAPI::Vulkan:
                 return CreateRef<Vulkan::VulkanTexture3D>(context, format, width, height, depth, data, path);
+#ifdef EE_PLATFORM_WINDOWS
+            case EGraphicsAPI::D3D12:
+                return CreateRef<D3D12::D3D12Texture3D>(
+                    context,
+                    format,
+                    width,
+                    height,
+                    depth,
+                    data,
+                    path
+                );
+#endif
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;

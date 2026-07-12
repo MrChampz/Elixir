@@ -1,6 +1,9 @@
 #include "epch.h"
 #include "Sampler.h"
 
+#ifdef EE_PLATFORM_WINDOWS
+#include <Graphics/D3D12/D3D12Sampler.h>
+#endif
 #include <Graphics/Vulkan/VulkanSampler.h>
 
 namespace Elixir
@@ -14,6 +17,10 @@ namespace Elixir
         {
             case EGraphicsAPI::Vulkan:
                 return CreateRef<Vulkan::VulkanSampler>(context, info);
+#ifdef EE_PLATFORM_WINDOWS
+            case EGraphicsAPI::D3D12:
+                return CreateRef<D3D12::D3D12Sampler>(context, info);
+#endif
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;

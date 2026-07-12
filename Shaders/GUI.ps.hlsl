@@ -12,7 +12,12 @@ struct WhiteTexturePushConstant
 {
     uint WhiteTextureIndex;
 };
+
+#ifdef ELIXIR_D3D12
+ConstantBuffer<WhiteTexturePushConstant> pcWhiteTexture : register(b0, space1);
+#else
 [[vk::push_constant]] WhiteTexturePushConstant pcWhiteTexture;
+#endif
 
 struct PS_INPUT
 {

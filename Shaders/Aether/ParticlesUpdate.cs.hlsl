@@ -9,7 +9,7 @@ struct ParticleState
 };
 
 [[vk::binding(0, 0)]]
-RWStructuredBuffer<ParticleState> particles;
+RWStructuredBuffer<ParticleState> particles : register(u0);
 
 struct Emitter
 {
@@ -20,7 +20,7 @@ struct Emitter
 };
 
 [[vk::binding(1, 0)]]
-StructuredBuffer<Emitter> emitters;
+StructuredBuffer<Emitter> emitters : register(t1);
 
 struct Op
 {
@@ -31,7 +31,7 @@ struct Op
 };
 
 [[vk::binding(2, 0)]]
-StructuredBuffer<Op> ops;
+StructuredBuffer<Op> ops : register(t2);
 
 struct Parameter
 {
@@ -39,7 +39,7 @@ struct Parameter
 };
 
 [[vk::binding(3, 0)]]
-StructuredBuffer<Parameter> parameters;
+StructuredBuffer<Parameter> parameters : register(t3);
 
 struct AttributeTable
 {

@@ -62,7 +62,8 @@ namespace Elixir
 
     std::vector<StagePath> GetShaderFilesInDirectory(
         const std::filesystem::path& directory,
-        std::span<const std::string_view> filenames
+        std::span<const std::string_view> filenames,
+        const std::string_view moduleExtension
     )
     {
         std::vector<StagePath> files;
@@ -72,7 +73,10 @@ namespace Elixir
             const auto path = entry.path();
             const auto filename = RemoveFileExtension(path);
             const auto isIncluded = std::ranges::find(filenames, filename) != filenames.end();
-            if (entry.is_regular_file() && path.has_extension() && isIncluded)
+            const auto hasExpectedExtension =
+                moduleExtension.empty() || path.extension().string() == moduleExtension;
+
+            if (entry.is_regular_file() && path.has_extension() && isIncluded && hasExpectedExtension)
             {
                 if (const auto stage = GetShaderStage(path))
                     files.push_back({ stage.value(), path });
@@ -131,7 +135,12 @@ namespace Elixir
         {
             try
             {
-                const auto& files = GetShaderFilesInDirectory(directory, filenames);
+                const auto& backend = m_GraphicsContext->GetShaderBackend();
+                const auto& files = GetShaderFilesInDirectory(
+                    directory,
+                    filenames,
+                    backend->GetModuleFileExtension()
+                );
                 if (files.empty())
                 {
                     EE_CORE_ERROR("No shader files found at path! [Path = {0}]", directory.string())

@@ -4,6 +4,9 @@
 #include "CommandBuffer.h"
 
 #include <Engine/Graphics/Utils.h>
+#ifdef EE_PLATFORM_WINDOWS
+#include <Graphics/D3D12/D3D12Buffer.h>
+#endif
 #include <Graphics/Vulkan/VulkanBuffer.h>
 
 namespace Elixir
@@ -75,6 +78,10 @@ namespace Elixir
         {
             case EGraphicsAPI::Vulkan:
                 return CreateRef<Vulkan::VulkanBuffer>(context, info);
+#ifdef EE_PLATFORM_WINDOWS
+            case EGraphicsAPI::D3D12:
+                return CreateRef<D3D12::D3D12Buffer>(context, info);
+#endif
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;
@@ -118,6 +125,10 @@ namespace Elixir
         {
             case EGraphicsAPI::Vulkan:
                 return CreateRef<Vulkan::VulkanStagingBuffer>(context, size, data);
+#ifdef EE_PLATFORM_WINDOWS
+            case EGraphicsAPI::D3D12:
+                return CreateRef<D3D12::D3D12StagingBuffer>(context, size, data);
+#endif
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;
@@ -182,6 +193,10 @@ namespace Elixir
         {
             case EGraphicsAPI::Vulkan:
                 return CreateRef<Vulkan::VulkanVertexBuffer>(context, size, data);
+#ifdef EE_PLATFORM_WINDOWS
+            case EGraphicsAPI::D3D12:
+                return CreateRef<D3D12::D3D12VertexBuffer>(context, size, data);
+#endif
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;
@@ -258,6 +273,10 @@ namespace Elixir
         {
             case EGraphicsAPI::Vulkan:
                 return CreateRef<Vulkan::VulkanDynamicVertexBuffer>(context, size, data);
+#ifdef EE_PLATFORM_WINDOWS
+            case EGraphicsAPI::D3D12:
+                return CreateRef<D3D12::D3D12DynamicVertexBuffer>(context, size, data);
+#endif
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;
@@ -320,6 +339,15 @@ namespace Elixir
                     data,
                     type
                 );
+#ifdef EE_PLATFORM_WINDOWS
+            case EGraphicsAPI::D3D12:
+                return CreateRef<D3D12::D3D12IndexBuffer>(
+                    context,
+                    size,
+                    data,
+                    type
+                );
+#endif
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;
@@ -399,6 +427,15 @@ namespace Elixir
                     data,
                     type
                 );
+#ifdef EE_PLATFORM_WINDOWS
+            case EGraphicsAPI::D3D12:
+                return CreateRef<D3D12::D3D12DynamicIndexBuffer>(
+                    context,
+                    size,
+                    data,
+                    type
+                );
+#endif
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;
@@ -455,6 +492,10 @@ namespace Elixir
         {
             case EGraphicsAPI::Vulkan:
                 return CreateRef<Vulkan::VulkanStorageBuffer>(context, size, data);
+#ifdef EE_PLATFORM_WINDOWS
+            case EGraphicsAPI::D3D12:
+                return CreateRef<D3D12::D3D12StorageBuffer>(context, size, data);
+#endif
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;
@@ -522,6 +563,10 @@ namespace Elixir
         {
             case EGraphicsAPI::Vulkan:
                 return CreateRef<Vulkan::VulkanDynamicStorageBuffer>(context, size, data);
+#ifdef EE_PLATFORM_WINDOWS
+            case EGraphicsAPI::D3D12:
+                return CreateRef<D3D12::D3D12DynamicStorageBuffer>(context, size, data);
+#endif
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;
@@ -584,6 +629,14 @@ namespace Elixir
                     size,
                     data
                 );
+#ifdef EE_PLATFORM_WINDOWS
+            case EGraphicsAPI::D3D12:
+                return CreateRef<D3D12::D3D12UniformBuffer>(
+                    context,
+                    size,
+                    data
+                );
+#endif
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;

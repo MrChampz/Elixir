@@ -1,6 +1,9 @@
 #include "epch.h"
 #include "ShaderModule.h"
 
+#ifdef EE_PLATFORM_WINDOWS
+#include <Graphics/D3D12/D3D12ShaderModule.h>
+#endif
 #include <Graphics/Vulkan/VulkanShaderModule.h>
 
 namespace Elixir
@@ -43,6 +46,16 @@ namespace Elixir
                     bytecode,
                     path
                 );
+#ifdef EE_PLATFORM_WINDOWS
+            case EGraphicsAPI::D3D12:
+                return CreateRef<D3D12::D3D12ShaderModule>(
+                    context,
+                    stage,
+                    entrypoint,
+                    bytecode,
+                    path
+                );
+#endif
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;

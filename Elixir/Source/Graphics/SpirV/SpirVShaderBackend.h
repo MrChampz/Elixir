@@ -28,6 +28,8 @@ namespace Elixir::SpirV
             EShaderStage stage
         ) const override;
 
+        std::string_view GetModuleFileExtension() const override { return ".spirv"; }
+
       private:
         static SShaderModuleCreateInfo Load(
             const std::vector<uint32_t>& spirv,

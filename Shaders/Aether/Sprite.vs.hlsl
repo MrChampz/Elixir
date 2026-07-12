@@ -12,12 +12,12 @@ cbuffer cbFrame : register(b0)
 
 struct VSInput
 {
-    float4 PositionSize    : POSITION;
+    float4 PositionSize    : POSITION1;
     float4 VelocityAge     : TEXCOORD0;
     float4 Transform       : TEXCOORD1;
-    float4 TangentRibbonId : TEXCOORD2;
+    float4 TangentRibbonId : TANGENT;
     float4 Color           : COLOR;
-    float4 Metadata        : TEXCOORD3;
+    float4 Metadata        : TEXCOORD2;
 };
 
 struct VSOutput

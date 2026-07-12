@@ -66,3 +66,12 @@ add_dependencies(${PROJECT_NAME}
 )
 
 link_target_to_engine(${PROJECT_NAME})
+
+add_custom_target(${PROJECT_NAME}_copy_assets
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory
+        "${CMAKE_SOURCE_DIR}/Assets"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/Assets"
+    COMMENT "Copying assets for ${PROJECT_NAME}..."
+    VERBATIM
+)
+add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_copy_assets)

@@ -3,18 +3,15 @@
 #include <Engine/Graphics/Image.h>
 #include <Engine/Graphics/Utils.h>
 
-using namespace Elixir;
-using namespace Elixir::Graphics;
-
 /**
  * Formatter for EImageFormat output in the logging system.
  */
 template <>
-struct std::formatter<EImageFormat> : std::formatter<std::string>
+struct std::formatter<Elixir::EImageFormat> : std::formatter<std::string>
 {
-    auto format(const EImageFormat format, std::format_context& ctx) const
+    auto format(const Elixir::EImageFormat format, std::format_context& ctx) const
     {
-        return std::formatter<std::string>::format(Utils::GetFormatString(format), ctx);
+        return std::formatter<std::string>::format(Elixir::Graphics::Utils::GetFormatString(format), ctx);
     }
 };
 
@@ -22,9 +19,9 @@ struct std::formatter<EImageFormat> : std::formatter<std::string>
  * Formatter for Extent2D output in the logging system.
  */
 template <>
-struct std::formatter<Extent2D> : std::formatter<std::string>
+struct std::formatter<Elixir::Extent2D> : std::formatter<std::string>
 {
-    auto format(const Extent2D& extent, std::format_context& ctx) const
+    auto format(const Elixir::Extent2D& extent, std::format_context& ctx) const
     {
         auto ss = std::stringstream();
         ss << "[Width = " << extent.Width << ", Height = " << extent.Height << "]";
@@ -36,9 +33,9 @@ struct std::formatter<Extent2D> : std::formatter<std::string>
  * Formatter for Extent3D output in the logging system.
  */
 template <>
-struct std::formatter<Extent3D> : std::formatter<std::string>
+struct std::formatter<Elixir::Extent3D> : std::formatter<std::string>
 {
-    auto format(const Extent3D& extent, std::format_context& ctx) const
+    auto format(const Elixir::Extent3D& extent, std::format_context& ctx) const
     {
         auto ss = std::stringstream();
         ss << "[Width = " << extent.Width << ", Height = " << extent.Height << ", Depth = " << extent.Depth << "]";

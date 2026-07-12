@@ -131,7 +131,24 @@ namespace Elixir::GUI
 
     void Renderer::CalculateProjectionMatrix()
     {
-        // Orthographic projection
-        m_PerFrameData.Proj = glm::ortho(0.0f, (float)m_RenderExtent.Width, 0.0f, (float)m_RenderExtent.Height);
+        if (m_GraphicsContext->GetAPI() == EGraphicsAPI::D3D12)
+        {
+            // D3D12 maps positive NDC Y towards the top of the viewport. Keep the
+            // GUI's screen-space origin at the top-left, matching the Vulkan path.
+            m_PerFrameData.Proj = glm::ortho(
+                0.0f,
+                (float)m_RenderExtent.Width,
+                (float)m_RenderExtent.Height,
+                0.0f
+            );
+            return;
+        }
+
+        m_PerFrameData.Proj = glm::ortho(
+            0.0f,
+            (float)m_RenderExtent.Width,
+            0.0f,
+            (float)m_RenderExtent.Height
+        );
     }
 }

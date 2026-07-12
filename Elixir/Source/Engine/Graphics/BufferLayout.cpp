@@ -1,6 +1,8 @@
 #include "epch.h"
 #include "BufferLayout.h"
 
+#include <Engine/Graphics/Utils.h>
+
 namespace Elixir
 {
     /* BufferAttribute */
@@ -9,12 +11,12 @@ namespace Elixir
         const EDataType type,
         const std::string& name,
         const bool normalized
-    ) : m_Name(name), m_Type(type), m_Offset(0), m_Size(Utils::GetDataTypeSize(type)),
+    ) : m_Name(name), m_Type(type), m_Offset(0), m_Size(Graphics::Utils::GetDataTypeSize(type)),
         m_Normalized(normalized) {}
 
     uint32_t BufferAttribute::GetComponentCount() const
     {
-        return Utils::GetDataTypeComponentCount(m_Type);
+        return Graphics::Utils::GetDataTypeComponentCount(m_Type);
     }
 
     /* BufferBinding */

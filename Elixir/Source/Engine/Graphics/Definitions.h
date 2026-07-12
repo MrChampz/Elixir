@@ -69,12 +69,12 @@ namespace Elixir
     };
 }
 
-GENERATE_HASH_FUNCTION(SResourceHandle)
+GENERATE_HASH_FUNCTION(Elixir::SResourceHandle)
 
 template <>
-struct std::formatter<SResourceHandle> : std::formatter<std::string>
+struct std::formatter<Elixir::SResourceHandle> : std::formatter<std::string>
 {
-    auto format(const SResourceHandle& handle, std::format_context& ctx) const
+    auto format(const Elixir::SResourceHandle& handle, std::format_context& ctx) const
     {
         return std::formatter<std::string>::format(handle.ToString(), ctx);
     }

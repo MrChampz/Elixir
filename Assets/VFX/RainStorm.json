@@ -51,16 +51,16 @@
         { "type": "SetPositionBox", "min": [-1.65, 1.02, -1.65], "max": [1.65, 1.38, 1.65] },
         { "type": "SetVelocityCone", "direction": [0.0, -1.0, 0.0], "angle": -1.82, "minSpeed": 2.20, "maxSpeed": 3.60 },
         { "type": "SetLifetime", "min": 0.75, "max": 1.08 },
-        { "type": "SetSize", "min": 0.065, "max": 0.115 },
-        { "type": "SetScale", "min": "$drop_scale_min", "max": "$drop_scale_max" },
+        { "type": "SetSize", "min": 0.022, "max": 0.034 },
+        { "type": "SetScale", "min": 0.9, "max": 1.1 },
         { "type": "SetColor", "color": "$rain_drop_start" }
       ],
       "updateModules": [
         { "type": "ApplyGravity", "gravity": "$gravity" },
         { "type": "ApplyLinearDrag", "drag": "$drag" },
         { "type": "ColorOverLife", "start": "$rain_drop_start", "end": "$rain_drop_end", "curve": "rain_color_curve", "input": "NormalizedAge" },
-        { "type": "SizeOverLife", "start": 0.1, "end": 0.024 },
-        { "type": "ScaleOverLife", "start": 1.1, "end": 0.18, "curve": "rain_scale_curve", "input": "NormalizedAge" },
+        { "type": "SizeOverLife", "start": 0.03, "end": 0.022 },
+        { "type": "ScaleOverLife", "start": 1.0, "end": 0.72, "input": "NormalizedAge" },
         { "type": "KillOutsideBounds", "min": [-1.7, -1.25, -1.7], "max": [1.7, 1.35, 1.7] }
       ]
     },

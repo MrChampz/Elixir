@@ -4,6 +4,9 @@
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Graphics/Converters.h>
 #include <Engine/Graphics/Utils.h>
+#ifdef EE_PLATFORM_WINDOWS
+#include <Graphics/D3D12/D3D12Image.h>
+#endif
 #include <Graphics/Vulkan/VulkanImage.h>
 
 namespace Elixir
@@ -151,6 +154,10 @@ namespace Elixir
         {
             case EGraphicsAPI::Vulkan:
                 return CreateRef<Vulkan::VulkanImage>(context, format, width, data);
+#ifdef EE_PLATFORM_WINDOWS
+            case EGraphicsAPI::D3D12:
+                return CreateRef<D3D12::D3D12Image>(context, format, width, data);
+#endif
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;
@@ -217,6 +224,12 @@ namespace Elixir
                 return CreateRef<Vulkan::VulkanDepthStencilImage>(
                     context, format, width, height
                 );
+#ifdef EE_PLATFORM_WINDOWS
+            case EGraphicsAPI::D3D12:
+                return CreateRef<D3D12::D3D12DepthStencilImage>(
+                    context, format, width, height
+                );
+#endif
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;

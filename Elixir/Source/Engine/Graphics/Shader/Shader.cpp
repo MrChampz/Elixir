@@ -1,6 +1,9 @@
 #include "epch.h"
 #include "Shader.h"
 
+#ifdef EE_PLATFORM_WINDOWS
+#include <Graphics/D3D12/D3D12Shader.h>
+#endif
 #include <Graphics/Vulkan/VulkanShader.h>
 
 namespace Elixir
@@ -107,6 +110,10 @@ namespace Elixir
         {
             case EGraphicsAPI::Vulkan:
                 return CreateRef<Vulkan::VulkanShader>(context, std::move(info));
+#ifdef EE_PLATFORM_WINDOWS
+            case EGraphicsAPI::D3D12:
+                return CreateRef<D3D12::D3D12Shader>(context, std::move(info));
+#endif
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;

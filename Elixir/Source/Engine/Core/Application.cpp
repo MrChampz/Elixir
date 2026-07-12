@@ -14,8 +14,28 @@
 #include <Engine/Font/FontManager.h>
 #include <Engine/Graphics/TextureLoader.h>
 
+#include <cstdlib>
+
 namespace Elixir
 {
+    namespace
+    {
+        EGraphicsAPI ResolveGraphicsAPI()
+        {
+            const auto api = std::getenv("ELIXIR_GRAPHICS_API");
+            if (!api)
+                return EGraphicsAPI::Vulkan;
+
+            const std::string value(api);
+#ifdef EE_PLATFORM_WINDOWS
+            if (value == "d3d12" || value == "D3D12" || value == "Direct3D12")
+                return EGraphicsAPI::D3D12;
+#endif
+
+            return EGraphicsAPI::Vulkan;
+        }
+    }
+
     Application* Application::s_Application = nullptr;
 
     Application::Application() : m_Executor(Executor::Get())
@@ -30,7 +50,7 @@ namespace Elixir
 
         Platform::Initialize(m_Window.get());
 
-        m_GraphicsContext = GraphicsContext::Create(EGraphicsAPI::Vulkan, &m_Executor, m_Window.get());
+        m_GraphicsContext = GraphicsContext::Create(ResolveGraphicsAPI(), &m_Executor, m_Window.get());
         m_GraphicsContext->Init();
 
         m_ShaderLoader = CreateScope<ShaderLoader>(m_GraphicsContext.get());
@@ -196,7 +216,7 @@ namespace Elixir
         dispatcher.Dispatch<WindowResizeEvent>(EE_BIND_EVENT_FN(Application::OnWindowResize));
 
         m_GraphicsContext->ProcessEvent(event);
-        ::InputManager::OnEvent(event);
+        InputManager::OnEvent(event);
         m_GUIManager->ProcessEvent(event);
     }
 

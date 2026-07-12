@@ -15,7 +15,8 @@ namespace Elixir
 
     enum class EGraphicsAPI
     {
-        Vulkan
+        Vulkan,
+        D3D12
     };
 
     class ELIXIR_API GraphicsContext

@@ -6,6 +6,8 @@
 
 #include "Engine/Aether/Effect.h"
 
+using namespace Elixir;
+
 Ref<GraphicsPipeline> pipeline;
 Scope<Aether::Renderer> m_ParticlesRenderer;
 Ref<Aether::System> m_ParticleSystem;
@@ -142,7 +144,7 @@ Dissolve::Dissolve()
 
     m_GPUSystem = m_ParticleSystem->Build();
 
-    m_GraphicsContext->SetClearColor({ 0.015f, 0.025f, 0.06f, 1.0f });
+    m_GraphicsContext->SetClearColor({ 0.0f, 0.0f, 0.0f, 1.0f });
 }
 
 Dissolve::~Dissolve()
