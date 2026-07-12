@@ -14,3 +14,6 @@ vcpkg_installed/
 *.sln
 CppProperties.json
 .DS_Store
+
+# Large mesh assets (kept out of git; use Git LFS or external storage)
+Assets/Meshes/
