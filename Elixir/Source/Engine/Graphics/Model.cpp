@@ -116,12 +116,8 @@ namespace Elixir
 
         // Cache textures by (glTF texture index, sRGB) so shared textures load once.
         std::unordered_map<uint64_t, Ref<Texture>> textureCache;
-        auto resolveTexture = [&](const fastgltf::Optional<fastgltf::TextureInfo>& info, bool srgb) -> Ref<Texture>
+        auto loadTexture = [&](size_t textureIndex, bool srgb) -> Ref<Texture>
         {
-            if (!info)
-                return nullptr;
-
-            const size_t textureIndex = info->textureIndex;
             const uint64_t key = (uint64_t)textureIndex << 1 | (srgb ? 1ull : 0ull);
             if (const auto it = textureCache.find(key); it != textureCache.end())
                 return it->second;
@@ -136,6 +132,14 @@ namespace Elixir
 
             textureCache[key] = texture;
             return texture;
+        };
+
+        // KHR_texture_transform -> (uv scale.xy, uv offset.xy); identity if absent.
+        auto getTransform = [](const std::unique_ptr<fastgltf::TextureTransform>& t) -> glm::vec4
+        {
+            if (!t)
+                return glm::vec4(1.0f, 1.0f, 0.0f, 0.0f);
+            return glm::vec4(t->uvScale[0], t->uvScale[1], t->uvOffset[0], t->uvOffset[1]);
         };
 
         // Build the material table. Base-color/emissive are colour (sRGB); the
@@ -154,21 +158,32 @@ namespace Elixir
             mat.AlphaMode = material.alphaMode == fastgltf::AlphaMode::Blend ? 2
                 : material.alphaMode == fastgltf::AlphaMode::Mask ? 1 : 0;
 
-            mat.BaseColorTexture = resolveTexture(material.pbrData.baseColorTexture, true);
-            mat.MetallicRoughnessTexture = resolveTexture(material.pbrData.metallicRoughnessTexture, false);
-            mat.EmissiveTexture = resolveTexture(material.emissiveTexture, true);
-
+            if (material.pbrData.baseColorTexture)
+            {
+                mat.BaseColorTexture = loadTexture(material.pbrData.baseColorTexture->textureIndex, true);
+                mat.BaseColorTransform = getTransform(material.pbrData.baseColorTexture->transform);
+            }
+            if (material.pbrData.metallicRoughnessTexture)
+            {
+                mat.MetallicRoughnessTexture = loadTexture(material.pbrData.metallicRoughnessTexture->textureIndex, false);
+                mat.MetallicRoughnessTransform = getTransform(material.pbrData.metallicRoughnessTexture->transform);
+            }
+            if (material.emissiveTexture)
+            {
+                mat.EmissiveTexture = loadTexture(material.emissiveTexture->textureIndex, true);
+                mat.EmissiveTransform = getTransform(material.emissiveTexture->transform);
+            }
             if (material.normalTexture)
             {
                 mat.NormalScale = material.normalTexture->scale;
-                fastgltf::Optional<fastgltf::TextureInfo> info = fastgltf::TextureInfo{ material.normalTexture->textureIndex };
-                mat.NormalTexture = resolveTexture(info, false);
+                mat.NormalTexture = loadTexture(material.normalTexture->textureIndex, false);
+                mat.NormalTransform = getTransform(material.normalTexture->transform);
             }
             if (material.occlusionTexture)
             {
                 mat.OcclusionStrength = material.occlusionTexture->strength;
-                fastgltf::Optional<fastgltf::TextureInfo> info = fastgltf::TextureInfo{ material.occlusionTexture->textureIndex };
-                mat.OcclusionTexture = resolveTexture(info, false);
+                mat.OcclusionTexture = loadTexture(material.occlusionTexture->textureIndex, false);
+                mat.OcclusionTransform = getTransform(material.occlusionTexture->transform);
             }
 
             model->m_Materials.push_back(std::move(mat));
@@ -202,8 +217,20 @@ namespace Elixir
                         {
                             vertices[i].Position = { v.x(), v.y(), v.z() };
                             vertices[i].Normal = { 0.0f, 1.0f, 0.0f };
+                            vertices[i].Tangent = { 1.0f, 0.0f, 0.0f, 1.0f };
                             vertices[i].TexCoord = { 0.0f, 0.0f };
                         });
+
+                    if (const auto* tanAttr = primitive.findAttribute("TANGENT");
+                        tanAttr != primitive.attributes.end())
+                    {
+                        auto& accessor = asset.accessors[tanAttr->accessorIndex];
+                        fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec4>(
+                            asset, accessor, [&](fastgltf::math::fvec4 v, size_t i)
+                            {
+                                vertices[i].Tangent = { v.x(), v.y(), v.z(), v.w() };
+                            });
+                    }
 
                     if (const auto* normAttr = primitive.findAttribute("NORMAL");
                         normAttr != primitive.attributes.end())

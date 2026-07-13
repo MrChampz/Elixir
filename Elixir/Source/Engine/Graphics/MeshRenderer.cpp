@@ -19,6 +19,7 @@ namespace Elixir
                 {
                     { EDataType::Vec3, "Position" },
                     { EDataType::Vec3, "Normal"   },
+                    { EDataType::Vec4, "Tangent"  },
                     { EDataType::Vec2, "TexCoord" },
                 },
                 EInputRate::Vertex
@@ -100,6 +101,11 @@ namespace Elixir
                 ResolveTexture(material.EmissiveTexture));
             gpu.TexIndex1 = glm::uvec4(
                 ResolveTexture(material.OcclusionTexture), (uint32_t)material.AlphaMode, 0u, 0u);
+            gpu.BaseColorTransform = material.BaseColorTransform;
+            gpu.MetallicRoughnessTransform = material.MetallicRoughnessTransform;
+            gpu.NormalTransform = material.NormalTransform;
+            gpu.EmissiveTransform = material.EmissiveTransform;
+            gpu.OcclusionTransform = material.OcclusionTransform;
             materials.push_back(gpu);
         }
 

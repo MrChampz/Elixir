@@ -23,6 +23,7 @@ struct VSInput
 {
     float3 Position : POSITION0;
     float3 Normal   : NORMAL0;
+    float4 Tangent  : TANGENT0;
     float2 TexCoord : TEXCOORD0;
 };
 
@@ -30,6 +31,7 @@ struct VSOutput
 {
     float4 ClipPos  : SV_POSITION;
     float3 Normal   : NORMAL0;
+    float4 Tangent  : TANGENT0;
     float2 TexCoord : TEXCOORD0;
     float3 WorldPos : POSITION0;
 };
@@ -43,6 +45,7 @@ VSOutput main(VSInput input)
     output.WorldPos = worldPos.xyz;
     // Assumes uniform scale; good enough until a dedicated normal matrix.
     output.Normal = mul((float3x3)pc.Model, input.Normal);
+    output.Tangent = float4(mul((float3x3)pc.Model, input.Tangent.xyz), input.Tangent.w);
     output.TexCoord = input.TexCoord;
 
     return output;

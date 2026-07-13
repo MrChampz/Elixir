@@ -39,7 +39,12 @@ namespace Elixir
             glm::vec4 EmissiveMetallic;     // xyz = emissive, w = metallic
             glm::vec4 RoughOccNormalCutoff; // x = roughness, y = occlusion, z = normalScale, w = alphaCutoff
             glm::uvec4 TexIndex0;           // baseColor, metallicRoughness, normal, emissive
-            glm::uvec4 TexIndex1;           // occlusion, unused...
+            glm::uvec4 TexIndex1;           // occlusion, alphaMode, unused...
+            glm::vec4 BaseColorTransform;   // uv scale.xy, offset.zw
+            glm::vec4 MetallicRoughnessTransform;
+            glm::vec4 NormalTransform;
+            glm::vec4 EmissiveTransform;
+            glm::vec4 OcclusionTransform;
         };
 
         static constexpr uint32_t PUSH_CONSTANT_SIZE =

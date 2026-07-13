@@ -9,6 +9,7 @@ namespace Elixir
     {
         glm::vec3 Position;
         glm::vec3 Normal;
+        glm::vec4 Tangent; // xyz = tangent, w = handedness (bitangent sign)
         glm::vec2 TexCoord;
     };
 
@@ -30,6 +31,13 @@ namespace Elixir
         Ref<Texture> NormalTexture;
         Ref<Texture> EmissiveTexture;
         Ref<Texture> OcclusionTexture;
+
+        // KHR_texture_transform per texture: xy = uv scale, zw = uv offset.
+        glm::vec4 BaseColorTransform{ 1.0f, 1.0f, 0.0f, 0.0f };
+        glm::vec4 MetallicRoughnessTransform{ 1.0f, 1.0f, 0.0f, 0.0f };
+        glm::vec4 NormalTransform{ 1.0f, 1.0f, 0.0f, 0.0f };
+        glm::vec4 EmissiveTransform{ 1.0f, 1.0f, 0.0f, 0.0f };
+        glm::vec4 OcclusionTransform{ 1.0f, 1.0f, 0.0f, 0.0f };
     };
 
     // One drawable chunk: a vertex/index buffer pair with the world transform of
