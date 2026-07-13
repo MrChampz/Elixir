@@ -269,7 +269,85 @@ namespace Elixir::Vulkan
             SBufferImageCopy regions[] = { copyRegion };
             this->CopyFrom(cmd, stagingBuffer, regions);
 
-            this->Transition(cmd.get(), info.InitialLayout);
+            if (this->GetMipLevels() > 1)
+            {
+                // Generate the mip chain by successively half-scale blitting each
+                // level into the next, then leave every level in the final layout.
+                const VkCommandBuffer vkCmd = vk_Cmd->GetVulkanCommandBuffer();
+                const uint32_t mipLevels = this->GetMipLevels();
+                const uint32_t layers = this->GetArrayLayers();
+                const VkImageLayout finalLayout = Converters::GetImageLayout(info.InitialLayout);
+                int32_t mipW = (int32_t)this->GetExtent().Width;
+                int32_t mipH = (int32_t)this->GetExtent().Height;
+
+                VkImageMemoryBarrier barrier{};
+                barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                barrier.image = m_Image;
+                barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                barrier.subresourceRange.baseArrayLayer = 0;
+                barrier.subresourceRange.layerCount = layers;
+                barrier.subresourceRange.levelCount = 1;
+
+                for (uint32_t i = 1; i < mipLevels; ++i)
+                {
+                    barrier.subresourceRange.baseMipLevel = i - 1;
+                    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+                    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+                    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+                    barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+                    vkCmdPipelineBarrier(vkCmd,
+                        VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
+                        0, nullptr, 0, nullptr, 1, &barrier);
+
+                    const int32_t nextW = mipW > 1 ? mipW / 2 : 1;
+                    const int32_t nextH = mipH > 1 ? mipH / 2 : 1;
+
+                    VkImageBlit blit{};
+                    blit.srcOffsets[1] = { mipW, mipH, 1 };
+                    blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                    blit.srcSubresource.mipLevel = i - 1;
+                    blit.srcSubresource.baseArrayLayer = 0;
+                    blit.srcSubresource.layerCount = layers;
+                    blit.dstOffsets[1] = { nextW, nextH, 1 };
+                    blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                    blit.dstSubresource.mipLevel = i;
+                    blit.dstSubresource.baseArrayLayer = 0;
+                    blit.dstSubresource.layerCount = layers;
+                    vkCmdBlitImage(vkCmd,
+                        m_Image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                        m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                        1, &blit, VK_FILTER_LINEAR);
+
+                    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+                    barrier.newLayout = finalLayout;
+                    barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+                    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                    vkCmdPipelineBarrier(vkCmd,
+                        VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
+                        0, nullptr, 0, nullptr, 1, &barrier);
+
+                    mipW = nextW;
+                    mipH = nextH;
+                }
+
+                barrier.subresourceRange.baseMipLevel = mipLevels - 1;
+                barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+                barrier.newLayout = finalLayout;
+                barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+                barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                vkCmdPipelineBarrier(vkCmd,
+                    VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
+                    0, nullptr, 0, nullptr, 1, &barrier);
+
+                this->m_Layout = info.InitialLayout;
+            }
+            else
+            {
+                this->Transition(cmd.get(), info.InitialLayout);
+            }
+
             cmd->Flush();
 
             stagingBuffer->Destroy();

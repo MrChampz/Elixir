@@ -28,7 +28,13 @@ namespace Elixir
             uint32_t EnvIndex = 0xffffffffu;
             uint32_t IrradianceIndex = 0xffffffffu;
             float EnvIntensity = 1.0f;
-            float _Padding2 = 0.0f;
+            float EnvMaxLod = 0.0f;
+            uint32_t PrefIndex = 0xffffffffu;
+            float _Padding3 = 0.0f;
+            float _Padding4 = 0.0f;
+            float _Padding5 = 0.0f;
+            glm::vec4 LightDirection = glm::vec4(0.0f); // xyz = direction TO the light
+            glm::vec4 LightColor = glm::vec4(0.0f);     // rgb = color, w = intensity
         };
 
         struct SModelPushConstants
@@ -50,6 +56,8 @@ namespace Elixir
             glm::vec4 NormalTransform;
             glm::vec4 EmissiveTransform;
             glm::vec4 OcclusionTransform;
+            glm::vec4 Clearcoat;            // x = factor, y = roughness
+            glm::vec4 Specular;            // rgb = specular color factor, w = specular factor
         };
 
         static constexpr uint32_t PUSH_CONSTANT_SIZE =
@@ -75,6 +83,8 @@ namespace Elixir
         Ref<Environment> m_Environment;
         uint32_t m_EnvIndex = 0xffffffffu;
         uint32_t m_IrradianceIndex = 0xffffffffu;
+        uint32_t m_PrefIndex = 0xffffffffu;
+        float m_EnvMaxLod = 0.0f;
 
         std::unordered_map<const Model*, Ref<StorageBuffer>> m_MaterialBuffers;
         const Model* m_BoundModel = nullptr;

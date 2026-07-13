@@ -54,7 +54,7 @@ namespace Elixir
         m_TransparentPipeline = GraphicsPipeline::Create(m_GraphicsContext, blendInfo);
 
         m_FrameBuffer = UniformBuffer::Create(context, sizeof(SFrameData), &m_FrameData);
-        m_Sampler = SamplerBuilder().Build(context);
+        m_Sampler = SamplerBuilder().SetMaxLod(16.0f).Build(context);
         m_Textures = TextureSet::Create(context);
 
         // A 1x1 white texture keeps the bindless array non-empty; missing maps use
@@ -70,11 +70,19 @@ namespace Elixir
 
         // Load the HDR environment and register its maps in the bindless set so
         // the shader can sample them for image-based lighting.
-        m_Environment = Environment::Load(context, "./Assets/Textures/sunset_meadow_path_2k.hdr");
+        m_Environment = Environment::Load(context, "./Assets/Textures/white_home_studio_2k.hdr");
         if (m_Environment)
         {
-            m_EnvIndex = m_Textures->AddTexture(m_Environment->GetEnvironment()).Index;
+            const auto& env = m_Environment->GetEnvironment();
+            m_EnvIndex = m_Textures->AddTexture(env).Index;
             m_IrradianceIndex = m_Textures->AddTexture(m_Environment->GetIrradiance()).Index;
+            m_PrefIndex = m_Textures->AddTexture(m_Environment->GetPrefiltered()).Index;
+
+            // Highest mip index of the env map, used by the shader to map roughness
+            // to a prefilter LOD.
+            const auto extent = env->GetExtent();
+            const uint32_t maxDim = std::max(extent.Width, extent.Height);
+            m_EnvMaxLod = std::floor(std::log2((float)maxDim));
         }
     }
 
@@ -109,12 +117,15 @@ namespace Elixir
                 ResolveTexture(material.NormalTexture),
                 ResolveTexture(material.EmissiveTexture));
             gpu.TexIndex1 = glm::uvec4(
-                ResolveTexture(material.OcclusionTexture), (uint32_t)material.AlphaMode, 0u, 0u);
+                ResolveTexture(material.OcclusionTexture), (uint32_t)material.AlphaMode,
+                ResolveTexture(material.SpecularTexture), ResolveTexture(material.SpecularColorTexture));
             gpu.BaseColorTransform = material.BaseColorTransform;
             gpu.MetallicRoughnessTransform = material.MetallicRoughnessTransform;
             gpu.NormalTransform = material.NormalTransform;
             gpu.EmissiveTransform = material.EmissiveTransform;
             gpu.OcclusionTransform = material.OcclusionTransform;
+            gpu.Clearcoat = glm::vec4(material.ClearcoatFactor, material.ClearcoatRoughness, 0.0f, 0.0f);
+            gpu.Specular = glm::vec4(material.SpecularColorFactor, material.SpecularFactor);
             materials.push_back(gpu);
         }
 
@@ -147,7 +158,13 @@ namespace Elixir
         m_FrameData.CameraPos = camera.GetPosition();
         m_FrameData.EnvIndex = m_EnvIndex;
         m_FrameData.IrradianceIndex = m_IrradianceIndex;
-        m_FrameData.EnvIntensity = 1.0f;
+        m_FrameData.EnvIntensity = 0.6f;
+        m_FrameData.EnvMaxLod = m_EnvMaxLod;
+        m_FrameData.PrefIndex = m_PrefIndex;
+
+        // Directional "sun": a warm key light roughly matching the sunset HDR.
+        m_FrameData.LightDirection = glm::vec4(glm::normalize(glm::vec3(-0.5f, 0.65f, -0.55f)), 0.0f);
+        m_FrameData.LightColor = glm::vec4(1.0f, 0.96f, 0.9f, 1.4f);
         m_FrameBuffer->UpdateData(&m_FrameData, sizeof(SFrameData));
 
         const auto cmd = m_GraphicsContext->GetSecondaryCommandBuffer();
@@ -183,9 +200,16 @@ namespace Elixir
             cmd->DrawIndexed(primitive.IndexCount, 1, 0, 0, 0);
         };
 
+        // Treat only genuinely translucent materials as blend. Materials flagged
+        // BLEND but with near-opaque base alpha (e.g. the emissive DRL housing at
+        // 0.99) are effectively opaque; routing them through the unsorted blend pass
+        // just lets later transparent layers overdraw them and swallow their glow.
         const auto isBlend = [&](const SModelPrimitive& p)
         {
-            return p.MaterialIndex < materials.size() && materials[p.MaterialIndex].AlphaMode == 2;
+            if (p.MaterialIndex >= materials.size())
+                return false;
+            const auto& m = materials[p.MaterialIndex];
+            return m.AlphaMode == 2 && m.BaseColorFactor.a < 0.95f;
         };
 
         // Opaque + masked first (depth write), then blended on top (no depth

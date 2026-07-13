@@ -99,9 +99,14 @@ namespace Elixir
 
         const auto dir = path.parent_path();
 
-        // KHR_texture_transform must be enabled explicitly or the parser drops it
-        // (leaving every TextureInfo::transform null -> textures render untiled).
-        fastgltf::Parser parser(fastgltf::Extensions::KHR_texture_transform);
+        // Extensions must be enabled explicitly or the parser drops them
+        // (KHR_texture_transform: textures render untiled; emissive_strength:
+        // emissive intensity multiplier is lost).
+        fastgltf::Parser parser(
+            fastgltf::Extensions::KHR_texture_transform |
+            fastgltf::Extensions::KHR_materials_emissive_strength |
+            fastgltf::Extensions::KHR_materials_clearcoat |
+            fastgltf::Extensions::KHR_materials_specular);
         constexpr auto options =
             fastgltf::Options::LoadExternalBuffers | fastgltf::Options::LoadGLBBuffers;
 
@@ -153,12 +158,29 @@ namespace Elixir
             const auto& bcf = material.pbrData.baseColorFactor;
             mat.BaseColorFactor = { bcf.x(), bcf.y(), bcf.z(), bcf.w() };
             const auto& ef = material.emissiveFactor;
-            mat.EmissiveFactor = { ef.x(), ef.y(), ef.z() };
+            mat.EmissiveFactor = glm::vec3(ef.x(), ef.y(), ef.z()) * material.emissiveStrength;
             mat.MetallicFactor = material.pbrData.metallicFactor;
             mat.RoughnessFactor = material.pbrData.roughnessFactor;
             mat.AlphaCutoff = material.alphaCutoff;
             mat.AlphaMode = material.alphaMode == fastgltf::AlphaMode::Blend ? 2
                 : material.alphaMode == fastgltf::AlphaMode::Mask ? 1 : 0;
+
+            if (material.clearcoat)
+            {
+                mat.ClearcoatFactor = material.clearcoat->clearcoatFactor;
+                mat.ClearcoatRoughness = material.clearcoat->clearcoatRoughnessFactor;
+            }
+
+            if (material.specular)
+            {
+                mat.SpecularFactor = material.specular->specularFactor;
+                const auto& scf = material.specular->specularColorFactor;
+                mat.SpecularColorFactor = glm::vec3(scf.x(), scf.y(), scf.z());
+                if (material.specular->specularTexture)
+                    mat.SpecularTexture = loadTexture(material.specular->specularTexture->textureIndex, false);
+                if (material.specular->specularColorTexture)
+                    mat.SpecularColorTexture = loadTexture(material.specular->specularColorTexture->textureIndex, true);
+            }
 
             if (material.pbrData.baseColorTexture)
             {

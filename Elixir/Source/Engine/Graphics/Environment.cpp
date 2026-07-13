@@ -35,6 +35,23 @@ namespace Elixir
         return (float)bits * 2.3283064365386963e-10f;
     }
 
+    // GGX/Trowbridge-Reitz importance sample: map a 2D low-discrepancy point to a
+    // half-vector around N for the given roughness (matches the shader BRDF).
+    static glm::vec3 ImportanceSampleGGX(float xi0, float xi1, const glm::vec3& N, float roughness)
+    {
+        const float a = roughness * roughness;
+        const float phi = 6.28318530718f * xi0;
+        const float cosTheta = std::sqrt((1.0f - xi1) / (1.0f + (a * a - 1.0f) * xi1));
+        const float sinTheta = std::sqrt(std::max(0.0f, 1.0f - cosTheta * cosTheta));
+
+        const glm::vec3 H(sinTheta * std::cos(phi), sinTheta * std::sin(phi), cosTheta);
+
+        const glm::vec3 up = std::abs(N.z) < 0.999f ? glm::vec3(0, 0, 1) : glm::vec3(1, 0, 0);
+        const glm::vec3 T = glm::normalize(glm::cross(up, N));
+        const glm::vec3 B = glm::cross(N, T);
+        return glm::normalize(T * H.x + B * H.y + N * H.z);
+    }
+
     Ref<Environment> Environment::Load(const GraphicsContext* context, const std::filesystem::path& hdrPath)
     {
         int w = 0, h = 0, channels = 0;
@@ -86,6 +103,53 @@ namespace Elixir
 
         environment->m_Irradiance = Texture2D::Create(
             context, EImageFormat::R32G32B32A32_SFLOAT, IW, IH, irradiance.data());
+
+        // Bake the GGX-prefiltered specular map: an equirect atlas of PrefilterLevels
+        // blocks stacked vertically, each importance-sampled for its roughness. Unlike
+        // a box-mip chain, every level is a smooth specular-lobe convolution, so even
+        // heavily-blurred (matte) reflections read smooth instead of blocky.
+        constexpr int PW = PrefilterWidth, PH = PrefilterHeight, PL = PrefilterLevels;
+        constexpr uint32_t PSAMPLES = 256;
+        std::vector<glm::vec4> prefiltered((size_t)PW * PH * PL);
+
+        for (int level = 0; level < PL; ++level)
+        {
+            const float roughness = (float)level / (PL - 1);
+            for (int y = 0; y < PH; ++y)
+            {
+                for (int x = 0; x < PW; ++x)
+                {
+                    const float u = (x + 0.5f) / PW;
+                    const float v = (y + 0.5f) / PH;
+                    const glm::vec3 N = glm::normalize(EquirectToDir(u, v));
+                    const glm::vec3 V = N; // isotropic assumption: V = R = N
+
+                    glm::vec3 sum(0.0f);
+                    float totalWeight = 0.0f;
+                    for (uint32_t i = 0; i < PSAMPLES; ++i)
+                    {
+                        const float xi0 = (float)i / PSAMPLES;
+                        const float xi1 = RadicalInverse(i);
+                        const glm::vec3 H = ImportanceSampleGGX(xi0, xi1, N, roughness);
+                        const glm::vec3 L = glm::normalize(2.0f * glm::dot(V, H) * H - V);
+                        const float NdotL = std::max(glm::dot(N, L), 0.0f);
+                        if (NdotL > 0.0f)
+                        {
+                            sum += SampleEquirect(pixels, w, h, L) * NdotL;
+                            totalWeight += NdotL;
+                        }
+                    }
+
+                    const glm::vec3 color = totalWeight > 0.0f
+                        ? sum / totalWeight
+                        : SampleEquirect(pixels, w, h, N);
+                    prefiltered[((size_t)level * PH + y) * PW + x] = glm::vec4(color, 1.0f);
+                }
+            }
+        }
+
+        environment->m_Prefiltered = Texture2D::Create(
+            context, EImageFormat::R32G32B32A32_SFLOAT, PW, PH * PL, prefiltered.data());
 
         stbi_image_free(pixels);
 

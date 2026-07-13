@@ -95,13 +95,30 @@ namespace Elixir
         const void* data
     )
     {
+        // Generate a full mip chain for uploaded textures so minified sampling
+        // (tiled detail/normal maps) is filtered instead of aliasing, and so the
+        // HDR environment can be roughness-prefiltered by sampling coarser mips.
+        // Restricted to formats that support a linear blit on this device.
+        const bool wantMips = data != nullptr
+            && (format == EImageFormat::R8G8B8A8_SRGB
+                || format == EImageFormat::R8G8B8A8_UNORM
+                || format == EImageFormat::R32G32B32A32_SFLOAT);
+        const uint32_t mipLevels = wantMips
+            ? (uint32_t)std::floor(std::log2((float)std::max(width, height))) + 1u
+            : 1u;
+
+        auto usage = EImageUsage::Sampled | EImageUsage::TransferDst;
+        if (wantMips)
+            usage |= EImageUsage::TransferSrc;
+
         return {
             .InitialData = data,
             .Width = width,
             .Height = height,
             .Type = EImageType::_2D,
             .Format = format,
-            .Usage = EImageUsage::Sampled | EImageUsage::TransferDst,
+            .MipLevels = mipLevels,
+            .Usage = usage,
             .InitialLayout = EImageLayout::ShaderReadOnly,
             .AllocationInfo = {
                 .RequiredFlags = EMemoryProperty::DeviceLocal
