@@ -118,7 +118,8 @@ namespace Elixir::Vulkan
         {
             depthStencilInfo = Initializers::DepthStencilAttachmentInfo(
                 info.DepthStencilAttachment,
-                info.DepthClearValue
+                info.DepthClearValue,
+                info.LoadDepthStencil
             );
         }
 

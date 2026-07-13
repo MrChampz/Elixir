@@ -56,6 +56,13 @@ namespace Elixir
         virtual Ref<CommandBuffer> GetUploadCommandBuffer() const = 0;
         virtual void EnqueueSecondaryCommandBuffer(const Ref<CommandBuffer>& cmd) const = 0;
 
+        /**
+         * Blits the current render target into @p dst (a sampled texture), inserting
+         * the barriers needed to read it in a subsequent pass. Used to grab the scene
+         * colour for screen-space effects like refractive glass.
+         */
+        virtual void BlitToTexture(const Ref<CommandBuffer>& cmd, const Ref<Texture2D>& dst) const = 0;
+
         [[nodiscard]] EGraphicsAPI GetAPI() const { return m_API; }
 
         const Window* GetWindow() const { return m_Window; }

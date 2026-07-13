@@ -15,12 +15,12 @@ cbuffer cbFrame : register(b0)
     uint IrradianceIndex;
     float EnvIntensity;
     float EnvMaxLod; // highest mip level of the environment map
-    uint PrefIndex;  // GGX-prefiltered specular atlas
-    float _Padding3;
-    float _Padding4;
-    float _Padding5;
-    float4 LightDirection; // xyz = direction TO the light
-    float4 LightColor;     // rgb = color, w = intensity
+    uint PrefIndex;         // GGX-prefiltered specular atlas
+    uint SceneColorIndex;   // grabbed scene colour for refraction
+    float ScreenWidth;
+    float ScreenHeight;
+    float4 LightDirection;  // xyz = direction TO the light
+    float4 LightColor;      // rgb = color, w = intensity
 };
 
 [[vk::binding(1, 0)]]
@@ -358,6 +358,26 @@ float4 main(PSInput input) : SV_Target0
     }
 
     color = ACESFilm(color);
+
+    // Screen-space refraction (glass transmission): composite the grabbed scene
+    // colour from behind the surface, nudged by the view-space normal to fake
+    // refraction and tinted by the glass colour. A Fresnel term keeps the
+    // reflection at grazing angles and transmits head-on. Done after tonemap since
+    // the grabbed scene is already display-space.
+    float transmission = mat.Clearcoat.z;
+    if (transmission > 0.0f && SceneColorIndex != NO_TEXTURE)
+    {
+        float2 uv = input.ClipPos.xy / float2(ScreenWidth, ScreenHeight);
+        float3 viewN = mul((float3x3)View, N);
+        uv += viewN.xy * float2(0.05f, -0.05f);
+        float3 behind = textures[SceneColorIndex].SampleLevel(texSampler, saturate(uv), 0).rgb;
+
+        float3 tint = lerp(float3(1.0f, 1.0f, 1.0f), baseColor.rgb, 0.25f);
+        behind *= tint;
+
+        float fresnel = 0.04f + 0.96f * pow(saturate(1.0f - NdotV), 5.0f);
+        color = lerp(color, behind, transmission * (1.0f - fresnel));
+    }
 
     return float4(color, baseColor.a);
 }

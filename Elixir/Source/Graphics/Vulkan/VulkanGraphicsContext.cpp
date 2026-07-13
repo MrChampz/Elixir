@@ -579,6 +579,31 @@ namespace Elixir
         return true;
     }
 
+    void VulkanGraphicsContext::BlitToTexture(const Ref<CommandBuffer>& cmd, const Ref<Texture2D>& dst) const
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        const auto vkCmd = std::static_pointer_cast<VulkanCommandBuffer>(cmd)->GetVulkanCommandBuffer();
+        const auto src = TryToGetVulkanImage(m_RenderTarget.get())->GetVulkanImage();
+        const auto dstImage = TryToGetVulkanImage(dst.get())->GetVulkanImage();
+
+        // Render target lives in GENERAL; the sampled dst in SHADER_READ_ONLY. Move
+        // both to transfer layouts, blit, then restore so the dst can be sampled and
+        // the render target rendered into again by the next pass.
+        CommandUtils::TransitionImage(vkCmd, src,
+            VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+        CommandUtils::TransitionImage(vkCmd, dstImage,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+
+        CommandUtils::CopyImageToImage(vkCmd, src, dstImage,
+            GetExtent3D(m_RenderTarget->GetExtent()), GetExtent3D(dst->GetExtent()));
+
+        CommandUtils::TransitionImage(vkCmd, src,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT);
+        CommandUtils::TransitionImage(vkCmd, dstImage,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+    }
+
     void VulkanGraphicsContext::Submit()
     {
         EE_PROFILE_ZONE_SCOPED()

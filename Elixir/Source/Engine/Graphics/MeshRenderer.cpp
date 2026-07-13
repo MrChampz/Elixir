@@ -124,7 +124,12 @@ namespace Elixir
             gpu.NormalTransform = material.NormalTransform;
             gpu.EmissiveTransform = material.EmissiveTransform;
             gpu.OcclusionTransform = material.OcclusionTransform;
-            gpu.Clearcoat = glm::vec4(material.ClearcoatFactor, material.ClearcoatRoughness, 0.0f, 0.0f);
+            // The model has no KHR_materials_transmission, so treat its translucent
+            // (BLEND, sub-opaque) glass as refractive: it samples the grabbed scene
+            // instead of alpha-blending. Packed into Clearcoat.z.
+            const float transmission =
+                (material.AlphaMode == 2 && material.BaseColorFactor.a < 0.95f) ? 0.9f : 0.0f;
+            gpu.Clearcoat = glm::vec4(material.ClearcoatFactor, material.ClearcoatRoughness, transmission, 0.0f);
             gpu.Specular = glm::vec4(material.SpecularColorFactor, material.SpecularFactor);
             materials.push_back(gpu);
         }
@@ -152,6 +157,16 @@ namespace Elixir
 
         const auto extent = m_GraphicsContext->GetRenderTarget()->GetExtent();
 
+        // (Re)create the scene-colour grab target to match the render target; glass
+        // samples it to refract the scene behind it.
+        if (!m_SceneColor || m_SceneColorExtent.Width != extent.Width || m_SceneColorExtent.Height != extent.Height)
+        {
+            m_SceneColor = Texture2D::Create(
+                m_GraphicsContext, EImageFormat::R8G8B8A8_SRGB, extent.Width, extent.Height, nullptr);
+            m_SceneColorIndex = m_Textures->AddTexture(m_SceneColor).Index;
+            m_SceneColorExtent = { extent.Width, extent.Height, 1 };
+        }
+
         m_FrameData.View = camera.GetViewMatrix();
         m_FrameData.Proj = camera.GetProjectionMatrix();
         m_FrameData.ViewProj = camera.GetViewProjectionMatrix();
@@ -161,6 +176,9 @@ namespace Elixir
         m_FrameData.EnvIntensity = 0.6f;
         m_FrameData.EnvMaxLod = m_EnvMaxLod;
         m_FrameData.PrefIndex = m_PrefIndex;
+        m_FrameData.SceneColorIndex = m_SceneColorIndex;
+        m_FrameData.ScreenWidth = (float)extent.Width;
+        m_FrameData.ScreenHeight = (float)extent.Height;
 
         // Directional "sun": a warm key light roughly matching the sunset HDR.
         m_FrameData.LightDirection = glm::vec4(glm::normalize(glm::vec3(-0.5f, 0.65f, -0.55f)), 0.0f);
@@ -212,20 +230,31 @@ namespace Elixir
             return m.AlphaMode == 2 && m.BaseColorFactor.a < 0.95f;
         };
 
-        // Opaque + masked first (depth write), then blended on top (no depth
-        // write). Blended primitives aren't sorted yet -- fine for a clearcoat
-        // shell over opaque paint.
+        // Pass 1: everything that isn't refractive glass (opaque + masked + the
+        // near-opaque emissive parts), with depth write.
         m_Pipeline->Bind(cmd);
         for (const auto& primitive : model->GetPrimitives())
             if (!isBlend(primitive))
                 drawPrimitive(primitive);
+        cmd->EndRendering();
 
-        m_TransparentPipeline->Bind(cmd);
+        // Grab the opaque result so the glass can sample the scene behind it.
+        m_GraphicsContext->BlitToTexture(cmd, m_SceneColor);
+
+        // Pass 2: refractive glass. Drawn opaque (no alpha blend) -- the shader
+        // composites the grabbed scene through it -- so it reads as real glass.
+        // Load (don't clear) the opaque depth so the glass is occluded correctly.
+        SRenderingInfo glassInfo = renderingInfo;
+        glassInfo.LoadDepthStencil = true;
+        cmd->BeginRendering(glassInfo);
+        cmd->SetViewports({ viewport });
+        cmd->SetScissors({ scissor });
+        m_Pipeline->Bind(cmd);
         for (const auto& primitive : model->GetPrimitives())
             if (isBlend(primitive))
                 drawPrimitive(primitive);
-
         cmd->EndRendering();
+
         m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
     }
 }

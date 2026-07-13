@@ -30,9 +30,9 @@ namespace Elixir
             float EnvIntensity = 1.0f;
             float EnvMaxLod = 0.0f;
             uint32_t PrefIndex = 0xffffffffu;
-            float _Padding3 = 0.0f;
-            float _Padding4 = 0.0f;
-            float _Padding5 = 0.0f;
+            uint32_t SceneColorIndex = 0xffffffffu; // grabbed scene colour for refraction
+            float ScreenWidth = 1.0f;
+            float ScreenHeight = 1.0f;
             glm::vec4 LightDirection = glm::vec4(0.0f); // xyz = direction TO the light
             glm::vec4 LightColor = glm::vec4(0.0f);     // rgb = color, w = intensity
         };
@@ -85,6 +85,11 @@ namespace Elixir
         uint32_t m_IrradianceIndex = 0xffffffffu;
         uint32_t m_PrefIndex = 0xffffffffu;
         float m_EnvMaxLod = 0.0f;
+
+        // Grabbed scene colour (opaque pass) that refractive glass samples.
+        Ref<Texture2D> m_SceneColor;
+        uint32_t m_SceneColorIndex = 0xffffffffu;
+        Extent3D m_SceneColorExtent{};
 
         std::unordered_map<const Model*, Ref<StorageBuffer>> m_MaterialBuffers;
         const Model* m_BoundModel = nullptr;

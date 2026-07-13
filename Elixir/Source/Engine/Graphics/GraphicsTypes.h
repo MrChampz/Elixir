@@ -237,6 +237,7 @@ namespace Elixir
         Ref<Image> ColorAttachment;
         Ref<DepthStencilImage> DepthStencilAttachment = nullptr;
         float DepthClearValue = 1.0f;
+        bool LoadDepthStencil = false; // preserve existing depth instead of clearing
         Extent2D RenderArea;
     };
 }

@@ -141,6 +141,7 @@ namespace Elixir::Vulkan::Initializers
     static VkRenderingAttachmentInfo DepthStencilAttachmentInfo(
         const Ref<DepthStencilImage>& image,
         const float depthClearValue = 1.0f,
+        const bool load = false,
         const VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED
     )
     {
@@ -153,7 +154,7 @@ namespace Elixir::Vulkan::Initializers
         info.imageLayout = layout == VK_IMAGE_LAYOUT_UNDEFINED
             ? Converters::GetImageLayout(image->GetLayout())
             : layout;
-        info.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        info.loadOp = load ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_CLEAR;
         info.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
         info.clearValue.depthStencil = { depthClearValue, 0 };
 
