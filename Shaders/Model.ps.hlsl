@@ -370,7 +370,29 @@ float4 main(PSInput input) : SV_Target0
         float2 uv = input.ClipPos.xy / float2(ScreenWidth, ScreenHeight);
         float3 viewN = mul((float3x3)View, N);
         uv += viewN.xy * float2(0.05f, -0.05f);
-        float3 behind = textures[SceneColorIndex].SampleLevel(texSampler, saturate(uv), 0).rgb;
+
+        // Frosted glass: rough surfaces scatter the transmitted light, so blur the
+        // grabbed scene with a Vogel disk whose radius grows with roughness. Smooth
+        // glass (roughness ~0) takes a single sharp tap.
+        float3 behind;
+        if (roughness < 0.1f)
+        {
+            behind = textures[SceneColorIndex].SampleLevel(texSampler, saturate(uv), 0).rgb;
+        }
+        else
+        {
+            float radius = roughness * 0.06f;
+            float3 sum = float3(0.0f, 0.0f, 0.0f);
+            const int N = 8;
+            [unroll] for (int i = 0; i < N; ++i)
+            {
+                float r = sqrt((i + 0.5f) / N) * radius;
+                float a = i * 2.39996323f;
+                float2 off = float2(cos(a), sin(a)) * r;
+                sum += textures[SceneColorIndex].SampleLevel(texSampler, saturate(uv + off), 0).rgb;
+            }
+            behind = sum / N;
+        }
 
         float3 tint = lerp(float3(1.0f, 1.0f, 1.0f), baseColor.rgb, 0.25f);
         behind *= tint;
