@@ -12,16 +12,35 @@ namespace Elixir
         glm::vec2 TexCoord;
     };
 
-    // One drawable chunk of a model: a vertex/index buffer pair with the world
-    // transform of its node and its (flattened) base-color material.
+    // A flattened glTF metallic-roughness material. Textures are already loaded
+    // in the correct colour space (base-color/emissive sRGB, the rest linear).
+    struct SModelMaterial
+    {
+        glm::vec4 BaseColorFactor{ 1.0f };
+        glm::vec3 EmissiveFactor{ 0.0f };
+        float MetallicFactor = 1.0f;
+        float RoughnessFactor = 1.0f;
+        float OcclusionStrength = 1.0f;
+        float NormalScale = 1.0f;
+        float AlphaCutoff = 0.5f;
+        int AlphaMode = 0; // 0 = opaque, 1 = mask, 2 = blend
+
+        Ref<Texture> BaseColorTexture;
+        Ref<Texture> MetallicRoughnessTexture;
+        Ref<Texture> NormalTexture;
+        Ref<Texture> EmissiveTexture;
+        Ref<Texture> OcclusionTexture;
+    };
+
+    // One drawable chunk: a vertex/index buffer pair with the world transform of
+    // its node and an index into the model's material table.
     struct SModelPrimitive
     {
         Ref<VertexBuffer> Vertices;
         Ref<IndexBuffer> Indices;
         uint32_t IndexCount = 0;
         glm::mat4 Transform{ 1.0f };
-        Ref<Texture> BaseColorTexture; // nullable
-        glm::vec4 BaseColorFactor{ 1.0f };
+        uint32_t MaterialIndex = 0;
     };
 
     // A glTF/glb model loaded into GPU buffers. Loading flattens the node
@@ -32,8 +51,10 @@ namespace Elixir
         static Ref<Model> Load(const GraphicsContext* context, const std::filesystem::path& path);
 
         [[nodiscard]] const std::vector<SModelPrimitive>& GetPrimitives() const { return m_Primitives; }
+        [[nodiscard]] const std::vector<SModelMaterial>& GetMaterials() const { return m_Materials; }
 
       private:
         std::vector<SModelPrimitive> m_Primitives;
+        std::vector<SModelMaterial> m_Materials;
     };
 }

@@ -20,8 +20,9 @@ namespace Elixir
         return r;
     }
 
-    // Decode compressed image bytes (png/jpg) into an RGBA sRGB texture.
-    static Ref<Texture> DecodeImage(const GraphicsContext* context, const std::byte* bytes, size_t size)
+    // Decode compressed image bytes (png/jpg) into an RGBA texture.
+    static Ref<Texture> DecodeImage(
+        const GraphicsContext* context, const std::byte* bytes, size_t size, EImageFormat format)
     {
         int w = 0, h = 0, channels = 0;
         stbi_uc* pixels = stbi_load_from_memory(
@@ -32,8 +33,7 @@ namespace Elixir
             return nullptr;
         }
 
-        auto texture = Texture2D::Create(
-            context, EImageFormat::R8G8B8A8_SRGB, (uint32_t)w, (uint32_t)h, pixels);
+        auto texture = Texture2D::Create(context, format, (uint32_t)w, (uint32_t)h, pixels);
         stbi_image_free(pixels);
         return texture;
     }
@@ -43,7 +43,8 @@ namespace Elixir
         const GraphicsContext* context,
         fastgltf::Asset& asset,
         size_t imageIndex,
-        const std::filesystem::path& dir)
+        const std::filesystem::path& dir,
+        EImageFormat format)
     {
         Ref<Texture> result;
         auto& image = asset.images[imageIndex];
@@ -54,17 +55,17 @@ namespace Elixir
             {
                 const auto imagePath = dir / uri.uri.fspath();
                 if (std::filesystem::exists(imagePath))
-                    result = TextureLoader::Load(imagePath);
+                    result = TextureLoader::Load(imagePath, format);
                 else
                     EE_CORE_WARN("glTF texture not found: {0}", imagePath.string());
             },
             [&](fastgltf::sources::Array& arr)
             {
-                result = DecodeImage(context, arr.bytes.data(), arr.bytes.size());
+                result = DecodeImage(context, arr.bytes.data(), arr.bytes.size(), format);
             },
             [&](fastgltf::sources::Vector& vec)
             {
-                result = DecodeImage(context, vec.bytes.data(), vec.bytes.size());
+                result = DecodeImage(context, vec.bytes.data(), vec.bytes.size(), format);
             },
             [&](fastgltf::sources::BufferView& view)
             {
@@ -74,11 +75,11 @@ namespace Elixir
                     [](auto&) {},
                     [&](fastgltf::sources::Array& arr)
                     {
-                        result = DecodeImage(context, arr.bytes.data() + bufferView.byteOffset, bufferView.byteLength);
+                        result = DecodeImage(context, arr.bytes.data() + bufferView.byteOffset, bufferView.byteLength, format);
                     },
                     [&](fastgltf::sources::Vector& vec)
                     {
-                        result = DecodeImage(context, vec.bytes.data() + bufferView.byteOffset, bufferView.byteLength);
+                        result = DecodeImage(context, vec.bytes.data() + bufferView.byteOffset, bufferView.byteLength, format);
                     },
                 }, buffer.data);
             },
@@ -113,21 +114,69 @@ namespace Elixir
         fastgltf::Asset& asset = assetResult.get();
         auto model = CreateRef<Model>();
 
-        // Cache textures by glTF texture index so shared materials load once.
-        std::unordered_map<size_t, Ref<Texture>> textureCache;
-        auto resolveTexture = [&](size_t textureIndex) -> Ref<Texture>
+        // Cache textures by (glTF texture index, sRGB) so shared textures load once.
+        std::unordered_map<uint64_t, Ref<Texture>> textureCache;
+        auto resolveTexture = [&](const fastgltf::Optional<fastgltf::TextureInfo>& info, bool srgb) -> Ref<Texture>
         {
-            if (const auto it = textureCache.find(textureIndex); it != textureCache.end())
+            if (!info)
+                return nullptr;
+
+            const size_t textureIndex = info->textureIndex;
+            const uint64_t key = (uint64_t)textureIndex << 1 | (srgb ? 1ull : 0ull);
+            if (const auto it = textureCache.find(key); it != textureCache.end())
                 return it->second;
 
             Ref<Texture> texture;
             const auto& gltfTexture = asset.textures[textureIndex];
             if (gltfTexture.imageIndex)
-                texture = LoadImage(context, asset, *gltfTexture.imageIndex, dir);
+            {
+                const auto format = srgb ? EImageFormat::R8G8B8A8_SRGB : EImageFormat::R8G8B8A8_UNORM;
+                texture = LoadImage(context, asset, *gltfTexture.imageIndex, dir, format);
+            }
 
-            textureCache[textureIndex] = texture;
+            textureCache[key] = texture;
             return texture;
         };
+
+        // Build the material table. Base-color/emissive are colour (sRGB); the
+        // metallic-roughness, normal and occlusion maps are data (linear).
+        model->m_Materials.reserve(asset.materials.size() + 1);
+        for (auto& material : asset.materials)
+        {
+            SModelMaterial mat;
+            const auto& bcf = material.pbrData.baseColorFactor;
+            mat.BaseColorFactor = { bcf.x(), bcf.y(), bcf.z(), bcf.w() };
+            const auto& ef = material.emissiveFactor;
+            mat.EmissiveFactor = { ef.x(), ef.y(), ef.z() };
+            mat.MetallicFactor = material.pbrData.metallicFactor;
+            mat.RoughnessFactor = material.pbrData.roughnessFactor;
+            mat.AlphaCutoff = material.alphaCutoff;
+            mat.AlphaMode = material.alphaMode == fastgltf::AlphaMode::Blend ? 2
+                : material.alphaMode == fastgltf::AlphaMode::Mask ? 1 : 0;
+
+            mat.BaseColorTexture = resolveTexture(material.pbrData.baseColorTexture, true);
+            mat.MetallicRoughnessTexture = resolveTexture(material.pbrData.metallicRoughnessTexture, false);
+            mat.EmissiveTexture = resolveTexture(material.emissiveTexture, true);
+
+            if (material.normalTexture)
+            {
+                mat.NormalScale = material.normalTexture->scale;
+                fastgltf::Optional<fastgltf::TextureInfo> info = fastgltf::TextureInfo{ material.normalTexture->textureIndex };
+                mat.NormalTexture = resolveTexture(info, false);
+            }
+            if (material.occlusionTexture)
+            {
+                mat.OcclusionStrength = material.occlusionTexture->strength;
+                fastgltf::Optional<fastgltf::TextureInfo> info = fastgltf::TextureInfo{ material.occlusionTexture->textureIndex };
+                mat.OcclusionTexture = resolveTexture(info, false);
+            }
+
+            model->m_Materials.push_back(std::move(mat));
+        }
+
+        // Fallback material for primitives without one.
+        const uint32_t defaultMaterialIndex = (uint32_t)model->m_Materials.size();
+        model->m_Materials.push_back(SModelMaterial{});
 
         const size_t sceneIndex = asset.defaultScene.value_or(0);
         fastgltf::iterateSceneNodes(asset, sceneIndex, fastgltf::math::fmat4x4(),
@@ -199,26 +248,20 @@ namespace Elixir
                     SModelPrimitive prim;
                     prim.Transform = transform;
                     prim.IndexCount = (uint32_t)indices.size();
+                    prim.MaterialIndex = primitive.materialIndex
+                        ? (uint32_t)*primitive.materialIndex
+                        : defaultMaterialIndex;
                     prim.Vertices = VertexBuffer::Create(
                         context, vertices.size() * sizeof(SModelVertex), vertices.data());
                     prim.Indices = IndexBuffer::Create(
                         context, indices.size() * sizeof(uint32_t), indices.data(), EIndexType::UInt32);
 
-                    if (primitive.materialIndex)
-                    {
-                        auto& material = asset.materials[*primitive.materialIndex];
-                        const auto& factor = material.pbrData.baseColorFactor;
-                        prim.BaseColorFactor = { factor.x(), factor.y(), factor.z(), factor.w() };
-                        if (material.pbrData.baseColorTexture)
-                            prim.BaseColorTexture = resolveTexture(material.pbrData.baseColorTexture->textureIndex);
-                    }
-
                     model->m_Primitives.push_back(std::move(prim));
                 }
             });
 
-        EE_CORE_INFO("Loaded glTF model '{0}' with {1} primitives.",
-            path.filename().string(), model->m_Primitives.size());
+        EE_CORE_INFO("Loaded glTF model '{0}': {1} primitives, {2} materials.",
+            path.filename().string(), model->m_Primitives.size(), model->m_Materials.size());
         return model;
     }
 }

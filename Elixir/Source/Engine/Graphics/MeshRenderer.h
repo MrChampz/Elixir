@@ -8,7 +8,7 @@
 
 namespace Elixir
 {
-    // Renders glTF models with simple directional lighting + base-color texture.
+    // Renders glTF models with a Cook-Torrance metallic-roughness PBR base pass.
     class ELIXIR_API MeshRenderer
     {
       public:
@@ -29,21 +29,31 @@ namespace Elixir
         struct SModelPushConstants
         {
             glm::mat4 Model;
-            glm::vec4 BaseColorFactor;
-            uint32_t TextureIndex;
+            uint32_t MaterialIndex;
         };
 
-        // The bytes actually consumed by the shader's push-constant block; the
-        // struct's own sizeof may be padded larger.
+        // std430-packed material, mirrored by the shader's StructuredBuffer.
+        struct SGPUMaterial
+        {
+            glm::vec4 BaseColorFactor;
+            glm::vec4 EmissiveMetallic;     // xyz = emissive, w = metallic
+            glm::vec4 RoughOccNormalCutoff; // x = roughness, y = occlusion, z = normalScale, w = alphaCutoff
+            glm::uvec4 TexIndex0;           // baseColor, metallicRoughness, normal, emissive
+            glm::uvec4 TexIndex1;           // occlusion, unused...
+        };
+
         static constexpr uint32_t PUSH_CONSTANT_SIZE =
-            sizeof(glm::mat4) + sizeof(glm::vec4) + sizeof(uint32_t);
+            sizeof(glm::mat4) + sizeof(uint32_t);
+        static constexpr uint32_t NO_TEXTURE = 0xffffffffu;
 
         uint32_t ResolveTexture(const Ref<Texture>& texture);
+        Ref<StorageBuffer> BuildMaterialBuffer(const Ref<Model>& model);
 
         const GraphicsContext* m_GraphicsContext;
 
         Ref<Shader> m_Shader;
-        Ref<GraphicsPipeline> m_Pipeline;
+        Ref<GraphicsPipeline> m_Pipeline;            // opaque + masked (depth write)
+        Ref<GraphicsPipeline> m_TransparentPipeline; // blend (alpha, no depth write)
 
         Ref<UniformBuffer> m_FrameBuffer;
         SFrameData m_FrameData{};
@@ -51,5 +61,8 @@ namespace Elixir
         Ref<Sampler> m_Sampler;
         Ref<TextureSet> m_Textures;
         std::unordered_map<Ref<Texture>, uint32_t> m_TextureIndices;
+
+        std::unordered_map<const Model*, Ref<StorageBuffer>> m_MaterialBuffers;
+        const Model* m_BoundModel = nullptr;
     };
 }

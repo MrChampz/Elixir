@@ -14,8 +14,7 @@ cbuffer cbFrame : register(b0)
 struct ModelPushConstants
 {
     float4x4 Model;
-    float4 BaseColorFactor;
-    uint TextureIndex;
+    uint MaterialIndex;
 };
 [[vk::push_constant]]
 ModelPushConstants pc;
@@ -43,7 +42,7 @@ VSOutput main(VSInput input)
     output.ClipPos = mul(ViewProj, worldPos);
     output.WorldPos = worldPos.xyz;
     // Assumes uniform scale; good enough until a dedicated normal matrix.
-    output.Normal = normalize(mul((float3x3)pc.Model, input.Normal));
+    output.Normal = mul((float3x3)pc.Model, input.Normal);
     output.TexCoord = input.TexCoord;
 
     return output;

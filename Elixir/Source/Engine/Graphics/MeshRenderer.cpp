@@ -29,24 +29,35 @@ namespace Elixir
         builder.SetShader(m_Shader);
         builder.SetInputTopology(EPrimitiveTopology::TriangleList);
         builder.SetPolygonMode(EPolygonMode::Fill);
-        builder.SetCullMode(ECullMode::Back, EFrontFace::CounterClockwise);
+        // glTF materials are commonly double-sided; cull nothing and flip the
+        // normal per-face in the shader.
+        builder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
         builder.DisableBlending();
         builder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
         builder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
         builder.SetBufferLayout(layout);
 
-        auto info = builder.GetCreateInfo();
-        info.DepthStencil.DepthTestEnable = true;
-        info.DepthStencil.DepthWriteEnable = true;
-        info.DepthStencil.DepthCompareOp = ECompareOp::LessOrEqual;
-        m_Pipeline = GraphicsPipeline::Create(m_GraphicsContext, info);
+        // Opaque + masked: depth test and write.
+        auto opaqueInfo = builder.GetCreateInfo();
+        opaqueInfo.DepthStencil.DepthTestEnable = true;
+        opaqueInfo.DepthStencil.DepthWriteEnable = true;
+        opaqueInfo.DepthStencil.DepthCompareOp = ECompareOp::LessOrEqual;
+        m_Pipeline = GraphicsPipeline::Create(m_GraphicsContext, opaqueInfo);
+
+        // Blend: alpha-blended, depth-tested but no depth write (drawn after opaque).
+        builder.EnableAlphaBlending();
+        auto blendInfo = builder.GetCreateInfo();
+        blendInfo.DepthStencil.DepthTestEnable = true;
+        blendInfo.DepthStencil.DepthWriteEnable = false;
+        blendInfo.DepthStencil.DepthCompareOp = ECompareOp::LessOrEqual;
+        m_TransparentPipeline = GraphicsPipeline::Create(m_GraphicsContext, blendInfo);
 
         m_FrameBuffer = UniformBuffer::Create(context, sizeof(SFrameData), &m_FrameData);
         m_Sampler = SamplerBuilder().Build(context);
         m_Textures = TextureSet::Create(context);
 
-        // A 1x1 white texture keeps the bindless array non-empty; untextured
-        // primitives use index 0xffffffff and skip the sample entirely.
+        // A 1x1 white texture keeps the bindless array non-empty; missing maps use
+        // index NO_TEXTURE and the shader falls back to factors/defaults.
         const uint32_t whitePixel = 0xffffffffu;
         const auto whiteTexture = Texture2D::Create(
             context, EImageFormat::R8G8B8A8_SRGB, 1, 1, &whitePixel);
@@ -60,7 +71,7 @@ namespace Elixir
     uint32_t MeshRenderer::ResolveTexture(const Ref<Texture>& texture)
     {
         if (!texture)
-            return 0xffffffffu;
+            return NO_TEXTURE;
 
         if (const auto it = m_TextureIndices.find(texture); it != m_TextureIndices.end())
             return it->second;
@@ -70,10 +81,48 @@ namespace Elixir
         return handle.Index;
     }
 
+    Ref<StorageBuffer> MeshRenderer::BuildMaterialBuffer(const Ref<Model>& model)
+    {
+        std::vector<SGPUMaterial> materials;
+        materials.reserve(model->GetMaterials().size());
+
+        for (const auto& material : model->GetMaterials())
+        {
+            SGPUMaterial gpu;
+            gpu.BaseColorFactor = material.BaseColorFactor;
+            gpu.EmissiveMetallic = glm::vec4(material.EmissiveFactor, material.MetallicFactor);
+            gpu.RoughOccNormalCutoff = glm::vec4(
+                material.RoughnessFactor, material.OcclusionStrength, material.NormalScale, material.AlphaCutoff);
+            gpu.TexIndex0 = glm::uvec4(
+                ResolveTexture(material.BaseColorTexture),
+                ResolveTexture(material.MetallicRoughnessTexture),
+                ResolveTexture(material.NormalTexture),
+                ResolveTexture(material.EmissiveTexture));
+            gpu.TexIndex1 = glm::uvec4(
+                ResolveTexture(material.OcclusionTexture), (uint32_t)material.AlphaMode, 0u, 0u);
+            materials.push_back(gpu);
+        }
+
+        return StorageBuffer::Create(
+            m_GraphicsContext, materials.size() * sizeof(SGPUMaterial), materials.data());
+    }
+
     void MeshRenderer::Render(const Ref<Model>& model, const Camera& camera)
     {
-        if (!model)
+        if (!model || model->GetPrimitives().empty())
             return;
+
+        // Build (and cache) the model's material buffer, resolving its textures
+        // into the bindless set the first time we see it.
+        auto& materialBuffer = m_MaterialBuffers[model.get()];
+        if (!materialBuffer)
+            materialBuffer = BuildMaterialBuffer(model);
+
+        if (m_BoundModel != model.get())
+        {
+            m_Shader->BindStorageBuffer("materials", materialBuffer);
+            m_BoundModel = model.get();
+        }
 
         const auto extent = m_GraphicsContext->GetRenderTarget()->GetExtent();
 
@@ -103,20 +152,36 @@ namespace Elixir
         cmd->SetViewports({ viewport });
         cmd->SetScissors({ scissor });
 
-        m_Pipeline->Bind(cmd);
-
-        for (const auto& primitive : model->GetPrimitives())
+        const auto& materials = model->GetMaterials();
+        const auto drawPrimitive = [&](const SModelPrimitive& primitive)
         {
             SModelPushConstants pc;
             pc.Model = primitive.Transform;
-            pc.BaseColorFactor = primitive.BaseColorFactor;
-            pc.TextureIndex = ResolveTexture(primitive.BaseColorTexture);
+            pc.MaterialIndex = primitive.MaterialIndex;
             m_Shader->SetPushConstant(cmd, "pc", (void*)&pc, PUSH_CONSTANT_SIZE);
 
             primitive.Vertices->Bind(cmd);
             primitive.Indices->Bind(cmd);
             cmd->DrawIndexed(primitive.IndexCount, 1, 0, 0, 0);
-        }
+        };
+
+        const auto isBlend = [&](const SModelPrimitive& p)
+        {
+            return p.MaterialIndex < materials.size() && materials[p.MaterialIndex].AlphaMode == 2;
+        };
+
+        // Opaque + masked first (depth write), then blended on top (no depth
+        // write). Blended primitives aren't sorted yet -- fine for a clearcoat
+        // shell over opaque paint.
+        m_Pipeline->Bind(cmd);
+        for (const auto& primitive : model->GetPrimitives())
+            if (!isBlend(primitive))
+                drawPrimitive(primitive);
+
+        m_TransparentPipeline->Bind(cmd);
+        for (const auto& primitive : model->GetPrimitives())
+            if (isBlend(primitive))
+                drawPrimitive(primitive);
 
         cmd->EndRendering();
         m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
