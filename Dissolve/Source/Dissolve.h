@@ -4,6 +4,7 @@
 
 #include <Engine/Graphics/Model.h>
 #include <Engine/Graphics/MeshRenderer.h>
+#include <Engine/Graphics/PostProcessor.h>
 
 struct SFrameData
 {
@@ -33,5 +34,6 @@ private:
     Scope<ArcBallCameraController> m_CameraController;
 
     Scope<MeshRenderer> m_MeshRenderer;
+    Scope<PostProcessor> m_PostProcessor;
     Ref<Model> m_Model;
 };

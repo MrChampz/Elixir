@@ -369,7 +369,7 @@ float4 main(PSInput input) : SV_Target0
     {
         float2 uv = input.ClipPos.xy / float2(ScreenWidth, ScreenHeight);
         float3 viewN = mul((float3x3)View, N);
-        uv += viewN.xy * float2(0.05f, -0.05f);
+        uv += viewN.xy * float2(0.02f, -0.02f);
 
         // Frosted glass: rough surfaces scatter the transmitted light, so blur the
         // grabbed scene with a Vogel disk whose radius grows with roughness. Smooth
@@ -394,7 +394,7 @@ float4 main(PSInput input) : SV_Target0
             behind = sum / N;
         }
 
-        float3 tint = lerp(float3(1.0f, 1.0f, 1.0f), baseColor.rgb, 0.25f);
+        float3 tint = lerp(float3(1.0f, 1.0f, 1.0f), baseColor.rgb, 0.05f);
         behind *= tint;
 
         float fresnel = 0.04f + 0.96f * pow(saturate(1.0f - NdotV), 5.0f);
