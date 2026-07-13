@@ -149,73 +149,78 @@ namespace Elixir
             return glm::vec4(t->uvScale[0], t->uvScale[1], t->uvOffset[0], t->uvOffset[1]);
         };
 
-        // Build the material table. Base-color/emissive are colour (sRGB); the
+        // Build the material table as instances of the built-in StandardPBR material.
+        // Each glTF material overrides only the parameters it specifies; the rest fall
+        // back to the parent defaults. Base-color/emissive are colour (sRGB); the
         // metallic-roughness, normal and occlusion maps are data (linear).
+        const auto standardPBR = Material::CreateStandardPBR();
         model->m_Materials.reserve(asset.materials.size() + 1);
         for (auto& material : asset.materials)
         {
-            SModelMaterial mat;
+            auto instance = CreateRef<MaterialInstance>(standardPBR);
+
             const auto& bcf = material.pbrData.baseColorFactor;
-            mat.BaseColorFactor = { bcf.x(), bcf.y(), bcf.z(), bcf.w() };
+            instance->SetVector("BaseColorFactor", { bcf.x(), bcf.y(), bcf.z(), bcf.w() });
             const auto& ef = material.emissiveFactor;
-            mat.EmissiveFactor = glm::vec3(ef.x(), ef.y(), ef.z()) * material.emissiveStrength;
-            mat.MetallicFactor = material.pbrData.metallicFactor;
-            mat.RoughnessFactor = material.pbrData.roughnessFactor;
-            mat.AlphaCutoff = material.alphaCutoff;
-            mat.AlphaMode = material.alphaMode == fastgltf::AlphaMode::Blend ? 2
-                : material.alphaMode == fastgltf::AlphaMode::Mask ? 1 : 0;
+            instance->SetVector("EmissiveFactor",
+                glm::vec4(glm::vec3(ef.x(), ef.y(), ef.z()) * material.emissiveStrength, 0.0f));
+            instance->SetScalar("Metallic", material.pbrData.metallicFactor);
+            instance->SetScalar("Roughness", material.pbrData.roughnessFactor);
+            instance->SetScalar("AlphaCutoff", material.alphaCutoff);
+            instance->SetScalar("AlphaMode", material.alphaMode == fastgltf::AlphaMode::Blend ? 2.0f
+                : material.alphaMode == fastgltf::AlphaMode::Mask ? 1.0f : 0.0f);
 
             if (material.clearcoat)
             {
-                mat.ClearcoatFactor = material.clearcoat->clearcoatFactor;
-                mat.ClearcoatRoughness = material.clearcoat->clearcoatRoughnessFactor;
+                instance->SetScalar("ClearcoatFactor", material.clearcoat->clearcoatFactor);
+                instance->SetScalar("ClearcoatRoughness", material.clearcoat->clearcoatRoughnessFactor);
             }
 
             if (material.specular)
             {
-                mat.SpecularFactor = material.specular->specularFactor;
+                instance->SetScalar("SpecularFactor", material.specular->specularFactor);
                 const auto& scf = material.specular->specularColorFactor;
-                mat.SpecularColorFactor = glm::vec3(scf.x(), scf.y(), scf.z());
+                instance->SetVector("SpecularColorFactor", glm::vec4(scf.x(), scf.y(), scf.z(), 1.0f));
                 if (material.specular->specularTexture)
-                    mat.SpecularTexture = loadTexture(material.specular->specularTexture->textureIndex, false);
+                    instance->SetTexture("SpecularTexture", loadTexture(material.specular->specularTexture->textureIndex, false));
                 if (material.specular->specularColorTexture)
-                    mat.SpecularColorTexture = loadTexture(material.specular->specularColorTexture->textureIndex, true);
+                    instance->SetTexture("SpecularColorTexture", loadTexture(material.specular->specularColorTexture->textureIndex, true));
             }
 
             if (material.pbrData.baseColorTexture)
             {
-                mat.BaseColorTexture = loadTexture(material.pbrData.baseColorTexture->textureIndex, true);
-                mat.BaseColorTransform = getTransform(material.pbrData.baseColorTexture->transform);
+                instance->SetTexture("BaseColorTexture", loadTexture(material.pbrData.baseColorTexture->textureIndex, true));
+                instance->SetVector("BaseColorTransform", getTransform(material.pbrData.baseColorTexture->transform));
             }
             if (material.pbrData.metallicRoughnessTexture)
             {
-                mat.MetallicRoughnessTexture = loadTexture(material.pbrData.metallicRoughnessTexture->textureIndex, false);
-                mat.MetallicRoughnessTransform = getTransform(material.pbrData.metallicRoughnessTexture->transform);
+                instance->SetTexture("MetallicRoughnessTexture", loadTexture(material.pbrData.metallicRoughnessTexture->textureIndex, false));
+                instance->SetVector("MetallicRoughnessTransform", getTransform(material.pbrData.metallicRoughnessTexture->transform));
             }
             if (material.emissiveTexture)
             {
-                mat.EmissiveTexture = loadTexture(material.emissiveTexture->textureIndex, true);
-                mat.EmissiveTransform = getTransform(material.emissiveTexture->transform);
+                instance->SetTexture("EmissiveTexture", loadTexture(material.emissiveTexture->textureIndex, true));
+                instance->SetVector("EmissiveTransform", getTransform(material.emissiveTexture->transform));
             }
             if (material.normalTexture)
             {
-                mat.NormalScale = material.normalTexture->scale;
-                mat.NormalTexture = loadTexture(material.normalTexture->textureIndex, false);
-                mat.NormalTransform = getTransform(material.normalTexture->transform);
+                instance->SetScalar("NormalScale", material.normalTexture->scale);
+                instance->SetTexture("NormalTexture", loadTexture(material.normalTexture->textureIndex, false));
+                instance->SetVector("NormalTransform", getTransform(material.normalTexture->transform));
             }
             if (material.occlusionTexture)
             {
-                mat.OcclusionStrength = material.occlusionTexture->strength;
-                mat.OcclusionTexture = loadTexture(material.occlusionTexture->textureIndex, false);
-                mat.OcclusionTransform = getTransform(material.occlusionTexture->transform);
+                instance->SetScalar("OcclusionStrength", material.occlusionTexture->strength);
+                instance->SetTexture("OcclusionTexture", loadTexture(material.occlusionTexture->textureIndex, false));
+                instance->SetVector("OcclusionTransform", getTransform(material.occlusionTexture->transform));
             }
 
-            model->m_Materials.push_back(std::move(mat));
+            model->m_Materials.push_back(instance);
         }
 
-        // Fallback material for primitives without one.
+        // Fallback material for primitives without one (all defaults).
         const uint32_t defaultMaterialIndex = (uint32_t)model->m_Materials.size();
-        model->m_Materials.push_back(SModelMaterial{});
+        model->m_Materials.push_back(CreateRef<MaterialInstance>(standardPBR));
 
         const size_t sceneIndex = asset.defaultScene.value_or(0);
         fastgltf::iterateSceneNodes(asset, sceneIndex, fastgltf::math::fmat4x4(),

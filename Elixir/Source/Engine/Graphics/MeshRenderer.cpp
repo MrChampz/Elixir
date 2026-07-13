@@ -106,31 +106,36 @@ namespace Elixir
 
         for (const auto& material : model->GetMaterials())
         {
+            const uint32_t alphaMode = (uint32_t)material->GetScalar("AlphaMode");
+            const glm::vec4 baseColor = material->GetVector("BaseColorFactor");
+
             SGPUMaterial gpu;
-            gpu.BaseColorFactor = material.BaseColorFactor;
-            gpu.EmissiveMetallic = glm::vec4(material.EmissiveFactor, material.MetallicFactor);
+            gpu.BaseColorFactor = baseColor;
+            gpu.EmissiveMetallic = glm::vec4(glm::vec3(material->GetVector("EmissiveFactor")), material->GetScalar("Metallic"));
             gpu.RoughOccNormalCutoff = glm::vec4(
-                material.RoughnessFactor, material.OcclusionStrength, material.NormalScale, material.AlphaCutoff);
+                material->GetScalar("Roughness"), material->GetScalar("OcclusionStrength"),
+                material->GetScalar("NormalScale"), material->GetScalar("AlphaCutoff"));
             gpu.TexIndex0 = glm::uvec4(
-                ResolveTexture(material.BaseColorTexture),
-                ResolveTexture(material.MetallicRoughnessTexture),
-                ResolveTexture(material.NormalTexture),
-                ResolveTexture(material.EmissiveTexture));
+                ResolveTexture(material->GetTexture("BaseColorTexture")),
+                ResolveTexture(material->GetTexture("MetallicRoughnessTexture")),
+                ResolveTexture(material->GetTexture("NormalTexture")),
+                ResolveTexture(material->GetTexture("EmissiveTexture")));
             gpu.TexIndex1 = glm::uvec4(
-                ResolveTexture(material.OcclusionTexture), (uint32_t)material.AlphaMode,
-                ResolveTexture(material.SpecularTexture), ResolveTexture(material.SpecularColorTexture));
-            gpu.BaseColorTransform = material.BaseColorTransform;
-            gpu.MetallicRoughnessTransform = material.MetallicRoughnessTransform;
-            gpu.NormalTransform = material.NormalTransform;
-            gpu.EmissiveTransform = material.EmissiveTransform;
-            gpu.OcclusionTransform = material.OcclusionTransform;
+                ResolveTexture(material->GetTexture("OcclusionTexture")), alphaMode,
+                ResolveTexture(material->GetTexture("SpecularTexture")),
+                ResolveTexture(material->GetTexture("SpecularColorTexture")));
+            gpu.BaseColorTransform = material->GetVector("BaseColorTransform");
+            gpu.MetallicRoughnessTransform = material->GetVector("MetallicRoughnessTransform");
+            gpu.NormalTransform = material->GetVector("NormalTransform");
+            gpu.EmissiveTransform = material->GetVector("EmissiveTransform");
+            gpu.OcclusionTransform = material->GetVector("OcclusionTransform");
             // The model has no KHR_materials_transmission, so treat its translucent
             // (BLEND, sub-opaque) glass as refractive: it samples the grabbed scene
             // instead of alpha-blending. Packed into Clearcoat.z.
-            const float transmission =
-                (material.AlphaMode == 2 && material.BaseColorFactor.a < 0.95f) ? 0.9f : 0.0f;
-            gpu.Clearcoat = glm::vec4(material.ClearcoatFactor, material.ClearcoatRoughness, transmission, 0.0f);
-            gpu.Specular = glm::vec4(material.SpecularColorFactor, material.SpecularFactor);
+            const float transmission = (alphaMode == 2 && baseColor.a < 0.95f) ? 0.9f : 0.0f;
+            gpu.Clearcoat = glm::vec4(
+                material->GetScalar("ClearcoatFactor"), material->GetScalar("ClearcoatRoughness"), transmission, 0.0f);
+            gpu.Specular = glm::vec4(glm::vec3(material->GetVector("SpecularColorFactor")), material->GetScalar("SpecularFactor"));
             materials.push_back(gpu);
         }
 
@@ -173,7 +178,7 @@ namespace Elixir
         m_FrameData.CameraPos = camera.GetPosition();
         m_FrameData.EnvIndex = m_EnvIndex;
         m_FrameData.IrradianceIndex = m_IrradianceIndex;
-        m_FrameData.EnvIntensity = 0.6f;
+        m_FrameData.EnvIntensity = 1.5f;
         m_FrameData.EnvMaxLod = m_EnvMaxLod;
         m_FrameData.PrefIndex = m_PrefIndex;
         m_FrameData.SceneColorIndex = m_SceneColorIndex;
@@ -182,7 +187,7 @@ namespace Elixir
 
         // Directional "sun": a warm key light roughly matching the sunset HDR.
         m_FrameData.LightDirection = glm::vec4(glm::normalize(glm::vec3(-0.5f, 0.65f, -0.55f)), 0.0f);
-        m_FrameData.LightColor = glm::vec4(1.0f, 0.96f, 0.9f, 1.4f);
+        m_FrameData.LightColor = glm::vec4(1.0f, 0.96f, 0.9f, 2.2f);
         m_FrameBuffer->UpdateData(&m_FrameData, sizeof(SFrameData));
 
         const auto cmd = m_GraphicsContext->GetSecondaryCommandBuffer();
@@ -227,7 +232,7 @@ namespace Elixir
             if (p.MaterialIndex >= materials.size())
                 return false;
             const auto& m = materials[p.MaterialIndex];
-            return m.AlphaMode == 2 && m.BaseColorFactor.a < 0.95f;
+            return (int)m->GetScalar("AlphaMode") == 2 && m->GetVector("BaseColorFactor").a < 0.95f;
         };
 
         // Pass 1: everything that isn't refractive glass (opaque + masked + the
