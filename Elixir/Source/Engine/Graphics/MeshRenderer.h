@@ -2,6 +2,7 @@
 
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/Model.h>
+#include <Engine/Graphics/Environment.h>
 #include <Engine/Graphics/TextureSet.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
 #include <Engine/Graphics/Pipeline/Pipeline.h>
@@ -24,6 +25,10 @@ namespace Elixir
             glm::mat4 ViewProj;
             glm::vec3 CameraPos;
             float _Padding = 0.0f;
+            uint32_t EnvIndex = 0xffffffffu;
+            uint32_t IrradianceIndex = 0xffffffffu;
+            float EnvIntensity = 1.0f;
+            float _Padding2 = 0.0f;
         };
 
         struct SModelPushConstants
@@ -66,6 +71,10 @@ namespace Elixir
         Ref<Sampler> m_Sampler;
         Ref<TextureSet> m_Textures;
         std::unordered_map<Ref<Texture>, uint32_t> m_TextureIndices;
+
+        Ref<Environment> m_Environment;
+        uint32_t m_EnvIndex = 0xffffffffu;
+        uint32_t m_IrradianceIndex = 0xffffffffu;
 
         std::unordered_map<const Model*, Ref<StorageBuffer>> m_MaterialBuffers;
         const Model* m_BoundModel = nullptr;

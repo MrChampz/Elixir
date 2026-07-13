@@ -11,6 +11,10 @@ cbuffer cbFrame : register(b0)
     float4x4 ViewProj;
     float3 CameraPos;
     float _Padding;
+    uint EnvIndex;
+    uint IrradianceIndex;
+    float EnvIntensity;
+    float _Padding2;
 };
 
 [[vk::binding(1, 0)]]
@@ -98,26 +102,56 @@ float3 ACESFilm(float3 x)
     return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
 }
 
-static const float3 SUN_DIRECTION = normalize(float3(0.4f, 0.85f, 0.35f));
-static const float3 SUN_RADIANCE = float3(1.0f, 0.97f, 0.92f);
-
-// Procedural environment used as the IBL source: a smooth gradient sky (warm
-// horizon -> blue zenith, darker ground) with only a soft, broad glow toward the
-// sun. Deliberately has NO sharp sun disk: the crisp sun highlight comes from the
-// analytic directional light instead, so a normal-mapped glossy surface reflects
-// a smooth environment rather than scattering a sharp sun into speckled cells.
-float3 SampleEnvironment(float3 dir)
+// Equirectangular direction -> UV (matches the CPU irradiance bake).
+float2 DirToEquirect(float3 d)
 {
-    float up = dir.y;
-    float3 zenith = float3(0.14f, 0.26f, 0.52f);
-    float3 horizon = float3(0.55f, 0.58f, 0.64f);
-    float3 ground = float3(0.08f, 0.075f, 0.07f);
-    float3 sky = lerp(horizon, zenith, pow(saturate(up), 0.55f));
-    float3 env = up >= 0.0f ? sky : lerp(horizon, ground, saturate(-up * 3.0f));
+    float u = atan2(d.z, d.x) * 0.15915494f + 0.5f;
+    float v = acos(clamp(d.y, -1.0f, 1.0f)) * 0.31830989f;
+    return float2(u, v);
+}
 
-    float d = saturate(dot(dir, SUN_DIRECTION));
-    env += SUN_RADIANCE * pow(d, 6.0f) * 0.15f; // soft, broad warmth only
-    return env;
+float3 SampleEnv(float3 dir)
+{
+    if (EnvIndex == NO_TEXTURE)
+        return float3(0.1f, 0.12f, 0.15f);
+    return textures[EnvIndex].SampleLevel(texSampler, DirToEquirect(dir), 0).rgb * EnvIntensity;
+}
+
+float3 SampleIrradiance(float3 dir)
+{
+    if (IrradianceIndex == NO_TEXTURE)
+        return float3(0.1f, 0.12f, 0.15f);
+    return textures[IrradianceIndex].SampleLevel(texSampler, DirToEquirect(dir), 0).rgb * EnvIntensity;
+}
+
+// Cheap runtime specular prefilter: average a small disk of directions around the
+// reflection, widening with roughness (a stand-in for a prefiltered mip chain).
+float3 PrefilterEnv(float3 R, float roughness)
+{
+    float3 base = SampleEnv(R);
+    if (roughness < 0.12f)
+        return base; // near-mirror: one tap
+
+    float3 up = abs(R.y) < 0.99f ? float3(0, 1, 0) : float3(1, 0, 0);
+    float3 T = normalize(cross(up, R));
+    float3 B = cross(R, T);
+    float radius = roughness * 0.5f;
+
+    float3 sum = base;
+    const int SEGS = 6;
+    [unroll] for (int s = 0; s < SEGS; ++s)
+    {
+        float ang = ((float)s / SEGS) * 6.2831853f;
+        float3 dir = normalize(R + (T * cos(ang) + B * sin(ang)) * radius);
+        sum += SampleEnv(dir);
+    }
+    return sum / (SEGS + 1);
+}
+
+float3 FresnelSchlickRoughness(float cosTheta, float3 F0, float roughness)
+{
+    float3 Fr = max((1.0f - roughness).xxx, F0);
+    return F0 + (Fr - F0) * pow(saturate(1.0f - cosTheta), 5.0f);
 }
 
 // Karis' analytic environment-BRDF (split-sum) approximation -> no BRDF LUT.
@@ -162,53 +196,44 @@ float4 main(PSInput input) : SV_Target0
     if (mat.TexIndex0.w != NO_TEXTURE)
         emissive *= SampleTex(mat.TexIndex0.w, XformUV(input.TexCoord, mat.EmissiveTransform));
 
-    float3 N = normalize(input.Normal);
+    float3 Ngeom = normalize(input.Normal);
     if (!input.FrontFace)
-        N = -N; // double-sided: face the geometric normal toward the viewer
+        Ngeom = -Ngeom; // double-sided: face the geometric normal toward the viewer
+    float3 N = Ngeom;
     float3 V = normalize(CameraPos - input.WorldPos);
     if (mat.TexIndex0.z != NO_TEXTURE)
     {
         float3 tn = SampleTex(mat.TexIndex0.z, XformUV(input.TexCoord, mat.NormalTransform)) * 2.0f - 1.0f;
         tn.xy *= mat.RoughOccNormalCutoff.z;
         // TBN from the mesh's vertex tangent (Gram-Schmidt orthonormalise).
-        float3 T = normalize(input.Tangent.xyz - N * dot(N, input.Tangent.xyz));
-        float3 B = cross(N, T) * input.Tangent.w;
-        float3x3 TBN = float3x3(T, B, N);
+        float3 T = normalize(input.Tangent.xyz - Ngeom * dot(Ngeom, input.Tangent.xyz));
+        float3 B = cross(Ngeom, T) * input.Tangent.w;
+        float3x3 TBN = float3x3(T, B, Ngeom);
         N = normalize(mul(tn, TBN));
     }
 
-    float3 F0 = lerp(0.04f.xxx, albedo, metallic);
-
-    // Single directional key light (matches the sun in the environment).
-    float3 L = SUN_DIRECTION;
-    float3 radiance = SUN_RADIANCE * 3.0f;
-
-    float3 H = normalize(V + L);
-    float NdotL = saturate(dot(N, L));
     float NdotV = saturate(dot(N, V)) + 1e-4f;
-    float NdotH = saturate(dot(N, H));
-    float VdotH = saturate(dot(V, H));
+    float3 F0 = lerp(0.04f.xxx, albedo, metallic);
+    // The reflection uses a roughness-faded normal: rougher surfaces reflect with
+    // a smoother normal, so the paint's fine normal map stops speckling the
+    // environment reflection (while smooth trim keeps full detail).
+    float3 Nspec = normalize(lerp(N, Ngeom, roughness));
+    float3 R = reflect(-V, Nspec);
 
-    float D = DistributionGGX(NdotH, roughness);
-    float G = GeometrySmith(NdotV, NdotL, roughness);
-    float3 F = FresnelSchlick(VdotH, F0);
-
-    float3 specular = (D * G * F) / max(4.0f * NdotV * NdotL, 1e-4f);
+    // Pure image-based lighting from the HDR environment: diffuse from the baked
+    // irradiance map, specular from the roughness-prefiltered reflection weighted
+    // by the analytic environment BRDF. The HDR's own sun provides the highlight.
+    float3 F = FresnelSchlickRoughness(NdotV, F0, roughness);
     float3 kd = (1.0f - F) * (1.0f - metallic);
-    float3 Lo = (kd * albedo / PI + specular) * radiance * NdotL;
 
-    // Image-based lighting from the procedural environment: diffuse irradiance
-    // in the normal direction, and a roughness-blurred reflection weighted by the
-    // analytic environment BRDF -- this is what makes the metals reflect the sky.
-    float3 R = reflect(-V, N);
-    float3 irradiance = SampleEnvironment(N);
-    float3 prefiltered = lerp(SampleEnvironment(R), irradiance, roughness);
+    float3 irradiance = SampleIrradiance(N);
+    float3 diffuse = irradiance * albedo;
+
+    float3 prefiltered = PrefilterEnv(R, roughness);
     float2 envBRDF = EnvBRDFApprox(roughness, NdotV);
-    float3 iblDiffuse = irradiance * albedo * (1.0f - metallic);
-    float3 iblSpecular = prefiltered * (F0 * envBRDF.x + envBRDF.y);
-    float3 ambient = (iblDiffuse + iblSpecular) * ao;
+    float3 specular = prefiltered * (F0 * envBRDF.x + envBRDF.y);
 
-    float3 color = ambient + Lo + emissive;
+    float3 color = (kd * diffuse + specular) * ao + emissive;
     color = ACESFilm(color);
 
     return float4(color, baseColor.a);

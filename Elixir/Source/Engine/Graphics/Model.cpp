@@ -99,7 +99,9 @@ namespace Elixir
 
         const auto dir = path.parent_path();
 
-        fastgltf::Parser parser;
+        // KHR_texture_transform must be enabled explicitly or the parser drops it
+        // (leaving every TextureInfo::transform null -> textures render untiled).
+        fastgltf::Parser parser(fastgltf::Extensions::KHR_texture_transform);
         constexpr auto options =
             fastgltf::Options::LoadExternalBuffers | fastgltf::Options::LoadGLBBuffers;
 

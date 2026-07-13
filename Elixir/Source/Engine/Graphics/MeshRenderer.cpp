@@ -67,6 +67,15 @@ namespace Elixir
         m_Shader->BindConstantBuffer("cbFrame", m_FrameBuffer);
         m_Shader->BindSampler("texSampler", m_Sampler);
         m_Shader->BindTextureSet("textures", m_Textures);
+
+        // Load the HDR environment and register its maps in the bindless set so
+        // the shader can sample them for image-based lighting.
+        m_Environment = Environment::Load(context, "./Assets/Textures/sunset_meadow_path_2k.hdr");
+        if (m_Environment)
+        {
+            m_EnvIndex = m_Textures->AddTexture(m_Environment->GetEnvironment()).Index;
+            m_IrradianceIndex = m_Textures->AddTexture(m_Environment->GetIrradiance()).Index;
+        }
     }
 
     uint32_t MeshRenderer::ResolveTexture(const Ref<Texture>& texture)
@@ -136,6 +145,9 @@ namespace Elixir
         m_FrameData.Proj = camera.GetProjectionMatrix();
         m_FrameData.ViewProj = camera.GetViewProjectionMatrix();
         m_FrameData.CameraPos = camera.GetPosition();
+        m_FrameData.EnvIndex = m_EnvIndex;
+        m_FrameData.IrradianceIndex = m_IrradianceIndex;
+        m_FrameData.EnvIntensity = 1.0f;
         m_FrameBuffer->UpdateData(&m_FrameData, sizeof(SFrameData));
 
         const auto cmd = m_GraphicsContext->GetSecondaryCommandBuffer();
