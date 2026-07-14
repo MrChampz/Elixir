@@ -306,7 +306,10 @@ namespace Elixir
             if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
                 deleteId = node.Id;
 
-            const int rows = node.InputCount > 1 ? node.InputCount : 1;
+            // Nodes with two stacked body widgets (text + combo) need room for both.
+            const int widgetRows =
+                (node.Type == EMaterialNodeType::Custom || node.Type == EMaterialNodeType::FunctionInput) ? 2 : 1;
+            const int rows = std::max({ node.InputCount, widgetRows, 1 });
             const float bodyH = 24.0f + rows * 16.0f;
             const ImVec2 rmin = p;
             const ImVec2 rmax = ImVec2(p.x + NODE_W, p.y + 20.0f + bodyH);
