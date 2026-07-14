@@ -70,6 +70,11 @@ namespace Elixir
         virtual void BeginImGuiFrame() {}
         virtual void EndImGuiFrame() {}
 
+        // Block until the GPU has finished all submitted work. Needed before
+        // destroying resources (e.g. recreating pipelines) that in-flight frames
+        // may still reference.
+        virtual void WaitDeviceIdle() const {}
+
         [[nodiscard]] EGraphicsAPI GetAPI() const { return m_API; }
 
         const Window* GetWindow() const { return m_Window; }

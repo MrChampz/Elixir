@@ -108,7 +108,7 @@ namespace Elixir::Vulkan
 
         void CreateRenderTargets() override;
 
-        void WaitDeviceIdle() const;
+        void WaitDeviceIdle() const override;
         void WaitForAllFrames();
 
         bool Prepare();

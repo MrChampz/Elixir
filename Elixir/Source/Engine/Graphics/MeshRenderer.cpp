@@ -100,6 +100,9 @@ namespace Elixir
         if (!shader)
             return;
         m_Shader = shader;
+        // Recreating the pipelines destroys the current ones; make sure no in-flight
+        // frame is still using them on the GPU before we do.
+        m_GraphicsContext->WaitDeviceIdle();
         CreatePipelines();
         BindResources();
         m_BoundModel = nullptr; // force the material buffer to rebind to the new shader
