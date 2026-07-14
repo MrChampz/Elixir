@@ -128,27 +128,55 @@ struct VSOutput
     float3 WorldPos : POSITION0;
 };
 
-VSOutput main(VSInput input)
+// The graph's World Position Offset as a function of world position and UV, so it
+// can be sampled at neighbouring points to recompute the surface normal.
+float3 ComputeWPO(float3 P, float2 uv)
 {
-    VSOutput output;
-
     GPUMaterial mat = materials[pc.MaterialIndex];
-    float4 worldPos = mul(pc.Model, float4(input.Position, 1.0f));
-
-    // The graph's WorldPositionOffset channel fills this (default: no displacement).
     float3 wpo = float3(0.0f, 0.0f, 0.0f);
 
     // __WPO_BODY__
 
-    worldPos.xyz += wpo;
-
     // Keep the materials / cbGraphParams bindings alive against DXC dead-code
-    // elimination even when the WPO graph reads neither (imperceptible).
-    worldPos.xyz += mat.BaseColorFactor.rgb * 1e-8f + GraphParams[0].rgb * 1e-8f;
+    // elimination even when the graph reads neither (imperceptible).
+    wpo += mat.BaseColorFactor.rgb * 1e-8f + GraphParams[0].rgb * 1e-8f;
+    return wpo;
+}
 
-    output.ClipPos = mul(ViewProj, worldPos);
-    output.WorldPos = worldPos.xyz;
-    output.Normal = mul((float3x3)pc.Model, input.Normal);
+VSOutput main(VSInput input)
+{
+    VSOutput output;
+
+    float4 worldPos = mul(pc.Model, float4(input.Position, 1.0f));
+    float3 N0 = normalize(mul((float3x3)pc.Model, input.Normal));
+
+    float3 p0 = worldPos.xyz + ComputeWPO(worldPos.xyz, input.TexCoord);
+
+    // Recompute the normal from the displaced surface via finite differences along
+    // the tangent basis, so the lighting follows the deformation. Falls back to the
+    // geometric normal when there's no tangent or no displacement.
+    float3 N = N0;
+    if (dot(input.Tangent.xyz, input.Tangent.xyz) > 1e-8f)
+    {
+        float3 T = normalize(mul((float3x3)pc.Model, input.Tangent.xyz));
+        T = normalize(T - N0 * dot(N0, T)); // Gram-Schmidt against N0
+        float3 B = cross(N0, T) * input.Tangent.w;
+
+        const float eps = 0.01f;
+        float3 pT = (worldPos.xyz + T * eps) + ComputeWPO(worldPos.xyz + T * eps, input.TexCoord);
+        float3 pB = (worldPos.xyz + B * eps) + ComputeWPO(worldPos.xyz + B * eps, input.TexCoord);
+
+        float3 fn = cross(pT - p0, pB - p0);
+        if (dot(fn, fn) > 1e-12f)
+        {
+            fn = normalize(fn);
+            N = dot(fn, N0) < 0.0f ? -fn : fn; // keep the original orientation
+        }
+    }
+
+    output.ClipPos = mul(ViewProj, float4(p0, 1.0f));
+    output.WorldPos = p0;
+    output.Normal = N;
     output.Tangent = float4(mul((float3x3)pc.Model, input.Tangent.xyz), input.Tangent.w);
     output.TexCoord = input.TexCoord;
 

@@ -199,8 +199,8 @@ namespace Elixir
             case EMaterialNodeType::ParamScalar:   expr = "GraphParams[" + std::to_string(node.ParamSlot) + "].x"; type = EGraphValueType::Float; break;
             case EMaterialNodeType::ParamColor:    expr = "GraphParams[" + std::to_string(node.ParamSlot) + "]"; type = EGraphValueType::Float4; break;
             case EMaterialNodeType::Parameter:     expr = "mat." + node.ParameterName; type = node.OutputType; break;
-            case EMaterialNodeType::TexCoord:      expr = "input.TexCoord"; type = EGraphValueType::Float2; break;
-            case EMaterialNodeType::Position:      expr = vertexStage ? "worldPos.xyz" : "input.WorldPos"; type = EGraphValueType::Float3; break;
+            case EMaterialNodeType::TexCoord:      expr = vertexStage ? "uv" : "input.TexCoord"; type = EGraphValueType::Float2; break;
+            case EMaterialNodeType::Position:      expr = vertexStage ? "P" : "input.WorldPos"; type = EGraphValueType::Float3; break;
             case EMaterialNodeType::Time:          expr = "Time"; type = EGraphValueType::Float; break;
             case EMaterialNodeType::Sine:          expr = "sin(" + A(0) + ")"; type = AT(0); break;
             case EMaterialNodeType::TextureSample:
