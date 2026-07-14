@@ -2,8 +2,12 @@
 #include "MaterialGraphEditor.h"
 
 #include <imgui.h>
+#include <simdjson.h>
 
 #include <algorithm>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <unordered_map>
 
 namespace Elixir
@@ -168,6 +172,17 @@ namespace Elixir
         if (m_TargetMaterial > maxMaterial) m_TargetMaterial = maxMaterial;
         ImGui::SetNextItemWidth(160.0f);
         ImGui::SliderInt("Target material", &m_TargetMaterial, 0, maxMaterial);
+
+        // Save / load the graph to ./Assets/Materials/<name>.matgraph.json.
+        ImGui::SetNextItemWidth(160.0f);
+        ImGui::InputText("##file", m_FileName, sizeof(m_FileName));
+        ImGui::SameLine();
+        const std::string graphPath = std::string("./Assets/Materials/") + m_FileName + ".matgraph.json";
+        if (ImGui::Button("Save")) Save(graphPath);
+        ImGui::SameLine();
+        if (ImGui::Button("Load")) Load(graphPath);
+        ImGui::SameLine();
+        ImGui::TextDisabled(".matgraph.json");
         ImGui::Separator();
 
         auto addButton = [&](const char* label, EMaterialNodeType type)
@@ -417,5 +432,146 @@ namespace Elixir
                 graph.SetChannel((EMaterialChannel)ch, idMap[m_Channels[ch]]);
 
         return graph;
+    }
+
+    bool MaterialGraphEditor::Save(const std::string& path) const
+    {
+        std::error_code ec;
+        std::filesystem::create_directories(std::filesystem::path(path).parent_path(), ec);
+
+        std::ofstream out(path);
+        if (!out)
+        {
+            EE_CORE_ERROR("Material graph: failed to open '{}' for writing.", path)
+            return false;
+        }
+
+        out << "{\n";
+        out << "  \"version\": 1,\n";
+        out << "  \"targetMaterial\": " << m_TargetMaterial << ",\n";
+        out << "  \"nextId\": " << m_NextId << ",\n";
+        out << "  \"channels\": [";
+        for (int i = 0; i < 5; ++i) out << (i ? ", " : "") << m_Channels[i];
+        out << "],\n";
+        out << "  \"nodes\": [\n";
+        for (size_t k = 0; k < m_Nodes.size(); ++k)
+        {
+            const SNode& n = m_Nodes[k];
+            out << "    { "
+                << "\"id\": " << n.Id << ", "
+                << "\"type\": " << (int)n.Type << ", "
+                << "\"outputType\": " << (int)n.OutputType << ", "
+                << "\"pos\": [" << n.Pos.x << ", " << n.Pos.y << "], "
+                << "\"constant\": [" << n.Constant.x << ", " << n.Constant.y << ", "
+                << n.Constant.z << ", " << n.Constant.w << "], "
+                << "\"param\": \"" << n.Param << "\", "
+                << "\"texSlot\": " << n.TexSlot << ", "
+                << "\"inputCount\": " << n.InputCount << ", "
+                << "\"inputs\": [" << n.Inputs[0] << ", " << n.Inputs[1] << ", " << n.Inputs[2] << "] }"
+                << (k + 1 < m_Nodes.size() ? "," : "") << "\n";
+        }
+        out << "  ]\n}\n";
+
+        EE_CORE_INFO("Material graph saved to '{}'.", path)
+        return true;
+    }
+
+    bool MaterialGraphEditor::Load(const std::string& path)
+    {
+        auto json = simdjson::padded_string::load(path);
+        if (json.error())
+        {
+            EE_CORE_ERROR("Material graph: failed to open '{}': {}", path, simdjson::error_message(json.error()))
+            return false;
+        }
+
+        simdjson::dom::parser parser;
+        simdjson::dom::element doc;
+        if (const auto err = parser.parse(json.value()).get(doc))
+        {
+            EE_CORE_ERROR("Material graph: failed to parse '{}': {}", path, simdjson::error_message(err))
+            return false;
+        }
+
+        // Reads a number tolerant of integer vs floating-point tokens.
+        const auto num = [](simdjson::dom::element e, double def) -> double
+        {
+            double d;
+            if (e.get(d) == simdjson::SUCCESS) return d;
+            int64_t i;
+            if (e.get(i) == simdjson::SUCCESS) return (double)i;
+            return def;
+        };
+
+        // Only commit to the parsed state once we know the document is well-formed.
+        std::vector<SNode> nodes;
+        int channels[5] = { -1, -1, -1, -1, -1 };
+        int targetMaterial = m_TargetMaterial;
+        int nextId = 1;
+
+        int64_t iv;
+        if (doc["targetMaterial"].get(iv) == simdjson::SUCCESS) targetMaterial = (int)iv;
+        if (doc["nextId"].get(iv) == simdjson::SUCCESS) nextId = (int)iv;
+
+        simdjson::dom::array chans;
+        if (doc["channels"].get(chans) == simdjson::SUCCESS)
+        {
+            int i = 0;
+            for (auto c : chans)
+            {
+                if (i < 5) channels[i] = (int)num(c, -1.0);
+                ++i;
+            }
+        }
+
+        simdjson::dom::array arr;
+        if (doc["nodes"].get(arr) == simdjson::SUCCESS)
+        {
+            for (auto e : arr)
+            {
+                SNode node;
+                if (e["id"].get(iv) == simdjson::SUCCESS) node.Id = (int)iv;
+                if (e["type"].get(iv) == simdjson::SUCCESS) node.Type = (EMaterialNodeType)iv;
+                if (e["outputType"].get(iv) == simdjson::SUCCESS) node.OutputType = (EGraphValueType)iv;
+                if (e["texSlot"].get(iv) == simdjson::SUCCESS) node.TexSlot = (int)iv;
+                if (e["inputCount"].get(iv) == simdjson::SUCCESS) node.InputCount = (int)iv;
+
+                simdjson::dom::array pos;
+                if (e["pos"].get(pos) == simdjson::SUCCESS)
+                {
+                    int i = 0;
+                    for (auto v : pos) { if (i == 0) node.Pos.x = (float)num(v, 0.0); else if (i == 1) node.Pos.y = (float)num(v, 0.0); ++i; }
+                }
+                simdjson::dom::array con;
+                if (e["constant"].get(con) == simdjson::SUCCESS)
+                {
+                    int i = 0;
+                    for (auto v : con) { if (i < 4) (&node.Constant.x)[i] = (float)num(v, 0.0); ++i; }
+                }
+                std::string_view sv;
+                if (e["param"].get(sv) == simdjson::SUCCESS)
+                {
+                    const size_t len = std::min(sv.size(), sizeof(node.Param) - 1);
+                    std::memcpy(node.Param, sv.data(), len);
+                    node.Param[len] = '\0';
+                }
+                simdjson::dom::array ins;
+                if (e["inputs"].get(ins) == simdjson::SUCCESS)
+                {
+                    int i = 0;
+                    for (auto v : ins) { if (i < 3) node.Inputs[i] = (int)num(v, -1.0); ++i; }
+                }
+                nodes.push_back(node);
+            }
+        }
+
+        m_Nodes = std::move(nodes);
+        for (int i = 0; i < 5; ++i) m_Channels[i] = channels[i];
+        m_TargetMaterial = targetMaterial;
+        m_NextId = nextId > 1 ? nextId : 1;
+        m_LinkFrom = -1;
+
+        EE_CORE_INFO("Material graph loaded from '{}' ({} nodes).", path, m_Nodes.size())
+        return true;
     }
 }

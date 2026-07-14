@@ -24,6 +24,11 @@ namespace Elixir
         // The material slot the compiled graph should be applied to.
         [[nodiscard]] int TargetMaterial() const { return m_TargetMaterial; }
 
+        // Serialize / restore the full editor state (nodes, wiring, channels) to a
+        // JSON file. Returns false on IO/parse failure.
+        bool Save(const std::string& path) const;
+        bool Load(const std::string& path);
+
         // Convert the current visual state into a compilable graph.
         [[nodiscard]] MaterialGraph Build() const;
 
@@ -55,6 +60,9 @@ namespace Elixir
 
         // The material slot the graph is applied to on Apply.
         int m_TargetMaterial = 0;
+
+        // File name (without extension/dir) for Save/Load.
+        char m_FileName[128] = "material";
 
         // Drag-to-connect: the node whose output pin is being dragged (-1 = none).
         int m_LinkFrom = -1;
