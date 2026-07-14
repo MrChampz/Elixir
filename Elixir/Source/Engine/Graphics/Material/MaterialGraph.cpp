@@ -195,6 +195,7 @@ namespace Elixir
             case EMaterialNodeType::Scalar:        expr = Num(node.ConstantValue.x); type = EGraphValueType::Float; break;
             case EMaterialNodeType::Parameter:     expr = "mat." + node.ParameterName; type = node.OutputType; break;
             case EMaterialNodeType::TexCoord:      expr = "input.TexCoord"; type = EGraphValueType::Float2; break;
+            case EMaterialNodeType::Position:      expr = "input.WorldPos"; type = EGraphValueType::Float3; break;
             case EMaterialNodeType::Time:          expr = "Time"; type = EGraphValueType::Float; break;
             case EMaterialNodeType::Sine:          expr = "sin(" + A(0) + ")"; type = AT(0); break;
             case EMaterialNodeType::TextureSample:
@@ -218,17 +219,23 @@ namespace Elixir
             }
             case EMaterialNodeType::Checker:
             {
-                const std::string uv = node.Inputs.empty() || node.Inputs[0] < 0
-                    ? std::string("input.TexCoord") : Widen(A(0), AT(0), EGraphValueType::Float2);
-                expr = "Checker(" + uv + ", " + Num(node.ConstantValue.x) + ")";
+                const bool has = !node.Inputs.empty() && node.Inputs[0] >= 0;
+                const std::string s = Num(node.ConstantValue.x);
+                if (has && AT(0) == EGraphValueType::Float3)
+                    expr = "Checker3(" + A(0) + ", " + s + ")"; // world-space, UV-independent
+                else
+                    expr = "Checker(" + (has ? Widen(A(0), AT(0), EGraphValueType::Float2) : std::string("input.TexCoord")) + ", " + s + ")";
                 type = EGraphValueType::Float;
                 break;
             }
             case EMaterialNodeType::Noise:
             {
-                const std::string uv = node.Inputs.empty() || node.Inputs[0] < 0
-                    ? std::string("input.TexCoord") : Widen(A(0), AT(0), EGraphValueType::Float2);
-                expr = "ValueNoise(" + uv + ", " + Num(node.ConstantValue.x) + ")";
+                const bool has = !node.Inputs.empty() && node.Inputs[0] >= 0;
+                const std::string s = Num(node.ConstantValue.x);
+                if (has && AT(0) == EGraphValueType::Float3)
+                    expr = "ValueNoise3(" + A(0) + ", " + s + ")"; // world-space, UV-independent
+                else
+                    expr = "ValueNoise(" + (has ? Widen(A(0), AT(0), EGraphValueType::Float2) : std::string("input.TexCoord")) + ", " + s + ")";
                 type = EGraphValueType::Float;
                 break;
             }

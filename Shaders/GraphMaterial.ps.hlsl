@@ -109,6 +109,34 @@ float ValueNoise(float2 uv, float scale)
     return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
 }
 
+// 3D variants (driven by a Position node) so procedural patterns work on meshes
+// with degenerate UVs -- e.g. solid-paint car body panels.
+float Checker3(float3 p, float scale)
+{
+    float3 c = floor(p * scale);
+    return frac((c.x + c.y + c.z) * 0.5f) < 0.25f ? 0.0f : 1.0f;
+}
+
+float Hash31(float3 p)
+{
+    p = frac(p * 0.1031f);
+    p += dot(p, p.zyx + 31.32f);
+    return frac((p.x + p.y) * p.z);
+}
+
+float ValueNoise3(float3 pos, float scale)
+{
+    pos *= scale;
+    float3 i = floor(pos);
+    float3 f = frac(pos);
+    f = f * f * (3.0f - 2.0f * f);
+    float x00 = lerp(Hash31(i + float3(0, 0, 0)), Hash31(i + float3(1, 0, 0)), f.x);
+    float x10 = lerp(Hash31(i + float3(0, 1, 0)), Hash31(i + float3(1, 1, 0)), f.x);
+    float x01 = lerp(Hash31(i + float3(0, 0, 1)), Hash31(i + float3(1, 0, 1)), f.x);
+    float x11 = lerp(Hash31(i + float3(0, 1, 1)), Hash31(i + float3(1, 1, 1)), f.x);
+    return lerp(lerp(x00, x10, f.y), lerp(x01, x11, f.y), f.z);
+}
+
 float2 DirToEquirect(float3 d)
 {
     float u = atan2(d.z, d.x) * 0.15915494f + 0.5f;

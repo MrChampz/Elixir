@@ -19,6 +19,7 @@ namespace Elixir
         Parameter,     // a named material-instance parameter (mat.<field>)
         TextureSample, // sample a bound texture at a UV (input 0, or the mesh UV)
         TexCoord,      // the mesh UV (input.TexCoord)
+        Position,      // world-space position (input.WorldPos)
         Time,          // seconds since start (cbFrame.Time)
         Sine,          // sin(a)
         Panner,        // uv + Time * speed (speed from ConstantValue.xy)

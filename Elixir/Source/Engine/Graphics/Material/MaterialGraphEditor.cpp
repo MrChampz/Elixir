@@ -19,6 +19,7 @@ namespace Elixir
                 case EMaterialNodeType::Parameter:     return "Parameter";
                 case EMaterialNodeType::TextureSample: return "Texture";
                 case EMaterialNodeType::TexCoord:      return "TexCoord";
+                case EMaterialNodeType::Position:      return "Position";
                 case EMaterialNodeType::Time:          return "Time";
                 case EMaterialNodeType::Sine:          return "Sine";
                 case EMaterialNodeType::Panner:        return "Panner";
@@ -72,7 +73,8 @@ namespace Elixir
                 case EMaterialNodeType::Time:          return EGraphValueType::Float;
                 case EMaterialNodeType::TexCoord:
                 case EMaterialNodeType::Panner:        return EGraphValueType::Float2;
-                case EMaterialNodeType::TextureSample: return EGraphValueType::Float3;
+                case EMaterialNodeType::TextureSample:
+                case EMaterialNodeType::Position:      return EGraphValueType::Float3;
                 default:                               return EGraphValueType::Float4;
             }
         }
@@ -180,6 +182,7 @@ namespace Elixir
         addButton("Parameter", EMaterialNodeType::Parameter);
         addButton("Texture", EMaterialNodeType::TextureSample);
         addButton("TexCoord", EMaterialNodeType::TexCoord);
+        addButton("Position", EMaterialNodeType::Position);
         ImGui::NewLine();
 
         ImGui::TextUnformatted("Math:  "); ImGui::SameLine();
