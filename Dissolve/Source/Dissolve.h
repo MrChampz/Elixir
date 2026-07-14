@@ -5,6 +5,7 @@
 #include <Engine/Graphics/Model.h>
 #include <Engine/Graphics/MeshRenderer.h>
 #include <Engine/Graphics/PostProcessor.h>
+#include <Engine/Graphics/Material/MaterialGraphEditor.h>
 
 struct SFrameData
 {
@@ -37,5 +38,7 @@ private:
     Scope<MeshRenderer> m_MeshRenderer;
     Scope<PostProcessor> m_PostProcessor;
     Ref<Model> m_Model;
-    Ref<Shader> m_GraphShader;
+
+    MaterialGraphEditor m_GraphEditor;
+    Ref<Shader> m_PendingGraphShader; // compiled in OnGUI, applied on the render thread
 };

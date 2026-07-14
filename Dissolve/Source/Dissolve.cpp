@@ -67,53 +67,6 @@ Dissolve::Dissolve()
     m_GraphicsContext->InitImGui();
     m_Model = Model::Load(m_GraphicsContext.get(), "./Assets/Meshes/BMW/scene.gltf");
 
-    // Phase 4 smoke test: build a tiny node graph, compile it to a shader at
-    // runtime via DXC, and log whether it loaded. Proves graph -> HLSL -> SPIR-V.
-    {
-        MaterialGraph graph;
-
-        // BaseColor = Constant(orange) * Parameter(BaseColorFactor). Referencing a
-        // material parameter keeps the materials buffer alive through DXC's dead-code
-        // elimination and tints each part by its own base colour.
-        SMaterialNode tint;
-        tint.Type = EMaterialNodeType::Constant;
-        tint.OutputType = EGraphValueType::Float4;
-        tint.ConstantValue = { 1.0f, 0.5f, 0.1f, 1.0f };
-        const uint32_t tintId = graph.AddNode(tint);
-
-        SMaterialNode base;
-        base.Type = EMaterialNodeType::Parameter;
-        base.OutputType = EGraphValueType::Float4;
-        base.ParameterName = "BaseColorFactor";
-        const uint32_t baseId = graph.AddNode(base);
-
-        SMaterialNode mul;
-        mul.Type = EMaterialNodeType::Multiply;
-        mul.OutputType = EGraphValueType::Float4;
-        mul.Inputs = { -1, -1 };
-        const uint32_t mulId = graph.AddNode(mul);
-        graph.Connect(tintId, mulId, 0);
-        graph.Connect(baseId, mulId, 1);
-        graph.SetChannel(EMaterialChannel::BaseColor, mulId);
-
-        SMaterialNode metallic;
-        metallic.Type = EMaterialNodeType::Constant;
-        metallic.OutputType = EGraphValueType::Float;
-        metallic.ConstantValue = { 0.9f, 0.0f, 0.0f, 0.0f };
-        graph.SetChannel(EMaterialChannel::Metallic, graph.AddNode(metallic));
-
-        m_GraphShader = MaterialCompiler::Compile(m_ShaderLoader.get(), graph);
-        if (m_GraphShader)
-        {
-            EE_CORE_INFO("Node-graph material compiled; rendering the model with it.")
-            m_MeshRenderer->SetShader(m_GraphShader);
-        }
-        else
-        {
-            EE_CORE_ERROR("Node-graph material compilation FAILED.")
-        }
-    }
-
     m_ParticleSystem = Aether::LoadEffectFile("./Assets/VFX/RibbonVortex.json");
     // m_ParticleSystem = CreateScope<Aether::System>("Ribbon Garden");
     // m_ParticleSystem->GetParameters().SetFloat("GravityScale", 1.0f);
@@ -214,6 +167,15 @@ void Dissolve::OnGUI(const Timestep frameTime)
     // Build the ImGui UI on the main thread (GLFW input lives here); the draw is
     // submitted later from OnRender on the render thread.
     DrawMaterialEditor();
+
+    // Visual node editor: on Apply, compile the graph and stage the shader to be
+    // bound on the render thread next frame.
+    if (m_GraphEditor.Draw())
+    {
+        const MaterialGraph graph = m_GraphEditor.Build();
+        if (const auto shader = MaterialCompiler::Compile(m_ShaderLoader.get(), graph))
+            m_PendingGraphShader = shader;
+    }
 }
 
 void Dissolve::DrawMaterialEditor()
@@ -272,6 +234,14 @@ void Dissolve::OnRender(const Timestep frameTime)
     m_GraphicsContext->Clear();
 
     //DrawGeometry();
+
+    // Apply a freshly compiled node-graph shader here (render thread), where the
+    // pipeline recreation is safe.
+    if (m_PendingGraphShader)
+    {
+        m_MeshRenderer->SetShader(m_PendingGraphShader);
+        m_PendingGraphShader = nullptr;
+    }
 
     // m_ParticlesRenderer->Render(m_GPUSystem, m_CameraController->GetCamera());
     m_MeshRenderer->Render(m_Model, m_CameraController->GetCamera());
