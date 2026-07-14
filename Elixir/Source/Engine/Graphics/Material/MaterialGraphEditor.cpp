@@ -506,78 +506,80 @@ namespace Elixir
         outNodes = m_Nodes;
         for (int i = 0; i < 6; ++i) outChannels[i] = m_Channels[i];
 
-        std::unordered_map<int, int> callOutput; // FunctionCall id -> resolved output id
         int remapBase = 1000000;
+        constexpr int MAX_EXPANSIONS = 256; // guards against recursive/cyclic functions
+        int guard = 0;
 
-        for (const auto& call : m_Nodes)
+        // Expand one FunctionCall per iteration until none remain. Because expanding a
+        // function may introduce its own FunctionCalls (nesting), this naturally
+        // recurses -- newly added calls are picked up on later iterations.
+        while (guard++ < MAX_EXPANSIONS)
         {
-            if (call.Type != EMaterialNodeType::FunctionCall)
-                continue;
+            int callIdx = -1;
+            for (size_t k = 0; k < outNodes.size(); ++k)
+                if (outNodes[k].Type == EMaterialNodeType::FunctionCall) { callIdx = (int)k; break; }
+            if (callIdx < 0)
+                break; // fully expanded
 
-            const std::string path = std::string("./Assets/Materials/") + call.Param + ".matgraph.json";
+            const SNode call = outNodes[callIdx]; // copy: outNodes is mutated below
+
             std::vector<SNode> fnodes;
             int fchannels[6];
             int ftarget = 0, fnext = 1;
-            if (!ParseGraphFile(path, fnodes, fchannels, ftarget, fnext))
+            int callOut = -1; // the id the call resolves to (-1 = missing/empty function)
+
+            const std::string path = std::string("./Assets/Materials/") + call.Param + ".matgraph.json";
+            if (ParseGraphFile(path, fnodes, fchannels, ftarget, fnext))
             {
-                callOutput[call.Id] = -1; // missing function -> the call resolves to nothing
-                continue;
-            }
+                const int base = remapBase;
+                remapBase += 100000;
+                const auto remap = [&](int id) { return id < 0 ? -1 : base + id; };
 
-            const int base = remapBase;
-            remapBase += 100000;
-            const auto remap = [&](int id) { return id < 0 ? -1 : base + id; };
+                std::unordered_map<int, int> inputIdToSlot;
+                for (const auto& fn : fnodes)
+                    if (fn.Type == EMaterialNodeType::FunctionInput)
+                        inputIdToSlot[fn.Id] = fn.TexSlot;
 
-            // Map each FunctionInput node to its slot so references can be rewired to
-            // the call's inputs.
-            std::unordered_map<int, int> inputIdToSlot;
-            for (const auto& fn : fnodes)
-                if (fn.Type == EMaterialNodeType::FunctionInput)
-                    inputIdToSlot[fn.Id] = fn.TexSlot;
-
-            for (const auto& fn : fnodes)
-            {
-                if (fn.Type == EMaterialNodeType::FunctionInput)
-                    continue; // substituted by the call's inputs
-                SNode c = fn;
-                c.Id = remap(fn.Id);
-                for (int i = 0; i < 3; ++i)
+                for (const auto& fn : fnodes)
                 {
-                    const int src = fn.Inputs[i];
-                    if (src < 0) { c.Inputs[i] = -1; continue; }
-                    if (const auto it = inputIdToSlot.find(src); it != inputIdToSlot.end())
+                    if (fn.Type == EMaterialNodeType::FunctionInput)
+                        continue; // substituted by the call's inputs
+                    SNode c = fn;
+                    c.Id = remap(fn.Id);
+                    for (int i = 0; i < 3; ++i)
                     {
-                        const int slot = it->second;
-                        c.Inputs[i] = (slot >= 0 && slot < 3) ? call.Inputs[slot] : -1; // host source
+                        const int src = fn.Inputs[i];
+                        if (src < 0) { c.Inputs[i] = -1; continue; }
+                        if (const auto it = inputIdToSlot.find(src); it != inputIdToSlot.end())
+                        {
+                            const int slot = it->second;
+                            c.Inputs[i] = (slot >= 0 && slot < 3) ? call.Inputs[slot] : -1; // caller's input
+                        }
+                        else
+                        {
+                            c.Inputs[i] = remap(src);
+                        }
                     }
-                    else
-                    {
-                        c.Inputs[i] = remap(src);
-                    }
+                    outNodes.push_back(c);
                 }
-                outNodes.push_back(c);
+                callOut = remap(fchannels[0]); // a function returns its Base Color driver
             }
 
-            // A function returns whatever drives its Base Color channel.
-            callOutput[call.Id] = remap(fchannels[0]);
+            // Redirect references to this call to its output, then remove the call.
+            for (auto& n : outNodes)
+                for (int i = 0; i < 3; ++i)
+                    if (n.Inputs[i] == call.Id) n.Inputs[i] = callOut;
+            for (int ch = 0; ch < 6; ++ch)
+                if (outChannels[ch] == call.Id) outChannels[ch] = callOut;
+            outNodes.erase(std::remove_if(outNodes.begin(), outNodes.end(),
+                [&](const SNode& n) { return n.Type == EMaterialNodeType::FunctionCall && n.Id == call.Id; }),
+                outNodes.end());
         }
 
-        if (callOutput.empty())
-            return;
+        if (guard >= MAX_EXPANSIONS)
+            EE_CORE_ERROR("Material graph: function expansion hit the limit ({}); recursive functions?", MAX_EXPANSIONS)
 
-        // Redirect every reference to a FunctionCall to its resolved output.
-        const auto resolve = [&](int id)
-        {
-            const auto it = callOutput.find(id);
-            return it != callOutput.end() ? it->second : id;
-        };
-        for (auto& n : outNodes)
-            for (int i = 0; i < 3; ++i)
-                if (n.Inputs[i] >= 0) n.Inputs[i] = resolve(n.Inputs[i]);
-        for (int ch = 0; ch < 6; ++ch)
-            if (outChannels[ch] >= 0) outChannels[ch] = resolve(outChannels[ch]);
-
-        // Drop the now-inlined function nodes.
+        // Drop any leftover function placeholders (e.g. a top-level graph misusing them).
         outNodes.erase(std::remove_if(outNodes.begin(), outNodes.end(), [](const SNode& n)
             { return n.Type == EMaterialNodeType::FunctionCall || n.Type == EMaterialNodeType::FunctionInput; }),
             outNodes.end());
