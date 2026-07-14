@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <string>
+#include <unordered_map>
 
 namespace Elixir
 {
@@ -86,6 +87,11 @@ namespace Elixir
 
         // File name (without extension/dir) for Save/Load.
         char m_FileName[128] = "material";
+
+        // Live overrides for exposed parameters, keyed by name. Lets parameters that
+        // live inside functions (and top-level ones) be edited live without touching
+        // their source node/file. Empty entry -> use the node's own value.
+        std::unordered_map<std::string, glm::vec4> m_ParamOverrides;
 
         // Drag-to-connect: the node whose output pin is being dragged (-1 = none).
         int m_LinkFrom = -1;

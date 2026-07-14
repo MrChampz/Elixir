@@ -461,25 +461,39 @@ namespace Elixir
         // Exposed-parameter panel (own window): editing these pushes live values into
         // the shader (no recompile) via CollectParams() -> cbGraphParams.
         ImGui::Begin("Material Parameters");
-        ImGui::TextDisabled("Live -- no recompile. Add Param.f / Param.rgba nodes.");
+        ImGui::TextDisabled("Live -- no recompile. Includes params inside functions.");
         ImGui::Separator();
-        int slot = 0;
-        for (auto& node : m_Nodes)
         {
-            if (node.Type != EMaterialNodeType::ParamScalar && node.Type != EMaterialNodeType::ParamColor)
-                continue;
-            if (slot >= MAX_PARAMS) break;
-            ImGui::PushID(1000 + node.Id);
-            ImGui::SetNextItemWidth(200.0f);
-            if (node.Type == EMaterialNodeType::ParamScalar)
-                ImGui::DragFloat(node.Param, &node.Constant.x, 0.01f, -10.0f, 10.0f, "%.3f");
-            else
-                ImGui::ColorEdit4(node.Param, &node.Constant.x, ImGuiColorEditFlags_AlphaBar);
-            ImGui::PopID();
-            ++slot;
+            // List params across the expanded graph (top-level + inside functions);
+            // edits go to an override map keyed by name (applied by CollectParams).
+            std::vector<SNode> pnodes;
+            int pchannels[6];
+            Expand(pnodes, pchannels);
+            int slot = 0;
+            for (const auto& node : pnodes)
+            {
+                if (node.Type != EMaterialNodeType::ParamScalar && node.Type != EMaterialNodeType::ParamColor)
+                    continue;
+                if (slot >= MAX_PARAMS) break;
+
+                const auto it = m_ParamOverrides.find(node.Param);
+                glm::vec4 value = it != m_ParamOverrides.end() ? it->second : node.Constant;
+
+                ImGui::PushID(slot);
+                ImGui::SetNextItemWidth(200.0f);
+                bool changed;
+                if (node.Type == EMaterialNodeType::ParamScalar)
+                    changed = ImGui::DragFloat(node.Param, &value.x, 0.01f, -10.0f, 10.0f, "%.3f");
+                else
+                    changed = ImGui::ColorEdit4(node.Param, &value.x, ImGuiColorEditFlags_AlphaBar);
+                if (changed)
+                    m_ParamOverrides[node.Param] = value;
+                ImGui::PopID();
+                ++slot;
+            }
+            if (slot == 0)
+                ImGui::TextDisabled("(no exposed parameters)");
         }
-        if (slot == 0)
-            ImGui::TextDisabled("(no exposed parameters)");
         ImGui::End();
 
         // Live preview: recompile a short debounce after the last graph change, so a
@@ -641,14 +655,21 @@ namespace Elixir
 
     int MaterialGraphEditor::CollectParams(glm::vec4* out, int maxCount) const
     {
+        // Iterate the expanded graph so parameters inside functions get slots in the
+        // same order Build() assigns them; apply any live override by name.
+        std::vector<SNode> nodes;
+        int channels[6];
+        Expand(nodes, channels);
+
         int slot = 0;
-        for (const auto& n : m_Nodes)
+        for (const auto& n : nodes)
         {
             if (n.Type != EMaterialNodeType::ParamScalar && n.Type != EMaterialNodeType::ParamColor)
                 continue;
             if (slot >= maxCount || slot >= MAX_PARAMS)
                 break;
-            out[slot++] = n.Constant;
+            const auto it = m_ParamOverrides.find(n.Param);
+            out[slot++] = it != m_ParamOverrides.end() ? it->second : n.Constant;
         }
         return slot;
     }
@@ -690,7 +711,18 @@ namespace Elixir
                 << "\"inputs\": [" << n.Inputs[0] << ", " << n.Inputs[1] << ", " << n.Inputs[2] << "] }"
                 << (k + 1 < m_Nodes.size() ? "," : "") << "\n";
         }
-        out << "  ]\n}\n";
+        out << "  ],\n";
+
+        // Live parameter overrides (by name).
+        out << "  \"paramOverrides\": [";
+        bool first = true;
+        for (const auto& [name, v] : m_ParamOverrides)
+        {
+            out << (first ? "" : ", ") << "{ \"name\": \"" << name << "\", \"value\": ["
+                << v.x << ", " << v.y << ", " << v.z << ", " << v.w << "] }";
+            first = false;
+        }
+        out << "]\n}\n";
 
         EE_CORE_INFO("Material graph saved to '{}'.", path)
         return true;
@@ -800,6 +832,31 @@ namespace Elixir
         m_TargetMaterial = targetMaterial;
         m_NextId = nextId > 1 ? nextId : 1;
         m_LinkFrom = -1;
+
+        // Restore live parameter overrides.
+        m_ParamOverrides.clear();
+        {
+            auto json = simdjson::padded_string::load(path);
+            simdjson::dom::parser parser;
+            simdjson::dom::element doc;
+            simdjson::dom::array overrides;
+            if (!json.error() && parser.parse(json.value()).get(doc) == simdjson::SUCCESS
+                && doc["paramOverrides"].get(overrides) == simdjson::SUCCESS)
+            {
+                for (auto o : overrides)
+                {
+                    std::string_view name;
+                    simdjson::dom::array val;
+                    if (o["name"].get(name) != simdjson::SUCCESS || o["value"].get(val) != simdjson::SUCCESS)
+                        continue;
+                    glm::vec4 v(0.0f);
+                    int i = 0;
+                    for (auto c : val) { double d; if (c.get(d) == simdjson::SUCCESS && i < 4) (&v.x)[i] = (float)d; ++i; }
+                    m_ParamOverrides[std::string(name)] = v;
+                }
+            }
+        }
+
         m_LastSig = Signature();
         m_DirtySince = -1.0;
 
