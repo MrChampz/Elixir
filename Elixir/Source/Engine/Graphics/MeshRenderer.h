@@ -101,6 +101,19 @@ namespace Elixir
         };
         std::unordered_map<uint32_t, SShaderVariant> m_MaterialShaders;
 
+        // Deferred destruction: a swapped-out shader/pipeline may still be referenced
+        // by in-flight frames, so keep it alive a few frames before releasing it --
+        // avoids a WaitDeviceIdle stall on every shader swap.
+        static constexpr int RETIRE_FRAMES = 4; // > frames in flight
+        struct SRetired
+        {
+            SShaderVariant Variant;
+            int FramesLeft;
+        };
+        std::vector<SRetired> m_Retired;
+        void Retire(SShaderVariant&& variant);
+        void TickRetired();
+
         Ref<UniformBuffer> m_FrameBuffer;
         SFrameData m_FrameData{};
 

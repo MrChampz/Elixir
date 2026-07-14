@@ -5,6 +5,7 @@
 #include "Engine/Graphics/SamplerBuilder.h"
 #include "Engine/Graphics/Pipeline/PipelineBuilder.h"
 
+#include <algorithm>
 #include <chrono>
 
 namespace Elixir
@@ -108,14 +109,29 @@ namespace Elixir
         shader->BindTextureSet("textures", m_Textures);
     }
 
+    void MeshRenderer::Retire(SShaderVariant&& variant)
+    {
+        if (variant.Shader || variant.Opaque || variant.Transparent || variant.ParamBuffer)
+            m_Retired.push_back({ std::move(variant), RETIRE_FRAMES });
+    }
+
+    void MeshRenderer::TickRetired()
+    {
+        for (auto& r : m_Retired)
+            --r.FramesLeft;
+        m_Retired.erase(
+            std::remove_if(m_Retired.begin(), m_Retired.end(), [](const SRetired& r) { return r.FramesLeft <= 0; }),
+            m_Retired.end());
+    }
+
     void MeshRenderer::SetShader(const Ref<Shader>& shader)
     {
         if (!shader)
             return;
+        // Retire the current shader/pipelines instead of destroying them now (in-flight
+        // frames may still reference them); they're freed a few frames later.
+        Retire({ m_Shader, m_Pipeline, m_TransparentPipeline, nullptr });
         m_Shader = shader;
-        // Recreating the pipelines destroys the current ones; make sure no in-flight
-        // frame is still using them on the GPU before we do.
-        m_GraphicsContext->WaitDeviceIdle();
         CreatePipelines();
         BindResources();
         m_BoundModel = nullptr; // force the material buffer to rebind to the new shader
@@ -123,12 +139,13 @@ namespace Elixir
 
     void MeshRenderer::SetMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader)
     {
-        // In-flight frames may still reference pipelines we're about to replace/destroy.
-        m_GraphicsContext->WaitDeviceIdle();
-
         if (!shader)
         {
-            m_MaterialShaders.erase(materialIndex);
+            if (const auto it = m_MaterialShaders.find(materialIndex); it != m_MaterialShaders.end())
+            {
+                Retire(std::move(it->second));
+                m_MaterialShaders.erase(it);
+            }
             return;
         }
 
@@ -142,6 +159,9 @@ namespace Elixir
         variant.ParamBuffer = UniformBuffer::Create(m_GraphicsContext, sizeof(zeros), zeros);
         shader->BindConstantBuffer("cbGraphParams", variant.ParamBuffer);
 
+        // Retire the slot's previous variant (may be in flight), then install the new.
+        if (const auto it = m_MaterialShaders.find(materialIndex); it != m_MaterialShaders.end())
+            Retire(std::move(it->second));
         m_MaterialShaders[materialIndex] = std::move(variant);
         m_BoundModel = nullptr; // force the material buffer to rebind to all shaders
     }
@@ -222,6 +242,9 @@ namespace Elixir
     {
         if (!model || model->GetPrimitives().empty())
             return;
+
+        // Release shader/pipeline resources retired a few frames ago (now safely idle).
+        TickRetired();
 
         // Build (and cache) the model's material buffer, resolving its textures
         // into the bindless set the first time we see it.
