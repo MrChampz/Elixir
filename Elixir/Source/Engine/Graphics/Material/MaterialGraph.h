@@ -16,8 +16,11 @@ namespace Elixir
     {
         Constant,      // a literal value
         Parameter,     // a named material-instance parameter (mat.<field>)
-        TextureSample, // sample a bound texture at the mesh UV
+        TextureSample, // sample a bound texture at a UV (input 0, or the mesh UV)
         TexCoord,      // the mesh UV (input.TexCoord)
+        Time,          // seconds since start (cbFrame.Time)
+        Sine,          // sin(a)
+        Panner,        // uv + Time * speed (speed from ConstantValue.xy)
         Multiply,      // a * b
         Add,           // a + b
         Subtract,      // a - b

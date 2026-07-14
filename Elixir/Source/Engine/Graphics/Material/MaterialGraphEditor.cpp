@@ -18,6 +18,9 @@ namespace Elixir
                 case EMaterialNodeType::Parameter:     return "Parameter";
                 case EMaterialNodeType::TextureSample: return "Texture";
                 case EMaterialNodeType::TexCoord:      return "TexCoord";
+                case EMaterialNodeType::Time:          return "Time";
+                case EMaterialNodeType::Sine:          return "Sine";
+                case EMaterialNodeType::Panner:        return "Panner";
                 case EMaterialNodeType::Multiply:      return "Multiply";
                 case EMaterialNodeType::Add:           return "Add";
                 case EMaterialNodeType::Subtract:      return "Subtract";
@@ -44,7 +47,10 @@ namespace Elixir
                 case EMaterialNodeType::Dot:      return 2;
                 case EMaterialNodeType::Lerp:     return 3;
                 case EMaterialNodeType::OneMinus:
-                case EMaterialNodeType::Saturate: return 1;
+                case EMaterialNodeType::Saturate:
+                case EMaterialNodeType::Sine:
+                case EMaterialNodeType::Panner:        // input 0 = UV (optional)
+                case EMaterialNodeType::TextureSample: return 1; // input 0 = UV (optional)
                 default: return 0;
             }
         }
@@ -54,25 +60,27 @@ namespace Elixir
             switch (t)
             {
                 case EMaterialNodeType::Fresnel:
-                case EMaterialNodeType::Dot:           return EGraphValueType::Float;
-                case EMaterialNodeType::TexCoord:      return EGraphValueType::Float2;
+                case EMaterialNodeType::Dot:
+                case EMaterialNodeType::Time:          return EGraphValueType::Float;
+                case EMaterialNodeType::TexCoord:
+                case EMaterialNodeType::Panner:        return EGraphValueType::Float2;
                 case EMaterialNodeType::TextureSample: return EGraphValueType::Float3;
                 default:                               return EGraphValueType::Float4;
             }
         }
 
-        // The guarded HLSL sample expression for a texture slot (0..4). Falls back to
-        // white when the material has no texture bound in that slot.
-        std::string TextureSlotExpr(int slot)
+        // The HLSL accessor for a texture slot index (0..4). The codegen wraps this in
+        // the NO_TEXTURE guard and pairs it with a UV.
+        std::string TextureIndexAccessor(int slot)
         {
-            const char* idx =
-                slot == 0 ? "mat.TexIndex0.x" :
-                slot == 1 ? "mat.TexIndex0.y" :
-                slot == 2 ? "mat.TexIndex0.z" :
-                slot == 3 ? "mat.TexIndex0.w" :
-                            "mat.TexIndex1.x";
-            return std::string("(") + idx + " == 0xffffffffu ? float3(1.0, 1.0, 1.0) : SampleTex("
-                + idx + ", input.TexCoord))";
+            switch (slot)
+            {
+                case 0:  return "mat.TexIndex0.x";
+                case 1:  return "mat.TexIndex0.y";
+                case 2:  return "mat.TexIndex0.z";
+                case 3:  return "mat.TexIndex0.w";
+                default: return "mat.TexIndex1.x";
+            }
         }
 
         const char* const kTextureSlots[] = { "Base Color", "Metal/Rough", "Normal", "Emissive", "Occlusion" };
@@ -168,6 +176,12 @@ namespace Elixir
         addButton("Fresnel", EMaterialNodeType::Fresnel);
         ImGui::NewLine();
 
+        ImGui::TextUnformatted("Anim:  "); ImGui::SameLine();
+        addButton("Time", EMaterialNodeType::Time);
+        addButton("Sine", EMaterialNodeType::Sine);
+        addButton("Panner", EMaterialNodeType::Panner);
+        ImGui::NewLine();
+
         if (ImGui::Button("Apply")) apply = true;
         ImGui::SameLine();
         ImGui::TextDisabled("(right-click: node = delete, pin = disconnect)");
@@ -237,6 +251,8 @@ namespace Elixir
                 ImGui::InputText("##p", node.Param, sizeof(node.Param));
             else if (node.Type == EMaterialNodeType::TextureSample)
                 ImGui::Combo("##t", &node.TexSlot, kTextureSlots, IM_ARRAYSIZE(kTextureSlots));
+            else if (node.Type == EMaterialNodeType::Panner)
+                ImGui::DragFloat2("##s", &node.Constant.x, 0.01f, -5.0f, 5.0f, "%.2f");
             ImGui::PopItemWidth();
 
             // Output pin (right, centered).
@@ -356,7 +372,7 @@ namespace Elixir
             gn.ParameterName = n.Param;
             gn.Inputs.assign(n.InputCount, -1);
             if (n.Type == EMaterialNodeType::TextureSample)
-                gn.TextureExpression = TextureSlotExpr(n.TexSlot);
+                gn.TextureExpression = TextureIndexAccessor(n.TexSlot);
             idMap[n.Id] = graph.AddNode(gn);
         }
 

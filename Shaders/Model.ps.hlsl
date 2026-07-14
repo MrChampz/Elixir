@@ -10,7 +10,7 @@ cbuffer cbFrame : register(b0)
     float4x4 Proj;
     float4x4 ViewProj;
     float3 CameraPos;
-    float _Padding;
+    float Time;
     uint EnvIndex;
     uint IrradianceIndex;
     float EnvIntensity;

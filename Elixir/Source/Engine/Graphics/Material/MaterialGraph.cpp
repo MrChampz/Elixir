@@ -193,8 +193,28 @@ namespace Elixir
         {
             case EMaterialNodeType::Constant:      expr = ConstantExpr(node); type = node.OutputType; break;
             case EMaterialNodeType::Parameter:     expr = "mat." + node.ParameterName; type = node.OutputType; break;
-            case EMaterialNodeType::TextureSample: expr = node.TextureExpression; type = EGraphValueType::Float3; break;
             case EMaterialNodeType::TexCoord:      expr = "input.TexCoord"; type = EGraphValueType::Float2; break;
+            case EMaterialNodeType::Time:          expr = "Time"; type = EGraphValueType::Float; break;
+            case EMaterialNodeType::Sine:          expr = "sin(" + A(0) + ")"; type = AT(0); break;
+            case EMaterialNodeType::TextureSample:
+            {
+                // node.TextureExpression holds the index accessor (e.g. mat.TexIndex0.x).
+                const std::string idx = node.TextureExpression;
+                const std::string uv = node.Inputs.empty() || node.Inputs[0] < 0
+                    ? std::string("input.TexCoord") : Widen(A(0), AT(0), EGraphValueType::Float2);
+                expr = "(" + idx + " == 0xffffffffu ? float3(1.0, 1.0, 1.0) : SampleTex(" + idx + ", " + uv + "))";
+                type = EGraphValueType::Float3;
+                break;
+            }
+            case EMaterialNodeType::Panner:
+            {
+                const std::string uv = node.Inputs.empty() || node.Inputs[0] < 0
+                    ? std::string("input.TexCoord") : Widen(A(0), AT(0), EGraphValueType::Float2);
+                const std::string speed = "float2(" + Num(node.ConstantValue.x) + ", " + Num(node.ConstantValue.y) + ")";
+                expr = "(" + uv + " + Time * " + speed + ")";
+                type = EGraphValueType::Float2;
+                break;
+            }
             case EMaterialNodeType::Multiply:      binOp("*"); break;
             case EMaterialNodeType::Add:           binOp("+"); break;
             case EMaterialNodeType::Subtract:      binOp("-"); break;

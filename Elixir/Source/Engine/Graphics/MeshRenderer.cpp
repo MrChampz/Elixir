@@ -5,6 +5,8 @@
 #include "Engine/Graphics/SamplerBuilder.h"
 #include "Engine/Graphics/Pipeline/PipelineBuilder.h"
 
+#include <chrono>
+
 namespace Elixir
 {
     MeshRenderer::MeshRenderer(const GraphicsContext* context, const ShaderLoader* shaderLoader)
@@ -206,6 +208,10 @@ namespace Elixir
         m_FrameData.SceneColorIndex = m_SceneColorIndex;
         m_FrameData.ScreenWidth = (float)extent.Width;
         m_FrameData.ScreenHeight = (float)extent.Height;
+
+        // Wall-clock seconds since the first frame, for animated graph materials.
+        static const auto s_Start = std::chrono::steady_clock::now();
+        m_FrameData.Time = std::chrono::duration<float>(std::chrono::steady_clock::now() - s_Start).count();
 
         // Directional "sun": a warm key light roughly matching the sunset HDR.
         m_FrameData.LightDirection = glm::vec4(glm::normalize(glm::vec3(-0.5f, 0.65f, -0.55f)), 0.0f);

@@ -31,7 +31,7 @@ namespace Elixir
             glm::mat4 Proj;
             glm::mat4 ViewProj;
             glm::vec3 CameraPos;
-            float _Padding = 0.0f;
+            float Time = 0.0f; // seconds since start, drives animated graph materials
             uint32_t EnvIndex = 0xffffffffu;
             uint32_t IrradianceIndex = 0xffffffffu;
             float EnvIntensity = 1.0f;
