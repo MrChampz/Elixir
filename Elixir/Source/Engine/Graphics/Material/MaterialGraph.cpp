@@ -180,6 +180,22 @@ namespace Elixir
         auto A = [&](size_t i) { return i < in.size() ? in[i] : std::string("0.0"); };
         auto AT = [&](size_t i) { return i < inT.size() ? inT[i] : EGraphValueType::Float; };
 
+        // Custom node: raw HLSL over inputs a, b, c, scoped in a block so multiple
+        // Custom nodes don't collide. Emits its own multi-line body and returns early.
+        if (node.Type == EMaterialNodeType::Custom)
+        {
+            const std::string var = "n" + std::to_string(id);
+            body += "    " + std::string(TypeName(node.OutputType)) + " " + var + ";\n    {\n";
+            const char* names[3] = { "a", "b", "c" };
+            for (int i = 0; i < 3; ++i)
+                body += "        " + std::string(TypeName(AT(i))) + " " + names[i] + " = " + A(i) + ";\n";
+            const std::string code = node.CustomCode.empty() ? "a" : node.CustomCode;
+            body += "        " + var + " = (" + code + ");\n    }\n";
+            emitted[id] = var;
+            types[id] = node.OutputType;
+            return var;
+        }
+
         std::string expr;
         EGraphValueType type = node.OutputType;
 

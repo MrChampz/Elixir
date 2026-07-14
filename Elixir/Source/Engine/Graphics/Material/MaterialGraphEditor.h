@@ -50,6 +50,7 @@ namespace Elixir
 
             glm::vec4 Constant{ 1.0f, 1.0f, 1.0f, 1.0f }; // Constant
             char Param[64] = "BaseColorFactor";           // Parameter
+            char Code[256] = "a";                         // Custom (raw HLSL over a,b,c)
             int TexSlot = 0;                              // TextureSample (0=base..4=occlusion)
             int InputCount = 0;
             int Inputs[3] = { -1, -1, -1 };               // source node ids

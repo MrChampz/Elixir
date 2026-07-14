@@ -43,6 +43,7 @@ namespace Elixir
                 case EMaterialNodeType::OneMinus:      return "OneMinus";
                 case EMaterialNodeType::Saturate:      return "Saturate";
                 case EMaterialNodeType::Fresnel:       return "Fresnel";
+                case EMaterialNodeType::Custom:        return "Custom HLSL";
             }
             return "Node";
         }
@@ -58,6 +59,7 @@ namespace Elixir
                 case EMaterialNodeType::Power:
                 case EMaterialNodeType::Dot:      return 2;
                 case EMaterialNodeType::Lerp:     return 3;
+                case EMaterialNodeType::Custom:   return 3; // a, b, c
                 case EMaterialNodeType::OneMinus:
                 case EMaterialNodeType::Saturate:
                 case EMaterialNodeType::Sine:
@@ -226,6 +228,7 @@ namespace Elixir
         addButton("OneMinus", EMaterialNodeType::OneMinus);
         addButton("Saturate", EMaterialNodeType::Saturate);
         addButton("Fresnel", EMaterialNodeType::Fresnel);
+        addButton("Custom", EMaterialNodeType::Custom);
         ImGui::NewLine();
 
         ImGui::TextUnformatted("Anim:  "); ImGui::SameLine();
@@ -320,6 +323,13 @@ namespace Elixir
                 ImGui::DragFloat2("##s", &node.Constant.x, 0.01f, -5.0f, 5.0f, "%.2f");
             else if (node.Type == EMaterialNodeType::Checker || node.Type == EMaterialNodeType::Noise)
                 ImGui::DragFloat("##sc", &node.Constant.x, 0.1f, 0.1f, 128.0f, "scale %.1f");
+            else if (node.Type == EMaterialNodeType::Custom)
+            {
+                ImGui::InputText("##code", node.Code, sizeof(node.Code));
+                int ot = (int)node.OutputType;
+                if (ImGui::Combo("##ot", &ot, "float\0float2\0float3\0float4\0"))
+                    node.OutputType = (EGraphValueType)ot;
+            }
             ImGui::PopItemWidth();
 
             // Output pin (right, centered).
@@ -482,6 +492,8 @@ namespace Elixir
             gn.Inputs.assign(n.InputCount, -1);
             if (n.Type == EMaterialNodeType::TextureSample)
                 gn.TextureExpression = TextureIndexAccessor(n.TexSlot);
+            if (n.Type == EMaterialNodeType::Custom)
+                gn.CustomCode = n.Code;
             // Exposed parameters get a GraphParams slot in node order (capped to the
             // shader's array size); CollectParams() mirrors this ordering.
             if (n.Type == EMaterialNodeType::ParamScalar || n.Type == EMaterialNodeType::ParamColor)
@@ -559,6 +571,7 @@ namespace Elixir
                 << "\"constant\": [" << n.Constant.x << ", " << n.Constant.y << ", "
                 << n.Constant.z << ", " << n.Constant.w << "], "
                 << "\"param\": \"" << n.Param << "\", "
+                << "\"code\": \"" << n.Code << "\", "
                 << "\"texSlot\": " << n.TexSlot << ", "
                 << "\"inputCount\": " << n.InputCount << ", "
                 << "\"inputs\": [" << n.Inputs[0] << ", " << n.Inputs[1] << ", " << n.Inputs[2] << "] }"
@@ -648,6 +661,12 @@ namespace Elixir
                     const size_t len = std::min(sv.size(), sizeof(node.Param) - 1);
                     std::memcpy(node.Param, sv.data(), len);
                     node.Param[len] = '\0';
+                }
+                if (e["code"].get(sv) == simdjson::SUCCESS)
+                {
+                    const size_t len = std::min(sv.size(), sizeof(node.Code) - 1);
+                    std::memcpy(node.Code, sv.data(), len);
+                    node.Code[len] = '\0';
                 }
                 simdjson::dom::array ins;
                 if (e["inputs"].get(ins) == simdjson::SUCCESS)

@@ -38,6 +38,7 @@ namespace Elixir
         OneMinus,      // 1 - a
         Saturate,      // saturate(a)
         Fresnel,       // schlick fresnel from N,V
+        Custom,        // raw HLSL expression over inputs a, b, c
     };
 
     // The surface output a channel drives. Together these form the "master node".
@@ -62,6 +63,7 @@ namespace Elixir
         glm::vec4 ConstantValue{ 0.0f }; // Constant
         std::string ParameterName;       // Parameter -> mat.<ParameterName>
         std::string TextureExpression;   // TextureSample -> the HLSL sample expression
+        std::string CustomCode;          // Custom -> raw HLSL expression over a, b, c
         int32_t ParamSlot = 0;           // ParamScalar/ParamColor -> GraphParams[slot]
     };
 
