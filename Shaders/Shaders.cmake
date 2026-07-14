@@ -206,6 +206,9 @@ function(copy_shaders_for_targets)
             COMMAND "${CMAKE_COMMAND}" -E copy
                     "${SHADER_SOURCE_DIR}/GraphMaterial.ps.hlsl"
                     "${TARGET_SHADER_DIR}/GraphMaterial.ps.hlsl"
+            COMMAND "${CMAKE_COMMAND}" -E copy
+                    "${SHADER_SOURCE_DIR}/GraphMaterial.vs.hlsl"
+                    "${TARGET_SHADER_DIR}/GraphMaterial.vs.hlsl"
             COMMAND "${CMAKE_COMMAND}" -E touch
                     "${CMAKE_CURRENT_BINARY_DIR}/${target}_copy_shaders.stamp"
             DEPENDS ${ALL_SPIRV_OUTPUTS}

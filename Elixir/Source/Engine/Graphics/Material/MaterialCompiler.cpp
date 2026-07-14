@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 #include <cstdlib>
+#include <cstring>
 #include <atomic>
 
 namespace Elixir
@@ -73,27 +74,38 @@ namespace Elixir
             out << InjectBody(templateHlsl, graph);
         }
 
-        // Compile the generated pixel shader to SPIR-V with DXC.
         const fs::path dxc = FindDxc();
-        const fs::path spvPath = loadDir / (name + ".ps.spirv");
-        const std::string cmd =
-            "\"" + dxc.string() + "\" -spirv -T ps_6_0 -E main \""
-            + hlslPath.string() + "\" -Fo \"" + spvPath.string() + "\"";
 
-        const int rc = std::system(cmd.c_str());
-        if (rc != 0 || !fs::exists(spvPath))
+        // Compiles one HLSL string to SPIR-V; returns false on failure.
+        const auto compileStage = [&](const std::string& hlsl, const char* profile, const fs::path& src, const fs::path& out)
         {
-            EE_CORE_ERROR("Material graph: DXC compilation failed (rc={0}) for {1}.", rc, name)
+            { std::ofstream f(src, std::ios::binary); f << hlsl; }
+            const std::string cmd = "\"" + dxc.string() + "\" -spirv -T " + profile
+                + " -E main \"" + src.string() + "\" -Fo \"" + out.string() + "\"";
+            return std::system(cmd.c_str()) == 0 && fs::exists(out);
+        };
+
+        // Pixel stage: surface channels.
+        if (!compileStage(InjectBody(templateHlsl, graph), "ps_6_0", hlslPath, loadDir / (name + ".ps.spirv")))
+        {
+            EE_CORE_ERROR("Material graph: DXC pixel-shader compilation failed for {0}.", name)
             return nullptr;
         }
 
-        // Reuse the shared model vertex shader (graph materials only vary the pixel
-        // stage). LoadShader wants <name>.vs.spirv and <name>.ps.spirv side by side.
-        fs::copy_file(shadersDir / "Model.vs.spirv", loadDir / (name + ".vs.spirv"),
-            fs::copy_options::overwrite_existing, ec);
-        if (ec)
+        // Vertex stage: World Position Offset (displaces the vertex; no-op if the
+        // graph doesn't drive that channel).
+        const std::string vsTemplate = ReadFile(shadersDir / "GraphMaterial.vs.hlsl");
+        if (vsTemplate.empty())
         {
-            EE_CORE_ERROR("Material graph: could not stage Model.vs.spirv ({0}).", ec.message())
+            EE_CORE_ERROR("Material graph: template GraphMaterial.vs.hlsl not found next to the shaders.")
+            return nullptr;
+        }
+        std::string vsSource = vsTemplate;
+        if (const auto pos = vsSource.find("// __WPO_BODY__"); pos != std::string::npos)
+            vsSource.replace(pos, std::strlen("// __WPO_BODY__"), graph.GenerateHLSL(true));
+        if (!compileStage(vsSource, "vs_6_0", generatedDir / (name + ".src.vs.hlsl"), loadDir / (name + ".vs.spirv")))
+        {
+            EE_CORE_ERROR("Material graph: DXC vertex-shader compilation failed for {0}.", name)
             return nullptr;
         }
 

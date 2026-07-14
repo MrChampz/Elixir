@@ -40,7 +40,9 @@ namespace Elixir
     };
 
     // The surface output a channel drives. Together these form the "master node".
-    enum class EMaterialChannel : uint8_t { BaseColor, Metallic, Roughness, Emissive, Normal };
+    // WorldPositionOffset is a vertex-stage output (displaces the vertex); the rest
+    // are pixel-stage surface outputs.
+    enum class EMaterialChannel : uint8_t { BaseColor, Metallic, Roughness, Emissive, Normal, WorldPositionOffset };
 
     // One node in a material graph. Nodes are plain data (no lambdas) so the graph
     // can be serialized and edited; the codegen interprets Type.
@@ -75,14 +77,17 @@ namespace Elixir
         // Drive a surface channel from a node's output.
         void SetChannel(EMaterialChannel channel, uint32_t nodeId);
 
-        // Generate the HLSL statements that fill `surface.<channel> = ...;`.
-        [[nodiscard]] std::string GenerateHLSL() const;
+        // Generate the HLSL statements for a stage. Pixel stage (default) fills
+        // `surface.<channel> = ...;` for the surface channels; vertex stage emits
+        // `wpo = ...;` from the WorldPositionOffset channel only.
+        [[nodiscard]] std::string GenerateHLSL(bool vertexStage = false) const;
 
         [[nodiscard]] const std::unordered_map<uint32_t, SMaterialNode>& GetNodes() const { return m_Nodes; }
 
       private:
         std::string EmitNode(
             uint32_t id,
+            bool vertexStage,
             std::unordered_map<uint32_t, std::string>& emitted,
             std::unordered_map<uint32_t, EGraphValueType>& types,
             std::string& body) const;

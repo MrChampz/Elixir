@@ -26,6 +26,7 @@ namespace Elixir
                 case EMaterialChannel::Roughness: return "Roughness";
                 case EMaterialChannel::Emissive:  return "Emissive";
                 case EMaterialChannel::Normal:    return "Normal";
+                case EMaterialChannel::WorldPositionOffset: return "WorldPositionOffset";
             }
             return "BaseColor";
         }
@@ -137,6 +138,7 @@ namespace Elixir
 
     std::string MaterialGraph::EmitNode(
         uint32_t id,
+        bool vertexStage,
         std::unordered_map<uint32_t, std::string>& emitted,
         std::unordered_map<uint32_t, EGraphValueType>& types,
         std::string& body) const
@@ -160,7 +162,7 @@ namespace Elixir
         {
             if (node.Inputs[i] >= 0)
             {
-                in.push_back(EmitNode((uint32_t)node.Inputs[i], emitted, types, body));
+                in.push_back(EmitNode((uint32_t)node.Inputs[i], vertexStage, emitted, types, body));
                 inT.push_back(types[(uint32_t)node.Inputs[i]]);
             }
             else if (i < node.DefaultInputs.size())
@@ -197,7 +199,7 @@ namespace Elixir
             case EMaterialNodeType::ParamColor:    expr = "GraphParams[" + std::to_string(node.ParamSlot) + "]"; type = EGraphValueType::Float4; break;
             case EMaterialNodeType::Parameter:     expr = "mat." + node.ParameterName; type = node.OutputType; break;
             case EMaterialNodeType::TexCoord:      expr = "input.TexCoord"; type = EGraphValueType::Float2; break;
-            case EMaterialNodeType::Position:      expr = "input.WorldPos"; type = EGraphValueType::Float3; break;
+            case EMaterialNodeType::Position:      expr = vertexStage ? "worldPos.xyz" : "input.WorldPos"; type = EGraphValueType::Float3; break;
             case EMaterialNodeType::Time:          expr = "Time"; type = EGraphValueType::Float; break;
             case EMaterialNodeType::Sine:          expr = "sin(" + A(0) + ")"; type = AT(0); break;
             case EMaterialNodeType::TextureSample:
@@ -269,7 +271,7 @@ namespace Elixir
             }
             case EMaterialNodeType::OneMinus:      expr = "(1.0 - " + A(0) + ")"; type = AT(0); break;
             case EMaterialNodeType::Saturate:      expr = "saturate(" + A(0) + ")"; type = AT(0); break;
-            case EMaterialNodeType::Fresnel:       expr = "pow(saturate(1.0 - dot(N, V)), 5.0)"; type = EGraphValueType::Float; break;
+            case EMaterialNodeType::Fresnel:       expr = vertexStage ? "0.0" : "pow(saturate(1.0 - dot(N, V)), 5.0)"; type = EGraphValueType::Float; break;
         }
 
         const std::string var = "n" + std::to_string(id);
@@ -279,7 +281,7 @@ namespace Elixir
         return var;
     }
 
-    std::string MaterialGraph::GenerateHLSL() const
+    std::string MaterialGraph::GenerateHLSL(bool vertexStage) const
     {
         std::string body;
         std::unordered_map<uint32_t, std::string> emitted;
@@ -287,10 +289,19 @@ namespace Elixir
 
         for (const auto& [channel, nodeId] : m_Channels)
         {
-            const std::string var = EmitNode(nodeId, emitted, types, body);
-            const EGraphValueType from = types.count(nodeId) ? types[nodeId] : EGraphValueType::Float4;
             const auto ch = (EMaterialChannel)channel;
-            body += "    surface." + std::string(ChannelName(ch)) + " = " + Coerce(var, from, ch) + ";\n";
+            const bool isWPO = ch == EMaterialChannel::WorldPositionOffset;
+            // Pixel stage emits every surface channel except WPO; vertex stage emits
+            // only WPO. This keeps each generated body limited to its stage's inputs.
+            if (isWPO != vertexStage)
+                continue;
+
+            const std::string var = EmitNode(nodeId, vertexStage, emitted, types, body);
+            const EGraphValueType from = types.count(nodeId) ? types[nodeId] : EGraphValueType::Float4;
+            if (isWPO)
+                body += "    wpo = " + Coerce(var, from, ch) + ";\n";
+            else
+                body += "    surface." + std::string(ChannelName(ch)) + " = " + Coerce(var, from, ch) + ";\n";
         }
         return body;
     }

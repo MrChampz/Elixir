@@ -62,9 +62,9 @@ namespace Elixir
         std::vector<SNode> m_Nodes;
         int m_NextId = 1;
 
-        // The five surface channels (BaseColor, Metallic, Roughness, Emissive,
-        // Normal): node id feeding each, or -1.
-        int m_Channels[5] = { -1, -1, -1, -1, -1 };
+        // The six output channels (BaseColor, Metallic, Roughness, Emissive, Normal,
+        // World Pos Offset): node id feeding each, or -1.
+        int m_Channels[6] = { -1, -1, -1, -1, -1, -1 };
 
         // The material slot the graph is applied to on Apply.
         int m_TargetMaterial = 0;

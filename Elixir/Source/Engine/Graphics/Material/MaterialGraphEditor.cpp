@@ -111,6 +111,7 @@ namespace Elixir
                 case 2: return "Roughness";
                 case 3: return "Emissive";
                 case 4: return "Normal";
+                case 5: return "World Pos Offset";
             }
             return "?";
         }
@@ -345,14 +346,14 @@ namespace Elixir
         // --- Output (master) node ---
         const ImVec2 op = ImVec2(origin.x + 520.0f, origin.y + 40.0f);
         const ImVec2 omin = op;
-        const ImVec2 omax = ImVec2(op.x + 140.0f, op.y + 20.0f + 5 * 20.0f + 6.0f);
+        const ImVec2 omax = ImVec2(op.x + 150.0f, op.y + 20.0f + 6 * 20.0f + 6.0f);
         dl->AddRectFilled(omin, omax, IM_COL32(52, 42, 42, 235), 4.0f);
         dl->AddRectFilled(omin, ImVec2(omax.x, omin.y + 20.0f), IM_COL32(120, 80, 80, 255), 4.0f);
         dl->AddRect(omin, omax, IM_COL32(140, 100, 100, 255), 4.0f);
         dl->AddText(ImVec2(omin.x + 8.0f, omin.y + 3.0f), IM_COL32_WHITE, "Output");
         ImGui::PushID(-99);
         std::unordered_map<int, ImVec2> chPins;
-        for (int ch = 0; ch < 5; ++ch)
+        for (int ch = 0; ch < 6; ++ch)
         {
             const ImVec2 pinPos = ImVec2(omin.x, omin.y + 30.0f + ch * 20.0f);
             ImGui::PushID(ch);
@@ -387,7 +388,7 @@ namespace Elixir
             for (int i = 0; i < node.InputCount; ++i)
                 if (node.Inputs[i] >= 0 && outPins.count(node.Inputs[i]))
                     bezier(outPins[node.Inputs[i]], inPinPos[((long long)node.Id << 8) | i], IM_COL32(200, 200, 210, 200));
-        for (int ch = 0; ch < 5; ++ch)
+        for (int ch = 0; ch < 6; ++ch)
             if (m_Channels[ch] >= 0 && outPins.count(m_Channels[ch]))
                 bezier(outPins[m_Channels[ch]], chPins[ch], IM_COL32(220, 190, 90, 220));
 
@@ -467,7 +468,7 @@ namespace Elixir
                 if (n.Inputs[i] >= 0 && idMap.count(n.Inputs[i]))
                     graph.Connect(idMap[n.Inputs[i]], idMap[n.Id], (uint32_t)i);
 
-        for (int ch = 0; ch < 5; ++ch)
+        for (int ch = 0; ch < 6; ++ch)
             if (m_Channels[ch] >= 0 && idMap.count(m_Channels[ch]))
                 graph.SetChannel((EMaterialChannel)ch, idMap[m_Channels[ch]]);
 
