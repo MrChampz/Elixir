@@ -71,7 +71,11 @@ namespace Elixir
         [[nodiscard]] const std::unordered_map<uint32_t, SMaterialNode>& GetNodes() const { return m_Nodes; }
 
       private:
-        std::string EmitNode(uint32_t id, std::unordered_map<uint32_t, std::string>& emitted, std::string& body) const;
+        std::string EmitNode(
+            uint32_t id,
+            std::unordered_map<uint32_t, std::string>& emitted,
+            std::unordered_map<uint32_t, EGraphValueType>& types,
+            std::string& body) const;
 
         std::unordered_map<uint32_t, SMaterialNode> m_Nodes;
         std::unordered_map<uint8_t, uint32_t> m_Channels; // EMaterialChannel -> node id
