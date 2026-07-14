@@ -25,6 +25,10 @@ namespace Elixir
         // just that part). Pass a null shader to revert the slot to the default.
         void SetMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader);
 
+        // Update the live-editable exposed parameters (cbGraphParams) of a material's
+        // override shader, without recompiling. No-op if the slot has no override.
+        void SetMaterialParams(uint32_t materialIndex, const glm::vec4* params, uint32_t count);
+
       private:
         void CreatePipelines();
         void CreatePipelinesFor(const Ref<Shader>& shader, Ref<GraphicsPipeline>& opaque, Ref<GraphicsPipeline>& transparent);
@@ -87,11 +91,13 @@ namespace Elixir
         Ref<GraphicsPipeline> m_TransparentPipeline; // blend (alpha, no depth write)
 
         // Per-material shader overrides (e.g. a node graph applied to one slot).
+        static constexpr uint32_t MAX_GRAPH_PARAMS = 8;
         struct SShaderVariant
         {
             Ref<Shader> Shader;
             Ref<GraphicsPipeline> Opaque;
             Ref<GraphicsPipeline> Transparent;
+            Ref<UniformBuffer> ParamBuffer; // cbGraphParams (exposed params)
         };
         std::unordered_map<uint32_t, SShaderVariant> m_MaterialShaders;
 

@@ -193,6 +193,8 @@ namespace Elixir
         {
             case EMaterialNodeType::Constant:      expr = ConstantExpr(node); type = node.OutputType; break;
             case EMaterialNodeType::Scalar:        expr = Num(node.ConstantValue.x); type = EGraphValueType::Float; break;
+            case EMaterialNodeType::ParamScalar:   expr = "GraphParams[" + std::to_string(node.ParamSlot) + "].x"; type = EGraphValueType::Float; break;
+            case EMaterialNodeType::ParamColor:    expr = "GraphParams[" + std::to_string(node.ParamSlot) + "]"; type = EGraphValueType::Float4; break;
             case EMaterialNodeType::Parameter:     expr = "mat." + node.ParameterName; type = node.OutputType; break;
             case EMaterialNodeType::TexCoord:      expr = "input.TexCoord"; type = EGraphValueType::Float2; break;
             case EMaterialNodeType::Position:      expr = "input.WorldPos"; type = EGraphValueType::Float3; break;

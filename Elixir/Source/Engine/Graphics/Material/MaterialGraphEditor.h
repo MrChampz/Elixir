@@ -32,6 +32,14 @@ namespace Elixir
         // Convert the current visual state into a compilable graph.
         [[nodiscard]] MaterialGraph Build() const;
 
+        // Max number of exposed parameters (matches GraphParams[] in the shader).
+        static constexpr int MAX_PARAMS = 8;
+
+        // Fill `out` with the current exposed-parameter values in slot order (the
+        // same order Build() assigns). Returns the number written. Lets the app push
+        // live values into the shader's cbGraphParams without recompiling.
+        int CollectParams(glm::vec4* out, int maxCount) const;
+
       private:
         struct SNode
         {

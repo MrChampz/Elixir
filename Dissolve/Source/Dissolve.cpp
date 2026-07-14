@@ -180,6 +180,9 @@ void Dissolve::OnGUI(const Timestep frameTime)
             m_PendingGraphMaterial = (uint32_t)m_GraphEditor.TargetMaterial();
         }
     }
+
+    // Snapshot exposed-parameter values (main thread) for the render thread to push.
+    m_GraphParamCount = m_GraphEditor.CollectParams(m_GraphParams, 8);
 }
 
 void Dissolve::DrawMaterialEditor()
@@ -244,8 +247,13 @@ void Dissolve::OnRender(const Timestep frameTime)
     if (m_PendingGraphShader)
     {
         m_MeshRenderer->SetMaterialShader(m_PendingGraphMaterial, m_PendingGraphShader);
+        m_AppliedParamSlot = (int)m_PendingGraphMaterial;
         m_PendingGraphShader = nullptr;
     }
+
+    // Push live exposed-parameter values to the applied slot (cheap, no recompile).
+    if (m_AppliedParamSlot >= 0)
+        m_MeshRenderer->SetMaterialParams((uint32_t)m_AppliedParamSlot, m_GraphParams, (uint32_t)m_GraphParamCount);
 
     // m_ParticlesRenderer->Render(m_GPUSystem, m_CameraController->GetCamera());
     m_MeshRenderer->Render(m_Model, m_CameraController->GetCamera());

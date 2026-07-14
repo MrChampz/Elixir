@@ -42,4 +42,10 @@ private:
     MaterialGraphEditor m_GraphEditor;
     Ref<Shader> m_PendingGraphShader;      // compiled in OnGUI, applied on the render thread
     uint32_t m_PendingGraphMaterial = 0;   // material slot the pending shader targets
+
+    // Live exposed-parameter values, snapshotted on the main thread (OnGUI) and
+    // pushed to the applied slot's shader on the render thread (OnRender).
+    int m_AppliedParamSlot = -1;
+    glm::vec4 m_GraphParams[8] = {};
+    int m_GraphParamCount = 0;
 };

@@ -44,6 +44,14 @@ struct GPUMaterial
 [[vk::binding(2, 0)]]
 StructuredBuffer<GPUMaterial> materials;
 
+// User-exposed graph parameters (ParamScalar/ParamColor nodes). The app updates
+// these live without recompiling the shader.
+[[vk::binding(3, 0)]]
+cbuffer cbGraphParams : register(b1)
+{
+    float4 GraphParams[8];
+};
+
 [[vk::binding(1, 1)]]
 Texture2D textures[] : register(t0);
 
@@ -203,11 +211,12 @@ float4 main(PSInput input) : SV_Target0
 
     float3 color = diffuse + specular + surface.Emissive;
 
-    // Keep the 'materials' storage buffer binding alive through DXC dead-code
-    // elimination even when the graph reads no material parameter. The scale is
-    // data-dependent (a runtime buffer value) so the optimiser can't fold it away,
-    // yet its contribution is imperceptible.
+    // Keep the 'materials' and 'cbGraphParams' bindings alive through DXC dead-code
+    // elimination even when the graph reads neither. The scale is data-dependent (a
+    // runtime buffer value) so the optimiser can't fold it away, yet its
+    // contribution is imperceptible.
     color += mat.BaseColorFactor.rgb * 1e-8f;
+    color += GraphParams[0].rgb * 1e-8f;
 
     // Directional light: Lambert diffuse + a simple spec.
     float3 L = normalize(LightDirection.xyz);

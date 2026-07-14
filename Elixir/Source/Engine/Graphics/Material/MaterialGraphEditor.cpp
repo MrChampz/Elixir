@@ -20,6 +20,8 @@ namespace Elixir
             {
                 case EMaterialNodeType::Constant:      return "Constant";
                 case EMaterialNodeType::Scalar:        return "Scalar";
+                case EMaterialNodeType::ParamScalar:   return "Param (f)";
+                case EMaterialNodeType::ParamColor:    return "Param (rgba)";
                 case EMaterialNodeType::Parameter:     return "Parameter";
                 case EMaterialNodeType::TextureSample: return "Texture";
                 case EMaterialNodeType::TexCoord:      return "TexCoord";
@@ -72,6 +74,7 @@ namespace Elixir
                 case EMaterialNodeType::Fresnel:
                 case EMaterialNodeType::Dot:
                 case EMaterialNodeType::Scalar:
+                case EMaterialNodeType::ParamScalar:
                 case EMaterialNodeType::Checker:
                 case EMaterialNodeType::Noise:
                 case EMaterialNodeType::Time:          return EGraphValueType::Float;
@@ -136,6 +139,9 @@ namespace Elixir
         // A visible default scale for procedural nodes (Constant.x doubles as scale).
         if (type == EMaterialNodeType::Checker || type == EMaterialNodeType::Noise)
             node.Constant = { 8.0f, 8.0f, 8.0f, 8.0f };
+        // Exposed parameters start with a neutral name (edited in the Parameters panel).
+        if (type == EMaterialNodeType::ParamScalar || type == EMaterialNodeType::ParamColor)
+            std::strncpy(node.Param, type == EMaterialNodeType::ParamScalar ? "Scalar" : "Color", sizeof(node.Param) - 1);
         m_Nodes.push_back(node);
         return node.Id;
     }
@@ -194,6 +200,8 @@ namespace Elixir
         ImGui::TextUnformatted("Inputs:"); ImGui::SameLine();
         addButton("Constant", EMaterialNodeType::Constant);
         addButton("Scalar", EMaterialNodeType::Scalar);
+        addButton("Param.f", EMaterialNodeType::ParamScalar);
+        addButton("Param.rgba", EMaterialNodeType::ParamColor);
         addButton("Parameter", EMaterialNodeType::Parameter);
         addButton("Texture", EMaterialNodeType::TextureSample);
         addButton("TexCoord", EMaterialNodeType::TexCoord);
@@ -291,7 +299,9 @@ namespace Elixir
                 ImGui::ColorEdit4("##v", &node.Constant.x, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
             else if (node.Type == EMaterialNodeType::Scalar)
                 ImGui::DragFloat("##f", &node.Constant.x, 0.05f, -100.0f, 100.0f, "%.3f");
-            else if (node.Type == EMaterialNodeType::Parameter)
+            else if (node.Type == EMaterialNodeType::Parameter
+                  || node.Type == EMaterialNodeType::ParamScalar
+                  || node.Type == EMaterialNodeType::ParamColor)
                 ImGui::InputText("##p", node.Param, sizeof(node.Param));
             else if (node.Type == EMaterialNodeType::TextureSample)
                 ImGui::Combo("##t", &node.TexSlot, kTextureSlots, IM_ARRAYSIZE(kTextureSlots));
@@ -401,6 +411,31 @@ namespace Elixir
         }
 
         ImGui::End();
+
+        // Exposed-parameter panel (own window): editing these pushes live values into
+        // the shader (no recompile) via CollectParams() -> cbGraphParams.
+        ImGui::Begin("Material Parameters");
+        ImGui::TextDisabled("Live -- no recompile. Add Param.f / Param.rgba nodes.");
+        ImGui::Separator();
+        int slot = 0;
+        for (auto& node : m_Nodes)
+        {
+            if (node.Type != EMaterialNodeType::ParamScalar && node.Type != EMaterialNodeType::ParamColor)
+                continue;
+            if (slot >= MAX_PARAMS) break;
+            ImGui::PushID(1000 + node.Id);
+            ImGui::SetNextItemWidth(200.0f);
+            if (node.Type == EMaterialNodeType::ParamScalar)
+                ImGui::DragFloat(node.Param, &node.Constant.x, 0.01f, -10.0f, 10.0f, "%.3f");
+            else
+                ImGui::ColorEdit4(node.Param, &node.Constant.x, ImGuiColorEditFlags_AlphaBar);
+            ImGui::PopID();
+            ++slot;
+        }
+        if (slot == 0)
+            ImGui::TextDisabled("(no exposed parameters)");
+        ImGui::End();
+
         return apply;
     }
 
@@ -409,6 +444,7 @@ namespace Elixir
         MaterialGraph graph;
         std::unordered_map<int, uint32_t> idMap;
 
+        int paramSlot = 0;
         for (const auto& n : m_Nodes)
         {
             SMaterialNode gn;
@@ -419,6 +455,10 @@ namespace Elixir
             gn.Inputs.assign(n.InputCount, -1);
             if (n.Type == EMaterialNodeType::TextureSample)
                 gn.TextureExpression = TextureIndexAccessor(n.TexSlot);
+            // Exposed parameters get a GraphParams slot in node order (capped to the
+            // shader's array size); CollectParams() mirrors this ordering.
+            if (n.Type == EMaterialNodeType::ParamScalar || n.Type == EMaterialNodeType::ParamColor)
+                gn.ParamSlot = paramSlot < MAX_PARAMS ? paramSlot++ : MAX_PARAMS - 1;
             idMap[n.Id] = graph.AddNode(gn);
         }
 
@@ -432,6 +472,20 @@ namespace Elixir
                 graph.SetChannel((EMaterialChannel)ch, idMap[m_Channels[ch]]);
 
         return graph;
+    }
+
+    int MaterialGraphEditor::CollectParams(glm::vec4* out, int maxCount) const
+    {
+        int slot = 0;
+        for (const auto& n : m_Nodes)
+        {
+            if (n.Type != EMaterialNodeType::ParamScalar && n.Type != EMaterialNodeType::ParamColor)
+                continue;
+            if (slot >= maxCount || slot >= MAX_PARAMS)
+                break;
+            out[slot++] = n.Constant;
+        }
+        return slot;
     }
 
     bool MaterialGraphEditor::Save(const std::string& path) const

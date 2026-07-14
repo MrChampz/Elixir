@@ -16,6 +16,8 @@ namespace Elixir
     {
         Constant,      // a literal float4 value (colour)
         Scalar,        // a literal single float
+        ParamScalar,   // a live-editable exposed scalar (GraphParams[slot].x)
+        ParamColor,    // a live-editable exposed colour (GraphParams[slot])
         Parameter,     // a named material-instance parameter (mat.<field>)
         TextureSample, // sample a bound texture at a UV (input 0, or the mesh UV)
         TexCoord,      // the mesh UV (input.TexCoord)
@@ -57,6 +59,7 @@ namespace Elixir
         glm::vec4 ConstantValue{ 0.0f }; // Constant
         std::string ParameterName;       // Parameter -> mat.<ParameterName>
         std::string TextureExpression;   // TextureSample -> the HLSL sample expression
+        int32_t ParamSlot = 0;           // ParamScalar/ParamColor -> GraphParams[slot]
     };
 
     // A node graph describing a material's surface. Compiles to an HLSL body that

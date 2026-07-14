@@ -136,8 +136,27 @@ namespace Elixir
         variant.Shader = shader;
         CreatePipelinesFor(shader, variant.Opaque, variant.Transparent);
         BindResourcesTo(shader);
+
+        // Zero-initialised live-parameter buffer (cbGraphParams), bound once.
+        glm::vec4 zeros[MAX_GRAPH_PARAMS] = {};
+        variant.ParamBuffer = UniformBuffer::Create(m_GraphicsContext, sizeof(zeros), zeros);
+        shader->BindConstantBuffer("cbGraphParams", variant.ParamBuffer);
+
         m_MaterialShaders[materialIndex] = std::move(variant);
         m_BoundModel = nullptr; // force the material buffer to rebind to all shaders
+    }
+
+    void MeshRenderer::SetMaterialParams(uint32_t materialIndex, const glm::vec4* params, uint32_t count)
+    {
+        const auto it = m_MaterialShaders.find(materialIndex);
+        if (it == m_MaterialShaders.end() || !it->second.ParamBuffer)
+            return;
+
+        glm::vec4 buffer[MAX_GRAPH_PARAMS] = {};
+        const uint32_t n = count < MAX_GRAPH_PARAMS ? count : MAX_GRAPH_PARAMS;
+        for (uint32_t i = 0; i < n; ++i)
+            buffer[i] = params[i];
+        it->second.ParamBuffer->UpdateData(buffer, sizeof(buffer));
     }
 
     uint32_t MeshRenderer::ResolveTexture(const Ref<Texture>& texture)
