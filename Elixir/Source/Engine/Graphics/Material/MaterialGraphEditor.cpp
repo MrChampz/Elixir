@@ -3,6 +3,7 @@
 
 #include <imgui.h>
 
+#include <algorithm>
 #include <unordered_map>
 
 namespace Elixir
@@ -113,6 +114,22 @@ namespace Elixir
         return node.Id;
     }
 
+    void MaterialGraphEditor::DeleteNode(int id)
+    {
+        m_Nodes.erase(
+            std::remove_if(m_Nodes.begin(), m_Nodes.end(), [id](const SNode& n) { return n.Id == id; }),
+            m_Nodes.end());
+
+        // Drop any wires that fed from the deleted node.
+        for (auto& n : m_Nodes)
+            for (int& src : n.Inputs)
+                if (src == id) src = -1;
+        for (int& ch : m_Channels)
+            if (ch == id) ch = -1;
+        if (m_LinkFrom == id)
+            m_LinkFrom = -1;
+    }
+
     const MaterialGraphEditor::SNode* MaterialGraphEditor::Find(int id) const
     {
         for (const auto& n : m_Nodes)
@@ -152,6 +169,8 @@ namespace Elixir
         ImGui::NewLine();
 
         if (ImGui::Button("Apply")) apply = true;
+        ImGui::SameLine();
+        ImGui::TextDisabled("(right-click: node = delete, pin = disconnect)");
         ImGui::Separator();
 
         ImGuiIO& io = ImGui::GetIO();
@@ -166,6 +185,10 @@ namespace Elixir
         // Hovered input pin this frame (for connect-on-release). Allowed to register
         // even while the output pin is the active (dragged) item.
         int hovKind = -1, hovId = -1, hovSlot = -1;
+
+        // Node scheduled for deletion this frame (processed after drawing so we don't
+        // mutate m_Nodes mid-iteration).
+        int deleteId = -1;
 
         // A pin as an invisible button (robust hit-testing). Returns {active, hovered}.
         auto pinButton = [&](const char* label, const ImVec2& pos)
@@ -186,12 +209,14 @@ namespace Elixir
             // Header acts as the drag handle.
             ImGui::SetCursorScreenPos(p);
             ImGui::InvisibleButton("hdr", ImVec2(NODE_W, 20.0f));
-            if (ImGui::IsItemActive())
+            if (ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left))
             {
                 node.Pos.x += io.MouseDelta.x;
                 node.Pos.y += io.MouseDelta.y;
                 p = ImVec2(origin.x + node.Pos.x, origin.y + node.Pos.y);
             }
+            if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+                deleteId = node.Id;
 
             const int rows = node.InputCount > 1 ? node.InputCount : 1;
             const float bodyH = 24.0f + rows * 16.0f;
@@ -234,6 +259,8 @@ namespace Elixir
                 if (hovered)
                 {
                     hovKind = 0; hovId = node.Id; hovSlot = i;
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+                        node.Inputs[i] = -1;
                 }
                 const bool connected = node.Inputs[i] >= 0;
                 dl->AddCircleFilled(inPos, PIN_R, connected ? IM_COL32(140, 180, 240, 255) : IM_COL32(90, 110, 150, 255));
@@ -262,6 +289,8 @@ namespace Elixir
             if (hovered)
             {
                 hovKind = 1; hovId = ch; hovSlot = 0;
+                if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+                    m_Channels[ch] = -1;
             }
             const bool connected = m_Channels[ch] >= 0;
             dl->AddCircleFilled(pinPos, PIN_R, connected ? IM_COL32(140, 180, 240, 255) : IM_COL32(90, 110, 150, 255));
@@ -269,6 +298,13 @@ namespace Elixir
             chPins[ch] = pinPos;
         }
         ImGui::PopID();
+
+        // Apply a queued deletion now so stale links aren't drawn this frame.
+        if (deleteId >= 0)
+        {
+            DeleteNode(deleteId);
+            outPins.erase(deleteId);
+        }
 
         // --- Links ---
         auto bezier = [&](const ImVec2& a, const ImVec2& b, ImU32 col)

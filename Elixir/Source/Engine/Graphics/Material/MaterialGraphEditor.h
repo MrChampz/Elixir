@@ -39,6 +39,7 @@ namespace Elixir
         };
 
         int AddNode(EMaterialNodeType type, const glm::vec2& pos);
+        void DeleteNode(int id); // removes the node and clears links referencing it
         const SNode* Find(int id) const;
 
         std::vector<SNode> m_Nodes;
