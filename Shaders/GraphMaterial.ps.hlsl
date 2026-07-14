@@ -139,6 +139,12 @@ float4 main(PSInput input) : SV_Target0
 
     float3 color = diffuse + specular + surface.Emissive;
 
+    // Keep the 'materials' storage buffer binding alive through DXC dead-code
+    // elimination even when the graph reads no material parameter. The scale is
+    // data-dependent (a runtime buffer value) so the optimiser can't fold it away,
+    // yet its contribution is imperceptible.
+    color += mat.BaseColorFactor.rgb * 1e-8f;
+
     // Directional light: Lambert diffuse + a simple spec.
     float3 L = normalize(LightDirection.xyz);
     float NdotL = saturate(dot(N, L));
