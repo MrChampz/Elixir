@@ -60,6 +60,15 @@ namespace Elixir
         void DeleteNode(int id); // removes the node and clears links referencing it
         const SNode* Find(int id) const;
 
+        // Parse a saved graph file into raw nodes/channels (no state change).
+        bool ParseGraphFile(const std::string& path, std::vector<SNode>& nodes, int channels[6],
+            int& targetMaterial, int& nextId) const;
+
+        // Flatten the graph by inlining FunctionCall nodes (loading their saved
+        // sub-graphs, wiring FunctionInput placeholders to the call's inputs, and
+        // redirecting the call's output to the function's Base Color result).
+        void Expand(std::vector<SNode>& outNodes, int outChannels[6]) const;
+
         // A hash of the graph state that affects the compiled shader (structure,
         // wiring, channels, baked constants, target slot). Excludes exposed-parameter
         // values, which update live without recompiling. Drives live-preview.

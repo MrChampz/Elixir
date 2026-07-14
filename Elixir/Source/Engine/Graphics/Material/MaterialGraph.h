@@ -39,6 +39,8 @@ namespace Elixir
         Saturate,      // saturate(a)
         Fresnel,       // schlick fresnel from N,V
         Custom,        // raw HLSL expression over inputs a, b, c
+        FunctionInput, // placeholder for a material-function parameter (editor-only)
+        FunctionCall,  // instantiates a saved sub-graph (expanded away before codegen)
     };
 
     // The surface output a channel drives. Together these form the "master node".

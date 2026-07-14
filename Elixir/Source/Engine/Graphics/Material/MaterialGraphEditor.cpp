@@ -44,6 +44,8 @@ namespace Elixir
                 case EMaterialNodeType::Saturate:      return "Saturate";
                 case EMaterialNodeType::Fresnel:       return "Fresnel";
                 case EMaterialNodeType::Custom:        return "Custom HLSL";
+                case EMaterialNodeType::FunctionInput: return "Fn Input";
+                case EMaterialNodeType::FunctionCall:  return "Fn Call";
             }
             return "Node";
         }
@@ -59,7 +61,8 @@ namespace Elixir
                 case EMaterialNodeType::Power:
                 case EMaterialNodeType::Dot:      return 2;
                 case EMaterialNodeType::Lerp:     return 3;
-                case EMaterialNodeType::Custom:   return 3; // a, b, c
+                case EMaterialNodeType::Custom:
+                case EMaterialNodeType::FunctionCall: return 3; // a, b, c / fn inputs
                 case EMaterialNodeType::OneMinus:
                 case EMaterialNodeType::Saturate:
                 case EMaterialNodeType::Sine:
@@ -150,6 +153,10 @@ namespace Elixir
         // Exposed parameters start with a neutral name (edited in the Parameters panel).
         if (type == EMaterialNodeType::ParamScalar || type == EMaterialNodeType::ParamColor)
             std::strncpy(node.Param, type == EMaterialNodeType::ParamScalar ? "Scalar" : "Color", sizeof(node.Param) - 1);
+        if (type == EMaterialNodeType::FunctionInput)
+            std::strncpy(node.Param, "In", sizeof(node.Param) - 1);
+        if (type == EMaterialNodeType::FunctionCall)
+            std::strncpy(node.Param, "myfunc", sizeof(node.Param) - 1);
         m_Nodes.push_back(node);
         return node.Id;
     }
@@ -242,6 +249,11 @@ namespace Elixir
         addButton("Noise", EMaterialNodeType::Noise);
         ImGui::NewLine();
 
+        ImGui::TextUnformatted("Func:  "); ImGui::SameLine();
+        addButton("Fn Input", EMaterialNodeType::FunctionInput);
+        addButton("Fn Call", EMaterialNodeType::FunctionCall);
+        ImGui::NewLine();
+
         if (ImGui::Button("Apply")) apply = true;
         ImGui::SameLine();
         ImGui::Checkbox("Live", &m_LivePreview);
@@ -330,6 +342,13 @@ namespace Elixir
                 if (ImGui::Combo("##ot", &ot, "float\0float2\0float3\0float4\0"))
                     node.OutputType = (EGraphValueType)ot;
             }
+            else if (node.Type == EMaterialNodeType::FunctionInput)
+            {
+                ImGui::InputText("##fn", node.Param, sizeof(node.Param));
+                ImGui::Combo("##sl", &node.TexSlot, "slot 0\0slot 1\0slot 2\0");
+            }
+            else if (node.Type == EMaterialNodeType::FunctionCall)
+                ImGui::InputText("##file", node.Param, sizeof(node.Param)); // function file name
             ImGui::PopItemWidth();
 
             // Output pin (right, centered).
@@ -476,13 +495,99 @@ namespace Elixir
         return apply;
     }
 
+    void MaterialGraphEditor::Expand(std::vector<SNode>& outNodes, int outChannels[6]) const
+    {
+        outNodes = m_Nodes;
+        for (int i = 0; i < 6; ++i) outChannels[i] = m_Channels[i];
+
+        std::unordered_map<int, int> callOutput; // FunctionCall id -> resolved output id
+        int remapBase = 1000000;
+
+        for (const auto& call : m_Nodes)
+        {
+            if (call.Type != EMaterialNodeType::FunctionCall)
+                continue;
+
+            const std::string path = std::string("./Assets/Materials/") + call.Param + ".matgraph.json";
+            std::vector<SNode> fnodes;
+            int fchannels[6];
+            int ftarget = 0, fnext = 1;
+            if (!ParseGraphFile(path, fnodes, fchannels, ftarget, fnext))
+            {
+                callOutput[call.Id] = -1; // missing function -> the call resolves to nothing
+                continue;
+            }
+
+            const int base = remapBase;
+            remapBase += 100000;
+            const auto remap = [&](int id) { return id < 0 ? -1 : base + id; };
+
+            // Map each FunctionInput node to its slot so references can be rewired to
+            // the call's inputs.
+            std::unordered_map<int, int> inputIdToSlot;
+            for (const auto& fn : fnodes)
+                if (fn.Type == EMaterialNodeType::FunctionInput)
+                    inputIdToSlot[fn.Id] = fn.TexSlot;
+
+            for (const auto& fn : fnodes)
+            {
+                if (fn.Type == EMaterialNodeType::FunctionInput)
+                    continue; // substituted by the call's inputs
+                SNode c = fn;
+                c.Id = remap(fn.Id);
+                for (int i = 0; i < 3; ++i)
+                {
+                    const int src = fn.Inputs[i];
+                    if (src < 0) { c.Inputs[i] = -1; continue; }
+                    if (const auto it = inputIdToSlot.find(src); it != inputIdToSlot.end())
+                    {
+                        const int slot = it->second;
+                        c.Inputs[i] = (slot >= 0 && slot < 3) ? call.Inputs[slot] : -1; // host source
+                    }
+                    else
+                    {
+                        c.Inputs[i] = remap(src);
+                    }
+                }
+                outNodes.push_back(c);
+            }
+
+            // A function returns whatever drives its Base Color channel.
+            callOutput[call.Id] = remap(fchannels[0]);
+        }
+
+        if (callOutput.empty())
+            return;
+
+        // Redirect every reference to a FunctionCall to its resolved output.
+        const auto resolve = [&](int id)
+        {
+            const auto it = callOutput.find(id);
+            return it != callOutput.end() ? it->second : id;
+        };
+        for (auto& n : outNodes)
+            for (int i = 0; i < 3; ++i)
+                if (n.Inputs[i] >= 0) n.Inputs[i] = resolve(n.Inputs[i]);
+        for (int ch = 0; ch < 6; ++ch)
+            if (outChannels[ch] >= 0) outChannels[ch] = resolve(outChannels[ch]);
+
+        // Drop the now-inlined function nodes.
+        outNodes.erase(std::remove_if(outNodes.begin(), outNodes.end(), [](const SNode& n)
+            { return n.Type == EMaterialNodeType::FunctionCall || n.Type == EMaterialNodeType::FunctionInput; }),
+            outNodes.end());
+    }
+
     MaterialGraph MaterialGraphEditor::Build() const
     {
+        std::vector<SNode> nodes;
+        int channels[6];
+        Expand(nodes, channels);
+
         MaterialGraph graph;
         std::unordered_map<int, uint32_t> idMap;
 
         int paramSlot = 0;
-        for (const auto& n : m_Nodes)
+        for (const auto& n : nodes)
         {
             SMaterialNode gn;
             gn.Type = n.Type;
@@ -495,20 +600,20 @@ namespace Elixir
             if (n.Type == EMaterialNodeType::Custom)
                 gn.CustomCode = n.Code;
             // Exposed parameters get a GraphParams slot in node order (capped to the
-            // shader's array size); CollectParams() mirrors this ordering.
+            // shader's array size); CollectParams() mirrors this for top-level params.
             if (n.Type == EMaterialNodeType::ParamScalar || n.Type == EMaterialNodeType::ParamColor)
                 gn.ParamSlot = paramSlot < MAX_PARAMS ? paramSlot++ : MAX_PARAMS - 1;
             idMap[n.Id] = graph.AddNode(gn);
         }
 
-        for (const auto& n : m_Nodes)
+        for (const auto& n : nodes)
             for (int i = 0; i < n.InputCount; ++i)
                 if (n.Inputs[i] >= 0 && idMap.count(n.Inputs[i]))
                     graph.Connect(idMap[n.Inputs[i]], idMap[n.Id], (uint32_t)i);
 
         for (int ch = 0; ch < 6; ++ch)
-            if (m_Channels[ch] >= 0 && idMap.count(m_Channels[ch]))
-                graph.SetChannel((EMaterialChannel)ch, idMap[m_Channels[ch]]);
+            if (channels[ch] >= 0 && idMap.count(channels[ch]))
+                graph.SetChannel((EMaterialChannel)ch, idMap[channels[ch]]);
 
         return graph;
     }
@@ -557,7 +662,7 @@ namespace Elixir
         out << "  \"targetMaterial\": " << m_TargetMaterial << ",\n";
         out << "  \"nextId\": " << m_NextId << ",\n";
         out << "  \"channels\": [";
-        for (int i = 0; i < 5; ++i) out << (i ? ", " : "") << m_Channels[i];
+        for (int i = 0; i < 6; ++i) out << (i ? ", " : "") << m_Channels[i];
         out << "],\n";
         out << "  \"nodes\": [\n";
         for (size_t k = 0; k < m_Nodes.size(); ++k)
@@ -583,7 +688,8 @@ namespace Elixir
         return true;
     }
 
-    bool MaterialGraphEditor::Load(const std::string& path)
+    bool MaterialGraphEditor::ParseGraphFile(
+        const std::string& path, std::vector<SNode>& nodes, int channels[6], int& targetMaterial, int& nextId) const
     {
         auto json = simdjson::padded_string::load(path);
         if (json.error())
@@ -610,11 +716,7 @@ namespace Elixir
             return def;
         };
 
-        // Only commit to the parsed state once we know the document is well-formed.
-        std::vector<SNode> nodes;
-        int channels[5] = { -1, -1, -1, -1, -1 };
-        int targetMaterial = m_TargetMaterial;
-        int nextId = 1;
+        for (int i = 0; i < 6; ++i) channels[i] = -1;
 
         int64_t iv;
         if (doc["targetMaterial"].get(iv) == simdjson::SUCCESS) targetMaterial = (int)iv;
@@ -624,11 +726,7 @@ namespace Elixir
         if (doc["channels"].get(chans) == simdjson::SUCCESS)
         {
             int i = 0;
-            for (auto c : chans)
-            {
-                if (i < 5) channels[i] = (int)num(c, -1.0);
-                ++i;
-            }
+            for (auto c : chans) { if (i < 6) channels[i] = (int)num(c, -1.0); ++i; }
         }
 
         simdjson::dom::array arr;
@@ -677,12 +775,25 @@ namespace Elixir
                 nodes.push_back(node);
             }
         }
+        return true;
+    }
+
+    bool MaterialGraphEditor::Load(const std::string& path)
+    {
+        std::vector<SNode> nodes;
+        int channels[6];
+        int targetMaterial = m_TargetMaterial;
+        int nextId = 1;
+        if (!ParseGraphFile(path, nodes, channels, targetMaterial, nextId))
+            return false;
 
         m_Nodes = std::move(nodes);
-        for (int i = 0; i < 5; ++i) m_Channels[i] = channels[i];
+        for (int i = 0; i < 6; ++i) m_Channels[i] = channels[i];
         m_TargetMaterial = targetMaterial;
         m_NextId = nextId > 1 ? nextId : 1;
         m_LinkFrom = -1;
+        m_LastSig = Signature();
+        m_DirtySince = -1.0;
 
         EE_CORE_INFO("Material graph loaded from '{}' ({} nodes).", path, m_Nodes.size())
         return true;

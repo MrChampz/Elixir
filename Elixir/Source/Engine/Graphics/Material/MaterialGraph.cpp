@@ -289,6 +289,10 @@ namespace Elixir
             case EMaterialNodeType::OneMinus:      expr = "(1.0 - " + A(0) + ")"; type = AT(0); break;
             case EMaterialNodeType::Saturate:      expr = "saturate(" + A(0) + ")"; type = AT(0); break;
             case EMaterialNodeType::Fresnel:       expr = vertexStage ? "0.0" : "pow(saturate(1.0 - dot(N, V)), 5.0)"; type = EGraphValueType::Float; break;
+            // Material-function nodes are expanded away in the editor before codegen;
+            // these are safe fallbacks in case one is emitted directly.
+            case EMaterialNodeType::FunctionInput:
+            case EMaterialNodeType::FunctionCall:  expr = "float4(0.0, 0.0, 0.0, 1.0)"; type = EGraphValueType::Float4; break;
         }
 
         const std::string var = "n" + std::to_string(id);
