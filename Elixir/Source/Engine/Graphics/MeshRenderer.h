@@ -17,7 +17,14 @@ namespace Elixir
 
         void Render(const Ref<Model>& model, const Camera& camera);
 
+        // Swap the shading used for the whole model (e.g. a node-graph material
+        // compiled at runtime). The new shader must expose the same bindings.
+        void SetShader(const Ref<Shader>& shader);
+
       private:
+        void CreatePipelines();
+        void BindResources();
+
         struct alignas(16) SFrameData
         {
             glm::mat4 View;

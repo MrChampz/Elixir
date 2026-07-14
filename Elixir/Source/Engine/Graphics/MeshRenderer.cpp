@@ -13,7 +13,41 @@ namespace Elixir
         EE_CORE_INFO("Initializing Mesh Renderer.")
 
         m_Shader = shaderLoader->LoadShader("./Shaders/", "Model");
+        CreatePipelines();
 
+        m_FrameBuffer = UniformBuffer::Create(context, sizeof(SFrameData), &m_FrameData);
+        m_Sampler = SamplerBuilder().SetMaxLod(16.0f).Build(context);
+        m_Textures = TextureSet::Create(context);
+
+        // A 1x1 white texture keeps the bindless array non-empty; missing maps use
+        // index NO_TEXTURE and the shader falls back to factors/defaults.
+        const uint32_t whitePixel = 0xffffffffu;
+        const auto whiteTexture = Texture2D::Create(
+            context, EImageFormat::R8G8B8A8_SRGB, 1, 1, &whitePixel);
+        m_Textures->AddTexture(whiteTexture);
+
+        BindResources();
+
+        // Load the HDR environment and register its maps in the bindless set so
+        // the shader can sample them for image-based lighting.
+        m_Environment = Environment::Load(context, "./Assets/Textures/white_home_studio_2k.hdr");
+        if (m_Environment)
+        {
+            const auto& env = m_Environment->GetEnvironment();
+            m_EnvIndex = m_Textures->AddTexture(env).Index;
+            m_IrradianceIndex = m_Textures->AddTexture(m_Environment->GetIrradiance()).Index;
+            m_PrefIndex = m_Textures->AddTexture(m_Environment->GetPrefiltered()).Index;
+
+            // Highest mip index of the env map, used by the shader to map roughness
+            // to a prefilter LOD.
+            const auto extent = env->GetExtent();
+            const uint32_t maxDim = std::max(extent.Width, extent.Height);
+            m_EnvMaxLod = std::floor(std::log2((float)maxDim));
+        }
+    }
+
+    void MeshRenderer::CreatePipelines()
+    {
         const BufferLayout layout({
             {
                 {
@@ -52,38 +86,23 @@ namespace Elixir
         blendInfo.DepthStencil.DepthWriteEnable = false;
         blendInfo.DepthStencil.DepthCompareOp = ECompareOp::LessOrEqual;
         m_TransparentPipeline = GraphicsPipeline::Create(m_GraphicsContext, blendInfo);
+    }
 
-        m_FrameBuffer = UniformBuffer::Create(context, sizeof(SFrameData), &m_FrameData);
-        m_Sampler = SamplerBuilder().SetMaxLod(16.0f).Build(context);
-        m_Textures = TextureSet::Create(context);
-
-        // A 1x1 white texture keeps the bindless array non-empty; missing maps use
-        // index NO_TEXTURE and the shader falls back to factors/defaults.
-        const uint32_t whitePixel = 0xffffffffu;
-        const auto whiteTexture = Texture2D::Create(
-            context, EImageFormat::R8G8B8A8_SRGB, 1, 1, &whitePixel);
-        m_Textures->AddTexture(whiteTexture);
-
+    void MeshRenderer::BindResources()
+    {
         m_Shader->BindConstantBuffer("cbFrame", m_FrameBuffer);
         m_Shader->BindSampler("texSampler", m_Sampler);
         m_Shader->BindTextureSet("textures", m_Textures);
+    }
 
-        // Load the HDR environment and register its maps in the bindless set so
-        // the shader can sample them for image-based lighting.
-        m_Environment = Environment::Load(context, "./Assets/Textures/white_home_studio_2k.hdr");
-        if (m_Environment)
-        {
-            const auto& env = m_Environment->GetEnvironment();
-            m_EnvIndex = m_Textures->AddTexture(env).Index;
-            m_IrradianceIndex = m_Textures->AddTexture(m_Environment->GetIrradiance()).Index;
-            m_PrefIndex = m_Textures->AddTexture(m_Environment->GetPrefiltered()).Index;
-
-            // Highest mip index of the env map, used by the shader to map roughness
-            // to a prefilter LOD.
-            const auto extent = env->GetExtent();
-            const uint32_t maxDim = std::max(extent.Width, extent.Height);
-            m_EnvMaxLod = std::floor(std::log2((float)maxDim));
-        }
+    void MeshRenderer::SetShader(const Ref<Shader>& shader)
+    {
+        if (!shader)
+            return;
+        m_Shader = shader;
+        CreatePipelines();
+        BindResources();
+        m_BoundModel = nullptr; // force the material buffer to rebind to the new shader
     }
 
     uint32_t MeshRenderer::ResolveTexture(const Ref<Texture>& texture)

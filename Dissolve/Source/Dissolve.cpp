@@ -72,11 +72,29 @@ Dissolve::Dissolve()
     {
         MaterialGraph graph;
 
-        SMaterialNode baseColor;
-        baseColor.Type = EMaterialNodeType::Constant;
-        baseColor.OutputType = EGraphValueType::Float4;
-        baseColor.ConstantValue = { 0.9f, 0.3f, 0.1f, 1.0f };
-        graph.SetChannel(EMaterialChannel::BaseColor, graph.AddNode(baseColor));
+        // BaseColor = Constant(orange) * Parameter(BaseColorFactor). Referencing a
+        // material parameter keeps the materials buffer alive through DXC's dead-code
+        // elimination and tints each part by its own base colour.
+        SMaterialNode tint;
+        tint.Type = EMaterialNodeType::Constant;
+        tint.OutputType = EGraphValueType::Float4;
+        tint.ConstantValue = { 1.0f, 0.5f, 0.1f, 1.0f };
+        const uint32_t tintId = graph.AddNode(tint);
+
+        SMaterialNode base;
+        base.Type = EMaterialNodeType::Parameter;
+        base.OutputType = EGraphValueType::Float4;
+        base.ParameterName = "BaseColorFactor";
+        const uint32_t baseId = graph.AddNode(base);
+
+        SMaterialNode mul;
+        mul.Type = EMaterialNodeType::Multiply;
+        mul.OutputType = EGraphValueType::Float4;
+        mul.Inputs = { -1, -1 };
+        const uint32_t mulId = graph.AddNode(mul);
+        graph.Connect(tintId, mulId, 0);
+        graph.Connect(baseId, mulId, 1);
+        graph.SetChannel(EMaterialChannel::BaseColor, mulId);
 
         SMaterialNode metallic;
         metallic.Type = EMaterialNodeType::Constant;
@@ -86,9 +104,14 @@ Dissolve::Dissolve()
 
         m_GraphShader = MaterialCompiler::Compile(m_ShaderLoader.get(), graph);
         if (m_GraphShader)
-            EE_CORE_INFO("Node-graph material compiled and loaded successfully.")
+        {
+            EE_CORE_INFO("Node-graph material compiled; rendering the model with it.")
+            m_MeshRenderer->SetShader(m_GraphShader);
+        }
         else
+        {
             EE_CORE_ERROR("Node-graph material compilation FAILED.")
+        }
     }
 
     m_ParticleSystem = Aether::LoadEffectFile("./Assets/VFX/RibbonVortex.json");
