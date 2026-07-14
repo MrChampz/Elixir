@@ -8,6 +8,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <unordered_map>
 
 namespace Elixir
@@ -502,31 +503,14 @@ namespace Elixir
 
     size_t MaterialGraphEditor::Signature() const
     {
-        size_t h = 1469598103934665603ull; // FNV-1a
-        const auto mix = [&](size_t v) { h ^= v; h *= 1099511628211ull; };
-        const auto mixf = [&](float f) { uint32_t u = 0; std::memcpy(&u, &f, sizeof(u)); mix(u); };
-
-        for (const auto& n : m_Nodes)
-        {
-            mix((size_t)n.Type);
-            mix((size_t)n.Id);
-            mix((size_t)n.InputCount);
-            for (int i = 0; i < 3; ++i) mix((size_t)(n.Inputs[i] + 2));
-            mix((size_t)n.TexSlot);
-
-            // Baked constants affect the shader; exposed-parameter values don't (they
-            // stream through cbGraphParams live).
-            if (n.Type != EMaterialNodeType::ParamScalar && n.Type != EMaterialNodeType::ParamColor)
-            {
-                mixf(n.Constant.x); mixf(n.Constant.y); mixf(n.Constant.z); mixf(n.Constant.w);
-            }
-            // The Parameter node bakes its name into HLSL (mat.<name>); Param* names
-            // are just UI labels, so skip them.
-            if (n.Type == EMaterialNodeType::Parameter)
-                for (const char* p = n.Param; *p; ++p) mix((size_t)*p);
-        }
-        for (int ch = 0; ch < 6; ++ch) mix((size_t)(m_Channels[ch] + 2));
-        mix((size_t)m_TargetMaterial);
+        // Hash the actual generated HLSL, so the signature changes only when the
+        // compiled result would: connecting/disconnecting, rewiring a channel, or
+        // editing a *reachable* baked constant. Disconnected nodes and exposed-param
+        // values (which emit no literal) don't affect it -> no needless recompile.
+        const MaterialGraph g = Build();
+        const std::string code = g.GenerateHLSL(false) + "\x01" + g.GenerateHLSL(true);
+        size_t h = std::hash<std::string>{}(code);
+        h ^= (size_t)m_TargetMaterial * 0x9e3779b97f4a7c15ull; // re-apply on slot change
         return h;
     }
 
