@@ -216,6 +216,22 @@ namespace Elixir
                 type = EGraphValueType::Float2;
                 break;
             }
+            case EMaterialNodeType::Checker:
+            {
+                const std::string uv = node.Inputs.empty() || node.Inputs[0] < 0
+                    ? std::string("input.TexCoord") : Widen(A(0), AT(0), EGraphValueType::Float2);
+                expr = "Checker(" + uv + ", " + Num(node.ConstantValue.x) + ")";
+                type = EGraphValueType::Float;
+                break;
+            }
+            case EMaterialNodeType::Noise:
+            {
+                const std::string uv = node.Inputs.empty() || node.Inputs[0] < 0
+                    ? std::string("input.TexCoord") : Widen(A(0), AT(0), EGraphValueType::Float2);
+                expr = "ValueNoise(" + uv + ", " + Num(node.ConstantValue.x) + ")";
+                type = EGraphValueType::Float;
+                break;
+            }
             case EMaterialNodeType::Multiply:      binOp("*"); break;
             case EMaterialNodeType::Add:           binOp("+"); break;
             case EMaterialNodeType::Subtract:      binOp("-"); break;

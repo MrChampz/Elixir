@@ -22,6 +22,8 @@ namespace Elixir
         Time,          // seconds since start (cbFrame.Time)
         Sine,          // sin(a)
         Panner,        // uv + Time * speed (speed from ConstantValue.xy)
+        Checker,       // checkerboard from a UV (scale from ConstantValue.x)
+        Noise,         // value noise from a UV (scale from ConstantValue.x)
         Multiply,      // a * b
         Add,           // a + b
         Subtract,      // a - b

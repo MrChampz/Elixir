@@ -22,6 +22,8 @@ namespace Elixir
                 case EMaterialNodeType::Time:          return "Time";
                 case EMaterialNodeType::Sine:          return "Sine";
                 case EMaterialNodeType::Panner:        return "Panner";
+                case EMaterialNodeType::Checker:       return "Checker";
+                case EMaterialNodeType::Noise:         return "Noise";
                 case EMaterialNodeType::Multiply:      return "Multiply";
                 case EMaterialNodeType::Add:           return "Add";
                 case EMaterialNodeType::Subtract:      return "Subtract";
@@ -51,6 +53,8 @@ namespace Elixir
                 case EMaterialNodeType::Saturate:
                 case EMaterialNodeType::Sine:
                 case EMaterialNodeType::Panner:        // input 0 = UV (optional)
+                case EMaterialNodeType::Checker:       // input 0 = UV (optional)
+                case EMaterialNodeType::Noise:         // input 0 = UV (optional)
                 case EMaterialNodeType::TextureSample: return 1; // input 0 = UV (optional)
                 default: return 0;
             }
@@ -63,6 +67,8 @@ namespace Elixir
                 case EMaterialNodeType::Fresnel:
                 case EMaterialNodeType::Dot:
                 case EMaterialNodeType::Scalar:
+                case EMaterialNodeType::Checker:
+                case EMaterialNodeType::Noise:
                 case EMaterialNodeType::Time:          return EGraphValueType::Float;
                 case EMaterialNodeType::TexCoord:
                 case EMaterialNodeType::Panner:        return EGraphValueType::Float2;
@@ -95,6 +101,7 @@ namespace Elixir
                 case 1: return "Metallic";
                 case 2: return "Roughness";
                 case 3: return "Emissive";
+                case 4: return "Normal";
             }
             return "?";
         }
@@ -120,6 +127,9 @@ namespace Elixir
         node.OutputType = OutputTypeFor(type);
         node.Pos = pos;
         node.InputCount = InputCountFor(type);
+        // A visible default scale for procedural nodes (Constant.x doubles as scale).
+        if (type == EMaterialNodeType::Checker || type == EMaterialNodeType::Noise)
+            node.Constant = { 8.0f, 8.0f, 8.0f, 8.0f };
         m_Nodes.push_back(node);
         return node.Id;
     }
@@ -189,6 +199,11 @@ namespace Elixir
         addButton("Time", EMaterialNodeType::Time);
         addButton("Sine", EMaterialNodeType::Sine);
         addButton("Panner", EMaterialNodeType::Panner);
+        ImGui::NewLine();
+
+        ImGui::TextUnformatted("Proc:  "); ImGui::SameLine();
+        addButton("Checker", EMaterialNodeType::Checker);
+        addButton("Noise", EMaterialNodeType::Noise);
         ImGui::NewLine();
 
         if (ImGui::Button("Apply")) apply = true;
@@ -264,6 +279,8 @@ namespace Elixir
                 ImGui::Combo("##t", &node.TexSlot, kTextureSlots, IM_ARRAYSIZE(kTextureSlots));
             else if (node.Type == EMaterialNodeType::Panner)
                 ImGui::DragFloat2("##s", &node.Constant.x, 0.01f, -5.0f, 5.0f, "%.2f");
+            else if (node.Type == EMaterialNodeType::Checker || node.Type == EMaterialNodeType::Noise)
+                ImGui::DragFloat("##sc", &node.Constant.x, 0.1f, 0.1f, 128.0f, "scale %.1f");
             ImGui::PopItemWidth();
 
             // Output pin (right, centered).
@@ -300,14 +317,14 @@ namespace Elixir
         // --- Output (master) node ---
         const ImVec2 op = ImVec2(origin.x + 520.0f, origin.y + 40.0f);
         const ImVec2 omin = op;
-        const ImVec2 omax = ImVec2(op.x + 140.0f, op.y + 20.0f + 4 * 20.0f + 6.0f);
+        const ImVec2 omax = ImVec2(op.x + 140.0f, op.y + 20.0f + 5 * 20.0f + 6.0f);
         dl->AddRectFilled(omin, omax, IM_COL32(52, 42, 42, 235), 4.0f);
         dl->AddRectFilled(omin, ImVec2(omax.x, omin.y + 20.0f), IM_COL32(120, 80, 80, 255), 4.0f);
         dl->AddRect(omin, omax, IM_COL32(140, 100, 100, 255), 4.0f);
         dl->AddText(ImVec2(omin.x + 8.0f, omin.y + 3.0f), IM_COL32_WHITE, "Output");
         ImGui::PushID(-99);
         std::unordered_map<int, ImVec2> chPins;
-        for (int ch = 0; ch < 4; ++ch)
+        for (int ch = 0; ch < 5; ++ch)
         {
             const ImVec2 pinPos = ImVec2(omin.x, omin.y + 30.0f + ch * 20.0f);
             ImGui::PushID(ch);
@@ -342,7 +359,7 @@ namespace Elixir
             for (int i = 0; i < node.InputCount; ++i)
                 if (node.Inputs[i] >= 0 && outPins.count(node.Inputs[i]))
                     bezier(outPins[node.Inputs[i]], inPinPos[((long long)node.Id << 8) | i], IM_COL32(200, 200, 210, 200));
-        for (int ch = 0; ch < 4; ++ch)
+        for (int ch = 0; ch < 5; ++ch)
             if (m_Channels[ch] >= 0 && outPins.count(m_Channels[ch]))
                 bezier(outPins[m_Channels[ch]], chPins[ch], IM_COL32(220, 190, 90, 220));
 
@@ -392,7 +409,7 @@ namespace Elixir
                 if (n.Inputs[i] >= 0 && idMap.count(n.Inputs[i]))
                     graph.Connect(idMap[n.Inputs[i]], idMap[n.Id], (uint32_t)i);
 
-        for (int ch = 0; ch < 4; ++ch)
+        for (int ch = 0; ch < 5; ++ch)
             if (m_Channels[ch] >= 0 && idMap.count(m_Channels[ch]))
                 graph.SetChannel((EMaterialChannel)ch, idMap[m_Channels[ch]]);
 

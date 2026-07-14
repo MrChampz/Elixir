@@ -82,6 +82,33 @@ float3 SampleTex(uint index, float2 uv)
     return textures[index].Sample(texSampler, uv).rgb;
 }
 
+// --- Procedural pattern helpers (driven by graph nodes) ---
+float Checker(float2 uv, float scale)
+{
+    float2 c = floor(uv * scale);
+    return frac((c.x + c.y) * 0.5f) < 0.25f ? 0.0f : 1.0f;
+}
+
+float Hash21(float2 p)
+{
+    p = frac(p * float2(123.34f, 345.45f));
+    p += dot(p, p + 34.345f);
+    return frac(p.x * p.y);
+}
+
+float ValueNoise(float2 uv, float scale)
+{
+    uv *= scale;
+    float2 i = floor(uv);
+    float2 f = frac(uv);
+    f = f * f * (3.0f - 2.0f * f); // smoothstep interpolation
+    float a = Hash21(i);
+    float b = Hash21(i + float2(1.0f, 0.0f));
+    float c = Hash21(i + float2(0.0f, 1.0f));
+    float d = Hash21(i + float2(1.0f, 1.0f));
+    return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
+}
+
 float2 DirToEquirect(float3 d)
 {
     float u = atan2(d.z, d.x) * 0.15915494f + 0.5f;
@@ -127,6 +154,15 @@ float4 main(PSInput input) : SV_Target0
     surface.Normal = float3(0.0f, 0.0f, 1.0f);
 
     // __GRAPH_BODY__
+
+    // Apply the graph's tangent-space normal (default (0,0,1) leaves the geometric
+    // normal unchanged). Guarded so meshes without tangents stay stable.
+    if (dot(input.Tangent.xyz, input.Tangent.xyz) > 1e-8f)
+    {
+        float3 T = normalize(input.Tangent.xyz - N * dot(N, input.Tangent.xyz));
+        float3 B = cross(N, T) * input.Tangent.w;
+        N = normalize(mul(surface.Normal, float3x3(T, B, N)));
+    }
 
     float roughness = clamp(surface.Roughness, 0.045f, 1.0f);
     float3 F0 = lerp(0.04f.xxx, surface.BaseColor, surface.Metallic);
