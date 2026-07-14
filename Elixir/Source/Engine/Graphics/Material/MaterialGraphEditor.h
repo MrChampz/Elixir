@@ -59,6 +59,11 @@ namespace Elixir
         void DeleteNode(int id); // removes the node and clears links referencing it
         const SNode* Find(int id) const;
 
+        // A hash of the graph state that affects the compiled shader (structure,
+        // wiring, channels, baked constants, target slot). Excludes exposed-parameter
+        // values, which update live without recompiling. Drives live-preview.
+        [[nodiscard]] size_t Signature() const;
+
         std::vector<SNode> m_Nodes;
         int m_NextId = 1;
 
@@ -74,5 +79,10 @@ namespace Elixir
 
         // Drag-to-connect: the node whose output pin is being dragged (-1 = none).
         int m_LinkFrom = -1;
+
+        // Live preview: auto-recompile a short debounce after the graph changes.
+        bool m_LivePreview = true;
+        size_t m_LastSig = 0;
+        double m_DirtySince = -1.0; // < 0 = not dirty
     };
 }

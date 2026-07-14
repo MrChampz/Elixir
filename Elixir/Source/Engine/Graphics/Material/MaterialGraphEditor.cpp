@@ -129,6 +129,8 @@ namespace Elixir
         m_Nodes[2].Inputs[0] = c;
         m_Nodes[2].Inputs[1] = p;
         m_Channels[0] = m;
+
+        m_LastSig = Signature(); // seed graph isn't "dirty" until the user edits it
     }
 
     int MaterialGraphEditor::AddNode(EMaterialNodeType type, const glm::vec2& pos)
@@ -237,6 +239,8 @@ namespace Elixir
         ImGui::NewLine();
 
         if (ImGui::Button("Apply")) apply = true;
+        ImGui::SameLine();
+        ImGui::Checkbox("Live", &m_LivePreview);
         ImGui::SameLine();
         ImGui::TextDisabled("(right-click: node = delete, pin = disconnect)");
         ImGui::Separator();
@@ -442,6 +446,22 @@ namespace Elixir
             ImGui::TextDisabled("(no exposed parameters)");
         ImGui::End();
 
+        // Live preview: recompile a short debounce after the last graph change, so a
+        // drag doesn't recompile every frame. Values that stream live (params) are
+        // excluded from the signature.
+        constexpr double DEBOUNCE = 0.3;
+        const size_t sig = Signature();
+        if (sig != m_LastSig)
+        {
+            m_LastSig = sig;
+            m_DirtySince = ImGui::GetTime();
+        }
+        if (m_LivePreview && m_DirtySince >= 0.0 && ImGui::GetTime() - m_DirtySince > DEBOUNCE)
+        {
+            m_DirtySince = -1.0;
+            apply = true;
+        }
+
         return apply;
     }
 
@@ -478,6 +498,36 @@ namespace Elixir
                 graph.SetChannel((EMaterialChannel)ch, idMap[m_Channels[ch]]);
 
         return graph;
+    }
+
+    size_t MaterialGraphEditor::Signature() const
+    {
+        size_t h = 1469598103934665603ull; // FNV-1a
+        const auto mix = [&](size_t v) { h ^= v; h *= 1099511628211ull; };
+        const auto mixf = [&](float f) { uint32_t u = 0; std::memcpy(&u, &f, sizeof(u)); mix(u); };
+
+        for (const auto& n : m_Nodes)
+        {
+            mix((size_t)n.Type);
+            mix((size_t)n.Id);
+            mix((size_t)n.InputCount);
+            for (int i = 0; i < 3; ++i) mix((size_t)(n.Inputs[i] + 2));
+            mix((size_t)n.TexSlot);
+
+            // Baked constants affect the shader; exposed-parameter values don't (they
+            // stream through cbGraphParams live).
+            if (n.Type != EMaterialNodeType::ParamScalar && n.Type != EMaterialNodeType::ParamColor)
+            {
+                mixf(n.Constant.x); mixf(n.Constant.y); mixf(n.Constant.z); mixf(n.Constant.w);
+            }
+            // The Parameter node bakes its name into HLSL (mat.<name>); Param* names
+            // are just UI labels, so skip them.
+            if (n.Type == EMaterialNodeType::Parameter)
+                for (const char* p = n.Param; *p; ++p) mix((size_t)*p);
+        }
+        for (int ch = 0; ch < 6; ++ch) mix((size_t)(m_Channels[ch] + 2));
+        mix((size_t)m_TargetMaterial);
+        return h;
     }
 
     int MaterialGraphEditor::CollectParams(glm::vec4* out, int maxCount) const
