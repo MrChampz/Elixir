@@ -16,9 +16,16 @@ namespace Elixir
                 case EMaterialNodeType::Constant:      return "Constant";
                 case EMaterialNodeType::Parameter:     return "Parameter";
                 case EMaterialNodeType::TextureSample: return "Texture";
+                case EMaterialNodeType::TexCoord:      return "TexCoord";
                 case EMaterialNodeType::Multiply:      return "Multiply";
                 case EMaterialNodeType::Add:           return "Add";
+                case EMaterialNodeType::Subtract:      return "Subtract";
+                case EMaterialNodeType::Divide:        return "Divide";
+                case EMaterialNodeType::Power:         return "Power";
+                case EMaterialNodeType::Dot:           return "Dot";
                 case EMaterialNodeType::Lerp:          return "Lerp";
+                case EMaterialNodeType::OneMinus:      return "OneMinus";
+                case EMaterialNodeType::Saturate:      return "Saturate";
                 case EMaterialNodeType::Fresnel:       return "Fresnel";
             }
             return "Node";
@@ -29,16 +36,45 @@ namespace Elixir
             switch (t)
             {
                 case EMaterialNodeType::Multiply:
-                case EMaterialNodeType::Add:  return 2;
-                case EMaterialNodeType::Lerp: return 3;
+                case EMaterialNodeType::Add:
+                case EMaterialNodeType::Subtract:
+                case EMaterialNodeType::Divide:
+                case EMaterialNodeType::Power:
+                case EMaterialNodeType::Dot:      return 2;
+                case EMaterialNodeType::Lerp:     return 3;
+                case EMaterialNodeType::OneMinus:
+                case EMaterialNodeType::Saturate: return 1;
                 default: return 0;
             }
         }
 
         EGraphValueType OutputTypeFor(EMaterialNodeType t)
         {
-            return t == EMaterialNodeType::Fresnel ? EGraphValueType::Float : EGraphValueType::Float4;
+            switch (t)
+            {
+                case EMaterialNodeType::Fresnel:
+                case EMaterialNodeType::Dot:           return EGraphValueType::Float;
+                case EMaterialNodeType::TexCoord:      return EGraphValueType::Float2;
+                case EMaterialNodeType::TextureSample: return EGraphValueType::Float3;
+                default:                               return EGraphValueType::Float4;
+            }
         }
+
+        // The guarded HLSL sample expression for a texture slot (0..4). Falls back to
+        // white when the material has no texture bound in that slot.
+        std::string TextureSlotExpr(int slot)
+        {
+            const char* idx =
+                slot == 0 ? "mat.TexIndex0.x" :
+                slot == 1 ? "mat.TexIndex0.y" :
+                slot == 2 ? "mat.TexIndex0.z" :
+                slot == 3 ? "mat.TexIndex0.w" :
+                            "mat.TexIndex1.x";
+            return std::string("(") + idx + " == 0xffffffffu ? float3(1.0, 1.0, 1.0) : SampleTex("
+                + idx + ", input.TexCoord))";
+        }
+
+        const char* const kTextureSlots[] = { "Base Color", "Metal/Rough", "Normal", "Emissive", "Occlusion" };
 
         const char* ChannelName(int ch)
         {
@@ -89,14 +125,32 @@ namespace Elixir
         bool apply = false;
         ImGui::Begin("Node Graph Editor");
 
-        if (ImGui::Button("Constant")) AddNode(EMaterialNodeType::Constant, { 40.0f, 40.0f });
-        ImGui::SameLine(); if (ImGui::Button("Parameter")) AddNode(EMaterialNodeType::Parameter, { 40.0f, 40.0f });
-        ImGui::SameLine(); if (ImGui::Button("Multiply"))  AddNode(EMaterialNodeType::Multiply, { 40.0f, 40.0f });
-        ImGui::SameLine(); if (ImGui::Button("Add"))       AddNode(EMaterialNodeType::Add, { 40.0f, 40.0f });
-        ImGui::SameLine(); if (ImGui::Button("Lerp"))      AddNode(EMaterialNodeType::Lerp, { 40.0f, 40.0f });
-        ImGui::SameLine(); if (ImGui::Button("Fresnel"))   AddNode(EMaterialNodeType::Fresnel, { 40.0f, 40.0f });
-        ImGui::SameLine();
-        ImGui::Dummy(ImVec2(20, 0)); ImGui::SameLine();
+        auto addButton = [&](const char* label, EMaterialNodeType type)
+        {
+            if (ImGui::Button(label)) AddNode(type, { 40.0f, 40.0f });
+            ImGui::SameLine();
+        };
+
+        ImGui::TextUnformatted("Inputs:"); ImGui::SameLine();
+        addButton("Constant", EMaterialNodeType::Constant);
+        addButton("Parameter", EMaterialNodeType::Parameter);
+        addButton("Texture", EMaterialNodeType::TextureSample);
+        addButton("TexCoord", EMaterialNodeType::TexCoord);
+        ImGui::NewLine();
+
+        ImGui::TextUnformatted("Math:  "); ImGui::SameLine();
+        addButton("Multiply", EMaterialNodeType::Multiply);
+        addButton("Add", EMaterialNodeType::Add);
+        addButton("Subtract", EMaterialNodeType::Subtract);
+        addButton("Divide", EMaterialNodeType::Divide);
+        addButton("Power", EMaterialNodeType::Power);
+        addButton("Dot", EMaterialNodeType::Dot);
+        addButton("Lerp", EMaterialNodeType::Lerp);
+        addButton("OneMinus", EMaterialNodeType::OneMinus);
+        addButton("Saturate", EMaterialNodeType::Saturate);
+        addButton("Fresnel", EMaterialNodeType::Fresnel);
+        ImGui::NewLine();
+
         if (ImGui::Button("Apply")) apply = true;
         ImGui::Separator();
 
@@ -156,6 +210,8 @@ namespace Elixir
                 ImGui::ColorEdit4("##v", &node.Constant.x, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
             else if (node.Type == EMaterialNodeType::Parameter)
                 ImGui::InputText("##p", node.Param, sizeof(node.Param));
+            else if (node.Type == EMaterialNodeType::TextureSample)
+                ImGui::Combo("##t", &node.TexSlot, kTextureSlots, IM_ARRAYSIZE(kTextureSlots));
             ImGui::PopItemWidth();
 
             // Output pin (right, centered).
@@ -264,7 +320,7 @@ namespace Elixir
             gn.ParameterName = n.Param;
             gn.Inputs.assign(n.InputCount, -1);
             if (n.Type == EMaterialNodeType::TextureSample)
-                gn.TextureExpression = "float3(1.0, 1.0, 1.0)";
+                gn.TextureExpression = TextureSlotExpr(n.TexSlot);
             idMap[n.Id] = graph.AddNode(gn);
         }
 

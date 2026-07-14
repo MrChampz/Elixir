@@ -17,9 +17,16 @@ namespace Elixir
         Constant,      // a literal value
         Parameter,     // a named material-instance parameter (mat.<field>)
         TextureSample, // sample a bound texture at the mesh UV
+        TexCoord,      // the mesh UV (input.TexCoord)
         Multiply,      // a * b
         Add,           // a + b
+        Subtract,      // a - b
+        Divide,        // a / b
+        Power,         // pow(a, b)
+        Dot,           // dot(a, b) -> scalar
         Lerp,          // lerp(a, b, t)
+        OneMinus,      // 1 - a
+        Saturate,      // saturate(a)
         Fresnel,       // schlick fresnel from N,V
     };
 

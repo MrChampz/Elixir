@@ -121,9 +121,16 @@ namespace Elixir
             case EMaterialNodeType::Constant:      expr = ConstantExpr(node); break;
             case EMaterialNodeType::Parameter:     expr = "mat." + node.ParameterName; break;
             case EMaterialNodeType::TextureSample: expr = node.TextureExpression; break;
+            case EMaterialNodeType::TexCoord:      expr = "input.TexCoord"; break;
             case EMaterialNodeType::Multiply:      expr = "(" + in[0] + " * " + in[1] + ")"; break;
             case EMaterialNodeType::Add:           expr = "(" + in[0] + " + " + in[1] + ")"; break;
+            case EMaterialNodeType::Subtract:      expr = "(" + in[0] + " - " + in[1] + ")"; break;
+            case EMaterialNodeType::Divide:        expr = "(" + in[0] + " / " + in[1] + ")"; break;
+            case EMaterialNodeType::Power:         expr = "pow(" + in[0] + ", " + in[1] + ")"; break;
+            case EMaterialNodeType::Dot:           expr = "dot(" + in[0] + ", " + in[1] + ")"; break;
             case EMaterialNodeType::Lerp:          expr = "lerp(" + in[0] + ", " + in[1] + ", " + in[2] + ")"; break;
+            case EMaterialNodeType::OneMinus:      expr = "(1.0 - " + in[0] + ")"; break;
+            case EMaterialNodeType::Saturate:      expr = "saturate(" + in[0] + ")"; break;
             case EMaterialNodeType::Fresnel:       expr = "pow(saturate(1.0 - dot(N, V)), 5.0)"; break;
         }
 
