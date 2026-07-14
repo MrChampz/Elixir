@@ -20,6 +20,7 @@ namespace Elixir
             {
                 case EMaterialNodeType::Constant:      return "Constant";
                 case EMaterialNodeType::Scalar:        return "Scalar";
+                case EMaterialNodeType::Vector:        return "Vector";
                 case EMaterialNodeType::ParamScalar:   return "Param (f)";
                 case EMaterialNodeType::ParamColor:    return "Param (rgba)";
                 case EMaterialNodeType::Parameter:     return "Parameter";
@@ -81,6 +82,7 @@ namespace Elixir
                 case EMaterialNodeType::TexCoord:
                 case EMaterialNodeType::Panner:        return EGraphValueType::Float2;
                 case EMaterialNodeType::TextureSample:
+                case EMaterialNodeType::Vector:
                 case EMaterialNodeType::Position:      return EGraphValueType::Float3;
                 default:                               return EGraphValueType::Float4;
             }
@@ -201,6 +203,7 @@ namespace Elixir
         ImGui::TextUnformatted("Inputs:"); ImGui::SameLine();
         addButton("Constant", EMaterialNodeType::Constant);
         addButton("Scalar", EMaterialNodeType::Scalar);
+        addButton("Vector", EMaterialNodeType::Vector);
         addButton("Param.f", EMaterialNodeType::ParamScalar);
         addButton("Param.rgba", EMaterialNodeType::ParamColor);
         addButton("Parameter", EMaterialNodeType::Parameter);
@@ -300,6 +303,8 @@ namespace Elixir
                 ImGui::ColorEdit4("##v", &node.Constant.x, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
             else if (node.Type == EMaterialNodeType::Scalar)
                 ImGui::DragFloat("##f", &node.Constant.x, 0.05f, -100.0f, 100.0f, "%.3f");
+            else if (node.Type == EMaterialNodeType::Vector)
+                ImGui::DragFloat3("##v3", &node.Constant.x, 0.01f, -100.0f, 100.0f, "%.3f");
             else if (node.Type == EMaterialNodeType::Parameter
                   || node.Type == EMaterialNodeType::ParamScalar
                   || node.Type == EMaterialNodeType::ParamColor)

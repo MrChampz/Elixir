@@ -194,6 +194,7 @@ namespace Elixir
         switch (node.Type)
         {
             case EMaterialNodeType::Constant:      expr = ConstantExpr(node); type = node.OutputType; break;
+            case EMaterialNodeType::Vector:        expr = ConstantExpr(node); type = node.OutputType; break;
             case EMaterialNodeType::Scalar:        expr = Num(node.ConstantValue.x); type = EGraphValueType::Float; break;
             case EMaterialNodeType::ParamScalar:   expr = "GraphParams[" + std::to_string(node.ParamSlot) + "].x"; type = EGraphValueType::Float; break;
             case EMaterialNodeType::ParamColor:    expr = "GraphParams[" + std::to_string(node.ParamSlot) + "]"; type = EGraphValueType::Float4; break;

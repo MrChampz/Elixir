@@ -14,8 +14,9 @@ namespace Elixir
     // The kind of computation a node performs. The codegen switches on this.
     enum class EMaterialNodeType : uint8_t
     {
-        Constant,      // a literal float4 value (colour)
+        Constant,      // a literal float4 value (colour, 0..1)
         Scalar,        // a literal single float
+        Vector,        // a literal float3 with free-range components
         ParamScalar,   // a live-editable exposed scalar (GraphParams[slot].x)
         ParamColor,    // a live-editable exposed colour (GraphParams[slot])
         Parameter,     // a named material-instance parameter (mat.<field>)
