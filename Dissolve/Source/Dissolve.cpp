@@ -5,6 +5,8 @@
 #include <Engine/Aether/Renderer.h>
 
 #include "Engine/Aether/Effect.h"
+#include "Engine/Graphics/Material/MaterialGraph.h"
+#include "Engine/Graphics/Material/MaterialCompiler.h"
 
 #include <imgui.h>
 
@@ -64,6 +66,30 @@ Dissolve::Dissolve()
     m_PostProcessor = CreateScope<PostProcessor>(m_GraphicsContext.get(), m_ShaderLoader.get());
     m_GraphicsContext->InitImGui();
     m_Model = Model::Load(m_GraphicsContext.get(), "./Assets/Meshes/BMW/scene.gltf");
+
+    // Phase 4 smoke test: build a tiny node graph, compile it to a shader at
+    // runtime via DXC, and log whether it loaded. Proves graph -> HLSL -> SPIR-V.
+    {
+        MaterialGraph graph;
+
+        SMaterialNode baseColor;
+        baseColor.Type = EMaterialNodeType::Constant;
+        baseColor.OutputType = EGraphValueType::Float4;
+        baseColor.ConstantValue = { 0.9f, 0.3f, 0.1f, 1.0f };
+        graph.SetChannel(EMaterialChannel::BaseColor, graph.AddNode(baseColor));
+
+        SMaterialNode metallic;
+        metallic.Type = EMaterialNodeType::Constant;
+        metallic.OutputType = EGraphValueType::Float;
+        metallic.ConstantValue = { 0.9f, 0.0f, 0.0f, 0.0f };
+        graph.SetChannel(EMaterialChannel::Metallic, graph.AddNode(metallic));
+
+        m_GraphShader = MaterialCompiler::Compile(m_ShaderLoader.get(), graph);
+        if (m_GraphShader)
+            EE_CORE_INFO("Node-graph material compiled and loaded successfully.")
+        else
+            EE_CORE_ERROR("Node-graph material compilation FAILED.")
+    }
 
     m_ParticleSystem = Aether::LoadEffectFile("./Assets/VFX/RibbonVortex.json");
     // m_ParticleSystem = CreateScope<Aether::System>("Ribbon Garden");

@@ -37,4 +37,5 @@ private:
     Scope<MeshRenderer> m_MeshRenderer;
     Scope<PostProcessor> m_PostProcessor;
     Ref<Model> m_Model;
+    Ref<Shader> m_GraphShader;
 };

@@ -201,6 +201,11 @@ function(copy_shaders_for_targets)
             COMMAND "${CMAKE_COMMAND}" -E copy_directory
                     "${SHADER_STAGING_DIR}"
                     "${TARGET_SHADER_DIR}"
+            # The node-graph material template is compiled at runtime, so its HLSL
+            # source must be available next to the compiled shaders.
+            COMMAND "${CMAKE_COMMAND}" -E copy
+                    "${SHADER_SOURCE_DIR}/GraphMaterial.ps.hlsl"
+                    "${TARGET_SHADER_DIR}/GraphMaterial.ps.hlsl"
             COMMAND "${CMAKE_COMMAND}" -E touch
                     "${CMAKE_CURRENT_BINARY_DIR}/${target}_copy_shaders.stamp"
             DEPENDS ${ALL_SPIRV_OUTPUTS}
