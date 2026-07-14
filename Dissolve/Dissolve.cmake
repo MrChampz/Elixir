@@ -57,6 +57,8 @@ endif()
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Elixir/Source
+    ${CMAKE_SOURCE_DIR}/Elixir/Vendor/imgui
+    ${CMAKE_SOURCE_DIR}/Elixir/Vendor/imgui/backends
 )
 
 # Linking

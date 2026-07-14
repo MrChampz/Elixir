@@ -71,6 +71,10 @@ namespace Elixir::Vulkan
         void EnqueueSecondaryCommandBuffer(const Ref<CommandBuffer>& cmd) const override;
         void BlitToTexture(const Ref<CommandBuffer>& cmd, const Ref<Texture2D>& dst) const override;
 
+        void InitImGui() override;
+        void BeginImGuiFrame() override;
+        void EndImGuiFrame() override;
+
         Extent3D GetSwapchainExtent() const override { return m_SwapchainExtent;}
 
         SFrameData& GetCurrentFrame() { return m_Frames[GetFrameIndex()]; }
@@ -144,6 +148,9 @@ namespace Elixir::Vulkan
         VmaAllocator m_Allocator;
         Ref<VulkanDescriptorPool> m_DescriptorPool;
         Ref<VulkanBindlessDescriptorPool> m_BindlessDescriptorPool;
+
+        bool m_ImGuiInitialized = false;
+        bool m_ImGuiFrameStarted = false;
 
         Scope<VulkanCommandPoolManager> m_CommandPoolManager;
         Ref<VulkanCommandBuffer> m_MainCommandBuffer;

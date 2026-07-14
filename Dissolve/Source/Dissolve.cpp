@@ -6,6 +6,8 @@
 
 #include "Engine/Aether/Effect.h"
 
+#include <imgui.h>
+
 Ref<GraphicsPipeline> pipeline;
 Scope<Aether::Renderer> m_ParticlesRenderer;
 Ref<Aether::System> m_ParticleSystem;
@@ -60,7 +62,8 @@ Dissolve::Dissolve()
 
     m_MeshRenderer = CreateScope<MeshRenderer>(m_GraphicsContext.get(), m_ShaderLoader.get());
     m_PostProcessor = CreateScope<PostProcessor>(m_GraphicsContext.get(), m_ShaderLoader.get());
-    m_Model = Model::Load(m_GraphicsContext.get(), "./Assets/Meshes/McLaren/scene.gltf");
+    m_GraphicsContext->InitImGui();
+    m_Model = Model::Load(m_GraphicsContext.get(), "./Assets/Meshes/BMW/scene.gltf");
 
     m_ParticleSystem = Aether::LoadEffectFile("./Assets/VFX/RibbonVortex.json");
     // m_ParticleSystem = CreateScope<Aether::System>("Ribbon Garden");
@@ -158,6 +161,52 @@ void Dissolve::OnGUI(const Timestep frameTime)
 {
     EE_PROFILE_ZONE_SCOPED()
     Application::OnGUI(frameTime);
+
+    // Build the ImGui UI on the main thread (GLFW input lives here); the draw is
+    // submitted later from OnRender on the render thread.
+    DrawMaterialEditor();
+}
+
+void Dissolve::DrawMaterialEditor()
+{
+    m_GraphicsContext->BeginImGuiFrame();
+
+    ImGui::Begin("Material Editor");
+    const auto& materials = m_Model->GetMaterials();
+    if (!materials.empty())
+    {
+        static int selected = 0;
+        selected = std::clamp(selected, 0, (int)materials.size() - 1);
+        ImGui::SliderInt("Material", &selected, 0, (int)materials.size() - 1);
+
+        // Serialise with the render thread's material pack (see Model::MaterialsMutex).
+        std::lock_guard<std::mutex> lock(m_Model->MaterialsMutex());
+
+        const auto& mat = materials[selected];
+        ImGui::TextWrapped("%s", mat->GetName().c_str());
+        ImGui::Separator();
+        bool changed = false;
+
+        glm::vec4 base = mat->GetVector("BaseColorFactor");
+        if (ImGui::ColorEdit4("Base Color", &base.x)) { mat->SetVector("BaseColorFactor", base); changed = true; }
+
+        float metallic = mat->GetScalar("Metallic");
+        if (ImGui::SliderFloat("Metallic", &metallic, 0.0f, 1.0f)) { mat->SetScalar("Metallic", metallic); changed = true; }
+
+        float roughness = mat->GetScalar("Roughness");
+        if (ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f)) { mat->SetScalar("Roughness", roughness); changed = true; }
+
+        float clearcoat = mat->GetScalar("ClearcoatFactor");
+        if (ImGui::SliderFloat("Clearcoat", &clearcoat, 0.0f, 1.0f)) { mat->SetScalar("ClearcoatFactor", clearcoat); changed = true; }
+
+        glm::vec3 emissive = glm::vec3(mat->GetVector("EmissiveFactor"));
+        if (ImGui::ColorEdit3("Emissive", &emissive.x)) { mat->SetVector("EmissiveFactor", glm::vec4(emissive, 0.0f)); changed = true; }
+
+        if (changed)
+            m_Model->MarkMaterialsDirty();
+    }
+    ImGui::End();
+    // The draw data is submitted from OnRender (render thread) via EndImGuiFrame.
 }
 
 void Dissolve::OnRender(const Timestep frameTime)
@@ -178,6 +227,10 @@ void Dissolve::OnRender(const Timestep frameTime)
     // m_ParticlesRenderer->Render(m_GPUSystem, m_CameraController->GetCamera());
     m_MeshRenderer->Render(m_Model, m_CameraController->GetCamera());
     m_PostProcessor->Apply();
+
+    // Submit the ImGui draw data (built in OnGUI) on the render thread, where the
+    // render target is in a renderable layout.
+    m_GraphicsContext->EndImGuiFrame();
 }
 
 void Dissolve::OnEvent(Event& event)

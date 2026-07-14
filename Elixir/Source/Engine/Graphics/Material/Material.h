@@ -85,7 +85,11 @@ namespace Elixir
 
         [[nodiscard]] const Ref<Material>& GetParent() const { return m_Parent; }
 
+        void SetName(std::string name) { m_Name = std::move(name); }
+        [[nodiscard]] const std::string& GetName() const { return m_Name; }
+
       private:
+        std::string m_Name;
         // Override if present, else the parent's default (or null).
         [[nodiscard]] const SMaterialParam* Resolve(const std::string& name) const
         {

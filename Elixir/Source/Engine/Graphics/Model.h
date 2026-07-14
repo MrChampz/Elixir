@@ -4,6 +4,8 @@
 #include <Engine/Graphics/Texture.h>
 #include <Engine/Graphics/Material/Material.h>
 
+#include <mutex>
+
 namespace Elixir
 {
     struct SModelVertex
@@ -35,8 +37,25 @@ namespace Elixir
         [[nodiscard]] const std::vector<SModelPrimitive>& GetPrimitives() const { return m_Primitives; }
         [[nodiscard]] const std::vector<Ref<MaterialInstance>>& GetMaterials() const { return m_Materials; }
 
+        // Call after editing a material instance so the renderer repacks the GPU
+        // material buffer on the next frame.
+        void MarkMaterialsDirty() { m_MaterialsDirty = true; }
+        [[nodiscard]] bool ConsumeMaterialsDirty()
+        {
+            const bool dirty = m_MaterialsDirty;
+            m_MaterialsDirty = false;
+            return dirty;
+        }
+
+        // Rendering runs on a separate thread from UI/editing, so material edits
+        // (main thread) race the renderer's material-buffer pack (render thread).
+        // Lock this around both sides.
+        [[nodiscard]] std::mutex& MaterialsMutex() const { return m_MaterialsMutex; }
+
       private:
         std::vector<SModelPrimitive> m_Primitives;
         std::vector<Ref<MaterialInstance>> m_Materials;
+        bool m_MaterialsDirty = false;
+        mutable std::mutex m_MaterialsMutex;
     };
 }

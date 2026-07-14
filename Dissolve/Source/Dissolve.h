@@ -24,6 +24,7 @@ public:
 
 private:
     void DrawGeometry();
+    void DrawMaterialEditor();
 
     WaitGroup m_WaitGroup;
     Extent2D m_DrawExtent;

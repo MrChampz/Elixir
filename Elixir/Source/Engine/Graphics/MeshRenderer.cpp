@@ -104,6 +104,8 @@ namespace Elixir
         std::vector<SGPUMaterial> materials;
         materials.reserve(model->GetMaterials().size());
 
+        // Serialise with UI-thread material edits (see Model::MaterialsMutex).
+        std::lock_guard<std::mutex> lock(model->MaterialsMutex());
         for (const auto& material : model->GetMaterials())
         {
             const uint32_t alphaMode = (uint32_t)material->GetScalar("AlphaMode");
@@ -150,15 +152,13 @@ namespace Elixir
 
         // Build (and cache) the model's material buffer, resolving its textures
         // into the bindless set the first time we see it.
+        // Repack the material buffer from the instances every frame so runtime edits
+        // (e.g. the material editor) always take effect. Cheap for typical material
+        // counts, and avoids a cross-thread dirty flag between UI and render.
         auto& materialBuffer = m_MaterialBuffers[model.get()];
-        if (!materialBuffer)
-            materialBuffer = BuildMaterialBuffer(model);
-
-        if (m_BoundModel != model.get())
-        {
-            m_Shader->BindStorageBuffer("materials", materialBuffer);
-            m_BoundModel = model.get();
-        }
+        materialBuffer = BuildMaterialBuffer(model);
+        m_Shader->BindStorageBuffer("materials", materialBuffer);
+        m_BoundModel = model.get();
 
         const auto extent = m_GraphicsContext->GetRenderTarget()->GetExtent();
 

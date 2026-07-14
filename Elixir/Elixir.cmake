@@ -131,6 +131,19 @@ find_package(Vulkan REQUIRED)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/vk-bootstrap)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/VulkanMemoryAllocator)
 
+# Dear ImGui platform/renderer backends. Built as their own target (not part of the
+# imgui submodule, and without the engine's PCH / GLFW native-Cocoa define, which
+# pull in headers that clash with the GLFW backend on macOS).
+add_library(imgui_backends STATIC
+    ${CMAKE_CURRENT_LIST_DIR}/Vendor/imgui/backends/imgui_impl_glfw.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/Vendor/imgui/backends/imgui_impl_vulkan.cpp
+)
+target_include_directories(imgui_backends PUBLIC
+    ${CMAKE_CURRENT_LIST_DIR}/Vendor/imgui
+    ${CMAKE_CURRENT_LIST_DIR}/Vendor/imgui/backends
+)
+target_link_libraries(imgui_backends PUBLIC imgui glfw Vulkan::Vulkan)
+
 set(SPIRV_CROSS_ENABLE_TESTS OFF)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/SPIRV-Cross)
 
@@ -159,6 +172,7 @@ target_link_libraries(${PROJECT_NAME}
     fastgltf
     msdf-atlas-gen
     imgui
+    imgui_backends
     glfw
     Vulkan::Vulkan
     vk-bootstrap

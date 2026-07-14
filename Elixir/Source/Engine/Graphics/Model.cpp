@@ -158,6 +158,7 @@ namespace Elixir
         for (auto& material : asset.materials)
         {
             auto instance = CreateRef<MaterialInstance>(standardPBR);
+            instance->SetName(std::string(material.name));
 
             const auto& bcf = material.pbrData.baseColorFactor;
             instance->SetVector("BaseColorFactor", { bcf.x(), bcf.y(), bcf.z(), bcf.w() });

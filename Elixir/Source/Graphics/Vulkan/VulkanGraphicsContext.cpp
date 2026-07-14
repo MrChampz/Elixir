@@ -8,6 +8,10 @@
 #include <Graphics/Vulkan/Converters.h>
 #include <Graphics/Vulkan/Utils.h>
 
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_vulkan.h>
+
 #include <VkBootstrap.h>
 #include <vulkan/vulkan.h>
 
@@ -602,6 +606,78 @@ namespace Elixir
             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT);
         CommandUtils::TransitionImage(vkCmd, dstImage,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+    }
+
+    void VulkanGraphicsContext::InitImGui()
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGui::StyleColorsDark();
+
+        ImGui_ImplGlfw_InitForVulkan(static_cast<GLFWwindow*>(GetWindow()->GetHandle()), true);
+
+        // Persisted: ImGui keeps the pointer for lazy pipeline creation.
+        static VkFormat colorFormat = VK_FORMAT_R8G8B8A8_SRGB;
+
+        ImGui_ImplVulkan_InitInfo info = {};
+        info.ApiVersion = VK_API_VERSION_1_3;
+        info.Instance = m_Instance;
+        info.PhysicalDevice = m_GPU;
+        info.Device = m_Device;
+        info.QueueFamily = m_GraphicsQueueFamily;
+        info.Queue = m_GraphicsQueue;
+        info.MinImageCount = 2;
+        info.ImageCount = FRAMES;
+        info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+        info.DescriptorPoolSize = 64; // let ImGui manage its own descriptor pool
+        info.UseDynamicRendering = true;
+        info.PipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+        info.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
+        info.PipelineRenderingCreateInfo.pColorAttachmentFormats = &colorFormat;
+
+        ImGui_ImplVulkan_Init(&info);
+        // Build the font atlas up front (single-threaded at init) so the per-frame
+        // NewFrame -- which runs on the main thread -- never does Vulkan work.
+        ImGui_ImplVulkan_CreateFontsTexture();
+        m_ImGuiInitialized = true;
+    }
+
+    // Called on the main thread (input/UI): GLFW's NewFrame must not run on the
+    // render thread. If the previous frame's RenderFrame was skipped, close the
+    // orphaned ImGui frame so NewFrame/Render stay paired.
+    void VulkanGraphicsContext::BeginImGuiFrame()
+    {
+        if (!m_ImGuiInitialized) return;
+        if (m_ImGuiFrameStarted)
+            ImGui::EndFrame();
+        ImGui_ImplVulkan_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+        m_ImGuiFrameStarted = true;
+    }
+
+    // Called on the render thread: only the Vulkan draw happens here.
+    void VulkanGraphicsContext::EndImGuiFrame()
+    {
+        if (!m_ImGuiInitialized || !m_ImGuiFrameStarted) return;
+        m_ImGuiFrameStarted = false;
+
+        ImGui::Render();
+
+        const auto extent = m_RenderTarget->GetExtent();
+        const auto cmd = GetSecondaryCommandBuffer();
+        const SRenderingInfo info{
+            .ColorAttachment = m_RenderTarget,
+            .RenderArea = { extent.Width, extent.Height }
+        };
+        cmd->BeginRendering(info);
+        ImGui_ImplVulkan_RenderDrawData(
+            ImGui::GetDrawData(),
+            std::static_pointer_cast<VulkanCommandBuffer>(cmd)->GetVulkanCommandBuffer());
+        cmd->EndRendering();
+        EnqueueSecondaryCommandBuffer(cmd);
     }
 
     void VulkanGraphicsContext::Submit()
