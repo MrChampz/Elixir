@@ -6,6 +6,10 @@
 #include <Engine/Graphics/MeshRenderer.h>
 #include <Engine/Graphics/PostProcessor.h>
 #include <Engine/Graphics/Material/MaterialGraphEditor.h>
+#include <Engine/Graphics/Material/MaterialCompiler.h>
+
+#include <mutex>
+#include <optional>
 
 struct SFrameData
 {
@@ -40,8 +44,20 @@ private:
     Ref<Model> m_Model;
 
     MaterialGraphEditor m_GraphEditor;
-    Ref<Shader> m_PendingGraphShader;      // compiled in OnGUI, applied on the render thread
+    Ref<Shader> m_PendingGraphShader;      // loaded shader, applied on the render thread
     uint32_t m_PendingGraphMaterial = 0;   // material slot the pending shader targets
+
+    // Async graph compilation: DXC runs on a worker thread; the Vulkan shader load
+    // and pipeline swap happen on the main/render thread when it's ready.
+    bool m_Compiling = false;
+    bool m_RecompileQueued = false;        // a change arrived mid-compile; redo after
+    MaterialGraph m_CompileGraph;          // snapshot handed to the worker
+    uint32_t m_CompileSlot = 0;
+    std::mutex m_CompileMutex;
+    bool m_CompileReady = false;
+    std::optional<MaterialCompiler::SCompiled> m_CompiledResult;
+
+    void StartGraphCompile();
 
     // Live exposed-parameter values, snapshotted on the main thread (OnGUI) and
     // pushed to the applied slot's shader on the render thread (OnRender).

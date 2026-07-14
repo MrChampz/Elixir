@@ -159,6 +159,22 @@ Dissolve::~Dissolve()
     pipeline.reset();
 }
 
+void Dissolve::StartGraphCompile()
+{
+    m_Compiling = true;
+    m_CompileGraph = m_GraphEditor.Build();
+    m_CompileSlot = (uint32_t)m_GraphEditor.TargetMaterial();
+
+    // DXC + file IO only (no Vulkan) -> safe on a worker thread.
+    m_Executor.Enqueue([this]()
+    {
+        auto compiled = MaterialCompiler::CompileToSpirv(m_CompileGraph);
+        std::lock_guard<std::mutex> lock(m_CompileMutex);
+        m_CompiledResult = compiled;
+        m_CompileReady = true;
+    });
+}
+
 void Dissolve::OnGUI(const Timestep frameTime)
 {
     EE_PROFILE_ZONE_SCOPED()
@@ -168,17 +184,34 @@ void Dissolve::OnGUI(const Timestep frameTime)
     // submitted later from OnRender on the render thread.
     DrawMaterialEditor();
 
-    // Visual node editor: on Apply, compile the graph and stage the shader to be
-    // bound to the chosen material slot on the render thread next frame.
+    // Visual node editor. On Apply (or live-preview debounce), kick off the graph's
+    // DXC compilation on a worker thread so the UI doesn't stall.
     const int materialCount = (int)m_Model->GetMaterials().size();
     if (m_GraphEditor.Draw(materialCount))
     {
-        const MaterialGraph graph = m_GraphEditor.Build();
-        if (const auto shader = MaterialCompiler::Compile(m_ShaderLoader.get(), graph))
-        {
-            m_PendingGraphShader = shader;
-            m_PendingGraphMaterial = (uint32_t)m_GraphEditor.TargetMaterial();
-        }
+        // Coalesce changes that arrive while a compile is already in flight.
+        if (m_Compiling) m_RecompileQueued = true;
+        else StartGraphCompile();
+    }
+
+    // Finish a ready compile on the main thread (Vulkan shader creation), then hand
+    // it to the render thread to bind.
+    bool ready = false;
+    std::optional<MaterialCompiler::SCompiled> result;
+    {
+        std::lock_guard<std::mutex> lock(m_CompileMutex);
+        if (m_CompileReady) { ready = true; result = m_CompiledResult; m_CompileReady = false; }
+    }
+    if (ready)
+    {
+        if (result)
+            if (const auto shader = MaterialCompiler::LoadCompiled(m_ShaderLoader.get(), *result))
+            {
+                m_PendingGraphShader = shader;
+                m_PendingGraphMaterial = m_CompileSlot;
+            }
+        m_Compiling = false;
+        if (m_RecompileQueued) { m_RecompileQueued = false; StartGraphCompile(); }
     }
 
     // Snapshot exposed-parameter values (main thread) for the render thread to push.

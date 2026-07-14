@@ -4,6 +4,7 @@
 #include <Engine/Graphics/Shader/ShaderLoader.h>
 
 #include <filesystem>
+#include <optional>
 #include <string>
 
 namespace Elixir
@@ -14,8 +15,23 @@ namespace Elixir
     class ELIXIR_API MaterialCompiler
     {
       public:
+        // The on-disk SPIR-V produced by CompileToSpirv, ready for LoadCompiled.
+        struct SCompiled
+        {
+            std::filesystem::path LoadDir;
+            std::string Name;
+        };
+
         // Compile the graph into a ready-to-bind shader. Returns nullptr on failure.
         static Ref<Shader> Compile(const ShaderLoader* loader, const MaterialGraph& graph);
+
+        // Stage 1 (no Vulkan): generate HLSL and compile it to SPIR-V on disk. Safe to
+        // run on a worker thread. Returns nullopt on failure.
+        static std::optional<SCompiled> CompileToSpirv(const MaterialGraph& graph);
+
+        // Stage 2 (Vulkan): load the compiled SPIR-V into a Shader. Must run on a
+        // thread that may create graphics resources.
+        static Ref<Shader> LoadCompiled(const ShaderLoader* loader, const SCompiled& compiled);
 
         // Splice the graph body into a template string (pure; testable).
         static std::string InjectBody(const std::string& templateHlsl, const MaterialGraph& graph);

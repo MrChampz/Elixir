@@ -47,6 +47,19 @@ namespace Elixir
 
     Ref<Shader> MaterialCompiler::Compile(const ShaderLoader* loader, const MaterialGraph& graph)
     {
+        const auto compiled = CompileToSpirv(graph);
+        if (!compiled)
+            return nullptr;
+        return LoadCompiled(loader, *compiled);
+    }
+
+    Ref<Shader> MaterialCompiler::LoadCompiled(const ShaderLoader* loader, const SCompiled& compiled)
+    {
+        return loader->LoadShader(compiled.LoadDir, compiled.Name);
+    }
+
+    std::optional<MaterialCompiler::SCompiled> MaterialCompiler::CompileToSpirv(const MaterialGraph& graph)
+    {
         const fs::path shadersDir = "./Shaders";
         const fs::path generatedDir = shadersDir / "Generated";
 
@@ -54,7 +67,7 @@ namespace Elixir
         if (templateHlsl.empty())
         {
             EE_CORE_ERROR("Material graph: template GraphMaterial.ps.hlsl not found next to the shaders.")
-            return nullptr;
+            return std::nullopt;
         }
 
         // Unique name per compiled graph so instances don't clobber each other.
@@ -89,7 +102,7 @@ namespace Elixir
         if (!compileStage(InjectBody(templateHlsl, graph), "ps_6_0", hlslPath, loadDir / (name + ".ps.spirv")))
         {
             EE_CORE_ERROR("Material graph: DXC pixel-shader compilation failed for {0}.", name)
-            return nullptr;
+            return std::nullopt;
         }
 
         // Vertex stage: World Position Offset (displaces the vertex; no-op if the
@@ -98,7 +111,7 @@ namespace Elixir
         if (vsTemplate.empty())
         {
             EE_CORE_ERROR("Material graph: template GraphMaterial.vs.hlsl not found next to the shaders.")
-            return nullptr;
+            return std::nullopt;
         }
         std::string vsSource = vsTemplate;
         if (const auto pos = vsSource.find("// __WPO_BODY__"); pos != std::string::npos)
@@ -106,9 +119,9 @@ namespace Elixir
         if (!compileStage(vsSource, "vs_6_0", generatedDir / (name + ".src.vs.hlsl"), loadDir / (name + ".vs.spirv")))
         {
             EE_CORE_ERROR("Material graph: DXC vertex-shader compilation failed for {0}.", name)
-            return nullptr;
+            return std::nullopt;
         }
 
-        return loader->LoadShader(loadDir, name);
+        return SCompiled{ loadDir, name };
     }
 }
