@@ -338,6 +338,8 @@ namespace Elixir
             else if (node.Type == EMaterialNodeType::Custom)
             {
                 ImGui::InputText("##code", node.Code, sizeof(node.Code));
+                // Stacked widgets: reset X to the node (ImGui advances to the window margin).
+                ImGui::SetCursorScreenPos(ImVec2(rmin.x + 8.0f, ImGui::GetCursorScreenPos().y));
                 int ot = (int)node.OutputType;
                 if (ImGui::Combo("##ot", &ot, "float\0float2\0float3\0float4\0"))
                     node.OutputType = (EGraphValueType)ot;
@@ -345,6 +347,7 @@ namespace Elixir
             else if (node.Type == EMaterialNodeType::FunctionInput)
             {
                 ImGui::InputText("##fn", node.Param, sizeof(node.Param));
+                ImGui::SetCursorScreenPos(ImVec2(rmin.x + 8.0f, ImGui::GetCursorScreenPos().y));
                 ImGui::Combo("##sl", &node.TexSlot, "slot 0\0slot 1\0slot 2\0");
             }
             else if (node.Type == EMaterialNodeType::FunctionCall)
