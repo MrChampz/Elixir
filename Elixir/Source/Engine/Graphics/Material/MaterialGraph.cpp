@@ -192,6 +192,7 @@ namespace Elixir
         switch (node.Type)
         {
             case EMaterialNodeType::Constant:      expr = ConstantExpr(node); type = node.OutputType; break;
+            case EMaterialNodeType::Scalar:        expr = Num(node.ConstantValue.x); type = EGraphValueType::Float; break;
             case EMaterialNodeType::Parameter:     expr = "mat." + node.ParameterName; type = node.OutputType; break;
             case EMaterialNodeType::TexCoord:      expr = "input.TexCoord"; type = EGraphValueType::Float2; break;
             case EMaterialNodeType::Time:          expr = "Time"; type = EGraphValueType::Float; break;

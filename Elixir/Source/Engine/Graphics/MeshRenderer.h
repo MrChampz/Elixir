@@ -21,9 +21,15 @@ namespace Elixir
         // compiled at runtime). The new shader must expose the same bindings.
         void SetShader(const Ref<Shader>& shader);
 
+        // Override the shading of a single material slot (a node-graph material for
+        // just that part). Pass a null shader to revert the slot to the default.
+        void SetMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader);
+
       private:
         void CreatePipelines();
+        void CreatePipelinesFor(const Ref<Shader>& shader, Ref<GraphicsPipeline>& opaque, Ref<GraphicsPipeline>& transparent);
         void BindResources();
+        void BindResourcesTo(const Ref<Shader>& shader);
 
         struct alignas(16) SFrameData
         {
@@ -79,6 +85,15 @@ namespace Elixir
         Ref<Shader> m_Shader;
         Ref<GraphicsPipeline> m_Pipeline;            // opaque + masked (depth write)
         Ref<GraphicsPipeline> m_TransparentPipeline; // blend (alpha, no depth write)
+
+        // Per-material shader overrides (e.g. a node graph applied to one slot).
+        struct SShaderVariant
+        {
+            Ref<Shader> Shader;
+            Ref<GraphicsPipeline> Opaque;
+            Ref<GraphicsPipeline> Transparent;
+        };
+        std::unordered_map<uint32_t, SShaderVariant> m_MaterialShaders;
 
         Ref<UniformBuffer> m_FrameBuffer;
         SFrameData m_FrameData{};

@@ -15,6 +15,7 @@ namespace Elixir
             switch (t)
             {
                 case EMaterialNodeType::Constant:      return "Constant";
+                case EMaterialNodeType::Scalar:        return "Scalar";
                 case EMaterialNodeType::Parameter:     return "Parameter";
                 case EMaterialNodeType::TextureSample: return "Texture";
                 case EMaterialNodeType::TexCoord:      return "TexCoord";
@@ -61,6 +62,7 @@ namespace Elixir
             {
                 case EMaterialNodeType::Fresnel:
                 case EMaterialNodeType::Dot:
+                case EMaterialNodeType::Scalar:
                 case EMaterialNodeType::Time:          return EGraphValueType::Float;
                 case EMaterialNodeType::TexCoord:
                 case EMaterialNodeType::Panner:        return EGraphValueType::Float2;
@@ -145,10 +147,16 @@ namespace Elixir
         return nullptr;
     }
 
-    bool MaterialGraphEditor::Draw()
+    bool MaterialGraphEditor::Draw(int materialCount)
     {
         bool apply = false;
         ImGui::Begin("Node Graph Editor");
+
+        const int maxMaterial = materialCount > 0 ? materialCount - 1 : 0;
+        if (m_TargetMaterial > maxMaterial) m_TargetMaterial = maxMaterial;
+        ImGui::SetNextItemWidth(160.0f);
+        ImGui::SliderInt("Target material", &m_TargetMaterial, 0, maxMaterial);
+        ImGui::Separator();
 
         auto addButton = [&](const char* label, EMaterialNodeType type)
         {
@@ -158,6 +166,7 @@ namespace Elixir
 
         ImGui::TextUnformatted("Inputs:"); ImGui::SameLine();
         addButton("Constant", EMaterialNodeType::Constant);
+        addButton("Scalar", EMaterialNodeType::Scalar);
         addButton("Parameter", EMaterialNodeType::Parameter);
         addButton("Texture", EMaterialNodeType::TextureSample);
         addButton("TexCoord", EMaterialNodeType::TexCoord);
@@ -247,6 +256,8 @@ namespace Elixir
             ImGui::PushItemWidth(NODE_W - 16.0f);
             if (node.Type == EMaterialNodeType::Constant)
                 ImGui::ColorEdit4("##v", &node.Constant.x, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+            else if (node.Type == EMaterialNodeType::Scalar)
+                ImGui::DragFloat("##f", &node.Constant.x, 0.05f, -100.0f, 100.0f, "%.3f");
             else if (node.Type == EMaterialNodeType::Parameter)
                 ImGui::InputText("##p", node.Param, sizeof(node.Param));
             else if (node.Type == EMaterialNodeType::TextureSample)

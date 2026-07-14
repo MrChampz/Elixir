@@ -14,7 +14,8 @@ namespace Elixir
     // The kind of computation a node performs. The codegen switches on this.
     enum class EMaterialNodeType : uint8_t
     {
-        Constant,      // a literal value
+        Constant,      // a literal float4 value (colour)
+        Scalar,        // a literal single float
         Parameter,     // a named material-instance parameter (mat.<field>)
         TextureSample, // sample a bound texture at a UV (input 0, or the mesh UV)
         TexCoord,      // the mesh UV (input.TexCoord)

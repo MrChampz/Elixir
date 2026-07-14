@@ -50,6 +50,12 @@ namespace Elixir
 
     void MeshRenderer::CreatePipelines()
     {
+        CreatePipelinesFor(m_Shader, m_Pipeline, m_TransparentPipeline);
+    }
+
+    void MeshRenderer::CreatePipelinesFor(
+        const Ref<Shader>& shader, Ref<GraphicsPipeline>& opaque, Ref<GraphicsPipeline>& transparent)
+    {
         const BufferLayout layout({
             {
                 {
@@ -63,7 +69,7 @@ namespace Elixir
         });
 
         PipelineBuilder builder;
-        builder.SetShader(m_Shader);
+        builder.SetShader(shader);
         builder.SetInputTopology(EPrimitiveTopology::TriangleList);
         builder.SetPolygonMode(EPolygonMode::Fill);
         // glTF materials are commonly double-sided; cull nothing and flip the
@@ -79,7 +85,7 @@ namespace Elixir
         opaqueInfo.DepthStencil.DepthTestEnable = true;
         opaqueInfo.DepthStencil.DepthWriteEnable = true;
         opaqueInfo.DepthStencil.DepthCompareOp = ECompareOp::LessOrEqual;
-        m_Pipeline = GraphicsPipeline::Create(m_GraphicsContext, opaqueInfo);
+        opaque = GraphicsPipeline::Create(m_GraphicsContext, opaqueInfo);
 
         // Blend: alpha-blended, depth-tested but no depth write (drawn after opaque).
         builder.EnableAlphaBlending();
@@ -87,14 +93,19 @@ namespace Elixir
         blendInfo.DepthStencil.DepthTestEnable = true;
         blendInfo.DepthStencil.DepthWriteEnable = false;
         blendInfo.DepthStencil.DepthCompareOp = ECompareOp::LessOrEqual;
-        m_TransparentPipeline = GraphicsPipeline::Create(m_GraphicsContext, blendInfo);
+        transparent = GraphicsPipeline::Create(m_GraphicsContext, blendInfo);
     }
 
     void MeshRenderer::BindResources()
     {
-        m_Shader->BindConstantBuffer("cbFrame", m_FrameBuffer);
-        m_Shader->BindSampler("texSampler", m_Sampler);
-        m_Shader->BindTextureSet("textures", m_Textures);
+        BindResourcesTo(m_Shader);
+    }
+
+    void MeshRenderer::BindResourcesTo(const Ref<Shader>& shader)
+    {
+        shader->BindConstantBuffer("cbFrame", m_FrameBuffer);
+        shader->BindSampler("texSampler", m_Sampler);
+        shader->BindTextureSet("textures", m_Textures);
     }
 
     void MeshRenderer::SetShader(const Ref<Shader>& shader)
@@ -108,6 +119,25 @@ namespace Elixir
         CreatePipelines();
         BindResources();
         m_BoundModel = nullptr; // force the material buffer to rebind to the new shader
+    }
+
+    void MeshRenderer::SetMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader)
+    {
+        // In-flight frames may still reference pipelines we're about to replace/destroy.
+        m_GraphicsContext->WaitDeviceIdle();
+
+        if (!shader)
+        {
+            m_MaterialShaders.erase(materialIndex);
+            return;
+        }
+
+        SShaderVariant variant;
+        variant.Shader = shader;
+        CreatePipelinesFor(shader, variant.Opaque, variant.Transparent);
+        BindResourcesTo(shader);
+        m_MaterialShaders[materialIndex] = std::move(variant);
+        m_BoundModel = nullptr; // force the material buffer to rebind to all shaders
     }
 
     uint32_t MeshRenderer::ResolveTexture(const Ref<Texture>& texture)
@@ -182,6 +212,8 @@ namespace Elixir
         auto& materialBuffer = m_MaterialBuffers[model.get()];
         materialBuffer = BuildMaterialBuffer(model);
         m_Shader->BindStorageBuffer("materials", materialBuffer);
+        for (auto& [index, variant] : m_MaterialShaders)
+            variant.Shader->BindStorageBuffer("materials", materialBuffer);
         m_BoundModel = model.get();
 
         const auto extent = m_GraphicsContext->GetRenderTarget()->GetExtent();
@@ -239,12 +271,32 @@ namespace Elixir
         cmd->SetScissors({ scissor });
 
         const auto& materials = model->GetMaterials();
+
+        // The pipeline currently bound on the command buffer, so consecutive
+        // primitives sharing a shader don't rebind. Reset at each pass.
+        GraphicsPipeline* boundPipeline = nullptr;
         const auto drawPrimitive = [&](const SModelPrimitive& primitive)
         {
+            // Pick the per-material override shader/pipeline if one is set, else the
+            // shared default.
+            const Ref<Shader>* shader = &m_Shader;
+            GraphicsPipeline* pipeline = m_Pipeline.get();
+            if (const auto it = m_MaterialShaders.find(primitive.MaterialIndex); it != m_MaterialShaders.end())
+            {
+                shader = &it->second.Shader;
+                pipeline = it->second.Opaque.get();
+            }
+
+            if (pipeline != boundPipeline)
+            {
+                pipeline->Bind(cmd);
+                boundPipeline = pipeline;
+            }
+
             SModelPushConstants pc;
             pc.Model = primitive.Transform;
             pc.MaterialIndex = primitive.MaterialIndex;
-            m_Shader->SetPushConstant(cmd, "pc", (void*)&pc, PUSH_CONSTANT_SIZE);
+            (*shader)->SetPushConstant(cmd, "pc", (void*)&pc, PUSH_CONSTANT_SIZE);
 
             primitive.Vertices->Bind(cmd);
             primitive.Indices->Bind(cmd);
@@ -265,7 +317,7 @@ namespace Elixir
 
         // Pass 1: everything that isn't refractive glass (opaque + masked + the
         // near-opaque emissive parts), with depth write.
-        m_Pipeline->Bind(cmd);
+        boundPipeline = nullptr;
         for (const auto& primitive : model->GetPrimitives())
             if (!isBlend(primitive))
                 drawPrimitive(primitive);
@@ -282,7 +334,7 @@ namespace Elixir
         cmd->BeginRendering(glassInfo);
         cmd->SetViewports({ viewport });
         cmd->SetScissors({ scissor });
-        m_Pipeline->Bind(cmd);
+        boundPipeline = nullptr;
         for (const auto& primitive : model->GetPrimitives())
             if (isBlend(primitive))
                 drawPrimitive(primitive);

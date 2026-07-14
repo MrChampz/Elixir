@@ -40,5 +40,6 @@ private:
     Ref<Model> m_Model;
 
     MaterialGraphEditor m_GraphEditor;
-    Ref<Shader> m_PendingGraphShader; // compiled in OnGUI, applied on the render thread
+    Ref<Shader> m_PendingGraphShader;      // compiled in OnGUI, applied on the render thread
+    uint32_t m_PendingGraphMaterial = 0;   // material slot the pending shader targets
 };

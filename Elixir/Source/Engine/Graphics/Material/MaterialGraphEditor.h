@@ -18,7 +18,11 @@ namespace Elixir
         MaterialGraphEditor();
 
         // Draws the editor window. Returns true the frame "Apply" is pressed.
-        bool Draw();
+        // materialCount bounds the target-material selector.
+        bool Draw(int materialCount);
+
+        // The material slot the compiled graph should be applied to.
+        [[nodiscard]] int TargetMaterial() const { return m_TargetMaterial; }
 
         // Convert the current visual state into a compilable graph.
         [[nodiscard]] MaterialGraph Build() const;
@@ -48,6 +52,9 @@ namespace Elixir
         // The four surface channels (BaseColor, Metallic, Roughness, Emissive):
         // node id feeding each, or -1.
         int m_Channels[4] = { -1, -1, -1, -1 };
+
+        // The material slot the graph is applied to on Apply.
+        int m_TargetMaterial = 0;
 
         // Drag-to-connect: the node whose output pin is being dragged (-1 = none).
         int m_LinkFrom = -1;

@@ -169,12 +169,16 @@ void Dissolve::OnGUI(const Timestep frameTime)
     DrawMaterialEditor();
 
     // Visual node editor: on Apply, compile the graph and stage the shader to be
-    // bound on the render thread next frame.
-    if (m_GraphEditor.Draw())
+    // bound to the chosen material slot on the render thread next frame.
+    const int materialCount = (int)m_Model->GetMaterials().size();
+    if (m_GraphEditor.Draw(materialCount))
     {
         const MaterialGraph graph = m_GraphEditor.Build();
         if (const auto shader = MaterialCompiler::Compile(m_ShaderLoader.get(), graph))
+        {
             m_PendingGraphShader = shader;
+            m_PendingGraphMaterial = (uint32_t)m_GraphEditor.TargetMaterial();
+        }
     }
 }
 
@@ -239,7 +243,7 @@ void Dissolve::OnRender(const Timestep frameTime)
     // pipeline recreation is safe.
     if (m_PendingGraphShader)
     {
-        m_MeshRenderer->SetShader(m_PendingGraphShader);
+        m_MeshRenderer->SetMaterialShader(m_PendingGraphMaterial, m_PendingGraphShader);
         m_PendingGraphShader = nullptr;
     }
 
