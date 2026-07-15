@@ -173,6 +173,20 @@ float3 ACESFilm(float3 x)
     return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
 }
 
+// Shading models (the graph injects `const uint SHADING_MODEL = N;`). Compile-time
+// constant, so DXC strips the branches for the models a given material doesn't use.
+#define SM_DEFAULT    0u
+#define SM_UNLIT      1u
+#define SM_SUBSURFACE 2u
+#define SM_CLEARCOAT  3u
+#define SM_CLOTH      4u
+
+// The material compiler replaces this marker with `#define SHADING_MODEL <n>`.
+// __SHADING_MODEL__
+#ifndef SHADING_MODEL
+#define SHADING_MODEL SM_DEFAULT
+#endif
+
 float4 main(PSInput input) : SV_Target0
 {
     GPUMaterial mat = materials[pc.MaterialIndex];
@@ -205,27 +219,55 @@ float4 main(PSInput input) : SV_Target0
     float roughness = clamp(surface.Roughness, 0.045f, 1.0f);
     float3 F0 = lerp(0.04f.xxx, surface.BaseColor, surface.Metallic);
     float NdotV = saturate(dot(N, V)) + 1e-4f;
-
-    float3 diffuse = SampleIrradiance(N) * surface.BaseColor * (1.0f - surface.Metallic);
-    float3 R = reflect(-V, N);
-    float3 fresnel = F0 + (max((1.0f - roughness).xxx, F0) - F0) * pow(saturate(1.0f - NdotV), 5.0f);
-    float3 specular = SampleEnv(R, roughness) * fresnel;
-
-    float3 color = diffuse + specular + surface.Emissive;
-
-    // Keep the 'materials' and 'cbGraphParams' bindings alive through DXC dead-code
-    // elimination even when the graph reads neither. The scale is data-dependent (a
-    // runtime buffer value) so the optimiser can't fold it away, yet its
-    // contribution is imperceptible.
-    color += mat.BaseColorFactor.rgb * 1e-8f;
-    color += GraphParams[0].rgb * 1e-8f;
-
-    // Directional light: Lambert diffuse + a simple spec.
     float3 L = normalize(LightDirection.xyz);
     float NdotL = saturate(dot(N, L));
     float3 H = normalize(V + L);
-    float spec = pow(saturate(dot(N, H)), max(2.0f, (1.0f - roughness) * 128.0f));
-    color += (surface.BaseColor * (1.0f - surface.Metallic) + F0 * spec) * LightColor.rgb * LightColor.w * NdotL;
+    float3 lightRad = LightColor.rgb * LightColor.w;
+
+    float3 color;
+    if (SHADING_MODEL == SM_UNLIT)
+    {
+        // No lighting: just the (tonemapped) base colour plus emissive.
+        color = surface.BaseColor + surface.Emissive;
+    }
+    else
+    {
+        // Default lit: IBL diffuse + specular, plus a directional key light.
+        float3 diffuse = SampleIrradiance(N) * surface.BaseColor * (1.0f - surface.Metallic);
+        float3 R = reflect(-V, N);
+        float3 fresnel = F0 + (max((1.0f - roughness).xxx, F0) - F0) * pow(saturate(1.0f - NdotV), 5.0f);
+        float3 specular = SampleEnv(R, roughness) * fresnel;
+        color = diffuse + specular + surface.Emissive;
+
+        float spec = pow(saturate(dot(N, H)), max(2.0f, (1.0f - roughness) * 128.0f));
+        color += (surface.BaseColor * (1.0f - surface.Metallic) + F0 * spec) * lightRad * NdotL;
+
+        if (SHADING_MODEL == SM_SUBSURFACE)
+        {
+            // Wrapped diffuse + back-face translucency, tinted by the base colour.
+            float wrap = saturate((dot(N, L) + 0.5f) / 1.5f);
+            float back = pow(saturate(dot(V, -L)), 4.0f) * 0.6f;
+            color += (wrap * 0.35f + back) * surface.BaseColor * lightRad;
+            color += SampleIrradiance(-N) * surface.BaseColor * 0.25f;
+        }
+        else if (SHADING_MODEL == SM_CLEARCOAT)
+        {
+            // A second, sharp clear-coat specular layer on top.
+            float ccF = 0.04f + 0.96f * pow(saturate(1.0f - NdotV), 5.0f);
+            color += SampleEnv(reflect(-V, N), 0.06f) * ccF;
+            color += pow(saturate(dot(N, H)), 256.0f) * ccF * lightRad * NdotL;
+        }
+        else if (SHADING_MODEL == SM_CLOTH)
+        {
+            // Fuzzy sheen that brightens at grazing angles.
+            float sheen = pow(1.0f - NdotV, 3.0f);
+            color += sheen * surface.BaseColor * 0.5f * (SampleIrradiance(N) + lightRad * NdotL);
+        }
+    }
+
+    // Keep the 'materials' and 'cbGraphParams' bindings alive through DXC dead-code
+    // elimination even when the graph reads neither (imperceptible, data-dependent).
+    color += mat.BaseColorFactor.rgb * 1e-8f + GraphParams[0].rgb * 1e-8f;
 
     return float4(ACESFilm(color), surface.Opacity);
 }

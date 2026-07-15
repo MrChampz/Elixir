@@ -88,9 +88,12 @@ namespace Elixir
         // The material slot the graph is applied to on Apply.
         int m_TargetMaterial = 0;
 
-        // Blend: 0=Opaque, 1=Masked, 2=Translucent; cutoff used by Masked.
+        // Blend: 0=Opaque, 1=Masked, 2=Translucent, 3=Additive; cutoff used by Masked.
         int m_BlendMode = 0;
         float m_AlphaCutoff = 0.5f;
+
+        // Shading model: 0=DefaultLit, 1=Unlit, 2=Subsurface, 3=ClearCoat, 4=Cloth.
+        int m_ShadingModel = 0;
 
         // File name (without extension/dir) for Save/Load.
         char m_FileName[128] = "material";

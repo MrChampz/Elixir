@@ -52,6 +52,10 @@ namespace Elixir
     // the pipeline blend/depth state in the renderer.
     enum class EMaterialBlendMode : uint8_t { Opaque, Masked, Translucent, Additive };
 
+    // The lighting model applied to the surface. Injected as a compile-time constant
+    // so DXC keeps only the chosen model's code.
+    enum class EMaterialShadingModel : uint8_t { DefaultLit, Unlit, Subsurface, ClearCoat, Cloth };
+
     // One node in a material graph. Nodes are plain data (no lambdas) so the graph
     // can be serialized and edited; the codegen interprets Type.
     struct SMaterialNode
@@ -89,6 +93,8 @@ namespace Elixir
         // Blend mode + alpha-test cutoff (Masked). Affects the generated pixel shader
         // (the Masked clip); the renderer reads the mode separately for pipeline state.
         void SetBlend(EMaterialBlendMode mode, float cutoff) { m_BlendMode = mode; m_AlphaCutoff = cutoff; }
+        void SetShadingModel(EMaterialShadingModel model) { m_ShadingModel = model; }
+        [[nodiscard]] EMaterialShadingModel GetShadingModel() const { return m_ShadingModel; }
 
         // Generate the HLSL statements for a stage. Pixel stage (default) fills
         // `surface.<channel> = ...;` for the surface channels; vertex stage emits
@@ -111,5 +117,6 @@ namespace Elixir
 
         EMaterialBlendMode m_BlendMode = EMaterialBlendMode::Opaque;
         float m_AlphaCutoff = 0.5f;
+        EMaterialShadingModel m_ShadingModel = EMaterialShadingModel::DefaultLit;
     };
 }

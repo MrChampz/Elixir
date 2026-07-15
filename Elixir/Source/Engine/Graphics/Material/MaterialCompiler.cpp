@@ -42,6 +42,12 @@ namespace Elixir
         const std::string marker = "// __GRAPH_BODY__";
         if (const auto pos = out.find(marker); pos != std::string::npos)
             out.replace(pos, marker.size(), graph.GenerateHLSL());
+
+        // Set the shading model (a compile-time #define the shading branch reads).
+        const std::string smMarker = "// __SHADING_MODEL__";
+        if (const auto pos = out.find(smMarker); pos != std::string::npos)
+            out.replace(pos, smMarker.size(),
+                "#define SHADING_MODEL " + std::to_string((int)graph.GetShadingModel()) + "u");
         return out;
     }
 

@@ -203,6 +203,9 @@ namespace Elixir
             ImGui::SetNextItemWidth(120.0f);
             ImGui::SliderFloat("Cutoff", &m_AlphaCutoff, 0.0f, 1.0f, "%.2f");
         }
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(130.0f);
+        ImGui::Combo("Shading", &m_ShadingModel, "Default Lit\0Unlit\0Subsurface\0Clear Coat\0Cloth\0");
 
         // Save / load the graph to ./Assets/Materials/<name>.matgraph.json.
         ImGui::SetNextItemWidth(160.0f);
@@ -648,6 +651,7 @@ namespace Elixir
                 graph.SetChannel((EMaterialChannel)ch, idMap[channels[ch]]);
 
         graph.SetBlend((EMaterialBlendMode)m_BlendMode, m_AlphaCutoff);
+        graph.SetShadingModel((EMaterialShadingModel)m_ShadingModel);
         return graph;
     }
 
@@ -662,6 +666,7 @@ namespace Elixir
         size_t h = std::hash<std::string>{}(code);
         h ^= (size_t)m_TargetMaterial * 0x9e3779b97f4a7c15ull;       // re-apply on slot change
         h ^= (size_t)m_BlendMode * 0xc2b2ae3d27d4eb4full;           // ...and on blend-mode change
+        h ^= (size_t)m_ShadingModel * 0x165667b19e3779f9ull;       // ...and on shading-model change
         return h;
     }
 
@@ -703,6 +708,7 @@ namespace Elixir
         out << "  \"targetMaterial\": " << m_TargetMaterial << ",\n";
         out << "  \"blendMode\": " << m_BlendMode << ",\n";
         out << "  \"alphaCutoff\": " << m_AlphaCutoff << ",\n";
+        out << "  \"shadingModel\": " << m_ShadingModel << ",\n";
         out << "  \"nextId\": " << m_NextId << ",\n";
         out << "  \"channels\": [";
         for (int i = 0; i < 7; ++i) out << (i ? ", " : "") << m_Channels[i];
@@ -859,6 +865,7 @@ namespace Elixir
             {
                 int64_t bm; if (doc["blendMode"].get(bm) == simdjson::SUCCESS) m_BlendMode = (int)bm;
                 double ac; if (doc["alphaCutoff"].get(ac) == simdjson::SUCCESS) m_AlphaCutoff = (float)ac;
+                int64_t sm; if (doc["shadingModel"].get(sm) == simdjson::SUCCESS) m_ShadingModel = (int)sm;
             }
             if (parsed && doc["paramOverrides"].get(overrides) == simdjson::SUCCESS)
             {
