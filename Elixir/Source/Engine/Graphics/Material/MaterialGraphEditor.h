@@ -106,6 +106,9 @@ namespace Elixir
         // Drag-to-connect: the node whose output pin is being dragged (-1 = none).
         int m_LinkFrom = -1;
 
+        // Canvas pan offset (drag empty background or middle-mouse to move all nodes).
+        glm::vec2 m_Pan{ 0.0f, 0.0f };
+
         // Live preview: auto-recompile a short debounce after the graph changes.
         bool m_LivePreview = true;
         size_t m_LastSig = 0;

@@ -287,6 +287,21 @@ namespace Elixir
         const float NODE_W = 150.0f;
         const float PIN_R = 6.0f;
 
+        // Background catcher (behind the nodes): dragging empty canvas -- or middle-
+        // mouse anywhere -- pans. Submitted first so node/pin buttons win on top.
+        const ImVec2 avail = ImGui::GetContentRegionAvail();
+        ImGui::SetCursorScreenPos(origin);
+        ImGui::InvisibleButton("canvas", ImVec2(avail.x > 1.0f ? avail.x : 1.0f, avail.y > 1.0f ? avail.y : 1.0f),
+            ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonMiddle);
+        if (ImGui::IsItemActive() && (ImGui::IsMouseDragging(ImGuiMouseButton_Left) || ImGui::IsMouseDragging(ImGuiMouseButton_Middle)))
+        {
+            m_Pan.x += io.MouseDelta.x;
+            m_Pan.y += io.MouseDelta.y;
+        }
+
+        // Canvas origin with the pan offset applied (all node/pin/link coords use it).
+        const ImVec2 base = ImVec2(origin.x + m_Pan.x, origin.y + m_Pan.y);
+
         std::unordered_map<int, ImVec2> outPins;   // node id -> output pin pos
         std::unordered_map<long long, ImVec2> inPinPos; // encoded target -> input pin pos
 
@@ -311,7 +326,7 @@ namespace Elixir
         // --- Nodes ---
         for (auto& node : m_Nodes)
         {
-            ImVec2 p = ImVec2(origin.x + node.Pos.x, origin.y + node.Pos.y);
+            ImVec2 p = ImVec2(base.x + node.Pos.x, base.y + node.Pos.y);
             ImGui::PushID(node.Id);
 
             // Header acts as the drag handle.
@@ -321,7 +336,7 @@ namespace Elixir
             {
                 node.Pos.x += io.MouseDelta.x;
                 node.Pos.y += io.MouseDelta.y;
-                p = ImVec2(origin.x + node.Pos.x, origin.y + node.Pos.y);
+                p = ImVec2(base.x + node.Pos.x, base.y + node.Pos.y);
             }
             if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
                 deleteId = node.Id;
@@ -421,7 +436,7 @@ namespace Elixir
         else if (m_ShadingModel == 3) { vis.push_back(8); vis.push_back(9); }    // Clear Coat (+ roughness)
         else if (m_ShadingModel == 4) vis.push_back(10);                         // Sheen
 
-        const ImVec2 op = ImVec2(origin.x + 520.0f, origin.y + 40.0f);
+        const ImVec2 op = ImVec2(base.x + 520.0f, base.y + 40.0f);
         const ImVec2 omin = op;
         const ImVec2 omax = ImVec2(op.x + 170.0f, op.y + 20.0f + (float)vis.size() * 20.0f + 6.0f);
         dl->AddRectFilled(omin, omax, IM_COL32(52, 42, 42, 235), 4.0f);
