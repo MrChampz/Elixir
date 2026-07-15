@@ -60,6 +60,14 @@ namespace Elixir
             int Inputs[3] = { -1, -1, -1 };               // source node ids
         };
 
+        // A labelled rectangle drawn behind the nodes to group/annotate the graph.
+        struct SComment
+        {
+            glm::vec2 Pos{ 0.0f, 0.0f };
+            glm::vec2 Size{ 220.0f, 140.0f };
+            char Text[128] = "Comment";
+        };
+
         int AddNode(EMaterialNodeType type, const glm::vec2& pos);
         void DeleteNode(int id); // removes the node and clears links referencing it
         const SNode* Find(int id) const;
@@ -87,6 +95,7 @@ namespace Elixir
             int TargetMaterial = 0, BlendMode = 0, ShadingModel = 0, NextId = 1;
             float AlphaCutoff = 0.5f;
             std::unordered_map<std::string, glm::vec4> Overrides;
+            std::vector<SComment> Comments;
         };
         [[nodiscard]] SUndoState Capture() const;
         void Restore(const SUndoState& s);
@@ -131,6 +140,9 @@ namespace Elixir
         // Selection (click / shift-click node headers) and copy/paste clipboard.
         std::vector<int> m_Selected;
         std::vector<SNode> m_Clipboard;
+
+        // Comment boxes (annotations behind the nodes).
+        std::vector<SComment> m_Comments;
 
         // Live preview: auto-recompile a short debounce after the graph changes.
         bool m_LivePreview = true;

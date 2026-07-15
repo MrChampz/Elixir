@@ -281,6 +281,9 @@ namespace Elixir
         ImGui::SameLine();
         ImGui::Checkbox("Live", &m_LivePreview);
         ImGui::SameLine();
+        if (ImGui::Button("+Comment"))
+            m_Comments.push_back({ { -m_Pan.x + 20.0f, -m_Pan.y + 20.0f }, { 220.0f, 140.0f }, "Comment" });
+        ImGui::SameLine();
         ImGui::TextDisabled("(right-click: node = delete, pin = disconnect)");
         ImGui::Separator();
 
@@ -332,6 +335,53 @@ namespace Elixir
             const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
             return std::pair<bool, bool>{ active, hovered };
         };
+
+        // --- Comment boxes (behind the nodes) ---
+        int deleteComment = -1;
+        for (size_t ci = 0; ci < m_Comments.size(); ++ci)
+        {
+            auto& com = m_Comments[ci];
+            const ImVec2 cmin = ImVec2(base.x + com.Pos.x, base.y + com.Pos.y);
+            const ImVec2 cmax = ImVec2(cmin.x + com.Size.x, cmin.y + com.Size.y);
+            dl->AddRectFilled(cmin, cmax, IM_COL32(70, 100, 80, 45), 4.0f);
+            dl->AddRect(cmin, cmax, IM_COL32(120, 180, 140, 160), 4.0f);
+            dl->AddRectFilled(cmin, ImVec2(cmax.x, cmin.y + 20.0f), IM_COL32(70, 100, 80, 150), 4.0f);
+
+            ImGui::PushID(2000 + (int)ci);
+
+            // Title bar: drag to move, right-click to delete.
+            ImGui::SetCursorScreenPos(cmin);
+            ImGui::SetNextItemAllowOverlap();
+            ImGui::InvisibleButton("cdrag", ImVec2(com.Size.x, 20.0f));
+            if (ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
+                com.Pos.x += io.MouseDelta.x;
+                com.Pos.y += io.MouseDelta.y;
+            }
+            if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+                deleteComment = (int)ci;
+
+            // Editable label (left part of the title; the rest stays a drag zone).
+            ImGui::SetCursorScreenPos(ImVec2(cmin.x + 4.0f, cmin.y + 1.0f));
+            ImGui::SetNextItemWidth(com.Size.x * 0.7f);
+            ImGui::InputText("##ctext", com.Text, sizeof(com.Text));
+
+            // Resize grip (bottom-right).
+            ImGui::SetCursorScreenPos(ImVec2(cmax.x - 14.0f, cmax.y - 14.0f));
+            ImGui::SetNextItemAllowOverlap();
+            ImGui::InvisibleButton("cresize", ImVec2(14.0f, 14.0f));
+            if (ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
+                com.Size.x = std::max(120.0f, com.Size.x + io.MouseDelta.x);
+                com.Size.y = std::max(50.0f, com.Size.y + io.MouseDelta.y);
+            }
+            dl->AddTriangleFilled(ImVec2(cmax.x - 12.0f, cmax.y - 2.0f), ImVec2(cmax.x - 2.0f, cmax.y - 12.0f),
+                ImVec2(cmax.x - 2.0f, cmax.y - 2.0f), IM_COL32(140, 200, 160, 200));
+
+            ImGui::PopID();
+        }
+        if (deleteComment >= 0)
+            m_Comments.erase(m_Comments.begin() + deleteComment);
 
         // --- Nodes ---
         for (auto& node : m_Nodes)
@@ -818,6 +868,7 @@ namespace Elixir
         s.NextId = m_NextId;
         s.AlphaCutoff = m_AlphaCutoff;
         s.Overrides = m_ParamOverrides;
+        s.Comments = m_Comments;
         return s;
     }
 
@@ -831,6 +882,7 @@ namespace Elixir
         m_NextId = s.NextId;
         m_AlphaCutoff = s.AlphaCutoff;
         m_ParamOverrides = s.Overrides;
+        m_Comments = s.Comments;
         m_LinkFrom = -1;
     }
 
@@ -855,6 +907,11 @@ namespace Elixir
         {
             for (char c : name) mix((size_t)c);
             mixf(v.x); mixf(v.y); mixf(v.z); mixf(v.w);
+        }
+        for (const auto& c : s.Comments)
+        {
+            mixf(c.Pos.x); mixf(c.Pos.y); mixf(c.Size.x); mixf(c.Size.y);
+            for (const char* p = c.Text; *p; ++p) mix((size_t)*p);
         }
         return h;
     }
@@ -924,6 +981,16 @@ namespace Elixir
             out << (first ? "" : ", ") << "{ \"name\": \"" << name << "\", \"value\": ["
                 << v.x << ", " << v.y << ", " << v.z << ", " << v.w << "] }";
             first = false;
+        }
+        out << "],\n";
+
+        // Comment boxes.
+        out << "  \"comments\": [";
+        for (size_t i = 0; i < m_Comments.size(); ++i)
+        {
+            const SComment& c = m_Comments[i];
+            out << (i ? ", " : "") << "{ \"pos\": [" << c.Pos.x << ", " << c.Pos.y << "], \"size\": ["
+                << c.Size.x << ", " << c.Size.y << "], \"text\": \"" << c.Text << "\" }";
         }
         out << "]\n}\n";
 
@@ -1062,6 +1129,25 @@ namespace Elixir
                     int i = 0;
                     for (auto c : val) { double d; if (c.get(d) == simdjson::SUCCESS && i < 4) (&v.x)[i] = (float)d; ++i; }
                     m_ParamOverrides[std::string(name)] = v;
+                }
+            }
+
+            m_Comments.clear();
+            simdjson::dom::array comments;
+            if (parsed && doc["comments"].get(comments) == simdjson::SUCCESS)
+            {
+                for (auto e : comments)
+                {
+                    SComment c;
+                    simdjson::dom::array a;
+                    if (e["pos"].get(a) == simdjson::SUCCESS)
+                    { int i = 0; for (auto x : a) { double d; if (x.get(d) == simdjson::SUCCESS && i < 2) (&c.Pos.x)[i] = (float)d; ++i; } }
+                    if (e["size"].get(a) == simdjson::SUCCESS)
+                    { int i = 0; for (auto x : a) { double d; if (x.get(d) == simdjson::SUCCESS && i < 2) (&c.Size.x)[i] = (float)d; ++i; } }
+                    std::string_view t;
+                    if (e["text"].get(t) == simdjson::SUCCESS)
+                    { const size_t len = std::min(t.size(), sizeof(c.Text) - 1); std::memcpy(c.Text, t.data(), len); c.Text[len] = '\0'; }
+                    m_Comments.push_back(c);
                 }
             }
         }
