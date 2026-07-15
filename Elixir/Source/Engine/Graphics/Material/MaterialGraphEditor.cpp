@@ -287,13 +287,11 @@ namespace Elixir
         const float NODE_W = 150.0f;
         const float PIN_R = 6.0f;
 
-        // Background catcher (behind the nodes): dragging empty canvas -- or middle-
-        // mouse anywhere -- pans. Submitted first so node/pin buttons win on top.
+        // Pan: drag on empty canvas (nothing else grabbed) or middle-drag anywhere.
+        // No background button, so node/pin buttons keep their interaction.
         const ImVec2 avail = ImGui::GetContentRegionAvail();
-        ImGui::SetCursorScreenPos(origin);
-        ImGui::InvisibleButton("canvas", ImVec2(avail.x > 1.0f ? avail.x : 1.0f, avail.y > 1.0f ? avail.y : 1.0f),
-            ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonMiddle);
-        if (ImGui::IsItemActive() && (ImGui::IsMouseDragging(ImGuiMouseButton_Left) || ImGui::IsMouseDragging(ImGuiMouseButton_Middle)))
+        if (ImGui::IsWindowHovered() && !ImGui::IsAnyItemActive()
+            && (ImGui::IsMouseDragging(ImGuiMouseButton_Left) || ImGui::IsMouseDragging(ImGuiMouseButton_Middle)))
         {
             m_Pan.x += io.MouseDelta.x;
             m_Pan.y += io.MouseDelta.y;
@@ -301,6 +299,9 @@ namespace Elixir
 
         // Canvas origin with the pan offset applied (all node/pin/link coords use it).
         const ImVec2 base = ImVec2(origin.x + m_Pan.x, origin.y + m_Pan.y);
+
+        // Clip node visuals to the canvas so a panned graph doesn't draw over the toolbar.
+        dl->PushClipRect(origin, ImVec2(origin.x + avail.x, origin.y + avail.y), true);
 
         std::unordered_map<int, ImVec2> outPins;   // node id -> output pin pos
         std::unordered_map<long long, ImVec2> inPinPos; // encoded target -> input pin pos
@@ -503,6 +504,8 @@ namespace Elixir
             }
             m_LinkFrom = -1;
         }
+
+        dl->PopClipRect(); // end canvas clip
 
         ImGui::End();
 
