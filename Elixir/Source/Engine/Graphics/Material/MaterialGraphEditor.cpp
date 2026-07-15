@@ -120,6 +120,7 @@ namespace Elixir
                 case 3: return "Emissive";
                 case 4: return "Normal";
                 case 5: return "World Pos Offset";
+                case 6: return "Opacity";
             }
             return "?";
         }
@@ -193,6 +194,15 @@ namespace Elixir
         if (m_TargetMaterial > maxMaterial) m_TargetMaterial = maxMaterial;
         ImGui::SetNextItemWidth(160.0f);
         ImGui::SliderInt("Target material", &m_TargetMaterial, 0, maxMaterial);
+
+        ImGui::SetNextItemWidth(120.0f);
+        ImGui::Combo("Blend", &m_BlendMode, "Opaque\0Masked\0Translucent\0");
+        if (m_BlendMode == 1) // Masked
+        {
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(120.0f);
+            ImGui::SliderFloat("Cutoff", &m_AlphaCutoff, 0.0f, 1.0f, "%.2f");
+        }
 
         // Save / load the graph to ./Assets/Materials/<name>.matgraph.json.
         ImGui::SetNextItemWidth(160.0f);
@@ -391,14 +401,14 @@ namespace Elixir
         // --- Output (master) node ---
         const ImVec2 op = ImVec2(origin.x + 520.0f, origin.y + 40.0f);
         const ImVec2 omin = op;
-        const ImVec2 omax = ImVec2(op.x + 150.0f, op.y + 20.0f + 6 * 20.0f + 6.0f);
+        const ImVec2 omax = ImVec2(op.x + 150.0f, op.y + 20.0f + 7 * 20.0f + 6.0f);
         dl->AddRectFilled(omin, omax, IM_COL32(52, 42, 42, 235), 4.0f);
         dl->AddRectFilled(omin, ImVec2(omax.x, omin.y + 20.0f), IM_COL32(120, 80, 80, 255), 4.0f);
         dl->AddRect(omin, omax, IM_COL32(140, 100, 100, 255), 4.0f);
         dl->AddText(ImVec2(omin.x + 8.0f, omin.y + 3.0f), IM_COL32_WHITE, "Output");
         ImGui::PushID(-99);
         std::unordered_map<int, ImVec2> chPins;
-        for (int ch = 0; ch < 6; ++ch)
+        for (int ch = 0; ch < 7; ++ch)
         {
             const ImVec2 pinPos = ImVec2(omin.x, omin.y + 30.0f + ch * 20.0f);
             ImGui::PushID(ch);
@@ -433,7 +443,7 @@ namespace Elixir
             for (int i = 0; i < node.InputCount; ++i)
                 if (node.Inputs[i] >= 0 && outPins.count(node.Inputs[i]))
                     bezier(outPins[node.Inputs[i]], inPinPos[((long long)node.Id << 8) | i], IM_COL32(200, 200, 210, 200));
-        for (int ch = 0; ch < 6; ++ch)
+        for (int ch = 0; ch < 7; ++ch)
             if (m_Channels[ch] >= 0 && outPins.count(m_Channels[ch]))
                 bezier(outPins[m_Channels[ch]], chPins[ch], IM_COL32(220, 190, 90, 220));
 
@@ -467,7 +477,7 @@ namespace Elixir
             // List params across the expanded graph (top-level + inside functions);
             // edits go to an override map keyed by name (applied by CollectParams).
             std::vector<SNode> pnodes;
-            int pchannels[6];
+            int pchannels[7];
             Expand(pnodes, pchannels);
             int slot = 0;
             for (const auto& node : pnodes)
@@ -515,10 +525,10 @@ namespace Elixir
         return apply;
     }
 
-    void MaterialGraphEditor::Expand(std::vector<SNode>& outNodes, int outChannels[6]) const
+    void MaterialGraphEditor::Expand(std::vector<SNode>& outNodes, int outChannels[7]) const
     {
         outNodes = m_Nodes;
-        for (int i = 0; i < 6; ++i) outChannels[i] = m_Channels[i];
+        for (int i = 0; i < 7; ++i) outChannels[i] = m_Channels[i];
 
         int remapBase = 1000000;
         constexpr int MAX_EXPANSIONS = 256; // guards against recursive/cyclic functions
@@ -538,7 +548,7 @@ namespace Elixir
             const SNode call = outNodes[callIdx]; // copy: outNodes is mutated below
 
             std::vector<SNode> fnodes;
-            int fchannels[6];
+            int fchannels[7];
             int ftarget = 0, fnext = 1;
             int callOut = -1; // the id the call resolves to (-1 = missing/empty function)
 
@@ -583,7 +593,7 @@ namespace Elixir
             for (auto& n : outNodes)
                 for (int i = 0; i < 3; ++i)
                     if (n.Inputs[i] == call.Id) n.Inputs[i] = callOut;
-            for (int ch = 0; ch < 6; ++ch)
+            for (int ch = 0; ch < 7; ++ch)
                 if (outChannels[ch] == call.Id) outChannels[ch] = callOut;
             outNodes.erase(std::remove_if(outNodes.begin(), outNodes.end(),
                 [&](const SNode& n) { return n.Type == EMaterialNodeType::FunctionCall && n.Id == call.Id; }),
@@ -602,7 +612,7 @@ namespace Elixir
     MaterialGraph MaterialGraphEditor::Build() const
     {
         std::vector<SNode> nodes;
-        int channels[6];
+        int channels[7];
         Expand(nodes, channels);
 
         MaterialGraph graph;
@@ -633,10 +643,11 @@ namespace Elixir
                 if (n.Inputs[i] >= 0 && idMap.count(n.Inputs[i]))
                     graph.Connect(idMap[n.Inputs[i]], idMap[n.Id], (uint32_t)i);
 
-        for (int ch = 0; ch < 6; ++ch)
+        for (int ch = 0; ch < 7; ++ch)
             if (channels[ch] >= 0 && idMap.count(channels[ch]))
                 graph.SetChannel((EMaterialChannel)ch, idMap[channels[ch]]);
 
+        graph.SetBlend((EMaterialBlendMode)m_BlendMode, m_AlphaCutoff);
         return graph;
     }
 
@@ -649,7 +660,8 @@ namespace Elixir
         const MaterialGraph g = Build();
         const std::string code = g.GenerateHLSL(false) + "\x01" + g.GenerateHLSL(true);
         size_t h = std::hash<std::string>{}(code);
-        h ^= (size_t)m_TargetMaterial * 0x9e3779b97f4a7c15ull; // re-apply on slot change
+        h ^= (size_t)m_TargetMaterial * 0x9e3779b97f4a7c15ull;       // re-apply on slot change
+        h ^= (size_t)m_BlendMode * 0xc2b2ae3d27d4eb4full;           // ...and on blend-mode change
         return h;
     }
 
@@ -658,7 +670,7 @@ namespace Elixir
         // Iterate the expanded graph so parameters inside functions get slots in the
         // same order Build() assigns them; apply any live override by name.
         std::vector<SNode> nodes;
-        int channels[6];
+        int channels[7];
         Expand(nodes, channels);
 
         int slot = 0;
@@ -689,9 +701,11 @@ namespace Elixir
         out << "{\n";
         out << "  \"version\": 1,\n";
         out << "  \"targetMaterial\": " << m_TargetMaterial << ",\n";
+        out << "  \"blendMode\": " << m_BlendMode << ",\n";
+        out << "  \"alphaCutoff\": " << m_AlphaCutoff << ",\n";
         out << "  \"nextId\": " << m_NextId << ",\n";
         out << "  \"channels\": [";
-        for (int i = 0; i < 6; ++i) out << (i ? ", " : "") << m_Channels[i];
+        for (int i = 0; i < 7; ++i) out << (i ? ", " : "") << m_Channels[i];
         out << "],\n";
         out << "  \"nodes\": [\n";
         for (size_t k = 0; k < m_Nodes.size(); ++k)
@@ -729,7 +743,7 @@ namespace Elixir
     }
 
     bool MaterialGraphEditor::ParseGraphFile(
-        const std::string& path, std::vector<SNode>& nodes, int channels[6], int& targetMaterial, int& nextId) const
+        const std::string& path, std::vector<SNode>& nodes, int channels[7], int& targetMaterial, int& nextId) const
     {
         auto json = simdjson::padded_string::load(path);
         if (json.error())
@@ -756,7 +770,7 @@ namespace Elixir
             return def;
         };
 
-        for (int i = 0; i < 6; ++i) channels[i] = -1;
+        for (int i = 0; i < 7; ++i) channels[i] = -1;
 
         int64_t iv;
         if (doc["targetMaterial"].get(iv) == simdjson::SUCCESS) targetMaterial = (int)iv;
@@ -766,7 +780,7 @@ namespace Elixir
         if (doc["channels"].get(chans) == simdjson::SUCCESS)
         {
             int i = 0;
-            for (auto c : chans) { if (i < 6) channels[i] = (int)num(c, -1.0); ++i; }
+            for (auto c : chans) { if (i < 7) channels[i] = (int)num(c, -1.0); ++i; }
         }
 
         simdjson::dom::array arr;
@@ -821,14 +835,14 @@ namespace Elixir
     bool MaterialGraphEditor::Load(const std::string& path)
     {
         std::vector<SNode> nodes;
-        int channels[6];
+        int channels[7];
         int targetMaterial = m_TargetMaterial;
         int nextId = 1;
         if (!ParseGraphFile(path, nodes, channels, targetMaterial, nextId))
             return false;
 
         m_Nodes = std::move(nodes);
-        for (int i = 0; i < 6; ++i) m_Channels[i] = channels[i];
+        for (int i = 0; i < 7; ++i) m_Channels[i] = channels[i];
         m_TargetMaterial = targetMaterial;
         m_NextId = nextId > 1 ? nextId : 1;
         m_LinkFrom = -1;
@@ -840,8 +854,13 @@ namespace Elixir
             simdjson::dom::parser parser;
             simdjson::dom::element doc;
             simdjson::dom::array overrides;
-            if (!json.error() && parser.parse(json.value()).get(doc) == simdjson::SUCCESS
-                && doc["paramOverrides"].get(overrides) == simdjson::SUCCESS)
+            const bool parsed = !json.error() && parser.parse(json.value()).get(doc) == simdjson::SUCCESS;
+            if (parsed)
+            {
+                int64_t bm; if (doc["blendMode"].get(bm) == simdjson::SUCCESS) m_BlendMode = (int)bm;
+                double ac; if (doc["alphaCutoff"].get(ac) == simdjson::SUCCESS) m_AlphaCutoff = (float)ac;
+            }
+            if (parsed && doc["paramOverrides"].get(overrides) == simdjson::SUCCESS)
             {
                 for (auto o : overrides)
                 {

@@ -137,7 +137,7 @@ namespace Elixir
         m_BoundModel = nullptr; // force the material buffer to rebind to the new shader
     }
 
-    void MeshRenderer::SetMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader)
+    void MeshRenderer::SetMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader, EMaterialBlendMode blendMode)
     {
         if (!shader)
         {
@@ -151,6 +151,7 @@ namespace Elixir
 
         SShaderVariant variant;
         variant.Shader = shader;
+        variant.BlendMode = blendMode;
         CreatePipelinesFor(shader, variant.Opaque, variant.Transparent);
         BindResourcesTo(shader);
 
@@ -326,7 +327,10 @@ namespace Elixir
             if (const auto it = m_MaterialShaders.find(primitive.MaterialIndex); it != m_MaterialShaders.end())
             {
                 shader = &it->second.Shader;
-                pipeline = it->second.Opaque.get();
+                // Translucent uses the alpha-blend pipeline (no depth write); Opaque and
+                // Masked use the depth-writing one (Masked clips in the shader).
+                pipeline = it->second.BlendMode == EMaterialBlendMode::Translucent
+                    ? it->second.Transparent.get() : it->second.Opaque.get();
             }
 
             if (pipeline != boundPipeline)
@@ -351,6 +355,9 @@ namespace Elixir
         // just lets later transparent layers overdraw them and swallow their glow.
         const auto isBlend = [&](const SModelPrimitive& p)
         {
+            // A graph material's blend mode wins over the glTF alpha mode.
+            if (const auto it = m_MaterialShaders.find(p.MaterialIndex); it != m_MaterialShaders.end())
+                return it->second.BlendMode == EMaterialBlendMode::Translucent;
             if (p.MaterialIndex >= materials.size())
                 return false;
             const auto& m = materials[p.MaterialIndex];

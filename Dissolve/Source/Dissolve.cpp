@@ -164,6 +164,7 @@ void Dissolve::StartGraphCompile()
     m_Compiling = true;
     m_CompileGraph = m_GraphEditor.Build();
     m_CompileSlot = (uint32_t)m_GraphEditor.TargetMaterial();
+    m_CompileBlend = m_GraphEditor.BlendMode();
 
     // DXC + file IO only (no Vulkan) -> safe on a worker thread.
     m_Executor.Enqueue([this]()
@@ -209,6 +210,7 @@ void Dissolve::OnGUI(const Timestep frameTime)
             {
                 m_PendingGraphShader = shader;
                 m_PendingGraphMaterial = m_CompileSlot;
+                m_PendingGraphBlend = m_CompileBlend;
             }
         m_Compiling = false;
         if (m_RecompileQueued) { m_RecompileQueued = false; StartGraphCompile(); }
@@ -279,7 +281,7 @@ void Dissolve::OnRender(const Timestep frameTime)
     // pipeline recreation is safe.
     if (m_PendingGraphShader)
     {
-        m_MeshRenderer->SetMaterialShader(m_PendingGraphMaterial, m_PendingGraphShader);
+        m_MeshRenderer->SetMaterialShader(m_PendingGraphMaterial, m_PendingGraphShader, m_PendingGraphBlend);
         m_AppliedParamSlot = (int)m_PendingGraphMaterial;
         m_PendingGraphShader = nullptr;
     }

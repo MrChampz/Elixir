@@ -53,6 +53,8 @@ private:
     bool m_RecompileQueued = false;        // a change arrived mid-compile; redo after
     MaterialGraph m_CompileGraph;          // snapshot handed to the worker
     uint32_t m_CompileSlot = 0;
+    Elixir::EMaterialBlendMode m_CompileBlend = Elixir::EMaterialBlendMode::Opaque;
+    Elixir::EMaterialBlendMode m_PendingGraphBlend = Elixir::EMaterialBlendMode::Opaque;
     std::mutex m_CompileMutex;
     bool m_CompileReady = false;
     std::optional<MaterialCompiler::SCompiled> m_CompiledResult;

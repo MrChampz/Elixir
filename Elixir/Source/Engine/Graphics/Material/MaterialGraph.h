@@ -46,7 +46,11 @@ namespace Elixir
     // The surface output a channel drives. Together these form the "master node".
     // WorldPositionOffset is a vertex-stage output (displaces the vertex); the rest
     // are pixel-stage surface outputs.
-    enum class EMaterialChannel : uint8_t { BaseColor, Metallic, Roughness, Emissive, Normal, WorldPositionOffset };
+    enum class EMaterialChannel : uint8_t { BaseColor, Metallic, Roughness, Emissive, Normal, WorldPositionOffset, Opacity };
+
+    // How a graph material composites. Drives both the masked clip in the shader and
+    // the pipeline blend/depth state in the renderer.
+    enum class EMaterialBlendMode : uint8_t { Opaque, Masked, Translucent };
 
     // One node in a material graph. Nodes are plain data (no lambdas) so the graph
     // can be serialized and edited; the codegen interprets Type.
@@ -82,6 +86,10 @@ namespace Elixir
         // Drive a surface channel from a node's output.
         void SetChannel(EMaterialChannel channel, uint32_t nodeId);
 
+        // Blend mode + alpha-test cutoff (Masked). Affects the generated pixel shader
+        // (the Masked clip); the renderer reads the mode separately for pipeline state.
+        void SetBlend(EMaterialBlendMode mode, float cutoff) { m_BlendMode = mode; m_AlphaCutoff = cutoff; }
+
         // Generate the HLSL statements for a stage. Pixel stage (default) fills
         // `surface.<channel> = ...;` for the surface channels; vertex stage emits
         // `wpo = ...;` from the WorldPositionOffset channel only.
@@ -100,5 +108,8 @@ namespace Elixir
         std::unordered_map<uint32_t, SMaterialNode> m_Nodes;
         std::unordered_map<uint8_t, uint32_t> m_Channels; // EMaterialChannel -> node id
         uint32_t m_NextId = 1;
+
+        EMaterialBlendMode m_BlendMode = EMaterialBlendMode::Opaque;
+        float m_AlphaCutoff = 0.5f;
     };
 }

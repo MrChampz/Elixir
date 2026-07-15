@@ -80,7 +80,8 @@ struct SSurface
     float Metallic;
     float Roughness;
     float3 Emissive;
-    float3 Normal; // tangent-space perturbation (unused by the simple template)
+    float3 Normal;  // tangent-space perturbation
+    float Opacity;  // alpha (Masked clip / Translucent blend)
 };
 
 static const uint NO_TEXTURE = 0xffffffffu;
@@ -188,6 +189,7 @@ float4 main(PSInput input) : SV_Target0
     surface.Roughness = 0.5f;
     surface.Emissive = float3(0.0f, 0.0f, 0.0f);
     surface.Normal = float3(0.0f, 0.0f, 1.0f);
+    surface.Opacity = 1.0f;
 
     // __GRAPH_BODY__
 
@@ -225,5 +227,5 @@ float4 main(PSInput input) : SV_Target0
     float spec = pow(saturate(dot(N, H)), max(2.0f, (1.0f - roughness) * 128.0f));
     color += (surface.BaseColor * (1.0f - surface.Metallic) + F0 * spec) * LightColor.rgb * LightColor.w * NdotL;
 
-    return float4(ACESFilm(color), 1.0f);
+    return float4(ACESFilm(color), surface.Opacity);
 }

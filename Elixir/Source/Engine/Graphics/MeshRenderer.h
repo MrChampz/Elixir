@@ -2,6 +2,7 @@
 
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/Model.h>
+#include <Engine/Graphics/Material/MaterialGraph.h>
 #include <Engine/Graphics/Environment.h>
 #include <Engine/Graphics/TextureSet.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
@@ -23,7 +24,8 @@ namespace Elixir
 
         // Override the shading of a single material slot (a node-graph material for
         // just that part). Pass a null shader to revert the slot to the default.
-        void SetMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader);
+        void SetMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader,
+            EMaterialBlendMode blendMode = EMaterialBlendMode::Opaque);
 
         // Update the live-editable exposed parameters (cbGraphParams) of a material's
         // override shader, without recompiling. No-op if the slot has no override.
@@ -98,6 +100,7 @@ namespace Elixir
             Ref<GraphicsPipeline> Opaque;
             Ref<GraphicsPipeline> Transparent;
             Ref<UniformBuffer> ParamBuffer; // cbGraphParams (exposed params)
+            EMaterialBlendMode BlendMode = EMaterialBlendMode::Opaque;
         };
         std::unordered_map<uint32_t, SShaderVariant> m_MaterialShaders;
 

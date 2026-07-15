@@ -25,6 +25,9 @@ namespace Elixir
         // The material slot the compiled graph should be applied to.
         [[nodiscard]] int TargetMaterial() const { return m_TargetMaterial; }
 
+        // The graph's blend mode (drives the renderer's pipeline/pass selection).
+        [[nodiscard]] EMaterialBlendMode BlendMode() const { return (EMaterialBlendMode)m_BlendMode; }
+
         // Serialize / restore the full editor state (nodes, wiring, channels) to a
         // JSON file. Returns false on IO/parse failure.
         bool Save(const std::string& path) const;
@@ -62,13 +65,13 @@ namespace Elixir
         const SNode* Find(int id) const;
 
         // Parse a saved graph file into raw nodes/channels (no state change).
-        bool ParseGraphFile(const std::string& path, std::vector<SNode>& nodes, int channels[6],
+        bool ParseGraphFile(const std::string& path, std::vector<SNode>& nodes, int channels[7],
             int& targetMaterial, int& nextId) const;
 
         // Flatten the graph by inlining FunctionCall nodes (loading their saved
         // sub-graphs, wiring FunctionInput placeholders to the call's inputs, and
         // redirecting the call's output to the function's Base Color result).
-        void Expand(std::vector<SNode>& outNodes, int outChannels[6]) const;
+        void Expand(std::vector<SNode>& outNodes, int outChannels[7]) const;
 
         // A hash of the graph state that affects the compiled shader (structure,
         // wiring, channels, baked constants, target slot). Excludes exposed-parameter
@@ -78,12 +81,16 @@ namespace Elixir
         std::vector<SNode> m_Nodes;
         int m_NextId = 1;
 
-        // The six output channels (BaseColor, Metallic, Roughness, Emissive, Normal,
-        // World Pos Offset): node id feeding each, or -1.
-        int m_Channels[6] = { -1, -1, -1, -1, -1, -1 };
+        // The seven output channels (BaseColor, Metallic, Roughness, Emissive, Normal,
+        // World Pos Offset, Opacity): node id feeding each, or -1.
+        int m_Channels[7] = { -1, -1, -1, -1, -1, -1, -1 };
 
         // The material slot the graph is applied to on Apply.
         int m_TargetMaterial = 0;
+
+        // Blend: 0=Opaque, 1=Masked, 2=Translucent; cutoff used by Masked.
+        int m_BlendMode = 0;
+        float m_AlphaCutoff = 0.5f;
 
         // File name (without extension/dir) for Save/Load.
         char m_FileName[128] = "material";

@@ -27,6 +27,7 @@ namespace Elixir
                 case EMaterialChannel::Emissive:  return "Emissive";
                 case EMaterialChannel::Normal:    return "Normal";
                 case EMaterialChannel::WorldPositionOffset: return "WorldPositionOffset";
+                case EMaterialChannel::Opacity:   return "Opacity";
             }
             return "BaseColor";
         }
@@ -83,7 +84,8 @@ namespace Elixir
         // Coerce an expression of `from` type to the channel's expected type.
         std::string Coerce(const std::string& expr, EGraphValueType from, EMaterialChannel channel)
         {
-            const bool scalarChannel = channel == EMaterialChannel::Metallic || channel == EMaterialChannel::Roughness;
+            const bool scalarChannel = channel == EMaterialChannel::Metallic
+                || channel == EMaterialChannel::Roughness || channel == EMaterialChannel::Opacity;
             if (scalarChannel)
                 return from == EGraphValueType::Float ? expr : "(" + expr + ").x";
 
@@ -324,6 +326,11 @@ namespace Elixir
             else
                 body += "    surface." + std::string(ChannelName(ch)) + " = " + Coerce(var, from, ch) + ";\n";
         }
+
+        // Masked: alpha-test against the cutoff (pixel stage only).
+        if (!vertexStage && m_BlendMode == EMaterialBlendMode::Masked)
+            body += "    clip(surface.Opacity - " + Num(m_AlphaCutoff) + ");\n";
+
         return body;
     }
 }
