@@ -65,7 +65,7 @@ Dissolve::Dissolve()
     m_MeshRenderer = CreateScope<MeshRenderer>(m_GraphicsContext.get(), m_ShaderLoader.get());
     m_PostProcessor = CreateScope<PostProcessor>(m_GraphicsContext.get(), m_ShaderLoader.get());
     m_GraphicsContext->InitImGui();
-    m_Model = Model::Load(m_GraphicsContext.get(), "./Assets/Meshes/BMW/scene.gltf");
+    m_Model = Model::Load(m_GraphicsContext.get(), "./Assets/Meshes/McLaren/scene.gltf");
 
     m_ParticleSystem = Aether::LoadEffectFile("./Assets/VFX/RibbonVortex.json");
     // m_ParticleSystem = CreateScope<Aether::System>("Ribbon Garden");
@@ -208,9 +208,10 @@ void Dissolve::OnGUI(const Timestep frameTime)
         if (result)
             if (const auto shader = MaterialCompiler::LoadCompiled(m_ShaderLoader.get(), *result))
             {
-                m_PendingGraphShader = shader;
-                m_PendingGraphMaterial = m_CompileSlot;
-                m_PendingGraphBlend = m_CompileBlend;
+                // Build the variant (incl. pipeline creation) here on the main thread;
+                // Render installs it, so the scene doesn't hitch on the Metal compile.
+                m_MeshRenderer->PrepareMaterialShader(m_CompileSlot, shader, m_CompileBlend);
+                m_AppliedParamSlot = (int)m_CompileSlot;
             }
         m_Compiling = false;
         if (m_RecompileQueued) { m_RecompileQueued = false; StartGraphCompile(); }
@@ -277,14 +278,8 @@ void Dissolve::OnRender(const Timestep frameTime)
 
     //DrawGeometry();
 
-    // Apply a freshly compiled node-graph shader here (render thread), where the
-    // pipeline recreation is safe.
-    if (m_PendingGraphShader)
-    {
-        m_MeshRenderer->SetMaterialShader(m_PendingGraphMaterial, m_PendingGraphShader, m_PendingGraphBlend);
-        m_AppliedParamSlot = (int)m_PendingGraphMaterial;
-        m_PendingGraphShader = nullptr;
-    }
+    // Node-graph material variants are prepared on the main thread (OnGUI) and
+    // installed by MeshRenderer::Render, so nothing to apply here.
 
     // Push live exposed-parameter values to the applied slot (cheap, no recompile).
     if (m_AppliedParamSlot >= 0)

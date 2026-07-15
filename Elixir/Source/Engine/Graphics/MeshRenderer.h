@@ -3,6 +3,8 @@
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/Model.h>
 #include <Engine/Graphics/Material/MaterialGraph.h>
+
+#include <mutex>
 #include <Engine/Graphics/Environment.h>
 #include <Engine/Graphics/TextureSet.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
@@ -26,6 +28,13 @@ namespace Elixir
         // just that part). Pass a null shader to revert the slot to the default.
         void SetMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader,
             EMaterialBlendMode blendMode = EMaterialBlendMode::Opaque);
+
+        // Two-phase apply so the expensive pipeline creation (Metal compile on
+        // MoltenVK) happens off the render thread: Prepare builds the variant
+        // (pipelines, buffers, bindings) on the caller's thread (the main/UI thread);
+        // Install swaps it in from Render, keeping the scene rendering meanwhile.
+        void PrepareMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader, EMaterialBlendMode blendMode);
+        void InstallPendingShaders();
 
         // Update the live-editable exposed parameters (cbGraphParams) of a material's
         // override shader, without recompiling. No-op if the slot has no override.
@@ -117,6 +126,11 @@ namespace Elixir
         std::vector<SRetired> m_Retired;
         void Retire(SShaderVariant&& variant);
         void TickRetired();
+
+        // Variants built on the main thread, waiting to be installed from Render.
+        struct SPendingVariant { uint32_t Slot; SShaderVariant Variant; };
+        std::vector<SPendingVariant> m_PendingVariants;
+        std::mutex m_PendingMutex;
 
         Ref<UniformBuffer> m_FrameBuffer;
         SFrameData m_FrameData{};

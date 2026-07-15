@@ -171,6 +171,42 @@ namespace Elixir
         m_BoundModel = nullptr; // force the material buffer to rebind to all shaders
     }
 
+    void MeshRenderer::PrepareMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader, EMaterialBlendMode blendMode)
+    {
+        if (!shader)
+            return;
+
+        // Built here on the caller's (main) thread -- including the slow pipeline
+        // creation -- so the render thread never blocks compiling a Metal pipeline.
+        SShaderVariant variant;
+        variant.Shader = shader;
+        variant.BlendMode = blendMode;
+        CreatePipelinesFor(shader, variant.Opaque, variant.Transparent, blendMode);
+        BindResourcesTo(shader);
+
+        glm::vec4 zeros[MAX_GRAPH_PARAMS] = {};
+        variant.ParamBuffer = UniformBuffer::Create(m_GraphicsContext, sizeof(zeros), zeros);
+        shader->BindConstantBuffer("cbGraphParams", variant.ParamBuffer);
+
+        std::lock_guard<std::mutex> lock(m_PendingMutex);
+        m_PendingVariants.push_back({ materialIndex, std::move(variant) });
+    }
+
+    void MeshRenderer::InstallPendingShaders()
+    {
+        std::lock_guard<std::mutex> lock(m_PendingMutex);
+        if (m_PendingVariants.empty())
+            return;
+        for (auto& pending : m_PendingVariants)
+        {
+            if (const auto it = m_MaterialShaders.find(pending.Slot); it != m_MaterialShaders.end())
+                Retire(std::move(it->second));
+            m_MaterialShaders[pending.Slot] = std::move(pending.Variant);
+        }
+        m_PendingVariants.clear();
+        m_BoundModel = nullptr; // force the material buffer to rebind to all shaders
+    }
+
     void MeshRenderer::SetMaterialParams(uint32_t materialIndex, const glm::vec4* params, uint32_t count)
     {
         const auto it = m_MaterialShaders.find(materialIndex);
@@ -248,7 +284,9 @@ namespace Elixir
         if (!model || model->GetPrimitives().empty())
             return;
 
-        // Release shader/pipeline resources retired a few frames ago (now safely idle).
+        // Install any material shaders prepared on the main thread, then release
+        // resources retired a few frames ago (now safely idle).
+        InstallPendingShaders();
         TickRetired();
 
         // Build (and cache) the model's material buffer, resolving its textures
