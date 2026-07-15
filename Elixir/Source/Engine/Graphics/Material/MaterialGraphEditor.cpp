@@ -312,8 +312,10 @@ namespace Elixir
         // Canvas origin with the pan offset applied (all node/pin/link coords use it).
         const ImVec2 base = ImVec2(origin.x + m_Pan.x, origin.y + m_Pan.y);
 
-        // Clip node visuals to the canvas so a panned graph doesn't draw over the toolbar.
-        dl->PushClipRect(origin, ImVec2(origin.x + avail.x, origin.y + avail.y), true);
+        // Clip the canvas so a panned graph doesn't draw over the toolbar. Use the
+        // ImGui-managed clip (not the raw draw list) so it composes correctly with the
+        // widgets submitted inside it (e.g. the comment text field).
+        ImGui::PushClipRect(origin, ImVec2(origin.x + avail.x, origin.y + avail.y), true);
 
         std::unordered_map<int, ImVec2> outPins;   // node id -> output pin pos
         std::unordered_map<long long, ImVec2> inPinPos; // encoded target -> input pin pos
@@ -633,7 +635,7 @@ namespace Elixir
         }
         CommitUndoIfSettled(interacting);
 
-        dl->PopClipRect(); // end canvas clip
+        ImGui::PopClipRect(); // end canvas clip
 
         ImGui::End();
 
