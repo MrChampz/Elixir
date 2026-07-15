@@ -55,7 +55,8 @@ namespace Elixir
     }
 
     void MeshRenderer::CreatePipelinesFor(
-        const Ref<Shader>& shader, Ref<GraphicsPipeline>& opaque, Ref<GraphicsPipeline>& transparent)
+        const Ref<Shader>& shader, Ref<GraphicsPipeline>& opaque, Ref<GraphicsPipeline>& transparent,
+        EMaterialBlendMode blendMode)
     {
         const BufferLayout layout({
             {
@@ -88,8 +89,11 @@ namespace Elixir
         opaqueInfo.DepthStencil.DepthCompareOp = ECompareOp::LessOrEqual;
         opaque = GraphicsPipeline::Create(m_GraphicsContext, opaqueInfo);
 
-        // Blend: alpha-blended, depth-tested but no depth write (drawn after opaque).
-        builder.EnableAlphaBlending();
+        // Blend: alpha or additive per the mode, depth-tested but no depth write.
+        if (blendMode == EMaterialBlendMode::Additive)
+            builder.EnableAdditiveBlending();
+        else
+            builder.EnableAlphaBlending();
         auto blendInfo = builder.GetCreateInfo();
         blendInfo.DepthStencil.DepthTestEnable = true;
         blendInfo.DepthStencil.DepthWriteEnable = false;
@@ -152,7 +156,7 @@ namespace Elixir
         SShaderVariant variant;
         variant.Shader = shader;
         variant.BlendMode = blendMode;
-        CreatePipelinesFor(shader, variant.Opaque, variant.Transparent);
+        CreatePipelinesFor(shader, variant.Opaque, variant.Transparent, blendMode);
         BindResourcesTo(shader);
 
         // Zero-initialised live-parameter buffer (cbGraphParams), bound once.
@@ -327,10 +331,11 @@ namespace Elixir
             if (const auto it = m_MaterialShaders.find(primitive.MaterialIndex); it != m_MaterialShaders.end())
             {
                 shader = &it->second.Shader;
-                // Translucent uses the alpha-blend pipeline (no depth write); Opaque and
-                // Masked use the depth-writing one (Masked clips in the shader).
-                pipeline = it->second.BlendMode == EMaterialBlendMode::Translucent
-                    ? it->second.Transparent.get() : it->second.Opaque.get();
+                // Translucent/Additive use the blend pipeline (no depth write); Opaque
+                // and Masked use the depth-writing one (Masked clips in the shader).
+                const bool blended = it->second.BlendMode == EMaterialBlendMode::Translucent
+                    || it->second.BlendMode == EMaterialBlendMode::Additive;
+                pipeline = blended ? it->second.Transparent.get() : it->second.Opaque.get();
             }
 
             if (pipeline != boundPipeline)
@@ -357,7 +362,8 @@ namespace Elixir
         {
             // A graph material's blend mode wins over the glTF alpha mode.
             if (const auto it = m_MaterialShaders.find(p.MaterialIndex); it != m_MaterialShaders.end())
-                return it->second.BlendMode == EMaterialBlendMode::Translucent;
+                return it->second.BlendMode == EMaterialBlendMode::Translucent
+                    || it->second.BlendMode == EMaterialBlendMode::Additive;
             if (p.MaterialIndex >= materials.size())
                 return false;
             const auto& m = materials[p.MaterialIndex];

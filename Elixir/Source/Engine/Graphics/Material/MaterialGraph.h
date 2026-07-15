@@ -50,7 +50,7 @@ namespace Elixir
 
     // How a graph material composites. Drives both the masked clip in the shader and
     // the pipeline blend/depth state in the renderer.
-    enum class EMaterialBlendMode : uint8_t { Opaque, Masked, Translucent };
+    enum class EMaterialBlendMode : uint8_t { Opaque, Masked, Translucent, Additive };
 
     // One node in a material graph. Nodes are plain data (no lambdas) so the graph
     // can be serialized and edited; the codegen interprets Type.

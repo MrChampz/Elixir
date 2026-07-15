@@ -33,7 +33,8 @@ namespace Elixir
 
       private:
         void CreatePipelines();
-        void CreatePipelinesFor(const Ref<Shader>& shader, Ref<GraphicsPipeline>& opaque, Ref<GraphicsPipeline>& transparent);
+        void CreatePipelinesFor(const Ref<Shader>& shader, Ref<GraphicsPipeline>& opaque, Ref<GraphicsPipeline>& transparent,
+            EMaterialBlendMode blendMode = EMaterialBlendMode::Translucent);
         void BindResources();
         void BindResourcesTo(const Ref<Shader>& shader);
 

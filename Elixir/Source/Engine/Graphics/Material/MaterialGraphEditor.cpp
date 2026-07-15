@@ -196,7 +196,7 @@ namespace Elixir
         ImGui::SliderInt("Target material", &m_TargetMaterial, 0, maxMaterial);
 
         ImGui::SetNextItemWidth(120.0f);
-        ImGui::Combo("Blend", &m_BlendMode, "Opaque\0Masked\0Translucent\0");
+        ImGui::Combo("Blend", &m_BlendMode, "Opaque\0Masked\0Translucent\0Additive\0");
         if (m_BlendMode == 1) // Masked
         {
             ImGui::SameLine();

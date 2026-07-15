@@ -15,6 +15,7 @@ namespace Elixir
         void SetMultisamplingNone();
         void EnableAlphaBlending();
         void EnableAlphaBlendingMax();
+        void EnableAdditiveBlending();
         void DisableBlending();
         void DisableDepthTest();
         void SetColorAttachmentFormat(EImageFormat format);

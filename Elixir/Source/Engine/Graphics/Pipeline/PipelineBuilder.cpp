@@ -66,6 +66,23 @@ namespace Elixir
         m_Multisample.RasterizationSamples = ESampleCount::_1;
     }
 
+    void PipelineBuilder::EnableAdditiveBlending()
+    {
+        // src.rgb * srcAlpha + dst.rgb -> glows/emissive add onto the scene, with the
+        // Opacity channel modulating intensity.
+        m_ColorBlendAttachment.BlendEnable = true;
+        m_ColorBlendAttachment.SrcColorBlendFactor = EBlendFactor::SrcAlpha;
+        m_ColorBlendAttachment.DstColorBlendFactor = EBlendFactor::One;
+        m_ColorBlendAttachment.ColorBlendOp = EBlendOp::Add;
+        m_ColorBlendAttachment.SrcAlphaBlendFactor = EBlendFactor::One;
+        m_ColorBlendAttachment.DstAlphaBlendFactor = EBlendFactor::One;
+        m_ColorBlendAttachment.AlphaBlendOp = EBlendOp::Add;
+        m_ColorBlendAttachment.ColorWriteMask = EColorComponent::R |
+            EColorComponent::G | EColorComponent::B | EColorComponent::A;
+
+        m_Multisample.RasterizationSamples = ESampleCount::_1;
+    }
+
     void PipelineBuilder::DisableBlending()
     {
         m_ColorBlendAttachment.BlendEnable = false;
