@@ -46,7 +46,11 @@ namespace Elixir
     // The surface output a channel drives. Together these form the "master node".
     // WorldPositionOffset is a vertex-stage output (displaces the vertex); the rest
     // are pixel-stage surface outputs.
-    enum class EMaterialChannel : uint8_t { BaseColor, Metallic, Roughness, Emissive, Normal, WorldPositionOffset, Opacity };
+    enum class EMaterialChannel : uint8_t
+    {
+        BaseColor, Metallic, Roughness, Emissive, Normal, WorldPositionOffset, Opacity,
+        SubsurfaceColor, ClearCoat, ClearCoatRoughness, Sheen // shading-model-specific
+    };
 
     // How a graph material composites. Drives both the masked clip in the shader and
     // the pipeline blend/depth state in the renderer.

@@ -82,6 +82,10 @@ struct SSurface
     float3 Emissive;
     float3 Normal;  // tangent-space perturbation
     float Opacity;  // alpha (Masked clip / Translucent blend)
+    float3 SubsurfaceColor;    // Subsurface tint
+    float ClearCoat;           // Clear Coat strength
+    float ClearCoatRoughness;  // Clear Coat lobe roughness
+    float Sheen;               // Cloth sheen amount
 };
 
 static const uint NO_TEXTURE = 0xffffffffu;
@@ -204,6 +208,10 @@ float4 main(PSInput input) : SV_Target0
     surface.Emissive = float3(0.0f, 0.0f, 0.0f);
     surface.Normal = float3(0.0f, 0.0f, 1.0f);
     surface.Opacity = 1.0f;
+    surface.SubsurfaceColor = surface.BaseColor;
+    surface.ClearCoat = 1.0f;
+    surface.ClearCoatRoughness = 0.1f;
+    surface.Sheen = 0.5f;
 
     // __GRAPH_BODY__
 
@@ -244,24 +252,26 @@ float4 main(PSInput input) : SV_Target0
 
         if (SHADING_MODEL == SM_SUBSURFACE)
         {
-            // Wrapped diffuse + back-face translucency, tinted by the base colour.
+            // Wrapped diffuse + back-face translucency, tinted by SubsurfaceColor.
             float wrap = saturate((dot(N, L) + 0.5f) / 1.5f);
             float back = pow(saturate(dot(V, -L)), 4.0f) * 0.6f;
-            color += (wrap * 0.35f + back) * surface.BaseColor * lightRad;
-            color += SampleIrradiance(-N) * surface.BaseColor * 0.25f;
+            color += (wrap * 0.35f + back) * surface.SubsurfaceColor * lightRad;
+            color += SampleIrradiance(-N) * surface.SubsurfaceColor * 0.25f;
         }
         else if (SHADING_MODEL == SM_CLEARCOAT)
         {
-            // A second, sharp clear-coat specular layer on top.
-            float ccF = 0.04f + 0.96f * pow(saturate(1.0f - NdotV), 5.0f);
-            color += SampleEnv(reflect(-V, N), 0.06f) * ccF;
-            color += pow(saturate(dot(N, H)), 256.0f) * ccF * lightRad * NdotL;
+            // A second specular layer on top, scaled by ClearCoat, sharpened by
+            // ClearCoatRoughness.
+            float ccRough = clamp(surface.ClearCoatRoughness, 0.02f, 1.0f);
+            float ccF = surface.ClearCoat * (0.04f + 0.96f * pow(saturate(1.0f - NdotV), 5.0f));
+            color += SampleEnv(reflect(-V, N), ccRough) * ccF;
+            color += pow(saturate(dot(N, H)), max(16.0f, (1.0f - ccRough) * 512.0f)) * ccF * lightRad * NdotL;
         }
         else if (SHADING_MODEL == SM_CLOTH)
         {
-            // Fuzzy sheen that brightens at grazing angles.
-            float sheen = pow(1.0f - NdotV, 3.0f);
-            color += sheen * surface.BaseColor * 0.5f * (SampleIrradiance(N) + lightRad * NdotL);
+            // Fuzzy sheen that brightens at grazing angles, scaled by Sheen.
+            float sheen = pow(1.0f - NdotV, 3.0f) * surface.Sheen;
+            color += sheen * surface.BaseColor * (SampleIrradiance(N) + lightRad * NdotL);
         }
     }
 

@@ -28,6 +28,10 @@ namespace Elixir
                 case EMaterialChannel::Normal:    return "Normal";
                 case EMaterialChannel::WorldPositionOffset: return "WorldPositionOffset";
                 case EMaterialChannel::Opacity:   return "Opacity";
+                case EMaterialChannel::SubsurfaceColor:    return "SubsurfaceColor";
+                case EMaterialChannel::ClearCoat:          return "ClearCoat";
+                case EMaterialChannel::ClearCoatRoughness: return "ClearCoatRoughness";
+                case EMaterialChannel::Sheen:              return "Sheen";
             }
             return "BaseColor";
         }
@@ -85,7 +89,9 @@ namespace Elixir
         std::string Coerce(const std::string& expr, EGraphValueType from, EMaterialChannel channel)
         {
             const bool scalarChannel = channel == EMaterialChannel::Metallic
-                || channel == EMaterialChannel::Roughness || channel == EMaterialChannel::Opacity;
+                || channel == EMaterialChannel::Roughness || channel == EMaterialChannel::Opacity
+                || channel == EMaterialChannel::ClearCoat || channel == EMaterialChannel::ClearCoatRoughness
+                || channel == EMaterialChannel::Sheen;
             if (scalarChannel)
                 return from == EGraphValueType::Float ? expr : "(" + expr + ").x";
 

@@ -121,6 +121,10 @@ namespace Elixir
                 case 4: return "Normal";
                 case 5: return "World Pos Offset";
                 case 6: return "Opacity";
+                case 7: return "Subsurface Color";
+                case 8: return "Clear Coat";
+                case 9: return "Clear Coat Rough";
+                case 10: return "Sheen";
             }
             return "?";
         }
@@ -402,18 +406,26 @@ namespace Elixir
         }
 
         // --- Output (master) node ---
+        // The surface channels are always shown; the current shading model adds its
+        // own inputs (channels 7..10) so the Output node stays uncluttered.
+        std::vector<int> vis = { 0, 1, 2, 3, 4, 5, 6 };
+        if (m_ShadingModel == 2) vis.push_back(7);                               // Subsurface Color
+        else if (m_ShadingModel == 3) { vis.push_back(8); vis.push_back(9); }    // Clear Coat (+ roughness)
+        else if (m_ShadingModel == 4) vis.push_back(10);                         // Sheen
+
         const ImVec2 op = ImVec2(origin.x + 520.0f, origin.y + 40.0f);
         const ImVec2 omin = op;
-        const ImVec2 omax = ImVec2(op.x + 150.0f, op.y + 20.0f + 7 * 20.0f + 6.0f);
+        const ImVec2 omax = ImVec2(op.x + 170.0f, op.y + 20.0f + (float)vis.size() * 20.0f + 6.0f);
         dl->AddRectFilled(omin, omax, IM_COL32(52, 42, 42, 235), 4.0f);
         dl->AddRectFilled(omin, ImVec2(omax.x, omin.y + 20.0f), IM_COL32(120, 80, 80, 255), 4.0f);
         dl->AddRect(omin, omax, IM_COL32(140, 100, 100, 255), 4.0f);
         dl->AddText(ImVec2(omin.x + 8.0f, omin.y + 3.0f), IM_COL32_WHITE, "Output");
         ImGui::PushID(-99);
         std::unordered_map<int, ImVec2> chPins;
-        for (int ch = 0; ch < 7; ++ch)
+        for (size_t row = 0; row < vis.size(); ++row)
         {
-            const ImVec2 pinPos = ImVec2(omin.x, omin.y + 30.0f + ch * 20.0f);
+            const int ch = vis[row];
+            const ImVec2 pinPos = ImVec2(omin.x, omin.y + 30.0f + row * 20.0f);
             ImGui::PushID(ch);
             const auto [active, hovered] = pinButton("ch", pinPos);
             ImGui::PopID();
@@ -446,7 +458,7 @@ namespace Elixir
             for (int i = 0; i < node.InputCount; ++i)
                 if (node.Inputs[i] >= 0 && outPins.count(node.Inputs[i]))
                     bezier(outPins[node.Inputs[i]], inPinPos[((long long)node.Id << 8) | i], IM_COL32(200, 200, 210, 200));
-        for (int ch = 0; ch < 7; ++ch)
+        for (const int ch : vis)
             if (m_Channels[ch] >= 0 && outPins.count(m_Channels[ch]))
                 bezier(outPins[m_Channels[ch]], chPins[ch], IM_COL32(220, 190, 90, 220));
 
@@ -480,7 +492,7 @@ namespace Elixir
             // List params across the expanded graph (top-level + inside functions);
             // edits go to an override map keyed by name (applied by CollectParams).
             std::vector<SNode> pnodes;
-            int pchannels[7];
+            int pchannels[11];
             Expand(pnodes, pchannels);
             int slot = 0;
             for (const auto& node : pnodes)
@@ -528,10 +540,10 @@ namespace Elixir
         return apply;
     }
 
-    void MaterialGraphEditor::Expand(std::vector<SNode>& outNodes, int outChannels[7]) const
+    void MaterialGraphEditor::Expand(std::vector<SNode>& outNodes, int outChannels[11]) const
     {
         outNodes = m_Nodes;
-        for (int i = 0; i < 7; ++i) outChannels[i] = m_Channels[i];
+        for (int i = 0; i < 11; ++i) outChannels[i] = m_Channels[i];
 
         int remapBase = 1000000;
         constexpr int MAX_EXPANSIONS = 256; // guards against recursive/cyclic functions
@@ -551,7 +563,7 @@ namespace Elixir
             const SNode call = outNodes[callIdx]; // copy: outNodes is mutated below
 
             std::vector<SNode> fnodes;
-            int fchannels[7];
+            int fchannels[11];
             int ftarget = 0, fnext = 1;
             int callOut = -1; // the id the call resolves to (-1 = missing/empty function)
 
@@ -596,7 +608,7 @@ namespace Elixir
             for (auto& n : outNodes)
                 for (int i = 0; i < 3; ++i)
                     if (n.Inputs[i] == call.Id) n.Inputs[i] = callOut;
-            for (int ch = 0; ch < 7; ++ch)
+            for (int ch = 0; ch < 11; ++ch)
                 if (outChannels[ch] == call.Id) outChannels[ch] = callOut;
             outNodes.erase(std::remove_if(outNodes.begin(), outNodes.end(),
                 [&](const SNode& n) { return n.Type == EMaterialNodeType::FunctionCall && n.Id == call.Id; }),
@@ -615,7 +627,7 @@ namespace Elixir
     MaterialGraph MaterialGraphEditor::Build() const
     {
         std::vector<SNode> nodes;
-        int channels[7];
+        int channels[11];
         Expand(nodes, channels);
 
         MaterialGraph graph;
@@ -646,7 +658,7 @@ namespace Elixir
                 if (n.Inputs[i] >= 0 && idMap.count(n.Inputs[i]))
                     graph.Connect(idMap[n.Inputs[i]], idMap[n.Id], (uint32_t)i);
 
-        for (int ch = 0; ch < 7; ++ch)
+        for (int ch = 0; ch < 11; ++ch)
             if (channels[ch] >= 0 && idMap.count(channels[ch]))
                 graph.SetChannel((EMaterialChannel)ch, idMap[channels[ch]]);
 
@@ -675,7 +687,7 @@ namespace Elixir
         // Iterate the expanded graph so parameters inside functions get slots in the
         // same order Build() assigns them; apply any live override by name.
         std::vector<SNode> nodes;
-        int channels[7];
+        int channels[11];
         Expand(nodes, channels);
 
         int slot = 0;
@@ -711,7 +723,7 @@ namespace Elixir
         out << "  \"shadingModel\": " << m_ShadingModel << ",\n";
         out << "  \"nextId\": " << m_NextId << ",\n";
         out << "  \"channels\": [";
-        for (int i = 0; i < 7; ++i) out << (i ? ", " : "") << m_Channels[i];
+        for (int i = 0; i < 11; ++i) out << (i ? ", " : "") << m_Channels[i];
         out << "],\n";
         out << "  \"nodes\": [\n";
         for (size_t k = 0; k < m_Nodes.size(); ++k)
@@ -749,7 +761,7 @@ namespace Elixir
     }
 
     bool MaterialGraphEditor::ParseGraphFile(
-        const std::string& path, std::vector<SNode>& nodes, int channels[7], int& targetMaterial, int& nextId) const
+        const std::string& path, std::vector<SNode>& nodes, int channels[11], int& targetMaterial, int& nextId) const
     {
         auto json = simdjson::padded_string::load(path);
         if (json.error())
@@ -776,7 +788,7 @@ namespace Elixir
             return def;
         };
 
-        for (int i = 0; i < 7; ++i) channels[i] = -1;
+        for (int i = 0; i < 11; ++i) channels[i] = -1;
 
         int64_t iv;
         if (doc["targetMaterial"].get(iv) == simdjson::SUCCESS) targetMaterial = (int)iv;
@@ -786,7 +798,7 @@ namespace Elixir
         if (doc["channels"].get(chans) == simdjson::SUCCESS)
         {
             int i = 0;
-            for (auto c : chans) { if (i < 7) channels[i] = (int)num(c, -1.0); ++i; }
+            for (auto c : chans) { if (i < 11) channels[i] = (int)num(c, -1.0); ++i; }
         }
 
         simdjson::dom::array arr;
@@ -841,14 +853,14 @@ namespace Elixir
     bool MaterialGraphEditor::Load(const std::string& path)
     {
         std::vector<SNode> nodes;
-        int channels[7];
+        int channels[11];
         int targetMaterial = m_TargetMaterial;
         int nextId = 1;
         if (!ParseGraphFile(path, nodes, channels, targetMaterial, nextId))
             return false;
 
         m_Nodes = std::move(nodes);
-        for (int i = 0; i < 7; ++i) m_Channels[i] = channels[i];
+        for (int i = 0; i < 11; ++i) m_Channels[i] = channels[i];
         m_TargetMaterial = targetMaterial;
         m_NextId = nextId > 1 ? nextId : 1;
         m_LinkFrom = -1;

@@ -65,13 +65,13 @@ namespace Elixir
         const SNode* Find(int id) const;
 
         // Parse a saved graph file into raw nodes/channels (no state change).
-        bool ParseGraphFile(const std::string& path, std::vector<SNode>& nodes, int channels[7],
+        bool ParseGraphFile(const std::string& path, std::vector<SNode>& nodes, int channels[11],
             int& targetMaterial, int& nextId) const;
 
         // Flatten the graph by inlining FunctionCall nodes (loading their saved
         // sub-graphs, wiring FunctionInput placeholders to the call's inputs, and
         // redirecting the call's output to the function's Base Color result).
-        void Expand(std::vector<SNode>& outNodes, int outChannels[7]) const;
+        void Expand(std::vector<SNode>& outNodes, int outChannels[11]) const;
 
         // A hash of the graph state that affects the compiled shader (structure,
         // wiring, channels, baked constants, target slot). Excludes exposed-parameter
@@ -83,7 +83,7 @@ namespace Elixir
 
         // The seven output channels (BaseColor, Metallic, Roughness, Emissive, Normal,
         // World Pos Offset, Opacity): node id feeding each, or -1.
-        int m_Channels[7] = { -1, -1, -1, -1, -1, -1, -1 };
+        int m_Channels[11] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
 
         // The material slot the graph is applied to on Apply.
         int m_TargetMaterial = 0;
