@@ -78,6 +78,25 @@ namespace Elixir
         // values, which update live without recompiling. Drives live-preview.
         [[nodiscard]] size_t Signature() const;
 
+        // --- Undo / redo ---
+        // A full snapshot of the editable document state (not view state like pan).
+        struct SUndoState
+        {
+            std::vector<SNode> Nodes;
+            int Channels[11] = {};
+            int TargetMaterial = 0, BlendMode = 0, ShadingModel = 0, NextId = 1;
+            float AlphaCutoff = 0.5f;
+            std::unordered_map<std::string, glm::vec4> Overrides;
+        };
+        [[nodiscard]] SUndoState Capture() const;
+        void Restore(const SUndoState& s);
+        [[nodiscard]] static size_t HashState(const SUndoState& s);
+        void CommitUndoIfSettled(bool interacting);
+
+        std::vector<SUndoState> m_Undo, m_Redo;
+        SUndoState m_Committed;      // the last committed (stable) state
+        size_t m_CommittedHash = 0;
+
         std::vector<SNode> m_Nodes;
         int m_NextId = 1;
 

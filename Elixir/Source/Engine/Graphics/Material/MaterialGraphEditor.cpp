@@ -144,6 +144,8 @@ namespace Elixir
         m_Channels[0] = m;
 
         m_LastSig = Signature(); // seed graph isn't "dirty" until the user edits it
+        m_Committed = Capture();
+        m_CommittedHash = HashState(m_Committed);
     }
 
     int MaterialGraphEditor::AddNode(EMaterialNodeType type, const glm::vec2& pos)
@@ -509,6 +511,31 @@ namespace Elixir
             m_LinkFrom = -1;
         }
 
+        // --- Undo / redo ---
+        bool interacting = ImGui::IsAnyItemActive() || ImGui::IsMouseDown(ImGuiMouseButton_Left)
+            || ImGui::IsMouseDown(ImGuiMouseButton_Middle) || m_LinkFrom >= 0;
+        if (ImGui::IsWindowFocused())
+        {
+            const bool mod = io.KeyCtrl || io.KeySuper; // Ctrl / Cmd
+            const bool undo = mod && !io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z);
+            const bool redo = mod && (ImGui::IsKeyPressed(ImGuiKey_Y) || (io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z)));
+            if (undo && !m_Undo.empty())
+            {
+                m_Redo.push_back(m_Committed);
+                m_Committed = m_Undo.back(); m_Undo.pop_back();
+                Restore(m_Committed); m_CommittedHash = HashState(m_Committed);
+                interacting = true;
+            }
+            else if (redo && !m_Redo.empty())
+            {
+                m_Undo.push_back(m_Committed);
+                m_Committed = m_Redo.back(); m_Redo.pop_back();
+                Restore(m_Committed); m_CommittedHash = HashState(m_Committed);
+                interacting = true;
+            }
+        }
+        CommitUndoIfSettled(interacting);
+
         dl->PopClipRect(); // end canvas clip
 
         ImGui::End();
@@ -731,6 +758,73 @@ namespace Elixir
             out[slot++] = it != m_ParamOverrides.end() ? it->second : n.Constant;
         }
         return slot;
+    }
+
+    MaterialGraphEditor::SUndoState MaterialGraphEditor::Capture() const
+    {
+        SUndoState s;
+        s.Nodes = m_Nodes;
+        for (int i = 0; i < 11; ++i) s.Channels[i] = m_Channels[i];
+        s.TargetMaterial = m_TargetMaterial;
+        s.BlendMode = m_BlendMode;
+        s.ShadingModel = m_ShadingModel;
+        s.NextId = m_NextId;
+        s.AlphaCutoff = m_AlphaCutoff;
+        s.Overrides = m_ParamOverrides;
+        return s;
+    }
+
+    void MaterialGraphEditor::Restore(const SUndoState& s)
+    {
+        m_Nodes = s.Nodes;
+        for (int i = 0; i < 11; ++i) m_Channels[i] = s.Channels[i];
+        m_TargetMaterial = s.TargetMaterial;
+        m_BlendMode = s.BlendMode;
+        m_ShadingModel = s.ShadingModel;
+        m_NextId = s.NextId;
+        m_AlphaCutoff = s.AlphaCutoff;
+        m_ParamOverrides = s.Overrides;
+        m_LinkFrom = -1;
+    }
+
+    size_t MaterialGraphEditor::HashState(const SUndoState& s)
+    {
+        size_t h = 1469598103934665603ull;
+        const auto mix = [&](size_t v) { h ^= v; h *= 1099511628211ull; };
+        const auto mixf = [&](float f) { uint32_t u = 0; std::memcpy(&u, &f, sizeof(u)); mix(u); };
+        for (const auto& n : s.Nodes)
+        {
+            mix((size_t)n.Type); mix((size_t)n.Id); mix((size_t)n.InputCount); mix((size_t)n.TexSlot);
+            mixf(n.Pos.x); mixf(n.Pos.y);
+            mixf(n.Constant.x); mixf(n.Constant.y); mixf(n.Constant.z); mixf(n.Constant.w);
+            for (int i = 0; i < 3; ++i) mix((size_t)(n.Inputs[i] + 2));
+            for (const char* p = n.Param; *p; ++p) mix((size_t)*p);
+            for (const char* p = n.Code; *p; ++p) mix((size_t)*p);
+        }
+        for (int i = 0; i < 11; ++i) mix((size_t)(s.Channels[i] + 2));
+        mix((size_t)s.TargetMaterial); mix((size_t)s.BlendMode); mix((size_t)s.ShadingModel);
+        mixf(s.AlphaCutoff);
+        for (const auto& [name, v] : s.Overrides)
+        {
+            for (char c : name) mix((size_t)c);
+            mixf(v.x); mixf(v.y); mixf(v.z); mixf(v.w);
+        }
+        return h;
+    }
+
+    void MaterialGraphEditor::CommitUndoIfSettled(bool interacting)
+    {
+        if (interacting)
+            return;
+        SUndoState cur = Capture();
+        const size_t h = HashState(cur);
+        if (h == m_CommittedHash)
+            return;
+        m_Undo.push_back(std::move(m_Committed));
+        if (m_Undo.size() > 128) m_Undo.erase(m_Undo.begin());
+        m_Committed = std::move(cur);
+        m_CommittedHash = h;
+        m_Redo.clear();
     }
 
     bool MaterialGraphEditor::Save(const std::string& path) const
