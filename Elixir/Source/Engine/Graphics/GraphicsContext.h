@@ -63,12 +63,14 @@ namespace Elixir
          */
         virtual void BlitToTexture(const Ref<CommandBuffer>& cmd, const Ref<Texture2D>& dst) const = 0;
 
-        // Dear ImGui integration. InitImGui sets up the backend; the app then calls
-        // BeginImGuiFrame, issues ImGui:: UI calls, and EndImGuiFrame (which draws
-        // the UI over the render target). No-ops on backends without ImGui support.
+        // Dear ImGui integration. The app builds a frame between BeginImGuiFrame()
+        // and EndImGuiFrame() on the UI thread. RenderImGuiFrame() records the
+        // completed frame over the render target on the render thread. No-ops on
+        // backends without ImGui support.
         virtual void InitImGui() {}
         virtual void BeginImGuiFrame() {}
         virtual void EndImGuiFrame() {}
+        virtual void RenderImGuiFrame() {}
 
         // Block until the GPU has finished all submitted work. Needed before
         // destroying resources (e.g. recreating pipelines) that in-flight frames

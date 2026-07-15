@@ -59,6 +59,18 @@ namespace Elixir
 
     /* VulkanGraphicsContext */
 
+    struct VulkanGraphicsContext::SImGuiDrawSnapshot
+    {
+        ImDrawData DrawData;
+        std::vector<ImDrawList*> CmdLists;
+
+        ~SImGuiDrawSnapshot()
+        {
+            for (ImDrawList* list : CmdLists)
+                IM_DELETE(list);
+        }
+    };
+
     VulkanGraphicsContext::VulkanGraphicsContext(const EGraphicsAPI api, Executor* executor, const Window* window)
         : GraphicsContext(api, window), m_Executor(executor)
     {
@@ -156,6 +168,7 @@ namespace Elixir
         {
             if (!Prepare())
             {
+                DiscardImGuiFrame();
                 m_FrameSemaphore.release();
                 return;
             }
@@ -644,9 +657,8 @@ namespace Elixir
         m_ImGuiInitialized = true;
     }
 
-    // Called on the main thread (input/UI): GLFW's NewFrame must not run on the
-    // render thread. If the previous frame's RenderFrame was skipped, close the
-    // orphaned ImGui frame so NewFrame/Render stay paired.
+    // Called on the main thread: GLFW input and all ImGui context mutations stay
+    // here. EndImGuiFrame() snapshots the finished draw lists before the next frame.
     void VulkanGraphicsContext::BeginImGuiFrame()
     {
         if (!m_ImGuiInitialized) return;
@@ -658,13 +670,58 @@ namespace Elixir
         m_ImGuiFrameStarted = true;
     }
 
-    // Called on the render thread: only the Vulkan draw happens here.
+    // Called on the main thread after all ImGui windows have been submitted. Dear
+    // ImGui owns its draw lists only until the following NewFrame(), so clone them
+    // into a frame-local snapshot before the render thread can consume them.
     void VulkanGraphicsContext::EndImGuiFrame()
     {
         if (!m_ImGuiInitialized || !m_ImGuiFrameStarted) return;
         m_ImGuiFrameStarted = false;
 
         ImGui::Render();
+        const ImDrawData* drawData = ImGui::GetDrawData();
+        auto snapshot = CreateScope<SImGuiDrawSnapshot>();
+        snapshot->DrawData.Valid = drawData->Valid;
+        snapshot->DrawData.DisplayPos = drawData->DisplayPos;
+        snapshot->DrawData.DisplaySize = drawData->DisplaySize;
+        snapshot->DrawData.FramebufferScale = drawData->FramebufferScale;
+        snapshot->DrawData.OwnerViewport = drawData->OwnerViewport;
+        snapshot->CmdLists.reserve(drawData->CmdListsCount);
+        for (int i = 0; i < drawData->CmdListsCount; ++i)
+        {
+            const ImDrawList* source = drawData->CmdLists[i];
+            ImDrawList* list = source->CloneOutput();
+
+            // CloneOutput() copies the renderable buffers, not the construction
+            // cursors expected by AddDrawList(). Register the finished list directly
+            // and keep callback payloads owned by the snapshot as well.
+            list->_CallbacksDataBuf = source->_CallbacksDataBuf;
+            for (ImDrawCmd& cmd : list->CmdBuffer)
+                if (cmd.UserCallback != nullptr && cmd.UserCallbackDataOffset != -1 && cmd.UserCallbackDataSize > 0)
+                    cmd.UserCallbackData = list->_CallbacksDataBuf.Data + cmd.UserCallbackDataOffset;
+
+            snapshot->CmdLists.push_back(list);
+            snapshot->DrawData.CmdLists.push_back(list);
+            snapshot->DrawData.CmdListsCount++;
+            snapshot->DrawData.TotalVtxCount += list->VtxBuffer.Size;
+            snapshot->DrawData.TotalIdxCount += list->IdxBuffer.Size;
+        }
+
+        std::lock_guard<std::mutex> lock(m_ImGuiSnapshotsMutex);
+        m_ImGuiSnapshots.push_back(std::move(snapshot));
+    }
+
+    // Called on the render thread. The copied draw data remains valid while command
+    // recording; the main thread may already be building the next ImGui frame.
+    void VulkanGraphicsContext::RenderImGuiFrame()
+    {
+        Scope<SImGuiDrawSnapshot> snapshot;
+        {
+            std::lock_guard<std::mutex> lock(m_ImGuiSnapshotsMutex);
+            if (m_ImGuiSnapshots.empty()) return;
+            snapshot = std::move(m_ImGuiSnapshots.front());
+            m_ImGuiSnapshots.pop_front();
+        }
 
         const auto extent = m_RenderTarget->GetExtent();
         const auto cmd = GetSecondaryCommandBuffer();
@@ -674,10 +731,17 @@ namespace Elixir
         };
         cmd->BeginRendering(info);
         ImGui_ImplVulkan_RenderDrawData(
-            ImGui::GetDrawData(),
+            &snapshot->DrawData,
             std::static_pointer_cast<VulkanCommandBuffer>(cmd)->GetVulkanCommandBuffer());
         cmd->EndRendering();
         EnqueueSecondaryCommandBuffer(cmd);
+    }
+
+    void VulkanGraphicsContext::DiscardImGuiFrame()
+    {
+        std::lock_guard<std::mutex> lock(m_ImGuiSnapshotsMutex);
+        if (!m_ImGuiSnapshots.empty())
+            m_ImGuiSnapshots.pop_front();
     }
 
     void VulkanGraphicsContext::Submit()

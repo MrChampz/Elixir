@@ -352,10 +352,17 @@ namespace Elixir
 
             ImGui::PushID((const void*)&com); // pointer id can't collide with node ids
 
+            // The label owns the left side of the title bar. Keep the drag zone to
+            // its right so InputText never competes with cdrag for the active ID.
+            constexpr float LABEL_INSET = 4.0f;
+            const float labelWidth = com.Size.x * 0.7f;
+            const float dragX = cmin.x + LABEL_INSET + labelWidth;
+            const float dragWidth = std::max(1.0f, com.Size.x - LABEL_INSET - labelWidth);
+
             // Title bar: drag to move, right-click to delete.
-            ImGui::SetCursorScreenPos(cmin);
+            ImGui::SetCursorScreenPos(ImVec2(dragX, cmin.y));
             ImGui::SetNextItemAllowOverlap();
-            ImGui::InvisibleButton("cdrag", ImVec2(com.Size.x, 20.0f));
+            ImGui::InvisibleButton("cdrag", ImVec2(dragWidth, 20.0f));
             if (ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left))
             {
                 com.Pos.x += io.MouseDelta.x;
@@ -365,8 +372,8 @@ namespace Elixir
                 deleteComment = (int)ci;
 
             // Editable label (left part of the title; the rest stays a drag zone).
-            ImGui::SetCursorScreenPos(ImVec2(cmin.x + 4.0f, cmin.y + 1.0f));
-            ImGui::SetNextItemWidth(com.Size.x * 0.7f);
+            ImGui::SetCursorScreenPos(ImVec2(cmin.x + LABEL_INSET, cmin.y + 1.0f));
+            ImGui::SetNextItemWidth(labelWidth);
             ImGui::InputText("##ctext", com.Text, sizeof(com.Text));
 
             // Resize grip (bottom-right).

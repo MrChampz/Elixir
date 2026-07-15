@@ -222,6 +222,10 @@ void Dissolve::OnGUI(const Timestep frameTime)
 
     // Snapshot exposed-parameter values (main thread) for the render thread to push.
     m_GraphParamCount = m_GraphEditor.CollectParams(m_GraphParams, 8);
+
+    // Finalize and snapshot ImGui on this thread. The render thread later consumes
+    // immutable draw data, so it never races the next ImGui::NewFrame().
+    m_GraphicsContext->EndImGuiFrame();
 }
 
 void Dissolve::DrawMaterialEditor()
@@ -292,9 +296,9 @@ void Dissolve::OnRender(const Timestep frameTime)
     m_MeshRenderer->Render(m_Model, m_CameraController->GetCamera());
     m_PostProcessor->Apply();
 
-    // Submit the ImGui draw data (built in OnGUI) on the render thread, where the
+    // Submit the ImGui snapshot built in OnGUI on the render thread, where the
     // render target is in a renderable layout.
-    m_GraphicsContext->EndImGuiFrame();
+    m_GraphicsContext->RenderImGuiFrame();
 }
 
 void Dissolve::OnEvent(Event& event)

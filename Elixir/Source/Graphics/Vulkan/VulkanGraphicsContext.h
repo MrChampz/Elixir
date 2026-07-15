@@ -11,6 +11,9 @@
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
 
+#include <deque>
+#include <mutex>
+
 namespace Elixir::Vulkan
 {
     class VulkanCommandBuffer;
@@ -74,6 +77,7 @@ namespace Elixir::Vulkan
         void InitImGui() override;
         void BeginImGuiFrame() override;
         void EndImGuiFrame() override;
+        void RenderImGuiFrame() override;
 
         Extent3D GetSwapchainExtent() const override { return m_SwapchainExtent;}
 
@@ -115,6 +119,9 @@ namespace Elixir::Vulkan
         void Submit();
         void Present();
 
+        struct SImGuiDrawSnapshot;
+        void DiscardImGuiFrame();
+
         bool HandleFramebufferResize(const FramebufferResizeEvent& event);
 
         bool m_IsInitialized = false;
@@ -151,6 +158,8 @@ namespace Elixir::Vulkan
 
         bool m_ImGuiInitialized = false;
         bool m_ImGuiFrameStarted = false;
+        std::mutex m_ImGuiSnapshotsMutex;
+        std::deque<Scope<SImGuiDrawSnapshot>> m_ImGuiSnapshots;
 
         Scope<VulkanCommandPoolManager> m_CommandPoolManager;
         Ref<VulkanCommandBuffer> m_MainCommandBuffer;
