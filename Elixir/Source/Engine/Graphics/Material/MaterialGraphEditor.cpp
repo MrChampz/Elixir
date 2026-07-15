@@ -144,6 +144,7 @@ namespace Elixir
         m_Channels[0] = m;
 
         m_LastSig = Signature(); // seed graph isn't "dirty" until the user edits it
+        m_LastStructHash = StructHash();
         m_Committed = Capture();
         m_CommittedHash = HashState(m_Committed);
     }
@@ -681,11 +682,19 @@ namespace Elixir
         // drag doesn't recompile every frame. Values that stream live (params) are
         // excluded from the signature.
         constexpr double DEBOUNCE = 0.3;
-        const size_t sig = Signature();
-        if (sig != m_LastSig)
+        // Only run the expensive HLSL-generating Signature() when the cheap structural
+        // hash says the graph might have changed -- otherwise it ran every frame and
+        // could push the UI thread over the frame budget (scene hitch while typing).
+        const size_t structHash = StructHash();
+        if (structHash != m_LastStructHash)
         {
-            m_LastSig = sig;
-            m_DirtySince = ImGui::GetTime();
+            m_LastStructHash = structHash;
+            const size_t sig = Signature();
+            if (sig != m_LastSig)
+            {
+                m_LastSig = sig;
+                m_DirtySince = ImGui::GetTime();
+            }
         }
         // Only fire once the change settles AND nothing is being interacted with, so a
         // recompile never lands mid-drag (e.g. while editing/resizing a comment).
@@ -837,6 +846,27 @@ namespace Elixir
         h ^= (size_t)m_TargetMaterial * 0x9e3779b97f4a7c15ull;       // re-apply on slot change
         h ^= (size_t)m_BlendMode * 0xc2b2ae3d27d4eb4full;           // ...and on blend-mode change
         h ^= (size_t)m_ShadingModel * 0x165667b19e3779f9ull;       // ...and on shading-model change
+        return h;
+    }
+
+    size_t MaterialGraphEditor::StructHash() const
+    {
+        // Fast: hashes the fields that can affect the generated shader, skipping node
+        // positions/comments and the HLSL generation. Gates the expensive Signature().
+        size_t h = 1469598103934665603ull;
+        const auto mix = [&](size_t v) { h ^= v; h *= 1099511628211ull; };
+        const auto mixf = [&](float f) { uint32_t u = 0; std::memcpy(&u, &f, sizeof(u)); mix(u); };
+        for (const auto& n : m_Nodes)
+        {
+            mix((size_t)n.Type); mix((size_t)n.Id); mix((size_t)n.InputCount); mix((size_t)n.TexSlot);
+            mixf(n.Constant.x); mixf(n.Constant.y); mixf(n.Constant.z); mixf(n.Constant.w);
+            for (int i = 0; i < 3; ++i) mix((size_t)(n.Inputs[i] + 2));
+            for (const char* p = n.Param; *p; ++p) mix((size_t)*p);
+            for (const char* p = n.Code; *p; ++p) mix((size_t)*p);
+        }
+        for (int i = 0; i < 11; ++i) mix((size_t)(m_Channels[i] + 2));
+        mix((size_t)m_TargetMaterial); mix((size_t)m_BlendMode); mix((size_t)m_ShadingModel);
+        mixf(m_AlphaCutoff);
         return h;
     }
 

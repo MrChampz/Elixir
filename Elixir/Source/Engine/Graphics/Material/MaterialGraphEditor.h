@@ -86,6 +86,11 @@ namespace Elixir
         // values, which update live without recompiling. Drives live-preview.
         [[nodiscard]] size_t Signature() const;
 
+        // Cheap per-frame hash of the shader-affecting editor state (no HLSL
+        // generation), used to gate the expensive Signature() so it only runs when
+        // the graph actually changed.
+        [[nodiscard]] size_t StructHash() const;
+
         // --- Undo / redo ---
         // A full snapshot of the editable document state (not view state like pan).
         struct SUndoState
@@ -147,6 +152,7 @@ namespace Elixir
         // Live preview: auto-recompile a short debounce after the graph changes.
         bool m_LivePreview = true;
         size_t m_LastSig = 0;
+        size_t m_LastStructHash = 0;
         double m_DirtySince = -1.0; // < 0 = not dirty
     };
 }
