@@ -287,11 +287,15 @@ namespace Elixir
         const float NODE_W = 150.0f;
         const float PIN_R = 6.0f;
 
-        // Pan: drag on empty canvas (nothing else grabbed) or middle-drag anywhere.
-        // No background button, so node/pin buttons keep their interaction.
+        // Background catcher: consumes drags on empty canvas (so they pan instead of
+        // moving the window) while SetNextItemAllowOverlap lets the node/pin buttons
+        // submitted on top still take their interaction.
         const ImVec2 avail = ImGui::GetContentRegionAvail();
-        if (ImGui::IsWindowHovered() && !ImGui::IsAnyItemActive()
-            && (ImGui::IsMouseDragging(ImGuiMouseButton_Left) || ImGui::IsMouseDragging(ImGuiMouseButton_Middle)))
+        ImGui::SetCursorScreenPos(origin);
+        ImGui::SetNextItemAllowOverlap();
+        ImGui::InvisibleButton("canvas", ImVec2(avail.x > 1.0f ? avail.x : 1.0f, avail.y > 1.0f ? avail.y : 1.0f),
+            ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonMiddle);
+        if (ImGui::IsItemActive() && (ImGui::IsMouseDragging(ImGuiMouseButton_Left) || ImGui::IsMouseDragging(ImGuiMouseButton_Middle)))
         {
             m_Pan.x += io.MouseDelta.x;
             m_Pan.y += io.MouseDelta.y;
