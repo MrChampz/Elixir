@@ -184,6 +184,7 @@ namespace Elixir
             if (ch == id) ch = -1;
         if (m_LinkFrom == id)
             m_LinkFrom = -1;
+        m_Selected.erase(std::remove(m_Selected.begin(), m_Selected.end(), id), m_Selected.end());
     }
 
     const MaterialGraphEditor::SNode* MaterialGraphEditor::Find(int id) const
@@ -302,6 +303,8 @@ namespace Elixir
             m_Pan.x += io.MouseDelta.x;
             m_Pan.y += io.MouseDelta.y;
         }
+        if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && !io.KeyShift)
+            m_Selected.clear(); // click empty canvas to deselect
 
         // Canvas origin with the pan offset applied (all node/pin/link coords use it).
         const ImVec2 base = ImVec2(origin.x + m_Pan.x, origin.y + m_Pan.y);
@@ -348,6 +351,22 @@ namespace Elixir
             if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
                 deleteId = node.Id;
 
+            // Selection: click selects (shift-click toggles) for copy/paste.
+            const bool selected = std::find(m_Selected.begin(), m_Selected.end(), node.Id) != m_Selected.end();
+            if (ImGui::IsItemActivated())
+            {
+                if (io.KeyShift)
+                {
+                    if (selected) m_Selected.erase(std::remove(m_Selected.begin(), m_Selected.end(), node.Id), m_Selected.end());
+                    else m_Selected.push_back(node.Id);
+                }
+                else if (!selected)
+                {
+                    m_Selected.clear();
+                    m_Selected.push_back(node.Id);
+                }
+            }
+
             // Nodes with two stacked body widgets (text + combo) need room for both.
             const int widgetRows =
                 (node.Type == EMaterialNodeType::Custom || node.Type == EMaterialNodeType::FunctionInput) ? 2 : 1;
@@ -358,7 +377,8 @@ namespace Elixir
 
             dl->AddRectFilled(rmin, rmax, IM_COL32(42, 42, 52, 235), 4.0f);
             dl->AddRectFilled(rmin, ImVec2(rmax.x, rmin.y + 20.0f), IM_COL32(70, 70, 95, 255), 4.0f);
-            dl->AddRect(rmin, rmax, IM_COL32(100, 100, 125, 255), 4.0f);
+            dl->AddRect(rmin, rmax, selected ? IM_COL32(255, 210, 90, 255) : IM_COL32(100, 100, 125, 255),
+                4.0f, 0, selected ? 2.0f : 1.0f);
             dl->AddText(ImVec2(rmin.x + 8.0f, rmin.y + 3.0f), IM_COL32_WHITE, NodeName(node.Type));
 
             // Value editors.
@@ -519,6 +539,33 @@ namespace Elixir
             const bool mod = io.KeyCtrl || io.KeySuper; // Ctrl / Cmd
             const bool undo = mod && !io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z);
             const bool redo = mod && (ImGui::IsKeyPressed(ImGuiKey_Y) || (io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z)));
+
+            // Copy selected nodes; paste duplicates them (new ids, offset, internal
+            // wiring remapped, external inputs kept).
+            if (mod && ImGui::IsKeyPressed(ImGuiKey_C) && !m_Selected.empty())
+            {
+                m_Clipboard.clear();
+                for (const int id : m_Selected)
+                    if (const SNode* n = Find(id)) m_Clipboard.push_back(*n);
+            }
+            if (mod && ImGui::IsKeyPressed(ImGuiKey_V) && !m_Clipboard.empty())
+            {
+                std::unordered_map<int, int> idMap;
+                for (const auto& src : m_Clipboard) idMap[src.Id] = m_NextId++;
+                m_Selected.clear();
+                for (const auto& src : m_Clipboard)
+                {
+                    SNode c = src;
+                    c.Id = idMap[src.Id];
+                    c.Pos.x += 30.0f;
+                    c.Pos.y += 30.0f;
+                    for (int i = 0; i < 3; ++i)
+                        if (c.Inputs[i] >= 0 && idMap.count(c.Inputs[i]))
+                            c.Inputs[i] = idMap[c.Inputs[i]]; // internal link -> the copy
+                    m_Nodes.push_back(c);
+                    m_Selected.push_back(c.Id);
+                }
+            }
             if (undo && !m_Undo.empty())
             {
                 m_Redo.push_back(m_Committed);

@@ -128,6 +128,10 @@ namespace Elixir
         // Canvas pan offset (drag empty background or middle-mouse to move all nodes).
         glm::vec2 m_Pan{ 0.0f, 0.0f };
 
+        // Selection (click / shift-click node headers) and copy/paste clipboard.
+        std::vector<int> m_Selected;
+        std::vector<SNode> m_Clipboard;
+
         // Live preview: auto-recompile a short debounce after the graph changes.
         bool m_LivePreview = true;
         size_t m_LastSig = 0;
