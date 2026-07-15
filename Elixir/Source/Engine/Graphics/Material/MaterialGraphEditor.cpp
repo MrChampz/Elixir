@@ -347,7 +347,7 @@ namespace Elixir
             dl->AddRect(cmin, cmax, IM_COL32(120, 180, 140, 160), 4.0f);
             dl->AddRectFilled(cmin, ImVec2(cmax.x, cmin.y + 20.0f), IM_COL32(70, 100, 80, 150), 4.0f);
 
-            ImGui::PushID(2000 + (int)ci);
+            ImGui::PushID((const void*)&com); // pointer id can't collide with node ids
 
             // Title bar: drag to move, right-click to delete.
             ImGui::SetCursorScreenPos(cmin);
@@ -685,7 +685,9 @@ namespace Elixir
             m_LastSig = sig;
             m_DirtySince = ImGui::GetTime();
         }
-        if (m_LivePreview && m_DirtySince >= 0.0 && ImGui::GetTime() - m_DirtySince > DEBOUNCE)
+        // Only fire once the change settles AND nothing is being interacted with, so a
+        // recompile never lands mid-drag (e.g. while editing/resizing a comment).
+        if (m_LivePreview && m_DirtySince >= 0.0 && ImGui::GetTime() - m_DirtySince > DEBOUNCE && !interacting)
         {
             m_DirtySince = -1.0;
             apply = true;
