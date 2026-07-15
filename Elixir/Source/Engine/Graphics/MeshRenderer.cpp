@@ -390,9 +390,24 @@ namespace Elixir
         cmd->SetViewports({ viewport });
         cmd->SetScissors({ scissor });
         boundPipeline = nullptr;
+
+        // Sort blended primitives back-to-front so their alpha compositing is ordered.
+        // The primitive's world transform origin is a cheap depth proxy (exact
+        // per-triangle sorting is out of scope); good enough for separated panels.
+        const glm::vec3 camPos = camera.GetPosition();
+        const auto depthProxy = [&](const SModelPrimitive* p)
+        {
+            const glm::vec3 d = glm::vec3(p->Transform[3]) - camPos;
+            return glm::dot(d, d);
+        };
+        std::vector<const SModelPrimitive*> blended;
         for (const auto& primitive : model->GetPrimitives())
             if (isBlend(primitive))
-                drawPrimitive(primitive);
+                blended.push_back(&primitive);
+        std::sort(blended.begin(), blended.end(),
+            [&](const SModelPrimitive* a, const SModelPrimitive* b) { return depthProxy(a) > depthProxy(b); });
+        for (const auto* primitive : blended)
+            drawPrimitive(*primitive);
         cmd->EndRendering();
 
         m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
