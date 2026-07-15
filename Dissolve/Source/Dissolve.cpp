@@ -166,12 +166,20 @@ void Dissolve::StartGraphCompile()
     m_CompileSlot = (uint32_t)m_GraphEditor.TargetMaterial();
     m_CompileBlend = m_GraphEditor.BlendMode();
 
-    // DXC + file IO only (no Vulkan) -> safe on a worker thread.
+    // Do the whole build on a worker thread -- DXC (no Vulkan) plus the Vulkan
+    // shader/pipeline creation -- so neither the render thread nor the UI thread
+    // stalls on the Metal pipeline compile. MeshRenderer::Render installs the result.
     m_Executor.Enqueue([this]()
     {
-        auto compiled = MaterialCompiler::CompileToSpirv(m_CompileGraph);
+        bool ok = false;
+        if (const auto compiled = MaterialCompiler::CompileToSpirv(m_CompileGraph))
+            if (const auto shader = MaterialCompiler::LoadCompiled(m_ShaderLoader.get(), *compiled))
+            {
+                m_MeshRenderer->PrepareMaterialShader(m_CompileSlot, shader, m_CompileBlend);
+                ok = true;
+            }
         std::lock_guard<std::mutex> lock(m_CompileMutex);
-        m_CompiledResult = compiled;
+        m_CompileOk = ok;
         m_CompileReady = true;
     });
 }
@@ -197,22 +205,17 @@ void Dissolve::OnGUI(const Timestep frameTime)
 
     // Finish a ready compile on the main thread (Vulkan shader creation), then hand
     // it to the render thread to bind.
-    bool ready = false;
-    std::optional<MaterialCompiler::SCompiled> result;
+    bool ready = false, ok = false;
     {
         std::lock_guard<std::mutex> lock(m_CompileMutex);
-        if (m_CompileReady) { ready = true; result = m_CompiledResult; m_CompileReady = false; }
+        if (m_CompileReady) { ready = true; ok = m_CompileOk; m_CompileReady = false; }
     }
     if (ready)
     {
-        if (result)
-            if (const auto shader = MaterialCompiler::LoadCompiled(m_ShaderLoader.get(), *result))
-            {
-                // Build the variant (incl. pipeline creation) here on the main thread;
-                // Render installs it, so the scene doesn't hitch on the Metal compile.
-                m_MeshRenderer->PrepareMaterialShader(m_CompileSlot, shader, m_CompileBlend);
-                m_AppliedParamSlot = (int)m_CompileSlot;
-            }
+        // The worker already built + queued the variant; just note the slot so its
+        // live params get pushed, and kick off any change that arrived mid-compile.
+        if (ok)
+            m_AppliedParamSlot = (int)m_CompileSlot;
         m_Compiling = false;
         if (m_RecompileQueued) { m_RecompileQueued = false; StartGraphCompile(); }
     }

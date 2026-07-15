@@ -44,20 +44,17 @@ private:
     Ref<Model> m_Model;
 
     MaterialGraphEditor m_GraphEditor;
-    Ref<Shader> m_PendingGraphShader;      // loaded shader, applied on the render thread
-    uint32_t m_PendingGraphMaterial = 0;   // material slot the pending shader targets
 
-    // Async graph compilation: DXC runs on a worker thread; the Vulkan shader load
-    // and pipeline swap happen on the main/render thread when it's ready.
+    // Async graph compilation: a worker thread does DXC + the Vulkan shader/pipeline
+    // build; MeshRenderer::Render installs the ready variant (no main/render stall).
     bool m_Compiling = false;
     bool m_RecompileQueued = false;        // a change arrived mid-compile; redo after
     MaterialGraph m_CompileGraph;          // snapshot handed to the worker
     uint32_t m_CompileSlot = 0;
     Elixir::EMaterialBlendMode m_CompileBlend = Elixir::EMaterialBlendMode::Opaque;
-    Elixir::EMaterialBlendMode m_PendingGraphBlend = Elixir::EMaterialBlendMode::Opaque;
     std::mutex m_CompileMutex;
     bool m_CompileReady = false;
-    std::optional<MaterialCompiler::SCompiled> m_CompiledResult;
+    bool m_CompileOk = false;
 
     void StartGraphCompile();
 
