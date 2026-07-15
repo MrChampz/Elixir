@@ -17,6 +17,7 @@ namespace Elixir
         Constant,      // a literal float4 value (colour, 0..1)
         Scalar,        // a literal single float
         Vector,        // a literal float3 with free-range components
+        Bool,          // a 0/1 toggle (scalar)
         ParamScalar,   // a live-editable exposed scalar (GraphParams[slot].x)
         ParamColor,    // a live-editable exposed colour (GraphParams[slot])
         Parameter,     // a named material-instance parameter (mat.<field>)
