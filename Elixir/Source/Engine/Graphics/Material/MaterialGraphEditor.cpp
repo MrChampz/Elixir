@@ -79,7 +79,7 @@ namespace Elixir
                 case EMaterialNodeType::Noise:         // input 0 = UV (optional)
                 case EMaterialNodeType::TextureSample: return 1; // input 0 = UV (optional)
                 case EMaterialNodeType::TextureParameter: return 1; // input 0 = UV (optional)
-                case EMaterialNodeType::TextureObjectSample: return 2; // texture object, UV (optional)
+                case EMaterialNodeType::TextureObjectSample: return 3; // texture object, UV, mip (optional)
                 default: return 0;
             }
         }
@@ -520,7 +520,8 @@ namespace Elixir
             }
 
             // Nodes with two stacked body widgets (text + combo) need room for both.
-            const int widgetRows = node.Type == EMaterialNodeType::FunctionInput ? 3
+            const int widgetRows = node.Type == EMaterialNodeType::TextureObjectSample ? 7
+                : node.Type == EMaterialNodeType::FunctionInput ? 3
                 : (node.Type == EMaterialNodeType::Custom
                     || node.Type == EMaterialNodeType::StaticBoolParameter) ? 2 : 1;
             const int rows = std::max({ node.InputCount, widgetRows, 1 });
@@ -570,6 +571,40 @@ namespace Elixir
             else if (node.Type == EMaterialNodeType::TextureParameter
                 || node.Type == EMaterialNodeType::TextureObjectParameter)
                 ImGui::InputText("##textureParam", node.Param, sizeof(node.Param));
+            else if (node.Type == EMaterialNodeType::TextureObjectSample)
+            {
+                const auto nextRow = [&]
+                {
+                    ImGui::SetCursorScreenPos(ImVec2(rmin.x + 8.0f, ImGui::GetCursorScreenPos().y));
+                };
+                int sampleType = (int)node.TextureSampleType;
+                if (ImGui::Combo("##sampleType", &sampleType, "Color\0Linear\0Normal\0Masks\0"))
+                    node.TextureSampleType = (ETextureSampleType)sampleType;
+                nextRow();
+                int address = (int)node.TextureSampleAddress;
+                if (ImGui::Combo("##sampleAddress", &address, "Wrap\0Clamp\0"))
+                    node.TextureSampleAddress = (ETextureSampleAddress)address;
+                nextRow();
+                int filter = (int)node.TextureSampleFilter;
+                if (ImGui::Combo("##sampleFilter", &filter, "Linear\0Point\0"))
+                    node.TextureSampleFilter = (ETextureSampleFilter)filter;
+                nextRow();
+                int mipMode = (int)node.TextureSampleMipMode;
+                if (ImGui::Combo("##sampleMip", &mipMode, "Mip: Auto\0Mip: Level\0Mip: Bias\0"))
+                    node.TextureSampleMipMode = (ETextureSampleMipMode)mipMode;
+                nextRow();
+                ImGui::BeginDisabled(node.TextureSampleMipMode == ETextureSampleMipMode::Auto);
+                ImGui::DragFloat("##mipValue", &node.Constant.x, 0.1f, -16.0f, 16.0f, "Mip %.1f");
+                ImGui::EndDisabled();
+                nextRow();
+                int output = (int)node.TextureSampleOutput;
+                if (ImGui::Combo("##sampleOutput", &output, "RGB\0R\0G\0B\0A\0"))
+                {
+                    node.TextureSampleOutput = (ETextureSampleOutput)output;
+                    node.OutputType = node.TextureSampleOutput == ETextureSampleOutput::RGB
+                        ? EGraphValueType::Float3 : EGraphValueType::Float;
+                }
+            }
             else if (node.Type == EMaterialNodeType::Panner)
                 ImGui::DragFloat2("##s", &node.Constant.x, 0.01f, -5.0f, 5.0f, "%.2f");
             else if (node.Type == EMaterialNodeType::Checker || node.Type == EMaterialNodeType::Noise)
@@ -635,7 +670,7 @@ namespace Elixir
                 }
                 else if (node.Type == EMaterialNodeType::TextureObjectSample)
                 {
-                    const char* labels[2] = { "Texture", "UV" };
+                    const char* labels[3] = { "Texture", "UV", "Mip" };
                     dl->AddText(ImVec2(inPos.x + 10.0f, inPos.y - 7.0f), IM_COL32(190, 190, 205, 255), labels[i]);
                 }
                 inPinPos[((long long)node.Id << 8) | i] = inPos;

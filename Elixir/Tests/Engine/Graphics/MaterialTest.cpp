@@ -91,7 +91,7 @@ TEST(MaterialInstance, PacksMissingTextureAsAnInvalidBindlessIndex)
     sample.Id = 2;
     sample.Type = EMaterialNodeType::TextureObjectSample;
     sample.OutputType = EGraphValueType::Float3;
-    sample.InputCount = 2;
+    sample.InputCount = 3;
     sample.Inputs[0] = texture.Id;
     document.Nodes.push_back(sample);
     document.Channels[(int)EMaterialChannel::BaseColor] = sample.Id;
@@ -237,9 +237,15 @@ TEST(MaterialAsset, RoundTripsGraphMaterialAndInstance)
     SMaterialGraphNode textureSampleNode;
     textureSampleNode.Id = 4;
     textureSampleNode.Type = EMaterialNodeType::TextureObjectSample;
-    textureSampleNode.OutputType = EGraphValueType::Float3;
-    textureSampleNode.InputCount = 2;
+    textureSampleNode.OutputType = EGraphValueType::Float;
+    textureSampleNode.InputCount = 3;
     textureSampleNode.Inputs[0] = textureNode.Id;
+    textureSampleNode.Constant.x = 1.25f;
+    textureSampleNode.TextureSampleType = ETextureSampleType::Masks;
+    textureSampleNode.TextureSampleAddress = ETextureSampleAddress::Clamp;
+    textureSampleNode.TextureSampleFilter = ETextureSampleFilter::Point;
+    textureSampleNode.TextureSampleMipMode = ETextureSampleMipMode::Bias;
+    textureSampleNode.TextureSampleOutput = ETextureSampleOutput::B;
     document.Nodes.push_back(textureSampleNode);
     document.NextId = 5;
 
@@ -287,6 +293,12 @@ TEST(MaterialAsset, RoundTripsGraphMaterialAndInstance)
     EXPECT_EQ(reloaded->Nodes[2].OutputType, EGraphValueType::Texture2D);
     EXPECT_EQ(reloaded->Nodes[3].Type, EMaterialNodeType::TextureObjectSample);
     EXPECT_EQ(reloaded->Nodes[3].Inputs[0], textureNode.Id);
+    EXPECT_EQ(reloaded->Nodes[3].InputCount, 3);
+    EXPECT_EQ(reloaded->Nodes[3].TextureSampleType, ETextureSampleType::Masks);
+    EXPECT_EQ(reloaded->Nodes[3].TextureSampleAddress, ETextureSampleAddress::Clamp);
+    EXPECT_EQ(reloaded->Nodes[3].TextureSampleFilter, ETextureSampleFilter::Point);
+    EXPECT_EQ(reloaded->Nodes[3].TextureSampleMipMode, ETextureSampleMipMode::Bias);
+    EXPECT_EQ(reloaded->Nodes[3].TextureSampleOutput, ETextureSampleOutput::B);
     EXPECT_EQ(reloaded->Channels[(int)EMaterialChannel::BaseColor], node.Id);
 }
 

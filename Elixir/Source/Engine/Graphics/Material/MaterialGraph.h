@@ -12,6 +12,12 @@ namespace Elixir
     // The HLSL value type a node output carries.
     enum class EGraphValueType : uint8_t { Float, Float2, Float3, Float4, Texture2D };
 
+    enum class ETextureSampleType : uint8_t { Color, Linear, Normal, Masks };
+    enum class ETextureSampleAddress : uint8_t { Wrap, Clamp };
+    enum class ETextureSampleFilter : uint8_t { Linear, Point };
+    enum class ETextureSampleMipMode : uint8_t { Auto, Level, Bias };
+    enum class ETextureSampleOutput : uint8_t { RGB, R, G, B, A };
+
     // The kind of computation a node performs. The codegen switches on this.
     enum class EMaterialNodeType : uint8_t
     {
@@ -113,6 +119,11 @@ namespace Elixir
         std::string TextureExpression;   // TextureSample -> the HLSL sample expression
         std::string CustomCode;          // Custom -> raw HLSL expression over a, b, c
         int32_t ParamSlot = 0;           // exposed runtime parameter -> GraphParams[slot]
+        ETextureSampleType TextureSampleType = ETextureSampleType::Color;
+        ETextureSampleAddress TextureSampleAddress = ETextureSampleAddress::Wrap;
+        ETextureSampleFilter TextureSampleFilter = ETextureSampleFilter::Linear;
+        ETextureSampleMipMode TextureSampleMipMode = ETextureSampleMipMode::Auto;
+        ETextureSampleOutput TextureSampleOutput = ETextureSampleOutput::RGB;
     };
 
     // A node graph describing a material's surface. Compiles to an HLSL body that

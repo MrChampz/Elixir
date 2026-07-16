@@ -24,6 +24,12 @@ cbuffer cbFrame : register(b0)
 
 [[vk::binding(1, 0)]]
 SamplerState texSampler : register(s0);
+[[vk::binding(4, 0)]]
+SamplerState texSamplerClamp : register(s1);
+[[vk::binding(5, 0)]]
+SamplerState texSamplerPoint : register(s2);
+[[vk::binding(6, 0)]]
+SamplerState texSamplerPointClamp : register(s3);
 
 struct GPUMaterial
 {

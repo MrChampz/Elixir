@@ -172,6 +172,9 @@ namespace Elixir
         SFrameData m_FrameData{};
 
         Ref<Sampler> m_Sampler;
+        Ref<Sampler> m_SamplerClamp;
+        Ref<Sampler> m_SamplerPoint;
+        Ref<Sampler> m_SamplerPointClamp;
         Ref<TextureSet> m_Textures;
         std::unordered_map<Ref<Texture>, uint32_t> m_TextureIndices;
 

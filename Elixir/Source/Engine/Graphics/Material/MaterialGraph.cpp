@@ -362,6 +362,18 @@ namespace Elixir
                     source != m_Nodes.end() && source->second.OutputType != EGraphValueType::Texture2D)
                     add(EMaterialDiagnosticSeverity::Error, diagnosticId,
                         "Sample Texture input 1 must be a Texture Object.");
+                if ((uint8_t)node.TextureSampleType > (uint8_t)ETextureSampleType::Masks
+                    || (uint8_t)node.TextureSampleAddress > (uint8_t)ETextureSampleAddress::Clamp
+                    || (uint8_t)node.TextureSampleFilter > (uint8_t)ETextureSampleFilter::Point
+                    || (uint8_t)node.TextureSampleMipMode > (uint8_t)ETextureSampleMipMode::Bias
+                    || (uint8_t)node.TextureSampleOutput > (uint8_t)ETextureSampleOutput::A)
+                    add(EMaterialDiagnosticSeverity::Error, diagnosticId,
+                        "Sample Texture contains an invalid sampling option.");
+                const EGraphValueType expectedOutput = node.TextureSampleOutput == ETextureSampleOutput::RGB
+                    ? EGraphValueType::Float3 : EGraphValueType::Float;
+                if (node.OutputType != expectedOutput)
+                    add(EMaterialDiagnosticSeverity::Error, diagnosticId,
+                        "Sample Texture output type does not match its selected channel.");
             }
             if (node.Type == EMaterialNodeType::Custom && node.CustomCode.empty())
                 add(EMaterialDiagnosticSeverity::Warning, diagnosticId, "Custom HLSL is empty and will evaluate its first input.");
@@ -565,9 +577,52 @@ namespace Elixir
                     ? A(0) : std::string("0xffffffffu");
                 const std::string uv = node.Inputs.size() < 2 || node.Inputs[1] < 0
                     ? std::string("input.TexCoord") : Widen(A(1), AT(1), EGraphValueType::Float2);
-                expr = "(" + index + " == 0xffffffffu ? float3(1.0, 1.0, 1.0) : SampleTex("
-                    + index + ", " + uv + "))";
-                type = EGraphValueType::Float3;
+                const std::string mip = node.Inputs.size() < 3 || node.Inputs[2] < 0
+                    ? Num(node.ConstantValue.x) : Widen(A(2), AT(2), EGraphValueType::Float);
+
+                const bool point = node.TextureSampleFilter == ETextureSampleFilter::Point;
+                const bool clamp = node.TextureSampleAddress == ETextureSampleAddress::Clamp;
+                const std::string sampler = point
+                    ? (clamp ? "texSamplerPointClamp" : "texSamplerPoint")
+                    : (clamp ? "texSamplerClamp" : "texSampler");
+
+                std::string sample;
+                if (vertexStage || node.TextureSampleMipMode == ETextureSampleMipMode::Level)
+                {
+                    const std::string level = node.TextureSampleMipMode == ETextureSampleMipMode::Auto
+                        ? std::string("0.0") : mip;
+                    sample = "textures[" + index + "].SampleLevel(" + sampler + ", " + uv + ", " + level + ")";
+                }
+                else if (node.TextureSampleMipMode == ETextureSampleMipMode::Bias)
+                    sample = "textures[" + index + "].SampleBias(" + sampler + ", " + uv + ", " + mip + ")";
+                else
+                    sample = "textures[" + index + "].Sample(" + sampler + ", " + uv + ")";
+
+                // The texture format controls sRGB decoding. Color, Linear and Masks
+                // therefore preserve the sampled value; Normal expands [0,1] to [-1,1].
+                const bool normal = node.TextureSampleType == ETextureSampleType::Normal;
+                const std::string fallback = normal
+                    ? std::string("float4(0.5, 0.5, 1.0, 1.0)")
+                    : std::string("float4(1.0, 1.0, 1.0, 1.0)");
+                const std::string raw = "(" + index + " == 0xffffffffu ? " + fallback + " : " + sample + ")";
+
+                if (node.TextureSampleOutput == ETextureSampleOutput::RGB)
+                {
+                    expr = "(" + raw + ").rgb";
+                    if (normal)
+                        expr = "(" + expr + " * 2.0 - 1.0)";
+                    type = EGraphValueType::Float3;
+                }
+                else
+                {
+                    const char channel = node.TextureSampleOutput == ETextureSampleOutput::R ? 'r'
+                        : node.TextureSampleOutput == ETextureSampleOutput::G ? 'g'
+                        : node.TextureSampleOutput == ETextureSampleOutput::B ? 'b' : 'a';
+                    expr = "(" + raw + ")." + std::string(1, channel);
+                    if (normal && channel != 'a')
+                        expr = "(" + expr + " * 2.0 - 1.0)";
+                    type = EGraphValueType::Float;
+                }
                 break;
             }
             case EMaterialNodeType::Parameter:     expr = "mat." + node.ParameterName; type = node.OutputType; break;

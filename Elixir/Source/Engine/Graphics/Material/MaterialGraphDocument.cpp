@@ -181,6 +181,11 @@ namespace Elixir
             gn.OutputType = n.OutputType;
             gn.ConstantValue = n.Constant;
             gn.ParameterName = n.Param;
+            gn.TextureSampleType = n.TextureSampleType;
+            gn.TextureSampleAddress = n.TextureSampleAddress;
+            gn.TextureSampleFilter = n.TextureSampleFilter;
+            gn.TextureSampleMipMode = n.TextureSampleMipMode;
+            gn.TextureSampleOutput = n.TextureSampleOutput;
             if (n.Type == EMaterialNodeType::StaticBoolParameter)
             {
                 const auto override = staticOverrides.find(n.Param);
@@ -321,6 +326,9 @@ namespace Elixir
         for (const auto& n : Nodes)
         {
             mix((size_t)n.Type); mix((size_t)n.Id); mix((size_t)n.InputCount); mix((size_t)n.TexSlot);
+            mix((size_t)n.TextureSampleType); mix((size_t)n.TextureSampleAddress);
+            mix((size_t)n.TextureSampleFilter); mix((size_t)n.TextureSampleMipMode);
+            mix((size_t)n.TextureSampleOutput);
             mixf(n.Constant.x); mixf(n.Constant.y); mixf(n.Constant.z); mixf(n.Constant.w);
             for (int i = 0; i < 3; ++i) mix((size_t)(n.Inputs[i] + 2));
             for (const char* p = n.Param; *p; ++p) mix((size_t)*p);
@@ -393,6 +401,11 @@ namespace Elixir
                 << "\"param\": \"" << n.Param << "\", "
                 << "\"code\": \"" << n.Code << "\", "
                 << "\"texSlot\": " << n.TexSlot << ", "
+                << "\"sampleType\": " << (int)n.TextureSampleType << ", "
+                << "\"sampleAddress\": " << (int)n.TextureSampleAddress << ", "
+                << "\"sampleFilter\": " << (int)n.TextureSampleFilter << ", "
+                << "\"sampleMip\": " << (int)n.TextureSampleMipMode << ", "
+                << "\"sampleOutput\": " << (int)n.TextureSampleOutput << ", "
                 << "\"inputCount\": " << n.InputCount << ", "
                 << "\"inputs\": [" << n.Inputs[0] << ", " << n.Inputs[1] << ", " << n.Inputs[2] << "] }"
                 << (k + 1 < document.Nodes.size() ? "," : "") << "\n";
@@ -479,8 +492,20 @@ namespace Elixir
                 if (e["type"].get(integer) == simdjson::SUCCESS) node.Type = (EMaterialNodeType)integer;
                 if (e["outputType"].get(integer) == simdjson::SUCCESS) node.OutputType = (EGraphValueType)integer;
                 if (e["texSlot"].get(integer) == simdjson::SUCCESS) node.TexSlot = (int)integer;
+                if (e["sampleType"].get(integer) == simdjson::SUCCESS)
+                    node.TextureSampleType = (ETextureSampleType)integer;
+                if (e["sampleAddress"].get(integer) == simdjson::SUCCESS)
+                    node.TextureSampleAddress = (ETextureSampleAddress)integer;
+                if (e["sampleFilter"].get(integer) == simdjson::SUCCESS)
+                    node.TextureSampleFilter = (ETextureSampleFilter)integer;
+                if (e["sampleMip"].get(integer) == simdjson::SUCCESS)
+                    node.TextureSampleMipMode = (ETextureSampleMipMode)integer;
+                if (e["sampleOutput"].get(integer) == simdjson::SUCCESS)
+                    node.TextureSampleOutput = (ETextureSampleOutput)integer;
                 if (e["inputCount"].get(integer) == simdjson::SUCCESS)
                     node.InputCount = std::clamp((int)integer, 0, 3);
+                if (node.Type == EMaterialNodeType::TextureObjectSample)
+                    node.InputCount = 3; // migrate the original Texture + UV form
 
                 simdjson::dom::array components;
                 if (e["pos"].get(components) == simdjson::SUCCESS)

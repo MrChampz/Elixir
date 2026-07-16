@@ -36,6 +36,11 @@ namespace Elixir
         char Param[64] = "BaseColorFactor";           // Parameter
         char Code[256] = "a";                         // Custom (raw HLSL over a,b,c)
         int TexSlot = 0;                              // TextureSample (0=base..4=occlusion)
+        ETextureSampleType TextureSampleType = ETextureSampleType::Color;
+        ETextureSampleAddress TextureSampleAddress = ETextureSampleAddress::Wrap;
+        ETextureSampleFilter TextureSampleFilter = ETextureSampleFilter::Linear;
+        ETextureSampleMipMode TextureSampleMipMode = ETextureSampleMipMode::Auto;
+        ETextureSampleOutput TextureSampleOutput = ETextureSampleOutput::RGB;
         int InputCount = 0;
         int Inputs[3] = { -1, -1, -1 };               // source node ids
     };

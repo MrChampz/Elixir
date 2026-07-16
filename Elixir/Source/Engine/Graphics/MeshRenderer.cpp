@@ -20,6 +20,27 @@ namespace Elixir
 
         m_FrameBuffer = UniformBuffer::Create(context, sizeof(SFrameData), &m_FrameData);
         m_Sampler = SamplerBuilder().SetMaxLod(16.0f).Build(context);
+        m_SamplerClamp = SamplerBuilder()
+            .SetAddressModeU(ESamplerAddressMode::ClampToEdge)
+            .SetAddressModeV(ESamplerAddressMode::ClampToEdge)
+            .SetAddressModeW(ESamplerAddressMode::ClampToEdge)
+            .SetMaxLod(16.0f)
+            .Build(context);
+        m_SamplerPoint = SamplerBuilder()
+            .SetMagFilter(ESamplerFilter::Nearest)
+            .SetMinFilter(ESamplerFilter::Nearest)
+            .SetMipmapMode(ESamplerMipmapMode::Nearest)
+            .SetMaxLod(16.0f)
+            .Build(context);
+        m_SamplerPointClamp = SamplerBuilder()
+            .SetMagFilter(ESamplerFilter::Nearest)
+            .SetMinFilter(ESamplerFilter::Nearest)
+            .SetMipmapMode(ESamplerMipmapMode::Nearest)
+            .SetAddressModeU(ESamplerAddressMode::ClampToEdge)
+            .SetAddressModeV(ESamplerAddressMode::ClampToEdge)
+            .SetAddressModeW(ESamplerAddressMode::ClampToEdge)
+            .SetMaxLod(16.0f)
+            .Build(context);
         m_Textures = TextureSet::Create(context);
 
         // A 1x1 white texture keeps the bindless array non-empty; missing maps use
@@ -110,6 +131,12 @@ namespace Elixir
     {
         shader->BindConstantBuffer("cbFrame", m_FrameBuffer);
         shader->BindSampler("texSampler", m_Sampler);
+        if (shader->HasBinding("texSamplerClamp"))
+            shader->BindSampler("texSamplerClamp", m_SamplerClamp);
+        if (shader->HasBinding("texSamplerPoint"))
+            shader->BindSampler("texSamplerPoint", m_SamplerPoint);
+        if (shader->HasBinding("texSamplerPointClamp"))
+            shader->BindSampler("texSamplerPointClamp", m_SamplerPointClamp);
         shader->BindTextureSet("textures", m_Textures);
     }
 

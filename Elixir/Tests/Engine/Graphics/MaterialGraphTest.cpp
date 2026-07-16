@@ -231,7 +231,7 @@ TEST(MaterialGraph, TextureObjectParameterFeedsASeparateSampleNode)
     SMaterialNode sample;
     sample.Type = EMaterialNodeType::TextureObjectSample;
     sample.OutputType = EGraphValueType::Float3;
-    sample.Inputs = { -1, -1 };
+    sample.Inputs = { -1, -1, -1 };
     const uint32_t sampleId = graph.AddNode(sample);
     graph.Connect(objectId, sampleId, 0);
     graph.SetChannel(EMaterialChannel::BaseColor, sampleId);
@@ -239,7 +239,61 @@ TEST(MaterialGraph, TextureObjectParameterFeedsASeparateSampleNode)
     EXPECT_FALSE(graph.Validate().HasErrors());
     const std::string hlsl = graph.GenerateHLSL();
     EXPECT_NE(hlsl.find("uint n1 = (uint)(int)GraphParams[3].x"), std::string::npos);
-    EXPECT_NE(hlsl.find("SampleTex(n1, input.TexCoord)"), std::string::npos);
+    EXPECT_NE(hlsl.find("textures[n1].Sample(texSampler, input.TexCoord)"), std::string::npos);
+    EXPECT_NE(hlsl.find(").rgb"), std::string::npos);
+}
+
+TEST(MaterialGraph, TextureSampleSelectsPointClampExplicitMipAndAlpha)
+{
+    MaterialGraph graph;
+    SMaterialNode object;
+    object.Type = EMaterialNodeType::TextureObjectParameter;
+    object.OutputType = EGraphValueType::Texture2D;
+    object.ParameterName = "Mask";
+    const uint32_t objectId = graph.AddNode(object);
+
+    SMaterialNode sample;
+    sample.Type = EMaterialNodeType::TextureObjectSample;
+    sample.OutputType = EGraphValueType::Float;
+    sample.Inputs = { -1, -1, -1 };
+    sample.ConstantValue.x = 2.5f;
+    sample.TextureSampleType = ETextureSampleType::Masks;
+    sample.TextureSampleAddress = ETextureSampleAddress::Clamp;
+    sample.TextureSampleFilter = ETextureSampleFilter::Point;
+    sample.TextureSampleMipMode = ETextureSampleMipMode::Level;
+    sample.TextureSampleOutput = ETextureSampleOutput::A;
+    const uint32_t sampleId = graph.AddNode(sample);
+    graph.Connect(objectId, sampleId, 0);
+    graph.SetChannel(EMaterialChannel::Opacity, sampleId);
+
+    EXPECT_FALSE(graph.Validate().HasErrors());
+    const std::string hlsl = graph.GenerateHLSL();
+    EXPECT_NE(hlsl.find("SampleLevel(texSamplerPointClamp, input.TexCoord, 2.500000)"), std::string::npos);
+    EXPECT_NE(hlsl.find(").a"), std::string::npos);
+}
+
+TEST(MaterialGraph, TextureSampleDecodesNormalMaps)
+{
+    MaterialGraph graph;
+    SMaterialNode object;
+    object.Type = EMaterialNodeType::TextureObjectParameter;
+    object.OutputType = EGraphValueType::Texture2D;
+    object.ParameterName = "NormalMap";
+    const uint32_t objectId = graph.AddNode(object);
+
+    SMaterialNode sample;
+    sample.Type = EMaterialNodeType::TextureObjectSample;
+    sample.OutputType = EGraphValueType::Float3;
+    sample.Inputs = { -1, -1, -1 };
+    sample.TextureSampleType = ETextureSampleType::Normal;
+    const uint32_t sampleId = graph.AddNode(sample);
+    graph.Connect(objectId, sampleId, 0);
+    graph.SetChannel(EMaterialChannel::Normal, sampleId);
+
+    EXPECT_FALSE(graph.Validate().HasErrors());
+    const std::string hlsl = graph.GenerateHLSL();
+    EXPECT_NE(hlsl.find("float4(0.5, 0.5, 1.0, 1.0)"), std::string::npos);
+    EXPECT_NE(hlsl.find("* 2.0 - 1.0"), std::string::npos);
 }
 
 TEST(MaterialGraph, RejectsAnUnsampledTextureObjectAtTheMaterialOutput)
@@ -274,7 +328,7 @@ TEST(MaterialGraph, RejectsANumericValueAtTheTextureObjectInput)
     sample.SourceId = 81;
     sample.Type = EMaterialNodeType::TextureObjectSample;
     sample.OutputType = EGraphValueType::Float3;
-    sample.Inputs = { -1, -1 };
+    sample.Inputs = { -1, -1, -1 };
     const uint32_t sampleId = graph.AddNode(sample);
     graph.Connect(scalarId, sampleId, 0);
     graph.SetChannel(EMaterialChannel::BaseColor, sampleId);

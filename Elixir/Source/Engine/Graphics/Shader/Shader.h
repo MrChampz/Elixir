@@ -81,6 +81,10 @@ namespace Elixir
 
         virtual Ref<Sampler> GetSampler(const std::string& name) const;
         virtual Ref<Sampler> GetSampler(SShaderBinding binding) const;
+        [[nodiscard]] bool HasBinding(const std::string& name) const
+        {
+            return GetShaderBinding(name) != nullptr;
+        }
 
         const std::string& GetName() const { return m_Name; }
         Ref<ShaderModule> GetModule(EShaderStage stage) const;
