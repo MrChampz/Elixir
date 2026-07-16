@@ -10,7 +10,7 @@
 namespace Elixir
 {
     // The HLSL value type a node output carries.
-    enum class EGraphValueType : uint8_t { Float, Float2, Float3, Float4 };
+    enum class EGraphValueType : uint8_t { Float, Float2, Float3, Float4, Texture2D };
 
     // The kind of computation a node performs. The codegen switches on this.
     enum class EMaterialNodeType : uint8_t
@@ -46,6 +46,8 @@ namespace Elixir
         StaticBoolParameter, // named compile-time bool overridden by a material instance
         StaticSwitch,  // compile-time choice: true input, false input, static-bool condition
         TextureParameter, // instance-overridable bindless Texture2D sample
+        TextureObjectParameter, // instance-overridable bindless Texture2D handle
+        TextureObjectSample, // sample input 0 (Texture2D) at input 1 (UV)
     };
 
     // The surface output a channel drives. Together these form the "master node".
@@ -110,7 +112,7 @@ namespace Elixir
         std::string ParameterName;       // Parameter -> mat.<ParameterName>
         std::string TextureExpression;   // TextureSample -> the HLSL sample expression
         std::string CustomCode;          // Custom -> raw HLSL expression over a, b, c
-        int32_t ParamSlot = 0;           // ParamScalar/ParamColor -> GraphParams[slot]
+        int32_t ParamSlot = 0;           // exposed runtime parameter -> GraphParams[slot]
     };
 
     // A node graph describing a material's surface. Compiles to an HLSL body that

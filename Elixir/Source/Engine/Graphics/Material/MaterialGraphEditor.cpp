@@ -51,6 +51,8 @@ namespace Elixir
                 case EMaterialNodeType::StaticBoolParameter: return "Static Bool Param";
                 case EMaterialNodeType::StaticSwitch: return "Static Switch";
                 case EMaterialNodeType::TextureParameter: return "Texture Param";
+                case EMaterialNodeType::TextureObjectParameter: return "Texture Object Param";
+                case EMaterialNodeType::TextureObjectSample: return "Sample Texture";
             }
             return "Node";
         }
@@ -77,6 +79,7 @@ namespace Elixir
                 case EMaterialNodeType::Noise:         // input 0 = UV (optional)
                 case EMaterialNodeType::TextureSample: return 1; // input 0 = UV (optional)
                 case EMaterialNodeType::TextureParameter: return 1; // input 0 = UV (optional)
+                case EMaterialNodeType::TextureObjectSample: return 2; // texture object, UV (optional)
                 default: return 0;
             }
         }
@@ -98,8 +101,10 @@ namespace Elixir
                 case EMaterialNodeType::Panner:        return EGraphValueType::Float2;
                 case EMaterialNodeType::TextureSample:
                 case EMaterialNodeType::TextureParameter:
+                case EMaterialNodeType::TextureObjectSample:
                 case EMaterialNodeType::Vector:
                 case EMaterialNodeType::Position:      return EGraphValueType::Float3;
+                case EMaterialNodeType::TextureObjectParameter: return EGraphValueType::Texture2D;
                 default:                               return EGraphValueType::Float4;
             }
         }
@@ -177,7 +182,8 @@ namespace Elixir
                 : type == EMaterialNodeType::ParamColor ? "Color" : "StaticBool";
             std::strncpy(node.Param, name, sizeof(node.Param) - 1);
         }
-        if (type == EMaterialNodeType::TextureParameter)
+        if (type == EMaterialNodeType::TextureParameter
+            || type == EMaterialNodeType::TextureObjectParameter)
             std::strncpy(node.Param, "BaseColorTexture", sizeof(node.Param) - 1);
         if (type == EMaterialNodeType::FunctionInput)
             std::strncpy(node.Param, "In", sizeof(node.Param) - 1);
@@ -306,6 +312,8 @@ namespace Elixir
         addButton("Parameter", EMaterialNodeType::Parameter);
         addButton("Texture", EMaterialNodeType::TextureSample);
         addButton("Tex Param", EMaterialNodeType::TextureParameter);
+        addButton("Tex Object", EMaterialNodeType::TextureObjectParameter);
+        addButton("Sample Tex", EMaterialNodeType::TextureObjectSample);
         addButton("TexCoord", EMaterialNodeType::TexCoord);
         addButton("Position", EMaterialNodeType::Position);
         ImGui::NewLine();
@@ -512,8 +520,8 @@ namespace Elixir
             }
 
             // Nodes with two stacked body widgets (text + combo) need room for both.
-            const int widgetRows =
-                (node.Type == EMaterialNodeType::Custom || node.Type == EMaterialNodeType::FunctionInput
+            const int widgetRows = node.Type == EMaterialNodeType::FunctionInput ? 3
+                : (node.Type == EMaterialNodeType::Custom
                     || node.Type == EMaterialNodeType::StaticBoolParameter) ? 2 : 1;
             const int rows = std::max({ node.InputCount, widgetRows, 1 });
             const float bodyH = 24.0f + rows * 16.0f;
@@ -559,7 +567,8 @@ namespace Elixir
                 ImGui::InputText("##p", node.Param, sizeof(node.Param));
             else if (node.Type == EMaterialNodeType::TextureSample)
                 ImGui::Combo("##t", &node.TexSlot, kTextureSlots, IM_ARRAYSIZE(kTextureSlots));
-            else if (node.Type == EMaterialNodeType::TextureParameter)
+            else if (node.Type == EMaterialNodeType::TextureParameter
+                || node.Type == EMaterialNodeType::TextureObjectParameter)
                 ImGui::InputText("##textureParam", node.Param, sizeof(node.Param));
             else if (node.Type == EMaterialNodeType::Panner)
                 ImGui::DragFloat2("##s", &node.Constant.x, 0.01f, -5.0f, 5.0f, "%.2f");
@@ -579,6 +588,10 @@ namespace Elixir
                 ImGui::InputText("##fn", node.Param, sizeof(node.Param));
                 ImGui::SetCursorScreenPos(ImVec2(rmin.x + 8.0f, ImGui::GetCursorScreenPos().y));
                 ImGui::Combo("##sl", &node.TexSlot, "slot 0\0slot 1\0slot 2\0");
+                ImGui::SetCursorScreenPos(ImVec2(rmin.x + 8.0f, ImGui::GetCursorScreenPos().y));
+                int outputType = (int)node.OutputType;
+                if (ImGui::Combo("##fnType", &outputType, "float\0float2\0float3\0float4\0Texture2D\0"))
+                    node.OutputType = (EGraphValueType)outputType;
             }
             else if (node.Type == EMaterialNodeType::FunctionCall)
                 ImGui::InputText("##file", node.Param, sizeof(node.Param)); // function file name
@@ -590,7 +603,10 @@ namespace Elixir
                 const auto [active, hovered] = pinButton("out", outPos);
                 if (active && m_LinkFrom < 0)
                     m_LinkFrom = node.Id;
-                dl->AddCircleFilled(outPos, PIN_R, hovered ? IM_COL32(255, 220, 120, 255) : IM_COL32(220, 190, 90, 255));
+                const bool textureObject = node.OutputType == EGraphValueType::Texture2D;
+                dl->AddCircleFilled(outPos, PIN_R, hovered
+                    ? (textureObject ? IM_COL32(240, 170, 255, 255) : IM_COL32(255, 220, 120, 255))
+                    : (textureObject ? IM_COL32(190, 100, 220, 255) : IM_COL32(220, 190, 90, 255)));
             }
             outPins[node.Id] = outPos;
 
@@ -608,10 +624,18 @@ namespace Elixir
                         node.Inputs[i] = -1;
                 }
                 const bool connected = node.Inputs[i] >= 0;
-                dl->AddCircleFilled(inPos, PIN_R, connected ? IM_COL32(140, 180, 240, 255) : IM_COL32(90, 110, 150, 255));
+                const bool textureObject = node.Type == EMaterialNodeType::TextureObjectSample && i == 0;
+                dl->AddCircleFilled(inPos, PIN_R, textureObject
+                    ? (connected ? IM_COL32(210, 130, 235, 255) : IM_COL32(115, 70, 135, 255))
+                    : (connected ? IM_COL32(140, 180, 240, 255) : IM_COL32(90, 110, 150, 255)));
                 if (node.Type == EMaterialNodeType::StaticSwitch)
                 {
                     const char* labels[3] = { "True", "False", "Value" };
+                    dl->AddText(ImVec2(inPos.x + 10.0f, inPos.y - 7.0f), IM_COL32(190, 190, 205, 255), labels[i]);
+                }
+                else if (node.Type == EMaterialNodeType::TextureObjectSample)
+                {
+                    const char* labels[2] = { "Texture", "UV" };
                     dl->AddText(ImVec2(inPos.x + 10.0f, inPos.y - 7.0f), IM_COL32(190, 190, 205, 255), labels[i]);
                 }
                 inPinPos[((long long)node.Id << 8) | i] = inPos;
@@ -692,11 +716,21 @@ namespace Elixir
             {
                 for (auto& n : m_Document.Nodes)
                     if (n.Id == hovId && hovSlot < n.InputCount)
-                        n.Inputs[hovSlot] = m_LinkFrom;
+                    {
+                        const SNode* source = Find(m_LinkFrom);
+                        const bool textureObject = source && source->OutputType == EGraphValueType::Texture2D;
+                        const bool accepts = n.Type == EMaterialNodeType::TextureObjectSample
+                            ? (hovSlot == 0 ? textureObject : !textureObject)
+                            : n.Type == EMaterialNodeType::FunctionCall || !textureObject;
+                        if (accepts)
+                            n.Inputs[hovSlot] = m_LinkFrom;
+                    }
             }
             else if (hovKind == 1)
             {
-                m_Document.Channels[hovId] = m_LinkFrom;
+                const SNode* source = Find(m_LinkFrom);
+                if (source && source->OutputType != EGraphValueType::Texture2D)
+                    m_Document.Channels[hovId] = m_LinkFrom;
             }
             m_LinkFrom = -1;
         }
@@ -775,7 +809,8 @@ namespace Elixir
             for (const auto& node : pnodes)
             {
                 if (node.Type != EMaterialNodeType::ParamScalar && node.Type != EMaterialNodeType::ParamColor
-                    && node.Type != EMaterialNodeType::TextureParameter)
+                    && node.Type != EMaterialNodeType::TextureParameter
+                    && node.Type != EMaterialNodeType::TextureObjectParameter)
                     continue;
                 if (slot >= MAX_PARAMS) break;
 

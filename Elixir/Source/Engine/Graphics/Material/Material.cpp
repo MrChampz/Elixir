@@ -2,7 +2,6 @@
 #include "Material.h"
 
 #include <algorithm>
-#include <cstring>
 
 namespace Elixir
 {
@@ -112,12 +111,12 @@ namespace Elixir
                 out[parameter.Slot] = value->Vector;
             else if (parameter.Type == SMaterialParam::EType::Texture && value->Type == SMaterialParam::EType::Texture)
             {
-                uint32_t index = 0xffffffffu;
+                constexpr uint32_t invalid = 0xffffffffu;
+                uint32_t index = invalid;
                 if (value->TextureRef && textureResolver)
                     index = textureResolver(value->TextureRef);
-                float encodedIndex = 0.0f;
-                std::memcpy(&encodedIndex, &index, sizeof(index));
-                out[parameter.Slot] = glm::vec4(encodedIndex, 0.0f, 0.0f, 0.0f);
+                out[parameter.Slot] = glm::vec4(
+                    index == invalid ? NO_TEXTURE_INDEX : (float)index, 0.0f, 0.0f, 0.0f);
             }
             else
                 continue;

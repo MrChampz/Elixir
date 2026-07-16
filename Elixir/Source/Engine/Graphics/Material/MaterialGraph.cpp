@@ -19,8 +19,18 @@ namespace Elixir
                 case EGraphValueType::Float2: return "float2";
                 case EGraphValueType::Float3: return "float3";
                 case EGraphValueType::Float4: return "float4";
+                case EGraphValueType::Texture2D: return "uint"; // bindless descriptor index
             }
             return "float4";
+        }
+
+        // A texture parameter's slot carries its bindless index as a float value rather
+        // than a bit pattern (see MaterialInstance::NO_TEXTURE_INDEX), so decode it by
+        // converting, never by reinterpreting. The negative "no texture" marker wraps to
+        // the same 0xffffffffu that Texture2D values already use for it.
+        std::string TextureIndexFromSlot(const int32_t slot)
+        {
+            return "(uint)(int)GraphParams[" + std::to_string(slot) + "].x";
         }
 
         const char* ChannelName(EMaterialChannel c)
@@ -56,6 +66,7 @@ namespace Elixir
                 case EGraphValueType::Float2: return 2;
                 case EGraphValueType::Float3: return 3;
                 case EGraphValueType::Float4: return 4;
+                case EGraphValueType::Texture2D: return 0;
             }
             return 4;
         }
@@ -74,6 +85,12 @@ namespace Elixir
         {
             if (from == to)
                 return expr;
+
+            // Resource handles are not numeric graph values. Validate() reports an
+            // incompatible connection; return a safe literal so speculative codegen
+            // (used by the editor signature) still produces valid HLSL.
+            if (from == EGraphValueType::Texture2D || to == EGraphValueType::Texture2D)
+                return to == EGraphValueType::Texture2D ? "0xffffffffu" : "0.0";
 
             if (from == EGraphValueType::Float)
             {
@@ -94,6 +111,8 @@ namespace Elixir
         // Coerce an expression of `from` type to the channel's expected type.
         std::string Coerce(const std::string& expr, EGraphValueType from, EMaterialChannel channel)
         {
+            if (from == EGraphValueType::Texture2D)
+                return "float3(0.0, 0.0, 0.0)";
             const bool scalarChannel = channel == EMaterialChannel::Metallic
                 || channel == EMaterialChannel::Roughness || channel == EMaterialChannel::Opacity
                 || channel == EMaterialChannel::ClearCoat || channel == EMaterialChannel::ClearCoatRoughness
@@ -108,6 +127,7 @@ namespace Elixir
                 case EGraphValueType::Float2: return "float3(" + expr + ", 0.0)";
                 case EGraphValueType::Float3: return expr;
                 case EGraphValueType::Float4: return "(" + expr + ").rgb";
+                case EGraphValueType::Texture2D: break;
             }
             return expr;
         }
@@ -122,6 +142,7 @@ namespace Elixir
                 case EGraphValueType::Float3: return "float3(" + Num(v.x) + ", " + Num(v.y) + ", " + Num(v.z) + ")";
                 case EGraphValueType::Float4:
                     return "float4(" + Num(v.x) + ", " + Num(v.y) + ", " + Num(v.z) + ", " + Num(v.w) + ")";
+                case EGraphValueType::Texture2D: return "0xffffffffu";
             }
             return "0.0";
         }
@@ -236,10 +257,13 @@ namespace Elixir
                     "Material output '" + std::string(ChannelName((EMaterialChannel)channel)) + "' references a missing node.");
                 continue;
             }
+            if (m_Nodes.at(nodeId).OutputType == EGraphValueType::Texture2D)
+                add(EMaterialDiagnosticSeverity::Error, sourceId(nodeId),
+                    "Texture Object must be sampled before connecting it to a material output.");
             markReachable(nodeId);
         }
 
-        std::unordered_map<std::string, std::pair<EMaterialNodeType, uint32_t>> parameters;
+        std::unordered_map<std::string, std::pair<EGraphValueType, uint32_t>> parameters;
         for (const uint32_t id : reachable)
         {
             const auto it = m_Nodes.find(id);
@@ -248,17 +272,30 @@ namespace Elixir
             const SMaterialNode& node = it->second;
             const uint32_t diagnosticId = sourceId(id);
 
-            if ((uint8_t)node.Type > (uint8_t)EMaterialNodeType::TextureParameter)
+            if ((uint8_t)node.Type > (uint8_t)EMaterialNodeType::TextureObjectSample)
             {
                 add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Node has an unknown type.");
                 continue;
             }
-            if ((uint8_t)node.OutputType > (uint8_t)EGraphValueType::Float4)
+            if ((uint8_t)node.OutputType > (uint8_t)EGraphValueType::Texture2D)
                 add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Node has an invalid output type.");
 
-            for (const int32_t input : node.Inputs)
+            for (size_t inputSlot = 0; inputSlot < node.Inputs.size(); ++inputSlot)
+            {
+                const int32_t input = node.Inputs[inputSlot];
                 if (input >= 0 && !m_Nodes.contains((uint32_t)input))
                     add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Node input references a missing node.");
+                if (input < 0)
+                    continue;
+                const auto source = m_Nodes.find((uint32_t)input);
+                if (source == m_Nodes.end() || source->second.OutputType != EGraphValueType::Texture2D)
+                    continue;
+                const bool acceptsTexture = (node.Type == EMaterialNodeType::TextureObjectSample && inputSlot == 0)
+                    || node.Type == EMaterialNodeType::FunctionCall;
+                if (!acceptsTexture)
+                    add(EMaterialDiagnosticSeverity::Error, diagnosticId,
+                        "Texture Object must be connected to a Sample Texture input.");
+            }
 
             const glm::vec4& value = node.ConstantValue;
             if (!std::isfinite(value.x) || !std::isfinite(value.y)
@@ -268,7 +305,8 @@ namespace Elixir
             if (node.Type == EMaterialNodeType::Parameter && !IsIdentifier(node.ParameterName))
                 add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Material parameter must be a valid HLSL identifier.");
             if (node.Type == EMaterialNodeType::ParamScalar || node.Type == EMaterialNodeType::ParamColor
-                || node.Type == EMaterialNodeType::TextureParameter)
+                || node.Type == EMaterialNodeType::TextureParameter
+                || node.Type == EMaterialNodeType::TextureObjectParameter)
             {
                 if (node.ParameterName.empty())
                     add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Exposed parameter must have a name.");
@@ -277,9 +315,13 @@ namespace Elixir
 
                 if (!node.ParameterName.empty())
                 {
+                    const EGraphValueType parameterType = node.Type == EMaterialNodeType::ParamScalar
+                        ? EGraphValueType::Float
+                        : node.Type == EMaterialNodeType::ParamColor
+                            ? EGraphValueType::Float4 : EGraphValueType::Texture2D;
                     const auto [paramIt, inserted] = parameters.emplace(node.ParameterName,
-                        std::pair{ node.Type, diagnosticId });
-                    if (!inserted && paramIt->second.first != node.Type)
+                        std::pair{ parameterType, diagnosticId });
+                    if (!inserted && paramIt->second.first != parameterType)
                     {
                         add(EMaterialDiagnosticSeverity::Warning, paramIt->second.second,
                             "Parameter '" + node.ParameterName + "' is declared with incompatible types.");
@@ -307,6 +349,20 @@ namespace Elixir
             }
             if (node.Type == EMaterialNodeType::TextureSample && node.TextureExpression.empty())
                 add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Texture sample has no texture binding.");
+            if (node.Type == EMaterialNodeType::TextureObjectParameter
+                && node.OutputType != EGraphValueType::Texture2D)
+                add(EMaterialDiagnosticSeverity::Error, diagnosticId,
+                    "Texture Object Parameter must output a Texture2D resource.");
+            if (node.Type == EMaterialNodeType::TextureObjectSample)
+            {
+                if (node.Inputs.empty() || node.Inputs[0] < 0)
+                    add(EMaterialDiagnosticSeverity::Error, diagnosticId,
+                        "Sample Texture requires a Texture Object on input 1.");
+                else if (const auto source = m_Nodes.find((uint32_t)node.Inputs[0]);
+                    source != m_Nodes.end() && source->second.OutputType != EGraphValueType::Texture2D)
+                    add(EMaterialDiagnosticSeverity::Error, diagnosticId,
+                        "Sample Texture input 1 must be a Texture Object.");
+            }
             if (node.Type == EMaterialNodeType::Custom && node.CustomCode.empty())
                 add(EMaterialDiagnosticSeverity::Warning, diagnosticId, "Custom HLSL is empty and will evaluate its first input.");
             if (node.Type == EMaterialNodeType::FunctionInput)
@@ -491,9 +547,24 @@ namespace Elixir
             case EMaterialNodeType::ParamColor:    expr = "GraphParams[" + std::to_string(node.ParamSlot) + "]"; type = EGraphValueType::Float4; break;
             case EMaterialNodeType::TextureParameter:
             {
-                const std::string index = "asuint(GraphParams[" + std::to_string(node.ParamSlot) + "].x)";
+                const std::string index = TextureIndexFromSlot(node.ParamSlot);
                 const std::string uv = node.Inputs.empty() || node.Inputs[0] < 0
                     ? std::string("input.TexCoord") : Widen(A(0), AT(0), EGraphValueType::Float2);
+                expr = "(" + index + " == 0xffffffffu ? float3(1.0, 1.0, 1.0) : SampleTex("
+                    + index + ", " + uv + "))";
+                type = EGraphValueType::Float3;
+                break;
+            }
+            case EMaterialNodeType::TextureObjectParameter:
+                expr = TextureIndexFromSlot(node.ParamSlot);
+                type = EGraphValueType::Texture2D;
+                break;
+            case EMaterialNodeType::TextureObjectSample:
+            {
+                const std::string index = !node.Inputs.empty() && node.Inputs[0] >= 0
+                    ? A(0) : std::string("0xffffffffu");
+                const std::string uv = node.Inputs.size() < 2 || node.Inputs[1] < 0
+                    ? std::string("input.TexCoord") : Widen(A(1), AT(1), EGraphValueType::Float2);
                 expr = "(" + index + " == 0xffffffffu ? float3(1.0, 1.0, 1.0) : SampleTex("
                     + index + ", " + uv + "))";
                 type = EGraphValueType::Float3;

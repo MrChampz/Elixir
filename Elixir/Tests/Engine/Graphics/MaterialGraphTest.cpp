@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <Engine/Graphics/Material/MaterialGraph.h>
+#include <algorithm>
 #include <iostream>
 
 using namespace Elixir;
@@ -207,8 +208,82 @@ TEST(MaterialGraph, TextureParameterSamplesTheBindlessGraphParameter)
 
     EXPECT_FALSE(graph.Validate().HasErrors());
     const std::string hlsl = graph.GenerateHLSL();
-    EXPECT_NE(hlsl.find("asuint(GraphParams[2].x)"), std::string::npos);
+    // Converted, never reinterpreted: asuint on a slot the shader templates also do
+    // arithmetic on would read a NaN sentinel and a subnormal index.
+    EXPECT_NE(hlsl.find("(uint)(int)GraphParams[2].x"), std::string::npos);
+    EXPECT_EQ(hlsl.find("asuint(GraphParams"), std::string::npos);
     EXPECT_NE(hlsl.find("SampleTex("), std::string::npos);
     EXPECT_NE(hlsl.find("input.TexCoord"), std::string::npos);
     EXPECT_NE(hlsl.find("0xffffffffu"), std::string::npos);
+}
+
+TEST(MaterialGraph, TextureObjectParameterFeedsASeparateSampleNode)
+{
+    MaterialGraph graph;
+
+    SMaterialNode object;
+    object.Type = EMaterialNodeType::TextureObjectParameter;
+    object.OutputType = EGraphValueType::Texture2D;
+    object.ParameterName = "Albedo";
+    object.ParamSlot = 3;
+    const uint32_t objectId = graph.AddNode(object);
+
+    SMaterialNode sample;
+    sample.Type = EMaterialNodeType::TextureObjectSample;
+    sample.OutputType = EGraphValueType::Float3;
+    sample.Inputs = { -1, -1 };
+    const uint32_t sampleId = graph.AddNode(sample);
+    graph.Connect(objectId, sampleId, 0);
+    graph.SetChannel(EMaterialChannel::BaseColor, sampleId);
+
+    EXPECT_FALSE(graph.Validate().HasErrors());
+    const std::string hlsl = graph.GenerateHLSL();
+    EXPECT_NE(hlsl.find("uint n1 = (uint)(int)GraphParams[3].x"), std::string::npos);
+    EXPECT_NE(hlsl.find("SampleTex(n1, input.TexCoord)"), std::string::npos);
+}
+
+TEST(MaterialGraph, RejectsAnUnsampledTextureObjectAtTheMaterialOutput)
+{
+    MaterialGraph graph;
+    SMaterialNode object;
+    object.SourceId = 73;
+    object.Type = EMaterialNodeType::TextureObjectParameter;
+    object.OutputType = EGraphValueType::Texture2D;
+    object.ParameterName = "Albedo";
+    const uint32_t objectId = graph.AddNode(object);
+    graph.SetChannel(EMaterialChannel::BaseColor, objectId);
+
+    const auto validation = graph.Validate();
+    ASSERT_TRUE(validation.HasErrors());
+    EXPECT_TRUE(std::any_of(validation.Diagnostics.begin(), validation.Diagnostics.end(), [](const auto& diagnostic)
+    {
+        return diagnostic.NodeId == 73
+            && diagnostic.Message.find("must be sampled") != std::string::npos;
+    }));
+}
+
+TEST(MaterialGraph, RejectsANumericValueAtTheTextureObjectInput)
+{
+    MaterialGraph graph;
+    SMaterialNode scalar;
+    scalar.Type = EMaterialNodeType::Scalar;
+    scalar.OutputType = EGraphValueType::Float;
+    const uint32_t scalarId = graph.AddNode(scalar);
+
+    SMaterialNode sample;
+    sample.SourceId = 81;
+    sample.Type = EMaterialNodeType::TextureObjectSample;
+    sample.OutputType = EGraphValueType::Float3;
+    sample.Inputs = { -1, -1 };
+    const uint32_t sampleId = graph.AddNode(sample);
+    graph.Connect(scalarId, sampleId, 0);
+    graph.SetChannel(EMaterialChannel::BaseColor, sampleId);
+
+    const auto validation = graph.Validate();
+    ASSERT_TRUE(validation.HasErrors());
+    EXPECT_TRUE(std::any_of(validation.Diagnostics.begin(), validation.Diagnostics.end(), [](const auto& diagnostic)
+    {
+        return diagnostic.NodeId == 81
+            && diagnostic.Message.find("must be a Texture Object") != std::string::npos;
+    }));
 }

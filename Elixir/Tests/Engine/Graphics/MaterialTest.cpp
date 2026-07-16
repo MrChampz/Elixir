@@ -6,8 +6,8 @@
 #include <Engine/Graphics/MeshAsset.h>
 
 #include <chrono>
+#include <cmath>
 #include <cstdio>
-#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -82,14 +82,23 @@ TEST(MaterialInstance, PacksMissingTextureAsAnInvalidBindlessIndex)
     SMaterialGraphDocument document;
     SMaterialGraphNode texture;
     texture.Id = 1;
-    texture.Type = EMaterialNodeType::TextureParameter;
-    texture.OutputType = EGraphValueType::Float3;
+    texture.Type = EMaterialNodeType::TextureObjectParameter;
+    texture.OutputType = EGraphValueType::Texture2D;
     std::snprintf(texture.Param, sizeof(texture.Param), "Albedo");
     document.Nodes.push_back(texture);
-    document.Channels[(int)EMaterialChannel::BaseColor] = texture.Id;
-    document.NextId = 2;
+
+    SMaterialGraphNode sample;
+    sample.Id = 2;
+    sample.Type = EMaterialNodeType::TextureObjectSample;
+    sample.OutputType = EGraphValueType::Float3;
+    sample.InputCount = 2;
+    sample.Inputs[0] = texture.Id;
+    document.Nodes.push_back(sample);
+    document.Channels[(int)EMaterialChannel::BaseColor] = sample.Id;
+    document.NextId = 3;
 
     const Ref<Material> material = document.BuildMaterial("TextureMaterial");
+    EXPECT_FALSE(material->GetGraph()->Validate().HasErrors());
     ASSERT_EQ(material->GetGraphParameters().size(), 1u);
     EXPECT_EQ(material->GetGraphParameters()[0].Type, SMaterialParam::EType::Texture);
     ASSERT_NE(material->GetDefault("Albedo"), nullptr);
@@ -99,9 +108,14 @@ TEST(MaterialInstance, PacksMissingTextureAsAnInvalidBindlessIndex)
     MaterialInstance instance(material);
     glm::vec4 params[1] = {};
     EXPECT_EQ(instance.CollectGraphParams(params, 1), 1u);
-    uint32_t encodedIndex = 0;
-    std::memcpy(&encodedIndex, &params[0].x, sizeof(encodedIndex));
-    EXPECT_EQ(encodedIndex, 0xffffffffu);
+
+    // A plain float value, not the index's bit pattern. Both shader templates multiply
+    // GraphParams[0] by a tiny factor to hold the binding against dead-code
+    // elimination, so a punned 0xffffffff sentinel would arrive as a NaN and poison the
+    // pixel colour and the vertex offset -- taking the mesh off screen.
+    EXPECT_FLOAT_EQ(params[0].x, MaterialInstance::NO_TEXTURE_INDEX);
+    EXPECT_FALSE(std::isnan(params[0].x));
+    EXPECT_FALSE(std::isnan(params[0].x * 1e-8f));
 }
 
 TEST(MaterialInstance, ReparentKeepsOnlyCompatibleOverrides)
@@ -215,11 +229,19 @@ TEST(MaterialAsset, RoundTripsGraphMaterialAndInstance)
 
     SMaterialGraphNode textureNode;
     textureNode.Id = 3;
-    textureNode.Type = EMaterialNodeType::TextureParameter;
-    textureNode.OutputType = EGraphValueType::Float3;
+    textureNode.Type = EMaterialNodeType::TextureObjectParameter;
+    textureNode.OutputType = EGraphValueType::Texture2D;
     std::snprintf(textureNode.Param, sizeof(textureNode.Param), "DetailTexture");
     document.Nodes.push_back(textureNode);
-    document.NextId = 4;
+
+    SMaterialGraphNode textureSampleNode;
+    textureSampleNode.Id = 4;
+    textureSampleNode.Type = EMaterialNodeType::TextureObjectSample;
+    textureSampleNode.OutputType = EGraphValueType::Float3;
+    textureSampleNode.InputCount = 2;
+    textureSampleNode.Inputs[0] = textureNode.Id;
+    document.Nodes.push_back(textureSampleNode);
+    document.NextId = 5;
 
     const Ref<Material> material = document.BuildMaterial("paint", Material::CreateStandardPBR());
     ASSERT_NE(material->GetDocument(), nullptr); // a built material carries its graph
@@ -257,11 +279,14 @@ TEST(MaterialAsset, RoundTripsGraphMaterialAndInstance)
     // output -- that is what lets the editor reopen a saved material.
     const SMaterialGraphDocument* reloaded = loaded->GetParent()->GetDocument();
     ASSERT_NE(reloaded, nullptr);
-    ASSERT_EQ(reloaded->Nodes.size(), 3u);
+    ASSERT_EQ(reloaded->Nodes.size(), 4u);
     EXPECT_EQ(reloaded->Nodes[0].Type, EMaterialNodeType::ParamScalar);
     EXPECT_STREQ(reloaded->Nodes[0].Param, "Strength");
-    EXPECT_EQ(reloaded->Nodes[2].Type, EMaterialNodeType::TextureParameter);
+    EXPECT_EQ(reloaded->Nodes[2].Type, EMaterialNodeType::TextureObjectParameter);
     EXPECT_STREQ(reloaded->Nodes[2].Param, "DetailTexture");
+    EXPECT_EQ(reloaded->Nodes[2].OutputType, EGraphValueType::Texture2D);
+    EXPECT_EQ(reloaded->Nodes[3].Type, EMaterialNodeType::TextureObjectSample);
+    EXPECT_EQ(reloaded->Nodes[3].Inputs[0], textureNode.Id);
     EXPECT_EQ(reloaded->Channels[(int)EMaterialChannel::BaseColor], node.Id);
 }
 

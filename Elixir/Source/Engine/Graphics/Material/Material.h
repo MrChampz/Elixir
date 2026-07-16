@@ -157,6 +157,14 @@ namespace Elixir
         [[nodiscard]] size_t GraphRevision() const;
         [[nodiscard]] size_t StaticVariantKey() const;
 
+        // A texture parameter reaches the shader as its bindless index in plain float
+        // form, with this standing for "no texture". The index is deliberately not
+        // bit-punned into the float: the shader templates multiply GraphParams[0] by a
+        // tiny factor to hold the binding against dead-code elimination, and a punned
+        // sentinel is a NaN that would poison the colour and the vertex offset. Punned
+        // real indices would also be subnormals, at the mercy of flush-to-zero.
+        static constexpr float NO_TEXTURE_INDEX = -1.0f;
+
         // Pack graph parameters in the exact slot layout owned by the parent Material.
         // Returns the highest populated slot count (bounded by maxCount).
         using TextureIndexResolver = std::function<uint32_t(const Ref<Texture>&)>;

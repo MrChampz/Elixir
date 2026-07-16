@@ -29,7 +29,7 @@ namespace Elixir
         int DiagnosticId = -1;
         std::vector<std::string> FunctionStack;
         EMaterialNodeType Type = EMaterialNodeType::Constant;
-        EGraphValueType OutputType = EGraphValueType::Float4;
+        EGraphValueType OutputType = EGraphValueType::Float4; // numeric value or Texture2D handle
         glm::vec2 Pos{ 0.0f, 0.0f };
 
         glm::vec4 Constant{ 1.0f, 1.0f, 1.0f, 1.0f }; // Constant
