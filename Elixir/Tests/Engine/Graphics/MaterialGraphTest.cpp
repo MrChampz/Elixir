@@ -154,6 +154,35 @@ TEST(MaterialGraph, RejectsPixelOnlyNodeInWorldPositionOffset)
     EXPECT_NE(validation.Diagnostics.front().Message.find("World Position Offset"), std::string::npos);
 }
 
+// The vertex body is injected into ComputeWPO(float3 P, float2 uv), so a node that
+// falls back to the mesh UV must name the one in scope for the stage. Reaching for the
+// pixel shader's `input` there costs a shader compile, not a diagnostic.
+TEST(MaterialGraph, UnconnectedUVFollowsTheStageInWorldPositionOffset)
+{
+    MaterialGraph graph;
+
+    SMaterialNode texture;
+    texture.Type = EMaterialNodeType::TextureParameter;
+    texture.OutputType = EGraphValueType::Float3;
+    texture.ParameterName = "Displacement";
+    texture.ParamSlot = 0;
+    texture.Inputs = { -1 }; // no UV wired: the node falls back to the mesh UV
+    const uint32_t textureId = graph.AddNode(texture);
+
+    graph.SetChannel(EMaterialChannel::WorldPositionOffset, textureId);
+    EXPECT_FALSE(graph.Validate().HasErrors());
+
+    // ComputeWPO takes the UV as a parameter, and each shader template defines the
+    // SampleTex overload its stage can use.
+    const std::string vertex = graph.GenerateHLSL(true);
+    EXPECT_EQ(vertex.find("input."), std::string::npos);
+    EXPECT_NE(vertex.find(", uv)"), std::string::npos);
+
+    // The pixel stage still reads its interpolated input.
+    graph.SetChannel(EMaterialChannel::BaseColor, textureId);
+    EXPECT_NE(graph.GenerateHLSL(false).find("input.TexCoord"), std::string::npos);
+}
+
 TEST(MaterialGraph, StaticSwitchEmitsOnlyTheSelectedBranch)
 {
     MaterialGraph graph;

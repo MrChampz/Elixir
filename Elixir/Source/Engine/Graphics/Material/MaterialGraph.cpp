@@ -34,6 +34,15 @@ namespace Elixir
             return "(uint)(int)GraphParams[" + std::to_string(slot) + "].x";
         }
 
+        // The mesh UV, for a node whose UV input is left unconnected. The stages read it
+        // from different places: the pixel body sees the interpolated `input`, while the
+        // vertex body is injected into ComputeWPO(float3 P, float2 uv), where no `input`
+        // exists. Naming it directly would compile only in the pixel stage.
+        std::string DefaultUV(const bool vertexStage)
+        {
+            return vertexStage ? "uv" : "input.TexCoord";
+        }
+
         const char* ChannelName(EMaterialChannel c)
         {
             switch (c)
@@ -602,7 +611,7 @@ namespace Elixir
             {
                 const std::string index = TextureIndexFromSlot(node.ParamSlot);
                 const std::string uv = node.Inputs.empty() || node.Inputs[0] < 0
-                    ? std::string("input.TexCoord") : Widen(A(0), AT(0), EGraphValueType::Float2);
+                    ? DefaultUV(vertexStage) : Widen(A(0), AT(0), EGraphValueType::Float2);
                 expr = "(" + index + " == 0xffffffffu ? float3(1.0, 1.0, 1.0) : SampleTex("
                     + index + ", " + uv + "))";
                 type = EGraphValueType::Float3;
@@ -617,7 +626,7 @@ namespace Elixir
                 const std::string index = !node.Inputs.empty() && node.Inputs[0] >= 0
                     ? A(0) : std::string("0xffffffffu");
                 const std::string uv = node.Inputs.size() < 2 || node.Inputs[1] < 0
-                    ? std::string("input.TexCoord") : Widen(A(1), AT(1), EGraphValueType::Float2);
+                    ? DefaultUV(vertexStage) : Widen(A(1), AT(1), EGraphValueType::Float2);
                 const std::string mip = node.Inputs.size() < 3 || node.Inputs[2] < 0
                     ? Num(node.ConstantValue.x) : Widen(A(2), AT(2), EGraphValueType::Float);
 
@@ -712,7 +721,7 @@ namespace Elixir
                 break;
             }
             case EMaterialNodeType::Parameter:     expr = "mat." + node.ParameterName; type = node.OutputType; break;
-            case EMaterialNodeType::TexCoord:      expr = vertexStage ? "uv" : "input.TexCoord"; type = EGraphValueType::Float2; break;
+            case EMaterialNodeType::TexCoord:      expr = DefaultUV(vertexStage); type = EGraphValueType::Float2; break;
             case EMaterialNodeType::Position:      expr = vertexStage ? "P" : "input.WorldPos"; type = EGraphValueType::Float3; break;
             case EMaterialNodeType::Time:          expr = "Time"; type = EGraphValueType::Float; break;
             case EMaterialNodeType::Sine:          expr = "sin(" + A(0) + ")"; type = AT(0); break;
@@ -721,7 +730,7 @@ namespace Elixir
                 // node.TextureExpression holds the index accessor (e.g. mat.TexIndex0.x).
                 const std::string idx = node.TextureExpression;
                 const std::string uv = node.Inputs.empty() || node.Inputs[0] < 0
-                    ? std::string("input.TexCoord") : Widen(A(0), AT(0), EGraphValueType::Float2);
+                    ? DefaultUV(vertexStage) : Widen(A(0), AT(0), EGraphValueType::Float2);
                 expr = "(" + idx + " == 0xffffffffu ? float3(1.0, 1.0, 1.0) : SampleTex(" + idx + ", " + uv + "))";
                 type = EGraphValueType::Float3;
                 break;
@@ -729,7 +738,7 @@ namespace Elixir
             case EMaterialNodeType::Panner:
             {
                 const std::string uv = node.Inputs.empty() || node.Inputs[0] < 0
-                    ? std::string("input.TexCoord") : Widen(A(0), AT(0), EGraphValueType::Float2);
+                    ? DefaultUV(vertexStage) : Widen(A(0), AT(0), EGraphValueType::Float2);
                 const std::string speed = "float2(" + Num(node.ConstantValue.x) + ", " + Num(node.ConstantValue.y) + ")";
                 expr = "(" + uv + " + Time * " + speed + ")";
                 type = EGraphValueType::Float2;
@@ -742,7 +751,7 @@ namespace Elixir
                 if (has && AT(0) == EGraphValueType::Float3)
                     expr = "Checker3(" + A(0) + ", " + s + ")"; // world-space, UV-independent
                 else
-                    expr = "Checker(" + (has ? Widen(A(0), AT(0), EGraphValueType::Float2) : std::string("input.TexCoord")) + ", " + s + ")";
+                    expr = "Checker(" + (has ? Widen(A(0), AT(0), EGraphValueType::Float2) : DefaultUV(vertexStage)) + ", " + s + ")";
                 type = EGraphValueType::Float;
                 break;
             }
@@ -753,7 +762,7 @@ namespace Elixir
                 if (has && AT(0) == EGraphValueType::Float3)
                     expr = "ValueNoise3(" + A(0) + ", " + s + ")"; // world-space, UV-independent
                 else
-                    expr = "ValueNoise(" + (has ? Widen(A(0), AT(0), EGraphValueType::Float2) : std::string("input.TexCoord")) + ", " + s + ")";
+                    expr = "ValueNoise(" + (has ? Widen(A(0), AT(0), EGraphValueType::Float2) : DefaultUV(vertexStage)) + ", " + s + ")";
                 type = EGraphValueType::Float;
                 break;
             }
