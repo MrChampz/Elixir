@@ -5,11 +5,14 @@
 #include <Engine/Graphics/Model.h>
 #include <Engine/Graphics/MeshRenderer.h>
 #include <Engine/Graphics/PostProcessor.h>
+#include <Engine/Graphics/Material/MaterialAsset.h>
 #include <Engine/Graphics/Material/MaterialGraphEditor.h>
 #include <Engine/Graphics/Material/MaterialCompiler.h>
 
+#include <filesystem>
 #include <mutex>
 #include <optional>
+#include <unordered_map>
 
 struct SFrameData
 {
@@ -51,7 +54,14 @@ private:
     bool m_RecompileQueued = false;        // a change arrived mid-compile; redo after
     std::mutex m_CompileMutex;
     bool m_CompileReady = false;
+    std::mutex m_GraphBuildMutex;
+    std::mutex m_GraphGenerationMutex;
+    std::unordered_map<uint32_t, uint64_t> m_GraphGenerations;
 
     void StartGraphCompile();
+    void QueueGraphCompile(uint32_t slot, const Ref<MaterialInstance>& instance, bool notifyEditor);
+    void SaveMaterialAssets();
+    void LoadMaterialAssets();
+    bool LoadMaterialAsset(uint32_t slot, const std::filesystem::path& instancePath, bool loadEditor = false);
 
 };

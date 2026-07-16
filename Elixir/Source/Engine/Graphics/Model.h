@@ -4,6 +4,7 @@
 #include <Engine/Graphics/Texture.h>
 #include <Engine/Graphics/Material/Material.h>
 
+#include <filesystem>
 #include <mutex>
 
 namespace Elixir
@@ -36,6 +37,15 @@ namespace Elixir
 
         [[nodiscard]] const std::vector<SModelPrimitive>& GetPrimitives() const { return m_Primitives; }
         [[nodiscard]] const std::vector<Ref<MaterialInstance>>& GetMaterials() const { return m_Materials; }
+        [[nodiscard]] const std::filesystem::path& GetPath() const { return m_Path; }
+        [[nodiscard]] const std::filesystem::path& GetSourcePath() const { return m_SourcePath; }
+        [[nodiscard]] const std::filesystem::path& GetMaterialAsset(uint32_t slot) const
+        {
+            static const std::filesystem::path empty;
+            return slot < m_MaterialAssets.size() ? m_MaterialAssets[slot] : empty;
+        }
+        bool SetMaterialAsset(uint32_t slot, const std::filesystem::path& material);
+        bool SaveAsset() const;
 
         // Call after editing a material instance so the renderer repacks the GPU
         // material buffer on the next frame.
@@ -55,6 +65,9 @@ namespace Elixir
       private:
         std::vector<SModelPrimitive> m_Primitives;
         std::vector<Ref<MaterialInstance>> m_Materials;
+        std::filesystem::path m_Path;
+        std::filesystem::path m_SourcePath;
+        std::vector<std::filesystem::path> m_MaterialAssets;
         bool m_MaterialsDirty = false;
         mutable std::mutex m_MaterialsMutex;
     };

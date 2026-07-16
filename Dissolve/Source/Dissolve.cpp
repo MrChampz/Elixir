@@ -65,7 +65,8 @@ Dissolve::Dissolve()
     m_MeshRenderer = CreateScope<MeshRenderer>(m_GraphicsContext.get(), m_ShaderLoader.get());
     m_PostProcessor = CreateScope<PostProcessor>(m_GraphicsContext.get(), m_ShaderLoader.get());
     m_GraphicsContext->InitImGui();
-    m_Model = Model::Load(m_GraphicsContext.get(), "./Assets/Meshes/McLaren/scene.gltf");
+    m_Model = Model::Load(m_GraphicsContext.get(), "./Assets/Meshes/McLaren/scene.mesh.json");
+    LoadMaterialAssets();
 
     m_ParticleSystem = Aether::LoadEffectFile("./Assets/VFX/RibbonVortex.json");
     // m_ParticleSystem = CreateScope<Aether::System>("Ribbon Garden");
@@ -172,23 +173,119 @@ void Dissolve::StartGraphCompile()
             baseMaterial = materials[compileSlot]->GetParent();
     }
     const Ref<Material> compileMaterial = m_GraphEditor.BuildMaterial(baseMaterial);
-    const MaterialGraph compileGraph = *compileMaterial->GetGraph();
-    const EMaterialBlendMode compileBlend = compileGraph.GetBlendMode();
     const auto compileInstance = CreateRef<MaterialInstance>(compileMaterial);
     m_GraphEditor.ApplyParametersTo(*compileInstance);
+    QueueGraphCompile(compileSlot, compileInstance, true);
+}
+
+void Dissolve::QueueGraphCompile(
+    const uint32_t slot, const Ref<MaterialInstance>& instance, const bool notifyEditor)
+{
+    if (!instance || !instance->GetParent() || !instance->GetParent()->HasGraph())
+        return;
+    const MaterialGraph compileGraph = *instance->GetParent()->GetGraph();
+    const EMaterialBlendMode compileBlend = compileGraph.GetBlendMode();
+    uint64_t generation;
+    {
+        std::lock_guard<std::mutex> lock(m_GraphGenerationMutex);
+        generation = ++m_GraphGenerations[slot];
+    }
 
     // Do the whole build on a worker thread -- DXC (no Vulkan) plus the Vulkan
     // shader/pipeline creation -- so neither the render thread nor the UI thread
     // stalls on the Metal pipeline compile. MeshRenderer::Render installs the result.
-    m_Executor.Enqueue([this, compileSlot, compileGraph, compileBlend, compileInstance]()
+    m_Executor.Enqueue([this, slot, compileGraph, compileBlend, instance, notifyEditor, generation]()
     {
-        if (const auto compiled = MaterialCompiler::CompileToSpirv(compileGraph))
-            if (const auto shader = MaterialCompiler::LoadCompiled(m_ShaderLoader.get(), *compiled))
-                m_MeshRenderer->PrepareMaterialShader(
-                    compileSlot, shader, compileBlend, m_Model, compileInstance);
-        std::lock_guard<std::mutex> lock(m_CompileMutex);
-        m_CompileReady = true;
+        {
+            // The graphics backend already supports preparing a pipeline away from
+            // the render thread, but its shared caches are not used concurrently.
+            // Multiple restored slots therefore compile serially on workers while
+            // UI and rendering continue independently.
+            std::lock_guard<std::mutex> buildLock(m_GraphBuildMutex);
+            if (const auto compiled = MaterialCompiler::CompileToSpirv(compileGraph))
+                if (const auto shader = MaterialCompiler::LoadCompiled(m_ShaderLoader.get(), *compiled))
+                {
+                    bool current;
+                    {
+                        std::lock_guard<std::mutex> generationLock(m_GraphGenerationMutex);
+                        current = m_GraphGenerations[slot] == generation;
+                    }
+                    if (current)
+                        m_MeshRenderer->PrepareMaterialShader(
+                            slot, shader, compileBlend, m_Model, instance);
+                }
+        }
+        if (notifyEditor)
+        {
+            std::lock_guard<std::mutex> lock(m_CompileMutex);
+            m_CompileReady = true;
+        }
     });
+}
+
+void Dissolve::SaveMaterialAssets()
+{
+    const int target = m_GraphEditor.TargetMaterial();
+    Ref<MaterialInstance> currentSnapshot;
+    {
+        std::lock_guard<std::mutex> lock(m_Model->MaterialsMutex());
+        const auto& materials = m_Model->GetMaterials();
+        if (target < 0 || target >= (int)materials.size())
+            return;
+        currentSnapshot = CreateRef<MaterialInstance>(*materials[target]);
+    }
+
+    const Ref<Material> material = m_GraphEditor.BuildMaterial(currentSnapshot->GetParent());
+    const auto assetInstance = CreateRef<MaterialInstance>(material);
+    assetInstance->SetName(
+        currentSnapshot->GetName().empty() ? m_GraphEditor.AssetName() : currentSnapshot->GetName());
+    assetInstance->ApplyCompatibleOverridesFrom(*currentSnapshot);
+    m_GraphEditor.ApplyParametersTo(*assetInstance);
+
+    const auto directory = std::filesystem::path("./Assets/Materials");
+    const auto materialPath = m_GraphEditor.MaterialPath();
+    const auto instancePath = directory / (m_GraphEditor.AssetName() + ".matinstance.json");
+    if (!MaterialAsset::SaveMaterial(materialPath, *assetInstance->GetParent(), m_GraphEditor)
+        || !MaterialAsset::SaveInstance(instancePath, *assetInstance, materialPath))
+        return;
+
+    if (m_Model->SetMaterialAsset((uint32_t)target, instancePath))
+        m_Model->SaveAsset();
+}
+
+bool Dissolve::LoadMaterialAsset(
+    const uint32_t slot, const std::filesystem::path& instancePath, const bool loadEditor)
+{
+    if (slot >= m_Model->GetMaterials().size())
+    {
+        EE_CORE_WARN("Material slots: ignoring out-of-range slot {}.", slot)
+        return false;
+    }
+    const Ref<MaterialInstance> instance = MaterialAsset::LoadInstance(
+        instancePath, loadEditor ? &m_GraphEditor : nullptr);
+    if (!instance)
+        return false;
+    if (instance->GetParent()->HasGraph())
+        QueueGraphCompile(slot, instance, false);
+    else
+    {
+        std::lock_guard<std::mutex> lock(m_Model->MaterialsMutex());
+        const auto& current = m_Model->GetMaterials()[slot];
+        current->SetParent(instance->GetParent());
+        current->ApplyCompatibleOverridesFrom(*instance);
+        current->SetName(instance->GetName());
+    }
+    return true;
+}
+
+void Dissolve::LoadMaterialAssets()
+{
+    for (uint32_t slot = 0; slot < m_Model->GetMaterials().size(); ++slot)
+    {
+        const auto& material = m_Model->GetMaterialAsset(slot);
+        if (!material.empty())
+            LoadMaterialAsset(slot, material);
+    }
 }
 
 void Dissolve::OnGUI(const Timestep frameTime)
@@ -218,6 +315,20 @@ void Dissolve::OnGUI(const Timestep frameTime)
             const auto& instance = m_Model->GetMaterials()[target];
             if (instance->GetParent() && instance->GetParent()->HasGraph())
                 m_GraphEditor.ApplyParametersTo(*instance);
+        }
+    }
+    if (m_GraphEditor.SavedThisFrame())
+        SaveMaterialAssets();
+    if (m_GraphEditor.LoadedThisFrame())
+    {
+        const auto instancePath = std::filesystem::path("./Assets/Materials")
+            / (m_GraphEditor.AssetName() + ".matinstance.json");
+        if (std::filesystem::exists(instancePath))
+        {
+            const uint32_t slot = (uint32_t)m_GraphEditor.TargetMaterial();
+            if (LoadMaterialAsset(slot, instancePath, true)
+                && m_Model->SetMaterialAsset(slot, instancePath))
+                m_Model->SaveAsset();
         }
     }
     if (compileRequested)

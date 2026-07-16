@@ -200,6 +200,8 @@ namespace Elixir
     bool MaterialGraphEditor::Draw(int materialCount)
     {
         bool apply = false;
+        m_SavedThisFrame = false;
+        m_LoadedThisFrame = false;
         ImGui::Begin("Node Graph Editor");
 
         m_Diagnostics = Build().Validate().Diagnostics;
@@ -260,16 +262,16 @@ namespace Elixir
         ImGui::SetNextItemWidth(130.0f);
         ImGui::Combo("Shading", &m_ShadingModel, "Default Lit\0Unlit\0Subsurface\0Clear Coat\0Cloth\0");
 
-        // Save / load the graph to ./Assets/Materials/<name>.matgraph.json.
+        // Save / load the complete Material asset. The host persists the graph,
+        // defaults and instance together after Draw() returns.
         ImGui::SetNextItemWidth(160.0f);
         ImGui::InputText("##file", m_FileName, sizeof(m_FileName));
         ImGui::SameLine();
-        const std::string graphPath = std::string("./Assets/Materials/") + m_FileName + ".matgraph.json";
-        if (ImGui::Button("Save")) Save(graphPath);
+        if (ImGui::Button("Save")) m_SavedThisFrame = true;
         ImGui::SameLine();
-        if (ImGui::Button("Load")) Load(graphPath);
+        if (ImGui::Button("Load")) m_LoadedThisFrame = true;
         ImGui::SameLine();
-        ImGui::TextDisabled(".matgraph.json");
+        ImGui::TextDisabled(".material + .matinstance");
         ImGui::Separator();
 
         auto addButton = [&](const char* label, EMaterialNodeType type)
@@ -1168,21 +1170,29 @@ namespace Elixir
             return false;
         }
 
-        out << "{\n";
-        out << "  \"version\": 1,\n";
-        out << "  \"targetMaterial\": " << m_TargetMaterial << ",\n";
-        out << "  \"blendMode\": " << m_BlendMode << ",\n";
-        out << "  \"alphaCutoff\": " << m_AlphaCutoff << ",\n";
-        out << "  \"shadingModel\": " << m_ShadingModel << ",\n";
-        out << "  \"nextId\": " << m_NextId << ",\n";
-        out << "  \"channels\": [";
+        out << "{\n  \"version\": 1,\n";
+        WriteAssetFields(out);
+        out << "\n}\n";
+
+        EE_CORE_INFO("Material graph saved to '{}'.", path)
+        return true;
+    }
+
+    void MaterialGraphEditor::WriteAssetFields(std::ostream& out, const std::string& indent) const
+    {
+        const std::string nested = indent + "  ";
+        out << indent << "\"blendMode\": " << m_BlendMode << ",\n";
+        out << indent << "\"alphaCutoff\": " << m_AlphaCutoff << ",\n";
+        out << indent << "\"shadingModel\": " << m_ShadingModel << ",\n";
+        out << indent << "\"nextId\": " << m_NextId << ",\n";
+        out << indent << "\"channels\": [";
         for (int i = 0; i < 11; ++i) out << (i ? ", " : "") << m_Channels[i];
         out << "],\n";
-        out << "  \"nodes\": [\n";
+        out << indent << "\"nodes\": [\n";
         for (size_t k = 0; k < m_Nodes.size(); ++k)
         {
             const SNode& n = m_Nodes[k];
-            out << "    { "
+            out << nested << "{ "
                 << "\"id\": " << n.Id << ", "
                 << "\"type\": " << (int)n.Type << ", "
                 << "\"outputType\": " << (int)n.OutputType << ", "
@@ -1196,31 +1206,17 @@ namespace Elixir
                 << "\"inputs\": [" << n.Inputs[0] << ", " << n.Inputs[1] << ", " << n.Inputs[2] << "] }"
                 << (k + 1 < m_Nodes.size() ? "," : "") << "\n";
         }
-        out << "  ],\n";
-
-        // Live parameter overrides (by name).
-        out << "  \"paramOverrides\": [";
-        bool first = true;
-        for (const auto& [name, v] : m_ParamOverrides)
-        {
-            out << (first ? "" : ", ") << "{ \"name\": \"" << name << "\", \"value\": ["
-                << v.x << ", " << v.y << ", " << v.z << ", " << v.w << "] }";
-            first = false;
-        }
-        out << "],\n";
+        out << indent << "],\n";
 
         // Comment boxes.
-        out << "  \"comments\": [";
+        out << indent << "\"comments\": [";
         for (size_t i = 0; i < m_Comments.size(); ++i)
         {
             const SComment& c = m_Comments[i];
             out << (i ? ", " : "") << "{ \"pos\": [" << c.Pos.x << ", " << c.Pos.y << "], \"size\": ["
                 << c.Size.x << ", " << c.Size.y << "], \"text\": \"" << c.Text << "\" }";
         }
-        out << "]\n}\n";
-
-        EE_CORE_INFO("Material graph saved to '{}'.", path)
-        return true;
+        out << ']';
     }
 
     bool MaterialGraphEditor::ParseGraphFile(
@@ -1383,6 +1379,17 @@ namespace Elixir
 
         m_LastSig = Signature();
         m_DirtySince = -1.0;
+
+        std::string fileName = std::filesystem::path(path).filename().string();
+        for (const std::string_view suffix : { ".material.json", ".matgraph.json" })
+            if (fileName.ends_with(suffix))
+            {
+                fileName.resize(fileName.size() - suffix.size());
+                break;
+            }
+        const size_t fileNameLength = std::min(fileName.size(), sizeof(m_FileName) - 1);
+        std::memcpy(m_FileName, fileName.data(), fileNameLength);
+        m_FileName[fileNameLength] = '\0';
 
         EE_CORE_INFO("Material graph loaded from '{}' ({} nodes).", path, m_Nodes.size())
         return true;

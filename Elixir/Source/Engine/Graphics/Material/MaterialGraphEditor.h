@@ -5,6 +5,8 @@
 
 #include <glm/glm.hpp>
 
+#include <filesystem>
+#include <ostream>
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -33,6 +35,14 @@ namespace Elixir
         // JSON file. Returns false on IO/parse failure.
         bool Save(const std::string& path) const;
         bool Load(const std::string& path);
+        void WriteAssetFields(std::ostream& out, const std::string& indent = "  ") const;
+        [[nodiscard]] bool SavedThisFrame() const { return m_SavedThisFrame; }
+        [[nodiscard]] bool LoadedThisFrame() const { return m_LoadedThisFrame; }
+        [[nodiscard]] std::string AssetName() const { return m_FileName; }
+        [[nodiscard]] std::filesystem::path MaterialPath() const
+        {
+            return std::filesystem::path("./Assets/Materials") / (AssetName() + ".material.json");
+        }
 
         // Convert the current visual state into a compilable graph.
         [[nodiscard]] MaterialGraph Build() const;
@@ -140,6 +150,8 @@ namespace Elixir
 
         // File name (without extension/dir) for Save/Load.
         char m_FileName[128] = "material";
+        bool m_SavedThisFrame = false;
+        bool m_LoadedThisFrame = false;
 
         // Live overrides for exposed parameters, keyed by name. Lets parameters that
         // live inside functions (and top-level ones) be edited live without touching

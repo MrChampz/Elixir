@@ -120,6 +120,7 @@ namespace Elixir
         uint32_t CollectGraphParams(glm::vec4* out, uint32_t maxCount) const;
 
         [[nodiscard]] const Ref<Material>& GetParent() const { return m_Parent; }
+        [[nodiscard]] const std::unordered_map<std::string, SMaterialParam>& GetOverrides() const { return m_Overrides; }
 
         void SetName(std::string name) { m_Name = std::move(name); }
         [[nodiscard]] const std::string& GetName() const { return m_Name; }

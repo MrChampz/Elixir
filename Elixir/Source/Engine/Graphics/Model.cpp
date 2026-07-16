@@ -1,6 +1,7 @@
 #include "epch.h"
 #include "Model.h"
 
+#include "Engine/Graphics/MeshAsset.h"
 #include "Engine/Graphics/TextureLoader.h"
 
 #include <fastgltf/core.hpp>
@@ -90,14 +91,24 @@ namespace Elixir
 
     Ref<Model> Model::Load(const GraphicsContext* context, const std::filesystem::path& path)
     {
-        auto dataResult = fastgltf::GltfDataBuffer::FromPath(path);
+        std::filesystem::path sourcePath = path;
+        std::optional<SMeshAssetDescription> meshAsset;
+        if (path.filename().string().ends_with(".mesh.json"))
+        {
+            meshAsset = MeshAsset::Load(path);
+            if (!meshAsset)
+                return nullptr;
+            sourcePath = meshAsset->Source;
+        }
+
+        auto dataResult = fastgltf::GltfDataBuffer::FromPath(sourcePath);
         if (dataResult.error() != fastgltf::Error::None)
         {
-            EE_CORE_ERROR("Failed to open glTF file: {0}", path.string());
+            EE_CORE_ERROR("Failed to open glTF file: {0}", sourcePath.string());
             return nullptr;
         }
 
-        const auto dir = path.parent_path();
+        const auto dir = sourcePath.parent_path();
 
         // Extensions must be enabled explicitly or the parser drops them
         // (KHR_texture_transform: textures render untiled; emissive_strength:
@@ -120,6 +131,8 @@ namespace Elixir
 
         fastgltf::Asset& asset = assetResult.get();
         auto model = CreateRef<Model>();
+        model->m_Path = path.lexically_normal();
+        model->m_SourcePath = sourcePath.lexically_normal();
 
         // Cache textures by (glTF texture index, sRGB) so shared textures load once.
         std::unordered_map<uint64_t, Ref<Texture>> textureCache;
@@ -222,6 +235,17 @@ namespace Elixir
         // Fallback material for primitives without one (all defaults).
         const uint32_t defaultMaterialIndex = (uint32_t)model->m_Materials.size();
         model->m_Materials.push_back(CreateRef<MaterialInstance>(standardPBR));
+        model->m_MaterialAssets.resize(model->m_Materials.size());
+        if (meshAsset)
+        {
+            for (const auto& material : meshAsset->Materials)
+            {
+                if (material.Slot < model->m_MaterialAssets.size())
+                    model->m_MaterialAssets[material.Slot] = material.Material;
+                else
+                    EE_CORE_WARN("Mesh asset: ignoring out-of-range material slot {}.", material.Slot)
+            }
+        }
 
         const size_t sceneIndex = asset.defaultScene.value_or(0);
         fastgltf::iterateSceneNodes(asset, sceneIndex, fastgltf::math::fmat4x4(),
@@ -318,7 +342,31 @@ namespace Elixir
             });
 
         EE_CORE_INFO("Loaded glTF model '{0}': {1} primitives, {2} materials.",
-            path.filename().string(), model->m_Primitives.size(), model->m_Materials.size());
+            sourcePath.filename().string(), model->m_Primitives.size(), model->m_Materials.size());
         return model;
+    }
+
+    bool Model::SetMaterialAsset(const uint32_t slot, const std::filesystem::path& material)
+    {
+        if (slot >= m_MaterialAssets.size())
+            return false;
+        m_MaterialAssets[slot] = material.lexically_normal();
+        return true;
+    }
+
+    bool Model::SaveAsset() const
+    {
+        if (!m_Path.filename().string().ends_with(".mesh.json") || m_SourcePath.empty())
+        {
+            EE_CORE_ERROR("Model '{}' was not loaded from a writable Mesh asset.", m_Path.string())
+            return false;
+        }
+
+        SMeshAssetDescription description;
+        description.Source = m_SourcePath;
+        for (uint32_t slot = 0; slot < m_MaterialAssets.size(); ++slot)
+            if (!m_MaterialAssets[slot].empty())
+                description.Materials.push_back({ slot, m_MaterialAssets[slot] });
+        return MeshAsset::Save(m_Path, description);
     }
 }

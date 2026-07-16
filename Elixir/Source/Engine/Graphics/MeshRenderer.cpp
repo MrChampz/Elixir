@@ -215,6 +215,7 @@ namespace Elixir
                 {
                     materials[pending.Slot]->SetParent(pending.MaterialInstance->GetParent());
                     materials[pending.Slot]->ApplyCompatibleOverridesFrom(*pending.MaterialInstance);
+                    materials[pending.Slot]->SetName(pending.MaterialInstance->GetName());
                 }
             }
             if (const auto it = m_MaterialShaders.find(pending.Slot); it != m_MaterialShaders.end())
