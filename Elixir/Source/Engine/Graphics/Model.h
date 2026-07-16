@@ -6,9 +6,12 @@
 
 #include <filesystem>
 #include <mutex>
+#include <optional>
 
 namespace Elixir
 {
+    struct SMeshMaterialSlot;
+
     struct SModelVertex
     {
         glm::vec3 Position;
@@ -63,6 +66,10 @@ namespace Elixir
         [[nodiscard]] std::mutex& MaterialsMutex() const { return m_MaterialsMutex; }
 
       private:
+        // Maps a saved slot entry onto a slot of the freshly imported source, or
+        // nullopt when the source no longer has it.
+        [[nodiscard]] std::optional<uint32_t> ResolveMaterialSlot(const SMeshMaterialSlot& entry) const;
+
         std::vector<SModelPrimitive> m_Primitives;
         std::vector<Ref<MaterialInstance>> m_Materials;
         std::filesystem::path m_Path;

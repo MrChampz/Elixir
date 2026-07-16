@@ -2,10 +2,11 @@
 
 #include <Engine/Graphics/Material/Material.h>
 #include <Engine/Graphics/Material/MaterialAsset.h>
-#include <Engine/Graphics/Material/MaterialGraphEditor.h>
+#include <Engine/Graphics/Material/MaterialGraphDocument.h>
 #include <Engine/Graphics/MeshAsset.h>
 
 #include <chrono>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -117,10 +118,22 @@ TEST(MaterialAsset, RoundTripsGraphMaterialAndInstance)
     const auto materialPath = directory.Path / "paint.material.json";
     const auto instancePath = directory.Path / "paint.matinstance.json";
 
-    MaterialGraphEditor editor;
-    auto material = editor.BuildMaterial(Material::CreateStandardPBR());
-    material->SetDefault("Strength", SMaterialParam::MakeScalar(0.5f));
-    ASSERT_TRUE(MaterialAsset::SaveMaterial(materialPath, *material, editor));
+    // No editor anywhere in this test: the document is the authored graph, and the
+    // asset layer reads and writes it without the authoring tool.
+    SMaterialGraphDocument document;
+    SMaterialGraphNode node;
+    node.Id = 1;
+    node.Type = EMaterialNodeType::ParamScalar;
+    node.OutputType = EGraphValueType::Float;
+    node.Constant = glm::vec4(0.5f);
+    std::snprintf(node.Param, sizeof(node.Param), "Strength");
+    document.Nodes.push_back(node);
+    document.Channels[(int)EMaterialChannel::BaseColor] = node.Id;
+    document.NextId = 2;
+
+    const Ref<Material> material = document.BuildMaterial("paint", Material::CreateStandardPBR());
+    ASSERT_NE(material->GetDocument(), nullptr); // a built material carries its graph
+    ASSERT_TRUE(MaterialAsset::SaveMaterial(materialPath, *material));
 
     std::ifstream materialFile(materialPath);
     const std::string materialDocument{
@@ -142,6 +155,33 @@ TEST(MaterialAsset, RoundTripsGraphMaterialAndInstance)
     EXPECT_EQ(loaded->GetName(), "Body Paint");
     EXPECT_FLOAT_EQ(loaded->GetScalar("Strength"), 0.8f);
     EXPECT_EQ(loaded->GetVector("BaseColorFactor"), glm::vec4(0.1f, 0.2f, 0.3f, 1.0f));
+
+    // The graph survives the round trip as an editable document, not just as compiled
+    // output -- that is what lets the editor reopen a saved material.
+    const SMaterialGraphDocument* reloaded = loaded->GetParent()->GetDocument();
+    ASSERT_NE(reloaded, nullptr);
+    ASSERT_EQ(reloaded->Nodes.size(), 1u);
+    EXPECT_EQ(reloaded->Nodes[0].Type, EMaterialNodeType::ParamScalar);
+    EXPECT_STREQ(reloaded->Nodes[0].Param, "Strength");
+    EXPECT_EQ(reloaded->Channels[(int)EMaterialChannel::BaseColor], node.Id);
+}
+
+TEST(MaterialGraphDocument, RoundTripsAWholeNumberedAlphaCutoff)
+{
+    SMaterialTestDirectory directory;
+    const auto path = directory.Path / "masked.material.json";
+
+    // 1.0f serialises as the integer token "1", so this pins the cutoff surviving a
+    // round trip rather than quietly falling back to its default.
+    SMaterialGraphDocument document;
+    document.BlendMode = 1; // Masked
+    document.AlphaCutoff = 1.0f;
+    ASSERT_TRUE(MaterialGraphDocument::Save(path, document));
+
+    const auto loaded = MaterialGraphDocument::Load(path);
+    ASSERT_TRUE(loaded.has_value());
+    EXPECT_EQ(loaded->BlendMode, 1);
+    EXPECT_FLOAT_EQ(loaded->AlphaCutoff, 1.0f);
 }
 
 TEST(MeshAsset, RoundTripsSourceAndMaterialSlots)
@@ -154,7 +194,7 @@ TEST(MeshAsset, RoundTripsSourceAndMaterialSlots)
 
     SMeshAssetDescription description;
     description.Source = modelPath;
-    description.Materials = { { 7, secondInstance }, { 2, firstInstance } };
+    description.Materials = { { 7, "Glass", secondInstance }, { 2, "Paint", firstInstance } };
     ASSERT_TRUE(MeshAsset::Save(meshPath, description));
 
     const auto loaded = MeshAsset::Load(meshPath);
@@ -162,7 +202,28 @@ TEST(MeshAsset, RoundTripsSourceAndMaterialSlots)
     EXPECT_EQ(loaded->Source.lexically_normal(), modelPath.lexically_normal());
     ASSERT_EQ(loaded->Materials.size(), 2u);
     EXPECT_EQ(loaded->Materials[0].Slot, 2u);
+    EXPECT_EQ(loaded->Materials[0].Name, "Paint");
     EXPECT_EQ(loaded->Materials[0].Material.lexically_normal(), firstInstance.lexically_normal());
     EXPECT_EQ(loaded->Materials[1].Slot, 7u);
+    EXPECT_EQ(loaded->Materials[1].Name, "Glass");
     EXPECT_EQ(loaded->Materials[1].Material.lexically_normal(), secondInstance.lexically_normal());
+}
+
+TEST(MeshAsset, ReadsSlotsWrittenBeforeNamesExisted)
+{
+    SMaterialTestDirectory directory;
+    const auto meshPath = directory.Path / "legacy.mesh.json";
+    {
+        std::ofstream out(meshPath);
+        out << R"({ "version": 1, "assetType": "Mesh", "source": "car.gltf",)"
+            << R"( "materials": [ { "slot": 3, "asset": "paint.matinstance.json" } ] })";
+    }
+
+    const auto loaded = MeshAsset::Load(meshPath);
+    ASSERT_TRUE(loaded.has_value());
+    ASSERT_EQ(loaded->Materials.size(), 1u);
+    EXPECT_EQ(loaded->Materials[0].Slot, 3u);
+    EXPECT_TRUE(loaded->Materials[0].Name.empty());
+    EXPECT_EQ(loaded->Materials[0].Material.lexically_normal(),
+        (directory.Path / "paint.matinstance.json").lexically_normal());
 }

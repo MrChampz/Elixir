@@ -58,10 +58,22 @@ private:
     std::mutex m_GraphGenerationMutex;
     std::unordered_map<uint32_t, uint64_t> m_GraphGenerations;
 
+    // Material Editor: the instance name being authored, refreshed when the panel's
+    // selected slot changes.
+    char m_InstanceName[128] = "";
+    int m_InstanceNameSlot = -1;
+
+    // Where a named material/instance asset lives. The two are named independently:
+    // one parent material can back several instances.
+    static std::filesystem::path MaterialAssetPath(const std::string& name);
+    static std::filesystem::path InstanceAssetPath(const std::string& name);
+
     void StartGraphCompile();
     void QueueGraphCompile(uint32_t slot, const Ref<MaterialInstance>& instance, bool notifyEditor);
-    void SaveMaterialAssets();
+    void SaveMaterialAsset();
+    void OpenMaterialAsset();
+    void SaveInstanceAsset(uint32_t slot);
     void LoadMaterialAssets();
-    bool LoadMaterialAsset(uint32_t slot, const std::filesystem::path& instancePath, bool loadEditor = false);
+    bool LoadMaterialAsset(uint32_t slot, const std::filesystem::path& instancePath);
 
 };

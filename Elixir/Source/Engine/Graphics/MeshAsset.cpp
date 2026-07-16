@@ -67,7 +67,9 @@ namespace Elixir
         out << ",\n  \"materials\": [\n";
         for (size_t i = 0; i < materials.size(); ++i)
         {
-            out << "    { \"slot\": " << materials[i].Slot << ", \"asset\": ";
+            out << "    { \"slot\": " << materials[i].Slot << ", \"name\": ";
+            WriteString(out, materials[i].Name);
+            out << ", \"asset\": ";
             WriteString(out, MakeReference(path, materials[i].Material));
             out << " }" << (i + 1 < materials.size() ? "," : "") << '\n';
         }
@@ -116,7 +118,13 @@ namespace Elixir
                 || slot > std::numeric_limits<uint32_t>::max()
                 || element["asset"].get(material) != simdjson::SUCCESS)
                 return std::nullopt;
-            description.Materials.push_back({ (uint32_t)slot, ResolveReference(path, material) });
+            // Written since slot names were introduced; entries without one fall back
+            // to resolving by index.
+            std::string_view name;
+            if (element["name"].get(name) != simdjson::SUCCESS)
+                name = {};
+            description.Materials.push_back(
+                { (uint32_t)slot, std::string(name), ResolveReference(path, material) });
         }
         return description;
     }

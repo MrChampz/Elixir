@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Graphics/Material/MaterialGraph.h>
+#include <Engine/Graphics/Material/MaterialGraphDocument.h>
 #include <Engine/Graphics/Texture.h>
 
 #include <glm/glm.hpp>
@@ -67,6 +68,14 @@ namespace Elixir
         [[nodiscard]] const MaterialGraph* GetGraph() const { return m_Graph ? &*m_Graph : nullptr; }
         [[nodiscard]] const std::vector<SMaterialGraphParameter>& GetGraphParameters() const { return m_GraphParameters; }
 
+        // The authored graph this material was built from, kept so the material can be
+        // saved and reopened for editing. GetGraph() is the compiled result of it.
+        void SetDocument(SMaterialGraphDocument document) { m_Document = std::move(document); }
+        [[nodiscard]] const SMaterialGraphDocument* GetDocument() const
+        {
+            return m_Document ? &*m_Document : nullptr;
+        }
+
         // Built-in metallic-roughness PBR template: declares every parameter the
         // Model shader consumes, with glTF-default values.
         static Ref<Material> CreateStandardPBR();
@@ -75,6 +84,7 @@ namespace Elixir
         std::string m_Name;
         std::unordered_map<std::string, SMaterialParam> m_Defaults;
         std::optional<MaterialGraph> m_Graph;
+        std::optional<SMaterialGraphDocument> m_Document;
         std::vector<SMaterialGraphParameter> m_GraphParameters;
     };
 

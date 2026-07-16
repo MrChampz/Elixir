@@ -139,21 +139,21 @@ namespace Elixir
         const int c = AddNode(EMaterialNodeType::Constant, { 40.0f, 40.0f });
         const int p = AddNode(EMaterialNodeType::Parameter, { 40.0f, 150.0f });
         const int m = AddNode(EMaterialNodeType::Multiply, { 240.0f, 90.0f });
-        m_Nodes[0].Constant = { 1.0f, 0.5f, 0.1f, 1.0f };
-        m_Nodes[2].Inputs[0] = c;
-        m_Nodes[2].Inputs[1] = p;
-        m_Channels[0] = m;
+        m_Document.Nodes[0].Constant = { 1.0f, 0.5f, 0.1f, 1.0f };
+        m_Document.Nodes[2].Inputs[0] = c;
+        m_Document.Nodes[2].Inputs[1] = p;
+        m_Document.Channels[0] = m;
 
         m_LastSig = Signature(); // seed graph isn't "dirty" until the user edits it
-        m_LastStructHash = StructHash();
-        m_Committed = Capture();
-        m_CommittedHash = HashState(m_Committed);
+        m_LastStructHash = m_Document.StructHash();
+        m_Committed = m_Document;
+        m_CommittedHash = m_Committed.Hash();
     }
 
     int MaterialGraphEditor::AddNode(EMaterialNodeType type, const glm::vec2& pos)
     {
         SNode node;
-        node.Id = m_NextId++;
+        node.Id = m_Document.NextId++;
         node.DiagnosticId = node.Id;
         node.Type = type;
         node.OutputType = OutputTypeFor(type);
@@ -169,21 +169,21 @@ namespace Elixir
             std::strncpy(node.Param, "In", sizeof(node.Param) - 1);
         if (type == EMaterialNodeType::FunctionCall)
             std::strncpy(node.Param, "myfunc", sizeof(node.Param) - 1);
-        m_Nodes.push_back(node);
+        m_Document.Nodes.push_back(node);
         return node.Id;
     }
 
     void MaterialGraphEditor::DeleteNode(int id)
     {
-        m_Nodes.erase(
-            std::remove_if(m_Nodes.begin(), m_Nodes.end(), [id](const SNode& n) { return n.Id == id; }),
-            m_Nodes.end());
+        m_Document.Nodes.erase(
+            std::remove_if(m_Document.Nodes.begin(), m_Document.Nodes.end(), [id](const SNode& n) { return n.Id == id; }),
+            m_Document.Nodes.end());
 
         // Drop any wires that fed from the deleted node.
-        for (auto& n : m_Nodes)
+        for (auto& n : m_Document.Nodes)
             for (int& src : n.Inputs)
                 if (src == id) src = -1;
-        for (int& ch : m_Channels)
+        for (int& ch : m_Document.Channels)
             if (ch == id) ch = -1;
         if (m_LinkFrom == id)
             m_LinkFrom = -1;
@@ -192,7 +192,7 @@ namespace Elixir
 
     const MaterialGraphEditor::SNode* MaterialGraphEditor::Find(int id) const
     {
-        for (const auto& n : m_Nodes)
+        for (const auto& n : m_Document.Nodes)
             if (n.Id == id) return &n;
         return nullptr;
     }
@@ -246,24 +246,25 @@ namespace Elixir
         };
 
         const int maxMaterial = materialCount > 0 ? materialCount - 1 : 0;
-        if (m_TargetMaterial > maxMaterial) m_TargetMaterial = maxMaterial;
+        if (m_Document.TargetMaterial > maxMaterial) m_Document.TargetMaterial = maxMaterial;
         ImGui::SetNextItemWidth(160.0f);
-        ImGui::SliderInt("Target material", &m_TargetMaterial, 0, maxMaterial);
+        ImGui::SliderInt("Target material", &m_Document.TargetMaterial, 0, maxMaterial);
 
         ImGui::SetNextItemWidth(120.0f);
-        ImGui::Combo("Blend", &m_BlendMode, "Opaque\0Masked\0Translucent\0Additive\0");
-        if (m_BlendMode == 1) // Masked
+        ImGui::Combo("Blend", &m_Document.BlendMode, "Opaque\0Masked\0Translucent\0Additive\0");
+        if (m_Document.BlendMode == 1) // Masked
         {
             ImGui::SameLine();
             ImGui::SetNextItemWidth(120.0f);
-            ImGui::SliderFloat("Cutoff", &m_AlphaCutoff, 0.0f, 1.0f, "%.2f");
+            ImGui::SliderFloat("Cutoff", &m_Document.AlphaCutoff, 0.0f, 1.0f, "%.2f");
         }
         ImGui::SameLine();
         ImGui::SetNextItemWidth(130.0f);
-        ImGui::Combo("Shading", &m_ShadingModel, "Default Lit\0Unlit\0Subsurface\0Clear Coat\0Cloth\0");
+        ImGui::Combo("Shading", &m_Document.ShadingModel, "Default Lit\0Unlit\0Subsurface\0Clear Coat\0Cloth\0");
 
-        // Save / load the complete Material asset. The host persists the graph,
-        // defaults and instance together after Draw() returns.
+        // Save / load the parent Material: this graph and its defaults. Instances of it
+        // are named and saved from the Material Editor. The host does the IO once
+        // Draw() returns.
         ImGui::SetNextItemWidth(160.0f);
         ImGui::InputText("##file", m_FileName, sizeof(m_FileName));
         ImGui::SameLine();
@@ -271,7 +272,7 @@ namespace Elixir
         ImGui::SameLine();
         if (ImGui::Button("Load")) m_LoadedThisFrame = true;
         ImGui::SameLine();
-        ImGui::TextDisabled(".material + .matinstance");
+        ImGui::TextDisabled(".material.json");
         ImGui::Separator();
 
         auto addButton = [&](const char* label, EMaterialNodeType type)
@@ -330,7 +331,7 @@ namespace Elixir
         ImGui::Checkbox("Live", &m_LivePreview);
         ImGui::SameLine();
         if (ImGui::Button("+Comment"))
-            m_Comments.push_back({ { -m_Pan.x + 20.0f, -m_Pan.y + 20.0f }, { 220.0f, 140.0f }, "Comment" });
+            m_Document.Comments.push_back({ { -m_Pan.x + 20.0f, -m_Pan.y + 20.0f }, { 220.0f, 140.0f }, "Comment" });
         ImGui::SameLine();
         ImGui::TextDisabled("(right-click: node = delete, pin = disconnect)");
         ImGui::SameLine();
@@ -391,7 +392,7 @@ namespace Elixir
         int hovKind = -1, hovId = -1, hovSlot = -1;
 
         // Node scheduled for deletion this frame (processed after drawing so we don't
-        // mutate m_Nodes mid-iteration).
+        // mutate m_Document.Nodes mid-iteration).
         int deleteId = -1;
 
         // A pin as an invisible button (robust hit-testing). Returns {active, hovered}.
@@ -406,9 +407,9 @@ namespace Elixir
 
         // --- Comment boxes (behind the nodes) ---
         int deleteComment = -1;
-        for (size_t ci = 0; ci < m_Comments.size(); ++ci)
+        for (size_t ci = 0; ci < m_Document.Comments.size(); ++ci)
         {
-            auto& com = m_Comments[ci];
+            auto& com = m_Document.Comments[ci];
             const ImVec2 cmin = ImVec2(base.x + com.Pos.x, base.y + com.Pos.y);
             const ImVec2 cmax = ImVec2(cmin.x + com.Size.x, cmin.y + com.Size.y);
             dl->AddRectFilled(cmin, cmax, IM_COL32(70, 100, 80, 45), 4.0f);
@@ -456,10 +457,10 @@ namespace Elixir
             ImGui::PopID();
         }
         if (deleteComment >= 0)
-            m_Comments.erase(m_Comments.begin() + deleteComment);
+            m_Document.Comments.erase(m_Document.Comments.begin() + deleteComment);
 
         // --- Nodes ---
-        for (auto& node : m_Nodes)
+        for (auto& node : m_Document.Nodes)
         {
             ImVec2 p = ImVec2(base.x + node.Pos.x, base.y + node.Pos.y);
             ImGui::PushID(node.Id);
@@ -590,9 +591,9 @@ namespace Elixir
         // The surface channels are always shown; the current shading model adds its
         // own inputs (channels 7..10) so the Output node stays uncluttered.
         std::vector<int> vis = { 0, 1, 2, 3, 4, 5, 6 };
-        if (m_ShadingModel == 2) vis.push_back(7);                               // Subsurface Color
-        else if (m_ShadingModel == 3) { vis.push_back(8); vis.push_back(9); }    // Clear Coat (+ roughness)
-        else if (m_ShadingModel == 4) vis.push_back(10);                         // Sheen
+        if (m_Document.ShadingModel == 2) vis.push_back(7);                               // Subsurface Color
+        else if (m_Document.ShadingModel == 3) { vis.push_back(8); vis.push_back(9); }    // Clear Coat (+ roughness)
+        else if (m_Document.ShadingModel == 4) vis.push_back(10);                         // Sheen
 
         const ImVec2 op = ImVec2(base.x + 520.0f, base.y + 40.0f);
         const ImVec2 omin = op;
@@ -617,9 +618,9 @@ namespace Elixir
             {
                 hovKind = 1; hovId = ch; hovSlot = 0;
                 if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
-                    m_Channels[ch] = -1;
+                    m_Document.Channels[ch] = -1;
             }
-            const bool connected = m_Channels[ch] >= 0;
+            const bool connected = m_Document.Channels[ch] >= 0;
             dl->AddCircleFilled(pinPos, PIN_R, connected ? IM_COL32(140, 180, 240, 255) : IM_COL32(90, 110, 150, 255));
             dl->AddText(ImVec2(omin.x + 12.0f, pinPos.y - 7.0f), IM_COL32_WHITE, ChannelName(ch));
             chPins[ch] = pinPos;
@@ -640,13 +641,13 @@ namespace Elixir
         {
             dl->AddBezierCubic(a, ImVec2(a.x + 50.0f, a.y), ImVec2(b.x - 50.0f, b.y), b, col, 2.5f);
         };
-        for (const auto& node : m_Nodes)
+        for (const auto& node : m_Document.Nodes)
             for (int i = 0; i < node.InputCount; ++i)
                 if (node.Inputs[i] >= 0 && outPins.count(node.Inputs[i]))
                     bezier(outPins[node.Inputs[i]], inPinPos[((long long)node.Id << 8) | i], IM_COL32(200, 200, 210, 200));
         for (const int ch : vis)
-            if (m_Channels[ch] >= 0 && outPins.count(m_Channels[ch]))
-                bezier(outPins[m_Channels[ch]], chPins[ch], IM_COL32(220, 190, 90, 220));
+            if (m_Document.Channels[ch] >= 0 && outPins.count(m_Document.Channels[ch]))
+                bezier(outPins[m_Document.Channels[ch]], chPins[ch], IM_COL32(220, 190, 90, 220));
 
         // --- Drag-to-connect ---
         if (m_LinkFrom >= 0 && outPins.count(m_LinkFrom))
@@ -656,13 +657,13 @@ namespace Elixir
         {
             if (hovKind == 0)
             {
-                for (auto& n : m_Nodes)
+                for (auto& n : m_Document.Nodes)
                     if (n.Id == hovId && hovSlot < n.InputCount)
                         n.Inputs[hovSlot] = m_LinkFrom;
             }
             else if (hovKind == 1)
             {
-                m_Channels[hovId] = m_LinkFrom;
+                m_Document.Channels[hovId] = m_LinkFrom;
             }
             m_LinkFrom = -1;
         }
@@ -687,7 +688,7 @@ namespace Elixir
             if (mod && ImGui::IsKeyPressed(ImGuiKey_V) && !m_Clipboard.empty())
             {
                 std::unordered_map<int, int> idMap;
-                for (const auto& src : m_Clipboard) idMap[src.Id] = m_NextId++;
+                for (const auto& src : m_Clipboard) idMap[src.Id] = m_Document.NextId++;
                 m_Selected.clear();
                 for (const auto& src : m_Clipboard)
                 {
@@ -700,7 +701,7 @@ namespace Elixir
                     for (int i = 0; i < 3; ++i)
                         if (c.Inputs[i] >= 0 && idMap.count(c.Inputs[i]))
                             c.Inputs[i] = idMap[c.Inputs[i]]; // internal link -> the copy
-                    m_Nodes.push_back(c);
+                    m_Document.Nodes.push_back(c);
                     m_Selected.push_back(c.Id);
                 }
             }
@@ -708,14 +709,14 @@ namespace Elixir
             {
                 m_Redo.push_back(m_Committed);
                 m_Committed = m_Undo.back(); m_Undo.pop_back();
-                Restore(m_Committed); m_CommittedHash = HashState(m_Committed);
+                Restore(m_Committed); m_CommittedHash = m_Committed.Hash();
                 interacting = true;
             }
             else if (redo && !m_Redo.empty())
             {
                 m_Undo.push_back(m_Committed);
                 m_Committed = m_Redo.back(); m_Redo.pop_back();
-                Restore(m_Committed); m_CommittedHash = HashState(m_Committed);
+                Restore(m_Committed); m_CommittedHash = m_Committed.Hash();
                 interacting = true;
             }
         }
@@ -736,7 +737,7 @@ namespace Elixir
             // immediately after Draw() by the host application.
             std::vector<SNode> pnodes;
             int pchannels[11];
-            Expand(pnodes, pchannels);
+            m_Document.Expand(pnodes, pchannels);
             int slot = 0;
             for (const auto& node : pnodes)
             {
@@ -744,8 +745,8 @@ namespace Elixir
                     continue;
                 if (slot >= MAX_PARAMS) break;
 
-                const auto it = m_ParamOverrides.find(node.Param);
-                glm::vec4 value = it != m_ParamOverrides.end() ? it->second : node.Constant;
+                const auto it = m_Document.Overrides.find(node.Param);
+                glm::vec4 value = it != m_Document.Overrides.end() ? it->second : node.Constant;
 
                 ImGui::PushID(slot);
                 ImGui::SetNextItemWidth(200.0f);
@@ -755,7 +756,7 @@ namespace Elixir
                 else
                     changed = ImGui::ColorEdit4(node.Param, &value.x, ImGuiColorEditFlags_AlphaBar);
                 if (changed)
-                    m_ParamOverrides[node.Param] = value;
+                    m_Document.Overrides[node.Param] = value;
                 ImGui::PopID();
                 ++slot;
             }
@@ -771,7 +772,7 @@ namespace Elixir
         // Only run the expensive HLSL-generating Signature() when the cheap structural
         // hash says the graph might have changed -- otherwise it ran every frame and
         // could push the UI thread over the frame budget (scene hitch while typing).
-        const size_t structHash = StructHash();
+        const size_t structHash = m_Document.StructHash();
         if (structHash != m_LastStructHash)
         {
             m_LastStructHash = structHash;
@@ -801,206 +802,6 @@ namespace Elixir
         return apply;
     }
 
-    void MaterialGraphEditor::Expand(std::vector<SNode>& outNodes, int outChannels[11]) const
-    {
-        outNodes = m_Nodes;
-        for (int i = 0; i < 11; ++i) outChannels[i] = m_Channels[i];
-
-        int remapBase = 1000000;
-        constexpr int MAX_EXPANSIONS = 256; // guards against recursive/cyclic functions
-        int guard = 0;
-        std::unordered_set<int> failedCalls;
-
-        // Expand one FunctionCall per iteration until none remain. Because expanding a
-        // function may introduce its own FunctionCalls (nesting), this naturally
-        // recurses -- newly added calls are picked up on later iterations.
-        while (guard++ < MAX_EXPANSIONS)
-        {
-            int callIdx = -1;
-            for (size_t k = 0; k < outNodes.size(); ++k)
-                if (outNodes[k].Type == EMaterialNodeType::FunctionCall
-                    && !failedCalls.contains(outNodes[k].Id)) { callIdx = (int)k; break; }
-            if (callIdx < 0)
-                break; // fully expanded
-
-            const SNode call = outNodes[callIdx]; // copy: outNodes is mutated below
-            if (std::find(call.FunctionStack.begin(), call.FunctionStack.end(), call.Param) != call.FunctionStack.end())
-            {
-                failedCalls.insert(call.Id);
-                continue;
-            }
-
-            std::vector<SNode> fnodes;
-            int fchannels[11];
-            int ftarget = 0, fnext = 1;
-            int callOut = -1; // the id the call resolves to (-1 = missing/empty function)
-
-            const std::string path = std::string("./Assets/Materials/") + call.Param + ".matgraph.json";
-            bool expanded = false;
-            const bool parsed = ParseGraphFile(path, fnodes, fchannels, ftarget, fnext, false);
-            const bool hasOutput = parsed && fchannels[0] >= 0
-                && std::any_of(fnodes.begin(), fnodes.end(), [&](const SNode& node)
-                    { return node.Id == fchannels[0] && node.Type != EMaterialNodeType::FunctionInput; });
-            if (hasOutput)
-            {
-                const int base = remapBase;
-                remapBase += 100000;
-                const auto remap = [&](int id) { return id < 0 ? -1 : base + id; };
-
-                std::unordered_map<int, int> inputIdToSlot;
-                for (const auto& fn : fnodes)
-                    if (fn.Type == EMaterialNodeType::FunctionInput)
-                        inputIdToSlot[fn.Id] = fn.TexSlot;
-
-                for (const auto& fn : fnodes)
-                {
-                    if (fn.Type == EMaterialNodeType::FunctionInput)
-                        continue; // substituted by the call's inputs
-                    SNode c = fn;
-                    c.Id = remap(fn.Id);
-                    c.DiagnosticId = call.DiagnosticId >= 0 ? call.DiagnosticId : call.Id;
-                    c.FunctionStack = call.FunctionStack;
-                    c.FunctionStack.push_back(call.Param);
-                    for (int i = 0; i < 3; ++i)
-                    {
-                        const int src = fn.Inputs[i];
-                        if (src < 0) { c.Inputs[i] = -1; continue; }
-                        if (const auto it = inputIdToSlot.find(src); it != inputIdToSlot.end())
-                        {
-                            const int slot = it->second;
-                            c.Inputs[i] = (slot >= 0 && slot < 3) ? call.Inputs[slot] : -1; // caller's input
-                        }
-                        else
-                        {
-                            c.Inputs[i] = remap(src);
-                        }
-                    }
-                    outNodes.push_back(c);
-                }
-                callOut = remap(fchannels[0]); // a function returns its Base Color driver
-                expanded = true;
-            }
-
-            if (!expanded)
-            {
-                failedCalls.insert(call.Id);
-                continue;
-            }
-
-            // Redirect references to this call to its output, then remove the call.
-            for (auto& n : outNodes)
-                for (int i = 0; i < 3; ++i)
-                    if (n.Inputs[i] == call.Id) n.Inputs[i] = callOut;
-            for (int ch = 0; ch < 11; ++ch)
-                if (outChannels[ch] == call.Id) outChannels[ch] = callOut;
-            outNodes.erase(std::remove_if(outNodes.begin(), outNodes.end(),
-                [&](const SNode& n) { return n.Type == EMaterialNodeType::FunctionCall && n.Id == call.Id; }),
-                outNodes.end());
-        }
-
-        if (guard >= MAX_EXPANSIONS)
-            EE_CORE_ERROR("Material graph: function expansion hit the limit ({}); recursive functions?", MAX_EXPANSIONS)
-
-        // Leftover function placeholders deliberately survive into MaterialGraph so
-        // Validate() can report them on the visible node instead of silently replacing
-        // the call with zero.
-    }
-
-    MaterialGraph MaterialGraphEditor::Build() const
-    {
-        std::vector<SNode> nodes;
-        int channels[11];
-        Expand(nodes, channels);
-
-        MaterialGraph graph;
-        std::unordered_map<int, uint32_t> idMap;
-
-        int paramSlot = 0;
-        for (const auto& n : nodes)
-        {
-            SMaterialNode gn;
-            gn.Type = n.Type;
-            gn.SourceId = (uint32_t)(n.DiagnosticId >= 0 ? n.DiagnosticId : n.Id);
-            gn.OutputType = n.OutputType;
-            gn.ConstantValue = n.Constant;
-            gn.ParameterName = n.Param;
-            const int inputCount = std::clamp(n.InputCount, 0, 3);
-            gn.Inputs.assign(inputCount, -1);
-            if (n.Type == EMaterialNodeType::TextureSample)
-                gn.TextureExpression = TextureIndexAccessor(n.TexSlot);
-            if (n.Type == EMaterialNodeType::Custom)
-                gn.CustomCode = n.Code;
-            // Exposed parameters get a GraphParams slot in node order. Validate()
-            // reports nodes beyond the shader's fixed array instead of aliasing slot 7.
-            if (n.Type == EMaterialNodeType::ParamScalar || n.Type == EMaterialNodeType::ParamColor)
-                gn.ParamSlot = paramSlot++;
-            idMap[n.Id] = graph.AddNode(gn);
-        }
-
-        for (const auto& n : nodes)
-            for (int i = 0; i < std::clamp(n.InputCount, 0, 3); ++i)
-            {
-                if (n.Inputs[i] < 0)
-                    continue;
-                const auto source = idMap.find(n.Inputs[i]);
-                const uint32_t sourceId = source != idMap.end()
-                    ? source->second : (0x80000000u ^ (uint32_t)n.Inputs[i]);
-                graph.Connect(sourceId, idMap[n.Id], (uint32_t)i);
-            }
-
-        for (int ch = 0; ch < 11; ++ch)
-        {
-            if (channels[ch] < 0)
-                continue;
-            const auto source = idMap.find(channels[ch]);
-            const uint32_t sourceId = source != idMap.end()
-                ? source->second : (0x80000000u ^ (uint32_t)channels[ch]);
-            graph.SetChannel((EMaterialChannel)ch, sourceId);
-        }
-
-        graph.SetBlend((EMaterialBlendMode)m_BlendMode, m_AlphaCutoff);
-        graph.SetShadingModel((EMaterialShadingModel)m_ShadingModel);
-        return graph;
-    }
-
-    Ref<Material> MaterialGraphEditor::BuildMaterial(const Ref<Material>& base) const
-    {
-        const std::string name = m_FileName[0] != '\0' ? m_FileName : "GraphMaterial";
-        auto material = CreateRef<Material>(name);
-        if (base)
-        {
-            std::unordered_set<std::string> oldGraphParameters;
-            for (const auto& parameter : base->GetGraphParameters())
-                oldGraphParameters.insert(parameter.Name);
-            for (const auto& [parameterName, value] : base->GetDefaults())
-                if (!oldGraphParameters.contains(parameterName))
-                    material->SetDefault(parameterName, value);
-        }
-
-        std::vector<SNode> nodes;
-        int channels[11];
-        Expand(nodes, channels);
-
-        std::vector<SMaterialGraphParameter> layout;
-        uint32_t slot = 0;
-        for (const auto& node : nodes)
-        {
-            if (node.Type != EMaterialNodeType::ParamScalar && node.Type != EMaterialNodeType::ParamColor)
-                continue;
-
-            const auto type = node.Type == EMaterialNodeType::ParamScalar
-                ? SMaterialParam::EType::Scalar : SMaterialParam::EType::Vector;
-            if (type == SMaterialParam::EType::Scalar)
-                material->SetDefault(node.Param, SMaterialParam::MakeScalar(node.Constant.x));
-            else
-                material->SetDefault(node.Param, SMaterialParam::MakeVector(node.Constant));
-            layout.push_back({ node.Param, type, slot++ });
-        }
-
-        material->SetGraph(Build(), std::move(layout));
-        return material;
-    }
-
     void MaterialGraphEditor::SyncParametersFrom(const MaterialInstance& instance)
     {
         const Ref<Material>& material = instance.GetParent();
@@ -1013,27 +814,9 @@ namespace Elixir
             if (!value || value->Type != parameter.Type)
                 continue;
             if (parameter.Type == SMaterialParam::EType::Scalar)
-                m_ParamOverrides[parameter.Name] = glm::vec4(value->Scalar, 0.0f, 0.0f, 0.0f);
+                m_Document.Overrides[parameter.Name] = glm::vec4(value->Scalar, 0.0f, 0.0f, 0.0f);
             else if (parameter.Type == SMaterialParam::EType::Vector)
-                m_ParamOverrides[parameter.Name] = value->Vector;
-        }
-    }
-
-    void MaterialGraphEditor::ApplyParametersTo(MaterialInstance& instance) const
-    {
-        std::vector<SNode> nodes;
-        int channels[11];
-        Expand(nodes, channels);
-        for (const auto& node : nodes)
-        {
-            if (node.Type != EMaterialNodeType::ParamScalar && node.Type != EMaterialNodeType::ParamColor)
-                continue;
-            const auto override = m_ParamOverrides.find(node.Param);
-            const glm::vec4 value = override != m_ParamOverrides.end() ? override->second : node.Constant;
-            if (node.Type == EMaterialNodeType::ParamScalar)
-                instance.SetScalar(node.Param, value.x);
-            else
-                instance.SetVector(node.Param, value);
+                m_Document.Overrides[parameter.Name] = value->Vector;
         }
     }
 
@@ -1057,89 +840,9 @@ namespace Elixir
         }
         const std::string code = g.GenerateHLSL(false) + "\x01" + g.GenerateHLSL(true);
         size_t h = std::hash<std::string>{}(code);
-        h ^= (size_t)m_TargetMaterial * 0x9e3779b97f4a7c15ull;       // re-apply on slot change
-        h ^= (size_t)m_BlendMode * 0xc2b2ae3d27d4eb4full;           // ...and on blend-mode change
-        h ^= (size_t)m_ShadingModel * 0x165667b19e3779f9ull;       // ...and on shading-model change
-        return h;
-    }
-
-    size_t MaterialGraphEditor::StructHash() const
-    {
-        // Fast: hashes the fields that can affect the generated shader, skipping node
-        // positions/comments and the HLSL generation. Gates the expensive Signature().
-        size_t h = 1469598103934665603ull;
-        const auto mix = [&](size_t v) { h ^= v; h *= 1099511628211ull; };
-        const auto mixf = [&](float f) { uint32_t u = 0; std::memcpy(&u, &f, sizeof(u)); mix(u); };
-        for (const auto& n : m_Nodes)
-        {
-            mix((size_t)n.Type); mix((size_t)n.Id); mix((size_t)n.InputCount); mix((size_t)n.TexSlot);
-            mixf(n.Constant.x); mixf(n.Constant.y); mixf(n.Constant.z); mixf(n.Constant.w);
-            for (int i = 0; i < 3; ++i) mix((size_t)(n.Inputs[i] + 2));
-            for (const char* p = n.Param; *p; ++p) mix((size_t)*p);
-            for (const char* p = n.Code; *p; ++p) mix((size_t)*p);
-        }
-        for (int i = 0; i < 11; ++i) mix((size_t)(m_Channels[i] + 2));
-        mix((size_t)m_TargetMaterial); mix((size_t)m_BlendMode); mix((size_t)m_ShadingModel);
-        mixf(m_AlphaCutoff);
-        return h;
-    }
-
-    MaterialGraphEditor::SUndoState MaterialGraphEditor::Capture() const
-    {
-        SUndoState s;
-        s.Nodes = m_Nodes;
-        for (int i = 0; i < 11; ++i) s.Channels[i] = m_Channels[i];
-        s.TargetMaterial = m_TargetMaterial;
-        s.BlendMode = m_BlendMode;
-        s.ShadingModel = m_ShadingModel;
-        s.NextId = m_NextId;
-        s.AlphaCutoff = m_AlphaCutoff;
-        s.Overrides = m_ParamOverrides;
-        s.Comments = m_Comments;
-        return s;
-    }
-
-    void MaterialGraphEditor::Restore(const SUndoState& s)
-    {
-        m_Nodes = s.Nodes;
-        for (int i = 0; i < 11; ++i) m_Channels[i] = s.Channels[i];
-        m_TargetMaterial = s.TargetMaterial;
-        m_BlendMode = s.BlendMode;
-        m_ShadingModel = s.ShadingModel;
-        m_NextId = s.NextId;
-        m_AlphaCutoff = s.AlphaCutoff;
-        m_ParamOverrides = s.Overrides;
-        m_Comments = s.Comments;
-        m_LinkFrom = -1;
-    }
-
-    size_t MaterialGraphEditor::HashState(const SUndoState& s)
-    {
-        size_t h = 1469598103934665603ull;
-        const auto mix = [&](size_t v) { h ^= v; h *= 1099511628211ull; };
-        const auto mixf = [&](float f) { uint32_t u = 0; std::memcpy(&u, &f, sizeof(u)); mix(u); };
-        for (const auto& n : s.Nodes)
-        {
-            mix((size_t)n.Type); mix((size_t)n.Id); mix((size_t)n.InputCount); mix((size_t)n.TexSlot);
-            mixf(n.Pos.x); mixf(n.Pos.y);
-            mixf(n.Constant.x); mixf(n.Constant.y); mixf(n.Constant.z); mixf(n.Constant.w);
-            for (int i = 0; i < 3; ++i) mix((size_t)(n.Inputs[i] + 2));
-            for (const char* p = n.Param; *p; ++p) mix((size_t)*p);
-            for (const char* p = n.Code; *p; ++p) mix((size_t)*p);
-        }
-        for (int i = 0; i < 11; ++i) mix((size_t)(s.Channels[i] + 2));
-        mix((size_t)s.TargetMaterial); mix((size_t)s.BlendMode); mix((size_t)s.ShadingModel);
-        mixf(s.AlphaCutoff);
-        for (const auto& [name, v] : s.Overrides)
-        {
-            for (char c : name) mix((size_t)c);
-            mixf(v.x); mixf(v.y); mixf(v.z); mixf(v.w);
-        }
-        for (const auto& c : s.Comments)
-        {
-            mixf(c.Pos.x); mixf(c.Pos.y); mixf(c.Size.x); mixf(c.Size.y);
-            for (const char* p = c.Text; *p; ++p) mix((size_t)*p);
-        }
+        h ^= (size_t)m_Document.TargetMaterial * 0x9e3779b97f4a7c15ull;       // re-apply on slot change
+        h ^= (size_t)m_Document.BlendMode * 0xc2b2ae3d27d4eb4full;           // ...and on blend-mode change
+        h ^= (size_t)m_Document.ShadingModel * 0x165667b19e3779f9ull;       // ...and on shading-model change
         return h;
     }
 
@@ -1147,8 +850,8 @@ namespace Elixir
     {
         if (interacting)
             return;
-        SUndoState cur = Capture();
-        const size_t h = HashState(cur);
+        SMaterialGraphDocument cur = m_Document;
+        const size_t h = cur.Hash();
         if (h == m_CommittedHash)
             return;
         m_Undo.push_back(std::move(m_Committed));
@@ -1158,240 +861,40 @@ namespace Elixir
         m_Redo.clear();
     }
 
-    bool MaterialGraphEditor::Save(const std::string& path) const
+
+    void MaterialGraphEditor::SetDocument(const SMaterialGraphDocument& document)
     {
-        std::error_code ec;
-        std::filesystem::create_directories(std::filesystem::path(path).parent_path(), ec);
+        Restore(document);
 
-        std::ofstream out(path);
-        if (!out)
-        {
-            EE_CORE_ERROR("Material graph: failed to open '{}' for writing.", path)
-            return false;
-        }
-
-        out << "{\n  \"version\": 1,\n";
-        WriteAssetFields(out);
-        out << "\n}\n";
-
-        EE_CORE_INFO("Material graph saved to '{}'.", path)
-        return true;
-    }
-
-    void MaterialGraphEditor::WriteAssetFields(std::ostream& out, const std::string& indent) const
-    {
-        const std::string nested = indent + "  ";
-        out << indent << "\"blendMode\": " << m_BlendMode << ",\n";
-        out << indent << "\"alphaCutoff\": " << m_AlphaCutoff << ",\n";
-        out << indent << "\"shadingModel\": " << m_ShadingModel << ",\n";
-        out << indent << "\"nextId\": " << m_NextId << ",\n";
-        out << indent << "\"channels\": [";
-        for (int i = 0; i < 11; ++i) out << (i ? ", " : "") << m_Channels[i];
-        out << "],\n";
-        out << indent << "\"nodes\": [\n";
-        for (size_t k = 0; k < m_Nodes.size(); ++k)
-        {
-            const SNode& n = m_Nodes[k];
-            out << nested << "{ "
-                << "\"id\": " << n.Id << ", "
-                << "\"type\": " << (int)n.Type << ", "
-                << "\"outputType\": " << (int)n.OutputType << ", "
-                << "\"pos\": [" << n.Pos.x << ", " << n.Pos.y << "], "
-                << "\"constant\": [" << n.Constant.x << ", " << n.Constant.y << ", "
-                << n.Constant.z << ", " << n.Constant.w << "], "
-                << "\"param\": \"" << n.Param << "\", "
-                << "\"code\": \"" << n.Code << "\", "
-                << "\"texSlot\": " << n.TexSlot << ", "
-                << "\"inputCount\": " << n.InputCount << ", "
-                << "\"inputs\": [" << n.Inputs[0] << ", " << n.Inputs[1] << ", " << n.Inputs[2] << "] }"
-                << (k + 1 < m_Nodes.size() ? "," : "") << "\n";
-        }
-        out << indent << "],\n";
-
-        // Comment boxes.
-        out << indent << "\"comments\": [";
-        for (size_t i = 0; i < m_Comments.size(); ++i)
-        {
-            const SComment& c = m_Comments[i];
-            out << (i ? ", " : "") << "{ \"pos\": [" << c.Pos.x << ", " << c.Pos.y << "], \"size\": ["
-                << c.Size.x << ", " << c.Size.y << "], \"text\": \"" << c.Text << "\" }";
-        }
-        out << ']';
-    }
-
-    bool MaterialGraphEditor::ParseGraphFile(
-        const std::string& path, std::vector<SNode>& nodes, int channels[11], int& targetMaterial, int& nextId,
-        bool logErrors) const
-    {
-        auto json = simdjson::padded_string::load(path);
-        if (json.error())
-        {
-            if (logErrors)
-                EE_CORE_ERROR("Material graph: failed to open '{}': {}", path, simdjson::error_message(json.error()))
-            return false;
-        }
-
-        simdjson::dom::parser parser;
-        simdjson::dom::element doc;
-        if (const auto err = parser.parse(json.value()).get(doc))
-        {
-            if (logErrors)
-                EE_CORE_ERROR("Material graph: failed to parse '{}': {}", path, simdjson::error_message(err))
-            return false;
-        }
-
-        // Reads a number tolerant of integer vs floating-point tokens.
-        const auto num = [](simdjson::dom::element e, double def) -> double
-        {
-            double d;
-            if (e.get(d) == simdjson::SUCCESS) return d;
-            int64_t i;
-            if (e.get(i) == simdjson::SUCCESS) return (double)i;
-            return def;
-        };
-
-        for (int i = 0; i < 11; ++i) channels[i] = -1;
-
-        int64_t iv;
-        if (doc["targetMaterial"].get(iv) == simdjson::SUCCESS) targetMaterial = (int)iv;
-        if (doc["nextId"].get(iv) == simdjson::SUCCESS) nextId = (int)iv;
-
-        simdjson::dom::array chans;
-        if (doc["channels"].get(chans) == simdjson::SUCCESS)
-        {
-            int i = 0;
-            for (auto c : chans) { if (i < 11) channels[i] = (int)num(c, -1.0); ++i; }
-        }
-
-        simdjson::dom::array arr;
-        if (doc["nodes"].get(arr) == simdjson::SUCCESS)
-        {
-            for (auto e : arr)
-            {
-                SNode node;
-                if (e["id"].get(iv) == simdjson::SUCCESS) node.Id = (int)iv;
-                node.DiagnosticId = node.Id;
-                if (e["type"].get(iv) == simdjson::SUCCESS) node.Type = (EMaterialNodeType)iv;
-                if (e["outputType"].get(iv) == simdjson::SUCCESS) node.OutputType = (EGraphValueType)iv;
-                if (e["texSlot"].get(iv) == simdjson::SUCCESS) node.TexSlot = (int)iv;
-                if (e["inputCount"].get(iv) == simdjson::SUCCESS) node.InputCount = std::clamp((int)iv, 0, 3);
-
-                simdjson::dom::array pos;
-                if (e["pos"].get(pos) == simdjson::SUCCESS)
-                {
-                    int i = 0;
-                    for (auto v : pos) { if (i == 0) node.Pos.x = (float)num(v, 0.0); else if (i == 1) node.Pos.y = (float)num(v, 0.0); ++i; }
-                }
-                simdjson::dom::array con;
-                if (e["constant"].get(con) == simdjson::SUCCESS)
-                {
-                    int i = 0;
-                    for (auto v : con) { if (i < 4) (&node.Constant.x)[i] = (float)num(v, 0.0); ++i; }
-                }
-                std::string_view sv;
-                if (e["param"].get(sv) == simdjson::SUCCESS)
-                {
-                    const size_t len = std::min(sv.size(), sizeof(node.Param) - 1);
-                    std::memcpy(node.Param, sv.data(), len);
-                    node.Param[len] = '\0';
-                }
-                if (e["code"].get(sv) == simdjson::SUCCESS)
-                {
-                    const size_t len = std::min(sv.size(), sizeof(node.Code) - 1);
-                    std::memcpy(node.Code, sv.data(), len);
-                    node.Code[len] = '\0';
-                }
-                simdjson::dom::array ins;
-                if (e["inputs"].get(ins) == simdjson::SUCCESS)
-                {
-                    int i = 0;
-                    for (auto v : ins) { if (i < 3) node.Inputs[i] = (int)num(v, -1.0); ++i; }
-                }
-                nodes.push_back(node);
-            }
-        }
-        return true;
-    }
-
-    bool MaterialGraphEditor::Load(const std::string& path)
-    {
-        std::vector<SNode> nodes;
-        int channels[11];
-        int targetMaterial = m_TargetMaterial;
-        int nextId = 1;
-        if (!ParseGraphFile(path, nodes, channels, targetMaterial, nextId))
-            return false;
-
-        m_Nodes = std::move(nodes);
-        for (int i = 0; i < 11; ++i) m_Channels[i] = channels[i];
-        m_TargetMaterial = targetMaterial;
-        m_NextId = nextId > 1 ? nextId : 1;
-        m_LinkFrom = -1;
-
-        // Restore live parameter overrides.
-        m_ParamOverrides.clear();
-        {
-            auto json = simdjson::padded_string::load(path);
-            simdjson::dom::parser parser;
-            simdjson::dom::element doc;
-            simdjson::dom::array overrides;
-            const bool parsed = !json.error() && parser.parse(json.value()).get(doc) == simdjson::SUCCESS;
-            if (parsed)
-            {
-                int64_t bm; if (doc["blendMode"].get(bm) == simdjson::SUCCESS) m_BlendMode = (int)bm;
-                double ac; if (doc["alphaCutoff"].get(ac) == simdjson::SUCCESS) m_AlphaCutoff = (float)ac;
-                int64_t sm; if (doc["shadingModel"].get(sm) == simdjson::SUCCESS) m_ShadingModel = (int)sm;
-            }
-            if (parsed && doc["paramOverrides"].get(overrides) == simdjson::SUCCESS)
-            {
-                for (auto o : overrides)
-                {
-                    std::string_view name;
-                    simdjson::dom::array val;
-                    if (o["name"].get(name) != simdjson::SUCCESS || o["value"].get(val) != simdjson::SUCCESS)
-                        continue;
-                    glm::vec4 v(0.0f);
-                    int i = 0;
-                    for (auto c : val) { double d; if (c.get(d) == simdjson::SUCCESS && i < 4) (&v.x)[i] = (float)d; ++i; }
-                    m_ParamOverrides[std::string(name)] = v;
-                }
-            }
-
-            m_Comments.clear();
-            simdjson::dom::array comments;
-            if (parsed && doc["comments"].get(comments) == simdjson::SUCCESS)
-            {
-                for (auto e : comments)
-                {
-                    SComment c;
-                    simdjson::dom::array a;
-                    if (e["pos"].get(a) == simdjson::SUCCESS)
-                    { int i = 0; for (auto x : a) { double d; if (x.get(d) == simdjson::SUCCESS && i < 2) (&c.Pos.x)[i] = (float)d; ++i; } }
-                    if (e["size"].get(a) == simdjson::SUCCESS)
-                    { int i = 0; for (auto x : a) { double d; if (x.get(d) == simdjson::SUCCESS && i < 2) (&c.Size.x)[i] = (float)d; ++i; } }
-                    std::string_view t;
-                    if (e["text"].get(t) == simdjson::SUCCESS)
-                    { const size_t len = std::min(t.size(), sizeof(c.Text) - 1); std::memcpy(c.Text, t.data(), len); c.Text[len] = '\0'; }
-                    m_Comments.push_back(c);
-                }
-            }
-        }
-
+        // A freshly loaded document is its own baseline: it starts with no undo
+        // history, and must not read as a pending edit or it would recompile at once.
+        m_Undo.clear();
+        m_Redo.clear();
+        m_Committed = m_Document;
+        m_CommittedHash = m_Document.Hash();
+        m_LastStructHash = m_Document.StructHash();
         m_LastSig = Signature();
         m_DirtySince = -1.0;
+    }
 
-        std::string fileName = std::filesystem::path(path).filename().string();
-        for (const std::string_view suffix : { ".material.json", ".matgraph.json" })
-            if (fileName.ends_with(suffix))
-            {
-                fileName.resize(fileName.size() - suffix.size());
-                break;
-            }
-        const size_t fileNameLength = std::min(fileName.size(), sizeof(m_FileName) - 1);
-        std::memcpy(m_FileName, fileName.data(), fileNameLength);
-        m_FileName[fileNameLength] = '\0';
+    void MaterialGraphEditor::Restore(const SMaterialGraphDocument& document)
+    {
+        m_Document = document;
+        m_LinkFrom = -1;
+    }
 
-        EE_CORE_INFO("Material graph loaded from '{}' ({} nodes).", path, m_Nodes.size())
-        return true;
+    MaterialGraph MaterialGraphEditor::Build() const
+    {
+        return m_Document.Build();
+    }
+
+    Ref<Material> MaterialGraphEditor::BuildMaterial(const Ref<Material>& base) const
+    {
+        return m_Document.BuildMaterial(AssetName(), base);
+    }
+
+    void MaterialGraphEditor::ApplyParametersTo(MaterialInstance& instance) const
+    {
+        m_Document.ApplyParametersTo(instance);
     }
 }

@@ -1,7 +1,7 @@
 #include "epch.h"
 #include "MaterialAsset.h"
 
-#include "MaterialGraphEditor.h"
+#include "MaterialGraphDocument.h"
 #include <Engine/Graphics/TextureLoader.h>
 
 #include <simdjson.h>
@@ -226,9 +226,14 @@ namespace Elixir
         }
     }
 
-    bool MaterialAsset::SaveMaterial(
-        const fs::path& path, const Material& material, const MaterialGraphEditor& editor)
+    bool MaterialAsset::SaveMaterial(const fs::path& path, const Material& material)
     {
+        const SMaterialGraphDocument* document = material.GetDocument();
+        if (!document)
+        {
+            EE_CORE_ERROR("Material asset: '{}' has no authored graph to save.", path.string())
+            return false;
+        }
         if (!ParametersCanBeSaved(path, material.GetDefaults()))
             return false;
         std::ofstream out;
@@ -246,13 +251,13 @@ namespace Elixir
             out << (i + 1 < defaults.size() ? "," : "") << '\n';
         }
         out << "  ],\n";
-        editor.WriteAssetFields(out);
+        MaterialGraphDocument::WriteFields(out, *document);
         out << "\n}\n";
         EE_CORE_INFO("Material asset saved to '{}'.", path.string())
         return true;
     }
 
-    Ref<Material> MaterialAsset::LoadMaterial(const fs::path& path, MaterialGraphEditor* editor)
+    Ref<Material> MaterialAsset::LoadMaterial(const fs::path& path)
     {
         simdjson::padded_string json;
         simdjson::dom::parser parser;
@@ -267,25 +272,19 @@ namespace Elixir
             return nullptr;
         }
 
-        MaterialGraphEditor loadedEditor;
-        if (!loadedEditor.Load(path.string()))
+        const auto graph = MaterialGraphDocument::Load(path);
+        if (!graph)
             return nullptr;
-        const Ref<Material> graphMaterial = loadedEditor.BuildMaterial();
 
-        auto material = CreateRef<Material>(std::string(name));
+        // Build first, so the graph's own exposed parameters exist as defaults; the
+        // asset's saved defaults then take precedence over those baked values.
+        const Ref<Material> material = graph->BuildMaterial(std::string(name));
         simdjson::dom::array defaults;
         if (document["defaults"].get(defaults) != simdjson::SUCCESS)
             return nullptr;
         for (const auto element : defaults)
             if (auto parameter = ParseParameter(element, path))
                 material->SetDefault(parameter->first, parameter->second);
-
-        for (const auto& [parameterName, value] : graphMaterial->GetDefaults())
-            if (!material->GetDefault(parameterName))
-                material->SetDefault(parameterName, value);
-        material->SetGraph(*graphMaterial->GetGraph(), graphMaterial->GetGraphParameters());
-        if (editor)
-            *editor = std::move(loadedEditor);
 
         EE_CORE_INFO("Material asset loaded from '{}'.", path.string())
         return material;
@@ -319,8 +318,7 @@ namespace Elixir
         return true;
     }
 
-    Ref<MaterialInstance> MaterialAsset::LoadInstance(
-        const fs::path& path, MaterialGraphEditor* parentEditor)
+    Ref<MaterialInstance> MaterialAsset::LoadInstance(const fs::path& path)
     {
         simdjson::padded_string json;
         simdjson::dom::parser parser;
@@ -331,7 +329,7 @@ namespace Elixir
         std::string_view parentReference;
         if (document["parent"].get(parentReference) != simdjson::SUCCESS)
             return nullptr;
-        const Ref<Material> parent = LoadMaterial(ResolveReference(path, parentReference), parentEditor);
+        const Ref<Material> parent = LoadMaterial(ResolveReference(path, parentReference));
         if (!parent)
             return nullptr;
 

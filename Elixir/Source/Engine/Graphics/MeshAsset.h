@@ -4,13 +4,17 @@
 
 #include <filesystem>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace Elixir
 {
     struct SMeshMaterialSlot
     {
+        // The source material name identifies the slot; Slot is the index it had when
+        // written, and only resolves entries whose name is absent or no longer present.
         uint32_t Slot = 0;
+        std::string Name;
         std::filesystem::path Material;
     };
 

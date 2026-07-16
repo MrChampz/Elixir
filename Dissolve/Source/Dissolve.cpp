@@ -223,46 +223,107 @@ void Dissolve::QueueGraphCompile(
     });
 }
 
-void Dissolve::SaveMaterialAssets()
+std::filesystem::path Dissolve::MaterialAssetPath(const std::string& name)
+{
+    return std::filesystem::path("./Assets/Materials") / (name + ".material.json");
+}
+
+std::filesystem::path Dissolve::InstanceAssetPath(const std::string& name)
+{
+    return std::filesystem::path("./Assets/Materials") / (name + ".matinstance.json");
+}
+
+// The node editor authors the parent material and saves only that. Which slots use it,
+// and with what overrides, is the instance's business (see SaveInstanceAsset).
+void Dissolve::SaveMaterialAsset()
 {
     const int target = m_GraphEditor.TargetMaterial();
-    Ref<MaterialInstance> currentSnapshot;
+    Ref<Material> base;
     {
         std::lock_guard<std::mutex> lock(m_Model->MaterialsMutex());
         const auto& materials = m_Model->GetMaterials();
-        if (target < 0 || target >= (int)materials.size())
-            return;
-        currentSnapshot = CreateRef<MaterialInstance>(*materials[target]);
+        if (target >= 0 && target < (int)materials.size())
+            base = materials[target]->GetParent();
     }
 
-    const Ref<Material> material = m_GraphEditor.BuildMaterial(currentSnapshot->GetParent());
-    const auto assetInstance = CreateRef<MaterialInstance>(material);
-    assetInstance->SetName(
-        currentSnapshot->GetName().empty() ? m_GraphEditor.AssetName() : currentSnapshot->GetName());
-    assetInstance->ApplyCompatibleOverridesFrom(*currentSnapshot);
-    m_GraphEditor.ApplyParametersTo(*assetInstance);
+    // Built against the slot's current parent so the graph's Parameter nodes keep the
+    // StandardPBR/glTF defaults they read from.
+    const Ref<Material> material = m_GraphEditor.BuildMaterial(base);
+    MaterialAsset::SaveMaterial(m_GraphEditor.MaterialPath(), *material);
+}
 
-    const auto directory = std::filesystem::path("./Assets/Materials");
-    const auto materialPath = m_GraphEditor.MaterialPath();
-    const auto instancePath = directory / (m_GraphEditor.AssetName() + ".matinstance.json");
-    if (!MaterialAsset::SaveMaterial(materialPath, *assetInstance->GetParent(), m_GraphEditor)
-        || !MaterialAsset::SaveInstance(instancePath, *assetInstance, materialPath))
+// Reopens a saved material for editing. The graph travels as the material's document,
+// so the editor is filled from the asset rather than parsing the file itself.
+void Dissolve::OpenMaterialAsset()
+{
+    const Ref<Material> material = MaterialAsset::LoadMaterial(m_GraphEditor.MaterialPath());
+    if (!material || !material->GetDocument())
+        return;
+    m_GraphEditor.SetDocument(*material->GetDocument());
+
+    // Show the reopened graph on its target slot without waiting for an edit.
+    if (m_Compiling) m_RecompileQueued = true;
+    else StartGraphCompile();
+}
+
+// Saves the selected slot's instance: its overrides, its name, and a reference to the
+// parent material asset. Several instances may share one parent, so the instance name
+// is the user's to choose rather than the material's.
+void Dissolve::SaveInstanceAsset(const uint32_t slot)
+{
+    Ref<MaterialInstance> snapshot;
+    {
+        std::lock_guard<std::mutex> lock(m_Model->MaterialsMutex());
+        const auto& materials = m_Model->GetMaterials();
+        if (slot >= materials.size())
+            return;
+        snapshot = CreateRef<MaterialInstance>(*materials[slot]);
+    }
+
+    const Ref<Material>& parent = snapshot->GetParent();
+    if (!parent || !parent->GetDocument())
+    {
+        EE_CORE_WARN("Material instance: slot {} has no graph material to reference.", slot)
+        return;
+    }
+
+    // An instance is only a parent reference plus overrides, so a parent that was never
+    // saved would leave it dangling on the next load.
+    const auto materialPath = MaterialAssetPath(parent->GetName());
+    if (!std::filesystem::exists(materialPath))
+    {
+        EE_CORE_WARN("Material instance: save the '{}' material before its instances.",
+            parent->GetName())
+        return;
+    }
+
+    const std::string name = m_InstanceName[0] != '\0' ? m_InstanceName : parent->GetName();
+    snapshot->SetName(name);
+    const auto instancePath = InstanceAssetPath(name);
+    if (!MaterialAsset::SaveInstance(instancePath, *snapshot, materialPath))
         return;
 
-    if (m_Model->SetMaterialAsset((uint32_t)target, instancePath))
+    // Keep the live instance in step with what was written, so the panel does not go on
+    // showing the name the slot had before the save.
+    {
+        std::lock_guard<std::mutex> lock(m_Model->MaterialsMutex());
+        const auto& materials = m_Model->GetMaterials();
+        if (slot < materials.size())
+            materials[slot]->SetName(name);
+    }
+
+    if (m_Model->SetMaterialAsset(slot, instancePath))
         m_Model->SaveAsset();
 }
 
-bool Dissolve::LoadMaterialAsset(
-    const uint32_t slot, const std::filesystem::path& instancePath, const bool loadEditor)
+bool Dissolve::LoadMaterialAsset(const uint32_t slot, const std::filesystem::path& instancePath)
 {
     if (slot >= m_Model->GetMaterials().size())
     {
         EE_CORE_WARN("Material slots: ignoring out-of-range slot {}.", slot)
         return false;
     }
-    const Ref<MaterialInstance> instance = MaterialAsset::LoadInstance(
-        instancePath, loadEditor ? &m_GraphEditor : nullptr);
+    const Ref<MaterialInstance> instance = MaterialAsset::LoadInstance(instancePath);
     if (!instance)
         return false;
     if (instance->GetParent()->HasGraph())
@@ -318,19 +379,9 @@ void Dissolve::OnGUI(const Timestep frameTime)
         }
     }
     if (m_GraphEditor.SavedThisFrame())
-        SaveMaterialAssets();
+        SaveMaterialAsset();
     if (m_GraphEditor.LoadedThisFrame())
-    {
-        const auto instancePath = std::filesystem::path("./Assets/Materials")
-            / (m_GraphEditor.AssetName() + ".matinstance.json");
-        if (std::filesystem::exists(instancePath))
-        {
-            const uint32_t slot = (uint32_t)m_GraphEditor.TargetMaterial();
-            if (LoadMaterialAsset(slot, instancePath, true)
-                && m_Model->SetMaterialAsset(slot, instancePath))
-                m_Model->SaveAsset();
-        }
-    }
+        OpenMaterialAsset();
     if (compileRequested)
     {
         // Coalesce changes that arrive while a compile is already in flight.
@@ -364,6 +415,7 @@ void Dissolve::DrawMaterialEditor()
 
     ImGui::Begin("Material Editor");
     const auto& materials = m_Model->GetMaterials();
+    int saveInstanceSlot = -1;
     if (!materials.empty())
     {
         static int selected = 0;
@@ -375,6 +427,30 @@ void Dissolve::DrawMaterialEditor()
 
         const auto& mat = materials[selected];
         ImGui::TextWrapped("%s", mat->GetName().c_str());
+        if (const Ref<Material>& parent = mat->GetParent())
+            ImGui::TextDisabled("Parent: %s", parent->GetName().c_str());
+
+        // Saving the instance is separate from saving the graph: one parent material can
+        // back any number of named instances, each with its own overrides.
+        if (selected != m_InstanceNameSlot)
+        {
+            m_InstanceNameSlot = selected;
+            const std::string& name = mat->GetName();
+            const size_t length = std::min(name.size(), sizeof(m_InstanceName) - 1);
+            std::memcpy(m_InstanceName, name.data(), length);
+            m_InstanceName[length] = '\0';
+        }
+        ImGui::SetNextItemWidth(160.0f);
+        ImGui::InputText("##instance", m_InstanceName, sizeof(m_InstanceName));
+        ImGui::SameLine();
+        const bool savable = mat->GetParent() && mat->GetParent()->GetDocument();
+        ImGui::BeginDisabled(!savable);
+        // Deferred: SaveInstanceAsset takes the same mutex this block holds.
+        if (ImGui::Button("Save Instance"))
+            saveInstanceSlot = selected;
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::TextDisabled(savable ? ".matinstance.json" : "(no graph material)");
         ImGui::Separator();
         bool changed = false;
 
@@ -397,6 +473,9 @@ void Dissolve::DrawMaterialEditor()
             m_Model->MarkMaterialsDirty();
     }
     ImGui::End();
+
+    if (saveInstanceSlot >= 0)
+        SaveInstanceAsset((uint32_t)saveInstanceSlot);
     // The draw data is submitted from OnRender (render thread) via EndImGuiFrame.
 }
 

@@ -239,12 +239,8 @@ namespace Elixir
         if (meshAsset)
         {
             for (const auto& material : meshAsset->Materials)
-            {
-                if (material.Slot < model->m_MaterialAssets.size())
-                    model->m_MaterialAssets[material.Slot] = material.Material;
-                else
-                    EE_CORE_WARN("Mesh asset: ignoring out-of-range material slot {}.", material.Slot)
-            }
+                if (const auto slot = model->ResolveMaterialSlot(material))
+                    model->m_MaterialAssets[*slot] = material.Material;
         }
 
         const size_t sceneIndex = asset.defaultScene.value_or(0);
@@ -346,6 +342,32 @@ namespace Elixir
         return model;
     }
 
+    std::optional<uint32_t> Model::ResolveMaterialSlot(const SMeshMaterialSlot& entry) const
+    {
+        // A name survives a reimport that reorders or inserts materials in the source;
+        // an index does not, so it only stands in for entries that carry no name.
+        if (entry.Name.empty())
+        {
+            if (entry.Slot < m_Materials.size())
+                return entry.Slot;
+            EE_CORE_WARN("Mesh asset: ignoring out-of-range material slot {}.", entry.Slot)
+            return std::nullopt;
+        }
+
+        // Source names need not be unique, so honour the recorded index when it still
+        // holds the same name; duplicates then keep the assignment they were given.
+        if (entry.Slot < m_Materials.size() && m_Materials[entry.Slot]->GetName() == entry.Name)
+            return entry.Slot;
+
+        for (uint32_t slot = 0; slot < m_Materials.size(); ++slot)
+            if (m_Materials[slot]->GetName() == entry.Name)
+                return slot;
+
+        EE_CORE_WARN("Mesh asset: material slot '{}' is no longer in the source; "
+                     "dropping its assignment.", entry.Name)
+        return std::nullopt;
+    }
+
     bool Model::SetMaterialAsset(const uint32_t slot, const std::filesystem::path& material)
     {
         if (slot >= m_MaterialAssets.size())
@@ -364,9 +386,15 @@ namespace Elixir
 
         SMeshAssetDescription description;
         description.Source = m_SourcePath;
-        for (uint32_t slot = 0; slot < m_MaterialAssets.size(); ++slot)
-            if (!m_MaterialAssets[slot].empty())
-                description.Materials.push_back({ slot, m_MaterialAssets[slot] });
+        {
+            // Slot names come from the instances, which the render thread renames when
+            // it installs a prepared material.
+            std::lock_guard<std::mutex> lock(m_MaterialsMutex);
+            for (uint32_t slot = 0; slot < m_MaterialAssets.size(); ++slot)
+                if (!m_MaterialAssets[slot].empty())
+                    description.Materials.push_back(
+                        { slot, m_Materials[slot]->GetName(), m_MaterialAssets[slot] });
+        }
         return MeshAsset::Save(m_Path, description);
     }
 }
