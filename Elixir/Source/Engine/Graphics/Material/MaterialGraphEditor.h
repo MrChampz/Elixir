@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Engine/Graphics/Material/Material.h>
 #include <Engine/Graphics/Material/MaterialGraph.h>
 
 #include <glm/glm.hpp>
@@ -36,13 +37,18 @@ namespace Elixir
         // Convert the current visual state into a compilable graph.
         [[nodiscard]] MaterialGraph Build() const;
 
+        // Build a Material asset that owns the graph and its exposed-parameter layout.
+        // Defaults from base are copied so graph Parameter nodes can still read the
+        // StandardPBR/glTF fields used by the fixed GPU material structure.
+        [[nodiscard]] Ref<Material> BuildMaterial(const Ref<Material>& base = nullptr) const;
+
+        // Synchronize the editor controls with a graph-backed instance and write edits
+        // back to that instance. MaterialInstance remains the runtime source of truth.
+        void SyncParametersFrom(const MaterialInstance& instance);
+        void ApplyParametersTo(MaterialInstance& instance) const;
+
         // Max number of exposed parameters (matches GraphParams[] in the shader).
         static constexpr int MAX_PARAMS = 8;
-
-        // Fill `out` with the current exposed-parameter values in slot order (the
-        // same order Build() assigns). Returns the number written. Lets the app push
-        // live values into the shader's cbGraphParams without recompiling.
-        int CollectParams(glm::vec4* out, int maxCount) const;
 
       private:
         struct SNode

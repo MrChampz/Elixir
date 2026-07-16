@@ -49,18 +49,9 @@ private:
     // build; MeshRenderer::Render installs the ready variant (no main/render stall).
     bool m_Compiling = false;
     bool m_RecompileQueued = false;        // a change arrived mid-compile; redo after
-    MaterialGraph m_CompileGraph;          // snapshot handed to the worker
-    uint32_t m_CompileSlot = 0;
-    Elixir::EMaterialBlendMode m_CompileBlend = Elixir::EMaterialBlendMode::Opaque;
     std::mutex m_CompileMutex;
     bool m_CompileReady = false;
-    bool m_CompileOk = false;
 
     void StartGraphCompile();
 
-    // Live exposed-parameter values, snapshotted on the main thread (OnGUI) and
-    // pushed to the applied slot's shader on the render thread (OnRender).
-    int m_AppliedParamSlot = -1;
-    glm::vec4 m_GraphParams[8] = {};
-    int m_GraphParamCount = 0;
 };

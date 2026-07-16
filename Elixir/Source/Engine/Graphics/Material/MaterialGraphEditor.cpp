@@ -723,14 +723,15 @@ namespace Elixir
 
         ImGui::End();
 
-        // Exposed-parameter panel (own window): editing these pushes live values into
-        // the shader (no recompile) via CollectParams() -> cbGraphParams.
+        // Exposed-parameter panel (own window): the editor mirrors values to the target
+        // MaterialInstance, which the renderer uploads without recompiling.
         ImGui::Begin("Material Parameters");
         ImGui::TextDisabled("Live -- no recompile. Includes params inside functions.");
         ImGui::Separator();
         {
             // List params across the expanded graph (top-level + inside functions);
-            // edits go to an override map keyed by name (applied by CollectParams).
+            // Edits go to a local UI map keyed by name and are applied to the instance
+            // immediately after Draw() by the host application.
             std::vector<SNode> pnodes;
             int pchannels[11];
             Expand(pnodes, pchannels);
@@ -960,6 +961,80 @@ namespace Elixir
         return graph;
     }
 
+    Ref<Material> MaterialGraphEditor::BuildMaterial(const Ref<Material>& base) const
+    {
+        const std::string name = m_FileName[0] != '\0' ? m_FileName : "GraphMaterial";
+        auto material = CreateRef<Material>(name);
+        if (base)
+        {
+            std::unordered_set<std::string> oldGraphParameters;
+            for (const auto& parameter : base->GetGraphParameters())
+                oldGraphParameters.insert(parameter.Name);
+            for (const auto& [parameterName, value] : base->GetDefaults())
+                if (!oldGraphParameters.contains(parameterName))
+                    material->SetDefault(parameterName, value);
+        }
+
+        std::vector<SNode> nodes;
+        int channels[11];
+        Expand(nodes, channels);
+
+        std::vector<SMaterialGraphParameter> layout;
+        uint32_t slot = 0;
+        for (const auto& node : nodes)
+        {
+            if (node.Type != EMaterialNodeType::ParamScalar && node.Type != EMaterialNodeType::ParamColor)
+                continue;
+
+            const auto type = node.Type == EMaterialNodeType::ParamScalar
+                ? SMaterialParam::EType::Scalar : SMaterialParam::EType::Vector;
+            if (type == SMaterialParam::EType::Scalar)
+                material->SetDefault(node.Param, SMaterialParam::MakeScalar(node.Constant.x));
+            else
+                material->SetDefault(node.Param, SMaterialParam::MakeVector(node.Constant));
+            layout.push_back({ node.Param, type, slot++ });
+        }
+
+        material->SetGraph(Build(), std::move(layout));
+        return material;
+    }
+
+    void MaterialGraphEditor::SyncParametersFrom(const MaterialInstance& instance)
+    {
+        const Ref<Material>& material = instance.GetParent();
+        if (!material || !material->HasGraph())
+            return;
+
+        for (const auto& parameter : material->GetGraphParameters())
+        {
+            const SMaterialParam* value = instance.GetParameter(parameter.Name);
+            if (!value || value->Type != parameter.Type)
+                continue;
+            if (parameter.Type == SMaterialParam::EType::Scalar)
+                m_ParamOverrides[parameter.Name] = glm::vec4(value->Scalar, 0.0f, 0.0f, 0.0f);
+            else if (parameter.Type == SMaterialParam::EType::Vector)
+                m_ParamOverrides[parameter.Name] = value->Vector;
+        }
+    }
+
+    void MaterialGraphEditor::ApplyParametersTo(MaterialInstance& instance) const
+    {
+        std::vector<SNode> nodes;
+        int channels[11];
+        Expand(nodes, channels);
+        for (const auto& node : nodes)
+        {
+            if (node.Type != EMaterialNodeType::ParamScalar && node.Type != EMaterialNodeType::ParamColor)
+                continue;
+            const auto override = m_ParamOverrides.find(node.Param);
+            const glm::vec4 value = override != m_ParamOverrides.end() ? override->second : node.Constant;
+            if (node.Type == EMaterialNodeType::ParamScalar)
+                instance.SetScalar(node.Param, value.x);
+            else
+                instance.SetVector(node.Param, value);
+        }
+    }
+
     size_t MaterialGraphEditor::Signature() const
     {
         // Hash the actual generated HLSL, so the signature changes only when the
@@ -1005,27 +1080,6 @@ namespace Elixir
         mix((size_t)m_TargetMaterial); mix((size_t)m_BlendMode); mix((size_t)m_ShadingModel);
         mixf(m_AlphaCutoff);
         return h;
-    }
-
-    int MaterialGraphEditor::CollectParams(glm::vec4* out, int maxCount) const
-    {
-        // Iterate the expanded graph so parameters inside functions get slots in the
-        // same order Build() assigns them; apply any live override by name.
-        std::vector<SNode> nodes;
-        int channels[11];
-        Expand(nodes, channels);
-
-        int slot = 0;
-        for (const auto& n : nodes)
-        {
-            if (n.Type != EMaterialNodeType::ParamScalar && n.Type != EMaterialNodeType::ParamColor)
-                continue;
-            if (slot >= maxCount || slot >= MAX_PARAMS)
-                break;
-            const auto it = m_ParamOverrides.find(n.Param);
-            out[slot++] = it != m_ParamOverrides.end() ? it->second : n.Constant;
-        }
-        return slot;
     }
 
     MaterialGraphEditor::SUndoState MaterialGraphEditor::Capture() const

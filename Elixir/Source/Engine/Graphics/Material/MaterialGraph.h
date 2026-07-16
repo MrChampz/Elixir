@@ -127,6 +127,8 @@ namespace Elixir
         // (the Masked clip); the renderer reads the mode separately for pipeline state.
         void SetBlend(EMaterialBlendMode mode, float cutoff) { m_BlendMode = mode; m_AlphaCutoff = cutoff; }
         void SetShadingModel(EMaterialShadingModel model) { m_ShadingModel = model; }
+        [[nodiscard]] EMaterialBlendMode GetBlendMode() const { return m_BlendMode; }
+        [[nodiscard]] float GetAlphaCutoff() const { return m_AlphaCutoff; }
         [[nodiscard]] EMaterialShadingModel GetShadingModel() const { return m_ShadingModel; }
 
         // Generate the HLSL statements for a stage. Pixel stage (default) fills

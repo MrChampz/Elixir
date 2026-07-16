@@ -162,24 +162,31 @@ Dissolve::~Dissolve()
 void Dissolve::StartGraphCompile()
 {
     m_Compiling = true;
-    m_CompileGraph = m_GraphEditor.Build();
-    m_CompileSlot = (uint32_t)m_GraphEditor.TargetMaterial();
-    m_CompileBlend = m_GraphEditor.BlendMode();
+    const uint32_t compileSlot = (uint32_t)m_GraphEditor.TargetMaterial();
+
+    Ref<Material> baseMaterial;
+    {
+        std::lock_guard<std::mutex> lock(m_Model->MaterialsMutex());
+        const auto& materials = m_Model->GetMaterials();
+        if (compileSlot < materials.size())
+            baseMaterial = materials[compileSlot]->GetParent();
+    }
+    const Ref<Material> compileMaterial = m_GraphEditor.BuildMaterial(baseMaterial);
+    const MaterialGraph compileGraph = *compileMaterial->GetGraph();
+    const EMaterialBlendMode compileBlend = compileGraph.GetBlendMode();
+    const auto compileInstance = CreateRef<MaterialInstance>(compileMaterial);
+    m_GraphEditor.ApplyParametersTo(*compileInstance);
 
     // Do the whole build on a worker thread -- DXC (no Vulkan) plus the Vulkan
     // shader/pipeline creation -- so neither the render thread nor the UI thread
     // stalls on the Metal pipeline compile. MeshRenderer::Render installs the result.
-    m_Executor.Enqueue([this]()
+    m_Executor.Enqueue([this, compileSlot, compileGraph, compileBlend, compileInstance]()
     {
-        bool ok = false;
-        if (const auto compiled = MaterialCompiler::CompileToSpirv(m_CompileGraph))
+        if (const auto compiled = MaterialCompiler::CompileToSpirv(compileGraph))
             if (const auto shader = MaterialCompiler::LoadCompiled(m_ShaderLoader.get(), *compiled))
-            {
-                m_MeshRenderer->PrepareMaterialShader(m_CompileSlot, shader, m_CompileBlend);
-                ok = true;
-            }
+                m_MeshRenderer->PrepareMaterialShader(
+                    compileSlot, shader, compileBlend, m_Model, compileInstance);
         std::lock_guard<std::mutex> lock(m_CompileMutex);
-        m_CompileOk = ok;
         m_CompileReady = true;
     });
 }
@@ -196,32 +203,44 @@ void Dissolve::OnGUI(const Timestep frameTime)
     // Visual node editor. On Apply (or live-preview debounce), kick off the graph's
     // DXC compilation on a worker thread so the UI doesn't stall.
     const int materialCount = (int)m_Model->GetMaterials().size();
-    if (m_GraphEditor.Draw(materialCount))
+    {
+        std::lock_guard<std::mutex> lock(m_Model->MaterialsMutex());
+        const int target = m_GraphEditor.TargetMaterial();
+        if (target >= 0 && target < materialCount)
+            m_GraphEditor.SyncParametersFrom(*m_Model->GetMaterials()[target]);
+    }
+    const bool compileRequested = m_GraphEditor.Draw(materialCount);
+    {
+        std::lock_guard<std::mutex> lock(m_Model->MaterialsMutex());
+        const int target = m_GraphEditor.TargetMaterial();
+        if (target >= 0 && target < materialCount)
+        {
+            const auto& instance = m_Model->GetMaterials()[target];
+            if (instance->GetParent() && instance->GetParent()->HasGraph())
+                m_GraphEditor.ApplyParametersTo(*instance);
+        }
+    }
+    if (compileRequested)
     {
         // Coalesce changes that arrive while a compile is already in flight.
         if (m_Compiling) m_RecompileQueued = true;
         else StartGraphCompile();
     }
 
-    // Finish a ready compile on the main thread (Vulkan shader creation), then hand
-    // it to the render thread to bind.
-    bool ready = false, ok = false;
+    // Observe worker completion on the main thread. The prepared result, when valid,
+    // is already waiting for the render thread to install at a frame boundary.
+    bool ready = false;
     {
         std::lock_guard<std::mutex> lock(m_CompileMutex);
-        if (m_CompileReady) { ready = true; ok = m_CompileOk; m_CompileReady = false; }
+        if (m_CompileReady) { ready = true; m_CompileReady = false; }
     }
     if (ready)
     {
-        // The worker already built + queued the variant; just note the slot so its
-        // live params get pushed, and kick off any change that arrived mid-compile.
-        if (ok)
-            m_AppliedParamSlot = (int)m_CompileSlot;
+        // A successful compile is already queued for atomic material + shader
+        // installation by Render; this only advances the compile state machine.
         m_Compiling = false;
         if (m_RecompileQueued) { m_RecompileQueued = false; StartGraphCompile(); }
     }
-
-    // Snapshot exposed-parameter values (main thread) for the render thread to push.
-    m_GraphParamCount = m_GraphEditor.CollectParams(m_GraphParams, 8);
 
     // Finalize and snapshot ImGui on this thread. The render thread later consumes
     // immutable draw data, so it never races the next ImGui::NewFrame().
@@ -285,12 +304,8 @@ void Dissolve::OnRender(const Timestep frameTime)
 
     //DrawGeometry();
 
-    // Node-graph material variants are prepared on the main thread (OnGUI) and
-    // installed by MeshRenderer::Render, so nothing to apply here.
-
-    // Push live exposed-parameter values to the applied slot (cheap, no recompile).
-    if (m_AppliedParamSlot >= 0)
-        m_MeshRenderer->SetMaterialParams((uint32_t)m_AppliedParamSlot, m_GraphParams, (uint32_t)m_GraphParamCount);
+    // Node-graph material variants are prepared by the compile worker and installed
+    // by MeshRenderer::Render, so nothing to apply here.
 
     // m_ParticlesRenderer->Render(m_GPUSystem, m_CameraController->GetCamera());
     m_MeshRenderer->Render(m_Model, m_CameraController->GetCamera());

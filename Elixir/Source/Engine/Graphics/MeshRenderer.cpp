@@ -171,7 +171,9 @@ namespace Elixir
         m_BoundModel = nullptr; // force the material buffer to rebind to all shaders
     }
 
-    void MeshRenderer::PrepareMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader, EMaterialBlendMode blendMode)
+    void MeshRenderer::PrepareMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader,
+        EMaterialBlendMode blendMode, const Ref<Model>& model,
+        const Ref<MaterialInstance>& materialInstance)
     {
         if (!shader)
             return;
@@ -189,35 +191,38 @@ namespace Elixir
         shader->BindConstantBuffer("cbGraphParams", variant.ParamBuffer);
 
         std::lock_guard<std::mutex> lock(m_PendingMutex);
-        m_PendingVariants.push_back({ materialIndex, std::move(variant) });
+        m_PendingVariants.push_back({ materialIndex, std::move(variant), model, materialInstance });
     }
 
     void MeshRenderer::InstallPendingShaders()
     {
-        std::lock_guard<std::mutex> lock(m_PendingMutex);
-        if (m_PendingVariants.empty())
-            return;
-        for (auto& pending : m_PendingVariants)
+        std::vector<SPendingVariant> pendingVariants;
         {
+            std::lock_guard<std::mutex> lock(m_PendingMutex);
+            pendingVariants.swap(m_PendingVariants);
+        }
+
+        for (auto& pending : pendingVariants)
+        {
+            // The graph asset, its edited instance values and the shader variant
+            // become visible in the same render frame. This avoids a transient frame
+            // that combines the old material state with the new shader (or vice versa).
+            if (pending.Model && pending.MaterialInstance)
+            {
+                std::lock_guard<std::mutex> materialLock(pending.Model->MaterialsMutex());
+                const auto& materials = pending.Model->GetMaterials();
+                if (pending.Slot < materials.size())
+                {
+                    materials[pending.Slot]->SetParent(pending.MaterialInstance->GetParent());
+                    materials[pending.Slot]->ApplyCompatibleOverridesFrom(*pending.MaterialInstance);
+                }
+            }
             if (const auto it = m_MaterialShaders.find(pending.Slot); it != m_MaterialShaders.end())
                 Retire(std::move(it->second));
             m_MaterialShaders[pending.Slot] = std::move(pending.Variant);
         }
-        m_PendingVariants.clear();
-        m_BoundModel = nullptr; // force the material buffer to rebind to all shaders
-    }
-
-    void MeshRenderer::SetMaterialParams(uint32_t materialIndex, const glm::vec4* params, uint32_t count)
-    {
-        const auto it = m_MaterialShaders.find(materialIndex);
-        if (it == m_MaterialShaders.end() || !it->second.ParamBuffer)
-            return;
-
-        glm::vec4 buffer[MAX_GRAPH_PARAMS] = {};
-        const uint32_t n = count < MAX_GRAPH_PARAMS ? count : MAX_GRAPH_PARAMS;
-        for (uint32_t i = 0; i < n; ++i)
-            buffer[i] = params[i];
-        it->second.ParamBuffer->UpdateData(buffer, sizeof(buffer));
+        if (!pendingVariants.empty())
+            m_BoundModel = nullptr; // force the material buffer to rebind to all shaders
     }
 
     uint32_t MeshRenderer::ResolveTexture(const Ref<Texture>& texture)
@@ -299,6 +304,22 @@ namespace Elixir
         m_Shader->BindStorageBuffer("materials", materialBuffer);
         for (auto& [index, variant] : m_MaterialShaders)
             variant.Shader->BindStorageBuffer("materials", materialBuffer);
+
+        // Graph parameter values now come from the same MaterialInstance used to pack
+        // GPUMaterial. The renderer owns the upload, so the UI no longer maintains a
+        // second graph-only parameter snapshot across threads.
+        {
+            std::lock_guard<std::mutex> lock(model->MaterialsMutex());
+            const auto& instances = model->GetMaterials();
+            for (auto& [index, variant] : m_MaterialShaders)
+            {
+                if (!variant.ParamBuffer || index >= instances.size())
+                    continue;
+                glm::vec4 params[MAX_GRAPH_PARAMS] = {};
+                instances[index]->CollectGraphParams(params, MAX_GRAPH_PARAMS);
+                variant.ParamBuffer->UpdateData(params, sizeof(params));
+            }
+        }
         m_BoundModel = model.get();
 
         const auto extent = m_GraphicsContext->GetRenderTarget()->GetExtent();

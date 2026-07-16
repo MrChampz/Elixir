@@ -30,15 +30,12 @@ namespace Elixir
             EMaterialBlendMode blendMode = EMaterialBlendMode::Opaque);
 
         // Two-phase apply so the expensive pipeline creation (Metal compile on
-        // MoltenVK) happens off the render thread: Prepare builds the variant
-        // (pipelines, buffers, bindings) on the caller's thread (the main/UI thread);
-        // Install swaps it in from Render, keeping the scene rendering meanwhile.
-        void PrepareMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader, EMaterialBlendMode blendMode);
+        // MoltenVK) happens off the render thread. Render installs the prepared
+        // shader and material instance together at a frame boundary.
+        void PrepareMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader,
+            EMaterialBlendMode blendMode, const Ref<Model>& model,
+            const Ref<MaterialInstance>& materialInstance);
         void InstallPendingShaders();
-
-        // Update the live-editable exposed parameters (cbGraphParams) of a material's
-        // override shader, without recompiling. No-op if the slot has no override.
-        void SetMaterialParams(uint32_t materialIndex, const glm::vec4* params, uint32_t count);
 
       private:
         void CreatePipelines();
@@ -127,8 +124,14 @@ namespace Elixir
         void Retire(SShaderVariant&& variant);
         void TickRetired();
 
-        // Variants built on the main thread, waiting to be installed from Render.
-        struct SPendingVariant { uint32_t Slot; SShaderVariant Variant; };
+        // Variants built by a worker, waiting to be installed from Render.
+        struct SPendingVariant
+        {
+            uint32_t Slot;
+            SShaderVariant Variant;
+            Ref<Model> Model;
+            Ref<MaterialInstance> MaterialInstance;
+        };
         std::vector<SPendingVariant> m_PendingVariants;
         std::mutex m_PendingMutex;
 

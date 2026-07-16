@@ -44,8 +44,8 @@ struct GPUMaterial
 [[vk::binding(2, 0)]]
 StructuredBuffer<GPUMaterial> materials;
 
-// User-exposed graph parameters (ParamScalar/ParamColor nodes). The app updates
-// these live without recompiling the shader.
+// User-exposed graph parameters (ParamScalar/ParamColor nodes). The renderer packs
+// these from the slot's MaterialInstance without recompiling the shader.
 [[vk::binding(3, 0)]]
 cbuffer cbGraphParams : register(b1)
 {

@@ -1,9 +1,11 @@
 #pragma once
 
+#include <Engine/Graphics/Material/MaterialGraph.h>
 #include <Engine/Graphics/Texture.h>
 
 #include <glm/glm.hpp>
 
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -26,10 +28,20 @@ namespace Elixir
         static SMaterialParam MakeTexture(const Ref<Texture>& t) { SMaterialParam p; p.Type = EType::Texture; p.TextureRef = t; return p; }
     };
 
+    // One exposed graph parameter and the cbGraphParams slot assigned to it. The
+    // default value lives in Material::m_Defaults under Name; instances override that
+    // same value instead of maintaining a separate graph-only parameter store.
+    struct SMaterialGraphParameter
+    {
+        std::string Name;
+        SMaterialParam::EType Type = SMaterialParam::EType::Scalar;
+        uint32_t Slot = 0;
+    };
+
     // A material template: a named set of parameters with default values (the schema
     // shared by all of its instances). Analogous to an Unreal parent material. The
-    // shading itself is provided by the renderer's shader; a Material describes the
-    // parameters that feed it.
+    // material may also own the graph that defines its shading. Built-in materials
+    // without a graph continue to use the renderer's fixed shader.
     class ELIXIR_API Material
     {
       public:
@@ -46,6 +58,15 @@ namespace Elixir
         [[nodiscard]] const std::string& GetName() const { return m_Name; }
         [[nodiscard]] const std::unordered_map<std::string, SMaterialParam>& GetDefaults() const { return m_Defaults; }
 
+        void SetGraph(MaterialGraph graph, std::vector<SMaterialGraphParameter> parameters)
+        {
+            m_Graph = std::move(graph);
+            m_GraphParameters = std::move(parameters);
+        }
+        [[nodiscard]] bool HasGraph() const { return m_Graph.has_value(); }
+        [[nodiscard]] const MaterialGraph* GetGraph() const { return m_Graph ? &*m_Graph : nullptr; }
+        [[nodiscard]] const std::vector<SMaterialGraphParameter>& GetGraphParameters() const { return m_GraphParameters; }
+
         // Built-in metallic-roughness PBR template: declares every parameter the
         // Model shader consumes, with glTF-default values.
         static Ref<Material> CreateStandardPBR();
@@ -53,6 +74,8 @@ namespace Elixir
       private:
         std::string m_Name;
         std::unordered_map<std::string, SMaterialParam> m_Defaults;
+        std::optional<MaterialGraph> m_Graph;
+        std::vector<SMaterialGraphParameter> m_GraphParameters;
     };
 
     // An instance of a Material: overrides a subset of the parent's parameters. Any
@@ -66,6 +89,13 @@ namespace Elixir
         void SetScalar(const std::string& name, float value) { m_Overrides[name] = SMaterialParam::MakeScalar(value); }
         void SetVector(const std::string& name, const glm::vec4& value) { m_Overrides[name] = SMaterialParam::MakeVector(value); }
         void SetTexture(const std::string& name, const Ref<Texture>& value) { m_Overrides[name] = SMaterialParam::MakeTexture(value); }
+
+        void SetParent(const Ref<Material>& parent);
+
+        // Merge values declared by this instance's parent from another instance.
+        // Used when a compiled graph material and its edited values are installed
+        // together at a render-frame boundary.
+        void ApplyCompatibleOverridesFrom(const MaterialInstance& source);
 
         [[nodiscard]] float GetScalar(const std::string& name) const
         {
@@ -82,6 +112,12 @@ namespace Elixir
             const auto* p = Resolve(name);
             return p ? p->TextureRef : nullptr;
         }
+
+        [[nodiscard]] const SMaterialParam* GetParameter(const std::string& name) const { return Resolve(name); }
+
+        // Pack graph parameters in the exact slot layout owned by the parent Material.
+        // Returns the highest populated slot count (bounded by maxCount).
+        uint32_t CollectGraphParams(glm::vec4* out, uint32_t maxCount) const;
 
         [[nodiscard]] const Ref<Material>& GetParent() const { return m_Parent; }
 
