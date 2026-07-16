@@ -7,12 +7,10 @@
 #include <Engine/Graphics/PostProcessor.h>
 #include <Engine/Graphics/Material/MaterialAsset.h>
 #include <Engine/Graphics/Material/MaterialGraphEditor.h>
-#include <Engine/Graphics/Material/MaterialShaderMap.h>
+#include <Engine/Graphics/Material/MaterialCompileManager.h>
 
 #include <filesystem>
 #include <mutex>
-#include <optional>
-#include <unordered_map>
 
 struct SFrameData
 {
@@ -48,16 +46,10 @@ private:
 
     MaterialGraphEditor m_GraphEditor;
 
-    // Async graph compilation: a worker resolves shared SPIR-V through the material
-    // shader map, then builds renderer-local Vulkan shader/pipeline resources;
-    // MeshRenderer::Render installs the ready variant (no main/render stall).
-    bool m_Compiling = false;
-    bool m_RecompileQueued = false;        // a change arrived mid-compile; redo after
-    std::mutex m_CompileMutex;
-    bool m_CompileReady = false;
+    // The global compile manager coalesces work by this client + material slot. Vulkan
+    // resources stay renderer-local and are installed by Render at a frame boundary.
+    MaterialCompileManager::ClientId m_MaterialCompileClient;
     std::mutex m_GraphBuildMutex;
-    std::mutex m_GraphGenerationMutex;
-    std::unordered_map<uint32_t, uint64_t> m_GraphGenerations;
 
     // Material Editor: the instance name being authored, refreshed when the panel's
     // selected slot changes.
@@ -70,7 +62,8 @@ private:
     static std::filesystem::path InstanceAssetPath(const std::string& name);
 
     void StartGraphCompile();
-    void QueueGraphCompile(uint32_t slot, const Ref<MaterialInstance>& instance, bool notifyEditor);
+    void QueueGraphCompile(uint32_t slot, const Ref<MaterialInstance>& instance,
+        EMaterialCompilePriority priority);
     void SaveMaterialAsset();
     void OpenMaterialAsset();
     void SaveInstanceAsset(uint32_t slot);
