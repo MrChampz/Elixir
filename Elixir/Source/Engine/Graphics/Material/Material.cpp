@@ -55,12 +55,22 @@ namespace Elixir
         return m_Parent->GetGraph() ? *m_Parent->GetGraph() : MaterialGraph{};
     }
 
+    size_t MaterialInstance::GraphRevision() const
+    {
+        if (!m_Parent || !m_Parent->GetDocument())
+            return 0;
+        return m_Parent->GetDocument()->StructHash();
+    }
+
     size_t MaterialInstance::StaticVariantKey() const
     {
         if (!m_Parent || !m_Parent->GetDocument())
             return 0;
 
-        size_t hash = m_Parent->GetDocument()->StructHash();
+        // Only the static selection: which graph these permutations belong to is the
+        // revision's business. Mixing the two would make every graph edit mint keys
+        // that can never be selected again.
+        size_t hash = 1469598103934665603ull;
         const auto mix = [&](const size_t value)
         {
             hash ^= value;

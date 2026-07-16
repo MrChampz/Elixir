@@ -35,9 +35,10 @@ namespace Elixir
         // shader and material instance together at a frame boundary.
         void PrepareMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader,
             EMaterialBlendMode blendMode, const Ref<Model>& model,
-            const Ref<MaterialInstance>& materialInstance, size_t variantKey);
-        [[nodiscard]] bool HasMaterialShaderVariant(uint32_t materialIndex, size_t variantKey) const;
-        void PrepareCachedMaterialShader(uint32_t materialIndex, size_t variantKey,
+            const Ref<MaterialInstance>& materialInstance, size_t revision, size_t variantKey);
+        [[nodiscard]] bool HasMaterialShaderVariant(
+            uint32_t materialIndex, size_t revision, size_t variantKey) const;
+        void PrepareCachedMaterialShader(uint32_t materialIndex, size_t revision, size_t variantKey,
             const Ref<Model>& model, const Ref<MaterialInstance>& materialInstance);
         void InstallPendingShaders();
 
@@ -112,15 +113,33 @@ namespace Elixir
             Ref<GraphicsPipeline> Transparent;
             Ref<UniformBuffer> ParamBuffer; // cbGraphParams (exposed params)
             EMaterialBlendMode BlendMode = EMaterialBlendMode::Opaque;
+            size_t Revision = 0;
             size_t VariantKey = 0;
         };
         std::unordered_map<uint32_t, SShaderVariant> m_MaterialShaders;
-        std::unordered_map<uint32_t, std::unordered_map<size_t, SShaderVariant>> m_MaterialShaderCache;
 
-        // Worker-visible index of active and cached variants. The actual GPU objects
-        // remain render-thread-owned; workers only use this to avoid recompilation.
+        // The permutations built for one slot's current graph revision, so toggling a
+        // static parameter back is a swap rather than a rebuild. Bounded by the graph's
+        // static parameter count: a new revision retires the whole generation.
+        struct SVariantCache
+        {
+            size_t Revision = 0;
+            std::unordered_map<size_t, SShaderVariant> Variants;
+        };
+        std::unordered_map<uint32_t, SVariantCache> m_MaterialShaderCache;
+
+        // Release every permutation cached for a slot, and forget its keys.
+        void RetireVariantCache(uint32_t materialIndex);
+
+        // Worker-visible index of the above. The actual GPU objects remain
+        // render-thread-owned; workers only use this to avoid recompilation.
+        struct SVariantKeys
+        {
+            size_t Revision = 0;
+            std::unordered_set<size_t> Keys;
+        };
         mutable std::mutex m_VariantKeysMutex;
-        std::unordered_map<uint32_t, std::unordered_set<size_t>> m_VariantKeys;
+        std::unordered_map<uint32_t, SVariantKeys> m_VariantKeys;
 
         // Deferred destruction: a swapped-out shader/pipeline may still be referenced
         // by in-flight frames, so keep it alive a few frames before releasing it --
@@ -142,6 +161,7 @@ namespace Elixir
             SShaderVariant Variant;
             Ref<Model> Model;
             Ref<MaterialInstance> MaterialInstance;
+            size_t Revision = 0;
             size_t VariantKey = 0;
             bool UseCached = false;
         };

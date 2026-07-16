@@ -141,18 +141,28 @@ namespace Elixir
         m_BoundModel = nullptr; // force the material buffer to rebind to the new shader
     }
 
+    void MeshRenderer::RetireVariantCache(const uint32_t materialIndex)
+    {
+        if (const auto it = m_MaterialShaderCache.find(materialIndex); it != m_MaterialShaderCache.end())
+        {
+            for (auto& [key, variant] : it->second.Variants)
+                Retire(std::move(variant));
+            m_MaterialShaderCache.erase(it);
+        }
+        std::lock_guard<std::mutex> keyLock(m_VariantKeysMutex);
+        m_VariantKeys.erase(materialIndex);
+    }
+
     void MeshRenderer::SetMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader, EMaterialBlendMode blendMode)
     {
         if (!shader)
         {
             if (const auto it = m_MaterialShaders.find(materialIndex); it != m_MaterialShaders.end())
             {
-                const size_t removedKey = it->second.VariantKey;
                 Retire(std::move(it->second));
                 m_MaterialShaders.erase(it);
-                std::lock_guard<std::mutex> keyLock(m_VariantKeysMutex);
-                m_VariantKeys[materialIndex].erase(removedKey);
             }
+            RetireVariantCache(materialIndex);
             return;
         }
 
@@ -169,19 +179,17 @@ namespace Elixir
 
         // Retire the slot's previous variant (may be in flight), then install the new.
         if (const auto it = m_MaterialShaders.find(materialIndex); it != m_MaterialShaders.end())
-        {
-            const size_t removedKey = it->second.VariantKey;
             Retire(std::move(it->second));
-            std::lock_guard<std::mutex> keyLock(m_VariantKeysMutex);
-            m_VariantKeys[materialIndex].erase(removedKey);
-        }
+        // This shader is set outside the graph path, so any permutation cached for the
+        // slot is now unreachable.
+        RetireVariantCache(materialIndex);
         m_MaterialShaders[materialIndex] = std::move(variant);
         m_BoundModel = nullptr; // force the material buffer to rebind to all shaders
     }
 
     void MeshRenderer::PrepareMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader,
         EMaterialBlendMode blendMode, const Ref<Model>& model,
-        const Ref<MaterialInstance>& materialInstance, const size_t variantKey)
+        const Ref<MaterialInstance>& materialInstance, const size_t revision, const size_t variantKey)
     {
         if (!shader)
             return;
@@ -191,6 +199,7 @@ namespace Elixir
         SShaderVariant variant;
         variant.Shader = shader;
         variant.BlendMode = blendMode;
+        variant.Revision = revision;
         variant.VariantKey = variantKey;
         CreatePipelinesFor(shader, variant.Opaque, variant.Transparent, blendMode);
         BindResourcesTo(shader);
@@ -201,24 +210,25 @@ namespace Elixir
 
         std::lock_guard<std::mutex> lock(m_PendingMutex);
         m_PendingVariants.push_back({ materialIndex, std::move(variant), model, materialInstance,
-            variantKey, false });
+            revision, variantKey, false });
     }
 
     bool MeshRenderer::HasMaterialShaderVariant(
-        const uint32_t materialIndex, const size_t variantKey) const
+        const uint32_t materialIndex, const size_t revision, const size_t variantKey) const
     {
         std::lock_guard<std::mutex> lock(m_VariantKeysMutex);
         const auto slot = m_VariantKeys.find(materialIndex);
-        return slot != m_VariantKeys.end() && slot->second.contains(variantKey);
+        return slot != m_VariantKeys.end() && slot->second.Revision == revision
+            && slot->second.Keys.contains(variantKey);
     }
 
     void MeshRenderer::PrepareCachedMaterialShader(const uint32_t materialIndex,
-        const size_t variantKey, const Ref<Model>& model,
+        const size_t revision, const size_t variantKey, const Ref<Model>& model,
         const Ref<MaterialInstance>& materialInstance)
     {
         std::lock_guard<std::mutex> lock(m_PendingMutex);
         m_PendingVariants.push_back({ materialIndex, {}, model, materialInstance,
-            variantKey, true });
+            revision, variantKey, true });
     }
 
     void MeshRenderer::InstallPendingShaders()
@@ -246,24 +256,42 @@ namespace Elixir
                 }
             }
             const auto active = m_MaterialShaders.find(pending.Slot);
-            if (active != m_MaterialShaders.end() && active->second.VariantKey == pending.VariantKey)
+            if (active != m_MaterialShaders.end() && active->second.Revision == pending.Revision
+                && active->second.VariantKey == pending.VariantKey)
                 continue;
 
+            // Editing the graph mints a new revision, and no permutation of the old one
+            // can ever be selected again -- release them instead of caching them for a
+            // key nothing will ask for.
             auto& cache = m_MaterialShaderCache[pending.Slot];
+            if (cache.Revision != pending.Revision)
+            {
+                for (auto& [key, variant] : cache.Variants)
+                    Retire(std::move(variant));
+                cache.Variants.clear();
+                cache.Revision = pending.Revision;
+
+                std::lock_guard<std::mutex> keyLock(m_VariantKeysMutex);
+                SVariantKeys& keys = m_VariantKeys[pending.Slot];
+                keys.Revision = pending.Revision;
+                keys.Keys.clear();
+            }
+
             if (pending.UseCached)
             {
-                const auto cached = cache.find(pending.VariantKey);
-                if (cached == cache.end())
+                // The revision may have moved on since the caller saw this key.
+                const auto cached = cache.Variants.find(pending.VariantKey);
+                if (cached == cache.Variants.end())
                 {
                     EE_CORE_WARN("Material variant cache: slot {} no longer has key {}.",
                         pending.Slot, pending.VariantKey)
                     continue;
                 }
                 SShaderVariant selected = std::move(cached->second);
-                cache.erase(cached);
+                cache.Variants.erase(cached);
                 if (active != m_MaterialShaders.end())
                 {
-                    cache.insert_or_assign(active->second.VariantKey, std::move(active->second));
+                    cache.Variants.insert_or_assign(active->second.VariantKey, std::move(active->second));
                     m_MaterialShaders.erase(active);
                 }
                 m_MaterialShaders[pending.Slot] = std::move(selected);
@@ -272,18 +300,26 @@ namespace Elixir
 
             if (active != m_MaterialShaders.end())
             {
-                cache.insert_or_assign(active->second.VariantKey, std::move(active->second));
+                // Only this revision's permutations are worth keeping; one left over
+                // from the previous graph is dead weight.
+                if (active->second.Revision == pending.Revision)
+                    cache.Variants.insert_or_assign(active->second.VariantKey, std::move(active->second));
+                else
+                    Retire(std::move(active->second));
                 m_MaterialShaders.erase(active);
             }
-            if (const auto duplicate = cache.find(pending.VariantKey); duplicate != cache.end())
+            if (const auto duplicate = cache.Variants.find(pending.VariantKey);
+                duplicate != cache.Variants.end())
             {
                 Retire(std::move(duplicate->second));
-                cache.erase(duplicate);
+                cache.Variants.erase(duplicate);
             }
             m_MaterialShaders[pending.Slot] = std::move(pending.Variant);
             {
                 std::lock_guard<std::mutex> keyLock(m_VariantKeysMutex);
-                m_VariantKeys[pending.Slot].insert(pending.VariantKey);
+                SVariantKeys& keys = m_VariantKeys[pending.Slot];
+                keys.Revision = pending.Revision;
+                keys.Keys.insert(pending.VariantKey);
             }
         }
         if (!pendingVariants.empty())

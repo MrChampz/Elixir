@@ -185,6 +185,7 @@ void Dissolve::QueueGraphCompile(
         return;
     const MaterialGraph compileGraph = instance->BuildGraphVariant();
     const EMaterialBlendMode compileBlend = compileGraph.GetBlendMode();
+    const size_t revision = instance->GraphRevision();
     const size_t variantKey = instance->StaticVariantKey();
     uint64_t generation;
     {
@@ -194,9 +195,9 @@ void Dissolve::QueueGraphCompile(
 
     // Switching back to a permutation already built for this slot is a lightweight
     // render-boundary swap: no DXC, Vulkan shader load or Metal pipeline creation.
-    if (m_MeshRenderer->HasMaterialShaderVariant(slot, variantKey))
+    if (m_MeshRenderer->HasMaterialShaderVariant(slot, revision, variantKey))
     {
-        m_MeshRenderer->PrepareCachedMaterialShader(slot, variantKey, m_Model, instance);
+        m_MeshRenderer->PrepareCachedMaterialShader(slot, revision, variantKey, m_Model, instance);
         if (notifyEditor)
         {
             std::lock_guard<std::mutex> lock(m_CompileMutex);
@@ -208,7 +209,8 @@ void Dissolve::QueueGraphCompile(
     // Do the whole build on a worker thread -- DXC (no Vulkan) plus the Vulkan
     // shader/pipeline creation -- so neither the render thread nor the UI thread
     // stalls on the Metal pipeline compile. MeshRenderer::Render installs the result.
-    m_Executor.Enqueue([this, slot, compileGraph, compileBlend, instance, notifyEditor, generation, variantKey]()
+    m_Executor.Enqueue([this, slot, compileGraph, compileBlend, instance, notifyEditor, generation,
+        revision, variantKey]()
     {
         {
             // The graphics backend already supports preparing a pipeline away from
@@ -226,7 +228,7 @@ void Dissolve::QueueGraphCompile(
                     }
                     if (current)
                         m_MeshRenderer->PrepareMaterialShader(
-                            slot, shader, compileBlend, m_Model, instance, variantKey);
+                            slot, shader, compileBlend, m_Model, instance, revision, variantKey);
                 }
         }
         if (notifyEditor)

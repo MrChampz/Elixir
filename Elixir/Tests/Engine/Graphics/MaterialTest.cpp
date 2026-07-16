@@ -225,6 +225,49 @@ TEST(MaterialAsset, RoundTripsGraphMaterialAndInstance)
     EXPECT_EQ(reloaded->Channels[(int)EMaterialChannel::BaseColor], node.Id);
 }
 
+TEST(MaterialInstance, StaticVariantKeyIsIndependentOfTheGraphRevision)
+{
+    SMaterialGraphDocument document;
+    SMaterialGraphNode condition;
+    condition.Id = 1;
+    condition.Type = EMaterialNodeType::StaticBoolParameter;
+    condition.OutputType = EGraphValueType::Float;
+    condition.Constant = glm::vec4(1.0f);
+    std::snprintf(condition.Param, sizeof(condition.Param), "UseDetail");
+    document.Nodes.push_back(condition);
+    document.Channels[(int)EMaterialChannel::BaseColor] = condition.Id;
+    document.NextId = 2;
+
+    const Ref<Material> before = document.BuildMaterial("paint");
+    MaterialInstance instance(before);
+    instance.SetStaticBool("UseDetail", false);
+
+    // Editing the graph mints a new revision.
+    SMaterialGraphDocument edited = document;
+    SMaterialGraphNode extra;
+    extra.Id = 2;
+    extra.Type = EMaterialNodeType::Constant;
+    edited.Nodes.push_back(extra);
+    edited.NextId = 3;
+
+    const Ref<Material> after = edited.BuildMaterial("paint");
+    MaterialInstance moved(after);
+    moved.SetStaticBool("UseDetail", false);
+
+    EXPECT_NE(instance.GraphRevision(), moved.GraphRevision());
+
+    // ...but the same static selection keeps its key. Were the revision folded back
+    // into the key, every edit would mint keys nothing asks for again and the
+    // renderer's variant cache would grow without bound.
+    EXPECT_EQ(instance.StaticVariantKey(), moved.StaticVariantKey());
+
+    // The key still tells the permutations of one revision apart.
+    MaterialInstance other(after);
+    other.SetStaticBool("UseDetail", true);
+    EXPECT_EQ(other.GraphRevision(), moved.GraphRevision());
+    EXPECT_NE(other.StaticVariantKey(), moved.StaticVariantKey());
+}
+
 TEST(MaterialGraphDocument, RoundTripsAWholeNumberedAlphaCutoff)
 {
     SMaterialTestDirectory directory;

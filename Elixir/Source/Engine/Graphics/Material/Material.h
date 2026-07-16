@@ -148,6 +148,12 @@ namespace Elixir
 
         // Build the graph permutation selected by this instance's compile-time values.
         [[nodiscard]] MaterialGraph BuildGraphVariant() const;
+
+        // A compiled variant is identified by two things: which revision of the parent's
+        // graph it came from, and which static permutation of that revision it is. They
+        // are kept apart so a graph edit retires a whole generation of permutations
+        // rather than leaving them cached under keys nothing will ask for again.
+        [[nodiscard]] size_t GraphRevision() const;
         [[nodiscard]] size_t StaticVariantKey() const;
 
         // Pack graph parameters in the exact slot layout owned by the parent Material.
