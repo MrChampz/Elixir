@@ -2,6 +2,7 @@
 #include "ArcBallCameraController.h"
 
 #include "Engine/Event/WindowEvent.h"
+#include "Engine/Event/KeyEvent.h"
 #include "Engine/Event/MouseEvent.h"
 #include "Engine/Input/InputCodes.h"
 
@@ -19,6 +20,8 @@ namespace Elixir
     {
         EventDispatcher dispatcher(event);
         dispatcher.Dispatch<FramebufferResizeEvent>(EE_BIND_EVENT_FN(ArcBallCameraController::HandleFramebufferResize));
+        dispatcher.Dispatch<KeyPressedEvent>(EE_BIND_EVENT_FN(ArcBallCameraController::HandleKeyPressed));
+        dispatcher.Dispatch<KeyReleasedEvent>(EE_BIND_EVENT_FN(ArcBallCameraController::HandleKeyReleased));
         dispatcher.Dispatch<MouseScrolledEvent>(EE_BIND_EVENT_FN(ArcBallCameraController::HandleMouseScrolled));
         dispatcher.Dispatch<MouseMovedEvent>(EE_BIND_EVENT_FN(ArcBallCameraController::HandleMouseMoved));
         dispatcher.Dispatch<MouseButtonPressedEvent>(EE_BIND_EVENT_FN(ArcBallCameraController::HandleMouseButtonPressed));
@@ -33,6 +36,25 @@ namespace Elixir
         m_Camera.SetAspectRatio(aspectRatio);
 
         EE_CORE_TRACE("ArcBallCameraController resized: [AspectRatio: {}, Extent: {}].", aspectRatio, event.GetExtent())
+
+        return false;
+    }
+
+    bool ArcBallCameraController::HandleKeyPressed(const KeyPressedEvent& event)
+    {
+        // Every key press reports the live modifier state, so this also resyncs
+        // Alt when a release was missed (the window losing focus mid-chord).
+        m_AltActive = event.IsAltPressed()
+            || event.GetKeyCode() == EE_KEY_LEFT_ALT
+            || event.GetKeyCode() == EE_KEY_RIGHT_ALT;
+
+        return false;
+    }
+
+    bool ArcBallCameraController::HandleKeyReleased(const KeyReleasedEvent& event)
+    {
+        if (event.GetKeyCode() == EE_KEY_LEFT_ALT || event.GetKeyCode() == EE_KEY_RIGHT_ALT)
+            m_AltActive = false;
 
         return false;
     }
@@ -61,6 +83,11 @@ namespace Elixir
 
     bool ArcBallCameraController::HandleMouseButtonPressed(const MouseButtonPressedEvent& event)
     {
+        // Alt arms the drag (Unreal/Maya convention), leaving a bare click free for
+        // the viewport. Only the press is gated, so releasing Alt mid-drag -- or the
+        // key state going stale -- can't strand an orbit that is already running.
+        if (!m_AltActive) return false;
+
         if (event.GetMouseButton() == EE_MOUSE_BUTTON_LEFT)
         {
             m_OrbitActive = true;

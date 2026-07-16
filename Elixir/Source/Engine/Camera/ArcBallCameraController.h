@@ -5,6 +5,8 @@
 
 namespace Elixir
 {
+    class KeyPressedEvent;
+    class KeyReleasedEvent;
     class MouseScrolledEvent;
     class MouseMovedEvent;
     class MouseButtonPressedEvent;
@@ -46,6 +48,8 @@ namespace Elixir
         bool HandleFramebufferResize(const FramebufferResizeEvent& event) override;
 
       private:
+        bool HandleKeyPressed(const KeyPressedEvent& event);
+        bool HandleKeyReleased(const KeyReleasedEvent& event);
         bool HandleMouseScrolled(const MouseScrolledEvent& event);
         bool HandleMouseMoved(const MouseMovedEvent& event);
         bool HandleMouseButtonPressed(const MouseButtonPressedEvent& event);
@@ -71,6 +75,7 @@ namespace Elixir
         float m_MaxDistance = 500.0f;
 
         // Mouse drag state
+        bool m_AltActive = false;
         bool m_OrbitActive = false;
         bool m_PanActive = false;
         glm::vec2 m_LastMousePos{};
