@@ -4,8 +4,10 @@
 #include <Engine/Graphics/Shader/ShaderLoader.h>
 
 #include <filesystem>
+#include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 
 namespace Elixir
 {
@@ -26,8 +28,17 @@ namespace Elixir
         static Ref<Shader> Compile(const ShaderLoader* loader, const MaterialGraph& graph);
 
         // Stage 1 (no Vulkan): generate HLSL and compile it to SPIR-V on disk. Safe to
-        // run on a worker thread. Returns nullopt on failure.
+        // run on a worker thread. Output paths are content-addressed, so an existing
+        // complete artifact is reused without invoking DXC. Returns nullopt on failure.
         static std::optional<SCompiled> CompileToSpirv(const MaterialGraph& graph);
+
+        // Stable identity of the final stage sources. It covers both shader templates,
+        // the selected graph permutation, target profiles/platform and this compiler's
+        // format version. The filesystem overload reads the runtime templates.
+        static std::optional<uint64_t> BuildContentKey(const MaterialGraph& graph);
+        static uint64_t BuildContentKeyFromTemplates(const MaterialGraph& graph,
+            std::string_view pixelTemplate, std::string_view vertexTemplate);
+        static std::string CacheName(uint64_t contentKey);
 
         // Stage 2 (Vulkan): load the compiled SPIR-V into a Shader. Must run on a
         // thread that may create graphics resources.

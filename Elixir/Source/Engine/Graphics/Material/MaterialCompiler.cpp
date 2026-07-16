@@ -5,7 +5,7 @@
 #include <sstream>
 #include <cstdlib>
 #include <cstring>
-#include <atomic>
+#include <iomanip>
 
 namespace Elixir
 {
@@ -13,6 +13,9 @@ namespace Elixir
 
     namespace
     {
+        constexpr uint32_t SHADER_FORMAT_VERSION = 1;
+        constexpr std::string_view SHADER_PLATFORM = "SPIRV.ps_6_0.vs_6_0";
+
         fs::path FindDxc()
         {
             if (const char* sdk = std::getenv("VULKAN_SDK"))
@@ -34,6 +37,42 @@ namespace Elixir
             ss << in.rdbuf();
             return ss.str();
         }
+
+        std::string BuildVertexSource(const std::string_view vertexTemplate, const MaterialGraph& graph)
+        {
+            std::string source(vertexTemplate);
+            if (const auto pos = source.find("// __WPO_BODY__"); pos != std::string::npos)
+                source.replace(pos, std::strlen("// __WPO_BODY__"), graph.GenerateHLSL(true));
+            return source;
+        }
+
+        uint64_t HashSources(const std::string_view pixelSource, const std::string_view vertexSource)
+        {
+            uint64_t hash = 1469598103934665603ull;
+            const auto mix = [&](const std::string_view bytes)
+            {
+                for (const unsigned char byte : bytes)
+                {
+                    hash ^= byte;
+                    hash *= 1099511628211ull;
+                }
+                // Separate fields so concatenated strings cannot alias one another.
+                hash ^= 0xffu;
+                hash *= 1099511628211ull;
+            };
+            mix(SHADER_PLATFORM);
+            const std::string version = std::to_string(SHADER_FORMAT_VERSION);
+            mix(version);
+            mix(pixelSource);
+            mix(vertexSource);
+            return hash;
+        }
+
+        bool IsCompleteArtifact(const fs::path& path)
+        {
+            std::error_code ec;
+            return fs::is_regular_file(path, ec) && fs::file_size(path, ec) > 0 && !ec;
+        }
     }
 
     std::string MaterialCompiler::InjectBody(const std::string& templateHlsl, const MaterialGraph& graph)
@@ -49,6 +88,31 @@ namespace Elixir
             out.replace(pos, smMarker.size(),
                 "#define SHADING_MODEL " + std::to_string((int)graph.GetShadingModel()) + "u");
         return out;
+    }
+
+    uint64_t MaterialCompiler::BuildContentKeyFromTemplates(const MaterialGraph& graph,
+        const std::string_view pixelTemplate, const std::string_view vertexTemplate)
+    {
+        const std::string pixelSource = InjectBody(std::string(pixelTemplate), graph);
+        const std::string vertexSource = BuildVertexSource(vertexTemplate, graph);
+        return HashSources(pixelSource, vertexSource);
+    }
+
+    std::optional<uint64_t> MaterialCompiler::BuildContentKey(const MaterialGraph& graph)
+    {
+        const fs::path shadersDir = "./Shaders";
+        const std::string pixelTemplate = ReadFile(shadersDir / "GraphMaterial.ps.hlsl");
+        const std::string vertexTemplate = ReadFile(shadersDir / "GraphMaterial.vs.hlsl");
+        if (pixelTemplate.empty() || vertexTemplate.empty())
+            return std::nullopt;
+        return BuildContentKeyFromTemplates(graph, pixelTemplate, vertexTemplate);
+    }
+
+    std::string MaterialCompiler::CacheName(const uint64_t contentKey)
+    {
+        std::ostringstream name;
+        name << "GraphMat_" << std::hex << std::setw(16) << std::setfill('0') << contentKey;
+        return name.str();
     }
 
     Ref<Shader> MaterialCompiler::Compile(const ShaderLoader* loader, const MaterialGraph& graph)
@@ -87,9 +151,17 @@ namespace Elixir
             return std::nullopt;
         }
 
-        // Unique name per compiled graph so instances don't clobber each other.
-        static std::atomic<uint32_t> counter{ 0 };
-        const std::string name = "GraphMat_" + std::to_string(counter.fetch_add(1));
+        const std::string vsTemplate = ReadFile(shadersDir / "GraphMaterial.vs.hlsl");
+        if (vsTemplate.empty())
+        {
+            EE_CORE_ERROR("Material graph: template GraphMaterial.vs.hlsl not found next to the shaders.")
+            return std::nullopt;
+        }
+
+        const std::string pixelSource = InjectBody(templateHlsl, graph);
+        const std::string vertexSource = BuildVertexSource(vsTemplate, graph);
+        const uint64_t contentKey = HashSources(pixelSource, vertexSource);
+        const std::string name = CacheName(contentKey);
 
         // Each compile loads from its own subdir containing only its two SPIR-V
         // modules, so stray files (like the generated .hlsl) never look like a
@@ -99,9 +171,13 @@ namespace Elixir
         fs::create_directories(loadDir, ec);
 
         const fs::path hlslPath = generatedDir / (name + ".src.ps.hlsl");
+        const fs::path vsHlslPath = generatedDir / (name + ".src.vs.hlsl");
+        const fs::path pixelSpirv = loadDir / (name + ".ps.spirv");
+        const fs::path vertexSpirv = loadDir / (name + ".vs.spirv");
+        if (IsCompleteArtifact(pixelSpirv) && IsCompleteArtifact(vertexSpirv))
         {
-            std::ofstream out(hlslPath, std::ios::binary);
-            out << InjectBody(templateHlsl, graph);
+            EE_CORE_TRACE("Material shader cache hit: {}.", name)
+            return SCompiled{ loadDir, name };
         }
 
         const fs::path dxc = FindDxc();
@@ -116,7 +192,7 @@ namespace Elixir
         };
 
         // Pixel stage: surface channels.
-        if (!compileStage(InjectBody(templateHlsl, graph), "ps_6_0", hlslPath, loadDir / (name + ".ps.spirv")))
+        if (!compileStage(pixelSource, "ps_6_0", hlslPath, pixelSpirv))
         {
             EE_CORE_ERROR("Material graph: DXC pixel-shader compilation failed for {0}.", name)
             return std::nullopt;
@@ -124,16 +200,7 @@ namespace Elixir
 
         // Vertex stage: World Position Offset (displaces the vertex; no-op if the
         // graph doesn't drive that channel).
-        const std::string vsTemplate = ReadFile(shadersDir / "GraphMaterial.vs.hlsl");
-        if (vsTemplate.empty())
-        {
-            EE_CORE_ERROR("Material graph: template GraphMaterial.vs.hlsl not found next to the shaders.")
-            return std::nullopt;
-        }
-        std::string vsSource = vsTemplate;
-        if (const auto pos = vsSource.find("// __WPO_BODY__"); pos != std::string::npos)
-            vsSource.replace(pos, std::strlen("// __WPO_BODY__"), graph.GenerateHLSL(true));
-        if (!compileStage(vsSource, "vs_6_0", generatedDir / (name + ".src.vs.hlsl"), loadDir / (name + ".vs.spirv")))
+        if (!compileStage(vertexSource, "vs_6_0", vsHlslPath, vertexSpirv))
         {
             EE_CORE_ERROR("Material graph: DXC vertex-shader compilation failed for {0}.", name)
             return std::nullopt;

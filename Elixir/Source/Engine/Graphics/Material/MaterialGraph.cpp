@@ -825,8 +825,12 @@ namespace Elixir
         std::unordered_map<uint32_t, EGraphValueType> types;
         std::unordered_set<uint32_t> visiting;
 
-        for (const auto& [channel, nodeId] : m_Channels)
+        for (uint8_t channel = 0; channel <= (uint8_t)EMaterialChannel::Sheen; ++channel)
         {
+            const auto output = m_Channels.find(channel);
+            if (output == m_Channels.end())
+                continue;
+            const uint32_t nodeId = output->second;
             const auto ch = (EMaterialChannel)channel;
             const bool isWPO = ch == EMaterialChannel::WorldPositionOffset;
             // Pixel stage emits every surface channel except WPO; vertex stage emits

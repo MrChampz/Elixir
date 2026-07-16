@@ -208,30 +208,31 @@ void Dissolve::QueueGraphCompile(
         return;
     }
 
-    // Do the whole build on a worker thread -- DXC (no Vulkan) plus the Vulkan
-    // shader/pipeline creation -- so neither the render thread nor the UI thread
-    // stalls on the Metal pipeline compile. MeshRenderer::Render installs the result.
+    // Resolve the content-addressed SPIR-V and build renderer-local Vulkan resources
+    // on a worker, so neither the render thread nor the UI thread stalls. Identical
+    // graphs share the MaterialShaderMap artifact even across renderers; descriptor
+    // bindings and parameter buffers remain local to each renderer.
     m_Executor.Enqueue([this, slot, compileGraph, compileBlend, instance, notifyEditor, generation,
         revision, variantKey]()
     {
+        const auto compiled = MaterialShaderMap::Get().GetOrCompile(compileGraph);
+        if (compiled)
         {
-            // The graphics backend already supports preparing a pipeline away from
-            // the render thread, but its shared caches are not used concurrently.
-            // Multiple restored slots therefore compile serially on workers while
-            // UI and rendering continue independently.
+            // The shader map itself accepts concurrent requests and deduplicates DXC.
+            // The graphics backend's pipeline caches are not concurrent, so loading
+            // Shader objects and preparing pipelines remains serialized on workers.
             std::lock_guard<std::mutex> buildLock(m_GraphBuildMutex);
-            if (const auto compiled = MaterialCompiler::CompileToSpirv(compileGraph))
-                if (const auto shader = MaterialCompiler::LoadCompiled(m_ShaderLoader.get(), *compiled))
+            if (const auto shader = MaterialCompiler::LoadCompiled(m_ShaderLoader.get(), *compiled))
+            {
+                bool current;
                 {
-                    bool current;
-                    {
-                        std::lock_guard<std::mutex> generationLock(m_GraphGenerationMutex);
-                        current = m_GraphGenerations[slot] == generation;
-                    }
-                    if (current)
-                        m_MeshRenderer->PrepareMaterialShader(
-                            slot, shader, compileBlend, m_Model, instance, revision, variantKey);
+                    std::lock_guard<std::mutex> generationLock(m_GraphGenerationMutex);
+                    current = m_GraphGenerations[slot] == generation;
                 }
+                if (current)
+                    m_MeshRenderer->PrepareMaterialShader(
+                        slot, shader, compileBlend, m_Model, instance, revision, variantKey);
+            }
         }
         if (notifyEditor)
         {

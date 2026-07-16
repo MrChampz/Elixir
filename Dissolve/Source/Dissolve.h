@@ -7,7 +7,7 @@
 #include <Engine/Graphics/PostProcessor.h>
 #include <Engine/Graphics/Material/MaterialAsset.h>
 #include <Engine/Graphics/Material/MaterialGraphEditor.h>
-#include <Engine/Graphics/Material/MaterialCompiler.h>
+#include <Engine/Graphics/Material/MaterialShaderMap.h>
 
 #include <filesystem>
 #include <mutex>
@@ -48,8 +48,9 @@ private:
 
     MaterialGraphEditor m_GraphEditor;
 
-    // Async graph compilation: a worker thread does DXC + the Vulkan shader/pipeline
-    // build; MeshRenderer::Render installs the ready variant (no main/render stall).
+    // Async graph compilation: a worker resolves shared SPIR-V through the material
+    // shader map, then builds renderer-local Vulkan shader/pipeline resources;
+    // MeshRenderer::Render installs the ready variant (no main/render stall).
     bool m_Compiling = false;
     bool m_RecompileQueued = false;        // a change arrived mid-compile; redo after
     std::mutex m_CompileMutex;
