@@ -248,7 +248,7 @@ namespace Elixir
             const SMaterialNode& node = it->second;
             const uint32_t diagnosticId = sourceId(id);
 
-            if ((uint8_t)node.Type > (uint8_t)EMaterialNodeType::StaticSwitch)
+            if ((uint8_t)node.Type > (uint8_t)EMaterialNodeType::TextureParameter)
             {
                 add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Node has an unknown type.");
                 continue;
@@ -267,7 +267,8 @@ namespace Elixir
 
             if (node.Type == EMaterialNodeType::Parameter && !IsIdentifier(node.ParameterName))
                 add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Material parameter must be a valid HLSL identifier.");
-            if (node.Type == EMaterialNodeType::ParamScalar || node.Type == EMaterialNodeType::ParamColor)
+            if (node.Type == EMaterialNodeType::ParamScalar || node.Type == EMaterialNodeType::ParamColor
+                || node.Type == EMaterialNodeType::TextureParameter)
             {
                 if (node.ParameterName.empty())
                     add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Exposed parameter must have a name.");
@@ -281,9 +282,9 @@ namespace Elixir
                     if (!inserted && paramIt->second.first != node.Type)
                     {
                         add(EMaterialDiagnosticSeverity::Warning, paramIt->second.second,
-                            "Parameter '" + node.ParameterName + "' is used as both scalar and color.");
+                            "Parameter '" + node.ParameterName + "' is declared with incompatible types.");
                         add(EMaterialDiagnosticSeverity::Warning, diagnosticId,
-                            "Parameter '" + node.ParameterName + "' is used as both scalar and color.");
+                            "Parameter '" + node.ParameterName + "' is declared with incompatible types.");
                     }
                 }
             }
@@ -488,6 +489,16 @@ namespace Elixir
             case EMaterialNodeType::StaticBoolParameter: expr = node.ConstantValue.x >= 0.5f ? "1.0" : "0.0"; type = EGraphValueType::Float; break;
             case EMaterialNodeType::ParamScalar:   expr = "GraphParams[" + std::to_string(node.ParamSlot) + "].x"; type = EGraphValueType::Float; break;
             case EMaterialNodeType::ParamColor:    expr = "GraphParams[" + std::to_string(node.ParamSlot) + "]"; type = EGraphValueType::Float4; break;
+            case EMaterialNodeType::TextureParameter:
+            {
+                const std::string index = "asuint(GraphParams[" + std::to_string(node.ParamSlot) + "].x)";
+                const std::string uv = node.Inputs.empty() || node.Inputs[0] < 0
+                    ? std::string("input.TexCoord") : Widen(A(0), AT(0), EGraphValueType::Float2);
+                expr = "(" + index + " == 0xffffffffu ? float3(1.0, 1.0, 1.0) : SampleTex("
+                    + index + ", " + uv + "))";
+                type = EGraphValueType::Float3;
+                break;
+            }
             case EMaterialNodeType::Parameter:     expr = "mat." + node.ParameterName; type = node.OutputType; break;
             case EMaterialNodeType::TexCoord:      expr = vertexStage ? "uv" : "input.TexCoord"; type = EGraphValueType::Float2; break;
             case EMaterialNodeType::Position:      expr = vertexStage ? "P" : "input.WorldPos"; type = EGraphValueType::Float3; break;

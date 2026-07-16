@@ -417,7 +417,8 @@ namespace Elixir
                 if (!variant.ParamBuffer || index >= instances.size())
                     continue;
                 glm::vec4 params[MAX_GRAPH_PARAMS] = {};
-                instances[index]->CollectGraphParams(params, MAX_GRAPH_PARAMS);
+                instances[index]->CollectGraphParams(params, MAX_GRAPH_PARAMS,
+                    [this](const Ref<Texture>& texture) { return ResolveTexture(texture); });
                 variant.ParamBuffer->UpdateData(params, sizeof(params));
             }
         }

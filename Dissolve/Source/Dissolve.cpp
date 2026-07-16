@@ -10,6 +10,8 @@
 
 #include <imgui.h>
 
+#include <unordered_set>
+
 Ref<GraphicsPipeline> pipeline;
 Scope<Aether::Renderer> m_ParticlesRenderer;
 Ref<Aether::System> m_ParticleSystem;
@@ -486,6 +488,67 @@ void Dissolve::DrawMaterialEditor()
 
         glm::vec3 emissive = glm::vec3(mat->GetVector("EmissiveFactor"));
         if (ImGui::ColorEdit3("Emissive", &emissive.x)) { mat->SetVector("EmissiveFactor", glm::vec4(emissive, 0.0f)); changed = true; }
+
+        if (const Ref<Material>& parent = mat->GetParent())
+        {
+            std::vector<Ref<Texture>> availableTextures;
+            const auto addTexture = [&](const Ref<Texture>& texture)
+            {
+                if (texture && std::find(availableTextures.begin(), availableTextures.end(), texture) == availableTextures.end())
+                    availableTextures.push_back(texture);
+            };
+            for (const auto& [name, value] : parent->GetDefaults())
+                if (value.Type == SMaterialParam::EType::Texture)
+                    addTexture(value.TextureRef);
+            for (const auto& [name, value] : mat->GetOverrides())
+                if (value.Type == SMaterialParam::EType::Texture)
+                    addTexture(value.TextureRef);
+            std::sort(availableTextures.begin(), availableTextures.end(), [](const auto& a, const auto& b)
+            {
+                return a->GetPath() < b->GetPath();
+            });
+
+            bool headerDrawn = false;
+            std::unordered_set<std::string> displayed;
+            for (const auto& parameter : parent->GetGraphParameters())
+            {
+                if (parameter.Type != SMaterialParam::EType::Texture
+                    || !displayed.insert(parameter.Name).second)
+                    continue;
+                if (!headerDrawn)
+                {
+                    ImGui::Separator();
+                    ImGui::TextDisabled("Texture Parameters (live)");
+                    headerDrawn = true;
+                }
+
+                const Ref<Texture> current = mat->GetTexture(parameter.Name);
+                const std::string preview = current && !current->GetPath().empty()
+                    ? std::filesystem::path(current->GetPath()).filename().string() : "None";
+                ImGui::PushID((int)parameter.Slot);
+                if (ImGui::BeginCombo(parameter.Name.c_str(), preview.c_str()))
+                {
+                    if (ImGui::Selectable("None", !current))
+                    {
+                        mat->SetTexture(parameter.Name, nullptr);
+                        changed = true;
+                    }
+                    for (const auto& texture : availableTextures)
+                    {
+                        const std::string label = texture->GetPath().empty()
+                            ? std::string("Texture ") + texture->GetUUID().ToString()
+                            : std::filesystem::path(texture->GetPath()).filename().string();
+                        if (ImGui::Selectable(label.c_str(), current == texture))
+                        {
+                            mat->SetTexture(parameter.Name, texture);
+                            changed = true;
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+                ImGui::PopID();
+            }
+        }
 
         if (const Ref<Material>& parent = mat->GetParent(); parent && !parent->GetStaticDefaults().empty())
         {

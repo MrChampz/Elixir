@@ -2,6 +2,7 @@
 #include "Material.h"
 
 #include <algorithm>
+#include <cstring>
 
 namespace Elixir
 {
@@ -90,7 +91,8 @@ namespace Elixir
         return hash;
     }
 
-    uint32_t MaterialInstance::CollectGraphParams(glm::vec4* out, uint32_t maxCount) const
+    uint32_t MaterialInstance::CollectGraphParams(glm::vec4* out, const uint32_t maxCount,
+        const TextureIndexResolver& textureResolver) const
     {
         if (!out || maxCount == 0 || !m_Parent || !m_Parent->HasGraph())
             return 0;
@@ -108,6 +110,15 @@ namespace Elixir
                 out[parameter.Slot] = glm::vec4(value->Scalar, 0.0f, 0.0f, 0.0f);
             else if (parameter.Type == SMaterialParam::EType::Vector && value->Type == SMaterialParam::EType::Vector)
                 out[parameter.Slot] = value->Vector;
+            else if (parameter.Type == SMaterialParam::EType::Texture && value->Type == SMaterialParam::EType::Texture)
+            {
+                uint32_t index = 0xffffffffu;
+                if (value->TextureRef && textureResolver)
+                    index = textureResolver(value->TextureRef);
+                float encodedIndex = 0.0f;
+                std::memcpy(&encodedIndex, &index, sizeof(index));
+                out[parameter.Slot] = glm::vec4(encodedIndex, 0.0f, 0.0f, 0.0f);
+            }
             else
                 continue;
             count = std::max(count, parameter.Slot + 1);

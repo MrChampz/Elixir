@@ -195,7 +195,8 @@ namespace Elixir
                 gn.CustomCode = n.Code;
             // Exposed parameters get a GraphParams slot in node order. Validate()
             // reports nodes beyond the shader's fixed array instead of aliasing slot 7.
-            if (n.Type == EMaterialNodeType::ParamScalar || n.Type == EMaterialNodeType::ParamColor)
+            if (n.Type == EMaterialNodeType::ParamScalar || n.Type == EMaterialNodeType::ParamColor
+                || n.Type == EMaterialNodeType::TextureParameter)
                 gn.ParamSlot = paramSlot++;
             idMap[n.Id] = graph.AddNode(gn);
         }
@@ -251,6 +252,16 @@ namespace Elixir
             if (node.Type == EMaterialNodeType::StaticBoolParameter)
             {
                 material->SetStaticDefault(node.Param, node.Constant.x >= 0.5f);
+                continue;
+            }
+            if (node.Type == EMaterialNodeType::TextureParameter)
+            {
+                const SMaterialParam* inherited = base ? base->GetDefault(node.Param) : nullptr;
+                if (inherited && inherited->Type == SMaterialParam::EType::Texture)
+                    material->SetDefault(node.Param, *inherited);
+                else
+                    material->SetDefault(node.Param, SMaterialParam::MakeTexture(nullptr));
+                layout.push_back({ node.Param, SMaterialParam::EType::Texture, slot++ });
                 continue;
             }
             if (node.Type != EMaterialNodeType::ParamScalar && node.Type != EMaterialNodeType::ParamColor)

@@ -50,6 +50,7 @@ namespace Elixir
                 case EMaterialNodeType::FunctionCall:  return "Fn Call";
                 case EMaterialNodeType::StaticBoolParameter: return "Static Bool Param";
                 case EMaterialNodeType::StaticSwitch: return "Static Switch";
+                case EMaterialNodeType::TextureParameter: return "Texture Param";
             }
             return "Node";
         }
@@ -75,6 +76,7 @@ namespace Elixir
                 case EMaterialNodeType::Checker:       // input 0 = UV (optional)
                 case EMaterialNodeType::Noise:         // input 0 = UV (optional)
                 case EMaterialNodeType::TextureSample: return 1; // input 0 = UV (optional)
+                case EMaterialNodeType::TextureParameter: return 1; // input 0 = UV (optional)
                 default: return 0;
             }
         }
@@ -95,6 +97,7 @@ namespace Elixir
                 case EMaterialNodeType::TexCoord:
                 case EMaterialNodeType::Panner:        return EGraphValueType::Float2;
                 case EMaterialNodeType::TextureSample:
+                case EMaterialNodeType::TextureParameter:
                 case EMaterialNodeType::Vector:
                 case EMaterialNodeType::Position:      return EGraphValueType::Float3;
                 default:                               return EGraphValueType::Float4;
@@ -174,6 +177,8 @@ namespace Elixir
                 : type == EMaterialNodeType::ParamColor ? "Color" : "StaticBool";
             std::strncpy(node.Param, name, sizeof(node.Param) - 1);
         }
+        if (type == EMaterialNodeType::TextureParameter)
+            std::strncpy(node.Param, "BaseColorTexture", sizeof(node.Param) - 1);
         if (type == EMaterialNodeType::FunctionInput)
             std::strncpy(node.Param, "In", sizeof(node.Param) - 1);
         if (type == EMaterialNodeType::FunctionCall)
@@ -300,6 +305,7 @@ namespace Elixir
         addButton("Param.rgba", EMaterialNodeType::ParamColor);
         addButton("Parameter", EMaterialNodeType::Parameter);
         addButton("Texture", EMaterialNodeType::TextureSample);
+        addButton("Tex Param", EMaterialNodeType::TextureParameter);
         addButton("TexCoord", EMaterialNodeType::TexCoord);
         addButton("Position", EMaterialNodeType::Position);
         ImGui::NewLine();
@@ -553,6 +559,8 @@ namespace Elixir
                 ImGui::InputText("##p", node.Param, sizeof(node.Param));
             else if (node.Type == EMaterialNodeType::TextureSample)
                 ImGui::Combo("##t", &node.TexSlot, kTextureSlots, IM_ARRAYSIZE(kTextureSlots));
+            else if (node.Type == EMaterialNodeType::TextureParameter)
+                ImGui::InputText("##textureParam", node.Param, sizeof(node.Param));
             else if (node.Type == EMaterialNodeType::Panner)
                 ImGui::DragFloat2("##s", &node.Constant.x, 0.01f, -5.0f, 5.0f, "%.2f");
             else if (node.Type == EMaterialNodeType::Checker || node.Type == EMaterialNodeType::Noise)
@@ -766,7 +774,8 @@ namespace Elixir
             int slot = 0;
             for (const auto& node : pnodes)
             {
-                if (node.Type != EMaterialNodeType::ParamScalar && node.Type != EMaterialNodeType::ParamColor)
+                if (node.Type != EMaterialNodeType::ParamScalar && node.Type != EMaterialNodeType::ParamColor
+                    && node.Type != EMaterialNodeType::TextureParameter)
                     continue;
                 if (slot >= MAX_PARAMS) break;
 
@@ -778,8 +787,13 @@ namespace Elixir
                 bool changed;
                 if (node.Type == EMaterialNodeType::ParamScalar)
                     changed = ImGui::DragFloat(node.Param, &value.x, 0.01f, -10.0f, 10.0f, "%.3f");
-                else
+                else if (node.Type == EMaterialNodeType::ParamColor)
                     changed = ImGui::ColorEdit4(node.Param, &value.x, ImGuiColorEditFlags_AlphaBar);
+                else
+                {
+                    ImGui::TextDisabled("%s: edit texture in Material Editor", node.Param);
+                    changed = false;
+                }
                 if (changed)
                     m_Document.Overrides[node.Param] = value;
                 ImGui::PopID();

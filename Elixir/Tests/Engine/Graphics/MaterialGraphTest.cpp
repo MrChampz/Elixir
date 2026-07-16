@@ -191,3 +191,24 @@ TEST(MaterialGraph, StaticSwitchEmitsOnlyTheSelectedBranch)
     EXPECT_NE(hlsl.find("0.250000"), std::string::npos);
     EXPECT_EQ(hlsl.find("invalid inactive parameter"), std::string::npos);
 }
+
+TEST(MaterialGraph, TextureParameterSamplesTheBindlessGraphParameter)
+{
+    MaterialGraph graph;
+
+    SMaterialNode texture;
+    texture.Type = EMaterialNodeType::TextureParameter;
+    texture.OutputType = EGraphValueType::Float3;
+    texture.ParameterName = "Albedo";
+    texture.ParamSlot = 2;
+    texture.Inputs = { -1 };
+    const uint32_t textureId = graph.AddNode(texture);
+    graph.SetChannel(EMaterialChannel::BaseColor, textureId);
+
+    EXPECT_FALSE(graph.Validate().HasErrors());
+    const std::string hlsl = graph.GenerateHLSL();
+    EXPECT_NE(hlsl.find("asuint(GraphParams[2].x)"), std::string::npos);
+    EXPECT_NE(hlsl.find("SampleTex("), std::string::npos);
+    EXPECT_NE(hlsl.find("input.TexCoord"), std::string::npos);
+    EXPECT_NE(hlsl.find("0xffffffffu"), std::string::npos);
+}

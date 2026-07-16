@@ -7,6 +7,7 @@
 #include <glm/glm.hpp>
 
 #include <optional>
+#include <functional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -158,7 +159,9 @@ namespace Elixir
 
         // Pack graph parameters in the exact slot layout owned by the parent Material.
         // Returns the highest populated slot count (bounded by maxCount).
-        uint32_t CollectGraphParams(glm::vec4* out, uint32_t maxCount) const;
+        using TextureIndexResolver = std::function<uint32_t(const Ref<Texture>&)>;
+        uint32_t CollectGraphParams(glm::vec4* out, uint32_t maxCount,
+            const TextureIndexResolver& textureResolver = {}) const;
 
         [[nodiscard]] const Ref<Material>& GetParent() const { return m_Parent; }
         [[nodiscard]] const std::unordered_map<std::string, SMaterialParam>& GetOverrides() const { return m_Overrides; }

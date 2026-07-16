@@ -7,6 +7,7 @@
 
 #include <chrono>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -74,6 +75,33 @@ TEST(MaterialInstance, PacksGraphDefaultsAndOverrides)
     EXPECT_EQ(instance.CollectGraphParams(params, 4), 2u);
     EXPECT_EQ(params[0], glm::vec4(0.1f, 0.2f, 0.3f, 1.0f));
     EXPECT_FLOAT_EQ(params[1].x, 0.8f);
+}
+
+TEST(MaterialInstance, PacksMissingTextureAsAnInvalidBindlessIndex)
+{
+    SMaterialGraphDocument document;
+    SMaterialGraphNode texture;
+    texture.Id = 1;
+    texture.Type = EMaterialNodeType::TextureParameter;
+    texture.OutputType = EGraphValueType::Float3;
+    std::snprintf(texture.Param, sizeof(texture.Param), "Albedo");
+    document.Nodes.push_back(texture);
+    document.Channels[(int)EMaterialChannel::BaseColor] = texture.Id;
+    document.NextId = 2;
+
+    const Ref<Material> material = document.BuildMaterial("TextureMaterial");
+    ASSERT_EQ(material->GetGraphParameters().size(), 1u);
+    EXPECT_EQ(material->GetGraphParameters()[0].Type, SMaterialParam::EType::Texture);
+    ASSERT_NE(material->GetDefault("Albedo"), nullptr);
+    EXPECT_EQ(material->GetDefault("Albedo")->Type, SMaterialParam::EType::Texture);
+    EXPECT_EQ(material->GetDefault("Albedo")->TextureRef, nullptr);
+
+    MaterialInstance instance(material);
+    glm::vec4 params[1] = {};
+    EXPECT_EQ(instance.CollectGraphParams(params, 1), 1u);
+    uint32_t encodedIndex = 0;
+    std::memcpy(&encodedIndex, &params[0].x, sizeof(encodedIndex));
+    EXPECT_EQ(encodedIndex, 0xffffffffu);
 }
 
 TEST(MaterialInstance, ReparentKeepsOnlyCompatibleOverrides)
@@ -184,7 +212,14 @@ TEST(MaterialAsset, RoundTripsGraphMaterialAndInstance)
     staticNode.Constant.x = 0.0f;
     std::snprintf(staticNode.Param, sizeof(staticNode.Param), "UseClearCoat");
     document.Nodes.push_back(staticNode);
-    document.NextId = 3;
+
+    SMaterialGraphNode textureNode;
+    textureNode.Id = 3;
+    textureNode.Type = EMaterialNodeType::TextureParameter;
+    textureNode.OutputType = EGraphValueType::Float3;
+    std::snprintf(textureNode.Param, sizeof(textureNode.Param), "DetailTexture");
+    document.Nodes.push_back(textureNode);
+    document.NextId = 4;
 
     const Ref<Material> material = document.BuildMaterial("paint", Material::CreateStandardPBR());
     ASSERT_NE(material->GetDocument(), nullptr); // a built material carries its graph
@@ -201,6 +236,7 @@ TEST(MaterialAsset, RoundTripsGraphMaterialAndInstance)
     instance.SetName("Body Paint");
     instance.SetScalar("Strength", 0.8f);
     instance.SetVector("BaseColorFactor", glm::vec4(0.1f, 0.2f, 0.3f, 1.0f));
+    instance.SetTexture("DetailTexture", nullptr);
     const size_t defaultVariant = instance.StaticVariantKey();
     instance.SetStaticBool("UseClearCoat", true);
     EXPECT_NE(instance.StaticVariantKey(), defaultVariant);
@@ -213,15 +249,19 @@ TEST(MaterialAsset, RoundTripsGraphMaterialAndInstance)
     EXPECT_EQ(loaded->GetName(), "Body Paint");
     EXPECT_FLOAT_EQ(loaded->GetScalar("Strength"), 0.8f);
     EXPECT_EQ(loaded->GetVector("BaseColorFactor"), glm::vec4(0.1f, 0.2f, 0.3f, 1.0f));
+    ASSERT_TRUE(loaded->GetOverrides().contains("DetailTexture"));
+    EXPECT_EQ(loaded->GetTexture("DetailTexture"), nullptr);
     EXPECT_TRUE(loaded->GetStaticBool("UseClearCoat"));
 
     // The graph survives the round trip as an editable document, not just as compiled
     // output -- that is what lets the editor reopen a saved material.
     const SMaterialGraphDocument* reloaded = loaded->GetParent()->GetDocument();
     ASSERT_NE(reloaded, nullptr);
-    ASSERT_EQ(reloaded->Nodes.size(), 2u);
+    ASSERT_EQ(reloaded->Nodes.size(), 3u);
     EXPECT_EQ(reloaded->Nodes[0].Type, EMaterialNodeType::ParamScalar);
     EXPECT_STREQ(reloaded->Nodes[0].Param, "Strength");
+    EXPECT_EQ(reloaded->Nodes[2].Type, EMaterialNodeType::TextureParameter);
+    EXPECT_STREQ(reloaded->Nodes[2].Param, "DetailTexture");
     EXPECT_EQ(reloaded->Channels[(int)EMaterialChannel::BaseColor], node.Id);
 }
 

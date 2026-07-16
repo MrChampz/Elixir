@@ -45,6 +45,7 @@ namespace Elixir
         FunctionCall,  // instantiates a saved sub-graph (expanded away before codegen)
         StaticBoolParameter, // named compile-time bool overridden by a material instance
         StaticSwitch,  // compile-time choice: true input, false input, static-bool condition
+        TextureParameter, // instance-overridable bindless Texture2D sample
     };
 
     // The surface output a channel drives. Together these form the "master node".
