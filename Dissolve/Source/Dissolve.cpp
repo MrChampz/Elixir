@@ -183,18 +183,32 @@ void Dissolve::QueueGraphCompile(
 {
     if (!instance || !instance->GetParent() || !instance->GetParent()->HasGraph())
         return;
-    const MaterialGraph compileGraph = *instance->GetParent()->GetGraph();
+    const MaterialGraph compileGraph = instance->BuildGraphVariant();
     const EMaterialBlendMode compileBlend = compileGraph.GetBlendMode();
+    const size_t variantKey = instance->StaticVariantKey();
     uint64_t generation;
     {
         std::lock_guard<std::mutex> lock(m_GraphGenerationMutex);
         generation = ++m_GraphGenerations[slot];
     }
 
+    // Switching back to a permutation already built for this slot is a lightweight
+    // render-boundary swap: no DXC, Vulkan shader load or Metal pipeline creation.
+    if (m_MeshRenderer->HasMaterialShaderVariant(slot, variantKey))
+    {
+        m_MeshRenderer->PrepareCachedMaterialShader(slot, variantKey, m_Model, instance);
+        if (notifyEditor)
+        {
+            std::lock_guard<std::mutex> lock(m_CompileMutex);
+            m_CompileReady = true;
+        }
+        return;
+    }
+
     // Do the whole build on a worker thread -- DXC (no Vulkan) plus the Vulkan
     // shader/pipeline creation -- so neither the render thread nor the UI thread
     // stalls on the Metal pipeline compile. MeshRenderer::Render installs the result.
-    m_Executor.Enqueue([this, slot, compileGraph, compileBlend, instance, notifyEditor, generation]()
+    m_Executor.Enqueue([this, slot, compileGraph, compileBlend, instance, notifyEditor, generation, variantKey]()
     {
         {
             // The graphics backend already supports preparing a pipeline away from
@@ -212,7 +226,7 @@ void Dissolve::QueueGraphCompile(
                     }
                     if (current)
                         m_MeshRenderer->PrepareMaterialShader(
-                            slot, shader, compileBlend, m_Model, instance);
+                            slot, shader, compileBlend, m_Model, instance, variantKey);
                 }
         }
         if (notifyEditor)
@@ -416,6 +430,8 @@ void Dissolve::DrawMaterialEditor()
     ImGui::Begin("Material Editor");
     const auto& materials = m_Model->GetMaterials();
     int saveInstanceSlot = -1;
+    int staticCompileSlot = -1;
+    Ref<MaterialInstance> staticCompileInstance;
     if (!materials.empty())
     {
         static int selected = 0;
@@ -469,6 +485,32 @@ void Dissolve::DrawMaterialEditor()
         glm::vec3 emissive = glm::vec3(mat->GetVector("EmissiveFactor"));
         if (ImGui::ColorEdit3("Emissive", &emissive.x)) { mat->SetVector("EmissiveFactor", glm::vec4(emissive, 0.0f)); changed = true; }
 
+        if (const Ref<Material>& parent = mat->GetParent(); parent && !parent->GetStaticDefaults().empty())
+        {
+            ImGui::Separator();
+            ImGui::TextDisabled("Static Parameters (compile-time)");
+            std::vector<std::pair<std::string, bool>> staticParameters(
+                parent->GetStaticDefaults().begin(), parent->GetStaticDefaults().end());
+            std::sort(staticParameters.begin(), staticParameters.end(),
+                [](const auto& a, const auto& b) { return a.first < b.first; });
+            bool staticChanged = false;
+            for (const auto& parameter : staticParameters)
+            {
+                const std::string& name = parameter.first;
+                bool value = mat->GetStaticBool(name);
+                if (ImGui::Checkbox(name.c_str(), &value))
+                {
+                    mat->SetStaticBool(name, value);
+                    staticChanged = true;
+                }
+            }
+            if (staticChanged)
+            {
+                staticCompileSlot = selected;
+                staticCompileInstance = CreateRef<MaterialInstance>(*mat);
+            }
+        }
+
         if (changed)
             m_Model->MarkMaterialsDirty();
     }
@@ -476,6 +518,8 @@ void Dissolve::DrawMaterialEditor()
 
     if (saveInstanceSlot >= 0)
         SaveInstanceAsset((uint32_t)saveInstanceSlot);
+    if (staticCompileSlot >= 0 && staticCompileInstance)
+        QueueGraphCompile((uint32_t)staticCompileSlot, staticCompileInstance, false);
     // The draw data is submitted from OnRender (render thread) via EndImGuiFrame.
 }
 

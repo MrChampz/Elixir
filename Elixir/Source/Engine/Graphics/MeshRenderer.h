@@ -9,6 +9,7 @@
 #include <Engine/Graphics/TextureSet.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
 #include <Engine/Graphics/Pipeline/Pipeline.h>
+#include <unordered_set>
 
 namespace Elixir
 {
@@ -34,7 +35,10 @@ namespace Elixir
         // shader and material instance together at a frame boundary.
         void PrepareMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader,
             EMaterialBlendMode blendMode, const Ref<Model>& model,
-            const Ref<MaterialInstance>& materialInstance);
+            const Ref<MaterialInstance>& materialInstance, size_t variantKey);
+        [[nodiscard]] bool HasMaterialShaderVariant(uint32_t materialIndex, size_t variantKey) const;
+        void PrepareCachedMaterialShader(uint32_t materialIndex, size_t variantKey,
+            const Ref<Model>& model, const Ref<MaterialInstance>& materialInstance);
         void InstallPendingShaders();
 
       private:
@@ -108,8 +112,15 @@ namespace Elixir
             Ref<GraphicsPipeline> Transparent;
             Ref<UniformBuffer> ParamBuffer; // cbGraphParams (exposed params)
             EMaterialBlendMode BlendMode = EMaterialBlendMode::Opaque;
+            size_t VariantKey = 0;
         };
         std::unordered_map<uint32_t, SShaderVariant> m_MaterialShaders;
+        std::unordered_map<uint32_t, std::unordered_map<size_t, SShaderVariant>> m_MaterialShaderCache;
+
+        // Worker-visible index of active and cached variants. The actual GPU objects
+        // remain render-thread-owned; workers only use this to avoid recompilation.
+        mutable std::mutex m_VariantKeysMutex;
+        std::unordered_map<uint32_t, std::unordered_set<size_t>> m_VariantKeys;
 
         // Deferred destruction: a swapped-out shader/pipeline may still be referenced
         // by in-flight frames, so keep it alive a few frames before releasing it --
@@ -131,6 +142,8 @@ namespace Elixir
             SShaderVariant Variant;
             Ref<Model> Model;
             Ref<MaterialInstance> MaterialInstance;
+            size_t VariantKey = 0;
+            bool UseCached = false;
         };
         std::vector<SPendingVariant> m_PendingVariants;
         std::mutex m_PendingMutex;

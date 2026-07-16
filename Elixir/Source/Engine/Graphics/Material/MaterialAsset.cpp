@@ -78,6 +78,14 @@ namespace Elixir
             return sorted;
         }
 
+        std::vector<std::pair<std::string, bool>> SortedStaticParameters(
+            const std::unordered_map<std::string, bool>& parameters)
+        {
+            std::vector<std::pair<std::string, bool>> sorted(parameters.begin(), parameters.end());
+            std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+            return sorted;
+        }
+
         bool ParametersCanBeSaved(const fs::path& assetPath,
             const std::unordered_map<std::string, SMaterialParam>& parameters)
         {
@@ -313,7 +321,15 @@ namespace Elixir
             WriteParameter(out, path, overrides[i].first, overrides[i].second);
             out << (i + 1 < overrides.size() ? "," : "") << '\n';
         }
-        out << "  ]\n}\n";
+        out << "  ],\n  \"staticOverrides\": [";
+        const auto staticOverrides = SortedStaticParameters(instance.GetStaticOverrides());
+        for (size_t i = 0; i < staticOverrides.size(); ++i)
+        {
+            out << (i ? ", " : "") << "{ \"name\": ";
+            WriteString(out, staticOverrides[i].first);
+            out << ", \"value\": " << (staticOverrides[i].second ? "true" : "false") << " }";
+        }
+        out << "]\n}\n";
         EE_CORE_INFO("Material instance saved to '{}'.", path.string())
         return true;
     }
@@ -363,6 +379,25 @@ namespace Elixir
                 case SMaterialParam::EType::Texture:
                     instance->SetTexture(parameter->first, parameter->second.TextureRef);
                     break;
+            }
+        }
+
+        simdjson::dom::array staticOverrides;
+        if (document["staticOverrides"].get(staticOverrides) == simdjson::SUCCESS)
+        {
+            for (const auto element : staticOverrides)
+            {
+                std::string_view parameterName;
+                bool value;
+                if (element["name"].get(parameterName) != simdjson::SUCCESS
+                    || element["value"].get(value) != simdjson::SUCCESS)
+                    continue;
+                if (!parent->GetStaticDefault(std::string(parameterName)))
+                {
+                    EE_CORE_WARN("Material instance: ignoring unknown static override '{}'.", parameterName)
+                    continue;
+                }
+                instance->SetStaticBool(std::string(parameterName), value);
             }
         }
         EE_CORE_INFO("Material instance loaded from '{}'.", path.string())

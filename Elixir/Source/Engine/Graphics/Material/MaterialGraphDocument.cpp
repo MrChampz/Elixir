@@ -162,7 +162,8 @@ namespace Elixir
         // the call with zero.
     }
 
-    MaterialGraph SMaterialGraphDocument::Build() const
+    MaterialGraph SMaterialGraphDocument::Build(
+        const std::unordered_map<std::string, bool>& staticOverrides) const
     {
         std::vector<SMaterialGraphNode> nodes;
         int channels[11];
@@ -180,6 +181,12 @@ namespace Elixir
             gn.OutputType = n.OutputType;
             gn.ConstantValue = n.Constant;
             gn.ParameterName = n.Param;
+            if (n.Type == EMaterialNodeType::StaticBoolParameter)
+            {
+                const auto override = staticOverrides.find(n.Param);
+                if (override != staticOverrides.end())
+                    gn.ConstantValue.x = override->second ? 1.0f : 0.0f;
+            }
             const int inputCount = std::clamp(n.InputCount, 0, 3);
             gn.Inputs.assign(inputCount, -1);
             if (n.Type == EMaterialNodeType::TextureSample)
@@ -241,6 +248,11 @@ namespace Elixir
         uint32_t slot = 0;
         for (const auto& node : nodes)
         {
+            if (node.Type == EMaterialNodeType::StaticBoolParameter)
+            {
+                material->SetStaticDefault(node.Param, node.Constant.x >= 0.5f);
+                continue;
+            }
             if (node.Type != EMaterialNodeType::ParamScalar && node.Type != EMaterialNodeType::ParamColor)
                 continue;
 
@@ -256,7 +268,10 @@ namespace Elixir
         material->SetGraph(Build(), std::move(layout));
         // Every graph material carries the document it came from, so saving one never
         // has to go looking for the authoring state that produced it.
-        material->SetDocument(*this);
+        SMaterialGraphDocument authored = *this;
+        authored.Overrides.clear();
+        authored.StaticValues.clear();
+        material->SetDocument(std::move(authored));
         return material;
     }
 
@@ -267,6 +282,13 @@ namespace Elixir
         Expand(nodes, channels);
         for (const auto& node : nodes)
         {
+            if (node.Type == EMaterialNodeType::StaticBoolParameter)
+            {
+                const auto value = StaticValues.find(node.Param);
+                if (value != StaticValues.end())
+                    instance.SetStaticBool(node.Param, value->second);
+                continue;
+            }
             if (node.Type != EMaterialNodeType::ParamScalar && node.Type != EMaterialNodeType::ParamColor)
                 continue;
             const auto value = Overrides.find(node.Param);
@@ -294,6 +316,13 @@ namespace Elixir
         for (int i = 0; i < 11; ++i) mix((size_t)(Channels[i] + 2));
         mix((size_t)TargetMaterial); mix((size_t)BlendMode); mix((size_t)ShadingModel);
         mixf(AlphaCutoff);
+        std::vector<std::pair<std::string, bool>> staticValues(StaticValues.begin(), StaticValues.end());
+        std::sort(staticValues.begin(), staticValues.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+        for (const auto& [name, value] : staticValues)
+        {
+            for (const char c : name) mix((size_t)c);
+            mix(value ? 1u : 0u);
+        }
         return h;
     }
 
@@ -312,6 +341,11 @@ namespace Elixir
         {
             for (char c : name) mix((size_t)c);
             mixf(v.x); mixf(v.y); mixf(v.z); mixf(v.w);
+        }
+        for (const auto& [name, value] : StaticValues)
+        {
+            for (const char c : name) mix((size_t)c);
+            mix(value ? 1u : 0u);
         }
         for (const auto& c : Comments)
         {

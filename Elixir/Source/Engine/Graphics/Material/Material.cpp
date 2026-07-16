@@ -21,6 +21,13 @@ namespace Elixir
             else
                 ++it;
         }
+        for (auto it = m_StaticOverrides.begin(); it != m_StaticOverrides.end();)
+        {
+            if (!m_Parent->GetStaticDefault(it->first))
+                it = m_StaticOverrides.erase(it);
+            else
+                ++it;
+        }
     }
 
     void MaterialInstance::ApplyCompatibleOverridesFrom(const MaterialInstance& source)
@@ -34,6 +41,43 @@ namespace Elixir
             if (definition && definition->Type == value.Type)
                 m_Overrides[name] = value;
         }
+        for (const auto& [name, value] : source.m_StaticOverrides)
+            if (m_Parent->GetStaticDefault(name))
+                m_StaticOverrides[name] = value;
+    }
+
+    MaterialGraph MaterialInstance::BuildGraphVariant() const
+    {
+        if (!m_Parent)
+            return {};
+        if (const SMaterialGraphDocument* document = m_Parent->GetDocument())
+            return document->Build(m_StaticOverrides);
+        return m_Parent->GetGraph() ? *m_Parent->GetGraph() : MaterialGraph{};
+    }
+
+    size_t MaterialInstance::StaticVariantKey() const
+    {
+        if (!m_Parent || !m_Parent->GetDocument())
+            return 0;
+
+        size_t hash = m_Parent->GetDocument()->StructHash();
+        const auto mix = [&](const size_t value)
+        {
+            hash ^= value;
+            hash *= 1099511628211ull;
+        };
+        std::vector<std::pair<std::string, bool>> values;
+        values.reserve(m_Parent->GetStaticDefaults().size());
+        for (const auto& parameter : m_Parent->GetStaticDefaults())
+            values.emplace_back(parameter.first, GetStaticBool(parameter.first));
+        std::sort(values.begin(), values.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+        for (const auto& [name, value] : values)
+        {
+            for (const char c : name)
+                mix((uint8_t)c);
+            mix(value ? 1u : 0u);
+        }
+        return hash;
     }
 
     uint32_t MaterialInstance::CollectGraphParams(glm::vec4* out, uint32_t maxCount) const

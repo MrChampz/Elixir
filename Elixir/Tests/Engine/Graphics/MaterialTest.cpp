@@ -112,6 +112,53 @@ TEST(MaterialInstance, AppliesOnlyCompatiblePreparedOverrides)
     EXPECT_EQ(target.GetParameter("Unknown"), nullptr);
 }
 
+TEST(MaterialInstance, StaticOverrideSelectsAGraphPermutation)
+{
+    SMaterialGraphDocument document;
+
+    SMaterialGraphNode trueValue;
+    trueValue.Id = 1;
+    trueValue.Type = EMaterialNodeType::Constant;
+    trueValue.OutputType = EGraphValueType::Float3;
+    trueValue.Constant = glm::vec4(0.123f, 0.0f, 0.0f, 1.0f);
+
+    SMaterialGraphNode falseValue = trueValue;
+    falseValue.Id = 2;
+    falseValue.Constant = glm::vec4(0.0f, 0.456f, 0.0f, 1.0f);
+
+    SMaterialGraphNode condition;
+    condition.Id = 3;
+    condition.Type = EMaterialNodeType::StaticBoolParameter;
+    condition.OutputType = EGraphValueType::Float;
+    condition.Constant.x = 0.0f;
+    std::snprintf(condition.Param, sizeof(condition.Param), "UseTrueValue");
+
+    SMaterialGraphNode staticSwitch;
+    staticSwitch.Id = 4;
+    staticSwitch.Type = EMaterialNodeType::StaticSwitch;
+    staticSwitch.InputCount = 3;
+    staticSwitch.Inputs[0] = trueValue.Id;
+    staticSwitch.Inputs[1] = falseValue.Id;
+    staticSwitch.Inputs[2] = condition.Id;
+
+    document.Nodes = { trueValue, falseValue, condition, staticSwitch };
+    document.Channels[(int)EMaterialChannel::BaseColor] = staticSwitch.Id;
+    document.NextId = 5;
+
+    const Ref<Material> material = document.BuildMaterial("StaticMaterial");
+    MaterialInstance instance(material);
+    const std::string defaultHlsl = instance.BuildGraphVariant().GenerateHLSL();
+    EXPECT_NE(defaultHlsl.find("0.456000"), std::string::npos);
+    EXPECT_EQ(defaultHlsl.find("0.123000"), std::string::npos);
+
+    const size_t defaultKey = instance.StaticVariantKey();
+    instance.SetStaticBool("UseTrueValue", true);
+    const std::string overriddenHlsl = instance.BuildGraphVariant().GenerateHLSL();
+    EXPECT_NE(overriddenHlsl.find("0.123000"), std::string::npos);
+    EXPECT_EQ(overriddenHlsl.find("0.456000"), std::string::npos);
+    EXPECT_NE(instance.StaticVariantKey(), defaultKey);
+}
+
 TEST(MaterialAsset, RoundTripsGraphMaterialAndInstance)
 {
     SMaterialTestDirectory directory;
@@ -129,7 +176,15 @@ TEST(MaterialAsset, RoundTripsGraphMaterialAndInstance)
     std::snprintf(node.Param, sizeof(node.Param), "Strength");
     document.Nodes.push_back(node);
     document.Channels[(int)EMaterialChannel::BaseColor] = node.Id;
-    document.NextId = 2;
+
+    SMaterialGraphNode staticNode;
+    staticNode.Id = 2;
+    staticNode.Type = EMaterialNodeType::StaticBoolParameter;
+    staticNode.OutputType = EGraphValueType::Float;
+    staticNode.Constant.x = 0.0f;
+    std::snprintf(staticNode.Param, sizeof(staticNode.Param), "UseClearCoat");
+    document.Nodes.push_back(staticNode);
+    document.NextId = 3;
 
     const Ref<Material> material = document.BuildMaterial("paint", Material::CreateStandardPBR());
     ASSERT_NE(material->GetDocument(), nullptr); // a built material carries its graph
@@ -146,6 +201,9 @@ TEST(MaterialAsset, RoundTripsGraphMaterialAndInstance)
     instance.SetName("Body Paint");
     instance.SetScalar("Strength", 0.8f);
     instance.SetVector("BaseColorFactor", glm::vec4(0.1f, 0.2f, 0.3f, 1.0f));
+    const size_t defaultVariant = instance.StaticVariantKey();
+    instance.SetStaticBool("UseClearCoat", true);
+    EXPECT_NE(instance.StaticVariantKey(), defaultVariant);
     ASSERT_TRUE(MaterialAsset::SaveInstance(instancePath, instance, materialPath));
 
     const Ref<MaterialInstance> loaded = MaterialAsset::LoadInstance(instancePath);
@@ -155,12 +213,13 @@ TEST(MaterialAsset, RoundTripsGraphMaterialAndInstance)
     EXPECT_EQ(loaded->GetName(), "Body Paint");
     EXPECT_FLOAT_EQ(loaded->GetScalar("Strength"), 0.8f);
     EXPECT_EQ(loaded->GetVector("BaseColorFactor"), glm::vec4(0.1f, 0.2f, 0.3f, 1.0f));
+    EXPECT_TRUE(loaded->GetStaticBool("UseClearCoat"));
 
     // The graph survives the round trip as an editable document, not just as compiled
     // output -- that is what lets the editor reopen a saved material.
     const SMaterialGraphDocument* reloaded = loaded->GetParent()->GetDocument();
     ASSERT_NE(reloaded, nullptr);
-    ASSERT_EQ(reloaded->Nodes.size(), 1u);
+    ASSERT_EQ(reloaded->Nodes.size(), 2u);
     EXPECT_EQ(reloaded->Nodes[0].Type, EMaterialNodeType::ParamScalar);
     EXPECT_STREQ(reloaded->Nodes[0].Param, "Strength");
     EXPECT_EQ(reloaded->Channels[(int)EMaterialChannel::BaseColor], node.Id);

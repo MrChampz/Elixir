@@ -147,8 +147,11 @@ namespace Elixir
         {
             if (const auto it = m_MaterialShaders.find(materialIndex); it != m_MaterialShaders.end())
             {
+                const size_t removedKey = it->second.VariantKey;
                 Retire(std::move(it->second));
                 m_MaterialShaders.erase(it);
+                std::lock_guard<std::mutex> keyLock(m_VariantKeysMutex);
+                m_VariantKeys[materialIndex].erase(removedKey);
             }
             return;
         }
@@ -166,23 +169,29 @@ namespace Elixir
 
         // Retire the slot's previous variant (may be in flight), then install the new.
         if (const auto it = m_MaterialShaders.find(materialIndex); it != m_MaterialShaders.end())
+        {
+            const size_t removedKey = it->second.VariantKey;
             Retire(std::move(it->second));
+            std::lock_guard<std::mutex> keyLock(m_VariantKeysMutex);
+            m_VariantKeys[materialIndex].erase(removedKey);
+        }
         m_MaterialShaders[materialIndex] = std::move(variant);
         m_BoundModel = nullptr; // force the material buffer to rebind to all shaders
     }
 
     void MeshRenderer::PrepareMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader,
         EMaterialBlendMode blendMode, const Ref<Model>& model,
-        const Ref<MaterialInstance>& materialInstance)
+        const Ref<MaterialInstance>& materialInstance, const size_t variantKey)
     {
         if (!shader)
             return;
 
-        // Built here on the caller's (main) thread -- including the slow pipeline
+        // Built here on the caller's worker thread -- including the slow pipeline
         // creation -- so the render thread never blocks compiling a Metal pipeline.
         SShaderVariant variant;
         variant.Shader = shader;
         variant.BlendMode = blendMode;
+        variant.VariantKey = variantKey;
         CreatePipelinesFor(shader, variant.Opaque, variant.Transparent, blendMode);
         BindResourcesTo(shader);
 
@@ -191,7 +200,25 @@ namespace Elixir
         shader->BindConstantBuffer("cbGraphParams", variant.ParamBuffer);
 
         std::lock_guard<std::mutex> lock(m_PendingMutex);
-        m_PendingVariants.push_back({ materialIndex, std::move(variant), model, materialInstance });
+        m_PendingVariants.push_back({ materialIndex, std::move(variant), model, materialInstance,
+            variantKey, false });
+    }
+
+    bool MeshRenderer::HasMaterialShaderVariant(
+        const uint32_t materialIndex, const size_t variantKey) const
+    {
+        std::lock_guard<std::mutex> lock(m_VariantKeysMutex);
+        const auto slot = m_VariantKeys.find(materialIndex);
+        return slot != m_VariantKeys.end() && slot->second.contains(variantKey);
+    }
+
+    void MeshRenderer::PrepareCachedMaterialShader(const uint32_t materialIndex,
+        const size_t variantKey, const Ref<Model>& model,
+        const Ref<MaterialInstance>& materialInstance)
+    {
+        std::lock_guard<std::mutex> lock(m_PendingMutex);
+        m_PendingVariants.push_back({ materialIndex, {}, model, materialInstance,
+            variantKey, true });
     }
 
     void MeshRenderer::InstallPendingShaders()
@@ -218,9 +245,46 @@ namespace Elixir
                     materials[pending.Slot]->SetName(pending.MaterialInstance->GetName());
                 }
             }
-            if (const auto it = m_MaterialShaders.find(pending.Slot); it != m_MaterialShaders.end())
-                Retire(std::move(it->second));
+            const auto active = m_MaterialShaders.find(pending.Slot);
+            if (active != m_MaterialShaders.end() && active->second.VariantKey == pending.VariantKey)
+                continue;
+
+            auto& cache = m_MaterialShaderCache[pending.Slot];
+            if (pending.UseCached)
+            {
+                const auto cached = cache.find(pending.VariantKey);
+                if (cached == cache.end())
+                {
+                    EE_CORE_WARN("Material variant cache: slot {} no longer has key {}.",
+                        pending.Slot, pending.VariantKey)
+                    continue;
+                }
+                SShaderVariant selected = std::move(cached->second);
+                cache.erase(cached);
+                if (active != m_MaterialShaders.end())
+                {
+                    cache.insert_or_assign(active->second.VariantKey, std::move(active->second));
+                    m_MaterialShaders.erase(active);
+                }
+                m_MaterialShaders[pending.Slot] = std::move(selected);
+                continue;
+            }
+
+            if (active != m_MaterialShaders.end())
+            {
+                cache.insert_or_assign(active->second.VariantKey, std::move(active->second));
+                m_MaterialShaders.erase(active);
+            }
+            if (const auto duplicate = cache.find(pending.VariantKey); duplicate != cache.end())
+            {
+                Retire(std::move(duplicate->second));
+                cache.erase(duplicate);
+            }
             m_MaterialShaders[pending.Slot] = std::move(pending.Variant);
+            {
+                std::lock_guard<std::mutex> keyLock(m_VariantKeysMutex);
+                m_VariantKeys[pending.Slot].insert(pending.VariantKey);
+            }
         }
         if (!pendingVariants.empty())
             m_BoundModel = nullptr; // force the material buffer to rebind to all shaders

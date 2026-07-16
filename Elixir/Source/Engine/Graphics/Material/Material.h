@@ -59,6 +59,17 @@ namespace Elixir
         [[nodiscard]] const std::string& GetName() const { return m_Name; }
         [[nodiscard]] const std::unordered_map<std::string, SMaterialParam>& GetDefaults() const { return m_Defaults; }
 
+        void SetStaticDefault(const std::string& name, bool value) { m_StaticDefaults[name] = value; }
+        [[nodiscard]] const bool* GetStaticDefault(const std::string& name) const
+        {
+            const auto it = m_StaticDefaults.find(name);
+            return it != m_StaticDefaults.end() ? &it->second : nullptr;
+        }
+        [[nodiscard]] const std::unordered_map<std::string, bool>& GetStaticDefaults() const
+        {
+            return m_StaticDefaults;
+        }
+
         void SetGraph(MaterialGraph graph, std::vector<SMaterialGraphParameter> parameters)
         {
             m_Graph = std::move(graph);
@@ -83,14 +94,15 @@ namespace Elixir
       private:
         std::string m_Name;
         std::unordered_map<std::string, SMaterialParam> m_Defaults;
+        std::unordered_map<std::string, bool> m_StaticDefaults;
         std::optional<MaterialGraph> m_Graph;
         std::optional<SMaterialGraphDocument> m_Document;
         std::vector<SMaterialGraphParameter> m_GraphParameters;
     };
 
     // An instance of a Material: overrides a subset of the parent's parameters. Any
-    // parameter not overridden falls back to the parent default, so instances are
-    // cheap to author and never recompile a shader.
+    // parameter not overridden falls back to the parent default. Runtime parameters
+    // update buffers directly; static bool overrides select a cached shader variant.
     class ELIXIR_API MaterialInstance
     {
       public:
@@ -99,6 +111,7 @@ namespace Elixir
         void SetScalar(const std::string& name, float value) { m_Overrides[name] = SMaterialParam::MakeScalar(value); }
         void SetVector(const std::string& name, const glm::vec4& value) { m_Overrides[name] = SMaterialParam::MakeVector(value); }
         void SetTexture(const std::string& name, const Ref<Texture>& value) { m_Overrides[name] = SMaterialParam::MakeTexture(value); }
+        void SetStaticBool(const std::string& name, bool value) { m_StaticOverrides[name] = value; }
 
         void SetParent(const Ref<Material>& parent);
 
@@ -124,6 +137,18 @@ namespace Elixir
         }
 
         [[nodiscard]] const SMaterialParam* GetParameter(const std::string& name) const { return Resolve(name); }
+        [[nodiscard]] bool GetStaticBool(const std::string& name) const
+        {
+            const auto it = m_StaticOverrides.find(name);
+            if (it != m_StaticOverrides.end())
+                return it->second;
+            const bool* value = m_Parent ? m_Parent->GetStaticDefault(name) : nullptr;
+            return value ? *value : false;
+        }
+
+        // Build the graph permutation selected by this instance's compile-time values.
+        [[nodiscard]] MaterialGraph BuildGraphVariant() const;
+        [[nodiscard]] size_t StaticVariantKey() const;
 
         // Pack graph parameters in the exact slot layout owned by the parent Material.
         // Returns the highest populated slot count (bounded by maxCount).
@@ -131,6 +156,10 @@ namespace Elixir
 
         [[nodiscard]] const Ref<Material>& GetParent() const { return m_Parent; }
         [[nodiscard]] const std::unordered_map<std::string, SMaterialParam>& GetOverrides() const { return m_Overrides; }
+        [[nodiscard]] const std::unordered_map<std::string, bool>& GetStaticOverrides() const
+        {
+            return m_StaticOverrides;
+        }
 
         void SetName(std::string name) { m_Name = std::move(name); }
         [[nodiscard]] const std::string& GetName() const { return m_Name; }
@@ -148,5 +177,6 @@ namespace Elixir
 
         Ref<Material> m_Parent;
         std::unordered_map<std::string, SMaterialParam> m_Overrides;
+        std::unordered_map<std::string, bool> m_StaticOverrides;
     };
 }

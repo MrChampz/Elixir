@@ -63,6 +63,10 @@ namespace Elixir
         // saved instance, not the material, carries these to the runtime.
         std::unordered_map<std::string, glm::vec4> Overrides;
 
+        // Instance-selected compile-time values while editing. Like Overrides, these
+        // participate in undo but are not serialized into the parent Material.
+        std::unordered_map<std::string, bool> StaticValues;
+
         // The node id feeding each surface channel (EMaterialChannel order), or -1.
         int Channels[11] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
 
@@ -86,7 +90,8 @@ namespace Elixir
         void Expand(std::vector<SMaterialGraphNode>& outNodes, int outChannels[11]) const;
 
         // Convert the authored graph into a compilable one.
-        [[nodiscard]] MaterialGraph Build() const;
+        [[nodiscard]] MaterialGraph Build(
+            const std::unordered_map<std::string, bool>& staticOverrides = {}) const;
 
         // Build a Material that owns this graph and its exposed-parameter layout.
         // Defaults from base are copied so graph Parameter nodes can still read the

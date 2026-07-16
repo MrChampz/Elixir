@@ -43,6 +43,8 @@ namespace Elixir
         Custom,        // raw HLSL expression over inputs a, b, c
         FunctionInput, // placeholder for a material-function parameter (editor-only)
         FunctionCall,  // instantiates a saved sub-graph (expanded away before codegen)
+        StaticBoolParameter, // named compile-time bool overridden by a material instance
+        StaticSwitch,  // compile-time choice: true input, false input, static-bool condition
     };
 
     // The surface output a channel drives. Together these form the "master node".

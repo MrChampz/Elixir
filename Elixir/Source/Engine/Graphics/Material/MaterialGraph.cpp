@@ -190,6 +190,17 @@ namespace Elixir
             add(EMaterialDiagnosticSeverity::Error, 0, "Alpha cutoff must be between zero and one.");
 
         std::unordered_set<uint32_t> reachable;
+        const auto staticSwitchChoice = [&](const SMaterialNode& node)
+        {
+            if (node.Type != EMaterialNodeType::StaticSwitch || node.Inputs.size() < 3 || node.Inputs[2] < 0)
+                return -1;
+            const auto condition = m_Nodes.find((uint32_t)node.Inputs[2]);
+            if (condition == m_Nodes.end()
+                || (condition->second.Type != EMaterialNodeType::StaticBoolParameter
+                    && condition->second.Type != EMaterialNodeType::Bool))
+                return -1;
+            return condition->second.ConstantValue.x >= 0.5f ? 0 : 1;
+        };
         std::function<void(uint32_t)> markReachable = [&](uint32_t id)
         {
             if (!reachable.insert(id).second)
@@ -197,6 +208,14 @@ namespace Elixir
             const auto it = m_Nodes.find(id);
             if (it == m_Nodes.end())
                 return;
+            if (const int choice = staticSwitchChoice(it->second); choice >= 0)
+            {
+                if (it->second.Inputs[2] >= 0)
+                    markReachable((uint32_t)it->second.Inputs[2]);
+                if (it->second.Inputs[choice] >= 0)
+                    markReachable((uint32_t)it->second.Inputs[choice]);
+                return;
+            }
             for (const int32_t input : it->second.Inputs)
                 if (input >= 0)
                     markReachable((uint32_t)input);
@@ -229,7 +248,7 @@ namespace Elixir
             const SMaterialNode& node = it->second;
             const uint32_t diagnosticId = sourceId(id);
 
-            if ((uint8_t)node.Type > (uint8_t)EMaterialNodeType::FunctionCall)
+            if ((uint8_t)node.Type > (uint8_t)EMaterialNodeType::StaticSwitch)
             {
                 add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Node has an unknown type.");
                 continue;
@@ -266,6 +285,23 @@ namespace Elixir
                         add(EMaterialDiagnosticSeverity::Warning, diagnosticId,
                             "Parameter '" + node.ParameterName + "' is used as both scalar and color.");
                     }
+                }
+            }
+            if (node.Type == EMaterialNodeType::StaticBoolParameter && node.ParameterName.empty())
+                add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Static bool parameter must have a name.");
+            if (node.Type == EMaterialNodeType::StaticSwitch)
+            {
+                if (node.Inputs.size() < 3 || node.Inputs[2] < 0)
+                    add(EMaterialDiagnosticSeverity::Error, diagnosticId,
+                        "Static Switch requires a Static Bool Parameter condition on input 3.");
+                else
+                {
+                    const auto condition = m_Nodes.find((uint32_t)node.Inputs[2]);
+                    if (condition == m_Nodes.end()
+                        || (condition->second.Type != EMaterialNodeType::StaticBoolParameter
+                            && condition->second.Type != EMaterialNodeType::Bool))
+                        add(EMaterialDiagnosticSeverity::Error, diagnosticId,
+                            "Static Switch condition must come from a Static Bool Parameter.");
                 }
             }
             if (node.Type == EMaterialNodeType::TextureSample && node.TextureExpression.empty())
@@ -326,6 +362,12 @@ namespace Elixir
                     return;
                 if (it->second.Type == EMaterialNodeType::Fresnel)
                     add(EMaterialDiagnosticSeverity::Error, sourceId(id), "Fresnel is not available in World Position Offset.");
+                if (const int choice = staticSwitchChoice(it->second); choice >= 0)
+                {
+                    if (it->second.Inputs[choice] >= 0)
+                        markVertex((uint32_t)it->second.Inputs[choice]);
+                    return;
+                }
                 for (const int32_t input : it->second.Inputs)
                     if (input >= 0)
                         markVertex((uint32_t)input);
@@ -360,6 +402,28 @@ namespace Elixir
             return "0.0";
         }
         const SMaterialNode& node = nodeIt->second;
+
+        // A static switch aliases only the selected branch. The inactive branch is
+        // never traversed or emitted, so it cannot add instructions or diagnostics to
+        // this permutation.
+        if (node.Type == EMaterialNodeType::StaticSwitch && node.Inputs.size() >= 3 && node.Inputs[2] >= 0)
+        {
+            const auto condition = m_Nodes.find((uint32_t)node.Inputs[2]);
+            if (condition != m_Nodes.end()
+                && (condition->second.Type == EMaterialNodeType::StaticBoolParameter
+                    || condition->second.Type == EMaterialNodeType::Bool))
+            {
+                const size_t choice = condition->second.ConstantValue.x >= 0.5f ? 0u : 1u;
+                const int32_t selected = node.Inputs[choice];
+                const std::string expression = selected >= 0
+                    ? EmitNode((uint32_t)selected, vertexStage, emitted, types, visiting, body)
+                    : std::string("0.0");
+                emitted[id] = expression;
+                types[id] = selected >= 0 ? types[(uint32_t)selected] : EGraphValueType::Float;
+                visiting.erase(id);
+                return expression;
+            }
+        }
 
         // Resolve each input to a variable name (recursing) or a default literal, and
         // remember the value type flowing out of each so ops can pick a common width.
@@ -421,6 +485,7 @@ namespace Elixir
             case EMaterialNodeType::Vector:        expr = ConstantExpr(node); type = node.OutputType; break;
             case EMaterialNodeType::Scalar:        expr = Num(node.ConstantValue.x); type = EGraphValueType::Float; break;
             case EMaterialNodeType::Bool:          expr = node.ConstantValue.x >= 0.5f ? "1.0" : "0.0"; type = EGraphValueType::Float; break;
+            case EMaterialNodeType::StaticBoolParameter: expr = node.ConstantValue.x >= 0.5f ? "1.0" : "0.0"; type = EGraphValueType::Float; break;
             case EMaterialNodeType::ParamScalar:   expr = "GraphParams[" + std::to_string(node.ParamSlot) + "].x"; type = EGraphValueType::Float; break;
             case EMaterialNodeType::ParamColor:    expr = "GraphParams[" + std::to_string(node.ParamSlot) + "]"; type = EGraphValueType::Float4; break;
             case EMaterialNodeType::Parameter:     expr = "mat." + node.ParameterName; type = node.OutputType; break;
@@ -498,6 +563,14 @@ namespace Elixir
             case EMaterialNodeType::OneMinus:      expr = "(1.0 - " + A(0) + ")"; type = AT(0); break;
             case EMaterialNodeType::Saturate:      expr = "saturate(" + A(0) + ")"; type = AT(0); break;
             case EMaterialNodeType::Fresnel:       expr = vertexStage ? "0.0" : "pow(saturate(1.0 - dot(N, V)), 5.0)"; type = EGraphValueType::Float; break;
+            case EMaterialNodeType::StaticSwitch:
+            {
+                const EGraphValueType to = Wider(AT(0), AT(1));
+                expr = "(" + A(2) + " >= 0.5 ? " + Widen(A(0), AT(0), to)
+                    + " : " + Widen(A(1), AT(1), to) + ")";
+                type = to;
+                break;
+            }
             case EMaterialNodeType::Custom:         break; // handled above (multi-line body)
             // Material-function nodes are expanded away in the editor before codegen;
             // these are safe fallbacks in case one is emitted directly.

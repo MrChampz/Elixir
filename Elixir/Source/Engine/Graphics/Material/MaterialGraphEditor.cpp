@@ -48,6 +48,8 @@ namespace Elixir
                 case EMaterialNodeType::Custom:        return "Custom HLSL";
                 case EMaterialNodeType::FunctionInput: return "Fn Input";
                 case EMaterialNodeType::FunctionCall:  return "Fn Call";
+                case EMaterialNodeType::StaticBoolParameter: return "Static Bool Param";
+                case EMaterialNodeType::StaticSwitch: return "Static Switch";
             }
             return "Node";
         }
@@ -65,6 +67,7 @@ namespace Elixir
                 case EMaterialNodeType::Lerp:     return 3;
                 case EMaterialNodeType::Custom:
                 case EMaterialNodeType::FunctionCall: return 3; // a, b, c / fn inputs
+                case EMaterialNodeType::StaticSwitch: return 3; // true, false, static condition
                 case EMaterialNodeType::OneMinus:
                 case EMaterialNodeType::Saturate:
                 case EMaterialNodeType::Sine:
@@ -84,6 +87,7 @@ namespace Elixir
                 case EMaterialNodeType::Dot:
                 case EMaterialNodeType::Scalar:
                 case EMaterialNodeType::Bool:
+                case EMaterialNodeType::StaticBoolParameter:
                 case EMaterialNodeType::ParamScalar:
                 case EMaterialNodeType::Checker:
                 case EMaterialNodeType::Noise:
@@ -163,8 +167,13 @@ namespace Elixir
         if (type == EMaterialNodeType::Checker || type == EMaterialNodeType::Noise)
             node.Constant = { 8.0f, 8.0f, 8.0f, 8.0f };
         // Exposed parameters start with a neutral name (edited in the Parameters panel).
-        if (type == EMaterialNodeType::ParamScalar || type == EMaterialNodeType::ParamColor)
-            std::strncpy(node.Param, type == EMaterialNodeType::ParamScalar ? "Scalar" : "Color", sizeof(node.Param) - 1);
+        if (type == EMaterialNodeType::ParamScalar || type == EMaterialNodeType::ParamColor
+            || type == EMaterialNodeType::StaticBoolParameter)
+        {
+            const char* name = type == EMaterialNodeType::ParamScalar ? "Scalar"
+                : type == EMaterialNodeType::ParamColor ? "Color" : "StaticBool";
+            std::strncpy(node.Param, name, sizeof(node.Param) - 1);
+        }
         if (type == EMaterialNodeType::FunctionInput)
             std::strncpy(node.Param, "In", sizeof(node.Param) - 1);
         if (type == EMaterialNodeType::FunctionCall)
@@ -286,6 +295,7 @@ namespace Elixir
         addButton("Scalar", EMaterialNodeType::Scalar);
         addButton("Vector", EMaterialNodeType::Vector);
         addButton("Bool", EMaterialNodeType::Bool);
+        addButton("Static Bool", EMaterialNodeType::StaticBoolParameter);
         addButton("Param.f", EMaterialNodeType::ParamScalar);
         addButton("Param.rgba", EMaterialNodeType::ParamColor);
         addButton("Parameter", EMaterialNodeType::Parameter);
@@ -302,6 +312,7 @@ namespace Elixir
         addButton("Power", EMaterialNodeType::Power);
         addButton("Dot", EMaterialNodeType::Dot);
         addButton("Lerp", EMaterialNodeType::Lerp);
+        addButton("Static Switch", EMaterialNodeType::StaticSwitch);
         addButton("OneMinus", EMaterialNodeType::OneMinus);
         addButton("Saturate", EMaterialNodeType::Saturate);
         addButton("Fresnel", EMaterialNodeType::Fresnel);
@@ -496,7 +507,8 @@ namespace Elixir
 
             // Nodes with two stacked body widgets (text + combo) need room for both.
             const int widgetRows =
-                (node.Type == EMaterialNodeType::Custom || node.Type == EMaterialNodeType::FunctionInput) ? 2 : 1;
+                (node.Type == EMaterialNodeType::Custom || node.Type == EMaterialNodeType::FunctionInput
+                    || node.Type == EMaterialNodeType::StaticBoolParameter) ? 2 : 1;
             const int rows = std::max({ node.InputCount, widgetRows, 1 });
             const float bodyH = 24.0f + rows * 16.0f;
             const ImVec2 rmin = p;
@@ -524,6 +536,14 @@ namespace Elixir
             {
                 bool b = node.Constant.x >= 0.5f;
                 if (ImGui::Checkbox("on", &b)) node.Constant.x = b ? 1.0f : 0.0f;
+            }
+            else if (node.Type == EMaterialNodeType::StaticBoolParameter)
+            {
+                ImGui::InputText("##staticName", node.Param, sizeof(node.Param));
+                ImGui::SetCursorScreenPos(ImVec2(rmin.x + 8.0f, ImGui::GetCursorScreenPos().y));
+                bool value = node.Constant.x >= 0.5f;
+                if (ImGui::Checkbox("default", &value))
+                    node.Constant.x = value ? 1.0f : 0.0f;
             }
             else if (node.Type == EMaterialNodeType::Vector)
                 ImGui::DragFloat3("##v3", &node.Constant.x, 0.01f, -100.0f, 100.0f, "%.3f");
@@ -581,6 +601,11 @@ namespace Elixir
                 }
                 const bool connected = node.Inputs[i] >= 0;
                 dl->AddCircleFilled(inPos, PIN_R, connected ? IM_COL32(140, 180, 240, 255) : IM_COL32(90, 110, 150, 255));
+                if (node.Type == EMaterialNodeType::StaticSwitch)
+                {
+                    const char* labels[3] = { "True", "False", "Value" };
+                    dl->AddText(ImVec2(inPos.x + 10.0f, inPos.y - 7.0f), IM_COL32(190, 190, 205, 255), labels[i]);
+                }
                 inPinPos[((long long)node.Id << 8) | i] = inPos;
             }
 
@@ -762,6 +787,27 @@ namespace Elixir
             }
             if (slot == 0)
                 ImGui::TextDisabled("(no exposed parameters)");
+
+            ImGui::Separator();
+            ImGui::TextDisabled("Static -- recompiles and caches a shader variant.");
+            std::unordered_set<std::string> renderedStatic;
+            int staticCount = 0;
+            for (const auto& node : pnodes)
+            {
+                if (node.Type != EMaterialNodeType::StaticBoolParameter
+                    || !renderedStatic.insert(node.Param).second)
+                    continue;
+                bool value = node.Constant.x >= 0.5f;
+                if (const auto it = m_Document.StaticValues.find(node.Param); it != m_Document.StaticValues.end())
+                    value = it->second;
+                ImGui::PushID(node.Id);
+                if (ImGui::Checkbox(node.Param, &value))
+                    m_Document.StaticValues[node.Param] = value;
+                ImGui::PopID();
+                ++staticCount;
+            }
+            if (staticCount == 0)
+                ImGui::TextDisabled("(no static parameters)");
         }
         ImGui::End();
 
@@ -817,6 +863,15 @@ namespace Elixir
                 m_Document.Overrides[parameter.Name] = glm::vec4(value->Scalar, 0.0f, 0.0f, 0.0f);
             else if (parameter.Type == SMaterialParam::EType::Vector)
                 m_Document.Overrides[parameter.Name] = value->Vector;
+        }
+        for (const auto& parameter : material->GetStaticDefaults())
+        {
+            const std::string& name = parameter.first;
+            const auto value = instance.GetStaticOverrides().find(name);
+            if (value != instance.GetStaticOverrides().end())
+                m_Document.StaticValues[name] = value->second;
+            else
+                m_Document.StaticValues.erase(name);
         }
     }
 
@@ -885,7 +940,7 @@ namespace Elixir
 
     MaterialGraph MaterialGraphEditor::Build() const
     {
-        return m_Document.Build();
+        return m_Document.Build(m_Document.StaticValues);
     }
 
     Ref<Material> MaterialGraphEditor::BuildMaterial(const Ref<Material>& base) const

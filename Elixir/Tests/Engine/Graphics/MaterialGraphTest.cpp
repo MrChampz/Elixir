@@ -152,3 +152,42 @@ TEST(MaterialGraph, RejectsPixelOnlyNodeInWorldPositionOffset)
     EXPECT_EQ(validation.Diagnostics.front().NodeId, 77u);
     EXPECT_NE(validation.Diagnostics.front().Message.find("World Position Offset"), std::string::npos);
 }
+
+TEST(MaterialGraph, StaticSwitchEmitsOnlyTheSelectedBranch)
+{
+    MaterialGraph graph;
+
+    SMaterialNode selected;
+    selected.Type = EMaterialNodeType::Constant;
+    selected.OutputType = EGraphValueType::Float3;
+    selected.ConstantValue = glm::vec4(0.25f, 0.5f, 0.75f, 1.0f);
+    const uint32_t selectedId = graph.AddNode(selected);
+
+    SMaterialNode inactive;
+    inactive.Type = EMaterialNodeType::Parameter;
+    inactive.OutputType = EGraphValueType::Float3;
+    inactive.ParameterName = "invalid inactive parameter";
+    const uint32_t inactiveId = graph.AddNode(inactive);
+
+    SMaterialNode condition;
+    condition.Type = EMaterialNodeType::StaticBoolParameter;
+    condition.OutputType = EGraphValueType::Float;
+    condition.ParameterName = "UseSelected";
+    condition.ConstantValue.x = 1.0f;
+    const uint32_t conditionId = graph.AddNode(condition);
+
+    SMaterialNode staticSwitch;
+    staticSwitch.SourceId = 91;
+    staticSwitch.Type = EMaterialNodeType::StaticSwitch;
+    staticSwitch.Inputs = { -1, -1, -1 };
+    const uint32_t switchId = graph.AddNode(staticSwitch);
+    graph.Connect(selectedId, switchId, 0);
+    graph.Connect(inactiveId, switchId, 1);
+    graph.Connect(conditionId, switchId, 2);
+    graph.SetChannel(EMaterialChannel::BaseColor, switchId);
+
+    EXPECT_FALSE(graph.Validate().HasErrors());
+    const std::string hlsl = graph.GenerateHLSL();
+    EXPECT_NE(hlsl.find("0.250000"), std::string::npos);
+    EXPECT_EQ(hlsl.find("invalid inactive parameter"), std::string::npos);
+}
