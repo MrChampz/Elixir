@@ -186,6 +186,7 @@ namespace Elixir
             gn.TextureSampleFilter = n.TextureSampleFilter;
             gn.TextureSampleMipMode = n.TextureSampleMipMode;
             gn.TextureSampleOutput = n.TextureSampleOutput;
+            gn.ComponentMask = n.ComponentMask;
             if (n.Type == EMaterialNodeType::StaticBoolParameter)
             {
                 const auto override = staticOverrides.find(n.Param);
@@ -329,6 +330,7 @@ namespace Elixir
             mix((size_t)n.TextureSampleType); mix((size_t)n.TextureSampleAddress);
             mix((size_t)n.TextureSampleFilter); mix((size_t)n.TextureSampleMipMode);
             mix((size_t)n.TextureSampleOutput);
+            mix((size_t)n.ComponentMask);
             mixf(n.Constant.x); mixf(n.Constant.y); mixf(n.Constant.z); mixf(n.Constant.w);
             for (int i = 0; i < 3; ++i) mix((size_t)(n.Inputs[i] + 2));
             for (const char* p = n.Param; *p; ++p) mix((size_t)*p);
@@ -406,6 +408,7 @@ namespace Elixir
                 << "\"sampleFilter\": " << (int)n.TextureSampleFilter << ", "
                 << "\"sampleMip\": " << (int)n.TextureSampleMipMode << ", "
                 << "\"sampleOutput\": " << (int)n.TextureSampleOutput << ", "
+                << "\"componentMask\": " << (int)n.ComponentMask << ", "
                 << "\"inputCount\": " << n.InputCount << ", "
                 << "\"inputs\": [" << n.Inputs[0] << ", " << n.Inputs[1] << ", " << n.Inputs[2] << "] }"
                 << (k + 1 < document.Nodes.size() ? "," : "") << "\n";
@@ -502,6 +505,8 @@ namespace Elixir
                     node.TextureSampleMipMode = (ETextureSampleMipMode)integer;
                 if (e["sampleOutput"].get(integer) == simdjson::SUCCESS)
                     node.TextureSampleOutput = (ETextureSampleOutput)integer;
+                if (e["componentMask"].get(integer) == simdjson::SUCCESS)
+                    node.ComponentMask = (uint8_t)integer;
                 if (e["inputCount"].get(integer) == simdjson::SUCCESS)
                     node.InputCount = std::clamp((int)integer, 0, 3);
                 if (node.Type == EMaterialNodeType::TextureObjectSample)

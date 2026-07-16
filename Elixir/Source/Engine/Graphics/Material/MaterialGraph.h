@@ -16,7 +16,7 @@ namespace Elixir
     enum class ETextureSampleAddress : uint8_t { Wrap, Clamp };
     enum class ETextureSampleFilter : uint8_t { Linear, Point };
     enum class ETextureSampleMipMode : uint8_t { Auto, Level, Bias };
-    enum class ETextureSampleOutput : uint8_t { RGB, R, G, B, A };
+    enum class ETextureSampleOutput : uint8_t { RGB, R, G, B, A, RGBA };
 
     // The kind of computation a node performs. The codegen switches on this.
     enum class EMaterialNodeType : uint8_t
@@ -54,6 +54,8 @@ namespace Elixir
         TextureParameter, // instance-overridable bindless Texture2D sample
         TextureObjectParameter, // instance-overridable bindless Texture2D handle
         TextureObjectSample, // sample input 0 (Texture2D) at input 1 (UV)
+        ComponentMask, // select an ordered subset of RGBA from input 0
+        AppendVector, // concatenate the components of inputs 0 and 1
     };
 
     // The surface output a channel drives. Together these form the "master node".
@@ -124,6 +126,7 @@ namespace Elixir
         ETextureSampleFilter TextureSampleFilter = ETextureSampleFilter::Linear;
         ETextureSampleMipMode TextureSampleMipMode = ETextureSampleMipMode::Auto;
         ETextureSampleOutput TextureSampleOutput = ETextureSampleOutput::RGB;
+        uint8_t ComponentMask = 0x1; // R=1, G=2, B=4, A=8
     };
 
     // A node graph describing a material's surface. Compiles to an HLSL body that

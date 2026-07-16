@@ -5,6 +5,7 @@
 #include <simdjson.h>
 
 #include <algorithm>
+#include <bit>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -53,6 +54,8 @@ namespace Elixir
                 case EMaterialNodeType::TextureParameter: return "Texture Param";
                 case EMaterialNodeType::TextureObjectParameter: return "Texture Object Param";
                 case EMaterialNodeType::TextureObjectSample: return "Sample Texture";
+                case EMaterialNodeType::ComponentMask: return "Component Mask";
+                case EMaterialNodeType::AppendVector: return "Append Vector";
             }
             return "Node";
         }
@@ -74,14 +77,45 @@ namespace Elixir
                 case EMaterialNodeType::OneMinus:
                 case EMaterialNodeType::Saturate:
                 case EMaterialNodeType::Sine:
+                case EMaterialNodeType::ComponentMask:
                 case EMaterialNodeType::Panner:        // input 0 = UV (optional)
                 case EMaterialNodeType::Checker:       // input 0 = UV (optional)
                 case EMaterialNodeType::Noise:         // input 0 = UV (optional)
                 case EMaterialNodeType::TextureSample: return 1; // input 0 = UV (optional)
                 case EMaterialNodeType::TextureParameter: return 1; // input 0 = UV (optional)
                 case EMaterialNodeType::TextureObjectSample: return 3; // texture object, UV, mip (optional)
+                case EMaterialNodeType::AppendVector: return 2;
                 default: return 0;
             }
+        }
+
+        int ComponentCount(EGraphValueType type)
+        {
+            switch (type)
+            {
+                case EGraphValueType::Float: return 1;
+                case EGraphValueType::Float2: return 2;
+                case EGraphValueType::Float3: return 3;
+                case EGraphValueType::Float4: return 4;
+                case EGraphValueType::Texture2D: return 0;
+            }
+            return 0;
+        }
+
+        EGraphValueType TypeFromComponentCount(int components)
+        {
+            switch (components)
+            {
+                case 1: return EGraphValueType::Float;
+                case 2: return EGraphValueType::Float2;
+                case 3: return EGraphValueType::Float3;
+                default: return EGraphValueType::Float4;
+            }
+        }
+
+        EGraphValueType WiderType(EGraphValueType a, EGraphValueType b)
+        {
+            return ComponentCount(a) >= ComponentCount(b) ? a : b;
         }
 
         EGraphValueType OutputTypeFor(EMaterialNodeType t)
@@ -96,6 +130,7 @@ namespace Elixir
                 case EMaterialNodeType::ParamScalar:
                 case EMaterialNodeType::Checker:
                 case EMaterialNodeType::Noise:
+                case EMaterialNodeType::ComponentMask:
                 case EMaterialNodeType::Time:          return EGraphValueType::Float;
                 case EMaterialNodeType::TexCoord:
                 case EMaterialNodeType::Panner:        return EGraphValueType::Float2;
@@ -105,7 +140,66 @@ namespace Elixir
                 case EMaterialNodeType::Vector:
                 case EMaterialNodeType::Position:      return EGraphValueType::Float3;
                 case EMaterialNodeType::TextureObjectParameter: return EGraphValueType::Texture2D;
+                case EMaterialNodeType::AppendVector: return EGraphValueType::Float2;
                 default:                               return EGraphValueType::Float4;
+            }
+        }
+
+        void RefreshDerivedOutputTypes(SMaterialGraphDocument& document)
+        {
+            for (auto& node : document.Nodes)
+            {
+                if (node.Type != EMaterialNodeType::ComponentMask)
+                    continue;
+                const int components = std::popcount((unsigned int)(node.ComponentMask & 0x0f));
+                node.OutputType = TypeFromComponentCount(std::max(components, 1));
+            }
+
+            // Derived nodes can feed one another, so settle widths across the whole
+            // document instead of depending on serialized node order.
+            for (size_t pass = 0; pass < document.Nodes.size(); ++pass)
+            {
+                bool changed = false;
+                for (auto& node : document.Nodes)
+                {
+                    const auto inputType = [&](int slot)
+                    {
+                        const auto source = std::find_if(document.Nodes.begin(), document.Nodes.end(),
+                            [&](const SMaterialGraphNode& candidate) { return candidate.Id == node.Inputs[slot]; });
+                        return source == document.Nodes.end() ? EGraphValueType::Float : source->OutputType;
+                    };
+
+                    EGraphValueType output = node.OutputType;
+                    switch (node.Type)
+                    {
+                        case EMaterialNodeType::Multiply:
+                        case EMaterialNodeType::Add:
+                        case EMaterialNodeType::Subtract:
+                        case EMaterialNodeType::Divide:
+                        case EMaterialNodeType::Power:
+                        case EMaterialNodeType::Lerp:
+                        case EMaterialNodeType::StaticSwitch:
+                            output = WiderType(inputType(0), inputType(1));
+                            break;
+                        case EMaterialNodeType::Sine:
+                        case EMaterialNodeType::OneMinus:
+                        case EMaterialNodeType::Saturate:
+                            output = inputType(0);
+                            break;
+                        case EMaterialNodeType::AppendVector:
+                        {
+                            const int components = ComponentCount(inputType(0)) + ComponentCount(inputType(1));
+                            output = TypeFromComponentCount(std::clamp(components, 1, 4));
+                            break;
+                        }
+                        default:
+                            continue;
+                    }
+                    changed |= node.OutputType != output;
+                    node.OutputType = output;
+                }
+                if (!changed)
+                    break;
             }
         }
 
@@ -222,6 +316,7 @@ namespace Elixir
         bool apply = false;
         m_SavedThisFrame = false;
         m_LoadedThisFrame = false;
+        RefreshDerivedOutputTypes(m_Document);
         ImGui::Begin("Node Graph Editor");
 
         m_Diagnostics = Build().Validate().Diagnostics;
@@ -326,6 +421,8 @@ namespace Elixir
         addButton("Power", EMaterialNodeType::Power);
         addButton("Dot", EMaterialNodeType::Dot);
         addButton("Lerp", EMaterialNodeType::Lerp);
+        addButton("Component Mask", EMaterialNodeType::ComponentMask);
+        addButton("Append", EMaterialNodeType::AppendVector);
         addButton("Static Switch", EMaterialNodeType::StaticSwitch);
         addButton("OneMinus", EMaterialNodeType::OneMinus);
         addButton("Saturate", EMaterialNodeType::Saturate);
@@ -598,11 +695,32 @@ namespace Elixir
                 ImGui::EndDisabled();
                 nextRow();
                 int output = (int)node.TextureSampleOutput;
-                if (ImGui::Combo("##sampleOutput", &output, "RGB\0R\0G\0B\0A\0"))
+                if (ImGui::Combo("##sampleOutput", &output, "RGB\0R\0G\0B\0A\0RGBA\0"))
                 {
                     node.TextureSampleOutput = (ETextureSampleOutput)output;
-                    node.OutputType = node.TextureSampleOutput == ETextureSampleOutput::RGB
-                        ? EGraphValueType::Float3 : EGraphValueType::Float;
+                    node.OutputType = node.TextureSampleOutput == ETextureSampleOutput::RGBA
+                        ? EGraphValueType::Float4
+                        : node.TextureSampleOutput == ETextureSampleOutput::RGB
+                            ? EGraphValueType::Float3 : EGraphValueType::Float;
+                }
+            }
+            else if (node.Type == EMaterialNodeType::ComponentMask)
+            {
+                static constexpr const char* labels[] = { "R", "G", "B", "A" };
+                for (uint8_t channel = 0; channel < 4; ++channel)
+                {
+                    if (channel > 0)
+                        ImGui::SameLine();
+                    bool selectedChannel = (node.ComponentMask & (1u << channel)) != 0;
+                    if (ImGui::Checkbox(labels[channel], &selectedChannel))
+                    {
+                        if (selectedChannel)
+                            node.ComponentMask |= (1u << channel);
+                        else
+                            node.ComponentMask &= ~(1u << channel);
+                        const int components = std::popcount((unsigned int)(node.ComponentMask & 0x0f));
+                        node.OutputType = TypeFromComponentCount(std::max(components, 1));
+                    }
                 }
             }
             else if (node.Type == EMaterialNodeType::Panner)
@@ -671,6 +789,13 @@ namespace Elixir
                 else if (node.Type == EMaterialNodeType::TextureObjectSample)
                 {
                     const char* labels[3] = { "Texture", "UV", "Mip" };
+                    dl->AddText(ImVec2(inPos.x + 10.0f, inPos.y - 7.0f), IM_COL32(190, 190, 205, 255), labels[i]);
+                }
+                else if (node.Type == EMaterialNodeType::ComponentMask)
+                    dl->AddText(ImVec2(inPos.x + 10.0f, inPos.y - 7.0f), IM_COL32(190, 190, 205, 255), "Input");
+                else if (node.Type == EMaterialNodeType::AppendVector)
+                {
+                    const char* labels[2] = { "A", "B" };
                     dl->AddText(ImVec2(inPos.x + 10.0f, inPos.y - 7.0f), IM_COL32(190, 190, 205, 255), labels[i]);
                 }
                 inPinPos[((long long)node.Id << 8) | i] = inPos;

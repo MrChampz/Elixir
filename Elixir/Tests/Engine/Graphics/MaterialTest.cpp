@@ -247,7 +247,25 @@ TEST(MaterialAsset, RoundTripsGraphMaterialAndInstance)
     textureSampleNode.TextureSampleMipMode = ETextureSampleMipMode::Bias;
     textureSampleNode.TextureSampleOutput = ETextureSampleOutput::B;
     document.Nodes.push_back(textureSampleNode);
-    document.NextId = 5;
+
+    SMaterialGraphNode componentMaskNode;
+    componentMaskNode.Id = 5;
+    componentMaskNode.Type = EMaterialNodeType::ComponentMask;
+    componentMaskNode.OutputType = EGraphValueType::Float2;
+    componentMaskNode.InputCount = 1;
+    componentMaskNode.Inputs[0] = textureSampleNode.Id;
+    componentMaskNode.ComponentMask = 0x5;
+    document.Nodes.push_back(componentMaskNode);
+
+    SMaterialGraphNode appendNode;
+    appendNode.Id = 6;
+    appendNode.Type = EMaterialNodeType::AppendVector;
+    appendNode.OutputType = EGraphValueType::Float3;
+    appendNode.InputCount = 2;
+    appendNode.Inputs[0] = componentMaskNode.Id;
+    appendNode.Inputs[1] = node.Id;
+    document.Nodes.push_back(appendNode);
+    document.NextId = 7;
 
     const Ref<Material> material = document.BuildMaterial("paint", Material::CreateStandardPBR());
     ASSERT_NE(material->GetDocument(), nullptr); // a built material carries its graph
@@ -285,7 +303,7 @@ TEST(MaterialAsset, RoundTripsGraphMaterialAndInstance)
     // output -- that is what lets the editor reopen a saved material.
     const SMaterialGraphDocument* reloaded = loaded->GetParent()->GetDocument();
     ASSERT_NE(reloaded, nullptr);
-    ASSERT_EQ(reloaded->Nodes.size(), 4u);
+    ASSERT_EQ(reloaded->Nodes.size(), 6u);
     EXPECT_EQ(reloaded->Nodes[0].Type, EMaterialNodeType::ParamScalar);
     EXPECT_STREQ(reloaded->Nodes[0].Param, "Strength");
     EXPECT_EQ(reloaded->Nodes[2].Type, EMaterialNodeType::TextureObjectParameter);
@@ -299,6 +317,13 @@ TEST(MaterialAsset, RoundTripsGraphMaterialAndInstance)
     EXPECT_EQ(reloaded->Nodes[3].TextureSampleFilter, ETextureSampleFilter::Point);
     EXPECT_EQ(reloaded->Nodes[3].TextureSampleMipMode, ETextureSampleMipMode::Bias);
     EXPECT_EQ(reloaded->Nodes[3].TextureSampleOutput, ETextureSampleOutput::B);
+    EXPECT_EQ(reloaded->Nodes[4].Type, EMaterialNodeType::ComponentMask);
+    EXPECT_EQ(reloaded->Nodes[4].ComponentMask, 0x5);
+    EXPECT_EQ(reloaded->Nodes[4].Inputs[0], textureSampleNode.Id);
+    EXPECT_EQ(reloaded->Nodes[5].Type, EMaterialNodeType::AppendVector);
+    EXPECT_EQ(reloaded->Nodes[5].OutputType, EGraphValueType::Float3);
+    EXPECT_EQ(reloaded->Nodes[5].Inputs[0], componentMaskNode.Id);
+    EXPECT_EQ(reloaded->Nodes[5].Inputs[1], node.Id);
     EXPECT_EQ(reloaded->Channels[(int)EMaterialChannel::BaseColor], node.Id);
 }
 

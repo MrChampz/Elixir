@@ -296,6 +296,112 @@ TEST(MaterialGraph, TextureSampleDecodesNormalMaps)
     EXPECT_NE(hlsl.find("* 2.0 - 1.0"), std::string::npos);
 }
 
+TEST(MaterialGraph, TextureSampleRgbaFansOutThroughComponentMasksOnce)
+{
+    MaterialGraph graph;
+    SMaterialNode object;
+    object.Type = EMaterialNodeType::TextureObjectParameter;
+    object.OutputType = EGraphValueType::Texture2D;
+    object.ParameterName = "PackedMap";
+    const uint32_t objectId = graph.AddNode(object);
+
+    SMaterialNode sample;
+    sample.Type = EMaterialNodeType::TextureObjectSample;
+    sample.OutputType = EGraphValueType::Float4;
+    sample.Inputs = { -1, -1, -1 };
+    sample.TextureSampleType = ETextureSampleType::Masks;
+    sample.TextureSampleOutput = ETextureSampleOutput::RGBA;
+    const uint32_t sampleId = graph.AddNode(sample);
+    graph.Connect(objectId, sampleId, 0);
+
+    SMaterialNode rgb;
+    rgb.Type = EMaterialNodeType::ComponentMask;
+    rgb.OutputType = EGraphValueType::Float3;
+    rgb.Inputs = { -1 };
+    rgb.ComponentMask = 0x7;
+    const uint32_t rgbId = graph.AddNode(rgb);
+    graph.Connect(sampleId, rgbId, 0);
+
+    SMaterialNode alpha;
+    alpha.Type = EMaterialNodeType::ComponentMask;
+    alpha.OutputType = EGraphValueType::Float;
+    alpha.Inputs = { -1 };
+    alpha.ComponentMask = 0x8;
+    const uint32_t alphaId = graph.AddNode(alpha);
+    graph.Connect(sampleId, alphaId, 0);
+
+    graph.SetChannel(EMaterialChannel::BaseColor, rgbId);
+    graph.SetChannel(EMaterialChannel::Opacity, alphaId);
+
+    EXPECT_FALSE(graph.Validate().HasErrors());
+    const std::string hlsl = graph.GenerateHLSL();
+    const size_t firstSample = hlsl.find("].Sample(");
+    ASSERT_NE(firstSample, std::string::npos);
+    EXPECT_EQ(hlsl.find("].Sample(", firstSample + 1), std::string::npos);
+    EXPECT_NE(hlsl.find("(n2).rgb"), std::string::npos);
+    EXPECT_NE(hlsl.find("(n2).a"), std::string::npos);
+}
+
+TEST(MaterialGraph, AppendVectorConcatenatesInputComponents)
+{
+    MaterialGraph graph;
+    SMaterialNode uv;
+    uv.Type = EMaterialNodeType::Constant;
+    uv.OutputType = EGraphValueType::Float2;
+    uv.ConstantValue = { 0.25f, 0.5f, 0.0f, 0.0f };
+    const uint32_t uvId = graph.AddNode(uv);
+
+    SMaterialNode scalar;
+    scalar.Type = EMaterialNodeType::Scalar;
+    scalar.OutputType = EGraphValueType::Float;
+    scalar.ConstantValue.x = 0.75f;
+    const uint32_t scalarId = graph.AddNode(scalar);
+
+    SMaterialNode append;
+    append.Type = EMaterialNodeType::AppendVector;
+    append.OutputType = EGraphValueType::Float3;
+    append.Inputs = { -1, -1 };
+    const uint32_t appendId = graph.AddNode(append);
+    graph.Connect(uvId, appendId, 0);
+    graph.Connect(scalarId, appendId, 1);
+    graph.SetChannel(EMaterialChannel::BaseColor, appendId);
+
+    EXPECT_FALSE(graph.Validate().HasErrors());
+    const std::string hlsl = graph.GenerateHLSL();
+    EXPECT_NE(hlsl.find("float3(n1, n2)"), std::string::npos);
+}
+
+TEST(MaterialGraph, AppendVectorRejectsMoreThanFourComponents)
+{
+    MaterialGraph graph;
+    SMaterialNode a;
+    a.Type = EMaterialNodeType::Vector;
+    a.OutputType = EGraphValueType::Float3;
+    const uint32_t aId = graph.AddNode(a);
+
+    SMaterialNode b;
+    b.Type = EMaterialNodeType::Constant;
+    b.OutputType = EGraphValueType::Float2;
+    const uint32_t bId = graph.AddNode(b);
+
+    SMaterialNode append;
+    append.SourceId = 91;
+    append.Type = EMaterialNodeType::AppendVector;
+    append.OutputType = EGraphValueType::Float4;
+    append.Inputs = { -1, -1 };
+    const uint32_t appendId = graph.AddNode(append);
+    graph.Connect(aId, appendId, 0);
+    graph.Connect(bId, appendId, 1);
+    graph.SetChannel(EMaterialChannel::BaseColor, appendId);
+
+    const auto validation = graph.Validate();
+    ASSERT_TRUE(validation.HasErrors());
+    EXPECT_TRUE(std::any_of(validation.Diagnostics.begin(), validation.Diagnostics.end(), [](const auto& diagnostic)
+    {
+        return diagnostic.NodeId == 91 && diagnostic.Message.find("more than four") != std::string::npos;
+    }));
+}
+
 TEST(MaterialGraph, RejectsAnUnsampledTextureObjectAtTheMaterialOutput)
 {
     MaterialGraph graph;

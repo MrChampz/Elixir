@@ -41,6 +41,7 @@ namespace Elixir
         ETextureSampleFilter TextureSampleFilter = ETextureSampleFilter::Linear;
         ETextureSampleMipMode TextureSampleMipMode = ETextureSampleMipMode::Auto;
         ETextureSampleOutput TextureSampleOutput = ETextureSampleOutput::RGB;
+        uint8_t ComponentMask = 0x1;                  // ComponentMask: RGBA bits
         int InputCount = 0;
         int Inputs[3] = { -1, -1, -1 };               // source node ids
     };

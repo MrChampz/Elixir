@@ -2,6 +2,7 @@
 #include "MaterialGraph.h"
 
 #include <algorithm>
+#include <bit>
 #include <cctype>
 #include <cmath>
 #include <functional>
@@ -69,6 +70,17 @@ namespace Elixir
                 case EGraphValueType::Texture2D: return 0;
             }
             return 4;
+        }
+
+        EGraphValueType TypeFromComponents(int components)
+        {
+            switch (components)
+            {
+                case 1: return EGraphValueType::Float;
+                case 2: return EGraphValueType::Float2;
+                case 3: return EGraphValueType::Float3;
+                default: return EGraphValueType::Float4;
+            }
         }
 
         // The wider of two value types (more components wins). Used to pick a common
@@ -272,7 +284,7 @@ namespace Elixir
             const SMaterialNode& node = it->second;
             const uint32_t diagnosticId = sourceId(id);
 
-            if ((uint8_t)node.Type > (uint8_t)EMaterialNodeType::TextureObjectSample)
+            if ((uint8_t)node.Type > (uint8_t)EMaterialNodeType::AppendVector)
             {
                 add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Node has an unknown type.");
                 continue;
@@ -366,14 +378,43 @@ namespace Elixir
                     || (uint8_t)node.TextureSampleAddress > (uint8_t)ETextureSampleAddress::Clamp
                     || (uint8_t)node.TextureSampleFilter > (uint8_t)ETextureSampleFilter::Point
                     || (uint8_t)node.TextureSampleMipMode > (uint8_t)ETextureSampleMipMode::Bias
-                    || (uint8_t)node.TextureSampleOutput > (uint8_t)ETextureSampleOutput::A)
+                    || (uint8_t)node.TextureSampleOutput > (uint8_t)ETextureSampleOutput::RGBA)
                     add(EMaterialDiagnosticSeverity::Error, diagnosticId,
                         "Sample Texture contains an invalid sampling option.");
-                const EGraphValueType expectedOutput = node.TextureSampleOutput == ETextureSampleOutput::RGB
-                    ? EGraphValueType::Float3 : EGraphValueType::Float;
+                const EGraphValueType expectedOutput = node.TextureSampleOutput == ETextureSampleOutput::RGBA
+                    ? EGraphValueType::Float4
+                    : node.TextureSampleOutput == ETextureSampleOutput::RGB
+                        ? EGraphValueType::Float3 : EGraphValueType::Float;
                 if (node.OutputType != expectedOutput)
                     add(EMaterialDiagnosticSeverity::Error, diagnosticId,
                         "Sample Texture output type does not match its selected channel.");
+            }
+            if (node.Type == EMaterialNodeType::ComponentMask)
+            {
+                const uint8_t mask = node.ComponentMask;
+                if (mask == 0 || (mask & ~0x0fu) != 0)
+                    add(EMaterialDiagnosticSeverity::Error, diagnosticId,
+                        "Component Mask must select at least one valid RGBA channel.");
+                else if (node.OutputType != TypeFromComponents(std::popcount((unsigned int)mask)))
+                    add(EMaterialDiagnosticSeverity::Error, diagnosticId,
+                        "Component Mask output type does not match its selected channels.");
+            }
+            if (node.Type == EMaterialNodeType::AppendVector)
+            {
+                const auto inputType = [&](size_t slot)
+                {
+                    if (slot >= node.Inputs.size() || node.Inputs[slot] < 0)
+                        return EGraphValueType::Float;
+                    const auto source = m_Nodes.find((uint32_t)node.Inputs[slot]);
+                    return source == m_Nodes.end() ? EGraphValueType::Float : source->second.OutputType;
+                };
+                const int components = Components(inputType(0)) + Components(inputType(1));
+                if (components > 4)
+                    add(EMaterialDiagnosticSeverity::Error, diagnosticId,
+                        "Append Vector inputs cannot contain more than four components in total.");
+                else if (node.OutputType != TypeFromComponents(components))
+                    add(EMaterialDiagnosticSeverity::Error, diagnosticId,
+                        "Append Vector output type does not match its inputs.");
             }
             if (node.Type == EMaterialNodeType::Custom && node.CustomCode.empty())
                 add(EMaterialDiagnosticSeverity::Warning, diagnosticId, "Custom HLSL is empty and will evaluate its first input.");
@@ -606,7 +647,15 @@ namespace Elixir
                     : std::string("float4(1.0, 1.0, 1.0, 1.0)");
                 const std::string raw = "(" + index + " == 0xffffffffu ? " + fallback + " : " + sample + ")";
 
-                if (node.TextureSampleOutput == ETextureSampleOutput::RGB)
+                if (node.TextureSampleOutput == ETextureSampleOutput::RGBA)
+                {
+                    expr = raw;
+                    if (normal)
+                        expr = "(" + expr + " * float4(2.0, 2.0, 2.0, 1.0)"
+                            " - float4(1.0, 1.0, 1.0, 0.0))";
+                    type = EGraphValueType::Float4;
+                }
+                else if (node.TextureSampleOutput == ETextureSampleOutput::RGB)
                 {
                     expr = "(" + raw + ").rgb";
                     if (normal)
@@ -622,6 +671,43 @@ namespace Elixir
                     if (normal && channel != 'a')
                         expr = "(" + expr + " * 2.0 - 1.0)";
                     type = EGraphValueType::Float;
+                }
+                break;
+            }
+            case EMaterialNodeType::ComponentMask:
+            {
+                const uint8_t mask = node.ComponentMask & 0x0f;
+                std::string swizzle;
+                if (mask & 0x1) swizzle += 'r';
+                if (mask & 0x2) swizzle += 'g';
+                if (mask & 0x4) swizzle += 'b';
+                if (mask & 0x8) swizzle += 'a';
+                const int components = std::popcount((unsigned int)mask);
+                if (components == 0)
+                {
+                    expr = "0.0";
+                    type = EGraphValueType::Float;
+                }
+                else
+                {
+                    const std::string value = Widen(A(0), AT(0), EGraphValueType::Float4);
+                    expr = "(" + value + ")." + swizzle;
+                    type = TypeFromComponents(components);
+                }
+                break;
+            }
+            case EMaterialNodeType::AppendVector:
+            {
+                const int components = Components(AT(0)) + Components(AT(1));
+                if (components < 2 || components > 4)
+                {
+                    expr = "float4(0.0, 0.0, 0.0, 0.0)";
+                    type = EGraphValueType::Float4;
+                }
+                else
+                {
+                    type = TypeFromComponents(components);
+                    expr = std::string(TypeName(type)) + "(" + A(0) + ", " + A(1) + ")";
                 }
                 break;
             }
