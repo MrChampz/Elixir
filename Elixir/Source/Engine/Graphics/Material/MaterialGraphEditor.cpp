@@ -10,6 +10,7 @@
 #include <fstream>
 #include <functional>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace Elixir
 {
@@ -153,6 +154,7 @@ namespace Elixir
     {
         SNode node;
         node.Id = m_NextId++;
+        node.DiagnosticId = node.Id;
         node.Type = type;
         node.OutputType = OutputTypeFor(type);
         node.Pos = pos;
@@ -199,6 +201,47 @@ namespace Elixir
     {
         bool apply = false;
         ImGui::Begin("Node Graph Editor");
+
+        m_Diagnostics = Build().Validate().Diagnostics;
+        int errorCount = 0, warningCount = 0;
+        for (const auto& diagnostic : m_Diagnostics)
+        {
+            if (diagnostic.Severity == EMaterialDiagnosticSeverity::Error) ++errorCount;
+            else ++warningCount;
+        }
+        const bool hasErrors = errorCount > 0;
+        const auto nodeSeverity = [&](uint32_t nodeId)
+        {
+            int severity = -1; // -1=none, 0=warning, 1=error
+            for (const auto& diagnostic : m_Diagnostics)
+                if (diagnostic.NodeId == nodeId)
+                    severity = std::max(severity,
+                        diagnostic.Severity == EMaterialDiagnosticSeverity::Error ? 1 : 0);
+            return severity;
+        };
+        const auto diagnosticTooltip = [&](uint32_t nodeId)
+        {
+            bool any = false;
+            for (const auto& diagnostic : m_Diagnostics)
+                any |= diagnostic.NodeId == nodeId;
+            if (!any)
+                return;
+            ImGui::SetNextWindowSizeConstraints(ImVec2(320.0f, 0.0f), ImVec2(520.0f, FLT_MAX));
+            ImGui::BeginTooltip();
+            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 480.0f);
+            for (const auto& diagnostic : m_Diagnostics)
+            {
+                if (diagnostic.NodeId != nodeId)
+                    continue;
+                const ImVec4 color = diagnostic.Severity == EMaterialDiagnosticSeverity::Error
+                    ? ImVec4(1.0f, 0.35f, 0.30f, 1.0f) : ImVec4(1.0f, 0.72f, 0.25f, 1.0f);
+                ImGui::TextColored(color, "%s: %s",
+                    diagnostic.Severity == EMaterialDiagnosticSeverity::Error ? "Error" : "Warning",
+                    diagnostic.Message.c_str());
+            }
+            ImGui::PopTextWrapPos();
+            ImGui::EndTooltip();
+        };
 
         const int maxMaterial = materialCount > 0 ? materialCount - 1 : 0;
         if (m_TargetMaterial > maxMaterial) m_TargetMaterial = maxMaterial;
@@ -278,7 +321,9 @@ namespace Elixir
         addButton("Fn Call", EMaterialNodeType::FunctionCall);
         ImGui::NewLine();
 
+        ImGui::BeginDisabled(hasErrors);
         if (ImGui::Button("Apply")) apply = true;
+        ImGui::EndDisabled();
         ImGui::SameLine();
         ImGui::Checkbox("Live", &m_LivePreview);
         ImGui::SameLine();
@@ -286,6 +331,24 @@ namespace Elixir
             m_Comments.push_back({ { -m_Pan.x + 20.0f, -m_Pan.y + 20.0f }, { 220.0f, 140.0f }, "Comment" });
         ImGui::SameLine();
         ImGui::TextDisabled("(right-click: node = delete, pin = disconnect)");
+        ImGui::SameLine();
+        if (hasErrors)
+            ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.30f, 1.0f), "%d error%s", errorCount, errorCount == 1 ? "" : "s");
+        else if (warningCount > 0)
+            ImGui::TextColored(ImVec4(1.0f, 0.72f, 0.25f, 1.0f), "%d warning%s", warningCount, warningCount == 1 ? "" : "s");
+        else
+            ImGui::TextColored(ImVec4(0.35f, 0.85f, 0.45f, 1.0f), "Valid");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetNextWindowSizeConstraints(ImVec2(320.0f, 0.0f), ImVec2(520.0f, FLT_MAX));
+            ImGui::BeginTooltip();
+            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 480.0f);
+            for (const auto& diagnostic : m_Diagnostics)
+                ImGui::Text("%s%s", diagnostic.Severity == EMaterialDiagnosticSeverity::Error ? "Error: " : "Warning: ",
+                    diagnostic.Message.c_str());
+            ImGui::PopTextWrapPos();
+            ImGui::EndTooltip();
+        }
         ImGui::Separator();
 
         ImGuiIO& io = ImGui::GetIO();
@@ -402,6 +465,7 @@ namespace Elixir
             // Header acts as the drag handle.
             ImGui::SetCursorScreenPos(p);
             ImGui::InvisibleButton("hdr", ImVec2(NODE_W, 20.0f));
+            const bool headerHovered = ImGui::IsItemHovered();
             if (ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left))
             {
                 node.Pos.x += io.MouseDelta.x;
@@ -437,9 +501,14 @@ namespace Elixir
 
             dl->AddRectFilled(rmin, rmax, IM_COL32(42, 42, 52, 235), 4.0f);
             dl->AddRectFilled(rmin, ImVec2(rmax.x, rmin.y + 20.0f), IM_COL32(70, 70, 95, 255), 4.0f);
-            dl->AddRect(rmin, rmax, selected ? IM_COL32(255, 210, 90, 255) : IM_COL32(100, 100, 125, 255),
-                4.0f, 0, selected ? 2.0f : 1.0f);
+            const int severity = nodeSeverity((uint32_t)node.Id);
+            const ImU32 outline = severity == 1 ? IM_COL32(245, 70, 65, 255)
+                : severity == 0 ? IM_COL32(245, 165, 55, 255)
+                : selected ? IM_COL32(255, 210, 90, 255) : IM_COL32(100, 100, 125, 255);
+            dl->AddRect(rmin, rmax, outline, 4.0f, 0, severity >= 0 || selected ? 2.0f : 1.0f);
             dl->AddText(ImVec2(rmin.x + 8.0f, rmin.y + 3.0f), IM_COL32_WHITE, NodeName(node.Type));
+            if (headerHovered && severity >= 0)
+                diagnosticTooltip((uint32_t)node.Id);
 
             // Value editors.
             ImGui::SetCursorScreenPos(ImVec2(rmin.x + 8.0f, rmin.y + 24.0f));
@@ -528,7 +597,10 @@ namespace Elixir
         const ImVec2 omax = ImVec2(op.x + 170.0f, op.y + 20.0f + (float)vis.size() * 20.0f + 6.0f);
         dl->AddRectFilled(omin, omax, IM_COL32(52, 42, 42, 235), 4.0f);
         dl->AddRectFilled(omin, ImVec2(omax.x, omin.y + 20.0f), IM_COL32(120, 80, 80, 255), 4.0f);
-        dl->AddRect(omin, omax, IM_COL32(140, 100, 100, 255), 4.0f);
+        const int outputSeverity = nodeSeverity(0);
+        const ImU32 outputOutline = outputSeverity == 1 ? IM_COL32(245, 70, 65, 255)
+            : outputSeverity == 0 ? IM_COL32(245, 165, 55, 255) : IM_COL32(140, 100, 100, 255);
+        dl->AddRect(omin, omax, outputOutline, 4.0f, 0, outputSeverity >= 0 ? 2.0f : 1.0f);
         dl->AddText(ImVec2(omin.x + 8.0f, omin.y + 3.0f), IM_COL32_WHITE, "Output");
         ImGui::PushID(-99);
         std::unordered_map<int, ImVec2> chPins;
@@ -551,6 +623,8 @@ namespace Elixir
             chPins[ch] = pinPos;
         }
         ImGui::PopID();
+        if (outputSeverity >= 0 && ImGui::IsMouseHoveringRect(omin, omax))
+            diagnosticTooltip(0);
 
         // Apply a queued deletion now so stale links aren't drawn this frame.
         if (deleteId >= 0)
@@ -617,6 +691,8 @@ namespace Elixir
                 {
                     SNode c = src;
                     c.Id = idMap[src.Id];
+                    c.DiagnosticId = c.Id;
+                    c.FunctionStack.clear();
                     c.Pos.x += 30.0f;
                     c.Pos.y += 30.0f;
                     for (int i = 0; i < 3; ++i)
@@ -711,6 +787,14 @@ namespace Elixir
             apply = true;
         }
 
+        if (apply)
+        {
+            SMaterialGraphValidation validation = Build().Validate();
+            m_Diagnostics = validation.Diagnostics;
+            if (validation.HasErrors())
+                apply = false;
+        }
+
         return apply;
     }
 
@@ -722,6 +806,7 @@ namespace Elixir
         int remapBase = 1000000;
         constexpr int MAX_EXPANSIONS = 256; // guards against recursive/cyclic functions
         int guard = 0;
+        std::unordered_set<int> failedCalls;
 
         // Expand one FunctionCall per iteration until none remain. Because expanding a
         // function may introduce its own FunctionCalls (nesting), this naturally
@@ -730,11 +815,17 @@ namespace Elixir
         {
             int callIdx = -1;
             for (size_t k = 0; k < outNodes.size(); ++k)
-                if (outNodes[k].Type == EMaterialNodeType::FunctionCall) { callIdx = (int)k; break; }
+                if (outNodes[k].Type == EMaterialNodeType::FunctionCall
+                    && !failedCalls.contains(outNodes[k].Id)) { callIdx = (int)k; break; }
             if (callIdx < 0)
                 break; // fully expanded
 
             const SNode call = outNodes[callIdx]; // copy: outNodes is mutated below
+            if (std::find(call.FunctionStack.begin(), call.FunctionStack.end(), call.Param) != call.FunctionStack.end())
+            {
+                failedCalls.insert(call.Id);
+                continue;
+            }
 
             std::vector<SNode> fnodes;
             int fchannels[11];
@@ -742,7 +833,12 @@ namespace Elixir
             int callOut = -1; // the id the call resolves to (-1 = missing/empty function)
 
             const std::string path = std::string("./Assets/Materials/") + call.Param + ".matgraph.json";
-            if (ParseGraphFile(path, fnodes, fchannels, ftarget, fnext))
+            bool expanded = false;
+            const bool parsed = ParseGraphFile(path, fnodes, fchannels, ftarget, fnext, false);
+            const bool hasOutput = parsed && fchannels[0] >= 0
+                && std::any_of(fnodes.begin(), fnodes.end(), [&](const SNode& node)
+                    { return node.Id == fchannels[0] && node.Type != EMaterialNodeType::FunctionInput; });
+            if (hasOutput)
             {
                 const int base = remapBase;
                 remapBase += 100000;
@@ -759,6 +855,9 @@ namespace Elixir
                         continue; // substituted by the call's inputs
                     SNode c = fn;
                     c.Id = remap(fn.Id);
+                    c.DiagnosticId = call.DiagnosticId >= 0 ? call.DiagnosticId : call.Id;
+                    c.FunctionStack = call.FunctionStack;
+                    c.FunctionStack.push_back(call.Param);
                     for (int i = 0; i < 3; ++i)
                     {
                         const int src = fn.Inputs[i];
@@ -776,6 +875,13 @@ namespace Elixir
                     outNodes.push_back(c);
                 }
                 callOut = remap(fchannels[0]); // a function returns its Base Color driver
+                expanded = true;
+            }
+
+            if (!expanded)
+            {
+                failedCalls.insert(call.Id);
+                continue;
             }
 
             // Redirect references to this call to its output, then remove the call.
@@ -792,10 +898,9 @@ namespace Elixir
         if (guard >= MAX_EXPANSIONS)
             EE_CORE_ERROR("Material graph: function expansion hit the limit ({}); recursive functions?", MAX_EXPANSIONS)
 
-        // Drop any leftover function placeholders (e.g. a top-level graph misusing them).
-        outNodes.erase(std::remove_if(outNodes.begin(), outNodes.end(), [](const SNode& n)
-            { return n.Type == EMaterialNodeType::FunctionCall || n.Type == EMaterialNodeType::FunctionInput; }),
-            outNodes.end());
+        // Leftover function placeholders deliberately survive into MaterialGraph so
+        // Validate() can report them on the visible node instead of silently replacing
+        // the call with zero.
     }
 
     MaterialGraph MaterialGraphEditor::Build() const
@@ -812,29 +917,43 @@ namespace Elixir
         {
             SMaterialNode gn;
             gn.Type = n.Type;
+            gn.SourceId = (uint32_t)(n.DiagnosticId >= 0 ? n.DiagnosticId : n.Id);
             gn.OutputType = n.OutputType;
             gn.ConstantValue = n.Constant;
             gn.ParameterName = n.Param;
-            gn.Inputs.assign(n.InputCount, -1);
+            const int inputCount = std::clamp(n.InputCount, 0, 3);
+            gn.Inputs.assign(inputCount, -1);
             if (n.Type == EMaterialNodeType::TextureSample)
                 gn.TextureExpression = TextureIndexAccessor(n.TexSlot);
             if (n.Type == EMaterialNodeType::Custom)
                 gn.CustomCode = n.Code;
-            // Exposed parameters get a GraphParams slot in node order (capped to the
-            // shader's array size); CollectParams() mirrors this for top-level params.
+            // Exposed parameters get a GraphParams slot in node order. Validate()
+            // reports nodes beyond the shader's fixed array instead of aliasing slot 7.
             if (n.Type == EMaterialNodeType::ParamScalar || n.Type == EMaterialNodeType::ParamColor)
-                gn.ParamSlot = paramSlot < MAX_PARAMS ? paramSlot++ : MAX_PARAMS - 1;
+                gn.ParamSlot = paramSlot++;
             idMap[n.Id] = graph.AddNode(gn);
         }
 
         for (const auto& n : nodes)
-            for (int i = 0; i < n.InputCount; ++i)
-                if (n.Inputs[i] >= 0 && idMap.count(n.Inputs[i]))
-                    graph.Connect(idMap[n.Inputs[i]], idMap[n.Id], (uint32_t)i);
+            for (int i = 0; i < std::clamp(n.InputCount, 0, 3); ++i)
+            {
+                if (n.Inputs[i] < 0)
+                    continue;
+                const auto source = idMap.find(n.Inputs[i]);
+                const uint32_t sourceId = source != idMap.end()
+                    ? source->second : (0x80000000u ^ (uint32_t)n.Inputs[i]);
+                graph.Connect(sourceId, idMap[n.Id], (uint32_t)i);
+            }
 
         for (int ch = 0; ch < 11; ++ch)
-            if (channels[ch] >= 0 && idMap.count(channels[ch]))
-                graph.SetChannel((EMaterialChannel)ch, idMap[channels[ch]]);
+        {
+            if (channels[ch] < 0)
+                continue;
+            const auto source = idMap.find(channels[ch]);
+            const uint32_t sourceId = source != idMap.end()
+                ? source->second : (0x80000000u ^ (uint32_t)channels[ch]);
+            graph.SetChannel((EMaterialChannel)ch, sourceId);
+        }
 
         graph.SetBlend((EMaterialBlendMode)m_BlendMode, m_AlphaCutoff);
         graph.SetShadingModel((EMaterialShadingModel)m_ShadingModel);
@@ -848,6 +967,17 @@ namespace Elixir
         // editing a *reachable* baked constant. Disconnected nodes and exposed-param
         // values (which emit no literal) don't affect it -> no needless recompile.
         const MaterialGraph g = Build();
+        const SMaterialGraphValidation validation = g.Validate();
+        if (validation.HasErrors())
+        {
+            size_t h = 1469598103934665603ull;
+            for (const auto& diagnostic : validation.Diagnostics)
+            {
+                h ^= diagnostic.NodeId; h *= 1099511628211ull;
+                h ^= std::hash<std::string>{}(diagnostic.Message); h *= 1099511628211ull;
+            }
+            return h;
+        }
         const std::string code = g.GenerateHLSL(false) + "\x01" + g.GenerateHLSL(true);
         size_t h = std::hash<std::string>{}(code);
         h ^= (size_t)m_TargetMaterial * 0x9e3779b97f4a7c15ull;       // re-apply on slot change
@@ -1040,12 +1170,14 @@ namespace Elixir
     }
 
     bool MaterialGraphEditor::ParseGraphFile(
-        const std::string& path, std::vector<SNode>& nodes, int channels[11], int& targetMaterial, int& nextId) const
+        const std::string& path, std::vector<SNode>& nodes, int channels[11], int& targetMaterial, int& nextId,
+        bool logErrors) const
     {
         auto json = simdjson::padded_string::load(path);
         if (json.error())
         {
-            EE_CORE_ERROR("Material graph: failed to open '{}': {}", path, simdjson::error_message(json.error()))
+            if (logErrors)
+                EE_CORE_ERROR("Material graph: failed to open '{}': {}", path, simdjson::error_message(json.error()))
             return false;
         }
 
@@ -1053,7 +1185,8 @@ namespace Elixir
         simdjson::dom::element doc;
         if (const auto err = parser.parse(json.value()).get(doc))
         {
-            EE_CORE_ERROR("Material graph: failed to parse '{}': {}", path, simdjson::error_message(err))
+            if (logErrors)
+                EE_CORE_ERROR("Material graph: failed to parse '{}': {}", path, simdjson::error_message(err))
             return false;
         }
 
@@ -1087,10 +1220,11 @@ namespace Elixir
             {
                 SNode node;
                 if (e["id"].get(iv) == simdjson::SUCCESS) node.Id = (int)iv;
+                node.DiagnosticId = node.Id;
                 if (e["type"].get(iv) == simdjson::SUCCESS) node.Type = (EMaterialNodeType)iv;
                 if (e["outputType"].get(iv) == simdjson::SUCCESS) node.OutputType = (EGraphValueType)iv;
                 if (e["texSlot"].get(iv) == simdjson::SUCCESS) node.TexSlot = (int)iv;
-                if (e["inputCount"].get(iv) == simdjson::SUCCESS) node.InputCount = (int)iv;
+                if (e["inputCount"].get(iv) == simdjson::SUCCESS) node.InputCount = std::clamp((int)iv, 0, 3);
 
                 simdjson::dom::array pos;
                 if (e["pos"].get(pos) == simdjson::SUCCESS)

@@ -48,6 +48,10 @@ namespace Elixir
         struct SNode
         {
             int Id = 0;
+            // Visible top-level node that receives diagnostics. Nodes expanded from a
+            // function inherit the FunctionCall's id.
+            int DiagnosticId = -1;
+            std::vector<std::string> FunctionStack;
             EMaterialNodeType Type = EMaterialNodeType::Constant;
             EGraphValueType OutputType = EGraphValueType::Float4;
             glm::vec2 Pos{ 0.0f, 0.0f };
@@ -74,7 +78,7 @@ namespace Elixir
 
         // Parse a saved graph file into raw nodes/channels (no state change).
         bool ParseGraphFile(const std::string& path, std::vector<SNode>& nodes, int channels[11],
-            int& targetMaterial, int& nextId) const;
+            int& targetMaterial, int& nextId, bool logErrors = true) const;
 
         // Flatten the graph by inlining FunctionCall nodes (loading their saved
         // sub-graphs, wiring FunctionInput placeholders to the call's inputs, and
@@ -154,5 +158,7 @@ namespace Elixir
         size_t m_LastSig = 0;
         size_t m_LastStructHash = 0;
         double m_DirtySince = -1.0; // < 0 = not dirty
+
+        std::vector<SMaterialGraphDiagnostic> m_Diagnostics;
     };
 }

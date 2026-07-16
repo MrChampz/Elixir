@@ -1,6 +1,12 @@
 #include "epch.h"
 #include "MaterialGraph.h"
 
+#include <algorithm>
+#include <cctype>
+#include <cmath>
+#include <functional>
+#include <unordered_set>
+
 namespace Elixir
 {
     namespace
@@ -119,6 +125,22 @@ namespace Elixir
             }
             return "0.0";
         }
+
+        bool IsIdentifier(const std::string& value)
+        {
+            if (value.empty())
+                return false;
+            const auto first = static_cast<unsigned char>(value.front());
+            if (std::isalpha(first) == 0 && value.front() != '_')
+                return false;
+            for (const char c : value)
+            {
+                const auto ch = static_cast<unsigned char>(c);
+                if (std::isalnum(ch) == 0 && c != '_')
+                    return false;
+            }
+            return true;
+        }
     }
 
     uint32_t MaterialGraph::AddNode(const SMaterialNode& node)
@@ -144,19 +166,196 @@ namespace Elixir
         m_Channels[(uint8_t)channel] = nodeId;
     }
 
+    SMaterialGraphValidation MaterialGraph::Validate() const
+    {
+        SMaterialGraphValidation result;
+        const auto sourceId = [&](uint32_t id)
+        {
+            const auto it = m_Nodes.find(id);
+            return it != m_Nodes.end() && it->second.SourceId != 0 ? it->second.SourceId : id;
+        };
+        const auto add = [&](EMaterialDiagnosticSeverity severity, uint32_t nodeId, std::string message)
+        {
+            for (const auto& existing : result.Diagnostics)
+                if (existing.Severity == severity && existing.NodeId == nodeId && existing.Message == message)
+                    return;
+            result.Diagnostics.push_back({ severity, nodeId, std::move(message) });
+        };
+
+        if ((uint8_t)m_BlendMode > (uint8_t)EMaterialBlendMode::Additive)
+            add(EMaterialDiagnosticSeverity::Error, 0, "The graph has an invalid blend mode.");
+        if ((uint8_t)m_ShadingModel > (uint8_t)EMaterialShadingModel::Cloth)
+            add(EMaterialDiagnosticSeverity::Error, 0, "The graph has an invalid shading model.");
+        if (!std::isfinite(m_AlphaCutoff) || m_AlphaCutoff < 0.0f || m_AlphaCutoff > 1.0f)
+            add(EMaterialDiagnosticSeverity::Error, 0, "Alpha cutoff must be between zero and one.");
+
+        std::unordered_set<uint32_t> reachable;
+        std::function<void(uint32_t)> markReachable = [&](uint32_t id)
+        {
+            if (!reachable.insert(id).second)
+                return;
+            const auto it = m_Nodes.find(id);
+            if (it == m_Nodes.end())
+                return;
+            for (const int32_t input : it->second.Inputs)
+                if (input >= 0)
+                    markReachable((uint32_t)input);
+        };
+
+        if (m_Channels.empty())
+            add(EMaterialDiagnosticSeverity::Warning, 0, "No material output is connected; shader defaults will be used.");
+        for (const auto& [channel, nodeId] : m_Channels)
+        {
+            if (channel > (uint8_t)EMaterialChannel::Sheen)
+            {
+                add(EMaterialDiagnosticSeverity::Error, 0, "The graph contains an invalid material output channel.");
+                continue;
+            }
+            if (!m_Nodes.contains(nodeId))
+            {
+                add(EMaterialDiagnosticSeverity::Error, 0,
+                    "Material output '" + std::string(ChannelName((EMaterialChannel)channel)) + "' references a missing node.");
+                continue;
+            }
+            markReachable(nodeId);
+        }
+
+        std::unordered_map<std::string, std::pair<EMaterialNodeType, uint32_t>> parameters;
+        for (const uint32_t id : reachable)
+        {
+            const auto it = m_Nodes.find(id);
+            if (it == m_Nodes.end())
+                continue;
+            const SMaterialNode& node = it->second;
+            const uint32_t diagnosticId = sourceId(id);
+
+            if ((uint8_t)node.Type > (uint8_t)EMaterialNodeType::FunctionCall)
+            {
+                add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Node has an unknown type.");
+                continue;
+            }
+            if ((uint8_t)node.OutputType > (uint8_t)EGraphValueType::Float4)
+                add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Node has an invalid output type.");
+
+            for (const int32_t input : node.Inputs)
+                if (input >= 0 && !m_Nodes.contains((uint32_t)input))
+                    add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Node input references a missing node.");
+
+            const glm::vec4& value = node.ConstantValue;
+            if (!std::isfinite(value.x) || !std::isfinite(value.y)
+                || !std::isfinite(value.z) || !std::isfinite(value.w))
+                add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Node contains a non-finite numeric value.");
+
+            if (node.Type == EMaterialNodeType::Parameter && !IsIdentifier(node.ParameterName))
+                add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Material parameter must be a valid HLSL identifier.");
+            if (node.Type == EMaterialNodeType::ParamScalar || node.Type == EMaterialNodeType::ParamColor)
+            {
+                if (node.ParameterName.empty())
+                    add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Exposed parameter must have a name.");
+                if (node.ParamSlot < 0 || node.ParamSlot >= 8)
+                    add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Exposed parameter exceeds the eight-slot graph parameter limit.");
+
+                if (!node.ParameterName.empty())
+                {
+                    const auto [paramIt, inserted] = parameters.emplace(node.ParameterName,
+                        std::pair{ node.Type, diagnosticId });
+                    if (!inserted && paramIt->second.first != node.Type)
+                    {
+                        add(EMaterialDiagnosticSeverity::Warning, paramIt->second.second,
+                            "Parameter '" + node.ParameterName + "' is used as both scalar and color.");
+                        add(EMaterialDiagnosticSeverity::Warning, diagnosticId,
+                            "Parameter '" + node.ParameterName + "' is used as both scalar and color.");
+                    }
+                }
+            }
+            if (node.Type == EMaterialNodeType::TextureSample && node.TextureExpression.empty())
+                add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Texture sample has no texture binding.");
+            if (node.Type == EMaterialNodeType::Custom && node.CustomCode.empty())
+                add(EMaterialDiagnosticSeverity::Warning, diagnosticId, "Custom HLSL is empty and will evaluate its first input.");
+            if (node.Type == EMaterialNodeType::FunctionInput)
+                add(EMaterialDiagnosticSeverity::Error, diagnosticId, "Function Input can only be used inside a material function.");
+            if (node.Type == EMaterialNodeType::FunctionCall)
+                add(EMaterialDiagnosticSeverity::Error, diagnosticId,
+                    "Material function '" + node.ParameterName + "' could not be expanded; check the file, output and recursion.");
+        }
+
+        // Detect cycles only in nodes that contribute to an output. Disconnected work
+        // in progress should not make an otherwise valid material uncompilable.
+        std::unordered_map<uint32_t, uint8_t> visit;
+        std::vector<uint32_t> stack;
+        std::function<void(uint32_t)> visitNode = [&](uint32_t id)
+        {
+            visit[id] = 1;
+            stack.push_back(id);
+            const auto it = m_Nodes.find(id);
+            if (it != m_Nodes.end())
+            {
+                for (const int32_t input : it->second.Inputs)
+                {
+                    if (input < 0 || !reachable.contains((uint32_t)input))
+                        continue;
+                    const uint32_t source = (uint32_t)input;
+                    if (visit[source] == 0)
+                        visitNode(source);
+                    else if (visit[source] == 1)
+                    {
+                        const auto first = std::find(stack.begin(), stack.end(), source);
+                        for (auto cycleNode = first; cycleNode != stack.end(); ++cycleNode)
+                            add(EMaterialDiagnosticSeverity::Error, sourceId(*cycleNode), "Cycle detected in material graph.");
+                    }
+                }
+            }
+            stack.pop_back();
+            visit[id] = 2;
+        };
+        for (const uint32_t id : reachable)
+            if (visit[id] == 0)
+                visitNode(id);
+
+        // Fresnel depends on pixel-stage N/V and currently evaluates to zero in WPO.
+        const auto wpo = m_Channels.find((uint8_t)EMaterialChannel::WorldPositionOffset);
+        if (wpo != m_Channels.end() && m_Nodes.contains(wpo->second))
+        {
+            std::unordered_set<uint32_t> vertexNodes;
+            std::function<void(uint32_t)> markVertex = [&](uint32_t id)
+            {
+                if (!vertexNodes.insert(id).second)
+                    return;
+                const auto it = m_Nodes.find(id);
+                if (it == m_Nodes.end())
+                    return;
+                if (it->second.Type == EMaterialNodeType::Fresnel)
+                    add(EMaterialDiagnosticSeverity::Error, sourceId(id), "Fresnel is not available in World Position Offset.");
+                for (const int32_t input : it->second.Inputs)
+                    if (input >= 0)
+                        markVertex((uint32_t)input);
+            };
+            markVertex(wpo->second);
+        }
+
+        return result;
+    }
+
     std::string MaterialGraph::EmitNode(
         uint32_t id,
         bool vertexStage,
         std::unordered_map<uint32_t, std::string>& emitted,
         std::unordered_map<uint32_t, EGraphValueType>& types,
+        std::unordered_set<uint32_t>& visiting,
         std::string& body) const
     {
         if (const auto it = emitted.find(id); it != emitted.end())
             return it->second;
+        if (!visiting.insert(id).second)
+        {
+            types[id] = EGraphValueType::Float;
+            return "0.0"; // Validate() reports the cycle; keep direct codegen safe.
+        }
 
         const auto nodeIt = m_Nodes.find(id);
         if (nodeIt == m_Nodes.end())
         {
+            visiting.erase(id);
             types[id] = EGraphValueType::Float4;
             return "0.0";
         }
@@ -170,7 +369,7 @@ namespace Elixir
         {
             if (node.Inputs[i] >= 0)
             {
-                in.push_back(EmitNode((uint32_t)node.Inputs[i], vertexStage, emitted, types, body));
+                in.push_back(EmitNode((uint32_t)node.Inputs[i], vertexStage, emitted, types, visiting, body));
                 inT.push_back(types[(uint32_t)node.Inputs[i]]);
             }
             else if (i < node.DefaultInputs.size())
@@ -201,6 +400,7 @@ namespace Elixir
             body += "        " + var + " = (" + code + ");\n    }\n";
             emitted[id] = var;
             types[id] = node.OutputType;
+            visiting.erase(id);
             return var;
         }
 
@@ -298,6 +498,7 @@ namespace Elixir
             case EMaterialNodeType::OneMinus:      expr = "(1.0 - " + A(0) + ")"; type = AT(0); break;
             case EMaterialNodeType::Saturate:      expr = "saturate(" + A(0) + ")"; type = AT(0); break;
             case EMaterialNodeType::Fresnel:       expr = vertexStage ? "0.0" : "pow(saturate(1.0 - dot(N, V)), 5.0)"; type = EGraphValueType::Float; break;
+            case EMaterialNodeType::Custom:         break; // handled above (multi-line body)
             // Material-function nodes are expanded away in the editor before codegen;
             // these are safe fallbacks in case one is emitted directly.
             case EMaterialNodeType::FunctionInput:
@@ -308,6 +509,7 @@ namespace Elixir
         body += "    " + std::string(TypeName(type)) + " " + var + " = " + expr + ";\n";
         emitted[id] = var;
         types[id] = type;
+        visiting.erase(id);
         return var;
     }
 
@@ -316,6 +518,7 @@ namespace Elixir
         std::string body;
         std::unordered_map<uint32_t, std::string> emitted;
         std::unordered_map<uint32_t, EGraphValueType> types;
+        std::unordered_set<uint32_t> visiting;
 
         for (const auto& [channel, nodeId] : m_Channels)
         {
@@ -326,7 +529,7 @@ namespace Elixir
             if (isWPO != vertexStage)
                 continue;
 
-            const std::string var = EmitNode(nodeId, vertexStage, emitted, types, body);
+            const std::string var = EmitNode(nodeId, vertexStage, emitted, types, visiting, body);
             const EGraphValueType from = types.count(nodeId) ? types[nodeId] : EGraphValueType::Float4;
             if (isWPO)
                 body += "    wpo = " + Coerce(var, from, ch) + ";\n";

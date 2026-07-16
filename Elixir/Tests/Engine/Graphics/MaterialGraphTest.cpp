@@ -66,3 +66,89 @@ TEST(MaterialGraph, ScalarChannelsAndSharedNode)
     ASSERT_NE(first, std::string::npos);
     EXPECT_EQ(hlsl.find("float n", first + 1), std::string::npos);
 }
+
+TEST(MaterialGraph, ValidatesReachableBrokenLinks)
+{
+    MaterialGraph graph;
+
+    SMaterialNode add;
+    add.SourceId = 42;
+    add.Type = EMaterialNodeType::Add;
+    add.Inputs = { -1, -1 };
+    const uint32_t node = graph.AddNode(add);
+    graph.Connect(9999, node, 0);
+    graph.SetChannel(EMaterialChannel::BaseColor, node);
+
+    const auto validation = graph.Validate();
+    ASSERT_TRUE(validation.HasErrors());
+    ASSERT_FALSE(validation.Diagnostics.empty());
+    EXPECT_EQ(validation.Diagnostics.front().NodeId, 42u);
+    EXPECT_NE(validation.Diagnostics.front().Message.find("missing node"), std::string::npos);
+}
+
+TEST(MaterialGraph, DetectsCyclesAndKeepsCodegenSafe)
+{
+    MaterialGraph graph;
+
+    SMaterialNode add;
+    add.SourceId = 10;
+    add.Type = EMaterialNodeType::Add;
+    add.Inputs = { -1, -1 };
+    const uint32_t a = graph.AddNode(add);
+
+    add.SourceId = 11;
+    const uint32_t b = graph.AddNode(add);
+    graph.Connect(a, b, 0);
+    graph.Connect(b, a, 0);
+    graph.SetChannel(EMaterialChannel::BaseColor, a);
+
+    const auto validation = graph.Validate();
+    EXPECT_TRUE(validation.HasErrors());
+
+    bool sawA = false, sawB = false;
+    for (const auto& diagnostic : validation.Diagnostics)
+    {
+        if (diagnostic.Message.find("Cycle") == std::string::npos)
+            continue;
+        sawA |= diagnostic.NodeId == 10;
+        sawB |= diagnostic.NodeId == 11;
+    }
+    EXPECT_TRUE(sawA);
+    EXPECT_TRUE(sawB);
+    EXPECT_FALSE(graph.GenerateHLSL().empty());
+}
+
+TEST(MaterialGraph, IgnoresInvalidDisconnectedWorkInProgress)
+{
+    MaterialGraph graph;
+
+    SMaterialNode color;
+    color.Type = EMaterialNodeType::Constant;
+    color.OutputType = EGraphValueType::Float3;
+    const uint32_t output = graph.AddNode(color);
+    graph.SetChannel(EMaterialChannel::BaseColor, output);
+
+    SMaterialNode disconnected;
+    disconnected.Type = EMaterialNodeType::Parameter;
+    disconnected.ParameterName = "not a valid identifier";
+    graph.AddNode(disconnected);
+
+    EXPECT_FALSE(graph.Validate().HasErrors());
+}
+
+TEST(MaterialGraph, RejectsPixelOnlyNodeInWorldPositionOffset)
+{
+    MaterialGraph graph;
+
+    SMaterialNode fresnel;
+    fresnel.SourceId = 77;
+    fresnel.Type = EMaterialNodeType::Fresnel;
+    fresnel.OutputType = EGraphValueType::Float;
+    const uint32_t node = graph.AddNode(fresnel);
+    graph.SetChannel(EMaterialChannel::WorldPositionOffset, node);
+
+    const auto validation = graph.Validate();
+    ASSERT_TRUE(validation.HasErrors());
+    EXPECT_EQ(validation.Diagnostics.front().NodeId, 77u);
+    EXPECT_NE(validation.Diagnostics.front().Message.find("World Position Offset"), std::string::npos);
+}

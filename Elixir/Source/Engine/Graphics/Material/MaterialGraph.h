@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace Elixir
 {
@@ -61,11 +62,38 @@ namespace Elixir
     // so DXC keeps only the chosen model's code.
     enum class EMaterialShadingModel : uint8_t { DefaultLit, Unlit, Subsurface, ClearCoat, Cloth };
 
+    enum class EMaterialDiagnosticSeverity : uint8_t { Warning, Error };
+
+    // A validation message tied to the editor node that caused it. NodeId == 0
+    // identifies a graph/output-level diagnostic rather than a regular node.
+    struct SMaterialGraphDiagnostic
+    {
+        EMaterialDiagnosticSeverity Severity = EMaterialDiagnosticSeverity::Error;
+        uint32_t NodeId = 0;
+        std::string Message;
+    };
+
+    struct SMaterialGraphValidation
+    {
+        std::vector<SMaterialGraphDiagnostic> Diagnostics;
+
+        [[nodiscard]] bool HasErrors() const
+        {
+            for (const auto& diagnostic : Diagnostics)
+                if (diagnostic.Severity == EMaterialDiagnosticSeverity::Error)
+                    return true;
+            return false;
+        }
+    };
+
     // One node in a material graph. Nodes are plain data (no lambdas) so the graph
     // can be serialized and edited; the codegen interprets Type.
     struct SMaterialNode
     {
         uint32_t Id = 0;
+        // Stable editor node id used for diagnostics. Expanded function nodes inherit
+        // the id of their visible FunctionCall node.
+        uint32_t SourceId = 0;
         EMaterialNodeType Type = EMaterialNodeType::Constant;
         EGraphValueType OutputType = EGraphValueType::Float4;
 
@@ -106,6 +134,10 @@ namespace Elixir
         // `wpo = ...;` from the WorldPositionOffset channel only.
         [[nodiscard]] std::string GenerateHLSL(bool vertexStage = false) const;
 
+        // Validate the reachable graph before code generation/compilation. Reports
+        // malformed links, cycles, unsupported stage usage and invalid node payloads.
+        [[nodiscard]] SMaterialGraphValidation Validate() const;
+
         [[nodiscard]] const std::unordered_map<uint32_t, SMaterialNode>& GetNodes() const { return m_Nodes; }
 
       private:
@@ -114,6 +146,7 @@ namespace Elixir
             bool vertexStage,
             std::unordered_map<uint32_t, std::string>& emitted,
             std::unordered_map<uint32_t, EGraphValueType>& types,
+            std::unordered_set<uint32_t>& visiting,
             std::string& body) const;
 
         std::unordered_map<uint32_t, SMaterialNode> m_Nodes;

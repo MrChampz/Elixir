@@ -66,6 +66,17 @@ namespace Elixir
 
     std::optional<MaterialCompiler::SCompiled> MaterialCompiler::CompileToSpirv(const MaterialGraph& graph)
     {
+        const SMaterialGraphValidation validation = graph.Validate();
+        for (const auto& diagnostic : validation.Diagnostics)
+        {
+            if (diagnostic.Severity == EMaterialDiagnosticSeverity::Error)
+                EE_CORE_ERROR("Material graph validation (node {}): {}", diagnostic.NodeId, diagnostic.Message)
+            else
+                EE_CORE_WARN("Material graph validation (node {}): {}", diagnostic.NodeId, diagnostic.Message)
+        }
+        if (validation.HasErrors())
+            return std::nullopt;
+
         const fs::path shadersDir = "./Shaders";
         const fs::path generatedDir = shadersDir / "Generated";
 
