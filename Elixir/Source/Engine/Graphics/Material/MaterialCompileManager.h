@@ -23,13 +23,15 @@ namespace Elixir
     struct SMaterialCompileResult
     {
         uint64_t RequestId = 0;
+        SMaterialShaderPermutation Permutation;
         std::optional<MaterialCompiler::SCompiled> Compiled;
     };
 
     // Process-wide scheduler for material compilation. A client supplies a logical
-    // scope (normally a material slot); newer requests replace older work for that
-    // scope, while unrelated scopes can resolve through MaterialShaderMap in parallel.
-    // Only the latest request receives a callback.
+    // scope (normally a material slot) and permutation. Newer requests replace older
+    // work for the same target, while different targets -- including targets from one
+    // material slot -- can resolve through MaterialShaderMap in parallel. Only the
+    // latest request for each target receives a callback.
     class ELIXIR_API MaterialCompileManager
     {
       public:
@@ -37,7 +39,8 @@ namespace Elixir
         using RequestId = uint64_t;
         using Task = std::function<void()>;
         using Scheduler = std::function<void(Task)>;
-        using Resolver = std::function<std::optional<MaterialCompiler::SCompiled>(const MaterialGraph&)>;
+        using Resolver = std::function<std::optional<MaterialCompiler::SCompiled>(
+            const MaterialGraph&, const SMaterialShaderPermutation&)>;
         using Callback = std::function<void(const SMaterialCompileResult&)>;
 
         explicit MaterialCompileManager(size_t maxParallelJobs = 0,
@@ -58,14 +61,25 @@ namespace Elixir
         void DestroyClient(ClientId client);
 
         RequestId Request(ClientId client, uint64_t scope, MaterialGraph graph,
+            SMaterialShaderPermutation permutation,
             Callback callback, EMaterialCompilePriority priority = EMaterialCompilePriority::Normal);
+
+        // Replaces the scope's generation and schedules one independent job for every
+        // usage declared by the graph. Different targets may run concurrently.
+        std::vector<RequestId> RequestAll(ClientId client, uint64_t scope,
+            const MaterialGraph& graph, Callback callback,
+            EMaterialCompilePriority priority = EMaterialCompilePriority::Normal);
 
         // Invalidates queued or in-flight work for one logical scope. Compilation
         // already inside DXC is not interrupted; only its delivery is cancelled.
         void Cancel(ClientId client, uint64_t scope);
 
-        [[nodiscard]] bool IsCurrent(ClientId client, uint64_t scope, RequestId request) const;
+        [[nodiscard]] bool IsCurrent(ClientId client, uint64_t scope,
+            const SMaterialShaderPermutation& permutation, RequestId request) const;
+        // Aggregated state for every target in the logical scope.
         [[nodiscard]] EMaterialCompileState State(ClientId client, uint64_t scope) const;
+        [[nodiscard]] EMaterialCompileState State(ClientId client, uint64_t scope,
+            const SMaterialShaderPermutation& permutation) const;
         [[nodiscard]] size_t ActiveCount() const;
         [[nodiscard]] size_t QueuedCount() const;
         [[nodiscard]] size_t MaxParallelJobs() const { return m_MaxParallelJobs; }
@@ -75,6 +89,7 @@ namespace Elixir
         {
             ClientId Client = 0;
             uint64_t Scope = 0;
+            SMaterialShaderPermutation Permutation;
 
             bool operator==(const SKey&) const = default;
         };

@@ -3,6 +3,7 @@
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/Model.h>
 #include <Engine/Graphics/Material/MaterialGraph.h>
+#include <Engine/Graphics/Material/MaterialShaderPermutation.h>
 
 #include <mutex>
 #include <Engine/Graphics/Environment.h>
@@ -34,11 +35,14 @@ namespace Elixir
         // MoltenVK) happens off the render thread. Render installs the prepared
         // shader and material instance together at a frame boundary.
         void PrepareMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader,
-            EMaterialBlendMode blendMode, const Ref<Model>& model,
+            EMaterialBlendMode blendMode, const SMaterialShaderPermutation& permutation,
+            const Ref<Model>& model,
             const Ref<MaterialInstance>& materialInstance, size_t revision, size_t variantKey);
         [[nodiscard]] bool HasMaterialShaderVariant(
-            uint32_t materialIndex, size_t revision, size_t variantKey) const;
-        void PrepareCachedMaterialShader(uint32_t materialIndex, size_t revision, size_t variantKey,
+            uint32_t materialIndex, const SMaterialShaderPermutation& permutation,
+            size_t revision, size_t variantKey) const;
+        void PrepareCachedMaterialShader(uint32_t materialIndex,
+            const SMaterialShaderPermutation& permutation, size_t revision, size_t variantKey,
             const Ref<Model>& model, const Ref<MaterialInstance>& materialInstance);
         void InstallPendingShaders();
 
@@ -113,6 +117,7 @@ namespace Elixir
             Ref<GraphicsPipeline> Transparent;
             Ref<UniformBuffer> ParamBuffer; // cbGraphParams (exposed params)
             EMaterialBlendMode BlendMode = EMaterialBlendMode::Opaque;
+            SMaterialShaderPermutation Permutation;
             size_t Revision = 0;
             size_t VariantKey = 0;
         };
@@ -161,6 +166,7 @@ namespace Elixir
             SShaderVariant Variant;
             Ref<Model> Model;
             Ref<MaterialInstance> MaterialInstance;
+            SMaterialShaderPermutation Permutation;
             size_t Revision = 0;
             size_t VariantKey = 0;
             bool UseCached = false;

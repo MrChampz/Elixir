@@ -23,6 +23,17 @@ namespace
         return graph;
     }
 
+    const SMaterialShaderPermutation& StaticPermutation()
+    {
+        return MaterialShaderPermutation::SurfaceStaticMesh();
+    }
+
+    SMaterialShaderPermutation SkeletalPermutation()
+    {
+        return *MaterialShaderPermutation::ForUsage(
+            EMaterialDomain::Surface, EMaterialUsage::SkeletalMesh);
+    }
+
     struct SManualScheduler
     {
         std::vector<MaterialCompileManager::Task> Tasks;
@@ -48,17 +59,19 @@ TEST(MaterialCompileManager, LimitsParallelJobsAndUsesPriority)
     std::vector<std::string> resolved;
     MaterialCompileManager manager(2,
         [&](MaterialCompileManager::Task task) { scheduler.Enqueue(std::move(task)); },
-        [&](const MaterialGraph& graph) -> std::optional<MaterialCompiler::SCompiled>
+        [&](const MaterialGraph& graph, const SMaterialShaderPermutation& permutation)
+            -> std::optional<MaterialCompiler::SCompiled>
         {
             resolved.push_back(graph.GenerateHLSL());
-            return MaterialCompiler::SCompiled{ "/tmp/material-compile-manager", "Compiled" };
+            return MaterialCompiler::SCompiled{
+                "/tmp/material-compile-manager", "Compiled", permutation };
         });
     const auto client = manager.CreateClient();
 
-    manager.Request(client, 1, MakeCompileGraph("first"), {}, EMaterialCompilePriority::Normal);
-    manager.Request(client, 2, MakeCompileGraph("second"), {}, EMaterialCompilePriority::Normal);
-    manager.Request(client, 3, MakeCompileGraph("background"), {}, EMaterialCompilePriority::Background);
-    manager.Request(client, 4, MakeCompileGraph("interactive"), {}, EMaterialCompilePriority::Interactive);
+    manager.Request(client, 1, MakeCompileGraph("first"), StaticPermutation(), {}, EMaterialCompilePriority::Normal);
+    manager.Request(client, 2, MakeCompileGraph("second"), StaticPermutation(), {}, EMaterialCompilePriority::Normal);
+    manager.Request(client, 3, MakeCompileGraph("background"), StaticPermutation(), {}, EMaterialCompilePriority::Background);
+    manager.Request(client, 4, MakeCompileGraph("interactive"), StaticPermutation(), {}, EMaterialCompilePriority::Interactive);
 
     EXPECT_EQ(manager.ActiveCount(), 2u);
     EXPECT_EQ(manager.QueuedCount(), 2u);
@@ -82,29 +95,31 @@ TEST(MaterialCompileManager, LimitsParallelJobsAndUsesPriority)
 }
 
 // A finished job must release its scope. If the scope stayed registered as active, the
-// per-scope gate would queue every later request for that slot forever -- live preview
-// and Apply would go quiet with no error.
+// per-target gate would queue every later request for that slot and permutation
+// forever -- live preview and Apply would go quiet with no error.
 TEST(MaterialCompileManager, AScopeCompilesAgainAfterItsJobCompletes)
 {
     SManualScheduler scheduler;
     std::vector<std::string> resolved;
     MaterialCompileManager manager(2,
         [&](MaterialCompileManager::Task task) { scheduler.Enqueue(std::move(task)); },
-        [&](const MaterialGraph& graph) -> std::optional<MaterialCompiler::SCompiled>
+        [&](const MaterialGraph& graph, const SMaterialShaderPermutation& permutation)
+            -> std::optional<MaterialCompiler::SCompiled>
         {
             resolved.push_back(graph.GenerateHLSL());
-            return MaterialCompiler::SCompiled{ "/tmp/material-compile-manager", "Compiled" };
+            return MaterialCompiler::SCompiled{
+                "/tmp/material-compile-manager", "Compiled", permutation };
         });
     const auto client = manager.CreateClient();
 
-    manager.Request(client, 5, MakeCompileGraph("first-edit"), {});
+    manager.Request(client, 5, MakeCompileGraph("first-edit"), StaticPermutation(), {});
     scheduler.RunNext();
     ASSERT_EQ(resolved.size(), 1u);
     EXPECT_EQ(manager.ActiveCount(), 0u);
     EXPECT_EQ(manager.State(client, 5), EMaterialCompileState::Idle);
 
     // The same scope again: an edit to a slot that already compiled once.
-    manager.Request(client, 5, MakeCompileGraph("second-edit"), {});
+    manager.Request(client, 5, MakeCompileGraph("second-edit"), StaticPermutation(), {});
     EXPECT_EQ(manager.ActiveCount(), 1u);
     ASSERT_EQ(scheduler.Tasks.size(), 1u);
     scheduler.RunNext();
@@ -123,17 +138,19 @@ TEST(MaterialCompileManager, CoalescesQueuedRequests)
     std::vector<uint64_t> completed;
     MaterialCompileManager manager(1,
         [&](MaterialCompileManager::Task task) { scheduler.Enqueue(std::move(task)); },
-        [&](const MaterialGraph& graph) -> std::optional<MaterialCompiler::SCompiled>
+        [&](const MaterialGraph& graph, const SMaterialShaderPermutation& permutation)
+            -> std::optional<MaterialCompiler::SCompiled>
         {
             resolved.push_back(graph.GenerateHLSL());
-            return MaterialCompiler::SCompiled{ "/tmp/material-compile-manager", "Compiled" };
+            return MaterialCompiler::SCompiled{
+                "/tmp/material-compile-manager", "Compiled", permutation };
         });
     const auto client = manager.CreateClient();
 
-    manager.Request(client, 99, MakeCompileGraph("blocker"), {});
-    manager.Request(client, 7, MakeCompileGraph("obsolete"),
+    manager.Request(client, 99, MakeCompileGraph("blocker"), StaticPermutation(), {});
+    manager.Request(client, 7, MakeCompileGraph("obsolete"), StaticPermutation(),
         [&](const SMaterialCompileResult& result) { completed.push_back(result.RequestId); });
-    const auto latest = manager.Request(client, 7, MakeCompileGraph("latest"),
+    const auto latest = manager.Request(client, 7, MakeCompileGraph("latest"), StaticPermutation(),
         [&](const SMaterialCompileResult& result) { completed.push_back(result.RequestId); });
 
     EXPECT_EQ(manager.State(client, 7), EMaterialCompileState::Queued);
@@ -155,15 +172,17 @@ TEST(MaterialCompileManager, SuppressesAnInFlightStaleResult)
     std::vector<uint64_t> completed;
     MaterialCompileManager manager(2,
         [&](MaterialCompileManager::Task task) { scheduler.Enqueue(std::move(task)); },
-        [](const MaterialGraph&) -> std::optional<MaterialCompiler::SCompiled>
+        [](const MaterialGraph&, const SMaterialShaderPermutation& permutation)
+            -> std::optional<MaterialCompiler::SCompiled>
         {
-            return MaterialCompiler::SCompiled{ "/tmp/material-compile-manager", "Compiled" };
+            return MaterialCompiler::SCompiled{
+                "/tmp/material-compile-manager", "Compiled", permutation };
         });
     const auto client = manager.CreateClient();
 
-    manager.Request(client, 3, MakeCompileGraph("in-flight"),
+    manager.Request(client, 3, MakeCompileGraph("in-flight"), StaticPermutation(),
         [&](const SMaterialCompileResult& result) { completed.push_back(result.RequestId); });
-    const auto latest = manager.Request(client, 3, MakeCompileGraph("replacement"),
+    const auto latest = manager.Request(client, 3, MakeCompileGraph("replacement"), StaticPermutation(),
         [&](const SMaterialCompileResult& result) { completed.push_back(result.RequestId); });
 
     EXPECT_EQ(manager.State(client, 3), EMaterialCompileState::Queued);
@@ -184,17 +203,53 @@ TEST(MaterialCompileManager, DestroyedClientReceivesNoCompletion)
     int completions = 0;
     MaterialCompileManager manager(1,
         [&](MaterialCompileManager::Task task) { scheduler.Enqueue(std::move(task)); },
-        [](const MaterialGraph&) -> std::optional<MaterialCompiler::SCompiled>
+        [](const MaterialGraph&, const SMaterialShaderPermutation& permutation)
+            -> std::optional<MaterialCompiler::SCompiled>
         {
-            return MaterialCompiler::SCompiled{ "/tmp/material-compile-manager", "Compiled" };
+            return MaterialCompiler::SCompiled{
+                "/tmp/material-compile-manager", "Compiled", permutation };
         });
     const auto client = manager.CreateClient();
 
-    manager.Request(client, 1, MakeCompileGraph("destroyed"),
+    manager.Request(client, 1, MakeCompileGraph("destroyed"), StaticPermutation(),
         [&](const SMaterialCompileResult&) { ++completions; });
     manager.DestroyClient(client);
     scheduler.RunNext();
 
     EXPECT_EQ(completions, 0);
     EXPECT_EQ(manager.ActiveCount(), 0u);
+}
+
+TEST(MaterialCompileManager, RunsDifferentPermutationsOfOneScopeInParallel)
+{
+    SManualScheduler scheduler;
+    std::vector<EMaterialUsage> resolved;
+    MaterialCompileManager manager(2,
+        [&](MaterialCompileManager::Task task) { scheduler.Enqueue(std::move(task)); },
+        [&](const MaterialGraph&, const SMaterialShaderPermutation& permutation)
+            -> std::optional<MaterialCompiler::SCompiled>
+        {
+            resolved.push_back(permutation.Usage);
+            return MaterialCompiler::SCompiled{
+                "/tmp/material-compile-manager", "Compiled", permutation };
+        });
+    const auto client = manager.CreateClient();
+
+    MaterialGraph graph = MakeCompileGraph("permutations");
+    graph.SetUsages(EMaterialUsage::StaticMesh | EMaterialUsage::SkeletalMesh);
+    const auto skeletal = SkeletalPermutation();
+    const auto requests = manager.RequestAll(client, 11, graph, {});
+
+    EXPECT_EQ(requests.size(), 2u);
+    EXPECT_EQ(manager.ActiveCount(), 2u);
+    EXPECT_EQ(scheduler.Tasks.size(), 2u);
+    EXPECT_EQ(manager.State(client, 11, StaticPermutation()), EMaterialCompileState::Compiling);
+    EXPECT_EQ(manager.State(client, 11, skeletal), EMaterialCompileState::Compiling);
+
+    scheduler.RunNext();
+    scheduler.RunNext();
+    EXPECT_EQ(resolved.size(), 2u);
+    EXPECT_EQ(manager.ActiveCount(), 0u);
+    EXPECT_EQ(manager.State(client, 11), EMaterialCompileState::Idle);
+    manager.DestroyClient(client);
 }

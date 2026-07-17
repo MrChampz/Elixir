@@ -15,9 +15,10 @@ namespace Elixir
         return map;
     }
 
-    std::optional<MaterialCompiler::SCompiled> MaterialShaderMap::GetOrCompile(const MaterialGraph& graph)
+    std::optional<MaterialCompiler::SCompiled> MaterialShaderMap::GetOrCompile(
+        const MaterialGraph& graph, const SMaterialShaderPermutation& permutation)
     {
-        const std::optional<Key> key = m_KeyBuilder(graph);
+        const std::optional<Key> key = m_KeyBuilder(graph, permutation);
         if (!key)
         {
             EE_CORE_ERROR("MaterialShaderMap could not build a content key.")
@@ -44,7 +45,12 @@ namespace Elixir
         std::optional<MaterialCompiler::SCompiled> compiled;
         try
         {
-            compiled = m_Compiler(graph);
+            compiled = m_Compiler(graph, permutation);
+            if (compiled && compiled->Permutation != permutation)
+            {
+                EE_CORE_ERROR("MaterialShaderMap compiler returned a different permutation.")
+                compiled.reset();
+            }
         }
         catch (const std::exception& error)
         {

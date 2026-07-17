@@ -35,6 +35,11 @@ namespace
         }
         return graph;
     }
+
+    const SMaterialShaderPermutation& StaticPermutation()
+    {
+        return MaterialShaderPermutation::SurfaceStaticMesh();
+    }
 }
 
 TEST(MaterialShaderMap, ContentKeyIsStableAndCoversSources)
@@ -43,27 +48,34 @@ TEST(MaterialShaderMap, ContentKeyIsStableAndCoversSources)
     const std::string vertexTemplate = "void main(){// __WPO_BODY__}";
 
     const uint64_t ordered = MaterialCompiler::BuildContentKeyFromTemplates(
-        MakeKeyGraph(false), pixelTemplate, vertexTemplate);
+        MakeKeyGraph(false), StaticPermutation(), pixelTemplate, vertexTemplate);
     const uint64_t reordered = MaterialCompiler::BuildContentKeyFromTemplates(
-        MakeKeyGraph(true), pixelTemplate, vertexTemplate);
+        MakeKeyGraph(true), StaticPermutation(), pixelTemplate, vertexTemplate);
     const uint64_t changedGraph = MaterialCompiler::BuildContentKeyFromTemplates(
-        MakeKeyGraph(false, 0.75f), pixelTemplate, vertexTemplate);
+        MakeKeyGraph(false, 0.75f), StaticPermutation(), pixelTemplate, vertexTemplate);
     const uint64_t changedTemplate = MaterialCompiler::BuildContentKeyFromTemplates(
-        MakeKeyGraph(false), pixelTemplate + " ", vertexTemplate);
+        MakeKeyGraph(false), StaticPermutation(), pixelTemplate + " ", vertexTemplate);
     MaterialGraph changedUsageGraph = MakeKeyGraph(false);
-    changedUsageGraph.SetUsages(EMaterialUsage::SkeletalMesh);
-    const uint64_t changedUsage = MaterialCompiler::BuildContentKeyFromTemplates(
-        changedUsageGraph, pixelTemplate, vertexTemplate);
+    changedUsageGraph.SetUsages(EMaterialUsage::StaticMesh | EMaterialUsage::SkeletalMesh);
+    const uint64_t sameStaticTarget = MaterialCompiler::BuildContentKeyFromTemplates(
+        changedUsageGraph, StaticPermutation(), pixelTemplate, vertexTemplate);
+    const auto skeletal = *MaterialShaderPermutation::ForUsage(
+        EMaterialDomain::Surface, EMaterialUsage::SkeletalMesh);
+    const uint64_t changedTarget = MaterialCompiler::BuildContentKeyFromTemplates(
+        changedUsageGraph, skeletal, pixelTemplate, vertexTemplate);
     MaterialGraph changedDomainGraph = MakeKeyGraph(false);
     changedDomainGraph.SetDomain(EMaterialDomain::UserInterface);
     changedDomainGraph.SetUsages(EMaterialUsage::None);
+    const auto userInterface = *MaterialShaderPermutation::ForUsage(
+        EMaterialDomain::UserInterface, EMaterialUsage::None);
     const uint64_t changedDomain = MaterialCompiler::BuildContentKeyFromTemplates(
-        changedDomainGraph, pixelTemplate, vertexTemplate);
+        changedDomainGraph, userInterface, pixelTemplate, vertexTemplate);
 
     EXPECT_EQ(ordered, reordered);
     EXPECT_NE(ordered, changedGraph);
     EXPECT_NE(ordered, changedTemplate);
-    EXPECT_NE(ordered, changedUsage);
+    EXPECT_EQ(ordered, sameStaticTarget);
+    EXPECT_NE(ordered, changedTarget);
     EXPECT_NE(ordered, changedDomain);
     EXPECT_EQ(MaterialCompiler::CacheName(0x2au), "GraphMat_000000000000002a");
 }
@@ -76,12 +88,14 @@ TEST(MaterialShaderMap, ConcurrentRequestsCompileOneArtifact)
     const std::shared_future<void> compileGate = releaseCompile.get_future().share();
 
     MaterialShaderMap map(
-        [](const MaterialGraph&) -> std::optional<uint64_t> { return 42u; },
-        [&](const MaterialGraph&) -> std::optional<MaterialCompiler::SCompiled>
+        [](const MaterialGraph&, const SMaterialShaderPermutation&) -> std::optional<uint64_t> { return 42u; },
+        [&](const MaterialGraph&, const SMaterialShaderPermutation& permutation)
+            -> std::optional<MaterialCompiler::SCompiled>
         {
             ++compileCalls;
             compileGate.wait();
-            return MaterialCompiler::SCompiled{ "/tmp/material-shader-map", "Shared" };
+            return MaterialCompiler::SCompiled{
+                "/tmp/material-shader-map", "Shared", permutation };
         });
 
     std::barrier start(REQUESTS + 1);
@@ -93,7 +107,7 @@ TEST(MaterialShaderMap, ConcurrentRequestsCompileOneArtifact)
         workers.emplace_back([&, i]
         {
             start.arrive_and_wait();
-            results[i] = map.GetOrCompile(MakeKeyGraph());
+            results[i] = map.GetOrCompile(MakeKeyGraph(), StaticPermutation());
         });
     }
 
@@ -113,19 +127,32 @@ TEST(MaterialShaderMap, ConcurrentRequestsCompileOneArtifact)
     }
 }
 
+TEST(MaterialShaderMap, RejectsUndeclaredOrUnsupportedTargetsBeforeCaching)
+{
+    MaterialGraph graph = MakeKeyGraph();
+    graph.SetUsages(EMaterialUsage::SkeletalMesh);
+    EXPECT_FALSE(MaterialCompiler::BuildContentKey(
+        graph, StaticPermutation()).has_value());
+
+    const auto skeletal = *MaterialShaderPermutation::ForUsage(
+        EMaterialDomain::Surface, EMaterialUsage::SkeletalMesh);
+    EXPECT_FALSE(MaterialCompiler::BuildContentKey(graph, skeletal).has_value());
+}
+
 TEST(MaterialShaderMap, FailedArtifactsCanBeRetried)
 {
     int compileCalls = 0;
     MaterialShaderMap map(
-        [](const MaterialGraph&) -> std::optional<uint64_t> { return 7u; },
-        [&](const MaterialGraph&) -> std::optional<MaterialCompiler::SCompiled>
+        [](const MaterialGraph&, const SMaterialShaderPermutation&) -> std::optional<uint64_t> { return 7u; },
+        [&](const MaterialGraph&, const SMaterialShaderPermutation&)
+            -> std::optional<MaterialCompiler::SCompiled>
         {
             ++compileCalls;
             return std::nullopt;
         });
 
-    EXPECT_FALSE(map.GetOrCompile(MakeKeyGraph()).has_value());
-    EXPECT_FALSE(map.GetOrCompile(MakeKeyGraph()).has_value());
+    EXPECT_FALSE(map.GetOrCompile(MakeKeyGraph(), StaticPermutation()).has_value());
+    EXPECT_FALSE(map.GetOrCompile(MakeKeyGraph(), StaticPermutation()).has_value());
     EXPECT_EQ(compileCalls, 2);
     EXPECT_EQ(map.EntryCount(), 0u);
 }
@@ -146,8 +173,9 @@ TEST(MaterialShaderMap, ContentAddressedSpirvIsReusedAcrossMaps)
     graph.SetChannel(EMaterialChannel::BaseColor, customId);
 
     MaterialShaderMap firstMap;
-    const auto first = firstMap.GetOrCompile(graph);
+    const auto first = firstMap.GetOrCompile(graph, StaticPermutation());
     ASSERT_TRUE(first.has_value());
+    EXPECT_EQ(first->Permutation, StaticPermutation());
     const std::filesystem::path pixelSource =
         first->LoadDir.parent_path() / (first->Name + ".src.ps.hlsl");
     ASSERT_TRUE(std::filesystem::exists(pixelSource));
@@ -155,10 +183,39 @@ TEST(MaterialShaderMap, ContentAddressedSpirvIsReusedAcrossMaps)
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     MaterialShaderMap secondMap;
-    const auto second = secondMap.GetOrCompile(graph);
+    const auto second = secondMap.GetOrCompile(graph, StaticPermutation());
     ASSERT_TRUE(second.has_value());
 
     EXPECT_EQ(second->Name, first->Name);
     EXPECT_EQ(second->LoadDir, first->LoadDir);
     EXPECT_EQ(std::filesystem::last_write_time(pixelSource), firstWrite);
+}
+
+TEST(MaterialShaderMap, StoresPermutationArtifactsIndependently)
+{
+    int compileCalls = 0;
+    MaterialShaderMap map(
+        [](const MaterialGraph&, const SMaterialShaderPermutation& permutation)
+            -> std::optional<uint64_t>
+        {
+            return SMaterialShaderPermutationHash{}(permutation);
+        },
+        [&](const MaterialGraph&, const SMaterialShaderPermutation& permutation)
+            -> std::optional<MaterialCompiler::SCompiled>
+        {
+            ++compileCalls;
+            return MaterialCompiler::SCompiled{
+                "/tmp/material-shader-map", "Permutation", permutation };
+        });
+
+    MaterialGraph graph = MakeKeyGraph();
+    graph.SetUsages(EMaterialUsage::StaticMesh | EMaterialUsage::SkeletalMesh);
+    const auto skeletal = *MaterialShaderPermutation::ForUsage(
+        EMaterialDomain::Surface, EMaterialUsage::SkeletalMesh);
+
+    EXPECT_TRUE(map.GetOrCompile(graph, StaticPermutation()).has_value());
+    EXPECT_TRUE(map.GetOrCompile(graph, skeletal).has_value());
+    EXPECT_TRUE(map.GetOrCompile(graph, StaticPermutation()).has_value());
+    EXPECT_EQ(compileCalls, 2);
+    EXPECT_EQ(map.EntryCount(), 2u);
 }

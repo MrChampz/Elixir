@@ -23,9 +23,10 @@ namespace Elixir
         {
             Executor::Get().Enqueue(std::move(task));
         })
-        , m_Resolver(resolver ? std::move(resolver) : [](const MaterialGraph& graph)
+        , m_Resolver(resolver ? std::move(resolver) : [](const MaterialGraph& graph,
+            const SMaterialShaderPermutation& permutation)
         {
-            return MaterialShaderMap::Get().GetOrCompile(graph);
+            return MaterialShaderMap::Get().GetOrCompile(graph, permutation);
         })
     {
     }
@@ -98,7 +99,8 @@ namespace Elixir
     }
 
     MaterialCompileManager::RequestId MaterialCompileManager::Request(const ClientId client,
-        const uint64_t scope, MaterialGraph graph, Callback callback, const EMaterialCompilePriority priority)
+        const uint64_t scope, MaterialGraph graph, SMaterialShaderPermutation permutation,
+        Callback callback, const EMaterialCompilePriority priority)
     {
         std::vector<Job> runnable;
         RequestId requestId = 0;
@@ -109,7 +111,7 @@ namespace Elixir
                 return 0;
 
             Job job = std::make_shared<SJob>();
-            job->Key = { client, scope };
+            job->Key = { client, scope, permutation };
             job->Id = m_NextRequest++;
             job->Graph = std::move(graph);
             job->Completion = std::move(callback);
@@ -126,16 +128,39 @@ namespace Elixir
         return requestId;
     }
 
+    std::vector<MaterialCompileManager::RequestId> MaterialCompileManager::RequestAll(
+        const ClientId client, const uint64_t scope, const MaterialGraph& graph,
+        Callback callback, const EMaterialCompilePriority priority)
+    {
+        Cancel(client, scope);
+        const auto permutations = MaterialShaderPermutation::Expand(
+            graph.GetDomain(), graph.GetUsages());
+        std::vector<RequestId> requests;
+        requests.reserve(permutations.size());
+        for (const auto& permutation : permutations)
+        {
+            const RequestId request = Request(
+                client, scope, graph, permutation, callback, priority);
+            if (request != 0)
+                requests.push_back(request);
+        }
+        return requests;
+    }
+
     void MaterialCompileManager::Cancel(const ClientId client, const uint64_t scope)
     {
         std::vector<Job> runnable;
         {
             std::lock_guard<std::mutex> lock(m_Mutex);
-            const auto request = m_Latest.find({ client, scope });
-            if (request != m_Latest.end())
+            for (auto request = m_Latest.begin(); request != m_Latest.end();)
             {
-                request->second->Cancelled = true;
-                m_Latest.erase(request);
+                if (request->first.Client == client && request->first.Scope == scope)
+                {
+                    request->second->Cancelled = true;
+                    request = m_Latest.erase(request);
+                }
+                else
+                    ++request;
             }
             runnable = TakeRunnableLocked();
         }
@@ -143,10 +168,11 @@ namespace Elixir
     }
 
     bool MaterialCompileManager::IsCurrent(
-        const ClientId client, const uint64_t scope, const RequestId requestId) const
+        const ClientId client, const uint64_t scope,
+        const SMaterialShaderPermutation& permutation, const RequestId requestId) const
     {
         std::lock_guard<std::mutex> lock(m_Mutex);
-        const auto request = m_Latest.find({ client, scope });
+        const auto request = m_Latest.find({ client, scope, permutation });
         return request != m_Latest.end() && request->second->Id == requestId
             && !request->second->Cancelled;
     }
@@ -155,7 +181,24 @@ namespace Elixir
         const ClientId client, const uint64_t scope) const
     {
         std::lock_guard<std::mutex> lock(m_Mutex);
-        const auto request = m_Latest.find({ client, scope });
+        EMaterialCompileState state = EMaterialCompileState::Idle;
+        for (const auto& [key, request] : m_Latest)
+        {
+            if (key.Client != client || key.Scope != scope)
+                continue;
+            if (request->Started)
+                return EMaterialCompileState::Compiling;
+            state = EMaterialCompileState::Queued;
+        }
+        return state;
+    }
+
+    EMaterialCompileState MaterialCompileManager::State(
+        const ClientId client, const uint64_t scope,
+        const SMaterialShaderPermutation& permutation) const
+    {
+        std::lock_guard<std::mutex> lock(m_Mutex);
+        const auto request = m_Latest.find({ client, scope, permutation });
         if (request == m_Latest.end())
             return EMaterialCompileState::Idle;
         return request->second->Started
@@ -183,7 +226,9 @@ namespace Elixir
     {
         const size_t client = std::hash<ClientId>{}(key.Client);
         const size_t scope = std::hash<uint64_t>{}(key.Scope);
-        return client ^ (scope + 0x9e3779b97f4a7c15ull + (client << 6u) + (client >> 2u));
+        size_t hash = client ^ (scope + 0x9e3779b97f4a7c15ull + (client << 6u) + (client >> 2u));
+        const size_t permutation = SMaterialShaderPermutationHash{}(key.Permutation);
+        return hash ^ (permutation + 0x9e3779b97f4a7c15ull + (hash << 6u) + (hash >> 2u));
     }
 
     size_t MaterialCompileManager::DefaultMaxParallelJobs()
@@ -248,7 +293,7 @@ namespace Elixir
         std::optional<MaterialCompiler::SCompiled> compiled;
         try
         {
-            compiled = m_Resolver(job->Graph);
+            compiled = m_Resolver(job->Graph, job->Key.Permutation);
         }
         catch (const std::exception& error)
         {
@@ -296,7 +341,7 @@ namespace Elixir
         {
             try
             {
-                callback({ job->Id, std::move(compiled) });
+                callback({ job->Id, job->Key.Permutation, std::move(compiled) });
             }
             catch (const std::exception& error)
             {

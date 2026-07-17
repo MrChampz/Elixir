@@ -13,7 +13,7 @@ namespace Elixir
 
     namespace
     {
-        constexpr uint32_t SHADER_FORMAT_VERSION = 2;
+        constexpr uint32_t SHADER_FORMAT_VERSION = 3;
         constexpr std::string_view SHADER_PLATFORM = "SPIRV.ps_6_0.vs_6_0";
 
         fs::path FindDxc()
@@ -47,7 +47,7 @@ namespace Elixir
         }
 
         uint64_t HashSources(const std::string_view pixelSource, const std::string_view vertexSource,
-            const EMaterialDomain domain, const EMaterialUsage usages)
+            const SMaterialShaderPermutation& permutation)
         {
             uint64_t hash = 1469598103934665603ull;
             const auto mix = [&](const std::string_view bytes)
@@ -64,10 +64,14 @@ namespace Elixir
             mix(SHADER_PLATFORM);
             const std::string version = std::to_string(SHADER_FORMAT_VERSION);
             mix(version);
-            const std::string domainValue = std::to_string((uint32_t)domain);
-            const std::string usageValue = std::to_string((uint32_t)usages);
+            const std::string domainValue = std::to_string((uint32_t)permutation.Domain);
+            const std::string usageValue = std::to_string((uint32_t)permutation.Usage);
+            const std::string vertexFactoryValue = std::to_string((uint32_t)permutation.VertexFactory);
+            const std::string passValue = std::to_string((uint32_t)permutation.Pass);
             mix(domainValue);
             mix(usageValue);
+            mix(vertexFactoryValue);
+            mix(passValue);
             mix(pixelSource);
             mix(vertexSource);
             return hash;
@@ -96,15 +100,22 @@ namespace Elixir
     }
 
     uint64_t MaterialCompiler::BuildContentKeyFromTemplates(const MaterialGraph& graph,
+        const SMaterialShaderPermutation& permutation,
         const std::string_view pixelTemplate, const std::string_view vertexTemplate)
     {
         const std::string pixelSource = InjectBody(std::string(pixelTemplate), graph);
         const std::string vertexSource = BuildVertexSource(vertexTemplate, graph);
-        return HashSources(pixelSource, vertexSource, graph.GetDomain(), graph.GetUsages());
+        return HashSources(pixelSource, vertexSource, permutation);
     }
 
-    std::optional<uint64_t> MaterialCompiler::BuildContentKey(const MaterialGraph& graph)
+    std::optional<uint64_t> MaterialCompiler::BuildContentKey(const MaterialGraph& graph,
+        const SMaterialShaderPermutation& permutation)
     {
+        if (!MaterialShaderPermutation::Matches(
+                graph.GetDomain(), graph.GetUsages(), permutation)
+            || !MaterialShaderPermutation::IsSupported(permutation))
+            return std::nullopt;
+
         const SMaterialDomainDescriptor* domain = MaterialDomain::Find(graph.GetDomain());
         if (!domain || !domain->ShaderContractAvailable
             || domain->PixelTemplate.empty() || domain->VertexTemplate.empty())
@@ -115,7 +126,7 @@ namespace Elixir
         const std::string vertexTemplate = ReadFile(shadersDir / domain->VertexTemplate);
         if (pixelTemplate.empty() || vertexTemplate.empty())
             return std::nullopt;
-        return BuildContentKeyFromTemplates(graph, pixelTemplate, vertexTemplate);
+        return BuildContentKeyFromTemplates(graph, permutation, pixelTemplate, vertexTemplate);
     }
 
     std::string MaterialCompiler::CacheName(const uint64_t contentKey)
@@ -125,9 +136,10 @@ namespace Elixir
         return name.str();
     }
 
-    Ref<Shader> MaterialCompiler::Compile(const ShaderLoader* loader, const MaterialGraph& graph)
+    Ref<Shader> MaterialCompiler::Compile(const ShaderLoader* loader, const MaterialGraph& graph,
+        const SMaterialShaderPermutation& permutation)
     {
-        const auto compiled = CompileToSpirv(graph);
+        const auto compiled = CompileToSpirv(graph, permutation);
         if (!compiled)
             return nullptr;
         return LoadCompiled(loader, *compiled);
@@ -138,7 +150,8 @@ namespace Elixir
         return loader->LoadShader(compiled.LoadDir, compiled.Name);
     }
 
-    std::optional<MaterialCompiler::SCompiled> MaterialCompiler::CompileToSpirv(const MaterialGraph& graph)
+    std::optional<MaterialCompiler::SCompiled> MaterialCompiler::CompileToSpirv(
+        const MaterialGraph& graph, const SMaterialShaderPermutation& permutation)
     {
         const SMaterialGraphValidation validation = graph.Validate();
         for (const auto& diagnostic : validation.Diagnostics)
@@ -150,6 +163,18 @@ namespace Elixir
         }
         if (validation.HasErrors())
             return std::nullopt;
+
+        if (!MaterialShaderPermutation::Matches(
+                graph.GetDomain(), graph.GetUsages(), permutation))
+        {
+            EE_CORE_ERROR("Material graph: requested shader permutation is not declared by the material.")
+            return std::nullopt;
+        }
+        if (!MaterialShaderPermutation::IsSupported(permutation))
+        {
+            EE_CORE_ERROR("Material graph: requested shader permutation has no renderer contract yet.")
+            return std::nullopt;
+        }
 
         const SMaterialDomainDescriptor* domain = MaterialDomain::Find(graph.GetDomain());
         if (!domain || !domain->ShaderContractAvailable
@@ -178,8 +203,7 @@ namespace Elixir
 
         const std::string pixelSource = InjectBody(templateHlsl, graph);
         const std::string vertexSource = BuildVertexSource(vsTemplate, graph);
-        const uint64_t contentKey = HashSources(
-            pixelSource, vertexSource, graph.GetDomain(), graph.GetUsages());
+        const uint64_t contentKey = HashSources(pixelSource, vertexSource, permutation);
         const std::string name = CacheName(contentKey);
 
         // Each compile loads from its own subdir containing only its two SPIR-V
@@ -196,7 +220,7 @@ namespace Elixir
         if (IsCompleteArtifact(pixelSpirv) && IsCompleteArtifact(vertexSpirv))
         {
             EE_CORE_TRACE("Material shader cache hit: {}.", name)
-            return SCompiled{ loadDir, name };
+            return SCompiled{ loadDir, name, permutation };
         }
 
         const fs::path dxc = FindDxc();
@@ -225,6 +249,6 @@ namespace Elixir
             return std::nullopt;
         }
 
-        return SCompiled{ loadDir, name };
+        return SCompiled{ loadDir, name, permutation };
     }
 }

@@ -196,6 +196,7 @@ namespace Elixir
         SShaderVariant variant;
         variant.Shader = shader;
         variant.BlendMode = blendMode;
+        variant.Permutation = MaterialShaderPermutation::SurfaceStaticMesh();
         CreatePipelinesFor(shader, variant.Opaque, variant.Transparent, blendMode);
         BindResourcesTo(shader);
 
@@ -215,17 +216,28 @@ namespace Elixir
     }
 
     void MeshRenderer::PrepareMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader,
-        EMaterialBlendMode blendMode, const Ref<Model>& model,
+        EMaterialBlendMode blendMode, const SMaterialShaderPermutation& permutation,
+        const Ref<Model>& model,
         const Ref<MaterialInstance>& materialInstance, const size_t revision, const size_t variantKey)
     {
         if (!shader)
             return;
+        if (permutation != MaterialShaderPermutation::SurfaceStaticMesh()
+            || !materialInstance || !materialInstance->GetParent()
+            || !MaterialShaderPermutation::Matches(
+                materialInstance->GetParent()->GetDomain(),
+                materialInstance->GetParent()->GetUsages(), permutation))
+        {
+            EE_CORE_ERROR("MeshRenderer rejected an incompatible material shader permutation.")
+            return;
+        }
 
         // Built here on the caller's worker thread -- including the slow pipeline
         // creation -- so the render thread never blocks compiling a Metal pipeline.
         SShaderVariant variant;
         variant.Shader = shader;
         variant.BlendMode = blendMode;
+        variant.Permutation = permutation;
         variant.Revision = revision;
         variant.VariantKey = variantKey;
         CreatePipelinesFor(shader, variant.Opaque, variant.Transparent, blendMode);
@@ -237,12 +249,15 @@ namespace Elixir
 
         std::lock_guard<std::mutex> lock(m_PendingMutex);
         m_PendingVariants.push_back({ materialIndex, std::move(variant), model, materialInstance,
-            revision, variantKey, false });
+            permutation, revision, variantKey, false });
     }
 
     bool MeshRenderer::HasMaterialShaderVariant(
-        const uint32_t materialIndex, const size_t revision, const size_t variantKey) const
+        const uint32_t materialIndex, const SMaterialShaderPermutation& permutation,
+        const size_t revision, const size_t variantKey) const
     {
+        if (permutation != MaterialShaderPermutation::SurfaceStaticMesh())
+            return false;
         std::lock_guard<std::mutex> lock(m_VariantKeysMutex);
         const auto slot = m_VariantKeys.find(materialIndex);
         return slot != m_VariantKeys.end() && slot->second.Revision == revision
@@ -250,12 +265,22 @@ namespace Elixir
     }
 
     void MeshRenderer::PrepareCachedMaterialShader(const uint32_t materialIndex,
-        const size_t revision, const size_t variantKey, const Ref<Model>& model,
+        const SMaterialShaderPermutation& permutation, const size_t revision,
+        const size_t variantKey, const Ref<Model>& model,
         const Ref<MaterialInstance>& materialInstance)
     {
+        if (permutation != MaterialShaderPermutation::SurfaceStaticMesh()
+            || !materialInstance || !materialInstance->GetParent()
+            || !MaterialShaderPermutation::Matches(
+                materialInstance->GetParent()->GetDomain(),
+                materialInstance->GetParent()->GetUsages(), permutation))
+        {
+            EE_CORE_ERROR("MeshRenderer rejected an incompatible cached material permutation.")
+            return;
+        }
         std::lock_guard<std::mutex> lock(m_PendingMutex);
         m_PendingVariants.push_back({ materialIndex, {}, model, materialInstance,
-            revision, variantKey, true });
+            permutation, revision, variantKey, true });
     }
 
     void MeshRenderer::InstallPendingShaders()
@@ -284,7 +309,8 @@ namespace Elixir
             }
             const auto active = m_MaterialShaders.find(pending.Slot);
             if (active != m_MaterialShaders.end() && active->second.Revision == pending.Revision
-                && active->second.VariantKey == pending.VariantKey)
+                && active->second.VariantKey == pending.VariantKey
+                && active->second.Permutation == pending.Permutation)
                 continue;
 
             // Editing the graph mints a new revision, and no permutation of the old one

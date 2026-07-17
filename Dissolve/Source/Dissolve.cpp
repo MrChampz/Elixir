@@ -188,27 +188,43 @@ void Dissolve::QueueGraphCompile(
     if (!instance || !instance->GetParent() || !instance->GetParent()->HasGraph())
         return;
     const MaterialGraph compileGraph = instance->BuildGraphVariant();
+    const SMaterialShaderPermutation& compilePermutation =
+        MaterialShaderPermutation::SurfaceStaticMesh();
+    if (!MaterialShaderPermutation::Matches(
+            compileGraph.GetDomain(), compileGraph.GetUsages(), compilePermutation))
+    {
+        MaterialCompileManager::Get().Cancel(m_MaterialCompileClient, slot);
+        EE_CORE_ERROR(
+            "Mesh material slot {} requires the Surface + Static Mesh shader permutation.", slot)
+        return;
+    }
     const EMaterialBlendMode compileBlend = compileGraph.GetBlendMode();
     const size_t revision = instance->GraphRevision();
     const size_t variantKey = instance->StaticVariantKey();
 
     // Switching back to a permutation already built for this slot is a lightweight
     // render-boundary swap: no DXC, Vulkan shader load or Metal pipeline creation.
-    if (m_MeshRenderer->HasMaterialShaderVariant(slot, revision, variantKey))
+    if (m_MeshRenderer->HasMaterialShaderVariant(
+            slot, compilePermutation, revision, variantKey))
     {
         MaterialCompileManager::Get().Cancel(m_MaterialCompileClient, slot);
-        m_MeshRenderer->PrepareCachedMaterialShader(slot, revision, variantKey, m_Model, instance);
+        m_MeshRenderer->PrepareCachedMaterialShader(
+            slot, compilePermutation, revision, variantKey, m_Model, instance);
         return;
     }
 
     // The global manager owns queueing, priority and stale-result suppression. Its
     // callback still runs on a worker and builds only renderer-local Vulkan state.
-    MaterialCompileManager::Get().Request(m_MaterialCompileClient, slot, compileGraph,
-        [this, slot, compileBlend, instance, revision, variantKey](const SMaterialCompileResult& result)
+    MaterialCompileManager::Get().Request(
+        m_MaterialCompileClient, slot, compileGraph, compilePermutation,
+        [this, slot, compileBlend, compilePermutation, instance, revision, variantKey](
+            const SMaterialCompileResult& result)
     {
         auto& compileManager = MaterialCompileManager::Get();
         if (result.Compiled
-            && compileManager.IsCurrent(m_MaterialCompileClient, slot, result.RequestId))
+            && result.Permutation == compilePermutation
+            && compileManager.IsCurrent(
+                m_MaterialCompileClient, slot, compilePermutation, result.RequestId))
         {
             // The backend's pipeline caches are not concurrent, so only renderer-local
             // loading and preparation remain serialized. The next DXC job is already
@@ -217,9 +233,10 @@ void Dissolve::QueueGraphCompile(
             if (const auto shader = MaterialCompiler::LoadCompiled(
                 m_ShaderLoader.get(), *result.Compiled);
                 shader && compileManager.IsCurrent(
-                    m_MaterialCompileClient, slot, result.RequestId))
+                    m_MaterialCompileClient, slot, compilePermutation, result.RequestId))
                 m_MeshRenderer->PrepareMaterialShader(
-                    slot, shader, compileBlend, m_Model, instance, revision, variantKey);
+                    slot, shader, compileBlend, compilePermutation,
+                    m_Model, instance, revision, variantKey);
         }
     }, priority);
 }

@@ -15,13 +15,15 @@ namespace Elixir
     // Process-wide map of content-addressed material shader artifacts. It owns no
     // Vulkan resources: Shader objects keep descriptor bindings and parameter buffers
     // local to their renderer, while the expensive DXC result is shared by every
-    // material slot and MeshRenderer that requests identical final HLSL.
+    // material slot and renderer that requests the same graph permutation and target.
     class ELIXIR_API MaterialShaderMap
     {
       public:
         using Key = uint64_t;
-        using KeyBuilder = std::function<std::optional<Key>(const MaterialGraph&)>;
-        using Compiler = std::function<std::optional<MaterialCompiler::SCompiled>(const MaterialGraph&)>;
+        using KeyBuilder = std::function<std::optional<Key>(
+            const MaterialGraph&, const SMaterialShaderPermutation&)>;
+        using Compiler = std::function<std::optional<MaterialCompiler::SCompiled>(
+            const MaterialGraph&, const SMaterialShaderPermutation&)>;
 
         MaterialShaderMap(KeyBuilder keyBuilder = {}, Compiler compiler = {});
 
@@ -29,7 +31,8 @@ namespace Elixir
 
         // Safe to call concurrently from workers. The first caller compiles a missing
         // key; other callers wait on that worker's entry instead of launching DXC.
-        std::optional<MaterialCompiler::SCompiled> GetOrCompile(const MaterialGraph& graph);
+        std::optional<MaterialCompiler::SCompiled> GetOrCompile(
+            const MaterialGraph& graph, const SMaterialShaderPermutation& permutation);
 
         [[nodiscard]] size_t EntryCount() const;
 
