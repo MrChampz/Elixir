@@ -9,6 +9,8 @@
 
 namespace Elixir
 {
+    class MaterialGraphLegacyTestAccess;
+
     // The HLSL value type a node output carries.
     enum class EGraphValueType : uint8_t { Float, Float2, Float3, Float4, Texture2D };
 
@@ -160,9 +162,15 @@ namespace Elixir
         [[nodiscard]] SMaterialGraphValidation Validate() const;
 
         [[nodiscard]] const std::unordered_map<uint32_t, SMaterialNode>& GetNodes() const { return m_Nodes; }
+        [[nodiscard]] const std::unordered_map<uint8_t, uint32_t>& GetChannels() const { return m_Channels; }
 
       private:
-        std::string EmitNode(
+        friend class MaterialGraphLegacyTestAccess;
+
+        // Transitional oracle used only by MaterialIR equivalence tests. Runtime
+        // generation goes through MaterialIRBuilder + MaterialHLSLEmitter.
+        [[nodiscard]] std::string GenerateLegacyHLSL(bool vertexStage) const;
+        std::string EmitLegacyNode(
             uint32_t id,
             bool vertexStage,
             std::unordered_map<uint32_t, std::string>& emitted,

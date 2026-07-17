@@ -1,5 +1,7 @@
 #include "epch.h"
 #include "MaterialGraph.h"
+#include "MaterialHLSLEmitter.h"
+#include "MaterialIRBuilder.h"
 
 #include <algorithm>
 #include <bit>
@@ -497,7 +499,7 @@ namespace Elixir
         return result;
     }
 
-    std::string MaterialGraph::EmitNode(
+    std::string MaterialGraph::EmitLegacyNode(
         uint32_t id,
         bool vertexStage,
         std::unordered_map<uint32_t, std::string>& emitted,
@@ -535,7 +537,7 @@ namespace Elixir
                 const size_t choice = condition->second.ConstantValue.x >= 0.5f ? 0u : 1u;
                 const int32_t selected = node.Inputs[choice];
                 const std::string expression = selected >= 0
-                    ? EmitNode((uint32_t)selected, vertexStage, emitted, types, visiting, body)
+                    ? EmitLegacyNode((uint32_t)selected, vertexStage, emitted, types, visiting, body)
                     : std::string("0.0");
                 emitted[id] = expression;
                 types[id] = selected >= 0 ? types[(uint32_t)selected] : EGraphValueType::Float;
@@ -552,7 +554,7 @@ namespace Elixir
         {
             if (node.Inputs[i] >= 0)
             {
-                in.push_back(EmitNode((uint32_t)node.Inputs[i], vertexStage, emitted, types, visiting, body));
+                in.push_back(EmitLegacyNode((uint32_t)node.Inputs[i], vertexStage, emitted, types, visiting, body));
                 inT.push_back(types[(uint32_t)node.Inputs[i]]);
             }
             else if (i < node.DefaultInputs.size())
@@ -818,7 +820,7 @@ namespace Elixir
         return var;
     }
 
-    std::string MaterialGraph::GenerateHLSL(bool vertexStage) const
+    std::string MaterialGraph::GenerateLegacyHLSL(bool vertexStage) const
     {
         std::string body;
         std::unordered_map<uint32_t, std::string> emitted;
@@ -838,7 +840,7 @@ namespace Elixir
             if (isWPO != vertexStage)
                 continue;
 
-            const std::string var = EmitNode(nodeId, vertexStage, emitted, types, visiting, body);
+            const std::string var = EmitLegacyNode(nodeId, vertexStage, emitted, types, visiting, body);
             const EGraphValueType from = types.count(nodeId) ? types[nodeId] : EGraphValueType::Float4;
             if (isWPO)
                 body += "    wpo = " + Coerce(var, from, ch) + ";\n";
@@ -851,5 +853,12 @@ namespace Elixir
             body += "    clip(surface.Opacity - " + Num(m_AlphaCutoff) + ");\n";
 
         return body;
+    }
+
+    std::string MaterialGraph::GenerateHLSL(const bool vertexStage) const
+    {
+        const EMaterialIRStage stage = vertexStage
+            ? EMaterialIRStage::Vertex : EMaterialIRStage::Pixel;
+        return MaterialHLSLEmitter::Emit(MaterialIRBuilder::Build(*this, stage));
     }
 }
