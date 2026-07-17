@@ -13,7 +13,7 @@ namespace Elixir
             if (slot >= m_Slots.size()
                 || slots[slot].Resource != m_Slots[slot].Resource
                 || slots[slot].BindingRevision != m_Slots[slot].BindingRevision
-                || slots[slot].BlendPass != m_Slots[slot].BlendPass)
+                || slots[slot].Pass != m_Slots[slot].Pass)
             {
                 update.DirtySlots.push_back(slot);
             }

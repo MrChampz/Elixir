@@ -2,6 +2,7 @@
 
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/Model.h>
+#include <Engine/Graphics/MeshPassProcessor.h>
 #include <Engine/Graphics/Material/MaterialDrawCommandCache.h>
 #include <Engine/Graphics/Material/MaterialGPUParameterCache.h>
 #include <Engine/Graphics/Material/MaterialGraph.h>
@@ -79,12 +80,6 @@ namespace Elixir
             glm::vec4 LightColor = glm::vec4(0.0f);     // rgb = color, w = intensity
         };
 
-        struct SModelPushConstants
-        {
-            glm::mat4 Model;
-            uint32_t MaterialIndex;
-        };
-
         // std430-packed material, mirrored by the shader's StructuredBuffer.
         struct SGPUMaterial
         {
@@ -102,21 +97,6 @@ namespace Elixir
             glm::vec4 Specular;            // rgb = specular color factor, w = specular factor
         };
 
-        // Immutable portion of one indexed draw. Camera data and transparent order
-        // remain dynamic, while resource selection and geometry bindings are rebuilt
-        // only when the corresponding material slot changes.
-        struct SMaterialDrawCommand
-        {
-            Ref<Shader> Shader;
-            Ref<GraphicsPipeline> Pipeline;
-            Ref<VertexBuffer> Vertices;
-            Ref<IndexBuffer> Indices;
-            SModelPushConstants PushConstants;
-            glm::vec3 SortOrigin{ 0.0f };
-            uint32_t IndexCount = 0;
-            bool BlendPass = false;
-        };
-
         struct SModelRenderState
         {
             Weak<Model> Owner;
@@ -125,7 +105,7 @@ namespace Elixir
             Ref<StorageBuffer> Buffer;
 
             MaterialDrawCommandCache DrawCommandCache;
-            std::vector<SMaterialDrawCommand> DrawCommands;
+            std::vector<SMeshDrawCommand> DrawCommands;
             std::vector<uint32_t> BasePassCommands;
             std::vector<uint32_t> BlendPassCommands;
             std::vector<uint32_t> SortedBlendPassCommands;
@@ -138,7 +118,7 @@ namespace Elixir
         uint32_t ResolveTexture(const Ref<Texture>& texture);
         SGPUMaterial PackMaterial(const Ref<const MaterialRenderProxy>& material);
         Ref<StorageBuffer> CreateMaterialBuffer(const std::vector<SGPUMaterial>& materials);
-        SMaterialDrawCommand BuildDrawCommand(const SModelPrimitive& primitive,
+        SMeshDrawCommand BuildDrawCommand(const SModelPrimitive& primitive,
             const MaterialGPUParameterCache::ProxyList& materialProxies) const;
         void UpdateDrawCommands(const Ref<Model>& model,
             const MaterialGPUParameterCache::ProxyList& materialProxies,

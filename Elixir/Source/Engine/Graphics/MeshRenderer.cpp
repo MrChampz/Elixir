@@ -3,7 +3,6 @@
 
 #include "Engine/Graphics/CommandBuffer.h"
 #include "Engine/Graphics/SamplerBuilder.h"
-#include "Engine/Graphics/Pipeline/PipelineBuilder.h"
 
 #include <algorithm>
 #include <chrono>
@@ -79,47 +78,10 @@ namespace Elixir
         const Ref<Shader>& shader, Ref<GraphicsPipeline>& opaque, Ref<GraphicsPipeline>& transparent,
         EMaterialBlendMode blendMode)
     {
-        const BufferLayout layout({
-            {
-                {
-                    { EDataType::Vec3, "Position" },
-                    { EDataType::Vec3, "Normal"   },
-                    { EDataType::Vec4, "Tangent"  },
-                    { EDataType::Vec2, "TexCoord" },
-                },
-                EInputRate::Vertex
-            }
-        });
-
-        PipelineBuilder builder;
-        builder.SetShader(shader);
-        builder.SetInputTopology(EPrimitiveTopology::TriangleList);
-        builder.SetPolygonMode(EPolygonMode::Fill);
-        // glTF materials are commonly double-sided; cull nothing and flip the
-        // normal per-face in the shader.
-        builder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
-        builder.DisableBlending();
-        builder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
-        builder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
-        builder.SetBufferLayout(layout);
-
-        // Opaque + masked: depth test and write.
-        auto opaqueInfo = builder.GetCreateInfo();
-        opaqueInfo.DepthStencil.DepthTestEnable = true;
-        opaqueInfo.DepthStencil.DepthWriteEnable = true;
-        opaqueInfo.DepthStencil.DepthCompareOp = ECompareOp::LessOrEqual;
-        opaque = GraphicsPipeline::Create(m_GraphicsContext, opaqueInfo);
-
-        // Blend: alpha or additive per the mode, depth-tested but no depth write.
-        if (blendMode == EMaterialBlendMode::Additive)
-            builder.EnableAdditiveBlending();
-        else
-            builder.EnableAlphaBlending();
-        auto blendInfo = builder.GetCreateInfo();
-        blendInfo.DepthStencil.DepthTestEnable = true;
-        blendInfo.DepthStencil.DepthWriteEnable = false;
-        blendInfo.DepthStencil.DepthCompareOp = ECompareOp::LessOrEqual;
-        transparent = GraphicsPipeline::Create(m_GraphicsContext, blendInfo);
+        opaque = MeshPassProcessor::CreatePipeline(
+            m_GraphicsContext, shader, EMeshPass::BaseOpaque, blendMode);
+        transparent = MeshPassProcessor::CreatePipeline(
+            m_GraphicsContext, shader, EMeshPass::Translucent, blendMode);
     }
 
     void MeshRenderer::BindResources()
@@ -507,39 +469,29 @@ namespace Elixir
         m_MaterialDrawBindingRevisions[materialIndex] = ++m_NextDrawBindingRevision;
     }
 
-    MeshRenderer::SMaterialDrawCommand MeshRenderer::BuildDrawCommand(
+    SMeshDrawCommand MeshRenderer::BuildDrawCommand(
         const SModelPrimitive& primitive,
         const MaterialGPUParameterCache::ProxyList& materialProxies) const
     {
-        SMaterialDrawCommand command;
-        command.Shader = m_Shader;
-        command.Pipeline = m_Pipeline;
-        command.Vertices = primitive.Vertices;
-        command.Indices = primitive.Indices;
-        command.IndexCount = primitive.IndexCount;
-        command.PushConstants.Model = primitive.Transform;
-        command.PushConstants.MaterialIndex = primitive.MaterialIndex;
-        command.SortOrigin = glm::vec3(primitive.Transform[3]);
+        const Ref<const MaterialRenderProxy> material =
+            primitive.MaterialIndex < materialProxies.size()
+            ? materialProxies[primitive.MaterialIndex] : nullptr;
 
         if (const auto variant = m_MaterialShaders.find(primitive.MaterialIndex);
             variant != m_MaterialShaders.end())
         {
-            command.Shader = variant->second.Shader;
-            command.BlendPass = variant->second.BlendMode == EMaterialBlendMode::Translucent
-                || variant->second.BlendMode == EMaterialBlendMode::Additive;
-            command.Pipeline = command.BlendPass
-                ? variant->second.Transparent : variant->second.Opaque;
-        }
-        else if (primitive.MaterialIndex < materialProxies.size()
-            && materialProxies[primitive.MaterialIndex])
-        {
-            const Ref<const MaterialRenderProxy>& material =
-                materialProxies[primitive.MaterialIndex];
-            command.BlendPass = (int)material->GetScalar("AlphaMode") == 2
-                && material->GetVector("BaseColorFactor").a < 0.95f;
+            const SMeshMaterialBinding binding{
+                .Shader = variant->second.Shader,
+                .BasePipeline = variant->second.Opaque,
+                .TranslucentPipeline = variant->second.Transparent,
+                .BlendMode = variant->second.BlendMode
+            };
+            return MeshPassProcessor::BuildCommand(
+                primitive, material, m_Shader, m_Pipeline, &binding);
         }
 
-        return command;
+        return MeshPassProcessor::BuildCommand(
+            primitive, material, m_Shader, m_Pipeline);
     }
 
     void MeshRenderer::UpdateDrawCommands(const Ref<Model>& model,
@@ -551,7 +503,7 @@ namespace Elixir
         for (uint32_t slot = 0; slot < materialProxies.size(); ++slot)
         {
             uint64_t bindingRevision = m_DefaultDrawBindingRevision;
-            bool blendPass = false;
+            std::optional<EMaterialBlendMode> overrideBlendMode;
             if (const auto variant = m_MaterialShaders.find(slot);
                 variant != m_MaterialShaders.end())
             {
@@ -560,17 +512,13 @@ namespace Elixir
                 {
                     bindingRevision = revision->second;
                 }
-                blendPass = variant->second.BlendMode == EMaterialBlendMode::Translucent
-                    || variant->second.BlendMode == EMaterialBlendMode::Additive;
-            }
-            else if (materialProxies[slot])
-            {
-                blendPass = (int)materialProxies[slot]->GetScalar("AlphaMode") == 2
-                    && materialProxies[slot]->GetVector("BaseColorFactor").a < 0.95f;
+                overrideBlendMode = variant->second.BlendMode;
             }
             slots.push_back({ materialProxies[slot]
                     ? materialProxies[slot]->GetResource() : nullptr,
-                bindingRevision, blendPass });
+                bindingRevision,
+                MeshPassProcessor::Classify(
+                    materialProxies[slot], overrideBlendMode) });
         }
 
         const MaterialDrawCommandCache::SUpdate update =
@@ -593,11 +541,11 @@ namespace Elixir
             if (!rebuildAll && !dirtySlots.contains(primitive.MaterialIndex))
                 continue;
 
-            const bool previousBlendPass = renderState.DrawCommands[commandIndex].BlendPass;
+            const EMeshPass previousPass = renderState.DrawCommands[commandIndex].Pass;
             renderState.DrawCommands[commandIndex] =
                 BuildDrawCommand(primitive, materialProxies);
             rebuildPassLists = rebuildPassLists
-                || previousBlendPass != renderState.DrawCommands[commandIndex].BlendPass;
+                || previousPass != renderState.DrawCommands[commandIndex].Pass;
         }
 
         if (!rebuildPassLists)
@@ -610,10 +558,11 @@ namespace Elixir
         for (uint32_t commandIndex = 0;
             commandIndex < renderState.DrawCommands.size(); ++commandIndex)
         {
-            if (renderState.DrawCommands[commandIndex].BlendPass)
-                renderState.BlendPassCommands.push_back(commandIndex);
-            else
+            if (MeshPassProcessor::IsBasePass(
+                    renderState.DrawCommands[commandIndex].Pass))
                 renderState.BasePassCommands.push_back(commandIndex);
+            else
+                renderState.BlendPassCommands.push_back(commandIndex);
         }
     }
 
@@ -772,7 +721,7 @@ namespace Elixir
         // The pipeline currently bound on the command buffer, so consecutive cached
         // commands sharing a shader don't rebind. Reset at each pass.
         GraphicsPipeline* boundPipeline = nullptr;
-        const auto drawCommand = [&](const SMaterialDrawCommand& draw)
+        const auto drawCommand = [&](const SMeshDrawCommand& draw)
         {
             if (draw.Pipeline.get() != boundPipeline)
             {
@@ -788,8 +737,8 @@ namespace Elixir
             cmd->DrawIndexed(draw.IndexCount, 1, 0, 0, 0);
         };
 
-        // Pass 1: everything that isn't refractive glass (opaque + masked + the
-        // near-opaque emissive parts), with depth write.
+        // Base pass: opaque, masked, and near-opaque built-in materials. The pass
+        // processor guarantees that every command in this list writes depth.
         boundPipeline = nullptr;
         for (const uint32_t commandIndex : renderState.BasePassCommands)
             drawCommand(renderState.DrawCommands[commandIndex]);
@@ -798,9 +747,9 @@ namespace Elixir
         // Grab the opaque result so the glass can sample the scene behind it.
         m_GraphicsContext->BlitToTexture(cmd, m_SceneColor);
 
-        // Pass 2: refractive glass. Drawn opaque (no alpha blend) -- the shader
-        // composites the grabbed scene through it -- so it reads as real glass.
-        // Load (don't clear) the opaque depth so the glass is occluded correctly.
+        // Sorted pass: graph translucency uses alpha/additive blending without depth
+        // writes, while built-in refraction composites the grabbed scene through a
+        // depth-writing pipeline. Load the base depth so both are occluded correctly.
         SRenderingInfo glassInfo = renderingInfo;
         glassInfo.LoadDepthStencil = true;
         cmd->BeginRendering(glassInfo);
@@ -808,7 +757,7 @@ namespace Elixir
         cmd->SetScissors({ scissor });
         boundPipeline = nullptr;
 
-        // Sort blended primitives back-to-front so their alpha compositing is ordered.
+        // Sort translucent and refractive primitives back-to-front.
         // The primitive's world transform origin is a cheap depth proxy (exact
         // per-triangle sorting is out of scope); good enough for separated panels.
         const glm::vec3 camPos = camera.GetPosition();

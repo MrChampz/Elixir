@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Engine/Graphics/MeshPassProcessor.h>
 #include <Engine/Graphics/Material/MaterialResource.h>
 
 #include <cstdint>
@@ -17,7 +18,7 @@ namespace Elixir
         {
             Ref<const MaterialResource> Resource;
             uint64_t BindingRevision = 0;
-            bool BlendPass = false;
+            EMeshPass Pass = EMeshPass::BaseOpaque;
         };
 
         using SlotList = std::vector<SSlot>;
