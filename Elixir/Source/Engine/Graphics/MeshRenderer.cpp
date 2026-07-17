@@ -152,6 +152,54 @@ namespace Elixir
             m_RetiredBuffers.push_back({ std::move(buffer), RETIRE_FRAMES });
     }
 
+    void MeshRenderer::UnregisterModel(const SModelRenderHandle handle)
+    {
+        if (!handle.IsValid())
+            return;
+        std::lock_guard<std::mutex> lock(m_PendingModelRemovalMutex);
+        m_PendingModelRemovals.push_back(handle);
+    }
+
+    void MeshRenderer::RetireModelState(const SModelRenderHandle handle)
+    {
+        const auto state = m_ModelRenderStates.find(handle);
+        if (state == m_ModelRenderStates.end())
+            return;
+
+        if (m_BoundModel == handle)
+            m_BoundModel = {};
+        m_RetiredModelStates.push_back(
+            { std::move(state->second), RETIRE_FRAMES });
+        m_ModelRenderStates.erase(state);
+    }
+
+    void MeshRenderer::ProcessModelLifecycle()
+    {
+        std::vector<SModelRenderHandle> removals;
+        {
+            std::lock_guard<std::mutex> lock(m_PendingModelRemovalMutex);
+            removals.swap(m_PendingModelRemovals);
+        }
+        for (const SModelRenderHandle handle : removals)
+            RetireModelState(handle);
+
+        for (auto state = m_ModelRenderStates.begin();
+            state != m_ModelRenderStates.end();)
+        {
+            if (!state->second.Owner.expired())
+            {
+                ++state;
+                continue;
+            }
+
+            if (m_BoundModel == state->first)
+                m_BoundModel = {};
+            m_RetiredModelStates.push_back(
+                { std::move(state->second), RETIRE_FRAMES });
+            state = m_ModelRenderStates.erase(state);
+        }
+    }
+
     void MeshRenderer::TickRetired()
     {
         for (auto& r : m_Retired)
@@ -165,6 +213,12 @@ namespace Elixir
             std::remove_if(m_RetiredBuffers.begin(), m_RetiredBuffers.end(),
                 [](const SRetiredBuffer& retired) { return retired.FramesLeft <= 0; }),
             m_RetiredBuffers.end());
+        for (auto& retired : m_RetiredModelStates)
+            --retired.FramesLeft;
+        m_RetiredModelStates.erase(
+            std::remove_if(m_RetiredModelStates.begin(), m_RetiredModelStates.end(),
+                [](const SRetiredModelState& retired) { return retired.FramesLeft <= 0; }),
+            m_RetiredModelStates.end());
     }
 
     void MeshRenderer::SetShader(const Ref<Shader>& shader)
@@ -178,7 +232,7 @@ namespace Elixir
         CreatePipelines();
         BindResources();
         InvalidateDefaultDrawCommands();
-        m_BoundModel = nullptr; // force the material buffer to rebind to the new shader
+        m_BoundModel = {}; // force the material buffer to rebind to the new shader
     }
 
     void MeshRenderer::RetireVariantCache(const uint32_t materialIndex)
@@ -227,7 +281,7 @@ namespace Elixir
         RetireVariantCache(materialIndex);
         m_MaterialShaders[materialIndex] = std::move(variant);
         InvalidateMaterialDrawCommands(materialIndex);
-        m_BoundModel = nullptr; // force the material buffer to rebind to all shaders
+        m_BoundModel = {}; // force the material buffer to rebind to all shaders
     }
 
     void MeshRenderer::PrepareMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader,
@@ -381,7 +435,7 @@ namespace Elixir
             }
         }
         if (!pendingVariants.empty())
-            m_BoundModel = nullptr; // force the material buffer to rebind to all shaders
+            m_BoundModel = {}; // force the material buffer to rebind to all shaders
     }
 
     uint32_t MeshRenderer::ResolveTexture(const Ref<Texture>& texture)
@@ -565,13 +619,20 @@ namespace Elixir
 
     void MeshRenderer::Render(const Ref<Model>& model, const Camera& camera)
     {
+        // Install material shaders prepared on the main thread, age resources already
+        // retired, then move model state queued for removal at this frame boundary.
+        // Expired weak owners are swept on the render thread; generation-bearing
+        // handles prevent a recycled ID from ever aliasing that stale state.
+        InstallPendingShaders();
+        TickRetired();
+        ProcessModelLifecycle();
+
         if (!model || model->GetPrimitives().empty())
             return;
 
-        // Install any material shaders prepared on the main thread, then release
-        // resources retired a few frames ago (now safely idle).
-        InstallPendingShaders();
-        TickRetired();
+        const SModelRenderHandle modelHandle = model->GetRenderHandle();
+        if (!modelHandle.IsValid())
+            return;
 
         const Ref<const Model::MaterialRenderProxyList> publishedProxies =
             model->GetMaterialRenderProxies();
@@ -606,7 +667,8 @@ namespace Elixir
         // Keep a CPU-packed mirror per model. Unchanged proxy identities do no work;
         // changed slots alone resolve parameters and bindless texture indices. A GPU
         // buffer is immutable once published so in-flight frames keep their contents.
-        SModelRenderState& renderState = m_ModelRenderStates[model.get()];
+        SModelRenderState& renderState = m_ModelRenderStates[modelHandle];
+        renderState.Owner = model;
         const MaterialGPUParameterCache::SUpdate parameterUpdate =
             renderState.Parameters.Update(std::move(effectiveProxies));
         const auto& materialProxies = renderState.Parameters.GetProxies();
@@ -624,7 +686,7 @@ namespace Elixir
         if (!renderState.Buffer)
             return;
 
-        if (parameterUpdate.HasChanges() || m_BoundModel != model.get())
+        if (parameterUpdate.HasChanges() || m_BoundModel != modelHandle)
         {
             m_Shader->BindStorageBuffer("materials", renderState.Buffer);
             for (auto& [index, variant] : m_MaterialShaders)
@@ -650,7 +712,7 @@ namespace Elixir
             variant.UploadedProxy = materialProxies[index];
             RetireBuffer(std::move(previous));
         }
-        m_BoundModel = model.get();
+        m_BoundModel = modelHandle;
         UpdateDrawCommands(model, materialProxies, renderState);
 
         const auto extent = m_GraphicsContext->GetRenderTarget()->GetExtent();

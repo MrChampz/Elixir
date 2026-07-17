@@ -6,6 +6,9 @@
 #include <Engine/Graphics/Material/MaterialRenderProxy.h>
 
 #include <filesystem>
+#include <cstdint>
+#include <functional>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -13,6 +16,31 @@
 namespace Elixir
 {
     struct SMeshMaterialSlot;
+
+    // Stable identity for renderer-owned model state. IDs may be recycled after a
+    // Model is destroyed, while Generation prevents a new model from aliasing stale
+    // GPU caches that still await render-thread retirement.
+    struct SModelRenderHandle
+    {
+        static constexpr uint64_t INVALID_ID = std::numeric_limits<uint64_t>::max();
+
+        uint64_t Id = INVALID_ID;
+        uint32_t Generation = 0;
+
+        [[nodiscard]] bool IsValid() const { return Id != INVALID_ID; }
+        bool operator==(const SModelRenderHandle&) const = default;
+    };
+
+    struct SModelRenderHandleHash
+    {
+        size_t operator()(const SModelRenderHandle& handle) const
+        {
+            size_t hash = std::hash<uint64_t>{}(handle.Id);
+            hash ^= std::hash<uint32_t>{}(handle.Generation)
+                + 0x9e3779b9u + (hash << 6) + (hash >> 2);
+            return hash;
+        }
+    };
 
     struct SModelVertex
     {
@@ -40,12 +68,20 @@ namespace Elixir
       public:
         using MaterialRenderProxyList = std::vector<Ref<const MaterialRenderProxy>>;
 
+        Model();
+        ~Model();
+        Model(const Model&) = delete;
+        Model& operator=(const Model&) = delete;
+        Model(Model&&) = delete;
+        Model& operator=(Model&&) = delete;
+
         static Ref<Model> Load(const GraphicsContext* context, const std::filesystem::path& path);
 
         [[nodiscard]] const std::vector<SModelPrimitive>& GetPrimitives() const { return m_Primitives; }
         [[nodiscard]] const std::vector<Ref<MaterialInstance>>& GetMaterials() const { return m_Materials; }
         [[nodiscard]] const std::filesystem::path& GetPath() const { return m_Path; }
         [[nodiscard]] const std::filesystem::path& GetSourcePath() const { return m_SourcePath; }
+        [[nodiscard]] SModelRenderHandle GetRenderHandle() const { return m_RenderHandle; }
         [[nodiscard]] const std::filesystem::path& GetMaterialAsset(uint32_t slot) const
         {
             static const std::filesystem::path empty;
@@ -79,5 +115,6 @@ namespace Elixir
         std::vector<std::filesystem::path> m_MaterialAssets;
         mutable std::mutex m_MaterialsMutex;
         Ref<const MaterialRenderProxyList> m_MaterialRenderProxies;
+        SModelRenderHandle m_RenderHandle;
     };
 }

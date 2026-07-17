@@ -11,6 +11,67 @@
 
 namespace Elixir
 {
+    namespace
+    {
+        class ModelRenderHandleAllocator
+        {
+          public:
+            SModelRenderHandle Acquire()
+            {
+                std::lock_guard<std::mutex> lock(m_Mutex);
+                if (m_FreeIds.empty())
+                {
+                    const uint64_t id = m_Generations.size();
+                    m_Generations.push_back(1);
+                    return { id, 1 };
+                }
+
+                const uint64_t id = m_FreeIds.back();
+                m_FreeIds.pop_back();
+                return { id, m_Generations[id] };
+            }
+
+            void Release(const SModelRenderHandle handle)
+            {
+                if (!handle.IsValid())
+                    return;
+
+                std::lock_guard<std::mutex> lock(m_Mutex);
+                if (handle.Id >= m_Generations.size()
+                    || m_Generations[handle.Id] != handle.Generation)
+                {
+                    return;
+                }
+
+                uint32_t& generation = m_Generations[handle.Id];
+                if (++generation == 0)
+                    generation = 1;
+                m_FreeIds.push_back(handle.Id);
+            }
+
+          private:
+            std::mutex m_Mutex;
+            std::vector<uint32_t> m_Generations;
+            std::vector<uint64_t> m_FreeIds;
+        };
+
+        ModelRenderHandleAllocator& GetModelRenderHandleAllocator()
+        {
+            static ModelRenderHandleAllocator allocator;
+            return allocator;
+        }
+    }
+
+    Model::Model()
+        : m_RenderHandle(GetModelRenderHandleAllocator().Acquire())
+    {
+    }
+
+    Model::~Model()
+    {
+        GetModelRenderHandleAllocator().Release(m_RenderHandle);
+    }
+
     static glm::mat4 ToGlm(const fastgltf::math::fmat4x4& m)
     {
         // fastgltf math is column-major, matching glm.

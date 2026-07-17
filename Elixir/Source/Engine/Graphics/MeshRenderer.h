@@ -24,6 +24,11 @@ namespace Elixir
 
         void Render(const Ref<Model>& model, const Camera& camera);
 
+        // Stop submitting a model before calling this. Removal is queued and applied
+        // by Render at the next frame boundary; expired models are also discovered
+        // automatically through the weak owner stored with their render state.
+        void UnregisterModel(SModelRenderHandle handle);
+
         // Swap the shading used for the whole model (e.g. a node-graph material
         // compiled at runtime). The new shader must expose the same bindings.
         void SetShader(const Ref<Shader>& shader);
@@ -114,6 +119,7 @@ namespace Elixir
 
         struct SModelRenderState
         {
+            Weak<Model> Owner;
             MaterialGPUParameterCache Parameters;
             std::vector<SGPUMaterial> PackedMaterials;
             Ref<StorageBuffer> Buffer;
@@ -202,9 +208,20 @@ namespace Elixir
             int FramesLeft;
         };
         std::vector<SRetiredBuffer> m_RetiredBuffers;
+        struct SRetiredModelState
+        {
+            SModelRenderState State;
+            int FramesLeft;
+        };
+        std::vector<SRetiredModelState> m_RetiredModelStates;
         void RetireBuffer(Ref<Buffer> buffer);
         void Retire(SShaderVariant&& variant);
+        void RetireModelState(SModelRenderHandle handle);
+        void ProcessModelLifecycle();
         void TickRetired();
+
+        std::vector<SModelRenderHandle> m_PendingModelRemovals;
+        std::mutex m_PendingModelRemovalMutex;
 
         // Variants built by a worker, waiting to be installed from Render.
         struct SPendingVariant
@@ -244,7 +261,8 @@ namespace Elixir
         uint64_t m_NextDrawBindingRevision = 1;
         uint64_t m_DefaultDrawBindingRevision = 1;
         std::unordered_map<uint32_t, uint64_t> m_MaterialDrawBindingRevisions;
-        std::unordered_map<const Model*, SModelRenderState> m_ModelRenderStates;
-        const Model* m_BoundModel = nullptr;
+        std::unordered_map<SModelRenderHandle, SModelRenderState,
+            SModelRenderHandleHash> m_ModelRenderStates;
+        SModelRenderHandle m_BoundModel;
     };
 }
