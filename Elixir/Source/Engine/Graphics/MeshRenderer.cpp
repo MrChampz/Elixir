@@ -146,6 +146,12 @@ namespace Elixir
             m_Retired.push_back({ std::move(variant), RETIRE_FRAMES });
     }
 
+    void MeshRenderer::RetireBuffer(Ref<Buffer> buffer)
+    {
+        if (buffer)
+            m_RetiredBuffers.push_back({ std::move(buffer), RETIRE_FRAMES });
+    }
+
     void MeshRenderer::TickRetired()
     {
         for (auto& r : m_Retired)
@@ -153,6 +159,12 @@ namespace Elixir
         m_Retired.erase(
             std::remove_if(m_Retired.begin(), m_Retired.end(), [](const SRetired& r) { return r.FramesLeft <= 0; }),
             m_Retired.end());
+        for (auto& retired : m_RetiredBuffers)
+            --retired.FramesLeft;
+        m_RetiredBuffers.erase(
+            std::remove_if(m_RetiredBuffers.begin(), m_RetiredBuffers.end(),
+                [](const SRetiredBuffer& retired) { return retired.FramesLeft <= 0; }),
+            m_RetiredBuffers.end());
     }
 
     void MeshRenderer::SetShader(const Ref<Shader>& shader)
@@ -380,52 +392,48 @@ namespace Elixir
         return handle.Index;
     }
 
-    Ref<StorageBuffer> MeshRenderer::BuildMaterialBuffer(
-        const Model::MaterialRenderProxyList& materialProxies)
+    MeshRenderer::SGPUMaterial MeshRenderer::PackMaterial(
+        const Ref<const MaterialRenderProxy>& material)
     {
-        std::vector<SGPUMaterial> materials;
-        materials.reserve(materialProxies.size());
+        if (!material)
+            return {};
 
-        for (const auto& material : materialProxies)
-        {
-            if (!material)
-            {
-                materials.emplace_back();
-                continue;
-            }
-            const uint32_t alphaMode = (uint32_t)material->GetScalar("AlphaMode");
-            const glm::vec4 baseColor = material->GetVector("BaseColorFactor");
+        const uint32_t alphaMode = (uint32_t)material->GetScalar("AlphaMode");
+        const glm::vec4 baseColor = material->GetVector("BaseColorFactor");
 
-            SGPUMaterial gpu{};
-            gpu.BaseColorFactor = baseColor;
-            gpu.EmissiveMetallic = glm::vec4(glm::vec3(material->GetVector("EmissiveFactor")), material->GetScalar("Metallic"));
-            gpu.RoughOccNormalCutoff = glm::vec4(
-                material->GetScalar("Roughness"), material->GetScalar("OcclusionStrength"),
-                material->GetScalar("NormalScale"), material->GetScalar("AlphaCutoff"));
-            gpu.TexIndex0 = glm::uvec4(
-                ResolveTexture(material->GetTexture("BaseColorTexture")),
-                ResolveTexture(material->GetTexture("MetallicRoughnessTexture")),
-                ResolveTexture(material->GetTexture("NormalTexture")),
-                ResolveTexture(material->GetTexture("EmissiveTexture")));
-            gpu.TexIndex1 = glm::uvec4(
-                ResolveTexture(material->GetTexture("OcclusionTexture")), alphaMode,
-                ResolveTexture(material->GetTexture("SpecularTexture")),
-                ResolveTexture(material->GetTexture("SpecularColorTexture")));
-            gpu.BaseColorTransform = material->GetVector("BaseColorTransform");
-            gpu.MetallicRoughnessTransform = material->GetVector("MetallicRoughnessTransform");
-            gpu.NormalTransform = material->GetVector("NormalTransform");
-            gpu.EmissiveTransform = material->GetVector("EmissiveTransform");
-            gpu.OcclusionTransform = material->GetVector("OcclusionTransform");
-            // The model has no KHR_materials_transmission, so treat its translucent
-            // (BLEND, sub-opaque) glass as refractive: it samples the grabbed scene
-            // instead of alpha-blending. Packed into Clearcoat.z.
-            const float transmission = (alphaMode == 2 && baseColor.a < 0.95f) ? 0.9f : 0.0f;
-            gpu.Clearcoat = glm::vec4(
-                material->GetScalar("ClearcoatFactor"), material->GetScalar("ClearcoatRoughness"), transmission, 0.0f);
-            gpu.Specular = glm::vec4(glm::vec3(material->GetVector("SpecularColorFactor")), material->GetScalar("SpecularFactor"));
-            materials.push_back(gpu);
-        }
+        SGPUMaterial gpu{};
+        gpu.BaseColorFactor = baseColor;
+        gpu.EmissiveMetallic = glm::vec4(glm::vec3(material->GetVector("EmissiveFactor")), material->GetScalar("Metallic"));
+        gpu.RoughOccNormalCutoff = glm::vec4(
+            material->GetScalar("Roughness"), material->GetScalar("OcclusionStrength"),
+            material->GetScalar("NormalScale"), material->GetScalar("AlphaCutoff"));
+        gpu.TexIndex0 = glm::uvec4(
+            ResolveTexture(material->GetTexture("BaseColorTexture")),
+            ResolveTexture(material->GetTexture("MetallicRoughnessTexture")),
+            ResolveTexture(material->GetTexture("NormalTexture")),
+            ResolveTexture(material->GetTexture("EmissiveTexture")));
+        gpu.TexIndex1 = glm::uvec4(
+            ResolveTexture(material->GetTexture("OcclusionTexture")), alphaMode,
+            ResolveTexture(material->GetTexture("SpecularTexture")),
+            ResolveTexture(material->GetTexture("SpecularColorTexture")));
+        gpu.BaseColorTransform = material->GetVector("BaseColorTransform");
+        gpu.MetallicRoughnessTransform = material->GetVector("MetallicRoughnessTransform");
+        gpu.NormalTransform = material->GetVector("NormalTransform");
+        gpu.EmissiveTransform = material->GetVector("EmissiveTransform");
+        gpu.OcclusionTransform = material->GetVector("OcclusionTransform");
+        // The model has no KHR_materials_transmission, so treat its translucent
+        // (BLEND, sub-opaque) glass as refractive: it samples the grabbed scene
+        // instead of alpha-blending. Packed into Clearcoat.z.
+        const float transmission = (alphaMode == 2 && baseColor.a < 0.95f) ? 0.9f : 0.0f;
+        gpu.Clearcoat = glm::vec4(
+            material->GetScalar("ClearcoatFactor"), material->GetScalar("ClearcoatRoughness"), transmission, 0.0f);
+        gpu.Specular = glm::vec4(glm::vec3(material->GetVector("SpecularColorFactor")), material->GetScalar("SpecularFactor"));
+        return gpu;
+    }
 
+    Ref<StorageBuffer> MeshRenderer::CreateMaterialBuffer(
+        const std::vector<SGPUMaterial>& materials)
+    {
         return StorageBuffer::Create(
             m_GraphicsContext, materials.size() * sizeof(SGPUMaterial), materials.data());
     }
@@ -444,7 +452,7 @@ namespace Elixir
             model->GetMaterialRenderProxies();
         if (!publishedProxies)
             return;
-        Model::MaterialRenderProxyList materialProxies = *publishedProxies;
+        MaterialGPUParameterCache::ProxyList effectiveProxies = *publishedProxies;
         for (auto& [index, variant] : m_MaterialShaders)
         {
             Ref<const MaterialRenderProxy> proxy = variant.Proxy;
@@ -464,32 +472,58 @@ namespace Elixir
             }
             if (proxy)
             {
-                if (index >= materialProxies.size())
-                    materialProxies.resize(index + 1);
-                materialProxies[index] = std::move(proxy);
+                if (index >= effectiveProxies.size())
+                    effectiveProxies.resize(index + 1);
+                effectiveProxies[index] = std::move(proxy);
             }
         }
 
-        // Resolve the immutable snapshots into renderer-local bindless indices. No
-        // authoring mutex is acquired by the render thread.
-        auto& materialBuffer = m_MaterialBuffers[model.get()];
-        materialBuffer = BuildMaterialBuffer(materialProxies);
-        m_Shader->BindStorageBuffer("materials", materialBuffer);
-        for (auto& [index, variant] : m_MaterialShaders)
-            variant.Shader->BindStorageBuffer("materials", materialBuffer);
+        // Keep a CPU-packed mirror per model. Unchanged proxy identities do no work;
+        // changed slots alone resolve parameters and bindless texture indices. A GPU
+        // buffer is immutable once published so in-flight frames keep their contents.
+        SMaterialGPUState& gpuState = m_MaterialGPUStates[model.get()];
+        const MaterialGPUParameterCache::SUpdate parameterUpdate =
+            gpuState.Parameters.Update(std::move(effectiveProxies));
+        const auto& materialProxies = gpuState.Parameters.GetProxies();
+        if (parameterUpdate.LayoutChanged)
+            gpuState.PackedMaterials.resize(materialProxies.size());
+        for (const uint32_t slot : parameterUpdate.DirtySlots)
+            gpuState.PackedMaterials[slot] = PackMaterial(materialProxies[slot]);
+
+        if (parameterUpdate.HasChanges())
+        {
+            Ref<StorageBuffer> previous = std::move(gpuState.Buffer);
+            gpuState.Buffer = CreateMaterialBuffer(gpuState.PackedMaterials);
+            RetireBuffer(std::move(previous));
+        }
+        if (!gpuState.Buffer)
+            return;
+
+        if (parameterUpdate.HasChanges() || m_BoundModel != model.get())
+        {
+            m_Shader->BindStorageBuffer("materials", gpuState.Buffer);
+            for (auto& [index, variant] : m_MaterialShaders)
+                variant.Shader->BindStorageBuffer("materials", gpuState.Buffer);
+        }
 
         // Graph parameters and GPUMaterial are packed from the same immutable proxy.
+        for (auto& [index, variant] : m_MaterialShaders)
         {
-            for (auto& [index, variant] : m_MaterialShaders)
-            {
-                if (!variant.ParamBuffer || index >= materialProxies.size()
-                    || !materialProxies[index])
-                    continue;
-                glm::vec4 params[MAX_GRAPH_PARAMS] = {};
-                materialProxies[index]->CollectGraphParams(params, MAX_GRAPH_PARAMS,
-                    [this](const Ref<Texture>& texture) { return ResolveTexture(texture); });
-                variant.ParamBuffer->UpdateData(params, sizeof(params));
-            }
+            if (index >= materialProxies.size() || !materialProxies[index]
+                || variant.UploadedProxy == materialProxies[index])
+                continue;
+            glm::vec4 params[MAX_GRAPH_PARAMS] = {};
+            materialProxies[index]->CollectGraphParams(params, MAX_GRAPH_PARAMS,
+                [this](const Ref<Texture>& texture) { return ResolveTexture(texture); });
+
+            // Publish a new immutable parameter-buffer generation rather than
+            // overwriting bytes an in-flight frame may still read.
+            Ref<UniformBuffer> previous = std::move(variant.ParamBuffer);
+            variant.ParamBuffer = UniformBuffer::Create(
+                m_GraphicsContext, sizeof(params), params);
+            variant.Shader->BindConstantBuffer("cbGraphParams", variant.ParamBuffer);
+            variant.UploadedProxy = materialProxies[index];
+            RetireBuffer(std::move(previous));
         }
         m_BoundModel = model.get();
 

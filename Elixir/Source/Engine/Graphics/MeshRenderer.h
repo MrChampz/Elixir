@@ -2,6 +2,7 @@
 
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/Model.h>
+#include <Engine/Graphics/Material/MaterialGPUParameterCache.h>
 #include <Engine/Graphics/Material/MaterialGraph.h>
 #include <Engine/Graphics/Material/MaterialShaderPermutation.h>
 
@@ -100,7 +101,8 @@ namespace Elixir
         static constexpr uint32_t NO_TEXTURE = 0xffffffffu;
 
         uint32_t ResolveTexture(const Ref<Texture>& texture);
-        Ref<StorageBuffer> BuildMaterialBuffer(const Model::MaterialRenderProxyList& materials);
+        SGPUMaterial PackMaterial(const Ref<const MaterialRenderProxy>& material);
+        Ref<StorageBuffer> CreateMaterialBuffer(const std::vector<SGPUMaterial>& materials);
 
         const GraphicsContext* m_GraphicsContext;
 
@@ -121,6 +123,7 @@ namespace Elixir
             size_t Revision = 0;
             size_t VariantKey = 0;
             Ref<const MaterialRenderProxy> Proxy;
+            Ref<const MaterialRenderProxy> UploadedProxy;
         };
         std::unordered_map<uint32_t, SShaderVariant> m_MaterialShaders;
 
@@ -157,6 +160,13 @@ namespace Elixir
             int FramesLeft;
         };
         std::vector<SRetired> m_Retired;
+        struct SRetiredBuffer
+        {
+            Ref<Buffer> Buffer;
+            int FramesLeft;
+        };
+        std::vector<SRetiredBuffer> m_RetiredBuffers;
+        void RetireBuffer(Ref<Buffer> buffer);
         void Retire(SShaderVariant&& variant);
         void TickRetired();
 
@@ -195,7 +205,13 @@ namespace Elixir
         uint32_t m_SceneColorIndex = 0xffffffffu;
         Extent3D m_SceneColorExtent{};
 
-        std::unordered_map<const Model*, Ref<StorageBuffer>> m_MaterialBuffers;
+        struct SMaterialGPUState
+        {
+            MaterialGPUParameterCache Parameters;
+            std::vector<SGPUMaterial> PackedMaterials;
+            Ref<StorageBuffer> Buffer;
+        };
+        std::unordered_map<const Model*, SMaterialGPUState> m_MaterialGPUStates;
         const Model* m_BoundModel = nullptr;
     };
 }
