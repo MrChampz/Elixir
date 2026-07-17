@@ -2,6 +2,7 @@
 
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/Model.h>
+#include <Engine/Graphics/Material/MaterialDrawCommandCache.h>
 #include <Engine/Graphics/Material/MaterialGPUParameterCache.h>
 #include <Engine/Graphics/Material/MaterialGraph.h>
 #include <Engine/Graphics/Material/MaterialShaderPermutation.h>
@@ -96,6 +97,34 @@ namespace Elixir
             glm::vec4 Specular;            // rgb = specular color factor, w = specular factor
         };
 
+        // Immutable portion of one indexed draw. Camera data and transparent order
+        // remain dynamic, while resource selection and geometry bindings are rebuilt
+        // only when the corresponding material slot changes.
+        struct SMaterialDrawCommand
+        {
+            Ref<Shader> Shader;
+            Ref<GraphicsPipeline> Pipeline;
+            Ref<VertexBuffer> Vertices;
+            Ref<IndexBuffer> Indices;
+            SModelPushConstants PushConstants;
+            glm::vec3 SortOrigin{ 0.0f };
+            uint32_t IndexCount = 0;
+            bool BlendPass = false;
+        };
+
+        struct SModelRenderState
+        {
+            MaterialGPUParameterCache Parameters;
+            std::vector<SGPUMaterial> PackedMaterials;
+            Ref<StorageBuffer> Buffer;
+
+            MaterialDrawCommandCache DrawCommandCache;
+            std::vector<SMaterialDrawCommand> DrawCommands;
+            std::vector<uint32_t> BasePassCommands;
+            std::vector<uint32_t> BlendPassCommands;
+            std::vector<uint32_t> SortedBlendPassCommands;
+        };
+
         static constexpr uint32_t PUSH_CONSTANT_SIZE =
             sizeof(glm::mat4) + sizeof(uint32_t);
         static constexpr uint32_t NO_TEXTURE = 0xffffffffu;
@@ -103,6 +132,13 @@ namespace Elixir
         uint32_t ResolveTexture(const Ref<Texture>& texture);
         SGPUMaterial PackMaterial(const Ref<const MaterialRenderProxy>& material);
         Ref<StorageBuffer> CreateMaterialBuffer(const std::vector<SGPUMaterial>& materials);
+        SMaterialDrawCommand BuildDrawCommand(const SModelPrimitive& primitive,
+            const MaterialGPUParameterCache::ProxyList& materialProxies) const;
+        void UpdateDrawCommands(const Ref<Model>& model,
+            const MaterialGPUParameterCache::ProxyList& materialProxies,
+            SModelRenderState& renderState);
+        void InvalidateDefaultDrawCommands();
+        void InvalidateMaterialDrawCommands(uint32_t materialIndex);
 
         const GraphicsContext* m_GraphicsContext;
 
@@ -205,13 +241,10 @@ namespace Elixir
         uint32_t m_SceneColorIndex = 0xffffffffu;
         Extent3D m_SceneColorExtent{};
 
-        struct SMaterialGPUState
-        {
-            MaterialGPUParameterCache Parameters;
-            std::vector<SGPUMaterial> PackedMaterials;
-            Ref<StorageBuffer> Buffer;
-        };
-        std::unordered_map<const Model*, SMaterialGPUState> m_MaterialGPUStates;
+        uint64_t m_NextDrawBindingRevision = 1;
+        uint64_t m_DefaultDrawBindingRevision = 1;
+        std::unordered_map<uint32_t, uint64_t> m_MaterialDrawBindingRevisions;
+        std::unordered_map<const Model*, SModelRenderState> m_ModelRenderStates;
         const Model* m_BoundModel = nullptr;
     };
 }

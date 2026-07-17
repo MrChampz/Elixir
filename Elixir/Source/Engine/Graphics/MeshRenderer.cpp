@@ -177,6 +177,7 @@ namespace Elixir
         m_Shader = shader;
         CreatePipelines();
         BindResources();
+        InvalidateDefaultDrawCommands();
         m_BoundModel = nullptr; // force the material buffer to rebind to the new shader
     }
 
@@ -200,6 +201,7 @@ namespace Elixir
             {
                 Retire(std::move(it->second));
                 m_MaterialShaders.erase(it);
+                InvalidateMaterialDrawCommands(materialIndex);
             }
             RetireVariantCache(materialIndex);
             return;
@@ -224,6 +226,7 @@ namespace Elixir
         // slot is now unreachable.
         RetireVariantCache(materialIndex);
         m_MaterialShaders[materialIndex] = std::move(variant);
+        InvalidateMaterialDrawCommands(materialIndex);
         m_BoundModel = nullptr; // force the material buffer to rebind to all shaders
     }
 
@@ -348,6 +351,7 @@ namespace Elixir
                     m_MaterialShaders.erase(active);
                 }
                 m_MaterialShaders[pending.Slot] = std::move(selected);
+                InvalidateMaterialDrawCommands(pending.Slot);
                 continue;
             }
 
@@ -368,6 +372,7 @@ namespace Elixir
                 cache.Variants.erase(duplicate);
             }
             m_MaterialShaders[pending.Slot] = std::move(pending.Variant);
+            InvalidateMaterialDrawCommands(pending.Slot);
             {
                 std::lock_guard<std::mutex> keyLock(m_VariantKeysMutex);
                 SVariantKeys& keys = m_VariantKeys[pending.Slot];
@@ -438,6 +443,126 @@ namespace Elixir
             m_GraphicsContext, materials.size() * sizeof(SGPUMaterial), materials.data());
     }
 
+    void MeshRenderer::InvalidateDefaultDrawCommands()
+    {
+        m_DefaultDrawBindingRevision = ++m_NextDrawBindingRevision;
+    }
+
+    void MeshRenderer::InvalidateMaterialDrawCommands(const uint32_t materialIndex)
+    {
+        m_MaterialDrawBindingRevisions[materialIndex] = ++m_NextDrawBindingRevision;
+    }
+
+    MeshRenderer::SMaterialDrawCommand MeshRenderer::BuildDrawCommand(
+        const SModelPrimitive& primitive,
+        const MaterialGPUParameterCache::ProxyList& materialProxies) const
+    {
+        SMaterialDrawCommand command;
+        command.Shader = m_Shader;
+        command.Pipeline = m_Pipeline;
+        command.Vertices = primitive.Vertices;
+        command.Indices = primitive.Indices;
+        command.IndexCount = primitive.IndexCount;
+        command.PushConstants.Model = primitive.Transform;
+        command.PushConstants.MaterialIndex = primitive.MaterialIndex;
+        command.SortOrigin = glm::vec3(primitive.Transform[3]);
+
+        if (const auto variant = m_MaterialShaders.find(primitive.MaterialIndex);
+            variant != m_MaterialShaders.end())
+        {
+            command.Shader = variant->second.Shader;
+            command.BlendPass = variant->second.BlendMode == EMaterialBlendMode::Translucent
+                || variant->second.BlendMode == EMaterialBlendMode::Additive;
+            command.Pipeline = command.BlendPass
+                ? variant->second.Transparent : variant->second.Opaque;
+        }
+        else if (primitive.MaterialIndex < materialProxies.size()
+            && materialProxies[primitive.MaterialIndex])
+        {
+            const Ref<const MaterialRenderProxy>& material =
+                materialProxies[primitive.MaterialIndex];
+            command.BlendPass = (int)material->GetScalar("AlphaMode") == 2
+                && material->GetVector("BaseColorFactor").a < 0.95f;
+        }
+
+        return command;
+    }
+
+    void MeshRenderer::UpdateDrawCommands(const Ref<Model>& model,
+        const MaterialGPUParameterCache::ProxyList& materialProxies,
+        SModelRenderState& renderState)
+    {
+        MaterialDrawCommandCache::SlotList slots;
+        slots.reserve(materialProxies.size());
+        for (uint32_t slot = 0; slot < materialProxies.size(); ++slot)
+        {
+            uint64_t bindingRevision = m_DefaultDrawBindingRevision;
+            bool blendPass = false;
+            if (const auto variant = m_MaterialShaders.find(slot);
+                variant != m_MaterialShaders.end())
+            {
+                if (const auto revision = m_MaterialDrawBindingRevisions.find(slot);
+                    revision != m_MaterialDrawBindingRevisions.end())
+                {
+                    bindingRevision = revision->second;
+                }
+                blendPass = variant->second.BlendMode == EMaterialBlendMode::Translucent
+                    || variant->second.BlendMode == EMaterialBlendMode::Additive;
+            }
+            else if (materialProxies[slot])
+            {
+                blendPass = (int)materialProxies[slot]->GetScalar("AlphaMode") == 2
+                    && materialProxies[slot]->GetVector("BaseColorFactor").a < 0.95f;
+            }
+            slots.push_back({ materialProxies[slot]
+                    ? materialProxies[slot]->GetResource() : nullptr,
+                bindingRevision, blendPass });
+        }
+
+        const MaterialDrawCommandCache::SUpdate update =
+            renderState.DrawCommandCache.Update(std::move(slots));
+        const auto& primitives = model->GetPrimitives();
+        const bool rebuildAll = update.LayoutChanged
+            || renderState.DrawCommands.size() != primitives.size();
+        if (!rebuildAll && update.DirtySlots.empty())
+            return;
+
+        std::unordered_set<uint32_t> dirtySlots(
+            update.DirtySlots.begin(), update.DirtySlots.end());
+        if (renderState.DrawCommands.size() != primitives.size())
+            renderState.DrawCommands.resize(primitives.size());
+
+        bool rebuildPassLists = rebuildAll;
+        for (uint32_t commandIndex = 0; commandIndex < primitives.size(); ++commandIndex)
+        {
+            const SModelPrimitive& primitive = primitives[commandIndex];
+            if (!rebuildAll && !dirtySlots.contains(primitive.MaterialIndex))
+                continue;
+
+            const bool previousBlendPass = renderState.DrawCommands[commandIndex].BlendPass;
+            renderState.DrawCommands[commandIndex] =
+                BuildDrawCommand(primitive, materialProxies);
+            rebuildPassLists = rebuildPassLists
+                || previousBlendPass != renderState.DrawCommands[commandIndex].BlendPass;
+        }
+
+        if (!rebuildPassLists)
+            return;
+
+        renderState.BasePassCommands.clear();
+        renderState.BlendPassCommands.clear();
+        renderState.BasePassCommands.reserve(renderState.DrawCommands.size());
+        renderState.BlendPassCommands.reserve(renderState.DrawCommands.size());
+        for (uint32_t commandIndex = 0;
+            commandIndex < renderState.DrawCommands.size(); ++commandIndex)
+        {
+            if (renderState.DrawCommands[commandIndex].BlendPass)
+                renderState.BlendPassCommands.push_back(commandIndex);
+            else
+                renderState.BasePassCommands.push_back(commandIndex);
+        }
+    }
+
     void MeshRenderer::Render(const Ref<Model>& model, const Camera& camera)
     {
         if (!model || model->GetPrimitives().empty())
@@ -481,29 +606,29 @@ namespace Elixir
         // Keep a CPU-packed mirror per model. Unchanged proxy identities do no work;
         // changed slots alone resolve parameters and bindless texture indices. A GPU
         // buffer is immutable once published so in-flight frames keep their contents.
-        SMaterialGPUState& gpuState = m_MaterialGPUStates[model.get()];
+        SModelRenderState& renderState = m_ModelRenderStates[model.get()];
         const MaterialGPUParameterCache::SUpdate parameterUpdate =
-            gpuState.Parameters.Update(std::move(effectiveProxies));
-        const auto& materialProxies = gpuState.Parameters.GetProxies();
+            renderState.Parameters.Update(std::move(effectiveProxies));
+        const auto& materialProxies = renderState.Parameters.GetProxies();
         if (parameterUpdate.LayoutChanged)
-            gpuState.PackedMaterials.resize(materialProxies.size());
+            renderState.PackedMaterials.resize(materialProxies.size());
         for (const uint32_t slot : parameterUpdate.DirtySlots)
-            gpuState.PackedMaterials[slot] = PackMaterial(materialProxies[slot]);
+            renderState.PackedMaterials[slot] = PackMaterial(materialProxies[slot]);
 
         if (parameterUpdate.HasChanges())
         {
-            Ref<StorageBuffer> previous = std::move(gpuState.Buffer);
-            gpuState.Buffer = CreateMaterialBuffer(gpuState.PackedMaterials);
+            Ref<StorageBuffer> previous = std::move(renderState.Buffer);
+            renderState.Buffer = CreateMaterialBuffer(renderState.PackedMaterials);
             RetireBuffer(std::move(previous));
         }
-        if (!gpuState.Buffer)
+        if (!renderState.Buffer)
             return;
 
         if (parameterUpdate.HasChanges() || m_BoundModel != model.get())
         {
-            m_Shader->BindStorageBuffer("materials", gpuState.Buffer);
+            m_Shader->BindStorageBuffer("materials", renderState.Buffer);
             for (auto& [index, variant] : m_MaterialShaders)
-                variant.Shader->BindStorageBuffer("materials", gpuState.Buffer);
+                variant.Shader->BindStorageBuffer("materials", renderState.Buffer);
         }
 
         // Graph parameters and GPUMaterial are packed from the same immutable proxy.
@@ -526,6 +651,7 @@ namespace Elixir
             RetireBuffer(std::move(previous));
         }
         m_BoundModel = model.get();
+        UpdateDrawCommands(model, materialProxies, renderState);
 
         const auto extent = m_GraphicsContext->GetRenderTarget()->GetExtent();
 
@@ -581,63 +707,30 @@ namespace Elixir
         cmd->SetViewports({ viewport });
         cmd->SetScissors({ scissor });
 
-        // The pipeline currently bound on the command buffer, so consecutive
-        // primitives sharing a shader don't rebind. Reset at each pass.
+        // The pipeline currently bound on the command buffer, so consecutive cached
+        // commands sharing a shader don't rebind. Reset at each pass.
         GraphicsPipeline* boundPipeline = nullptr;
-        const auto drawPrimitive = [&](const SModelPrimitive& primitive)
+        const auto drawCommand = [&](const SMaterialDrawCommand& draw)
         {
-            // Pick the per-material override shader/pipeline if one is set, else the
-            // shared default.
-            const Ref<Shader>* shader = &m_Shader;
-            GraphicsPipeline* pipeline = m_Pipeline.get();
-            if (const auto it = m_MaterialShaders.find(primitive.MaterialIndex); it != m_MaterialShaders.end())
+            if (draw.Pipeline.get() != boundPipeline)
             {
-                shader = &it->second.Shader;
-                // Translucent/Additive use the blend pipeline (no depth write); Opaque
-                // and Masked use the depth-writing one (Masked clips in the shader).
-                const bool blended = it->second.BlendMode == EMaterialBlendMode::Translucent
-                    || it->second.BlendMode == EMaterialBlendMode::Additive;
-                pipeline = blended ? it->second.Transparent.get() : it->second.Opaque.get();
+                draw.Pipeline->Bind(cmd);
+                boundPipeline = draw.Pipeline.get();
             }
 
-            if (pipeline != boundPipeline)
-            {
-                pipeline->Bind(cmd);
-                boundPipeline = pipeline;
-            }
+            draw.Shader->SetPushConstant(
+                cmd, "pc", (void*)&draw.PushConstants, PUSH_CONSTANT_SIZE);
 
-            SModelPushConstants pc;
-            pc.Model = primitive.Transform;
-            pc.MaterialIndex = primitive.MaterialIndex;
-            (*shader)->SetPushConstant(cmd, "pc", (void*)&pc, PUSH_CONSTANT_SIZE);
-
-            primitive.Vertices->Bind(cmd);
-            primitive.Indices->Bind(cmd);
-            cmd->DrawIndexed(primitive.IndexCount, 1, 0, 0, 0);
-        };
-
-        // Treat only genuinely translucent materials as blend. Materials flagged
-        // BLEND but with near-opaque base alpha (e.g. the emissive DRL housing at
-        // 0.99) are effectively opaque; routing them through the unsorted blend pass
-        // just lets later transparent layers overdraw them and swallow their glow.
-        const auto isBlend = [&](const SModelPrimitive& p)
-        {
-            // A graph material's blend mode wins over the glTF alpha mode.
-            if (const auto it = m_MaterialShaders.find(p.MaterialIndex); it != m_MaterialShaders.end())
-                return it->second.BlendMode == EMaterialBlendMode::Translucent
-                    || it->second.BlendMode == EMaterialBlendMode::Additive;
-            if (p.MaterialIndex >= materialProxies.size() || !materialProxies[p.MaterialIndex])
-                return false;
-            const auto& m = materialProxies[p.MaterialIndex];
-            return (int)m->GetScalar("AlphaMode") == 2 && m->GetVector("BaseColorFactor").a < 0.95f;
+            draw.Vertices->Bind(cmd);
+            draw.Indices->Bind(cmd);
+            cmd->DrawIndexed(draw.IndexCount, 1, 0, 0, 0);
         };
 
         // Pass 1: everything that isn't refractive glass (opaque + masked + the
         // near-opaque emissive parts), with depth write.
         boundPipeline = nullptr;
-        for (const auto& primitive : model->GetPrimitives())
-            if (!isBlend(primitive))
-                drawPrimitive(primitive);
+        for (const uint32_t commandIndex : renderState.BasePassCommands)
+            drawCommand(renderState.DrawCommands[commandIndex]);
         cmd->EndRendering();
 
         // Grab the opaque result so the glass can sample the scene behind it.
@@ -657,19 +750,18 @@ namespace Elixir
         // The primitive's world transform origin is a cheap depth proxy (exact
         // per-triangle sorting is out of scope); good enough for separated panels.
         const glm::vec3 camPos = camera.GetPosition();
-        const auto depthProxy = [&](const SModelPrimitive* p)
+        const auto depthProxy = [&](const uint32_t commandIndex)
         {
-            const glm::vec3 d = glm::vec3(p->Transform[3]) - camPos;
+            const glm::vec3 d =
+                renderState.DrawCommands[commandIndex].SortOrigin - camPos;
             return glm::dot(d, d);
         };
-        std::vector<const SModelPrimitive*> blended;
-        for (const auto& primitive : model->GetPrimitives())
-            if (isBlend(primitive))
-                blended.push_back(&primitive);
+        renderState.SortedBlendPassCommands = renderState.BlendPassCommands;
+        std::vector<uint32_t>& blended = renderState.SortedBlendPassCommands;
         std::sort(blended.begin(), blended.end(),
-            [&](const SModelPrimitive* a, const SModelPrimitive* b) { return depthProxy(a) > depthProxy(b); });
-        for (const auto* primitive : blended)
-            drawPrimitive(*primitive);
+            [&](const uint32_t a, const uint32_t b) { return depthProxy(a) > depthProxy(b); });
+        for (const uint32_t commandIndex : blended)
+            drawCommand(renderState.DrawCommands[commandIndex]);
         cmd->EndRendering();
 
         m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);

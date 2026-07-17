@@ -1,7 +1,7 @@
 include(../../Utils.cmake)
 
 # Files
-file(GLOB_RECURSE TEST_SOURCES *.h *.cpp)
+file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS *.h *.cpp)
 add_executable(${PROJECT_NAME}.UnitTests ${TEST_SOURCES})
 
 # Properties and Definitions
