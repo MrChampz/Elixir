@@ -69,6 +69,7 @@ Dissolve::Dissolve()
     m_PostProcessor = CreateScope<PostProcessor>(m_GraphicsContext.get(), m_ShaderLoader.get());
     m_GraphicsContext->InitImGui();
     m_Model = Model::Load(m_GraphicsContext.get(), "./Assets/Meshes/McLaren/scene.mesh.json");
+    m_MeshRenderer->RegisterModel(m_Model);
     LoadMaterialAssets();
 
     m_ParticleSystem = Aether::LoadEffectFile("./Assets/VFX/RibbonVortex.json");
@@ -187,6 +188,7 @@ void Dissolve::QueueGraphCompile(
 {
     if (!instance || !instance->GetParent() || !instance->GetParent()->HasGraph())
         return;
+    const SModelRenderHandle modelHandle = m_Model->GetRenderHandle();
     const MaterialGraph compileGraph = instance->BuildGraphVariant();
     const SMaterialShaderPermutation& compilePermutation =
         MaterialShaderPermutation::SurfaceStaticMesh();
@@ -227,11 +229,11 @@ void Dissolve::QueueGraphCompile(
     // Switching back to a permutation already built for this slot is a lightweight
     // render-boundary swap: no DXC, Vulkan shader load or Metal pipeline creation.
     if (m_MeshRenderer->HasMaterialShaderVariant(
-            slot, compilePermutation, revision, variantKey))
+            modelHandle, slot, compilePermutation, revision, variantKey))
     {
         MaterialCompileManager::Get().Cancel(m_MaterialCompileClient, slot);
         m_MeshRenderer->PrepareCachedMaterialShader(
-            slot, compilePermutation, revision, variantKey, proxy);
+            modelHandle, slot, compilePermutation, revision, variantKey, proxy);
         return;
     }
 
@@ -239,7 +241,8 @@ void Dissolve::QueueGraphCompile(
     // callback still runs on a worker and builds only renderer-local Vulkan state.
     MaterialCompileManager::Get().Request(
         m_MaterialCompileClient, slot, compileGraph, compilePermutation,
-        [this, slot, compileBlend, compilePermutation, proxy, revision, variantKey](
+        [this, modelHandle, slot, compileBlend, compilePermutation,
+            proxy, revision, variantKey](
             const SMaterialCompileResult& result)
     {
         auto& compileManager = MaterialCompileManager::Get();
@@ -257,7 +260,7 @@ void Dissolve::QueueGraphCompile(
                 shader && compileManager.IsCurrent(
                     m_MaterialCompileClient, slot, compilePermutation, result.RequestId))
                 m_MeshRenderer->PrepareMaterialShader(
-                    slot, shader, compileBlend, compilePermutation,
+                    modelHandle, slot, shader, compileBlend, compilePermutation,
                     proxy, revision, variantKey);
         }
     }, priority);
@@ -617,7 +620,7 @@ void Dissolve::OnRender(const Timestep frameTime)
     // by MeshRenderer::Render, so nothing to apply here.
 
     // m_ParticlesRenderer->Render(m_GPUSystem, m_CameraController->GetCamera());
-    m_MeshRenderer->Render(m_Model, m_CameraController->GetCamera());
+    m_MeshRenderer->Render(m_CameraController->GetCamera());
     m_PostProcessor->Apply();
 
     // Submit the ImGui snapshot built in OnGUI on the render thread, where the

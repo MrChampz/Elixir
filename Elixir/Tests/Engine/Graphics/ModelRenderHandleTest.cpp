@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <Engine/Graphics/MeshRenderer.h>
 #include <Engine/Graphics/Model.h>
 
 #include <thread>
@@ -51,4 +52,21 @@ TEST(ModelRenderHandle, AllocatesUniqueHandlesAcrossConcurrentLifetimes)
     for (const Ref<Model>& model : models)
         handles.insert(model->GetRenderHandle());
     EXPECT_EQ(handles.size(), MODEL_COUNT);
+}
+
+TEST(ModelRenderHandle, ScopesMaterialSlotsToTheirOwningModel)
+{
+    const Ref<Model> first = CreateRef<Model>();
+    const Ref<Model> second = CreateRef<Model>();
+
+    std::unordered_map<SModelMaterialHandle, int,
+        SModelMaterialHandleHash> materials;
+    materials[{ first->GetRenderHandle(), 0 }] = 1;
+    materials[{ second->GetRenderHandle(), 0 }] = 2;
+    materials[{ first->GetRenderHandle(), 1 }] = 3;
+
+    EXPECT_EQ(materials.size(), 3u);
+    EXPECT_EQ(materials.at({ first->GetRenderHandle(), 0 }), 1);
+    EXPECT_EQ(materials.at({ second->GetRenderHandle(), 0 }), 2);
+    EXPECT_EQ(materials.at({ first->GetRenderHandle(), 1 }), 3);
 }

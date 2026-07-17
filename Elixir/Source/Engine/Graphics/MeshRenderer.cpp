@@ -114,52 +114,113 @@ namespace Elixir
             m_RetiredBuffers.push_back({ std::move(buffer), RETIRE_FRAMES });
     }
 
+    void MeshRenderer::RegisterModel(const Ref<Model>& model)
+    {
+        if (!model || !model->GetRenderHandle().IsValid())
+            return;
+        std::lock_guard<std::mutex> lock(m_PendingModelLifecycleMutex);
+        m_PendingModelRegistrations.push_back(
+            { model->GetRenderHandle(), model });
+    }
+
     void MeshRenderer::UnregisterModel(const SModelRenderHandle handle)
     {
         if (!handle.IsValid())
             return;
-        std::lock_guard<std::mutex> lock(m_PendingModelRemovalMutex);
+        std::lock_guard<std::mutex> lock(m_PendingModelLifecycleMutex);
         m_PendingModelRemovals.push_back(handle);
+    }
+
+    void MeshRenderer::RetireModelVariants(const SModelRenderHandle model)
+    {
+        for (auto variant = m_MaterialShaders.begin();
+            variant != m_MaterialShaders.end();)
+        {
+            if (variant->first.Model != model)
+            {
+                ++variant;
+                continue;
+            }
+            Retire(std::move(variant->second));
+            variant = m_MaterialShaders.erase(variant);
+        }
+
+        for (auto cache = m_MaterialShaderCache.begin();
+            cache != m_MaterialShaderCache.end();)
+        {
+            if (cache->first.Model != model)
+            {
+                ++cache;
+                continue;
+            }
+            for (auto& [key, variant] : cache->second.Variants)
+                Retire(std::move(variant));
+            cache = m_MaterialShaderCache.erase(cache);
+        }
+
+        for (auto revision = m_MaterialDrawBindingRevisions.begin();
+            revision != m_MaterialDrawBindingRevisions.end();)
+        {
+            if (revision->first.Model == model)
+                revision = m_MaterialDrawBindingRevisions.erase(revision);
+            else
+                ++revision;
+        }
+
+        std::lock_guard<std::mutex> keyLock(m_VariantKeysMutex);
+        for (auto keys = m_VariantKeys.begin(); keys != m_VariantKeys.end();)
+        {
+            if (keys->first.Model == model)
+                keys = m_VariantKeys.erase(keys);
+            else
+                ++keys;
+        }
     }
 
     void MeshRenderer::RetireModelState(const SModelRenderHandle handle)
     {
         const auto state = m_ModelRenderStates.find(handle);
-        if (state == m_ModelRenderStates.end())
-            return;
-
-        if (m_BoundModel == handle)
-            m_BoundModel = {};
-        m_RetiredModelStates.push_back(
-            { std::move(state->second), RETIRE_FRAMES });
-        m_ModelRenderStates.erase(state);
+        if (state != m_ModelRenderStates.end())
+        {
+            m_RetiredModelStates.push_back(
+                { std::move(state->second), RETIRE_FRAMES });
+            m_ModelRenderStates.erase(state);
+        }
+        std::erase(m_RegisteredModels, handle);
+        RetireModelVariants(handle);
     }
 
     void MeshRenderer::ProcessModelLifecycle()
     {
+        std::vector<SPendingModelRegistration> registrations;
         std::vector<SModelRenderHandle> removals;
         {
-            std::lock_guard<std::mutex> lock(m_PendingModelRemovalMutex);
+            std::lock_guard<std::mutex> lock(m_PendingModelLifecycleMutex);
+            registrations.swap(m_PendingModelRegistrations);
             removals.swap(m_PendingModelRemovals);
+        }
+
+        for (auto& registration : registrations)
+        {
+            if (!registration.Handle.IsValid() || registration.Owner.expired())
+                continue;
+            auto [state, inserted] = m_ModelRenderStates.try_emplace(
+                registration.Handle);
+            state->second.Owner = std::move(registration.Owner);
+            if (inserted)
+                m_RegisteredModels.push_back(registration.Handle);
         }
         for (const SModelRenderHandle handle : removals)
             RetireModelState(handle);
 
-        for (auto state = m_ModelRenderStates.begin();
-            state != m_ModelRenderStates.end();)
+        std::vector<SModelRenderHandle> expired;
+        for (const auto& [handle, state] : m_ModelRenderStates)
         {
-            if (!state->second.Owner.expired())
-            {
-                ++state;
-                continue;
-            }
-
-            if (m_BoundModel == state->first)
-                m_BoundModel = {};
-            m_RetiredModelStates.push_back(
-                { std::move(state->second), RETIRE_FRAMES });
-            state = m_ModelRenderStates.erase(state);
+            if (state.Owner.expired())
+                expired.push_back(handle);
         }
+        for (const SModelRenderHandle handle : expired)
+            RetireModelState(handle);
     }
 
     void MeshRenderer::TickRetired()
@@ -193,33 +254,39 @@ namespace Elixir
         m_Shader = shader;
         CreatePipelines();
         BindResources();
+        if (m_SceneMaterialBuffer)
+            m_Shader->BindStorageBuffer("materials", m_SceneMaterialBuffer);
         InvalidateDefaultDrawCommands();
-        m_BoundModel = {}; // force the material buffer to rebind to the new shader
     }
 
-    void MeshRenderer::RetireVariantCache(const uint32_t materialIndex)
+    void MeshRenderer::RetireVariantCache(const SModelMaterialHandle material)
     {
-        if (const auto it = m_MaterialShaderCache.find(materialIndex); it != m_MaterialShaderCache.end())
+        if (const auto it = m_MaterialShaderCache.find(material);
+            it != m_MaterialShaderCache.end())
         {
             for (auto& [key, variant] : it->second.Variants)
                 Retire(std::move(variant));
             m_MaterialShaderCache.erase(it);
         }
         std::lock_guard<std::mutex> keyLock(m_VariantKeysMutex);
-        m_VariantKeys.erase(materialIndex);
+        m_VariantKeys.erase(material);
     }
 
-    void MeshRenderer::SetMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader, EMaterialBlendMode blendMode)
+    void MeshRenderer::SetMaterialShader(const SModelRenderHandle model,
+        const uint32_t materialIndex, const Ref<Shader>& shader,
+        const EMaterialBlendMode blendMode)
     {
+        const SModelMaterialHandle material{ model, materialIndex };
         if (!shader)
         {
-            if (const auto it = m_MaterialShaders.find(materialIndex); it != m_MaterialShaders.end())
+            if (const auto it = m_MaterialShaders.find(material);
+                it != m_MaterialShaders.end())
             {
                 Retire(std::move(it->second));
                 m_MaterialShaders.erase(it);
-                InvalidateMaterialDrawCommands(materialIndex);
+                InvalidateMaterialDrawCommands(material);
             }
-            RetireVariantCache(materialIndex);
+            RetireVariantCache(material);
             return;
         }
 
@@ -234,20 +301,23 @@ namespace Elixir
         glm::vec4 zeros[MAX_GRAPH_PARAMS] = {};
         variant.ParamBuffer = UniformBuffer::Create(m_GraphicsContext, sizeof(zeros), zeros);
         shader->BindConstantBuffer("cbGraphParams", variant.ParamBuffer);
+        if (m_SceneMaterialBuffer)
+            shader->BindStorageBuffer("materials", m_SceneMaterialBuffer);
 
         // Retire the slot's previous variant (may be in flight), then install the new.
-        if (const auto it = m_MaterialShaders.find(materialIndex); it != m_MaterialShaders.end())
+        if (const auto it = m_MaterialShaders.find(material);
+            it != m_MaterialShaders.end())
             Retire(std::move(it->second));
         // This shader is set outside the graph path, so any permutation cached for the
         // slot is now unreachable.
-        RetireVariantCache(materialIndex);
-        m_MaterialShaders[materialIndex] = std::move(variant);
-        InvalidateMaterialDrawCommands(materialIndex);
-        m_BoundModel = {}; // force the material buffer to rebind to all shaders
+        RetireVariantCache(material);
+        m_MaterialShaders[material] = std::move(variant);
+        InvalidateMaterialDrawCommands(material);
     }
 
-    void MeshRenderer::PrepareMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader,
-        EMaterialBlendMode blendMode, const SMaterialShaderPermutation& permutation,
+    void MeshRenderer::PrepareMaterialShader(const SModelRenderHandle model,
+        const uint32_t materialIndex, const Ref<Shader>& shader,
+        const EMaterialBlendMode blendMode, const SMaterialShaderPermutation& permutation,
         const Ref<const MaterialRenderProxy>& proxy,
         const size_t revision, const size_t variantKey)
     {
@@ -278,23 +348,25 @@ namespace Elixir
         shader->BindConstantBuffer("cbGraphParams", variant.ParamBuffer);
 
         std::lock_guard<std::mutex> lock(m_PendingMutex);
-        m_PendingVariants.push_back({ materialIndex, std::move(variant), proxy,
+        m_PendingVariants.push_back({ model, materialIndex, std::move(variant), proxy,
             permutation, revision, variantKey, false });
     }
 
     bool MeshRenderer::HasMaterialShaderVariant(
-        const uint32_t materialIndex, const SMaterialShaderPermutation& permutation,
+        const SModelRenderHandle model, const uint32_t materialIndex,
+        const SMaterialShaderPermutation& permutation,
         const size_t revision, const size_t variantKey) const
     {
         if (permutation != MaterialShaderPermutation::SurfaceStaticMesh())
             return false;
         std::lock_guard<std::mutex> lock(m_VariantKeysMutex);
-        const auto slot = m_VariantKeys.find(materialIndex);
+        const auto slot = m_VariantKeys.find({ model, materialIndex });
         return slot != m_VariantKeys.end() && slot->second.Revision == revision
             && slot->second.Keys.contains(variantKey);
     }
 
-    void MeshRenderer::PrepareCachedMaterialShader(const uint32_t materialIndex,
+    void MeshRenderer::PrepareCachedMaterialShader(const SModelRenderHandle model,
+        const uint32_t materialIndex,
         const SMaterialShaderPermutation& permutation, const size_t revision,
         const size_t variantKey, const Ref<const MaterialRenderProxy>& proxy)
     {
@@ -306,7 +378,7 @@ namespace Elixir
             return;
         }
         std::lock_guard<std::mutex> lock(m_PendingMutex);
-        m_PendingVariants.push_back({ materialIndex, {}, proxy,
+        m_PendingVariants.push_back({ model, materialIndex, {}, proxy,
             permutation, revision, variantKey, true });
     }
 
@@ -320,7 +392,14 @@ namespace Elixir
 
         for (auto& pending : pendingVariants)
         {
-            const auto active = m_MaterialShaders.find(pending.Slot);
+            if (!m_ModelRenderStates.contains(pending.Model))
+            {
+                Retire(std::move(pending.Variant));
+                continue;
+            }
+
+            const SModelMaterialHandle material{ pending.Model, pending.Slot };
+            const auto active = m_MaterialShaders.find(material);
             if (active != m_MaterialShaders.end() && active->second.Revision == pending.Revision
                 && active->second.VariantKey == pending.VariantKey
                 && active->second.Permutation == pending.Permutation)
@@ -334,7 +413,7 @@ namespace Elixir
             // Editing the graph mints a new revision, and no permutation of the old one
             // can ever be selected again -- release them instead of caching them for a
             // key nothing will ask for.
-            auto& cache = m_MaterialShaderCache[pending.Slot];
+            auto& cache = m_MaterialShaderCache[material];
             if (cache.Revision != pending.Revision)
             {
                 for (auto& [key, variant] : cache.Variants)
@@ -343,7 +422,7 @@ namespace Elixir
                 cache.Revision = pending.Revision;
 
                 std::lock_guard<std::mutex> keyLock(m_VariantKeysMutex);
-                SVariantKeys& keys = m_VariantKeys[pending.Slot];
+                SVariantKeys& keys = m_VariantKeys[material];
                 keys.Revision = pending.Revision;
                 keys.Keys.clear();
             }
@@ -366,8 +445,11 @@ namespace Elixir
                     cache.Variants.insert_or_assign(active->second.VariantKey, std::move(active->second));
                     m_MaterialShaders.erase(active);
                 }
-                m_MaterialShaders[pending.Slot] = std::move(selected);
-                InvalidateMaterialDrawCommands(pending.Slot);
+                if (m_SceneMaterialBuffer)
+                    selected.Shader->BindStorageBuffer(
+                        "materials", m_SceneMaterialBuffer);
+                m_MaterialShaders[material] = std::move(selected);
+                InvalidateMaterialDrawCommands(material);
                 continue;
             }
 
@@ -387,17 +469,18 @@ namespace Elixir
                 Retire(std::move(duplicate->second));
                 cache.Variants.erase(duplicate);
             }
-            m_MaterialShaders[pending.Slot] = std::move(pending.Variant);
-            InvalidateMaterialDrawCommands(pending.Slot);
+            if (m_SceneMaterialBuffer)
+                pending.Variant.Shader->BindStorageBuffer(
+                    "materials", m_SceneMaterialBuffer);
+            m_MaterialShaders[material] = std::move(pending.Variant);
+            InvalidateMaterialDrawCommands(material);
             {
                 std::lock_guard<std::mutex> keyLock(m_VariantKeysMutex);
-                SVariantKeys& keys = m_VariantKeys[pending.Slot];
+                SVariantKeys& keys = m_VariantKeys[material];
                 keys.Revision = pending.Revision;
                 keys.Keys.insert(pending.VariantKey);
             }
         }
-        if (!pendingVariants.empty())
-            m_BoundModel = {}; // force the material buffer to rebind to all shaders
     }
 
     uint32_t MeshRenderer::ResolveTexture(const Ref<Texture>& texture)
@@ -464,12 +547,14 @@ namespace Elixir
         m_DefaultDrawBindingRevision = ++m_NextDrawBindingRevision;
     }
 
-    void MeshRenderer::InvalidateMaterialDrawCommands(const uint32_t materialIndex)
+    void MeshRenderer::InvalidateMaterialDrawCommands(
+        const SModelMaterialHandle material)
     {
-        m_MaterialDrawBindingRevisions[materialIndex] = ++m_NextDrawBindingRevision;
+        m_MaterialDrawBindingRevisions[material] = ++m_NextDrawBindingRevision;
     }
 
     SMeshDrawCommand MeshRenderer::BuildDrawCommand(
+        const SModelRenderHandle model, const uint32_t materialOffset,
         const SModelPrimitive& primitive,
         const MaterialGPUParameterCache::ProxyList& materialProxies) const
     {
@@ -477,7 +562,8 @@ namespace Elixir
             primitive.MaterialIndex < materialProxies.size()
             ? materialProxies[primitive.MaterialIndex] : nullptr;
 
-        if (const auto variant = m_MaterialShaders.find(primitive.MaterialIndex);
+        if (const auto variant = m_MaterialShaders.find(
+                { model, primitive.MaterialIndex });
             variant != m_MaterialShaders.end())
         {
             const SMeshMaterialBinding binding{
@@ -486,15 +572,20 @@ namespace Elixir
                 .TranslucentPipeline = variant->second.Transparent,
                 .BlendMode = variant->second.BlendMode
             };
-            return MeshPassProcessor::BuildCommand(
+            SMeshDrawCommand command = MeshPassProcessor::BuildCommand(
                 primitive, material, m_Shader, m_Pipeline, &binding);
+            command.PushConstants.MaterialIndex += materialOffset;
+            return command;
         }
 
-        return MeshPassProcessor::BuildCommand(
+        SMeshDrawCommand command = MeshPassProcessor::BuildCommand(
             primitive, material, m_Shader, m_Pipeline);
+        command.PushConstants.MaterialIndex += materialOffset;
+        return command;
     }
 
-    void MeshRenderer::UpdateDrawCommands(const Ref<Model>& model,
+    void MeshRenderer::UpdateDrawCommands(const SModelRenderHandle handle,
+        const Ref<Model>& model,
         const MaterialGPUParameterCache::ProxyList& materialProxies,
         SModelRenderState& renderState)
     {
@@ -502,12 +593,13 @@ namespace Elixir
         slots.reserve(materialProxies.size());
         for (uint32_t slot = 0; slot < materialProxies.size(); ++slot)
         {
+            const SModelMaterialHandle material{ handle, slot };
             uint64_t bindingRevision = m_DefaultDrawBindingRevision;
             std::optional<EMaterialBlendMode> overrideBlendMode;
-            if (const auto variant = m_MaterialShaders.find(slot);
+            if (const auto variant = m_MaterialShaders.find(material);
                 variant != m_MaterialShaders.end())
             {
-                if (const auto revision = m_MaterialDrawBindingRevisions.find(slot);
+                if (const auto revision = m_MaterialDrawBindingRevisions.find(material);
                     revision != m_MaterialDrawBindingRevisions.end())
                 {
                     bindingRevision = revision->second;
@@ -543,7 +635,8 @@ namespace Elixir
 
             const EMeshPass previousPass = renderState.DrawCommands[commandIndex].Pass;
             renderState.DrawCommands[commandIndex] =
-                BuildDrawCommand(primitive, materialProxies);
+                BuildDrawCommand(handle, renderState.MaterialOffset,
+                    primitive, materialProxies);
             rebuildPassLists = rebuildPassLists
                 || previousPass != renderState.DrawCommands[commandIndex].Pass;
         }
@@ -552,9 +645,9 @@ namespace Elixir
             return;
 
         renderState.BasePassCommands.clear();
-        renderState.BlendPassCommands.clear();
+        renderState.SortedPassCommands.clear();
         renderState.BasePassCommands.reserve(renderState.DrawCommands.size());
-        renderState.BlendPassCommands.reserve(renderState.DrawCommands.size());
+        renderState.SortedPassCommands.reserve(renderState.DrawCommands.size());
         for (uint32_t commandIndex = 0;
             commandIndex < renderState.DrawCommands.size(); ++commandIndex)
         {
@@ -562,107 +655,171 @@ namespace Elixir
                     renderState.DrawCommands[commandIndex].Pass))
                 renderState.BasePassCommands.push_back(commandIndex);
             else
-                renderState.BlendPassCommands.push_back(commandIndex);
+                renderState.SortedPassCommands.push_back(commandIndex);
         }
     }
 
-    void MeshRenderer::Render(const Ref<Model>& model, const Camera& camera)
+    void MeshRenderer::Render(const Camera& camera)
     {
-        // Install material shaders prepared on the main thread, age resources already
-        // retired, then move model state queued for removal at this frame boundary.
-        // Expired weak owners are swept on the render thread; generation-bearing
-        // handles prevent a recycled ID from ever aliasing that stale state.
-        InstallPendingShaders();
+        // Registration/removal and prepared shader swaps become visible together at a
+        // frame boundary. Workers remain free to compile the next material while this
+        // render thread consumes immutable model and material snapshots.
         TickRetired();
         ProcessModelLifecycle();
+        InstallPendingShaders();
 
-        if (!model || model->GetPrimitives().empty())
-            return;
+        std::vector<std::pair<SModelRenderHandle, Ref<Model>>> liveModels;
+        liveModels.reserve(m_RegisteredModels.size());
+        bool sceneMaterialsDirty = false;
 
-        const SModelRenderHandle modelHandle = model->GetRenderHandle();
-        if (!modelHandle.IsValid())
-            return;
-
-        const Ref<const Model::MaterialRenderProxyList> publishedProxies =
-            model->GetMaterialRenderProxies();
-        if (!publishedProxies)
-            return;
-        MaterialGPUParameterCache::ProxyList effectiveProxies = *publishedProxies;
-        for (auto& [index, variant] : m_MaterialShaders)
+        for (const SModelRenderHandle handle : m_RegisteredModels)
         {
-            Ref<const MaterialRenderProxy> proxy = variant.Proxy;
-            if (index < publishedProxies->size())
+            const auto stateIt = m_ModelRenderStates.find(handle);
+            if (stateIt == m_ModelRenderStates.end())
+                continue;
+            Ref<Model> model = stateIt->second.Owner.lock();
+            if (!model)
+                continue;
+
+            const Ref<const Model::MaterialRenderProxyList> publishedProxies =
+                model->GetMaterialRenderProxies();
+            if (!publishedProxies)
+                continue;
+            MaterialGPUParameterCache::ProxyList effectiveProxies =
+                *publishedProxies;
+
+            // A slot number only has meaning inside its model. Adopt runtime values
+            // only from the proxy compatible with this model-scoped shader variant.
+            for (auto& [material, variant] : m_MaterialShaders)
             {
-                const Ref<const MaterialRenderProxy>& published = (*publishedProxies)[index];
-                if (published && published->GetResource()
-                    && published->GetResource()->GetBlendMode() == variant.BlendMode
-                    && published->GetResource()->Matches(
-                        variant.Permutation, variant.Revision, variant.VariantKey))
+                if (material.Model != handle)
+                    continue;
+                Ref<const MaterialRenderProxy> proxy = variant.Proxy;
+                if (material.Slot < publishedProxies->size())
                 {
-                    // Runtime parameter edits publish a new proxy without recompiling.
-                    // Only adopt it when it targets the shader currently installed.
-                    proxy = published;
-                    variant.Proxy = published;
+                    const Ref<const MaterialRenderProxy>& published =
+                        (*publishedProxies)[material.Slot];
+                    if (published && published->GetResource()
+                        && published->GetResource()->GetBlendMode() == variant.BlendMode
+                        && published->GetResource()->Matches(
+                            variant.Permutation, variant.Revision,
+                            variant.VariantKey))
+                    {
+                        proxy = published;
+                        variant.Proxy = published;
+                    }
                 }
+                if (!proxy)
+                    continue;
+                if (material.Slot >= effectiveProxies.size())
+                    effectiveProxies.resize(material.Slot + 1);
+                effectiveProxies[material.Slot] = std::move(proxy);
             }
-            if (proxy)
-            {
-                if (index >= effectiveProxies.size())
-                    effectiveProxies.resize(index + 1);
-                effectiveProxies[index] = std::move(proxy);
-            }
+
+            SModelRenderState& state = stateIt->second;
+            const MaterialGPUParameterCache::SUpdate parameterUpdate =
+                state.Parameters.Update(std::move(effectiveProxies));
+            const auto& proxies = state.Parameters.GetProxies();
+            if (parameterUpdate.LayoutChanged)
+                state.PackedMaterials.resize(proxies.size());
+            for (const uint32_t slot : parameterUpdate.DirtySlots)
+                state.PackedMaterials[slot] = PackMaterial(proxies[slot]);
+            sceneMaterialsDirty = sceneMaterialsDirty
+                || parameterUpdate.HasChanges();
+            liveModels.emplace_back(handle, std::move(model));
         }
 
-        // Keep a CPU-packed mirror per model. Unchanged proxy identities do no work;
-        // changed slots alone resolve parameters and bindless texture indices. A GPU
-        // buffer is immutable once published so in-flight frames keep their contents.
-        SModelRenderState& renderState = m_ModelRenderStates[modelHandle];
-        renderState.Owner = model;
-        const MaterialGPUParameterCache::SUpdate parameterUpdate =
-            renderState.Parameters.Update(std::move(effectiveProxies));
-        const auto& materialProxies = renderState.Parameters.GetProxies();
-        if (parameterUpdate.LayoutChanged)
-            renderState.PackedMaterials.resize(materialProxies.size());
-        for (const uint32_t slot : parameterUpdate.DirtySlots)
-            renderState.PackedMaterials[slot] = PackMaterial(materialProxies[slot]);
-
-        if (parameterUpdate.HasChanges())
+        // Assign stable contiguous ranges in registration order. A changed range
+        // invalidates only that model's cached commands because their push constant
+        // stores the scene-global material index.
+        uint32_t materialCount = 0;
+        for (const auto& [handle, model] : liveModels)
         {
-            Ref<StorageBuffer> previous = std::move(renderState.Buffer);
-            renderState.Buffer = CreateMaterialBuffer(renderState.PackedMaterials);
+            SModelRenderState& state = m_ModelRenderStates.at(handle);
+            if (state.MaterialOffset != materialCount)
+            {
+                state.MaterialOffset = materialCount;
+                state.DrawCommandCache.Clear();
+                sceneMaterialsDirty = true;
+            }
+            materialCount += (uint32_t)state.PackedMaterials.size();
+        }
+        sceneMaterialsDirty = sceneMaterialsDirty
+            || materialCount != m_PackedSceneMaterials.size();
+
+        if (sceneMaterialsDirty || (!m_SceneMaterialBuffer && materialCount > 0))
+        {
+            m_PackedSceneMaterials.clear();
+            m_PackedSceneMaterials.reserve(materialCount);
+            for (const auto& [handle, model] : liveModels)
+            {
+                const auto& packed = m_ModelRenderStates.at(handle).PackedMaterials;
+                m_PackedSceneMaterials.insert(
+                    m_PackedSceneMaterials.end(), packed.begin(), packed.end());
+            }
+
+            Ref<StorageBuffer> previous = std::move(m_SceneMaterialBuffer);
+            if (!m_PackedSceneMaterials.empty())
+            {
+                m_SceneMaterialBuffer =
+                    CreateMaterialBuffer(m_PackedSceneMaterials);
+                m_Shader->BindStorageBuffer(
+                    "materials", m_SceneMaterialBuffer);
+                for (auto& [material, variant] : m_MaterialShaders)
+                    variant.Shader->BindStorageBuffer(
+                        "materials", m_SceneMaterialBuffer);
+            }
             RetireBuffer(std::move(previous));
         }
-        if (!renderState.Buffer)
+        if (!m_SceneMaterialBuffer)
             return;
 
-        if (parameterUpdate.HasChanges() || m_BoundModel != modelHandle)
+        // Graph parameters remain model/slot-local even though the standard material
+        // table is scene-wide. Every graph variant owns its immutable parameter buffer.
+        for (auto& [material, variant] : m_MaterialShaders)
         {
-            m_Shader->BindStorageBuffer("materials", renderState.Buffer);
-            for (auto& [index, variant] : m_MaterialShaders)
-                variant.Shader->BindStorageBuffer("materials", renderState.Buffer);
-        }
-
-        // Graph parameters and GPUMaterial are packed from the same immutable proxy.
-        for (auto& [index, variant] : m_MaterialShaders)
-        {
-            if (index >= materialProxies.size() || !materialProxies[index]
-                || variant.UploadedProxy == materialProxies[index])
+            const auto state = m_ModelRenderStates.find(material.Model);
+            if (state == m_ModelRenderStates.end())
+                continue;
+            const auto& proxies = state->second.Parameters.GetProxies();
+            if (material.Slot >= proxies.size() || !proxies[material.Slot]
+                || variant.UploadedProxy == proxies[material.Slot])
                 continue;
             glm::vec4 params[MAX_GRAPH_PARAMS] = {};
-            materialProxies[index]->CollectGraphParams(params, MAX_GRAPH_PARAMS,
-                [this](const Ref<Texture>& texture) { return ResolveTexture(texture); });
+            proxies[material.Slot]->CollectGraphParams(
+                params, MAX_GRAPH_PARAMS,
+                [this](const Ref<Texture>& texture)
+                {
+                    return ResolveTexture(texture);
+                });
 
-            // Publish a new immutable parameter-buffer generation rather than
-            // overwriting bytes an in-flight frame may still read.
             Ref<UniformBuffer> previous = std::move(variant.ParamBuffer);
             variant.ParamBuffer = UniformBuffer::Create(
                 m_GraphicsContext, sizeof(params), params);
-            variant.Shader->BindConstantBuffer("cbGraphParams", variant.ParamBuffer);
-            variant.UploadedProxy = materialProxies[index];
+            variant.Shader->BindConstantBuffer(
+                "cbGraphParams", variant.ParamBuffer);
+            variant.UploadedProxy = proxies[material.Slot];
             RetireBuffer(std::move(previous));
         }
-        m_BoundModel = modelHandle;
-        UpdateDrawCommands(model, materialProxies, renderState);
+
+        std::vector<const SMeshDrawCommand*> baseCommands;
+        std::vector<const SMeshDrawCommand*> sortedCommands;
+        for (const auto& [handle, model] : liveModels)
+        {
+            SModelRenderState& state = m_ModelRenderStates.at(handle);
+            UpdateDrawCommands(
+                handle, model, state.Parameters.GetProxies(), state);
+            baseCommands.reserve(
+                baseCommands.size() + state.BasePassCommands.size());
+            sortedCommands.reserve(
+                sortedCommands.size() + state.SortedPassCommands.size());
+            for (const uint32_t command : state.BasePassCommands)
+                baseCommands.push_back(&state.DrawCommands[command]);
+            for (const uint32_t command : state.SortedPassCommands)
+                sortedCommands.push_back(&state.DrawCommands[command]);
+        }
+        if (baseCommands.empty() && sortedCommands.empty())
+            return;
 
         const auto extent = m_GraphicsContext->GetRenderTarget()->GetExtent();
 
@@ -740,9 +897,15 @@ namespace Elixir
         // Base pass: opaque, masked, and near-opaque built-in materials. The pass
         // processor guarantees that every command in this list writes depth.
         boundPipeline = nullptr;
-        for (const uint32_t commandIndex : renderState.BasePassCommands)
-            drawCommand(renderState.DrawCommands[commandIndex]);
+        for (const SMeshDrawCommand* draw : baseCommands)
+            drawCommand(*draw);
         cmd->EndRendering();
+
+        if (sortedCommands.empty())
+        {
+            m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
+            return;
+        }
 
         // Grab the opaque result so the glass can sample the scene behind it.
         m_GraphicsContext->BlitToTexture(cmd, m_SceneColor);
@@ -761,18 +924,18 @@ namespace Elixir
         // The primitive's world transform origin is a cheap depth proxy (exact
         // per-triangle sorting is out of scope); good enough for separated panels.
         const glm::vec3 camPos = camera.GetPosition();
-        const auto depthProxy = [&](const uint32_t commandIndex)
+        const auto depthProxy = [&](const SMeshDrawCommand* draw)
         {
-            const glm::vec3 d =
-                renderState.DrawCommands[commandIndex].SortOrigin - camPos;
+            const glm::vec3 d = draw->SortOrigin - camPos;
             return glm::dot(d, d);
         };
-        renderState.SortedBlendPassCommands = renderState.BlendPassCommands;
-        std::vector<uint32_t>& blended = renderState.SortedBlendPassCommands;
-        std::sort(blended.begin(), blended.end(),
-            [&](const uint32_t a, const uint32_t b) { return depthProxy(a) > depthProxy(b); });
-        for (const uint32_t commandIndex : blended)
-            drawCommand(renderState.DrawCommands[commandIndex]);
+        std::sort(sortedCommands.begin(), sortedCommands.end(),
+            [&](const SMeshDrawCommand* a, const SMeshDrawCommand* b)
+            {
+                return depthProxy(a) > depthProxy(b);
+            });
+        for (const SMeshDrawCommand* draw : sortedCommands)
+            drawCommand(*draw);
         cmd->EndRendering();
 
         m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);

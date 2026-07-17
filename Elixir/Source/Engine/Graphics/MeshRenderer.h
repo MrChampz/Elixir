@@ -17,39 +17,66 @@
 
 namespace Elixir
 {
+    // Identifies one material slot inside one registered model. Slot indices are only
+    // local to a model, so renderer caches must never use the slot alone as a key.
+    struct SModelMaterialHandle
+    {
+        SModelRenderHandle Model;
+        uint32_t Slot = 0;
+
+        bool operator==(const SModelMaterialHandle&) const = default;
+    };
+
+    struct SModelMaterialHandleHash
+    {
+        size_t operator()(const SModelMaterialHandle& handle) const
+        {
+            size_t hash = SModelRenderHandleHash{}(handle.Model);
+            hash ^= std::hash<uint32_t>{}(handle.Slot)
+                + 0x9e3779b9u + (hash << 6) + (hash >> 2);
+            return hash;
+        }
+    };
+
     // Renders glTF models with a Cook-Torrance metallic-roughness PBR base pass.
     class ELIXIR_API MeshRenderer
     {
       public:
         MeshRenderer(const GraphicsContext* context, const ShaderLoader* shaderLoader);
 
-        void Render(const Ref<Model>& model, const Camera& camera);
+        // Registration is thread-safe. The render thread installs the model at the
+        // next frame boundary and keeps only a weak owner afterward.
+        void RegisterModel(const Ref<Model>& model);
+        void Render(const Camera& camera);
 
-        // Stop submitting a model before calling this. Removal is queued and applied
-        // by Render at the next frame boundary; expired models are also discovered
-        // automatically through the weak owner stored with their render state.
+        // Removal is queued and applied by Render at the next frame boundary. A model
+        // released without an explicit unregister is discovered through its weak owner.
         void UnregisterModel(SModelRenderHandle handle);
 
-        // Swap the shading used for the whole model (e.g. a node-graph material
-        // compiled at runtime). The new shader must expose the same bindings.
+        // Swap the built-in shading used by every registered model. The new shader
+        // must expose the same bindings.
         void SetShader(const Ref<Shader>& shader);
 
-        // Override the shading of a single material slot (a node-graph material for
-        // just that part). Pass a null shader to revert the slot to the default.
-        void SetMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader,
+        // Override one model's material slot. Pass a null shader to revert that slot
+        // to the scene's default static-mesh shader.
+        void SetMaterialShader(SModelRenderHandle model, uint32_t materialIndex,
+            const Ref<Shader>& shader,
             EMaterialBlendMode blendMode = EMaterialBlendMode::Opaque);
 
         // Two-phase apply so the expensive pipeline creation (Metal compile on
         // MoltenVK) happens off the render thread. Render installs the prepared
         // shader and immutable parameter snapshot together at a frame boundary.
-        void PrepareMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader,
+        void PrepareMaterialShader(SModelRenderHandle model, uint32_t materialIndex,
+            const Ref<Shader>& shader,
             EMaterialBlendMode blendMode, const SMaterialShaderPermutation& permutation,
             const Ref<const MaterialRenderProxy>& proxy,
             size_t revision, size_t variantKey);
         [[nodiscard]] bool HasMaterialShaderVariant(
-            uint32_t materialIndex, const SMaterialShaderPermutation& permutation,
+            SModelRenderHandle model, uint32_t materialIndex,
+            const SMaterialShaderPermutation& permutation,
             size_t revision, size_t variantKey) const;
-        void PrepareCachedMaterialShader(uint32_t materialIndex,
+        void PrepareCachedMaterialShader(SModelRenderHandle model,
+            uint32_t materialIndex,
             const SMaterialShaderPermutation& permutation, size_t revision, size_t variantKey,
             const Ref<const MaterialRenderProxy>& proxy);
         void InstallPendingShaders();
@@ -102,13 +129,12 @@ namespace Elixir
             Weak<Model> Owner;
             MaterialGPUParameterCache Parameters;
             std::vector<SGPUMaterial> PackedMaterials;
-            Ref<StorageBuffer> Buffer;
+            uint32_t MaterialOffset = 0;
 
             MaterialDrawCommandCache DrawCommandCache;
             std::vector<SMeshDrawCommand> DrawCommands;
             std::vector<uint32_t> BasePassCommands;
-            std::vector<uint32_t> BlendPassCommands;
-            std::vector<uint32_t> SortedBlendPassCommands;
+            std::vector<uint32_t> SortedPassCommands;
         };
 
         static constexpr uint32_t PUSH_CONSTANT_SIZE =
@@ -118,13 +144,14 @@ namespace Elixir
         uint32_t ResolveTexture(const Ref<Texture>& texture);
         SGPUMaterial PackMaterial(const Ref<const MaterialRenderProxy>& material);
         Ref<StorageBuffer> CreateMaterialBuffer(const std::vector<SGPUMaterial>& materials);
-        SMeshDrawCommand BuildDrawCommand(const SModelPrimitive& primitive,
+        SMeshDrawCommand BuildDrawCommand(SModelRenderHandle model,
+            uint32_t materialOffset, const SModelPrimitive& primitive,
             const MaterialGPUParameterCache::ProxyList& materialProxies) const;
-        void UpdateDrawCommands(const Ref<Model>& model,
+        void UpdateDrawCommands(SModelRenderHandle handle, const Ref<Model>& model,
             const MaterialGPUParameterCache::ProxyList& materialProxies,
             SModelRenderState& renderState);
         void InvalidateDefaultDrawCommands();
-        void InvalidateMaterialDrawCommands(uint32_t materialIndex);
+        void InvalidateMaterialDrawCommands(SModelMaterialHandle material);
 
         const GraphicsContext* m_GraphicsContext;
 
@@ -147,7 +174,8 @@ namespace Elixir
             Ref<const MaterialRenderProxy> Proxy;
             Ref<const MaterialRenderProxy> UploadedProxy;
         };
-        std::unordered_map<uint32_t, SShaderVariant> m_MaterialShaders;
+        std::unordered_map<SModelMaterialHandle, SShaderVariant,
+            SModelMaterialHandleHash> m_MaterialShaders;
 
         // The permutations built for one slot's current graph revision, so toggling a
         // static parameter back is a swap rather than a rebuild. Bounded by the graph's
@@ -157,10 +185,12 @@ namespace Elixir
             size_t Revision = 0;
             std::unordered_map<size_t, SShaderVariant> Variants;
         };
-        std::unordered_map<uint32_t, SVariantCache> m_MaterialShaderCache;
+        std::unordered_map<SModelMaterialHandle, SVariantCache,
+            SModelMaterialHandleHash> m_MaterialShaderCache;
 
         // Release every permutation cached for a slot, and forget its keys.
-        void RetireVariantCache(uint32_t materialIndex);
+        void RetireVariantCache(SModelMaterialHandle material);
+        void RetireModelVariants(SModelRenderHandle model);
 
         // Worker-visible index of the above. The actual GPU objects remain
         // render-thread-owned; workers only use this to avoid recompilation.
@@ -170,7 +200,8 @@ namespace Elixir
             std::unordered_set<size_t> Keys;
         };
         mutable std::mutex m_VariantKeysMutex;
-        std::unordered_map<uint32_t, SVariantKeys> m_VariantKeys;
+        std::unordered_map<SModelMaterialHandle, SVariantKeys,
+            SModelMaterialHandleHash> m_VariantKeys;
 
         // Deferred destruction: a swapped-out shader/pipeline may still be referenced
         // by in-flight frames, so keep it alive a few frames before releasing it --
@@ -200,12 +231,20 @@ namespace Elixir
         void ProcessModelLifecycle();
         void TickRetired();
 
+        struct SPendingModelRegistration
+        {
+            SModelRenderHandle Handle;
+            Weak<Model> Owner;
+        };
+        std::vector<SPendingModelRegistration> m_PendingModelRegistrations;
         std::vector<SModelRenderHandle> m_PendingModelRemovals;
-        std::mutex m_PendingModelRemovalMutex;
+        std::mutex m_PendingModelLifecycleMutex;
+        std::vector<SModelRenderHandle> m_RegisteredModels;
 
         // Variants built by a worker, waiting to be installed from Render.
         struct SPendingVariant
         {
+            SModelRenderHandle Model;
             uint32_t Slot;
             SShaderVariant Variant;
             Ref<const MaterialRenderProxy> Proxy;
@@ -238,11 +277,17 @@ namespace Elixir
         uint32_t m_SceneColorIndex = 0xffffffffu;
         Extent3D m_SceneColorExtent{};
 
+        // Every registered model occupies one contiguous range. Draw commands store
+        // the global index, so a single immutable descriptor can serve a frame-wide
+        // pass even when transparent commands from different models interleave.
+        std::vector<SGPUMaterial> m_PackedSceneMaterials;
+        Ref<StorageBuffer> m_SceneMaterialBuffer;
+
         uint64_t m_NextDrawBindingRevision = 1;
         uint64_t m_DefaultDrawBindingRevision = 1;
-        std::unordered_map<uint32_t, uint64_t> m_MaterialDrawBindingRevisions;
+        std::unordered_map<SModelMaterialHandle, uint64_t,
+            SModelMaterialHandleHash> m_MaterialDrawBindingRevisions;
         std::unordered_map<SModelRenderHandle, SModelRenderState,
             SModelRenderHandleHash> m_ModelRenderStates;
-        SModelRenderHandle m_BoundModel;
     };
 }
