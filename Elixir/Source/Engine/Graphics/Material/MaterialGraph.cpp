@@ -233,6 +233,28 @@ namespace Elixir
         if (!std::isfinite(m_AlphaCutoff) || m_AlphaCutoff < 0.0f || m_AlphaCutoff > 1.0f)
             add(EMaterialDiagnosticSeverity::Error, 0, "Alpha cutoff must be between zero and one.");
 
+        const SMaterialDomainDescriptor* domain = MaterialDomain::Find(m_Domain);
+        if (!domain)
+            add(EMaterialDiagnosticSeverity::Error, 0, "The graph has an invalid material domain.");
+        else
+        {
+            if (!domain->ShaderContractAvailable)
+                add(EMaterialDiagnosticSeverity::Error, 0,
+                    "Material domain '" + std::string(domain->Name)
+                        + "' does not have a renderer shader contract yet.");
+
+            const uint32_t usages = (uint32_t)m_Usages;
+            if ((usages & ~MaterialDomain::KnownUsageMask()) != 0)
+                add(EMaterialDiagnosticSeverity::Error, 0, "The graph contains unknown material usage flags.");
+            if ((usages & ~(uint32_t)domain->AllowedUsages) != 0)
+                add(EMaterialDiagnosticSeverity::Error, 0,
+                    "The selected usages are incompatible with material domain '"
+                        + std::string(domain->Name) + "'.");
+            if (m_Domain == EMaterialDomain::Surface && usages == 0)
+                add(EMaterialDiagnosticSeverity::Error, 0,
+                    "Surface material must select at least one usage.");
+        }
+
         std::unordered_set<uint32_t> reachable;
         const auto staticSwitchChoice = [&](const SMaterialNode& node)
         {
@@ -274,6 +296,10 @@ namespace Elixir
                 add(EMaterialDiagnosticSeverity::Error, 0, "The graph contains an invalid material output channel.");
                 continue;
             }
+            if (domain && !domain->AllowsChannel(channel))
+                add(EMaterialDiagnosticSeverity::Error, 0,
+                    "Material output '" + std::string(ChannelName((EMaterialChannel)channel))
+                        + "' is not available in domain '" + std::string(domain->Name) + "'.");
             if (!m_Nodes.contains(nodeId))
             {
                 add(EMaterialDiagnosticSeverity::Error, 0,

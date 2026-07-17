@@ -81,6 +81,11 @@ namespace Elixir
         // to be previewed on is not a property of the material.
         int TargetMaterial = 0;
 
+        // Domain selects the renderer contract. Usages identify the renderer
+        // permutations this material is authored for.
+        int Domain = (int)EMaterialDomain::Surface;
+        uint32_t Usages = (uint32_t)EMaterialUsage::StaticMesh;
+
         // Blend: 0=Opaque, 1=Masked, 2=Translucent, 3=Additive; cutoff used by Masked.
         int BlendMode = 0;
         float AlphaCutoff = 0.5f;

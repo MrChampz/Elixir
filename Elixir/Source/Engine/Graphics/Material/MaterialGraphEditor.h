@@ -30,6 +30,8 @@ namespace Elixir
 
         // The graph's blend mode (drives the renderer's pipeline/pass selection).
         [[nodiscard]] EMaterialBlendMode BlendMode() const { return (EMaterialBlendMode)m_Document.BlendMode; }
+        [[nodiscard]] EMaterialDomain Domain() const { return (EMaterialDomain)m_Document.Domain; }
+        [[nodiscard]] EMaterialUsage Usages() const { return (EMaterialUsage)m_Document.Usages; }
 
         // The authored graph being edited. Reading it yields something serializable
         // without the editor; setting it drops the view state that no longer applies.

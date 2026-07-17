@@ -98,6 +98,8 @@ namespace Elixir
     struct SMaterialIR
     {
         EMaterialIRStage Stage = EMaterialIRStage::Pixel;
+        EMaterialDomain Domain = EMaterialDomain::Surface;
+        EMaterialUsage Usages = EMaterialUsage::StaticMesh;
         EMaterialBlendMode BlendMode = EMaterialBlendMode::Opaque;
         float AlphaCutoff = 0.5f;
         std::vector<SMaterialIRInstruction> Instructions;

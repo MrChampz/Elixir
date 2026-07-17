@@ -231,6 +231,8 @@ namespace Elixir
 
         graph.SetBlend((EMaterialBlendMode)BlendMode, AlphaCutoff);
         graph.SetShadingModel((EMaterialShadingModel)ShadingModel);
+        graph.SetDomain((EMaterialDomain)Domain);
+        graph.SetUsages((EMaterialUsage)Usages);
         return graph;
     }
 
@@ -337,7 +339,8 @@ namespace Elixir
             for (const char* p = n.Code; *p; ++p) mix((size_t)*p);
         }
         for (int i = 0; i < 11; ++i) mix((size_t)(Channels[i] + 2));
-        mix((size_t)TargetMaterial); mix((size_t)BlendMode); mix((size_t)ShadingModel);
+        mix((size_t)TargetMaterial); mix((size_t)Domain); mix((size_t)Usages);
+        mix((size_t)BlendMode); mix((size_t)ShadingModel);
         mixf(AlphaCutoff);
         std::vector<std::pair<std::string, bool>> staticValues(StaticValues.begin(), StaticValues.end());
         std::sort(staticValues.begin(), staticValues.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
@@ -382,6 +385,8 @@ namespace Elixir
         std::ostream& out, const SMaterialGraphDocument& document, const std::string& indent)
     {
         const std::string nested = indent + "  ";
+        out << indent << "\"domain\": " << document.Domain << ",\n";
+        out << indent << "\"usages\": " << document.Usages << ",\n";
         out << indent << "\"blendMode\": " << document.BlendMode << ",\n";
         out << indent << "\"alphaCutoff\": " << document.AlphaCutoff << ",\n";
         out << indent << "\"shadingModel\": " << document.ShadingModel << ",\n";
@@ -472,6 +477,8 @@ namespace Elixir
         int64_t integer;
         if (doc["targetMaterial"].get(integer) == simdjson::SUCCESS) document.TargetMaterial = (int)integer;
         if (doc["nextId"].get(integer) == simdjson::SUCCESS) document.NextId = std::max((int)integer, 1);
+        if (doc["domain"].get(integer) == simdjson::SUCCESS) document.Domain = (int)integer;
+        if (doc["usages"].get(integer) == simdjson::SUCCESS) document.Usages = (uint32_t)integer;
         if (doc["blendMode"].get(integer) == simdjson::SUCCESS) document.BlendMode = (int)integer;
         if (doc["shadingModel"].get(integer) == simdjson::SUCCESS) document.ShadingModel = (int)integer;
         // Read like every other number here: a whole-numbered cutoff is written as an

@@ -89,6 +89,8 @@ namespace Elixir
                 , m_Nodes(graph.GetNodes())
             {
                 m_IR.Stage = stage;
+                m_IR.Domain = graph.GetDomain();
+                m_IR.Usages = graph.GetUsages();
                 m_IR.BlendMode = graph.GetBlendMode();
                 m_IR.AlphaCutoff = graph.GetAlphaCutoff();
             }

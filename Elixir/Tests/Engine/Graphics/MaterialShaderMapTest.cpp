@@ -50,10 +50,21 @@ TEST(MaterialShaderMap, ContentKeyIsStableAndCoversSources)
         MakeKeyGraph(false, 0.75f), pixelTemplate, vertexTemplate);
     const uint64_t changedTemplate = MaterialCompiler::BuildContentKeyFromTemplates(
         MakeKeyGraph(false), pixelTemplate + " ", vertexTemplate);
+    MaterialGraph changedUsageGraph = MakeKeyGraph(false);
+    changedUsageGraph.SetUsages(EMaterialUsage::SkeletalMesh);
+    const uint64_t changedUsage = MaterialCompiler::BuildContentKeyFromTemplates(
+        changedUsageGraph, pixelTemplate, vertexTemplate);
+    MaterialGraph changedDomainGraph = MakeKeyGraph(false);
+    changedDomainGraph.SetDomain(EMaterialDomain::UserInterface);
+    changedDomainGraph.SetUsages(EMaterialUsage::None);
+    const uint64_t changedDomain = MaterialCompiler::BuildContentKeyFromTemplates(
+        changedDomainGraph, pixelTemplate, vertexTemplate);
 
     EXPECT_EQ(ordered, reordered);
     EXPECT_NE(ordered, changedGraph);
     EXPECT_NE(ordered, changedTemplate);
+    EXPECT_NE(ordered, changedUsage);
+    EXPECT_NE(ordered, changedDomain);
     EXPECT_EQ(MaterialCompiler::CacheName(0x2au), "GraphMat_000000000000002a");
 }
 

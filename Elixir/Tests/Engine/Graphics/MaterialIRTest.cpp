@@ -43,6 +43,7 @@ namespace
 TEST(MaterialIR, BuildsTypedTopologicalInstructions)
 {
     MaterialGraph graph;
+    graph.SetUsages(EMaterialUsage::StaticMesh | EMaterialUsage::InstancedMesh);
     const uint32_t vector = graph.AddNode(Constant(EGraphValueType::Float2,
         glm::vec4(0.25f, 0.75f, 0.0f, 0.0f)));
 
@@ -62,6 +63,8 @@ TEST(MaterialIR, BuildsTypedTopologicalInstructions)
     graph.SetChannel(EMaterialChannel::BaseColor, multiplyId);
 
     const SMaterialIR material = MaterialIRBuilder::Build(graph, EMaterialIRStage::Pixel);
+    EXPECT_EQ(material.Domain, EMaterialDomain::Surface);
+    EXPECT_EQ(material.Usages, EMaterialUsage::StaticMesh | EMaterialUsage::InstancedMesh);
     ASSERT_EQ(material.Instructions.size(), 3u);
     EXPECT_EQ(material.Instructions[0].SourceNode, vector);
     EXPECT_EQ(material.Instructions[0].Type, EGraphValueType::Float2);

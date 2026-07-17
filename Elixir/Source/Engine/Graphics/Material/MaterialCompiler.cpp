@@ -13,7 +13,7 @@ namespace Elixir
 
     namespace
     {
-        constexpr uint32_t SHADER_FORMAT_VERSION = 1;
+        constexpr uint32_t SHADER_FORMAT_VERSION = 2;
         constexpr std::string_view SHADER_PLATFORM = "SPIRV.ps_6_0.vs_6_0";
 
         fs::path FindDxc()
@@ -46,7 +46,8 @@ namespace Elixir
             return source;
         }
 
-        uint64_t HashSources(const std::string_view pixelSource, const std::string_view vertexSource)
+        uint64_t HashSources(const std::string_view pixelSource, const std::string_view vertexSource,
+            const EMaterialDomain domain, const EMaterialUsage usages)
         {
             uint64_t hash = 1469598103934665603ull;
             const auto mix = [&](const std::string_view bytes)
@@ -63,6 +64,10 @@ namespace Elixir
             mix(SHADER_PLATFORM);
             const std::string version = std::to_string(SHADER_FORMAT_VERSION);
             mix(version);
+            const std::string domainValue = std::to_string((uint32_t)domain);
+            const std::string usageValue = std::to_string((uint32_t)usages);
+            mix(domainValue);
+            mix(usageValue);
             mix(pixelSource);
             mix(vertexSource);
             return hash;
@@ -95,14 +100,19 @@ namespace Elixir
     {
         const std::string pixelSource = InjectBody(std::string(pixelTemplate), graph);
         const std::string vertexSource = BuildVertexSource(vertexTemplate, graph);
-        return HashSources(pixelSource, vertexSource);
+        return HashSources(pixelSource, vertexSource, graph.GetDomain(), graph.GetUsages());
     }
 
     std::optional<uint64_t> MaterialCompiler::BuildContentKey(const MaterialGraph& graph)
     {
+        const SMaterialDomainDescriptor* domain = MaterialDomain::Find(graph.GetDomain());
+        if (!domain || !domain->ShaderContractAvailable
+            || domain->PixelTemplate.empty() || domain->VertexTemplate.empty())
+            return std::nullopt;
+
         const fs::path shadersDir = "./Shaders";
-        const std::string pixelTemplate = ReadFile(shadersDir / "GraphMaterial.ps.hlsl");
-        const std::string vertexTemplate = ReadFile(shadersDir / "GraphMaterial.vs.hlsl");
+        const std::string pixelTemplate = ReadFile(shadersDir / domain->PixelTemplate);
+        const std::string vertexTemplate = ReadFile(shadersDir / domain->VertexTemplate);
         if (pixelTemplate.empty() || vertexTemplate.empty())
             return std::nullopt;
         return BuildContentKeyFromTemplates(graph, pixelTemplate, vertexTemplate);
@@ -141,26 +151,35 @@ namespace Elixir
         if (validation.HasErrors())
             return std::nullopt;
 
-        const fs::path shadersDir = "./Shaders";
-        const fs::path generatedDir = shadersDir / "Generated";
-
-        const std::string templateHlsl = ReadFile(shadersDir / "GraphMaterial.ps.hlsl");
-        if (templateHlsl.empty())
+        const SMaterialDomainDescriptor* domain = MaterialDomain::Find(graph.GetDomain());
+        if (!domain || !domain->ShaderContractAvailable
+            || domain->PixelTemplate.empty() || domain->VertexTemplate.empty())
         {
-            EE_CORE_ERROR("Material graph: template GraphMaterial.ps.hlsl not found next to the shaders.")
+            EE_CORE_ERROR("Material graph: selected domain has no renderer shader contract.")
             return std::nullopt;
         }
 
-        const std::string vsTemplate = ReadFile(shadersDir / "GraphMaterial.vs.hlsl");
+        const fs::path shadersDir = "./Shaders";
+        const fs::path generatedDir = shadersDir / "Generated";
+
+        const std::string templateHlsl = ReadFile(shadersDir / domain->PixelTemplate);
+        if (templateHlsl.empty())
+        {
+            EE_CORE_ERROR("Material graph: template '{}' not found next to the shaders.", domain->PixelTemplate)
+            return std::nullopt;
+        }
+
+        const std::string vsTemplate = ReadFile(shadersDir / domain->VertexTemplate);
         if (vsTemplate.empty())
         {
-            EE_CORE_ERROR("Material graph: template GraphMaterial.vs.hlsl not found next to the shaders.")
+            EE_CORE_ERROR("Material graph: template '{}' not found next to the shaders.", domain->VertexTemplate)
             return std::nullopt;
         }
 
         const std::string pixelSource = InjectBody(templateHlsl, graph);
         const std::string vertexSource = BuildVertexSource(vsTemplate, graph);
-        const uint64_t contentKey = HashSources(pixelSource, vertexSource);
+        const uint64_t contentKey = HashSources(
+            pixelSource, vertexSource, graph.GetDomain(), graph.GetUsages());
         const std::string name = CacheName(contentKey);
 
         // Each compile loads from its own subdir containing only its two SPIR-V

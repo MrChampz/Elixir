@@ -365,17 +365,63 @@ namespace Elixir
         ImGui::SetNextItemWidth(160.0f);
         ImGui::SliderInt("Target material", &m_Document.TargetMaterial, 0, maxMaterial);
 
-        ImGui::SetNextItemWidth(120.0f);
-        ImGui::Combo("Blend", &m_Document.BlendMode, "Opaque\0Masked\0Translucent\0Additive\0");
-        if (m_Document.BlendMode == 1) // Masked
+        int selectedDomain = std::clamp(m_Document.Domain, 0, 2);
+        ImGui::SetNextItemWidth(140.0f);
+        if (ImGui::Combo("Domain", &selectedDomain, "Surface\0Post Process\0User Interface\0"))
+        {
+            m_Document.Domain = selectedDomain;
+            const auto* descriptor = MaterialDomain::Find((EMaterialDomain)selectedDomain);
+            m_Document.Usages = descriptor ? (uint32_t)descriptor->DefaultUsages : 0;
+        }
+
+        const bool surfaceDomain = m_Document.Domain == (int)EMaterialDomain::Surface;
+        if (surfaceDomain)
+        {
+            ImGui::SetNextItemWidth(120.0f);
+            ImGui::Combo("Blend", &m_Document.BlendMode, "Opaque\0Masked\0Translucent\0Additive\0");
+            if (m_Document.BlendMode == 1) // Masked
+            {
+                ImGui::SameLine();
+                ImGui::SetNextItemWidth(120.0f);
+                ImGui::SliderFloat("Cutoff", &m_Document.AlphaCutoff, 0.0f, 1.0f, "%.2f");
+            }
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(130.0f);
+            ImGui::Combo("Shading", &m_Document.ShadingModel,
+                "Default Lit\0Unlit\0Subsurface\0Clear Coat\0Cloth\0");
+
+            const auto usageCheckbox = [&](const char* label, const EMaterialUsage usage)
+            {
+                bool enabled = (m_Document.Usages & (uint32_t)usage) != 0;
+                if (ImGui::Checkbox(label, &enabled))
+                {
+                    if (enabled)
+                        m_Document.Usages |= (uint32_t)usage;
+                    else
+                        m_Document.Usages &= ~(uint32_t)usage;
+                }
+                ImGui::SameLine();
+            };
+            ImGui::TextUnformatted("Usage:");
+            ImGui::SameLine();
+            usageCheckbox("Static Mesh", EMaterialUsage::StaticMesh);
+            usageCheckbox("Skeletal Mesh", EMaterialUsage::SkeletalMesh);
+            usageCheckbox("Instanced Mesh", EMaterialUsage::InstancedMesh);
+            usageCheckbox("Particle Sprite", EMaterialUsage::ParticleSprite);
+            bool particleMesh = (m_Document.Usages & (uint32_t)EMaterialUsage::ParticleMesh) != 0;
+            if (ImGui::Checkbox("Particle Mesh", &particleMesh))
+            {
+                if (particleMesh)
+                    m_Document.Usages |= (uint32_t)EMaterialUsage::ParticleMesh;
+                else
+                    m_Document.Usages &= ~(uint32_t)EMaterialUsage::ParticleMesh;
+            }
+        }
+        else
         {
             ImGui::SameLine();
-            ImGui::SetNextItemWidth(120.0f);
-            ImGui::SliderFloat("Cutoff", &m_Document.AlphaCutoff, 0.0f, 1.0f, "%.2f");
+            ImGui::TextDisabled("Renderer shader contract not implemented");
         }
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(130.0f);
-        ImGui::Combo("Shading", &m_Document.ShadingModel, "Default Lit\0Unlit\0Subsurface\0Clear Coat\0Cloth\0");
 
         // Save / load the parent Material: this graph and its defaults. Instances of it
         // are named and saved from the Material Editor. The host does the IO once
@@ -805,12 +851,28 @@ namespace Elixir
         }
 
         // --- Output (master) node ---
-        // The surface channels are always shown; the current shading model adds its
-        // own inputs (channels 7..10) so the Output node stays uncluttered.
-        std::vector<int> vis = { 0, 1, 2, 3, 4, 5, 6 };
-        if (m_Document.ShadingModel == 2) vis.push_back(7);                               // Subsurface Color
-        else if (m_Document.ShadingModel == 3) { vis.push_back(8); vis.push_back(9); }    // Clear Coat (+ roughness)
-        else if (m_Document.ShadingModel == 4) vis.push_back(10);                         // Sheen
+        // Each domain exposes only its contract's outputs. Already-connected outputs
+        // remain visible after a domain/shading change so the invalid link can be
+        // diagnosed and disconnected instead of becoming hidden authoring state.
+        std::vector<int> vis;
+        const auto* domainDescriptor = MaterialDomain::Find((EMaterialDomain)m_Document.Domain);
+        if (!domainDescriptor)
+            domainDescriptor = &MaterialDomain::Surface();
+        if (domainDescriptor->Domain == EMaterialDomain::Surface)
+        {
+            vis = { 0, 1, 2, 3, 4, 5, 6 };
+            if (m_Document.ShadingModel == 2) vis.push_back(7);                            // Subsurface Color
+            else if (m_Document.ShadingModel == 3) { vis.push_back(8); vis.push_back(9); } // Clear Coat
+            else if (m_Document.ShadingModel == 4) vis.push_back(10);                      // Sheen
+        }
+        else
+            for (int channel = 0; channel < 11; ++channel)
+                if (domainDescriptor->AllowsChannel((uint8_t)channel))
+                    vis.push_back(channel);
+        for (int channel = 0; channel < 11; ++channel)
+            if (m_Document.Channels[channel] >= 0
+                && std::find(vis.begin(), vis.end(), channel) == vis.end())
+                vis.push_back(channel);
 
         const ImVec2 op = ImVec2(base.x + 520.0f, base.y + 40.0f);
         const ImVec2 omin = op;

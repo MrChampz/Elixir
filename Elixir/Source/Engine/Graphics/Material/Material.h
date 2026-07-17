@@ -79,6 +79,18 @@ namespace Elixir
         [[nodiscard]] bool HasGraph() const { return m_Graph.has_value(); }
         [[nodiscard]] const MaterialGraph* GetGraph() const { return m_Graph ? &*m_Graph : nullptr; }
         [[nodiscard]] const std::vector<SMaterialGraphParameter>& GetGraphParameters() const { return m_GraphParameters; }
+        [[nodiscard]] EMaterialDomain GetDomain() const
+        {
+            return m_Graph ? m_Graph->GetDomain() : EMaterialDomain::Surface;
+        }
+        [[nodiscard]] EMaterialUsage GetUsages() const
+        {
+            return m_Graph ? m_Graph->GetUsages() : EMaterialUsage::StaticMesh;
+        }
+        [[nodiscard]] bool HasUsage(EMaterialUsage usage) const
+        {
+            return HasMaterialUsage(GetUsages(), usage);
+        }
 
         // The authored graph this material was built from, kept so the material can be
         // saved and reopened for editing. GetGraph() is the compiled result of it.

@@ -210,6 +210,7 @@ TEST(MaterialAsset, RoundTripsGraphMaterialAndInstance)
     // No editor anywhere in this test: the document is the authored graph, and the
     // asset layer reads and writes it without the authoring tool.
     SMaterialGraphDocument document;
+    document.Usages = (uint32_t)(EMaterialUsage::StaticMesh | EMaterialUsage::InstancedMesh);
     SMaterialGraphNode node;
     node.Id = 1;
     node.Type = EMaterialNodeType::ParamScalar;
@@ -292,6 +293,9 @@ TEST(MaterialAsset, RoundTripsGraphMaterialAndInstance)
     ASSERT_NE(loaded, nullptr);
     ASSERT_NE(loaded->GetParent(), nullptr);
     EXPECT_TRUE(loaded->GetParent()->HasGraph());
+    EXPECT_EQ(loaded->GetParent()->GetDomain(), EMaterialDomain::Surface);
+    EXPECT_TRUE(loaded->GetParent()->HasUsage(EMaterialUsage::StaticMesh));
+    EXPECT_TRUE(loaded->GetParent()->HasUsage(EMaterialUsage::InstancedMesh));
     EXPECT_EQ(loaded->GetName(), "Body Paint");
     EXPECT_FLOAT_EQ(loaded->GetScalar("Strength"), 0.8f);
     EXPECT_EQ(loaded->GetVector("BaseColorFactor"), glm::vec4(0.1f, 0.2f, 0.3f, 1.0f));
@@ -378,14 +382,34 @@ TEST(MaterialGraphDocument, RoundTripsAWholeNumberedAlphaCutoff)
     // 1.0f serialises as the integer token "1", so this pins the cutoff surviving a
     // round trip rather than quietly falling back to its default.
     SMaterialGraphDocument document;
+    document.Domain = (int)EMaterialDomain::UserInterface;
+    document.Usages = (uint32_t)EMaterialUsage::None;
     document.BlendMode = 1; // Masked
     document.AlphaCutoff = 1.0f;
     ASSERT_TRUE(MaterialGraphDocument::Save(path, document));
 
     const auto loaded = MaterialGraphDocument::Load(path);
     ASSERT_TRUE(loaded.has_value());
+    EXPECT_EQ(loaded->Domain, (int)EMaterialDomain::UserInterface);
+    EXPECT_EQ(loaded->Usages, (uint32_t)EMaterialUsage::None);
     EXPECT_EQ(loaded->BlendMode, 1);
     EXPECT_FLOAT_EQ(loaded->AlphaCutoff, 1.0f);
+}
+
+TEST(MaterialGraphDocument, DefaultsLegacyAssetsToSurfaceStaticMesh)
+{
+    SMaterialTestDirectory directory;
+    const auto path = directory.Path / "legacy.material.json";
+    {
+        std::ofstream out(path);
+        out << R"({ "version": 1, "blendMode": 0, "alphaCutoff": 0.5,)"
+            << R"( "shadingModel": 0, "nextId": 1, "channels": [], "nodes": [], "comments": [] })";
+    }
+
+    const auto loaded = MaterialGraphDocument::Load(path);
+    ASSERT_TRUE(loaded.has_value());
+    EXPECT_EQ(loaded->Domain, (int)EMaterialDomain::Surface);
+    EXPECT_EQ(loaded->Usages, (uint32_t)EMaterialUsage::StaticMesh);
 }
 
 TEST(MeshAsset, RoundTripsSourceAndMaterialSlots)

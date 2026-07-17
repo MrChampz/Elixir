@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Engine/Graphics/Material/MaterialDomain.h>
+
 #include <glm/glm.hpp>
 
 #include <string>
@@ -148,9 +150,14 @@ namespace Elixir
         // (the Masked clip); the renderer reads the mode separately for pipeline state.
         void SetBlend(EMaterialBlendMode mode, float cutoff) { m_BlendMode = mode; m_AlphaCutoff = cutoff; }
         void SetShadingModel(EMaterialShadingModel model) { m_ShadingModel = model; }
+        void SetDomain(EMaterialDomain domain) { m_Domain = domain; }
+        void SetUsages(EMaterialUsage usages) { m_Usages = usages; }
         [[nodiscard]] EMaterialBlendMode GetBlendMode() const { return m_BlendMode; }
         [[nodiscard]] float GetAlphaCutoff() const { return m_AlphaCutoff; }
         [[nodiscard]] EMaterialShadingModel GetShadingModel() const { return m_ShadingModel; }
+        [[nodiscard]] EMaterialDomain GetDomain() const { return m_Domain; }
+        [[nodiscard]] EMaterialUsage GetUsages() const { return m_Usages; }
+        [[nodiscard]] bool HasUsage(EMaterialUsage usage) const { return HasMaterialUsage(m_Usages, usage); }
 
         // Generate the HLSL statements for a stage. Pixel stage (default) fills
         // `surface.<channel> = ...;` for the surface channels; vertex stage emits
@@ -185,5 +192,7 @@ namespace Elixir
         EMaterialBlendMode m_BlendMode = EMaterialBlendMode::Opaque;
         float m_AlphaCutoff = 0.5f;
         EMaterialShadingModel m_ShadingModel = EMaterialShadingModel::DefaultLit;
+        EMaterialDomain m_Domain = EMaterialDomain::Surface;
+        EMaterialUsage m_Usages = EMaterialUsage::StaticMesh;
     };
 }
