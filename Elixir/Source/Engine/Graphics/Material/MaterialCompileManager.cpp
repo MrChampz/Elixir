@@ -265,8 +265,11 @@ namespace Elixir
             std::lock_guard<std::mutex> lock(m_Mutex);
             EE_CORE_ASSERT(m_ActiveJobs > 0, "MaterialCompileManager active-job underflow.")
             --m_ActiveJobs;
-            EE_CORE_ASSERT(m_ActiveKeys.erase(job->Key) == 1,
-                "MaterialCompileManager active scope was not registered.")
+            // Released outside the assert: EE_CORE_ASSERT drops its argument entirely
+            // outside Debug, and leaving the key registered would gate this scope out of
+            // TakeRunnableLocked forever.
+            [[maybe_unused]] const size_t released = m_ActiveKeys.erase(job->Key);
+            EE_CORE_ASSERT(released == 1, "MaterialCompileManager active scope was not registered.")
 
             const auto latest = m_Latest.find(job->Key);
             const auto owner = m_Clients.find(job->Key.Client);
