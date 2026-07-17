@@ -1,0 +1,147 @@
+{
+  "name": "Blooming Flower",
+  "parameters": {
+    "core_start": [0.52, 1.00, 0.88, 0.96],
+    "core_end": [0.08, 0.36, 0.30, 0.00],
+    "petal_start": [0.34, 0.98, 0.84, 0.82],
+    "petal_end": [0.08, 0.46, 0.42, 0.00],
+    "tendril_start": [0.66, 1.00, 0.92, 0.88],
+    "tendril_end": [0.10, 0.48, 0.44, 0.00],
+    "dust_start": [0.76, 1.00, 0.90, 0.64],
+    "dust_end": [0.18, 0.60, 0.54, 0.00]
+  },
+  "curves": {
+    "core_scale_curve": [0.24, 0.62, 1.00, 0.82, 0.58, 0.38, 0.20, 0.06],
+    "petal_scale_curve": [0.18, 0.68, 1.00, 0.92, 0.74, 0.50, 0.26, 0.08],
+    "tendril_scale_curve": [0.20, 0.52, 0.86, 1.00, 0.84, 0.58, 0.30, 0.10],
+    "dust_scale_curve": [0.22, 0.58, 0.92, 0.88, 0.66, 0.42, 0.20, 0.06]
+  },
+  "colorCurves": {
+    "core_color_curve": [
+      [0.76, 1.00, 0.92, 1.00],
+      [0.52, 1.00, 0.88, 0.96],
+      [0.36, 0.94, 0.80, 0.82],
+      [0.24, 0.82, 0.70, 0.66],
+      [0.16, 0.68, 0.58, 0.48],
+      [0.12, 0.54, 0.46, 0.30],
+      [0.10, 0.42, 0.36, 0.14],
+      [0.08, 0.36, 0.30, 0.00]
+    ],
+    "petal_color_curve": [
+      [0.54, 1.00, 0.90, 0.90],
+      [0.34, 0.98, 0.84, 0.82],
+      [0.24, 0.90, 0.76, 0.72],
+      [0.18, 0.78, 0.66, 0.58],
+      [0.14, 0.66, 0.56, 0.42],
+      [0.12, 0.56, 0.50, 0.28],
+      [0.10, 0.50, 0.46, 0.12],
+      [0.08, 0.46, 0.42, 0.00]
+    ],
+    "tendril_color_curve": [
+      [0.82, 1.00, 0.96, 0.94],
+      [0.66, 1.00, 0.92, 0.88],
+      [0.48, 0.94, 0.84, 0.78],
+      [0.34, 0.84, 0.74, 0.64],
+      [0.24, 0.72, 0.64, 0.48],
+      [0.18, 0.62, 0.56, 0.30],
+      [0.14, 0.54, 0.50, 0.14],
+      [0.10, 0.48, 0.44, 0.00]
+    ],
+    "dust_color_curve": [
+      [0.86, 1.00, 0.96, 0.72],
+      [0.76, 1.00, 0.90, 0.64],
+      [0.60, 0.94, 0.82, 0.54],
+      [0.44, 0.84, 0.72, 0.42],
+      [0.32, 0.76, 0.64, 0.30],
+      [0.26, 0.68, 0.60, 0.20],
+      [0.22, 0.62, 0.56, 0.10],
+      [0.18, 0.60, 0.54, 0.00]
+    ]
+  },
+  "emitters": [
+    {
+      "name": "FlowerCore",
+      "renderMode": "Sprite",
+      "spriteTexture": "Assets/Textures/SoftGlow.png",
+      "maxParticles": 320,
+      "spawnRate": 64.0,
+      "spawnModules": [
+        { "type": "SetPositionDisk", "center": [0.0, -0.58, 0.0], "radius": 0.12 },
+        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 0.64, "minSpeed": 0.04, "maxSpeed": 0.16 },
+        { "type": "SetLifetime", "min": 1.1, "max": 1.7 },
+        { "type": "SetSize", "min": 0.26, "max": 0.48 },
+        { "type": "SetScale", "min": 0.78, "max": 1.20 },
+        { "type": "SetColor", "color": "$core_start" }
+      ],
+      "updateModules": [
+        { "type": "ApplyLinearDrag", "drag": 0.16 },
+        { "type": "ColorOverLife", "start": "$core_start", "end": "$core_end", "curve": "core_color_curve", "input": "NormalizedAge" },
+        { "type": "SizeOverLife", "start": 0.46, "end": 0.08 },
+        { "type": "ScaleOverLife", "start": 1.0, "end": 0.12, "curve": "core_scale_curve", "input": "NormalizedAge" }
+      ]
+    },
+    {
+      "name": "PetalHalo",
+      "renderMode": "Sprite",
+      "spriteTexture": "Assets/Textures/SoftGlow.png",
+      "maxParticles": 760,
+      "spawnRate": 92.0,
+      "spawnModules": [
+        { "type": "SetPositionCircularPath", "baseOffset": [0.0, -0.30, 0.0], "primaryAmplitude": [0.68, 0.34, 0.48], "secondaryAmplitude": [0.16, 0.14, 0.20], "timeScale": 1.26 },
+        { "type": "SetLifetime", "min": 2.0, "max": 2.8 },
+        { "type": "SetSize", "min": 0.08, "max": 0.18 },
+        { "type": "SetScale", "min": 0.70, "max": 1.24 },
+        { "type": "SetRotation", "min": 0.0, "max": 6.2831853 },
+        { "type": "SetColor", "color": "$petal_start" }
+      ],
+      "updateModules": [
+        { "type": "ApplyAngularVelocity", "value": 0.72, "input": "Random" },
+        { "type": "ColorOverLife", "start": "$petal_start", "end": "$petal_end", "curve": "petal_color_curve", "input": "NormalizedAge" },
+        { "type": "SizeOverLife", "start": 0.18, "end": 0.025 },
+        { "type": "ScaleOverLife", "start": 1.0, "end": 0.10, "curve": "petal_scale_curve", "input": "NormalizedAge" }
+      ]
+    },
+    {
+      "name": "FlowerTendrils",
+      "renderMode": "Ribbon",
+      "maxParticles": 680,
+      "spawnRate": 170.0,
+      "spawnModules": [
+        { "type": "SetPositionVortexRibbonPath", "center": [0.0, -0.46, 0.0], "orbitSpeed": 1.52, "baseRadius": 0.10, "radiusAmplitude": 0.62, "radiusSpeed": 0.46, "pulseAmplitude": 0.16, "pulseSpeed": 0.86, "curlAmplitude": 0.12, "depthAmplitude": 0.26 },
+        { "type": "SetRibbonIdFromSpawnOrder", "ribbonCount": 5, "firstRibbonId": 0 },
+        { "type": "SetLifetime", "min": 3.7, "max": 3.7 },
+        { "type": "SetSize", "min": 9.0, "max": 14.0 },
+        { "type": "SetScale", "min": 0.72, "max": 1.08 },
+        { "type": "SetColor", "color": "$tendril_start" }
+      ],
+      "updateModules": [
+        { "type": "ColorOverLife", "start": "$tendril_start", "end": "$tendril_end", "curve": "tendril_color_curve", "input": "NormalizedAge" },
+        { "type": "SizeOverLife", "start": 14.0, "end": 2.0 },
+        { "type": "ScaleOverLife", "start": 1.0, "end": 0.10, "curve": "tendril_scale_curve", "input": "NormalizedAge" }
+      ]
+    },
+    {
+      "name": "FlowerDust",
+      "renderMode": "Sprite",
+      "spriteTexture": "Assets/Textures/SoftGlow.png",
+      "maxParticles": 720,
+      "spawnRate": 54.0,
+      "spawnModules": [
+        { "type": "SetPositionDisk", "center": [0.0, -0.38, 0.0], "radius": 0.28 },
+        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 1.08, "minSpeed": 0.10, "maxSpeed": 0.34 },
+        { "type": "SetLifetime", "min": 1.8, "max": 3.2 },
+        { "type": "SetSize", "min": 0.025, "max": 0.07 },
+        { "type": "SetScale", "min": 0.68, "max": 1.18 },
+        { "type": "SetColor", "color": "$dust_start" }
+      ],
+      "updateModules": [
+        { "type": "ApplyGravity", "gravity": [0.0, 0.035, 0.0, 0.0] },
+        { "type": "ApplyLinearDrag", "drag": 0.08 },
+        { "type": "ColorOverLife", "start": "$dust_start", "end": "$dust_end", "curve": "dust_color_curve", "input": "NormalizedAge" },
+        { "type": "SizeOverLife", "start": 0.07, "end": 0.012 },
+        { "type": "ScaleOverLife", "start": 1.0, "end": 0.08, "curve": "dust_scale_curve", "input": "NormalizedAge" },
+        { "type": "KillOutsideBounds", "min": [-1.8, -1.4, -1.8], "max": [1.8, 1.6, 1.8] }
+      ]
+    }
+  ]
+}

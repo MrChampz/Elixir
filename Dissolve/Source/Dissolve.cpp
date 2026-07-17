@@ -71,7 +71,7 @@ Dissolve::Dissolve()
     m_Model = Model::Load(m_GraphicsContext.get(), "./Assets/Meshes/McLaren/scene.mesh.json");
     LoadMaterialAssets();
 
-    m_ParticleSystem = Aether::LoadEffectFile("./Assets/VFX/RibbonVortex.json");
+    m_ParticleSystem = Aether::LoadEffectFile("./Assets/VFX/BloomingFlower.json");
     // m_ParticleSystem = CreateScope<Aether::System>("Ribbon Garden");
     // m_ParticleSystem->GetParameters().SetFloat("GravityScale", 1.0f);
     //
