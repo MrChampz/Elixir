@@ -33,17 +33,17 @@ namespace Elixir
 
         // Two-phase apply so the expensive pipeline creation (Metal compile on
         // MoltenVK) happens off the render thread. Render installs the prepared
-        // shader and material instance together at a frame boundary.
+        // shader and immutable parameter snapshot together at a frame boundary.
         void PrepareMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader,
             EMaterialBlendMode blendMode, const SMaterialShaderPermutation& permutation,
-            const Ref<Model>& model,
-            const Ref<MaterialInstance>& materialInstance, size_t revision, size_t variantKey);
+            const Ref<const MaterialRenderProxy>& proxy,
+            size_t revision, size_t variantKey);
         [[nodiscard]] bool HasMaterialShaderVariant(
             uint32_t materialIndex, const SMaterialShaderPermutation& permutation,
             size_t revision, size_t variantKey) const;
         void PrepareCachedMaterialShader(uint32_t materialIndex,
             const SMaterialShaderPermutation& permutation, size_t revision, size_t variantKey,
-            const Ref<Model>& model, const Ref<MaterialInstance>& materialInstance);
+            const Ref<const MaterialRenderProxy>& proxy);
         void InstallPendingShaders();
 
       private:
@@ -100,7 +100,7 @@ namespace Elixir
         static constexpr uint32_t NO_TEXTURE = 0xffffffffu;
 
         uint32_t ResolveTexture(const Ref<Texture>& texture);
-        Ref<StorageBuffer> BuildMaterialBuffer(const Ref<Model>& model);
+        Ref<StorageBuffer> BuildMaterialBuffer(const Model::MaterialRenderProxyList& materials);
 
         const GraphicsContext* m_GraphicsContext;
 
@@ -120,6 +120,7 @@ namespace Elixir
             SMaterialShaderPermutation Permutation;
             size_t Revision = 0;
             size_t VariantKey = 0;
+            Ref<const MaterialRenderProxy> Proxy;
         };
         std::unordered_map<uint32_t, SShaderVariant> m_MaterialShaders;
 
@@ -164,8 +165,7 @@ namespace Elixir
         {
             uint32_t Slot;
             SShaderVariant Variant;
-            Ref<Model> Model;
-            Ref<MaterialInstance> MaterialInstance;
+            Ref<const MaterialRenderProxy> Proxy;
             SMaterialShaderPermutation Permutation;
             size_t Revision = 0;
             size_t VariantKey = 0;

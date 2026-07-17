@@ -201,6 +201,28 @@ void Dissolve::QueueGraphCompile(
     const EMaterialBlendMode compileBlend = compileGraph.GetBlendMode();
     const size_t revision = instance->GraphRevision();
     const size_t variantKey = instance->StaticVariantKey();
+    const Ref<const MaterialResource> resource = MaterialResource::Create(
+        *instance, compilePermutation, compileBlend);
+    const Ref<const MaterialRenderProxy> proxy =
+        MaterialRenderProxy::Create(*instance, resource);
+    if (!proxy)
+    {
+        EE_CORE_ERROR("Material slot {} could not create a compatible render proxy.", slot)
+        return;
+    }
+
+    // Authoring state stays on the main thread. Rendering continues to use its old
+    // immutable proxy until the matching shader and this new proxy are installed at a
+    // frame boundary.
+    {
+        std::lock_guard<std::mutex> lock(m_Model->MaterialsMutex());
+        const auto& materials = m_Model->GetMaterials();
+        if (slot >= materials.size())
+            return;
+        materials[slot]->SetParent(instance->GetParent());
+        materials[slot]->ApplyCompatibleOverridesFrom(*instance);
+        materials[slot]->SetName(instance->GetName());
+    }
 
     // Switching back to a permutation already built for this slot is a lightweight
     // render-boundary swap: no DXC, Vulkan shader load or Metal pipeline creation.
@@ -209,7 +231,7 @@ void Dissolve::QueueGraphCompile(
     {
         MaterialCompileManager::Get().Cancel(m_MaterialCompileClient, slot);
         m_MeshRenderer->PrepareCachedMaterialShader(
-            slot, compilePermutation, revision, variantKey, m_Model, instance);
+            slot, compilePermutation, revision, variantKey, proxy);
         return;
     }
 
@@ -217,7 +239,7 @@ void Dissolve::QueueGraphCompile(
     // callback still runs on a worker and builds only renderer-local Vulkan state.
     MaterialCompileManager::Get().Request(
         m_MaterialCompileClient, slot, compileGraph, compilePermutation,
-        [this, slot, compileBlend, compilePermutation, instance, revision, variantKey](
+        [this, slot, compileBlend, compilePermutation, proxy, revision, variantKey](
             const SMaterialCompileResult& result)
     {
         auto& compileManager = MaterialCompileManager::Get();
@@ -236,7 +258,7 @@ void Dissolve::QueueGraphCompile(
                     m_MaterialCompileClient, slot, compilePermutation, result.RequestId))
                 m_MeshRenderer->PrepareMaterialShader(
                     slot, shader, compileBlend, compilePermutation,
-                    m_Model, instance, revision, variantKey);
+                    proxy, revision, variantKey);
         }
     }, priority);
 }
@@ -347,11 +369,14 @@ bool Dissolve::LoadMaterialAsset(const uint32_t slot, const std::filesystem::pat
         QueueGraphCompile(slot, instance, EMaterialCompilePriority::Normal);
     else
     {
-        std::lock_guard<std::mutex> lock(m_Model->MaterialsMutex());
-        const auto& current = m_Model->GetMaterials()[slot];
-        current->SetParent(instance->GetParent());
-        current->ApplyCompatibleOverridesFrom(*instance);
-        current->SetName(instance->GetName());
+        {
+            std::lock_guard<std::mutex> lock(m_Model->MaterialsMutex());
+            const auto& current = m_Model->GetMaterials()[slot];
+            current->SetParent(instance->GetParent());
+            current->ApplyCompatibleOverridesFrom(*instance);
+            current->SetName(instance->GetName());
+        }
+        m_Model->PublishMaterialRenderProxies();
     }
     return true;
 }
@@ -415,6 +440,7 @@ void Dissolve::DrawMaterialEditor()
     const auto& materials = m_Model->GetMaterials();
     int saveInstanceSlot = -1;
     int staticCompileSlot = -1;
+    bool publishMaterials = false;
     Ref<MaterialInstance> staticCompileInstance;
     if (!materials.empty())
     {
@@ -422,7 +448,8 @@ void Dissolve::DrawMaterialEditor()
         selected = std::clamp(selected, 0, (int)materials.size() - 1);
         ImGui::SliderInt("Material", &selected, 0, (int)materials.size() - 1);
 
-        // Serialise with the render thread's material pack (see Model::MaterialsMutex).
+        // Protect authoring data while the UI edits it. The renderer consumes a
+        // separately published immutable snapshot.
         std::lock_guard<std::mutex> lock(m_Model->MaterialsMutex());
 
         const auto& mat = materials[selected];
@@ -557,10 +584,12 @@ void Dissolve::DrawMaterialEditor()
         }
 
         if (changed)
-            m_Model->MarkMaterialsDirty();
+            publishMaterials = true;
     }
     ImGui::End();
 
+    if (publishMaterials)
+        m_Model->PublishMaterialRenderProxies();
     if (saveInstanceSlot >= 0)
         SaveInstanceAsset((uint32_t)saveInstanceSlot);
     if (staticCompileSlot >= 0 && staticCompileInstance)

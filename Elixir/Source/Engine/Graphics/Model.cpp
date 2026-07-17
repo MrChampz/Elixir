@@ -339,7 +339,65 @@ namespace Elixir
 
         EE_CORE_INFO("Loaded glTF model '{0}': {1} primitives, {2} materials.",
             sourcePath.filename().string(), model->m_Primitives.size(), model->m_Materials.size());
+        model->PublishMaterialRenderProxies();
         return model;
+    }
+
+    void Model::PublishMaterialRenderProxies()
+    {
+        auto proxies = CreateRef<MaterialRenderProxyList>();
+        std::vector<Ref<const MaterialResource>> resources;
+        if (const Ref<const MaterialRenderProxyList> previous = GetMaterialRenderProxies())
+        {
+            resources.reserve(previous->size());
+            for (const Ref<const MaterialRenderProxy>& proxy : *previous)
+            {
+                if (!proxy || !proxy->GetResource())
+                    continue;
+                const Ref<const MaterialResource>& resource = proxy->GetResource();
+                if (std::find(resources.begin(), resources.end(), resource) == resources.end())
+                    resources.push_back(resource);
+            }
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_MaterialsMutex);
+            proxies->reserve(m_Materials.size());
+            resources.reserve(resources.size() + m_Materials.size());
+            for (const Ref<MaterialInstance>& instance : m_Materials)
+            {
+                if (!instance || !instance->GetParent())
+                {
+                    proxies->push_back(nullptr);
+                    continue;
+                }
+
+                const EMaterialBlendMode blendMode = instance->GetParent()->HasGraph()
+                    ? instance->GetParent()->GetGraph()->GetBlendMode()
+                    : EMaterialBlendMode::Opaque;
+                const SMaterialShaderPermutation& permutation =
+                    MaterialShaderPermutation::SurfaceStaticMesh();
+
+                Ref<const MaterialResource> resource;
+                for (const auto& candidate : resources)
+                {
+                    if (candidate->IsCompatible(*instance, permutation, blendMode))
+                    {
+                        resource = candidate;
+                        break;
+                    }
+                }
+                if (!resource)
+                {
+                    resource = MaterialResource::Create(*instance, permutation, blendMode);
+                    if (resource)
+                        resources.push_back(resource);
+                }
+                proxies->push_back(MaterialRenderProxy::Create(*instance, resource));
+            }
+        }
+        Ref<const MaterialRenderProxyList> published = std::move(proxies);
+        std::atomic_store_explicit(
+            &m_MaterialRenderProxies, std::move(published), std::memory_order_release);
     }
 
     std::optional<uint32_t> Model::ResolveMaterialSlot(const SMeshMaterialSlot& entry) const
@@ -387,8 +445,7 @@ namespace Elixir
         SMeshAssetDescription description;
         description.Source = m_SourcePath;
         {
-            // Slot names come from the instances, which the render thread renames when
-            // it installs a prepared material.
+            // Slot names come from the authoring instances.
             std::lock_guard<std::mutex> lock(m_MaterialsMutex);
             for (uint32_t slot = 0; slot < m_MaterialAssets.size(); ++slot)
                 if (!m_MaterialAssets[slot].empty())

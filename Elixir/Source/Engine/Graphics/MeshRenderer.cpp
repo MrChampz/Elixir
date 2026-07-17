@@ -217,16 +217,14 @@ namespace Elixir
 
     void MeshRenderer::PrepareMaterialShader(uint32_t materialIndex, const Ref<Shader>& shader,
         EMaterialBlendMode blendMode, const SMaterialShaderPermutation& permutation,
-        const Ref<Model>& model,
-        const Ref<MaterialInstance>& materialInstance, const size_t revision, const size_t variantKey)
+        const Ref<const MaterialRenderProxy>& proxy,
+        const size_t revision, const size_t variantKey)
     {
         if (!shader)
             return;
         if (permutation != MaterialShaderPermutation::SurfaceStaticMesh()
-            || !materialInstance || !materialInstance->GetParent()
-            || !MaterialShaderPermutation::Matches(
-                materialInstance->GetParent()->GetDomain(),
-                materialInstance->GetParent()->GetUsages(), permutation))
+            || !proxy || !proxy->GetResource()
+            || !proxy->GetResource()->Matches(permutation, revision, variantKey))
         {
             EE_CORE_ERROR("MeshRenderer rejected an incompatible material shader permutation.")
             return;
@@ -240,6 +238,7 @@ namespace Elixir
         variant.Permutation = permutation;
         variant.Revision = revision;
         variant.VariantKey = variantKey;
+        variant.Proxy = proxy;
         CreatePipelinesFor(shader, variant.Opaque, variant.Transparent, blendMode);
         BindResourcesTo(shader);
 
@@ -248,7 +247,7 @@ namespace Elixir
         shader->BindConstantBuffer("cbGraphParams", variant.ParamBuffer);
 
         std::lock_guard<std::mutex> lock(m_PendingMutex);
-        m_PendingVariants.push_back({ materialIndex, std::move(variant), model, materialInstance,
+        m_PendingVariants.push_back({ materialIndex, std::move(variant), proxy,
             permutation, revision, variantKey, false });
     }
 
@@ -266,20 +265,17 @@ namespace Elixir
 
     void MeshRenderer::PrepareCachedMaterialShader(const uint32_t materialIndex,
         const SMaterialShaderPermutation& permutation, const size_t revision,
-        const size_t variantKey, const Ref<Model>& model,
-        const Ref<MaterialInstance>& materialInstance)
+        const size_t variantKey, const Ref<const MaterialRenderProxy>& proxy)
     {
         if (permutation != MaterialShaderPermutation::SurfaceStaticMesh()
-            || !materialInstance || !materialInstance->GetParent()
-            || !MaterialShaderPermutation::Matches(
-                materialInstance->GetParent()->GetDomain(),
-                materialInstance->GetParent()->GetUsages(), permutation))
+            || !proxy || !proxy->GetResource()
+            || !proxy->GetResource()->Matches(permutation, revision, variantKey))
         {
             EE_CORE_ERROR("MeshRenderer rejected an incompatible cached material permutation.")
             return;
         }
         std::lock_guard<std::mutex> lock(m_PendingMutex);
-        m_PendingVariants.push_back({ materialIndex, {}, model, materialInstance,
+        m_PendingVariants.push_back({ materialIndex, {}, proxy,
             permutation, revision, variantKey, true });
     }
 
@@ -293,25 +289,16 @@ namespace Elixir
 
         for (auto& pending : pendingVariants)
         {
-            // The graph asset, its edited instance values and the shader variant
-            // become visible in the same render frame. This avoids a transient frame
-            // that combines the old material state with the new shader (or vice versa).
-            if (pending.Model && pending.MaterialInstance)
-            {
-                std::lock_guard<std::mutex> materialLock(pending.Model->MaterialsMutex());
-                const auto& materials = pending.Model->GetMaterials();
-                if (pending.Slot < materials.size())
-                {
-                    materials[pending.Slot]->SetParent(pending.MaterialInstance->GetParent());
-                    materials[pending.Slot]->ApplyCompatibleOverridesFrom(*pending.MaterialInstance);
-                    materials[pending.Slot]->SetName(pending.MaterialInstance->GetName());
-                }
-            }
             const auto active = m_MaterialShaders.find(pending.Slot);
             if (active != m_MaterialShaders.end() && active->second.Revision == pending.Revision
                 && active->second.VariantKey == pending.VariantKey
                 && active->second.Permutation == pending.Permutation)
+            {
+                // A runtime-only parameter edit does not require another shader swap.
+                // Replace just its immutable snapshot at this frame boundary.
+                active->second.Proxy = pending.Proxy;
                 continue;
+            }
 
             // Editing the graph mints a new revision, and no permutation of the old one
             // can ever be selected again -- release them instead of caching them for a
@@ -342,6 +329,7 @@ namespace Elixir
                 }
                 SShaderVariant selected = std::move(cached->second);
                 cache.Variants.erase(cached);
+                selected.Proxy = pending.Proxy;
                 if (active != m_MaterialShaders.end())
                 {
                     cache.Variants.insert_or_assign(active->second.VariantKey, std::move(active->second));
@@ -392,19 +380,23 @@ namespace Elixir
         return handle.Index;
     }
 
-    Ref<StorageBuffer> MeshRenderer::BuildMaterialBuffer(const Ref<Model>& model)
+    Ref<StorageBuffer> MeshRenderer::BuildMaterialBuffer(
+        const Model::MaterialRenderProxyList& materialProxies)
     {
         std::vector<SGPUMaterial> materials;
-        materials.reserve(model->GetMaterials().size());
+        materials.reserve(materialProxies.size());
 
-        // Serialise with UI-thread material edits (see Model::MaterialsMutex).
-        std::lock_guard<std::mutex> lock(model->MaterialsMutex());
-        for (const auto& material : model->GetMaterials())
+        for (const auto& material : materialProxies)
         {
+            if (!material)
+            {
+                materials.emplace_back();
+                continue;
+            }
             const uint32_t alphaMode = (uint32_t)material->GetScalar("AlphaMode");
             const glm::vec4 baseColor = material->GetVector("BaseColorFactor");
 
-            SGPUMaterial gpu;
+            SGPUMaterial gpu{};
             gpu.BaseColorFactor = baseColor;
             gpu.EmissiveMetallic = glm::vec4(glm::vec3(material->GetVector("EmissiveFactor")), material->GetScalar("Metallic"));
             gpu.RoughOccNormalCutoff = glm::vec4(
@@ -448,29 +440,53 @@ namespace Elixir
         InstallPendingShaders();
         TickRetired();
 
-        // Build (and cache) the model's material buffer, resolving its textures
-        // into the bindless set the first time we see it.
-        // Repack the material buffer from the instances every frame so runtime edits
-        // (e.g. the material editor) always take effect. Cheap for typical material
-        // counts, and avoids a cross-thread dirty flag between UI and render.
+        const Ref<const Model::MaterialRenderProxyList> publishedProxies =
+            model->GetMaterialRenderProxies();
+        if (!publishedProxies)
+            return;
+        Model::MaterialRenderProxyList materialProxies = *publishedProxies;
+        for (auto& [index, variant] : m_MaterialShaders)
+        {
+            Ref<const MaterialRenderProxy> proxy = variant.Proxy;
+            if (index < publishedProxies->size())
+            {
+                const Ref<const MaterialRenderProxy>& published = (*publishedProxies)[index];
+                if (published && published->GetResource()
+                    && published->GetResource()->GetBlendMode() == variant.BlendMode
+                    && published->GetResource()->Matches(
+                        variant.Permutation, variant.Revision, variant.VariantKey))
+                {
+                    // Runtime parameter edits publish a new proxy without recompiling.
+                    // Only adopt it when it targets the shader currently installed.
+                    proxy = published;
+                    variant.Proxy = published;
+                }
+            }
+            if (proxy)
+            {
+                if (index >= materialProxies.size())
+                    materialProxies.resize(index + 1);
+                materialProxies[index] = std::move(proxy);
+            }
+        }
+
+        // Resolve the immutable snapshots into renderer-local bindless indices. No
+        // authoring mutex is acquired by the render thread.
         auto& materialBuffer = m_MaterialBuffers[model.get()];
-        materialBuffer = BuildMaterialBuffer(model);
+        materialBuffer = BuildMaterialBuffer(materialProxies);
         m_Shader->BindStorageBuffer("materials", materialBuffer);
         for (auto& [index, variant] : m_MaterialShaders)
             variant.Shader->BindStorageBuffer("materials", materialBuffer);
 
-        // Graph parameter values now come from the same MaterialInstance used to pack
-        // GPUMaterial. The renderer owns the upload, so the UI no longer maintains a
-        // second graph-only parameter snapshot across threads.
+        // Graph parameters and GPUMaterial are packed from the same immutable proxy.
         {
-            std::lock_guard<std::mutex> lock(model->MaterialsMutex());
-            const auto& instances = model->GetMaterials();
             for (auto& [index, variant] : m_MaterialShaders)
             {
-                if (!variant.ParamBuffer || index >= instances.size())
+                if (!variant.ParamBuffer || index >= materialProxies.size()
+                    || !materialProxies[index])
                     continue;
                 glm::vec4 params[MAX_GRAPH_PARAMS] = {};
-                instances[index]->CollectGraphParams(params, MAX_GRAPH_PARAMS,
+                materialProxies[index]->CollectGraphParams(params, MAX_GRAPH_PARAMS,
                     [this](const Ref<Texture>& texture) { return ResolveTexture(texture); });
                 variant.ParamBuffer->UpdateData(params, sizeof(params));
             }
@@ -531,8 +547,6 @@ namespace Elixir
         cmd->SetViewports({ viewport });
         cmd->SetScissors({ scissor });
 
-        const auto& materials = model->GetMaterials();
-
         // The pipeline currently bound on the command buffer, so consecutive
         // primitives sharing a shader don't rebind. Reset at each pass.
         GraphicsPipeline* boundPipeline = nullptr;
@@ -578,9 +592,9 @@ namespace Elixir
             if (const auto it = m_MaterialShaders.find(p.MaterialIndex); it != m_MaterialShaders.end())
                 return it->second.BlendMode == EMaterialBlendMode::Translucent
                     || it->second.BlendMode == EMaterialBlendMode::Additive;
-            if (p.MaterialIndex >= materials.size())
+            if (p.MaterialIndex >= materialProxies.size() || !materialProxies[p.MaterialIndex])
                 return false;
-            const auto& m = materials[p.MaterialIndex];
+            const auto& m = materialProxies[p.MaterialIndex];
             return (int)m->GetScalar("AlphaMode") == 2 && m->GetVector("BaseColorFactor").a < 0.95f;
         };
 

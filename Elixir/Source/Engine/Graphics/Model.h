@@ -3,8 +3,10 @@
 #include <Engine/Graphics/Buffer.h>
 #include <Engine/Graphics/Texture.h>
 #include <Engine/Graphics/Material/Material.h>
+#include <Engine/Graphics/Material/MaterialRenderProxy.h>
 
 #include <filesystem>
+#include <memory>
 #include <mutex>
 #include <optional>
 
@@ -36,6 +38,8 @@ namespace Elixir
     class ELIXIR_API Model
     {
       public:
+        using MaterialRenderProxyList = std::vector<Ref<const MaterialRenderProxy>>;
+
         static Ref<Model> Load(const GraphicsContext* context, const std::filesystem::path& path);
 
         [[nodiscard]] const std::vector<SModelPrimitive>& GetPrimitives() const { return m_Primitives; }
@@ -50,19 +54,17 @@ namespace Elixir
         bool SetMaterialAsset(uint32_t slot, const std::filesystem::path& material);
         bool SaveAsset() const;
 
-        // Call after editing a material instance so the renderer repacks the GPU
-        // material buffer on the next frame.
-        void MarkMaterialsDirty() { m_MaterialsDirty = true; }
-        [[nodiscard]] bool ConsumeMaterialsDirty()
+        // Snapshot the authoring instances and publish them atomically. Renderers only
+        // consume this immutable list; they never lock or read the live instances.
+        void PublishMaterialRenderProxies();
+        [[nodiscard]] Ref<const MaterialRenderProxyList> GetMaterialRenderProxies() const
         {
-            const bool dirty = m_MaterialsDirty;
-            m_MaterialsDirty = false;
-            return dirty;
+            return std::atomic_load_explicit(
+                &m_MaterialRenderProxies, std::memory_order_acquire);
         }
 
-        // Rendering runs on a separate thread from UI/editing, so material edits
-        // (main thread) race the renderer's material-buffer pack (render thread).
-        // Lock this around both sides.
+        // Authoring data is edited on the main thread. Hold this while changing or
+        // serialising MaterialInstance objects, then publish a new render snapshot.
         [[nodiscard]] std::mutex& MaterialsMutex() const { return m_MaterialsMutex; }
 
       private:
@@ -75,7 +77,7 @@ namespace Elixir
         std::filesystem::path m_Path;
         std::filesystem::path m_SourcePath;
         std::vector<std::filesystem::path> m_MaterialAssets;
-        bool m_MaterialsDirty = false;
         mutable std::mutex m_MaterialsMutex;
+        Ref<const MaterialRenderProxyList> m_MaterialRenderProxies;
     };
 }
