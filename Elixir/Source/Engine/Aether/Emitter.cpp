@@ -19,6 +19,12 @@ namespace Elixir::Aether
         m_BurstIntervalSeconds = intervalSeconds;
     }
 
+    void Emitter::SetTimeWindow(const float startDelaySeconds, const float durationSeconds)
+    {
+        m_StartDelaySeconds = std::max(0.0f, startDelaySeconds);
+        m_DurationSeconds = durationSeconds;
+    }
+
     SGPUEmitter Emitter::Build(
         const ParameterStore& paramStore,
         const std::vector<SGPUParameter>& params,
@@ -36,6 +42,8 @@ namespace Elixir::Aether
         emitter.SpawnRatePerSecond = m_SpawnRate;
         emitter.BurstCount = m_BurstCount;
         emitter.BurstIntervalSeconds = m_BurstIntervalSeconds;
+        emitter.StartDelaySeconds = m_StartDelaySeconds;
+        emitter.DurationSeconds = m_DurationSeconds;
 
         const uint32_t spawnRateParamIndex =
             FindScopedParameterIndex(params, m_Name, m_SpawnRateParamName);

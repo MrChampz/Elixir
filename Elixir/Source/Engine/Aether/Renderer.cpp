@@ -559,22 +559,31 @@ namespace Elixir::Aether
             const auto& emitter = system.Emitters[i];
             auto& emitterState = m_EmittersState[emitter];
 
-            emitterState.SpawnAccumulator += emitter.SpawnRatePerSecond * m_LastDeltaTimeSeconds;
+            const bool isAfterStart = m_ElapsedTimeSeconds >= emitter.StartDelaySeconds;
+            const bool isBeforeEnd = emitter.DurationSeconds <= 0.0f ||
+                m_ElapsedTimeSeconds < emitter.StartDelaySeconds + emitter.DurationSeconds;
+            const bool isActive = isAfterStart && isBeforeEnd;
 
-            uint32_t spawnCount = std::min((uint32_t)emitterState.SpawnAccumulator, emitter.MaxParticles);
-            if (spawnCount > 0u)
-                emitterState.SpawnAccumulator -= (float)spawnCount;
-
-            if (emitter.BurstCount > 0u && emitter.BurstIntervalSeconds > 0.0f)
+            uint32_t spawnCount = 0u;
+            if (isActive)
             {
-                auto& accumulator = emitterState.BurstAccumulator;
-                accumulator += m_LastDeltaTimeSeconds;
-                uint32_t burstLoops = 0u;
-                while (accumulator >= emitter.BurstIntervalSeconds && burstLoops < 8u)
+                emitterState.SpawnAccumulator += emitter.SpawnRatePerSecond * m_LastDeltaTimeSeconds;
+
+                spawnCount = std::min((uint32_t)emitterState.SpawnAccumulator, emitter.MaxParticles);
+                if (spawnCount > 0u)
+                    emitterState.SpawnAccumulator -= (float)spawnCount;
+
+                if (emitter.BurstCount > 0u && emitter.BurstIntervalSeconds > 0.0f)
                 {
-                    accumulator -= emitter.BurstIntervalSeconds;
-                    spawnCount = std::min(emitter.MaxParticles, spawnCount + emitter.BurstCount);
-                    ++burstLoops;
+                    auto& accumulator = emitterState.BurstAccumulator;
+                    accumulator += m_LastDeltaTimeSeconds;
+                    uint32_t burstLoops = 0u;
+                    while (accumulator >= emitter.BurstIntervalSeconds && burstLoops < 8u)
+                    {
+                        accumulator -= emitter.BurstIntervalSeconds;
+                        spawnCount = std::min(emitter.MaxParticles, spawnCount + emitter.BurstCount);
+                        ++burstLoops;
+                    }
                 }
             }
 

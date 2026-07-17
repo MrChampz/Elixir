@@ -27,6 +27,8 @@ namespace Elixir::Aether
         float SpawnRatePerSecond = 1.0f;
         uint32_t BurstCount = 0u;
         float BurstIntervalSeconds = 0.0f;
+        float StartDelaySeconds = 0.0f;
+        float DurationSeconds = -1.0f;
 
         float GravityScale = 1.0f;
 
@@ -85,6 +87,7 @@ namespace Elixir::Aether
         void SetRenderMode(const EParticleRenderMode mode) { m_RenderMode = mode; }
 
         void SetBurst(uint32_t count, float intervalSeconds);
+        void SetTimeWindow(float startDelaySeconds, float durationSeconds = -1.0f);
 
         SGPUEmitter Build(
             const ParameterStore& paramStore,
@@ -100,6 +103,8 @@ namespace Elixir::Aether
 
         uint32_t GetBurstCount() const { return m_BurstCount; }
         float GetBurstIntervalSeconds() const { return m_BurstIntervalSeconds; }
+        float GetStartDelaySeconds() const { return m_StartDelaySeconds; }
+        float GetDurationSeconds() const { return m_DurationSeconds; }
 
         ParameterStore& GetParameters() { return m_Parameters; }
         const ParameterStore& GetParameters() const { return m_Parameters; }
@@ -125,6 +130,8 @@ namespace Elixir::Aether
         float m_SpawnRate = 0.0f; // per seconds
         uint32_t m_BurstCount = 0u;
         float m_BurstIntervalSeconds = 0.0f;
+        float m_StartDelaySeconds = 0.0f;
+        float m_DurationSeconds = -1.0f;
 
         ParameterStore m_Parameters;
         CurveStore m_Curves;

@@ -1,146 +1,241 @@
 {
-  "name": "Blooming Flower",
+  "name": "Crimson Thread Flower",
   "parameters": {
-    "core_start": [0.52, 1.00, 0.88, 0.96],
-    "core_end": [0.08, 0.36, 0.30, 0.00],
-    "petal_start": [0.34, 0.98, 0.84, 0.82],
-    "petal_end": [0.08, 0.46, 0.42, 0.00],
-    "tendril_start": [0.66, 1.00, 0.92, 0.88],
-    "tendril_end": [0.10, 0.48, 0.44, 0.00],
-    "dust_start": [0.76, 1.00, 0.90, 0.64],
-    "dust_end": [0.18, 0.60, 0.54, 0.00]
+    "thread_start": [0.92, 0.14, 0.22, 0.82],
+    "thread_end": [0.22, 0.01, 0.03, 0.00],
+    "accent_start": [1.00, 0.34, 0.38, 0.70],
+    "accent_end": [0.30, 0.02, 0.05, 0.00],
+    "ember_start": [0.92, 0.12, 0.18, 0.48],
+    "ember_end": [0.20, 0.01, 0.03, 0.00]
   },
   "curves": {
-    "core_scale_curve": [0.24, 0.62, 1.00, 0.82, 0.58, 0.38, 0.20, 0.06],
-    "petal_scale_curve": [0.18, 0.68, 1.00, 0.92, 0.74, 0.50, 0.26, 0.08],
-    "tendril_scale_curve": [0.20, 0.52, 0.86, 1.00, 0.84, 0.58, 0.30, 0.10],
-    "dust_scale_curve": [0.22, 0.58, 0.92, 0.88, 0.66, 0.42, 0.20, 0.06]
+    "thread_width_curve": [0.34, 0.72, 1.00, 0.94, 0.76, 0.56, 0.32, 0.08],
+    "ember_scale_curve": [0.12, 0.48, 0.84, 1.00, 0.76, 0.50, 0.26, 0.06]
   },
   "colorCurves": {
-    "core_color_curve": [
-      [0.76, 1.00, 0.92, 1.00],
-      [0.52, 1.00, 0.88, 0.96],
-      [0.36, 0.94, 0.80, 0.82],
-      [0.24, 0.82, 0.70, 0.66],
-      [0.16, 0.68, 0.58, 0.48],
-      [0.12, 0.54, 0.46, 0.30],
-      [0.10, 0.42, 0.36, 0.14],
-      [0.08, 0.36, 0.30, 0.00]
+    "thread_color_curve": [
+      [1.00, 0.24, 0.28, 0.88],
+      [0.92, 0.14, 0.22, 0.82],
+      [0.82, 0.08, 0.14, 0.72],
+      [0.68, 0.05, 0.10, 0.58],
+      [0.52, 0.03, 0.07, 0.42],
+      [0.38, 0.02, 0.05, 0.26],
+      [0.28, 0.01, 0.04, 0.12],
+      [0.22, 0.01, 0.03, 0.00]
     ],
-    "petal_color_curve": [
-      [0.54, 1.00, 0.90, 0.90],
-      [0.34, 0.98, 0.84, 0.82],
-      [0.24, 0.90, 0.76, 0.72],
-      [0.18, 0.78, 0.66, 0.58],
-      [0.14, 0.66, 0.56, 0.42],
-      [0.12, 0.56, 0.50, 0.28],
-      [0.10, 0.50, 0.46, 0.12],
-      [0.08, 0.46, 0.42, 0.00]
+    "accent_color_curve": [
+      [1.00, 0.52, 0.52, 0.76],
+      [1.00, 0.34, 0.38, 0.70],
+      [0.94, 0.20, 0.26, 0.60],
+      [0.80, 0.10, 0.18, 0.48],
+      [0.62, 0.05, 0.11, 0.34],
+      [0.46, 0.03, 0.07, 0.20],
+      [0.34, 0.02, 0.05, 0.10],
+      [0.30, 0.02, 0.05, 0.00]
     ],
-    "tendril_color_curve": [
-      [0.82, 1.00, 0.96, 0.94],
-      [0.66, 1.00, 0.92, 0.88],
-      [0.48, 0.94, 0.84, 0.78],
-      [0.34, 0.84, 0.74, 0.64],
-      [0.24, 0.72, 0.64, 0.48],
-      [0.18, 0.62, 0.56, 0.30],
-      [0.14, 0.54, 0.50, 0.14],
-      [0.10, 0.48, 0.44, 0.00]
-    ],
-    "dust_color_curve": [
-      [0.86, 1.00, 0.96, 0.72],
-      [0.76, 1.00, 0.90, 0.64],
-      [0.60, 0.94, 0.82, 0.54],
-      [0.44, 0.84, 0.72, 0.42],
-      [0.32, 0.76, 0.64, 0.30],
-      [0.26, 0.68, 0.60, 0.20],
-      [0.22, 0.62, 0.56, 0.10],
-      [0.18, 0.60, 0.54, 0.00]
+    "ember_color_curve": [
+      [1.00, 0.28, 0.30, 0.58],
+      [0.92, 0.12, 0.18, 0.48],
+      [0.76, 0.07, 0.12, 0.40],
+      [0.60, 0.04, 0.08, 0.30],
+      [0.44, 0.02, 0.05, 0.20],
+      [0.32, 0.02, 0.04, 0.12],
+      [0.24, 0.01, 0.03, 0.06],
+      [0.20, 0.01, 0.03, 0.00]
     ]
   },
   "emitters": [
     {
-      "name": "FlowerCore",
-      "renderMode": "Sprite",
-      "spriteTexture": "Assets/Textures/SoftGlow.png",
-      "maxParticles": 320,
-      "spawnRate": 64.0,
+      "name": "CrimsonThreadA",
+      "renderMode": "Ribbon",
+      "maxParticles": 520,
+      "spawnRate": 108.0,
       "spawnModules": [
-        { "type": "SetPositionDisk", "center": [0.0, -0.58, 0.0], "radius": 0.12 },
-        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 0.64, "minSpeed": 0.04, "maxSpeed": 0.16 },
-        { "type": "SetLifetime", "min": 1.1, "max": 1.7 },
-        { "type": "SetSize", "min": 0.26, "max": 0.48 },
-        { "type": "SetScale", "min": 0.78, "max": 1.20 },
-        { "type": "SetColor", "color": "$core_start" }
+        { "type": "SetPositionCircularPath", "baseOffset": [-0.18, -0.78, 0.0], "primaryAmplitude": [0.055, 2.35, 0.035], "secondaryAmplitude": [0.028, 0.18, 0.024], "timeScale": 0.54 },
+        { "type": "SetLifetime", "min": 4.5, "max": 4.5 },
+        { "type": "SetSize", "min": 2.2, "max": 3.6 },
+        { "type": "SetScale", "min": 0.86, "max": 1.06 },
+        { "type": "SetColor", "color": "$thread_start" }
       ],
       "updateModules": [
-        { "type": "ApplyLinearDrag", "drag": 0.16 },
-        { "type": "ColorOverLife", "start": "$core_start", "end": "$core_end", "curve": "core_color_curve", "input": "NormalizedAge" },
-        { "type": "SizeOverLife", "start": 0.46, "end": 0.08 },
-        { "type": "ScaleOverLife", "start": 1.0, "end": 0.12, "curve": "core_scale_curve", "input": "NormalizedAge" }
+        { "type": "ColorOverLife", "start": "$thread_start", "end": "$thread_end", "curve": "thread_color_curve", "input": "NormalizedAge" },
+        { "type": "SizeOverLife", "start": 3.4, "end": 0.7 },
+        { "type": "ScaleOverLife", "start": 1.0, "end": 0.08, "curve": "thread_width_curve", "input": "NormalizedAge" }
       ]
     },
     {
-      "name": "PetalHalo",
-      "renderMode": "Sprite",
-      "spriteTexture": "Assets/Textures/SoftGlow.png",
-      "maxParticles": 760,
+      "name": "CrimsonThreadB",
+      "renderMode": "Ribbon",
+      "maxParticles": 520,
+      "spawnRate": 108.0,
+      "spawnModules": [
+        { "type": "SetPositionCircularPath", "baseOffset": [0.00, -0.76, 0.025], "primaryAmplitude": [0.070, 2.22, 0.045], "secondaryAmplitude": [0.034, 0.22, 0.030], "timeScale": 0.49 },
+        { "type": "SetLifetime", "min": 4.5, "max": 4.5 },
+        { "type": "SetSize", "min": 1.8, "max": 3.0 },
+        { "type": "SetScale", "min": 0.78, "max": 1.02 },
+        { "type": "SetColor", "color": "$thread_start" }
+      ],
+      "updateModules": [
+        { "type": "ColorOverLife", "start": "$thread_start", "end": "$thread_end", "curve": "thread_color_curve", "input": "NormalizedAge" },
+        { "type": "SizeOverLife", "start": 2.8, "end": 0.55 },
+        { "type": "ScaleOverLife", "start": 1.0, "end": 0.08, "curve": "thread_width_curve", "input": "NormalizedAge" }
+      ]
+    },
+    {
+      "name": "ThreadHighlight",
+      "renderMode": "Ribbon",
+      "maxParticles": 440,
       "spawnRate": 92.0,
       "spawnModules": [
-        { "type": "SetPositionCircularPath", "baseOffset": [0.0, -0.30, 0.0], "primaryAmplitude": [0.68, 0.34, 0.48], "secondaryAmplitude": [0.16, 0.14, 0.20], "timeScale": 1.26 },
-        { "type": "SetLifetime", "min": 2.0, "max": 2.8 },
-        { "type": "SetSize", "min": 0.08, "max": 0.18 },
-        { "type": "SetScale", "min": 0.70, "max": 1.24 },
-        { "type": "SetRotation", "min": 0.0, "max": 6.2831853 },
-        { "type": "SetColor", "color": "$petal_start" }
+        { "type": "SetPositionCircularPath", "baseOffset": [0.16, -0.80, -0.02], "primaryAmplitude": [0.045, 2.05, 0.028], "secondaryAmplitude": [0.020, 0.14, 0.018], "timeScale": 0.58 },
+        { "type": "SetLifetime", "min": 4.2, "max": 4.2 },
+        { "type": "SetSize", "min": 1.2, "max": 2.1 },
+        { "type": "SetScale", "min": 0.78, "max": 0.98 },
+        { "type": "SetColor", "color": "$accent_start" }
       ],
       "updateModules": [
-        { "type": "ApplyAngularVelocity", "value": 0.72, "input": "Random" },
-        { "type": "ColorOverLife", "start": "$petal_start", "end": "$petal_end", "curve": "petal_color_curve", "input": "NormalizedAge" },
-        { "type": "SizeOverLife", "start": 0.18, "end": 0.025 },
-        { "type": "ScaleOverLife", "start": 1.0, "end": 0.10, "curve": "petal_scale_curve", "input": "NormalizedAge" }
+        { "type": "ColorOverLife", "start": "$accent_start", "end": "$accent_end", "curve": "accent_color_curve", "input": "NormalizedAge" },
+        { "type": "SizeOverLife", "start": 1.9, "end": 0.36 },
+        { "type": "ScaleOverLife", "start": 1.0, "end": 0.08, "curve": "thread_width_curve", "input": "NormalizedAge" }
       ]
     },
     {
-      "name": "FlowerTendrils",
-      "renderMode": "Ribbon",
-      "maxParticles": 680,
-      "spawnRate": 170.0,
-      "spawnModules": [
-        { "type": "SetPositionVortexRibbonPath", "center": [0.0, -0.46, 0.0], "orbitSpeed": 1.52, "baseRadius": 0.10, "radiusAmplitude": 0.62, "radiusSpeed": 0.46, "pulseAmplitude": 0.16, "pulseSpeed": 0.86, "curlAmplitude": 0.12, "depthAmplitude": 0.26 },
-        { "type": "SetRibbonIdFromSpawnOrder", "ribbonCount": 5, "firstRibbonId": 0 },
-        { "type": "SetLifetime", "min": 3.7, "max": 3.7 },
-        { "type": "SetSize", "min": 9.0, "max": 14.0 },
-        { "type": "SetScale", "min": 0.72, "max": 1.08 },
-        { "type": "SetColor", "color": "$tendril_start" }
-      ],
-      "updateModules": [
-        { "type": "ColorOverLife", "start": "$tendril_start", "end": "$tendril_end", "curve": "tendril_color_curve", "input": "NormalizedAge" },
-        { "type": "SizeOverLife", "start": 14.0, "end": 2.0 },
-        { "type": "ScaleOverLife", "start": 1.0, "end": 0.10, "curve": "tendril_scale_curve", "input": "NormalizedAge" }
-      ]
-    },
-    {
-      "name": "FlowerDust",
+      "name": "ThreadEmbers",
       "renderMode": "Sprite",
       "spriteTexture": "Assets/Textures/SoftGlow.png",
-      "maxParticles": 720,
-      "spawnRate": 54.0,
+      "maxParticles": 520,
+      "spawnRate": 42.0,
       "spawnModules": [
-        { "type": "SetPositionDisk", "center": [0.0, -0.38, 0.0], "radius": 0.28 },
-        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 1.08, "minSpeed": 0.10, "maxSpeed": 0.34 },
-        { "type": "SetLifetime", "min": 1.8, "max": 3.2 },
-        { "type": "SetSize", "min": 0.025, "max": 0.07 },
-        { "type": "SetScale", "min": 0.68, "max": 1.18 },
-        { "type": "SetColor", "color": "$dust_start" }
+        { "type": "SetPositionBox", "min": [-0.22, -0.82, -0.10], "max": [0.22, -0.62, 0.10] },
+        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 0.42, "minSpeed": 0.16, "maxSpeed": 0.44 },
+        { "type": "SetLifetime", "min": 1.8, "max": 3.0 },
+        { "type": "SetSize", "min": 0.012, "max": 0.038 },
+        { "type": "SetScale", "min": 0.62, "max": 1.08 },
+        { "type": "SetColor", "color": "$ember_start" }
       ],
       "updateModules": [
-        { "type": "ApplyGravity", "gravity": [0.0, 0.035, 0.0, 0.0] },
-        { "type": "ApplyLinearDrag", "drag": 0.08 },
-        { "type": "ColorOverLife", "start": "$dust_start", "end": "$dust_end", "curve": "dust_color_curve", "input": "NormalizedAge" },
-        { "type": "SizeOverLife", "start": 0.07, "end": 0.012 },
-        { "type": "ScaleOverLife", "start": 1.0, "end": 0.08, "curve": "dust_scale_curve", "input": "NormalizedAge" },
-        { "type": "KillOutsideBounds", "min": [-1.8, -1.4, -1.8], "max": [1.8, 1.6, 1.8] }
+        { "type": "ApplyGravity", "gravity": [0.0, 0.018, 0.0, 0.0] },
+        { "type": "ApplyLinearDrag", "drag": 0.10 },
+        { "type": "ColorOverLife", "start": "$ember_start", "end": "$ember_end", "curve": "ember_color_curve", "input": "NormalizedAge" },
+        { "type": "SizeOverLife", "start": 0.038, "end": 0.006 },
+        { "type": "ScaleOverLife", "start": 1.0, "end": 0.06, "curve": "ember_scale_curve", "input": "NormalizedAge" },
+        { "type": "KillOutsideBounds", "min": [-1.2, -1.2, -1.2], "max": [1.2, 2.1, 1.2] }
+      ]
+    },
+    {
+      "name": "HandCharge",
+      "renderMode": "Sprite",
+      "spriteTexture": "Assets/Textures/SoftGlow.png",
+      "maxParticles": 360,
+      "spawnRate": 104.0,
+      "startDelay": 1.2,
+      "duration": 1.8,
+      "spawnModules": [
+        { "type": "SetPositionDisk", "center": [-1.45, -0.48, 0.0], "radius": 0.18 },
+        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 1.26, "minSpeed": 0.05, "maxSpeed": 0.24 },
+        { "type": "SetLifetime", "min": 0.5, "max": 1.1 },
+        { "type": "SetSize", "min": 0.05, "max": 0.14 },
+        { "type": "SetScale", "min": 0.72, "max": 1.16 },
+        { "type": "SetColor", "color": "$accent_start" }
+      ],
+      "updateModules": [
+        { "type": "ApplyLinearDrag", "drag": 0.12 },
+        { "type": "ColorOverLife", "start": "$accent_start", "end": "$accent_end", "curve": "accent_color_curve", "input": "NormalizedAge" },
+        { "type": "SizeOverLife", "start": 0.14, "end": 0.012 },
+        { "type": "ScaleOverLife", "start": 1.0, "end": 0.06, "curve": "ember_scale_curve", "input": "NormalizedAge" }
+      ]
+    },
+    {
+      "name": "CardProjectile",
+      "renderMode": "Sprite",
+      "spriteTexture": "Assets/Textures/CrimsonFlowerCard.png",
+      "maxParticles": 96,
+      "spawnRate": 14.0,
+      "startDelay": 3.0,
+      "duration": 1.05,
+      "spawnModules": [
+        { "type": "SetPositionBox", "min": [-1.42, -0.46, -0.03], "max": [-1.34, -0.38, 0.03] },
+        { "type": "SetVelocityCone", "direction": [1.0, 0.03, 0.0], "angle": 0.08, "minSpeed": 3.8, "maxSpeed": 4.4 },
+        { "type": "SetLifetime", "min": 0.7, "max": 1.0 },
+        { "type": "SetSize", "min": 0.16, "max": 0.24 },
+        { "type": "SetScale", "min": 0.70, "max": 1.00 },
+        { "type": "SetColor", "color": "$accent_start" }
+      ],
+      "updateModules": [
+        { "type": "ApplyLinearDrag", "drag": 0.02 },
+        { "type": "ColorOverLife", "start": "$accent_start", "end": "$accent_end", "curve": "accent_color_curve", "input": "NormalizedAge" },
+        { "type": "SizeOverLife", "start": 0.22, "end": 0.06 },
+        { "type": "ScaleOverLife", "start": 1.0, "end": 0.12, "curve": "thread_width_curve", "input": "NormalizedAge" },
+        { "type": "KillOutsideBounds", "min": [-2.0, -1.4, -1.6], "max": [3.0, 1.8, 1.6] }
+      ]
+    },
+    {
+      "name": "ImpactFlower",
+      "renderMode": "Sprite",
+      "spriteTexture": "Assets/Textures/BloomingFlower.png",
+      "maxParticles": 180,
+      "spawnRate": 36.0,
+      "startDelay": 4.1,
+      "duration": 2.8,
+      "spawnModules": [
+        { "type": "SetPositionDisk", "center": [2.15, -0.48, 0.0], "radius": 0.10 },
+        { "type": "SetLifetime", "min": 0.8, "max": 1.3 },
+        { "type": "SetSize", "min": 0.72, "max": 1.18 },
+        { "type": "SetScale", "min": 0.68, "max": 1.05 },
+        { "type": "SetColor", "color": "$accent_start" }
+      ],
+      "updateModules": [
+        { "type": "ColorOverLife", "start": "$accent_start", "end": "$accent_end", "curve": "accent_color_curve", "input": "NormalizedAge" },
+        { "type": "SizeOverLife", "start": 1.10, "end": 0.34 },
+        { "type": "ScaleOverLife", "start": 1.0, "end": 0.10, "curve": "ember_scale_curve", "input": "NormalizedAge" }
+      ]
+    },
+    {
+      "name": "ImpactStamens",
+      "renderMode": "Sprite",
+      "spriteTexture": "Assets/Textures/SoftGlow.png",
+      "maxParticles": 420,
+      "spawnRate": 0.0,
+      "startDelay": 4.15,
+      "duration": 1.0,
+      "burst": { "count": 76, "interval": 0.20 },
+      "spawnModules": [
+        { "type": "SetPositionDisk", "center": [2.15, -0.48, 0.0], "radius": 0.24 },
+        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 1.46, "minSpeed": 0.70, "maxSpeed": 1.75 },
+        { "type": "SetLifetime", "min": 0.55, "max": 1.25 },
+        { "type": "SetSize", "min": 0.016, "max": 0.050 },
+        { "type": "SetScale", "min": 0.72, "max": 1.22 },
+        { "type": "SetColor", "color": "$accent_start" }
+      ],
+      "updateModules": [
+        { "type": "ApplyGravity", "gravity": [0.0, -0.78, 0.0, 0.0] },
+        { "type": "ApplyLinearDrag", "drag": 0.06 },
+        { "type": "ColorOverLife", "start": "$accent_start", "end": "$accent_end", "curve": "accent_color_curve", "input": "NormalizedAge" },
+        { "type": "SizeOverLife", "start": 0.050, "end": 0.005 },
+        { "type": "ScaleOverLife", "start": 1.0, "end": 0.06, "curve": "ember_scale_curve", "input": "NormalizedAge" }
+      ]
+    },
+    {
+      "name": "ImpactColumn",
+      "renderMode": "Sprite",
+      "spriteTexture": "Assets/Textures/SoftGlow.png",
+      "maxParticles": 220,
+      "spawnRate": 72.0,
+      "startDelay": 4.3,
+      "duration": 1.8,
+      "spawnModules": [
+        { "type": "SetPositionDisk", "center": [2.15, -0.48, 0.0], "radius": 0.12 },
+        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 0.36, "minSpeed": 1.10, "maxSpeed": 2.20 },
+        { "type": "SetLifetime", "min": 0.65, "max": 1.10 },
+        { "type": "SetSize", "min": 0.025, "max": 0.085 },
+        { "type": "SetScale", "min": 0.66, "max": 1.14 },
+        { "type": "SetColor", "color": "$accent_start" }
+      ],
+      "updateModules": [
+        { "type": "ApplyLinearDrag", "drag": 0.04 },
+        { "type": "ColorOverLife", "start": "$accent_start", "end": "$accent_end", "curve": "accent_color_curve", "input": "NormalizedAge" },
+        { "type": "SizeOverLife", "start": 0.080, "end": 0.008 },
+        { "type": "ScaleOverLife", "start": 1.0, "end": 0.06, "curve": "ember_scale_curve", "input": "NormalizedAge" }
       ]
     }
   ]

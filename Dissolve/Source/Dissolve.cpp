@@ -616,8 +616,8 @@ void Dissolve::OnRender(const Timestep frameTime)
     // Node-graph material variants are prepared by the compile worker and installed
     // by MeshRenderer::Render, so nothing to apply here.
 
-    // m_ParticlesRenderer->Render(m_GPUSystem, m_CameraController->GetCamera());
-    m_MeshRenderer->Render(m_Model, m_CameraController->GetCamera());
+    m_ParticlesRenderer->Render(m_GPUSystem, m_CameraController->GetCamera());
+    //m_MeshRenderer->Render(m_Model, m_CameraController->GetCamera());
     m_PostProcessor->Apply();
 
     // Submit the ImGui snapshot built in OnGUI on the render thread, where the

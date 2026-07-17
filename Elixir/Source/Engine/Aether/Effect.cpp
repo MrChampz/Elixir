@@ -859,6 +859,17 @@ namespace Elixir::Aether
                 auto& emitter = system->AddEmitter(name, maxParticles, spawnRate.Value);
                 emitter.SetRenderMode(renderMode);
 
+                if (HasField(json, "startDelay") || HasField(json, "duration"))
+                {
+                    const float startDelay = HasField(json, "startDelay")
+                        ? RequireFloat(json, "startDelay")
+                        : 0.0f;
+                    const float duration = HasField(json, "duration")
+                        ? RequireFloat(json, "duration")
+                        : -1.0f;
+                    emitter.SetTimeWindow(startDelay, duration);
+                }
+
                 if (HasField(json, "burst"))
                 {
                     od::object burst;

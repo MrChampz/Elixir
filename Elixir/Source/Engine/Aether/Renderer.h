@@ -56,7 +56,7 @@ namespace Elixir::Aether
       public:
         static constexpr uint32_t MAX_EMITTERS = 10;
         static constexpr uint32_t MAX_PARTICLES = 20000;
-        static constexpr uint32_t MAX_OPS = 128;
+        static constexpr uint32_t MAX_OPS = 512;
         static constexpr uint32_t MAX_PARAMETERS = 128;
         static constexpr uint32_t COMPUTE_GROUP_SIZE = 256;
 
