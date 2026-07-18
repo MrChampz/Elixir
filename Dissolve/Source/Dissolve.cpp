@@ -380,6 +380,7 @@ bool Dissolve::LoadMaterialAsset(const uint32_t slot, const std::filesystem::pat
             current->SetName(instance->GetName());
         }
         m_Model->PublishMaterialRenderProxies();
+        m_MeshRenderer->UpdateModel(m_Model);
     }
     return true;
 }
@@ -592,7 +593,10 @@ void Dissolve::DrawMaterialEditor()
     ImGui::End();
 
     if (publishMaterials)
+    {
         m_Model->PublishMaterialRenderProxies();
+        m_MeshRenderer->UpdateModel(m_Model);
+    }
     if (saveInstanceSlot >= 0)
         SaveInstanceAsset((uint32_t)saveInstanceSlot);
     if (staticCompileSlot >= 0 && staticCompileInstance)

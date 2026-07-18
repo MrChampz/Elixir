@@ -15,6 +15,8 @@
 
 namespace Elixir
 {
+    class MeshSceneProxy;
+    struct SMeshSceneLifetime;
     struct SMeshMaterialSlot;
 
     // Stable identity for renderer-owned model state. IDs may be recycled after a
@@ -54,10 +56,17 @@ namespace Elixir
     // its node and an index into the model's material table.
     struct SModelPrimitive
     {
+        struct SBounds
+        {
+            glm::vec3 Min{ 0.0f };
+            glm::vec3 Max{ 0.0f };
+        };
+
         Ref<VertexBuffer> Vertices;
         Ref<IndexBuffer> Indices;
         uint32_t IndexCount = 0;
         glm::mat4 Transform{ 1.0f };
+        SBounds LocalBounds;
         uint32_t MaterialIndex = 0;
     };
 
@@ -82,6 +91,7 @@ namespace Elixir
         [[nodiscard]] const std::filesystem::path& GetPath() const { return m_Path; }
         [[nodiscard]] const std::filesystem::path& GetSourcePath() const { return m_SourcePath; }
         [[nodiscard]] SModelRenderHandle GetRenderHandle() const { return m_RenderHandle; }
+        [[nodiscard]] Ref<const MeshSceneProxy> CreateSceneProxy() const;
         [[nodiscard]] const std::filesystem::path& GetMaterialAsset(uint32_t slot) const
         {
             static const std::filesystem::path empty;
@@ -115,6 +125,8 @@ namespace Elixir
         std::vector<std::filesystem::path> m_MaterialAssets;
         mutable std::mutex m_MaterialsMutex;
         Ref<const MaterialRenderProxyList> m_MaterialRenderProxies;
+        Ref<const std::vector<SModelPrimitive>> m_RenderPrimitives;
+        Ref<SMeshSceneLifetime> m_RenderLifetime;
         SModelRenderHandle m_RenderHandle;
     };
 }

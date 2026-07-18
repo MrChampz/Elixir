@@ -116,19 +116,20 @@ namespace Elixir
 
     void MeshRenderer::RegisterModel(const Ref<Model>& model)
     {
-        if (!model || !model->GetRenderHandle().IsValid())
-            return;
-        std::lock_guard<std::mutex> lock(m_PendingModelLifecycleMutex);
-        m_PendingModelRegistrations.push_back(
-            { model->GetRenderHandle(), model });
+        UpdateModel(model);
+    }
+
+    void MeshRenderer::UpdateModel(const Ref<Model>& model)
+    {
+        if (model)
+            m_RenderScene.QueueUpdate(model->CreateSceneProxy());
     }
 
     void MeshRenderer::UnregisterModel(const SModelRenderHandle handle)
     {
         if (!handle.IsValid())
             return;
-        std::lock_guard<std::mutex> lock(m_PendingModelLifecycleMutex);
-        m_PendingModelRemovals.push_back(handle);
+        m_RenderScene.QueueRemove(handle);
     }
 
     void MeshRenderer::RetireModelVariants(const SModelRenderHandle model)
@@ -186,41 +187,16 @@ namespace Elixir
                 { std::move(state->second), RETIRE_FRAMES });
             m_ModelRenderStates.erase(state);
         }
-        std::erase(m_RegisteredModels, handle);
         RetireModelVariants(handle);
     }
 
     void MeshRenderer::ProcessModelLifecycle()
     {
-        std::vector<SPendingModelRegistration> registrations;
-        std::vector<SModelRenderHandle> removals;
-        {
-            std::lock_guard<std::mutex> lock(m_PendingModelLifecycleMutex);
-            registrations.swap(m_PendingModelRegistrations);
-            removals.swap(m_PendingModelRemovals);
-        }
-
-        for (auto& registration : registrations)
-        {
-            if (!registration.Handle.IsValid() || registration.Owner.expired())
-                continue;
-            auto [state, inserted] = m_ModelRenderStates.try_emplace(
-                registration.Handle);
-            state->second.Owner = std::move(registration.Owner);
-            if (inserted)
-                m_RegisteredModels.push_back(registration.Handle);
-        }
-        for (const SModelRenderHandle handle : removals)
+        for (const SModelRenderHandle handle : m_RenderScene.ApplyPending())
             RetireModelState(handle);
 
-        std::vector<SModelRenderHandle> expired;
-        for (const auto& [handle, state] : m_ModelRenderStates)
-        {
-            if (state.Owner.expired())
-                expired.push_back(handle);
-        }
-        for (const SModelRenderHandle handle : expired)
-            RetireModelState(handle);
+        for (const Ref<const MeshSceneProxy>& proxy : m_RenderScene.GetProxies())
+            m_ModelRenderStates.try_emplace(proxy->GetHandle());
     }
 
     void MeshRenderer::TickRetired()
@@ -585,10 +561,17 @@ namespace Elixir
     }
 
     void MeshRenderer::UpdateDrawCommands(const SModelRenderHandle handle,
-        const Ref<Model>& model,
+        const MeshSceneProxy& proxy,
         const MaterialGPUParameterCache::ProxyList& materialProxies,
         SModelRenderState& renderState)
     {
+        if (renderState.PrimitiveSnapshot != proxy.GetPrimitiveSnapshot())
+        {
+            renderState.PrimitiveSnapshot = proxy.GetPrimitiveSnapshot();
+            renderState.DrawCommandCache.Clear();
+            renderState.DrawCommands.clear();
+        }
+
         MaterialDrawCommandCache::SlotList slots;
         slots.reserve(materialProxies.size());
         for (uint32_t slot = 0; slot < materialProxies.size(); ++slot)
@@ -615,7 +598,7 @@ namespace Elixir
 
         const MaterialDrawCommandCache::SUpdate update =
             renderState.DrawCommandCache.Update(std::move(slots));
-        const auto& primitives = model->GetPrimitives();
+        const auto& primitives = proxy.GetPrimitives();
         const bool rebuildAll = update.LayoutChanged
             || renderState.DrawCommands.size() != primitives.size();
         if (!rebuildAll && update.DirtySlots.empty())
@@ -668,21 +651,20 @@ namespace Elixir
         ProcessModelLifecycle();
         InstallPendingShaders();
 
-        std::vector<std::pair<SModelRenderHandle, Ref<Model>>> liveModels;
-        liveModels.reserve(m_RegisteredModels.size());
+        std::vector<Ref<const MeshSceneProxy>> liveProxies;
+        liveProxies.reserve(m_RenderScene.GetProxies().size());
         bool sceneMaterialsDirty = false;
 
-        for (const SModelRenderHandle handle : m_RegisteredModels)
+        for (const Ref<const MeshSceneProxy>& sceneProxy :
+            m_RenderScene.GetProxies())
         {
+            const SModelRenderHandle handle = sceneProxy->GetHandle();
             const auto stateIt = m_ModelRenderStates.find(handle);
             if (stateIt == m_ModelRenderStates.end())
                 continue;
-            Ref<Model> model = stateIt->second.Owner.lock();
-            if (!model)
-                continue;
 
-            const Ref<const Model::MaterialRenderProxyList> publishedProxies =
-                model->GetMaterialRenderProxies();
+            const Ref<const MeshSceneProxy::MaterialList>& publishedProxies =
+                sceneProxy->GetMaterials();
             if (!publishedProxies)
                 continue;
             MaterialGPUParameterCache::ProxyList effectiveProxies =
@@ -726,15 +708,16 @@ namespace Elixir
                 state.PackedMaterials[slot] = PackMaterial(proxies[slot]);
             sceneMaterialsDirty = sceneMaterialsDirty
                 || parameterUpdate.HasChanges();
-            liveModels.emplace_back(handle, std::move(model));
+            liveProxies.push_back(sceneProxy);
         }
 
         // Assign stable contiguous ranges in registration order. A changed range
         // invalidates only that model's cached commands because their push constant
         // stores the scene-global material index.
         uint32_t materialCount = 0;
-        for (const auto& [handle, model] : liveModels)
+        for (const Ref<const MeshSceneProxy>& proxy : liveProxies)
         {
+            const SModelRenderHandle handle = proxy->GetHandle();
             SModelRenderState& state = m_ModelRenderStates.at(handle);
             if (state.MaterialOffset != materialCount)
             {
@@ -751,8 +734,9 @@ namespace Elixir
         {
             m_PackedSceneMaterials.clear();
             m_PackedSceneMaterials.reserve(materialCount);
-            for (const auto& [handle, model] : liveModels)
+            for (const Ref<const MeshSceneProxy>& proxy : liveProxies)
             {
+                const SModelRenderHandle handle = proxy->GetHandle();
                 const auto& packed = m_ModelRenderStates.at(handle).PackedMaterials;
                 m_PackedSceneMaterials.insert(
                     m_PackedSceneMaterials.end(), packed.begin(), packed.end());
@@ -804,11 +788,12 @@ namespace Elixir
 
         std::vector<const SMeshDrawCommand*> baseCommands;
         std::vector<const SMeshDrawCommand*> sortedCommands;
-        for (const auto& [handle, model] : liveModels)
+        for (const Ref<const MeshSceneProxy>& proxy : liveProxies)
         {
+            const SModelRenderHandle handle = proxy->GetHandle();
             SModelRenderState& state = m_ModelRenderStates.at(handle);
             UpdateDrawCommands(
-                handle, model, state.Parameters.GetProxies(), state);
+                handle, *proxy, state.Parameters.GetProxies(), state);
             baseCommands.reserve(
                 baseCommands.size() + state.BasePassCommands.size());
             sortedCommands.reserve(

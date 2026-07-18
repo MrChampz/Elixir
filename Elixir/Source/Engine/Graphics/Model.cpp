@@ -2,6 +2,7 @@
 #include "Model.h"
 
 #include "Engine/Graphics/MeshAsset.h"
+#include "Engine/Graphics/MeshSceneProxy.h"
 #include "Engine/Graphics/TextureLoader.h"
 
 #include <fastgltf/core.hpp>
@@ -63,13 +64,22 @@ namespace Elixir
     }
 
     Model::Model()
-        : m_RenderHandle(GetModelRenderHandleAllocator().Acquire())
+        : m_RenderPrimitives(CreateRef<const std::vector<SModelPrimitive>>()),
+          m_RenderLifetime(CreateRef<SMeshSceneLifetime>()),
+          m_RenderHandle(GetModelRenderHandleAllocator().Acquire())
     {
     }
 
     Model::~Model()
     {
+        m_RenderLifetime.reset();
         GetModelRenderHandleAllocator().Release(m_RenderHandle);
+    }
+
+    Ref<const MeshSceneProxy> Model::CreateSceneProxy() const
+    {
+        return CreateRef<const MeshSceneProxy>(m_RenderHandle,
+            m_RenderPrimitives, GetMaterialRenderProxies(), m_RenderLifetime);
     }
 
     static glm::mat4 ToGlm(const fastgltf::math::fmat4x4& m)
@@ -385,6 +395,14 @@ namespace Elixir
 
                     SModelPrimitive prim;
                     prim.Transform = transform;
+                    glm::vec3 boundsMin(std::numeric_limits<float>::max());
+                    glm::vec3 boundsMax(std::numeric_limits<float>::lowest());
+                    for (const SModelVertex& vertex : vertices)
+                    {
+                        boundsMin = glm::min(boundsMin, vertex.Position);
+                        boundsMax = glm::max(boundsMax, vertex.Position);
+                    }
+                    prim.LocalBounds = { boundsMin, boundsMax };
                     prim.IndexCount = (uint32_t)indices.size();
                     prim.MaterialIndex = primitive.materialIndex
                         ? (uint32_t)*primitive.materialIndex
@@ -400,6 +418,8 @@ namespace Elixir
 
         EE_CORE_INFO("Loaded glTF model '{0}': {1} primitives, {2} materials.",
             sourcePath.filename().string(), model->m_Primitives.size(), model->m_Materials.size());
+        model->m_RenderPrimitives =
+            CreateRef<const std::vector<SModelPrimitive>>(model->m_Primitives);
         model->PublishMaterialRenderProxies();
         return model;
     }

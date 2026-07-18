@@ -1,8 +1,8 @@
 #pragma once
 
 #include <Engine/Camera/Camera.h>
-#include <Engine/Graphics/Model.h>
 #include <Engine/Graphics/MeshPassProcessor.h>
+#include <Engine/Graphics/MeshRenderScene.h>
 #include <Engine/Graphics/Material/MaterialDrawCommandCache.h>
 #include <Engine/Graphics/Material/MaterialGPUParameterCache.h>
 #include <Engine/Graphics/Material/MaterialGraph.h>
@@ -45,12 +45,15 @@ namespace Elixir
         MeshRenderer(const GraphicsContext* context, const ShaderLoader* shaderLoader);
 
         // Registration is thread-safe. The render thread installs the model at the
-        // next frame boundary and keeps only a weak owner afterward.
+        // next frame boundary as an immutable scene proxy.
         void RegisterModel(const Ref<Model>& model);
+        // Publish a replacement proxy after geometry, transforms, or material
+        // snapshots change. The active scene is swapped only at a frame boundary.
+        void UpdateModel(const Ref<Model>& model);
         void Render(const Camera& camera);
 
         // Removal is queued and applied by Render at the next frame boundary. A model
-        // released without an explicit unregister is discovered through its weak owner.
+        // released without an explicit unregister expires the proxy's lifetime token.
         void UnregisterModel(SModelRenderHandle handle);
 
         // Swap the built-in shading used by every registered model. The new shader
@@ -126,7 +129,7 @@ namespace Elixir
 
         struct SModelRenderState
         {
-            Weak<Model> Owner;
+            Ref<const MeshSceneProxy::PrimitiveList> PrimitiveSnapshot;
             MaterialGPUParameterCache Parameters;
             std::vector<SGPUMaterial> PackedMaterials;
             uint32_t MaterialOffset = 0;
@@ -147,7 +150,8 @@ namespace Elixir
         SMeshDrawCommand BuildDrawCommand(SModelRenderHandle model,
             uint32_t materialOffset, const SModelPrimitive& primitive,
             const MaterialGPUParameterCache::ProxyList& materialProxies) const;
-        void UpdateDrawCommands(SModelRenderHandle handle, const Ref<Model>& model,
+        void UpdateDrawCommands(SModelRenderHandle handle,
+            const MeshSceneProxy& proxy,
             const MaterialGPUParameterCache::ProxyList& materialProxies,
             SModelRenderState& renderState);
         void InvalidateDefaultDrawCommands();
@@ -231,15 +235,7 @@ namespace Elixir
         void ProcessModelLifecycle();
         void TickRetired();
 
-        struct SPendingModelRegistration
-        {
-            SModelRenderHandle Handle;
-            Weak<Model> Owner;
-        };
-        std::vector<SPendingModelRegistration> m_PendingModelRegistrations;
-        std::vector<SModelRenderHandle> m_PendingModelRemovals;
-        std::mutex m_PendingModelLifecycleMutex;
-        std::vector<SModelRenderHandle> m_RegisteredModels;
+        MeshRenderScene m_RenderScene;
 
         // Variants built by a worker, waiting to be installed from Render.
         struct SPendingVariant
