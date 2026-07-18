@@ -756,8 +756,6 @@ namespace Elixir::Aether
                             const auto center = s.ParseFloat4(j, "center");
                             const auto tangential = s.ParseScalar(j, "tangential");
                             const auto radial = s.ParseScalar(j, "radial");
-                            auto& module = e.AddUpdateModule<ApplyVortex>(glm::vec3(center.Value), tangential.Value, radial.Value);
-                            module.BindParameters(center.Param, tangential.Param, radial.Param);
 
                             if (s.HasField(j, "normal"))
                             {

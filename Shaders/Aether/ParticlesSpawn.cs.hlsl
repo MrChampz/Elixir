@@ -476,12 +476,12 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
             params.PulseAmplitude = op.Data2.x;
             params.PulseSpeed = op.Data2.y;
+            params.PulsePhase = 0.0;
             params.CurlAmplitude = op.Data2.z;
             params.DepthAmplitude = op.Data2.w;
 
             params.CurlFrequency = float2(1.9, 1.7);
             params.CurlPhase = float2(0.6, -0.3);
-            params.DepthAmplitude = 0.10;
             params.DepthFrequency = 0.73;
             params.DepthPhase = 0.4;
 

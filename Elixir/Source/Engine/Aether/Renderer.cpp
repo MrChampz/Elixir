@@ -569,11 +569,22 @@ namespace Elixir::Aether
             {
                 auto& accumulator = emitterState.BurstAccumulator;
                 accumulator += m_LastDeltaTimeSeconds;
+
+                const float maxAccumulation = emitter.BurstIntervalSeconds * 8.0f;
+                if (accumulator > maxAccumulation)
+                    accumulator = maxAccumulation;
+
                 uint32_t burstLoops = 0u;
                 while (accumulator >= emitter.BurstIntervalSeconds && burstLoops < 8u)
                 {
                     accumulator -= emitter.BurstIntervalSeconds;
-                    spawnCount = std::min(emitter.MaxParticles, spawnCount + emitter.BurstCount);
+
+                    const uint32_t remainingCapacity = emitter.MaxParticles > spawnCount
+                        ? emitter.MaxParticles - spawnCount
+                        : 0u;
+
+                    spawnCount += std::min(remainingCapacity, emitter.BurstCount);
+                    
                     ++burstLoops;
                 }
             }
