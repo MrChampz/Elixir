@@ -58,7 +58,7 @@ Dissolve::Dissolve()
 
     m_ParticlesRenderer = CreateScope<Aether::Renderer>(m_GraphicsContext.get(), m_ShaderLoader.get());
 
-    m_ParticleSystem = Aether::LoadEffectFile("./Assets/VFX/RibbonVortex.json");
+    m_ParticleSystem = Aether::LoadEffectFile("./Assets/VFX/FireAndFireworks.json");
     // m_ParticleSystem = CreateScope<Aether::System>("Ribbon Garden");
     // m_ParticleSystem->GetParameters().SetFloat("GravityScale", 1.0f);
     //

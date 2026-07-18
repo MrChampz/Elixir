@@ -565,7 +565,7 @@ namespace Elixir::Aether
             if (spawnCount > 0u)
                 emitterState.SpawnAccumulator -= (float)spawnCount;
 
-            if (emitter.BurstCount > 0u && emitter.BurstIntervalSeconds > 0.0f)
+            if (emitter.TriggerSourceEmitterIndex < 0 && emitter.BurstCount > 0u && emitter.BurstIntervalSeconds > 0.0f)
             {
                 auto& accumulator = emitterState.BurstAccumulator;
                 accumulator += m_LastDeltaTimeSeconds;
@@ -584,9 +584,43 @@ namespace Elixir::Aether
                         : 0u;
 
                     spawnCount += std::min(remainingCapacity, emitter.BurstCount);
-                    
+
+                    for (std::size_t targetIndex = 0; targetIndex < emitterCount; ++targetIndex)
+                    {
+                        const auto& targetEmitter = system.Emitters[targetIndex];
+                        if (targetEmitter.TriggerSourceEmitterIndex == (int32_t)i && targetEmitter.BurstCount > 0u)
+                        {
+                            m_EmittersState[targetEmitter].PendingEmitterBursts.push_back({
+                                targetEmitter.TriggerDelaySeconds,
+                                targetEmitter.BurstCount
+                            });
+                        }
+                    }
+
                     ++burstLoops;
                 }
+            }
+
+            if (!emitterState.PendingEmitterBursts.empty())
+            {
+                auto& pending = emitterState.PendingEmitterBursts;
+                uint32_t releasedCount = 0u;
+
+                for (auto event = pending.begin(); event != pending.end();)
+                {
+                    event->DelaySeconds -= m_LastDeltaTimeSeconds;
+                    if (event->DelaySeconds <= 0.0f)
+                    {
+                        releasedCount = std::min(emitter.MaxParticles, releasedCount + event->Count);
+                        event = pending.erase(event);
+                    }
+                    else
+                    {
+                        ++event;
+                    }
+                }
+
+                spawnCount = std::min(emitter.MaxParticles, spawnCount + releasedCount);
             }
 
             auto desc = ToEmitterDescription(emitter);

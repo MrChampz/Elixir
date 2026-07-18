@@ -19,6 +19,12 @@ namespace Elixir::Aether
         m_BurstIntervalSeconds = intervalSeconds;
     }
 
+    void Emitter::SetTriggerEmitter(std::string emitterName, const float delaySeconds)
+    {
+        m_TriggerEmitterName = std::move(emitterName);
+        m_TriggerDelaySeconds = delaySeconds;
+    }
+
     SGPUEmitter Emitter::Build(
         const ParameterStore& paramStore,
         const std::vector<SGPUParameter>& params,
@@ -34,6 +40,7 @@ namespace Elixir::Aether
         emitter.GravityScale = paramStore.GetFloat("GravityScale", 1.0f);
         emitter.SpawnOpOffset = (uint32_t)ops.size();
         emitter.SpawnRatePerSecond = m_SpawnRate;
+        emitter.TriggerDelaySeconds = m_TriggerDelaySeconds;
         emitter.BurstCount = m_BurstCount;
         emitter.BurstIntervalSeconds = m_BurstIntervalSeconds;
 

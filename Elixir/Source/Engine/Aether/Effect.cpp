@@ -870,7 +870,21 @@ namespace Elixir::Aether
                     const auto burstInterval = RequireFloat(burst, "interval");
                     emitter.SetBurst(burstCount, burstInterval);
                 }
+                if (m_Failed) return;
 
+                if (HasField(json, "trigger"))
+                {
+                    od::object trigger;
+                    if (json["trigger"].get_object().get(trigger))
+                    {
+                        Fail("'trigger' must be an object.");
+                        return;
+                    }
+
+                    const auto triggerSource = RequireString(trigger, "source");
+                    const auto triggerDelay = RequireFloat(trigger, "delay");
+                    emitter.SetTriggerEmitter(triggerSource, triggerDelay);
+                }
                 if (m_Failed) return;
 
                 if (!spriteTexture.empty())
