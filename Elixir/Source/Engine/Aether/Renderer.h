@@ -43,10 +43,17 @@ namespace Elixir::Aether
         glm::vec4 Viewport{};
     };
 
+    struct SPendingEmitterBurst
+    {
+        float DelaySeconds = 0.0f;
+        uint32_t Count = 0u;
+    };
+
     struct SEmitterState
     {
         float SpawnAccumulator = 0.0f;
         float BurstAccumulator = 0.0f;
+        std::vector<SPendingEmitterBurst> PendingEmitterBursts;
         uint32_t BufferCursor = 0u;
         uint32_t EmissionIndex = 0u;
     };
@@ -54,9 +61,9 @@ namespace Elixir::Aether
     class ELIXIR_API Renderer final
     {
       public:
-        static constexpr uint32_t MAX_EMITTERS = 10;
+        static constexpr uint32_t MAX_EMITTERS = 16;
         static constexpr uint32_t MAX_PARTICLES = 20000;
-        static constexpr uint32_t MAX_OPS = 128;
+        static constexpr uint32_t MAX_OPS = 512;
         static constexpr uint32_t MAX_PARAMETERS = 128;
         static constexpr uint32_t COMPUTE_GROUP_SIZE = 256;
 
