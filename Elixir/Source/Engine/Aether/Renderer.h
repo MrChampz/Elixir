@@ -45,7 +45,8 @@ namespace Elixir::Aether
 
     struct SEmitterState
     {
-        float Accumulator = 0.0f;
+        float SpawnAccumulator = 0.0f;
+        float BurstAccumulator = 0.0f;
         uint32_t BufferCursor = 0u;
         uint32_t EmissionIndex = 0u;
     };
@@ -53,10 +54,10 @@ namespace Elixir::Aether
     class ELIXIR_API Renderer final
     {
       public:
-        static constexpr uint32_t MAX_EMITTERS = 8;
-        static constexpr uint32_t MAX_PARTICLES = 10000;
+        static constexpr uint32_t MAX_EMITTERS = 10;
+        static constexpr uint32_t MAX_PARTICLES = 20000;
         static constexpr uint32_t MAX_OPS = 128;
-        static constexpr uint32_t MAX_PARAMETERS = 64;
+        static constexpr uint32_t MAX_PARAMETERS = 128;
         static constexpr uint32_t COMPUTE_GROUP_SIZE = 256;
 
         Renderer(const GraphicsContext* context, const ShaderLoader* shaderLoader);

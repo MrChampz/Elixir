@@ -52,6 +52,10 @@ struct AttributeTable
     float4 Lifetime;
     float4 Tangent;
     float4 RibbonId;
+    float4 Temp0;
+    float4 Temp1;
+    float4 Temp2;
+    float4 Temp3;
 };
 
 [[vk::binding(0, 1)]]
@@ -152,6 +156,11 @@ AttributeTable LoadAttributes(ParticleState state)
     table.Size = float4(state.PositionSize.w, 0.0, 0.0, 0.0);
     table.Lifetime = float4(state.Metadata.z, state.VelocityAge.w, 0.0, 0.0);
     table.RibbonId = float4(state.TangentRibbonId.w, 0.0, 0.0, 0.0);
+    table.Temp0 = 0.0;
+    table.Temp1 = 0.0;
+    table.Temp2 = 0.0;
+    table.Temp3 = 0.0;
+
     return table;
 }
 
@@ -186,6 +195,14 @@ float4 GetAttribute(AttributeTable table, uint attrId)
         return table.Tangent;
     if (attrId == 9u)
         return table.RibbonId;
+    if (attrId == 10u)
+        return table.Temp0;
+    if (attrId == 11u)
+        return table.Temp1;
+    if (attrId == 12u)
+        return table.Temp2;
+    if (attrId == 13u)
+        return table.Temp3;
 
     return float4(0.0, 0.0, 0.0, 0.0);
 }
@@ -210,6 +227,23 @@ void SetAttribute(inout AttributeTable table, uint attrId, float4 value)
         table.Tangent = value;
     else if (attrId == 9u)
         table.RibbonId = value;
+    else if (attrId == 10u)
+        table.Temp0 = value;
+    else if (attrId == 11u)
+        table.Temp1 = value;
+    else if (attrId == 12u)
+        table.Temp2 = value;
+    else if (attrId == 13u)
+        table.Temp3 = value;
+}
+
+float3 SafeNormalize(float3 value, float3 fallback)
+{
+    float lengthSquared = dot(value, value);
+    if (lengthSquared < 0.000001)
+        return fallback;
+
+    return value * rsqrt(lengthSquared);
 }
 
 [numthreads(256, 1, 1)]
@@ -294,37 +328,62 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             value += sourceValue * (op.Data0.y * dt);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 13u) // SampleCurve
+        else if (type == 14u) // SampleCurve
         {
             float inputValue = ResolveDynamicInput(uint(op.Data0.x + 0.5), life, particleSeed);
             float value = SampleCurve(param0, inputValue);
             SetAttribute(attributes, target, float4(value, 0.0, 0.0, 0.0));
         }
-        else if (type == 14u) // SampleColorCurve
+        else if (type == 15u) // SampleColorCurve
         {
             float inputValue = ResolveDynamicInput(uint(op.Data0.x + 0.5), life, particleSeed);
             float4 value = SampleColorCurve(param0, inputValue);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 15u) // Add
+        else if (type == 16u) // Add
         {
             float4 value = GetAttribute(attributes, target);
             value += ResolveValue(param0, op.Data0);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 16u) // Mul
+        else if (type == 17u) // Mul
         {
             float4 value = GetAttribute(attributes, target);
             value *= ResolveValue(param0, op.Data0);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 17u) // Clamp
+        else if (type == 18u) // Clamp
         {
             float4 value = GetAttribute(attributes, target);
             float4 minValue = ResolveValue(param0, op.Data0);
             float4 maxValue = ResolveValue(param1, op.Data1);
             value = clamp(value, minValue, maxValue);
             SetAttribute(attributes, target, value);
+        }
+        else if (type == 19u) // CopyFromAttribute
+        {
+            float4 value = GetAttribute(attributes, uint(op.Data0.x + 0.5));
+            SetAttribute(attributes, target, value);
+        }
+        else if (type == 20u) // ApplyVortex
+        {
+            float4 velocity = GetAttribute(attributes, target);
+            float4 position = GetAttribute(attributes, 1u);
+
+            float3 center = ResolveValue(param0, op.Data0).xyz;
+            float3 normal = SafeNormalize(ResolveValue(param1, op.Data1).xyz, float3(0.0, 1.0, 0.0));
+            float3 offset = position.xyz - center;
+
+            float3 radial = SafeNormalize(offset, 0.0);
+            float radialStrength = ResolveValue((int)op.Data2.w, float4(op.Data2.y, 0.0, 0.0, 0.0)).x;
+
+            float3 tangent = SafeNormalize(cross(normal, radial), 0.0);
+            float tangentialStrength = ResolveValue((int)op.Data2.z, float4(op.Data2.x, 0.0, 0.0, 0.0)).x;
+
+            velocity.xyz += (tangent * tangentialStrength + radial * radialStrength) * dt;
+
+            SetAttribute(attributes, target, velocity);
+            SetAttribute(attributes, 8u, float4(tangent, 0.0));
         }
     }
 

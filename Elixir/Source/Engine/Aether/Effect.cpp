@@ -613,9 +613,14 @@ namespace Elixir::Aether
                             const glm::vec3 center = p.RequireFloatVec<3>(o, "center");
                             const float radius = p.RequireFloat(o, "radius");
                             if (p.HasField(o, "normal"))
-                                e.AddSpawnModule<SetPositionDisk>(center, radius, p.RequireFloatVec<3>(o, "normal"));
+                            {
+                                const auto normal = p.RequireFloatVec<3>(o, "normal");
+                                e.AddSpawnModule<SetPositionDisk>(center, radius, normal);
+                            }
                             else
+                            {
                                 e.AddSpawnModule<SetPositionDisk>(center, radius);
+                            }
                         }
                     },
                     {
@@ -657,6 +662,32 @@ namespace Elixir::Aether
                             const glm::vec3 secondary = p.RequireFloatVec<3>(o, "secondaryAmplitude");
                             const float timeScale = p.RequireFloat(o, "timeScale");
                             e.AddSpawnModule<SetPositionCircularPath>(baseOffset, primary, secondary, timeScale);
+                        }
+                    },
+                    {
+                        "SetPositionVortexRibbonPath", [](EffectParser& p, Emitter& e, od::object& o)
+                        {
+                            const glm::vec3 center = p.RequireFloatVec<3>(o, "center");
+                            const float orbitSpeed = p.RequireFloat(o, "orbitSpeed");
+                            const float baseRadius = p.RequireFloat(o, "baseRadius");
+                            const float radiusAmplitude = p.RequireFloat(o, "radiusAmplitude");
+                            const float radiusSpeed = p.RequireFloat(o, "radiusSpeed");
+                            const float pulseAmplitude = p.RequireFloat(o, "pulseAmplitude");
+                            const float pulseSpeed = p.RequireFloat(o, "pulseSpeed");
+                            const float curlAmplitude = p.RequireFloat(o, "curlAmplitude");
+                            const float depthAmplitude = p.RequireFloat(o, "depthAmplitude");
+
+                            e.AddSpawnModule<SetPositionVortexRibbonPath>(
+                                center,
+                                orbitSpeed,
+                                baseRadius,
+                                radiusAmplitude,
+                                radiusSpeed,
+                                pulseAmplitude,
+                                pulseSpeed,
+                                curlAmplitude,
+                                depthAmplitude
+                            );
                         }
                     },
                     {
@@ -713,10 +744,39 @@ namespace Elixir::Aether
                         "ApplyAngularVelocity", [](EffectParser& s, Emitter& e, od::object& j)
                         {
                             const auto value = s.ParseScalar(j, "value");
-                            auto& m = e.AddUpdateModule<ApplyAngularVelocity>(value.Value);
-                            m.BindParameter(value.Param);
+                            auto& module = e.AddUpdateModule<ApplyAngularVelocity>(value.Value);
+                            module.BindParameter(value.Param);
                             if (s.HasField(j, "input"))
-                                m.BindInput(s.ParseDynamicInput(j, "input"));
+                                module.BindInput(s.ParseDynamicInput(j, "input"));
+                        }
+                    },
+                    {
+                        "ApplyVortex", [](EffectParser& s, Emitter& e, od::object& j)
+                        {
+                            const auto center = s.ParseFloat4(j, "center");
+                            const auto tangential = s.ParseScalar(j, "tangential");
+                            const auto radial = s.ParseScalar(j, "radial");
+
+                            if (s.HasField(j, "normal"))
+                            {
+                                const auto normal = s.ParseFloat4(j, "normal");
+                                e.AddUpdateModule<ApplyVortex>(glm::vec3(center.Value), tangential.Value, radial.Value, normal.Value)
+                                    .BindParameters(
+                                        center.Param,
+                                        tangential.Param,
+                                        radial.Param,
+                                        normal.Param
+                                    );
+                            }
+                            else
+                            {
+                                e.AddUpdateModule<ApplyVortex>(glm::vec3(center.Value), tangential.Value, radial.Value)
+                                    .BindParameters(
+                                        center.Param,
+                                        tangential.Param,
+                                        radial.Param
+                                    );
+                            }
                         }
                     },
                     {
@@ -796,6 +856,22 @@ namespace Elixir::Aether
 
                 auto& emitter = system->AddEmitter(name, maxParticles, spawnRate.Value);
                 emitter.SetRenderMode(renderMode);
+
+                if (HasField(json, "burst"))
+                {
+                    od::object burst;
+                    if (json["burst"].get_object().get(burst))
+                    {
+                        Fail("'burst' must be an object.");
+                        return;
+                    }
+
+                    const auto burstCount = RequireUInt(burst, "count");
+                    const auto burstInterval = RequireFloat(burst, "interval");
+                    emitter.SetBurst(burstCount, burstInterval);
+                }
+
+                if (m_Failed) return;
 
                 if (!spriteTexture.empty())
                 {

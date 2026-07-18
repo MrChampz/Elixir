@@ -559,11 +559,35 @@ namespace Elixir::Aether
             const auto& emitter = system.Emitters[i];
             auto& emitterState = m_EmittersState[emitter];
 
-            emitterState.Accumulator += emitter.SpawnRatePerSecond * m_LastDeltaTimeSeconds;
+            emitterState.SpawnAccumulator += emitter.SpawnRatePerSecond * m_LastDeltaTimeSeconds;
 
-            const uint32_t spawnCount = std::min((uint32_t)emitterState.Accumulator, emitter.MaxParticles);
-            if (spawnCount > 0)
-                emitterState.Accumulator -= (float)spawnCount;
+            uint32_t spawnCount = std::min((uint32_t)emitterState.SpawnAccumulator, emitter.MaxParticles);
+            if (spawnCount > 0u)
+                emitterState.SpawnAccumulator -= (float)spawnCount;
+
+            if (emitter.BurstCount > 0u && emitter.BurstIntervalSeconds > 0.0f)
+            {
+                auto& accumulator = emitterState.BurstAccumulator;
+                accumulator += m_LastDeltaTimeSeconds;
+
+                const float maxAccumulation = emitter.BurstIntervalSeconds * 8.0f;
+                if (accumulator > maxAccumulation)
+                    accumulator = maxAccumulation;
+
+                uint32_t burstLoops = 0u;
+                while (accumulator >= emitter.BurstIntervalSeconds && burstLoops < 8u)
+                {
+                    accumulator -= emitter.BurstIntervalSeconds;
+
+                    const uint32_t remainingCapacity = emitter.MaxParticles > spawnCount
+                        ? emitter.MaxParticles - spawnCount
+                        : 0u;
+
+                    spawnCount += std::min(remainingCapacity, emitter.BurstCount);
+                    
+                    ++burstLoops;
+                }
+            }
 
             auto desc = ToEmitterDescription(emitter);
 

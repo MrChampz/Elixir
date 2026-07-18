@@ -20,12 +20,15 @@ namespace Elixir::Aether
         AddFromAttribute,
         SetPositionOnCircle,
         SetPositionCircularPath,
+        SetPositionVortexRibbonPath,
         SetRibbonIdFromSpawnOrder,
         SampleCurve,
         SampleColorCurve,
         Add,
         Mul,
-        Clamp
+        Clamp,
+        CopyFromAttribute,
+        ApplyVortex,
     };
 
     struct SGPUParticleOp
@@ -246,6 +249,43 @@ namespace Elixir::Aether
         float m_TimeScale;
     };
 
+    class ELIXIR_API SetPositionVortexRibbonPath final : public ParticleSpawnModule
+    {
+    public:
+        explicit SetPositionVortexRibbonPath(
+            glm::vec3 center,
+            float orbitSpeed,
+            float baseRadius,
+            float radiusAmplitude,
+            float radiusSpeed,
+            float pulseAmplitude,
+            float pulseSpeed,
+            float curlAmplitude,
+            float depthAmplitude
+        );
+
+        glm::vec3 GetCenter() const { return m_Center; }
+        float GetOrbitSpeed() const { return m_OrbitSpeed; }
+        float GetBaseRadius() const { return m_BaseRadius; }
+        float GetRadiusAmplitude() const { return m_RadiusAmplitude; }
+        float GetRadiusSpeed() const { return m_RadiusSpeed; }
+        float GetPulseAmplitude() const { return m_PulseAmplitude; }
+        float GetPulseSpeed() const { return m_PulseSpeed; }
+        float GetCurlAmplitude() const { return m_CurlAmplitude; }
+        float GetDepthAmplitude() const { return m_DepthAmplitude; }
+
+    private:
+        glm::vec3 m_Center;
+        float m_OrbitSpeed;
+        float m_BaseRadius;
+        float m_RadiusAmplitude;
+        float m_RadiusSpeed;
+        float m_PulseAmplitude;
+        float m_PulseSpeed;
+        float m_CurlAmplitude;
+        float m_DepthAmplitude;
+    };
+
     class ELIXIR_API SetRibbonId final : public ParticleSpawnModule
     {
       public:
@@ -316,6 +356,45 @@ namespace Elixir::Aether
         float m_RadiansPerSecond;
         std::string m_ParamName;
         EDynamicInput m_Input = EDynamicInput::None;
+    };
+
+    class ELIXIR_API ApplyVortex final : public ParticleUpdateModule
+    {
+    public:
+        explicit ApplyVortex(
+            glm::vec3 center,
+            float tangentialStrength,
+            float radialStrength,
+            glm::vec3 normal = { 0, 1, 0 }
+        );
+
+        ApplyVortex& BindParameters(
+            std::string centerParam,
+            std::string tangentialParam,
+            std::string radialParam,
+            std::string normalParam = ""
+        );
+
+        glm::vec3 GetCenter() const { return m_Center; }
+        glm::vec3 GetNormal() const { return m_Normal; }
+        float GetTangentialStrength() const { return m_TangentialStrength; }
+        float GetRadialStrength() const { return m_RadialStrength; }
+
+        const std::string& GetCenterParamName() const { return m_CenterParamName; }
+        const std::string& GetNormalParamName() const { return m_NormalParamName; }
+        const std::string& GetTangentialParamName() const { return m_TangentialParamName; }
+        const std::string& GetRadialParamName() const { return m_RadialParamName; }
+
+    private:
+        glm::vec3 m_Center;
+        glm::vec3 m_Normal;
+        float m_TangentialStrength;
+        float m_RadialStrength;
+
+        std::string m_CenterParamName;
+        std::string m_NormalParamName;
+        std::string m_TangentialParamName;
+        std::string m_RadialParamName;
     };
 
     class ELIXIR_API ColorOverLife final : public ParticleUpdateModule
