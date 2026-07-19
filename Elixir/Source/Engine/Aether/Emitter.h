@@ -27,6 +27,8 @@ namespace Elixir::Aether
         float SpawnRatePerSecond = 1.0f;
         uint32_t BurstCount = 0u;
         float BurstIntervalSeconds = 0.0f;
+        int32_t TriggerSourceEmitterIndex = -1;
+        float TriggerDelaySeconds = 0.0f;
 
         float GravityScale = 1.0f;
 
@@ -56,6 +58,12 @@ namespace Elixir::Aether
     class ELIXIR_API Emitter final
     {
       public:
+        /**
+         * Create a new Emitter.
+         * @param name Emitter name.
+         * @param maxParticles Max particles in the emitter.
+         * @param spawnRate Spawn rate per second.
+         */
         Emitter(const std::string& name, uint32_t maxParticles, float spawnRate);
 
         Emitter(Emitter&&) = default;
@@ -86,6 +94,8 @@ namespace Elixir::Aether
 
         void SetBurst(uint32_t count, float intervalSeconds);
 
+        void SetTriggerEmitter(std::string emitterName, float delaySeconds);
+
         SGPUEmitter Build(
             const ParameterStore& paramStore,
             const std::vector<SGPUParameter>& params,
@@ -100,6 +110,9 @@ namespace Elixir::Aether
 
         uint32_t GetBurstCount() const { return m_BurstCount; }
         float GetBurstIntervalSeconds() const { return m_BurstIntervalSeconds; }
+
+        const std::string& GetTriggerEmitterName() const { return m_TriggerEmitterName; }
+        float GetTriggerDelaySeconds() const { return m_TriggerDelaySeconds; }
 
         ParameterStore& GetParameters() { return m_Parameters; }
         const ParameterStore& GetParameters() const { return m_Parameters; }
@@ -122,9 +135,11 @@ namespace Elixir::Aether
         std::vector<Scope<ParticleUpdateModule>> m_UpdateModules;
 
         std::string m_SpawnRateParamName;
-        float m_SpawnRate = 0.0f; // per seconds
+        float m_SpawnRate = 0.0f; // per second
         uint32_t m_BurstCount = 0u;
         float m_BurstIntervalSeconds = 0.0f;
+        std::string m_TriggerEmitterName;
+        float m_TriggerDelaySeconds = 0.0f;
 
         ParameterStore m_Parameters;
         CurveStore m_Curves;

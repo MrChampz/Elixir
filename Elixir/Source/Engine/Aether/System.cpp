@@ -77,6 +77,30 @@ namespace Elixir::Aether
             system.Emitters.push_back(desc);
         }
 
+        for (std::size_t i = 0; i < m_Emitters.size(); ++i)
+        {
+            const auto& emitter = m_Emitters[i];
+
+            const auto& name = emitter->GetTriggerEmitterName();
+            if (name.empty()) continue;
+
+            auto found = std::ranges::find_if(system.Emitters, [&name](const SGPUEmitter& e)
+                {
+                    return e.Name == name;
+                }
+            );
+
+            if (found != system.Emitters.end())
+            {
+                auto index = std::distance(system.Emitters.begin(), found);
+                system.Emitters[i].TriggerSourceEmitterIndex = (int32_t)index;
+            }
+            else
+            {
+                EE_CORE_ERROR("Trigger source emitter '{}' not found for emitter '{}'.", name, emitter->GetName());
+            }
+        }
+
         return system;
     }
 }
