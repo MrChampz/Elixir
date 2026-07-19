@@ -5,7 +5,7 @@
 using namespace Elixir;
 using namespace Elixir::Aether;
 
-TEST(AetherSystemTest, BuildAssignsContiguousEmitterParticleOffsets)
+TEST(AetherSystemTest, BuildAssignsContiguousLocalEmitterParticleOffsets)
 {
     System system{ "Particle offset contract" };
     system.AddEmitter("First", 3u, 0.0f);
@@ -15,9 +15,10 @@ TEST(AetherSystemTest, BuildAssignsContiguousEmitterParticleOffsets)
     const auto compiled = system.Build();
 
     ASSERT_EQ(compiled.Emitters.size(), 3u);
-    EXPECT_EQ(compiled.Emitters[0].ParticleOffset, 0u);
-    EXPECT_EQ(compiled.Emitters[1].ParticleOffset, 3u);
-    EXPECT_EQ(compiled.Emitters[2].ParticleOffset, 10u);
+    EXPECT_EQ(compiled.Layout.ParticleState, EParticleLayout::CoreV1);
+    EXPECT_EQ(compiled.Emitters[0].LocalParticleOffset, 0u);
+    EXPECT_EQ(compiled.Emitters[1].LocalParticleOffset, 3u);
+    EXPECT_EQ(compiled.Emitters[2].LocalParticleOffset, 10u);
     EXPECT_EQ(compiled.TotalMaxParticles, 21u);
 }
 

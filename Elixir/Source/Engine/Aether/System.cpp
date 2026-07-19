@@ -63,15 +63,15 @@ namespace Elixir::Aether
                 system.Parameters.push_back({ curve.Name + ":" + std::to_string(i), baked[i] });
         }
 
-        uint32_t particleOffset = 0;
+        uint32_t localParticleOffset = 0;
         system.Emitters.reserve(m_Emitters.size());
 
         for (const auto& emitter : m_Emitters)
         {
             auto desc = emitter->Build(m_Parameters, system.Parameters, system.Ops);
-            desc.ParticleOffset = particleOffset;
+            desc.LocalParticleOffset = localParticleOffset;
 
-            particleOffset += desc.MaxParticles;
+            localParticleOffset += desc.MaxParticles;
             system.TotalMaxParticles += desc.MaxParticles;
 
             system.Emitters.push_back(desc);

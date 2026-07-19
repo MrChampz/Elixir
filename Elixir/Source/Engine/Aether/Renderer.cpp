@@ -33,7 +33,7 @@ namespace Elixir::Aether
     {
         SEmitterData desc{};
         desc.MetaA = {
-            emitter.ParticleOffset,
+            emitter.LocalParticleOffset,
             emitter.MaxParticles,
             emitter.SpawnOpOffset,
             emitter.SpawnOpCount
@@ -192,7 +192,7 @@ namespace Elixir::Aether
                 m_MeshVertexCount,
                 emitter.MaxParticles,
                 0,
-                emitter.ParticleOffset
+                emitter.LocalParticleOffset
             );
         }
 
@@ -230,7 +230,7 @@ namespace Elixir::Aether
             const SSpritePushConstants pc{ ResolveSpriteIndex(emitter.SpriteTexture) };
             m_SpriteShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(SSpritePushConstants));
 
-            cmd->Draw(6, emitter.MaxParticles, 0, emitter.ParticleOffset);
+            cmd->Draw(6, emitter.MaxParticles, 0, emitter.LocalParticleOffset);
         }
 
         EndRendering(cmd);

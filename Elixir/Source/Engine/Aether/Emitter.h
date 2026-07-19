@@ -32,7 +32,10 @@ namespace Elixir::Aether
 
         float GravityScale = 1.0f;
 
-        uint32_t ParticleOffset = 0u;
+        // Relative to the beginning of this compiled system. It is not a
+        // physical address in a shared GPU particle pool.
+        uint32_t LocalParticleOffset = 0;
+
         uint32_t MaxParticles = 0u;
         uint32_t SpawnOpOffset = 0u;
         uint32_t SpawnOpCount = 0u;
