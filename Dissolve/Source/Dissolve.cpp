@@ -9,7 +9,7 @@
 Ref<GraphicsPipeline> pipeline;
 Scope<Aether::Renderer> m_ParticlesRenderer;
 Ref<Aether::System> m_ParticleSystem;
-Aether::SGPUSystem m_GPUSystem;
+Aether::SCompiledSystem m_GPUSystem;
 
 Dissolve::Dissolve()
 {
@@ -140,7 +140,7 @@ Dissolve::Dissolve()
     // shards.AddUpdateModule<Aether::ScaleOverLife>(1.15f, 0.28f);
     // shards.AddUpdateModule<Aether::KillOutsideBounds>(glm::vec3{ -1.45f, -1.2f, -1.45f }, glm::vec3{ 1.45f, 1.35f, 1.45f });
 
-    m_GPUSystem = m_ParticleSystem->Build();
+    m_GPUSystem = m_ParticleSystem->Compile();
 
     m_GraphicsContext->SetClearColor({ 0.015f, 0.025f, 0.06f, 1.0f });
 }

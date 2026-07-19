@@ -25,13 +25,13 @@ namespace Elixir::Aether
         m_TriggerDelaySeconds = delaySeconds;
     }
 
-    SGPUEmitter Emitter::Build(
+    SCompiledEmitter Emitter::Compile(
         const ParameterStore& paramStore,
         const std::vector<SGPUParameter>& params,
         std::vector<SGPUParticleOp>& ops
     ) const
     {
-        SGPUEmitter emitter;
+        SCompiledEmitter emitter;
         emitter.m_UUID = m_UUID;
         emitter.Name = m_Name;
         emitter.RenderMode = m_RenderMode;

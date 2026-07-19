@@ -14,11 +14,6 @@ namespace Elixir::Aether
         glm::vec3 Normal;
     };
 
-    struct SSpawnPushConstants
-    {
-        uint32_t EmitterIndex = 0;
-    };
-
     struct SSpritePushConstants
     {
         uint32_t SpriteIndex = 0;
@@ -29,7 +24,7 @@ namespace Elixir::Aether
         uint32_t EmitterIndex = 0;
     };
 
-    SEmitterData ToEmitterDescription(const SGPUEmitter& emitter)
+    SEmitterData ToEmitterDescription(const SCompiledEmitter& emitter)
     {
         SEmitterData desc{};
         desc.MetaA = {
@@ -101,7 +96,7 @@ namespace Elixir::Aether
         m_ElapsedTimeSeconds += timestep.GetSeconds();
     }
 
-    void Renderer::Render(const SGPUSystem& system, const Camera& camera)
+    void Renderer::Render(const SCompiledSystem& system, const Camera& camera)
     {
         m_LastSubmissionMetrics = {
             .SubmissionSerial = ++m_SubmissionSerial,
@@ -151,8 +146,19 @@ namespace Elixir::Aether
             const auto particleCount = std::min((uint32_t)emitters[i].MetaA.y, MAX_PARTICLES - offset);
             if (particleCount == 0) continue;
 
-            const SSpawnPushConstants pushConstants{ i };
-            m_SpawnShader->SetPushConstant(cmd, "pc", (void*)&pushConstants, sizeof(SSpawnPushConstants));
+            const SSpawnPushConstants spawnPushConstants
+            {
+                .InstanceIndex = 0,
+                .EmitterIndex = i,
+            };
+
+            m_SpawnShader->SetPushConstant(
+                cmd,
+                "pc",
+                (void*)&spawnPushConstants,
+                sizeof(SSpawnPushConstants)
+            );
+
             cmd->Dispatch((particleCount + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
         }
 
@@ -163,6 +169,19 @@ namespace Elixir::Aether
         );
 
         m_UpdatePipeline->Bind(cmd);
+
+        constexpr SUpdatePushConstants updatePushConstants
+        {
+            .InstanceIndex = 0,
+        };
+
+        m_UpdateShader->SetPushConstant(
+            cmd,
+            "pc",
+            (void*)&updatePushConstants,
+            sizeof(SUpdatePushConstants)
+        );
+
         cmd->Dispatch((maxParticles + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
 
         m_ParticleBuffer->Barrier(
@@ -365,6 +384,12 @@ namespace Elixir::Aether
     void Renderer::CreateBuffers()
     {
         m_ParticleBuffer = StorageBuffer::Create(m_GraphicsContext, sizeof(SGPUParticleState) * MAX_PARTICLES);
+
+        m_SystemInstanceBuffer = DynamicStorageBuffer::Create(
+            m_GraphicsContext,
+            sizeof(SSystemInstanceData) * MAX_SYSTEM_INSTANCES
+        );
+
         m_EmitterBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SEmitterData) * MAX_EMITTERS);
         m_OpBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SParticleOpData) * MAX_OPS);
         m_ParameterBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SParameterData) * MAX_PARAMETERS);
@@ -440,15 +465,38 @@ namespace Elixir::Aether
 
     void Renderer::BindShaderParameters()
     {
-        constexpr SSpawnPushConstants pushConstants{ 0 };
-        m_SpawnShader->SetPushConstant("pc", (void*)&pushConstants, sizeof(SSpawnPushConstants));
+        constexpr SSpawnPushConstants spawnPushConstants
+        {
+            .InstanceIndex = 0,
+            .EmitterIndex = 0
+        };
+
+        constexpr SUpdatePushConstants updatePushConstants
+        {
+            .InstanceIndex = 0
+        };
+
+        m_SpawnShader->SetPushConstant(
+            "pc",
+            (void*)&spawnPushConstants,
+            sizeof(SSpawnPushConstants)
+        );
+
         m_SpawnShader->BindStorageBuffer("particles", m_ParticleBuffer);
+        m_SpawnShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
         m_SpawnShader->BindStorageBuffer("emitters", m_EmitterBuffer);
         m_SpawnShader->BindStorageBuffer("ops", m_OpBuffer);
         m_SpawnShader->BindStorageBuffer("parameters", m_ParameterBuffer);
         m_SpawnShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
 
+        m_UpdateShader->SetPushConstant(
+            "pc",
+            (void*)&updatePushConstants,
+            sizeof(SUpdatePushConstants)
+        );
+
         m_UpdateShader->BindStorageBuffer("particles", m_ParticleBuffer);
+        m_UpdateShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
         m_UpdateShader->BindStorageBuffer("emitters", m_EmitterBuffer);
         m_UpdateShader->BindStorageBuffer("ops", m_OpBuffer);
         m_UpdateShader->BindStorageBuffer("parameters", m_ParameterBuffer);
@@ -524,7 +572,7 @@ namespace Elixir::Aether
         m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
     }
 
-    void Renderer::UpdateBuffers(const SGPUSystem& system)
+    void Renderer::UpdateBuffers(const SCompiledSystem& system)
     {
         // The GPU buffers are fixed-capacity. If the built system exceeds any of
         // them, the copy below clamps silently while emitter op offsets/counts
@@ -566,6 +614,20 @@ namespace Elixir::Aether
         };
 
         m_ParamsBuffer->UpdateData(&params, sizeof(SParamsData));
+
+        const SSystemInstanceData instanceData
+        {
+            .ParticleBaseOffset = 0,
+            .EmitterBaseOffset = 0,
+            .OpBaseOffset = 0,
+            .ParameterBaseOffset = 0,
+            .ParticleCount = std::min(system.TotalMaxParticles, MAX_PARTICLES),
+            .EmitterCount = (uint32_t)std::min(system.Emitters.size(), (size_t)MAX_EMITTERS),
+            .Generation = 1,
+            .ParticleStateLayoutIndex = (uint32_t)system.ParticleStateLayout,
+        };
+
+        m_SystemInstanceBuffer->UpdateData(&instanceData, sizeof(SSystemInstanceData));
 
         auto* emitters = (SEmitterData*)m_EmitterBuffer->Map();
         const auto emitterCount = std::min(system.Emitters.size(), (size_t)MAX_EMITTERS);

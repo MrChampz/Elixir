@@ -41,6 +41,22 @@ struct Parameter
 [[vk::binding(3, 0)]]
 StructuredBuffer<Parameter> parameters;
 
+struct SystemInstance
+{
+    uint ParticleBaseOffset;
+    uint EmitterBaseOffset;
+    uint OpBaseOffset;
+    uint ParameterBaseOffset;
+
+    uint ParticleCount;
+    uint EmitterCount;
+    uint Generation;
+    uint ParticleStateLayoutIndex;
+};
+
+[[vk::binding(4, 0)]]
+StructuredBuffer<SystemInstance> instances;
+
 struct AttributeTable
 {
     float4 Position;
@@ -64,6 +80,13 @@ cbuffer cbParams : register(b0)
     float4 TimeData;     // x = delta time, y = total time, z = total particle count, w = max particle count
     float4 ViewportData; // x = viewport width, y = viewport height, z = unused, w = unused
 };
+
+struct PushConstants {
+    uint InstanceIndex;
+};
+
+[[vk::push_constant]]
+PushConstants pc;
 
 float Hash1(float x) {
   return frac(sin(x * 91.3458 + 12.345) * 45678.5453);
@@ -249,10 +272,13 @@ float3 SafeNormalize(float3 value, float3 fallback)
 [numthreads(256, 1, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
-    uint particleIndex = dispatchThreadId.x;
-    uint totalParticleCount = (uint)TimeData.z;
-    if (particleIndex >= totalParticleCount)
+    SystemInstance instance = instances[pc.InstanceIndex];
+
+    uint localParticleIndex = dispatchThreadId.x;
+    if (localParticleIndex >= instance.ParticleCount)
         return;
+
+    uint particleIndex = instance.ParticleBaseOffset + localParticleIndex;
 
     ParticleState state = particles[particleIndex];
     if (state.Metadata.w < 0.5)
@@ -264,7 +290,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
     float particleSeed = Hash1((float)particleIndex);
 
-    uint emitterIndex = (uint)(state.Metadata.x + 0.5);
+    uint emitterIndex = instance.EmitterBaseOffset + (uint)(state.Metadata.x + 0.5);
     Emitter emitter = emitters[emitterIndex];
     float dt = TimeData.x;
 

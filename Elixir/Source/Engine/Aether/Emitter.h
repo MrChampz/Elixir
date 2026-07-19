@@ -10,14 +10,7 @@ namespace Elixir::Aether
 {
     class ParameterStore;
 
-    enum class EParticleRenderMode : uint8_t
-    {
-        Sprite = 0,
-        Ribbon = 1,
-        Mesh   = 2
-    };
-
-    struct SGPUEmitter
+    struct SCompiledEmitter
     {
         UUID m_UUID;
         std::string Name;
@@ -42,7 +35,7 @@ namespace Elixir::Aether
         uint32_t UpdateOpOffset = 0u;
         uint32_t UpdateOpCount = 0u;
 
-        bool operator==(const SGPUEmitter& other) const noexcept
+        bool operator==(const SCompiledEmitter& other) const noexcept
         {
             return m_UUID == other.m_UUID;
         }
@@ -54,7 +47,7 @@ namespace Elixir::Aether
     };
 }
 
-GENERATE_HASH_FUNCTION(Elixir::Aether::SGPUEmitter)
+GENERATE_HASH_FUNCTION(Elixir::Aether::SCompiledEmitter)
 
 namespace Elixir::Aether
 {
@@ -99,7 +92,7 @@ namespace Elixir::Aether
 
         void SetTriggerEmitter(std::string emitterName, float delaySeconds);
 
-        SGPUEmitter Build(
+        SCompiledEmitter Compile(
             const ParameterStore& paramStore,
             const std::vector<SGPUParameter>& params,
             std::vector<SGPUParticleOp>& ops

@@ -7,24 +7,12 @@
 
 namespace Elixir::Aether
 {
-    // CoreV1 is byte-for-byte compatible with the current SGPUParticleState.
-    // Future pool arenas and shader permutations will be selected from this key.
-    enum class EParticleLayout : uint8_t
-    {
-        CoreV1 = 0
-    };
-
-    struct SParticleLayoutKey
-    {
-        EParticleLayout ParticleState = EParticleLayout::CoreV1;
-    };
-
-    struct SGPUSystem
+    struct SCompiledSystem
     {
         std::string Name;
-        SParticleLayoutKey Layout{};
+        EParticleStateLayout ParticleStateLayout = EParticleStateLayout::CoreV1;
 
-        std::vector<SGPUEmitter> Emitters;
+        std::vector<SCompiledEmitter> Emitters;
         std::vector<SGPUParticleOp> Ops;
 
         std::vector<SGPUParameter> Parameters;
@@ -49,7 +37,7 @@ namespace Elixir::Aether
 
         Emitter& AddEmitter(const std::string& name, uint32_t maxParticles, float spawnRate);
 
-        SGPUSystem Build() const;
+        SCompiledSystem Compile() const;
 
         ParameterStore& GetParameters() { return m_Parameters; }
         CurveStore& GetCurves() { return m_Curves; }

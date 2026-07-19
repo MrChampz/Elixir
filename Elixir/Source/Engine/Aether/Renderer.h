@@ -43,6 +43,19 @@ namespace Elixir::Aether
         glm::vec4 Viewport{};
     };
 
+    struct alignas(16) SSystemInstanceData
+    {
+        uint32_t ParticleBaseOffset = 0;
+        uint32_t EmitterBaseOffset = 0;
+        uint32_t OpBaseOffset = 0;
+        uint32_t ParameterBaseOffset = 0;
+
+        uint32_t ParticleCount = 0;
+        uint32_t EmitterCount = 0;
+        uint32_t Generation = 0;
+        uint32_t ParticleStateLayoutIndex = 0;
+    };
+
     // CPU-side observability only. These values describe what the renderer
     // submitted for one Render() call; they do not read back GPU state.
     struct SParticleSubmissionMetrics
@@ -85,6 +98,7 @@ namespace Elixir::Aether
     class ELIXIR_API Renderer final
     {
       public:
+        static constexpr uint32_t MAX_SYSTEM_INSTANCES = 1;
         static constexpr uint32_t MAX_EMITTERS = 16;
         static constexpr uint32_t MAX_PARTICLES = 20000;
         static constexpr uint32_t MAX_OPS = 512;
@@ -94,7 +108,7 @@ namespace Elixir::Aether
         Renderer(const GraphicsContext* context, const ShaderLoader* shaderLoader);
 
         void Update(const Timestep& timestep);
-        void Render(const SGPUSystem& system, const Camera& camera);
+        void Render(const SCompiledSystem& system, const Camera& camera);
 
         // Read only at the frame boundary after Render() returns.
         const SParticleSubmissionMetrics& GetLastSubmissionMetrics() const;
@@ -111,7 +125,7 @@ namespace Elixir::Aether
         void BeginRendering(const Ref<CommandBuffer>& cmd) const;
         void EndRendering(const Ref<CommandBuffer>& cmd) const;
 
-        void UpdateBuffers(const SGPUSystem& system);
+        void UpdateBuffers(const SCompiledSystem& system);
 
         SFrameData m_FrameData{};
         Ref<UniformBuffer> m_FrameConstantBuffer;
@@ -126,6 +140,17 @@ namespace Elixir::Aether
             glm::vec4 Metadata{};
         };
 
+        struct SSpawnPushConstants
+        {
+            uint32_t InstanceIndex = 0;
+            uint32_t EmitterIndex = 0;
+        };
+
+        struct SUpdatePushConstants
+        {
+            uint32_t InstanceIndex = 0;
+        };
+
         Ref<Shader> m_SpawnShader;
         Ref<ComputePipeline> m_SpawnPipeline;
         Ref<Shader> m_UpdateShader;
@@ -138,8 +163,9 @@ namespace Elixir::Aether
         Ref<GraphicsPipeline> m_MeshPipeline;
 
         Ref<StorageBuffer> m_ParticleBuffer;
-        std::unordered_map<SGPUEmitter, SEmitterState> m_EmittersState;
+        std::unordered_map<SCompiledEmitter, SEmitterState> m_EmittersState;
 
+        Ref<DynamicStorageBuffer> m_SystemInstanceBuffer;
         Ref<DynamicStorageBuffer> m_EmitterBuffer;
         Ref<DynamicStorageBuffer> m_OpBuffer;
         Ref<DynamicStorageBuffer> m_ParameterBuffer;

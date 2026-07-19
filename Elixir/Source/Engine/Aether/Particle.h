@@ -22,6 +22,20 @@ namespace Elixir::Aether
         Temp3,
     };
 
+    enum class EParticleRenderMode : uint8_t
+    {
+        Sprite = 0,
+        Ribbon = 1,
+        Mesh   = 2
+    };
+
+    // CoreV1 is byte-for-byte compatible with the current SGPUParticleState.
+    // Future pool arenas and shader permutations will be selected from this key.
+    enum class EParticleStateLayout : uint8_t
+    {
+        CoreV1 = 0
+    };
+
     struct SParticle
     {
         glm::vec3 Position;

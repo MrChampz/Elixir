@@ -15,9 +15,9 @@ namespace Elixir::Aether
         return *m_Emitters.back();
     }
 
-    SGPUSystem System::Build() const
+    SCompiledSystem System::Compile() const
     {
-        SGPUSystem system;
+        SCompiledSystem system;
         system.Name = m_Name;
 
         system.Parameters = m_Parameters.Compile();
@@ -68,13 +68,13 @@ namespace Elixir::Aether
 
         for (const auto& emitter : m_Emitters)
         {
-            auto desc = emitter->Build(m_Parameters, system.Parameters, system.Ops);
-            desc.LocalParticleOffset = localParticleOffset;
+            auto compiled = emitter->Compile(m_Parameters, system.Parameters, system.Ops);
+            compiled.LocalParticleOffset = localParticleOffset;
 
-            localParticleOffset += desc.MaxParticles;
-            system.TotalMaxParticles += desc.MaxParticles;
+            localParticleOffset += compiled.MaxParticles;
+            system.TotalMaxParticles += compiled.MaxParticles;
 
-            system.Emitters.push_back(desc);
+            system.Emitters.push_back(compiled);
         }
 
         for (std::size_t i = 0; i < m_Emitters.size(); ++i)
@@ -84,7 +84,7 @@ namespace Elixir::Aether
             const auto& name = emitter->GetTriggerEmitterName();
             if (name.empty()) continue;
 
-            auto found = std::ranges::find_if(system.Emitters, [&name](const SGPUEmitter& e)
+            auto found = std::ranges::find_if(system.Emitters, [&name](const SCompiledEmitter& e)
                 {
                     return e.Name == name;
                 }

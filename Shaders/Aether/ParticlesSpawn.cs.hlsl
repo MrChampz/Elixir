@@ -41,6 +41,22 @@ struct Parameter
 [[vk::binding(3, 0)]]
 StructuredBuffer<Parameter> parameters;
 
+struct SystemInstance
+{
+    uint ParticleBaseOffset;
+    uint EmitterBaseOffset;
+    uint OpBaseOffset;
+    uint ParameterBaseOffset;
+
+    uint ParticleCount;
+    uint EmitterCount;
+    uint Generation;
+    uint ParticleStateLayoutIndex;
+};
+
+[[vk::binding(4, 0)]]
+StructuredBuffer<SystemInstance> instances;
+
 struct AttributeTable
 {
     float4 Position;
@@ -66,6 +82,7 @@ cbuffer cbParams : register(b0)
 };
 
 struct PushConstants {
+    uint InstanceIndex;
     uint EmitterIndex;
 };
 
@@ -293,7 +310,11 @@ float3 VortexRibbonPath(float timeSeconds, VortexRibbonPathParams p)
 [numthreads(256, 1, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
-    Emitter emitter = emitters[pc.EmitterIndex];
+    SystemInstance instance = instances[pc.InstanceIndex];
+
+    uint emitterIndex = instance.EmitterBaseOffset + pc.EmitterIndex;
+    Emitter emitter = emitters[emitterIndex];
+
     uint localIndex = dispatchThreadId.x;
     uint emitterCount = (uint)emitter.MetaA.y;
     if (localIndex >= emitterCount)
@@ -304,7 +325,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     if (!InSpawnRange(localIndex, spawnCursor, spawnCount, emitterCount))
         return;
 
-    uint globalIndex = (uint)(emitter.MetaA.x + localIndex);
+    uint globalIndex = instance.ParticleBaseOffset + (uint)emitter.MetaA.x + localIndex;
     float2 seedBase = float2((float)globalIndex, TimeData.y + float(spawnCursor));
     float particleSeed = Hash1((float)globalIndex);
     float randomInput = Hash2(seedBase + float2(8.11, 3.41));
@@ -525,5 +546,10 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     particles[globalIndex].Transform = float4(GetAttribute(attributes, 2u).x, GetAttribute(attributes, 3u).x, 0.0, 0.0);
     particles[globalIndex].TangentRibbonId = float4(GetAttribute(attributes, 8u).xyz, GetAttribute(attributes, 9u).x);
     particles[globalIndex].Color = GetAttribute(attributes, 5u);
-    particles[globalIndex].Metadata = float4(float(pc.EmitterIndex), asfloat(emissionIndex), GetAttribute(attributes, 7u).x, 1.0);
+    particles[globalIndex].Metadata = float4(
+        float(pc.EmitterIndex),
+        asfloat(emissionIndex),
+        GetAttribute(attributes, 7u).x,
+        1.0
+    );
 }
