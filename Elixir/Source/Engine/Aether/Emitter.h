@@ -22,6 +22,9 @@ namespace Elixir::Aether
         float BurstIntervalSeconds = 0.0f;
         int32_t TriggerSourceEmitterIndex = -1;
         float TriggerDelaySeconds = 0.0f;
+        uint32_t TriggerTargetOffset = 0;
+        uint32_t TriggerTargetCount = 0;
+        bool IsTriggerDriven = false;
 
         float GravityScale = 1.0f;
 

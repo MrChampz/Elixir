@@ -7,12 +7,24 @@
 
 namespace Elixir::Aether
 {
+    struct SCompiledTriggerTarget
+    {
+        uint32_t TargetEmitterIndex = 0;
+        uint32_t BurstCount = 0;
+        float DelaySeconds = 0.0f;
+    };
+
     struct SCompiledSystem
     {
+        UUID SourceId;
+        uint32_t CompilationRevision = 0;
+
         std::string Name;
         EParticleStateLayout ParticleStateLayout = EParticleStateLayout::CoreV1;
 
         std::vector<SCompiledEmitter> Emitters;
+        std::vector<SCompiledTriggerTarget> TriggerTargets;
+
         std::vector<SGPUParticleOp> Ops;
 
         std::vector<SGPUParameter> Parameters;
@@ -44,6 +56,9 @@ namespace Elixir::Aether
         ColorCurveStore& GetColorCurves() { return m_ColorCurves; }
 
       private:
+        UUID m_UUID;
+        mutable uint32_t m_CompilationRevision = 0;
+
         std::string m_Name;
 
         ParameterStore m_Parameters;

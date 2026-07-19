@@ -18,6 +18,8 @@ namespace Elixir::Aether
     SCompiledSystem System::Compile() const
     {
         SCompiledSystem system;
+        system.SourceId = m_UUID;
+        system.CompilationRevision = ++m_CompilationRevision;
         system.Name = m_Name;
 
         system.Parameters = m_Parameters.Compile();
@@ -77,28 +79,53 @@ namespace Elixir::Aether
             system.Emitters.push_back(compiled);
         }
 
-        for (std::size_t i = 0; i < m_Emitters.size(); ++i)
+        std::vector<std::vector<SCompiledTriggerTarget>> targetsBySource(system.Emitters.size());
+
+        for (std::size_t targetIndex = 0; targetIndex < m_Emitters.size(); ++targetIndex)
         {
-            const auto& emitter = m_Emitters[i];
+            const auto& emitter = m_Emitters[targetIndex];
 
             const auto& name = emitter->GetTriggerEmitterName();
             if (name.empty()) continue;
 
             auto found = std::ranges::find_if(system.Emitters, [&name](const SCompiledEmitter& e)
-                {
-                    return e.Name == name;
-                }
-            );
+            {
+                return e.Name == name;
+            });
 
             if (found != system.Emitters.end())
             {
-                auto index = std::distance(system.Emitters.begin(), found);
-                system.Emitters[i].TriggerSourceEmitterIndex = (int32_t)index;
+                const auto sourceIndex = (uint32_t)std::distance(system.Emitters.begin(), found);
+
+                auto& target = system.Emitters[targetIndex];
+                target.TriggerSourceEmitterIndex = (int32_t)sourceIndex;
+                target.IsTriggerDriven = true;
+
+                targetsBySource[sourceIndex].push_back({
+                    .TargetEmitterIndex = (uint32_t)targetIndex,
+                    .BurstCount = target.BurstCount,
+                    .DelaySeconds = target.TriggerDelaySeconds,
+                });
             }
             else
             {
                 EE_CORE_ERROR("Trigger source emitter '{}' not found for emitter '{}'.", name, emitter->GetName());
             }
+        }
+
+        for (uint32_t sourceIndex = 0; sourceIndex < system.Emitters.size(); ++sourceIndex)
+        {
+            auto& source = system.Emitters[sourceIndex];
+            const auto& targets = targetsBySource[sourceIndex];
+
+            source.TriggerTargetOffset = (uint32_t)system.TriggerTargets.size();
+            source.TriggerTargetCount = (uint32_t)targets.size();
+
+            system.TriggerTargets.insert(
+                system.TriggerTargets.end(),
+                targets.begin(),
+                targets.end()
+            );
         }
 
         return system;
