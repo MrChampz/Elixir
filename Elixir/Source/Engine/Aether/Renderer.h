@@ -43,6 +43,30 @@ namespace Elixir::Aether
         glm::vec4 Viewport{};
     };
 
+    // CPU-side observability only. These values describe what the renderer
+    // submitted for one Render() call; they do not read back GPU state.
+    struct SParticleSubmissionMetrics
+    {
+        uint64_t SubmissionSerial = 0u;
+        float DeltaTimeSeconds = 0.0f;
+        float ElapsedTimeSeconds = 0.0f;
+
+        size_t RequestedEmitterCount = 0u;
+        size_t SubmittedEmitterCount = 0u;
+        uint32_t RequestedParticleCapacity = 0u;
+        uint32_t SubmittedParticleCapacity = 0u;
+
+        uint32_t SpawnRequestCount = 0u;
+        uint32_t TriggerEventsQueued = 0u;
+        uint32_t TriggerEventsReleased = 0u;
+        uint32_t TriggeredParticlesReleased = 0u;
+
+        // This intentionally exposes the current leak baseline. It must stop
+        // growing with unrelated effect loads once the GPU-only instance path
+        // replaces m_EmittersState.
+        size_t PersistentEmitterStateCount = 0;
+    };
+
     struct SPendingEmitterBurst
     {
         float DelaySeconds = 0.0f;
@@ -71,6 +95,9 @@ namespace Elixir::Aether
 
         void Update(const Timestep& timestep);
         void Render(const SGPUSystem& system, const Camera& camera);
+
+        // Read only at the frame boundary after Render() returns.
+        const SParticleSubmissionMetrics& GetLastSubmissionMetrics() const;
 
       private:
         void Init(const ShaderLoader* shaderLoader);
@@ -129,6 +156,9 @@ namespace Elixir::Aether
 
         float m_LastDeltaTimeSeconds = 0.0f;
         float m_ElapsedTimeSeconds = 0.0f;
+
+        uint64_t m_SubmissionSerial = 0;
+        SParticleSubmissionMetrics m_LastSubmissionMetrics{};
 
         bool m_CapacityErrorReported = false;
 

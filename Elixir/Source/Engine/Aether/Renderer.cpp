@@ -103,6 +103,14 @@ namespace Elixir::Aether
 
     void Renderer::Render(const SGPUSystem& system, const Camera& camera)
     {
+        m_LastSubmissionMetrics = {
+            .SubmissionSerial = ++m_SubmissionSerial,
+            .DeltaTimeSeconds = m_LastDeltaTimeSeconds,
+            .ElapsedTimeSeconds = m_ElapsedTimeSeconds,
+            .RequestedEmitterCount =  system.Emitters.size(),
+            .RequestedParticleCapacity = system.TotalMaxParticles
+        };
+
         m_RenderExtent = m_GraphicsContext->GetRenderTarget()->GetExtent();
 
         m_FrameData.View = camera.GetViewMatrix();
@@ -113,6 +121,9 @@ namespace Elixir::Aether
 
         const auto emitterCount = std::min((uint32_t)system.Emitters.size(), MAX_EMITTERS);
         const auto maxParticles = std::min(system.TotalMaxParticles, MAX_PARTICLES);
+
+        m_LastSubmissionMetrics.SubmittedEmitterCount = emitterCount;
+        m_LastSubmissionMetrics.SubmittedParticleCapacity = maxParticles;
 
         UpdateBuffers(system);
 
@@ -223,6 +234,11 @@ namespace Elixir::Aether
         }
 
         EndRendering(cmd);
+    }
+
+    const SParticleSubmissionMetrics& Renderer::GetLastSubmissionMetrics() const
+    {
+        return m_LastSubmissionMetrics;
     }
 
     void Renderer::Init(const ShaderLoader* shaderLoader)
@@ -594,6 +610,8 @@ namespace Elixir::Aether
                                 targetEmitter.TriggerDelaySeconds,
                                 targetEmitter.BurstCount
                             });
+
+                            ++m_LastSubmissionMetrics.TriggerEventsQueued;
                         }
                     }
 
@@ -611,6 +629,9 @@ namespace Elixir::Aether
                     event->DelaySeconds -= m_LastDeltaTimeSeconds;
                     if (event->DelaySeconds <= 0.0f)
                     {
+                        ++m_LastSubmissionMetrics.TriggerEventsReleased;
+                        m_LastSubmissionMetrics.TriggeredParticlesReleased += event->Count;
+
                         releasedCount = std::min(emitter.MaxParticles, releasedCount + event->Count);
                         event = pending.erase(event);
                     }
@@ -640,6 +661,8 @@ namespace Elixir::Aether
 
             emitterState.EmissionIndex += spawnCount;
 
+            m_LastSubmissionMetrics.SpawnRequestCount += spawnCount;
+
             if (emitter.MaxParticles > 0)
                 emitterState.BufferCursor = nextBufferCursor;
         }
@@ -663,5 +686,7 @@ namespace Elixir::Aether
             parameters[i] = ToParameterDescription(system.Parameters[i]);
         for (size_t i = parameterCount; i < MAX_PARAMETERS; ++i)
             parameters[i] = {};
+
+        m_LastSubmissionMetrics.PersistentEmitterStateCount = m_EmittersState.size();
     }
 }

@@ -172,6 +172,7 @@ void Dissolve::OnRender(const Timestep frameTime)
     //DrawGeometry();
 
     m_ParticlesRenderer->Render(m_GPUSystem, m_CameraController->GetCamera());
+    const auto& metrics = m_ParticlesRenderer->GetLastSubmissionMetrics();
 }
 
 void Dissolve::OnEvent(Event& event)
