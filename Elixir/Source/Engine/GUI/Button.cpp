@@ -19,7 +19,104 @@ namespace Elixir::GUI
         return m_DesiredSize;
     }
 
-    void Button::GenerateDrawCommands(RenderBatch& batch, const int zOrder)
+    void Button::SetText(const std::string& text)
+    {
+        if (m_Text == text) return;
+        m_Text = text;
+        MarkLayoutDirty();
+        MarkRenderDirty(); // the drawn text changes even when geometry does not
+    }
+
+    void Button::SetTextColor(const SColor& color)
+    {
+        if (m_TextColor == color) return;
+        m_TextColor = color;
+        MarkRenderDirty();
+    }
+
+    void Button::SetFont(const Ref<Font>& font)
+    {
+        EE_CORE_ASSERT(font, "Button::SetFont called with a null font");
+        if (!font || m_Font == font) return;
+
+        m_Font = font;
+        MarkLayoutDirty();
+        MarkRenderDirty();
+    }
+
+    void Button::SetFontSize(const float size)
+    {
+        if (m_FontSize == size) return;
+        m_FontSize = size;
+        MarkLayoutDirty();
+        MarkRenderDirty();
+    }
+
+    void Button::SetPadding(const SPadding& padding)
+    {
+        if (m_Padding == padding) return;
+        m_Padding = padding;
+        MarkLayoutDirty();
+
+        // Padding only affects this button's OWN draw when it renders its own text label.
+        // With content, the background is padding-independent and the child re-renders itself
+        // when its geometry changes during layout.
+        if (!HasContent())
+        {
+            MarkRenderDirty(); // padding shifts the label position/clip in BuildDrawCommands
+        }
+    }
+
+    void Button::SetCornerRadius(const glm::vec4& radius)
+    {
+        m_CornerRadius = radius;
+        MarkRenderDirty();
+    }
+
+    void Button::SetNormalColor(const SColor& color)
+    {
+        m_NormalColor = color;
+        MarkRenderDirty();
+    }
+
+    void Button::SetHoverColor(const SColor& color)
+    {
+        m_HoverColor = color;
+        MarkRenderDirty();
+    }
+
+    void Button::SetBackgroundBorders(const glm::vec4& borders)
+    {
+        m_BackgroundBorders = borders;
+        MarkRenderDirty();
+    }
+
+    void Button::SetNormalBackground(const Ref<Texture2D>& texture)
+    {
+        m_NormalBackground = texture;
+        MarkRenderDirty();
+    }
+
+    void Button::LayoutChildren(const SRect& allocatedSpace)
+    {
+        if (HasContent())
+        {
+            const glm::vec2 childSize = m_ContentSlot->GetWidget()->ComputeDesiredSize();
+            const SRect innerSpace = ApplyPadding(allocatedSpace, m_Padding);
+
+            const SRect childRect  = AlignChild(
+                childSize,
+                innerSpace,
+                m_ContentSlot->GetHorizontalAlignment(),
+                m_ContentSlot->GetVerticalAlignment(),
+                m_ContentSlot->GetMargin()
+            );
+
+            m_ContentSlot->GetWidget()->ArrangeChildren(childRect);
+        }
+    }
+
+    void Button::BuildDrawCommands(RenderBatch& batch, int zOrder)
     {
         auto buttonColor = m_NormalColor;
 
@@ -52,11 +149,7 @@ namespace Elixir::GUI
             );
         }
 
-        if (HasContent())
-        {
-            m_ContentSlot->GetWidget()->GenerateDrawCommands(batch, zOrder + 1);
-        }
-        else if (!m_Text.empty())
+        if (!HasContent() && !m_Text.empty())
         {
             const float availableWidth = m_Geometry.Size.x - m_Padding.GetTotalHorizontal();
 
@@ -76,34 +169,13 @@ namespace Elixir::GUI
         }
     }
 
-    void Button::ArrangeChildren(const SRect& allocatedSpace)
-    {
-        m_Geometry = allocatedSpace;
-
-        if (HasContent())
-        {
-            const glm::vec2 childSize = m_ContentSlot->GetWidget()->ComputeDesiredSize();
-            const SRect innerSpace = ApplyPadding(allocatedSpace, m_Padding);
-
-            const SRect childRect  = AlignChild(
-                childSize,
-                innerSpace,
-                m_ContentSlot->GetHorizontalAlignment(),
-                m_ContentSlot->GetVerticalAlignment(),
-                m_ContentSlot->GetMargin()
-            );
-
-            m_ContentSlot->GetWidget()->ArrangeChildren(childRect);
-        }
-    }
-
     std::string Button::ProcessText(const std::string& text, const float availableWidth)
     {
         auto size = FontManager::MeasureText(text, m_Font, m_FontSize);
         if (size.x <= availableWidth)
             return text;
 
-        const std::string ellipsis = "...";
+        std::string ellipsis = "...";
         const float ellipsisWidth = FontManager::MeasureText(ellipsis, m_Font, m_FontSize).x;
 
         if (ellipsisWidth >= availableWidth)
@@ -112,7 +184,7 @@ namespace Elixir::GUI
         std::string truncated = text;
         while (!truncated.empty())
         {
-            truncated.pop_back();
+            UTF8::UTF8RemoveLastChar(truncated);
             size = FontManager::MeasureText(truncated, m_Font, m_FontSize);
             if (size.x + ellipsisWidth <= availableWidth)
                 return truncated + ellipsis;

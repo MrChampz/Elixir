@@ -11,6 +11,7 @@ namespace Elixir::GUI
     {
         const auto slot = CreateRef<CanvasSlot>(child);
         m_Slots.push_back(slot);
+        AttachChild(child);
         return *slot;
     }
 
@@ -19,10 +20,8 @@ namespace Elixir::GUI
         return m_DesiredSize;
     }
 
-    void Canvas::ArrangeChildren(const SRect& allocatedSpace)
+    void Canvas::LayoutChildren(const SRect& allocatedSpace)
     {
-        m_Geometry = allocatedSpace;
-
         // Arrange each child based on its anchors and constraints
         for (const auto& slot : m_Slots)
         {

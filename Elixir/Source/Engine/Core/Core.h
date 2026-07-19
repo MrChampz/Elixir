@@ -109,7 +109,7 @@ namespace Elixir
     }
 
     template <typename T>
-    using Weak = std::weak_ptr<T>;
+    using WeakRef = std::weak_ptr<T>;
 
     using Byte = std::byte;
 

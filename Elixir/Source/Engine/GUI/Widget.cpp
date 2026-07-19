@@ -7,26 +7,194 @@ namespace Elixir::GUI
 {
     /* Widget */
 
+    void Widget::ArrangeChildren(const SRect& allocatedSpace)
+    {
+        if (!m_LayoutDirty && m_LastArrangedSpace == allocatedSpace)
+            return;
+
+        if (m_Geometry != allocatedSpace)
+            MarkRenderDirty();
+
+        m_Geometry = allocatedSpace;
+        m_LastArrangedSpace = allocatedSpace;
+
+        LayoutChildren(allocatedSpace);
+        m_LayoutDirty = false;
+    }
+
+    void Widget::SetOpacity(const float opacity)
+    {
+        if (m_Opacity == opacity) return;
+        m_Opacity = opacity;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetVisibility(const EVisibility visibility)
+    {
+        if (m_Visibility == visibility) return;
+        m_Visibility = visibility;
+        MarkLayoutDirty();
+    }
+
     bool Widget::IsVisible() const
     {
         return m_Visibility == EVisibility::Visible && m_Opacity > 0.0f;
     }
 
+    void Widget::SetInsetShadow(const glm::vec4& shadow)
+    {
+        m_InsetShadow = shadow;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetInsetShadowOffset(const glm::vec2& offset)
+    {
+        m_InsetShadow.x = offset.x;
+        m_InsetShadow.y = offset.y;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetInsetShadowBlur(const float blur)
+    {
+        m_InsetShadow.z = blur;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetInsetShadowIntensity(const float intensity)
+    {
+        m_InsetShadow.w = intensity;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetDropShadow(const glm::vec4& shadow)
+    {
+        m_DropShadow = shadow;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetDropShadowOffset(const glm::vec2& offset)
+    {
+        m_DropShadow.x = offset.x;
+        m_DropShadow.y = offset.y;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetDropShadowBlur(const float blur)
+    {
+        m_DropShadow.z = blur;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetDropShadowIntensity(const float intensity)
+    {
+        m_DropShadow.w = intensity;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetOutline(const SOutline& outline)
+    {
+        m_Outline = outline;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetOutlineColor(const SColor& color)
+    {
+        m_Outline.Color = color;
+        MarkRenderDirty();
+    }
+
+    void Widget::SetOutlineThickness(const float thickness)
+    {
+        m_Outline.Thickness = thickness;
+        MarkRenderDirty();
+    }
+
+    void Widget::AttachChild(const Ref<Widget>& child)
+    {
+        EE_CORE_ASSERT(!weak_from_this().expired(), "Parent must be owned by a Ref before adopting")
+
+        if (child)
+        {
+            if (const auto prev = child->m_Parent.lock(); prev && prev != shared_from_this())
+                prev->RemoveChild(child);
+
+            child->m_Parent = weak_from_this();
+            MarkLayoutDirty();
+        }
+    }
+
+    void Widget::DetachChild(const Ref<Widget>& child)
+    {
+        if (child && child->m_Parent.lock().get() == this)
+        {
+            child->m_Parent.reset();
+            MarkLayoutDirty();
+        }
+    }
+
+    void Widget::CollectDrawCommands(RenderBatch& batch, int& zCursor, bool& rebuilt)
+    {
+        if (!IsVisible()) return;
+
+        // Regenerate this widget's own commands only when its visuals/geometry changed.
+        if (m_RenderDirty)
+        {
+            m_CachedCommands.Clear();
+            BuildDrawCommands(m_CachedCommands, 0);
+            m_RenderDirty = false;
+            rebuilt = true;
+        }
+
+        // Own commands occupy [zCursor, zCursor + span); advance so children stack above,
+        // and the next sibling starts above this whole subtree.
+        batch.Append(m_CachedCommands, zCursor);
+        zCursor += m_CachedCommands.LayerSpan();
+
+        ForEachChild([&](const Ref<Widget>& child)
+        {
+            child->CollectDrawCommands(batch, zCursor, rebuilt);
+        });
+    }
+
+    void Widget::MarkLayoutDirty()
+    {
+        // Bump before the short-circuit: a change while already dirty must still be seen by
+        // the Manager's frame gate (layout changes may move geometry -> the batch is stale).
+        ++s_DirtyEpoch;
+
+        if (m_LayoutDirty)
+            return;
+
+        m_LayoutDirty = true;
+
+        if (const auto parent = m_Parent.lock())
+            parent->MarkLayoutDirty();
+    }
+
+    void Widget::MarkRenderDirty()
+    {
+        m_RenderDirty = true;
+        ++s_DirtyEpoch;
+    }
+
     void Widget::HandleMouseEnter()
     {
         m_Hovered = true;
+        MarkRenderDirty();
         if (m_OnMouseEnterCallback) m_OnMouseEnterCallback();
     }
 
     void Widget::HandleMouseLeave()
     {
         m_Hovered = false;
+        MarkRenderDirty();
         if (m_OnMouseLeaveCallback) m_OnMouseLeaveCallback();
     }
 
     void Widget::HandleMouseDown(const MouseButtonPressedEvent& event)
     {
         m_Pressed = true;
+        MarkRenderDirty();
         if (m_OnMouseDownCallback) m_OnMouseDownCallback();
     }
 
@@ -42,17 +210,20 @@ namespace Elixir::GUI
         }
 
         m_Pressed = false;
+        MarkRenderDirty();
     }
 
     void Widget::HandleFocus()
     {
         m_Focused = true;
+        MarkRenderDirty();
         if (m_OnFocusCallback) m_OnFocusCallback();
     }
 
     void Widget::HandleLostFocus()
     {
         m_Focused = false;
+        MarkRenderDirty();
         if (m_OnLostFocusCallback) m_OnLostFocusCallback();
     }
 
@@ -164,7 +335,48 @@ namespace Elixir::GUI
 
     ContentSlot& ContentWidget::SetContent(const Ref<Widget>& widget)
     {
+        ClearContent();
+
+        // A null widget means "no content". Guard against it so we never leave a
+        // phantom slot that makes HasContent() report true with no widget to
+        // draw/update. Callers that want to empty the content should use
+        // ClearContent(); reaching here with null is a misuse.
+        EE_CORE_ASSERT(widget, "SetContent called with a null widget; use ClearContent to empty content");
+        if (!widget)
+        {
+            // Release fallback (asserts are compiled out): keep the slot empty and
+            // return an inert sentinel so HasContent() stays truthful.
+            static ContentSlot emptyContent{nullptr};
+            return emptyContent;
+        }
+
         m_ContentSlot = CreateRef<ContentSlot>(widget);
+        AttachChild(widget);
+        MarkRenderDirty();
         return *m_ContentSlot;
+    }
+
+    void ContentWidget::ClearContent()
+    {
+        if (!m_ContentSlot) return;
+
+        DetachChild(m_ContentSlot->GetWidget());
+        m_ContentSlot.reset();
+        MarkRenderDirty();
+    }
+
+    void ContentWidget::RemoveChild(const Ref<Widget>& child)
+    {
+        if (m_ContentSlot && m_ContentSlot->GetWidget() == child)
+            ClearContent();
+    }
+
+    void ContentWidget::ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const
+    {
+        if (m_ContentSlot)
+        {
+            if (const auto& child = m_ContentSlot->GetWidget())
+                fn(child);
+        }
     }
 }

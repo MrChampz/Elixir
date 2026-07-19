@@ -27,7 +27,98 @@ namespace Elixir::GUI
         return m_DesiredSize;
     }
 
-    void TextField::GenerateDrawCommands(RenderBatch& batch, const int zOrder)
+    void TextField::SetFont(const Ref<Font>& font)
+    {
+        EE_CORE_ASSERT(font, "TextField::SetFont called with a null font");
+        if (!font || m_Font == font) return;
+
+        m_Font = font;
+        UpdateScrollOffset();
+        MarkRenderDirty();
+    }
+
+    void TextField::SetFontSize(const float size)
+    {
+        m_FontSize = size;
+        MarkRenderDirty();
+    }
+
+    void TextField::SetText(const std::string& text)
+    {
+        if (m_Text == text) return;
+        m_Text = text;
+        m_CursorPosition = m_Text.size();
+        ClearSelection();
+        UpdateScrollOffset();
+        MarkRenderDirty();
+    }
+
+    void TextField::SetTextColor(const SColor& color)
+    {
+        m_TextColor = color;
+        MarkRenderDirty();
+    }
+
+    void TextField::SetPlaceholder(const std::string& placeholder)
+    {
+        m_Placeholder = placeholder;
+        MarkRenderDirty();
+    }
+
+    void TextField::SetPlaceholderColor(const SColor& color)
+    {
+        m_PlaceholderColor = color;
+        MarkRenderDirty();
+    }
+
+    void TextField::SetPadding(const SPadding& padding)
+    {
+        m_Padding = padding;
+        MarkRenderDirty();
+    }
+
+    void TextField::SetCornerRadius(const glm::vec4& radius)
+    {
+        m_CornerRadius = radius;
+        MarkRenderDirty();
+    }
+
+    void TextField::SetBackgroundColor(const SColor& color)
+    {
+        m_BackgroundColor = color;
+        MarkRenderDirty();
+    }
+
+    void TextField::SetBackgroundBorders(const glm::vec4& borders)
+    {
+        m_BackgroundBorders = borders;
+        MarkRenderDirty();
+    }
+
+    void TextField::SetBackground(const Ref<Texture2D>& texture)
+    {
+        m_Background = texture;
+        MarkRenderDirty();
+    }
+
+    void TextField::SetCursorColor(const SColor& color)
+    {
+        m_CursorColor = color;
+        MarkRenderDirty();
+    }
+
+    void TextField::SetSelectionColor(const SColor& color)
+    {
+        m_SelectionColor = color;
+        MarkRenderDirty();
+    }
+
+    void TextField::LayoutChildren(const SRect&)
+    {
+        UpdateScrollOffset();
+    }
+
+    void TextField::BuildDrawCommands(RenderBatch& batch, const int zOrder)
     {
         // Background
         if (m_Background)
@@ -164,6 +255,7 @@ namespace Elixir::GUI
         m_SelectionEnd = m_CursorPosition;
 
         UpdateScrollOffset();
+        MarkRenderDirty();
     }
 
     void TextField::HandleKeyPressed(const KeyPressedEvent& event)
@@ -227,6 +319,8 @@ namespace Elixir::GUI
             default:
                 break;
         }
+
+        MarkRenderDirty();
     }
 
     void TextField::HandleKeyTyped(const KeyTypedEvent& event)
@@ -240,6 +334,8 @@ namespace Elixir::GUI
         // Insert UTF-8 character at cursor position
         const auto c = UTF8::CodepointToUTF8(event.GetKeyCode());
         InsertText(c);
+
+        MarkRenderDirty();
     }
 
     void TextField::HandleFocus()
@@ -317,6 +413,7 @@ namespace Elixir::GUI
         {
             m_BlinkTimer -= m_BlinkInterval;
             m_CursorVisible = !m_CursorVisible;
+            MarkRenderDirty();
         }
     }
 
@@ -329,6 +426,8 @@ namespace Elixir::GUI
     void TextField::UpdateScrollOffset()
     {
         const float innerWidth = m_Geometry.Size.x - m_Padding.GetTotalHorizontal();
+        if (innerWidth <= 0.0f) return;
+
         const float cursorX = GetTextWidth(m_Text, 0, m_CursorPosition);
 
         // Cursor went past the right edge -> scroll right

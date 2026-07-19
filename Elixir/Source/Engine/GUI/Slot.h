@@ -2,24 +2,27 @@
 
 #include <Engine/Core/Core.h>
 #include <Engine/GUI/Definitions.h>
-#include <Engine/GUI/Widget.h>
 
 namespace Elixir::GUI
 {
+    class Widget;
+
     class ELIXIR_API Slot
     {
       public:
         virtual ~Slot() = default;
 
-        bool IsVisible() const
-        {
-            return m_Widget && m_Widget->IsVisible();
-        }
+        bool IsVisible() const;
 
         Ref<Widget> GetWidget() const { return m_Widget; }
-        void SetWidget(const Ref<Widget>& widget) { m_Widget = widget; }
 
       protected:
+        /**
+         * Slot metadata (margin, alignment, min/max, fill, ...) feeds the OWNER's layout, so
+         * a change must invalidate the owner. We reach it through the child's parent link.
+         */
+        void InvalidateOwnerLayout() const;
+
         Ref<Widget> m_Widget = nullptr;
     };
 
@@ -29,25 +32,13 @@ namespace Elixir::GUI
         explicit ContentSlot(const Ref<Widget>& widget) { m_Widget = widget; }
 
         EHorizontalAlignment GetHorizontalAlignment() const { return m_HAlignment; }
-        ContentSlot& SetHorizontalAlignment(const EHorizontalAlignment alignment)
-        {
-            m_HAlignment = alignment;
-            return *this;
-        }
+        ContentSlot& SetHorizontalAlignment(EHorizontalAlignment alignment);
 
         EVerticalAlignment GetVerticalAlignment() const { return m_VAlignment; }
-        ContentSlot& SetVerticalAlignment(const EVerticalAlignment alignment)
-        {
-            m_VAlignment = alignment;
-            return *this;
-        }
+        ContentSlot& SetVerticalAlignment(EVerticalAlignment alignment);
 
         SMargin GetMargin() const { return m_Margin; }
-        ContentSlot& SetMargin(const SMargin& margin)
-        {
-            m_Margin = margin;
-            return *this;
-        }
+        ContentSlot& SetMargin(const SMargin& margin);
 
     private:
         EHorizontalAlignment m_HAlignment = EHorizontalAlignment::Center;
@@ -61,47 +52,23 @@ namespace Elixir::GUI
         explicit LayoutSlot(const Ref<Widget>& widget) { m_Widget = widget; }
 
         EHorizontalAlignment GetHorizontalAlignment() const { return m_HAlignment; }
-        LayoutSlot& SetHorizontalAlignment(const EHorizontalAlignment alignment)
-        {
-            m_HAlignment = alignment;
-            return *this;
-        }
+        LayoutSlot& SetHorizontalAlignment(EHorizontalAlignment alignment);
 
         EVerticalAlignment GetVerticalAlignment() const { return m_VAlignment; }
-        LayoutSlot& SetVerticalAlignment(const EVerticalAlignment alignment)
-        {
-            m_VAlignment = alignment;
-            return *this;
-        }
+        LayoutSlot& SetVerticalAlignment(EVerticalAlignment alignment);
 
         SMargin GetMargin() const { return m_Margin; }
-        LayoutSlot& SetMargin(const SMargin& margin)
-        {
-            m_Margin = margin;
-            return *this;
-        }
+        LayoutSlot& SetMargin(const SMargin& margin);
 
         glm::vec2 GetMinSize() const { return m_MinSize; }
-        LayoutSlot& SetMinSize(const glm::vec2& size)
-        {
-            m_MinSize = size;
-            return *this;
-        }
+        LayoutSlot& SetMinSize(const glm::vec2& size);
 
 
         glm::vec2 GetMaxSize() const { return m_MaxSize; }
-        LayoutSlot& SetMaxSize(const glm::vec2& size)
-        {
-            m_MaxSize = size;
-            return *this;
-        }
+        LayoutSlot& SetMaxSize(const glm::vec2& size);
 
         float GetFillRatio() const { return m_FillRatio; }
-        LayoutSlot& SetFillRatio(const float ratio)
-        {
-            m_FillRatio = ratio;
-            return *this;
-        }
+        LayoutSlot& SetFillRatio(float ratio);
 
     private:
         EHorizontalAlignment m_HAlignment = EHorizontalAlignment::Center;

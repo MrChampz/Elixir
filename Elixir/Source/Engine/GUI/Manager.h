@@ -9,7 +9,7 @@ namespace Elixir::GUI
 {
     class ELIXIR_API Manager
     {
-      public:
+    public:
         void Initialize(
             const GraphicsContext* context,
             const ShaderLoader* shaderLoader,
@@ -28,7 +28,15 @@ namespace Elixir::GUI
             m_RootWidget = root;
         }
 
-      private:
+        const RenderBatch& GetRenderBatch() const { return m_RenderBatch; }
+
+    protected:
+        void AssembleFrame();
+
+        bool NeedsRebuild() const;
+        void MarkRebuilt();
+
+    private:
         bool HandleFramebufferResize(const FramebufferResizeEvent& event) const;
         bool HandleKeyPressed(const KeyPressedEvent& event) const;
         bool HandleKeyTyped(const KeyTypedEvent& event) const;
@@ -53,6 +61,13 @@ namespace Elixir::GUI
         bool m_MousePressed = false;
         bool m_MouseReleased = false;
         bool m_MouseMoved = false;
+
+        // Dirty epoch of the last frame we assembled + uploaded. When it still matches the
+        // current epoch, the batch and GPU buffers are reused and only the draws are re-issued.
+        uint64_t m_LastRenderedEpoch = 0;
+
+        // Tracks the last rendered panel, so when changed, can rebuild the render batch.
+        WeakRef<Panel> m_LastRenderedRoot;
 
         bool m_Initialized = false;
     };

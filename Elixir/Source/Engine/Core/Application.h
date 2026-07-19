@@ -12,6 +12,8 @@
 
 namespace Elixir
 {
+    namespace GUI { class TextBlock; }
+
     class ELIXIR_API Application
     {
     public:
@@ -41,6 +43,10 @@ namespace Elixir
 
         Timer m_Timer;
         FrameProfiler m_Profiler;
+
+        // Top-left FPS / frame-time overlay, refreshed a few times a second.
+        Ref<GUI::TextBlock> m_StatsText;
+        float m_StatsAccumulator = 0.0f;
 
         bool m_Running = true;
         bool m_Minimized = false;

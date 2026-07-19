@@ -3,9 +3,20 @@
 
 namespace Elixir::GUI
 {
+    void RenderBatch::Append(const RenderBatch& other, const int zOffset)
+    {
+        m_Commands.reserve(m_Commands.size() + other.m_Commands.size());
+        for (const auto& command : other.m_Commands)
+        {
+            m_Commands.push_back(command);
+            auto& cmd = m_Commands.back();
+            cmd.ZOrder += zOffset;
+        }
+    }
+
     void RenderBatch::Sort()
     {
-        std::ranges::sort(
+        std::ranges::stable_sort(
             m_Commands,
             [](const SDrawCommand& a, const SDrawCommand& b)
             {
@@ -17,6 +28,14 @@ namespace Elixir::GUI
     void RenderBatch::Clear()
     {
         m_Commands.clear();
+    }
+
+    int RenderBatch::LayerSpan() const
+    {
+        int maxZ = -1;
+        for (const auto& command : m_Commands)
+            maxZ = std::max(maxZ, command.ZOrder);
+        return maxZ + 1;
     }
 
     void RenderBatch::AddRect(

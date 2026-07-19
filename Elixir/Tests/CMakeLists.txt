@@ -2,7 +2,8 @@ include(../../Utils.cmake)
 
 # Files
 file(GLOB_RECURSE TEST_SOURCES *.h *.cpp)
-add_executable(${PROJECT_NAME}.UnitTests ${TEST_SOURCES})
+add_executable(${PROJECT_NAME}.UnitTests ${TEST_SOURCES}
+        Engine/GUI/InvalidationTest.cpp)
 
 # Properties and Definitions
 apply_properties_and_definitions(${PROJECT_NAME}.UnitTests)

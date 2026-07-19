@@ -196,6 +196,12 @@ namespace Elixir
 #endif
     }
 
+    void Image::RecalculateSize()
+    {
+        m_BitsPerPixel = CalculateBitsPerPixel(this);
+        m_Size = CalculateSize(this);
+    }
+
     /* DepthStencilImage */
 
     Ref<DepthStencilImage> DepthStencilImage::Create(

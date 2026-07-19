@@ -7,7 +7,15 @@ namespace Elixir::GUI
     {
         const auto slot = CreateRef<LayoutSlot>(child);
         m_Slots.push_back(slot);
+        AttachChild(child);
         return *slot;
+    }
+
+    void Overlay::SetStretching(const bool stretching)
+    {
+        if (m_Stretching == stretching) return;
+        m_Stretching = stretching;
+        MarkLayoutDirty();
     }
 
     glm::vec2 Overlay::ComputeDesiredSize()
@@ -38,10 +46,8 @@ namespace Elixir::GUI
         return totalSize;
     }
 
-    void Overlay::ArrangeChildren(const SRect& allocatedSpace)
+    void Overlay::LayoutChildren(const SRect& allocatedSpace)
     {
-        m_Geometry = allocatedSpace;
-
         // Calculate available space after padding
         const SRect innerSpace = ApplyPadding(allocatedSpace, m_Padding);
 
