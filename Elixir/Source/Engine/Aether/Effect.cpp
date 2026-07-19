@@ -868,9 +868,10 @@ namespace Elixir::Aether
 
                     const auto burstCount = RequireUInt(burst, "count");
                     const auto burstInterval = RequireFloat(burst, "interval");
+                    if (m_Failed) return;
+
                     emitter.SetBurst(burstCount, burstInterval);
                 }
-                if (m_Failed) return;
 
                 if (HasField(json, "trigger"))
                 {
@@ -883,8 +884,11 @@ namespace Elixir::Aether
 
                     const auto triggerSource = RequireString(trigger, "source");
                     const auto triggerDelay = RequireFloat(trigger, "delay");
+                    if (m_Failed) return;
+
                     emitter.SetTriggerEmitter(triggerSource, triggerDelay);
                 }
+
                 if (m_Failed) return;
 
                 if (!spriteTexture.empty())
