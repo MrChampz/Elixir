@@ -25,14 +25,22 @@ TEST(AetherSystemTest, CompileAssignsContiguousLocalEmitterParticleOffsets)
 TEST(AetherSystemTest, CompileResolvesTriggerEmitterByCompiledIndex)
 {
     System system{ "Trigger contract" };
-    system.AddEmitter("Source", 8u, 0.0f);
+    system.AddEmitter("Source", 8, 0.0f);
 
-    auto& target = system.AddEmitter("Target", 8u, 0.0f);
+    auto& target = system.AddEmitter("Target", 8, 0.0f);
+    target.SetBurst(8, 1.0f);
     target.SetTriggerEmitter("Source", 0.25f);
 
     const auto compiled = system.Compile();
 
     ASSERT_EQ(compiled.Emitters.size(), 2u);
-    EXPECT_EQ(compiled.Emitters[1].TriggerSourceEmitterIndex, 0);
-    EXPECT_FLOAT_EQ(compiled.Emitters[1].TriggerDelaySeconds, 0.25f);
+
+    EXPECT_TRUE(compiled.Emitters[1].IsTriggerDriven);
+    EXPECT_EQ(compiled.Emitters[0].TriggerTargetOffset, 0);
+    EXPECT_EQ(compiled.Emitters[0].TriggerTargetCount, 1);
+
+    ASSERT_EQ(compiled.TriggerTargets.size(), 1);
+    EXPECT_EQ(compiled.TriggerTargets[0].TargetEmitterIndex, 1);
+    EXPECT_EQ(compiled.TriggerTargets[0].BurstCount, 8);
+    EXPECT_FLOAT_EQ(compiled.TriggerTargets[0].DelaySeconds, 0.25f);
 }

@@ -48,9 +48,16 @@ struct SystemInstance
     uint OpBaseOffset;
     uint ParameterBaseOffset;
 
+    uint EmitterStateBaseOffset;
+    uint SpawnRequestBaseOffset;
+    uint TriggerEventBaseOffset;
+    uint TriggerQueueStateBaseOffset;
+
     uint ParticleCount;
     uint EmitterCount;
+    uint TriggerEventCapacityPerEmitter;
     uint Generation;
+
     uint ParticleStateLayoutIndex;
 };
 

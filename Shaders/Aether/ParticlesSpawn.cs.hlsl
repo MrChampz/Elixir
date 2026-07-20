@@ -48,14 +48,32 @@ struct SystemInstance
     uint OpBaseOffset;
     uint ParameterBaseOffset;
 
+    uint EmitterStateBaseOffset;
+    uint SpawnRequestBaseOffset;
+    uint TriggerEventBaseOffset;
+    uint TriggerQueueStateBaseOffset;
+
     uint ParticleCount;
     uint EmitterCount;
+    uint TriggerEventCapacityPerEmitter;
     uint Generation;
+
     uint ParticleStateLayoutIndex;
 };
 
 [[vk::binding(4, 0)]]
 StructuredBuffer<SystemInstance> instances;
+
+struct SpawnRequest
+{
+    uint SpawnCursor;
+    uint SpawnCount;
+    uint EmissionIndex;
+    uint Generation;
+};
+
+[[vk::binding(6, 0)]]
+StructuredBuffer<SpawnRequest> spawnRequests;
 
 struct AttributeTable
 {
@@ -320,8 +338,13 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     if (localIndex >= emitterCount)
         return;
 
-    uint spawnCursor = (uint)emitter.MetaB.z;
-    uint spawnCount = (uint)emitter.MetaB.w;
+    SpawnRequest request = spawnRequests[instance.SpawnRequestBaseOffset + pc.EmitterIndex];
+    if (request.Generation != instance.Generation)
+        return;
+
+    uint spawnCursor = request.SpawnCursor;
+    uint spawnCount = request.SpawnCount;
+
     if (!InSpawnRange(localIndex, spawnCursor, spawnCount, emitterCount))
         return;
 
@@ -331,7 +354,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     float randomInput = Hash2(seedBase + float2(8.11, 3.41));
     uint spawnOrder = SpawnOrderInBatch(localIndex, spawnCursor, emitterCount);
     spawnOrder = min(spawnOrder, spawnCount - 1u);
-    uint emissionIndex = (uint)emitter.MetaD.x + spawnOrder;
+    uint emissionIndex = request.EmissionIndex + spawnOrder;
 
     AttributeTable attributes;
     attributes.Position = 0.0;

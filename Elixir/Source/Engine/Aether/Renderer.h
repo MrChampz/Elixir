@@ -15,7 +15,13 @@ namespace Elixir::Aether
         glm::vec3 CameraPos;
     };
 
-    struct alignas(16) SEmitterData
+    struct alignas(16) SParamsData
+    {
+        glm::vec4 Time{};
+        glm::vec4 Viewport{};
+    };
+
+    struct SEmitterData
     {
         glm::vec4 MetaA{};
         glm::vec4 MetaB{};
@@ -23,7 +29,7 @@ namespace Elixir::Aether
         glm::vec4 MetaD{};
     };
 
-    struct alignas(16) SParticleOpData
+    struct SParticleOpData
     {
         glm::vec4 Header{};
         glm::vec4 Data0{};
@@ -31,18 +37,12 @@ namespace Elixir::Aether
         glm::vec4 Data2{};
     };
 
-    struct alignas(16) SParameterData
+    struct SParameterData
     {
         glm::vec4 Value{};
     };
 
-    struct alignas(16) SParamsData
-    {
-        glm::vec4 Time{};
-        glm::vec4 Viewport{};
-    };
-
-    struct alignas(16) SSystemInstanceData
+    struct SSystemInstanceData
     {
         uint32_t ParticleBaseOffset = 0;
         uint32_t EmitterBaseOffset = 0;
@@ -61,9 +61,8 @@ namespace Elixir::Aether
 
         uint32_t ParticleStateLayoutIndex = 0;
     };
-    static_assert(sizeof(SSystemInstanceData) == 64); // TODO: Remove
 
-    struct alignas(16) SEmitterInstanceStateData
+    struct SEmitterInstanceStateData
     {
         float SpawnAccumulator = 0.0f;
         float BurstAccumulator = 0.0f;
@@ -72,46 +71,40 @@ namespace Elixir::Aether
 
         uint32_t Generation = 0;
     };
-    static_assert(sizeof(SEmitterInstanceStateData) == 32); // TODO: Remove
 
-    struct alignas(16)SSpawnRequestData
+    struct SSpawnRequestData
     {
         uint32_t SpawnCursor = 0;
         uint32_t SpawnCount = 0;
         uint32_t EmissionIndex = 0;
         uint32_t Generation = 0;
     };
-    static_assert(sizeof(SSpawnRequestData) == 16); // TODO: Remove
 
-    struct alignas(16) STriggerTargetData
+    struct STriggerTargetData
     {
         uint32_t TargetEmitterIndex = 0;
         uint32_t BurstCount = 0;
         float DelaySeconds = 0.0f;
     };
-    static_assert(sizeof(STriggerTargetData) == 16); // TODO: Remove
 
-    struct alignas(16) STriggerEventData
+    struct STriggerEventData
     {
         float RemainingDelaySeconds = 0.0f;
         uint32_t SpawnCount = 0;
         uint32_t Generation = 0;
     };
-    static_assert(sizeof(STriggerEventData) == 16); // TODO: Remove
 
-    struct alignas(16) STriggerQueueStateData
+    struct STriggerQueueStateData
     {
         uint32_t Count = 0;
         uint32_t OverflowCount = 0;
     };
-    static_assert(sizeof(STriggerQueueStateData) == 16); // TODO: Remove
 
-    struct alignas(16) SSystemSchedulerStateData
+    struct SSystemSchedulerStateData
     {
         uint32_t Generation = 0;
         uint32_t ActiveTriggerBufferIndex = 0;
     };
-    static_assert(sizeof(SSystemSchedulerStateData) == 16); // TODO: Remove
 
     // CPU-side observability only. These values describe what the renderer
     // submitted for one Render() call; they do not read back GPU state.
