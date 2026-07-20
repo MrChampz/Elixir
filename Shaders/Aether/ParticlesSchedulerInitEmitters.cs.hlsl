@@ -30,14 +30,9 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         return;
 
     SystemSchedulerState scheduler = schedulerStates[pc.InstanceIndex];
-    bool resetInstance = scheduler.Generation != instance.Generation;
 
-    if (resetInstance)
+    if (scheduler.ResetPending != 0)
     {
-        scheduler.Generation = instance.Generation;
-        scheduler.ActiveTriggerBufferIndex = 0;
-        schedulerStates[pc.InstanceIndex] = scheduler;
-
         EmitterInstanceState state = (EmitterInstanceState)0;
         state.Generation = instance.Generation;
         emitterStates[EmitterStateIndex(instance, localEmitterIndex)] = state;

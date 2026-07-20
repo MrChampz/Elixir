@@ -19,10 +19,14 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
     SystemInstance instance = instances[pc.InstanceIndex];
     SystemSchedulerState scheduler = schedulerStates[pc.InstanceIndex];
+    const bool mustReset = scheduler.Generation != instance.Generation;
 
-    if (scheduler.Generation != instance.Generation)
-        return;
+    if (mustReset)
+    {
+        scheduler.Generation = instance.Generation;
+        scheduler.ActiveTriggerBufferIndex = 0;
+    }
 
-    scheduler.ActiveTriggerBufferIndex = 1 - scheduler.ActiveTriggerBufferIndex;
+    scheduler.ResetPending = mustReset ? 1 : 0;
     schedulerStates[pc.InstanceIndex] = scheduler;
 }

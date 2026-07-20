@@ -67,6 +67,7 @@ struct SystemSchedulerState
 {
     uint Generation;
     uint ActiveTriggerBufferIndex;
+    uint ResetPending;
 };
 
 uint EmitterStateIndex(SystemInstance instance, uint localEmitterIndex)

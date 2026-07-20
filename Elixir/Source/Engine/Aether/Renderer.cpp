@@ -152,8 +152,19 @@ namespace Elixir::Aether
 
         constexpr SSchedulePushConstants schedulePushConstants{ .InstanceIndex = 0 };
 
-        m_ScheduleBeginPipeline->Bind(cmd);
-        m_ScheduleBeginShader->SetPushConstant(
+        m_SchedulerBeginPipeline->Bind(cmd);
+        m_SchedulerBeginShader->SetPushConstant(
+            cmd,
+            "pc",
+            (void*)&schedulePushConstants,
+            sizeof(schedulePushConstants)
+        );
+        cmd->Dispatch(1);
+
+        BarrierSchedulingBuffers(cmd);
+
+        m_SchedulerInitEmittersPipeline->Bind(cmd);
+        m_SchedulerInitEmittersShader->SetPushConstant(
             cmd,
             "pc",
             (void*)&schedulePushConstants,
@@ -163,8 +174,8 @@ namespace Elixir::Aether
 
         BarrierSchedulingBuffers(cmd);
 
-        m_ScheduleEmittersPipeline->Bind(cmd);
-        m_ScheduleEmittersShader->SetPushConstant(
+        m_SchedulerScheduleEmittersPipeline->Bind(cmd);
+        m_SchedulerScheduleEmittersShader->SetPushConstant(
             cmd,
             "pc",
             (void*)&schedulePushConstants,
@@ -174,8 +185,8 @@ namespace Elixir::Aether
 
         BarrierSchedulingBuffers(cmd);
 
-        m_ScheduleFinalizePipeline->Bind(cmd);
-        m_ScheduleFinalizeShader->SetPushConstant(
+        m_SchedulerFinalizePipeline->Bind(cmd);
+        m_SchedulerFinalizeShader->SetPushConstant(
             cmd,
             "pc",
             (void*)&schedulePushConstants,
@@ -324,24 +335,31 @@ namespace Elixir::Aether
 
     void Renderer::Init(const ShaderLoader* shaderLoader)
     {
-        m_ScheduleBeginShader = shaderLoader->LoadShader(
+        m_SchedulerBeginShader = shaderLoader->LoadShader(
             "./Shaders/Aether/",
-            std::array<std::string_view, 1>{ "ParticlesScheduleBegin" },
-            "ParticlesScheduleBegin",
+            std::array<std::string_view, 1>{ "ParticlesSchedulerBegin" },
+            "ParticlesSchedulerBegin",
             EShaderStage::Compute
         );
 
-        m_ScheduleEmittersShader = shaderLoader->LoadShader(
+        m_SchedulerInitEmittersShader = shaderLoader->LoadShader(
             "./Shaders/Aether/",
-            std::array<std::string_view, 1>{ "ParticlesScheduleEmitters" },
-            "ParticlesScheduleEmitters",
+            std::array<std::string_view, 1>{ "ParticlesSchedulerInitEmitters" },
+            "ParticlesSchedulerInitEmitters",
             EShaderStage::Compute
         );
 
-        m_ScheduleFinalizeShader = shaderLoader->LoadShader(
+        m_SchedulerScheduleEmittersShader = shaderLoader->LoadShader(
             "./Shaders/Aether/",
-            std::array<std::string_view, 1>{ "ParticlesScheduleFinalize" },
-            "ParticlesScheduleFinalize",
+            std::array<std::string_view, 1>{ "ParticlesSchedulerScheduleEmitters" },
+            "ParticlesSchedulerScheduleEmitters",
+            EShaderStage::Compute
+        );
+
+        m_SchedulerFinalizeShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/",
+            std::array<std::string_view, 1>{ "ParticlesSchedulerFinalize" },
+            "ParticlesSchedulerFinalize",
             EShaderStage::Compute
         );
 
@@ -378,14 +396,20 @@ namespace Elixir::Aether
         );
 
         SPipelineCreateInfo pipelineInfo{};
-        pipelineInfo.Shader = m_ScheduleBeginShader;
-        m_ScheduleBeginPipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
+        pipelineInfo.Shader = m_SchedulerBeginShader;
+        m_SchedulerBeginPipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
 
-        pipelineInfo.Shader = m_ScheduleEmittersShader;
-        m_ScheduleEmittersPipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
+        pipelineInfo.Shader = m_SchedulerInitEmittersShader;
+        m_SchedulerInitEmittersPipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
 
-        pipelineInfo.Shader = m_ScheduleFinalizeShader;
-        m_ScheduleFinalizePipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
+        pipelineInfo.Shader = m_SchedulerScheduleEmittersShader;
+        m_SchedulerScheduleEmittersPipeline = ComputePipeline::Create(
+            m_GraphicsContext,
+            pipelineInfo
+        );
+
+        pipelineInfo.Shader = m_SchedulerFinalizeShader;
+        m_SchedulerFinalizePipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
 
         pipelineInfo.Shader = m_SpawnShader;
         m_SpawnPipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
@@ -619,42 +643,93 @@ namespace Elixir::Aether
     {
         constexpr SSchedulePushConstants schedulePushConstants{ .InstanceIndex = 0 };
 
-        m_ScheduleBeginShader->SetPushConstant(
+        m_SchedulerBeginShader->SetPushConstant(
             "pc",
             (void*)&schedulePushConstants,
             sizeof(schedulePushConstants)
         );
 
-        m_ScheduleBeginShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
-        m_ScheduleBeginShader->BindStorageBuffer("emitterStates", m_EmitterStateBuffer);
-        m_ScheduleBeginShader->BindStorageBuffer("triggerQueueStates", m_TriggerQueueStateBuffer);
-        m_ScheduleBeginShader->BindStorageBuffer("schedulerStates", m_SystemSchedulerStateBuffer);
+        m_SchedulerBeginShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
+        m_SchedulerBeginShader->BindStorageBuffer("schedulerStates", m_SystemSchedulerStateBuffer);
 
-        m_ScheduleEmittersShader->SetPushConstant(
+        m_SchedulerInitEmittersShader->SetPushConstant(
             "pc",
             (void*)&schedulePushConstants,
             sizeof(schedulePushConstants)
         );
 
-        m_ScheduleEmittersShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
-        m_ScheduleEmittersShader->BindStorageBuffer("emitters", m_EmitterBuffer);
-        m_ScheduleEmittersShader->BindStorageBuffer("emitterStates", m_EmitterStateBuffer);
-        m_ScheduleEmittersShader->BindStorageBuffer("spawnRequests", m_SpawnRequestBuffer);
-        m_ScheduleEmittersShader->BindStorageBuffer("triggerTargets", m_TriggerTargetBuffer);
-        m_ScheduleEmittersShader->BindStorageBuffer("triggerEventsA", m_TriggerEventBuffers[0]);
-        m_ScheduleEmittersShader->BindStorageBuffer("triggerEventsB", m_TriggerEventBuffers[1]);
-        m_ScheduleEmittersShader->BindStorageBuffer("triggerQueueStates", m_TriggerQueueStateBuffer);
-        m_ScheduleEmittersShader->BindStorageBuffer("schedulerStates", m_SystemSchedulerStateBuffer);
-        m_ScheduleEmittersShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
+        m_SchedulerInitEmittersShader->BindStorageBuffer(
+            "instances",
+            m_SystemInstanceBuffer
+        );
+        m_SchedulerInitEmittersShader->BindStorageBuffer(
+            "emitterStates",
+            m_EmitterStateBuffer
+        );
+        m_SchedulerInitEmittersShader->BindStorageBuffer(
+            "triggerQueueStates",
+            m_TriggerQueueStateBuffer
+        );
+        m_SchedulerInitEmittersShader->BindStorageBuffer(
+            "schedulerStates",
+            m_SystemSchedulerStateBuffer
+        );
 
-        m_ScheduleFinalizeShader->SetPushConstant(
+        m_SchedulerScheduleEmittersShader->SetPushConstant(
             "pc",
             (void*)&schedulePushConstants,
             sizeof(schedulePushConstants)
         );
 
-        m_ScheduleFinalizeShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
-        m_ScheduleFinalizeShader->BindStorageBuffer("schedulerStates", m_SystemSchedulerStateBuffer);
+        m_SchedulerScheduleEmittersShader->BindStorageBuffer(
+            "instances",
+            m_SystemInstanceBuffer
+        );
+        m_SchedulerScheduleEmittersShader->BindStorageBuffer(
+            "emitters",
+            m_EmitterBuffer
+        );
+        m_SchedulerScheduleEmittersShader->BindStorageBuffer(
+            "emitterStates",
+            m_EmitterStateBuffer
+        );
+        m_SchedulerScheduleEmittersShader->BindStorageBuffer(
+            "spawnRequests",
+            m_SpawnRequestBuffer
+        );
+        m_SchedulerScheduleEmittersShader->BindStorageBuffer(
+            "triggerTargets",
+            m_TriggerTargetBuffer
+        );
+        m_SchedulerScheduleEmittersShader->BindStorageBuffer(
+            "triggerEventsA",
+            m_TriggerEventBuffers[0]
+        );
+        m_SchedulerScheduleEmittersShader->BindStorageBuffer(
+            "triggerEventsB",
+            m_TriggerEventBuffers[1]
+        );
+        m_SchedulerScheduleEmittersShader->BindStorageBuffer(
+            "triggerQueueStates",
+            m_TriggerQueueStateBuffer
+        );
+        m_SchedulerScheduleEmittersShader->BindStorageBuffer(
+            "schedulerStates",
+            m_SystemSchedulerStateBuffer
+        );
+        m_SchedulerScheduleEmittersShader->BindConstantBuffer(
+            "cbParams",
+            m_ParamsBuffer
+        );
+
+        m_SchedulerFinalizeShader->SetPushConstant(
+            "pc",
+            (void*)&schedulePushConstants,
+            sizeof(schedulePushConstants)
+        );
+
+        m_SchedulerFinalizeShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
+        m_SchedulerFinalizeShader->BindStorageBuffer("schedulerStates", m_SystemSchedulerStateBuffer);
 
         constexpr SSpawnPushConstants spawnPushConstants
         {
@@ -882,10 +957,8 @@ namespace Elixir::Aether
 
         m_EmitterStateBuffer->Barrier(cmd, stage, access);
         m_SpawnRequestBuffer->Barrier(cmd, stage, access);
-
-        for (auto& buffer : m_TriggerEventBuffers)
-            buffer->Barrier(cmd, stage, access);
-
+        m_TriggerEventBuffers[0]->Barrier(cmd, stage, access);
+        m_TriggerEventBuffers[1]->Barrier(cmd, stage, access);
         m_TriggerQueueStateBuffer->Barrier(cmd, stage, access);
         m_SystemSchedulerStateBuffer->Barrier(cmd, stage, access);
     }

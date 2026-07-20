@@ -104,6 +104,7 @@ namespace Elixir::Aether
     {
         uint32_t Generation = 0;
         uint32_t ActiveTriggerBufferIndex = 0;
+        uint32_t ResetPending = 0;
     };
 
     // CPU-side observability only. These values describe what the renderer
@@ -185,12 +186,14 @@ namespace Elixir::Aether
 
         using SUpdatePushConstants = SSchedulePushConstants;
 
-        Ref<Shader> m_ScheduleBeginShader;
-        Ref<ComputePipeline> m_ScheduleBeginPipeline;
-        Ref<Shader> m_ScheduleEmittersShader;
-        Ref<ComputePipeline> m_ScheduleEmittersPipeline;
-        Ref<Shader> m_ScheduleFinalizeShader;
-        Ref<ComputePipeline> m_ScheduleFinalizePipeline;
+        Ref<Shader> m_SchedulerBeginShader;
+        Ref<ComputePipeline> m_SchedulerBeginPipeline;
+        Ref<Shader> m_SchedulerInitEmittersShader;
+        Ref<ComputePipeline> m_SchedulerInitEmittersPipeline;
+        Ref<Shader> m_SchedulerScheduleEmittersShader;
+        Ref<ComputePipeline> m_SchedulerScheduleEmittersPipeline;
+        Ref<Shader> m_SchedulerFinalizeShader;
+        Ref<ComputePipeline> m_SchedulerFinalizePipeline;
 
         Ref<Shader> m_SpawnShader;
         Ref<ComputePipeline> m_SpawnPipeline;

@@ -90,6 +90,9 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     Emitter emitter = emitters[emitterIndex];
     EmitterInstanceState state = emitterStates[EmitterStateIndex(instance, localEmitterIndex)];
 
+    if (state.Generation != instance.Generation)
+        return;
+
     SystemSchedulerState scheduler = schedulerStates[pc.InstanceIndex];
     uint readBufferIndex = scheduler.ActiveTriggerBufferIndex;
     uint writeBufferIndex = 1 - readBufferIndex;
