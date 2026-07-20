@@ -13,7 +13,6 @@ namespace Elixir::Aether
         glm::mat4 Proj;
         glm::mat4 ViewProj;
         glm::vec3 CameraPos;
-        float _Padding = 0.0f;
     };
 
     struct alignas(16) SEmitterData
@@ -50,11 +49,69 @@ namespace Elixir::Aether
         uint32_t OpBaseOffset = 0;
         uint32_t ParameterBaseOffset = 0;
 
+        uint32_t EmitterStateBaseOffset = 0;
+        uint32_t SpawnRequestBaseOffset = 0;
+        uint32_t TriggerEventBaseOffset = 0;
+        uint32_t TriggerQueueStateBaseOffset = 0;
+
         uint32_t ParticleCount = 0;
         uint32_t EmitterCount = 0;
+        uint32_t TriggerEventCapacityPerEmitter = 0;
         uint32_t Generation = 0;
+
         uint32_t ParticleStateLayoutIndex = 0;
     };
+    static_assert(sizeof(SSystemInstanceData) == 64); // TODO: Remove
+
+    struct alignas(16) SEmitterInstanceStateData
+    {
+        float SpawnAccumulator = 0.0f;
+        float BurstAccumulator = 0.0f;
+        uint32_t BufferCursor = 0;
+        uint32_t EmissionIndex = 0;
+
+        uint32_t Generation = 0;
+    };
+    static_assert(sizeof(SEmitterInstanceStateData) == 32); // TODO: Remove
+
+    struct alignas(16)SSpawnRequestData
+    {
+        uint32_t SpawnCursor = 0;
+        uint32_t SpawnCount = 0;
+        uint32_t EmissionIndex = 0;
+        uint32_t Generation = 0;
+    };
+    static_assert(sizeof(SSpawnRequestData) == 16); // TODO: Remove
+
+    struct alignas(16) STriggerTargetData
+    {
+        uint32_t TargetEmitterIndex = 0;
+        uint32_t BurstCount = 0;
+        float DelaySeconds = 0.0f;
+    };
+    static_assert(sizeof(STriggerTargetData) == 16); // TODO: Remove
+
+    struct alignas(16) STriggerEventData
+    {
+        float RemainingDelaySeconds = 0.0f;
+        uint32_t SpawnCount = 0;
+        uint32_t Generation = 0;
+    };
+    static_assert(sizeof(STriggerEventData) == 16); // TODO: Remove
+
+    struct alignas(16) STriggerQueueStateData
+    {
+        uint32_t Count = 0;
+        uint32_t OverflowCount = 0;
+    };
+    static_assert(sizeof(STriggerQueueStateData) == 16); // TODO: Remove
+
+    struct alignas(16) SSystemSchedulerStateData
+    {
+        uint32_t Generation = 0;
+        uint32_t ActiveTriggerBufferIndex = 0;
+    };
+    static_assert(sizeof(SSystemSchedulerStateData) == 16); // TODO: Remove
 
     // CPU-side observability only. These values describe what the renderer
     // submitted for one Render() call; they do not read back GPU state.
@@ -69,30 +126,9 @@ namespace Elixir::Aether
         uint32_t RequestedParticleCapacity = 0u;
         uint32_t SubmittedParticleCapacity = 0u;
 
-        uint32_t SpawnRequestCount = 0u;
-        uint32_t TriggerEventsQueued = 0u;
-        uint32_t TriggerEventsReleased = 0u;
-        uint32_t TriggeredParticlesReleased = 0u;
-
-        // This intentionally exposes the current leak baseline. It must stop
-        // growing with unrelated effect loads once the GPU-only instance path
-        // replaces m_EmittersState.
-        size_t PersistentEmitterStateCount = 0;
-    };
-
-    struct SPendingEmitterBurst
-    {
-        float DelaySeconds = 0.0f;
-        uint32_t Count = 0u;
-    };
-
-    struct SEmitterState
-    {
-        float SpawnAccumulator = 0.0f;
-        float BurstAccumulator = 0.0f;
-        std::vector<SPendingEmitterBurst> PendingEmitterBursts;
-        uint32_t BufferCursor = 0u;
-        uint32_t EmissionIndex = 0u;
+        uint32_t ScheduledEmitterCount = 0;
+        uint32_t SpawnDispatchCount = 0;
+        uint32_t TriggerEventCapacityPerEmitter = 0;
     };
 
     class ELIXIR_API Renderer final
@@ -103,6 +139,8 @@ namespace Elixir::Aether
         static constexpr uint32_t MAX_PARTICLES = 20000;
         static constexpr uint32_t MAX_OPS = 512;
         static constexpr uint32_t MAX_PARAMETERS = 128;
+        static constexpr uint32_t MAX_TRIGGER_TARGETS = MAX_EMITTERS;
+        static constexpr uint32_t MAX_TRIGGER_EVENTS_PER_EMITTER = 64;
         static constexpr uint32_t COMPUTE_GROUP_SIZE = 256;
 
         Renderer(const GraphicsContext* context, const ShaderLoader* shaderLoader);
@@ -126,6 +164,7 @@ namespace Elixir::Aether
         void EndRendering(const Ref<CommandBuffer>& cmd) const;
 
         void UpdateBuffers(const SCompiledSystem& system);
+        void BarrierSchedulingBuffers(const Ref<CommandBuffer>& cmd) const;
 
         SFrameData m_FrameData{};
         Ref<UniformBuffer> m_FrameConstantBuffer;
@@ -140,21 +179,31 @@ namespace Elixir::Aether
             glm::vec4 Metadata{};
         };
 
+        struct SSchedulePushConstants
+        {
+            uint32_t InstanceIndex = 0;
+        };
+
         struct SSpawnPushConstants
         {
             uint32_t InstanceIndex = 0;
             uint32_t EmitterIndex = 0;
         };
 
-        struct SUpdatePushConstants
-        {
-            uint32_t InstanceIndex = 0;
-        };
+        using SUpdatePushConstants = SSchedulePushConstants;
+
+        Ref<Shader> m_ScheduleBeginShader;
+        Ref<ComputePipeline> m_ScheduleBeginPipeline;
+        Ref<Shader> m_ScheduleEmittersShader;
+        Ref<ComputePipeline> m_ScheduleEmittersPipeline;
+        Ref<Shader> m_ScheduleFinalizeShader;
+        Ref<ComputePipeline> m_ScheduleFinalizePipeline;
 
         Ref<Shader> m_SpawnShader;
         Ref<ComputePipeline> m_SpawnPipeline;
         Ref<Shader> m_UpdateShader;
         Ref<ComputePipeline> m_UpdatePipeline;
+
         Ref<Shader> m_SpriteShader;
         Ref<GraphicsPipeline> m_SpritePipeline;
         Ref<Shader> m_RibbonShader;
@@ -163,7 +212,12 @@ namespace Elixir::Aether
         Ref<GraphicsPipeline> m_MeshPipeline;
 
         Ref<StorageBuffer> m_ParticleBuffer;
-        std::unordered_map<SCompiledEmitter, SEmitterState> m_EmittersState;
+        Ref<StorageBuffer> m_EmitterStateBuffer;
+        Ref<StorageBuffer> m_SpawnRequestBuffer;
+        Ref<DynamicStorageBuffer> m_TriggerTargetBuffer;
+        std::array<Ref<StorageBuffer>, 2> m_TriggerEventBuffers;
+        Ref<StorageBuffer> m_TriggerQueueStateBuffer;
+        Ref<StorageBuffer> m_SystemSchedulerStateBuffer;
 
         Ref<DynamicStorageBuffer> m_SystemInstanceBuffer;
         Ref<DynamicStorageBuffer> m_EmitterBuffer;
@@ -185,6 +239,11 @@ namespace Elixir::Aether
 
         uint64_t m_SubmissionSerial = 0;
         SParticleSubmissionMetrics m_LastSubmissionMetrics{};
+
+        bool m_HasBoundCompiledSystem = false;
+        UUID m_BoundCompiledSystemId;
+        uint32_t m_BoundCompilationRevision = 0;
+        uint32_t m_SystemInstanceGeneration = 0;
 
         bool m_CapacityErrorReported = false;
 

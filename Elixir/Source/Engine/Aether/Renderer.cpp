@@ -37,20 +37,34 @@ namespace Elixir::Aether
         desc.MetaB = {
             emitter.UpdateOpOffset,
             emitter.UpdateOpCount,
-            0.0,
-            0.0
+            emitter.TriggerTargetOffset,
+            emitter.TriggerTargetCount
         };
 
         desc.MetaC = {
             (float)emitter.RenderMode,
             emitter.SpawnRatePerSecond,
             emitter.GravityScale,
+            emitter.BurstIntervalSeconds
+        };
+
+        desc.MetaD = {
+            (float)emitter.BurstCount,
+            emitter.IsTriggerDriven ? 1.0f : 0.0f,
+            0.0f,
             0.0f
         };
 
-        desc.MetaD = { 0.0f, 0.0f, 0.f, 0.0f };
-
         return desc;
+    }
+
+    STriggerTargetData ToTriggerTargetDescription(const SCompiledTriggerTarget& target)
+    {
+        return {
+            .TargetEmitterIndex = target.TargetEmitterIndex,
+            .BurstCount = target.BurstCount,
+            .DelaySeconds = target.DelaySeconds,
+        };
     }
 
     SParticleOpData ToOpDescription(const SGPUParticleOp& op)
@@ -119,6 +133,9 @@ namespace Elixir::Aether
 
         m_LastSubmissionMetrics.SubmittedEmitterCount = emitterCount;
         m_LastSubmissionMetrics.SubmittedParticleCapacity = maxParticles;
+        m_LastSubmissionMetrics.ScheduledEmitterCount = emitterCount;
+        m_LastSubmissionMetrics.TriggerEventCapacityPerEmitter =
+            MAX_TRIGGER_EVENTS_PER_EMITTER;
 
         UpdateBuffers(system);
 
@@ -130,6 +147,45 @@ namespace Elixir::Aether
         });
 
         const auto* emitters = static_cast<const SEmitterData*>(m_EmitterBuffer->Map());
+
+        // Scheduling
+
+        constexpr SSchedulePushConstants schedulePushConstants{ .InstanceIndex = 0 };
+
+        m_ScheduleBeginPipeline->Bind(cmd);
+        m_ScheduleBeginShader->SetPushConstant(
+            cmd,
+            "pc",
+            (void*)&schedulePushConstants,
+            sizeof(schedulePushConstants)
+        );
+        cmd->Dispatch((emitterCount + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
+
+        BarrierSchedulingBuffers(cmd);
+
+        m_ScheduleEmittersPipeline->Bind(cmd);
+        m_ScheduleEmittersShader->SetPushConstant(
+            cmd,
+            "pc",
+            (void*)&schedulePushConstants,
+            sizeof(schedulePushConstants)
+        );
+        cmd->Dispatch((emitterCount + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
+
+        BarrierSchedulingBuffers(cmd);
+
+        m_ScheduleFinalizePipeline->Bind(cmd);
+        m_ScheduleFinalizeShader->SetPushConstant(
+            cmd,
+            "pc",
+            (void*)&schedulePushConstants,
+            sizeof(schedulePushConstants)
+        );
+        cmd->Dispatch(1);
+
+        BarrierSchedulingBuffers(cmd);
+
+        // Spawning
 
         m_ParticleBuffer->Barrier(
             cmd,
@@ -146,6 +202,8 @@ namespace Elixir::Aether
             const auto particleCount = std::min((uint32_t)emitters[i].MetaA.y, MAX_PARTICLES - offset);
             if (particleCount == 0) continue;
 
+            ++m_LastSubmissionMetrics.SpawnDispatchCount;
+
             const SSpawnPushConstants spawnPushConstants
             {
                 .InstanceIndex = 0,
@@ -161,6 +219,8 @@ namespace Elixir::Aether
 
             cmd->Dispatch((particleCount + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
         }
+
+        // Updating
 
         m_ParticleBuffer->Barrier(
             cmd,
@@ -183,6 +243,8 @@ namespace Elixir::Aether
         );
 
         cmd->Dispatch((maxParticles + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
+
+        // Rendering
 
         m_ParticleBuffer->Barrier(
             cmd,
@@ -262,6 +324,27 @@ namespace Elixir::Aether
 
     void Renderer::Init(const ShaderLoader* shaderLoader)
     {
+        m_ScheduleBeginShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/",
+            std::array<std::string_view, 1>{ "ParticlesScheduleBegin" },
+            "ParticlesScheduleBegin",
+            EShaderStage::Compute
+        );
+
+        m_ScheduleEmittersShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/",
+            std::array<std::string_view, 1>{ "ParticlesScheduleEmitters" },
+            "ParticlesScheduleEmitters",
+            EShaderStage::Compute
+        );
+
+        m_ScheduleFinalizeShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/",
+            std::array<std::string_view, 1>{ "ParticlesScheduleFinalize" },
+            "ParticlesScheduleFinalize",
+            EShaderStage::Compute
+        );
+
         m_SpawnShader = shaderLoader->LoadShader(
             "./Shaders/Aether/",
             std::array<std::string_view, 1>{ "ParticlesSpawn" },
@@ -295,6 +378,15 @@ namespace Elixir::Aether
         );
 
         SPipelineCreateInfo pipelineInfo{};
+        pipelineInfo.Shader = m_ScheduleBeginShader;
+        m_ScheduleBeginPipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
+
+        pipelineInfo.Shader = m_ScheduleEmittersShader;
+        m_ScheduleEmittersPipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
+
+        pipelineInfo.Shader = m_ScheduleFinalizeShader;
+        m_ScheduleFinalizePipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
+
         pipelineInfo.Shader = m_SpawnShader;
         m_SpawnPipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
 
@@ -383,17 +475,77 @@ namespace Elixir::Aether
 
     void Renderer::CreateBuffers()
     {
-        m_ParticleBuffer = StorageBuffer::Create(m_GraphicsContext, sizeof(SGPUParticleState) * MAX_PARTICLES);
+        m_ParticleBuffer = StorageBuffer::Create(
+            m_GraphicsContext,
+            sizeof(SGPUParticleState) * MAX_PARTICLES
+        );
+
+        m_EmitterStateBuffer = StorageBuffer::Create(
+            m_GraphicsContext,
+            sizeof(SEmitterInstanceStateData) * MAX_SYSTEM_INSTANCES * MAX_EMITTERS
+        );
+
+        m_SpawnRequestBuffer = StorageBuffer::Create(
+            m_GraphicsContext,
+            sizeof(SSpawnRequestData) * MAX_SYSTEM_INSTANCES * MAX_EMITTERS
+        );
+
+        m_TriggerTargetBuffer = DynamicStorageBuffer::Create(
+            m_GraphicsContext,
+            sizeof(STriggerTargetData) * MAX_TRIGGER_TARGETS
+        );
+
+        for (auto& buffer : m_TriggerEventBuffers)
+        {
+            buffer = StorageBuffer::Create(
+                m_GraphicsContext,
+                sizeof(STriggerEventData) *
+                    MAX_SYSTEM_INSTANCES *
+                    MAX_EMITTERS *
+                    MAX_TRIGGER_EVENTS_PER_EMITTER
+            );
+            buffer->Clear();
+        }
+
+        m_TriggerQueueStateBuffer = StorageBuffer::Create(
+            m_GraphicsContext,
+            sizeof(STriggerTargetData) * MAX_TRIGGER_TARGETS
+        );
 
         m_SystemInstanceBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SSystemInstanceData) * MAX_SYSTEM_INSTANCES
+            sizeof(STriggerQueueStateData) * MAX_SYSTEM_INSTANCES * MAX_EMITTERS * 2
         );
 
-        m_EmitterBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SEmitterData) * MAX_EMITTERS);
-        m_OpBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SParticleOpData) * MAX_OPS);
-        m_ParameterBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SParameterData) * MAX_PARAMETERS);
-        m_ParamsBuffer = UniformBuffer::Create(m_GraphicsContext, sizeof(SParamsData));
+        m_SystemSchedulerStateBuffer = StorageBuffer::Create(
+            m_GraphicsContext,
+            sizeof(SSystemSchedulerStateData) * MAX_SYSTEM_INSTANCES
+        );
+
+        m_EmitterStateBuffer->Clear();
+        m_SpawnRequestBuffer->Clear();
+        m_TriggerQueueStateBuffer->Clear();
+        m_SystemSchedulerStateBuffer->Clear();
+
+        m_EmitterBuffer = DynamicStorageBuffer::Create(
+            m_GraphicsContext,
+            sizeof(SEmitterData) * MAX_EMITTERS
+        );
+
+        m_OpBuffer = DynamicStorageBuffer::Create(
+            m_GraphicsContext,
+            sizeof(SParticleOpData) * MAX_OPS
+        );
+
+        m_ParameterBuffer = DynamicStorageBuffer::Create(
+            m_GraphicsContext,
+            sizeof(SParameterData) * MAX_PARAMETERS
+        );
+
+        m_ParamsBuffer = UniformBuffer::Create(
+            m_GraphicsContext,
+            sizeof(SParamsData)
+        );
 
         CreateMeshVertexBuffer();
     }
@@ -465,34 +617,70 @@ namespace Elixir::Aether
 
     void Renderer::BindShaderParameters()
     {
+        constexpr SSchedulePushConstants schedulePushConstants{ .InstanceIndex = 0 };
+
+        m_ScheduleBeginShader->SetPushConstant(
+            "pc",
+            (void*)&schedulePushConstants,
+            sizeof(schedulePushConstants)
+        );
+
+        m_ScheduleBeginShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
+        m_ScheduleBeginShader->BindStorageBuffer("emitterStates", m_EmitterStateBuffer);
+        m_ScheduleBeginShader->BindStorageBuffer("triggerQueueStates", m_TriggerQueueStateBuffer);
+        m_ScheduleBeginShader->BindStorageBuffer("schedulerStates", m_SystemSchedulerStateBuffer);
+
+        m_ScheduleEmittersShader->SetPushConstant(
+            "pc",
+            (void*)&schedulePushConstants,
+            sizeof(schedulePushConstants)
+        );
+
+        m_ScheduleEmittersShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
+        m_ScheduleEmittersShader->BindStorageBuffer("emitters", m_EmitterBuffer);
+        m_ScheduleEmittersShader->BindStorageBuffer("emitterStates", m_EmitterStateBuffer);
+        m_ScheduleEmittersShader->BindStorageBuffer("spawnRequests", m_SpawnRequestBuffer);
+        m_ScheduleEmittersShader->BindStorageBuffer("triggerTargets", m_TriggerTargetBuffer);
+        m_ScheduleEmittersShader->BindStorageBuffer("triggerEventsA", m_TriggerEventBuffers[0]);
+        m_ScheduleEmittersShader->BindStorageBuffer("triggerEventsB", m_TriggerEventBuffers[1]);
+        m_ScheduleEmittersShader->BindStorageBuffer("triggerQueueStates", m_TriggerQueueStateBuffer);
+        m_ScheduleEmittersShader->BindStorageBuffer("schedulerStates", m_SystemSchedulerStateBuffer);
+        m_ScheduleEmittersShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
+
+        m_ScheduleFinalizeShader->SetPushConstant(
+            "pc",
+            (void*)&schedulePushConstants,
+            sizeof(schedulePushConstants)
+        );
+
+        m_ScheduleFinalizeShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
+        m_ScheduleFinalizeShader->BindStorageBuffer("schedulerStates", m_SystemSchedulerStateBuffer);
+
         constexpr SSpawnPushConstants spawnPushConstants
         {
             .InstanceIndex = 0,
             .EmitterIndex = 0
         };
 
-        constexpr SUpdatePushConstants updatePushConstants
-        {
-            .InstanceIndex = 0
-        };
-
         m_SpawnShader->SetPushConstant(
             "pc",
             (void*)&spawnPushConstants,
-            sizeof(SSpawnPushConstants)
+            sizeof(spawnPushConstants)
         );
 
         m_SpawnShader->BindStorageBuffer("particles", m_ParticleBuffer);
         m_SpawnShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
         m_SpawnShader->BindStorageBuffer("emitters", m_EmitterBuffer);
+        m_SpawnShader->BindStorageBuffer("spawnRequests", m_SpawnRequestBuffer);
         m_SpawnShader->BindStorageBuffer("ops", m_OpBuffer);
         m_SpawnShader->BindStorageBuffer("parameters", m_ParameterBuffer);
         m_SpawnShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
 
+        constexpr SUpdatePushConstants updatePushConstants{ .InstanceIndex = 0 };
         m_UpdateShader->SetPushConstant(
             "pc",
             (void*)&updatePushConstants,
-            sizeof(SUpdatePushConstants)
+            sizeof(updatePushConstants)
         );
 
         m_UpdateShader->BindStorageBuffer("particles", m_ParticleBuffer);
@@ -511,14 +699,24 @@ namespace Elixir::Aether
 
         m_WhiteTextureHandle = m_Sprites->AddTexture(whiteTex);
 
-        const SSpritePushConstants spritePc{ m_WhiteTextureHandle.Index };
-        m_SpriteShader->SetPushConstant("pc", (void*)&spritePc, sizeof(SSpritePushConstants));
+        const SSpritePushConstants spritePushConstants{ m_WhiteTextureHandle.Index };
+        m_SpriteShader->SetPushConstant(
+            "pc",
+            (void*)&spritePushConstants,
+            sizeof(spritePushConstants)
+        );
+
         m_SpriteShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
         m_SpriteShader->BindTextureSet("sprites", m_Sprites);
         m_SpriteShader->BindSampler("spriteSampler", m_SpriteSampler);
 
-        constexpr SRibbonPushConstants ribbonPc{ 0 };
-        m_RibbonShader->SetPushConstant("pc", (void*)&ribbonPc, sizeof(SRibbonPushConstants));
+        constexpr SRibbonPushConstants ribbonPushConstants{ 0 };
+        m_RibbonShader->SetPushConstant(
+            "pc",
+            (void*)&ribbonPushConstants,
+            sizeof(ribbonPushConstants)
+        );
+
         m_RibbonShader->BindStorageBuffer("particles", m_ParticleBuffer);
         m_RibbonShader->BindStorageBuffer("emitters", m_EmitterBuffer);
         m_RibbonShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
@@ -582,38 +780,43 @@ namespace Elixir::Aether
         if (!m_CapacityErrorReported &&
             (system.Emitters.size()   > MAX_EMITTERS ||
              system.Ops.size()        > MAX_OPS      ||
-             system.Parameters.size() > MAX_PARAMETERS))
+             system.Parameters.size() > MAX_PARAMETERS ||
+             system.TriggerTargets.size() > MAX_TRIGGER_TARGETS))
         {
 
             EE_CORE_ERROR(
                 "Aether system '{}' exceeds renderer capacity and will be truncated "
-                "(emitters {}/{}, ops {}/{}, parameters {}/{}).",
+                "(emitters {}/{}, ops {}/{}, parameters {}/{}, trigger targets {}/{}).",
                 system.Name,
                 system.Emitters.size(),   MAX_EMITTERS,
                 system.Ops.size(),        MAX_OPS,
-                system.Parameters.size(), MAX_PARAMETERS
+                system.Parameters.size(), MAX_PARAMETERS,
+                system.TriggerTargets.size(), MAX_TRIGGER_TARGETS
             )
 
             m_CapacityErrorReported = true;
         }
 
-        SParamsData params{};
-
-        params.Time = {
-            m_LastDeltaTimeSeconds,
-            m_ElapsedTimeSeconds,
-            (float)system.TotalMaxParticles,
-            (float)system.Emitters.size(),
+        SParamsData params{
+            .Time = { m_LastDeltaTimeSeconds, m_ElapsedTimeSeconds, 0.0f, 0.0f },
+            .Viewport = {
+                (float)m_RenderExtent.Width,
+                (float)m_RenderExtent.Height,
+                0.0f,
+                0.0f
+            }
         };
-
-        params.Viewport = {
-            (float)m_RenderExtent.Width,
-            (float)m_RenderExtent.Height,
-            0.0f,
-            0.0f
-        };
-
         m_ParamsBuffer->UpdateData(&params, sizeof(SParamsData));
+
+        if (!m_HasBoundCompiledSystem ||
+            m_BoundCompiledSystemId != system.SourceId ||
+            m_BoundCompilationRevision != system.CompilationRevision)
+        {
+            m_HasBoundCompiledSystem = true;
+            m_BoundCompiledSystemId = system.SourceId;
+            m_BoundCompilationRevision = system.CompilationRevision;
+            ++m_SystemInstanceGeneration;
+        }
 
         const SSystemInstanceData instanceData
         {
@@ -621,117 +824,26 @@ namespace Elixir::Aether
             .EmitterBaseOffset = 0,
             .OpBaseOffset = 0,
             .ParameterBaseOffset = 0,
+            .EmitterStateBaseOffset = 0,
+            .SpawnRequestBaseOffset = 0,
+            .TriggerEventBaseOffset = 0,
+            .TriggerQueueStateBaseOffset = 0,
             .ParticleCount = std::min(system.TotalMaxParticles, MAX_PARTICLES),
             .EmitterCount = (uint32_t)std::min(system.Emitters.size(), (size_t)MAX_EMITTERS),
-            .Generation = 1,
+            .TriggerEventCapacityPerEmitter = MAX_TRIGGER_EVENTS_PER_EMITTER,
+            .Generation = m_SystemInstanceGeneration,
             .ParticleStateLayoutIndex = (uint32_t)system.ParticleStateLayout,
         };
 
         m_SystemInstanceBuffer->UpdateData(&instanceData, sizeof(SSystemInstanceData));
 
         auto* emitters = (SEmitterData*)m_EmitterBuffer->Map();
-        const auto emitterCount = std::min(system.Emitters.size(), (size_t)MAX_EMITTERS);
-
+        const auto emitterCount = std::min(
+            system.Emitters.size(),
+            (size_t)MAX_EMITTERS
+        );
         for (size_t i = 0; i < emitterCount; ++i)
-        {
-            const auto& emitter = system.Emitters[i];
-            auto& emitterState = m_EmittersState[emitter];
-
-            emitterState.SpawnAccumulator += emitter.SpawnRatePerSecond * m_LastDeltaTimeSeconds;
-
-            uint32_t spawnCount = std::min((uint32_t)emitterState.SpawnAccumulator, emitter.MaxParticles);
-            if (spawnCount > 0u)
-                emitterState.SpawnAccumulator -= (float)spawnCount;
-
-            if (emitter.TriggerSourceEmitterIndex < 0 && emitter.BurstCount > 0u && emitter.BurstIntervalSeconds > 0.0f)
-            {
-                auto& accumulator = emitterState.BurstAccumulator;
-                accumulator += m_LastDeltaTimeSeconds;
-
-                const float maxAccumulation = emitter.BurstIntervalSeconds * 8.0f;
-                if (accumulator > maxAccumulation)
-                    accumulator = maxAccumulation;
-
-                uint32_t burstLoops = 0u;
-                while (accumulator >= emitter.BurstIntervalSeconds && burstLoops < 8u)
-                {
-                    accumulator -= emitter.BurstIntervalSeconds;
-
-                    const uint32_t remainingCapacity = emitter.MaxParticles > spawnCount
-                        ? emitter.MaxParticles - spawnCount
-                        : 0u;
-
-                    spawnCount += std::min(remainingCapacity, emitter.BurstCount);
-
-                    for (std::size_t targetIndex = 0; targetIndex < emitterCount; ++targetIndex)
-                    {
-                        const auto& targetEmitter = system.Emitters[targetIndex];
-                        if (targetEmitter.TriggerSourceEmitterIndex == (int32_t)i && targetEmitter.BurstCount > 0u)
-                        {
-                            m_EmittersState[targetEmitter].PendingEmitterBursts.push_back({
-                                targetEmitter.TriggerDelaySeconds,
-                                targetEmitter.BurstCount
-                            });
-
-                            ++m_LastSubmissionMetrics.TriggerEventsQueued;
-                        }
-                    }
-
-                    ++burstLoops;
-                }
-            }
-
-            if (!emitterState.PendingEmitterBursts.empty())
-            {
-                auto& pending = emitterState.PendingEmitterBursts;
-                uint32_t releasedCount = 0u;
-
-                for (auto event = pending.begin(); event != pending.end();)
-                {
-                    event->DelaySeconds -= m_LastDeltaTimeSeconds;
-                    if (event->DelaySeconds <= 0.0f)
-                    {
-                        ++m_LastSubmissionMetrics.TriggerEventsReleased;
-                        m_LastSubmissionMetrics.TriggeredParticlesReleased += event->Count;
-
-                        releasedCount = std::min(emitter.MaxParticles, releasedCount + event->Count);
-                        event = pending.erase(event);
-                    }
-                    else
-                    {
-                        ++event;
-                    }
-                }
-
-                spawnCount = std::min(emitter.MaxParticles, spawnCount + releasedCount);
-            }
-
-            auto desc = ToEmitterDescription(emitter);
-
-            const uint32_t nextBufferCursor = emitter.MaxParticles > 0
-                ? (emitterState.BufferCursor + spawnCount) % emitter.MaxParticles
-                : 0u;
-
-            desc.MetaB.x = (float)emitter.UpdateOpOffset;
-            desc.MetaB.y = (float)emitter.UpdateOpCount;
-            desc.MetaB.z = (float)emitterState.BufferCursor;
-            desc.MetaB.w = (float)spawnCount;
-            desc.MetaC.w = (float)nextBufferCursor;
-            desc.MetaD.x = (float)emitterState.EmissionIndex;
-
-            emitters[i] = desc;
-
-            emitterState.EmissionIndex += spawnCount;
-
-            m_LastSubmissionMetrics.SpawnRequestCount += spawnCount;
-
-            if (emitter.MaxParticles > 0)
-                emitterState.BufferCursor = nextBufferCursor;
-        }
-
-        // Zero-out inactive slots so removed emitters don't leave stale data.
-        // This is done AFTER writing the active slots to avoid a window where
-        // the GPU could briefly read zeroed MetaA fields for an active emitter.
+            emitters[i] = ToEmitterDescription(system.Emitters[i]);
         for (size_t i = emitterCount; i < MAX_EMITTERS; ++i)
             emitters[i] = {};
 
@@ -743,12 +855,38 @@ namespace Elixir::Aether
             ops[i] = {};
 
         auto* parameters = (SParameterData*)m_ParameterBuffer->Map();
-        const size_t parameterCount = std::min(system.Parameters.size(), (size_t)MAX_PARAMETERS);
+        const size_t parameterCount = std::min(
+            system.Parameters.size(),
+            (size_t)MAX_PARAMETERS
+        );
         for (size_t i = 0; i < parameterCount; ++i)
             parameters[i] = ToParameterDescription(system.Parameters[i]);
         for (size_t i = parameterCount; i < MAX_PARAMETERS; ++i)
             parameters[i] = {};
 
-        m_LastSubmissionMetrics.PersistentEmitterStateCount = m_EmittersState.size();
+        auto* targets = (STriggerTargetData*)m_TriggerTargetBuffer->Map();
+        const auto targetCount = std::min(
+            system.TriggerTargets.size(),
+            (size_t)MAX_TRIGGER_TARGETS
+        );
+        for (size_t i = 0; i < targetCount; ++i)
+            targets[i] = ToTriggerTargetDescription(system.TriggerTargets[i]);
+        for (size_t i = targetCount; i < MAX_TRIGGER_TARGETS; ++i)
+            targets[i] = {};
+    }
+
+    void Renderer::BarrierSchedulingBuffers(const Ref<CommandBuffer>& cmd) const
+    {
+        constexpr auto stage = EPipelineStage::ComputeShader;
+        constexpr auto access = EPipelineAccess::ShaderRead | EPipelineAccess::ShaderWrite;
+
+        m_EmitterStateBuffer->Barrier(cmd, stage, access);
+        m_SpawnRequestBuffer->Barrier(cmd, stage, access);
+
+        for (auto& buffer : m_TriggerEventBuffers)
+            buffer->Barrier(cmd, stage, access);
+
+        m_TriggerQueueStateBuffer->Barrier(cmd, stage, access);
+        m_SystemSchedulerStateBuffer->Barrier(cmd, stage, access);
     }
 }
