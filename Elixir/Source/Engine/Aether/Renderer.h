@@ -2,6 +2,8 @@
 
 #include <Engine/Core/Timer.h>
 #include <Engine/Aether/System.h>
+#include <Engine/Aether/SystemInstance.h>
+#include <Engine/Aether/ParticleResourcePool.h>
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
 
@@ -128,19 +130,16 @@ namespace Elixir::Aether
     class ELIXIR_API Renderer final
     {
       public:
-        static constexpr uint32_t MAX_SYSTEM_INSTANCES = 1;
-        static constexpr uint32_t MAX_EMITTERS = 16;
-        static constexpr uint32_t MAX_PARTICLES = 20000;
-        static constexpr uint32_t MAX_OPS = 512;
-        static constexpr uint32_t MAX_PARAMETERS = 128;
-        static constexpr uint32_t MAX_TRIGGER_TARGETS = MAX_EMITTERS;
-        static constexpr uint32_t MAX_TRIGGER_EVENTS_PER_EMITTER = 64;
         static constexpr uint32_t COMPUTE_GROUP_SIZE = 256;
 
-        Renderer(const GraphicsContext* context, const ShaderLoader* shaderLoader);
+        Renderer(
+            const GraphicsContext* context,
+            const ShaderLoader* shaderLoader,
+            SParticlePoolLimits limits = {}
+        );
 
         void Update(const Timestep& timestep);
-        void Render(const SCompiledSystem& system, const Camera& camera);
+        void Render(const SystemInstance& instance, const Camera& camera);
 
         // Read only at the frame boundary after Render() returns.
         const SParticleSubmissionMetrics& GetLastSubmissionMetrics() const;
@@ -157,7 +156,21 @@ namespace Elixir::Aether
         void BeginRendering(const Ref<CommandBuffer>& cmd) const;
         void EndRendering(const Ref<CommandBuffer>& cmd) const;
 
-        void UpdateBuffers(const SCompiledSystem& system);
+        struct SInstanceRecord
+        {
+            UUID SystemInstanceId;
+            UUID CompiledSystemId;
+            uint32_t CompilationRevision = 0;
+            SSystemInstanceAllocation Allocation;
+        };
+
+        SInstanceRecord* ResolveInstanceRecord(const SystemInstance& instance);
+        void UpdateBuffers(const SystemInstance& instance, const SInstanceRecord& record);
+        void UploadCompiledSystem(
+            const SCompiledSystem& system,
+            const SSystemInstanceAllocation& allocation
+        ) const;
+
         void BarrierSchedulingBuffers(const Ref<CommandBuffer>& cmd) const;
 
         SFrameData m_FrameData{};
@@ -207,6 +220,11 @@ namespace Elixir::Aether
         Ref<Shader> m_MeshShader;
         Ref<GraphicsPipeline> m_MeshPipeline;
 
+        SParticlePoolLimits m_ParticlePoolLimits;
+        ParticleResourcePool m_ParticleResourcePool;
+        std::unordered_map<UUID, SInstanceRecord> m_InstanceRecords;
+        std::unordered_set<UUID> m_AllocationFailures;
+
         Ref<StorageBuffer> m_ParticleBuffer;
         Ref<StorageBuffer> m_EmitterStateBuffer;
         Ref<StorageBuffer> m_SpawnRequestBuffer;
@@ -235,13 +253,6 @@ namespace Elixir::Aether
 
         uint64_t m_SubmissionSerial = 0;
         SParticleSubmissionMetrics m_LastSubmissionMetrics{};
-
-        bool m_HasBoundCompiledSystem = false;
-        UUID m_BoundCompiledSystemId;
-        uint32_t m_BoundCompilationRevision = 0;
-        uint32_t m_SystemInstanceGeneration = 0;
-
-        bool m_CapacityErrorReported = false;
 
         Extent2D m_RenderExtent{};
         const GraphicsContext* m_GraphicsContext;

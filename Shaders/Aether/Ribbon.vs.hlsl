@@ -35,6 +35,7 @@ cbuffer cbFrame : register(b0)
 struct PushConstants
 {
     uint EmitterIndex;
+    uint ParticleBaseOffset;
 };
 
 [[vk::push_constant]]
@@ -78,7 +79,14 @@ VSOutput main(uint vertexId : SV_VertexID)
     ParticleState endParticle;
     uint endLocalIndex;
 
-    if (!TryBuildSegment(segmentIndex, emitter, startParticle, endParticle, endLocalIndex))
+    if (!TryBuildSegment(
+        segmentIndex,
+        pc.ParticleBaseOffset,
+        emitter,
+        startParticle,
+        endParticle,
+        endLocalIndex
+    ))
         return EmptyVertex();
 
     float3 p0 = startParticle.PositionSize.xyz;

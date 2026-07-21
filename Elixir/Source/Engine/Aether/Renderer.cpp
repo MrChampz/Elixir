@@ -22,22 +22,27 @@ namespace Elixir::Aether
     struct SRibbonPushConstants
     {
         uint32_t EmitterIndex = 0;
+        uint32_t ParticleBaseOffset = 0;
     };
 
-    SEmitterData ToEmitterDescription(const SCompiledEmitter& emitter)
+    SEmitterData ToEmitterDescription(
+        const SCompiledEmitter& emitter,
+        uint32_t opBaseOffset,
+        uint32_t triggerTargetBaseOffset
+    )
     {
         SEmitterData desc{};
         desc.MetaA = {
             emitter.LocalParticleOffset,
             emitter.MaxParticles,
-            emitter.SpawnOpOffset,
+            opBaseOffset + emitter.SpawnOpOffset,
             emitter.SpawnOpCount
         };
 
         desc.MetaB = {
-            emitter.UpdateOpOffset,
+            opBaseOffset + emitter.UpdateOpOffset,
             emitter.UpdateOpCount,
-            emitter.TriggerTargetOffset,
+            triggerTargetBaseOffset + emitter.TriggerTargetOffset,
             emitter.TriggerTargetCount
         };
 
@@ -67,15 +72,22 @@ namespace Elixir::Aether
         };
     }
 
-    SParticleOpData ToOpDescription(const SGPUParticleOp& op)
+    SParticleOpData ToOpDescription(const SGPUParticleOp& op, uint32_t parameterBaseOffset)
     {
+        const auto ResolveParameterIndex = [parameterBaseOffset](const uint32_t parameterIndex)
+        {
+            return parameterIndex == UINT32_MAX
+                ? -1.0f
+                : (float)(parameterBaseOffset + parameterIndex);
+        };
+
         SParticleOpData desc{};
 
         desc.Header = {
             (float)(uint32_t)op.Type,
             (float)op.Target,
-            op.Parameter0Index == UINT32_MAX ? -1.0f : (float)op.Parameter0Index,
-            op.Parameter1Index == UINT32_MAX ? -1.0f : (float)op.Parameter1Index
+            ResolveParameterIndex(op.Parameter0Index),
+            ResolveParameterIndex(op.Parameter1Index)
         };
 
         desc.Data0 = op.Data0;
@@ -93,8 +105,13 @@ namespace Elixir::Aether
         return desc;
     }
 
-    Renderer::Renderer(const GraphicsContext* context, const ShaderLoader* shaderLoader)
-        : m_GraphicsContext(context)
+    Renderer::Renderer(
+        const GraphicsContext* context,
+        const ShaderLoader* shaderLoader,
+        SParticlePoolLimits limits
+    ) : m_ParticlePoolLimits(std::move(limits)),
+        m_ParticleResourcePool(m_ParticlePoolLimits),
+        m_GraphicsContext(context)
     {
         EE_CORE_INFO("Initializing Aether Renderer.")
 
@@ -110,8 +127,13 @@ namespace Elixir::Aether
         m_ElapsedTimeSeconds += timestep.GetSeconds();
     }
 
-    void Renderer::Render(const SCompiledSystem& system, const Camera& camera)
+    void Renderer::Render(const SystemInstance& instance, const Camera& camera)
     {
+        const auto& system = instance.GetCompiledSystem();
+
+        const auto* record = ResolveInstanceRecord(instance);
+        if (!record) return;
+
         m_LastSubmissionMetrics = {
             .SubmissionSerial = ++m_SubmissionSerial,
             .DeltaTimeSeconds = m_LastDeltaTimeSeconds,
@@ -128,16 +150,16 @@ namespace Elixir::Aether
         m_FrameData.CameraPos = camera.GetPosition();
         m_FrameConstantBuffer->UpdateData(&m_FrameData, sizeof(SFrameData));
 
-        const auto emitterCount = std::min((uint32_t)system.Emitters.size(), MAX_EMITTERS);
-        const auto maxParticles = std::min(system.TotalMaxParticles, MAX_PARTICLES);
+        const auto emitterCount = record->Allocation.Emitters.Count;
+        const auto maxParticles = record->Allocation.Particles.Count;
 
         m_LastSubmissionMetrics.SubmittedEmitterCount = emitterCount;
         m_LastSubmissionMetrics.SubmittedParticleCapacity = maxParticles;
         m_LastSubmissionMetrics.ScheduledEmitterCount = emitterCount;
         m_LastSubmissionMetrics.TriggerEventCapacityPerEmitter =
-            MAX_TRIGGER_EVENTS_PER_EMITTER;
+            m_ParticlePoolLimits.TriggerEventCapacityPerEmitter;
 
-        UpdateBuffers(system);
+        UpdateBuffers(instance, *record);
 
         const auto cmd = m_GraphicsContext->GetSecondaryCommandBuffer();
         cmd->Begin({
@@ -146,11 +168,11 @@ namespace Elixir::Aether
             .RenderArea = m_RenderExtent
         });
 
-        const auto* emitters = static_cast<const SEmitterData*>(m_EmitterBuffer->Map());
-
         // Scheduling
 
-        constexpr SSchedulePushConstants schedulePushConstants{ .InstanceIndex = 0 };
+        const SSchedulePushConstants schedulePushConstants{
+            .InstanceIndex = record->Allocation.InstanceIndex,
+        };
 
         m_SchedulerBeginPipeline->Bind(cmd);
         m_SchedulerBeginShader->SetPushConstant(
@@ -207,17 +229,14 @@ namespace Elixir::Aether
         m_SpawnPipeline->Bind(cmd);
         for (uint32_t i = 0; i < emitterCount; ++i)
         {
-            const auto offset = (uint32_t)emitters[i].MetaA.x;
-            if (offset >= MAX_PARTICLES) continue;
-
-            const auto particleCount = std::min((uint32_t)emitters[i].MetaA.y, MAX_PARTICLES - offset);
+            const auto particleCount = system.Emitters[i].MaxParticles;
             if (particleCount == 0) continue;
 
             ++m_LastSubmissionMetrics.SpawnDispatchCount;
 
             const SSpawnPushConstants spawnPushConstants
             {
-                .InstanceIndex = 0,
+                .InstanceIndex = record->Allocation.InstanceIndex,
                 .EmitterIndex = i,
             };
 
@@ -241,9 +260,9 @@ namespace Elixir::Aether
 
         m_UpdatePipeline->Bind(cmd);
 
-        constexpr SUpdatePushConstants updatePushConstants
+        const SUpdatePushConstants updatePushConstants
         {
-            .InstanceIndex = 0,
+            .InstanceIndex = record->Allocation.InstanceIndex,
         };
 
         m_UpdateShader->SetPushConstant(
@@ -284,7 +303,7 @@ namespace Elixir::Aether
                 m_MeshVertexCount,
                 emitter.MaxParticles,
                 0,
-                emitter.LocalParticleOffset
+                record->Allocation.Particles.Offset + emitter.LocalParticleOffset
             );
         }
 
@@ -304,7 +323,10 @@ namespace Elixir::Aether
                     spritePipelineBound = false;
                 }
 
-                const SRibbonPushConstants pc{ i };
+                const SRibbonPushConstants pc{
+                    .EmitterIndex = record->Allocation.Emitters.Offset + i,
+                    .ParticleBaseOffset = record->Allocation.Particles.Offset,
+                };
                 m_RibbonShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(SRibbonPushConstants));
 
                 cmd->Draw(emitter.MaxParticles * 6);
@@ -322,7 +344,12 @@ namespace Elixir::Aether
             const SSpritePushConstants pc{ ResolveSpriteIndex(emitter.SpriteTexture) };
             m_SpriteShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(SSpritePushConstants));
 
-            cmd->Draw(6, emitter.MaxParticles, 0, emitter.LocalParticleOffset);
+            cmd->Draw(
+                6,
+                emitter.MaxParticles,
+                0,
+                record->Allocation.Particles.Offset + emitter.LocalParticleOffset
+            );
         }
 
         EndRendering(cmd);
@@ -501,22 +528,22 @@ namespace Elixir::Aether
     {
         m_ParticleBuffer = StorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SGPUParticleState) * MAX_PARTICLES
+            sizeof(SGPUParticleState) * m_ParticlePoolLimits.ParticleCapacity
         );
 
         m_EmitterStateBuffer = StorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SEmitterInstanceStateData) * MAX_SYSTEM_INSTANCES * MAX_EMITTERS
+            sizeof(SEmitterInstanceStateData) * m_ParticlePoolLimits.EmitterCapacity
         );
 
         m_SpawnRequestBuffer = StorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SSpawnRequestData) * MAX_SYSTEM_INSTANCES * MAX_EMITTERS
+            sizeof(SSpawnRequestData) * m_ParticlePoolLimits.EmitterCapacity
         );
 
         m_TriggerTargetBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(STriggerTargetData) * MAX_TRIGGER_TARGETS
+            sizeof(STriggerTargetData) * m_ParticlePoolLimits.TriggerTargetCapacity
         );
 
         for (auto& buffer : m_TriggerEventBuffers)
@@ -524,26 +551,25 @@ namespace Elixir::Aether
             buffer = StorageBuffer::Create(
                 m_GraphicsContext,
                 sizeof(STriggerEventData) *
-                    MAX_SYSTEM_INSTANCES *
-                    MAX_EMITTERS *
-                    MAX_TRIGGER_EVENTS_PER_EMITTER
+                    m_ParticlePoolLimits.EmitterCapacity *
+                    m_ParticlePoolLimits.TriggerEventCapacityPerEmitter
             );
             buffer->Clear();
         }
 
         m_TriggerQueueStateBuffer = StorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(STriggerTargetData) * MAX_TRIGGER_TARGETS
+            sizeof(STriggerQueueStateData) * m_ParticlePoolLimits.EmitterCapacity * 2
         );
 
         m_SystemInstanceBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(STriggerQueueStateData) * MAX_SYSTEM_INSTANCES * MAX_EMITTERS * 2
+            sizeof(SSystemInstanceData) * m_ParticlePoolLimits.MaxSystemInstances
         );
 
         m_SystemSchedulerStateBuffer = StorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SSystemSchedulerStateData) * MAX_SYSTEM_INSTANCES
+            sizeof(SSystemSchedulerStateData) * m_ParticlePoolLimits.MaxSystemInstances
         );
 
         m_EmitterStateBuffer->Clear();
@@ -553,17 +579,17 @@ namespace Elixir::Aether
 
         m_EmitterBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SEmitterData) * MAX_EMITTERS
+            sizeof(SEmitterData) * m_ParticlePoolLimits.EmitterCapacity
         );
 
         m_OpBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SParticleOpData) * MAX_OPS
+            sizeof(SParticleOpData) * m_ParticlePoolLimits.OpCapacity
         );
 
         m_ParameterBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SParameterData) * MAX_PARAMETERS
+            sizeof(SParameterData) * m_ParticlePoolLimits.ParameterCapacity
         );
 
         m_ParamsBuffer = UniformBuffer::Create(
@@ -845,34 +871,51 @@ namespace Elixir::Aether
         m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
     }
 
-    void Renderer::UpdateBuffers(const SCompiledSystem& system)
+    Renderer::SInstanceRecord* Renderer::ResolveInstanceRecord(const SystemInstance& instance)
     {
-        // The GPU buffers are fixed-capacity. If the built system exceeds any of
-        // them, the copy below clamps silently while emitter op offsets/counts
-        // (computed without these limits in Emitter::Build) keep pointing past
-        // the uploaded range — i.e. out-of-bounds reads on the GPU. Surface it
-        // loudly once instead of corrupting the dispatch.
-        if (!m_CapacityErrorReported &&
-            (system.Emitters.size()   > MAX_EMITTERS ||
-             system.Ops.size()        > MAX_OPS      ||
-             system.Parameters.size() > MAX_PARAMETERS ||
-             system.TriggerTargets.size() > MAX_TRIGGER_TARGETS))
+        const auto found = m_InstanceRecords.find(instance.GetId());
+        if (found != m_InstanceRecords.end())
         {
-
-            EE_CORE_ERROR(
-                "Aether system '{}' exceeds renderer capacity and will be truncated "
-                "(emitters {}/{}, ops {}/{}, parameters {}/{}, trigger targets {}/{}).",
-                system.Name,
-                system.Emitters.size(),   MAX_EMITTERS,
-                system.Ops.size(),        MAX_OPS,
-                system.Parameters.size(), MAX_PARAMETERS,
-                system.TriggerTargets.size(), MAX_TRIGGER_TARGETS
-            )
-
-            m_CapacityErrorReported = true;
+            return &found->second;
         }
 
-        SParamsData params{
+        const auto& system = instance.GetCompiledSystem();
+        const auto allocation = m_ParticleResourcePool.Allocate(system);
+
+        if (!allocation)
+        {
+            if (m_AllocationFailures.insert(instance.GetId()).second)
+            {
+                EE_CORE_ERROR(
+                    "Aether GPU resource pool exhausted while creating system instance '{}'.",
+                    system.Name
+                )
+            }
+
+            return nullptr;
+        }
+
+        const auto [it, inserted] = m_InstanceRecords.emplace(
+            instance.GetId(),
+            SInstanceRecord{
+                .SystemInstanceId = instance.GetId(),
+                .CompiledSystemId = system.SourceId,
+                .CompilationRevision = system.CompilationRevision,
+                .Allocation = *allocation,
+            }
+        );
+
+        EE_CORE_ASSERT(inserted, "Aether system instance registry insertion failed.")
+
+        UploadCompiledSystem(system, it->second.Allocation);
+
+        m_AllocationFailures.erase(instance.GetId());
+        return &it->second;
+    }
+
+    void Renderer::UpdateBuffers(const SystemInstance& instance, const SInstanceRecord& record)
+    {
+        const SParamsData params{
             .Time = { m_LastDeltaTimeSeconds, m_ElapsedTimeSeconds, 0.0f, 0.0f },
             .Viewport = {
                 (float)m_RenderExtent.Width,
@@ -883,71 +926,65 @@ namespace Elixir::Aether
         };
         m_ParamsBuffer->UpdateData(&params, sizeof(SParamsData));
 
-        if (!m_HasBoundCompiledSystem ||
-            m_BoundCompiledSystemId != system.SourceId ||
-            m_BoundCompilationRevision != system.CompilationRevision)
-        {
-            m_HasBoundCompiledSystem = true;
-            m_BoundCompiledSystemId = system.SourceId;
-            m_BoundCompilationRevision = system.CompilationRevision;
-            ++m_SystemInstanceGeneration;
-        }
+        const auto& system = instance.GetCompiledSystem();
 
         const SSystemInstanceData instanceData
         {
-            .ParticleBaseOffset = 0,
-            .EmitterBaseOffset = 0,
-            .OpBaseOffset = 0,
-            .ParameterBaseOffset = 0,
-            .EmitterStateBaseOffset = 0,
-            .SpawnRequestBaseOffset = 0,
-            .TriggerEventBaseOffset = 0,
-            .TriggerQueueStateBaseOffset = 0,
-            .ParticleCount = std::min(system.TotalMaxParticles, MAX_PARTICLES),
-            .EmitterCount = (uint32_t)std::min(system.Emitters.size(), (size_t)MAX_EMITTERS),
-            .TriggerEventCapacityPerEmitter = MAX_TRIGGER_EVENTS_PER_EMITTER,
-            .Generation = m_SystemInstanceGeneration,
+            .ParticleBaseOffset = record.Allocation.Particles.Offset,
+            .EmitterBaseOffset = record.Allocation.Emitters.Offset,
+            .OpBaseOffset = record.Allocation.Ops.Offset,
+            .ParameterBaseOffset = record.Allocation.Parameters.Offset,
+            .EmitterStateBaseOffset = record.Allocation.EmitterStates.Offset,
+            .SpawnRequestBaseOffset = record.Allocation.SpawnRequests.Offset,
+            .TriggerEventBaseOffset = record.Allocation.TriggerEvents.Offset,
+            .TriggerQueueStateBaseOffset = record.Allocation.TriggerQueueStates.Offset,
+            .ParticleCount = record.Allocation.Particles.Count,
+            .EmitterCount = record.Allocation.Emitters.Count,
+            .TriggerEventCapacityPerEmitter = m_ParticlePoolLimits.TriggerEventCapacityPerEmitter,
+            .Generation = record.Allocation.Generation,
             .ParticleStateLayoutIndex = (uint32_t)system.ParticleStateLayout,
         };
 
-        m_SystemInstanceBuffer->UpdateData(&instanceData, sizeof(SSystemInstanceData));
-
-        auto* emitters = (SEmitterData*)m_EmitterBuffer->Map();
-        const auto emitterCount = std::min(
-            system.Emitters.size(),
-            (size_t)MAX_EMITTERS
+        m_SystemInstanceBuffer->UpdateData(
+            &instanceData,
+            sizeof(SSystemInstanceData),
+            record.Allocation.InstanceIndex * sizeof(SSystemInstanceData)
         );
-        for (size_t i = 0; i < emitterCount; ++i)
-            emitters[i] = ToEmitterDescription(system.Emitters[i]);
-        for (size_t i = emitterCount; i < MAX_EMITTERS; ++i)
-            emitters[i] = {};
+    }
+
+    void Renderer::UploadCompiledSystem(
+        const SCompiledSystem& system,
+        const SSystemInstanceAllocation& allocation
+    ) const
+    {
+        auto* emitters = (SEmitterData*)m_EmitterBuffer->Map();
+        for (uint32_t i = 0; i < allocation.Emitters.Count; ++i)
+        {
+            emitters[allocation.Emitters.Offset + i] = ToEmitterDescription(
+                system.Emitters[i],
+                allocation.Ops.Offset,
+                allocation.TriggerTargets.Offset
+            );
+        }
 
         auto* ops = (SParticleOpData*)m_OpBuffer->Map();
-        const size_t opCount = std::min(system.Ops.size(), (size_t)MAX_OPS);
-        for (size_t i = 0; i < opCount; ++i)
-            ops[i] = ToOpDescription(system.Ops[i]);
-        for (size_t i = opCount; i < MAX_OPS; ++i)
-            ops[i] = {};
+        for (uint32_t i = 0; i < allocation.Ops.Count; ++i)
+        {
+            ops[allocation.Ops.Offset + i] = ToOpDescription(
+                system.Ops[i],
+                allocation.Parameters.Offset
+            );
+        }
 
         auto* parameters = (SParameterData*)m_ParameterBuffer->Map();
-        const size_t parameterCount = std::min(
-            system.Parameters.size(),
-            (size_t)MAX_PARAMETERS
-        );
-        for (size_t i = 0; i < parameterCount; ++i)
-            parameters[i] = ToParameterDescription(system.Parameters[i]);
-        for (size_t i = parameterCount; i < MAX_PARAMETERS; ++i)
-            parameters[i] = {};
+        for (uint32_t i = 0; i < allocation.Parameters.Count; ++i)
+            parameters[allocation.Parameters.Offset + i] =
+                ToParameterDescription(system.Parameters[i]);
 
         auto* targets = (STriggerTargetData*)m_TriggerTargetBuffer->Map();
-        const auto targetCount = std::min(
-            system.TriggerTargets.size(),
-            (size_t)MAX_TRIGGER_TARGETS
-        );
-        for (size_t i = 0; i < targetCount; ++i)
-            targets[i] = ToTriggerTargetDescription(system.TriggerTargets[i]);
-        for (size_t i = targetCount; i < MAX_TRIGGER_TARGETS; ++i)
-            targets[i] = {};
+        for (uint32_t i = 0; i < allocation.TriggerTargets.Count; ++i)
+            targets[allocation.TriggerTargets.Offset + i] =
+                ToTriggerTargetDescription(system.TriggerTargets[i]);
     }
 
     void Renderer::BarrierSchedulingBuffers(const Ref<CommandBuffer>& cmd) const

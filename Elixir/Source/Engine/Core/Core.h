@@ -129,19 +129,26 @@ namespace Elixir
             : std::true_type {};
 
         template <typename T>
+        std::size_t Hash(const T& value)
+        {
+            return std::hash<T>{}(value);
+        }
+
+        template <typename T>
         std::size_t HashValue(const T& value)
         {
             if constexpr (requires { std::hash<T>{}(value); })
             {
-                return std::hash<T>{}(value);
+                return Hash<T>(value);
             }
             else if constexpr (HasToString<T>::value)
             {
-                return std::hash<std::string>{}(value.ToString());
+                return Hash<std::string>(value.ToString());
             }
             else
             {
                 static_assert(sizeof(T) == 0, "Type is not hashable and has no ToString()");
+                return 0;
             }
         }
 

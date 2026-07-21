@@ -34,13 +34,14 @@ uint LinkOrder(ParticleState particle)
 
 bool TryBuildSegment(
     uint localIndex,
+    uint particleBaseOffset,
     Emitter emitter,
     out ParticleState startParticle,
     out ParticleState endParticle,
     out uint endLocalIndex
 )
 {
-    uint particleOffset = (uint)emitter.MetaA.x;
+    uint particleOffset = particleBaseOffset + (uint)emitter.MetaA.x;
     uint particleCount  = (uint)emitter.MetaA.y;
 
     startParticle = particles[particleOffset + localIndex];
