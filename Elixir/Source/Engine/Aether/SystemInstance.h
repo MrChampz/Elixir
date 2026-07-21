@@ -12,7 +12,10 @@ namespace Elixir::Aether
         explicit SystemInstance(Ref<const SCompiledSystem> compiledSystem);
 
         const UUID& GetId() const { return m_Id; }
+        uint32_t GetRevision() const { return m_Revision; }
         const SCompiledSystem& GetCompiledSystem() const { return *m_CompiledSystem; }
+
+        void SetCompiledSystem(Ref<const SCompiledSystem> compiledSystem);
 
     private:
         UUID m_Id;

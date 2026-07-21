@@ -74,6 +74,7 @@ TEST(AetherParticleResourcePoolTest, ReusesReleasedRanges)
     ASSERT_TRUE(reused);
 
     EXPECT_EQ(reused->InstanceIndex, first->InstanceIndex);
+    EXPECT_NE(reused->Generation, first->Generation);
     EXPECT_EQ(reused->Particles.Offset, first->Particles.Offset);
     EXPECT_EQ(reused->Emitters.Offset, first->Emitters.Offset);
     EXPECT_EQ(reused->Ops.Offset, first->Ops.Offset);

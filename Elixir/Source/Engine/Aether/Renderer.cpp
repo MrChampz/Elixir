@@ -123,6 +123,8 @@ namespace Elixir::Aether
 
     void Renderer::Update(const Timestep& timestep)
     {
+        ProcessCompletedRetirements();
+
         m_LastDeltaTimeSeconds = timestep.GetSeconds();
         m_ElapsedTimeSeconds += timestep.GetSeconds();
     }
@@ -353,6 +355,17 @@ namespace Elixir::Aether
         }
 
         EndRendering(cmd);
+    }
+
+    void Renderer::Retire(const SystemInstance& instance)
+    {
+        const auto found = m_InstanceRecords.find(instance.GetId());
+        if (found == m_InstanceRecords.end())
+            return;
+
+        QueueRetirement(found->second.Allocation);
+        m_InstanceRecords.erase(found);
+        m_AllocationFailures.erase(instance.GetId());
     }
 
     const SParticleSubmissionMetrics& Renderer::GetLastSubmissionMetrics() const
@@ -873,16 +886,19 @@ namespace Elixir::Aether
 
     Renderer::SInstanceRecord* Renderer::ResolveInstanceRecord(const SystemInstance& instance)
     {
+        const auto instanceRevision = instance.GetRevision();
         const auto found = m_InstanceRecords.find(instance.GetId());
-        if (found != m_InstanceRecords.end())
+
+        if (found != m_InstanceRecords.end() &&
+            found->second.SystemInstanceRevision == instanceRevision)
         {
             return &found->second;
         }
 
         const auto& system = instance.GetCompiledSystem();
-        const auto allocation = m_ParticleResourcePool.Allocate(system);
 
-        if (!allocation)
+        const auto replacementAllocation = m_ParticleResourcePool.Allocate(system);
+        if (!replacementAllocation)
         {
             if (m_AllocationFailures.insert(instance.GetId()).second)
             {
@@ -895,22 +911,85 @@ namespace Elixir::Aether
             return nullptr;
         }
 
-        const auto [it, inserted] = m_InstanceRecords.emplace(
-            instance.GetId(),
-            SInstanceRecord{
-                .SystemInstanceId = instance.GetId(),
-                .CompiledSystemId = system.SourceId,
-                .CompilationRevision = system.CompilationRevision,
-                .Allocation = *allocation,
-            }
-        );
+        UploadCompiledSystem(system, *replacementAllocation);
 
-        EE_CORE_ASSERT(inserted, "Aether system instance registry insertion failed.")
+        const SInstanceRecord replacement{
+            .SystemInstanceId = instance.GetId(),
+            .SystemInstanceRevision = instanceRevision,
+            .CompiledSystemId = system.SourceId,
+            .CompilationRevision = system.CompilationRevision,
+            .Allocation = *replacementAllocation,
+        };
 
-        UploadCompiledSystem(system, it->second.Allocation);
+        if (found == m_InstanceRecords.end())
+        {
+            const auto [it, inserted] = m_InstanceRecords.emplace(instance.GetId(), replacement);
 
+            EE_CORE_ASSERT(inserted, "Aether system instance registry insertion failed.")
+            m_AllocationFailures.erase(instance.GetId());
+            return &it->second;
+        }
+
+        // The replacement is fully allocated and uploaded before retiring the
+        // previous record. If allocation fails, the old record remains intact.
+        QueueRetirement(found->second.Allocation);
+        found->second = replacement;
         m_AllocationFailures.erase(instance.GetId());
-        return &it->second;
+        return &found->second;
+    }
+
+    void Renderer::UploadCompiledSystem(
+        const SCompiledSystem& system,
+        const SSystemInstanceAllocation& allocation
+    ) const
+    {
+        auto* emitters = (SEmitterData*)m_EmitterBuffer->Map();
+        for (uint32_t i = 0; i < allocation.Emitters.Count; ++i)
+        {
+            emitters[allocation.Emitters.Offset + i] = ToEmitterDescription(
+                system.Emitters[i],
+                allocation.Ops.Offset,
+                allocation.TriggerTargets.Offset
+            );
+        }
+
+        auto* ops = (SParticleOpData*)m_OpBuffer->Map();
+        for (uint32_t i = 0; i < allocation.Ops.Count; ++i)
+        {
+            ops[allocation.Ops.Offset + i] = ToOpDescription(
+                system.Ops[i],
+                allocation.Parameters.Offset
+            );
+        }
+
+        auto* parameters = (SParameterData*)m_ParameterBuffer->Map();
+        for (uint32_t i = 0; i < allocation.Parameters.Count; ++i)
+            parameters[allocation.Parameters.Offset + i] =
+                ToParameterDescription(system.Parameters[i]);
+
+        auto* targets = (STriggerTargetData*)m_TriggerTargetBuffer->Map();
+        for (uint32_t i = 0; i < allocation.TriggerTargets.Count; ++i)
+            targets[allocation.TriggerTargets.Offset + i] =
+                ToTriggerTargetDescription(system.TriggerTargets[i]);
+    }
+
+    void Renderer::QueueRetirement(SSystemInstanceAllocation allocation)
+    {
+        const auto frameIndex = m_GraphicsContext->GetFrameIndex();
+        m_DeferredRetirements[frameIndex].push_back(std::move(allocation));
+    }
+
+    void Renderer::ProcessCompletedRetirements()
+    {
+        // Update() runs after GraphicsContext::Prepare() waited for this frame slot's fence.
+        // All GPU work that used these allocations has therefore completed.
+        const auto frameIndex = m_GraphicsContext->GetFrameIndex();
+        auto& retirements = m_DeferredRetirements[frameIndex];
+
+        for (const auto& allocation : retirements)
+            m_ParticleResourcePool.Release(allocation);
+
+        retirements.clear();
     }
 
     void Renderer::UpdateBuffers(const SystemInstance& instance, const SInstanceRecord& record)
@@ -950,41 +1029,6 @@ namespace Elixir::Aether
             sizeof(SSystemInstanceData),
             record.Allocation.InstanceIndex * sizeof(SSystemInstanceData)
         );
-    }
-
-    void Renderer::UploadCompiledSystem(
-        const SCompiledSystem& system,
-        const SSystemInstanceAllocation& allocation
-    ) const
-    {
-        auto* emitters = (SEmitterData*)m_EmitterBuffer->Map();
-        for (uint32_t i = 0; i < allocation.Emitters.Count; ++i)
-        {
-            emitters[allocation.Emitters.Offset + i] = ToEmitterDescription(
-                system.Emitters[i],
-                allocation.Ops.Offset,
-                allocation.TriggerTargets.Offset
-            );
-        }
-
-        auto* ops = (SParticleOpData*)m_OpBuffer->Map();
-        for (uint32_t i = 0; i < allocation.Ops.Count; ++i)
-        {
-            ops[allocation.Ops.Offset + i] = ToOpDescription(
-                system.Ops[i],
-                allocation.Parameters.Offset
-            );
-        }
-
-        auto* parameters = (SParameterData*)m_ParameterBuffer->Map();
-        for (uint32_t i = 0; i < allocation.Parameters.Count; ++i)
-            parameters[allocation.Parameters.Offset + i] =
-                ToParameterDescription(system.Parameters[i]);
-
-        auto* targets = (STriggerTargetData*)m_TriggerTargetBuffer->Map();
-        for (uint32_t i = 0; i < allocation.TriggerTargets.Count; ++i)
-            targets[allocation.TriggerTargets.Offset + i] =
-                ToTriggerTargetDescription(system.TriggerTargets[i]);
     }
 
     void Renderer::BarrierSchedulingBuffers(const Ref<CommandBuffer>& cmd) const

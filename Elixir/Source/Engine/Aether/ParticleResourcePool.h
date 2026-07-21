@@ -59,6 +59,8 @@ namespace Elixir::Aether
         SParticlePoolLimits m_Limits;
 
         std::vector<SBufferRange> m_FreeInstanceSlots;
+        std::vector<uint32_t> m_InstanceGenerations;
+
         std::vector<SBufferRange> m_FreeParticles;
         std::vector<SBufferRange> m_FreeEmitters;
         std::vector<SBufferRange> m_FreeOps;

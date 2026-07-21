@@ -141,6 +141,10 @@ namespace Elixir::Aether
         void Update(const Timestep& timestep);
         void Render(const SystemInstance& instance, const Camera& camera);
 
+        // Must be called from the render-frame callback. The allocation remains
+        // resident until the current frame slot is recycled after its GPU fence.
+        void Retire(const SystemInstance& instance);
+
         // Read only at the frame boundary after Render() returns.
         const SParticleSubmissionMetrics& GetLastSubmissionMetrics() const;
 
@@ -159,18 +163,22 @@ namespace Elixir::Aether
         struct SInstanceRecord
         {
             UUID SystemInstanceId;
+            uint32_t SystemInstanceRevision = 0;
             UUID CompiledSystemId;
             uint32_t CompilationRevision = 0;
             SSystemInstanceAllocation Allocation;
         };
 
         SInstanceRecord* ResolveInstanceRecord(const SystemInstance& instance);
-        void UpdateBuffers(const SystemInstance& instance, const SInstanceRecord& record);
         void UploadCompiledSystem(
             const SCompiledSystem& system,
             const SSystemInstanceAllocation& allocation
         ) const;
 
+        void QueueRetirement(SSystemInstanceAllocation allocation);
+        void ProcessCompletedRetirements();
+
+        void UpdateBuffers(const SystemInstance& instance, const SInstanceRecord& record);
         void BarrierSchedulingBuffers(const Ref<CommandBuffer>& cmd) const;
 
         SFrameData m_FrameData{};
@@ -224,6 +232,10 @@ namespace Elixir::Aether
         ParticleResourcePool m_ParticleResourcePool;
         std::unordered_map<UUID, SInstanceRecord> m_InstanceRecords;
         std::unordered_set<UUID> m_AllocationFailures;
+        std::array<
+            std::vector<SSystemInstanceAllocation>,
+            GraphicsContext::FRAMES
+        > m_DeferredRetirements;
 
         Ref<StorageBuffer> m_ParticleBuffer;
         Ref<StorageBuffer> m_EmitterStateBuffer;

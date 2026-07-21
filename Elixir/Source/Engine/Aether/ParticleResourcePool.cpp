@@ -6,6 +6,7 @@ namespace Elixir::Aether
     ParticleResourcePool::ParticleResourcePool(const SParticlePoolLimits& limits)
       : m_Limits(limits),
         m_FreeInstanceSlots(MakeFreeRanges(limits.MaxSystemInstances)),
+        m_InstanceGenerations(limits.MaxSystemInstances, 0),
         m_FreeParticles(MakeFreeRanges(limits.ParticleCapacity)),
         m_FreeEmitters(MakeFreeRanges(limits.EmitterCapacity)),
         m_FreeOps(MakeFreeRanges(limits.OpCapacity)),
@@ -16,10 +17,7 @@ namespace Elixir::Aether
         m_FreeTriggerEvents(MakeFreeRanges(
             limits.EmitterCapacity * limits.TriggerEventCapacityPerEmitter
         )),
-        m_FreeTriggerQueueStates(MakeFreeRanges(limits.EmitterCapacity * 2))
-    {
-
-    }
+        m_FreeTriggerQueueStates(MakeFreeRanges(limits.EmitterCapacity * 2)) {}
 
     std::optional<SSystemInstanceAllocation> ParticleResourcePool::Allocate(
         const SCompiledSystem& system
@@ -70,6 +68,15 @@ namespace Elixir::Aether
         }
 
         allocation.InstanceIndex = instanceSlot.Offset;
+
+        auto& generation = m_InstanceGenerations[allocation.InstanceIndex];
+        ++generation;
+
+        // Generation zero is reserved for never-initialized GPU scheduler state.
+        if (generation == 0)
+            ++generation;
+
+        allocation.Generation = generation;
         return allocation;
     }
 
