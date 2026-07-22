@@ -4,6 +4,7 @@
 #include <Engine/Aether/System.h>
 #include <Engine/Aether/SystemInstance.h>
 #include <Engine/Aether/ParticleResourcePool.h>
+#include <Engine/Aether/FrameSubmission.h>
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
 
@@ -109,16 +110,20 @@ namespace Elixir::Aether
         uint32_t ResetPending = 0;
     };
 
-    // CPU-side observability only. These values describe what the renderer
-    // submitted for one Render() call; they do not read back GPU state.
+    // CPU-side observability only. These values describe the complete particle
+    // frame submitted for one Render() call; they do not read back GPU state.
     struct SParticleSubmissionMetrics
     {
         uint64_t SubmissionSerial = 0u;
         float DeltaTimeSeconds = 0.0f;
         float ElapsedTimeSeconds = 0.0f;
 
+        size_t RequestedSystemInstanceCount = 0;
+        size_t SubmittedSystemInstanceCount = 0;
+
         size_t RequestedEmitterCount = 0u;
         size_t SubmittedEmitterCount = 0u;
+
         uint32_t RequestedParticleCapacity = 0u;
         uint32_t SubmittedParticleCapacity = 0u;
 
@@ -135,11 +140,11 @@ namespace Elixir::Aether
         Renderer(
             const GraphicsContext* context,
             const ShaderLoader* shaderLoader,
-            SParticlePoolLimits limits = {}
+            const SParticlePoolLimits& limits = {}
         );
 
         void Update(const Timestep& timestep);
-        void Render(const SystemInstance& instance, const Camera& camera);
+        void Render(const FrameSubmission& submission, const Camera& camera);
 
         // Must be called from the render-frame callback. The allocation remains
         // resident until the current frame slot is recycled after its GPU fence.
@@ -179,6 +184,19 @@ namespace Elixir::Aether
         void ProcessCompletedRetirements();
 
         void UpdateBuffers(const SystemInstance& instance, const SInstanceRecord& record);
+
+        void SimulateInstance(
+            const Ref<CommandBuffer>& cmd,
+            const SystemInstance& instance,
+            const SInstanceRecord& record
+        );
+
+        void RenderInstance(
+            const Ref<CommandBuffer>& cmd,
+            const SystemInstance& instance,
+            const SInstanceRecord& record
+        );
+
         void BarrierSchedulingBuffers(const Ref<CommandBuffer>& cmd) const;
 
         SFrameData m_FrameData{};

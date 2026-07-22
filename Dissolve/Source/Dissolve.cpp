@@ -8,6 +8,7 @@
 
 Ref<GraphicsPipeline> pipeline;
 Scope<Aether::Renderer> m_ParticlesRenderer;
+Aether::FrameSubmission m_ParticleFrameSubmission;
 Ref<Aether::System> m_ParticleSystem;
 Ref<const Aether::SCompiledSystem> m_CompiledParticleSystem;
 Scope<Aether::SystemInstance> m_ParticleSystemInstance;
@@ -173,7 +174,13 @@ void Dissolve::OnRender(const Timestep frameTime)
 
     //DrawGeometry();
 
-    m_ParticlesRenderer->Render(*m_ParticleSystemInstance, m_CameraController->GetCamera());
+    m_ParticleFrameSubmission.Reset();
+    EE_CORE_ASSERT(
+        m_ParticleFrameSubmission.Submit(*m_ParticleSystemInstance),
+        "The particle system instance was submitted more than once."
+    )
+
+    m_ParticlesRenderer->Render(m_ParticleFrameSubmission, m_CameraController->GetCamera());
     const auto& metrics = m_ParticlesRenderer->GetLastSubmissionMetrics();
 }
 
