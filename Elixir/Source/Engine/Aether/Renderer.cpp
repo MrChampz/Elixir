@@ -105,6 +105,18 @@ namespace Elixir::Aether
         return desc;
     }
 
+    uint32_t GetRenderModeOrder(const EParticleRenderMode mode)
+    {
+        switch (mode)
+        {
+            case EParticleRenderMode::Mesh:     return 0;
+            case EParticleRenderMode::Ribbon:   return 1;
+            case EParticleRenderMode::Sprite:   return 2;
+        }
+
+        return UINT32_MAX;
+    }
+
     Renderer::Renderer(
         const GraphicsContext* context,
         const ShaderLoader* shaderLoader,
@@ -150,8 +162,8 @@ namespace Elixir::Aether
         m_FrameData.CameraPos = camera.GetPosition();
         m_FrameConstantBuffer->UpdateData(&m_FrameData, sizeof(SFrameData));
 
-        std::vector<const SystemInstance*> resolvedInstances;
-        resolvedInstances.reserve(instances.size());
+        std::vector<SSubmittedSystemInstance> submittedInstances;
+        submittedInstances.reserve(instances.size());
 
         for (const auto* instance : instances)
         {
@@ -159,6 +171,22 @@ namespace Elixir::Aether
 
             m_LastSubmissionMetrics.RequestedEmitterCount += system.Emitters.size();
             m_LastSubmissionMetrics.RequestedParticleCapacity += system.TotalMaxParticles;
+
+            if (!IsParticleStateLayoutSupported(system.ParticleStateLayout))
+            {
+                if (m_UnsupportedParticleStateLayoutInstances.insert(instance->GetId()).second)
+                {
+                    EE_CORE_ERROR(
+                        "Aether does not support particle state layout '{}' for system instance '{}'.",
+                        (uint32_t)system.ParticleStateLayout,
+                        system.Name
+                    )
+                }
+
+                continue;
+            }
+
+            m_UnsupportedParticleStateLayoutInstances.erase(instance->GetId());
 
             const auto* record = ResolveInstanceRecord(*instance);
             if (!record) continue;
@@ -172,11 +200,24 @@ namespace Elixir::Aether
             m_LastSubmissionMetrics.SubmittedEmitterCount += emitterCount;
             m_LastSubmissionMetrics.SubmittedParticleCapacity += particleCount;
 
-            resolvedInstances.push_back(instance);
+            submittedInstances.push_back({
+                .Instance = instance,
+                .Allocation = record->Allocation,
+                .ParticleStateLayout = system.ParticleStateLayout,
+            });
         }
 
-        if (resolvedInstances.empty())
+        if (submittedInstances.empty())
             return;
+
+        const auto simulationBatches = BuildSimulationBatches(submittedInstances);
+        const auto renderBatches = BuildRenderBatches(submittedInstances);
+
+        m_LastSubmissionMetrics.SimulationBatchCount = simulationBatches.size();
+        m_LastSubmissionMetrics.RenderBatchCount = renderBatches.size();
+
+        for (const auto& batch : renderBatches)
+            m_LastSubmissionMetrics.SubmittedRenderItemCount += batch.Items.size();
 
         const auto cmd = m_GraphicsContext->GetSecondaryCommandBuffer();
         cmd->Begin({
@@ -185,20 +226,8 @@ namespace Elixir::Aether
             .RenderArea = m_RenderExtent
         });
 
-        for (const auto* instance : resolvedInstances)
-        {
-            const auto found = m_InstanceRecords.find(instance->GetId());
-            if (found == m_InstanceRecords.end())
-            {
-                EE_CORE_ERROR(
-                    "Aether lost the GPU record for system instance '{}' during simulation.",
-                    instance->GetCompiledSystem().Name
-                )
-                continue;
-            }
-
-            SimulateInstance(cmd, *instance, found->second);
-        }
+        for (const auto& batch : simulationBatches)
+            SimulateBatch(cmd, batch);
 
         m_ParticleBuffer->Barrier(
             cmd,
@@ -208,20 +237,8 @@ namespace Elixir::Aether
 
         BeginRendering(cmd);
 
-        for (const auto* instance : resolvedInstances)
-        {
-            const auto found = m_InstanceRecords.find(instance->GetId());
-            if (found == m_InstanceRecords.end())
-            {
-                EE_CORE_ERROR(
-                    "Aether lost the GPU record for system instance '{}' during rendering.",
-                    instance->GetCompiledSystem().Name
-                )
-                continue;
-            }
-
-            RenderInstance(cmd, *instance, found->second);
-        }
+        for (const auto& batch : renderBatches)
+            RenderBatch(cmd, batch);
 
         EndRendering(cmd);
     }
@@ -235,6 +252,7 @@ namespace Elixir::Aether
         QueueRetirement(found->second.Allocation);
         m_InstanceRecords.erase(found);
         m_AllocationFailures.erase(instance.GetId());
+        m_UnsupportedParticleStateLayoutInstances.erase(instance.GetId());
     }
 
     const SParticleSubmissionMetrics& Renderer::GetLastSubmissionMetrics() const
@@ -900,62 +918,177 @@ namespace Elixir::Aether
         );
     }
 
-    void Renderer::SimulateInstance(const Ref<CommandBuffer>& cmd, const SystemInstance& instance,
-        const SInstanceRecord& record)
+    bool Renderer::IsParticleStateLayoutSupported(const EParticleStateLayout layout)
     {
-        const auto& system = instance.GetCompiledSystem();
-        const auto emitterCount = record.Allocation.Emitters.Count;
-        const auto particleCount = record.Allocation.Particles.Count;
+        return layout == EParticleStateLayout::CoreV1;
+    }
 
-        // Scheduling
+    std::vector<Renderer::SSimulationBatch> Renderer::BuildSimulationBatches(
+        const std::vector<SSubmittedSystemInstance>& instances
+    ) const
+    {
+        std::vector<SSimulationBatch> batches;
 
-        m_LastSubmissionMetrics.ScheduledEmitterCount += emitterCount;
+        for (const auto& instance : instances)
+        {
+            SSimulationBatch* batch = nullptr;
 
-        const SSchedulePushConstants schedulePushConstants{
-            .InstanceIndex = record.Allocation.InstanceIndex,
-        };
+            for (auto& candidate : batches)
+            {
+                if (candidate.ParticleStateLayout != instance.ParticleStateLayout)
+                    continue;
+
+                batch = &candidate;
+                break;
+            }
+
+            if (!batch)
+            {
+                batches.push_back({
+                    .ParticleStateLayout = instance.ParticleStateLayout,
+                });
+                batch = &batches.back();
+            }
+
+            batch->Instances.push_back(&instance);
+        }
+
+        return batches;
+    }
+
+    std::vector<Renderer::SRenderBatch> Renderer::BuildRenderBatches(
+        const std::vector<SSubmittedSystemInstance>& instances
+    ) const
+    {
+        std::vector<SRenderBatch> batches;
+
+        for (const auto& instance : instances)
+        {
+            const auto& system = instance.Instance->GetCompiledSystem();
+
+            for (uint32_t emitterIndex = 0; emitterIndex < system.Emitters.size(); ++emitterIndex)
+            {
+                const auto& emitter = system.Emitters[emitterIndex];
+
+                if (emitter.MaxParticles == 0)
+                    continue;
+
+                const SRenderBatchKey key{
+                    .ParticleStateLayout = instance.ParticleStateLayout,
+                    .RenderMode = emitter.RenderMode,
+                };
+
+                SRenderBatch* batch = nullptr;
+
+                for (auto& candidate : batches)
+                {
+                    if (candidate.Key != key)
+                        continue;
+
+                    batch = &candidate;
+                    break;
+                }
+
+                if (!batch)
+                {
+                    batches.push_back({
+                        .Key = key,
+                    });
+                    batch = &batches.back();
+                }
+
+                batch->Items.push_back({
+                    .Instance = &instance,
+                    .Emitter = &emitter,
+                    .LocalEmitterIndex = emitterIndex,
+                });
+            }
+        }
+
+        std::ranges::stable_sort(batches, [](const SRenderBatch& left, const SRenderBatch& right)
+        {
+            if (left.Key.ParticleStateLayout != right.Key.ParticleStateLayout)
+            {
+                return uint32_t(left.Key.ParticleStateLayout) <
+                    uint32_t(right.Key.ParticleStateLayout);
+            }
+
+            return GetRenderModeOrder(left.Key.RenderMode) <
+                GetRenderModeOrder(right.Key.RenderMode);
+            }
+        );
+
+        return batches;
+    }
+
+    void Renderer::SimulateBatch(const Ref<CommandBuffer>& cmd, const SSimulationBatch& batch)
+    {
+        EE_CORE_ASSERT(
+            IsParticleStateLayoutSupported(batch.ParticleStateLayout),
+            "Aether attempted to simulate an unsupported particle state layout."
+        )
+
+        // Scheduling: begin
 
         m_SchedulerBeginPipeline->Bind(cmd);
-        m_SchedulerBeginShader->SetPushConstant(
-            cmd,
-            "pc",
-            (void*)&schedulePushConstants,
-            sizeof(schedulePushConstants)
-        );
-        cmd->Dispatch(1);
+
+        for (const auto* instance : batch.Instances)
+        {
+            const SSchedulePushConstants pc{
+                .InstanceIndex = instance->Allocation.InstanceIndex,
+            };
+
+            m_SchedulerBeginShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
+            cmd->Dispatch(1);
+        }
 
         BarrierSchedulingBuffers(cmd);
+
+        // Scheduling: init emitters
 
         m_SchedulerInitEmittersPipeline->Bind(cmd);
-        m_SchedulerInitEmittersShader->SetPushConstant(
-            cmd,
-            "pc",
-            (void*)&schedulePushConstants,
-            sizeof(schedulePushConstants)
-        );
-        cmd->Dispatch((emitterCount + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
+
+        for (const auto* instance : batch.Instances)
+        {
+            const SSchedulePushConstants pc{
+                .InstanceIndex = instance->Allocation.InstanceIndex,
+            };
+
+            m_SchedulerInitEmittersShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
+            cmd->Dispatch((instance->Allocation.Emitters.Count + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
+        }
 
         BarrierSchedulingBuffers(cmd);
+
+        // Scheduling: generate spawn requests
 
         m_SchedulerScheduleEmittersPipeline->Bind(cmd);
-        m_SchedulerScheduleEmittersShader->SetPushConstant(
-            cmd,
-            "pc",
-            (void*)&schedulePushConstants,
-            sizeof(schedulePushConstants)
-        );
-        cmd->Dispatch((emitterCount + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
+
+        for (const auto* instance : batch.Instances)
+        {
+            const SSchedulePushConstants pc{
+                .InstanceIndex = instance->Allocation.InstanceIndex,
+            };
+
+            m_SchedulerScheduleEmittersShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
+            cmd->Dispatch((instance->Allocation.Emitters.Count + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
+        }
 
         BarrierSchedulingBuffers(cmd);
 
+        // Scheduling: release trigger events
+
         m_SchedulerFinalizePipeline->Bind(cmd);
-        m_SchedulerFinalizeShader->SetPushConstant(
-            cmd,
-            "pc",
-            (void*)&schedulePushConstants,
-            sizeof(schedulePushConstants)
-        );
-        cmd->Dispatch(1);
+
+        for (const auto* instance : batch.Instances)
+        {
+            const SSchedulePushConstants pc{
+                .InstanceIndex = instance->Allocation.InstanceIndex,
+            };
+
+            m_SchedulerFinalizeShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
+            cmd->Dispatch(1);
+        }
 
         BarrierSchedulingBuffers(cmd);
 
@@ -968,27 +1101,30 @@ namespace Elixir::Aether
         );
 
         m_SpawnPipeline->Bind(cmd);
-        for (uint32_t i = 0; i < emitterCount; ++i)
+
+        for (const auto* instance : batch.Instances)
         {
-            const auto maxParticles = system.Emitters[i].MaxParticles;
-            if (maxParticles == 0) continue;
+            const auto& system = instance->Instance->GetCompiledSystem();
+            const auto emitterCount = instance->Allocation.Emitters.Count;
 
-            ++m_LastSubmissionMetrics.SpawnDispatchCount;
+            m_LastSubmissionMetrics.ScheduledEmitterCount += emitterCount;
 
-            const SSpawnPushConstants spawnPushConstants
+            for (uint32_t i = 0; i < emitterCount; ++i)
             {
-                .InstanceIndex = record.Allocation.InstanceIndex,
-                .EmitterIndex = i,
-            };
+                const auto maxParticles = system.Emitters[i].MaxParticles;
+                if (maxParticles == 0) continue;
 
-            m_SpawnShader->SetPushConstant(
-                cmd,
-                "pc",
-                (void*)&spawnPushConstants,
-                sizeof(SSpawnPushConstants)
-            );
+                ++m_LastSubmissionMetrics.SpawnDispatchCount;
 
-            cmd->Dispatch((maxParticles + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
+                const SSpawnPushConstants pc
+                {
+                    .InstanceIndex = instance->Allocation.InstanceIndex,
+                    .EmitterIndex = i,
+                };
+
+                m_SpawnShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
+                cmd->Dispatch((maxParticles + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
+            }
         }
 
         // Updating
@@ -1001,97 +1137,93 @@ namespace Elixir::Aether
 
         m_UpdatePipeline->Bind(cmd);
 
-        const SUpdatePushConstants updatePushConstants
+        for (const auto* instance : batch.Instances)
         {
-            .InstanceIndex = record.Allocation.InstanceIndex,
-        };
+            const SUpdatePushConstants pc
+            {
+                .InstanceIndex = instance->Allocation.InstanceIndex,
+            };
 
-        m_UpdateShader->SetPushConstant(
-            cmd,
-            "pc",
-            (void*)&updatePushConstants,
-            sizeof(SUpdatePushConstants)
-        );
-
-        cmd->Dispatch((particleCount + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
+            m_UpdateShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
+            cmd->Dispatch((instance->Allocation.Particles.Count + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
+        }
     }
 
-    void Renderer::RenderInstance(
-        const Ref<CommandBuffer>& cmd,
-        const SystemInstance& instance,
-        const SInstanceRecord& record
-    )
+    void Renderer::RenderBatch(const Ref<CommandBuffer>& cmd, const SRenderBatch& batch)
     {
-        const auto& system = instance.GetCompiledSystem();
-        const auto emitterCount = record.Allocation.Emitters.Count;
+        EE_CORE_ASSERT(
+            IsParticleStateLayoutSupported(batch.Key.ParticleStateLayout),
+            "Aether attempted to render an unsupported particle state layout."
+        )
 
-        bool spritePipelineBound = false;
-        bool ribbonPipelineBound = false;
-
-        for (uint32_t i = 0; i < emitterCount; ++i)
+        switch (batch.Key.RenderMode)
         {
-            const auto& emitter = system.Emitters[i];
-
-            if (emitter.RenderMode != EParticleRenderMode::Mesh || emitter.MaxParticles == 0)
-                continue;
-
-            m_MeshPipeline->Bind(cmd);
-            m_MeshVertexBuffer->Bind(cmd);
-            // TODO: Enhance this api
-            m_ParticleBuffer->BindAs<VertexBuffer>(cmd, std::span<uint64_t>{}, 1, 1);
-
-            cmd->Draw(
-                m_MeshVertexCount,
-                emitter.MaxParticles,
-                0,
-                record.Allocation.Particles.Offset + emitter.LocalParticleOffset
-            );
-        }
-
-        for (uint32_t i = 0; i < emitterCount; ++i)
-        {
-            const auto& emitter = system.Emitters[i];
-
-            if (emitter.RenderMode == EParticleRenderMode::Mesh || emitter.MaxParticles == 0)
-                continue;
-
-            if (emitter.RenderMode == EParticleRenderMode::Ribbon)
+            case EParticleRenderMode::Mesh:
             {
-                if (!ribbonPipelineBound)
+                m_MeshPipeline->Bind(cmd);
+                m_MeshVertexBuffer->Bind(cmd);
+                // TODO: Enhance this api
+                m_ParticleBuffer->BindAs<VertexBuffer>(cmd, std::span<uint64_t>{}, 1, 1);
+
+                for (const auto& item : batch.Items)
                 {
-                    m_RibbonPipeline->Bind(cmd);
-                    ribbonPipelineBound = true;
-                    spritePipelineBound = false;
+                    cmd->Draw(
+                        m_MeshVertexCount,
+                        item.Emitter->MaxParticles,
+                        0,
+                        item.Instance->Allocation.Particles.Offset + item.Emitter->LocalParticleOffset
+                    );
                 }
 
-                const SRibbonPushConstants pc{
-                    .EmitterIndex = record.Allocation.Emitters.Offset + i,
-                    .ParticleBaseOffset = record.Allocation.Particles.Offset,
-                };
-                m_RibbonShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(SRibbonPushConstants));
-
-                cmd->Draw(emitter.MaxParticles * 6);
-                continue;
+                return;
             }
 
-            if (!spritePipelineBound)
+            case EParticleRenderMode::Ribbon:
+            {
+                m_RibbonPipeline->Bind(cmd);
+
+                for (const auto& item : batch.Items)
+                {
+                    const SRibbonPushConstants pc{
+                        .EmitterIndex = item.Instance->Allocation.Emitters.Offset + item.LocalEmitterIndex,
+                        .ParticleBaseOffset = item.Instance->Allocation.Particles.Offset,
+                    };
+
+                    m_RibbonShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
+                    cmd->Draw(item.Emitter->MaxParticles * 6);
+                }
+
+                return;
+            }
+
+            case EParticleRenderMode::Sprite:
             {
                 m_SpritePipeline->Bind(cmd);
                 m_ParticleBuffer->BindAs<VertexBuffer>(cmd);
-                spritePipelineBound = true;
-                ribbonPipelineBound = false;
+
+                for (const auto& item : batch.Items)
+                {
+                    const SSpritePushConstants pc{
+                        ResolveSpriteIndex(item.Emitter->SpriteTexture)
+                    };
+
+                    m_SpriteShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
+                    cmd->Draw(
+                        6,
+                        item.Emitter->MaxParticles,
+                        0,
+                        item.Instance->Allocation.Particles.Offset + item.Emitter->LocalParticleOffset
+                    );
+                }
+
+                return;
             }
-
-            const SSpritePushConstants pc{ ResolveSpriteIndex(emitter.SpriteTexture) };
-            m_SpriteShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(SSpritePushConstants));
-
-            cmd->Draw(
-                6,
-                emitter.MaxParticles,
-                0,
-                record.Allocation.Particles.Offset + emitter.LocalParticleOffset
-            );
         }
+
+        EE_CORE_ERROR(
+            "Aether cannot render unknown particle render mode '{}'.",
+            (uint32_t)batch.Key.RenderMode
+        )
     }
 
     void Renderer::BarrierSchedulingBuffers(const Ref<CommandBuffer>& cmd) const

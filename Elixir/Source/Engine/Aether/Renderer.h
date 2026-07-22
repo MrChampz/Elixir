@@ -130,6 +130,10 @@ namespace Elixir::Aether
         uint32_t ScheduledEmitterCount = 0;
         uint32_t SpawnDispatchCount = 0;
         uint32_t TriggerEventCapacityPerEmitter = 0;
+
+        size_t SimulationBatchCount = 0;
+        size_t RenderBatchCount = 0;
+        size_t SubmittedRenderItemCount = 0;
     };
 
     class ELIXIR_API Renderer final
@@ -174,6 +178,42 @@ namespace Elixir::Aether
             SSystemInstanceAllocation Allocation;
         };
 
+        // Frame-local, renderer-owned snapshot. It decouples batch execution
+        // from m_InstanceRecords and remains valid for the complete Render().
+        struct SSubmittedSystemInstance
+        {
+            const SystemInstance* Instance = nullptr;
+            SSystemInstanceAllocation Allocation;
+            EParticleStateLayout ParticleStateLayout = EParticleStateLayout::CoreV1;
+        };
+
+        struct SSimulationBatch
+        {
+            EParticleStateLayout ParticleStateLayout = EParticleStateLayout::CoreV1;
+            std::vector<const SSubmittedSystemInstance*> Instances;
+        };
+
+        struct SRenderBatchKey
+        {
+            EParticleStateLayout ParticleStateLayout = EParticleStateLayout::CoreV1;
+            EParticleRenderMode RenderMode = EParticleRenderMode::Sprite;
+
+            bool operator==(const SRenderBatchKey&) const = default;
+        };
+
+        struct SRenderItem
+        {
+            const SSubmittedSystemInstance* Instance = nullptr;
+            const SCompiledEmitter* Emitter = nullptr;
+            uint32_t LocalEmitterIndex = 0;
+        };
+
+        struct SRenderBatch
+        {
+            SRenderBatchKey Key;
+            std::vector<SRenderItem> Items;
+        };
+
         SInstanceRecord* ResolveInstanceRecord(const SystemInstance& instance);
         void UploadCompiledSystem(
             const SCompiledSystem& system,
@@ -185,16 +225,22 @@ namespace Elixir::Aether
 
         void UpdateBuffers(const SystemInstance& instance, const SInstanceRecord& record);
 
-        void SimulateInstance(
+        static bool IsParticleStateLayoutSupported(EParticleStateLayout layout);
+
+        std::vector<SSimulationBatch>
+        BuildSimulationBatches(const std::vector<SSubmittedSystemInstance>& instances) const;
+
+        std::vector<SRenderBatch>
+        BuildRenderBatches(const std::vector<SSubmittedSystemInstance>& instances) const;
+
+        void SimulateBatch(
             const Ref<CommandBuffer>& cmd,
-            const SystemInstance& instance,
-            const SInstanceRecord& record
+            const SSimulationBatch& batch
         );
 
-        void RenderInstance(
+        void RenderBatch(
             const Ref<CommandBuffer>& cmd,
-            const SystemInstance& instance,
-            const SInstanceRecord& record
+            const SRenderBatch& batch
         );
 
         void BarrierSchedulingBuffers(const Ref<CommandBuffer>& cmd) const;
@@ -250,6 +296,7 @@ namespace Elixir::Aether
         ParticleResourcePool m_ParticleResourcePool;
         std::unordered_map<UUID, SInstanceRecord> m_InstanceRecords;
         std::unordered_set<UUID> m_AllocationFailures;
+        std::unordered_set<UUID> m_UnsupportedParticleStateLayoutInstances;
         std::array<
             std::vector<SSystemInstanceAllocation>,
             GraphicsContext::FRAMES
