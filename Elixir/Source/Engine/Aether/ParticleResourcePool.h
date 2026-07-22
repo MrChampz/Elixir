@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Aether/System.h>
+#include <Engine/Aether/ParticleStateLayout.h>
 
 namespace Elixir::Aether
 {
@@ -26,6 +27,7 @@ namespace Elixir::Aether
     struct SSystemInstanceAllocation
     {
         uint32_t InstanceIndex = UINT32_MAX;
+        EParticleStateLayout ParticleStateLayout = EParticleStateLayout::CoreV1;
         uint32_t Generation = 1;
 
         SBufferRange Particles;
@@ -43,7 +45,10 @@ namespace Elixir::Aether
     class ParticleResourcePool final
     {
     public:
-        explicit ParticleResourcePool(const SParticlePoolLimits& limits);
+        explicit ParticleResourcePool(
+            const SParticlePoolLimits& limits,
+            const ParticleStateLayoutRegistry& layouts
+        );
 
         std::optional<SSystemInstanceAllocation> Allocate(const SCompiledSystem& system);
         void Release(const SSystemInstanceAllocation& allocation);
@@ -56,12 +61,20 @@ namespace Elixir::Aether
 
         static std::vector<SBufferRange> MakeFreeRanges(uint32_t capacity);
 
+        struct SParticleStateLayoutAllocator
+        {
+            EParticleStateLayout Key = EParticleStateLayout::CoreV1;
+            std::vector<SBufferRange> FreeParticleRanges;
+        };
+
+        std::vector<SBufferRange>* FindParticleFreeRanges(EParticleStateLayout layout);
+
         SParticlePoolLimits m_Limits;
 
         std::vector<SBufferRange> m_FreeInstanceSlots;
         std::vector<uint32_t> m_InstanceGenerations;
 
-        std::vector<SBufferRange> m_FreeParticles;
+        std::vector<SParticleStateLayoutAllocator> m_ParticleStateLayoutAllocators;
         std::vector<SBufferRange> m_FreeEmitters;
         std::vector<SBufferRange> m_FreeOps;
         std::vector<SBufferRange> m_FreeParameters;

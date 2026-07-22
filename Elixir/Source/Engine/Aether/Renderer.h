@@ -4,6 +4,7 @@
 #include <Engine/Aether/System.h>
 #include <Engine/Aether/SystemInstance.h>
 #include <Engine/Aether/ParticleResourcePool.h>
+#include <Engine/Aether/ParticleStateLayout.h>
 #include <Engine/Aether/FrameSubmission.h>
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
@@ -178,6 +179,12 @@ namespace Elixir::Aether
             SSystemInstanceAllocation Allocation;
         };
 
+        struct SParticleStateArena
+        {
+            EParticleStateLayout Key = EParticleStateLayout::CoreV1;
+            Ref<StorageBuffer> ParticleBuffer;
+        };
+
         // Frame-local, renderer-owned snapshot. It decouples batch execution
         // from m_InstanceRecords and remains valid for the complete Render().
         struct SSubmittedSystemInstance
@@ -225,7 +232,10 @@ namespace Elixir::Aether
 
         void UpdateBuffers(const SystemInstance& instance, const SInstanceRecord& record);
 
-        static bool IsParticleStateLayoutSupported(EParticleStateLayout layout);
+        SParticleStateArena* FindParticleStateArena(EParticleStateLayout layout);
+        const SParticleStateArena* FindParticleStateArena(EParticleStateLayout layout) const;
+
+        bool IsParticleStateLayoutSupported(EParticleStateLayout layout) const;
 
         std::vector<SSimulationBatch>
         BuildSimulationBatches(const std::vector<SSubmittedSystemInstance>& instances) const;
@@ -293,6 +303,7 @@ namespace Elixir::Aether
         Ref<GraphicsPipeline> m_MeshPipeline;
 
         SParticlePoolLimits m_ParticlePoolLimits;
+        ParticleStateLayoutRegistry m_ParticleStateLayouts;
         ParticleResourcePool m_ParticleResourcePool;
         std::unordered_map<UUID, SInstanceRecord> m_InstanceRecords;
         std::unordered_set<UUID> m_AllocationFailures;
@@ -302,7 +313,7 @@ namespace Elixir::Aether
             GraphicsContext::FRAMES
         > m_DeferredRetirements;
 
-        Ref<StorageBuffer> m_ParticleBuffer;
+        std::vector<SParticleStateArena> m_ParticleStateArenas;
         Ref<StorageBuffer> m_EmitterStateBuffer;
         Ref<StorageBuffer> m_SpawnRequestBuffer;
         Ref<DynamicStorageBuffer> m_TriggerTargetBuffer;

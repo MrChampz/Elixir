@@ -3,11 +3,12 @@
 
 namespace Elixir::Aether
 {
-    ParticleResourcePool::ParticleResourcePool(const SParticlePoolLimits& limits)
-      : m_Limits(limits),
+    ParticleResourcePool::ParticleResourcePool(
+        const SParticlePoolLimits& limits,
+        const ParticleStateLayoutRegistry& layouts
+    ) : m_Limits(limits),
         m_FreeInstanceSlots(MakeFreeRanges(limits.MaxSystemInstances)),
         m_InstanceGenerations(limits.MaxSystemInstances, 0),
-        m_FreeParticles(MakeFreeRanges(limits.ParticleCapacity)),
         m_FreeEmitters(MakeFreeRanges(limits.EmitterCapacity)),
         m_FreeOps(MakeFreeRanges(limits.OpCapacity)),
         m_FreeParameters(MakeFreeRanges(limits.ParameterCapacity)),
@@ -17,7 +18,16 @@ namespace Elixir::Aether
         m_FreeTriggerEvents(MakeFreeRanges(
             limits.EmitterCapacity * limits.TriggerEventCapacityPerEmitter
         )),
-        m_FreeTriggerQueueStates(MakeFreeRanges(limits.EmitterCapacity * 2)) {}
+        m_FreeTriggerQueueStates(MakeFreeRanges(limits.EmitterCapacity * 2))
+    {
+        for (const auto& descriptor : layouts.GetDescriptors())
+        {
+            m_ParticleStateLayoutAllocators.push_back({
+                .Key = descriptor.Key,
+                .FreeParticleRanges = MakeFreeRanges(descriptor.ParticleCapacity),
+            });
+        }
+    }
 
     std::optional<SSystemInstanceAllocation> ParticleResourcePool::Allocate(
         const SCompiledSystem& system
@@ -35,9 +45,14 @@ namespace Elixir::Aether
 
         SSystemInstanceAllocation allocation{};
 
-        const auto instanceSlot = AllocateRange(m_FreeInstanceSlots, 1);
+        auto* particleFreeRanges = FindParticleFreeRanges(system.ParticleStateLayout);
+        if (!particleFreeRanges)
+            return std::nullopt;
 
-        allocation.Particles = AllocateRange(m_FreeParticles, particleCount);
+        allocation.ParticleStateLayout = system.ParticleStateLayout;
+
+        const auto instanceSlot = AllocateRange(m_FreeInstanceSlots, 1);
+        allocation.Particles = AllocateRange(*particleFreeRanges, particleCount);
         allocation.Emitters = AllocateRange(m_FreeEmitters, emitterCount);
         allocation.Ops = AllocateRange(m_FreeOps, opCount);
         allocation.Parameters = AllocateRange(m_FreeParameters, parameterCount);
@@ -82,7 +97,14 @@ namespace Elixir::Aether
 
     void ParticleResourcePool::Release(const SSystemInstanceAllocation& allocation)
     {
-        ReleaseRange(m_FreeParticles, allocation.Particles);
+        auto* particleFreeRanges = FindParticleFreeRanges(allocation.ParticleStateLayout);
+        EE_CORE_ASSERT(
+            particleFreeRanges,
+            "Aether attempted to release an unknown particle state layout."
+        )
+        if (!particleFreeRanges) return;
+
+        ReleaseRange(*particleFreeRanges, allocation.Particles);
         ReleaseRange(m_FreeEmitters, allocation.Emitters);
         ReleaseRange(m_FreeOps, allocation.Ops);
         ReleaseRange(m_FreeParameters, allocation.Parameters);
@@ -157,5 +179,18 @@ namespace Elixir::Aether
             return {};
 
         return {{ 0, capacity }};
+    }
+
+    std::vector<SBufferRange>* ParticleResourcePool::FindParticleFreeRanges(
+        const EParticleStateLayout layout
+    )
+    {
+        for (auto& allocator : m_ParticleStateLayoutAllocators)
+        {
+            if (allocator.Key == layout)
+                return &allocator.FreeParticleRanges;
+        }
+
+        return nullptr;
     }
 }

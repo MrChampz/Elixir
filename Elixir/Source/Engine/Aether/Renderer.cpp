@@ -122,9 +122,11 @@ namespace Elixir::Aether
         const ShaderLoader* shaderLoader,
         const SParticlePoolLimits& limits
     ) : m_ParticlePoolLimits(limits),
-        m_ParticleResourcePool(m_ParticlePoolLimits),
+        m_ParticleStateLayouts(m_ParticlePoolLimits.ParticleCapacity),
+        m_ParticleResourcePool(m_ParticlePoolLimits, m_ParticleStateLayouts),
         m_GraphicsContext(context)
     {
+        static_assert(sizeof(SGPUParticleState) == PARTICLE_STATE_CORE_V1_STRIDE);
         EE_CORE_INFO("Initializing Aether Renderer.")
 
         Init(shaderLoader);
@@ -229,11 +231,18 @@ namespace Elixir::Aether
         for (const auto& batch : simulationBatches)
             SimulateBatch(cmd, batch);
 
-        m_ParticleBuffer->Barrier(
-            cmd,
-            EPipelineStage::VertexShader | EPipelineStage::VertexInput,
-            EPipelineAccess::ShaderRead | EPipelineAccess::VertexAttributeRead
-        );
+        for (const auto& batch : simulationBatches)
+        {
+            const auto* arena = FindParticleStateArena(batch.ParticleStateLayout);
+            EE_CORE_ASSERT(arena, "Aether particle state arena is missing.")
+            if (!arena) continue;
+
+            arena->ParticleBuffer->Barrier(
+                cmd,
+                EPipelineStage::VertexShader | EPipelineStage::VertexInput,
+                EPipelineAccess::ShaderRead | EPipelineAccess::VertexAttributeRead
+            );
+        }
 
         BeginRendering(cmd);
 
@@ -426,10 +435,21 @@ namespace Elixir::Aether
 
     void Renderer::CreateBuffers()
     {
-        m_ParticleBuffer = StorageBuffer::Create(
-            m_GraphicsContext,
-            sizeof(SGPUParticleState) * m_ParticlePoolLimits.ParticleCapacity
-        );
+        for (const auto& descriptor : m_ParticleStateLayouts.GetDescriptors())
+        {
+            m_ParticleStateArenas.push_back({
+                .Key = descriptor.Key,
+                .ParticleBuffer = StorageBuffer::Create(
+                    m_GraphicsContext,
+                    descriptor.ParticleStateStride * descriptor.ParticleCapacity
+                ),
+            });
+        }
+
+        EE_CORE_ASSERT(
+            FindParticleStateArena(EParticleStateLayout::CoreV1),
+            "Aether requires a CoreV1 particle state arena."
+        )
 
         m_EmitterStateBuffer = StorageBuffer::Create(
             m_GraphicsContext,
@@ -567,6 +587,12 @@ namespace Elixir::Aether
 
     void Renderer::BindShaderParameters()
     {
+        const auto* layoutArena = FindParticleStateArena(EParticleStateLayout::CoreV1);
+        EE_CORE_ASSERT(
+            layoutArena,
+            "Aether requires a CoreV1 particle state arena."
+        )
+
         constexpr SSchedulePushConstants schedulePushConstants{ .InstanceIndex = 0 };
 
         m_SchedulerBeginShader->SetPushConstant(
@@ -669,7 +695,7 @@ namespace Elixir::Aether
             sizeof(spawnPushConstants)
         );
 
-        m_SpawnShader->BindStorageBuffer("particles", m_ParticleBuffer);
+        m_SpawnShader->BindStorageBuffer("particles", layoutArena->ParticleBuffer);
         m_SpawnShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
         m_SpawnShader->BindStorageBuffer("emitters", m_EmitterBuffer);
         m_SpawnShader->BindStorageBuffer("spawnRequests", m_SpawnRequestBuffer);
@@ -684,7 +710,7 @@ namespace Elixir::Aether
             sizeof(updatePushConstants)
         );
 
-        m_UpdateShader->BindStorageBuffer("particles", m_ParticleBuffer);
+        m_UpdateShader->BindStorageBuffer("particles", layoutArena->ParticleBuffer);
         m_UpdateShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
         m_UpdateShader->BindStorageBuffer("emitters", m_EmitterBuffer);
         m_UpdateShader->BindStorageBuffer("ops", m_OpBuffer);
@@ -718,7 +744,7 @@ namespace Elixir::Aether
             sizeof(ribbonPushConstants)
         );
 
-        m_RibbonShader->BindStorageBuffer("particles", m_ParticleBuffer);
+        m_RibbonShader->BindStorageBuffer("particles", layoutArena->ParticleBuffer);
         m_RibbonShader->BindStorageBuffer("emitters", m_EmitterBuffer);
         m_RibbonShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
 
@@ -918,9 +944,31 @@ namespace Elixir::Aether
         );
     }
 
-    bool Renderer::IsParticleStateLayoutSupported(const EParticleStateLayout layout)
+    Renderer::SParticleStateArena* Renderer::FindParticleStateArena(EParticleStateLayout layout)
     {
-        return layout == EParticleStateLayout::CoreV1;
+        for (auto& arena : m_ParticleStateArenas)
+        {
+            if (arena.Key == layout)
+                return &arena;
+        }
+
+        return nullptr;
+    }
+
+    const Renderer::SParticleStateArena* Renderer::FindParticleStateArena(EParticleStateLayout layout) const
+    {
+        for (const auto& arena : m_ParticleStateArenas)
+        {
+            if (arena.Key == layout)
+                return &arena;
+        }
+
+        return nullptr;
+    }
+
+    bool Renderer::IsParticleStateLayoutSupported(const EParticleStateLayout layout) const
+    {
+        return FindParticleStateArena(layout) != nullptr;
     }
 
     std::vector<Renderer::SSimulationBatch> Renderer::BuildSimulationBatches(
@@ -1094,7 +1142,13 @@ namespace Elixir::Aether
 
         // Spawning
 
-        m_ParticleBuffer->Barrier(
+        const auto* arena = FindParticleStateArena(batch.ParticleStateLayout);
+        EE_CORE_ASSERT(arena, "Aether particle state arena is missing.")
+        if (!arena) return;
+
+        const auto& particleBuffer = arena->ParticleBuffer;
+
+        particleBuffer->Barrier(
             cmd,
             EPipelineStage::ComputeShader,
             EPipelineAccess::ShaderRead | EPipelineAccess::ShaderWrite
@@ -1129,7 +1183,7 @@ namespace Elixir::Aether
 
         // Updating
 
-        m_ParticleBuffer->Barrier(
+        particleBuffer->Barrier(
             cmd,
             EPipelineStage::ComputeShader,
             EPipelineAccess::ShaderRead | EPipelineAccess::ShaderWrite
@@ -1156,6 +1210,12 @@ namespace Elixir::Aether
             "Aether attempted to render an unsupported particle state layout."
         )
 
+        const auto* arena = FindParticleStateArena(batch.Key.ParticleStateLayout);
+        EE_CORE_ASSERT(arena, "Aether particle state arena is missing.")
+        if (!arena) return;
+
+        const auto& particleBuffer = arena->ParticleBuffer;
+
         switch (batch.Key.RenderMode)
         {
             case EParticleRenderMode::Mesh:
@@ -1163,7 +1223,7 @@ namespace Elixir::Aether
                 m_MeshPipeline->Bind(cmd);
                 m_MeshVertexBuffer->Bind(cmd);
                 // TODO: Enhance this api
-                m_ParticleBuffer->BindAs<VertexBuffer>(cmd, std::span<uint64_t>{}, 1, 1);
+                particleBuffer->BindAs<VertexBuffer>(cmd, std::span<uint64_t>{}, 1, 1);
 
                 for (const auto& item : batch.Items)
                 {
@@ -1199,7 +1259,7 @@ namespace Elixir::Aether
             case EParticleRenderMode::Sprite:
             {
                 m_SpritePipeline->Bind(cmd);
-                m_ParticleBuffer->BindAs<VertexBuffer>(cmd);
+                particleBuffer->BindAs<VertexBuffer>(cmd);
 
                 for (const auto& item : batch.Items)
                 {

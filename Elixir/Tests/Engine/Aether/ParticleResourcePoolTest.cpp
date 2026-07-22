@@ -40,7 +40,9 @@ namespace
 
 TEST(AetherParticleResourcePoolTest, AllocatesDisjointRangesForLiveInstances)
 {
-    ParticleResourcePool pool{ MakePoolLimits() };
+    const auto limits = MakePoolLimits();
+    const ParticleStateLayoutRegistry layouts{ limits.ParticleCapacity };
+    ParticleResourcePool pool{ limits, layouts };
 
     const auto first = pool.Allocate(MakeCompiledSystem(10, 2, 3, 4, 1));
     const auto second = pool.Allocate(MakeCompiledSystem(20, 3, 5, 6, 2));
@@ -49,6 +51,8 @@ TEST(AetherParticleResourcePoolTest, AllocatesDisjointRangesForLiveInstances)
     ASSERT_TRUE(second);
 
     EXPECT_NE(first->InstanceIndex, second->InstanceIndex);
+    EXPECT_EQ(first->ParticleStateLayout, EParticleStateLayout::CoreV1);
+    EXPECT_EQ(second->ParticleStateLayout, EParticleStateLayout::CoreV1);
     EXPECT_EQ(second->Particles.Offset, first->Particles.Count);
     EXPECT_EQ(second->Emitters.Offset, first->Emitters.Count);
     EXPECT_EQ(second->Ops.Offset, first->Ops.Count);
@@ -62,7 +66,9 @@ TEST(AetherParticleResourcePoolTest, AllocatesDisjointRangesForLiveInstances)
 
 TEST(AetherParticleResourcePoolTest, ReusesReleasedRanges)
 {
-    ParticleResourcePool pool{ MakePoolLimits() };
+    const auto limits = MakePoolLimits();
+    const ParticleStateLayoutRegistry layouts{ limits.ParticleCapacity };
+    ParticleResourcePool pool{ limits, layouts };
     const auto system = MakeCompiledSystem(10, 2, 3, 4, 1);
 
     const auto first = pool.Allocate(system);
@@ -91,7 +97,8 @@ TEST(AetherParticleResourcePoolTest, RollsBackPartialAllocationFailure)
     auto limits = MakePoolLimits();
     limits.ParticleCapacity = 4;
 
-    ParticleResourcePool pool{ limits };
+    const ParticleStateLayoutRegistry layouts{ limits.ParticleCapacity };
+    ParticleResourcePool pool{ limits, layouts };
 
     EXPECT_FALSE(pool.Allocate(MakeCompiledSystem(5, 1, 1, 1, 1)));
 
@@ -108,4 +115,16 @@ TEST(AetherParticleResourcePoolTest, RollsBackPartialAllocationFailure)
     EXPECT_EQ(allocation->SpawnRequests.Offset, 0u);
     EXPECT_EQ(allocation->TriggerEvents.Offset, 0u);
     EXPECT_EQ(allocation->TriggerQueueStates.Offset, 0u);
+}
+
+TEST(AetherParticleResourcePoolTest, RejectsAnUnregisteredParticleStateLayout)
+{
+    const auto limits = MakePoolLimits();
+    const ParticleStateLayoutRegistry layouts{ limits.ParticleCapacity };
+    ParticleResourcePool pool{ limits, layouts };
+
+    auto system = MakeCompiledSystem(4, 1, 1, 1, 1);
+    system.ParticleStateLayout = (EParticleStateLayout)1;
+
+    EXPECT_FALSE(pool.Allocate(system));
 }
