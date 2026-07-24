@@ -190,7 +190,7 @@ namespace Elixir::Aether
 
             m_UnsupportedParticleStateLayoutInstances.erase(instance->GetId());
 
-            const auto* record = ResolveInstanceRecord(*instance);
+            auto* record = ResolveInstanceRecord(*instance);
             if (!record) continue;
 
             UpdateBuffers(*instance, *record);
@@ -867,13 +867,14 @@ namespace Elixir::Aether
             return nullptr;
         }
 
-        UploadCompiledSystem(system, *replacementAllocation);
+        UploadCompiledSystem(instance, *replacementAllocation);
 
         const SInstanceRecord replacement{
             .SystemInstanceId = instance.GetId(),
             .SystemInstanceRevision = instanceRevision,
             .CompiledSystemId = system.SourceId,
             .CompilationRevision = system.CompilationRevision,
+            .ParameterRevision = instance.GetParameterRevision(),
             .Allocation = *replacementAllocation,
         };
 
@@ -895,10 +896,12 @@ namespace Elixir::Aether
     }
 
     void Renderer::UploadCompiledSystem(
-        const SCompiledSystem& system,
+        const SystemInstance& instance,
         const SSystemInstanceAllocation& allocation
     ) const
     {
+        const auto& system = instance.GetCompiledSystem();
+
         auto* emitters = (SEmitterData*)m_EmitterBuffer->Map();
         for (uint32_t i = 0; i < allocation.Emitters.Count; ++i)
         {
@@ -918,15 +921,23 @@ namespace Elixir::Aether
             );
         }
 
-        auto* parameters = (SParameterData*)m_ParameterBuffer->Map();
-        for (uint32_t i = 0; i < allocation.Parameters.Count; ++i)
-            parameters[allocation.Parameters.Offset + i] =
-                ToParameterDescription(system.Parameters[i]);
+        UploadInstanceParameters(instance, allocation);
 
         auto* targets = (STriggerTargetData*)m_TriggerTargetBuffer->Map();
         for (uint32_t i = 0; i < allocation.TriggerTargets.Count; ++i)
             targets[allocation.TriggerTargets.Offset + i] =
                 ToTriggerTargetDescription(system.TriggerTargets[i]);
+    }
+
+    void Renderer::UploadInstanceParameters(
+        const SystemInstance& instance,
+        const SSystemInstanceAllocation& allocation
+    ) const
+    {
+        auto* parameters = (SParameterData*)m_ParameterBuffer->Map();
+        for (uint32_t i = 0; i < allocation.Parameters.Count; ++i)
+            parameters[allocation.Parameters.Offset + i].Value =
+                instance.ResolveParameterValue(i);
     }
 
     void Renderer::QueueRetirement(SSystemInstanceAllocation allocation)
@@ -948,8 +959,14 @@ namespace Elixir::Aether
         retirements.clear();
     }
 
-    void Renderer::UpdateBuffers(const SystemInstance& instance, const SInstanceRecord& record)
+    void Renderer::UpdateBuffers(SystemInstance const& instance, SInstanceRecord& record)
     {
+        if (record.ParameterRevision != instance.GetParameterRevision())
+        {
+            UploadInstanceParameters(instance, record.Allocation);
+            record.ParameterRevision = instance.GetParameterRevision();
+        }
+
         const SParamsData params{
             .Time = { m_LastDeltaTimeSeconds, m_ElapsedTimeSeconds, 0.0f, 0.0f },
             .Viewport = {

@@ -44,3 +44,25 @@ TEST(AetherSystemTest, CompileResolvesTriggerEmitterByCompiledIndex)
     EXPECT_EQ(compiled.TriggerTargets[0].BurstCount, 8);
     EXPECT_FLOAT_EQ(compiled.TriggerTargets[0].DelaySeconds, 0.25f);
 }
+
+TEST(AetherSystemTest, CompileExposesOnlyAuthoredParameters)
+{
+    System system{ "Parameter contract" };
+    system.GetParameters().SetFloat("SystemRate", 4.0f);
+    system.GetCurves().SetCurve("SizeOverLife", { 0.0f, 1.0f });
+
+    auto& emitter = system.AddEmitter("Smoke", 8, 0.0f);
+    emitter.GetParameters().SetFloat4("Tint", { 1.0f, 0.5f, 0.25f, 1.0f });
+
+    const auto compiled = system.Compile();
+
+    ASSERT_EQ(compiled.ExposedParameters.size(), 2);
+    EXPECT_EQ(compiled.ExposedParameters[0].Name, "SystemRate");
+    EXPECT_EQ(compiled.ExposedParameters[0].ParameterIndex, 0);
+    EXPECT_EQ(compiled.ExposedParameters[1].Name, "Smoke.Tint");
+    EXPECT_EQ(compiled.ExposedParameters[1].ParameterIndex, 1);
+
+    ASSERT_EQ(compiled.Parameters.size(), 4);
+    EXPECT_EQ(compiled.Parameters[2].Name, "SizeOverLife:0");
+    EXPECT_EQ(compiled.Parameters[3].Name, "SizeOverLife:1");
+}

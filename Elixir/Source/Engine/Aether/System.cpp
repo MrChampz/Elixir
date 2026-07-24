@@ -44,6 +44,16 @@ namespace Elixir::Aether
             system.ColorCurves.insert(system.ColorCurves.end(), emitterColorCurves.begin(), emitterColorCurves.end());
         }
 
+        system.ExposedParameters.reserve(system.Parameters.size());
+
+        for (uint32_t i = 0; i < system.Parameters.size(); ++i)
+        {
+            system.ExposedParameters.push_back({
+                .Name = system.Parameters[i].Name,
+                .ParameterIndex = i,
+            });
+        }
+
         for (const auto& curve : system.Curves)
         {
             std::vector<float> samples = curve.Samples;

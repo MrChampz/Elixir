@@ -14,6 +14,12 @@ namespace Elixir::Aether
         float DelaySeconds = 0.0f;
     };
 
+    struct SExposedParameter
+    {
+        std::string Name;
+        uint32_t ParameterIndex = 0;
+    };
+
     struct SCompiledSystem
     {
         UUID SourceId;
@@ -28,6 +34,7 @@ namespace Elixir::Aether
         std::vector<SGPUParticleOp> Ops;
 
         std::vector<SGPUParameter> Parameters;
+        std::vector<SExposedParameter> ExposedParameters;
         std::vector<SGPUCurve> Curves;
         std::vector<SGPUColorCurve> ColorCurves;
 

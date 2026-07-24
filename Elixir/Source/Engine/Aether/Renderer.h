@@ -206,6 +206,7 @@ namespace Elixir::Aether
             uint32_t SystemInstanceRevision = 0;
             UUID CompiledSystemId;
             uint32_t CompilationRevision = 0;
+            uint32_t ParameterRevision = 0;
             SSystemInstanceAllocation Allocation;
         };
 
@@ -247,14 +248,18 @@ namespace Elixir::Aether
 
         SInstanceRecord* ResolveInstanceRecord(const SystemInstance& instance);
         void UploadCompiledSystem(
-            const SCompiledSystem& system,
+            const SystemInstance& instance,
+            const SSystemInstanceAllocation& allocation
+        ) const;
+        void UploadInstanceParameters(
+            const SystemInstance& instance,
             const SSystemInstanceAllocation& allocation
         ) const;
 
         void QueueRetirement(SSystemInstanceAllocation allocation);
         void ProcessCompletedRetirements();
 
-        void UpdateBuffers(const SystemInstance& instance, const SInstanceRecord& record);
+        void UpdateBuffers(SystemInstance const& instance, SInstanceRecord& record);
 
         SParticleStateLayoutRuntime* FindParticleStateLayoutRuntime(EParticleStateLayout layout);
         const SParticleStateLayoutRuntime* FindParticleStateLayoutRuntime(EParticleStateLayout layout) const;
