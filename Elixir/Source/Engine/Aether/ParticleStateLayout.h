@@ -14,8 +14,9 @@ namespace Elixir::Aether
         uint32_t ParticleCapacity = 0;
     };
 
-    // Immutable after renderer initialization. A later phase will register
-    // layout-specific shader and pipeline families against these descriptors.
+    // Immutable after renderer initialization. Each registered descriptor must
+    // have a corresponding renderer runtime with compatible GPU resources,
+    // shaders and pipelines.
     class ParticleStateLayoutRegistry final
     {
     public:

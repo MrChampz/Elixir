@@ -233,11 +233,11 @@ namespace Elixir::Aether
 
         for (const auto& batch : simulationBatches)
         {
-            const auto* arena = FindParticleStateArena(batch.ParticleStateLayout);
-            EE_CORE_ASSERT(arena, "Aether particle state arena is missing.")
-            if (!arena) continue;
+            const auto* runtime = FindParticleStateLayoutRuntime(batch.ParticleStateLayout);
+            EE_CORE_ASSERT(runtime, "Aether particle state layout runtime is missing.")
+            if (!runtime) continue;
 
-            arena->ParticleBuffer->Barrier(
+            runtime->ParticleStateBuffer->Barrier(
                 cmd,
                 EPipelineStage::VertexShader | EPipelineStage::VertexInput,
                 EPipelineAccess::ShaderRead | EPipelineAccess::VertexAttributeRead
@@ -299,38 +299,6 @@ namespace Elixir::Aether
             EShaderStage::Compute
         );
 
-        m_SpawnShader = shaderLoader->LoadShader(
-            "./Shaders/Aether/",
-            std::array<std::string_view, 1>{ "ParticlesSpawn" },
-            "ParticlesSpawn",
-            EShaderStage::Compute
-        );
-
-        m_UpdateShader = shaderLoader->LoadShader(
-            "./Shaders/Aether/",
-            std::array<std::string_view, 1>{ "ParticlesUpdate" },
-            "ParticlesUpdate",
-            EShaderStage::Compute
-        );
-
-        m_SpriteShader = shaderLoader->LoadShader(
-            "./Shaders/Aether/",
-            std::array<std::string_view, 1>{ "Sprite" },
-            "SpriteRenderer"
-        );
-
-        m_RibbonShader = shaderLoader->LoadShader(
-            "./Shaders/Aether/",
-            std::array<std::string_view, 1>{ "Ribbon" },
-            "RibbonRenderer"
-        );
-
-        m_MeshShader = shaderLoader->LoadShader(
-            "./Shaders/Aether/",
-            std::array<std::string_view, 1>{ "Mesh" },
-            "MeshRenderer"
-        );
-
         SPipelineCreateInfo pipelineInfo{};
         pipelineInfo.Shader = m_SchedulerBeginShader;
         m_SchedulerBeginPipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
@@ -347,11 +315,68 @@ namespace Elixir::Aether
         pipelineInfo.Shader = m_SchedulerFinalizeShader;
         m_SchedulerFinalizePipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
 
-        pipelineInfo.Shader = m_SpawnShader;
-        m_SpawnPipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
+        m_Sprites = TextureSet::Create(m_GraphicsContext);
+        m_SpriteSampler = SamplerBuilder().Build(m_GraphicsContext);
 
-        pipelineInfo.Shader = m_UpdateShader;
-        m_UpdatePipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
+        CreateCoreV1ParticleStateLayoutRuntime(shaderLoader);
+    }
+
+    void Renderer::CreateCoreV1ParticleStateLayoutRuntime(const ShaderLoader* shaderLoader)
+    {
+        EE_CORE_ASSERT(
+            m_ParticleStateLayouts.Find(EParticleStateLayout::CoreV1),
+            "Aether requires a CoreV1 particle state layout descriptor."
+        )
+
+        EE_CORE_ASSERT(
+            !FindParticleStateLayoutRuntime(EParticleStateLayout::CoreV1),
+            "Aether cannot create the CoreV1 particle state runtime twice."
+        )
+
+        m_ParticleStateLayoutRuntimes.push_back({
+            .Key = EParticleStateLayout::CoreV1,
+        });
+
+        auto& runtime = m_ParticleStateLayoutRuntimes.back();
+
+        runtime.SpawnShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/",
+            std::array<std::string_view, 1>{ "ParticlesSpawn" },
+            "ParticlesSpawn",
+            EShaderStage::Compute
+        );
+
+        runtime.UpdateShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/",
+            std::array<std::string_view, 1>{ "ParticlesUpdate" },
+            "ParticlesUpdate",
+            EShaderStage::Compute
+        );
+
+        runtime.SpriteShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/",
+            std::array<std::string_view, 1>{ "Sprite" },
+            "SpriteRenderer"
+        );
+
+        runtime.RibbonShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/",
+            std::array<std::string_view, 1>{ "Ribbon" },
+            "RibbonRenderer"
+        );
+
+        runtime.MeshShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/",
+            std::array<std::string_view, 1>{ "Mesh" },
+            "MeshRenderer"
+        );
+
+        SPipelineCreateInfo pipelineInfo{};
+        pipelineInfo.Shader = runtime.SpawnShader;
+        runtime.SpawnPipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
+
+        pipelineInfo.Shader = runtime.UpdateShader;
+        runtime.UpdatePipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
 
         const BufferLayout spriteBufferLayout({
             {
@@ -368,7 +393,7 @@ namespace Elixir::Aether
         });
 
         PipelineBuilder spriteBuilder;
-        spriteBuilder.SetShader(m_SpriteShader);
+        spriteBuilder.SetShader(runtime.SpriteShader);
         spriteBuilder.SetInputTopology(EPrimitiveTopology::TriangleList);
         spriteBuilder.SetPolygonMode(EPolygonMode::Fill);
         spriteBuilder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
@@ -377,13 +402,10 @@ namespace Elixir::Aether
         spriteBuilder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
         spriteBuilder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
         spriteBuilder.SetBufferLayout(spriteBufferLayout);
-        m_SpritePipeline = spriteBuilder.Build(m_GraphicsContext);
-
-        m_Sprites = TextureSet::Create(m_GraphicsContext);
-        m_SpriteSampler = SamplerBuilder().Build(m_GraphicsContext);
+        runtime.SpritePipeline = spriteBuilder.Build(m_GraphicsContext);
 
         PipelineBuilder ribbonBuilder;
-        ribbonBuilder.SetShader(m_RibbonShader);
+        ribbonBuilder.SetShader(runtime.RibbonShader);
         ribbonBuilder.SetInputTopology(EPrimitiveTopology::TriangleList);
         ribbonBuilder.SetPolygonMode(EPolygonMode::Fill);
         ribbonBuilder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
@@ -392,7 +414,7 @@ namespace Elixir::Aether
         ribbonBuilder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
         ribbonBuilder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
         ribbonBuilder.SetBufferLayout({});
-        m_RibbonPipeline = ribbonBuilder.Build(m_GraphicsContext);
+        runtime.RibbonPipeline = ribbonBuilder.Build(m_GraphicsContext);
 
         const BufferLayout meshBufferLayout({
             {
@@ -416,7 +438,7 @@ namespace Elixir::Aether
         });
 
         PipelineBuilder meshBuilder;
-        meshBuilder.SetShader(m_MeshShader);
+        meshBuilder.SetShader(runtime.MeshShader);
         meshBuilder.SetInputTopology(EPrimitiveTopology::TriangleList);
         meshBuilder.SetPolygonMode(EPolygonMode::Fill);
         meshBuilder.SetCullMode(ECullMode::Back, EFrontFace::CounterClockwise);
@@ -430,25 +452,35 @@ namespace Elixir::Aether
         info.DepthStencil.DepthWriteEnable = true;
         info.DepthStencil.DepthCompareOp = ECompareOp::LessOrEqual;
 
-        m_MeshPipeline = GraphicsPipeline::Create(m_GraphicsContext, info);
+        runtime.MeshPipeline = GraphicsPipeline::Create(m_GraphicsContext, info);
     }
 
     void Renderer::CreateBuffers()
     {
         for (const auto& descriptor : m_ParticleStateLayouts.GetDescriptors())
         {
-            m_ParticleStateArenas.push_back({
-                .Key = descriptor.Key,
-                .ParticleBuffer = StorageBuffer::Create(
-                    m_GraphicsContext,
-                    descriptor.ParticleStateStride * descriptor.ParticleCapacity
-                ),
-            });
+            auto* runtime = FindParticleStateLayoutRuntime(descriptor.Key);
+            EE_CORE_ASSERT(
+                runtime,
+                "Every particle state layout descriptor requires a renderer runtime."
+            )
+            if (!runtime) continue;
+
+            runtime->ParticleStateBuffer = StorageBuffer::Create(
+                m_GraphicsContext,
+                descriptor.ParticleStateStride * descriptor.ParticleCapacity
+            );
         }
 
         EE_CORE_ASSERT(
-            FindParticleStateArena(EParticleStateLayout::CoreV1),
-            "Aether requires a CoreV1 particle state arena."
+            m_ParticleStateLayoutRuntimes.size() ==
+                m_ParticleStateLayouts.GetDescriptors().size(),
+            "Every particle state layout runtime requires a registered descriptor."
+        )
+
+        EE_CORE_ASSERT(
+            FindParticleStateLayoutRuntime(EParticleStateLayout::CoreV1),
+            "Aether requires a CoreV1 particle state layout runtime."
         )
 
         m_EmitterStateBuffer = StorageBuffer::Create(
@@ -573,7 +605,14 @@ namespace Elixir::Aether
             vertices.data()
         );
 
-        m_MeshVertexBuffer->SetLayout(m_MeshPipeline->GetBufferLayout());
+        const auto* coreV1Runtime = FindParticleStateLayoutRuntime(EParticleStateLayout::CoreV1);
+        EE_CORE_ASSERT(
+            coreV1Runtime,
+            "Aether CoreV1 particle state runtime is missing."
+        )
+        if (!coreV1Runtime) return;
+
+        m_MeshVertexBuffer->SetLayout(coreV1Runtime->MeshPipeline->GetBufferLayout());
     }
 
     void Renderer::InitPerFrameData()
@@ -587,13 +626,7 @@ namespace Elixir::Aether
 
     void Renderer::BindShaderParameters()
     {
-        const auto* layoutArena = FindParticleStateArena(EParticleStateLayout::CoreV1);
-        EE_CORE_ASSERT(
-            layoutArena,
-            "Aether requires a CoreV1 particle state arena."
-        )
-
-        constexpr SSchedulePushConstants schedulePushConstants{ .InstanceIndex = 0 };
+        constexpr SSchedulePushConstants schedulePushConstants{};
 
         m_SchedulerBeginShader->SetPushConstant(
             "pc",
@@ -683,40 +716,6 @@ namespace Elixir::Aether
         m_SchedulerFinalizeShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
         m_SchedulerFinalizeShader->BindStorageBuffer("schedulerStates", m_SystemSchedulerStateBuffer);
 
-        constexpr SSpawnPushConstants spawnPushConstants
-        {
-            .InstanceIndex = 0,
-            .EmitterIndex = 0
-        };
-
-        m_SpawnShader->SetPushConstant(
-            "pc",
-            (void*)&spawnPushConstants,
-            sizeof(spawnPushConstants)
-        );
-
-        m_SpawnShader->BindStorageBuffer("particles", layoutArena->ParticleBuffer);
-        m_SpawnShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
-        m_SpawnShader->BindStorageBuffer("emitters", m_EmitterBuffer);
-        m_SpawnShader->BindStorageBuffer("spawnRequests", m_SpawnRequestBuffer);
-        m_SpawnShader->BindStorageBuffer("ops", m_OpBuffer);
-        m_SpawnShader->BindStorageBuffer("parameters", m_ParameterBuffer);
-        m_SpawnShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
-
-        constexpr SUpdatePushConstants updatePushConstants{ .InstanceIndex = 0 };
-        m_UpdateShader->SetPushConstant(
-            "pc",
-            (void*)&updatePushConstants,
-            sizeof(updatePushConstants)
-        );
-
-        m_UpdateShader->BindStorageBuffer("particles", layoutArena->ParticleBuffer);
-        m_UpdateShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
-        m_UpdateShader->BindStorageBuffer("emitters", m_EmitterBuffer);
-        m_UpdateShader->BindStorageBuffer("ops", m_OpBuffer);
-        m_UpdateShader->BindStorageBuffer("parameters", m_ParameterBuffer);
-        m_UpdateShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
-
         const auto whiteTex = Texture2D::Create(
             m_GraphicsContext,
             EImageFormat::R8G8B8A8_SRGB,
@@ -726,29 +725,73 @@ namespace Elixir::Aether
 
         m_WhiteTextureHandle = m_Sprites->AddTexture(whiteTex);
 
+        for (auto& runtime : m_ParticleStateLayoutRuntimes)
+            BindParticleStateLayoutShaderParameters(runtime);
+    }
+
+    void Renderer::BindParticleStateLayoutShaderParameters(
+        const SParticleStateLayoutRuntime& runtime
+    ) const
+    {
+        EE_CORE_ASSERT(
+            runtime.ParticleStateBuffer,
+            "Aether cannot bind and uninitialized particle state layout runtime."
+        )
+        if (!runtime.ParticleStateBuffer) return;
+
+        constexpr SSpawnPushConstants spawnPushConstants{};
+
+        runtime.SpawnShader->SetPushConstant(
+            "pc",
+            (void*)&spawnPushConstants,
+            sizeof(spawnPushConstants)
+        );
+
+        runtime.SpawnShader->BindStorageBuffer("particles", runtime.ParticleStateBuffer);
+        runtime.SpawnShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
+        runtime.SpawnShader->BindStorageBuffer("emitters", m_EmitterBuffer);
+        runtime.SpawnShader->BindStorageBuffer("spawnRequests", m_SpawnRequestBuffer);
+        runtime.SpawnShader->BindStorageBuffer("ops", m_OpBuffer);
+        runtime.SpawnShader->BindStorageBuffer("parameters", m_ParameterBuffer);
+        runtime.SpawnShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
+
+        constexpr SUpdatePushConstants updatePushConstants{};
+        runtime.UpdateShader->SetPushConstant(
+            "pc",
+            (void*)&updatePushConstants,
+            sizeof(updatePushConstants)
+        );
+
+        runtime.UpdateShader->BindStorageBuffer("particles", runtime.ParticleStateBuffer);
+        runtime.UpdateShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
+        runtime.UpdateShader->BindStorageBuffer("emitters", m_EmitterBuffer);
+        runtime.UpdateShader->BindStorageBuffer("ops", m_OpBuffer);
+        runtime.UpdateShader->BindStorageBuffer("parameters", m_ParameterBuffer);
+        runtime.UpdateShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
+
         const SSpritePushConstants spritePushConstants{ m_WhiteTextureHandle.Index };
-        m_SpriteShader->SetPushConstant(
+        runtime.SpriteShader->SetPushConstant(
             "pc",
             (void*)&spritePushConstants,
             sizeof(spritePushConstants)
         );
 
-        m_SpriteShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
-        m_SpriteShader->BindTextureSet("sprites", m_Sprites);
-        m_SpriteShader->BindSampler("spriteSampler", m_SpriteSampler);
+        runtime.SpriteShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
+        runtime.SpriteShader->BindTextureSet("sprites", m_Sprites);
+        runtime.SpriteShader->BindSampler("spriteSampler", m_SpriteSampler);
 
-        constexpr SRibbonPushConstants ribbonPushConstants{ 0 };
-        m_RibbonShader->SetPushConstant(
+        constexpr SRibbonPushConstants ribbonPushConstants{};
+        runtime.RibbonShader->SetPushConstant(
             "pc",
             (void*)&ribbonPushConstants,
             sizeof(ribbonPushConstants)
         );
 
-        m_RibbonShader->BindStorageBuffer("particles", layoutArena->ParticleBuffer);
-        m_RibbonShader->BindStorageBuffer("emitters", m_EmitterBuffer);
-        m_RibbonShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
+        runtime.RibbonShader->BindStorageBuffer("particles", runtime.ParticleStateBuffer);
+        runtime.RibbonShader->BindStorageBuffer("emitters", m_EmitterBuffer);
+        runtime.RibbonShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
 
-        m_MeshShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
+        runtime.MeshShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
     }
 
     uint32_t Renderer::ResolveSpriteIndex(const Ref<Texture2D>& texture)
@@ -944,23 +987,27 @@ namespace Elixir::Aether
         );
     }
 
-    Renderer::SParticleStateArena* Renderer::FindParticleStateArena(EParticleStateLayout layout)
+    Renderer::SParticleStateLayoutRuntime* Renderer::FindParticleStateLayoutRuntime(
+        const EParticleStateLayout layout
+    )
     {
-        for (auto& arena : m_ParticleStateArenas)
+        for (auto& runtime : m_ParticleStateLayoutRuntimes)
         {
-            if (arena.Key == layout)
-                return &arena;
+            if (runtime.Key == layout)
+                return &runtime;
         }
 
         return nullptr;
     }
 
-    const Renderer::SParticleStateArena* Renderer::FindParticleStateArena(EParticleStateLayout layout) const
+    const Renderer::SParticleStateLayoutRuntime* Renderer::FindParticleStateLayoutRuntime(
+        const EParticleStateLayout layout
+    ) const
     {
-        for (const auto& arena : m_ParticleStateArenas)
+        for (const auto& runtime : m_ParticleStateLayoutRuntimes)
         {
-            if (arena.Key == layout)
-                return &arena;
+            if (runtime.Key == layout)
+                return &runtime;
         }
 
         return nullptr;
@@ -968,7 +1015,8 @@ namespace Elixir::Aether
 
     bool Renderer::IsParticleStateLayoutSupported(const EParticleStateLayout layout) const
     {
-        return FindParticleStateArena(layout) != nullptr;
+        const auto* runtime = FindParticleStateLayoutRuntime(layout);
+        return runtime && runtime->IsReady();
     }
 
     std::vector<Renderer::SSimulationBatch> Renderer::BuildSimulationBatches(
@@ -1071,10 +1119,11 @@ namespace Elixir::Aether
 
     void Renderer::SimulateBatch(const Ref<CommandBuffer>& cmd, const SSimulationBatch& batch)
     {
-        EE_CORE_ASSERT(
-            IsParticleStateLayoutSupported(batch.ParticleStateLayout),
-            "Aether attempted to simulate an unsupported particle state layout."
-        )
+        const auto* runtime = FindParticleStateLayoutRuntime(batch.ParticleStateLayout);
+        EE_CORE_ASSERT(runtime, "Aether particle state layout runtime is missing.")
+        if (!runtime) return;
+
+        const auto& particleBuffer = runtime->ParticleStateBuffer;
 
         // Scheduling: begin
 
@@ -1142,19 +1191,13 @@ namespace Elixir::Aether
 
         // Spawning
 
-        const auto* arena = FindParticleStateArena(batch.ParticleStateLayout);
-        EE_CORE_ASSERT(arena, "Aether particle state arena is missing.")
-        if (!arena) return;
-
-        const auto& particleBuffer = arena->ParticleBuffer;
-
         particleBuffer->Barrier(
             cmd,
             EPipelineStage::ComputeShader,
             EPipelineAccess::ShaderRead | EPipelineAccess::ShaderWrite
         );
 
-        m_SpawnPipeline->Bind(cmd);
+        runtime->SpawnPipeline->Bind(cmd);
 
         for (const auto* instance : batch.Instances)
         {
@@ -1176,7 +1219,7 @@ namespace Elixir::Aether
                     .EmitterIndex = i,
                 };
 
-                m_SpawnShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
+                runtime->SpawnShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
                 cmd->Dispatch((maxParticles + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
             }
         }
@@ -1189,7 +1232,7 @@ namespace Elixir::Aether
             EPipelineAccess::ShaderRead | EPipelineAccess::ShaderWrite
         );
 
-        m_UpdatePipeline->Bind(cmd);
+        runtime->UpdatePipeline->Bind(cmd);
 
         for (const auto* instance : batch.Instances)
         {
@@ -1198,29 +1241,24 @@ namespace Elixir::Aether
                 .InstanceIndex = instance->Allocation.InstanceIndex,
             };
 
-            m_UpdateShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
+            runtime->UpdateShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
             cmd->Dispatch((instance->Allocation.Particles.Count + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
         }
     }
 
     void Renderer::RenderBatch(const Ref<CommandBuffer>& cmd, const SRenderBatch& batch)
     {
-        EE_CORE_ASSERT(
-            IsParticleStateLayoutSupported(batch.Key.ParticleStateLayout),
-            "Aether attempted to render an unsupported particle state layout."
-        )
+        const auto* runtime = FindParticleStateLayoutRuntime(batch.Key.ParticleStateLayout);
+        EE_CORE_ASSERT(runtime, "Aether particle state layout runtime is missing.")
+        if (!runtime) return;
 
-        const auto* arena = FindParticleStateArena(batch.Key.ParticleStateLayout);
-        EE_CORE_ASSERT(arena, "Aether particle state arena is missing.")
-        if (!arena) return;
-
-        const auto& particleBuffer = arena->ParticleBuffer;
+        const auto& particleBuffer = runtime->ParticleStateBuffer;
 
         switch (batch.Key.RenderMode)
         {
             case EParticleRenderMode::Mesh:
             {
-                m_MeshPipeline->Bind(cmd);
+                runtime->MeshPipeline->Bind(cmd);
                 m_MeshVertexBuffer->Bind(cmd);
                 // TODO: Enhance this api
                 particleBuffer->BindAs<VertexBuffer>(cmd, std::span<uint64_t>{}, 1, 1);
@@ -1240,7 +1278,7 @@ namespace Elixir::Aether
 
             case EParticleRenderMode::Ribbon:
             {
-                m_RibbonPipeline->Bind(cmd);
+                runtime->RibbonPipeline->Bind(cmd);
 
                 for (const auto& item : batch.Items)
                 {
@@ -1249,7 +1287,7 @@ namespace Elixir::Aether
                         .ParticleBaseOffset = item.Instance->Allocation.Particles.Offset,
                     };
 
-                    m_RibbonShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
+                    runtime->RibbonShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
                     cmd->Draw(item.Emitter->MaxParticles * 6);
                 }
 
@@ -1258,7 +1296,7 @@ namespace Elixir::Aether
 
             case EParticleRenderMode::Sprite:
             {
-                m_SpritePipeline->Bind(cmd);
+                runtime->SpritePipeline->Bind(cmd);
                 particleBuffer->BindAs<VertexBuffer>(cmd);
 
                 for (const auto& item : batch.Items)
@@ -1267,7 +1305,7 @@ namespace Elixir::Aether
                         ResolveSpriteIndex(item.Emitter->SpriteTexture)
                     };
 
-                    m_SpriteShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
+                    runtime->SpriteShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
                     cmd->Draw(
                         6,
                         item.Emitter->MaxParticles,

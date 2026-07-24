@@ -159,11 +159,41 @@ namespace Elixir::Aether
         const SParticleSubmissionMetrics& GetLastSubmissionMetrics() const;
 
       private:
+        struct SParticleStateLayoutRuntime
+        {
+            EParticleStateLayout Key = EParticleStateLayout::CoreV1;
+            Ref<StorageBuffer> ParticleStateBuffer;
+
+            Ref<Shader> SpawnShader;
+            Ref<ComputePipeline> SpawnPipeline;
+            Ref<Shader> UpdateShader;
+            Ref<ComputePipeline> UpdatePipeline;
+
+            Ref<Shader> SpriteShader;
+            Ref<GraphicsPipeline> SpritePipeline;
+            Ref<Shader> RibbonShader;
+            Ref<GraphicsPipeline> RibbonPipeline;
+            Ref<Shader> MeshShader;
+            Ref<GraphicsPipeline> MeshPipeline;
+
+            bool IsReady() const
+            {
+                return ParticleStateBuffer &&
+                    SpawnShader && SpawnPipeline &&
+                    UpdateShader && UpdatePipeline &&
+                    SpriteShader && SpritePipeline &&
+                    RibbonShader && RibbonPipeline &&
+                    MeshShader && MeshPipeline;
+            }
+        };
+
         void Init(const ShaderLoader* shaderLoader);
+        void CreateCoreV1ParticleStateLayoutRuntime(const ShaderLoader* shaderLoader);
         void CreateBuffers();
         void CreateMeshVertexBuffer();
         void InitPerFrameData();
         void BindShaderParameters();
+        void BindParticleStateLayoutShaderParameters(const SParticleStateLayoutRuntime& runtime) const;
 
         uint32_t ResolveSpriteIndex(const Ref<Texture2D>& texture);
 
@@ -177,12 +207,6 @@ namespace Elixir::Aether
             UUID CompiledSystemId;
             uint32_t CompilationRevision = 0;
             SSystemInstanceAllocation Allocation;
-        };
-
-        struct SParticleStateArena
-        {
-            EParticleStateLayout Key = EParticleStateLayout::CoreV1;
-            Ref<StorageBuffer> ParticleBuffer;
         };
 
         // Frame-local, renderer-owned snapshot. It decouples batch execution
@@ -232,8 +256,8 @@ namespace Elixir::Aether
 
         void UpdateBuffers(const SystemInstance& instance, const SInstanceRecord& record);
 
-        SParticleStateArena* FindParticleStateArena(EParticleStateLayout layout);
-        const SParticleStateArena* FindParticleStateArena(EParticleStateLayout layout) const;
+        SParticleStateLayoutRuntime* FindParticleStateLayoutRuntime(EParticleStateLayout layout);
+        const SParticleStateLayoutRuntime* FindParticleStateLayoutRuntime(EParticleStateLayout layout) const;
 
         bool IsParticleStateLayoutSupported(EParticleStateLayout layout) const;
 
@@ -290,20 +314,9 @@ namespace Elixir::Aether
         Ref<Shader> m_SchedulerFinalizeShader;
         Ref<ComputePipeline> m_SchedulerFinalizePipeline;
 
-        Ref<Shader> m_SpawnShader;
-        Ref<ComputePipeline> m_SpawnPipeline;
-        Ref<Shader> m_UpdateShader;
-        Ref<ComputePipeline> m_UpdatePipeline;
-
-        Ref<Shader> m_SpriteShader;
-        Ref<GraphicsPipeline> m_SpritePipeline;
-        Ref<Shader> m_RibbonShader;
-        Ref<GraphicsPipeline> m_RibbonPipeline;
-        Ref<Shader> m_MeshShader;
-        Ref<GraphicsPipeline> m_MeshPipeline;
-
         SParticlePoolLimits m_ParticlePoolLimits;
         ParticleStateLayoutRegistry m_ParticleStateLayouts;
+        std::vector<SParticleStateLayoutRuntime> m_ParticleStateLayoutRuntimes;
         ParticleResourcePool m_ParticleResourcePool;
         std::unordered_map<UUID, SInstanceRecord> m_InstanceRecords;
         std::unordered_set<UUID> m_AllocationFailures;
@@ -313,7 +326,6 @@ namespace Elixir::Aether
             GraphicsContext::FRAMES
         > m_DeferredRetirements;
 
-        std::vector<SParticleStateArena> m_ParticleStateArenas;
         Ref<StorageBuffer> m_EmitterStateBuffer;
         Ref<StorageBuffer> m_SpawnRequestBuffer;
         Ref<DynamicStorageBuffer> m_TriggerTargetBuffer;
