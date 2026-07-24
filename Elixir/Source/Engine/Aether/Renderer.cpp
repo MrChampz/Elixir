@@ -16,11 +16,18 @@ namespace Elixir::Aether
 
     struct SSpritePushConstants
     {
+        glm::mat4 WorldTransform{ 1.0f };
         uint32_t SpriteIndex = 0;
+    };
+
+    struct SMeshPushConstants
+    {
+        glm::mat4 WorldTransform{ 1.0f };
     };
 
     struct SRibbonPushConstants
     {
+        glm::mat4 WorldTransform{ 1.0f };
         uint32_t EmitterIndex = 0;
         uint32_t ParticleBaseOffset = 0;
     };
@@ -115,6 +122,16 @@ namespace Elixir::Aether
         }
 
         return UINT32_MAX;
+    }
+
+    glm::mat4 GetParticleRenderTransform(
+        const SCompiledEmitter& emitter,
+        const SystemInstance& instance
+    )
+    {
+        return emitter.SimulationSpace == EParticleSimulationSpace::Local
+            ? instance.GetWorldTransform()
+            : glm::mat4{ 1.0f };
     }
 
     Renderer::Renderer(
@@ -769,7 +786,9 @@ namespace Elixir::Aether
         runtime.UpdateShader->BindStorageBuffer("parameters", m_ParameterBuffer);
         runtime.UpdateShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
 
-        const SSpritePushConstants spritePushConstants{ m_WhiteTextureHandle.Index };
+        const SSpritePushConstants spritePushConstants{
+            .SpriteIndex = m_WhiteTextureHandle.Index
+        };
         runtime.SpriteShader->SetPushConstant(
             "pc",
             (void*)&spritePushConstants,
@@ -790,6 +809,13 @@ namespace Elixir::Aether
         runtime.RibbonShader->BindStorageBuffer("particles", runtime.ParticleStateBuffer);
         runtime.RibbonShader->BindStorageBuffer("emitters", m_EmitterBuffer);
         runtime.RibbonShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
+
+        constexpr SMeshPushConstants meshPushConstants{};
+        runtime.MeshShader->SetPushConstant(
+            "pc",
+            (void*)&meshPushConstants,
+            sizeof(meshPushConstants)
+        );
 
         runtime.MeshShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
     }
@@ -1282,6 +1308,11 @@ namespace Elixir::Aether
 
                 for (const auto& item : batch.Items)
                 {
+                    const SMeshPushConstants pc{
+                        .WorldTransform = GetParticleRenderTransform(*item.Emitter, *item.Instance->Instance)
+                    };
+
+                    runtime->MeshShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
                     cmd->Draw(
                         m_MeshVertexCount,
                         item.Emitter->MaxParticles,
@@ -1300,6 +1331,7 @@ namespace Elixir::Aether
                 for (const auto& item : batch.Items)
                 {
                     const SRibbonPushConstants pc{
+                        .WorldTransform = GetParticleRenderTransform(*item.Emitter, *item.Instance->Instance),
                         .EmitterIndex = item.Instance->Allocation.Emitters.Offset + item.LocalEmitterIndex,
                         .ParticleBaseOffset = item.Instance->Allocation.Particles.Offset,
                     };
@@ -1319,7 +1351,8 @@ namespace Elixir::Aether
                 for (const auto& item : batch.Items)
                 {
                     const SSpritePushConstants pc{
-                        ResolveSpriteIndex(item.Emitter->SpriteTexture)
+                        .WorldTransform = GetParticleRenderTransform(*item.Emitter, *item.Instance->Instance),
+                        .SpriteIndex = ResolveSpriteIndex(item.Emitter->SpriteTexture)
                     };
 
                     runtime->SpriteShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));

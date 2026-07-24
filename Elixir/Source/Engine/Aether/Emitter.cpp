@@ -32,9 +32,10 @@ namespace Elixir::Aether
     ) const
     {
         SCompiledEmitter emitter;
-        emitter.m_UUID = m_UUID;
+        emitter.Id = m_Id;
         emitter.Name = m_Name;
         emitter.RenderMode = m_RenderMode;
+        emitter.SimulationSpace = m_SimulationSpace;
         emitter.SpriteTexture = m_SpriteTexture;
         emitter.MaxParticles = m_MaxParticles;
         emitter.GravityScale = paramStore.GetFloat("GravityScale", 1.0f);

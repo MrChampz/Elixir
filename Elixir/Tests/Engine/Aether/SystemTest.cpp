@@ -5,6 +5,20 @@
 using namespace Elixir;
 using namespace Elixir::Aether;
 
+TEST(AetherSystemTest, CompilePreservesEmitterSimulationSpace)
+{
+    System system{ "Simulation space contract" };
+    auto& worldEmitter = system.AddEmitter("World", 8, 0.0f);
+    auto& localEmitter = system.AddEmitter("Local", 8, 0.0f);
+    localEmitter.SetSimulationSpace(EParticleSimulationSpace::Local);
+
+    const auto compiled = system.Compile();
+
+    ASSERT_EQ(compiled.Emitters.size(), 2);
+    EXPECT_EQ(compiled.Emitters[0].SimulationSpace, EParticleSimulationSpace::World);
+    EXPECT_EQ(compiled.Emitters[1].SimulationSpace, EParticleSimulationSpace::Local);
+}
+
 TEST(AetherSystemTest, CompileAssignsContiguousLocalEmitterParticleOffsets)
 {
     System system{ "Particle offset contract" };

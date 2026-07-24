@@ -44,6 +44,14 @@ cbuffer cbFrame : register(b0)
     float _Padding;
 };
 
+struct PushConstants
+{
+    float4x4 WorldTransform;
+};
+
+[[vk::push_constant]]
+PushConstants pc;
+
 struct VSInput
 {
     float3 LocalPos        : POSITION0;
@@ -94,8 +102,12 @@ VSOutput main(VSInput input)
     float rotZ = baseRotation * 1.2 + (seed * 2.3);
     float3x3 rotation = mul(RotationY(rotY), mul(RotationX(rotX), RotationZ(rotZ)));
 
-    float3 worldPos = input.PositionSize.xyz + mul(mul(rotation, input.LocalPos * scale), alive);
-    float3 worldNormal = normalize(mul(rotation, input.LocalNormal));
+    float3 localPos = input.PositionSize.xyz +
+        mul(mul(rotation, input.LocalPos * scale), alive);
+    float3 localNormal = normalize(mul(rotation, input.LocalNormal));
+
+    float3 worldPos = mul(pc.WorldTransform, float4(localPos, 1.0f)).xyz;
+    float3 worldNormal = normalize(mul((float3x3)pc.WorldTransform, localNormal));
 
     output.ClipPos = mul(ViewProj, float4(worldPos, 1.0));
     output.Color = float4(input.Color.rgb, input.Color.a * alive);

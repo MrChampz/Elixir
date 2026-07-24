@@ -10,6 +10,15 @@ cbuffer cbFrame : register(b0)
     float _Padding;
 };
 
+struct PushConstants
+{
+    float4x4 WorldTransform;
+    uint SpriteIndex;
+};
+
+[[vk::push_constant]]
+PushConstants pc;
+
 struct VSInput
 {
     float4 PositionSize    : POSITION;
@@ -27,6 +36,15 @@ struct VSOutput
     float2 TexCoord      : TEXCOORD0;
 };
 
+// TODO: TEMP approximation, replace by a better solution!
+float MaxAxisScale(float4x4 transform)
+{
+    return max(
+        length(transform[0].xyz),
+        max(length(transform[1].xyz),length(transform[2].xyz))
+    );
+}
+
 VSOutput main(VSInput input, uint vertexId : SV_VertexID)
 {
     VSOutput output;
@@ -34,9 +52,16 @@ VSOutput main(VSInput input, uint vertexId : SV_VertexID)
     // Generate quad positions using bit manipulation
     float2 normalizedPos = CalculateQuadPosition(vertexId % 6);
 
-    float size = input.PositionSize.w * max(input.Transform.y, 0.0f);
+    float size = input.PositionSize.w *
+        max(input.Transform.y, 0.0f) *
+        MaxAxisScale(pc.WorldTransform);
 
-    float3 viewPos = mul(View, float4(input.PositionSize.xyz, 1.0f)).xyz;
+    float3 worldPosition = mul(
+        pc.WorldTransform,
+        float4(input.PositionSize.xyz, 1.0f)
+    ).xyz;
+
+    float3 viewPos = mul(View, float4(worldPosition, 1.0f)).xyz;
     viewPos.xy += (normalizedPos - 0.5f) * size; // Center around origin
 
     output.ClipPos = mul(Proj, float4(viewPos, 1.0f));

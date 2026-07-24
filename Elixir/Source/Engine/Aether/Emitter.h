@@ -12,9 +12,10 @@ namespace Elixir::Aether
 
     struct SCompiledEmitter
     {
-        UUID m_UUID;
+        UUID Id;
         std::string Name;
         EParticleRenderMode RenderMode = EParticleRenderMode::Sprite;
+        EParticleSimulationSpace SimulationSpace = EParticleSimulationSpace::World;
         Ref<Texture2D> SpriteTexture;
 
         float SpawnRatePerSecond = 1.0f;
@@ -40,12 +41,12 @@ namespace Elixir::Aether
 
         bool operator==(const SCompiledEmitter& other) const noexcept
         {
-            return m_UUID == other.m_UUID;
+            return Id == other.Id;
         }
 
         auto GetHashParams() const
         {
-            return m_UUID;
+            return Id;
         }
     };
 }
@@ -91,6 +92,9 @@ namespace Elixir::Aether
 
         void SetRenderMode(const EParticleRenderMode mode) { m_RenderMode = mode; }
 
+        EParticleSimulationSpace GetSimulationSpace() const { return m_SimulationSpace; }
+        void SetSimulationSpace(const EParticleSimulationSpace space) { m_SimulationSpace = space; }
+
         void SetBurst(uint32_t count, float intervalSeconds);
 
         void SetTriggerEmitter(std::string emitterName, float delaySeconds);
@@ -124,9 +128,10 @@ namespace Elixir::Aether
         void SetSpawnRateParamName(const std::string& paramName) { m_SpawnRateParamName = paramName; }
 
       private:
-        UUID m_UUID;
+        UUID m_Id;
         std::string m_Name;
         EParticleRenderMode m_RenderMode = EParticleRenderMode::Sprite;
+        EParticleSimulationSpace m_SimulationSpace = EParticleSimulationSpace::World;
         Ref<Texture2D> m_SpriteTexture;
         uint32_t m_MaxParticles;
 
