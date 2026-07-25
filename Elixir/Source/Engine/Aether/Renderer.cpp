@@ -893,6 +893,7 @@ namespace Elixir::Aether
             return nullptr;
         }
 
+        ClearParticleAllocation(*replacementAllocation);
         UploadCompiledSystem(instance, *replacementAllocation);
 
         const SInstanceRecord replacement{
@@ -1385,5 +1386,17 @@ namespace Elixir::Aether
         m_TriggerEventBuffers[1]->Barrier(cmd, stage, access);
         m_TriggerQueueStateBuffer->Barrier(cmd, stage, access);
         m_SystemSchedulerStateBuffer->Barrier(cmd, stage, access);
+    }
+
+    void Renderer::ClearParticleAllocation(const SSystemInstanceAllocation& allocation)
+    {
+        const auto* layout = m_ParticleStateLayouts.Find(allocation.ParticleStateLayout);
+        const auto* runtime = FindParticleStateLayoutRuntime(allocation.ParticleStateLayout);
+
+        runtime->ParticleStateBuffer->Fill(
+            0,
+            int32_t(allocation.Particles.Offset * layout->ParticleStateStride),
+            allocation.Particles.Count * layout->ParticleStateStride
+        );
     }
 }

@@ -9,9 +9,8 @@
 Ref<GraphicsPipeline> pipeline;
 Scope<Aether::Renderer> m_ParticlesRenderer;
 Aether::FrameSubmission m_ParticleFrameSubmission;
-Ref<Aether::System> m_ParticleSystem;
-Ref<const Aether::SCompiledSystem> m_CompiledParticleSystem;
-Scope<Aether::SystemInstance> m_ParticleSystemInstance;
+std::array<Ref<Aether::System>, 2> m_ParticleSystems;
+std::array<Scope<Aether::SystemInstance>, 2> m_ParticleSystemInstances;
 
 Dissolve::Dissolve()
 {
@@ -60,7 +59,8 @@ Dissolve::Dissolve()
 
     m_ParticlesRenderer = CreateScope<Aether::Renderer>(m_GraphicsContext.get(), m_ShaderLoader.get());
 
-    m_ParticleSystem = Aether::LoadEffectFile("./Assets/VFX/FireAndFireworks.json");
+    m_ParticleSystems[0] = Aether::LoadEffectFile("./Assets/VFX/FireAndFireworks.json");
+    m_ParticleSystems[1] = Aether::LoadEffectFile("./Assets/VFX/RibbonVortex.json");
     // m_ParticleSystem = CreateScope<Aether::System>("Ribbon Garden");
     // m_ParticleSystem->GetParameters().SetFloat("GravityScale", 1.0f);
     //
@@ -142,8 +142,8 @@ Dissolve::Dissolve()
     // shards.AddUpdateModule<Aether::ScaleOverLife>(1.15f, 0.28f);
     // shards.AddUpdateModule<Aether::KillOutsideBounds>(glm::vec3{ -1.45f, -1.2f, -1.45f }, glm::vec3{ 1.45f, 1.35f, 1.45f });
 
-    m_CompiledParticleSystem = CreateRef<Aether::SCompiledSystem>(m_ParticleSystem->Compile());
-    m_ParticleSystemInstance = CreateScope<Aether::SystemInstance>(m_CompiledParticleSystem);
+    m_ParticleSystemInstances[0] = CreateScope<Aether::SystemInstance>(CreateRef<Aether::SCompiledSystem>(m_ParticleSystems[0]->Compile()));
+    m_ParticleSystemInstances[1] = CreateScope<Aether::SystemInstance>(CreateRef<Aether::SCompiledSystem>(m_ParticleSystems[1]->Compile()));
 
     m_GraphicsContext->SetClearColor({ 0.015f, 0.025f, 0.06f, 1.0f });
 }
@@ -175,10 +175,12 @@ void Dissolve::OnRender(const Timestep frameTime)
     //DrawGeometry();
 
     m_ParticleFrameSubmission.Reset();
-    EE_CORE_ASSERT(
-        m_ParticleFrameSubmission.Submit(*m_ParticleSystemInstance),
-        "The particle system instance was submitted more than once."
-    )
+
+    bool submitted = m_ParticleFrameSubmission.Submit(*m_ParticleSystemInstances[0]);
+    EE_CORE_ASSERT(submitted, "The particle system instance was submitted more than once.")
+
+    submitted = m_ParticleFrameSubmission.Submit(*m_ParticleSystemInstances[1]);
+    EE_CORE_ASSERT(submitted, "The particle system instance was submitted more than once.")
 
     m_ParticlesRenderer->Render(m_ParticleFrameSubmission, m_CameraController->GetCamera());
     const auto& metrics = m_ParticlesRenderer->GetLastSubmissionMetrics();

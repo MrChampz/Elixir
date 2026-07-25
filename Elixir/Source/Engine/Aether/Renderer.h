@@ -283,6 +283,7 @@ namespace Elixir::Aether
         );
 
         void BarrierSchedulingBuffers(const Ref<CommandBuffer>& cmd) const;
+        void ClearParticleAllocation(const SSystemInstanceAllocation& allocation);
 
         SFrameData m_FrameData{};
         Ref<UniformBuffer> m_FrameConstantBuffer;
