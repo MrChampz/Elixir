@@ -10,6 +10,10 @@ namespace Elixir::Aether
     {
     public:
         explicit SystemInstance(Ref<const SCompiledSystem> compiledSystem);
+        SystemInstance(const SystemInstance&) = delete;
+        SystemInstance& operator=(const SystemInstance&) = delete;
+        SystemInstance(SystemInstance&&) = delete;
+        SystemInstance& operator=(SystemInstance&&) = delete;
 
         const UUID& GetId() const { return m_Id; }
 
