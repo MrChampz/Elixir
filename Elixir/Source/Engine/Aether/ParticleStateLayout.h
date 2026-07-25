@@ -17,7 +17,7 @@ namespace Elixir::Aether
     // Immutable after renderer initialization. Each registered descriptor must
     // have a corresponding renderer runtime with compatible GPU resources,
     // shaders and pipelines.
-    class ParticleStateLayoutRegistry final
+    class ELIXIR_API ParticleStateLayoutRegistry final
     {
     public:
         explicit ParticleStateLayoutRegistry(uint32_t particleCapacity);

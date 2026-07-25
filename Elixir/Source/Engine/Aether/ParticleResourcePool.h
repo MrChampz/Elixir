@@ -42,7 +42,7 @@ namespace Elixir::Aether
         SBufferRange TriggerQueueStates;
     };
 
-    class ParticleResourcePool final
+    class ELIXIR_API ParticleResourcePool final
     {
     public:
         explicit ParticleResourcePool(
