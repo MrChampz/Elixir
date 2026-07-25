@@ -37,12 +37,16 @@ namespace Elixir
             return os;
         }
 
+        std::size_t GetHashParams() const;
+
       private:
         Scope<uuids::uuid> m_UUID;
-
         static uuids::uuid_random_generator s_Generator;
     };
+
 }
+
+GENERATE_HASH_FUNCTION(Elixir::UUID)
 
 /**
  * Formatter for seamless UUID output in the logging system.

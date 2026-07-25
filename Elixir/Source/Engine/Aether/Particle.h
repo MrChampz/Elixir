@@ -22,17 +22,23 @@ namespace Elixir::Aether
         Temp3,
     };
 
-    struct SParticle
+    enum class EParticleRenderMode : uint8_t
     {
-        glm::vec3 Position;
-        float Rotation = 0.0f;
-        float Scale = 1.0f;
-        glm::vec3 Velocity;
-        glm::vec4 Color{1.0f, 1.0f, 1.0f, 1.0f};
-        float Lifetime = 1.0f;
-        float Age = 0.0f;
-        float Size = 4.0f;
-        bool Alive = false;
-        uint32_t RibbonId = 0;
+        Sprite = 0,
+        Ribbon = 1,
+        Mesh   = 2
+    };
+
+    enum class EParticleSimulationSpace : uint8_t
+    {
+        World = 0,
+        Local = 1,
+    };
+
+    // CoreV1 is byte-for-byte compatible with the current SGPUParticleState.
+    // Future pool arenas and shader permutations will be selected from this key.
+    enum class EParticleStateLayout : uint8_t
+    {
+        CoreV1 = 0
     };
 }

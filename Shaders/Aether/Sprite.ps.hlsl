@@ -5,12 +5,13 @@ Texture2D sprites[] : register(t0);
 [[vk::binding(1, 0)]]
 SamplerState spriteSampler : register(s0);
 
-struct SpritePushConstants
+struct PushConstants
 {
+    float4x4 WorldTransform;
     uint SpriteIndex;
 };
 [[vk::push_constant]]
-SpritePushConstants pc;
+PushConstants pc;
 
 struct PSInput
 {

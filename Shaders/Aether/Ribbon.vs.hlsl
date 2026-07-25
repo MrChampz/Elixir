@@ -34,7 +34,9 @@ cbuffer cbFrame : register(b0)
 
 struct PushConstants
 {
+    float4x4 WorldTransform;
     uint EmitterIndex;
+    uint ParticleBaseOffset;
 };
 
 [[vk::push_constant]]
@@ -62,6 +64,15 @@ VSOutput EmptyVertex()
     return output;
 }
 
+// TODO: TEMP approximation, replace by a better solution!
+float MaxAxisScale(float4x4 transform)
+{
+    return max(
+        length(transform[0].xyz),
+        max(length(transform[1].xyz), length(transform[2].xyz))
+    );
+}
+
 VSOutput main(uint vertexId : SV_VertexID)
 {
     Emitter emitter = emitters[pc.EmitterIndex];
@@ -78,15 +89,39 @@ VSOutput main(uint vertexId : SV_VertexID)
     ParticleState endParticle;
     uint endLocalIndex;
 
-    if (!TryBuildSegment(segmentIndex, emitter, startParticle, endParticle, endLocalIndex))
+    if (!TryBuildSegment(
+        segmentIndex,
+        pc.ParticleBaseOffset,
+        emitter,
+        startParticle,
+        endParticle,
+        endLocalIndex
+    ))
         return EmptyVertex();
+
+    float3x3 worldLinearTransform = (float3x3)pc.WorldTransform;
+
+    startParticle.PositionSize.xyz =
+        mul(pc.WorldTransform, float4(startParticle.PositionSize.xyz, 1.0f)).xyz;
+    startParticle.VelocityAge.xyz =
+        mul(worldLinearTransform, startParticle.VelocityAge.xyz);
+    startParticle.TangentRibbonId.xyz =
+        mul(worldLinearTransform, startParticle.TangentRibbonId.xyz);
+
+    endParticle.PositionSize.xyz =
+        mul(pc.WorldTransform, float4(endParticle.PositionSize.xyz, 1.0f)).xyz;
+    endParticle.VelocityAge.xyz =
+        mul(worldLinearTransform, endParticle.VelocityAge.xyz);
+    endParticle.TangentRibbonId.xyz =
+        mul(worldLinearTransform, endParticle.TangentRibbonId.xyz);
 
     float3 p0 = startParticle.PositionSize.xyz;
     float3 p1 = endParticle.PositionSize.xyz;
     float scale0 = max(startParticle.Transform.y, 0.0);
     float scale1 = max(endParticle.Transform.y, 0.0);
-    float width0 = max(startParticle.PositionSize.w * scale0 * RIBBON_WORLD_SIZE_SCALE, 0.0001);
-    float width1 = max(endParticle.PositionSize.w * scale1 * RIBBON_WORLD_SIZE_SCALE, 0.0001);
+    float transformScale = MaxAxisScale(pc.WorldTransform);
+    float width0 = max(startParticle.PositionSize.w * scale0 * transformScale * RIBBON_WORLD_SIZE_SCALE, 0.0001);
+    float width1 = max(endParticle.PositionSize.w * scale1 * transformScale * RIBBON_WORLD_SIZE_SCALE, 0.0001);
     float3 segmentSide = BuildSegmentSide(p0, p1, startParticle, endParticle);
     float3 startSide = BuildParticleSide(startParticle, segmentSide);
     float3 endSide = BuildParticleSide(endParticle, segmentSide);

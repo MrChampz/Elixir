@@ -10,18 +10,12 @@ namespace Elixir::Aether
 {
     class ParameterStore;
 
-    enum class EParticleRenderMode : uint8_t
+    struct SCompiledEmitter
     {
-        Sprite = 0,
-        Ribbon = 1,
-        Mesh   = 2
-    };
-
-    struct SGPUEmitter
-    {
-        UUID m_UUID;
+        UUID Id;
         std::string Name;
         EParticleRenderMode RenderMode = EParticleRenderMode::Sprite;
+        EParticleSimulationSpace SimulationSpace = EParticleSimulationSpace::World;
         Ref<Texture2D> SpriteTexture;
 
         float SpawnRatePerSecond = 1.0f;
@@ -29,29 +23,35 @@ namespace Elixir::Aether
         float BurstIntervalSeconds = 0.0f;
         int32_t TriggerSourceEmitterIndex = -1;
         float TriggerDelaySeconds = 0.0f;
+        uint32_t TriggerTargetOffset = 0;
+        uint32_t TriggerTargetCount = 0;
+        bool IsTriggerDriven = false;
 
         float GravityScale = 1.0f;
 
-        uint32_t ParticleOffset = 0u;
+        // Relative to the beginning of this compiled system. It is not a
+        // physical address in a shared GPU particle pool.
+        uint32_t LocalParticleOffset = 0;
+
         uint32_t MaxParticles = 0u;
         uint32_t SpawnOpOffset = 0u;
         uint32_t SpawnOpCount = 0u;
         uint32_t UpdateOpOffset = 0u;
         uint32_t UpdateOpCount = 0u;
 
-        bool operator==(const SGPUEmitter& other) const noexcept
+        bool operator==(const SCompiledEmitter& other) const noexcept
         {
-            return m_UUID == other.m_UUID;
+            return Id == other.Id;
         }
 
         auto GetHashParams() const
         {
-            return m_UUID;
+            return Id;
         }
     };
 }
 
-GENERATE_HASH_FUNCTION(Elixir::Aether::SGPUEmitter)
+GENERATE_HASH_FUNCTION(Elixir::Aether::SCompiledEmitter)
 
 namespace Elixir::Aether
 {
@@ -92,11 +92,14 @@ namespace Elixir::Aether
 
         void SetRenderMode(const EParticleRenderMode mode) { m_RenderMode = mode; }
 
+        EParticleSimulationSpace GetSimulationSpace() const { return m_SimulationSpace; }
+        void SetSimulationSpace(const EParticleSimulationSpace space) { m_SimulationSpace = space; }
+
         void SetBurst(uint32_t count, float intervalSeconds);
 
         void SetTriggerEmitter(std::string emitterName, float delaySeconds);
 
-        SGPUEmitter Build(
+        SCompiledEmitter Compile(
             const ParameterStore& paramStore,
             const std::vector<SGPUParameter>& params,
             std::vector<SGPUParticleOp>& ops
@@ -125,9 +128,10 @@ namespace Elixir::Aether
         void SetSpawnRateParamName(const std::string& paramName) { m_SpawnRateParamName = paramName; }
 
       private:
-        UUID m_UUID;
+        UUID m_Id;
         std::string m_Name;
         EParticleRenderMode m_RenderMode = EParticleRenderMode::Sprite;
+        EParticleSimulationSpace m_SimulationSpace = EParticleSimulationSpace::World;
         Ref<Texture2D> m_SpriteTexture;
         uint32_t m_MaxParticles;
 

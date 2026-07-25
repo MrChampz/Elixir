@@ -3,7 +3,6 @@
 
 namespace Elixir::Aether
 {
-    struct SParticle;
     class ParameterStore;
 
     enum class EParticleOp : uint32_t

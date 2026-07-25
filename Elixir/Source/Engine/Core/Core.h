@@ -50,19 +50,19 @@
 #define EE_BIND_EVENT_FN_STATIC(fn) std::bind(&fn, std::placeholders::_1)
 
 #define GENERATE_ENUM_CLASS_OPERATORS(EnumClass)                                    \
-inline bool operator&(EnumClass lhs, EnumClass rhs)                                 \
+constexpr bool operator&(EnumClass lhs, EnumClass rhs)                              \
 {                                                                                   \
 	using T = std::underlying_type_t<EnumClass>;                                    \
     return (static_cast<T>(lhs) & static_cast<T>(rhs)) ==  static_cast<T>(rhs);     \
 }                                                                                   \
                                                                                     \
-inline EnumClass operator|(EnumClass lhs, EnumClass rhs)							\
+constexpr EnumClass operator|(EnumClass lhs, EnumClass rhs)							\
 {																					\
 	using T = std::underlying_type_t<EnumClass>; 								    \
     return static_cast<EnumClass>(static_cast<T>(lhs) | static_cast<T>(rhs));       \
 }																					\
                                                                                     \
-inline EnumClass& operator|=(EnumClass& lhs, EnumClass rhs)							\
+constexpr EnumClass& operator|=(EnumClass& lhs, EnumClass rhs)					    \
 {																					\
 	lhs = lhs | rhs;													            \
 	return lhs;															            \
@@ -129,19 +129,26 @@ namespace Elixir
             : std::true_type {};
 
         template <typename T>
+        std::size_t Hash(const T& value)
+        {
+            return std::hash<T>{}(value);
+        }
+
+        template <typename T>
         std::size_t HashValue(const T& value)
         {
             if constexpr (requires { std::hash<T>{}(value); })
             {
-                return std::hash<T>{}(value);
+                return Hash<T>(value);
             }
             else if constexpr (HasToString<T>::value)
             {
-                return std::hash<std::string>{}(value.ToString());
+                return Hash<std::string>(value.ToString());
             }
             else
             {
                 static_assert(sizeof(T) == 0, "Type is not hashable and has no ToString()");
+                return 0;
             }
         }
 

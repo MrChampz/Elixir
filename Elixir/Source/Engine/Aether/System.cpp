@@ -15,9 +15,11 @@ namespace Elixir::Aether
         return *m_Emitters.back();
     }
 
-    SGPUSystem System::Build() const
+    SCompiledSystem System::Compile() const
     {
-        SGPUSystem system;
+        SCompiledSystem system;
+        system.SourceId = m_UUID;
+        system.CompilationRevision = ++m_CompilationRevision;
         system.Name = m_Name;
 
         system.Parameters = m_Parameters.Compile();
@@ -42,6 +44,16 @@ namespace Elixir::Aether
             system.ColorCurves.insert(system.ColorCurves.end(), emitterColorCurves.begin(), emitterColorCurves.end());
         }
 
+        system.ExposedParameters.reserve(system.Parameters.size());
+
+        for (uint32_t i = 0; i < system.Parameters.size(); ++i)
+        {
+            system.ExposedParameters.push_back({
+                .Name = system.Parameters[i].Name,
+                .ParameterIndex = i,
+            });
+        }
+
         for (const auto& curve : system.Curves)
         {
             std::vector<float> samples = curve.Samples;
@@ -63,42 +75,67 @@ namespace Elixir::Aether
                 system.Parameters.push_back({ curve.Name + ":" + std::to_string(i), baked[i] });
         }
 
-        uint32_t particleOffset = 0;
+        uint32_t localParticleOffset = 0;
         system.Emitters.reserve(m_Emitters.size());
 
         for (const auto& emitter : m_Emitters)
         {
-            auto desc = emitter->Build(m_Parameters, system.Parameters, system.Ops);
-            desc.ParticleOffset = particleOffset;
+            auto compiled = emitter->Compile(m_Parameters, system.Parameters, system.Ops);
+            compiled.LocalParticleOffset = localParticleOffset;
 
-            particleOffset += desc.MaxParticles;
-            system.TotalMaxParticles += desc.MaxParticles;
+            localParticleOffset += compiled.MaxParticles;
+            system.TotalMaxParticles += compiled.MaxParticles;
 
-            system.Emitters.push_back(desc);
+            system.Emitters.push_back(compiled);
         }
 
-        for (std::size_t i = 0; i < m_Emitters.size(); ++i)
+        std::vector<std::vector<SCompiledTriggerTarget>> targetsBySource(system.Emitters.size());
+
+        for (std::size_t targetIndex = 0; targetIndex < m_Emitters.size(); ++targetIndex)
         {
-            const auto& emitter = m_Emitters[i];
+            const auto& emitter = m_Emitters[targetIndex];
 
             const auto& name = emitter->GetTriggerEmitterName();
             if (name.empty()) continue;
 
-            auto found = std::ranges::find_if(system.Emitters, [&name](const SGPUEmitter& e)
-                {
-                    return e.Name == name;
-                }
-            );
+            auto found = std::ranges::find_if(system.Emitters, [&name](const SCompiledEmitter& e)
+            {
+                return e.Name == name;
+            });
 
             if (found != system.Emitters.end())
             {
-                auto index = std::distance(system.Emitters.begin(), found);
-                system.Emitters[i].TriggerSourceEmitterIndex = (int32_t)index;
+                const auto sourceIndex = (uint32_t)std::distance(system.Emitters.begin(), found);
+
+                auto& target = system.Emitters[targetIndex];
+                target.TriggerSourceEmitterIndex = (int32_t)sourceIndex;
+                target.IsTriggerDriven = true;
+
+                targetsBySource[sourceIndex].push_back({
+                    .TargetEmitterIndex = (uint32_t)targetIndex,
+                    .BurstCount = target.BurstCount,
+                    .DelaySeconds = target.TriggerDelaySeconds,
+                });
             }
             else
             {
                 EE_CORE_ERROR("Trigger source emitter '{}' not found for emitter '{}'.", name, emitter->GetName());
             }
+        }
+
+        for (uint32_t sourceIndex = 0; sourceIndex < system.Emitters.size(); ++sourceIndex)
+        {
+            auto& source = system.Emitters[sourceIndex];
+            const auto& targets = targetsBySource[sourceIndex];
+
+            source.TriggerTargetOffset = (uint32_t)system.TriggerTargets.size();
+            source.TriggerTargetCount = (uint32_t)targets.size();
+
+            system.TriggerTargets.insert(
+                system.TriggerTargets.end(),
+                targets.begin(),
+                targets.end()
+            );
         }
 
         return system;

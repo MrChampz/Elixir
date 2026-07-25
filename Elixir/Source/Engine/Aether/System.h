@@ -7,14 +7,34 @@
 
 namespace Elixir::Aether
 {
-    struct SGPUSystem
+    struct SCompiledTriggerTarget
+    {
+        uint32_t TargetEmitterIndex = 0;
+        uint32_t BurstCount = 0;
+        float DelaySeconds = 0.0f;
+    };
+
+    struct SExposedParameter
     {
         std::string Name;
+        uint32_t ParameterIndex = 0;
+    };
 
-        std::vector<SGPUEmitter> Emitters;
+    struct SCompiledSystem
+    {
+        UUID SourceId;
+        uint32_t CompilationRevision = 0;
+
+        std::string Name;
+        EParticleStateLayout ParticleStateLayout = EParticleStateLayout::CoreV1;
+
+        std::vector<SCompiledEmitter> Emitters;
+        std::vector<SCompiledTriggerTarget> TriggerTargets;
+
         std::vector<SGPUParticleOp> Ops;
 
         std::vector<SGPUParameter> Parameters;
+        std::vector<SExposedParameter> ExposedParameters;
         std::vector<SGPUCurve> Curves;
         std::vector<SGPUColorCurve> ColorCurves;
 
@@ -36,13 +56,16 @@ namespace Elixir::Aether
 
         Emitter& AddEmitter(const std::string& name, uint32_t maxParticles, float spawnRate);
 
-        SGPUSystem Build() const;
+        SCompiledSystem Compile() const;
 
         ParameterStore& GetParameters() { return m_Parameters; }
         CurveStore& GetCurves() { return m_Curves; }
         ColorCurveStore& GetColorCurves() { return m_ColorCurves; }
 
       private:
+        UUID m_UUID;
+        mutable uint32_t m_CompilationRevision = 0;
+
         std::string m_Name;
 
         ParameterStore m_Parameters;

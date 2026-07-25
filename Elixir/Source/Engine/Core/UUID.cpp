@@ -17,7 +17,7 @@ namespace Elixir
 
     UUID::UUID(const UUID& other)
     {
-        EE_CORE_ASSERT(other.m_UUID, "Invalid source UUID!");
+        EE_CORE_ASSERT(other.m_UUID, "Invalid UUID!");
         m_UUID = CreateScope<uuid>(*other.m_UUID);
     }
 
@@ -27,7 +27,7 @@ namespace Elixir
 
     UUID& UUID::operator=(const UUID& other)
     {
-        EE_CORE_ASSERT(other.m_UUID, "Invalid source UUID!");
+        EE_CORE_ASSERT(other.m_UUID, "Invalid UUID!")
 
         if (this == &other) return *this;
 
@@ -45,5 +45,11 @@ namespace Elixir
     bool UUID::operator==(const UUID& other) const
     {
         return *m_UUID == *other.m_UUID;
+    }
+
+    std::size_t UUID::GetHashParams() const
+    {
+        EE_CORE_ASSERT(m_UUID, "Invalid UUID!")
+        return Hash::Hash<uuid>(*m_UUID);
     }
 }
