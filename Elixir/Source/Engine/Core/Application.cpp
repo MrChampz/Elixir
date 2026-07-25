@@ -1,4 +1,3 @@
-#include "epch.h"
 #include "Application.h"
 
 #include "Engine/GUI/Button.h"
@@ -122,7 +121,7 @@ namespace Elixir
             .SetPosition({ 10, 10 })
             .SetSize({ 280, 24 });
 
-        m_GUIManager->SetRoot(panel);
+        //m_GUIManager->SetRoot(panel);
     }
 
     Application::~Application()
