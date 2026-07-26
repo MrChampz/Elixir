@@ -87,8 +87,8 @@ float3 SampleTex(uint index, float2 uv)
 
 float2 DirToEquirect(float3 dir)
 {
-    float u = atan2(d.z, d.x) * 0.15915494f + 0.5f;
-    float v = acos(clamp(d.y, -1.0f, 1.0f)) * 0.31830989f;
+    float u = atan2(dir.z, dir.x) * 0.15915494f + 0.5f;
+    float v = acos(clamp(dir.y, -1.0f, 1.0f)) * 0.31830989f;
     return float2(u, v);
 }
 
@@ -119,7 +119,7 @@ float4 main(PSInput input) : SV_Target0
     float3 N = normalize(input.Normal);
     if (!input.FrontFace)
         N = -N;
-    float V = normalize(CameraPos - input.WorldPos);
+    float3 V = normalize(CameraPos - input.WorldPos);
 
     // Defaults; the graph overrides whichever channels it drives.
     Surface surface;
@@ -153,5 +153,5 @@ float4 main(PSInput input) : SV_Target0
     // Tone mapping
     color = ACESFilm(color);
 
-    return (color, 1.0f);
+    return float4(color, 1.0f);
 }
