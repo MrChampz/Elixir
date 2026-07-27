@@ -70,6 +70,8 @@ namespace Elixir::Vulkan
         Ref<CommandBuffer> GetUploadCommandBuffer() const override;
         void EnqueueSecondaryCommandBuffer(const Ref<CommandBuffer>& cmd) const override;
 
+        void WaitDeviceIdle() const override;
+
         Extent3D GetSwapchainExtent() const override { return m_SwapchainExtent;}
 
         SFrameData& GetCurrentFrame() { return m_Frames[GetFrameIndex()]; }
@@ -103,8 +105,7 @@ namespace Elixir::Vulkan
 
         void CreateRenderTargets() override;
 
-        void WaitDeviceIdle() const;
-        void WaitForAllFrames();
+        void ResetFrameUsageState();
 
         bool Prepare();
         void Submit();

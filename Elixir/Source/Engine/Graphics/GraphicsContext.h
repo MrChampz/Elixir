@@ -56,6 +56,11 @@ namespace Elixir
         virtual Ref<CommandBuffer> GetUploadCommandBuffer() const = 0;
         virtual void EnqueueSecondaryCommandBuffer(const Ref<CommandBuffer>& cmd) const = 0;
 
+        /**
+         * Block until the GPU has finished all submitted work.
+         */
+        virtual void WaitDeviceIdle() const {}
+
         [[nodiscard]] EGraphicsAPI GetAPI() const { return m_API; }
 
         const Window* GetWindow() const { return m_Window; }
