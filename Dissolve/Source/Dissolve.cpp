@@ -14,7 +14,8 @@ Aether::FrameSubmission m_ParticleFrameSubmission;
 std::array<Ref<Aether::System>, 2> m_ParticleSystems;
 std::array<Scope<Aether::SystemInstance>, 2> m_ParticleSystemInstances;
 
-Ref<Shader> graphShader;
+Ref<Material> graphMaterial;
+Ref<const SCompiledMaterial> compiledGraphMaterial;
 
 Dissolve::Dissolve()
 {
@@ -84,11 +85,18 @@ Dissolve::Dissolve()
         metallic.ConstantValue = { 0.9f, 0.0f, 0.0f, 0.0f };
         graph.SetChannel(EMaterialChannel::Metallic, graph.AddNode(metallic));
 
-        graphShader = MaterialCompiler::Compile(m_ShaderLoader.get(), graph);
-        if (graphShader)
+        graphMaterial = CreateRef<Material>("DissolveGraph");
+        graphMaterial->SetGraph(std::move(graph));
+
+        const auto result = MaterialCompiler::Compile(m_ShaderLoader.get(), *graphMaterial);
+
+        if (result)
+        {
+            compiledGraphMaterial = result.Material;
             EE_CORE_INFO("Node-graph material compiled and loaded successfully.")
+        }
         else
-            EE_CORE_ERROR("Node-graph material compilation FAILED.")
+            EE_CORE_ERROR("Node-graph material compilation failed: {}", result.Diagnostics)
     }
 
     m_GraphicsContext->SetClearColor({ 0.015f, 0.025f, 0.06f, 1.0f });
