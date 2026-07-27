@@ -3,9 +3,9 @@
 
 namespace Elixir
 {
-    void MaterialInstance::SetScalar(const std::string& name, const float value)
+    bool MaterialInstance::SetScalar(const std::string& name, const float value)
     {
-        m_Overrides[name] = SMaterialParam::MakeScalar(value);
+        return SetOverride(name, SMaterialParam::MakeScalar(value));
     }
 
     float MaterialInstance::GetScalar(const std::string& name) const
@@ -14,9 +14,9 @@ namespace Elixir
         return param ? param->Scalar : 0.0f;
     }
 
-    void MaterialInstance::SetVector(const std::string& name, const glm::vec4& value)
+    bool MaterialInstance::SetVector(const std::string& name, const glm::vec4& value)
     {
-        m_Overrides[name] = SMaterialParam::MakeVector(value);
+        return SetOverride(name, SMaterialParam::MakeVector(value));
     }
 
     glm::vec4 MaterialInstance::GetVector(const std::string& name) const
@@ -25,15 +25,26 @@ namespace Elixir
         return param ? param->Vector : glm::vec4(0.0f);
     }
 
-    void MaterialInstance::SetTexture(const std::string& name, const Ref<Texture>& texture)
+    bool MaterialInstance::SetTexture(const std::string& name, const Ref<Texture>& texture)
     {
-        m_Overrides[name] = SMaterialParam::MakeTexture(texture);
+        return SetOverride(name, SMaterialParam::MakeTexture(texture));
     }
 
     Ref<Texture> MaterialInstance::GetTexture(const std::string& name) const
     {
         const auto* param = Resolve(name);
         return param ? param->Texture : nullptr;
+    }
+
+    bool MaterialInstance::SetOverride(const std::string& name, const SMaterialParam& value)
+    {
+        if (!m_Parent || !m_Parent->IsParameterValueCompatible(name, value))
+            return false;
+
+        m_Overrides[name] = value;
+        ++m_Revision;
+        
+        return true;
     }
 
     const SMaterialParam* MaterialInstance::Resolve(const std::string& name) const

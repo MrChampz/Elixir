@@ -1,10 +1,16 @@
 #pragma once
 
+#include <Engine/Material/MaterialGraph.h>
 #include <Engine/Graphics/Texture.h>
 
 namespace Elixir
 {
-    enum class EMaterialParamType : uint8_t
+    enum class EMaterialParameterKind : uint8_t
+    {
+        Value, Texture
+    };
+
+    enum class EMaterialParameterType : uint8_t
     {
         Scalar, Vector, Texture
     };
@@ -13,7 +19,7 @@ namespace Elixir
     // vector, or a texture; the active kind is given by Type.
     struct SMaterialParam
     {
-        EMaterialParamType Type = EMaterialParamType::Scalar;
+        EMaterialParameterType Type = EMaterialParameterType::Scalar;
         float Scalar = 0.0f;
         glm::vec4 Vector{ 0.0f };
         Ref<Texture> Texture;
@@ -21,7 +27,7 @@ namespace Elixir
         static SMaterialParam MakeScalar(const float value)
         {
             SMaterialParam param;
-            param.Type = EMaterialParamType::Scalar;
+            param.Type = EMaterialParameterType::Scalar;
             param.Scalar = value;
             return param;
         }
@@ -29,7 +35,7 @@ namespace Elixir
         static SMaterialParam MakeVector(const glm::vec4& value)
         {
             SMaterialParam param;
-            param.Type = EMaterialParamType::Vector;
+            param.Type = EMaterialParameterType::Vector;
             param.Vector = value;
             return param;
         }
@@ -37,10 +43,17 @@ namespace Elixir
         static SMaterialParam MakeTexture(const Ref<Elixir::Texture>& texture)
         {
             SMaterialParam param;
-            param.Type = EMaterialParamType::Texture;
+            param.Type = EMaterialParameterType::Texture;
             param.Texture = texture;
             return param;
         }
+    };
+
+    struct SMaterialParameterDefinition
+    {
+        EMaterialParameterKind Kind = EMaterialParameterKind::Value;
+        EMaterialGraphValueType ValueType = EMaterialGraphValueType::Float4;
+        SMaterialParam DefaultValue;
     };
 
     // A material template: a named set of parameters with default values (the schema
@@ -51,15 +64,37 @@ namespace Elixir
     public:
         explicit Material(std::string name) : m_Name(std::move(name)) {}
 
-        void SetDefaultParam(const std::string& name, const SMaterialParam& value);
+        void SetGraph(MaterialGraph graph);
+        const MaterialGraph& GetGraph() const { return m_Graph; }
 
+        bool SetDefaultParam(const std::string& name, const SMaterialParam& value);
         const SMaterialParam* GetDefaultParam(const std::string& name) const;
 
+        bool DefineParameter(
+            std::string name,
+            const SMaterialParameterDefinition& definition
+        );
+
+        const SMaterialParameterDefinition* FindParameter(const std::string& name) const;
+
+        bool IsParameterValueCompatible(
+            const std::string& name,
+            const SMaterialParam& value
+        );
+        bool ValidateGraph(std::string* error = nullptr) const;
+
         const std::string& GetName() const { return m_Name; }
-        const std::unordered_map<std::string, SMaterialParam>& GetDefaultParams() const { return m_DefaultParams; }
+        uint32_t GetRevision() const { return m_Revision; }
 
     private:
+        static bool IsValueCompatible(
+            const SMaterialParameterDefinition& definition,
+            const SMaterialParam& value
+        );
+
         std::string m_Name;
-        std::unordered_map<std::string, SMaterialParam> m_DefaultParams;
+        MaterialGraph m_Graph;
+        std::unordered_map<std::string, SMaterialParameterDefinition> m_Parameters;
+        uint32_t m_Revision = 1;
     };
 }

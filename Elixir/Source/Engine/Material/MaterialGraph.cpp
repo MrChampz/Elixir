@@ -268,7 +268,7 @@ namespace Elixir
             case EMaterialNodeType::TextureSample:
             {
                 // node.TextureExpression holds the index accessor (e.g. mat.TexIndex0.x).
-                const std::string idx = node.TextureExpression;
+                const std::string idx = "mat." + node.TextureParameterName + ".x";
                 const std::string uv = node.Inputs.empty() || node.Inputs[0] < 0
                     ? "input.TexCoord"
                     : Widen(A(0), AT(0), EMaterialGraphValueType::Float2);

@@ -52,7 +52,7 @@ namespace Elixir
         // Per-type payload.
         glm::vec4 ConstantValue{ 0.0f };    // Constant
         std::string ParameterName;                // Parameter -> mat.<ParameterName>
-        std::string TextureExpression;            // TextureSample -> the HLSL sample expression
+        std::string TextureParameterName;         // TextureSample -> material texture parameter
     };
 
     // A node graph describing a material's surface. Compiles to an HLSL body that
