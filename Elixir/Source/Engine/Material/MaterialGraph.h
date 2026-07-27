@@ -36,6 +36,12 @@ namespace Elixir
         BaseColor, Metallic, Roughness, Emissive, Normal
     };
 
+    struct SMaterialGraphBindings
+    {
+        std::unordered_map<std::string, std::string> Values;
+        std::unordered_map<std::string, std::string> Textures;
+    };
+
     // One node in a material graph. Nodes are plain data (no lambdas) so the graph
     // can be serialized and edited; the codegen interprets Type.
     struct SMaterialNode
@@ -71,6 +77,9 @@ namespace Elixir
         // Generate the HLSL statements that fill 'surface.<channel> = ...;'.
         std::string GenerateHLSL() const;
 
+        // Generate the HLSL statements that fill 'surface.<channel> = ...;'.
+        std::string GenerateHLSL(const SMaterialGraphBindings& bindings) const;
+
         const std::unordered_map<uint32_t, SMaterialNode>& GetNodes() const { return m_Nodes; }
 
     private:
@@ -78,7 +87,8 @@ namespace Elixir
             uint32_t id,
             std::unordered_map<uint32_t, std::string>& emitted,
             std::unordered_map<uint32_t, EMaterialGraphValueType>& types,
-            std::string& body
+            std::string& body,
+            const SMaterialGraphBindings* bindings
         ) const;
 
         std::unordered_map<uint32_t, SMaterialNode> m_Nodes;

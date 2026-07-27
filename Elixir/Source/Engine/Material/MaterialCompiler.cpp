@@ -33,8 +33,54 @@ namespace Elixir
         }
     }
 
-    Ref<Shader> MaterialCompiler::Compile(const ShaderLoader* loader, const MaterialGraph& graph)
+    SMaterialCompileResult MaterialCompiler::Build(const Material& material)
     {
+        std::string diagnostics;
+        if (!material.ValidateGraph(&diagnostics))
+            return { .Diagnostics = std::move(diagnostics) };
+
+        std::vector<std::pair<std::string, SMaterialParameterDefinition>> parameters(
+            material.GetParameters().begin(),
+            material.GetParameters().end()
+        );
+        std::ranges::sort(parameters, {}, &decltype(parameters)::value_type::first);
+
+        SMaterialGraphBindings bindings;
+        std::vector<SCompiledMaterialParameter> layout;
+        uint32_t valueSlot = 0;
+        uint32_t textureSlot = 0;
+
+        for (const auto& [name, definition] : parameters)
+        {
+            auto& slot = definition.Kind == EMaterialParameterKind::Texture
+                ? textureSlot
+                : valueSlot;
+
+            if (slot >= 32)
+                return { .Diagnostics = "Material parameter capacity exceeded." };
+
+            layout.push_back({ name, definition.Kind, definition.ValueType, slot });
+
+            if (definition.Kind == EMaterialParameterKind::Texture)
+                bindings.Textures[name] = "mat.TextureIndices[" + std::to_string(slot++) + "]";
+            else
+                bindings.Values[name] = "mat.Values[" + std::to_string(slot++) + "]";
+        }
+
+        const auto compiled = CreateRef<SCompiledMaterial>();
+        compiled->MaterialRevision = material.GetRevision();
+        compiled->Parameters = std::move(layout);
+        return { .Material = compiled };
+    }
+
+    SMaterialCompileResult MaterialCompiler::Compile(
+        const ShaderLoader* loader,
+        const Material& material
+    )
+    {
+        auto result = Build(material);
+        if (!result) return result;
+
         const fs::path shadersDir = "./Shaders";
         const fs::path generatedDir = shadersDir / "Generated";
 
@@ -43,7 +89,9 @@ namespace Elixir
         if (hlsl.empty())
         {
             EE_CORE_ERROR("Material graph: template Material.ps.hlsl not found.")
-            return nullptr;
+            result.Diagnostics = "Material template Material.ps.hlsl was not found.";
+            result.Material.reset();
+            return result;
         }
 
         // Unique name per compiled graph so instances don't clobber each other.
@@ -60,7 +108,23 @@ namespace Elixir
         const fs::path hlslPath = generatedDir / (name + ".src.ps.hlsl");
         {
             std::ofstream out(hlslPath, std::ios::binary);
-            out << InjectBody(hlsl, graph);
+
+            SMaterialGraphBindings bindings;
+            for (const auto& parameter : result.Material->Parameters)
+            {
+                const auto expr = parameter.Kind == EMaterialParameterKind::Texture
+                    ? "mat.TextureIndices[" + std::to_string(parameter.Slot) + "]"
+                    : "mat.Values[" + std::to_string(parameter.Slot) + "]";
+
+                auto& binding = parameter.Kind == EMaterialParameterKind::Texture
+                    ? bindings.Textures
+                    : bindings.Values;
+
+                binding[parameter.Name] = expr;
+            }
+
+            const auto graphHlsl = material.GetGraph().GenerateHLSL(bindings);
+            out << InjectBody(hlsl, graphHlsl);
         }
 
         // Compile the generated pixel shader to SPIR-V with DXC.
@@ -74,19 +138,31 @@ namespace Elixir
         if (rc != 0 || !fs::exists(spvPath))
         {
             EE_CORE_ERROR("Material graph: DXC compilation failed (rc={0}) for {1}.", rc, name)
-            return nullptr;
+            result.Diagnostics = "DXC failed while compiling material.";
+            result.Material.reset();
+            return result;
         }
 
-        return loader->LoadShader(loadDir, name);
+        result.Material->Shader = loader->LoadShader(loadDir, name);
+        if (!result.Material->Shader)
+        {
+            result.Diagnostics = "Shader loader could not load the compiled material.";
+            result.Material.reset();
+        }
+
+        return result;
     }
 
-    std::string MaterialCompiler::InjectBody(const std::string& hlsl, const MaterialGraph& graph)
+    std::string MaterialCompiler::InjectBody(
+        const std::string& hlsl,
+        const std::string& graphBody
+    )
     {
         std::string out = hlsl;
 
         constexpr std::string marker = "// __GRAPH_BODY__";
         if (const auto pos = out.find(marker); pos != std::string::npos)
-            out.replace(pos, marker.size(), graph.GenerateHLSL());
+            out.replace(pos, marker.size(), graphBody);
 
         return out;
     }

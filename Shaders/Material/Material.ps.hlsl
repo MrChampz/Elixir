@@ -27,21 +27,8 @@ SamplerState texSampler : register(s0);
 
 struct CompiledMaterial
 {
-    float4 BaseColorFactor;
-    float  Metallic;
-    float  Roughness;
-    float4 Specular;
-    float  Occlusion;
-    float4 Clearcoat;
-    float3 Emissive;
-    float  NormalScale;
-    float  AlphaCutoff;
-    uint4  TexIndex0;
-    uint4  TexIndex1;
-    float4 BaseColorTransform;
-    float4 NormalTransform;
-    float4 EmissiveTransform;
-    float4 OcclusionTransform;
+    float4  Values[32];
+    uint    TextureIndices[32];
 };
 
 [[vk::binding(2, 0)]]

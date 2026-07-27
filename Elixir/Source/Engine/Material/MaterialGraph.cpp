@@ -174,13 +174,18 @@ namespace Elixir
 
     std::string MaterialGraph::GenerateHLSL() const
     {
+        return GenerateHLSL({});
+    }
+
+    std::string MaterialGraph::GenerateHLSL(const SMaterialGraphBindings& bindings) const
+    {
         std::string body;
         std::unordered_map<uint32_t, std::string> emitted;
         std::unordered_map<uint32_t, EMaterialGraphValueType> types;
 
         for (const auto& [channelIndex, nodeId] : m_Channels)
         {
-            const std::string var = EmitNode(nodeId, emitted, types, body);
+            const std::string var = EmitNode(nodeId, emitted, types, body, &bindings);
             const EMaterialGraphValueType from = types.contains(nodeId)
                 ? types[nodeId]
                 : EMaterialGraphValueType::Float4;
@@ -197,7 +202,8 @@ namespace Elixir
         const uint32_t id,
         std::unordered_map<uint32_t, std::string>& emitted,
         std::unordered_map<uint32_t, EMaterialGraphValueType>& types,
-        std::string& body
+        std::string& body,
+        const SMaterialGraphBindings* bindings
     ) const
     {
         if (const auto it = emitted.find(id); it != emitted.end())
@@ -222,7 +228,7 @@ namespace Elixir
 
             if (input >= 0)
             {
-                in.push_back(EmitNode((uint32_t)input, emitted, types, body));
+                in.push_back(EmitNode((uint32_t)input, emitted, types, body, bindings));
                 inTypes.push_back(types[(uint32_t)input]);
             }
             else if (i < node.DefaultInputs.size())
@@ -258,7 +264,9 @@ namespace Elixir
                 type = node.OutputType;
                 break;
             case EMaterialNodeType::Parameter:
-                expr = "mat." + node.ParameterName;
+                expr = bindings && bindings->Values.contains(node.ParameterName)
+                    ? bindings->Values.at(node.ParameterName)
+                    : "mat." + node.ParameterName;
                 type = node.OutputType;
                 break;
             case EMaterialNodeType::TexCoord:
@@ -267,8 +275,9 @@ namespace Elixir
                 break;
             case EMaterialNodeType::TextureSample:
             {
-                // node.TextureExpression holds the index accessor (e.g. mat.TexIndex0.x).
-                const std::string idx = "mat." + node.TextureParameterName + ".x";
+                const std::string idx = bindings && bindings->Textures.contains(node.TextureParameterName)
+                    ? bindings->Textures.at(node.TextureParameterName)
+                    : "mat." + node.TextureParameterName + ".x";
                 const std::string uv = node.Inputs.empty() || node.Inputs[0] < 0
                     ? "input.TexCoord"
                     : Widen(A(0), AT(0), EMaterialGraphValueType::Float2);

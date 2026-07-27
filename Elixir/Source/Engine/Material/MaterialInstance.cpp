@@ -43,7 +43,7 @@ namespace Elixir
 
         m_Overrides[name] = value;
         ++m_Revision;
-        
+
         return true;
     }
 

@@ -84,6 +84,7 @@ namespace Elixir
         bool ValidateGraph(std::string* error = nullptr) const;
 
         const std::string& GetName() const { return m_Name; }
+        const auto& GetParameters() const { return m_Parameters; }
         uint32_t GetRevision() const { return m_Revision; }
 
     private:
