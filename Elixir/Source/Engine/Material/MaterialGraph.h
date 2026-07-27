@@ -13,10 +13,20 @@ namespace Elixir
     {
         Constant,       // a literal value
         Parameter,      // a named material-instance parameters (mat.<field>)
-        TextureSample,  // sample a bound texture at the mesh UV
+        TexCoord,       // input.TexCoord
+        TextureSample,  // sample a bound texture at a UV (input 0)
+        Time,           // seconds since start (cbFrame.start)
+        Sine,           // sin(a)
+        Panner,         // uv + Time * speed (speed from ConstantValue.xy)
         Multiply,       // a * b
         Add,            // a + b
+        Subtract,       // a - b
+        Divide,         // a / b
+        Power,          // pow(a, b)
+        Dot,            // dot(a, b) -> scalar
         Lerp,           // lerp(a, b, t)
+        OneMinus,       // 1 - a
+        Saturate,       // saturate(a
         Fresnel,        // schlick fresnel from N,V
     };
 
@@ -67,6 +77,7 @@ namespace Elixir
         std::string EmitNode(
             uint32_t id,
             std::unordered_map<uint32_t, std::string>& emitted,
+            std::unordered_map<uint32_t, EMaterialGraphValueType>& types,
             std::string& body
         ) const;
 
