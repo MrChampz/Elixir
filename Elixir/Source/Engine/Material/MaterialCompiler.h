@@ -16,8 +16,14 @@ namespace Elixir
     struct SCompiledMaterial
     {
         uint32_t MaterialRevision = 0;
+        uint32_t UsageMask = 0;
         Ref<Shader> Shader;
         std::vector<SCompiledMaterialParameter> Parameters;
+
+        bool SupportsUsage(const EMaterialUsage usage) const
+        {
+            return (UsageMask & GetMaterialUsageMask(usage)) != 0;
+        }
     };
 
     struct SMaterialCompileResult

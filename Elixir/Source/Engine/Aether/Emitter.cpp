@@ -50,6 +50,49 @@ namespace Elixir::Aether
         if (spawnRateParamIndex != UINT32_MAX)
             emitter.SpawnRatePerSecond = params[spawnRateParamIndex].Value.x;
 
+        if (m_Material)
+        {
+            const auto& material = m_Material->GetParent();
+
+            if (!material)
+            {
+                EE_CORE_ERROR(
+                    "Aether emitter '{}' has a material instance without a parent material.",
+                    m_Name
+                )
+            }
+            else if (m_RenderMode != EParticleRenderMode::Sprite)
+            {
+                EE_CORE_ERROR(
+                    "Aether emitter '{}' only supports materials for Sprite rendering.",
+                    m_Name
+                )
+            }
+            else if (!material->SupportsUsage(EMaterialUsage::ParticleSprite))
+            {
+                EE_CORE_ERROR(
+                    "Aether emitter '{}' requires a material enabled for ParticleSprite usage.",
+                    m_Name
+                )
+            }
+            else
+            {
+                const auto compiled = MaterialCompiler::Build(*material);
+                if (!compiled)
+                {
+                    EE_CORE_ERROR(
+                        "Aether emitter '{}' could not compile its material layout: {}.",
+                        m_Name,
+                        compiled.Diagnostics
+                    )
+                }
+                else
+                {
+                    emitter.Material = m_Material->CreateRenderProxy(compiled.Material);
+                }
+            }
+        }
+
         for (const auto& module : m_SpawnModules)
         {
             if (const auto* typed = dynamic_cast<const SetPositionDisk*>(module.get()))

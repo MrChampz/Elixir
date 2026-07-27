@@ -4,6 +4,9 @@
 
 namespace Elixir
 {
+    struct SCompiledMaterial;
+    class MaterialRenderProxy;
+
     class ELIXIR_API MaterialInstance
     {
     public:
@@ -20,6 +23,12 @@ namespace Elixir
 
         const Ref<Material>& GetParent() const { return m_Parent; }
         uint32_t GetRevision() const { return m_Revision; }
+
+        Ref<const MaterialRenderProxy> CreateRenderProxy(
+            Ref<const SCompiledMaterial> material
+        ) const;
+
+        const SMaterialParam* GetResolvedParameter(const std::string& name) const;
 
     private:
         bool SetOverride(const std::string& name, const SMaterialParam& value);

@@ -5,6 +5,15 @@
 
 namespace Elixir
 {
+    // A renderer-specific shader permutation supported by a Surface material.
+    // It does not change the material domain or graph outputs.
+    enum class EMaterialUsage : uint8_t
+    {
+        ParticleSprite = 0,
+        ParticleRibbon,
+        ParticleMesh
+    };
+
     enum class EMaterialParameterKind : uint8_t
     {
         Value, Texture
@@ -67,6 +76,9 @@ namespace Elixir
         void SetGraph(MaterialGraph graph);
         const MaterialGraph& GetGraph() const { return m_Graph; }
 
+        bool SetUsage(EMaterialUsage usage, bool enabled);
+        bool SupportsUsage(EMaterialUsage usage) const;
+
         bool SetDefaultParam(const std::string& name, const SMaterialParam& value);
         const SMaterialParam* GetDefaultParam(const std::string& name) const;
 
@@ -85,6 +97,7 @@ namespace Elixir
 
         const std::string& GetName() const { return m_Name; }
         const auto& GetParameters() const { return m_Parameters; }
+        uint32_t GetUsageMask() const { return m_UsageMask; }
         uint32_t GetRevision() const { return m_Revision; }
 
     private:
@@ -96,6 +109,12 @@ namespace Elixir
         std::string m_Name;
         MaterialGraph m_Graph;
         std::unordered_map<std::string, SMaterialParameterDefinition> m_Parameters;
+        uint32_t m_UsageMask = 0;
         uint32_t m_Revision = 1;
     };
+
+    constexpr uint32_t GetMaterialUsageMask(const EMaterialUsage usage)
+    {
+        return 1u << static_cast<uint32_t>(usage);
+    }
 }

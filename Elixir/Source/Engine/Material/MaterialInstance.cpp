@@ -1,6 +1,8 @@
 #include "epch.h"
 #include "MaterialInstance.h"
 
+#include "MaterialRenderProxy.h"
+
 namespace Elixir
 {
     bool MaterialInstance::SetScalar(const std::string& name, const float value)
@@ -34,6 +36,18 @@ namespace Elixir
     {
         const auto* param = Resolve(name);
         return param ? param->Texture : nullptr;
+    }
+
+    Ref<const MaterialRenderProxy> MaterialInstance::CreateRenderProxy(
+        Ref<const SCompiledMaterial> material
+    ) const
+    {
+        return MaterialRenderProxy::Create(std::move(material), *this);
+    }
+
+    const SMaterialParam* MaterialInstance::GetResolvedParameter(const std::string& name) const
+    {
+        return Resolve(name);
     }
 
     bool MaterialInstance::SetOverride(const std::string& name, const SMaterialParam& value)

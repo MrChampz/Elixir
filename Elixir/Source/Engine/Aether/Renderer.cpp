@@ -1140,6 +1140,7 @@ namespace Elixir::Aether
                 batch->Items.push_back({
                     .Instance = &instance,
                     .Emitter = &emitter,
+                    .Material = emitter.Material.get(),
                     .LocalEmitterIndex = emitterIndex,
                 });
             }

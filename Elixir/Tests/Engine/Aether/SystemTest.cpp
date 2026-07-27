@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <Engine/Aether/System.h>
+#include <Engine/Material/MaterialInstance.h>
 
 using namespace Elixir;
 using namespace Elixir::Aether;
@@ -79,4 +80,39 @@ TEST(AetherSystemTest, CompileExposesOnlyAuthoredParameters)
     ASSERT_EQ(compiled.Parameters.size(), 4);
     EXPECT_EQ(compiled.Parameters[2].Name, "SizeOverLife:0");
     EXPECT_EQ(compiled.Parameters[3].Name, "SizeOverLife:1");
+}
+
+TEST(AetherSystemTest, CompileSnapshotsParticleSpriteMaterialForRenderData)
+{
+    const auto material = CreateRef<Material>("Particle tint");
+    ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleSprite, true));
+    ASSERT_TRUE(material->DefineParameter("Tint", {
+        .Kind = EMaterialParameterKind::Value,
+        .ValueType = EMaterialGraphValueType::Float4,
+        .DefaultValue = SMaterialParam::MakeVector({ 1.0f, 1.0f, 1.0f, 1.0f }),
+    }));
+
+    const auto instance = CreateRef<MaterialInstance>(material);
+    ASSERT_TRUE(instance->SetVector("Tint", { 0.25f, 0.5f, 0.75f, 1.0f }));
+
+    System system{ "Material snapshot contract" };
+    auto& emitter = system.AddEmitter("Smoke", 8, 0.0f);
+    emitter.SetMaterial(instance);
+
+    const auto first = system.Compile();
+
+    ASSERT_EQ(first.Emitters.size(), 1);
+    ASSERT_TRUE(first.Emitters[0].Material);
+    EXPECT_TRUE(first.Emitters[0].Material->CompiledMaterial()->SupportsUsage(
+        EMaterialUsage::ParticleSprite
+    ));
+    EXPECT_EQ(first.Emitters[0].Material->GetInstanceRevision(), instance->GetRevision());
+    EXPECT_FLOAT_EQ(first.Emitters[0].Material->GetValues()[0].x, 0.25f);
+
+    ASSERT_TRUE(instance->SetVector("Tint", { 0.75f, 0.5f, 0.25f, 1.0f }));
+    const auto second = system.Compile();
+
+    ASSERT_TRUE(second.Emitters[0].Material);
+    EXPECT_FLOAT_EQ(first.Emitters[0].Material->GetValues()[0].x, 0.25f);
+    EXPECT_FLOAT_EQ(second.Emitters[0].Material->GetValues()[0].x, 0.75f);
 }

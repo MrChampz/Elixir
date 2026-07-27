@@ -31,6 +31,21 @@ namespace Elixir
 
             return ss.str();
         }
+
+        std::string ValueExpression(const SCompiledMaterialParameter& parameter)
+        {
+            const std::string value = "mat.Values[" + std::to_string(parameter.Slot) + "]";
+
+            switch (parameter.ValueType)
+            {
+                case EMaterialGraphValueType::Float:    return value + ".x";
+                case EMaterialGraphValueType::Float2:   return value + ".xy";
+                case EMaterialGraphValueType::Float3:   return value + ".xyz";
+                case EMaterialGraphValueType::Float4:   return value;
+            }
+
+            return value;
+        }
     }
 
     SMaterialCompileResult MaterialCompiler::Build(const Material& material)
@@ -68,6 +83,7 @@ namespace Elixir
         }
 
         const auto compiled = CreateRef<SCompiledMaterial>();
+        compiled->UsageMask = material.GetUsageMask();
         compiled->MaterialRevision = material.GetRevision();
         compiled->Parameters = std::move(layout);
         return { .Material = compiled };
@@ -114,7 +130,7 @@ namespace Elixir
             {
                 const auto expr = parameter.Kind == EMaterialParameterKind::Texture
                     ? "mat.TextureIndices[" + std::to_string(parameter.Slot) + "]"
-                    : "mat.Values[" + std::to_string(parameter.Slot) + "]";
+                    : ValueExpression(parameter);
 
                 auto& binding = parameter.Kind == EMaterialParameterKind::Texture
                     ? bindings.Textures

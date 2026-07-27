@@ -237,6 +237,7 @@ namespace Elixir::Aether
         {
             const SSubmittedSystemInstance* Instance = nullptr;
             const SCompiledEmitter* Emitter = nullptr;
+            const MaterialRenderProxy* Material = nullptr;
             uint32_t LocalEmitterIndex = 0;
         };
 
