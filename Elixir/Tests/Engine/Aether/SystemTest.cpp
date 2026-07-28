@@ -9,7 +9,7 @@ using namespace Elixir::Aether;
 TEST(AetherSystemTest, CompilePreservesEmitterSimulationSpace)
 {
     System system{ "Simulation space contract" };
-    auto& worldEmitter = system.AddEmitter("World", 8, 0.0f);
+    system.AddEmitter("World", 8, 0.0f); // world emitter
     auto& localEmitter = system.AddEmitter("Local", 8, 0.0f);
     localEmitter.SetSimulationSpace(EParticleSimulationSpace::Local);
 
