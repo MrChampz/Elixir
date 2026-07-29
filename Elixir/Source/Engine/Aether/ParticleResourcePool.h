@@ -21,6 +21,7 @@ namespace Elixir::Aether
         uint32_t OpCapacity = 65'536;
         uint32_t ParameterCapacity = 16'384;
         uint32_t TriggerTargetCapacity = 4'096;
+        uint32_t MaterialCapacity = 4'096;
         uint32_t TriggerEventCapacityPerEmitter = 64;
     };
 

@@ -2,6 +2,7 @@
 
 #include <Engine/Aether/System.h>
 #include <Engine/Material/MaterialInstance.h>
+#include <Engine/Material/MaterialCompiler.h>
 
 using namespace Elixir;
 using namespace Elixir::Aether;
@@ -97,19 +98,30 @@ TEST(AetherSystemTest, CompileSnapshotsParticleSpriteMaterialForRenderData)
 
     System system{ "Material snapshot contract" };
     auto& emitter = system.AddEmitter("Smoke", 8, 0.0f);
-    emitter.SetMaterial(instance);
 
+    const auto compiledMaterial = MaterialCompiler::Build(*material);
+    ASSERT_TRUE(compiledMaterial);
+
+    const auto firstProxy = instance->CreateRenderProxy(compiledMaterial.Material);
+    ASSERT_TRUE(firstProxy);
+
+    emitter.SetMaterial(firstProxy);
     const auto first = system.Compile();
 
     ASSERT_EQ(first.Emitters.size(), 1);
     ASSERT_TRUE(first.Emitters[0].Material);
-    EXPECT_TRUE(first.Emitters[0].Material->CompiledMaterial()->SupportsUsage(
+    EXPECT_TRUE(first.Emitters[0].Material->GetCompiledMaterial()->SupportsUsage(
         EMaterialUsage::ParticleSprite
     ));
     EXPECT_EQ(first.Emitters[0].Material->GetInstanceRevision(), instance->GetRevision());
     EXPECT_FLOAT_EQ(first.Emitters[0].Material->GetValues()[0].x, 0.25f);
 
     ASSERT_TRUE(instance->SetVector("Tint", { 0.75f, 0.5f, 0.25f, 1.0f }));
+
+    const auto secondProxy = instance->CreateRenderProxy(compiledMaterial.Material);
+    ASSERT_TRUE(secondProxy);
+
+    emitter.SetMaterial(secondProxy);
     const auto second = system.Compile();
 
     ASSERT_TRUE(second.Emitters[0].Material);

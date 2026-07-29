@@ -116,8 +116,8 @@ namespace Elixir::Aether
         const Ref<Texture2D>& GetSpriteTexture() const { return m_SpriteTexture; }
         void SetSpriteTexture(const Ref<Texture2D>& texture) { m_SpriteTexture = texture; }
 
-        const Ref<MaterialInstance>& GetMaterial() const { return m_Material; }
-        void SetMaterial(const Ref<MaterialInstance>& material) { m_Material = material; }
+        const Ref<const MaterialRenderProxy>& GetMaterial() const { return m_Material; }
+        void SetMaterial(Ref<const MaterialRenderProxy> material) { m_Material = std::move(material); }
 
         uint32_t GetBurstCount() const { return m_BurstCount; }
         float GetBurstIntervalSeconds() const { return m_BurstIntervalSeconds; }
@@ -141,7 +141,7 @@ namespace Elixir::Aether
         EParticleRenderMode m_RenderMode = EParticleRenderMode::Sprite;
         EParticleSimulationSpace m_SimulationSpace = EParticleSimulationSpace::World;
         Ref<Texture2D> m_SpriteTexture;
-        Ref<MaterialInstance> m_Material;
+        Ref<const MaterialRenderProxy> m_Material;
         uint32_t m_MaxParticles;
 
         std::vector<Scope<ParticleSpawnModule>> m_SpawnModules;

@@ -17,12 +17,20 @@ namespace Elixir
     {
         uint32_t MaterialRevision = 0;
         uint32_t UsageMask = 0;
-        Ref<Shader> Shader;
+        Ref<Shader> SurfaceShader;
+        Ref<Shader> ParticleSpriteShader;
         std::vector<SCompiledMaterialParameter> Parameters;
 
         bool SupportsUsage(const EMaterialUsage usage) const
         {
             return (UsageMask & GetMaterialUsageMask(usage)) != 0;
+        }
+
+        const Ref<Shader>& GetShader(const EMaterialUsage usage) const
+        {
+            return usage == EMaterialUsage::ParticleSprite
+                ? ParticleSpriteShader
+                : SurfaceShader;
         }
     };
 
@@ -48,5 +56,17 @@ namespace Elixir
 
     private:
         static std::string InjectBody(const std::string& hlsl, const std::string& graphBody);
+
+        static SMaterialCompileResult CompileSurface(
+            const ShaderLoader* loader,
+            const Material& material,
+            SMaterialCompileResult result
+        );
+
+        static SMaterialCompileResult CompileParticleSprite(
+            const ShaderLoader* loader,
+            const Material& material,
+            SMaterialCompileResult result
+        );
     };
 }

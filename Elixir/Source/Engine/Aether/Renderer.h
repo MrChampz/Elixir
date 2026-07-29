@@ -5,6 +5,7 @@
 #include <Engine/Aether/SystemInstance.h>
 #include <Engine/Aether/ParticleResourcePool.h>
 #include <Engine/Aether/ParticleStateLayout.h>
+#include <Engine/Aether/ParticleMaterialTable.h>
 #include <Engine/Aether/FrameSubmission.h>
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
@@ -17,6 +18,7 @@ namespace Elixir::Aether
         glm::mat4 Proj;
         glm::mat4 ViewProj;
         glm::vec3 CameraPos;
+        float     Time  = 0.0f;
     };
 
     struct alignas(16) SParamsData
@@ -135,6 +137,7 @@ namespace Elixir::Aether
         size_t SimulationBatchCount = 0;
         size_t RenderBatchCount = 0;
         size_t SubmittedRenderItemCount = 0;
+        size_t SubmittedMaterialCount = 0;
     };
 
     class ELIXIR_API Renderer final
@@ -169,6 +172,8 @@ namespace Elixir::Aether
             Ref<Shader> UpdateShader;
             Ref<ComputePipeline> UpdatePipeline;
 
+            std::unordered_map<const Shader*, Ref<GraphicsPipeline>> MaterialPipelines;
+
             Ref<Shader> SpriteShader;
             Ref<GraphicsPipeline> SpritePipeline;
             Ref<Shader> RibbonShader;
@@ -196,6 +201,11 @@ namespace Elixir::Aether
         void BindParticleStateLayoutShaderParameters(const SParticleStateLayoutRuntime& runtime) const;
 
         uint32_t ResolveSpriteIndex(const Ref<Texture2D>& texture);
+        void PrepareParticleSpriteMaterialShader(const Ref<Shader>& shader);
+        Ref<GraphicsPipeline> GetParticleSpritePipeline(
+            SParticleStateLayoutRuntime& runtime,
+            const Ref<Shader>& shader
+        ) const;
 
         void BeginRendering(const Ref<CommandBuffer>& cmd) const;
         void EndRendering(const Ref<CommandBuffer>& cmd) const;
@@ -229,6 +239,7 @@ namespace Elixir::Aether
         {
             EParticleStateLayout ParticleStateLayout = EParticleStateLayout::CoreV1;
             EParticleRenderMode RenderMode = EParticleRenderMode::Sprite;
+            const Shader* MaterialShader = nullptr;
 
             bool operator==(const SRenderBatchKey&) const = default;
         };
@@ -238,6 +249,7 @@ namespace Elixir::Aether
             const SSubmittedSystemInstance* Instance = nullptr;
             const SCompiledEmitter* Emitter = nullptr;
             const MaterialRenderProxy* Material = nullptr;
+            uint32_t MaterialIndex = UINT32_MAX;
             uint32_t LocalEmitterIndex = 0;
         };
 
@@ -271,7 +283,10 @@ namespace Elixir::Aether
         BuildSimulationBatches(const std::vector<SSubmittedSystemInstance>& instances) const;
 
         std::vector<SRenderBatch>
-        BuildRenderBatches(const std::vector<SSubmittedSystemInstance>& instances) const;
+        BuildRenderBatches(
+            const std::vector<SSubmittedSystemInstance>& instances,
+            ParticleMaterialTable& materials
+        ) const;
 
         void SimulateBatch(
             const Ref<CommandBuffer>& cmd,
@@ -344,11 +359,13 @@ namespace Elixir::Aether
         Ref<DynamicStorageBuffer> m_EmitterBuffer;
         Ref<DynamicStorageBuffer> m_OpBuffer;
         Ref<DynamicStorageBuffer> m_ParameterBuffer;
+        Ref<DynamicStorageBuffer> m_MaterialBuffer;
         Ref<UniformBuffer> m_ParamsBuffer;
 
         Ref<TextureSet> m_Sprites;
         Ref<Sampler> m_SpriteSampler;
         std::unordered_map<Ref<Texture2D>, SResourceHandle> m_SpriteTextures;
+        std::unordered_set<const Shader*> m_MaterialShaderCache;
 
         SResourceHandle m_WhiteTextureHandle{};
 

@@ -5,6 +5,9 @@ namespace Elixir
 {
     namespace fs = std::filesystem;
 
+    static const fs::path s_ShadersDir = "./Shaders";
+    static const fs::path s_GeneratedDir = s_ShadersDir / "Generated";
+
     namespace
     {
         fs::path FindDXC()
@@ -34,7 +37,7 @@ namespace Elixir
 
         std::string ValueExpression(const SCompiledMaterialParameter& parameter)
         {
-            const std::string value = "mat.Values[" + std::to_string(parameter.Slot) + "]";
+            std::string value = "mat.Values[" + std::to_string(parameter.Slot) + "]";
 
             switch (parameter.ValueType)
             {
@@ -45,6 +48,29 @@ namespace Elixir
             }
 
             return value;
+        }
+
+        std::string GenerateGraphHLSL(
+            const MaterialGraph& graph,
+            const SCompiledMaterial& material
+        )
+        {
+            SMaterialGraphBindings bindings;
+
+            for (const auto& parameter : material.Parameters)
+            {
+                const auto expression = parameter.Kind == EMaterialParameterKind::Texture
+                    ? "mat.TextureIndices[" + std::to_string(parameter.Slot) + "]"
+                    : ValueExpression(parameter);
+
+                auto& destination = parameter.Kind == EMaterialParameterKind::Texture
+                    ? bindings.Textures
+                    : bindings.Values;
+
+                destination[parameter.Name] = expression;
+            }
+
+            return graph.GenerateHLSL(bindings);
         }
     }
 
@@ -97,10 +123,33 @@ namespace Elixir
         auto result = Build(material);
         if (!result) return result;
 
-        const fs::path shadersDir = "./Shaders";
-        const fs::path generatedDir = shadersDir / "Generated";
+        if (material.SupportsUsage(EMaterialUsage::ParticleSprite))
+            return CompileParticleSprite(loader, material, std::move(result));
 
-        const auto hlsl = ReadFile(shadersDir / "Material" / "Material.ps.hlsl");
+        return CompileSurface(loader, material, std::move(result));
+    }
+
+    std::string MaterialCompiler::InjectBody(
+        const std::string& hlsl,
+        const std::string& graphBody
+    )
+    {
+        std::string out = hlsl;
+
+        constexpr std::string marker = "// __GRAPH_BODY__";
+        if (const auto pos = out.find(marker); pos != std::string::npos)
+            out.replace(pos, marker.size(), graphBody);
+
+        return out;
+    }
+
+    SMaterialCompileResult MaterialCompiler::CompileSurface(
+        const ShaderLoader* loader,
+        const Material& material,
+        SMaterialCompileResult result
+    )
+    {
+        const auto hlsl = ReadFile(s_ShadersDir / "Material" / "Material.ps.hlsl");
 
         if (hlsl.empty())
         {
@@ -117,29 +166,15 @@ namespace Elixir
         // Each compile loads from its own subdir containing only its two SPIR-V
         // modules, so stray files (like the generated.hlsl) never look like a
         // shader module to the loader. The .hlsl source lives outside that dir.
-        const fs::path loadDir = generatedDir / name;
+        const fs::path loadDir = s_GeneratedDir / name;
         std::error_code error;
         fs::create_directories(loadDir, error);
 
-        const fs::path hlslPath = generatedDir / (name + ".src.ps.hlsl");
+        const fs::path hlslPath = s_GeneratedDir / (name + ".src.ps.hlsl");
         {
             std::ofstream out(hlslPath, std::ios::binary);
 
-            SMaterialGraphBindings bindings;
-            for (const auto& parameter : result.Material->Parameters)
-            {
-                const auto expr = parameter.Kind == EMaterialParameterKind::Texture
-                    ? "mat.TextureIndices[" + std::to_string(parameter.Slot) + "]"
-                    : ValueExpression(parameter);
-
-                auto& binding = parameter.Kind == EMaterialParameterKind::Texture
-                    ? bindings.Textures
-                    : bindings.Values;
-
-                binding[parameter.Name] = expr;
-            }
-
-            const auto graphHlsl = material.GetGraph().GenerateHLSL(bindings);
+            const auto graphHlsl = GenerateGraphHLSL(material.GetGraph(), *result.Material);
             out << InjectBody(hlsl, graphHlsl);
         }
 
@@ -159,8 +194,8 @@ namespace Elixir
             return result;
         }
 
-        result.Material->Shader = loader->LoadShader(loadDir, name);
-        if (!result.Material->Shader)
+        result.Material->SurfaceShader = loader->LoadShader(loadDir, name);
+        if (!result.Material->SurfaceShader)
         {
             result.Diagnostics = "Shader loader could not load the compiled material.";
             result.Material.reset();
@@ -169,17 +204,81 @@ namespace Elixir
         return result;
     }
 
-    std::string MaterialCompiler::InjectBody(
-        const std::string& hlsl,
-        const std::string& graphBody
+    SMaterialCompileResult MaterialCompiler::CompileParticleSprite(
+        const ShaderLoader* loader,
+        const Material& material,
+        SMaterialCompileResult result
     )
     {
-        std::string out = hlsl;
+        const auto hlsl = ReadFile(s_ShadersDir / "Material" / "ParticleSprite.ps.hlsl");
 
-        constexpr std::string marker = "// __GRAPH_BODY__";
-        if (const auto pos = out.find(marker); pos != std::string::npos)
-            out.replace(pos, marker.size(), graphBody);
+        if (hlsl.empty())
+        {
+            result.Diagnostics = "Material template ParticleSprite.ps.hlsl was not found.";
+            result.Material.reset();
+            return result;
+        }
 
-        return out;
+        // Unique name per compiled graph so instances don't clobber each other.
+        static std::atomic<uint32_t> counter{ 0 };
+        const std::string name = "GraphMat_" + std::to_string(counter.fetch_add(1)) + "_ParticleSprite";
+
+        const fs::path loadDir = s_GeneratedDir / name;
+        std::error_code error;
+        fs::create_directories(loadDir, error);
+
+        const fs::path spriteSourcePath = s_GeneratedDir / (name + ".src.ps.hlsl");
+        {
+            std::ofstream out(spriteSourcePath, std::ios::binary);
+
+            const auto graphHlsl = GenerateGraphHLSL(material.GetGraph(), *result.Material);
+            out << InjectBody(hlsl, graphHlsl);
+        }
+
+        // Compile the generated pixel shader to SPIR-V with DXC.
+        const fs::path dxc = FindDXC();
+        const fs::path spvPath = loadDir / (name + ".ps.spirv");
+        const std::string cmd =
+            "\"" + dxc.string() + "\" -spirv -T ps_6_0 -E main \""
+            + spriteSourcePath.string() + "\" -Fo \"" + spvPath.string() + "\"";
+
+        const int rc = std::system(cmd.c_str());
+        if (rc != 0 || !fs::exists(spvPath))
+        {
+            EE_CORE_ERROR(
+                "Particle sprite material: DXC compilation failed (rc={0}) for {1}.",
+                rc,
+                name
+            )
+            result.Diagnostics = "DXC failed while compiling the particle sprite material.";
+            result.Material.reset();
+            return result;
+        }
+
+        // The generated pixel stage shares the existing Aether sprite vertex ABI.
+        // Put both stages in an isolated directory so ShaderLoader sees one shader.
+        const fs::path spriteVertexSpv = s_ShadersDir / "Aether" / "Sprite.vs.spirv";
+        fs::copy_file(
+            spriteVertexSpv,
+            loadDir / (name + ".vs.spirv"),
+            fs::copy_options::overwrite_existing,
+            error
+        );
+
+        if (error)
+        {
+            result.Diagnostics = "Could not prepare the particle sprite vertex shader.";
+            result.Material.reset();
+            return result;
+        }
+
+        result.Material->ParticleSpriteShader = loader->LoadShader(loadDir, name);
+        if (!result.Material->ParticleSpriteShader)
+        {
+            result.Diagnostics = "Shader loader could not load the particle sprite material.";
+            result.Material.reset();
+        }
+
+        return result;
     }
 }

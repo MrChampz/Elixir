@@ -13,7 +13,7 @@ namespace Elixir
             const MaterialInstance& instance
         );
 
-        const Ref<const SCompiledMaterial> CompiledMaterial() const { return m_CompiledMaterial; }
+        const Ref<const SCompiledMaterial> GetCompiledMaterial() const { return m_CompiledMaterial; }
         uint32_t GetInstanceRevision() const { return m_InstanceRevision; }
         const std::vector<glm::vec4>& GetValues() const { return m_Values; }
         const std::vector<Ref<Texture>>& GetTextures() const { return m_Textures; }
