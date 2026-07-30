@@ -18,10 +18,12 @@ namespace Elixir::Aether
         return index;
     }
 
-    SParticleMaterialData ParticleMaterialTable::BuildData(const MaterialRenderProxy& material)
+    SParticleMaterialData ParticleMaterialTable::BuildData(
+        const MaterialRenderProxy& material
+    ) const
     {
         SParticleMaterialData data{};
-        std::ranges::fill(data.TextureIndices, UINT32_MAX);
+        std::ranges::fill(data.TextureIndices, m_FallbackTextureIndex);
 
         const auto& values = material.GetValues();
         std::copy_n(
@@ -29,6 +31,15 @@ namespace Elixir::Aether
             std::min(values.size(), data.Values.size()),
             data.Values.begin()
         );
+
+        const auto& textures = material.GetTextures();
+        const auto textureCount = std::min(textures.size(), data.TextureIndices.size());
+
+        for (size_t slot = 0; slot < textureCount; ++slot)
+        {
+            if (textures[slot])
+                data.TextureIndices[slot] = m_TextureIndexResolver(textures[slot]);
+        }
 
         return data;
     }

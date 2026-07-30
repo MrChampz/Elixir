@@ -200,7 +200,7 @@ namespace Elixir::Aether
         void BindShaderParameters();
         void BindParticleStateLayoutShaderParameters(const SParticleStateLayoutRuntime& runtime) const;
 
-        uint32_t ResolveSpriteIndex(const Ref<Texture2D>& texture);
+        uint32_t ResolveTextureIndex(const Ref<Texture>& texture);
         void PrepareParticleSpriteMaterialShader(const Ref<Shader>& shader);
         Ref<GraphicsPipeline> GetParticleSpritePipeline(
             SParticleStateLayoutRuntime& runtime,
@@ -250,6 +250,7 @@ namespace Elixir::Aether
             const SCompiledEmitter* Emitter = nullptr;
             const MaterialRenderProxy* Material = nullptr;
             uint32_t MaterialIndex = UINT32_MAX;
+            uint32_t SpriteIndex = UINT32_MAX;
             uint32_t LocalEmitterIndex = 0;
         };
 
@@ -286,7 +287,7 @@ namespace Elixir::Aether
         BuildRenderBatches(
             const std::vector<SSubmittedSystemInstance>& instances,
             ParticleMaterialTable& materials
-        ) const;
+        );
 
         void SimulateBatch(
             const Ref<CommandBuffer>& cmd,
@@ -364,8 +365,15 @@ namespace Elixir::Aether
 
         Ref<TextureSet> m_Sprites;
         Ref<Sampler> m_SpriteSampler;
-        std::unordered_map<Ref<Texture2D>, SResourceHandle> m_SpriteTextures;
         std::unordered_set<const Shader*> m_MaterialShaderCache;
+
+        struct STextureBinding
+        {
+            SResourceHandle Handle;
+            uint64_t ReadySubmission = 0;
+        };
+
+        std::unordered_map<Ref<Texture>, STextureBinding> m_TextureBindings;
 
         SResourceHandle m_WhiteTextureHandle{};
 

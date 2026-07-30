@@ -237,7 +237,14 @@ namespace Elixir::Aether
         if (submittedInstances.empty())
             return;
 
-        ParticleMaterialTable materials{ m_ParticlePoolLimits.MaterialCapacity };
+        ParticleMaterialTable materials(
+            m_ParticlePoolLimits.MaterialCapacity,
+            m_WhiteTextureHandle.Index,
+            [this](const Ref<Texture>& texture)
+            {
+                return ResolveTextureIndex(texture);
+            }
+        );
 
         const auto simulationBatches = BuildSimulationBatches(submittedInstances);
         const auto renderBatches = BuildRenderBatches(submittedInstances, materials);
@@ -855,18 +862,29 @@ namespace Elixir::Aether
         runtime.MeshShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
     }
 
-    uint32_t Renderer::ResolveSpriteIndex(const Ref<Texture2D>& texture)
+    uint32_t Renderer::ResolveTextureIndex(const Ref<Texture>& texture)
     {
         if (!texture)
             return m_WhiteTextureHandle.Index;
 
-        if (const auto it = m_SpriteTextures.find(texture); it != m_SpriteTextures.end())
-            return it->second.Index;
+        const auto binding = m_TextureBindings.find(texture);
+        if (binding != m_TextureBindings.end())
+        {
+            if (binding->second.ReadySubmission <= m_SubmissionSerial)
+                return binding->second.Handle.Index;
 
+            return m_WhiteTextureHandle.Index;
+        }
+
+        // RegisterTexture only marks the bindless slot dirty. Vulkan flushes it
+        // in GraphicsContext::Prepare() before the next render callback.
         const auto handle = m_Sprites->AddTexture(texture);
-        m_SpriteTextures[texture] = handle;
+        m_TextureBindings.emplace(texture, STextureBinding{
+            .Handle = handle,
+            .ReadySubmission = m_SubmissionSerial + 1,
+        });
 
-        return handle.Index;
+        return m_WhiteTextureHandle.Index;
     }
 
     void Renderer::PrepareParticleSpriteMaterialShader(const Ref<Shader>& shader)
@@ -1175,7 +1193,7 @@ namespace Elixir::Aether
     std::vector<Renderer::SRenderBatch> Renderer::BuildRenderBatches(
         const std::vector<SSubmittedSystemInstance>& instances,
         ParticleMaterialTable& materials
-    ) const
+    )
     {
         std::vector<SRenderBatch> batches;
 
@@ -1193,6 +1211,10 @@ namespace Elixir::Aether
                 const MaterialRenderProxy* material = emitter.Material.get();
                 const Shader* materialShader = nullptr;
                 uint32_t materialIndex = UINT32_MAX;
+                uint32_t spriteIndex = m_WhiteTextureHandle.Index;
+
+                if (emitter.RenderMode == EParticleRenderMode::Sprite)
+                    spriteIndex = ResolveTextureIndex(emitter.SpriteTexture);
 
                 if (material && emitter.RenderMode == EParticleRenderMode::Sprite)
                 {
@@ -1246,6 +1268,7 @@ namespace Elixir::Aether
                     .Emitter = &emitter,
                     .Material = material,
                     .MaterialIndex = materialIndex,
+                    .SpriteIndex = spriteIndex,
                     .LocalEmitterIndex = emitterIndex,
                 });
             }
@@ -1488,7 +1511,7 @@ namespace Elixir::Aether
                     {
                         const SMaterialPushConstants pc{
                             .WorldTransform = worldTransform,
-                            .SpriteIndex = ResolveSpriteIndex(item.Emitter->SpriteTexture),
+                            .SpriteIndex = item.SpriteIndex,
                             .MaterialIndex = item.MaterialIndex,
                         };
                         shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
@@ -1497,7 +1520,7 @@ namespace Elixir::Aether
                     {
                         const SSpritePushConstants pc{
                             .WorldTransform = worldTransform,
-                            .SpriteIndex = ResolveSpriteIndex(item.Emitter->SpriteTexture),
+                            .SpriteIndex = item.SpriteIndex,
                         };
                         shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
                     }
