@@ -42,3 +42,16 @@ TEST(MaterialCompilerTest, PreservesEnabledRendererUsages)
     EXPECT_FALSE(result.Material->SupportsUsage(EMaterialUsage::ParticleRibbon));
     EXPECT_FALSE(result.Material->SupportsUsage(EMaterialUsage::ParticleMesh));
 }
+
+TEST(MaterialCompilerTest, DoesNotAliasUnsupportedParticleUsagesToSurfaceShader)
+{
+    SCompiledMaterial material;
+
+    const auto& ribbonShader = material.GetShader(EMaterialUsage::ParticleRibbon);
+    const auto& meshShader = material.GetShader(EMaterialUsage::ParticleMesh);
+
+    EXPECT_FALSE(ribbonShader);
+    EXPECT_FALSE(meshShader);
+    EXPECT_NE(&ribbonShader, &material.SurfaceShader);
+    EXPECT_NE(&meshShader, &material.SurfaceShader);
+}

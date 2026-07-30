@@ -123,10 +123,16 @@ namespace Elixir
         auto result = Build(material);
         if (!result) return result;
 
-        if (material.SupportsUsage(EMaterialUsage::ParticleSprite))
-            return CompileParticleSprite(loader, material, std::move(result));
+        result = CompileSurface(loader, material, std::move(result));
+        if (!result) return result;
 
-        return CompileSurface(loader, material, std::move(result));
+        if (material.SupportsUsage(EMaterialUsage::ParticleSprite))
+        {
+            result = CompileParticleSprite(loader, material, std::move(result));
+            if (!result) return result;
+        }
+
+        return result;
     }
 
     std::string MaterialCompiler::InjectBody(

@@ -26,11 +26,22 @@ namespace Elixir
             return (UsageMask & GetMaterialUsageMask(usage)) != 0;
         }
 
+        // A Surface shader is not a fallback particle permutation. Until a
+        // renderer-specific permutation exists, Ribbon and Mesh resolve to
+        // no shader and their renderer can keep its existing fallback path.
         const Ref<Shader>& GetShader(const EMaterialUsage usage) const
         {
-            return usage == EMaterialUsage::ParticleSprite
-                ? ParticleSpriteShader
-                : SurfaceShader;
+            switch (usage)
+            {
+                case EMaterialUsage::ParticleSprite:
+                    return ParticleSpriteShader;
+                case EMaterialUsage::ParticleRibbon:
+                case EMaterialUsage::ParticleMesh:
+                    break;
+            }
+
+            static const Ref<Shader> unsupportedUsageShader;
+            return unsupportedUsageShader;
         }
     };
 
