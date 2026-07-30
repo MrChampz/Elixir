@@ -56,6 +56,8 @@ namespace Elixir::Aether
 
         Emitter& AddEmitter(const std::string& name, uint32_t maxParticles, float spawnRate);
 
+        Emitter* FindEmitter(std::string_view name) const;
+
         SCompiledSystem Compile() const;
 
         ParameterStore& GetParameters() { return m_Parameters; }

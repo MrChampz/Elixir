@@ -8,6 +8,7 @@ SamplerState spriteSampler : register(s0);
 struct PushConstants
 {
     float4x4 WorldTransform;
+    uint MaterialIndex;
     uint SpriteIndex;
 };
 [[vk::push_constant]]

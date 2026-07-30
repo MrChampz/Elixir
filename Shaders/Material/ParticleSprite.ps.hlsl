@@ -29,8 +29,8 @@ StructuredBuffer<CompiledMaterial> materials;
 struct MaterialPushConstants
 {
     float4x4 WorldTransform;
-    uint SpriteIndex;
     uint MaterialIndex;
+    uint SpriteIndex;
 };
 
 [[vk::push_constant]]

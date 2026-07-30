@@ -17,6 +17,7 @@ namespace Elixir::Aether
     struct SSpritePushConstants
     {
         glm::mat4 WorldTransform{ 1.0f };
+        uint32_t MaterialIndex = UINT32_MAX;
         uint32_t SpriteIndex = 0;
     };
 
@@ -35,8 +36,8 @@ namespace Elixir::Aether
     struct SMaterialPushConstants
     {
         glm::mat4 WorldTransform{ 1.0f };
-        uint32_t SpriteIndex = 0;
         uint32_t MaterialIndex = UINT32_MAX;
+        uint32_t SpriteIndex = 0;
     };
 
     SEmitterData ToEmitterDescription(
@@ -1511,8 +1512,8 @@ namespace Elixir::Aether
                     {
                         const SMaterialPushConstants pc{
                             .WorldTransform = worldTransform,
-                            .SpriteIndex = item.SpriteIndex,
                             .MaterialIndex = item.MaterialIndex,
+                            .SpriteIndex = item.SpriteIndex,
                         };
                         shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
                     }

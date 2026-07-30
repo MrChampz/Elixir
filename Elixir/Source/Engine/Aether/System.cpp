@@ -15,6 +15,17 @@ namespace Elixir::Aether
         return *m_Emitters.back();
     }
 
+    Emitter* System::FindEmitter(const std::string_view name) const
+    {
+        for (const auto& emitter : m_Emitters)
+        {
+            if (emitter->GetName() == name)
+                return emitter.get();
+        }
+
+        return nullptr;
+    }
+
     SCompiledSystem System::Compile() const
     {
         SCompiledSystem system;

@@ -13,6 +13,7 @@ cbuffer cbFrame : register(b0)
 struct PushConstants
 {
     float4x4 WorldTransform;
+    uint MaterialIndex;
     uint SpriteIndex;
 };
 

@@ -6,6 +6,7 @@
 #include <Engine/Aether/Effect.h>
 
 #include <Engine/Material/MaterialGraph.h>
+#include <Engine/Material/MaterialInstance.h>
 #include <Engine/Material/MaterialCompiler.h>
 
 Ref<GraphicsPipeline> pipeline;
@@ -67,25 +68,46 @@ Dissolve::Dissolve()
     m_ParticleSystems[0] = Aether::LoadEffectFile("./Assets/VFX/FireAndFireworks.json");
     m_ParticleSystems[1] = Aether::LoadEffectFile("./Assets/VFX/RibbonVortex.json");
 
-    m_ParticleSystemInstances[0] = CreateScope<Aether::SystemInstance>(CreateRef<Aether::SCompiledSystem>(m_ParticleSystems[0]->Compile()));
-    m_ParticleSystemInstances[1] = CreateScope<Aether::SystemInstance>(CreateRef<Aether::SCompiledSystem>(m_ParticleSystems[1]->Compile()));
-
     {
         MaterialGraph graph;
 
+        graphMaterial = CreateRef<Material>("DissolveGraph");
+        EE_CORE_ASSERT(
+            graphMaterial->SetUsage(EMaterialUsage::ParticleSprite, true),
+            "Dissolve graph material must enable ParticleSprite usage."
+        )
+
+        EE_CORE_ASSERT(graphMaterial->DefineParameter("Tint", {
+            .Kind = EMaterialParameterKind::Value,
+            .ValueType = EMaterialGraphValueType::Float4,
+            .DefaultValue = SMaterialParam::MakeVector({ 1.0f, 0.5f, 0.2f, 1.0f }),
+        }), "")
+
+        EE_CORE_ASSERT(graphMaterial->DefineParameter("Albedo", {
+            .Kind = EMaterialParameterKind::Texture,
+            .DefaultValue = SMaterialParam::MakeTexture(tex),
+        }), "")
+
+        SMaterialNode albedo;
+        albedo.Type = EMaterialNodeType::TextureSample;
+        albedo.TextureParameterName = "Albedo";
+        const auto albedoNode = graph.AddNode(albedo);
+
+        SMaterialNode tint;
+        tint.Type = EMaterialNodeType::Parameter;
+        tint.OutputType = EMaterialGraphValueType::Float4;
+        tint.ParameterName = "Tint";
+        const auto tintNode = graph.AddNode(tint);
+
         SMaterialNode baseColor;
-        baseColor.Type = EMaterialNodeType::Constant;
+        baseColor.Type = EMaterialNodeType::Multiply;
         baseColor.OutputType = EMaterialGraphValueType::Float4;
-        baseColor.ConstantValue = { 0.9f, 0.3f, 0.1f, 1.0f };
+        baseColor.Inputs = {
+            (int32_t)albedoNode,
+            (int32_t)tintNode,
+        };
         graph.SetChannel(EMaterialChannel::BaseColor, graph.AddNode(baseColor));
 
-        SMaterialNode metallic;
-        metallic.Type = EMaterialNodeType::Constant;
-        metallic.OutputType = EMaterialGraphValueType::Float;
-        metallic.ConstantValue = { 0.9f, 0.0f, 0.0f, 0.0f };
-        graph.SetChannel(EMaterialChannel::Metallic, graph.AddNode(metallic));
-
-        graphMaterial = CreateRef<Material>("DissolveGraph");
         graphMaterial->SetGraph(std::move(graph));
 
         const auto result = MaterialCompiler::Compile(m_ShaderLoader.get(), *graphMaterial);
@@ -93,11 +115,40 @@ Dissolve::Dissolve()
         if (result)
         {
             compiledGraphMaterial = result.Material;
-            EE_CORE_INFO("Node-graph material compiled and loaded successfully.")
+
+            auto instance = CreateRef<MaterialInstance>(graphMaterial);
+            EE_CORE_ASSERT(
+                instance->SetVector("Tint", { 1.0f, 0.35f, 0.1f, 1.0f }),
+                "Dissolve graph material tint override must match its schema."
+            )
+
+            const auto proxy = instance->CreateRenderProxy(compiledGraphMaterial);
+            EE_CORE_ASSERT(
+                proxy,
+                "Dissolve graph material render proxy must match the compiled schema."
+            )
+
+            if (auto* emitter = m_ParticleSystems[0]->FindEmitter("FlameCore"))
+            {
+                emitter->SetMaterial(proxy);
+                EE_CORE_INFO("Published graph material to the FlameCore particle emitter.")
+            }
+            else
+            {
+                EE_CORE_ERROR("Dissolve particle emitter 'FlameCore' was not found.")
+            }
         }
         else
             EE_CORE_ERROR("Node-graph material compilation failed: {}", result.Diagnostics)
     }
+
+    m_ParticleSystemInstances[0] = CreateScope<Aether::SystemInstance>(
+        CreateRef<Aether::SCompiledSystem>(m_ParticleSystems[0]->Compile())
+    );
+
+    m_ParticleSystemInstances[1] = CreateScope<Aether::SystemInstance>(
+        CreateRef<Aether::SCompiledSystem>(m_ParticleSystems[1]->Compile())
+    );
 
     m_GraphicsContext->SetClearColor({ 0.015f, 0.025f, 0.06f, 1.0f });
 }

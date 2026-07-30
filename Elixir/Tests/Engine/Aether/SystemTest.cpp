@@ -83,6 +83,17 @@ TEST(AetherSystemTest, CompileExposesOnlyAuthoredParameters)
     EXPECT_EQ(compiled.Parameters[3].Name, "SizeOverLife:1");
 }
 
+TEST(AetherSystemTest, FindsNamedEmitterForMaterialPublication)
+{
+    System system{ "Named emitters" };
+    auto& flame = system.AddEmitter("FlameCore", 8, 0.0f);
+    system.AddEmitter("Smoke", 8, 0.0f);
+
+    EXPECT_EQ(system.FindEmitter("FlameCore"), &flame);
+    EXPECT_NE(system.FindEmitter("Smoke"), nullptr);
+    EXPECT_EQ(system.FindEmitter("Missing"), nullptr);
+}
+
 TEST(AetherSystemTest, CompileSnapshotsParticleSpriteMaterialForRenderData)
 {
     const auto material = CreateRef<Material>("Particle tint");
