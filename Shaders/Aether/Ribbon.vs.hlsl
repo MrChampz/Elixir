@@ -37,6 +37,9 @@ struct PushConstants
     float4x4 WorldTransform;
     uint EmitterIndex;
     uint ParticleBaseOffset;
+#if defined(MATERIAL_RIBBON)
+    uint MaterialIndex;
+#endif
 };
 
 [[vk::push_constant]]

@@ -19,6 +19,7 @@ namespace Elixir
         uint32_t UsageMask = 0;
         Ref<Shader> SurfaceShader;
         Ref<Shader> ParticleSpriteShader;
+        Ref<Shader> ParticleRibbonShader;
         std::vector<SCompiledMaterialParameter> Parameters;
 
         bool SupportsUsage(const EMaterialUsage usage) const
@@ -26,9 +27,7 @@ namespace Elixir
             return (UsageMask & GetMaterialUsageMask(usage)) != 0;
         }
 
-        // A Surface shader is not a fallback particle permutation. Until a
-        // renderer-specific permutation exists, Ribbon and Mesh resolve to
-        // no shader and their renderer can keep its existing fallback path.
+        // A Surface shader is never a fallback particle permutation.
         const Ref<Shader>& GetShader(const EMaterialUsage usage) const
         {
             switch (usage)
@@ -36,6 +35,7 @@ namespace Elixir
                 case EMaterialUsage::ParticleSprite:
                     return ParticleSpriteShader;
                 case EMaterialUsage::ParticleRibbon:
+                    return ParticleRibbonShader;
                 case EMaterialUsage::ParticleMesh:
                     break;
             }
@@ -75,6 +75,12 @@ namespace Elixir
         );
 
         static SMaterialCompileResult CompileParticleSprite(
+            const ShaderLoader* loader,
+            const Material& material,
+            SMaterialCompileResult result
+        );
+
+        static SMaterialCompileResult CompileParticleRibbon(
             const ShaderLoader* loader,
             const Material& material,
             SMaterialCompileResult result
