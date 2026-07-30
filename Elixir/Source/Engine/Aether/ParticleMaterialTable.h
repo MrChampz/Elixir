@@ -2,8 +2,6 @@
 
 #include <Engine/Material/MaterialRenderProxy.h>
 
-#include <functional>
-
 namespace Elixir::Aether
 {
     // ABI shared with Shaders/Material/ParticleSprite.ps.hlsl.
