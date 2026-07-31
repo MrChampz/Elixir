@@ -138,6 +138,12 @@ namespace Elixir
             if (!result) return result;
         }
 
+        if (material.SupportsUsage(EMaterialUsage::ParticleMesh))
+        {
+            result = CompileParticleMesh(loader, material, std::move(result));
+            if (!result) return result;
+        }
+
         return result;
     }
 
@@ -373,6 +379,90 @@ namespace Elixir
         if (!result.Material->ParticleRibbonShader)
         {
             result.Diagnostics = "Shader loader could not load the particle ribbon material.";
+            result.Material.reset();
+        }
+
+        return result;
+    }
+
+    SMaterialCompileResult MaterialCompiler::CompileParticleMesh(
+        const ShaderLoader* loader,
+        const Material& material,
+        SMaterialCompileResult result
+    )
+    {
+        const auto vertexHlsl = ReadFile(s_ShadersDir / "Material" / "ParticleMesh.vs.hlsl");
+        const auto pixelHlsl = ReadFile(s_ShadersDir / "Material" / "ParticleMesh.ps.hlsl");
+
+        if (vertexHlsl.empty() || pixelHlsl.empty())
+        {
+            result.Diagnostics = "Material mesh shader template was not found.";
+            result.Material.reset();
+            return result;
+        }
+
+        // Unique name per compiled graph so instances don't clobber each other.
+        static std::atomic<uint32_t> counter{ 0 };
+        const std::string name = "GraphMat_" + std::to_string(counter.fetch_add(1)) + "_ParticleMesh";
+
+        const fs::path loadDir = s_GeneratedDir / name;
+        std::error_code error;
+        fs::create_directories(loadDir, error);
+
+        const fs::path vertexSourcePath = s_GeneratedDir / (name + ".src.vs.hlsl");
+        {
+            std::ofstream out(vertexSourcePath, std::ios::binary);
+            out << vertexHlsl;
+        }
+
+        const fs::path pixelSourcePath = s_GeneratedDir / (name + ".src.ps.hlsl");
+        {
+            std::ofstream out(pixelSourcePath, std::ios::binary);
+
+            const auto graphHlsl = GenerateGraphHLSL(material.GetGraph(), *result.Material);
+            out << InjectBody(pixelHlsl, graphHlsl);
+        }
+
+        // Compile the generated pixel shader to SPIR-V with DXC.
+        const fs::path dxc = FindDXC();
+        const fs::path spvPath = loadDir / (name + ".ps.spirv");
+
+        const auto compileStage = [&dxc](
+            const fs::path& sourcePath,
+            const fs::path& spvPath,
+            const std::string_view profile
+        )
+        {
+            const std::string cmd =
+                "\"" + dxc.string() + "\" -spirv -T " + std::string(profile) + " -E main \""
+                + sourcePath.string() + "\" -Fo \"" + spvPath.string() + "\"";
+
+            return std::system(cmd.c_str()) == 0 && fs::exists(spvPath);
+        };
+
+        if (!compileStage(
+            vertexSourcePath,
+            loadDir / (name + ".vs.spirv"),
+            "vs_6_0"
+        ) || !compileStage(
+            pixelSourcePath,
+            loadDir / (name + ".ps.spirv"),
+            "ps_6_0"
+        ))
+        {
+            EE_CORE_ERROR(
+                "Particle mesh material: DXC compilation failed for {}.",
+                name
+            )
+            result.Diagnostics = "DXC failed while compiling the particle mesh material.";
+            result.Material.reset();
+            return result;
+        }
+
+        result.Material->ParticleMeshShader = loader->LoadShader(loadDir, name);
+        if (!result.Material->ParticleMeshShader)
+        {
+            result.Diagnostics = "Shader loader could not load the particle mesh material.";
             result.Material.reset();
         }
 

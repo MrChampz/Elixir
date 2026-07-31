@@ -20,6 +20,7 @@ namespace Elixir
         Ref<Shader> SurfaceShader;
         Ref<Shader> ParticleSpriteShader;
         Ref<Shader> ParticleRibbonShader;
+        Ref<Shader> ParticleMeshShader;
         std::vector<SCompiledMaterialParameter> Parameters;
 
         bool SupportsUsage(const EMaterialUsage usage) const
@@ -37,7 +38,7 @@ namespace Elixir
                 case EMaterialUsage::ParticleRibbon:
                     return ParticleRibbonShader;
                 case EMaterialUsage::ParticleMesh:
-                    break;
+                    return ParticleMeshShader;
             }
 
             static const Ref<Shader> unsupportedUsageShader;
@@ -81,6 +82,12 @@ namespace Elixir
         );
 
         static SMaterialCompileResult CompileParticleRibbon(
+            const ShaderLoader* loader,
+            const Material& material,
+            SMaterialCompileResult result
+        );
+
+        static SMaterialCompileResult CompileParticleMesh(
             const ShaderLoader* loader,
             const Material& material,
             SMaterialCompileResult result

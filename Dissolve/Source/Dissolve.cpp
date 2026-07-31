@@ -150,6 +150,10 @@ Dissolve::Dissolve()
             ribbonMaterial->SetUsage(EMaterialUsage::ParticleRibbon, true),
             "Ribbon material must enable ParticleRibbon usage."
         )
+        EE_CORE_ASSERT(
+            ribbonMaterial->SetUsage(EMaterialUsage::ParticleMesh, true),
+            "Ribbon material must enable ParticleRibbon usage."
+        )
 
         EE_CORE_ASSERT(ribbonMaterial->DefineParameter("Tint", {
             .Kind = EMaterialParameterKind::Value,
@@ -223,6 +227,12 @@ Dissolve::Dissolve()
         {
             emitter->SetMaterial(proxy);
             EE_CORE_INFO("Published graph material to the PathRibbon particle emitter.")
+        }
+
+        if (auto* emitter = m_ParticleSystems[1]->FindEmitter("CrystalShards"))
+        {
+            emitter->SetMaterial(proxy);
+            EE_CORE_INFO("Published graph material to the CrystalShards particle emitter.")
         }
     }
 

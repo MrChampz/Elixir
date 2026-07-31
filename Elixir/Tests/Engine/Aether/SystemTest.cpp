@@ -165,3 +165,30 @@ TEST(AetherSystemTest, CompileSnapshotsParticleRibbonMaterialForRenderData)
         EMaterialUsage::ParticleRibbon
     ));
 }
+
+TEST(AetherSystemTest, CompileSnapshotsParticleMeshMaterialForRenderData)
+{
+    const auto material = CreateRef<Material>("Particle mesh");
+    material->SetUsage(EMaterialUsage::ParticleMesh, true);
+
+    const auto instance = CreateRef<MaterialInstance>(material);
+
+    const auto compiledMaterial = MaterialCompiler::Build(*material);
+    ASSERT_TRUE(compiledMaterial);
+
+    const auto proxy = instance->CreateRenderProxy(compiledMaterial.Material);
+    ASSERT_TRUE(proxy);
+
+    System system{ "Mesh material" };
+    auto& emitter = system.AddEmitter("Mesh", 8, 0.0f);
+    emitter.SetRenderMode(EParticleRenderMode::Mesh);
+    emitter.SetMaterial(proxy);
+
+    const auto compiled = system.Compile();
+
+    ASSERT_EQ(compiled.Emitters.size(), 1);
+    ASSERT_TRUE(compiled.Emitters[0].Material);
+    EXPECT_TRUE(compiled.Emitters[0].Material->GetCompiledMaterial()->SupportsUsage(
+        EMaterialUsage::ParticleMesh
+    ));
+}

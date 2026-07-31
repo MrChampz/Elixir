@@ -172,8 +172,9 @@ namespace Elixir::Aether
             Ref<Shader> UpdateShader;
             Ref<ComputePipeline> UpdatePipeline;
 
-            std::unordered_map<const Shader*, Ref<GraphicsPipeline>> MaterialPipelines;
+            std::unordered_map<const Shader*, Ref<GraphicsPipeline>> SpriteMaterialPipelines;
             std::unordered_map<const Shader*, Ref<GraphicsPipeline>> RibbonMaterialPipelines;
+            std::unordered_map<const Shader*, Ref<GraphicsPipeline>> MeshMaterialPipelines;
 
             Ref<Shader> SpriteShader;
             Ref<GraphicsPipeline> SpritePipeline;
@@ -202,16 +203,23 @@ namespace Elixir::Aether
         void BindParticleStateLayoutShaderParameters(const SParticleStateLayoutRuntime& runtime) const;
 
         uint32_t ResolveTextureIndex(const Ref<Texture>& texture);
+
         void PrepareParticleSpriteMaterialShader(const Ref<Shader>& shader);
         void PrepareParticleRibbonMaterialShader(
             const SParticleStateLayoutRuntime& runtime,
             const Ref<Shader>& shader
         );
+        void PrepareParticleMeshMaterialShader(const Ref<Shader>& shader);
+
         Ref<GraphicsPipeline> GetParticleSpritePipeline(
             SParticleStateLayoutRuntime& runtime,
             const Ref<Shader>& shader
         ) const;
         Ref<GraphicsPipeline> GetParticleRibbonPipeline(
+            SParticleStateLayoutRuntime& runtime,
+            const Ref<Shader>& shader
+        ) const;
+        Ref<GraphicsPipeline> GetParticleMeshPipeline(
             SParticleStateLayoutRuntime& runtime,
             const Ref<Shader>& shader
         ) const;

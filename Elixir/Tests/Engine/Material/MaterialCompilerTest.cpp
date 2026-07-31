@@ -35,13 +35,14 @@ TEST(MaterialCompilerTest, PreservesEnabledRendererUsages)
     const auto material = CreateRef<Material>("Particle material");
     ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleSprite, true));
     ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleRibbon, true));
+    ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleMesh, true));
 
     const auto result = MaterialCompiler::Build(*material);
 
     ASSERT_TRUE(result);
     EXPECT_TRUE(result.Material->SupportsUsage(EMaterialUsage::ParticleSprite));
     EXPECT_TRUE(result.Material->SupportsUsage(EMaterialUsage::ParticleRibbon));
-    EXPECT_FALSE(result.Material->SupportsUsage(EMaterialUsage::ParticleMesh));
+    EXPECT_TRUE(result.Material->SupportsUsage(EMaterialUsage::ParticleMesh));
 }
 
 TEST(MaterialCompilerTest, DoesNotAliasParticleUsageShadersToSurfaceShader)
@@ -54,6 +55,7 @@ TEST(MaterialCompilerTest, DoesNotAliasParticleUsageShadersToSurfaceShader)
 
     EXPECT_EQ(&spriteShader, &material.ParticleSpriteShader);
     EXPECT_EQ(&ribbonShader, &material.ParticleRibbonShader);
+    EXPECT_EQ(&meshShader, &material.ParticleMeshShader);
     EXPECT_FALSE(ribbonShader);
     EXPECT_FALSE(meshShader);
     EXPECT_NE(&ribbonShader, &material.SurfaceShader);
