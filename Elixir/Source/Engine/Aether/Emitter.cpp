@@ -52,23 +52,30 @@ namespace Elixir::Aether
 
         if (m_Material)
         {
-            if (m_RenderMode != EParticleRenderMode::Sprite)
+            if (m_RenderMode == EParticleRenderMode::Mesh)
             {
                 EE_CORE_ERROR(
-                    "Aether emitter '{}' only supports materials for Sprite rendering.",
-                    m_Name
-                )
-            }
-            else if (!m_Material->GetCompiledMaterial()->SupportsUsage(EMaterialUsage::ParticleSprite))
-            {
-                EE_CORE_ERROR(
-                    "Aether emitter '{}' requires a material enabled for ParticleSprite usage.",
+                    "Aether emitter '{}' does not support Mesh materials yet.",
                     m_Name
                 )
             }
             else
             {
-                emitter.Material = m_Material;
+                const auto usage = m_RenderMode == EParticleRenderMode::Sprite
+                    ? EMaterialUsage::ParticleSprite
+                    : EMaterialUsage::ParticleRibbon;
+
+                if (!m_Material->GetCompiledMaterial()->SupportsUsage(usage))
+                {
+                    EE_CORE_ERROR(
+                        "Aether emitter '{}' requires a material enabled for its render mode.",
+                        m_Name
+                    )
+                }
+                else
+                {
+                    emitter.Material = m_Material;
+                }
             }
         }
 

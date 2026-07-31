@@ -139,3 +139,29 @@ TEST(AetherSystemTest, CompileSnapshotsParticleSpriteMaterialForRenderData)
     EXPECT_FLOAT_EQ(first.Emitters[0].Material->GetValues()[0].x, 0.25f);
     EXPECT_FLOAT_EQ(second.Emitters[0].Material->GetValues()[0].x, 0.75f);
 }
+
+TEST(AetherSystemTest, CompileSnapshotsParticleRibbonMaterialForRenderData)
+{
+    const auto material = CreateRef<Material>("Particle ribbon");
+    ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleRibbon, true));
+
+    const auto instance = CreateRef<MaterialInstance>(material);
+    const auto compiledMaterial = MaterialCompiler::Build(*material);
+    ASSERT_TRUE(compiledMaterial);
+
+    const auto proxy = instance->CreateRenderProxy(compiledMaterial.Material);
+    ASSERT_TRUE(proxy);
+
+    System system{ "Ribbon material snapshot contract" };
+    auto& emitter = system.AddEmitter("Ribbon", 8, 0.0f);
+    emitter.SetRenderMode(EParticleRenderMode::Ribbon);
+    emitter.SetMaterial(proxy);
+
+    const auto compiled = system.Compile();
+
+    ASSERT_EQ(compiled.Emitters.size(), 1);
+    ASSERT_TRUE(compiled.Emitters[0].Material);
+    EXPECT_TRUE(compiled.Emitters[0].Material->GetCompiledMaterial()->SupportsUsage(
+        EMaterialUsage::ParticleRibbon
+    ));
+}

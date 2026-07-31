@@ -8,7 +8,11 @@ struct ParticleState
     float4 Metadata;        // x = emitter index, y = ribbon link order, z = lifetime, w = alive
 };
 
+#if defined(MATERIAL_RIBBON)
+[[vk::binding(1, 3)]]
+#else
 [[vk::binding(1, 0)]]
+#endif
 StructuredBuffer<ParticleState> particles;
 
 struct Emitter
@@ -19,7 +23,11 @@ struct Emitter
     float4 MetaD; // x = emission index
 };
 
+#if defined(MATERIAL_RIBBON)
+[[vk::binding(2, 3)]]
+#else
 [[vk::binding(2, 0)]]
+#endif
 StructuredBuffer<Emitter> emitters;
 
 [[vk::binding(0, 0)]]

@@ -44,7 +44,7 @@ TEST(MaterialCompilerTest, PreservesEnabledRendererUsages)
     EXPECT_FALSE(result.Material->SupportsUsage(EMaterialUsage::ParticleMesh));
 }
 
-TEST(MaterialCompilerTest, DoesNotAliasUnsupportedParticleUsagesToSurfaceShader)
+TEST(MaterialCompilerTest, DoesNotAliasParticleUsageShadersToSurfaceShader)
 {
     SCompiledMaterial material;
 
