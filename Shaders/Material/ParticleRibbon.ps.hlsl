@@ -11,7 +11,7 @@ cbuffer cbFrame : register(b0)
     float       Time;
 };
 
-[[vk::binding(1, 0)]]
+[[vk::binding(3, 0)]]
 SamplerState spriteSampler : register(s0);
 
 [[vk::binding(1, 1)]]
@@ -23,7 +23,7 @@ struct CompiledMaterial
     uint TextureIndices[32];
 };
 
-[[vk::binding(2, 0)]]
+[[vk::binding(4, 0)]]
 StructuredBuffer<CompiledMaterial> materials;
 
 struct MaterialPushConstants
@@ -39,9 +39,9 @@ MaterialPushConstants pc;
 
 struct PSInput
 {
-    float4 ClipPos : SV_POSITION;
-    float4 Color : COLOR0;
-    float2 UV : TEXCOORD0;
+    float4 ClipPos              : SV_POSITION;
+    float4 Color                : COLOR0;
+    float2 TexCoord             : TEXCOORD0;
     nointerpolation float Valid : TEXCOORD1;
 };
 
@@ -74,11 +74,13 @@ float4 main(PSInput input) : SV_Target0
 
     // __GRAPH_BODY__
 
-    const float centeredAcrossRibbon = abs((input.UV.x * 2.0f) - 1.0f);
-    const float edgeFade = 1.0f - smoothstep(0.72f, 1.0f, centeredAcrossRibbon);
-    const float coreGlow = 1.0f - smoothstep(0.0f, 0.52f, centeredAcrossRibbon);
-    const float3 color = (input.Color.rgb * surface.BaseColor) +
-        surface.Emissive + (coreGlow * 0.22f);
+    //const float centeredAcrossRibbon = abs((input.TexCoord.x * 2.0f) - 1.0f);
+    //const float edgeFade = 1.0f - smoothstep(0.72f, 1.0f, centeredAcrossRibbon);
+    //const float coreGlow = 1.0f - smoothstep(0.0f, 0.52f, centeredAcrossRibbon);
+//    const float3 color = (input.Color.rgb * surface.BaseColor) +
+//        surface.Emissive + (coreGlow * 0.22f);
+    const float3 color = surface.BaseColor + surface.Emissive;
 
-    return float4(color, input.Color.a * edgeFade);
+//    return float4(color, input.Color.a * edgeFade);
+    return float4(color, 1.0f);
 }

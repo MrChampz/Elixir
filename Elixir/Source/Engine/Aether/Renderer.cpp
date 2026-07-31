@@ -31,6 +31,7 @@ namespace Elixir::Aether
         glm::mat4 WorldTransform{ 1.0f };
         uint32_t EmitterIndex = 0;
         uint32_t ParticleBaseOffset = 0;
+        uint32_t MaterialIndex = UINT32_MAX;
     };
 
     struct SMaterialPushConstants

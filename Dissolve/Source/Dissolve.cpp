@@ -142,6 +142,90 @@ Dissolve::Dissolve()
             EE_CORE_ERROR("Node-graph material compilation failed: {}", result.Diagnostics)
     }
 
+    {
+        MaterialGraph graph1;
+
+        const auto ribbonMaterial = CreateRef<Material>("RibbonEnergy");
+        EE_CORE_ASSERT(
+            ribbonMaterial->SetUsage(EMaterialUsage::ParticleRibbon, true),
+            "Ribbon material must enable ParticleRibbon usage."
+        )
+
+        EE_CORE_ASSERT(ribbonMaterial->DefineParameter("Tint", {
+            .Kind = EMaterialParameterKind::Value,
+            .ValueType = EMaterialGraphValueType::Float4,
+            .DefaultValue = SMaterialParam::MakeVector({ 0.2f, 0.5f, 1.0f, 1.0f }),
+        }), "")
+
+        EE_CORE_ASSERT(ribbonMaterial->DefineParameter("Glow", {
+            .Kind = EMaterialParameterKind::Value,
+            .ValueType = EMaterialGraphValueType::Float4,
+            .DefaultValue = SMaterialParam::MakeVector({ 0.05f, 0.2f, 1.0f, 1.0f }),
+        }), "")
+
+        EE_CORE_ASSERT(ribbonMaterial->DefineParameter("Albedo", {
+            .Kind = EMaterialParameterKind::Texture,
+            .DefaultValue = SMaterialParam::MakeTexture(tex),
+        }), "")
+
+        SMaterialNode panner;
+        panner.Type = EMaterialNodeType::Panner;
+        panner.OutputType = EMaterialGraphValueType::Float2;
+        panner.ConstantValue = { 0.08f, -0.35f, 0.0f, 0.0f };
+        const auto pannerNode = graph1.AddNode(panner);
+
+        SMaterialNode albedo1;
+        albedo1.Type = EMaterialNodeType::TextureSample;
+        albedo1.OutputType = EMaterialGraphValueType::Float3;
+        albedo1.TextureParameterName = "Albedo";
+        albedo1.Inputs = { static_cast<int32_t>(pannerNode) };
+        const auto albedoNode1 = graph1.AddNode(albedo1);
+
+        SMaterialNode tint1;
+        tint1.Type = EMaterialNodeType::Parameter;
+        tint1.OutputType = EMaterialGraphValueType::Float4;
+        tint1.ParameterName = "Tint";
+        const auto tintNode1 = graph1.AddNode(tint1);
+
+        SMaterialNode color;
+        color.Type = EMaterialNodeType::Multiply;
+        color.OutputType = EMaterialGraphValueType::Float4;
+        color.Inputs = {
+            static_cast<int32_t>(albedoNode1),
+            static_cast<int32_t>(tintNode1),
+        };
+        graph1.SetChannel(EMaterialChannel::BaseColor, albedoNode1);
+
+        SMaterialNode glow;
+        glow.Type = EMaterialNodeType::Parameter;
+        glow.OutputType = EMaterialGraphValueType::Float4;
+        glow.ParameterName = "Glow";
+        //graph1.SetChannel(EMaterialChannel::Emissive, graph1.AddNode(glow));
+
+        ribbonMaterial->SetGraph(std::move(graph1));
+
+        const auto compileResult = MaterialCompiler::Compile(
+            m_ShaderLoader.get(),
+            *ribbonMaterial
+        );
+        EE_CORE_ASSERT(compileResult, "Ribbon material compilation failed.")
+
+        const auto instance = CreateRef<MaterialInstance>(ribbonMaterial);
+        EE_CORE_ASSERT(
+            instance->SetVector("Tint", { 0.15f, 0.6f, 1.0f, 1.0f }),
+            "Ribbon tint override must match the schema."
+        )
+
+        const auto proxy = instance->CreateRenderProxy(compileResult.Material);
+        EE_CORE_ASSERT(proxy, "Ribbon material proxy creation failed.")
+
+        if (auto* emitter = m_ParticleSystems[1]->FindEmitter("PathRibbon"))
+        {
+            emitter->SetMaterial(proxy);
+            EE_CORE_INFO("Published graph material to the PathRibbon particle emitter.")
+        }
+    }
+
     m_ParticleSystemInstances[0] = CreateScope<Aether::SystemInstance>(
         CreateRef<Aether::SCompiledSystem>(m_ParticleSystems[0]->Compile())
     );
