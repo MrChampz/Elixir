@@ -1,9 +1,7 @@
 #include "epch.h"
 #include "Renderer.h"
 
-#include "Engine/Core/Color.h"
 #include "Engine/Graphics/CommandBuffer.h"
-#include "Engine/Graphics/SamplerBuilder.h"
 #include "Engine/Graphics/Pipeline/PipelineBuilder.h"
 
 namespace Elixir::Aether
@@ -165,6 +163,7 @@ namespace Elixir::Aether
     ) : m_ParticlePoolLimits(limits),
         m_ParticleStateLayouts(m_ParticlePoolLimits.ParticleCapacity),
         m_ParticleResourcePool(m_ParticlePoolLimits, m_ParticleStateLayouts),
+        m_MaterialSystem(CreateRef<MaterialSystem>(context, limits.MaterialCapacity)),
         m_GraphicsContext(context)
     {
         static_assert(sizeof(SGPUParticleState) == PARTICLE_STATE_CORE_V1_STRIDE);
@@ -254,25 +253,15 @@ namespace Elixir::Aether
         if (submittedInstances.empty())
             return;
 
-        ParticleMaterialTable materials(
-            m_ParticlePoolLimits.MaterialCapacity,
-            m_WhiteTextureHandle.Index,
-            [this](const Ref<Texture>& texture)
-            {
-                return ResolveTextureIndex(texture);
-            }
+        const auto materialInputs = CollectMaterialFrameInputs(submittedInstances);
+        const auto materialSnapshot = m_MaterialSystem->BuildFrameSnapshot(
+            materialInputs.Materials,
+            materialInputs.Textures,
+            m_SubmissionSerial
         );
 
         const auto simulationBatches = BuildSimulationBatches(submittedInstances);
-        const auto renderBatches = BuildRenderBatches(submittedInstances, materials);
-
-        if (!materials.GetData().empty())
-        {
-            m_MaterialBuffer->UpdateData(
-                materials.GetData().data(),
-                materials.GetData().size() * sizeof(SParticleMaterialData)
-            );
-        }
+        const auto renderBatches = BuildRenderBatches(submittedInstances, materialSnapshot);
 
         for (const auto& batch : renderBatches)
         {
@@ -308,7 +297,7 @@ namespace Elixir::Aether
 
         m_LastSubmissionMetrics.SimulationBatchCount = simulationBatches.size();
         m_LastSubmissionMetrics.RenderBatchCount = renderBatches.size();
-        m_LastSubmissionMetrics.SubmittedMaterialCount = materials.GetCount();
+        m_LastSubmissionMetrics.SubmittedMaterialCount = materialSnapshot.MaterialCount;
 
         for (const auto& batch : renderBatches)
             m_LastSubmissionMetrics.SubmittedRenderItemCount += batch.Items.size();
@@ -406,9 +395,6 @@ namespace Elixir::Aether
 
         pipelineInfo.Shader = m_SchedulerFinalizeShader;
         m_SchedulerFinalizePipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
-
-        m_Sprites = TextureSet::Create(m_GraphicsContext);
-        m_SpriteSampler = SamplerBuilder().Build(m_GraphicsContext);
 
         CreateCoreV1ParticleStateLayoutRuntime(shaderLoader);
     }
@@ -636,11 +622,6 @@ namespace Elixir::Aether
             sizeof(SParameterData) * m_ParticlePoolLimits.ParameterCapacity
         );
 
-        m_MaterialBuffer = DynamicStorageBuffer::Create(
-            m_GraphicsContext,
-            sizeof(SParticleMaterialData) * m_ParticlePoolLimits.MaterialCapacity
-        );
-
         m_ParamsBuffer = UniformBuffer::Create(
             m_GraphicsContext,
             sizeof(SParamsData)
@@ -813,15 +794,6 @@ namespace Elixir::Aether
         m_SchedulerFinalizeShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
         m_SchedulerFinalizeShader->BindStorageBuffer("schedulerStates", m_SystemSchedulerStateBuffer);
 
-        const auto whiteTex = Texture2D::Create(
-            m_GraphicsContext,
-            EImageFormat::R8G8B8A8_SRGB,
-            1, 1,
-            &Color::WhiteAlpha
-        );
-
-        m_WhiteTextureHandle = m_Sprites->AddTexture(whiteTex);
-
         for (auto& runtime : m_ParticleStateLayoutRuntimes)
             BindParticleStateLayoutShaderParameters(runtime);
     }
@@ -867,7 +839,7 @@ namespace Elixir::Aether
         runtime.UpdateShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
 
         const SSpritePushConstants spritePushConstants{
-            .SpriteIndex = m_WhiteTextureHandle.Index
+            .SpriteIndex = m_MaterialSystem->GetFallbackTextureIndex(),
         };
         runtime.SpriteShader->SetPushConstant(
             "pc",
@@ -876,8 +848,8 @@ namespace Elixir::Aether
         );
 
         runtime.SpriteShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
-        runtime.SpriteShader->BindTextureSet("sprites", m_Sprites);
-        runtime.SpriteShader->BindSampler("spriteSampler", m_SpriteSampler);
+        runtime.SpriteShader->BindTextureSet("sprites", m_MaterialSystem->GetTextureSet());
+        runtime.SpriteShader->BindSampler("spriteSampler", m_MaterialSystem->GetSampler());
 
         constexpr SRibbonPushConstants ribbonPushConstants{};
         runtime.RibbonShader->SetPushConstant(
@@ -900,45 +872,20 @@ namespace Elixir::Aether
         runtime.MeshShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
     }
 
-    uint32_t Renderer::ResolveTextureIndex(const Ref<Texture>& texture)
-    {
-        if (!texture)
-            return m_WhiteTextureHandle.Index;
-
-        const auto binding = m_TextureBindings.find(texture);
-        if (binding != m_TextureBindings.end())
-        {
-            if (binding->second.ReadySubmission <= m_SubmissionSerial)
-                return binding->second.Handle.Index;
-
-            return m_WhiteTextureHandle.Index;
-        }
-
-        // RegisterTexture only marks the bindless slot dirty. Vulkan flushes it
-        // in GraphicsContext::Prepare() before the next render callback.
-        const auto handle = m_Sprites->AddTexture(texture);
-        m_TextureBindings.emplace(texture, STextureBinding{
-            .Handle = handle,
-            .ReadySubmission = m_SubmissionSerial + 1,
-        });
-
-        return m_WhiteTextureHandle.Index;
-    }
-
     void Renderer::PrepareParticleSpriteMaterialShader(const Ref<Shader>& shader)
     {
         if (!shader || !m_MaterialShaderCache.insert(shader.get()).second)
             return;
 
         const SSpritePushConstants pc{
-            .SpriteIndex = m_WhiteTextureHandle.Index,
+            .SpriteIndex = m_MaterialSystem->GetFallbackTextureIndex(),
         };
 
         shader->SetPushConstant("pc", (void*)&pc, sizeof(pc));
         shader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
-        shader->BindStorageBuffer("materials", m_MaterialBuffer);
-        shader->BindTextureSet("sprites", m_Sprites);
-        shader->BindSampler("spriteSampler", m_SpriteSampler);
+        shader->BindStorageBuffer("materials", m_MaterialSystem->GetFrameBuffer());
+        shader->BindTextureSet("sprites", m_MaterialSystem->GetTextureSet());
+        shader->BindSampler("spriteSampler", m_MaterialSystem->GetSampler());
     }
 
     void Renderer::PrepareParticleRibbonMaterialShader(
@@ -955,9 +902,9 @@ namespace Elixir::Aether
         shader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
         shader->BindStorageBuffer("particles", runtime.ParticleStateBuffer);
         shader->BindStorageBuffer("emitters", m_EmitterBuffer);
-        shader->BindStorageBuffer("materials", m_MaterialBuffer);
-        shader->BindTextureSet("sprites", m_Sprites);
-        shader->BindSampler("spriteSampler", m_SpriteSampler);
+        shader->BindStorageBuffer("materials", m_MaterialSystem->GetFrameBuffer());
+        shader->BindTextureSet("sprites", m_MaterialSystem->GetTextureSet());
+        shader->BindSampler("spriteSampler", m_MaterialSystem->GetSampler());
     }
 
     void Renderer::PrepareParticleMeshMaterialShader(const Ref<Shader>& shader)
@@ -969,9 +916,9 @@ namespace Elixir::Aether
         shader->SetPushConstant("pc", (void*)&pc, sizeof(pc));
 
         shader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
-        shader->BindStorageBuffer("materials", m_MaterialBuffer);
-        shader->BindTextureSet("sprites", m_Sprites);
-        shader->BindSampler("spriteSampler", m_SpriteSampler);
+        shader->BindStorageBuffer("materials", m_MaterialSystem->GetFrameBuffer());
+        shader->BindTextureSet("sprites", m_MaterialSystem->GetTextureSet());
+        shader->BindSampler("spriteSampler", m_MaterialSystem->GetSampler());
     }
 
     Ref<GraphicsPipeline> Renderer::GetParticleSpritePipeline(
@@ -1317,7 +1264,7 @@ namespace Elixir::Aether
 
     std::vector<Renderer::SRenderBatch> Renderer::BuildRenderBatches(
         const std::vector<SSubmittedSystemInstance>& instances,
-        ParticleMaterialTable& materials
+        const SMaterialFrameSnapshot& materials
     )
     {
         std::vector<SRenderBatch> batches;
@@ -1336,10 +1283,10 @@ namespace Elixir::Aether
                 const MaterialRenderProxy* material = emitter.Material.get();
                 const Shader* materialShader = nullptr;
                 uint32_t materialIndex = UINT32_MAX;
-                uint32_t spriteIndex = m_WhiteTextureHandle.Index;
+                uint32_t spriteIndex = m_MaterialSystem->GetFallbackTextureIndex();
 
                 if (emitter.RenderMode == EParticleRenderMode::Sprite)
-                    spriteIndex = ResolveTextureIndex(emitter.SpriteTexture);
+                    spriteIndex = m_MaterialSystem->FindTextureIndex(emitter.SpriteTexture);
 
                 EMaterialUsage materialUsage;
 
@@ -1350,7 +1297,10 @@ namespace Elixir::Aether
 
                     if (shader)
                     {
-                        if (const auto index = materials.Add(*material))
+                        const auto index = materials.Table->Find(*material);
+                        EE_CORE_ASSERT(index, "Material frame snapshot is missing an emitter material.")
+
+                        if (index)
                         {
                             materialShader = shader.get();
                             materialIndex = *index;
@@ -1422,6 +1372,32 @@ namespace Elixir::Aether
         });
 
         return batches;
+    }
+
+    Renderer::SMaterialFrameInputs Renderer::CollectMaterialFrameInputs(
+        const std::vector<SSubmittedSystemInstance>& instances
+    ) const
+    {
+        SMaterialFrameInputs inputs;
+
+        for (const auto& instance : instances)
+        {
+            const auto& emitters = instance.Instance->GetCompiledSystem().Emitters;
+
+            for (const auto& emitter : emitters)
+            {
+                if (emitter.MaxParticles == 0)
+                    continue;
+
+                if (emitter.Material)
+                    inputs.Materials.push_back(emitter.Material);
+
+                if (emitter.RenderMode == EParticleRenderMode::Sprite && emitter.SpriteTexture)
+                    inputs.Textures.push_back(emitter.SpriteTexture);
+            }
+        }
+
+        return inputs;
     }
 
     void Renderer::SimulateBatch(const Ref<CommandBuffer>& cmd, const SSimulationBatch& batch)

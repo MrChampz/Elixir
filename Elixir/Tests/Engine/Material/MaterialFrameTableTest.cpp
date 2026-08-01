@@ -1,11 +1,10 @@
 #include <gtest/gtest.h>
 
-#include <Engine/Aether/ParticleMaterialTable.h>
 #include <Engine/Graphics/Texture.h>
+#include <Engine/Material/MaterialFrameTable.h>
 #include <Engine/Material/MaterialCompiler.h>
 
 using namespace Elixir;
-using namespace Elixir::Aether;
 
 namespace
 {
@@ -39,7 +38,7 @@ namespace
     };
 }
 
-TEST(ParticleMaterialTableTest, DeduplicatesAProxyAndPreserveItsValues)
+TEST(MaterialFrameTableTest, DeduplicatesAProxyAndPreserveItsValues)
 {
     auto material = CreateRef<Material>("Particle material");
     ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleSprite, true));
@@ -58,7 +57,7 @@ TEST(ParticleMaterialTableTest, DeduplicatesAProxyAndPreserveItsValues)
     const auto proxy = instance->CreateRenderProxy(compiled.Material);
     ASSERT_TRUE(proxy);
 
-    ParticleMaterialTable table(
+    MaterialFrameTable table(
         1,
         17,
         [](const Ref<Texture>&) { return 23; }
@@ -78,9 +77,9 @@ TEST(ParticleMaterialTableTest, DeduplicatesAProxyAndPreserveItsValues)
     EXPECT_EQ(data.TextureIndices.back(), 17);
 }
 
-TEST(ParticleMaterialTableTest, RejectsAUniqueProxyPastCapacity)
+TEST(MaterialFrameTableTest, RejectsAUniqueProxyPastCapacity)
 {
-    ParticleMaterialTable table(
+    MaterialFrameTable table(
         0,
         0,
         [](const Ref<Texture>&) { return 0; }
@@ -96,7 +95,7 @@ TEST(ParticleMaterialTableTest, RejectsAUniqueProxyPastCapacity)
     EXPECT_FALSE(table.Add(*proxy));
 }
 
-TEST(ParticleMaterialTableTest, ResolvesAuthoredTextureSlots)
+TEST(MaterialFrameTableTest, ResolvesAuthoredTextureSlots)
 {
     const auto texture = CreateRef<TestTexture>();
 
@@ -114,7 +113,7 @@ TEST(ParticleMaterialTableTest, ResolvesAuthoredTextureSlots)
     ASSERT_TRUE(proxy);
 
     uint32_t resolveCount = 0;
-    ParticleMaterialTable table(
+    MaterialFrameTable table(
         1,
         5,
         [&resolveCount, &texture](const Ref<Texture>& resolved)

@@ -92,7 +92,7 @@ namespace Elixir
         bool IsParameterValueCompatible(
             const std::string& name,
             const SMaterialParam& value
-        );
+        ) const;
         bool ValidateGraph(std::string* error = nullptr) const;
 
         const std::string& GetName() const { return m_Name; }

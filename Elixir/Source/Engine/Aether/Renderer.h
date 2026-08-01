@@ -5,8 +5,8 @@
 #include <Engine/Aether/SystemInstance.h>
 #include <Engine/Aether/ParticleResourcePool.h>
 #include <Engine/Aether/ParticleStateLayout.h>
-#include <Engine/Aether/ParticleMaterialTable.h>
 #include <Engine/Aether/FrameSubmission.h>
+#include <Engine/Material/MaterialSystem.h>
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
 
@@ -202,8 +202,6 @@ namespace Elixir::Aether
         void BindShaderParameters();
         void BindParticleStateLayoutShaderParameters(const SParticleStateLayoutRuntime& runtime) const;
 
-        uint32_t ResolveTextureIndex(const Ref<Texture>& texture);
-
         void PrepareParticleSpriteMaterialShader(const Ref<Shader>& shader);
         void PrepareParticleRibbonMaterialShader(
             const SParticleStateLayoutRuntime& runtime,
@@ -252,6 +250,12 @@ namespace Elixir::Aether
             std::vector<const SSubmittedSystemInstance*> Instances;
         };
 
+        struct SMaterialFrameInputs
+        {
+            std::vector<Ref<const MaterialRenderProxy>> Materials;
+            std::vector<Ref<Texture>> Textures;
+        };
+
         struct SRenderBatchKey
         {
             EParticleStateLayout ParticleStateLayout = EParticleStateLayout::CoreV1;
@@ -297,14 +301,18 @@ namespace Elixir::Aether
 
         bool IsParticleStateLayoutSupported(EParticleStateLayout layout) const;
 
-        std::vector<SSimulationBatch>
-        BuildSimulationBatches(const std::vector<SSubmittedSystemInstance>& instances) const;
+        std::vector<SSimulationBatch> BuildSimulationBatches(
+            const std::vector<SSubmittedSystemInstance>& instances
+        ) const;
 
-        std::vector<SRenderBatch>
-        BuildRenderBatches(
+        std::vector<SRenderBatch> BuildRenderBatches(
             const std::vector<SSubmittedSystemInstance>& instances,
-            ParticleMaterialTable& materials
+            const SMaterialFrameSnapshot& materials
         );
+
+        SMaterialFrameInputs CollectMaterialFrameInputs(
+            const std::vector<SSubmittedSystemInstance>& instances
+        ) const;
 
         void SimulateBatch(
             const Ref<CommandBuffer>& cmd,
@@ -377,22 +385,10 @@ namespace Elixir::Aether
         Ref<DynamicStorageBuffer> m_EmitterBuffer;
         Ref<DynamicStorageBuffer> m_OpBuffer;
         Ref<DynamicStorageBuffer> m_ParameterBuffer;
-        Ref<DynamicStorageBuffer> m_MaterialBuffer;
         Ref<UniformBuffer> m_ParamsBuffer;
 
-        Ref<TextureSet> m_Sprites;
-        Ref<Sampler> m_SpriteSampler;
+        Ref<MaterialSystem> m_MaterialSystem;
         std::unordered_set<const Shader*> m_MaterialShaderCache;
-
-        struct STextureBinding
-        {
-            SResourceHandle Handle;
-            uint64_t ReadySubmission = 0;
-        };
-
-        std::unordered_map<Ref<Texture>, STextureBinding> m_TextureBindings;
-
-        SResourceHandle m_WhiteTextureHandle{};
 
         uint32_t m_MeshVertexCount = 0;
         Ref<VertexBuffer> m_MeshVertexBuffer;

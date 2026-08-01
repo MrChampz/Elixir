@@ -69,7 +69,7 @@ namespace Elixir
     bool Material::IsParameterValueCompatible(
         const std::string& name,
         const SMaterialParam& value
-    )
+    ) const
     {
         const auto* parameter = FindParameter(name);
         return parameter && IsValueCompatible(*parameter, value);
