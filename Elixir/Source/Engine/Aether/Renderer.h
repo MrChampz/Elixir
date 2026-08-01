@@ -172,10 +172,6 @@ namespace Elixir::Aether
             Ref<Shader> UpdateShader;
             Ref<ComputePipeline> UpdatePipeline;
 
-            std::unordered_map<const Shader*, Ref<GraphicsPipeline>> SpriteMaterialPipelines;
-            std::unordered_map<const Shader*, Ref<GraphicsPipeline>> RibbonMaterialPipelines;
-            std::unordered_map<const Shader*, Ref<GraphicsPipeline>> MeshMaterialPipelines;
-
             Ref<Shader> SpriteShader;
             Ref<GraphicsPipeline> SpritePipeline;
             Ref<Shader> RibbonShader;
@@ -201,26 +197,6 @@ namespace Elixir::Aether
         void InitPerFrameData();
         void BindShaderParameters();
         void BindParticleStateLayoutShaderParameters(const SParticleStateLayoutRuntime& runtime) const;
-
-        void PrepareParticleSpriteMaterialShader(const Ref<Shader>& shader);
-        void PrepareParticleRibbonMaterialShader(
-            const SParticleStateLayoutRuntime& runtime,
-            const Ref<Shader>& shader
-        );
-        void PrepareParticleMeshMaterialShader(const Ref<Shader>& shader);
-
-        Ref<GraphicsPipeline> GetParticleSpritePipeline(
-            SParticleStateLayoutRuntime& runtime,
-            const Ref<Shader>& shader
-        ) const;
-        Ref<GraphicsPipeline> GetParticleRibbonPipeline(
-            SParticleStateLayoutRuntime& runtime,
-            const Ref<Shader>& shader
-        ) const;
-        Ref<GraphicsPipeline> GetParticleMeshPipeline(
-            SParticleStateLayoutRuntime& runtime,
-            const Ref<Shader>& shader
-        ) const;
 
         void BeginRendering(const Ref<CommandBuffer>& cmd) const;
         void EndRendering(const Ref<CommandBuffer>& cmd) const;
@@ -260,7 +236,7 @@ namespace Elixir::Aether
         {
             EParticleStateLayout ParticleStateLayout = EParticleStateLayout::CoreV1;
             EParticleRenderMode RenderMode = EParticleRenderMode::Sprite;
-            const Shader* MaterialShader = nullptr;
+            SMaterialProgramKey MaterialProgram;
 
             bool operator==(const SRenderBatchKey&) const = default;
         };
@@ -278,6 +254,7 @@ namespace Elixir::Aether
         struct SRenderBatch
         {
             SRenderBatchKey Key;
+            std::optional<SPreparedMaterialPass> PreparedMaterial;
             std::vector<SRenderItem> Items;
         };
 
@@ -309,6 +286,8 @@ namespace Elixir::Aether
             const std::vector<SSubmittedSystemInstance>& instances,
             const SMaterialFrameSnapshot& materials
         );
+
+        void PrepareMaterialBatches(std::vector<SRenderBatch>& batches);
 
         SMaterialFrameInputs CollectMaterialFrameInputs(
             const std::vector<SSubmittedSystemInstance>& instances
@@ -388,7 +367,6 @@ namespace Elixir::Aether
         Ref<UniformBuffer> m_ParamsBuffer;
 
         Ref<MaterialSystem> m_MaterialSystem;
-        std::unordered_set<const Shader*> m_MaterialShaderCache;
 
         uint32_t m_MeshVertexCount = 0;
         Ref<VertexBuffer> m_MeshVertexBuffer;

@@ -135,21 +135,21 @@ namespace Elixir::Aether
             : glm::mat4{ 1.0f };
     }
 
-    bool TryToGetParticleMaterialUsage(
+    bool TryToGetParticleMaterialPass(
         const EParticleRenderMode renderMode,
-        EMaterialUsage& usage
+        EMaterialPass& pass
     )
     {
         switch (renderMode)
         {
             case EParticleRenderMode::Sprite:
-                usage = EMaterialUsage::ParticleSprite;
+                pass = EMaterialPass::ParticleSprite;
                 return true;
             case EParticleRenderMode::Ribbon:
-                usage = EMaterialUsage::ParticleRibbon;
+                pass = EMaterialPass::ParticleRibbon;
                 return true;
             case EParticleRenderMode::Mesh:
-                usage = EMaterialUsage::ParticleMesh;
+                pass = EMaterialPass::ParticleMesh;
                 return true;
         }
 
@@ -261,39 +261,9 @@ namespace Elixir::Aether
         );
 
         const auto simulationBatches = BuildSimulationBatches(submittedInstances);
-        const auto renderBatches = BuildRenderBatches(submittedInstances, materialSnapshot);
 
-        for (const auto& batch : renderBatches)
-        {
-            if (!batch.Key.MaterialShader || batch.Items.empty() ||
-                !batch.Items.front().Material)
-                continue;
-
-            EMaterialUsage usage;
-            if (!TryToGetParticleMaterialUsage(batch.Key.RenderMode, usage))
-                continue;
-
-            const auto& shader = batch.Items.front().Material
-                ->GetCompiledMaterial()->GetShader(usage);
-
-            switch (batch.Key.RenderMode)
-            {
-                case EParticleRenderMode::Sprite:
-                    PrepareParticleSpriteMaterialShader(shader);
-                    break;
-                case EParticleRenderMode::Ribbon:
-                {
-                    if (const auto* runtime = FindParticleStateLayoutRuntime(batch.Key.ParticleStateLayout))
-                    {
-                        PrepareParticleRibbonMaterialShader(*runtime, shader);
-                    }
-                    break;
-                }
-                case EParticleRenderMode::Mesh:
-                    PrepareParticleMeshMaterialShader(shader);
-                    break;
-            }
-        }
+        auto renderBatches = BuildRenderBatches(submittedInstances, materialSnapshot);
+        PrepareMaterialBatches(renderBatches);
 
         m_LastSubmissionMetrics.SimulationBatchCount = simulationBatches.size();
         m_LastSubmissionMetrics.RenderBatchCount = renderBatches.size();
@@ -872,134 +842,6 @@ namespace Elixir::Aether
         runtime.MeshShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
     }
 
-    void Renderer::PrepareParticleSpriteMaterialShader(const Ref<Shader>& shader)
-    {
-        if (!shader || !m_MaterialShaderCache.insert(shader.get()).second)
-            return;
-
-        const SSpritePushConstants pc{
-            .SpriteIndex = m_MaterialSystem->GetFallbackTextureIndex(),
-        };
-
-        shader->SetPushConstant("pc", (void*)&pc, sizeof(pc));
-        shader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
-        shader->BindStorageBuffer("materials", m_MaterialSystem->GetFrameBuffer());
-        shader->BindTextureSet("sprites", m_MaterialSystem->GetTextureSet());
-        shader->BindSampler("spriteSampler", m_MaterialSystem->GetSampler());
-    }
-
-    void Renderer::PrepareParticleRibbonMaterialShader(
-        const SParticleStateLayoutRuntime& runtime,
-        const Ref<Shader>& shader
-    )
-    {
-        if (!shader || !m_MaterialShaderCache.insert(shader.get()).second)
-            return;
-
-        constexpr SRibbonPushConstants pc{};
-        shader->SetPushConstant("pc", (void*)&pc, sizeof(pc));
-
-        shader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
-        shader->BindStorageBuffer("particles", runtime.ParticleStateBuffer);
-        shader->BindStorageBuffer("emitters", m_EmitterBuffer);
-        shader->BindStorageBuffer("materials", m_MaterialSystem->GetFrameBuffer());
-        shader->BindTextureSet("sprites", m_MaterialSystem->GetTextureSet());
-        shader->BindSampler("spriteSampler", m_MaterialSystem->GetSampler());
-    }
-
-    void Renderer::PrepareParticleMeshMaterialShader(const Ref<Shader>& shader)
-    {
-        if (!shader || !m_MaterialShaderCache.insert(shader.get()).second)
-            return;
-
-        constexpr SMeshPushConstants pc{};
-        shader->SetPushConstant("pc", (void*)&pc, sizeof(pc));
-
-        shader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
-        shader->BindStorageBuffer("materials", m_MaterialSystem->GetFrameBuffer());
-        shader->BindTextureSet("sprites", m_MaterialSystem->GetTextureSet());
-        shader->BindSampler("spriteSampler", m_MaterialSystem->GetSampler());
-    }
-
-    Ref<GraphicsPipeline> Renderer::GetParticleSpritePipeline(
-        SParticleStateLayoutRuntime& runtime,
-        const Ref<Shader>& shader
-    ) const
-    {
-        const auto found = runtime.SpriteMaterialPipelines.find(shader.get());
-        if (found != runtime.SpriteMaterialPipelines.end())
-            return found->second;
-
-        PipelineBuilder builder;
-        builder.SetShader(shader);
-        builder.SetInputTopology(EPrimitiveTopology::TriangleList);
-        builder.SetPolygonMode(EPolygonMode::Fill);
-        builder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
-        builder.EnableAlphaBlending();
-        builder.DisableDepthTest();
-        builder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
-        builder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
-        builder.SetBufferLayout(runtime.SpritePipeline->GetBufferLayout());
-
-        const auto pipeline = builder.Build(m_GraphicsContext);
-        runtime.SpriteMaterialPipelines.emplace(shader.get(), pipeline);
-        return pipeline;
-    }
-
-    Ref<GraphicsPipeline> Renderer::GetParticleRibbonPipeline(
-        SParticleStateLayoutRuntime& runtime,
-        const Ref<Shader>& shader
-    ) const
-    {
-        const auto found = runtime.RibbonMaterialPipelines.find(shader.get());
-        if (found != runtime.RibbonMaterialPipelines.end())
-            return found->second;
-
-        PipelineBuilder builder;
-        builder.SetShader(shader);
-        builder.SetInputTopology(EPrimitiveTopology::TriangleList);
-        builder.SetPolygonMode(EPolygonMode::Fill);
-        builder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
-        builder.EnableAlphaBlendingMax();
-        builder.DisableDepthTest();
-        builder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
-        builder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
-        builder.SetBufferLayout({});
-
-        const auto pipeline = builder.Build(m_GraphicsContext);
-        runtime.RibbonMaterialPipelines.emplace(shader.get(), pipeline);
-        return pipeline;
-    }
-
-    Ref<GraphicsPipeline> Renderer::GetParticleMeshPipeline(
-        SParticleStateLayoutRuntime& runtime,
-        const Ref<Shader>& shader
-    ) const
-    {
-        const auto found = runtime.MeshMaterialPipelines.find(shader.get());
-        if (found != runtime.MeshMaterialPipelines.end())
-            return found->second;
-
-        PipelineBuilder builder;
-        builder.SetShader(shader);
-        builder.SetInputTopology(EPrimitiveTopology::TriangleList);
-        builder.SetPolygonMode(EPolygonMode::Fill);
-        builder.SetCullMode(ECullMode::Back, EFrontFace::CounterClockwise);
-        builder.EnableAlphaBlendingMax();
-        builder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
-        builder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
-        builder.SetBufferLayout(runtime.MeshPipeline->GetBufferLayout());
-
-        auto info = builder.GetCreateInfo();
-        info.DepthStencil.DepthTestEnable = true;
-        info.DepthStencil.DepthWriteEnable = true;
-        info.DepthStencil.DepthCompareOp = ECompareOp::LessOrEqual;
-
-        const auto pipeline = GraphicsPipeline::Create(m_GraphicsContext, info);
-        runtime.MeshMaterialPipelines.emplace(shader.get(), pipeline);
-        return pipeline;
-    }
-
     void Renderer::BeginRendering(const Ref<CommandBuffer>& cmd) const
     {
         const auto renderingInfo = SRenderingInfo
@@ -1281,28 +1123,25 @@ namespace Elixir::Aether
                     continue;
 
                 const MaterialRenderProxy* material = emitter.Material.get();
-                const Shader* materialShader = nullptr;
+                SMaterialProgramKey materialProgram;
                 uint32_t materialIndex = UINT32_MAX;
                 uint32_t spriteIndex = m_MaterialSystem->GetFallbackTextureIndex();
 
                 if (emitter.RenderMode == EParticleRenderMode::Sprite)
                     spriteIndex = m_MaterialSystem->FindTextureIndex(emitter.SpriteTexture);
 
-                EMaterialUsage materialUsage;
-
-                if (material && TryToGetParticleMaterialUsage(emitter.RenderMode, materialUsage))
+                EMaterialPass materialPass;
+                if (material && TryToGetParticleMaterialPass(emitter.RenderMode, materialPass))
                 {
-                    const auto& shader = material->GetCompiledMaterial()
-                        ->GetShader(materialUsage);
-
-                    if (shader)
+                    const auto program = m_MaterialSystem->GetProgramKey(materialPass, *material);
+                    if (program)
                     {
                         const auto index = materials.Table->Find(*material);
                         EE_CORE_ASSERT(index, "Material frame snapshot is missing an emitter material.")
 
                         if (index)
                         {
-                            materialShader = shader.get();
+                            materialProgram = *program;
                             materialIndex = *index;
                         }
                         else
@@ -1318,7 +1157,7 @@ namespace Elixir::Aether
                 const SRenderBatchKey key{
                     .ParticleStateLayout = instance.ParticleStateLayout,
                     .RenderMode = emitter.RenderMode,
-                    .MaterialShader = materialShader,
+                    .MaterialProgram = materialProgram,
                 };
 
                 SRenderBatch* batch = nullptr;
@@ -1365,13 +1204,112 @@ namespace Elixir::Aether
                     GetRenderModeOrder(right.Key.RenderMode);
             }
 
-            return std::less<const Shader*>{}(
-                left.Key.MaterialShader,
-                right.Key.MaterialShader
+            return std::less<const void*>{}(
+                left.Key.MaterialProgram.Identity,
+                right.Key.MaterialProgram.Identity
             );
         });
 
         return batches;
+    }
+
+    void Renderer::PrepareMaterialBatches(std::vector<SRenderBatch>& batches)
+    {
+        static const BufferLayout ribbonVertexLayout;
+
+        const std::array constantBuffers{
+            SMaterialConstantBufferBinding{
+                .Name = "cbFrame",
+                .Buffer = m_FrameConstantBuffer,
+            },
+        };
+
+        for (auto& batch : batches)
+        {
+            if (!batch.Key.MaterialProgram || batch.Items.empty() ||
+                !batch.Items.front().Material)
+                continue;
+
+            const auto* runtime = FindParticleStateLayoutRuntime(batch.Key.ParticleStateLayout);
+            EE_CORE_ASSERT(runtime, "Aether particle state layout runtime is missing.")
+            if (!runtime) continue;
+
+            const auto* material = batch.Items.front().Material;
+
+            switch (batch.Key.RenderMode)
+            {
+                case EParticleRenderMode::Sprite:
+                {
+                    const SSpritePushConstants initial{
+                        .SpriteIndex = m_MaterialSystem->GetFallbackTextureIndex(),
+                    };
+
+                    batch.PreparedMaterial = m_MaterialSystem->PrepareMaterialPass({
+                        .Pass = EMaterialPass::ParticleSprite,
+                        .Material = material,
+                        .Pipeline = {
+                            .VertexLayoutKey = uint64_t(runtime->Key),
+                            .VertexLayout = &runtime->SpritePipeline->GetBufferLayout(),
+                        },
+                        .ExternalResources = {
+                            .ConstantBuffers = constantBuffers,
+                        },
+                        .InitialPushConstants = std::as_bytes(std::span{ &initial, size_t{ 1 }}),
+                    });
+                    break;
+                }
+
+                case EParticleRenderMode::Ribbon:
+                {
+                    const SRibbonPushConstants initial{};
+
+                    const std::array storageBuffers{
+                        SMaterialStorageBufferBinding{
+                            .Name = "particles",
+                            .Buffer = MaterialStorageBuffer{ runtime->ParticleStateBuffer },
+                        },
+                        SMaterialStorageBufferBinding{
+                            .Name = "emitters",
+                            .Buffer = MaterialStorageBuffer{ m_EmitterBuffer },
+                        },
+                    };
+
+                    batch.PreparedMaterial = m_MaterialSystem->PrepareMaterialPass({
+                        .Pass = EMaterialPass::ParticleRibbon,
+                        .Material = material,
+                        .Pipeline = {
+                            .VertexLayoutKey = uint64_t(runtime->Key),
+                            .VertexLayout = &ribbonVertexLayout,
+                        },
+                        .ExternalResources = {
+                            .ConstantBuffers = constantBuffers,
+                            .StorageBuffers = storageBuffers,
+                        },
+                        .InitialPushConstants = std::as_bytes(std::span{ &initial, size_t{ 1 }}),
+                    });
+                    break;
+                }
+
+                case EParticleRenderMode::Mesh:
+                {
+                    constexpr SMeshPushConstants initial{};
+
+                    batch.PreparedMaterial = m_MaterialSystem->PrepareMaterialPass({
+                        .Pass = EMaterialPass::ParticleMesh,
+                        .Material = material,
+                        .Pipeline = {
+                            .VertexLayoutKey = uint64_t(runtime->Key),
+                            .VertexLayout = &runtime->MeshPipeline->GetBufferLayout(),
+                        },
+                        .ExternalResources = {
+                            .ConstantBuffers = constantBuffers,
+                        },
+                        .InitialPushConstants = std::as_bytes(std::span{ &initial, size_t{ 1 }}),
+                    });
+                    break;
+                }
+            }
+        }
     }
 
     Renderer::SMaterialFrameInputs Renderer::CollectMaterialFrameInputs(
@@ -1544,16 +1482,10 @@ namespace Elixir::Aether
                 Ref<Shader> shader = runtime->SpriteShader;
                 Ref<GraphicsPipeline> pipeline = runtime->SpritePipeline;
 
-                if (batch.Key.MaterialShader)
+                if (batch.PreparedMaterial)
                 {
-                    EE_CORE_ASSERT(
-                        !batch.Items.empty() && batch.Items.front().Material,
-                        "Aether material sprite batch requires a material proxy."
-                    )
-
-                    shader = batch.Items.front().Material->GetCompiledMaterial()
-                        ->GetShader(EMaterialUsage::ParticleSprite);
-                    pipeline = GetParticleSpritePipeline(*runtime, shader);
+                    shader = batch.PreparedMaterial->Shader;
+                    pipeline = batch.PreparedMaterial->Pipeline;
                 }
 
                 pipeline->Bind(cmd);
@@ -1566,7 +1498,7 @@ namespace Elixir::Aether
                         *item.Instance->Instance
                     );
 
-                    if (batch.Key.MaterialShader)
+                    if (batch.PreparedMaterial)
                     {
                         const SSpritePushConstants pc{
                             .WorldTransform = worldTransform,
@@ -1600,16 +1532,10 @@ namespace Elixir::Aether
                 Ref<Shader> shader = runtime->RibbonShader;
                 Ref<GraphicsPipeline> pipeline = runtime->RibbonPipeline;
 
-                if (batch.Key.MaterialShader)
+                if (batch.PreparedMaterial)
                 {
-                    EE_CORE_ASSERT(
-                        !batch.Items.empty() && batch.Items.front().Material,
-                        "Aether material ribbon batch requires a material proxy."
-                    )
-
-                    shader = batch.Items.front().Material->GetCompiledMaterial()
-                        ->GetShader(EMaterialUsage::ParticleRibbon);
-                    pipeline = GetParticleRibbonPipeline(*runtime, shader);
+                    shader = batch.PreparedMaterial->Shader;
+                    pipeline = batch.PreparedMaterial->Pipeline;
                 }
 
                 pipeline->Bind(cmd);
@@ -1621,7 +1547,7 @@ namespace Elixir::Aether
                         *item.Instance->Instance
                     );
 
-                    if (batch.Key.MaterialShader)
+                    if (batch.PreparedMaterial)
                     {
                         const SRibbonPushConstants pc{
                             .WorldTransform = worldTransform,
@@ -1654,14 +1580,10 @@ namespace Elixir::Aether
                 Ref<Shader> shader = runtime->MeshShader;
                 Ref<GraphicsPipeline> pipeline = runtime->MeshPipeline;
 
-                if (batch.Key.MaterialShader)
+                if (batch.PreparedMaterial)
                 {
-                    const auto& material = batch.Items.front().Material;
-                    EE_CORE_ASSERT(material, "")
-
-                    shader = material->GetCompiledMaterial()
-                        ->GetShader(EMaterialUsage::ParticleMesh);
-                    pipeline = GetParticleMeshPipeline(*runtime, shader);
+                    shader = batch.PreparedMaterial->Shader;
+                    pipeline = batch.PreparedMaterial->Pipeline;
                 }
 
                 if (!shader || !pipeline) return;
@@ -1675,7 +1597,7 @@ namespace Elixir::Aether
                 {
                     const auto worldTransform = GetParticleRenderTransform(*item.Emitter, *item.Instance->Instance);
 
-                    if (item.Material)
+                    if (batch.PreparedMaterial)
                     {
                         const SMeshPushConstants pc{
                             .WorldTransform = worldTransform,

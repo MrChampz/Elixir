@@ -9,12 +9,17 @@ namespace Elixir
             context,
             sizeof(SMaterialFrameData) * capacity)
         ),
-        m_Textures(context) {}
+        m_Textures(context),
+        m_Renderer(CreateScope<MaterialRenderer>(
+            context,
+            m_FrameBuffer,
+            m_Textures
+        )) {}
 
     SMaterialFrameSnapshot MaterialSystem::BuildFrameSnapshot(
-        std::span<const Ref<const MaterialRenderProxy>> materials,
-        std::span<const Ref<Texture>> textures,
-        uint64_t submissionSerial
+        const std::span<const Ref<const MaterialRenderProxy>> materials,
+        const std::span<const Ref<Texture>> textures,
+        const uint64_t submissionSerial
     )
     {
         m_Textures.BeginFrame(submissionSerial);
@@ -46,6 +51,21 @@ namespace Elixir
         }
 
         return { table, table->GetCount(), submissionSerial };
+    }
+
+    std::optional<SMaterialProgramKey> MaterialSystem::GetProgramKey(
+        const EMaterialPass pass,
+        const MaterialRenderProxy& material
+    ) const
+    {
+        return m_Renderer->GetProgramKey(pass, material);
+    }
+
+    std::optional<SPreparedMaterialPass> MaterialSystem::PrepareMaterialPass(
+        const SMaterialPassRequest& request
+    ) const
+    {
+        return m_Renderer->Prepare(request);
     }
 
     uint32_t MaterialSystem::FindTextureIndex(const Ref<Texture>& texture) const
