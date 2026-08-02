@@ -162,11 +162,7 @@ namespace Elixir::Aether
     ) : m_ParticlePoolLimits(limits),
         m_ParticleStateLayouts(m_ParticlePoolLimits.ParticleCapacity),
         m_ParticleResourcePool(m_ParticlePoolLimits, m_ParticleStateLayouts),
-        m_MaterialSystem(CreateRef<MaterialSystem>(
-            context,
-            shaderLoader,
-            limits.MaterialCapacity
-        )),
+        m_MaterialSystem(CreateRef<MaterialSystem>(context, limits.MaterialCapacity)),
         m_GraphicsContext(context)
     {
         static_assert(sizeof(SGPUParticleState) == PARTICLE_STATE_CORE_V1_STRIDE);
@@ -1037,12 +1033,16 @@ namespace Elixir::Aether
                 if (!TryToGetParticleMaterialPass(emitter.RenderMode, materialPass))
                     continue;
 
-                const auto& materialRef = m_MaterialSystem->ResolveParticleMaterial(
-                    materialPass,
-                    emitter.Material
-                );
+                const auto* material = emitter.Material.get();
+                if (!material)
+                {
+                    EE_CORE_ERROR(
+                        "Aether emitter '{}' has no compiled material proxy.",
+                        emitter.Name
+                    )
+                    continue;
+                }
 
-                const auto* material = materialRef.get();
                 uint32_t spriteIndex = m_MaterialSystem->GetFallbackTextureIndex();
 
                 if (emitter.RenderMode == EParticleRenderMode::Sprite)
@@ -1235,16 +1235,16 @@ namespace Elixir::Aether
                 if (emitter.MaxParticles == 0)
                     continue;
 
-                EMaterialPass pass;
-                if (!TryToGetParticleMaterialPass(emitter.RenderMode, pass))
+                if (!emitter.Material)
+                {
+                    EE_CORE_ERROR(
+                        "Aether emitter '{}' has no compiled material proxy.",
+                        emitter.Name
+                    );
                     continue;
+                }
 
-                const auto& material = m_MaterialSystem->ResolveParticleMaterial(
-                    pass,
-                    emitter.Material
-                );
-
-                inputs.Materials.push_back(material);
+                inputs.Materials.push_back(emitter.Material);
 
                 if (emitter.RenderMode == EParticleRenderMode::Sprite && emitter.SpriteTexture)
                     inputs.Textures.push_back(emitter.SpriteTexture);

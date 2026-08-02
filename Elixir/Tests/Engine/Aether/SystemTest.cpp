@@ -192,3 +192,14 @@ TEST(AetherSystemTest, CompileSnapshotsParticleMeshMaterialForRenderData)
         EMaterialUsage::ParticleMesh
     ));
 }
+
+TEST(AetherSystemTest, KeepsAnEmitterWithoutAnExplicitMaterialUnbound)
+{
+    System system{ "Explicit material contract" };
+    system.AddEmitter("Smoke", 8, 0.0f);
+
+    const auto compiled = system.Compile();
+
+    ASSERT_EQ(compiled.Emitters.size(), 1);
+    EXPECT_FALSE(compiled.Emitters[0].Material);
+}

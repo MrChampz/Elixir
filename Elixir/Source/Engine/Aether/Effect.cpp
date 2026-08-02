@@ -4,6 +4,7 @@
 #include <limits>
 
 #include <Engine/Graphics/TextureLoader.h>
+#include <Engine/Material/ParticleMaterialLibrary.h>
 
 #include <magic_enum/magic_enum.hpp>
 #include <simdjson.h>
@@ -37,6 +38,21 @@ namespace Elixir::Aether
             return std::nullopt;
         }
 
+        EMaterialUsage GetParticleMaterialUsage(const EParticleRenderMode mode)
+        {
+            switch (mode)
+            {
+                case EParticleRenderMode::Sprite:
+                    return EMaterialUsage::ParticleSprite;
+                case EParticleRenderMode::Ribbon:
+                    return EMaterialUsage::ParticleRibbon;
+                case EParticleRenderMode::Mesh:
+                    return EMaterialUsage::ParticleMesh;
+            }
+
+            return EMaterialUsage::ParticleSprite;
+        }
+
         // Parses an effect asset into a System. Every parsing step funnels
         // failures through Fail(), which logs and latches m_Failed; helpers
         // short-circuit once latched so a single root cause is reported and
@@ -44,8 +60,11 @@ namespace Elixir::Aether
         class EffectParser
         {
         public:
-            explicit EffectParser(std::filesystem::path filepath)
-                : m_Filepath(std::move(filepath)) {}
+            EffectParser(
+                std::filesystem::path filepath,
+                const ParticleMaterialLibrary& materials
+            ) : m_Filepath(std::move(filepath)),
+                m_Materials(materials) {}
 
             Ref<System> Parse(od::object& root);
 
@@ -856,6 +875,9 @@ namespace Elixir::Aether
 
                 auto& emitter = system->AddEmitter(name, maxParticles, spawnRate.Value);
                 emitter.SetRenderMode(renderMode);
+                emitter.SetMaterial(
+                    m_Materials.GetDefault(GetParticleMaterialUsage(renderMode))
+                );
 
                 if (HasField(json, "burst"))
                 {
@@ -909,6 +931,7 @@ namespace Elixir::Aether
             }
 
             std::filesystem::path m_Filepath;
+            const ParticleMaterialLibrary& m_Materials;
             bool m_Failed = false;
         };
 
@@ -951,7 +974,10 @@ namespace Elixir::Aether
         }
     }
 
-    Ref<System> LoadEffectFile(const std::filesystem::path& filepath)
+    Ref<System> LoadEffectFile(
+        const std::filesystem::path& filepath,
+        const ParticleMaterialLibrary& materials
+    )
     {
         od::parser parser;
 
@@ -978,7 +1004,7 @@ namespace Elixir::Aether
             return nullptr;
         }
 
-        EffectParser effectParser{ filepath };
+        EffectParser effectParser{ filepath, materials };
         return effectParser.Parse(root);
     }
 }

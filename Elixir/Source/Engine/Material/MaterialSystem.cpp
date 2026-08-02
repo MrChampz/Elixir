@@ -1,17 +1,10 @@
 #include "epch.h"
 #include "MaterialSystem.h"
-#include "ParticleMaterialDefaults.h"
-
-#include <Engine/Material/MaterialCompiler.h>
-#include <Engine/Material/MaterialInstance.h>
 
 namespace Elixir
 {
-    MaterialSystem::MaterialSystem(
-        const GraphicsContext* context,
-        const ShaderLoader* shaderLoader,
-        const uint32_t capacity
-    ) : m_MaterialCapacity(capacity),
+    MaterialSystem::MaterialSystem(const GraphicsContext* context, const uint32_t capacity)
+      : m_MaterialCapacity(capacity),
         m_FrameBuffer(DynamicStorageBuffer::Create(
             context,
             sizeof(SMaterialFrameData) * capacity)
@@ -21,10 +14,7 @@ namespace Elixir
             context,
             m_FrameBuffer,
             m_Textures
-        ))
-    {
-        CreateDefaultParticleMaterials(shaderLoader);
-    }
+        )) {}
 
     SMaterialFrameSnapshot MaterialSystem::BuildFrameSnapshot(
         const std::span<const Ref<const MaterialRenderProxy>> materials,
@@ -71,20 +61,6 @@ namespace Elixir
         return m_Renderer->GetProgramKey(pass, material);
     }
 
-    const Ref<const MaterialRenderProxy>& MaterialSystem::ResolveParticleMaterial(
-        const EMaterialPass pass,
-        const Ref<const MaterialRenderProxy>& authoredMaterial
-    ) const
-    {
-        if (authoredMaterial && m_Renderer->GetProgramKey(pass, *authoredMaterial))
-            return authoredMaterial;
-
-        const auto& fallback = m_DefaultParticleMaterials[GetParticleMaterialSlot(pass)];
-        EE_CORE_ASSERT(fallback, "MaterialSystem default particle material is unavailable.")
-
-        return fallback;
-    }
-
     std::optional<SPreparedMaterialPass> MaterialSystem::PrepareMaterialPass(
         const SMaterialPassRequest& request
     ) const
@@ -95,35 +71,5 @@ namespace Elixir
     uint32_t MaterialSystem::FindTextureIndex(const Ref<Texture>& texture) const
     {
         return m_Textures.Find(texture);
-    }
-
-    void MaterialSystem::CreateDefaultParticleMaterials(const ShaderLoader* shaderLoader)
-    {
-        for (const auto pass : {
-            EMaterialPass::ParticleSprite,
-            EMaterialPass::ParticleRibbon,
-            EMaterialPass::ParticleMesh,
-        })
-        {
-            const auto source = CreateDefaultParticleMaterial(MaterialRenderer::GetUsage(pass));
-            const auto compiled = MaterialCompiler::Compile(shaderLoader, *source);
-
-            EE_CORE_ASSERT(
-                compiled,
-                "Default particle material compilation failed: {}",
-                compiled.Diagnostics
-            )
-            if (!compiled) continue;
-
-            const auto instance = CreateRef<MaterialInstance>(source);
-            const auto proxy = instance->CreateRenderProxy(compiled.Material);
-
-            EE_CORE_ASSERT(
-                proxy,
-                "Default particle material render proxy creation failed."
-            )
-
-            m_DefaultParticleMaterials[GetParticleMaterialSlot(pass)] = proxy;
-        }
     }
 }

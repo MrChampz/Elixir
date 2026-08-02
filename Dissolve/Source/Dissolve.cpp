@@ -8,6 +8,7 @@
 #include <Engine/Material/MaterialGraph.h>
 #include <Engine/Material/MaterialInstance.h>
 #include <Engine/Material/MaterialCompiler.h>
+#include <Engine/Material/ParticleMaterialLibrary.h>
 
 Ref<GraphicsPipeline> pipeline;
 Scope<Aether::Renderer> m_ParticlesRenderer;
@@ -17,6 +18,7 @@ std::array<Scope<Aether::SystemInstance>, 2> m_ParticleSystemInstances;
 
 Ref<Material> graphMaterial;
 Ref<const SCompiledMaterial> compiledGraphMaterial;
+Scope<ParticleMaterialLibrary> particleMaterialLibrary;
 
 Dissolve::Dissolve()
 {
@@ -65,8 +67,16 @@ Dissolve::Dissolve()
 
     m_ParticlesRenderer = CreateScope<Aether::Renderer>(m_GraphicsContext.get(), m_ShaderLoader.get());
 
-    m_ParticleSystems[0] = Aether::LoadEffectFile("./Assets/VFX/FireAndFireworks.json");
-    m_ParticleSystems[1] = Aether::LoadEffectFile("./Assets/VFX/RibbonVortex.json");
+    particleMaterialLibrary = CreateScope<ParticleMaterialLibrary>(m_ShaderLoader.get());
+
+    m_ParticleSystems[0] = Aether::LoadEffectFile(
+        "./Assets/VFX/FireAndFireworks.json",
+        *particleMaterialLibrary
+    );
+    m_ParticleSystems[1] = Aether::LoadEffectFile(
+        "./Assets/VFX/RibbonVortex.json",
+        *particleMaterialLibrary
+    );
 
     {
         MaterialGraph graph;
