@@ -57,6 +57,9 @@ namespace Elixir
         const auto compiled = request.Material->GetCompiledMaterial();
         const auto& shader = compiled->GetShader(GetUsage(request.Pass));
 
+        if (!BindDescriptorResources(shader, request))
+            return std::nullopt;
+
         if (!request.InitialPushConstants.empty())
         {
             shader->SetPushConstant(
@@ -65,26 +68,6 @@ namespace Elixir
                 request.InitialPushConstants.size()
             );
         }
-
-        for (const auto& binding : request.ExternalResources.ConstantBuffers)
-        {
-            shader->BindConstantBuffer(std::string(binding.Name), binding.Buffer);
-        }
-
-        for (const auto& binding : request.ExternalResources.StorageBuffers)
-        {
-            std::visit(
-                [&shader, &binding](const auto& buffer)
-                {
-                    shader->BindStorageBuffer(std::string(binding.Name), buffer);
-                },
-                binding.Buffer
-            );
-        }
-
-        shader->BindStorageBuffer("materials", m_FrameBuffer);
-        shader->BindTextureSet("sprites", m_Textures.GetTextureSet());
-        shader->BindSampler("spriteSampler", m_Textures.GetSampler());
 
         return SPreparedMaterialPass{
             .Shader = shader,
@@ -145,5 +128,82 @@ namespace Elixir
         const auto pipeline = GraphicsPipeline::Create(m_Context, info);
         m_Pipelines.emplace(key, pipeline);
         return pipeline;
+    }
+
+    bool MaterialRenderer::BindDescriptorResources(
+        const Ref<Shader>& shader,
+        const SMaterialPassRequest& request
+    )
+    {
+        SDescriptorBindingState state{
+            .Pass = request.Pass,
+        };
+
+        state.ExternalResources.reserve(
+            request.ExternalResources.GetResourceCount()
+        );
+
+        for (const auto& binding : request.ExternalResources.ConstantBuffers)
+        {
+            state.ExternalResources.push_back({
+                .Name = std::string(binding.Name),
+                .Resource = binding.Buffer.get(),
+                .Type = EDescriptorBindingType::ConstantBuffer,
+            });
+        }
+
+        for (const auto& binding : request.ExternalResources.StorageBuffers)
+        {
+            std::visit(
+                [&state, &binding](const auto& buffer)
+                {
+                    using TBuffer = std::remove_cvref_t<decltype(buffer)>;
+
+                    state.ExternalResources.push_back({
+                        .Name = std::string(binding.Name),
+                        .Resource = buffer.get(),
+                        .Type = std::is_same_v<TBuffer, Ref<StorageBuffer>>
+                            ? EDescriptorBindingType::StorageBuffer
+                            : EDescriptorBindingType::DynamicStorageBuffer
+                    });
+                },
+                binding.Buffer
+            );
+        }
+
+        const auto found = m_DescriptorBindings.find(shader.get());
+        if (found != m_DescriptorBindings.end())
+        {
+            if (found->second != state)
+            {
+                EE_CORE_ERROR("Material shader descriptor bindings changed after initialization.")
+                return false;
+            }
+
+            return true;
+        }
+
+        for (const auto& binding : request.ExternalResources.ConstantBuffers)
+        {
+            shader->BindConstantBuffer(std::string(binding.Name), binding.Buffer);
+        }
+
+        for (const auto& binding : request.ExternalResources.StorageBuffers)
+        {
+            std::visit(
+                [&shader, &binding](const auto& buffer)
+                {
+                    shader->BindStorageBuffer(std::string(binding.Name), buffer);
+                },
+                binding.Buffer
+            );
+        }
+
+        shader->BindStorageBuffer("materials", m_FrameBuffer);
+        shader->BindTextureSet("sprites", m_Textures.GetTextureSet());
+        shader->BindSampler("spriteSampler", m_Textures.GetSampler());
+
+        m_DescriptorBindings.emplace(shader.get(), std::move(state));
+        return true;
     }
 }

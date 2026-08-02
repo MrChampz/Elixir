@@ -1,5 +1,8 @@
 #pragma once
 
+#include <concepts>
+#include <utility>
+#include <type_traits>
 #include <variant>
 
 #include <Engine/Graphics/Buffer.h>
@@ -48,6 +51,11 @@ namespace Elixir
     {
         std::span<const SMaterialConstantBufferBinding> ConstantBuffers;
         std::span<const SMaterialStorageBufferBinding> StorageBuffers;
+
+        uint32_t GetResourceCount() const
+        {
+            return (uint32_t)(ConstantBuffers.size() + StorageBuffers.size());
+        }
     };
 
     struct SMaterialPassRequest
@@ -65,6 +73,17 @@ namespace Elixir
         Ref<GraphicsPipeline> Pipeline;
 
         explicit operator bool() const { return Shader && Pipeline; }
+    };
+
+    struct SMaterialDrawRequest
+    {
+        Ref<CommandBuffer> CommandBuffer;
+        const SPreparedMaterialPass* MaterialPass = nullptr;
+
+        explicit operator bool() const
+        {
+            return CommandBuffer && MaterialPass && *MaterialPass;
+        }
     };
 
     class ELIXIR_API MaterialRenderer final
@@ -87,7 +106,44 @@ namespace Elixir
             const SMaterialPassRequest& request
         );
 
+        template <typename T>
+        requires std::invocable<T, const Ref<CommandBuffer>&, const Ref<Shader>&>
+        void Draw(const SMaterialDrawRequest& request, T&& recordGeometry) const
+        {
+            if (!request) return;
+
+            request.MaterialPass->Pipeline->Bind(request.CommandBuffer);
+            std::forward<T>(recordGeometry)(
+                request.CommandBuffer,
+                request.MaterialPass->Shader
+            );
+        }
+
     private:
+        enum class EDescriptorBindingType : uint8_t
+        {
+            ConstantBuffer,
+            StorageBuffer,
+            DynamicStorageBuffer,
+        };
+
+        struct SDescriptorBinding
+        {
+            std::string Name;
+            const void* Resource = nullptr;
+            EDescriptorBindingType Type = EDescriptorBindingType::ConstantBuffer;
+
+            bool operator==(const SDescriptorBinding&) const = default;
+        };
+
+        struct SDescriptorBindingState
+        {
+            EMaterialPass Pass = EMaterialPass::ParticleSprite;
+            std::vector<SDescriptorBinding> ExternalResources;
+
+            bool operator==(const SDescriptorBindingState&) const = default;
+        };
+
         struct SPipelineKey
         {
             EMaterialPass Pass = EMaterialPass::ParticleSprite;
@@ -116,9 +172,15 @@ namespace Elixir
             const SMaterialPipelineRequest& request
         );
 
+        bool BindDescriptorResources(
+            const Ref<Shader>& shader,
+            const SMaterialPassRequest& request
+        );
+
         Ref<DynamicStorageBuffer> m_FrameBuffer;
         const MaterialTextureRegistry& m_Textures;
         std::unordered_map<SPipelineKey, Ref<GraphicsPipeline>, SPipelineKeyHasher> m_Pipelines;
+        std::unordered_map<const Shader*, SDescriptorBindingState> m_DescriptorBindings;
 
         const GraphicsContext* m_Context = nullptr;
     };

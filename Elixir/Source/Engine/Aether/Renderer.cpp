@@ -1469,7 +1469,7 @@ namespace Elixir::Aether
 
     void Renderer::RenderBatch(const Ref<CommandBuffer>& cmd, const SRenderBatch& batch)
     {
-        auto* runtime = FindParticleStateLayoutRuntime(batch.Key.ParticleStateLayout);
+        const auto* runtime = FindParticleStateLayoutRuntime(batch.Key.ParticleStateLayout);
         EE_CORE_ASSERT(runtime, "Aether particle state layout runtime is missing.")
         if (!runtime) return;
 
@@ -1479,49 +1479,63 @@ namespace Elixir::Aether
         {
             case EParticleRenderMode::Sprite:
             {
-                Ref<Shader> shader = runtime->SpriteShader;
-                Ref<GraphicsPipeline> pipeline = runtime->SpritePipeline;
+                const auto drawSprite = [
+                    this,
+                    &batch,
+                    &particleBuffer,
+                    useMaterial = bool(batch.PreparedMaterial)
+                ](const Ref<CommandBuffer>& cmd, const Ref<Shader>& shader)
+                {
+                    particleBuffer->BindAs<VertexBuffer>(cmd);
+
+                    for (const auto& item : batch.Items)
+                    {
+                        const auto worldTransform = GetParticleRenderTransform(
+                            *item.Emitter,
+                            *item.Instance->Instance
+                        );
+
+                        if (useMaterial)
+                        {
+                            const SSpritePushConstants pc{
+                                .WorldTransform = worldTransform,
+                                .MaterialIndex = item.MaterialIndex,
+                                .SpriteIndex = item.SpriteIndex,
+                            };
+                            shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
+                        }
+                        else
+                        {
+                            const SSpritePushConstants pc{
+                                .WorldTransform = worldTransform,
+                                .SpriteIndex = item.SpriteIndex,
+                            };
+                            shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
+                        }
+
+                        cmd->Draw(
+                            6,
+                            item.Emitter->MaxParticles,
+                            0,
+                            item.Instance->Allocation.Particles.Offset + item.Emitter->LocalParticleOffset
+                        );
+                    }
+                };
 
                 if (batch.PreparedMaterial)
                 {
-                    shader = batch.PreparedMaterial->Shader;
-                    pipeline = batch.PreparedMaterial->Pipeline;
+                    m_MaterialSystem->DrawMaterial(
+                        {
+                            .CommandBuffer = cmd,
+                            .MaterialPass = &*batch.PreparedMaterial,
+                        },
+                        drawSprite
+                    );
                 }
-
-                pipeline->Bind(cmd);
-                particleBuffer->BindAs<VertexBuffer>(cmd);
-
-                for (const auto& item : batch.Items)
+                else
                 {
-                    const auto worldTransform = GetParticleRenderTransform(
-                        *item.Emitter,
-                        *item.Instance->Instance
-                    );
-
-                    if (batch.PreparedMaterial)
-                    {
-                        const SSpritePushConstants pc{
-                            .WorldTransform = worldTransform,
-                            .MaterialIndex = item.MaterialIndex,
-                            .SpriteIndex = item.SpriteIndex,
-                        };
-                        shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
-                    }
-                    else
-                    {
-                        const SSpritePushConstants pc{
-                            .WorldTransform = worldTransform,
-                            .SpriteIndex = item.SpriteIndex,
-                        };
-                        shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
-                    }
-
-                    cmd->Draw(
-                        6,
-                        item.Emitter->MaxParticles,
-                        0,
-                        item.Instance->Allocation.Particles.Offset + item.Emitter->LocalParticleOffset
-                    );
+                    runtime->SpritePipeline->Bind(cmd);
+                    drawSprite(cmd, runtime->SpriteShader);
                 }
 
                 return;
@@ -1529,47 +1543,58 @@ namespace Elixir::Aether
 
             case EParticleRenderMode::Ribbon:
             {
-                Ref<Shader> shader = runtime->RibbonShader;
-                Ref<GraphicsPipeline> pipeline = runtime->RibbonPipeline;
+                const auto drawRibbon = [
+                    &batch,
+                    useMaterial = bool(batch.PreparedMaterial)
+                ](const Ref<CommandBuffer>& cmd, const Ref<Shader>& shader)
+                {
+                    for (const auto& item : batch.Items)
+                    {
+                        const auto worldTransform = GetParticleRenderTransform(
+                            *item.Emitter,
+                            *item.Instance->Instance
+                        );
+
+                        if (useMaterial)
+                        {
+                            const SRibbonPushConstants pc{
+                                .WorldTransform = worldTransform,
+                                .EmitterIndex = item.Instance->Allocation.Emitters.Offset + item.LocalEmitterIndex,
+                                .ParticleBaseOffset = item.Instance->Allocation.Particles.Offset,
+                                .MaterialIndex = item.MaterialIndex,
+                            };
+
+                            shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
+                        }
+                        else
+                        {
+                            const SRibbonPushConstants pc{
+                                .WorldTransform = worldTransform,
+                                .EmitterIndex = item.Instance->Allocation.Emitters.Offset + item.LocalEmitterIndex,
+                                .ParticleBaseOffset = item.Instance->Allocation.Particles.Offset,
+                            };
+
+                            shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
+                        }
+
+                        cmd->Draw(item.Emitter->MaxParticles * 6);
+                    }
+                };
 
                 if (batch.PreparedMaterial)
                 {
-                    shader = batch.PreparedMaterial->Shader;
-                    pipeline = batch.PreparedMaterial->Pipeline;
-                }
-
-                pipeline->Bind(cmd);
-
-                for (const auto& item : batch.Items)
-                {
-                    const auto worldTransform = GetParticleRenderTransform(
-                        *item.Emitter,
-                        *item.Instance->Instance
+                    m_MaterialSystem->DrawMaterial(
+                        {
+                            .CommandBuffer = cmd,
+                            .MaterialPass = &*batch.PreparedMaterial,
+                        },
+                        drawRibbon
                     );
-
-                    if (batch.PreparedMaterial)
-                    {
-                        const SRibbonPushConstants pc{
-                            .WorldTransform = worldTransform,
-                            .EmitterIndex = item.Instance->Allocation.Emitters.Offset + item.LocalEmitterIndex,
-                            .ParticleBaseOffset = item.Instance->Allocation.Particles.Offset,
-                            .MaterialIndex = item.MaterialIndex,
-                        };
-
-                        shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
-                    }
-                    else
-                    {
-                        const SRibbonPushConstants pc{
-                            .WorldTransform = worldTransform,
-                            .EmitterIndex = item.Instance->Allocation.Emitters.Offset + item.LocalEmitterIndex,
-                            .ParticleBaseOffset = item.Instance->Allocation.Particles.Offset,
-                        };
-
-                        shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
-                    }
-
-                    cmd->Draw(item.Emitter->MaxParticles * 6);
+                }
+                else
+                {
+                    runtime->RibbonPipeline->Bind(cmd);
+                    drawRibbon(cmd, runtime->RibbonShader);
                 }
 
                 return;
@@ -1577,50 +1602,66 @@ namespace Elixir::Aether
 
             case EParticleRenderMode::Mesh:
             {
-                Ref<Shader> shader = runtime->MeshShader;
-                Ref<GraphicsPipeline> pipeline = runtime->MeshPipeline;
+                const auto drawMesh = [
+                    this,
+                    &batch,
+                    &particleBuffer,
+                    useMaterial = bool(batch.PreparedMaterial)
+                ](const Ref<CommandBuffer>& cmd, const Ref<Shader>& shader)
+                {
+                    m_MeshVertexBuffer->Bind(cmd);
+
+                    // TODO: Enhance this api
+                    particleBuffer->BindAs<VertexBuffer>(cmd, std::span<uint64_t>{}, 1, 1);
+
+                    for (const auto& item : batch.Items)
+                    {
+                        const auto worldTransform = GetParticleRenderTransform(
+                            *item.Emitter,
+                            *item.Instance->Instance
+                        );
+
+                        if (useMaterial)
+                        {
+                            const SMeshPushConstants pc{
+                                .WorldTransform = worldTransform,
+                                .MaterialIndex = item.MaterialIndex
+                            };
+
+                            shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
+                        }
+                        else
+                        {
+                            const SMeshPushConstants pc{
+                                .WorldTransform = worldTransform
+                            };
+
+                            shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
+                        }
+
+                        cmd->Draw(
+                            m_MeshVertexCount,
+                            item.Emitter->MaxParticles,
+                            0,
+                            item.Instance->Allocation.Particles.Offset + item.Emitter->LocalParticleOffset
+                        );
+                    }
+                };
 
                 if (batch.PreparedMaterial)
                 {
-                    shader = batch.PreparedMaterial->Shader;
-                    pipeline = batch.PreparedMaterial->Pipeline;
-                }
-
-                if (!shader || !pipeline) return;
-
-                pipeline->Bind(cmd);
-                m_MeshVertexBuffer->Bind(cmd);
-                // TODO: Enhance this api
-                particleBuffer->BindAs<VertexBuffer>(cmd, std::span<uint64_t>{}, 1, 1);
-
-                for (const auto& item : batch.Items)
-                {
-                    const auto worldTransform = GetParticleRenderTransform(*item.Emitter, *item.Instance->Instance);
-
-                    if (batch.PreparedMaterial)
-                    {
-                        const SMeshPushConstants pc{
-                            .WorldTransform = worldTransform,
-                            .MaterialIndex = item.MaterialIndex
-                        };
-
-                        shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
-                    }
-                    else
-                    {
-                        const SMeshPushConstants pc{
-                            .WorldTransform = worldTransform
-                        };
-
-                        shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
-                    }
-
-                    cmd->Draw(
-                        m_MeshVertexCount,
-                        item.Emitter->MaxParticles,
-                        0,
-                        item.Instance->Allocation.Particles.Offset + item.Emitter->LocalParticleOffset
+                    m_MaterialSystem->DrawMaterial(
+                        {
+                            .CommandBuffer = cmd,
+                            .MaterialPass = &*batch.PreparedMaterial,
+                        },
+                        drawMesh
                     );
+                }
+                else if (runtime->MeshShader && runtime->MeshPipeline)
+                {
+                    runtime->MeshPipeline->Bind(cmd);
+                    drawMesh(cmd, runtime->MeshShader);
                 }
 
                 return;

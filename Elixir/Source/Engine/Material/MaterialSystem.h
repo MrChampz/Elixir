@@ -34,6 +34,13 @@ namespace Elixir
             const SMaterialPassRequest& request
         ) const;
 
+        template <typename T>
+        requires std::invocable<T, const Ref<CommandBuffer>&, const Ref<Shader>&>
+        void DrawMaterial(const SMaterialDrawRequest& request, T&& recordGeometry) const
+        {
+            m_Renderer->Draw(request, std::forward<T>(recordGeometry));
+        }
+
         const Ref<DynamicStorageBuffer>& GetFrameBuffer() const { return m_FrameBuffer; }
         const Ref<TextureSet>& GetTextureSet() const { return m_Textures.GetTextureSet(); }
         const Ref<Sampler>& GetSampler() const { return m_Textures.GetSampler(); }
