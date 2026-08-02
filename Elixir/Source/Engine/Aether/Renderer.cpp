@@ -2,7 +2,6 @@
 #include "Renderer.h"
 
 #include "Engine/Graphics/CommandBuffer.h"
-#include "Engine/Graphics/Pipeline/PipelineBuilder.h"
 
 namespace Elixir::Aether
 {
@@ -163,7 +162,11 @@ namespace Elixir::Aether
     ) : m_ParticlePoolLimits(limits),
         m_ParticleStateLayouts(m_ParticlePoolLimits.ParticleCapacity),
         m_ParticleResourcePool(m_ParticlePoolLimits, m_ParticleStateLayouts),
-        m_MaterialSystem(CreateRef<MaterialSystem>(context, limits.MaterialCapacity)),
+        m_MaterialSystem(CreateRef<MaterialSystem>(
+            context,
+            shaderLoader,
+            limits.MaterialCapacity
+        )),
         m_GraphicsContext(context)
     {
         static_assert(sizeof(SGPUParticleState) == PARTICLE_STATE_CORE_V1_STRIDE);
@@ -401,24 +404,6 @@ namespace Elixir::Aether
             EShaderStage::Compute
         );
 
-        runtime.SpriteShader = shaderLoader->LoadShader(
-            "./Shaders/Aether/",
-            std::array<std::string_view, 1>{ "Sprite" },
-            "SpriteRenderer"
-        );
-
-        runtime.RibbonShader = shaderLoader->LoadShader(
-            "./Shaders/Aether/",
-            std::array<std::string_view, 1>{ "Ribbon" },
-            "RibbonRenderer"
-        );
-
-        runtime.MeshShader = shaderLoader->LoadShader(
-            "./Shaders/Aether/",
-            std::array<std::string_view, 1>{ "Mesh" },
-            "MeshRenderer"
-        );
-
         SPipelineCreateInfo pipelineInfo{};
         pipelineInfo.Shader = runtime.SpawnShader;
         runtime.SpawnPipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
@@ -426,7 +411,7 @@ namespace Elixir::Aether
         pipelineInfo.Shader = runtime.UpdateShader;
         runtime.UpdatePipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
 
-        const BufferLayout spriteBufferLayout({
+        runtime.SpriteVertexLayout = {{
             {
                 {
                     { EDataType::Vec4,  "PositionSize"    },
@@ -438,33 +423,9 @@ namespace Elixir::Aether
                 },
                 EInputRate::Instance
             }
-        });
+        }};
 
-        PipelineBuilder spriteBuilder;
-        spriteBuilder.SetShader(runtime.SpriteShader);
-        spriteBuilder.SetInputTopology(EPrimitiveTopology::TriangleList);
-        spriteBuilder.SetPolygonMode(EPolygonMode::Fill);
-        spriteBuilder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
-        spriteBuilder.EnableAlphaBlending();
-        spriteBuilder.DisableDepthTest();
-        spriteBuilder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
-        spriteBuilder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
-        spriteBuilder.SetBufferLayout(spriteBufferLayout);
-        runtime.SpritePipeline = spriteBuilder.Build(m_GraphicsContext);
-
-        PipelineBuilder ribbonBuilder;
-        ribbonBuilder.SetShader(runtime.RibbonShader);
-        ribbonBuilder.SetInputTopology(EPrimitiveTopology::TriangleList);
-        ribbonBuilder.SetPolygonMode(EPolygonMode::Fill);
-        ribbonBuilder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
-        ribbonBuilder.EnableAlphaBlendingMax();
-        ribbonBuilder.DisableDepthTest();
-        ribbonBuilder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
-        ribbonBuilder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
-        ribbonBuilder.SetBufferLayout({});
-        runtime.RibbonPipeline = ribbonBuilder.Build(m_GraphicsContext);
-
-        const BufferLayout meshBufferLayout({
+        runtime.MeshVertexLayout = {{
             {
                 {
                     { EDataType::Vec3,  "Position" },
@@ -483,24 +444,7 @@ namespace Elixir::Aether
                 },
                 EInputRate::Instance
             }
-        });
-
-        PipelineBuilder meshBuilder;
-        meshBuilder.SetShader(runtime.MeshShader);
-        meshBuilder.SetInputTopology(EPrimitiveTopology::TriangleList);
-        meshBuilder.SetPolygonMode(EPolygonMode::Fill);
-        meshBuilder.SetCullMode(ECullMode::Back, EFrontFace::CounterClockwise);
-        meshBuilder.EnableAlphaBlendingMax();
-        meshBuilder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
-        meshBuilder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
-        meshBuilder.SetBufferLayout(meshBufferLayout);
-
-        auto info = meshBuilder.GetCreateInfo();
-        info.DepthStencil.DepthTestEnable = true;
-        info.DepthStencil.DepthWriteEnable = true;
-        info.DepthStencil.DepthCompareOp = ECompareOp::LessOrEqual;
-
-        runtime.MeshPipeline = GraphicsPipeline::Create(m_GraphicsContext, info);
+        }};
     }
 
     void Renderer::CreateBuffers()
@@ -660,7 +604,7 @@ namespace Elixir::Aether
         )
         if (!coreV1Runtime) return;
 
-        m_MeshVertexBuffer->SetLayout(coreV1Runtime->MeshPipeline->GetBufferLayout());
+        m_MeshVertexBuffer->SetLayout(coreV1Runtime->MeshVertexLayout);
     }
 
     void Renderer::InitPerFrameData()
@@ -807,39 +751,6 @@ namespace Elixir::Aether
         runtime.UpdateShader->BindStorageBuffer("ops", m_OpBuffer);
         runtime.UpdateShader->BindStorageBuffer("parameters", m_ParameterBuffer);
         runtime.UpdateShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
-
-        const SSpritePushConstants spritePushConstants{
-            .SpriteIndex = m_MaterialSystem->GetFallbackTextureIndex(),
-        };
-        runtime.SpriteShader->SetPushConstant(
-            "pc",
-            (void*)&spritePushConstants,
-            sizeof(spritePushConstants)
-        );
-
-        runtime.SpriteShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
-        runtime.SpriteShader->BindTextureSet("sprites", m_MaterialSystem->GetTextureSet());
-        runtime.SpriteShader->BindSampler("spriteSampler", m_MaterialSystem->GetSampler());
-
-        constexpr SRibbonPushConstants ribbonPushConstants{};
-        runtime.RibbonShader->SetPushConstant(
-            "pc",
-            (void*)&ribbonPushConstants,
-            sizeof(ribbonPushConstants)
-        );
-
-        runtime.RibbonShader->BindStorageBuffer("particles", runtime.ParticleStateBuffer);
-        runtime.RibbonShader->BindStorageBuffer("emitters", m_EmitterBuffer);
-        runtime.RibbonShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
-
-        constexpr SMeshPushConstants meshPushConstants{};
-        runtime.MeshShader->SetPushConstant(
-            "pc",
-            (void*)&meshPushConstants,
-            sizeof(meshPushConstants)
-        );
-
-        runtime.MeshShader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
     }
 
     void Renderer::BeginRendering(const Ref<CommandBuffer>& cmd) const
@@ -1122,42 +1033,40 @@ namespace Elixir::Aether
                 if (emitter.MaxParticles == 0)
                     continue;
 
-                const MaterialRenderProxy* material = emitter.Material.get();
-                SMaterialProgramKey materialProgram;
-                uint32_t materialIndex = UINT32_MAX;
+                EMaterialPass materialPass;
+                if (!TryToGetParticleMaterialPass(emitter.RenderMode, materialPass))
+                    continue;
+
+                const auto& materialRef = m_MaterialSystem->ResolveParticleMaterial(
+                    materialPass,
+                    emitter.Material
+                );
+
+                const auto* material = materialRef.get();
                 uint32_t spriteIndex = m_MaterialSystem->GetFallbackTextureIndex();
 
                 if (emitter.RenderMode == EParticleRenderMode::Sprite)
                     spriteIndex = m_MaterialSystem->FindTextureIndex(emitter.SpriteTexture);
 
-                EMaterialPass materialPass;
-                if (material && TryToGetParticleMaterialPass(emitter.RenderMode, materialPass))
-                {
-                    const auto program = m_MaterialSystem->GetProgramKey(materialPass, *material);
-                    if (program)
-                    {
-                        const auto index = materials.Table->Find(*material);
-                        EE_CORE_ASSERT(index, "Material frame snapshot is missing an emitter material.")
+                const auto program = m_MaterialSystem->GetProgramKey(
+                    materialPass,
+                    *material
+                );
 
-                        if (index)
-                        {
-                            materialProgram = *program;
-                            materialIndex = *index;
-                        }
-                        else
-                        {
-                            EE_CORE_ERROR(
-                                "Aether particle material capacity ({}) exceeded.",
-                                m_ParticlePoolLimits.MaterialCapacity
-                            )
-                        }
-                    }
-                }
+                EE_CORE_ASSERT(
+                    program,
+                    "Resolved particle material must provide its shader permutation."
+                )
+                if (!program) continue;
+
+                const auto index = materials.Table->Find(*material);
+                EE_CORE_ASSERT(index, "Material frame snapshot is missing an emitter material.")
+                if (!index) continue;
 
                 const SRenderBatchKey key{
                     .ParticleStateLayout = instance.ParticleStateLayout,
                     .RenderMode = emitter.RenderMode,
-                    .MaterialProgram = materialProgram,
+                    .MaterialProgram = *program,
                 };
 
                 SRenderBatch* batch = nullptr;
@@ -1183,7 +1092,7 @@ namespace Elixir::Aether
                     .Instance = &instance,
                     .Emitter = &emitter,
                     .Material = material,
-                    .MaterialIndex = materialIndex,
+                    .MaterialIndex = *index,
                     .SpriteIndex = spriteIndex,
                     .LocalEmitterIndex = emitterIndex,
                 });
@@ -1226,8 +1135,7 @@ namespace Elixir::Aether
 
         for (auto& batch : batches)
         {
-            if (!batch.Key.MaterialProgram || batch.Items.empty() ||
-                !batch.Items.front().Material)
+            if (!batch.Key.MaterialProgram || batch.Items.empty())
                 continue;
 
             const auto* runtime = FindParticleStateLayoutRuntime(batch.Key.ParticleStateLayout);
@@ -1249,7 +1157,7 @@ namespace Elixir::Aether
                         .Material = material,
                         .Pipeline = {
                             .VertexLayoutKey = uint64_t(runtime->Key),
-                            .VertexLayout = &runtime->SpritePipeline->GetBufferLayout(),
+                            .VertexLayout = &runtime->SpriteVertexLayout,
                         },
                         .ExternalResources = {
                             .ConstantBuffers = constantBuffers,
@@ -1299,7 +1207,7 @@ namespace Elixir::Aether
                         .Material = material,
                         .Pipeline = {
                             .VertexLayoutKey = uint64_t(runtime->Key),
-                            .VertexLayout = &runtime->MeshPipeline->GetBufferLayout(),
+                            .VertexLayout = &runtime->MeshVertexLayout,
                         },
                         .ExternalResources = {
                             .ConstantBuffers = constantBuffers,
@@ -1327,8 +1235,16 @@ namespace Elixir::Aether
                 if (emitter.MaxParticles == 0)
                     continue;
 
-                if (emitter.Material)
-                    inputs.Materials.push_back(emitter.Material);
+                EMaterialPass pass;
+                if (!TryToGetParticleMaterialPass(emitter.RenderMode, pass))
+                    continue;
+
+                const auto& material = m_MaterialSystem->ResolveParticleMaterial(
+                    pass,
+                    emitter.Material
+                );
+
+                inputs.Materials.push_back(material);
 
                 if (emitter.RenderMode == EParticleRenderMode::Sprite && emitter.SpriteTexture)
                     inputs.Textures.push_back(emitter.SpriteTexture);
@@ -1469,6 +1385,9 @@ namespace Elixir::Aether
 
     void Renderer::RenderBatch(const Ref<CommandBuffer>& cmd, const SRenderBatch& batch)
     {
+        if (!batch.PreparedMaterial)
+            return;
+
         const auto* runtime = FindParticleStateLayoutRuntime(batch.Key.ParticleStateLayout);
         EE_CORE_ASSERT(runtime, "Aether particle state layout runtime is missing.")
         if (!runtime) return;
@@ -1480,10 +1399,8 @@ namespace Elixir::Aether
             case EParticleRenderMode::Sprite:
             {
                 const auto drawSprite = [
-                    this,
                     &batch,
-                    &particleBuffer,
-                    useMaterial = bool(batch.PreparedMaterial)
+                    &particleBuffer
                 ](const Ref<CommandBuffer>& cmd, const Ref<Shader>& shader)
                 {
                     particleBuffer->BindAs<VertexBuffer>(cmd);
@@ -1495,24 +1412,13 @@ namespace Elixir::Aether
                             *item.Instance->Instance
                         );
 
-                        if (useMaterial)
-                        {
-                            const SSpritePushConstants pc{
-                                .WorldTransform = worldTransform,
-                                .MaterialIndex = item.MaterialIndex,
-                                .SpriteIndex = item.SpriteIndex,
-                            };
-                            shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
-                        }
-                        else
-                        {
-                            const SSpritePushConstants pc{
-                                .WorldTransform = worldTransform,
-                                .SpriteIndex = item.SpriteIndex,
-                            };
-                            shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
-                        }
+                        const SSpritePushConstants pc{
+                            .WorldTransform = worldTransform,
+                            .MaterialIndex = item.MaterialIndex,
+                            .SpriteIndex = item.SpriteIndex,
+                        };
 
+                        shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
                         cmd->Draw(
                             6,
                             item.Emitter->MaxParticles,
@@ -1522,21 +1428,13 @@ namespace Elixir::Aether
                     }
                 };
 
-                if (batch.PreparedMaterial)
-                {
-                    m_MaterialSystem->DrawMaterial(
-                        {
-                            .CommandBuffer = cmd,
-                            .MaterialPass = &*batch.PreparedMaterial,
-                        },
-                        drawSprite
-                    );
-                }
-                else
-                {
-                    runtime->SpritePipeline->Bind(cmd);
-                    drawSprite(cmd, runtime->SpriteShader);
-                }
+                m_MaterialSystem->DrawMaterial(
+                    {
+                        .CommandBuffer = cmd,
+                        .MaterialPass = &*batch.PreparedMaterial,
+                    },
+                    drawSprite
+                );
 
                 return;
             }
@@ -1544,8 +1442,7 @@ namespace Elixir::Aether
             case EParticleRenderMode::Ribbon:
             {
                 const auto drawRibbon = [
-                    &batch,
-                    useMaterial = bool(batch.PreparedMaterial)
+                    &batch
                 ](const Ref<CommandBuffer>& cmd, const Ref<Shader>& shader)
                 {
                     for (const auto& item : batch.Items)
@@ -1555,47 +1452,25 @@ namespace Elixir::Aether
                             *item.Instance->Instance
                         );
 
-                        if (useMaterial)
-                        {
-                            const SRibbonPushConstants pc{
-                                .WorldTransform = worldTransform,
-                                .EmitterIndex = item.Instance->Allocation.Emitters.Offset + item.LocalEmitterIndex,
-                                .ParticleBaseOffset = item.Instance->Allocation.Particles.Offset,
-                                .MaterialIndex = item.MaterialIndex,
-                            };
+                        const SRibbonPushConstants pc{
+                            .WorldTransform = worldTransform,
+                            .EmitterIndex = item.Instance->Allocation.Emitters.Offset + item.LocalEmitterIndex,
+                            .ParticleBaseOffset = item.Instance->Allocation.Particles.Offset,
+                            .MaterialIndex = item.MaterialIndex,
+                        };
 
-                            shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
-                        }
-                        else
-                        {
-                            const SRibbonPushConstants pc{
-                                .WorldTransform = worldTransform,
-                                .EmitterIndex = item.Instance->Allocation.Emitters.Offset + item.LocalEmitterIndex,
-                                .ParticleBaseOffset = item.Instance->Allocation.Particles.Offset,
-                            };
-
-                            shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
-                        }
-
+                        shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
                         cmd->Draw(item.Emitter->MaxParticles * 6);
                     }
                 };
 
-                if (batch.PreparedMaterial)
-                {
-                    m_MaterialSystem->DrawMaterial(
-                        {
-                            .CommandBuffer = cmd,
-                            .MaterialPass = &*batch.PreparedMaterial,
-                        },
-                        drawRibbon
-                    );
-                }
-                else
-                {
-                    runtime->RibbonPipeline->Bind(cmd);
-                    drawRibbon(cmd, runtime->RibbonShader);
-                }
+                m_MaterialSystem->DrawMaterial(
+                    {
+                        .CommandBuffer = cmd,
+                        .MaterialPass = &*batch.PreparedMaterial,
+                    },
+                    drawRibbon
+                );
 
                 return;
             }
@@ -1605,8 +1480,7 @@ namespace Elixir::Aether
                 const auto drawMesh = [
                     this,
                     &batch,
-                    &particleBuffer,
-                    useMaterial = bool(batch.PreparedMaterial)
+                    &particleBuffer
                 ](const Ref<CommandBuffer>& cmd, const Ref<Shader>& shader)
                 {
                     m_MeshVertexBuffer->Bind(cmd);
@@ -1621,24 +1495,12 @@ namespace Elixir::Aether
                             *item.Instance->Instance
                         );
 
-                        if (useMaterial)
-                        {
-                            const SMeshPushConstants pc{
-                                .WorldTransform = worldTransform,
-                                .MaterialIndex = item.MaterialIndex
-                            };
+                        const SMeshPushConstants pc{
+                            .WorldTransform = worldTransform,
+                            .MaterialIndex = item.MaterialIndex
+                        };
 
-                            shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
-                        }
-                        else
-                        {
-                            const SMeshPushConstants pc{
-                                .WorldTransform = worldTransform
-                            };
-
-                            shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
-                        }
-
+                        shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
                         cmd->Draw(
                             m_MeshVertexCount,
                             item.Emitter->MaxParticles,
@@ -1648,21 +1510,13 @@ namespace Elixir::Aether
                     }
                 };
 
-                if (batch.PreparedMaterial)
-                {
-                    m_MaterialSystem->DrawMaterial(
-                        {
-                            .CommandBuffer = cmd,
-                            .MaterialPass = &*batch.PreparedMaterial,
-                        },
-                        drawMesh
-                    );
-                }
-                else if (runtime->MeshShader && runtime->MeshPipeline)
-                {
-                    runtime->MeshPipeline->Bind(cmd);
-                    drawMesh(cmd, runtime->MeshShader);
-                }
+                m_MaterialSystem->DrawMaterial(
+                    {
+                        .CommandBuffer = cmd,
+                        .MaterialPass = &*batch.PreparedMaterial,
+                    },
+                    drawMesh
+                );
 
                 return;
             }

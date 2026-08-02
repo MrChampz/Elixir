@@ -172,21 +172,16 @@ namespace Elixir::Aether
             Ref<Shader> UpdateShader;
             Ref<ComputePipeline> UpdatePipeline;
 
-            Ref<Shader> SpriteShader;
-            Ref<GraphicsPipeline> SpritePipeline;
-            Ref<Shader> RibbonShader;
-            Ref<GraphicsPipeline> RibbonPipeline;
-            Ref<Shader> MeshShader;
-            Ref<GraphicsPipeline> MeshPipeline;
+            // Geometry ABI owned by Particles System. MaterialRenderer receives these
+            // layouts to create the pipeline for the selected material pass.
+            BufferLayout SpriteVertexLayout;
+            BufferLayout MeshVertexLayout;
 
             bool IsReady() const
             {
                 return ParticleStateBuffer &&
                     SpawnShader && SpawnPipeline &&
-                    UpdateShader && UpdatePipeline &&
-                    SpriteShader && SpritePipeline &&
-                    RibbonShader && RibbonPipeline &&
-                    MeshShader && MeshPipeline;
+                    UpdateShader && UpdatePipeline;
             }
         };
 

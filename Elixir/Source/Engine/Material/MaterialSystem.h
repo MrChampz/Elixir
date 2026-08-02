@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Graphics/Buffer.h>
+#include <Engine/Graphics/Shader/ShaderLoader.h>
 #include <Engine/Material/MaterialFrameTable.h>
 #include <Engine/Material/MaterialRenderer.h>
 #include <Engine/Material/MaterialTextureRegistry.h>
@@ -17,7 +18,11 @@ namespace Elixir
     class ELIXIR_API MaterialSystem final
     {
     public:
-        MaterialSystem(const GraphicsContext* context, uint32_t capacity);
+        MaterialSystem(
+            const GraphicsContext* context,
+            const ShaderLoader* shaderLoader,
+            uint32_t capacity
+        );
 
         SMaterialFrameSnapshot BuildFrameSnapshot(
             std::span<const Ref<const MaterialRenderProxy>> materials,
@@ -28,6 +33,11 @@ namespace Elixir
         std::optional<SMaterialProgramKey> GetProgramKey(
             EMaterialPass pass,
             const MaterialRenderProxy& material
+        ) const;
+
+        const Ref<const MaterialRenderProxy>& ResolveParticleMaterial(
+            EMaterialPass pass,
+            const Ref<const MaterialRenderProxy>& authoredMaterial
         ) const;
 
         std::optional<SPreparedMaterialPass> PrepareMaterialPass(
@@ -48,9 +58,18 @@ namespace Elixir
         uint32_t FindTextureIndex(const Ref<Texture>& texture) const;
 
     private:
+        static constexpr size_t GetParticleMaterialSlot(const EMaterialPass pass)
+        {
+            return static_cast<size_t>(pass);
+        }
+
+        void CreateDefaultParticleMaterials(const ShaderLoader* shaderLoader);
+
         uint32_t m_MaterialCapacity = 0;
         Ref<DynamicStorageBuffer> m_FrameBuffer;
         MaterialTextureRegistry m_Textures;
         Scope<MaterialRenderer> m_Renderer;
+
+        std::array<Ref<const MaterialRenderProxy>, 3> m_DefaultParticleMaterials;
     };
 }
