@@ -17,8 +17,7 @@ namespace Elixir
         )) {}
 
     SMaterialFrameSnapshot MaterialSystem::BuildFrameSnapshot(
-        const std::span<const Ref<const MaterialRenderProxy>> materials,
-        const std::span<const Ref<Texture>> textures,
+        const MaterialRenderScene& scene,
         const uint64_t submissionSerial
     )
     {
@@ -33,14 +32,15 @@ namespace Elixir
             }
         );
 
-        for (const auto& material : materials)
+        for (const auto& item : scene.GetItems())
         {
+            const auto& material = item.Material;
             if (material)
                 table->Add(*material);
-        }
 
-        for (const auto& texture : textures)
-            m_Textures.Resolve(texture);
+            if (item.AdditionalTexture)
+                m_Textures.Resolve(item.AdditionalTexture);
+        }
 
         if (!table->GetData().empty())
         {

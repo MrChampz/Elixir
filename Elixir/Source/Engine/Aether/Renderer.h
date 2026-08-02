@@ -221,12 +221,6 @@ namespace Elixir::Aether
             std::vector<const SSubmittedSystemInstance*> Instances;
         };
 
-        struct SMaterialFrameInputs
-        {
-            std::vector<Ref<const MaterialRenderProxy>> Materials;
-            std::vector<Ref<Texture>> Textures;
-        };
-
         struct SRenderBatchKey
         {
             EParticleStateLayout ParticleStateLayout = EParticleStateLayout::CoreV1;
@@ -284,7 +278,7 @@ namespace Elixir::Aether
 
         void PrepareMaterialBatches(std::vector<SRenderBatch>& batches);
 
-        SMaterialFrameInputs CollectMaterialFrameInputs(
+        MaterialRenderScene BuildMaterialRenderScene(
             const std::vector<SSubmittedSystemInstance>& instances
         ) const;
 

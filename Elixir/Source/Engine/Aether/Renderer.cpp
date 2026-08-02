@@ -252,10 +252,9 @@ namespace Elixir::Aether
         if (submittedInstances.empty())
             return;
 
-        const auto materialInputs = CollectMaterialFrameInputs(submittedInstances);
+        const auto materialScene = BuildMaterialRenderScene(submittedInstances);
         const auto materialSnapshot = m_MaterialSystem->BuildFrameSnapshot(
-            materialInputs.Materials,
-            materialInputs.Textures,
+            materialScene,
             m_SubmissionSerial
         );
 
@@ -1220,11 +1219,11 @@ namespace Elixir::Aether
         }
     }
 
-    Renderer::SMaterialFrameInputs Renderer::CollectMaterialFrameInputs(
+    MaterialRenderScene Renderer::BuildMaterialRenderScene(
         const std::vector<SSubmittedSystemInstance>& instances
     ) const
     {
-        SMaterialFrameInputs inputs;
+        MaterialRenderScene scene;
 
         for (const auto& instance : instances)
         {
@@ -1235,23 +1234,22 @@ namespace Elixir::Aether
                 if (emitter.MaxParticles == 0)
                     continue;
 
-                if (!emitter.Material)
-                {
-                    EE_CORE_ERROR(
-                        "Aether emitter '{}' has no compiled material proxy.",
-                        emitter.Name
-                    );
+                EMaterialPass pass;
+                if (!TryToGetParticleMaterialPass(emitter.RenderMode, pass))
                     continue;
-                }
 
-                inputs.Materials.push_back(emitter.Material);
+                scene.Add({
+                    .Pass = pass,
+                    .Material = emitter.Material,
+                    .AdditionalTexture = emitter.RenderMode == EParticleRenderMode::Sprite
+                        ? emitter.SpriteTexture
+                        : Ref<Texture>{},
 
-                if (emitter.RenderMode == EParticleRenderMode::Sprite && emitter.SpriteTexture)
-                    inputs.Textures.push_back(emitter.SpriteTexture);
+                });
             }
         }
 
-        return inputs;
+        return scene;
     }
 
     void Renderer::SimulateBatch(const Ref<CommandBuffer>& cmd, const SSimulationBatch& batch)

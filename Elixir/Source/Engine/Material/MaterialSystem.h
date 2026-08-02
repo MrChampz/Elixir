@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Graphics/Buffer.h>
+#include <Engine/Material/MaterialRenderScene.h>
 #include <Engine/Material/MaterialFrameTable.h>
 #include <Engine/Material/MaterialRenderer.h>
 #include <Engine/Material/MaterialTextureRegistry.h>
@@ -20,8 +21,7 @@ namespace Elixir
         MaterialSystem(const GraphicsContext* context, uint32_t capacity);
 
         SMaterialFrameSnapshot BuildFrameSnapshot(
-            std::span<const Ref<const MaterialRenderProxy>> materials,
-            std::span<const Ref<Texture>> textures,
+            const MaterialRenderScene& scene,
             uint64_t submissionSerial
         );
 
