@@ -5,10 +5,8 @@ namespace Elixir
 {
     /* SMaterialPushConstants */
 
-    std::array<std::byte, SMaterialPushConstants::CAPACITY> SMaterialPushConstants::Resolve(
-        const uint32_t materialIndex,
-        const uint32_t additionalTextureIndex
-    ) const
+    std::array<std::byte, SMaterialPushConstants::CAPACITY>
+    SMaterialPushConstants::Resolve(const uint32_t materialIndex) const
     {
         auto resolved = Data;
 
@@ -25,7 +23,6 @@ namespace Elixir
         };
 
         patch(MaterialIndexOffset, materialIndex);
-        patch(AdditionalTextureIndexOffset, additionalTextureIndex);
 
         return resolved;
     }

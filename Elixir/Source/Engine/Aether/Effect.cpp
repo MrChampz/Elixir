@@ -62,7 +62,7 @@ namespace Elixir::Aether
         public:
             EffectParser(
                 std::filesystem::path filepath,
-                const ParticleMaterialLibrary& materials
+                ParticleMaterialLibrary& materials
             ) : m_Filepath(std::move(filepath)),
                 m_Materials(materials) {}
 
@@ -875,9 +875,6 @@ namespace Elixir::Aether
 
                 auto& emitter = system->AddEmitter(name, maxParticles, spawnRate.Value);
                 emitter.SetRenderMode(renderMode);
-                emitter.SetMaterial(
-                    m_Materials.GetDefault(GetParticleMaterialUsage(renderMode))
-                );
 
                 if (HasField(json, "burst"))
                 {
@@ -913,11 +910,15 @@ namespace Elixir::Aether
 
                 if (m_Failed) return;
 
-                if (!spriteTexture.empty())
+                if (renderMode == EParticleRenderMode::Sprite && !spriteTexture.empty())
                 {
                     const auto texture = TextureLoader::Load(spriteTexture);
-                    const auto tex2d = std::static_pointer_cast<Texture2D>(texture);
-                    emitter.SetSpriteTexture(tex2d);
+                    if (!texture) { Fail("Could not load sprite texture '{}'.", spriteTexture); return; }
+                    emitter.SetMaterial(m_Materials.GetDefaultSprite(texture));
+                }
+                else
+                {
+                    emitter.SetMaterial(m_Materials.GetDefault(GetParticleMaterialUsage(renderMode)));
                 }
 
                 if (!spawnRate.Param.empty())
@@ -931,7 +932,7 @@ namespace Elixir::Aether
             }
 
             std::filesystem::path m_Filepath;
-            const ParticleMaterialLibrary& m_Materials;
+            ParticleMaterialLibrary& m_Materials;
             bool m_Failed = false;
         };
 
@@ -976,7 +977,7 @@ namespace Elixir::Aether
 
     Ref<System> LoadEffectFile(
         const std::filesystem::path& filepath,
-        const ParticleMaterialLibrary& materials
+        ParticleMaterialLibrary& materials
     )
     {
         od::parser parser;

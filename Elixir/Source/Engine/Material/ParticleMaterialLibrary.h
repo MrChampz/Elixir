@@ -14,12 +14,22 @@ namespace Elixir
 
         const Ref<const MaterialRenderProxy>& GetDefault(EMaterialUsage usage) const;
 
+        Ref<const MaterialRenderProxy> GetDefaultSprite(const Ref<Texture>& texture);
+
     private:
+        struct SDefaultMaterial
+        {
+            Ref<Material> Source;
+            Ref<const SCompiledMaterial> Compiled;
+            Ref<const MaterialRenderProxy> Proxy;
+        };
+
         static constexpr size_t GetSlot(const EMaterialUsage usage)
         {
             return static_cast<size_t>(usage);
         }
 
-        std::array<Ref<const MaterialRenderProxy>, 3> m_Defaults;
+        std::array<SDefaultMaterial, 3> m_Defaults;
+        std::unordered_map<const Texture*, Ref<const MaterialRenderProxy>> m_SpriteProxies;
     };
 }

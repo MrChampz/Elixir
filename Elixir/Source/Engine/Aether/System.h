@@ -38,8 +38,6 @@ namespace Elixir::Aether
         std::vector<SGPUCurve> Curves;
         std::vector<SGPUColorCurve> ColorCurves;
 
-        std::vector<std::string> SpriteTextures;
-
         uint32_t TotalMaxParticles = 0;
     };
 

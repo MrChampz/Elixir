@@ -15,7 +15,6 @@ namespace Elixir::Aether
     {
         glm::mat4 WorldTransform{ 1.0f };
         uint32_t MaterialIndex = UINT32_MAX;
-        uint32_t SpriteIndex = 0;
     };
 
     struct SMeshPushConstants
@@ -1105,13 +1104,11 @@ namespace Elixir::Aether
                         scene.Add({
                             .Pass = EMaterialPass::ParticleSprite,
                             .Material = emitter.Material,
-                            .AdditionalTexture = emitter.SpriteTexture,
                             .DebugName = emitter.Name,
                             .GeometryIndex = geometry.Sprite,
                             .PushConstants = SMaterialPushConstants::Create(
                                 constants,
-                                offsetof(SSpritePushConstants, MaterialIndex),
-                                offsetof(SSpritePushConstants, SpriteIndex)
+                                offsetof(SSpritePushConstants, MaterialIndex)
                             ),
                             .Draw = {
                                 .VertexCount = 6,

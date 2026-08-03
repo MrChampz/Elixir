@@ -15,6 +15,7 @@ namespace Elixir
         Parameter,      // a named material-instance parameters (mat.<field>)
         TexCoord,       // input.TexCoord
         TextureSample,  // sample a bound texture at a UV (input 0)
+        ComponentMask,  // Select one component from a vector input.
         Time,           // seconds since start (cbFrame.start)
         Sine,           // sin(a)
         Panner,         // uv + Time * speed (speed from ConstantValue.xy)
@@ -33,7 +34,7 @@ namespace Elixir
     // The surface output a channel drives.
     enum class EMaterialChannel : uint8_t
     {
-        BaseColor, Metallic, Roughness, Emissive, Normal
+        BaseColor, Normal, Metallic, Roughness, Opacity, Emissive
     };
 
     struct SMaterialGraphBindings
@@ -56,9 +57,10 @@ namespace Elixir
         std::vector<std::string> DefaultInputs;
 
         // Per-type payload.
-        glm::vec4 ConstantValue{ 0.0f };    // Constant
-        std::string ParameterName;                // Parameter -> mat.<ParameterName>
-        std::string TextureParameterName;         // TextureSample -> material texture parameter
+        glm::vec4   ConstantValue{ 0.0f };    // Constant
+        std::string ParameterName;                  // Parameter -> mat.<ParameterName>
+        std::string TextureParameterName;           // TextureSample -> material texture parameter
+        uint32_t    ComponentIndex = 0;             // ComponentMask: x, y, z or w.
     };
 
     // A node graph describing a material's surface. Compiles to an HLSL body that

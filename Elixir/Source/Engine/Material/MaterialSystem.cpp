@@ -61,9 +61,6 @@ namespace Elixir
             const auto& material = item.Material;
             if (material)
                 table->Add(*material);
-
-            if (item.AdditionalTexture)
-                m_Textures.Resolve(item.AdditionalTexture);
         }
 
         if (!table->GetData().empty())
@@ -212,13 +209,7 @@ namespace Elixir
             for (const auto& batchItem : batch.Items)
             {
                 const auto& item = *batchItem.Item;
-                const auto textureIndex = item.AdditionalTexture
-                    ? m_Textures.Find(item.AdditionalTexture)
-                    : m_Textures.GetFallbackIndex();
-                const auto constants = item.PushConstants.Resolve(
-                    batchItem.MaterialIndex,
-                    textureIndex
-                );
+                const auto constants = item.PushConstants.Resolve(batchItem.MaterialIndex);
 
                 prepared->Shader->SetPushConstant(
                     cmd,

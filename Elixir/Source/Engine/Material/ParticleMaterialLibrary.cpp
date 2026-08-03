@@ -34,7 +34,7 @@ namespace Elixir
             )
             if (!proxy) continue;
 
-            m_Defaults[GetSlot(usage)] = proxy;
+            m_Defaults[GetSlot(usage)] = { source, compiled.Material, proxy };
         }
     }
 
@@ -42,11 +42,37 @@ namespace Elixir
         const EMaterialUsage usage
     ) const
     {
-        const auto& material = m_Defaults[GetSlot(usage)];
+        const auto& material = m_Defaults[GetSlot(usage)].Proxy;
         EE_CORE_ASSERT(
             material,
             "Particle material library default is unavailable."
         )
         return material;
+    }
+
+    Ref<const MaterialRenderProxy> ParticleMaterialLibrary::GetDefaultSprite(
+        const Ref<Texture>& texture
+    )
+    {
+        if (!texture) return GetDefault(EMaterialUsage::ParticleSprite);
+
+        const auto found = m_SpriteProxies.find(texture.get());
+        if (found != m_SpriteProxies.end())
+            return found->second;
+
+        const auto& source = m_Defaults[GetSlot(EMaterialUsage::ParticleSprite)];
+        const auto instance = CreateRef<MaterialInstance>(source.Source);
+
+        const bool result = instance->SetTexture(
+            std::string(DEFAULT_SPRITE_TEXTURE_PARAMETER),
+            texture
+        );
+        EE_CORE_ASSERT(result, "Default Sprite material parameter is unavailable.")
+
+        const auto proxy = instance->CreateRenderProxy(source.Compiled);
+        EE_CORE_ASSERT(proxy, "Default Sprite material proxy creation failed.")
+
+        m_SpriteProxies.emplace(texture.get(), proxy);
+        return proxy;
     }
 }

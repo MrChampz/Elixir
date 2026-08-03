@@ -51,12 +51,13 @@ struct Surface
     float3  Normal;
     float   Metallic;
     float   Roughness;
+    float   Opacity;
     float3  Emissive;
 };
 
-float3 SampleTex(uint index, float2 uv)
+float4 SampleTex(uint index, float2 uv)
 {
-    return sprites[index].Sample(spriteSampler, uv).rgb;
+    return sprites[index].Sample(spriteSampler, uv);
 }
 
 float4 main(PSInput input) : SV_Target0
@@ -70,6 +71,7 @@ float4 main(PSInput input) : SV_Target0
     surface.Normal = float3(0.0f, 0.0f, 1.0f);
     surface.Metallic = 0.0f;
     surface.Roughness = 0.5f;
+    surface.Opacity = 1.0f;
     surface.Emissive = float3(0.0f, 0.0f, 0.0f);
 
     // __GRAPH_BODY__
@@ -82,5 +84,5 @@ float4 main(PSInput input) : SV_Target0
     const float3 color = surface.BaseColor + surface.Emissive;
 
 //    return float4(color, input.Color.a * edgeFade);
-    return float4(color, 1.0f);
+    return float4(color, surface.Opacity);
 }

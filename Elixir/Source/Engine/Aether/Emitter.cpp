@@ -36,7 +36,6 @@ namespace Elixir::Aether
         emitter.Name = m_Name;
         emitter.RenderMode = m_RenderMode;
         emitter.SimulationSpace = m_SimulationSpace;
-        emitter.SpriteTexture = m_SpriteTexture;
         emitter.MaxParticles = m_MaxParticles;
         emitter.GravityScale = paramStore.GetFloat("GravityScale", 1.0f);
         emitter.SpawnOpOffset = (uint32_t)ops.size();

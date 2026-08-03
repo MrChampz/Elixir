@@ -30,7 +30,6 @@ struct MaterialPushConstants
 {
     float4x4 WorldTransform;
     uint MaterialIndex;
-    uint SpriteIndex;
 };
 
 [[vk::push_constant]]
@@ -49,12 +48,13 @@ struct Surface
     float3  Normal;
     float   Metallic;
     float   Roughness;
+    float   Opacity;
     float3  Emissive;
 };
 
-float3 SampleTex(uint index, float2 uv)
+float4 SampleTex(uint index, float2 uv)
 {
-    return sprites[index].Sample(spriteSampler, uv).rgb;
+    return sprites[index].Sample(spriteSampler, uv);
 }
 
 float4 main(PSInput input) : SV_Target0
@@ -66,13 +66,10 @@ float4 main(PSInput input) : SV_Target0
     surface.Normal = float3(0.0f, 0.0f, 1.0f);
     surface.Metallic = 0.0f;
     surface.Roughness = 0.5f;
+    surface.Opacity = 1.0f;
     surface.Emissive = float3(0.0f, 0.0f, 0.0f);
 
     // __GRAPH_BODY__
 
-    const float4 sprite = sprites[pc.SpriteIndex].Sample(spriteSampler, input.TexCoord);
-    const float3 color = input.Color.rgb * sprite.rgb * surface.BaseColor + surface.Emissive;
-    const float alpha = input.Color.a * sprite.a;
-
-    return float4(color, alpha);
+    return float4(surface.BaseColor + surface.Emissive, surface.Opacity);
 }

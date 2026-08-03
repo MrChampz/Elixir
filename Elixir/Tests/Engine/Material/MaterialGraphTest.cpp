@@ -72,3 +72,25 @@ TEST(MaterialGraphTest, ScalarChannelsAndSharedNode)
     ASSERT_NE(first, std::string::npos);
     EXPECT_EQ(hlsl.find("float n", first + 1), std::string::npos);
 }
+
+TEST(MaterialGraphTest, RoutesTextureAlphaToOpacity)
+{
+    MaterialGraph graph;
+    const auto texture = graph.AddNode({
+        .Type = EMaterialNodeType::TextureSample,
+        .TextureParameterName = "Albedo",
+    });
+    const auto alpha = graph.AddNode({
+        .Type = EMaterialNodeType::ComponentMask,
+        .Inputs = { int32_t(texture) },
+        .ComponentIndex = 3,
+    });
+    graph.SetChannel(EMaterialChannel::BaseColor, texture);
+    graph.SetChannel(EMaterialChannel::Opacity, alpha);
+
+    const auto hlsl = graph.GenerateHLSL({ .Textures = {{ "Albedo", "mat.TextureIndices[0]" }} });
+    EXPECT_NE(hlsl.find("surface.BaseColor"), std::string::npos);
+    EXPECT_NE(hlsl.find("surface.Opacity"), std::string::npos);
+    EXPECT_NE(hlsl.find("SampleTex"), std::string::npos);
+    EXPECT_NE(hlsl.find(".w"), std::string::npos);
+}

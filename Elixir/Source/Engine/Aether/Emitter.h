@@ -17,7 +17,6 @@ namespace Elixir::Aether
         std::string Name;
         EParticleRenderMode RenderMode = EParticleRenderMode::Sprite;
         EParticleSimulationSpace SimulationSpace = EParticleSimulationSpace::World;
-        Ref<Texture2D> SpriteTexture;
 
         // Immutable material state captured while the system is compiled.
         // It is safe to read for the full render submission.
@@ -113,9 +112,6 @@ namespace Elixir::Aether
         const std::string& GetName() const { return m_Name; }
         uint32_t GetMaxParticles() const { return m_MaxParticles; }
 
-        const Ref<Texture2D>& GetSpriteTexture() const { return m_SpriteTexture; }
-        void SetSpriteTexture(const Ref<Texture2D>& texture) { m_SpriteTexture = texture; }
-
         const Ref<const MaterialRenderProxy>& GetMaterial() const { return m_Material; }
         void SetMaterial(Ref<const MaterialRenderProxy> material) { m_Material = std::move(material); }
 
@@ -140,7 +136,6 @@ namespace Elixir::Aether
         std::string m_Name;
         EParticleRenderMode m_RenderMode = EParticleRenderMode::Sprite;
         EParticleSimulationSpace m_SimulationSpace = EParticleSimulationSpace::World;
-        Ref<Texture2D> m_SpriteTexture;
         Ref<const MaterialRenderProxy> m_Material;
         uint32_t m_MaxParticles;
 

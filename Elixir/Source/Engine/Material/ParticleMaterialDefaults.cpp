@@ -32,6 +32,29 @@ namespace Elixir
             "A default particle material must enable its particle usage."
         )
 
+        if (usage == EMaterialUsage::ParticleSprite)
+        {
+            material->DefineParameter(std::string(DEFAULT_SPRITE_TEXTURE_PARAMETER), {
+                .Kind = EMaterialParameterKind::Texture,
+                .DefaultValue = SMaterialParam::MakeTexture(nullptr),
+            });
+
+            MaterialGraph graph;
+            const auto texture = graph.AddNode({
+                .Type = EMaterialNodeType::TextureSample,
+                .TextureParameterName = std::string(DEFAULT_SPRITE_TEXTURE_PARAMETER),
+            });
+            const auto alpha = graph.AddNode({
+                .Type = EMaterialNodeType::ComponentMask,
+                .Inputs = { int32_t(texture) },
+                .ComponentIndex = 3,
+            });
+            graph.SetChannel(EMaterialChannel::BaseColor, texture);
+            graph.SetChannel(EMaterialChannel::Opacity, alpha);
+
+            material->SetGraph(std::move(graph));
+        }
+
         return material;
     }
 }

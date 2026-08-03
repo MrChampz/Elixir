@@ -12,13 +12,11 @@ namespace Elixir
         std::array<std::byte, CAPACITY> Data{};
         uint32_t Size = 0;
         uint32_t MaterialIndexOffset = NO_OFFSET;
-        uint32_t AdditionalTextureIndexOffset = NO_OFFSET;
 
         template <typename T>
         static SMaterialPushConstants Create(
             const T& value,
-            const uint32_t materialIndexOffset = NO_OFFSET,
-            const uint32_t additionalTextureIndexOffset = NO_OFFSET
+            const uint32_t materialIndexOffset = NO_OFFSET
         )
         {
             EE_CORE_ASSERT(
@@ -30,15 +28,11 @@ namespace Elixir
             Memory::Memcpy(pc.Data.data(), &value, sizeof(T));
             pc.Size = sizeof(T);
             pc.MaterialIndexOffset = materialIndexOffset;
-            pc.AdditionalTextureIndexOffset = additionalTextureIndexOffset;
 
             return pc;
         }
 
-        std::array<std::byte, CAPACITY> Resolve(
-            uint32_t materialIndex,
-            uint32_t additionalTextureIndex
-        ) const;
+        std::array<std::byte, CAPACITY> Resolve(uint32_t materialIndex) const;
     };
 
     struct SMaterialVertexBufferBinding
@@ -71,7 +65,6 @@ namespace Elixir
     {
         EMaterialPass Pass = EMaterialPass::ParticleSprite;
         Ref<const MaterialRenderProxy> Material;
-        Ref<Texture> AdditionalTexture;
         std::string_view DebugName;
         uint32_t GeometryIndex = UINT32_MAX;
         SMaterialPushConstants PushConstants;

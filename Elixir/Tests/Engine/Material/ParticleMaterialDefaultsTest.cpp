@@ -19,3 +19,10 @@ TEST(ParticleMaterialDefaultsTest, CreatesAValidMaterialForEachParticleUsage)
         EXPECT_TRUE(material->ValidateGraph());
     }
 }
+
+TEST(ParticleMaterialDefaultsTest, AuthorsSpriteTextureIntoBaseColorAndOpacity)
+{
+    const auto material = CreateDefaultParticleMaterial(EMaterialUsage::ParticleSprite);
+    ASSERT_NE(material->FindParameter(std::string(DEFAULT_SPRITE_TEXTURE_PARAMETER)), nullptr);
+    EXPECT_TRUE(material->ValidateGraph());
+}

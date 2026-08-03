@@ -58,18 +58,19 @@ struct PSInput
 
 struct Surface
 {
-    float3 BaseColor;
-    float3 Normal; // tangent-space perturbation
-    float  Metallic;
-    float  Roughness;
-    float3 Emissive;
+    float3  BaseColor;
+    float3  Normal;
+    float   Metallic;
+    float   Roughness;
+    float   Opacity;
+    float3  Emissive;
 };
 
 static const uint NO_TEXTURE = 0xFFFFFFFFu;
 
-float3 SampleTex(uint index, float2 uv)
+float4 SampleTex(uint index, float2 uv)
 {
-    return textures[index].Sample(texSampler, uv).rgb;
+    return textures[index].Sample(texSampler, uv);
 }
 
 float2 DirToEquirect(float3 dir)
@@ -114,6 +115,7 @@ float4 main(PSInput input) : SV_Target0
     surface.Normal = float3(0.0f, 0.0f, 1.0f);
     surface.Metallic = 0.0f;
     surface.Roughness = 0.5f;
+    surface.Opacity = 1.0f;
     surface.Emissive = float3(0.0f, 0.0f, 0.0f);
 
     // __GRAPH_BODY__
@@ -140,5 +142,5 @@ float4 main(PSInput input) : SV_Target0
     // Tone mapping
     color = ACESFilm(color);
 
-    return float4(color, 1.0f);
+    return float4(color, surface.Opacity);
 }

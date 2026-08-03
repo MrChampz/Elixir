@@ -23,10 +23,11 @@ namespace Elixir
             switch (channel)
             {
                 case EMaterialChannel::BaseColor:   return "BaseColor";
+                case EMaterialChannel::Normal:      return "Normal";
                 case EMaterialChannel::Metallic:    return "Metallic";
                 case EMaterialChannel::Roughness:   return "Roughness";
+                case EMaterialChannel::Opacity:     return "Opacity";
                 case EMaterialChannel::Emissive:    return "Emissive";
-                case EMaterialChannel::Normal:      return "Normal";
             }
 
             return "BaseColor";
@@ -106,7 +107,8 @@ namespace Elixir
         )
         {
             const bool scalarChannel = channel == EMaterialChannel::Metallic ||
-                channel == EMaterialChannel::Roughness;
+                channel == EMaterialChannel::Roughness ||
+                channel == EMaterialChannel::Opacity;
 
             if (scalarChannel)
                 return from == EMaterialGraphValueType::Float ? expr : "(" + expr + ").x";
@@ -281,8 +283,16 @@ namespace Elixir
                 const std::string uv = node.Inputs.empty() || node.Inputs[0] < 0
                     ? "input.TexCoord"
                     : Widen(A(0), AT(0), EMaterialGraphValueType::Float2);
-                expr = "(" + idx + " == 0xFFFFFFFFu ? float3(1.0, 1.0, 1.0) : SampleTex(" + idx + ", " + uv + "))";;
-                type = EMaterialGraphValueType::Float3;
+                expr = "(" + idx + " == 0xFFFFFFFFu ? float4(1.0, 1.0, 1.0, 1.0) : SampleTex(" + idx + ", " + uv + "))";
+                type = EMaterialGraphValueType::Float4;
+                break;
+            }
+            case EMaterialNodeType::ComponentMask:
+            {
+                static constexpr std::array components{ ".x", ".y", ".z", ".w" };
+                const auto component = std::min(node.ComponentIndex, uint32_t(components.size() - 1));
+                expr = "(" + A(0) + ")" + components[component];
+                type = EMaterialGraphValueType::Float;
                 break;
             }
             case EMaterialNodeType::Time:

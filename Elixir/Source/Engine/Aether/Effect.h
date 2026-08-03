@@ -11,6 +11,6 @@ namespace Elixir::Aether
 {
     ELIXIR_API Ref<System> LoadEffectFile(
         const std::filesystem::path& filepath,
-        const ParticleMaterialLibrary& materials
+        ParticleMaterialLibrary& materials
     );
 }
