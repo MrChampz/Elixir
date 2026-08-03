@@ -15,6 +15,12 @@ namespace Elixir
         uint64_t SubmissionSerial = 0;
     };
 
+    struct SMaterialRenderResult
+    {
+        uint32_t BatchCount = 0;
+        uint32_t DrawCount = 0;
+    };
+
     class ELIXIR_API MaterialSystem final
     {
     public:
@@ -34,18 +40,15 @@ namespace Elixir
             const SMaterialPassRequest& request
         ) const;
 
-        template <typename T>
-        requires std::invocable<T, const Ref<CommandBuffer>&, const Ref<Shader>&>
-        void DrawMaterial(const SMaterialDrawRequest& request, T&& recordGeometry) const
-        {
-            m_Renderer->Draw(request, std::forward<T>(recordGeometry));
-        }
+        SMaterialRenderResult Render(
+            const Ref<CommandBuffer>& cmd,
+            const MaterialRenderScene& scene,
+            const SMaterialFrameSnapshot& snapshot
+        ) const;
 
         const Ref<DynamicStorageBuffer>& GetFrameBuffer() const { return m_FrameBuffer; }
         const Ref<TextureSet>& GetTextureSet() const { return m_Textures.GetTextureSet(); }
         const Ref<Sampler>& GetSampler() const { return m_Textures.GetSampler(); }
-        uint32_t GetFallbackTextureIndex() const { return m_Textures.GetFallbackIndex(); }
-        uint32_t FindTextureIndex(const Ref<Texture>& texture) const;
 
     private:
         uint32_t m_MaterialCapacity = 0;

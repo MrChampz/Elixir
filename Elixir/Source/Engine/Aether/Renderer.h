@@ -221,32 +221,6 @@ namespace Elixir::Aether
             std::vector<const SSubmittedSystemInstance*> Instances;
         };
 
-        struct SRenderBatchKey
-        {
-            EParticleStateLayout ParticleStateLayout = EParticleStateLayout::CoreV1;
-            EParticleRenderMode RenderMode = EParticleRenderMode::Sprite;
-            SMaterialProgramKey MaterialProgram;
-
-            bool operator==(const SRenderBatchKey&) const = default;
-        };
-
-        struct SRenderItem
-        {
-            const SSubmittedSystemInstance* Instance = nullptr;
-            const SCompiledEmitter* Emitter = nullptr;
-            const MaterialRenderProxy* Material = nullptr;
-            uint32_t MaterialIndex = UINT32_MAX;
-            uint32_t SpriteIndex = UINT32_MAX;
-            uint32_t LocalEmitterIndex = 0;
-        };
-
-        struct SRenderBatch
-        {
-            SRenderBatchKey Key;
-            std::optional<SPreparedMaterialPass> PreparedMaterial;
-            std::vector<SRenderItem> Items;
-        };
-
         SInstanceRecord* ResolveInstanceRecord(const SystemInstance& instance);
         void UploadCompiledSystem(
             const SystemInstance& instance,
@@ -271,13 +245,6 @@ namespace Elixir::Aether
             const std::vector<SSubmittedSystemInstance>& instances
         ) const;
 
-        std::vector<SRenderBatch> BuildRenderBatches(
-            const std::vector<SSubmittedSystemInstance>& instances,
-            const SMaterialFrameSnapshot& materials
-        );
-
-        void PrepareMaterialBatches(std::vector<SRenderBatch>& batches);
-
         MaterialRenderScene BuildMaterialRenderScene(
             const std::vector<SSubmittedSystemInstance>& instances
         ) const;
@@ -285,11 +252,6 @@ namespace Elixir::Aether
         void SimulateBatch(
             const Ref<CommandBuffer>& cmd,
             const SSimulationBatch& batch
-        );
-
-        void RenderBatch(
-            const Ref<CommandBuffer>& cmd,
-            const SRenderBatch& batch
         );
 
         void BarrierSchedulingBuffers(const Ref<CommandBuffer>& cmd) const;

@@ -19,8 +19,3 @@ TEST(MaterialRendererTest, MapsParticlePassesToMaterialUsages)
         EMaterialUsage::ParticleMesh
     );
 }
-
-TEST(MaterialRendererTest, RejectsAndIncompleteDrawRequest)
-{
-    EXPECT_FALSE(static_cast<bool>(SMaterialDrawRequest{}));
-}

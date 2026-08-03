@@ -26,6 +26,18 @@ namespace Elixir
         return EMaterialUsage::ParticleSprite;
     }
 
+    uint32_t MaterialRenderer::GetPassOrder(const EMaterialPass pass)
+    {
+        switch (pass)
+        {
+            case EMaterialPass::ParticleSprite: return 2;
+            case EMaterialPass::ParticleRibbon: return 1;
+            case EMaterialPass::ParticleMesh:   return 0;
+        }
+
+        return UINT32_MAX;
+    }
+
     std::optional<SMaterialProgramKey> MaterialRenderer::GetProgramKey(
         const EMaterialPass pass,
         const MaterialRenderProxy& material

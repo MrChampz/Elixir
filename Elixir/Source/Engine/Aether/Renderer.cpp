@@ -112,18 +112,6 @@ namespace Elixir::Aether
         return desc;
     }
 
-    uint32_t GetRenderModeOrder(const EParticleRenderMode mode)
-    {
-        switch (mode)
-        {
-            case EParticleRenderMode::Mesh:     return 0;
-            case EParticleRenderMode::Ribbon:   return 1;
-            case EParticleRenderMode::Sprite:   return 2;
-        }
-
-        return UINT32_MAX;
-    }
-
     glm::mat4 GetParticleRenderTransform(
         const SCompiledEmitter& emitter,
         const SystemInstance& instance
@@ -260,15 +248,8 @@ namespace Elixir::Aether
 
         const auto simulationBatches = BuildSimulationBatches(submittedInstances);
 
-        auto renderBatches = BuildRenderBatches(submittedInstances, materialSnapshot);
-        PrepareMaterialBatches(renderBatches);
-
         m_LastSubmissionMetrics.SimulationBatchCount = simulationBatches.size();
-        m_LastSubmissionMetrics.RenderBatchCount = renderBatches.size();
         m_LastSubmissionMetrics.SubmittedMaterialCount = materialSnapshot.MaterialCount;
-
-        for (const auto& batch : renderBatches)
-            m_LastSubmissionMetrics.SubmittedRenderItemCount += batch.Items.size();
 
         const auto cmd = m_GraphicsContext->GetSecondaryCommandBuffer();
         cmd->Begin({
@@ -295,8 +276,14 @@ namespace Elixir::Aether
 
         BeginRendering(cmd);
 
-        for (const auto& batch : renderBatches)
-            RenderBatch(cmd, batch);
+        const auto materialResult = m_MaterialSystem->Render(
+            cmd,
+            materialScene,
+            materialSnapshot
+        );
+
+        m_LastSubmissionMetrics.RenderBatchCount = materialResult.BatchCount;
+        m_LastSubmissionMetrics.SubmittedRenderItemCount = materialResult.DrawCount;
 
         EndRendering(cmd);
     }
@@ -1010,242 +997,179 @@ namespace Elixir::Aether
         return batches;
     }
 
-    std::vector<Renderer::SRenderBatch> Renderer::BuildRenderBatches(
-        const std::vector<SSubmittedSystemInstance>& instances,
-        const SMaterialFrameSnapshot& materials
-    )
-    {
-        std::vector<SRenderBatch> batches;
-
-        for (const auto& instance : instances)
-        {
-            const auto& system = instance.Instance->GetCompiledSystem();
-
-            for (uint32_t emitterIndex = 0; emitterIndex < system.Emitters.size(); ++emitterIndex)
-            {
-                const auto& emitter = system.Emitters[emitterIndex];
-
-                if (emitter.MaxParticles == 0)
-                    continue;
-
-                EMaterialPass materialPass;
-                if (!TryToGetParticleMaterialPass(emitter.RenderMode, materialPass))
-                    continue;
-
-                const auto* material = emitter.Material.get();
-                if (!material)
-                {
-                    EE_CORE_ERROR(
-                        "Aether emitter '{}' has no compiled material proxy.",
-                        emitter.Name
-                    )
-                    continue;
-                }
-
-                uint32_t spriteIndex = m_MaterialSystem->GetFallbackTextureIndex();
-
-                if (emitter.RenderMode == EParticleRenderMode::Sprite)
-                    spriteIndex = m_MaterialSystem->FindTextureIndex(emitter.SpriteTexture);
-
-                const auto program = m_MaterialSystem->GetProgramKey(
-                    materialPass,
-                    *material
-                );
-
-                EE_CORE_ASSERT(
-                    program,
-                    "Resolved particle material must provide its shader permutation."
-                )
-                if (!program) continue;
-
-                const auto index = materials.Table->Find(*material);
-                EE_CORE_ASSERT(index, "Material frame snapshot is missing an emitter material.")
-                if (!index) continue;
-
-                const SRenderBatchKey key{
-                    .ParticleStateLayout = instance.ParticleStateLayout,
-                    .RenderMode = emitter.RenderMode,
-                    .MaterialProgram = *program,
-                };
-
-                SRenderBatch* batch = nullptr;
-
-                for (auto& candidate : batches)
-                {
-                    if (candidate.Key != key)
-                        continue;
-
-                    batch = &candidate;
-                    break;
-                }
-
-                if (!batch)
-                {
-                    batches.push_back({
-                        .Key = key,
-                    });
-                    batch = &batches.back();
-                }
-
-                batch->Items.push_back({
-                    .Instance = &instance,
-                    .Emitter = &emitter,
-                    .Material = material,
-                    .MaterialIndex = *index,
-                    .SpriteIndex = spriteIndex,
-                    .LocalEmitterIndex = emitterIndex,
-                });
-            }
-        }
-
-        std::ranges::stable_sort(batches, [](const SRenderBatch& left, const SRenderBatch& right)
-        {
-            if (left.Key.ParticleStateLayout != right.Key.ParticleStateLayout)
-            {
-                return uint32_t(left.Key.ParticleStateLayout) <
-                    uint32_t(right.Key.ParticleStateLayout);
-            }
-
-            if (left.Key.RenderMode != right.Key.RenderMode)
-            {
-                return GetRenderModeOrder(left.Key.RenderMode) <
-                    GetRenderModeOrder(right.Key.RenderMode);
-            }
-
-            return std::less<const void*>{}(
-                left.Key.MaterialProgram.Identity,
-                right.Key.MaterialProgram.Identity
-            );
-        });
-
-        return batches;
-    }
-
-    void Renderer::PrepareMaterialBatches(std::vector<SRenderBatch>& batches)
-    {
-        static const BufferLayout ribbonVertexLayout;
-
-        const std::array constantBuffers{
-            SMaterialConstantBufferBinding{
-                .Name = "cbFrame",
-                .Buffer = m_FrameConstantBuffer,
-            },
-        };
-
-        for (auto& batch : batches)
-        {
-            if (!batch.Key.MaterialProgram || batch.Items.empty())
-                continue;
-
-            const auto* runtime = FindParticleStateLayoutRuntime(batch.Key.ParticleStateLayout);
-            EE_CORE_ASSERT(runtime, "Aether particle state layout runtime is missing.")
-            if (!runtime) continue;
-
-            const auto* material = batch.Items.front().Material;
-
-            switch (batch.Key.RenderMode)
-            {
-                case EParticleRenderMode::Sprite:
-                {
-                    const SSpritePushConstants initial{
-                        .SpriteIndex = m_MaterialSystem->GetFallbackTextureIndex(),
-                    };
-
-                    batch.PreparedMaterial = m_MaterialSystem->PrepareMaterialPass({
-                        .Pass = EMaterialPass::ParticleSprite,
-                        .Material = material,
-                        .Pipeline = {
-                            .VertexLayoutKey = uint64_t(runtime->Key),
-                            .VertexLayout = &runtime->SpriteVertexLayout,
-                        },
-                        .ExternalResources = {
-                            .ConstantBuffers = constantBuffers,
-                        },
-                        .InitialPushConstants = std::as_bytes(std::span{ &initial, size_t{ 1 }}),
-                    });
-                    break;
-                }
-
-                case EParticleRenderMode::Ribbon:
-                {
-                    const SRibbonPushConstants initial{};
-
-                    const std::array storageBuffers{
-                        SMaterialStorageBufferBinding{
-                            .Name = "particles",
-                            .Buffer = MaterialStorageBuffer{ runtime->ParticleStateBuffer },
-                        },
-                        SMaterialStorageBufferBinding{
-                            .Name = "emitters",
-                            .Buffer = MaterialStorageBuffer{ m_EmitterBuffer },
-                        },
-                    };
-
-                    batch.PreparedMaterial = m_MaterialSystem->PrepareMaterialPass({
-                        .Pass = EMaterialPass::ParticleRibbon,
-                        .Material = material,
-                        .Pipeline = {
-                            .VertexLayoutKey = uint64_t(runtime->Key),
-                            .VertexLayout = &ribbonVertexLayout,
-                        },
-                        .ExternalResources = {
-                            .ConstantBuffers = constantBuffers,
-                            .StorageBuffers = storageBuffers,
-                        },
-                        .InitialPushConstants = std::as_bytes(std::span{ &initial, size_t{ 1 }}),
-                    });
-                    break;
-                }
-
-                case EParticleRenderMode::Mesh:
-                {
-                    constexpr SMeshPushConstants initial{};
-
-                    batch.PreparedMaterial = m_MaterialSystem->PrepareMaterialPass({
-                        .Pass = EMaterialPass::ParticleMesh,
-                        .Material = material,
-                        .Pipeline = {
-                            .VertexLayoutKey = uint64_t(runtime->Key),
-                            .VertexLayout = &runtime->MeshVertexLayout,
-                        },
-                        .ExternalResources = {
-                            .ConstantBuffers = constantBuffers,
-                        },
-                        .InitialPushConstants = std::as_bytes(std::span{ &initial, size_t{ 1 }}),
-                    });
-                    break;
-                }
-            }
-        }
-    }
-
     MaterialRenderScene Renderer::BuildMaterialRenderScene(
         const std::vector<SSubmittedSystemInstance>& instances
     ) const
     {
         MaterialRenderScene scene;
 
+        static const BufferLayout ribbonVertexLayout;
+
+        struct SGeometryIndices
+        {
+            uint32_t Sprite = UINT32_MAX;
+            uint32_t Ribbon = UINT32_MAX;
+            uint32_t Mesh   = UINT32_MAX;
+        };
+
+        std::unordered_map<uint32_t, SGeometryIndices> geometries;
+
+        const auto getGeometry = [this, &scene, &geometries](
+            const EParticleStateLayout layout
+        )
+        {
+            const auto key = (uint32_t)layout;
+            if (const auto found = geometries.find(key); found != geometries.end())
+                return found->second;
+
+            const auto* runtime = FindParticleStateLayoutRuntime(layout);
+            EE_CORE_ASSERT(runtime, "Aether particle state layout runtime is missing.")
+
+            const std::array constantBuffers{
+                SMaterialConstantBufferBinding{
+                    .Name = "cbFrame",
+                    .Buffer = m_FrameConstantBuffer,
+                },
+            };
+
+            const std::array ribbonStorageBuffers{
+                SMaterialStorageBufferBinding{
+                    .Name = "particles",
+                    .Buffer = MaterialStorageBuffer{ runtime->ParticleStateBuffer },
+                },
+                SMaterialStorageBufferBinding{
+                    .Name = "emitters",
+                    .Buffer = MaterialStorageBuffer{ m_EmitterBuffer },
+                },
+            };
+
+            const SGeometryIndices indices{
+                .Sprite = scene.AddGeometry({
+                    .Pipeline = {
+                        .VertexLayoutKey = (uint64_t)runtime->Key,
+                        .VertexLayout = &runtime->SpriteVertexLayout,
+                    },
+                    .ConstantBuffers = { constantBuffers.begin(), constantBuffers.end() },
+                    .VertexBuffers = {
+                        { .Buffer = runtime->ParticleStateBuffer.get(), .Binding = 0 }
+                    },
+                }),
+                .Ribbon = scene.AddGeometry({
+                    .Pipeline = {
+                        .VertexLayoutKey = (uint64_t)runtime->Key,
+                        .VertexLayout = &ribbonVertexLayout,
+                    },
+                    .ConstantBuffers = { constantBuffers.begin(), constantBuffers.end() },
+                    .StorageBuffers = { ribbonStorageBuffers.begin(), ribbonStorageBuffers.end() },
+                }),
+                .Mesh = scene.AddGeometry({
+                    .Pipeline = {
+                        .VertexLayoutKey = (uint64_t)runtime->Key,
+                        .VertexLayout = &runtime->MeshVertexLayout,
+                    },
+                    .ConstantBuffers = { constantBuffers.begin(), constantBuffers.end() },
+                    .VertexBuffers = {
+                        { .Buffer = m_MeshVertexBuffer.get(), .Binding = 0 },
+                        { .Buffer = runtime->ParticleStateBuffer.get(), .Binding = 1 },
+                    },
+                }),
+            };
+
+            geometries.emplace(key, indices);
+            return indices;
+        };
+
         for (const auto& instance : instances)
         {
             const auto& emitters = instance.Instance->GetCompiledSystem().Emitters;
+            const auto geometry = getGeometry(instance.ParticleStateLayout);
 
-            for (const auto& emitter : emitters)
+            for (uint32_t emitterIndex = 0; emitterIndex < emitters.size(); ++emitterIndex)
             {
-                if (emitter.MaxParticles == 0)
-                    continue;
+                const auto& emitter = emitters[emitterIndex];
+                if (emitter.MaxParticles == 0) continue;
 
-                EMaterialPass pass;
-                if (!TryToGetParticleMaterialPass(emitter.RenderMode, pass))
-                    continue;
+                const auto worldTransform = GetParticleRenderTransform(
+                    emitter,
+                    *instance.Instance
+                );
 
-                scene.Add({
-                    .Pass = pass,
-                    .Material = emitter.Material,
-                    .AdditionalTexture = emitter.RenderMode == EParticleRenderMode::Sprite
-                        ? emitter.SpriteTexture
-                        : Ref<Texture>{},
+                switch (emitter.RenderMode)
+                {
+                    case EParticleRenderMode::Sprite:
+                    {
+                        const SSpritePushConstants constants{
+                            .WorldTransform = worldTransform,
+                        };
 
-                });
+                        scene.Add({
+                            .Pass = EMaterialPass::ParticleSprite,
+                            .Material = emitter.Material,
+                            .AdditionalTexture = emitter.SpriteTexture,
+                            .DebugName = emitter.Name,
+                            .GeometryIndex = geometry.Sprite,
+                            .PushConstants = SMaterialPushConstants::Create(
+                                constants,
+                                offsetof(SSpritePushConstants, MaterialIndex),
+                                offsetof(SSpritePushConstants, SpriteIndex)
+                            ),
+                            .Draw = {
+                                .VertexCount = 6,
+                                .InstanceCount = emitter.MaxParticles,
+                                .FirstInstance = instance.Allocation.Particles.Offset +
+                                    emitter.LocalParticleOffset,
+                            },
+                        });
+                        break;
+                    }
+
+                    case EParticleRenderMode::Ribbon:
+                    {
+                        const SRibbonPushConstants constants{
+                            .WorldTransform = worldTransform,
+                            .EmitterIndex = instance.Allocation.Emitters.Offset + emitterIndex,
+                            .ParticleBaseOffset = instance.Allocation.Particles.Offset,
+                        };
+
+                        scene.Add({
+                            .Pass = EMaterialPass::ParticleRibbon,
+                            .Material = emitter.Material,
+                            .DebugName = emitter.Name,
+                            .GeometryIndex = geometry.Ribbon,
+                            .PushConstants = SMaterialPushConstants::Create(
+                                constants,
+                                offsetof(SRibbonPushConstants, MaterialIndex)
+                            ),
+                            .Draw = { .VertexCount = emitter.MaxParticles * 6 },
+                        });
+                        break;
+                    }
+
+                    case EParticleRenderMode::Mesh:
+                    {
+                        const SMeshPushConstants constants{
+                            .WorldTransform = worldTransform,
+                        };
+
+                        scene.Add({
+                            .Pass = EMaterialPass::ParticleMesh,
+                            .Material = emitter.Material,
+                            .DebugName = emitter.Name,
+                            .GeometryIndex = geometry.Mesh,
+                            .PushConstants = SMaterialPushConstants::Create(
+                                constants,
+                                offsetof(SMeshPushConstants, MaterialIndex)
+                            ),
+                            .Draw = {
+                                .VertexCount = m_MeshVertexCount,
+                                .InstanceCount = emitter.MaxParticles,
+                                .FirstInstance = instance.Allocation.Particles.Offset +
+                                    emitter.LocalParticleOffset,
+                            },
+                        });
+                        break;
+                    }
+                }
             }
         }
 
@@ -1379,151 +1303,6 @@ namespace Elixir::Aether
             runtime->UpdateShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
             cmd->Dispatch((instance->Allocation.Particles.Count + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
         }
-    }
-
-    void Renderer::RenderBatch(const Ref<CommandBuffer>& cmd, const SRenderBatch& batch)
-    {
-        if (!batch.PreparedMaterial)
-            return;
-
-        const auto* runtime = FindParticleStateLayoutRuntime(batch.Key.ParticleStateLayout);
-        EE_CORE_ASSERT(runtime, "Aether particle state layout runtime is missing.")
-        if (!runtime) return;
-
-        const auto& particleBuffer = runtime->ParticleStateBuffer;
-
-        switch (batch.Key.RenderMode)
-        {
-            case EParticleRenderMode::Sprite:
-            {
-                const auto drawSprite = [
-                    &batch,
-                    &particleBuffer
-                ](const Ref<CommandBuffer>& cmd, const Ref<Shader>& shader)
-                {
-                    particleBuffer->BindAs<VertexBuffer>(cmd);
-
-                    for (const auto& item : batch.Items)
-                    {
-                        const auto worldTransform = GetParticleRenderTransform(
-                            *item.Emitter,
-                            *item.Instance->Instance
-                        );
-
-                        const SSpritePushConstants pc{
-                            .WorldTransform = worldTransform,
-                            .MaterialIndex = item.MaterialIndex,
-                            .SpriteIndex = item.SpriteIndex,
-                        };
-
-                        shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
-                        cmd->Draw(
-                            6,
-                            item.Emitter->MaxParticles,
-                            0,
-                            item.Instance->Allocation.Particles.Offset + item.Emitter->LocalParticleOffset
-                        );
-                    }
-                };
-
-                m_MaterialSystem->DrawMaterial(
-                    {
-                        .CommandBuffer = cmd,
-                        .MaterialPass = &*batch.PreparedMaterial,
-                    },
-                    drawSprite
-                );
-
-                return;
-            }
-
-            case EParticleRenderMode::Ribbon:
-            {
-                const auto drawRibbon = [
-                    &batch
-                ](const Ref<CommandBuffer>& cmd, const Ref<Shader>& shader)
-                {
-                    for (const auto& item : batch.Items)
-                    {
-                        const auto worldTransform = GetParticleRenderTransform(
-                            *item.Emitter,
-                            *item.Instance->Instance
-                        );
-
-                        const SRibbonPushConstants pc{
-                            .WorldTransform = worldTransform,
-                            .EmitterIndex = item.Instance->Allocation.Emitters.Offset + item.LocalEmitterIndex,
-                            .ParticleBaseOffset = item.Instance->Allocation.Particles.Offset,
-                            .MaterialIndex = item.MaterialIndex,
-                        };
-
-                        shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
-                        cmd->Draw(item.Emitter->MaxParticles * 6);
-                    }
-                };
-
-                m_MaterialSystem->DrawMaterial(
-                    {
-                        .CommandBuffer = cmd,
-                        .MaterialPass = &*batch.PreparedMaterial,
-                    },
-                    drawRibbon
-                );
-
-                return;
-            }
-
-            case EParticleRenderMode::Mesh:
-            {
-                const auto drawMesh = [
-                    this,
-                    &batch,
-                    &particleBuffer
-                ](const Ref<CommandBuffer>& cmd, const Ref<Shader>& shader)
-                {
-                    m_MeshVertexBuffer->Bind(cmd);
-
-                    // TODO: Enhance this api
-                    particleBuffer->BindAs<VertexBuffer>(cmd, std::span<uint64_t>{}, 1, 1);
-
-                    for (const auto& item : batch.Items)
-                    {
-                        const auto worldTransform = GetParticleRenderTransform(
-                            *item.Emitter,
-                            *item.Instance->Instance
-                        );
-
-                        const SMeshPushConstants pc{
-                            .WorldTransform = worldTransform,
-                            .MaterialIndex = item.MaterialIndex
-                        };
-
-                        shader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
-                        cmd->Draw(
-                            m_MeshVertexCount,
-                            item.Emitter->MaxParticles,
-                            0,
-                            item.Instance->Allocation.Particles.Offset + item.Emitter->LocalParticleOffset
-                        );
-                    }
-                };
-
-                m_MaterialSystem->DrawMaterial(
-                    {
-                        .CommandBuffer = cmd,
-                        .MaterialPass = &*batch.PreparedMaterial,
-                    },
-                    drawMesh
-                );
-
-                return;
-            }
-        }
-
-        EE_CORE_ERROR(
-            "Aether cannot render unknown particle render mode '{}'.",
-            (uint32_t)batch.Key.RenderMode
-        )
     }
 
     void Renderer::BarrierSchedulingBuffers(const Ref<CommandBuffer>& cmd) const

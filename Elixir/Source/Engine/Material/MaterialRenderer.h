@@ -75,17 +75,6 @@ namespace Elixir
         explicit operator bool() const { return Shader && Pipeline; }
     };
 
-    struct SMaterialDrawRequest
-    {
-        Ref<CommandBuffer> CommandBuffer;
-        const SPreparedMaterialPass* MaterialPass = nullptr;
-
-        explicit operator bool() const
-        {
-            return CommandBuffer && MaterialPass && *MaterialPass;
-        }
-    };
-
     class ELIXIR_API MaterialRenderer final
     {
     public:
@@ -96,6 +85,7 @@ namespace Elixir
         );
 
         static EMaterialUsage GetUsage(EMaterialPass pass);
+        static uint32_t GetPassOrder(EMaterialPass pass);
 
         std::optional<SMaterialProgramKey> GetProgramKey(
             EMaterialPass pass,
@@ -105,19 +95,6 @@ namespace Elixir
         std::optional<SPreparedMaterialPass> Prepare(
             const SMaterialPassRequest& request
         );
-
-        template <typename T>
-        requires std::invocable<T, const Ref<CommandBuffer>&, const Ref<Shader>&>
-        void Draw(const SMaterialDrawRequest& request, T&& recordGeometry) const
-        {
-            if (!request) return;
-
-            request.MaterialPass->Pipeline->Bind(request.CommandBuffer);
-            std::forward<T>(recordGeometry)(
-                request.CommandBuffer,
-                request.MaterialPass->Shader
-            );
-        }
 
     private:
         enum class EDescriptorBindingType : uint8_t
