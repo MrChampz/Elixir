@@ -59,6 +59,7 @@ namespace Elixir::Aether
         SCompiledSystem Compile() const;
 
         ParameterStore& GetParameters() { return m_Parameters; }
+        const ParameterStore& GetParameters() const { return m_Parameters; }
         CurveStore& GetCurves() { return m_Curves; }
         ColorCurveStore& GetColorCurves() { return m_ColorCurves; }
 

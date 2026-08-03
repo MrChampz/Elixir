@@ -1,35 +1,38 @@
 #pragma once
 
 #include <Engine/Graphics/Shader/ShaderLoader.h>
+#include <Engine/Material/ParticleMaterialDescription.h>
 #include <Engine/Material/MaterialRenderProxy.h>
 
 namespace Elixir
 {
-    // Owns compiled built-in particle material proxies. This is an asset
-    // service: MaterialSystem never chooses a fallback while rendering.
+    // Owns compiled particle material proxies. This is an asset service:
+    // MaterialSystem never chooses or interprets a material while rendering.
     class ELIXIR_API ParticleMaterialLibrary final
     {
     public:
         explicit ParticleMaterialLibrary(const ShaderLoader* shaderLoader);
 
-        const Ref<const MaterialRenderProxy>& GetDefault(EMaterialUsage usage) const;
-
-        Ref<const MaterialRenderProxy> GetDefaultSprite(const Ref<Texture>& texture);
+        Ref<const MaterialRenderProxy> Create(const SParticleMaterialDescription& desc);
 
     private:
-        struct SDefaultMaterial
+        struct SMaterialKey
         {
-            Ref<Material> Source;
-            Ref<const SCompiledMaterial> Compiled;
-            Ref<const MaterialRenderProxy> Proxy;
+            EMaterialUsage Usage = EMaterialUsage::ParticleSprite;
+            glm::vec3 BaseColor{ 1.0f };
+            float Opacity = 1.0f;
+            glm::vec3 Emissive{ 0.0f };
+            const Texture* TextureIdentity = nullptr;
+
+            bool operator==(const SMaterialKey&) const = default;
         };
 
-        static constexpr size_t GetSlot(const EMaterialUsage usage)
+        struct SMaterialKeyHasher
         {
-            return static_cast<size_t>(usage);
-        }
+            size_t operator()(const SMaterialKey& key) const;
+        };
 
-        std::array<SDefaultMaterial, 3> m_Defaults;
-        std::unordered_map<const Texture*, Ref<const MaterialRenderProxy>> m_SpriteProxies;
+        const ShaderLoader* m_ShaderLoader = nullptr;
+        std::unordered_map<SMaterialKey, Ref<const MaterialRenderProxy>, SMaterialKeyHasher> m_Proxies;
     };
 }

@@ -110,7 +110,7 @@
     {
       "name": "FlameCore",
       "renderMode": "Sprite",
-      "spriteTexture": "Assets/Textures/SoftGlow.png",
+      "material": { "color": "$flame_start", "emissive": [1.25, 0.15, 0.01, 0.0], "texture": "Assets/Textures/SoftGlow.png" },
       "maxParticles": 2200,
       "spawnRate": "$spawn_rate",
       "parameters": {
@@ -138,7 +138,7 @@
     {
       "name": "EmberSparks",
       "renderMode": "Sprite",
-      "spriteTexture": "Assets/Textures/SoftGlow.png",
+      "material": { "color": "$ember_start", "emissive": [0.90, 0.08, 0.01, 0.0], "texture": "Assets/Textures/SoftGlow.png" },
       "maxParticles": 1200,
       "spawnRate": "$spawn_rate",
       "parameters": {
@@ -166,7 +166,7 @@
     {
       "name": "SmokePlume",
       "renderMode": "Sprite",
-      "spriteTexture": "Assets/Textures/SoftGlow.png",
+      "material": { "color": "$smoke_start", "texture": "Assets/Textures/SoftGlow.png" },
       "maxParticles": 1000,
       "spawnRate": "$spawn_rate",
       "parameters": {
@@ -193,7 +193,7 @@
     {
       "name": "VortexSprites",
       "renderMode": "Sprite",
-      "spriteTexture": "Assets/Textures/SoftGlow.png",
+      "material": { "color": [0.88, 0.54, 1.00, 0.78], "emissive": [0.40, 0.10, 0.60, 0.0], "texture": "Assets/Textures/SoftGlow.png" },
       "maxParticles": 1800,
       "spawnRate": "$spawn_rate",
       "parameters": {
@@ -223,7 +223,7 @@
     {
       "name": "RocketOrange",
       "renderMode": "Sprite",
-      "spriteTexture": "Assets/Textures/SoftGlow.png",
+      "material": { "color": "$trail_start", "emissive": [0.80, 0.15, 0.02, 0.0], "texture": "Assets/Textures/SoftGlow.png" },
       "maxParticles": 220,
       "spawnRate": "$spawn_rate",
       "burst": { "count": 14, "interval": 1.25 },
@@ -252,7 +252,7 @@
     {
       "name": "RocketBlue",
       "renderMode": "Sprite",
-      "spriteTexture": "Assets/Textures/SoftGlow.png",
+      "material": { "color": "$trail_start", "emissive": [0.05, 0.25, 1.00, 0.0], "texture": "Assets/Textures/SoftGlow.png" },
       "maxParticles": 220,
       "spawnRate": "$spawn_rate",
       "burst": { "count": 14, "interval": 1.55 },
@@ -281,7 +281,7 @@
     {
       "name": "RocketGold",
       "renderMode": "Sprite",
-      "spriteTexture": "Assets/Textures/SoftGlow.png",
+      "material": { "color": "$trail_start", "emissive": [0.80, 0.45, 0.05, 0.0], "texture": "Assets/Textures/SoftGlow.png" },
       "maxParticles": 240,
       "spawnRate": "$spawn_rate",
       "burst": { "count": 16, "interval": 1.85 },
@@ -310,7 +310,7 @@
     {
       "name": "BurstOrange",
       "renderMode": "Sprite",
-      "spriteTexture": "Assets/Textures/SoftGlow.png",
+      "material": { "color": "$burst_a_start", "emissive": [0.80, 0.05, 0.01, 0.0], "texture": "Assets/Textures/SoftGlow.png" },
       "maxParticles": 1800,
       "spawnRate": "$spawn_rate",
       "trigger": { "source": "RocketOrange", "delay": 1.18 },
@@ -340,7 +340,7 @@
     {
       "name": "BurstBlue",
       "renderMode": "Sprite",
-      "spriteTexture": "Assets/Textures/SoftGlow.png",
+      "material": { "color": "$burst_b_start", "emissive": [0.05, 0.30, 1.00, 0.0], "texture": "Assets/Textures/SoftGlow.png" },
       "maxParticles": 1800,
       "spawnRate": "$spawn_rate",
       "trigger": { "source": "RocketBlue", "delay": 1.12 },
@@ -370,7 +370,7 @@
     {
       "name": "BurstGold",
       "renderMode": "Sprite",
-      "spriteTexture": "Assets/Textures/SoftGlow.png",
+      "material": { "color": "$burst_c_start", "emissive": [1.00, 0.50, 0.05, 0.0], "texture": "Assets/Textures/SoftGlow.png" },
       "maxParticles": 2000,
       "spawnRate": "$spawn_rate",
       "trigger": { "source": "RocketGold", "delay": 1.18 },

@@ -8,71 +8,63 @@
 namespace Elixir
 {
     ParticleMaterialLibrary::ParticleMaterialLibrary(const ShaderLoader* shaderLoader)
-    {
-        for (const auto usage : {
-            EMaterialUsage::ParticleSprite,
-            EMaterialUsage::ParticleRibbon,
-            EMaterialUsage::ParticleMesh,
-        })
-        {
-            const auto source = CreateDefaultParticleMaterial(usage);
-            const auto compiled = MaterialCompiler::Compile(shaderLoader, *source);
+        : m_ShaderLoader(shaderLoader) {}
 
-            EE_CORE_ASSERT(
-                compiled,
-                "Default particle material compilation failed: {}",
-                compiled.Diagnostics
-            )
-            if (!compiled) continue;
-
-            const auto instance = CreateRef<MaterialInstance>(source);
-            const auto proxy = instance->CreateRenderProxy(compiled.Material);
-
-            EE_CORE_ASSERT(
-                proxy,
-                "Default particle material render proxy creation failed."
-            )
-            if (!proxy) continue;
-
-            m_Defaults[GetSlot(usage)] = { source, compiled.Material, proxy };
-        }
-    }
-
-    const Ref<const MaterialRenderProxy>& ParticleMaterialLibrary::GetDefault(
-        const EMaterialUsage usage
-    ) const
-    {
-        const auto& material = m_Defaults[GetSlot(usage)].Proxy;
-        EE_CORE_ASSERT(
-            material,
-            "Particle material library default is unavailable."
-        )
-        return material;
-    }
-
-    Ref<const MaterialRenderProxy> ParticleMaterialLibrary::GetDefaultSprite(
-        const Ref<Texture>& texture
+    Ref<const MaterialRenderProxy> ParticleMaterialLibrary::Create(
+        const SParticleMaterialDescription& desc
     )
     {
-        if (!texture) return GetDefault(EMaterialUsage::ParticleSprite);
+        const SMaterialKey key{
+            .Usage = desc.Usage,
+            .BaseColor = desc.BaseColor,
+            .Opacity = desc.Opacity,
+            .Emissive = desc.Emissive,
+            .TextureIdentity = desc.Texture.get(),
+        };
 
-        const auto found = m_SpriteProxies.find(texture.get());
-        if (found != m_SpriteProxies.end())
+        const auto found = m_Proxies.find(key);
+        if (found != m_Proxies.end())
             return found->second;
 
-        const auto& source = m_Defaults[GetSlot(EMaterialUsage::ParticleSprite)];
-        const auto instance = CreateRef<MaterialInstance>(source.Source);
+        const auto& source = CreateParticleMaterial(desc);
+        const auto compiled = MaterialCompiler::Compile(m_ShaderLoader, *source);
+        EE_CORE_ASSERT(compiled, "Particle material compilation failed: {}", compiled.Diagnostics)
+        if (!compiled) return nullptr;
 
-        const bool result = instance->SetTexture(
-            std::string(DEFAULT_SPRITE_TEXTURE_PARAMETER),
-            texture
-        );
-        EE_CORE_ASSERT(result, "Default Sprite material parameter is unavailable.")
+        const auto instance = CreateRef<MaterialInstance>(source);
+        if (desc.Usage == EMaterialUsage::ParticleSprite)
+        {
+            const bool bound = instance->SetTexture(
+                std::string(DEFAULT_SPRITE_TEXTURE_PARAMETER),
+                desc.Texture
+            );
+            EE_CORE_ASSERT(bound, "Particle Sprite texture parameter is unavailable.")
+        }
 
-        const auto proxy = instance->CreateRenderProxy(source.Compiled);
-        EE_CORE_ASSERT(proxy, "Default Sprite material proxy creation failed.")
+        auto proxy = instance->CreateRenderProxy(compiled.Material);
+        EE_CORE_ASSERT(proxy, "Particle material proxy creation failed.")
+        if (!proxy) return nullptr;
 
-        m_SpriteProxies.emplace(texture.get(), proxy);
+        m_Proxies.emplace(key, proxy);
         return proxy;
+    }
+
+    size_t ParticleMaterialLibrary::SMaterialKeyHasher::operator()(const SMaterialKey& key) const
+    {
+        size_t hash = Hash::Hash<uint32_t>(uint32_t(key.Usage));
+        const auto mix = [&hash](const size_t value)
+        {
+            hash ^= value + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+        };
+
+        mix(Hash::Hash<float>(key.BaseColor.x));
+        mix(Hash::Hash<float>(key.BaseColor.y));
+        mix(Hash::Hash<float>(key.BaseColor.z));
+        mix(Hash::Hash<float>(key.Opacity));
+        mix(Hash::Hash<float>(key.Emissive.x));
+        mix(Hash::Hash<float>(key.Emissive.y));
+        mix(Hash::Hash<float>(key.Emissive.z));
+        mix(Hash::Hash<const Texture*>(key.TextureIdentity));
+        return hash;
     }
 }

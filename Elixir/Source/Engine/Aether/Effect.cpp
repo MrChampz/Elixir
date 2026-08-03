@@ -861,13 +861,83 @@ namespace Elixir::Aether
                 }
             }
 
+            glm::vec4 ResolveMaterialColor(
+                const Float4Field& field,
+                const Emitter& emitter,
+                const System& system
+            ) const
+            {
+                if (field.Param.empty()) return field.Value;
+
+                const auto systemValue = system.GetParameters().GetFloat4(
+                    field.Param,
+                    field.Value
+                );
+
+                return emitter.GetParameters().GetFloat4(field.Param, systemValue);
+            }
+
+            SParticleMaterialDescription ParseMaterial(
+                od::object& json,
+                const EParticleRenderMode renderMode,
+                const Emitter& emitter,
+                const System& system
+            )
+            {
+                SParticleMaterialDescription desc{
+                    .Usage = GetParticleMaterialUsage(renderMode),
+                };
+
+                auto field = json["material"];
+                if (field.error())
+                {
+                    Fail("there is no material.");
+                    return desc;
+                }
+
+                od::object material;
+                if (field.get_object().get(material))
+                {
+                    Fail("'material' must be an object.");
+                    return desc;
+                }
+
+                const auto color = ResolveMaterialColor(
+                    ParseFloat4(material, "color", glm::vec4(1.0f)),
+                    emitter,
+                    system
+                );
+
+                const auto emissive = ResolveMaterialColor(
+                    ParseFloat4(material, "emissive", glm::vec4(0.0f)),
+                    emitter,
+                    system
+                );
+
+                desc.BaseColor = glm::vec3(color);
+                desc.Opacity = color.w;
+                desc.Emissive = glm::vec3(emissive);
+
+                if (renderMode == EParticleRenderMode::Sprite)
+                {
+                    const auto texturePath = ParseString(material, "texture", "");
+                    if (!texturePath.empty())
+                    {
+                        desc.Texture = TextureLoader::Load(texturePath);
+                        if (!desc.Texture)
+                            Fail("Could not load material texture '{}'.", texturePath);
+                    }
+                }
+
+                return desc;
+            }
+
             void ParseEmitter(const Ref<System>& system, od::object& json)
             {
                 if (m_Failed) return;
 
                 const std::string name = RequireString(json, "name");
                 const auto renderMode = ParseRenderMode(json, "renderMode");
-                const auto spriteTexture = ParseString(json, "spriteTexture", "");
                 const uint32_t maxParticles = RequireUInt(json, "maxParticles");
                 const auto spawnRate = ParseScalar(json, "spawnRate");
 
@@ -875,6 +945,9 @@ namespace Elixir::Aether
 
                 auto& emitter = system->AddEmitter(name, maxParticles, spawnRate.Value);
                 emitter.SetRenderMode(renderMode);
+
+                LoadParameters(json, emitter.GetParameters());
+                if (m_Failed) return;
 
                 if (HasField(json, "burst"))
                 {
@@ -910,16 +983,16 @@ namespace Elixir::Aether
 
                 if (m_Failed) return;
 
-                if (renderMode == EParticleRenderMode::Sprite && !spriteTexture.empty())
-                {
-                    const auto texture = TextureLoader::Load(spriteTexture);
-                    if (!texture) { Fail("Could not load sprite texture '{}'.", spriteTexture); return; }
-                    emitter.SetMaterial(m_Materials.GetDefaultSprite(texture));
-                }
-                else
-                {
-                    emitter.SetMaterial(m_Materials.GetDefault(GetParticleMaterialUsage(renderMode)));
-                }
+                const auto material = ParseMaterial(
+                    json,
+                    renderMode,
+                    emitter,
+                    *system
+                );
+
+                if (m_Failed) return;
+
+                emitter.SetMaterial(m_Materials.Create(material));
 
                 if (!spawnRate.Param.empty())
                     emitter.SetSpawnRateParamName(spawnRate.Param);
