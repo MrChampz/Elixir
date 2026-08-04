@@ -14,6 +14,8 @@ namespace Elixir
 {
     namespace GUI { class TextBlock; }
 
+    class MaterialSystem;
+
     class ELIXIR_API Application
     {
     public:
@@ -26,7 +28,10 @@ namespace Elixir
         virtual void OnRender(Timestep frameTime) {}
         virtual void OnEvent(Event& event);
 
-        [[nodiscard]] const Window* GetWindow() const { return m_Window.get(); }
+        const Window* GetWindow() const { return m_Window.get(); }
+
+        MaterialSystem& GetMaterialSystem();
+        const MaterialSystem& GetMaterialSystem() const;
 
         static Application& Get() { return *s_Application; }
 
@@ -40,6 +45,7 @@ namespace Elixir
 
         Scope<ShaderLoader> m_ShaderLoader;
         Scope<GUI::Manager> m_GUIManager;
+        Scope<MaterialSystem> m_MaterialSystem;
 
         Timer m_Timer;
         FrameProfiler m_Profiler;

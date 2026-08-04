@@ -65,7 +65,11 @@ Dissolve::Dissolve()
 
     shader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
 
-    m_ParticlesRenderer = CreateScope<Aether::Renderer>(m_GraphicsContext.get(), m_ShaderLoader.get());
+    m_ParticlesRenderer = CreateScope<Aether::Renderer>(
+        m_GraphicsContext.get(),
+        m_ShaderLoader.get(),
+        GetMaterialSystem()
+    );
 
     particleMaterialLibrary = CreateScope<ParticleMaterialLibrary>(m_ShaderLoader.get());
 

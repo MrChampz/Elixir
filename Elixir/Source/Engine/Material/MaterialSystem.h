@@ -8,6 +8,11 @@
 
 namespace Elixir
 {
+    struct SMaterialSystemConfig
+    {
+        uint32_t InitialFrameCapacity = 256;
+    };
+
     struct SMaterialFrameSnapshot
     {
         Ref<const MaterialFrameTable> Table;
@@ -24,7 +29,10 @@ namespace Elixir
     class ELIXIR_API MaterialSystem final
     {
     public:
-        MaterialSystem(const GraphicsContext* context, uint32_t capacity);
+        MaterialSystem(
+            const GraphicsContext* context,
+            SMaterialSystemConfig config
+        );
 
         SMaterialFrameSnapshot BuildFrameSnapshot(
             const MaterialRenderScene& scene,

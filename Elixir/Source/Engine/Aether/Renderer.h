@@ -6,9 +6,14 @@
 #include <Engine/Aether/ParticleResourcePool.h>
 #include <Engine/Aether/ParticleStateLayout.h>
 #include <Engine/Aether/FrameSubmission.h>
-#include <Engine/Material/MaterialSystem.h>
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
+
+namespace Elixir
+{
+    class MaterialSystem;
+    class MaterialRenderScene;
+}
 
 namespace Elixir::Aether
 {
@@ -148,6 +153,7 @@ namespace Elixir::Aether
         Renderer(
             const GraphicsContext* context,
             const ShaderLoader* shaderLoader,
+            MaterialSystem& materialSystem,
             const SParticlePoolLimits& limits = {}
         );
 
@@ -317,7 +323,7 @@ namespace Elixir::Aether
         Ref<DynamicStorageBuffer> m_ParameterBuffer;
         Ref<UniformBuffer> m_ParamsBuffer;
 
-        Ref<MaterialSystem> m_MaterialSystem;
+        MaterialSystem& m_MaterialSystem;
 
         uint32_t m_MeshVertexCount = 0;
         Ref<VertexBuffer> m_MeshVertexBuffer;

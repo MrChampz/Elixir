@@ -25,13 +25,24 @@ namespace Elixir
             SMaterialBatchKey Key;
             std::vector<SMaterialBatchItem> Items;
         };
+
+        uint32_t GetInitialFrameCapacity(const SMaterialSystemConfig config)
+        {
+            EE_CORE_ASSERT(
+                config.InitialFrameCapacity != 0,
+                "Material system frame capacity must be greater than zero."
+            )
+            return config.InitialFrameCapacity;
+        }
     }
 
-    MaterialSystem::MaterialSystem(const GraphicsContext* context, const uint32_t capacity)
-      : m_MaterialCapacity(capacity),
+    MaterialSystem::MaterialSystem(
+        const GraphicsContext* context,
+        SMaterialSystemConfig config
+    ) : m_MaterialCapacity(GetInitialFrameCapacity(config)),
         m_FrameBuffer(DynamicStorageBuffer::Create(
             context,
-            sizeof(SMaterialFrameData) * capacity)
+            sizeof(SMaterialFrameData) * m_MaterialCapacity)
         ),
         m_Textures(context),
         m_Renderer(CreateScope<MaterialRenderer>(

@@ -1,7 +1,8 @@
 #include "epch.h"
 #include "Renderer.h"
 
-#include "Engine/Graphics/CommandBuffer.h"
+#include <Engine/Graphics/CommandBuffer.h>
+#include <Engine/Material/MaterialSystem.h>
 
 namespace Elixir::Aether
 {
@@ -145,11 +146,12 @@ namespace Elixir::Aether
     Renderer::Renderer(
         const GraphicsContext* context,
         const ShaderLoader* shaderLoader,
+        MaterialSystem& materialSystem,
         const SParticlePoolLimits& limits
     ) : m_ParticlePoolLimits(limits),
         m_ParticleStateLayouts(m_ParticlePoolLimits.ParticleCapacity),
         m_ParticleResourcePool(m_ParticlePoolLimits, m_ParticleStateLayouts),
-        m_MaterialSystem(CreateRef<MaterialSystem>(context, limits.MaterialCapacity)),
+        m_MaterialSystem(materialSystem),
         m_GraphicsContext(context)
     {
         static_assert(sizeof(SGPUParticleState) == PARTICLE_STATE_CORE_V1_STRIDE);
@@ -240,7 +242,7 @@ namespace Elixir::Aether
             return;
 
         const auto materialScene = BuildMaterialRenderScene(submittedInstances);
-        const auto materialSnapshot = m_MaterialSystem->BuildFrameSnapshot(
+        const auto materialSnapshot = m_MaterialSystem.BuildFrameSnapshot(
             materialScene,
             m_SubmissionSerial
         );
@@ -275,7 +277,7 @@ namespace Elixir::Aether
 
         BeginRendering(cmd);
 
-        const auto materialResult = m_MaterialSystem->Render(
+        const auto materialResult = m_MaterialSystem.Render(
             cmd,
             materialScene,
             materialSnapshot
@@ -996,7 +998,7 @@ namespace Elixir::Aether
         return batches;
     }
 
-    MaterialRenderScene Renderer::BuildMaterialRenderScene(
+    MaterialRenderScene Renderer::  BuildMaterialRenderScene(
         const std::vector<SSubmittedSystemInstance>& instances
     ) const
     {
