@@ -15,9 +15,9 @@ namespace Elixir
                     return "Engine.DefaultParticleRibbon";
                 case EMaterialUsage::ParticleMesh:
                     return "Engine.DefaultParticleMesh";
+                default:
+                    return "Engine.DefaultParticle";
             }
-
-            return "Engine.DefaultParticle";
         }
     }
 

@@ -39,10 +39,10 @@ namespace Elixir
                     return ParticleRibbonShader;
                 case EMaterialUsage::ParticleMesh:
                     return ParticleMeshShader;
+                default:
+                    static const Ref<Shader> unsupportedUsageShader;
+                    return unsupportedUsageShader;
             }
-
-            static const Ref<Shader> unsupportedUsageShader;
-            return unsupportedUsageShader;
         }
     };
 
