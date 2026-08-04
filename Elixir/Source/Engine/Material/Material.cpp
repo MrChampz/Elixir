@@ -1,8 +1,15 @@
 #include "epch.h"
 #include "Material.h"
 
+#include <Engine/Material/MaterialInstance.h>
+
 namespace Elixir
 {
+    Ref<MaterialInstance> Material::CreateInstance()
+    {
+        return CreateRef<MaterialInstance>(shared_from_this());
+    }
+
     void Material::SetGraph(MaterialGraph graph)
     {
         m_Graph = std::move(graph);

@@ -313,6 +313,31 @@ namespace Elixir
                 type = EMaterialGraphValueType::Float2;
                 break;
             }
+            case EMaterialNodeType::Checkerboard:
+            {
+                const std::string uv = node.Inputs.empty() || node.Inputs[0] < 0
+                    ? "input.TexCoord"
+                    : Widen(A(0), AT(0), EMaterialGraphValueType::Float2);
+                const std::string scale = Num(std::max(node.ConstantValue.x, 1.0f));
+                expr = "(fmod(floor(" + uv + ".x * " + scale + ") + floor(" + uv + ".y * " + scale + "), 2.0) < 1.0 ? float3(0.08, 0.08, 0.08) : float3(0.72, 0.72, 0.72))";
+                type = EMaterialGraphValueType::Float3;
+                break;
+            }
+            case EMaterialNodeType::RadialGradientExponential:
+            {
+                const std::string uv = node.Inputs.empty() || node.Inputs[0] < 0
+                    ? "input.TexCoord"
+                    : Widen(A(0), AT(0), EMaterialGraphValueType::Float2);
+
+                const std::string center = "float2(" + Num(node.RadialGradientCenter.x) + ", " + Num(node.RadialGradientCenter.y) + ")";
+                const std::string radius = Num(std::max(node.RadialGradientRadius, 0.0001f));
+                const std::string exponent = Num(std::max(node.RadialGradientExponent, 0.0001f));
+
+                expr = "pow(saturate(1.0 - length((" + uv + " - " + center + ") / " + radius + ")), " + exponent + ")";
+                type = EMaterialGraphValueType::Float;
+
+                break;
+            }
             case EMaterialNodeType::Multiply:
                 binOp("*");
                 break;

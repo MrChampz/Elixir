@@ -5,13 +5,16 @@
 
 namespace Elixir
 {
+    class MaterialInstance;
+
     // A renderer-specific shader permutation supported by a Surface material.
     // It does not change the material domain or graph outputs.
     enum class EMaterialUsage : uint8_t
     {
         ParticleSprite = 0,
         ParticleRibbon,
-        ParticleMesh
+        ParticleMesh,
+        Count
     };
 
     enum class EMaterialParameterKind : uint8_t
@@ -68,10 +71,12 @@ namespace Elixir
     // A material template: a named set of parameters with default values (the schema
     // shared by all of its instances). The shading itself is provided by the renderer's shader;
     // a Material describes the parameters that feed it.
-    class ELIXIR_API Material
+    class ELIXIR_API Material : public std::enable_shared_from_this<Material>
     {
     public:
         explicit Material(std::string name) : m_Name(std::move(name)) {}
+
+        Ref<MaterialInstance> CreateInstance();
 
         void SetGraph(MaterialGraph graph);
         const MaterialGraph& GetGraph() const { return m_Graph; }

@@ -15,6 +15,7 @@ namespace Elixir
     namespace GUI { class TextBlock; }
 
     class MaterialSystem;
+    class MaterialLibrary;
 
     class ELIXIR_API Application
     {
@@ -33,6 +34,9 @@ namespace Elixir
         MaterialSystem& GetMaterialSystem();
         const MaterialSystem& GetMaterialSystem() const;
 
+        MaterialLibrary& GetMaterialLibrary();
+        const MaterialLibrary& GetMaterialLibrary() const;
+
         static Application& Get() { return *s_Application; }
 
     protected:
@@ -45,7 +49,9 @@ namespace Elixir
 
         Scope<ShaderLoader> m_ShaderLoader;
         Scope<GUI::Manager> m_GUIManager;
+
         Scope<MaterialSystem> m_MaterialSystem;
+        Scope<MaterialLibrary> m_MaterialLibrary;
 
         Timer m_Timer;
         FrameProfiler m_Profiler;

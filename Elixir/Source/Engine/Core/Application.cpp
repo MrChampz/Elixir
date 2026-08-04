@@ -13,6 +13,7 @@
 #include <Engine/Font/FontManager.h>
 #include <Engine/Graphics/TextureLoader.h>
 #include <Engine/Material/MaterialSystem.h>
+#include <Engine/Material/MaterialLibrary.h>
 
 namespace Elixir
 {
@@ -38,16 +39,17 @@ namespace Elixir
         TextureLoader::Initialize(m_GraphicsContext.get());
         FontManager::Initialize(m_GraphicsContext.get());
 
+        m_MaterialLibrary = CreateScope<MaterialLibrary>(m_ShaderLoader.get());
+        m_MaterialSystem = CreateScope<MaterialSystem>(
+            m_GraphicsContext.get(),
+            SMaterialSystemConfig{ .InitialFrameCapacity = 256 }
+        );
+
         m_GUIManager = CreateScope<GUI::Manager>();
         m_GUIManager->Initialize(
             m_GraphicsContext.get(),
             m_ShaderLoader.get(),
             m_Window->GetFramebufferExtent() // TODO: Get from Ctx->GetRenderTargetExtent()..
-        );
-
-        m_MaterialSystem = CreateScope<MaterialSystem>(
-            m_GraphicsContext.get(),
-            SMaterialSystemConfig{ .InitialFrameCapacity = 256 }
         );
 
         const auto buttonBg = TextureLoader::Load("./Assets/Button_Background.png");
@@ -215,6 +217,16 @@ namespace Elixir
     {
         EE_CORE_ASSERT(m_MaterialSystem, "Application material system is unavailable.")
         return *m_MaterialSystem;
+    }
+
+    MaterialLibrary& Application::GetMaterialLibrary()
+    {
+        return *m_MaterialLibrary;
+    }
+
+    const MaterialLibrary& Application::GetMaterialLibrary() const
+    {
+        return *m_MaterialLibrary;
     }
 
     bool Application::OnWindowClose(WindowCloseEvent& event)

@@ -94,3 +94,25 @@ TEST(MaterialGraphTest, RoutesTextureAlphaToOpacity)
     EXPECT_NE(hlsl.find("SampleTex"), std::string::npos);
     EXPECT_NE(hlsl.find(".w"), std::string::npos);
 }
+
+TEST(MaterialGraphTest, GeneratesExponentialRadialGradientForOpacity)
+{
+    MaterialGraph graph;
+
+    const auto gradient = graph.AddNode({
+        .Type = EMaterialNodeType::RadialGradientExponential,
+        .OutputType = EMaterialGraphValueType::Float,
+        .RadialGradientCenter = { 0.25f, 0.75f },
+        .RadialGradientRadius = 0.4f,
+        .RadialGradientExponent = 3.0f,
+    });
+
+    graph.SetChannel(EMaterialChannel::Opacity, gradient);
+
+    const auto hlsl = graph.GenerateHLSL();
+
+    EXPECT_NE(hlsl.find("length((input.TexCoord - float2(0.250000, 0.750000)) / 0.400000)"), std::string::npos);
+    EXPECT_NE(hlsl.find("pow(saturate(1.0 -"), std::string::npos);
+    EXPECT_NE(hlsl.find(", 3.000000)"), std::string::npos);
+    EXPECT_NE(hlsl.find("surface.Opacity ="), std::string::npos);
+}

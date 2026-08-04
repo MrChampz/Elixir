@@ -62,3 +62,15 @@ TEST(MaterialTest, ValidatesTextureSampleAgainstTextureParameter)
     }));
     EXPECT_TRUE(material->ValidateGraph());
 }
+
+TEST(MaterialTest, CreatesInstancesThatKeepTheirParentAlive)
+{
+    auto material = CreateRef<Material>("InstanceOwner");
+    const auto instance = material->CreateInstance();
+    const auto parent = instance->GetParent();
+    material.reset();
+
+    ASSERT_TRUE(instance);
+    ASSERT_TRUE(parent);
+    EXPECT_EQ(instance->GetParent(), parent);
+}

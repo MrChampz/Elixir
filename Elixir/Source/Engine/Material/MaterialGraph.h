@@ -11,24 +11,26 @@ namespace Elixir
     // The kind of computation a node performs. The codegen switches on this.
     enum class EMaterialNodeType : uint8_t
     {
-        Constant,       // a literal value
-        Parameter,      // a named material-instance parameters (mat.<field>)
-        TexCoord,       // input.TexCoord
-        TextureSample,  // sample a bound texture at a UV (input 0)
-        ComponentMask,  // Select one component from a vector input.
-        Time,           // seconds since start (cbFrame.start)
-        Sine,           // sin(a)
-        Panner,         // uv + Time * speed (speed from ConstantValue.xy)
-        Multiply,       // a * b
-        Add,            // a + b
-        Subtract,       // a - b
-        Divide,         // a / b
-        Power,          // pow(a, b)
-        Dot,            // dot(a, b) -> scalar
-        Lerp,           // lerp(a, b, t)
-        OneMinus,       // 1 - a
-        Saturate,       // saturate(a
-        Fresnel,        // schlick fresnel from N,V
+        Constant,                   // a literal value
+        Parameter,                  // a named material-instance parameters (mat.<field>)
+        TexCoord,                   // input.TexCoord
+        TextureSample,              // sample a bound texture at a UV (input 0)
+        ComponentMask,              // Select one component from a vector input.
+        Time,                       // seconds since start (cbFrame.start)
+        Sine,                       // sin(a)
+        Panner,                     // uv + Time * speed (speed from ConstantValue.xy)
+        Checkerboard,               // procedural two-color checkerboard from UV
+        RadialGradientExponential,  // pow(saturate(1 - distance / radius), exponent)
+        Multiply,                   // a * b
+        Add,                        // a + b
+        Subtract,                   // a - b
+        Divide,                     // a / b
+        Power,                      // pow(a, b)
+        Dot,                        // dot(a, b) -> scalar
+        Lerp,                       // lerp(a, b, t)
+        OneMinus,                   // 1 - a
+        Saturate,                   // saturate(a
+        Fresnel,                    // schlick fresnel from N,V
     };
 
     // The surface output a channel drives.
@@ -61,6 +63,11 @@ namespace Elixir
         std::string ParameterName;                  // Parameter -> mat.<ParameterName>
         std::string TextureParameterName;           // TextureSample -> material texture parameter
         uint32_t    ComponentIndex = 0;             // ComponentMask: x, y, z or w.
+
+        // RadialGradientExponential
+        glm::vec2   RadialGradientCenter{ 0.5f };
+        float       RadialGradientRadius = 0.5f;
+        float       RadialGradientExponent = 1.0f;
     };
 
     // A node graph describing a material's surface. Compiles to an HLSL body that
