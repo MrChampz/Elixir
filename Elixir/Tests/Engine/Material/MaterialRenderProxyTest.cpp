@@ -19,7 +19,7 @@ TEST(MaterialRenderProxyTest, ResolvesOverridesIntoAnImmutableSnapshot)
     MaterialInstance instance(material);
     ASSERT_TRUE(instance.SetVector("Tint", { 0.2f, 0.4f, 0.6, 1.0f }));
 
-    const auto proxy = instance.CreateRenderProxy(compiled);
+    const auto proxy = MaterialRenderProxy::Create(compiled, instance);
     ASSERT_TRUE(proxy);
     ASSERT_EQ(proxy->GetValues().size(), 1);
     EXPECT_EQ(proxy->GetValues()[0], glm::vec4(0.2f, 0.4f, 0.6f, 1.0f));
@@ -43,5 +43,5 @@ TEST(MaterialRenderProxyTest, RejectsACompiledMaterialForAnOldSchema)
     ));
 
     MaterialInstance instance(material);
-    EXPECT_FALSE(instance.CreateRenderProxy(compiled));
+    EXPECT_FALSE(MaterialRenderProxy::Create(compiled, instance));
 }

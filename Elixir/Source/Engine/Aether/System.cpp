@@ -1,6 +1,9 @@
 #include "epch.h"
 #include "System.h"
 
+#include <Engine/Material/MaterialLibrary.h>
+#include <Engine/Aether/ParticleMaterialFactory.h>
+
 namespace Elixir::Aether
 {
     System::System(const std::string& name) : m_Name(name) {}
@@ -26,7 +29,35 @@ namespace Elixir::Aether
         return nullptr;
     }
 
-    SCompiledSystem System::Compile() const
+    bool System::ResolveMaterialInstances(MaterialLibrary& materials)
+    {
+        for (const auto& emitter : m_Emitters)
+        {
+            Ref<Material> material;
+            if (const auto& definition = emitter->GetMaterialDefinition())
+            {
+                const auto name = "Aether." + m_UUID.ToString() + "." + emitter->GetName();
+                material = CreateParticleMaterial(name, emitter->GetRenderMode(), *definition);
+                if (!materials.Register(material))
+                {
+                    EE_CORE_ERROR("Aether material '{}' is already registered.", name)
+                    return false;
+                }
+            }
+            else
+            {
+                const auto usage = GetParticleMaterialUsage(emitter->GetRenderMode());
+                material = materials.GetDefault(usage);
+            }
+
+            emitter->SetMaterial(material);
+            if (!emitter->GetMaterial()) return false;
+        }
+
+        return true;
+    }
+
+    SCompiledSystem System::Compile(MaterialResolver& materialResolver) const
     {
         SCompiledSystem system;
         system.SourceId = m_UUID;
@@ -91,7 +122,12 @@ namespace Elixir::Aether
 
         for (const auto& emitter : m_Emitters)
         {
-            auto compiled = emitter->Compile(m_Parameters, system.Parameters, system.Ops);
+            auto compiled = emitter->Compile(
+                m_Parameters,
+                system.Parameters,
+                system.Ops,
+                materialResolver
+            );
             compiled.LocalParticleOffset = localParticleOffset;
 
             localParticleOffset += compiled.MaxParticles;

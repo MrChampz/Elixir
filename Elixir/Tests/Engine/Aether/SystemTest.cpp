@@ -3,9 +3,31 @@
 #include <Engine/Aether/System.h>
 #include <Engine/Material/MaterialInstance.h>
 #include <Engine/Material/MaterialCompiler.h>
+#include <Engine/Material/MaterialResolver.h>
+#include <Engine/Material/MaterialRenderProxy.h>
 
 using namespace Elixir;
 using namespace Elixir::Aether;
+
+namespace
+{
+    class TestMaterialResolver : public MaterialResolver
+    {
+    public:
+        Ref<const MaterialRenderProxy> Resolve(const Ref<MaterialInstance>& instance) override
+        {
+            if (!instance || !instance->GetParent()) return nullptr;
+            const auto result = MaterialCompiler::Build(*instance->GetParent());
+            return result ? MaterialRenderProxy::Create(result.Material, *instance) : nullptr;
+        }
+    };
+
+    SCompiledSystem Compile(const System& system)
+    {
+        TestMaterialResolver resolver;
+        return system.Compile(resolver);
+    }
+}
 
 TEST(AetherSystemTest, CompilePreservesEmitterSimulationSpace)
 {
@@ -14,7 +36,7 @@ TEST(AetherSystemTest, CompilePreservesEmitterSimulationSpace)
     auto& localEmitter = system.AddEmitter("Local", 8, 0.0f);
     localEmitter.SetSimulationSpace(EParticleSimulationSpace::Local);
 
-    const auto compiled = system.Compile();
+    const auto compiled = Compile(system);
 
     ASSERT_EQ(compiled.Emitters.size(), 2);
     EXPECT_EQ(compiled.Emitters[0].SimulationSpace, EParticleSimulationSpace::World);
@@ -28,7 +50,7 @@ TEST(AetherSystemTest, CompileAssignsContiguousLocalEmitterParticleOffsets)
     system.AddEmitter("Second", 7u, 0.0f);
     system.AddEmitter("Third", 11u, 0.0f);
 
-    const auto compiled = system.Compile();
+    const auto compiled = Compile(system);
 
     ASSERT_EQ(compiled.Emitters.size(), 3u);
     EXPECT_EQ(compiled.ParticleStateLayout, EParticleStateLayout::CoreV1);
@@ -47,7 +69,7 @@ TEST(AetherSystemTest, CompileResolvesTriggerEmitterByCompiledIndex)
     target.SetBurst(8, 1.0f);
     target.SetTriggerEmitter("Source", 0.25f);
 
-    const auto compiled = system.Compile();
+    const auto compiled = Compile(system);
 
     ASSERT_EQ(compiled.Emitters.size(), 2u);
 
@@ -70,7 +92,7 @@ TEST(AetherSystemTest, CompileExposesOnlyAuthoredParameters)
     auto& emitter = system.AddEmitter("Smoke", 8, 0.0f);
     emitter.GetParameters().SetFloat4("Tint", { 1.0f, 0.5f, 0.25f, 1.0f });
 
-    const auto compiled = system.Compile();
+    const auto compiled = Compile(system);
 
     ASSERT_EQ(compiled.ExposedParameters.size(), 2);
     EXPECT_EQ(compiled.ExposedParameters[0].Name, "SystemRate");
@@ -104,20 +126,14 @@ TEST(AetherSystemTest, CompileSnapshotsParticleSpriteMaterialForRenderData)
         .DefaultValue = SMaterialParam::MakeVector({ 1.0f, 1.0f, 1.0f, 1.0f }),
     }));
 
-    const auto instance = CreateRef<MaterialInstance>(material);
+    const auto instance = material->CreateInstance();
     ASSERT_TRUE(instance->SetVector("Tint", { 0.25f, 0.5f, 0.75f, 1.0f }));
 
     System system{ "Material snapshot contract" };
     auto& emitter = system.AddEmitter("Smoke", 8, 0.0f);
 
-    const auto compiledMaterial = MaterialCompiler::Build(*material);
-    ASSERT_TRUE(compiledMaterial);
-
-    const auto firstProxy = instance->CreateRenderProxy(compiledMaterial.Material);
-    ASSERT_TRUE(firstProxy);
-
-    emitter.SetMaterial(firstProxy);
-    const auto first = system.Compile();
+    emitter.SetMaterial(instance);
+    const auto first = Compile(system);
 
     ASSERT_EQ(first.Emitters.size(), 1);
     ASSERT_TRUE(first.Emitters[0].Material);
@@ -129,11 +145,8 @@ TEST(AetherSystemTest, CompileSnapshotsParticleSpriteMaterialForRenderData)
 
     ASSERT_TRUE(instance->SetVector("Tint", { 0.75f, 0.5f, 0.25f, 1.0f }));
 
-    const auto secondProxy = instance->CreateRenderProxy(compiledMaterial.Material);
-    ASSERT_TRUE(secondProxy);
-
-    emitter.SetMaterial(secondProxy);
-    const auto second = system.Compile();
+    emitter.SetMaterial(instance);
+    const auto second = Compile(system);
 
     ASSERT_TRUE(second.Emitters[0].Material);
     EXPECT_FLOAT_EQ(first.Emitters[0].Material->GetValues()[0].x, 0.25f);
@@ -145,19 +158,14 @@ TEST(AetherSystemTest, CompileSnapshotsParticleRibbonMaterialForRenderData)
     const auto material = CreateRef<Material>("Particle ribbon");
     ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleRibbon, true));
 
-    const auto instance = CreateRef<MaterialInstance>(material);
-    const auto compiledMaterial = MaterialCompiler::Build(*material);
-    ASSERT_TRUE(compiledMaterial);
-
-    const auto proxy = instance->CreateRenderProxy(compiledMaterial.Material);
-    ASSERT_TRUE(proxy);
-
     System system{ "Ribbon material snapshot contract" };
     auto& emitter = system.AddEmitter("Ribbon", 8, 0.0f);
     emitter.SetRenderMode(EParticleRenderMode::Ribbon);
-    emitter.SetMaterial(proxy);
 
-    const auto compiled = system.Compile();
+    const auto instance = material->CreateInstance();
+    emitter.SetMaterial(instance);
+
+    const auto compiled = Compile(system);
 
     ASSERT_EQ(compiled.Emitters.size(), 1);
     ASSERT_TRUE(compiled.Emitters[0].Material);
@@ -171,20 +179,14 @@ TEST(AetherSystemTest, CompileSnapshotsParticleMeshMaterialForRenderData)
     const auto material = CreateRef<Material>("Particle mesh");
     material->SetUsage(EMaterialUsage::ParticleMesh, true);
 
-    const auto instance = CreateRef<MaterialInstance>(material);
-
-    const auto compiledMaterial = MaterialCompiler::Build(*material);
-    ASSERT_TRUE(compiledMaterial);
-
-    const auto proxy = instance->CreateRenderProxy(compiledMaterial.Material);
-    ASSERT_TRUE(proxy);
-
     System system{ "Mesh material" };
     auto& emitter = system.AddEmitter("Mesh", 8, 0.0f);
     emitter.SetRenderMode(EParticleRenderMode::Mesh);
-    emitter.SetMaterial(proxy);
 
-    const auto compiled = system.Compile();
+    const auto instance = material->CreateInstance();
+    emitter.SetMaterial(instance);
+
+    const auto compiled = Compile(system);
 
     ASSERT_EQ(compiled.Emitters.size(), 1);
     ASSERT_TRUE(compiled.Emitters[0].Material);
@@ -198,7 +200,7 @@ TEST(AetherSystemTest, KeepsAnEmitterWithoutAnExplicitMaterialUnbound)
     System system{ "Explicit material contract" };
     system.AddEmitter("Smoke", 8, 0.0f);
 
-    const auto compiled = system.Compile();
+    const auto compiled = Compile(system);
 
     ASSERT_EQ(compiled.Emitters.size(), 1);
     EXPECT_FALSE(compiled.Emitters[0].Material);

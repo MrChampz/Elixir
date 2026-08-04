@@ -5,6 +5,12 @@
 #include <Engine/Aether/CurveStore.h>
 #include <Engine/Aether/ColorCurveStore.h>
 
+namespace Elixir
+{
+    class MaterialLibrary;
+    class MaterialResolver;
+}
+
 namespace Elixir::Aether
 {
     struct SCompiledTriggerTarget
@@ -56,7 +62,8 @@ namespace Elixir::Aether
 
         Emitter* FindEmitter(std::string_view name) const;
 
-        SCompiledSystem Compile() const;
+        bool ResolveMaterialInstances(MaterialLibrary& materials);
+        SCompiledSystem Compile(MaterialResolver& materialResolver) const;
 
         ParameterStore& GetParameters() { return m_Parameters; }
         const ParameterStore& GetParameters() const { return m_Parameters; }

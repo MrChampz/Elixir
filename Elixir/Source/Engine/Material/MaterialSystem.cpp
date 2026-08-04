@@ -1,6 +1,8 @@
 #include "epch.h"
 #include "MaterialSystem.h"
 
+#include "MaterialLibrary.h"
+
 namespace Elixir
 {
     namespace
@@ -38,13 +40,15 @@ namespace Elixir
 
     MaterialSystem::MaterialSystem(
         const GraphicsContext* context,
-        SMaterialSystemConfig config
+        MaterialLibrary& materials,
+        const SMaterialSystemConfig config
     ) : m_MaterialCapacity(GetInitialFrameCapacity(config)),
         m_FrameBuffer(DynamicStorageBuffer::Create(
             context,
             sizeof(SMaterialFrameData) * m_MaterialCapacity)
         ),
         m_Textures(context),
+        m_Materials(materials),
         m_Renderer(CreateScope<MaterialRenderer>(
             context,
             m_FrameBuffer,
@@ -241,5 +245,15 @@ namespace Elixir
         }
 
         return result;
+    }
+
+    Ref<const MaterialRenderProxy> MaterialSystem::Resolve(
+        const Ref<MaterialInstance>& instance
+    )
+    {
+        if (!instance || !instance->GetParent()) return nullptr;
+
+        const auto compiled = m_Materials.GetCompiledMaterial(instance->GetParent());
+        return compiled ? MaterialRenderProxy::Create(compiled, *instance) : nullptr;
     }
 }

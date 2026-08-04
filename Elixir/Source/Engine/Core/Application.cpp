@@ -42,6 +42,7 @@ namespace Elixir
         m_MaterialLibrary = CreateScope<MaterialLibrary>(m_ShaderLoader.get());
         m_MaterialSystem = CreateScope<MaterialSystem>(
             m_GraphicsContext.get(),
+            *m_MaterialLibrary,
             SMaterialSystemConfig{ .InitialFrameCapacity = 256 }
         );
 

@@ -25,10 +25,22 @@ namespace Elixir::Aether
         m_TriggerDelaySeconds = delaySeconds;
     }
 
+    void Emitter::SetMaterial(const Ref<Material>& material)
+    {
+        if (!material)
+        {
+            EE_CORE_ERROR("Trying to set a null material to emitter.")
+            return;
+        }
+
+        SetMaterial(material->CreateInstance());
+    }
+
     SCompiledEmitter Emitter::Compile(
         const ParameterStore& paramStore,
         const std::vector<SGPUParameter>& params,
-        std::vector<SGPUParticleOp>& ops
+        std::vector<SGPUParticleOp>& ops,
+        MaterialResolver& materialResolver
     ) const
     {
         SCompiledEmitter emitter;
@@ -51,33 +63,16 @@ namespace Elixir::Aether
 
         if (m_Material)
         {
-            EMaterialUsage usage;
-
-            switch (m_RenderMode)
-            {
-                case EParticleRenderMode::Sprite:
-                    usage = EMaterialUsage::ParticleSprite;
-                    break;
-                case EParticleRenderMode::Ribbon:
-                    usage = EMaterialUsage::ParticleRibbon;
-                    break;
-                case EParticleRenderMode::Mesh:
-                    usage = EMaterialUsage::ParticleMesh;
-                    break;
-            }
-
-            const auto& material = m_Material->GetCompiledMaterial();
-            if (!material || !material->SupportsUsage(usage))
-            {
+            const auto proxy = materialResolver.Resolve(m_Material);
+            if (!proxy || !proxy->GetCompiledMaterial()->SupportsUsage(
+                    GetParticleMaterialUsage(m_RenderMode)
+                ))
                 EE_CORE_ERROR(
                     "Aether emitter '{}' material does not support its render mode.",
                     m_Name
                 )
-            }
             else
-            {
-                emitter.Material = m_Material;
-            }
+                emitter.Material = proxy;
         }
 
         for (const auto& module : m_SpawnModules)

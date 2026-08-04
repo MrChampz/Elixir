@@ -54,7 +54,7 @@ TEST(MaterialFrameTableTest, DeduplicatesAProxyAndPreserveItsValues)
     const auto compiled = MaterialCompiler::Build(*material);
     ASSERT_TRUE(compiled);
 
-    const auto proxy = instance->CreateRenderProxy(compiled.Material);
+    const auto proxy = MaterialRenderProxy::Create(compiled.Material, *instance);
     ASSERT_TRUE(proxy);
 
     MaterialFrameTable table(
@@ -90,7 +90,7 @@ TEST(MaterialFrameTableTest, RejectsAUniqueProxyPastCapacity)
     const auto compiled = MaterialCompiler::Build(*material);
     ASSERT_TRUE(compiled);
 
-    const auto proxy = instance->CreateRenderProxy(compiled.Material);
+    const auto proxy = MaterialRenderProxy::Create(compiled.Material, *instance);
     ASSERT_TRUE(proxy);
     EXPECT_FALSE(table.Add(*proxy));
 }
@@ -109,7 +109,7 @@ TEST(MaterialFrameTableTest, ResolvesAuthoredTextureSlots)
     const auto compiled = MaterialCompiler::Build(*material);
     ASSERT_TRUE(compiled);
 
-    const auto proxy = instance->CreateRenderProxy(compiled.Material);
+    const auto proxy = MaterialRenderProxy::Create(compiled.Material, *instance);
     ASSERT_TRUE(proxy);
 
     uint32_t resolveCount = 0;

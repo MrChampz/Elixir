@@ -2,12 +2,10 @@
 #include "Effect.h"
 
 #include <limits>
-
-#include <Engine/Graphics/TextureLoader.h>
-#include <Engine/Material/ParticleMaterialLibrary.h>
-
-#include <magic_enum/magic_enum.hpp>
 #include <simdjson.h>
+#include <magic_enum/magic_enum.hpp>
+
+#include <Engine/Aether/ParticleMaterialDefinition.h>
 
 namespace Elixir::Aether
 {
@@ -60,11 +58,8 @@ namespace Elixir::Aether
         class EffectParser
         {
         public:
-            EffectParser(
-                std::filesystem::path filepath,
-                ParticleMaterialLibrary& materials
-            ) : m_Filepath(std::move(filepath)),
-                m_Materials(materials) {}
+            explicit EffectParser(std::filesystem::path filepath)
+              : m_Filepath(std::move(filepath)) {}
 
             Ref<System> Parse(od::object& root);
 
@@ -877,29 +872,22 @@ namespace Elixir::Aether
                 return emitter.GetParameters().GetFloat4(field.Param, systemValue);
             }
 
-            SParticleMaterialDescription ParseMaterial(
+            std::optional<SParticleMaterialDefinition> ParseMaterial(
                 od::object& json,
-                const EParticleRenderMode renderMode,
                 const Emitter& emitter,
                 const System& system
             )
             {
-                SParticleMaterialDescription desc{
-                    .Usage = GetParticleMaterialUsage(renderMode),
-                };
-
                 auto field = json["material"];
-                if (field.error())
-                {
-                    Fail("there is no material.");
-                    return desc;
-                }
+                if (field.error()) return std::nullopt;
+
+                SParticleMaterialDefinition definition{};
 
                 od::object material;
                 if (field.get_object().get(material))
                 {
                     Fail("'material' must be an object.");
-                    return desc;
+                    return std::nullopt;
                 }
 
                 const auto color = ResolveMaterialColor(
@@ -914,22 +902,12 @@ namespace Elixir::Aether
                     system
                 );
 
-                desc.BaseColor = glm::vec3(color);
-                desc.Opacity = color.w;
-                desc.Emissive = glm::vec3(emissive);
+                definition.BaseColor = glm::vec3(color);
+                definition.Opacity = color.w;
+                definition.Emissive = glm::vec3(emissive);
+                definition.BaseColorTexturePath = ParseString(material, "texture");
 
-                if (renderMode == EParticleRenderMode::Sprite)
-                {
-                    const auto texturePath = ParseString(material, "texture", "");
-                    if (!texturePath.empty())
-                    {
-                        desc.Texture = TextureLoader::Load(texturePath);
-                        if (!desc.Texture)
-                            Fail("Could not load material texture '{}'.", texturePath);
-                    }
-                }
-
-                return desc;
+                return definition;
             }
 
             void ParseEmitter(const Ref<System>& system, od::object& json)
@@ -983,16 +961,8 @@ namespace Elixir::Aether
 
                 if (m_Failed) return;
 
-                const auto material = ParseMaterial(
-                    json,
-                    renderMode,
-                    emitter,
-                    *system
-                );
-
-                if (m_Failed) return;
-
-                emitter.SetMaterial(m_Materials.Create(material));
+                if (const auto material = ParseMaterial(json, emitter, *system))
+                    emitter.SetMaterialDefinition(std::move(*material));
 
                 if (!spawnRate.Param.empty())
                     emitter.SetSpawnRateParamName(spawnRate.Param);
@@ -1005,7 +975,6 @@ namespace Elixir::Aether
             }
 
             std::filesystem::path m_Filepath;
-            ParticleMaterialLibrary& m_Materials;
             bool m_Failed = false;
         };
 
@@ -1048,10 +1017,7 @@ namespace Elixir::Aether
         }
     }
 
-    Ref<System> LoadEffectFile(
-        const std::filesystem::path& filepath,
-        ParticleMaterialLibrary& materials
-    )
+    Ref<System> LoadEffectFile(const std::filesystem::path& filepath)
     {
         od::parser parser;
 
@@ -1078,7 +1044,7 @@ namespace Elixir::Aether
             return nullptr;
         }
 
-        EffectParser effectParser{ filepath, materials };
+        EffectParser effectParser{ filepath };
         return effectParser.Parse(root);
     }
 }

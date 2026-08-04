@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Graphics/Buffer.h>
+#include <Engine/Material/MaterialResolver.h>
 #include <Engine/Material/MaterialRenderScene.h>
 #include <Engine/Material/MaterialFrameTable.h>
 #include <Engine/Material/MaterialRenderer.h>
@@ -8,6 +9,8 @@
 
 namespace Elixir
 {
+    class MaterialLibrary;
+
     struct SMaterialSystemConfig
     {
         uint32_t InitialFrameCapacity = 256;
@@ -26,11 +29,12 @@ namespace Elixir
         uint32_t DrawCount = 0;
     };
 
-    class ELIXIR_API MaterialSystem final
+    class ELIXIR_API MaterialSystem final : public MaterialResolver
     {
     public:
         MaterialSystem(
             const GraphicsContext* context,
+            MaterialLibrary& materials,
             SMaterialSystemConfig config
         );
 
@@ -54,6 +58,10 @@ namespace Elixir
             const SMaterialFrameSnapshot& snapshot
         ) const;
 
+        Ref<const MaterialRenderProxy> Resolve(
+            const Ref<MaterialInstance>& instance
+        ) override;
+
         const Ref<DynamicStorageBuffer>& GetFrameBuffer() const { return m_FrameBuffer; }
         const Ref<TextureSet>& GetTextureSet() const { return m_Textures.GetTextureSet(); }
         const Ref<Sampler>& GetSampler() const { return m_Textures.GetSampler(); }
@@ -62,6 +70,7 @@ namespace Elixir
         uint32_t m_MaterialCapacity = 0;
         Ref<DynamicStorageBuffer> m_FrameBuffer;
         MaterialTextureRegistry m_Textures;
+        MaterialLibrary& m_Materials;
         Scope<MaterialRenderer> m_Renderer;
     };
 }

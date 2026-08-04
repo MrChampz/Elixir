@@ -5,7 +5,10 @@
 #include <Engine/Aether/ParameterStore.h>
 #include <Engine/Aether/CurveStore.h>
 #include <Engine/Aether/ColorCurveStore.h>
-#include <Engine/Material/MaterialRenderProxy.h>
+#include <Engine/Aether/ParticleMaterialDefinition.h>
+#include <Engine/Aether/ParticleMaterialFactory.h>
+#include <Engine/Material/MaterialInstance.h>
+#include <Engine/Material/MaterialResolver.h>
 
 namespace Elixir::Aether
 {
@@ -18,8 +21,7 @@ namespace Elixir::Aether
         EParticleRenderMode RenderMode = EParticleRenderMode::Sprite;
         EParticleSimulationSpace SimulationSpace = EParticleSimulationSpace::World;
 
-        // Immutable material state captured while the system is compiled.
-        // It is safe to read for the full render submission.
+        // Immutable GPU material state published by System::Compile.
         Ref<const MaterialRenderProxy> Material;
 
         float SpawnRatePerSecond = 1.0f;
@@ -94,6 +96,7 @@ namespace Elixir::Aether
             return ref;
         }
 
+        EParticleRenderMode GetRenderMode() const { return m_RenderMode; }
         void SetRenderMode(const EParticleRenderMode mode) { m_RenderMode = mode; }
 
         EParticleSimulationSpace GetSimulationSpace() const { return m_SimulationSpace; }
@@ -106,14 +109,26 @@ namespace Elixir::Aether
         SCompiledEmitter Compile(
             const ParameterStore& paramStore,
             const std::vector<SGPUParameter>& params,
-            std::vector<SGPUParticleOp>& ops
+            std::vector<SGPUParticleOp>& ops,
+            MaterialResolver& materialResolver
         ) const;
 
         const std::string& GetName() const { return m_Name; }
         uint32_t GetMaxParticles() const { return m_MaxParticles; }
 
-        const Ref<const MaterialRenderProxy>& GetMaterial() const { return m_Material; }
-        void SetMaterial(Ref<const MaterialRenderProxy> material) { m_Material = std::move(material); }
+        const std::optional<SParticleMaterialDefinition>& GetMaterialDefinition() const
+        {
+            return m_MaterialDefinition;
+        }
+
+        void SetMaterialDefinition(SParticleMaterialDefinition definition)
+        {
+            m_MaterialDefinition = std::move(definition);
+        }
+
+        const Ref<MaterialInstance>& GetMaterial() const { return m_Material; }
+        void SetMaterial(const Ref<Material>& material);
+        void SetMaterial(Ref<MaterialInstance> material) { m_Material = std::move(material); }
 
         uint32_t GetBurstCount() const { return m_BurstCount; }
         float GetBurstIntervalSeconds() const { return m_BurstIntervalSeconds; }
@@ -136,7 +151,8 @@ namespace Elixir::Aether
         std::string m_Name;
         EParticleRenderMode m_RenderMode = EParticleRenderMode::Sprite;
         EParticleSimulationSpace m_SimulationSpace = EParticleSimulationSpace::World;
-        Ref<const MaterialRenderProxy> m_Material;
+        std::optional<SParticleMaterialDefinition> m_MaterialDefinition;
+        Ref<MaterialInstance> m_Material;
         uint32_t m_MaxParticles;
 
         std::vector<Scope<ParticleSpawnModule>> m_SpawnModules;

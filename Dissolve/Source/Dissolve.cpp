@@ -7,8 +7,8 @@
 
 #include <Engine/Material/MaterialGraph.h>
 #include <Engine/Material/MaterialInstance.h>
-#include <Engine/Material/MaterialCompiler.h>
-#include <Engine/Material/ParticleMaterialLibrary.h>
+#include <Engine/Material/MaterialSystem.h>
+#include <Engine/Material/MaterialLibrary.h>
 
 Ref<GraphicsPipeline> pipeline;
 Scope<Aether::Renderer> m_ParticlesRenderer;
@@ -17,8 +17,6 @@ std::array<Ref<Aether::System>, 2> m_ParticleSystems;
 std::array<Scope<Aether::SystemInstance>, 2> m_ParticleSystemInstances;
 
 Ref<Material> graphMaterial;
-Ref<const SCompiledMaterial> compiledGraphMaterial;
-Scope<ParticleMaterialLibrary> particleMaterialLibrary;
 
 Dissolve::Dissolve()
 {
@@ -71,16 +69,17 @@ Dissolve::Dissolve()
         GetMaterialSystem()
     );
 
-    particleMaterialLibrary = CreateScope<ParticleMaterialLibrary>(m_ShaderLoader.get());
+    m_ParticleSystems[0] = Aether::LoadEffectFile("./Assets/VFX/FireAndFireworks.json");
+    EE_CORE_ASSERT(
+        m_ParticleSystems[0]->ResolveMaterialInstances(GetMaterialLibrary()),
+        "Could not resolve FireAndFireworks materials."
+    )
 
-    m_ParticleSystems[0] = Aether::LoadEffectFile(
-        "./Assets/VFX/FireAndFireworks.json",
-        *particleMaterialLibrary
-    );
-    m_ParticleSystems[1] = Aether::LoadEffectFile(
-        "./Assets/VFX/RibbonVortex.json",
-        *particleMaterialLibrary
-    );
+    m_ParticleSystems[1] = Aether::LoadEffectFile("./Assets/VFX/RibbonVortex.json");
+    EE_CORE_ASSERT(
+        m_ParticleSystems[1]->ResolveMaterialInstances(GetMaterialLibrary()),
+        "Could not resolve RibbonVortex materials."
+    )
 
     {
         MaterialGraph graph;
@@ -123,37 +122,23 @@ Dissolve::Dissolve()
         graph.SetChannel(EMaterialChannel::BaseColor, graph.AddNode(baseColor));
 
         graphMaterial->SetGraph(std::move(graph));
+        EE_CORE_ASSERT(GetMaterialLibrary().Register(graphMaterial), "GraphMaterial must be unique.")
 
-        const auto result = MaterialCompiler::Compile(m_ShaderLoader.get(), *graphMaterial);
+        auto instance = graphMaterial->CreateInstance();
+        EE_CORE_ASSERT(
+            instance->SetVector("Tint", { 1.0f, 0.35f, 0.1f, 1.0f }),
+            "Dissolve graph material tint override must match its schema."
+        )
 
-        if (result)
+        if (auto* emitter = m_ParticleSystems[0]->FindEmitter("FlameCore"))
         {
-            compiledGraphMaterial = result.Material;
-
-            auto instance = CreateRef<MaterialInstance>(graphMaterial);
-            EE_CORE_ASSERT(
-                instance->SetVector("Tint", { 1.0f, 0.35f, 0.1f, 1.0f }),
-                "Dissolve graph material tint override must match its schema."
-            )
-
-            const auto proxy = instance->CreateRenderProxy(compiledGraphMaterial);
-            EE_CORE_ASSERT(
-                proxy,
-                "Dissolve graph material render proxy must match the compiled schema."
-            )
-
-            if (auto* emitter = m_ParticleSystems[0]->FindEmitter("FlameCore"))
-            {
-                emitter->SetMaterial(proxy);
-                EE_CORE_INFO("Published graph material to the FlameCore particle emitter.")
-            }
-            else
-            {
-                EE_CORE_ERROR("Dissolve particle emitter 'FlameCore' was not found.")
-            }
+            emitter->SetMaterial(instance);
+            EE_CORE_INFO("Published graph material to the FlameCore particle emitter.")
         }
         else
-            EE_CORE_ERROR("Node-graph material compilation failed: {}", result.Diagnostics)
+        {
+            EE_CORE_ERROR("Dissolve particle emitter 'FlameCore' was not found.")
+        }
     }
 
     {
@@ -221,41 +206,33 @@ Dissolve::Dissolve()
         //graph1.SetChannel(EMaterialChannel::Emissive, graph1.AddNode(glow));
 
         ribbonMaterial->SetGraph(std::move(graph1));
+        EE_CORE_ASSERT(GetMaterialLibrary().Register(ribbonMaterial), "RibbonEnergy must be unique.")
 
-        const auto compileResult = MaterialCompiler::Compile(
-            m_ShaderLoader.get(),
-            *ribbonMaterial
-        );
-        EE_CORE_ASSERT(compileResult, "Ribbon material compilation failed.")
-
-        const auto instance = CreateRef<MaterialInstance>(ribbonMaterial);
+        const auto instance = ribbonMaterial->CreateInstance();
         EE_CORE_ASSERT(
             instance->SetVector("Tint", { 0.15f, 0.6f, 1.0f, 1.0f }),
             "Ribbon tint override must match the schema."
         )
 
-        const auto proxy = instance->CreateRenderProxy(compileResult.Material);
-        EE_CORE_ASSERT(proxy, "Ribbon material proxy creation failed.")
-
         if (auto* emitter = m_ParticleSystems[1]->FindEmitter("PathRibbon"))
         {
-            emitter->SetMaterial(proxy);
+            emitter->SetMaterial(instance);
             EE_CORE_INFO("Published graph material to the PathRibbon particle emitter.")
         }
 
         if (auto* emitter = m_ParticleSystems[1]->FindEmitter("CrystalShards"))
         {
-            emitter->SetMaterial(proxy);
+            emitter->SetMaterial(instance);
             EE_CORE_INFO("Published graph material to the CrystalShards particle emitter.")
         }
     }
 
     m_ParticleSystemInstances[0] = CreateScope<Aether::SystemInstance>(
-        CreateRef<Aether::SCompiledSystem>(m_ParticleSystems[0]->Compile())
+        CreateRef<Aether::SCompiledSystem>(m_ParticleSystems[0]->Compile(GetMaterialSystem()))
     );
 
     m_ParticleSystemInstances[1] = CreateScope<Aether::SystemInstance>(
-        CreateRef<Aether::SCompiledSystem>(m_ParticleSystems[1]->Compile())
+        CreateRef<Aether::SCompiledSystem>(m_ParticleSystems[1]->Compile(GetMaterialSystem()))
     );
 
     m_GraphicsContext->SetClearColor({ 0.015f, 0.025f, 0.06f, 1.0f });
