@@ -12,7 +12,15 @@
 
 namespace Elixir
 {
-    namespace GUI { class TextBlock; }
+    namespace GUI
+    {
+        class TextBlock;
+    }
+
+    namespace Aether
+    {
+        class Manager;
+    }
 
     class MaterialSystem;
     class MaterialRegistry;
@@ -37,6 +45,9 @@ namespace Elixir
         MaterialRegistry& GetMaterialRegistry();
         const MaterialRegistry& GetMaterialRegistry() const;
 
+        Aether::Manager& GetAetherManager();
+        const Aether::Manager& GetAetherManager() const;
+
         static Application& Get() { return *s_Application; }
 
     protected:
@@ -52,6 +63,8 @@ namespace Elixir
 
         Scope<MaterialSystem> m_MaterialSystem;
         Scope<MaterialRegistry> m_MaterialRegistry;
+
+        Scope<Aether::Manager> m_AetherManager;
 
         Timer m_Timer;
         FrameProfiler m_Profiler;

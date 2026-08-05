@@ -14,6 +14,7 @@
 #include <Engine/Graphics/TextureLoader.h>
 #include <Engine/Material/MaterialSystem.h>
 #include <Engine/Material/MaterialRegistry.h>
+#include <Engine/Aether/Manager.h>
 
 namespace Elixir
 {
@@ -51,6 +52,11 @@ namespace Elixir
             m_GraphicsContext.get(),
             m_ShaderLoader.get(),
             m_Window->GetFramebufferExtent() // TODO: Get from Ctx->GetRenderTargetExtent()..
+        );
+
+        m_AetherManager = CreateScope<Aether::Manager>(
+            *m_MaterialRegistry,
+            *m_MaterialSystem
         );
 
         const auto buttonBg = TextureLoader::Load("./Assets/Button_Background.png");
@@ -228,6 +234,18 @@ namespace Elixir
     const MaterialRegistry& Application::GetMaterialRegistry() const
     {
         return *m_MaterialRegistry;
+    }
+
+    Aether::Manager& Application::GetAetherManager()
+    {
+        EE_CORE_ASSERT(m_AetherManager, "Application Aether manager is unavailable.")
+        return *m_AetherManager;
+    }
+
+    const Aether::Manager& Application::GetAetherManager() const
+    {
+        EE_CORE_ASSERT(m_AetherManager, "Application Aether manager is unavailable.")
+        return *m_AetherManager;
     }
 
     bool Application::OnWindowClose(WindowCloseEvent& event)

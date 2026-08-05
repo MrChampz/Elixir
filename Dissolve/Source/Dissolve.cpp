@@ -3,13 +3,12 @@
 #include <Engine/Core/Entrypoint.h>
 #include <Engine/Graphics/SamplerBuilder.h>
 #include <Engine/Aether/Renderer.h>
-#include <Engine/Aether/Effect.h>
+#include <Engine/Aether/Manager.h>
 
 #include <Engine/Material/MaterialGraph.h>
 #include <Engine/Material/MaterialInstance.h>
 #include <Engine/Material/MaterialSystem.h>
 #include <Engine/Material/MaterialRegistry.h>
-#include <Engine/Aether/EffectMaterialResolver.h>
 
 Ref<GraphicsPipeline> pipeline;
 Scope<Aether::Renderer> m_ParticlesRenderer;
@@ -70,18 +69,16 @@ Dissolve::Dissolve()
         GetMaterialSystem()
     );
 
-    Aether::EffectMaterialResolver effectMaterials{ GetMaterialRegistry() };
-
-    m_ParticleSystems[0] = Aether::LoadEffectFile("./Assets/VFX/FireAndFireworks.json");
+    m_ParticleSystems[0] = GetAetherManager().LoadEffect("./Assets/VFX/FireAndFireworks.json");
     EE_CORE_ASSERT(
-        effectMaterials.Resolve(*m_ParticleSystems[0]),
-        "Could not resolve FireAndFireworks materials."
+        m_ParticleSystems[0],
+        "Could not resolve FireAndFireworks effect."
     )
 
-    m_ParticleSystems[1] = Aether::LoadEffectFile("./Assets/VFX/RibbonVortex.json");
+    m_ParticleSystems[1] = GetAetherManager().LoadEffect("./Assets/VFX/RibbonVortex.json");
     EE_CORE_ASSERT(
-        effectMaterials.Resolve(*m_ParticleSystems[1]),
-        "Could not resolve RibbonVortex materials."
+        m_ParticleSystems[1],
+        "Could not resolve RibbonVortex effect."
     )
 
     {
@@ -230,13 +227,13 @@ Dissolve::Dissolve()
         }
     }
 
-    m_ParticleSystemInstances[0] = CreateScope<Aether::SystemInstance>(
-        CreateRef<Aether::SCompiledSystem>(m_ParticleSystems[0]->Compile(GetMaterialSystem()))
-    );
+    auto fireAndFireworks = GetAetherManager().Compile(*m_ParticleSystems[0]);
+    m_ParticleSystemInstances[0] = GetAetherManager().CreateInstance(fireAndFireworks);
+    EE_CORE_ASSERT(m_ParticleSystemInstances[0], "Could not compile FireAndFireworks effect.")
 
-    m_ParticleSystemInstances[1] = CreateScope<Aether::SystemInstance>(
-        CreateRef<Aether::SCompiledSystem>(m_ParticleSystems[1]->Compile(GetMaterialSystem()))
-    );
+    auto ribbonVortex = GetAetherManager().Compile(*m_ParticleSystems[1]);
+    m_ParticleSystemInstances[1] = GetAetherManager().CreateInstance(ribbonVortex);
+    EE_CORE_ASSERT(m_ParticleSystemInstances[1], "Could not compile RibbonVortex effect.")
 
     m_GraphicsContext->SetClearColor({ 0.015f, 0.025f, 0.06f, 1.0f });
 }

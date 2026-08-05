@@ -6,22 +6,13 @@
 #include <Engine/Material/MaterialResolver.h>
 #include <Engine/Material/MaterialRenderProxy.h>
 
+#include "TestMaterialResolver.h"
+
 using namespace Elixir;
 using namespace Elixir::Aether;
 
 namespace
 {
-    class TestMaterialResolver : public MaterialResolver
-    {
-    public:
-        Ref<const MaterialRenderProxy> Resolve(const Ref<MaterialInstance>& instance) override
-        {
-            if (!instance || !instance->GetParent()) return nullptr;
-            const auto result = MaterialCompiler::Build(*instance->GetParent());
-            return result ? MaterialRenderProxy::Create(result.Material, *instance) : nullptr;
-        }
-    };
-
     SCompiledSystem Compile(const System& system)
     {
         TestMaterialResolver resolver;

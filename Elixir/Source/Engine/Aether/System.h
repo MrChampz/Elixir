@@ -66,6 +66,7 @@ namespace Elixir::Aether
 
         SCompiledSystem Compile(MaterialResolver& materialResolver) const;
 
+        const std::string& GetName() const { return m_Name; }
         ParameterStore& GetParameters() { return m_Parameters; }
         const ParameterStore& GetParameters() const { return m_Parameters; }
         CurveStore& GetCurves() { return m_Curves; }

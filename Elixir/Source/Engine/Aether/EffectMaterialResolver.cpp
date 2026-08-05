@@ -16,6 +16,11 @@ namespace Elixir::Aether
     {
         for (const auto& emitter : system.m_Emitters)
         {
+            // A caller may replace an effect-authored instance before
+            // Manager::Compile(). Do not overwrite that explicit choice.
+            if (emitter->GetMaterial())
+                continue;
+
             Ref<Material> material;
 
             if (const auto& definition = emitter->GetMaterialDefinition())
