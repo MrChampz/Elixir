@@ -7,12 +7,13 @@
 
 namespace Elixir
 {
-    class MaterialRegistry;
     class MaterialResolver;
 }
 
 namespace Elixir::Aether
 {
+    class EffectMaterialResolver;
+
     struct SCompiledTriggerTarget
     {
         uint32_t TargetEmitterIndex = 0;
@@ -49,6 +50,8 @@ namespace Elixir::Aether
 
     class ELIXIR_API System final
     {
+        friend class EffectMaterialResolver;
+
       public:
         explicit System(const std::string& name);
 
@@ -59,10 +62,8 @@ namespace Elixir::Aether
         System& operator=(const System&) = delete;
 
         Emitter& AddEmitter(const std::string& name, uint32_t maxParticles, float spawnRate);
-
         Emitter* FindEmitter(std::string_view name) const;
 
-        bool ResolveMaterialInstances(MaterialRegistry& materials) const;
         SCompiledSystem Compile(MaterialResolver& materialResolver) const;
 
         ParameterStore& GetParameters() { return m_Parameters; }

@@ -9,6 +9,7 @@
 #include <Engine/Material/MaterialInstance.h>
 #include <Engine/Material/MaterialSystem.h>
 #include <Engine/Material/MaterialRegistry.h>
+#include <Engine/Aether/EffectMaterialResolver.h>
 
 Ref<GraphicsPipeline> pipeline;
 Scope<Aether::Renderer> m_ParticlesRenderer;
@@ -69,15 +70,17 @@ Dissolve::Dissolve()
         GetMaterialSystem()
     );
 
+    Aether::EffectMaterialResolver effectMaterials{ GetMaterialRegistry() };
+
     m_ParticleSystems[0] = Aether::LoadEffectFile("./Assets/VFX/FireAndFireworks.json");
     EE_CORE_ASSERT(
-        m_ParticleSystems[0]->ResolveMaterialInstances(GetMaterialRegistry()),
+        effectMaterials.Resolve(*m_ParticleSystems[0]),
         "Could not resolve FireAndFireworks materials."
     )
 
     m_ParticleSystems[1] = Aether::LoadEffectFile("./Assets/VFX/RibbonVortex.json");
     EE_CORE_ASSERT(
-        m_ParticleSystems[1]->ResolveMaterialInstances(GetMaterialRegistry()),
+        effectMaterials.Resolve(*m_ParticleSystems[1]),
         "Could not resolve RibbonVortex materials."
     )
 

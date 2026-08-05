@@ -1,9 +1,6 @@
 #include "epch.h"
 #include "System.h"
 
-#include <Engine/Material/MaterialRegistry.h>
-#include <Engine/Aether/ParticleMaterialFactory.h>
-
 namespace Elixir::Aether
 {
     System::System(const std::string& name) : m_Name(name) {}
@@ -27,34 +24,6 @@ namespace Elixir::Aether
         }
 
         return nullptr;
-    }
-
-    bool System::ResolveMaterialInstances(MaterialRegistry& materials) const
-    {
-        for (const auto& emitter : m_Emitters)
-        {
-            Ref<Material> material;
-            if (const auto& definition = emitter->GetMaterialDefinition())
-            {
-                const auto name = "Aether." + m_UUID.ToString() + "." + emitter->GetName();
-                material = CreateParticleMaterial(name, emitter->GetRenderMode(), *definition);
-                if (!materials.Register(material))
-                {
-                    EE_CORE_ERROR("Aether material '{}' is already registered.", name)
-                    return false;
-                }
-            }
-            else
-            {
-                const auto usage = GetParticleMaterialUsage(emitter->GetRenderMode());
-                material = materials.GetDefault(usage);
-            }
-
-            emitter->SetMaterial(material);
-            if (!emitter->GetMaterial()) return false;
-        }
-
-        return true;
     }
 
     SCompiledSystem System::Compile(MaterialResolver& materialResolver) const
