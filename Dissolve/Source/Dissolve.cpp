@@ -8,7 +8,7 @@
 #include <Engine/Material/MaterialGraph.h>
 #include <Engine/Material/MaterialInstance.h>
 #include <Engine/Material/MaterialSystem.h>
-#include <Engine/Material/MaterialLibrary.h>
+#include <Engine/Material/MaterialRegistry.h>
 
 Ref<GraphicsPipeline> pipeline;
 Scope<Aether::Renderer> m_ParticlesRenderer;
@@ -71,13 +71,13 @@ Dissolve::Dissolve()
 
     m_ParticleSystems[0] = Aether::LoadEffectFile("./Assets/VFX/FireAndFireworks.json");
     EE_CORE_ASSERT(
-        m_ParticleSystems[0]->ResolveMaterialInstances(GetMaterialLibrary()),
+        m_ParticleSystems[0]->ResolveMaterialInstances(GetMaterialRegistry()),
         "Could not resolve FireAndFireworks materials."
     )
 
     m_ParticleSystems[1] = Aether::LoadEffectFile("./Assets/VFX/RibbonVortex.json");
     EE_CORE_ASSERT(
-        m_ParticleSystems[1]->ResolveMaterialInstances(GetMaterialLibrary()),
+        m_ParticleSystems[1]->ResolveMaterialInstances(GetMaterialRegistry()),
         "Could not resolve RibbonVortex materials."
     )
 
@@ -122,7 +122,7 @@ Dissolve::Dissolve()
         graph.SetChannel(EMaterialChannel::BaseColor, graph.AddNode(baseColor));
 
         graphMaterial->SetGraph(std::move(graph));
-        EE_CORE_ASSERT(GetMaterialLibrary().Register(graphMaterial), "GraphMaterial must be unique.")
+        EE_CORE_ASSERT(GetMaterialRegistry().Register(graphMaterial), "GraphMaterial must be unique.")
 
         auto instance = graphMaterial->CreateInstance();
         EE_CORE_ASSERT(
@@ -206,7 +206,7 @@ Dissolve::Dissolve()
         //graph1.SetChannel(EMaterialChannel::Emissive, graph1.AddNode(glow));
 
         ribbonMaterial->SetGraph(std::move(graph1));
-        EE_CORE_ASSERT(GetMaterialLibrary().Register(ribbonMaterial), "RibbonEnergy must be unique.")
+        EE_CORE_ASSERT(GetMaterialRegistry().Register(ribbonMaterial), "RibbonEnergy must be unique.")
 
         const auto instance = ribbonMaterial->CreateInstance();
         EE_CORE_ASSERT(

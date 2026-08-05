@@ -8,52 +8,12 @@ namespace Elixir
     MaterialRenderer::MaterialRenderer(
         const GraphicsContext* context,
         Ref<DynamicStorageBuffer> frameBuffer,
-        const MaterialTextureRegistry& textures
+        const MaterialTextureRegistry& textures,
+        const ShaderLoader* shaderLoader
     ) : m_FrameBuffer(std::move(frameBuffer)),
         m_Textures(textures),
+        m_CompilationCache(shaderLoader),
         m_Context(context) {}
-
-    EMaterialUsage MaterialRenderer::GetUsage(EMaterialPass pass)
-    {
-        switch (pass)
-        {
-            case EMaterialPass::ParticleSprite: return EMaterialUsage::ParticleSprite;
-            case EMaterialPass::ParticleRibbon: return EMaterialUsage::ParticleRibbon;
-            case EMaterialPass::ParticleMesh:   return EMaterialUsage::ParticleMesh;
-        }
-
-        EE_CORE_ASSERT(false, "Material pass does not have a material usage.")
-        return EMaterialUsage::ParticleSprite;
-    }
-
-    uint32_t MaterialRenderer::GetPassOrder(const EMaterialPass pass)
-    {
-        switch (pass)
-        {
-            case EMaterialPass::ParticleSprite: return 2;
-            case EMaterialPass::ParticleRibbon: return 1;
-            case EMaterialPass::ParticleMesh:   return 0;
-        }
-
-        return UINT32_MAX;
-    }
-
-    std::optional<SMaterialProgramKey> MaterialRenderer::GetProgramKey(
-        const EMaterialPass pass,
-        const MaterialRenderProxy& material
-    ) const
-    {
-        const auto usage = GetUsage(pass);
-        const auto compiled = material.GetCompiledMaterial();
-        if (!compiled || !compiled->SupportsUsage(usage))
-            return std::nullopt;
-
-        const auto& shader = compiled->GetShader(usage);
-        if (!shader)
-            return std::nullopt;
-
-        return SMaterialProgramKey{ .Identity = shader.get() };
-    }
 
     std::optional<SPreparedMaterialPass> MaterialRenderer::Prepare(
         const SMaterialPassRequest& request
@@ -85,6 +45,60 @@ namespace Elixir
             .Shader = shader,
             .Pipeline = GetPipeline(request.Pass, shader, request.Pipeline),
         };
+    }
+
+    Ref<const MaterialRenderProxy> MaterialRenderer::Resolve(
+        const Ref<MaterialInstance>& instance
+    )
+    {
+        if (!instance || !instance->GetParent()) return nullptr;
+
+        const auto compiled = m_CompilationCache.GetOrCompile(instance->GetParent());
+        return compiled
+            ? MaterialRenderProxy::Create(compiled, *instance)
+            : nullptr;
+    }
+
+    std::optional<SMaterialProgramKey> MaterialRenderer::GetProgramKey(
+        const EMaterialPass pass,
+        const MaterialRenderProxy& material
+    )
+    {
+        const auto usage = GetUsage(pass);
+        const auto compiled = material.GetCompiledMaterial();
+        if (!compiled || !compiled->SupportsUsage(usage))
+            return std::nullopt;
+
+        const auto& shader = compiled->GetShader(usage);
+        if (!shader)
+            return std::nullopt;
+
+        return SMaterialProgramKey{ .Identity = shader.get() };
+    }
+
+    EMaterialUsage MaterialRenderer::GetUsage(EMaterialPass pass)
+    {
+        switch (pass)
+        {
+        case EMaterialPass::ParticleSprite: return EMaterialUsage::ParticleSprite;
+        case EMaterialPass::ParticleRibbon: return EMaterialUsage::ParticleRibbon;
+        case EMaterialPass::ParticleMesh:   return EMaterialUsage::ParticleMesh;
+        }
+
+        EE_CORE_ASSERT(false, "Material pass does not have a material usage.")
+        return EMaterialUsage::ParticleSprite;
+    }
+
+    uint32_t MaterialRenderer::GetPassOrder(const EMaterialPass pass)
+    {
+        switch (pass)
+        {
+        case EMaterialPass::ParticleSprite: return 2;
+        case EMaterialPass::ParticleRibbon: return 1;
+        case EMaterialPass::ParticleMesh:   return 0;
+        }
+
+        return UINT32_MAX;
     }
 
     Ref<GraphicsPipeline> MaterialRenderer::GetPipeline(

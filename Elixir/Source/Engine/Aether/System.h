@@ -7,7 +7,7 @@
 
 namespace Elixir
 {
-    class MaterialLibrary;
+    class MaterialRegistry;
     class MaterialResolver;
 }
 
@@ -62,7 +62,7 @@ namespace Elixir::Aether
 
         Emitter* FindEmitter(std::string_view name) const;
 
-        bool ResolveMaterialInstances(MaterialLibrary& materials);
+        bool ResolveMaterialInstances(MaterialRegistry& materials) const;
         SCompiledSystem Compile(MaterialResolver& materialResolver) const;
 
         ParameterStore& GetParameters() { return m_Parameters; }

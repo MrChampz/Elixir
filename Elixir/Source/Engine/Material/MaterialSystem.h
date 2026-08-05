@@ -9,7 +9,7 @@
 
 namespace Elixir
 {
-    class MaterialLibrary;
+    class ShaderLoader;
 
     struct SMaterialSystemConfig
     {
@@ -34,7 +34,7 @@ namespace Elixir
     public:
         MaterialSystem(
             const GraphicsContext* context,
-            MaterialLibrary& materials,
+            const ShaderLoader* shaderLoader,
             SMaterialSystemConfig config
         );
 
@@ -70,7 +70,6 @@ namespace Elixir
         uint32_t m_MaterialCapacity = 0;
         Ref<DynamicStorageBuffer> m_FrameBuffer;
         MaterialTextureRegistry m_Textures;
-        MaterialLibrary& m_Materials;
         Scope<MaterialRenderer> m_Renderer;
     };
 }

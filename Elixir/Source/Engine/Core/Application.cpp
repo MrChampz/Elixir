@@ -13,7 +13,7 @@
 #include <Engine/Font/FontManager.h>
 #include <Engine/Graphics/TextureLoader.h>
 #include <Engine/Material/MaterialSystem.h>
-#include <Engine/Material/MaterialLibrary.h>
+#include <Engine/Material/MaterialRegistry.h>
 
 namespace Elixir
 {
@@ -39,10 +39,10 @@ namespace Elixir
         TextureLoader::Initialize(m_GraphicsContext.get());
         FontManager::Initialize(m_GraphicsContext.get());
 
-        m_MaterialLibrary = CreateScope<MaterialLibrary>(m_ShaderLoader.get());
+        m_MaterialRegistry = CreateScope<MaterialRegistry>();
         m_MaterialSystem = CreateScope<MaterialSystem>(
             m_GraphicsContext.get(),
-            *m_MaterialLibrary,
+            m_ShaderLoader.get(),
             SMaterialSystemConfig{ .InitialFrameCapacity = 256 }
         );
 
@@ -220,14 +220,14 @@ namespace Elixir
         return *m_MaterialSystem;
     }
 
-    MaterialLibrary& Application::GetMaterialLibrary()
+    MaterialRegistry& Application::GetMaterialRegistry()
     {
-        return *m_MaterialLibrary;
+        return *m_MaterialRegistry;
     }
 
-    const MaterialLibrary& Application::GetMaterialLibrary() const
+    const MaterialRegistry& Application::GetMaterialRegistry() const
     {
-        return *m_MaterialLibrary;
+        return *m_MaterialRegistry;
     }
 
     bool Application::OnWindowClose(WindowCloseEvent& event)

@@ -1,7 +1,7 @@
 #include "epch.h"
 #include "System.h"
 
-#include <Engine/Material/MaterialLibrary.h>
+#include <Engine/Material/MaterialRegistry.h>
 #include <Engine/Aether/ParticleMaterialFactory.h>
 
 namespace Elixir::Aether
@@ -29,7 +29,7 @@ namespace Elixir::Aether
         return nullptr;
     }
 
-    bool System::ResolveMaterialInstances(MaterialLibrary& materials)
+    bool System::ResolveMaterialInstances(MaterialRegistry& materials) const
     {
         for (const auto& emitter : m_Emitters)
         {

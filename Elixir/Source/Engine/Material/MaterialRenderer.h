@@ -1,17 +1,17 @@
 #pragma once
 
-#include <concepts>
-#include <utility>
-#include <type_traits>
 #include <variant>
 
 #include <Engine/Graphics/Buffer.h>
 #include <Engine/Graphics/Pipeline/Pipeline.h>
 #include <Engine/Material/MaterialRenderProxy.h>
 #include <Engine/Material/MaterialTextureRegistry.h>
+#include <Engine/Material/MaterialCompilationCache.h>
 
 namespace Elixir
 {
+    class ShaderLoader;
+
     enum class EMaterialPass : uint8_t
     {
         ParticleSprite,
@@ -81,20 +81,23 @@ namespace Elixir
         MaterialRenderer(
             const GraphicsContext* context,
             Ref<DynamicStorageBuffer> frameBuffer,
-            const MaterialTextureRegistry& textures
+            const MaterialTextureRegistry& textures,
+            const ShaderLoader* shaderLoader
         );
-
-        static EMaterialUsage GetUsage(EMaterialPass pass);
-        static uint32_t GetPassOrder(EMaterialPass pass);
-
-        std::optional<SMaterialProgramKey> GetProgramKey(
-            EMaterialPass pass,
-            const MaterialRenderProxy& material
-        ) const;
 
         std::optional<SPreparedMaterialPass> Prepare(
             const SMaterialPassRequest& request
         );
+
+        Ref<const MaterialRenderProxy> Resolve(const Ref<MaterialInstance>& instance);
+
+        static std::optional<SMaterialProgramKey> GetProgramKey(
+            EMaterialPass pass,
+            const MaterialRenderProxy& material
+        );
+
+        static EMaterialUsage GetUsage(EMaterialPass pass);
+        static uint32_t GetPassOrder(EMaterialPass pass);
 
     private:
         enum class EDescriptorBindingType : uint8_t
@@ -158,6 +161,7 @@ namespace Elixir
         const MaterialTextureRegistry& m_Textures;
         std::unordered_map<SPipelineKey, Ref<GraphicsPipeline>, SPipelineKeyHasher> m_Pipelines;
         std::unordered_map<const Shader*, SDescriptorBindingState> m_DescriptorBindings;
+        MaterialCompilationCache m_CompilationCache;
 
         const GraphicsContext* m_Context = nullptr;
     };
