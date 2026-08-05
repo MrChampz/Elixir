@@ -55,6 +55,8 @@ namespace Elixir
         );
 
         m_AetherManager = CreateScope<Aether::Manager>(
+            m_GraphicsContext.get(),
+            m_ShaderLoader.get(),
             *m_MaterialRegistry,
             *m_MaterialSystem
         );

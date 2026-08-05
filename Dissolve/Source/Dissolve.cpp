@@ -2,7 +2,6 @@
 
 #include <Engine/Core/Entrypoint.h>
 #include <Engine/Graphics/SamplerBuilder.h>
-#include <Engine/Aether/Renderer.h>
 #include <Engine/Aether/Manager.h>
 
 #include <Engine/Material/MaterialGraph.h>
@@ -11,8 +10,6 @@
 #include <Engine/Material/MaterialRegistry.h>
 
 Ref<GraphicsPipeline> pipeline;
-Scope<Aether::Renderer> m_ParticlesRenderer;
-Aether::FrameSubmission m_ParticleFrameSubmission;
 std::array<Ref<Aether::System>, 2> m_ParticleSystems;
 std::array<Scope<Aether::SystemInstance>, 2> m_ParticleSystemInstances;
 
@@ -62,12 +59,6 @@ Dissolve::Dissolve()
     );
 
     shader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
-
-    m_ParticlesRenderer = CreateScope<Aether::Renderer>(
-        m_GraphicsContext.get(),
-        m_ShaderLoader.get(),
-        GetMaterialSystem()
-    );
 
     m_ParticleSystems[0] = GetAetherManager().LoadEffect("./Assets/VFX/FireAndFireworks.json");
     EE_CORE_ASSERT(
@@ -258,22 +249,21 @@ void Dissolve::OnRender(const Timestep frameTime)
     m_FrameData.ViewProj = m_CameraController->GetCamera().GetViewProjectionMatrix();
     m_FrameConstantBuffer->UpdateData(&m_FrameData, sizeof(SFrameData));
 
-    m_ParticlesRenderer->Update(frameTime);
+    auto& aether = GetAetherManager();
+    aether.BeginFrame(frameTime);
 
     m_GraphicsContext->Clear();
 
     //DrawGeometry();
 
-    m_ParticleFrameSubmission.Reset();
-
-    bool submitted = m_ParticleFrameSubmission.Submit(*m_ParticleSystemInstances[0]);
+    bool submitted = aether.Submit(*m_ParticleSystemInstances[0]);
     EE_CORE_ASSERT(submitted, "The particle system instance was submitted more than once.")
 
-    submitted = m_ParticleFrameSubmission.Submit(*m_ParticleSystemInstances[1]);
+    submitted = aether.Submit(*m_ParticleSystemInstances[1]);
     EE_CORE_ASSERT(submitted, "The particle system instance was submitted more than once.")
 
-    m_ParticlesRenderer->Render(m_ParticleFrameSubmission, m_CameraController->GetCamera());
-    const auto& metrics = m_ParticlesRenderer->GetLastSubmissionMetrics();
+    aether.Render(m_CameraController->GetCamera());
+    const auto& metrics = aether.GetLastSubmissionMetrics();
 }
 
 void Dissolve::OnEvent(Event& event)
