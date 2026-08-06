@@ -22,6 +22,18 @@ namespace Elixir::Aether
             return true;
         }
 
+        // Releases a non-owning reference before its manager-owned instance
+        // is retired and destroyed.
+        bool Remove(const SystemInstance& instance)
+        {
+            const auto found = m_InstanceIds.find(instance.GetId());
+            if (found == m_InstanceIds.end()) return false;
+
+            std::erase(m_Instances, &instance);
+            m_InstanceIds.erase(found);
+            return true;
+        }
+
         void Reset()
         {
             m_Instances.clear();

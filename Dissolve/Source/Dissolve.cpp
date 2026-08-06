@@ -11,7 +11,7 @@
 
 Ref<GraphicsPipeline> pipeline;
 std::array<Ref<Aether::System>, 2> m_ParticleSystems;
-std::array<Scope<Aether::SystemInstance>, 2> m_ParticleSystemInstances;
+std::array<Aether::SystemInstance*, 2> m_ParticleSystemInstances;
 
 Ref<Material> graphMaterial;
 
@@ -219,11 +219,11 @@ Dissolve::Dissolve()
     }
 
     auto fireAndFireworks = GetAetherManager().Compile(*m_ParticleSystems[0]);
-    m_ParticleSystemInstances[0] = GetAetherManager().CreateInstance(fireAndFireworks);
+    m_ParticleSystemInstances[0] = &GetAetherManager().CreateInstance(fireAndFireworks);
     EE_CORE_ASSERT(m_ParticleSystemInstances[0], "Could not compile FireAndFireworks effect.")
 
     auto ribbonVortex = GetAetherManager().Compile(*m_ParticleSystems[1]);
-    m_ParticleSystemInstances[1] = GetAetherManager().CreateInstance(ribbonVortex);
+    m_ParticleSystemInstances[1] = &GetAetherManager().CreateInstance(ribbonVortex);
     EE_CORE_ASSERT(m_ParticleSystemInstances[1], "Could not compile RibbonVortex effect.")
 
     m_GraphicsContext->SetClearColor({ 0.015f, 0.025f, 0.06f, 1.0f });

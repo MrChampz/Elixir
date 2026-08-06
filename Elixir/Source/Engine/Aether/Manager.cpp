@@ -35,10 +35,30 @@ namespace Elixir::Aether
         return CreateRef<SCompiledSystem>(system.Compile(m_MaterialSystem));
     }
 
-    Scope<SystemInstance> Manager::CreateInstance(Ref<const SCompiledSystem> system) const
+    SystemInstance& Manager::CreateInstance(Ref<const SCompiledSystem> system)
     {
-        if (!system) return nullptr;
-        return CreateScope<SystemInstance>(std::move(system));
+        EE_CORE_ASSERT(system, "Aether system instance requires a compiled system.")
+
+        auto instance = CreateScope<SystemInstance>(std::move(system));
+        const auto id = instance->GetId();
+
+        const auto [_, inserted] = m_Instances.emplace(id, std::move(instance));
+        EE_CORE_ASSERT(inserted, "Aether system instance UUID must be unique.")
+
+        return *m_Instances[id];
+    }
+
+    bool Manager::DestroyInstance(const UUID& instanceId)
+    {
+        const auto found = m_Instances.find(instanceId);
+        if (found == m_Instances.end()) return false;
+
+        const auto& instance = *found->second;
+        m_FrameSubmission.Remove(instance);
+        GetRenderer().Retire(instance);
+        m_Instances.erase(found);
+
+        return true;
     }
 
     void Manager::BeginFrame(const Timestep& timestep)
@@ -57,11 +77,6 @@ namespace Elixir::Aether
     void Manager::Render(const Camera& camera)
     {
         GetRenderer().Render(m_FrameSubmission, camera);
-    }
-
-    void Manager::Retire(const SystemInstance& instance)
-    {
-        GetRenderer().Retire(instance);
     }
 
     const SParticleSubmissionMetrics& Manager::GetLastSubmissionMetrics() const

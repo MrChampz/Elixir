@@ -39,3 +39,16 @@ TEST(AetherFrameSubmissionTest, ResetKeepsTheSubmissionReusable)
     EXPECT_TRUE(submission.Submit(secondInstance));
     EXPECT_EQ(submission.GetInstanceCount(), 2);
 }
+
+TEST(AetherFrameSubmissionTest, RemovesAnInstanceBeforeItIsRetired)
+{
+    const auto compiledSystem = CreateRef<SCompiledSystem>();
+    const SystemInstance instance{ compiledSystem };
+    FrameSubmission submission;
+
+    ASSERT_TRUE(submission.Submit(instance));
+    EXPECT_TRUE(submission.Remove(instance));
+    EXPECT_EQ(submission.GetInstanceCount(), 0);
+    EXPECT_FALSE(submission.Remove(instance));
+    EXPECT_TRUE(submission.Submit(instance));
+}

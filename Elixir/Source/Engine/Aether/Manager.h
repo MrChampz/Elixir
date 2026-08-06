@@ -45,7 +45,13 @@ namespace Elixir::Aether
 
         Ref<const SCompiledSystem> Compile(System& system) const;
 
-        Scope<SystemInstance> CreateInstance(Ref<const SCompiledSystem> system) const;
+        // The manager owns the returned instance. It remains valid until
+        // DestroyInstance() is called or the manager is destroyed.
+        SystemInstance& CreateInstance(Ref<const SCompiledSystem> system);
+
+        // Must be called from the render-frame callback. It detaches any
+        // frame submission before the renderer retires GPU allocations.
+        bool DestroyInstance(const UUID& instanceId);
 
         // Render-frame API. Submit() is valid only between BeginFrame() and Render().
         void BeginFrame(const Timestep& timestep);
@@ -54,15 +60,16 @@ namespace Elixir::Aether
 
         void Render(const Camera& camera);
 
-        void Retire(const SystemInstance& instance);
-
         const SParticleSubmissionMetrics& GetLastSubmissionMetrics() const;
 
     private:
         Renderer& GetRenderer() const;
 
         EffectMaterialResolver m_EffectMaterials;
+
         MaterialSystem& m_MaterialSystem;
+        std::unordered_map<UUID, Scope<SystemInstance>> m_Instances;
+
         FrameSubmission m_FrameSubmission;
         Scope<Renderer> m_Renderer;
     };
