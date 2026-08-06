@@ -42,6 +42,8 @@ namespace Elixir::Aether
     // GPU allocations belong to Renderer::ParticleResourcePool, never here.
     class ELIXIR_API SystemInstance final
     {
+        friend class FrameSubmission;
+
     public:
         explicit SystemInstance(Ref<const SCompiledSystem> compiledSystem);
         SystemInstance(const SystemInstance&) = delete;
@@ -59,10 +61,10 @@ namespace Elixir::Aether
         bool ClearParameterOverride(const std::string& name);
         void ClearParameterOverrides();
 
-        // Acquire one immutable view without retaining the instance lock.
+    private:
+        // Acquires one immutable view without retaining the instance lock.
         Ref<const SystemInstanceSnapshot> CaptureSnapshot() const;
 
-    private:
         static Ref<const SystemInstanceSnapshot> CreateSnapshot(
             const UUID& id,
             uint32_t revision,

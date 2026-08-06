@@ -1,12 +1,20 @@
 #include <gtest/gtest.h>
 
 #include <Engine/Aether/SystemInstance.h>
+#include <Engine/Aether/FrameSubmission.h>
 
 using namespace Elixir;
 using namespace Elixir::Aether;
 
 namespace
 {
+    Ref<const SystemInstanceSnapshot> CaptureForTest(const SystemInstance& instance)
+    {
+        FrameSubmission submission;
+        EXPECT_TRUE(submission.Submit(instance));
+        return submission.GetSnapshots().front();
+    }
+
     Ref<SCompiledSystem> MakeCompiledSystem()
     {
         const auto system = CreateRef<SCompiledSystem>();
@@ -30,11 +38,11 @@ TEST(AetherSystemInstanceTest, ReplacesCompiledSystemAndIncrementsRevision)
     const auto replacementSystem = CreateRef<SCompiledSystem>();
     SystemInstance instance{ initialSystem };
 
-    const auto initialRevision = instance.CaptureSnapshot()->GetRevision();
+    const auto initialRevision = CaptureForTest(instance)->GetRevision();
 
     instance.SetCompiledSystem(replacementSystem);
 
-    const auto snapshot = instance.CaptureSnapshot();
+    const auto snapshot = CaptureForTest(instance);
 
     EXPECT_EQ(snapshot->GetRevision(), initialRevision + 1);
     EXPECT_EQ(&snapshot->GetCompiledSystem(), replacementSystem.get());
@@ -46,7 +54,7 @@ TEST(AetherSystemInstanceTest, DoesNotIncrementRevisionForSameCompiledSystem)
     SystemInstance instance{ compiledSystem };
     instance.SetCompiledSystem(compiledSystem);
 
-    EXPECT_EQ(instance.CaptureSnapshot()->GetRevision(), 1);
+    EXPECT_EQ(CaptureForTest(instance)->GetRevision(), 1);
 }
 
 TEST(AetherSystemInstanceTest, AppliesOverridesOnlyToExposedParameters)
@@ -54,12 +62,12 @@ TEST(AetherSystemInstanceTest, AppliesOverridesOnlyToExposedParameters)
     const auto compiledSystem = MakeCompiledSystem();
     SystemInstance instance{ compiledSystem };
 
-    const auto initialParameterRevision = instance.CaptureSnapshot()->GetParameterRevision();
+    const auto initialParameterRevision = CaptureForTest(instance)->GetParameterRevision();
 
     EXPECT_TRUE(instance.SetParameterOverride("Tint", { 0.25f, 0.5f, 0.75f, 1.0f }));
     EXPECT_FALSE(instance.SetParameterOverride("SizeOverLife:0", { 1.0f, 1.0f, 1.0f, 1.0f }));
 
-    const auto snapshot = instance.CaptureSnapshot();
+    const auto snapshot = CaptureForTest(instance);
     EXPECT_EQ(snapshot->GetParameterRevision(), initialParameterRevision + 1);
 
     const auto tint = snapshot->ResolveParameterValue(0);
@@ -84,7 +92,7 @@ TEST(AetherSystemInstanceTest, ClearsOverridesAndRestoresCompiledDefaults)
     ASSERT_TRUE(instance.ClearParameterOverride("Tint"));
     EXPECT_FALSE(instance.ClearParameterOverride("Tint"));
 
-    const auto tint = instance.CaptureSnapshot()->ResolveParameterValue(0);
+    const auto tint = CaptureForTest(instance)->ResolveParameterValue(0);
     EXPECT_FLOAT_EQ(tint.x, 1.0f);
     EXPECT_FLOAT_EQ(tint.y, 1.0f);
     EXPECT_FLOAT_EQ(tint.z, 1.0f);
@@ -108,7 +116,7 @@ TEST(AetherSystemInstanceTest, RetainsOnlyOverridesExposedByReplacementSystem)
 
     instance.SetCompiledSystem(replacementSystem);
 
-    const auto tint = instance.CaptureSnapshot()->ResolveParameterValue(0);
+    const auto tint = CaptureForTest(instance)->ResolveParameterValue(0);
     EXPECT_FLOAT_EQ(tint.x, 0.25f);
     EXPECT_FLOAT_EQ(tint.y, 0.5f);
     EXPECT_FLOAT_EQ(tint.z, 0.75f);
@@ -125,7 +133,7 @@ TEST(AetherSystemInstanceTest, StoresWorldTransformWithoutChangingCompiledSystem
 
     instance.SetWorldTransform(transform);
 
-    const auto snapshot = instance.CaptureSnapshot();
+    const auto snapshot = CaptureForTest(instance);
 
     EXPECT_FLOAT_EQ(snapshot->GetWorldTransform()[3].x, 5.0f);
     EXPECT_FLOAT_EQ(snapshot->GetWorldTransform()[3].y, 2.0f);

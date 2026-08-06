@@ -64,8 +64,8 @@ namespace Elixir::Aether
 
     void Manager::BeginFrame(const Timestep& timestep)
     {
-        // Release the previous frame's non-owning references before accepting
-        // a new immutable submission.
+        // Release the previous frame's immutable states before accepting a
+        // new submission.
         m_FrameSubmission.Reset();
         GetRenderer().Update(timestep);
     }

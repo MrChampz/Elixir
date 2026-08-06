@@ -7,9 +7,9 @@
 
 namespace Elixir::Aether
 {
-    // Non-owning list of the system instances selected for one rendering frame.
-    // Submitted instances must remain alive and unchanged until Renderer::Render()
-    // returns. An instance can be submitted at most once per frame.
+    // Immutable system instance states selected for one rendering frame.
+    // Submit() captures the state exactly once; an instance can be selected
+    // at most once per frame.
     class ELIXIR_API FrameSubmission final
     {
     public:
@@ -18,36 +18,41 @@ namespace Elixir::Aether
             const auto [_, inserted] = m_InstanceIds.insert(instance.GetId());
             if (!inserted) return false;
 
-            m_Instances.push_back(&instance);
+            m_Snapshots.push_back(instance.CaptureSnapshot());
             return true;
         }
 
-        // Releases a non-owning reference before its manager-owned instance
-        // is retired and destroyed.
+        // Drop a captured state before the manager retires its GPU allocation.
         bool Remove(const SystemInstance& instance)
         {
             const auto found = m_InstanceIds.find(instance.GetId());
             if (found == m_InstanceIds.end()) return false;
 
-            std::erase(m_Instances, &instance);
+            std::erase_if(m_Snapshots, [&instance](const auto& snapshot)
+            {
+                return snapshot->GetId() == instance.GetId();
+            });
             m_InstanceIds.erase(found);
             return true;
         }
 
         void Reset()
         {
-            m_Instances.clear();
+            m_Snapshots.clear();
             m_InstanceIds.clear();
         }
 
-        bool IsEmpty() const { return m_Instances.empty(); }
+        bool IsEmpty() const { return m_Snapshots.empty(); }
 
-        size_t GetInstanceCount() const { return m_Instances.size(); }
+        size_t GetInstanceCount() const { return m_Snapshots.size(); }
 
-        const std::vector<const SystemInstance*>& GetInstances() const { return m_Instances; }
+        const std::vector<Ref<const SystemInstanceSnapshot>>& GetSnapshots() const
+        {
+            return m_Snapshots;
+        }
 
     private:
-        std::vector<const SystemInstance*> m_Instances;
+        std::vector<Ref<const SystemInstanceSnapshot>> m_Snapshots;
         std::unordered_set<UUID> m_InstanceIds;
     };
 }

@@ -173,13 +173,13 @@ namespace Elixir::Aether
 
     void Renderer::Render(const FrameSubmission& submission, const Camera& camera)
     {
-        const auto& instances = submission.GetInstances();
+        const auto& snapshots = submission.GetSnapshots();
 
         m_LastSubmissionMetrics = {
             .SubmissionSerial = ++m_SubmissionSerial,
             .DeltaTimeSeconds = m_LastDeltaTimeSeconds,
             .ElapsedTimeSeconds = m_ElapsedTimeSeconds,
-            .RequestedSystemInstanceCount = instances.size(),
+            .RequestedSystemInstanceCount = snapshots.size(),
             .TriggerEventCapacityPerEmitter =
                 m_ParticlePoolLimits.TriggerEventCapacityPerEmitter,
         };
@@ -194,11 +194,10 @@ namespace Elixir::Aether
         m_FrameConstantBuffer->UpdateData(&m_FrameData, sizeof(SFrameData));
 
         std::vector<SSubmittedSystemInstance> submittedInstances;
-        submittedInstances.reserve(instances.size());
+        submittedInstances.reserve(snapshots.size());
 
-        for (const auto* instance : instances)
+        for (const auto& snapshot : snapshots)
         {
-            const auto snapshot = instance->CaptureSnapshot();
             const auto& system = snapshot->GetCompiledSystem();
 
             m_LastSubmissionMetrics.RequestedEmitterCount += system.Emitters.size();
