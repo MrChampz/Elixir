@@ -1003,7 +1003,7 @@ namespace Elixir::Aether
         return batches;
     }
 
-    MaterialRenderScene Renderer::  BuildMaterialRenderScene(
+    MaterialRenderScene Renderer::BuildMaterialRenderScene(
         const std::vector<SSubmittedSystemInstance>& instances
     ) const
     {
