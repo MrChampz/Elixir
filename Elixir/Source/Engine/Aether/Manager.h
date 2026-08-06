@@ -53,10 +53,15 @@ namespace Elixir::Aether
         // frame submission before the renderer retires GPU allocations.
         bool DestroyInstance(const Ref<SystemInstance>& instance);
 
-        // Render-frame API. Submit() is valid only between BeginFrame() and Render().
         void BeginFrame(const Timestep& timestep);
 
-        bool Submit(const Ref<SystemInstance>& instance);
+        // A submission is built by one producer thread, then atomically
+        // published for the renderer thread to consume.
+        Ref<FrameSubmission> CreateFrameSubmission() const;
+
+        bool Submit(FrameSubmission& submission, const Ref<SystemInstance>& instance) const;
+
+        void PublishFrameSubmission(Ref<FrameSubmission> submission);
 
         void Render(const Camera& camera);
 
@@ -72,7 +77,7 @@ namespace Elixir::Aether
         MaterialSystem& m_MaterialSystem;
         std::unordered_map<UUID, Ref<SystemInstance>> m_Instances;
 
-        FrameSubmission m_FrameSubmission;
+        FrameSubmissionPublisher m_FrameSubmissionPublisher;
         Scope<Renderer> m_Renderer;
     };
 }

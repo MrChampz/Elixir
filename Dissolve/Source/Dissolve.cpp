@@ -256,11 +256,15 @@ void Dissolve::OnRender(const Timestep frameTime)
 
     //DrawGeometry();
 
-    bool submitted = aether.Submit(m_ParticleSystemInstances[0]);
+    const auto submission = aether.CreateFrameSubmission();
+
+    bool submitted = aether.Submit(*submission, m_ParticleSystemInstances[0]);
     EE_CORE_ASSERT(submitted, "The particle system instance was submitted more than once.")
 
-    submitted = aether.Submit(m_ParticleSystemInstances[1]);
+    submitted = aether.Submit(*submission, m_ParticleSystemInstances[1]);
     EE_CORE_ASSERT(submitted, "The particle system instance was submitted more than once.")
+
+    aether.PublishFrameSubmission(submission);
 
     aether.Render(m_CameraController->GetCamera());
     const auto& metrics = aether.GetLastSubmissionMetrics();

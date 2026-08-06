@@ -70,3 +70,33 @@ TEST(AetherFrameSubmissionTest, RetainsTheStateCapturedAtSubmission)
     EXPECT_FLOAT_EQ(snapshot->GetWorldTransform()[3].y, 0.0f);
     EXPECT_FLOAT_EQ(snapshot->GetWorldTransform()[3].z, 0.0f);
 }
+
+TEST(AetherFrameSubmissionPublisherTest, PublishesOnlySealedSubmissions)
+{
+    const auto compiledSystem = CreateRef<SCompiledSystem>();
+    const SystemInstance instance{ compiledSystem };
+    const auto submission = CreateRef<FrameSubmission>();
+    FrameSubmissionPublisher publisher;
+
+    ASSERT_TRUE(submission->Submit(instance));
+    publisher.Publish(submission);
+
+    const auto published = publisher.Acquire();
+    ASSERT_TRUE(published);
+    EXPECT_TRUE(published->IsSealed());
+    EXPECT_FALSE(submission->Submit(instance));
+}
+
+TEST(AetherFrameSubmissionPublisherTest, RemovesDestroyedInstanceFromPublishedFrame)
+{
+    const auto compiledSystem = CreateRef<SCompiledSystem>();
+    const SystemInstance instance{ compiledSystem };
+    const auto submission = CreateRef<FrameSubmission>();
+    FrameSubmissionPublisher publisher;
+
+    ASSERT_TRUE(submission->Submit(instance));
+    publisher.Publish(submission);
+    publisher.Remove(instance.GetId());
+
+    EXPECT_TRUE(publisher.Acquire()->IsEmpty());
+}

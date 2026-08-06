@@ -55,7 +55,7 @@ namespace Elixir::Aether
         const auto found = m_Instances.find(instance->GetId());
         if (found == m_Instances.end()) return false;
 
-        m_FrameSubmission.Remove(*instance);
+        m_FrameSubmissionPublisher.Remove(instance->GetId());
         GetRenderer().Retire(*instance);
         m_Instances.erase(found);
 
@@ -64,21 +64,30 @@ namespace Elixir::Aether
 
     void Manager::BeginFrame(const Timestep& timestep)
     {
-        // Release the previous frame's immutable states before accepting a
-        // new submission.
-        m_FrameSubmission.Reset();
         GetRenderer().Update(timestep);
     }
 
-    bool Manager::Submit(const Ref<SystemInstance>& instance)
+    Ref<FrameSubmission> Manager::CreateFrameSubmission() const
     {
-        if (!IsManagedInstance(instance)) return false;
-        return m_FrameSubmission.Submit(*instance);
+        return CreateRef<FrameSubmission>();
+    }
+
+    bool Manager::Submit(FrameSubmission& submission, const Ref<SystemInstance>& instance) const
+    {
+        return IsManagedInstance(instance) && submission.Submit(*instance);
+    }
+
+    void Manager::PublishFrameSubmission(Ref<FrameSubmission> submission)
+    {
+        m_FrameSubmissionPublisher.Publish(std::move(submission));
     }
 
     void Manager::Render(const Camera& camera)
     {
-        GetRenderer().Render(m_FrameSubmission, camera);
+        const auto submission = m_FrameSubmissionPublisher.Acquire();
+        if (!submission) return;
+
+        GetRenderer().Render(*submission, camera);
     }
 
     const SParticleSubmissionMetrics& Manager::GetLastSubmissionMetrics() const
