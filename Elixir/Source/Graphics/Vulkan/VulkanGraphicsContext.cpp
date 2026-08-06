@@ -87,7 +87,7 @@ namespace Elixir
 
         EE_CORE_INFO("Vulkan Renderer:")
 		EE_CORE_INFO("  Vendor: {0}", DeviceUtils::GetVendorName(m_GPUProperties.vendorID));
-		EE_CORE_INFO("  Renderer: {0}", m_GPUProperties.deviceName)
+		EE_CORE_INFO("  Renderer: {0}", std::string_view{ m_GPUProperties.deviceName })
 		EE_CORE_INFO("  Version: {0}", DeviceUtils::GetApiVersion(m_GPUProperties.apiVersion));
 
         m_IsInitialized = true;
