@@ -3,7 +3,6 @@
 #include <Engine/Aether/EffectMaterialResolver.h>
 #include <Engine/Aether/FrameSubmission.h>
 #include <Engine/Aether/SystemInstance.h>
-#include <Engine/Aether/SystemInstanceHandle.h>
 
 namespace Elixir
 {
@@ -46,21 +45,18 @@ namespace Elixir::Aether
 
         Ref<const SCompiledSystem> Compile(System& system) const;
 
-        SSystemInstanceHandle CreateInstance(Ref<const SCompiledSystem> system);
-
-        // The returned pointer is a temporary borrow. Do not store it across
-        // DestroyInstance() or use it from another thread.
-        SystemInstance* FindInstance(const SSystemInstanceHandle& handle);
-        const SystemInstance* FindInstance(const SSystemInstanceHandle& handle) const;
+        // The returned runtime instance is configured through its public API.
+        // Manager retains registration and GPU lifetime ownership.
+        Ref<SystemInstance> CreateInstance(Ref<const SCompiledSystem> system);
 
         // Must be called from the render-frame callback. It detaches any
         // frame submission before the renderer retires GPU allocations.
-        bool DestroyInstance(const SSystemInstanceHandle& handle);
+        bool DestroyInstance(const Ref<SystemInstance>& instance);
 
         // Render-frame API. Submit() is valid only between BeginFrame() and Render().
         void BeginFrame(const Timestep& timestep);
 
-        bool Submit(const SSystemInstanceHandle& handle);
+        bool Submit(const Ref<SystemInstance>& instance);
 
         void Render(const Camera& camera);
 
@@ -69,10 +65,12 @@ namespace Elixir::Aether
     private:
         Renderer& GetRenderer() const;
 
+        bool IsManagedInstance(const Ref<SystemInstance>& instance) const;
+
         EffectMaterialResolver m_EffectMaterials;
 
         MaterialSystem& m_MaterialSystem;
-        std::unordered_map<UUID, Scope<SystemInstance>> m_Instances;
+        std::unordered_map<UUID, Ref<SystemInstance>> m_Instances;
 
         FrameSubmission m_FrameSubmission;
         Scope<Renderer> m_Renderer;

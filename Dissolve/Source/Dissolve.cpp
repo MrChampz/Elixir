@@ -11,7 +11,7 @@
 
 Ref<GraphicsPipeline> pipeline;
 std::array<Ref<Aether::System>, 2> m_ParticleSystems;
-std::array<Aether::SSystemInstanceHandle, 2> m_ParticleSystemInstances;
+std::array<Ref<Aether::SystemInstance>, 2> m_ParticleSystemInstances;
 
 Ref<Material> graphMaterial;
 

@@ -35,39 +35,28 @@ namespace Elixir::Aether
         return CreateRef<SCompiledSystem>(system.Compile(m_MaterialSystem));
     }
 
-    SSystemInstanceHandle Manager::CreateInstance(Ref<const SCompiledSystem> system)
+    Ref<SystemInstance> Manager::CreateInstance(Ref<const SCompiledSystem> system)
     {
         EE_CORE_ASSERT(system, "Aether system instance requires a compiled system.")
 
-        auto instance = CreateScope<SystemInstance>(std::move(system));
+        auto instance = CreateRef<SystemInstance>(std::move(system));
         const auto id = instance->GetId();
 
-        const auto [_, inserted] = m_Instances.emplace(id, std::move(instance));
+        const auto [_, inserted] = m_Instances.emplace(id, instance);
         EE_CORE_ASSERT(inserted, "Aether system instance UUID must be unique.")
 
-        return { id };
+        return instance;
     }
 
-    SystemInstance* Manager::FindInstance(const SSystemInstanceHandle& handle)
+    bool Manager::DestroyInstance(const Ref<SystemInstance>& instance)
     {
-        const auto found = m_Instances.find(handle.Id);
-        return found != m_Instances.end() ? found->second.get() : nullptr;
-    }
+        if (!IsManagedInstance(instance)) return false;
 
-    const SystemInstance* Manager::FindInstance(const SSystemInstanceHandle& handle) const
-    {
-        const auto found = m_Instances.find(handle.Id);
-        return found != m_Instances.end() ? found->second.get() : nullptr;
-    }
-
-    bool Manager::DestroyInstance(const SSystemInstanceHandle& handle)
-    {
-        const auto found = m_Instances.find(handle.Id);
+        const auto found = m_Instances.find(instance->GetId());
         if (found == m_Instances.end()) return false;
 
-        const auto& instance = *found->second;
-        m_FrameSubmission.Remove(instance);
-        GetRenderer().Retire(instance);
+        m_FrameSubmission.Remove(*instance);
+        GetRenderer().Retire(*instance);
         m_Instances.erase(found);
 
         return true;
@@ -81,11 +70,9 @@ namespace Elixir::Aether
         GetRenderer().Update(timestep);
     }
 
-    bool Manager::Submit(const SSystemInstanceHandle& handle)
+    bool Manager::Submit(const Ref<SystemInstance>& instance)
     {
-        const auto* instance = FindInstance(handle);
-        if (!instance) return false;
-
+        if (!IsManagedInstance(instance)) return false;
         return m_FrameSubmission.Submit(*instance);
     }
 
@@ -103,5 +90,12 @@ namespace Elixir::Aether
     {
         EE_CORE_ASSERT(m_Renderer, "Aether renderer is unavailable.")
         return *m_Renderer;
+    }
+
+    bool Manager::IsManagedInstance(const Ref<SystemInstance>& instance) const
+    {
+        if (!instance) return false;
+        const auto found = m_Instances.find(instance->GetId());
+        return found != m_Instances.end() && found->second.get() == instance.get();
     }
 }
