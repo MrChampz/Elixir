@@ -212,11 +212,11 @@ namespace Elixir::Aether
             SSystemInstanceAllocation Allocation;
         };
 
-        // Frame-local, renderer-owned snapshot. It decouples batch execution
-        // from m_InstanceRecords and remains valid for the complete Render().
+        // Frame-local, renderer-owned snapshot paired with an immutable
+        // SystemInstance state captured at the start of Render().
         struct SSubmittedSystemInstance
         {
-            const SystemInstance* Instance = nullptr;
+            Ref<const SystemInstanceSnapshot> Snapshot;
             SSystemInstanceAllocation Allocation;
             EParticleStateLayout ParticleStateLayout = EParticleStateLayout::CoreV1;
         };
@@ -227,20 +227,20 @@ namespace Elixir::Aether
             std::vector<const SSubmittedSystemInstance*> Instances;
         };
 
-        SInstanceRecord* ResolveInstanceRecord(const SystemInstance& instance);
+        SInstanceRecord* ResolveInstanceRecord(const SystemInstanceSnapshot& snapshot);
         void UploadCompiledSystem(
-            const SystemInstance& instance,
+            const SystemInstanceSnapshot& snapshot,
             const SSystemInstanceAllocation& allocation
         ) const;
         void UploadInstanceParameters(
-            const SystemInstance& instance,
+            const SystemInstanceSnapshot& snapshot,
             const SSystemInstanceAllocation& allocation
         ) const;
 
         void QueueRetirement(SSystemInstanceAllocation allocation);
         void ProcessCompletedRetirements();
 
-        void UpdateBuffers(SystemInstance const& instance, SInstanceRecord& record);
+        void UpdateBuffers(const SystemInstanceSnapshot& snapshot, SInstanceRecord& record);
 
         SParticleStateLayoutRuntime* FindParticleStateLayoutRuntime(EParticleStateLayout layout);
         const SParticleStateLayoutRuntime* FindParticleStateLayoutRuntime(EParticleStateLayout layout) const;
