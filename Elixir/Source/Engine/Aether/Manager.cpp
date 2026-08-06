@@ -35,7 +35,7 @@ namespace Elixir::Aether
         return CreateRef<SCompiledSystem>(system.Compile(m_MaterialSystem));
     }
 
-    SystemInstance& Manager::CreateInstance(Ref<const SCompiledSystem> system)
+    SSystemInstanceHandle Manager::CreateInstance(Ref<const SCompiledSystem> system)
     {
         EE_CORE_ASSERT(system, "Aether system instance requires a compiled system.")
 
@@ -45,12 +45,24 @@ namespace Elixir::Aether
         const auto [_, inserted] = m_Instances.emplace(id, std::move(instance));
         EE_CORE_ASSERT(inserted, "Aether system instance UUID must be unique.")
 
-        return *m_Instances[id];
+        return { id };
     }
 
-    bool Manager::DestroyInstance(const UUID& instanceId)
+    SystemInstance* Manager::FindInstance(const SSystemInstanceHandle& handle)
     {
-        const auto found = m_Instances.find(instanceId);
+        const auto found = m_Instances.find(handle.Id);
+        return found != m_Instances.end() ? found->second.get() : nullptr;
+    }
+
+    const SystemInstance* Manager::FindInstance(const SSystemInstanceHandle& handle) const
+    {
+        const auto found = m_Instances.find(handle.Id);
+        return found != m_Instances.end() ? found->second.get() : nullptr;
+    }
+
+    bool Manager::DestroyInstance(const SSystemInstanceHandle& handle)
+    {
+        const auto found = m_Instances.find(handle.Id);
         if (found == m_Instances.end()) return false;
 
         const auto& instance = *found->second;
@@ -69,9 +81,12 @@ namespace Elixir::Aether
         GetRenderer().Update(timestep);
     }
 
-    bool Manager::Submit(const SystemInstance& instance)
+    bool Manager::Submit(const SSystemInstanceHandle& handle)
     {
-        return m_FrameSubmission.Submit(instance);
+        const auto* instance = FindInstance(handle);
+        if (!instance) return false;
+
+        return m_FrameSubmission.Submit(*instance);
     }
 
     void Manager::Render(const Camera& camera)

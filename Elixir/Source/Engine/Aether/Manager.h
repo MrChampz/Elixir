@@ -3,6 +3,7 @@
 #include <Engine/Aether/EffectMaterialResolver.h>
 #include <Engine/Aether/FrameSubmission.h>
 #include <Engine/Aether/SystemInstance.h>
+#include <Engine/Aether/SystemInstanceHandle.h>
 
 namespace Elixir
 {
@@ -45,18 +46,21 @@ namespace Elixir::Aether
 
         Ref<const SCompiledSystem> Compile(System& system) const;
 
-        // The manager owns the returned instance. It remains valid until
-        // DestroyInstance() is called or the manager is destroyed.
-        SystemInstance& CreateInstance(Ref<const SCompiledSystem> system);
+        SSystemInstanceHandle CreateInstance(Ref<const SCompiledSystem> system);
+
+        // The returned pointer is a temporary borrow. Do not store it across
+        // DestroyInstance() or use it from another thread.
+        SystemInstance* FindInstance(const SSystemInstanceHandle& handle);
+        const SystemInstance* FindInstance(const SSystemInstanceHandle& handle) const;
 
         // Must be called from the render-frame callback. It detaches any
         // frame submission before the renderer retires GPU allocations.
-        bool DestroyInstance(const UUID& instanceId);
+        bool DestroyInstance(const SSystemInstanceHandle& handle);
 
         // Render-frame API. Submit() is valid only between BeginFrame() and Render().
         void BeginFrame(const Timestep& timestep);
 
-        bool Submit(const SystemInstance& instance);
+        bool Submit(const SSystemInstanceHandle& handle);
 
         void Render(const Camera& camera);
 
