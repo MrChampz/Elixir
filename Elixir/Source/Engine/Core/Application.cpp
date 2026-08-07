@@ -192,9 +192,11 @@ namespace Elixir
             m_GUIManager->ArrangeLayout(m_Window->GetWindowExtent()); // TODO: Remove from here and handle only when resizing
             m_GUIManager->Update(frameTime);
 
+            Prepare(frameTime);
+
             m_GraphicsContext->RenderFrame([this, frameTime]()
             {
-                OnRender(frameTime);
+                Render(frameTime);
                 m_GUIManager->Render();
             });
 

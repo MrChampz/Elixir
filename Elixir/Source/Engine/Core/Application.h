@@ -34,7 +34,12 @@ namespace Elixir
         void Run();
 
         virtual void OnGUI(Timestep frameTime) {}
-        virtual void OnRender(Timestep frameTime) {}
+
+        // Runs on the application thread before its render task is queued.
+        // Implementations must not record GPU commands from this method.
+        virtual void Prepare(Timestep frameTime) {}
+
+        virtual void Render(Timestep frameTime) {}
         virtual void OnEvent(Event& event);
 
         const Window* GetWindow() const { return m_Window.get(); }

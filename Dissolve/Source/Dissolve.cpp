@@ -240,10 +240,27 @@ void Dissolve::OnGUI(const Timestep frameTime)
     Application::OnGUI(frameTime);
 }
 
-void Dissolve::OnRender(const Timestep frameTime)
+void Dissolve::Prepare(const Timestep frameTime)
 {
     EE_PROFILE_ZONE_SCOPED()
-    Application::OnRender(frameTime);
+    Application::Prepare(frameTime);
+
+    auto& aether = GetAetherManager();
+    const auto submission = aether.CreateFrameSubmission();
+
+    bool submitted = aether.Submit(*submission, m_ParticleSystemInstances[0]);
+    EE_CORE_ASSERT(submitted, "The particle system instance was submitted more than once.")
+
+    submitted = aether.Submit(*submission, m_ParticleSystemInstances[1]);
+    EE_CORE_ASSERT(submitted, "The particle system instance was submitted more than once.")
+
+    aether.PublishFrameSubmission(submission);
+}
+
+void Dissolve::Render(const Timestep frameTime)
+{
+    EE_PROFILE_ZONE_SCOPED()
+    Application::Render(frameTime);
 
     m_CameraController->Update(frameTime);
     m_FrameData.ViewProj = m_CameraController->GetCamera().GetViewProjectionMatrix();
@@ -255,16 +272,6 @@ void Dissolve::OnRender(const Timestep frameTime)
     m_GraphicsContext->Clear();
 
     //DrawGeometry();
-
-    const auto submission = aether.CreateFrameSubmission();
-
-    bool submitted = aether.Submit(*submission, m_ParticleSystemInstances[0]);
-    EE_CORE_ASSERT(submitted, "The particle system instance was submitted more than once.")
-
-    submitted = aether.Submit(*submission, m_ParticleSystemInstances[1]);
-    EE_CORE_ASSERT(submitted, "The particle system instance was submitted more than once.")
-
-    aether.PublishFrameSubmission(submission);
 
     aether.Render(m_CameraController->GetCamera());
     const auto& metrics = aether.GetLastSubmissionMetrics();
