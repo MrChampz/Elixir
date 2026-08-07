@@ -1,5 +1,10 @@
 #include <gtest/gtest.h>
 
+#include <barrier>
+#include <concepts>
+#include <thread>
+#include <utility>
+
 #include <Engine/Aether/FrameSubmission.h>
 
 using namespace Elixir;
@@ -20,6 +25,13 @@ concept HasFrameSnapshots = requires(const T& submission)
 };
 
 static_assert(!HasFrameSnapshots<FrameSubmission>);
+
+static_assert(
+    std::same_as<
+        decltype(std::declval<const FrameSubmission&>().GetRenderProxies()),
+        const std::vector<Ref<const SystemInstanceRenderProxy>>&
+    >
+);
 
 TEST(AetherFrameSubmissionTest, RetainsEachSystemInstanceAtMostOnce)
 {
@@ -116,7 +128,7 @@ TEST(AetherFrameSubmissionPublisherTest, RemovesDestroyedInstanceFromPublishedFr
     EXPECT_TRUE(publisher.Acquire()->IsEmpty());
 }
 
-TEST(AetherFrameSubmissionTest, FiltersInstanceRejectedAtPublication)
+TEST(AetherFrameSubmissionPublisherTest, FiltersInstanceRejectedAtPublication)
 {
     const auto system = CreateRef<SCompiledSystem>();
     const SystemInstance instance{ system };
@@ -130,4 +142,41 @@ TEST(AetherFrameSubmissionTest, FiltersInstanceRejectedAtPublication)
     });
 
     EXPECT_TRUE(publisher.Acquire()->IsEmpty());
+}
+
+TEST(AetherFrameSubmissionPublisherTest, PublishesAndAcquiresSealedFramesConcurrently)
+{
+    const auto system = CreateRef<SCompiledSystem>();
+    const SystemInstance instance{ system };
+    const auto firstSubmission = CreateRef<FrameSubmission>();
+    const auto replacementSubmission = CreateRef<FrameSubmission>();
+    FrameSubmissionPublisher publisher;
+    std::barrier firstFramePublished{ 2 };
+    std::barrier beginConcurrentAccess{ 2 };
+
+    ASSERT_TRUE(firstSubmission->Submit(instance));
+    ASSERT_TRUE(replacementSubmission->Submit(instance));
+
+    std::thread publicationThread([&]
+    {
+        publisher.Publish(firstSubmission);
+        firstFramePublished.arrive_and_wait();
+        beginConcurrentAccess.arrive_and_wait();
+        publisher.Publish(replacementSubmission);
+    });
+
+    firstFramePublished.arrive_and_wait();
+    beginConcurrentAccess.arrive_and_wait();
+    const auto concurrentFrame = publisher.Acquire();
+
+    publicationThread.join();
+
+    ASSERT_TRUE(concurrentFrame);
+    EXPECT_TRUE(concurrentFrame->IsSealed());
+    EXPECT_EQ(concurrentFrame->GetInstanceCount(), 1);
+
+    const auto finalFrame = publisher.Acquire();
+    ASSERT_TRUE(finalFrame);
+    EXPECT_TRUE(finalFrame->IsSealed());
+    EXPECT_EQ(finalFrame->GetInstanceCount(), 1);
 }

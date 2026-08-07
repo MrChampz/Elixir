@@ -1,10 +1,21 @@
 #include <gtest/gtest.h>
 
+#include <barrier>
+#include <thread>
+
 #include <Engine/Aether/SystemInstance.h>
 #include <Engine/Aether/FrameSubmission.h>
 
 using namespace Elixir;
 using namespace Elixir::Aether;
+
+template <typename T>
+concept HasPublicSnapshotCapture = requires(const T& instance)
+{
+    instance.CaptureSnapshot();
+};
+
+static_assert(!HasPublicSnapshotCapture<SystemInstance>);
 
 namespace
 {
@@ -139,4 +150,34 @@ TEST(AetherSystemInstanceTest, StoresWorldTransformWithoutChangingCompiledSystem
     EXPECT_FLOAT_EQ(snapshot->GetWorldTransform()[3].y, 2.0f);
     EXPECT_FLOAT_EQ(snapshot->GetWorldTransform()[3].z, -3.0f);
     EXPECT_EQ(&snapshot->GetCompiledSystem(), compiledSystem.get());
+}
+
+TEST(AetherSystemInstanceTest, KeepsCapturedProxyImmutableDuringConcurrentOverrides)
+{
+    const auto system = MakeCompiledSystem();
+    SystemInstance instance{ system };
+    const auto capturedBeforeOverrides = CaptureForTest(instance);
+    std::barrier beginUpdates{ 2 };
+
+    std::thread overrideThread([&]
+    {
+        beginUpdates.arrive_and_wait();
+
+        for (uint32_t value = 2; value <= 64; ++value)
+            instance.SetParameterOverride("Tint", { (float)value, 0.0f, 0.0f, 1.0f });
+    });
+
+    beginUpdates.arrive_and_wait();
+
+    for (uint32_t capture = 0; capture < 64; ++capture)
+    {
+        const auto proxy = CaptureForTest(instance);
+        EXPECT_GE(proxy->GetParameterValue(0).x, 1.0f);
+        EXPECT_LE(proxy->GetParameterValue(0).x, 64.0f);
+    }
+
+    overrideThread.join();
+
+    EXPECT_FLOAT_EQ(capturedBeforeOverrides->GetParameterValue(0).x, 1.0f);
+    EXPECT_FLOAT_EQ(CaptureForTest(instance)->GetParameterValue(0).x, 64.0f);
 }
