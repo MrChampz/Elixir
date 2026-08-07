@@ -290,16 +290,16 @@ namespace Elixir::Aether
         EndRendering(cmd);
     }
 
-    void Renderer::Retire(const SystemInstance& instance)
+    void Renderer::Retire(const SSystemInstanceKey& key)
     {
-        const auto found = m_InstanceRecords.find(instance.GetKey());
+        const auto found = m_InstanceRecords.find(key);
         if (found == m_InstanceRecords.end())
             return;
 
         QueueRetirement(found->second.Allocation);
         m_InstanceRecords.erase(found);
-        m_AllocationFailures.erase(instance.GetKey());
-        m_UnsupportedParticleStateLayoutInstances.erase(instance.GetKey());
+        m_AllocationFailures.erase(key);
+        m_UnsupportedParticleStateLayoutInstances.erase(key);
     }
 
     const SParticleSubmissionMetrics& Renderer::GetLastSubmissionMetrics() const

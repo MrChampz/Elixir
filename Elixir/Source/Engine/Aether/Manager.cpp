@@ -41,6 +41,7 @@ namespace Elixir::Aether
 
         auto instance = CreateRef<SystemInstance>(std::move(system));
         const auto key = instance->GetKey();
+        const std::scoped_lock lock(m_InstancesMutex);
 
         const auto [_, inserted] = m_Instances.emplace(key, instance);
         EE_CORE_ASSERT(inserted, "Aether system instance UUID must be unique.")
@@ -50,7 +51,8 @@ namespace Elixir::Aether
 
     bool Manager::DestroyInstance(const Ref<SystemInstance>& instance)
     {
-        if (!IsManagedInstance(instance)) return false;
+        const std::scoped_lock lock(m_InstancesMutex);
+        if (!IsManagedInstanceLocked(instance)) return false;
 
         const auto found = m_Instances.find(instance->GetKey());
         if (found == m_Instances.end()) return false;
@@ -75,12 +77,24 @@ namespace Elixir::Aether
 
     bool Manager::Submit(FrameSubmission& submission, const Ref<SystemInstance>& instance) const
     {
-        return IsManagedInstance(instance) && submission.Submit(*instance);
+        const std::scoped_lock lock(m_InstancesMutex);
+        return IsManagedInstanceLocked(instance) && submission.Submit(*instance);
     }
 
     void Manager::PublishFrameSubmission(Ref<FrameSubmission> submission)
     {
-        m_FrameSubmissionPublisher.Publish(std::move(submission));
+        EE_CORE_ASSERT(submission, "Aether frame submission cannot be null.")
+
+        // Keep the registry lock until publishing is complete. DestroyInstance()
+        // takes the same lock before removing a published frame.
+        const std::lock_guard lock(m_InstancesMutex);
+        m_FrameSubmissionPublisher.Publish(
+            std::move(submission),
+            [this](const SSystemInstanceKey& key)
+            {
+                return m_Instances.contains(key);
+            }
+        );
     }
 
     void Manager::Render(const Camera& camera)
@@ -107,10 +121,16 @@ namespace Elixir::Aether
         const auto instances = m_PendingRetirements.Drain();
 
         for (const auto& instance : instances)
-            GetRenderer().Retire(*instance);
+            GetRenderer().Retire(instance->GetKey());
     }
 
     bool Manager::IsManagedInstance(const Ref<SystemInstance>& instance) const
+    {
+        const std::scoped_lock lock(m_InstancesMutex);
+        return IsManagedInstanceLocked(instance);
+    }
+
+    bool Manager::IsManagedInstanceLocked(const Ref<SystemInstance>& instance) const
     {
         if (!instance) return false;
         const auto found = m_Instances.find(instance->GetKey());

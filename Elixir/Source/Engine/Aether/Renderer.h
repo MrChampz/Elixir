@@ -162,7 +162,7 @@ namespace Elixir::Aether
 
         // Must be called from the render-frame callback. The allocation remains
         // resident until the current frame slot is recycled after its GPU fence.
-        void Retire(const SystemInstance& instance);
+        void Retire(const SSystemInstanceKey& key);
 
         // Read only at the frame boundary after Render() returns.
         const SParticleSubmissionMetrics& GetLastSubmissionMetrics() const;

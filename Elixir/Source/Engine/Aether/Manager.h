@@ -74,11 +74,13 @@ namespace Elixir::Aether
         void RetireDestroyedInstances();
 
         bool IsManagedInstance(const Ref<SystemInstance>& instance) const;
+        bool IsManagedInstanceLocked(const Ref<SystemInstance>& instance) const;
 
         EffectMaterialResolver m_EffectMaterials;
 
         MaterialSystem& m_MaterialSystem;
         std::unordered_map<SSystemInstanceKey, Ref<SystemInstance>> m_Instances;
+        mutable std::mutex m_InstancesMutex;
 
         SystemInstanceRetirementQueue m_PendingRetirements;
         FrameSubmissionPublisher m_FrameSubmissionPublisher;

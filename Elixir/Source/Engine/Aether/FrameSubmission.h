@@ -79,6 +79,27 @@ namespace Elixir::Aether
         }
 
     private:
+        template <typename T>
+        Ref<const FrameSubmission> WithAllowedInstances(T&& isAllowed) const
+        {
+            auto copy = CreateRef<FrameSubmission>();
+            copy->m_RenderProxies = m_RenderProxies;
+            copy->m_InstanceKeys = m_InstanceKeys;
+
+            std::erase_if(copy->m_RenderProxies, [&isAllowed](const auto& proxy)
+            {
+                return !isAllowed(proxy->GetKey());
+            });
+
+            std::erase_if(copy->m_InstanceKeys, [&isAllowed](const auto& key)
+            {
+                return !isAllowed(key);
+            });
+
+            copy->m_IsSealed = true;
+            return copy;
+        }
+
         void Seal() { m_IsSealed = true; }
 
         bool m_IsSealed = false;
@@ -92,11 +113,24 @@ namespace Elixir::Aether
     public:
         void Publish(Ref<FrameSubmission> submission)
         {
+            Publish(std::move(submission), [](const SSystemInstanceKey&)
+            {
+                return true;
+            });
+        }
+
+        template <typename T>
+        void Publish(Ref<FrameSubmission> submission, T&& isAllowed)
+        {
             EE_CORE_ASSERT(submission, "Aether frame submission cannot be null.")
             submission->Seal();
 
+            const auto filtered = submission->WithAllowedInstances(
+                std::forward<T>(isAllowed)
+            );
+
             const std::scoped_lock lock(m_Mutex);
-            m_Published = std::move(submission);
+            m_Published = std::move(filtered);
         }
 
         Ref<const FrameSubmission> Acquire()

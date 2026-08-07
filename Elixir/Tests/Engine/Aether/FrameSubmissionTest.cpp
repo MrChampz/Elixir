@@ -115,3 +115,19 @@ TEST(AetherFrameSubmissionPublisherTest, RemovesDestroyedInstanceFromPublishedFr
 
     EXPECT_TRUE(publisher.Acquire()->IsEmpty());
 }
+
+TEST(AetherFrameSubmissionTest, FiltersInstanceRejectedAtPublication)
+{
+    const auto system = CreateRef<SCompiledSystem>();
+    const SystemInstance instance{ system };
+    const auto submission = CreateRef<FrameSubmission>();
+    FrameSubmissionPublisher publisher;
+
+    ASSERT_TRUE(submission->Submit(instance));
+    publisher.Publish(submission, [](const SSystemInstanceKey&)
+    {
+        return false;
+    });
+
+    EXPECT_TRUE(publisher.Acquire()->IsEmpty());
+}
