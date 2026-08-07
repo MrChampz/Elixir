@@ -4,6 +4,7 @@
 
 namespace Elixir::Aether
 {
+    class SystemInstanceRenderProxy;
     class FrameSubmissionPublisher;
     class Manager;
     class Renderer;
@@ -46,8 +47,6 @@ namespace Elixir::Aether
             Ref<const ParameterOverridesMap> overrides
         );
 
-        glm::vec4 ResolveParameterValue(uint32_t parameterIndex) const;
-
         uint32_t GetRevision() const { return m_Revision; }
         uint32_t GetParameterRevision() const { return m_ParameterRevision; }
         const SCompiledSystem& GetCompiledSystem() const { return *m_CompiledSystem; }
@@ -55,6 +54,7 @@ namespace Elixir::Aether
 
     private:
         const SSystemInstanceKey& GetKey() const { return m_Key; }
+        const Ref<const SystemInstanceRenderProxy>& GetRenderProxy() const { return m_RenderProxy; }
 
         SSystemInstanceKey m_Key;
         uint32_t m_Revision = 1;
@@ -62,6 +62,7 @@ namespace Elixir::Aether
         Ref<const SCompiledSystem> m_CompiledSystem;
         glm::mat4 m_WorldTransform{ 1.0f };
         Ref<const ParameterOverridesMap> m_ParameterOverrides;
+        Ref<const SystemInstanceRenderProxy> m_RenderProxy;
     };
 
     // Runtime identity and immutable compiled payload selection.

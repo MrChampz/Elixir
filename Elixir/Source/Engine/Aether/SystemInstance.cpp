@@ -1,6 +1,8 @@
 #include "epch.h"
 #include "SystemInstance.h"
 
+#include <Engine/Aether/SystemInstanceRenderProxy.h>
+
 namespace Elixir::Aether
 {
     /* SystemInstanceSnapshot */
@@ -17,24 +19,15 @@ namespace Elixir::Aether
         m_ParameterRevision(parameterRevision),
         m_CompiledSystem(std::move(system)),
         m_WorldTransform(worldTransform),
-        m_ParameterOverrides(std::move(overrides)) {}
-
-    glm::vec4 SystemInstanceSnapshot::ResolveParameterValue(uint32_t parameterIndex) const
-    {
-        EE_CORE_ASSERT(
-            parameterIndex < m_CompiledSystem->Parameters.size(),
-            "Aether parameter index is outside the compiled system parameter table."
-        )
-
-        if (parameterIndex >= m_CompiledSystem->Parameters.size()) return {};
-
-        const auto& parameter = m_CompiledSystem->Parameters[parameterIndex];
-        const auto found = m_ParameterOverrides->find(parameter.Name);
-
-        return found != m_ParameterOverrides->end()
-            ? found->second
-            : parameter.Value;
-    }
+        m_ParameterOverrides(std::move(overrides)),
+        m_RenderProxy(new SystemInstanceRenderProxy(
+            m_Key,
+            m_Revision,
+            m_ParameterRevision,
+            m_CompiledSystem,
+            m_WorldTransform,
+            *m_ParameterOverrides
+        )) {}
 
     /* SystemInstance */
 

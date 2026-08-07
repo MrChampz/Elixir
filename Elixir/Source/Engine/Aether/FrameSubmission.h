@@ -4,6 +4,7 @@
 #include <vector>
 
 #include <Engine/Aether/SystemInstance.h>
+#include <Engine/Aether/SystemInstanceRenderProxy.h>
 
 namespace Elixir::Aether
 {
@@ -21,7 +22,8 @@ namespace Elixir::Aether
             const auto [_, inserted] = m_InstanceKeys.insert(instance.GetKey());
             if (!inserted) return false;
 
-            m_Snapshots.push_back(instance.CaptureSnapshot());
+            const auto snapshot = instance.CaptureSnapshot();
+            m_RenderProxies.push_back(snapshot->GetRenderProxy());
             return true;
         }
 
@@ -33,29 +35,31 @@ namespace Elixir::Aether
             const auto found = m_InstanceKeys.find(instance.GetKey());
             if (found == m_InstanceKeys.end()) return false;
 
-            std::erase_if(m_Snapshots, [&instance](const auto& snapshot)
+            std::erase_if(m_RenderProxies, [&instance](const auto& proxy)
             {
-                return snapshot->GetKey() == instance.GetKey();
+                return proxy->GetKey() == instance.GetKey();
             });
+
             m_InstanceKeys.erase(found);
+
             return true;
         }
 
         void Reset()
         {
-            m_Snapshots.clear();
+            m_RenderProxies.clear();
             m_InstanceKeys.clear();
         }
 
         Ref<const FrameSubmission> Without(const SSystemInstanceKey& key) const
         {
             auto copy = CreateRef<FrameSubmission>();
-            copy->m_Snapshots = m_Snapshots;
+            copy->m_RenderProxies = m_RenderProxies;
             copy->m_InstanceKeys = m_InstanceKeys;
 
-            std::erase_if(copy->m_Snapshots, [&key](const auto& snapshot)
+            std::erase_if(copy->m_RenderProxies, [&key](const auto& proxy)
             {
-                return snapshot->GetKey() == key;
+                return proxy->GetKey() == key;
             });
 
             copy->m_InstanceKeys.erase(key);
@@ -65,20 +69,20 @@ namespace Elixir::Aether
 
         bool IsSealed() const { return m_IsSealed; }
 
-        bool IsEmpty() const { return m_Snapshots.empty(); }
+        bool IsEmpty() const { return m_RenderProxies.empty(); }
 
-        size_t GetInstanceCount() const { return m_Snapshots.size(); }
+        size_t GetInstanceCount() const { return m_RenderProxies.size(); }
 
-        const std::vector<Ref<const SystemInstanceSnapshot>>& GetSnapshots() const
+        const std::vector<Ref<const SystemInstanceRenderProxy>>& GetRenderProxies() const
         {
-            return m_Snapshots;
+            return m_RenderProxies;
         }
 
     private:
         void Seal() { m_IsSealed = true; }
 
         bool m_IsSealed = false;
-        std::vector<Ref<const SystemInstanceSnapshot>> m_Snapshots;
+        std::vector<Ref<const SystemInstanceRenderProxy>> m_RenderProxies;
         std::unordered_set<SSystemInstanceKey> m_InstanceKeys;
     };
 

@@ -3,6 +3,7 @@
 
 #include <Engine/Graphics/CommandBuffer.h>
 #include <Engine/Material/MaterialSystem.h>
+#include <Engine/Aether/SystemInstanceRenderProxy.h>
 
 namespace Elixir::Aether
 {
@@ -114,11 +115,11 @@ namespace Elixir::Aether
 
     glm::mat4 GetParticleRenderTransform(
         const SCompiledEmitter& emitter,
-        const SystemInstanceSnapshot& snapshot
+        const SystemInstanceRenderProxy& proxy
     )
     {
         return emitter.SimulationSpace == EParticleSimulationSpace::Local
-            ? snapshot.GetWorldTransform()
+            ? proxy.GetWorldTransform()
             : glm::mat4{ 1.0f };
     }
 
@@ -173,13 +174,13 @@ namespace Elixir::Aether
 
     void Renderer::Render(const FrameSubmission& submission, const Camera& camera)
     {
-        const auto& snapshots = submission.GetSnapshots();
+        const auto& proxies = submission.GetRenderProxies();
 
         m_LastSubmissionMetrics = {
             .SubmissionSerial = ++m_SubmissionSerial,
             .DeltaTimeSeconds = m_LastDeltaTimeSeconds,
             .ElapsedTimeSeconds = m_ElapsedTimeSeconds,
-            .RequestedSystemInstanceCount = snapshots.size(),
+            .RequestedSystemInstanceCount = proxies.size(),
             .TriggerEventCapacityPerEmitter =
                 m_ParticlePoolLimits.TriggerEventCapacityPerEmitter,
         };
@@ -194,18 +195,18 @@ namespace Elixir::Aether
         m_FrameConstantBuffer->UpdateData(&m_FrameData, sizeof(SFrameData));
 
         std::vector<SSubmittedSystemInstance> submittedInstances;
-        submittedInstances.reserve(snapshots.size());
+        submittedInstances.reserve(proxies.size());
 
-        for (const auto& snapshot : snapshots)
+        for (const auto& proxy : proxies)
         {
-            const auto& system = snapshot->GetCompiledSystem();
+            const auto& system = proxy->GetCompiledSystem();
 
             m_LastSubmissionMetrics.RequestedEmitterCount += system.Emitters.size();
             m_LastSubmissionMetrics.RequestedParticleCapacity += system.TotalMaxParticles;
 
             if (!IsParticleStateLayoutSupported(system.ParticleStateLayout))
             {
-                if (m_UnsupportedParticleStateLayoutInstances.insert(snapshot->GetKey()).second)
+                if (m_UnsupportedParticleStateLayoutInstances.insert(proxy->GetKey()).second)
                 {
                     EE_CORE_ERROR(
                         "Aether does not support particle state layout '{}' for system instance '{}'.",
@@ -217,12 +218,12 @@ namespace Elixir::Aether
                 continue;
             }
 
-            m_UnsupportedParticleStateLayoutInstances.erase(snapshot->GetKey());
+            m_UnsupportedParticleStateLayoutInstances.erase(proxy->GetKey());
 
-            auto* record = ResolveInstanceRecord(*snapshot);
+            auto* record = ResolveInstanceRecord(*proxy);
             if (!record) continue;
 
-            UpdateBuffers(*snapshot, *record);
+            UpdateBuffers(*proxy, *record);
 
             const auto emitterCount = record->Allocation.Emitters.Count;
             const auto particleCount = record->Allocation.Particles.Count;
@@ -232,7 +233,7 @@ namespace Elixir::Aether
             m_LastSubmissionMetrics.SubmittedParticleCapacity += particleCount;
 
             submittedInstances.push_back({
-                .Snapshot = snapshot,
+                .Proxy = proxy,
                 .Allocation = record->Allocation,
                 .ParticleStateLayout = system.ParticleStateLayout,
             });
@@ -769,11 +770,11 @@ namespace Elixir::Aether
     }
 
     Renderer::SInstanceRecord* Renderer::ResolveInstanceRecord(
-        const SystemInstanceSnapshot& snapshot
+        const SystemInstanceRenderProxy& proxy
     )
     {
-        const auto instanceRevision = snapshot.GetRevision();
-        const auto found = m_InstanceRecords.find(snapshot.GetKey());
+        const auto instanceRevision = proxy.GetRevision();
+        const auto found = m_InstanceRecords.find(proxy.GetKey());
 
         if (found != m_InstanceRecords.end() &&
             found->second.SystemInstanceRevision == instanceRevision)
@@ -781,12 +782,12 @@ namespace Elixir::Aether
             return &found->second;
         }
 
-        const auto& system = snapshot.GetCompiledSystem();
+        const auto& system = proxy.GetCompiledSystem();
 
         const auto replacementAllocation = m_ParticleResourcePool.Allocate(system);
         if (!replacementAllocation)
         {
-            if (m_AllocationFailures.insert(snapshot.GetKey()).second)
+            if (m_AllocationFailures.insert(proxy.GetKey()).second)
             {
                 EE_CORE_ERROR(
                     "Aether GPU resource pool exhausted while creating system instance '{}'.",
@@ -798,23 +799,23 @@ namespace Elixir::Aether
         }
 
         ClearParticleAllocation(*replacementAllocation);
-        UploadCompiledSystem(snapshot, *replacementAllocation);
+        UploadCompiledSystem(proxy, *replacementAllocation);
 
         const SInstanceRecord replacement{
-            .SystemInstanceKey = snapshot.GetKey(),
+            .SystemInstanceKey = proxy.GetKey(),
             .SystemInstanceRevision = instanceRevision,
             .CompiledSystemId = system.SourceId,
             .CompilationRevision = system.CompilationRevision,
-            .ParameterRevision = snapshot.GetParameterRevision(),
+            .ParameterRevision = proxy.GetParameterRevision(),
             .Allocation = *replacementAllocation,
         };
 
         if (found == m_InstanceRecords.end())
         {
-            const auto [it, inserted] = m_InstanceRecords.emplace(snapshot.GetKey(), replacement);
+            const auto [it, inserted] = m_InstanceRecords.emplace(proxy.GetKey(), replacement);
 
             EE_CORE_ASSERT(inserted, "Aether system instance registry insertion failed.")
-            m_AllocationFailures.erase(snapshot.GetKey());
+            m_AllocationFailures.erase(proxy.GetKey());
             return &it->second;
         }
 
@@ -822,16 +823,16 @@ namespace Elixir::Aether
         // previous record. If allocation fails, the old record remains intact.
         QueueRetirement(found->second.Allocation);
         found->second = replacement;
-        m_AllocationFailures.erase(snapshot.GetKey());
+        m_AllocationFailures.erase(proxy.GetKey());
         return &found->second;
     }
 
     void Renderer::UploadCompiledSystem(
-        const SystemInstanceSnapshot& snapshot,
+        const SystemInstanceRenderProxy& proxy,
         const SSystemInstanceAllocation& allocation
     ) const
     {
-        const auto& system = snapshot.GetCompiledSystem();
+        const auto& system = proxy.GetCompiledSystem();
 
         auto* emitters = (SEmitterData*)m_EmitterBuffer->Map();
         for (uint32_t i = 0; i < allocation.Emitters.Count; ++i)
@@ -852,7 +853,7 @@ namespace Elixir::Aether
             );
         }
 
-        UploadInstanceParameters(snapshot, allocation);
+        UploadInstanceParameters(proxy, allocation);
 
         auto* targets = (STriggerTargetData*)m_TriggerTargetBuffer->Map();
         for (uint32_t i = 0; i < allocation.TriggerTargets.Count; ++i)
@@ -861,14 +862,14 @@ namespace Elixir::Aether
     }
 
     void Renderer::UploadInstanceParameters(
-        const SystemInstanceSnapshot& snapshot,
+        const SystemInstanceRenderProxy& proxy,
         const SSystemInstanceAllocation& allocation
     ) const
     {
         auto* parameters = (SParameterData*)m_ParameterBuffer->Map();
         for (uint32_t i = 0; i < allocation.Parameters.Count; ++i)
             parameters[allocation.Parameters.Offset + i].Value =
-                snapshot.ResolveParameterValue(i);
+                proxy.GetParameterValue(i);
     }
 
     void Renderer::QueueRetirement(SSystemInstanceAllocation allocation)
@@ -891,14 +892,14 @@ namespace Elixir::Aether
     }
 
     void Renderer::UpdateBuffers(
-        const SystemInstanceSnapshot& snapshot,
+        const SystemInstanceRenderProxy& proxy,
         SInstanceRecord& record
     )
     {
-        if (record.ParameterRevision != snapshot.GetParameterRevision())
+        if (record.ParameterRevision != proxy.GetParameterRevision())
         {
-            UploadInstanceParameters(snapshot, record.Allocation);
-            record.ParameterRevision = snapshot.GetParameterRevision();
+            UploadInstanceParameters(proxy, record.Allocation);
+            record.ParameterRevision = proxy.GetParameterRevision();
         }
 
         const SParamsData params{
@@ -912,7 +913,7 @@ namespace Elixir::Aether
         };
         m_ParamsBuffer->UpdateData(&params, sizeof(SParamsData));
 
-        const auto& system = snapshot.GetCompiledSystem();
+        const auto& system = proxy.GetCompiledSystem();
 
         const SSystemInstanceData instanceData
         {
@@ -1087,7 +1088,7 @@ namespace Elixir::Aether
 
         for (const auto& instance : instances)
         {
-            const auto& emitters = instance.Snapshot->GetCompiledSystem().Emitters;
+                    const auto& emitters = instance.Proxy->GetCompiledSystem().Emitters;
             const auto geometry = getGeometry(instance.ParticleStateLayout);
 
             for (uint32_t emitterIndex = 0; emitterIndex < emitters.size(); ++emitterIndex)
@@ -1097,7 +1098,7 @@ namespace Elixir::Aether
 
                 const auto worldTransform = GetParticleRenderTransform(
                     emitter,
-                    *instance.Snapshot
+                    *instance.Proxy
                 );
 
                 switch (emitter.RenderMode)
@@ -1264,7 +1265,7 @@ namespace Elixir::Aether
 
         for (const auto* instance : batch.Instances)
         {
-            const auto& system = instance->Snapshot->GetCompiledSystem();
+            const auto& system = instance->Proxy->GetCompiledSystem();
             const auto emitterCount = instance->Allocation.Emitters.Count;
 
             m_LastSubmissionMetrics.ScheduledEmitterCount += emitterCount;

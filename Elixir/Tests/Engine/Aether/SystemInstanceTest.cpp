@@ -8,11 +8,11 @@ using namespace Elixir::Aether;
 
 namespace
 {
-    Ref<const SystemInstanceSnapshot> CaptureForTest(const SystemInstance& instance)
+    Ref<const SystemInstanceRenderProxy> CaptureForTest(const SystemInstance& instance)
     {
         FrameSubmission submission;
         EXPECT_TRUE(submission.Submit(instance));
-        return submission.GetSnapshots().front();
+        return submission.GetRenderProxies().front();
     }
 
     Ref<SCompiledSystem> MakeCompiledSystem()
@@ -70,13 +70,13 @@ TEST(AetherSystemInstanceTest, AppliesOverridesOnlyToExposedParameters)
     const auto snapshot = CaptureForTest(instance);
     EXPECT_EQ(snapshot->GetParameterRevision(), initialParameterRevision + 1);
 
-    const auto tint = snapshot->ResolveParameterValue(0);
+    const auto tint = snapshot->GetParameterValue(0);
     EXPECT_FLOAT_EQ(tint.x, 0.25f);
     EXPECT_FLOAT_EQ(tint.y, 0.5f);
     EXPECT_FLOAT_EQ(tint.z, 0.75f);
     EXPECT_FLOAT_EQ(tint.w, 1.0f);
 
-    const auto colorChunk = snapshot->ResolveParameterValue(1);
+    const auto colorChunk = snapshot->GetParameterValue(1);
     EXPECT_FLOAT_EQ(colorChunk.x, 0.0f);
     EXPECT_FLOAT_EQ(colorChunk.y, 0.5f);
     EXPECT_FLOAT_EQ(colorChunk.z, 1.0f);
@@ -92,7 +92,7 @@ TEST(AetherSystemInstanceTest, ClearsOverridesAndRestoresCompiledDefaults)
     ASSERT_TRUE(instance.ClearParameterOverride("Tint"));
     EXPECT_FALSE(instance.ClearParameterOverride("Tint"));
 
-    const auto tint = CaptureForTest(instance)->ResolveParameterValue(0);
+    const auto tint = CaptureForTest(instance)->GetParameterValue(0);
     EXPECT_FLOAT_EQ(tint.x, 1.0f);
     EXPECT_FLOAT_EQ(tint.y, 1.0f);
     EXPECT_FLOAT_EQ(tint.z, 1.0f);
@@ -116,7 +116,7 @@ TEST(AetherSystemInstanceTest, RetainsOnlyOverridesExposedByReplacementSystem)
 
     instance.SetCompiledSystem(replacementSystem);
 
-    const auto tint = CaptureForTest(instance)->ResolveParameterValue(0);
+    const auto tint = CaptureForTest(instance)->GetParameterValue(0);
     EXPECT_FLOAT_EQ(tint.x, 0.25f);
     EXPECT_FLOAT_EQ(tint.y, 0.5f);
     EXPECT_FLOAT_EQ(tint.z, 0.75f);

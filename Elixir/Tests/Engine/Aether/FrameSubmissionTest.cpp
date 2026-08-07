@@ -13,6 +13,14 @@ concept HasPublicSystemInstanceId = requires(const T& instance)
 
 static_assert(!HasPublicSystemInstanceId<SystemInstance>);
 
+template <typename T>
+concept HasFrameSnapshots = requires(const T& submission)
+{
+    submission.GetSnapshots();
+};
+
+static_assert(!HasFrameSnapshots<FrameSubmission>);
+
 TEST(AetherFrameSubmissionTest, RetainsEachSystemInstanceAtMostOnce)
 {
     const auto compiledSystem = CreateRef<SCompiledSystem>();
@@ -26,7 +34,7 @@ TEST(AetherFrameSubmissionTest, RetainsEachSystemInstanceAtMostOnce)
     EXPECT_TRUE(submission.Submit(secondInstance));
 
     ASSERT_EQ(submission.GetInstanceCount(), 2);
-    EXPECT_NE(submission.GetSnapshots()[0], submission.GetSnapshots()[1]);
+    EXPECT_NE(submission.GetRenderProxies()[0], submission.GetRenderProxies()[1]);
 }
 
 TEST(AetherFrameSubmissionTest, ResetKeepsTheSubmissionReusable)
@@ -72,10 +80,10 @@ TEST(AetherFrameSubmissionTest, RetainsTheStateCapturedAtSubmission)
     transform[3] = { 3.0f, 2.0f, 1.0f, 1.0f };
     instance.SetWorldTransform(transform);
 
-    const auto& snapshot = submission.GetSnapshots().front();
-    EXPECT_FLOAT_EQ(snapshot->GetWorldTransform()[3].x, 0.0f);
-    EXPECT_FLOAT_EQ(snapshot->GetWorldTransform()[3].y, 0.0f);
-    EXPECT_FLOAT_EQ(snapshot->GetWorldTransform()[3].z, 0.0f);
+    const auto& proxy = submission.GetRenderProxies().front();
+    EXPECT_FLOAT_EQ(proxy->GetWorldTransform()[3].x, 0.0f);
+    EXPECT_FLOAT_EQ(proxy->GetWorldTransform()[3].y, 0.0f);
+    EXPECT_FLOAT_EQ(proxy->GetWorldTransform()[3].z, 0.0f);
 }
 
 TEST(AetherFrameSubmissionPublisherTest, PublishesOnlySealedSubmissions)

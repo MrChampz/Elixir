@@ -216,7 +216,7 @@ namespace Elixir::Aether
         // SystemInstance state captured at the start of Render().
         struct SSubmittedSystemInstance
         {
-            Ref<const SystemInstanceSnapshot> Snapshot;
+            Ref<const SystemInstanceRenderProxy> Proxy;
             SSystemInstanceAllocation Allocation;
             EParticleStateLayout ParticleStateLayout = EParticleStateLayout::CoreV1;
         };
@@ -227,20 +227,20 @@ namespace Elixir::Aether
             std::vector<const SSubmittedSystemInstance*> Instances;
         };
 
-        SInstanceRecord* ResolveInstanceRecord(const SystemInstanceSnapshot& snapshot);
+        SInstanceRecord* ResolveInstanceRecord(const SystemInstanceRenderProxy& proxy);
         void UploadCompiledSystem(
-            const SystemInstanceSnapshot& snapshot,
+            const SystemInstanceRenderProxy& proxy,
             const SSystemInstanceAllocation& allocation
         ) const;
         void UploadInstanceParameters(
-            const SystemInstanceSnapshot& snapshot,
+            const SystemInstanceRenderProxy& proxy,
             const SSystemInstanceAllocation& allocation
         ) const;
 
         void QueueRetirement(SSystemInstanceAllocation allocation);
         void ProcessCompletedRetirements();
 
-        void UpdateBuffers(const SystemInstanceSnapshot& snapshot, SInstanceRecord& record);
+        void UpdateBuffers(const SystemInstanceRenderProxy& proxy, SInstanceRecord& record);
 
         SParticleStateLayoutRuntime* FindParticleStateLayoutRuntime(EParticleStateLayout layout);
         const SParticleStateLayoutRuntime* FindParticleStateLayoutRuntime(EParticleStateLayout layout) const;
