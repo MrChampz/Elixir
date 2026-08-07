@@ -79,11 +79,11 @@ struct HasGetHashParams<T, std::void_t<decltype(std::declval<T>().GetHashParams(
 namespace std                                                                                    \
 {                                                                                                \
     template <>                                                                                  \
-    struct hash<T> {                                                                             \
+    struct hash<T> {                                                                                \
         size_t operator()(const T& obj) const noexcept                                           \
         {                                                                                        \
             static_assert(HasGetHashParams<T>::value, #T " must define GetHashParams()");        \
-            return Elixir::Hash::HashValues(obj.GetHashParams());                                                                            \
+            return Elixir::Hash::HashValues(obj.GetHashParams());                                \
         }                                                                                        \
     };                                                                                           \
 }

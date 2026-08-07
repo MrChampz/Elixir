@@ -19,7 +19,7 @@ namespace Elixir::Aether
 
     Manager::~Manager() = default;
 
-    Ref<System> Manager::LoadEffect(const std::filesystem::path& filepath) const
+    Ref<System> Manager::LoadEffect(const std::filesystem::path& filepath)
     {
         return LoadEffectFile(filepath);
     }

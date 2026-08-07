@@ -42,7 +42,7 @@ namespace Elixir::Aether
         Manager(Manager&&) = delete;
         Manager& operator=(Manager&&) = delete;
 
-        Ref<System> LoadEffect(const std::filesystem::path& filepath) const;
+        static Ref<System> LoadEffect(const std::filesystem::path& filepath);
 
         Ref<const SCompiledSystem> Compile(System& system) const;
 
