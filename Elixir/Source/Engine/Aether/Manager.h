@@ -3,6 +3,7 @@
 #include <Engine/Aether/EffectMaterialResolver.h>
 #include <Engine/Aether/FrameSubmission.h>
 #include <Engine/Aether/SystemInstance.h>
+#include <Engine/Aether/SystemInstanceRetirementQueue.h>
 
 namespace Elixir
 {
@@ -49,8 +50,8 @@ namespace Elixir::Aether
         // Manager retains registration and GPU lifetime ownership.
         Ref<SystemInstance> CreateInstance(Ref<const SCompiledSystem> system);
 
-        // Must be called from the render-frame callback. It detaches any
-        // frame submission before the renderer retires GPU allocations.
+        // Detaches the instance from future frames immediately. Its GPU
+        // allocation is retired from BeginFrame on the render thread.
         bool DestroyInstance(const Ref<SystemInstance>& instance);
 
         void BeginFrame(const Timestep& timestep);
@@ -70,6 +71,8 @@ namespace Elixir::Aether
     private:
         Renderer& GetRenderer() const;
 
+        void RetireDestroyedInstances();
+
         bool IsManagedInstance(const Ref<SystemInstance>& instance) const;
 
         EffectMaterialResolver m_EffectMaterials;
@@ -77,6 +80,7 @@ namespace Elixir::Aether
         MaterialSystem& m_MaterialSystem;
         std::unordered_map<UUID, Ref<SystemInstance>> m_Instances;
 
+        SystemInstanceRetirementQueue m_PendingRetirements;
         FrameSubmissionPublisher m_FrameSubmissionPublisher;
         Scope<Renderer> m_Renderer;
     };

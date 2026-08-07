@@ -56,7 +56,7 @@ namespace Elixir::Aether
         if (found == m_Instances.end()) return false;
 
         m_FrameSubmissionPublisher.Remove(instance->GetId());
-        GetRenderer().Retire(*instance);
+        m_PendingRetirements.Enqueue(found->second);
         m_Instances.erase(found);
 
         return true;
@@ -65,6 +65,7 @@ namespace Elixir::Aether
     void Manager::BeginFrame(const Timestep& timestep)
     {
         GetRenderer().Update(timestep);
+        RetireDestroyedInstances();
     }
 
     Ref<FrameSubmission> Manager::CreateFrameSubmission() const
@@ -99,6 +100,14 @@ namespace Elixir::Aether
     {
         EE_CORE_ASSERT(m_Renderer, "Aether renderer is unavailable.")
         return *m_Renderer;
+    }
+
+    void Manager::RetireDestroyedInstances()
+    {
+        const auto instances = m_PendingRetirements.Drain();
+
+        for (const auto& instance : instances)
+            GetRenderer().Retire(*instance);
     }
 
     bool Manager::IsManagedInstance(const Ref<SystemInstance>& instance) const
