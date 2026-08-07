@@ -18,7 +18,7 @@ namespace Elixir::Aether
         {
             if (m_IsSealed) return false;
 
-            const auto [_, inserted] = m_InstanceIds.insert(instance.GetId());
+            const auto [_, inserted] = m_InstanceKeys.insert(instance.GetKey());
             if (!inserted) return false;
 
             m_Snapshots.push_back(instance.CaptureSnapshot());
@@ -30,35 +30,35 @@ namespace Elixir::Aether
         {
             if (m_IsSealed) return false;
 
-            const auto found = m_InstanceIds.find(instance.GetId());
-            if (found == m_InstanceIds.end()) return false;
+            const auto found = m_InstanceKeys.find(instance.GetKey());
+            if (found == m_InstanceKeys.end()) return false;
 
             std::erase_if(m_Snapshots, [&instance](const auto& snapshot)
             {
-                return snapshot->GetId() == instance.GetId();
+                return snapshot->GetKey() == instance.GetKey();
             });
-            m_InstanceIds.erase(found);
+            m_InstanceKeys.erase(found);
             return true;
         }
 
         void Reset()
         {
             m_Snapshots.clear();
-            m_InstanceIds.clear();
+            m_InstanceKeys.clear();
         }
 
-        Ref<const FrameSubmission> Without(const UUID& instanceId) const
+        Ref<const FrameSubmission> Without(const SSystemInstanceKey& key) const
         {
             auto copy = CreateRef<FrameSubmission>();
             copy->m_Snapshots = m_Snapshots;
-            copy->m_InstanceIds = m_InstanceIds;
+            copy->m_InstanceKeys = m_InstanceKeys;
 
-            std::erase_if(copy->m_Snapshots, [&instanceId](const auto& snapshot)
+            std::erase_if(copy->m_Snapshots, [&key](const auto& snapshot)
             {
-                return snapshot->GetId() == instanceId;
+                return snapshot->GetKey() == key;
             });
 
-            copy->m_InstanceIds.erase(instanceId);
+            copy->m_InstanceKeys.erase(key);
             copy->m_IsSealed = true;
             return copy;
         }
@@ -79,7 +79,7 @@ namespace Elixir::Aether
 
         bool m_IsSealed = false;
         std::vector<Ref<const SystemInstanceSnapshot>> m_Snapshots;
-        std::unordered_set<UUID> m_InstanceIds;
+        std::unordered_set<SSystemInstanceKey> m_InstanceKeys;
     };
 
     // Short synchronized handoff between the submission producer and renderer.
@@ -101,12 +101,12 @@ namespace Elixir::Aether
             return m_Published;
         }
 
-        void Remove(const UUID& instanceId)
+        void Remove(const SystemInstance& instance)
         {
             const std::scoped_lock lock(m_Mutex);
 
             if (m_Published)
-                m_Published = m_Published->Without(instanceId);
+                m_Published = m_Published->Without(instance.GetKey());
         }
 
     private:

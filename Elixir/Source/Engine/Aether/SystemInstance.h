@@ -4,16 +4,41 @@
 
 namespace Elixir::Aether
 {
+    class FrameSubmissionPublisher;
+    class Manager;
+    class Renderer;
+
+    struct SSystemInstanceKey
+    {
+        friend class SystemInstance;
+        friend class Manager;
+
+        std::size_t GetHashParams() const
+        {
+            return m_Id.GetHashParams();
+        }
+
+        bool operator==(const SSystemInstanceKey&) const = default;
+
+    private:
+        SSystemInstanceKey() = default;
+
+        UUID m_Id;
+    };
+
     using ParameterOverridesMap = std::unordered_map<std::string, glm::vec4>;
 
     // Immutable runtime state captured by one rendering frame.
     class ELIXIR_API SystemInstanceSnapshot final
     {
         friend class SystemInstance;
+        friend class FrameSubmission;
+        friend class Manager;
+        friend class Renderer;
 
     public:
         SystemInstanceSnapshot(
-            UUID id,
+            SSystemInstanceKey key,
             uint32_t revision,
             uint32_t parameterRevision,
             Ref<const SCompiledSystem> system,
@@ -23,14 +48,15 @@ namespace Elixir::Aether
 
         glm::vec4 ResolveParameterValue(uint32_t parameterIndex) const;
 
-        const UUID& GetId() const { return m_Id; }
         uint32_t GetRevision() const { return m_Revision; }
         uint32_t GetParameterRevision() const { return m_ParameterRevision; }
         const SCompiledSystem& GetCompiledSystem() const { return *m_CompiledSystem; }
         const glm::mat4& GetWorldTransform() const { return m_WorldTransform; }
 
     private:
-        UUID m_Id;
+        const SSystemInstanceKey& GetKey() const { return m_Key; }
+
+        SSystemInstanceKey m_Key;
         uint32_t m_Revision = 1;
         uint32_t m_ParameterRevision = 1;
         Ref<const SCompiledSystem> m_CompiledSystem;
@@ -43,17 +69,18 @@ namespace Elixir::Aether
     class ELIXIR_API SystemInstance final
     {
         friend class FrameSubmission;
+        friend class FrameSubmissionPublisher;
+        friend class Manager;
+        friend class Renderer;
 
     public:
-        explicit SystemInstance(Ref<const SCompiledSystem> compiledSystem);
+        explicit SystemInstance(Ref<const SCompiledSystem> system);
         SystemInstance(const SystemInstance&) = delete;
         SystemInstance& operator=(const SystemInstance&) = delete;
         SystemInstance(SystemInstance&&) = delete;
         SystemInstance& operator=(SystemInstance&&) = delete;
 
-        const UUID& GetId() const { return m_Id; }
-
-        void SetCompiledSystem(Ref<const SCompiledSystem> compiledSystem);
+        void SetCompiledSystem(Ref<const SCompiledSystem> system);
 
         void SetWorldTransform(const glm::mat4& worldTransform);
 
@@ -66,7 +93,7 @@ namespace Elixir::Aether
         Ref<const SystemInstanceSnapshot> CaptureSnapshot() const;
 
         static Ref<const SystemInstanceSnapshot> CreateSnapshot(
-            const UUID& id,
+            const SSystemInstanceKey& key,
             uint32_t revision,
             uint32_t parameterRevision,
             Ref<const SCompiledSystem> system,
@@ -76,9 +103,12 @@ namespace Elixir::Aether
 
         static bool IsExposedParameter(const SCompiledSystem& system, std::string_view name);
 
-        UUID m_Id;
+        const SSystemInstanceKey& GetKey() const { return m_Key; }
 
-        mutable std::mutex m_SnapshotMutex;
+        SSystemInstanceKey m_Key;
         Ref<const SystemInstanceSnapshot> m_Snapshot;
+        mutable std::mutex m_SnapshotMutex;
     };
 }
+
+GENERATE_HASH_FUNCTION(Elixir::Aether::SSystemInstanceKey)

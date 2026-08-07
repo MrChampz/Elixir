@@ -204,7 +204,7 @@ namespace Elixir::Aether
 
         struct SInstanceRecord
         {
-            UUID SystemInstanceId;
+            SSystemInstanceKey SystemInstanceKey;
             uint32_t SystemInstanceRevision = 0;
             UUID CompiledSystemId;
             uint32_t CompilationRevision = 0;
@@ -302,9 +302,9 @@ namespace Elixir::Aether
         ParticleStateLayoutRegistry m_ParticleStateLayouts;
         std::vector<SParticleStateLayoutRuntime> m_ParticleStateLayoutRuntimes;
         ParticleResourcePool m_ParticleResourcePool;
-        std::unordered_map<UUID, SInstanceRecord> m_InstanceRecords;
-        std::unordered_set<UUID> m_AllocationFailures;
-        std::unordered_set<UUID> m_UnsupportedParticleStateLayoutInstances;
+        std::unordered_map<SSystemInstanceKey, SInstanceRecord> m_InstanceRecords;
+        std::unordered_set<SSystemInstanceKey> m_AllocationFailures;
+        std::unordered_set<SSystemInstanceKey> m_UnsupportedParticleStateLayoutInstances;
         std::array<
             std::vector<SSystemInstanceAllocation>,
             GraphicsContext::FRAMES

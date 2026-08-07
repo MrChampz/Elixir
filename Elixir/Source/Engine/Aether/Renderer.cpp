@@ -205,7 +205,7 @@ namespace Elixir::Aether
 
             if (!IsParticleStateLayoutSupported(system.ParticleStateLayout))
             {
-                if (m_UnsupportedParticleStateLayoutInstances.insert(snapshot->GetId()).second)
+                if (m_UnsupportedParticleStateLayoutInstances.insert(snapshot->GetKey()).second)
                 {
                     EE_CORE_ERROR(
                         "Aether does not support particle state layout '{}' for system instance '{}'.",
@@ -217,7 +217,7 @@ namespace Elixir::Aether
                 continue;
             }
 
-            m_UnsupportedParticleStateLayoutInstances.erase(snapshot->GetId());
+            m_UnsupportedParticleStateLayoutInstances.erase(snapshot->GetKey());
 
             auto* record = ResolveInstanceRecord(*snapshot);
             if (!record) continue;
@@ -291,14 +291,14 @@ namespace Elixir::Aether
 
     void Renderer::Retire(const SystemInstance& instance)
     {
-        const auto found = m_InstanceRecords.find(instance.GetId());
+        const auto found = m_InstanceRecords.find(instance.GetKey());
         if (found == m_InstanceRecords.end())
             return;
 
         QueueRetirement(found->second.Allocation);
         m_InstanceRecords.erase(found);
-        m_AllocationFailures.erase(instance.GetId());
-        m_UnsupportedParticleStateLayoutInstances.erase(instance.GetId());
+        m_AllocationFailures.erase(instance.GetKey());
+        m_UnsupportedParticleStateLayoutInstances.erase(instance.GetKey());
     }
 
     const SParticleSubmissionMetrics& Renderer::GetLastSubmissionMetrics() const
@@ -773,7 +773,7 @@ namespace Elixir::Aether
     )
     {
         const auto instanceRevision = snapshot.GetRevision();
-        const auto found = m_InstanceRecords.find(snapshot.GetId());
+        const auto found = m_InstanceRecords.find(snapshot.GetKey());
 
         if (found != m_InstanceRecords.end() &&
             found->second.SystemInstanceRevision == instanceRevision)
@@ -786,7 +786,7 @@ namespace Elixir::Aether
         const auto replacementAllocation = m_ParticleResourcePool.Allocate(system);
         if (!replacementAllocation)
         {
-            if (m_AllocationFailures.insert(snapshot.GetId()).second)
+            if (m_AllocationFailures.insert(snapshot.GetKey()).second)
             {
                 EE_CORE_ERROR(
                     "Aether GPU resource pool exhausted while creating system instance '{}'.",
@@ -801,7 +801,7 @@ namespace Elixir::Aether
         UploadCompiledSystem(snapshot, *replacementAllocation);
 
         const SInstanceRecord replacement{
-            .SystemInstanceId = snapshot.GetId(),
+            .SystemInstanceKey = snapshot.GetKey(),
             .SystemInstanceRevision = instanceRevision,
             .CompiledSystemId = system.SourceId,
             .CompilationRevision = system.CompilationRevision,
@@ -811,10 +811,10 @@ namespace Elixir::Aether
 
         if (found == m_InstanceRecords.end())
         {
-            const auto [it, inserted] = m_InstanceRecords.emplace(snapshot.GetId(), replacement);
+            const auto [it, inserted] = m_InstanceRecords.emplace(snapshot.GetKey(), replacement);
 
             EE_CORE_ASSERT(inserted, "Aether system instance registry insertion failed.")
-            m_AllocationFailures.erase(snapshot.GetId());
+            m_AllocationFailures.erase(snapshot.GetKey());
             return &it->second;
         }
 
@@ -822,7 +822,7 @@ namespace Elixir::Aether
         // previous record. If allocation fails, the old record remains intact.
         QueueRetirement(found->second.Allocation);
         found->second = replacement;
-        m_AllocationFailures.erase(snapshot.GetId());
+        m_AllocationFailures.erase(snapshot.GetKey());
         return &found->second;
     }
 

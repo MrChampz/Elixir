@@ -78,7 +78,7 @@ namespace Elixir::Aether
         EffectMaterialResolver m_EffectMaterials;
 
         MaterialSystem& m_MaterialSystem;
-        std::unordered_map<UUID, Ref<SystemInstance>> m_Instances;
+        std::unordered_map<SSystemInstanceKey, Ref<SystemInstance>> m_Instances;
 
         SystemInstanceRetirementQueue m_PendingRetirements;
         FrameSubmissionPublisher m_FrameSubmissionPublisher;

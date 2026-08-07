@@ -5,6 +5,14 @@
 using namespace Elixir;
 using namespace Elixir::Aether;
 
+template <typename T>
+concept HasPublicSystemInstanceId = requires(const T& instance)
+{
+    instance.GetId();
+};
+
+static_assert(!HasPublicSystemInstanceId<SystemInstance>);
+
 TEST(AetherFrameSubmissionTest, RetainsEachSystemInstanceAtMostOnce)
 {
     const auto compiledSystem = CreateRef<SCompiledSystem>();
@@ -18,8 +26,7 @@ TEST(AetherFrameSubmissionTest, RetainsEachSystemInstanceAtMostOnce)
     EXPECT_TRUE(submission.Submit(secondInstance));
 
     ASSERT_EQ(submission.GetInstanceCount(), 2);
-    EXPECT_EQ(submission.GetSnapshots()[0]->GetId(), firstInstance.GetId());
-    EXPECT_EQ(submission.GetSnapshots()[1]->GetId(), secondInstance.GetId());
+    EXPECT_NE(submission.GetSnapshots()[0], submission.GetSnapshots()[1]);
 }
 
 TEST(AetherFrameSubmissionTest, ResetKeepsTheSubmissionReusable)
@@ -96,7 +103,7 @@ TEST(AetherFrameSubmissionPublisherTest, RemovesDestroyedInstanceFromPublishedFr
 
     ASSERT_TRUE(submission->Submit(instance));
     publisher.Publish(submission);
-    publisher.Remove(instance.GetId());
+    publisher.Remove(instance);
 
     EXPECT_TRUE(publisher.Acquire()->IsEmpty());
 }

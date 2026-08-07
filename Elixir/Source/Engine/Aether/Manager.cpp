@@ -40,9 +40,9 @@ namespace Elixir::Aether
         EE_CORE_ASSERT(system, "Aether system instance requires a compiled system.")
 
         auto instance = CreateRef<SystemInstance>(std::move(system));
-        const auto id = instance->GetId();
+        const auto key = instance->GetKey();
 
-        const auto [_, inserted] = m_Instances.emplace(id, instance);
+        const auto [_, inserted] = m_Instances.emplace(key, instance);
         EE_CORE_ASSERT(inserted, "Aether system instance UUID must be unique.")
 
         return instance;
@@ -52,10 +52,10 @@ namespace Elixir::Aether
     {
         if (!IsManagedInstance(instance)) return false;
 
-        const auto found = m_Instances.find(instance->GetId());
+        const auto found = m_Instances.find(instance->GetKey());
         if (found == m_Instances.end()) return false;
 
-        m_FrameSubmissionPublisher.Remove(instance->GetId());
+        m_FrameSubmissionPublisher.Remove(*instance);
         m_PendingRetirements.Enqueue(found->second);
         m_Instances.erase(found);
 
@@ -113,7 +113,7 @@ namespace Elixir::Aether
     bool Manager::IsManagedInstance(const Ref<SystemInstance>& instance) const
     {
         if (!instance) return false;
-        const auto found = m_Instances.find(instance->GetId());
+        const auto found = m_Instances.find(instance->GetKey());
         return found != m_Instances.end() && found->second.get() == instance.get();
     }
 }

@@ -6,13 +6,13 @@ namespace Elixir::Aether
     /* SystemInstanceSnapshot */
 
     SystemInstanceSnapshot::SystemInstanceSnapshot(
-        UUID id,
+        SSystemInstanceKey key,
         const uint32_t revision,
         const uint32_t parameterRevision,
         Ref<const SCompiledSystem> system,
         const glm::mat4& worldTransform,
         Ref<const ParameterOverridesMap> overrides
-    ) : m_Id(id),
+    ) : m_Key(std::move(key)),
         m_Revision(revision),
         m_ParameterRevision(parameterRevision),
         m_CompiledSystem(std::move(system)),
@@ -42,7 +42,7 @@ namespace Elixir::Aether
     {
         EE_CORE_ASSERT(system, "SystemInstance requires a compiled system.")
         m_Snapshot = CreateSnapshot(
-            m_Id,
+            m_Key,
             1,
             1,
             std::move(system),
@@ -69,7 +69,7 @@ namespace Elixir::Aether
         });
 
         m_Snapshot = CreateSnapshot(
-            m_Id,
+            m_Key,
             m_Snapshot->m_Revision + 1,
             m_Snapshot->m_ParameterRevision + (removed > 0 ? 1 : 0),
             std::move(system),
@@ -83,7 +83,7 @@ namespace Elixir::Aether
         const std::scoped_lock lock(m_SnapshotMutex);
 
         m_Snapshot = CreateSnapshot(
-            m_Id,
+            m_Key,
             m_Snapshot->m_Revision,
             m_Snapshot->m_ParameterRevision,
             m_Snapshot->m_CompiledSystem,
@@ -108,7 +108,7 @@ namespace Elixir::Aether
 
         overrides->insert_or_assign(std::string(name), value);
         m_Snapshot = CreateSnapshot(
-            m_Id,
+            m_Key,
             m_Snapshot->m_Revision,
             m_Snapshot->m_ParameterRevision + 1,
             m_Snapshot->m_CompiledSystem,
@@ -134,7 +134,7 @@ namespace Elixir::Aether
         overrides->erase(found->first);
 
         m_Snapshot = CreateSnapshot(
-            m_Id,
+            m_Key,
             m_Snapshot->m_Revision,
             m_Snapshot->m_ParameterRevision + 1,
             m_Snapshot->m_CompiledSystem,
@@ -153,7 +153,7 @@ namespace Elixir::Aether
             return;
 
         m_Snapshot = CreateSnapshot(
-            m_Id,
+            m_Key,
             m_Snapshot->m_Revision,
             m_Snapshot->m_ParameterRevision + 1,
             m_Snapshot->m_CompiledSystem,
@@ -169,7 +169,7 @@ namespace Elixir::Aether
     }
 
     Ref<const SystemInstanceSnapshot> SystemInstance::CreateSnapshot(
-        const UUID& id,
+        const SSystemInstanceKey& key,
         uint32_t revision,
         uint32_t parameterRevision,
         Ref<const SCompiledSystem> system,
@@ -178,7 +178,7 @@ namespace Elixir::Aether
     )
     {
         return CreateRef<SystemInstanceSnapshot>(
-            id,
+            key,
             revision,
             parameterRevision,
             std::move(system),
