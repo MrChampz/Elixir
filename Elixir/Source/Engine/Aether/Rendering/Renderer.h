@@ -149,11 +149,44 @@ namespace Elixir::Aether::Rendering
         size_t SubmittedMaterialCount = 0;
     };
 
+    /**
+     * @brief Simulates and renders Aether system instances on the GPU.
+     *
+     * Renderer consumes immutable SystemInstanceRenderProxy objects from a
+     * FrameSubmission. It allocates the shared logical ranges required by compiled
+     * systems, uploads changed system and parameter data, runs particle simulation,
+     * and submits geometry to MaterialSystem.
+     *
+     * Renderer owns Aether GPU resource lifetime. It defers released allocations
+     * until the frame slot that used them has completed its GPU work.
+     *
+     * Renderer does not inspect mutable SystemInstance state and does not author or
+     * resolve materials. It builds renderer-owned geometry data and delegates
+     * material drawing to MaterialSystem.
+     *
+     * @thread_safety Render-thread confined. Call all public methods from the
+     * render-frame path.
+     */
     class ELIXIR_API Renderer final
     {
       public:
+        /** Number of threads used by Aether compute shader dispatches. */
         static constexpr uint32_t COMPUTE_GROUP_SIZE = 256;
 
+        /**
+         * @brief Creates the GPU renderer for Aether system instances.
+         *
+         * @param context Graphics context that owns frame synchronization and GPU
+         * resources.
+         * @param shaderLoader Loader used to obtain Aether compute shaders.
+         * @param materialSystem Application material system used to render particle
+         * geometry.
+         * @param limits Logical capacities for shared Aether resource tables.
+         *
+         * @pre context is not null.
+         * @pre shaderLoader is not null.
+         * @pre context, shaderLoader, and materialSystem outlive this renderer.
+         */
         Renderer(
             const GraphicsContext* context,
             const ShaderLoader* shaderLoader,
@@ -161,17 +194,55 @@ namespace Elixir::Aether::Rendering
             const SResourcePoolLimits& limits = {}
         );
 
+        /**
+         * @brief Advances renderer frame state.
+         *
+         * Updates frame timing data and processes allocations whose deferred GPU
+         * retirement is now safe.
+         *
+         * @param timestep Elapsed time for the current frame.
+         *
+         * @pre Call once per render frame before Render().
+         */
         void Update(const Timestep& timestep);
+
+        /**
+         * @brief Simulates and renders a published Aether frame submission.
+         *
+         * The method resolves per-instance GPU allocations, uploads data whose
+         * revision changed, executes particle compute passes, and submits the
+         * resulting geometry through MaterialSystem.
+         *
+         * @param submission Immutable instance proxies to simulate and render.
+         * @param camera Camera used to build particle render data.
+         *
+         * @pre Update() was called for the current frame.
+         */
         void Render(const FrameSubmission& submission, const Camera& camera);
 
-        // Must be called from the render-frame callback. The allocation remains
-        // resident until the current frame slot is recycled after its GPU fence.
+        /**
+         * @brief Retires the GPU allocation owned by one detached system instance.
+         *
+         * The allocation is removed from active renderer records immediately and is
+         * released to ResourcePool only after the applicable frame fence completes.
+         *
+         * @param key Internal identity of the detached system instance.
+         *
+         * @note Calling this method for an unknown key has no effect.
+         */
         void Retire(const SSystemInstanceKey& key);
 
-        // Read only at the frame boundary after Render() returns.
+        /**
+         * @brief Returns metrics collected for the most recent rendered submission.
+         *
+         * @return Read-only frame metrics.
+         *
+         * @note Read the result after Render() completes at a frame boundary.
+         */
         const SParticleSubmissionMetrics& GetLastSubmissionMetrics() const;
 
       private:
+        // Owns GPU resources and compute pipelines for one particle-state layout.
         struct SParticleStateLayoutRuntime
         {
             EParticleStateLayout Key = EParticleStateLayout::CoreV1;
@@ -195,17 +266,34 @@ namespace Elixir::Aether::Rendering
             }
         };
 
+        // Initializes Aether shaders, pipelines, layouts, and shared GPU buffers.
         void Init(const ShaderLoader* shaderLoader);
+
+        // Create the GPU runtime for the built-in CoreV1 particle-state layout.
         void CreateCoreV1ParticleStateLayoutRuntime(const ShaderLoader* shaderLoader);
+
+        // Creates shared GPU buffers sized from the configured resource-pool limits.
         void CreateBuffers();
+
+        // Creates the unit mesh geometry used by mesh particle rendering.
         void CreateMeshVertexBuffer();
+
+        // Initializes per-frame constant-buffer data.
         void InitPerFrameData();
+
+        // Binds shared Aether buffers to scheduler and simulation shaders.
         void BindShaderParameters();
+
+        // Binds buffers and constants specific to one particle-state layout.
         void BindParticleStateLayoutShaderParameters(const SParticleStateLayoutRuntime& runtime) const;
 
+        // Begins the graphics rendering scope for particle material passes.
         void BeginRendering(const Ref<CommandBuffer>& cmd) const;
+
+        // Ends the graphics rendering scope for particle material passes.
         void EndRendering(const Ref<CommandBuffer>& cmd) const;
 
+        // Tracks the GPU allocation and uploaded revisions for one live system instance.
         struct SInstanceRecord
         {
             SSystemInstanceKey SystemInstanceKey;
@@ -216,8 +304,7 @@ namespace Elixir::Aether::Rendering
             SSystemInstanceAllocation Allocation;
         };
 
-        // Frame-local, renderer-owned snapshot paired with an immutable
-        // SystemInstance state captured at the start of Render().
+        // Pairs one immutable render proxy with its renderer-owned GPU allocation.
         struct SSubmittedSystemInstance
         {
             Ref<const SystemInstanceRenderProxy> Proxy;
@@ -225,51 +312,72 @@ namespace Elixir::Aether::Rendering
             EParticleStateLayout ParticleStateLayout = EParticleStateLayout::CoreV1;
         };
 
+        // Groups submitted instances that use the same particle-state layout.
         struct SSimulationBatch
         {
             EParticleStateLayout ParticleStateLayout = EParticleStateLayout::CoreV1;
             std::vector<const SSubmittedSystemInstance*> Instances;
         };
 
+        // Finds or creates the renderer record required by an immutable instance proxy.
         SInstanceRecord* ResolveInstanceRecord(const SystemInstanceRenderProxy& proxy);
+
+        // Uploads compiled emitter, operation, trigger, and system data for an allocation.
         void UploadCompiledSystem(
             const SystemInstanceRenderProxy& proxy,
             const SSystemInstanceAllocation& allocation
         ) const;
+
+        // Uploads resolved instance parameter values for an allocation.
         void UploadInstanceParameters(
             const SystemInstanceRenderProxy& proxy,
             const SSystemInstanceAllocation& allocation
         ) const;
 
+        // Defers an allocation release until its frame slot is safe to recycle.
         void QueueRetirement(SSystemInstanceAllocation allocation);
+
+        // Returns allocations whose associated GPU work has completed to ResourcePool.
         void ProcessCompletedRetirements();
 
+        // Updates GPU tables when the proxy revisions differ from the instance record.
         void UpdateBuffers(const SystemInstanceRenderProxy& proxy, SInstanceRecord& record);
 
+        // Finds the mutable GPU runtime for a registered particle-state layout.
         SParticleStateLayoutRuntime* FindParticleStateLayoutRuntime(EParticleStateLayout layout);
+
+        // Finds the read-only GPU runtime for a registered particle-state layout.
         const SParticleStateLayoutRuntime* FindParticleStateLayoutRuntime(EParticleStateLayout layout) const;
 
+        // Returns whether the renderer has a ready GPU runtime for the layout.
         bool IsParticleStateLayoutSupported(EParticleStateLayout layout) const;
 
+        // Groups submitted instances into simulation batches by particle-state layout.
         std::vector<SSimulationBatch> BuildSimulationBatches(
             const std::vector<SSubmittedSystemInstance>& instances
         ) const;
 
+        // Build material render items from submitted particle instances.
         MaterialRenderScene BuildMaterialRenderScene(
             const std::vector<SSubmittedSystemInstance>& instances
         ) const;
 
+        // Dispatch GPU simulation passes for all instances in one layout batch.
         void SimulateBatch(
             const Ref<CommandBuffer>& cmd,
             const SSimulationBatch& batch
         );
 
+        // Makes scheduler writes visibility to subsequent Aether compute passes.
         void BarrierSchedulingBuffers(const Ref<CommandBuffer>& cmd) const;
+
+        // Clears persistent particle state before a released allocation is reused.
         void ClearParticleAllocation(const SSystemInstanceAllocation& allocation);
 
         SFrameData m_FrameData{};
         Ref<UniformBuffer> m_FrameConstantBuffer;
 
+        // Mirrors one CoreV1 particle state in GPU storage.
         struct alignas(16) SGPUParticleState
         {
             glm::vec4 PositionSize{};
@@ -280,17 +388,20 @@ namespace Elixir::Aether::Rendering
             glm::vec4 Metadata{};
         };
 
+        // Identifies the system instance processed by scheduler compute dispatches.
         struct SSchedulePushConstants
         {
             uint32_t InstanceIndex = 0;
         };
 
+        // Identifies the system instance and emitter processed by spawn dispatches.
         struct SSpawnPushConstants
         {
             uint32_t InstanceIndex = 0;
             uint32_t EmitterIndex = 0;
         };
 
+        // Update dispatches use the same ABI as scheduler dispatches.
         using SUpdatePushConstants = SSchedulePushConstants;
 
         Ref<Shader> m_SchedulerBeginShader;
