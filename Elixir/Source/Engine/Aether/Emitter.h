@@ -14,6 +14,19 @@ namespace Elixir::Aether
 {
     class ParameterStore;
 
+    /**
+     * @brief Stores immutable GPU-ready data for one compiled emitter.
+     *
+     * System::Compile() creates this structure from an authored Emitter. The
+     * particle renderer uses its ranges, material proxy, and render settings to
+     * simulate and draw the emitter.
+     *
+     * Offsets refer to data owned by the containing SCompiledSystem unless stated
+     * otherwise. They are not physical GPU addresses.
+     *
+     * @note Equality and hashing use ID only. Each compiled emitter must keep the
+     * UUID of its authored source emitter.
+     */
     struct SCompiledEmitter
     {
         UUID Id;
@@ -50,7 +63,7 @@ namespace Elixir::Aether
             return Id == other.Id;
         }
 
-        auto GetHashParams() const
+        UUID GetHashParams() const
         {
             return Id;
         }
@@ -61,14 +74,28 @@ GENERATE_HASH_FUNCTION(Elixir::Aether::SCompiledEmitter)
 
 namespace Elixir::Aether
 {
+    /**
+     * @brief Defines one particle source within an authored Aether system.
+     *
+     * An emitter owns spawn and update modules, local parameters and curves, and
+     * material selection data. Compile() converts this authoring data into an
+     * SCompiledEmitter and appends its GPU operations to the parent system.
+     *
+     * An emitter does not own runtime particle state. The renderer allocates that
+     * state after its parent system is compiled and instantiated.
+     *
+     * @note An emitter is movable but not copyable. Its UUID identifies the
+     * emitter across compiled system revisions.
+     */
     class ELIXIR_API Emitter final
     {
       public:
         /**
-         * Create a new Emitter.
-         * @param name Emitter name.
-         * @param maxParticles Max particles in the emitter.
-         * @param spawnRate Spawn rate per second.
+         * @brief Creates an emitter with a default spawn rate.
+         *
+         * @param name Display name for the emitter.
+         * @param maxParticles Maximum number of particles the emitter can own.
+         * @param spawnRate Default spawn rate in particles per second.
          */
         Emitter(const std::string& name, uint32_t maxParticles, float spawnRate);
 
@@ -78,6 +105,16 @@ namespace Elixir::Aether
         Emitter(const Emitter&) = delete;
         Emitter& operator=(const Emitter&) = delete;
 
+        /**
+         * @brief Adds a module that runs when particles spawn.
+         *
+         * The emitter owns the returned module.
+         *
+         * @tparam Module A type derived from ParticleSpawnModule.
+         * @tparam Args Constructor argument types for Module.
+         * @param args Arguments forwarded to the module constructor.
+         * @return The newly created spawn module.
+         */
         template <typename Module, typename... Args>
         Module& AddSpawnModule(Args&&... args)
         {
@@ -87,6 +124,16 @@ namespace Elixir::Aether
             return ref;
         }
 
+        /**
+         * @brief Adds a module that runs while particles update.
+         *
+         * The emitter owns the returned module.
+         *
+         * @tparam Module A type derived from ParticleUpdateModule.
+         * @tparam Args Constructor argument types for Module.
+         * @param args Arguments forwarded to the module constructor.
+         * @return The newly created update module.
+         */
         template <typename Module, typename... Args>
         Module& AddUpdateModule(Args&&... args)
         {
@@ -96,16 +143,20 @@ namespace Elixir::Aether
             return ref;
         }
 
-        EParticleRenderMode GetRenderMode() const { return m_RenderMode; }
-        void SetRenderMode(const EParticleRenderMode mode) { m_RenderMode = mode; }
-
-        EParticleSimulationSpace GetSimulationSpace() const { return m_SimulationSpace; }
-        void SetSimulationSpace(const EParticleSimulationSpace space) { m_SimulationSpace = space; }
-
-        void SetBurst(uint32_t count, float intervalSeconds);
-
-        void SetTriggerEmitter(std::string emitterName, float delaySeconds);
-
+        /**
+         * @brief Compiles this emitter into GPU-ready data.
+         *
+         * The method resolves parameter bindings, converts modules into GPU
+         * operations, resolves the selected material, and records operation ranges.
+         *
+         * @param paramStore Parent system parameter store.
+         * @param params Compiled parameter table for the parent system.
+         * @param ops Output operation stream to append to.
+         * @param materialResolver Resolves the selected material instance.
+         * @return Immutable compiled data for this emitter.
+         *
+         * @warning The selected material must support the current render mode.
+         */
         SCompiledEmitter Compile(
             const ParameterStore& paramStore,
             const std::vector<SGPUParameter>& params,
@@ -113,37 +164,171 @@ namespace Elixir::Aether
             MaterialResolver& materialResolver
         ) const;
 
+        /**
+         * @brief Returns the display name of this emitter.
+         * @return The authored emitter name.
+         */
         const std::string& GetName() const { return m_Name; }
+
+        /**
+         * @brief Returns the geometry mode used to render this emitter.
+         * @return The selected particle render mode.
+         */
+        EParticleRenderMode GetRenderMode() const { return m_RenderMode; }
+
+        /**
+         * @brief Sets the geometry mode used to render this emitter.
+         * @param mode Particle render mode to use during compilation.
+         * @note The emitter's material must support this mode.
+         */
+        void SetRenderMode(const EParticleRenderMode mode) { m_RenderMode = mode; }
+
+        /**
+         * @brief Returns the simulation space used by this emitter.
+         * @return The selected simulation space.
+         */
+        EParticleSimulationSpace GetSimulationSpace() const { return m_SimulationSpace; }
+
+        /**
+         * @brief Sets the simulation space used by this emitter.
+         * @param space World or local particle simulation space.
+         */
+        void SetSimulationSpace(const EParticleSimulationSpace space) { m_SimulationSpace = space; }
+
+        /**
+         * @brief Returns the maximum particle capacity.
+         * @return Maximum number of particles owned by this emitter.
+         */
         uint32_t GetMaxParticles() const { return m_MaxParticles; }
 
+        /**
+         * @brief Returns the material data parsed from an effect asset.
+         * @return The authored material definition, when one exists.
+         * @note This is effect-format data, not a Material instance.
+         */
         const std::optional<SParticleMaterialDefinition>& GetMaterialDefinition() const
         {
             return m_MaterialDefinition;
         }
 
+        /**
+         * @brief Stores material data parsed from an effect asset.
+         * @param definition Effect-format material data for this emitter.
+         * @note EffectMaterialResolver converts this data into a material instance.
+         */
         void SetMaterialDefinition(SParticleMaterialDefinition definition)
         {
             m_MaterialDefinition = std::move(definition);
         }
 
+        /**
+         * @brief Returns the selected material instance.
+         * @return The material instance, or null when none has been assigned.
+         */
         const Ref<MaterialInstance>& GetMaterial() const { return m_Material; }
+
+        /**
+         * @brief Creates and assigns a default instance of material.
+         * @param material Material used to create the assigned instance.
+         * @note A null material logs an error and preserves the current selection.
+         */
         void SetMaterial(const Ref<Material>& material);
+
+        /**
+         * @brief Assigns a material instance to this emitter.
+         * @param material Material instance to assign.
+         * @note Pass a null reference to clear the current selection.
+         */
         void SetMaterial(Ref<MaterialInstance> material) { m_Material = std::move(material); }
 
+        /**
+         * @brief Configure periodic burst emission.
+         *
+         * @param count Number of particles requested by each burst.
+         * @param intervalSeconds Time between consecutive bursts.
+         */
+        void SetBurst(uint32_t count, float intervalSeconds);
+
+        /**
+         * @brief Makes this emitter react to another emitter's trigger events.
+         *
+         * The source name is resolved when the parent system is compiled.
+         *
+         * @param emitterName Name of the source emitter.
+         * @param delaySeconds Delay before the triggered burst is requested.
+         */
+        void SetTriggerEmitter(std::string emitterName, float delaySeconds);
+
+        /**
+         * @brief Returns the number of particles requested by each burst.
+         * @return Configured burst particle count.
+         */
         uint32_t GetBurstCount() const { return m_BurstCount; }
+
+        /**
+         * @brief Returns the time between periodic bursts.
+         * @return Burst interval in seconds.
+         */
         float GetBurstIntervalSeconds() const { return m_BurstIntervalSeconds; }
 
+        /**
+         * @brief Returns the configured trigger source name.
+         * @return Source emitter name, or an empty string when no trigger is set.
+         */
         const std::string& GetTriggerEmitterName() const { return m_TriggerEmitterName; }
+
+        /**
+         * @brief Returns the delay applied after a trigger event.
+         * @return Trigger delay in seconds.
+         */
         float GetTriggerDelaySeconds() const { return m_TriggerDelaySeconds; }
 
+        /**
+         * @brief Returns this emitter's parameter store.
+         * @return Mutable emitter-local parameters.
+         */
         ParameterStore& GetParameters() { return m_Parameters; }
+
+        /**
+         * @brief Returns this emitter's parameter store.
+         * @return Read-only emitter-local parameters.
+         */
         const ParameterStore& GetParameters() const { return m_Parameters; }
+
+        /**
+         * @brief Returns this emitter's scalar curve store.
+         * @return Mutable emitter-local scalar curves.
+         */
         CurveStore& GetCurves() { return m_Curves; }
+
+        /**
+         * @brief Returns this emitter's scalar curve store.
+         * @return Read-only emitter-local scalar curves.
+         */
         const CurveStore& GetCurves() const { return m_Curves; }
+
+        /**
+         * @brief Returns this emitter's color curve store.
+         * @return Mutable emitter-local color curves.
+         */
         ColorCurveStore& GetColorCurves() { return m_ColorCurves; }
+
+        /**
+         * @brief Returns this emitter's color curve store.
+         * @return Read-only emitter-local color curves.
+         */
         const ColorCurveStore& GetColorCurves() const { return m_ColorCurves; }
 
+        /**
+         * @brief Returns the parameter name that overrides the spawn rate.
+         * @return Parameter name, or an empty string when no override is set.
+         */
         const std::string& GetSpawnRateParamName() const { return m_SpawnRateParamName; }
+
+        /**
+         * @brief Sets the parameter name that overrides the spawn rate.
+         * @param paramName System-level or emitter-local parameter name.
+         */
         void SetSpawnRateParamName(const std::string& paramName) { m_SpawnRateParamName = paramName; }
 
       private:
@@ -159,7 +344,7 @@ namespace Elixir::Aether
         std::vector<Scope<ParticleUpdateModule>> m_UpdateModules;
 
         std::string m_SpawnRateParamName;
-        float m_SpawnRate = 0.0f; // per second
+        float m_SpawnRate = 0.0f; // particles per second
         uint32_t m_BurstCount = 0u;
         float m_BurstIntervalSeconds = 0.0f;
         std::string m_TriggerEmitterName;

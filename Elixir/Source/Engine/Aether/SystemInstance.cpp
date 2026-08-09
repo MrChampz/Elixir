@@ -71,20 +71,6 @@ namespace Elixir::Aether
         );
     }
 
-    void SystemInstance::SetWorldTransform(const glm::mat4& worldTransform)
-    {
-        const std::scoped_lock lock(m_SnapshotMutex);
-
-        m_Snapshot = CreateSnapshot(
-            m_Key,
-            m_Snapshot->m_Revision,
-            m_Snapshot->m_ParameterRevision,
-            m_Snapshot->m_CompiledSystem,
-            worldTransform,
-            m_Snapshot->m_ParameterOverrides
-        );
-    }
-
     bool SystemInstance::SetParameterOverride(
         const std::string& name,
         const glm::vec4& value
@@ -152,6 +138,20 @@ namespace Elixir::Aether
             m_Snapshot->m_CompiledSystem,
             m_Snapshot->m_WorldTransform,
             CreateRef<ParameterOverridesMap>()
+        );
+    }
+
+    void SystemInstance::SetWorldTransform(const glm::mat4& worldTransform)
+    {
+        const std::scoped_lock lock(m_SnapshotMutex);
+
+        m_Snapshot = CreateSnapshot(
+            m_Key,
+            m_Snapshot->m_Revision,
+            m_Snapshot->m_ParameterRevision,
+            m_Snapshot->m_CompiledSystem,
+            worldTransform,
+            m_Snapshot->m_ParameterOverrides
         );
     }
 

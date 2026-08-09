@@ -52,7 +52,7 @@ namespace Elixir::Aether
     bool Manager::DestroyInstance(const Ref<SystemInstance>& instance)
     {
         const std::scoped_lock lock(m_InstancesMutex);
-        if (!IsManagedInstanceLocked(instance)) return false;
+        if (!IsManagedInstance(instance)) return false;
 
         const auto found = m_Instances.find(instance->GetKey());
         if (found == m_Instances.end()) return false;
@@ -70,7 +70,7 @@ namespace Elixir::Aether
         RetireDestroyedInstances();
     }
 
-    Ref<FrameSubmission> Manager::CreateFrameSubmission() const
+    Ref<FrameSubmission> Manager::CreateFrameSubmission()
     {
         return CreateRef<FrameSubmission>();
     }
@@ -78,7 +78,7 @@ namespace Elixir::Aether
     bool Manager::Submit(FrameSubmission& submission, const Ref<SystemInstance>& instance) const
     {
         const std::scoped_lock lock(m_InstancesMutex);
-        return IsManagedInstanceLocked(instance) && submission.Submit(*instance);
+        return IsManagedInstance(instance) && submission.Submit(*instance);
     }
 
     void Manager::PublishFrameSubmission(Ref<FrameSubmission> submission)
@@ -125,12 +125,6 @@ namespace Elixir::Aether
     }
 
     bool Manager::IsManagedInstance(const Ref<SystemInstance>& instance) const
-    {
-        const std::scoped_lock lock(m_InstancesMutex);
-        return IsManagedInstanceLocked(instance);
-    }
-
-    bool Manager::IsManagedInstanceLocked(const Ref<SystemInstance>& instance) const
     {
         if (!instance) return false;
         const auto found = m_Instances.find(instance->GetKey());
