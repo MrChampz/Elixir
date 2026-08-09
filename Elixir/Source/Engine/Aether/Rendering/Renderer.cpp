@@ -150,10 +150,10 @@ namespace Elixir::Aether::Rendering
         const GraphicsContext* context,
         const ShaderLoader* shaderLoader,
         MaterialSystem& materialSystem,
-        const SParticlePoolLimits& limits
-    ) : m_ParticlePoolLimits(limits),
-        m_ParticleStateLayouts(m_ParticlePoolLimits.ParticleCapacity),
-        m_ParticleResourcePool(m_ParticlePoolLimits, m_ParticleStateLayouts),
+        const SResourcePoolLimits& limits
+    ) : m_ResourcePoolLimits(limits),
+        m_ParticleStateLayouts(m_ResourcePoolLimits.ParticleCapacity),
+        m_ResourcePool(m_ResourcePoolLimits, m_ParticleStateLayouts),
         m_MaterialSystem(materialSystem),
         m_GraphicsContext(context)
     {
@@ -184,7 +184,7 @@ namespace Elixir::Aether::Rendering
             .ElapsedTimeSeconds = m_ElapsedTimeSeconds,
             .RequestedSystemInstanceCount = proxies.size(),
             .TriggerEventCapacityPerEmitter =
-                m_ParticlePoolLimits.TriggerEventCapacityPerEmitter,
+                m_ResourcePoolLimits.TriggerEventCapacityPerEmitter,
         };
 
         m_RenderExtent = m_GraphicsContext->GetRenderTarget()->GetExtent();
@@ -463,17 +463,17 @@ namespace Elixir::Aether::Rendering
 
         m_EmitterStateBuffer = StorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SEmitterInstanceStateData) * m_ParticlePoolLimits.EmitterCapacity
+            sizeof(SEmitterInstanceStateData) * m_ResourcePoolLimits.EmitterCapacity
         );
 
         m_SpawnRequestBuffer = StorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SSpawnRequestData) * m_ParticlePoolLimits.EmitterCapacity
+            sizeof(SSpawnRequestData) * m_ResourcePoolLimits.EmitterCapacity
         );
 
         m_TriggerTargetBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(STriggerTargetData) * m_ParticlePoolLimits.TriggerTargetCapacity
+            sizeof(STriggerTargetData) * m_ResourcePoolLimits.TriggerTargetCapacity
         );
 
         for (auto& buffer : m_TriggerEventBuffers)
@@ -481,25 +481,25 @@ namespace Elixir::Aether::Rendering
             buffer = StorageBuffer::Create(
                 m_GraphicsContext,
                 sizeof(STriggerEventData) *
-                    m_ParticlePoolLimits.EmitterCapacity *
-                    m_ParticlePoolLimits.TriggerEventCapacityPerEmitter
+                    m_ResourcePoolLimits.EmitterCapacity *
+                    m_ResourcePoolLimits.TriggerEventCapacityPerEmitter
             );
             buffer->Clear();
         }
 
         m_TriggerQueueStateBuffer = StorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(STriggerQueueStateData) * m_ParticlePoolLimits.EmitterCapacity * 2
+            sizeof(STriggerQueueStateData) * m_ResourcePoolLimits.EmitterCapacity * 2
         );
 
         m_SystemInstanceBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SSystemInstanceData) * m_ParticlePoolLimits.MaxSystemInstances
+            sizeof(SSystemInstanceData) * m_ResourcePoolLimits.MaxSystemInstances
         );
 
         m_SystemSchedulerStateBuffer = StorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SSystemSchedulerStateData) * m_ParticlePoolLimits.MaxSystemInstances
+            sizeof(SSystemSchedulerStateData) * m_ResourcePoolLimits.MaxSystemInstances
         );
 
         m_EmitterStateBuffer->Clear();
@@ -509,17 +509,17 @@ namespace Elixir::Aether::Rendering
 
         m_EmitterBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SEmitterData) * m_ParticlePoolLimits.EmitterCapacity
+            sizeof(SEmitterData) * m_ResourcePoolLimits.EmitterCapacity
         );
 
         m_OpBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SParticleOpData) * m_ParticlePoolLimits.OpCapacity
+            sizeof(SParticleOpData) * m_ResourcePoolLimits.OpCapacity
         );
 
         m_ParameterBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SParameterData) * m_ParticlePoolLimits.ParameterCapacity
+            sizeof(SParameterData) * m_ResourcePoolLimits.ParameterCapacity
         );
 
         m_ParamsBuffer = UniformBuffer::Create(
@@ -786,7 +786,7 @@ namespace Elixir::Aether::Rendering
 
         const auto& system = proxy.GetCompiledSystem();
 
-        const auto replacementAllocation = m_ParticleResourcePool.Allocate(system);
+        const auto replacementAllocation = m_ResourcePool.Allocate(system);
         if (!replacementAllocation)
         {
             if (m_AllocationFailures.insert(proxy.GetKey()).second)
@@ -888,7 +888,7 @@ namespace Elixir::Aether::Rendering
         auto& retirements = m_DeferredRetirements[frameIndex];
 
         for (const auto& allocation : retirements)
-            m_ParticleResourcePool.Release(allocation);
+            m_ResourcePool.Release(allocation);
 
         retirements.clear();
     }
@@ -929,7 +929,7 @@ namespace Elixir::Aether::Rendering
             .TriggerQueueStateBaseOffset = record.Allocation.TriggerQueueStates.Offset,
             .ParticleCount = record.Allocation.Particles.Count,
             .EmitterCount = record.Allocation.Emitters.Count,
-            .TriggerEventCapacityPerEmitter = m_ParticlePoolLimits.TriggerEventCapacityPerEmitter,
+            .TriggerEventCapacityPerEmitter = m_ResourcePoolLimits.TriggerEventCapacityPerEmitter,
             .Generation = record.Allocation.Generation,
             .ParticleStateLayoutIndex = (uint32_t)system.ParticleStateLayout,
         };

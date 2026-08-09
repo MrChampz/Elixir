@@ -4,6 +4,7 @@
 #include <Engine/Aether/Core/ParameterStore.h>
 #include <Engine/Aether/Core/CurveStore.h>
 #include <Engine/Aether/Core/ColorCurveStore.h>
+#include <Engine/Aether/Core/ParticleStateLayout.h>
 
 namespace Elixir
 {

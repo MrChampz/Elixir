@@ -33,13 +33,6 @@ namespace Elixir::Aether::Core
         Local = 1,
     };
 
-    // CoreV1 is byte-for-byte compatible with the current SGPUParticleState.
-    // Future pool arenas and shader permutations will be selected from this key.
-    enum class EParticleStateLayout : uint8_t
-    {
-        CoreV1 = 0
-    };
-
     enum class EParticleOp : uint32_t
     {
         SetLiteral = 0,

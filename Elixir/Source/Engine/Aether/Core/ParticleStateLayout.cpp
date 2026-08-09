@@ -3,7 +3,7 @@
 
 namespace Elixir::Aether::Core
 {
-    ParticleStateLayoutRegistry::ParticleStateLayoutRegistry(uint32_t particleCapacity)
+    ParticleStateLayoutRegistry::ParticleStateLayoutRegistry(const uint32_t particleCapacity)
     {
         const bool registered = Register({
             .Key = EParticleStateLayout::CoreV1,

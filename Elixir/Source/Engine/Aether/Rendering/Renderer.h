@@ -6,7 +6,7 @@
 #include <Engine/Aether/System.h>
 #include <Engine/Aether/SystemInstance.h>
 #include <Engine/Aether/Core/ParticleStateLayout.h>
-#include <Engine/Aether/Core/ParticleResourcePool.h>
+#include <Engine/Aether/Core/ResourcePool.h>
 #include <Engine/Aether/Rendering/FrameSubmission.h>
 
 namespace Elixir
@@ -158,7 +158,7 @@ namespace Elixir::Aether::Rendering
             const GraphicsContext* context,
             const ShaderLoader* shaderLoader,
             MaterialSystem& materialSystem,
-            const SParticlePoolLimits& limits = {}
+            const SResourcePoolLimits& limits = {}
         );
 
         void Update(const Timestep& timestep);
@@ -302,10 +302,10 @@ namespace Elixir::Aether::Rendering
         Ref<Shader> m_SchedulerFinalizeShader;
         Ref<ComputePipeline> m_SchedulerFinalizePipeline;
 
-        SParticlePoolLimits m_ParticlePoolLimits;
+        SResourcePoolLimits m_ResourcePoolLimits;
         ParticleStateLayoutRegistry m_ParticleStateLayouts;
         std::vector<SParticleStateLayoutRuntime> m_ParticleStateLayoutRuntimes;
-        ParticleResourcePool m_ParticleResourcePool;
+        ResourcePool m_ResourcePool;
         std::unordered_map<SSystemInstanceKey, SInstanceRecord> m_InstanceRecords;
         std::unordered_set<SSystemInstanceKey> m_AllocationFailures;
         std::unordered_set<SSystemInstanceKey> m_UnsupportedParticleStateLayoutInstances;

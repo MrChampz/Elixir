@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <../../../Source/Engine/Aether/Core/ParticleResourcePool.h>
+#include <../../../Source/Engine/Aether/Core/ResourcePool.h>
 
 using namespace Elixir;
 using namespace Elixir::Aether;
@@ -25,7 +25,7 @@ namespace
         return system;
     }
 
-    SParticlePoolLimits MakePoolLimits()
+    SResourcePoolLimits MakePoolLimits()
     {
         return {
             .MaxSystemInstances = 4,
@@ -43,7 +43,7 @@ TEST(AetherParticleResourcePoolTest, AllocatesDisjointRangesForLiveInstances)
 {
     const auto limits = MakePoolLimits();
     const ParticleStateLayoutRegistry layouts{ limits.ParticleCapacity };
-    ParticleResourcePool pool{ limits, layouts };
+    ResourcePool pool{ limits, layouts };
 
     const auto first = pool.Allocate(MakeCompiledSystem(10, 2, 3, 4, 1));
     const auto second = pool.Allocate(MakeCompiledSystem(20, 3, 5, 6, 2));
@@ -69,7 +69,7 @@ TEST(AetherParticleResourcePoolTest, ReusesReleasedRanges)
 {
     const auto limits = MakePoolLimits();
     const ParticleStateLayoutRegistry layouts{ limits.ParticleCapacity };
-    ParticleResourcePool pool{ limits, layouts };
+    ResourcePool pool{ limits, layouts };
     const auto system = MakeCompiledSystem(10, 2, 3, 4, 1);
 
     const auto first = pool.Allocate(system);
@@ -99,7 +99,7 @@ TEST(AetherParticleResourcePoolTest, RollsBackPartialAllocationFailure)
     limits.ParticleCapacity = 4;
 
     const ParticleStateLayoutRegistry layouts{ limits.ParticleCapacity };
-    ParticleResourcePool pool{ limits, layouts };
+    ResourcePool pool{ limits, layouts };
 
     EXPECT_FALSE(pool.Allocate(MakeCompiledSystem(5, 1, 1, 1, 1)));
 
@@ -122,7 +122,7 @@ TEST(AetherParticleResourcePoolTest, RejectsAnUnregisteredParticleStateLayout)
 {
     const auto limits = MakePoolLimits();
     const ParticleStateLayoutRegistry layouts{ limits.ParticleCapacity };
-    ParticleResourcePool pool{ limits, layouts };
+    ResourcePool pool{ limits, layouts };
 
     auto system = MakeCompiledSystem(4, 1, 1, 1, 1);
     system.ParticleStateLayout = (EParticleStateLayout)1;

@@ -1,10 +1,10 @@
 #include "epch.h"
-#include "ParticleResourcePool.h"
+#include "ResourcePool.h"
 
 namespace Elixir::Aether::Core
 {
-    ParticleResourcePool::ParticleResourcePool(
-        const SParticlePoolLimits& limits,
+    ResourcePool::ResourcePool(
+        const SResourcePoolLimits& limits,
         const ParticleStateLayoutRegistry& layouts
     ) : m_Limits(limits),
         m_FreeInstanceSlots(MakeFreeRanges(limits.MaxSystemInstances)),
@@ -29,7 +29,7 @@ namespace Elixir::Aether::Core
         }
     }
 
-    std::optional<SSystemInstanceAllocation> ParticleResourcePool::Allocate(
+    std::optional<SSystemInstanceAllocation> ResourcePool::Allocate(
         const SCompiledSystem& system
     )
     {
@@ -95,7 +95,7 @@ namespace Elixir::Aether::Core
         return allocation;
     }
 
-    void ParticleResourcePool::Release(const SSystemInstanceAllocation& allocation)
+    void ResourcePool::Release(const SSystemInstanceAllocation& allocation)
     {
         auto* particleFreeRanges = FindParticleFreeRanges(allocation.ParticleStateLayout);
         EE_CORE_ASSERT(
@@ -118,7 +118,7 @@ namespace Elixir::Aether::Core
             ReleaseRange(m_FreeInstanceSlots, { allocation.InstanceIndex, 1 });
     }
 
-    SBufferRange ParticleResourcePool::AllocateRange(
+    SBufferRange ResourcePool::AllocateRange(
         std::vector<SBufferRange>& freeRanges,
         const uint32_t count
     )
@@ -144,7 +144,7 @@ namespace Elixir::Aether::Core
         return {};
     }
 
-    void ParticleResourcePool::ReleaseRange(
+    void ResourcePool::ReleaseRange(
         std::vector<SBufferRange>& freeRanges,
         const SBufferRange range
     )
@@ -173,7 +173,7 @@ namespace Elixir::Aether::Core
         freeRanges = std::move(merged);
     }
 
-    std::vector<SBufferRange> ParticleResourcePool::MakeFreeRanges(const uint32_t capacity)
+    std::vector<SBufferRange> ResourcePool::MakeFreeRanges(const uint32_t capacity)
     {
         if (capacity == 0)
             return {};
@@ -181,7 +181,7 @@ namespace Elixir::Aether::Core
         return {{ 0, capacity }};
     }
 
-    std::vector<SBufferRange>* ParticleResourcePool::FindParticleFreeRanges(
+    std::vector<SBufferRange>* ResourcePool::FindParticleFreeRanges(
         const EParticleStateLayout layout
     )
     {
