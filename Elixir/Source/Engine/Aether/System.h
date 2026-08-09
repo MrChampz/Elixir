@@ -1,9 +1,9 @@
 #pragma once
 
 #include <Engine/Aether/Emitter.h>
-#include <Engine/Aether/ParameterStore.h>
-#include <Engine/Aether/CurveStore.h>
-#include <Engine/Aether/ColorCurveStore.h>
+#include <Engine/Aether/Core/ParameterStore.h>
+#include <Engine/Aether/Core/CurveStore.h>
+#include <Engine/Aether/Core/ColorCurveStore.h>
 
 namespace Elixir
 {
@@ -12,8 +12,8 @@ namespace Elixir
 
 namespace Elixir::Aether
 {
-    class EffectMaterialResolver;
-
+    using namespace Core;
+    using namespace Modules;
     /**
      * @brief Maps an exposed runtime parameter to the compiled parameter table.
      *
@@ -85,8 +85,6 @@ namespace Elixir::Aether
      */
     class ELIXIR_API System final
     {
-        friend class EffectMaterialResolver;
-
       public:
         /**
          * @brief Creates an empty particle effect definition.
@@ -136,10 +134,22 @@ namespace Elixir::Aether
         SCompiledSystem Compile(MaterialResolver& materialResolver) const;
 
         /**
+         * @brief Returns the UUID of this effect system.
+         * @return The system UUID.
+         */
+        const UUID& GetId() const { return m_UUID; }
+
+        /**
          * @brief Returns the display name of this effect.
          * @return The authored effect name.
          */
         const std::string& GetName() const { return m_Name; }
+
+        /**
+         * @brief Returns the system's emitters.
+         * @return Read-only list of emitters owned by this system.
+         */
+        const std::vector<Scope<Emitter>>& GetEmitters() const { return m_Emitters; }
 
         /**
          * @brief Returns the system-level parameter store.

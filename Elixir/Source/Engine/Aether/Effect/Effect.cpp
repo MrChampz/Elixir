@@ -5,9 +5,10 @@
 #include <simdjson.h>
 #include <magic_enum/magic_enum.hpp>
 
-#include <Engine/Aether/ParticleMaterialDefinition.h>
+#include <Engine/Aether/Effect/MaterialDescription.h>
+#include <Engine/Aether/Effect/MaterialFactory.h>
 
-namespace Elixir::Aether
+namespace Elixir::Aether::Effect
 {
     namespace
     {
@@ -34,21 +35,6 @@ namespace Elixir::Aether
                 return std::string{ value.substr(1) };
 
             return std::nullopt;
-        }
-
-        EMaterialUsage GetParticleMaterialUsage(const EParticleRenderMode mode)
-        {
-            switch (mode)
-            {
-                case EParticleRenderMode::Sprite:
-                    return EMaterialUsage::ParticleSprite;
-                case EParticleRenderMode::Ribbon:
-                    return EMaterialUsage::ParticleRibbon;
-                case EParticleRenderMode::Mesh:
-                    return EMaterialUsage::ParticleMesh;
-            }
-
-            return EMaterialUsage::ParticleSprite;
         }
 
         // Parses an effect asset into a System. Every parsing step funnels
@@ -872,7 +858,7 @@ namespace Elixir::Aether
                 return emitter.GetParameters().GetFloat4(field.Param, systemValue);
             }
 
-            std::optional<SParticleMaterialDefinition> ParseMaterial(
+            std::optional<SMaterialDescription> ParseMaterial(
                 od::object& json,
                 const Emitter& emitter,
                 const System& system
@@ -881,7 +867,7 @@ namespace Elixir::Aether
                 auto field = json["material"];
                 if (field.error()) return std::nullopt;
 
-                SParticleMaterialDefinition definition{};
+                SMaterialDescription desc{};
 
                 od::object material;
                 if (field.get_object().get(material))
@@ -902,12 +888,12 @@ namespace Elixir::Aether
                     system
                 );
 
-                definition.BaseColor = glm::vec3(color);
-                definition.Opacity = color.w;
-                definition.Emissive = glm::vec3(emissive);
-                definition.BaseColorTexturePath = ParseString(material, "texture");
+                desc.BaseColor = glm::vec3(color);
+                desc.Opacity = color.w;
+                desc.Emissive = glm::vec3(emissive);
+                desc.BaseColorTexturePath = ParseString(material, "texture");
 
-                return definition;
+                return desc;
             }
 
             void ParseEmitter(const Ref<System>& system, od::object& json)
@@ -962,7 +948,7 @@ namespace Elixir::Aether
                 if (m_Failed) return;
 
                 if (const auto material = ParseMaterial(json, emitter, *system))
-                    emitter.SetMaterialDefinition(std::move(*material));
+                    emitter.SetMaterialDescription(std::move(*material));
 
                 if (!spawnRate.Param.empty())
                     emitter.SetSpawnRateParamName(spawnRate.Param);

@@ -1,9 +1,9 @@
 #pragma once
 
-#include <Engine/Aether/EffectMaterialResolver.h>
-#include <Engine/Aether/FrameSubmission.h>
 #include <Engine/Aether/SystemInstance.h>
-#include <Engine/Aether/SystemInstanceRetirementQueue.h>
+#include <Engine/Aether/Effect/MaterialResolver.h>
+#include <Engine/Aether/Rendering/FrameSubmission.h>
+#include <Engine/Aether/Rendering/SystemInstanceRetirementQueue.h>
 
 namespace Elixir
 {
@@ -15,13 +15,16 @@ namespace Elixir
     class MaterialRegistry;
     class MaterialResolver;
     class MaterialSystem;
+
+    namespace Aether::Rendering
+    {
+        class Renderer;
+        struct SParticleSubmissionMetrics;
+    }
 }
 
 namespace Elixir::Aether
 {
-    class Renderer;
-    struct SParticleSubmissionMetrics;
-
     /**
      * @brief Coordinates Aether effect compilation, runtime instances, and rendering.
      *
@@ -145,7 +148,7 @@ namespace Elixir::Aether
          *
          * @return A new unsealed frame submission.
          */
-        static Ref<FrameSubmission> CreateFrameSubmission() ;
+        static Ref<Rendering::FrameSubmission> CreateFrameSubmission();
 
         /**
          * @brief Captures an instance for a frame submission.
@@ -159,7 +162,10 @@ namespace Elixir::Aether
          * @return False when the instance is unmanaged, null, duplicated, or the
          * submission is sealed.
          */
-        bool Submit(FrameSubmission& submission, const Ref<SystemInstance>& instance) const;
+        bool Submit(
+            Rendering::FrameSubmission& submission,
+            const Ref<SystemInstance>& instance
+        ) const;
 
         /**
          * @brief Publishes a completed frame submission for rendering.
@@ -173,7 +179,7 @@ namespace Elixir::Aether
          * @pre submission is not null.
          * @warning Do not modify the submission after publishing it.
          */
-        void PublishFrameSubmission(Ref<FrameSubmission> submission);
+        void PublishFrameSubmission(Ref<Rendering::FrameSubmission> submission);
 
         /**
          * @brief Simulates and renders the latest published submission.
@@ -193,11 +199,11 @@ namespace Elixir::Aether
          *
          * @note Read the result at a frame boundary after rendering completes.
          */
-        const SParticleSubmissionMetrics& GetLastSubmissionMetrics() const;
+        const Rendering::SParticleSubmissionMetrics& GetLastSubmissionMetrics() const;
 
     private:
         // Returns the owned renderer and verifies that construction completed.
-        Renderer& GetRenderer() const;
+        Rendering::Renderer& GetRenderer() const;
 
         // Forwards detached instances to the renderer for fence-safe GPU retirement.
         void RetireDestroyedInstances();
@@ -205,14 +211,14 @@ namespace Elixir::Aether
         // Checks ownership while the instance registry mutex is already held.
         bool IsManagedInstance(const Ref<SystemInstance>& instance) const;
 
-        EffectMaterialResolver m_EffectMaterials;
+        Effect::MaterialResolver m_EffectMaterials;
 
         MaterialSystem& m_MaterialSystem;
         std::unordered_map<SSystemInstanceKey, Ref<SystemInstance>> m_Instances;
         mutable std::mutex m_InstancesMutex;
 
-        SystemInstanceRetirementQueue m_PendingRetirements;
-        FrameSubmissionPublisher m_FrameSubmissionPublisher;
-        Scope<Renderer> m_Renderer;
+        Rendering::SystemInstanceRetirementQueue m_PendingRetirements;
+        Rendering::FrameSubmissionPublisher m_FrameSubmissionPublisher;
+        Scope<Rendering::Renderer> m_Renderer;
     };
 }

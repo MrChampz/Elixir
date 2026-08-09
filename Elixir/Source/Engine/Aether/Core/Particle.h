@@ -1,8 +1,6 @@
 #pragma once
 
-#include <glm/glm.hpp>
-
-namespace Elixir::Aether
+namespace Elixir::Aether::Core
 {
     enum class EParticleAttribute : uint32_t
     {
@@ -40,5 +38,30 @@ namespace Elixir::Aether
     enum class EParticleStateLayout : uint8_t
     {
         CoreV1 = 0
+    };
+
+    enum class EParticleOp : uint32_t
+    {
+        SetLiteral = 0,
+        RandomRange,
+        SampleDisk,
+        SampleCone,
+        SampleBox,
+        AddWithDelta,
+        Dampen,
+        LerpOverLife,
+        KillOutsideBounds,
+        AddFromAttribute,
+        SetPositionOnCircle,
+        SetPositionCircularPath,
+        SetPositionVortexRibbonPath,
+        SetRibbonIdFromSpawnOrder,
+        SampleCurve,
+        SampleColorCurve,
+        Add,
+        Mul,
+        Clamp,
+        CopyFromAttribute,
+        ApplyVortex,
     };
 }

@@ -3,10 +3,12 @@
 
 #include <Engine/Graphics/CommandBuffer.h>
 #include <Engine/Material/MaterialSystem.h>
-#include <Engine/Aether/SystemInstanceRenderProxy.h>
+#include <Engine/Aether/Rendering/SystemInstanceRenderProxy.h>
 
-namespace Elixir::Aether
+namespace Elixir::Aether::Rendering
 {
+    using namespace Elixir::Aether::Modules;
+
     struct MeshVertex
     {
         glm::vec3 Position;

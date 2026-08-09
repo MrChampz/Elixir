@@ -1,34 +1,10 @@
 #pragma once
-#include "Particle.h"
 
-namespace Elixir::Aether
+#include <Engine/Aether/Core/Particle.h>
+
+namespace Elixir::Aether::Modules
 {
-    class ParameterStore;
-
-    enum class EParticleOp : uint32_t
-    {
-        SetLiteral = 0,
-        RandomRange,
-        SampleDisk,
-        SampleCone,
-        SampleBox,
-        AddWithDelta,
-        Dampen,
-        LerpOverLife,
-        KillOutsideBounds,
-        AddFromAttribute,
-        SetPositionOnCircle,
-        SetPositionCircularPath,
-        SetPositionVortexRibbonPath,
-        SetRibbonIdFromSpawnOrder,
-        SampleCurve,
-        SampleColorCurve,
-        Add,
-        Mul,
-        Clamp,
-        CopyFromAttribute,
-        ApplyVortex,
-    };
+    using namespace Elixir::Aether::Core;
 
     struct SGPUParticleOp
     {

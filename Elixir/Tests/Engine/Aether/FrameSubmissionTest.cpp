@@ -5,10 +5,11 @@
 #include <thread>
 #include <utility>
 
-#include <Engine/Aether/FrameSubmission.h>
+#include <../../../Source/Engine/Aether/Rendering/FrameSubmission.h>
 
 using namespace Elixir;
 using namespace Elixir::Aether;
+using namespace Elixir::Aether::Rendering;
 
 template <typename T>
 concept HasPublicSystemInstanceId = requires(const T& instance)

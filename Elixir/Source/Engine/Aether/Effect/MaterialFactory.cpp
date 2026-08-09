@@ -1,31 +1,31 @@
 #include "epch.h"
-#include "ParticleMaterialFactory.h"
+#include "MaterialFactory.h"
 
 #include <Engine/Graphics/TextureLoader.h>
 
-namespace Elixir::Aether
+namespace Elixir::Aether::Effect
 {
-    EMaterialUsage GetParticleMaterialUsage(const EParticleRenderMode mode)
+    EMaterialUsage GetMaterialUsage(const Core::EParticleRenderMode mode)
     {
         switch (mode)
         {
-            case EParticleRenderMode::Sprite:   return EMaterialUsage::ParticleSprite;
-            case EParticleRenderMode::Ribbon:   return EMaterialUsage::ParticleRibbon;
-            case EParticleRenderMode::Mesh:     return EMaterialUsage::ParticleMesh;
+            case Core::EParticleRenderMode::Sprite: return EMaterialUsage::ParticleSprite;
+            case Core::EParticleRenderMode::Ribbon: return EMaterialUsage::ParticleRibbon;
+            case Core::EParticleRenderMode::Mesh:   return EMaterialUsage::ParticleMesh;
         }
 
         return EMaterialUsage::ParticleSprite;
     }
 
-    Ref<Material> CreateParticleMaterial(
+    Ref<Material> CreateMaterial(
         std::string name,
-        const EParticleRenderMode renderMode,
-        const SParticleMaterialDefinition& definition
+        const Core::EParticleRenderMode renderMode,
+        const SMaterialDescription& desc
     )
     {
         const auto material = CreateRef<Material>(std::move(name));
 
-        const auto result = material->SetUsage(GetParticleMaterialUsage(renderMode), true);
+        const auto result = material->SetUsage(GetMaterialUsage(renderMode), true);
         EE_CORE_ASSERT(result, "Particle material usage must be enabled.")
 
         MaterialGraph graph;
@@ -33,28 +33,28 @@ namespace Elixir::Aether
         const auto baseColor = graph.AddNode({
             .Type = EMaterialNodeType::Constant,
             .OutputType = EMaterialGraphValueType::Float3,
-            .ConstantValue = { definition.BaseColor, 0.0f },
+            .ConstantValue = { desc.BaseColor, 0.0f },
         });
         graph.SetChannel(EMaterialChannel::BaseColor, baseColor);
 
         const auto opacity = graph.AddNode({
             .Type = EMaterialNodeType::Constant,
             .OutputType = EMaterialGraphValueType::Float,
-            .ConstantValue = { definition.Opacity, 0.0f, 0.0f, 0.0f },
+            .ConstantValue = { desc.Opacity, 0.0f, 0.0f, 0.0f },
         });
         graph.SetChannel(EMaterialChannel::Opacity, opacity);
 
         const auto emissive = graph.AddNode({
             .Type = EMaterialNodeType::Constant,
             .OutputType = EMaterialGraphValueType::Float3,
-            .ConstantValue = { definition.Emissive, 0.0f },
+            .ConstantValue = { desc.Emissive, 0.0f },
         });
         graph.SetChannel(EMaterialChannel::Emissive, emissive);
 
-        if (renderMode == EParticleRenderMode::Sprite && !definition.BaseColorTexturePath.empty())
+        if (renderMode == Core::EParticleRenderMode::Sprite && !desc.BaseColorTexturePath.empty())
         {
             constexpr auto texParam = "BaseColorTexture";
-            const auto tex = TextureLoader::Load(definition.BaseColorTexturePath);
+            const auto tex = TextureLoader::Load(desc.BaseColorTexturePath);
             material->DefineParameter(texParam, {
                 .Kind = EMaterialParameterKind::Texture,
                 .DefaultValue = SMaterialParam::MakeTexture(tex),

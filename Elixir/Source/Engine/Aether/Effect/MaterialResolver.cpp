@@ -1,20 +1,18 @@
 #include "epch.h"
-#include "EffectMaterialResolver.h"
+#include "MaterialResolver.h"
 
 #include <Engine/Aether/System.h>
-#include <Engine/Aether/ParticleMaterialFactory.h>
+#include <Engine/Aether/Effect/MaterialFactory.h>
 #include <Engine/Material/MaterialRegistry.h>
 
-#include "spdlog/fmt/bundled/base.h"
-
-namespace Elixir::Aether
+namespace Elixir::Aether::Effect
 {
-    EffectMaterialResolver::EffectMaterialResolver(MaterialRegistry& registry)
+    MaterialResolver::MaterialResolver(MaterialRegistry& registry)
       : m_Registry(registry) {}
 
-    bool EffectMaterialResolver::Resolve(System& system) const
+    bool MaterialResolver::Resolve(const System& system) const
     {
-        for (const auto& emitter : system.m_Emitters)
+        for (const auto& emitter : system.GetEmitters())
         {
             // A caller may replace an effect-authored instance before
             // Manager::Compile(). Do not overwrite that explicit choice.
@@ -23,14 +21,14 @@ namespace Elixir::Aether
 
             Ref<Material> material;
 
-            if (const auto& definition = emitter->GetMaterialDefinition())
+            if (const auto& desc = emitter->GetMaterialDescription())
             {
-                const auto name = "Aether." + system.m_UUID.ToString() + "." + emitter->GetName();
+                const auto name = "Aether." + system.GetId() + "." + emitter->GetName();
 
                 material = m_Registry.Find(name);
                 if (!material)
                 {
-                    material = CreateParticleMaterial(name, emitter->GetRenderMode(), *definition);
+                    material = CreateMaterial(name, emitter->GetRenderMode(), *desc);
                     if (!m_Registry.Register(material))
                     {
                         EE_CORE_ERROR("Aether material '{}' could not be registered.", name)
@@ -40,7 +38,7 @@ namespace Elixir::Aether
             }
             else
             {
-                material = m_Registry.GetDefault(GetParticleMaterialUsage(emitter->GetRenderMode()));
+                material = m_Registry.GetDefault(GetMaterialUsage(emitter->GetRenderMode()));
             }
 
             emitter->SetMaterial(material);

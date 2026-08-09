@@ -1,9 +1,7 @@
 #include "epch.h"
 #include "Modules.h"
 
-#include "Particle.h"
-
-namespace Elixir::Aether
+namespace Elixir::Aether::Modules
 {
     /* SetPositionDisk */
 

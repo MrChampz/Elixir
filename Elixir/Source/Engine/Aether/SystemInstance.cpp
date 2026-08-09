@@ -1,7 +1,7 @@
 #include "epch.h"
 #include "SystemInstance.h"
 
-#include <Engine/Aether/SystemInstanceRenderProxy.h>
+#include <Engine/Aether/Rendering/SystemInstanceRenderProxy.h>
 
 namespace Elixir::Aether
 {
@@ -20,7 +20,7 @@ namespace Elixir::Aether
         m_CompiledSystem(std::move(system)),
         m_WorldTransform(worldTransform),
         m_ParameterOverrides(std::move(overrides)),
-        m_RenderProxy(new SystemInstanceRenderProxy(
+        m_RenderProxy(new Rendering::SystemInstanceRenderProxy(
             m_Key,
             m_Revision,
             m_ParameterRevision,

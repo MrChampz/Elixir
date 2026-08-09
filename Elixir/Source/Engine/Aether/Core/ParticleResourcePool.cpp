@@ -1,7 +1,7 @@
 #include "epch.h"
 #include "ParticleResourcePool.h"
 
-namespace Elixir::Aether
+namespace Elixir::Aether::Core
 {
     ParticleResourcePool::ParticleResourcePool(
         const SParticlePoolLimits& limits,

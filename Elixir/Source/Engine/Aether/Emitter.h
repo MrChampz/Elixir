@@ -1,19 +1,19 @@
 #pragma once
 
 #include <Engine/Core/UUID.h>
-#include <Engine/Aether/Modules.h>
-#include <Engine/Aether/ParameterStore.h>
-#include <Engine/Aether/CurveStore.h>
-#include <Engine/Aether/ColorCurveStore.h>
-#include <Engine/Aether/ParticleMaterialDefinition.h>
-#include <Engine/Aether/ParticleMaterialFactory.h>
 #include <Engine/Material/MaterialInstance.h>
 #include <Engine/Material/MaterialResolver.h>
+#include <Engine/Aether/Modules/Modules.h>
+#include <Engine/Aether/Core/ParameterStore.h>
+#include <Engine/Aether/Core/CurveStore.h>
+#include <Engine/Aether/Core/ColorCurveStore.h>
+#include <Engine/Aether/Effect/MaterialDescription.h>
+#include <Engine/Aether/Effect/MaterialFactory.h>
 
 namespace Elixir::Aether
 {
-    class ParameterStore;
-
+    using namespace Core;
+    using namespace Modules;
     /**
      * @brief Stores immutable GPU-ready data for one compiled emitter.
      *
@@ -203,22 +203,22 @@ namespace Elixir::Aether
 
         /**
          * @brief Returns the material data parsed from an effect asset.
-         * @return The authored material definition, when one exists.
+         * @return The authored material description, when one exists.
          * @note This is effect-format data, not a Material instance.
          */
-        const std::optional<SParticleMaterialDefinition>& GetMaterialDefinition() const
+        const std::optional<Effect::SMaterialDescription>& GetMaterialDescription() const
         {
-            return m_MaterialDefinition;
+            return m_MaterialDescription;
         }
 
         /**
          * @brief Stores material data parsed from an effect asset.
-         * @param definition Effect-format material data for this emitter.
-         * @note EffectMaterialResolver converts this data into a material instance.
+         * @param description Effect-format material data for this emitter.
+         * @note Effect::MaterialResolver converts this data into a material instance.
          */
-        void SetMaterialDefinition(SParticleMaterialDefinition definition)
+        void SetMaterialDescription(Effect::SMaterialDescription description)
         {
-            m_MaterialDefinition = std::move(definition);
+            m_MaterialDescription = std::move(description);
         }
 
         /**
@@ -336,7 +336,7 @@ namespace Elixir::Aether
         std::string m_Name;
         EParticleRenderMode m_RenderMode = EParticleRenderMode::Sprite;
         EParticleSimulationSpace m_SimulationSpace = EParticleSimulationSpace::World;
-        std::optional<SParticleMaterialDefinition> m_MaterialDefinition;
+        std::optional<Effect::SMaterialDescription> m_MaterialDescription;
         Ref<MaterialInstance> m_Material;
         uint32_t m_MaxParticles;
 

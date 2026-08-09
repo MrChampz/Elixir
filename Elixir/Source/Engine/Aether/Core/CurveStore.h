@@ -1,8 +1,8 @@
 #pragma once
 
-#include <Engine/Aether/ParameterStore.h>
+#include <Engine/Aether/Core/ParameterStore.h>
 
-namespace Elixir::Aether
+namespace Elixir::Aether::Core
 {
     struct SGPUCurve
     {

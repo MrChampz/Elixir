@@ -1,9 +1,9 @@
 #pragma once
 
 #include <Engine/Aether/System.h>
-#include <Engine/Aether/ParticleStateLayout.h>
+#include <Engine/Aether/Core/ParticleStateLayout.h>
 
-namespace Elixir::Aether
+namespace Elixir::Aether::Core
 {
     struct SBufferRange
     {

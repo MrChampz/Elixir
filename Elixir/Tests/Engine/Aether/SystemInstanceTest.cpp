@@ -4,10 +4,11 @@
 #include <thread>
 
 #include <Engine/Aether/SystemInstance.h>
-#include <Engine/Aether/FrameSubmission.h>
+#include <../../../Source/Engine/Aether/Rendering/FrameSubmission.h>
 
 using namespace Elixir;
 using namespace Elixir::Aether;
+using namespace Elixir::Aether::Rendering;
 
 template <typename T>
 concept HasPublicSnapshotCapture = requires(const T& instance)

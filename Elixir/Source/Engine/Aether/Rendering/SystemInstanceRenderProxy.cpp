@@ -1,7 +1,7 @@
 #include "epch.h"
 #include "SystemInstanceRenderProxy.h"
 
-namespace Elixir::Aether
+namespace Elixir::Aether::Rendering
 {
     SystemInstanceRenderProxy::SystemInstanceRenderProxy(
         const SSystemInstanceKey& key,

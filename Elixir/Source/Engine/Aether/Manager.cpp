@@ -1,10 +1,12 @@
 #include "epch.h"
 #include "Manager.h"
 
-#include <Engine/Aether/Effect.h>
-#include <Engine/Aether/Renderer.h>
 #include <Engine/Material/MaterialResolver.h>
 #include <Engine/Material/MaterialSystem.h>
+#include <Engine/Aether/Effect/Effect.h>
+#include <Engine/Aether/Rendering/Renderer.h>
+
+using namespace Elixir::Aether::Effect;
 
 namespace Elixir::Aether
 {
@@ -15,7 +17,7 @@ namespace Elixir::Aether
         MaterialSystem& materialSystem
     ) : m_EffectMaterials(materialRegistry),
         m_MaterialSystem(materialSystem),
-        m_Renderer(CreateScope<Renderer>(context, shaderLoader, materialSystem)) {}
+        m_Renderer(CreateScope<Rendering::Renderer>(context, shaderLoader, materialSystem)) {}
 
     Manager::~Manager() = default;
 
@@ -70,18 +72,21 @@ namespace Elixir::Aether
         RetireDestroyedInstances();
     }
 
-    Ref<FrameSubmission> Manager::CreateFrameSubmission()
+    Ref<Rendering::FrameSubmission> Manager::CreateFrameSubmission()
     {
-        return CreateRef<FrameSubmission>();
+        return CreateRef<Rendering::FrameSubmission>();
     }
 
-    bool Manager::Submit(FrameSubmission& submission, const Ref<SystemInstance>& instance) const
+    bool Manager::Submit(
+        Rendering::FrameSubmission& submission,
+        const Ref<SystemInstance>& instance
+    ) const
     {
         const std::scoped_lock lock(m_InstancesMutex);
         return IsManagedInstance(instance) && submission.Submit(*instance);
     }
 
-    void Manager::PublishFrameSubmission(Ref<FrameSubmission> submission)
+    void Manager::PublishFrameSubmission(Ref<Rendering::FrameSubmission> submission)
     {
         EE_CORE_ASSERT(submission, "Aether frame submission cannot be null.")
 
@@ -105,12 +110,12 @@ namespace Elixir::Aether
         GetRenderer().Render(*submission, camera);
     }
 
-    const SParticleSubmissionMetrics& Manager::GetLastSubmissionMetrics() const
+    const Rendering::SParticleSubmissionMetrics& Manager::GetLastSubmissionMetrics() const
     {
         return GetRenderer().GetLastSubmissionMetrics();
     }
 
-    Renderer& Manager::GetRenderer() const
+    Rendering::Renderer& Manager::GetRenderer() const
     {
         EE_CORE_ASSERT(m_Renderer, "Aether renderer is unavailable.")
         return *m_Renderer;

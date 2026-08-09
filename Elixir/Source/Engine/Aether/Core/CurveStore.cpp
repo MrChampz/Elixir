@@ -1,16 +1,16 @@
 #include "epch.h"
-#include "ColorCurveStore.h"
+#include "CurveStore.h"
 
-namespace Elixir::Aether
+namespace Elixir::Aether::Core
 {
-    void ColorCurveStore::SetCurve(std::string name, std::vector<glm::vec4> samples)
+    void CurveStore::SetCurve(std::string name, std::vector<float> samples)
     {
         m_Curves[std::move(name)] = std::move(samples);
     }
 
-    std::vector<SGPUColorCurve> ColorCurveStore::Compile(const std::string& prefix) const
+    std::vector<SGPUCurve> CurveStore::Compile(const std::string& prefix) const
     {
-        std::vector<SGPUColorCurve> curves;
+        std::vector<SGPUCurve> curves;
         curves.reserve(m_Curves.size());
 
         for (const auto& [name, samples] : m_Curves)

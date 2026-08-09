@@ -1,7 +1,7 @@
 #include "epch.h"
 #include "ParticleStateLayout.h"
 
-namespace Elixir::Aether
+namespace Elixir::Aether::Core
 {
     ParticleStateLayoutRegistry::ParticleStateLayoutRegistry(uint32_t particleCapacity)
     {

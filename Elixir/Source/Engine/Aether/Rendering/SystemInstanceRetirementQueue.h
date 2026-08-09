@@ -3,7 +3,7 @@
 #include <Engine/Logging/Log.h>
 #include <Engine/Aether/SystemInstance.h>
 
-namespace Elixir::Aether
+namespace Elixir::Aether::Rendering
 {
     /**
      * @brief Transfers detached system instances to the render-frame retirement path.

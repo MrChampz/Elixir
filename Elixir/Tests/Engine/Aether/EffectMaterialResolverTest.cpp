@@ -1,20 +1,21 @@
 #include <gtest/gtest.h>
 
 #include <Engine/Aether/System.h>
-#include <Engine/Aether/EffectMaterialResolver.h>
+#include <../../../Source/Engine/Aether/Effect/MaterialResolver.h>
 #include <Engine/Material/MaterialRegistry.h>
 
 using namespace Elixir;
 using namespace Elixir::Aether;
+using namespace Elixir::Aether::Core;
 
 TEST(EffectMaterialResolverTest, CreatesAuthoredMaterialsAndUsesUsageDefaults)
 {
     MaterialRegistry registry;
-    const EffectMaterialResolver resolver{ registry };
+    const Effect::MaterialResolver resolver{ registry };
     System system{ "Effect material resolution" };
 
     auto& sprite = system.AddEmitter("Sprite", 8, 0.0f);
-    sprite.SetMaterialDefinition({
+    sprite.SetMaterialDescription({
         .BaseColor = { 0.25f, 0.5f, 0.75f },
         .Opacity = 0.4f,
         .Emissive = {0.1f, 0.0f, 0.0f },

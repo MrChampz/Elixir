@@ -2,7 +2,7 @@
 
 #include <Engine/Aether/SystemInstance.h>
 
-namespace Elixir::Aether
+namespace Elixir::Aether::Rendering
 {
     /**
      * @brief Provides immutable SystemInstance data to the particle renderer.
@@ -19,7 +19,7 @@ namespace Elixir::Aether
      */
     class SystemInstanceRenderProxy
     {
-        friend class SystemInstanceSnapshot;
+        friend class Elixir::Aether::SystemInstanceSnapshot;
         friend class FrameSubmission;
         friend class Renderer;
 

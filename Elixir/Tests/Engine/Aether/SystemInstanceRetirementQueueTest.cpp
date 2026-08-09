@@ -5,10 +5,11 @@
 #include <thread>
 #include <vector>
 
-#include <Engine/Aether/SystemInstanceRetirementQueue.h>
+#include <../../../Source/Engine/Aether/Rendering/SystemInstanceRetirementQueue.h>
 
 using namespace Elixir;
 using namespace Elixir::Aether;
+using namespace Elixir::Aether::Rendering;
 
 TEST(SystemInstanceRetirementQueueTest, TransfersPendingInstancesExactlyOnce)
 {

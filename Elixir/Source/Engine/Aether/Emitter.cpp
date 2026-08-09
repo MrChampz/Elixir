@@ -1,8 +1,6 @@
 #include "epch.h"
 #include "Emitter.h"
 
-#include "System.h"
-
 namespace Elixir::Aether
 {
     Emitter::Emitter(
@@ -42,7 +40,7 @@ namespace Elixir::Aether
         {
             const auto proxy = materialResolver.Resolve(m_Material);
             if (!proxy || !proxy->GetCompiledMaterial()->SupportsUsage(
-                    GetParticleMaterialUsage(m_RenderMode)
+                    Effect::GetMaterialUsage(m_RenderMode)
                 ))
                 EE_CORE_ERROR(
                     "Aether emitter '{}' material does not support its render mode.",

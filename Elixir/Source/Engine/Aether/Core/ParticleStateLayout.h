@@ -1,8 +1,8 @@
 #pragma once
 
-#include <Engine/Aether/Particle.h>
+#include <Engine/Aether/Core/Particle.h>
 
-namespace Elixir::Aether
+namespace Elixir::Aether::Core
 {
     // CoreV1 is six float4 values in both C++ and HLSL.
     constexpr uint32_t PARTICLE_STATE_CORE_V1_STRIDE = sizeof(glm::vec4) * 6;

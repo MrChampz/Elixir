@@ -2,13 +2,17 @@
 
 #include <Engine/Aether/System.h>
 
+namespace Elixir::Aether::Rendering
+{
+    class FrameSubmission;
+    class FrameSubmissionPublisher;
+    class Renderer;
+    class SystemInstanceRenderProxy;
+}
+
 namespace Elixir::Aether
 {
-    class SystemInstanceRenderProxy;
-    class FrameSubmissionPublisher;
     class Manager;
-    class Renderer;
-
     /**
      * @brief Identifies one runtime SystemInstance inside Aether.
      *
@@ -54,9 +58,9 @@ namespace Elixir::Aether
     class ELIXIR_API SystemInstanceSnapshot final
     {
         friend class SystemInstance;
-        friend class FrameSubmission;
+        friend class Rendering::FrameSubmission;
         friend class Manager;
-        friend class Renderer;
+        friend class Rendering::Renderer;
 
     public:
         /**
@@ -110,7 +114,7 @@ namespace Elixir::Aether
         const SSystemInstanceKey& GetKey() const { return m_Key; }
 
         // Returns the immutable renderer-facing state derived from this snapshot.
-        const Ref<const SystemInstanceRenderProxy>& GetRenderProxy() const
+        const Ref<const Rendering::SystemInstanceRenderProxy>& GetRenderProxy() const
         {
             return m_RenderProxy;
         }
@@ -121,7 +125,7 @@ namespace Elixir::Aether
         Ref<const SCompiledSystem> m_CompiledSystem;
         glm::mat4 m_WorldTransform{ 1.0f };
         Ref<const ParameterOverridesMap> m_ParameterOverrides;
-        Ref<const SystemInstanceRenderProxy> m_RenderProxy;
+        Ref<const Rendering::SystemInstanceRenderProxy> m_RenderProxy;
     };
 
     /**
@@ -140,10 +144,10 @@ namespace Elixir::Aether
      */
     class ELIXIR_API SystemInstance final
     {
-        friend class FrameSubmission;
-        friend class FrameSubmissionPublisher;
+        friend class Rendering::FrameSubmission;
+        friend class Rendering::FrameSubmissionPublisher;
         friend class Manager;
-        friend class Renderer;
+        friend class Rendering::Renderer;
 
     public:
         /**

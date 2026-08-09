@@ -1,13 +1,13 @@
 #pragma once
 
 #include <Engine/Core/Timer.h>
-#include <Engine/Aether/System.h>
-#include <Engine/Aether/SystemInstance.h>
-#include <Engine/Aether/ParticleResourcePool.h>
-#include <Engine/Aether/ParticleStateLayout.h>
-#include <Engine/Aether/FrameSubmission.h>
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
+#include <Engine/Aether/System.h>
+#include <Engine/Aether/SystemInstance.h>
+#include <Engine/Aether/Core/ParticleStateLayout.h>
+#include <Engine/Aether/Core/ParticleResourcePool.h>
+#include <Engine/Aether/Rendering/FrameSubmission.h>
 
 namespace Elixir
 {
@@ -15,8 +15,12 @@ namespace Elixir
     class MaterialRenderScene;
 }
 
-namespace Elixir::Aether
+namespace Elixir::Aether::Rendering
 {
+    using namespace Elixir;
+    using namespace Elixir::Aether;
+    using namespace Elixir::Aether::Core;
+
     struct alignas(16) SFrameData
     {
         glm::mat4 View;

@@ -2,7 +2,7 @@
 
 #include <map>
 
-namespace Elixir::Aether
+namespace Elixir::Aether::Core
 {
     struct SGPUParameter
     {

@@ -1,7 +1,7 @@
 #include "epch.h"
 #include "ParameterStore.h"
 
-namespace Elixir::Aether
+namespace Elixir::Aether::Core
 {
     float ParameterStore::GetFloat(const std::string& name, const float fallback) const
     {

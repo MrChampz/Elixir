@@ -1,9 +1,10 @@
 #include <gtest/gtest.h>
 
-#include <Engine/Aether/ParticleResourcePool.h>
+#include <../../../Source/Engine/Aether/Core/ParticleResourcePool.h>
 
 using namespace Elixir;
 using namespace Elixir::Aether;
+using namespace Elixir::Aether::Core;
 
 namespace
 {

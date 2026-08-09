@@ -1,12 +1,9 @@
 #pragma once
 
-#include <unordered_set>
-#include <vector>
-
 #include <Engine/Aether/SystemInstance.h>
-#include <Engine/Aether/SystemInstanceRenderProxy.h>
+#include <Engine/Aether/Rendering/SystemInstanceRenderProxy.h>
 
-namespace Elixir::Aether
+namespace Elixir::Aether::Rendering
 {
     /**
      * @brief Collects immutable system-instance render proxies for one frame.

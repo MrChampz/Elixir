@@ -10,6 +10,7 @@
 
 using namespace Elixir;
 using namespace Elixir::Aether;
+using namespace Elixir::Aether::Core;
 
 namespace
 {
