@@ -13,6 +13,7 @@ namespace Elixir::Aether::Rendering
 namespace Elixir::Aether
 {
     class Manager;
+
     /**
      * @brief Identifies one runtime SystemInstance inside Aether.
      *

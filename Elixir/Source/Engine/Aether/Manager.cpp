@@ -4,6 +4,7 @@
 #include <Engine/Material/MaterialResolver.h>
 #include <Engine/Material/MaterialSystem.h>
 #include <Engine/Aether/Effect/Effect.h>
+#include <Engine/Aether/Simulation/Simulator.h>
 #include <Engine/Aether/Rendering/Renderer.h>
 
 using namespace Elixir::Aether::Effect;
@@ -17,7 +18,9 @@ namespace Elixir::Aether
         MaterialSystem& materialSystem
     ) : m_EffectMaterials(materialRegistry),
         m_MaterialSystem(materialSystem),
-        m_Renderer(CreateScope<Rendering::Renderer>(context, shaderLoader, materialSystem)) {}
+        m_Simulator(CreateScope<Simulator>(context, shaderLoader)),
+        m_Renderer(CreateScope<Renderer>(context, materialSystem)),
+        m_GraphicsContext(context) {}
 
     Manager::~Manager() = default;
 
@@ -68,17 +71,17 @@ namespace Elixir::Aether
 
     void Manager::BeginFrame(const Timestep& timestep)
     {
-        GetRenderer().Update(timestep);
+        GetSimulator().BeginFrame(timestep);
         RetireDestroyedInstances();
     }
 
-    Ref<Rendering::FrameSubmission> Manager::CreateFrameSubmission()
+    Ref<FrameSubmission> Manager::CreateFrameSubmission()
     {
-        return CreateRef<Rendering::FrameSubmission>();
+        return CreateRef<FrameSubmission>();
     }
 
     bool Manager::Submit(
-        Rendering::FrameSubmission& submission,
+        FrameSubmission& submission,
         const Ref<SystemInstance>& instance
     ) const
     {
@@ -86,7 +89,7 @@ namespace Elixir::Aether
         return IsManagedInstance(instance) && submission.Submit(*instance);
     }
 
-    void Manager::PublishFrameSubmission(Ref<Rendering::FrameSubmission> submission)
+    void Manager::PublishFrameSubmission(Ref<FrameSubmission> submission)
     {
         EE_CORE_ASSERT(submission, "Aether frame submission cannot be null.")
 
@@ -107,15 +110,38 @@ namespace Elixir::Aether
         const auto submission = m_FrameSubmissionPublisher.Acquire();
         if (!submission) return;
 
-        GetRenderer().Render(*submission, camera);
+        const auto cmd = m_GraphicsContext->GetSecondaryCommandBuffer();
+
+        cmd->Begin({
+            .ColorAttachment = m_GraphicsContext->GetRenderTarget(),
+            .DepthStencilAttachment =  m_GraphicsContext->GetDepthStencilRenderTarget(),
+            .RenderArea = m_GraphicsContext->GetRenderTarget()->GetExtent(),
+        });
+
+        const auto frame = GetSimulator().Simulate(*submission, cmd);
+        GetRenderer().Render(*frame, camera, cmd);
+
+        cmd->End();
+        m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
     }
 
-    const Rendering::SParticleSubmissionMetrics& Manager::GetLastSubmissionMetrics() const
+    const SSimulationMetrics& Manager::GetLastSimulationMetrics() const
     {
-        return GetRenderer().GetLastSubmissionMetrics();
+        return GetSimulator().GetLastMetrics();
     }
 
-    Rendering::Renderer& Manager::GetRenderer() const
+    const SRenderingMetrics& Manager::GetLastRenderingMetrics() const
+    {
+        return GetRenderer().GetLastMetrics();
+    }
+
+    Simulator& Manager::GetSimulator() const
+    {
+        EE_CORE_ASSERT(m_Simulator, "Aether simulator is unavailable.")
+        return *m_Simulator;
+    }
+
+    Renderer& Manager::GetRenderer() const
     {
         EE_CORE_ASSERT(m_Renderer, "Aether renderer is unavailable.")
         return *m_Renderer;
@@ -126,7 +152,7 @@ namespace Elixir::Aether
         const auto instances = m_PendingRetirements.Drain();
 
         for (const auto& instance : instances)
-            GetRenderer().Retire(instance->GetKey());
+            GetSimulator().Retire(instance->GetKey());
     }
 
     bool Manager::IsManagedInstance(const Ref<SystemInstance>& instance) const

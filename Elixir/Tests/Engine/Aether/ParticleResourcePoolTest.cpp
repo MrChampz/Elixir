@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <../../../Source/Engine/Aether/Core/ResourcePool.h>
+#include <../../../Source/Engine/Aether/Simulation/ResourcePool.h>
 
 using namespace Elixir;
 using namespace Elixir::Aether;

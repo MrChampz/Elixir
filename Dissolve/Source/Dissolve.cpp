@@ -274,7 +274,8 @@ void Dissolve::Render(const Timestep frameTime)
     //DrawGeometry();
 
     aether.Render(m_CameraController->GetCamera());
-    const auto& metrics = aether.GetLastSubmissionMetrics();
+    const auto& simulationMetrics = aether.GetLastSimulationMetrics();
+    const auto& renderMetrics = aether.GetLastRenderingMetrics();
 }
 
 void Dissolve::OnEvent(Event& event)

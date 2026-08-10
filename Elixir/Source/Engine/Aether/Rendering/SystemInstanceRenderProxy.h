@@ -2,8 +2,13 @@
 
 #include <Engine/Aether/SystemInstance.h>
 
+namespace Elixir::Aether::Simulation { class Simulator; }
+
 namespace Elixir::Aether::Rendering
 {
+    using Aether::SystemInstanceSnapshot;
+    using Simulation::Simulator;
+
     /**
      * @brief Provides immutable SystemInstance data to the particle renderer.
      *
@@ -19,9 +24,9 @@ namespace Elixir::Aether::Rendering
      */
     class SystemInstanceRenderProxy
     {
-        friend class Elixir::Aether::SystemInstanceSnapshot;
+        friend class SystemInstanceSnapshot;
         friend class FrameSubmission;
-        friend class Renderer;
+        friend class Simulator;
 
     public:
         /**

@@ -16,15 +16,27 @@ namespace Elixir
     class MaterialResolver;
     class MaterialSystem;
 
-    namespace Aether::Rendering
+    namespace Aether
     {
-        class Renderer;
-        struct SParticleSubmissionMetrics;
+        namespace Simulation
+        {
+            class Simulator;
+            struct SSimulationMetrics;
+        }
+
+        namespace Rendering
+        {
+            class Renderer;
+            struct SRenderingMetrics;
+        }
     }
 }
 
 namespace Elixir::Aether
 {
+    using namespace Simulation;
+    using namespace Rendering;
+
     /**
      * @brief Coordinates Aether effect compilation, runtime instances, and rendering.
      *
@@ -148,7 +160,7 @@ namespace Elixir::Aether
          *
          * @return A new unsealed frame submission.
          */
-        static Ref<Rendering::FrameSubmission> CreateFrameSubmission();
+        static Ref<FrameSubmission> CreateFrameSubmission();
 
         /**
          * @brief Captures an instance for a frame submission.
@@ -163,7 +175,7 @@ namespace Elixir::Aether
          * submission is sealed.
          */
         bool Submit(
-            Rendering::FrameSubmission& submission,
+            FrameSubmission& submission,
             const Ref<SystemInstance>& instance
         ) const;
 
@@ -179,7 +191,7 @@ namespace Elixir::Aether
          * @pre submission is not null.
          * @warning Do not modify the submission after publishing it.
          */
-        void PublishFrameSubmission(Ref<Rendering::FrameSubmission> submission);
+        void PublishFrameSubmission(Ref<FrameSubmission> submission);
 
         /**
          * @brief Simulates and renders the latest published submission.
@@ -192,18 +204,15 @@ namespace Elixir::Aether
          */
         void Render(const Camera& camera);
 
-        /**
-         * @brief Returns metrics for the most recently rendered particle frame.
-         *
-         * @return Read-only metrics collected during the latest Render() call.
-         *
-         * @note Read the result at a frame boundary after rendering completes.
-         */
-        const Rendering::SParticleSubmissionMetrics& GetLastSubmissionMetrics() const;
+
+        const SSimulationMetrics& GetLastSimulationMetrics() const;
+
+        const SRenderingMetrics& GetLastRenderingMetrics() const;
 
     private:
-        // Returns the owned renderer and verifies that construction completed.
-        Rendering::Renderer& GetRenderer() const;
+        Simulator& GetSimulator() const;
+
+        Renderer& GetRenderer() const;
 
         // Forwards detached instances to the renderer for fence-safe GPU retirement.
         void RetireDestroyedInstances();
@@ -217,8 +226,12 @@ namespace Elixir::Aether
         std::unordered_map<SSystemInstanceKey, Ref<SystemInstance>> m_Instances;
         mutable std::mutex m_InstancesMutex;
 
-        Rendering::SystemInstanceRetirementQueue m_PendingRetirements;
-        Rendering::FrameSubmissionPublisher m_FrameSubmissionPublisher;
-        Scope<Rendering::Renderer> m_Renderer;
+        Scope<Simulator> m_Simulator;
+
+        SystemInstanceRetirementQueue m_PendingRetirements;
+        FrameSubmissionPublisher m_FrameSubmissionPublisher;
+        Scope<Renderer> m_Renderer;
+
+        const GraphicsContext* m_GraphicsContext = nullptr;
     };
 }
