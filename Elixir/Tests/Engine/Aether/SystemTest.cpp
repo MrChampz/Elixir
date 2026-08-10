@@ -21,7 +21,7 @@ namespace
     }
 }
 
-TEST(AetherSystemTest, CompilePreservesEmitterSimulationSpace)
+TEST(SystemTest, CompilePreservesEmitterSimulationSpace)
 {
     System system{ "Simulation space contract" };
     system.AddEmitter("World", 8, 0.0f); // world emitter
@@ -35,7 +35,7 @@ TEST(AetherSystemTest, CompilePreservesEmitterSimulationSpace)
     EXPECT_EQ(compiled.Emitters[1].SimulationSpace, EParticleSimulationSpace::Local);
 }
 
-TEST(AetherSystemTest, CompileAssignsContiguousLocalEmitterParticleOffsets)
+TEST(SystemTest, CompileAssignsContiguousLocalEmitterParticleOffsets)
 {
     System system{ "Particle offset contract" };
     system.AddEmitter("First", 3u, 0.0f);
@@ -52,7 +52,7 @@ TEST(AetherSystemTest, CompileAssignsContiguousLocalEmitterParticleOffsets)
     EXPECT_EQ(compiled.TotalMaxParticles, 21u);
 }
 
-TEST(AetherSystemTest, CompileResolvesTriggerEmitterByCompiledIndex)
+TEST(SystemTest, CompileResolvesTriggerEmitterByCompiledIndex)
 {
     System system{ "Trigger contract" };
     system.AddEmitter("Source", 8, 0.0f);
@@ -75,7 +75,7 @@ TEST(AetherSystemTest, CompileResolvesTriggerEmitterByCompiledIndex)
     EXPECT_FLOAT_EQ(compiled.TriggerTargets[0].DelaySeconds, 0.25f);
 }
 
-TEST(AetherSystemTest, CompileExposesOnlyAuthoredParameters)
+TEST(SystemTest, CompileExposesOnlyAuthoredParameters)
 {
     System system{ "Parameter contract" };
     system.GetParameters().SetFloat("SystemRate", 4.0f);
@@ -97,7 +97,7 @@ TEST(AetherSystemTest, CompileExposesOnlyAuthoredParameters)
     EXPECT_EQ(compiled.Parameters[3].Name, "SizeOverLife:1");
 }
 
-TEST(AetherSystemTest, FindsNamedEmitterForMaterialPublication)
+TEST(SystemTest, FindsNamedEmitterForMaterialPublication)
 {
     System system{ "Named emitters" };
     auto& flame = system.AddEmitter("FlameCore", 8, 0.0f);
@@ -108,7 +108,7 @@ TEST(AetherSystemTest, FindsNamedEmitterForMaterialPublication)
     EXPECT_EQ(system.FindEmitter("Missing"), nullptr);
 }
 
-TEST(AetherSystemTest, CompileSnapshotsParticleSpriteMaterialForRenderData)
+TEST(SystemTest, CompileSnapshotsParticleSpriteMaterialForRenderData)
 {
     const auto material = CreateRef<Material>("Particle tint");
     ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleSprite, true));
@@ -145,7 +145,7 @@ TEST(AetherSystemTest, CompileSnapshotsParticleSpriteMaterialForRenderData)
     EXPECT_FLOAT_EQ(second.Emitters[0].Material->GetValues()[0].x, 0.75f);
 }
 
-TEST(AetherSystemTest, CompileSnapshotsParticleRibbonMaterialForRenderData)
+TEST(SystemTest, CompileSnapshotsParticleRibbonMaterialForRenderData)
 {
     const auto material = CreateRef<Material>("Particle ribbon");
     ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleRibbon, true));
@@ -166,7 +166,7 @@ TEST(AetherSystemTest, CompileSnapshotsParticleRibbonMaterialForRenderData)
     ));
 }
 
-TEST(AetherSystemTest, CompileSnapshotsParticleMeshMaterialForRenderData)
+TEST(SystemTest, CompileSnapshotsParticleMeshMaterialForRenderData)
 {
     const auto material = CreateRef<Material>("Particle mesh");
     material->SetUsage(EMaterialUsage::ParticleMesh, true);
@@ -187,7 +187,7 @@ TEST(AetherSystemTest, CompileSnapshotsParticleMeshMaterialForRenderData)
     ));
 }
 
-TEST(AetherSystemTest, KeepsAnEmitterWithoutAnExplicitMaterialUnbound)
+TEST(SystemTest, KeepsAnEmitterWithoutAnExplicitMaterialUnbound)
 {
     System system{ "Explicit material contract" };
     system.AddEmitter("Smoke", 8, 0.0f);

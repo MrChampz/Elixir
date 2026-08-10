@@ -4,7 +4,7 @@
 #include <thread>
 
 #include <Engine/Aether/SystemInstance.h>
-#include <../../../Source/Engine/Aether/Rendering/FrameSubmission.h>
+#include <Engine/Aether/Rendering/FrameSubmission.h>
 
 using namespace Elixir;
 using namespace Elixir::Aether;
@@ -44,7 +44,7 @@ namespace
     }
 }
 
-TEST(AetherSystemInstanceTest, ReplacesCompiledSystemAndIncrementsRevision)
+TEST(SystemInstanceTest, ReplacesCompiledSystemAndIncrementsRevision)
 {
     const auto initialSystem = CreateRef<SCompiledSystem>();
     const auto replacementSystem = CreateRef<SCompiledSystem>();
@@ -60,7 +60,7 @@ TEST(AetherSystemInstanceTest, ReplacesCompiledSystemAndIncrementsRevision)
     EXPECT_EQ(&snapshot->GetCompiledSystem(), replacementSystem.get());
 }
 
-TEST(AetherSystemInstanceTest, DoesNotIncrementRevisionForSameCompiledSystem)
+TEST(SystemInstanceTest, DoesNotIncrementRevisionForSameCompiledSystem)
 {
     const auto compiledSystem = CreateRef<SCompiledSystem>();
     SystemInstance instance{ compiledSystem };
@@ -69,7 +69,7 @@ TEST(AetherSystemInstanceTest, DoesNotIncrementRevisionForSameCompiledSystem)
     EXPECT_EQ(CaptureForTest(instance)->GetRevision(), 1);
 }
 
-TEST(AetherSystemInstanceTest, AppliesOverridesOnlyToExposedParameters)
+TEST(SystemInstanceTest, AppliesOverridesOnlyToExposedParameters)
 {
     const auto compiledSystem = MakeCompiledSystem();
     SystemInstance instance{ compiledSystem };
@@ -95,7 +95,7 @@ TEST(AetherSystemInstanceTest, AppliesOverridesOnlyToExposedParameters)
     EXPECT_FLOAT_EQ(colorChunk.w, 1.0f);
 }
 
-TEST(AetherSystemInstanceTest, ClearsOverridesAndRestoresCompiledDefaults)
+TEST(SystemInstanceTest, ClearsOverridesAndRestoresCompiledDefaults)
 {
     const auto compiledSystem = MakeCompiledSystem();
     SystemInstance instance{ compiledSystem };
@@ -111,7 +111,7 @@ TEST(AetherSystemInstanceTest, ClearsOverridesAndRestoresCompiledDefaults)
     EXPECT_FLOAT_EQ(tint.w, 1.0f);
 }
 
-TEST(AetherSystemInstanceTest, RetainsOnlyOverridesExposedByReplacementSystem)
+TEST(SystemInstanceTest, RetainsOnlyOverridesExposedByReplacementSystem)
 {
     const auto initialSystem = MakeCompiledSystem();
     SystemInstance instance{ initialSystem };
@@ -135,7 +135,7 @@ TEST(AetherSystemInstanceTest, RetainsOnlyOverridesExposedByReplacementSystem)
     EXPECT_FLOAT_EQ(tint.w, 1.0f);
 }
 
-TEST(AetherSystemInstanceTest, StoresWorldTransformWithoutChangingCompiledSystem)
+TEST(SystemInstanceTest, StoresWorldTransformWithoutChangingCompiledSystem)
 {
     const auto compiledSystem = MakeCompiledSystem();
     SystemInstance instance{ compiledSystem };
@@ -153,7 +153,7 @@ TEST(AetherSystemInstanceTest, StoresWorldTransformWithoutChangingCompiledSystem
     EXPECT_EQ(&snapshot->GetCompiledSystem(), compiledSystem.get());
 }
 
-TEST(AetherSystemInstanceTest, KeepsCapturedProxyImmutableDuringConcurrentOverrides)
+TEST(SystemInstanceTest, KeepsCapturedProxyImmutableDuringConcurrentOverrides)
 {
     const auto system = MakeCompiledSystem();
     SystemInstance instance{ system };

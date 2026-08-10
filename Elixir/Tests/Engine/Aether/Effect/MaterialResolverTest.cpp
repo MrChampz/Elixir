@@ -1,14 +1,14 @@
 #include <gtest/gtest.h>
 
 #include <Engine/Aether/System.h>
-#include <../../../Source/Engine/Aether/Effect/MaterialResolver.h>
+#include <Engine/Aether/Effect/MaterialResolver.h>
 #include <Engine/Material/MaterialRegistry.h>
 
 using namespace Elixir;
 using namespace Elixir::Aether;
 using namespace Elixir::Aether::Core;
 
-TEST(EffectMaterialResolverTest, CreatesAuthoredMaterialsAndUsesUsageDefaults)
+TEST(MaterialResolverTest, CreatesAuthoredMaterialsAndUsesUsageDefaults)
 {
     MaterialRegistry registry;
     const Effect::MaterialResolver resolver{ registry };

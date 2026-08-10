@@ -5,7 +5,7 @@
 #include <thread>
 #include <vector>
 
-#include <../../../Source/Engine/Aether/Rendering/SystemInstanceRetirementQueue.h>
+#include <Engine/Aether/Rendering/SystemInstanceRetirementQueue.h>
 
 using namespace Elixir;
 using namespace Elixir::Aether;

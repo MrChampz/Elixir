@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <../../../Source/Engine/Aether/Simulation/ResourcePool.h>
+#include <Engine/Aether/Simulation/ResourcePool.h>
 
 using namespace Elixir;
 using namespace Elixir::Aether;
@@ -39,7 +39,7 @@ namespace
     }
 }
 
-TEST(AetherParticleResourcePoolTest, AllocatesDisjointRangesForLiveInstances)
+TEST(ResourcePoolTest, AllocatesDisjointRangesForLiveInstances)
 {
     const auto limits = MakePoolLimits();
     const ParticleStateLayoutRegistry layouts{ limits.ParticleCapacity };
@@ -65,7 +65,7 @@ TEST(AetherParticleResourcePoolTest, AllocatesDisjointRangesForLiveInstances)
     EXPECT_EQ(second->TriggerQueueStates.Offset, first->TriggerQueueStates.Count);
 }
 
-TEST(AetherParticleResourcePoolTest, ReusesReleasedRanges)
+TEST(ResourcePoolTest, ReusesReleasedRanges)
 {
     const auto limits = MakePoolLimits();
     const ParticleStateLayoutRegistry layouts{ limits.ParticleCapacity };
@@ -93,7 +93,7 @@ TEST(AetherParticleResourcePoolTest, ReusesReleasedRanges)
     EXPECT_EQ(reused->TriggerQueueStates.Offset, first->TriggerQueueStates.Offset);
 }
 
-TEST(AetherParticleResourcePoolTest, RollsBackPartialAllocationFailure)
+TEST(ResourcePoolTest, RollsBackPartialAllocationFailure)
 {
     auto limits = MakePoolLimits();
     limits.ParticleCapacity = 4;
@@ -118,7 +118,7 @@ TEST(AetherParticleResourcePoolTest, RollsBackPartialAllocationFailure)
     EXPECT_EQ(allocation->TriggerQueueStates.Offset, 0u);
 }
 
-TEST(AetherParticleResourcePoolTest, RejectsAnUnregisteredParticleStateLayout)
+TEST(ResourcePoolTest, RejectsAnUnregisteredParticleStateLayout)
 {
     const auto limits = MakePoolLimits();
     const ParticleStateLayoutRegistry layouts{ limits.ParticleCapacity };
