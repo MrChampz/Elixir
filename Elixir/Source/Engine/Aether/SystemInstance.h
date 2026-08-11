@@ -42,13 +42,14 @@ namespace Elixir::Aether
     };
 
     using ParameterOverridesMap = std::unordered_map<std::string, glm::vec4>;
+    using ResolvedParameterValues = std::vector<glm::vec4>;
 
     /**
      * @brief Stores one immutable view of a SystemInstance.
      *
-     * A snapshot contains the compiled system, world transform, and parameter
-     * overrides selected at one point in time. It also creates the corresponding
-     * SystemInstanceRenderProxy for the renderer.
+     * A snapshot contains the compiled system, world transform, and resolved
+     * parameter values selected at one point in time. It also creates the
+     * corresponding SystemInstanceRenderProxy for the renderer.
      *
      * SystemInstance publishes a replacement snapshot after each accepted change.
      * Existing snapshots remain valid for frame submissions that already captured
@@ -72,10 +73,10 @@ namespace Elixir::Aether
          * @param parameterRevision Revision of the resolved parameter values.
          * @param system Compiled system selected by the instance.
          * @param worldTransform World transform selected by the instance.
-         * @param overrides Named parameter overrides selected by the instance.
+         * @param parameters Resolved values in compiled parameter order.
          *
          * @pre system is not null.
-         * @pre overrides is not null.
+         * @pre parameters is not null.
          */
         SystemInstanceSnapshot(
             SSystemInstanceKey key,
@@ -83,7 +84,7 @@ namespace Elixir::Aether
             uint32_t parameterRevision,
             Ref<const SCompiledSystem> system,
             const glm::mat4& worldTransform,
-            Ref<const ParameterOverridesMap> overrides
+            Ref<const ResolvedParameterValues> parameters
         );
 
         /**
@@ -125,7 +126,7 @@ namespace Elixir::Aether
         uint32_t m_ParameterRevision = 1;
         Ref<const SCompiledSystem> m_CompiledSystem;
         glm::mat4 m_WorldTransform{ 1.0f };
-        Ref<const ParameterOverridesMap> m_ParameterOverrides;
+        Ref<const ResolvedParameterValues> m_Parameters;
         Ref<const Rendering::SystemInstanceRenderProxy> m_RenderProxy;
     };
 
@@ -203,6 +204,17 @@ namespace Elixir::Aether
         void ClearParameterOverrides();
 
         /**
+         * @brief Returns the effective value of an exposed parameter.
+         *
+         * The method returns the instance override when one exists. Otherwise, it
+         * returns the default value from the selected compiled system.
+         *
+         * @param name Name of the exposed parameter.
+         * @return Effective value, or no value when the parameter is not exposed.
+         */
+        std::optional<glm::vec4> GetParameterValue(const std::string& name) const;
+
+        /**
          * @brief Replaces the world transform for future frame submissions.
          * @param worldTransform Transform applied to this system instance.
          */
@@ -212,23 +224,37 @@ namespace Elixir::Aether
         // Captures the current immutable state without retaining the mutex.
         Ref<const SystemInstanceSnapshot> CaptureSnapshot() const;
 
-        // Builds a snapshot and its renderer-facing proxy from resolved state.
-        static Ref<const SystemInstanceSnapshot> CreateSnapshot(
-            const SSystemInstanceKey& key,
-            uint32_t revision,
-            uint32_t parameterRevision,
-            Ref<const SCompiledSystem> system,
-            const glm::mat4& worldTransform,
-            Ref<const ParameterOverridesMap> overrides
+        // Publishes the current mutable state as an immutable snapshot.
+        void PublishSnapshot();
+
+        // Finds the compiled mapping for an exposed runtime parameter.
+        static const SExposedParameter* FindExposedParameter(
+            const SCompiledSystem& system,
+            std::string_view name
         );
 
-        // Checks whether a parameter can be changed through the runtime API.
-        static bool IsExposedParameter(const SCompiledSystem& system, std::string_view name);
+        // Resolves one compiled parameter against the instance overrides.
+        static glm::vec4 ResolveParameterValue(
+            const SGPUParameter& parameter,
+            const ParameterOverridesMap& overrides
+        );
+
+        // Resolves all compiled parameters into immutable renderer table order.
+        static Ref<const ResolvedParameterValues> ResolveParameterValues(
+            const SCompiledSystem& system,
+            const ParameterOverridesMap& overrides
+        );
 
         // Returns the internal identity used by Manager and Renderer.
         const SSystemInstanceKey& GetKey() const { return m_Key; }
 
         SSystemInstanceKey m_Key;
+        uint32_t m_Revision = 1;
+        uint32_t m_ParameterRevision = 1;
+        Ref<const SCompiledSystem> m_CompiledSystem;
+        glm::mat4 m_WorldTransform{ 1.0f };
+        ParameterOverridesMap m_ParameterOverrides;
+
         Ref<const SystemInstanceSnapshot> m_Snapshot;
         mutable std::mutex m_SnapshotMutex;
     };

@@ -9,20 +9,21 @@ namespace Elixir::Aether::Rendering
         const uint32_t parameterRevision,
         Ref<const SCompiledSystem> system,
         const glm::mat4& worldTransform,
-        const ParameterOverridesMap& overrides
+        Ref<const ResolvedParameterValues> parameters
     ) : m_Key(key),
         m_Revision(revision),
         m_ParameterRevision(parameterRevision),
         m_CompiledSystem(std::move(system)),
-        m_WorldTransform(worldTransform)
+        m_WorldTransform(worldTransform),
+        m_Parameters(std::move(parameters))
     {
-        m_ParameterValues.reserve(m_CompiledSystem->Parameters.size());
-
-        for (const auto& parameter : m_CompiledSystem->Parameters)
-        {
-            const auto found = overrides.find(parameter.Name);
-            const auto value = found != overrides.end() ? found->second : parameter.Value;
-            m_ParameterValues.push_back(value);
-        }
+        EE_CORE_ASSERT(
+            m_Parameters,
+            "SystemInstanceRenderProxy requires resolved parameter values."
+        )
+        EE_CORE_ASSERT(
+            m_Parameters->size() == m_CompiledSystem->Parameters.size(),
+            "Aether resolved parameter table does not match the compiled system."
+        )
     }
 }

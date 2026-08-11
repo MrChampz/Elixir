@@ -69,6 +69,35 @@ TEST(SystemInstanceTest, DoesNotIncrementRevisionForSameCompiledSystem)
     EXPECT_EQ(CaptureForTest(instance)->GetRevision(), 1);
 }
 
+TEST(SystemInstanceTest, ReturnsOverrideOrCompiledDefaultForExposedParameter)
+{
+    const auto compiledSystem = MakeCompiledSystem();
+    SystemInstance instance{ compiledSystem };
+
+    const auto defaultValue = instance.GetParameterValue("Tint");
+
+    ASSERT_TRUE(defaultValue.has_value());
+    EXPECT_FLOAT_EQ(defaultValue->x, 1.0f);
+    EXPECT_FLOAT_EQ(defaultValue->y, 1.0f);
+    EXPECT_FLOAT_EQ(defaultValue->z, 1.0f);
+    EXPECT_FLOAT_EQ(defaultValue->w, 1.0f);
+
+    ASSERT_TRUE(instance.SetParameterOverride(
+        "Tint",
+        { 0.25f, 0.5f, 0.75f, 1.0f }
+    ));
+
+    const auto overrideValue = instance.GetParameterValue("Tint");
+
+    ASSERT_TRUE(overrideValue.has_value());
+    EXPECT_FLOAT_EQ(overrideValue->x, 0.25f);
+    EXPECT_FLOAT_EQ(overrideValue->y, 0.5f);
+    EXPECT_FLOAT_EQ(overrideValue->z, 0.75f);
+    EXPECT_FLOAT_EQ(overrideValue->w, 1.0f);
+    EXPECT_FALSE(instance.GetParameterValue("SizeOverLife:0").has_value());
+    EXPECT_FALSE(instance.GetParameterValue("Missing").has_value());
+}
+
 TEST(SystemInstanceTest, AppliesOverridesOnlyToExposedParameters)
 {
     const auto compiledSystem = MakeCompiledSystem();

@@ -13,12 +13,11 @@ namespace Elixir::Aether::Rendering
      * @brief Provides immutable SystemInstance data to the particle renderer.
      *
      * SystemInstanceSnapshot creates this proxy from one compiled system, world
-     * transform, and parameter-override set. FrameSubmission stores the proxy, so
-     * Renderer never reads mutable SystemInstance state.
+     * transform, and resolved parameter table. FrameSubmission stores the proxy,
+     * so Renderer never reads mutable SystemInstance state.
      *
-     * The proxy resolves each compiled parameter to either its instance override or
-     * its compiled default value. Its parameter table has the same order as
-     * SCompiledSystem::Parameters.
+     * The proxy shares the immutable parameter table created by SystemInstance.
+     * Its values have the same order as SCompiledSystem::Parameters.
      *
      * @thread_safety Immutable after construction.
      */
@@ -43,11 +42,11 @@ namespace Elixir::Aether::Rendering
         glm::vec4 GetParameterValue(const uint32_t parameterIndex) const
         {
             EE_CORE_ASSERT(
-                parameterIndex < m_ParameterValues.size(),
+                parameterIndex < m_Parameters->size(),
                 "Aether parameter index is outside the render proxy table."
             )
-            return parameterIndex < m_ParameterValues.size()
-                ? m_ParameterValues[parameterIndex]
+            return parameterIndex < m_Parameters->size()
+                ? (*m_Parameters)[parameterIndex]
                 : glm::vec4{};
         }
 
@@ -76,14 +75,14 @@ namespace Elixir::Aether::Rendering
         const glm::mat4& GetWorldTransform() const { return m_WorldTransform; }
 
     private:
-        // Resolves compiled defaults and instance overrides into a dense parameter table.
+        // Stores immutable state already resolved by SystemInstance.
         SystemInstanceRenderProxy(
             const SSystemInstanceKey& key,
             uint32_t revision,
             uint32_t parameterRevision,
             Ref<const SCompiledSystem> system,
             const glm::mat4& worldTransform,
-            const ParameterOverridesMap& overrides
+            Ref<const ResolvedParameterValues> parameters
         );
 
         // Returns the internal identity used by Renderer instance records.
@@ -94,6 +93,6 @@ namespace Elixir::Aether::Rendering
         uint32_t m_ParameterRevision = 1;
         Ref<const SCompiledSystem> m_CompiledSystem;
         glm::mat4 m_WorldTransform{ 1.0f };
-        std::vector<glm::vec4> m_ParameterValues;
+        Ref<const ResolvedParameterValues> m_Parameters;
     };
 }

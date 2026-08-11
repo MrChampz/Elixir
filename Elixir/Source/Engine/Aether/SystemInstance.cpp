@@ -13,35 +13,29 @@ namespace Elixir::Aether
         const uint32_t parameterRevision,
         Ref<const SCompiledSystem> system,
         const glm::mat4& worldTransform,
-        Ref<const ParameterOverridesMap> overrides
+        Ref<const ResolvedParameterValues> parameters
     ) : m_Key(std::move(key)),
         m_Revision(revision),
         m_ParameterRevision(parameterRevision),
         m_CompiledSystem(std::move(system)),
         m_WorldTransform(worldTransform),
-        m_ParameterOverrides(std::move(overrides)),
+        m_Parameters(std::move(parameters)),
         m_RenderProxy(new Rendering::SystemInstanceRenderProxy(
             m_Key,
             m_Revision,
             m_ParameterRevision,
             m_CompiledSystem,
             m_WorldTransform,
-            *m_ParameterOverrides
+            m_Parameters
         )) {}
 
     /* SystemInstance */
 
     SystemInstance::SystemInstance(Ref<const SCompiledSystem> system)
+      : m_CompiledSystem(system)
     {
-        EE_CORE_ASSERT(system, "SystemInstance requires a compiled system.")
-        m_Snapshot = CreateSnapshot(
-            m_Key,
-            1,
-            1,
-            std::move(system),
-            glm::mat4{ 1.0f },
-            CreateRef<ParameterOverridesMap>()
-        );
+        EE_CORE_ASSERT(m_CompiledSystem, "SystemInstance requires a compiled system.")
+        PublishSnapshot();
     }
 
     void SystemInstance::SetCompiledSystem(Ref<const SCompiledSystem> system)
@@ -49,26 +43,21 @@ namespace Elixir::Aether
         EE_CORE_ASSERT(system, "SystemInstance requires a compiled system.")
         const std::scoped_lock lock(m_SnapshotMutex);
 
-        if (m_Snapshot->m_CompiledSystem == system)
+        if (m_CompiledSystem == system)
             return;
 
-        auto overrides = CreateRef<ParameterOverridesMap>(
-            *m_Snapshot->m_ParameterOverrides
-        );
-
-        const auto removed = std::erase_if(*overrides, [&system](const auto& entry)
+        const auto removed = std::erase_if(m_ParameterOverrides, [&system](const auto& entry)
         {
-           return !IsExposedParameter(*system, entry.first);
+           return FindExposedParameter(*system, entry.first) == nullptr;
         });
 
-        m_Snapshot = CreateSnapshot(
-            m_Key,
-            m_Snapshot->m_Revision + 1,
-            m_Snapshot->m_ParameterRevision + (removed > 0 ? 1 : 0),
-            std::move(system),
-            m_Snapshot->m_WorldTransform,
-            std::move(overrides)
-        );
+        m_CompiledSystem = std::move(system);
+        ++m_Revision;
+
+        if (removed > 0)
+            ++m_ParameterRevision;
+
+        PublishSnapshot();
     }
 
     bool SystemInstance::SetParameterOverride(
@@ -78,22 +67,12 @@ namespace Elixir::Aether
     {
         const std::scoped_lock lock(m_SnapshotMutex);
 
-        if (!IsExposedParameter(*m_Snapshot->m_CompiledSystem, name))
+        if (!FindExposedParameter(*m_CompiledSystem, name))
             return false;
 
-        auto overrides = CreateRef<ParameterOverridesMap>(
-            *m_Snapshot->m_ParameterOverrides
-        );
-
-        overrides->insert_or_assign(std::string(name), value);
-        m_Snapshot = CreateSnapshot(
-            m_Key,
-            m_Snapshot->m_Revision,
-            m_Snapshot->m_ParameterRevision + 1,
-            m_Snapshot->m_CompiledSystem,
-            m_Snapshot->m_WorldTransform,
-            std::move(overrides)
-        );
+        m_ParameterOverrides.insert_or_assign(name, value);
+        ++m_ParameterRevision;
+        PublishSnapshot();
 
         return true;
     }
@@ -102,24 +81,11 @@ namespace Elixir::Aether
     {
         const std::scoped_lock lock(m_SnapshotMutex);
 
-        const auto found = m_Snapshot->m_ParameterOverrides->find(name);
-        if (found == m_Snapshot->m_ParameterOverrides->end())
+        if (m_ParameterOverrides.erase(name) == 0)
             return false;
 
-        auto overrides = CreateRef<ParameterOverridesMap>(
-            *m_Snapshot->m_ParameterOverrides
-        );
-
-        overrides->erase(found->first);
-
-        m_Snapshot = CreateSnapshot(
-            m_Key,
-            m_Snapshot->m_Revision,
-            m_Snapshot->m_ParameterRevision + 1,
-            m_Snapshot->m_CompiledSystem,
-            m_Snapshot->m_WorldTransform,
-            std::move(overrides)
-        );
+        ++m_ParameterRevision;
+        PublishSnapshot();
 
         return true;
     }
@@ -128,31 +94,40 @@ namespace Elixir::Aether
     {
         const std::scoped_lock lock(m_SnapshotMutex);
 
-        if (m_Snapshot->m_ParameterOverrides->empty())
+        if (m_ParameterOverrides.empty())
             return;
 
-        m_Snapshot = CreateSnapshot(
-            m_Key,
-            m_Snapshot->m_Revision,
-            m_Snapshot->m_ParameterRevision + 1,
-            m_Snapshot->m_CompiledSystem,
-            m_Snapshot->m_WorldTransform,
-            CreateRef<ParameterOverridesMap>()
+        m_ParameterOverrides.clear();
+        ++m_ParameterRevision;
+        PublishSnapshot();
+    }
+
+    std::optional<glm::vec4> SystemInstance::GetParameterValue(const std::string& name) const
+    {
+        const std::scoped_lock lock(m_SnapshotMutex);
+
+        const auto* exposedParameter = FindExposedParameter(*m_CompiledSystem, name);
+        if (!exposedParameter) return std::nullopt;
+
+        EE_CORE_ASSERT(
+            exposedParameter->ParameterIndex < m_CompiledSystem->Parameters.size(),
+            "Aether exposed parameter index is outside the compiled parameter table."
+        )
+
+        if (exposedParameter->ParameterIndex >= m_CompiledSystem->Parameters.size())
+            return std::nullopt;
+
+        return ResolveParameterValue(
+            m_CompiledSystem->Parameters[exposedParameter->ParameterIndex],
+            m_ParameterOverrides
         );
     }
 
     void SystemInstance::SetWorldTransform(const glm::mat4& worldTransform)
     {
         const std::scoped_lock lock(m_SnapshotMutex);
-
-        m_Snapshot = CreateSnapshot(
-            m_Key,
-            m_Snapshot->m_Revision,
-            m_Snapshot->m_ParameterRevision,
-            m_Snapshot->m_CompiledSystem,
-            worldTransform,
-            m_Snapshot->m_ParameterOverrides
-        );
+        m_WorldTransform = worldTransform;
+        PublishSnapshot();
     }
 
     Ref<const SystemInstanceSnapshot> SystemInstance::CaptureSnapshot() const
@@ -161,33 +136,58 @@ namespace Elixir::Aether
         return m_Snapshot;
     }
 
-    Ref<const SystemInstanceSnapshot> SystemInstance::CreateSnapshot(
-        const SSystemInstanceKey& key,
-        uint32_t revision,
-        uint32_t parameterRevision,
-        Ref<const SCompiledSystem> system,
-        const glm::mat4& worldTransform,
-        Ref<const ParameterOverridesMap> overrides
-    )
+    void SystemInstance::PublishSnapshot()
     {
-        return CreateRef<SystemInstanceSnapshot>(
-            key,
-            revision,
-            parameterRevision,
-            std::move(system),
-            worldTransform,
-            std::move(overrides)
+        m_Snapshot = CreateRef<SystemInstanceSnapshot>(
+            m_Key,
+            m_Revision,
+            m_ParameterRevision,
+            m_CompiledSystem,
+            m_WorldTransform,
+            ResolveParameterValues(*m_CompiledSystem, m_ParameterOverrides)
         );
     }
 
-    bool SystemInstance::IsExposedParameter(const SCompiledSystem& system, std::string_view name)
+    const SExposedParameter* SystemInstance::FindExposedParameter(
+        const SCompiledSystem& system,
+        std::string_view name
+    )
     {
-        return std::ranges::any_of(
+        const auto found = std::ranges::find_if(
             system.ExposedParameters,
             [&name](const SExposedParameter& parameter)
             {
                 return parameter.Name == name;
             }
         );
+
+        return found != system.ExposedParameters.end()
+            ? &*found
+            : nullptr;
+    }
+
+    glm::vec4 SystemInstance::ResolveParameterValue(
+        const SGPUParameter& parameter,
+        const ParameterOverridesMap& overrides
+    )
+    {
+        const auto found = overrides.find(parameter.Name);
+        return found != overrides.end()
+            ? found->second
+            : parameter.Value;
+    }
+
+    Ref<const ResolvedParameterValues> SystemInstance::ResolveParameterValues(
+        const SCompiledSystem& system,
+        const ParameterOverridesMap& overrides
+    )
+    {
+        auto values = CreateRef<ResolvedParameterValues>();
+        values->reserve(system.Parameters.size());
+
+        for (const auto& parameter : system.Parameters)
+            values->push_back(ResolveParameterValue(parameter, overrides));
+
+        return values;
     }
 }
