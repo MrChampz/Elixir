@@ -1,23 +1,24 @@
 #include "epch.h"
 #include "Manager.h"
 
-#include <Engine/Material/MaterialResolver.h>
 #include <Engine/Material/MaterialSystem.h>
 #include <Engine/Aether/Effect/Effect.h>
 #include <Engine/Aether/Simulation/Simulator.h>
 #include <Engine/Aether/Rendering/Renderer.h>
 
-using namespace Elixir::Aether::Effect;
-
 namespace Elixir::Aether
 {
+    using namespace Effect;
+
     Manager::Manager(
         const GraphicsContext* context,
         const ShaderLoader* shaderLoader,
         MaterialRegistry& materialRegistry,
         MaterialSystem& materialSystem
-    ) : m_EffectMaterials(materialRegistry),
-        m_MaterialSystem(materialSystem),
+    ) : m_Runtime(CreateScope<InstanceRegistry>(
+            materialRegistry,
+            materialSystem
+        )),
         m_Simulator(CreateScope<Simulator>(context, shaderLoader)),
         m_Renderer(CreateScope<Renderer>(context, materialSystem)),
         m_GraphicsContext(context) {}
@@ -29,42 +30,22 @@ namespace Elixir::Aether
         return LoadEffectFile(filepath);
     }
 
-    Ref<const SCompiledSystem> Manager::Compile(System& system) const
+    Ref<SystemInstance> Manager::CreateInstance(const Ref<System>& system)
     {
-        if (!m_EffectMaterials.Resolve(system))
-        {
-            EE_CORE_ERROR("Could not resolve materials for Aether system '{}'.", system.GetName())
-            return nullptr;
-        }
-
-        return CreateRef<SCompiledSystem>(system.Compile(m_MaterialSystem));
+        return GetRuntime().CreateInstance(system);
     }
 
-    Ref<SystemInstance> Manager::CreateInstance(Ref<const SCompiledSystem> system)
+    bool Manager::Recompile(const Ref<System>& system)
     {
-        EE_CORE_ASSERT(system, "Aether system instance requires a compiled system.")
-
-        auto instance = CreateRef<SystemInstance>(std::move(system));
-        const auto key = instance->GetKey();
-        const std::scoped_lock lock(m_InstancesMutex);
-
-        const auto [_, inserted] = m_Instances.emplace(key, instance);
-        EE_CORE_ASSERT(inserted, "Aether system instance UUID must be unique.")
-
-        return instance;
+        return GetRuntime().Recompile(system);
     }
 
     bool Manager::DestroyInstance(const Ref<SystemInstance>& instance)
     {
-        const std::scoped_lock lock(m_InstancesMutex);
-        if (!IsManagedInstance(instance)) return false;
+        const auto detached = GetRuntime().DetachInstance(instance);
+        if (!detached) return false;
 
-        const auto found = m_Instances.find(instance->GetKey());
-        if (found == m_Instances.end()) return false;
-
-        m_FrameSubmissionPublisher.Remove(*instance);
-        m_PendingRetirements.Enqueue(found->second);
-        m_Instances.erase(found);
+        m_PendingRetirements.Enqueue(detached);
 
         return true;
     }
@@ -85,29 +66,18 @@ namespace Elixir::Aether
         const Ref<SystemInstance>& instance
     ) const
     {
-        const std::scoped_lock lock(m_InstancesMutex);
-        return IsManagedInstance(instance) && submission.Submit(*instance);
+        return GetRuntime().Submit(submission, instance);
     }
 
     void Manager::PublishFrameSubmission(Ref<FrameSubmission> submission)
     {
         EE_CORE_ASSERT(submission, "Aether frame submission cannot be null.")
-
-        // Keep the registry lock until publishing is complete. DestroyInstance()
-        // takes the same lock before removing a published frame.
-        const std::lock_guard lock(m_InstancesMutex);
-        m_FrameSubmissionPublisher.Publish(
-            std::move(submission),
-            [this](const SSystemInstanceKey& key)
-            {
-                return m_Instances.contains(key);
-            }
-        );
+        GetRuntime().Publish(std::move(submission));
     }
 
     void Manager::Render(const Camera& camera)
     {
-        const auto submission = m_FrameSubmissionPublisher.Acquire();
+        const auto submission = GetRuntime().AcquireSubmission();
         if (!submission) return;
 
         const auto cmd = m_GraphicsContext->GetSecondaryCommandBuffer();
@@ -135,6 +105,12 @@ namespace Elixir::Aether
         return GetRenderer().GetLastMetrics();
     }
 
+    InstanceRegistry& Manager::GetRuntime() const
+    {
+        EE_CORE_ASSERT(m_Runtime, "Aether runtime is unavailable.")
+        return *m_Runtime;
+    }
+
     Simulator& Manager::GetSimulator() const
     {
         EE_CORE_ASSERT(m_Simulator, "Aether simulator is unavailable.")
@@ -153,12 +129,5 @@ namespace Elixir::Aether
 
         for (const auto& instance : instances)
             GetSimulator().Retire(instance->GetKey());
-    }
-
-    bool Manager::IsManagedInstance(const Ref<SystemInstance>& instance) const
-    {
-        if (!instance) return false;
-        const auto found = m_Instances.find(instance->GetKey());
-        return found != m_Instances.end() && found->second.get() == instance.get();
     }
 }

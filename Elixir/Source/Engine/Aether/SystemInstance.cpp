@@ -32,16 +32,25 @@ namespace Elixir::Aether
     /* SystemInstance */
 
     SystemInstance::SystemInstance(Ref<const SCompiledSystem> system)
-      : m_CompiledSystem(system)
+      : m_SourceSystemId(system->SourceId),
+        m_CompiledSystem(std::move(system))
     {
         EE_CORE_ASSERT(m_CompiledSystem, "SystemInstance requires a compiled system.")
         PublishSnapshot();
     }
 
-    void SystemInstance::SetCompiledSystem(Ref<const SCompiledSystem> system)
+    void SystemInstance::ApplyCompilation(Ref<const SCompiledSystem> system)
     {
         EE_CORE_ASSERT(system, "SystemInstance requires a compiled system.")
         const std::scoped_lock lock(m_SnapshotMutex);
+
+        EE_CORE_ASSERT(
+            system->SourceId == m_SourceSystemId,
+            "Aether compilation must belong to the instance source system."
+        )
+
+        if (system->SourceId != m_SourceSystemId)
+            return;
 
         if (m_CompiledSystem == system)
             return;

@@ -7,15 +7,21 @@
 
 #include <Engine/Aether/Rendering/SystemInstanceRetirementQueue.h>
 
+#include "../TestInstanceRegistry.h"
+
 using namespace Elixir;
 using namespace Elixir::Aether;
 using namespace Elixir::Aether::Rendering;
 
 TEST(SystemInstanceRetirementQueueTest, TransfersPendingInstancesExactlyOnce)
 {
-    const auto system = CreateRef<SCompiledSystem>();
-    const auto first = CreateRef<SystemInstance>(system);
-    const auto second = CreateRef<SystemInstance>(system);
+    TestInstanceRegistry runtime;
+    const auto system = CreateRef<System>("Retirement queue system");
+    const auto first = runtime.Registry.CreateInstance(system);
+    const auto second = runtime.Registry.CreateInstance(system);
+
+    ASSERT_TRUE(first);
+    ASSERT_TRUE(second);
 
     SystemInstanceRetirementQueue queue;
     queue.Enqueue(first);
@@ -32,12 +38,13 @@ TEST(SystemInstanceRetirementQueueTest, TransfersPendingInstancesExactlyOnce)
 TEST(SystemInstanceRetirementQueueTest, DrainsDestroyRequestsEnqueuedDuringUpdate)
 {
     constexpr uint32_t destroyRequestCount = 256;
-    const auto system = CreateRef<SCompiledSystem>();
+    TestInstanceRegistry runtime;
+    const auto system = CreateRef<System>("Concurrent retirement system");
     std::vector<Ref<SystemInstance>> instances;
     instances.reserve(destroyRequestCount);
 
     for (uint32_t instance = 0; instance < destroyRequestCount; ++instance)
-        instances.push_back(CreateRef<SystemInstance>(system));
+        instances.push_back(runtime.Registry.CreateInstance(system));
 
     SystemInstanceRetirementQueue queue;
     std::barrier beginConcurrentAccess{ 2 };

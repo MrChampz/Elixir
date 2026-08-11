@@ -11,6 +11,29 @@ namespace Elixir::Aether
         m_MaxParticles(maxParticles),
         m_SpawnRate(spawnRate) {}
 
+    void Emitter::SetMaterial(const Ref<Material>& material)
+    {
+        if (!material)
+        {
+            EE_CORE_ERROR("Trying to set a null material to emitter.")
+            return;
+        }
+
+        SetMaterial(material->CreateInstance());
+    }
+
+    void Emitter::SetBurst(const uint32_t count, const float intervalSeconds)
+    {
+        m_BurstCount = count;
+        m_BurstIntervalSeconds = intervalSeconds;
+    }
+
+    void Emitter::SetTriggerEmitter(std::string emitterName, const float delaySeconds)
+    {
+        m_TriggerEmitterName = std::move(emitterName);
+        m_TriggerDelaySeconds = delaySeconds;
+    }
+
     SCompiledEmitter Emitter::Compile(
         const ParameterStore& paramStore,
         const std::vector<SGPUParameter>& params,
@@ -389,28 +412,5 @@ namespace Elixir::Aether
         emitter.UpdateOpCount = (uint32_t)ops.size() - emitter.UpdateOpOffset;
 
         return emitter;
-    }
-
-    void Emitter::SetMaterial(const Ref<Material>& material)
-    {
-        if (!material)
-        {
-            EE_CORE_ERROR("Trying to set a null material to emitter.")
-            return;
-        }
-
-        SetMaterial(material->CreateInstance());
-    }
-
-    void Emitter::SetBurst(const uint32_t count, const float intervalSeconds)
-    {
-        m_BurstCount = count;
-        m_BurstIntervalSeconds = intervalSeconds;
-    }
-
-    void Emitter::SetTriggerEmitter(std::string emitterName, const float delaySeconds)
-    {
-        m_TriggerEmitterName = std::move(emitterName);
-        m_TriggerDelaySeconds = delaySeconds;
     }
 }

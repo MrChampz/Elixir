@@ -88,6 +88,8 @@ namespace Elixir::Aether
      */
     class ELIXIR_API Emitter final
     {
+        friend class System;
+
       public:
         /**
          * @brief Creates an emitter with a default spawn rate.
@@ -141,27 +143,6 @@ namespace Elixir::Aether
             m_UpdateModules.push_back(std::move(module));
             return ref;
         }
-
-        /**
-         * @brief Compiles this emitter into GPU-ready data.
-         *
-         * The method resolves parameter bindings, converts modules into GPU
-         * operations, resolves the selected material, and records operation ranges.
-         *
-         * @param paramStore Parent system parameter store.
-         * @param params Compiled parameter table for the parent system.
-         * @param ops Output operation stream to append to.
-         * @param materialResolver Resolves the selected material instance.
-         * @return Immutable compiled data for this emitter.
-         *
-         * @warning The selected material must support the current render mode.
-         */
-        SCompiledEmitter Compile(
-            const ParameterStore& paramStore,
-            const std::vector<SGPUParameter>& params,
-            std::vector<SGPUParticleOp>& ops,
-            MaterialResolver& materialResolver
-        ) const;
 
         /**
          * @brief Returns the stable identity of this emitter.
@@ -337,6 +318,14 @@ namespace Elixir::Aether
         void SetSpawnRateParamName(const std::string& paramName) { m_SpawnRateParamName = paramName; }
 
       private:
+        // Compiles this emitter into internal GPU-ready runtime data.
+        SCompiledEmitter Compile(
+            const ParameterStore& paramStore,
+            const std::vector<SGPUParameter>& params,
+            std::vector<SGPUParticleOp>& ops,
+            MaterialResolver& materialResolver
+        ) const;
+
         UUID m_Id;
         std::string m_Name;
         EParticleRenderMode m_RenderMode = EParticleRenderMode::Sprite;

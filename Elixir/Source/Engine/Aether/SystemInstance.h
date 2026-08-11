@@ -2,12 +2,16 @@
 
 #include <Engine/Aether/System.h>
 
-namespace Elixir::Aether::Rendering
+namespace Elixir::Aether
 {
-    class FrameSubmission;
-    class FrameSubmissionPublisher;
-    class Renderer;
-    class SystemInstanceRenderProxy;
+    namespace Runtime { class InstanceRegistry; }
+    namespace Rendering
+    {
+        class FrameSubmission;
+        class FrameSubmissionPublisher;
+        class Renderer;
+        class SystemInstanceRenderProxy;
+    }
 }
 
 namespace Elixir::Aether
@@ -59,10 +63,10 @@ namespace Elixir::Aether
      */
     class ELIXIR_API SystemInstanceSnapshot final
     {
-        friend class SystemInstance;
-        friend class Rendering::FrameSubmission;
         friend class Manager;
+        friend class SystemInstance;
         friend class Rendering::Renderer;
+        friend class Rendering::FrameSubmission;
 
     public:
         /**
@@ -146,37 +150,17 @@ namespace Elixir::Aether
      */
     class ELIXIR_API SystemInstance final
     {
+        friend class Manager;
+        friend class Runtime::InstanceRegistry;
+        friend class Rendering::Renderer;
         friend class Rendering::FrameSubmission;
         friend class Rendering::FrameSubmissionPublisher;
-        friend class Manager;
-        friend class Rendering::Renderer;
 
     public:
-        /**
-         * @brief Creates a runtime instance for a compiled system.
-         *
-         * @param system Immutable compiled system to select initially.
-         *
-         * @pre system is not null.
-         */
-        explicit SystemInstance(Ref<const SCompiledSystem> system);
-
         SystemInstance(const SystemInstance&) = delete;
         SystemInstance& operator=(const SystemInstance&) = delete;
         SystemInstance(SystemInstance&&) = delete;
         SystemInstance& operator=(SystemInstance&&) = delete;
-
-        /**
-         * @brief Replaces the selected compiled system.
-         *
-         * Compatible parameter overrides are preserved. Overrides that do not
-         * exist in the replacement system are removed.
-         *
-         * @param system Replacement compiled system.
-         *
-         * @pre system is not null.
-         */
-        void SetCompiledSystem(Ref<const SCompiledSystem> system);
 
         /**
          * @brief Sets an override for an exposed compiled-system parameter.
@@ -215,12 +199,24 @@ namespace Elixir::Aether
         std::optional<glm::vec4> GetParameterValue(const std::string& name) const;
 
         /**
+         * @brief Returns the identity of the source System.
+         * @return UUID of the System used to create this instance.
+         */
+        const UUID& GetSourceSystemId() const { return m_SourceSystemId; }
+
+        /**
          * @brief Replaces the world transform for future frame submissions.
          * @param worldTransform Transform applied to this system instance.
          */
         void SetWorldTransform(const glm::mat4& worldTransform);
 
     private:
+        // Creates an instance from data compiled internally by Aether.
+        explicit SystemInstance(Ref<const SCompiledSystem> system);
+
+        // Replaces the internal compilation after rebuilding the same source asset.
+        void ApplyCompilation(Ref<const SCompiledSystem> system);
+
         // Captures the current immutable state without retaining the mutex.
         Ref<const SystemInstanceSnapshot> CaptureSnapshot() const;
 
@@ -249,6 +245,7 @@ namespace Elixir::Aether
         const SSystemInstanceKey& GetKey() const { return m_Key; }
 
         SSystemInstanceKey m_Key;
+        UUID m_SourceSystemId;
         uint32_t m_Revision = 1;
         uint32_t m_ParameterRevision = 1;
         Ref<const SCompiledSystem> m_CompiledSystem;

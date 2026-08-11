@@ -14,8 +14,8 @@ namespace Elixir::Aether::Effect
     {
         for (const auto& emitter : system.GetEmitters())
         {
-            // A caller may replace an effect-authored instance before
-            // Manager::Compile(). Do not overwrite that explicit choice.
+            // A caller may replace an effect-authored instance before creating a
+            // SystemInstance. Do not overwrite that explicit choice.
             if (emitter->GetMaterial())
                 continue;
 

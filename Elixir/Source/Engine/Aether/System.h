@@ -9,12 +9,14 @@
 namespace Elixir
 {
     class MaterialResolver;
+    namespace Aether::Runtime { class InstanceRegistry; }
 }
 
 namespace Elixir::Aether
 {
     using namespace Core;
     using namespace Modules;
+
     /**
      * @brief Maps an exposed runtime parameter to the compiled parameter table.
      *
@@ -85,6 +87,8 @@ namespace Elixir::Aether
      */
     class ELIXIR_API System final
     {
+        friend class Runtime::InstanceRegistry;
+
       public:
         /**
          * @brief Creates an empty particle effect definition.
@@ -118,20 +122,6 @@ namespace Elixir::Aether
          * @return The matching emitter, or null when no emitter has this name.
          */
         Emitter* FindEmitter(std::string_view name) const;
-
-        /**
-         * @brief Compiles the authored effect into immutable runtime data.
-         *
-         * The method compiles system and emitter parameters, bake curves into
-         * parameter chunks, compile emitter modules into GPU operations, resolves
-         * material render proxies, and builds trigger targets.
-         *
-         * @param materialResolver Resolves emitter material instances for rendering.
-         * @return Immutable data for a SystemInstance and the particle renderer.
-         *
-         * @warning Any later change to this System requires a new compilation.
-         */
-        SCompiledSystem Compile(MaterialResolver& materialResolver) const;
 
         /**
          * @brief Returns the UUID of this effect system.
@@ -176,6 +166,9 @@ namespace Elixir::Aether
         ColorCurveStore& GetColorCurves() { return m_ColorCurves; }
 
       private:
+        // Compiles the authored system into immutable runtime data.
+        SCompiledSystem Compile(MaterialResolver& materialResolver) const;
+
         UUID m_UUID;
         mutable uint32_t m_CompilationRevision = 0;
 

@@ -218,13 +218,10 @@ Dissolve::Dissolve()
         }
     }
 
-    auto fireAndFireworks = GetAetherManager().Compile(*m_ParticleSystems[0]);
-    EE_CORE_ASSERT(fireAndFireworks, "Could not compile FireAndFireworks effect.")
-    m_ParticleSystemInstances[0] = GetAetherManager().CreateInstance(fireAndFireworks);
-
-    auto ribbonVortex = GetAetherManager().Compile(*m_ParticleSystems[1]);
-    EE_CORE_ASSERT(ribbonVortex, "Could not compile RibbonVortex effect.")
-    m_ParticleSystemInstances[1] = GetAetherManager().CreateInstance(ribbonVortex);
+    m_ParticleSystemInstances[0] = GetAetherManager().CreateInstance(m_ParticleSystems[0]);
+    m_ParticleSystemInstances[1] = GetAetherManager().CreateInstance(m_ParticleSystems[1]);
+    EE_CORE_ASSERT(m_ParticleSystemInstances[0], "Could not create FireAndFireworks instance.")
+    EE_CORE_ASSERT(m_ParticleSystemInstances[1], "Could not create RibbonVortex instance.")
 
     m_GraphicsContext->SetClearColor({ 0.015f, 0.025f, 0.06f, 1.0f });
 }

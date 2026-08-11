@@ -3,29 +3,48 @@
 #include <Engine/Aether/System.h>
 #include <Engine/Material/MaterialInstance.h>
 #include <Engine/Material/MaterialCompiler.h>
-#include <Engine/Material/MaterialResolver.h>
 #include <Engine/Material/MaterialRenderProxy.h>
 
-#include "TestMaterialResolver.h"
+#include "TestInstanceRegistry.h"
 
 using namespace Elixir;
 using namespace Elixir::Aether;
 using namespace Elixir::Aether::Core;
 
+template <typename T>
+concept HasPublicCompile = requires(const T& system, MaterialResolver& resolver)
+{
+    system.Compile(resolver);
+};
+
+static_assert(!HasPublicCompile<System>);
+
 namespace
 {
-    SCompiledSystem Compile(const System& system)
+    SCompiledSystem Compile(const Ref<System>& system)
     {
-        TestMaterialResolver resolver;
-        return system.Compile(resolver);
+        TestInstanceRegistry runtime;
+        const auto instance = runtime.Registry.CreateInstance(system);
+        EXPECT_TRUE(instance);
+
+        if (!instance)
+            return {};
+
+        Rendering::FrameSubmission submission;
+        EXPECT_TRUE(runtime.Registry.Submit(submission, instance));
+
+        if (submission.IsEmpty())
+            return {};
+
+        return submission.GetRenderProxies().front()->GetCompiledSystem();
     }
 }
 
 TEST(SystemTest, CompilePreservesEmitterSimulationSpace)
 {
-    System system{ "Simulation space contract" };
-    system.AddEmitter("World", 8, 0.0f); // world emitter
-    auto& localEmitter = system.AddEmitter("Local", 8, 0.0f);
+    const auto system = CreateRef<System>("Simulation space contract");
+    system->AddEmitter("World", 8, 0.0f); // world emitter
+    auto& localEmitter = system->AddEmitter("Local", 8, 0.0f);
     localEmitter.SetSimulationSpace(EParticleSimulationSpace::Local);
 
     const auto compiled = Compile(system);
@@ -37,10 +56,10 @@ TEST(SystemTest, CompilePreservesEmitterSimulationSpace)
 
 TEST(SystemTest, CompileAssignsContiguousLocalEmitterParticleOffsets)
 {
-    System system{ "Particle offset contract" };
-    system.AddEmitter("First", 3u, 0.0f);
-    system.AddEmitter("Second", 7u, 0.0f);
-    system.AddEmitter("Third", 11u, 0.0f);
+    const auto system = CreateRef<System>("Particle offset contract");
+    system->AddEmitter("First", 3u, 0.0f);
+    system->AddEmitter("Second", 7u, 0.0f);
+    system->AddEmitter("Third", 11u, 0.0f);
 
     const auto compiled = Compile(system);
 
@@ -54,10 +73,10 @@ TEST(SystemTest, CompileAssignsContiguousLocalEmitterParticleOffsets)
 
 TEST(SystemTest, CompileResolvesTriggerEmitterByCompiledIndex)
 {
-    System system{ "Trigger contract" };
-    system.AddEmitter("Source", 8, 0.0f);
+    const auto system = CreateRef<System>("Trigger contract");
+    system->AddEmitter("Source", 8, 0.0f);
 
-    auto& target = system.AddEmitter("Target", 8, 0.0f);
+    auto& target = system->AddEmitter("Target", 8, 0.0f);
     target.SetBurst(8, 1.0f);
     target.SetTriggerEmitter("Source", 0.25f);
 
@@ -77,11 +96,11 @@ TEST(SystemTest, CompileResolvesTriggerEmitterByCompiledIndex)
 
 TEST(SystemTest, CompileExposesOnlyAuthoredParameters)
 {
-    System system{ "Parameter contract" };
-    system.GetParameters().SetFloat("SystemRate", 4.0f);
-    system.GetCurves().SetCurve("SizeOverLife", { 0.0f, 1.0f });
+    const auto system = CreateRef<System>("Parameter contract");
+    system->GetParameters().SetFloat("SystemRate", 4.0f);
+    system->GetCurves().SetCurve("SizeOverLife", { 0.0f, 1.0f });
 
-    auto& emitter = system.AddEmitter("Smoke", 8, 0.0f);
+    auto& emitter = system->AddEmitter("Smoke", 8, 0.0f);
     emitter.GetParameters().SetFloat4("Tint", { 1.0f, 0.5f, 0.25f, 1.0f });
 
     const auto compiled = Compile(system);
@@ -121,8 +140,8 @@ TEST(SystemTest, CompileSnapshotsParticleSpriteMaterialForRenderData)
     const auto instance = material->CreateInstance();
     ASSERT_TRUE(instance->SetVector("Tint", { 0.25f, 0.5f, 0.75f, 1.0f }));
 
-    System system{ "Material snapshot contract" };
-    auto& emitter = system.AddEmitter("Smoke", 8, 0.0f);
+    const auto system = CreateRef<System>("Material snapshot contract");
+    auto& emitter = system->AddEmitter("Smoke", 8, 0.0f);
 
     emitter.SetMaterial(instance);
     const auto first = Compile(system);
@@ -150,8 +169,8 @@ TEST(SystemTest, CompileSnapshotsParticleRibbonMaterialForRenderData)
     const auto material = CreateRef<Material>("Particle ribbon");
     ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleRibbon, true));
 
-    System system{ "Ribbon material snapshot contract" };
-    auto& emitter = system.AddEmitter("Ribbon", 8, 0.0f);
+    const auto system = CreateRef<System>("Ribbon material snapshot contract");
+    auto& emitter = system->AddEmitter("Ribbon", 8, 0.0f);
     emitter.SetRenderMode(EParticleRenderMode::Ribbon);
 
     const auto instance = material->CreateInstance();
@@ -171,8 +190,8 @@ TEST(SystemTest, CompileSnapshotsParticleMeshMaterialForRenderData)
     const auto material = CreateRef<Material>("Particle mesh");
     material->SetUsage(EMaterialUsage::ParticleMesh, true);
 
-    System system{ "Mesh material" };
-    auto& emitter = system.AddEmitter("Mesh", 8, 0.0f);
+    const auto system = CreateRef<System>("Mesh material");
+    auto& emitter = system->AddEmitter("Mesh", 8, 0.0f);
     emitter.SetRenderMode(EParticleRenderMode::Mesh);
 
     const auto instance = material->CreateInstance();
@@ -187,13 +206,16 @@ TEST(SystemTest, CompileSnapshotsParticleMeshMaterialForRenderData)
     ));
 }
 
-TEST(SystemTest, KeepsAnEmitterWithoutAnExplicitMaterialUnbound)
+TEST(SystemTest, CompileAssignsTheDefaultMaterialWhenNoneIsExplicit)
 {
-    System system{ "Explicit material contract" };
-    system.AddEmitter("Smoke", 8, 0.0f);
+    const auto system = CreateRef<System>("Default material contract");
+    system->AddEmitter("Smoke", 8, 0.0f);
 
     const auto compiled = Compile(system);
 
     ASSERT_EQ(compiled.Emitters.size(), 1);
-    EXPECT_FALSE(compiled.Emitters[0].Material);
+    ASSERT_TRUE(compiled.Emitters[0].Material);
+    EXPECT_TRUE(compiled.Emitters[0].Material->GetCompiledMaterial()->SupportsUsage(
+        EMaterialUsage::ParticleSprite
+    ));
 }

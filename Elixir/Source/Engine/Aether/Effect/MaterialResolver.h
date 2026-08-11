@@ -13,7 +13,7 @@ namespace Elixir::Aether::Effect
      * values, retrieves default materials when no description is present, and
      * assigns an instance to each unresolved emitter.
      *
-     * The resolves does not compile materials or create GPU render proxies.
+     * The resolver does not compile materials or create GPU render proxies.
      * MaterialSystem performs those operations during System compilation.
      *
      * @note The referenced MaterialRegistry must outlive this resolver.

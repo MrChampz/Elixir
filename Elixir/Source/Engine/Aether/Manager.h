@@ -2,6 +2,7 @@
 
 #include <Engine/Aether/SystemInstance.h>
 #include <Engine/Aether/Effect/MaterialResolver.h>
+#include <Engine/Aether/Runtime/InstanceRegistry.h>
 #include <Engine/Aether/Rendering/FrameSubmission.h>
 #include <Engine/Aether/Rendering/SystemInstanceRetirementQueue.h>
 
@@ -34,6 +35,7 @@ namespace Elixir
 
 namespace Elixir::Aether
 {
+    using namespace Runtime;
     using namespace Simulation;
     using namespace Rendering;
 
@@ -103,33 +105,23 @@ namespace Elixir::Aether
         static Ref<System> LoadEffect(const std::filesystem::path& filepath);
 
         /**
-         * @brief Resolves materials and compiles a system for runtime use.
+         * @brief Creates and registers an instance of a System asset.
          *
-         * The method resolves effect-authored materials definitions before compiling
-         * the system into an immutable SCompiledSystem.
+         * Runtime compiles and caches the asset without retaining the authored
+         * System.
          *
-         * @param system Mutable system authoring data to compile.
-         * @return The compiled system, or null when material resolution fails.
-         *
-         * @note This method assigns a default material when emitters have no
-         * explicit material.
+         * @param system System asset to instantiate.
+         * @return Registered instance, or null when compilation fails.
          */
-        Ref<const SCompiledSystem> Compile(System& system) const;
+        Ref<SystemInstance> CreateInstance(const Ref<System>& system);
 
         /**
-         * @brief Creates and registers a runtime instance of a compiled system.
+         * @brief Recompiles a System and updates its registered instances.
          *
-         * The instance provides the runtime API for transforms and parameter
-         * overrides. Manager keeps the instance registered until DestroyInstance()
-         * removes it. Simulator creates its GPU allocation when it first processes
-         * the instance.
-         *
-         * @param system Immutable compiled system data.
-         * @return The registered runtime instance.
-         *
-         * @pre system is not null.
+         * @param system System asset to recompile.
+         * @return True when compilation succeeds.
          */
-        Ref<SystemInstance> CreateInstance(Ref<const SCompiledSystem> system);
+        bool Recompile(const Ref<System>& system);
 
         /**
          * @brief Detaches a runtime instance from future frames.
@@ -226,25 +218,17 @@ namespace Elixir::Aether
         const SRenderingMetrics& GetLastRenderingMetrics() const;
 
     private:
+        InstanceRegistry& GetRuntime() const;
         Simulator& GetSimulator() const;
         Renderer& GetRenderer() const;
 
         // Forwards detached instances to Simulator for fence-safe GPU retirement.
         void RetireDestroyedInstances();
 
-        // Checks ownership while the instance registry mutex is already held.
-        bool IsManagedInstance(const Ref<SystemInstance>& instance) const;
-
-        Effect::MaterialResolver m_EffectMaterials;
-
-        MaterialSystem& m_MaterialSystem;
-        std::unordered_map<SSystemInstanceKey, Ref<SystemInstance>> m_Instances;
-        mutable std::mutex m_InstancesMutex;
-
+        Scope<InstanceRegistry> m_Runtime;
         Scope<Simulator> m_Simulator;
 
         SystemInstanceRetirementQueue m_PendingRetirements;
-        FrameSubmissionPublisher m_FrameSubmissionPublisher;
         Scope<Renderer> m_Renderer;
 
         const GraphicsContext* m_GraphicsContext = nullptr;
