@@ -42,22 +42,32 @@ namespace Elixir::Aether::Simulation
     };
 
     /**
-     * @brief Publishes immutable particle render data for one submission.
+     * @brief Provides immutable particle render data for one simulated frame.
      *
-     * Simulator creates one frame after recording compute work and the required
-     * compute-to-graphics barriers. Renderer consumes its resources and items
-     * synchronously while recording graphics commands.
+     * Simulator creates a RenderFrame after recording particle simulation work and
+     * the required compute-to-graphics barriers. Renderer consumes the frame while
+     * recording the corresponding graphics commands.
      *
-     * RenderFrame owns frame-local metadata and strong references to shared GPU
-     * resources. It never stores a command buffer or mutable SystemInstance
-     * state.
+     * The frame owns its render items and metadata. It also retains strong
+     * references to the GPU buffers required by those items. It does not retain a
+     * command buffer, frame submission, or mutable system-instance state.
      *
-     * @thread_safety Immutable after construction. Concurrent readers are safe
-     * when the referenced GPU wrappers are used according to their own contract.
+     * @thread_safety Immutable after construction. Concurrent reads are safe when
+     * the referenced GPU resources are used according to their synchronization
+     * requirements.
      */
     class ELIXIR_API RenderFrame final
     {
     public:
+        /**
+         * @brief Creates an immutable frame from resolved simulation output.
+         *
+         * @param resources Particle-state buffers paired with their layouts.
+         * @param emitterBuffer Buffer containing the resolved emitter data.
+         * @param items Particle draw items generated for the frame.
+         * @param submissionSerial Serial number of the source frame submission.
+         * @param elapsedTimeSeconds Total simulation time at frame publication.
+         */
         RenderFrame(
             std::vector<SParticleStateRenderResource> resources,
             Ref<DynamicStorageBuffer> emitterBuffer,
@@ -75,11 +85,34 @@ namespace Elixir::Aether::Simulation
         RenderFrame(RenderFrame&&) = delete;
         RenderFrame& operator=(RenderFrame&&) = delete;
 
+        /**
+         * @brief Returns the particle-state resources required for rendering.
+         * @return Particle-state buffers paired with their layouts.
+         */
         const std::vector<SParticleStateRenderResource>& GetResources() const { return m_Resources; }
 
+        /**
+         * @brief Returns the emitter data buffer used by the frame.
+         * @return Strong reference to the emitter buffer.
+         */
         const Ref<DynamicStorageBuffer>& GetEmitterBuffer() const { return m_EmitterBuffer; }
+
+        /**
+         * @brief Returns the resolved particle draw items.
+         * @return Immutable collection of render items.
+         */
         const std::vector<SRenderItem>& GetItems() const { return m_Items; }
+
+        /**
+         * @brief Returns the serial number of the source frame submission.
+         * @return The serial number of the submission that produced this frame.
+         */
         uint64_t GetSubmissionSerial() const { return m_SubmissionSerial; }
+
+        /**
+         * @brief Returns the accumulated simulation time for this frame.
+         * @return Elapsed simulation time, in seconds.
+         */
         float GetElapsedTimeSeconds() const { return m_ElapsedTimeSeconds; }
 
     private:

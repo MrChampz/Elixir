@@ -38,20 +38,22 @@ namespace Elixir::Aether
     using namespace Rendering;
 
     /**
-     * @brief Coordinates Aether effect compilation, runtime instances, and rendering.
+     * @brief Coordinates Aether effects, runtime instances, simulation, and rendering.
      *
      * Manager is the application-scoped entry point for Aether. It loads effect
      * assets, resolves their material definitions, compiles immutable system data,
      * and manages runtime system instances.
      *
-     * The manager owns the Aether renderer. The renderer owns GPU allocations,
-     * synchronization, simulation and draw execution.
+     * Manager owns Simulator and Renderer. Simulator owns particle allocations,
+     * simulation resources, compute pipelines, and deferred resource retirement.
+     * Renderer consumes immutable render frames and records particle draw commands.
      *
      * A frame producer creates and fills a FrameSubmission. Publishing the
-     * submission transfers an immutable view of its instances to the render path.
+     * submission makes its immutable instance data available to Simulator.
+     * Simulator produces a RenderFrame for Renderer.
      *
-     * @note The GraphicsContext, ShaderLoader, MaterialRegistry, and MaterialSystem
-     * must outlive this manager.
+     * @note GraphicsContext, MaterialRegistry, and MaterialSystem must outlive
+     * this manager.
      *
      * @thread_safety Instance registration and frame-submission publication are
      * synchronized. Call BeginFrame() and Render() from the render-frame path.
@@ -62,10 +64,15 @@ namespace Elixir::Aether
         /**
          * @brief Creates an Aether manager.
          *
-         * @param context Provides graphics resources and frame synchronization.
-         * @param shaderLoader Loads the shaders required by the particle renderer.
+         * @param context Graphics context used for simulation and rendering.
+         * @param shaderLoader Loader used to create the simulation shaders.
          * @param materialRegistry Stores default and effect-generated materials.
-         * @param materialSystem Resolves material instances for rendering.
+         * @param materialSystem Compiles and renders particle materials.
+         *
+         * @pre context is not null and outlives the manager.
+         * @pre shaderLoader is not null.
+         * @pre materialRegistry outlives the manager.
+         * @pre materialSystem outlives the manager.
          */
         Manager(
             const GraphicsContext* context,
@@ -75,9 +82,7 @@ namespace Elixir::Aether
         );
 
         /**
-         * @brief Destroys the manager and its owned renderer.
-         *
-         * Runtime instances must not be used after the manager is destroyed.
+         * @brief Destroys the manager and its simulation and rendering services.
          */
         ~Manager();
 
@@ -114,9 +119,10 @@ namespace Elixir::Aether
         /**
          * @brief Creates and registers a runtime instance of a compiled system.
          *
-         * The returned instance exposes the runtime API for transforms and
-         * parameter overrides. The manager retains registration and GPU lifetime
-         * ownership.
+         * The instance provides the runtime API for transforms and parameter
+         * overrides. Manager keeps the instance registered until DestroyInstance()
+         * removes it. Simulator creates its GPU allocation when it first processes
+         * the instance.
          *
          * @param system Immutable compiled system data.
          * @return The registered runtime instance.
@@ -128,27 +134,28 @@ namespace Elixir::Aether
         /**
          * @brief Detaches a runtime instance from future frames.
          *
-         * The method removes the instance from the manager and from the published
-         * submission. The renderer retires its GPU allocation during a later frame
-         * and releases it after the required GPU fence completes.
+         * The method removes the instance from Manager and from the published
+         * submission. Simulator retires the GPU allocation during a later frame
+         * and releases it after the GPU finishes using it.
          *
          * @param instance Registered instance to destroy.
          * @return True when the manager owned and detached the instance.
          * @return False when instance is null or belongs to another manager.
          *
-         * @warning Do not submit the instance after this method returns true.
+         * @note Submit() rejects the instance after this method returns true.
          */
         bool DestroyInstance(const Ref<SystemInstance>& instance);
 
         /**
-         * @brief Starts an Aether render frame.
+         * @brief Prepares Aether for a new frame.
          *
-         * Updates renderer frame state and forwards pending instance retirements to
-         * the renderer.
+         * The method updates simulation time, releases allocations whose GPU work
+         * has completed, and forwards destroyed instances to Simulator.
          *
          * @param timestep Elapsed time for the current frame.
          *
-         * @note Call this method from the render-frame path.
+         * @note Call this method once per frame, after the graphics context prepares
+         * the current frame slot and before Render().
          */
         void BeginFrame(const Timestep& timestep);
 
@@ -182,9 +189,9 @@ namespace Elixir::Aether
         /**
          * @brief Publishes a completed frame submission for rendering.
          *
-         * The method seals the submission and removes instances that were detached
-         * before publication. The renderer consumes the latest published
-         * submission.
+         * The method seals the submission and removes instances that Manager no
+         * longer owns. Simulator consumes the latest published submission when
+         * Render() runs.
          *
          * @param submission Submission to publish.
          *
@@ -204,17 +211,25 @@ namespace Elixir::Aether
          */
         void Render(const Camera& camera);
 
-
+        /**
+         * @brief Returns statistics from the most recent particle simulation.
+         * @return Statistics for the latest submission processed by Simulator.
+         * @note Processing another submission replaces these values.
+         */
         const SSimulationMetrics& GetLastSimulationMetrics() const;
 
+        /**
+         * @brief Returns statistics from the most recent particle rendering operation.
+         * @return Statistics for the latest RenderFrame processed by Renderer.
+         * @note Rendering another frame replaces these values.
+         */
         const SRenderingMetrics& GetLastRenderingMetrics() const;
 
     private:
         Simulator& GetSimulator() const;
-
         Renderer& GetRenderer() const;
 
-        // Forwards detached instances to the renderer for fence-safe GPU retirement.
+        // Forwards detached instances to Simulator for fence-safe GPU retirement.
         void RetireDestroyedInstances();
 
         // Checks ownership while the instance registry mutex is already held.
