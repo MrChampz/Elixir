@@ -38,10 +38,15 @@ namespace Elixir::Vulkan
         );
     }
 
-    void VulkanBaseDescriptorPool::DestroyPool() const
+    void VulkanBaseDescriptorPool::DestroyPool()
     {
         EE_PROFILE_ZONE_SCOPED()
+
+        if (m_Pool == VK_NULL_HANDLE)
+            return;
+
         vkDestroyDescriptorPool(m_GraphicsContext->GetDevice(), m_Pool, nullptr);
+        m_Pool = VK_NULL_HANDLE;
     }
 
     /* VulkanDescriptorPool */

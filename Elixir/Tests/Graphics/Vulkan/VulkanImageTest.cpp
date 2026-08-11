@@ -6,6 +6,9 @@ using namespace testing;
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Graphics/CommandBuffer.h>
 #include <Graphics/Vulkan/VulkanImage.h>
+
+#include "VulkanTestContext.h"
+
 using namespace Elixir;
 using namespace Elixir::Vulkan;
 
@@ -14,23 +17,13 @@ class VulkanImageTest : public Test
   protected:
     static void SetUpTestSuite()
     {
-        Memory::s_Malloc = CreateScope<SystemMalloc>();
-        Window =    Window::Create();
-        Context = GraphicsContext::Create(EGraphicsAPI::Vulkan, &Elixir::Executor::Get(), Window.get());
-        Context->Init();
+        Context = VulkanTestContext::Get().GetGraphicsContext();
     }
 
-    static void TearDownTestSuite()
-    {
-        Context->Shutdown();
-    }
-
-    static Scope<Window> Window;
-    static Scope<GraphicsContext> Context;
+    static GraphicsContext* Context;
 };
 
-Scope<Window> VulkanImageTest::Window = nullptr;
-Scope<GraphicsContext> VulkanImageTest::Context = nullptr;
+GraphicsContext* VulkanImageTest::Context = nullptr;
 
 TEST_F(VulkanImageTest, VulkanBaseImage_IsNotConstructibleAndAssignable)
 {
@@ -55,7 +48,7 @@ TEST_F(VulkanImageTest, VulkanImage_MoveConstructorIsDeleted)
 
 TEST_F(VulkanImageTest, VulkanImage_CreationAndDestruction)
 {
-    const auto image = Image::Create(Context.get(), EImageFormat::R8G8B8A8_SRGB, 800);
+    const auto image = Image::Create(Context, EImageFormat::R8G8B8A8_SRGB, 800);
 
     const auto vk_Image = dynamic_cast<VulkanBaseImage<Image>*>(image.get());
     ASSERT_TRUE(vk_Image != nullptr);
@@ -78,7 +71,7 @@ TEST_F(VulkanImageTest, VulkanImage_CreationAndDestruction)
 TEST_F(VulkanImageTest, VulkanDepthStencilImage_DepthOnly)
 {
     const auto image = DepthStencilImage::Create(
-        Context.get(),
+        Context,
         EDepthStencilImageFormat::D32_SFLOAT,
         800, 600
     );
@@ -105,7 +98,7 @@ TEST_F(VulkanImageTest, VulkanDepthStencilImage_DepthOnly)
 TEST_F(VulkanImageTest, VulkanDepthStencilImage_DepthStencil)
 {
     const auto image = DepthStencilImage::Create(
-        Context.get(),
+        Context,
         EDepthStencilImageFormat::D32_SFLOAT_S8_UINT,
         800, 600
     );
@@ -135,10 +128,10 @@ TEST_F(VulkanImageTest, VulkanImage_LayoutTransition) {
     info.InitialLayout = EImageLayout::TransferDst;
 
     // Initially the image is transitioned to layout defined in "InitialLayout"
-    VulkanImage image(Context.get(), info);
+    VulkanImage image(Context, info);
     EXPECT_EQ(image.GetLayout(), EImageLayout::TransferDst);
 
-    const auto cmd = Context->GetSecondaryCommandBuffer();
+    const auto cmd = Context->GetUploadCommandBuffer();
     cmd->Begin();
 
     // Now perform a manual transition
@@ -149,7 +142,7 @@ TEST_F(VulkanImageTest, VulkanImage_LayoutTransition) {
 }
 
 TEST_F(VulkanImageTest, VulkanImage_ImageDestruction) {
-    const auto image = Image::Create(Context.get(), EImageFormat::R8G8B8A8_SRGB, 128);
+    const auto image = Image::Create(Context, EImageFormat::R8G8B8A8_SRGB, 128);
     EXPECT_TRUE(image->IsValid());
 
     image->Destroy();
@@ -162,10 +155,10 @@ TEST_F(VulkanImageTest, VulkanImage_ImageDestruction) {
 
 TEST_F(VulkanImageTest, TryToGetVulkanImageHandle) {
     SImageCreateInfo info = Image::CreateImageInfo(EImageFormat::R8G8B8A8_UNORM, 32);
-    VulkanImage image(Context.get(), info);
+    VulkanImage image(Context, info);
 
     SImageCreateInfo dsInfo = DepthStencilImage::CreateImageInfo(EDepthStencilImageFormat::D16_UNORM, 64, 64);
-    VulkanDepthStencilImage dstImage(Context.get(), dsInfo);
+    VulkanDepthStencilImage dstImage(Context, dsInfo);
 
     VkImage imgHandle = TryToGetVulkanImageHandle(&image);
     VkImage dstImgHandle = TryToGetVulkanImageHandle(&dstImage);
