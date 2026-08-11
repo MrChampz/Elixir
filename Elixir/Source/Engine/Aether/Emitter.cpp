@@ -20,7 +20,6 @@ namespace Elixir::Aether
     {
         SCompiledEmitter emitter;
         emitter.Id = m_Id;
-        emitter.Name = m_Name;
         emitter.RenderMode = m_RenderMode;
         emitter.SimulationSpace = m_SimulationSpace;
         emitter.MaxParticles = m_MaxParticles;

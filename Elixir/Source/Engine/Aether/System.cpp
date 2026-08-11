@@ -31,7 +31,6 @@ namespace Elixir::Aether
         SCompiledSystem system;
         system.SourceId = m_UUID;
         system.CompilationRevision = ++m_CompilationRevision;
-        system.Name = m_Name;
 
         system.Parameters = m_Parameters.Compile();
 
@@ -114,14 +113,14 @@ namespace Elixir::Aether
             const auto& name = emitter->GetTriggerEmitterName();
             if (name.empty()) continue;
 
-            auto found = std::ranges::find_if(system.Emitters, [&name](const SCompiledEmitter& e)
+            const auto found = std::ranges::find_if(m_Emitters, [&name](const auto& e)
             {
-                return e.Name == name;
+                return e->GetName() == name;
             });
 
-            if (found != system.Emitters.end())
+            if (found != m_Emitters.end())
             {
-                const auto sourceIndex = (uint32_t)std::distance(system.Emitters.begin(), found);
+                const auto sourceIndex = (uint32_t)std::distance(m_Emitters.begin(), found);
 
                 auto& target = system.Emitters[targetIndex];
                 target.TriggerSourceEmitterIndex = (int32_t)sourceIndex;
@@ -135,7 +134,11 @@ namespace Elixir::Aether
             }
             else
             {
-                EE_CORE_ERROR("Trigger source emitter '{}' not found for emitter '{}'.", name, emitter->GetName());
+                EE_CORE_ERROR(
+                    "Trigger source emitter '{}' not found for emitter '{}'.",
+                    name,
+                    emitter->GetName()
+                )
             }
         }
 

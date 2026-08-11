@@ -119,10 +119,7 @@ namespace Elixir
         {
             if (!item.Material)
             {
-                EE_CORE_ERROR(
-                    "Material render item '{}' has no compiled material proxy.",
-                    item.DebugName
-                )
+                EE_CORE_ERROR("Material render item has no compiled material proxy.")
                 continue;
             }
 

@@ -30,7 +30,6 @@ namespace Elixir::Aether
     struct SCompiledEmitter
     {
         UUID Id;
-        std::string Name;
         EParticleRenderMode RenderMode = EParticleRenderMode::Sprite;
         EParticleSimulationSpace SimulationSpace = EParticleSimulationSpace::World;
 
@@ -163,6 +162,12 @@ namespace Elixir::Aether
             std::vector<SGPUParticleOp>& ops,
             MaterialResolver& materialResolver
         ) const;
+
+        /**
+         * @brief Returns the stable identity of this emitter.
+         * @return The UUID of this emitter.
+         */
+        const UUID& GetId() const { return m_Id; }
 
         /**
          * @brief Returns the display name of this emitter.

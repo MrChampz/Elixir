@@ -631,7 +631,10 @@ namespace Elixir::Aether::Simulation
         {
             if (m_AllocationFailures.insert(proxy.GetKey()).second)
             {
-                EE_CORE_ERROR("Aether GPU resource pool exhausted for system '{}'.", system.Name)
+                EE_CORE_ERROR(
+                    "Aether GPU resource pool exhausted for system '{}'.",
+                    system.SourceId
+                )
             }
             return nullptr;
         }
@@ -792,7 +795,7 @@ namespace Elixir::Aether::Simulation
                     EE_CORE_ERROR(
                         "Aether particle state layout '{}' is unsupported for system '{}'.",
                         (uint32_t)system.ParticleStateLayout,
-                        system.Name
+                        system.SourceId
                     )
                 }
                 continue;
@@ -883,7 +886,6 @@ namespace Elixir::Aether::Simulation
                     .RenderMode = emitter.RenderMode,
                     .Material = emitter.Material,
                     .WorldTransform = GetParticleRenderTransform(emitter, *instance.Proxy),
-                    .DebugName = emitter.Name,
                     .EmitterIndex = emitterIndex,
                     .LocalParticleOffset = emitter.LocalParticleOffset,
                     .ParticleCount = emitter.MaxParticles,

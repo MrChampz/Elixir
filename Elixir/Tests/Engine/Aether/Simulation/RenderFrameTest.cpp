@@ -54,7 +54,6 @@ TEST(RenderFrameTest, PublishesResolvedSimulationData)
             .RenderMode = EParticleRenderMode::Ribbon,
             .Material = {},
             .WorldTransform = transform,
-            .DebugName = "Trail",
             .EmitterIndex = 1u,
             .LocalParticleOffset = 16u,
             .ParticleCount = 48u,
@@ -82,7 +81,6 @@ TEST(RenderFrameTest, PublishesResolvedSimulationData)
     EXPECT_EQ(item.Allocation.Emitters.Offset, 11u);
     EXPECT_EQ(item.ParticleStateLayout, EParticleStateLayout::CoreV1);
     EXPECT_EQ(item.RenderMode, EParticleRenderMode::Ribbon);
-    EXPECT_EQ(item.DebugName, "Trail");
     EXPECT_EQ(item.EmitterIndex, 1u);
     EXPECT_EQ(item.LocalParticleOffset, 16u);
     EXPECT_EQ(item.ParticleCount, 48u);

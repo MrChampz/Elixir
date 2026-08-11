@@ -35,7 +35,6 @@ namespace Elixir::Aether::Simulation
         Core::EParticleRenderMode RenderMode = Core::EParticleRenderMode::Sprite;
         Ref<const MaterialRenderProxy> Material;
         glm::mat4 WorldTransform{ 1.0f };
-        std::string DebugName;
         uint32_t EmitterIndex = 0;
         uint32_t LocalParticleOffset = 0;
         uint32_t ParticleCount = 0;

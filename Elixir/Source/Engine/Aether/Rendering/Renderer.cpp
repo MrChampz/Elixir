@@ -351,7 +351,6 @@ namespace Elixir::Aether::Rendering
                     scene.Add({
                         .Pass = EMaterialPass::ParticleSprite,
                         .Material = item.Material,
-                        .DebugName = item.DebugName,
                         .GeometryIndex = geometry->Sprite,
                         .PushConstants = SMaterialPushConstants::Create(
                             constants,
@@ -378,7 +377,6 @@ namespace Elixir::Aether::Rendering
                     scene.Add({
                         .Pass = EMaterialPass::ParticleRibbon,
                         .Material = item.Material,
-                        .DebugName = item.DebugName,
                         .GeometryIndex = geometry->Ribbon,
                         .PushConstants = SMaterialPushConstants::Create(
                             constants,
@@ -398,7 +396,6 @@ namespace Elixir::Aether::Rendering
                     scene.Add({
                         .Pass = EMaterialPass::ParticleMesh,
                         .Material = item.Material,
-                        .DebugName = item.DebugName,
                         .GeometryIndex = geometry->Mesh,
                         .PushConstants = SMaterialPushConstants::Create(
                             constants,

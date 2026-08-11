@@ -65,7 +65,6 @@ namespace Elixir
     {
         EMaterialPass Pass = EMaterialPass::ParticleSprite;
         Ref<const MaterialRenderProxy> Material;
-        std::string_view DebugName;
         uint32_t GeometryIndex = UINT32_MAX;
         SMaterialPushConstants PushConstants;
         SMaterialDrawCommand Draw;

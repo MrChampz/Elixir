@@ -55,7 +55,6 @@ namespace Elixir::Aether
         UUID SourceId;
         uint32_t CompilationRevision = 0;
 
-        std::string Name;
         EParticleStateLayout ParticleStateLayout = EParticleStateLayout::CoreV1;
 
         std::vector<SCompiledEmitter> Emitters;
