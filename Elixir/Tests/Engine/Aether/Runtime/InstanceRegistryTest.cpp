@@ -165,7 +165,7 @@ TEST(InstanceRegistryTest, AcceptsConcurrentRegistrations)
     constexpr size_t instanceCount = 64;
 
     TestInstanceRegistry runtime;
-    const auto system = CreateRef<System>("Concurrent submission");
+    const auto system = CreateRef<System>("Concurrent registration");
     std::vector<Ref<SystemInstance>> instances;
     std::vector<std::thread> threads;
     std::atomic_size_t accepted = 0;

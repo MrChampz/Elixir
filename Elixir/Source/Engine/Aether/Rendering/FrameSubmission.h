@@ -129,7 +129,7 @@ namespace Elixir::Aether::Rendering
 
         /**
          * @brief Returns the renderer-facing proxies captured for this frame.
-         * @return Immutable render proxies in submission order.
+         * @return Immutable render proxies captured for this frame.
          */
         const std::vector<Ref<const SystemInstanceRenderProxy>>& GetRenderProxies() const
         {

@@ -75,7 +75,6 @@ namespace Elixir::Aether::Runtime
             }
 
             m_Instances.emplace(instance->GetKey(), instance);
-            m_InstanceOrder.push_back(instance->GetKey());
         }
 
         return true;
@@ -98,7 +97,6 @@ namespace Elixir::Aether::Runtime
 
         auto detached = found->second;
         m_Instances.erase(found);
-        std::erase(m_InstanceOrder, instance->GetKey());
 
         return detached;
     }
@@ -109,22 +107,13 @@ namespace Elixir::Aether::Runtime
 
         auto submission = CreateRef<FrameSubmission>();
 
-        for (const auto& key : m_InstanceOrder)
+        for (const auto& instance : m_Instances | std::views::values)
         {
-            const auto found = m_Instances.find(key);
+            const bool submitted = submission->Submit(*instance);
             EE_CORE_ASSERT(
-                found != m_Instances.end(),
-                "Aether active instance is not registered."
+                submitted,
+                "Aether could not capture an active system instance."
             )
-
-            if (found != m_Instances.end())
-            {
-                const bool submitted = submission->Submit(*found->second);
-                EE_CORE_ASSERT(
-                    submitted,
-                    "Aether could not capture an active system instance."
-                )
-            }
         }
 
         m_Publisher.Publish(std::move(submission));

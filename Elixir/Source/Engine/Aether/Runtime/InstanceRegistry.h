@@ -109,7 +109,6 @@ namespace Elixir::Aether::Runtime
 
         std::unordered_map<UUID, Ref<const SCompiledSystem>> m_CompiledSystems;
         std::unordered_map<SSystemInstanceKey, Ref<SystemInstance>> m_Instances;
-        std::vector<SSystemInstanceKey> m_InstanceOrder;
 
         mutable std::mutex m_Mutex;
         FrameSubmissionPublisher m_Publisher;
