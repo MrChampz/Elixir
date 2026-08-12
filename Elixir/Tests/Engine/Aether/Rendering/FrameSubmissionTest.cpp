@@ -38,8 +38,8 @@ TEST(FrameSubmissionTest, RetainsEachSystemInstanceAtMostOnce)
 {
     TestInstanceRegistry runtime;
     const auto system = CreateRef<System>("Frame submission system");
-    const auto firstInstance = runtime.Registry.CreateInstance(system);
-    const auto secondInstance = runtime.Registry.CreateInstance(system);
+    const auto firstInstance = runtime.CreateRegisteredInstance(system);
+    const auto secondInstance = runtime.CreateRegisteredInstance(system);
 
     ASSERT_TRUE(firstInstance);
     ASSERT_TRUE(secondInstance);
@@ -58,8 +58,8 @@ TEST(FrameSubmissionTest, ResetKeepsTheSubmissionReusable)
 {
     TestInstanceRegistry runtime;
     const auto system = CreateRef<System>("Reusable submission system");
-    const auto firstInstance = runtime.Registry.CreateInstance(system);
-    const auto secondInstance = runtime.Registry.CreateInstance(system);
+    const auto firstInstance = runtime.CreateRegisteredInstance(system);
+    const auto secondInstance = runtime.CreateRegisteredInstance(system);
 
     ASSERT_TRUE(firstInstance);
     ASSERT_TRUE(secondInstance);
@@ -79,7 +79,7 @@ TEST(FrameSubmissionTest, ResetKeepsTheSubmissionReusable)
 TEST(FrameSubmissionTest, RemovesAnInstanceBeforeItIsRetired)
 {
     TestInstanceRegistry runtime;
-    const auto instance = runtime.CreateInstance("Removed submission system");
+    const auto instance = runtime.CreateRegisteredInstance("Removed submission system");
     ASSERT_TRUE(instance);
 
     FrameSubmission submission;
@@ -94,7 +94,7 @@ TEST(FrameSubmissionTest, RemovesAnInstanceBeforeItIsRetired)
 TEST(FrameSubmissionTest, RetainsTheStateCapturedAtSubmission)
 {
     TestInstanceRegistry runtime;
-    const auto instance = runtime.CreateInstance("Captured submission system");
+    const auto instance = runtime.CreateRegisteredInstance("Captured submission system");
     ASSERT_TRUE(instance);
 
     FrameSubmission submission;

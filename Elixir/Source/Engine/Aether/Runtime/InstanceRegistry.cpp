@@ -12,30 +12,6 @@ namespace Elixir::Aether::Runtime
     ) : m_EffectMaterials(materialRegistry),
         m_MaterialResolver(materialResolver) {}
 
-    Ref<SystemInstance> InstanceRegistry::CreateInstance(const Ref<System>& system)
-    {
-        EE_CORE_ASSERT(system, "Aether requires a System asset.")
-        if (!system) return nullptr;
-
-        const std::scoped_lock lock(m_Mutex);
-
-        auto compiled = m_CompiledSystems.find(system->GetId());
-        if (compiled == m_CompiledSystems.end())
-        {
-            const auto result = CompileSystem(*system);
-            if (!result) return nullptr;
-
-            compiled = m_CompiledSystems.emplace(system->GetId(), result).first;
-        }
-
-        auto instance = Ref<SystemInstance>(new SystemInstance(compiled->second));
-        const auto [_, inserted] = m_Instances.emplace(instance->GetKey(), instance);
-
-        EE_CORE_ASSERT(inserted, "Aether system instance UUID must be unique.")
-
-        return instance;
-    }
-
     bool InstanceRegistry::Recompile(const Ref<System>& system)
     {
         EE_CORE_ASSERT(system, "Aether requires a System asset.")
@@ -57,7 +33,55 @@ namespace Elixir::Aether::Runtime
         return true;
     }
 
-    Ref<SystemInstance> InstanceRegistry::DetachInstance(
+    bool InstanceRegistry::Register(const Ref<SystemInstance>& instance)
+    {
+        if (!instance || !instance->TryBeginSubmission())
+            return false;
+
+        const auto system = instance->GetSourceSystem();
+        if (!system)
+        {
+            instance->CancelSubmission();
+            return false;
+        }
+
+        {
+            const std::scoped_lock lock(m_Mutex);
+
+            if (m_Instances.contains(instance->GetKey()))
+            {
+                instance->CancelSubmission();
+                EE_CORE_ASSERT(false, "Aether system instance UUID must be unique.")
+                return false;
+            }
+
+            auto compiled = m_CompiledSystems.find(system->GetId());
+            if (compiled == m_CompiledSystems.end())
+            {
+                const auto result = CompileSystem(*system);
+                if (!result)
+                {
+                    instance->CancelSubmission();
+                    return false;
+                }
+
+                compiled = m_CompiledSystems.emplace(system->GetId(), result).first;
+            }
+
+            if (!instance->Initialize(compiled->second))
+            {
+                instance->CancelSubmission();
+                return false;
+            }
+
+            m_Instances.emplace(instance->GetKey(), instance);
+            m_InstanceOrder.push_back(instance->GetKey());
+        }
+
+        return true;
+    }
+
+    Ref<SystemInstance> InstanceRegistry::Unregister(
         const Ref<SystemInstance>& instance
     )
     {
@@ -74,31 +98,36 @@ namespace Elixir::Aether::Runtime
 
         auto detached = found->second;
         m_Instances.erase(found);
+        std::erase(m_InstanceOrder, instance->GetKey());
 
         return detached;
     }
 
-    bool InstanceRegistry::Submit(
-        FrameSubmission& submission,
-        const Ref<SystemInstance>& instance
-    )
+    void InstanceRegistry::PublishActiveInstances()
     {
         const std::scoped_lock lock(m_Mutex);
-        return IsManagedInstance(instance) && submission.Submit(*instance);
-    }
 
-    void InstanceRegistry::Publish(Ref<FrameSubmission> submission)
-    {
-        EE_CORE_ASSERT(submission, "Aether frame submission cannot be null.")
+        auto submission = CreateRef<FrameSubmission>();
 
-        const std::scoped_lock lock(m_Mutex);
-        m_Publisher.Publish(
-            std::move(submission),
-            [this](const SSystemInstanceKey& key)
+        for (const auto& key : m_InstanceOrder)
+        {
+            const auto found = m_Instances.find(key);
+            EE_CORE_ASSERT(
+                found != m_Instances.end(),
+                "Aether active instance is not registered."
+            )
+
+            if (found != m_Instances.end())
             {
-                return m_Instances.contains(key);
+                const bool submitted = submission->Submit(*found->second);
+                EE_CORE_ASSERT(
+                    submitted,
+                    "Aether could not capture an active system instance."
+                )
             }
-        );
+        }
+
+        m_Publisher.Publish(std::move(submission));
     }
 
     Ref<const FrameSubmission> InstanceRegistry::AcquireSubmission()

@@ -17,8 +17,8 @@ TEST(SystemInstanceRetirementQueueTest, TransfersPendingInstancesExactlyOnce)
 {
     TestInstanceRegistry runtime;
     const auto system = CreateRef<System>("Retirement queue system");
-    const auto first = runtime.Registry.CreateInstance(system);
-    const auto second = runtime.Registry.CreateInstance(system);
+    const auto first = runtime.CreateRegisteredInstance(system);
+    const auto second = runtime.CreateRegisteredInstance(system);
 
     ASSERT_TRUE(first);
     ASSERT_TRUE(second);
@@ -44,7 +44,7 @@ TEST(SystemInstanceRetirementQueueTest, DrainsDestroyRequestsEnqueuedDuringUpdat
     instances.reserve(destroyRequestCount);
 
     for (uint32_t instance = 0; instance < destroyRequestCount; ++instance)
-        instances.push_back(runtime.Registry.CreateInstance(system));
+        instances.push_back(runtime.CreateRegisteredInstance(system));
 
     SystemInstanceRetirementQueue queue;
     std::barrier beginConcurrentAccess{ 2 };

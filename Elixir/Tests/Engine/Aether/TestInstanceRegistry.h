@@ -18,9 +18,15 @@ public:
     TestInstanceRegistry()
       : Registry(m_MaterialRegistry, m_MaterialResolver) {}
 
-    Ref<SystemInstance> CreateInstance(std::string name = "Test system")
+    Ref<SystemInstance> CreateRegisteredInstance(const Ref<System>& system)
     {
-        return Registry.CreateInstance(CreateRef<System>(std::move(name)));
+        const auto instance = system->CreateInstance();
+        return Registry.Register(instance) ? instance : nullptr;
+    }
+
+    Ref<SystemInstance> CreateRegisteredInstance(std::string name = "Test system")
+    {
+        return CreateRegisteredInstance(CreateRef<System>(std::move(name)));
     }
 
     Runtime::InstanceRegistry Registry;

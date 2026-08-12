@@ -31,7 +31,8 @@ namespace Elixir::Aether::Rendering
          *
          * @param instance Runtime instance to capture.
          * @return True when the instance was added.
-         * @return False when the submission is sealed or already contains instance.
+         * @return False when the instance is unregistered, duplicated, or the
+         * submission is sealed.
          */
         bool Submit(const SystemInstance& instance)
         {
@@ -41,6 +42,12 @@ namespace Elixir::Aether::Rendering
             if (!inserted) return false;
 
             const auto snapshot = instance.CaptureSnapshot();
+            if (!snapshot)
+            {
+                m_InstanceKeys.erase(instance.GetKey());
+                return false;
+            }
+
             m_RenderProxies.push_back(snapshot->GetRenderProxy());
             return true;
         }

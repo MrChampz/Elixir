@@ -53,7 +53,7 @@ TEST(SystemInstanceTest, RecompilesSystemAndIncrementsRevision)
 {
     TestInstanceRegistry runtime;
     const auto system = MakeSystem();
-    const auto instance = runtime.Registry.CreateInstance(system);
+    const auto instance = runtime.CreateRegisteredInstance(system);
     ASSERT_TRUE(instance);
 
     const auto initialRevision = CaptureForTest(instance)->GetRevision();
@@ -70,7 +70,7 @@ TEST(SystemInstanceTest, RecompilesSystemAndIncrementsRevision)
 TEST(SystemInstanceTest, ReturnsOverrideOrCompiledDefaultForExposedParameter)
 {
     TestInstanceRegistry runtime;
-    const auto instance = runtime.Registry.CreateInstance(MakeSystem());
+    const auto instance = runtime.CreateRegisteredInstance(MakeSystem());
     ASSERT_TRUE(instance);
 
     const auto defaultValue = instance->GetParameterValue("Tint");
@@ -100,7 +100,7 @@ TEST(SystemInstanceTest, ReturnsOverrideOrCompiledDefaultForExposedParameter)
 TEST(SystemInstanceTest, AppliesOverridesOnlyToExposedParameters)
 {
     TestInstanceRegistry runtime;
-    const auto instance = runtime.Registry.CreateInstance(MakeSystem());
+    const auto instance = runtime.CreateRegisteredInstance(MakeSystem());
     ASSERT_TRUE(instance);
 
     const auto initialParameterRevision = CaptureForTest(instance)->GetParameterRevision();
@@ -127,7 +127,7 @@ TEST(SystemInstanceTest, AppliesOverridesOnlyToExposedParameters)
 TEST(SystemInstanceTest, ClearsOverridesAndRestoresCompiledDefaults)
 {
     TestInstanceRegistry runtime;
-    const auto instance = runtime.Registry.CreateInstance(MakeSystem());
+    const auto instance = runtime.CreateRegisteredInstance(MakeSystem());
     ASSERT_TRUE(instance);
 
     ASSERT_TRUE(instance->SetParameterOverride("Tint", { 0.25f, 0.5f, 0.75f, 1.0f }));
@@ -145,7 +145,7 @@ TEST(SystemInstanceTest, RetainsCompatibleOverridesAfterRecompilation)
 {
     TestInstanceRegistry runtime;
     const auto system = MakeSystem();
-    const auto instance = runtime.Registry.CreateInstance(system);
+    const auto instance = runtime.CreateRegisteredInstance(system);
     ASSERT_TRUE(instance);
 
     ASSERT_TRUE(instance->SetParameterOverride("Tint", { 0.25f, 0.5f, 0.75f, 1.0f }));
@@ -163,7 +163,7 @@ TEST(SystemInstanceTest, RetainsCompatibleOverridesAfterRecompilation)
 TEST(SystemInstanceTest, StoresWorldTransformWithoutChangingCompiledSystem)
 {
     TestInstanceRegistry runtime;
-    const auto instance = runtime.Registry.CreateInstance(MakeSystem());
+    const auto instance = runtime.CreateRegisteredInstance(MakeSystem());
     ASSERT_TRUE(instance);
     const auto* compiledSystem = &CaptureForTest(instance)->GetCompiledSystem();
 
@@ -183,7 +183,7 @@ TEST(SystemInstanceTest, StoresWorldTransformWithoutChangingCompiledSystem)
 TEST(SystemInstanceTest, KeepsCapturedProxyImmutableDuringConcurrentOverrides)
 {
     TestInstanceRegistry runtime;
-    const auto instance = runtime.Registry.CreateInstance(MakeSystem());
+    const auto instance = runtime.CreateRegisteredInstance(MakeSystem());
     ASSERT_TRUE(instance);
     const auto capturedBeforeOverrides = CaptureForTest(instance);
     std::barrier beginUpdates{ 2 };

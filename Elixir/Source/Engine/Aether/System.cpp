@@ -1,9 +1,16 @@
 #include "epch.h"
 #include "System.h"
 
+#include <Engine/Aether/SystemInstance.h>
+
 namespace Elixir::Aether
 {
     System::System(const std::string& name) : m_Name(name) {}
+
+    Ref<SystemInstance> System::CreateInstance()
+    {
+        return Ref<SystemInstance>(new SystemInstance(shared_from_this()));
+    }
 
     Emitter& System::AddEmitter(
         const std::string& name,
@@ -26,13 +33,41 @@ namespace Elixir::Aether
         return nullptr;
     }
 
+    std::vector<SGPUParameter> System::BuildExposedParameters() const
+    {
+        auto parameters = m_Parameters.Compile();
+
+        for (const auto& emitter : m_Emitters)
+        {
+            const auto prefix = emitter->GetName() + ".";
+            const auto params = emitter->GetParameters().Compile(prefix);
+            parameters.insert(parameters.end(), params.begin(), params.end());
+        }
+
+        return parameters;
+    }
+
+    std::optional<glm::vec4> System::GetParameterDefault(std::string_view name) const
+    {
+        const auto parameters = BuildExposedParameters();
+        const auto found = std::ranges::find_if(parameters, [&name](const auto& param)
+        {
+            return param.Name == name;
+        });
+
+        if (found == parameters.end())
+            return std::nullopt;
+
+        return found->Value;
+    }
+
     SCompiledSystem System::Compile(MaterialResolver& materialResolver) const
     {
         SCompiledSystem system;
         system.SourceId = m_UUID;
         system.CompilationRevision = ++m_CompilationRevision;
 
-        system.Parameters = m_Parameters.Compile();
+        system.Parameters = BuildExposedParameters();
 
         const auto systemCurves = m_Curves.Compile();
         system.Curves.insert(system.Curves.end(), systemCurves.begin(), systemCurves.end());
@@ -43,9 +78,6 @@ namespace Elixir::Aether
         for (const auto& emitter : m_Emitters)
         {
             const auto prefix = emitter->GetName() + ".";
-
-            const auto emitterParams = emitter->GetParameters().Compile(prefix);
-            system.Parameters.insert(system.Parameters.end(), emitterParams.begin(), emitterParams.end());
 
             const auto emitterCurves = emitter->GetCurves().Compile(prefix);
             system.Curves.insert(system.Curves.end(), emitterCurves.begin(), emitterCurves.end());

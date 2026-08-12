@@ -135,10 +135,13 @@ namespace Elixir::Aether
     };
 
     /**
-     * @brief Represents one runtime use of a compiled Aether system.
+     * @brief Represents one runtime use of an Aether system.
      *
-     * SystemInstance owns mutable runtime choices: the selected compiled system,
-     * world transform, and exposed parameter overrides. It publishes each change
+     * System::CreateInstance() creates an unregistered instance from authored
+     * system data. Manager::Submit() compiles and registers it on first use.
+     *
+     * The instance owns mutable runtime choices such as its world transform and
+     * exposed parameter overrides. After registration, it publishes each change
      * as an immutable SystemInstanceSnapshot.
      *
      * The instance does not own particle buffers or other GPU resources. Manager
@@ -151,12 +154,19 @@ namespace Elixir::Aether
     class ELIXIR_API SystemInstance final
     {
         friend class Manager;
+        friend class System;
         friend class Runtime::InstanceRegistry;
         friend class Rendering::Renderer;
         friend class Rendering::FrameSubmission;
         friend class Rendering::FrameSubmissionPublisher;
 
     public:
+        /**
+         * @brief Creates an unregistered from an authored System.
+         * @param system Authored system to instantiate.
+         */
+        explicit SystemInstance(Ref<System> system);
+
         SystemInstance(const SystemInstance&) = delete;
         SystemInstance& operator=(const SystemInstance&) = delete;
         SystemInstance(SystemInstance&&) = delete;
@@ -211,8 +221,17 @@ namespace Elixir::Aether
         void SetWorldTransform(const glm::mat4& worldTransform);
 
     private:
-        // Creates an instance from data compiled internally by Aether.
-        explicit SystemInstance(Ref<const SCompiledSystem> system);
+        // Returns the authored System retained before the first submission.
+        Ref<System> GetSourceSystem() const;
+
+        // Reserves the instance for its first runtime submission.
+        bool TryBeginSubmission();
+
+        // Cancels a failed first submission so that it can be retried.
+        void CancelSubmission();
+
+        // Applies the first compilation and releases the authored System.
+        bool Initialize(Ref<const SCompiledSystem> system);
 
         // Replaces the internal compilation after rebuilding the same source asset.
         void ApplyCompilation(Ref<const SCompiledSystem> system);
@@ -248,10 +267,12 @@ namespace Elixir::Aether
         UUID m_SourceSystemId;
         uint32_t m_Revision = 1;
         uint32_t m_ParameterRevision = 1;
+        Ref<System> m_SourceSystem;
         Ref<const SCompiledSystem> m_CompiledSystem;
         glm::mat4 m_WorldTransform{ 1.0f };
         ParameterOverridesMap m_ParameterOverrides;
 
+        bool m_SubmissionStarted = false;
         Ref<const SystemInstanceSnapshot> m_Snapshot;
         mutable std::mutex m_SnapshotMutex;
     };

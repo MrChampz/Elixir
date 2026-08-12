@@ -3,6 +3,7 @@
 
 #include <Engine/Material/MaterialSystem.h>
 #include <Engine/Aether/Effect/Effect.h>
+#include <Engine/Aether/Runtime/InstanceRegistry.h>
 #include <Engine/Aether/Simulation/Simulator.h>
 #include <Engine/Aether/Rendering/Renderer.h>
 
@@ -30,19 +31,19 @@ namespace Elixir::Aether
         return LoadEffectFile(filepath);
     }
 
-    Ref<SystemInstance> Manager::CreateInstance(const Ref<System>& system)
-    {
-        return GetRuntime().CreateInstance(system);
-    }
-
     bool Manager::Recompile(const Ref<System>& system)
     {
         return GetRuntime().Recompile(system);
     }
 
-    bool Manager::DestroyInstance(const Ref<SystemInstance>& instance)
+    bool Manager::Add(const Ref<SystemInstance>& instance)
     {
-        const auto detached = GetRuntime().DetachInstance(instance);
+        return GetRuntime().Register(instance);
+    }
+
+    bool Manager::Remove(const Ref<SystemInstance>& instance)
+    {
+        const auto detached = GetRuntime().Unregister(instance);
         if (!detached) return false;
 
         m_PendingRetirements.Enqueue(detached);
@@ -52,27 +53,9 @@ namespace Elixir::Aether
 
     void Manager::BeginFrame(const Timestep& timestep)
     {
+        GetRuntime().PublishActiveInstances();
         GetSimulator().BeginFrame(timestep);
         RetireDestroyedInstances();
-    }
-
-    Ref<FrameSubmission> Manager::CreateFrameSubmission()
-    {
-        return CreateRef<FrameSubmission>();
-    }
-
-    bool Manager::Submit(
-        FrameSubmission& submission,
-        const Ref<SystemInstance>& instance
-    ) const
-    {
-        return GetRuntime().Submit(submission, instance);
-    }
-
-    void Manager::PublishFrameSubmission(Ref<FrameSubmission> submission)
-    {
-        EE_CORE_ASSERT(submission, "Aether frame submission cannot be null.")
-        GetRuntime().Publish(std::move(submission));
     }
 
     void Manager::Render(const Camera& camera)

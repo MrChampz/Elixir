@@ -17,6 +17,8 @@ namespace Elixir::Aether
     using namespace Core;
     using namespace Modules;
 
+    class SystemInstance;
+
     /**
      * @brief Maps an exposed runtime parameter to the compiled parameter table.
      *
@@ -85,9 +87,10 @@ namespace Elixir::Aether
      * @note A system is movable but not copyable. Its UUID identifies the authored
      * source across compiled revisions.
      */
-    class ELIXIR_API System final
+    class ELIXIR_API System final : public std::enable_shared_from_this<System>
     {
         friend class Runtime::InstanceRegistry;
+        friend class SystemInstance;
 
       public:
         /**
@@ -102,6 +105,19 @@ namespace Elixir::Aether
 
         System(const System&) = delete;
         System& operator=(const System&) = delete;
+
+        /**
+         * @brief Creates an unregistered runtime instance of this system.
+         *
+         * The instance retains this authored system until Manager accepts its
+         * first submission. Manager then compiles the system and releases the
+         * authored representation from the instance.
+         *
+         * @return A new unregistered system instance.
+         *
+         * @pre This system is owned by Ref<System>.
+         */
+        Ref<SystemInstance> CreateInstance();
 
         /**
          * @brief Adds an emitter to the effect.
@@ -166,6 +182,12 @@ namespace Elixir::Aether
         ColorCurveStore& GetColorCurves() { return m_ColorCurves; }
 
       private:
+        // Builds the authored parameters that can be overridden by instances.
+        std::vector<SGPUParameter> BuildExposedParameters() const;
+
+        // Returns an authored parameter default before an instance is compiled.
+        std::optional<glm::vec4> GetParameterDefault(std::string_view name) const;
+
         // Compiles the authored system into immutable runtime data.
         SCompiledSystem Compile(MaterialResolver& materialResolver) const;
 

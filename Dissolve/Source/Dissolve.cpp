@@ -218,10 +218,18 @@ Dissolve::Dissolve()
         }
     }
 
-    m_ParticleSystemInstances[0] = GetAetherManager().CreateInstance(m_ParticleSystems[0]);
-    m_ParticleSystemInstances[1] = GetAetherManager().CreateInstance(m_ParticleSystems[1]);
+    m_ParticleSystemInstances[0] = m_ParticleSystems[0]->CreateInstance();
+    m_ParticleSystemInstances[1] = m_ParticleSystems[1]->CreateInstance();
     EE_CORE_ASSERT(m_ParticleSystemInstances[0], "Could not create FireAndFireworks instance.")
     EE_CORE_ASSERT(m_ParticleSystemInstances[1], "Could not create RibbonVortex instance.")
+
+    auto& aether = GetAetherManager();
+
+    bool submitted = aether.Add(m_ParticleSystemInstances[0]);
+    EE_CORE_ASSERT(submitted, "The particle system instance was submitted more than once.")
+
+    submitted = aether.Add(m_ParticleSystemInstances[1]);
+    EE_CORE_ASSERT(submitted, "The particle system instance was submitted more than once.")
 
     m_GraphicsContext->SetClearColor({ 0.015f, 0.025f, 0.06f, 1.0f });
 }
@@ -241,17 +249,6 @@ void Dissolve::Prepare(const Timestep frameTime)
 {
     EE_PROFILE_ZONE_SCOPED()
     Application::Prepare(frameTime);
-
-    auto& aether = GetAetherManager();
-    const auto submission = aether.CreateFrameSubmission();
-
-    bool submitted = aether.Submit(*submission, m_ParticleSystemInstances[0]);
-    EE_CORE_ASSERT(submitted, "The particle system instance was submitted more than once.")
-
-    submitted = aether.Submit(*submission, m_ParticleSystemInstances[1]);
-    EE_CORE_ASSERT(submitted, "The particle system instance was submitted more than once.")
-
-    aether.PublishFrameSubmission(submission);
 }
 
 void Dissolve::Render(const Timestep frameTime)

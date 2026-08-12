@@ -14,7 +14,7 @@ using namespace Elixir::Aether::Rendering;
 TEST(FrameSubmissionPublisherTest, PublishesOnlySealedSubmissions)
 {
     TestInstanceRegistry runtime;
-    const auto instance = runtime.CreateInstance("Sealed submission system");
+    const auto instance = runtime.CreateRegisteredInstance("Sealed submission system");
     ASSERT_TRUE(instance);
 
     const auto submission = CreateRef<FrameSubmission>();
@@ -32,7 +32,7 @@ TEST(FrameSubmissionPublisherTest, PublishesOnlySealedSubmissions)
 TEST(FrameSubmissionPublisherTest, RemovesDestroyedInstanceFromPublishedFrame)
 {
     TestInstanceRegistry runtime;
-    const auto instance = runtime.CreateInstance("Removed published system");
+    const auto instance = runtime.CreateRegisteredInstance("Removed published system");
     ASSERT_TRUE(instance);
 
     const auto submission = CreateRef<FrameSubmission>();
@@ -48,7 +48,7 @@ TEST(FrameSubmissionPublisherTest, RemovesDestroyedInstanceFromPublishedFrame)
 TEST(FrameSubmissionPublisherTest, FiltersInstanceRejectedAtPublication)
 {
     TestInstanceRegistry runtime;
-    const auto instance = runtime.CreateInstance("Filtered published system");
+    const auto instance = runtime.CreateRegisteredInstance("Filtered published system");
     ASSERT_TRUE(instance);
 
     const auto submission = CreateRef<FrameSubmission>();
@@ -66,7 +66,7 @@ TEST(FrameSubmissionPublisherTest, FiltersInstanceRejectedAtPublication)
 TEST(FrameSubmissionPublisherTest, PublishesAndAcquiresSealedFramesConcurrently)
 {
     TestInstanceRegistry runtime;
-    const auto instance = runtime.CreateInstance("Concurrent published system");
+    const auto instance = runtime.CreateRegisteredInstance("Concurrent published system");
     ASSERT_TRUE(instance);
 
     const auto firstSubmission = CreateRef<FrameSubmission>();

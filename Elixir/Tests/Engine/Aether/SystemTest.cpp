@@ -24,14 +24,14 @@ namespace
     SCompiledSystem Compile(const Ref<System>& system)
     {
         TestInstanceRegistry runtime;
-        const auto instance = runtime.Registry.CreateInstance(system);
+        const auto instance = system->CreateInstance();
         EXPECT_TRUE(instance);
 
-        if (!instance)
+        if (!instance || !runtime.Registry.Register(instance))
             return {};
 
         Rendering::FrameSubmission submission;
-        EXPECT_TRUE(runtime.Registry.Submit(submission, instance));
+        EXPECT_TRUE(submission.Submit(*instance));
 
         if (submission.IsEmpty())
             return {};
