@@ -88,6 +88,22 @@ namespace Elixir
         }
     }
 
+    Ref<Texture2D> Texture2D::Create(
+        const GraphicsContext* context,
+        const SImageCreateInfo& info,
+        const std::string& path
+    )
+    {
+        switch (context->GetAPI())
+        {
+            case EGraphicsAPI::Vulkan:
+                return CreateRef<Vulkan::VulkanTexture2D>(context, info, path);
+            default:
+                EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
+                return nullptr;
+        }
+    }
+
     SImageCreateInfo Texture2D::CreateImageInfo(
         const EImageFormat format,
         const uint32_t width,

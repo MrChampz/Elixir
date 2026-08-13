@@ -1,0 +1,1261 @@
+<rml>
+    <head>
+        <title>Editor</title>
+        <link type="text/template" href="ContentBrowser.rml" />
+        <link type="text/template" href="MaterialEditor.rml" />
+        <style>
+            /* Int UI Kit dark rhythm: 4dp control radius, 8dp floating radius,
+               1dp borders, 4/8/12dp spacing, and 13dp type on a 16dp line. */
+            * {
+                box-sizing: border-box;
+            }
+
+            div {
+                display: block;
+            }
+
+            input {
+                display: block;
+            }
+
+            scrollbarvertical {
+                width: 8dp;
+                scrollbar-margin: 2dp;
+            }
+
+            scrollbarhorizontal {
+                height: 8dp;
+                scrollbar-margin: 2dp;
+            }
+
+            scrollbarvertical slidertrack,
+            scrollbarhorizontal slidertrack {
+                background-color: transparent;
+            }
+
+            scrollbarvertical sliderbar {
+                width: 6dp;
+                min-height: 24dp;
+                margin-left: 1dp;
+                background-color: #4e5157;
+                border-radius: 3dp;
+                cursor: pointer;
+            }
+
+            scrollbarhorizontal sliderbar {
+                height: 6dp;
+                min-width: 24dp;
+                margin-top: 1dp;
+                background-color: #4e5157;
+                border-radius: 3dp;
+                cursor: pointer;
+            }
+
+            scrollbarvertical sliderbar:hover,
+            scrollbarhorizontal sliderbar:hover {
+                background-color: #6f737a;
+            }
+
+            scrollbarvertical sliderarrowdec,
+            scrollbarvertical sliderarrowinc,
+            scrollbarhorizontal sliderarrowdec,
+            scrollbarhorizontal sliderarrowinc {
+                width: 0dp;
+                height: 0dp;
+            }
+
+            body {
+                margin: 0dp;
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+                background-color: transparent;
+                color: #dfe1e5;
+                font-family: SF Pro Display;
+                font-size: 13dp;
+                line-height: 16dp;
+            }
+
+            .menu-item,
+            .dropdown-item,
+            #editor-logo,
+            .workspace-tab,
+            .workspace-tab-close,
+            .tool-button,
+            .scene-icon-button,
+            .scene-text-button,
+            .dock-tab,
+            .dock-tab-close,
+            .tree-row,
+            #add-component {
+                cursor: pointer;
+            }
+
+            .panel {
+                position: absolute;
+                background-color: #2b2d30;
+                border: 1dp #393b40;
+            }
+
+            .panel-header {
+                height: 34dp;
+                padding-left: 12dp;
+                padding-top: 9dp;
+                background-color: #2b2d30;
+                border-bottom: 1dp #393b40;
+                color: #dfe1e5;
+                font-size: 13dp;
+            }
+
+            .dock-source-header {
+                drag: clone;
+                cursor: move;
+            }
+
+            .dock-source-header:hover {
+                background-color: #393b40;
+                color: #ffffff;
+            }
+
+            .dock-source-header:drag {
+                opacity: 0.75;
+                border: 1dp #3574f0;
+            }
+
+            .muted {
+                color: #868a91;
+            }
+
+            #editor-shell {
+                position: absolute;
+                left: 0dp;
+                top: 0dp;
+                width: 100%;
+                height: 100%;
+            }
+
+            #menu-bar {
+                position: absolute;
+                left: 0dp;
+                top: 0dp;
+                width: 100%;
+                height: 24dp;
+                background-color: #1e1f22;
+                border-bottom: 1dp #393b40;
+                z-index: 120;
+            }
+
+            .menu-item {
+                position: absolute;
+                top: 0dp;
+                height: 24dp;
+                padding-left: 7dp;
+                padding-top: 4dp;
+                border-radius: 4dp;
+                color: #ced0d6;
+                font-size: 11dp;
+            }
+
+            .menu-item:hover {
+                color: #ffffff;
+                background-color: #393b40;
+            }
+
+            .menu-item.menu-open {
+                color: #ffffff;
+                background-color: #43454a;
+            }
+
+            #menu-file { left: 56dp; width: 36dp; }
+            #menu-edit { left: 94dp; width: 38dp; }
+            #menu-window { left: 134dp; width: 54dp; }
+            #menu-tools { left: 190dp; width: 42dp; }
+            #menu-build { left: 234dp; width: 44dp; }
+            #menu-select { left: 280dp; width: 48dp; }
+            #menu-actor { left: 330dp; width: 44dp; }
+            #menu-help { left: 376dp; width: 40dp; }
+
+            #window-dropdown {
+                display: none;
+                position: absolute;
+                left: 134dp;
+                top: 22dp;
+                width: 210dp;
+                padding-top: 8dp;
+                padding-bottom: 8dp;
+                background-color: #2b2d30;
+                border: 1dp #4e5157;
+                border-radius: 8dp;
+                z-index: 110;
+            }
+
+            #window-dropdown.dropdown-open {
+                display: block;
+            }
+
+            .dropdown-item {
+                height: 24dp;
+                padding-left: 8dp;
+                padding-top: 4dp;
+                border-radius: 4dp;
+                color: #dfe1e5;
+            }
+
+            .dropdown-item:hover {
+                background-color: #393b40;
+                color: #ffffff;
+            }
+
+            .dropdown-item:active {
+                background-color: #3574f0;
+            }
+
+            .dropdown-shortcut {
+                position: absolute;
+                right: 10dp;
+                color: #868a91;
+            }
+
+            #project-name {
+                position: absolute;
+                right: 12dp;
+                top: 6dp;
+                color: #868a91;
+                font-size: 11dp;
+            }
+
+            #workspace-bar {
+                position: absolute;
+                left: 0dp;
+                top: 24dp;
+                width: 100%;
+                height: 26dp;
+                background-color: #25272b;
+                border-bottom: 1dp #393b40;
+                z-index: 100;
+            }
+
+            #editor-logo {
+                position: absolute;
+                left: 0dp;
+                top: 0dp;
+                width: 50dp;
+                height: 50dp;
+                background-color: #25272b;
+                border-right: 1dp #393b40;
+                border-bottom: 1dp #393b40;
+                overflow: hidden;
+                z-index: 130;
+            }
+
+            #editor-logo:hover {
+                background-color: #393b40;
+            }
+
+            #editor-logo-mark {
+                position: absolute;
+                left: 11dp;
+                top: 11dp;
+                width: 28dp;
+                height: 28dp;
+            }
+
+            #workspace-tabs {
+                position: absolute;
+                left: 54dp;
+                top: 0dp;
+                height: 26dp;
+                white-space: nowrap;
+            }
+
+            .workspace-tab {
+                display: inline-block;
+                position: relative;
+                height: 26dp;
+                margin-top: 0dp;
+                margin-right: 2dp;
+                padding-left: 10dp;
+                padding-right: 10dp;
+                padding-top: 5dp;
+                background-color: transparent;
+                border-radius: 3dp 3dp 0dp 0dp;
+                color: #9da0a8;
+                font-size: 12dp;
+            }
+
+            .workspace-tab:hover {
+                background-color: #303238;
+                color: #dfe1e5;
+            }
+
+            .workspace-tab.workspace-tab-active {
+                background-color: #2b2d30;
+                border-bottom: 2dp #3574f0;
+                color: #ffffff;
+            }
+
+            .workspace-tab.workspace-tab-hidden {
+                display: none;
+            }
+
+            .workspace-tab-icon {
+                display: inline-block;
+                width: 8dp;
+                height: 8dp;
+                margin-right: 7dp;
+                background-color: #548af7;
+                border-radius: 2dp;
+            }
+
+            #workspace-tab-material .workspace-tab-icon {
+                background-color: #c77d3b;
+                border-radius: 4dp;
+            }
+
+            .workspace-tab-close {
+                display: inline;
+                margin-left: 10dp;
+                padding-left: 4dp;
+                padding-right: 4dp;
+                border-radius: 4dp;
+                color: #868a91;
+            }
+
+            .workspace-tab-close:hover {
+                background-color: #43454a;
+                color: #ffffff;
+            }
+
+            #toolbar {
+                position: absolute;
+                left: 0dp;
+                top: 50dp;
+                width: 100%;
+                height: 40dp;
+                background-color: #2b2d30;
+                border-bottom: 1dp #393b40;
+                z-index: 90;
+            }
+
+            .tool-button {
+                position: absolute;
+                top: 0dp;
+                width: 34dp;
+                height: 40dp;
+                background-color: transparent;
+                border: 0dp;
+                color: #dfe1e5;
+            }
+
+            .tool-button-surface {
+                position: absolute;
+                left: 3dp;
+                top: 6dp;
+                width: 28dp;
+                height: 28dp;
+                background-color: transparent;
+                border: 1dp transparent;
+                border-radius: 4dp;
+                overflow: hidden;
+            }
+
+            .tool-button:hover .tool-button-surface {
+                background-color: #393b40;
+                border-color: transparent;
+                color: #ffffff;
+            }
+
+            .tool-button:active .tool-button-surface {
+                background-color: #375fad;
+                border-color: transparent;
+            }
+
+            .tool-active .tool-button-surface {
+                background-color: #3574f0;
+                border-color: transparent;
+                color: #ffffff;
+            }
+
+            .tool-icon-image {
+                position: absolute;
+                left: 50%;
+                top: 50%;
+                width: 18dp;
+                height: 18dp;
+                margin-left: -9dp;
+                margin-top: -9dp;
+                image-color: #ced0d6;
+            }
+
+            .tool-button:hover .tool-icon-image,
+            .tool-active .tool-icon-image {
+                image-color: #ffffff;
+            }
+
+            #tool-play .tool-icon-image {
+                image-color: #ffffff;
+            }
+
+            .icon-stop-image { display: none; }
+            #tool-play.playing .icon-play-image { display: none; }
+            #tool-play.playing .icon-stop-image { display: block; }
+
+            #play-group {
+                position: absolute;
+                left: 50%;
+                top: 0dp;
+                width: 72dp;
+                height: 40dp;
+                margin-left: -36dp;
+            }
+
+            #tool-play { left: 0dp; width: 34dp; }
+
+            #tool-play .tool-button-surface {
+                background-color: #3574f0;
+                border-color: transparent;
+                color: #ffffff;
+            }
+
+            #tool-play:hover .tool-button-surface {
+                background-color: #366acf;
+            }
+
+            #tool-play:active .tool-button-surface {
+                background-color: #375fad;
+            }
+
+            #tool-play.playing .tool-button-surface {
+                background-color: #db5c5c;
+                border-color: transparent;
+                color: #ffffff;
+            }
+
+            #tool-pause { left: 38dp; width: 34dp; }
+
+            #hierarchy {
+                display: none;
+                left: 0dp;
+                top: 90dp;
+                width: 280dp;
+                bottom: 224dp;
+            }
+
+            #hierarchy-search-shell {
+                position: relative;
+                height: 28dp;
+                margin-left: 8dp;
+                margin-right: 8dp;
+                margin-top: 6dp;
+                margin-bottom: 6dp;
+                background-color: #2b2d30;
+                border: 1dp #4e5157;
+                border-radius: 4dp;
+                overflow: hidden;
+            }
+
+            #hierarchy-search-icon {
+                position: absolute;
+                left: 8dp;
+                top: 7dp;
+                width: 10dp;
+                height: 10dp;
+                border: 1dp #868a91;
+                border-radius: 5dp;
+            }
+
+            #hierarchy-search-icon-handle {
+                position: absolute;
+                left: 16dp;
+                top: 16dp;
+                width: 6dp;
+                height: 1dp;
+                background-color: #868a91;
+                transform: rotate(45deg);
+                transform-origin: 0dp 0dp;
+            }
+
+            #hierarchy-search {
+                position: absolute;
+                left: 0dp;
+                right: 0dp;
+                top: 0dp;
+                height: 26dp;
+                padding-left: 28dp;
+                padding-right: 8dp;
+                background-color: transparent;
+                border: 0dp;
+                color: #dfe1e5;
+                font-family: SF Pro Display;
+                font-size: 13dp;
+            }
+
+            #hierarchy-search:focus {
+                background-color: transparent;
+                border: 1dp #3574f0;
+                border-radius: 4dp;
+            }
+
+            .tree-row {
+                position: relative;
+                height: 24dp;
+                margin-left: 4dp;
+                margin-right: 4dp;
+                padding: 0dp;
+                color: #ced0d6;
+                border-bottom: 0dp;
+                border-radius: 4dp;
+                overflow: hidden;
+            }
+
+            .tree-row:hover {
+                background-color: #393b40;
+                color: #ffffff;
+            }
+
+            .tree-disclosure {
+                position: absolute;
+                left: 4dp;
+                top: 4dp;
+                width: 16dp;
+                height: 16dp;
+                text-align: center;
+                color: #9da0a8;
+            }
+
+            .tree-disclosure-icon {
+                position: absolute;
+                left: 3dp;
+                top: 3dp;
+                width: 10dp;
+                height: 10dp;
+                image-color: #9da0a8;
+            }
+
+            .tree-icon {
+                position: absolute;
+                left: 24dp;
+                top: 5dp;
+                width: 14dp;
+                height: 14dp;
+                border: 1dp #868a91;
+                border-radius: 2dp;
+            }
+
+            .tree-label {
+                position: absolute;
+                left: 44dp;
+                top: 4dp;
+                right: 8dp;
+                height: 16dp;
+            }
+
+            .tree-child .tree-icon { left: 28dp; }
+            .tree-child .tree-label { left: 48dp; }
+
+            .tree-icon-light {
+                left: 31dp;
+                top: 8dp;
+                width: 8dp;
+                height: 8dp;
+                background-color: #f2c55c;
+                border: 0dp;
+                border-radius: 4dp;
+            }
+
+            .tree-icon-camera {
+                top: 7dp;
+                width: 14dp;
+                height: 10dp;
+            }
+
+            .tree-icon-player { border-color: #548af7; }
+            .tree-icon-environment { border-color: #5fad65; }
+            .tree-icon-particles {
+                border-color: #24a394;
+                border-radius: 7dp;
+            }
+
+            .tree-selected {
+                background-color: #3574f0;
+                color: #ffffff;
+                border-left: 0dp;
+            }
+
+            .tree-selected .tree-disclosure { color: #ffffff; }
+            .tree-selected .tree-icon { border-color: #ffffff; }
+
+            #viewport {
+                left: 0dp;
+                right: 0dp;
+                top: 90dp;
+                bottom: 224dp;
+                background-color: transparent;
+            }
+
+            .dock-region {
+                position: absolute;
+                display: none;
+                overflow: hidden;
+                background-color: #1e1f22;
+                border: 1dp #393b40;
+            }
+
+            .dock-region.dock-region-visible {
+                display: block;
+            }
+
+            #dock-region-center {
+                display: block;
+                left: 0dp;
+                right: 0dp;
+                top: 0dp;
+                bottom: 0dp;
+                border: 0dp;
+            }
+
+            #dock-region-left { left: 0dp; top: 0dp; bottom: 0dp; width: 300dp; }
+            #dock-region-right { right: 0dp; top: 0dp; bottom: 0dp; width: 320dp; }
+            #dock-region-top { left: 0dp; right: 0dp; top: 0dp; height: 220dp; }
+            #dock-region-bottom { left: 0dp; right: 0dp; bottom: 0dp; height: 250dp; }
+
+            .dock-region-tabs {
+                display: none;
+                position: absolute;
+                left: 0dp;
+                right: 0dp;
+                top: 0dp;
+                height: 41dp;
+                padding-left: 8dp;
+                background-color: #2b2d30;
+                border-bottom: 1dp #393b40;
+                white-space: nowrap;
+                overflow: hidden;
+            }
+
+            .dock-region.dock-region-tabs-visible > .dock-region-tabs {
+                display: block;
+            }
+
+            .dock-tab {
+                display: none;
+                height: 40dp;
+                padding-left: 12dp;
+                padding-right: 12dp;
+                padding-top: 12dp;
+                border-right: 0dp;
+                color: #b4b8bf;
+            }
+
+            .dock-tab-source {
+                drag: clone;
+                cursor: move;
+            }
+
+            .dock-tab-source:drag {
+                opacity: 0.75;
+                border: 1dp #3574f0;
+            }
+
+            .dock-tab.dock-tab-available {
+                display: inline-block;
+            }
+
+            .dock-tab:hover {
+                background-color: #393b40;
+                color: #dfe1e5;
+            }
+
+            .dock-tab.dock-tab-active {
+                background-color: #2b2d30;
+                border-top: 0dp;
+                border-bottom: 2dp #3574f0;
+                padding-top: 12dp;
+                color: #ffffff;
+            }
+
+            .dock-tab-close {
+                display: inline;
+                margin-left: 9dp;
+                padding-left: 4dp;
+                padding-right: 4dp;
+                border-radius: 4dp;
+                color: #868a91;
+            }
+
+            .dock-tab-close:hover {
+                color: #ffffff;
+                background-color: #43454a;
+            }
+
+            .dock-region-content {
+                position: absolute;
+                left: 0dp;
+                right: 0dp;
+                top: 0dp;
+                bottom: 0dp;
+                overflow: hidden;
+                background-color: transparent;
+            }
+
+            .dock-region.dock-region-tabs-visible > .dock-region-content {
+                top: 41dp;
+            }
+
+            .dock-splitter {
+                display: none;
+                position: absolute;
+                z-index: 24;
+                background-color: transparent;
+            }
+
+            .dock-splitter.dock-splitter-visible { display: block; }
+            .dock-splitter:hover { background-color: #3574f0; }
+
+            #dock-splitter-left,
+            #dock-splitter-right {
+                top: 0dp;
+                bottom: 0dp;
+                width: 6dp;
+                cursor: col-resize;
+                drag: drag;
+            }
+
+            #dock-splitter-top,
+            #dock-splitter-bottom {
+                left: 0dp;
+                right: 0dp;
+                height: 6dp;
+                cursor: row-resize;
+                drag: drag;
+            }
+
+            #scene-toolbar {
+                position: absolute;
+                left: 12dp;
+                right: 12dp;
+                top: 10dp;
+                height: 34dp;
+                z-index: 20;
+            }
+
+            #scene-toolbar.scene-context-hidden {
+                display: none;
+            }
+
+            .scene-toolbar-group {
+                position: absolute;
+                top: 0dp;
+                height: 34dp;
+                background-color: #25272b;
+                border: 1dp #4e5157;
+                border-radius: 6dp;
+                overflow: hidden;
+            }
+
+            #scene-toolbar-left {
+                left: 0dp;
+                width: 458dp;
+            }
+
+            #scene-toolbar-right {
+                right: 0dp;
+                width: 226dp;
+            }
+
+            .scene-icon-button,
+            .scene-text-button {
+                position: absolute;
+                top: 2dp;
+                height: 28dp;
+                background-color: transparent;
+                border: 0dp;
+                border-radius: 4dp;
+                color: #ced0d6;
+            }
+
+            .scene-icon-button {
+                width: 28dp;
+            }
+
+            .scene-text-button {
+                padding-left: 28dp;
+                padding-top: 6dp;
+                font-size: 12dp;
+                white-space: nowrap;
+            }
+
+            .scene-icon-button:hover,
+            .scene-text-button:hover {
+                background-color: #393b40;
+                color: #ffffff;
+            }
+
+            .scene-icon-button:active,
+            .scene-text-button:active,
+            .scene-tool-active {
+                background-color: #3574f0;
+                color: #ffffff;
+            }
+
+            .scene-action-icon {
+                position: absolute;
+                left: 6dp;
+                top: 6dp;
+                width: 16dp;
+                height: 16dp;
+                image-color: #ced0d6;
+            }
+
+            .scene-icon-button:hover .scene-action-icon,
+            .scene-text-button:hover .scene-action-icon,
+            .scene-tool-active .scene-action-icon {
+                image-color: #ffffff;
+            }
+
+            .scene-chevron-icon {
+                display: inline-block;
+                width: 10dp;
+                height: 10dp;
+                margin-left: 6dp;
+                image-color: #868a91;
+            }
+
+            .scene-toolbar-divider {
+                position: absolute;
+                top: 7dp;
+                width: 1dp;
+                height: 18dp;
+                background-color: #4e5157;
+            }
+
+            #scene-tool-select { left: 2dp; }
+            #scene-tool-move { left: 32dp; }
+            #scene-tool-rotate { left: 62dp; }
+            #scene-tool-scale { left: 92dp; }
+            #scene-divider-transform { left: 124dp; }
+            #scene-tool-space { left: 130dp; }
+            #scene-divider-modes { left: 162dp; }
+            #scene-camera-mode { left: 168dp; width: 112dp; }
+            #scene-view-mode { left: 282dp; width: 76dp; }
+            #scene-show-menu { left: 360dp; width: 96dp; }
+
+            #scene-grid-toggle { left: 2dp; }
+            #scene-snap-toggle { left: 32dp; }
+            #scene-divider-options { left: 64dp; }
+            #scene-camera-speed { left: 70dp; width: 96dp; }
+            #scene-settings { left: 194dp; }
+
+            #scene-view {
+                display: none;
+                position: absolute;
+                left: 0dp;
+                right: 0dp;
+                top: 0dp;
+                bottom: 0dp;
+                overflow: hidden;
+                background-color: transparent;
+            }
+
+            #scene-view.dock-view-active {
+                display: block;
+            }
+
+            #content-browser.docked-window,
+            #material-editor.docked-window {
+                display: none;
+                left: 0dp;
+                right: 0dp;
+                top: 0dp;
+                bottom: 0dp;
+                width: auto;
+                height: auto;
+                margin-left: 0dp;
+                margin-top: 0dp;
+                border: 0dp;
+                border-radius: 0dp;
+            }
+
+            #content-browser.docked-window.dock-view-active,
+            #material-editor.docked-window.dock-view-active {
+                display: block;
+            }
+
+            #content-browser.docked-window > .panel-header,
+            #material-editor.docked-window > .panel-header {
+                display: none;
+            }
+
+            #content-browser.docked-window #folder-tree,
+            #content-browser.docked-window #asset-area {
+                top: 0dp;
+            }
+
+            #dock-overlay {
+                display: none;
+                position: absolute;
+                left: 0dp;
+                right: 0dp;
+                top: 0dp;
+                bottom: 0dp;
+                z-index: 30;
+                background-color: rgba(12, 18, 30, 0.28);
+            }
+
+            #dock-overlay.dock-overlay-visible { display: block; }
+
+            .dock-drop-zone {
+                position: absolute;
+                width: 86dp;
+                height: 62dp;
+                padding-top: 21dp;
+                text-align: center;
+                background-color: #2e436e;
+                border: 1dp #3574f0;
+                border-radius: 7dp;
+                color: #ffffff;
+                font-size: 12dp;
+            }
+
+            #dock-drop-center { left: 50%; top: 50%; margin-left: -43dp; margin-top: -31dp; }
+            #dock-drop-left { left: 50%; top: 50%; margin-left: -139dp; margin-top: -31dp; }
+            #dock-drop-right { left: 50%; top: 50%; margin-left: 53dp; margin-top: -31dp; }
+            #dock-drop-top { left: 50%; top: 50%; margin-left: -43dp; margin-top: -103dp; }
+            #dock-drop-bottom { left: 50%; top: 50%; margin-left: -43dp; margin-top: 41dp; }
+
+            .dock-drop-zone.dock-drop-hover {
+                background-color: #366acf;
+                border-color: #ffffff;
+                color: #ffffff;
+            }
+
+            #dock-preview {
+                display: none;
+                position: absolute;
+                z-index: 29;
+                background-color: rgba(53, 116, 240, 0.24);
+                border: 2dp #3574f0;
+                border-radius: 4dp;
+            }
+
+            #dock-preview.dock-preview-visible { display: block; }
+
+            #inspector {
+                display: none;
+                right: 0dp;
+                top: 90dp;
+                width: 320dp;
+                bottom: 24dp;
+            }
+
+            #object-name {
+                height: 40dp;
+                padding-left: 12dp;
+                padding-top: 11dp;
+                background-color: #2b2d30;
+                border-bottom: 1dp #393b40;
+                color: #dfe1e5;
+                font-size: 14dp;
+            }
+
+            .section-title {
+                height: 32dp;
+                padding-left: 12dp;
+                padding-top: 8dp;
+                background-color: #25272b;
+                border-top: 1dp #393b40;
+                border-bottom: 1dp #393b40;
+                color: #b4b8bf;
+                font-size: 12dp;
+            }
+
+            .property-row {
+                position: relative;
+                height: 40dp;
+                border-bottom: 1dp #393b40;
+            }
+
+            .property-label {
+                position: absolute;
+                left: 12dp;
+                top: 12dp;
+                color: #9da0a8;
+                font-size: 12dp;
+            }
+
+            .property-value {
+                position: absolute;
+                left: 112dp;
+                right: 8dp;
+                top: 6dp;
+                height: 28dp;
+                padding-left: 8dp;
+                padding-right: 8dp;
+                padding-top: 5dp;
+                background-color: #2b2d30;
+                border: 1dp #4e5157;
+                border-radius: 4dp;
+                overflow: hidden;
+                color: #dfe1e5;
+                font-family: SF Pro Display;
+                font-size: 13dp;
+            }
+
+            .property-value:focus {
+                background-color: #2b2d30;
+                border-color: #3574f0;
+                color: #ffffff;
+            }
+
+            .component-box {
+                margin-left: 8dp;
+                margin-right: 8dp;
+                margin-bottom: 8dp;
+                padding-bottom: 8dp;
+                background-color: transparent;
+                border: 0dp;
+                border-bottom: 1dp #393b40;
+                border-radius: 0dp;
+            }
+
+            #add-component {
+                height: 28dp;
+                margin: 6dp 12dp;
+                padding-top: 6dp;
+                text-align: center;
+                background-color: transparent;
+                border: 1dp #4e5157;
+                border-radius: 4dp;
+                overflow: hidden;
+                color: #dfe1e5;
+            }
+
+            #add-component:hover {
+                background-color: transparent;
+                border-color: #6f737a;
+                color: #ffffff;
+            }
+
+            #add-component:active {
+                background-color: #2b2d30;
+                border-color: #6f737a;
+            }
+
+            #status-bar {
+                position: absolute;
+                left: 0dp;
+                right: 0dp;
+                bottom: 0dp;
+                height: 24dp;
+                background-color: #2b2d30;
+                border-top: 1dp #393b40;
+            }
+
+            #status-left {
+                position: absolute;
+                left: 8dp;
+                top: 4dp;
+                color: #868a91;
+                font-size: 12dp;
+            }
+
+            #status-right {
+                position: absolute;
+                right: 8dp;
+                top: 4dp;
+                color: #868a91;
+                font-size: 12dp;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="editor-shell">
+            <div id="editor-logo" title="Elixir Editor">
+                <svg id="editor-logo-mark" src="Icons/elixir.svg"></svg>
+            </div>
+
+            <div id="menu-bar">
+                <div id="menu-file" class="menu-item">File</div>
+                <div id="menu-edit" class="menu-item">Edit</div>
+                <div id="menu-window" class="menu-item">Window</div>
+                <div id="menu-tools" class="menu-item">Tools</div>
+                <div id="menu-build" class="menu-item">Build</div>
+                <div id="menu-select" class="menu-item">Select</div>
+                <div id="menu-actor" class="menu-item">Actor</div>
+                <div id="menu-help" class="menu-item">Help</div>
+                <div id="window-dropdown">
+                    <div id="menu-material-editor" class="dropdown-item">Material editor <span class="dropdown-shortcut">Ctrl+M</span></div>
+                </div>
+            </div>
+
+            <div id="workspace-bar">
+                <div id="workspace-tabs">
+                    <div id="workspace-tab-level" class="workspace-tab workspace-tab-active">
+                        <span class="workspace-tab-icon"></span>Scene
+                    </div>
+                    <div id="workspace-tab-material" class="workspace-tab workspace-tab-hidden">
+                        <span class="workspace-tab-icon"></span><span id="workspace-material-label">Material Editor</span><span id="workspace-close-material" class="workspace-tab-close">x</span>
+                    </div>
+                </div>
+                <div id="project-name">SampleProject  /  Content  /  Main.scene</div>
+            </div>
+
+            <div id="toolbar">
+                <div id="play-group">
+                    <div id="tool-play" class="tool-button" data-label="Play" title="Play / Stop">
+                        <div class="tool-button-surface">
+                            <svg class="tool-icon-image icon-play-image" src="Icons/play.svg"></svg>
+                            <svg class="tool-icon-image icon-stop-image" src="Icons/stop.svg"></svg>
+                        </div>
+                    </div>
+                    <div id="tool-pause" class="tool-button" data-label="Pause" title="Pause">
+                        <div class="tool-button-surface">
+                            <svg class="tool-icon-image" src="Icons/pause.svg"></svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="hierarchy" class="panel">
+                <div id="hierarchy-header" class="panel-header">Hierarchy</div>
+                <div id="hierarchy-search-shell">
+                    <span id="hierarchy-search-icon"></span>
+                    <span id="hierarchy-search-icon-handle"></span>
+                    <input id="hierarchy-search" type="text" placeholder="Search objects..." />
+                </div>
+                <div id="object-scene" class="tree-row tree-root" data-name="Main Scene">
+                    <span class="tree-disclosure"><svg class="tree-disclosure-icon" src="Icons/chevron-down.svg"></svg></span>
+                    <span class="tree-icon tree-icon-scene"></span>
+                    <span class="tree-label">Main Scene</span>
+                </div>
+                <div id="object-light" class="tree-row tree-child" data-name="Directional Light">
+                    <span class="tree-icon tree-icon-light"></span>
+                    <span class="tree-label">Directional Light</span>
+                </div>
+                <div id="object-camera" class="tree-row tree-child" data-name="Main Camera">
+                    <span class="tree-icon tree-icon-camera"></span>
+                    <span class="tree-label">Main Camera</span>
+                </div>
+                <div id="object-player" class="tree-row tree-child tree-selected" data-name="Player">
+                    <span class="tree-icon tree-icon-player"></span>
+                    <span class="tree-label">Player</span>
+                </div>
+                <div id="object-environment" class="tree-row tree-child" data-name="Environment">
+                    <span class="tree-icon tree-icon-environment"></span>
+                    <span class="tree-label">Environment</span>
+                </div>
+                <div id="object-particles" class="tree-row tree-child" data-name="Particle System">
+                    <span class="tree-icon tree-icon-particles"></span>
+                    <span class="tree-label">Particle System</span>
+                </div>
+            </div>
+
+            <div id="viewport" class="panel">
+                <div id="dock-region-center" class="dock-region dock-region-visible">
+                    <div id="dock-tabs-center" class="dock-region-tabs">
+                        <div id="dock-tab-scene" class="dock-tab dock-tab-available dock-tab-active">Scene</div>
+                        <div id="dock-tab-content-browser" class="dock-tab dock-tab-source" data-panel="content-browser" data-name="Content Browser">Content Browser <span id="dock-close-content-browser" class="dock-tab-close">x</span></div>
+                        <div id="dock-tab-material-editor" class="dock-tab dock-tab-source" data-panel="material-editor" data-name="Material Editor">Material Editor <span id="dock-close-material-editor" class="dock-tab-close">x</span></div>
+                    </div>
+                    <div id="dock-content-center" class="dock-region-content">
+                        <div id="scene-view" class="dock-view-active">
+                        <div id="scene-toolbar">
+                            <div id="scene-toolbar-left" class="scene-toolbar-group">
+                                <div id="scene-tool-select" class="scene-icon-button scene-tool-active" data-label="Select" title="Select">
+                                    <svg class="scene-action-icon" src="Icons/select.svg"></svg>
+                                </div>
+                                <div id="scene-tool-move" class="scene-icon-button" data-label="Move" title="Move">
+                                    <svg class="scene-action-icon" src="Icons/move.svg"></svg>
+                                </div>
+                                <div id="scene-tool-rotate" class="scene-icon-button" data-label="Rotate" title="Rotate">
+                                    <svg class="scene-action-icon" src="Icons/rotate.svg"></svg>
+                                </div>
+                                <div id="scene-tool-scale" class="scene-icon-button" data-label="Scale" title="Scale">
+                                    <svg class="scene-action-icon" src="Icons/scale.svg"></svg>
+                                </div>
+                                <div id="scene-divider-transform" class="scene-toolbar-divider"></div>
+                                <div id="scene-tool-space" class="scene-icon-button scene-tool-active" data-label="Local coordinates" title="Local / World">
+                                    <svg class="scene-action-icon" src="Icons/local.svg"></svg>
+                                </div>
+                                <div id="scene-divider-modes" class="scene-toolbar-divider"></div>
+                                <div id="scene-camera-mode" class="scene-text-button" data-label="Camera mode: Perspective">
+                                    <svg class="scene-action-icon" src="Icons/camera.svg"></svg>Perspective<svg class="scene-chevron-icon" src="Icons/chevron-down.svg"></svg>
+                                </div>
+                                <div id="scene-view-mode" class="scene-text-button" data-label="View mode: Lit">
+                                    <svg class="scene-action-icon" src="Icons/lit.svg"></svg>Lit<svg class="scene-chevron-icon" src="Icons/chevron-down.svg"></svg>
+                                </div>
+                                <div id="scene-show-menu" class="scene-text-button" data-label="Scene visibility options">
+                                    <svg class="scene-action-icon" src="Icons/visibility.svg"></svg>Show<svg class="scene-chevron-icon" src="Icons/chevron-down.svg"></svg>
+                                </div>
+                            </div>
+                            <div id="scene-toolbar-right" class="scene-toolbar-group">
+                                <div id="scene-grid-toggle" class="scene-icon-button scene-tool-active" data-label="Grid" title="Toggle grid">
+                                    <svg class="scene-action-icon" src="Icons/grid.svg"></svg>
+                                </div>
+                                <div id="scene-snap-toggle" class="scene-icon-button scene-tool-active" data-label="Snapping" title="Toggle snapping">
+                                    <svg class="scene-action-icon" src="Icons/snap.svg"></svg>
+                                </div>
+                                <div id="scene-divider-options" class="scene-toolbar-divider"></div>
+                                <div id="scene-camera-speed" class="scene-text-button" data-label="Camera speed: 1x">
+                                    <svg class="scene-action-icon" src="Icons/camera-speed.svg"></svg>Camera 1x
+                                </div>
+                                <div id="scene-settings" class="scene-icon-button" data-label="Scene viewport settings" title="Viewport settings">
+                                    <svg class="scene-action-icon" src="Icons/settings.svg"></svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+                <div id="dock-region-left" class="dock-region"><div id="dock-tabs-left" class="dock-region-tabs"></div><div id="dock-content-left" class="dock-region-content"></div></div>
+                <div id="dock-region-right" class="dock-region"><div id="dock-tabs-right" class="dock-region-tabs"></div><div id="dock-content-right" class="dock-region-content"></div></div>
+                <div id="dock-region-top" class="dock-region"><div id="dock-tabs-top" class="dock-region-tabs"></div><div id="dock-content-top" class="dock-region-content"></div></div>
+                <div id="dock-region-bottom" class="dock-region"><div id="dock-tabs-bottom" class="dock-region-tabs"></div><div id="dock-content-bottom" class="dock-region-content"></div></div>
+
+                <div id="dock-splitter-left" class="dock-splitter" data-dock-slot="left"></div>
+                <div id="dock-splitter-right" class="dock-splitter" data-dock-slot="right"></div>
+                <div id="dock-splitter-top" class="dock-splitter" data-dock-slot="top"></div>
+                <div id="dock-splitter-bottom" class="dock-splitter" data-dock-slot="bottom"></div>
+
+                <div id="dock-preview"></div>
+                <div id="dock-overlay">
+                    <div id="dock-drop-center" class="dock-drop-zone" data-dock-slot="center">Tab</div>
+                    <div id="dock-drop-left" class="dock-drop-zone" data-dock-slot="left">Left</div>
+                    <div id="dock-drop-right" class="dock-drop-zone" data-dock-slot="right">Right</div>
+                    <div id="dock-drop-top" class="dock-drop-zone" data-dock-slot="top">Top</div>
+                    <div id="dock-drop-bottom" class="dock-drop-zone" data-dock-slot="bottom">Bottom</div>
+                </div>
+            </div>
+
+            <div id="inspector" class="panel">
+                <div id="inspector-header" class="panel-header">Inspector</div>
+                <div id="object-name">Player</div>
+                <div class="component-box">
+                    <div class="section-title">TRANSFORM</div>
+                    <div class="property-row"><div class="property-label">Position</div><input class="property-value" type="text" value="0.0  1.0  0.0" /></div>
+                    <div class="property-row"><div class="property-label">Rotation</div><input class="property-value" type="text" value="0.0  0.0  0.0" /></div>
+                    <div class="property-row"><div class="property-label">Scale</div><input class="property-value" type="text" value="1.0  1.0  1.0" /></div>
+                </div>
+                <div class="component-box">
+                    <div class="section-title">MESH RENDERER</div>
+                    <div class="property-row"><div class="property-label">Mesh</div><input class="property-value" type="text" value="Player.mesh" /></div>
+                    <div class="property-row"><div class="property-label">Material</div><input class="property-value" type="text" value="Player.mat" /></div>
+                </div>
+                <div class="component-box">
+                    <div class="section-title">SCRIPT</div>
+                    <div class="property-row"><div class="property-label">Class</div><input class="property-value" type="text" value="PlayerController" /></div>
+                </div>
+                <div id="add-component">+ Add Component</div>
+            </div>
+
+            <template src="content-browser-layout"></template>
+
+            <template src="material-editor-layout"></template>
+
+            <div id="status-bar">
+                <div id="status-left">Ready  |  5 objects  |  4 assets</div>
+                <div id="status-right">Vulkan  |  60 FPS  |  16.6 ms</div>
+            </div>
+        </div>
+    </body>
+</rml>

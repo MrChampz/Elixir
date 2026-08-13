@@ -14,6 +14,7 @@ namespace Elixir::Vulkan
         void Clear() override;
 
         SResourceHandle AddTexture(const Ref<Texture>& texture) override;
+        void FlushChanges() override;
         void RemoveTexture(SResourceHandle handle) override;
 
         VkDescriptorSet GetDescriptorSet() const;

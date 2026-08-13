@@ -1,0 +1,75 @@
+<template name="material-editor-layout">
+    <head>
+        <link type="text/rcss" href="MaterialEditor.rcss" />
+    </head>
+    <body>
+        <div id="material-editor" class="panel tool-window-hidden">
+            <div id="material-editor-header" class="panel-header dock-source-header" data-panel="material-editor" data-name="Material Editor">
+                <span id="material-editor-title">Material Editor</span>  |  drag to dock
+                <span id="material-editor-close">x</span>
+            </div>
+            <div id="material-editor-body">
+                <div id="material-list">
+                    <div id="material-list-title">MATERIALS</div>
+                    <div id="material-list-rows">
+                        <div class="material-row material-row-selected">Player.mat</div>
+                        <div class="material-row">Environment.mat</div>
+                        <div class="material-row">Particles.mat</div>
+                    </div>
+                </div>
+                <div id="material-canvas">
+                    <div id="material-node-toolbar">
+                        <div id="material-add-texture" class="material-toolbar-button">+ Texture</div>
+                        <div id="material-add-multiply" class="material-toolbar-button">+ Multiply</div>
+                        <div id="material-add-constant" class="material-toolbar-button">+ Constant</div>
+                        <div id="material-delete-node" class="material-toolbar-button">Delete selected</div>
+                    </div>
+                    <div id="material-grid-h1" class="material-grid-line"></div>
+                    <div id="material-grid-h2" class="material-grid-line"></div>
+                    <div id="material-grid-v1" class="material-grid-line"></div>
+                    <div id="material-grid-v2" class="material-grid-line"></div>
+                    <div id="material-link-texture-multiply" class="material-link"></div>
+                    <div id="material-link-constant-multiply" class="material-link material-link-hidden"></div>
+                    <div id="material-link-multiply-output" class="material-link"></div>
+                    <div id="material-node-texture" class="material-node material-node-selected" data-title="Texture Sample">
+                        <div id="material-node-texture-header" class="material-node-title" data-node="material-node-texture">Texture Sample</div>
+                        <div id="material-texture-name" class="material-node-body">Player_Albedo</div>
+                        <div id="port-texture-color" class="material-port material-port-output material-port-row-1" data-port-direction="output"></div>
+                        <div class="material-port-label-right material-port-label-row-1">Color</div>
+                    </div>
+                    <div id="material-node-multiply" class="material-node" data-title="Multiply">
+                        <div id="material-node-multiply-header" class="material-node-title" data-node="material-node-multiply">Multiply</div>
+                        <div id="port-multiply-a" class="material-port material-port-input material-port-row-1" data-port-direction="input"></div>
+                        <div class="material-port-label-left material-port-label-row-1">A</div>
+                        <div id="port-multiply-b" class="material-port material-port-input material-port-row-2" data-port-direction="input"></div>
+                        <div class="material-port-label-left material-port-label-row-2">B</div>
+                        <div id="port-multiply-result" class="material-port material-port-output material-port-row-1" data-port-direction="output"></div>
+                        <div class="material-port-label-right material-port-label-row-1">Result</div>
+                    </div>
+                    <div id="material-node-constant" class="material-node material-node-hidden" data-title="Constant">
+                        <div id="material-node-constant-header" class="material-node-title" data-node="material-node-constant">Constant</div>
+                        <div id="material-constant-value" class="material-node-body">Value: 0.45</div>
+                        <div id="port-constant-value" class="material-port material-port-output material-port-row-1" data-port-direction="output"></div>
+                        <div class="material-port-label-right material-port-label-row-1">Value</div>
+                    </div>
+                    <div id="material-node-output" class="material-node" data-title="Material Output">
+                        <div id="material-node-output-header" class="material-node-title" data-node="material-node-output">Material Output</div>
+                        <div id="port-output-base" class="material-port material-port-input material-port-row-1" data-port-direction="input"></div>
+                        <div class="material-port-label-left material-port-label-row-1">Base Color</div>
+                        <div class="material-node-body">Surface output</div>
+                    </div>
+                </div>
+                <div id="material-properties">
+                    <div id="material-properties-title">PROPERTIES</div>
+                    <div id="material-selected-node">Selected: Texture Sample</div>
+                    <div id="material-asset-properties">
+                        <div class="material-property">Shader: Lit</div>
+                        <div class="material-property">Blend: Opaque</div>
+                        <div class="material-property">Two Sided: Off</div>
+                        <div class="material-property">Preview: Sphere</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+</template>

@@ -58,6 +58,11 @@ namespace Elixir
             const void* data = nullptr,
             const std::string& path = ""
         );
+        static Ref<Texture2D> Create(
+            const GraphicsContext* context,
+            const SImageCreateInfo& info,
+            const std::string& path = ""
+        );
 
         static SImageCreateInfo CreateImageInfo(
             EImageFormat format,

@@ -43,6 +43,11 @@ namespace Elixir::Vulkan
         return handle;
     }
 
+    void VulkanTextureSet::FlushChanges()
+    {
+        m_Pool->FlushDescriptors();
+    }
+
     void VulkanTextureSet::RemoveTexture(const SResourceHandle handle)
     {
 

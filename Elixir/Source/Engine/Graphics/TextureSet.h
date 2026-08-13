@@ -23,6 +23,9 @@ namespace Elixir
          */
         virtual SResourceHandle AddTexture(const Ref<Texture>& texture) = 0;
 
+        /** Publish pending texture descriptor changes immediately. */
+        virtual void FlushChanges() = 0;
+
         /**
          * Remove a texture by its handle.
          * @param handle Texture handle

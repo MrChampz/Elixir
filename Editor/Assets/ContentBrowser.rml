@@ -1,0 +1,34 @@
+<template name="content-browser-layout">
+    <head>
+        <link type="text/rcss" href="ContentBrowser.rcss" />
+    </head>
+    <body>
+        <div id="content-browser" class="panel">
+            <div id="content-browser-header" class="panel-header dock-source-header" data-panel="content-browser" data-name="Content Browser">
+                Content Browser  |  drag to dock
+            </div>
+
+            <div id="content-browser-loading" class="content-browser-state content-browser-state-visible">
+                <div id="content-browser-loading-spinner"></div>
+                <div class="content-browser-state-title">Indexing assets</div>
+                <div class="content-browser-state-description">Scanning project files...</div>
+            </div>
+
+            <div id="content-browser-error" class="content-browser-state content-browser-error-state"></div>
+            <div id="content-browser-empty" class="content-browser-state">
+                <div class="content-browser-state-title">This folder is empty</div>
+                <div class="content-browser-state-description">Add or import an asset to see it here.</div>
+            </div>
+
+            <div id="content-browser-content" class="content-browser-content-hidden">
+                <div id="folder-tree">
+                    <div id="content-browser-folders"></div>
+                </div>
+                <div id="asset-area">
+                    <div id="asset-path">Assets /</div>
+                    <div id="content-browser-grid"></div>
+                </div>
+            </div>
+        </div>
+    </body>
+</template>

@@ -1,0 +1,330 @@
+#material-editor {
+    left: 50%;
+    top: 50%;
+    width: 820dp;
+    height: 510dp;
+    margin-left: -410dp;
+    margin-top: -220dp;
+    z-index: 25;
+    background-color: #1e1f22;
+    border-color: #4e5157;
+    border-radius: 8dp;
+    overflow: hidden;
+}
+
+#material-editor.tool-window-hidden {
+    display: none;
+}
+
+#material-editor-close {
+    position: absolute;
+    right: 4dp;
+    top: 3dp;
+    width: 28dp;
+    height: 28dp;
+    padding-top: 5dp;
+    border-radius: 4dp;
+    text-align: center;
+    color: #b4b8bf;
+    cursor: pointer;
+}
+
+#material-editor-close:hover {
+    background-color: #43454a;
+    color: #ffffff;
+}
+
+#material-editor-body {
+    position: absolute;
+    left: 0dp;
+    right: 0dp;
+    top: 34dp;
+    bottom: 0dp;
+    background-color: #1e1f22;
+}
+
+#material-editor.docked-window #material-editor-body {
+    top: 0dp;
+}
+
+#material-list {
+    position: absolute;
+    left: 0dp;
+    top: 0dp;
+    bottom: 0dp;
+    width: 190dp;
+    background-color: #25272b;
+    border-right: 1dp #393b40;
+}
+
+#material-list-title {
+    height: 40dp;
+    padding-left: 12dp;
+    padding-top: 12dp;
+    color: #b4b8bf;
+    border-bottom: 1dp #393b40;
+    font-size: 12dp;
+}
+
+.material-row {
+    height: 24dp;
+    margin-left: 4dp;
+    margin-right: 4dp;
+    padding-left: 12dp;
+    padding-top: 4dp;
+    color: #b4b8bf;
+    border-radius: 4dp;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.material-row:hover {
+    background-color: #393b40;
+    color: #dfe1e5;
+}
+
+.material-row-selected {
+    background-color: #3574f0;
+    color: #ffffff;
+    border-left: 0dp;
+    padding-left: 12dp;
+}
+
+#material-canvas {
+    position: absolute;
+    left: 190dp;
+    right: 230dp;
+    top: 0dp;
+    bottom: 0dp;
+    overflow: hidden;
+    background-color: #1e1f22;
+}
+
+#material-node-toolbar {
+    position: absolute;
+    left: 0dp;
+    right: 0dp;
+    top: 0dp;
+    height: 40dp;
+    z-index: 8;
+    background-color: #2b2d30;
+    border-bottom: 1dp #393b40;
+}
+
+.material-toolbar-button {
+    display: inline-block;
+    height: 28dp;
+    margin-left: 8dp;
+    margin-top: 6dp;
+    padding-left: 12dp;
+    padding-right: 12dp;
+    padding-top: 6dp;
+    background-color: transparent;
+    border: 1dp #4e5157;
+    border-radius: 4dp;
+    overflow: hidden;
+    color: #dfe1e5;
+    font-size: 13dp;
+    cursor: pointer;
+}
+
+.material-toolbar-button:hover {
+    background-color: transparent;
+    border-color: #6f737a;
+    color: #ffffff;
+}
+
+.material-toolbar-button:active {
+    background-color: #2b2d30;
+    border-color: #6f737a;
+}
+
+#material-delete-node {
+    color: #db5c5c;
+    border-color: #5e3838;
+}
+
+#material-delete-node:hover {
+    color: #ffffff;
+    background-color: #402929;
+    border-color: #db5c5c;
+}
+
+#material-delete-node:active {
+    color: #ffffff;
+    background-color: #5e3838;
+    border-color: #db5c5c;
+}
+
+.material-grid-line {
+    position: absolute;
+    background-color: #2b2d30;
+}
+
+#material-grid-h1 { left: 0dp; right: 0dp; top: 35%; height: 1dp; }
+#material-grid-h2 { left: 0dp; right: 0dp; top: 70%; height: 1dp; }
+#material-grid-v1 { top: 0dp; bottom: 0dp; left: 33%; width: 1dp; }
+#material-grid-v2 { top: 0dp; bottom: 0dp; left: 66%; width: 1dp; }
+
+.material-node {
+    position: absolute;
+    width: 150dp;
+    height: 112dp;
+    z-index: 4;
+    background-color: #2b2d30;
+    border: 1dp #4e5157;
+    border-radius: 4dp;
+}
+
+.material-node:hover {
+    border-color: #6f737a;
+}
+
+.material-node.material-node-selected {
+    border: 2dp #3574f0;
+}
+
+.material-node.material-node-dragging {
+    opacity: 0.85;
+    border-color: #709cf5;
+}
+
+.material-node.material-node-hidden {
+    display: none;
+}
+
+.material-node-title {
+    height: 28dp;
+    padding-left: 8dp;
+    padding-top: 6dp;
+    background-color: #393b40;
+    color: #dfe1e5;
+    font-size: 12dp;
+    drag: drag;
+    cursor: move;
+}
+
+.material-node-body {
+    padding-left: 8dp;
+    padding-top: 8dp;
+    color: #9da0a8;
+    font-size: 11dp;
+}
+
+.material-port {
+    position: absolute;
+    width: 14dp;
+    height: 14dp;
+    background-color: #c77d3b;
+    border: 2dp #f3b36a;
+    border-radius: 7dp;
+    z-index: 7;
+    cursor: pointer;
+}
+
+.material-port:hover {
+    background-color: #f3b36a;
+    border-color: #ffffff;
+}
+
+.material-port.material-port-pending {
+    background-color: #3574f0;
+    border-color: #ffffff;
+}
+
+.material-port-input { left: -8dp; }
+.material-port-output { right: -8dp; }
+.material-port-row-1 { top: 48dp; }
+.material-port-row-2 { top: 77dp; }
+
+.material-port-label-left {
+    position: absolute;
+    left: 12dp;
+    color: #9da0a8;
+    font-size: 10dp;
+}
+
+.material-port-label-right {
+    position: absolute;
+    right: 12dp;
+    color: #9da0a8;
+    font-size: 10dp;
+}
+
+.material-port-label-row-1 { top: 49dp; }
+.material-port-label-row-2 { top: 78dp; }
+
+#material-node-texture { left: 26dp; top: 78dp; }
+#material-node-multiply { left: 235dp; top: 175dp; }
+#material-node-constant { left: 26dp; top: 275dp; }
+#material-node-output { right: 24dp; top: 350dp; }
+
+.material-link {
+    position: absolute;
+    left: 0dp;
+    right: 0dp;
+    top: 0dp;
+    bottom: 0dp;
+    z-index: 2;
+}
+
+.material-link.material-link-hidden {
+    display: none;
+}
+
+.material-link-segment {
+    position: absolute;
+    height: 3dp;
+    background-color: #d69a6b;
+    transform-origin: 0dp 1dp;
+}
+
+#material-link-texture-multiply .material-link-segment {
+    background-color: #70aeff;
+}
+
+#material-link-constant-multiply .material-link-segment {
+    background-color: #6cab74;
+}
+
+#material-link-multiply-output .material-link-segment {
+    background-color: #d69a6b;
+}
+
+#material-properties {
+    position: absolute;
+    right: 0dp;
+    top: 0dp;
+    bottom: 0dp;
+    width: 230dp;
+    background-color: #25272b;
+    border-left: 1dp #393b40;
+}
+
+#material-properties-title {
+    height: 40dp;
+    padding-left: 12dp;
+    padding-top: 12dp;
+    color: #b4b8bf;
+    border-bottom: 1dp #393b40;
+    font-size: 12dp;
+}
+
+#material-selected-node {
+    height: 40dp;
+    padding-left: 12dp;
+    padding-top: 12dp;
+    background-color: #2b2d30;
+    border-bottom: 1dp #393b40;
+    color: #dfe1e5;
+    font-size: 11dp;
+}
+
+.material-property {
+    height: 32dp;
+    padding-left: 12dp;
+    padding-top: 8dp;
+    border-bottom: 1dp #393b40;
+    color: #b4b8bf;
+    font-size: 11dp;
+}
