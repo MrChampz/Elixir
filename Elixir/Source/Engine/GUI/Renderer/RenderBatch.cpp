@@ -3,6 +3,13 @@
 
 namespace Elixir::GUI
 {
+    namespace
+    {
+        // Debug rects exist to visualize layout/hitboxes; they must always draw above
+        // everything else, regardless of where in the tree AddDebugRect was called from.
+        constexpr int DEBUG_Z_ORDER = std::numeric_limits<int>::max();
+    }
+
     void RenderBatch::Append(const RenderBatch& other, const int zOffset)
     {
         m_Commands.reserve(m_Commands.size() + other.m_Commands.size());
@@ -20,14 +27,20 @@ namespace Elixir::GUI
             m_Commands,
             [](const SDrawCommand& a, const SDrawCommand& b)
             {
-                return a.ZOrder < b.ZOrder;
+                if (a.ZOrder != b.ZOrder)
+                    return a.ZOrder < b.ZOrder;
+
+                return a.Type < b.Type;
             }
         );
+
+        BuildRuns();
     }
 
     void RenderBatch::Clear()
     {
         m_Commands.clear();
+        m_Runs.clear();
     }
 
     int RenderBatch::LayerSpan() const
@@ -50,7 +63,7 @@ namespace Elixir::GUI
     )
     {
         SDrawCommand cmd;
-        cmd.Type = SDrawCommand::EType::Rect;
+        cmd.Type = EDrawCommandType::Rect;
         cmd.Geometry = rect;
         cmd.Color = color;
         cmd.Border = cornerRadius;
@@ -74,7 +87,7 @@ namespace Elixir::GUI
     )
     {
         SDrawCommand cmd;
-        cmd.Type = SDrawCommand::EType::Text;
+        cmd.Type = EDrawCommandType::Text;
         cmd.Geometry = rect;
         cmd.Color = color;
         cmd.Text = text;
@@ -96,7 +109,7 @@ namespace Elixir::GUI
     )
     {
         SDrawCommand cmd;
-        cmd.Type = SDrawCommand::EType::Rect;
+        cmd.Type = EDrawCommandType::Rect;
         cmd.Geometry = rect;
         cmd.Color = tint;
         cmd.Texture = texture;
@@ -110,10 +123,29 @@ namespace Elixir::GUI
     void RenderBatch::AddDebugRect(const SRect& rect, const SColor& color)
     {
         SDrawCommand cmd;
-        cmd.Type = SDrawCommand::EType::DebugRect;
+        cmd.Type = EDrawCommandType::DebugRect;
         cmd.Geometry = rect;
         cmd.Color = color;
+        cmd.ZOrder = DEBUG_Z_ORDER;
 
         m_Commands.push_back(cmd);
+    }
+
+    void RenderBatch::BuildRuns()
+    {
+        m_Runs.clear();
+
+        uint32_t i = 0;
+        while (i < m_Commands.size())
+        {
+            const auto type = m_Commands[i].Type;
+            uint32_t count = 1;
+
+            while (i + count < m_Commands.size() && m_Commands[i + count].Type == type)
+                ++count;
+
+            m_Runs.push_back({ type, i, count });
+            i += count;
+        }
     }
 }

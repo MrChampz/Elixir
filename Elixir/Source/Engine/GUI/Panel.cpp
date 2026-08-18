@@ -1,16 +1,16 @@
 #include "epch.h"
 #include "Panel.h"
 
+#include <Engine/GUI/Canvas.h>
+
 namespace Elixir::GUI
 {
     void Panel::Update(const Timestep frameTime)
     {
-        for (const auto& slot : m_Slots)
+        for (size_t i = 0; i < GetSlotCount(); ++i)
         {
-            if (slot->IsVisible())
-            {
+            if (const Slot* slot = GetSlotAt(i); slot->IsVisible())
                 slot->GetWidget()->Update(frameTime);
-            }
         }
     }
 
@@ -18,25 +18,25 @@ namespace Elixir::GUI
     {
         if (!child) return;
 
-        const auto it = std::ranges::find_if(
-            m_Slots,
-            [&](const Ref<Slot>& slot) { return slot->GetWidget() == child; }
-        );
-
-        if (it == m_Slots.end()) return;
-
-        m_Slots.erase(it);
-        DetachChild(child);
+        for (size_t i = 0; i < GetSlotCount(); ++i)
+        {
+            if (GetSlotAt(i)->GetWidget() == child)
+            {
+                RemoveSlotAt(i);
+                DetachChild(child);
+                break;
+            }
+        }
     }
 
     void Panel::ClearChildren()
     {
-        if (m_Slots.empty()) return;
+        if (GetSlotCount() == 0) return;
 
-        for (const auto& slot : m_Slots)
-            DetachChild(slot->GetWidget());
+        for (size_t i = 0; i < GetSlotCount(); ++i)
+            DetachChild(GetSlotAt(i)->GetWidget());
 
-        m_Slots.clear();
+        ClearSlots();
         MarkLayoutDirty();
     }
 
@@ -59,14 +59,10 @@ namespace Elixir::GUI
         MarkRenderDirty();
     }
 
-    void Panel::ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const
+    Ref<Widget> Panel::GetChildAt(const size_t index) const
     {
-        for (const auto& slot : m_Slots)
-        {
-            if (slot->IsVisible())
-                if (const auto& child = slot->GetWidget())
-                    fn(child);
-        }
+        if (index >= GetSlotCount()) return nullptr;
+        return GetSlotAt(index)->GetWidget();
     }
 
     void Panel::BuildDrawCommands(RenderBatch& batch, const int zOrder)
@@ -84,4 +80,7 @@ namespace Elixir::GUI
             );
         }
     }
+
+    template class ELIXIR_API TPanel<LayoutSlot>;
+    template class ELIXIR_API TPanel<CanvasSlot>;
 }

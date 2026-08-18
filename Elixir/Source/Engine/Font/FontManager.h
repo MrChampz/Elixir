@@ -42,12 +42,30 @@ namespace Elixir
          * @param text The text to be measured
          * @param font The font used to display the text
          * @param fontSize The font size in pixels
-         * @return A 2d vector containing the width and height of the rendered text in pixels.
+         * @return A 2D vector containing the width and height of the rendered text in pixels.
          */
         static glm::vec2 MeasureText(
             const std::string& text,
             const Ref<Font>& font,
             float fontSize
+        );
+
+        /**
+         *
+         * @param text The text to wrap and measure.
+         * @param font The font used to display the text.
+         * @param fontSize The font size in pixels.
+         * @param maxWidth The maximum line width, in pixels, before wrapping to the next line.
+         * @param outLines When non-null, receives the text split into wrapped lines.
+         * @return A 2D vector with the wrapped block's width (<= maxWidth, unless a single
+         * word alone exceeds it) and total height (outLines->size() * GetLineHeight()).
+         */
+        static glm::vec2 MeasureWrapped(
+            const std::string& text,
+            const Ref<Font>& font,
+            float fontSize,
+            float maxWidth,
+            std::vector<std::string>* outLines = nullptr
         );
 
         /**

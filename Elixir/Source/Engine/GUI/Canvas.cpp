@@ -3,21 +3,24 @@
 namespace Elixir::GUI
 {
     Canvas::Canvas()
-    {
-        m_DesiredSize = { 800.0f, 600.0f };
-    }
+      : m_DefaultDesiredSize(800.0f, 600.0f) {}
 
     CanvasSlot& Canvas::AddChild(const Ref<Widget>& child)
     {
-        const auto slot = CreateRef<CanvasSlot>(child);
-        m_Slots.push_back(slot);
-        AttachChild(child);
-        return *slot;
+        // Measure once with no constraint so the slot's default Size (used until an explicit
+        // SetSize/anchors call) reflects this child's real desired size instead of the zeroed
+        // cache of a widget that has never been through a Measure pass. Must happen
+        // before TPanel::AddChild() constructs the CanvasSlot below, since its
+        // constructor snapshots GetDesiredSize().
+        if (child)
+            child->Measure({ UnconstrainedSize, UnconstrainedSize });
+
+        return TPanel::AddChild(child);
     }
 
-    glm::vec2 Canvas::ComputeDesiredSize()
+    glm::vec2 Canvas::ComputeDesiredSize(const glm::vec2& availableSize)
     {
-        return m_DesiredSize;
+        return m_DefaultDesiredSize;
     }
 
     void Canvas::LayoutChildren(const SRect& allocatedSpace)
@@ -25,16 +28,20 @@ namespace Elixir::GUI
         // Arrange each child based on its anchors and constraints
         for (const auto& slot : m_Slots)
         {
-            const auto canvasSlot = std::static_pointer_cast<CanvasSlot>(slot);
-            SRect childGeometry = ComputeChildGeometry(canvasSlot, allocatedSpace.Size);
+            if (!slot->GetWidget()->TakesSpace()) continue;
+
+            SRect childGeometry = ComputeChildGeometry(*slot, allocatedSpace.Size);
             slot->GetWidget()->ArrangeChildren(childGeometry);
         }
     }
 
-    SRect Canvas::ComputeChildGeometry(const Ref<CanvasSlot>& slot, const glm::vec2& canvasSize) const
+    SRect Canvas::ComputeChildGeometry(
+        const CanvasSlot& slot,
+        const glm::vec2& canvasSize
+    ) const
     {
-        const SAnchors& anchors = slot->GetAnchors();
-        const SConstraint& constraint = slot->GetConstraint();
+        const SAnchors& anchors = slot.GetAnchors();
+        const SConstraint& constraint = slot.GetConstraint();
 
         SRect result;
 

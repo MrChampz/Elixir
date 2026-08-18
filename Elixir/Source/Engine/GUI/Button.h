@@ -10,8 +10,6 @@ namespace Elixir::GUI
       public:
         explicit Button(const std::string& text = "");
 
-        glm::vec2 ComputeDesiredSize() override;
-
         const std::string& GetText() const { return m_Text; }
         void SetText(const std::string& text);
 
@@ -61,6 +59,7 @@ namespace Elixir::GUI
         void SetNormalBackground(const Ref<Texture2D>& texture);
 
       protected:
+        glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) override;
         void LayoutChildren(const SRect& allocatedSpace) override;
         void BuildDrawCommands(RenderBatch& batch, int zOrder) override;
 
@@ -70,6 +69,7 @@ namespace Elixir::GUI
 
         void HandleMouseEnter() override;
         void HandleMouseLeave() override;
+        SInputReply HandleMouseDown(const MouseButtonPressedEvent& event) override;
 
       private:
         std::string m_Text;
@@ -92,5 +92,7 @@ namespace Elixir::GUI
 
         // Textures for different states
         Ref<Texture2D> m_NormalBackground;
+
+        glm::vec2 m_MinDesiredSize{ 120.0f, 40.0f };
     };
 }

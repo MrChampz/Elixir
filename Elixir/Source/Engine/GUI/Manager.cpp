@@ -41,7 +41,7 @@ namespace Elixir::GUI
 
     void Manager::Render()
     {
-        if (!m_RootWidget || !m_RootWidget->IsVisible()) return;
+        if (!m_RootWidget || !m_RootWidget->IsRenderVisible()) return;
 
         if (NeedsRebuild())
         {
@@ -61,11 +61,16 @@ namespace Elixir::GUI
         dispatcher.Dispatch<KeyTypedEvent>(EE_BIND_EVENT_FN(Manager::HandleKeyTyped));
     }
 
+    bool Manager::WantsMouse() const
+    {
+        return !m_HoverPath.empty() || !m_MouseCapture.expired();
+    }
+
     void Manager::AssembleFrame()
     {
         m_RenderBatch.Clear();
 
-        if (m_RootWidget && m_RootWidget->IsVisible())
+        if (m_RootWidget && m_RootWidget->IsRenderVisible())
         {
             int zCursor = 0;
             bool rebuilt = false;
@@ -97,22 +102,24 @@ namespace Elixir::GUI
 
     bool Manager::HandleKeyPressed(const KeyPressedEvent& event) const
     {
-        if (m_FocusedWidget)
+        for (auto widget = m_FocusedWidget; widget; widget = widget->GetParent())
         {
-            ProcessKeyPressedRecursive(m_FocusedWidget, event);
+            if (widget->HandleKeyPressed(event).EventHandled)
+                return true;
         }
 
-        return true;
+        return false;
     }
 
     bool Manager::HandleKeyTyped(const KeyTypedEvent& event) const
     {
-        if (m_FocusedWidget)
+        for (auto widget = m_FocusedWidget; widget; widget = widget->GetParent())
         {
-            ProcessKeyTypedRecursive(m_FocusedWidget, event);
+            if (widget->HandleKeyTyped(event).EventHandled)
+                return true;
         }
 
-        return true;
+        return false;
     }
 
     void Manager::ProcessInput()
@@ -128,109 +135,115 @@ namespace Elixir::GUI
         m_MouseReleased = !isMouseDown && m_WasMouseDown;
         m_WasMouseDown = isMouseDown;
 
-        if (m_RootWidget)
-        {
-            ProcessInputRecursive(m_RootWidget);
+        if (!m_RootWidget) return;
 
-            if (m_MouseReleased && m_PressedWidget)
-            {
-                const auto event = MouseButtonReleasedEvent(EE_MOUSE_BUTTON_LEFT, m_MousePos);
-                m_PressedWidget->HandleMouseUp(event);
-                m_PressedWidget = nullptr;
-            }
+        std::vector<Ref<Widget>> hitPath;
+        m_RootWidget->HitTest(m_MousePos, hitPath);
 
-            // If user clicked but nothing captured focus, clear it
-            if (m_MousePressed && !m_PressedWidget && m_FocusedWidget)
-            {
-                m_FocusedWidget->HandleLostFocus();
-                m_FocusedWidget = nullptr;
-            }
+        UpdateHoverPath(hitPath);
 
-            // Mouse move, notify pressed widget (for dragging/selection)
-            if (m_MouseMoved && m_PressedWidget)
-            {
-                const auto event = MouseMovedEvent(m_MousePos);
-                m_PressedWidget->HandleMouseMove(event);
-            }
-        }
+        if (m_MousePressed)
+            ProcessMousePress(hitPath);
+
+        if (m_MouseReleased)
+            ProcessMouseRelease(hitPath);
+
+        if (m_MouseMoved)
+            ProcessMouseMove(hitPath);
     }
 
-    void Manager::ProcessWidget(const Ref<Widget>& widget)
+    void Manager::UpdateHoverPath(const std::vector<Ref<Widget>>& path)
     {
-        if (!widget || !widget->IsVisible()) return;
-
-        const auto geometry = widget->GetGeometry();
-        const bool isOver = geometry.Contains(m_MousePos);
-
-        // Hover
-        if (isOver && !widget->IsHovered())
+        // Leave widgets that were hovered but fell out of the path, deepest (leaf) first.
+        for (auto it = m_HoverPath.rbegin(); it != m_HoverPath.rend(); ++it)
         {
-            widget->HandleMouseEnter();
-        }
-        else if (!isOver && widget->IsHovered())
-        {
-            widget->HandleMouseLeave();
+            if (std::ranges::find(path, *it) == path.end())
+                (*it)->HandleMouseLeave();
         }
 
-        // Press + Focus
-        if (isOver && m_MousePressed)
+        // Enter widgets newly under the cursor, root first.
+        for (const auto& widget : path)
         {
-            const auto event = MouseButtonPressedEvent(EE_MOUSE_BUTTON_LEFT, m_MousePos);
-            widget->HandleMouseDown(event);
-            m_PressedWidget = widget;
+            if (std::ranges::find(m_HoverPath, widget) == m_HoverPath.end())
+                widget->HandleMouseEnter();
+        }
 
-            // Focus: only change if clicking a different widget
-            if (m_FocusedWidget != widget)
+        m_HoverPath = path;
+    }
+
+    void Manager::ProcessMousePress(const std::vector<Ref<Widget>>& path)
+    {
+        const auto event = MouseButtonPressedEvent(EE_MOUSE_BUTTON_LEFT, m_MousePos);
+
+        for (auto it = path.rbegin(); it != path.rend(); ++it)
+        {
+            const auto& widget = *it;
+            const SInputReply reply = widget->HandleMouseDown(event);
+
+            if (reply.EventHandled)
             {
-                if (m_FocusedWidget)
-                    m_FocusedWidget->HandleLostFocus();
+                if (reply.CaptureMouse)
+                    m_MouseCapture = widget;
 
-                m_FocusedWidget = widget;
-                m_FocusedWidget->HandleFocus();
+                m_PressedWidget = widget;
+                SetFocusedWidget(widget);
+                return;
             }
         }
 
-        // Click
-        if (isOver && m_MouseReleased)
-        {
-            const auto event = MouseButtonReleasedEvent(EE_MOUSE_BUTTON_LEFT, m_MousePos);
-            widget->HandleMouseUp(event);
+        // Nobody under the cursor wanted the press: treat it as "clicked outside".
+        SetFocusedWidget(nullptr);
+    }
 
-            if (widget->IsPressed() && m_PressedWidget == widget)
-                widget->HandleClick();
+    void Manager::ProcessMouseRelease(const std::vector<Ref<Widget>>& path)
+    {
+        const auto event = MouseButtonReleasedEvent(EE_MOUSE_BUTTON_LEFT, m_MousePos);
+
+        if (const auto captured = m_MouseCapture.lock())
+        {
+            captured->HandleMouseUp(event);
+        }
+        else
+        {
+            for (auto it = path.rbegin(); it != path.rend(); ++it)
+                if ((*it)->HandleMouseUp(event).EventHandled)
+                    break;
+        }
+
+        if (m_PressedWidget && std::ranges::find(path, m_PressedWidget) != path.end())
+            m_PressedWidget->HandleClick();
+
+        m_MouseCapture.reset();
+        m_PressedWidget = nullptr;
+    }
+
+    void Manager::ProcessMouseMove(const std::vector<Ref<Widget>>& path)
+    {
+        const auto event = MouseMovedEvent(m_MousePos);
+
+        if (const auto captured = m_MouseCapture.lock())
+        {
+            captured->HandleMouseMove(event);
+            return;
+        }
+
+        for (auto it = path.rbegin(); it != path.rend(); ++it)
+        {
+            if ((*it)->HandleMouseMove(event).EventHandled)
+                break;
         }
     }
 
-    void Manager::ProcessInputRecursive(const Ref<Widget>& widget)
+    void Manager::SetFocusedWidget(const Ref<Widget>& widget)
     {
-        ProcessWidget(widget);
+        if (m_FocusedWidget == widget) return;
 
-        widget->ForEachChild([this](const Ref<Widget>& child)
-        {
-            ProcessInputRecursive(child);
-        });
-    }
+        if (m_FocusedWidget)
+            m_FocusedWidget->HandleLostFocus();
 
-    void Manager::ProcessKeyPressedRecursive(
-        const Ref<Widget>& widget,
-        const KeyPressedEvent& event
-    )
-    {
-        widget->HandleKeyPressed(event);
+        m_FocusedWidget = widget;
 
-        widget->ForEachChild([&event](const Ref<Widget>& child)
-        {
-            ProcessKeyPressedRecursive(child, event);
-        });
-    }
-
-    void Manager::ProcessKeyTypedRecursive(const Ref<Widget>& widget, const KeyTypedEvent& event)
-    {
-        widget->HandleKeyTyped(event);
-
-        widget->ForEachChild([&event](const Ref<Widget>& child)
-        {
-            ProcessKeyTypedRecursive(child, event);
-        });
+        if (m_FocusedWidget)
+            m_FocusedWidget->HandleFocus();
     }
 }

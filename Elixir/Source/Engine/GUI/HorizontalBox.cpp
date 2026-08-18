@@ -3,31 +3,27 @@
 
 namespace Elixir::GUI
 {
-    LayoutSlot& HorizontalBox::AddChild(const Ref<Widget>& child)
+    glm::vec2 HorizontalBox::ComputeDesiredSize(const glm::vec2& availableSize)
     {
-        const auto slot = CreateRef<LayoutSlot>(child);
-        m_Slots.push_back(slot);
-        AttachChild(child);
-        return *slot;
-    }
+        const glm::vec2 innerAvailable = {
+            UnconstrainedSize,
+            availableSize.y - m_Padding.GetTotalVertical()
+        };
 
-    void HorizontalBox::SetStretching(const bool stretching)
-    {
-        if (m_Stretching == stretching) return;
-        m_Stretching = stretching;
-        MarkLayoutDirty();
-    }
-
-    glm::vec2 HorizontalBox::ComputeDesiredSize()
-    {
         glm::vec2 totalSize = { 0, 0 };
 
-        for (auto& slot : m_Slots)
+        for (const auto& slot : m_Slots)
         {
-            const auto layoutSlot = std::static_pointer_cast<LayoutSlot>(slot);
+            if (!slot->GetWidget()->TakesSpace()) continue;
 
-            auto childSize = slot->GetWidget()->ComputeDesiredSize();
-            const auto margin = layoutSlot->GetMargin();
+            const auto margin = slot->GetMargin();
+
+            const glm::vec2 childConstraint = {
+                innerAvailable.x,
+                innerAvailable.y - margin.GetTotalVertical()
+            };
+
+            auto childSize = slot->GetWidget()->Measure(childConstraint);
 
             // Add margin
             childSize.x += margin.GetTotalHorizontal();
@@ -44,7 +40,6 @@ namespace Elixir::GUI
         totalSize.x += m_Padding.GetTotalHorizontal();
         totalSize.y += m_Padding.GetTotalVertical();
 
-        m_DesiredSize = totalSize;
         return totalSize;
     }
 
@@ -53,71 +48,97 @@ namespace Elixir::GUI
         // Calculate available space after padding
         const SRect innerSpace = ApplyPadding(allocatedSpace, m_Padding);
 
-        // First: calculate fixed sizes
-        float usedSpace = 0.0f;
+        // Measure every child exactly once, with its real constraint, and reuse the result in
+        // both loops below. Fill/Fixed children still get measured on the cross axis (height)
+        // - their main-axis (width) entry is only actually used below for Auto children.
+        std::vector<glm::vec2> childSizes;
+        childSizes.reserve(m_Slots.size());
 
-        for (auto& slot : m_Slots)
+        for (const auto& slot : m_Slots)
         {
-            const auto layoutSlot = std::static_pointer_cast<LayoutSlot>(slot);
+            if (!slot->GetWidget()->TakesSpace()) continue;
 
-            const auto margin = layoutSlot->GetMargin();
-            const auto hAlignment = layoutSlot->GetHorizontalAlignment();
+            const auto margin = slot->GetMargin();
 
-            if (m_Stretching)
+            const glm::vec2 childConstraint = {
+                UnconstrainedSize,
+                innerSpace.Size.y - margin.GetTotalVertical()
+            };
+
+            childSizes.push_back(slot->GetWidget()->Measure(childConstraint));
+        }
+
+        // First pass: space already spoken for by Auto/Fixed children (main axis = width),
+        // and the total ratio claimed by Fill children.
+        float fixedSpace = 0.0f;
+        float totalFillRatio = 0.0f;
+
+        for (size_t i = 0; i < m_Slots.size(); ++i)
+        {
+            const auto& slot = m_Slots[i];
+            if (!slot->GetWidget()->TakesSpace()) continue;
+
+            const auto margin = slot->GetMargin();
+            const auto sizeRule = slot->GetSizeRule();
+
+            switch (sizeRule.Rule)
             {
-                const glm::vec2 childSize = slot->GetWidget()->ComputeDesiredSize();
-                usedSpace += childSize.x + margin.GetTotalHorizontal();
+                case SSizeParam::ERule::Fill:
+                    totalFillRatio += sizeRule.Value;
+                    break;
+                case SSizeParam::ERule::Fixed:
+                    fixedSpace += sizeRule.Value + margin.GetTotalHorizontal();
+                    break;
+                case SSizeParam::ERule::Auto:
+                default:
+                    fixedSpace += childSizes[i].x + margin.GetTotalHorizontal();
+                    break;
             }
         }
 
-        // Calculate space available for fill slots
-        const float availableForFill = std::max(0.0f, innerSpace.Size.x - usedSpace);
+        // Calculate space available for Fill slots
+        const float fillSpace = std::max(0.0f, innerSpace.Size.x - fixedSpace);
 
         // Second: Arrange children
         float currentX = innerSpace.Position.x;
 
-        for (auto& slot : m_Slots)
+        for (size_t i = 0; i < m_Slots.size(); ++i)
         {
-            const auto layoutSlot = std::static_pointer_cast<LayoutSlot>(slot);
+            const auto& slot = m_Slots[i];
+            if (!slot->GetWidget()->TakesSpace()) continue;
 
-            const glm::vec2 childSize = slot->GetWidget()->ComputeDesiredSize();
-            const auto margin = layoutSlot->GetMargin();
-            const auto hAlignment = layoutSlot->GetHorizontalAlignment();
-            const auto vAlignment = layoutSlot->GetVerticalAlignment();
-            const auto fillRatio = layoutSlot->GetFillRatio();
-            const auto minSize = layoutSlot->GetMinSize();
-            const auto maxSize = layoutSlot->GetMaxSize();
+            const glm::vec2 childSize = childSizes[i];
+            const auto margin = slot->GetMargin();
+            const auto vAlignment = slot->GetVerticalAlignment();
+            const auto sizeRule = slot->GetSizeRule();
+            const auto minSize = slot->GetMinSize();
+            const auto maxSize = slot->GetMaxSize();
 
-            // Calculate child width
+            // Calculate child width from its sizing rule
             float childWidth;
 
-            if (m_Stretching && fillRatio > 0.0f)
+            switch (sizeRule.Rule)
             {
-                // Proportional fill
-                childWidth = availableForFill * fillRatio - margin.GetTotalHorizontal();
-            }
-            else
-            {
-                // Use the desired width
-                childWidth = childSize.x;
+                case SSizeParam::ERule::Fill:
+                    // Guard: if no sibling claims a Fill ratio, no extra space is handed out.
+                    childWidth = totalFillRatio > 0.0f
+                        ? fillSpace * (sizeRule.Value / totalFillRatio) - margin.GetTotalHorizontal()
+                        : 0.0f;
+                    break;
+                case SSizeParam::ERule::Fixed:
+                    childWidth = sizeRule.Value;
+                    break;
+                case SSizeParam::ERule::Auto:
+                default:
+                    childWidth = childSize.x;
+                    break;
             }
 
-            // Clamp to min/max constraints
             childWidth = std::max(minSize.x, std::min(maxSize.x, childWidth));
 
-            // Calculate child height based on alignment
-            float childHeight;
-
-            if (m_Stretching)
-            {
-                childHeight = innerSpace.Size.y - margin.GetTotalVertical();
-            }
-            else
-            {
-                childHeight = childSize.y;
-            }
-
-            childHeight = std::max(minSize.y, std::min(maxSize.y, childHeight));
+            // Clamp the desired height; EVerticalAlignment::Fill overrides it below with the
+            // full available height regardless of this value (see Widget::AlignVertically).
+            float childHeight = std::max(minSize.y, std::min(maxSize.y, childSize.y));
 
             // Create available space for this child
             SRect childAvailableSpace;

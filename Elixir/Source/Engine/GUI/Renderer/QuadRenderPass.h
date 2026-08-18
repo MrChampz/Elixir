@@ -22,10 +22,24 @@ namespace Elixir::GUI
 
         ~QuadRenderPass() override;
 
-        void GenerateDrawCommands(const RenderBatch& batch) override;
-        void Render(const Ref<CommandBuffer>& cmd) override;
+        void BeginFrame() override;
+        void EndFrame() override;
+
+        uint32_t AppendRange(std::span<const SDrawCommand> commands) override;
+
+        void Bind(const Ref<CommandBuffer>& cmd) override;
+        void Render(
+            const Ref<CommandBuffer>& cmd,
+            uint32_t firstInstance,
+            uint32_t instanceCount
+        ) override;
+
         bool HasData() const override;
         void Clear() override;
+
+        uint32_t GetInstanceCount() const override;
+
+        EDrawCommandType GetHandleType() const override;
 
       private:
         void InitRenderPass(const ShaderLoader* shaderLoader);

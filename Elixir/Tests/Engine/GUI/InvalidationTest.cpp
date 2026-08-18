@@ -13,15 +13,21 @@ namespace
     class SizedLeaf final : public Widget
     {
       public:
-        glm::vec2 ComputeDesiredSize() override { return m_DesiredSize; }
+        glm::vec2 ComputeDesiredSize(const glm::vec2&) override { return m_FakeSize; }
 
         void SetDesiredSize(const glm::vec2& size)
         {
-            m_DesiredSize = size;
+            m_FakeSize = size;
             MarkLayoutDirty();
         }
 
         using Widget::MarkRenderDirty;
+
+      private:
+        // m_DesiredSize no longer exists on Widget — Measure() now owns the desired-size
+        // cache (m_CachedDesiredSize) exclusively, so SetDesiredSize drives this
+        // widget-local copy instead of writing the cache directly.
+        glm::vec2 m_FakeSize{};
     };
 
     // Minimal single-child widget to exercise ContentWidget lifecycle without Button's
@@ -29,7 +35,7 @@ namespace
     class TestContent final : public ContentWidget
     {
       public:
-        glm::vec2 ComputeDesiredSize() override { return { 10.0f, 10.0f }; }
+        glm::vec2 ComputeDesiredSize(const glm::vec2&) override { return { 10.0f, 10.0f }; }
     };
 
     void Arrange(const Ref<Widget>& widget, const SRect& space)

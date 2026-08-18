@@ -6,6 +6,18 @@
 
 namespace Elixir::GUI
 {
+    /**
+     * @brief One z-ordered draw call: the instance range an earlier
+     * RenderPass::AppendRange produced for a single SBatchRun, plus the
+     * pass that owns it.
+     */
+    struct SDrawItem
+    {
+        RenderPass* Pass;
+        uint32_t FirstInstance;
+        uint32_t InstanceCount;
+    };
+
     struct SPerFrameData
     {
         glm::mat4 Proj;
@@ -23,11 +35,12 @@ namespace Elixir::GUI
         void Resize(const Extent2D& extent);
 
         /**
-         * Regenerate each pass's GPU geometry from the batch (CPU build + vertex upload).
-         * Only needs to run when the batch changed; the passes retain their buffers otherwise.
+         * Regenerate each pass's GPU geometry from the batch (CPU build + vertex upload)
+         * and rebuild the z-ordered draw item list used by Draw(). Only needs to run when
+         * the batch changed; the passes retain their buffers otherwise.
          * @param batch the assembled frame batch.
          */
-        void Rebuild(const RenderBatch& batch) const;
+        void Rebuild(const RenderBatch& batch);
 
         /**
          * Record and submit the draw calls using each pass's current (cached) geometry.
@@ -50,6 +63,9 @@ namespace Elixir::GUI
         Ref<UniformBuffer> m_PerFrameConstantBuffer;
 
         std::vector<Ref<RenderPass>> m_RenderPasses;
+        std::unordered_map<EDrawCommandType, RenderPass*> m_PassesByType;
+
+        std::vector<SDrawItem> m_DrawItems;
 
         float m_DPIScale = 1.0f;
         Extent2D m_RenderExtent{};

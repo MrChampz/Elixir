@@ -9,10 +9,9 @@
 namespace Elixir::GUI
 {
     TextField::TextField(const std::string& text)
-        : m_Text(text)
+      : m_Text(text)
     {
         m_Font = FontManager::GetDefaultFont();
-        m_DesiredSize = { 120.0f, 30.0f };
         m_CursorPosition = m_Text.size();
     }
 
@@ -22,11 +21,6 @@ namespace Elixir::GUI
         UpdateCursorState(frameTime);
     }
 
-    glm::vec2 TextField::ComputeDesiredSize()
-    {
-        return m_DesiredSize;
-    }
-
     void TextField::SetFont(const Ref<Font>& font)
     {
         EE_CORE_ASSERT(font, "TextField::SetFont called with a null font");
@@ -34,6 +28,7 @@ namespace Elixir::GUI
 
         m_Font = font;
         UpdateScrollOffset();
+        MarkLayoutDirty();
         MarkRenderDirty();
     }
 
@@ -50,6 +45,7 @@ namespace Elixir::GUI
         m_CursorPosition = m_Text.size();
         ClearSelection();
         UpdateScrollOffset();
+        MarkLayoutDirty();
         MarkRenderDirty();
     }
 
@@ -74,6 +70,7 @@ namespace Elixir::GUI
     void TextField::SetPadding(const SPadding& padding)
     {
         m_Padding = padding;
+        MarkLayoutDirty();
         MarkRenderDirty();
     }
 
@@ -111,6 +108,21 @@ namespace Elixir::GUI
     {
         m_SelectionColor = color;
         MarkRenderDirty();
+    }
+
+    glm::vec2 TextField::ComputeDesiredSize(const glm::vec2& availableSize)
+    {
+        glm::vec2 contentSize{ 0.0f, 0.0f };
+
+        if (!m_Text.empty())
+            contentSize = MeasureTextSize(m_Text);
+
+        const glm::vec2 desiredSize = contentSize + glm::vec2(
+            m_Padding.GetTotalHorizontal(),
+            m_Padding.GetTotalVertical()
+        );
+
+        return glm::max(desiredSize, m_MinDesiredSize);
     }
 
     void TextField::LayoutChildren(const SRect&)
@@ -230,9 +242,17 @@ namespace Elixir::GUI
         Platform::Get().SetPreviousCursorShape();
     }
 
-    void TextField::HandleMouseDown(const MouseButtonPressedEvent& event)
+    SInputReply TextField::HandleMouseDown(const MouseButtonPressedEvent& event)
     {
-        Widget::HandleMouseDown(event);
+        // TextField is unconditionally interactive:
+        // it must not depend on m_On*Callback being set, so it sets the press state itself
+        // instead of delegating to Widget::HandleMouseDown. Without this, m_Pressed would
+        // stay false (nothing here ever registers an OnClick/OnMouseDown/OnMouseUp callback
+        // on the field itself), and the drag-select below - gated on IsPressed() - would
+        // never engage.
+        m_Pressed = true;
+        MarkRenderDirty();
+        if (m_OnMouseDownCallback) m_OnMouseDownCallback();
 
         const auto x = event.GetX() - m_Geometry.Position.x - m_Padding.Left + m_ScrollOffset;
         m_CursorPosition = GetCharIndexAtX(m_Text, x);
@@ -241,14 +261,19 @@ namespace Elixir::GUI
 
         ResetCursorState();
         UpdateScrollOffset();
+
+        // Capture: keep receiving move events while dragging a selection past the field's
+        // own bounds, and guarantee a matching HandleMouseUp to clear m_Pressed on release.
+        return SInputReply::HandledAndCaptured();
     }
 
-    void TextField::HandleMouseMove(const MouseMovedEvent& event)
+    SInputReply TextField::HandleMouseMove(const MouseMovedEvent& event)
     {
         Widget::HandleMouseMove(event);
 
         // Only extend selection if mouse button is held (widget is pressed)
-        if (!IsPressed()) return;
+        if (!IsPressed())
+            return SInputReply::Unhandled();
 
         const auto x = event.GetX() - m_Geometry.Position.x - m_Padding.Left + m_ScrollOffset;
         m_CursorPosition = GetCharIndexAtX(m_Text, x);
@@ -256,13 +281,12 @@ namespace Elixir::GUI
 
         UpdateScrollOffset();
         MarkRenderDirty();
+        return SInputReply::Handled();
     }
 
-    void TextField::HandleKeyPressed(const KeyPressedEvent& event)
+    SInputReply TextField::HandleKeyPressed(const KeyPressedEvent& event)
     {
         Widget::HandleKeyPressed(event);
-
-        if (!m_Focused) return;
 
         switch (event.GetKeyCode())
         {
@@ -321,13 +345,12 @@ namespace Elixir::GUI
         }
 
         MarkRenderDirty();
+        return SInputReply::Handled();
     }
 
-    void TextField::HandleKeyTyped(const KeyTypedEvent& event)
+    SInputReply TextField::HandleKeyTyped(const KeyTypedEvent& event)
     {
         Widget::HandleKeyTyped(event);
-
-        if (!m_Focused) return;
 
         ResetCursorState();
 
@@ -336,6 +359,7 @@ namespace Elixir::GUI
         InsertText(c);
 
         MarkRenderDirty();
+        return SInputReply::Handled();
     }
 
     void TextField::HandleFocus()
@@ -498,6 +522,7 @@ namespace Elixir::GUI
         m_Text.insert(m_CursorPosition, text);
         m_CursorPosition += text.size();
         UpdateScrollOffset();
+        MarkLayoutDirty();
 
         // Fire input changed callback
         if (m_OnChangeCallback) m_OnChangeCallback(m_Text);
@@ -527,6 +552,7 @@ namespace Elixir::GUI
         }
 
         UpdateScrollOffset();
+        MarkLayoutDirty();
 
         // Fire input changed callback
         if (m_OnChangeCallback) m_OnChangeCallback(m_Text);
@@ -548,6 +574,7 @@ namespace Elixir::GUI
         }
 
         UpdateScrollOffset();
+        MarkLayoutDirty();
 
         // Fire input changed callback
         if (m_OnChangeCallback) m_OnChangeCallback(m_Text);

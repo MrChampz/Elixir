@@ -6,14 +6,14 @@
 
 namespace Elixir::GUI
 {
+    enum class EDrawCommandType : uint8_t
+    {
+        Rect, Text, DebugRect
+    };
+
     struct SDrawCommand
     {
-        enum class EType : uint8_t
-        {
-            Rect, Text, DebugRect
-        };
-
-        EType Type;
+        EDrawCommandType Type;
         SRect Geometry;
         SColor Color;
 
@@ -52,6 +52,19 @@ namespace Elixir::GUI
 
         // Scissor rect for clipping (optional)
         SRect ScissorRect;
+    };
+
+    /**
+     * @brief A maximal contiguous slice of same-type commands inside an already
+     * z-sorted RenderBatch.
+     *
+     * [First, First + Count) indexes into RenderBatch::GetCommands().
+     */
+    struct SBatchRun
+    {
+        EDrawCommandType Type;
+        uint32_t First;
+        uint32_t Count;
     };
 
     class ELIXIR_API RenderBatch final
@@ -108,7 +121,21 @@ namespace Elixir::GUI
 
         const std::vector<SDrawCommand>& GetCommands() const { return m_Commands; }
 
+        /**
+         * @brief Contiguous same-type runs over GetCommands(), in z order.
+         *
+         * Rebuilt by Sort(); stale (from the previous sort) until Sort() runs again.
+         *
+         * @return A vector of runs.
+         */
+        const std::vector<SBatchRun>& GetRuns() const { return m_Runs; }
+
       private:
+        // Scans the (already z-sorted) commands and groups neighboring same-type
+        // commands into runs. Called by Sort(), right after the stable_sort.
+        void BuildRuns();
+
         std::vector<SDrawCommand> m_Commands;
+        std::vector<SBatchRun> m_Runs;
     };
 }

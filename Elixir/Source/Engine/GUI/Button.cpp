@@ -8,15 +8,9 @@
 namespace Elixir::GUI
 {
     Button::Button(const std::string& text)
-        : m_Text(text)
+      : m_Text(text)
     {
         m_Font = FontManager::GetDefaultFont();
-        m_DesiredSize = { 120.0f, 40.0f };
-    }
-
-    glm::vec2 Button::ComputeDesiredSize()
-    {
-        return m_DesiredSize;
     }
 
     void Button::SetText(const std::string& text)
@@ -62,9 +56,7 @@ namespace Elixir::GUI
         // With content, the background is padding-independent and the child re-renders itself
         // when its geometry changes during layout.
         if (!HasContent())
-        {
             MarkRenderDirty(); // padding shifts the label position/clip in BuildDrawCommands
-        }
     }
 
     void Button::SetCornerRadius(const glm::vec4& radius)
@@ -97,12 +89,34 @@ namespace Elixir::GUI
         MarkRenderDirty();
     }
 
+    glm::vec2 Button::ComputeDesiredSize(const glm::vec2& availableSize)
+    {
+        const glm::vec2 innerAvailable = availableSize - glm::vec2(
+            m_Padding.GetTotalHorizontal(),
+            m_Padding.GetTotalVertical()
+        );
+
+        glm::vec2 contentSize{ 0.0f, 0.0f };
+
+        if (HasContent())
+            contentSize = m_ContentSlot->GetWidget()->Measure(innerAvailable);
+        else if (!m_Text.empty())
+            contentSize = MeasureTextSize(m_Text);
+
+        const glm::vec2 desiredSize = contentSize + glm::vec2(
+            m_Padding.GetTotalHorizontal(),
+            m_Padding.GetTotalVertical()
+        );
+
+        return glm::max(desiredSize, m_MinDesiredSize);
+    }
+
     void Button::LayoutChildren(const SRect& allocatedSpace)
     {
         if (HasContent())
         {
-            const glm::vec2 childSize = m_ContentSlot->GetWidget()->ComputeDesiredSize();
             const SRect innerSpace = ApplyPadding(allocatedSpace, m_Padding);
+            const glm::vec2 childSize = m_ContentSlot->GetWidget()->Measure(innerSpace.Size);
 
             const SRect childRect  = AlignChild(
                 childSize,
@@ -121,9 +135,7 @@ namespace Elixir::GUI
         auto buttonColor = m_NormalColor;
 
         if (m_Hovered)
-        {
             buttonColor = m_HoverColor;
-        }
 
         // Background
         if (m_NormalBackground)
@@ -222,5 +234,19 @@ namespace Elixir::GUI
     {
         Widget::HandleMouseLeave();
         Platform::Get().SetPreviousCursorShape();
+    }
+
+    SInputReply Button::HandleMouseDown(const MouseButtonPressedEvent& event)
+    {
+        // Button is unconditionally interactive - it must win the mouse-down bubble even when
+        // it has no OnClick/OnMouseDown/OnMouseUp callback registered (e.g. a subclass that
+        // overrides HandleClick() directly instead), and even when its own content (e.g. a
+        // TextBlock label) sits deeper in the hit path. Duplicates the "handled" branch of
+        // Widget::HandleMouseDown instead of delegating to it, because that branch is now
+        // gated on m_On*Callback being set - a gate Button must not depend on.
+        m_Pressed = true;
+        MarkRenderDirty();
+        if (m_OnMouseDownCallback) m_OnMouseDownCallback();
+        return SInputReply::HandledAndCaptured();
     }
 }

@@ -27,33 +27,42 @@ namespace Elixir::GUI
         m_WhiteTexture.reset();
     }
 
-    void QuadRenderPass::GenerateDrawCommands(const RenderBatch& batch)
+    void QuadRenderPass::BeginFrame()
     {
         m_Quads.clear();
+    }
 
-        for (const auto& drawCmd : batch.GetCommands())
-        {
-            switch (drawCmd.Type)
-            {
-                case SDrawCommand::EType::Rect:
-                    BuildRectGeometry(drawCmd);
-                    break;
-                default:
-                    break;
-            }
-        }
-
+    void QuadRenderPass::EndFrame()
+    {
         if (!m_Quads.empty())
         {
             m_QuadBuffer->UpdateData(m_Quads.data(),  m_Quads.size() * sizeof(SQuad));
         }
     }
 
-    void QuadRenderPass::Render(const Ref<CommandBuffer>& cmd)
+    uint32_t QuadRenderPass::AppendRange(const std::span<const SDrawCommand> commands)
+    {
+        const auto firstInstance = (uint32_t)m_Quads.size();
+
+        for (const auto& drawCmd : commands)
+            BuildRectGeometry(drawCmd);
+
+        return firstInstance;
+    }
+
+    void QuadRenderPass::Bind(const Ref<CommandBuffer>& cmd)
     {
         m_Pipeline->Bind(cmd);
         m_QuadBuffer->Bind(cmd);
-        cmd->Draw(6, m_Quads.size());
+    }
+
+    void QuadRenderPass::Render(
+        const Ref<CommandBuffer>& cmd,
+        const uint32_t firstInstance,
+        const uint32_t instanceCount
+    )
+    {
+        cmd->Draw(6, instanceCount, 0, firstInstance);
     }
 
     bool QuadRenderPass::HasData() const
@@ -64,6 +73,16 @@ namespace Elixir::GUI
     void QuadRenderPass::Clear()
     {
         m_Quads.clear();
+    }
+
+    uint32_t QuadRenderPass::GetInstanceCount() const
+    {
+        return (uint32_t)m_Quads.size();
+    }
+
+    EDrawCommandType QuadRenderPass::GetHandleType() const
+    {
+        return EDrawCommandType::Rect;
     }
 
     void QuadRenderPass::InitRenderPass(const ShaderLoader* shaderLoader)

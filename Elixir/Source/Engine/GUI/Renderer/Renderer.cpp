@@ -36,10 +36,30 @@ namespace Elixir::GUI
         m_PerFrameConstantBuffer->UpdateData(&m_PerFrameData, sizeof(SPerFrameData));
     }
 
-    void Renderer::Rebuild(const RenderBatch& batch) const
+    void Renderer::Rebuild(const RenderBatch& batch)
     {
         for (const auto& pass : m_RenderPasses)
-            pass->GenerateDrawCommands(batch);
+            pass->BeginFrame();
+
+        m_DrawItems.clear();
+
+        for (const auto& run : batch.GetRuns())
+        {
+            const auto it = m_PassesByType.find(run.Type);
+            if (it == m_PassesByType.end()) continue;
+
+            const auto pass = it->second;
+            const std::span range(batch.GetCommands().data() + run.First, run.Count);
+
+            const auto firstInstance = pass->AppendRange(range);
+            const auto instanceCount = pass->GetInstanceCount() - firstInstance;
+
+            if (instanceCount > 0)
+                m_DrawItems.push_back({ pass, firstInstance, instanceCount });
+        }
+
+        for (const auto& pass : m_RenderPasses)
+            pass->EndFrame();
     }
 
     void Renderer::Draw() const
@@ -47,9 +67,17 @@ namespace Elixir::GUI
         const auto cmd = m_GraphicsContext->GetSecondaryCommandBuffer();
         BeginRendering(cmd);
 
-        for (const auto& pass : m_RenderPasses)
-            if (pass->HasData())
-                pass->Render(cmd);
+        RenderPass* lastPass = nullptr;
+        for (const auto& item : m_DrawItems)
+        {
+            if (item.Pass != lastPass)
+            {
+                item.Pass->Bind(cmd);
+                lastPass = item.Pass;
+            }
+
+            item.Pass->Render(cmd, item.FirstInstance, item.InstanceCount);
+        }
 
         EndRendering(cmd);
     }
@@ -57,6 +85,7 @@ namespace Elixir::GUI
     void Renderer::RegisterRenderPass(const Ref<RenderPass>& pass)
     {
         m_RenderPasses.push_back(pass);
+        m_PassesByType[pass->GetHandleType()] = pass.get();
         EE_CORE_TRACE("GUI: Registered RenderPass.")
     }
 

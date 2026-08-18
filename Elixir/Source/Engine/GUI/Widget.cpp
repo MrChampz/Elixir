@@ -7,6 +7,18 @@ namespace Elixir::GUI
 {
     /* Widget */
 
+    const glm::vec2& Widget::Measure(const glm::vec2& availableSize)
+    {
+        if (!m_MeasureDirty && m_LastMeasureConstraint == availableSize)
+            return m_DesiredSize;
+
+        m_DesiredSize = ComputeDesiredSize(availableSize);
+        m_LastMeasureConstraint = availableSize;
+        m_MeasureDirty = false;
+
+        return m_DesiredSize;
+    }
+
     void Widget::ArrangeChildren(const SRect& allocatedSpace)
     {
         if (!m_LayoutDirty && m_LastArrangedSpace == allocatedSpace)
@@ -20,6 +32,42 @@ namespace Elixir::GUI
 
         LayoutChildren(allocatedSpace);
         m_LayoutDirty = false;
+    }
+
+    void Widget::HitTest(const glm::vec2& point, std::vector<Ref<Widget>>& path)
+    {
+        // HitTestInvisible prunes this whole branch (neither this widget nor its children can
+        // be hit); Hidden/Collapsed are not rendered/laid out, so neither should be clickable.
+        if (m_Visibility == EVisibility::HitTestInvisible ||
+            m_Visibility == EVisibility::Hidden ||
+            m_Visibility == EVisibility::Collapsed)
+            return;
+
+        // Children sit above their parent z (see CollectDrawCommands' pre-order zCursor):
+        // test the topmost child first and recurse depth-first, so the first branch that
+        // reports a hit wins.
+        for (size_t i = GetChildCount(); i-- > 0;)
+        {
+            if (const Ref<Widget> child = GetChildAt(i))
+            {
+                const size_t sizeBefore = path.size();
+                child->HitTest(point, path);
+
+                if (path.size() > sizeBefore)
+                {
+                    // SelfHitTestInvisible: this widget does not join the path, but the
+                    // matched child (already appended by the recursive call) still does.
+                    if (IsSelfHitTestVisible())
+                        path.insert(path.begin() + sizeBefore, shared_from_this());
+
+                    return;
+                }
+            }
+        }
+
+        // No child matched; this widget itself is the candidate.
+        if (IsSelfHitTestVisible() && HitTestSelf(point))
+            path.push_back(shared_from_this());
     }
 
     void Widget::SetOpacity(const float opacity)
@@ -39,6 +87,24 @@ namespace Elixir::GUI
     bool Widget::IsVisible() const
     {
         return m_Visibility == EVisibility::Visible && m_Opacity > 0.0f;
+    }
+
+    bool Widget::IsRenderVisible() const
+    {
+        return (m_Visibility == EVisibility::Visible ||
+                m_Visibility == EVisibility::HitTestInvisible ||
+                m_Visibility == EVisibility::SelfHitTestInvisible) &&
+                m_Opacity > 0.0f;
+    }
+
+    bool Widget::TakesSpace() const
+    {
+        return m_Visibility != EVisibility::Collapsed;
+    }
+
+    bool Widget::IsSelfHitTestVisible() const
+    {
+        return m_Visibility == EVisibility::Visible;
     }
 
     void Widget::SetInsetShadow(const glm::vec4& shadow)
@@ -132,9 +198,18 @@ namespace Elixir::GUI
         }
     }
 
+    void Widget::ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const
+    {
+        for (size_t i = 0; i < GetChildCount(); ++i)
+        {
+            if (const Ref<Widget> child = GetChildAt(i); ++i)
+                fn(child);
+        }
+    }
+
     void Widget::CollectDrawCommands(RenderBatch& batch, int& zCursor, bool& rebuilt)
     {
-        if (!IsVisible()) return;
+        if (!IsRenderVisible()) return;
 
         // Regenerate this widget's own commands only when its visuals/geometry changed.
         if (m_RenderDirty)
@@ -166,6 +241,7 @@ namespace Elixir::GUI
             return;
 
         m_LayoutDirty = true;
+        m_MeasureDirty = true;
 
         if (const auto parent = m_Parent.lock())
             parent->MarkLayoutDirty();
@@ -175,6 +251,11 @@ namespace Elixir::GUI
     {
         m_RenderDirty = true;
         ++s_DirtyEpoch;
+    }
+
+    bool Widget::HitTestSelf(const glm::vec2& point) const
+    {
+        return m_Geometry.Contains(point);
     }
 
     void Widget::HandleMouseEnter()
@@ -191,26 +272,25 @@ namespace Elixir::GUI
         if (m_OnMouseLeaveCallback) m_OnMouseLeaveCallback();
     }
 
-    void Widget::HandleMouseDown(const MouseButtonPressedEvent& event)
+    SInputReply Widget::HandleMouseDown(const MouseButtonPressedEvent& event)
     {
+        if (!m_OnMouseDownCallback && !m_OnClickCallback && !m_OnMouseUpCallback)
+            return SInputReply::Unhandled();
+
         m_Pressed = true;
         MarkRenderDirty();
         if (m_OnMouseDownCallback) m_OnMouseDownCallback();
+        return SInputReply::HandledAndCaptured();
     }
 
-    void Widget::HandleMouseUp(const MouseButtonReleasedEvent& event)
+    SInputReply Widget::HandleMouseUp(const MouseButtonReleasedEvent& event)
     {
-        if (m_Pressed)
-        {
-            if (m_OnMouseUpCallback)
-                m_OnMouseUpCallback();
-
-            if (m_Hovered)
-                HandleClick();
-        }
+        if (m_Pressed && m_OnMouseUpCallback)
+            m_OnMouseUpCallback();
 
         m_Pressed = false;
         MarkRenderDirty();
+        return SInputReply::Handled();
     }
 
     void Widget::HandleFocus()
@@ -291,6 +371,10 @@ namespace Elixir::GUI
                 result.Position.x = availableSpace.Position.x + availableSpace.Size.x - childSize.x;
                 result.Size.x = childSize.x;
                 break;
+            case EHorizontalAlignment::Fill:
+                result.Position.x = availableSpace.Position.x;
+                result.Size.x = availableSpace.Size.x;
+                break;
         }
 
         return result;
@@ -318,6 +402,9 @@ namespace Elixir::GUI
                 result.Position.y = availableSpace.Position.y + availableSpace.Size.y - childSize.y;
                 result.Size.y = childSize.y;
                 break;
+            case EVerticalAlignment::Fill:
+                result.Position.y = availableSpace.Position.y;
+                result.Size.y = availableSpace.Size.y;
         }
 
         return result;
@@ -371,12 +458,11 @@ namespace Elixir::GUI
             ClearContent();
     }
 
-    void ContentWidget::ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const
+    Ref<Widget> ContentWidget::GetChildAt(const size_t index) const
     {
-        if (m_ContentSlot)
-        {
-            if (const auto& child = m_ContentSlot->GetWidget())
-                fn(child);
-        }
+        if (m_ContentSlot && index == 0)
+            return m_ContentSlot->GetWidget();
+
+        return nullptr;
     }
 }

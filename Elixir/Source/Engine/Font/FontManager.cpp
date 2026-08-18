@@ -96,6 +96,23 @@ namespace Elixir
         return font->MeasureText(text, fontSize);
     }
 
+    glm::vec2 FontManager::MeasureWrapped(
+        const std::string& text,
+        const Ref<Font>& font,
+        float fontSize,
+        float maxWidth,
+        std::vector<std::string>* outLines
+    )
+    {
+        EE_PROFILE_ZONE_SCOPED()
+
+        // TODO: Temporary, implement the real logic!
+        if (outLines)
+            outLines->assign(1, text);
+
+        return MeasureText(text, font, fontSize);
+    }
+
     float FontManager::GetLineHeight(const Ref<Font>& font, const float fontSize)
     {
         EE_PROFILE_ZONE_SCOPED()

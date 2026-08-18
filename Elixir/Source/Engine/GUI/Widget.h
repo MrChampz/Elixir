@@ -11,13 +11,36 @@ namespace Elixir::GUI
 {
     class Manager;
 
+    /**
+     * @brief Result of routing an input event to a widget: whether it was consumed (stops
+     * further bubbling) and, for mouse-down, whether the widget wants to keep receiving mouse
+     * move/up regardless of hover (see Manager::m_MouseCapture).
+     */
+    struct SInputReply
+    {
+        bool EventHandled = false;
+        bool CaptureMouse = false;
+
+        static SInputReply Unhandled() { return {}; }
+        static SInputReply Handled() { return { true, false }; }
+        static SInputReply HandledAndCaptured() { return { true, true }; }
+    };
+
+    /**
+     * @brief Sentinel meaning "no limit" for one axis of a Measure/ComputeDesiredSize
+     * constraint.
+     *
+     * Containers propagate this on the axis they do not constrain (e.g. the main axis of a
+     * stacking panel). ComputeDesiredSize overrides may receive it as input on either axis,
+     * but must never return it in the result.
+     */
+    inline constexpr float UnconstrainedSize = std::numeric_limits<float>::infinity();
+
     class ELIXIR_API Widget : public std::enable_shared_from_this<Widget>
     {
         friend class Manager;
         friend class Slot;
-        friend class ContentSlot;
-        friend class LayoutSlot;
-        friend class CanvasSlot;
+
       public:
         virtual ~Widget() = default;
 
@@ -28,10 +51,18 @@ namespace Elixir::GUI
         virtual void Update(Timestep frameTime) {}
 
         /**
-         * Compute how much space this widget wants.
-         * @return a 2d vector representing width and height.
+         * @brief Get how much space this widget wants, given the space available to it.
+         *
+         * This is the template method: it is non-virtual, so subclasses override
+         * ComputeDesiredSize instead. Caches the result keyed by availableSize and by
+         * m_MeasureDirty: calling this again on a clean widget with the same constraint is
+         * O(1) and does not touch this widget's subtree.
+         *
+         * @param availableSize Space available to this widget on each axis; an axis may be
+         * UnconstrainedSize when the caller places no limit on it.
+         * @return This widget's desired size for the given constraint.
          */
-        virtual glm::vec2 ComputeDesiredSize() = 0;
+        const glm::vec2& Measure(const glm::vec2& availableSize);
 
         /**
          * Arrange this widget in the given space. Short-circuits when the layout is clean and
@@ -41,6 +72,20 @@ namespace Elixir::GUI
          * @param allocatedSpace the space available for this widget.
          */
         void ArrangeChildren(const SRect& allocatedSpace);
+
+        /**
+         * @brief Finds the topmost widget under point and every hit-testable ancestor above it,
+         * in root -> leaf order.
+         *
+         * Descends children back-to-front (last child = highest z, see CollectDrawCommands)
+         * so the first matching branch, depth-first, wins. Prunes HitTestInvisible/Hidden/Collapsed
+         * branches entirely; skips (but still descends through) SelfHitTestInvisible widgets.
+         * Non-virtual: built on HitTestSelf and the GetChildCount/GetChildAt traversal primitives.
+         *
+         * @param point Point to test, in the same space as m_Geometry.
+         * @param path Appended with the hit path; left untouched if nothing was hit.
+         */
+        void HitTest(const glm::vec2& point, std::vector<Ref<Widget>>& path);
 
         /**
          * Get this widget's parent, or nullptr if it has none (or the parent was destroyed).
@@ -67,22 +112,33 @@ namespace Elixir::GUI
          */
         static uint64_t CurrentDirtyEpoch() { return s_DirtyEpoch; }
 
-        /* Callbacks */
-
-        void OnFocus(const std::function<void()>& callback) { m_OnFocusCallback = callback; }
-        void OnLostFocus(const std::function<void()>& callback) { m_OnLostFocusCallback = callback; }
-        void OnClick(const std::function<void()>& callback) { m_OnClickCallback = callback; }
-        void OnMouseEnter(const std::function<void()>& callback) { m_OnMouseEnterCallback = callback; }
-        void OnMouseLeave(const std::function<void()>& callback) { m_OnMouseLeaveCallback = callback; }
-        void OnMouseDown(const std::function<void()>& callback) { m_OnMouseDownCallback = callback; }
-        void OnMouseUp(const std::function<void()>& callback) { m_OnMouseUpCallback = callback; }
-
         float GetOpacity() const { return m_Opacity; }
         void SetOpacity(float opacity);
 
         EVisibility GetVisibility() const { return m_Visibility; }
         void SetVisibility(EVisibility visibility);
+
         bool IsVisible() const;
+
+        /**
+         * @brief True for whether this widget should still be drawn, regardless of whether
+         * it can be clicked.
+         * @return True for Visible/HitTestInvisible/SelfHitTestInvisible (and Opacity > 0).
+         */
+        bool IsRenderVisible() const;
+
+        /**
+         * @brief Whether this widget should still occupy a slot in its parent's layout.
+         * @return True for everything excepts Collapsed.
+         */
+        bool TakesSpace() const;
+
+        /**
+         * @brief Whether HitTest may consider THIS widget (as opposed
+         * to its children) a hit target. See the EVisibility semantics table.
+         * @return True only for Visible.
+         */
+        bool IsSelfHitTestVisible() const;
 
         glm::vec4 GetInsetShadow() const { return m_InsetShadow; }
         glm::vec4 GetDropShadow() const { return m_DropShadow; }
@@ -114,6 +170,16 @@ namespace Elixir::GUI
         bool IsPressed() const { return m_Pressed; }
         bool IsFocused() const { return m_Focused; }
 
+        /* Callbacks */
+
+        void OnFocus(const std::function<void()>& callback) { m_OnFocusCallback = callback; }
+        void OnLostFocus(const std::function<void()>& callback) { m_OnLostFocusCallback = callback; }
+        void OnClick(const std::function<void()>& callback) { m_OnClickCallback = callback; }
+        void OnMouseEnter(const std::function<void()>& callback) { m_OnMouseEnterCallback = callback; }
+        void OnMouseLeave(const std::function<void()>& callback) { m_OnMouseLeaveCallback = callback; }
+        void OnMouseDown(const std::function<void()>& callback) { m_OnMouseDownCallback = callback; }
+        void OnMouseUp(const std::function<void()>& callback) { m_OnMouseUpCallback = callback; }
+
       protected:
         /**
          * Register a widget as a child of this one: sets the child's parent back-pointer
@@ -137,7 +203,38 @@ namespace Elixir::GUI
         void DetachChild(const Ref<Widget>& child);
 
         virtual void RemoveChild(const Ref<Widget>& child) {}
-        virtual void ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const {}
+
+        /**
+         * @brief Number of direct children this widget exposes to generic tree traversal (render,
+         * HitTest, ...).
+         * Leaf widgets keep the default of zero; containers override this alongside GetChildAt.
+         * @return Number of children.
+         */
+        virtual size_t GetChildCount() const { return 0; }
+
+        /**
+         * @brief Get the direct child at the given index, in the same order/index space as
+         * GetChildCount.
+         * @param index Child index; must be in [0, GetChildCount()).
+         * @return The child widget, or nullptr if index is out of range.
+         */
+        virtual Ref<Widget> GetChildAt(size_t index) const { return nullptr; }
+
+        /**
+         * @brief Invoke fn for each direct child of this widget, in order.
+         *
+         * Non-virtual: built on GetChildCount/GetChildAt so every container gets consistent
+         * iteration for free.
+         *
+         * Does not filter by visibility.
+         *
+         * @param fn Callback invoked once per child widget.
+         */
+        void ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const;
+
+        // Compute how much space this widget wants, given the space available
+        // to it on each axis.
+        virtual glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) = 0;
 
         /**
          * Position this widget's children within its (already updated) geometry. Container
@@ -186,13 +283,24 @@ namespace Elixir::GUI
          */
         void MarkRenderDirty();
 
+        /**
+         * @brief Per-widget hit test, used by HitTest.
+         *
+         * Default hits the widget's own geometry; override for non-rectangular or
+         * custom-shaped hit areas.
+         *
+         * @param point Point to test, in the same space as m_Geometry.
+         * @return True if point is within this widget's hit area.
+         */
+        virtual bool HitTestSelf(const glm::vec2& point) const;
+
         virtual void HandleMouseEnter();
         virtual void HandleMouseLeave();
-        virtual void HandleMouseDown(const MouseButtonPressedEvent& event);
-        virtual void HandleMouseUp(const MouseButtonReleasedEvent& event);
-        virtual void HandleMouseMove(const MouseMovedEvent&  event) {}
-        virtual void HandleKeyPressed(const KeyPressedEvent& event) {}
-        virtual void HandleKeyTyped(const KeyTypedEvent& event) {}
+        virtual SInputReply HandleMouseDown(const MouseButtonPressedEvent& event);
+        virtual SInputReply HandleMouseUp(const MouseButtonReleasedEvent& event);
+        virtual SInputReply HandleMouseMove(const MouseMovedEvent&  event) { return SInputReply::Unhandled(); }
+        virtual SInputReply HandleKeyPressed(const KeyPressedEvent& event) { return SInputReply::Unhandled(); }
+        virtual SInputReply HandleKeyTyped(const KeyTypedEvent& event) { return SInputReply::Unhandled(); }
         virtual void HandleFocus();
         virtual void HandleLostFocus();
         virtual void HandleClick();
@@ -276,9 +384,11 @@ namespace Elixir::GUI
         // Bumped by MarkLayoutDirty / MarkRenderDirty.
         inline static uint64_t s_DirtyEpoch = 1;
 
-        SRect m_Geometry{};
         glm::vec2 m_DesiredSize{};
+        glm::vec2 m_LastMeasureConstraint{ -1.0f, -1.0f };
+        bool m_MeasureDirty = true;
 
+        SRect m_Geometry{};
         float m_Opacity = 1.0f;
 
         EVisibility m_Visibility = EVisibility::Visible;
@@ -344,12 +454,9 @@ namespace Elixir::GUI
          */
         void RemoveChild(const Ref<Widget>& child) override;
 
-        /**
-         * Invoke fn with this widget's content, if any. Calls fn at most once, since a
-         * ContentWidget hosts a single child; no-op when there is no content.
-         * @param fn callback invoked with the content widget.
-         */
-        void ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const override;
+        size_t GetChildCount() const override { return m_ContentSlot ? 1 : 0; }
+
+        Ref<Widget> GetChildAt(size_t index) const override;
 
         Ref<ContentSlot> m_ContentSlot;
     };

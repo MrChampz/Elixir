@@ -19,33 +19,42 @@ namespace Elixir::GUI
         BindShaderParameters();
     }
 
-    void TextRenderPass::GenerateDrawCommands(const RenderBatch& batch)
+    void TextRenderPass::BeginFrame()
     {
         m_Quads.clear();
+    }
 
-        for (const auto& drawCmd : batch.GetCommands())
-        {
-            switch (drawCmd.Type)
-            {
-                case SDrawCommand::EType::Text:
-                    BuildTextGeometry(drawCmd);
-                    break;
-                default:
-                    break;
-            }
-        }
-
+    void TextRenderPass::EndFrame()
+    {
         if (!m_Quads.empty())
         {
             m_QuadBuffer->UpdateData(m_Quads.data(),  m_Quads.size() * sizeof(SQuad));
         }
     }
 
-    void TextRenderPass::Render(const Ref<CommandBuffer>& cmd)
+    uint32_t TextRenderPass::AppendRange(const std::span<const SDrawCommand> commands)
+    {
+        const auto firstInstance = (uint32_t)m_Quads.size();
+
+        for (const auto& drawCmd : commands)
+            BuildTextGeometry(drawCmd);
+
+        return firstInstance;
+    }
+
+    void TextRenderPass::Bind(const Ref<CommandBuffer>& cmd)
     {
         m_Pipeline->Bind(cmd);
         m_QuadBuffer->Bind(cmd);
-        cmd->Draw(6, m_Quads.size());
+    }
+
+    void TextRenderPass::Render(
+        const Ref<CommandBuffer>& cmd,
+        const uint32_t firstInstance,
+        const uint32_t instanceCount
+    )
+    {
+        cmd->Draw(6, instanceCount, 0, firstInstance);
     }
 
     bool TextRenderPass::HasData() const
@@ -56,6 +65,16 @@ namespace Elixir::GUI
     void TextRenderPass::Clear()
     {
         m_Quads.clear();
+    }
+
+    uint32_t TextRenderPass::GetInstanceCount() const
+    {
+        return (uint32_t)m_Quads.size();
+    }
+
+    EDrawCommandType TextRenderPass::GetHandleType() const
+    {
+        return EDrawCommandType::Text;
     }
 
     void TextRenderPass::InitRenderPass(const ShaderLoader* shaderLoader)

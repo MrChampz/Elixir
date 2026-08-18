@@ -68,17 +68,25 @@ namespace Elixir::GUI
 
     enum class EHorizontalAlignment : uint8_t
     {
-        Left, Center, Right
+        Left, Center, Right, Fill
     };
 
     enum class EVerticalAlignment : uint8_t
     {
-        Top, Center, Bottom
+        Top, Center, Bottom, Fill
     };
 
+    /**
+     * @brief Controls whether a widget renders, occupies layout space, and receives
+     * hit-tests.
+     */
     enum class EVisibility : uint8_t
     {
-        Visible, Hidden
+        Visible,
+        HitTestInvisible,
+        SelfHitTestInvisible,
+        Hidden,
+        Collapsed
     };
 
     struct SMargin
@@ -115,6 +123,31 @@ namespace Elixir::GUI
     };
 
     typedef SMargin SPadding;
+
+    /**
+     * @brief How a LayoutSlot sizes its child along the owner's MAIN axis.
+     *
+     * VerticalBox: height;
+     * HorizontalBox: width;
+     * Overlay: ignores this - it has no main axis.
+     *
+     * The cross axis is sized independently, via EHorizontalAlignment::Fill /
+     * EVerticalAlignment::Fill on the same slot.
+     */
+    struct SSizeParam
+    {
+        enum class ERule : uint8_t
+        {
+            Auto, Fill, Fixed
+        };
+
+        ERule Rule = ERule::Auto;
+        float Value = 1.0f; // Fill: proportion; Fixed: pixels; Auto: ignored.
+
+        static SSizeParam Auto() { return { ERule::Auto, 0.0f }; }
+        static SSizeParam Fill(const float ratio = 1.0f) { return { ERule::Fill, ratio }; }
+        static SSizeParam Fixed(const float pixels) { return { ERule::Fixed, pixels }; }
+    };
 
     struct SAnchors
     {

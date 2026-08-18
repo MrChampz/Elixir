@@ -18,33 +18,45 @@ namespace Elixir::GUI
         BindShaderParameters();
     }
 
-    void DebugRenderPass::GenerateDrawCommands(const RenderBatch& batch)
+    void DebugRenderPass::BeginFrame()
     {
         m_Vertices.clear();
-
-        for (const auto& drawCmd : batch.GetCommands())
-        {
-            switch (drawCmd.Type)
-            {
-                case SDrawCommand::EType::DebugRect:
-                    BuildDebugRectGeometry(drawCmd);
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        if (!m_Vertices.empty())
-        {
-            m_VertexBuffer->UpdateData(m_Vertices.data(), m_Vertices.size() * sizeof(SVertex));
-        }
     }
 
-    void DebugRenderPass::Render(const Ref<CommandBuffer>& cmd)
+    void DebugRenderPass::EndFrame()
+    {
+        if (!m_Vertices.empty())
+            m_VertexBuffer->UpdateData(
+                m_Vertices.data(),
+                m_Vertices.size() * sizeof(SVertex)
+            );
+    }
+
+    uint32_t DebugRenderPass::AppendRange(std::span<const SDrawCommand> commands)
+    {
+        const auto firstVertex = (uint32_t)m_Vertices.size();
+
+        for (const auto& drawCmd : commands)
+            BuildDebugRectGeometry(drawCmd);
+
+        return firstVertex;
+    }
+
+    void DebugRenderPass::Bind(const Ref<CommandBuffer>& cmd)
     {
         m_Pipeline->Bind(cmd);
         m_VertexBuffer->Bind(cmd);
-        cmd->Draw(m_Vertices.size());
+    }
+
+    void DebugRenderPass::Render(
+        const Ref<CommandBuffer>& cmd,
+        const uint32_t firstInstance,
+        const uint32_t instanceCount
+    )
+    {
+        // Non-instanced LineList draw: reinterpret the generic firstInstance/instanceCount
+        // range as firstVertex/vertexCount, matching what AppendRange produced above.
+        cmd->Draw(instanceCount, 1, firstInstance, 0);
     }
 
     bool DebugRenderPass::HasData() const
@@ -55,6 +67,16 @@ namespace Elixir::GUI
     void DebugRenderPass::Clear()
     {
         m_Vertices.clear();
+    }
+
+    uint32_t DebugRenderPass::GetInstanceCount() const
+    {
+        return (uint32_t)m_Vertices.size();
+    }
+
+    EDrawCommandType DebugRenderPass::GetHandleType() const
+    {
+        return EDrawCommandType::DebugRect;
     }
 
     void DebugRenderPass::InitRenderPass(const ShaderLoader* shaderLoader)

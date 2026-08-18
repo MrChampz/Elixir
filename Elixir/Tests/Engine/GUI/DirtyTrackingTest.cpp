@@ -147,31 +147,22 @@ TEST(DirtyTrackingTest, SettingSameVisibilityDoesNotInvalidate)
     EXPECT_TRUE(root->IsLayoutDirty());
 }
 
-TEST(DirtyTrackingTest, StretchToggleInvalidatesLayout)
+TEST(DirtyTrackingTest, SizeRuleChangeInvalidatesLayout)
 {
     const auto root  = CreateRef<VerticalBox>();
     const auto child = CreateRef<CountingWidget>();
-    root->AddChild(child);
+    LayoutSlot& slot = root->AddChild(child);
 
     Arrange(root, { { 0, 0 }, { 100, 100 } });
     ASSERT_FALSE(root->IsLayoutDirty());
 
-    // Toggling stretch changes how children are sized -> must invalidate layout.
-    root->SetStretching(!root->IsStretching());
+    // Changing how a slot is sized changes the owner's layout -> must invalidate.
+    // NOTE: unlike the old panel-level m_Stretching (removed by this point), LayoutSlot's
+    // setters have no "same value" guard, so there is no per-slot equivalent of the old
+    // SettingSameStretchDoesNotInvalidate test to keep. Judgment call, flagged for review
+    // in the refactor plan (Docs/GUI-Refactor/04-slot-sizing.html, section 6).
+    slot.SetFillSize();
     EXPECT_TRUE(root->IsLayoutDirty());
-}
-
-TEST(DirtyTrackingTest, SettingSameStretchDoesNotInvalidate)
-{
-    const auto root = CreateRef<VerticalBox>();
-    root->AddChild(CreateRef<CountingWidget>());
-
-    Arrange(root, { { 0, 0 }, { 100, 100 } });
-    ASSERT_FALSE(root->IsLayoutDirty());
-
-    // Same value -> guard prevents needless invalidation.
-    root->SetStretching(root->IsStretching());
-    EXPECT_FALSE(root->IsLayoutDirty());
 }
 
 TEST(DirtyTrackingTest, SlotMetadataSetterInvalidatesOwnerNotChild)

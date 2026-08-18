@@ -12,8 +12,6 @@ namespace Elixir::GUI
 
         void Update(Timestep frameTime) override;
 
-        glm::vec2 ComputeDesiredSize() override;
-
         /* Callbacks */
 
         void OnChange(const std::function<void(const std::string&)>& callback)
@@ -79,15 +77,16 @@ namespace Elixir::GUI
         void SetSelectionColor(const SColor& color);
 
     protected:
+        glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) override;
         void LayoutChildren(const SRect& allocatedSpace) override;
         void BuildDrawCommands(RenderBatch& batch, int zOrder) override;
 
         void HandleMouseEnter() override;
         void HandleMouseLeave() override;
-        void HandleMouseDown(const MouseButtonPressedEvent& event) override;
-        void HandleMouseMove(const MouseMovedEvent& event) override;
-        void HandleKeyPressed(const KeyPressedEvent& event) override;
-        void HandleKeyTyped(const KeyTypedEvent& event) override;
+        SInputReply HandleMouseDown(const MouseButtonPressedEvent& event) override;
+        SInputReply HandleMouseMove(const MouseMovedEvent& event) override;
+        SInputReply HandleKeyPressed(const KeyPressedEvent& event) override;
+        SInputReply HandleKeyTyped(const KeyTypedEvent& event) override;
         void HandleFocus() override;
         void HandleLostFocus() override;
 
@@ -158,6 +157,8 @@ namespace Elixir::GUI
         size_t m_SelectionStart = -1;
         size_t m_SelectionEnd = -1;
         SColor m_SelectionColor = { 0.3f, 0.5f, 1.0f, 0.4f };
+
+        glm::vec2 m_MinDesiredSize{ 120.0f, 30.0f };
 
         // Callbacks
         std::function<void(const std::string&)> m_OnChangeCallback;

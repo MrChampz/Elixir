@@ -61,8 +61,8 @@ TEST(WidgetLifetimeTest, ReparentingDetachesFromPreviousContainer)
     boxA->AddChild(child);
     boxB->AddChild(child);
 
-    EXPECT_TRUE(boxA->GetSlots().empty());
-    EXPECT_EQ(boxB->GetSlots().size(), 1u);
+    EXPECT_EQ(boxA->GetSlotCount(), 0u);
+    EXPECT_EQ(boxB->GetSlotCount(), 1u);
 
     Arrange(boxA, { { 0, 0 }, { 100, 100 } });
     Arrange(boxB, { { 0, 0 }, { 100, 100 } });

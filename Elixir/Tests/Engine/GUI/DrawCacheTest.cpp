@@ -19,7 +19,7 @@ namespace
       public:
         int BuildCount = 0;
 
-        glm::vec2 ComputeDesiredSize() override { return {}; }
+        glm::vec2 ComputeDesiredSize(const glm::vec2&) override { return {}; }
 
         using Widget::MarkRenderDirty;
 
@@ -34,7 +34,7 @@ namespace
       public:
         LayeredWidget(const SColor& color, const int layers) : m_Color(color), m_Layers(layers) {}
 
-        glm::vec2 ComputeDesiredSize() override { return {}; }
+        glm::vec2 ComputeDesiredSize(const glm::vec2&) override { return {}; }
 
       protected:
         void BuildDrawCommands(RenderBatch& batch, const int zOrder) override
@@ -102,8 +102,7 @@ TEST(DrawCacheTest, GeometryChangeRebuildsCache)
 {
     const auto box = CreateRef<VerticalBox>();
     const auto child = CreateRef<CountingDrawWidget>();
-    box->SetStretching(true);   // the child width tracks the box width
-    box->AddChild(child);
+    box->AddChild(child).SetHorizontalAlignment(EHorizontalAlignment::Fill);   // the child width tracks the box width
 
     Arrange(box, { { 0, 0 }, { 100, 100 } });
     AssembleFrame(box);
