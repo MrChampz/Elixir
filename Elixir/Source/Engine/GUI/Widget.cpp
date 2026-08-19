@@ -202,7 +202,7 @@ namespace Elixir::GUI
     {
         for (size_t i = 0; i < GetChildCount(); ++i)
         {
-            if (const Ref<Widget> child = GetChildAt(i); ++i)
+            if (const Ref<Widget> child = GetChildAt(i))
                 fn(child);
         }
     }
