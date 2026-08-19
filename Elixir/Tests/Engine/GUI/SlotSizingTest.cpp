@@ -1,0 +1,79 @@
+#include <gtest/gtest.h>
+using namespace testing;
+
+#include "WidgetTestUtils.h"
+
+#include <Engine/GUI/VerticalBox.h>
+#include <Engine/GUI/HorizontalBox.h>
+using namespace Elixir;
+using namespace Elixir::GUI;
+
+// Regression coverage for a real bug: VerticalBox/HorizontalBox::ComputeDesiredSize summed
+// each child's raw Measure() result regardless of its slot's SSizeParam rule, while
+// LayoutChildren correctly used the slot's configured pixel size for Fixed children. A Fixed
+// child whose content measures smaller than its configured size made the container (and
+// anything reading its desired size, e.g. a ScrollBox wrapping it) under-report how much
+// space it actually occupies - which is exactly how a real ScrollBox ended up thinking its
+// content fit the viewport when it didn't, and silently refused to scroll.
+
+TEST(SlotSizingTest, VerticalBoxDesiredSizeUsesFixedSlotSizeNotMeasuredSize)
+{
+    const auto box = CreateRef<VerticalBox>();
+
+    // CountingWidget measures to 10x10 - far smaller than the 26px the slot is fixed to.
+    const auto a = CreateRef<CountingWidget>(glm::vec2{ 10.0f, 10.0f });
+    const auto b = CreateRef<CountingWidget>(glm::vec2{ 10.0f, 10.0f });
+    box->AddChild(a).SetFixedSize(26.0f);
+    box->AddChild(b).SetFixedSize(26.0f);
+
+    const glm::vec2 desired = box->Measure({ 100.0f, UnconstrainedSize });
+
+    // Bug: this used to be 20 (10 + 10, the measured heights) instead of 52 (26 + 26, the
+    // configured Fixed sizes) - the same undercount that made a real ScrollBox never scroll.
+    EXPECT_FLOAT_EQ(desired.y, 52.0f);
+}
+
+TEST(SlotSizingTest, HorizontalBoxDesiredSizeUsesFixedSlotSizeNotMeasuredSize)
+{
+    const auto box = CreateRef<HorizontalBox>();
+
+    const auto a = CreateRef<CountingWidget>(glm::vec2{ 10.0f, 10.0f });
+    const auto b = CreateRef<CountingWidget>(glm::vec2{ 10.0f, 10.0f });
+    box->AddChild(a).SetFixedSize(26.0f);
+    box->AddChild(b).SetFixedSize(26.0f);
+
+    const glm::vec2 desired = box->Measure({ UnconstrainedSize, 100.0f });
+
+    EXPECT_FLOAT_EQ(desired.x, 52.0f);
+}
+
+TEST(SlotSizingTest, VerticalBoxDesiredSizeStillUsesMeasuredSizeForAutoSlots)
+{
+    const auto box = CreateRef<VerticalBox>();
+
+    // Auto is the default slot rule - no explicit SetAutoSize() call needed.
+    const auto a = CreateRef<CountingWidget>(glm::vec2{ 15.0f, 15.0f });
+    const auto b = CreateRef<CountingWidget>(glm::vec2{ 15.0f, 15.0f });
+    box->AddChild(a);
+    box->AddChild(b);
+
+    const glm::vec2 desired = box->Measure({ 100.0f, UnconstrainedSize });
+
+    EXPECT_FLOAT_EQ(desired.y, 30.0f);
+}
+
+TEST(SlotSizingTest, VerticalBoxDesiredSizeIgnoresFillSlotMeasuredSize)
+{
+    const auto box = CreateRef<VerticalBox>();
+
+    // A Fill slot has no intrinsic size - it stretches into whatever LayoutChildren hands
+    // it - so its measured size must not contribute to the container's own desired size.
+    const auto a = CreateRef<CountingWidget>(glm::vec2{ 10.0f, 10.0f });
+    const auto b = CreateRef<CountingWidget>(glm::vec2{ 500.0f, 500.0f });
+    box->AddChild(a).SetAutoSize();
+    box->AddChild(b).SetFillSize();
+
+    const glm::vec2 desired = box->Measure({ 100.0f, UnconstrainedSize });
+
+    EXPECT_FLOAT_EQ(desired.y, 10.0f);
+}

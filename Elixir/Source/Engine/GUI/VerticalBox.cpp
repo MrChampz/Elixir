@@ -17,6 +17,7 @@ namespace Elixir::GUI
             if (!slot->GetWidget()->TakesSpace()) continue;
 
             const auto margin = slot->GetMargin();
+            const auto sizeRule = slot->GetSizeRule();
 
             const glm::vec2 childConstraint = {
                 innerAvailable.x - margin.GetTotalHorizontal(),
@@ -24,16 +25,32 @@ namespace Elixir::GUI
             };
 
             auto childSize = slot->GetWidget()->Measure(childConstraint);
-
-            // Add margin
             childSize.x += margin.GetTotalHorizontal();
-            childSize.y += margin.GetTotalVertical();
 
             // Width is the maximum
             totalSize.x = std::max(totalSize.x, childSize.x);
 
-            // Height accumulates
-            totalSize.y += childSize.y;
+            // Height accumulates using the SAME per-slot rule LayoutChildren applies below,
+            // not the raw measured size: a Fixed slot occupies its configured pixels
+            // regardless of what its content measures to, and a Fill slot has no intrinsic
+            // size of its own - it just stretches into whatever LayoutChildren ends up
+            // giving it - so only Auto slots use their measured height. Using the raw
+            // measured height unconditionally here made a container (and anything reading
+            // its desired size, e.g. a ScrollBox wrapping it) under-report how much space it
+            // actually occupies whenever a Fixed slot's content measured smaller than its
+            // configured size.
+            switch (sizeRule.Rule)
+            {
+                case SSizeParam::ERule::Fill:
+                    break;
+                case SSizeParam::ERule::Fixed:
+                    totalSize.y += sizeRule.Value + margin.GetTotalVertical();
+                    break;
+                case SSizeParam::ERule::Auto:
+                default:
+                    totalSize.y += childSize.y + margin.GetTotalVertical();
+                    break;
+            }
         }
 
         // Add panel padding
