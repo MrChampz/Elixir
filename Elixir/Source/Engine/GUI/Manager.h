@@ -7,6 +7,21 @@
 
 namespace Elixir::GUI
 {
+    /**
+     * @brief One stacked layer of the UI.
+     *
+     * Index 0 in Manager::m_Layers is the always-present UI root (screen sized, filled by
+     * SetRoot); anything above it is a popup (dropdown menu, tooltip, modal, ...) anchored
+     * to a rect from  the layer below it and rendered, hit-tested and dismissed independently
+     * of it.
+     */
+    struct SLayer
+    {
+        Ref<Widget> Root;
+        SRect Anchor;
+        bool DismissOnClickOutside = true;
+    };
+
     class ELIXIR_API Manager
     {
     public:
@@ -23,10 +38,38 @@ namespace Elixir::GUI
 
         void ProcessEvent(Event& event);
 
-        void SetRoot(const Ref<Panel>& root)
-        {
-            m_RootWidget = root;
-        }
+        void SetRoot(const Ref<Panel>& root);
+
+        /**
+         * @brief Push a new popup layer on top of the stack, anchored to a screen-space rect.
+         *
+         * (Typically the geometry of the widget that opened it, e.g. a menu bar button).
+         *
+         * Arranged immediately against the last extent ArrangeLayout ran with, so it has
+         * correct geometry even before the next ArrangeLayout call.
+         *
+         * @param widget Root widget of the popup's own subtree.
+         * @param anchor Screen-space rect the popup is positioned relative to.
+         */
+        void PushPopup(const Ref<Widget>& widget, const SRect& anchor);
+
+        /**
+         * @brief Pop the topmost popup layer.
+         *
+         * No-op when there are no popups - layer 0, the UI root, is never popped this way.
+         */
+        void PopPopup();
+
+        /**
+         * @brief Pop every popup layers, leaving only the UI root.
+         */
+        void ClearPopups();
+
+        /**
+         * @brief Get the number of stacked popup layers above the root layer.
+         * @return Number of popup layers currently stacked above the root layer (0 if none).
+         */
+        size_t GetPopupCount() const { return m_Layers.empty() ? 0 : m_Layers.size() - 1; }
 
         /**
          * @brief True if the GUI currently wants mouse input: the hover path is non-empty or
@@ -52,6 +95,10 @@ namespace Elixir::GUI
         bool HandleKeyPressed(const KeyPressedEvent& event) const;
         bool HandleKeyTyped(const KeyTypedEvent& event) const;
 
+        // Bubbles a wheel tick leaf -> root over m_HoverPath, stopping at the first
+        // widget whose HandleMouseScrolled reports EventHandled.
+        bool HandleMouseScrolled(const MouseScrolledEvent& event) const;
+
         void ProcessInput();
 
         // Diffs the freshly hit-tested path against m_HoverPath, firing HandleMouseLeave
@@ -75,10 +122,29 @@ namespace Elixir::GUI
         // focused widget actually changes; widget may be nullptr to clear focus.
         void SetFocusedWidget(const Ref<Widget>& widget);
 
+        // Topmost layer whose geometry contains point; falls back to layer 0 (the UI root
+        // always "hits" - its geometry covers the whole screen).
+        const SLayer& GetTopmostHitLayer(const glm::vec2& point) const;
+
+        // Pops layers from the top while DismissOnClickOutside is set and the layer's
+        // geometry does not contain point. Stops at the first layer that either contains
+        // the point or opted out of dismiss-on-click-outside.
+        void DismissPopupsOutside(const glm::vec2& point);
+
+        // anchor + a popup's own desired size -> a rect that fits on screen: opens below
+        // the anchor by default, flips above when it wouldn't fit below, and is finally
+        // clamped fully inside screenRect as a last resort.
+        static SRect ComputePopupRect(
+            const SRect& anchor,
+            const glm::vec2& desiredSize,
+            const SRect& screenRect
+        );
+
         Scope<Renderer> m_Renderer;
         RenderBatch m_RenderBatch;
 
-        Ref<Panel> m_RootWidget;
+        // Index 0 is the UI root; anything above it is a popup, topmost last.
+        std::vector<SLayer> m_Layers;
 
         // Widgets currently under the cursor, root -> leaf. Diffed every frame in
         // UpdateHoverPath to drive HandleMouseEnter/HandleMouseLeave.
@@ -102,12 +168,21 @@ namespace Elixir::GUI
         bool m_MouseReleased = false;
         bool m_MouseMoved = false;
 
+        // Last extent passed to ArrangeLayout, so a popup pushed mid-frame (after this
+        // frame's ArrangeLayout already ran) can still be arranged immediately instead of
+        // rendering at a stale {0,0} geometry for one frame.
+        mutable Extent2D m_LastExtent{};
+
         // Dirty epoch of the last frame we assembled + uploaded. When it still matches the
         // current epoch, the batch and GPU buffers are reused and only the draws are re-issued.
         uint64_t m_LastRenderedEpoch = 0;
 
-        // Tracks the last rendered panel, so when changed, can rebuild the render batch.
-        WeakRef<Panel> m_LastRenderedRoot;
+        // Bumped on every layer stack mutation (SetRoot, PushPopup, PopPopup, ClearPopups).
+        // A layer change doesn't necessarily bump Widget::CurrentDirtyEpoch - a freshly built
+        // popup subtree starts dirty by construction, without ever calling MarkLayoutDirty -
+        // so the epoch comparison alone can't detect "a popup was opened"; this can.
+        uint64_t m_LayerStackVersion = 0;
+        uint64_t m_LastRenderedLayerVersion = 0;
 
         bool m_Initialized = false;
     };

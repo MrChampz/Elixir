@@ -10,7 +10,7 @@ namespace Elixir::GUI
         constexpr int DEBUG_Z_ORDER = std::numeric_limits<int>::max();
     }
 
-    void RenderBatch::Append(const RenderBatch& other, const int zOffset)
+    void RenderBatch::Append(const RenderBatch& other, const int zOffset, const SRect& clipRect)
     {
         m_Commands.reserve(m_Commands.size() + other.m_Commands.size());
         for (const auto& command : other.m_Commands)
@@ -18,6 +18,18 @@ namespace Elixir::GUI
             m_Commands.push_back(command);
             auto& cmd = m_Commands.back();
             cmd.ZOrder += zOffset;
+
+            if (cmd.ScissorRect.IsValid())
+            {
+                // Own ad-hoc scissor (Button/TextField clipping their own label to their own
+                // bounds) narrowed further by whatever the caller inherited from its ancestors.
+                if (clipRect.IsValid())
+                    cmd.ScissorRect = SRect::Intersect(cmd.ScissorRect, clipRect);
+            }
+            else if (clipRect.IsValid())
+            {
+                cmd.ScissorRect = clipRect;
+            }
         }
     }
 

@@ -14,21 +14,6 @@ namespace Elixir::GUI
         }
     }
 
-    void Panel::RemoveChild(const Ref<Widget>& child)
-    {
-        if (!child) return;
-
-        for (size_t i = 0; i < GetSlotCount(); ++i)
-        {
-            if (GetSlotAt(i)->GetWidget() == child)
-            {
-                RemoveSlotAt(i);
-                DetachChild(child);
-                break;
-            }
-        }
-    }
-
     void Panel::ClearChildren()
     {
         if (GetSlotCount() == 0) return;
@@ -63,6 +48,21 @@ namespace Elixir::GUI
     {
         if (index >= GetSlotCount()) return nullptr;
         return GetSlotAt(index)->GetWidget();
+    }
+
+    void Panel::RemoveChild(const Ref<Widget>& child)
+    {
+        if (!child) return;
+
+        for (size_t i = 0; i < GetSlotCount(); ++i)
+        {
+            if (GetSlotAt(i)->GetWidget() == child)
+            {
+                RemoveSlotAt(i);
+                DetachChild(child);
+                break;
+            }
+        }
     }
 
     void Panel::BuildDrawCommands(RenderBatch& batch, const int zOrder)

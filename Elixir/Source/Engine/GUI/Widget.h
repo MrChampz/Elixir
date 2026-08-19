@@ -254,11 +254,23 @@ namespace Elixir::GUI
          * starts above this widget's whole subtree — so sibling subtrees never overlap
          * in z.
          *
+         * Also threads the ancestor clip rect: applied at Append time (not baked into
+         * m_CachedCommands by BuildDrawCommands), so changing a ScrollBox's scroll offset -
+         * or anything else that only moves an ancestor's clip - never has to invalidate a
+         * descendant's command cache. See ClipsChildren.
+         *
          * @param batch destination batch.
          * @param zCursor running layer index; advanced past everything this subtree.
          * @param rebuilt set to true if any widget's command cache was regenerated.
+         * @param clipRect Clip rect inherited from ancestors; the invalid
+         * {-1, -1}/{-1, -1} sentinel (see SRect::IsValid) means "no clip".
          */
-        void CollectDrawCommands(RenderBatch& batch, int& zCursor, bool& rebuilt);
+        void CollectDrawCommands(
+            RenderBatch& batch,
+            int& zCursor,
+            bool& rebuilt,
+            const SRect& clipRect
+        );
 
         /**
          * Build the draw commands for THIS widget only (no children). Containers emit their
@@ -268,6 +280,17 @@ namespace Elixir::GUI
          * @param zOrder z-order for layering, relative to this widget.
          */
         virtual void BuildDrawCommands(RenderBatch& batch, int zOrder) {}
+
+        /**
+         * @brief Whether this widget clips its children to its own geometry.
+         *
+         * A container that returns true (e.g. ScrollBox) intersects m_Geometry with
+         * whatever clip it inherited and hands the result down to CollectDrawCommands for
+         * each child; everyone else (default) just forwards the intersected clip unchanged.
+         *
+         * @return True if this widget's own bounds should clip its children.
+         */
+        virtual bool ClipsChildren() const { return false; }
 
         /**
          * Mark this widget's layout as dirty and propagate the mark to ancestors.
@@ -299,6 +322,7 @@ namespace Elixir::GUI
         virtual SInputReply HandleMouseDown(const MouseButtonPressedEvent& event);
         virtual SInputReply HandleMouseUp(const MouseButtonReleasedEvent& event);
         virtual SInputReply HandleMouseMove(const MouseMovedEvent&  event) { return SInputReply::Unhandled(); }
+        virtual SInputReply HandleMouseScrolled(const MouseScrolledEvent& event) { return SInputReply::Unhandled(); }
         virtual SInputReply HandleKeyPressed(const KeyPressedEvent& event) { return SInputReply::Unhandled(); }
         virtual SInputReply HandleKeyTyped(const KeyTypedEvent& event) { return SInputReply::Unhandled(); }
         virtual void HandleFocus();

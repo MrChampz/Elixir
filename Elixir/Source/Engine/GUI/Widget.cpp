@@ -207,7 +207,12 @@ namespace Elixir::GUI
         }
     }
 
-    void Widget::CollectDrawCommands(RenderBatch& batch, int& zCursor, bool& rebuilt)
+    void Widget::CollectDrawCommands(
+        RenderBatch& batch,
+        int& zCursor,
+        bool& rebuilt,
+        const SRect& clipRect
+    )
     {
         if (!IsRenderVisible()) return;
 
@@ -221,13 +226,29 @@ namespace Elixir::GUI
         }
 
         // Own commands occupy [zCursor, zCursor + span); advance so children stack above,
-        // and the next sibling starts above this whole subtree.
-        batch.Append(m_CachedCommands, zCursor);
+        // and the next sibling starts above this whole subtree. The ancestor clip is applied
+        // here, at Append time, rather than baked into m_CachedCommands: this widget's own
+        // visual content and the clip it happens to sit under are independent, and
+        // MarkRenderDirty never propagates to descendants (only MarkLayoutDirty does, and
+        // only upward) - so nothing would tell an otherwise-unchanged widget "an ancestor's
+        // clip moved, rebuild yourself". CollectDrawCommands already walks every visible
+        // widget on every rebuild regardless, so intersecting the clip here costs nothing
+        // extra; baking it into BuildDrawCommands would require a new downward invalidation
+        // pass to avoid going stale.
+        batch.Append(m_CachedCommands, zCursor, clipRect);
         zCursor += m_CachedCommands.LayerSpan();
+
+        // A clipping container (e.g. ScrollBox) intersects its own bounds with whatever clip
+        // it inherited and hands that down; everyone else just forwards the inherited clip
+        // unchanged. With no inherited clip yet (root, or the first clipping ancestor in the
+        // chain), the container's own geometry becomes the clip outright.
+        const SRect childClipRect = ClipsChildren()
+            ? (clipRect.IsValid() ? SRect::Intersect(m_Geometry, clipRect) : m_Geometry)
+            : clipRect;
 
         ForEachChild([&](const Ref<Widget>& child)
         {
-            child->CollectDrawCommands(batch, zCursor, rebuilt);
+            child->CollectDrawCommands(batch, zCursor, rebuilt, childClipRect);
         });
     }
 

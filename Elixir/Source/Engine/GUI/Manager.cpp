@@ -24,10 +24,22 @@ namespace Elixir::GUI
 
     void Manager::ArrangeLayout(const Extent2D& extent) const
     {
-        if (m_RootWidget)
+        m_LastExtent = extent;
+
+        if (m_Layers.empty() || !m_Layers[0].Root)
+            return;
+
+        const SRect screenRect = { { 0, 0 }, { extent.Width, extent.Height } };
+        m_Layers[0].Root->ArrangeChildren(screenRect);
+
+        for (size_t i = 1; i < m_Layers.size(); ++i)
         {
-            const SRect rootGeometry = { { 0, 0 }, { extent.Width, extent.Height } };
-            m_RootWidget->ArrangeChildren(rootGeometry);
+            const auto& layer = m_Layers[i];
+            if (!layer.Root) continue;
+
+            const glm::vec2 desiredSize = layer.Root->Measure({ UnconstrainedSize, UnconstrainedSize });
+            const SRect popupRect = ComputePopupRect(layer.Anchor, desiredSize, screenRect);
+            layer.Root->ArrangeChildren(popupRect);
         }
     }
 
@@ -35,13 +47,17 @@ namespace Elixir::GUI
     {
         ProcessInput();
 
-        if (m_RootWidget)
-            m_RootWidget->Update(frameTime);
+        for (const auto& layer : m_Layers)
+        {
+            if (layer.Root)
+                layer.Root->Update(frameTime);
+        }
     }
 
     void Manager::Render()
     {
-        if (!m_RootWidget || !m_RootWidget->IsRenderVisible()) return;
+        if (m_Layers.empty() || !m_Layers[0].Root || !m_Layers[0].Root->IsRenderVisible())
+            return;
 
         if (NeedsRebuild())
         {
@@ -59,6 +75,47 @@ namespace Elixir::GUI
         dispatcher.Dispatch<FramebufferResizeEvent>(EE_BIND_EVENT_FN(Manager::HandleFramebufferResize));
         dispatcher.Dispatch<KeyPressedEvent>(EE_BIND_EVENT_FN(Manager::HandleKeyPressed));
         dispatcher.Dispatch<KeyTypedEvent>(EE_BIND_EVENT_FN(Manager::HandleKeyTyped));
+        dispatcher.Dispatch<MouseScrolledEvent>(EE_BIND_EVENT_FN(Manager::HandleMouseScrolled));
+    }
+
+    void Manager::SetRoot(const Ref<Panel>& root)
+    {
+        if (m_Layers.empty())
+            m_Layers.push_back({ root, {}, false });
+        else
+            m_Layers[0] = { root, {}, false };
+
+        ++m_LayerStackVersion;
+    }
+
+    void Manager::PushPopup(const Ref<Widget>& widget, const SRect& anchor)
+    {
+        m_Layers.push_back({ widget, anchor, true });
+        ++m_LayerStackVersion;
+
+        if (widget)
+        {
+            const SRect screenRect = { { 0, 0 }, { m_LastExtent.Width, m_LastExtent.Height } };
+            const glm::vec2 desiredSize = widget->Measure({ UnconstrainedSize, UnconstrainedSize });
+            const SRect popupRect = ComputePopupRect(anchor, desiredSize, screenRect);
+            widget->ArrangeChildren(popupRect);
+        }
+    }
+
+    void Manager::PopPopup()
+    {
+        if (m_Layers.size() <= 1) return;
+
+        m_Layers.pop_back();
+        ++m_LayerStackVersion;
+    }
+
+    void Manager::ClearPopups()
+    {
+        if (m_Layers.size() <= 1) return;
+
+        m_Layers.resize(1);
+        ++m_LayerStackVersion;
     }
 
     bool Manager::WantsMouse() const
@@ -70,11 +127,22 @@ namespace Elixir::GUI
     {
         m_RenderBatch.Clear();
 
-        if (m_RootWidget && m_RootWidget->IsRenderVisible())
+        int zCursor = 0;
+        bool rebuilt = false;
+
+        // Same zCursor continuing across layers: layer 0 occupies the low z-bands, and each
+        // popup above it starts its own CollectDrawCommands walk above everything the layers
+        // below it used — reusing the existing per-subtree z-banding, so popups always end
+        // up on top without a magic z offset.
+        for (const auto& layer : m_Layers)
         {
-            int zCursor = 0;
-            bool rebuilt = false;
-            m_RootWidget->CollectDrawCommands(m_RenderBatch, zCursor, rebuilt);
+            if (layer.Root && layer.Root->IsRenderVisible())
+                layer.Root->CollectDrawCommands(
+                    m_RenderBatch,
+                    zCursor,
+                    rebuilt,
+                    {{ -1, -1 }, { -1, -1 }}
+                );
         }
 
         m_RenderBatch.Sort();
@@ -83,13 +151,13 @@ namespace Elixir::GUI
     bool Manager::NeedsRebuild() const
     {
         return Widget::CurrentDirtyEpoch() != m_LastRenderedEpoch
-            || m_LastRenderedRoot.lock() != m_RootWidget;
+            || m_LayerStackVersion != m_LastRenderedLayerVersion;
     }
 
     void Manager::MarkRebuilt()
     {
         m_LastRenderedEpoch = Widget::CurrentDirtyEpoch();
-        m_LastRenderedRoot = m_RootWidget;
+        m_LastRenderedLayerVersion = m_LayerStackVersion;
     }
 
     bool Manager::HandleFramebufferResize(const FramebufferResizeEvent& event) const
@@ -122,6 +190,17 @@ namespace Elixir::GUI
         return false;
     }
 
+    bool Manager::HandleMouseScrolled(const MouseScrolledEvent& event) const
+    {
+        for (auto it = m_HoverPath.rbegin(); it != m_HoverPath.rend(); ++it)
+        {
+            if ((*it)->HandleMouseScrolled(event).EventHandled)
+                return true;
+        }
+
+        return false;
+    }
+
     void Manager::ProcessInput()
     {
         const auto [x, y] = InputManager::GetMousePosition();
@@ -135,10 +214,16 @@ namespace Elixir::GUI
         m_MouseReleased = !isMouseDown && m_WasMouseDown;
         m_WasMouseDown = isMouseDown;
 
-        if (!m_RootWidget) return;
+        if (m_Layers.empty()) return;
+
+        if (m_MousePressed)
+            DismissPopupsOutside(m_MousePos);
+
+        const Ref<Widget>& activeRoot = GetTopmostHitLayer(m_MousePos).Root;
+        if (!activeRoot) return;
 
         std::vector<Ref<Widget>> hitPath;
-        m_RootWidget->HitTest(m_MousePos, hitPath);
+        activeRoot->HitTest(m_MousePos, hitPath);
 
         UpdateHoverPath(hitPath);
 
@@ -245,5 +330,54 @@ namespace Elixir::GUI
 
         if (m_FocusedWidget)
             m_FocusedWidget->HandleFocus();
+    }
+
+    const SLayer& Manager::GetTopmostHitLayer(const glm::vec2& point) const
+    {
+        for (size_t i = m_Layers.size(); i-- > 1;)
+        {
+            if (m_Layers[i].Root && m_Layers[i].Root->GetGeometry().Contains(point))
+                return m_Layers[i];
+        }
+
+        return m_Layers[0]; // the UI root always hits
+    }
+
+    void Manager::DismissPopupsOutside(const glm::vec2& point)
+    {
+        while (m_Layers.size() > 1)
+        {
+            const auto& top = m_Layers.back();
+            if (!top.DismissOnClickOutside) break;
+            if (top.Root && top.Root->GetGeometry().Contains(point)) break;
+
+            PopPopup();
+        }
+    }
+
+    SRect Manager::ComputePopupRect(
+        const SRect& anchor,
+        const glm::vec2& desiredSize,
+        const SRect& screenRect
+    )
+    {
+        // Default: flush against the anchor's left edge, opening below it.
+        glm::vec2 position = { anchor.Position.x, anchor.Position.y + anchor.Size.y };
+
+        // Doesn't fit below -> flip above the anchor.
+        if (position.y + desiredSize.y > screenRect.Position.y + screenRect.Size.y)
+            position.y = anchor.Position.y - desiredSize.y;
+
+        // Clamp fully on-screen as a last resort (flipping alone doesn't help when the
+        // screen itself is smaller than the popup, or the anchor is near the top with
+        // nothing to flip into).
+        const glm::vec2 maxPosition = glm::max(
+            screenRect.Position,
+            screenRect.Position + screenRect.Size - desiredSize
+        );
+
+        position = glm::clamp(position, screenRect.Position, maxPosition);
+
+        return { position, desiredSize };
     }
 }

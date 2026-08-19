@@ -1,0 +1,193 @@
+#include "epch.h"
+#include "ScrollBox.h"
+
+#include <Engine/GUI/Slot.h>
+
+namespace Elixir::GUI
+{
+    ScrollBox::ScrollBox() = default;
+
+    void ScrollBox::SetDesiredSize(const glm::vec2& size)
+    {
+        if (m_ViewportSize == size) return;
+        m_ViewportSize = size;
+        MarkLayoutDirty();
+    }
+
+    void ScrollBox::SetScrollAxis(EScrollAxis axis)
+    {
+        if (m_ScrollAxis == axis) return;
+        m_ScrollAxis = axis;
+        MarkLayoutDirty();
+    }
+
+    void ScrollBox::SetScrollOffset(const glm::vec2& offset)
+    {
+        const glm::vec2 clamped = ClampScrollOffset(offset, m_Geometry.Size);
+        if (m_ScrollOffset == clamped) return;
+
+        m_ScrollOffset = clamped;
+        MarkLayoutDirty(); // reposition content
+        MarkRenderDirty(); // thumb moved
+    }
+
+    void ScrollBox::SetShowScrollbar(bool show)
+    {
+        if (m_ShowScrollbar == show) return;
+        m_ShowScrollbar = show;
+        MarkRenderDirty();
+    }
+
+    void ScrollBox::SetScrollbarThickness(const float thickness)
+    {
+        if (m_ScrollbarThickness == thickness) return;
+        m_ScrollbarThickness = thickness;
+        MarkRenderDirty();
+    }
+
+    void ScrollBox::SetScrollbarColor(const SColor& color)
+    {
+        m_ScrollbarColor = color;
+        MarkRenderDirty();
+    }
+
+    glm::vec2 ScrollBox::ComputeDesiredSize(const glm::vec2& availableSize)
+    {
+        glm::vec2 desired = glm::min(m_ViewportSize, availableSize);
+
+        // Content can only shrink the reported size toward itself, never grow it past the
+        // configured viewport size - a ScrollBox clips oversized content, it doesn't expand
+        // to swallow it. Measure (not ComputeDesiredSize) is the public, cached entry point
+        // every container is expected to call on a child.
+        if (HasContent())
+        {
+            const glm::vec2 contentConstraint = ContentMeasureConstraint(availableSize);
+            const glm::vec2 contentSize = m_ContentSlot->GetWidget()->Measure(contentConstraint);
+            desired = glm::min(desired, contentSize);
+        }
+
+        return desired;
+    }
+
+    void ScrollBox::LayoutChildren(const SRect& allocatedSpace)
+    {
+        if (!HasContent())
+        {
+            m_ContentSize = {};
+            return;
+        }
+
+        const auto& content = m_ContentSlot->GetWidget();
+
+        // The content keeps its DESIRED size along the scrolling axis/axes - that's what
+        // there is to scroll through - but is capped to the viewport on the other axis,
+        // same as a non-scrolling child would be.
+        const glm::vec2 contentConstraint = ContentMeasureConstraint(allocatedSpace.Size);
+        const glm::vec2 desired = content->Measure(contentConstraint);
+
+        glm::vec2 contentSize = allocatedSpace.Size;
+        if (m_ScrollAxis != EScrollAxis::Horizontal) contentSize.y = desired.y;
+        if (m_ScrollAxis != EScrollAxis::Vertical)   contentSize.x = desired.x;
+
+        m_ContentSize = contentSize;
+        m_ScrollOffset = ClampScrollOffset(m_ScrollOffset, allocatedSpace.Size);
+
+        const SRect contentRect = { allocatedSpace.Position - m_ScrollOffset, contentSize };
+        content->ArrangeChildren(contentRect);
+    }
+
+    void ScrollBox::BuildDrawCommands(RenderBatch& batch, const int zOrder)
+    {
+        if (!m_ShowScrollbar) return;
+
+        if (m_ScrollAxis != EScrollAxis::Horizontal && m_ContentSize.y > m_Geometry.Size.y)
+            AddScrollbar(batch, zOrder, true);
+
+        if (m_ScrollAxis != EScrollAxis::Vertical && m_ContentSize.x > m_Geometry.Size.x)
+            AddScrollbar(batch, zOrder, false);
+    }
+
+    SInputReply ScrollBox::HandleMouseScrolled(const MouseScrolledEvent& event)
+    {
+        glm::vec2 delta{};
+
+        if (m_ScrollAxis != EScrollAxis::Horizontal)
+            delta.y = -event.GetOffsetY() * SCROLL_SPEED;
+        if (m_ScrollAxis != EScrollAxis::Vertical)
+            delta.x = -event.GetOffsetX() * SCROLL_SPEED;
+
+        if (delta == glm::vec2(0.0f))
+            return SInputReply::Unhandled();
+
+        const glm::vec2 clamped = ClampScrollOffset(m_ScrollOffset + delta, m_Geometry.Size);
+        if (clamped == m_ScrollOffset)
+            return SInputReply::Unhandled(); // at the edge; let an ancestor try.
+
+        m_ScrollOffset = clamped;
+        MarkLayoutDirty(); // reposition content
+        MarkRenderDirty(); // thumb moved
+
+        return SInputReply::Handled();
+    }
+
+    glm::vec2 ScrollBox::ContentMeasureConstraint(const glm::vec2& viewportSize) const
+    {
+        glm::vec2 constraint = viewportSize;
+        if (m_ScrollAxis != EScrollAxis::Horizontal) constraint.y = UnconstrainedSize;
+        if (m_ScrollAxis != EScrollAxis::Vertical)   constraint.x = UnconstrainedSize;
+        return constraint;
+    }
+
+    glm::vec2 ScrollBox::ClampScrollOffset(
+        const glm::vec2& offset,
+        const glm::vec2& viewportSize
+    ) const
+    {
+        const glm::vec2 maxOffset = glm::max(m_ContentSize - viewportSize, glm::vec2(0.0f));
+        return glm::clamp(offset, glm::vec2(0.0f), maxOffset);
+    }
+
+    void ScrollBox::AddScrollbar(RenderBatch& batch, const int zOrder, const bool vertical) const
+    {
+        const SColor trackColor = { 0.0f, 0.0f, 0.0f, 0.15f };
+
+        if (vertical)
+        {
+            const SRect track = {
+                { m_Geometry.Position.x + m_Geometry.Size.x - m_ScrollbarThickness, m_Geometry.Position.y },
+                { m_ScrollbarThickness, m_Geometry.Size.y }
+            };
+
+            const float maxScroll = m_ContentSize.y - m_Geometry.Size.y;
+            const float thumbHeight = std::max(track.Size.y * (m_Geometry.Size.y / m_ContentSize.y), m_ScrollbarThickness);
+            const float scrollRatio = maxScroll > 0.0f ? m_ScrollOffset.y / maxScroll : 0.0f;
+
+            const SRect thumb = {
+                { track.Position.x, track.Position.y + scrollRatio * (track.Size.y - thumbHeight) },
+                { m_ScrollbarThickness, thumbHeight }
+            };
+
+            batch.AddRect(track, trackColor, {}, {}, {}, {}, zOrder);
+            batch.AddRect(thumb, m_ScrollbarColor, {}, {}, {}, {}, zOrder + 1);
+        }
+        else
+        {
+            const SRect track = {
+                { m_Geometry.Position.x, m_Geometry.Position.y + m_Geometry.Size.y - m_ScrollbarThickness },
+                { m_Geometry.Size.x, m_ScrollbarThickness }
+            };
+
+            const float maxScroll = m_ContentSize.x - m_Geometry.Size.x;
+            const float thumbWidth = std::max(track.Size.x * (m_Geometry.Size.x / m_ContentSize.x), m_ScrollbarThickness);
+            const float scrollRatio = maxScroll > 0.0f ? m_ScrollOffset.x / maxScroll : 0.0f;
+
+            const SRect thumb = {
+                { track.Position.x + scrollRatio * (track.Size.x - thumbWidth), track.Position.y },
+                { thumbWidth, m_ScrollbarThickness }
+            };
+
+            batch.AddRect(track, trackColor, {}, {}, {}, {}, zOrder);
+            batch.AddRect(thumb, m_ScrollbarColor, {}, {}, {}, {}, zOrder + 1);
+        }
+    }
+}

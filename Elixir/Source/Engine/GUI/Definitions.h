@@ -19,6 +19,25 @@ namespace Elixir::GUI
             return Position.x != -1 && Position.y != -1 && Size.x != -1 && Size.y != -1;
         }
 
+        /**
+         * @brief Intersect two rects, returning the overlapping region.
+         *
+         * Both inputs are assumed to be real geometric rects - callers check IsValid() first,
+         * same convention IsValid() itself already relies on.
+         *
+         * The result's Size is clamped to a minimum of (0, 0) when the rect do not overlap.
+         *
+         * @param a First rect.
+         * @param b Second rect.
+         * @return The overlapping rect; zero-sized (never negative) when a and b don't overlap.
+         */
+        static SRect Intersect(const SRect& a, const SRect& b)
+        {
+            const glm::vec2 min = glm::max(a.Position, b.Position);
+            const glm::vec2 max = glm::min(a.Position + a.Size, b.Position + b.Size);
+            return { min, glm::max(max - min, glm::vec2(0.0f)) };
+        }
+
         SRect operator*(const float scale) const
         {
             return SRect(Position * scale, Size * scale);

@@ -71,12 +71,22 @@ namespace Elixir::GUI
     {
       public:
         /**
-         * Append another batch's commands to this one, offsetting each command's z-order.
+         * @brief Append another batch's commands to this one.
+         *
+         * Offsets each command's z-order and applies the ancestor clip rect inherited
+         * from the caller's position in the widget tree. A command that already carries its
+         * own valid ScissorRect (Button/TextField's ad-hoc self-clip) gets that rect
+         * intersected with clipRect; a command with no ScissorRect of its own adopts clipRect
+         * verbatim, when clipRect itself is valid.
+         *
          * Used to assemble the per-widget command caches into the frame batch.
-         * @param other batch whose commands are copied in.
-         * @param zOffset value added to each appended command's ZOrder.
+         *
+         * @param other Batch whose commands are copied in.
+         * @param zOffset Value added to each appended command's ZOrder.
+         * @param clipRect Ancestor clip inherit from the caller; pass the invalid
+         * {-1, -1}/{-1, -1} sentinel when there is no active clip (see SRect::IsValid).
          */
-        void Append(const RenderBatch& other, int zOffset);
+        void Append(const RenderBatch& other, int zOffset, const SRect& clipRect);
 
         void Sort();
         void Clear();

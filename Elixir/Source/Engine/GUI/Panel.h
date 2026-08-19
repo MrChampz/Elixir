@@ -12,14 +12,6 @@ namespace Elixir::GUI
         void Update(Timestep frameTime) override;
 
         /**
-         * Remove a child widget from this panel: drops the slot holding it and clears the
-         * child's parent back-pointer (via DetachChild), marking layout dirty. No-op if the
-         * widget is not a child of this panel. Promotes the Widget hook to public API.
-         * @param child the widget to remove.
-         */
-        void RemoveChild(const Ref<Widget>& child) override;
-
-        /**
          * Remove all children from this panel, detaching each, and mark layout dirty.
          */
         void ClearChildren();
@@ -69,6 +61,10 @@ namespace Elixir::GUI
         size_t GetChildCount() const override { return GetSlotCount(); }
 
         Ref<Widget> GetChildAt(size_t index) const override;
+
+        // Remove a child widget from this panel: drops the slot holding it and clears the
+        // child's parent back-pointer (via DetachChild), marking layout dirty.
+        void RemoveChild(const Ref<Widget>& child) override;
 
         void BuildDrawCommands(RenderBatch& batch, int zOrder) override;
 
