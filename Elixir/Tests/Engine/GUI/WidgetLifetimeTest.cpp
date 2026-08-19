@@ -7,6 +7,20 @@ using namespace testing;
 using namespace Elixir;
 using namespace Elixir::GUI;
 
+namespace
+{
+    // RemoveChild is protected on Widget/Panel (no production code calls it from outside a
+    // container's own AddChild/SetContent-style methods); promote it here so this file's
+    // detach test can drive it directly, same idiom as PanelTestWidget in ForEachChildTest.cpp.
+    class PanelTestWidget final : public TPanel<LayoutSlot>
+    {
+      public:
+        glm::vec2 ComputeDesiredSize(const glm::vec2&) override { return {}; }
+
+        using Panel::RemoveChild;
+    };
+}
+
 TEST(WidgetLifetimeTest, MutatingChildAfterParentDestroyedIsSafe)
 {
     const auto child = CreateRef<CountingWidget>();
@@ -38,7 +52,7 @@ TEST(WidgetLifetimeTest, ReplacedContentNoLongerBubblesDirty)
 
 TEST(WidgetLifetimeTest, RemovedChildNoLongerDirtiesContainer)
 {
-    const auto box = CreateRef<VerticalBox>();
+    const auto box = CreateRef<PanelTestWidget>();
     const auto a = CreateRef<CountingWidget>();
     box->AddChild(a);
 
