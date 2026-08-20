@@ -145,12 +145,11 @@ namespace Elixir::GUI
                 );
         }
 
-        if (m_FocusedWidget && m_FocusedWidget->IsRenderVisible())
-            m_RenderBatch.AddDebugRect(
-                m_FocusedWidget->GetGeometry(),
-                SColor(0.25f, 0.55f, 1.0f, 1.0f)
-            );
-
+        // No default focus visual here on purpose: a widget's own IsFocused() is already
+        // enough for it to render its own focus state - color swap, outline, background
+        // texture, whatever fits - inside its own BuildDrawCommands, the same way Button
+        // already reacts to m_Hovered. A widget that doesn't opt in just has no focus visual,
+        // rather than the Manager imposing a generic ring on every widget regardless of type.
         m_RenderBatch.Sort();
     }
 
