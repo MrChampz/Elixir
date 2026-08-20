@@ -115,10 +115,17 @@ namespace Elixir::GUI
 
     void DebugRenderPass::BuildDebugRectGeometry(const SDrawCommand& cmd)
     {
-        const auto topLeft = cmd.Geometry.Position;
-        const auto topRight = (cmd.Geometry.Position + glm::vec2(cmd.Geometry.Size.x, 0));
-        const auto bottomLeft = (cmd.Geometry.Position + glm::vec2(0, cmd.Geometry.Size.y));
-        const auto bottomRight = (cmd.Geometry.Position + cmd.Geometry.Size);
+        // cmd.Geometry arrives in logical points, same as every other pass - QuadRenderPass
+        // and TextRenderPass both scale Position/Size by m_DPIScale before building vertex
+        // data (see QuadRenderPass.cpp:152-153, TextRenderPass.cpp:198-199); this pass has to
+        // match, or its rects land at half the intended screen position on a 2x display.
+        const auto position = cmd.Geometry.Position * m_DPIScale;
+        const auto size = cmd.Geometry.Size * m_DPIScale;
+
+        const auto topLeft = position;
+        const auto topRight = (position + glm::vec2(size.x, 0));
+        const auto bottomLeft = (position + glm::vec2(0, size.y));
+        const auto bottomRight = (position + size);
 
         m_Vertices.push_back({ topLeft, cmd.Color });
         m_Vertices.push_back({ topRight, cmd.Color });
