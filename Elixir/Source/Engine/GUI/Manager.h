@@ -90,9 +90,25 @@ namespace Elixir::GUI
         bool NeedsRebuild() const;
         void MarkRebuilt();
 
+        // Not const: Tab/Shift+Tab/Escape are intercepted here, before the bubble to
+        // m_FocusedWidget, and moving/clearing focus mutates m_FocusedWidget and the cached
+        // focus order. See the ordering rationale on the .cpp definition. Protected (not
+        // private) so tests can drive it directly - see ManagerTestUtils.h.
+        bool HandleKeyPressed(const KeyPressedEvent& event);
+
+        // Bubbles a mouse-down left -> root over path until a widget handles it; that widget
+        // becomes m_PressedWidget (and, if it asked, m_MouseCapture) and gains focus. If
+        // nobody handles it, treats the press as "clicked outside and clears focus. Protected
+        // (not private) so tests can drive it directly - see ManagerTestUtils.h.
+        void ProcessMousePress(const std::vector<Ref<Widget>>& path);
+
+        // Common focus-change plumbing: fires HandleLostFocus/HandleFocus only when the
+        // focused widget actually changes; widget may be nullptr to clear focus. Protected
+        // (not private) so tests can drive it directly - see ManagerTestUtils.h.
+        void SetFocusedWidget(const Ref<Widget>& widget);
+
     private:
         bool HandleFramebufferResize(const FramebufferResizeEvent& event) const;
-        bool HandleKeyPressed(const KeyPressedEvent& event) const;
         bool HandleKeyTyped(const KeyTypedEvent& event) const;
 
         // Bubbles a wheel tick leaf -> root over m_HoverPath, stopping at the first
@@ -106,11 +122,6 @@ namespace Elixir::GUI
         // widgets that newly entered, then stores path as the new m_HoverPath.
         void UpdateHoverPath(const std::vector<Ref<Widget>>& path);
 
-        // Bubbles a mouse-down left -> root over path until a widget handles it; that widget
-        // becomes m_PressedWidget (and, if it asked, m_MouseCapture) and gains focus. If
-        // nobody handles it, treats the press as "clicked outside and clears focus.
-        void ProcessMousePress(const std::vector<Ref<Widget>>& path);
-
         // Routes mouse-up to m_MouseCapture if set, otherwise bubbles over path; then
         // synthesizes HandleClick on m_PressedWidget if it is still present in path.
         void ProcessMouseRelease(const std::vector<Ref<Widget>>& path);
@@ -118,9 +129,23 @@ namespace Elixir::GUI
         // Routes mouse-move to m_MouseCapture if set, otherwise bubbles over path.
         void ProcessMouseMove(const std::vector<Ref<Widget>>& path);
 
-        // Common focus-change plumbing: fires HandleLostFocus/HandleFocus only when the
-        // focused widget actually changes; widget may be nullptr to clear focus.
-        void SetFocusedWidget(const Ref<Widget>& widget);
+        // Depth-first, first-child-first walk collecting every focusable
+        // (Widget::IsFocusable) and keyboard-reachable widget under widget, in traversal
+        // order. Prunes the same HitTestInvisible/Hidden/Collapsed branches Widget::HitTest
+        // prunes, and likewise skips (without excluding descendants of) a
+        // SelfHitTestInvisible widget - same visibility contract, reused rather than reinvented,
+        // just walked root -> leaf instead of HitTest's leaf-seeking back-to-front order,
+        // since Tab order is reading order, not z-order.
+        static void CollectFocusOrder(const Ref<Widget>& widget, std::vector<Ref<Widget>>& out);
+
+        // Lazily rebuilds the cached focus order.
+        const std::vector<Ref<Widget>>& GetFocusOrder();
+
+        // Move focus to the next entry in GetFocusOrder().
+        void FocusNext();
+
+        // Move focus to the previous entry in GetFocusOrder().
+        void FocusPrevious();
 
         // Topmost layer whose geometry contains point; falls back to layer 0 (the UI root
         // always "hits" - its geometry covers the whole screen).
@@ -160,6 +185,15 @@ namespace Elixir::GUI
         Ref<Widget> m_PressedWidget;
 
         Ref<Widget> m_FocusedWidget;
+
+        // Cache behind GetFocusOrder: the widgets currently eligible for focus,
+        // in traversal order, scoped to the topmost layer at the time of the last rebuild.
+        // Keyed the same way NeedsRebuild keys the render batch - epoch + layer stack
+        // version - and rebuilt lazily on the next FocusNext/FocusPrevious call, not eagerly
+        // on every mutation.
+        std::vector<Ref<Widget>> m_FocusOrder;
+        uint64_t m_FocusOrderEpoch = 0;
+        uint64_t m_FocusOrderLayerVersion = 0;
 
         glm::vec2 m_MousePos{};
         glm::vec2 m_LastMousePos{};

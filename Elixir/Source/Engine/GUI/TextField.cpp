@@ -13,6 +13,7 @@ namespace Elixir::GUI
     {
         m_Font = FontManager::GetDefaultFont();
         m_CursorPosition = m_Text.size();
+        SetFocusable(true);
     }
 
     void TextField::Update(const Timestep frameTime)
@@ -371,6 +372,7 @@ namespace Elixir::GUI
     void TextField::HandleLostFocus()
     {
         Widget::HandleLostFocus();
+        ClearSelection();
         m_CursorVisible = false;
     }
 

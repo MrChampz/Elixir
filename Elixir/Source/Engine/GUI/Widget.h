@@ -166,6 +166,9 @@ namespace Elixir::GUI
         void SetOutlineColor(const SColor& color);
         void SetOutlineThickness(float thickness);
 
+        bool IsFocusable() const { return m_Focusable; }
+        void SetFocusable(bool focusable);
+
         bool IsHovered() const { return m_Hovered; }
         bool IsPressed() const { return m_Pressed; }
         bool IsFocused() const { return m_Focused; }
@@ -421,6 +424,8 @@ namespace Elixir::GUI
         glm::vec4 m_DropShadow = {};
 
         SOutline m_Outline = {};
+
+        bool m_Focusable = false;
 
         bool m_Hovered = false;
         bool m_Pressed = false;

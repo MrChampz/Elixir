@@ -145,6 +145,12 @@ namespace Elixir::GUI
                 );
         }
 
+        if (m_FocusedWidget && m_FocusedWidget->IsRenderVisible())
+            m_RenderBatch.AddDebugRect(
+                m_FocusedWidget->GetGeometry(),
+                SColor(0.25f, 0.55f, 1.0f, 1.0f)
+            );
+
         m_RenderBatch.Sort();
     }
 
@@ -168,8 +174,24 @@ namespace Elixir::GUI
         return true;
     }
 
-    bool Manager::HandleKeyPressed(const KeyPressedEvent& event) const
+    bool Manager::HandleKeyPressed(const KeyPressedEvent& event)
     {
+        if (event.GetKeyCode() == EE_KEY_TAB)
+        {
+            if (event.IsShiftPressed())
+                FocusPrevious();
+            else
+                FocusNext();
+
+            return true;
+        }
+
+        if (event.GetKeyCode() == EE_KEY_ESCAPE)
+        {
+            SetFocusedWidget(nullptr);
+            return true;
+        }
+
         for (auto widget = m_FocusedWidget; widget; widget = widget->GetParent())
         {
             if (widget->HandleKeyPressed(event).EventHandled)
@@ -330,6 +352,76 @@ namespace Elixir::GUI
 
         if (m_FocusedWidget)
             m_FocusedWidget->HandleFocus();
+    }
+
+    void Manager::CollectFocusOrder(
+        const Ref<Widget>& widget,
+        std::vector<Ref<Widget>>& out
+    )
+    {
+        if (!widget) return;
+
+        const auto visibility = widget->GetVisibility();
+        if (visibility == EVisibility::HitTestInvisible ||
+            visibility == EVisibility::Hidden ||
+            visibility == EVisibility::Collapsed)
+            return;
+
+        // Excludes a SelfHitTestVisible widget from the order itself while
+        // still walking into its children.
+        if (widget->IsFocusable() && widget->IsSelfHitTestVisible())
+            out.push_back(widget);
+
+        widget->ForEachChild([&](const Ref<Widget>& child)
+        {
+            CollectFocusOrder(child, out);
+        });
+    }
+
+    const std::vector<Ref<Widget>>& Manager::GetFocusOrder()
+    {
+        const uint64_t epoch = Widget::CurrentDirtyEpoch();
+        if (epoch == m_FocusOrderEpoch && m_LayerStackVersion == m_FocusOrderLayerVersion)
+            return m_FocusOrder;
+
+        m_FocusOrder.clear();
+
+        if (!m_Layers.empty())
+            CollectFocusOrder(m_Layers.back().Root, m_FocusOrder);
+
+        m_FocusOrderEpoch = epoch;
+        m_FocusOrderLayerVersion = m_LayerStackVersion;
+
+        return m_FocusOrder;
+    }
+
+    void Manager::FocusNext()
+    {
+        const auto& order = GetFocusOrder();
+
+        // Nothing to Tab to: leave m_FocusedWidget exactly as it is.
+        if (order.empty()) return;
+
+        const auto it = std::ranges::find(order, m_FocusedWidget);
+        const size_t nextIndex = (it == order.end())
+            ? 0
+            : (size_t(it - order.begin()) + 1) % order.size();
+
+        SetFocusedWidget(order[nextIndex]);
+    }
+
+    void Manager::FocusPrevious()
+    {
+        const auto& order = GetFocusOrder();
+
+        // Nothing to back focus to: leave m_FocusedWidget exactly as it is.
+        if (order.empty()) return;
+
+        const auto it = std::ranges::find(order, m_FocusedWidget);
+        const size_t currIndex = (it == order.end()) ? 0 : size_t(it - order.begin());
+        const size_t prevIndex = (currIndex == 0) ? order.size() - 1 : currIndex - 1;
+
+        SetFocusedWidget(order[prevIndex]);
     }
 
     const SLayer& Manager::GetTopmostHitLayer(const glm::vec2& point) const
