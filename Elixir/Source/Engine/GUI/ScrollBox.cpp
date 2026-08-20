@@ -85,7 +85,13 @@ namespace Elixir::GUI
         const glm::vec2 contentConstraint = ContentMeasureConstraint(allocatedSpace.Size);
         const glm::vec2 desired = content->Measure(contentConstraint);
 
-        glm::vec2 contentSize = allocatedSpace.Size;
+        // Same gutter CrossAxisSpace reserves in ContentMeasureConstraint, applied to the
+        // space content is actually ARRANGED into - measuring content against a narrower
+        // width but then stretching it back out to the full viewport here would put it right
+        // back under the scrollbar it was just measured to avoid.
+        const glm::vec2 crossAxisSpace = CrossAxisSpace(allocatedSpace.Size);
+
+        glm::vec2 contentSize = crossAxisSpace;
         if (m_ScrollAxis != EScrollAxis::Horizontal) contentSize.y = desired.y;
         if (m_ScrollAxis != EScrollAxis::Vertical)   contentSize.x = desired.x;
 
@@ -130,9 +136,26 @@ namespace Elixir::GUI
         return SInputReply::Handled();
     }
 
+    glm::vec2 ScrollBox::CrossAxisSpace(const glm::vec2& viewportSize) const
+    {
+        glm::vec2 space = viewportSize;
+        if (!m_ShowScrollbar) return space;
+
+        // Reserve a gutter for the scrollbar on whichever axis it actually occupies, so
+        // content never has to be measured or arranged under it - same reasoning as an
+        // outline budgeting its own space in Widget::Measure instead of bleeding into
+        // whatever's next to it. A vertical scrollbar (shown whenever this axis isn't purely
+        // Horizontal) is itself thickness-wide, eating into the content's width; a horizontal
+        // one eats into its height.
+        if (m_ScrollAxis != EScrollAxis::Horizontal) space.x = std::max(0.0f, space.x - m_ScrollbarThickness);
+        if (m_ScrollAxis != EScrollAxis::Vertical)   space.y = std::max(0.0f, space.y - m_ScrollbarThickness);
+
+        return space;
+    }
+
     glm::vec2 ScrollBox::ContentMeasureConstraint(const glm::vec2& viewportSize) const
     {
-        glm::vec2 constraint = viewportSize;
+        glm::vec2 constraint = CrossAxisSpace(viewportSize);
         if (m_ScrollAxis != EScrollAxis::Horizontal) constraint.y = UnconstrainedSize;
         if (m_ScrollAxis != EScrollAxis::Vertical)   constraint.x = UnconstrainedSize;
         return constraint;

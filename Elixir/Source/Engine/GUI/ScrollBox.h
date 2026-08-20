@@ -54,10 +54,16 @@ namespace Elixir::GUI
         SInputReply HandleMouseScrolled(const MouseScrolledEvent& event) override;
 
     private:
+        // viewportSize with the scrollbar's own gutter subtracted from whichever axis it
+        // actually occupies (a no-op axis, or the whole thing, when m_ShowScrollbar is
+        // false). Shared by ContentMeasureConstraint and LayoutChildren so content is
+        // consistently measured AND arranged narrower than the scrollbar, never under it.
+        glm::vec2 CrossAxisSpace(const glm::vec2& viewportSize) const;
+
         // Constraint handed to the content's Measure() call: UnconstrainedSize on every axis
         // this ScrollBox scrolls (so content reports its full natural size to scroll
-        // through), viewportSize verbatim on the axis it doesn't (content is capped to the
-        // viewport there, same as a non-scrolling child would be).
+        // through), CrossAxisSpace's result on the axis it doesn't (content is capped to the
+        // gutter-reserved viewport there, same as a non-scrolling child would be).
         glm::vec2 ContentMeasureConstraint(const glm::vec2& viewportSize) const;
 
         glm::vec2 ClampScrollOffset(const glm::vec2& offset, const glm::vec2& viewportSize) const;
