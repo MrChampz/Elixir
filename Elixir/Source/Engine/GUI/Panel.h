@@ -94,7 +94,7 @@ namespace Elixir::GUI
     class TPanel : public Panel
     {
     public:
-        TSlot& AddChild(const Ref<Widget>& child)
+        virtual TSlot& AddChild(const Ref<Widget>& child)
         {
             auto slot = CreateScope<TSlot>(child);
             TSlot& ref = *slot;

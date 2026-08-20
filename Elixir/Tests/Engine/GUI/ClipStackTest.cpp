@@ -206,7 +206,7 @@ TEST(ClipStackTest, ScrollBoxClipsChildrenIsTrueAndOversizedContentGetsScissored
     // would embed a ScrollBox inside a layout container.
     const auto root = CreateRef<VerticalBox>();
     const auto scrollBox = CreateRef<ScrollBox>();
-    scrollBox->SetDesiredSize({ 50.0f, 50.0f });
+    scrollBox->SetSize({ 50.0f, 50.0f });
     root->AddChild(scrollBox).SetHorizontalAlignment(EHorizontalAlignment::Fill)
                               .SetVerticalAlignment(EVerticalAlignment::Fill);
 

@@ -7,10 +7,10 @@ namespace Elixir::GUI
 {
     ScrollBox::ScrollBox() = default;
 
-    void ScrollBox::SetDesiredSize(const glm::vec2& size)
+    void ScrollBox::SetSize(const glm::vec2& size)
     {
-        if (m_ViewportSize == size) return;
-        m_ViewportSize = size;
+        if (m_Size == size) return;
+        m_Size = size;
         MarkLayoutDirty();
     }
 
@@ -53,7 +53,7 @@ namespace Elixir::GUI
 
     glm::vec2 ScrollBox::ComputeDesiredSize(const glm::vec2& availableSize)
     {
-        glm::vec2 desired = glm::min(m_ViewportSize, availableSize);
+        glm::vec2 desired = glm::min(m_Size, availableSize);
 
         // Content can only shrink the reported size toward itself, never grow it past the
         // configured viewport size - a ScrollBox clips oversized content, it doesn't expand

@@ -26,7 +26,7 @@ namespace Elixir::GUI
          *
          * @param size The viewport size.
          */
-        void SetDesiredSize(const glm::vec2& size);
+        void SetSize(const glm::vec2& size);
 
         EScrollAxis GetScrollAxis() const { return m_ScrollAxis; }
         void SetScrollAxis(EScrollAxis axis);
@@ -70,7 +70,7 @@ namespace Elixir::GUI
 
         // Configured viewport size; ComputeDesiredSize never returns more than this on
         // either axis. A reasonable non-zero default.
-        glm::vec2 m_ViewportSize{ 200.0f, 200.0f };
+        glm::vec2 m_Size{ 200.0f, 200.0f };
 
         // Content's arranged size (desired size along the scrolling axis/axes, capped to
         // the viewport on the other axis). Recomputed by LayoutChildren; used to clamp

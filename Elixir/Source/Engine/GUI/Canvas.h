@@ -69,7 +69,20 @@ namespace Elixir::GUI
       public:
         Canvas();
 
-        CanvasSlot& AddChild(const Ref<Widget>& child);
+        CanvasSlot& AddChild(const Ref<Widget>& child) override;
+
+        /**
+         * @brief Set the Canvas size.
+         *
+         * Canvas has no intrinsic content-driven size the way a flow container does -
+         * children are absolutely positioned, so there is no general way to derive "how big
+         * this panel wants to be" from them. This is the configured value ComputeDesiredSize
+         * reports, capped to whatever the parent actually offers (same rule ScrollBox
+         * follows) - it does not clip or otherwise constrain children placed outside it.
+         *
+         * @param size The desired size.
+         */
+        void SetSize(const glm::vec2& size);
 
       protected:
         glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) override;
@@ -78,8 +91,7 @@ namespace Elixir::GUI
       private:
         SRect ComputeChildGeometry(const CanvasSlot& slot, const glm::vec2& canvasSize) const;
 
-        // Canvas has no intrinsic content-driven size (children are absolutely positioned),
-        // so ComputeDesiredSize just reports this fixed fallback.
-        glm::vec2 m_DefaultDesiredSize;
+        // The size this Canvas wants to occupy in the parent layout if no constraints.
+        glm::vec2 m_Size;
     };
 }

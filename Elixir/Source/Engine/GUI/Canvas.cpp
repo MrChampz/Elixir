@@ -3,7 +3,7 @@
 namespace Elixir::GUI
 {
     Canvas::Canvas()
-      : m_DefaultDesiredSize(800.0f, 600.0f) {}
+      : m_Size(100.0f, 100.0f) {}
 
     CanvasSlot& Canvas::AddChild(const Ref<Widget>& child)
     {
@@ -18,9 +18,20 @@ namespace Elixir::GUI
         return TPanel::AddChild(child);
     }
 
+    void Canvas::SetSize(const glm::vec2& size)
+    {
+        if (m_Size == size) return;
+        m_Size = size;
+        MarkLayoutDirty();
+    }
+
     glm::vec2 Canvas::ComputeDesiredSize(const glm::vec2& availableSize)
     {
-        return m_DefaultDesiredSize;
+        // Never ask for more than the parent actually offered - same rule ScrollBox follows.
+        // availableSize carries UnconstrainedSize (infinity) on any axis the parent doesn't
+        // constrain, and min() against that is a no-op, so this only clamps when the parent
+        // genuinely has less room than m_Size.
+        return glm::min(m_Size, availableSize);
     }
 
     void Canvas::LayoutChildren(const SRect& allocatedSpace)

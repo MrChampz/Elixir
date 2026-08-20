@@ -39,7 +39,7 @@ namespace
 TEST(ScrollBoxTest, DesiredSizeNeverExceedsViewportEvenWithLargerContent)
 {
     const auto scrollBox = CreateRef<ScrollBox>();
-    scrollBox->SetDesiredSize({ 50.0f, 50.0f });
+    scrollBox->SetSize({ 50.0f, 50.0f });
     scrollBox->SetContent(CreateRef<SizedLeaf>(glm::vec2{ 500.0f, 500.0f }));
 
     // GetDesiredSize() reads Measure()'s cache; ArrangeChildren alone never populates it
@@ -53,7 +53,7 @@ TEST(ScrollBoxTest, DesiredSizeNeverExceedsViewportEvenWithLargerContent)
 TEST(ScrollBoxTest, DesiredSizeShrinksToContentWhenContentIsSmallerThanViewport)
 {
     const auto scrollBox = CreateRef<ScrollBox>();
-    scrollBox->SetDesiredSize({ 100.0f, 100.0f });
+    scrollBox->SetSize({ 100.0f, 100.0f });
     scrollBox->SetContent(CreateRef<SizedLeaf>(glm::vec2{ 30.0f, 20.0f }));
 
     const glm::vec2 desired = scrollBox->Measure({ 1000.0f, 1000.0f });
@@ -64,7 +64,7 @@ TEST(ScrollBoxTest, DesiredSizeShrinksToContentWhenContentIsSmallerThanViewport)
 TEST(ScrollBoxTest, LayoutChildrenOffsetsContentByCurrentScrollOffset)
 {
     const auto scrollBox = CreateRef<ScrollBox>();
-    scrollBox->SetDesiredSize({ 50.0f, 50.0f });
+    scrollBox->SetSize({ 50.0f, 50.0f });
     scrollBox->SetScrollAxis(EScrollAxis::Both); // both axes must scroll for this to move X too
     const auto content = CreateRef<SizedLeaf>(glm::vec2{ 200.0f, 200.0f });
     scrollBox->SetContent(content);
@@ -83,7 +83,7 @@ TEST(ScrollBoxTest, LayoutChildrenOffsetsContentByCurrentScrollOffset)
 TEST(ScrollBoxTest, SetScrollOffsetClampsAboveMaxAndBelowZero)
 {
     const auto scrollBox = CreateRef<ScrollBox>();
-    scrollBox->SetDesiredSize({ 50.0f, 50.0f });
+    scrollBox->SetSize({ 50.0f, 50.0f });
     scrollBox->SetScrollAxis(EScrollAxis::Both); // both axes must scroll to clamp X too
     scrollBox->SetContent(CreateRef<SizedLeaf>(glm::vec2{ 200.0f, 150.0f }));
 
@@ -103,7 +103,7 @@ TEST(ScrollBoxTest, SetScrollOffsetClampsAboveMaxAndBelowZero)
 TEST(ScrollBoxTest, HandleMouseScrolledMovesOffsetWithinBoundsAndReportsHandled)
 {
     const auto scrollBox = CreateRef<TestScrollBox>();
-    scrollBox->SetDesiredSize({ 50.0f, 50.0f });
+    scrollBox->SetSize({ 50.0f, 50.0f });
     scrollBox->SetContent(CreateRef<SizedLeaf>(glm::vec2{ 200.0f, 200.0f }));
     Arrange(scrollBox, { { 0, 0 }, { 50, 50 } });
 
@@ -121,7 +121,7 @@ TEST(ScrollBoxTest, HandleMouseScrolledMovesOffsetWithinBoundsAndReportsHandled)
 TEST(ScrollBoxTest, HandleMouseScrolledAtEdgeIsUnhandledSoAnAncestorCanTry)
 {
     const auto scrollBox = CreateRef<TestScrollBox>();
-    scrollBox->SetDesiredSize({ 50.0f, 50.0f });
+    scrollBox->SetSize({ 50.0f, 50.0f });
     // Content fits entirely within the viewport -> already at both scroll edges (offset 0,
     // max offset 0), so any wheel delta must be rejected.
     scrollBox->SetContent(CreateRef<SizedLeaf>(glm::vec2{ 20.0f, 20.0f }));
