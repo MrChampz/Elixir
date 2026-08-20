@@ -67,14 +67,20 @@ namespace Elixir::GUI
         const glm::vec4& GetBackgroundBorders() const { return m_BackgroundBorders; }
         void SetBackgroundBorders(const glm::vec4& borders);
 
-        const Ref<Texture2D>& GetBackground() const { return m_Background; }
-        void SetBackground(const Ref<Texture2D>& texture);
+        const Ref<Texture2D>& GetNormalBackground() const { return m_NormalBackground; }
+        void SetNormalBackground(const Ref<Texture2D>& texture);
+
+        const Ref<Texture2D>& GetFocusedBackground() const { return m_FocusedBackground; }
+        void SetFocusedBackground(const Ref<Texture2D>& texture);
 
         SColor GetCursorColor() const { return m_CursorColor; }
         void SetCursorColor(const SColor& color);
 
         SColor GetSelectionColor() const { return m_SelectionColor; }
         void SetSelectionColor(const SColor& color);
+
+        SOutline GetFocusedOutline() const { return m_FocusedOutline; }
+        void SetFocusedOutline(const SOutline& outline);
 
     protected:
         glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) override;
@@ -141,7 +147,11 @@ namespace Elixir::GUI
         glm::vec4 m_BackgroundBorders = {30.0f, 30.0f, 30.0f, 30.0f};
 
         // Textures for different states
-        Ref<Texture2D> m_Background;
+        Ref<Texture2D> m_NormalBackground;
+        Ref<Texture2D> m_FocusedBackground;
+
+        // Focus
+        SOutline m_FocusedOutline = { { 0.3f, 0.5f, 1.0f, 1.0f }, 1.0f};
 
         // Cursor blinking related stuff
         float m_BlinkTimer = 0.0f;

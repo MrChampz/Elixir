@@ -93,9 +93,15 @@ namespace Elixir::GUI
         MarkRenderDirty();
     }
 
-    void TextField::SetBackground(const Ref<Texture2D>& texture)
+    void TextField::SetNormalBackground(const Ref<Texture2D>& texture)
     {
-        m_Background = texture;
+        m_NormalBackground = texture;
+        MarkRenderDirty();
+    }
+
+    void TextField::SetFocusedBackground(const Ref<Texture2D>& texture)
+    {
+        m_FocusedBackground = texture;
         MarkRenderDirty();
     }
 
@@ -108,6 +114,12 @@ namespace Elixir::GUI
     void TextField::SetSelectionColor(const SColor& color)
     {
         m_SelectionColor = color;
+        MarkRenderDirty();
+    }
+
+    void TextField::SetFocusedOutline(const SOutline& outline)
+    {
+        m_FocusedOutline = outline;
         MarkRenderDirty();
     }
 
@@ -134,27 +146,55 @@ namespace Elixir::GUI
     void TextField::BuildDrawCommands(RenderBatch& batch, const int zOrder)
     {
         // Background
-        if (m_Background)
+        if (m_Focused)
         {
-            batch.AddTexture(
-                m_Background,
-                m_Geometry,
-                m_BackgroundBorders,
-                m_BackgroundColor,
-                zOrder
-            );
+            if (m_FocusedBackground)
+            {
+                batch.AddTexture(
+                    m_FocusedBackground,
+                    m_Geometry,
+                    m_BackgroundBorders,
+                    m_BackgroundColor,
+                    zOrder
+                );
+            }
+            else
+            {
+                batch.AddRect(
+                    m_Geometry,
+                    m_BackgroundColor,
+                    m_CornerRadius,
+                    m_InsetShadow,
+                    m_DropShadow,
+                    m_FocusedOutline,
+                    zOrder
+                );
+            }
         }
         else
         {
-            batch.AddRect(
-                m_Geometry,
-                m_BackgroundColor,
-                m_CornerRadius,
-                m_InsetShadow,
-                m_DropShadow,
-                m_Outline,
-                zOrder
-            );
+            if (m_NormalBackground)
+            {
+                batch.AddTexture(
+                    m_NormalBackground,
+                    m_Geometry,
+                    m_BackgroundBorders,
+                    m_BackgroundColor,
+                    zOrder
+                );
+            }
+            else
+            {
+                batch.AddRect(
+                    m_Geometry,
+                    m_BackgroundColor,
+                    m_CornerRadius,
+                    m_InsetShadow,
+                    m_DropShadow,
+                    m_Outline,
+                    zOrder
+                );
+            }
         }
 
         const auto textSize = MeasureTextSize(m_Text);
@@ -291,58 +331,58 @@ namespace Elixir::GUI
 
         switch (event.GetKeyCode())
         {
-            case EE_KEY_LEFT:
-                if (event.IsShiftPressed())
-                {
-                    if (m_SelectionStart == -1) m_SelectionStart = m_CursorPosition;
-                    MoveCursorLeft();
-                    SelectText(m_SelectionStart, m_CursorPosition);
-                }
-                else
-                {
-                    ClearSelection();
-                    MoveCursorLeft();
-                }
-                break;
-            case EE_KEY_RIGHT:
-                if (event.IsShiftPressed())
-                {
-                    if (m_SelectionStart == -1) m_SelectionStart = m_CursorPosition;
-                    MoveCursorRight();
-                    SelectText(m_SelectionStart, m_CursorPosition);
-                }
-                else
-                {
-                    ClearSelection();
-                    MoveCursorRight();
-                }
-                break;
-            case EE_KEY_HOME:
-                MoveCursorToStart();
-                break;
-            case EE_KEY_END:
-                MoveCursorToEnd();
-                break;
-            case EE_KEY_BACKSPACE:
-                ClearPreviousCharacter();
-                break;
-            case EE_KEY_DELETE:
-                ClearNextCharacter();
-                break;
-            case EE_KEY_A:
-                if (event.IsCtrlPressed())
-                    SelectWholeText();
-                break;
-            case EE_KEY_C:
-                if (event.IsCtrlPressed())
-                    CopyToClipboard(m_Text);
-                break;
-            case EE_KEY_V:
-                if (event.IsCtrlPressed())
-                    InsertText(GetFromClipboard());
-                break;
-            default:
-                break;
+        case EE_KEY_LEFT:
+            if (event.IsShiftPressed())
+            {
+                if (m_SelectionStart == -1) m_SelectionStart = m_CursorPosition;
+                MoveCursorLeft();
+                SelectText(m_SelectionStart, m_CursorPosition);
+            }
+            else
+            {
+                ClearSelection();
+                MoveCursorLeft();
+            }
+            break;
+        case EE_KEY_RIGHT:
+            if (event.IsShiftPressed())
+            {
+                if (m_SelectionStart == -1) m_SelectionStart = m_CursorPosition;
+                MoveCursorRight();
+                SelectText(m_SelectionStart, m_CursorPosition);
+            }
+            else
+            {
+                ClearSelection();
+                MoveCursorRight();
+            }
+            break;
+        case EE_KEY_HOME:
+            MoveCursorToStart();
+            break;
+        case EE_KEY_END:
+            MoveCursorToEnd();
+            break;
+        case EE_KEY_BACKSPACE:
+            ClearPreviousCharacter();
+            break;
+        case EE_KEY_DELETE:
+            ClearNextCharacter();
+            break;
+        case EE_KEY_A:
+            if (event.IsCtrlPressed())
+                SelectWholeText();
+            break;
+        case EE_KEY_C:
+            if (event.IsCtrlPressed())
+                CopyToClipboard(m_Text);
+            break;
+        case EE_KEY_V:
+            if (event.IsCtrlPressed())
+                InsertText(GetFromClipboard());
+            break;
+        default:
+            break;
         }
 
         MarkRenderDirty();
