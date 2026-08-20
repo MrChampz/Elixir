@@ -261,7 +261,6 @@ float4 main(PS_INPUT input) : SV_TARGET
 
     // Run these effects BEFORE shape rendering
     finalColor = applyShadow(finalColor, input.DropShadow, localPos, halfSize, input.Border);
-    finalColor = applyOutline(finalColor, input.OutlineThickness, input.OutlineColor, dist, px);
 
     // Lerp final color with shape color based on actual quad shape
     float shapeMask = 1.0f - smoothstep(-px, px, dist);
@@ -272,6 +271,12 @@ float4 main(PS_INPUT input) : SV_TARGET
     {
         finalColor = applyInsetShadow(finalColor, input.InsetShadow, localPos, halfSize, input.Border);
     }
+
+    // Outline is a border, not a CSS-style outline: it's drawn INSET, in the [-thickness, 0]
+    // band just inside the shape boundary, on top of everything above - never past dist=0,
+    // so it always stays inside input.ContentSize (see the box-sizing note on Widget::Measure
+    // for how desired size grows to make room for it instead).
+    finalColor = applyOutline(finalColor, input.OutlineThickness, input.OutlineColor, -dist, px);
 
     if (finalColor.a < 0.001) discard;
     return finalColor;

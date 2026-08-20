@@ -12,7 +12,22 @@ namespace Elixir::GUI
         if (!m_MeasureDirty && m_LastMeasureConstraint == availableSize)
             return m_DesiredSize;
 
-        m_DesiredSize = ComputeDesiredSize(availableSize);
+        // Border-box sizing: the outline is drawn INSET, in the outer band of this widget's
+        // own geometry (see applyOutline in GUI.ps.hlsl), so - like a CSS border, unlike a
+        // CSS outline - it has to be budgeted for here rather than left to bleed past
+        // whatever ComputeDesiredSize reports. A leaf that wants a 10x10 content+padding box
+        // with a 1px outline must actually occupy 12x12, or the outline eats into its own
+        // content instead of wrapping around it. Subtracting first gives ComputeDesiredSize
+        // the real content budget when this widget is itself content-constrained; adding
+        // back after is a no-op with an UnconstrainedSize (infinity - 2 is still infinity) or
+        // when there's no outline at all (the common case).
+        const float outlineSpace = m_Outline.Thickness * 2.0f;
+        const glm::vec2 innerAvailable = {
+            std::max(0.0f, availableSize.x - outlineSpace),
+            std::max(0.0f, availableSize.y - outlineSpace)
+        };
+
+        m_DesiredSize = ComputeDesiredSize(innerAvailable) + glm::vec2(outlineSpace, outlineSpace);
         m_LastMeasureConstraint = availableSize;
         m_MeasureDirty = false;
 
@@ -173,6 +188,20 @@ namespace Elixir::GUI
     {
         m_Outline.Thickness = thickness;
         MarkRenderDirty();
+    }
+
+    void Widget::SetFocusable(bool focusable)
+    {
+        if (m_Focusable == focusable) return;
+
+        // Purely a membership change in Manager::BuildFocusOrder's cached traversal, not a
+        // layout or visual change - MarkLayoutDirty/MarkRenderDirty would both do more than
+        // needed (and MarkRenderDirty alone would still be a lie: nothing about this widget's
+        // own draw commands changed). Bumping s_DirtyEpoch directly is enough to invalidate
+        // Manager's focus-order cache, which keys off the same epoch as everything else that
+        // reuses it (see Manager::GetFocusOrder).
+        m_Focusable = focusable;
+        ++s_DirtyEpoch;
     }
 
     void Widget::AttachChild(const Ref<Widget>& child)
