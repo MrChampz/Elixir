@@ -6,6 +6,7 @@
 #include <Engine/GUI/Definitions.h>
 #include <Engine/GUI/Renderer/RenderBatch.h>
 #include <Engine/GUI/Slot.h>
+#include <Engine/GUI/Style.h>
 
 namespace Elixir::GUI
 {
@@ -166,12 +167,90 @@ namespace Elixir::GUI
         void SetOutlineColor(const SColor& color);
         void SetOutlineThickness(float thickness);
 
+        /**
+         * @brief Read the override a style layer currently declares.
+         *
+         * Unset fields fall back to whatever an earlier layer resolves to
+         * - see StyleSet::Resolve.
+         *
+         * @param layer Layer to read.
+         * @return The layer's override, as currently stored.
+         */
+        const SStyleOverride& GetStyle(EStyleLayer layer) const
+        {
+            return m_Styles.Get(layer);
+        }
+
+        /**
+         * @brief Replace whole override for one style layer and mark this widget for
+         * re-render.
+         *
+         * @param layer Layer to replace.
+         * @param style New override for that layer.
+         */
+        void SetStyle(EStyleLayer layer, const SStyleOverride& style);
+
+        /**
+         * @brief Remove every override a style layer declares, restoring the fallback to
+         * earlier layers, and mark this widget for re-render.
+         *
+         * @param layer Layer to clear.
+         */
+        void ClearStyle(EStyleLayer layer);
+
+        /**
+         * @brief Set one layer's background color.
+         * @param layer Layer that owns the override.
+         * @param color Background color for that layer.
+         */
+        void SetBackgroundColor(EStyleLayer layer, const SColor& color);
+
+        /**
+         * @brief Set one layer's foreground color (e.g. text).
+         * @param layer Layer that owns the override.
+         * @param color Foreground color for that layer.
+         */
+        void SetForegroundColor(EStyleLayer layer, const SColor& color);
+
+        /**
+         * @brief Set one layer's background texture, meant to be drawn as a 9-patch using
+         * whatever border metric the concrete widget exposes for that purpose.
+         * @param layer Layer that owns the override.
+         * @param texture Texture for that layer.
+         */
+        void SetBackgroundTexture(EStyleLayer layer, const Ref<Texture2D>& texture);
+
+        /**
+         * @brief Explicitly clear a layer's background texture override.
+         *
+         * So it stops overriding whatever an earlier layer resolved to - as opposed to
+         * leaving the field unset, which would just inherit instead of forcing a solid
+         * background.
+         *
+         * @param layer Layer to clear the texture override from.
+         */
+        void ClearBackgroundTexture(EStyleLayer layer);
+
         bool IsFocusable() const { return m_Focusable; }
         void SetFocusable(bool focusable);
 
         bool IsHovered() const { return m_Hovered; }
         bool IsPressed() const { return m_Pressed; }
         bool IsFocused() const { return m_Focused; }
+
+        bool IsEnabled() const { return m_Enabled; }
+
+        /**
+         * @brief Enable or disable this widget's interactivity.
+         *
+         * A disabled widget keeps rendering and keeps its layout slot; only interaction
+         * changes. It stops accepting input events. Visibility and layout are untouched -
+         * callers that also want the  widget hidden or removed from layout still need
+         * SetVisibility for that.
+         *
+         * @param enabled New enabled state.
+         */
+        void SetEnabled(bool enabled);
 
         /* Callbacks */
 
@@ -294,6 +373,26 @@ namespace Elixir::GUI
          * @return True if this widget's own bounds should clip its children.
          */
         virtual bool ClipsChildren() const { return false; }
+
+        /**
+         * Build this frame's interaction state mask from this widget's own
+         * hover/press/enabled flags. Feeds StyleSet::Resolve only - it does not feed back
+         * into input routing.
+         * @return Mask combining Hovered/Pressed/Disabled as currently active.
+         */
+        EInteractionState GetInteractionState() const;
+
+        /**
+         * Resolve this widget's style for the current interaction state. Subclasses that
+         * draw a background/foreground call this from their own BuildDrawCommands.
+         *
+         * Recomputes on every call rather than caching: four layers and a handful of fields
+         * is cheap, and a cache would need every place that changes hover/press/enabled to
+         * also invalidate it - MarkRenderDirty() is already called on all of those.
+         *
+         * @return The composed style ready for BuildDrawCommands.
+         */
+        SResolvedStyle GetResolvedStyle() const;
 
         /**
          * Mark this widget's layout as dirty and propagate the mark to ancestors.
@@ -425,11 +524,14 @@ namespace Elixir::GUI
 
         SOutline m_Outline = {};
 
+        StyleSet m_Styles;
+
         bool m_Focusable = false;
 
         bool m_Hovered = false;
         bool m_Pressed = false;
         bool m_Focused = false;
+        bool m_Enabled = true;
         std::function<void()> m_OnMouseEnterCallback;
         std::function<void()> m_OnMouseLeaveCallback;
         std::function<void()> m_OnMouseDownCallback;

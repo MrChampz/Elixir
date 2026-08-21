@@ -190,7 +190,47 @@ namespace Elixir::GUI
         MarkRenderDirty();
     }
 
-    void Widget::SetFocusable(bool focusable)
+    void Widget::SetStyle(const EStyleLayer layer, const SStyleOverride& style)
+    {
+        m_Styles.Set(layer, style);
+        MarkRenderDirty();
+    }
+
+    void Widget::ClearStyle(const EStyleLayer layer)
+    {
+        m_Styles.Clear(layer);
+        MarkRenderDirty();
+    }
+
+    void Widget::SetBackgroundColor(const EStyleLayer layer, const SColor& color)
+    {
+        SStyleOverride style = m_Styles.Get(layer);
+        style.BackgroundColor = color;
+        SetStyle(layer, style);
+    }
+
+    void Widget::SetForegroundColor(const EStyleLayer layer, const SColor& color)
+    {
+        SStyleOverride style = m_Styles.Get(layer);
+        style.ForegroundColor = color;
+        SetStyle(layer, style);
+    }
+
+    void Widget::SetBackgroundTexture(const EStyleLayer layer, const Ref<Texture2D>& texture)
+    {
+        SStyleOverride style = m_Styles.Get(layer);
+        style.BackgroundTexture = texture;
+        SetStyle(layer, style);
+    }
+
+    void Widget::ClearBackgroundTexture(const EStyleLayer layer)
+    {
+        SStyleOverride style = m_Styles.Get(layer);
+        style.BackgroundTexture = Ref<Texture2D>{};
+        SetStyle(layer, style);
+    }
+
+    void Widget::SetFocusable(const bool focusable)
     {
         if (m_Focusable == focusable) return;
 
@@ -202,6 +242,21 @@ namespace Elixir::GUI
         // reuses it (see Manager::GetFocusOrder).
         m_Focusable = focusable;
         ++s_DirtyEpoch;
+    }
+
+    void Widget::SetEnabled(const bool enabled)
+    {
+        if (m_Enabled == enabled) return;
+
+        m_Enabled = enabled;
+
+        // Cancels a press in progress immediately, rather than waiting for the eventual
+        // mouse-up to see m_Enabled == false: also fixes the pressed-looking visual without
+        // waiting for that mouse-up.
+        if (!m_Enabled)
+            m_Pressed = false;
+
+        MarkRenderDirty();
     }
 
     void Widget::AttachChild(const Ref<Widget>& child)
@@ -281,6 +336,33 @@ namespace Elixir::GUI
         });
     }
 
+    EInteractionState Widget::GetInteractionState() const
+    {
+        auto states = EInteractionState::None;
+
+        if (IsHovered())
+            states |= EInteractionState::Hovered;
+
+        if (IsPressed())
+            states |= EInteractionState::Pressed;
+
+        if (!IsEnabled())
+            states |= EInteractionState::Disabled;
+
+        return states;
+    }
+
+    SResolvedStyle Widget::GetResolvedStyle() const
+    {
+        SResolvedStyle style = m_Styles.Resolve(GetInteractionState());
+
+        style.Outline = GetOutline();
+        style.InsetShadow = GetInsetShadow();
+        style.DropShadow = GetDropShadow();
+
+        return style;
+    }
+
     void Widget::MarkLayoutDirty()
     {
         // Bump before the short-circuit: a change while already dirty must still be seen by
@@ -324,6 +406,7 @@ namespace Elixir::GUI
 
     SInputReply Widget::HandleMouseDown(const MouseButtonPressedEvent& event)
     {
+        if (!m_Enabled) return SInputReply::Unhandled();
         if (!m_OnMouseDownCallback && !m_OnClickCallback && !m_OnMouseUpCallback)
             return SInputReply::Unhandled();
 
@@ -359,7 +442,7 @@ namespace Elixir::GUI
 
     void Widget::HandleClick()
     {
-        if (m_OnClickCallback) m_OnClickCallback();
+        if (m_Enabled && m_OnClickCallback) m_OnClickCallback();
     }
 
     SRect Widget::ApplyPadding(const SRect& availableSpace, const SPadding& padding)

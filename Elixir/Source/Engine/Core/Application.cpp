@@ -52,12 +52,12 @@ namespace Elixir
         panel->SetPadding({ 10, 20, 10, 10 });
         const auto button = CreateRef<GUI::Button>("Hello World until 2020");
         button->SetCornerRadius(4.0);
-        button->SetNormalBackground(std::dynamic_pointer_cast<Texture2D>(buttonBg));
+        button->SetBackgroundTexture(EStyleLayer::Normal, std::dynamic_pointer_cast<Texture2D>(buttonBg));
         button->SetPadding({ 20.0f, 0.0f });
 
         const auto button2 = CreateRef<GUI::Button>();
-        button2->SetNormalColor({ 1.0f, 1.0f, 1.0f, 1.0f });
-        button2->SetHoverColor({ 0.8f, 0.8f, 1.0f, 1.0f });
+        button2->SetBackgroundColor(EStyleLayer::Normal, { 1.0f, 1.0f, 1.0f, 1.0f });
+        button2->SetBackgroundColor(EStyleLayer::Hovered, { 0.8f, 0.8f, 1.0f, 1.0f });
         //button2->SetCornerRadius(12);
         button2->SetInsetShadow({ 10, 10    , 2, 0.3 });
         button2->SetDropShadow({ 20, 20, 10, 1 });
@@ -76,8 +76,8 @@ namespace Elixir
             .SetMargin({ 10, 20, 10, 10 });
 
         const auto button3 = CreateRef<GUI::Button>();
-        button3->SetNormalColor({ 1.0f, 1.0f, 1.0f, 1.0f });
-        button3->SetNormalBackground(std::dynamic_pointer_cast<Texture2D>(buttonBg));
+        button3->SetBackgroundColor(EStyleLayer::Normal, { 1.0f, 1.0f, 1.0f, 1.0f });
+        button3->SetBackgroundTexture(EStyleLayer::Normal, std::dynamic_pointer_cast<Texture2D>(buttonBg));
         button3->SetCornerRadius(12);
 
         const auto font2 = FontManager::Load("./Assets/Fonts/PlayfairDisplay-Regular.ttf");

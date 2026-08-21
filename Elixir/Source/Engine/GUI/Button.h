@@ -13,7 +13,7 @@ namespace Elixir::GUI
         const std::string& GetText() const { return m_Text; }
         void SetText(const std::string& text);
 
-        SColor GetTextColor() const { return m_TextColor; }
+        SColor GetTextColor() const;
         void SetTextColor(const SColor& color);
 
         const Ref<Font>& GetFont() const { return m_Font; }
@@ -29,7 +29,7 @@ namespace Elixir::GUI
          * Get corner radius for each corner individually.
          * @return vector (top-left, top-right, bottom-right, bottom-left)
          */
-        glm::vec4 GetCornerRadius() const { return m_CornerRadius; }
+        glm::vec4 GetCornerRadius() const;
 
         /**
          * Set the same radius for all corners.
@@ -46,17 +46,8 @@ namespace Elixir::GUI
          */
         void SetCornerRadius(const glm::vec4& radius);
 
-        SColor GetNormalColor() const { return m_NormalColor; }
-        void SetNormalColor(const SColor& color);
-
-        SColor GetHoverColor() const { return m_HoverColor; }
-        void SetHoverColor(const SColor& color);
-
-        const glm::vec4& GetBackgroundBorders() const { return m_BackgroundBorders; }
+        glm::vec4 GetBackgroundBorders() const;
         void SetBackgroundBorders(const glm::vec4& borders);
-
-        const Ref<Texture2D>& GetNormalBackground() const { return m_NormalBackground; }
-        void SetNormalBackground(const Ref<Texture2D>& texture);
 
       protected:
         glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) override;
@@ -73,26 +64,10 @@ namespace Elixir::GUI
 
       private:
         std::string m_Text;
-        SColor m_TextColor{1.0f, 0.0f, 0.0f, 1.0f};
         Ref<Font> m_Font;
         float m_FontSize = 16.0f;
 
         SPadding m_Padding;
-
-        // top-left, top-right, bottom-right, bottom-left
-        glm::vec4 m_CornerRadius = {0.0f, 0.0f, 0.0f, 0.0f};
-
-        // Colors for different states
-        SColor m_NormalColor{0.3f, 0.3f, 0.8f, 1.0f};
-        SColor m_HoverColor{1.0f, 0.0f, 0.0f, 1.0f};
-
-        // When texture is used, this represents the borders of 9-patch texture.
-        // Border mapping = (left, top, right, bottom).
-        glm::vec4 m_BackgroundBorders = {30.0f, 30.0f, 30.0f, 30.0f};
-
-        // Textures for different states
-        Ref<Texture2D> m_NormalBackground;
-
         glm::vec2 m_MinDesiredSize{ 120.0f, 40.0f };
     };
 }

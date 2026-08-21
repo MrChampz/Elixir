@@ -11,6 +11,17 @@ namespace Elixir::GUI
       : m_Text(text)
     {
         m_Font = FontManager::GetDefaultFont();
+
+        SStyleOverride normal;
+        normal.BackgroundColor = SColor{ 0.3f, 0.3f, 0.8f, 1.0f };
+        normal.ForegroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f };
+        normal.CornerRadius = glm::vec4{ 0.0f, 0.0f, 0.0f, 0.0f };
+        normal.BackgroundBorders = glm::vec4{ 30.0f, 30.0f, 30.0f, 30.0f };
+        SetStyle(EStyleLayer::Normal, normal);
+
+        SStyleOverride hovered;
+        hovered.BackgroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f };
+        SetStyle(EStyleLayer::Hovered, hovered);
     }
 
     void Button::SetText(const std::string& text)
@@ -21,11 +32,14 @@ namespace Elixir::GUI
         MarkRenderDirty(); // the drawn text changes even when geometry does not
     }
 
+    SColor Button::GetTextColor() const
+    {
+        return GetStyle(EStyleLayer::Normal).ForegroundColor.value_or(SColor{});
+    }
+
     void Button::SetTextColor(const SColor& color)
     {
-        if (m_TextColor == color) return;
-        m_TextColor = color;
-        MarkRenderDirty();
+        SetForegroundColor(EStyleLayer::Normal, color);
     }
 
     void Button::SetFont(const Ref<Font>& font)
@@ -59,34 +73,28 @@ namespace Elixir::GUI
             MarkRenderDirty(); // padding shifts the label position/clip in BuildDrawCommands
     }
 
+    glm::vec4 Button::GetCornerRadius() const
+    {
+        return GetStyle(EStyleLayer::Normal).CornerRadius.value_or(glm::vec4{0.0f});
+    }
+
     void Button::SetCornerRadius(const glm::vec4& radius)
     {
-        m_CornerRadius = radius;
-        MarkRenderDirty();
+        SStyleOverride style = GetStyle(EStyleLayer::Normal);
+        style.CornerRadius = radius;
+        SetStyle(EStyleLayer::Normal, style);
     }
 
-    void Button::SetNormalColor(const SColor& color)
+    glm::vec4 Button::GetBackgroundBorders() const
     {
-        m_NormalColor = color;
-        MarkRenderDirty();
-    }
-
-    void Button::SetHoverColor(const SColor& color)
-    {
-        m_HoverColor = color;
-        MarkRenderDirty();
+        return GetStyle(EStyleLayer::Normal).BackgroundBorders.value_or(glm::vec4{0.0f});
     }
 
     void Button::SetBackgroundBorders(const glm::vec4& borders)
     {
-        m_BackgroundBorders = borders;
-        MarkRenderDirty();
-    }
-
-    void Button::SetNormalBackground(const Ref<Texture2D>& texture)
-    {
-        m_NormalBackground = texture;
-        MarkRenderDirty();
+        SStyleOverride style = GetStyle(EStyleLayer::Normal);
+        style.BackgroundBorders = borders;
+        SetStyle(EStyleLayer::Normal, style);
     }
 
     glm::vec2 Button::ComputeDesiredSize(const glm::vec2& availableSize)
@@ -132,19 +140,16 @@ namespace Elixir::GUI
 
     void Button::BuildDrawCommands(RenderBatch& batch, int zOrder)
     {
-        auto buttonColor = m_NormalColor;
-
-        if (m_Hovered)
-            buttonColor = m_HoverColor;
+        const SResolvedStyle style = GetResolvedStyle();
 
         // Background
-        if (m_NormalBackground)
+        if (style.BackgroundTexture)
         {
             batch.AddTexture(
-                m_NormalBackground,
+                style.BackgroundTexture,
                 m_Geometry,
-                m_BackgroundBorders,
-                buttonColor,
+                style.BackgroundBorders,
+                style.BackgroundColor,
                 zOrder
             );
         }
@@ -152,11 +157,11 @@ namespace Elixir::GUI
         {
             batch.AddRect(
                 m_Geometry,
-                buttonColor,
-                m_CornerRadius,
-                m_InsetShadow,
-                m_DropShadow,
-                m_Outline,
+                style.BackgroundColor,
+                style.CornerRadius,
+                style.InsetShadow,
+                style.DropShadow,
+                style.Outline,
                 zOrder
             );
         }
@@ -174,7 +179,7 @@ namespace Elixir::GUI
                 { textPos, textSize },
                 m_Font,
                 m_FontSize,
-                m_TextColor,
+                style.ForegroundColor,
                 zOrder + 1,
                 m_Geometry
             );
@@ -238,6 +243,8 @@ namespace Elixir::GUI
 
     SInputReply Button::HandleMouseDown(const MouseButtonPressedEvent& event)
     {
+        if (!IsEnabled()) return SInputReply::Unhandled();
+
         // Button is unconditionally interactive - it must win the mouse-down bubble even when
         // it has no OnClick/OnMouseDown/OnMouseUp callback registered (e.g. a subclass that
         // overrides HandleClick() directly instead), and even when its own content (e.g. a
