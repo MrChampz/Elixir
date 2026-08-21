@@ -51,7 +51,7 @@ namespace Elixir
         //panel->SetBackground({ 1.0f, 0.0f, 0.0f, 1.0f });
         panel->SetPadding({ 10, 20, 10, 10 });
         const auto button = CreateRef<GUI::Button>("Hello World until 2020");
-        button->SetCornerRadius(4.0);
+        button->SetCornerRadius(EStyleLayer::Normal, 4.0);
         button->SetBackgroundTexture(EStyleLayer::Normal, std::dynamic_pointer_cast<Texture2D>(buttonBg));
         button->SetPadding({ 20.0f, 0.0f });
 
@@ -59,9 +59,9 @@ namespace Elixir
         button2->SetBackgroundColor(EStyleLayer::Normal, { 1.0f, 1.0f, 1.0f, 1.0f });
         button2->SetBackgroundColor(EStyleLayer::Hovered, { 0.8f, 0.8f, 1.0f, 1.0f });
         //button2->SetCornerRadius(12);
-        button2->SetInsetShadow({ 10, 10    , 2, 0.3 });
-        button2->SetDropShadow({ 20, 20, 10, 1 });
-        button2->SetOutline({ { 1, 1, 0, 1 }, 5.0f });
+        button2->SetInsetShadow(EStyleLayer::Normal, { 10, 10    , 2, 0.3 });
+        button2->SetDropShadow(EStyleLayer::Normal, { 20, 20, 10, 1 });
+        button2->SetOutline(EStyleLayer::Normal, { { 1, 1, 0, 1 }, 5.0f });
         button2->OnMouseEnter([&]() { EE_CORE_INFO("Mouse entered button!"); });
         button2->OnMouseLeave([&]() { EE_CORE_INFO("Mouse left button!"); });
         button2->OnMouseDown([&]() { EE_CORE_INFO("Mouse down on button!"); });
@@ -78,7 +78,7 @@ namespace Elixir
         const auto button3 = CreateRef<GUI::Button>();
         button3->SetBackgroundColor(EStyleLayer::Normal, { 1.0f, 1.0f, 1.0f, 1.0f });
         button3->SetBackgroundTexture(EStyleLayer::Normal, std::dynamic_pointer_cast<Texture2D>(buttonBg));
-        button3->SetCornerRadius(12);
+        button3->SetCornerRadius(EStyleLayer::Normal, 12);
 
         const auto font2 = FontManager::Load("./Assets/Fonts/PlayfairDisplay-Regular.ttf");
         const auto txt = CreateRef<GUI::TextBlock>("Everyone, A pretty text block..");

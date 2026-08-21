@@ -32,16 +32,6 @@ namespace Elixir::GUI
         MarkRenderDirty(); // the drawn text changes even when geometry does not
     }
 
-    SColor Button::GetTextColor() const
-    {
-        return GetStyle(EStyleLayer::Normal).ForegroundColor.value_or(SColor{});
-    }
-
-    void Button::SetTextColor(const SColor& color)
-    {
-        SetForegroundColor(EStyleLayer::Normal, color);
-    }
-
     void Button::SetFont(const Ref<Font>& font)
     {
         EE_CORE_ASSERT(font, "Button::SetFont called with a null font");
@@ -73,28 +63,9 @@ namespace Elixir::GUI
             MarkRenderDirty(); // padding shifts the label position/clip in BuildDrawCommands
     }
 
-    glm::vec4 Button::GetCornerRadius() const
+    void Button::SetTextColor(const EStyleLayer layer, const SColor& color)
     {
-        return GetStyle(EStyleLayer::Normal).CornerRadius.value_or(glm::vec4{0.0f});
-    }
-
-    void Button::SetCornerRadius(const glm::vec4& radius)
-    {
-        SStyleOverride style = GetStyle(EStyleLayer::Normal);
-        style.CornerRadius = radius;
-        SetStyle(EStyleLayer::Normal, style);
-    }
-
-    glm::vec4 Button::GetBackgroundBorders() const
-    {
-        return GetStyle(EStyleLayer::Normal).BackgroundBorders.value_or(glm::vec4{0.0f});
-    }
-
-    void Button::SetBackgroundBorders(const glm::vec4& borders)
-    {
-        SStyleOverride style = GetStyle(EStyleLayer::Normal);
-        style.BackgroundBorders = borders;
-        SetStyle(EStyleLayer::Normal, style);
+        SetForegroundColor(layer, color);
     }
 
     glm::vec2 Button::ComputeDesiredSize(const glm::vec2& availableSize)

@@ -141,32 +141,6 @@ namespace Elixir::GUI
          */
         bool IsSelfHitTestVisible() const;
 
-        glm::vec4 GetInsetShadow() const { return m_InsetShadow; }
-        glm::vec4 GetDropShadow() const { return m_DropShadow; }
-
-        /**
-         * Set the inset shadow parameters.
-         * @param shadow Shadow offset (x, y), blur (z) and intensity (w).
-         */
-        void SetInsetShadow(const glm::vec4& shadow);
-        void SetInsetShadowOffset(const glm::vec2& offset);
-        void SetInsetShadowBlur(float blur);
-        void SetInsetShadowIntensity(float intensity);
-
-        /**
-         * Set the drop shadow parameters.
-         * @param shadow Shadow offset (x, y), blur (z) and intensity (w).
-         */
-        void SetDropShadow(const glm::vec4& shadow);
-        void SetDropShadowOffset(const glm::vec2& offset);
-        void SetDropShadowBlur(float blur);
-        void SetDropShadowIntensity(float intensity);
-
-        SOutline GetOutline() const { return m_Outline; }
-        void SetOutline(const SOutline& outline);
-        void SetOutlineColor(const SColor& color);
-        void SetOutlineThickness(float thickness);
-
         /**
          * @brief Read the override a style layer currently declares.
          *
@@ -185,7 +159,7 @@ namespace Elixir::GUI
          * @brief Replace whole override for one style layer and mark this widget for
          * re-render.
          *
-         * @param layer Layer to replace.
+         * @param layer The layer to replace.
          * @param style New override for that layer.
          */
         void SetStyle(EStyleLayer layer, const SStyleOverride& style);
@@ -230,6 +204,54 @@ namespace Elixir::GUI
          * @param layer Layer to clear the texture override from.
          */
         void ClearBackgroundTexture(EStyleLayer layer);
+
+        /**
+         * @brief Set the border metric for a 9-patch background texture.
+         * @param layer Layer that owns the override.
+         * @param borders Border mapping = (left, top, right, bottom).
+         */
+        void SetBackgroundBorders(EStyleLayer layer, const glm::vec4& borders);
+
+        /**
+         * Set the same radius for all corners.
+         * @param layer Layer that owns the override.
+         * @param radius corner radius in pixels
+         */
+        void SetCornerRadius(const EStyleLayer layer, const float radius)
+        {
+            SetCornerRadius(layer, { radius, radius, radius, radius });
+        }
+
+        /**
+         * Set a radius for each corner individually.
+         * @param layer Layer that owns the override.
+         * @param radius vector (top-left, top-right, bottom-right, bottom-left)
+         */
+        void SetCornerRadius(EStyleLayer layer, const glm::vec4& radius);
+
+        /**
+         * Set the inset shadow parameters.
+         * @param layer Layer that owns the override.
+         * @param shadow Shadow offset (x, y), blur (z) and intensity (w).
+         */
+        void SetInsetShadow(EStyleLayer layer, const glm::vec4& shadow);
+        void SetInsetShadowOffset(EStyleLayer layer, const glm::vec2& offset);
+        void SetInsetShadowBlur(EStyleLayer layer, float blur);
+        void SetInsetShadowIntensity(EStyleLayer layer, float intensity);
+
+        /**
+         * Set the drop shadow parameters.
+         * @param layer Layer that owns the override.
+         * @param shadow Shadow offset (x, y), blur (z) and intensity (w).
+         */
+        void SetDropShadow(EStyleLayer layer, const glm::vec4& shadow);
+        void SetDropShadowOffset(EStyleLayer layer, const glm::vec2& offset);
+        void SetDropShadowBlur(EStyleLayer layer, float blur);
+        void SetDropShadowIntensity(EStyleLayer layer, float intensity);
+
+        void SetOutline(EStyleLayer layer, const SOutline& outline);
+        void SetOutlineColor(EStyleLayer layer, const SColor& color);
+        void SetOutlineThickness(EStyleLayer layer, float thickness);
 
         bool IsFocusable() const { return m_Focusable; }
         void SetFocusable(bool focusable);

@@ -122,74 +122,6 @@ namespace Elixir::GUI
         return m_Visibility == EVisibility::Visible;
     }
 
-    void Widget::SetInsetShadow(const glm::vec4& shadow)
-    {
-        m_InsetShadow = shadow;
-        MarkRenderDirty();
-    }
-
-    void Widget::SetInsetShadowOffset(const glm::vec2& offset)
-    {
-        m_InsetShadow.x = offset.x;
-        m_InsetShadow.y = offset.y;
-        MarkRenderDirty();
-    }
-
-    void Widget::SetInsetShadowBlur(const float blur)
-    {
-        m_InsetShadow.z = blur;
-        MarkRenderDirty();
-    }
-
-    void Widget::SetInsetShadowIntensity(const float intensity)
-    {
-        m_InsetShadow.w = intensity;
-        MarkRenderDirty();
-    }
-
-    void Widget::SetDropShadow(const glm::vec4& shadow)
-    {
-        m_DropShadow = shadow;
-        MarkRenderDirty();
-    }
-
-    void Widget::SetDropShadowOffset(const glm::vec2& offset)
-    {
-        m_DropShadow.x = offset.x;
-        m_DropShadow.y = offset.y;
-        MarkRenderDirty();
-    }
-
-    void Widget::SetDropShadowBlur(const float blur)
-    {
-        m_DropShadow.z = blur;
-        MarkRenderDirty();
-    }
-
-    void Widget::SetDropShadowIntensity(const float intensity)
-    {
-        m_DropShadow.w = intensity;
-        MarkRenderDirty();
-    }
-
-    void Widget::SetOutline(const SOutline& outline)
-    {
-        m_Outline = outline;
-        MarkRenderDirty();
-    }
-
-    void Widget::SetOutlineColor(const SColor& color)
-    {
-        m_Outline.Color = color;
-        MarkRenderDirty();
-    }
-
-    void Widget::SetOutlineThickness(const float thickness)
-    {
-        m_Outline.Thickness = thickness;
-        MarkRenderDirty();
-    }
-
     void Widget::SetStyle(const EStyleLayer layer, const SStyleOverride& style)
     {
         m_Styles.Set(layer, style);
@@ -227,6 +159,105 @@ namespace Elixir::GUI
     {
         SStyleOverride style = m_Styles.Get(layer);
         style.BackgroundTexture = Ref<Texture2D>{};
+        SetStyle(layer, style);
+    }
+
+    void Widget::SetBackgroundBorders(const EStyleLayer layer, const glm::vec4& borders)
+    {
+        SStyleOverride style = GetStyle(layer);
+        style.BackgroundBorders = borders;
+        SetStyle(layer, style);
+    }
+
+    void Widget::SetCornerRadius(const EStyleLayer layer, const glm::vec4& radius)
+    {
+        SStyleOverride style = m_Styles.Get(layer);
+        style.CornerRadius = radius;
+        SetStyle(layer, style);
+    }
+
+    void Widget::SetInsetShadow(const EStyleLayer layer, const glm::vec4& shadow)
+    {
+        SStyleOverride style = m_Styles.Get(layer);
+        style.InsetShadow = shadow;
+        SetStyle(layer, style);
+    }
+
+    void Widget::SetInsetShadowOffset(const EStyleLayer layer, const glm::vec2& offset)
+    {
+        SStyleOverride style = m_Styles.Get(layer);
+        const auto inset = style.InsetShadow.value_or(glm::vec4{0.0f});
+        style.InsetShadow = { offset, inset.z, inset.w };
+        SetStyle(layer, style);
+    }
+
+    void Widget::SetInsetShadowBlur(const EStyleLayer layer, const float blur)
+    {
+        SStyleOverride style = m_Styles.Get(layer);
+        const auto inset = style.InsetShadow.value_or(glm::vec4{0.0f});
+        style.InsetShadow = { inset.x, inset.y, blur, inset.w };
+        SetStyle(layer, style);
+    }
+
+    void Widget::SetInsetShadowIntensity(const EStyleLayer layer, const float intensity)
+    {
+        SStyleOverride style = m_Styles.Get(layer);
+        const auto inset = style.InsetShadow.value_or(glm::vec4{0.0f});
+        style.InsetShadow = { inset.x, inset.y, inset.z, intensity };
+        SetStyle(layer, style);
+    }
+
+    void Widget::SetDropShadow(const EStyleLayer layer, const glm::vec4& shadow)
+    {
+        SStyleOverride style = m_Styles.Get(layer);
+        style.DropShadow = shadow;
+        SetStyle(layer, style);
+    }
+
+    void Widget::SetDropShadowOffset(const EStyleLayer layer, const glm::vec2& offset)
+    {
+        SStyleOverride style = m_Styles.Get(layer);
+        const auto inset = style.DropShadow.value_or(glm::vec4{0.0f});
+        style.DropShadow = { offset, inset.z, inset.w };
+        SetStyle(layer, style);
+    }
+
+    void Widget::SetDropShadowBlur(const EStyleLayer layer, const float blur)
+    {
+        SStyleOverride style = m_Styles.Get(layer);
+        const auto inset = style.DropShadow.value_or(glm::vec4{0.0f});
+        style.DropShadow = { inset.x, inset.y, blur, inset.w };
+        SetStyle(layer, style);
+    }
+
+    void Widget::SetDropShadowIntensity(const EStyleLayer layer, const float intensity)
+    {
+        SStyleOverride style = m_Styles.Get(layer);
+        const auto inset = style.DropShadow.value_or(glm::vec4{0.0f});
+        style.DropShadow = { inset.x, inset.y, inset.z, intensity };
+        SetStyle(layer, style);
+    }
+
+    void Widget::SetOutline(const EStyleLayer layer, const SOutline& outline)
+    {
+        SStyleOverride style = m_Styles.Get(layer);
+        style.Outline = outline;
+        SetStyle(layer, style);
+    }
+
+    void Widget::SetOutlineColor(const EStyleLayer layer, const SColor& color)
+    {
+        SStyleOverride style = m_Styles.Get(layer);
+        const auto outline = style.Outline.value_or(SOutline{});
+        style.Outline = { color, outline.Thickness };
+        SetStyle(layer, style);
+    }
+
+    void Widget::SetOutlineThickness(const EStyleLayer layer, const float thickness)
+    {
+        SStyleOverride style = m_Styles.Get(layer);
+        const auto outline = style.Outline.value_or(SOutline{});
+        style.Outline = { outline.Color, thickness };
         SetStyle(layer, style);
     }
 
@@ -354,13 +385,7 @@ namespace Elixir::GUI
 
     SResolvedStyle Widget::GetResolvedStyle() const
     {
-        SResolvedStyle style = m_Styles.Resolve(GetInteractionState());
-
-        style.Outline = GetOutline();
-        style.InsetShadow = GetInsetShadow();
-        style.DropShadow = GetDropShadow();
-
-        return style;
+        return m_Styles.Resolve(GetInteractionState());
     }
 
     void Widget::MarkLayoutDirty()
