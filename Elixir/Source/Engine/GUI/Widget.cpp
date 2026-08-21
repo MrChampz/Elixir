@@ -377,6 +377,9 @@ namespace Elixir::GUI
         if (IsPressed())
             states |= EInteractionState::Pressed;
 
+        if (IsFocused())
+            states |= EInteractionState::Focused;
+
         if (!IsEnabled())
             states |= EInteractionState::Disabled;
 

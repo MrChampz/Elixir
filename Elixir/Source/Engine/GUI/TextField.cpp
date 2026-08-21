@@ -21,6 +21,13 @@ namespace Elixir::GUI
         normal.CornerRadius = glm::vec4{ 0.0f };
         normal.BackgroundBorders = glm::vec4{ 30.0f };
         SetStyle(EStyleLayer::Normal, normal);
+
+        // Only the outline changes by default when focused - background color, corner
+        // radius, borders and shadows are left unset here, so a focused field still shows
+        // whatever Normal (or Hovered/Pressed) resolved to for those.
+        SStyleOverride focused;
+        focused.Outline = SOutline{ { 0.3f, 0.5f, 1.0f, 1.0f }, 1.0f };
+        SetStyle(EStyleLayer::Focused, focused);
     }
 
     void TextField::Update(const Timestep frameTime)
@@ -76,12 +83,6 @@ namespace Elixir::GUI
         MarkRenderDirty();
     }
 
-    void TextField::SetFocusedBackground(const Ref<Texture2D>& texture)
-    {
-        m_FocusedBackground = texture;
-        MarkRenderDirty();
-    }
-
     void TextField::SetCursorColor(const SColor& color)
     {
         m_CursorColor = color;
@@ -91,12 +92,6 @@ namespace Elixir::GUI
     void TextField::SetSelectionColor(const SColor& color)
     {
         m_SelectionColor = color;
-        MarkRenderDirty();
-    }
-
-    void TextField::SetFocusedOutline(const SOutline& outline)
-    {
-        m_FocusedOutline = outline;
         MarkRenderDirty();
     }
 
@@ -122,60 +117,31 @@ namespace Elixir::GUI
 
     void TextField::BuildDrawCommands(RenderBatch& batch, const int zOrder)
     {
+        // Focused is a real StyleSet layer now (see Widget::GetInteractionState), so
+        // GetResolvedStyle() already picks it up when IsFocused() - no branching needed here.
         const SResolvedStyle style = GetResolvedStyle();
 
-        // Background. Focused only swaps the texture/outline - background color, corner
-        // radius, borders and shadows still come from the resolved Normal/Hovered/Pressed/
-        // Disabled style, since Focused isn't one of StyleSet's layers (see m_FocusedBackground).
-        if (m_Focused)
+        if (style.BackgroundTexture)
         {
-            if (m_FocusedBackground)
-            {
-                batch.AddTexture(
-                    m_FocusedBackground,
-                    m_Geometry,
-                    style.BackgroundBorders,
-                    style.BackgroundColor,
-                    zOrder
-                );
-            }
-            else
-            {
-                batch.AddRect(
-                    m_Geometry,
-                    style.BackgroundColor,
-                    style.CornerRadius,
-                    style.InsetShadow,
-                    style.DropShadow,
-                    m_FocusedOutline,
-                    zOrder
-                );
-            }
+            batch.AddTexture(
+                style.BackgroundTexture,
+                m_Geometry,
+                style.BackgroundBorders,
+                style.BackgroundColor,
+                zOrder
+            );
         }
         else
         {
-            if (style.BackgroundTexture)
-            {
-                batch.AddTexture(
-                    style.BackgroundTexture,
-                    m_Geometry,
-                    style.BackgroundBorders,
-                    style.BackgroundColor,
-                    zOrder
-                );
-            }
-            else
-            {
-                batch.AddRect(
-                    m_Geometry,
-                    style.BackgroundColor,
-                    style.CornerRadius,
-                    style.InsetShadow,
-                    style.DropShadow,
-                    style.Outline,
-                    zOrder
-                );
-            }
+            batch.AddRect(
+                m_Geometry,
+                style.BackgroundColor,
+                style.CornerRadius,
+                style.InsetShadow,
+                style.DropShadow,
+                style.Outline,
+                zOrder
+            );
         }
 
         const auto textSize = MeasureTextSize(m_Text);

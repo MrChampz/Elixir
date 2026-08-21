@@ -98,6 +98,54 @@ TEST(StyleTest, PressedWinsOverHoveredWhenBothActive)
     EXPECT_EQ(resolved.BackgroundColor, pressed.BackgroundColor);
 }
 
+TEST(StyleTest, FocusedWinsOverPressedAndHovered)
+{
+    StyleSet styles;
+
+    SStyleOverride normal;
+    normal.BackgroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f };
+    styles.Set(EStyleLayer::Normal, normal);
+
+    SStyleOverride pressed;
+    pressed.BackgroundColor = SColor{ 0.0f, 0.0f, 1.0f, 1.0f };
+    styles.Set(EStyleLayer::Pressed, pressed);
+
+    SStyleOverride focused;
+    focused.BackgroundColor = SColor{ 1.0f, 1.0f, 0.0f, 1.0f };
+    styles.Set(EStyleLayer::Focused, focused);
+
+    const SResolvedStyle resolved = styles.Resolve(
+        EInteractionState::Hovered | EInteractionState::Pressed | EInteractionState::Focused
+    );
+
+    EXPECT_EQ(resolved.BackgroundColor, focused.BackgroundColor);
+}
+
+TEST(StyleTest, DisabledStillWinsOverFocused)
+{
+    StyleSet styles;
+
+    SStyleOverride normal;
+    normal.BackgroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f };
+    styles.Set(EStyleLayer::Normal, normal);
+
+    SStyleOverride focused;
+    focused.BackgroundColor = SColor{ 1.0f, 1.0f, 0.0f, 1.0f };
+    styles.Set(EStyleLayer::Focused, focused);
+
+    SStyleOverride disabled;
+    disabled.BackgroundColor = SColor{ 0.5f, 0.5f, 0.5f, 1.0f };
+    styles.Set(EStyleLayer::Disabled, disabled);
+
+    // A widget can stay focused after being disabled - nothing clears focus just because
+    // IsEnabled() went false - so Disabled has to keep winning even then.
+    const SResolvedStyle resolved = styles.Resolve(
+        EInteractionState::Focused | EInteractionState::Disabled
+    );
+
+    EXPECT_EQ(resolved.BackgroundColor, disabled.BackgroundColor);
+}
+
 TEST(StyleTest, DisabledWinsOverPressedAndHovered)
 {
     StyleSet styles;

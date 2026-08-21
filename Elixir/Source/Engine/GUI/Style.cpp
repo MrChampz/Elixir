@@ -69,6 +69,9 @@ namespace Elixir::GUI
         if (HasState(states, EInteractionState::Pressed))
             ApplyOverride(result, m_Layers[ToIndex(EStyleLayer::Pressed)]);
 
+        if (HasState(states, EInteractionState::Focused))
+            ApplyOverride(result, m_Layers[ToIndex(EStyleLayer::Focused)]);
+
         if (HasState(states, EInteractionState::Disabled))
             ApplyOverride(result, m_Layers[ToIndex(EStyleLayer::Disabled)]);
 

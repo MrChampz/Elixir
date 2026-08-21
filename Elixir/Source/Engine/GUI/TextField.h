@@ -41,17 +41,11 @@ namespace Elixir::GUI
         SPadding GetPadding() const { return m_Padding; }
         void SetPadding(const SPadding& padding);
 
-        const Ref<Texture2D>& GetFocusedBackground() const { return m_FocusedBackground; }
-        void SetFocusedBackground(const Ref<Texture2D>& texture);
-
         SColor GetCursorColor() const { return m_CursorColor; }
         void SetCursorColor(const SColor& color);
 
         SColor GetSelectionColor() const { return m_SelectionColor; }
         void SetSelectionColor(const SColor& color);
-
-        SOutline GetFocusedOutline() const { return m_FocusedOutline; }
-        void SetFocusedOutline(const SOutline& outline);
 
     protected:
         glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) override;
@@ -105,14 +99,6 @@ namespace Elixir::GUI
         SColor m_PlaceholderColor{0.3f, 0.3f, 0.3f, 1.0f};
 
         SPadding m_Padding = { 5.0f, 5.0f, 5.0f, 5.0f };
-
-        // Focused-state-only texture: the base StyleSet's four layers (Normal/Hovered/
-        // Pressed/Disabled) don't include Focused (see EStyleLayer), so a focused background
-        // stays a field of its own rather than a fifth layer.
-        Ref<Texture2D> m_FocusedBackground;
-
-        // Focus
-        SOutline m_FocusedOutline = { { 0.3f, 0.5f, 1.0f, 1.0f }, 1.0f};
 
         // Cursor blinking related stuff
         float m_BlinkTimer = 0.0f;

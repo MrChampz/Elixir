@@ -10,13 +10,16 @@ namespace Elixir::GUI
      *
      * Not a mask: each value names a single layer a caller can set, clear or read. The
      * precedence order these compose in (see StyleSet::Resolve) is Normal < Hovered <
-     * Pressed < Disabled, left to right in this same declaration order.
+     * Pressed < Focused < Disabled, left to right in this same declaration order - Disabled
+     * still wins even over a widget that happens to still be focused while disabled (nothing
+     * clears focus just because a widget was disabled).
      */
     enum class EStyleLayer : uint8_t
     {
         Normal,
         Hovered,
         Pressed,
+        Focused,
         Disabled,
         Count
     };
@@ -32,7 +35,8 @@ namespace Elixir::GUI
         None        = 0,
         Hovered     = 1 << 0,
         Pressed     = 1 << 1,
-        Disabled    = 1 << 2,
+        Focused     = 1 << 2,
+        Disabled    = 1 << 3,
     };
 
     GENERATE_ENUM_CLASS_OPERATORS(EInteractionState)
@@ -114,7 +118,7 @@ namespace Elixir::GUI
          * @brief Compose the active layers into one concrete style.
          *
          * Starts from Normal and applies every other active layer on top of it, in
-         * Normal -> Hovered -> Pressed -> Disabled order; for each field, the last active
+         * Normal -> Hovered -> Pressed -> Focused -> Disabled order; for each field, the last active
          * layer that declares it wins. Normal must declare every field the caller needs -
          * it is the only layer with no earlier layer to fall back to.
          *
