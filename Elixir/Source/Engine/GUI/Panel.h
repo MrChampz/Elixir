@@ -19,30 +19,6 @@ namespace Elixir::GUI
         SPadding GetPadding() const { return m_Padding; }
         void SetPadding(const SPadding& padding);
 
-        SColor GetBackground() const { return m_Background; }
-        void SetBackground(const SColor& color);
-
-        /**
-         * Get corner radius for each corner individually.
-         * @return vector(top-left, top-right, bottom-right, bottom-left)
-         */
-        glm::vec4 GetCornerRadius() const { return m_CornerRadius; }
-
-        /**
-         * Set same radius for all corners.
-         * @param radius corner radius in pixels
-         */
-        void SetCornerRadius(const float radius)
-        {
-            SetCornerRadius({ radius, radius, radius, radius });
-        }
-
-        /**
-         * Set radius for each corner individually.
-         * @param radius vector(top-left, top-right, bottom-right, bottom-left)
-         */
-        void SetCornerRadius(const glm::vec4& radius);
-
         /**
          * @brief Get the number of slots currently owned by this panel.
          * @return The number of slots currently owned by this panel.
@@ -79,10 +55,6 @@ namespace Elixir::GUI
         virtual void ClearSlots() = 0;
 
         SPadding m_Padding;
-        SColor m_Background;
-
-        // top-le   ft, top-right, bottom-right, bottom-left
-        glm::vec4 m_CornerRadius = {0.0f, 0.0f, 0.0f, 0.0f};
     };
 
     /**

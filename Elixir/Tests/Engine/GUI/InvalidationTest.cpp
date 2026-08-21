@@ -59,7 +59,7 @@ TEST(InvalidationTest, VisualSetterMarksRenderDirtyNotLayout)
     ASSERT_FALSE(box->IsLayoutDirty());
     ASSERT_FALSE(box->IsRenderDirty());
 
-    box->SetBackground(SColor(1.0f, 0.0f, 0.0f, 1.0f));
+    box->SetBackgroundColor(EStyleLayer::Normal, SColor(1.0f, 0.0f, 0.0f, 1.0f));
     EXPECT_TRUE(box->IsRenderDirty());
     EXPECT_FALSE(box->IsLayoutDirty());
 }

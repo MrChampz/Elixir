@@ -72,7 +72,7 @@ TEST(DirtyTrackingTest, LayoutSetterInvalidatesButVisualSetterDoesNot)
     ASSERT_FALSE(child->IsLayoutDirty());
 
     // Background color is purely visual (redrawn every frame) -> no relayout.
-    child->SetBackground(SColor(1.0f, 0.0f, 0.0f, 1.0f));
+    child->SetBackgroundColor(EStyleLayer::Normal, SColor(1.0f, 0.0f, 0.0f, 1.0f));
     EXPECT_FALSE(child->IsLayoutDirty());
     EXPECT_FALSE(root->IsLayoutDirty());
 }

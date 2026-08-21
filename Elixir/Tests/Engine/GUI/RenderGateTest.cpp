@@ -80,7 +80,7 @@ TEST(RenderGateTest, InvalidationAfterRebuildNeedsRebuild)
     manager.MarkRebuilt();
     ASSERT_FALSE(manager.NeedsRebuild());
 
-    box->SetBackground(SColor(1.0f, 0.0f, 0.0f, 1.0f)); // bumps the dirty epoch
+    box->SetBackgroundColor(EStyleLayer::Normal, SColor(1.0f, 0.0f, 0.0f, 1.0f)); // bumps the dirty epoch
     EXPECT_TRUE(manager.NeedsRebuild());
 }
 

@@ -28,8 +28,9 @@ namespace Elixir::GUI
         const std::string& GetText() const { return m_Text; }
         void SetText(const std::string& text);
 
-        SColor GetTextColor() const { return m_TextColor; }
-        void SetTextColor(const SColor& color);
+        // A thin, domain-appropriate name for the base's ForegroundColor - same rename
+        // Button applies to its own SetTextColor.
+        void SetTextColor(EStyleLayer layer, const SColor& color) { SetForegroundColor(layer, color); }
 
         const std::string& GetPlaceholder() const { return m_Placeholder; }
         void SetPlaceholder(const std::string& placeholder);
@@ -39,36 +40,6 @@ namespace Elixir::GUI
 
         SPadding GetPadding() const { return m_Padding; }
         void SetPadding(const SPadding& padding);
-
-        /**
-         * Get corner radius for each corner individually.
-         * @return vector (top-left, top-right, bottom-right, bottom-left)
-         */
-        glm::vec4 GetCornerRadius() const { return m_CornerRadius; }
-
-        /**
-         * Set the same radius for all corners.
-         * @param radius corner radius in pixels
-         */
-        void SetCornerRadius(const float radius)
-        {
-            SetCornerRadius({ radius, radius, radius, radius });
-        }
-
-        /**
-         * Set a radius for each corner individually.
-         * @param radius vector (top-left, top-right, bottom-right, bottom-left)
-         */
-        void SetCornerRadius(const glm::vec4& radius);
-
-        SColor GetBackgroundColor() const { return m_BackgroundColor; }
-        void SetBackgroundColor(const SColor& color);
-
-        const glm::vec4& GetBackgroundBorders() const { return m_BackgroundBorders; }
-        void SetBackgroundBorders(const glm::vec4& borders);
-
-        const Ref<Texture2D>& GetNormalBackground() const { return m_NormalBackground; }
-        void SetNormalBackground(const Ref<Texture2D>& texture);
 
         const Ref<Texture2D>& GetFocusedBackground() const { return m_FocusedBackground; }
         void SetFocusedBackground(const Ref<Texture2D>& texture);
@@ -129,25 +100,15 @@ namespace Elixir::GUI
         float m_FontSize = 16.0f;
 
         std::string m_Text;
-        SColor m_TextColor{0.0f, 0.0f, 0.0f, 1.0f};
 
         std::string m_Placeholder;
         SColor m_PlaceholderColor{0.3f, 0.3f, 0.3f, 1.0f};
 
         SPadding m_Padding = { 5.0f, 5.0f, 5.0f, 5.0f };
 
-        // top-left, top-right, bottom-right, bottom-left
-        glm::vec4 m_CornerRadius = {0.0f, 0.0f, 0.0f, 0.0f};
-
-        // Colors for different states
-        SColor m_BackgroundColor{1.0f, 1.0f, 1.0f, 1.0f};
-
-        // When texture is used, this represents the borders of 9-patch texture.
-        // Border mapping = (left, top, right, bottom).
-        glm::vec4 m_BackgroundBorders = {30.0f, 30.0f, 30.0f, 30.0f};
-
-        // Textures for different states
-        Ref<Texture2D> m_NormalBackground;
+        // Focused-state-only texture: the base StyleSet's four layers (Normal/Hovered/
+        // Pressed/Disabled) don't include Focused (see EStyleLayer), so a focused background
+        // stays a field of its own rather than a fifth layer.
         Ref<Texture2D> m_FocusedBackground;
 
         // Focus

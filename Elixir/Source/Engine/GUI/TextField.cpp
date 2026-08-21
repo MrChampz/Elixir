@@ -14,6 +14,13 @@ namespace Elixir::GUI
         m_Font = FontManager::GetDefaultFont();
         m_CursorPosition = m_Text.size();
         SetFocusable(true);
+
+        SStyleOverride normal;
+        normal.ForegroundColor = SColor{ 0.0f, 0.0f, 0.0f, 1.0f };
+        normal.BackgroundColor = SColor{ 1.0f, 1.0f, 1.0f, 1.0f };
+        normal.CornerRadius = glm::vec4{ 0.0f };
+        normal.BackgroundBorders = glm::vec4{ 30.0f };
+        SetStyle(EStyleLayer::Normal, normal);
     }
 
     void TextField::Update(const Timestep frameTime)
@@ -50,12 +57,6 @@ namespace Elixir::GUI
         MarkRenderDirty();
     }
 
-    void TextField::SetTextColor(const SColor& color)
-    {
-        m_TextColor = color;
-        MarkRenderDirty();
-    }
-
     void TextField::SetPlaceholder(const std::string& placeholder)
     {
         m_Placeholder = placeholder;
@@ -72,30 +73,6 @@ namespace Elixir::GUI
     {
         m_Padding = padding;
         MarkLayoutDirty();
-        MarkRenderDirty();
-    }
-
-    void TextField::SetCornerRadius(const glm::vec4& radius)
-    {
-        m_CornerRadius = radius;
-        MarkRenderDirty();
-    }
-
-    void TextField::SetBackgroundColor(const SColor& color)
-    {
-        m_BackgroundColor = color;
-        MarkRenderDirty();
-    }
-
-    void TextField::SetBackgroundBorders(const glm::vec4& borders)
-    {
-        m_BackgroundBorders = borders;
-        MarkRenderDirty();
-    }
-
-    void TextField::SetNormalBackground(const Ref<Texture2D>& texture)
-    {
-        m_NormalBackground = texture;
         MarkRenderDirty();
     }
 
@@ -145,7 +122,11 @@ namespace Elixir::GUI
 
     void TextField::BuildDrawCommands(RenderBatch& batch, const int zOrder)
     {
-        // Background
+        const SResolvedStyle style = GetResolvedStyle();
+
+        // Background. Focused only swaps the texture/outline - background color, corner
+        // radius, borders and shadows still come from the resolved Normal/Hovered/Pressed/
+        // Disabled style, since Focused isn't one of StyleSet's layers (see m_FocusedBackground).
         if (m_Focused)
         {
             if (m_FocusedBackground)
@@ -153,8 +134,8 @@ namespace Elixir::GUI
                 batch.AddTexture(
                     m_FocusedBackground,
                     m_Geometry,
-                    m_BackgroundBorders,
-                    m_BackgroundColor,
+                    style.BackgroundBorders,
+                    style.BackgroundColor,
                     zOrder
                 );
             }
@@ -162,10 +143,10 @@ namespace Elixir::GUI
             {
                 batch.AddRect(
                     m_Geometry,
-                    m_BackgroundColor,
-                    m_CornerRadius,
-                    m_InsetShadow,
-                    m_DropShadow,
+                    style.BackgroundColor,
+                    style.CornerRadius,
+                    style.InsetShadow,
+                    style.DropShadow,
                     m_FocusedOutline,
                     zOrder
                 );
@@ -173,13 +154,13 @@ namespace Elixir::GUI
         }
         else
         {
-            if (m_NormalBackground)
+            if (style.BackgroundTexture)
             {
                 batch.AddTexture(
-                    m_NormalBackground,
+                    style.BackgroundTexture,
                     m_Geometry,
-                    m_BackgroundBorders,
-                    m_BackgroundColor,
+                    style.BackgroundBorders,
+                    style.BackgroundColor,
                     zOrder
                 );
             }
@@ -187,11 +168,11 @@ namespace Elixir::GUI
             {
                 batch.AddRect(
                     m_Geometry,
-                    m_BackgroundColor,
-                    m_CornerRadius,
-                    m_InsetShadow,
-                    m_DropShadow,
-                    m_Outline,
+                    style.BackgroundColor,
+                    style.CornerRadius,
+                    style.InsetShadow,
+                    style.DropShadow,
+                    style.Outline,
                     zOrder
                 );
             }
@@ -230,7 +211,7 @@ namespace Elixir::GUI
                 { textPos, textSize },
                 m_Font,
                 m_FontSize,
-                m_TextColor,
+                style.ForegroundColor,
                 zOrder + 2,
                 m_Geometry
             );
