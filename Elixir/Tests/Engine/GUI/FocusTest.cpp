@@ -19,6 +19,25 @@ namespace
         glm::vec2 ComputeDesiredSize(const glm::vec2&) override { return { 10.0f, 10.0f }; }
     };
 
+    // Records whether it ever received a key event, and always reports it as handled - the
+    // base Widget's default HandleKeyPressed is unconditionally Unhandled, so a plain
+    // FocusLeaf can't tell "the event never reached me" apart from "it reached me and I
+    // chose not to handle it".
+    class KeyRecordingLeaf final : public Widget
+    {
+      public:
+        bool ReceivedKeyPressed = false;
+
+        glm::vec2 ComputeDesiredSize(const glm::vec2&) override { return { 10.0f, 10.0f }; }
+
+      protected:
+        SInputReply HandleKeyPressed(const KeyPressedEvent&) override
+        {
+            ReceivedKeyPressed = true;
+            return SInputReply::Handled();
+        }
+    };
+
     KeyPressedEvent TabEvent(const bool shift = false)
     {
         return KeyPressedEvent(EE_KEY_TAB, 0, false, false, shift);
@@ -224,4 +243,61 @@ TEST(FocusTest, TabInPopupWithNoFocusableContentLeavesOuterFocusUntouched)
     manager.HandleKeyPressed(TabEvent());
     EXPECT_TRUE(rootWidget->IsFocused())
         << "Tab in a popup with nothing focusable must not clear focus in the layer below it";
+}
+
+// SetEnabled(false) has no way to clear m_FocusedWidget - Widget has no back-reference to
+// the Manager - so a widget disabled while focused stays focused, just Disabled-styled (see
+// StyleSet's precedence). Its "stops accepting input events" contract still has to hold for
+// the keyboard, or a disabled TextField that was focused before being disabled would keep
+// taking keystrokes.
+TEST(FocusTest, DisablingTheFocusedWidgetStopsItFromReceivingKeyEvents)
+{
+    const auto root = CreateRef<VerticalBox>();
+    const auto a = CreateRef<KeyRecordingLeaf>();
+    a->SetFocusable(true);
+    root->AddChild(a);
+
+    TestGUIManager manager;
+    manager.SetRoot(root);
+    manager.SetFocusedWidget(a);
+
+    manager.HandleKeyPressed(KeyPressedEvent(EE_KEY_A, 0, false, false, false));
+    ASSERT_TRUE(a->ReceivedKeyPressed) << "sanity check: an enabled focused widget must receive key events";
+    a->ReceivedKeyPressed = false;
+
+    a->SetEnabled(false);
+    ASSERT_TRUE(a->IsFocused()) << "sanity check: disabling does not itself clear focus";
+
+    manager.HandleKeyPressed(KeyPressedEvent(EE_KEY_A, 0, false, false, false));
+    EXPECT_FALSE(a->ReceivedKeyPressed)
+        << "a disabled widget must not receive key events even while it is still m_FocusedWidget";
+}
+
+// Mirrors the mouse-click case (Widget::HandleMouseDown already refuses a disabled widget):
+// Tab must not be able to reach somewhere a click already can't.
+TEST(FocusTest, TabSkipsADisabledFocusableWidget)
+{
+    const auto root = CreateRef<VerticalBox>();
+
+    const auto a = CreateRef<FocusLeaf>();
+    a->SetFocusable(true);
+
+    const auto disabled = CreateRef<FocusLeaf>();
+    disabled->SetFocusable(true);
+    disabled->SetEnabled(false);
+
+    const auto b = CreateRef<FocusLeaf>();
+    b->SetFocusable(true);
+
+    root->AddChild(a);
+    root->AddChild(disabled);
+    root->AddChild(b);
+
+    TestGUIManager manager;
+    manager.SetRoot(root);
+    manager.SetFocusedWidget(a);
+
+    manager.HandleKeyPressed(TabEvent());
+    EXPECT_TRUE(b->IsFocused()) << "Tab from a must skip the disabled widget and land on b";
+    EXPECT_FALSE(disabled->IsFocused());
 }

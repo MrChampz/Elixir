@@ -191,6 +191,14 @@ namespace Elixir::GUI
             return true;
         }
 
+        // SetEnabled(false) has no way to clear m_FocusedWidget itself - Widget has no
+        // back-reference to the Manager - so a widget disabled while focused stays focused,
+        // just Disabled-styled. Its own contract ("stops accepting input events") still has
+        // to hold for the keyboard, not only for HandleMouseDown/HandleClick, or a disabled
+        // TextField that was focused before being disabled would keep taking keystrokes.
+        if (m_FocusedWidget && !m_FocusedWidget->IsEnabled())
+            return false;
+
         for (auto widget = m_FocusedWidget; widget; widget = widget->GetParent())
         {
             if (widget->HandleKeyPressed(event).EventHandled)
@@ -202,6 +210,10 @@ namespace Elixir::GUI
 
     bool Manager::HandleKeyTyped(const KeyTypedEvent& event) const
     {
+        // See the matching guard in HandleKeyPressed for why this checks IsEnabled() at all.
+        if (m_FocusedWidget && !m_FocusedWidget->IsEnabled())
+            return false;
+
         for (auto widget = m_FocusedWidget; widget; widget = widget->GetParent())
         {
             if (widget->HandleKeyTyped(event).EventHandled)
@@ -366,9 +378,12 @@ namespace Elixir::GUI
             visibility == EVisibility::Collapsed)
             return;
 
-        // Excludes a SelfHitTestVisible widget from the order itself while
-        // still walking into its children.
-        if (widget->IsFocusable() && widget->IsSelfHitTestVisible())
+        // Excludes a SelfHitTestVisible widget from the order itself while still walking
+        // into its children - same treatment for a disabled one: Tab must not be able to
+        // land somewhere a mouse click already can't (Widget::HandleMouseDown's own
+        // IsEnabled() check), even though a widget already focused before being disabled
+        // stays in m_FocusedWidget (see the guard in Manager::HandleKeyPressed).
+        if (widget->IsFocusable() && widget->IsSelfHitTestVisible() && widget->IsEnabled())
             out.push_back(widget);
 
         widget->ForEachChild([&](const Ref<Widget>& child)
