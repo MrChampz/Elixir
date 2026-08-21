@@ -13,15 +13,25 @@ namespace Elixir::GUI
         m_Font = FontManager::GetDefaultFont();
 
         SStyleOverride normal;
-        normal.BackgroundColor = SColor{ 0.3f, 0.3f, 0.8f, 1.0f };
-        normal.ForegroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f };
-        normal.CornerRadius = glm::vec4{ 0.0f, 0.0f, 0.0f, 0.0f };
+        normal.BackgroundColor = SColor{ 0.0941f, 0.0941f, 0.1059f, 1.0f };
+        normal.ForegroundColor = SColor{ 0.8941f, 0.8941f, 0.9059f, 1.0f };
+        normal.CornerRadius = glm::vec4{ 4.0f };
         normal.BackgroundBorders = glm::vec4{ 30.0f, 30.0f, 30.0f, 30.0f };
+        normal.Outline = SOutline{ SColor{ 0.1529f, 0.1529f, 0.1647f, 1.0f }, 1.0f };
         SetStyle(EStyleLayer::Normal, normal);
 
         SStyleOverride hovered;
-        hovered.BackgroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f };
+        hovered.BackgroundColor = SColor{ 0.1529f, 0.1529f, 0.1647f, 1.0f };
         SetStyle(EStyleLayer::Hovered, hovered);
+
+        SStyleOverride focused;
+        focused.Outline = SOutline{ SColor{ 0.6314f, 0.6314f, 0.6667f, 1.0f }, 2.0f };
+        SetStyle(EStyleLayer::Focused, focused);
+
+        SStyleOverride disabled;
+        disabled.BackgroundColor = SColor{ 0.0941f, 0.0941f, 0.1059f, 0.5f };
+        disabled.ForegroundColor = SColor{ 0.8941f, 0.8941f, 0.9059f, 0.5f };
+        SetStyle(EStyleLayer::Disabled, disabled);
     }
 
     void Button::SetText(const std::string& text)

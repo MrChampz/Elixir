@@ -16,18 +16,25 @@ namespace Elixir::GUI
         SetFocusable(true);
 
         SStyleOverride normal;
-        normal.ForegroundColor = SColor{ 0.0f, 0.0f, 0.0f, 1.0f };
-        normal.BackgroundColor = SColor{ 1.0f, 1.0f, 1.0f, 1.0f };
-        normal.CornerRadius = glm::vec4{ 0.0f };
+        normal.ForegroundColor = SColor{ 0.8941f, 0.8941f, 0.9059f, 1.0f };
+        normal.BackgroundColor = SColor{ 0.0941f, 0.0941f, 0.1059f, 1.0f };
+        normal.CornerRadius = glm::vec4{ 4.0f };
         normal.BackgroundBorders = glm::vec4{ 30.0f };
+        normal.Outline = SOutline{ SColor{ 0.1529f, 0.1529f, 0.1647f, 1.0f }, 1.0f };
         SetStyle(EStyleLayer::Normal, normal);
 
-        // Only the outline changes by default when focused - background color, corner
-        // radius, borders and shadows are left unset here, so a focused field still shows
-        // whatever Normal (or Hovered/Pressed) resolved to for those.
         SStyleOverride focused;
-        focused.Outline = SOutline{ { 0.3f, 0.5f, 1.0f, 1.0f }, 1.0f };
+        focused.Outline = SOutline{ SColor{ 0.6314f, 0.6314f, 0.6667f, 1.0f }, 2.0f };
         SetStyle(EStyleLayer::Focused, focused);
+
+        SStyleOverride disabled;
+        disabled.BackgroundColor = SColor{ 0.0941f, 0.0941f, 0.1059f, 0.5f };
+        disabled.ForegroundColor = SColor{ 0.8941f, 0.8941f, 0.9059f, 0.5f };
+        SetStyle(EStyleLayer::Disabled, disabled);
+
+        SetCursorColor(SColor{ 0.8941f, 0.8941f, 0.9059f, 1.0f });
+        SetPlaceholderColor(SColor{ 0.6314f, 0.6314f, 0.6667f, 1.0f });
+        SetSelectionColor(SColor{ 0.6314f, 0.6314f, 0.6667f, 0.35f });
     }
 
     void TextField::Update(const Timestep frameTime)
