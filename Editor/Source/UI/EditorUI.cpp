@@ -2,7 +2,7 @@
 #include "EditorPanel.h"
 
 #include <Engine/GUI/Icon.h>
-#include <Engine/GUI/IconLibrary.h>
+#include <Engine/Icon/IconManager.h>
 #include <Engine/GUI/ScrollBox.h>
 
 #include <algorithm>
@@ -88,7 +88,7 @@ void EditorUI::BuildMenuBar()
     m_MenuBar->AddChild(branchPill);
 
     const auto branchIcon = CreateRef<GUI::Icon>();
-    branchIcon->SetIcon(GUI::IconLibrary::Load("./Assets/Icons/git-branch.svg"));
+    branchIcon->SetIcon(IconManager::Load("./Assets/Icons/git-branch.svg"));
     branchIcon->SetSize({ 11.0f, 11.0f });
     branchIcon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
     branchPill->AddChild(branchIcon).SetMargin(GUI::SMargin(0.0f, 0.0f, 5.0f, 0.0f));

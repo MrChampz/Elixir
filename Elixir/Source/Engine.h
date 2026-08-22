@@ -52,13 +52,15 @@
 #include <Engine/Font/FontManager.h>
 #include <Engine/Font/UTF8.h>
 
+#include <Engine/Icon/Icon.h>
+#include <Engine/Icon/IconManager.h>
+
 #include <Engine/GUI/Canvas.h>
 #include <Engine/GUI/HorizontalBox.h>
 #include <Engine/GUI/VerticalBox.h>
 #include <Engine/GUI/Overlay.h>
 #include <Engine/GUI/Button.h>
 #include <Engine/GUI/Icon.h>
-#include <Engine/GUI/IconLibrary.h>
 #include <Engine/GUI/TextBlock.h>
 
 #include <Engine/Aether/System.h>

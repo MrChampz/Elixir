@@ -3,7 +3,7 @@
 #include <Engine/GUI/Button.h>
 #include <Engine/GUI/Checkbox.h>
 #include <Engine/GUI/Icon.h>
-#include <Engine/GUI/IconLibrary.h>
+#include <Engine/Icon/IconManager.h>
 #include <Engine/GUI/ScrollBox.h>
 #include <Engine/GUI/TextField.h>
 
@@ -102,7 +102,7 @@ void ViewportPanel::BuildToolbar(const Ref<GUI::Canvas>& root)
         m_ToolModeSwatches.push_back(swatch);
 
         const auto icon = CreateRef<GUI::Icon>();
-        icon->SetIcon(GUI::IconLibrary::Load(toolIconPaths[index]));
+        icon->SetIcon(IconManager::Load(toolIconPaths[index]));
         icon->SetSize({ 14.0f, 14.0f });
         swatch->AddChild(icon)
             .SetAnchors(GUI::SAnchors::MiddleCenter())
@@ -141,7 +141,7 @@ void ViewportPanel::BuildToolbar(const Ref<GUI::Canvas>& root)
     row->AddChild(play).SetMargin(GUI::SMargin(0.0f, 0.0f, 2.0f, 0.0f));
     m_PlayButton = play;
     m_PlayIcon = CreateRef<GUI::Icon>();
-    m_PlayIcon->SetIcon(GUI::IconLibrary::Load("./Assets/Icons/play.svg"));
+    m_PlayIcon->SetIcon(IconManager::Load("./Assets/Icons/play.svg"));
     m_PlayIcon->SetSize({ 13.0f, 13.0f });
     play->AddChild(m_PlayIcon)
         .SetAnchors(GUI::SAnchors::MiddleCenter())
@@ -155,7 +155,7 @@ void ViewportPanel::BuildToolbar(const Ref<GUI::Canvas>& root)
     row->AddChild(pause);
     m_PauseButton = pause;
     m_PauseIcon = CreateRef<GUI::Icon>();
-    m_PauseIcon->SetIcon(GUI::IconLibrary::Load("./Assets/Icons/pause.svg"));
+    m_PauseIcon->SetIcon(IconManager::Load("./Assets/Icons/pause.svg"));
     m_PauseIcon->SetSize({ 13.0f, 13.0f });
     pause->AddChild(m_PauseIcon)
         .SetAnchors(GUI::SAnchors::MiddleCenter())
@@ -205,7 +205,7 @@ void ViewportPanel::BuildHierarchyPanel(const Ref<GUI::Canvas>& root)
     title->SetColor(ColorTextPrimary);
     title->SetFontSize(12.0f);
     const auto icon = CreateRef<GUI::Icon>();
-    icon->SetIcon(GUI::IconLibrary::Load("./Assets/Icons/hierarchy.svg"));
+    icon->SetIcon(IconManager::Load("./Assets/Icons/hierarchy.svg"));
     icon->SetSize({ 14.0f, 14.0f });
     icon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
     headerContent->AddChild(icon).SetMargin(GUI::SMargin(0.0f, 0.0f, 6.0f, 0.0f));
@@ -215,7 +215,7 @@ void ViewportPanel::BuildHierarchyPanel(const Ref<GUI::Canvas>& root)
     headerContent->AddChild(headerSpacer).SetFillSize();
 
     const auto closeIcon = CreateRef<GUI::Icon>();
-    closeIcon->SetIcon(GUI::IconLibrary::Load("./Assets/Icons/close.svg"));
+    closeIcon->SetIcon(IconManager::Load("./Assets/Icons/close.svg"));
     closeIcon->SetSize({ 11.0f, 11.0f });
     closeIcon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
     headerContent->AddChild(closeIcon);
@@ -282,7 +282,7 @@ void ViewportPanel::BuildHierarchyPanel(const Ref<GUI::Canvas>& root)
     m_HierarchyPanelToggle = panelToggle;
 
     const auto panelToggleIcon = CreateRef<GUI::Icon>();
-    panelToggleIcon->SetIcon(GUI::IconLibrary::Load("./Assets/Icons/hierarchy.svg"));
+    panelToggleIcon->SetIcon(IconManager::Load("./Assets/Icons/hierarchy.svg"));
     panelToggleIcon->SetSize({ 14.0f, 14.0f });
     panelToggleIcon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
     panelToggle->SetContent(panelToggleIcon);
@@ -328,7 +328,7 @@ void ViewportPanel::BuildInspectorPanel(const Ref<GUI::Canvas>& root)
     title->SetColor(ColorTextPrimary);
     title->SetFontSize(12.0f);
     const auto icon = CreateRef<GUI::Icon>();
-    icon->SetIcon(GUI::IconLibrary::Load("./Assets/Icons/inspector.svg"));
+    icon->SetIcon(IconManager::Load("./Assets/Icons/inspector.svg"));
     icon->SetSize({ 13.0f, 13.0f });
     icon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
     headerContent->AddChild(icon).SetMargin(GUI::SMargin(0.0f, 0.0f, 6.0f, 0.0f));
@@ -338,7 +338,7 @@ void ViewportPanel::BuildInspectorPanel(const Ref<GUI::Canvas>& root)
     headerContent->AddChild(headerSpacer).SetFillSize();
 
     const auto closeIcon = CreateRef<GUI::Icon>();
-    closeIcon->SetIcon(GUI::IconLibrary::Load("./Assets/Icons/close.svg"));
+    closeIcon->SetIcon(IconManager::Load("./Assets/Icons/close.svg"));
     closeIcon->SetSize({ 11.0f, 11.0f });
     closeIcon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
     headerContent->AddChild(closeIcon);
@@ -446,7 +446,7 @@ void ViewportPanel::BuildInspectorPanel(const Ref<GUI::Canvas>& root)
     m_InspectorPanelToggle = panelToggle;
 
     const auto panelToggleIcon = CreateRef<GUI::Icon>();
-    panelToggleIcon->SetIcon(GUI::IconLibrary::Load("./Assets/Icons/inspector.svg"));
+    panelToggleIcon->SetIcon(IconManager::Load("./Assets/Icons/inspector.svg"));
     panelToggleIcon->SetSize({ 13.0f, 13.0f });
     panelToggleIcon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
     panelToggle->SetContent(panelToggleIcon);
@@ -545,7 +545,7 @@ void ViewportPanel::AddInspectorSectionHeader(
         .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
 
     const auto disclosureIcon = CreateRef<GUI::Icon>();
-    disclosureIcon->SetIcon(GUI::IconLibrary::Load("./Assets/Icons/chevron-right.svg"));
+    disclosureIcon->SetIcon(IconManager::Load("./Assets/Icons/chevron-right.svg"));
     disclosureIcon->SetSize({ 9.0f, 9.0f });
     disclosureIcon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
     header->AddChild(disclosureIcon).SetMargin(GUI::SMargin(0.0f, 0.0f, 6.0f, 0.0f));
@@ -553,7 +553,7 @@ void ViewportPanel::AddInspectorSectionHeader(
     if (iconPath)
     {
         const auto icon = CreateRef<GUI::Icon>();
-        icon->SetIcon(GUI::IconLibrary::Load(iconPath));
+        icon->SetIcon(IconManager::Load(iconPath));
         icon->SetSize({ 13.0f, 13.0f });
         icon->SetColor(GUI::EStyleLayer::Normal, { 0.922f, 0.694f, 0.286f, 1.0f });
         header->AddChild(icon).SetMargin(GUI::SMargin(0.0f, 0.0f, 6.0f, 0.0f));

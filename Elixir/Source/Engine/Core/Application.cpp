@@ -4,6 +4,7 @@
 #include "Engine/GUI/Button.h"
 #include "Engine/GUI/Canvas.h"
 #include "Engine/GUI/HorizontalBox.h"
+#include "Engine/Icon/IconManager.h"
 #include "Engine/GUI/Overlay.h"
 #include "Engine/GUI/TextBlock.h"
 #include "Engine/GUI/TextField.h"
@@ -37,6 +38,7 @@ namespace Elixir
 
         TextureLoader::Initialize(m_GraphicsContext.get());
         FontManager::Initialize(m_GraphicsContext.get());
+        IconManager::Initialize(m_GraphicsContext.get());
 
         m_GUIManager = CreateScope<GUI::Manager>();
         m_GUIManager->Initialize(
@@ -128,6 +130,7 @@ namespace Elixir
     Application::~Application()
     {
         EE_PROFILE_ZONE_SCOPED()
+        IconManager::Shutdown();
         FontManager::Shutdown();
         Platform::Shutdown();
         m_Running = false;
