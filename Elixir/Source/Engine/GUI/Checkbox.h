@@ -14,10 +14,10 @@ namespace Elixir::GUI
     struct SCheckboxStyle final : SStyle, TStateStyles<SAppearance>
     {
         SAppearance Checked;
-        SAppearance CheckedHovered;
-        SAppearance CheckedPressed;
-        SAppearance CheckedFocused;
-        SAppearance CheckedDisabled;
+        std::optional<SAppearance> CheckedHovered;
+        std::optional<SAppearance> CheckedPressed;
+        std::optional<SAppearance> CheckedFocused;
+        std::optional<SAppearance> CheckedDisabled;
 
         /**
         * @brief Select the appearance for checked state and active interaction states.

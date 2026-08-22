@@ -28,20 +28,37 @@ TEST(StyleTest, StateStylesResolveByInteractionPriority)
 {
     TStateStyles<SButtonAppearance> styles;
     styles.Normal.Foreground = { 1.0f, 0.0f, 0.0f, 1.0f };
-    styles.Hovered.Foreground = { 0.0f, 1.0f, 0.0f, 1.0f };
-    styles.Pressed.Foreground = { 0.0f, 0.0f, 1.0f, 1.0f };
-    styles.Disabled.Foreground = { 0.5f, 0.5f, 0.5f, 1.0f };
+    styles.Hovered.emplace().Foreground = { 0.0f, 1.0f, 0.0f, 1.0f };
+    styles.Pressed.emplace().Foreground = { 0.0f, 0.0f, 1.0f, 1.0f };
+    styles.Focused.emplace().Foreground = { 1.0f, 1.0f, 0.0f, 1.0f };
+    styles.Disabled.emplace().Foreground = { 0.5f, 0.5f, 0.5f, 1.0f };
 
     EXPECT_EQ(styles.Resolve(EInteractionState::None).Foreground, styles.Normal.Foreground);
-    EXPECT_EQ(styles.Resolve(EInteractionState::Hovered).Foreground, styles.Hovered.Foreground);
+    EXPECT_EQ(styles.Resolve(EInteractionState::Hovered).Foreground, styles.Hovered->Foreground);
     EXPECT_EQ(
         styles.Resolve(EInteractionState::Hovered | EInteractionState::Pressed).Foreground,
-        styles.Pressed.Foreground
+        styles.Pressed->Foreground
+    );
+    EXPECT_EQ(
+        styles.Resolve(EInteractionState::Hovered | EInteractionState::Focused).Foreground,
+        styles.Focused->Foreground
     );
     EXPECT_EQ(
         styles.Resolve(EInteractionState::Hovered | EInteractionState::Pressed | EInteractionState::Disabled).Foreground,
-        styles.Disabled.Foreground
+        styles.Disabled->Foreground
     );
+}
+
+TEST(StyleTest, MissingInteractionAppearanceFallsBackToNormal)
+{
+    TStateStyles<SButtonAppearance> styles;
+    styles.Normal.Background.Color = { 1.0f, 0.0f, 0.0f, 1.0f };
+    styles.Normal.Foreground = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+    const SButtonAppearance& hovered = styles.Resolve(EInteractionState::Hovered);
+
+    EXPECT_EQ(hovered.Background.Color, styles.Normal.Background.Color);
+    EXPECT_EQ(hovered.Foreground, styles.Normal.Foreground);
 }
 
 TEST(StyleTest, CheckboxOwnsCheckedStateResolution)
@@ -49,16 +66,37 @@ TEST(StyleTest, CheckboxOwnsCheckedStateResolution)
     SCheckboxStyle styles;
     styles.Normal.Background.Color = { 1.0f, 0.0f, 0.0f, 1.0f };
     styles.Checked.Background.Color = { 0.0f, 1.0f, 0.0f, 1.0f };
-    styles.CheckedHovered.Background.Color = { 0.0f, 0.0f, 1.0f, 1.0f };
-    styles.CheckedDisabled.Background.Color = { 0.5f, 0.5f, 0.5f, 1.0f };
+    styles.CheckedHovered.emplace().Background.Color = { 0.0f, 0.0f, 1.0f, 1.0f };
+    styles.CheckedDisabled.emplace().Background.Color = { 0.5f, 0.5f, 0.5f, 1.0f };
 
     EXPECT_EQ(styles.Resolve(false, EInteractionState::None).Background.Color, styles.Normal.Background.Color);
     EXPECT_EQ(styles.Resolve(true, EInteractionState::None).Background.Color, styles.Checked.Background.Color);
-    EXPECT_EQ(styles.Resolve(true, EInteractionState::Hovered).Background.Color, styles.CheckedHovered.Background.Color);
+    EXPECT_EQ(styles.Resolve(true, EInteractionState::Hovered).Background.Color, styles.CheckedHovered->Background.Color);
     EXPECT_EQ(
         styles.Resolve(true, EInteractionState::Hovered | EInteractionState::Disabled).Background.Color,
-        styles.CheckedDisabled.Background.Color
+        styles.CheckedDisabled->Background.Color
     );
+}
+
+TEST(StyleTest, MissingCheckedInteractionAppearanceFallsBackToChecked)
+{
+    SCheckboxStyle styles;
+    styles.Checked.Background.Color = { 0.0f, 1.0f, 0.0f, 1.0f };
+
+    const SAppearance& checkedHovered = styles.Resolve(true, EInteractionState::Hovered);
+
+    EXPECT_EQ(checkedHovered.Background.Color, styles.Checked.Background.Color);
+}
+
+TEST(StyleTest, ExplicitTransparentInteractionAppearanceDoesNotFallBack)
+{
+    TStateStyles<SAppearance> styles;
+    styles.Normal.Background.Color = { 1.0f, 0.0f, 0.0f, 1.0f };
+    styles.Hovered.emplace().Background.Color = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+    const SAppearance& hovered = styles.Resolve(EInteractionState::Hovered);
+
+    EXPECT_EQ(hovered.Background.Color, SColor(0.0f, 0.0f, 0.0f, 0.0f));
 }
 
 TEST(StyleTest, StyleSetStoresStylesByConcreteType)
@@ -82,7 +120,8 @@ TEST(StyleTest, WidgetOwnsTheStyleItReceives)
     leaf.SetBackgroundColor(EStyleLayer::Hovered, { 0.0f, 1.0f, 0.0f, 1.0f });
 
     EXPECT_EQ(leaf.GetStyle().Normal.Background.Color, style.Normal.Background.Color);
-    EXPECT_EQ(leaf.GetStyle().Hovered.Background.Color, SColor(0.0f, 1.0f, 0.0f, 1.0f));
+    ASSERT_TRUE(leaf.GetStyle().Hovered);
+    EXPECT_EQ(leaf.GetStyle().Hovered->Background.Color, SColor(0.0f, 1.0f, 0.0f, 1.0f));
 }
 
 TEST(StyleTest, LegacyBackgroundSetterMarksTheWidgetForRerender)

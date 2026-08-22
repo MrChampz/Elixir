@@ -3,6 +3,7 @@
 #include <Engine/GUI/Definitions.h>
 #include <Engine/Graphics/Texture.h>
 
+#include <optional>
 #include <typeindex>
 #include <type_traits>
 #include <unordered_map>
@@ -14,7 +15,7 @@ namespace Elixir::GUI
      * @brief States supplied by Widget while it handles input.
      *
      * More than one state can be active at once. A style resolves them in this order:
-     * Disabled, Pressed, Hovered, Focused, then Normal.
+     * Disabled, Pressed, Focused, Hovered, then Normal.
      */
     enum class EInteractionState : uint8_t
     {
@@ -59,6 +60,7 @@ namespace Elixir::GUI
         SOutline Outline{};
         glm::vec4 InsetShadow{};
         glm::vec4 DropShadow{};
+
     };
 
     /**
@@ -70,6 +72,7 @@ namespace Elixir::GUI
     struct SAppearance
     {
         SBrush Background;
+
     };
 
     /**
@@ -84,26 +87,25 @@ namespace Elixir::GUI
     struct TStateStyles
     {
         TAppearance Normal;
-        TAppearance Hovered;
-        TAppearance Pressed;
-        TAppearance Focused;
-        TAppearance Disabled;
+        std::optional<TAppearance> Hovered;
+        std::optional<TAppearance> Pressed;
+        std::optional<TAppearance> Focused;
+        std::optional<TAppearance> Disabled;
 
         /**
          * @brief Select the appearance for active interaction states.
          *
-         * Disabled wins over Pressed and Hovered. Focused is used only when none of those
-         * higher-priority states is active.
+         * Disabled wins over Pressed, Focused and Hovered. An absent state uses Normal.
          *
          * @param states Interaction states active on the component.
          * @return The selected complete appearance.
          */
         const TAppearance& Resolve(const EInteractionState states) const
         {
-            if (states & EInteractionState::Disabled) return Disabled;
-            if (states & EInteractionState::Pressed) return Pressed;
-            if (states & EInteractionState::Hovered) return Hovered;
-            if (states & EInteractionState::Focused) return Focused;
+            if (states & EInteractionState::Disabled && Disabled) return *Disabled;
+            if (states & EInteractionState::Pressed && Pressed) return *Pressed;
+            if (states & EInteractionState::Focused && Focused) return *Focused;
+            if (states & EInteractionState::Hovered && Hovered) return *Hovered;
             return Normal;
         }
 
@@ -114,7 +116,14 @@ namespace Elixir::GUI
          */
         TAppearance& Get(const EStyleLayer layer)
         {
-            return const_cast<TAppearance&>(std::as_const(*this).Get(layer));
+            switch (layer)
+            {
+            case EStyleLayer::Hovered: return GetOrCreate(Hovered);
+            case EStyleLayer::Pressed: return GetOrCreate(Pressed);
+            case EStyleLayer::Focused: return GetOrCreate(Focused);
+            case EStyleLayer::Disabled: return GetOrCreate(Disabled);
+            default: return Normal;
+            }
         }
 
         /**
@@ -126,12 +135,21 @@ namespace Elixir::GUI
         {
             switch (layer)
             {
-            case EStyleLayer::Hovered: return Hovered;
-            case EStyleLayer::Pressed: return Pressed;
-            case EStyleLayer::Focused: return Focused;
-            case EStyleLayer::Disabled: return Disabled;
+            case EStyleLayer::Hovered: return Hovered ? *Hovered : Normal;
+            case EStyleLayer::Pressed: return Pressed ? *Pressed : Normal;
+            case EStyleLayer::Focused: return Focused ? *Focused : Normal;
+            case EStyleLayer::Disabled: return Disabled ? *Disabled : Normal;
             default: return Normal;
             }
+        }
+
+    private:
+        TAppearance& GetOrCreate(std::optional<TAppearance>& appearance)
+        {
+            if (!appearance)
+                appearance = Normal;
+
+            return *appearance;
         }
     };
 

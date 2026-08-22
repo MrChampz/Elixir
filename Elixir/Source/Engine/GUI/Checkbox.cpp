@@ -13,10 +13,10 @@ namespace Elixir::GUI
         if (!checked)
             return TStateStyles::Resolve(states);
 
-        if (states & EInteractionState::Disabled) return CheckedDisabled;
-        if (states & EInteractionState::Pressed) return CheckedPressed;
-        if (states & EInteractionState::Hovered) return CheckedHovered;
-        if (states & EInteractionState::Focused) return CheckedFocused;
+        if (states & EInteractionState::Disabled && CheckedDisabled) return *CheckedDisabled;
+        if (states & EInteractionState::Pressed && CheckedPressed) return *CheckedPressed;
+        if (states & EInteractionState::Focused && CheckedFocused) return *CheckedFocused;
+        if (states & EInteractionState::Hovered && CheckedHovered) return *CheckedHovered;
         return Checked;
     }
 
@@ -53,10 +53,10 @@ namespace Elixir::GUI
     void Checkbox::SetCheckedColor(const SColor& color)
     {
         m_Style.Checked.Background.Color = color;
-        m_Style.CheckedHovered.Background.Color = color;
-        m_Style.CheckedPressed.Background.Color = color;
-        m_Style.CheckedFocused.Background.Color = color;
-        m_Style.CheckedDisabled.Background.Color = color;
+        if (m_Style.CheckedHovered) m_Style.CheckedHovered->Background.Color = color;
+        if (m_Style.CheckedPressed) m_Style.CheckedPressed->Background.Color = color;
+        if (m_Style.CheckedFocused) m_Style.CheckedFocused->Background.Color = color;
+        if (m_Style.CheckedDisabled) m_Style.CheckedDisabled->Background.Color = color;
         MarkRenderDirty();
     }
 
