@@ -1,6 +1,8 @@
 #include "EditorUI.h"
 #include "EditorPanel.h"
 
+#include <Engine/GUI/Icon.h>
+#include <Engine/GUI/IconLibrary.h>
 #include <Engine/GUI/ScrollBox.h>
 
 #include <algorithm>
@@ -78,12 +80,18 @@ void EditorUI::BuildMenuBar()
     const auto spacer = CreateRef<GUI::Canvas>();
     m_MenuBar->AddChild(spacer).SetFillSize();
 
-    const auto branchPill = CreateRef<GUI::Overlay>();
+    const auto branchPill = CreateRef<GUI::HorizontalBox>();
     branchPill->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorSurfaceSunken);
     branchPill->SetOutline(GUI::EStyleLayer::Normal, { ColorBorder, 1.0f });
     branchPill->SetCornerRadius(GUI::EStyleLayer::Normal, 4.0f);
     branchPill->SetPadding(GUI::SMargin(10.0f, 4.0f));
     m_MenuBar->AddChild(branchPill);
+
+    const auto branchIcon = CreateRef<GUI::Icon>();
+    branchIcon->SetIcon(GUI::IconLibrary::Load("./Assets/Icons/git-branch.svg"));
+    branchIcon->SetSize({ 11.0f, 11.0f });
+    branchIcon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
+    branchPill->AddChild(branchIcon).SetMargin(GUI::SMargin(0.0f, 0.0f, 5.0f, 0.0f));
 
     const auto branchLabel = CreateRef<GUI::TextBlock>("main");
     branchLabel->SetColor(ColorTextSecondary);

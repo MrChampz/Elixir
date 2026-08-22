@@ -1,6 +1,9 @@
 #include "ViewportPanel.h"
 
+#include <Engine/GUI/Button.h>
 #include <Engine/GUI/Checkbox.h>
+#include <Engine/GUI/Icon.h>
+#include <Engine/GUI/IconLibrary.h>
 #include <Engine/GUI/ScrollBox.h>
 #include <Engine/GUI/TextField.h>
 
@@ -23,9 +26,9 @@ namespace
     const GUI::SColor ColorAxisZ = { 0.33f, 0.54f, 0.97f, 1.0f };
     const GUI::SColor ColorToolModeOff = { 0.35f, 0.36f, 0.40f, 0.0f };
     const GUI::SColor ColorPlayOn = { 0.29f, 0.61f, 0.33f, 1.0f };
-    const GUI::SColor ColorPlayOff = { 0.16f, 0.24f, 0.18f, 1.0f };
+    const GUI::SColor ColorPlayOff = { 0.16f, 0.24f, 0.18f, 0.0f };
     const GUI::SColor ColorPauseOn = { 0.35f, 0.36f, 0.40f, 1.0f };
-    const GUI::SColor ColorPauseOff = { 0.20f, 0.21f, 0.23f, 1.0f };
+    const GUI::SColor ColorPauseOff = { 0.20f, 0.21f, 0.23f, 0.0f };
 
     constexpr float PanelHeaderHeight = 28.0f;
     constexpr float RowHeight = 24.0f;
@@ -39,6 +42,21 @@ namespace
         std::snprintf(buffer, sizeof(buffer), "%.2f", value);
         return buffer;
     }
+
+    Ref<GUI::Button> CreateChromeButton(const GUI::SBrush& brush)
+    {
+        const auto button = CreateRef<GUI::Button>();
+        auto style = GUI::GetDefaultStyles().GetWidgetStyle<GUI::SButtonStyle>();
+        for (size_t index = 0; index < static_cast<size_t>(GUI::EStyleLayer::Count); ++index)
+            style.Get(static_cast<GUI::EStyleLayer>(index)).Background = brush;
+        button->SetStyle(style);
+        return button;
+    }
+
+    Ref<GUI::Button> CreatePanelHeaderButton()
+    {
+        return CreateChromeButton({});
+    }
 }
 
 Ref<GUI::Widget> ViewportPanel::Build()
@@ -46,7 +64,7 @@ Ref<GUI::Widget> ViewportPanel::Build()
     const auto root = CreateRef<GUI::Canvas>();
     // Neutral placeholder - the real scene render will fill this in later, so there's no
     // stand-in landscape here, just the floating chrome (toolbar, panels, stats overlay).
-    root->SetBackgroundColor(GUI::EStyleLayer::Normal, { 0.106f, 0.110f, 0.118f, 1.0f });
+    root->SetBackgroundColor(GUI::EStyleLayer::Normal, { 0.0f, 0.0f, 0.0f, 0.0f });
 
     BuildToolbar(root);
     BuildHierarchyPanel(root);
@@ -62,28 +80,35 @@ void ViewportPanel::BuildToolbar(const Ref<GUI::Canvas>& root)
     panel->SetBackgroundColor(GUI::EStyleLayer::Normal, { 0.118f, 0.122f, 0.133f, 0.78f });
     panel->SetOutline(GUI::EStyleLayer::Normal, { ColorPanelBorder, 1.0f });
     panel->SetCornerRadius(GUI::EStyleLayer::Normal, 8.0f);
-    panel->SetPadding(GUI::SMargin(6.0f, 4.0f));
-
-    // Non-stretching, top-center anchored; no explicit Size, so the CanvasSlot's default
-    // (a one-time Measure() snapshot taken in Canvas::AddChild) shrink-wraps to whatever
-    // the row below actually needs.
-    root->AddChild(panel)
-        .SetAnchors(GUI::SAnchors::TopCenter())
-        .SetPosition({ 0.0f, 10.0f })
-        .SetAlignment({ 0.5f, 0.0f });
+    panel->SetPadding(GUI::SMargin(4.0f));
 
     const auto row = CreateRef<GUI::HorizontalBox>();
     panel->AddChild(row);
 
     // Move / Rotate / Scale mode swatches - clicking one makes it the active tool.
+    const char* toolIconPaths[] = {
+        "./Assets/Icons/move.svg",
+        "./Assets/Icons/rotate.svg",
+        "./Assets/Icons/scale.svg",
+    };
     m_ToolModeSwatches.clear();
+    m_ToolModeIcons.clear();
     for (int index = 0; index < 3; ++index)
     {
         const auto swatch = CreateRef<GUI::Canvas>();
         swatch->SetSize({ 24.0f, 24.0f });
         swatch->SetCornerRadius(GUI::EStyleLayer::Normal, 24.0f * 0.22f);
-        row->AddChild(swatch).SetMargin(GUI::SMargin(2.0f, 0.0f));
+        row->AddChild(swatch).SetMargin(GUI::SMargin(0.0f, 0.0f, index < 2 ? 2.0f : 0.0f, 0.0f));
         m_ToolModeSwatches.push_back(swatch);
+
+        const auto icon = CreateRef<GUI::Icon>();
+        icon->SetIcon(GUI::IconLibrary::Load(toolIconPaths[index]));
+        icon->SetSize({ 14.0f, 14.0f });
+        swatch->AddChild(icon)
+            .SetAnchors(GUI::SAnchors::MiddleCenter())
+            .SetAlignment({ 0.5f, 0.5f })
+            .SetSize({ 14.0f, 14.0f });
+        m_ToolModeIcons.push_back(icon);
 
         swatch->OnClick([this, index] { SetActiveToolMode(index); });
     }
@@ -91,34 +116,60 @@ void ViewportPanel::BuildToolbar(const Ref<GUI::Canvas>& root)
     const auto divider1 = CreateRef<GUI::Canvas>();
     divider1->SetSize({ 1.0f, 18.0f });
     divider1->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorPanelBorder);
-    row->AddChild(divider1).SetMargin(GUI::SMargin(6.0f, 0.0f));
+    row->AddChild(divider1).SetMargin(GUI::SMargin(8.0f, 0.0f));
+
+    const auto pivot = CreateRef<GUI::Overlay>();
+    pivot->SetBackgroundColor(GUI::EStyleLayer::Normal, {});
+    pivot->SetOutline(GUI::EStyleLayer::Normal, { ColorPanelBorder, 1.0f });
+    pivot->SetCornerRadius(GUI::EStyleLayer::Normal, 4.0f);
+    pivot->SetPadding(GUI::SMargin(8.0f, 3.0f));
+    row->AddChild(pivot);
 
     const auto pivotLabel = CreateRef<GUI::TextBlock>("Local");
     pivotLabel->SetColor(ColorTextPrimary);
     pivotLabel->SetFontSize(11.0f);
-    row->AddChild(pivotLabel).SetMargin(GUI::SMargin(6.0f, 4.0f));
+    pivot->AddChild(pivotLabel);
 
     const auto divider2 = CreateRef<GUI::Canvas>();
     divider2->SetSize({ 1.0f, 18.0f });
     divider2->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorPanelBorder);
-    row->AddChild(divider2).SetMargin(GUI::SMargin(6.0f, 0.0f));
+    row->AddChild(divider2).SetMargin(GUI::SMargin(8.0f, 0.0f));
 
     const auto play = CreateRef<GUI::Canvas>();
     play->SetSize({ 26.0f, 26.0f });
     play->SetCornerRadius(GUI::EStyleLayer::Normal, 6.0f);
-    row->AddChild(play).SetMargin(GUI::SMargin(2.0f, 0.0f));
+    row->AddChild(play).SetMargin(GUI::SMargin(0.0f, 0.0f, 2.0f, 0.0f));
     m_PlayButton = play;
+    m_PlayIcon = CreateRef<GUI::Icon>();
+    m_PlayIcon->SetIcon(GUI::IconLibrary::Load("./Assets/Icons/play.svg"));
+    m_PlayIcon->SetSize({ 13.0f, 13.0f });
+    play->AddChild(m_PlayIcon)
+        .SetAnchors(GUI::SAnchors::MiddleCenter())
+        .SetAlignment({ 0.5f, 0.5f })
+        .SetSize({ 13.0f, 13.0f });
     play->OnClick([this] { SetPlaying(true); });
 
     const auto pause = CreateRef<GUI::Canvas>();
     pause->SetSize({ 26.0f, 26.0f });
     pause->SetCornerRadius(GUI::EStyleLayer::Normal, 6.0f);
-    row->AddChild(pause).SetMargin(GUI::SMargin(2.0f, 0.0f));
+    row->AddChild(pause);
     m_PauseButton = pause;
+    m_PauseIcon = CreateRef<GUI::Icon>();
+    m_PauseIcon->SetIcon(GUI::IconLibrary::Load("./Assets/Icons/pause.svg"));
+    m_PauseIcon->SetSize({ 13.0f, 13.0f });
+    pause->AddChild(m_PauseIcon)
+        .SetAnchors(GUI::SAnchors::MiddleCenter())
+        .SetAlignment({ 0.5f, 0.5f })
+        .SetSize({ 13.0f, 13.0f });
     pause->OnClick([this] { SetPlaying(false); });
 
     SetActiveToolMode(m_ActiveToolMode);
     SetPlaying(m_IsPlaying);
+
+    root->AddChild(panel)
+        .SetAnchors(GUI::SAnchors::TopCenter())
+        .SetPosition({ 0.0f, 10.0f })
+        .SetAlignment({ 0.5f, 0.0f });
 }
 
 void ViewportPanel::BuildHierarchyPanel(const Ref<GUI::Canvas>& root)
@@ -132,22 +183,48 @@ void ViewportPanel::BuildHierarchyPanel(const Ref<GUI::Canvas>& root)
         .SetAnchors(GUI::SAnchors::TopLeft())
         .SetPosition({ 10.0f, 10.0f })
         .SetSize({ 220.0f, 260.0f });
+    m_HierarchyPanel = panel;
 
     const auto column = CreateRef<GUI::VerticalBox>();
     panel->AddChild(column)
         .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill)
         .SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
 
-    const auto header = CreateRef<GUI::HorizontalBox>();
-    header->SetPadding({ 8.0f, 0.0f });
+    const auto header = CreatePanelHeaderButton();
+    const auto headerContent = CreateRef<GUI::HorizontalBox>();
+    headerContent->SetPadding({ 8.0f, 0.0f });
+    header->SetContent(headerContent)
+        .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill)
+        .SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
     column->AddChild(header)
-        .SetFixedSize(PanelHeaderHeight)
+        .SetFixedSize(PanelHeaderHeight - 1.0f)
         .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
+    header->OnClick([this] { SetHierarchyPanelOpen(false); });
 
     const auto title = CreateRef<GUI::TextBlock>("Hierarchy");
     title->SetColor(ColorTextPrimary);
     title->SetFontSize(12.0f);
-    header->AddChild(title);
+    const auto icon = CreateRef<GUI::Icon>();
+    icon->SetIcon(GUI::IconLibrary::Load("./Assets/Icons/hierarchy.svg"));
+    icon->SetSize({ 14.0f, 14.0f });
+    icon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
+    headerContent->AddChild(icon).SetMargin(GUI::SMargin(0.0f, 0.0f, 6.0f, 0.0f));
+    headerContent->AddChild(title);
+
+    const auto headerSpacer = CreateRef<GUI::Canvas>();
+    headerContent->AddChild(headerSpacer).SetFillSize();
+
+    const auto closeIcon = CreateRef<GUI::Icon>();
+    closeIcon->SetIcon(GUI::IconLibrary::Load("./Assets/Icons/close.svg"));
+    closeIcon->SetSize({ 11.0f, 11.0f });
+    closeIcon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
+    headerContent->AddChild(closeIcon);
+
+    const auto headerBorder = CreateRef<GUI::Canvas>();
+    headerBorder->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorPanelBorder);
+    column->AddChild(headerBorder)
+        .SetFixedSize(1.0f)
+        .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
 
     const auto scrollBox = CreateRef<GUI::ScrollBox>();
     scrollBox->SetScrollbarThickness(8.0f);
@@ -192,6 +269,25 @@ void ViewportPanel::BuildHierarchyPanel(const Ref<GUI::Canvas>& root)
     }
 
     SetSelectedHierarchyRow(m_SelectedHierarchyIndex);
+
+    GUI::SBrush panelToggleBrush;
+    panelToggleBrush.Color = ColorPanelBg;
+    panelToggleBrush.Outline = { ColorPanelBorder, 1.0f };
+    panelToggleBrush.CornerRadius = glm::vec4(8.0f);
+    const auto panelToggle = CreateChromeButton(panelToggleBrush);
+    root->AddChild(panelToggle)
+        .SetAnchors(GUI::SAnchors::TopLeft())
+        .SetPosition({ 10.0f, 10.0f })
+        .SetSize({ 32.0f, 32.0f });
+    m_HierarchyPanelToggle = panelToggle;
+
+    const auto panelToggleIcon = CreateRef<GUI::Icon>();
+    panelToggleIcon->SetIcon(GUI::IconLibrary::Load("./Assets/Icons/hierarchy.svg"));
+    panelToggleIcon->SetSize({ 14.0f, 14.0f });
+    panelToggleIcon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
+    panelToggle->SetContent(panelToggleIcon);
+    panelToggle->OnClick([this] { SetHierarchyPanelOpen(true); });
+    SetHierarchyPanelOpen(true);
 }
 
 void ViewportPanel::BuildInspectorPanel(const Ref<GUI::Canvas>& root)
@@ -210,22 +306,48 @@ void ViewportPanel::BuildInspectorPanel(const Ref<GUI::Canvas>& root)
         .SetPosition({ -10.0f, 0.0f })
         .SetAlignment({ 1.0f, 0.0f })
         .SetSize({ 260.0f, 0.0f });
+    m_InspectorPanel = panel;
 
     const auto column = CreateRef<GUI::VerticalBox>();
     panel->AddChild(column)
         .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill)
         .SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
 
-    const auto header = CreateRef<GUI::HorizontalBox>();
-    header->SetPadding({ 8.0f, 0.0f });
+    const auto header = CreatePanelHeaderButton();
+    const auto headerContent = CreateRef<GUI::HorizontalBox>();
+    headerContent->SetPadding({ 8.0f, 0.0f });
+    header->SetContent(headerContent)
+        .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill)
+        .SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
     column->AddChild(header)
-        .SetFixedSize(PanelHeaderHeight)
+        .SetFixedSize(PanelHeaderHeight - 1.0f)
         .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
+    header->OnClick([this] { SetInspectorPanelOpen(false); });
 
     const auto title = CreateRef<GUI::TextBlock>("Inspector");
     title->SetColor(ColorTextPrimary);
     title->SetFontSize(12.0f);
-    header->AddChild(title);
+    const auto icon = CreateRef<GUI::Icon>();
+    icon->SetIcon(GUI::IconLibrary::Load("./Assets/Icons/inspector.svg"));
+    icon->SetSize({ 13.0f, 13.0f });
+    icon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
+    headerContent->AddChild(icon).SetMargin(GUI::SMargin(0.0f, 0.0f, 6.0f, 0.0f));
+    headerContent->AddChild(title);
+
+    const auto headerSpacer = CreateRef<GUI::Canvas>();
+    headerContent->AddChild(headerSpacer).SetFillSize();
+
+    const auto closeIcon = CreateRef<GUI::Icon>();
+    closeIcon->SetIcon(GUI::IconLibrary::Load("./Assets/Icons/close.svg"));
+    closeIcon->SetSize({ 11.0f, 11.0f });
+    closeIcon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
+    headerContent->AddChild(closeIcon);
+
+    const auto headerBorder = CreateRef<GUI::Canvas>();
+    headerBorder->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorPanelBorder);
+    column->AddChild(headerBorder)
+        .SetFixedSize(1.0f)
+        .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
 
     const auto scrollBox = CreateRef<GUI::ScrollBox>();
     scrollBox->SetScrollbarThickness(8.0f);
@@ -274,7 +396,7 @@ void ViewportPanel::BuildInspectorPanel(const Ref<GUI::Canvas>& root)
     AddInspectorToggleRow(list, "Use Gravity", m_Inspector.UseGravity);
 
     // --- PlayerController (script) ---
-    AddInspectorSectionHeader(list, "PlayerController (Script)");
+    AddInspectorSectionHeader(list, "PlayerController (Script)", nullptr, "./Assets/Icons/script.svg");
     AddInspectorRow(list, "Move Speed", m_Inspector.MoveSpeed, true);
     AddInspectorRow(list, "Jump Height", m_Inspector.JumpHeight, true);
     AddInspectorToggleRow(list, "Ground Check", m_Inspector.GroundCheck);
@@ -310,6 +432,26 @@ void ViewportPanel::BuildInspectorPanel(const Ref<GUI::Canvas>& root)
                 std::static_pointer_cast<GUI::Overlay>(widget)->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorSectionHeaderBg);
         });
     }
+
+    GUI::SBrush panelToggleBrush;
+    panelToggleBrush.Color = ColorPanelBg;
+    panelToggleBrush.Outline = { ColorPanelBorder, 1.0f };
+    panelToggleBrush.CornerRadius = glm::vec4(8.0f);
+    const auto panelToggle = CreateChromeButton(panelToggleBrush);
+    root->AddChild(panelToggle)
+        .SetAnchors(GUI::SAnchors::TopRight())
+        .SetPosition({ -10.0f, 10.0f })
+        .SetAlignment({ 1.0f, 0.0f })
+        .SetSize({ 32.0f, 32.0f });
+    m_InspectorPanelToggle = panelToggle;
+
+    const auto panelToggleIcon = CreateRef<GUI::Icon>();
+    panelToggleIcon->SetIcon(GUI::IconLibrary::Load("./Assets/Icons/inspector.svg"));
+    panelToggleIcon->SetSize({ 13.0f, 13.0f });
+    panelToggleIcon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
+    panelToggle->SetContent(panelToggleIcon);
+    panelToggle->OnClick([this] { SetInspectorPanelOpen(true); });
+    SetInspectorPanelOpen(true);
 }
 
 void ViewportPanel::BuildStatsOverlay(const Ref<GUI::Canvas>& root)
@@ -345,7 +487,12 @@ void ViewportPanel::SetActiveToolMode(const int index)
     for (size_t i = 0; i < m_ToolModeSwatches.size(); ++i)
     {
         const auto canvas = std::static_pointer_cast<GUI::Canvas>(m_ToolModeSwatches[i]);
-        canvas->SetBackgroundColor(GUI::EStyleLayer::Normal, static_cast<int>(i) == index ? ColorAccent : ColorToolModeOff);
+        const bool active = static_cast<int>(i) == index;
+        canvas->SetBackgroundColor(GUI::EStyleLayer::Normal, active ? ColorAccent : ColorToolModeOff);
+        m_ToolModeIcons[i]->SetColor(
+            GUI::EStyleLayer::Normal,
+            active ? GUI::SColor{ 1.0f, 1.0f, 1.0f, 1.0f } : ColorTextSecondary
+        );
     }
 }
 
@@ -354,6 +501,8 @@ void ViewportPanel::SetPlaying(const bool playing)
     m_IsPlaying = playing;
     std::static_pointer_cast<GUI::Canvas>(m_PlayButton)->SetBackgroundColor(GUI::EStyleLayer::Normal, playing ? ColorPlayOn : ColorPlayOff);
     std::static_pointer_cast<GUI::Canvas>(m_PauseButton)->SetBackgroundColor(GUI::EStyleLayer::Normal, playing ? ColorPauseOff : ColorPauseOn);
+    m_PlayIcon->SetColor(GUI::EStyleLayer::Normal, playing ? GUI::SColor{ 1.0f, 1.0f, 1.0f, 1.0f } : ColorTextSecondary);
+    m_PauseIcon->SetColor(GUI::EStyleLayer::Normal, playing ? ColorTextSecondary : GUI::SColor{ 1.0f, 1.0f, 1.0f, 1.0f });
 }
 
 void ViewportPanel::SetSelectedHierarchyRow(const int index)
@@ -368,10 +517,23 @@ void ViewportPanel::SetSelectedHierarchyRow(const int index)
     }
 }
 
+void ViewportPanel::SetHierarchyPanelOpen(const bool open)
+{
+    m_HierarchyPanel->SetVisibility(open ? GUI::EVisibility::Visible : GUI::EVisibility::Collapsed);
+    m_HierarchyPanelToggle->SetVisibility(open ? GUI::EVisibility::Collapsed : GUI::EVisibility::Visible);
+}
+
+void ViewportPanel::SetInspectorPanelOpen(const bool open)
+{
+    m_InspectorPanel->SetVisibility(open ? GUI::EVisibility::Visible : GUI::EVisibility::Collapsed);
+    m_InspectorPanelToggle->SetVisibility(open ? GUI::EVisibility::Collapsed : GUI::EVisibility::Visible);
+}
+
 void ViewportPanel::AddInspectorSectionHeader(
     const Ref<GUI::VerticalBox>& list,
     const std::string& name,
-    bool* enabledValue
+    bool* enabledValue,
+    const char* iconPath
 )
 {
     const auto header = CreateRef<GUI::HorizontalBox>();
@@ -381,6 +543,21 @@ void ViewportPanel::AddInspectorSectionHeader(
         .SetFixedSize(PanelHeaderHeight)
         .SetMargin(GUI::SMargin(0.0f, 4.0f, 0.0f, 2.0f))
         .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
+
+    const auto disclosureIcon = CreateRef<GUI::Icon>();
+    disclosureIcon->SetIcon(GUI::IconLibrary::Load("./Assets/Icons/chevron-right.svg"));
+    disclosureIcon->SetSize({ 9.0f, 9.0f });
+    disclosureIcon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
+    header->AddChild(disclosureIcon).SetMargin(GUI::SMargin(0.0f, 0.0f, 6.0f, 0.0f));
+
+    if (iconPath)
+    {
+        const auto icon = CreateRef<GUI::Icon>();
+        icon->SetIcon(GUI::IconLibrary::Load(iconPath));
+        icon->SetSize({ 13.0f, 13.0f });
+        icon->SetColor(GUI::EStyleLayer::Normal, { 0.922f, 0.694f, 0.286f, 1.0f });
+        header->AddChild(icon).SetMargin(GUI::SMargin(0.0f, 0.0f, 6.0f, 0.0f));
+    }
 
     const auto label = CreateRef<GUI::TextBlock>(name);
     label->SetColor(ColorTextPrimary);

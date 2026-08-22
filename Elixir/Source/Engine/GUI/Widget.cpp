@@ -54,7 +54,11 @@ namespace Elixir::GUI
         m_LayoutDirty = false;
     }
 
-    void Widget::HitTest(const glm::vec2& point, std::vector<Ref<Widget>>& path)
+    void Widget::HitTest(
+        const glm::vec2& point,
+        std::vector<Ref<Widget>>& path,
+        const SRect& clipRect
+    )
     {
         // HitTestInvisible prunes this whole branch (neither this widget nor its children can
         // be hit); Hidden/Collapsed are not rendered/laid out, so neither should be clickable.
@@ -62,6 +66,13 @@ namespace Elixir::GUI
             m_Visibility == EVisibility::Hidden ||
             m_Visibility == EVisibility::Collapsed)
             return;
+
+        if (clipRect.IsValid() && !clipRect.Contains(point))
+            return;
+
+        const SRect childClipRect = ClipsChildren()
+            ? (clipRect.IsValid() ? SRect::Intersect(m_Geometry, clipRect) : m_Geometry)
+            : clipRect;
 
         // Children sit above their parent z (see CollectDrawCommands' pre-order zCursor):
         // test the topmost child first and recurse depth-first, so the first branch that
@@ -71,7 +82,7 @@ namespace Elixir::GUI
             if (const Ref<Widget> child = GetChildAt(i))
             {
                 const size_t sizeBefore = path.size();
-                child->HitTest(point, path);
+                child->HitTest(point, path, childClipRect);
 
                 if (path.size() > sizeBefore)
                 {

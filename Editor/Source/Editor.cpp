@@ -28,6 +28,8 @@ Editor::Editor()
     });
 
     m_EditorUI->AddPanel(CreateScope<ViewportPanel>());
+
+    m_GraphicsContext->SetClearColor({ 0.49f, 0.65f, 0.98f, 1.0f });
 }
 
 Editor::~Editor() = default;
@@ -44,6 +46,7 @@ void Editor::OnRender(const Timestep frameTime)
 {
     EE_PROFILE_ZONE_SCOPED()
     Application::OnRender(frameTime);
+    m_GraphicsContext->Clear();
 }
 
 void Editor::OnEvent(Event& event)

@@ -151,6 +151,29 @@ namespace Elixir::GUI
         cmd.Color = tint;
         cmd.Texture = texture;
         cmd.Border = borders;
+        cmd.TextureMapping = ETextureMapping::NineSlice;
+        cmd.ZOrder = zOrder;
+        cmd.ScissorRect = scissorRect;
+
+        m_Commands.push_back(cmd);
+    }
+
+    void RenderBatch::AddIcon(
+        const Ref<Texture2D>& texture,
+        const SRect& rect,
+        const SColor& color,
+        const int zOrder,
+        const SRect& scissorRect
+    )
+    {
+        if (!texture) return;
+
+        SDrawCommand cmd;
+        cmd.Type = EDrawCommandType::Rect;
+        cmd.Geometry = rect;
+        cmd.Color = color;
+        cmd.Texture = texture;
+        cmd.TextureMapping = ETextureMapping::Stretch;
         cmd.ZOrder = zOrder;
         cmd.ScissorRect = scissorRect;
 

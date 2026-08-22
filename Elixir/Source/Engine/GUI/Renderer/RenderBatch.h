@@ -12,6 +12,13 @@ namespace Elixir::GUI
         Rect, Text, DebugRect
     };
 
+    /** @brief Controls how a textured quad maps its texture coordinates. */
+    enum class ETextureMapping : uint8_t
+    {
+        Stretch,
+        NineSlice,
+    };
+
     struct SDrawCommand
     {
         EDrawCommandType Type;
@@ -47,6 +54,7 @@ namespace Elixir::GUI
         // For texture rendering
         Ref<Texture2D> Texture;
         SRect TexCoords;
+        ETextureMapping TextureMapping = ETextureMapping::Stretch;
 
         // Z-order for sorting
         int ZOrder = 0;
@@ -142,6 +150,26 @@ namespace Elixir::GUI
             const SRect& rect,
             const glm::vec4& borders,
             const SColor& tint,
+            int zOrder = 0,
+            const SRect& scissorRect = {{ -1, -1 }, { -1, -1 }}
+        );
+
+        /**
+         * @brief Add a tinted icon texture without nine-slice mapping.
+         *
+         * Icon textures use their complete image area. The caller supplies the tint through
+         * color, so one alpha mask can render every interaction state.
+         *
+         * @param texture Rasterized icon texture.
+         * @param rect Destination rectangle.
+         * @param color Icon tint.
+         * @param zOrder Draw layer for the command.
+         * @param scissorRect Optional clip rectangle.
+         */
+        void AddIcon(
+            const Ref<Texture2D>& texture,
+            const SRect& rect,
+            const SColor& color,
             int zOrder = 0,
             const SRect& scissorRect = {{ -1, -1 }, { -1, -1 }}
         );

@@ -32,6 +32,7 @@ struct PS_INPUT
     float4 OutlineColor     : OUTLINE0;             // Outline color
     float  OutlineThickness : OUTLINE1;             // Outline thickness
     uint   TextureIndex     : TEXTURE;              // Texture index
+    uint   TextureMapping   : TEXTURE_MAPPING;      // 0 = stretch, 1 = nine-slice
     float4 ScissorRect      : SCISSOR;              // Scissor rect (x, y, width, height)
 };
 
@@ -47,7 +48,7 @@ struct PS_INPUT
  * size: quad size in screen-space
  * border: left, top, right, bottom
  */
-float2 calculateTexCoords(uint texIndex, float2 texCoords, float2 size, float4 border)
+float2 CalculateTexCoords(uint texIndex, float2 texCoords, float2 size, float4 border)
 {
     // Get texture dimensions
     float2 texSize;
@@ -133,7 +134,7 @@ float2 calculateTexCoords(uint texIndex, float2 texCoords, float2 size, float4 b
  * halfSize: half of the quad size for distance calculation
  * cornerRadii: corner radii for distance calculation
  */
-float4 applyShadow(float4 color, float4 shadow, float2 localPos, float2 halfSize, float4 cornerRadii)
+float4 ApplyShadow(float4 color, float4 shadow, float2 localPos, float2 halfSize, float4 cornerRadii)
 {
     float4 finalColor = color;
 
@@ -146,7 +147,7 @@ float4 applyShadow(float4 color, float4 shadow, float2 localPos, float2 halfSize
     {
         // Calculate shadow distance (offset SDF)
         float2 shadowPos = localPos - offset;
-        float dist = sdfRect(shadowPos, halfSize, cornerRadii);
+        float dist = SDFRect(shadowPos, halfSize, cornerRadii);
 
         // Soft shadow with gaussian-like falloff
         float alpha = 1.0f - smoothstep(-blur, blur, dist);
@@ -166,7 +167,7 @@ float4 applyShadow(float4 color, float4 shadow, float2 localPos, float2 halfSize
  * sd: signed distance
  * px: pixel width (calculated as fwidth(sd))
  */
-float4 applyOutline(float4 color, float thickness, float4 outlineColor, float sd, float px)
+float4 ApplyOutline(float4 color, float thickness, float4 outlineColor, float sd, float px)
 {
     float4 finalColor = color;
 
@@ -192,7 +193,7 @@ float4 applyOutline(float4 color, float thickness, float4 outlineColor, float sd
  * halfSize: half of the quad size for distance calculation
  * cornerRadii: corner radii for distance calculation
  */
-float4 applyInsetShadow(float4 color, float4 shadow, float2 localPos, float2 halfSize, float4 cornerRadii)
+float4 ApplyInsetShadow(float4 color, float4 shadow, float2 localPos, float2 halfSize, float4 cornerRadii)
 {
     float4 finalColor = color;
 
@@ -205,7 +206,7 @@ float4 applyInsetShadow(float4 color, float4 shadow, float2 localPos, float2 hal
     {
         // Calculate shadow distance (offset SDF)
         float2 pos = localPos + (offset * -1.0f);
-        float dist = sdfRect(pos, halfSize, cornerRadii);
+        float dist = SDFRect(pos, halfSize, cornerRadii);
 
         // Inner shadow only renders INSIDE the shape (dist < 0)
         // Fade from edge inward
@@ -222,21 +223,19 @@ float4 applyInsetShadow(float4 color, float4 shadow, float2 localPos, float2 hal
 float4 main(PS_INPUT input) : SV_TARGET
 {
     // Discard pixels outside the scissor rect
-    if (isScissorRectValid(input.ScissorRect) &&
+    if (IsScissorRectValid(input.ScissorRect) &&
        (input.ClipPos.x < input.ScissorRect.x ||
         input.ClipPos.y < input.ScissorRect.y ||
         input.ClipPos.x > input.ScissorRect.x + input.ScissorRect.z ||
         input.ClipPos.y > input.ScissorRect.y + input.ScissorRect.w))
-    {
         discard;
-    }
 
     float4 color = input.Color;
     float2 texCoords = input.TexCoord;
 
-    if (input.TextureIndex > pcWhiteTexture.WhiteTextureIndex)
+    if (input.TextureIndex > pcWhiteTexture.WhiteTextureIndex && input.TextureMapping == 1)
     {
-        texCoords = calculateTexCoords(
+        texCoords = CalculateTexCoords(
             input.TextureIndex,
             input.TexCoord,
             input.ContentSize,
@@ -253,14 +252,14 @@ float4 main(PS_INPUT input) : SV_TARGET
     float2 localPos = input.LocalPos - contentCenter;
 
     // Calculate the signed distance
-    float dist = sdfRect(localPos, halfSize, input.Border);
+    float dist = SDFRect(localPos, halfSize, input.Border);
 	float px = fwidth(dist);
 
     // Start with transparent
     float4 finalColor = float4(0, 0, 0, 0);
 
     // Run these effects BEFORE shape rendering
-    finalColor = applyShadow(finalColor, input.DropShadow, localPos, halfSize, input.Border);
+    finalColor = ApplyShadow(finalColor, input.DropShadow, localPos, halfSize, input.Border);
 
     // Lerp final color with shape color based on actual quad shape
     float shapeMask = 1.0f - smoothstep(-px, px, dist);
@@ -269,14 +268,14 @@ float4 main(PS_INPUT input) : SV_TARGET
     // Run these effects AFTER shape rendering
     if (dist < (-px + 1.0f))
     {
-        finalColor = applyInsetShadow(finalColor, input.InsetShadow, localPos, halfSize, input.Border);
+        finalColor = ApplyInsetShadow(finalColor, input.InsetShadow, localPos, halfSize, input.Border);
     }
 
     // Outline is a border, not a CSS-style outline: it's drawn INSET, in the [-thickness, 0]
     // band just inside the shape boundary, on top of everything above - never past dist=0,
     // so it always stays inside input.ContentSize (see the box-sizing note on Widget::Measure
     // for how desired size grows to make room for it instead).
-    finalColor = applyOutline(finalColor, input.OutlineThickness, input.OutlineColor, -dist, px);
+    finalColor = ApplyOutline(finalColor, input.OutlineThickness, input.OutlineColor, -dist, px);
 
     if (finalColor.a < 0.001) discard;
     return finalColor;

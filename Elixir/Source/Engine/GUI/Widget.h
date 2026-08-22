@@ -88,12 +88,18 @@ namespace Elixir::GUI
          * Descends children back-to-front (last child = highest z, see CollectDrawCommands)
          * so the first matching branch, depth-first, wins. Prunes HitTestInvisible/Hidden/Collapsed
          * branches entirely; skips (but still descends through) SelfHitTestInvisible widgets.
+         * A clipping ancestor limits the hit area of every descendant.
          * Non-virtual: built on HitTestSelf and the GetChildCount/GetChildAt traversal primitives.
          *
          * @param point Point to test, in the same space as m_Geometry.
          * @param path Appended with the hit path; left untouched if nothing was hit.
+         * @param clipRect Clip inherited from a clipping ancestor, or an invalid rect when none applies.
          */
-        void HitTest(const glm::vec2& point, std::vector<Ref<Widget>>& path);
+        void HitTest(
+            const glm::vec2& point,
+            std::vector<Ref<Widget>>& path,
+            const SRect& clipRect = {{ -1, -1 }, { -1, -1 }}
+        );
 
         /**
          * Get this widget's parent, or nullptr if it has none (or the parent was destroyed).

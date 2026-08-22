@@ -22,6 +22,7 @@ struct VS_INPUT
     float4 OutlineColor     : OUTLINE0;             // Outline color
     float  OutlineThickness : OUTLINE1;             // Outline thickness
     uint   TextureIndex     : TEXTURE;              // Texture index
+    uint   TextureMapping   : TEXTURE_MAPPING;      // 0 = stretch, 1 = nine-slice
     float4 ScissorRect      : SCISSOR;              // Scissor rect (x, y, width, height)
 
     uint VertexId : SV_VertexID;
@@ -42,6 +43,7 @@ struct VS_OUTPUT
     float4 OutlineColor     : OUTLINE0;             // Outline color
     float  OutlineThickness : OUTLINE1;             // Outline thickness
     uint   TextureIndex     : TEXTURE;              // Texture index
+    uint   TextureMapping   : TEXTURE_MAPPING;      // Texture mapping mode
     float4 ScissorRect      : SCISSOR;              // Scissor rect (x, y, width, height)
 };
 
@@ -99,6 +101,7 @@ VS_OUTPUT main(VS_INPUT input)
     output.OutlineColor = input.OutlineColor;
     output.OutlineThickness = input.OutlineThickness;
     output.TextureIndex = input.TextureIndex;
+    output.TextureMapping = input.TextureMapping;
     output.ScissorRect = input.ScissorRect;
 
     return output;

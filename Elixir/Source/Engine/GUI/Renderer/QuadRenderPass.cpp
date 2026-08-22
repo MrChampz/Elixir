@@ -99,6 +99,7 @@ namespace Elixir::GUI
                     { EDataType::Vec4,  "OutlineColor"      },
                     { EDataType::Float, "OutlineThickness"  },
                     { EDataType::UInt,  "TextureIndex"      },
+                    { EDataType::UInt,  "TextureMapping"    },
                     { EDataType::Vec4,  "ScissorRect"       },
                 },
                 EInputRate::Instance
@@ -160,6 +161,7 @@ namespace Elixir::GUI
             .TextureIndex = cmd.Texture
                 ? m_TextureSet->AddTexture(cmd.Texture).Index
                 : m_WhiteTextureHandle.Index,
+            .TextureMapping = (uint32_t)cmd.TextureMapping,
             .ScissorRect = cmd.ScissorRect.IsValid()
                 ? cmd.ScissorRect * m_DPIScale
                 : cmd.ScissorRect

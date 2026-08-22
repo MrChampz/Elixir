@@ -77,6 +77,7 @@ namespace Elixir::GUI
             float OutlineThickness = 0.0f;
 
             uint32_t TextureIndex = 0;
+            uint32_t TextureMapping = 0;
 
             SRect ScissorRect;
         };

@@ -57,6 +57,8 @@
 #include <Engine/GUI/VerticalBox.h>
 #include <Engine/GUI/Overlay.h>
 #include <Engine/GUI/Button.h>
+#include <Engine/GUI/Icon.h>
+#include <Engine/GUI/IconLibrary.h>
 #include <Engine/GUI/TextBlock.h>
 
 #include <Engine/Aether/System.h>

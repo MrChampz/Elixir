@@ -3,6 +3,7 @@
 
 #include <Engine/GUI/Button.h>
 #include <Engine/GUI/Checkbox.h>
+#include <Engine/GUI/Icon.h>
 #include <Engine/GUI/TextField.h>
 #include <Engine/GUI/Widget.h>
 
@@ -24,6 +25,16 @@ namespace Elixir::GUI
             StyleSet styles;
 
             styles.SetWidgetStyle(SWidgetStyle{});
+
+            SIconStyle icon;
+            icon.Normal.Foreground = { 0.875f, 0.882f, 0.898f, 1.0f };
+            icon.Hovered = icon.Normal;
+            icon.Hovered->Foreground = { 1.0f, 1.0f, 1.0f, 1.0f };
+            icon.Pressed = icon.Hovered;
+            icon.Focused = icon.Normal;
+            icon.Disabled = icon.Normal;
+            icon.Disabled->Foreground.A = 0.5f;
+            styles.SetWidgetStyle(std::move(icon));
 
             SButtonStyle button;
             button.Normal.Background.Color = { 0.0941f, 0.0941f, 0.1059f, 1.0f };

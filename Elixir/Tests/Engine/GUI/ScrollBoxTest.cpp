@@ -139,3 +139,20 @@ TEST(ScrollBoxTest, ClipsChildrenIsTrue)
     const auto scrollBox = CreateRef<TestScrollBox>();
     EXPECT_TRUE(scrollBox->ClipsChildren());
 }
+
+TEST(ScrollBoxTest, HitTestExcludesScrolledContentOutsideTheViewport)
+{
+    const auto scrollBox = CreateRef<ScrollBox>();
+    scrollBox->SetSize({ 50.0f, 50.0f });
+    const auto content = CreateRef<SizedLeaf>(glm::vec2{ 50.0f, 200.0f });
+    scrollBox->SetContent(content);
+
+    Arrange(scrollBox, { { 0.0f, 28.0f }, { 50.0f, 50.0f } });
+    scrollBox->SetScrollOffset({ 0.0f, 20.0f });
+    Arrange(scrollBox, { { 0.0f, 28.0f }, { 50.0f, 50.0f } });
+
+    std::vector<Ref<Widget>> path;
+    scrollBox->HitTest({ 10.0f, 10.0f }, path);
+
+    EXPECT_TRUE(path.empty());
+}

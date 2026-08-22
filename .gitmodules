@@ -40,6 +40,9 @@
 [submodule "msdf-atlas-gen"]
 	path = Elixir/Vendor/msdf-atlas-gen
 	url = https://github.com/Chlumsky/msdf-atlas-gen
+[submodule "Elixir/Vendor/lunasvg"]
+	path = Elixir/Vendor/lunasvg
+	url = https://github.com/sammycage/lunasvg.git
 [submodule "Vendor/vcpkg"]
 	path = Vendor/vcpkg
 	url = https://github.com/microsoft/vcpkg

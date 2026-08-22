@@ -32,7 +32,12 @@ private:
     // enabledValue wires the header's own checkbox to that flag (Mesh Renderer/Rigidbody);
     // passing a value/component reference to the row helpers wires the field itself to be
     // editable, writing straight back into the referenced member on change.
-    void AddInspectorSectionHeader(const Ref<GUI::VerticalBox>& list, const std::string& name, bool* enabledValue = nullptr);
+    void AddInspectorSectionHeader(
+        const Ref<GUI::VerticalBox>& list,
+        const std::string& name,
+        bool* enabledValue = nullptr,
+        const char* iconPath = nullptr
+    );
     void AddInspectorRow(const Ref<GUI::VerticalBox>& list, const std::string& label, std::string& value, bool monospace = false);
     void AddInspectorToggleRow(const Ref<GUI::VerticalBox>& list, const std::string& label, bool& value);
     void AddInspectorVectorRow(const Ref<GUI::VerticalBox>& list, const std::string& label, glm::vec3& value);
@@ -40,15 +45,22 @@ private:
     void SetActiveToolMode(int index);
     void SetPlaying(bool playing);
     void SetSelectedHierarchyRow(int index);
+    void SetHierarchyPanelOpen(bool open);
+    void SetInspectorPanelOpen(bool open);
 
     // --- Toolbar state ---
     std::vector<Ref<GUI::Widget>> m_ToolModeSwatches; // 0 = Move, 1 = Rotate, 2 = Scale
+    std::vector<Ref<GUI::Icon>> m_ToolModeIcons;
     int m_ActiveToolMode = 1;
     Ref<GUI::Widget> m_PlayButton;
     Ref<GUI::Widget> m_PauseButton;
-    bool m_IsPlaying = false;
+    Ref<GUI::Icon> m_PlayIcon;
+    Ref<GUI::Icon> m_PauseIcon;
+    bool m_IsPlaying = true;
 
     // --- Hierarchy state ---
+    Ref<GUI::Widget> m_HierarchyPanel;
+    Ref<GUI::Widget> m_HierarchyPanelToggle;
     struct SHierarchyRow
     {
         Ref<GUI::Widget> Row;
@@ -58,6 +70,8 @@ private:
     int m_SelectedHierarchyIndex = 2; // "Player", matching the mock's initial selection
 
     // --- Inspector state (stand-in for a real selected-entity data model) ---
+    Ref<GUI::Widget> m_InspectorPanel;
+    Ref<GUI::Widget> m_InspectorPanelToggle;
     struct SInspectorState
     {
         std::string Tag = "Player";
