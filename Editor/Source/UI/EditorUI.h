@@ -53,6 +53,7 @@ private:
 
     Ref<GUI::Canvas> m_Root;
     Ref<GUI::HorizontalBox> m_MenuBar;
+    Ref<GUI::HorizontalBox> m_MenuItems;
     Ref<GUI::HorizontalBox> m_TabBar;
     Ref<GUI::Canvas> m_ContentArea;
     Ref<GUI::HorizontalBox> m_AssetBrowser;

@@ -13,6 +13,9 @@ Editor::Editor()
     m_EditorUI = CreateScope<EditorUI>(m_GUIManager.get());
     m_EditorUI->AddMenuItem("File");
     m_EditorUI->AddMenuItem("Edit");
+    m_EditorUI->AddMenuItem("Assets");
+    m_EditorUI->AddMenuItem("GameObject");
+    m_EditorUI->AddMenuItem("Component");
     m_EditorUI->AddMenuItem("Window");
     m_EditorUI->AddMenuItem("Help");
 

@@ -70,13 +70,14 @@ void EditorUI::BuildMenuBar()
     logo->SetCornerRadius(GUI::EStyleLayer::Normal, 3.0f);
     m_MenuBar->AddChild(logo).SetFixedSize(16.0f);
 
-    const auto title = CreateRef<GUI::TextBlock>("Forge Engine");
+    const auto title = CreateRef<GUI::TextBlock>("Elixir Engine");
     title->SetColor(ColorTextPrimary);
-    title->SetFontSize(13.0f);
+    title->SetFontSize(12.0f);
     m_MenuBar->AddChild(title).SetMargin(GUI::SMargin(8.0f, 0.0f, 14.0f, 0.0f));
 
-    // Invisible spacer: Fill claims all width the fixed/auto items to its left and right
-    // don't need, pushing the branch pill that follows to the far right of the bar.
+    m_MenuItems = CreateRef<GUI::HorizontalBox>();
+    m_MenuBar->AddChild(m_MenuItems);
+
     const auto spacer = CreateRef<GUI::Canvas>();
     m_MenuBar->AddChild(spacer).SetFillSize();
 
@@ -97,6 +98,13 @@ void EditorUI::BuildMenuBar()
     branchLabel->SetColor(ColorTextSecondary);
     branchLabel->SetFontSize(11.0f);
     branchPill->AddChild(branchLabel);
+
+    const auto border = CreateRef<GUI::Canvas>();
+    border->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorBorder);
+    m_Root->AddChild(border)
+        .SetAnchors({ 0.0f, 0.0f, 1.0f, 0.0f })
+        .SetPosition({ 0.0f, MenuBarHeight - 1.0f })
+        .SetSize({ 0.0f, 1.0f });
 }
 
 void EditorUI::BuildTabBar()
@@ -145,8 +153,8 @@ void EditorUI::AddMenuItem(const std::string& label)
     text->SetColor(ColorTextSecondary);
     text->SetFontSize(12.0f);
 
-    m_MenuBar->AddChild(text)
-        .SetMargin(GUI::SMargin(10.0f, 0.0f));
+    m_MenuItems->AddChild(text)
+        .SetMargin(GUI::SMargin(9.0f, 0.0f));
 }
 
 void EditorUI::AddTab(const std::string& label, const bool active)
@@ -198,8 +206,8 @@ void EditorUI::AddDropdownMenu(const std::string& label, const std::vector<std::
     text->SetColor(ColorTextSecondary);
     text->SetFontSize(12.0f);
 
-    m_MenuBar->AddChild(text)
-        .SetMargin(GUI::SMargin(10.0f, 0.0f));
+    m_MenuItems->AddChild(text)
+        .SetMargin(GUI::SMargin(9.0f, 0.0f));
 
     // A plain TextBlock only starts consuming press/click events once a callback is
     // registered on it (Widget::HandleMouseDown's default stays Unhandled otherwise) - no
