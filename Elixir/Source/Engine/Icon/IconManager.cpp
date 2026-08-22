@@ -2,84 +2,12 @@
 #include "IconManager.h"
 
 #include <Engine/Graphics/GraphicsContext.h>
-
-#include <lunasvg.h>
+#include <Platform/LunaSVG/LunaSVGIconLoader.h>
 
 namespace Elixir
 {
     namespace
     {
-        class SvgIconContent final : public IconContent
-        {
-          public:
-            explicit SvgIconContent(std::unique_ptr<lunasvg::Document> document)
-              : m_Document(std::move(document)) {}
-
-            SIconMetrics GetMetrics() const override
-            {
-                return {
-                    .Size = {
-                        std::max(m_Document->width(), 1.0f),
-                        std::max(m_Document->height(), 1.0f),
-                    }
-                };
-            }
-
-            SIconBitmap Rasterize(const SIconRasterRequest& request) const override
-            {
-                auto bitmap = m_Document->renderToBitmap(
-                    (int)request.PixelSize.x,
-                    (int)request.PixelSize.y
-                );
-                if (bitmap.isNull()) return {};
-
-                bitmap.convertToRGBA();
-
-                SIconBitmap result;
-                result.Size = request.PixelSize;
-                result.Pixels.resize(static_cast<size_t>(result.Size.x) * result.Size.y * 4);
-
-                // A white RGB mask preserves only coverage. The GUI shader then applies the
-                // style foreground color, so states never need duplicate icon textures.
-                const uint8_t* source = bitmap.data();
-                for (uint32_t y = 0; y < result.Size.y; ++y)
-                {
-                    for (uint32_t x = 0; x < result.Size.x; ++x)
-                    {
-                        const size_t dst = (static_cast<size_t>(y) * result.Size.x + x) * 4;
-                        const size_t src = static_cast<size_t>(y) * bitmap.stride() + x * 4;
-                        result.Pixels[dst] = 255;
-                        result.Pixels[dst + 1] = 255;
-                        result.Pixels[dst + 2] = 255;
-                        result.Pixels[dst + 3] = source[src + 3];
-                    }
-                }
-
-                return result;
-            }
-
-          private:
-            std::unique_ptr<lunasvg::Document> m_Document;
-        };
-
-        class SvgIconLoader final : public IconLoader
-        {
-          public:
-            EIconFormat GetFormat() const override { return EIconFormat::SVG; }
-
-            Ref<IconContent> Load(const SIconSource& source) const override
-            {
-                auto document = lunasvg::Document::loadFromFile(source.Path.string());
-                if (!document)
-                {
-                    EE_CORE_ERROR("Cannot load SVG icon! [Path={0}]", source.Path.string())
-                    return nullptr;
-                }
-
-                return CreateRef<SvgIconContent>(std::move(document));
-            }
-        };
-
         const GraphicsContext* s_GraphicsContext = nullptr;
         std::unordered_map<EIconFormat, Scope<IconLoader>> s_Loaders;
 
@@ -137,7 +65,7 @@ namespace Elixir
 
         s_GraphicsContext = context;
         s_Loaders.clear();
-        RegisterLoader(CreateScope<SvgIconLoader>());
+        RegisterLoader(CreateScope<LunaSVGIconLoader>());
     }
 
     void IconManager::Shutdown()
