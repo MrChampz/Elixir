@@ -4,236 +4,88 @@ using namespace testing;
 #include "ManagerTestUtils.h"
 
 #include <Engine/Event/MouseEvent.h>
+#include <Engine/GUI/Button.h>
+#include <Engine/GUI/Checkbox.h>
 #include <Engine/GUI/Style.h>
 #include <Engine/GUI/VerticalBox.h>
-#include <Engine/Graphics/Texture.h>
 using namespace Elixir;
 using namespace Elixir::GUI;
 
 namespace
 {
-    // A non-null Ref<Texture2D> that is never dereferenced - StyleSet::Resolve only ever
-    // copies and compares the pointer, so a real GPU-backed texture (which would need a
-    // GraphicsContext this test suite doesn't have) isn't needed to prove identity.
-    Ref<Texture2D> FakeTexture()
-    {
-        return { reinterpret_cast<Texture2D*>(0x1), [](Texture2D*) {} };
-    }
-
-    // Minimal leaf that promotes the protected input handlers a real widget would normally
-    // only receive through Manager routing, so this test can drive Hovered/Pressed/Enabled
-    // directly without needing a full hit-test pass.
     class StyleLeaf final : public Widget
     {
       public:
         glm::vec2 ComputeDesiredSize(const glm::vec2&) override { return { 10.0f, 10.0f }; }
 
+        using Widget::HandleMouseDown;
         using Widget::HandleMouseEnter;
         using Widget::HandleMouseLeave;
-        using Widget::HandleMouseDown;
     };
 }
 
-// --- StyleSet::Resolve: pure composition logic, no window/render/input involved ---
-
-TEST(StyleTest, NormalOnlyReturnsNormalValues)
+TEST(StyleTest, StateStylesResolveByInteractionPriority)
 {
-    StyleSet styles;
+    TStateStyles<SButtonAppearance> styles;
+    styles.Normal.Foreground = { 1.0f, 0.0f, 0.0f, 1.0f };
+    styles.Hovered.Foreground = { 0.0f, 1.0f, 0.0f, 1.0f };
+    styles.Pressed.Foreground = { 0.0f, 0.0f, 1.0f, 1.0f };
+    styles.Disabled.Foreground = { 0.5f, 0.5f, 0.5f, 1.0f };
 
-    SStyleOverride normal;
-    normal.BackgroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f };
-    normal.CornerRadius = glm::vec4{ 4.0f };
-    styles.Set(EStyleLayer::Normal, normal);
-
-    const SResolvedStyle resolved = styles.Resolve(EInteractionState::None);
-
-    EXPECT_EQ(resolved.BackgroundColor, normal.BackgroundColor);
-    EXPECT_EQ(resolved.CornerRadius, *normal.CornerRadius);
-}
-
-TEST(StyleTest, HoveredOverridesOnlyTheFieldsItDeclares)
-{
-    StyleSet styles;
-
-    SStyleOverride normal;
-    normal.BackgroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f };
-    normal.BackgroundBorders = glm::vec4{ 30.0f };
-    normal.Outline = SOutline{ SColor{ 0.0f, 0.0f, 0.0f, 1.0f }, 1.0f };
-    styles.Set(EStyleLayer::Normal, normal);
-
-    SStyleOverride hovered;
-    hovered.BackgroundColor = SColor{ 0.0f, 1.0f, 0.0f, 1.0f };
-    styles.Set(EStyleLayer::Hovered, hovered);
-
-    const SResolvedStyle resolved = styles.Resolve(EInteractionState::Hovered);
-
-    EXPECT_EQ(resolved.BackgroundColor, hovered.BackgroundColor)
-        << "Hovered declares BackgroundColor, so it must win";
-    EXPECT_EQ(resolved.BackgroundBorders, *normal.BackgroundBorders)
-        << "Hovered never declared BackgroundBorders, so Normal's value must still show";
-    EXPECT_EQ(resolved.Outline.Thickness, normal.Outline->Thickness)
-        << "Hovered never declared Outline, so Normal's value must still show";
-}
-
-TEST(StyleTest, PressedWinsOverHoveredWhenBothActive)
-{
-    StyleSet styles;
-
-    SStyleOverride normal;
-    normal.BackgroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f };
-    styles.Set(EStyleLayer::Normal, normal);
-
-    SStyleOverride hovered;
-    hovered.BackgroundColor = SColor{ 0.0f, 1.0f, 0.0f, 1.0f };
-    styles.Set(EStyleLayer::Hovered, hovered);
-
-    SStyleOverride pressed;
-    pressed.BackgroundColor = SColor{ 0.0f, 0.0f, 1.0f, 1.0f };
-    styles.Set(EStyleLayer::Pressed, pressed);
-
-    const SResolvedStyle resolved = styles.Resolve(
-        EInteractionState::Hovered | EInteractionState::Pressed
+    EXPECT_EQ(styles.Resolve(EInteractionState::None).Foreground, styles.Normal.Foreground);
+    EXPECT_EQ(styles.Resolve(EInteractionState::Hovered).Foreground, styles.Hovered.Foreground);
+    EXPECT_EQ(
+        styles.Resolve(EInteractionState::Hovered | EInteractionState::Pressed).Foreground,
+        styles.Pressed.Foreground
     );
-
-    EXPECT_EQ(resolved.BackgroundColor, pressed.BackgroundColor);
-}
-
-TEST(StyleTest, FocusedWinsOverPressedAndHovered)
-{
-    StyleSet styles;
-
-    SStyleOverride normal;
-    normal.BackgroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f };
-    styles.Set(EStyleLayer::Normal, normal);
-
-    SStyleOverride pressed;
-    pressed.BackgroundColor = SColor{ 0.0f, 0.0f, 1.0f, 1.0f };
-    styles.Set(EStyleLayer::Pressed, pressed);
-
-    SStyleOverride focused;
-    focused.BackgroundColor = SColor{ 1.0f, 1.0f, 0.0f, 1.0f };
-    styles.Set(EStyleLayer::Focused, focused);
-
-    const SResolvedStyle resolved = styles.Resolve(
-        EInteractionState::Hovered | EInteractionState::Pressed | EInteractionState::Focused
+    EXPECT_EQ(
+        styles.Resolve(EInteractionState::Hovered | EInteractionState::Pressed | EInteractionState::Disabled).Foreground,
+        styles.Disabled.Foreground
     );
-
-    EXPECT_EQ(resolved.BackgroundColor, focused.BackgroundColor);
 }
 
-TEST(StyleTest, DisabledStillWinsOverFocused)
+TEST(StyleTest, CheckboxOwnsCheckedStateResolution)
 {
-    StyleSet styles;
+    SCheckboxStyle styles;
+    styles.Normal.Background.Color = { 1.0f, 0.0f, 0.0f, 1.0f };
+    styles.Checked.Background.Color = { 0.0f, 1.0f, 0.0f, 1.0f };
+    styles.CheckedHovered.Background.Color = { 0.0f, 0.0f, 1.0f, 1.0f };
+    styles.CheckedDisabled.Background.Color = { 0.5f, 0.5f, 0.5f, 1.0f };
 
-    SStyleOverride normal;
-    normal.BackgroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f };
-    styles.Set(EStyleLayer::Normal, normal);
-
-    SStyleOverride focused;
-    focused.BackgroundColor = SColor{ 1.0f, 1.0f, 0.0f, 1.0f };
-    styles.Set(EStyleLayer::Focused, focused);
-
-    SStyleOverride disabled;
-    disabled.BackgroundColor = SColor{ 0.5f, 0.5f, 0.5f, 1.0f };
-    styles.Set(EStyleLayer::Disabled, disabled);
-
-    // A widget can stay focused after being disabled - nothing clears focus just because
-    // IsEnabled() went false - so Disabled has to keep winning even then.
-    const SResolvedStyle resolved = styles.Resolve(
-        EInteractionState::Focused | EInteractionState::Disabled
+    EXPECT_EQ(styles.Resolve(false, EInteractionState::None).Background.Color, styles.Normal.Background.Color);
+    EXPECT_EQ(styles.Resolve(true, EInteractionState::None).Background.Color, styles.Checked.Background.Color);
+    EXPECT_EQ(styles.Resolve(true, EInteractionState::Hovered).Background.Color, styles.CheckedHovered.Background.Color);
+    EXPECT_EQ(
+        styles.Resolve(true, EInteractionState::Hovered | EInteractionState::Disabled).Background.Color,
+        styles.CheckedDisabled.Background.Color
     );
-
-    EXPECT_EQ(resolved.BackgroundColor, disabled.BackgroundColor);
 }
 
-TEST(StyleTest, DisabledWinsOverPressedAndHovered)
+TEST(StyleTest, StyleSetStoresStylesByConcreteType)
 {
     StyleSet styles;
+    SButtonStyle button;
+    button.Normal.Foreground = { 0.1f, 0.2f, 0.3f, 1.0f };
 
-    SStyleOverride normal;
-    normal.BackgroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f };
-    styles.Set(EStyleLayer::Normal, normal);
+    styles.SetWidgetStyle(button);
 
-    SStyleOverride hovered;
-    hovered.BackgroundColor = SColor{ 0.0f, 1.0f, 0.0f, 1.0f };
-    styles.Set(EStyleLayer::Hovered, hovered);
-
-    SStyleOverride pressed;
-    pressed.BackgroundColor = SColor{ 0.0f, 0.0f, 1.0f, 1.0f };
-    styles.Set(EStyleLayer::Pressed, pressed);
-
-    SStyleOverride disabled;
-    disabled.BackgroundColor = SColor{ 0.5f, 0.5f, 0.5f, 1.0f };
-    styles.Set(EStyleLayer::Disabled, disabled);
-
-    const SResolvedStyle resolved = styles.Resolve(
-        EInteractionState::Hovered | EInteractionState::Pressed | EInteractionState::Disabled
-    );
-
-    EXPECT_EQ(resolved.BackgroundColor, disabled.BackgroundColor);
+    EXPECT_EQ(styles.GetWidgetStyle<SButtonStyle>().Normal.Foreground, button.Normal.Foreground);
 }
 
-TEST(StyleTest, DisabledFallsBackToTheLastLayerThatDeclaresAField)
+TEST(StyleTest, WidgetOwnsTheStyleItReceives)
 {
-    StyleSet styles;
+    StyleLeaf leaf;
+    SWidgetStyle style;
+    style.Normal.Background.Color = { 1.0f, 0.0f, 0.0f, 1.0f };
 
-    SStyleOverride normal;
-    normal.BackgroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f };
-    styles.Set(EStyleLayer::Normal, normal);
+    leaf.SetStyle(style);
+    leaf.SetBackgroundColor(EStyleLayer::Hovered, { 0.0f, 1.0f, 0.0f, 1.0f });
 
-    SStyleOverride pressed;
-    pressed.BackgroundColor = SColor{ 0.0f, 0.0f, 1.0f, 1.0f };
-    styles.Set(EStyleLayer::Pressed, pressed);
-
-    // Disabled is active but declares nothing for this field.
-    styles.Set(EStyleLayer::Disabled, SStyleOverride{});
-
-    const SResolvedStyle resolved = styles.Resolve(
-        EInteractionState::Pressed | EInteractionState::Disabled
-    );
-
-    EXPECT_EQ(resolved.BackgroundColor, pressed.BackgroundColor)
-        << "Disabled declared nothing, so the last layer that did (Pressed) must still show";
+    EXPECT_EQ(leaf.GetStyle().Normal.Background.Color, style.Normal.Background.Color);
+    EXPECT_EQ(leaf.GetStyle().Hovered.Background.Color, SColor(0.0f, 1.0f, 0.0f, 1.0f));
 }
 
-TEST(StyleTest, EmptyTextureOverrideExplicitlyClearsAnInheritedTexture)
-{
-    StyleSet styles;
-
-    SStyleOverride normal;
-    normal.BackgroundTexture = FakeTexture();
-    styles.Set(EStyleLayer::Normal, normal);
-
-    SStyleOverride pressed;
-    pressed.BackgroundTexture = Ref<Texture2D>{}; // present, but null: an explicit clear
-    styles.Set(EStyleLayer::Pressed, pressed);
-
-    const SResolvedStyle resolved = styles.Resolve(EInteractionState::Pressed);
-
-    EXPECT_EQ(resolved.BackgroundTexture, nullptr);
-}
-
-TEST(StyleTest, InactiveLayerNeverLeaksIntoTheResolvedStyle)
-{
-    StyleSet styles;
-
-    SStyleOverride normal;
-    normal.BackgroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f };
-    styles.Set(EStyleLayer::Normal, normal);
-
-    SStyleOverride pressed;
-    pressed.BackgroundColor = SColor{ 0.0f, 0.0f, 1.0f, 1.0f };
-    styles.Set(EStyleLayer::Pressed, pressed);
-
-    // Hovered active, Pressed not - Pressed's color must not appear.
-    const SResolvedStyle resolved = styles.Resolve(EInteractionState::Hovered);
-
-    EXPECT_EQ(resolved.BackgroundColor, normal.BackgroundColor);
-}
-
-// --- Widget's public style/enabled surface: dirty-marking and interaction gating ---
-
-TEST(StyleTest, SettingAStyleMarksTheWidgetForRerender)
+TEST(StyleTest, LegacyBackgroundSetterMarksTheWidgetForRerender)
 {
     const auto root = CreateRef<VerticalBox>();
     const auto leaf = CreateRef<StyleLeaf>();
@@ -249,7 +101,7 @@ TEST(StyleTest, SettingAStyleMarksTheWidgetForRerender)
     EXPECT_TRUE(leaf->IsRenderDirty());
 }
 
-TEST(StyleTest, HoverPressAndEnabledChangesEachMarkTheWidgetForRerender)
+TEST(StyleTest, HoverPressAndEnabledChangesMarkTheWidgetForRerender)
 {
     const auto root = CreateRef<VerticalBox>();
     const auto leaf = CreateRef<StyleLeaf>();
@@ -260,29 +112,26 @@ TEST(StyleTest, HoverPressAndEnabledChangesEachMarkTheWidgetForRerender)
 
     manager.AssembleFrame();
     leaf->HandleMouseEnter();
-    EXPECT_TRUE(leaf->IsRenderDirty()) << "entering hover must mark for rerender";
+    EXPECT_TRUE(leaf->IsRenderDirty());
 
     manager.AssembleFrame();
     leaf->HandleMouseLeave();
-    EXPECT_TRUE(leaf->IsRenderDirty()) << "leaving hover must mark for rerender";
+    EXPECT_TRUE(leaf->IsRenderDirty());
 
     manager.AssembleFrame();
     leaf->SetEnabled(false);
-    EXPECT_TRUE(leaf->IsRenderDirty()) << "disabling must mark for rerender";
+    EXPECT_TRUE(leaf->IsRenderDirty());
 }
 
 TEST(StyleTest, DisablingBlocksInteractionThatWouldOtherwiseBeHandled)
 {
     const auto leaf = CreateRef<StyleLeaf>();
-    leaf->OnClick([] {}); // gives HandleMouseDown a reason to accept the press at all
+    leaf->OnClick([] {});
 
     const MouseButtonPressedEvent event(0);
-
-    ASSERT_TRUE(leaf->HandleMouseDown(event).EventHandled)
-        << "sanity check: an enabled widget with a click handler must accept the press";
+    ASSERT_TRUE(leaf->HandleMouseDown(event).EventHandled);
 
     leaf->SetEnabled(false);
 
-    EXPECT_FALSE(leaf->HandleMouseDown(event).EventHandled)
-        << "a disabled widget must refuse the press even though it would normally handle it";
+    EXPECT_FALSE(leaf->HandleMouseDown(event).EventHandled);
 }

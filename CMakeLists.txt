@@ -77,6 +77,7 @@ endif()
 include(Shaders/Shaders.cmake)
 include(Elixir/Elixir.cmake)
 include(Dissolve/Dissolve.cmake)
+include(Editor/Editor.cmake)
 
 # Ensure shaders are compiled before the engine builds
 add_dependencies(Elixir CompileShaders)

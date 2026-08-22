@@ -7,6 +7,11 @@ namespace Elixir::GUI
 {
     /* Widget */
 
+    Widget::Widget()
+      : m_Style(GetDefaultStyles().GetWidgetStyle<SWidgetStyle>())
+    {
+    }
+
     const glm::vec2& Widget::Measure(const glm::vec2& availableSize)
     {
         if (!m_MeasureDirty && m_LastMeasureConstraint == availableSize)
@@ -21,7 +26,7 @@ namespace Elixir::GUI
         // the real content budget when this widget is itself content-constrained; adding
         // back after is a no-op with an UnconstrainedSize (infinity - 2 is still infinity) or
         // when there's no outline at all (the common case).
-        const float outlineSpace = m_Outline.Thickness * 2.0f;
+        const float outlineSpace = GetResolvedAppearance().Background.Outline.Thickness * 2.0f;
         const glm::vec2 innerAvailable = {
             std::max(0.0f, availableSize.x - outlineSpace),
             std::max(0.0f, availableSize.y - outlineSpace)
@@ -122,143 +127,123 @@ namespace Elixir::GUI
         return m_Visibility == EVisibility::Visible;
     }
 
-    void Widget::SetStyle(const EStyleLayer layer, const SStyleOverride& style)
+    const SWidgetStyle& Widget::GetStyle() const
     {
-        m_Styles.Set(layer, style);
+        return m_Style;
+    }
+
+    void Widget::SetStyle(const SWidgetStyle& style)
+    {
+        m_Style = style;
+        MarkLayoutDirty();
         MarkRenderDirty();
     }
 
-    void Widget::ClearStyle(const EStyleLayer layer)
+    SBrush& Widget::GetMutableBackgroundBrush(const EStyleLayer layer)
     {
-        m_Styles.Clear(layer);
-        MarkRenderDirty();
+        return m_Style.Get(layer).Background;
     }
 
     void Widget::SetBackgroundColor(const EStyleLayer layer, const SColor& color)
     {
-        SStyleOverride style = m_Styles.Get(layer);
-        style.BackgroundColor = color;
-        SetStyle(layer, style);
-    }
-
-    void Widget::SetForegroundColor(const EStyleLayer layer, const SColor& color)
-    {
-        SStyleOverride style = m_Styles.Get(layer);
-        style.ForegroundColor = color;
-        SetStyle(layer, style);
+        GetMutableBackgroundBrush(layer).Color = color;
+        MarkRenderDirty();
     }
 
     void Widget::SetBackgroundTexture(const EStyleLayer layer, const Ref<Texture2D>& texture)
     {
-        SStyleOverride style = m_Styles.Get(layer);
-        style.BackgroundTexture = texture;
-        SetStyle(layer, style);
+        GetMutableBackgroundBrush(layer).Texture = texture;
+        MarkRenderDirty();
     }
 
     void Widget::ClearBackgroundTexture(const EStyleLayer layer)
     {
-        SStyleOverride style = m_Styles.Get(layer);
-        style.BackgroundTexture = Ref<Texture2D>{};
-        SetStyle(layer, style);
+        GetMutableBackgroundBrush(layer).Texture.reset();
+        MarkRenderDirty();
     }
 
     void Widget::SetBackgroundBorders(const EStyleLayer layer, const glm::vec4& borders)
     {
-        SStyleOverride style = GetStyle(layer);
-        style.BackgroundBorders = borders;
-        SetStyle(layer, style);
+        GetMutableBackgroundBrush(layer).Borders = borders;
+        MarkRenderDirty();
     }
 
     void Widget::SetCornerRadius(const EStyleLayer layer, const glm::vec4& radius)
     {
-        SStyleOverride style = m_Styles.Get(layer);
-        style.CornerRadius = radius;
-        SetStyle(layer, style);
+        GetMutableBackgroundBrush(layer).CornerRadius = radius;
+        MarkRenderDirty();
     }
 
     void Widget::SetInsetShadow(const EStyleLayer layer, const glm::vec4& shadow)
     {
-        SStyleOverride style = m_Styles.Get(layer);
-        style.InsetShadow = shadow;
-        SetStyle(layer, style);
+        GetMutableBackgroundBrush(layer).InsetShadow = shadow;
+        MarkRenderDirty();
     }
 
     void Widget::SetInsetShadowOffset(const EStyleLayer layer, const glm::vec2& offset)
     {
-        SStyleOverride style = m_Styles.Get(layer);
-        const auto inset = style.InsetShadow.value_or(glm::vec4{0.0f});
-        style.InsetShadow = { offset, inset.z, inset.w };
-        SetStyle(layer, style);
+        auto& shadow = GetMutableBackgroundBrush(layer).InsetShadow;
+        shadow = { offset, shadow.z, shadow.w };
+        MarkRenderDirty();
     }
 
     void Widget::SetInsetShadowBlur(const EStyleLayer layer, const float blur)
     {
-        SStyleOverride style = m_Styles.Get(layer);
-        const auto inset = style.InsetShadow.value_or(glm::vec4{0.0f});
-        style.InsetShadow = { inset.x, inset.y, blur, inset.w };
-        SetStyle(layer, style);
+        auto& shadow = GetMutableBackgroundBrush(layer).InsetShadow;
+        shadow.z = blur;
+        MarkRenderDirty();
     }
 
     void Widget::SetInsetShadowIntensity(const EStyleLayer layer, const float intensity)
     {
-        SStyleOverride style = m_Styles.Get(layer);
-        const auto inset = style.InsetShadow.value_or(glm::vec4{0.0f});
-        style.InsetShadow = { inset.x, inset.y, inset.z, intensity };
-        SetStyle(layer, style);
+        auto& shadow = GetMutableBackgroundBrush(layer).InsetShadow;
+        shadow.w = intensity;
+        MarkRenderDirty();
     }
 
     void Widget::SetDropShadow(const EStyleLayer layer, const glm::vec4& shadow)
     {
-        SStyleOverride style = m_Styles.Get(layer);
-        style.DropShadow = shadow;
-        SetStyle(layer, style);
+        GetMutableBackgroundBrush(layer).DropShadow = shadow;
+        MarkRenderDirty();
     }
 
     void Widget::SetDropShadowOffset(const EStyleLayer layer, const glm::vec2& offset)
     {
-        SStyleOverride style = m_Styles.Get(layer);
-        const auto inset = style.DropShadow.value_or(glm::vec4{0.0f});
-        style.DropShadow = { offset, inset.z, inset.w };
-        SetStyle(layer, style);
+        auto& shadow = GetMutableBackgroundBrush(layer).DropShadow;
+        shadow = { offset, shadow.z, shadow.w };
+        MarkRenderDirty();
     }
 
     void Widget::SetDropShadowBlur(const EStyleLayer layer, const float blur)
     {
-        SStyleOverride style = m_Styles.Get(layer);
-        const auto inset = style.DropShadow.value_or(glm::vec4{0.0f});
-        style.DropShadow = { inset.x, inset.y, blur, inset.w };
-        SetStyle(layer, style);
+        GetMutableBackgroundBrush(layer).DropShadow.z = blur;
+        MarkRenderDirty();
     }
 
     void Widget::SetDropShadowIntensity(const EStyleLayer layer, const float intensity)
     {
-        SStyleOverride style = m_Styles.Get(layer);
-        const auto inset = style.DropShadow.value_or(glm::vec4{0.0f});
-        style.DropShadow = { inset.x, inset.y, inset.z, intensity };
-        SetStyle(layer, style);
+        GetMutableBackgroundBrush(layer).DropShadow.w = intensity;
+        MarkRenderDirty();
     }
 
     void Widget::SetOutline(const EStyleLayer layer, const SOutline& outline)
     {
-        SStyleOverride style = m_Styles.Get(layer);
-        style.Outline = outline;
-        SetStyle(layer, style);
+        GetMutableBackgroundBrush(layer).Outline = outline;
+        MarkLayoutDirty();
+        MarkRenderDirty();
     }
 
     void Widget::SetOutlineColor(const EStyleLayer layer, const SColor& color)
     {
-        SStyleOverride style = m_Styles.Get(layer);
-        const auto outline = style.Outline.value_or(SOutline{});
-        style.Outline = { color, outline.Thickness };
-        SetStyle(layer, style);
+        GetMutableBackgroundBrush(layer).Outline.Color = color;
+        MarkRenderDirty();
     }
 
     void Widget::SetOutlineThickness(const EStyleLayer layer, const float thickness)
     {
-        SStyleOverride style = m_Styles.Get(layer);
-        const auto outline = style.Outline.value_or(SOutline{});
-        style.Outline = { outline.Color, thickness };
-        SetStyle(layer, style);
+        GetMutableBackgroundBrush(layer).Outline.Thickness = thickness;
+        MarkLayoutDirty();
+        MarkRenderDirty();
     }
 
     void Widget::SetFocusable(const bool focusable)
@@ -386,9 +371,9 @@ namespace Elixir::GUI
         return states;
     }
 
-    SResolvedStyle Widget::GetResolvedStyle() const
+    const SAppearance& Widget::GetResolvedAppearance() const
     {
-        return m_Styles.Resolve(GetInteractionState());
+        return GetStyle().Resolve(GetInteractionState());
     }
 
     void Widget::MarkLayoutDirty()

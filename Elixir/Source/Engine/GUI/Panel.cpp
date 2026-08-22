@@ -55,19 +55,11 @@ namespace Elixir::GUI
 
     void Panel::BuildDrawCommands(RenderBatch& batch, const int zOrder)
     {
-        const SResolvedStyle style = GetResolvedStyle();
+        const SBrush& brush = GetResolvedAppearance().Background;
 
-        if (style.BackgroundColor.A > 0.0f)
+        if (brush.Color.A > 0.0f || brush.Texture)
         {
-            batch.AddRect(
-                m_Geometry,
-                style.BackgroundColor,
-                style.CornerRadius,
-                style.InsetShadow,
-                style.DropShadow,
-                style.Outline,
-                zOrder
-            );
+            batch.AddBrush(brush, m_Geometry, zOrder);
         }
     }
 

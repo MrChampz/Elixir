@@ -8,30 +8,16 @@
 namespace Elixir::GUI
 {
     Button::Button(const std::string& text)
-      : m_Text(text)
+      : m_Text(text),
+        m_Style(GetDefaultStyles().GetWidgetStyle<SButtonStyle>())
     {
         m_Font = FontManager::GetDefaultFont();
+    }
 
-        SStyleOverride normal;
-        normal.BackgroundColor = SColor{ 0.0941f, 0.0941f, 0.1059f, 1.0f };
-        normal.ForegroundColor = SColor{ 0.8941f, 0.8941f, 0.9059f, 1.0f };
-        normal.CornerRadius = glm::vec4{ 4.0f };
-        normal.BackgroundBorders = glm::vec4{ 30.0f, 30.0f, 30.0f, 30.0f };
-        normal.Outline = SOutline{ SColor{ 0.1529f, 0.1529f, 0.1647f, 1.0f }, 1.0f };
-        SetStyle(EStyleLayer::Normal, normal);
-
-        SStyleOverride hovered;
-        hovered.BackgroundColor = SColor{ 0.1529f, 0.1529f, 0.1647f, 1.0f };
-        SetStyle(EStyleLayer::Hovered, hovered);
-
-        SStyleOverride focused;
-        focused.Outline = SOutline{ SColor{ 0.6314f, 0.6314f, 0.6667f, 1.0f }, 2.0f };
-        SetStyle(EStyleLayer::Focused, focused);
-
-        SStyleOverride disabled;
-        disabled.BackgroundColor = SColor{ 0.0941f, 0.0941f, 0.1059f, 0.5f };
-        disabled.ForegroundColor = SColor{ 0.8941f, 0.8941f, 0.9059f, 0.5f };
-        SetStyle(EStyleLayer::Disabled, disabled);
+    void Button::SetStyle(const SButtonStyle& style)
+    {
+        m_Style = style;
+        MarkLayoutDirty();
     }
 
     void Button::SetText(const std::string& text)
@@ -75,7 +61,8 @@ namespace Elixir::GUI
 
     void Button::SetTextColor(const EStyleLayer layer, const SColor& color)
     {
-        SetForegroundColor(layer, color);
+        m_Style.Get(layer).Foreground = color;
+        MarkRenderDirty();
     }
 
     glm::vec2 Button::ComputeDesiredSize(const glm::vec2& availableSize)
@@ -119,33 +106,10 @@ namespace Elixir::GUI
         }
     }
 
-    void Button::BuildDrawCommands(RenderBatch& batch, int zOrder)
+    void Button::BuildDrawCommands(RenderBatch& batch, const int zOrder)
     {
-        const SResolvedStyle style = GetResolvedStyle();
-
-        // Background
-        if (style.BackgroundTexture)
-        {
-            batch.AddTexture(
-                style.BackgroundTexture,
-                m_Geometry,
-                style.BackgroundBorders,
-                style.BackgroundColor,
-                zOrder
-            );
-        }
-        else
-        {
-            batch.AddRect(
-                m_Geometry,
-                style.BackgroundColor,
-                style.CornerRadius,
-                style.InsetShadow,
-                style.DropShadow,
-                style.Outline,
-                zOrder
-            );
-        }
+        const auto& appearance = (const SButtonAppearance&)GetResolvedAppearance();
+        batch.AddBrush(appearance.Background, m_Geometry, zOrder);
 
         if (!HasContent() && !m_Text.empty())
         {
@@ -160,11 +124,21 @@ namespace Elixir::GUI
                 { textPos, textSize },
                 m_Font,
                 m_FontSize,
-                style.ForegroundColor,
+                appearance.Foreground,
                 zOrder + 1,
                 m_Geometry
             );
         }
+    }
+
+    const SAppearance& Button::GetResolvedAppearance() const
+    {
+        return m_Style.Resolve(GetInteractionState());
+    }
+
+    SBrush& Button::GetMutableBackgroundBrush(const EStyleLayer layer)
+    {
+        return m_Style.Get(layer).Background;
     }
 
     std::string Button::ProcessText(const std::string& text, const float availableWidth)

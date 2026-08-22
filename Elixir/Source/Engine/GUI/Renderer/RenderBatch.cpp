@@ -63,6 +63,31 @@ namespace Elixir::GUI
         return maxZ + 1;
     }
 
+    void RenderBatch::AddBrush(
+        const SBrush& brush,
+        const SRect& rect,
+        const int zOrder,
+        const SRect& scissorRect
+    )
+    {
+        if (brush.Texture)
+        {
+            AddTexture(brush.Texture, rect, brush.Borders, brush.Color, zOrder, scissorRect);
+            return;
+        }
+
+        AddRect(
+            rect,
+            brush.Color,
+            brush.CornerRadius,
+            brush.InsetShadow,
+            brush.DropShadow,
+            brush.Outline,
+            zOrder,
+            scissorRect
+        );
+    }
+
     void RenderBatch::AddRect(
         const SRect& rect,
         const SColor& color,

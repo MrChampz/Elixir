@@ -1,80 +1,85 @@
 #include "epch.h"
 #include "Style.h"
 
+#include <Engine/GUI/Button.h>
+#include <Engine/GUI/Checkbox.h>
+#include <Engine/GUI/TextField.h>
+#include <Engine/GUI/Widget.h>
+
 namespace Elixir::GUI
 {
     namespace
     {
-        constexpr size_t ToIndex(const EStyleLayer layer)
+        SAppearance MakeCheckboxAppearance(const SColor& color, const SOutline& outline = {})
         {
-            return static_cast<size_t>(layer);
+            SAppearance appearance;
+            appearance.Background.Color = color;
+            appearance.Background.CornerRadius = glm::vec4{ 3.0f };
+            appearance.Background.Outline = outline;
+            return appearance;
         }
 
-        void ApplyOverride(SResolvedStyle& destination, const SStyleOverride& override)
+        StyleSet CreateDefaultStyles()
         {
-            if (override.BackgroundColor)
-                destination.BackgroundColor = *override.BackgroundColor;
+            StyleSet styles;
 
-            if (override.ForegroundColor)
-                destination.ForegroundColor = *override.ForegroundColor;
+            styles.SetWidgetStyle(SWidgetStyle{});
 
-            if (override.BackgroundTexture)
-                destination.BackgroundTexture = *override.BackgroundTexture;
+            SButtonStyle button;
+            button.Normal.Background.Color = { 0.0941f, 0.0941f, 0.1059f, 1.0f };
+            button.Normal.Background.CornerRadius = glm::vec4{ 4.0f };
+            button.Normal.Background.Borders = glm::vec4{ 30.0f };
+            button.Normal.Background.Outline = { { 0.1529f, 0.1529f, 0.1647f, 1.0f }, 1.0f };
+            button.Normal.Foreground = { 0.8941f, 0.8941f, 0.9059f, 1.0f };
+            button.Hovered = button.Normal;
+            button.Hovered.Background.Color = { 0.1529f, 0.1529f, 0.1647f, 1.0f };
+            button.Pressed = button.Hovered;
+            button.Focused = button.Normal;
+            button.Focused.Background.Outline = { { 0.6314f, 0.6314f, 0.6667f, 1.0f }, 2.0f };
+            button.Disabled = button.Normal;
+            button.Disabled.Background.Color.A = 0.5f;
+            button.Disabled.Foreground.A = 0.5f;
+            styles.SetWidgetStyle(std::move(button));
 
-            if (override.BackgroundBorders)
-                destination.BackgroundBorders = *override.BackgroundBorders;
+            STextFieldStyle textField;
+            textField.Normal.Background.Color = { 0.0941f, 0.0941f, 0.1059f, 1.0f };
+            textField.Normal.Background.CornerRadius = glm::vec4{ 4.0f };
+            textField.Normal.Background.Borders = glm::vec4{ 30.0f };
+            textField.Normal.Background.Outline = { { 0.1529f, 0.1529f, 0.1647f, 1.0f }, 1.0f };
+            textField.Normal.Foreground = { 0.8941f, 0.8941f, 0.9059f, 1.0f };
+            textField.Hovered = textField.Normal;
+            textField.Pressed = textField.Hovered;
+            textField.Focused = textField.Normal;
+            textField.Focused.Background.Outline = { { 0.6314f, 0.6314f, 0.6667f, 1.0f }, 2.0f };
+            textField.Disabled = textField.Normal;
+            textField.Disabled.Background.Color.A = 0.5f;
+            textField.Disabled.Foreground.A = 0.5f;
+            styles.SetWidgetStyle(std::move(textField));
 
-            if (override.CornerRadius)
-                destination.CornerRadius = *override.CornerRadius;
+            const SOutline uncheckedOutline{ { 0.224f, 0.231f, 0.251f, 1.0f }, 1.0f };
+            SCheckboxStyle checkbox;
+            checkbox.Normal = MakeCheckboxAppearance({ 0.094f, 0.098f, 0.106f, 1.0f }, uncheckedOutline);
+            checkbox.Hovered = MakeCheckboxAppearance({ 0.145f, 0.149f, 0.161f, 1.0f }, uncheckedOutline);
+            checkbox.Pressed = checkbox.Hovered;
+            checkbox.Focused = checkbox.Normal;
+            checkbox.Disabled = checkbox.Normal;
+            checkbox.Disabled.Background.Color.A = 0.5f;
+            checkbox.Checked = MakeCheckboxAppearance({ 0.208f, 0.455f, 0.941f, 1.0f });
+            checkbox.CheckedHovered = checkbox.Checked;
+            checkbox.CheckedHovered.Background.Color = { 0.271f, 0.510f, 0.980f, 1.0f };
+            checkbox.CheckedPressed = checkbox.CheckedHovered;
+            checkbox.CheckedFocused = checkbox.Checked;
+            checkbox.CheckedDisabled = checkbox.Checked;
+            checkbox.CheckedDisabled.Background.Color.A = 0.5f;
+            styles.SetWidgetStyle(std::move(checkbox));
 
-            if (override.Outline)
-                destination.Outline = *override.Outline;
-
-            if (override.InsetShadow)
-                destination.InsetShadow = *override.InsetShadow;
-
-            if (override.DropShadow)
-                destination.DropShadow = *override.DropShadow;
+            return styles;
         }
     }
 
-    const SStyleOverride& StyleSet::Get(const EStyleLayer layer) const
+    StyleSet& GetDefaultStyles()
     {
-        return m_Layers[ToIndex(layer)];
-    }
-
-    void StyleSet::Set(const EStyleLayer layer, const SStyleOverride& style)
-    {
-        m_Layers[ToIndex(layer)] = style;
-    }
-
-    void StyleSet::Clear(const EStyleLayer layer)
-    {
-        m_Layers[ToIndex(layer)] = SStyleOverride{};
-    }
-
-    SResolvedStyle StyleSet::Resolve(EInteractionState states) const
-    {
-        SResolvedStyle result{};
-
-        // Normal has no earlier layer to fall back to, so it must fill every field the
-        // caller needs; ApplyOverride still checks each optional; a caller that never set
-        // Normal gets a default-constructed SResolvedStyle instead of an assert, since
-        // StyleSet has no way to know which fields the widget actually needs.
-        ApplyOverride(result, m_Layers[ToIndex(EStyleLayer::Normal)]);
-
-        if (HasState(states, EInteractionState::Hovered))
-            ApplyOverride(result, m_Layers[ToIndex(EStyleLayer::Hovered)]);
-
-        if (HasState(states, EInteractionState::Pressed))
-            ApplyOverride(result, m_Layers[ToIndex(EStyleLayer::Pressed)]);
-
-        if (HasState(states, EInteractionState::Focused))
-            ApplyOverride(result, m_Layers[ToIndex(EStyleLayer::Focused)]);
-
-        if (HasState(states, EInteractionState::Disabled))
-            ApplyOverride(result, m_Layers[ToIndex(EStyleLayer::Disabled)]);
-
-        return result;
+        static StyleSet styles = CreateDefaultStyles();
+        return styles;
     }
 }

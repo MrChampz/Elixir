@@ -1,0 +1,2566 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2. Passe de Measure com cache</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --surface-alt: #eef0f4;
+    --border: #dde1e8;
+    --text: #1a1d24;
+    --text-muted: #565c6b;
+    --text-faint: #868ea0;
+    --accent: #3452d9;
+    --accent-soft: #e9edfd;
+    --code-bg: #f3f4f7;
+    --code-border: #e1e4ea;
+
+    --diff-add-bg: #e6f7ec;
+    --diff-add-fg: #157347;
+    --diff-del-bg: #fdecec;
+    --diff-del-fg: #c22a2a;
+    --diff-hunk-bg: #eaf0ff;
+    --diff-hunk-fg: #3452d9;
+    --diff-ctx-fg: #4b505c;
+    --diff-file-fg: #12141a;
+    --diff-meta-fg: #9aa0ad;
+
+    --warn-bg: #fff6e2;
+    --warn-border: #e7bd5a;
+    --warn-fg: #7a5b06;
+    --ok-bg: #e9f7ee;
+    --ok-border: #79c99e;
+    --ok-fg: #1a6b40;
+    --info-bg: #eef1fd;
+    --info-border: #a9b8f2;
+    --info-fg: #2c3fa8;
+
+    --shadow: 0 1px 2px rgba(20,22,30,0.05), 0 8px 20px rgba(20,22,30,0.05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161b;
+      --surface: #1b1e25;
+      --surface-alt: #20232c;
+      --border: #2b2f3a;
+      --text: #e7e9ef;
+      --text-muted: #aab0c0;
+      --text-faint: #767d8c;
+      --accent: #91a4ff;
+      --accent-soft: #232a4d;
+      --code-bg: #181a21;
+      --code-border: #2a2e39;
+
+      --diff-add-bg: rgba(46,160,90,0.16);
+      --diff-add-fg: #5fd693;
+      --diff-del-bg: rgba(230,70,70,0.16);
+      --diff-del-fg: #ff8a83;
+      --diff-hunk-bg: rgba(100,130,255,0.18);
+      --diff-hunk-fg: #adbaff;
+      --diff-ctx-fg: #b7bcc8;
+      --diff-file-fg: #e7e9ef;
+      --diff-meta-fg: #666c7a;
+
+      --warn-bg: #2b2408;
+      --warn-border: #7a5f18;
+      --warn-fg: #e8c766;
+      --ok-bg: #10261a;
+      --ok-border: #2f6b49;
+      --ok-fg: #7fd6a4;
+      --info-bg: #1c2140;
+      --info-border: #3c4c9c;
+      --info-fg: #aab8ff;
+
+      --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 8px 20px rgba(0,0,0,0.35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html { background: var(--bg); }
+
+  body {
+    margin: 0;
+    padding: 40px 20px 80px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    font-size: 15.5px;
+  }
+
+  code, pre, kbd, .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  header.doc-header {
+    margin-bottom: 28px;
+  }
+
+  .series-tag {
+    display: inline-block;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 5px 10px;
+    border-radius: 999px;
+    margin-bottom: 14px;
+  }
+
+  h1 {
+    font-size: 30px;
+    line-height: 1.25;
+    margin: 0 0 10px;
+    letter-spacing: -0.01em;
+  }
+
+  .subtitle {
+    font-size: 16.5px;
+    color: var(--text-muted);
+    margin: 0 0 6px;
+    max-width: 780px;
+  }
+
+  nav.toc {
+    margin-top: 26px;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+  }
+
+  nav.toc .toc-title {
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-faint);
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+
+  nav.toc ol {
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 6px 24px;
+  }
+
+  nav.toc a {
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+  }
+
+  nav.toc a:hover { color: var(--accent); text-decoration: underline; }
+
+  section {
+    margin-top: 44px;
+  }
+
+  section > h2 {
+    font-size: 21px;
+    margin: 0 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    scroll-margin-top: 20px;
+  }
+
+  h3 {
+    font-size: 16.5px;
+    margin: 26px 0 10px;
+    scroll-margin-top: 20px;
+  }
+
+  h3.file-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 15.5px;
+    margin: 0 0 8px;
+    flex-wrap: wrap;
+  }
+
+  h3.file-heading .file-index {
+    font-size: 11.5px;
+    color: var(--text-faint);
+    font-weight: 700;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  p { margin: 0 0 14px; }
+
+  ul, ol { margin: 0 0 14px; padding-left: 22px; }
+  li { margin-bottom: 6px; }
+
+  a { color: var(--accent); }
+
+  code.i {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.88em;
+    white-space: break-spaces;
+  }
+
+  .file-ref {
+    color: var(--text-muted);
+    font-size: 0.88em;
+  }
+
+  .lede {
+    font-size: 16px;
+    color: var(--text-muted);
+    max-width: 820px;
+  }
+
+  /* ---- badges ---- */
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 9px;
+    border-radius: 999px;
+    vertical-align: middle;
+    line-height: 1.7;
+  }
+  .badge-sketch {
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    color: var(--warn-fg);
+  }
+
+  /* ---- callouts ---- */
+  .callout {
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--text-faint);
+    background: var(--surface);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 16px 0;
+    font-size: 14.5px;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .callout-title {
+    font-weight: 700;
+    font-size: 12.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .callout-decision { border-left-color: var(--accent); }
+  .callout-decision .callout-title { color: var(--accent); }
+  .callout-attention { background: var(--warn-bg); border-color: var(--warn-border); border-left-color: var(--warn-border); }
+  .callout-attention .callout-title { color: var(--warn-fg); }
+  .callout-ok { background: var(--ok-bg); border-color: var(--ok-border); border-left-color: var(--ok-border); }
+  .callout-ok .callout-title { color: var(--ok-fg); }
+  .callout-info { background: var(--info-bg); border-color: var(--info-border); border-left-color: var(--info-border); }
+  .callout-info .callout-title { color: var(--info-fg); }
+
+  /* ---- plain code blocks (not diffs) ---- */
+  pre.code {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--diff-ctx-fg);
+    margin: 12px 0 18px;
+  }
+  pre.code code { white-space: pre; }
+
+  /* ---- diff blocks ---- */
+  .diff-wrap {
+    border: 1px solid var(--code-border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 10px 0 22px;
+    background: var(--code-bg);
+  }
+  pre.diff {
+    margin: 0;
+    padding: 12px 0;
+    overflow-x: auto;
+    font-size: 12.7px;
+    line-height: 1.55;
+  }
+  pre.diff code { display: block; white-space: pre; }
+  pre.diff span { display: block; padding: 0 16px; }
+  .d-file { color: var(--diff-file-fg); font-weight: 700; }
+  .d-hunk { color: var(--diff-hunk-fg); background: var(--diff-hunk-bg); font-weight: 600; }
+  .d-add  { color: var(--diff-add-fg); background: var(--diff-add-bg); }
+  .d-del  { color: var(--diff-del-fg); background: var(--diff-del-bg); }
+  .d-ctx  { color: var(--diff-ctx-fg); }
+  .d-meta { color: var(--diff-meta-fg); font-style: italic; }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 4px 0 22px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+  .legend i.li-add { background: var(--diff-add-bg); border: 1px solid var(--diff-add-fg); }
+  .legend i.li-del { background: var(--diff-del-bg); border: 1px solid var(--diff-del-fg); }
+  .legend i.li-hunk { background: var(--diff-hunk-bg); border: 1px solid var(--diff-hunk-fg); }
+  .legend i.li-ctx { background: var(--surface); border: 1px solid var(--border); }
+
+  /* Tables can grow wider than the page at narrow widths (long code.i cells below);
+     wrap them so THEY scroll internally instead of the page. */
+  .table-wrap {
+    overflow-x: auto;
+    margin: 12px 0 20px;
+  }
+  table.spec {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  table.spec th, table.spec td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.spec th {
+    color: var(--text-faint);
+    font-weight: 600;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  table.spec code.i { white-space: nowrap; }
+
+  ol.steps { list-style: none; padding: 0; margin: 18px 0; counter-reset: step; }
+  ol.steps > li {
+    counter-increment: step;
+    position: relative;
+    padding: 4px 0 18px 40px;
+    border-left: 2px solid var(--border);
+    margin-left: 14px;
+  }
+  ol.steps > li:last-child { border-left-color: transparent; padding-bottom: 0; }
+  ol.steps > li::before {
+    content: counter(step);
+    position: absolute;
+    left: -15px;
+    top: 2px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  ol.steps > li > .step-title { font-weight: 700; margin-bottom: 4px; display: block; }
+
+  .risk-list { display: flex; flex-direction: column; gap: 14px; }
+  .risk-item {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    background: var(--surface);
+  }
+  .risk-item .risk-title {
+    font-weight: 700;
+    font-size: 14.5px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .risk-item .risk-title .risk-num {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    color: #fff;
+    background: var(--text-faint);
+    border-radius: 5px;
+    padding: 1px 7px;
+  }
+  .risk-item p:last-child { margin-bottom: 0; }
+
+  footer.doc-footer {
+    margin-top: 56px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+    font-size: 12.5px;
+    color: var(--text-faint);
+  }
+
+  @media (max-width: 640px) {
+    nav.toc ol { grid-template-columns: 1fr; }
+    h1 { font-size: 25px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="doc-header">
+    <span class="series-tag">Série: Refatoração da GUI — Elixir · Parte 2 de 5</span>
+    <h1>2. Passe de Measure com cache</h1>
+    <p class="subtitle">
+      Widget ganha um segundo passe explícito — <code class="i">Measure(availableSize)</code>,
+      com cache — para substituir <code class="i">ComputeDesiredSize()</code> sem argumento nem
+      memória; containers passam a medir cada filho uma única vez, com a largura real
+      disponível, em vez de remedir a subárvore inteira, sem cache, a cada layout.
+    </p>
+
+    <nav class="toc" aria-label="Sumário">
+      <div class="toc-title">Nesta página</div>
+      <ol>
+        <li><a href="#sec-objetivo">1. Objetivo</a></li>
+        <li><a href="#sec-estado-atual">2. Estado atual</a></li>
+        <li><a href="#sec-design">3. Design proposto</a></li>
+        <li><a href="#sec-mudancas">4. Mudanças por arquivo</a></li>
+        <li><a href="#sec-ordem">5. Ordem de aplicação</a></li>
+        <li><a href="#sec-riscos">6. Riscos e pontos de atenção</a></li>
+      </ol>
+    </nav>
+  </header>
+
+  <section id="sec-objetivo">
+    <h2>1. Objetivo</h2>
+    <p class="lede">
+      Dar a <code class="i">Widget::ComputeDesiredSize</code> um segundo passe explícito —
+      <code class="i">Measure</code> — no mesmo estilo do par
+      <code class="i">ArrangeChildren</code>/<code class="i">LayoutChildren</code> que já existe
+      para arranjo: um template method público, não-virtual, que recebe o espaço disponível,
+      cacheia o resultado e só chama a versão virtual quando algo realmente mudou.
+    </p>
+    <p>
+      Hoje a medição não sabe quanto espaço tem — por isso <code class="i">TextBlock</code> não
+      consegue quebrar linha, só truncar com "..." — e não tem cache nem noção de dirty, então
+      cada chamada volta a percorrer a subárvore inteira, mesmo limpa, e
+      <code class="i">VerticalBox</code>/<code class="i">HorizontalBox</code> medem cada filho
+      duas vezes por passe de layout.
+    </p>
+    <p>Ao final deste ponto:</p>
+    <ul>
+      <li>Medir um widget limpo com a mesma restrição da última vez custa O(1) — não recursa na
+        subárvore.</li>
+      <li><code class="i">Button</code>, <code class="i">TextField</code> e
+        <code class="i">TextBlock</code> relatam um tamanho desejado calculado a partir do
+        conteúdo real (texto medido, ou o filho, quando há um), não mais um número fixo escrito
+        no construtor.</li>
+      <li><code class="i">TextBlock</code> ganha um modo de quebra de linha de verdade, habilitado
+        quando o container que o contém oferece uma largura finita.</li>
+      <li><code class="i">ComputeDesiredSize</code> passa a ser <code class="i">protected</code>
+        em todas as classes que o implementam, fechando uma inconsistência de acesso que já
+        existe hoje entre <code class="i">Widget</code>/<code class="i">VerticalBox</code>/
+        <code class="i">HorizontalBox</code>/<code class="i">Overlay</code> (protegido) e
+        <code class="i">Canvas</code>/<code class="i">Button</code>/<code class="i">TextBlock</code>/
+        <code class="i">TextField</code> (público).</li>
+    </ul>
+  </section>
+
+
+  <section id="sec-estado-atual">
+    <h2>2. Estado atual</h2>
+
+    <h3>2.1 ComputeDesiredSize não recebe espaço nenhum</h3>
+    <p>
+      A assinatura inteira do passe de medição, hoje, é essa
+      (<span class="file-ref">Widget.h:30-34</span>):
+    </p>
+    <pre class="code"><code>/**
+ * Compute how much space this widget wants.
+ * @return a 2d vector representing width and height.
+ */
+virtual glm::vec2 ComputeDesiredSize() = 0;</code></pre>
+    <p>
+      Sem um parâmetro de espaço disponível não existe width-for-height: um widget não tem como
+      saber "quanto de largura eu tenho para decidir minha altura". Isso aparece com mais clareza
+      em <code class="i">TextBlock</code>: <code class="i">ProcessText</code>
+      (<span class="file-ref">TextBlock.cpp:78-103</span>) recebe uma
+      <code class="i">availableWidth</code> — mas só é chamado de dentro de
+      <code class="i">BuildDrawCommands</code> (<span class="file-ref">TextBlock.cpp:55-71</span>),
+      no momento de desenhar, usando <code class="i">m_Geometry.Size.x</code> já arranjado. O
+      próprio <code class="i">ComputeDesiredSize</code> do TextBlock nunca vê uma largura:
+    </p>
+    <pre class="code"><code>glm::vec2 TextBlock::ComputeDesiredSize()
+{
+    return m_DesiredSize;
+}</code></pre>
+    <p>
+      Por isso <code class="i">ProcessText</code> só sabe truncar com "…" — não é um esquecimento
+      no algoritmo, é a arquitetura que não deixa outra opção: quebrar linha de verdade exigiria
+      recalcular a altura desejada em função da largura, e essa largura simplesmente não chega até
+      a função de medição.
+    </p>
+
+    <h3>2.2 Sem cache, sem dirty: o custo O(n · profundidade) com fator 2</h3>
+    <p>
+      <code class="i">m_DesiredSize</code> (<span class="file-ref">Widget.h:280</span>) até é lido
+      de volta — por <code class="i">GetDesiredSize()</code>
+      (<span class="file-ref">Widget.h:57</span>) — mas o único chamador de
+      <code class="i">GetDesiredSize()</code> em todo o repositório é
+      <code class="i">CanvasSlot</code> (<span class="file-ref">Canvas.h:14</span>). Dentro do
+      próprio passe de layout ele nunca funciona como cache: cada
+      <code class="i">ComputeDesiredSize()</code> reescreve <code class="i">m_DesiredSize</code>
+      do zero, sem antes checar se o valor ali guardado ainda vale — o campo é uma cópia do
+      último resultado para quem quiser ler depois, não um cache que evita recomputar, e
+      <code class="i">m_LayoutDirty</code> nunca entra nessa conta. Em
+      <code class="i">VerticalBox::LayoutChildren</code>
+      (<span class="file-ref">VerticalBox.cpp:51-144</span>) isso aparece de forma muito concreta:
+      o mesmo filho é medido <strong>duas vezes</strong> por passe de layout — uma no laço que
+      soma <code class="i">usedSpace</code> quando <code class="i">m_Stretching</code> está
+      ligado, outra, incondicional, no laço de arranjo:
+    </p>
+    <pre class="code"><code>// laço 1 (usedSpace), linha 68 — só roda se m_Stretching:
+const glm::vec2 childSize = slot-&gt;GetWidget()-&gt;ComputeDesiredSize();
+usedSpace += childSize.y + margin.GetTotalVertical();
+
+// ...
+
+// laço 2 (arranjo), linha 83 — roda sempre, incondicional:
+const glm::vec2 childSize = slot-&gt;GetWidget()-&gt;ComputeDesiredSize();</code></pre>
+    <p>
+      <code class="i">HorizontalBox.cpp</code> repete exatamente o mesmo padrão, nas mesmas linhas
+      68 e 83, com os eixos trocados. <code class="i">Overlay.cpp:58</code> mede só uma vez por
+      laço — mas ainda sem cache, então o problema abaixo vale para ele também.
+    </p>
+    <p>
+      O ponto mais caro não é a duplicação em si — é que <strong>cada uma</strong> dessas chamadas
+      re-mede a subárvore inteira do filho, do zero, porque containers implementam
+      <code class="i">ComputeDesiredSize</code> chamando <code class="i">ComputeDesiredSize</code>
+      de cada um dos próprios filhos, recursivamente, sem checar se algo mudou. Um exemplo
+      concreto: uma <code class="i">VerticalBox</code> raiz com dois filhos — A, uma
+      <code class="i">HorizontalBox</code> com 50 widgets folha, e B, um único
+      <code class="i">TextField</code> onde o usuário está digitando.
+    </p>
+    <ol>
+      <li>Cada tecla digitada marca B como layout-dirty. <code class="i">MarkLayoutDirty</code>
+        propaga para o pai (a <code class="i">VerticalBox</code> raiz) e para — nada mais: A
+        continua limpo, porque nada nele mudou.</li>
+      <li>No próximo <code class="i">ArrangeLayout</code> (que roda todo frame — seção 2.4), a
+        raiz está dirty, então seu <code class="i">LayoutChildren</code> executa.</li>
+      <li>Esse <code class="i">LayoutChildren</code> chama <code class="i">ComputeDesiredSize()</code>
+        em <strong>todos</strong> os filhos — inclusive A, que está limpo — porque o laço não
+        checa <code class="i">m_LayoutDirty</code> de cada filho antes de medir. Medir A significa
+        percorrer os 50 widgets folha de novo, do zero.</li>
+      <li>Isso acontece <strong>duas vezes</strong> nesse nível (laço de <code class="i">usedSpace</code>
+        + laço de arranjo) — os 50 widgets de A são remedidos duas vezes só para decidir o layout
+        de B, que é quem realmente mudou.</li>
+      <li>O short-circuit que existe em <code class="i">ArrangeChildren</code>
+        (<span class="file-ref">Widget.cpp:12-13</span>, <code class="i">if (!m_LayoutDirty &amp;&amp;
+        m_LastArrangedSpace == allocatedSpace) return;</code>) só protege a
+        <strong>arrumação</strong> de A — quando o laço de arranjo chega em A e chama
+        <code class="i">A-&gt;ArrangeChildren(...)</code>, aí sim ele barra na entrada e não desce
+        para o <code class="i">LayoutChildren</code> de A. Mas isso acontece
+        <em>depois</em> de A já ter sido medido duas vezes pelo pai, no passo anterior — o
+        short-circuit chega tarde demais para evitar o custo caro.</li>
+    </ol>
+    <p>
+      Generalizando: para um widget que muda a <code class="i">profundidade</code> níveis da raiz,
+      cada um desses níveis paga o custo de medir — sem cache — todos os filhos daquele nível
+      (inclusive irmãos inteiramente limpos), e paga esse custo <strong>duas vezes</strong> em
+      <code class="i">VerticalBox</code>/<code class="i">HorizontalBox</code>. Se
+      <code class="i">n</code> é o número de widgets na árvore, o custo de um layout após uma
+      mudança localizada é O(n · profundidade), com um fator constante 2 vindo da chamada
+      duplicada. E como <code class="i">Application.cpp:176</code> chama
+      <code class="i">ArrangeLayout</code> todo frame (seção 2.4), isso não é um custo de "uma vez
+      só" — é pago de novo em todo frame em que qualquer coisa no caminho estiver dirty, por
+      exemplo durante um drag de resize ou uma animação de layout contínua.
+    </p>
+
+    <h3>2.3 Tamanho desejado fixo em Button e TextField</h3>
+    <p>
+      <code class="i">Button::ComputeDesiredSize</code> e
+      <code class="i">TextField::ComputeDesiredSize</code> só devolvem um valor gravado uma vez no
+      construtor — nenhum dos dois olha para o próprio texto, conteúdo ou padding:
+    </p>
+    <pre class="code"><code>// Button.cpp:10-20
+Button::Button(const std::string&amp; text)
+    : m_Text(text)
+{
+    m_Font = FontManager::GetDefaultFont();
+    m_DesiredSize = { 120.0f, 40.0f };
+}
+
+glm::vec2 Button::ComputeDesiredSize()
+{
+    return m_DesiredSize;
+}
+
+// TextField.cpp:11-28 — mesmo padrão, com { 120.0f, 30.0f }</code></pre>
+    <p>
+      <code class="i">FontManager::MeasureText</code> (<span class="file-ref">FontManager.h:47-51</span>)
+      existe e é usada em outros lugares dessas duas classes — <code class="i">Button::MeasureTextSize</code>
+      e <code class="i">TextField::MeasureTextSize</code> já a chamam — mas nenhuma delas alimenta
+      <code class="i">ComputeDesiredSize</code>.
+    </p>
+    <p>
+      <code class="i">TextBlock</code> é o único caso que já mede de verdade
+      (<span class="file-ref">TextBlock.cpp:73-76</span>, <code class="i">UpdateTextSize</code>) —
+      mas só no construtor e em cada setter, nunca em função do espaço disponível, e o resultado
+      cacheado em <code class="i">m_DesiredSize</code> não passa pelo mecanismo de dirty descrito
+      em 2.2.
+    </p>
+
+    <h3>2.4 ComputeDesiredSize: público onde devia ser protegido</h3>
+    <p>
+      A intenção de <code class="i">Widget::ComputeDesiredSize</code> ser chamado só através do
+      passe de medição já existe pela metade: três containers já o marcam
+      <code class="i">protected</code>, mas quatro outras classes o deixam
+      <code class="i">public</code> — uma inconsistência sem efeito prático hoje, porque o
+      chamador (o pai, dentro de <code class="i">LayoutChildren</code>) sempre acessa através de
+      <code class="i">Ref&lt;Widget&gt;</code>, e em <code class="i">Widget</code> o método é
+      <code class="i">public</code> e <code class="i">= 0</code>.
+    </p>
+    <div class="table-wrap">
+    <table class="spec">
+      <tr><th>Classe</th><th>Visibilidade hoje</th><th>Onde</th></tr>
+      <tr><td><code class="i">Widget</code></td><td>public (pura virtual)</td><td><span class="file-ref">Widget.h:34</span></td></tr>
+      <tr><td><code class="i">VerticalBox</code></td><td>protected</td><td><span class="file-ref">VerticalBox.h:16</span></td></tr>
+      <tr><td><code class="i">HorizontalBox</code></td><td>protected</td><td><span class="file-ref">HorizontalBox.h:16</span></td></tr>
+      <tr><td><code class="i">Overlay</code></td><td>protected</td><td><span class="file-ref">Overlay.h:16</span></td></tr>
+      <tr><td><code class="i">Canvas</code></td><td>public</td><td><span class="file-ref">Canvas.h:72</span></td></tr>
+      <tr><td><code class="i">Button</code></td><td>public</td><td><span class="file-ref">Button.h:13</span></td></tr>
+      <tr><td><code class="i">TextBlock</code></td><td>public</td><td><span class="file-ref">TextBlock.h:15</span></td></tr>
+      <tr><td><code class="i">TextField</code></td><td>public</td><td><span class="file-ref">TextField.h:15</span></td></tr>
+    </table>
+    </div>
+    <p>
+      Depois deste ponto essa distinção deixa de ser cosmética: <code class="i">ComputeDesiredSize</code>
+      passa a assumir, como pré-condição, que <code class="i">m_CachedDesiredSize</code> e
+      <code class="i">m_LastMeasureConstraint</code> serão atualizados por quem o chamou — só
+      <code class="i">Measure</code> pode garantir isso. Deixar o método público continuaria
+      permitindo que alguém o chamasse direto, driblando o cache. Por isso ele passa a
+      <code class="i">protected</code> nas oito classes.
+    </p>
+  </section>
+
+
+  <section id="sec-design">
+    <h2>3. Design proposto</h2>
+
+    <h3>3.1 Widget — dois passes explícitos</h3>
+    <p>
+      No estilo WPF/Slate, e espelhando o par <code class="i">ArrangeChildren</code>/
+      <code class="i">LayoutChildren</code> que já existe: <code class="i">Measure</code> é o
+      template method público, não-virtual; <code class="i">ComputeDesiredSize</code> é a versão
+      virtual, protegida, que as subclasses implementam.
+    </p>
+    <pre class="code"><code>// público, não-virtual — chamado pelos containers-pai
+const glm::vec2&amp; Measure(const glm::vec2&amp; availableSize);
+
+// protegido, puro virtual — implementado por cada subclasse concreta;
+// nunca chamado diretamente, só através de Measure
+protected:
+    virtual glm::vec2 ComputeDesiredSize(const glm::vec2&amp; availableSize) = 0;
+
+    glm::vec2 m_CachedDesiredSize{};
+    glm::vec2 m_LastMeasureConstraint{-1.0f, -1.0f};
+    bool m_MeasureDirty = true;</code></pre>
+    <p><code class="i">Measure</code> faz exatamente isto:</p>
+    <pre class="code"><code>const glm::vec2&amp; Widget::Measure(const glm::vec2&amp; availableSize)
+{
+    if (!m_MeasureDirty &amp;&amp; m_LastMeasureConstraint == availableSize)
+        return m_CachedDesiredSize;
+
+    m_CachedDesiredSize = ComputeDesiredSize(availableSize);
+    m_LastMeasureConstraint = availableSize;
+    m_MeasureDirty = false;
+
+    return m_CachedDesiredSize;
+}</code></pre>
+    <p>
+      <code class="i">GetDesiredSize()</code> passa a devolver <code class="i">m_CachedDesiredSize</code>
+      em vez de <code class="i">m_DesiredSize</code> — mesma API pública, fonte diferente.
+    </p>
+    <p>
+      Falta um jeito de dizer "sem restrição" num eixo — o eixo em que um
+      <code class="i">VerticalBox</code> deixa cada filho ser tão alto quanto quiser, por exemplo.
+      A proposta é um sentinela:
+    </p>
+    <pre class="code"><code>constexpr float UnconstrainedSize = std::numeric_limits&lt;float&gt;::infinity();</code></pre>
+    <div class="callout callout-decision">
+      <span class="callout-title">Decisão — infinito, não um mágico -1 ou FLT_MAX</span>
+      <p>
+        Containers vão propagar esse sentinela subtraindo margem/padding do eixo livre antes de
+        repassar a restrição para baixo (seção 3.3). Com infinito, essa subtração é segura de
+        graça: <code class="i">infinito - qualquer valor finito = infinito</code>, exatamente,
+        sem arredondamento, pela aritmética de ponto flutuante IEEE 754. Um <code class="i">-1</code>
+        exigiria um <code class="i">if</code> especial em todo lugar que subtrai margem; um
+        <code class="i">FLT_MAX</code> viraria um número finito diferente a cada subtração,
+        deixando de significar "sem restrição" depois de algumas camadas de containers
+        aninhados.
+      </p>
+      <p>
+        Comparar <code class="i">availableSize.x != UnconstrainedSize</code> com <code class="i">!=</code>
+        direto é seguro aqui — infinito é um valor exato de ponto flutuante, e toda a aritmética
+        que o propaga (subtração de um valor finito) preserva esse valor exato, sem o
+        arredondamento que normalmente torna comparação de floats por igualdade uma má ideia.
+      </p>
+      <p>
+        Contrato: <code class="i">ComputeDesiredSize</code> pode <em>receber</em>
+        <code class="i">UnconstrainedSize</code> em qualquer eixo, mas nunca pode
+        <em>devolver</em> infinito no resultado — um widget sempre tem que decidir um tamanho
+        concreto para si mesmo, mesmo quando o espaço oferecido é ilimitado.
+      </p>
+    </div>
+
+    <h3>3.2 MarkLayoutDirty também suja a medição</h3>
+    <pre class="code"><code>void Widget::MarkLayoutDirty()
+{
+    ++s_DirtyEpoch;
+
+    if (m_LayoutDirty)
+        return;
+
+    m_LayoutDirty = true;
+    m_MeasureDirty = true;   // novo
+
+    if (const auto parent = m_Parent.lock())
+        parent->MarkLayoutDirty();
+}</code></pre>
+    <p>
+      A propagação para ancestrais continua idêntica, incluindo o bump de
+      <code class="i">s_DirtyEpoch</code> antes do short-circuit.
+    </p>
+    <div class="callout callout-decision">
+      <span class="callout-title">Por que o early-return continuar correto</span>
+      <p>
+        <code class="i">MarkLayoutDirty</code> é o <strong>único</strong> lugar que escreve
+        <code class="i">m_LayoutDirty = true</code>, e agora escreve
+        <code class="i">m_MeasureDirty = true</code> na mesma respiração — as duas flags nascem
+        sempre juntas, na mesma chamada. O early-return só é alcançado quando
+        <code class="i">m_LayoutDirty</code> já estava <code class="i">true</code>; isso só pode
+        ter acontecido porque uma chamada anterior a este mesmo método já passou por essa linha
+        e, portanto, já deixou <code class="i">m_MeasureDirty</code> em <code class="i">true</code>
+        também. Não existe caminho para <code class="i">m_LayoutDirty</code> virar
+        <code class="i">true</code> sem <code class="i">m_MeasureDirty</code> ir junto, então
+        repetir a atribuição no early-return seria redundante, não incorreto.
+      </p>
+      <p>
+        Isso depende de um invariante que vale hoje mas não é imposto pelo compilador: nenhum
+        código do próprio passe de layout (dentro de <code class="i">ComputeDesiredSize</code> ou
+        <code class="i">LayoutChildren</code>) chama <code class="i">MarkLayoutDirty</code> em si
+        mesmo ou em outro widget enquanto o passe está rodando — medir/arranjar são leituras, não
+        mutações de propriedades. Se isso mudar no futuro, vale reconferir esse raciocínio.
+      </p>
+    </div>
+
+    <h3>3.3 Containers — medir cada filho uma única vez, com constraint real</h3>
+    <p>
+      <code class="i">VerticalBox</code>, <code class="i">HorizontalBox</code> e
+      <code class="i">Overlay</code> aplicam padding/margem à restrição recebida e a propagam para
+      cada filho; <code class="i">Canvas</code> não usa o tamanho desejado do filho para
+      posicioná-lo (usa âncoras + <code class="i">CanvasSlot::m_Constraint</code>), então sua
+      única mudança relevante de medição é onde ela alimenta esse constraint pela primeira vez.
+    </p>
+    <div class="table-wrap">
+    <table class="spec">
+      <tr><th>Container</th><th>Constraint do filho</th></tr>
+      <tr><td><code class="i">VerticalBox</code></td><td><code class="i">{ innerSpace.x - margemH, UnconstrainedSize }</code> — largura limitada, altura livre (empilha no eixo Y)</td></tr>
+      <tr><td><code class="i">HorizontalBox</code></td><td><code class="i">{ UnconstrainedSize, innerSpace.y - margemV }</code> — altura limitada, largura livre (empilha no eixo X)</td></tr>
+      <tr><td><code class="i">Overlay</code></td><td><code class="i">innerSpace.Size - margem</code> — os dois eixos limitados (filhos se sobrepõem, sem eixo de empilhamento)</td></tr>
+      <tr><td><code class="i">Canvas</code></td><td>o tamanho que o próprio slot já determina (<code class="i">constraint.Size</code>/âncoras) — não depende do <code class="i">Measure</code> do filho para posicionar</td></tr>
+    </table>
+    </div>
+    <p>
+      Em <code class="i">LayoutChildren</code>, cada filho é medido uma única vez, para dentro de
+      um <code class="i">std::vector&lt;glm::vec2&gt;</code> local, e essa segunda chamada que
+      existia hoje (seção 2.2) é eliminada — os dois laços (o de <code class="i">usedSpace</code> e
+      o de arranjo) passam a indexar o mesmo vetor em vez de medir de novo.
+    </p>
+    <div class="callout callout-decision">
+      <span class="callout-title">Decisão — vetor local, não membro reutilizado</span>
+      <p>
+        A alternativa óbvia para evitar uma alocação de heap a cada <code class="i">LayoutChildren</code>
+        seria um membro <code class="i">std::vector&lt;glm::vec2&gt;</code> reaproveitado entre
+        chamadas (capacidade cresce uma vez, fica). Optei por um vetor local por dois motivos:
+        (1) <code class="i">LayoutChildren</code> só roda quando o container está de fato dirty —
+        graças ao short-circuit que já existe em <code class="i">ArrangeChildren</code> — então
+        não é literalmente "por frame" para uma UI parada, só durante uma interação sustentada
+        (resize, animação); (2) um membro reaproveitado precisa de mais cuidado (redimensionar
+        certo quando filhos são adicionados/removidos entre chamadas) por um ganho que só aparece
+        sob perfil. Ponto 2 prioriza corrigir a correção — medir uma vez, com cache — sobre essa
+        micro-otimização; trocar por um membro depois, se o profiler pedir, é uma mudança local
+        e isolada dentro de cada <code class="i">LayoutChildren</code>.
+      </p>
+    </div>
+    <p>
+      Em <code class="i">ComputeDesiredSize</code> dos containers, a medição dos filhos passa a
+      ser <code class="i">child-&gt;Measure(constraintDoFilho)</code> — a mesma troca, só que
+      chamada de dentro da própria função de medição do container, para decidir o tamanho que
+      <em>ele próprio</em> quer reportar ao pai dele.
+    </p>
+    <p>
+      <code class="i">Measure</code> devolve <code class="i">const glm::vec2&amp;</code> — uma
+      referência para o cache interno do filho. Quem precisa somar margem ao resultado
+      (todo <code class="i">ComputeDesiredSize</code> de container) precisa copiar antes de
+      mutar — <code class="i">auto childSize = child-&gt;Measure(c);</code> (sem
+      <code class="i">&amp;</code>) já faz isso: <code class="i">auto</code> sem
+      <code class="i">&amp;</code> sempre deduz um valor, nunca uma referência, então
+      <code class="i">childSize.x += margem</code> nunca escreve por engano dentro do cache do
+      widget medido. Tentar declarar como <code class="i">const glm::vec2&amp;</code> e depois
+      mutar simplesmente não compilaria.
+    </p>
+
+    <h3>3.4 TextBlock — wrap de verdade</h3>
+    <p>
+      <code class="i">ComputeDesiredSize(available)</code> passa a medir com quebra de linha
+      quando <code class="i">available.x</code> é finito <em>e</em> o modo de overflow é
+      <code class="i">Wrap</code>:
+    </p>
+    <pre class="code"><code>enum class ETextOverflow
+{
+    Ellipsis,  // default — preserva o visual atual
+    Wrap,      // novo — habilitado quando a constraint tem largura finita
+    Clip
+};</code></pre>
+    <p>
+      A string já processada (truncada ou quebrada) fica cacheada em
+      <code class="i">m_DisplayText</code> — membro novo — calculada durante
+      <code class="i">Measure</code>/<code class="i">Arrange</code>, nunca dentro de
+      <code class="i">BuildDrawCommands</code>, que passa só a desenhar
+      <code class="i">m_DisplayText</code> sem medir nada. Como a largura final alocada
+      (<code class="i">LayoutChildren</code>) pode diferir da constraint que
+      <code class="i">Measure</code> recebeu — um pai sem stretching entrega ao filho exatamente
+      o tamanho desejado dele, que não é necessariamente a mesma largura usada para medir —
+      <code class="i">TextBlock</code> ganha um <code class="i">LayoutChildren</code> próprio (hoje
+      herda o no-op de <code class="i">Widget</code>) só para recalcular
+      <code class="i">m_DisplayText</code> contra a geometria final.
+    </p>
+    <div class="callout callout-decision">
+      <span class="callout-title">Trocar SetText/SetFont/SetFontSize/SetOverflow para não deixar texto obsoleto</span>
+      <p>
+        Se esses setters só chamassem <code class="i">MarkLayoutDirty()</code> e deixassem
+        <code class="i">m_DisplayText</code> como estava, existe uma janela de um frame em que
+        <code class="i">BuildDrawCommands</code> roda (porque <code class="i">MarkRenderDirty()</code>
+        também dispara, imediatamente) antes do próximo <code class="i">LayoutChildren</code>
+        atualizar <code class="i">m_DisplayText</code> — por exemplo quando o setter é chamado de
+        dentro de um callback de clique, que roda depois do <code class="i">ArrangeLayout</code>
+        deste frame. Nesse caso o texto desenhado ficaria um frame atrasado, mostrando o valor
+        antigo. A correção é barata: cada um desses setters também faz
+        <code class="i">m_DisplayText = m_Text;</code> (cópia simples, sem medir nada) — na pior
+        das hipóteses aparece o texto completo, sem truncar/quebrar, por um frame, até o próximo
+        passe de layout aplicar o corte real. Muito melhor que mostrar o texto <em>errado</em>.
+      </p>
+    </div>
+    <p>
+      Se <code class="i">FontManager</code> não tem uma função de medição com wrap — e não tem,
+      confirmado lendo <code class="i">FontManager.h</code> — a assinatura proposta é:
+    </p>
+    <pre class="code"><code>static glm::vec2 MeasureWrapped(
+    const std::string&amp; text,
+    const Ref&lt;Font&gt;&amp; font,
+    float fontSize,
+    float maxWidth,
+    std::vector&lt;std::string&gt;* outLines = nullptr
+);</code></pre>
+    <div class="callout callout-attention">
+      <span class="callout-title">Esboço — corpo fora do escopo deste ponto <span class="badge badge-sketch">esboço</span></span>
+      <p>
+        Word-wrap de verdade precisa medir palavra a palavra e decidir onde cada linha quebra —
+        isso depende do backend de glyphs/kerning (<code class="i">Font::MeasureText</code>,
+        <code class="i">Font::GetKerning</code>), que é código fora do escopo de um ponto sobre
+        medir/cachear. A seção 4 inclui a declaração real em <code class="i">FontManager.h</code>
+        e um <strong>stub mínimo</strong> em <code class="i">FontManager.cpp</code> — necessário
+        para o projeto linkar, já que <code class="i">TextBlock::UpdateWrappedDisplayText</code>
+        chama essa função mesmo que <code class="i">ETextOverflow::Wrap</code> nunca seja
+        selecionado em runtime (o corpo da função é compilado de qualquer forma, e o linker exige
+        o símbolo resolvido). Até alguém substituir o stub por um algoritmo real, um
+        <code class="i">TextBlock</code> em modo <code class="i">Wrap</code> se comporta como
+        <code class="i">Clip</code>: uma linha só, sem quebra de verdade. Ver risco R3.
+      </p>
+    </div>
+
+    <h3>3.5 Button/TextField — desired size real</h3>
+    <p>
+      <code class="i">Button::ComputeDesiredSize(available)</code>: se há conteúdo
+      (<code class="i">HasContent()</code>), mede o conteúdo com
+      <code class="i">available</code> menos padding; senão, mede o próprio texto; depois soma o
+      padding de volta e aplica um mínimo:
+    </p>
+    <pre class="code"><code>glm::vec2 Button::ComputeDesiredSize(const glm::vec2&amp; availableSize)
+{
+    const glm::vec2 innerAvailable = availableSize - padding;
+
+    glm::vec2 contentSize{0, 0};
+    if (HasContent())
+        contentSize = m_ContentSlot->GetWidget()->Measure(innerAvailable);
+    else if (!m_Text.empty())
+        contentSize = MeasureTextSize(m_Text);
+
+    return glm::max(contentSize + padding, m_MinDesiredSize);   // m_MinDesiredSize = {120, 40}
+}</code></pre>
+    <p>
+      <code class="i">TextField</code> é análogo, sem o ramo de conteúdo (não é
+      <code class="i">ContentWidget</code>): mede <code class="i">m_Text</code>, soma padding,
+      aplica mínimo <code class="i">{120, 30}</code> — o mesmo valor que hoje está hardcoded no
+      construtor, preservando o tamanho mínimo visual de um campo vazio.
+    </p>
+    <p>
+      <code class="i">glm::max(vec, vec)</code> é componente-a-componente — exatamente o que se
+      quer para um "floor" independente em cada eixo, não um <code class="i">max</code> escalar do
+      maior componente.
+    </p>
+  </section>
+
+
+  <section id="sec-mudancas">
+    <h2>4. Mudanças por arquivo</h2>
+    <p>
+      Diffs no formato unificado, contra o código atual do repositório (nenhum outro ponto da
+      série foi aplicado). Aplicar com <code class="i">git apply</code> ou
+      <code class="i">patch -p1</code> a partir da raiz do repositório.
+    </p>
+    <div class="legend">
+      <span><i class="li-add"></i>adição</span>
+      <span><i class="li-del"></i>remoção</span>
+      <span><i class="li-hunk"></i>cabeçalho de hunk</span>
+      <span><i class="li-ctx"></i>contexto (sem mudança)</span>
+    </div>
+
+    <h3 class="file-heading" id="file-1"><span class="file-index">4.1</span> Widget.h</h3>
+    <p>
+      Troca o <code class="i">ComputeDesiredSize()</code> público e sem parâmetro pelo par
+      <code class="i">Measure</code>(público, não-virtual)/<code class="i">ComputeDesiredSize</code>
+      (protegido, virtual puro, com <code class="i">availableSize</code>); adiciona
+      <code class="i">UnconstrainedSize</code>, o cache de medição e troca
+      <code class="i">m_DesiredSize</code> por <code class="i">m_CachedDesiredSize</code> +
+      <code class="i">m_LastMeasureConstraint</code> + <code class="i">m_MeasureDirty</code>.
+      Este arquivo sozinho quebra a compilação de todo override existente — ver seção 5.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Widget.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Widget.h</span>
+<span class="d-hunk">@@ -1,5 +1,7 @@</span>
+<span class="d-ctx"> #pragma once</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+#include &lt;limits&gt;</span>
+<span class="d-add">+</span>
+<span class="d-ctx"> #include &lt;Engine/Core/Timer.h&gt;</span>
+<span class="d-ctx"> #include &lt;Engine/Event/KeyEvent.h&gt;</span>
+<span class="d-ctx"> #include &lt;Engine/Event/MouseEvent.h&gt;</span>
+<span class="d-hunk">@@ -11,6 +13,14 @@</span>
+<span class="d-ctx"> {</span>
+<span class="d-ctx">     class Manager;</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+    /**</span>
+<span class="d-add">+     * Sentinel meaning "no limit" for one axis of a Measure/ComputeDesiredSize constraint.</span>
+<span class="d-add">+     * Containers propagate this on the axis they do not constrain (e.g. the main axis of a</span>
+<span class="d-add">+     * stacking panel). ComputeDesiredSize overrides may receive it as input on either axis,</span>
+<span class="d-add">+     * but must never return it in the result.</span>
+<span class="d-add">+     */</span>
+<span class="d-add">+    inline constexpr float UnconstrainedSize = std::numeric_limits&lt;float&gt;::infinity();</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     class ELIXIR_API Widget : public std::enable_shared_from_this&lt;Widget&gt;</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         friend class Manager;</span>
+<span class="d-hunk">@@ -28,10 +38,16 @@</span>
+<span class="d-ctx">         virtual void Update(Timestep frameTime) {}</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-del">-         * Compute how much space this widget wants.</span>
+<span class="d-del">-         * @return a 2d vector representing width and height.</span>
+<span class="d-add">+         * Get how much space this widget wants, given the space available to it. This is the</span>
+<span class="d-add">+         * template method: it is non-virtual, so subclasses override ComputeDesiredSize</span>
+<span class="d-add">+         * instead. Caches the result keyed by availableSize and by m_MeasureDirty: calling this</span>
+<span class="d-add">+         * again on a clean widget with the same constraint is O(1) and does not touch this</span>
+<span class="d-add">+         * widget's subtree.</span>
+<span class="d-add">+         * @param availableSize space available to this widget on each axis; an axis may be</span>
+<span class="d-add">+         * UnconstrainedSize when the caller places no limit on it.</span>
+<span class="d-add">+         * @return this widget's desired size for the given constraint.</span>
+<span class="d-ctx">          */</span>
+<span class="d-del">-        virtual glm::vec2 ComputeDesiredSize() = 0;</span>
+<span class="d-add">+        const glm::vec2&amp; Measure(const glm::vec2&amp; availableSize);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-ctx">          * Arrange this widget in the given space. Short-circuits when the layout is clean and</span>
+<span class="d-hunk">@@ -54,7 +70,7 @@</span>
+<span class="d-ctx">          */</span>
+<span class="d-ctx">         SRect GetGeometry() const { return m_Geometry; }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        glm::vec2 GetDesiredSize() const { return m_DesiredSize; }</span>
+<span class="d-add">+        glm::vec2 GetDesiredSize() const { return m_CachedDesiredSize; }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         bool IsLayoutDirty() const { return m_LayoutDirty; }</span>
+<span class="d-ctx">         bool IsRenderDirty() const { return m_RenderDirty; }</span>
+<span class="d-hunk">@@ -140,6 +156,17 @@</span>
+<span class="d-ctx">         virtual void ForEachChild(const std::function&lt;void(const Ref&lt;Widget&gt;&amp;)&gt;&amp; fn) const {}</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-add">+         * Compute how much space this widget wants, given the space available to it on each</span>
+<span class="d-add">+         * axis. Only called by Measure, which caches the result — never call this directly;</span>
+<span class="d-add">+         * call Measure(availableSize), or GetDesiredSize() for the last cached value, instead.</span>
+<span class="d-add">+         * @param availableSize space available to this widget on each axis; an axis may be</span>
+<span class="d-add">+         * UnconstrainedSize when the caller places no limit on it. Must never be returned on</span>
+<span class="d-add">+         * either axis of the result.</span>
+<span class="d-add">+         * @return a 2d vector representing the desired width and height.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        virtual glm::vec2 ComputeDesiredSize(const glm::vec2&amp; availableSize) = 0;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-ctx">          * Position this widget's children within its (already updated) geometry. Container</span>
+<span class="d-ctx">          * widgets override this to lay out their children; leaf widgets keep the default no-op.</span>
+<span class="d-ctx">          * Invoked by ArrangeChildren only when a re-arrangement is actually needed, so the</span>
+<span class="d-hunk">@@ -277,8 +304,14 @@</span>
+<span class="d-ctx">         inline static uint64_t s_DirtyEpoch = 1;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         SRect m_Geometry{};</span>
+<span class="d-del">-        glm::vec2 m_DesiredSize{};</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+        // Measure-pass cache. Measure() returns m_CachedDesiredSize without calling</span>
+<span class="d-add">+        // ComputeDesiredSize again when m_MeasureDirty is false and availableSize matches</span>
+<span class="d-add">+        // m_LastMeasureConstraint.</span>
+<span class="d-add">+        glm::vec2 m_CachedDesiredSize{};</span>
+<span class="d-add">+        glm::vec2 m_LastMeasureConstraint{-1.0f, -1.0f};</span>
+<span class="d-add">+        bool m_MeasureDirty = true;</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         float m_Opacity = 1.0f;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         EVisibility m_Visibility = EVisibility::Visible;</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-2"><span class="file-index">4.2</span> Widget.cpp</h3>
+    <p>
+      Implementa <code class="i">Measure</code> e adiciona <code class="i">m_MeasureDirty = true;</code>
+      dentro de <code class="i">MarkLayoutDirty</code>.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Widget.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Widget.cpp</span>
+<span class="d-hunk">@@ -7,6 +7,18 @@</span>
+<span class="d-ctx"> {</span>
+<span class="d-ctx">     /* Widget */</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+    const glm::vec2&amp; Widget::Measure(const glm::vec2&amp; availableSize)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        if (!m_MeasureDirty &amp;&amp; m_LastMeasureConstraint == availableSize)</span>
+<span class="d-add">+            return m_CachedDesiredSize;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        m_CachedDesiredSize = ComputeDesiredSize(availableSize);</span>
+<span class="d-add">+        m_LastMeasureConstraint = availableSize;</span>
+<span class="d-add">+        m_MeasureDirty = false;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        return m_CachedDesiredSize;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     void Widget::ArrangeChildren(const SRect&amp; allocatedSpace)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         if (!m_LayoutDirty &amp;&amp; m_LastArrangedSpace == allocatedSpace)</span>
+<span class="d-hunk">@@ -166,6 +178,7 @@</span>
+<span class="d-ctx">             return;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         m_LayoutDirty = true;</span>
+<span class="d-add">+        m_MeasureDirty = true;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         if (const auto parent = m_Parent.lock())</span>
+<span class="d-ctx">             parent-&gt;MarkLayoutDirty();</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-3"><span class="file-index">4.3</span> VerticalBox.h</h3>
+    <p>Só a assinatura — já era <code class="i">protected</code>.</p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/VerticalBox.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/VerticalBox.h</span>
+<span class="d-hunk">@@ -13,7 +13,7 @@</span>
+<span class="d-ctx">         void SetStretching(bool stretching);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">       protected:</span>
+<span class="d-del">-        glm::vec2 ComputeDesiredSize() override;</span>
+<span class="d-add">+        glm::vec2 ComputeDesiredSize(const glm::vec2&amp; availableSize) override;</span>
+<span class="d-ctx">         void LayoutChildren(const SRect&amp; allocatedSpace) override;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         bool m_Stretching = false;</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-4"><span class="file-index">4.4</span> VerticalBox.cpp</h3>
+    <p>
+      <code class="i">ComputeDesiredSize</code> passa a receber <code class="i">availableSize</code>,
+      propaga <code class="i">{ innerAvailable.x - margem, UnconstrainedSize }</code> para cada
+      filho via <code class="i">Measure</code>, e não escreve mais em
+      <code class="i">m_DesiredSize</code> (não existe mais — quem grava o cache agora é
+      <code class="i">Widget::Measure</code>). <code class="i">LayoutChildren</code> ganha o laço
+      de pré-medição em <code class="i">std::vector&lt;glm::vec2&gt;</code> e os dois laços
+      existentes passam a indexar esse vetor em vez de chamar
+      <code class="i">ComputeDesiredSize()</code> de novo — elimina a medição em dobro da seção
+      2.2. O <code class="i">vAlignment</code> não utilizado que já existia no primeiro laço foi
+      removido por estar sendo tocado de qualquer forma; o <code class="i">vAlignment</code> do
+      segundo laço (também não utilizado — sempre usa <code class="i">EVerticalAlignment::Top</code>
+      fixo) foi mantido como estava, fora do escopo deste ponto (ver risco R6).
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/VerticalBox.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/VerticalBox.cpp</span>
+<span class="d-hunk">@@ -18,17 +18,29 @@</span>
+<span class="d-ctx">         MarkLayoutDirty();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    glm::vec2 VerticalBox::ComputeDesiredSize()</span>
+<span class="d-add">+    glm::vec2 VerticalBox::ComputeDesiredSize(const glm::vec2&amp; availableSize)</span>
+<span class="d-ctx">     {</span>
+<span class="d-add">+        // Cross axis (width) is constrained by what we were given; main axis (height) is</span>
+<span class="d-add">+        // unconstrained, since children stack along it and each may be as tall as it wants.</span>
+<span class="d-add">+        const glm::vec2 innerAvailable = {</span>
+<span class="d-add">+            availableSize.x - m_Padding.GetTotalHorizontal(),</span>
+<span class="d-add">+            UnconstrainedSize</span>
+<span class="d-add">+        };</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         glm::vec2 totalSize = { 0, 0 };</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         for (auto&amp; slot : m_Slots)</span>
+<span class="d-ctx">         {</span>
+<span class="d-ctx">             const auto layoutSlot = std::static_pointer_cast&lt;LayoutSlot&gt;(slot);</span>
+<span class="d-del">-</span>
+<span class="d-del">-            auto childSize = slot-&gt;GetWidget()-&gt;ComputeDesiredSize();</span>
+<span class="d-ctx">             const auto margin = layoutSlot-&gt;GetMargin();</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+            const glm::vec2 childConstraint = {</span>
+<span class="d-add">+                innerAvailable.x - margin.GetTotalHorizontal(),</span>
+<span class="d-add">+                innerAvailable.y</span>
+<span class="d-add">+            };</span>
+<span class="d-add">+</span>
+<span class="d-add">+            auto childSize = slot-&gt;GetWidget()-&gt;Measure(childConstraint);</span>
+<span class="d-add">+</span>
+<span class="d-ctx">             // Add margin</span>
+<span class="d-ctx">             childSize.x += margin.GetTotalHorizontal();</span>
+<span class="d-ctx">             childSize.y += margin.GetTotalVertical();</span>
+<span class="d-hunk">@@ -44,7 +56,6 @@</span>
+<span class="d-ctx">         totalSize.x += m_Padding.GetTotalHorizontal();</span>
+<span class="d-ctx">         totalSize.y += m_Padding.GetTotalVertical();</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        m_DesiredSize = totalSize;</span>
+<span class="d-ctx">         return totalSize;</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-hunk">@@ -53,20 +64,36 @@</span>
+<span class="d-ctx">         // Calculate available space after padding</span>
+<span class="d-ctx">         const SRect innerSpace = ApplyPadding(allocatedSpace, m_Padding);</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        // First: calculate fixed sizes</span>
+<span class="d-del">-        float usedSpace = 0.0f;</span>
+<span class="d-add">+        // Measure every child exactly once, with its real constraint, and reuse the result in</span>
+<span class="d-add">+        // both loops below (each child used to be measured twice: once here, once again in</span>
+<span class="d-add">+        // the arrange loop).</span>
+<span class="d-add">+        std::vector&lt;glm::vec2&gt; childSizes;</span>
+<span class="d-add">+        childSizes.reserve(m_Slots.size());</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        for (auto&amp; slot : m_Slots)</span>
+<span class="d-add">+        for (const auto&amp; slot : m_Slots)</span>
+<span class="d-ctx">         {</span>
+<span class="d-ctx">             const auto layoutSlot = std::static_pointer_cast&lt;LayoutSlot&gt;(slot);</span>
+<span class="d-add">+            const auto margin = layoutSlot-&gt;GetMargin();</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+            const glm::vec2 childConstraint = {</span>
+<span class="d-add">+                innerSpace.Size.x - margin.GetTotalHorizontal(),</span>
+<span class="d-add">+                UnconstrainedSize</span>
+<span class="d-add">+            };</span>
+<span class="d-add">+</span>
+<span class="d-add">+            childSizes.push_back(slot-&gt;GetWidget()-&gt;Measure(childConstraint));</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // First: calculate fixed sizes</span>
+<span class="d-add">+        float usedSpace = 0.0f;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        for (size_t i = 0; i &lt; m_Slots.size(); ++i)</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            const auto layoutSlot = std::static_pointer_cast&lt;LayoutSlot&gt;(m_Slots[i]);</span>
+<span class="d-ctx">             const auto margin = layoutSlot-&gt;GetMargin();</span>
+<span class="d-del">-            const auto vAlignment = layoutSlot-&gt;GetVerticalAlignment();</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">             if (m_Stretching)</span>
+<span class="d-ctx">             {</span>
+<span class="d-del">-                const glm::vec2 childSize = slot-&gt;GetWidget()-&gt;ComputeDesiredSize();</span>
+<span class="d-del">-                usedSpace += childSize.y + margin.GetTotalVertical();</span>
+<span class="d-add">+                usedSpace += childSizes[i].y + margin.GetTotalVertical();</span>
+<span class="d-ctx">             }</span>
+<span class="d-ctx">         }</span>
+<span class="d-ctx"> </span>
+<span class="d-hunk">@@ -76,11 +103,12 @@</span>
+<span class="d-ctx">         // Second: Arrange children</span>
+<span class="d-ctx">         float currentY = innerSpace.Position.y;</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        for (auto&amp; slot : m_Slots)</span>
+<span class="d-add">+        for (size_t i = 0; i &lt; m_Slots.size(); ++i)</span>
+<span class="d-ctx">         {</span>
+<span class="d-add">+            const auto&amp; slot = m_Slots[i];</span>
+<span class="d-ctx">             const auto layoutSlot = std::static_pointer_cast&lt;LayoutSlot&gt;(slot);</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-            const glm::vec2 childSize = slot-&gt;GetWidget()-&gt;ComputeDesiredSize();</span>
+<span class="d-add">+            const glm::vec2&amp; childSize = childSizes[i];</span>
+<span class="d-ctx">             const auto margin = layoutSlot-&gt;GetMargin();</span>
+<span class="d-ctx">             const auto hAlignment = layoutSlot-&gt;GetHorizontalAlignment();</span>
+<span class="d-ctx">             const auto vAlignment = layoutSlot-&gt;GetVerticalAlignment();</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-5"><span class="file-index">4.5</span> HorizontalBox.h</h3>
+    <p>Só a assinatura — já era <code class="i">protected</code>.</p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/HorizontalBox.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/HorizontalBox.h</span>
+<span class="d-hunk">@@ -13,7 +13,7 @@</span>
+<span class="d-ctx">         void SetStretching(bool stretching);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">       protected:</span>
+<span class="d-del">-        glm::vec2 ComputeDesiredSize() override;</span>
+<span class="d-add">+        glm::vec2 ComputeDesiredSize(const glm::vec2&amp; availableSize) override;</span>
+<span class="d-ctx">         void LayoutChildren(const SRect&amp; allocatedSpace) override;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         bool m_Stretching = false;</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-6"><span class="file-index">4.6</span> HorizontalBox.cpp</h3>
+    <p>
+      Espelho exato de VerticalBox.cpp com os eixos trocados:
+      <code class="i">{ UnconstrainedSize, innerAvailable.y - margem }</code> para cada filho.
+      Mesma eliminação da medição em dobro; mesmo tratamento do <code class="i">hAlignment</code>
+      não utilizado (removido no primeiro laço, mantido no segundo).
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/HorizontalBox.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/HorizontalBox.cpp</span>
+<span class="d-hunk">@@ -18,17 +18,29 @@</span>
+<span class="d-ctx">         MarkLayoutDirty();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    glm::vec2 HorizontalBox::ComputeDesiredSize()</span>
+<span class="d-add">+    glm::vec2 HorizontalBox::ComputeDesiredSize(const glm::vec2&amp; availableSize)</span>
+<span class="d-ctx">     {</span>
+<span class="d-add">+        // Cross axis (height) is constrained by what we were given; main axis (width) is</span>
+<span class="d-add">+        // unconstrained, since children stack along it and each may be as wide as it wants.</span>
+<span class="d-add">+        const glm::vec2 innerAvailable = {</span>
+<span class="d-add">+            UnconstrainedSize,</span>
+<span class="d-add">+            availableSize.y - m_Padding.GetTotalVertical()</span>
+<span class="d-add">+        };</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         glm::vec2 totalSize = { 0, 0 };</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         for (auto&amp; slot : m_Slots)</span>
+<span class="d-ctx">         {</span>
+<span class="d-ctx">             const auto layoutSlot = std::static_pointer_cast&lt;LayoutSlot&gt;(slot);</span>
+<span class="d-del">-</span>
+<span class="d-del">-            auto childSize = slot-&gt;GetWidget()-&gt;ComputeDesiredSize();</span>
+<span class="d-ctx">             const auto margin = layoutSlot-&gt;GetMargin();</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+            const glm::vec2 childConstraint = {</span>
+<span class="d-add">+                innerAvailable.x,</span>
+<span class="d-add">+                innerAvailable.y - margin.GetTotalVertical()</span>
+<span class="d-add">+            };</span>
+<span class="d-add">+</span>
+<span class="d-add">+            auto childSize = slot-&gt;GetWidget()-&gt;Measure(childConstraint);</span>
+<span class="d-add">+</span>
+<span class="d-ctx">             // Add margin</span>
+<span class="d-ctx">             childSize.x += margin.GetTotalHorizontal();</span>
+<span class="d-ctx">             childSize.y += margin.GetTotalVertical();</span>
+<span class="d-hunk">@@ -44,7 +56,6 @@</span>
+<span class="d-ctx">         totalSize.x += m_Padding.GetTotalHorizontal();</span>
+<span class="d-ctx">         totalSize.y += m_Padding.GetTotalVertical();</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        m_DesiredSize = totalSize;</span>
+<span class="d-ctx">         return totalSize;</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-hunk">@@ -53,20 +64,36 @@</span>
+<span class="d-ctx">         // Calculate available space after padding</span>
+<span class="d-ctx">         const SRect innerSpace = ApplyPadding(allocatedSpace, m_Padding);</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        // First: calculate fixed sizes</span>
+<span class="d-del">-        float usedSpace = 0.0f;</span>
+<span class="d-add">+        // Measure every child exactly once, with its real constraint, and reuse the result in</span>
+<span class="d-add">+        // both loops below (each child used to be measured twice: once here, once again in</span>
+<span class="d-add">+        // the arrange loop).</span>
+<span class="d-add">+        std::vector&lt;glm::vec2&gt; childSizes;</span>
+<span class="d-add">+        childSizes.reserve(m_Slots.size());</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        for (auto&amp; slot : m_Slots)</span>
+<span class="d-add">+        for (const auto&amp; slot : m_Slots)</span>
+<span class="d-ctx">         {</span>
+<span class="d-ctx">             const auto layoutSlot = std::static_pointer_cast&lt;LayoutSlot&gt;(slot);</span>
+<span class="d-add">+            const auto margin = layoutSlot-&gt;GetMargin();</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+            const glm::vec2 childConstraint = {</span>
+<span class="d-add">+                UnconstrainedSize,</span>
+<span class="d-add">+                innerSpace.Size.y - margin.GetTotalVertical()</span>
+<span class="d-add">+            };</span>
+<span class="d-add">+</span>
+<span class="d-add">+            childSizes.push_back(slot-&gt;GetWidget()-&gt;Measure(childConstraint));</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // First: calculate fixed sizes</span>
+<span class="d-add">+        float usedSpace = 0.0f;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        for (size_t i = 0; i &lt; m_Slots.size(); ++i)</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            const auto layoutSlot = std::static_pointer_cast&lt;LayoutSlot&gt;(m_Slots[i]);</span>
+<span class="d-ctx">             const auto margin = layoutSlot-&gt;GetMargin();</span>
+<span class="d-del">-            const auto hAlignment = layoutSlot-&gt;GetHorizontalAlignment();</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">             if (m_Stretching)</span>
+<span class="d-ctx">             {</span>
+<span class="d-del">-                const glm::vec2 childSize = slot-&gt;GetWidget()-&gt;ComputeDesiredSize();</span>
+<span class="d-del">-                usedSpace += childSize.x + margin.GetTotalHorizontal();</span>
+<span class="d-add">+                usedSpace += childSizes[i].x + margin.GetTotalHorizontal();</span>
+<span class="d-ctx">             }</span>
+<span class="d-ctx">         }</span>
+<span class="d-ctx"> </span>
+<span class="d-hunk">@@ -76,11 +103,12 @@</span>
+<span class="d-ctx">         // Second: Arrange children</span>
+<span class="d-ctx">         float currentX = innerSpace.Position.x;</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        for (auto&amp; slot : m_Slots)</span>
+<span class="d-add">+        for (size_t i = 0; i &lt; m_Slots.size(); ++i)</span>
+<span class="d-ctx">         {</span>
+<span class="d-add">+            const auto&amp; slot = m_Slots[i];</span>
+<span class="d-ctx">             const auto layoutSlot = std::static_pointer_cast&lt;LayoutSlot&gt;(slot);</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-            const glm::vec2 childSize = slot-&gt;GetWidget()-&gt;ComputeDesiredSize();</span>
+<span class="d-add">+            const glm::vec2&amp; childSize = childSizes[i];</span>
+<span class="d-ctx">             const auto margin = layoutSlot-&gt;GetMargin();</span>
+<span class="d-ctx">             const auto hAlignment = layoutSlot-&gt;GetHorizontalAlignment();</span>
+<span class="d-ctx">             const auto vAlignment = layoutSlot-&gt;GetVerticalAlignment();</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-7"><span class="file-index">4.7</span> Overlay.h</h3>
+    <p>Só a assinatura — já era <code class="i">protected</code>.</p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Overlay.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Overlay.h</span>
+<span class="d-hunk">@@ -13,7 +13,7 @@</span>
+<span class="d-ctx">         void SetStretching(bool stretching);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">       protected:</span>
+<span class="d-del">-        glm::vec2 ComputeDesiredSize() override;</span>
+<span class="d-add">+        glm::vec2 ComputeDesiredSize(const glm::vec2&amp; availableSize) override;</span>
+<span class="d-ctx">         void LayoutChildren(const SRect&amp; allocatedSpace) override;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         bool m_Stretching = false;</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-8"><span class="file-index">4.8</span> Overlay.cpp</h3>
+    <p>
+      <code class="i">Overlay::LayoutChildren</code> já tinha um único laço — não existia a
+      medição em dobro que VerticalBox/HorizontalBox têm — então aqui a mudança é só trocar
+      <code class="i">ComputeDesiredSize()</code> por <code class="i">Measure(childConstraint)</code>
+      com a constraint real (<code class="i">innerSpace.Size - margem</code>, os dois eixos
+      limitados) tanto em <code class="i">ComputeDesiredSize</code> quanto em
+      <code class="i">LayoutChildren</code>. Não precisou do vetor de pré-medição que os outros
+      dois containers ganharam.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Overlay.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Overlay.cpp</span>
+<span class="d-hunk">@@ -18,17 +18,27 @@</span>
+<span class="d-ctx">         MarkLayoutDirty();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    glm::vec2 Overlay::ComputeDesiredSize()</span>
+<span class="d-add">+    glm::vec2 Overlay::ComputeDesiredSize(const glm::vec2&amp; availableSize)</span>
+<span class="d-ctx">     {</span>
+<span class="d-add">+        const glm::vec2 innerAvailable = {</span>
+<span class="d-add">+            availableSize.x - m_Padding.GetTotalHorizontal(),</span>
+<span class="d-add">+            availableSize.y - m_Padding.GetTotalVertical()</span>
+<span class="d-add">+        };</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         glm::vec2 totalSize = { 0, 0 };</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         for (auto&amp; slot : m_Slots)</span>
+<span class="d-ctx">         {</span>
+<span class="d-ctx">             const auto layoutSlot = std::static_pointer_cast&lt;LayoutSlot&gt;(slot);</span>
+<span class="d-del">-</span>
+<span class="d-del">-            auto childSize = slot-&gt;GetWidget()-&gt;ComputeDesiredSize();</span>
+<span class="d-ctx">             const auto margin = layoutSlot-&gt;GetMargin();</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+            const glm::vec2 childConstraint = {</span>
+<span class="d-add">+                innerAvailable.x - margin.GetTotalHorizontal(),</span>
+<span class="d-add">+                innerAvailable.y - margin.GetTotalVertical()</span>
+<span class="d-add">+            };</span>
+<span class="d-add">+</span>
+<span class="d-add">+            auto childSize = slot-&gt;GetWidget()-&gt;Measure(childConstraint);</span>
+<span class="d-add">+</span>
+<span class="d-ctx">             // Add margin</span>
+<span class="d-ctx">             childSize.x += margin.GetTotalHorizontal();</span>
+<span class="d-ctx">             childSize.y += margin.GetTotalVertical();</span>
+<span class="d-hunk">@@ -42,7 +52,6 @@</span>
+<span class="d-ctx">         totalSize.x += m_Padding.GetTotalHorizontal();</span>
+<span class="d-ctx">         totalSize.y += m_Padding.GetTotalVertical();</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        m_DesiredSize = totalSize;</span>
+<span class="d-ctx">         return totalSize;</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-hunk">@@ -54,12 +63,17 @@</span>
+<span class="d-ctx">         for (auto&amp; slot : m_Slots)</span>
+<span class="d-ctx">         {</span>
+<span class="d-ctx">             const auto layoutSlot = std::static_pointer_cast&lt;LayoutSlot&gt;(slot);</span>
+<span class="d-del">-</span>
+<span class="d-del">-            const glm::vec2 childSize = slot-&gt;GetWidget()-&gt;ComputeDesiredSize();</span>
+<span class="d-ctx">             const auto margin = layoutSlot-&gt;GetMargin();</span>
+<span class="d-ctx">             const auto hAlignment = layoutSlot-&gt;GetHorizontalAlignment();</span>
+<span class="d-ctx">             const auto vAlignment = layoutSlot-&gt;GetVerticalAlignment();</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+            const glm::vec2 childConstraint = {</span>
+<span class="d-add">+                innerSpace.Size.x - margin.GetTotalHorizontal(),</span>
+<span class="d-add">+                innerSpace.Size.y - margin.GetTotalVertical()</span>
+<span class="d-add">+            };</span>
+<span class="d-add">+</span>
+<span class="d-add">+            const glm::vec2 childSize = slot-&gt;GetWidget()-&gt;Measure(childConstraint);</span>
+<span class="d-add">+</span>
+<span class="d-ctx">             // Handle fill alignment</span>
+<span class="d-ctx">             const float childWidth = m_Stretching</span>
+<span class="d-ctx">                 ? innerSpace.Size.x - margin.GetTotalHorizontal()</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-9"><span class="file-index">4.9</span> Canvas.h</h3>
+    <p>
+      Move <code class="i">ComputeDesiredSize</code> para <code class="i">protected</code> com a
+      nova assinatura, e troca o antigo <code class="i">m_DesiredSize</code> (que deixou de
+      existir em <code class="i">Widget</code>) por um membro próprio,
+      <code class="i">m_DefaultDesiredSize</code>, que guarda o mesmo fallback fixo de sempre
+      (<code class="i">{800, 600}</code>).
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Canvas.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Canvas.h</span>
+<span class="d-hunk">@@ -69,12 +69,16 @@</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         CanvasSlot&amp; AddChild(const Ref&lt;Widget&gt;&amp; child);</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        glm::vec2 ComputeDesiredSize() override;</span>
+<span class="d-del">-</span>
+<span class="d-ctx">       protected:</span>
+<span class="d-add">+        glm::vec2 ComputeDesiredSize(const glm::vec2&amp; availableSize) override;</span>
+<span class="d-ctx">         void LayoutChildren(const SRect&amp; allocatedSpace) override;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">       private:</span>
+<span class="d-ctx">         SRect ComputeChildGeometry(const Ref&lt;CanvasSlot&gt;&amp; slot, const glm::vec2&amp; canvasSize) const;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // Canvas has no intrinsic content-driven size (children are absolutely positioned),</span>
+<span class="d-add">+        // so ComputeDesiredSize just reports this fixed fallback, same as the pre-measure-pass</span>
+<span class="d-add">+        // hardcoded {800, 600}.</span>
+<span class="d-add">+        glm::vec2 m_DefaultDesiredSize;</span>
+<span class="d-ctx">     };</span>
+<span class="d-ctx"> }</span>
+<span class="d-meta">\ No newline at end of file</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-10"><span class="file-index">4.10</span> Canvas.cpp</h3>
+    <p>
+      <code class="i">ComputeDesiredSize</code> devolve <code class="i">m_DefaultDesiredSize</code>
+      ignorando o parâmetro — um <code class="i">Canvas</code> não deriva tamanho de conteúdo.
+      <code class="i">AddChild</code> ganha uma chamada a <code class="i">child-&gt;Measure(...)</code>
+      antes de construir o <code class="i">CanvasSlot</code> — ver o callout da seção 4.10 (risco
+      R2) para o porquê disso ser necessário, não cosmético.
+    </p>
+    <div class="callout callout-attention">
+      <span class="callout-title">Por que Canvas::AddChild precisa medir o filho antes</span>
+      <p>
+        <code class="i">CanvasSlot</code>'s construtor lê <code class="i">widget-&gt;GetDesiredSize()</code>
+        para inicializar <code class="i">m_Constraint.Size</code> — o tamanho que o filho ocupa
+        até alguém chamar <code class="i">SetSize</code> explicitamente
+        (<span class="file-ref">Canvas.h:10-15</span>). Hoje isso funciona por acidente para
+        <code class="i">TextBlock</code> (mede de verdade no construtor),
+        <code class="i">Button</code>/<code class="i">TextField</code> (tamanho hardcoded, mas
+        não-zero) e <code class="i">Canvas</code> aninhado (<code class="i">{800,600}</code>
+        fixo) — mas já é <code class="i">{0,0}</code> hoje para qualquer
+        <code class="i">VerticalBox</code>/<code class="i">HorizontalBox</code>/<code class="i">Overlay</code>
+        colocado dentro de um <code class="i">Canvas</code>, porque nada chama
+        <code class="i">ComputeDesiredSize</code> neles antes disso.
+      </p>
+      <p>
+        Depois deste ponto, <code class="i">Button</code>/<code class="i">TextField</code>/
+        <code class="i">TextBlock</code> não escrevem mais um tamanho no construtor —
+        <code class="i">m_CachedDesiredSize</code> só é populado por um <code class="i">Measure</code>
+        de verdade, que é preguiçoso por design. Sem a chamada adicionada em
+        <code class="i">AddChild</code>, <code class="i">GetDesiredSize()</code> no momento da
+        construção do slot passaria a devolver <code class="i">{0,0}</code> para
+        <strong>qualquer</strong> widget recém-criado — uma regressão visual real para
+        <code class="i">Button</code>/<code class="i">TextField</code>/<code class="i">TextBlock</code>,
+        e de quebra corrige o caso que já era zero para containers. Medir com
+        <code class="i">{ UnconstrainedSize, UnconstrainedSize }</code> pede o tamanho "natural",
+        sem restrição — a mesma semântica que <code class="i">GetDesiredSize()</code> já tinha a
+        intenção de expressar.
+      </p>
+    </div>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Canvas.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Canvas.cpp</span>
+<span class="d-hunk">@@ -3,21 +3,27 @@</span>
+<span class="d-ctx"> namespace Elixir::GUI</span>
+<span class="d-ctx"> {</span>
+<span class="d-ctx">     Canvas::Canvas()</span>
+<span class="d-add">+        : m_DefaultDesiredSize(800.0f, 600.0f)</span>
+<span class="d-ctx">     {</span>
+<span class="d-del">-        m_DesiredSize = { 800.0f, 600.0f };</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     CanvasSlot&amp; Canvas::AddChild(const Ref&lt;Widget&gt;&amp; child)</span>
+<span class="d-ctx">     {</span>
+<span class="d-add">+        // Measure once with no constraint so the slot's default Size (used until an explicit</span>
+<span class="d-add">+        // SetSize/anchors call) reflects this child's real desired size instead of the zeroed</span>
+<span class="d-add">+        // cache of a widget that has never been through a Measure pass yet.</span>
+<span class="d-add">+        if (child)</span>
+<span class="d-add">+            child-&gt;Measure({ UnconstrainedSize, UnconstrainedSize });</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         const auto slot = CreateRef&lt;CanvasSlot&gt;(child);</span>
+<span class="d-ctx">         m_Slots.push_back(slot);</span>
+<span class="d-ctx">         AttachChild(child);</span>
+<span class="d-ctx">         return *slot;</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    glm::vec2 Canvas::ComputeDesiredSize()</span>
+<span class="d-add">+    glm::vec2 Canvas::ComputeDesiredSize(const glm::vec2&amp;)</span>
+<span class="d-ctx">     {</span>
+<span class="d-del">-        return m_DesiredSize;</span>
+<span class="d-add">+        return m_DefaultDesiredSize;</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     void Canvas::LayoutChildren(const SRect&amp; allocatedSpace)</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-11"><span class="file-index">4.11</span> TextBlock.h</h3>
+    <p>
+      Adiciona <code class="i">ETextOverflow</code> (namespace-scope, ao lado da classe — o lugar
+      mais consistente a longo prazo seria <code class="i">Definitions.h</code>, junto dos outros
+      <code class="i">E*</code> do módulo, mas isso ficou fora do escopo de arquivos deste ponto),
+      <code class="i">GetOverflow</code>/<code class="i">SetOverflow</code>,
+      <code class="i">m_DisplayText</code>, e o novo helper protegido
+      <code class="i">UpdateWrappedDisplayText</code>. Remove <code class="i">UpdateTextSize()</code>
+      — deixa de fazer sentido: <code class="i">Measure</code> já cacheia preguiçosamente, então
+      nenhuma subclasse precisa mais forçar uma remedição eager no construtor/setters.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/TextBlock.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/TextBlock.h</span>
+<span class="d-hunk">@@ -7,13 +7,20 @@</span>
+<span class="d-ctx"> {</span>
+<span class="d-ctx">     class RenderBatch;</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+    // How TextBlock handles text that does not fit its allocated width.</span>
+<span class="d-add">+    // Ellipsis is the default so existing content keeps today's truncate-with-"..." look;</span>
+<span class="d-add">+    // Wrap only engages when ComputeDesiredSize/LayoutChildren receive a finite width</span>
+<span class="d-add">+    // (see UnconstrainedSize in Widget.h).</span>
+<span class="d-add">+    enum class ETextOverflow</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        Ellipsis, Wrap, Clip</span>
+<span class="d-add">+    };</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     class ELIXIR_API TextBlock final : public Widget</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">       public:</span>
+<span class="d-ctx">         explicit TextBlock(const std::string&amp; text);</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        glm::vec2 ComputeDesiredSize() override;</span>
+<span class="d-del">-</span>
+<span class="d-ctx">         const std::string&amp; GetText() const { return m_Text; }</span>
+<span class="d-ctx">         void SetText(const std::string&amp; text);</span>
+<span class="d-ctx"> </span>
+<span class="d-hunk">@@ -26,17 +33,27 @@</span>
+<span class="d-ctx">         float GetFontSize() const { return m_FontSize; }</span>
+<span class="d-ctx">         void SetFontSize(float size);</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+        ETextOverflow GetOverflow() const { return m_Overflow; }</span>
+<span class="d-add">+        void SetOverflow(ETextOverflow overflow);</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     protected:</span>
+<span class="d-add">+        glm::vec2 ComputeDesiredSize(const glm::vec2&amp; availableSize) override;</span>
+<span class="d-add">+        void LayoutChildren(const SRect&amp; allocatedSpace) override;</span>
+<span class="d-ctx">         void BuildDrawCommands(RenderBatch&amp; batch, int zOrder) override;</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        void UpdateTextSize();</span>
+<span class="d-del">-</span>
+<span class="d-ctx">         std::string ProcessText(const std::string&amp; text, float availableWidth) const;</span>
+<span class="d-add">+        glm::vec2 UpdateWrappedDisplayText(float maxWidth);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">       private:</span>
+<span class="d-ctx">         std::string m_Text;</span>
+<span class="d-ctx">         SColor m_Color{ 1.0, 1.0, 1.0, 1.0 };</span>
+<span class="d-ctx">         Ref&lt;Font&gt; m_Font;</span>
+<span class="d-ctx">         float m_FontSize = 16.0f;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        ETextOverflow m_Overflow = ETextOverflow::Ellipsis;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // Fully processed text ready to draw (truncated or wrapped), refreshed during</span>
+<span class="d-add">+        // Measure/Arrange so BuildDrawCommands never re-measures on a draw-command rebuild.</span>
+<span class="d-add">+        std::string m_DisplayText;</span>
+<span class="d-ctx">     };</span>
+<span class="d-ctx"> }</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-12"><span class="file-index">4.12</span> TextBlock.cpp</h3>
+    <p>
+      <code class="i">ComputeDesiredSize</code> mede com wrap quando aplicável (seção 3.4);
+      <code class="i">LayoutChildren</code> (novo) resolve <code class="i">m_DisplayText</code>
+      contra a geometria final; <code class="i">BuildDrawCommands</code> desenha
+      <code class="i">m_DisplayText</code> sem medir nada. Os setters passam a fazer
+      <code class="i">m_DisplayText = m_Text;</code> como fallback barato (ver callout 3.4). O
+      ramo <code class="i">Wrap</code> de <code class="i">UpdateWrappedDisplayText</code> chama
+      <code class="i">FontManager::MeasureWrapped</code> — depende do esboço de 4.13/4.14, ver
+      risco R3.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/TextBlock.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/TextBlock.cpp</span>
+<span class="d-hunk">@@ -6,22 +6,16 @@</span>
+<span class="d-ctx"> namespace Elixir::GUI</span>
+<span class="d-ctx"> {</span>
+<span class="d-ctx">     TextBlock::TextBlock(const std::string&amp; text)</span>
+<span class="d-del">-        : m_Text(text)</span>
+<span class="d-add">+        : m_Text(text), m_DisplayText(text)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         m_Font = FontManager::GetDefaultFont();</span>
+<span class="d-del">-        UpdateTextSize();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    glm::vec2 TextBlock::ComputeDesiredSize()</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        return m_DesiredSize;</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-ctx">     void TextBlock::SetText(const std::string&amp; text)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         if (m_Text == text) return;</span>
+<span class="d-ctx">         m_Text = text;</span>
+<span class="d-del">-        UpdateTextSize();</span>
+<span class="d-add">+        m_DisplayText = text; // cheap fallback until the next Measure/Arrange re-processes it</span>
+<span class="d-ctx">         MarkLayoutDirty();</span>
+<span class="d-ctx">         MarkRenderDirty(); // the drawn glyphs change even when geometry does not</span>
+<span class="d-ctx">     }</span>
+<span class="d-hunk">@@ -32,7 +26,7 @@</span>
+<span class="d-ctx">         if (!font || m_Font == font) return;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         m_Font = font;</span>
+<span class="d-del">-        UpdateTextSize();</span>
+<span class="d-add">+        m_DisplayText = m_Text;</span>
+<span class="d-ctx">         MarkLayoutDirty();</span>
+<span class="d-ctx">         MarkRenderDirty();</span>
+<span class="d-ctx">     }</span>
+<span class="d-hunk">@@ -47,20 +41,53 @@</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         if (m_FontSize == size) return;</span>
+<span class="d-ctx">         m_FontSize = size;</span>
+<span class="d-del">-        UpdateTextSize();</span>
+<span class="d-add">+        m_DisplayText = m_Text;</span>
+<span class="d-ctx">         MarkLayoutDirty();</span>
+<span class="d-ctx">         MarkRenderDirty();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    void TextBlock::BuildDrawCommands(RenderBatch&amp; batch, const int zOrder)</span>
+<span class="d-add">+    void TextBlock::SetOverflow(const ETextOverflow overflow)</span>
+<span class="d-ctx">     {</span>
+<span class="d-del">-        if (!m_Text.empty())</span>
+<span class="d-add">+        if (m_Overflow == overflow) return;</span>
+<span class="d-add">+        m_Overflow = overflow;</span>
+<span class="d-add">+        m_DisplayText = m_Text;</span>
+<span class="d-add">+        MarkLayoutDirty();</span>
+<span class="d-add">+        MarkRenderDirty();</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    glm::vec2 TextBlock::ComputeDesiredSize(const glm::vec2&amp; availableSize)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        if (m_Overflow == ETextOverflow::Wrap &amp;&amp; availableSize.x != UnconstrainedSize)</span>
+<span class="d-add">+            return UpdateWrappedDisplayText(availableSize.x);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        m_DisplayText = m_Text;</span>
+<span class="d-add">+        return FontManager::MeasureText(m_Text, m_Font, m_FontSize);</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void TextBlock::LayoutChildren(const SRect&amp; allocatedSpace)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        // The final allocated width can differ from the constraint Measure saw (e.g. a</span>
+<span class="d-add">+        // non-stretching parent grants exactly our desired width), so Ellipsis/Wrap are</span>
+<span class="d-add">+        // resolved again here against the real geometry; BuildDrawCommands then just draws</span>
+<span class="d-add">+        // m_DisplayText without measuring anything.</span>
+<span class="d-add">+        if (m_Overflow == ETextOverflow::Ellipsis)</span>
+<span class="d-ctx">         {</span>
+<span class="d-del">-            const float availableWidth = m_Geometry.Size.x;</span>
+<span class="d-del">-            const auto displayText = ProcessText(m_Text, availableWidth);</span>
+<span class="d-add">+            m_DisplayText = ProcessText(m_Text, allocatedSpace.Size.x);</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+        else if (m_Overflow == ETextOverflow::Wrap)</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            UpdateWrappedDisplayText(allocatedSpace.Size.x);</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+        // Clip: m_DisplayText already holds the untruncated text; clipping to m_Geometry is a</span>
+<span class="d-add">+        // draw-time concern, not a string concern.</span>
+<span class="d-add">+    }</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+    void TextBlock::BuildDrawCommands(RenderBatch&amp; batch, const int zOrder)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        if (!m_DisplayText.empty())</span>
+<span class="d-add">+        {</span>
+<span class="d-ctx">             batch.AddText(</span>
+<span class="d-del">-                displayText,</span>
+<span class="d-add">+                m_DisplayText,</span>
+<span class="d-ctx">                 m_Geometry,</span>
+<span class="d-ctx">                 m_Font,</span>
+<span class="d-ctx">                 m_FontSize,</span>
+<span class="d-hunk">@@ -70,11 +97,6 @@</span>
+<span class="d-ctx">         }</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    void TextBlock::UpdateTextSize()</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        m_DesiredSize = FontManager::MeasureText(m_Text, m_Font, m_FontSize);</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-ctx">     std::string TextBlock::ProcessText(</span>
+<span class="d-ctx">         const std::string&amp; text,</span>
+<span class="d-ctx">         const float availableWidth</span>
+<span class="d-hunk">@@ -101,4 +123,21 @@</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         return ellipsis;</span>
+<span class="d-ctx">     }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    glm::vec2 TextBlock::UpdateWrappedDisplayText(const float maxWidth)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        // Sketch: FontManager::MeasureWrapped's body depends on the glyph/kerning backend,</span>
+<span class="d-add">+        // out of scope for this point (see the "Design proposto" section of the doc).</span>
+<span class="d-add">+        std::vector&lt;std::string&gt; lines;</span>
+<span class="d-add">+        const glm::vec2 size = FontManager::MeasureWrapped(m_Text, m_Font, m_FontSize, maxWidth, &amp;lines);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        m_DisplayText.clear();</span>
+<span class="d-add">+        for (size_t i = 0; i &lt; lines.size(); ++i)</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            if (i &gt; 0) m_DisplayText += '\n';</span>
+<span class="d-add">+            m_DisplayText += lines[i];</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        return size;</span>
+<span class="d-add">+    }</span>
+<span class="d-ctx"> }</span>
+<span class="d-meta">\ No newline at end of file</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-13"><span class="file-index">4.13</span> FontManager.h <span class="badge badge-sketch">esboço</span></h3>
+    <p>
+      Só a declaração de <code class="i">MeasureWrapped</code> é um diff real e definitivo — a
+      assinatura em si não é esboço, é a proposta final. O que é esboço é o corpo, em
+      FontManager.cpp (4.14): ele não implementa quebra de linha de verdade ainda.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/Font/FontManager.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/Font/FontManager.h</span>
+<span class="d-hunk">@@ -51,6 +51,26 @@</span>
+<span class="d-ctx">         );</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-add">+         * Measure text with word-wrapping applied at maxWidth, honoring the font's line</span>
+<span class="d-add">+         * height for each wrapped line. Proposed by the GUI measure-pass refactor; the</span>
+<span class="d-add">+         * implementation depends on the glyph/kerning backend and is not part of that change.</span>
+<span class="d-add">+         * @param text The text to wrap and measure</span>
+<span class="d-add">+         * @param font The font used to display the text</span>
+<span class="d-add">+         * @param fontSize The font size in pixels</span>
+<span class="d-add">+         * @param maxWidth The maximum line width, in pixels, before wrapping to the next line</span>
+<span class="d-add">+         * @param outLines When non-null, receives the text split into wrapped lines</span>
+<span class="d-add">+         * @return A 2d vector with the wrapped block's width (&lt;= maxWidth, unless a single</span>
+<span class="d-add">+         * word alone exceeds it) and total height (outLines-&gt;size() * GetLineHeight()).</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        static glm::vec2 MeasureWrapped(</span>
+<span class="d-add">+            const std::string&amp; text,</span>
+<span class="d-add">+            const Ref&lt;Font&gt;&amp; font,</span>
+<span class="d-add">+            float fontSize,</span>
+<span class="d-add">+            float maxWidth,</span>
+<span class="d-add">+            std::vector&lt;std::string&gt;* outLines = nullptr</span>
+<span class="d-add">+        );</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-ctx">          * Get the line height in pixels, which is the distance from the baseline of one</span>
+<span class="d-ctx">          * line of text.</span>
+<span class="d-ctx">          * @param font The font used to display the text</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-14"><span class="file-index">4.14</span> FontManager.cpp <span class="badge badge-sketch">esboço</span></h3>
+    <p>
+      Stub mínimo, necessário para o projeto linkar assim que <code class="i">TextBlock.cpp</code>
+      (4.12) referencia <code class="i">MeasureWrapped</code> — mesmo que
+      <code class="i">ETextOverflow::Wrap</code> nunca seja selecionado em runtime, o corpo de
+      <code class="i">TextBlock::UpdateWrappedDisplayText</code> é compilado e gera uma chamada
+      para o símbolo, que o linker precisa resolver. Não quebra linha de verdade — devolve o
+      texto inteiro como uma única linha, o mesmo resultado de <code class="i">MeasureText</code>.
+      Implementar a quebra real (greedy, palavra a palavra, usando o backend de glyphs/kerning) é
+      trabalho de fora desta série.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/Font/FontManager.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/Font/FontManager.cpp</span>
+<span class="d-hunk">@@ -96,6 +96,26 @@</span>
+<span class="d-ctx">         return font-&gt;MeasureText(text, fontSize);</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+    glm::vec2 FontManager::MeasureWrapped(</span>
+<span class="d-add">+        const std::string&amp; text,</span>
+<span class="d-add">+        const Ref&lt;Font&gt;&amp; font,</span>
+<span class="d-add">+        const float fontSize,</span>
+<span class="d-add">+        const float maxWidth,</span>
+<span class="d-add">+        std::vector&lt;std::string&gt;* outLines</span>
+<span class="d-add">+    )</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        EE_PROFILE_ZONE_SCOPED()</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // Sketch: keeps the symbol linked so TextBlock::ETextOverflow::Wrap compiles and</span>
+<span class="d-add">+        // runs, but does not really wrap yet — that needs the glyph/kerning backend, out of</span>
+<span class="d-add">+        // scope here. Until this is replaced by a real greedy word-measuring algorithm (built</span>
+<span class="d-add">+        // on MeasureText), Wrap behaves like Clip: a single, unwrapped line.</span>
+<span class="d-add">+        if (outLines)</span>
+<span class="d-add">+            outLines-&gt;assign(1, text);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        return MeasureText(text, font, fontSize);</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     float FontManager::GetLineHeight(const Ref&lt;Font&gt;&amp; font, const float fontSize)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         EE_PROFILE_ZONE_SCOPED()</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-15"><span class="file-index">4.15</span> Button.h</h3>
+    <p>
+      Move <code class="i">ComputeDesiredSize</code> para <code class="i">protected</code> com a
+      nova assinatura; adiciona <code class="i">m_MinDesiredSize</code>
+      (<code class="i">{120, 40}</code>, o mesmo valor que hoje é hardcoded no construtor).
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Button.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Button.h</span>
+<span class="d-hunk">@@ -10,8 +10,6 @@</span>
+<span class="d-ctx">       public:</span>
+<span class="d-ctx">         explicit Button(const std::string&amp; text = "");</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        glm::vec2 ComputeDesiredSize() override;</span>
+<span class="d-del">-</span>
+<span class="d-ctx">         const std::string&amp; GetText() const { return m_Text; }</span>
+<span class="d-ctx">         void SetText(const std::string&amp; text);</span>
+<span class="d-ctx"> </span>
+<span class="d-hunk">@@ -61,6 +59,7 @@</span>
+<span class="d-ctx">         void SetNormalBackground(const Ref&lt;Texture2D&gt;&amp; texture);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">       protected:</span>
+<span class="d-add">+        glm::vec2 ComputeDesiredSize(const glm::vec2&amp; availableSize) override;</span>
+<span class="d-ctx">         void LayoutChildren(const SRect&amp; allocatedSpace) override;</span>
+<span class="d-ctx">         void BuildDrawCommands(RenderBatch&amp; batch, int zOrder) override;</span>
+<span class="d-ctx"> </span>
+<span class="d-hunk">@@ -92,5 +91,9 @@</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         // Textures for different states</span>
+<span class="d-ctx">         Ref&lt;Texture2D&gt; m_NormalBackground;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // Floor applied to the measured (content/text + padding) size, so a Button with no</span>
+<span class="d-add">+        // text/content still reserves the same footprint it did before this point.</span>
+<span class="d-add">+        glm::vec2 m_MinDesiredSize{120.0f, 40.0f};</span>
+<span class="d-ctx">     };</span>
+<span class="d-ctx"> }</span>
+<span class="d-meta">\ No newline at end of file</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-16"><span class="file-index">4.16</span> Button.cpp</h3>
+    <p>
+      <code class="i">ComputeDesiredSize</code> mede conteúdo ou texto (seção 3.5);
+      <code class="i">LayoutChildren</code> troca <code class="i">ComputeDesiredSize()</code> por
+      <code class="i">Measure(innerSpace.Size)</code>. <code class="i">BuildDrawCommands</code> e
+      <code class="i">ProcessText</code> ficam exatamente como estão — Button continua remedindo o
+      texto (com o mesmo loop caractere-a-caractere) a cada rebuild de draw commands; ver risco
+      R4 sobre por que isso fica fora do escopo deste ponto.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Button.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Button.cpp</span>
+<span class="d-hunk">@@ -11,12 +11,32 @@</span>
+<span class="d-ctx">         : m_Text(text)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         m_Font = FontManager::GetDefaultFont();</span>
+<span class="d-del">-        m_DesiredSize = { 120.0f, 40.0f };</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    glm::vec2 Button::ComputeDesiredSize()</span>
+<span class="d-add">+    glm::vec2 Button::ComputeDesiredSize(const glm::vec2&amp; availableSize)</span>
+<span class="d-ctx">     {</span>
+<span class="d-del">-        return m_DesiredSize;</span>
+<span class="d-add">+        const glm::vec2 innerAvailable = availableSize - glm::vec2(</span>
+<span class="d-add">+            m_Padding.GetTotalHorizontal(),</span>
+<span class="d-add">+            m_Padding.GetTotalVertical()</span>
+<span class="d-add">+        );</span>
+<span class="d-add">+</span>
+<span class="d-add">+        glm::vec2 contentSize{ 0.0f, 0.0f };</span>
+<span class="d-add">+</span>
+<span class="d-add">+        if (HasContent())</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            contentSize = m_ContentSlot-&gt;GetWidget()-&gt;Measure(innerAvailable);</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+        else if (!m_Text.empty())</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            contentSize = MeasureTextSize(m_Text);</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        const glm::vec2 desiredSize = contentSize + glm::vec2(</span>
+<span class="d-add">+            m_Padding.GetTotalHorizontal(),</span>
+<span class="d-add">+            m_Padding.GetTotalVertical()</span>
+<span class="d-add">+        );</span>
+<span class="d-add">+</span>
+<span class="d-add">+        return glm::max(desiredSize, m_MinDesiredSize);</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     void Button::SetText(const std::string&amp; text)</span>
+<span class="d-hunk">@@ -101,8 +121,8 @@</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         if (HasContent())</span>
+<span class="d-ctx">         {</span>
+<span class="d-del">-            const glm::vec2 childSize = m_ContentSlot-&gt;GetWidget()-&gt;ComputeDesiredSize();</span>
+<span class="d-ctx">             const SRect innerSpace = ApplyPadding(allocatedSpace, m_Padding);</span>
+<span class="d-add">+            const glm::vec2 childSize = m_ContentSlot-&gt;GetWidget()-&gt;Measure(innerSpace.Size);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">             const SRect childRect  = AlignChild(</span>
+<span class="d-ctx">                 childSize,</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-17"><span class="file-index">4.17</span> TextField.h</h3>
+    <p>
+      Move <code class="i">ComputeDesiredSize</code> para <code class="i">protected</code> com a
+      nova assinatura; adiciona <code class="i">m_MinDesiredSize</code>
+      (<code class="i">{120, 30}</code>).
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/TextField.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/TextField.h</span>
+<span class="d-hunk">@@ -12,8 +12,6 @@</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         void Update(Timestep frameTime) override;</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        glm::vec2 ComputeDesiredSize() override;</span>
+<span class="d-del">-</span>
+<span class="d-ctx">         /* Callbacks */</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         void OnChange(const std::function&lt;void(const std::string&amp;)&gt;&amp; callback)</span>
+<span class="d-hunk">@@ -79,6 +77,7 @@</span>
+<span class="d-ctx">         void SetSelectionColor(const SColor&amp; color);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     protected:</span>
+<span class="d-add">+        glm::vec2 ComputeDesiredSize(const glm::vec2&amp; availableSize) override;</span>
+<span class="d-ctx">         void LayoutChildren(const SRect&amp; allocatedSpace) override;</span>
+<span class="d-ctx">         void BuildDrawCommands(RenderBatch&amp; batch, int zOrder) override;</span>
+<span class="d-ctx"> </span>
+<span class="d-hunk">@@ -159,6 +158,10 @@</span>
+<span class="d-ctx">         size_t m_SelectionEnd = -1;</span>
+<span class="d-ctx">         SColor m_SelectionColor = { 0.3f, 0.5f, 1.0f, 0.4f };</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+        // Floor applied to the measured (text + padding) size, so a TextField with no text</span>
+<span class="d-add">+        // still reserves the same footprint it did before this point.</span>
+<span class="d-add">+        glm::vec2 m_MinDesiredSize{120.0f, 30.0f};</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         // Callbacks</span>
+<span class="d-ctx">         std::function&lt;void(const std::string&amp;)&gt; m_OnChangeCallback;</span>
+<span class="d-ctx">     };</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-18"><span class="file-index">4.18</span> TextField.cpp</h3>
+    <p>
+      <code class="i">ComputeDesiredSize</code> mede <code class="i">m_Text</code> (seção 3.5).
+      Além disso — consequência direta de <code class="i">ComputeDesiredSize</code> passar a
+      depender de <code class="i">m_Text</code>/<code class="i">m_Font</code>/<code class="i">m_FontSize</code>/
+      <code class="i">m_Padding</code>, não pedida explicitamente no enunciado deste ponto mas
+      necessária para ele funcionar — seis pontos que hoje só chamam
+      <code class="i">MarkRenderDirty()</code> passam a chamar <code class="i">MarkLayoutDirty()</code>
+      também: <code class="i">SetFont</code>, <code class="i">SetText</code>,
+      <code class="i">SetPadding</code>, <code class="i">InsertText</code>,
+      <code class="i">ClearNextCharacter</code> e <code class="i">ClearPreviousCharacter</code>.
+      Sem isso, o cache de medição nunca seria invalidado depois da primeira letra digitada — ver
+      risco R8.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/TextField.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/TextField.cpp</span>
+<span class="d-hunk">@@ -12,7 +12,6 @@</span>
+<span class="d-ctx">         : m_Text(text)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         m_Font = FontManager::GetDefaultFont();</span>
+<span class="d-del">-        m_DesiredSize = { 120.0f, 30.0f };</span>
+<span class="d-ctx">         m_CursorPosition = m_Text.size();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-hunk">@@ -22,9 +21,19 @@</span>
+<span class="d-ctx">         UpdateCursorState(frameTime);</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    glm::vec2 TextField::ComputeDesiredSize()</span>
+<span class="d-add">+    glm::vec2 TextField::ComputeDesiredSize(const glm::vec2&amp;)</span>
+<span class="d-ctx">     {</span>
+<span class="d-del">-        return m_DesiredSize;</span>
+<span class="d-add">+        glm::vec2 contentSize{ 0.0f, 0.0f };</span>
+<span class="d-add">+</span>
+<span class="d-add">+        if (!m_Text.empty())</span>
+<span class="d-add">+            contentSize = MeasureTextSize(m_Text);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        const glm::vec2 desiredSize = contentSize + glm::vec2(</span>
+<span class="d-add">+            m_Padding.GetTotalHorizontal(),</span>
+<span class="d-add">+            m_Padding.GetTotalVertical()</span>
+<span class="d-add">+        );</span>
+<span class="d-add">+</span>
+<span class="d-add">+        return glm::max(desiredSize, m_MinDesiredSize);</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     void TextField::SetFont(const Ref&lt;Font&gt;&amp; font)</span>
+<span class="d-hunk">@@ -34,6 +43,7 @@</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         m_Font = font;</span>
+<span class="d-ctx">         UpdateScrollOffset();</span>
+<span class="d-add">+        MarkLayoutDirty();</span>
+<span class="d-ctx">         MarkRenderDirty();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-hunk">@@ -50,6 +60,7 @@</span>
+<span class="d-ctx">         m_CursorPosition = m_Text.size();</span>
+<span class="d-ctx">         ClearSelection();</span>
+<span class="d-ctx">         UpdateScrollOffset();</span>
+<span class="d-add">+        MarkLayoutDirty();</span>
+<span class="d-ctx">         MarkRenderDirty();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-hunk">@@ -74,6 +85,7 @@</span>
+<span class="d-ctx">     void TextField::SetPadding(const SPadding&amp; padding)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         m_Padding = padding;</span>
+<span class="d-add">+        MarkLayoutDirty();</span>
+<span class="d-ctx">         MarkRenderDirty();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-hunk">@@ -498,6 +510,7 @@</span>
+<span class="d-ctx">         m_Text.insert(m_CursorPosition, text);</span>
+<span class="d-ctx">         m_CursorPosition += text.size();</span>
+<span class="d-ctx">         UpdateScrollOffset();</span>
+<span class="d-add">+        MarkLayoutDirty();</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         // Fire input changed callback</span>
+<span class="d-ctx">         if (m_OnChangeCallback) m_OnChangeCallback(m_Text);</span>
+<span class="d-hunk">@@ -527,6 +540,7 @@</span>
+<span class="d-ctx">         }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         UpdateScrollOffset();</span>
+<span class="d-add">+        MarkLayoutDirty();</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         // Fire input changed callback</span>
+<span class="d-ctx">         if (m_OnChangeCallback) m_OnChangeCallback(m_Text);</span>
+<span class="d-hunk">@@ -548,6 +562,7 @@</span>
+<span class="d-ctx">         }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         UpdateScrollOffset();</span>
+<span class="d-add">+        MarkLayoutDirty();</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         // Fire input changed callback</span>
+<span class="d-ctx">         if (m_OnChangeCallback) m_OnChangeCallback(m_Text);</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-19"><span class="file-index">4.19</span> Manager.cpp</h3>
+    <div class="callout callout-info">
+      <span class="callout-title">Conferido — nenhum diff necessário</span>
+      <p>
+        <code class="i">Manager::ArrangeLayout</code> (<span class="file-ref">Manager.cpp:25-32</span>)
+        chama só <code class="i">m_RootWidget-&gt;ArrangeChildren(rootGeometry)</code>, com
+        <code class="i">rootGeometry</code> vindo direto do tamanho da janela — nunca do
+        <code class="i">GetDesiredSize()</code> da raiz. <code class="i">ArrangeChildren</code>
+        (o template method em <code class="i">Widget.cpp</code>) nunca lê
+        <code class="i">m_CachedDesiredSize</code> nem chama <code class="i">Measure</code> em si
+        mesmo — só em containers, dentro do próprio <code class="i">LayoutChildren</code>, sobre
+        os filhos. Como a raiz não tem pai que a meça, seu <code class="i">Measure</code> nunca é
+        chamado por ninguém — nem antes, nem depois deste ponto. Isso já era assim hoje
+        (<code class="i">ComputeDesiredSize()</code> da raiz também nunca era chamado por
+        <code class="i">Manager</code>); não é uma regressão introduzida aqui, é o mesmo
+        comportamento, com o método renomeado.
+      </p>
+    </div>
+
+    <h3 class="file-heading" id="file-20"><span class="file-index">4.20</span> Application.cpp</h3>
+    <div class="callout callout-info">
+      <span class="callout-title">Comentário sobre o TODO existente — nenhum diff necessário</span>
+      <p>
+        <span class="file-ref">Application.cpp:176</span> chama
+        <code class="i">m_GUIManager-&gt;ArrangeLayout(...)</code> todo frame, com o comentário
+        <code class="i">// TODO: Remove from here and handle only when resizing</code>. Esse TODO
+        não é deste ponto — mas vale registrar por que ele fica bem menos urgente depois dele:
+        antes, qualquer widget dirty forçava remedir a subárvore inteira sem cache, todo frame
+        enquanto o dirty persistisse (seção 2.2) — rodar isso todo frame, incondicionalmente, era
+        caro sob qualquer interação sustentada (resize, animação, digitação contínua). Depois
+        deste ponto, <code class="i">Measure</code> cacheado faz o mesmo laço custar O(1) por
+        filho limpo com a mesma constraint — chamar <code class="i">ArrangeLayout</code> todo
+        frame continua estruturalmente redundante quando nada mudou (o short-circuit da raiz já
+        resolve isso em O(1)), mas não é mais uma bomba de custo escondida quando algo muda. O
+        TODO continua válido como limpeza — só deixou de ser, também, uma correção de
+        performance disfarçada de limpeza.
+      </p>
+    </div>
+
+    <h3 class="file-heading" id="file-21"><span class="file-index">4.21</span> Arquivos lidos sem necessidade de alteração</h3>
+    <div class="callout callout-ok">
+      <span class="callout-title">Conferido por leitura — nenhum diff</span>
+      <p>
+        <code class="i">Panel.h</code>/<code class="i">.cpp</code>: não sobrescrevem
+        <code class="i">ComputeDesiredSize</code> (continua abstrato ali) nem tocam
+        <code class="i">m_DesiredSize</code>/<code class="i">m_CachedDesiredSize</code> em lugar
+        nenhum — confirmado por leitura completa dos dois arquivos.
+      </p>
+      <p>
+        <code class="i">Slot.h</code>/<code class="i">.cpp</code>: nenhuma referência a
+        <code class="i">ComputeDesiredSize</code>/<code class="i">GetDesiredSize</code>/
+        <code class="i">m_DesiredSize</code>. <code class="i">LayoutSlot::SetMargin</code> (e os
+        outros setters de slot) já chamam <code class="i">InvalidateOwnerLayout()</code>, que
+        marca o <em>pai</em> como layout-dirty — suficiente, porque uma mudança de margem muda a
+        constraint que o pai calcula para o filho no próximo <code class="i">LayoutChildren</code>,
+        e <code class="i">Measure</code> naturalmente perde o cache quando a constraint muda
+        (comparação em <code class="i">m_LastMeasureConstraint</code>). Não precisa também marcar
+        o filho como measure-dirty.
+      </p>
+      <p>
+        <code class="i">UTF8.h</code>: só conversões de codepoint/comprimento de caractere, sem
+        nenhuma relação com tamanho desejado; <code class="i">ProcessText</code>
+        (que o usa) muda só de <em>onde</em> é chamado, não de como funciona.
+      </p>
+    </div>
+
+    <h3 id="sec-testes-impacto">4.22 Impacto na suíte de testes</h3>
+    <p>
+      O Ponto 2 troca a assinatura de <code class="i">Widget::ComputeDesiredSize</code> de
+      <code class="i">glm::vec2 ComputeDesiredSize()</code> para
+      <code class="i">glm::vec2 ComputeDesiredSize(const glm::vec2&amp; availableSize)</code>
+      (4.1) e remove <code class="i">m_DesiredSize</code> do próprio <code class="i">Widget</code>
+      (vira <code class="i">m_CachedDesiredSize</code>, escrito só por
+      <code class="i">Widget::Measure</code>). Qualquer subclasse de <code class="i">Widget</code>/
+      <code class="i">ContentWidget</code>/<code class="i">Panel</code> que sobrescreva a
+      assinatura antiga, ou leia/escreva <code class="i">m_DesiredSize</code> diretamente, para de
+      compilar assim que 4.1 é aplicado — inclusive fixtures de teste, não só código de produção.
+    </p>
+    <p>
+      Para confirmar com precisão o que quebra, em vez de assumir a partir do enunciado, os sete
+      arquivos de teste de <code class="i">Tests/Engine/GUI/</code>
+      (<code class="i">ForEachChildTest.cpp</code>, <code class="i">InvalidationTest.cpp</code>,
+      <code class="i">RenderBatchTest.cpp</code>, <code class="i">DrawCacheTest.cpp</code>,
+      <code class="i">DirtyTrackingTest.cpp</code>, <code class="i">WidgetLifetimeTest.cpp</code>,
+      <code class="i">RenderGateTest.cpp</code>) e os dois headers de fixture que eles
+      compartilham (<code class="i">WidgetTestUtils.h</code>, <code class="i">ManagerTestUtils.h</code>)
+      foram lidos por completo. Resultado: quatro arquivos declaram uma subclasse local que
+      sobrescreve a assinatura antiga e por isso precisam de correção —
+      <code class="i">WidgetTestUtils.h</code>, <code class="i">DrawCacheTest.cpp</code>,
+      <code class="i">ForEachChildTest.cpp</code> e <code class="i">InvalidationTest.cpp</code>,
+      cada um com seu diff em 4.22.1–4.22.4 abaixo.
+    </p>
+    <div class="callout callout-ok">
+      <span class="callout-title">Conferido por leitura — quatro arquivos não precisam de diff</span>
+      <p>
+        <code class="i">DirtyTrackingTest.cpp</code> e <code class="i">WidgetLifetimeTest.cpp</code>:
+        incluem <code class="i">WidgetTestUtils.h</code> mas não declaram nenhuma subclasse própria
+        de <code class="i">Widget</code>/<code class="i">ContentWidget</code> — usam só
+        <code class="i">CountingWidget</code>/<code class="i">TestContentWidget</code> como vêm do
+        header, e nenhum dos dois arquivos referencia <code class="i">ComputeDesiredSize</code> ou
+        <code class="i">m_DesiredSize</code>. Corrigido o header (4.22.1), os dois recompilam sem
+        precisar de diff próprio.
+      </p>
+      <p>
+        <code class="i">RenderBatchTest.cpp</code>: não declara nenhuma subclasse de
+        <code class="i">Widget</code> nem referencia <code class="i">ComputeDesiredSize</code>/
+        <code class="i">m_DesiredSize</code> em lugar nenhum — testa
+        <code class="i">RenderBatch::LayerSpan</code> isoladamente, sem sequer construir um
+        <code class="i">Widget</code>.
+      </p>
+      <p>
+        <code class="i">RenderGateTest.cpp</code>: usa <code class="i">ManagerTestUtils.h</code> e
+        <code class="i">VerticalBox</code> diretamente (já coberta pelos diffs de 4.3–4.4) para
+        testar <code class="i">Widget::CurrentDirtyEpoch()</code> e o gate de rebuild do
+        <code class="i">Manager</code> — nenhuma subclasse local, nenhuma relação com medição.
+      </p>
+      <p>
+        <code class="i">ManagerTestUtils.h</code> (usado por <code class="i">InvalidationTest.cpp</code>,
+        <code class="i">DrawCacheTest.cpp</code> e <code class="i">RenderGateTest.cpp</code>): só
+        promove <code class="i">AssembleFrame</code>/<code class="i">NeedsRebuild</code>/
+        <code class="i">MarkRebuilt</code> de <code class="i">Manager</code> para
+        <code class="i">public</code>; nenhuma referência a <code class="i">ComputeDesiredSize</code>/
+        <code class="i">m_DesiredSize</code>.
+      </p>
+    </div>
+    <p>
+      Em nenhum dos quatro arquivos corrigidos abaixo um <code class="i">TEST(...)</code> chama
+      <code class="i">ComputeDesiredSize</code>/<code class="i">Measure</code> ou lê
+      <code class="i">m_DesiredSize</code> diretamente no corpo do teste — essas ocorrências
+      existem só nas declarações de fixture (a subclasse local), nunca dentro de uma assertiva.
+      Por isso os quatro diffs abaixo são traduções mecânicas da assinatura (mais, em dois casos,
+      a troca de <code class="i">m_DesiredSize</code> por um membro local — ver 4.22.1 e 4.22.4);
+      nenhum precisou do selo <span class="badge badge-sketch">esboço</span>, porque nenhum teste
+      exercita um comportamento que deixou de existir no novo modelo.
+    </p>
+    <p>
+      Como <code class="i">Tests/CMakeLists.txt:4-6</code> monta um único executável a partir de
+      <code class="i">file(GLOB_RECURSE TEST_SOURCES *.h *.cpp)</code> — que recursa a partir de
+      <code class="i">Tests/</code> inteiro, não só <code class="i">Tests/Engine/GUI/</code> —, uma
+      falha de compilação em qualquer um destes quatro arquivos impede o
+      <code class="i">UnitTests</code> inteiro de buildar, GUI ou não. Os quatro diffs abaixo
+      precisam entrar no mesmo commit que 4.1/4.2, não depois.
+    </p>
+
+    <h3 class="file-heading" id="file-22-1"><span class="file-index">4.22.1</span> WidgetTestUtils.h</h3>
+    <p>
+      <code class="i">CountingWidget</code> e <code class="i">TestContentWidget</code> sobrescrevem
+      a assinatura antiga; <code class="i">CountingWidget</code> também escreve
+      <code class="i">m_DesiredSize</code> direto no construtor — esse membro não existe mais em
+      <code class="i">Widget</code> (virou <code class="i">m_CachedDesiredSize</code>, propriedade
+      exclusiva de <code class="i">Widget::Measure</code>). A correção segue o mesmo idioma que R1
+      já propunha para <code class="i">SizedLeaf</code> (ver 4.22.4):
+      <code class="i">CountingWidget</code> ganha seu próprio <code class="i">m_FakeSize</code>
+      privado e devolve esse valor de <code class="i">ComputeDesiredSize</code>. O parâmetro
+      <code class="i">availableSize</code> fica sem nome nas duas classes — nenhuma das duas o usa
+      — seguindo a mesma convenção de 4.10/4.18 para overrides que ignoram a constraint recebida.
+      Como <code class="i">DirtyTrackingTest.cpp</code> e <code class="i">WidgetLifetimeTest.cpp</code>
+      só consomem essas duas fixtures, este diff sozinho é suficiente para os dois arquivos
+      voltarem a compilar.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Tests/Engine/GUI/WidgetTestUtils.h</span>
+<span class="d-file">+++ b/Elixir/Tests/Engine/GUI/WidgetTestUtils.h</span>
+<span class="d-hunk">@@ -15,10 +15,10 @@</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         explicit CountingWidget(const glm::vec2&amp; desired = { 10.0f, 10.0f })</span>
+<span class="d-ctx">         {</span>
+<span class="d-del">-            m_DesiredSize = desired;</span>
+<span class="d-add">+            m_FakeSize = desired;</span>
+<span class="d-ctx">         }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        glm::vec2 ComputeDesiredSize() override { return m_DesiredSize; }</span>
+<span class="d-add">+        glm::vec2 ComputeDesiredSize(const glm::vec2&amp;) override { return m_FakeSize; }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         // MarkLayoutDirty is protected on Widget; promote it so tests can simulate a</span>
+<span class="d-ctx">         // widget dirtying itself without weakening the production API.</span>
+<span class="d-hunk">@@ -32,6 +32,12 @@</span>
+<span class="d-ctx">         {</span>
+<span class="d-ctx">             ++ArrangeCount;</span>
+<span class="d-ctx">         }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    private:</span>
+<span class="d-add">+        // m_DesiredSize no longer exists on Widget — Measure() now owns the desired-size</span>
+<span class="d-add">+        // cache (m_CachedDesiredSize) exclusively, so a test double that wants a fixed fake</span>
+<span class="d-add">+        // size keeps its own copy instead.</span>
+<span class="d-add">+        glm::vec2 m_FakeSize{};</span>
+<span class="d-ctx">     };</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     // Minimal single-child container to exercise ContentWidget lifecycle</span>
+<span class="d-hunk">@@ -39,7 +45,7 @@</span>
+<span class="d-ctx">     class TestContentWidget final : public ContentWidget</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">     public:</span>
+<span class="d-del">-        glm::vec2 ComputeDesiredSize() override { return { 10.0f, 10.0f }; }</span>
+<span class="d-add">+        glm::vec2 ComputeDesiredSize(const glm::vec2&amp;) override { return { 10.0f, 10.0f }; }</span>
+<span class="d-ctx">     };</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     // ArrangeChildren is the non-virtual template method on Widget; call it directly.</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-22-2"><span class="file-index">4.22.2</span> DrawCacheTest.cpp</h3>
+    <p>
+      <code class="i">CountingDrawWidget</code> e <code class="i">LayeredWidget</code>
+      sobrescrevem a assinatura antiga, mas nenhuma das duas classes toca
+      <code class="i">m_DesiredSize</code> — ambas já devolviam um <code class="i">{}</code>
+      literal, não o membro herdado — então a correção é só a assinatura, parâmetro sem nome por
+      não ser usado. Nenhum dos quatro <code class="i">TEST(...)</code> deste arquivo depende do
+      tamanho medido: eles verificam contagem de rebuild de draw commands e faixas de z-order,
+      ortogonais a <code class="i">Measure</code>.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Tests/Engine/GUI/DrawCacheTest.cpp</span>
+<span class="d-file">+++ b/Elixir/Tests/Engine/GUI/DrawCacheTest.cpp</span>
+<span class="d-hunk">@@ -19,7 +19,7 @@</span>
+<span class="d-ctx">       public:</span>
+<span class="d-ctx">         int BuildCount = 0;</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        glm::vec2 ComputeDesiredSize() override { return {}; }</span>
+<span class="d-add">+        glm::vec2 ComputeDesiredSize(const glm::vec2&amp;) override { return {}; }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         using Widget::MarkRenderDirty;</span>
+<span class="d-ctx"> </span>
+<span class="d-hunk">@@ -34,7 +34,7 @@</span>
+<span class="d-ctx">       public:</span>
+<span class="d-ctx">         LayeredWidget(const SColor&amp; color, const int layers) : m_Color(color), m_Layers(layers) {}</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        glm::vec2 ComputeDesiredSize() override { return {}; }</span>
+<span class="d-add">+        glm::vec2 ComputeDesiredSize(const glm::vec2&amp;) override { return {}; }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">       protected:</span>
+<span class="d-ctx">         void BuildDrawCommands(RenderBatch&amp; batch, const int zOrder) override</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-22-3"><span class="file-index">4.22.3</span> ForEachChildTest.cpp</h3>
+    <p>
+      <code class="i">LeafWidget</code>, <code class="i">ContentTestWidget</code> e
+      <code class="i">PanelTestWidget</code> sobrescrevem a assinatura antiga, todas devolvendo
+      um <code class="i">{}</code> literal — mesma correção mecânica de assinatura, sem tocar
+      <code class="i">m_DesiredSize</code>. Os cinco <code class="i">TEST(...)</code> deste
+      arquivo exercitam só <code class="i">ForEachChild</code> (via as declarações
+      <code class="i">using</code> que promovem o método protegido); nenhum lê tamanho desejado.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Tests/Engine/GUI/ForEachChildTest.cpp</span>
+<span class="d-file">+++ b/Elixir/Tests/Engine/GUI/ForEachChildTest.cpp</span>
+<span class="d-hunk">@@ -12,7 +12,7 @@</span>
+<span class="d-ctx">     class LeafWidget final : public Widget</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">       public:</span>
+<span class="d-del">-        glm::vec2 ComputeDesiredSize() override { return {}; }</span>
+<span class="d-add">+        glm::vec2 ComputeDesiredSize(const glm::vec2&amp;) override { return {}; }</span>
+<span class="d-ctx">         using Widget::ForEachChild;</span>
+<span class="d-ctx">     };</span>
+<span class="d-ctx"> </span>
+<span class="d-hunk">@@ -20,7 +20,7 @@</span>
+<span class="d-ctx">     class ContentTestWidget final : public ContentWidget</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">       public:</span>
+<span class="d-del">-        glm::vec2 ComputeDesiredSize() override { return {}; }</span>
+<span class="d-add">+        glm::vec2 ComputeDesiredSize(const glm::vec2&amp;) override { return {}; }</span>
+<span class="d-ctx">         using ContentWidget::ForEachChild;</span>
+<span class="d-ctx">     };</span>
+<span class="d-ctx"> </span>
+<span class="d-hunk">@@ -30,7 +30,7 @@</span>
+<span class="d-ctx">     class PanelTestWidget final : public Panel</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">       public:</span>
+<span class="d-del">-        glm::vec2 ComputeDesiredSize() override { return {}; }</span>
+<span class="d-add">+        glm::vec2 ComputeDesiredSize(const glm::vec2&amp;) override { return {}; }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         void AddChild(const Ref&lt;Widget&gt;&amp; child)</span>
+<span class="d-ctx">         {</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-22-4"><span class="file-index">4.22.4</span> InvalidationTest.cpp</h3>
+    <p>
+      <code class="i">SizedLeaf</code> sobrescreve a assinatura antiga e, em
+      <code class="i">SetDesiredSize</code>, escreve direto em <code class="i">m_DesiredSize</code>
+      — o mesmo problema de <code class="i">CountingWidget</code> em 4.22.1, e a mesma correção:
+      um <code class="i">m_FakeSize</code> privado só de <code class="i">SizedLeaf</code>.
+      <code class="i">SetDesiredSize</code> continua chamando <code class="i">MarkLayoutDirty()</code>
+      logo em seguida, sem mudança — é essa chamada, não o valor armazenado, que
+      <code class="i">ChangingChildSizePropagatesToOwner</code> (o único teste do arquivo que usa
+      <code class="i">SetDesiredSize</code>) verifica, então a troca de onde o tamanho fica
+      guardado não muda o que o teste prova. <code class="i">TestContent</code> só precisa da
+      assinatura nova, igual às outras fixtures.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Tests/Engine/GUI/InvalidationTest.cpp</span>
+<span class="d-file">+++ b/Elixir/Tests/Engine/GUI/InvalidationTest.cpp</span>
+<span class="d-hunk">@@ -13,15 +13,21 @@</span>
+<span class="d-ctx">     class SizedLeaf final : public Widget</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">       public:</span>
+<span class="d-del">-        glm::vec2 ComputeDesiredSize() override { return m_DesiredSize; }</span>
+<span class="d-add">+        glm::vec2 ComputeDesiredSize(const glm::vec2&amp;) override { return m_FakeSize; }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         void SetDesiredSize(const glm::vec2&amp; size)</span>
+<span class="d-ctx">         {</span>
+<span class="d-del">-            m_DesiredSize = size;</span>
+<span class="d-add">+            m_FakeSize = size;</span>
+<span class="d-ctx">             MarkLayoutDirty();</span>
+<span class="d-ctx">         }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         using Widget::MarkRenderDirty;</span>
+<span class="d-add">+</span>
+<span class="d-add">+      private:</span>
+<span class="d-add">+        // m_DesiredSize no longer exists on Widget — Measure() now owns the desired-size</span>
+<span class="d-add">+        // cache (m_CachedDesiredSize) exclusively, so SetDesiredSize drives this</span>
+<span class="d-add">+        // widget-local copy instead of writing the cache directly.</span>
+<span class="d-add">+        glm::vec2 m_FakeSize{};</span>
+<span class="d-ctx">     };</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     // Minimal single-child widget to exercise ContentWidget lifecycle without Button's</span>
+<span class="d-hunk">@@ -29,7 +35,7 @@</span>
+<span class="d-ctx">     class TestContent final : public ContentWidget</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">       public:</span>
+<span class="d-del">-        glm::vec2 ComputeDesiredSize() override { return { 10.0f, 10.0f }; }</span>
+<span class="d-add">+        glm::vec2 ComputeDesiredSize(const glm::vec2&amp;) override { return { 10.0f, 10.0f }; }</span>
+<span class="d-ctx">     };</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     void Arrange(const Ref&lt;Widget&gt;&amp; widget, const SRect&amp; space)</span></code></pre></div>
+  </section>
+
+
+  <section id="sec-ordem">
+    <h2>5. Ordem de aplicação</h2>
+    <p>
+      Os arquivos não são independentes entre si — a ordem importa para manter o repositório
+      compilável (e linkável) a cada passo.
+    </p>
+    <ol class="steps">
+      <li>
+        <span class="step-title">Widget.h + Widget.cpp (4.1 – 4.2)</span>
+        Troca a assinatura e a visibilidade de <code class="i">ComputeDesiredSize</code>, e
+        introduz <code class="i">Measure</code>/<code class="i">UnconstrainedSize</code>. Isso
+        quebra <strong>todos os sete overrides existentes</strong> de uma vez só — VerticalBox,
+        HorizontalBox, Overlay, Canvas, TextBlock, Button e TextField deixam de compilar até os
+        próximos passos. É proposital: aplicar Widget primeiro faz o compilador listar, com
+        precisão, cada override que falta atualizar, então nenhum passa batido por engano.
+      </li>
+      <li>
+        <span class="step-title">VerticalBox, HorizontalBox, Overlay — juntos (4.3 – 4.8)</span>
+        Os três containers de <code class="i">Panel</code> que seguem o mesmo padrão (medir uma
+        vez por filho, com constraint real). Nenhum depende dos outros dois, nem de nada além do
+        passo 1 — podem ser um commit só ou três, na ordem que for mais conveniente.
+      </li>
+      <li>
+        <span class="step-title">Canvas.h + Canvas.cpp (4.9 – 4.10)</span>
+        Assinatura nova, <code class="i">m_DefaultDesiredSize</code>, e a correção em
+        <code class="i">AddChild</code> (measure antes de construir o slot). Independente do
+        passo 2.
+      </li>
+      <li>
+        <span class="step-title">FontManager.h + FontManager.cpp + TextBlock.h + TextBlock.cpp — juntos (4.11 – 4.14)</span>
+        <code class="i">TextBlock::UpdateWrappedDisplayText</code> chama
+        <code class="i">FontManager::MeasureWrapped</code> — sem a declaração
+        (<code class="i">FontManager.h</code>) <em>e</em> pelo menos o stub
+        (<code class="i">FontManager.cpp</code>) no mesmo commit, o link falha assim que
+        <code class="i">TextBlock.cpp</code> é compilado, mesmo que
+        <code class="i">ETextOverflow::Wrap</code> nunca seja selecionado em runtime. Os quatro
+        arquivos entram juntos.
+      </li>
+      <li>
+        <span class="step-title">Button.h + Button.cpp (4.15 – 4.16)</span>
+        Desired size real + <code class="i">m_MinDesiredSize</code>. Independente dos passos 2-4.
+      </li>
+      <li>
+        <span class="step-title">TextField.h + TextField.cpp (4.17 – 4.18)</span>
+        Desired size real + <code class="i">m_MinDesiredSize</code> + os
+        <code class="i">MarkLayoutDirty</code> que faltavam. Independente dos passos 2-5.
+      </li>
+    </ol>
+    <p>
+      Depois do passo 1, os passos 2 a 6 não dependem uns dos outros — só do passo 1 — e podem ser
+      commits separados ou reordenados livremente entre si; a numeração acima é só um agrupamento
+      por área para facilitar a revisão. <code class="i">Manager.cpp</code> e
+      <code class="i">Application.cpp</code> não entram em nenhum passo (4.19 – 4.20, sem diff);
+      <code class="i">Panel.h</code>/<code class="i">.cpp</code>,
+      <code class="i">Slot.h</code>/<code class="i">.cpp</code> e <code class="i">UTF8.h</code>
+      também não (4.21).
+    </p>
+  </section>
+
+
+  <section id="sec-riscos">
+    <h2>6. Riscos e pontos de atenção</h2>
+    <div class="risk-list">
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R1</span>Testes com subclasses de Widget quebram</div>
+        <p>
+          Quatro arquivos de teste declaram subclasses locais de <code class="i">Widget</code>/
+          <code class="i">ContentWidget</code>/<code class="i">Panel</code> que sobrescrevem a
+          assinatura antiga, <code class="i">glm::vec2 ComputeDesiredSize() override</code>, e por
+          isso param de compilar assim que 4.1 é aplicado: <code class="i">WidgetTestUtils.h</code>,
+          <code class="i">DrawCacheTest.cpp</code>, <code class="i">ForEachChildTest.cpp</code> e
+          <code class="i">InvalidationTest.cpp</code> — esse último também escreve direto em
+          <code class="i">m_DesiredSize</code>, que não existe mais. Confirmado por leitura dos
+          sete arquivos de <code class="i">Tests/Engine/GUI/</code> mais
+          <code class="i">WidgetTestUtils.h</code>: <code class="i">DirtyTrackingTest.cpp</code> e
+          <code class="i">WidgetLifetimeTest.cpp</code> só consomem fixtures de
+          <code class="i">WidgetTestUtils.h</code>, sem subclasse própria, então recompilam assim
+          que o header for corrigido, sem diff próprio; <code class="i">RenderBatchTest.cpp</code>
+          e <code class="i">RenderGateTest.cpp</code> não tocam a hierarquia de
+          <code class="i">Widget</code>. Os quatro diffs de correção — um por arquivo, todos
+          traduções mecânicas, sem esboço necessário — estão na seção
+          <a href="#sec-testes-impacto">4.22</a>, que precisa entrar no mesmo commit que aplica
+          4.1: <code class="i">Tests/CMakeLists.txt</code> compila a suíte inteira num único
+          executável (<code class="i">GLOB_RECURSE TEST_SOURCES *.h *.cpp</code>), então uma falha
+          de compilação em qualquer um desses quatro arquivos impede o binário de testes inteiro
+          de buildar.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R2</span>Canvas::AddChild precisou de um fix não pedido explicitamente</div>
+        <p>
+          Detalhado no callout da seção 4.10: sem medir o filho antes de construir o
+          <code class="i">CanvasSlot</code>, todo widget colocado num <code class="i">Canvas</code>
+          passaria a nascer com tamanho <code class="i">{0,0}</code> em vez do tamanho natural —
+          uma regressão visual real para <code class="i">Button</code>/<code class="i">TextField</code>/
+          <code class="i">TextBlock</code>, causada diretamente por eles pararem de escrever um
+          tamanho no construtor. A correção (medir com
+          <code class="i">{ UnconstrainedSize, UnconstrainedSize }</code> dentro de
+          <code class="i">AddChild</code>) está no diff de 4.10.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R3</span>FontManager::MeasureWrapped não quebra linha de verdade ainda</div>
+        <p>
+          O stub em 4.14 existe só para o projeto linkar — <code class="i">ETextOverflow::Wrap</code>
+          se comporta como <code class="i">Clip</code> (uma linha só) até alguém substituir o
+          corpo por um algoritmo real de quebra de palavra, que depende do backend de
+          glyphs/kerning (fora do escopo deste ponto — ver 3.4). Ninguém deveria ligar
+          <code class="i">SetOverflow(ETextOverflow::Wrap)</code> em produção antes disso, mesmo
+          que o código compile e rode sem erro.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R4</span>Button ainda remede texto a cada rebuild de draw commands</div>
+        <p>
+          O enunciado deste ponto (seção 5, item "Button/TextField") só pediu
+          <code class="i">ComputeDesiredSize</code> real — não pediu para mover o cache de
+          <code class="i">m_DisplayText</code> que <code class="i">TextBlock</code> ganhou (seção
+          3.4) também para <code class="i">Button</code>. Resultado: <code class="i">Button::BuildDrawCommands</code>
+          e <code class="i">Button::ProcessText</code> (<span class="file-ref">Button.cpp</span>,
+          inalterados neste diff) continuam chamando <code class="i">FontManager::MeasureText</code>
+          várias vezes — incluindo o mesmo loop de remoção de caractere um a um que
+          <code class="i">TextBlock</code> tinha antes deste ponto — toda vez que o botão
+          reconstrói seus draw commands. É o mesmo defeito (c) do diagnóstico original,
+          resolvido em <code class="i">TextBlock</code> mas deixado como está em
+          <code class="i">Button</code>, de propósito, para não expandir o escopo deste ponto
+          além do que foi pedido. Vale um ponto futuro dedicado a isso.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R5</span>Colisão direta com o Ponto 4 da série</div>
+        <p>
+          Ponto 4 ("Regra de tamanho no slot e painéis tipados") também reescreve
+          <code class="i">LayoutChildren</code> de <code class="i">VerticalBox</code>,
+          <code class="i">HorizontalBox</code> e <code class="i">Overlay</code> — trocando
+          <code class="i">m_Stretching</code> por uma regra de tamanho por slot
+          (<code class="i">SSizeParam</code>, com <code class="i">Auto</code>/<code class="i">Fixed</code>/
+          <code class="i">Fill</code>) — e também toca <code class="i">Widget.h</code>/<code class="i">.cpp</code>
+          e <code class="i">Canvas.h</code>/<code class="i">.cpp</code>. São exatamente os mesmos
+          dez arquivos que este ponto modifica (4.1–4.10), e os dois documentos partem do
+          <strong>mesmo</strong> código atual do repositório — nenhum foi escrito assumindo o
+          outro já aplicado, seguindo a mesma regra que rege este documento. Isso significa que
+          os diffs dos dois pontos não empilham automaticamente: aplicar o diff de Ponto 4 direto
+          sobre o código atual (sem passar por Ponto 2 antes) reescreveria os mesmos trechos que
+          este ponto reescreve, e vice-versa — quem quer que implemente a série precisa aplicar
+          um ponto de cada vez, na ordem <strong>1 → 2 → 3 → 4 → 5</strong>, e re-adaptar
+          manualmente os hunks de cada ponto seguinte contra o texto já modificado pelos
+          anteriores (em especial ao chegar em Ponto 4, que precisará reconciliar sua regra de
+          slot com o <code class="i">Measure</code>/<code class="i">UnconstrainedSize</code> que
+          este ponto introduz). A seção 5 deste documento só resolve a ordem <em>interna</em> dos
+          arquivos de Ponto 2 — não substitui essa ordem global entre pontos.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R6</span>Variáveis não utilizadas pré-existentes, deixadas como estavam</div>
+        <p>
+          <code class="i">VerticalBox::LayoutChildren</code> nunca usa o
+          <code class="i">vAlignment</code> do laço de arranjo (sempre passa
+          <code class="i">EVerticalAlignment::Top</code> fixo para <code class="i">AlignChild</code>)
+          e <code class="i">HorizontalBox::LayoutChildren</code> tem o mesmo problema com
+          <code class="i">hAlignment</code> (sempre <code class="i">EHorizontalAlignment::Left</code>).
+          Já existiam assim antes deste ponto — não é uma regressão introduzida aqui, e corrigir
+          seria mudar comportamento de alinhamento, fora do escopo de um ponto sobre medição.
+          Ficam registrados para quem for mexer nesse trecho depois não se surpreender.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R7</span>TextField ganhou seis MarkLayoutDirty não pedidos explicitamente</div>
+        <p>
+          Consequência direta, não opcional, de <code class="i">ComputeDesiredSize</code> passar a
+          depender de <code class="i">m_Text</code>/<code class="i">m_Font</code>/<code class="i">m_FontSize</code>/
+          <code class="i">m_Padding</code> (seção 4.18): sem marcar layout-dirty em
+          <code class="i">SetFont</code>, <code class="i">SetText</code>,
+          <code class="i">SetPadding</code>, <code class="i">InsertText</code>,
+          <code class="i">ClearNextCharacter</code> e <code class="i">ClearPreviousCharacter</code>,
+          o cache de <code class="i">Measure</code> nunca seria invalidado depois da primeira
+          medição — um <code class="i">TextField</code> que cresce para caber o texto digitado
+          simplesmente nunca re-mediria, mesmo com a fórmula de 3.5 implementada e correta. Sem
+          essa mudança, o item "TextField: análogo, com mínimo {120,30}" do enunciado ficaria
+          funcionalmente incompleto.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R8</span>Comparação de float com UnconstrainedSize</div>
+        <p>
+          <code class="i">availableSize.x != UnconstrainedSize</code> (usado em
+          <code class="i">TextBlock::ComputeDesiredSize</code>, seção 3.4) é uma comparação de
+          igualdade entre floats — normalmente um sinal de alerta. Aqui é seguro porque
+          <code class="i">UnconstrainedSize</code> é infinito, um valor exato de ponto flutuante,
+          e toda a aritmética que o propaga entre containers (subtrair margem/padding finitos)
+          preserva esse valor exato, sem arredondamento — ver o callout da seção 3.1.
+        </p>
+      </div>
+
+    </div>
+  </section>
+
+
+  <footer class="doc-footer">
+    Elixir · Refatoração da GUI · Parte 2 de 5 — Passe de Measure com cache.
+  </footer>
+
+</div>
+</body>
+</html>

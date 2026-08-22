@@ -3,16 +3,35 @@
 #include <Engine/GUI/Definitions.h>
 #include <Engine/Graphics/Texture.h>
 
+#include <typeindex>
+#include <type_traits>
+#include <unordered_map>
+#include <utility>
+
 namespace Elixir::GUI
 {
     /**
-     * @brief One editable style layer in a StyleSet.
+     * @brief States supplied by Widget while it handles input.
      *
-     * Not a mask: each value names a single layer a caller can set, clear or read. The
-     * precedence order these compose in (see StyleSet::Resolve) is Normal < Hovered <
-     * Pressed < Focused < Disabled, left to right in this same declaration order - Disabled
-     * still wins even over a widget that happens to still be focused while disabled (nothing
-     * clears focus just because a widget was disabled).
+     * More than one state can be active at once. A style resolves them in this order:
+     * Disabled, Pressed, Hovered, Focused, then Normal.
+     */
+    enum class EInteractionState : uint8_t
+    {
+        None     = 0,
+        Hovered  = 1 << 0,
+        Pressed  = 1 << 1,
+        Focused  = 1 << 2,
+        Disabled = 1 << 3,
+    };
+
+    GENERATE_ENUM_CLASS_OPERATORS(EInteractionState)
+
+    /**
+     * @brief Legacy names for a single interactive appearance.
+     *
+     * Use a component style and SetStyle for new code. This enum remains while existing
+     * callers move from individual setters to complete, typed styles.
      */
     enum class EStyleLayer : uint8_t
     {
@@ -21,113 +40,161 @@ namespace Elixir::GUI
         Pressed,
         Focused,
         Disabled,
-        Count
+        Count,
     };
 
     /**
-     * @brief Snapshot of which interaction states are active on a widget this frame.
+     * @brief Describes how to draw one rectangular surface.
      *
-     * A mask, unlike EStyleLayer: Hovered and Pressed can both be set at once. Built fresh
-     * every time a widget resolves its style; never stored across frames.
+     * A brush can be a solid surface or a tinted nine-patch texture. Its radius, outline,
+     * inset shadow and drop shadow apply to solid surfaces. RenderBatch chooses the suitable
+     * command from Texture.
      */
-    enum class EInteractionState : uint8_t
+    struct SBrush
     {
-        None        = 0,
-        Hovered     = 1 << 0,
-        Pressed     = 1 << 1,
-        Focused     = 1 << 2,
-        Disabled    = 1 << 3,
+        SColor Color{};
+        Ref<Texture2D> Texture;
+        glm::vec4 Borders{};
+        glm::vec4 CornerRadius{};
+        SOutline Outline{};
+        glm::vec4 InsetShadow{};
+        glm::vec4 DropShadow{};
     };
 
-    GENERATE_ENUM_CLASS_OPERATORS(EInteractionState)
-
-    constexpr bool HasState(const EInteractionState states, const EInteractionState state)
-    {
-        return (states & state) != 0;
-    }
-
     /**
-     * @brief Visual properties one layer declares. Every field is optional: an unset field
-     * means "inherit whatever the previous active layer resolved to", not "use a zero value".
+     * @brief Base visual data shared by component appearances.
      *
-     * BackgroundTexture uses this same convention with one addition: setting it to a non-null
-     * but empty Ref (Ref<Texture2D>{}) explicitly clears a texture inherited from an earlier
-     * layer, instead of leaving it unset (which would keep inheriting it).
+     * A base widget draws only Background. Components extend this type when they draw more
+     * data, such as Button's foreground color.
      */
-    struct SStyleOverride
+    struct SAppearance
     {
-        std::optional<SColor>           BackgroundColor;
-        std::optional<SColor>           ForegroundColor;
-        std::optional<Ref<Texture2D>>   BackgroundTexture;
-        std::optional<glm::vec4>        BackgroundBorders;
-        std::optional<glm::vec4>        CornerRadius;
-        std::optional<SOutline>         Outline;
-        std::optional<glm::vec4>        InsetShadow;
-        std::optional<glm::vec4>        DropShadow;
+        SBrush Background;
     };
 
     /**
-     * @brief Style ready to draw with: every field has a concrete value, none are optional.
-     * This is what BuildDrawCommands consumes - it never inspects SStyleOverride or the
-     * interaction state directly.
-     */
-    struct SResolvedStyle
-    {
-        SColor           BackgroundColor;
-        SColor           ForegroundColor;
-        Ref<Texture2D>   BackgroundTexture;
-        glm::vec4        BackgroundBorders;
-        glm::vec4        CornerRadius;
-        SOutline         Outline;
-        glm::vec4        InsetShadow;
-        glm::vec4        DropShadow;
-    };
-
-    /**
-     * @brief Holds one SStyleOverride per EStyleLayer and composes them into a
-     * SResolvedStyle for a given interaction state.
+     * @brief Stores the appearances a component uses for interaction states.
      *
-     * Owns no widget state (hover/press/enabled live on Widget) and triggers no
-     * invalidation - callers decide when a resolve is needed and whether to cache it.
+     * The struct stores complete appearances, not field-level patches. Resolve returns one
+     * appearance and never merges fields from separate states.
+     *
+     * @tparam TAppearance Appearance type owned by the component style.
+     */
+    template<typename TAppearance>
+    struct TStateStyles
+    {
+        TAppearance Normal;
+        TAppearance Hovered;
+        TAppearance Pressed;
+        TAppearance Focused;
+        TAppearance Disabled;
+
+        /**
+         * @brief Select the appearance for active interaction states.
+         *
+         * Disabled wins over Pressed and Hovered. Focused is used only when none of those
+         * higher-priority states is active.
+         *
+         * @param states Interaction states active on the component.
+         * @return The selected complete appearance.
+         */
+        const TAppearance& Resolve(const EInteractionState states) const
+        {
+            if (states & EInteractionState::Disabled) return Disabled;
+            if (states & EInteractionState::Pressed) return Pressed;
+            if (states & EInteractionState::Hovered) return Hovered;
+            if (states & EInteractionState::Focused) return Focused;
+            return Normal;
+        }
+
+        /**
+         * @brief Get one appearance by its legacy layer name.
+         * @param layer Appearance to access.
+         * @return The requested complete appearance.
+         */
+        TAppearance& Get(const EStyleLayer layer)
+        {
+            return const_cast<TAppearance&>(std::as_const(*this).Get(layer));
+        }
+
+        /**
+         * @brief Get one appearance by its legacy layer name.
+         * @param layer Appearance to access.
+         * @return The requested complete appearance.
+         */
+        const TAppearance& Get(const EStyleLayer layer) const
+        {
+            switch (layer)
+            {
+            case EStyleLayer::Hovered: return Hovered;
+            case EStyleLayer::Pressed: return Pressed;
+            case EStyleLayer::Focused: return Focused;
+            case EStyleLayer::Disabled: return Disabled;
+            default: return Normal;
+            }
+        }
+    };
+
+    /** @brief Base class required for a style stored by StyleSet. */
+    struct SStyle
+    {
+        virtual ~SStyle() = default;
+    };
+
+    /**
+     * @brief Owns the complete styles used as the application's defaults.
+     *
+     * A StyleSet is a typed registry. It has no relationship with a widget's lifetime: a
+     * widget reads its registered style until SetStyle gives that widget an explicit override.
      */
     class ELIXIR_API StyleSet
     {
     public:
-        /**
-         * Read the override currently stored for a layer.
-         * @param layer Layer to read.
-         * @return The layer's override, as last set (or empty, if never set/cleared).
-         */
-        const SStyleOverride& Get(EStyleLayer layer) const;
+        StyleSet() = default;
+        StyleSet(const StyleSet&) = delete;
+        StyleSet& operator=(const StyleSet&) = delete;
+        StyleSet(StyleSet&&) = default;
+        StyleSet& operator=(StyleSet&&) = default;
 
         /**
-         * Replace the whole override stored for a layer.
-         * @param layer Layer to replace.
-         * @param style New override for that layer.
-         */
-        void Set(EStyleLayer layer, const SStyleOverride& style);
-
-        /**
-         * Remove every field a layer declares, so later resolves fall back to earlier layers
-         * for all of them again.
-         * @param layer Layer to clear.
-         */
-        void Clear(EStyleLayer layer);
-
-        /**
-         * @brief Compose the active layers into one concrete style.
+         * @brief Store the default style for one component type.
          *
-         * Starts from Normal and applies every other active layer on top of it, in
-         * Normal -> Hovered -> Pressed -> Focused -> Disabled order; for each field, the last active
-         * layer that declares it wins. Normal must declare every field the caller needs -
-         * it is the only layer with no earlier layer to fall back to.
-         *
-         * @param states Interaction states active this frame.
-         * @return The composed, ready-to-draw style.
+         * @tparam TStyle Concrete style type, derived from SStyle.
+         * @param style Complete style to store.
          */
-        SResolvedStyle Resolve(EInteractionState states) const;
+        template<typename TStyle>
+        void SetWidgetStyle(TStyle style)
+        {
+            static_assert(std::is_base_of_v<SStyle, TStyle>);
+            m_Styles[std::type_index(typeid(TStyle))] = CreateScope<TStyle>(std::move(style));
+        }
+
+        /**
+         * @brief Get the style registered for one component type.
+         * @tparam TStyle Concrete style type to retrieve.
+         * @return The registered complete style.
+         */
+        template<typename TStyle>
+        const TStyle& GetWidgetStyle() const
+        {
+            static_assert(std::is_base_of_v<SStyle, TStyle>);
+            const auto it = m_Styles.find(std::type_index(typeid(TStyle)));
+            EE_CORE_ASSERT(it != m_Styles.end(), "StyleSet has no style for this component type");
+            return static_cast<const TStyle&>(*it->second);
+        }
 
     private:
-        std::array<SStyleOverride, (size_t)EStyleLayer::Count> m_Layers;
+        std::unordered_map<std::type_index, Scope<SStyle>> m_Styles;
     };
+
+    /**
+     * @brief Get the application's built-in default styles.
+     *
+     * The returned registry is shared by widgets without explicit styles. Applications can
+     * replace registered styles to update their default look without selecting a named theme.
+     * A widget that received SetStyle keeps its own copy.
+     *
+     * @return The shared default style registry.
+     */
+    ELIXIR_API StyleSet& GetDefaultStyles();
 }

@@ -37,12 +37,19 @@ namespace Elixir::GUI
      */
     inline constexpr float UnconstrainedSize = std::numeric_limits<float>::infinity();
 
+    /** @brief Complete visual style for a widget that only draws a background. */
+    struct SWidgetStyle final : SStyle, TStateStyles<SAppearance>{};
+
     class ELIXIR_API Widget : public std::enable_shared_from_this<Widget>
     {
         friend class Manager;
         friend class Slot;
 
       public:
+        /**
+         * @brief Construct a widget with a copy of the current default widget style.
+         */
+        Widget();
         virtual ~Widget() = default;
 
         /**
@@ -142,35 +149,16 @@ namespace Elixir::GUI
         bool IsSelfHitTestVisible() const;
 
         /**
-         * @brief Read the override a style layer currently declares.
-         *
-         * Unset fields fall back to whatever an earlier layer resolves to
-         * - see StyleSet::Resolve.
-         *
-         * @param layer Layer to read.
-         * @return The layer's override, as currently stored.
+         * @brief Get this widget's complete style.
+         * @return Complete style currently used by this widget.
          */
-        const SStyleOverride& GetStyle(EStyleLayer layer) const
-        {
-            return m_Styles.Get(layer);
-        }
+        const SWidgetStyle& GetStyle() const;
 
         /**
-         * @brief Replace whole override for one style layer and mark this widget for
-         * re-render.
-         *
-         * @param layer The layer to replace.
-         * @param style New override for that layer.
+         * @brief Replace this widget's complete style.
+         * @param style Complete style to copy into this widget.
          */
-        void SetStyle(EStyleLayer layer, const SStyleOverride& style);
-
-        /**
-         * @brief Remove every override a style layer declares, restoring the fallback to
-         * earlier layers, and mark this widget for re-render.
-         *
-         * @param layer Layer to clear.
-         */
-        void ClearStyle(EStyleLayer layer);
+        void SetStyle(const SWidgetStyle& style);
 
         /**
          * @brief Set one layer's background color.
@@ -180,28 +168,15 @@ namespace Elixir::GUI
         void SetBackgroundColor(EStyleLayer layer, const SColor& color);
 
         /**
-         * @brief Set one layer's foreground color (e.g. text).
-         * @param layer Layer that owns the override.
-         * @param color Foreground color for that layer.
-         */
-        void SetForegroundColor(EStyleLayer layer, const SColor& color);
-
-        /**
-         * @brief Set one layer's background texture, meant to be drawn as a 9-patch using
-         * whatever border metric the concrete widget exposes for that purpose.
+         * @brief Set one legacy layer's background texture.
          * @param layer Layer that owns the override.
          * @param texture Texture for that layer.
          */
         void SetBackgroundTexture(EStyleLayer layer, const Ref<Texture2D>& texture);
 
         /**
-         * @brief Explicitly clear a layer's background texture override.
-         *
-         * So it stops overriding whatever an earlier layer resolved to - as opposed to
-         * leaving the field unset, which would just inherit instead of forcing a solid
-         * background.
-         *
-         * @param layer Layer to clear the texture override from.
+         * @brief Clear one legacy layer's background texture.
+         * @param layer Layer to change.
          */
         void ClearBackgroundTexture(EStyleLayer layer);
 
@@ -405,16 +380,21 @@ namespace Elixir::GUI
         EInteractionState GetInteractionState() const;
 
         /**
-         * Resolve this widget's style for the current interaction state. Subclasses that
-         * draw a background/foreground call this from their own BuildDrawCommands.
-         *
-         * Recomputes on every call rather than caching: four layers and a handful of fields
-         * is cheap, and a cache would need every place that changes hover/press/enabled to
-         * also invalidate it - MarkRenderDirty() is already called on all of those.
-         *
-         * @return The composed style ready for BuildDrawCommands.
+         * Get the complete appearance selected for this widget's current interaction state.
+         * Component widgets override this to resolve their own typed style.
+         * @return Current background appearance.
          */
-        SResolvedStyle GetResolvedStyle() const;
+        virtual const SAppearance& GetResolvedAppearance() const;
+
+        /**
+         * @brief Get the brush a legacy setter must change.
+         *
+         * Component widgets override this so legacy background setters still create a typed
+         * component-style override rather than changing a separate base style.
+         * @param layer Legacy interaction layer to change.
+         * @return Mutable background brush for that layer.
+         */
+        virtual SBrush& GetMutableBackgroundBrush(EStyleLayer layer);
 
         /**
          * Mark this widget's layout as dirty and propagate the mark to ancestors.
@@ -541,12 +521,7 @@ namespace Elixir::GUI
 
         EVisibility m_Visibility = EVisibility::Visible;
 
-        glm::vec4 m_InsetShadow = {};
-        glm::vec4 m_DropShadow = {};
-
-        SOutline m_Outline = {};
-
-        StyleSet m_Styles;
+        SWidgetStyle m_Style;
 
         bool m_Focusable = false;
 

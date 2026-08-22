@@ -1,0 +1,2227 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5. Clipping, ScrollBox e camada de popups</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --surface-alt: #eef0f4;
+    --border: #dde1e8;
+    --text: #1a1d24;
+    --text-muted: #565c6b;
+    --text-faint: #868ea0;
+    --accent: #3452d9;
+    --accent-soft: #e9edfd;
+    --code-bg: #f3f4f7;
+    --code-border: #e1e4ea;
+
+    --diff-add-bg: #e6f7ec;
+    --diff-add-fg: #157347;
+    --diff-del-bg: #fdecec;
+    --diff-del-fg: #c22a2a;
+    --diff-hunk-bg: #eaf0ff;
+    --diff-hunk-fg: #3452d9;
+    --diff-ctx-fg: #4b505c;
+    --diff-file-fg: #12141a;
+    --diff-meta-fg: #9aa0ad;
+
+    --warn-bg: #fff6e2;
+    --warn-border: #e7bd5a;
+    --warn-fg: #7a5b06;
+    --ok-bg: #e9f7ee;
+    --ok-border: #79c99e;
+    --ok-fg: #1a6b40;
+    --info-bg: #eef1fd;
+    --info-border: #a9b8f2;
+    --info-fg: #2c3fa8;
+
+    --seg-rect: #3452d9;
+    --seg-text: #c2660f;
+    --seg-debug: #c22a2a;
+
+    --shadow: 0 1px 2px rgba(20,22,30,0.05), 0 8px 20px rgba(20,22,30,0.05);
+
+    /* --- additions for this document: dependency/status badges (Parte 3 has no
+       equivalent, since it doesn't need to flag dependencies on other points) --- */
+    --badge-p3-bg: #f1e7fd;
+    --badge-p3-border: #cbb0f5;
+    --badge-p3-fg: #6425c2;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161b;
+      --surface: #1b1e25;
+      --surface-alt: #20232c;
+      --border: #2b2f3a;
+      --text: #e7e9ef;
+      --text-muted: #aab0c0;
+      --text-faint: #767d8c;
+      --accent: #91a4ff;
+      --accent-soft: #232a4d;
+      --code-bg: #181a21;
+      --code-border: #2a2e39;
+
+      --diff-add-bg: rgba(46,160,90,0.16);
+      --diff-add-fg: #5fd693;
+      --diff-del-bg: rgba(230,70,70,0.16);
+      --diff-del-fg: #ff8a83;
+      --diff-hunk-bg: rgba(100,130,255,0.18);
+      --diff-hunk-fg: #adbaff;
+      --diff-ctx-fg: #b7bcc8;
+      --diff-file-fg: #e7e9ef;
+      --diff-meta-fg: #666c7a;
+
+      --warn-bg: #2b2408;
+      --warn-border: #7a5f18;
+      --warn-fg: #e8c766;
+      --ok-bg: #10261a;
+      --ok-border: #2f6b49;
+      --ok-fg: #7fd6a4;
+      --info-bg: #1c2140;
+      --info-border: #3c4c9c;
+      --info-fg: #aab8ff;
+
+      --seg-rect: #6d87f2;
+      --seg-text: #e0913f;
+      --seg-debug: #e05a5a;
+
+      --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 8px 20px rgba(0,0,0,0.35);
+
+      --badge-p3-bg: #241a3a;
+      --badge-p3-border: #5b3c99;
+      --badge-p3-fg: #c9a6f7;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html { background: var(--bg); }
+
+  body {
+    margin: 0;
+    padding: 40px 20px 80px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    font-size: 15.5px;
+  }
+
+  code, pre, kbd, .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  header.doc-header {
+    margin-bottom: 28px;
+  }
+
+  .series-tag {
+    display: inline-block;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 5px 10px;
+    border-radius: 999px;
+    margin-bottom: 14px;
+  }
+
+  h1 {
+    font-size: 30px;
+    line-height: 1.25;
+    margin: 0 0 10px;
+    letter-spacing: -0.01em;
+  }
+
+  .subtitle {
+    font-size: 16.5px;
+    color: var(--text-muted);
+    margin: 0 0 6px;
+    max-width: 780px;
+  }
+
+  nav.toc {
+    margin-top: 26px;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+  }
+
+  nav.toc .toc-title {
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-faint);
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+
+  nav.toc ol {
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 6px 24px;
+  }
+
+  nav.toc a {
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+  }
+
+  nav.toc a:hover { color: var(--accent); text-decoration: underline; }
+
+  section {
+    margin-top: 44px;
+  }
+
+  section > h2 {
+    font-size: 21px;
+    margin: 0 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    scroll-margin-top: 20px;
+  }
+
+  h3 {
+    font-size: 16.5px;
+    margin: 26px 0 10px;
+    scroll-margin-top: 20px;
+  }
+
+  h3.file-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 15.5px;
+    margin: 0 0 8px;
+    flex-wrap: wrap;
+  }
+
+  h3.file-heading .file-index {
+    font-size: 11.5px;
+    color: var(--text-faint);
+    font-weight: 700;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  p { margin: 0 0 14px; }
+
+  ul, ol { margin: 0 0 14px; padding-left: 22px; }
+  li { margin-bottom: 6px; }
+
+  a { color: var(--accent); }
+
+  code.i {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.88em;
+    white-space: break-spaces;
+  }
+
+  .file-ref {
+    color: var(--text-muted);
+    font-size: 0.88em;
+  }
+
+  .lede {
+    font-size: 16px;
+    color: var(--text-muted);
+    max-width: 820px;
+  }
+
+  /* ---- callouts ---- */
+  .callout {
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--text-faint);
+    background: var(--surface);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 16px 0;
+    font-size: 14.5px;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .callout-title {
+    font-weight: 700;
+    font-size: 12.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .callout-decision { border-left-color: var(--accent); }
+  .callout-decision .callout-title { color: var(--accent); }
+  .callout-attention { background: var(--warn-bg); border-color: var(--warn-border); border-left-color: var(--warn-border); }
+  .callout-attention .callout-title { color: var(--warn-fg); }
+  .callout-ok { background: var(--ok-bg); border-color: var(--ok-border); border-left-color: var(--ok-border); }
+  .callout-ok .callout-title { color: var(--ok-fg); }
+  .callout-info { background: var(--info-bg); border-color: var(--info-border); border-left-color: var(--info-border); }
+  .callout-info .callout-title { color: var(--info-fg); }
+
+  /* ---- plain code blocks (not diffs) ---- */
+  pre.code {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--diff-ctx-fg);
+    margin: 12px 0 18px;
+  }
+  pre.code code { white-space: pre; }
+
+  /* ---- diff blocks ---- */
+  .diff-wrap {
+    border: 1px solid var(--code-border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 10px 0 22px;
+    background: var(--code-bg);
+  }
+  pre.diff {
+    margin: 0;
+    padding: 12px 0;
+    overflow-x: auto;
+    font-size: 12.7px;
+    line-height: 1.55;
+  }
+  pre.diff code { display: block; white-space: pre; }
+  pre.diff span { display: block; padding: 0 16px; }
+  .d-file { color: var(--diff-file-fg); font-weight: 700; }
+  .d-hunk { color: var(--diff-hunk-fg); background: var(--diff-hunk-bg); font-weight: 600; }
+  .d-add  { color: var(--diff-add-fg); background: var(--diff-add-bg); }
+  .d-del  { color: var(--diff-del-fg); background: var(--diff-del-bg); }
+  .d-ctx  { color: var(--diff-ctx-fg); }
+  .d-meta { color: var(--diff-meta-fg); font-style: italic; }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 4px 0 22px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+  .legend i.li-add { background: var(--diff-add-bg); border: 1px solid var(--diff-add-fg); }
+  .legend i.li-del { background: var(--diff-del-bg); border: 1px solid var(--diff-del-fg); }
+  .legend i.li-hunk { background: var(--diff-hunk-bg); border: 1px solid var(--diff-hunk-fg); }
+  .legend i.li-ctx { background: var(--surface); border: 1px solid var(--border); }
+
+  table.spec {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    margin: 12px 0 20px;
+  }
+  table.spec th, table.spec td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.spec th {
+    color: var(--text-faint);
+    font-weight: 600;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  table.spec code.i { white-space: nowrap; }
+  .table-scroll { overflow-x: auto; }
+
+  ol.steps { list-style: none; padding: 0; margin: 18px 0; counter-reset: step; }
+  ol.steps > li {
+    counter-increment: step;
+    position: relative;
+    padding: 4px 0 18px 40px;
+    border-left: 2px solid var(--border);
+    margin-left: 14px;
+  }
+  ol.steps > li:last-child { border-left-color: transparent; padding-bottom: 0; }
+  ol.steps > li::before {
+    content: counter(step);
+    position: absolute;
+    left: -15px;
+    top: 2px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  ol.steps > li > .step-title { font-weight: 700; margin-bottom: 4px; display: block; }
+
+  .risk-list { display: flex; flex-direction: column; gap: 14px; }
+  .risk-item {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    background: var(--surface);
+  }
+  .risk-item .risk-title {
+    font-weight: 700;
+    font-size: 14.5px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .risk-item .risk-title .risk-num {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    color: #fff;
+    background: var(--text-faint);
+    border-radius: 5px;
+    padding: 1px 7px;
+  }
+  .risk-item p:last-child { margin-bottom: 0; }
+
+  footer.doc-footer {
+    margin-top: 56px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+    font-size: 12.5px;
+    color: var(--text-faint);
+  }
+
+  @media (max-width: 640px) {
+    nav.toc ol { grid-template-columns: 1fr; }
+    h1 { font-size: 25px; }
+  }
+
+  /* ---- additions for this document: dependency/status badges ----
+     Parte 3 da série não precisou sinalizar dependência de outros pontos; este
+     documento precisa, então o componente é novo mas reaproveita as variáveis
+     de cor semânticas (--warn-*, --info-*, --ok-*) já estabelecidas acima, mais
+     um par --badge-p3-* dedicado, para não inventar uma paleta paralela. */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    padding: 2px 9px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    line-height: 1.8;
+  }
+  .badge-sketch { background: var(--warn-bg); color: var(--warn-fg); border-color: var(--warn-border); }
+  .badge-p1     { background: var(--info-bg); color: var(--info-fg); border-color: var(--info-border); }
+  .badge-p3     { background: var(--badge-p3-bg); color: var(--badge-p3-fg); border-color: var(--badge-p3-border); }
+  .badge-new    { background: var(--ok-bg); color: var(--ok-fg); border-color: var(--ok-border); }
+
+  .badge-legend {
+    margin: 18px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .badge-legend li {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 13.5px;
+    color: var(--text-muted);
+  }
+  .badge-legend li:last-child { margin-bottom: 0; }
+  .badge-legend .badge { flex: none; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="doc-header">
+    <span class="series-tag">Série: Refatoração da GUI — Elixir · Parte 5 de 5</span>
+    <h1>5. Clipping, ScrollBox e camada de popups</h1>
+    <p class="subtitle">
+      Uma pilha de clip herdada aplicada no <code class="i">Append</code> (não no
+      <code class="i">BuildDrawCommands</code>), um <code class="i">ScrollBox</code> de verdade e
+      uma camada de popups no <code class="i">Manager</code> — sem invalidar o cache de draw
+      commands a cada scroll.
+    </p>
+
+    <div class="callout callout-info" style="margin-top:20px">
+      <span class="callout-title">Selos usados neste documento</span>
+      <ul class="badge-legend">
+        <li><span class="badge badge-sketch">esboço</span> trecho provisório/simplificado, escrito para ser substituído ou refinado depois.</li>
+        <li><span class="badge badge-p1">integra com o Ponto 1</span> o trecho existe na forma como está porque se apoia em uma API que o Ponto 1 introduziu de verdade — <code class="i">Widget::HitTest</code>, <code class="i">SInputReply</code>, <code class="i">Manager::m_HoverPath</code>/<code class="i">m_MouseCapture</code> — já presente no repositório (commit <code class="i">5fc2802</code>), não mais um substituto provisório de algo que viria depois.</li>
+        <li><span class="badge badge-p3">integra com o Ponto 3</span> o trecho depende de os passes de render já intercalarem por <code class="i">ZOrder</code> entre tipos de comando (<code class="i">RenderBatch::GetRuns()</code> + <code class="i">Renderer::Draw</code>), também já aplicado de verdade no mesmo commit — não uma ressalva sobre o futuro.</li>
+        <li><span class="badge badge-new">arquivo novo</span> arquivo que ainda não existe no repositório.</li>
+      </ul>
+    </div>
+
+    <nav class="toc" aria-label="Sumário">
+      <div class="toc-title">Nesta página</div>
+      <ol>
+        <li><a href="#sec-objetivo">1. Objetivo</a></li>
+        <li><a href="#sec-estado-atual">2. Estado atual</a></li>
+        <li><a href="#sec-design">3. Design proposto</a></li>
+        <li><a href="#sec-mudancas">4. Mudanças por arquivo</a></li>
+        <li><a href="#sec-ordem">5. Ordem de aplicação</a></li>
+        <li><a href="#sec-riscos">6. Riscos e pontos de atenção</a></li>
+      </ol>
+    </nav>
+  </header>
+
+  <section id="sec-objetivo">
+    <h2>1. Objetivo</h2>
+    <p class="lede">
+      Fechar os três pré-requisitos que o editor cobra já na primeira semana de uso da GUI: um
+      clip herdado de verdade, um <code class="i">ScrollBox</code> e uma camada de popups no
+      <code class="i">Manager</code>.
+    </p>
+    <p>
+      Hoje o campo <code class="i">ScissorRect</code> existe em <code class="i">SDrawCommand</code>
+      e chega até o shader, mas nenhum container o propaga aos filhos — só
+      <code class="i">Button</code> e <code class="i">TextField</code> passam a própria geometria
+      como scissor ad-hoc para o próprio texto. Sem uma pilha de clip herdada não existe
+      <code class="i">ScrollBox</code>, nem qualquer painel que precise recortar conteúdo
+      internamente. E sem camada de popups, um dropdown aberto a partir de um item de menu nunca
+      consegue cobrir um irmão posterior: o <code class="i">Manager</code> só conhece uma raiz, e o
+      <code class="i">z</code> é atribuído em pré-ordem pela árvore, não por camada.
+    </p>
+    <p>Ao final deste ponto:</p>
+    <ul>
+      <li>Qualquer widget pode virar um container que clipa filhos, sobrescrevendo um único método (<code class="i">ClipsChildren</code>).</li>
+      <li><code class="i">ScrollBox</code> existe, rola por eixo, mostra barra quando há overflow e responde à roda do mouse.</li>
+      <li><code class="i">Manager</code> ganha uma pilha de camadas — <code class="i">PushPopup</code>/<code class="i">PopPopup</code>/<code class="i">ClearPopups</code> — com z contínuo entre elas e dismiss-on-click-outside.</li>
+    </ul>
+    <p>
+      Os diffs estão organizados em três subseções independentes e aplicáveis nesta ordem:
+      4.1 Clip stack → 4.2 ScrollBox → 4.3 Camada de popups (seção
+      <a href="#sec-mudancas">4</a>).
+    </p>
+
+    <div class="callout callout-ok">
+      <span class="callout-title">Reescrita de baseline — Pontos 1 a 4 já foram aplicados</span>
+      <p>
+        Este documento foi originalmente escrito contra o código anterior ao commit
+        <code class="i">5fc2802</code> ("<em>feat(gui): input hit-testing, measure pass, z-order
+        runs, typed slot sizing</em>", branch <code class="i">feature/editor-gui</code>), que
+        aplicou de verdade os Pontos 1 (hit-test com caminho, roteamento com consumo, captura de
+        mouse), 2 (passe de measure com cache), 3 (intercalar passes de render por
+        <code class="i">ZOrder</code>) e 4 (slots tipados) da série. Como resultado, os 13 diffs
+        originais não aplicavam mais de forma limpa contra o repositório real —
+        <code class="i">Widget::CollectDrawCommands</code>, <code class="i">RenderBatch::Append</code>,
+        <code class="i">Widget::HandleMouseMove</code> e o corpo inteiro de
+        <code class="i">Manager</code> já tinham assinaturas e estrutura diferentes das que este
+        documento assumia. Esta é uma reescrita de baseline: todos os 13 diffs abaixo foram
+        gerados de novo, comparando cópias de trabalho reais do código pós-<code class="i">5fc2802</code>,
+        e cada um foi verificado com <code class="i">git apply --check</code> — inclusive
+        cumulativamente, na ordem 4.1 → 4.2 → 4.3, contra uma árvore de trabalho descartável. O
+        <strong>design</strong> (clip aplicado no <code class="i">Append</code>,
+        <code class="i">ScrollBox</code>, camadas de popup no <code class="i">Manager</code>)
+        não mudou — o que mudou é a base de código sobre a qual ele se apoia, e isso, por sua
+        vez, tornou vários trechos <strong>mais simples</strong> do que a versão anterior deste
+        documento: o Ponto 1 já dá à camada de popups um hit-test com caminho de verdade
+        (<a href="#sec-estado-atual">seção 2</a>), então o roteamento de scroll e o hit-test por
+        camada deste ponto passam a reaproveitar <code class="i">Manager::m_HoverPath</code> em
+        vez de precisar de uma travessia bespoke própria.
+      </p>
+    </div>
+  </section>
+
+  <section id="sec-estado-atual">
+    <h2>2. Estado atual</h2>
+
+    <div class="callout callout-ok">
+      <span class="callout-title">2.0 Os Pontos 1-4 já foram aplicados (commit 5fc2802)</span>
+      <p>
+        Antes de entrar nos detalhes por arquivo: o commit <code class="i">5fc2802</code>
+        já trouxe, de verdade, o hit-test com caminho e captura de mouse (Ponto 1), o passe de
+        measure com cache (Ponto 2), a intercalação de passes de render por
+        <code class="i">ZOrder</code> (Ponto 3) e os slots tipados (Ponto 4). Isso muda o que este
+        ponto pode assumir como já disponível:
+      </p>
+      <ul>
+        <li><code class="i">Widget::HitTest(point, path)</code> já existe e devolve o caminho raiz→folha completo sob o cursor (<span class="file-ref">Widget.h:88, Widget.cpp:37-71</span>); os handlers de input já devolvem <code class="i">SInputReply</code> (<span class="file-ref">Widget.h:19-27</span>) em vez de <code class="i">void</code>.</li>
+        <li><code class="i">Manager</code> já mantém <code class="i">m_HoverPath</code>, <code class="i">m_MouseCapture</code>, <code class="i">m_PressedWidget</code> e <code class="i">m_FocusedWidget</code> (<span class="file-ref">Manager.h:83-96</span>), e já roteia mouse-down/up/move por bubbling sobre o caminho hit-testado em <code class="i">ProcessMousePress</code>/<code class="i">ProcessMouseRelease</code>/<code class="i">ProcessMouseMove</code> (<span class="file-ref">Manager.cpp:174-235</span>) — não existe mais nenhuma travessia recursiva bespoke tipo "<code class="i">ProcessInputRecursive</code>" para inventar.</li>
+        <li><code class="i">Widget::IsRenderVisible()</code> já existe (<span class="file-ref">Widget.h:128, Widget.cpp:92-98</span>) e já é o que <code class="i">Widget::CollectDrawCommands</code> e <code class="i">Manager::Render</code>/<code class="i">AssembleFrame</code> testam — não <code class="i">IsVisible()</code>.</li>
+        <li><code class="i">RenderBatch</code> já expõe <code class="i">GetRuns()</code> (runs contíguos por tipo, em ordem de <code class="i">ZOrder</code>) e <code class="i">Renderer::Rebuild</code>/<code class="i">Draw</code> já emitem os draw items intercalados por esses runs, não mais um pass inteiro de cada vez (<span class="file-ref">RenderBatch.h:63-68,131, Renderer.cpp:39-59,65-79</span>) — a ressalva "popup pode ficar atrás de texto" que motivava o selo <span class="badge badge-p3">Ponto 3</span> na versão anterior deste documento <strong>já não se aplica</strong>; ver 2.4.</li>
+      </ul>
+      <p>
+        O que estas seções descrevem a seguir — clip não propagado, ausência de camadas, o
+        estado real de <code class="i">MouseScrolledEvent</code> — continua exatamente como
+        descrito, porque nenhum dos quatro pontos anteriores tocou clipping, scroll ou popups.
+        Só a <strong>forma</strong> como os diffs da seção 4 se conectam ao resto do
+        <code class="i">Manager</code>/<code class="i">Widget</code> mudou.
+      </p>
+    </div>
+
+    <h3>2.1 Clip existe no dado, mas não é propagado</h3>
+    <p>
+      <code class="i">SDrawCommand</code> já carrega um campo de scissor, e os três construtores
+      de comando (<code class="i">AddRect</code>/<code class="i">AddText</code>/<code class="i">AddTexture</code>)
+      já aceitam um <code class="i">scissorRect</code> opcional com o sentinela
+      <code class="i">{{-1,-1},{-1,-1}}</code> como "sem clip"
+      (<span class="file-ref">RenderBatch.h:54, 98, 108, 117</span>). O transporte já funciona
+      ponta a ponta: <code class="i">QuadRenderPass</code> e <code class="i">TextRenderPass</code>
+      já fazem <code class="i">cmd.ScissorRect.IsValid() ? ... : ...</code>
+      (<span class="file-ref">QuadRenderPass.cpp:163, TextRenderPass.cpp:204</span>) — o pipeline
+      está pronto para receber clip de qualquer origem, só falta alguém propagar.
+    </p>
+    <p>
+      O que falta é inteiramente do lado da coleta:
+      <code class="i">RenderBatch::Append</code> (<span class="file-ref">RenderBatch.h:79, RenderBatch.cpp:13-22</span>)
+      hoje só desloca <code class="i">ZOrder</code>, sem receber nem aplicar clip nenhum; e
+      <code class="i">Widget::CollectDrawCommands</code>
+      (<span class="file-ref">Widget.h:261, Widget.cpp:210-232</span>) não tem parâmetro de clip
+      nem noção de "widget que clipa filhos". <code class="i">Button::BuildDrawCommands</code>
+      passa <code class="i">m_Geometry</code> como scissor do próprio texto
+      (<span class="file-ref">Button.cpp:172-179</span>), e
+      <code class="i">TextField::BuildDrawCommands</code> faz o mesmo para a seleção, o texto e o
+      placeholder (<span class="file-ref">TextField.cpp:175-209</span>) — mas é clip ad-hoc, cada
+      widget recortando só a própria geometria, nunca herdado de um ancestral.
+    </p>
+    <div class="callout callout-attention">
+      <span class="callout-title">Inconsistência local encontrada de passagem</span>
+      <p>
+        O retângulo do <strong>cursor</strong> em <code class="i">TextField::BuildDrawCommands</code>
+        (<span class="file-ref">TextField.cpp:223-227</span>) é o único <code class="i">AddRect</code>
+        do arquivo que <strong>não</strong> recebe <code class="i">m_Geometry</code> como scissor —
+        hoje ele pode desenhar fora da caixa em campos com scroll horizontal. Nenhum diff deste
+        documento toca em <code class="i">TextField.cpp</code>, mas o cursor passa a herdar o clip
+        do ancestral de graça depois de 4.1, porque <code class="i">Append</code> aplica o
+        <code class="i">clipRect</code> herdado a qualquer comando — mesmo um que hoje não carrega
+        scissor próprio. Ver risco correspondente na <a href="#sec-riscos">seção 6</a>.
+      </p>
+    </div>
+    <p>
+      O sentinela de "sem clip" é <code class="i">SRect::IsValid()</code>
+      (<span class="file-ref">Definitions.h:17-20</span>) — confirmado inalterado pelos Pontos
+      1-4 (nenhum deles toca <code class="i">SRect</code>). O veredito sobre ele está na
+      <a href="#sec-design">seção 3.2</a>.
+    </p>
+
+    <h3>2.2 Sem camadas: z é só pré-ordem, agora sobre um Manager com hit-test de caminho</h3>
+    <p>
+      <code class="i">Widget::CollectDrawCommands</code> atribui bandas de z em pré-ordem: os
+      comandos do próprio widget ocupam <code class="i">[zCursor, zCursor + LayerSpan())</code>,
+      os filhos empilham acima — em ordem back-to-front, "last child = highest z"
+      (<span class="file-ref">Widget.h:80</span>, o mesmo comentário que ancora a ordem de
+      travessia que o Ponto 1 usa em <code class="i">HitTest</code>) — e o próximo
+      <strong>irmão</strong> começa acima de toda a subárvore anterior
+      (<span class="file-ref">Widget.cpp:223-226</span>). Isso garante que uma subárvore nunca
+      sobrepõe outra em z — mas dentro de uma única árvore. Um item de menu (irmão N) nunca pode
+      desenhar por cima de um item de menu posterior (irmão N+1), porque a banda de z do irmão N
+      termina antes da banda do irmão N+1 começar. Não existe "renderizar por cima de tudo" —
+      <code class="i">Manager::AssembleFrame</code> (<span class="file-ref">Manager.cpp:69-81</span>)
+      só percorre uma única árvore a partir de <code class="i">m_RootWidget</code>.
+    </p>
+    <p>
+      <code class="i">Manager</code> também só conhece uma raiz
+      (<span class="file-ref">Manager.h:26-29, 81</span>):
+      <code class="i">SetRoot(const Ref&lt;Panel&gt;&amp; root) { m_RootWidget = root; }</code> e
+      <code class="i">Ref&lt;Panel&gt; m_RootWidget;</code>. Isso não mudou com o Ponto 1 — o
+      hit-test com caminho que ele introduziu (<code class="i">Widget::HitTest</code>) percorre
+      essa mesma única árvore a partir de <code class="i">m_RootWidget</code>
+      (<span class="file-ref">Manager.cpp:141</span> antes deste ponto). Não há pilha, não há
+      popup, não há como um widget pedir "me desenhe por cima de tudo, com hit-test prioritário, e
+      me feche se o usuário clicar fora" — mas, diferente da versão anterior deste documento, a
+      camada de popups agora pode reaproveitar <code class="i">Widget::HitTest</code> diretamente
+      em vez de precisar de uma variante bespoke: basta decidir qual <code class="i">Ref&lt;Widget&gt;</code>
+      raiz hit-testar a cada frame (<a href="#sec-design">seção 3.4</a>).
+    </p>
+    <div class="callout callout-info">
+      <span class="callout-title">Não confundir com Overlay</span>
+      <p>
+        A engine já tem <code class="i">Elixir::GUI::Overlay</code>
+        (<span class="file-ref">Overlay.h/.cpp</span>), um <code class="i">Panel</code> que
+        empilha filhos em z <strong>dentro do próprio retângulo alocado</strong> (útil para
+        compor, por exemplo, um ícone com um badge). É um mecanismo de layout local, não de camada
+        de tela inteira — não compete com a pilha de camadas do <code class="i">Manager</code>
+        proposta aqui, e nenhum diff deste documento toca em <code class="i">Overlay</code>.
+      </p>
+    </div>
+
+    <h3>2.3 MouseScrolledEvent já existe — o Manager só não o roteia</h3>
+    <p>
+      Investigação direta antes de desenhar qualquer diff: <strong><code class="i">MouseScrolledEvent</code>
+      já existe</strong> em <code class="i">Elixir/Source/Engine/Event/MouseEvent.h:39-55</code>,
+      com <code class="i">GetOffsetX()</code>/<code class="i">GetOffsetY()</code> e
+      <code class="i">EVENT_CLASS_TYPE(MouseScrolled)</code>. A origem também já existe:
+      <code class="i">Elixir/Source/Platform/GLFW/GLFWWindow.cpp:204-207</code> registra
+      <code class="i">glfwSetScrollCallback</code> e despacha um <code class="i">MouseScrolledEvent</code>
+      real a cada tick da roda. O evento já percorre a cadeia inteira até a GUI —
+      <code class="i">Application::OnEvent</code>
+      (<code class="i">Elixir/Source/Engine/Core/Application.cpp:198-200</code>) chama, nessa
+      ordem, <code class="i">m_GraphicsContext-&gt;ProcessEvent</code>,
+      <code class="i">InputManager::OnEvent</code> e por fim
+      <code class="i">m_GUIManager-&gt;ProcessEvent(event)</code>.
+    </p>
+    <p>O que <strong>não</strong> existe:</p>
+    <ul>
+      <li><code class="i">Manager::ProcessEvent</code> (<span class="file-ref">Manager.cpp:56-63</span>) despacha hoje <code class="i">FramebufferResizeEvent</code>, <code class="i">KeyPressedEvent</code> e <code class="i">KeyTypedEvent</code> — <code class="i">MouseScrolledEvent</code> chega e é descartado silenciosamente.</li>
+      <li><code class="i">InputManager</code> (<span class="file-ref">Elixir/Source/Engine/Input/InputManager.h</span>) não tem nenhum estado de scroll <em>polled</em> — só posição do mouse, botões do mouse, teclado e gamepad. Diferente de posição/botão do mouse (lidos por polling em <code class="i">Manager::ProcessInput</code> a cada frame), scroll só pode ser capturado por evento mesmo, e o evento já existe.</li>
+      <li><code class="i">Widget</code> não tem nenhum <code class="i">HandleMouseScrolled</code> virtual — mas já tem <code class="i">HandleMouseMove</code>/<code class="i">HandleKeyPressed</code>/<code class="i">HandleKeyTyped</code> devolvendo <code class="i">SInputReply</code> (<span class="file-ref">Widget.h:301-303</span>), então o novo handler pode nascer direto nessa convenção, sem precisar do ajuste de acompanhamento "trocar <code class="i">bool</code> por <code class="i">SInputReply</code> quando o Ponto 1 pousar" que a versão anterior deste documento previa (ele já pousou).</li>
+    </ul>
+    <p>
+      Conclusão para a <a href="#sec-mudancas">seção 4.2</a>: <strong>não é preciso criar o
+      evento</strong> — ele já existe, cabo a cabo, da GLFW até
+      <code class="i">Manager::ProcessEvent</code> — só falta o <code class="i">Widget</code>
+      ganhar o handler e o <code class="i">Manager</code> roteá-lo. E, porque
+      <code class="i">Manager::m_HoverPath</code> já existe e já é exatamente "o caminho
+      raiz→folha sob o cursor no frame atual", roteá-lo não exige nenhuma travessia nova — só
+      bubbling sobre um vetor que o <code class="i">Manager</code> já mantém.
+    </p>
+
+    <h3>2.4 Camada de popups sobre texto: a ressalva do Ponto 3 já não existe</h3>
+    <p>
+      <code class="i">Renderer::Rebuild</code> (<span class="file-ref">Renderer.cpp:39-59</span>)
+      já itera <code class="i">batch.GetRuns()</code> — runs contíguos por tipo de comando, na
+      ordem de <code class="i">ZOrder</code> em que o <code class="i">RenderBatch::Sort()</code>
+      (<span class="file-ref">RenderBatch.cpp:24-38</span>) os deixou — e monta
+      <code class="i">m_DrawItems</code> nessa mesma ordem intercalada; <code class="i">Renderer::Draw</code>
+      (<span class="file-ref">Renderer.cpp:65-79</span>) então emite os draw items exatamente
+      nessa sequência, trocando de pass (<code class="i">item.Pass-&gt;Bind(cmd)</code>) sempre
+      que o tipo muda. Ou seja: um <code class="i">Rect</code> de <code class="i">ZOrder</code> 40
+      já desenha depois de um <code class="i">Text</code> de <code class="i">ZOrder</code> 30 e
+      antes de um <code class="i">Text</code> de <code class="i">ZOrder</code> 50, na GPU, hoje.
+    </p>
+    <p>
+      Isso é exatamente o que a versão anterior deste documento descrevia como faltando — "todos
+      os retângulos do frame inteiro, depois todo o texto do frame inteiro" — e atribuía à Parte 3
+      da série (<code class="i">03-z-order-runs.html</code>) resolver. A Parte 3 já foi aplicada de
+      verdade no commit <code class="i">5fc2802</code>: <strong>a garantia visual "popup sempre
+      por cima do texto de baixo" já vale hoje</strong>, antes mesmo deste ponto pousar. A camada
+      de popups (4.3) continua precisando de <code class="i">zCursor</code> contínuo entre camadas
+      (<a href="#sec-design">3.4</a>) para que o mecanismo de bandas de z coloque cada popup acima
+      de tudo que veio antes — mas isso já é suficiente por si só, sem selo de dependência: o
+      <code class="i">Renderer</code> já respeita <code class="i">ZOrder</code> entre tipos de
+      comando de ponta a ponta.
+    </p>
+
+    <h3>2.5 O consumidor real</h3>
+    <p>
+      <code class="i">Editor/Source/UI/EditorUI.cpp</code> já constrói uma barra de menu
+      (<code class="i">m_MenuBar</code>, um <code class="i">GUI::HorizontalBox</code>) e uma área
+      de conteúdo (<code class="i">m_ContentArea</code>, um <code class="i">GUI::Canvas</code>),
+      com <code class="i">m_GUIManager-&gt;SetRoot(m_Root)</code> instalando a árvore.
+      <code class="i">EditorUI::AddMenuItem</code> hoje só adiciona um
+      <code class="i">TextBlock</code> estático à barra — não existe dropdown, porque não há onde
+      renderizar um por cima do resto da UI. <code class="i">EditorPanel.h</code> documenta
+      painéis dock-áveis (Hierarchy/Inspector/Viewport) cujo conteúdo tende a exceder a área
+      alocada — exatamente o caso de uso de um <code class="i">ScrollBox</code>. Nenhum diff deste
+      documento toca em <code class="i">Editor/</code>; ele é o motivador, não o escopo.
+    </p>
+  </section>
+
+  <section id="sec-design">
+    <h2>3. Design proposto</h2>
+
+    <h3>3.1 Clip herdado aplicado no Append, não no BuildDrawCommands</h3>
+    <p>Esse é o ponto sutil do plano inteiro; a decisão não mudou com os Pontos 1-4. A assinatura muda para:</p>
+    <pre class="code"><code>void Widget::CollectDrawCommands(RenderBatch&amp; batch, int&amp; zCursor, bool&amp; rebuilt, const SRect&amp; clipRect);
+virtual bool Widget::ClipsChildren() const { return false; }
+void RenderBatch::Append(const RenderBatch&amp; other, int zOffset, const SRect&amp; clipRect);</code></pre>
+    <p>
+      Um widget cujo <code class="i">ClipsChildren()</code> retorna <code class="i">true</code>
+      (só <code class="i">ScrollBox</code>, por enquanto) intersecta a própria geometria com o
+      <code class="i">clipRect</code> recebido e passa o resultado aos filhos; todo o resto apenas
+      repassa o <code class="i">clipRect</code> herdado sem tocar nele. O clip em si só é
+      <strong>aplicado</strong> — via <code class="i">SRect::Intersect</code> — dentro de
+      <code class="i">RenderBatch::Append</code>, no momento em que os comandos já construídos de
+      um widget são copiados para o batch do frame.
+    </p>
+
+    <div class="callout callout-decision">
+      <span class="callout-title">Decisão — por que aplicar no Append e não no BuildDrawCommands</span>
+      <p>
+        A alternativa óbvia seria passar o <code class="i">clipRect</code> também para
+        <code class="i">BuildDrawCommands</code> e deixar cada widget já gravar o
+        <code class="i">ScissorRect</code> final dentro do próprio
+        <code class="i">m_CachedCommands</code>. Foi descartada por um motivo estrutural, não
+        estético.
+      </p>
+      <p>
+        <code class="i">Widget::MarkRenderDirty()</code> (<span class="file-ref">Widget.cpp:250-254</span>)
+        <strong>não se propaga</strong> — nem para cima, nem para baixo. Só
+        <code class="i">MarkLayoutDirty()</code> (<span class="file-ref">Widget.cpp:234-248</span>)
+        se propaga, e apenas para <strong>cima</strong>, até os ancestrais. Não existe hoje nenhum
+        mecanismo que avise um descendente "um ancestral seu mudou de clip, reconstrua seus
+        comandos". Se o clip fosse gravado dentro de <code class="i">BuildDrawCommands</code>,
+        qualquer mudança de clip em um ancestral (por exemplo o próprio <code class="i">ScrollBox</code>
+        sendo redimensionado por <em>seu</em> pai, o que muda a janela de recorte sem
+        necessariamente mover o conteúdo) exigiria forçar <code class="i">m_RenderDirty = true</code>
+        em <strong>toda a subárvore</strong> abaixo dele — um mecanismo de invalidação para baixo
+        que não existe e teria que ser inventado.
+      </p>
+      <p>
+        Aplicar no <code class="i">Append</code> não tem esse custo porque
+        <code class="i">CollectDrawCommands</code> já visita <strong>todo</strong> widget visível
+        a cada reconstrução do frame, independente de quem está sujo — só a <em>regeneração</em>
+        de <code class="i">m_CachedCommands</code> é condicionada a <code class="i">m_RenderDirty</code>
+        (o próprio comentário de <span class="file-ref">Widget.h:107-113</span> já documenta: "any
+        change anywhere forces a single full rebuild" sobre <code class="i">CurrentDirtyEpoch()</code>).
+        Intersectar o clip herdado durante essa varredura que já ia acontecer não custa nada
+        extra; gravá-lo dentro do cache custaria inventar uma invalidação nova.
+      </p>
+      <p>
+        Na prática isso significa que <strong>mudar o scroll de um <code class="i">ScrollBox</code>
+        nunca invalida o cache de nenhum descendente</strong> — o conteúdo rolado já se rearranja
+        (e portanto já re-renderiza) pelo mecanismo padrão de <code class="i">ArrangeChildren</code>
+        comparando geometria; o clip em si simplesmente é reaplicado de graça, a cada frame, no
+        <code class="i">Append</code>.
+      </p>
+    </div>
+
+    <h3>3.2 SRect::Intersect e o veredito sobre IsValid()</h3>
+    <p><code class="i">SRect::IsValid()</code> hoje é:</p>
+    <pre class="code"><code>bool IsValid() const
+{
+    return Position.x != -1 &amp;&amp; Position.y != -1 &amp;&amp; Size.x != -1 &amp;&amp; Size.y != -1;
+}</code></pre>
+    <p>
+      O sentinela de "sem clip" é a igualdade exata com <code class="i">{{-1,-1},{-1,-1}}</code> —
+      não um teste de faixa, um teste de coincidência. <strong>Veredito: adequada para o uso
+      atual, mas frágil para servir de base a uma operação aritmética como <code class="i">Intersect</code>
+      sem uma guarda explícita.</strong> O problema não é hipotético: a interseção de dois
+      retângulos que não se sobrepõem produz, pela aritmética normal
+      (<code class="i">max(posições)</code>, <code class="i">min(bordas)</code>,
+      <code class="i">tamanho = borda - posição</code>), um tamanho <strong>negativo</strong> — e
+      nada impede que esse resultado caia exatamente em <code class="i">(-1, -1)</code> por
+      coincidência geométrica, o que faria o retângulo "clipar tudo fora" ser lido de volta como
+      "sem clip nenhum" — o oposto exato do que se pretendia, e um bug silencioso de conteúdo
+      vazando por fora de uma área de scroll.
+    </p>
+    <p>
+      A correção não é trocar o sentinela agora (isso obrigaria a migrar os defaults de
+      <code class="i">AddRect</code>/<code class="i">AddText</code>/<code class="i">AddTexture</code>,
+      todo código que já testa <code class="i">IsValid()</code>, e ampliaria o raio de alcance
+      deste ponto sem necessidade). A correção é fazer <code class="i">Intersect</code> nunca
+      produzir um tamanho negativo:
+    </p>
+    <pre class="code"><code>static SRect Intersect(const SRect&amp; a, const SRect&amp; b)
+{
+    const glm::vec2 min = glm::max(a.Position, b.Position);
+    const glm::vec2 max = glm::min(a.Position + a.Size, b.Position + b.Size);
+    return { min, glm::max(max - min, glm::vec2(0.0f)) };
+}</code></pre>
+    <p>
+      O <code class="i">glm::max(..., glm::vec2(0.0f))</code> final garante que uma interseção
+      vazia vire um retângulo de tamanho <code class="i">(0, 0)</code> — que ainda passa em
+      <code class="i">IsValid()</code> (nenhum componente é <code class="i">-1</code>) e é lido
+      corretamente como "clipa tudo fora", nunca como "sem clip". <code class="i">Intersect</code>
+      assume que os dois retângulos de entrada já são geometricamente reais (não o sentinela);
+      quem chama decide isso testando <code class="i">IsValid()</code> antes, exatamente como o
+      resto do código já faz — ver o diff de <code class="i">RenderBatch::Append</code> em 4.1.3.
+    </p>
+    <p>
+      Vale registrar um paralelo independente: o próprio backlog de dívida técnica do time já
+      sinaliza a mesma classe de fragilidade em outro lugar — <code class="i">TextField::m_SelectionStart</code>/<code class="i">m_SelectionEnd</code>
+      usam <code class="i">size_t</code> inicializado em <code class="i">-1</code> (que vira
+      <code class="i">SIZE_MAX</code>) como sentinela de "sem seleção", comparado depois com
+      <code class="i">-1</code> via conversão implícita — funciona, mas "mistura sinal e é
+      frágil", nas palavras do próprio ticket. Sentinelas mágicos por coincidência numérica são um
+      padrão recorrente nesta base de código, não uma escolha isolada de <code class="i">SRect</code>.
+    </p>
+    <p>
+      <strong>Recomendação para depois deste ponto</strong> (fora de escopo aqui, para não inflar
+      o raio de alcance): migrar o sentinela de "sem clip" para um <code class="i">SRect::Infinite()</code>
+      — um retângulo enorme (algo como <code class="i">±1e7</code> em cada eixo, não
+      <code class="i">FLT_MAX</code>, para não flertar com overflow em somas/produtos) cuja
+      interseção com qualquer retângulo real devolve o próprio retângulo real inalterado. Isso
+      eliminaria de vez a colisão de sentinela por construção, sem precisar de nenhuma guarda —
+      mas exigiria trocar os defaults em <code class="i">RenderBatch.h</code> e o teste em
+      <code class="i">QuadRenderPass.cpp</code>/<code class="i">TextRenderPass.cpp</code>, o que
+      este ponto não faz.
+    </p>
+
+    <h3>3.3 ScrollBox</h3>
+    <p>
+      <code class="i">ScrollBox : ContentWidget</code>, com <code class="i">ClipsChildren()</code>
+      retornando <code class="i">true</code>. A lógica é a mesma decidida originalmente; o que
+      muda é a API real por baixo, porque o Ponto 2 (passe de measure) já trocou
+      <code class="i">ComputeDesiredSize()</code> sem parâmetro por
+      <code class="i">ComputeDesiredSize(const glm::vec2&amp; availableSize)</code>
+      <strong>protected</strong>, chamado através do <code class="i">Widget::Measure(availableSize)</code>
+      público e cacheado (<span class="file-ref">Widget.h:65, 237</span>) — nenhum container
+      chama <code class="i">ComputeDesiredSize</code> de um filho diretamente hoje, todos chamam
+      <code class="i">filho-&gt;Measure(constraint)</code> (ver <code class="i">HorizontalBox::ComputeDesiredSize</code>
+      como exemplo já existente). Os pontos de design:
+    </p>
+    <ul>
+      <li>
+        <strong><code class="i">ComputeDesiredSize(availableSize)</code></strong> devolve o
+        tamanho desejado do conteúdo, limitado (nunca ultrapassado) por um tamanho de viewport
+        configurado — <code class="i">glm::min(m_ViewportSize, content-&gt;Measure(constraint))</code>.
+        Um <code class="i">ScrollBox</code> pode <em>encolher</em> para caber em conteúdo menor,
+        mas nunca <em>cresce</em> para engolir conteúdo maior; é exatamente esse limite que sobra
+        para rolar. Esse campo configurado <strong>não pode</strong> ser
+        <code class="i">m_DesiredSize</code> — esse membro protegido de <code class="i">Widget</code>
+        (<span class="file-ref">Widget.h:387</span>) é, desde o Ponto 2, o <em>cache de saída</em>
+        que <code class="i">Measure()</code> escreve a cada chamada, não uma entrada configurável.
+        <code class="i">ScrollBox</code> ganha o próprio <code class="i">m_ViewportSize</code>
+        privado e um <code class="i">SetDesiredSize</code> público que o configura — nome mantido
+        por familiaridade de API, mas semanticamente distinto do <code class="i">m_DesiredSize</code>
+        da base. Mesmo espírito de tamanho mínimo fixado no construtor que
+        <code class="i">Button</code>/<code class="i">TextField</code> já usam via
+        <code class="i">m_MinDesiredSize</code> ({120, 40} / {120, 30},
+        <span class="file-ref">Button.h:96, TextField.h:161</span>) — só que como teto, não como
+        piso: <code class="i">glm::min</code> em vez do <code class="i">glm::max</code> que
+        <code class="i">Button::ComputeDesiredSize</code> usa (<span class="file-ref">Button.cpp:92-110</span>).
+        A constraint passada para medir o conteúdo usa <code class="i">UnconstrainedSize</code>
+        (<span class="file-ref">Widget.h:37</span>) no(s) eixo(s) de rolagem — o conteúdo relata
+        seu tamanho natural, sem ser espremido — e o tamanho do viewport no eixo transversal.
+      </li>
+      <li>
+        <strong><code class="i">LayoutChildren</code></strong> mede o conteúdo de novo com a
+        mesma constraint (o cache de <code class="i">Measure</code> torna isso O(1) quando nada
+        mudou) e arranja em <code class="i">allocatedSpace.Position - m_ScrollOffset</code>, com
+        o tamanho <strong>desejado</strong> do conteúdo no eixo de rolagem (não o tamanho
+        alocado) — é isso, e só isso, que sobra de conteúdo fora da janela visível para rolar até.
+      </li>
+      <li><strong>Clamp do offset:</strong> <code class="i">[0, max(0, contentSize - viewportSize)]</code>, por eixo habilitado.</li>
+      <li>
+        <strong><code class="i">BuildDrawCommands</code></strong> desenha a barra (dois
+        <code class="i">AddRect</code>: trilho e polegar) quando <code class="i">m_ShowScrollbar</code>
+        e há overflow no eixo. A barra é sobreposta à borda do <code class="i">ScrollBox</code>
+        (não reserva espaço do viewport) — simplificação deliberada para não introduzir um
+        problema de tamanho circular (mostrar a barra dependeria de haver overflow, que dependeria
+        do tamanho do viewport, que dependeria de haver barra).
+      </li>
+      <li>
+        <strong>Input.</strong> Como 2.3 estabeleceu, <code class="i">MouseScrolledEvent</code> já
+        existe, e o Ponto 1 já migrou toda a família de handlers de <code class="i">Widget</code>
+        para devolver <code class="i">SInputReply</code>. <code class="i">Widget</code> ganha
+        <code class="i">virtual SInputReply HandleMouseScrolled(const MouseScrolledEvent&amp;) { return SInputReply::Unhandled(); }</code>
+        nessa mesma convenção desde já — não há mais um ajuste de tipo de retorno para adiar (a
+        versão anterior deste documento previa isso como risco R8; deixou de existir).
+        <code class="i">ScrollBox</code> sobrescreve, aplica o delta ao offset e devolve
+        <code class="i">SInputReply::Handled()</code> só se realmente consumiu (ou seja, se o
+        clamp mudou o offset) — devolver <code class="i">Unhandled()</code> quando já está no
+        limite é o que permite um <code class="i">ScrollBox</code> aninhado dentro de outro
+        "desistir" e deixar o de fora tentar. O roteamento no <code class="i">Manager</code>
+        recebe o selo <span class="badge badge-p1">integra com o Ponto 1</span>: como o Ponto 1
+        já mantém <code class="i">m_HoverPath</code> — o caminho raiz→folha sob o cursor, recém
+        hit-testado a cada frame em <code class="i">ProcessInput</code>
+        (<span class="file-ref">Manager.cpp:125-171</span>) — <code class="i">Manager::HandleMouseScrolled</code>
+        não precisa de nenhuma travessia própria: faz <code class="i">bubbling</code> folha→raiz
+        sobre <code class="i">m_HoverPath</code>, exatamente a mesma convenção que
+        <code class="i">ProcessMousePress</code>/<code class="i">ProcessMouseRelease</code>/<code class="i">ProcessMouseMove</code>
+        já usam (<span class="file-ref">Manager.cpp:174-235</span>), parando no primeiro widget
+        que devolver <code class="i">EventHandled</code>. Isso é estritamente mais simples do que
+        a versão anterior deste documento propunha (um <code class="i">DispatchMouseScrolledRecursive</code>
+        bespoke, testando <code class="i">GetGeometry().Contains(mousePos)</code> em profundidade)
+        — o mecanismo bespoke deixou de ser necessário porque o Ponto 1 já resolveu o problema
+        geral que ele existia para contornar.
+      </li>
+      <li>
+        <strong>Arrastar o polegar da barra fica fora deste diff</strong> — não mais por faltar
+        captura de mouse (<code class="i">SInputReply::CaptureMouse</code> +
+        <code class="i">Manager::m_MouseCapture</code> já existem de verdade,
+        <span class="file-ref">Widget.h:22, Manager.h:89</span>), mas como corte de escopo
+        deliberado: implementar o arrasto do polegar (converter posição do mouse em offset de
+        scroll, capturar o mouse no <code class="i">HandleMouseDown</code> do polegar) é trabalho
+        de UI adicional que não bloqueia nada do resto deste ponto. A barra desenhada aqui é, por
+        enquanto, só indicador visual.
+      </li>
+    </ul>
+
+    <h3>3.4 Camadas no Manager</h3>
+    <p>
+      <code class="i">Manager</code> passa a guardar <code class="i">std::vector&lt;SLayer&gt; m_Layers</code>,
+      onde o índice 0 é sempre a raiz da UI (preenchida por <code class="i">SetRoot</code>, que
+      mantém a assinatura atual recebendo <code class="i">Ref&lt;Panel&gt;</code>) e qualquer
+      índice acima é um popup:
+    </p>
+    <pre class="code"><code>struct SLayer
+{
+    Ref&lt;Widget&gt; Root;
+    SRect Anchor;
+    bool bDismissOnClickOutside = true;
+};</code></pre>
+    <p>
+      <strong>AssembleFrame percorre as camadas em ordem, com o mesmo <code class="i">zCursor</code>
+      continuando entre elas</strong> — nenhuma camada reseta o cursor, cada uma simplesmente
+      começa de onde a anterior parou. Isso reaproveita, sem gambiarra, o mecanismo de bandas de z
+      que <code class="i">CollectDrawCommands</code> já implementa para irmãos dentro de uma árvore
+      (2.2): como cada camada é, para esse propósito, só mais um "irmão" na sequência, e irmãos já
+      nunca se sobrepõem em z, uma camada popup — vindo depois no vetor — automaticamente herda z
+      mais alto que tudo que a camada 0 usou. Nenhum offset mágico, nenhuma banda reservada por
+      adivinhação.
+    </p>
+    <p>
+      <strong>Posicionamento de popup</strong> (<code class="i">ComputePopupRect</code>): abre por
+      padrão colado à borda esquerda do <code class="i">Anchor</code>, logo abaixo dele. Se não
+      couber embaixo (a borda inferior do popup ultrapassaria a tela), inverte para cima do
+      <code class="i">Anchor</code>. Por fim, independente do resultado do flip, a posição é
+      sempre grampeada (<code class="i">glm::clamp</code>) para caber inteiramente na tela — cobre
+      o caso em que nem embaixo nem em cima cabe.
+    </p>
+    <p>
+      <strong>Hit-test por camada</strong> (<span class="badge badge-p1">integra com o Ponto 1</span>):
+      <code class="i">GetTopmostHitLayer(point)</code> varre de cima para baixo (última camada
+      primeiro) e usa a primeira cuja <strong>geometria da raiz da camada</strong> contém o ponto
+      — a camada 0 sempre serve de fallback, porque sua geometria cobre a tela inteira. Só a
+      camada escolhida é hit-testada e recebe hover/press/click/move naquele frame: em vez de uma
+      travessia bespoke, <code class="i">ProcessInput</code> chama
+      <code class="i">activeRoot-&gt;HitTest(m_MousePos, hitPath)</code> — o mesmo
+      <code class="i">Widget::HitTest</code> que o Ponto 1 já usa para a raiz única hoje — e então
+      segue o fluxo de sempre (<code class="i">UpdateHoverPath</code>/<code class="i">ProcessMousePress</code>/<code class="i">ProcessMouseRelease</code>/<code class="i">ProcessMouseMove</code>
+      já existentes). Isso significa que a precisão do hit-test <strong>dentro</strong> da camada
+      ativa é exatamente a mesma que a raiz única já tinha — a única peça nova é decidir qual
+      <code class="i">Ref&lt;Widget&gt;</code> hit-testar a cada frame; não há mais a limitação
+      "arbitra só por camada, não por widget" que a versão anterior deste documento descrevia,
+      porque hoje há um <code class="i">HitTest</code> de verdade para reaproveitar. Um clique fora
+      de um popup com <code class="i">bDismissOnClickOutside</code> fecha esse popup
+      <strong>antes</strong> de qualquer roteamento naquele frame — inclusive em cascata, fechando
+      vários popups aninhados de uma vez se o clique caiu fora de todos eles.
+    </p>
+    <p>
+      <strong>NeedsRebuild/MarkRebuilt</strong> hoje comparam <code class="i">m_LastRenderedRoot</code>
+      (um <code class="i">WeakRef&lt;Panel&gt;</code>) contra <code class="i">m_RootWidget</code>
+      (<span class="file-ref">Manager.cpp:83-93</span>). Sem <code class="i">m_RootWidget</code>,
+      isso não tem mais para onde apontar — e mais importante, mesmo que apontasse,
+      <strong>abrir um popup não necessariamente muda nada que o WeakRef da raiz enxergue</strong>.
+      Pior: abrir um popup também não necessariamente bate na
+      <code class="i">Widget::CurrentDirtyEpoch()</code> — um widget recém-construído começa com
+      <code class="i">m_LayoutDirty = true</code> por inicialização direta do membro
+      (<span class="file-ref">Widget.h:376</span>), não por ter chamado
+      <code class="i">MarkLayoutDirty()</code>, então nenhum <code class="i">++s_DirtyEpoch</code>
+      acontece só de construir a subárvore de um popup novo. Com a checagem antiga, empurrar um
+      popup para a pilha poderia simplesmente não disparar rebuild nenhum, e o popup nunca
+      apareceria na tela. A correção é um contador de versão dedicado,
+      <code class="i">m_LayerStackVersion</code>, incrementado em
+      <code class="i">SetRoot</code>/<code class="i">PushPopup</code>/<code class="i">PopPopup</code>/<code class="i">ClearPopups</code>
+      e comparado contra <code class="i">m_LastRenderedLayerVersion</code> — versionar a pilha,
+      não só contar camadas, porque só contar não pegaria o caso de trocar um popup por outro sem
+      mudar a contagem.
+    </p>
+
+    <h3>3.5 Recapitulando as integrações</h3>
+    <p>
+      Diferente da versão anterior deste documento — escrita quando os Pontos 1 e 3 ainda não
+      existiam e por isso precisava marcar trechos como "bloqueados até lá" — hoje todo o design
+      abaixo já roda contra APIs reais. Os selos que sobram marcam <em>onde</em> este ponto se
+      apoia em cada um, não mais uma pendência:
+    </p>
+    <div class="table-scroll">
+    <table class="spec">
+      <tr><th>Trecho</th><th>Selo</th><th>O que integra</th></tr>
+      <tr><td>Clip stack inteiro (4.1)</td><td>—</td><td>Autocontido; não toca hit-test, measure, render passes nem slots — os quatro pontos já aplicados não o afetam além de exigir realinhar assinaturas de linha (ver seção 2).</td></tr>
+      <tr><td><code class="i">ScrollBox</code> em si — layout, clamp, desenho da barra (4.2)</td><td>—</td><td>Funciona assim que 4.1 estiver aplicado; usa o passe de measure do Ponto 2 (<code class="i">Widget::Measure</code>) como qualquer outro container.</td></tr>
+      <tr><td>Roteamento de <code class="i">MouseScrolledEvent</code> no Manager (4.2)</td><td><span class="badge badge-p1">Ponto 1</span></td><td>Bubbling sobre <code class="i">Manager::m_HoverPath</code>, a mesma estrutura que <code class="i">ProcessMousePress</code>/<code class="i">Release</code>/<code class="i">Move</code> já usam — nenhuma travessia nova.</td></tr>
+      <tr><td>Arrastar o polegar da barra</td><td>—</td><td>Corte de escopo deliberado, não bloqueio técnico: <code class="i">SInputReply::CaptureMouse</code> + <code class="i">Manager::m_MouseCapture</code> já existem e dariam suporte a isso se implementado depois.</td></tr>
+      <tr><td>Estrutura de camadas, PushPopup/PopPopup, posicionamento (4.3)</td><td>—</td><td>Funciona sozinha; z entre camadas reaproveita o mecanismo de bandas já existente em <code class="i">CollectDrawCommands</code>.</td></tr>
+      <tr><td>Hit-test por camada, dismiss-on-click-outside (4.3)</td><td><span class="badge badge-p1">Ponto 1</span></td><td>A camada ativa é hit-testada com o <code class="i">Widget::HitTest</code> real, com a mesma precisão raiz→folha que a árvore única já tinha; só a escolha de qual raiz hit-testar é nova.</td></tr>
+      <tr><td>Garantia visual "popup sempre por cima de texto" (4.3)</td><td><span class="badge badge-p3">Ponto 3</span></td><td><code class="i">RenderBatch::GetRuns()</code> + <code class="i">Renderer::Rebuild/Draw</code> já intercalam Quad e Text por <code class="i">ZOrder</code> (2.4) — a ressalva da versão anterior deste documento já não se aplica.</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section id="sec-mudancas">
+    <h2>4. Mudanças por arquivo</h2>
+    <p>
+      Diffs no formato unificado. Cada subseção é aplicável de forma independente, nesta ordem:
+      <strong>4.1 → 4.2 → 4.3</strong>. Os diffs de uma subseção posterior assumem que os diffs
+      das subseções anteriores <em>deste documento</em> já foram aplicados — quando um arquivo é
+      tocado mais de uma vez (<code class="i">Widget.h</code> em 4.1/4.2; <code class="i">Manager.h</code>
+      e <code class="i">Manager.cpp</code> em 4.2/4.3), o diff da subseção posterior mostra o
+      arquivo já com as mudanças da subseção anterior no lado <code class="i">-</code>. Todos os
+      13 diffs abaixo foram gerados de novo para esta reescrita, comparando cópias de trabalho
+      reais do código do repositório no commit <code class="i">5fc2802</code> (não escritos à
+      mão, e não reaproveitados da versão anterior deste documento) e verificados com
+      <code class="i">git apply --check</code> — inclusive <strong>cumulativamente</strong>, os 13
+      em sequência contra uma árvore de trabalho descartável, confirmando que o encadeamento
+      4.1 → 4.2 → 4.3 produz exatamente o estado final pretendido em cada arquivo. Aplicar com
+      <code class="i">git apply</code> ou <code class="i">patch -p1</code> a partir da raiz do
+      repositório, um bloco de cada vez.
+    </p>
+    <div class="legend">
+      <span><i class="li-add"></i>adição</span>
+      <span><i class="li-del"></i>remoção</span>
+      <span><i class="li-hunk"></i>cabeçalho de hunk</span>
+      <span><i class="li-ctx"></i>contexto (sem mudança)</span>
+    </div>
+
+    <h3>4.1 Clip stack</h3>
+    <p>
+      Seis arquivos, nenhum novo. Ordem sugerida de leitura: <code class="i">Definitions.h</code>
+      (o helper de interseção) → <code class="i">RenderBatch.h/.cpp</code> (onde o clip é de fato
+      aplicado) → <code class="i">Widget.h/.cpp</code> (a pilha em si) →
+      <code class="i">Manager.cpp</code> (o único call site externo).
+    </p>
+
+    <h3 class="file-heading" id="file-4-1-1"><span class="file-index">4.1.1</span> Definitions.h</h3>
+    <p>Acrescenta <code class="i">SRect::Intersect</code>, o helper de interseção que a pilha de clip inteira depende (3.2).</p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Definitions.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Definitions.h</span>
+<span class="d-hunk">@@ -19,6 +19,29 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">             return Position.x != -1 &amp;&amp; Position.y != -1 &amp;&amp; Size.x != -1 &amp;&amp; Size.y != -1;</span>
+<span class="d-ctx">         }</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Intersect two rects, returning the overlapping region. Both inputs are assumed to</span>
+<span class="d-add">+         * be real geometric rects, not the {-1,-1}/{-1,-1} "no clip" sentinel — callers check</span>
+<span class="d-add">+         * IsValid() first, same convention IsValid() itself already relies on.</span>
+<span class="d-add">+         *</span>
+<span class="d-add">+         * The result's Size is clamped to a minimum of (0, 0) when the rects do not overlap.</span>
+<span class="d-add">+         * This clamp is deliberate: without it, a disjoint intersection could legitimately</span>
+<span class="d-add">+         * produce Size == (-1, -1) by construction (e.g. b sitting exactly one unit past a's</span>
+<span class="d-add">+         * edge on both axes), which would collide with the IsValid() sentinel and be misread</span>
+<span class="d-add">+         * downstream as "no clip" instead of "clip everything out". Clamping to (0, 0) keeps</span>
+<span class="d-add">+         * every Intersect() result either a real, visible rect or an unambiguously empty</span>
+<span class="d-add">+         * (but still IsValid()-true) one.</span>
+<span class="d-add">+         * @param a first rect.</span>
+<span class="d-add">+         * @param b second rect.</span>
+<span class="d-add">+         * @return the overlapping rect; zero-sized (never negative) when a and b don't overlap.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        static SRect Intersect(const SRect&amp; a, const SRect&amp; b)</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            const glm::vec2 min = glm::max(a.Position, b.Position);</span>
+<span class="d-add">+            const glm::vec2 max = glm::min(a.Position + a.Size, b.Position + b.Size);</span>
+<span class="d-add">+            return { min, glm::max(max - min, glm::vec2(0.0f)) };</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         SRect operator*(const float scale) const</span>
+<span class="d-ctx">         {</span>
+<span class="d-ctx">             return SRect(Position * scale, Size * scale);</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-4-1-2"><span class="file-index">4.1.2</span> Renderer/RenderBatch.h</h3>
+    <p><code class="i">Append</code> ganha o parâmetro <code class="i">clipRect</code>, sem default — para forçar toda call site a decidir explicitamente (hoje só existe uma, ver 4.1.6). O Ponto 3 já inseriu <code class="i">SBatchRun</code>/<code class="i">GetRuns()</code> antes deste método, então o hunk agora ancora em <code class="i">@@ -71,12 +71,18 @@</code>, não mais <code class="i">-58</code> — puro deslocamento de linha, o texto do comentário é idêntico ao proposto originalmente.</p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Renderer/RenderBatch.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Renderer/RenderBatch.h</span>
+<span class="d-hunk">@@ -71,12 +71,18 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">       public:</span>
+<span class="d-ctx">         /**</span>
+<span class="d-del">-         * Append another batch's commands to this one, offsetting each command's z-order.</span>
+<span class="d-add">+         * Append another batch's commands to this one, offsetting each command's z-order and</span>
+<span class="d-add">+         * applying the ancestor clip rect inherited from the caller's position in the widget</span>
+<span class="d-add">+         * tree. A command that already carries its own valid ScissorRect (Button/TextField's</span>
+<span class="d-add">+         * ad-hoc self-clip) gets that rect intersected with clipRect; a command with no</span>
+<span class="d-add">+         * ScissorRect of its own adopts clipRect verbatim, when clipRect itself is valid.</span>
+<span class="d-ctx">          * Used to assemble the per-widget command caches into the frame batch.</span>
+<span class="d-ctx">          * @param other batch whose commands are copied in.</span>
+<span class="d-ctx">          * @param zOffset value added to each appended command's ZOrder.</span>
+<span class="d-add">+         * @param clipRect ancestor clip inherited from the caller; pass the invalid {-1,-1}/</span>
+<span class="d-add">+         *        {-1,-1} sentinel when there is no active clip (see SRect::IsValid).</span>
+<span class="d-ctx">          */</span>
+<span class="d-del">-        void Append(const RenderBatch&amp; other, int zOffset);</span>
+<span class="d-add">+        void Append(const RenderBatch&amp; other, int zOffset, const SRect&amp; clipRect);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         void Sort();</span>
+<span class="d-ctx">         void Clear();</span>
+</code></pre></div>
+
+    <h3 class="file-heading" id="file-4-1-3"><span class="file-index">4.1.3</span> Renderer/RenderBatch.cpp</h3>
+    <p><code class="i">Append</code> passa a intersectar (ou adotar) o <code class="i">clipRect</code> herdado em cada comando copiado, exatamente como especificado em 3.1. O Ponto 3 já introduziu o namespace anônimo com <code class="i">DEBUG_Z_ORDER</code> no topo do arquivo, então o corpo de <code class="i">Append</code> agora começa na linha 13, não na 6 — a mudança em si é idêntica.</p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Renderer/RenderBatch.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Renderer/RenderBatch.cpp</span>
+<span class="d-hunk">@@ -10,7 +10,7 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">         constexpr int DEBUG_Z_ORDER = std::numeric_limits&lt;int&gt;::max();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    void RenderBatch::Append(const RenderBatch&amp; other, const int zOffset)</span>
+<span class="d-add">+    void RenderBatch::Append(const RenderBatch&amp; other, const int zOffset, const SRect&amp; clipRect)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         m_Commands.reserve(m_Commands.size() + other.m_Commands.size());</span>
+<span class="d-ctx">         for (const auto&amp; command : other.m_Commands)</span>
+<span class="d-hunk">@@ -18,6 +18,18 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">             m_Commands.push_back(command);</span>
+<span class="d-ctx">             auto&amp; cmd = m_Commands.back();</span>
+<span class="d-ctx">             cmd.ZOrder += zOffset;</span>
+<span class="d-add">+</span>
+<span class="d-add">+            if (cmd.ScissorRect.IsValid())</span>
+<span class="d-add">+            {</span>
+<span class="d-add">+                // Own ad-hoc scissor (Button/TextField clipping their own label to their own</span>
+<span class="d-add">+                // bounds) narrowed further by whatever the caller inherited from its ancestors.</span>
+<span class="d-add">+                if (clipRect.IsValid())</span>
+<span class="d-add">+                    cmd.ScissorRect = SRect::Intersect(cmd.ScissorRect, clipRect);</span>
+<span class="d-add">+            }</span>
+<span class="d-add">+            else if (clipRect.IsValid())</span>
+<span class="d-add">+            {</span>
+<span class="d-add">+                cmd.ScissorRect = clipRect;</span>
+<span class="d-add">+            }</span>
+<span class="d-ctx">         }</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+</code></pre></div>
+
+    <h3 class="file-heading" id="file-4-1-4"><span class="file-index">4.1.4</span> Widget.h</h3>
+    <p><code class="i">CollectDrawCommands</code> ganha o parâmetro <code class="i">clipRect</code>; novo virtual <code class="i">ClipsChildren()</code>, default <code class="i">false</code>. O comentário-doc de <code class="i">CollectDrawCommands</code> hoje no repositório já é mais longo do que quando este documento foi escrito pela primeira vez (o Ponto 3 acrescentou o parágrafo sobre bandas de z pré-ordem), então o texto de contexto do hunk mudou junto — a essência do diff (parâmetro novo + virtual novo) não.</p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Widget.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Widget.h</span>
+<span class="d-hunk">@@ -254,11 +254,18 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">          * starts above this widget's whole subtree — so sibling subtrees never overlap</span>
+<span class="d-ctx">          * in z.</span>
+<span class="d-ctx">          *</span>
+<span class="d-add">+         * Also threads the ancestor clip rect: applied at Append time (not baked into</span>
+<span class="d-add">+         * m_CachedCommands by BuildDrawCommands), so changing a ScrollBox's scroll offset —</span>
+<span class="d-add">+         * or anything else that only moves an ancestor's clip — never has to invalidate a</span>
+<span class="d-add">+         * descendant's command cache. See ClipsChildren.</span>
+<span class="d-add">+         *</span>
+<span class="d-ctx">          * @param batch destination batch.</span>
+<span class="d-ctx">          * @param zCursor running layer index; advanced past everything this subtree.</span>
+<span class="d-ctx">          * @param rebuilt set to true if any widget's command cache was regenerated.</span>
+<span class="d-add">+         * @param clipRect clip rect inherited from ancestors; the invalid {-1,-1}/{-1,-1}</span>
+<span class="d-add">+         *        sentinel (see SRect::IsValid) means "no clip yet".</span>
+<span class="d-ctx">          */</span>
+<span class="d-del">-        void CollectDrawCommands(RenderBatch&amp; batch, int&amp; zCursor, bool&amp; rebuilt);</span>
+<span class="d-add">+        void CollectDrawCommands(RenderBatch&amp; batch, int&amp; zCursor, bool&amp; rebuilt, const SRect&amp; clipRect);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-ctx">          * Build the draw commands for THIS widget only (no children). Containers emit their</span>
+<span class="d-hunk">@@ -269,6 +276,15 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">          */</span>
+<span class="d-ctx">         virtual void BuildDrawCommands(RenderBatch&amp; batch, int zOrder) {}</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Whether this widget clips its children to its own geometry. A container that</span>
+<span class="d-add">+         * returns true (e.g. ScrollBox) intersects m_Geometry with whatever clip it inherited</span>
+<span class="d-add">+         * and hands the result down to CollectDrawCommands for each child; everyone else</span>
+<span class="d-add">+         * (default) just forwards the inherited clip unchanged.</span>
+<span class="d-add">+         * @return true if this widget's own bounds should clip its children.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        virtual bool ClipsChildren() const { return false; }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         /**</span>
+<span class="d-ctx">          * Mark this widget's layout as dirty and propagate the mark to ancestors.</span>
+<span class="d-ctx">          * A dirty widget (and any ancestor whose layout depends on it) is re-arranged</span>
+</code></pre></div>
+
+    <h3 class="file-heading" id="file-4-1-5"><span class="file-index">4.1.5</span> Widget.cpp</h3>
+    <p>O corpo de <code class="i">CollectDrawCommands</code> aplica o clip no <code class="i">Append</code> e decide o clip a herdar pelos filhos (raciocínio completo em 3.1). Note o gate real: <code class="i">if (!IsRenderVisible()) return;</code> — já é <code class="i">IsRenderVisible()</code>, introduzido pelo Ponto 1, não <code class="i">IsVisible()</code> como a versão anterior deste documento assumia (naquele código, <code class="i">EVisibility</code> só tinha <code class="i">Visible</code>/<code class="i">Hidden</code>). Este diff não precisa tocar esse gate — só confirma que o contexto ao redor já reflete a API real.</p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Widget.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Widget.cpp</span>
+<span class="d-hunk">@@ -207,7 +207,7 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">         }</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    void Widget::CollectDrawCommands(RenderBatch&amp; batch, int&amp; zCursor, bool&amp; rebuilt)</span>
+<span class="d-add">+    void Widget::CollectDrawCommands(RenderBatch&amp; batch, int&amp; zCursor, bool&amp; rebuilt, const SRect&amp; clipRect)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         if (!IsRenderVisible()) return;</span>
+<span class="d-ctx"> </span>
+<span class="d-hunk">@@ -221,13 +221,29 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">         }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         // Own commands occupy [zCursor, zCursor + span); advance so children stack above,</span>
+<span class="d-del">-        // and the next sibling starts above this whole subtree.</span>
+<span class="d-del">-        batch.Append(m_CachedCommands, zCursor);</span>
+<span class="d-add">+        // and the next sibling starts above this whole subtree. The ancestor clip is applied</span>
+<span class="d-add">+        // here, at Append time, rather than baked into m_CachedCommands: this widget's own</span>
+<span class="d-add">+        // visual content and the clip it happens to sit under are independent, and</span>
+<span class="d-add">+        // MarkRenderDirty never propagates to descendants (only MarkLayoutDirty does, and</span>
+<span class="d-add">+        // only upward) — so nothing would tell an otherwise-unchanged widget "an ancestor's</span>
+<span class="d-add">+        // clip moved, rebuild yourself". CollectDrawCommands already walks every visible</span>
+<span class="d-add">+        // widget on every rebuild regardless, so intersecting the clip here costs nothing</span>
+<span class="d-add">+        // extra; baking it into BuildDrawCommands would require a new downward invalidation</span>
+<span class="d-add">+        // pass to avoid going stale.</span>
+<span class="d-add">+        batch.Append(m_CachedCommands, zCursor, clipRect);</span>
+<span class="d-ctx">         zCursor += m_CachedCommands.LayerSpan();</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+        // A clipping container (e.g. ScrollBox) intersects its own bounds with whatever clip</span>
+<span class="d-add">+        // it inherited and hands that down; everyone else just forwards the inherited clip</span>
+<span class="d-add">+        // unchanged. With no inherited clip yet (root, or the first clipping ancestor in the</span>
+<span class="d-add">+        // chain), the container's own geometry becomes the clip outright.</span>
+<span class="d-add">+        const SRect childClipRect = ClipsChildren()</span>
+<span class="d-add">+            ? (clipRect.IsValid() ? SRect::Intersect(m_Geometry, clipRect) : m_Geometry)</span>
+<span class="d-add">+            : clipRect;</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         ForEachChild([&amp;](const Ref&lt;Widget&gt;&amp; child)</span>
+<span class="d-ctx">         {</span>
+<span class="d-del">-            child-&gt;CollectDrawCommands(batch, zCursor, rebuilt);</span>
+<span class="d-add">+            child-&gt;CollectDrawCommands(batch, zCursor, rebuilt, childClipRect);</span>
+<span class="d-ctx">         });</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+</code></pre></div>
+
+    <h3 class="file-heading" id="file-4-1-6"><span class="file-index">4.1.6</span> Manager.cpp</h3>
+    <p>Único call site de <code class="i">CollectDrawCommands</code> fora de <code class="i">Widget.cpp</code>. A raiz começa sem clip algum, exatamente como hoje.</p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Manager.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Manager.cpp</span>
+<span class="d-hunk">@@ -74,7 +74,7 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">         {</span>
+<span class="d-ctx">             int zCursor = 0;</span>
+<span class="d-ctx">             bool rebuilt = false;</span>
+<span class="d-del">-            m_RootWidget-&gt;CollectDrawCommands(m_RenderBatch, zCursor, rebuilt);</span>
+<span class="d-add">+            m_RootWidget-&gt;CollectDrawCommands(m_RenderBatch, zCursor, rebuilt, { { -1, -1 }, { -1, -1 } });</span>
+<span class="d-ctx">         }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         m_RenderBatch.Sort();</span>
+</code></pre></div>
+
+    <h3>4.2 ScrollBox</h3>
+    <p>
+      Dois arquivos novos e três diffs em arquivos existentes. <code class="i">Manager.h</code>/<code class="i">Manager.cpp</code>
+      aqui só adicionam o roteamento de scroll — a reestruturação em camadas é toda da seção 4.3.
+    </p>
+
+    <h3 class="file-heading" id="file-4-2-1"><span class="file-index">4.2.1</span> Widget.h</h3>
+    <p>Novo virtual <code class="i">HandleMouseScrolled</code>, mesma família de <code class="i">HandleMouseMove</code>/<code class="i">HandleKeyPressed</code> — já devolvendo <code class="i">SInputReply</code> desde o início, não mais <code class="i">bool</code>, porque o Ponto 1 já migrou toda essa família. Diff sobre o estado deixado por 4.1.4 (por isso o hunk ancora em <code class="i">HandleMouseMove</code>, que já aparece com a assinatura <code class="i">SInputReply</code> real).</p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Widget.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Widget.h</span>
+<span class="d-hunk">@@ -315,6 +315,19 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">         virtual SInputReply HandleMouseDown(const MouseButtonPressedEvent&amp; event);</span>
+<span class="d-ctx">         virtual SInputReply HandleMouseUp(const MouseButtonReleasedEvent&amp; event);</span>
+<span class="d-ctx">         virtual SInputReply HandleMouseMove(const MouseMovedEvent&amp;  event) { return SInputReply::Unhandled(); }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Handle a mouse wheel tick. An unconsumed scroll (SInputReply::Unhandled()) lets an</span>
+<span class="d-add">+         * ancestor try next — a ScrollBox already at its scroll limit "gives up" its wheel</span>
+<span class="d-add">+         * input to whatever ScrollBox contains it, same bubbling convention as</span>
+<span class="d-add">+         * HandleMouseDown/Up/Move over Manager::m_HoverPath. Default no-op: most widgets</span>
+<span class="d-add">+         * don't scroll. Does not model CaptureMouse: a scroll tick is stateless, unlike a</span>
+<span class="d-add">+         * press/drag sequence.</span>
+<span class="d-add">+         * @param event the wheel event.</span>
+<span class="d-add">+         * @return whether this widget consumed the scroll.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        virtual SInputReply HandleMouseScrolled(const MouseScrolledEvent&amp; event) { return SInputReply::Unhandled(); }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         virtual SInputReply HandleKeyPressed(const KeyPressedEvent&amp; event) { return SInputReply::Unhandled(); }</span>
+<span class="d-ctx">         virtual SInputReply HandleKeyTyped(const KeyTypedEvent&amp; event) { return SInputReply::Unhandled(); }</span>
+<span class="d-ctx">         virtual void HandleFocus();</span>
+</code></pre></div>
+
+    <h3 class="file-heading" id="file-4-2-2"><span class="file-index">4.2.2</span> ScrollBox.h <span class="badge badge-new">arquivo novo</span></h3>
+    <p>
+      <code class="i">ComputeDesiredSize</code> aqui é <code class="i">protected</code> e recebe
+      <code class="i">const glm::vec2&amp; availableSize</code>, a assinatura real que o Ponto 2
+      introduziu (<span class="file-ref">Widget.h:237</span>) — não o
+      <code class="i">glm::vec2 ComputeDesiredSize() override;</code> público sem parâmetro que a
+      versão anterior deste documento propunha. O tamanho de viewport configurado vira
+      <code class="i">m_ViewportSize</code>, não <code class="i">m_DesiredSize</code>: esse último
+      já é, desde o Ponto 2, o membro protegido de <code class="i">Widget</code> que
+      <code class="i">Measure()</code> usa como cache de saída (<span class="file-ref">Widget.h:387</span>)
+      — reaproveitá-lo como entrada configurável colidiria com esse cache a cada chamada. Ver 3.3.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- /dev/null</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/ScrollBox.h</span>
+<span class="d-hunk">@@ -0,0 +1,83 @@</span>
+<span class="d-add">+#pragma once</span>
+<span class="d-add">+</span>
+<span class="d-add">+#include &lt;Engine/GUI/Widget.h&gt;</span>
+<span class="d-add">+</span>
+<span class="d-add">+namespace Elixir::GUI</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    enum class EScrollAxis : uint8_t</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        Vertical, Horizontal, Both</span>
+<span class="d-add">+    };</span>
+<span class="d-add">+</span>
+<span class="d-add">+    class ELIXIR_API ScrollBox : public ContentWidget</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+      public:</span>
+<span class="d-add">+        ScrollBox();</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Set the viewport size this ScrollBox asks for. Unlike most containers, a ScrollBox</span>
+<span class="d-add">+         * never grows past this to fit its content — that would defeat the point of</span>
+<span class="d-add">+         * scrolling. Content smaller than this still shrinks the reported desired size, same</span>
+<span class="d-add">+         * as any other widget (see ComputeDesiredSize). Distinct from the base Widget's</span>
+<span class="d-add">+         * m_DesiredSize, which the Measure() cache owns and overwrites every call — this is</span>
+<span class="d-add">+         * the configured input to that computation, not its cached output.</span>
+<span class="d-add">+         * @param size the viewport size.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        void SetDesiredSize(const glm::vec2&amp; size);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        EScrollAxis GetScrollAxis() const { return m_ScrollAxis; }</span>
+<span class="d-add">+        void SetScrollAxis(EScrollAxis axis);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        glm::vec2 GetScrollOffset() const { return m_ScrollOffset; }</span>
+<span class="d-add">+        void SetScrollOffset(const glm::vec2&amp; offset);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        bool IsShowingScrollbar() const { return m_ShowScrollbar; }</span>
+<span class="d-add">+        void SetShowScrollbar(bool show);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        float GetScrollbarThickness() const { return m_ScrollbarThickness; }</span>
+<span class="d-add">+        void SetScrollbarThickness(float thickness);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        SColor GetScrollbarColor() const { return m_ScrollbarColor; }</span>
+<span class="d-add">+        void SetScrollbarColor(const SColor&amp; color);</span>
+<span class="d-add">+</span>
+<span class="d-add">+      protected:</span>
+<span class="d-add">+        glm::vec2 ComputeDesiredSize(const glm::vec2&amp; availableSize) override;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        bool ClipsChildren() const override { return true; }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        void LayoutChildren(const SRect&amp; allocatedSpace) override;</span>
+<span class="d-add">+        void BuildDrawCommands(RenderBatch&amp; batch, int zOrder) override;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        SInputReply HandleMouseScrolled(const MouseScrolledEvent&amp; event) override;</span>
+<span class="d-add">+</span>
+<span class="d-add">+      private:</span>
+<span class="d-add">+        // Constraint handed to the content's Measure() call: UnconstrainedSize on every axis</span>
+<span class="d-add">+        // this ScrollBox scrolls (so content reports its full natural size to scroll</span>
+<span class="d-add">+        // through), viewportSize verbatim on the axis it doesn't (content is capped to the</span>
+<span class="d-add">+        // viewport there, same as a non-scrolling child would be).</span>
+<span class="d-add">+        glm::vec2 ContentMeasureConstraint(const glm::vec2&amp; viewportSize) const;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        glm::vec2 ClampScrollOffset(const glm::vec2&amp; offset, const glm::vec2&amp; viewportSize) const;</span>
+<span class="d-add">+        void AddScrollbar(RenderBatch&amp; batch, int zOrder, bool vertical) const;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        static constexpr float SCROLL_SPEED = 40.0f;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        EScrollAxis m_ScrollAxis = EScrollAxis::Vertical;</span>
+<span class="d-add">+        glm::vec2 m_ScrollOffset{};</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // Configured viewport size; ComputeDesiredSize never returns more than this on</span>
+<span class="d-add">+        // either axis. A reasonable non-zero default, same spirit as Button's/TextField's</span>
+<span class="d-add">+        // m_MinDesiredSize ({120, 40} / {120, 30}): something usable out of the box, cheap</span>
+<span class="d-add">+        // to override.</span>
+<span class="d-add">+        glm::vec2 m_ViewportSize{ 200.0f, 200.0f };</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // Content's arranged size (desired size along the scrolling axis/axes, capped to</span>
+<span class="d-add">+        // the viewport on the other axis). Recomputed by LayoutChildren; used to clamp</span>
+<span class="d-add">+        // m_ScrollOffset and to size/position the scrollbar thumb.</span>
+<span class="d-add">+        glm::vec2 m_ContentSize{};</span>
+<span class="d-add">+</span>
+<span class="d-add">+        bool m_ShowScrollbar = true;</span>
+<span class="d-add">+        float m_ScrollbarThickness = 8.0f;</span>
+<span class="d-add">+        SColor m_ScrollbarColor{1.0f, 1.0f, 1.0f, 0.35f};</span>
+<span class="d-add">+    };</span>
+<span class="d-add">+}</span>
+</code></pre></div>
+
+    <h3 class="file-heading" id="file-4-2-3"><span class="file-index">4.2.3</span> ScrollBox.cpp <span class="badge badge-new">arquivo novo</span></h3>
+    <p>
+      Toda medição de conteúdo passa por <code class="i">content-&gt;Measure(constraint)</code>,
+      nunca por <code class="i">ComputeDesiredSize</code> direto — esse último é
+      <code class="i">protected</code> em <code class="i">Widget</code>, então nenhum container
+      de fora da hierarquia de <code class="i">Widget</code> poderia chamá-lo mesmo se quisesse;
+      <code class="i">Measure</code> é o ponto de entrada público e cacheado que o Ponto 2 introduziu,
+      e é exatamente o padrão que <code class="i">HorizontalBox::ComputeDesiredSize</code> já usa
+      hoje para medir filhos. <code class="i">HandleMouseScrolled</code> devolve
+      <code class="i">SInputReply::Handled()</code>/<code class="i">Unhandled()</code>, não mais
+      <code class="i">true</code>/<code class="i">false</code>.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- /dev/null</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/ScrollBox.cpp</span>
+<span class="d-hunk">@@ -0,0 +1,184 @@</span>
+<span class="d-add">+#include "epch.h"</span>
+<span class="d-add">+#include "ScrollBox.h"</span>
+<span class="d-add">+</span>
+<span class="d-add">+#include &lt;Engine/GUI/Slot.h&gt;</span>
+<span class="d-add">+</span>
+<span class="d-add">+namespace Elixir::GUI</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    ScrollBox::ScrollBox() = default;</span>
+<span class="d-add">+</span>
+<span class="d-add">+    glm::vec2 ScrollBox::ComputeDesiredSize(const glm::vec2&amp; availableSize)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        glm::vec2 desired = glm::min(m_ViewportSize, availableSize);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // Content can only shrink the reported size toward itself, never grow it past the</span>
+<span class="d-add">+        // configured viewport size — a ScrollBox clips oversized content, it doesn't expand</span>
+<span class="d-add">+        // to swallow it. Measure (not ComputeDesiredSize) is the public, cached entry point</span>
+<span class="d-add">+        // every container is expected to call on a child.</span>
+<span class="d-add">+        if (HasContent())</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            const glm::vec2 contentConstraint = ContentMeasureConstraint(availableSize);</span>
+<span class="d-add">+            const glm::vec2 contentSize = m_ContentSlot-&gt;GetWidget()-&gt;Measure(contentConstraint);</span>
+<span class="d-add">+            desired = glm::min(desired, contentSize);</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        return desired;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void ScrollBox::SetDesiredSize(const glm::vec2&amp; size)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        if (m_ViewportSize == size) return;</span>
+<span class="d-add">+        m_ViewportSize = size;</span>
+<span class="d-add">+        MarkLayoutDirty();</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void ScrollBox::SetScrollAxis(const EScrollAxis axis)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        if (m_ScrollAxis == axis) return;</span>
+<span class="d-add">+        m_ScrollAxis = axis;</span>
+<span class="d-add">+        MarkLayoutDirty();</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void ScrollBox::SetScrollOffset(const glm::vec2&amp; offset)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        const glm::vec2 clamped = ClampScrollOffset(offset, m_Geometry.Size);</span>
+<span class="d-add">+        if (m_ScrollOffset == clamped) return;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        m_ScrollOffset = clamped;</span>
+<span class="d-add">+        MarkLayoutDirty(); // reposition content</span>
+<span class="d-add">+        MarkRenderDirty(); // thumb moved</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void ScrollBox::SetShowScrollbar(const bool show)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        if (m_ShowScrollbar == show) return;</span>
+<span class="d-add">+        m_ShowScrollbar = show;</span>
+<span class="d-add">+        MarkRenderDirty();</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void ScrollBox::SetScrollbarThickness(const float thickness)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        if (m_ScrollbarThickness == thickness) return;</span>
+<span class="d-add">+        m_ScrollbarThickness = thickness;</span>
+<span class="d-add">+        MarkRenderDirty();</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void ScrollBox::SetScrollbarColor(const SColor&amp; color)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        m_ScrollbarColor = color;</span>
+<span class="d-add">+        MarkRenderDirty();</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void ScrollBox::LayoutChildren(const SRect&amp; allocatedSpace)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        if (!HasContent())</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            m_ContentSize = {};</span>
+<span class="d-add">+            return;</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        const auto&amp; content = m_ContentSlot-&gt;GetWidget();</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // The content keeps its DESIRED size along the scrolling axis/axes — that's what</span>
+<span class="d-add">+        // there is to scroll through — but is capped to the viewport on the other axis,</span>
+<span class="d-add">+        // same as a non-scrolling child would be.</span>
+<span class="d-add">+        const glm::vec2 contentConstraint = ContentMeasureConstraint(allocatedSpace.Size);</span>
+<span class="d-add">+        const glm::vec2 desired = content-&gt;Measure(contentConstraint);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        glm::vec2 contentSize = allocatedSpace.Size;</span>
+<span class="d-add">+        if (m_ScrollAxis != EScrollAxis::Horizontal) contentSize.y = desired.y;</span>
+<span class="d-add">+        if (m_ScrollAxis != EScrollAxis::Vertical)   contentSize.x = desired.x;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        m_ContentSize = contentSize;</span>
+<span class="d-add">+        m_ScrollOffset = ClampScrollOffset(m_ScrollOffset, allocatedSpace.Size);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        const SRect contentRect = { allocatedSpace.Position - m_ScrollOffset, contentSize };</span>
+<span class="d-add">+        content-&gt;ArrangeChildren(contentRect);</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void ScrollBox::BuildDrawCommands(RenderBatch&amp; batch, const int zOrder)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        if (!m_ShowScrollbar) return;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        if (m_ScrollAxis != EScrollAxis::Horizontal &amp;&amp; m_ContentSize.y &gt; m_Geometry.Size.y)</span>
+<span class="d-add">+            AddScrollbar(batch, zOrder, true);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        if (m_ScrollAxis != EScrollAxis::Vertical &amp;&amp; m_ContentSize.x &gt; m_Geometry.Size.x)</span>
+<span class="d-add">+            AddScrollbar(batch, zOrder, false);</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SInputReply ScrollBox::HandleMouseScrolled(const MouseScrolledEvent&amp; event)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        glm::vec2 delta{};</span>
+<span class="d-add">+        if (m_ScrollAxis != EScrollAxis::Horizontal) delta.y = -event.GetOffsetY() * SCROLL_SPEED;</span>
+<span class="d-add">+        if (m_ScrollAxis != EScrollAxis::Vertical)   delta.x = -event.GetOffsetX() * SCROLL_SPEED;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        if (delta == glm::vec2(0.0f)) return SInputReply::Unhandled();</span>
+<span class="d-add">+</span>
+<span class="d-add">+        const glm::vec2 clamped = ClampScrollOffset(m_ScrollOffset + delta, m_Geometry.Size);</span>
+<span class="d-add">+        if (clamped == m_ScrollOffset) return SInputReply::Unhandled(); // at the edge; let an ancestor try</span>
+<span class="d-add">+</span>
+<span class="d-add">+        m_ScrollOffset = clamped;</span>
+<span class="d-add">+        MarkLayoutDirty(); // reposition content</span>
+<span class="d-add">+        MarkRenderDirty(); // thumb moved</span>
+<span class="d-add">+        return SInputReply::Handled();</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    glm::vec2 ScrollBox::ContentMeasureConstraint(const glm::vec2&amp; viewportSize) const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        glm::vec2 constraint = viewportSize;</span>
+<span class="d-add">+        if (m_ScrollAxis != EScrollAxis::Horizontal) constraint.y = UnconstrainedSize;</span>
+<span class="d-add">+        if (m_ScrollAxis != EScrollAxis::Vertical)   constraint.x = UnconstrainedSize;</span>
+<span class="d-add">+        return constraint;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    glm::vec2 ScrollBox::ClampScrollOffset(const glm::vec2&amp; offset, const glm::vec2&amp; viewportSize) const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        const glm::vec2 maxOffset = glm::max(m_ContentSize - viewportSize, glm::vec2(0.0f));</span>
+<span class="d-add">+        return glm::clamp(offset, glm::vec2(0.0f), maxOffset);</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void ScrollBox::AddScrollbar(RenderBatch&amp; batch, const int zOrder, const bool vertical) const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        const SColor trackColor = { 0.0f, 0.0f, 0.0f, 0.15f };</span>
+<span class="d-add">+</span>
+<span class="d-add">+        if (vertical)</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            const SRect track = {</span>
+<span class="d-add">+                { m_Geometry.Position.x + m_Geometry.Size.x - m_ScrollbarThickness, m_Geometry.Position.y },</span>
+<span class="d-add">+                { m_ScrollbarThickness, m_Geometry.Size.y }</span>
+<span class="d-add">+            };</span>
+<span class="d-add">+</span>
+<span class="d-add">+            const float maxScroll = m_ContentSize.y - m_Geometry.Size.y;</span>
+<span class="d-add">+            const float thumbHeight = std::max(track.Size.y * (m_Geometry.Size.y / m_ContentSize.y), m_ScrollbarThickness);</span>
+<span class="d-add">+            const float scrollRatio = maxScroll &gt; 0.0f ? m_ScrollOffset.y / maxScroll : 0.0f;</span>
+<span class="d-add">+</span>
+<span class="d-add">+            const SRect thumb = {</span>
+<span class="d-add">+                { track.Position.x, track.Position.y + scrollRatio * (track.Size.y - thumbHeight) },</span>
+<span class="d-add">+                { m_ScrollbarThickness, thumbHeight }</span>
+<span class="d-add">+            };</span>
+<span class="d-add">+</span>
+<span class="d-add">+            batch.AddRect(track, trackColor, {}, {}, {}, {}, zOrder);</span>
+<span class="d-add">+            batch.AddRect(thumb, m_ScrollbarColor, {}, {}, {}, {}, zOrder + 1);</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+        else</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            const SRect track = {</span>
+<span class="d-add">+                { m_Geometry.Position.x, m_Geometry.Position.y + m_Geometry.Size.y - m_ScrollbarThickness },</span>
+<span class="d-add">+                { m_Geometry.Size.x, m_ScrollbarThickness }</span>
+<span class="d-add">+            };</span>
+<span class="d-add">+</span>
+<span class="d-add">+            const float maxScroll = m_ContentSize.x - m_Geometry.Size.x;</span>
+<span class="d-add">+            const float thumbWidth = std::max(track.Size.x * (m_Geometry.Size.x / m_ContentSize.x), m_ScrollbarThickness);</span>
+<span class="d-add">+            const float scrollRatio = maxScroll &gt; 0.0f ? m_ScrollOffset.x / maxScroll : 0.0f;</span>
+<span class="d-add">+</span>
+<span class="d-add">+            const SRect thumb = {</span>
+<span class="d-add">+                { track.Position.x + scrollRatio * (track.Size.x - thumbWidth), track.Position.y },</span>
+<span class="d-add">+                { thumbWidth, m_ScrollbarThickness }</span>
+<span class="d-add">+            };</span>
+<span class="d-add">+</span>
+<span class="d-add">+            batch.AddRect(track, trackColor, {}, {}, {}, {}, zOrder);</span>
+<span class="d-add">+            batch.AddRect(thumb, m_ScrollbarColor, {}, {}, {}, {}, zOrder + 1);</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+}</span>
+</code></pre></div>
+
+    <h3 class="file-heading" id="file-4-2-4"><span class="file-index">4.2.4</span> Manager.h <span class="badge badge-p1">integra com o Ponto 1</span></h3>
+    <p>
+      Uma única declaração nova, privada: <code class="i">HandleMouseScrolled</code>. Não há mais
+      um <code class="i">DispatchMouseScrolledRecursive</code> bespoke para declarar — como 3.3
+      registrou, o Ponto 1 já deixou <code class="i">Manager::m_HoverPath</code> pronto para ser
+      reaproveitado, então o roteamento de scroll é só bubbling sobre um vetor que o
+      <code class="i">Manager</code> já mantém, sem nenhuma travessia nova.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Manager.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Manager.h</span>
+<span class="d-hunk">@@ -52,6 +52,11 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">         bool HandleKeyPressed(const KeyPressedEvent&amp; event) const;</span>
+<span class="d-ctx">         bool HandleKeyTyped(const KeyTypedEvent&amp; event) const;</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+        // Bubbles a wheel tick leaf -&gt; root over m_HoverPath (same convention as</span>
+<span class="d-add">+        // ProcessMousePress/Release/Move), stopping at the first widget whose</span>
+<span class="d-add">+        // HandleMouseScrolled reports EventHandled.</span>
+<span class="d-add">+        bool HandleMouseScrolled(const MouseScrolledEvent&amp; event) const;</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         void ProcessInput();</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         // Diffs the freshly hit-tested path against m_HoverPath, firing HandleMouseLeave</span>
+</code></pre></div>
+
+    <h3 class="file-heading" id="file-4-2-5"><span class="file-index">4.2.5</span> Manager.cpp <span class="badge badge-p1">integra com o Ponto 1</span></h3>
+    <p>
+      Todo este diff é o roteamento de scroll: um <code class="i">dispatcher.Dispatch&lt;MouseScrolledEvent&gt;</code>
+      a mais em <code class="i">ProcessEvent</code>, e o corpo de <code class="i">HandleMouseScrolled</code>
+      — um <code class="i">for</code> sobre <code class="i">m_HoverPath.rbegin()/rend()</code>,
+      exatamente a mesma forma que <code class="i">ProcessMousePress</code>/<code class="i">ProcessMouseRelease</code>/<code class="i">ProcessMouseMove</code>
+      já usam para fazer bubbling folha→raiz sobre o caminho hit-testado. Ver 3.3 para o
+      raciocínio de "<code class="i">Unhandled()</code> = deixa o ancestral tentar".
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Manager.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Manager.cpp</span>
+<span class="d-hunk">@@ -59,6 +59,7 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">         dispatcher.Dispatch&lt;FramebufferResizeEvent&gt;(EE_BIND_EVENT_FN(Manager::HandleFramebufferResize));</span>
+<span class="d-ctx">         dispatcher.Dispatch&lt;KeyPressedEvent&gt;(EE_BIND_EVENT_FN(Manager::HandleKeyPressed));</span>
+<span class="d-ctx">         dispatcher.Dispatch&lt;KeyTypedEvent&gt;(EE_BIND_EVENT_FN(Manager::HandleKeyTyped));</span>
+<span class="d-add">+        dispatcher.Dispatch&lt;MouseScrolledEvent&gt;(EE_BIND_EVENT_FN(Manager::HandleMouseScrolled));</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     bool Manager::WantsMouse() const</span>
+<span class="d-hunk">@@ -122,6 +123,23 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">         return false;</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+    bool Manager::HandleMouseScrolled(const MouseScrolledEvent&amp; event) const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        // m_HoverPath is already exactly the root -&gt; leaf path under the cursor (from the</span>
+<span class="d-add">+        // last ProcessInput's HitTest), so scrolling reuses it as-is instead of re-deriving</span>
+<span class="d-add">+        // a path of its own: bubble leaf -&gt; root, same convention as ProcessMousePress/</span>
+<span class="d-add">+        // Release/Move, and stop at the first widget that consumes it (e.g. a ScrollBox that</span>
+<span class="d-add">+        // actually moved; one already at its scroll limit reports Unhandled and lets an</span>
+<span class="d-add">+        // ancestor ScrollBox try).</span>
+<span class="d-add">+        for (auto it = m_HoverPath.rbegin(); it != m_HoverPath.rend(); ++it)</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            if ((*it)-&gt;HandleMouseScrolled(event).EventHandled)</span>
+<span class="d-add">+                return true;</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        return false;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     void Manager::ProcessInput()</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         const auto [x, y] = InputManager::GetMousePosition();</span>
+</code></pre></div>
+
+    <h3>4.3 Camada de popups</h3>
+    <p>Dois arquivos, ambos já tocados em 4.2 — os diffs abaixo partem do estado deixado por 4.2, não do código original do repositório.</p>
+
+    <h3 class="file-heading" id="file-4-3-1"><span class="file-index">4.3.1</span> Manager.h</h3>
+    <p>
+      <code class="i">SLayer</code>, <code class="i">m_Layers</code>,
+      <code class="i">PushPopup</code>/<code class="i">PopPopup</code>/<code class="i">ClearPopups</code>/<code class="i">GetPopupCount</code>,
+      <code class="i">ComputePopupRect</code> e o versionamento em
+      <code class="i">m_LayerStackVersion</code> não carregam selo — funcionam de forma
+      independente. <code class="i">GetTopmostHitLayer</code> e
+      <code class="i">DismissPopupsOutside</code> carregam
+      <span class="badge badge-p1">integra com o Ponto 1</span>: a camada escolhida é hit-testada
+      com o <code class="i">Widget::HitTest</code> real (3.4) — a granularidade de widget dentro da
+      camada já é a mesma que a árvore única sempre teve, só a escolha de qual raiz hit-testar é
+      nova.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Manager.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Manager.h</span>
+<span class="d-hunk">@@ -7,6 +7,19 @@</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx"> namespace Elixir::GUI</span>
+<span class="d-ctx"> {</span>
+<span class="d-add">+    /**</span>
+<span class="d-add">+     * One stacked layer of the UI. Index 0 in Manager::m_Layers is the always-present UI</span>
+<span class="d-add">+     * root (screen-sized, filled by SetRoot); anything above it is a popup (dropdown menu,</span>
+<span class="d-add">+     * tooltip, modal, ...) anchored to a rect from the layer below it and rendered,</span>
+<span class="d-add">+     * hit-tested and dismissed independently of it.</span>
+<span class="d-add">+     */</span>
+<span class="d-add">+    struct SLayer</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        Ref&lt;Widget&gt; Root;</span>
+<span class="d-add">+        SRect Anchor;</span>
+<span class="d-add">+        bool bDismissOnClickOutside = true;</span>
+<span class="d-add">+    };</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     class ELIXIR_API Manager</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">     public:</span>
+<span class="d-hunk">@@ -23,10 +36,32 @@ namespace Elixir::GUI</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         void ProcessEvent(Event&amp; event);</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        void SetRoot(const Ref&lt;Panel&gt;&amp; root)</span>
+<span class="d-del">-        {</span>
+<span class="d-del">-            m_RootWidget = root;</span>
+<span class="d-del">-        }</span>
+<span class="d-add">+        // Fills layer 0 (the always-present UI root) with root, preserving whatever popup</span>
+<span class="d-add">+        // layers are currently pushed above it.</span>
+<span class="d-add">+        void SetRoot(const Ref&lt;Panel&gt;&amp; root);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Push a new popup layer on top of the stack, anchored to a screen-space rect</span>
+<span class="d-add">+         * (typically the geometry of the widget that opened it, e.g. a menu bar button).</span>
+<span class="d-add">+         * Arranged immediately against the last extent ArrangeLayout ran with, so it has</span>
+<span class="d-add">+         * correct geometry even before the next ArrangeLayout call.</span>
+<span class="d-add">+         * @param widget root widget of the popup's own subtree.</span>
+<span class="d-add">+         * @param anchor screen-space rect the popup is positioned relative to.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        void PushPopup(const Ref&lt;Widget&gt;&amp; widget, const SRect&amp; anchor);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Pop the topmost popup layer. No-op when there are no popups — layer 0, the UI</span>
+<span class="d-add">+         * root, is never popped this way.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        void PopPopup();</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Pop every popup layer, leaving only the UI root.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        void ClearPopups();</span>
+<span class="d-add">+</span>
+<span class="d-add">+        size_t GetPopupCount() const { return m_Layers.empty() ? 0 : m_Layers.size() - 1; }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-ctx">          * @brief True if the GUI currently wants mouse input: the hover path is non-empty or</span>
+<span class="d-hunk">@@ -80,10 +115,25 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">         // focused widget actually changes; widget may be nullptr to clear focus.</span>
+<span class="d-ctx">         void SetFocusedWidget(const Ref&lt;Widget&gt;&amp; widget);</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+        // Topmost layer whose geometry contains point; falls back to layer 0 (the UI root</span>
+<span class="d-add">+        // always "hits" — its geometry covers the whole screen).</span>
+<span class="d-add">+        const SLayer&amp; GetTopmostHitLayer(const glm::vec2&amp; point) const;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // Pops layers from the top while bDismissOnClickOutside is set and the layer's</span>
+<span class="d-add">+        // geometry does not contain point. Stops at the first layer that either contains</span>
+<span class="d-add">+        // the point or opted out of dismiss-on-click-outside.</span>
+<span class="d-add">+        void DismissPopupsOutside(const glm::vec2&amp; point);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // anchor + a popup's own desired size -&gt; a rect that fits on screen: opens below</span>
+<span class="d-add">+        // the anchor by default, flips above when it wouldn't fit below, and is finally</span>
+<span class="d-add">+        // clamped fully inside screenRect as a last resort.</span>
+<span class="d-add">+        static SRect ComputePopupRect(const SRect&amp; anchor, const glm::vec2&amp; desiredSize, const SRect&amp; screenRect);</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         Scope&lt;Renderer&gt; m_Renderer;</span>
+<span class="d-ctx">         RenderBatch m_RenderBatch;</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        Ref&lt;Panel&gt; m_RootWidget;</span>
+<span class="d-add">+        // Index 0 is the UI root; anything above it is a popup, topmost last.</span>
+<span class="d-add">+        std::vector&lt;SLayer&gt; m_Layers;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         // Widgets currently under the cursor, root -&gt; leaf. Diffed every frame in</span>
+<span class="d-ctx">         // UpdateHoverPath to drive HandleMouseEnter/HandleMouseLeave.</span>
+<span class="d-hunk">@@ -107,12 +157,21 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">         bool m_MouseReleased = false;</span>
+<span class="d-ctx">         bool m_MouseMoved = false;</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+        // Last extent passed to ArrangeLayout, so a popup pushed mid-frame (after this</span>
+<span class="d-add">+        // frame's ArrangeLayout already ran) can still be arranged immediately instead of</span>
+<span class="d-add">+        // rendering at a stale {0,0} geometry for one frame.</span>
+<span class="d-add">+        mutable Extent2D m_LastExtent{};</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         // Dirty epoch of the last frame we assembled + uploaded. When it still matches the</span>
+<span class="d-ctx">         // current epoch, the batch and GPU buffers are reused and only the draws are re-issued.</span>
+<span class="d-ctx">         uint64_t m_LastRenderedEpoch = 0;</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        // Tracks the last rendered panel, so when changed, can rebuild the render batch.</span>
+<span class="d-del">-        WeakRef&lt;Panel&gt; m_LastRenderedRoot;</span>
+<span class="d-add">+        // Bumped on every layer stack mutation (SetRoot, PushPopup, PopPopup, ClearPopups).</span>
+<span class="d-add">+        // A layer change doesn't necessarily bump Widget::CurrentDirtyEpoch — a freshly built</span>
+<span class="d-add">+        // popup subtree starts dirty by construction, without ever calling MarkLayoutDirty —</span>
+<span class="d-add">+        // so the epoch comparison alone can't detect "a popup was opened"; this can.</span>
+<span class="d-add">+        uint64_t m_LayerStackVersion = 0;</span>
+<span class="d-add">+        uint64_t m_LastRenderedLayerVersion = 0;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         bool m_Initialized = false;</span>
+<span class="d-ctx">     };</span>
+</code></pre></div>
+
+    <h3 class="file-heading" id="file-4-3-2"><span class="file-index">4.3.2</span> Manager.cpp</h3>
+    <div class="callout callout-attention">
+      <span class="callout-title">Selos dentro deste diff</span>
+      <p>
+        <strong><code class="i">ArrangeLayout</code>, <code class="i">Update</code>,
+        <code class="i">Render</code>, <code class="i">SetRoot</code>/<code class="i">PushPopup</code>/<code class="i">PopPopup</code>/<code class="i">ClearPopups</code>,
+        <code class="i">AssembleFrame</code>, <code class="i">NeedsRebuild</code>/<code class="i">MarkRebuilt</code></strong>
+        não carregam selo — são a estrutura de camadas em si, e já produzem a garantia visual
+        correta de "popup sempre por cima de texto" hoje, porque o Ponto 3 já intercala os passes
+        de render por <code class="i">ZOrder</code> (2.4) — não é mais uma ressalva a resolver depois.
+      </p>
+      <p>
+        <strong><code class="i">ProcessInput</code>, <code class="i">GetTopmostHitLayer</code> e
+        <code class="i">DismissPopupsOutside</code></strong> carregam
+        <span class="badge badge-p1">integra com o Ponto 1</span> — <code class="i">ProcessInput</code>
+        passa a escolher qual camada hit-testar via <code class="i">GetTopmostHitLayer</code> e então
+        chama <code class="i">activeRoot-&gt;HitTest(...)</code>, reaproveitando exatamente o mesmo
+        <code class="i">Widget::HitTest</code> e o mesmo fluxo
+        <code class="i">UpdateHoverPath</code>/<code class="i">ProcessMousePress</code>/<code class="i">ProcessMouseRelease</code>/<code class="i">ProcessMouseMove</code>
+        que o Ponto 1 já deixou prontos para a raiz única — nenhuma travessia nova é inventada
+        aqui, só a seleção de qual <code class="i">Ref&lt;Widget&gt;</code> alimentar nesse fluxo.
+        <code class="i">HandleMouseScrolled</code> (4.2.5) não precisa de nenhuma mudança nesta
+        subseção: como já bubbla sobre <code class="i">m_HoverPath</code>, e
+        <code class="i">m_HoverPath</code> passa a refletir a camada ativa automaticamente assim
+        que <code class="i">ProcessInput</code> é reestruturado, o roteamento de scroll já respeita
+        camadas de graça.
+      </p>
+    </div>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Manager.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Manager.cpp</span>
+<span class="d-hunk">@@ -24,10 +24,20 @@ namespace Elixir::GUI</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     void Manager::ArrangeLayout(const Extent2D&amp; extent) const</span>
+<span class="d-ctx">     {</span>
+<span class="d-del">-        if (m_RootWidget)</span>
+<span class="d-add">+        m_LastExtent = extent;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        if (m_Layers.empty() || !m_Layers[0].Root) return;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        const SRect screenRect = { { 0, 0 }, { extent.Width, extent.Height } };</span>
+<span class="d-add">+        m_Layers[0].Root-&gt;ArrangeChildren(screenRect);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        for (size_t i = 1; i &lt; m_Layers.size(); ++i)</span>
+<span class="d-ctx">         {</span>
+<span class="d-del">-            const SRect rootGeometry = { { 0, 0 }, { extent.Width, extent.Height } };</span>
+<span class="d-del">-            m_RootWidget-&gt;ArrangeChildren(rootGeometry);</span>
+<span class="d-add">+            const auto&amp; layer = m_Layers[i];</span>
+<span class="d-add">+            if (!layer.Root) continue;</span>
+<span class="d-add">+</span>
+<span class="d-add">+            const glm::vec2 desiredSize = layer.Root-&gt;Measure({ UnconstrainedSize, UnconstrainedSize });</span>
+<span class="d-add">+            layer.Root-&gt;ArrangeChildren(ComputePopupRect(layer.Anchor, desiredSize, screenRect));</span>
+<span class="d-ctx">         }</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-hunk">@@ -35,13 +45,16 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         ProcessInput();</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        if (m_RootWidget)</span>
+<span class="d-del">-            m_RootWidget-&gt;Update(frameTime);</span>
+<span class="d-add">+        for (const auto&amp; layer : m_Layers)</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            if (layer.Root)</span>
+<span class="d-add">+                layer.Root-&gt;Update(frameTime);</span>
+<span class="d-add">+        }</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     void Manager::Render()</span>
+<span class="d-ctx">     {</span>
+<span class="d-del">-        if (!m_RootWidget || !m_RootWidget-&gt;IsRenderVisible()) return;</span>
+<span class="d-add">+        if (m_Layers.empty() || !m_Layers[0].Root || !m_Layers[0].Root-&gt;IsRenderVisible()) return;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         if (NeedsRebuild())</span>
+<span class="d-ctx">         {</span>
+<span class="d-hunk">@@ -62,6 +75,45 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">         dispatcher.Dispatch&lt;MouseScrolledEvent&gt;(EE_BIND_EVENT_FN(Manager::HandleMouseScrolled));</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+    void Manager::SetRoot(const Ref&lt;Panel&gt;&amp; root)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        if (m_Layers.empty())</span>
+<span class="d-add">+            m_Layers.push_back({ root, {}, false });</span>
+<span class="d-add">+        else</span>
+<span class="d-add">+            m_Layers[0] = { root, {}, false };</span>
+<span class="d-add">+</span>
+<span class="d-add">+        ++m_LayerStackVersion;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Manager::PushPopup(const Ref&lt;Widget&gt;&amp; widget, const SRect&amp; anchor)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        m_Layers.push_back({ widget, anchor, true });</span>
+<span class="d-add">+        ++m_LayerStackVersion;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        if (widget)</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            const SRect screenRect = { { 0, 0 }, { m_LastExtent.Width, m_LastExtent.Height } };</span>
+<span class="d-add">+            const glm::vec2 desiredSize = widget-&gt;Measure({ UnconstrainedSize, UnconstrainedSize });</span>
+<span class="d-add">+            widget-&gt;ArrangeChildren(ComputePopupRect(anchor, desiredSize, screenRect));</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Manager::PopPopup()</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        if (m_Layers.size() &lt;= 1) return;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        m_Layers.pop_back();</span>
+<span class="d-add">+        ++m_LayerStackVersion;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Manager::ClearPopups()</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        if (m_Layers.size() &lt;= 1) return;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        m_Layers.resize(1);</span>
+<span class="d-add">+        ++m_LayerStackVersion;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     bool Manager::WantsMouse() const</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         return !m_HoverPath.empty() || !m_MouseCapture.expired();</span>
+<span class="d-hunk">@@ -71,11 +123,17 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         m_RenderBatch.Clear();</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        if (m_RootWidget &amp;&amp; m_RootWidget-&gt;IsRenderVisible())</span>
+<span class="d-add">+        int zCursor = 0;</span>
+<span class="d-add">+        bool rebuilt = false;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // Same zCursor continuing across layers: layer 0 occupies the low z-bands, and each</span>
+<span class="d-add">+        // popup above it starts its own CollectDrawCommands walk above everything the layers</span>
+<span class="d-add">+        // below it used — reusing the existing per-subtree z-banding, so popups always end</span>
+<span class="d-add">+        // up on top without a magic z offset.</span>
+<span class="d-add">+        for (const auto&amp; layer : m_Layers)</span>
+<span class="d-ctx">         {</span>
+<span class="d-del">-            int zCursor = 0;</span>
+<span class="d-del">-            bool rebuilt = false;</span>
+<span class="d-del">-            m_RootWidget-&gt;CollectDrawCommands(m_RenderBatch, zCursor, rebuilt, { { -1, -1 }, { -1, -1 } });</span>
+<span class="d-add">+            if (layer.Root &amp;&amp; layer.Root-&gt;IsRenderVisible())</span>
+<span class="d-add">+                layer.Root-&gt;CollectDrawCommands(m_RenderBatch, zCursor, rebuilt, { { -1, -1 }, { -1, -1 } });</span>
+<span class="d-ctx">         }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         m_RenderBatch.Sort();</span>
+<span class="d-hunk">@@ -84,13 +142,13 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">     bool Manager::NeedsRebuild() const</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         return Widget::CurrentDirtyEpoch() != m_LastRenderedEpoch</span>
+<span class="d-del">-            || m_LastRenderedRoot.lock() != m_RootWidget;</span>
+<span class="d-add">+            || m_LayerStackVersion != m_LastRenderedLayerVersion;</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     void Manager::MarkRebuilt()</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         m_LastRenderedEpoch = Widget::CurrentDirtyEpoch();</span>
+<span class="d-del">-        m_LastRenderedRoot = m_RootWidget;</span>
+<span class="d-add">+        m_LastRenderedLayerVersion = m_LayerStackVersion;</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     bool Manager::HandleFramebufferResize(const FramebufferResizeEvent&amp; event) const</span>
+<span class="d-hunk">@@ -153,10 +211,24 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">         m_MouseReleased = !isMouseDown &amp;&amp; m_WasMouseDown;</span>
+<span class="d-ctx">         m_WasMouseDown = isMouseDown;</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        if (!m_RootWidget) return;</span>
+<span class="d-add">+        if (m_Layers.empty()) return;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // Closing here is layer-granularity only: it decides whether a popup stays open,</span>
+<span class="d-add">+        // not which individual widget the click should reach — that precision comes right</span>
+<span class="d-add">+        // after, from HitTest on whichever layer survives the dismissal.</span>
+<span class="d-add">+        if (m_MousePressed)</span>
+<span class="d-add">+            DismissPopupsOutside(m_MousePos);</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+        const Ref&lt;Widget&gt;&amp; activeRoot = GetTopmostHitLayer(m_MousePos).Root;</span>
+<span class="d-add">+        if (!activeRoot) return;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // Only the topmost layer under the cursor gets hit-tested this frame — a popup's</span>
+<span class="d-add">+        // contents never leak clicks/hover to whatever is visually behind it. Widgets in</span>
+<span class="d-add">+        // OTHER layers that were hovered before a popup opened over them do NOT get a</span>
+<span class="d-add">+        // HandleMouseLeave in that case (UpdateHoverPath only sees activeRoot's path); they</span>
+<span class="d-add">+        // catch up next time the cursor genuinely moves over their layer again.</span>
+<span class="d-ctx">         std::vector&lt;Ref&lt;Widget&gt;&gt; hitPath;</span>
+<span class="d-del">-        m_RootWidget-&gt;HitTest(m_MousePos, hitPath);</span>
+<span class="d-add">+        activeRoot-&gt;HitTest(m_MousePos, hitPath);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         UpdateHoverPath(hitPath);</span>
+<span class="d-ctx"> </span>
+<span class="d-hunk">@@ -264,4 +336,48 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">         if (m_FocusedWidget)</span>
+<span class="d-ctx">             m_FocusedWidget-&gt;HandleFocus();</span>
+<span class="d-ctx">     }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const SLayer&amp; Manager::GetTopmostHitLayer(const glm::vec2&amp; point) const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        for (size_t i = m_Layers.size(); i-- &gt; 1; )</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            if (m_Layers[i].Root &amp;&amp; m_Layers[i].Root-&gt;GetGeometry().Contains(point))</span>
+<span class="d-add">+                return m_Layers[i];</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        return m_Layers[0]; // the UI root always hits</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Manager::DismissPopupsOutside(const glm::vec2&amp; point)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        while (m_Layers.size() &gt; 1)</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            const auto&amp; top = m_Layers.back();</span>
+<span class="d-add">+            if (!top.bDismissOnClickOutside) break;</span>
+<span class="d-add">+            if (top.Root &amp;&amp; top.Root-&gt;GetGeometry().Contains(point)) break;</span>
+<span class="d-add">+</span>
+<span class="d-add">+            PopPopup();</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SRect Manager::ComputePopupRect(const SRect&amp; anchor, const glm::vec2&amp; desiredSize, const SRect&amp; screenRect)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        // Default: flush against the anchor's left edge, opening below it.</span>
+<span class="d-add">+        glm::vec2 position = { anchor.Position.x, anchor.Position.y + anchor.Size.y };</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // Doesn't fit below -&gt; flip above the anchor.</span>
+<span class="d-add">+        if (position.y + desiredSize.y &gt; screenRect.Position.y + screenRect.Size.y)</span>
+<span class="d-add">+            position.y = anchor.Position.y - desiredSize.y;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // Clamp fully on-screen as a last resort (flipping alone doesn't help when the</span>
+<span class="d-add">+        // screen itself is smaller than the popup, or the anchor is near the top with</span>
+<span class="d-add">+        // nothing to flip into).</span>
+<span class="d-add">+        const glm::vec2 maxPosition = glm::max(</span>
+<span class="d-add">+            screenRect.Position,</span>
+<span class="d-add">+            screenRect.Position + screenRect.Size - desiredSize</span>
+<span class="d-add">+        );</span>
+<span class="d-add">+        position = glm::clamp(position, screenRect.Position, maxPosition);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        return { position, desiredSize };</span>
+<span class="d-add">+    }</span>
+<span class="d-ctx"> }</span>
+<span class="d-ctx">\ No newline at end of file</span>
+</code></pre></div>
+  </section>
+
+
+  <section id="sec-ordem">
+    <h2>5. Ordem de aplicação</h2>
+    <p class="lede">
+      Os Pontos 1-4 já estão aplicados (commit <code class="i">5fc2802</code>) — não há mais nada
+      fora deste documento para sequenciar antes. Resta só a ordem interna:
+      <strong>4.1 → 4.2 → 4.3</strong>, porque cada subseção parte do estado de arquivo que a
+      anterior deixou.
+    </p>
+    <ol class="steps">
+      <li>
+        <span class="step-title">4.1 Clip stack</span>
+        Aplicar primeiro. Sem clip herdado, <code class="i">ScrollBox</code> não tem como recortar
+        o próprio conteúdo, e o resto do plano não faz sentido. Validação: qualquer container
+        existente (<code class="i">Panel</code>, <code class="i">HorizontalBox</code>, etc.) deve
+        continuar desenhando exatamente igual — 4.1 não muda comportamento visível para ninguém
+        que não sobrescreva <code class="i">ClipsChildren()</code>.
+      </li>
+      <li>
+        <span class="step-title">4.2 ScrollBox</span>
+        Depende só de 4.1. Validação: um <code class="i">ScrollBox</code> com conteúdo maior que si
+        mesmo recorta corretamente; a barra aparece quando há overflow; a roda do mouse rola quando
+        o cursor está sobre o <code class="i">ScrollBox</code> e nenhum popup está na frente — o
+        roteamento de scroll já usa <code class="i">Manager::m_HoverPath</code> real desde o
+        primeiro diff, sem estágio intermediário bespoke para trocar depois.
+      </li>
+      <li>
+        <span class="step-title">4.3 Camada de popups</span>
+        Depende de 4.1 (para o clip da própria camada, se algum popup quiser recortar seu próprio
+        conteúdo) e reescreve partes de <code class="i">Manager.cpp</code> que 4.2 tocou.
+        Validação: <code class="i">PushPopup</code> seguido de um frame de render mostra o popup na
+        posição esperada (com o flip funcionando perto da borda inferior da tela); clicar fora
+        fecha; <code class="i">GetPopupCount()</code> reflete o esperado depois de push/pop; um
+        popup cujo fundo cubra um rótulo de texto de uma camada abaixo desenha corretamente por
+        cima dele (garantido pelo Ponto 3, já aplicado — ver 2.4).
+      </li>
+    </ol>
+    <p>
+      Os dois selos que sobram no documento (<span class="badge badge-p1">integra com o Ponto 1</span>
+      em alguns trechos de 4.2/4.3, <span class="badge badge-p3">integra com o Ponto 3</span> na
+      garantia visual de 4.3) não representam mais nenhum bloqueio de ordem — marcam apenas onde o
+      design se apoia em uma API que já existe, para quem for ler o diff querer saber por que ele
+      tem a forma que tem.
+    </p>
+  </section>
+
+  <section id="sec-riscos">
+    <h2>6. Riscos e pontos de atenção</h2>
+    <div class="risk-list">
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R1</span>Popup com um frame de geometria errada</div>
+        <p>
+          Se <code class="i">PushPopup</code> só armazenasse a camada sem arranjar nada, um popup
+          empurrado no meio do frame (o caso comum — abrir um popup a partir de um clique acontece
+          dentro de <code class="i">Update</code>, que roda depois de <code class="i">ArrangeLayout</code>
+          no laço de <code class="i">Application::Run</code>,
+          <span class="file-ref">Application.cpp:176-177</span>) ficaria com geometria
+          <code class="i">{0,0},{0,0}}</code> por um frame inteiro antes do próximo
+          <code class="i">ArrangeLayout</code> corrigir. O diff de <code class="i">PushPopup</code>
+          (4.3.2) já mitiga isso arranjando o popup imediatamente contra o último
+          <code class="i">Extent2D</code> conhecido (<code class="i">m_LastExtent</code>), então
+          esse risco está coberto — mas vale testar explicitamente o caso "abrir popup a partir de
+          um clique no mesmo frame".
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R2</span>Hover que fica "preso" quando um popup passa a cobrir um widget</div>
+        <p>
+          Com o hit-test por camada, só a camada ativa é hit-testada a cada frame
+          (<code class="i">activeRoot-&gt;HitTest(...)</code> em <code class="i">ProcessInput</code>,
+          4.3.2). Se um popup abre exatamente sobre um widget que já estava em
+          <code class="i">m_HoverPath</code> de outra camada, esse widget não recebe
+          <code class="i">HandleMouseLeave()</code> até o cursor genuinamente se mover sobre a
+          camada dele de novo — porque <code class="i">UpdateHoverPath</code> só vê o
+          <code class="i">hitPath</code> da camada ativa daquele frame, nunca o de camadas
+          cobertas. Cosmético (cor de hover pode ficar "grudada"), documentado no próprio diff de
+          <code class="i">ProcessInput</code> (4.3.2). Diferente da versão anterior deste
+          documento — que atribuía isso a uma limitação que o Ponto 1 resolveria "de graça" no
+          futuro — o Ponto 1 já está aplicado e o comportamento é exatamente este: ele resolveu o
+          problema de hit-test de uma árvore única, mas a ambiguidade "qual camada está ativa"
+          é ortogonal a ele e continua exigindo a lógica explícita que 4.3.2 introduz.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R3</span>Custo de recalcular a subárvore inteira a cada tick de scroll</div>
+        <p>
+          Como o layout deste código usa coordenadas absolutas (cada widget guarda posição em
+          espaço de tela, não relativa ao pai), rolar um <code class="i">ScrollBox</code> muda a
+          posição arranjada de <strong>todo</strong> descendente do conteúdo, não só do widget de
+          topo — o que, pela checagem existente em <code class="i">Widget::ArrangeChildren</code>
+          (<code class="i">m_Geometry != allocatedSpace</code>), marca toda essa subárvore como
+          render-dirty a cada tick de roda, mesmo para os descendentes que continuam totalmente
+          fora da área visível. Característica pré-existente do sistema de layout, não algo que
+          este ponto piora ou resolve — mas vale ter no radar se algum <code class="i">ScrollBox</code>
+          vier a hospedar uma lista longa; a mitigação natural (não implementada aqui) seria pular
+          arranjo/render de descendentes já fora do clip.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R4</span>Fechar múltiplos popups aninhados com um clique só</div>
+        <p>
+          <code class="i">DismissPopupsOutside</code> fecha em cascata, do topo para baixo,
+          enquanto o clique estiver fora e <code class="i">bDismissOnClickOutside</code> estiver
+          ligado — um clique bem longe de um submenu de dois níveis fecha os dois de uma vez. É o
+          comportamento mais comum em menus aninhados, mas vale validar contra a UX real que o
+          <code class="i">EditorUI</code> vai desenhar antes de considerar fechado.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R5</span>Cursor do TextField passa a herdar clip automaticamente</div>
+        <p>
+          Efeito colateral positivo, não risco: como 2.1 registrou, o retângulo do cursor em
+          <code class="i">TextField::BuildDrawCommands</code>
+          (<span class="file-ref">TextField.cpp:223-227</span>) é hoje o único
+          <code class="i">AddRect</code> do arquivo sem <code class="i">m_Geometry</code> como
+          scissor. Depois de 4.1, ele passa a receber o <code class="i">clipRect</code> herdado do
+          ancestral mesmo sem nenhuma mudança em <code class="i">TextField.cpp</code> — o
+          <code class="i">Append</code> aplica o clip herdado a qualquer comando, mesmo um que hoje
+          não carrega scissor próprio. Vale um teste visual num campo de texto com scroll
+          horizontal para confirmar que o cursor deixa de vazar pela borda.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R6</span>SRect::IsValid() como sentinela de posição/tamanho -1</div>
+        <p>
+          Coberto em detalhe em 3.2: o clamp de tamanho em <code class="i">Intersect</code>
+          neutraliza o caso mais perigoso (colisão por construção aritmética), mas o sentinela em
+          si continua sendo um valor mágico coincidente, não uma faixa. Se algum ponto futuro
+          passar a posicionar widgets com coordenadas negativas de verdade (por exemplo um
+          <code class="i">ScrollBox</code> com <code class="i">m_ScrollOffset</code> negativo, o
+          que o clamp atual não permite, mas uma feature futura de "overscroll" poderia),
+          revisitar a recomendação de <code class="i">SRect::Infinite()</code> deixa de ser
+          opcional.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R7</span>Resistir a "completar" arquivos que não mudam</div>
+        <p>
+          Confirmado por leitura: nem <code class="i">Panel</code>, <code class="i">Slot</code>,
+          <code class="i">Button</code> nem <code class="i">TextField</code> precisam de qualquer
+          alteração de texto neste ponto — <code class="i">Button</code>/<code class="i">TextField</code>
+          continuam passando <code class="i">m_Geometry</code> como scissor próprio, e o
+          <code class="i">Append</code> novo já sabe intersectar isso com o clip herdado sem ajuda.
+          Não criar diffs vazios ou cosméticos neles só para a mudança "parecer" mais completa.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R8</span><code class="i">Measure</code> chamado duas vezes por passe em <code class="i">ScrollBox</code></div>
+        <p>
+          <code class="i">ScrollBox::ComputeDesiredSize</code> (via <code class="i">Measure</code>,
+          chamado pelo pai durante o measure pass) e <code class="i">ScrollBox::LayoutChildren</code>
+          (chamado depois, durante o arrange) cada um mede o conteúdo de novo com
+          <code class="i">content-&gt;Measure(contentConstraint)</code>. Isso é barato quando a
+          constraint não muda entre as duas chamadas — o cache de <code class="i">Measure</code>
+          (<code class="i">m_MeasureDirty</code> + <code class="i">m_LastMeasureConstraint</code>,
+          <span class="file-ref">Widget.h:65, 388-389</span>) faz a segunda chamada ser O(1) — mas
+          <strong>não</strong> quando a constraint muda: como o eixo de rolagem já mede com
+          <code class="i">UnconstrainedSize</code> em ambas as chamadas, na prática as duas
+          constraints coincidem quase sempre, mas um <code class="i">ScrollBox</code> cujo eixo
+          transversal mude de tamanho entre o measure pass do pai e o arrange (por exemplo, um
+          <code class="i">ScrollBox</code> dentro de um <code class="i">HorizontalBox</code> com
+          <code class="i">Fill</code> cuja largura final só é decidida depois que todos os irmãos
+          são medidos) paga uma remedida real do conteúdo por frame sujo. Mesma característica que
+          qualquer container que meça filhos duas vezes já tem hoje (nenhum widget existente evita
+          isso de forma diferente) — não é uma regressão introduzida por este ponto, só vale ter
+          no radar se um <code class="i">ScrollBox</code> vier a hospedar uma subárvore grande.
+        </p>
+      </div>
+
+    </div>
+  </section>
+
+  <footer class="doc-footer">
+    Elixir · Refatoração da GUI · Parte 5 de 5 — Clipping, ScrollBox e camada de popups.
+  </footer>
+
+</div>
+</body>
+</html>

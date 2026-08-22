@@ -5,10 +5,29 @@
 
 namespace Elixir::GUI
 {
+    /** @brief Text-field visual data for one interactive state. */
+    struct STextFieldAppearance : SAppearance
+    {
+        SColor Foreground{};
+    };
+
+    /** @brief Complete visual style for TextField. */
+    struct STextFieldStyle final : SStyle, TStateStyles<STextFieldAppearance>{};
+
     class ELIXIR_API TextField : public Widget
     {
       public:
+        /**
+         * @brief Construct a text field with a copy of the current default text-field style.
+         * @param text Initial text.
+         */
         explicit TextField(const std::string& text = "");
+
+        /**
+         * @brief Replace this text field's complete style.
+         * @param style Style to copy.
+         */
+        void SetStyle(const STextFieldStyle& style);
 
         void Update(Timestep frameTime) override;
 
@@ -28,9 +47,12 @@ namespace Elixir::GUI
         const std::string& GetText() const { return m_Text; }
         void SetText(const std::string& text);
 
-        // A thin, domain-appropriate name for the base's ForegroundColor - same rename
-        // Button applies to its own SetTextColor.
-        void SetTextColor(EStyleLayer layer, const SColor& color) { SetForegroundColor(layer, color); }
+        /**
+         * @brief Set one legacy layer's text color.
+         * @param layer Layer to change.
+         * @param color New text color.
+         */
+        void SetTextColor(EStyleLayer layer, const SColor& color);
 
         const std::string& GetPlaceholder() const { return m_Placeholder; }
         void SetPlaceholder(const std::string& placeholder);
@@ -60,6 +82,9 @@ namespace Elixir::GUI
         SInputReply HandleKeyTyped(const KeyTypedEvent& event) override;
         void HandleFocus() override;
         void HandleLostFocus() override;
+
+        const SAppearance& GetResolvedAppearance() const override;
+        SBrush& GetMutableBackgroundBrush(EStyleLayer layer) override;
 
         virtual glm::vec2 MeasureTextSize(const std::string& text);
         virtual glm::vec2 CalculateTextPosition(glm::vec2 textSize);
@@ -116,6 +141,7 @@ namespace Elixir::GUI
         SColor m_SelectionColor = { 0.3f, 0.5f, 1.0f, 0.4f };
 
         glm::vec2 m_MinDesiredSize{ 120.0f, 30.0f };
+        STextFieldStyle m_Style;
 
         // Callbacks
         std::function<void(const std::string&)> m_OnChangeCallback;

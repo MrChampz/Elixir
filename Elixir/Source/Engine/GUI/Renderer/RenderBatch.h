@@ -2,6 +2,7 @@
 
 #include <Engine/Font/Font.h>
 #include <Engine/GUI/Definitions.h>
+#include <Engine/GUI/Style.h>
 #include <Engine/Graphics/Texture.h>
 
 namespace Elixir::GUI
@@ -96,6 +97,24 @@ namespace Elixir::GUI
          * Used to advance the layer cursor past a widget's own commands during collection.
          */
         int LayerSpan() const;
+
+        /**
+         * @brief Add the command needed to draw a brush.
+         *
+         * A brush with Texture becomes a nine-patch texture command. Otherwise it becomes a
+         * solid rectangle command with the brush's radius, outline and shadows.
+         *
+         * @param brush Surface description to draw.
+         * @param rect Destination rectangle.
+         * @param zOrder Draw layer for the command.
+         * @param scissorRect Optional clip rectangle.
+         */
+        void AddBrush(
+            const SBrush& brush,
+            const SRect& rect,
+            int zOrder = 0,
+            const SRect& scissorRect = {{ -1, -1 }, { -1, -1 }}
+        );
 
         void AddRect(
             const SRect& rect,

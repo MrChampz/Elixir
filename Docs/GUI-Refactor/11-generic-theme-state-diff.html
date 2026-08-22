@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>11. Tema global por estados genéricos</title>
+<style>
+  :root { --bg:#f5f6f8; --surface:#fff; --border:#dde1e8; --text:#1a1d24; --muted:#565c6b; --accent:#3452d9; --add-bg:#e6f7ec; --add:#157347; --del-bg:#fdecec; --del:#c22a2a; --hunk-bg:#eaf0ff; --hunk:#3452d9; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#14161b; --surface:#1b1e25; --border:#2b2f3a; --text:#e7e9ef; --muted:#aab0c0; --accent:#91a4ff; --add-bg:rgba(46,160,90,.16); --add:#5fd693; --del-bg:rgba(230,70,70,.16); --del:#ff8a83; --hunk-bg:rgba(100,130,255,.18); --hunk:#adbaff; } }
+  * { box-sizing:border-box; } body { margin:0; padding:40px 20px 80px; background:var(--bg); color:var(--text); font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; } .page { max-width:1100px; margin:auto; }
+  header, section { margin-bottom:28px; } h1 { margin:0 0 8px; font-size:30px; } h2 { margin:0 0 12px; font-size:22px; } h3 { margin:20px 0 8px; font-size:17px; } p, li { max-width:920px; } .tag { display:inline-block; margin-bottom:12px; padding:4px 10px; border-radius:99px; color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, transparent); font-size:12px; font-weight:700; }
+  .card, .callout { padding:18px 20px; border:1px solid var(--border); border-radius:10px; background:var(--surface); } .callout { border-left:4px solid var(--accent); } code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; } code { font-size:.92em; } pre.diff { overflow:auto; margin:12px 0 22px; padding:0; border:1px solid var(--border); border-radius:8px; background:var(--surface); line-height:1.45; font-size:12.5px; } pre.diff code { display:block; min-width:max-content; padding:14px 16px; } .file { color:var(--text); font-weight:700; } .meta { color:var(--muted); } .hunk { display:block; margin:0 -16px; padding:0 16px; color:var(--hunk); background:var(--hunk-bg); } .add { display:block; margin:0 -16px; padding:0 16px; color:var(--add); background:var(--add-bg); } .del { display:block; margin:0 -16px; padding:0 16px; color:var(--del); background:var(--del-bg); } .ctx { display:block; } table { width:100%; border-collapse:collapse; background:var(--surface); } th,td { padding:9px 11px; text-align:left; vertical-align:top; border:1px solid var(--border); } th { font-size:12px; color:var(--muted); text-transform:uppercase; } .toc a { color:var(--accent); text-decoration:none; } .toc ol { margin:8px 0 0; padding-left:20px; }
+</style>
+</head>
+<body>
+<main class="page">
+  <header>
+    <span class="tag">GUI Refactor · proposta de diff</span>
+    <h1>11. Tema global por estados genéricos</h1>
+    <p>Substitui o armazenamento de estilos completos por widget por um tema global e regras locais esparsas. O tema conhece somente propriedades genéricas e estados genéricos; cada componente continua dono da sua semântica e do seu desenho.</p>
+    <p class="callout"><strong>Substituição de decisão.</strong> Esta proposta substitui, no documento 10, o uso de <code>EStyleVariant</code>, <code>ECheckState</code> e estilos de checkbox no tema. A implementação passa a usar somente <code>EWidgetState::Selected</code>, com <code>Checked</code> como alias público.</p>
+    <nav class="card toc">
+      <strong>Índice</strong>
+      <ol>
+        <li><a href="#decisoes">Decisões e contratos</a></li>
+        <li><a href="#modelo">Modelo de resolução</a></li>
+        <li><a href="#diffs">Diffs propostos</a></li>
+        <li><a href="#testes">Testes e validação</a></li>
+      </ol>
+    </nav>
+  </header>
+
+  <section id="decisoes">
+    <h2>1. Decisões e contratos</h2>
+    <div class="callout">
+      <strong>Escopo do tema.</strong> <code>Theme</code> fornece propriedades genéricas — background, foreground, bordas, textura, raio e sombras — para estados genéricos de um widget. Ele não tem <code>CheckboxStyle</code>, <code>CheckedColor</code>, <code>UncheckedColor</code> ou qualquer outro campo específico de componente.
+    </div>
+    <p><code>Checked</code> é permitido como alias de API para <code>Selected</code>. Os dois valores têm o mesmo bit, portanto uma regra configurada com um é exatamente a mesma regra configurada com o outro.</p>
+    <pre class="diff"><code><span class="ctx">checkbox-&gt;SetBackgroundColor(EWidgetState::Checked, color);</span>
+<span class="ctx">tab-&gt;SetBackgroundColor(EWidgetState::Selected, color);</span></code></pre>
+    <p><code>Unchecked</code> é a ausência do bit <code>Selected</code>. Não há um segundo bit mutuamente exclusivo e não há combinação inválida como <code>Checked | Unchecked</code>.</p>
+    <p>O checkbox ainda possui <code>bool m_Checked</code>, porque clique, callback e sincronização programática são comportamento. Ele apenas acrescenta <code>Selected</code> à máscara visual quando está marcado. Ao desenhar, caixa marcada usa o foreground resolvido como preenchimento; caixa desmarcada usa o background e a outline resolvidos. Essa política é do componente, não do tema.</p>
+    <table>
+      <tr><th>Ordem</th><th>Aplicação</th></tr>
+      <tr><td>1</td><td>Fallback completo do widget.</td></tr>
+      <tr><td>2</td><td>Regra do tema para o nível atual.</td></tr>
+      <tr><td>3</td><td>Override local para o mesmo nível.</td></tr>
+    </table>
+    <p>A sequência de níveis é <code>Normal -&gt; Selected -&gt; Hovered -&gt; Selected+Hovered -&gt; Pressed -&gt; Selected+Pressed -&gt; Focused -&gt; Selected+Focused -&gt; Disabled -&gt; Selected+Disabled</code>. Variantes combinadas, quando declaradas, são mais específicas que a regra genérica do mesmo nível. <code>Disabled</code> continua vencendo os demais estados.</p>
+  </section>
+
+  <section id="modelo">
+    <h2>2. Modelo de resolução</h2>
+    <p><code>StyleSet</code> deixa de ter um <code>std::array&lt;SStyleOverride, Count&gt;</code> por widget. Ele passa a guardar somente regras configuradas. Isso evita reservar o payload de todos os overrides em todo <code>Widget</code>.</p>
+    <pre class="diff"><code><span class="ctx">fallback</span>
+<span class="ctx">  -&gt; theme[Normal]           -&gt; local[Normal]</span>
+<span class="ctx">  -&gt; theme[Selected]         -&gt; local[Selected]</span>
+<span class="ctx">  -&gt; theme[Hovered]          -&gt; local[Hovered]</span>
+<span class="ctx">  -&gt; theme[Selected|Hovered] -&gt; local[Selected|Hovered]</span>
+<span class="ctx">  -&gt; ...</span>
+<span class="ctx">  -&gt; theme[Disabled]          -&gt; local[Disabled]</span></code></pre>
+    <p>Aplicar primeiro todo o tema e depois todos os overrides locais seria incorreto: uma cor local de <code>Normal</code> poderia sobrescrever o <code>Disabled</code> do tema. A composição é sempre por nível.</p>
+  </section>
+
+  <section id="diffs">
+    <h2>3. Diffs propostos</h2>
+    <p>Os diffs abaixo partem dos arquivos existentes. Eles não introduzem estilo específico de checkbox no tema. Comentários internos aparecem apenas onde explicam uma decisão que o código não comunica sozinho; toda API pública nova ou alterada recebe documentação breve de contrato.</p>
+
+    <h3>3.1 Estados, regras esparsas e <code>Theme</code></h3>
+    <pre class="diff"><code><span class="file">diff --git a/Elixir/Source/Engine/GUI/Style.h b/Elixir/Source/Engine/GUI/Style.h</span>
+<span class="meta">--- a/Elixir/Source/Engine/GUI/Style.h</span>
+<span class="meta">+++ b/Elixir/Source/Engine/GUI/Style.h</span>
+<span class="hunk">@@</span>
+<span class="del">-    enum class EStyleLayer : uint8_t</span>
+<span class="add">+    enum class EWidgetState : uint16_t</span>
+<span class="ctx">     {</span>
+<span class="del">-        Normal, Hovered, Pressed, Focused, Disabled, Count</span>
+<span class="add">+        None     = 0,</span>
+<span class="add">+        Selected = 1 &lt;&lt; 0,</span>
+<span class="add">+        Checked  = Selected,</span>
+<span class="add">+        Hovered  = 1 &lt;&lt; 1,</span>
+<span class="add">+        Pressed  = 1 &lt;&lt; 2,</span>
+<span class="add">+        Focused  = 1 &lt;&lt; 3,</span>
+<span class="add">+        Disabled = 1 &lt;&lt; 4,</span>
+<span class="ctx">     };</span>
+<span class="del">-    enum class EInteractionState : uint8_t { ... };</span>
+<span class="del">-    GENERATE_ENUM_CLASS_OPERATORS(EInteractionState)</span>
+<span class="add">+    GENERATE_ENUM_CLASS_OPERATORS(EWidgetState)</span>
+<span class="add">+    constexpr bool HasAll(EWidgetState states, EWidgetState required);</span>
+<span class="add">+    constexpr bool HasState(EWidgetState states, EWidgetState state);</span>
+<span class="ctx"></span>
+<span class="add">+    struct SStyleRule</span>
+<span class="add">+    {</span>
+<span class="add">+        EWidgetState RequiredStates = EWidgetState::None;</span>
+<span class="add">+        SStyleOverride Override;</span>
+<span class="add">+    };</span>
+<span class="ctx"></span>
+<span class="ctx">     class ELIXIR_API StyleSet</span>
+<span class="ctx">     {</span>
+<span class="ctx">       public:</span>
+<span class="del">-        const SStyleOverride&amp; Get(EStyleLayer layer) const;</span>
+<span class="del">-        void Set(EStyleLayer layer, const SStyleOverride&amp; style);</span>
+<span class="del">-        void Clear(EStyleLayer layer);</span>
+<span class="del">-        SResolvedStyle Resolve(EInteractionState states) const;</span>
+<span class="add">+        /** Set the override selected by requiredStates. */</span>
+<span class="add">+        void Set(EWidgetState requiredStates, const SStyleOverride&amp; style);</span>
+<span class="add">+        /** Remove the override selected by requiredStates. */</span>
+<span class="add">+        void Clear(EWidgetState requiredStates);</span>
+<span class="add">+        void Apply(SResolvedStyle&amp; result, EWidgetState activeStates, uint8_t priority) const;</span>
+<span class="ctx">       private:</span>
+<span class="del">-        std::array&lt;SStyleOverride, (size_t)EStyleLayer::Count&gt; m_Layers;</span>
+<span class="add">+        std::vector&lt;SStyleRule&gt; m_Rules;</span>
+<span class="ctx">     };</span>
+<span class="ctx"></span>
+<span class="add">+    class ELIXIR_API Theme</span>
+<span class="add">+    {</span>
+<span class="add">+      public:</span>
+<span class="add">+        void SetStyle(EWidgetState requiredStates, const SStyleOverride&amp; style);</span>
+<span class="add">+        void ClearStyle(EWidgetState requiredStates);</span>
+<span class="add">+        void Apply(SResolvedStyle&amp; result, EWidgetState activeStates, uint8_t priority) const;</span>
+<span class="add">+      private:</span>
+<span class="add">+        StyleSet m_Styles;</span>
+<span class="add">+    };</span></code></pre>
+
+    <pre class="diff"><code><span class="file">diff --git a/Elixir/Source/Engine/GUI/Style.cpp b/Elixir/Source/Engine/GUI/Style.cpp</span>
+<span class="hunk">@@</span>
+<span class="add">+    namespace</span>
+<span class="add">+    {</span>
+<span class="add">+        uint8_t GetPriority(const EWidgetState states)</span>
+<span class="add">+        {</span>
+<span class="add">+            uint8_t priority = 0;</span>
+<span class="add">+            if (HasState(states, EWidgetState::Disabled)) priority = 50;</span>
+<span class="add">+            else if (HasState(states, EWidgetState::Focused)) priority = 40;</span>
+<span class="add">+            else if (HasState(states, EWidgetState::Pressed)) priority = 30;</span>
+<span class="add">+            else if (HasState(states, EWidgetState::Hovered)) priority = 20;</span>
+<span class="add">+            return priority + (HasState(states, EWidgetState::Selected) ? 1 : 0);</span>
+<span class="add">+        }</span>
+<span class="add">+    }</span>
+<span class="ctx"></span>
+<span class="del">-    const SStyleOverride&amp; StyleSet::Get(EStyleLayer layer) const { ... }</span>
+<span class="del">-    SResolvedStyle StyleSet::Resolve(EInteractionState states) const { ... }</span>
+<span class="add">+    void StyleSet::Set(const EWidgetState requiredStates, const SStyleOverride&amp; style)</span>
+<span class="add">+    {</span>
+<span class="add">+        const auto rule = std::ranges::find(m_Rules, requiredStates, &amp;SStyleRule::RequiredStates);</span>
+<span class="add">+        if (rule != m_Rules.end())</span>
+<span class="add">+            rule-&gt;Override = style;</span>
+<span class="add">+        else</span>
+<span class="add">+            m_Rules.push_back({ requiredStates, style });</span>
+<span class="add">+    }</span>
+<span class="add">+</span>
+<span class="add">+    void StyleSet::Apply(</span>
+<span class="add">+        SResolvedStyle&amp; result, const EWidgetState activeStates, const uint8_t priority) const</span>
+<span class="add">+    {</span>
+<span class="add">+        for (const SStyleRule&amp; rule : m_Rules)</span>
+<span class="add">+        {</span>
+<span class="add">+            if (GetPriority(rule.RequiredStates) != priority ||</span>
+<span class="add">+                !HasAll(activeStates, rule.RequiredStates))</span>
+<span class="add">+                continue;</span>
+<span class="add">+</span>
+<span class="add">+            ApplyOverride(result, rule.Override);</span>
+<span class="add">+        }</span>
+<span class="add">+    }</span>
+<span class="add">+</span>
+<span class="add">+    void Theme::SetStyle(EWidgetState states, const SStyleOverride&amp; style)</span>
+<span class="add">+    {</span>
+<span class="add">+        m_Styles.Set(states, style);</span>
+<span class="add">+    }</span>
+<span class="add">+</span>
+<span class="add">+    void Theme::Apply(SResolvedStyle&amp; result, EWidgetState states, uint8_t priority) const</span>
+<span class="add">+    {</span>
+<span class="add">+        m_Styles.Apply(result, states, priority);</span>
+<span class="add">+    }</span></code></pre>
+
+    <h3>3.2 Tema global do <code>Manager</code> e estado base do <code>Widget</code></h3>
+    <pre class="diff"><code><span class="file">diff --git a/Elixir/Source/Engine/GUI/Manager.h b/Elixir/Source/Engine/GUI/Manager.h</span>
+<span class="hunk">@@</span>
+<span class="add">+        /** Replace the global theme used by every root and popup in this manager. */</span>
+<span class="add">+        void SetTheme(const Ref&lt;const Theme&gt;&amp; theme);</span>
+<span class="add">+        const Ref&lt;const Theme&gt;&amp; GetTheme() const { return m_Theme; }</span>
+<span class="ctx">     private:</span>
+<span class="add">+        void ApplyTheme(const Ref&lt;Widget&gt;&amp; widget);</span>
+<span class="add">+        Ref&lt;const Theme&gt; m_Theme = CreateRef&lt;Theme&gt;();</span></code></pre>
+    <pre class="diff"><code><span class="file">diff --git a/Elixir/Source/Engine/GUI/Manager.cpp b/Elixir/Source/Engine/GUI/Manager.cpp</span>
+<span class="hunk">@@</span>
+<span class="add">+    void Manager::SetTheme(const Ref&lt;const Theme&gt;&amp; theme)</span>
+<span class="add">+    {</span>
+<span class="add">+        EE_CORE_ASSERT(theme, "Manager::SetTheme requires a theme");</span>
+<span class="add">+        if (!theme || m_Theme == theme) return;</span>
+<span class="add">+        m_Theme = theme;</span>
+<span class="add">+        for (const SLayer&amp; layer : m_Layers) ApplyTheme(layer.Root);</span>
+<span class="add">+    }</span>
+<span class="add">+</span>
+<span class="add">+    void Manager::ApplyTheme(const Ref&lt;Widget&gt;&amp; widget)</span>
+<span class="add">+    {</span>
+<span class="add">+        if (widget) widget-&gt;SetTheme(m_Theme);</span>
+<span class="add">+    }</span>
+<span class="ctx">     void Manager::SetRoot(const Ref&lt;Panel&gt;&amp; root)</span>
+<span class="ctx">     {</span>
+<span class="add">+        ApplyTheme(root);</span>
+<span class="ctx">         ...</span>
+<span class="ctx">     }</span>
+<span class="ctx">     void Manager::PushPopup(const Ref&lt;Widget&gt;&amp; widget, const SRect&amp; anchor)</span>
+<span class="ctx">     {</span>
+<span class="add">+        ApplyTheme(widget);</span>
+<span class="ctx">         ...</span>
+<span class="ctx">     }</span></code></pre>
+
+    <pre class="diff"><code><span class="file">diff --git a/Elixir/Source/Engine/GUI/Widget.h b/Elixir/Source/Engine/GUI/Widget.h</span>
+<span class="hunk">@@</span>
+<span class="del">-        const SStyleOverride&amp; GetStyle(EStyleLayer layer) const;</span>
+<span class="del">-        void SetStyle(EStyleLayer layer, const SStyleOverride&amp; style);</span>
+<span class="del">-        void SetBackgroundColor(EStyleLayer layer, const SColor&amp; color);</span>
+<span class="add">+        /** Set one local override selected by widget states. */</span>
+<span class="add">+        void SetStyle(EWidgetState requiredStates, const SStyleOverride&amp; style);</span>
+<span class="add">+        /** Set one local background-color override selected by widget states. */</span>
+<span class="add">+        void SetBackgroundColor(EWidgetState requiredStates, const SColor&amp; color);</span>
+<span class="add">+        void SetForegroundColor(EWidgetState requiredStates, const SColor&amp; color);</span>
+<span class="ctx">     protected:</span>
+<span class="add">+        virtual EWidgetState GetWidgetState() const;</span>
+<span class="add">+        SResolvedStyle GetResolvedStyle() const;</span>
+<span class="add">+        void SetTheme(const Ref&lt;const Theme&gt;&amp; theme);</span>
+<span class="ctx">     private:</span>
+<span class="del">-        StyleSet m_Styles;</span>
+<span class="add">+        Ref&lt;const Theme&gt; m_Theme;</span>
+<span class="add">+        StyleSet m_LocalStyles;</span>
+<span class="add">+        SResolvedStyle m_DefaultStyle;</span></code></pre>
+    <pre class="diff"><code><span class="file">diff --git a/Elixir/Source/Engine/GUI/Widget.cpp b/Elixir/Source/Engine/GUI/Widget.cpp</span>
+<span class="hunk">@@</span>
+<span class="add">+    EWidgetState Widget::GetWidgetState() const</span>
+<span class="add">+    {</span>
+<span class="add">+        EWidgetState states = EWidgetState::None;</span>
+<span class="add">+        if (m_Hovered) states |= EWidgetState::Hovered;</span>
+<span class="add">+        if (m_Pressed) states |= EWidgetState::Pressed;</span>
+<span class="add">+        if (m_Focused) states |= EWidgetState::Focused;</span>
+<span class="add">+        if (!m_Enabled) states |= EWidgetState::Disabled;</span>
+<span class="add">+        return states;</span>
+<span class="add">+    }</span>
+<span class="add">+</span>
+<span class="add">+    SResolvedStyle Widget::GetResolvedStyle() const</span>
+<span class="add">+    {</span>
+<span class="add">+        EE_CORE_ASSERT(m_Theme, "Widget must be attached to a Manager before rendering");</span>
+<span class="add">+        SResolvedStyle result = m_DefaultStyle;</span>
+<span class="add">+        const EWidgetState states = GetWidgetState();</span>
+<span class="add">+        for (const uint8_t priority : { 0, 1, 20, 21, 30, 31, 40, 41, 50, 51 })</span>
+<span class="add">+        {</span>
+<span class="add">+            m_Theme-&gt;Apply(result, states, priority);</span>
+<span class="add">+            m_LocalStyles.Apply(result, states, priority);</span>
+<span class="add">+        }</span>
+<span class="add">+        return result;</span>
+<span class="add">+    }</span>
+<span class="add">+</span>
+<span class="add">+    void Widget::SetTheme(const Ref&lt;const Theme&gt;&amp; theme)</span>
+<span class="add">+    {</span>
+<span class="add">+        if (m_Theme == theme) return;</span>
+<span class="add">+        m_Theme = theme;</span>
+<span class="add">+        MarkRenderDirty();</span>
+<span class="add">+        ForEachChild([&amp;](const Ref&lt;Widget&gt;&amp; child) { child-&gt;SetTheme(theme); });</span>
+<span class="add">+    }</span>
+<span class="ctx"></span>
+<span class="ctx">     void Widget::AttachChild(const Ref&lt;Widget&gt;&amp; child)</span>
+<span class="ctx">     {</span>
+<span class="add">+        if (child &amp;&amp; m_Theme) child-&gt;SetTheme(m_Theme);</span>
+<span class="ctx">         ...</span>
+<span class="ctx">     }</span></code></pre>
+
+    <h3>3.3 Checkbox usa o estado, mas não cria um estilo no tema</h3>
+    <pre class="diff"><code><span class="file">diff --git a/Elixir/Source/Engine/GUI/Checkbox.h b/Elixir/Source/Engine/GUI/Checkbox.h</span>
+<span class="hunk">@@</span>
+<span class="del">-        SColor GetCheckedColor() const;</span>
+<span class="del">-        void SetCheckedColor(const SColor&amp; color);</span>
+<span class="ctx">     protected:</span>
+<span class="add">+        EWidgetState GetWidgetState() const override;</span>
+<span class="ctx">     private:</span>
+<span class="ctx">         bool m_Checked = false;</span>
+<span class="del">-        SColor m_CheckedColor{ 0.208f, 0.455f, 0.941f, 1.0f };</span></code></pre>
+    <pre class="diff"><code><span class="file">diff --git a/Elixir/Source/Engine/GUI/Checkbox.cpp b/Elixir/Source/Engine/GUI/Checkbox.cpp</span>
+<span class="hunk">@@</span>
+<span class="add">+    EWidgetState Checkbox::GetWidgetState() const</span>
+<span class="add">+    {</span>
+<span class="add">+        EWidgetState states = Widget::GetWidgetState();</span>
+<span class="add">+        if (m_Checked) states |= EWidgetState::Selected;</span>
+<span class="add">+        return states;</span>
+<span class="add">+    }</span>
+<span class="ctx"></span>
+<span class="ctx">     void Checkbox::BuildDrawCommands(RenderBatch&amp; batch, const int zOrder)</span>
+<span class="ctx">     {</span>
+<span class="ctx">         const SResolvedStyle style = GetResolvedStyle();</span>
+<span class="del">-        const SColor color = m_Checked ? m_CheckedColor : style.BackgroundColor;</span>
+<span class="del">-        const SOutline outline = m_Checked ? SOutline{} : style.Outline;</span>
+<span class="add">+        const bool checked = HasState(GetWidgetState(), EWidgetState::Checked);</span>
+<span class="add">+        const SColor color = checked ? style.ForegroundColor : style.BackgroundColor;</span>
+<span class="add">+        const SOutline outline = checked ? SOutline{} : style.Outline;</span>
+<span class="ctx">         batch.AddRect(m_Geometry, color, style.CornerRadius, style.InsetShadow,</span>
+<span class="ctx">             style.DropShadow, outline, zOrder);</span>
+<span class="ctx">     }</span></code></pre>
+    <p>O tema pode, por exemplo, declarar foreground azul para <code>Selected</code> e foreground azul-claro para <code>Selected | Hovered</code>. Essas regras também são úteis para qualquer componente que expresse uma seleção persistente; elas não são regras de checkbox.</p>
+
+    <h3>3.4 Call sites e defaults</h3>
+    <pre class="diff"><code><span class="file">diff --git a/Editor/Source/UI/EditorUI.cpp b/Editor/Source/UI/EditorUI.cpp</span>
+<span class="hunk">@@</span>
+<span class="del">-    m_MenuBar-&gt;SetBackgroundColor(GUI::EStyleLayer::Normal, ColorSurface);</span>
+<span class="add">+    m_MenuBar-&gt;SetBackgroundColor(GUI::EWidgetState::None, ColorSurface);</span>
+<span class="del">-    m_Tabs[i].Underline-&gt;SetBackgroundColor(GUI::EStyleLayer::Normal,</span>
+<span class="del">-        active ? ColorAccent : GUI::SColor{});</span>
+<span class="add">+    m_Tabs[i].Underline-&gt;SetBackgroundColor(GUI::EWidgetState::None,</span>
+<span class="add">+        active ? ColorAccent : GUI::SColor{});</span></code></pre>
+    <p>Todos os call sites com <code>EStyleLayer::Normal</code> migram para <code>EWidgetState::None</code>. Os que configuram hover, pressed, focused ou disabled migram para o bit correspondente. Defaults hoje definidos nos construtores de <code>Button</code>, <code>TextField</code> e <code>Checkbox</code> migram para a configuração do <code>Theme</code> criada pelo ponto de bootstrap da aplicação; não permanecem copiados em cada instância.</p>
+  </section>
+
+  <section id="testes">
+    <h2>4. Testes e validação</h2>
+    <pre class="diff"><code><span class="file">diff --git a/Elixir/Tests/Engine/GUI/StyleTest.cpp b/Elixir/Tests/Engine/GUI/StyleTest.cpp</span>
+<span class="hunk">@@</span>
+<span class="del">-TEST(StyleTest, PressedWinsOverHoveredWhenBothActive)</span>
+<span class="add">+TEST(StyleTest, PressedWinsOverHoveredWhenBothStatesAreActive)</span>
+<span class="ctx"> {</span>
+<span class="del">-    const SResolvedStyle resolved = styles.Resolve(</span>
+<span class="del">-        EInteractionState::Hovered | EInteractionState::Pressed);</span>
+<span class="add">+    const SResolvedStyle resolved = ResolveWithTheme(styles,</span>
+<span class="add">+        EWidgetState::Hovered | EWidgetState::Pressed);</span>
+<span class="ctx">     EXPECT_EQ(resolved.BackgroundColor, pressed.BackgroundColor);</span>
+<span class="ctx"> }</span>
+<span class="add">+</span>
+<span class="add">+TEST(StyleTest, CheckedIsAnAliasForSelected)</span>
+<span class="add">+{</span>
+<span class="add">+    Theme theme;</span>
+<span class="add">+    theme.SetStyle(EWidgetState::Selected, { .ForegroundColor = Blue });</span>
+<span class="add">+    const SResolvedStyle style = ResolveTheme(theme, EWidgetState::Checked);</span>
+<span class="add">+    EXPECT_EQ(style.ForegroundColor, Blue);</span>
+<span class="add">+}</span>
+<span class="add">+</span>
+<span class="add">+TEST(StyleTest, LocalNormalCannotOverrideThemeDisabled)</span>
+<span class="add">+TEST(StyleTest, LocalDisabledOverridesThemeDisabled)</span>
+<span class="add">+TEST(StyleTest, SelectedHoveredOverridesGenericHovered)</span>
+<span class="add">+TEST(CheckboxTest, CheckedUsesResolvedForegroundAsFill)</span></code></pre>
+    <div class="callout">
+      <strong>Validação requerida.</strong> Compilar os testes de GUI e executar <code>StyleTest</code> e <code>CheckboxTest</code>. Comparar os draw commands de <code>Button</code>, <code>TextField</code> e <code>Checkbox</code> antes e depois da migração com o tema default. Nenhum teste de Vulkan é necessário para a lógica pura do resolvedor.
+    </div>
+    <p>O diff acima é uma proposta. Nenhum arquivo de produção foi alterado por este documento.</p>
+  </section>
+</main>
+</body>
+</html>

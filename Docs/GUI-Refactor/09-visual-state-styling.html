@@ -1,0 +1,1710 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>9. Estilos visuais por estado para componentes GUI</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --surface-alt: #eef0f4;
+    --border: #dde1e8;
+    --text: #1a1d24;
+    --text-muted: #565c6b;
+    --text-faint: #868ea0;
+    --accent: #3452d9;
+    --accent-soft: #e9edfd;
+    --code-bg: #f3f4f7;
+    --code-border: #e1e4ea;
+
+    --diff-add-bg: #e6f7ec;
+    --diff-add-fg: #157347;
+    --diff-del-bg: #fdecec;
+    --diff-del-fg: #c22a2a;
+    --diff-hunk-bg: #eaf0ff;
+    --diff-hunk-fg: #3452d9;
+    --diff-ctx-fg: #4b505c;
+    --diff-file-fg: #12141a;
+    --diff-meta-fg: #9aa0ad;
+
+    --warn-bg: #fff6e2;
+    --warn-border: #e7bd5a;
+    --warn-fg: #7a5b06;
+    --ok-bg: #e9f7ee;
+    --ok-border: #79c99e;
+    --ok-fg: #1a6b40;
+    --info-bg: #eef1fd;
+    --info-border: #a9b8f2;
+    --info-fg: #2c3fa8;
+
+    --shadow: 0 1px 2px rgba(20,22,30,0.05), 0 8px 20px rgba(20,22,30,0.05);
+
+    --badge-new-bg: #e9f7ee;
+    --badge-new-border: #79c99e;
+    --badge-new-fg: #1a6b40;
+    --badge-dev-bg: #fff6e2;
+    --badge-dev-border: #e7bd5a;
+    --badge-dev-fg: #7a5b06;
+    --badge-real-bg: #eef1fd;
+    --badge-real-border: #a9b8f2;
+    --badge-real-fg: #2c3fa8;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161b;
+      --surface: #1b1e25;
+      --surface-alt: #20232c;
+      --border: #2b2f3a;
+      --text: #e7e9ef;
+      --text-muted: #aab0c0;
+      --text-faint: #767d8c;
+      --accent: #91a4ff;
+      --accent-soft: #232a4d;
+      --code-bg: #181a21;
+      --code-border: #2a2e39;
+
+      --diff-add-bg: rgba(46,160,90,0.16);
+      --diff-add-fg: #5fd693;
+      --diff-del-bg: rgba(230,70,70,0.16);
+      --diff-del-fg: #ff8a83;
+      --diff-hunk-bg: rgba(100,130,255,0.18);
+      --diff-hunk-fg: #adbaff;
+      --diff-ctx-fg: #b7bcc8;
+      --diff-file-fg: #e7e9ef;
+      --diff-meta-fg: #666c7a;
+
+      --warn-bg: #2b2408;
+      --warn-border: #7a5f18;
+      --warn-fg: #e8c766;
+      --ok-bg: #10261a;
+      --ok-border: #2f6b49;
+      --ok-fg: #7fd6a4;
+      --info-bg: #1c2140;
+      --info-border: #3c4c9c;
+      --info-fg: #aab8ff;
+
+      --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 8px 20px rgba(0,0,0,0.35);
+
+      --badge-new-bg: #10261a;
+      --badge-new-border: #2f6b49;
+      --badge-new-fg: #7fd6a4;
+      --badge-dev-bg: #2b2408;
+      --badge-dev-border: #7a5f18;
+      --badge-dev-fg: #e8c766;
+      --badge-real-bg: #1c2140;
+      --badge-real-border: #3c4c9c;
+      --badge-real-fg: #aab8ff;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html { background: var(--bg); }
+
+  body {
+    margin: 0;
+    padding: 40px 20px 80px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    font-size: 15.5px;
+  }
+
+  code, pre, kbd, .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  header.doc-header {
+    margin-bottom: 28px;
+  }
+
+  .series-tag {
+    display: inline-block;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 5px 10px;
+    border-radius: 999px;
+    margin-bottom: 14px;
+  }
+
+  h1 {
+    font-size: 30px;
+    line-height: 1.25;
+    margin: 0 0 10px;
+    letter-spacing: -0.01em;
+  }
+
+  .subtitle {
+    font-size: 16.5px;
+    color: var(--text-muted);
+    margin: 0 0 6px;
+    max-width: 780px;
+  }
+
+  nav.toc {
+    margin-top: 26px;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+  }
+
+  nav.toc .toc-title {
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-faint);
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+
+  nav.toc ol {
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 6px 24px;
+  }
+
+  nav.toc a {
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+  }
+
+  nav.toc a:hover { color: var(--accent); text-decoration: underline; }
+
+  section {
+    margin-top: 44px;
+  }
+
+  section > h2 {
+    font-size: 21px;
+    margin: 0 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    scroll-margin-top: 20px;
+  }
+
+  h3 {
+    font-size: 16.5px;
+    margin: 26px 0 10px;
+    scroll-margin-top: 20px;
+  }
+
+  h3.file-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 15.5px;
+    margin: 0 0 8px;
+    flex-wrap: wrap;
+  }
+
+  h3.file-heading .file-index {
+    font-size: 11.5px;
+    color: var(--text-faint);
+    font-weight: 700;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  p { margin: 0 0 14px; }
+
+  ul, ol { margin: 0 0 14px; padding-left: 22px; }
+  li { margin-bottom: 6px; }
+
+  a { color: var(--accent); }
+
+  code.i {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.88em;
+    white-space: break-spaces;
+  }
+
+  .file-ref {
+    color: var(--text-muted);
+    font-size: 0.88em;
+  }
+
+  .lede {
+    font-size: 16px;
+    color: var(--text-muted);
+    max-width: 820px;
+  }
+
+  /* ---- callouts ---- */
+  .callout {
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--text-faint);
+    background: var(--surface);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 16px 0;
+    font-size: 14.5px;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .callout-title {
+    font-weight: 700;
+    font-size: 12.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .callout-decision { border-left-color: var(--accent); }
+  .callout-decision .callout-title { color: var(--accent); }
+  .callout-attention { background: var(--warn-bg); border-color: var(--warn-border); border-left-color: var(--warn-border); }
+  .callout-attention .callout-title { color: var(--warn-fg); }
+  .callout-ok { background: var(--ok-bg); border-color: var(--ok-border); border-left-color: var(--ok-border); }
+  .callout-ok .callout-title { color: var(--ok-fg); }
+  .callout-info { background: var(--info-bg); border-color: var(--info-border); border-left-color: var(--info-border); }
+  .callout-info .callout-title { color: var(--info-fg); }
+
+  /* ---- plain code blocks (not diffs) ---- */
+  pre.code {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--diff-ctx-fg);
+    margin: 12px 0 18px;
+  }
+  pre.code code { white-space: pre; }
+
+  /* ---- diff blocks ---- */
+  .diff-wrap {
+    border: 1px solid var(--code-border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 10px 0 22px;
+    background: var(--code-bg);
+  }
+  pre.diff {
+    margin: 0;
+    padding: 12px 0;
+    overflow-x: auto;
+    font-size: 12.7px;
+    line-height: 1.55;
+  }
+  pre.diff code { display: block; white-space: pre; }
+  pre.diff span { display: block; padding: 0 16px; }
+  .d-file { color: var(--diff-file-fg); font-weight: 700; }
+  .d-hunk { color: var(--diff-hunk-fg); background: var(--diff-hunk-bg); font-weight: 600; }
+  .d-add  { color: var(--diff-add-fg); background: var(--diff-add-bg); }
+  .d-del  { color: var(--diff-del-fg); background: var(--diff-del-bg); }
+  .d-ctx  { color: var(--diff-ctx-fg); }
+  .d-meta { color: var(--diff-meta-fg); font-style: italic; }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 4px 0 22px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+  .legend i.li-add { background: var(--diff-add-bg); border: 1px solid var(--diff-add-fg); }
+  .legend i.li-del { background: var(--diff-del-bg); border: 1px solid var(--diff-del-fg); }
+  .legend i.li-hunk { background: var(--diff-hunk-bg); border: 1px solid var(--diff-hunk-fg); }
+  .legend i.li-ctx { background: var(--surface); border: 1px solid var(--border); }
+
+  table.spec {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    margin: 12px 0 20px;
+  }
+  table.spec th, table.spec td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.spec th {
+    color: var(--text-faint);
+    font-weight: 600;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  table.spec code.i { white-space: nowrap; }
+  .table-scroll { overflow-x: auto; }
+
+  ol.steps { list-style: none; padding: 0; margin: 18px 0; counter-reset: step; }
+  ol.steps > li {
+    counter-increment: step;
+    position: relative;
+    padding: 4px 0 18px 40px;
+    border-left: 2px solid var(--border);
+    margin-left: 14px;
+  }
+  ol.steps > li:last-child { border-left-color: transparent; padding-bottom: 0; }
+  ol.steps > li::before {
+    content: counter(step);
+    position: absolute;
+    left: -15px;
+    top: 2px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  ol.steps > li > .step-title { font-weight: 700; margin-bottom: 4px; display: block; }
+
+  .risk-list { display: flex; flex-direction: column; gap: 14px; }
+  .risk-item {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    background: var(--surface);
+  }
+  .risk-item .risk-title {
+    font-weight: 700;
+    font-size: 14.5px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .risk-item .risk-title .risk-num {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    color: #fff;
+    background: var(--text-faint);
+    border-radius: 5px;
+    padding: 1px 7px;
+  }
+  .risk-item p:last-child { margin-bottom: 0; }
+
+  footer.doc-footer {
+    margin-top: 56px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+    font-size: 12.5px;
+    color: var(--text-faint);
+  }
+
+  @media (max-width: 640px) {
+    nav.toc ol { grid-template-columns: 1fr; }
+    h1 { font-size: 25px; }
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    padding: 2px 9px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    line-height: 1.8;
+  }
+  .badge-new { background: var(--badge-new-bg); color: var(--badge-new-fg); border-color: var(--badge-new-border); }
+  .badge-dev { background: var(--badge-dev-bg); color: var(--badge-dev-fg); border-color: var(--badge-dev-border); }
+  .badge-real { background: var(--badge-real-bg); color: var(--badge-real-fg); border-color: var(--badge-real-border); }
+
+  .badge-legend {
+    margin: 18px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .badge-legend li {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 13.5px;
+    color: var(--text-muted);
+  }
+  .badge-legend li:last-child { margin-bottom: 0; }
+  .badge-legend .badge { flex: none; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="doc-header">
+    <span class="series-tag">Série: Refatoração da GUI — Elixir · Parte 9 · rev. 2</span>
+    <h1>9. Estilos visuais por estado para componentes GUI</h1>
+    <p class="subtitle">
+      Substitui <code class="i">Button::m_NormalColor</code>/<code class="i">m_HoverColor</code>/
+      <code class="i">m_NormalBackground</code> por <code class="i">StyleSet</code>: quatro
+      camadas (<code class="i">Normal &lt; Hovered &lt; Pressed &lt; Disabled</code>), overrides
+      parciais, e um resolvedor único e testável — agora vivendo na própria classe base
+      <code class="i">Widget</code>, não em <code class="i">Button</code>, para que qualquer
+      widget concreto (não só <code class="i">Button</code>) possa adotar o mesmo sistema depois.
+    </p>
+
+    <div class="callout callout-ok" style="margin-top:20px">
+      <span class="callout-title">Reescrita de revisão 2 — o usuário já começou a implementar de verdade</span>
+      <p>
+        A revisão 1 deste documento assumia um repositório ainda sem nenhum código do Ponto 9. Isso
+        mudou: o usuário já criou <code class="i">Elixir/Source/Engine/GUI/Style.h</code>/
+        <code class="i">.cpp</code> de verdade (com os nomes reais <code class="i">StyleSet</code>,
+        <code class="i">EStyleLayer</code>, <code class="i">EInteractionState</code>,
+        <code class="i">SStyleOverride</code>, <code class="i">SResolvedStyle</code> — sem o
+        prefixo <code class="i">UI</code> que a revisão 1 usava) e já deu a
+        <code class="i">Widget</code> um <code class="i">IsEnabled()</code>/<code class="i">SetEnabled(bool)</code>
+        real, na base, exatamente como a revisão 1 já recomendava. <code class="i">Button</code>
+        continuava com a API antiga intacta.
+      </p>
+      <p>
+        Por cima disso, o usuário pediu uma mudança de design real: o suporte a estilos por
+        camada (<code class="i">m_Styles</code>, <code class="i">GetInteractionStates()</code>,
+        <code class="i">GetResolvedStyle()</code>, <code class="i">SetStyle</code>/<code class="i">ClearStyle</code>,
+        os setters de conveniência) deve subir para <code class="i">Widget</code> — não ficar
+        duplicado em <code class="i">Button</code> — para que um futuro <code class="i">TextField</code>
+        possa adotar o mesmo sistema sem nenhuma mudança na base. Esta revisão reflete os dois
+        fatos: o código real como está hoje, e o novo design. Todos os diffs abaixo foram
+        regerados contra uma cópia de trabalho descartável sincronizada com o repositório
+        principal <em>atual</em>, não contra o estado assumido na revisão 1.
+      </p>
+    </div>
+
+    <div class="callout callout-info" style="margin-top:20px">
+      <span class="callout-title">Selos usados neste documento</span>
+      <ul class="badge-legend">
+        <li><span class="badge badge-real">já real</span> código que já existe hoje no repositório, antes deste diff — não é proposta.</li>
+        <li><span class="badge badge-new">arquivo novo</span> arquivo que ainda não existe no repositório.</li>
+        <li><span class="badge badge-dev">divergência da spec</span> ponto em que a investigação contra o código real obrigou a ajustar algo que <a href="09-visual-state-styling.md"><code class="i">09-visual-state-styling.md</code></a> tinha suposto ou deixado em aberto.</li>
+      </ul>
+    </div>
+
+    <nav class="toc" aria-label="Sumário">
+      <div class="toc-title">Nesta página</div>
+      <ol>
+        <li><a href="#sec-objetivo">1. Objetivo</a></li>
+        <li><a href="#sec-investigacao">2. Investigação contra o código real</a></li>
+        <li><a href="#sec-design">3. Design proposto</a></li>
+        <li><a href="#sec-mudancas">4. Mudanças por arquivo</a></li>
+        <li><a href="#sec-matriz">5. Matriz de comportamento</a></li>
+        <li><a href="#sec-testes">6. Testes</a></li>
+        <li><a href="#sec-ordem">7. Ordem de aplicação</a></li>
+        <li><a href="#sec-fora">8. Fora de escopo</a></li>
+        <li><a href="#sec-aceite">9. Critérios de aceite</a></li>
+        <li><a href="#sec-riscos">10. Riscos e pontos de atenção</a></li>
+      </ol>
+    </nav>
+  </header>
+
+  <section id="sec-objetivo">
+    <h2>1. Objetivo</h2>
+    <p class="lede">
+      Terminar a implementação da especificação aprovada em
+      <a href="09-visual-state-styling.md"><code class="i">09-visual-state-styling.md</code></a>,
+      com uma correção de design em relação à revisão 1 deste documento: o suporte a estilos por
+      estado de interação mora na classe base <code class="i">Widget</code>, não em
+      <code class="i">Button</code>. <code class="i">Button</code> é o primeiro consumidor real —
+      mas não o único lugar onde a API existe.
+    </p>
+    <p>
+      Este documento confirma cada suposição contra o código real de
+      <code class="i">Style.h</code>/<code class="i">.cpp</code>, <code class="i">Widget.h</code>/
+      <code class="i">.cpp</code> e <code class="i">Button.h</code>/<code class="i">.cpp</code>
+      (todos lidos por inteiro antes de qualquer diff), e entrega os diffs reais — verificados
+      com <code class="i">git apply --check</code>, individualmente e cumulativamente, contra uma
+      cópia de trabalho descartável (seção <a href="#sec-ordem">7</a>).
+    </p>
+    <p>Ao final deste ponto:</p>
+    <ul>
+      <li><code class="i">Style.h</code>/<code class="i">.cpp</code> continuam exatamente como estão hoje — já corretos, nenhum diff necessário (seção <a href="#sec-investigacao">2.1</a>).</li>
+      <li><code class="i">Widget</code> ganha a API de estilo completa (<code class="i">m_Styles</code>, <code class="i">GetInteractionStates()</code>, <code class="i">GetResolvedStyle()</code>, <code class="i">SetStyle</code>/<code class="i">ClearStyle</code>/setters de conveniência) além do <code class="i">IsEnabled</code>/<code class="i">SetEnabled</code> que já tinha.</li>
+      <li><code class="i">Button</code> migra inteiramente para a API herdada; <code class="i">SetNormalColor</code>/<code class="i">SetHoverColor</code>/<code class="i">SetNormalBackground</code> deixam de existir, sem wrapper de compatibilidade.</li>
+      <li><code class="i">Elixir/Tests/Engine/GUI/StyleTest.cpp</code> cobre os 9 casos da seção 9 do spec original.</li>
+    </ul>
+  </section>
+
+  <section id="sec-investigacao">
+    <h2>2. Investigação contra o código real</h2>
+
+    <h3>2.1 Style.h/.cpp <span class="badge badge-real">já real</span> — já corretos, sem diff</h3>
+    <p>
+      <code class="i">Elixir/Source/Engine/GUI/Style.h</code> e <code class="i">.cpp</code> já
+      existem no repositório, lidos por inteiro para esta revisão. É exatamente o
+      <code class="i">UIStyle.h</code> que a revisão 1 deste documento tinha desenhado, com os
+      nomes reais que o usuário escolheu: <code class="i">EStyleLayer</code> (não
+      <code class="i">EUIVisualLayer</code>), <code class="i">EInteractionState</code>,
+      <code class="i">SStyleOverride</code>, <code class="i">SResolvedStyle</code>,
+      <code class="i">StyleSet</code> — sem o prefixo <code class="i">UI</code>. A precedência
+      (<code class="i">Normal → Hovered → Pressed → Disabled</code>, aplicada em
+      <code class="i">StyleSet::Resolve</code>) e a composição campo a campo via
+      <code class="i">ApplyOverride</code> são idênticas ao que a revisão 1 já tinha projetado.
+      Um detalhe real que a revisão 1 não usava: <code class="i">EInteractionState</code> usa a
+      macro <code class="i">GENERATE_ENUM_CLASS_OPERATORS</code>
+      (<span class="file-ref">Core.h:52-68</span>) para os operadores de máscara de bits, em vez
+      de operadores escritos à mão — é a mesma macro que outras máscaras de bits do motor já
+      usam, então <code class="i">Style.h</code> só precisa da macro, sem reinventar
+      <code class="i">operator|</code>.
+    </p>
+    <p>
+      Nenhum campo, assinatura ou comentário de <code class="i">Style.h</code>/<code class="i">.cpp</code>
+      precisa mudar para o design revisado (seção <a href="#sec-design">3</a>) funcionar: mover
+      onde <code class="i">StyleSet</code> é <em>usado</em> (de <code class="i">Button</code> para
+      <code class="i">Widget</code>) não exige nenhuma mudança em como <code class="i">StyleSet</code>
+      em si é <em>definido</em>. Por isso a seção <a href="#sec-mudancas">4</a> não traz nenhum
+      diff para estes dois arquivos — só a confirmação de que já estão certos.
+    </p>
+
+    <h3>2.2 Widget.h/.cpp <span class="badge badge-real">já real</span> — Enabled já na base, exatamente como a revisão 1 recomendava</h3>
+    <p>
+      <code class="i">Widget::IsEnabled()</code>/<code class="i">SetEnabled(bool)</code>/
+      <code class="i">m_Enabled</code> já existem de verdade
+      (<span class="file-ref">Widget.h:176-188,447</span>). A implementação real
+      (<span class="file-ref">Widget.cpp:207-220</span>) marca render dirty e cancela um press em
+      andamento:
+    </p>
+    <pre class="code"><code>void Widget::SetEnabled(const bool enabled)
+{
+    if (m_Enabled == enabled) return;
+
+    m_Enabled = enabled;
+
+    if (!m_Enabled)
+        m_Pressed = false;
+
+    MarkRenderDirty();
+}</code></pre>
+    <p>
+      E os dois pontos de bloqueio de input já existem também —
+      <code class="i">Widget::HandleMouseDown</code> (<span class="file-ref">Widget.cpp:340-350</span>)
+      recusa um mouse-down novo com <code class="i">if (!m_Enabled) return SInputReply::Unhandled();</code>,
+      e <code class="i">Widget::HandleClick</code> (<span class="file-ref">Widget.cpp:376-379</span>)
+      recusa um clique pendente com <code class="i">if (m_Enabled &amp;&amp; m_OnClickCallback) m_OnClickCallback();</code>.
+      Isso já bate exatamente com a decisão "<code class="i">Enabled</code> fica em
+      <code class="i">Widget</code>, não em <code class="i">Button</code>" que a revisão 1 deste
+      documento já tinha tomado e justificado — nenhum diff deste documento toca em
+      <code class="i">Enabled</code>. É só o precedente concreto que a decisão da seção
+      <a href="#sec-investigacao">2.3</a> segue.
+    </p>
+    <div class="callout callout-attention">
+      <span class="callout-title badge badge-dev" style="margin-bottom:8px">Divergência confirmada: Button::HandleMouseDown ainda não checa IsEnabled()</span>
+      <p>
+        <code class="i">Button.cpp</code> não foi tocado ainda — <code class="i">Button::HandleMouseDown</code>
+        (<span class="file-ref">Button.cpp:239-251</span>) continua definindo
+        <code class="i">m_Pressed = true</code> incondicionalmente, sem checar
+        <code class="i">IsEnabled()</code>, porque ele sobrescreve completamente o corpo de
+        <code class="i">Widget::HandleMouseDown</code> em vez de delegar a ele (comentário no
+        próprio método explica por quê: precisa vencer o mouse-down mesmo sem callback
+        registrado). O guard de <code class="i">Widget::HandleMouseDown</code> nunca roda para um
+        <code class="i">Button</code>. O diff de <a href="#file-4-3">4.3</a> adiciona esse guard
+        de volta especificamente em <code class="i">Button::HandleMouseDown</code>, o mesmo ajuste
+        que a revisão 1 já tinha identificado como necessário quando assumia (incorretamente,
+        para o código daquela época) que <code class="i">Button</code> também não checava
+        <code class="i">Enabled</code>.
+      </p>
+    </div>
+
+    <h3>2.3 Onde a API de estilo mora em Widget: pública com resolução protegida</h3>
+    <p>
+      O pedido do usuário é explícito: <code class="i">m_Styles</code>,
+      <code class="i">GetInteractionStates()</code>, <code class="i">GetResolvedStyle()</code>,
+      <code class="i">SetStyle</code>/<code class="i">ClearStyle</code> e os setters de
+      conveniência precisam subir para <code class="i">Widget</code>, para que
+      <code class="i">TextField</code> (e qualquer outro widget clicável) possa adotar depois sem
+      mudar a base outra vez. Duas perguntas de acesso ficam por decidir:
+    </p>
+    <table class="spec">
+      <tr><th>Membro</th><th>Acesso escolhido</th><th>Por quê</th></tr>
+      <tr>
+        <td><code class="i">m_Styles</code></td>
+        <td>protegido</td>
+        <td>Estado interno; nenhum código fora de <code class="i">Widget</code> e suas subclasses precisa tocar o <code class="i">StyleSet</code> bruto — só ler/escrever camadas via <code class="i">GetStyle</code>/<code class="i">SetStyle</code>.</td>
+      </tr>
+      <tr>
+        <td><code class="i">GetInteractionStates()</code>, <code class="i">GetResolvedStyle()</code></td>
+        <td>protegido</td>
+        <td>Só fazem sentido chamados de dentro do <code class="i">BuildDrawCommands</code> de uma subclasse concreta — exatamente como o spec original desenhava para <code class="i">Button::BuildDrawCommands</code>. Não há uso legítimo fora de uma subclasse desenhando a si mesma.</td>
+      </tr>
+      <tr>
+        <td><code class="i">GetStyle</code>, <code class="i">SetStyle</code>, <code class="i">ClearStyle</code>, <code class="i">SetBackgroundColor</code>, <code class="i">SetForegroundColor</code>, <code class="i">SetBackgroundTexture</code>, <code class="i">ClearBackgroundTexture</code></td>
+        <td><strong>público</strong></td>
+        <td>Ver decisão abaixo.</td>
+      </tr>
+    </table>
+    <div class="callout callout-decision">
+      <span class="callout-title">Decisão — mutadores de estilo públicos em Widget, não protegidos com wrapper por subclasse</span>
+      <p>
+        A alternativa considerada: deixar <code class="i">SetStyle</code>/<code class="i">SetBackgroundColor</code>/etc.
+        protegidos em <code class="i">Widget</code>, e cada subclasse concreta que quisesse expor
+        a API escreveria seus próprios métodos públicos finos por cima (do jeito que a revisão 1
+        tinha feito só dentro de <code class="i">Button</code>). O argumento a favor dessa
+        alternativa é real: nem todo <code class="i">Widget</code> tem um conceito visual de
+        "background/foreground" que faça sentido — <code class="i">HorizontalBox</code>,
+        <code class="i">VerticalBox</code> e <code class="i">Overlay</code> são containers
+        puramente estruturais, sem <code class="i">BuildDrawCommands</code> próprio que consumiria
+        um <code class="i">SResolvedStyle</code>. Expor <code class="i">SetBackgroundColor</code>
+        publicamente nesses widgets pareceria, à primeira vista, uma API que promete um efeito
+        visual que nunca acontece.
+      </p>
+      <p>
+        Mas o próprio <code class="i">Widget</code> já estabelece o precedente contrário, e de
+        forma consistente há várias releases: <code class="i">SetOutline</code>/
+        <code class="i">SetOutlineColor</code>/<code class="i">SetOutlineThickness</code>
+        (<span class="file-ref">Widget.h:164-167</span>) e <code class="i">SetInsetShadow*</code>/
+        <code class="i">SetDropShadow*</code> (<span class="file-ref">Widget.h:146-162</span>) já
+        são públicos incondicionalmente em <code class="i">Widget</code>, e nada impede hoje que
+        alguém chame <code class="i">horizontalBox-&gt;SetOutline(...)</code> — o outline
+        simplesmente nunca aparece, porque <code class="i">HorizontalBox</code> não tem
+        <code class="i">BuildDrawCommands</code> que leia <code class="i">GetOutline()</code>.
+        Isso já é o comportamento aceito no motor: uma propriedade visual pública, inerte em
+        quem não desenha, útil em quem desenha. Tornar <code class="i">SetBackgroundColor</code>
+        etc. protegidos-com-wrapper-por-subclasse criaria uma segunda convenção só para estilo,
+        divergindo do padrão que <code class="i">Outline</code>/sombras já fixaram — e obrigaria
+        <code class="i">TextField</code> a reescrever seis wrappers idênticos aos de
+        <code class="i">Button</code> só para reexpor o que a base já oferece, o oposto do que o
+        usuário pediu ("<em>TextField podendo adotar depois sem precisar de nenhuma mudança na
+        base</em>").
+      </p>
+      <p>
+        Por isso os sete métodos vão públicos em <code class="i">Widget</code>. Só
+        <code class="i">GetInteractionStates()</code>/<code class="i">GetResolvedStyle()</code>
+        continuam protegidos, porque esses dois não têm equivalente público já existente em
+        <code class="i">Widget</code> hoje (diferente de <code class="i">GetOutline()</code>, que
+        é público) — eles só têm sentido como ferramenta de desenho interna de uma subclasse.
+      </p>
+    </div>
+
+    <h3>2.4 Button.h/.cpp — API antiga intacta, confirmando o ponto de partida real</h3>
+    <p>
+      Confirmado por leitura completa: <code class="i">Button.h</code>/<code class="i">.cpp</code>
+      continuam byte a byte como antes — <code class="i">m_TextColor</code>,
+      <code class="i">m_CornerRadius</code>, <code class="i">m_NormalColor</code>,
+      <code class="i">m_HoverColor</code>, <code class="i">m_BackgroundBorders</code>,
+      <code class="i">m_NormalBackground</code> e os respectivos getters/setters
+      (<span class="file-ref">Button.h:16-59, Button.cpp:24-90</span>) — nenhum deles foi tocado
+      pelo trabalho que introduziu <code class="i">Style.h</code>/<code class="i">Widget::Enabled</code>.
+      A migração completa de <code class="i">Button</code> para a API herdada continua sendo
+      necessária, e é o que a seção <a href="#sec-mudancas">4.3</a>/<a href="#sec-mudancas">4.4</a>
+      entrega.
+    </p>
+
+    <h3>2.5 Call sites reais: Application.cpp continua sendo o único, com os mesmos três usos</h3>
+    <p>
+      Como <code class="i">Button.h</code>/<code class="i">.cpp</code> não mudou, a investigação da
+      revisão 1 sobre call sites continua válida: <code class="i">Elixir/Source/Engine/Core/Application.cpp:55,59-60,79-80</code>
+      é o único lugar em todo o repositório que chama
+      <code class="i">SetNormalColor</code>/<code class="i">SetHoverColor</code>/<code class="i">SetNormalBackground</code>
+      — reconfirmado por nova busca contra o estado atual. A mesma decisão da revisão 1 continua
+      de pé: migrar os três call sites diretamente, sem wrapper de compatibilidade temporária
+      (seção 7.2 da spec permite ambos; com um único arquivo afetado, a migração direta é mais
+      simples que manter API descontinuada sem nenhum chamador esperando por ela).
+    </p>
+
+    <h3>2.6 Padrão de teste existente</h3>
+    <p>
+      <code class="i">WidgetTestUtils.h</code> continua documentando por que
+      <code class="i">TestContentWidget</code> existe em vez de instanciar
+      <code class="i">Button</code> nos testes: <code class="i">Button::Button()</code> chama
+      <code class="i">FontManager::GetDefaultFont()</code>, que precisa do sistema de fontes
+      inicializado. Com a API de estilo agora na base, isso na verdade simplifica os testes: a
+      seção <a href="#sec-testes">6</a> usa um <code class="i">Widget</code> de teste simples (sem
+      nenhuma dependência de fonte) para cobrir tanto a interação (<code class="i">Enabled</code>)
+      quanto o próprio resolvedor de estilo — antes exigiria promover membros específicos de
+      <code class="i">Button</code>.
+    </p>
+  </section>
+
+  <section id="sec-design">
+    <h2>3. Design proposto</h2>
+    <p>
+      O modelo de composição (camadas, precedência, overrides parciais) não muda — já está
+      implementado em <code class="i">Style.h</code>/<code class="i">.cpp</code> (seção
+      <a href="#sec-investigacao">2.1</a>) e não é reaberto aqui. O que este documento decide é
+      só a <strong>topologia</strong>: onde a máquina que usa <code class="i">StyleSet</code> mora.
+    </p>
+    <ul>
+      <li><code class="i">Widget</code> ganha <code class="i">protected StyleSet m_Styles;</code>, ao lado dos outros campos visuais (<code class="i">m_Outline</code>, <code class="i">m_InsetShadow</code>, <code class="i">m_DropShadow</code>).</li>
+      <li><code class="i">Widget::GetInteractionStates()</code> (protegido) monta a máscara a partir de <code class="i">IsHovered()</code>/<code class="i">IsPressed()</code>/<code class="i">!IsEnabled()</code> — todos já da própria base, então não depende de nada específico de <code class="i">Button</code>.</li>
+      <li><code class="i">Widget::GetResolvedStyle()</code> (protegido) chama <code class="i">m_Styles.Resolve(GetInteractionStates())</code> e sobrepõe <code class="i">Outline</code>/<code class="i">InsetShadow</code>/<code class="i">DropShadow</code> a partir dos getters já existentes (<code class="i">GetOutline()</code> etc.) — a mesma técnica que a revisão 1 já usava dentro de <code class="i">Button</code>, só que agora útil para qualquer subclasse.</li>
+      <li><code class="i">Widget::GetStyle</code>/<code class="i">SetStyle</code>/<code class="i">ClearStyle</code>/<code class="i">SetBackgroundColor</code>/<code class="i">SetForegroundColor</code>/<code class="i">SetBackgroundTexture</code>/<code class="i">ClearBackgroundTexture</code> (públicos) — decisão e justificativa completas na seção <a href="#sec-investigacao">2.3</a>.</li>
+      <li><code class="i">Button</code> não declara mais <code class="i">m_Styles</code>, <code class="i">GetInteractionStates()</code> nem <code class="i">GetResolvedStyle()</code> — usa os herdados diretamente. Só mantém wrappers Button-específicos que já existiam antes (<code class="i">GetCornerRadius</code>/<code class="i">SetCornerRadius</code> sem parâmetro de layer, sempre mirando <code class="i">Normal</code> — comportamento idêntico ao pré-migração) implementados por cima da API herdada.</li>
+    </ul>
+  </section>
+
+  <section id="sec-mudancas">
+    <h2>4. Mudanças por arquivo</h2>
+    <p>
+      Seis diffs, nesta ordem de aplicação (também seção <a href="#sec-ordem">7</a>):
+      <code class="i">Widget.h</code>/<code class="i">.cpp</code> primeiro (a API de estilo sobe
+      para a base, incremental sobre o que já existe de verdade — <code class="i">IsEnabled</code>/
+      <code class="i">SetEnabled</code> não são regerados, só a área ao redor deles ganha os novos
+      métodos), depois <code class="i">Button.h</code>/<code class="i">.cpp</code> (migração
+      completa), depois o call site em <code class="i">Application.cpp</code>, e por último o
+      teste novo. <code class="i">Style.h</code>/<code class="i">.cpp</code> não aparecem aqui —
+      seção <a href="#sec-investigacao">2.1</a> confirma que já estão corretos.
+    </p>
+
+    <h3 class="file-heading" id="file-4-1"><span class="file-index">4.1</span> Engine/GUI/Widget.h — API de estilo pública + resolução protegida</h3>
+    <p>
+      Três hunks: o include de <code class="i">Style.h</code>; o bloco de setters/getters
+      públicos, logo após o grupo de <code class="i">Outline</code> (mesma vizinhança temática —
+      propriedades visuais); <code class="i">GetInteractionStates()</code>/<code class="i">GetResolvedStyle()</code>
+      protegidos, logo após <code class="i">ClipsChildren()</code> (a mesma área onde
+      <code class="i">BuildDrawCommands</code> e seus ajudantes já vivem); e
+      <code class="i">m_Styles</code> como membro protegido, ao lado de <code class="i">m_Outline</code>.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Widget.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Widget.h</span>
+<span class="d-hunk">@@ -6,6 +6,7 @@</span>
+<span class="d-ctx"> #include &lt;Engine/GUI/Definitions.h&gt;</span>
+<span class="d-ctx"> #include &lt;Engine/GUI/Renderer/RenderBatch.h&gt;</span>
+<span class="d-ctx"> #include &lt;Engine/GUI/Slot.h&gt;</span>
+<span class="d-add">+#include &lt;Engine/GUI/Style.h&gt;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx"> namespace Elixir::GUI</span>
+<span class="d-ctx"> {</span>
+<span class="d-hunk">@@ -166,6 +167,58 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">         void SetOutlineColor(const SColor&amp; color);</span>
+<span class="d-ctx">         void SetOutlineThickness(float thickness);</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Read the override a style layer currently declares. Unset fields fall back to</span>
+<span class="d-add">+         * whatever an earlier layer resolves to - see StyleSet::Resolve.</span>
+<span class="d-add">+         * @param layer Layer to read.</span>
+<span class="d-add">+         * @return The layer's override, as currently stored.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        const SStyleOverride&amp; GetStyle(EStyleLayer layer) const { return m_Styles.Get(layer); }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Replace the whole override for one style layer and mark this widget for re-render.</span>
+<span class="d-add">+         * @param layer Layer to replace.</span>
+<span class="d-add">+         * @param style New override for that layer.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        void SetStyle(EStyleLayer layer, const SStyleOverride&amp; style);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Remove every override a style layer declares, restoring the fallback to earlier</span>
+<span class="d-add">+         * layers, and mark this widget for re-render.</span>
+<span class="d-add">+         * @param layer Layer to clear.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        void ClearStyle(EStyleLayer layer);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Set one layer's background color.</span>
+<span class="d-add">+         * @param layer Layer that owns the override.</span>
+<span class="d-add">+         * @param color Background color for that layer.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        void SetBackgroundColor(EStyleLayer layer, const SColor&amp; color);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Set one layer's foreground color (e.g. text).</span>
+<span class="d-add">+         * @param layer Layer that owns the override.</span>
+<span class="d-add">+         * @param color Foreground color for that layer.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        void SetForegroundColor(EStyleLayer layer, const SColor&amp; color);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Set one layer's background texture, meant to be drawn as a 9-patch using whatever</span>
+<span class="d-add">+         * border metric the concrete widget exposes for that purpose.</span>
+<span class="d-add">+         * @param layer Layer that owns the override.</span>
+<span class="d-add">+         * @param texture Texture for that layer.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        void SetBackgroundTexture(EStyleLayer layer, const Ref&lt;Texture2D&gt;&amp; texture);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Explicitly clear a layer's background texture override, so it stops overriding</span>
+<span class="d-add">+         * whatever an earlier layer resolved to - as opposed to leaving the field unset,</span>
+<span class="d-add">+         * which would just inherit instead of forcing a solid background.</span>
+<span class="d-add">+         * @param layer Layer to clear the texture override from.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        void ClearBackgroundTexture(EStyleLayer layer);</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         bool IsFocusable() const { return m_Focusable; }</span>
+<span class="d-ctx">         void SetFocusable(bool focusable);</span>
+<span class="d-ctx"> </span>
+<span class="d-hunk">@@ -309,6 +362,31 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">          */</span>
+<span class="d-ctx">         virtual bool ClipsChildren() const { return false; }</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Build this frame's interaction state mask from this widget's own hover/press/</span>
+<span class="d-add">+         * enabled flags. Feeds StyleSet::Resolve only - it does not feed back into input</span>
+<span class="d-add">+         * routing.</span>
+<span class="d-add">+         * @return Mask combining Hovered/Pressed/Disabled as currently active.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        EInteractionState GetInteractionStates() const;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Resolve this widget's style for the current interaction state. Subclasses that</span>
+<span class="d-add">+         * draw a background/foreground call this from their own BuildDrawCommands.</span>
+<span class="d-add">+         *</span>
+<span class="d-add">+         * Recomputes on every call rather than caching: four layers and a handful of fields</span>
+<span class="d-add">+         * is cheap, and a cache would need every place that changes hover/press/enabled to</span>
+<span class="d-add">+         * also invalidate it - MarkRenderDirty() is already called on all of those.</span>
+<span class="d-add">+         *</span>
+<span class="d-add">+         * Outline/InsetShadow/DropShadow are resolved from the live GetOutline()/</span>
+<span class="d-add">+         * GetInsetShadow()/GetDropShadow() rather than from a style layer, since those three</span>
+<span class="d-add">+         * already have Widget as their one source of truth (SetOutline and friends) -</span>
+<span class="d-add">+         * storing a second copy in a layer would let the two drift apart.</span>
+<span class="d-add">+         *</span>
+<span class="d-add">+         * @return The composed style ready for BuildDrawCommands.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        SResolvedStyle GetResolvedStyle() const;</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         /**</span>
+<span class="d-ctx">          * Mark this widget's layout as dirty and propagate the mark to ancestors.</span>
+<span class="d-ctx">          * A dirty widget (and any ancestor whose layout depends on it) is re-arranged</span>
+<span class="d-hunk">@@ -439,6 +517,13 @@ namespace Elixir::GUI</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         SOutline m_Outline = {};</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+        // Per-state style layers (background/foreground color, background texture, corner</span>
+<span class="d-add">+        // radius, ...). Not every concrete Widget draws a background - a purely structural</span>
+<span class="d-add">+        // container just never calls GetResolvedStyle() from its own BuildDrawCommands, the</span>
+<span class="d-add">+        // same way it can already call SetOutline() today and simply never look at</span>
+<span class="d-add">+        // GetOutline() in its own drawing code.</span>
+<span class="d-add">+        StyleSet m_Styles;</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         bool m_Focusable = false;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         bool m_Hovered = false;</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-4-2"><span class="file-index">4.2</span> Engine/GUI/Widget.cpp — implementação, incremental sobre o Enabled já real</h3>
+    <p>
+      Dois hunks, ambos inserindo código novo entre métodos que já existem hoje —
+      <code class="i">SetOutlineThickness</code>/<code class="i">SetFocusable</code> continuam
+      exatamente como estão (nenhum diff toca <code class="i">SetEnabled</code>, que já é
+      real desde antes deste ponto).
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Widget.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Widget.cpp</span>
+<span class="d-hunk">@@ -190,6 +190,46 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">         MarkRenderDirty();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+    void Widget::SetStyle(const EStyleLayer layer, const SStyleOverride&amp; style)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        m_Styles.Set(layer, style);</span>
+<span class="d-add">+        MarkRenderDirty();</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::ClearStyle(const EStyleLayer layer)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        m_Styles.Clear(layer);</span>
+<span class="d-add">+        MarkRenderDirty();</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::SetBackgroundColor(const EStyleLayer layer, const SColor&amp; color)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        SStyleOverride style = m_Styles.Get(layer);</span>
+<span class="d-add">+        style.BackgroundColor = color;</span>
+<span class="d-add">+        SetStyle(layer, style);</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::SetForegroundColor(const EStyleLayer layer, const SColor&amp; color)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        SStyleOverride style = m_Styles.Get(layer);</span>
+<span class="d-add">+        style.ForegroundColor = color;</span>
+<span class="d-add">+        SetStyle(layer, style);</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::SetBackgroundTexture(const EStyleLayer layer, const Ref&lt;Texture2D&gt;&amp; texture)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        SStyleOverride style = m_Styles.Get(layer);</span>
+<span class="d-add">+        style.BackgroundTexture = texture;</span>
+<span class="d-add">+        SetStyle(layer, style);</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::ClearBackgroundTexture(const EStyleLayer layer)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        SStyleOverride style = m_Styles.Get(layer);</span>
+<span class="d-add">+        style.BackgroundTexture = Ref&lt;Texture2D&gt;{};</span>
+<span class="d-add">+        SetStyle(layer, style);</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     void Widget::SetFocusable(const bool focusable)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         if (m_Focusable == focusable) return;</span>
+<span class="d-hunk">@@ -378,6 +418,33 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">         if (m_Enabled &amp;&amp; m_OnClickCallback) m_OnClickCallback();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+    EInteractionState Widget::GetInteractionStates() const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        EInteractionState states = EInteractionState::None;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        if (IsHovered())</span>
+<span class="d-add">+            states = states | EInteractionState::Hovered;</span>
+<span class="d-add">+        if (IsPressed())</span>
+<span class="d-add">+            states = states | EInteractionState::Pressed;</span>
+<span class="d-add">+        if (!IsEnabled())</span>
+<span class="d-add">+            states = states | EInteractionState::Disabled;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        return states;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SResolvedStyle Widget::GetResolvedStyle() const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        SResolvedStyle style = m_Styles.Resolve(GetInteractionStates());</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // See the Doxygen comment on the declaration for why these three are overlaid here</span>
+<span class="d-add">+        // instead of living in a style layer.</span>
+<span class="d-add">+        style.Outline = GetOutline();</span>
+<span class="d-add">+        style.InsetShadow = GetInsetShadow();</span>
+<span class="d-add">+        style.DropShadow = GetDropShadow();</span>
+<span class="d-add">+</span>
+<span class="d-add">+        return style;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     SRect Widget::ApplyPadding(const SRect&amp; availableSpace, const SPadding&amp; padding)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         SRect result;</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-4-3"><span class="file-index">4.3</span> Engine/GUI/Button.h — migração completa, sem StyleSet próprio</h3>
+    <p>
+      Diferença em relação à revisão 1: <code class="i">Button</code> não declara mais
+      <code class="i">m_Styles</code>, <code class="i">GetStyle</code>/<code class="i">SetStyle</code>,
+      <code class="i">GetInteractionStates</code> nem <code class="i">GetResolvedStyle</code> —
+      tudo isso já vem de <code class="i">Widget</code>. Sobra só o que é genuinamente
+      Button-específico: <code class="i">GetTextColor</code>/<code class="i">SetTextColor</code>
+      e <code class="i">GetCornerRadius</code>/<code class="i">SetCornerRadius</code>/
+      <code class="i">GetBackgroundBorders</code>/<code class="i">SetBackgroundBorders</code>
+      (convenções sem parâmetro de layer, sempre mirando <code class="i">Normal</code>, iguais ao
+      comportamento pré-migração).
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Button.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Button.h</span>
+<span class="d-hunk">@@ -13,7 +13,7 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">         const std::string&amp; GetText() const { return m_Text; }</span>
+<span class="d-ctx">         void SetText(const std::string&amp; text);</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        SColor GetTextColor() const { return m_TextColor; }</span>
+<span class="d-add">+        SColor GetTextColor() const;</span>
+<span class="d-ctx">         void SetTextColor(const SColor&amp; color);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         const Ref&lt;Font&gt;&amp; GetFont() const { return m_Font; }</span>
+<span class="d-hunk">@@ -29,7 +29,7 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">          * Get corner radius for each corner individually.</span>
+<span class="d-ctx">          * @return vector (top-left, top-right, bottom-right, bottom-left)</span>
+<span class="d-ctx">          */</span>
+<span class="d-del">-        glm::vec4 GetCornerRadius() const { return m_CornerRadius; }</span>
+<span class="d-add">+        glm::vec4 GetCornerRadius() const;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-ctx">          * Set the same radius for all corners.</span>
+<span class="d-hunk">@@ -46,18 +46,9 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">          */</span>
+<span class="d-ctx">         void SetCornerRadius(const glm::vec4&amp; radius);</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        SColor GetNormalColor() const { return m_NormalColor; }</span>
+<span class="d-del">-        void SetNormalColor(const SColor&amp; color);</span>
+<span class="d-del">-</span>
+<span class="d-del">-        SColor GetHoverColor() const { return m_HoverColor; }</span>
+<span class="d-del">-        void SetHoverColor(const SColor&amp; color);</span>
+<span class="d-del">-</span>
+<span class="d-del">-        const glm::vec4&amp; GetBackgroundBorders() const { return m_BackgroundBorders; }</span>
+<span class="d-add">+        glm::vec4 GetBackgroundBorders() const;</span>
+<span class="d-ctx">         void SetBackgroundBorders(const glm::vec4&amp; borders);</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        const Ref&lt;Texture2D&gt;&amp; GetNormalBackground() const { return m_NormalBackground; }</span>
+<span class="d-del">-        void SetNormalBackground(const Ref&lt;Texture2D&gt;&amp; texture);</span>
+<span class="d-del">-</span>
+<span class="d-ctx">       protected:</span>
+<span class="d-ctx">         glm::vec2 ComputeDesiredSize(const glm::vec2&amp; availableSize) override;</span>
+<span class="d-ctx">         void LayoutChildren(const SRect&amp; allocatedSpace) override;</span>
+<span class="d-hunk">@@ -73,26 +64,11 @@ namespace Elixir::GUI</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">       private:</span>
+<span class="d-ctx">         std::string m_Text;</span>
+<span class="d-del">-        SColor m_TextColor{1.0f, 0.0f, 0.0f, 1.0f};</span>
+<span class="d-ctx">         Ref&lt;Font&gt; m_Font;</span>
+<span class="d-ctx">         float m_FontSize = 16.0f;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         SPadding m_Padding;</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        // top-left, top-right, bottom-right, bottom-left</span>
+<span class="d-del">-        glm::vec4 m_CornerRadius = {0.0f, 0.0f, 0.0f, 0.0f};</span>
+<span class="d-del">-</span>
+<span class="d-del">-        // Colors for different states</span>
+<span class="d-del">-        SColor m_NormalColor{0.3f, 0.3f, 0.8f, 1.0f};</span>
+<span class="d-del">-        SColor m_HoverColor{1.0f, 0.0f, 0.0f, 1.0f};</span>
+<span class="d-del">-</span>
+<span class="d-del">-        // When texture is used, this represents the borders of 9-patch texture.</span>
+<span class="d-del">-        // Border mapping = (left, top, right, bottom).</span>
+<span class="d-del">-        glm::vec4 m_BackgroundBorders = {30.0f, 30.0f, 30.0f, 30.0f};</span>
+<span class="d-del">-</span>
+<span class="d-del">-        // Textures for different states</span>
+<span class="d-del">-        Ref&lt;Texture2D&gt; m_NormalBackground;</span>
+<span class="d-del">-</span>
+<span class="d-ctx">         glm::vec2 m_MinDesiredSize{ 120.0f, 40.0f };</span>
+<span class="d-ctx">     };</span>
+<span class="d-ctx"> }</span>
+<span class="d-ctx">\ No newline at end of file</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-4-4"><span class="file-index">4.4</span> Engine/GUI/Button.cpp — migração completa, incluindo o guard de Enabled que faltava</h3>
+    <table class="spec">
+      <tr><th>Área</th><th>O que muda</th></tr>
+      <tr><td>Construtor</td><td>Registra os defaults antigos via <code class="i">SetStyle</code> herdado (Normal/Hovered) — mesmos literais, aparência idêntica.</td></tr>
+      <tr><td><code class="i">GetTextColor</code>/<code class="i">SetTextColor</code></td><td>Leem/escrevem <code class="i">Normal.ForegroundColor</code> via <code class="i">GetStyle</code>/<code class="i">SetForegroundColor</code> herdados.</td></tr>
+      <tr><td><code class="i">GetCornerRadius</code>/<code class="i">SetCornerRadius</code>, <code class="i">GetBackgroundBorders</code>/<code class="i">SetBackgroundBorders</code></td><td>Leem/escrevem a layer <code class="i">Normal</code> via <code class="i">GetStyle</code>/<code class="i">SetStyle</code> herdados.</td></tr>
+      <tr><td><code class="i">BuildDrawCommands</code></td><td>Chama <code class="i">GetResolvedStyle()</code> herdado uma vez, usa só <code class="i">style.*</code>.</td></tr>
+      <tr><td><code class="i">HandleMouseDown</code></td><td>Ganha o gate <code class="i">if (!IsEnabled()) return SInputReply::Unhandled();</code> — a divergência confirmada em <a href="#sec-investigacao">2.2</a>.</td></tr>
+    </table>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Button.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Button.cpp</span>
+<span class="d-hunk">@@ -11,6 +11,19 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">       : m_Text(text)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         m_Font = FontManager::GetDefaultFont();</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // Registers the same defaults the old per-state fields used to carry, so a Button</span>
+<span class="d-add">+        // built with no style calls at all still looks exactly as before this migration.</span>
+<span class="d-add">+        SStyleOverride normal;</span>
+<span class="d-add">+        normal.BackgroundColor = SColor{0.3f, 0.3f, 0.8f, 1.0f};</span>
+<span class="d-add">+        normal.ForegroundColor = SColor{1.0f, 0.0f, 0.0f, 1.0f};</span>
+<span class="d-add">+        normal.CornerRadius = glm::vec4{0.0f, 0.0f, 0.0f, 0.0f};</span>
+<span class="d-add">+        normal.BackgroundBorders = glm::vec4{30.0f, 30.0f, 30.0f, 30.0f};</span>
+<span class="d-add">+        SetStyle(EStyleLayer::Normal, normal);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        SStyleOverride hovered;</span>
+<span class="d-add">+        hovered.BackgroundColor = SColor{1.0f, 0.0f, 0.0f, 1.0f};</span>
+<span class="d-add">+        SetStyle(EStyleLayer::Hovered, hovered);</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     void Button::SetText(const std::string&amp; text)</span>
+<span class="d-hunk">@@ -21,11 +34,14 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">         MarkRenderDirty(); // the drawn text changes even when geometry does not</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+    SColor Button::GetTextColor() const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        return GetStyle(EStyleLayer::Normal).ForegroundColor.value_or(SColor{});</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     void Button::SetTextColor(const SColor&amp; color)</span>
+<span class="d-ctx">     {</span>
+<span class="d-del">-        if (m_TextColor == color) return;</span>
+<span class="d-del">-        m_TextColor = color;</span>
+<span class="d-del">-        MarkRenderDirty();</span>
+<span class="d-add">+        SetForegroundColor(EStyleLayer::Normal, color);</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     void Button::SetFont(const Ref&lt;Font&gt;&amp; font)</span>
+<span class="d-hunk">@@ -59,34 +75,28 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">             MarkRenderDirty(); // padding shifts the label position/clip in BuildDrawCommands</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    void Button::SetCornerRadius(const glm::vec4&amp; radius)</span>
+<span class="d-add">+    glm::vec4 Button::GetCornerRadius() const</span>
+<span class="d-ctx">     {</span>
+<span class="d-del">-        m_CornerRadius = radius;</span>
+<span class="d-del">-        MarkRenderDirty();</span>
+<span class="d-add">+        return GetStyle(EStyleLayer::Normal).CornerRadius.value_or(glm::vec4{0.0f});</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    void Button::SetNormalColor(const SColor&amp; color)</span>
+<span class="d-add">+    void Button::SetCornerRadius(const glm::vec4&amp; radius)</span>
+<span class="d-ctx">     {</span>
+<span class="d-del">-        m_NormalColor = color;</span>
+<span class="d-del">-        MarkRenderDirty();</span>
+<span class="d-add">+        SStyleOverride style = GetStyle(EStyleLayer::Normal);</span>
+<span class="d-add">+        style.CornerRadius = radius;</span>
+<span class="d-add">+        SetStyle(EStyleLayer::Normal, style);</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    void Button::SetHoverColor(const SColor&amp; color)</span>
+<span class="d-add">+    glm::vec4 Button::GetBackgroundBorders() const</span>
+<span class="d-ctx">     {</span>
+<span class="d-del">-        m_HoverColor = color;</span>
+<span class="d-del">-        MarkRenderDirty();</span>
+<span class="d-add">+        return GetStyle(EStyleLayer::Normal).BackgroundBorders.value_or(glm::vec4{0.0f});</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     void Button::SetBackgroundBorders(const glm::vec4&amp; borders)</span>
+<span class="d-ctx">     {</span>
+<span class="d-del">-        m_BackgroundBorders = borders;</span>
+<span class="d-del">-        MarkRenderDirty();</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void Button::SetNormalBackground(const Ref&lt;Texture2D&gt;&amp; texture)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        m_NormalBackground = texture;</span>
+<span class="d-del">-        MarkRenderDirty();</span>
+<span class="d-add">+        SStyleOverride style = GetStyle(EStyleLayer::Normal);</span>
+<span class="d-add">+        style.BackgroundBorders = borders;</span>
+<span class="d-add">+        SetStyle(EStyleLayer::Normal, style);</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     glm::vec2 Button::ComputeDesiredSize(const glm::vec2&amp; availableSize)</span>
+<span class="d-hunk">@@ -132,19 +142,16 @@ namespace Elixir::GUI</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     void Button::BuildDrawCommands(RenderBatch&amp; batch, int zOrder)</span>
+<span class="d-ctx">     {</span>
+<span class="d-del">-        auto buttonColor = m_NormalColor;</span>
+<span class="d-del">-</span>
+<span class="d-del">-        if (m_Hovered)</span>
+<span class="d-del">-            buttonColor = m_HoverColor;</span>
+<span class="d-add">+        const SResolvedStyle style = GetResolvedStyle();</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         // Background</span>
+<span class="d-del">-        if (m_NormalBackground)</span>
+<span class="d-add">+        if (style.BackgroundTexture)</span>
+<span class="d-ctx">         {</span>
+<span class="d-ctx">             batch.AddTexture(</span>
+<span class="d-del">-                m_NormalBackground,</span>
+<span class="d-add">+                style.BackgroundTexture,</span>
+<span class="d-ctx">                 m_Geometry,</span>
+<span class="d-del">-                m_BackgroundBorders,</span>
+<span class="d-del">-                buttonColor,</span>
+<span class="d-add">+                style.BackgroundBorders,</span>
+<span class="d-add">+                style.BackgroundColor,</span>
+<span class="d-ctx">                 zOrder</span>
+<span class="d-ctx">             );</span>
+<span class="d-ctx">         }</span>
+<span class="d-hunk">@@ -152,11 +159,11 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">         {</span>
+<span class="d-ctx">             batch.AddRect(</span>
+<span class="d-ctx">                 m_Geometry,</span>
+<span class="d-del">-                buttonColor,</span>
+<span class="d-del">-                m_CornerRadius,</span>
+<span class="d-del">-                m_InsetShadow,</span>
+<span class="d-del">-                m_DropShadow,</span>
+<span class="d-del">-                m_Outline,</span>
+<span class="d-add">+                style.BackgroundColor,</span>
+<span class="d-add">+                style.CornerRadius,</span>
+<span class="d-add">+                style.InsetShadow,</span>
+<span class="d-add">+                style.DropShadow,</span>
+<span class="d-add">+                style.Outline,</span>
+<span class="d-ctx">                 zOrder</span>
+<span class="d-ctx">             );</span>
+<span class="d-ctx">         }</span>
+<span class="d-hunk">@@ -174,7 +181,7 @@ namespace Elixir::GUI</span>
+<span class="d-ctx">                 { textPos, textSize },</span>
+<span class="d-ctx">                 m_Font,</span>
+<span class="d-ctx">                 m_FontSize,</span>
+<span class="d-del">-                m_TextColor,</span>
+<span class="d-add">+                style.ForegroundColor,</span>
+<span class="d-ctx">                 zOrder + 1,</span>
+<span class="d-ctx">                 m_Geometry</span>
+<span class="d-ctx">             );</span>
+<span class="d-hunk">@@ -238,6 +245,13 @@ namespace Elixir::GUI</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     SInputReply Button::HandleMouseDown(const MouseButtonPressedEvent&amp; event)</span>
+<span class="d-ctx">     {</span>
+<span class="d-add">+        // Disabled must win over the "unconditionally interactive" contract below - a</span>
+<span class="d-add">+        // disabled Button has to stop capturing the press and calling m_OnMouseDownCallback,</span>
+<span class="d-add">+        // the same way Widget::HandleMouseDown already gates its own generic path on</span>
+<span class="d-add">+        // m_Enabled.</span>
+<span class="d-add">+        if (!IsEnabled())</span>
+<span class="d-add">+            return SInputReply::Unhandled();</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         // Button is unconditionally interactive - it must win the mouse-down bubble even when</span>
+<span class="d-ctx">         // it has no OnClick/OnMouseDown/OnMouseUp callback registered (e.g. a subclass that</span>
+<span class="d-ctx">         // overrides HandleClick() directly instead), and even when its own content (e.g. a</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-4-5"><span class="file-index">4.5</span> Engine/Core/Application.cpp — call site real migrado</h3>
+    <p>
+      Os três únicos call sites em todo o repositório (<a href="#sec-investigacao">2.5</a>),
+      migrados para a API herdada de <code class="i">Widget</code>, agora com
+      <code class="i">GUI::EStyleLayer</code> em vez do <code class="i">GUI::EUIVisualLayer</code>
+      que a revisão 1 usava.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/Core/Application.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/Core/Application.cpp</span>
+<span class="d-hunk">@@ -52,12 +52,12 @@ namespace Elixir</span>
+<span class="d-ctx">         panel-&gt;SetPadding({ 10, 20, 10, 10 });</span>
+<span class="d-ctx">         const auto button = CreateRef&lt;GUI::Button&gt;("Hello World until 2020");</span>
+<span class="d-ctx">         button-&gt;SetCornerRadius(4.0);</span>
+<span class="d-del">-        button-&gt;SetNormalBackground(std::dynamic_pointer_cast&lt;Texture2D&gt;(buttonBg));</span>
+<span class="d-add">+        button-&gt;SetBackgroundTexture(GUI::EStyleLayer::Normal, std::dynamic_pointer_cast&lt;Texture2D&gt;(buttonBg));</span>
+<span class="d-ctx">         button-&gt;SetPadding({ 20.0f, 0.0f });</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         const auto button2 = CreateRef&lt;GUI::Button&gt;();</span>
+<span class="d-del">-        button2-&gt;SetNormalColor({ 1.0f, 1.0f, 1.0f, 1.0f });</span>
+<span class="d-del">-        button2-&gt;SetHoverColor({ 0.8f, 0.8f, 1.0f, 1.0f });</span>
+<span class="d-add">+        button2-&gt;SetBackgroundColor(GUI::EStyleLayer::Normal, { 1.0f, 1.0f, 1.0f, 1.0f });</span>
+<span class="d-add">+        button2-&gt;SetBackgroundColor(GUI::EStyleLayer::Hovered, { 0.8f, 0.8f, 1.0f, 1.0f });</span>
+<span class="d-ctx">         //button2-&gt;SetCornerRadius(12);</span>
+<span class="d-ctx">         button2-&gt;SetInsetShadow({ 10, 10    , 2, 0.3 });</span>
+<span class="d-ctx">         button2-&gt;SetDropShadow({ 20, 20, 10, 1 });</span>
+<span class="d-hunk">@@ -76,8 +76,8 @@ namespace Elixir</span>
+<span class="d-ctx">             .SetMargin({ 10, 20, 10, 10 });</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         const auto button3 = CreateRef&lt;GUI::Button&gt;();</span>
+<span class="d-del">-        button3-&gt;SetNormalColor({ 1.0f, 1.0f, 1.0f, 1.0f });</span>
+<span class="d-del">-        button3-&gt;SetNormalBackground(std::dynamic_pointer_cast&lt;Texture2D&gt;(buttonBg));</span>
+<span class="d-add">+        button3-&gt;SetBackgroundColor(GUI::EStyleLayer::Normal, { 1.0f, 1.0f, 1.0f, 1.0f });</span>
+<span class="d-add">+        button3-&gt;SetBackgroundTexture(GUI::EStyleLayer::Normal, std::dynamic_pointer_cast&lt;Texture2D&gt;(buttonBg));</span>
+<span class="d-ctx">         button3-&gt;SetCornerRadius(12);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         const auto font2 = FontManager::Load("./Assets/Fonts/PlayfairDisplay-Regular.ttf");</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-4-6"><span class="file-index">4.6</span> Elixir/Tests/Engine/GUI/StyleTest.cpp <span class="badge badge-new">arquivo novo</span></h3>
+    <p>
+      Renomeado de <code class="i">UIStyleTest.cpp</code> (revisão 1) para bater com os nomes reais.
+      Cobre os 9 casos da seção <a href="#sec-testes">6</a>. <code class="i">CMakeLists.txt</code>
+      de <code class="i">Elixir/Tests/</code> já usa <code class="i">file(GLOB_RECURSE TEST_SOURCES
+      *.h *.cpp)</code> — nenhum diff de build é necessário para o executável de testes
+      descobrir este arquivo.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- /dev/null</span>
+<span class="d-file">+++ b/Elixir/Tests/Engine/GUI/StyleTest.cpp</span>
+<span class="d-hunk">@@ -0,0 +1,242 @@</span>
+<span class="d-add">+#include &lt;gtest/gtest.h&gt;</span>
+<span class="d-add">+using namespace testing;</span>
+<span class="d-add">+</span>
+<span class="d-add">+#include &lt;Engine/GUI/Style.h&gt;</span>
+<span class="d-add">+#include &lt;Engine/GUI/Widget.h&gt;</span>
+<span class="d-add">+using namespace Elixir;</span>
+<span class="d-add">+using namespace Elixir::GUI;</span>
+<span class="d-add">+</span>
+<span class="d-add">+namespace</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    // A Button cannot be instantiated in this unit-test target: its constructor calls</span>
+<span class="d-add">+    // FontManager::GetDefaultFont(), which needs the font system initialized (see the same</span>
+<span class="d-add">+    // constraint documented on TestContentWidget in WidgetTestUtils.h). StyleSet has no such</span>
+<span class="d-add">+    // dependency, so tests 1-7 exercise it directly. Test 8 needs a widget with hover/press/</span>
+<span class="d-add">+    // enabled state and the style API - both live on the Widget base now, so a plain Widget</span>
+<span class="d-add">+    // is enough, without pulling in fonts at all.</span>
+<span class="d-add">+    class TestWidget final : public Widget</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+      public:</span>
+<span class="d-add">+        int ClickCount = 0;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        TestWidget()</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            OnClick([this]() { ++ClickCount; });</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        glm::vec2 ComputeDesiredSize(const glm::vec2&amp;) override { return { 10.0f, 10.0f }; }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // HandleMouseDown/HandleClick/GetResolvedStyle are protected on Widget; promote them</span>
+<span class="d-add">+        // so the test can drive input and resolution without a Manager or a concrete drawing</span>
+<span class="d-add">+        // subclass, the same pattern ScrollBoxTest.cpp/ForEachChildTest.cpp use for other</span>
+<span class="d-add">+        // protected members.</span>
+<span class="d-add">+        using Widget::HandleMouseDown;</span>
+<span class="d-add">+        using Widget::HandleClick;</span>
+<span class="d-add">+        using Widget::GetResolvedStyle;</span>
+<span class="d-add">+    };</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, NormalOnlyWhenNoStateIsActive)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    StyleSet styles;</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride normal;</span>
+<span class="d-add">+    normal.BackgroundColor = SColor{ 0.1f, 0.2f, 0.3f, 1.0f };</span>
+<span class="d-add">+    normal.CornerRadius = glm::vec4{ 4.0f };</span>
+<span class="d-add">+    styles.Set(EStyleLayer::Normal, normal);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const SResolvedStyle resolved = styles.Resolve(EInteractionState::None);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    EXPECT_EQ(resolved.BackgroundColor, normal.BackgroundColor);</span>
+<span class="d-add">+    EXPECT_EQ(resolved.CornerRadius, *normal.CornerRadius);</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, HoveredOverridesOnlyTheFieldsItDeclares)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    StyleSet styles;</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride normal;</span>
+<span class="d-add">+    normal.BackgroundColor = SColor{ 0.1f, 0.1f, 0.1f, 1.0f };</span>
+<span class="d-add">+    normal.BackgroundBorders = glm::vec4{ 1.0f };</span>
+<span class="d-add">+    normal.Outline = SOutline{ SColor{ 0.0f, 0.0f, 0.0f, 1.0f }, 2.0f };</span>
+<span class="d-add">+    styles.Set(EStyleLayer::Normal, normal);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride hovered;</span>
+<span class="d-add">+    hovered.BackgroundColor = SColor{ 0.9f, 0.9f, 0.9f, 1.0f };</span>
+<span class="d-add">+    styles.Set(EStyleLayer::Hovered, hovered);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const SResolvedStyle resolved = styles.Resolve(EInteractionState::Hovered);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    EXPECT_EQ(resolved.BackgroundColor, hovered.BackgroundColor);</span>
+<span class="d-add">+    EXPECT_EQ(resolved.BackgroundBorders, *normal.BackgroundBorders);</span>
+<span class="d-add">+    EXPECT_EQ(resolved.Outline.Thickness, normal.Outline-&gt;Thickness);</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, PressedWinsOverHoveredWhenBothActive)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    StyleSet styles;</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride normal;</span>
+<span class="d-add">+    normal.BackgroundColor = SColor{ 0.1f, 0.1f, 0.1f, 1.0f };</span>
+<span class="d-add">+    styles.Set(EStyleLayer::Normal, normal);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride hovered;</span>
+<span class="d-add">+    hovered.BackgroundColor = SColor{ 0.5f, 0.5f, 0.5f, 1.0f };</span>
+<span class="d-add">+    styles.Set(EStyleLayer::Hovered, hovered);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride pressed;</span>
+<span class="d-add">+    pressed.BackgroundColor = SColor{ 0.9f, 0.0f, 0.0f, 1.0f };</span>
+<span class="d-add">+    styles.Set(EStyleLayer::Pressed, pressed);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const auto states = EInteractionState::Hovered | EInteractionState::Pressed;</span>
+<span class="d-add">+    const SResolvedStyle resolved = styles.Resolve(states);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    EXPECT_EQ(resolved.BackgroundColor, pressed.BackgroundColor);</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, DisabledWinsOverPressedAndHoveredWhenAllThreeActive)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    StyleSet styles;</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride normal;</span>
+<span class="d-add">+    normal.ForegroundColor = SColor{ 1.0f, 1.0f, 1.0f, 1.0f };</span>
+<span class="d-add">+    styles.Set(EStyleLayer::Normal, normal);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride hovered;</span>
+<span class="d-add">+    hovered.ForegroundColor = SColor{ 0.8f, 0.8f, 0.8f, 1.0f };</span>
+<span class="d-add">+    styles.Set(EStyleLayer::Hovered, hovered);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride pressed;</span>
+<span class="d-add">+    pressed.ForegroundColor = SColor{ 0.6f, 0.6f, 0.6f, 1.0f };</span>
+<span class="d-add">+    styles.Set(EStyleLayer::Pressed, pressed);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride disabled;</span>
+<span class="d-add">+    disabled.ForegroundColor = SColor{ 0.3f, 0.3f, 0.3f, 1.0f };</span>
+<span class="d-add">+    styles.Set(EStyleLayer::Disabled, disabled);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const auto states = EInteractionState::Hovered</span>
+<span class="d-add">+        | EInteractionState::Pressed</span>
+<span class="d-add">+        | EInteractionState::Disabled;</span>
+<span class="d-add">+    const SResolvedStyle resolved = styles.Resolve(states);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    EXPECT_EQ(resolved.ForegroundColor, disabled.ForegroundColor);</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, DisabledFallsBackToPressedForFieldsItDoesNotDeclare)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    StyleSet styles;</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride normal;</span>
+<span class="d-add">+    normal.BackgroundColor = SColor{ 0.1f, 0.1f, 0.1f, 1.0f };</span>
+<span class="d-add">+    styles.Set(EStyleLayer::Normal, normal);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride pressed;</span>
+<span class="d-add">+    pressed.BackgroundColor = SColor{ 0.9f, 0.0f, 0.0f, 1.0f };</span>
+<span class="d-add">+    styles.Set(EStyleLayer::Pressed, pressed);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride disabled;</span>
+<span class="d-add">+    disabled.ForegroundColor = SColor{ 0.4f, 0.4f, 0.4f, 1.0f }; // no BackgroundColor here</span>
+<span class="d-add">+    styles.Set(EStyleLayer::Disabled, disabled);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const auto states = EInteractionState::Pressed | EInteractionState::Disabled;</span>
+<span class="d-add">+    const SResolvedStyle resolved = styles.Resolve(states);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    EXPECT_EQ(resolved.BackgroundColor, pressed.BackgroundColor);</span>
+<span class="d-add">+    EXPECT_EQ(resolved.ForegroundColor, disabled.ForegroundColor);</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, ClearingBackgroundTextureRemovesAnInheritedOne)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    StyleSet styles;</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride normal;</span>
+<span class="d-add">+    normal.BackgroundTexture = CreateRef&lt;Texture2D&gt;();</span>
+<span class="d-add">+    styles.Set(EStyleLayer::Normal, normal);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride pressed;</span>
+<span class="d-add">+    pressed.BackgroundTexture = Ref&lt;Texture2D&gt;{}; // explicit clear, not "unset"</span>
+<span class="d-add">+    styles.Set(EStyleLayer::Pressed, pressed);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const SResolvedStyle resolved = styles.Resolve(EInteractionState::Pressed);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    EXPECT_EQ(resolved.BackgroundTexture, nullptr);</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, InactiveLayerNeverParticipates)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    StyleSet styles;</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride normal;</span>
+<span class="d-add">+    normal.BackgroundColor = SColor{ 0.1f, 0.1f, 0.1f, 1.0f };</span>
+<span class="d-add">+    styles.Set(EStyleLayer::Normal, normal);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride pressed;</span>
+<span class="d-add">+    pressed.BackgroundColor = SColor{ 0.9f, 0.0f, 0.0f, 1.0f };</span>
+<span class="d-add">+    styles.Set(EStyleLayer::Pressed, pressed);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    // Hovered only, Pressed bit not set: Pressed's color must not leak in.</span>
+<span class="d-add">+    const SResolvedStyle resolved = styles.Resolve(EInteractionState::Hovered);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    EXPECT_EQ(resolved.BackgroundColor, normal.BackgroundColor);</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, SetStyleAndSetEnabledMarkRenderDirtyAndDisablingBlocksInteraction)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    TestWidget widget;</span>
+<span class="d-add">+    ASSERT_TRUE(widget.IsEnabled());</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride normal;</span>
+<span class="d-add">+    normal.BackgroundColor = SColor{ 0.2f, 0.2f, 0.2f, 1.0f };</span>
+<span class="d-add">+    widget.SetStyle(EStyleLayer::Normal, normal);</span>
+<span class="d-add">+    EXPECT_TRUE(widget.IsRenderDirty());</span>
+<span class="d-add">+    EXPECT_EQ(widget.GetResolvedStyle().BackgroundColor, normal.BackgroundColor);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    // A press started while enabled must not turn into a click after being disabled -</span>
+<span class="d-add">+    // this is the "cancel a pending activation" requirement from 09-visual-state-styling.md.</span>
+<span class="d-add">+    const auto pressEvent = MouseButtonPressedEvent(0, { 0.0f, 0.0f });</span>
+<span class="d-add">+    const SInputReply pressReply = widget.HandleMouseDown(pressEvent);</span>
+<span class="d-add">+    EXPECT_TRUE(pressReply.EventHandled);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    widget.SetEnabled(false);</span>
+<span class="d-add">+    EXPECT_FALSE(widget.IsEnabled());</span>
+<span class="d-add">+    EXPECT_TRUE(widget.IsRenderDirty());</span>
+<span class="d-add">+</span>
+<span class="d-add">+    widget.HandleClick();</span>
+<span class="d-add">+    EXPECT_EQ(widget.ClickCount, 0);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    // A brand-new press is rejected outright while disabled.</span>
+<span class="d-add">+    const SInputReply secondPressReply = widget.HandleMouseDown(pressEvent);</span>
+<span class="d-add">+    EXPECT_FALSE(secondPressReply.EventHandled);</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, ButtonDefaultsSurviveTheMigrationToStyleSet)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    // Mirrors, field for field, the literals Button::Button() now registers via SetStyle</span>
+<span class="d-add">+    // (inherited from Widget) - which are themselves a straight copy of the pre-migration</span>
+<span class="d-add">+    // hardcoded m_NormalColor/m_HoverColor/m_TextColor/m_CornerRadius/m_BackgroundBorders</span>
+<span class="d-add">+    // defaults. A Button cannot be built in this test target (see the TestWidget comment</span>
+<span class="d-add">+    // above), so this is the closest regression check available: if either side of this</span>
+<span class="d-add">+    // mirror drifts, a default a caller never asked to change would silently repaint</span>
+<span class="d-add">+    // differently, which is exactly what this migration promised not to do.</span>
+<span class="d-add">+    StyleSet styles;</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride normal;</span>
+<span class="d-add">+    normal.BackgroundColor = SColor{ 0.3f, 0.3f, 0.8f, 1.0f };</span>
+<span class="d-add">+    normal.ForegroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f };</span>
+<span class="d-add">+    normal.CornerRadius = glm::vec4{ 0.0f, 0.0f, 0.0f, 0.0f };</span>
+<span class="d-add">+    normal.BackgroundBorders = glm::vec4{ 30.0f, 30.0f, 30.0f, 30.0f };</span>
+<span class="d-add">+    styles.Set(EStyleLayer::Normal, normal);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride hovered;</span>
+<span class="d-add">+    hovered.BackgroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f };</span>
+<span class="d-add">+    styles.Set(EStyleLayer::Hovered, hovered);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const SResolvedStyle idle = styles.Resolve(EInteractionState::None);</span>
+<span class="d-add">+    EXPECT_EQ(idle.BackgroundColor, (SColor{ 0.3f, 0.3f, 0.8f, 1.0f }));</span>
+<span class="d-add">+    EXPECT_EQ(idle.ForegroundColor, (SColor{ 1.0f, 0.0f, 0.0f, 1.0f }));</span>
+<span class="d-add">+    EXPECT_EQ(idle.CornerRadius, (glm::vec4{ 0.0f, 0.0f, 0.0f, 0.0f }));</span>
+<span class="d-add">+    EXPECT_EQ(idle.BackgroundBorders, (glm::vec4{ 30.0f, 30.0f, 30.0f, 30.0f }));</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const SResolvedStyle hover = styles.Resolve(EInteractionState::Hovered);</span>
+<span class="d-add">+    EXPECT_EQ(hover.BackgroundColor, (SColor{ 1.0f, 0.0f, 0.0f, 1.0f }));</span>
+<span class="d-add">+}</span></code></pre></div>
+  </section>
+
+  <section id="sec-matriz">
+    <h2>5. Matriz de comportamento</h2>
+    <p>Idêntica à seção 8 do spec original — reproduzida aqui porque é a definição de "correto" que os diffs acima implementam. Os nomes de estado (<code class="i">EInteractionState</code>) são os reais.</p>
+    <div class="table-scroll">
+    <table class="spec">
+      <tr><th>Estados ativos</th><th>Layers aplicadas</th><th>Resultado para uma mesma propriedade</th></tr>
+      <tr><td>nenhum</td><td><code class="i">Normal</code></td><td>valor de <code class="i">Normal</code></td></tr>
+      <tr><td><code class="i">Hovered</code></td><td><code class="i">Normal → Hovered</code></td><td><code class="i">Hovered</code>, se declarado; senão <code class="i">Normal</code></td></tr>
+      <tr><td><code class="i">Pressed</code></td><td><code class="i">Normal → Pressed</code></td><td><code class="i">Pressed</code>, se declarado; senão <code class="i">Normal</code></td></tr>
+      <tr><td><code class="i">Hovered + Pressed</code></td><td><code class="i">Normal → Hovered → Pressed</code></td><td><code class="i">Pressed</code>, se declarado; senão <code class="i">Hovered</code>, depois <code class="i">Normal</code></td></tr>
+      <tr><td><code class="i">Disabled</code></td><td><code class="i">Normal → Disabled</code></td><td><code class="i">Disabled</code>, se declarado; senão <code class="i">Normal</code></td></tr>
+      <tr><td><code class="i">Hovered + Disabled</code></td><td><code class="i">Normal → Hovered → Disabled</code></td><td><code class="i">Disabled</code>, se declarado; senão <code class="i">Hovered</code>, depois <code class="i">Normal</code></td></tr>
+      <tr><td><code class="i">Pressed + Disabled</code></td><td><code class="i">Normal → Pressed → Disabled</code></td><td><code class="i">Disabled</code>, se declarado; senão <code class="i">Pressed</code>, depois <code class="i">Normal</code></td></tr>
+      <tr><td><code class="i">Hovered + Pressed + Disabled</code></td><td><code class="i">Normal → Hovered → Pressed → Disabled</code></td><td><code class="i">Disabled</code>, se declarado; senão <code class="i">Pressed</code>, depois <code class="i">Hovered</code>, depois <code class="i">Normal</code></td></tr>
+    </table>
+    </div>
+    <p>
+      Confirmada linha a linha contra <code class="i">StyleSet::Resolve</code> real
+      (<span class="file-ref">Style.cpp:56-76</span>): cada linha ativa é aplicada em ordem fixa
+      <code class="i">Normal → Hovered → Pressed → Disabled</code>, e cada uma só sobrescreve os
+      campos que declara — nunca a struct inteira. Isso não muda com a topologia (base vs.
+      <code class="i">Button</code>): <code class="i">Widget::GetInteractionStates()</code>
+      monta a mesma máscara que <code class="i">Button</code> montava antes, a partir dos mesmos
+      três sinais (<code class="i">IsHovered</code>/<code class="i">IsPressed</code>/<code class="i">!IsEnabled</code>).
+    </p>
+  </section>
+
+  <section id="sec-testes">
+    <h2>6. Testes</h2>
+    <p>
+      Os 9 casos exigidos pela seção 9 do spec original, implementados em
+      <a href="#file-4-6"><code class="i">StyleTest.cpp</code></a>. Os 7 primeiros rodam contra
+      <code class="i">StyleSet</code> puro, sem <code class="i">Widget</code>/<code class="i">Manager</code>/
+      janela/Vulkan/input real.
+    </p>
+    <div class="table-scroll">
+    <table class="spec">
+      <tr><th>#</th><th>Caso da spec (seção 9)</th><th>Teste</th></tr>
+      <tr><td>1</td><td>Normal completo</td><td><code class="i">NormalOnlyWhenNoStateIsActive</code></td></tr>
+      <tr><td>2</td><td>Hover parcial</td><td><code class="i">HoveredOverridesOnlyTheFieldsItDeclares</code></td></tr>
+      <tr><td>3</td><td>Pressed vence hover</td><td><code class="i">PressedWinsOverHoveredWhenBothActive</code></td></tr>
+      <tr><td>4</td><td>Disabled vence pressed e hover</td><td><code class="i">DisabledWinsOverPressedAndHoveredWhenAllThreeActive</code></td></tr>
+      <tr><td>5</td><td>Fallback de disabled</td><td><code class="i">DisabledFallsBackToPressedForFieldsItDoesNotDeclare</code></td></tr>
+      <tr><td>6</td><td>Limpeza explícita de textura</td><td><code class="i">ClearingBackgroundTextureRemovesAnInheritedOne</code></td></tr>
+      <tr><td>7</td><td>Layer inativa não interfere</td><td><code class="i">InactiveLayerNeverParticipates</code></td></tr>
+      <tr><td>8</td><td>API do componente (dirty + bloqueio de interação)</td><td><code class="i">SetStyleAndSetEnabledMarkRenderDirtyAndDisablingBlocksInteraction</code></td></tr>
+      <tr><td>9</td><td>Regressão visual dos defaults</td><td><code class="i">ButtonDefaultsSurviveTheMigrationToStyleSet</code></td></tr>
+    </table>
+    </div>
+    <div class="callout callout-attention">
+      <span class="callout-title badge badge-dev" style="margin-bottom:8px">Ajuste de revisão 2 — teste 8 agora usa Widget puro, não mais um subtipo de Button</span>
+      <p>
+        Na revisão 1, o teste 8 usava um <code class="i">TestWidget : public Widget</code>
+        promovendo <code class="i">HandleMouseDown</code>/<code class="i">HandleClick</code>
+        porque <code class="i">Enabled</code> já morava na base. Com a mudança de design desta
+        revisão, o mesmo <code class="i">TestWidget</code> agora também promove
+        <code class="i">GetResolvedStyle</code> e chama <code class="i">SetStyle</code>
+        diretamente — sem precisar de nenhuma classe intermediária nem de
+        <code class="i">Button</code>, porque toda a API sob teste (interação e estilo) já é da
+        própria base. Isso é uma simplificação real habilitada pela mudança de design, não uma
+        divergência forçada por uma limitação.
+      </p>
+    </div>
+  </section>
+
+  <section id="sec-ordem">
+    <h2>7. Ordem de aplicação</h2>
+    <p>
+      Cada diff foi verificado com <code class="i">git apply --check</code> individualmente e
+      cumulativamente, nesta ordem, contra uma cópia de trabalho descartável criada com
+      <code class="i">git worktree add</code> a partir do HEAD atual do repositório principal e
+      depois sincronizada com o conteúdo real (incluindo as mudanças ainda não commitadas de
+      <code class="i">Widget.h</code>/<code class="i">.cpp</code> e os arquivos novos
+      <code class="i">Style.h</code>/<code class="i">.cpp</code>) antes de aplicar qualquer diff
+      (ver <a href="#sec-riscos">10</a>).
+    </p>
+    <ol class="steps">
+      <li><span class="step-title">1. Widget.h</span> API de estilo pública + resolução protegida, em cima do <code class="i">Enabled</code> já real (<a href="#file-4-1">4.1</a>).</li>
+      <li><span class="step-title">2. Widget.cpp</span> Implementação (4.2).</li>
+      <li><span class="step-title">3. Button.h</span> Migração de API — depende de 1 (<a href="#file-4-3">4.3</a>).</li>
+      <li><span class="step-title">4. Button.cpp</span> Migração de implementação — depende de 2 e 3 (<a href="#file-4-4">4.4</a>).</li>
+      <li><span class="step-title">5. Application.cpp</span> Call sites — depende de 3 e 4 (<a href="#file-4-5">4.5</a>).</li>
+      <li><span class="step-title">6. StyleTest.cpp</span> Depende de 1 e 2 (não de <code class="i">Button</code>) (<a href="#file-4-6">4.6</a>).</li>
+    </ol>
+  </section>
+
+  <section id="sec-fora">
+    <h2>8. Fora de escopo desta etapa</h2>
+    <p>Idêntico à seção 10 do spec original, com um item adicionado explicitamente por causa da mudança de topologia:</p>
+    <ul>
+      <li>temas globais, herança entre estilos de widgets e seletores CSS-like;</li>
+      <li>animação/interpolação entre estilos;</li>
+      <li>serialização de estilos em assets/editor;</li>
+      <li>regras arbitrárias de combinação, como <code class="i">Selected + Focused + Hovered</code>;</li>
+      <li>modificar layout em resposta a uma layer visual;</li>
+      <li>tornar <code class="i">Disabled</code> sinônimo de <code class="i">Hidden</code>, <code class="i">Collapsed</code> ou qualquer valor de <code class="i">EVisibility</code>;</li>
+      <li>migrar <code class="i">TextField</code> (ou qualquer outro widget além de <code class="i">Button</code>) para consumir <code class="i">GetResolvedStyle()</code> no próprio <code class="i">BuildDrawCommands</code> — a API sobe para a base neste diff, mas <code class="i">TextField</code> adota por sua própria conta em um diff futuro, sem exigir nenhuma mudança adicional em <code class="i">Widget</code>.</li>
+    </ul>
+  </section>
+
+  <section id="sec-aceite">
+    <h2>9. Critérios de aceite</h2>
+    <p>Idênticos à seção 11 do spec original, cada um conferido contra o diff final antes de fechar este documento:</p>
+    <ul>
+      <li>Não há nova API pública específica para um único estado (<code class="i">SetPressedColor</code>, <code class="i">SetDisabledBackground</code>, etc.) — confirmado em <a href="#file-4-1">4.1</a>: os únicos setters novos são parametrizados por <code class="i">EStyleLayer</code>.</li>
+      <li>A precedência observável é sempre <code class="i">Disabled &gt; Pressed &gt; Hovered &gt; Normal</code> — já implementado em <code class="i">StyleSet::Resolve</code> (seção <a href="#sec-investigacao">2.1</a>), confirmado pelos testes 3 e 4 (<a href="#sec-testes">6</a>).</li>
+      <li>Overrides parciais herdam corretamente propriedades das layers anteriores — testes 2, 5 e 7.</li>
+      <li>É possível limpar explicitamente uma textura herdada — teste 6, via <code class="i">ClearBackgroundTexture</code> herdado de <code class="i">Widget</code> (<a href="#file-4-1">4.1</a>).</li>
+      <li>O renderer consome apenas <code class="i">SResolvedStyle</code> — <code class="i">Button::BuildDrawCommands</code> (<a href="#file-4-4">4.4</a>) não lê mais nenhum campo antigo; a única exceção documentada é a sobreposição de <code class="i">Outline</code>/sombras em <code class="i">Widget::GetResolvedStyle()</code>, atribuição direta, não uma condicional de precedência.</li>
+      <li>Desabilitar altera aparência e bloqueia interação, sem alterar layout ou visibilidade — já confirmado como comportamento real de <code class="i">Widget::SetEnabled</code> (seção <a href="#sec-investigacao">2.2</a>); teste 8 confirma o bloqueio de interação e a marcação de dirty ao estilizar.</li>
+      <li>Os defaults atuais de <code class="i">Button</code> permanecem visualmente equivalentes após a migração — construtor em <a href="#file-4-4">4.4</a> copia os literais antigos byte a byte; teste 9 confirma.</li>
+      <li>Comentários internos existem apenas quando explicam uma decisão, restrição ou risco não evidente no código; todo método público novo ou alterado tem Doxygen curto em linguagem simples (ISO 24495-1:2023) — aplicado em <code class="i">Widget.h</code> (seção <a href="#file-4-1">4.1</a>); <code class="i">Style.h</code> já seguia essa disciplina antes deste diff (seção <a href="#sec-investigacao">2.1</a>).</li>
+      <li><strong>Novo nesta revisão:</strong> a API de estilo (<code class="i">m_Styles</code>, <code class="i">GetInteractionStates</code>, <code class="i">GetResolvedStyle</code>, <code class="i">SetStyle</code>/<code class="i">ClearStyle</code>, setters de conveniência) mora em <code class="i">Widget</code>, não em <code class="i">Button</code> — confirmado em <a href="#file-4-1">4.1</a>/<a href="#file-4-2">4.2</a>: nenhum desses símbolos aparece mais na classe <code class="i">Button</code> (<a href="#file-4-3">4.3</a>).</li>
+    </ul>
+  </section>
+
+  <section id="sec-riscos">
+    <h2>10. Riscos e pontos de atenção</h2>
+    <div class="risk-list">
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R1</span> Nenhuma mudança commitada no repositório real nem em worktrees temporárias</div>
+        <p>
+          Os 6 diffs foram verificados com <code class="i">git apply --check</code> —
+          individualmente e cumulativamente, na ordem da seção <a href="#sec-ordem">7</a> —
+          contra um worktree descartável criado com <code class="i">git worktree add</code> a
+          partir do HEAD atual do repositório principal (<code class="i">feature/editor-gui</code>),
+          depois sincronizado com o conteúdo real e não commitado de <code class="i">Widget.h</code>/
+          <code class="i">.cpp</code> e os arquivos novos <code class="i">Style.h</code>/
+          <code class="i">.cpp</code>, lidos diretamente do repositório principal antes de gerar
+          qualquer diff. Ao final da verificação, esse worktree foi removido com
+          <code class="i">git worktree remove --force</code> e nenhuma mudança de código foi
+          deixada commitada ou pendente em lugar nenhum — o único artefato deste ponto é este
+          arquivo HTML. O repositório principal permanece exatamente no estado em que estava
+          (mesmos arquivos modificados/não commitados, mesmos untracked) antes e depois desta
+          revisão.
+        </p>
+      </div>
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R2</span> Outline/InsetShadow/DropShadow continuam fora de m_Styles, agora por um motivo compartilhado por toda subclasse</div>
+        <p>
+          A decisão de sobrepor <code class="i">Outline</code>/<code class="i">InsetShadow</code>/
+          <code class="i">DropShadow</code> a partir dos getters ao vivo de <code class="i">Widget</code>
+          em vez de duplicá-los em <code class="i">m_Styles</code> (já presente na revisão 1, só
+          que só valia para <code class="i">Button</code>) agora vale automaticamente para
+          qualquer subclasse que adote <code class="i">GetResolvedStyle()</code> — inclusive um
+          futuro <code class="i">TextField</code>. Se uma versão futura quiser
+          <code class="i">Outline</code> por estado, a mudança é local a
+          <code class="i">Widget::GetResolvedStyle()</code> e beneficia todo consumidor de uma
+          vez, em vez de precisar ser replicada em cada subclasse.
+        </p>
+      </div>
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R3</span> Sem cache de resolução: custo aceito, agora compartilhado por qualquer futuro consumidor</div>
+        <p>
+          <code class="i">Widget::GetResolvedStyle()</code> chama <code class="i">m_Styles.Resolve(...)</code>
+          a cada invocação — que já só roda quando <code class="i">m_RenderDirty</code> está true
+          (<span class="file-ref">Widget.cpp:249-255 na revisão 1; posição equivalente confirmada
+          na leitura atual de CollectDrawCommands</span>), não a cada frame. Se um perfil futuro
+          mostrar que resolver custa o suficiente para importar, o cache (<code class="i">m_StyleResolutionDirty</code>
+          + <code class="i">mutable SResolvedStyle</code>) precisa auditar todo ponto que muda
+          hover/press/enabled/estilo para invalidar — como esses pontos agora vivem todos em
+          <code class="i">Widget</code>, essa auditoria fica mais simples do que quando estava
+          espalhada entre <code class="i">Widget</code> e <code class="i">Button</code>.
+        </p>
+      </div>
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R4</span> TextField continua com sua própria SetNormalBackground/SetTextColor/SetCornerRadius — não migrada aqui</div>
+        <p>
+          <code class="i">TextField.h</code>/<code class="i">.cpp</code> declaram
+          <code class="i">SetNormalBackground</code>, <code class="i">SetTextColor</code> e
+          <code class="i">SetCornerRadius</code> próprios, independentes da API de
+          <code class="i">Widget</code> — e continuam assim depois deste diff. É deliberado
+          (seção <a href="#sec-fora">8</a>): a API sobe para a base para que
+          <code class="i">TextField</code> <em>possa</em> adotar sem exigir mudança na base, não
+          para forçar essa migração no mesmo diff. Um leitor que grep por
+          <code class="i">SetNormalBackground</code> depois deste ponto ainda vai encontrar uma
+          ocorrência em <code class="i">TextField.cpp</code> — isso é esperado.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="doc-footer">
+    Documento gerado a partir da especificação aprovada em
+    <code class="i">09-visual-state-styling.md</code>, revisado contra o estado real do
+    repositório principal (<code class="i">Style.h</code>/<code class="i">.cpp</code> já
+    existentes, <code class="i">Widget::Enabled</code> já real, <code class="i">Button</code>
+    ainda não migrado) e a mudança de design pedida pelo usuário (API de estilo na base
+    <code class="i">Widget</code>), com diffs verificados na branch
+    <code class="i">feature/editor-gui</code>.
+  </footer>
+
+</div>
+</body>
+</html>

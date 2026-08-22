@@ -9,32 +9,28 @@
 namespace Elixir::GUI
 {
     TextField::TextField(const std::string& text)
-      : m_Text(text)
+      : m_Text(text),
+        m_Style(GetDefaultStyles().GetWidgetStyle<STextFieldStyle>())
     {
         m_Font = FontManager::GetDefaultFont();
         m_CursorPosition = m_Text.size();
         SetFocusable(true);
 
-        SStyleOverride normal;
-        normal.ForegroundColor = SColor{ 0.8941f, 0.8941f, 0.9059f, 1.0f };
-        normal.BackgroundColor = SColor{ 0.0941f, 0.0941f, 0.1059f, 1.0f };
-        normal.CornerRadius = glm::vec4{ 4.0f };
-        normal.BackgroundBorders = glm::vec4{ 30.0f };
-        normal.Outline = SOutline{ SColor{ 0.1529f, 0.1529f, 0.1647f, 1.0f }, 1.0f };
-        SetStyle(EStyleLayer::Normal, normal);
-
-        SStyleOverride focused;
-        focused.Outline = SOutline{ SColor{ 0.6314f, 0.6314f, 0.6667f, 1.0f }, 2.0f };
-        SetStyle(EStyleLayer::Focused, focused);
-
-        SStyleOverride disabled;
-        disabled.BackgroundColor = SColor{ 0.0941f, 0.0941f, 0.1059f, 0.5f };
-        disabled.ForegroundColor = SColor{ 0.8941f, 0.8941f, 0.9059f, 0.5f };
-        SetStyle(EStyleLayer::Disabled, disabled);
-
         SetCursorColor(SColor{ 0.8941f, 0.8941f, 0.9059f, 1.0f });
         SetPlaceholderColor(SColor{ 0.6314f, 0.6314f, 0.6667f, 1.0f });
         SetSelectionColor(SColor{ 0.6314f, 0.6314f, 0.6667f, 0.35f });
+    }
+
+    void TextField::SetStyle(const STextFieldStyle& style)
+    {
+        m_Style = style;
+        MarkLayoutDirty();
+    }
+
+    void TextField::SetTextColor(const EStyleLayer layer, const SColor& color)
+    {
+        m_Style.Get(layer).Foreground = color;
+        MarkRenderDirty();
     }
 
     void TextField::Update(const Timestep frameTime)
@@ -124,32 +120,8 @@ namespace Elixir::GUI
 
     void TextField::BuildDrawCommands(RenderBatch& batch, const int zOrder)
     {
-        // Focused is a real StyleSet layer now (see Widget::GetInteractionState), so
-        // GetResolvedStyle() already picks it up when IsFocused() - no branching needed here.
-        const SResolvedStyle style = GetResolvedStyle();
-
-        if (style.BackgroundTexture)
-        {
-            batch.AddTexture(
-                style.BackgroundTexture,
-                m_Geometry,
-                style.BackgroundBorders,
-                style.BackgroundColor,
-                zOrder
-            );
-        }
-        else
-        {
-            batch.AddRect(
-                m_Geometry,
-                style.BackgroundColor,
-                style.CornerRadius,
-                style.InsetShadow,
-                style.DropShadow,
-                style.Outline,
-                zOrder
-            );
-        }
+        const auto& appearance = (const STextFieldAppearance&)GetResolvedAppearance();
+        batch.AddBrush(appearance.Background, m_Geometry, zOrder);
 
         const auto textSize = MeasureTextSize(m_Text);
         const auto textPos = CalculateTextPosition(textSize);
@@ -184,7 +156,7 @@ namespace Elixir::GUI
                 { textPos, textSize },
                 m_Font,
                 m_FontSize,
-                style.ForegroundColor,
+                appearance.Foreground,
                 zOrder + 2,
                 m_Geometry
             );
@@ -223,6 +195,16 @@ namespace Elixir::GUI
                 );
             }
         }
+    }
+
+    const SAppearance& TextField::GetResolvedAppearance() const
+    {
+        return m_Style.Resolve(GetInteractionState());
+    }
+
+    SBrush& TextField::GetMutableBackgroundBrush(const EStyleLayer layer)
+    {
+        return m_Style.Get(layer).Background;
     }
 
     void TextField::HandleMouseEnter()

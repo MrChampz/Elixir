@@ -1,0 +1,1861 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3. Ordenação de z entre render passes</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --surface-alt: #eef0f4;
+    --border: #dde1e8;
+    --text: #1a1d24;
+    --text-muted: #565c6b;
+    --text-faint: #868ea0;
+    --accent: #3452d9;
+    --accent-soft: #e9edfd;
+    --code-bg: #f3f4f7;
+    --code-border: #e1e4ea;
+
+    --diff-add-bg: #e6f7ec;
+    --diff-add-fg: #157347;
+    --diff-del-bg: #fdecec;
+    --diff-del-fg: #c22a2a;
+    --diff-hunk-bg: #eaf0ff;
+    --diff-hunk-fg: #3452d9;
+    --diff-ctx-fg: #4b505c;
+    --diff-file-fg: #12141a;
+    --diff-meta-fg: #9aa0ad;
+
+    --warn-bg: #fff6e2;
+    --warn-border: #e7bd5a;
+    --warn-fg: #7a5b06;
+    --ok-bg: #e9f7ee;
+    --ok-border: #79c99e;
+    --ok-fg: #1a6b40;
+    --info-bg: #eef1fd;
+    --info-border: #a9b8f2;
+    --info-fg: #2c3fa8;
+
+    --seg-rect: #3452d9;
+    --seg-text: #c2660f;
+    --seg-debug: #c22a2a;
+
+    --shadow: 0 1px 2px rgba(20,22,30,0.05), 0 8px 20px rgba(20,22,30,0.05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161b;
+      --surface: #1b1e25;
+      --surface-alt: #20232c;
+      --border: #2b2f3a;
+      --text: #e7e9ef;
+      --text-muted: #aab0c0;
+      --text-faint: #767d8c;
+      --accent: #91a4ff;
+      --accent-soft: #232a4d;
+      --code-bg: #181a21;
+      --code-border: #2a2e39;
+
+      --diff-add-bg: rgba(46,160,90,0.16);
+      --diff-add-fg: #5fd693;
+      --diff-del-bg: rgba(230,70,70,0.16);
+      --diff-del-fg: #ff8a83;
+      --diff-hunk-bg: rgba(100,130,255,0.18);
+      --diff-hunk-fg: #adbaff;
+      --diff-ctx-fg: #b7bcc8;
+      --diff-file-fg: #e7e9ef;
+      --diff-meta-fg: #666c7a;
+
+      --warn-bg: #2b2408;
+      --warn-border: #7a5f18;
+      --warn-fg: #e8c766;
+      --ok-bg: #10261a;
+      --ok-border: #2f6b49;
+      --ok-fg: #7fd6a4;
+      --info-bg: #1c2140;
+      --info-border: #3c4c9c;
+      --info-fg: #aab8ff;
+
+      --seg-rect: #6d87f2;
+      --seg-text: #e0913f;
+      --seg-debug: #e05a5a;
+
+      --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 8px 20px rgba(0,0,0,0.35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html { background: var(--bg); }
+
+  body {
+    margin: 0;
+    padding: 40px 20px 80px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    font-size: 15.5px;
+  }
+
+  code, pre, kbd, .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  header.doc-header {
+    margin-bottom: 28px;
+  }
+
+  .series-tag {
+    display: inline-block;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 5px 10px;
+    border-radius: 999px;
+    margin-bottom: 14px;
+  }
+
+  h1 {
+    font-size: 30px;
+    line-height: 1.25;
+    margin: 0 0 10px;
+    letter-spacing: -0.01em;
+  }
+
+  .subtitle {
+    font-size: 16.5px;
+    color: var(--text-muted);
+    margin: 0 0 6px;
+    max-width: 780px;
+  }
+
+  nav.toc {
+    margin-top: 26px;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+  }
+
+  nav.toc .toc-title {
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-faint);
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+
+  nav.toc ol {
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 6px 24px;
+  }
+
+  nav.toc a {
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+  }
+
+  nav.toc a:hover { color: var(--accent); text-decoration: underline; }
+
+  section {
+    margin-top: 44px;
+  }
+
+  section > h2 {
+    font-size: 21px;
+    margin: 0 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    scroll-margin-top: 20px;
+  }
+
+  h3 {
+    font-size: 16.5px;
+    margin: 26px 0 10px;
+    scroll-margin-top: 20px;
+  }
+
+  h3.file-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 15.5px;
+    margin: 0 0 8px;
+  }
+
+  h3.file-heading .file-index {
+    font-size: 11.5px;
+    color: var(--text-faint);
+    font-weight: 700;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  p { margin: 0 0 14px; }
+
+  ul, ol { margin: 0 0 14px; padding-left: 22px; }
+  li { margin-bottom: 6px; }
+
+  a { color: var(--accent); }
+
+  code.i {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.88em;
+    white-space: break-spaces;
+  }
+
+  .file-ref {
+    color: var(--text-muted);
+    font-size: 0.88em;
+  }
+
+  .lede {
+    font-size: 16px;
+    color: var(--text-muted);
+    max-width: 820px;
+  }
+
+  /* ---- callouts ---- */
+  .callout {
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--text-faint);
+    background: var(--surface);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 16px 0;
+    font-size: 14.5px;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .callout-title {
+    font-weight: 700;
+    font-size: 12.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .callout-decision { border-left-color: var(--accent); }
+  .callout-decision .callout-title { color: var(--accent); }
+  .callout-attention { background: var(--warn-bg); border-color: var(--warn-border); border-left-color: var(--warn-border); }
+  .callout-attention .callout-title { color: var(--warn-fg); }
+  .callout-ok { background: var(--ok-bg); border-color: var(--ok-border); border-left-color: var(--ok-border); }
+  .callout-ok .callout-title { color: var(--ok-fg); }
+  .callout-info { background: var(--info-bg); border-color: var(--info-border); border-left-color: var(--info-border); }
+  .callout-info .callout-title { color: var(--info-fg); }
+
+  /* ---- plain code blocks (not diffs) ---- */
+  pre.code {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--diff-ctx-fg);
+    margin: 12px 0 18px;
+  }
+  pre.code code { white-space: pre; }
+
+  /* ---- diff blocks ---- */
+  .diff-wrap {
+    border: 1px solid var(--code-border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 10px 0 22px;
+    background: var(--code-bg);
+  }
+  pre.diff {
+    margin: 0;
+    padding: 12px 0;
+    overflow-x: auto;
+    font-size: 12.7px;
+    line-height: 1.55;
+  }
+  pre.diff code { display: block; white-space: pre; }
+  pre.diff span { display: block; padding: 0 16px; }
+  .d-file { color: var(--diff-file-fg); font-weight: 700; }
+  .d-hunk { color: var(--diff-hunk-fg); background: var(--diff-hunk-bg); font-weight: 600; }
+  .d-add  { color: var(--diff-add-fg); background: var(--diff-add-bg); }
+  .d-del  { color: var(--diff-del-fg); background: var(--diff-del-bg); }
+  .d-ctx  { color: var(--diff-ctx-fg); }
+  .d-meta { color: var(--diff-meta-fg); font-style: italic; }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 4px 0 22px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+  .legend i.li-add { background: var(--diff-add-bg); border: 1px solid var(--diff-add-fg); }
+  .legend i.li-del { background: var(--diff-del-bg); border: 1px solid var(--diff-del-fg); }
+  .legend i.li-hunk { background: var(--diff-hunk-bg); border: 1px solid var(--diff-hunk-fg); }
+  .legend i.li-ctx { background: var(--surface); border: 1px solid var(--border); }
+
+  /* ---- z-order diagram ---- */
+  .zdiagram {
+    margin: 18px 0 26px;
+    padding: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+  }
+  .zdiagram-scenario {
+    font-size: 13.5px;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+  }
+  .ztrack-group { margin-bottom: 20px; }
+  .ztrack-title {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 7px;
+  }
+  .ztrack {
+    display: flex;
+    gap: 3px;
+    height: 50px;
+  }
+  .zseg {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.25;
+    color: #fff;
+    text-align: center;
+    padding: 3px 4px;
+    min-width: 0;
+  }
+  .zseg span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+  .zseg-tag {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 700;
+    opacity: 0.9;
+  }
+  .zseg.t-rect { background: var(--seg-rect); }
+  .zseg.t-text { background: var(--seg-text); }
+  .zseg.t-debug { background: var(--seg-debug); }
+
+  .ztrack-note {
+    margin-top: 7px;
+    font-size: 12.5px;
+    color: var(--warn-fg);
+  }
+  .ztrack-note-ok { color: var(--ok-fg); }
+
+  .zdiagram-axis {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-faint);
+    margin: 14px 0 16px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border);
+  }
+
+  .zdiagram-legend {
+    display: flex;
+    gap: 18px;
+    font-size: 12px;
+    color: var(--text-muted);
+    flex-wrap: wrap;
+  }
+  .zdiagram-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .zdiagram-legend i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+
+  table.spec {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    margin: 12px 0 20px;
+  }
+  table.spec th, table.spec td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.spec th {
+    color: var(--text-faint);
+    font-weight: 600;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  table.spec code.i { white-space: nowrap; }
+
+  ol.steps { list-style: none; padding: 0; margin: 18px 0; counter-reset: step; }
+  ol.steps > li {
+    counter-increment: step;
+    position: relative;
+    padding: 4px 0 18px 40px;
+    border-left: 2px solid var(--border);
+    margin-left: 14px;
+  }
+  ol.steps > li:last-child { border-left-color: transparent; padding-bottom: 0; }
+  ol.steps > li::before {
+    content: counter(step);
+    position: absolute;
+    left: -15px;
+    top: 2px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  ol.steps > li > .step-title { font-weight: 700; margin-bottom: 4px; display: block; }
+
+  .risk-list { display: flex; flex-direction: column; gap: 14px; }
+  .risk-item {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    background: var(--surface);
+  }
+  .risk-item .risk-title {
+    font-weight: 700;
+    font-size: 14.5px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .risk-item .risk-title .risk-num {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    color: #fff;
+    background: var(--text-faint);
+    border-radius: 5px;
+    padding: 1px 7px;
+  }
+  .risk-item p:last-child { margin-bottom: 0; }
+
+  footer.doc-footer {
+    margin-top: 56px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+    font-size: 12.5px;
+    color: var(--text-faint);
+  }
+
+  @media (max-width: 640px) {
+    nav.toc ol { grid-template-columns: 1fr; }
+    h1 { font-size: 25px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="doc-header">
+    <span class="series-tag">Série: Refatoração da GUI — Elixir · Parte 3 de 5</span>
+    <h1>3. Ordenação de z entre render passes</h1>
+    <p class="subtitle">
+      RenderBatch passa a expor runs contíguos por tipo, já em ordem de z; RenderPass troca
+      "processar o batch inteiro" por "processar um range"; e Renderer::Draw intercala os
+      passes na ordem certa, em vez de desenhar cada um por inteiro antes do próximo.
+    </p>
+
+    <nav class="toc" aria-label="Sumário">
+      <div class="toc-title">Nesta página</div>
+      <ol>
+        <li><a href="#sec-objetivo">1. Objetivo</a></li>
+        <li><a href="#sec-estado-atual">2. Estado atual</a></li>
+        <li><a href="#sec-design">3. Design proposto</a></li>
+        <li><a href="#sec-mudancas">4. Mudanças por arquivo</a></li>
+        <li><a href="#sec-ordem">5. Ordem de aplicação</a></li>
+        <li><a href="#sec-riscos">6. Riscos e pontos de atenção</a></li>
+      </ol>
+    </nav>
+  </header>
+
+  <section id="sec-objetivo">
+    <h2>1. Objetivo</h2>
+    <p class="lede">
+      Fazer com que a ordem de desenho entre passes diferentes (quad, texto, debug) respeite o
+      <code class="i">ZOrder</code> de cada <code class="i">SDrawCommand</code>, e não apenas a
+      ordem de registro dos passes dentro do <code class="i">Renderer</code>.
+    </p>
+    <p>
+      Hoje o <code class="i">RenderBatch</code> já ordena corretamente todos os comandos por
+      <code class="i">ZOrder</code>, e <code class="i">Widget::CollectDrawCommands</code> já faz um
+      trabalho cuidadoso de dar bandas de z disjuntas para cada subárvore da UI. Esse esforço é
+      anulado no último passo: <code class="i">Renderer::Draw</code> desenha
+      <em>pass por pass</em> — todos os quads, depois todo o texto, depois todo o debug — então o
+      z relativo entre um <code class="i">SDrawCommand::EType::Rect</code> e um
+      <code class="i">SDrawCommand::EType::Text</code> vizinho nunca é consultado; só importa em
+      que ordem os passes foram registrados em <code class="i">Renderer::InitRenderPasses</code>.
+    </p>
+    <p>Ao final deste passo:</p>
+    <ul>
+      <li>Um texto com <code class="i">ZOrder</code> menor que um quad vizinho desenha
+        <strong>atrás</strong> dele — não na frente por acidente de qual pass roda primeiro.</li>
+      <li>Retângulos de debug (<code class="i">SDrawCommand::EType::DebugRect</code>) sempre
+        desenham por cima de tudo, independente da ordem de inserção.</li>
+      <li>O número de <code class="i">vkCmdDraw</code> emitidos por frame não aumenta em relação
+        a hoje para os casos comuns; só aumenta quando um tipo aparece em mais de um run
+        não-adjacente no mesmo frame (ver seção 3.1).</li>
+      <li>A API pública usada pelos widgets não muda: <code class="i">RenderBatch::AddRect</code>,
+        <code class="i">AddText</code> e <code class="i">AddTexture</code> continuam com a mesma
+        assinatura.</li>
+    </ul>
+  </section>
+
+  <section id="sec-estado-atual">
+    <h2>2. Estado atual</h2>
+
+    <h3>2.1 Como o z chega até o RenderBatch</h3>
+    <p>
+      <code class="i">Widget::CollectDrawCommands</code> (<span class="file-ref">Widget.cpp:135-157</span>)
+      atravessa a árvore encadeando um único <code class="i">zCursor</code> por referência. O
+      próprio comentário do método em <span class="file-ref">Widget.h:150-164</span> já documenta
+      a garantia:
+    </p>
+    <pre class="code"><code>a widget's own commands occupy [zCursor, zCursor + LayerSpan()), children
+stack above, and the next sibling starts above this widget's whole subtree —
+so sibling subtrees never overlap in z.</code></pre>
+    <p>
+      Dentro de um mesmo widget, quando há mais de um comando próprio, o z relativo entre eles é
+      explícito: <code class="i">Button::BuildDrawCommands</code> usa <code class="i">zOrder</code>
+      para o fundo e <code class="i">zOrder + 1</code> para o texto
+      (<span class="file-ref">Button.cpp:136/148 e 166</span>). <code class="i">TextField::BuildDrawCommands</code>
+      vai mais longe: <code class="i">zOrder</code> para o fundo, <code class="i">zOrder + 1</code>
+      para a seleção, <code class="i">zOrder + 2</code> para o texto ou o placeholder (mutuamente
+      exclusivos) e <code class="i">zOrder + 3</code> para o cursor
+      (<span class="file-ref">TextField.cpp:131/143, 167, 181/196 e 215</span>).
+    </p>
+
+    <h3>2.2 Como o Renderer desenha hoje</h3>
+    <p>
+      <code class="i">RenderBatch::Sort</code> (<span class="file-ref">RenderBatch.cpp:17-26</span>)
+      faz um único <code class="i">std::ranges::stable_sort</code> por <code class="i">ZOrder</code>.
+      Até aqui, tudo certo — o vetor <code class="i">m_Commands</code> sai ordenado globalmente.
+      O problema começa em <code class="i">Renderer::Draw</code>
+      (<span class="file-ref">Renderer.cpp:45-55</span>):
+    </p>
+    <pre class="code"><code>void Renderer::Draw() const
+{
+    const auto cmd = m_GraphicsContext-&gt;GetSecondaryCommandBuffer();
+    BeginRendering(cmd);
+
+    for (const auto&amp; pass : m_RenderPasses)
+        if (pass-&gt;HasData())
+            pass-&gt;Render(cmd);
+
+    EndRendering(cmd);
+}</code></pre>
+    <p>
+      <code class="i">m_RenderPasses</code> é preenchido em ordem fixa por
+      <code class="i">Renderer::InitRenderPasses</code> (<span class="file-ref">Renderer.cpp:74-99</span>):
+      quad, depois texto, depois debug. Cada pass, quando chamado, roda
+      <code class="i">GenerateDrawCommands</code> sobre o batch inteiro e filtra por tipo com um
+      switch — por exemplo em <code class="i">QuadRenderPass.cpp:34-44</code>:
+    </p>
+    <pre class="code"><code>for (const auto&amp; drawCmd : batch.GetCommands())
+{
+    switch (drawCmd.Type)
+    {
+        case SDrawCommand::EType::Rect:
+            BuildRectGeometry(drawCmd);
+            break;
+        default:
+            break;
+    }
+}</code></pre>
+    <p>
+      <code class="i">TextRenderPass.cpp:26-35</code> e <code class="i">DebugRenderPass.cpp:25-34</code>
+      repetem o mesmo padrão para <code class="i">Text</code> e <code class="i">DebugRect</code>.
+      Cada pass, isoladamente, respeita o z <em>entre os comandos do próprio tipo</em> (porque o
+      batch já chegou ordenado) — mas <code class="i">Renderer::Draw</code> executa
+      <code class="i">QuadRenderPass::Render</code> inteiro, depois
+      <code class="i">TextRenderPass::Render</code> inteiro, depois
+      <code class="i">DebugRenderPass::Render</code> inteiro. O z relativo <em>entre</em> tipos
+      diferentes nunca é consultado: texto sempre desenha por cima de qualquer quad, porque o
+      pass de texto sempre roda depois do pass de quad, não porque o z pediu isso.
+    </p>
+    <p>
+      Isso funciona por acidente no caso comum — o texto de um botão realmente fica acima do
+      próprio fundo — mas quebra no primeiro caso em que um quad precisa ficar
+      <strong>acima</strong> de um texto de outra subárvore: um dropdown aberto sobre um painel
+      com rótulo, um modal sobre uma tela com labels, um tooltip sobre uma lista.
+    </p>
+
+    <h3>2.3 O bug adicional do AddDebugRect</h3>
+    <p>
+      <code class="i">RenderBatch::AddDebugRect</code> (<span class="file-ref">RenderBatch.cpp:110-118</span>)
+      nunca atribui <code class="i">ZOrder</code>: o campo fica no valor padrão de
+      <code class="i">SDrawCommand::ZOrder = 0</code> (<span class="file-ref">RenderBatch.h:51</span>).
+      Mesmo se o problema da seção 2.2 for resolvido, um retângulo de debug adicionado com
+      <code class="i">ZOrder = 0</code> concorre pela mesma posição que qualquer outro comando de
+      z zero e pode acabar atrás de conteúdo real, quando o próprio propósito de um overlay de
+      debug é estar sempre visível por cima.
+    </p>
+
+    <div class="zdiagram">
+      <div class="zdiagram-scenario">
+        Cenário: um painel de fundo com rótulo (<code class="i">z0</code> / <code class="i">z1</code>)
+        atrás de um dropdown com fundo e rótulo (<code class="i">z2</code> / <code class="i">z3</code>)
+        — a sequência de comandos que <code class="i">CollectDrawCommands</code> produz, já em
+        ordem de z.
+      </div>
+
+      <div class="ztrack-group">
+        <div class="ztrack-title">Hoje — Renderer::Draw desenha pass por pass</div>
+        <div class="ztrack">
+          <div class="zseg t-rect" style="flex:1"><span class="zseg-tag">z0</span><span>painel (fundo)</span></div>
+          <div class="zseg t-rect" style="flex:1"><span class="zseg-tag">z2</span><span>dropdown (fundo)</span></div>
+          <div class="zseg t-text" style="flex:1"><span class="zseg-tag">z1</span><span>painel (rótulo)</span></div>
+          <div class="zseg t-text" style="flex:1"><span class="zseg-tag">z3</span><span>dropdown (rótulo)</span></div>
+          <div class="zseg t-debug" style="flex:0.7"><span>debug</span></div>
+        </div>
+        <div class="ztrack-note">
+          z1 (rótulo do painel) desenha depois de z2 e z3 — aparece por cima do dropdown inteiro,
+          mesmo tendo z menor que os dois.
+        </div>
+      </div>
+
+      <div class="ztrack-group">
+        <div class="ztrack-title">Proposto — runs contíguos, já em ordem de z</div>
+        <div class="ztrack">
+          <div class="zseg t-rect" style="flex:1"><span class="zseg-tag">z0</span><span>painel (fundo)</span></div>
+          <div class="zseg t-text" style="flex:1"><span class="zseg-tag">z1</span><span>painel (rótulo)</span></div>
+          <div class="zseg t-rect" style="flex:1"><span class="zseg-tag">z2</span><span>dropdown (fundo)</span></div>
+          <div class="zseg t-text" style="flex:1"><span class="zseg-tag">z3</span><span>dropdown (rótulo)</span></div>
+          <div class="zseg t-debug" style="flex:0.7"><span>debug</span></div>
+        </div>
+        <div class="ztrack-note ztrack-note-ok">
+          Cada comando desenha na hora certa; debug (<code class="i">ZOrder = INT_MAX</code>)
+          sempre por último, disjunto do z real da UI.
+        </div>
+      </div>
+
+      <div class="zdiagram-axis">
+        <span>desenhado primeiro · fica embaixo</span>
+        <span>desenhado por último · fica em cima →</span>
+      </div>
+
+      <div class="zdiagram-legend">
+        <span><i style="background:var(--seg-rect)"></i>Rect (quad)</span>
+        <span><i style="background:var(--seg-text)"></i>Text</span>
+        <span><i style="background:var(--seg-debug)"></i>DebugRect</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="sec-design">
+    <h2>3. Design proposto</h2>
+
+    <h3>3.1 RenderBatch — runs contíguos por tipo</h3>
+    <p>
+      Depois do <code class="i">stable_sort</code> existente, um novo método privado
+      <code class="i">BuildRuns()</code> varre <code class="i">m_Commands</code> (já ordenado) e
+      agrupa vizinhos de mesmo <code class="i">Type</code> em uma lista de:
+    </p>
+    <pre class="code"><code>struct SBatchRun
+{
+    SDrawCommand::EType Type;
+    uint32_t First;
+    uint32_t Count;
+};</code></pre>
+    <p>
+      <code class="i">GetRuns()</code> expõe essa lista. Como <code class="i">BuildRuns</code>
+      depende do vetor já estar ordenado, ele só pode rodar depois do
+      <code class="i">stable_sort</code> — por isso vira parte do próprio
+      <code class="i">Sort()</code>, e não um método separado que o chamador precisaria lembrar de
+      invocar na ordem certa.
+    </p>
+
+    <div class="callout callout-decision">
+      <span class="callout-title">Decisão — desempate por Type no comparador</span>
+      <p>
+        O comparador de <code class="i">Sort()</code> ganha um segundo critério: quando dois
+        comandos têm o mesmo <code class="i">ZOrder</code>, desempata por
+        <code class="i">Type</code>. É isso que permite <code class="i">BuildRuns()</code>
+        colapsar em um único run dois comandos vizinhos que, por acaso, tenham o mesmo z — sem
+        essa regra, um <code class="i">Rect</code> e um <code class="i">Text</code> empatados em z
+        poderiam ficar em qualquer ordem relativa (<code class="i">stable_sort</code> preservaria
+        a ordem de inserção original, que não é agrupada por tipo), quebrando a contiguidade que
+        <code class="i">BuildRuns()</code> precisa.
+      </p>
+      <p>
+        Isso muda o resultado visual? Lendo o resto do pipeline, a resposta é não — e dá para
+        justificar com mais precisão do que "empates não importam":
+      </p>
+      <ul>
+        <li>
+          <code class="i">CollectDrawCommands</code> encadeia um único <code class="i">zCursor</code>
+          por referência atravessando a árvore inteira em pré-ordem; a banda de z de um widget
+          nunca se sobrepõe com a de outro (ver 2.1). Cada subárvore tem uma faixa contígua e
+          exclusiva de valores de z.
+        </li>
+        <li>
+          Dentro de um mesmo widget, <code class="i">Button</code> e <code class="i">TextField</code>
+          usam <code class="i">zOrder</code>, <code class="i">zOrder + 1</code>, ... para as
+          próprias partes — nunca repetem o mesmo z para dois comandos diferentes.
+          <code class="i">Panel::BuildDrawCommands</code> e <code class="i">TextBlock::BuildDrawCommands</code>
+          (<span class="file-ref">Panel.cpp:72-86, TextBlock.cpp:55-71</span>) emitem no máximo um
+          comando cada, então nem chegam a ter essa questão.
+        </li>
+        <li>
+          Conclusão: hoje, fora do <code class="i">AddDebugRect</code> (que grava sempre
+          <code class="i">ZOrder = 0</code>, ver 2.3), todo <code class="i">SDrawCommand</code> de
+          um frame já sai do <code class="i">Sort()</code> com <code class="i">ZOrder</code>
+          globalmente único. Empates simplesmente não acontecem na árvore de widgets como ela
+          existe hoje.
+        </li>
+        <li>
+          O único cenário real de empate é vários <code class="i">AddDebugRect</code> no mesmo
+          frame — e aí o desempate por <code class="i">Type</code> não muda nada na prática: os
+          dois lados têm o mesmo <code class="i">Type</code> (<code class="i">DebugRect</code>),
+          então o <code class="i">stable_sort</code> preserva a ordem de inserção entre eles, exatamente
+          como antes da mudança no comparador.
+        </li>
+      </ul>
+      <p>
+        Em outras palavras: o desempate por <code class="i">Type</code> é seguro por construção —
+        não porque "empates não importam visualmente" em abstrato, mas porque, lendo o pipeline
+        real, empates não existem hoje fora do debug, e quando existirem (debug), são sempre entre
+        comandos do mesmo tipo.
+      </p>
+    </div>
+
+    <p>
+      <strong>Quantos runs, na prática?</strong> Uma UI de editor densa — barra de ferramentas,
+      painel de hierarquia, inspector, status bar — tem tipicamente dezenas de widgets folha
+      visíveis por vez, não milhares. Como nenhum widget hoje repete o próprio tipo em comandos
+      adjacentes sem intercalar outro tipo (um <code class="i">Button</code> sempre alterna
+      fundo/texto), vizinhos na árvore tendem a virar vizinhos alternados no z também. No pior
+      caso — zero coalescência, cada comando alternando de tipo com o vizinho — o número de runs
+      é exatamente igual ao número de <code class="i">SDrawCommand</code> do frame: ou seja,
+      <code class="i">BuildRuns()</code> nunca é mais caro do que iterar o batch uma vez, algo que
+      o código já fazia em cada pass. E esse número, hoje, é pequeno perto do que os próprios
+      passes já reservam — <code class="i">MAX_QUADS = 10000</code>
+      (<span class="file-ref">QuadRenderPass.h:14</span>) e
+      <code class="i">MAX_CHARACTERS = 16000</code> (<span class="file-ref">TextRenderPass.h:12</span>)
+      descrevem orçamento de <em>instâncias</em>, não de comandos. Uma tela de editor típica fica
+      na casa de dezenas a poucas centenas de <code class="i">SDrawCommand</code> por frame, o que
+      dá, no pior caso, poucas centenas de runs — nunca a ordem de milhares que justificaria uma
+      estrutura mais sofisticada que um <code class="i">std::vector&lt;SBatchRun&gt;</code> simples.
+    </p>
+    <p>
+      <code class="i">Clear()</code> passa a limpar <code class="i">m_Runs</code> também — senão um
+      frame vazio reaproveitaria runs de um <code class="i">Sort()</code> anterior que já não
+      batem com <code class="i">m_Commands</code> recém-esvaziado.
+    </p>
+
+    <h3>3.2 RenderPass — interface por range</h3>
+    <p>
+      O ponto de partida pede cinco métodos: <code class="i">AppendRange</code>,
+      <code class="i">Render(cmd, firstInstance, instanceCount)</code>,
+      <code class="i">BeginFrame</code>, <code class="i">HasData</code> (mantém) e
+      <code class="i">Clear</code> (mantém). Implementando o fluxo de
+      <code class="i">Rebuild</code>/<code class="i">Draw</code> descrito em 3.3, faltam três
+      métodos — sem eles a interface não fecha:
+    </p>
+
+    <div class="callout callout-attention">
+      <span class="callout-title">Atenção — três métodos além dos cinco do enunciado</span>
+      <table class="spec">
+        <tr><th>Método</th><th>Por quê</th></tr>
+        <tr>
+          <td><code class="i">Bind(cmd)</code></td>
+          <td>
+            <code class="i">Draw()</code> só deve religar pipeline/vertex buffer quando o pass
+            muda em relação ao item anterior (3.3). Isso exige separar "religar estado" de
+            "emitir o draw call" — hoje as duas coisas estão fundidas dentro de
+            <code class="i">Render(cmd)</code>. <code class="i">Bind()</code> fica com
+            <code class="i">m_Pipeline-&gt;Bind(cmd)</code> +
+            <code class="i">m_QuadBuffer-&gt;Bind(cmd)</code>; <code class="i">Render()</code>
+            fica só com <code class="i">cmd-&gt;Draw(...)</code>.
+          </td>
+        </tr>
+        <tr>
+          <td><code class="i">EndFrame()</code></td>
+          <td>
+            Como cada run vira uma chamada de <code class="i">AppendRange</code>, um mesmo pass
+            pode receber vários runs não-adjacentes no mesmo frame (ex.: Rect, Text, Rect — dois
+            runs de Rect separados por um run de Text). O upload pra GPU não pode acontecer dentro
+            de <code class="i">AppendRange</code>, ou viraria upload parcial repetido — o pedido
+            original é "um upload no fim". <code class="i">EndFrame()</code> roda depois do
+            último <code class="i">AppendRange</code> do frame e faz o
+            <code class="i">UpdateData</code> único.
+          </td>
+        </tr>
+        <tr>
+          <td><code class="i">GetInstanceCount() const</code></td>
+          <td>
+            <code class="i">AppendRange</code> devolve só o índice da primeira instância gerada.
+            Para montar o <code class="i">SDrawItem</code>, o <code class="i">Renderer</code>
+            também precisa do <em>count</em> — e esse count não é
+            <code class="i">commands.size()</code> (o <code class="i">TextRenderPass</code> gera
+            uma instância por glifo). <code class="i">GetInstanceCount()</code> expõe o total
+            acumulado até agora; o <code class="i">Renderer</code> calcula o tamanho do range como
+            <code class="i">GetInstanceCount() - firstInstance</code> logo após o
+            <code class="i">AppendRange</code>.
+          </td>
+        </tr>
+      </table>
+      <p>
+        Se a intenção original era manter a interface só com os cinco métodos citados, vale
+        revisar esse ponto antes de aplicar o passo 2 da seção 5 — sem os três acima o
+        <code class="i">Rebuild</code>/<code class="i">Draw</code> descritos na própria tarefa não
+        compilam nem fecham semanticamente.
+      </p>
+    </div>
+
+    <p>A interface final (diff completo na seção 4.3):</p>
+    <pre class="code"><code>class RenderPass
+{
+public:
+    virtual ~RenderPass() = default;
+
+    virtual void BeginFrame() = 0;
+    virtual uint32_t AppendRange(std::span&lt;const SDrawCommand&gt; commands) = 0;
+    virtual uint32_t GetInstanceCount() const = 0;
+    virtual void EndFrame() = 0;
+    virtual void Bind(const Ref&lt;CommandBuffer&gt;&amp; cmd) = 0;
+    virtual void Render(const Ref&lt;CommandBuffer&gt;&amp; cmd, uint32_t firstInstance, uint32_t instanceCount) = 0;
+
+    virtual bool HasData() const = 0;
+    virtual void Clear() = 0;
+
+    virtual SDrawCommand::EType GetHandledType() const = 0;
+};</code></pre>
+    <p>
+      <code class="i">HasData()</code> e <code class="i">Clear()</code> ficam com o corpo exatamente
+      como estão hoje em cada pass — o diff só muda a posição deles dentro da interface.
+    </p>
+    <p>
+      Nomeação: chamei o terceiro método de <code class="i">GetInstanceCount()</code> mesmo no
+      <code class="i">DebugRenderPass</code>, que na verdade conta vértices, não instâncias (ver
+      3.4) — mantém o vocabulário da interface consistente com
+      <code class="i">Render(cmd, firstInstance, instanceCount)</code>, que já tem a mesma
+      dualidade, documentada uma vez no comentário da interface em vez de um nome paralelo só
+      para um pass.
+    </p>
+
+    <h3>3.3 Renderer — draw items em ordem de z</h3>
+    <pre class="code"><code>struct SDrawItem
+{
+    RenderPass* Pass;
+    uint32_t FirstInstance;
+    uint32_t InstanceCount;
+};</code></pre>
+    <p>
+      <code class="i">Rebuild(batch)</code> deixa de ser <code class="i">const</code> — mutar
+      <code class="i">m_DrawItems</code> exige isso.
+    </p>
+
+    <div class="callout callout-info">
+      <span class="callout-title">Conferido — Manager::Render não precisa de ajuste</span>
+      <p>
+        <code class="i">Manager::Render()</code> já é não-const
+        (<span class="file-ref">Manager.h:22</span>) e <code class="i">m_Renderer</code> já é um
+        <code class="i">Scope&lt;Renderer&gt;</code> (não-const) acessado por esse método
+        (<span class="file-ref">Manager.h:51</span>). Chamar um método não-const através de um
+        <code class="i">unique_ptr</code> não-const compila igual, com ou sem
+        <code class="i">const</code> em <code class="i">Rebuild</code> — a constness do
+        <em>ponteiro</em> não muda. O call site em
+        <code class="i">Manager::Render</code> (<span class="file-ref">Manager.cpp:49</span>,
+        <code class="i">m_Renderer-&gt;Rebuild(m_RenderBatch);</code>) fica com o texto idêntico.
+        Nenhum diff necessário em Manager.h/.cpp — ver seção 4.
+      </p>
+    </div>
+
+    <p>
+      <strong>Mapeamento Type → pass.</strong> Optei por um método virtual
+      <code class="i">RenderPass::GetHandledType() const</code> em vez de um parâmetro extra em
+      <code class="i">RegisterRenderPass(pass, type)</code>: o tipo tratado por um pass é uma
+      propriedade da própria classe — o mesmo dado que hoje mora, implícito, dentro do switch de
+      cada <code class="i">GenerateDrawCommands</code>. Mantê-lo na classe evita que o ponto de
+      registro (<code class="i">Renderer::InitRenderPasses</code>) e o pass discordem sobre o que
+      ele realmente processa. <code class="i">RegisterRenderPass</code> continua recebendo só o
+      <code class="i">Ref&lt;RenderPass&gt;</code>; internamente também popula
+      <code class="i">m_PassesByType[pass-&gt;GetHandledType()] = pass.get()</code>.
+    </p>
+
+    <p><strong><code class="i">Rebuild(batch)</code>:</strong></p>
+    <ol class="steps">
+      <li><span class="step-title">BeginFrame em todos os passes registrados</span>descarta a geometria acumulada no frame anterior.</li>
+      <li><span class="step-title">Limpa m_DrawItems</span>a lista de draw items do frame anterior não serve mais.</li>
+      <li><span class="step-title">Para cada run do batch, em ordem de z</span>acha o pass responsável via <code class="i">m_PassesByType</code> (se não houver pass registrado para aquele tipo, pula o run — não deveria acontecer com os 3 tipos atuais, mas evita indexar um ponteiro nulo se um tipo novo for adicionado sem registrar um pass), chama <code class="i">AppendRange</code> com o span do run, calcula <code class="i">instanceCount</code> via <code class="i">GetInstanceCount() - firstInstance</code>, e só empilha o <code class="i">SDrawItem</code> se <code class="i">instanceCount &gt; 0</code> — um run de <code class="i">Text</code> cujos comandos geram zero glifos (ver risco R5) não deve virar um draw item vazio.</li>
+      <li><span class="step-title">EndFrame em todos os passes registrados</span>cada pass sobe seu buffer para a GPU em uma única chamada.</li>
+    </ol>
+
+    <p><strong><code class="i">Draw()</code>:</strong> percorre <code class="i">m_DrawItems</code> em ordem; guarda o último pass usado (<code class="i">lastPass</code>) e só chama <code class="i">item.Pass-&gt;Bind(cmd)</code> quando <code class="i">item.Pass != lastPass</code>; sempre chama <code class="i">item.Pass-&gt;Render(cmd, item.FirstInstance, item.InstanceCount)</code>. Continua <code class="i">const</code> — só lê <code class="i">m_DrawItems</code> e escreve no command buffer, não muta nenhum membro do <code class="i">Renderer</code>.</p>
+
+    <div class="callout callout-attention">
+      <span class="callout-title">Atenção — a otimização de Bind não dispara com os 3 passes atuais</span>
+      <p>
+        Como <code class="i">BuildRuns()</code> só produz runs <em>maximais</em> (nunca dois runs
+        adjacentes do mesmo tipo — se fossem adjacentes, seriam um run só) e hoje o mapeamento
+        Type → pass é 1:1 (<code class="i">Rect</code> → Quad, <code class="i">Text</code> → Text,
+        <code class="i">DebugRect</code> → Debug), dois <code class="i">SDrawItem</code>
+        consecutivos <strong>nunca</strong> apontam para o mesmo pass no cenário atual — a
+        condição <code class="i">item.Pass != lastPass</code> é sempre verdadeira hoje, e "só
+        religar quando muda" nunca chega a economizar um <code class="i">Bind</code> de fato.
+      </p>
+      <p>
+        Isso não é um defeito do plano: é uma comparação de ponteiro, praticamente grátis, que
+        vira relevante no dia em que dois <code class="i">EType</code> diferentes dividirem um
+        pass, ou um pass for desmembrado em dois registros. Mantém <code class="i">Draw()</code>
+        correta e barata independente de como o mapeamento evoluir — só não esperar nenhum ganho
+        de performance mensurável só com este passo.
+      </p>
+    </div>
+
+    <h3>3.4 DebugRenderPass — z sempre no topo</h3>
+    <p>
+      A correção mora em <code class="i">RenderBatch::AddDebugRect</code>, não no
+      <code class="i">DebugRenderPass</code> em si: um <code class="i">int DEBUG_Z_ORDER = std::numeric_limits&lt;int&gt;::max()</code>
+      em um namespace anônimo no início de <code class="i">RenderBatch.cpp</code>, atribuído a
+      <code class="i">cmd.ZOrder</code> dentro de <code class="i">AddDebugRect</code>. Preferi uma
+      constante fixa a um parâmetro com default, seguindo o próprio critério do problema ("debug
+      sempre desenha por cima") — um retângulo de debug em um z específico não tem um caso de uso
+      claro hoje; se aparecer um, dá para reabrir essa decisão então.
+      <code class="i">numeric_limits</code> exige <code class="i">&lt;limits&gt;</code>, que
+      <code class="i">RenderBatch.cpp</code> não incluía — segui o mesmo padrão já usado em
+      <span class="file-ref">Elixir/Source/Engine/Aether/Effect.cpp:4</span> para essa mesma
+      inclusão, o único outro lugar do repositório que já usa
+      <code class="i">std::numeric_limits</code>.
+    </p>
+
+    <div class="callout callout-attention">
+      <span class="callout-title">Atenção — DebugRenderPass não é instanciado</span>
+      <p>
+        Diferente de <code class="i">QuadRenderPass</code> e <code class="i">TextRenderPass</code>,
+        que passam <code class="i">EInputRate::Instance</code> explicitamente para o
+        <code class="i">BufferLayout</code> (<span class="file-ref">QuadRenderPass.cpp:85, TextRenderPass.cpp:74</span>),
+        o layout do <code class="i">DebugRenderPass</code>
+        (<span class="file-ref">DebugRenderPass.cpp:62-69</span>) não passa nenhum
+        <code class="i">EInputRate</code> — fica no default de
+        <code class="i">BufferLayout.h:48</code>, que é <code class="i">EInputRate::Vertex</code>.
+        A topologia também é <code class="i">LineList</code>, com 8 vértices por retângulo de
+        debug (4 linhas). E o <code class="i">Render</code> atual chama
+        <code class="i">cmd-&gt;Draw(m_Vertices.size())</code> — um único argumento, sem instancing.
+      </p>
+      <p>
+        Ou seja: este é o único dos três passes onde <code class="i">AppendRange</code> não gera
+        "instâncias" no sentido de instanced rendering — gera vértices, desenhados diretamente.
+        O <code class="i">Render(cmd, firstInstance, instanceCount)</code> desse pass reinterpreta
+        os parâmetros genéricos da interface como <code class="i">firstVertex</code>/<code class="i">vertexCount</code>
+        e chama <code class="i">cmd-&gt;Draw(instanceCount, 1, firstInstance, 0)</code> — funcionalmente
+        correto, porque <code class="i">CommandBuffer::Draw</code> já separa os dois conceitos
+        (ver 3.5), mas é fácil esquecer essa diferença ao editar esse arquivo depois. O diff em
+        4.9 deixa um comentário no próprio código apontando isso.
+      </p>
+    </div>
+
+    <h3>3.5 CommandBuffer — nenhuma mudança necessária</h3>
+    <p>
+      <code class="i">CommandBuffer::Draw</code> (<span class="file-ref">CommandBuffer.h:47-52</span>)
+      já aceita os quatro parâmetros que este plano precisa:
+    </p>
+    <pre class="code"><code>virtual void Draw(
+    uint32_t vertexCount,
+    uint32_t instanceCount = 1,
+    uint32_t firstVertex = 0,
+    uint32_t firstInstance = 0
+) = 0;</code></pre>
+    <p>
+      E a implementação Vulkan
+      (<span class="file-ref">Elixir/Source/Graphics/Vulkan/VulkanCommandBuffer.cpp:140-149</span>)
+      já repassa os quatro direto para <code class="i">vkCmdDraw</code>, sem nenhum atalho que
+      assuma <code class="i">firstInstance = 0</code>:
+    </p>
+    <pre class="code"><code>void VulkanCommandBuffer::Draw(
+    const uint32_t vertexCount,
+    const uint32_t instanceCount,
+    const uint32_t firstVertex,
+    const uint32_t firstInstance
+)
+{
+    EE_PROFILE_ZONE_SCOPED()
+    vkCmdDraw(m_CommandBuffer, vertexCount, instanceCount, firstVertex, firstInstance);
+}</code></pre>
+    <p>
+      Não existe nenhum outro backend de <code class="i">CommandBuffer</code> no repositório — só
+      <span class="file-ref">Elixir/Source/Engine/Graphics/CommandBuffer.{h,cpp}</span> (a
+      abstração) e <span class="file-ref">Elixir/Source/Graphics/Vulkan/VulkanCommandBuffer.{h,cpp}</span>
+      (a única implementação). Não há nenhum diff a fazer aqui: a abstração já suporta o plano
+      inteiro, incluindo o caso não-instanciado do <code class="i">DebugRenderPass</code> — o
+      quarto parâmetro (<code class="i">firstVertex</code>) já existe, só que hoje sempre chamado
+      com o default <code class="i">0</code> porque nada além do <code class="i">DebugRenderPass</code>
+      teria motivo para usá-lo.
+    </p>
+  </section>
+
+  <section id="sec-mudancas">
+    <h2>4. Mudanças por arquivo</h2>
+    <p>
+      Diffs no formato unificado, contra o código atual do repositório (nenhum outro ponto da
+      série foi aplicado). Aplicar com <code class="i">git apply</code> ou <code class="i">patch -p1</code>
+      a partir da raiz do repositório.
+    </p>
+    <div class="legend">
+      <span><i class="li-add"></i>adição</span>
+      <span><i class="li-del"></i>remoção</span>
+      <span><i class="li-hunk"></i>cabeçalho de hunk</span>
+      <span><i class="li-ctx"></i>contexto (sem mudança)</span>
+    </div>
+
+    <h3 class="file-heading" id="file-1"><span class="file-index">4.1</span> RenderBatch.h</h3>
+    <p>Acrescenta <code class="i">SBatchRun</code>, <code class="i">GetRuns()</code> e a declaração de <code class="i">BuildRuns()</code> + <code class="i">m_Runs</code>.</p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Renderer/RenderBatch.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Renderer/RenderBatch.h</span>
+<span class="d-hunk">@@ -54,6 +54,17 @@</span>
+<span class="d-ctx">         SRect ScissorRect;</span>
+<span class="d-ctx">     };</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+    /**</span>
+<span class="d-add">+     * A maximal contiguous slice of same-type commands inside an already z-sorted</span>
+<span class="d-add">+     * RenderBatch. [First, First + Count) indexes into RenderBatch::GetCommands().</span>
+<span class="d-add">+     */</span>
+<span class="d-add">+    struct SBatchRun</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        SDrawCommand::EType Type;</span>
+<span class="d-add">+        uint32_t First;</span>
+<span class="d-add">+        uint32_t Count;</span>
+<span class="d-add">+    };</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     class ELIXIR_API RenderBatch final</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">       public:</span>
+<span class="d-hunk">@@ -108,7 +119,20 @@</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         const std::vector&lt;SDrawCommand&gt;&amp; GetCommands() const { return m_Commands; }</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Contiguous same-type runs over GetCommands(), in z order. Rebuilt by Sort();</span>
+<span class="d-add">+         * stale (from the previous sort) until Sort() runs again.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        const std::vector&lt;SBatchRun&gt;&amp; GetRuns() const { return m_Runs; }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">       private:</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Scans the (already z-sorted) commands and groups neighboring same-type</span>
+<span class="d-add">+         * commands into runs. Called by Sort(), right after the stable_sort.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        void BuildRuns();</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         std::vector&lt;SDrawCommand&gt; m_Commands;</span>
+<span class="d-add">+        std::vector&lt;SBatchRun&gt; m_Runs;</span>
+<span class="d-ctx">     };</span>
+<span class="d-ctx"> }</span>
+<span class="d-meta">\ No newline at end of file</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-2"><span class="file-index">4.2</span> RenderBatch.cpp</h3>
+    <p>Implementa <code class="i">BuildRuns()</code>, o desempate por <code class="i">Type</code> no comparador de <code class="i">Sort()</code>, a limpeza de <code class="i">m_Runs</code> em <code class="i">Clear()</code>, e o <code class="i">DEBUG_Z_ORDER</code> em <code class="i">AddDebugRect</code>.</p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Renderer/RenderBatch.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Renderer/RenderBatch.cpp</span>
+<span class="d-hunk">@@ -1,8 +1,17 @@</span>
+<span class="d-ctx"> #include "epch.h"</span>
+<span class="d-ctx"> #include "RenderBatch.h"</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+#include &lt;limits&gt;</span>
+<span class="d-add">+</span>
+<span class="d-ctx"> namespace Elixir::GUI</span>
+<span class="d-ctx"> {</span>
+<span class="d-add">+    namespace</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        // Debug rects exist to visualize layout/hitboxes; they must always draw above</span>
+<span class="d-add">+        // everything else, regardless of where in the tree AddDebugRect was called from.</span>
+<span class="d-add">+        constexpr int DEBUG_Z_ORDER = std::numeric_limits&lt;int&gt;::max();</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     void RenderBatch::Append(const RenderBatch&amp; other, const int zOffset)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         m_Commands.reserve(m_Commands.size() + other.m_Commands.size());</span>
+<span class="d-hunk">@@ -20,14 +29,25 @@</span>
+<span class="d-ctx">             m_Commands,</span>
+<span class="d-ctx">             [](const SDrawCommand&amp; a, const SDrawCommand&amp; b)</span>
+<span class="d-ctx">             {</span>
+<span class="d-del">-                return a.ZOrder &lt; b.ZOrder;</span>
+<span class="d-add">+                if (a.ZOrder != b.ZOrder)</span>
+<span class="d-add">+                    return a.ZOrder &lt; b.ZOrder;</span>
+<span class="d-add">+</span>
+<span class="d-add">+                // Tie-break by type so equal-z commands (currently only possible between</span>
+<span class="d-add">+                // DebugRect commands, see DEBUG_Z_ORDER above) still sort into contiguous,</span>
+<span class="d-add">+                // coalescible runs. Commands that matter relative to each other already get</span>
+<span class="d-add">+                // distinct ZOrder values from CollectDrawCommands/BuildDrawCommands, so this</span>
+<span class="d-add">+                // never reorders anything that was visually meaningful before.</span>
+<span class="d-add">+                return a.Type &lt; b.Type;</span>
+<span class="d-ctx">             }</span>
+<span class="d-ctx">         );</span>
+<span class="d-add">+</span>
+<span class="d-add">+        BuildRuns();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     void RenderBatch::Clear()</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         m_Commands.clear();</span>
+<span class="d-add">+        m_Runs.clear();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     int RenderBatch::LayerSpan() const</span>
+<span class="d-hunk">@@ -113,7 +133,26 @@</span>
+<span class="d-ctx">         cmd.Type = SDrawCommand::EType::DebugRect;</span>
+<span class="d-ctx">         cmd.Geometry = rect;</span>
+<span class="d-ctx">         cmd.Color = color;</span>
+<span class="d-add">+        cmd.ZOrder = DEBUG_Z_ORDER;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         m_Commands.push_back(cmd);</span>
+<span class="d-ctx">     }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void RenderBatch::BuildRuns()</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        m_Runs.clear();</span>
+<span class="d-add">+</span>
+<span class="d-add">+        uint32_t i = 0;</span>
+<span class="d-add">+        while (i &lt; m_Commands.size())</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            const auto type = m_Commands[i].Type;</span>
+<span class="d-add">+            uint32_t count = 1;</span>
+<span class="d-add">+</span>
+<span class="d-add">+            while (i + count &lt; m_Commands.size() &amp;&amp; m_Commands[i + count].Type == type)</span>
+<span class="d-add">+                ++count;</span>
+<span class="d-add">+</span>
+<span class="d-add">+            m_Runs.push_back({ type, i, count });</span>
+<span class="d-add">+            i += count;</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+    }</span>
+<span class="d-ctx"> }</span>
+<span class="d-meta">\ No newline at end of file</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-3"><span class="file-index">4.3</span> RenderPass.h</h3>
+    <p>Troca a interface inteira por range: <code class="i">BeginFrame</code>, <code class="i">AppendRange</code>, <code class="i">GetInstanceCount</code>, <code class="i">EndFrame</code>, <code class="i">Bind</code>, <code class="i">Render</code> com range, e <code class="i">GetHandledType</code>. Passa a incluir <code class="i">RenderBatch.h</code> por completo (precisa de <code class="i">SDrawCommand</code> e do seu <code class="i">EType</code> aninhado, não só de um forward declare de <code class="i">RenderBatch</code>).</p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Renderer/RenderPass.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Renderer/RenderPass.h</span>
+<span class="d-hunk">@@ -1,19 +1,66 @@</span>
+<span class="d-ctx"> #pragma once</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+#include &lt;Engine/GUI/Renderer/RenderBatch.h&gt;</span>
+<span class="d-ctx"> #include &lt;Engine/Graphics/CommandBuffer.h&gt;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx"> namespace Elixir::GUI</span>
+<span class="d-ctx"> {</span>
+<span class="d-del">-    class RenderBatch;</span>
+<span class="d-del">-</span>
+<span class="d-ctx">     class RenderPass</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">     public:</span>
+<span class="d-ctx">         virtual ~RenderPass() = default;</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        virtual void GenerateDrawCommands(const RenderBatch&amp; batch) = 0;</span>
+<span class="d-del">-        virtual void Render(const Ref&lt;CommandBuffer&gt;&amp; cmd) = 0;</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Discards the geometry accumulated last frame. Called once per frame, on every</span>
+<span class="d-add">+         * registered pass, before any AppendRange call.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        virtual void BeginFrame() = 0;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Builds GPU geometry for one contiguous same-type run and appends it to this</span>
+<span class="d-add">+         * pass's per-frame instance buffer.</span>
+<span class="d-add">+         *</span>
+<span class="d-add">+         * NOTE: the number of instances appended is not necessarily commands.size() —</span>
+<span class="d-add">+         * e.g. TextRenderPass expands each command into one instance per glyph. Read</span>
+<span class="d-add">+         * the actual count produced via GetInstanceCount() right after this call.</span>
+<span class="d-add">+         *</span>
+<span class="d-add">+         * @param commands span over a single SBatchRun's slice of RenderBatch::GetCommands().</span>
+<span class="d-add">+         * @return index of the first instance generated by this call.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        virtual uint32_t AppendRange(std::span&lt;const SDrawCommand&gt; commands) = 0;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Total instances accumulated so far this frame (vertices, for passes that</span>
+<span class="d-add">+         * don't draw instanced — see DebugRenderPass).</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        virtual uint32_t GetInstanceCount() const = 0;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Uploads the geometry accumulated across this frame's AppendRange calls to the</span>
+<span class="d-add">+         * GPU in a single call. Called once per frame, on every registered pass, after</span>
+<span class="d-add">+         * the last AppendRange.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        virtual void EndFrame() = 0;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Binds this pass's pipeline and vertex buffer. The Renderer calls this only</span>
+<span class="d-add">+         * when the pass differs from the one used by the previous draw item.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        virtual void Bind(const Ref&lt;CommandBuffer&gt;&amp; cmd) = 0;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Issues the draw call for the [firstInstance, firstInstance + instanceCount)</span>
+<span class="d-add">+         * range produced by an earlier AppendRange this frame.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        virtual void Render(const Ref&lt;CommandBuffer&gt;&amp; cmd, uint32_t firstInstance, uint32_t instanceCount) = 0;</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         virtual bool HasData() const = 0;</span>
+<span class="d-ctx">         virtual void Clear() = 0;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * The SDrawCommand::EType this pass consumes. The Renderer uses this at</span>
+<span class="d-add">+         * registration time to route each SBatchRun to the pass responsible for it.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        virtual SDrawCommand::EType GetHandledType() const = 0;</span>
+<span class="d-ctx">     };</span>
+<span class="d-ctx"> }</span>
+<span class="d-meta">\ No newline at end of file</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-4"><span class="file-index">4.4</span> QuadRenderPass.h</h3>
+    <p>Atualiza a lista de overrides para a nova interface.</p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Renderer/QuadRenderPass.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Renderer/QuadRenderPass.h</span>
+<span class="d-hunk">@@ -22,10 +22,15 @@</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         ~QuadRenderPass() override;</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        void GenerateDrawCommands(const RenderBatch&amp; batch) override;</span>
+<span class="d-del">-        void Render(const Ref&lt;CommandBuffer&gt;&amp; cmd) override;</span>
+<span class="d-add">+        void BeginFrame() override;</span>
+<span class="d-add">+        uint32_t AppendRange(std::span&lt;const SDrawCommand&gt; commands) override;</span>
+<span class="d-add">+        uint32_t GetInstanceCount() const override;</span>
+<span class="d-add">+        void EndFrame() override;</span>
+<span class="d-add">+        void Bind(const Ref&lt;CommandBuffer&gt;&amp; cmd) override;</span>
+<span class="d-add">+        void Render(const Ref&lt;CommandBuffer&gt;&amp; cmd, uint32_t firstInstance, uint32_t instanceCount) override;</span>
+<span class="d-ctx">         bool HasData() const override;</span>
+<span class="d-ctx">         void Clear() override;</span>
+<span class="d-add">+        SDrawCommand::EType GetHandledType() const override;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">       private:</span>
+<span class="d-ctx">         void InitRenderPass(const ShaderLoader* shaderLoader);</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-5"><span class="file-index">4.5</span> QuadRenderPass.cpp</h3>
+    <p>
+      <code class="i">GenerateDrawCommands</code> vira três métodos (<code class="i">BeginFrame</code>,
+      <code class="i">AppendRange</code>, <code class="i">EndFrame</code>); o switch por tipo some —
+      o <code class="i">Renderer</code> já garante que só chega <code class="i">Rect</code> aqui
+      (ver 4.10/4.11). <code class="i">Render</code> antigo vira <code class="i">Bind</code> +
+      <code class="i">Render</code> com range.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Renderer/QuadRenderPass.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Renderer/QuadRenderPass.cpp</span>
+<span class="d-hunk">@@ -27,35 +27,45 @@</span>
+<span class="d-ctx">         m_WhiteTexture.reset();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    void QuadRenderPass::GenerateDrawCommands(const RenderBatch&amp; batch)</span>
+<span class="d-add">+    void QuadRenderPass::BeginFrame()</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         m_Quads.clear();</span>
+<span class="d-add">+    }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        for (const auto&amp; drawCmd : batch.GetCommands())</span>
+<span class="d-del">-        {</span>
+<span class="d-del">-            switch (drawCmd.Type)</span>
+<span class="d-del">-            {</span>
+<span class="d-del">-                case SDrawCommand::EType::Rect:</span>
+<span class="d-del">-                    BuildRectGeometry(drawCmd);</span>
+<span class="d-del">-                    break;</span>
+<span class="d-del">-                default:</span>
+<span class="d-del">-                    break;</span>
+<span class="d-del">-            }</span>
+<span class="d-del">-        }</span>
+<span class="d-add">+    uint32_t QuadRenderPass::AppendRange(const std::span&lt;const SDrawCommand&gt; commands)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        const auto firstInstance = (uint32_t)m_Quads.size();</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+        for (const auto&amp; drawCmd : commands)</span>
+<span class="d-add">+            BuildRectGeometry(drawCmd);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        return firstInstance;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    uint32_t QuadRenderPass::GetInstanceCount() const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        return (uint32_t)m_Quads.size();</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void QuadRenderPass::EndFrame()</span>
+<span class="d-add">+    {</span>
+<span class="d-ctx">         if (!m_Quads.empty())</span>
+<span class="d-ctx">         {</span>
+<span class="d-ctx">             m_QuadBuffer-&gt;UpdateData(m_Quads.data(),  m_Quads.size() * sizeof(SQuad));</span>
+<span class="d-ctx">         }</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    void QuadRenderPass::Render(const Ref&lt;CommandBuffer&gt;&amp; cmd)</span>
+<span class="d-add">+    void QuadRenderPass::Bind(const Ref&lt;CommandBuffer&gt;&amp; cmd)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         m_Pipeline-&gt;Bind(cmd);</span>
+<span class="d-ctx">         m_QuadBuffer-&gt;Bind(cmd);</span>
+<span class="d-del">-        cmd-&gt;Draw(6, m_Quads.size());</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+    void QuadRenderPass::Render(const Ref&lt;CommandBuffer&gt;&amp; cmd, const uint32_t firstInstance, const uint32_t instanceCount)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        cmd-&gt;Draw(6, instanceCount, 0, firstInstance);</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     bool QuadRenderPass::HasData() const</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         return !m_Quads.empty();</span>
+<span class="d-hunk">@@ -66,6 +76,11 @@</span>
+<span class="d-ctx">         m_Quads.clear();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+    SDrawCommand::EType QuadRenderPass::GetHandledType() const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        return SDrawCommand::EType::Rect;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     void QuadRenderPass::InitRenderPass(const ShaderLoader* shaderLoader)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         const BufferLayout bufferLayout({</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-6"><span class="file-index">4.6</span> TextRenderPass.h</h3>
+    <p>Mesma troca de interface que 4.4, para <code class="i">TextRenderPass</code>.</p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Renderer/TextRenderPass.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Renderer/TextRenderPass.h</span>
+<span class="d-hunk">@@ -18,10 +18,15 @@</span>
+<span class="d-ctx">             const Ref&lt;UniformBuffer&gt;&amp; perFrameCB</span>
+<span class="d-ctx">         );</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        void GenerateDrawCommands(const RenderBatch&amp; batch) override;</span>
+<span class="d-del">-        void Render(const Ref&lt;CommandBuffer&gt;&amp; cmd) override;</span>
+<span class="d-add">+        void BeginFrame() override;</span>
+<span class="d-add">+        uint32_t AppendRange(std::span&lt;const SDrawCommand&gt; commands) override;</span>
+<span class="d-add">+        uint32_t GetInstanceCount() const override;</span>
+<span class="d-add">+        void EndFrame() override;</span>
+<span class="d-add">+        void Bind(const Ref&lt;CommandBuffer&gt;&amp; cmd) override;</span>
+<span class="d-add">+        void Render(const Ref&lt;CommandBuffer&gt;&amp; cmd, uint32_t firstInstance, uint32_t instanceCount) override;</span>
+<span class="d-ctx">         bool HasData() const override;</span>
+<span class="d-ctx">         void Clear() override;</span>
+<span class="d-add">+        SDrawCommand::EType GetHandledType() const override;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">       private:</span>
+<span class="d-ctx">         void InitRenderPass(const ShaderLoader* shaderLoader);</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-7"><span class="file-index">4.7</span> TextRenderPass.cpp</h3>
+    <p>
+      Mesmo padrão de 4.5. <code class="i">BuildTextGeometry</code> e
+      <code class="i">BuildTextureGeometry</code> não mudam — só passam a ser chamadas por
+      <code class="i">AppendRange</code> em vez de <code class="i">GenerateDrawCommands</code>.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Renderer/TextRenderPass.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Renderer/TextRenderPass.cpp</span>
+<span class="d-hunk">@@ -19,35 +19,45 @@</span>
+<span class="d-ctx">         BindShaderParameters();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    void TextRenderPass::GenerateDrawCommands(const RenderBatch&amp; batch)</span>
+<span class="d-add">+    void TextRenderPass::BeginFrame()</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         m_Quads.clear();</span>
+<span class="d-add">+    }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        for (const auto&amp; drawCmd : batch.GetCommands())</span>
+<span class="d-del">-        {</span>
+<span class="d-del">-            switch (drawCmd.Type)</span>
+<span class="d-del">-            {</span>
+<span class="d-del">-                case SDrawCommand::EType::Text:</span>
+<span class="d-del">-                    BuildTextGeometry(drawCmd);</span>
+<span class="d-del">-                    break;</span>
+<span class="d-del">-                default:</span>
+<span class="d-del">-                    break;</span>
+<span class="d-del">-            }</span>
+<span class="d-del">-        }</span>
+<span class="d-add">+    uint32_t TextRenderPass::AppendRange(const std::span&lt;const SDrawCommand&gt; commands)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        const auto firstInstance = (uint32_t)m_Quads.size();</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+        for (const auto&amp; drawCmd : commands)</span>
+<span class="d-add">+            BuildTextGeometry(drawCmd);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        return firstInstance;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    uint32_t TextRenderPass::GetInstanceCount() const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        return (uint32_t)m_Quads.size();</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void TextRenderPass::EndFrame()</span>
+<span class="d-add">+    {</span>
+<span class="d-ctx">         if (!m_Quads.empty())</span>
+<span class="d-ctx">         {</span>
+<span class="d-ctx">             m_QuadBuffer-&gt;UpdateData(m_Quads.data(),  m_Quads.size() * sizeof(SQuad));</span>
+<span class="d-ctx">         }</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    void TextRenderPass::Render(const Ref&lt;CommandBuffer&gt;&amp; cmd)</span>
+<span class="d-add">+    void TextRenderPass::Bind(const Ref&lt;CommandBuffer&gt;&amp; cmd)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         m_Pipeline-&gt;Bind(cmd);</span>
+<span class="d-ctx">         m_QuadBuffer-&gt;Bind(cmd);</span>
+<span class="d-del">-        cmd-&gt;Draw(6, m_Quads.size());</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+    void TextRenderPass::Render(const Ref&lt;CommandBuffer&gt;&amp; cmd, const uint32_t firstInstance, const uint32_t instanceCount)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        cmd-&gt;Draw(6, instanceCount, 0, firstInstance);</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     bool TextRenderPass::HasData() const</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         return !m_Quads.empty();</span>
+<span class="d-hunk">@@ -58,6 +68,11 @@</span>
+<span class="d-ctx">         m_Quads.clear();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+    SDrawCommand::EType TextRenderPass::GetHandledType() const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        return SDrawCommand::EType::Text;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     void TextRenderPass::InitRenderPass(const ShaderLoader* shaderLoader)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         const BufferLayout bufferLayout({</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-8"><span class="file-index">4.8</span> DebugRenderPass.h</h3>
+    <p>Mesma troca de interface que 4.4/4.6, para <code class="i">DebugRenderPass</code>.</p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Renderer/DebugRenderPass.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Renderer/DebugRenderPass.h</span>
+<span class="d-hunk">@@ -19,10 +19,15 @@</span>
+<span class="d-ctx">             const Ref&lt;UniformBuffer&gt;&amp; perFrameCB</span>
+<span class="d-ctx">         );</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        void GenerateDrawCommands(const RenderBatch&amp; batch) override;</span>
+<span class="d-del">-        void Render(const Ref&lt;CommandBuffer&gt;&amp; cmd) override;</span>
+<span class="d-add">+        void BeginFrame() override;</span>
+<span class="d-add">+        uint32_t AppendRange(std::span&lt;const SDrawCommand&gt; commands) override;</span>
+<span class="d-add">+        uint32_t GetInstanceCount() const override;</span>
+<span class="d-add">+        void EndFrame() override;</span>
+<span class="d-add">+        void Bind(const Ref&lt;CommandBuffer&gt;&amp; cmd) override;</span>
+<span class="d-add">+        void Render(const Ref&lt;CommandBuffer&gt;&amp; cmd, uint32_t firstInstance, uint32_t instanceCount) override;</span>
+<span class="d-ctx">         bool HasData() const override;</span>
+<span class="d-ctx">         void Clear() override;</span>
+<span class="d-add">+        SDrawCommand::EType GetHandledType() const override;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">       private:</span>
+<span class="d-ctx">         void InitRenderPass(const ShaderLoader* shaderLoader);</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-9"><span class="file-index">4.9</span> DebugRenderPass.cpp</h3>
+    <p>
+      Mesmo padrão de 4.5/4.7, com a ressalva da seção 3.4: este pass não é instanciado, então
+      <code class="i">AppendRange</code> devolve um índice de <em>vértice</em>, e
+      <code class="i">Render</code> reinterpreta <code class="i">firstInstance</code>/<code class="i">instanceCount</code>
+      como <code class="i">firstVertex</code>/<code class="i">vertexCount</code> — comentado
+      diretamente no código.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Renderer/DebugRenderPass.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Renderer/DebugRenderPass.cpp</span>
+<span class="d-hunk">@@ -18,35 +18,50 @@</span>
+<span class="d-ctx">         BindShaderParameters();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    void DebugRenderPass::GenerateDrawCommands(const RenderBatch&amp; batch)</span>
+<span class="d-add">+    void DebugRenderPass::BeginFrame()</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         m_Vertices.clear();</span>
+<span class="d-add">+    }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        for (const auto&amp; drawCmd : batch.GetCommands())</span>
+<span class="d-del">-        {</span>
+<span class="d-del">-            switch (drawCmd.Type)</span>
+<span class="d-del">-            {</span>
+<span class="d-del">-                case SDrawCommand::EType::DebugRect:</span>
+<span class="d-del">-                    BuildDebugRectGeometry(drawCmd);</span>
+<span class="d-del">-                    break;</span>
+<span class="d-del">-                default:</span>
+<span class="d-del">-                    break;</span>
+<span class="d-del">-            }</span>
+<span class="d-del">-        }</span>
+<span class="d-add">+    uint32_t DebugRenderPass::AppendRange(const std::span&lt;const SDrawCommand&gt; commands)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        // Unlike QuadRenderPass/TextRenderPass, this pass does not draw instanced (see</span>
+<span class="d-add">+        // the EInputRate::Vertex layout in InitRenderPass below), so what AppendRange</span>
+<span class="d-add">+        // hands back is a first *vertex* index, not a first instance index.</span>
+<span class="d-add">+        const auto firstVertex = (uint32_t)m_Vertices.size();</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+        for (const auto&amp; drawCmd : commands)</span>
+<span class="d-add">+            BuildDebugRectGeometry(drawCmd);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        return firstVertex;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    uint32_t DebugRenderPass::GetInstanceCount() const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        return (uint32_t)m_Vertices.size();</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void DebugRenderPass::EndFrame()</span>
+<span class="d-add">+    {</span>
+<span class="d-ctx">         if (!m_Vertices.empty())</span>
+<span class="d-ctx">         {</span>
+<span class="d-ctx">             m_VertexBuffer-&gt;UpdateData(m_Vertices.data(), m_Vertices.size() * sizeof(SVertex));</span>
+<span class="d-ctx">         }</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    void DebugRenderPass::Render(const Ref&lt;CommandBuffer&gt;&amp; cmd)</span>
+<span class="d-add">+    void DebugRenderPass::Bind(const Ref&lt;CommandBuffer&gt;&amp; cmd)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         m_Pipeline-&gt;Bind(cmd);</span>
+<span class="d-ctx">         m_VertexBuffer-&gt;Bind(cmd);</span>
+<span class="d-del">-        cmd-&gt;Draw(m_Vertices.size());</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+    void DebugRenderPass::Render(const Ref&lt;CommandBuffer&gt;&amp; cmd, const uint32_t firstInstance, const uint32_t instanceCount)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        // Non-instanced LineList draw: reinterpret the generic firstInstance/instanceCount</span>
+<span class="d-add">+        // range as firstVertex/vertexCount, matching what AppendRange produced above.</span>
+<span class="d-add">+        cmd-&gt;Draw(instanceCount, 1, firstInstance, 0);</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     bool DebugRenderPass::HasData() const</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         return !m_Vertices.empty();</span>
+<span class="d-hunk">@@ -57,6 +72,11 @@</span>
+<span class="d-ctx">         m_Vertices.clear();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+    SDrawCommand::EType DebugRenderPass::GetHandledType() const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        return SDrawCommand::EType::DebugRect;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     void DebugRenderPass::InitRenderPass(const ShaderLoader* shaderLoader)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         const BufferLayout bufferLayout({</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-10"><span class="file-index">4.10</span> Renderer.h</h3>
+    <p>
+      Acrescenta <code class="i">SDrawItem</code>, <code class="i">m_PassesByType</code> e
+      <code class="i">m_DrawItems</code>; remove o <code class="i">const</code> de
+      <code class="i">Rebuild</code>.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Renderer/Renderer.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Renderer/Renderer.h</span>
+<span class="d-hunk">@@ -11,6 +11,17 @@</span>
+<span class="d-ctx">         glm::mat4 Proj;</span>
+<span class="d-ctx">     };</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+    /**</span>
+<span class="d-add">+     * One z-ordered draw call: the instance range an earlier RenderPass::AppendRange</span>
+<span class="d-add">+     * produced for a single SBatchRun, plus the pass that owns it.</span>
+<span class="d-add">+     */</span>
+<span class="d-add">+    struct SDrawItem</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        RenderPass* Pass;</span>
+<span class="d-add">+        uint32_t FirstInstance;</span>
+<span class="d-add">+        uint32_t InstanceCount;</span>
+<span class="d-add">+    };</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     class ELIXIR_API Renderer final</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">       public:</span>
+<span class="d-hunk">@@ -23,11 +34,12 @@</span>
+<span class="d-ctx">         void Resize(const Extent2D&amp; extent);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-del">-         * Regenerate each pass's GPU geometry from the batch (CPU build + vertex upload).</span>
+<span class="d-del">-         * Only needs to run when the batch changed; the passes retain their buffers otherwise.</span>
+<span class="d-add">+         * Regenerate each pass's GPU geometry from the batch (CPU build + vertex upload)</span>
+<span class="d-add">+         * and rebuild the z-ordered draw item list used by Draw(). Only needs to run when</span>
+<span class="d-add">+         * the batch changed; the passes retain their buffers otherwise.</span>
+<span class="d-ctx">          * @param batch the assembled frame batch.</span>
+<span class="d-ctx">          */</span>
+<span class="d-del">-        void Rebuild(const RenderBatch&amp; batch) const;</span>
+<span class="d-add">+        void Rebuild(const RenderBatch&amp; batch);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-ctx">          * Record and submit the draw calls using each pass's current (cached) geometry.</span>
+<span class="d-hunk">@@ -51,6 +63,13 @@</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         std::vector&lt;Ref&lt;RenderPass&gt;&gt; m_RenderPasses;</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+        // Which registered pass handles each SDrawCommand::EType. Populated from</span>
+<span class="d-add">+        // RenderPass::GetHandledType() as passes are registered.</span>
+<span class="d-add">+        std::unordered_map&lt;SDrawCommand::EType, RenderPass*&gt; m_PassesByType;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // Z-ordered draw items rebuilt by Rebuild(); consumed in order by Draw().</span>
+<span class="d-add">+        std::vector&lt;SDrawItem&gt; m_DrawItems;</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         float m_DPIScale = 1.0f;</span>
+<span class="d-ctx">         Extent2D m_RenderExtent{};</span>
+<span class="d-ctx">         const GraphicsContext* m_GraphicsContext;</span></code></pre></div>
+
+    <h3 class="file-heading" id="file-11"><span class="file-index">4.11</span> Renderer.cpp</h3>
+    <p>
+      Reescreve <code class="i">Rebuild</code> (BeginFrame → percorre runs → AppendRange por run →
+      EndFrame) e <code class="i">Draw</code> (percorre <code class="i">m_DrawItems</code>, Bind só
+      quando o pass muda); <code class="i">RegisterRenderPass</code> passa a popular
+      <code class="i">m_PassesByType</code>.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Renderer/Renderer.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Renderer/Renderer.cpp</span>
+<span class="d-hunk">@@ -36,10 +36,31 @@</span>
+<span class="d-ctx">         m_PerFrameConstantBuffer-&gt;UpdateData(&amp;m_PerFrameData, sizeof(SPerFrameData));</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    void Renderer::Rebuild(const RenderBatch&amp; batch) const</span>
+<span class="d-add">+    void Renderer::Rebuild(const RenderBatch&amp; batch)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         for (const auto&amp; pass : m_RenderPasses)</span>
+<span class="d-del">-            pass-&gt;GenerateDrawCommands(batch);</span>
+<span class="d-add">+            pass-&gt;BeginFrame();</span>
+<span class="d-add">+</span>
+<span class="d-add">+        m_DrawItems.clear();</span>
+<span class="d-add">+</span>
+<span class="d-add">+        for (const auto&amp; run : batch.GetRuns())</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            const auto it = m_PassesByType.find(run.Type);</span>
+<span class="d-add">+            if (it == m_PassesByType.end())</span>
+<span class="d-add">+                continue;</span>
+<span class="d-add">+</span>
+<span class="d-add">+            const auto pass = it-&gt;second;</span>
+<span class="d-add">+            const std::span&lt;const SDrawCommand&gt; range(batch.GetCommands().data() + run.First, run.Count);</span>
+<span class="d-add">+</span>
+<span class="d-add">+            const auto firstInstance = pass-&gt;AppendRange(range);</span>
+<span class="d-add">+            const auto instanceCount = pass-&gt;GetInstanceCount() - firstInstance;</span>
+<span class="d-add">+</span>
+<span class="d-add">+            if (instanceCount &gt; 0)</span>
+<span class="d-add">+                m_DrawItems.push_back({ pass, firstInstance, instanceCount });</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        for (const auto&amp; pass : m_RenderPasses)</span>
+<span class="d-add">+            pass-&gt;EndFrame();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     void Renderer::Draw() const</span>
+<span class="d-hunk">@@ -47,16 +68,25 @@</span>
+<span class="d-ctx">         const auto cmd = m_GraphicsContext-&gt;GetSecondaryCommandBuffer();</span>
+<span class="d-ctx">         BeginRendering(cmd);</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        for (const auto&amp; pass : m_RenderPasses)</span>
+<span class="d-del">-            if (pass-&gt;HasData())</span>
+<span class="d-del">-                pass-&gt;Render(cmd);</span>
+<span class="d-add">+        RenderPass* lastPass = nullptr;</span>
+<span class="d-add">+        for (const auto&amp; item : m_DrawItems)</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            if (item.Pass != lastPass)</span>
+<span class="d-add">+            {</span>
+<span class="d-add">+                item.Pass-&gt;Bind(cmd);</span>
+<span class="d-add">+                lastPass = item.Pass;</span>
+<span class="d-add">+            }</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+            item.Pass-&gt;Render(cmd, item.FirstInstance, item.InstanceCount);</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         EndRendering(cmd);</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     void Renderer::RegisterRenderPass(const Ref&lt;RenderPass&gt;&amp; pass)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         m_RenderPasses.push_back(pass);</span>
+<span class="d-add">+        m_PassesByType[pass-&gt;GetHandledType()] = pass.get();</span>
+<span class="d-ctx">         EE_CORE_TRACE("GUI: Registered RenderPass.")</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span></code></pre></div>
+
+    <div class="callout callout-info">
+      <span class="callout-title">Sem alterações — Manager.cpp / Manager.h</span>
+      <p>
+        Verificado por leitura direta: <code class="i">Manager::Render()</code> já é não-const e
+        <code class="i">m_Renderer</code> já é um <code class="i">Scope&lt;Renderer&gt;</code>
+        não-const (<span class="file-ref">Manager.h:22, 51</span>); o call site
+        <code class="i">m_Renderer-&gt;Rebuild(m_RenderBatch);</code>
+        (<span class="file-ref">Manager.cpp:49</span>) compila com o texto idêntico antes e depois
+        deste plano (ver o callout na seção 3.3). Nenhum diff necessário.
+      </p>
+    </div>
+
+    <div class="callout callout-info">
+      <span class="callout-title">Sem alterações — CommandBuffer.h / CommandBuffer.cpp / VulkanCommandBuffer.h / VulkanCommandBuffer.cpp</span>
+      <p>
+        <code class="i">Draw(vertexCount, instanceCount, firstVertex, firstInstance)</code> já
+        existe, com os quatro parâmetros, tanto na interface quanto na única implementação
+        (Vulkan) — ver seção 3.5. Nenhum diff necessário.
+      </p>
+    </div>
+  </section>
+
+  <section id="sec-ordem">
+    <h2>5. Ordem de aplicação</h2>
+    <p>
+      Os arquivos não são independentes entre si — a ordem importa para manter o repositório
+      compilável a cada passo.
+    </p>
+    <ol class="steps">
+      <li>
+        <span class="step-title">RenderBatch.h + RenderBatch.cpp (4.1 – 4.2)</span>
+        Autocontido: adiciona <code class="i">SBatchRun</code>, <code class="i">GetRuns()</code>,
+        <code class="i">BuildRuns()</code> e a correção do <code class="i">AddDebugRect</code> sem
+        tocar em <code class="i">RenderPass</code> ou <code class="i">Renderer</code>.
+        <code class="i">GetRuns()</code> é só mais um accessor — nada é obrigado a chamá-lo ainda.
+        Compila e funciona sozinho; pode ser o primeiro commit da série.
+      </li>
+      <li>
+        <span class="step-title">RenderPass.h + os três passes concretos, juntos (4.3 – 4.9)</span>
+        <code class="i">RenderPass</code> é uma interface pura virtual — trocar sua assinatura sem
+        atualizar <code class="i">QuadRenderPass</code>, <code class="i">TextRenderPass</code> e
+        <code class="i">DebugRenderPass</code> no mesmo commit deixa o projeto sem compilar
+        (métodos puros não implementados de um lado, overrides de métodos que não existem mais na
+        base do outro). Não dá para dividir esse passo em partes menores.
+      </li>
+      <li>
+        <span class="step-title">Renderer.h + Renderer.cpp (4.10 – 4.11)</span>
+        Depende de <code class="i">RenderBatch::GetRuns()</code> (passo 1) e da nova interface de
+        <code class="i">RenderPass</code> (passo 2) — só compila depois dos dois.
+      </li>
+    </ol>
+    <p>
+      <code class="i">Manager.cpp</code>/<code class="i">.h</code> e
+      <code class="i">CommandBuffer.h</code>/<code class="i">.cpp</code> (interface e Vulkan) não
+      entram em nenhum passo: não precisam de alteração, confirmado nas seções 3.3 e 3.5.
+    </p>
+  </section>
+
+  <section id="sec-riscos">
+    <h2>6. Riscos e pontos de atenção</h2>
+    <div class="risk-list">
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R1</span>Interface do RenderPass maior que o previsto</div>
+        <p>
+          Precisou de três métodos além dos cinco originalmente listados —
+          <code class="i">Bind</code>, <code class="i">EndFrame</code>,
+          <code class="i">GetInstanceCount</code> — para que <code class="i">Rebuild</code>/<code class="i">Draw</code>
+          (seção 3.3) fechem semanticamente. Justificativa de cada um em 3.2. Se a intenção era
+          uma interface menor, vale alinhar antes de aplicar o passo 2 da seção 5.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R2</span>DebugRenderPass não usa instancing</div>
+        <p>
+          <code class="i">EInputRate::Vertex</code> é o default de <code class="i">BufferLayout</code>
+          (<span class="file-ref">BufferLayout.h:48</span>), e o layout do
+          <code class="i">DebugRenderPass</code> nunca passa
+          <code class="i">EInputRate::Instance</code> — ao contrário de
+          <code class="i">QuadRenderPass</code> e <code class="i">TextRenderPass</code>.
+          <code class="i">Render(cmd, firstInstance, instanceCount)</code> desse pass reinterpreta
+          os parâmetros como <code class="i">firstVertex</code>/<code class="i">vertexCount</code> —
+          correto, mas fácil de esquecer ao editar esse arquivo no futuro sem reler o comentário
+          deixado no diff (4.9).
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R3</span>AddDebugRect não tem nenhum caller hoje</div>
+        <p>
+          Um grep pelo repositório inteiro só encontra a declaração
+          (<span class="file-ref">RenderBatch.h:107</span>) e a definição
+          (<span class="file-ref">RenderBatch.cpp:110-118</span>) — nenhuma chamada real. A
+          correção do <code class="i">ZOrder</code> é preventiva: não há tela hoje onde validar
+          visualmente o antes/depois, porque o próprio bug ainda não tem sintoma observável.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R4</span>A otimização de Bind não economiza nada hoje</div>
+        <p>
+          Detalhado em 3.3: runs maximais + mapeamento 1:1 Type → pass fazem
+          <code class="i">item.Pass != lastPass</code> ser sempre verdadeiro com os 3 passes
+          atuais. É proteção barata para quando esse mapeamento deixar de ser 1:1, não uma
+          otimização mensurável agora — não esperar diferença de performance visível só com este
+          passo.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R5</span>Runs que geram zero instâncias são um caso real</div>
+        <p>
+          <code class="i">TextField::BuildDrawCommands</code> sempre emite um
+          <code class="i">AddText</code> — texto real ou placeholder
+          (<span class="file-ref">TextField.cpp:173-199</span>). Se ambos estiverem vazios, o
+          comando carrega uma string vazia; <code class="i">BuildTextGeometry</code> não gera
+          nenhum glifo para ela. <code class="i">Renderer::Rebuild</code> precisa checar
+          <code class="i">instanceCount &gt; 0</code> antes de empilhar o <code class="i">SDrawItem</code>
+          — está no diff de 4.11, mas é fácil perder ao revisar por cima.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R6</span>Resistir a "completar" arquivos que não mudam</div>
+        <p>
+          Confirmado por leitura: nem <code class="i">Manager.cpp</code>/<code class="i">.h</code>
+          nem <code class="i">CommandBuffer.h</code>/<code class="i">.cpp</code> (interface ou
+          implementação Vulkan) precisam de qualquer alteração de texto (seções 3.3 e 3.5). Não
+          criar diffs vazios ou cosméticos neles só para a mudança "parecer" mais completa.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R7</span>Bug pré-existente encontrado de passagem, fora de escopo</div>
+        <p>
+          Lendo <code class="i">TextRenderPass::BuildTextGeometry</code> — a função que
+          <code class="i">AppendRange</code> passa a chamar em 4.7 — o tratamento de
+          <code class="i">'\n'</code> usa <code class="i">continue</code> sem incrementar
+          <code class="i">i</code> dentro de <code class="i">while (i &lt; (int)cmd.Text.size())</code>.
+          Um texto contendo uma quebra de linha literal parece entrar em loop infinito. Nenhum
+          diff deste plano toca esse trecho — <code class="i">AppendRange</code> só passa a chamar
+          a função existente, sem alterá-la. Registrado aqui para não passar batido; é um fix
+          independente desta série.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R8</span>Orçamento de memória inalterado</div>
+        <p>
+          <code class="i">MAX_QUADS = 10000</code> (<span class="file-ref">QuadRenderPass.h:14</span>)
+          e <code class="i">MAX_CHARACTERS = 16000</code> (<span class="file-ref">TextRenderPass.h:12</span>)
+          continuam exatamente como estão. Os runs só fatiam o mesmo vetor de instâncias que já
+          existia — nenhum buffer novo, nenhuma mudança de tamanho dos existentes.
+        </p>
+      </div>
+
+    </div>
+  </section>
+
+  <footer class="doc-footer">
+    Elixir · Refatoração da GUI · Parte 3 de 5 — Ordenação de z entre render passes.
+  </footer>
+
+</div>
+</body>
+</html>

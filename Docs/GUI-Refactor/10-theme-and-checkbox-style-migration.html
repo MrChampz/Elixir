@@ -1,0 +1,3054 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10. Tema e variantes de estilo do Checkbox</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --surface-alt: #eef0f4;
+    --border: #dde1e8;
+    --text: #1a1d24;
+    --text-muted: #565c6b;
+    --text-faint: #868ea0;
+    --accent: #3452d9;
+    --accent-soft: #e9edfd;
+    --code-bg: #f3f4f7;
+    --code-border: #e1e4ea;
+
+    --diff-add-bg: #e6f7ec;
+    --diff-add-fg: #157347;
+    --diff-del-bg: #fdecec;
+    --diff-del-fg: #c22a2a;
+    --diff-hunk-bg: #eaf0ff;
+    --diff-hunk-fg: #3452d9;
+    --diff-ctx-fg: #4b505c;
+    --diff-file-fg: #12141a;
+    --diff-meta-fg: #9aa0ad;
+
+    --warn-bg: #fff6e2;
+    --warn-border: #e7bd5a;
+    --warn-fg: #7a5b06;
+    --ok-bg: #e9f7ee;
+    --ok-border: #79c99e;
+    --ok-fg: #1a6b40;
+    --info-bg: #eef1fd;
+    --info-border: #a9b8f2;
+    --info-fg: #2c3fa8;
+
+    --shadow: 0 1px 2px rgba(20,22,30,0.05), 0 8px 20px rgba(20,22,30,0.05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161b;
+      --surface: #1b1e25;
+      --surface-alt: #20232c;
+      --border: #2b2f3a;
+      --text: #e7e9ef;
+      --text-muted: #aab0c0;
+      --text-faint: #767d8c;
+      --accent: #91a4ff;
+      --accent-soft: #232a4d;
+      --code-bg: #181a21;
+      --code-border: #2a2e39;
+
+      --diff-add-bg: rgba(46,160,90,0.16);
+      --diff-add-fg: #5fd693;
+      --diff-del-bg: rgba(230,70,70,0.16);
+      --diff-del-fg: #ff8a83;
+      --diff-hunk-bg: rgba(100,130,255,0.18);
+      --diff-hunk-fg: #adbaff;
+      --diff-ctx-fg: #b7bcc8;
+      --diff-file-fg: #e7e9ef;
+      --diff-meta-fg: #666c7a;
+
+      --warn-bg: #2b2408;
+      --warn-border: #7a5f18;
+      --warn-fg: #e8c766;
+      --ok-bg: #10261a;
+      --ok-border: #2f6b49;
+      --ok-fg: #7fd6a4;
+      --info-bg: #1c2140;
+      --info-border: #3c4c9c;
+      --info-fg: #aab8ff;
+
+      --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 8px 20px rgba(0,0,0,0.35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html { background: var(--bg); }
+
+  body {
+    margin: 0;
+    padding: 40px 20px 80px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    font-size: 15.5px;
+  }
+
+  code, pre, kbd, .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  header.doc-header {
+    margin-bottom: 28px;
+  }
+
+  .series-tag {
+    display: inline-block;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 5px 10px;
+    border-radius: 999px;
+    margin-bottom: 14px;
+  }
+
+  h1 {
+    font-size: 30px;
+    line-height: 1.25;
+    margin: 0 0 10px;
+    letter-spacing: -0.01em;
+  }
+
+  .subtitle {
+    font-size: 16.5px;
+    color: var(--text-muted);
+    margin: 0 0 6px;
+    max-width: 780px;
+  }
+
+  nav.toc {
+    margin-top: 26px;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+  }
+
+  nav.toc .toc-title {
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-faint);
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+
+  nav.toc ol {
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 6px 24px;
+  }
+
+  nav.toc a {
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+  }
+
+  nav.toc a:hover { color: var(--accent); text-decoration: underline; }
+
+  section {
+    margin-top: 44px;
+  }
+
+  section > h2 {
+    font-size: 21px;
+    margin: 0 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    scroll-margin-top: 20px;
+  }
+
+  h3 {
+    font-size: 16.5px;
+    margin: 26px 0 10px;
+    scroll-margin-top: 20px;
+  }
+
+  h3.file-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 15.5px;
+    margin: 0 0 8px;
+    flex-wrap: wrap;
+  }
+
+  h3.file-heading .file-index {
+    font-size: 11.5px;
+    color: var(--text-faint);
+    font-weight: 700;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  p { margin: 0 0 14px; }
+
+  ul, ol { margin: 0 0 14px; padding-left: 22px; }
+  li { margin-bottom: 6px; }
+
+  a { color: var(--accent); }
+
+  code.i {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.88em;
+    white-space: break-spaces;
+  }
+
+  .file-ref {
+    color: var(--text-muted);
+    font-size: 0.88em;
+  }
+
+  .lede {
+    font-size: 16px;
+    color: var(--text-muted);
+    max-width: 820px;
+  }
+
+  /* ---- callouts ---- */
+  .callout {
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--text-faint);
+    background: var(--surface);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 16px 0;
+    font-size: 14.5px;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .callout-title {
+    font-weight: 700;
+    font-size: 12.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .callout-decision { border-left-color: var(--accent); }
+  .callout-decision .callout-title { color: var(--accent); }
+  .callout-attention { background: var(--warn-bg); border-color: var(--warn-border); border-left-color: var(--warn-border); }
+  .callout-attention .callout-title { color: var(--warn-fg); }
+  .callout-ok { background: var(--ok-bg); border-color: var(--ok-border); border-left-color: var(--ok-border); }
+  .callout-ok .callout-title { color: var(--ok-fg); }
+  .callout-info { background: var(--info-bg); border-color: var(--info-border); border-left-color: var(--info-border); }
+  .callout-info .callout-title { color: var(--info-fg); }
+
+  /* ---- plain code blocks (not diffs) ---- */
+  pre.code {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--diff-ctx-fg);
+    margin: 12px 0 18px;
+  }
+  pre.code code { white-space: pre; }
+
+  /* ---- diff blocks ---- */
+  .diff-wrap {
+    border: 1px solid var(--code-border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 10px 0 22px;
+    background: var(--code-bg);
+  }
+  pre.diff {
+    margin: 0;
+    padding: 12px 0;
+    overflow-x: auto;
+    font-size: 12.7px;
+    line-height: 1.55;
+  }
+  pre.diff code { display: block; white-space: pre; }
+  pre.diff span { display: block; padding: 0 16px; }
+  .d-file { color: var(--diff-file-fg); font-weight: 700; }
+  .d-hunk { color: var(--diff-hunk-fg); background: var(--diff-hunk-bg); font-weight: 600; }
+  .d-add  { color: var(--diff-add-fg); background: var(--diff-add-bg); }
+  .d-del  { color: var(--diff-del-fg); background: var(--diff-del-bg); }
+  .d-ctx  { color: var(--diff-ctx-fg); }
+  .d-meta { color: var(--diff-meta-fg); font-style: italic; }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 4px 0 22px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+  .legend i.li-add { background: var(--diff-add-bg); border: 1px solid var(--diff-add-fg); }
+  .legend i.li-del { background: var(--diff-del-bg); border: 1px solid var(--diff-del-fg); }
+  .legend i.li-hunk { background: var(--diff-hunk-bg); border: 1px solid var(--diff-hunk-fg); }
+  .legend i.li-ctx { background: var(--surface); border: 1px solid var(--border); }
+
+  table.spec {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    margin: 12px 0 20px;
+  }
+  table.spec th, table.spec td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.spec th {
+    color: var(--text-faint);
+    font-weight: 600;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  table.spec code.i { white-space: nowrap; }
+  .table-scroll { overflow-x: auto; }
+
+  ol.steps { list-style: none; padding: 0; margin: 18px 0; counter-reset: step; }
+  ol.steps > li {
+    counter-increment: step;
+    position: relative;
+    padding: 4px 0 18px 40px;
+    border-left: 2px solid var(--border);
+    margin-left: 14px;
+  }
+  ol.steps > li:last-child { border-left-color: transparent; padding-bottom: 0; }
+  ol.steps > li::before {
+    content: counter(step);
+    position: absolute;
+    left: -15px;
+    top: 2px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  ol.steps > li > .step-title { font-weight: 700; margin-bottom: 4px; display: block; }
+
+  .risk-list { display: flex; flex-direction: column; gap: 14px; }
+  .risk-item {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    background: var(--surface);
+  }
+  .risk-item .risk-title {
+    font-weight: 700;
+    font-size: 14.5px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .risk-item .risk-title .risk-num {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    color: #fff;
+    background: var(--text-faint);
+    border-radius: 5px;
+    padding: 1px 7px;
+  }
+  .risk-item p:last-child { margin-bottom: 0; }
+
+  footer.doc-footer {
+    margin-top: 56px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+    font-size: 12.5px;
+    color: var(--text-faint);
+  }
+
+  @media (max-width: 640px) {
+    nav.toc ol { grid-template-columns: 1fr; }
+    h1 { font-size: 25px; }
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    padding: 2px 9px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    line-height: 1.8;
+  }
+  .badge-new { background: var(--ok-bg); color: var(--ok-fg); border-color: var(--ok-border); }
+  .badge-phase { background: var(--info-bg); color: var(--info-fg); border-color: var(--info-border); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="doc-header">
+    <span class="series-tag">Série: Refatoração da GUI — Elixir · Sistema de estilos · 10</span>
+    <h1>10. Tema e variantes de estilo do Checkbox</h1>
+    <p class="subtitle">
+      Migração de <code class="i">StyleSet</code> de um array fixo por
+      <code class="i">EStyleLayer</code> para regras esparsas por seletor, com uma classe
+      <code class="i">Theme</code> compartilhada entre instâncias e <code class="i">Checked</code>
+      como variante de estilo de primeira classe — sem mais o <code class="i">if (m_Checked)</code>
+      manual em <code class="i">Checkbox::BuildDrawCommands</code>.
+    </p>
+
+    <nav class="toc" aria-label="Sumário">
+      <div class="toc-title">Nesta página</div>
+      <ol>
+        <li><a href="#sec-objetivo">1. Objetivo</a></li>
+        <li><a href="#sec-estado-atual">2. Estado atual confirmado</a></li>
+        <li><a href="#sec-design">3. Design proposto</a></li>
+        <li><a href="#sec-fase1">4. Fase 1 — infraestrutura de estilo</a></li>
+        <li><a href="#sec-fase2">5. Fase 2 — tema base e composição</a></li>
+        <li><a href="#sec-fase3">6. Fase 3 — Checkbox como variante</a></li>
+        <li><a href="#sec-fase4">7. Fase 4 — limpeza de API</a></li>
+        <li><a href="#sec-ordem">8. Ordem de aplicação</a></li>
+        <li><a href="#sec-riscos">9. Riscos e pontos de atenção</a></li>
+        <li><a href="#sec-escopo">10. Escopo desta verificação</a></li>
+      </ol>
+    </nav>
+  </header>
+
+  <section id="sec-objetivo">
+    <h2>1. Objetivo</h2>
+    <p class="lede">
+      Este documento é a implementação verificada da especificação já aprovada em
+      <code class="i">Docs/GUI-Refactor/10-theme-and-checkbox-style-migration.md</code>. Ele não
+      reabre nenhuma decisão de design daquele documento — reproduz o modelo de dados descrito
+      lá (<code class="i">EStyleVariant</code>, <code class="i">SStyleContext</code>,
+      <code class="i">SStyleSelector</code>, <code class="i">SStyleRule</code>,
+      <code class="i">Theme</code>) como diffs reais contra o conteúdo atual do repositório, na
+      branch <code class="i">feature/editor-gui</code>, e resolve os poucos pontos que a
+      especificação deixa como "detalhe interno" (a sequência exata de
+      <code class="i">ResolutionOrder</code>, o formato do tema padrão por classe) com uma
+      implementação concreta e testada.
+    </p>
+    <p>Ao final das quatro fases:</p>
+    <ul>
+      <li><code class="i">StyleSet</code> armazena <code class="i">std::vector&lt;SStyleRule&gt;</code> em vez de <code class="i">std::array&lt;SStyleOverride, 5&gt;</code>, e resolve por seletor (interação + variante), não só por interação.</li>
+      <li><code class="i">Button</code>, <code class="i">TextField</code> e <code class="i">Checkbox</code> compartilham seus defaults visuais via <code class="i">Theme</code> em vez de recriá-los no próprio construtor.</li>
+      <li><code class="i">Checkbox</code> não escolhe cor/outline com um <code class="i">if (m_Checked)</code> próprio — <code class="i">Checked</code> é uma variante que o tema estiliza como qualquer outro estado.</li>
+      <li><code class="i">Indeterminate</code> já é representável no seletor, mesmo sem uma API pública para ativá-lo nesta migração.</li>
+    </ul>
+  </section>
+
+  <section id="sec-estado-atual">
+    <h2>2. Estado atual confirmado</h2>
+    <p>
+      Conteúdo real lido diretamente do repositório antes de qualquer diff abaixo ser escrito —
+      não a partir da especificação, embora coincida com ela.
+    </p>
+    <div class="table-scroll">
+    <table class="spec">
+      <tr><th>Arquivo</th><th>Estado confirmado</th></tr>
+      <tr>
+        <td><code class="i">Style.h</code></td>
+        <td><code class="i">EStyleLayer</code> (<code class="i">Normal/Hovered/Pressed/Focused/Disabled/Count</code>), <code class="i">EInteractionState</code> (máscara), <code class="i">SStyleOverride</code>, <code class="i">SResolvedStyle</code> e <code class="i">StyleSet</code> existem exatamente como a especificação descreve em sua Seção 2.</td>
+      </tr>
+      <tr>
+        <td><code class="i">StyleSet</code></td>
+        <td>Armazena <code class="i">std::array&lt;SStyleOverride, (size_t)EStyleLayer::Count&gt; m_Layers</code>; <code class="i">Resolve(EInteractionState)</code> aplica <code class="i">Normal</code> incondicionalmente e depois <code class="i">Hovered → Pressed → Focused → Disabled</code> na ordem, cada um só se o bit correspondente estiver ativo (<span class="file-ref">Style.cpp:56-79</span>).</td>
+      </tr>
+      <tr>
+        <td><code class="i">Widget</code></td>
+        <td><code class="i">StyleSet m_Styles</code> (<span class="file-ref">Widget.h:549</span>); setters públicos por <code class="i">EStyleLayer</code> (<code class="i">SetBackgroundColor</code>, <code class="i">SetForegroundColor</code>, <code class="i">SetBackgroundTexture</code>/<code class="i">ClearBackgroundTexture</code>, <code class="i">SetBackgroundBorders</code>, <code class="i">SetCornerRadius</code>, <code class="i">SetInsetShadow*</code>, <code class="i">SetDropShadow*</code>, <code class="i">SetOutline*</code>); <code class="i">GetInteractionState()</code> protected monta a máscara de <code class="i">Hovered/Pressed/Focused/Disabled</code>; <code class="i">GetResolvedStyle()</code> chama <code class="i">m_Styles.Resolve(GetInteractionState())</code> (<span class="file-ref">Widget.cpp:370-392</span>).</td>
+      </tr>
+      <tr>
+        <td><code class="i">Button</code></td>
+        <td>Construtor (<span class="file-ref">Button.cpp:10-35</span>) monta <code class="i">Normal</code>/<code class="i">Hovered</code>/<code class="i">Focused</code>/<code class="i">Disabled</code> inline, um <code class="i">SetStyle(EStyleLayer::X, ...)</code> por bloco.</td>
+      </tr>
+      <tr>
+        <td><code class="i">TextField</code></td>
+        <td>Construtor (<span class="file-ref">TextField.cpp:11-38</span>) monta <code class="i">Normal</code>/<code class="i">Focused</code>/<code class="i">Disabled</code> inline, e <code class="i">SetCursorColor</code>/<code class="i">SetPlaceholderColor</code>/<code class="i">SetSelectionColor</code> fora do <code class="i">StyleSet</code> — campos próprios do campo (cursor, seleção, placeholder), fora de escopo desta migração (spec §7.3.3).</td>
+      </tr>
+      <tr>
+        <td><code class="i">Checkbox</code></td>
+        <td>Confirmado: <code class="i">bool m_Checked</code> (não <code class="i">ECheckState</code>) e <code class="i">SColor m_CheckedColor</code> como campo próprio fora do <code class="i">StyleSet</code> (<span class="file-ref">Checkbox.h:69,81</span>); construtor só popula <code class="i">Normal</code>/<code class="i">Hovered</code>/<code class="i">Disabled</code> (<span class="file-ref">Checkbox.cpp:8-26</span>); <code class="i">BuildDrawCommands</code> faz <code class="i">const SColor color = m_Checked ? m_CheckedColor : style.BackgroundColor;</code> e o mesmo para <code class="i">outline</code> (<span class="file-ref">Checkbox.cpp:61-62</span>) — exatamente o que a spec §7.4 manda remover.</td>
+      </tr>
+      <tr>
+        <td><code class="i">StyleTest.cpp</code></td>
+        <td>10 testes cobrindo <code class="i">StyleSet::Resolve</code> por <code class="i">EStyleLayer</code>/<code class="i">EInteractionState</code>, mais o comportamento de <code class="i">Widget</code> (dirty marking, <code class="i">SetEnabled</code> bloqueando interação). Usa <code class="i">FakeTexture()</code> e um <code class="i">StyleLeaf</code> local que promove <code class="i">HandleMouseEnter/Leave/Down</code> via <code class="i">using</code>.</td>
+      </tr>
+      <tr>
+        <td><code class="i">CheckboxTest.cpp</code></td>
+        <td>8 testes usando um <code class="i">TestCheckbox</code> local (mesmo padrão de promoção via <code class="i">using</code>) cobrindo default, toggle + callback, <code class="i">SetChecked</code> não ecoando, no-op em mesmo valor, dirty epoch, e o par de comportamentos desabilitados.</td>
+      </tr>
+    </table>
+    </div>
+    <p>
+      Uma diferença de nomenclatura vale registrar: a especificação, na sua Seção 3.1, já escreve
+      a decisão final (<code class="i">ECheckState m_CheckState</code>) como se fosse o "estado
+      atual" ali descrito — mas a Seção 2 da própria especificação e o código real concordam que
+      hoje é <code class="i">bool m_Checked</code>. Este documento trata a Seção 3 da spec como
+      destino (Fase 3), não como estado atual.
+    </p>
+  </section>
+
+  <section id="sec-design">
+    <h2>3. Design proposto</h2>
+    <p class="lede">
+      O modelo de dados é o da especificação (Seções 4-6); a parte que este documento precisa
+      fixar concretamente é <code class="i">ResolutionOrder</code>, que a spec deixa como "detalhe
+      interno" com apenas dois exemplos concretos (Seção 6). A implementação abaixo foi escolhida
+      porque generaliza esses dois exemplos exatamente, sem invenção.
+    </p>
+
+    <h3>3.1 <code class="i">Matches</code>: seletor esparso, variante como filtro adicional</h3>
+    <p>
+      Uma regra sem <code class="i">Variant</code> definido (<code class="i">std::nullopt</code>)
+      corresponde a <em>qualquer</em> variante — é assim que "regras sem o bit Checked formam a
+      aparência de Unchecked" (spec §3.2) funciona sem um caso especial: uma regra genérica de
+      <code class="i">Hovered</code> (sem <code class="i">Variant</code>) se aplica tanto
+      desmarcado quanto marcado, a menos que uma regra mais específica
+      (<code class="i">Hovered + Checked</code>) também corresponda e seja aplicada depois dela.
+    </p>
+    <pre class="code"><code>constexpr bool Matches(const SStyleSelector&amp; selector, const SStyleContext&amp; context)
+{
+    return HasAll(context.Interaction, selector.Required)
+        &amp;&amp; HasNone(context.Interaction, selector.Forbidden)
+        &amp;&amp; (!selector.Variant || *selector.Variant == context.Variant);
+}</code></pre>
+    <p>
+      <code class="i">HasAll</code>/<code class="i">HasNone</code> são novos — o
+      <code class="i">HasState</code> que já existe em <code class="i">Style.h</code> testa
+      "pelo menos um bit em comum" (<code class="i">(states &amp; state) != 0</code>), suficiente
+      para os usos atuais (um bit por vez) mas não para um <code class="i">Required</code> com mais
+      de um bit setado. Os três convivem: <code class="i">HasState</code> permanece porque nada
+      além dele precisa mudar de comportamento.
+    </p>
+
+    <h3>3.2 <code class="i">ResolutionOrder</code>: uma sequência fixa, filtrada por <code class="i">Matches</code> na aplicação</h3>
+    <p>
+      A spec (§6) só dá dois exemplos concretos: para checkbox marcado+hovered, a sequência
+      relevante é <code class="i">Default → Checked → Hovered → Checked+Hovered</code>; para
+      marcado+pressionado+disabled, <code class="i">Default → Checked → Pressed → Checked+Pressed
+      → Disabled → Checked+Disabled</code>. A tabela da §5.2 lista o conjunto completo de dez
+      entradas — e ali <code class="i">Focused</code> não tem par <code class="i">Checked+Focused</code>,
+      diferente de <code class="i">Hovered</code>, <code class="i">Pressed</code> e
+      <code class="i">Disabled</code>. Este documento respeita essa assimetria literalmente, em vez
+      de "corrigi-la" adicionando uma combinação que a spec não pede: nenhum tema desta migração
+      declara uma regra <code class="i">Checked + Focused</code>, e nada nos critérios de aceite
+      (§12) exige uma. Se um tema futuro precisar dela, é uma entrada a mais em
+      <code class="i">ResolutionOrder</code>, não uma mudança estrutural.
+    </p>
+    <p>
+      <code class="i">ResolutionOrder</code> sempre devolve a mesma sequência de até nove
+      seletores (cinco sem variante, mais quatro específicos da variante ativa quando
+      <code class="i">context.Variant != Default</code>) — não filtra por interação ativa. Quem
+      filtra é <code class="i">Matches</code>, chamado por <code class="i">ApplyMatchingRules</code>
+      para cada seletor da sequência: um seletor <code class="i">Required = Hovered</code> só
+      encontra e aplica sua regra se <code class="i">context.Interaction</code> realmente tiver o
+      bit <code class="i">Hovered</code> ligado. Isso mantém <code class="i">ResolutionOrder</code>
+      independente de qual widget está resolvendo — o mesmo código atende
+      <code class="i">Button</code> (variante sempre <code class="i">Default</code>, as quatro
+      entradas de variante nunca entram na sequência) e <code class="i">Checkbox</code>
+      (variante <code class="i">Checked</code>/<code class="i">Indeterminate</code>) sem
+      ramificação por classe de widget.
+    </p>
+    <pre class="code"><code>std::vector&lt;SStyleSelector&gt; ResolutionOrder(const SStyleContext&amp; context)
+{
+    std::vector&lt;SStyleSelector&gt; order;
+    order.reserve(9);
+
+    const bool hasVariant = context.Variant != EStyleVariant::Default;
+    const std::optional&lt;EStyleVariant&gt; variant = hasVariant
+        ? std::optional(context.Variant)
+        : std::nullopt;
+
+    order.push_back({});                                                            // Normal
+    if (hasVariant) order.push_back({ .Variant = variant });                         // Checked/Indeterminate
+
+    order.push_back({ .Required = EInteractionState::Hovered });
+    if (hasVariant) order.push_back({ .Required = EInteractionState::Hovered, .Variant = variant });
+
+    order.push_back({ .Required = EInteractionState::Pressed });
+    if (hasVariant) order.push_back({ .Required = EInteractionState::Pressed, .Variant = variant });
+
+    order.push_back({ .Required = EInteractionState::Focused });                     // no Checked+Focused entry, see 3.2
+
+    order.push_back({ .Required = EInteractionState::Disabled });
+    if (hasVariant) order.push_back({ .Required = EInteractionState::Disabled, .Variant = variant });
+
+    return order;
+}</code></pre>
+    <p>
+      Com <code class="i">context.Variant == Default</code> (o caso de <code class="i">Button</code>
+      e <code class="i">TextField</code>), as quatro linhas condicionais nunca executam e a
+      sequência resultante é <code class="i">{} → Hovered → Pressed → Focused → Disabled</code> —
+      exatamente a ordem que o <code class="i">StyleSet::Resolve</code> atual já usa (spec critério
+      de aceite: "<code class="i">Disabled &gt; Focused &gt; Pressed &gt; Hovered &gt; Normal</code>
+      é determinístico"). É assim que a Fase 2 preserva os draw commands de
+      <code class="i">Button</code>/<code class="i">TextField</code> sem overrides locais (§9.3).
+    </p>
+
+    <h3>3.3 Tema padrão por classe: um <code class="i">Ref&lt;Theme&gt;</code> estático por widget, não um <code class="i">Manager</code> global</h3>
+    <p>
+      A spec deixa "tema base configurado pelo <code class="i">Manager</code>" como uma
+      possibilidade futura (§5.3), e "carregar/editar temas no Editor" é explicitamente fora de
+      escopo (§11). Sem um <code class="i">Manager</code>-level default theme para se acoplar,
+      cada widget que participa do tema (<code class="i">Button</code>,
+      <code class="i">TextField</code>, <code class="i">Checkbox</code>) constrói e guarda um
+      <code class="i">Ref&lt;Theme&gt;</code> <em>estático de função</em> com os próprios
+      defaults, atribuído a <code class="i">m_Theme</code> no construtor — inicializado uma vez
+      (thread-safe por <code class="i">static</code> de função local, C++11), compartilhado por
+      toda instância daquela classe. <code class="i">Widget::SetTheme</code> continua público
+      para quem quiser substituir esse tema depois (ex.: um futuro tema de Editor).
+    </p>
+
+    <h3>3.4 Fallback continua sendo um valor literal, não uma cópia do tema</h3>
+    <p>
+      A spec (§5.3) pede um <code class="i">SResolvedStyle</code> de segurança independente de
+      tema. Como o tema estático de 3.3 já cobre o caso comum, o fallback deste documento é
+      deliberadamente mínimo — <code class="i">SResolvedStyle{}</code> (zero-value) — em vez de
+      duplicar os mesmos valores do tema em dois lugares. Isso significa que um
+      <code class="i">Widget</code> com <code class="i">m_Theme == nullptr</code> (nunca deveria
+      acontecer para <code class="i">Button</code>/<code class="i">TextField</code>/
+      <code class="i">Checkbox</code>, já que o construtor sempre atribui o tema estático, mas é
+      possível para um <code class="i">Widget</code> genérico configurado só com overrides locais)
+      resolve para zero em vez de repetir os valores "atuais". Documentado explicitamente no
+      comentário de <code class="i">m_StyleFallback</code> (4.2) — não é um esquecimento.
+    </p>
+  </section>
+
+  <section id="sec-fase1">
+    <h2>4. Fase 1 — infraestrutura de estilo <span class="badge badge-phase">sem alteração visual</span></h2>
+    <p>
+      Diffs no formato unificado, gerados contra o conteúdo real lido de
+      <code class="i">Elixir/Source/Engine/GUI/Style.h</code>/<code class="i">.cpp</code> e
+      <code class="i">Elixir/Tests/Engine/GUI/StyleTest.cpp</code> nesta sessão (Seção 2). Aplicar
+      com <code class="i">git apply</code> ou <code class="i">patch -p1</code> a partir da raiz do
+      repositório.
+    </p>
+    <div class="legend">
+      <span><i class="li-add"></i>adição</span>
+      <span><i class="li-del"></i>remoção</span>
+      <span><i class="li-hunk"></i>cabeçalho de hunk</span>
+      <span><i class="li-ctx"></i>contexto (sem mudança)</span>
+    </div>
+
+    <h3 class="file-heading" id="file-4-1"><span class="file-index">4.1</span> Elixir/Source/Engine/GUI/Style.h</h3>
+    <p>
+      Reescrita quase completa: <code class="i">EStyleLayer</code> vira uma ponte temporária
+      documentada como tal (removida na Fase 4, 7.1); entram <code class="i">EStyleVariant</code>,
+      <code class="i">SStyleContext</code>, <code class="i">SStyleSelector</code>,
+      <code class="i">Matches</code>, <code class="i">SStyleRule</code> e a
+      <code class="i">StyleSet</code> esparsa (3.1-3.2). <code class="i">SStyleOverride</code> e
+      <code class="i">SResolvedStyle</code> ficam byte-a-byte idênticos aos atuais — nenhum campo
+      novo, nenhum removido — só a doc comment muda para falar de "regra" em vez de "layer".
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Style.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Style.h</span>
+<span class="d-hunk">@@ -1,133 +1,221 @@</span>
+<span class="d-ctx"> #pragma once</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx"> #include &lt;Engine/GUI/Definitions.h&gt;</span>
+<span class="d-ctx"> #include &lt;Engine/Graphics/Texture.h&gt;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx"> namespace Elixir::GUI</span>
+<span class="d-ctx"> {</span>
+<span class="d-del">-    /**</span>
+<span class="d-del">-     * @brief One editable style layer in a StyleSet.</span>
+<span class="d-del">-     *</span>
+<span class="d-del">-     * Not a mask: each value names a single layer a caller can set, clear or read. The</span>
+<span class="d-del">-     * precedence order these compose in (see StyleSet::Resolve) is Normal &lt; Hovered &lt;</span>
+<span class="d-del">-     * Pressed &lt; Focused &lt; Disabled, left to right in this same declaration order - Disabled</span>
+<span class="d-del">-     * still wins even over a widget that happens to still be focused while disabled (nothing</span>
+<span class="d-del">-     * clears focus just because a widget was disabled).</span>
+<span class="d-del">-     */</span>
+<span class="d-add">+    /**</span>
+<span class="d-add">+     * @brief Temporary bridge to the old per-layer style API (StyleSet::Get/Set/Clear(EStyleLayer)</span>
+<span class="d-add">+     * and Widget's per-layer setters). Removed once every call site moves to SStyleSelector -</span>
+<span class="d-add">+     * see the migration doc, Fase 4.</span>
+<span class="d-add">+     */</span>
+<span class="d-ctx">     enum class EStyleLayer : uint8_t</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         Normal,</span>
+<span class="d-ctx">         Hovered,</span>
+<span class="d-ctx">         Pressed,</span>
+<span class="d-ctx">         Focused,</span>
+<span class="d-ctx">         Disabled,</span>
+<span class="d-ctx">         Count</span>
+<span class="d-ctx">     };</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     /**</span>
+<span class="d-ctx">      * @brief Snapshot of which interaction states are active on a widget this frame.</span>
+<span class="d-ctx">      *</span>
+<span class="d-ctx">      * A mask, unlike EStyleLayer: Hovered and Pressed can both be set at once. Built fresh</span>
+<span class="d-ctx">      * every time a widget resolves its style; never stored across frames.</span>
+<span class="d-ctx">      */</span>
+<span class="d-ctx">     enum class EInteractionState : uint8_t</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         None        = 0,</span>
+<span class="d-ctx">         Hovered     = 1 &lt;&lt; 0,</span>
+<span class="d-ctx">         Pressed     = 1 &lt;&lt; 1,</span>
+<span class="d-ctx">         Focused     = 1 &lt;&lt; 2,</span>
+<span class="d-ctx">         Disabled    = 1 &lt;&lt; 3,</span>
+<span class="d-ctx">     };</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     GENERATE_ENUM_CLASS_OPERATORS(EInteractionState)</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     constexpr bool HasState(const EInteractionState states, const EInteractionState state)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         return (states &amp; state) != 0;</span>
+<span class="d-ctx">     }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    /**</span>
+<span class="d-add">+     * @brief True if every bit of required is set in states. Unlike HasState (which only tests</span>
+<span class="d-add">+     * "at least one bit in common"), a SStyleSelector::Required with more than one bit needs</span>
+<span class="d-add">+     * ALL of them present.</span>
+<span class="d-add">+     */</span>
+<span class="d-add">+    constexpr bool HasAll(const EInteractionState states, const EInteractionState required)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        return (states &amp; required) == required;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    /**</span>
+<span class="d-add">+     * @brief True if none of forbidden's bits are set in states.</span>
+<span class="d-add">+     */</span>
+<span class="d-add">+    constexpr bool HasNone(const EInteractionState states, const EInteractionState forbidden)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        return (states &amp; forbidden) == EInteractionState::None;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    /**</span>
+<span class="d-add">+     * @brief A persistent semantic alternative a widget can be in, independent of pointer/</span>
+<span class="d-add">+     * keyboard interaction. Button and TextField only ever resolve Default; Checkbox maps its</span>
+<span class="d-add">+     * ECheckState onto Checked/Indeterminate (see Checkbox::GetStyleContext).</span>
+<span class="d-add">+     *</span>
+<span class="d-add">+     * Checked and Indeterminate are mutually exclusive - never combined bits of a mask, unlike</span>
+<span class="d-add">+     * EInteractionState.</span>
+<span class="d-add">+     */</span>
+<span class="d-add">+    enum class EStyleVariant : uint8_t</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        Default,</span>
+<span class="d-add">+        Checked,</span>
+<span class="d-add">+        Indeterminate,</span>
+<span class="d-add">+    };</span>
+<span class="d-add">+</span>
+<span class="d-add">+    /**</span>
+<span class="d-add">+     * @brief What a widget resolves its style against this frame: interaction mask and</span>
+<span class="d-add">+     * semantic variant, kept separate so a theme can style "Checked + Hovered" without that</span>
+<span class="d-add">+     * combination competing against Disabled &gt; Focused &gt; Pressed &gt; Hovered &gt; Normal (see</span>
+<span class="d-add">+     * ResolutionOrder in Style.cpp).</span>
+<span class="d-add">+     */</span>
+<span class="d-add">+    struct SStyleContext</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        EInteractionState Interaction = EInteractionState::None;</span>
+<span class="d-add">+        EStyleVariant Variant = EStyleVariant::Default;</span>
+<span class="d-add">+    };</span>
+<span class="d-add">+</span>
+<span class="d-add">+    /**</span>
+<span class="d-add">+     * @brief Picks out which SStyleContext values one SStyleRule applies to.</span>
+<span class="d-add">+     *</span>
+<span class="d-add">+     * Required/Forbidden are matched against SStyleContext::Interaction; Variant, if set, must</span>
+<span class="d-add">+     * equal SStyleContext::Variant exactly. An unset Variant matches every variant - a rule</span>
+<span class="d-add">+     * with no Variant is the Unchecked/Default appearance, refined by a more specific rule</span>
+<span class="d-add">+     * when one also matches (see Matches).</span>
+<span class="d-add">+     */</span>
+<span class="d-add">+    struct SStyleSelector</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        EInteractionState Required = EInteractionState::None;</span>
+<span class="d-add">+        EInteractionState Forbidden = EInteractionState::None;</span>
+<span class="d-add">+        std::optional&lt;EStyleVariant&gt; Variant;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        bool operator==(const SStyleSelector&amp;) const = default;</span>
+<span class="d-add">+    };</span>
+<span class="d-add">+</span>
+<span class="d-add">+    /**</span>
+<span class="d-add">+     * @brief True if selector applies to context: every Required bit is set, no Forbidden bit</span>
+<span class="d-add">+     * is set, and Variant (if the selector declares one) matches exactly.</span>
+<span class="d-add">+     */</span>
+<span class="d-add">+    constexpr bool Matches(const SStyleSelector&amp; selector, const SStyleContext&amp; context)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        return HasAll(context.Interaction, selector.Required)</span>
+<span class="d-add">+            &amp;&amp; HasNone(context.Interaction, selector.Forbidden)</span>
+<span class="d-add">+            &amp;&amp; (!selector.Variant || *selector.Variant == context.Variant);</span>
+<span class="d-add">+    }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     /**</span>
+<span class="d-del">-     * @brief Visual properties one layer declares. Every field is optional: an unset field</span>
+<span class="d-del">-     * means "inherit whatever the previous active layer resolved to", not "use a zero value".</span>
+<span class="d-add">+     * @brief Visual properties one rule declares. Every field is optional: an unset field</span>
+<span class="d-add">+     * means "inherit whatever the previously applied rule resolved to", not "use a zero value".</span>
+<span class="d-ctx">      *</span>
+<span class="d-ctx">      * BackgroundTexture uses this same convention with one addition: setting it to a non-null</span>
+<span class="d-ctx">      * but empty Ref (Ref&lt;Texture2D&gt;{}) explicitly clears a texture inherited from an earlier</span>
+<span class="d-del">-     * layer, instead of leaving it unset (which would keep inheriting it).</span>
+<span class="d-add">+     * rule, instead of leaving it unset (which would keep inheriting it).</span>
+<span class="d-ctx">      */</span>
+<span class="d-ctx">     struct SStyleOverride</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         std::optional&lt;SColor&gt;           BackgroundColor;</span>
+<span class="d-ctx">         std::optional&lt;SColor&gt;           ForegroundColor;</span>
+<span class="d-ctx">         std::optional&lt;Ref&lt;Texture2D&gt;&gt;   BackgroundTexture;</span>
+<span class="d-ctx">         std::optional&lt;glm::vec4&gt;        BackgroundBorders;</span>
+<span class="d-ctx">         std::optional&lt;glm::vec4&gt;        CornerRadius;</span>
+<span class="d-ctx">         std::optional&lt;SOutline&gt;         Outline;</span>
+<span class="d-ctx">         std::optional&lt;glm::vec4&gt;        InsetShadow;</span>
+<span class="d-ctx">         std::optional&lt;glm::vec4&gt;        DropShadow;</span>
+<span class="d-ctx">     };</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     /**</span>
+<span class="d-ctx">      * @brief Style ready to draw with: every field has a concrete value, none are optional.</span>
+<span class="d-del">-     * This is what BuildDrawCommands consumes - it never inspects SStyleOverride or the</span>
+<span class="d-del">-     * interaction state directly.</span>
+<span class="d-add">+     * This is what BuildDrawCommands consumes - it never inspects SStyleOverride, SStyleRule</span>
+<span class="d-add">+     * or the resolution context directly.</span>
+<span class="d-ctx">      */</span>
+<span class="d-ctx">     struct SResolvedStyle</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         SColor           BackgroundColor;</span>
+<span class="d-ctx">         SColor           ForegroundColor;</span>
+<span class="d-ctx">         Ref&lt;Texture2D&gt;   BackgroundTexture;</span>
+<span class="d-ctx">         glm::vec4        BackgroundBorders;</span>
+<span class="d-ctx">         glm::vec4        CornerRadius;</span>
+<span class="d-ctx">         SOutline         Outline;</span>
+<span class="d-ctx">         glm::vec4        InsetShadow;</span>
+<span class="d-ctx">         glm::vec4        DropShadow;</span>
+<span class="d-ctx">     };</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+    /**</span>
+<span class="d-add">+     * @brief One declared style rule: the context it applies to, and what it overrides when it</span>
+<span class="d-add">+     * does.</span>
+<span class="d-add">+     */</span>
+<span class="d-add">+    struct SStyleRule</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        SStyleSelector Selector;</span>
+<span class="d-add">+        SStyleOverride Override;</span>
+<span class="d-add">+    };</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     /**</span>
+<span class="d-del">-     * @brief Holds one SStyleOverride per EStyleLayer and composes them into a</span>
+<span class="d-del">-     * SResolvedStyle for a given interaction state.</span>
+<span class="d-add">+     * @brief Sparse collection of SStyleRule, keyed by selector. At most one rule per distinct</span>
+<span class="d-add">+     * selector value - Set replaces any existing rule for the same selector instead of</span>
+<span class="d-add">+     * appending a duplicate.</span>
+<span class="d-ctx">      *</span>
+<span class="d-del">-     * Owns no widget state (hover/press/enabled live on Widget) and triggers no</span>
+<span class="d-del">-     * invalidation - callers decide when a resolve is needed and whether to cache it.</span>
+<span class="d-add">+     * Owns no widget state and triggers no invalidation - callers decide when a resolve is</span>
+<span class="d-add">+     * needed and whether to cache it. A std::vector, not a fixed array or hash map: the</span>
+<span class="d-add">+     * expected rule count per component (single digits) makes linear find/erase cheaper than</span>
+<span class="d-add">+     * hashing, and an empty StyleSet allocates nothing - unlike an array of</span>
+<span class="d-add">+     * std::optional&lt;SStyleOverride&gt;, which would still reserve inline storage for every slot</span>
+<span class="d-add">+     * whether or not it is used.</span>
+<span class="d-ctx">      */</span>
+<span class="d-ctx">     class ELIXIR_API StyleSet</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">     public:</span>
+<span class="d-ctx">         /**</span>
+<span class="d-del">-         * Read the override currently stored for a layer.</span>
+<span class="d-del">-         * @param layer Layer to read.</span>
+<span class="d-del">-         * @return The layer's override, as last set (or empty, if never set/cleared).</span>
+<span class="d-add">+         * Find the rule stored for a selector.</span>
+<span class="d-add">+         * @param selector Selector to look up (compared by value, see SStyleSelector::operator==).</span>
+<span class="d-add">+         * @return The matching rule, or nullptr if none was ever Set (or it was Clear'd since).</span>
+<span class="d-ctx">          */</span>
+<span class="d-del">-        const SStyleOverride&amp; Get(EStyleLayer layer) const;</span>
+<span class="d-add">+        const SStyleRule* Find(SStyleSelector selector) const;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-del">-         * Replace the whole override stored for a layer.</span>
+<span class="d-del">-         * @param layer Layer to replace.</span>
+<span class="d-del">-         * @param style New override for that layer.</span>
+<span class="d-add">+         * Declare or replace the override for a selector. Replaces any existing rule with the</span>
+<span class="d-add">+         * same selector rather than appending a duplicate.</span>
+<span class="d-add">+         * @param selector Selector the override applies to.</span>
+<span class="d-add">+         * @param style New override for that selector.</span>
+<span class="d-ctx">          */</span>
+<span class="d-del">-        void Set(EStyleLayer layer, const SStyleOverride&amp; style);</span>
+<span class="d-add">+        void Set(SStyleSelector selector, const SStyleOverride&amp; style);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-del">-         * Remove every field a layer declares, so later resolves fall back to earlier layers</span>
+<span class="d-del">-         * for all of them again.</span>
+<span class="d-del">-         * @param layer Layer to clear.</span>
+<span class="d-add">+         * Remove the rule stored for a selector, if any. No-op if none was ever Set.</span>
+<span class="d-add">+         * @param selector Selector to remove.</span>
+<span class="d-ctx">          */</span>
+<span class="d-del">-        void Clear(EStyleLayer layer);</span>
+<span class="d-add">+        void Clear(SStyleSelector selector);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // --- Temporary EStyleLayer bridge, see the EStyleLayer doc comment above -----------</span>
+<span class="d-add">+</span>
+<span class="d-add">+        const SStyleOverride&amp; Get(EStyleLayer layer) const;</span>
+<span class="d-add">+        void Set(EStyleLayer layer, const SStyleOverride&amp; style);</span>
+<span class="d-add">+        void Clear(EStyleLayer layer);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-del">-         * @brief Compose the active layers into one concrete style.</span>
+<span class="d-del">-         *</span>
+<span class="d-del">-         * Starts from Normal and applies every other active layer on top of it, in</span>
+<span class="d-del">-         * Normal -&gt; Hovered -&gt; Pressed -&gt; Focused -&gt; Disabled order; for each field, the last active</span>
+<span class="d-del">-         * layer that declares it wins. Normal must declare every field the caller needs -</span>
+<span class="d-del">-         * it is the only layer with no earlier layer to fall back to.</span>
+<span class="d-del">-         *</span>
+<span class="d-del">-         * @param states Interaction states active this frame.</span>
+<span class="d-add">+         * Temporary EInteractionState bridge: equivalent to</span>
+<span class="d-add">+         * ResolveStyle({}, nullptr, *this, { states, EStyleVariant::Default }). Kept only until</span>
+<span class="d-add">+         * Widget::GetResolvedStyle moves to the fallback/theme/context call in Fase 2.</span>
+<span class="d-add">+         * @param states Interaction states active this frame.</span>
+<span class="d-ctx">          * @return The composed, ready-to-draw style.</span>
+<span class="d-ctx">          */</span>
+<span class="d-ctx">         SResolvedStyle Resolve(EInteractionState states) const;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     private:</span>
+<span class="d-del">-        std::array&lt;SStyleOverride, (size_t)EStyleLayer::Count&gt; m_Layers;</span>
+<span class="d-add">+        std::vector&lt;SStyleRule&gt; m_Rules;</span>
+<span class="d-ctx">     };</span>
+<span class="d-add">+</span>
+<span class="d-add">+    /**</span>
+<span class="d-add">+     * @brief Compose fallback, theme and local rules into one concrete style for context.</span>
+<span class="d-add">+     *</span>
+<span class="d-add">+     * Applies fallback first, then walks ResolutionOrder(context): for each selector in that</span>
+<span class="d-add">+     * fixed sequence, the theme's matching rule (if any) applies before the local one at the</span>
+<span class="d-add">+     * same selector, so a local Normal override can never clobber a theme Disabled rule (see</span>
+<span class="d-add">+     * the migration doc, Secao 5.2). themeStyles may be null - a widget with no theme, or a</span>
+<span class="d-add">+     * theme with no rule for this style class, just resolves from fallback + local.</span>
+<span class="d-add">+     *</span>
+<span class="d-add">+     * @param fallback Complete style used with no rule active - the only source guaranteed to</span>
+<span class="d-add">+     * declare every field.</span>
+<span class="d-add">+     * @param themeStyles Shared rules for this widget's style class, or nullptr.</span>
+<span class="d-add">+     * @param localStyles This widget's own sparse overrides.</span>
+<span class="d-add">+     * @param context Interaction mask and variant to resolve against.</span>
+<span class="d-add">+     * @return The composed, ready-to-draw style.</span>
+<span class="d-add">+     */</span>
+<span class="d-add">+    SResolvedStyle ResolveStyle(</span>
+<span class="d-add">+        const SResolvedStyle&amp; fallback,</span>
+<span class="d-add">+        const StyleSet* themeStyles,</span>
+<span class="d-add">+        const StyleSet&amp; localStyles,</span>
+<span class="d-add">+        const SStyleContext&amp; context</span>
+<span class="d-add">+    );</span>
+<span class="d-ctx"> }</span>
+</code></pre></div>
+  </section>
+
+  <section id="sec-fase1-cont">
+    <h3 class="file-heading" id="file-4-2"><span class="file-index">4.2</span> Elixir/Source/Engine/GUI/Style.cpp</h3>
+    <p>
+      <code class="i">ApplyOverride</code> fica byte-a-byte igual. <code class="i">ToIndex</code>
+      some (não existe mais array); entram <code class="i">ResolutionOrder</code> (3.2),
+      <code class="i">ApplyMatchingRules</code>, a ponte <code class="i">SelectorForLayer</code>
+      e as novas implementações de <code class="i">StyleSet::Find/Set/Clear</code> sobre
+      <code class="i">m_Rules</code>. <code class="i">std::ranges::find_if</code> e
+      <code class="i">std::erase_if</code> são C++20, já em uso no resto do engine (ex.
+      <code class="i">std::ranges::replace_if</code> em <code class="i">TextField::GetFromClipboard</code>).
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Style.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Style.cpp</span>
+<span class="d-hunk">@@ -1,81 +1,152 @@</span>
+<span class="d-ctx"> #include "epch.h"</span>
+<span class="d-ctx"> #include "Style.h"</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx"> namespace Elixir::GUI</span>
+<span class="d-ctx"> {</span>
+<span class="d-ctx">     namespace</span>
+<span class="d-ctx">     {</span>
+<span class="d-del">-        constexpr size_t ToIndex(const EStyleLayer layer)</span>
+<span class="d-del">-        {</span>
+<span class="d-del">-            return static_cast&lt;size_t&gt;(layer);</span>
+<span class="d-del">-        }</span>
+<span class="d-del">-</span>
+<span class="d-ctx">         void ApplyOverride(SResolvedStyle&amp; destination, const SStyleOverride&amp; override)</span>
+<span class="d-ctx">         {</span>
+<span class="d-ctx">             if (override.BackgroundColor)</span>
+<span class="d-ctx">                 destination.BackgroundColor = *override.BackgroundColor;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">             if (override.ForegroundColor)</span>
+<span class="d-ctx">                 destination.ForegroundColor = *override.ForegroundColor;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">             if (override.BackgroundTexture)</span>
+<span class="d-ctx">                 destination.BackgroundTexture = *override.BackgroundTexture;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">             if (override.BackgroundBorders)</span>
+<span class="d-ctx">                 destination.BackgroundBorders = *override.BackgroundBorders;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">             if (override.CornerRadius)</span>
+<span class="d-ctx">                 destination.CornerRadius = *override.CornerRadius;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">             if (override.Outline)</span>
+<span class="d-ctx">                 destination.Outline = *override.Outline;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">             if (override.InsetShadow)</span>
+<span class="d-ctx">                 destination.InsetShadow = *override.InsetShadow;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">             if (override.DropShadow)</span>
+<span class="d-ctx">                 destination.DropShadow = *override.DropShadow;</span>
+<span class="d-ctx">         }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // Fixed, stable sequence of selectors a resolve walks, low to high priority - see the</span>
+<span class="d-add">+        // migration doc, Secao 3.2, for why Focused has no Checked+Focused entry while</span>
+<span class="d-add">+        // Hovered/Pressed/Disabled do. A selector that finds no rule (or one Matches rejects</span>
+<span class="d-add">+        // for this context) is just skipped by ApplyMatchingRules.</span>
+<span class="d-add">+        std::vector&lt;SStyleSelector&gt; ResolutionOrder(const SStyleContext&amp; context)</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            std::vector&lt;SStyleSelector&gt; order;</span>
+<span class="d-add">+            order.reserve(9);</span>
+<span class="d-add">+</span>
+<span class="d-add">+            const bool hasVariant = context.Variant != EStyleVariant::Default;</span>
+<span class="d-add">+            const std::optional&lt;EStyleVariant&gt; variant = hasVariant</span>
+<span class="d-add">+                ? std::optional(context.Variant)</span>
+<span class="d-add">+                : std::nullopt;</span>
+<span class="d-add">+</span>
+<span class="d-add">+            order.push_back({});</span>
+<span class="d-add">+            if (hasVariant) order.push_back({ .Variant = variant });</span>
+<span class="d-add">+</span>
+<span class="d-add">+            order.push_back({ .Required = EInteractionState::Hovered });</span>
+<span class="d-add">+            if (hasVariant) order.push_back({ .Required = EInteractionState::Hovered, .Variant = variant });</span>
+<span class="d-add">+</span>
+<span class="d-add">+            order.push_back({ .Required = EInteractionState::Pressed });</span>
+<span class="d-add">+            if (hasVariant) order.push_back({ .Required = EInteractionState::Pressed, .Variant = variant });</span>
+<span class="d-add">+</span>
+<span class="d-add">+            order.push_back({ .Required = EInteractionState::Focused });</span>
+<span class="d-add">+</span>
+<span class="d-add">+            order.push_back({ .Required = EInteractionState::Disabled });</span>
+<span class="d-add">+            if (hasVariant) order.push_back({ .Required = EInteractionState::Disabled, .Variant = variant });</span>
+<span class="d-add">+</span>
+<span class="d-add">+            return order;</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        void ApplyMatchingRules(</span>
+<span class="d-add">+            SResolvedStyle&amp; result,</span>
+<span class="d-add">+            const StyleSet&amp; styles,</span>
+<span class="d-add">+            const SStyleSelector&amp; selector,</span>
+<span class="d-add">+            const SStyleContext&amp; context)</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            const SStyleRule* rule = styles.Find(selector);</span>
+<span class="d-add">+</span>
+<span class="d-add">+            // rule-&gt;Selector == selector by construction (Find matches by value), so Matches</span>
+<span class="d-add">+            // here is belt-and-braces, not the thing doing the real filtering - it only starts</span>
+<span class="d-add">+            // to matter if a future Find stops guaranteeing an exact match.</span>
+<span class="d-add">+            if (rule &amp;&amp; Matches(rule-&gt;Selector, context))</span>
+<span class="d-add">+                ApplyOverride(result, rule-&gt;Override);</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        // Temporary EStyleLayer bridge (see Style.h) - the selector each layer maps onto.</span>
+<span class="d-add">+        SStyleSelector SelectorForLayer(const EStyleLayer layer)</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            switch (layer)</span>
+<span class="d-add">+            {</span>
+<span class="d-add">+                case EStyleLayer::Hovered:  return { .Required = EInteractionState::Hovered };</span>
+<span class="d-add">+                case EStyleLayer::Pressed:  return { .Required = EInteractionState::Pressed };</span>
+<span class="d-add">+                case EStyleLayer::Focused:  return { .Required = EInteractionState::Focused };</span>
+<span class="d-add">+                case EStyleLayer::Disabled: return { .Required = EInteractionState::Disabled };</span>
+<span class="d-add">+                case EStyleLayer::Normal:</span>
+<span class="d-add">+                case EStyleLayer::Count:</span>
+<span class="d-add">+                default:                    return {};</span>
+<span class="d-add">+            }</span>
+<span class="d-add">+        }</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    const SStyleOverride&amp; StyleSet::Get(const EStyleLayer layer) const</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        return m_Layers[ToIndex(layer)];</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void StyleSet::Set(const EStyleLayer layer, const SStyleOverride&amp; style)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        m_Layers[ToIndex(layer)] = style;</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void StyleSet::Clear(const EStyleLayer layer)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        m_Layers[ToIndex(layer)] = SStyleOverride{};</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    SResolvedStyle StyleSet::Resolve(EInteractionState states) const</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        SResolvedStyle result{};</span>
+<span class="d-del">-</span>
+<span class="d-del">-        // Normal has no earlier layer to fall back to, so it must fill every field the</span>
+<span class="d-del">-        // caller needs; ApplyOverride still checks each optional; a caller that never set</span>
+<span class="d-del">-        // Normal gets a default-constructed SResolvedStyle instead of an assert, since</span>
+<span class="d-del">-        // StyleSet has no way to know which fields the widget actually needs.</span>
+<span class="d-del">-        ApplyOverride(result, m_Layers[ToIndex(EStyleLayer::Normal)]);</span>
+<span class="d-del">-</span>
+<span class="d-del">-        if (HasState(states, EInteractionState::Hovered))</span>
+<span class="d-del">-            ApplyOverride(result, m_Layers[ToIndex(EStyleLayer::Hovered)]);</span>
+<span class="d-del">-</span>
+<span class="d-del">-        if (HasState(states, EInteractionState::Pressed))</span>
+<span class="d-del">-            ApplyOverride(result, m_Layers[ToIndex(EStyleLayer::Pressed)]);</span>
+<span class="d-del">-</span>
+<span class="d-del">-        if (HasState(states, EInteractionState::Focused))</span>
+<span class="d-del">-            ApplyOverride(result, m_Layers[ToIndex(EStyleLayer::Focused)]);</span>
+<span class="d-del">-</span>
+<span class="d-del">-        if (HasState(states, EInteractionState::Disabled))</span>
+<span class="d-del">-            ApplyOverride(result, m_Layers[ToIndex(EStyleLayer::Disabled)]);</span>
+<span class="d-del">-</span>
+<span class="d-del">-        return result;</span>
+<span class="d-del">-    }</span>
+<span class="d-add">+    const SStyleRule* StyleSet::Find(const SStyleSelector selector) const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        const auto it = std::ranges::find_if(m_Rules, [&amp;](const SStyleRule&amp; rule)</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            return rule.Selector == selector;</span>
+<span class="d-add">+        });</span>
+<span class="d-add">+</span>
+<span class="d-add">+        return it != m_Rules.end() ? &amp;*it : nullptr;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void StyleSet::Set(const SStyleSelector selector, const SStyleOverride&amp; style)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        for (SStyleRule&amp; rule : m_Rules)</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            if (rule.Selector == selector)</span>
+<span class="d-add">+            {</span>
+<span class="d-add">+                rule.Override = style;</span>
+<span class="d-add">+                return;</span>
+<span class="d-add">+            }</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        m_Rules.push_back({ selector, style });</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void StyleSet::Clear(const SStyleSelector selector)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        std::erase_if(m_Rules, [&amp;](const SStyleRule&amp; rule) { return rule.Selector == selector; });</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const SStyleOverride&amp; StyleSet::Get(const EStyleLayer layer) const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        static const SStyleOverride s_Empty{};</span>
+<span class="d-add">+        const SStyleRule* rule = Find(SelectorForLayer(layer));</span>
+<span class="d-add">+        return rule ? rule-&gt;Override : s_Empty;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void StyleSet::Set(const EStyleLayer layer, const SStyleOverride&amp; style)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        Set(SelectorForLayer(layer), style);</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void StyleSet::Clear(const EStyleLayer layer)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        Clear(SelectorForLayer(layer));</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SResolvedStyle StyleSet::Resolve(const EInteractionState states) const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        return ResolveStyle({}, nullptr, *this, { states, EStyleVariant::Default });</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SResolvedStyle ResolveStyle(</span>
+<span class="d-add">+        const SResolvedStyle&amp; fallback,</span>
+<span class="d-add">+        const StyleSet* themeStyles,</span>
+<span class="d-add">+        const StyleSet&amp; localStyles,</span>
+<span class="d-add">+        const SStyleContext&amp; context)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        SResolvedStyle result = fallback;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        for (const SStyleSelector&amp; selector : ResolutionOrder(context))</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            if (themeStyles)</span>
+<span class="d-add">+                ApplyMatchingRules(result, *themeStyles, selector, context);</span>
+<span class="d-add">+</span>
+<span class="d-add">+            ApplyMatchingRules(result, localStyles, selector, context);</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        return result;</span>
+<span class="d-add">+    }</span>
+<span class="d-ctx"> }</span>
+</code></pre></div>
+    <p>
+      <code class="i">HasState</code> some do arquivo compilado sem uso direto neste diff — fica
+      declarado em <code class="i">Style.h</code> mas nada em <code class="i">Style.cpp</code> o
+      chama mais (<code class="i">Resolve(EInteractionState)</code> agora delega a
+      <code class="i">ResolveStyle</code>, que usa <code class="i">HasAll</code>/<code class="i">HasNone</code>
+      via <code class="i">Matches</code>). Mantido em <code class="i">Style.h</code> mesmo assim: é
+      <code class="i">constexpr</code> e <code class="i">ELIXIR_API</code>-menos (função livre em
+      header), então não custa nada ficar, e removê-lo seria uma mudança de API pública fora do
+      escopo desta migração (nenhum critério de aceite pede isso).
+    </p>
+
+    <h3 class="file-heading" id="file-4-3"><span class="file-index">4.3</span> Elixir/Tests/Engine/GUI/StyleTest.cpp</h3>
+    <p>
+      Os dez testes existentes (linhas 39-288 lidas na Seção 2) não mudam — continuam usando
+      <code class="i">EStyleLayer</code>/<code class="i">EInteractionState</code> e passam
+      sem alteração graças à ponte 4.1/4.2. O diff só acrescenta uma segunda seção de testes,
+      exercitando a API nova (<code class="i">SStyleSelector</code>, <code class="i">SStyleContext</code>,
+      <code class="i">ResolveStyle</code>) diretamente — cobrindo a lista da spec §9.1/§9.2 que a
+      API antiga não conseguia expressar (nenhum destes testes é possível sem
+      <code class="i">EStyleVariant</code>, então nenhum já existia). Reaproveita
+      <code class="i">FakeTexture()</code>, já definido no arquivo (Seção 2).
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Tests/Engine/GUI/StyleTest.cpp</span>
+<span class="d-file">+++ b/Elixir/Tests/Engine/GUI/StyleTest.cpp</span>
+<span class="d-hunk">@@ -286,3 +286,187 @@</span>
+<span class="d-ctx">     EXPECT_FALSE(leaf-&gt;HandleMouseDown(event).EventHandled)</span>
+<span class="d-ctx">         &lt;&lt; "a disabled widget must refuse the press even though it would normally handle it";</span>
+<span class="d-ctx"> }</span>
+<span class="d-add">+</span>
+<span class="d-add">+// --- ResolveStyle: selector/variant composition, spec Secao 9.1/9.2 ---</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, HoveredSelectorMatchesWithAndWithoutCheckedVariant)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    StyleSet local;</span>
+<span class="d-add">+    SStyleOverride hovered;</span>
+<span class="d-add">+    hovered.BackgroundColor = SColor{ 0.0f, 1.0f, 0.0f, 1.0f };</span>
+<span class="d-add">+    local.Set({ .Required = EInteractionState::Hovered }, hovered);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const SStyleContext uncheckedHovered{ EInteractionState::Hovered, EStyleVariant::Default };</span>
+<span class="d-add">+    const SStyleContext checkedHovered{ EInteractionState::Hovered, EStyleVariant::Checked };</span>
+<span class="d-add">+</span>
+<span class="d-add">+    EXPECT_EQ(ResolveStyle({}, nullptr, local, uncheckedHovered).BackgroundColor, hovered.BackgroundColor)</span>
+<span class="d-add">+        &lt;&lt; "a selector with no Variant must match the Default variant";</span>
+<span class="d-add">+    EXPECT_EQ(ResolveStyle({}, nullptr, local, checkedHovered).BackgroundColor, hovered.BackgroundColor)</span>
+<span class="d-add">+        &lt;&lt; "a selector with no Variant must also match Checked - it is the generic rule Checked refines";</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, CheckedSelectorDoesNotMatchDefaultVariant)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    StyleSet local;</span>
+<span class="d-add">+    SStyleOverride normal;</span>
+<span class="d-add">+    normal.BackgroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f };</span>
+<span class="d-add">+    local.Set({}, normal);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride checked;</span>
+<span class="d-add">+    checked.BackgroundColor = SColor{ 0.0f, 0.0f, 1.0f, 1.0f };</span>
+<span class="d-add">+    local.Set({ .Variant = EStyleVariant::Checked }, checked);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const SStyleContext unchecked{ EInteractionState::None, EStyleVariant::Default };</span>
+<span class="d-add">+    EXPECT_EQ(ResolveStyle({}, nullptr, local, unchecked).BackgroundColor, normal.BackgroundColor)</span>
+<span class="d-add">+        &lt;&lt; "a Checked-only selector must not leak into the Default variant";</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, IndeterminateSelectorDoesNotMatchCheckedVariant)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    StyleSet local;</span>
+<span class="d-add">+    SStyleOverride indeterminate;</span>
+<span class="d-add">+    indeterminate.BackgroundColor = SColor{ 0.5f, 0.5f, 0.0f, 1.0f };</span>
+<span class="d-add">+    local.Set({ .Variant = EStyleVariant::Indeterminate }, indeterminate);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const SStyleContext checked{ EInteractionState::None, EStyleVariant::Checked };</span>
+<span class="d-add">+    EXPECT_EQ(ResolveStyle({}, nullptr, local, checked).BackgroundColor, SColor{})</span>
+<span class="d-add">+        &lt;&lt; "Checked and Indeterminate are mutually exclusive - an Indeterminate rule must not "</span>
+<span class="d-add">+           "apply to a Checked context";</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, ForbiddenFocusedExcludesFocusedContext)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    StyleSet local;</span>
+<span class="d-add">+    SStyleOverride hoveredNotFocused;</span>
+<span class="d-add">+    hoveredNotFocused.BackgroundColor = SColor{ 0.0f, 1.0f, 0.0f, 1.0f };</span>
+<span class="d-add">+    local.Set({ .Required = EInteractionState::Hovered, .Forbidden = EInteractionState::Focused }, hoveredNotFocused);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const SStyleContext hoveredOnly{ EInteractionState::Hovered, EStyleVariant::Default };</span>
+<span class="d-add">+    const SStyleContext hoveredAndFocused{</span>
+<span class="d-add">+        EInteractionState::Hovered | EInteractionState::Focused, EStyleVariant::Default</span>
+<span class="d-add">+    };</span>
+<span class="d-add">+</span>
+<span class="d-add">+    EXPECT_EQ(ResolveStyle({}, nullptr, local, hoveredOnly).BackgroundColor, hoveredNotFocused.BackgroundColor);</span>
+<span class="d-add">+    EXPECT_EQ(ResolveStyle({}, nullptr, local, hoveredAndFocused).BackgroundColor, SColor{})</span>
+<span class="d-add">+        &lt;&lt; "Forbidden = Focused must exclude a context that is also focused";</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, SettingTheSameSelectorTwiceReplacesTheRuleRatherThanDuplicatingIt)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    StyleSet local;</span>
+<span class="d-add">+    SStyleOverride first;</span>
+<span class="d-add">+    first.BackgroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f };</span>
+<span class="d-add">+    local.Set({ .Required = EInteractionState::Hovered }, first);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride second;</span>
+<span class="d-add">+    second.BackgroundColor = SColor{ 0.0f, 0.0f, 1.0f, 1.0f };</span>
+<span class="d-add">+    local.Set({ .Required = EInteractionState::Hovered }, second);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const SStyleContext hovered{ EInteractionState::Hovered, EStyleVariant::Default };</span>
+<span class="d-add">+    EXPECT_EQ(ResolveStyle({}, nullptr, local, hovered).BackgroundColor, second.BackgroundColor)</span>
+<span class="d-add">+        &lt;&lt; "the second Set for the same selector must replace the first, not stack with it";</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, PartialOverridePreservesFieldsFromEarlierRules)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    StyleSet local;</span>
+<span class="d-add">+    SStyleOverride normal;</span>
+<span class="d-add">+    normal.BackgroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f };</span>
+<span class="d-add">+    normal.CornerRadius = glm::vec4{ 4.0f };</span>
+<span class="d-add">+    local.Set({}, normal);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride hovered;</span>
+<span class="d-add">+    hovered.BackgroundColor = SColor{ 0.0f, 1.0f, 0.0f, 1.0f }; // CornerRadius left unset</span>
+<span class="d-add">+    local.Set({ .Required = EInteractionState::Hovered }, hovered);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const SStyleContext hoveredCtx{ EInteractionState::Hovered, EStyleVariant::Default };</span>
+<span class="d-add">+    const SResolvedStyle resolved = ResolveStyle({}, nullptr, local, hoveredCtx);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    EXPECT_EQ(resolved.BackgroundColor, hovered.BackgroundColor);</span>
+<span class="d-add">+    EXPECT_EQ(resolved.CornerRadius, *normal.CornerRadius)</span>
+<span class="d-add">+        &lt;&lt; "Hovered never declared CornerRadius, so Normal's value must still show";</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, EmptyTextureOverrideClearsAnInheritedTextureThroughResolveStyle)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    StyleSet local;</span>
+<span class="d-add">+    SStyleOverride normal;</span>
+<span class="d-add">+    normal.BackgroundTexture = FakeTexture();</span>
+<span class="d-add">+    local.Set({}, normal);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride pressed;</span>
+<span class="d-add">+    pressed.BackgroundTexture = Ref&lt;Texture2D&gt;{}; // present, but null: an explicit clear</span>
+<span class="d-add">+    local.Set({ .Required = EInteractionState::Pressed }, pressed);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const SStyleContext pressedCtx{ EInteractionState::Pressed, EStyleVariant::Default };</span>
+<span class="d-add">+    EXPECT_EQ(ResolveStyle({}, nullptr, local, pressedCtx).BackgroundTexture, nullptr);</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, DisabledBeatsFocusedPressedHoveredAndNormalThroughResolveStyle)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    StyleSet local;</span>
+<span class="d-add">+    local.Set({}, [] { SStyleOverride o; o.BackgroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f }; return o; }());</span>
+<span class="d-add">+    local.Set({ .Required = EInteractionState::Focused }, [] { SStyleOverride o; o.BackgroundColor = SColor{ 1.0f, 1.0f, 0.0f, 1.0f }; return o; }());</span>
+<span class="d-add">+    SStyleOverride disabled;</span>
+<span class="d-add">+    disabled.BackgroundColor = SColor{ 0.5f, 0.5f, 0.5f, 1.0f };</span>
+<span class="d-add">+    local.Set({ .Required = EInteractionState::Disabled }, disabled);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const SStyleContext ctx{</span>
+<span class="d-add">+        EInteractionState::Hovered | EInteractionState::Pressed | EInteractionState::Focused | EInteractionState::Disabled,</span>
+<span class="d-add">+        EStyleVariant::Default</span>
+<span class="d-add">+    };</span>
+<span class="d-add">+    EXPECT_EQ(ResolveStyle({}, nullptr, local, ctx).BackgroundColor, disabled.BackgroundColor);</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, CheckedHoveredBeatsGenericHoveredOnlyForTheCheckedVariant)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    StyleSet theme;</span>
+<span class="d-add">+    SStyleOverride genericHovered;</span>
+<span class="d-add">+    genericHovered.BackgroundColor = SColor{ 0.5f, 0.5f, 0.5f, 1.0f };</span>
+<span class="d-add">+    theme.Set({ .Required = EInteractionState::Hovered }, genericHovered);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride checkedHovered;</span>
+<span class="d-add">+    checkedHovered.BackgroundColor = SColor{ 0.2f, 0.5f, 0.9f, 1.0f };</span>
+<span class="d-add">+    theme.Set({ .Required = EInteractionState::Hovered, .Variant = EStyleVariant::Checked }, checkedHovered);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const StyleSet local;</span>
+<span class="d-add">+    const SStyleContext checkedHoveredCtx{ EInteractionState::Hovered, EStyleVariant::Checked };</span>
+<span class="d-add">+    const SStyleContext uncheckedHoveredCtx{ EInteractionState::Hovered, EStyleVariant::Default };</span>
+<span class="d-add">+</span>
+<span class="d-add">+    EXPECT_EQ(ResolveStyle({}, &amp;theme, local, checkedHoveredCtx).BackgroundColor, checkedHovered.BackgroundColor);</span>
+<span class="d-add">+    EXPECT_EQ(ResolveStyle({}, &amp;theme, local, uncheckedHoveredCtx).BackgroundColor, genericHovered.BackgroundColor)</span>
+<span class="d-add">+        &lt;&lt; "Checked+Hovered must not leak into the unchecked/Default variant";</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, CheckedDisabledMustBeDeclaredExplicitlyOrDisabledWins)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    StyleSet theme;</span>
+<span class="d-add">+    SStyleOverride checked;</span>
+<span class="d-add">+    checked.BackgroundColor = SColor{ 0.2f, 0.5f, 0.9f, 1.0f }; // "checked blue"</span>
+<span class="d-add">+    theme.Set({ .Variant = EStyleVariant::Checked }, checked);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride disabled;</span>
+<span class="d-add">+    disabled.BackgroundColor = SColor{ 0.4f, 0.4f, 0.4f, 0.5f }; // generic disabled gray</span>
+<span class="d-add">+    theme.Set({ .Required = EInteractionState::Disabled }, disabled);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const StyleSet local;</span>
+<span class="d-add">+    const SStyleContext checkedDisabled{ EInteractionState::Disabled, EStyleVariant::Checked };</span>
+<span class="d-add">+</span>
+<span class="d-add">+    EXPECT_EQ(ResolveStyle({}, &amp;theme, local, checkedDisabled).BackgroundColor, disabled.BackgroundColor)</span>
+<span class="d-add">+        &lt;&lt; "with no explicit Checked+Disabled rule, generic Disabled silently wins and erases "</span>
+<span class="d-add">+           "the checked color - this is the exact trap the migration doc Secao 7.4 warns about";</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SStyleOverride checkedDisabledOverride;</span>
+<span class="d-add">+    checkedDisabledOverride.BackgroundColor = SColor{ 0.2f, 0.5f, 0.9f, 0.5f }; // "checked blue", dimmed</span>
+<span class="d-add">+    theme.Set({ .Required = EInteractionState::Disabled, .Variant = EStyleVariant::Checked }, checkedDisabledOverride);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    EXPECT_EQ(ResolveStyle({}, &amp;theme, local, checkedDisabled).BackgroundColor, checkedDisabledOverride.BackgroundColor)</span>
+<span class="d-add">+        &lt;&lt; "once Checked+Disabled is declared explicitly, it wins over generic Disabled";</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, LocalNormalOverrideDoesNotBeatThemeDisabled)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    StyleSet theme;</span>
+<span class="d-add">+    SStyleOverride themeDisabled;</span>
+<span class="d-add">+    themeDisabled.BackgroundColor = SColor{ 0.4f, 0.4f, 0.4f, 0.5f };</span>
+<span class="d-add">+    theme.Set({ .Required = EInteractionState::Disabled }, themeDisabled);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    StyleSet local;</span>
+<span class="d-add">+    SStyleOverride localNormal;</span>
+<span class="d-add">+    localNormal.BackgroundColor = SColor{ 1.0f, 0.0f, 0.0f, 1.0f };</span>
+<span class="d-add">+    local.Set({}, localNormal);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const SStyleContext disabledCtx{ EInteractionState::Disabled, EStyleVariant::Default };</span>
+<span class="d-add">+    EXPECT_EQ(ResolveStyle({}, &amp;theme, local, disabledCtx).BackgroundColor, themeDisabled.BackgroundColor)</span>
+<span class="d-add">+        &lt;&lt; "a local Normal override sits at a lower priority level than theme Disabled - it "</span>
+<span class="d-add">+           "must not win just because it is local";</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(StyleTest, LocalDisabledOverridesThemeDisabledAtTheSamePriorityLevel)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    StyleSet theme;</span>
+<span class="d-add">+    SStyleOverride themeDisabled;</span>
+<span class="d-add">+    themeDisabled.BackgroundColor = SColor{ 0.4f, 0.4f, 0.4f, 0.5f };</span>
+<span class="d-add">+    theme.Set({ .Required = EInteractionState::Disabled }, themeDisabled);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    StyleSet local;</span>
+<span class="d-add">+    SStyleOverride localDisabled;</span>
+<span class="d-add">+    localDisabled.BackgroundColor = SColor{ 0.9f, 0.1f, 0.1f, 0.5f };</span>
+<span class="d-add">+    local.Set({ .Required = EInteractionState::Disabled }, localDisabled);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const SStyleContext disabledCtx{ EInteractionState::Disabled, EStyleVariant::Default };</span>
+<span class="d-add">+    EXPECT_EQ(ResolveStyle({}, &amp;theme, local, disabledCtx).BackgroundColor, localDisabled.BackgroundColor)</span>
+<span class="d-add">+        &lt;&lt; "at the same priority level (both Disabled), local must win over theme";</span>
+<span class="d-add">+}</span>
+</code></pre></div>
+  </section>
+
+  <section id="sec-fase2">
+    <h2>5. Fase 2 — tema base e composição de fontes</h2>
+    <p>
+      Introduz <code class="i">Theme</code>/<code class="i">EStyleClass</code> (arquivos novos),
+      dá a <code class="i">Widget</code> um <code class="i">m_Theme</code>/<code class="i">m_StyleClass</code>/
+      fallback e troca <code class="i">GetInteractionState()</code> por
+      <code class="i">GetStyleContext()</code> virtual, e migra <code class="i">Button</code>/
+      <code class="i">TextField</code> para um tema estático por classe (3.3).
+    </p>
+
+    <h3 class="file-heading" id="file-5-1"><span class="file-index">5.1</span> Elixir/Source/Engine/GUI/Theme.h <span class="badge badge-new">arquivo novo</span></h3>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- /dev/null</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Theme.h</span>
+<span class="d-hunk">@@ -0,0 +1,38 @@</span>
+<span class="d-add">+#pragma once</span>
+<span class="d-add">+</span>
+<span class="d-add">+#include &lt;Engine/GUI/Style.h&gt;</span>
+<span class="d-add">+</span>
+<span class="d-add">+namespace Elixir::GUI</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    /**</span>
+<span class="d-add">+     * @brief Which shared default set a widget draws from. One entry per component that</span>
+<span class="d-add">+     * participates in theming - not every Widget subclass needs one (see</span>
+<span class="d-add">+     * Widget::m_StyleClass being std::optional).</span>
+<span class="d-add">+     */</span>
+<span class="d-add">+    enum class EStyleClass : uint8_t</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        Button,</span>
+<span class="d-add">+        TextField,</span>
+<span class="d-add">+        Checkbox,</span>
+<span class="d-add">+    };</span>
+<span class="d-add">+</span>
+<span class="d-add">+    /**</span>
+<span class="d-add">+     * @brief Owns the shared StyleSet rules for each EStyleClass. A theme may leave a class</span>
+<span class="d-add">+     * undeclared - FindStyle returns nullptr and the widget resolves from its own fallback</span>
+<span class="d-add">+     * SResolvedStyle plus local overrides only (see Widget::GetResolvedStyle).</span>
+<span class="d-add">+     */</span>
+<span class="d-add">+    class ELIXIR_API Theme</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+      public:</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Look up the shared rules for a style class.</span>
+<span class="d-add">+         * @param styleClass Class to look up.</span>
+<span class="d-add">+         * @return The class's StyleSet, or nullptr if this theme declares nothing for it.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        const StyleSet* FindStyle(EStyleClass styleClass) const;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Declare or replace the shared rules for a style class.</span>
+<span class="d-add">+         * @param styleClass Class the rules apply to.</span>
+<span class="d-add">+         * @param style Rules to store.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        void SetStyle(EStyleClass styleClass, StyleSet style);</span>
+<span class="d-add">+</span>
+<span class="d-add">+      private:</span>
+<span class="d-add">+        std::unordered_map&lt;EStyleClass, StyleSet&gt; m_Styles;</span>
+<span class="d-add">+    };</span>
+<span class="d-add">+}</span>
+</code></pre></div>
+
+    <h3 class="file-heading" id="file-5-2"><span class="file-index">5.2</span> Elixir/Source/Engine/GUI/Theme.cpp <span class="badge badge-new">arquivo novo</span></h3>
+    <p>
+      <code class="i">std::hash&lt;EStyleClass&gt;</code> vem de graça: a stdlib garante
+      <code class="i">std::hash</code> para todo tipo <code class="i">enum</code>/<code class="i">enum class</code>
+      desde C++14, então <code class="i">unordered_map&lt;EStyleClass, StyleSet&gt;</code> compila sem
+      um especialização própria.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- /dev/null</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Theme.cpp</span>
+<span class="d-hunk">@@ -0,0 +1,15 @@</span>
+<span class="d-add">+#include "epch.h"</span>
+<span class="d-add">+#include "Theme.h"</span>
+<span class="d-add">+</span>
+<span class="d-add">+namespace Elixir::GUI</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    const StyleSet* Theme::FindStyle(const EStyleClass styleClass) const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        const auto it = m_Styles.find(styleClass);</span>
+<span class="d-add">+        return it != m_Styles.end() ? &amp;it-&gt;second : nullptr;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Theme::SetStyle(const EStyleClass styleClass, StyleSet style)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        m_Styles[styleClass] = std::move(style);</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+}</span>
+</code></pre></div>
+  </section>
+
+  <section id="sec-fase2-cont">
+    <h3 class="file-heading" id="file-5-3"><span class="file-index">5.3</span> Elixir/Source/Engine/GUI/Style.h <span class="badge badge-phase">complementa 4.1</span></h3>
+    <p>
+      Seletores nomeados de uso frequente (spec §7.1), acrescentados ao fim do arquivo já
+      reescrito em 4.1. Só os que 5.4-5.6/Fase 3 realmente usam — a spec pede explicitamente para
+      não criar um helper por combinação possível.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Style.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Style.h</span>
+<span class="d-hunk">@@ -215,6 +215,26 @@</span>
+<span class="d-ctx">         const StyleSet&amp; localStyles,</span>
+<span class="d-ctx">         const SStyleContext&amp; context</span>
+<span class="d-ctx">     );</span>
+<span class="d-add">+</span>
+<span class="d-add">+    // Named selectors for the combinations Widget/Button/TextField/Checkbox actually set -</span>
+<span class="d-add">+    // not one helper per possible combination (spec Secao 7.1).</span>
+<span class="d-add">+</span>
+<span class="d-add">+    constexpr SStyleSelector NormalStyle() { return {}; }</span>
+<span class="d-add">+    constexpr SStyleSelector HoveredStyle() { return { .Required = EInteractionState::Hovered }; }</span>
+<span class="d-add">+    constexpr SStyleSelector PressedStyle() { return { .Required = EInteractionState::Pressed }; }</span>
+<span class="d-add">+    constexpr SStyleSelector FocusedStyle() { return { .Required = EInteractionState::Focused }; }</span>
+<span class="d-add">+    constexpr SStyleSelector DisabledStyle() { return { .Required = EInteractionState::Disabled }; }</span>
+<span class="d-add">+    constexpr SStyleSelector CheckedStyle() { return { .Variant = EStyleVariant::Checked }; }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    constexpr SStyleSelector CheckedHoveredStyle()</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        return { .Required = EInteractionState::Hovered, .Variant = EStyleVariant::Checked };</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    constexpr SStyleSelector CheckedDisabledStyle()</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        return { .Required = EInteractionState::Disabled, .Variant = EStyleVariant::Checked };</span>
+<span class="d-add">+    }</span>
+<span class="d-ctx"> }</span>
+</code></pre></div>
+
+    <h3 class="file-heading" id="file-5-4"><span class="file-index">5.4</span> Elixir/Source/Engine/GUI/Widget.h</h3>
+    <p>
+      Quatro hunks: include de <code class="i">Theme.h</code>; os setters por
+      <code class="i">EStyleLayer</code> (<span class="file-ref">Widget.h:144-254</span>, lido na
+      Seção 2) passam a receber <code class="i">SStyleSelector</code> - <code class="i">GetStyle</code>
+      é removido (nada no repositório o chama fora do próprio <code class="i">StyleSet</code>);
+      <code class="i">SetTheme</code>/<code class="i">GetTheme</code> novos, próximos de
+      <code class="i">IsFocusable</code>; <code class="i">GetInteractionState()</code> vira
+      <code class="i">GetStyleContext()</code> virtual (spec §7.1.3-4); e o membro
+      <code class="i">StyleSet m_Styles</code> vira os quatro campos da spec §5.1
+      (<span class="file-ref">Widget.h:549</span>).
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Widget.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Widget.h</span>
+<span class="d-hunk">@@ -5,6 +5,7 @@</span>
+<span class="d-ctx"> #include &lt;Engine/GUI/Definitions.h&gt;</span>
+<span class="d-ctx"> #include &lt;Engine/GUI/Renderer/RenderBatch.h&gt;</span>
+<span class="d-ctx"> #include &lt;Engine/GUI/Slot.h&gt;</span>
+<span class="d-ctx"> #include &lt;Engine/GUI/Style.h&gt;</span>
+<span class="d-add">+#include &lt;Engine/GUI/Theme.h&gt;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx"> namespace Elixir::GUI</span>
+<span class="d-ctx"> {</span>
+<span class="d-hunk">@@ -141,144 +142,120 @@</span>
+<span class="d-ctx">         bool IsSelfHitTestVisible() const;</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        /**</span>
+<span class="d-del">-         * @brief Read the override a style layer currently declares.</span>
+<span class="d-del">-         *</span>
+<span class="d-del">-         * Unset fields fall back to whatever an earlier layer resolves to</span>
+<span class="d-del">-         * - see StyleSet::Resolve.</span>
+<span class="d-del">-         *</span>
+<span class="d-del">-         * @param layer Layer to read.</span>
+<span class="d-del">-         * @return The layer's override, as currently stored.</span>
+<span class="d-del">-         */</span>
+<span class="d-del">-        const SStyleOverride&amp; GetStyle(EStyleLayer layer) const</span>
+<span class="d-del">-        {</span>
+<span class="d-del">-            return m_Styles.Get(layer);</span>
+<span class="d-del">-        }</span>
+<span class="d-del">-</span>
+<span class="d-ctx">         /**</span>
+<span class="d-del">-         * @brief Replace whole override for one style layer and mark this widget for</span>
+<span class="d-del">-         * re-render.</span>
+<span class="d-del">-         *</span>
+<span class="d-del">-         * @param layer The layer to replace.</span>
+<span class="d-del">-         * @param style New override for that layer.</span>
+<span class="d-add">+         * @brief Set one selector's whole style override and mark this widget for re-render.</span>
+<span class="d-add">+         * @param selector The selector to replace.</span>
+<span class="d-add">+         * @param style New override for that selector.</span>
+<span class="d-ctx">          */</span>
+<span class="d-del">-        void SetStyle(EStyleLayer layer, const SStyleOverride&amp; style);</span>
+<span class="d-add">+        void SetStyle(SStyleSelector selector, const SStyleOverride&amp; style);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-del">-         * @brief Remove every override a style layer declares, restoring the fallback to</span>
+<span class="d-del">-         * earlier layers, and mark this widget for re-render.</span>
+<span class="d-del">-         *</span>
+<span class="d-del">-         * @param layer Layer to clear.</span>
+<span class="d-add">+         * @brief Remove whatever this selector currently declares, restoring the fallback/</span>
+<span class="d-add">+         * theme to show through again, and mark this widget for re-render.</span>
+<span class="d-add">+         * @param selector Selector to clear.</span>
+<span class="d-ctx">          */</span>
+<span class="d-del">-        void ClearStyle(EStyleLayer layer);</span>
+<span class="d-add">+        void ClearStyle(SStyleSelector selector);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-del">-         * @brief Set one layer's background color.</span>
+<span class="d-del">-         * @param layer Layer that owns the override.</span>
+<span class="d-del">-         * @param color Background color for that layer.</span>
+<span class="d-add">+         * @brief Set one selector's background color.</span>
+<span class="d-add">+         * @param selector Selector that owns the override.</span>
+<span class="d-add">+         * @param color Background color for that selector.</span>
+<span class="d-ctx">          */</span>
+<span class="d-del">-        void SetBackgroundColor(EStyleLayer layer, const SColor&amp; color);</span>
+<span class="d-add">+        void SetBackgroundColor(SStyleSelector selector, const SColor&amp; color);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-del">-         * @brief Set one layer's foreground color (e.g. text).</span>
+<span class="d-del">-         * @param layer Layer that owns the override.</span>
+<span class="d-del">-         * @param color Foreground color for that layer.</span>
+<span class="d-add">+         * @brief Set one selector's foreground color (e.g. text).</span>
+<span class="d-add">+         * @param selector Selector that owns the override.</span>
+<span class="d-add">+         * @param color Foreground color for that selector.</span>
+<span class="d-ctx">          */</span>
+<span class="d-del">-        void SetForegroundColor(EStyleLayer layer, const SColor&amp; color);</span>
+<span class="d-add">+        void SetForegroundColor(SStyleSelector selector, const SColor&amp; color);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-del">-         * @brief Set one layer's background texture, meant to be drawn as a 9-patch using</span>
+<span class="d-add">+         * @brief Set one selector's background texture, meant to be drawn as a 9-patch using</span>
+<span class="d-ctx">          * whatever border metric the concrete widget exposes for that purpose.</span>
+<span class="d-del">-         * @param layer Layer that owns the override.</span>
+<span class="d-del">-         * @param texture Texture for that layer.</span>
+<span class="d-add">+         * @param selector Selector that owns the override.</span>
+<span class="d-add">+         * @param texture Texture for that selector.</span>
+<span class="d-ctx">          */</span>
+<span class="d-del">-        void SetBackgroundTexture(EStyleLayer layer, const Ref&lt;Texture2D&gt;&amp; texture);</span>
+<span class="d-add">+        void SetBackgroundTexture(SStyleSelector selector, const Ref&lt;Texture2D&gt;&amp; texture);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-del">-         * @brief Explicitly clear a layer's background texture override.</span>
+<span class="d-add">+         * @brief Explicitly clear a selector's background texture override.</span>
+<span class="d-ctx">          *</span>
+<span class="d-ctx">          * So it stops overriding whatever an earlier layer resolved to - as opposed to</span>
+<span class="d-ctx">          * leaving the field unset, which would just inherit instead of forcing a solid</span>
+<span class="d-ctx">          * background.</span>
+<span class="d-ctx">          *</span>
+<span class="d-del">-         * @param layer Layer to clear the texture override from.</span>
+<span class="d-add">+         * @param selector Selector to clear the texture override from.</span>
+<span class="d-ctx">          */</span>
+<span class="d-del">-        void ClearBackgroundTexture(EStyleLayer layer);</span>
+<span class="d-add">+        void ClearBackgroundTexture(SStyleSelector selector);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-ctx">          * @brief Set the border metric for a 9-patch background texture.</span>
+<span class="d-del">-         * @param layer Layer that owns the override.</span>
+<span class="d-add">+         * @param selector Selector that owns the override.</span>
+<span class="d-ctx">          * @param borders Border mapping = (left, top, right, bottom).</span>
+<span class="d-ctx">          */</span>
+<span class="d-del">-        void SetBackgroundBorders(EStyleLayer layer, const glm::vec4&amp; borders);</span>
+<span class="d-add">+        void SetBackgroundBorders(SStyleSelector selector, const glm::vec4&amp; borders);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-ctx">          * Set the same radius for all corners.</span>
+<span class="d-del">-         * @param layer Layer that owns the override.</span>
+<span class="d-add">+         * @param selector Selector that owns the override.</span>
+<span class="d-ctx">          * @param radius corner radius in pixels</span>
+<span class="d-ctx">          */</span>
+<span class="d-del">-        void SetCornerRadius(const EStyleLayer layer, const float radius)</span>
+<span class="d-add">+        void SetCornerRadius(const SStyleSelector selector, const float radius)</span>
+<span class="d-ctx">         {</span>
+<span class="d-del">-            SetCornerRadius(layer, { radius, radius, radius, radius });</span>
+<span class="d-add">+            SetCornerRadius(selector, { radius, radius, radius, radius });</span>
+<span class="d-ctx">         }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-ctx">          * Set a radius for each corner individually.</span>
+<span class="d-del">-         * @param layer Layer that owns the override.</span>
+<span class="d-add">+         * @param selector Selector that owns the override.</span>
+<span class="d-ctx">          * @param radius vector (top-left, top-right, bottom-right, bottom-left)</span>
+<span class="d-ctx">          */</span>
+<span class="d-del">-        void SetCornerRadius(EStyleLayer layer, const glm::vec4&amp; radius);</span>
+<span class="d-add">+        void SetCornerRadius(SStyleSelector selector, const glm::vec4&amp; radius);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-ctx">          * Set the inset shadow parameters.</span>
+<span class="d-del">-         * @param layer Layer that owns the override.</span>
+<span class="d-add">+         * @param selector Selector that owns the override.</span>
+<span class="d-ctx">          * @param shadow Shadow offset (x, y), blur (z) and intensity (w).</span>
+<span class="d-ctx">          */</span>
+<span class="d-del">-        void SetInsetShadow(EStyleLayer layer, const glm::vec4&amp; shadow);</span>
+<span class="d-del">-        void SetInsetShadowOffset(EStyleLayer layer, const glm::vec2&amp; offset);</span>
+<span class="d-del">-        void SetInsetShadowBlur(EStyleLayer layer, float blur);</span>
+<span class="d-del">-        void SetInsetShadowIntensity(EStyleLayer layer, float intensity);</span>
+<span class="d-add">+        void SetInsetShadow(SStyleSelector selector, const glm::vec4&amp; shadow);</span>
+<span class="d-add">+        void SetInsetShadowOffset(SStyleSelector selector, const glm::vec2&amp; offset);</span>
+<span class="d-add">+        void SetInsetShadowBlur(SStyleSelector selector, float blur);</span>
+<span class="d-add">+        void SetInsetShadowIntensity(SStyleSelector selector, float intensity);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-ctx">          * Set the drop shadow parameters.</span>
+<span class="d-del">-         * @param layer Layer that owns the override.</span>
+<span class="d-add">+         * @param selector Selector that owns the override.</span>
+<span class="d-ctx">          * @param shadow Shadow offset (x, y), blur (z) and intensity (w).</span>
+<span class="d-ctx">          */</span>
+<span class="d-del">-        void SetDropShadow(EStyleLayer layer, const glm::vec4&amp; shadow);</span>
+<span class="d-del">-        void SetDropShadowOffset(EStyleLayer layer, const glm::vec2&amp; offset);</span>
+<span class="d-del">-        void SetDropShadowBlur(EStyleLayer layer, float blur);</span>
+<span class="d-del">-        void SetDropShadowIntensity(EStyleLayer layer, float intensity);</span>
+<span class="d-add">+        void SetDropShadow(SStyleSelector selector, const glm::vec4&amp; shadow);</span>
+<span class="d-add">+        void SetDropShadowOffset(SStyleSelector selector, const glm::vec2&amp; offset);</span>
+<span class="d-add">+        void SetDropShadowBlur(SStyleSelector selector, float blur);</span>
+<span class="d-add">+        void SetDropShadowIntensity(SStyleSelector selector, float intensity);</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        void SetOutline(EStyleLayer layer, const SOutline&amp; outline);</span>
+<span class="d-del">-        void SetOutlineColor(EStyleLayer layer, const SColor&amp; color);</span>
+<span class="d-del">-        void SetOutlineThickness(EStyleLayer layer, float thickness);</span>
+<span class="d-add">+        void SetOutline(SStyleSelector selector, const SOutline&amp; outline);</span>
+<span class="d-add">+        void SetOutlineColor(SStyleSelector selector, const SColor&amp; color);</span>
+<span class="d-add">+        void SetOutlineThickness(SStyleSelector selector, float thickness);</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * @brief Shared defaults this widget draws from, or nullptr for none. Not owning -</span>
+<span class="d-add">+         * a Theme is expected to outlive every widget that references it (see the migration</span>
+<span class="d-add">+         * doc, Secao 3.3: Button/TextField/Checkbox each point at their own static default).</span>
+<span class="d-add">+         * @return The current theme.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        Ref&lt;const Theme&gt; GetTheme() const { return m_Theme; }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * @brief Replace this widget's theme and mark it for re-render. Passing nullptr makes</span>
+<span class="d-add">+         * this widget resolve from its fallback + local overrides only.</span>
+<span class="d-add">+         * @param theme New theme, or nullptr.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        void SetTheme(Ref&lt;const Theme&gt; theme);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         bool IsFocusable() const { return m_Focusable; }</span>
+<span class="d-ctx">         void SetFocusable(bool focusable);</span>
+<span class="d-hunk">@@ -400,17 +376,32 @@</span>
+<span class="d-ctx">         virtual bool ClipsChildren() const { return false; }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-del">-         * Build this frame's interaction state mask from this widget's own</span>
+<span class="d-del">-         * hover/press/enabled flags. Feeds StyleSet::Resolve only - it does not feed back</span>
+<span class="d-del">-         * into input routing.</span>
+<span class="d-del">-         * @return Mask combining Hovered/Pressed/Disabled as currently active.</span>
+<span class="d-add">+         * Build this frame's resolution context from this widget's own hover/press/enabled</span>
+<span class="d-add">+         * flags. Feeds ResolveStyle only - it does not feed back into input routing. The base</span>
+<span class="d-add">+         * implementation always resolves EStyleVariant::Default; Checkbox overrides this to</span>
+<span class="d-add">+         * report Checked/Indeterminate instead (see the migration doc, Fase 3).</span>
+<span class="d-add">+         * @return Interaction mask and variant for this frame.</span>
+<span class="d-ctx">          */</span>
+<span class="d-del">-        EInteractionState GetInteractionState() const;</span>
+<span class="d-add">+        virtual SStyleContext GetStyleContext() const;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * @brief Set the style-independent default a subclass falls back to with no theme and</span>
+<span class="d-add">+         * no local override active. Call once from the subclass constructor - see Button/</span>
+<span class="d-add">+         * TextField in the migration doc, Fase 2.</span>
+<span class="d-add">+         * @param fallback Complete style, safe with no theme configured.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        void SetStyleFallback(const SResolvedStyle&amp; fallback) { m_StyleFallback = fallback; }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * @brief Declare which Theme class this widget resolves shared rules from. Call once</span>
+<span class="d-add">+         * from the subclass constructor.</span>
+<span class="d-add">+         * @param styleClass This widget's style class.</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        void SetStyleClass(EStyleClass styleClass) { m_StyleClass = styleClass; }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-ctx">          * Resolve this widget's style for the current interaction state. Subclasses that</span>
+<span class="d-ctx">          * draw a background/foreground call this from their own BuildDrawCommands.</span>
+<span class="d-ctx">          *</span>
+<span class="d-del">-         * Recomputes on every call rather than caching: four layers and a handful of fields</span>
+<span class="d-del">-         * is cheap, and a cache would need every place that changes hover/press/enabled to</span>
+<span class="d-del">-         * also invalidate it - MarkRenderDirty() is already called on all of those.</span>
+<span class="d-add">+         * Recomputes on every call rather than caching: a handful of selector lookups is</span>
+<span class="d-add">+         * cheap, and a cache would need every place that changes hover/press/enabled/theme to</span>
+<span class="d-add">+         * also invalidate it - MarkRenderDirty() is already called on all of those (see</span>
+<span class="d-add">+         * SetTheme below).</span>
+<span class="d-ctx">          *</span>
+<span class="d-ctx">          * @return The composed style ready for BuildDrawCommands.</span>
+<span class="d-ctx">          */</span>
+<span class="d-hunk">@@ -541,7 +532,10 @@</span>
+<span class="d-ctx">         SOutline m_Outline = {};</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        StyleSet m_Styles;</span>
+<span class="d-add">+        std::optional&lt;EStyleClass&gt; m_StyleClass;</span>
+<span class="d-add">+        Ref&lt;const Theme&gt; m_Theme;</span>
+<span class="d-add">+        SResolvedStyle m_StyleFallback;</span>
+<span class="d-add">+        StyleSet m_LocalStyleOverrides;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         bool m_Focusable = false;</span>
+</code></pre></div>
+    <p>
+      Note que <code class="i">m_StyleClass</code> é <code class="i">std::optional&lt;EStyleClass&gt;</code>,
+      não obrigatório - um <code class="i">Widget</code> genérico (folha custom, container) nunca
+      declara classe e resolve só de fallback + overrides locais, exatamente como hoje. Só
+      <code class="i">Button</code>/<code class="i">TextField</code>/<code class="i">Checkbox</code>
+      chamam <code class="i">SetStyleClass</code>/<code class="i">SetTheme</code> nesta migração.
+    </p>
+  </section>
+
+  <section id="sec-fase2-cont2">
+    <h3 class="file-heading" id="file-5-5"><span class="file-index">5.5</span> Elixir/Source/Engine/GUI/Widget.cpp</h3>
+    <p>
+      Corpo de cada setter troca <code class="i">m_Styles.Get/Set(layer, ...)</code> por
+      <code class="i">m_LocalStyleOverrides.Get/Set(selector, ...)</code> - mecânico, mostrado
+      inteiro porque é exatamente esse corpo que prova que nada além do nome do parâmetro muda
+      (nenhum setter ganha lógica nova). <code class="i">GetInteractionState</code> vira
+      <code class="i">GetStyleContext</code> (o corpo que já existia não muda, só o wrapping);
+      <code class="i">GetResolvedStyle</code> passa a montar <code class="i">themeStyles</code>
+      a partir de <code class="i">m_Theme</code>/<code class="i">m_StyleClass</code> e chamar
+      <code class="i">ResolveStyle</code>.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Widget.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Widget.cpp</span>
+<span class="d-hunk">@@ -122,113 +122,109 @@</span>
+<span class="d-ctx">     void Widget::SetStyle(const EStyleLayer layer, const SStyleOverride&amp; style)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        m_Styles.Set(layer, style);</span>
+<span class="d-del">-        MarkRenderDirty();</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void Widget::ClearStyle(const EStyleLayer layer)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        m_Styles.Clear(layer);</span>
+<span class="d-del">-        MarkRenderDirty();</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void Widget::SetBackgroundColor(const EStyleLayer layer, const SColor&amp; color)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        SStyleOverride style = m_Styles.Get(layer);</span>
+<span class="d-del">-        style.BackgroundColor = color;</span>
+<span class="d-del">-        SetStyle(layer, style);</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void Widget::SetForegroundColor(const EStyleLayer layer, const SColor&amp; color)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        SStyleOverride style = m_Styles.Get(layer);</span>
+<span class="d-del">-        style.ForegroundColor = color;</span>
+<span class="d-del">-        SetStyle(layer, style);</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void Widget::SetBackgroundTexture(const EStyleLayer layer, const Ref&lt;Texture2D&gt;&amp; texture)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        SStyleOverride style = m_Styles.Get(layer);</span>
+<span class="d-del">-        style.BackgroundTexture = texture;</span>
+<span class="d-del">-        SetStyle(layer, style);</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void Widget::ClearBackgroundTexture(const EStyleLayer layer)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        SStyleOverride style = m_Styles.Get(layer);</span>
+<span class="d-del">-        style.BackgroundTexture = Ref&lt;Texture2D&gt;{};</span>
+<span class="d-del">-        SetStyle(layer, style);</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void Widget::SetBackgroundBorders(const EStyleLayer layer, const glm::vec4&amp; borders)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        SStyleOverride style = GetStyle(layer);</span>
+<span class="d-del">-        style.BackgroundBorders = borders;</span>
+<span class="d-del">-        SetStyle(layer, style);</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void Widget::SetCornerRadius(const EStyleLayer layer, const glm::vec4&amp; radius)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        SStyleOverride style = m_Styles.Get(layer);</span>
+<span class="d-del">-        style.CornerRadius = radius;</span>
+<span class="d-del">-        SetStyle(layer, style);</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void Widget::SetInsetShadow(const EStyleLayer layer, const glm::vec4&amp; shadow)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        SStyleOverride style = m_Styles.Get(layer);</span>
+<span class="d-del">-        style.InsetShadow = shadow;</span>
+<span class="d-del">-        SetStyle(layer, style);</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void Widget::SetInsetShadowOffset(const EStyleLayer layer, const glm::vec2&amp; offset)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        SStyleOverride style = m_Styles.Get(layer);</span>
+<span class="d-del">-        const auto inset = style.InsetShadow.value_or(glm::vec4{0.0f});</span>
+<span class="d-del">-        style.InsetShadow = { offset, inset.z, inset.w };</span>
+<span class="d-del">-        SetStyle(layer, style);</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void Widget::SetInsetShadowBlur(const EStyleLayer layer, const float blur)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        SStyleOverride style = m_Styles.Get(layer);</span>
+<span class="d-del">-        const auto inset = style.InsetShadow.value_or(glm::vec4{0.0f});</span>
+<span class="d-del">-        style.InsetShadow = { inset.x, inset.y, blur, inset.w };</span>
+<span class="d-del">-        SetStyle(layer, style);</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void Widget::SetInsetShadowIntensity(const EStyleLayer layer, const float intensity)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        SStyleOverride style = m_Styles.Get(layer);</span>
+<span class="d-del">-        const auto inset = style.InsetShadow.value_or(glm::vec4{0.0f});</span>
+<span class="d-del">-        style.InsetShadow = { inset.x, inset.y, inset.z, intensity };</span>
+<span class="d-del">-        SetStyle(layer, style);</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void Widget::SetDropShadow(const EStyleLayer layer, const glm::vec4&amp; shadow)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        SStyleOverride style = m_Styles.Get(layer);</span>
+<span class="d-del">-        style.DropShadow = shadow;</span>
+<span class="d-del">-        SetStyle(layer, style);</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void Widget::SetDropShadowOffset(const EStyleLayer layer, const glm::vec2&amp; offset)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        SStyleOverride style = m_Styles.Get(layer);</span>
+<span class="d-del">-        const auto inset = style.DropShadow.value_or(glm::vec4{0.0f});</span>
+<span class="d-del">-        style.DropShadow = { offset, inset.z, inset.w };</span>
+<span class="d-del">-        SetStyle(layer, style);</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void Widget::SetDropShadowBlur(const EStyleLayer layer, const float blur)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        SStyleOverride style = m_Styles.Get(layer);</span>
+<span class="d-del">-        const auto inset = style.DropShadow.value_or(glm::vec4{0.0f});</span>
+<span class="d-del">-        style.DropShadow = { inset.x, inset.y, blur, inset.w };</span>
+<span class="d-del">-        SetStyle(layer, style);</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void Widget::SetDropShadowIntensity(const EStyleLayer layer, const float intensity)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        SStyleOverride style = m_Styles.Get(layer);</span>
+<span class="d-del">-        const auto inset = style.DropShadow.value_or(glm::vec4{0.0f});</span>
+<span class="d-del">-        style.DropShadow = { inset.x, inset.y, inset.z, intensity };</span>
+<span class="d-del">-        SetStyle(layer, style);</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void Widget::SetOutline(const EStyleLayer layer, const SOutline&amp; outline)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        SStyleOverride style = m_Styles.Get(layer);</span>
+<span class="d-del">-        style.Outline = outline;</span>
+<span class="d-del">-        SetStyle(layer, style);</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void Widget::SetOutlineColor(const EStyleLayer layer, const SColor&amp; color)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        SStyleOverride style = m_Styles.Get(layer);</span>
+<span class="d-del">-        const auto outline = style.Outline.value_or(SOutline{});</span>
+<span class="d-del">-        style.Outline = { color, outline.Thickness };</span>
+<span class="d-del">-        SetStyle(layer, style);</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void Widget::SetOutlineThickness(const EStyleLayer layer, const float thickness)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        SStyleOverride style = m_Styles.Get(layer);</span>
+<span class="d-del">-        const auto outline = style.Outline.value_or(SOutline{});</span>
+<span class="d-del">-        style.Outline = { outline.Color, thickness };</span>
+<span class="d-del">-        SetStyle(layer, style);</span>
+<span class="d-del">-    }</span>
+<span class="d-add">+    void Widget::SetStyle(const SStyleSelector selector, const SStyleOverride&amp; style)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        m_LocalStyleOverrides.Set(selector, style);</span>
+<span class="d-add">+        MarkRenderDirty();</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::ClearStyle(const SStyleSelector selector)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        m_LocalStyleOverrides.Clear(selector);</span>
+<span class="d-add">+        MarkRenderDirty();</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    namespace</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        // Every SetX(selector, value) below follows this same read-modify-write shape:</span>
+<span class="d-add">+        // read whatever this widget's local override for selector already declares, patch the</span>
+<span class="d-add">+        // one field the caller is setting, write the whole override back. A free function</span>
+<span class="d-add">+        // instead of repeating it per setter - Widget::SetStyle is what actually marks render</span>
+<span class="d-add">+        // dirty, so this stays a thin helper, not a second dirty-marking path.</span>
+<span class="d-add">+        template &lt;typename Patch&gt;</span>
+<span class="d-add">+        void PatchStyle(Widget&amp; widget, const SStyleSelector selector, Patch&amp;&amp; patch)</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            SStyleOverride style = widget.GetLocalStyleOverride(selector);</span>
+<span class="d-add">+            patch(style);</span>
+<span class="d-add">+            widget.SetStyle(selector, style);</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const SStyleOverride&amp; Widget::GetLocalStyleOverride(const SStyleSelector selector) const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        static const SStyleOverride s_Empty{};</span>
+<span class="d-add">+        const SStyleRule* rule = m_LocalStyleOverrides.Find(selector);</span>
+<span class="d-add">+        return rule ? rule-&gt;Override : s_Empty;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::SetBackgroundColor(const SStyleSelector selector, const SColor&amp; color)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        PatchStyle(*this, selector, [&amp;](SStyleOverride&amp; s) { s.BackgroundColor = color; });</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::SetForegroundColor(const SStyleSelector selector, const SColor&amp; color)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        PatchStyle(*this, selector, [&amp;](SStyleOverride&amp; s) { s.ForegroundColor = color; });</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::SetBackgroundTexture(const SStyleSelector selector, const Ref&lt;Texture2D&gt;&amp; texture)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        PatchStyle(*this, selector, [&amp;](SStyleOverride&amp; s) { s.BackgroundTexture = texture; });</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::ClearBackgroundTexture(const SStyleSelector selector)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        PatchStyle(*this, selector, [&amp;](SStyleOverride&amp; s) { s.BackgroundTexture = Ref&lt;Texture2D&gt;{}; });</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::SetBackgroundBorders(const SStyleSelector selector, const glm::vec4&amp; borders)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        PatchStyle(*this, selector, [&amp;](SStyleOverride&amp; s) { s.BackgroundBorders = borders; });</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::SetCornerRadius(const SStyleSelector selector, const glm::vec4&amp; radius)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        PatchStyle(*this, selector, [&amp;](SStyleOverride&amp; s) { s.CornerRadius = radius; });</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::SetInsetShadow(const SStyleSelector selector, const glm::vec4&amp; shadow)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        PatchStyle(*this, selector, [&amp;](SStyleOverride&amp; s) { s.InsetShadow = shadow; });</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::SetInsetShadowOffset(const SStyleSelector selector, const glm::vec2&amp; offset)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        PatchStyle(*this, selector, [&amp;](SStyleOverride&amp; s) {</span>
+<span class="d-add">+            const auto inset = s.InsetShadow.value_or(glm::vec4{0.0f});</span>
+<span class="d-add">+            s.InsetShadow = { offset, inset.z, inset.w };</span>
+<span class="d-add">+        });</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::SetInsetShadowBlur(const SStyleSelector selector, const float blur)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        PatchStyle(*this, selector, [&amp;](SStyleOverride&amp; s) {</span>
+<span class="d-add">+            const auto inset = s.InsetShadow.value_or(glm::vec4{0.0f});</span>
+<span class="d-add">+            s.InsetShadow = { inset.x, inset.y, blur, inset.w };</span>
+<span class="d-add">+        });</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::SetInsetShadowIntensity(const SStyleSelector selector, const float intensity)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        PatchStyle(*this, selector, [&amp;](SStyleOverride&amp; s) {</span>
+<span class="d-add">+            const auto inset = s.InsetShadow.value_or(glm::vec4{0.0f});</span>
+<span class="d-add">+            s.InsetShadow = { inset.x, inset.y, inset.z, intensity };</span>
+<span class="d-add">+        });</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::SetDropShadow(const SStyleSelector selector, const glm::vec4&amp; shadow)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        PatchStyle(*this, selector, [&amp;](SStyleOverride&amp; s) { s.DropShadow = shadow; });</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::SetDropShadowOffset(const SStyleSelector selector, const glm::vec2&amp; offset)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        PatchStyle(*this, selector, [&amp;](SStyleOverride&amp; s) {</span>
+<span class="d-add">+            const auto inset = s.DropShadow.value_or(glm::vec4{0.0f});</span>
+<span class="d-add">+            s.DropShadow = { offset, inset.z, inset.w };</span>
+<span class="d-add">+        });</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::SetDropShadowBlur(const SStyleSelector selector, const float blur)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        PatchStyle(*this, selector, [&amp;](SStyleOverride&amp; s) {</span>
+<span class="d-add">+            const auto inset = s.DropShadow.value_or(glm::vec4{0.0f});</span>
+<span class="d-add">+            s.DropShadow = { inset.x, inset.y, blur, inset.w };</span>
+<span class="d-add">+        });</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::SetDropShadowIntensity(const SStyleSelector selector, const float intensity)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        PatchStyle(*this, selector, [&amp;](SStyleOverride&amp; s) {</span>
+<span class="d-add">+            const auto inset = s.DropShadow.value_or(glm::vec4{0.0f});</span>
+<span class="d-add">+            s.DropShadow = { inset.x, inset.y, inset.z, intensity };</span>
+<span class="d-add">+        });</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::SetOutline(const SStyleSelector selector, const SOutline&amp; outline)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        PatchStyle(*this, selector, [&amp;](SStyleOverride&amp; s) { s.Outline = outline; });</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::SetOutlineColor(const SStyleSelector selector, const SColor&amp; color)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        PatchStyle(*this, selector, [&amp;](SStyleOverride&amp; s) {</span>
+<span class="d-add">+            const auto outline = s.Outline.value_or(SOutline{});</span>
+<span class="d-add">+            s.Outline = { color, outline.Thickness };</span>
+<span class="d-add">+        });</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::SetOutlineThickness(const SStyleSelector selector, const float thickness)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        PatchStyle(*this, selector, [&amp;](SStyleOverride&amp; s) {</span>
+<span class="d-add">+            const auto outline = s.Outline.value_or(SOutline{});</span>
+<span class="d-add">+            s.Outline = { outline.Color, thickness };</span>
+<span class="d-add">+        });</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Widget::SetTheme(Ref&lt;const Theme&gt; theme)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        m_Theme = std::move(theme);</span>
+<span class="d-add">+        MarkRenderDirty();</span>
+<span class="d-add">+    }</span>
+</code></pre></div>
+    <div class="callout callout-attention">
+      <span class="callout-title">Ponto novo neste diff, não pedido literalmente pela spec</span>
+      <p>
+        <code class="i">GetLocalStyleOverride</code>/<code class="i">PatchStyle</code> não existem
+        na especificação - foram necessários porque, ao remover <code class="i">GetStyle</code>
+        público (5.4), os dezenove setters read-modify-write (5.5) perderam sua fonte de leitura.
+        A alternativa seria manter <code class="i">GetStyle</code> público só para isso, mas isso
+        reabriria exatamente a API que a spec pede para trocar por seletor. <code class="i">GetLocalStyleOverride</code>
+        é <code class="i">private</code>, não reexpõe nada publicamente, e <code class="i">PatchStyle</code>
+        é um detalhe de tradução (arquivo anônimo) que elimina a duplicação de dezenove corpos
+        quase idênticos - trade-off registrado aqui porque altera a forma do arquivo além do que
+        um find-and-replace mecânico produziria.</p>
+    </div>
+
+    <h3 class="file-heading" id="file-5-6"><span class="file-index">5.6</span> Elixir/Source/Engine/GUI/Widget.cpp <span class="badge badge-phase">GetStyleContext / GetResolvedStyle</span></h3>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Widget.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Widget.cpp</span>
+<span class="d-hunk">@@ -366,17 +362,25 @@</span>
+<span class="d-ctx">     EInteractionState Widget::GetInteractionState() const</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        auto states = EInteractionState::None;</span>
+<span class="d-del">-</span>
+<span class="d-del">-        if (IsHovered())</span>
+<span class="d-del">-            states |= EInteractionState::Hovered;</span>
+<span class="d-del">-</span>
+<span class="d-del">-        if (IsPressed())</span>
+<span class="d-del">-            states |= EInteractionState::Pressed;</span>
+<span class="d-del">-</span>
+<span class="d-del">-        if (IsFocused())</span>
+<span class="d-del">-            states |= EInteractionState::Focused;</span>
+<span class="d-del">-</span>
+<span class="d-del">-        if (!IsEnabled())</span>
+<span class="d-del">-            states |= EInteractionState::Disabled;</span>
+<span class="d-del">-</span>
+<span class="d-del">-        return states;</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    SResolvedStyle Widget::GetResolvedStyle() const</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        return m_Styles.Resolve(GetInteractionState());</span>
+<span class="d-del">-    }</span>
+<span class="d-add">+    SStyleContext Widget::GetStyleContext() const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        auto interaction = EInteractionState::None;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        if (IsHovered())</span>
+<span class="d-add">+            interaction |= EInteractionState::Hovered;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        if (IsPressed())</span>
+<span class="d-add">+            interaction |= EInteractionState::Pressed;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        if (IsFocused())</span>
+<span class="d-add">+            interaction |= EInteractionState::Focused;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        if (!IsEnabled())</span>
+<span class="d-add">+            interaction |= EInteractionState::Disabled;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        return { interaction, EStyleVariant::Default };</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    SResolvedStyle Widget::GetResolvedStyle() const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        const StyleSet* themeStyles = (m_Theme &amp;&amp; m_StyleClass)</span>
+<span class="d-add">+            ? m_Theme-&gt;FindStyle(*m_StyleClass)</span>
+<span class="d-add">+            : nullptr;</span>
+<span class="d-add">+</span>
+<span class="d-add">+        return ResolveStyle(m_StyleFallback, themeStyles, m_LocalStyleOverrides, GetStyleContext());</span>
+<span class="d-add">+    }</span>
+</code></pre></div>
+    <p>
+      <code class="i">Widget.h</code> precisa da declaração de <code class="i">GetLocalStyleOverride</code>
+      privada (5.5's helper), acrescentada junto de <code class="i">m_LocalStyleOverrides</code>
+      na seção <code class="i">private</code> do cabeçalho - complementa 5.4:
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Widget.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Widget.h</span>
+<span class="d-hunk">@@ -462,6 +456,9 @@</span>
+<span class="d-ctx">         static SRect AlignVertically(</span>
+<span class="d-ctx">             const glm::vec2&amp; childSize,</span>
+<span class="d-ctx">             const SRect&amp; availableSpace,</span>
+<span class="d-ctx">             EVerticalAlignment alignment</span>
+<span class="d-ctx">         );</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+        // Backs the read side of every SetX(selector, value) local-style setter (see</span>
+<span class="d-add">+        // Widget.cpp's PatchStyle). Private: GetStyle(EStyleLayer) is gone, not replaced 1:1.</span>
+<span class="d-add">+        const SStyleOverride&amp; GetLocalStyleOverride(SStyleSelector selector) const;</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         WeakRef&lt;Widget&gt; m_Parent;</span>
+</code></pre></div>
+  </section>
+
+  <section id="sec-fase2-cont3">
+    <h3 class="file-heading" id="file-5-7"><span class="file-index">5.7</span> Elixir/Source/Engine/GUI/Button.cpp</h3>
+    <p>
+      Os mesmos cinco valores literais (<span class="file-ref">Button.cpp:15-34</span>, lidos na
+      Seção 2) migram para dentro de um tema estático de função em vez de serem recriados a cada
+      <code class="i">Button</code> instanciado. Nenhum valor muda - só de onde ele é atribuído.
+      <code class="i">Button.h</code> não precisa de nenhum diff: <code class="i">SetTextColor</code>
+      já delega para <code class="i">SetForegroundColor(EStyleLayer, ...)</code>
+      (<span class="file-ref">Button.h:25</span>), que 5.4 já trocou para
+      <code class="i">SStyleSelector</code> - <code class="i">Button.h</code> importa esse tipo
+      transitivamente.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Button.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Button.cpp</span>
+<span class="d-hunk">@@ -6,33 +6,58 @@</span>
+<span class="d-ctx"> namespace Elixir::GUI</span>
+<span class="d-ctx"> {</span>
+<span class="d-add">+    namespace</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        // Function-local static: initialized once, thread-safe (C++11), shared by every</span>
+<span class="d-add">+        // Button instance that does not get an explicit SetTheme call afterwards. See the</span>
+<span class="d-add">+        // migration doc, Secao 3.3 - there is no Manager-level default theme to hook into yet.</span>
+<span class="d-add">+        Ref&lt;const Theme&gt; DefaultButtonTheme()</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            static const Ref&lt;Theme&gt; theme = [] {</span>
+<span class="d-add">+                auto t = CreateRef&lt;Theme&gt;();</span>
+<span class="d-add">+                StyleSet styles;</span>
+<span class="d-add">+</span>
+<span class="d-add">+                SStyleOverride normal;</span>
+<span class="d-add">+                normal.BackgroundColor = SColor{ 0.0941f, 0.0941f, 0.1059f, 1.0f };</span>
+<span class="d-add">+                normal.ForegroundColor = SColor{ 0.8941f, 0.8941f, 0.9059f, 1.0f };</span>
+<span class="d-add">+                normal.CornerRadius = glm::vec4{ 4.0f };</span>
+<span class="d-add">+                normal.BackgroundBorders = glm::vec4{ 30.0f, 30.0f, 30.0f, 30.0f };</span>
+<span class="d-add">+                normal.Outline = SOutline{ SColor{ 0.1529f, 0.1529f, 0.1647f, 1.0f }, 1.0f };</span>
+<span class="d-add">+                styles.Set(NormalStyle(), normal);</span>
+<span class="d-add">+</span>
+<span class="d-add">+                SStyleOverride hovered;</span>
+<span class="d-add">+                hovered.BackgroundColor = SColor{ 0.1529f, 0.1529f, 0.1647f, 1.0f };</span>
+<span class="d-add">+                styles.Set(HoveredStyle(), hovered);</span>
+<span class="d-add">+</span>
+<span class="d-add">+                SStyleOverride focused;</span>
+<span class="d-add">+                focused.Outline = SOutline{ SColor{ 0.6314f, 0.6314f, 0.6667f, 1.0f }, 2.0f };</span>
+<span class="d-add">+                styles.Set(FocusedStyle(), focused);</span>
+<span class="d-add">+</span>
+<span class="d-add">+                SStyleOverride disabled;</span>
+<span class="d-add">+                disabled.BackgroundColor = SColor{ 0.0941f, 0.0941f, 0.1059f, 0.5f };</span>
+<span class="d-add">+                disabled.ForegroundColor = SColor{ 0.8941f, 0.8941f, 0.9059f, 0.5f };</span>
+<span class="d-add">+                styles.Set(DisabledStyle(), disabled);</span>
+<span class="d-add">+</span>
+<span class="d-add">+                t-&gt;SetStyle(EStyleClass::Button, std::move(styles));</span>
+<span class="d-add">+                return t;</span>
+<span class="d-add">+            }();</span>
+<span class="d-add">+</span>
+<span class="d-add">+            return theme;</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     Button::Button(const std::string&amp; text)</span>
+<span class="d-ctx">       : m_Text(text)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         m_Font = FontManager::GetDefaultFont();</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        SStyleOverride normal;</span>
+<span class="d-del">-        normal.BackgroundColor = SColor{ 0.0941f, 0.0941f, 0.1059f, 1.0f };</span>
+<span class="d-del">-        normal.ForegroundColor = SColor{ 0.8941f, 0.8941f, 0.9059f, 1.0f };</span>
+<span class="d-del">-        normal.CornerRadius = glm::vec4{ 4.0f };</span>
+<span class="d-del">-        normal.BackgroundBorders = glm::vec4{ 30.0f, 30.0f, 30.0f, 30.0f };</span>
+<span class="d-del">-        normal.Outline = SOutline{ SColor{ 0.1529f, 0.1529f, 0.1647f, 1.0f }, 1.0f };</span>
+<span class="d-del">-        SetStyle(EStyleLayer::Normal, normal);</span>
+<span class="d-del">-</span>
+<span class="d-del">-        SStyleOverride hovered;</span>
+<span class="d-del">-        hovered.BackgroundColor = SColor{ 0.1529f, 0.1529f, 0.1647f, 1.0f };</span>
+<span class="d-del">-        SetStyle(EStyleLayer::Hovered, hovered);</span>
+<span class="d-del">-</span>
+<span class="d-del">-        SStyleOverride focused;</span>
+<span class="d-del">-        focused.Outline = SOutline{ SColor{ 0.6314f, 0.6314f, 0.6667f, 1.0f }, 2.0f };</span>
+<span class="d-del">-        SetStyle(EStyleLayer::Focused, focused);</span>
+<span class="d-del">-</span>
+<span class="d-del">-        SStyleOverride disabled;</span>
+<span class="d-del">-        disabled.BackgroundColor = SColor{ 0.0941f, 0.0941f, 0.1059f, 0.5f };</span>
+<span class="d-del">-        disabled.ForegroundColor = SColor{ 0.8941f, 0.8941f, 0.9059f, 0.5f };</span>
+<span class="d-del">-        SetStyle(EStyleLayer::Disabled, disabled);</span>
+<span class="d-add">+        SetStyleClass(EStyleClass::Button);</span>
+<span class="d-add">+        SetTheme(DefaultButtonTheme());</span>
+<span class="d-ctx">     }</span>
+</code></pre></div>
+    <p>
+      Sem <code class="i">SetStyleFallback</code> aqui, deliberadamente (3.4): <code class="i">m_Theme</code>
+      nunca é nulo para um <code class="i">Button</code>, então o fallback zero-value nunca é
+      consultado na prática - duplicar os cinco valores acima como fallback só criaria uma
+      segunda cópia para divergir da primeira com o tempo.
+    </p>
+
+    <h3 class="file-heading" id="file-5-8"><span class="file-index">5.8</span> Elixir/Source/Engine/GUI/TextField.cpp</h3>
+    <p>
+      Mesmo padrão de 5.7, aplicado às três primeiras <code class="i">SStyleOverride</code> do
+      construtor (<span class="file-ref">TextField.cpp:18-33</span>). As três últimas linhas
+      (<code class="i">SetCursorColor</code>/<code class="i">SetPlaceholderColor</code>/<code class="i">SetSelectionColor</code>)
+      ficam exatamente onde estavam - não são <code class="i">StyleSet</code>, spec §7.3.3.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/TextField.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/TextField.cpp</span>
+<span class="d-hunk">@@ -7,31 +7,54 @@</span>
+<span class="d-ctx"> namespace Elixir::GUI</span>
+<span class="d-ctx"> {</span>
+<span class="d-add">+    namespace</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        // Same static-theme shape as Button::DefaultButtonTheme (Button.cpp) - see the</span>
+<span class="d-add">+        // migration doc, Secao 3.3.</span>
+<span class="d-add">+        Ref&lt;const Theme&gt; DefaultTextFieldTheme()</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            static const Ref&lt;Theme&gt; theme = [] {</span>
+<span class="d-add">+                auto t = CreateRef&lt;Theme&gt;();</span>
+<span class="d-add">+                StyleSet styles;</span>
+<span class="d-add">+</span>
+<span class="d-add">+                SStyleOverride normal;</span>
+<span class="d-add">+                normal.ForegroundColor = SColor{ 0.8941f, 0.8941f, 0.9059f, 1.0f };</span>
+<span class="d-add">+                normal.BackgroundColor = SColor{ 0.0941f, 0.0941f, 0.1059f, 1.0f };</span>
+<span class="d-add">+                normal.CornerRadius = glm::vec4{ 4.0f };</span>
+<span class="d-add">+                normal.BackgroundBorders = glm::vec4{ 30.0f };</span>
+<span class="d-add">+                normal.Outline = SOutline{ SColor{ 0.1529f, 0.1529f, 0.1647f, 1.0f }, 1.0f };</span>
+<span class="d-add">+                styles.Set(NormalStyle(), normal);</span>
+<span class="d-add">+</span>
+<span class="d-add">+                SStyleOverride focused;</span>
+<span class="d-add">+                focused.Outline = SOutline{ SColor{ 0.6314f, 0.6314f, 0.6667f, 1.0f }, 2.0f };</span>
+<span class="d-add">+                styles.Set(FocusedStyle(), focused);</span>
+<span class="d-add">+</span>
+<span class="d-add">+                SStyleOverride disabled;</span>
+<span class="d-add">+                disabled.BackgroundColor = SColor{ 0.0941f, 0.0941f, 0.1059f, 0.5f };</span>
+<span class="d-add">+                disabled.ForegroundColor = SColor{ 0.8941f, 0.8941f, 0.9059f, 0.5f };</span>
+<span class="d-add">+                styles.Set(DisabledStyle(), disabled);</span>
+<span class="d-add">+</span>
+<span class="d-add">+                t-&gt;SetStyle(EStyleClass::TextField, std::move(styles));</span>
+<span class="d-add">+                return t;</span>
+<span class="d-add">+            }();</span>
+<span class="d-add">+</span>
+<span class="d-add">+            return theme;</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     TextField::TextField(const std::string&amp; text)</span>
+<span class="d-ctx">       : m_Text(text)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         m_Font = FontManager::GetDefaultFont();</span>
+<span class="d-ctx">         m_CursorPosition = m_Text.size();</span>
+<span class="d-ctx">         SetFocusable(true);</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        SStyleOverride normal;</span>
+<span class="d-del">-        normal.ForegroundColor = SColor{ 0.8941f, 0.8941f, 0.9059f, 1.0f };</span>
+<span class="d-del">-        normal.BackgroundColor = SColor{ 0.0941f, 0.0941f, 0.1059f, 1.0f };</span>
+<span class="d-del">-        normal.CornerRadius = glm::vec4{ 4.0f };</span>
+<span class="d-del">-        normal.BackgroundBorders = glm::vec4{ 30.0f };</span>
+<span class="d-del">-        normal.Outline = SOutline{ SColor{ 0.1529f, 0.1529f, 0.1647f, 1.0f }, 1.0f };</span>
+<span class="d-del">-        SetStyle(EStyleLayer::Normal, normal);</span>
+<span class="d-del">-</span>
+<span class="d-del">-        SStyleOverride focused;</span>
+<span class="d-del">-        focused.Outline = SOutline{ SColor{ 0.6314f, 0.6314f, 0.6667f, 1.0f }, 2.0f };</span>
+<span class="d-del">-        SetStyle(EStyleLayer::Focused, focused);</span>
+<span class="d-del">-</span>
+<span class="d-del">-        SStyleOverride disabled;</span>
+<span class="d-del">-        disabled.BackgroundColor = SColor{ 0.0941f, 0.0941f, 0.1059f, 0.5f };</span>
+<span class="d-del">-        disabled.ForegroundColor = SColor{ 0.8941f, 0.8941f, 0.9059f, 0.5f };</span>
+<span class="d-del">-        SetStyle(EStyleLayer::Disabled, disabled);</span>
+<span class="d-add">+        SetStyleClass(EStyleClass::TextField);</span>
+<span class="d-add">+        SetTheme(DefaultTextFieldTheme());</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         SetCursorColor(SColor{ 0.8941f, 0.8941f, 0.9059f, 1.0f });</span>
+<span class="d-ctx">         SetPlaceholderColor(SColor{ 0.6314f, 0.6314f, 0.6667f, 1.0f });</span>
+<span class="d-ctx">         SetSelectionColor(SColor{ 0.6314f, 0.6314f, 0.6667f, 0.35f });</span>
+<span class="d-ctx">     }</span>
+</code></pre></div>
+    <p>
+      Validação da Fase 2 (spec §8, "widgets sem override local preservam os draw commands
+      atuais"): com <code class="i">context.Variant == Default</code>, <code class="i">ResolutionOrder</code>
+      (3.2) produz <code class="i">{} → Hovered → Pressed → Focused → Disabled</code> - a mesma
+      ordem do <code class="i">StyleSet::Resolve</code> antigo - e o tema estático carrega
+      exatamente os mesmos valores que os construtores antigos escreviam inline. Nenhum
+      <code class="i">Button</code>/<code class="i">TextField</code> sem override local muda de
+      aparência.
+    </p>
+  </section>
+
+  <section id="sec-fase3">
+    <h2>6. Fase 3 — Checkbox como variante de estilo <span class="badge badge-phase">tratamento condensado, ver Seção 10</span></h2>
+    <p>
+      <code class="i">m_Checked</code>/<code class="i">m_CheckedColor</code> saem;
+      <code class="i">ECheckState m_CheckState</code> entra; <code class="i">GetStyleContext()</code>
+      sobrescrito mapeia o estado para <code class="i">EStyleVariant</code>; o tema estático (mesmo
+      padrão de 5.7/5.8) ganha as cinco regras da spec §7.4.7, com <code class="i">Checked+Disabled</code>
+      declarada explicitamente - o próprio ponto que a spec avisa em §7.4 (ver <a href="#sec-riscos">R1</a>).
+    </p>
+
+    <h3 class="file-heading" id="file-6-1"><span class="file-index">6.1</span> Elixir/Source/Engine/GUI/Checkbox.h</h3>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Checkbox.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Checkbox.h</span>
+<span class="d-hunk">@@ -1,85 +1,85 @@</span>
+<span class="d-ctx"> #pragma once</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx"> #include &lt;Engine/GUI/Widget.h&gt;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx"> namespace Elixir::GUI</span>
+<span class="d-ctx"> {</span>
+<span class="d-add">+    /**</span>
+<span class="d-add">+     * @brief Checkbox's own semantic state - see Widget::EStyleVariant for how this maps onto</span>
+<span class="d-add">+     * style selection (Checkbox::GetStyleContext). Checked and Indeterminate are mutually</span>
+<span class="d-add">+     * exclusive, never combined.</span>
+<span class="d-add">+     */</span>
+<span class="d-add">+    enum class ECheckState : uint8_t</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        Unchecked,</span>
+<span class="d-add">+        Checked,</span>
+<span class="d-add">+        Indeterminate,</span>
+<span class="d-add">+    };</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     /**</span>
+<span class="d-del">-     * @brief A small toggle square: solid fill when checked, styled like any other Widget</span>
+<span class="d-del">-     * (background/outline/corner radius per EStyleLayer) when unchecked.</span>
+<span class="d-del">-     *</span>
+<span class="d-del">-     * Owns its own boolean state (unlike the ad-hoc bool&amp; helper it replaces), fires</span>
+<span class="d-del">-     * OnCheckedChanged only on user interaction (never from SetChecked), and honors</span>
+<span class="d-del">-     * Widget::SetEnabled to ignore clicks entirely. v1 draws state as fill-vs-styled-box</span>
+<span class="d-del">-     * only - no checkmark glyph, since the engine has no SVG/icon support yet.</span>
+<span class="d-add">+     * @brief A small toggle square: fill/outline entirely driven by the resolved style - see</span>
+<span class="d-add">+     * GetStyleContext for how m_CheckState becomes the Checked/Indeterminate variant a theme</span>
+<span class="d-add">+     * can style. Fires OnCheckedChanged only on user interaction (never from SetChecked), and</span>
+<span class="d-add">+     * honors Widget::SetEnabled to ignore clicks entirely. v1 draws state as fill-vs-styled-box</span>
+<span class="d-add">+     * only - no checkmark glyph, since the engine has no SVG/icon support yet.</span>
+<span class="d-ctx">      */</span>
+<span class="d-ctx">     class ELIXIR_API Checkbox : public Widget</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">       public:</span>
+<span class="d-ctx">         Checkbox();</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        bool GetChecked() const { return m_Checked; }</span>
+<span class="d-add">+        bool GetChecked() const { return m_CheckState == ECheckState::Checked; }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-ctx">          * Set the checked state programmatically. Deliberately does NOT invoke</span>
+<span class="d-ctx">          * OnCheckedChanged - that callback fires only from user clicks (HandleClick).</span>
+<span class="d-del">-         * If SetChecked also fired it, any code that syncs this widget FROM an external</span>
+<span class="d-del">-         * model (e.g. a callback wired the other way) would immediately echo its own</span>
+<span class="d-del">-         * write back into that model.</span>
+<span class="d-add">+         * Maps true/false onto ECheckState::Checked/Unchecked - there is no public API for</span>
+<span class="d-add">+         * Indeterminate yet (migration doc, Secao 3.3).</span>
+<span class="d-ctx">          * @param checked the new checked state.</span>
+<span class="d-ctx">          */</span>
+<span class="d-ctx">         void SetChecked(bool checked);</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-ctx">          * Register a callback invoked when the user toggles this checkbox by clicking it.</span>
+<span class="d-ctx">          * Never invoked by SetChecked - see its doc comment.</span>
+<span class="d-ctx">          * @param callback receives the new checked state.</span>
+<span class="d-ctx">          */</span>
+<span class="d-ctx">         void OnCheckedChanged(const std::function&lt;void(bool)&gt;&amp; callback) { m_OnCheckedChangedCallback = callback; }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         const glm::vec2&amp; GetSize() const { return m_Size; }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         /**</span>
+<span class="d-ctx">          * Set the size this Checkbox asks for, capped to whatever the parent actually</span>
+<span class="d-ctx">          * offers - same convention Canvas::SetSize uses.</span>
+<span class="d-ctx">          * @param size the desired size.</span>
+<span class="d-ctx">          */</span>
+<span class="d-ctx">         void SetSize(const glm::vec2&amp; size);</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        SColor GetCheckedColor() const { return m_CheckedColor; }</span>
+<span class="d-del">-        void SetCheckedColor(const SColor&amp; color);</span>
+<span class="d-del">-</span>
+<span class="d-ctx">       protected:</span>
+<span class="d-ctx">         glm::vec2 ComputeDesiredSize(const glm::vec2&amp; availableSize) override;</span>
+<span class="d-ctx">         void BuildDrawCommands(RenderBatch&amp; batch, int zOrder) override;</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+        /**</span>
+<span class="d-add">+         * Maps m_CheckState onto EStyleVariant on top of Widget's own interaction mask, so a</span>
+<span class="d-add">+         * theme can style Checked/Checked+Hovered/Checked+Disabled without Checkbox choosing</span>
+<span class="d-add">+         * colors itself (see BuildDrawCommands).</span>
+<span class="d-add">+         */</span>
+<span class="d-add">+        SStyleContext GetStyleContext() const override;</span>
+<span class="d-add">+</span>
+<span class="d-ctx">         void HandleMouseEnter() override;</span>
+<span class="d-ctx">         void HandleMouseLeave() override;</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        // Same override Button uses, and for the same reason: a Checkbox must win the</span>
+<span class="d-del">-        // mouse-down bubble even with no OnClick/OnMouseDown/OnMouseUp callback registered,</span>
+<span class="d-del">-        // because it drives its own state from HandleClick() directly rather than through</span>
+<span class="d-del">-        // those callbacks - Widget::HandleMouseDown's default gate would otherwise return</span>
+<span class="d-del">-        // Unhandled() for it.</span>
+<span class="d-add">+        // Same override Button uses, same reason: drives HandleClick() directly, so it must</span>
+<span class="d-add">+        // win the mouse-down bubble even with no On* callback registered (see Widget.cpp).</span>
+<span class="d-ctx">         SInputReply HandleMouseDown(const MouseButtonPressedEvent&amp; event) override;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         void HandleClick() override;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">       private:</span>
+<span class="d-del">-        bool m_Checked = false;</span>
+<span class="d-add">+        ECheckState m_CheckState = ECheckState::Unchecked;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         // Configured size; ComputeDesiredSize never returns more than this on either axis</span>
+<span class="d-ctx">         // (capped to availableSize). 13x13 matches the ad-hoc ViewportPanel::MakeCheckbox</span>
+<span class="d-ctx">         // helper this widget replaces, kept as the default so migrating call sites look</span>
+<span class="d-ctx">         // identical without an explicit SetSize.</span>
+<span class="d-ctx">         glm::vec2 m_Size{ 13.0f, 13.0f };</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        // Fill used while checked, drawn with no outline. Not a StyleSet layer - checked-ness</span>
+<span class="d-del">-        // is data state, not an interaction state, so it composes independently on top of</span>
+<span class="d-del">-        // whatever GetResolvedStyle() resolves for background/outline/corner radius while</span>
+<span class="d-del">-        // unchecked (see BuildDrawCommands).</span>
+<span class="d-del">-        SColor m_CheckedColor{ 0.208f, 0.455f, 0.941f, 1.0f };</span>
+<span class="d-del">-</span>
+<span class="d-ctx">         std::function&lt;void(bool)&gt; m_OnCheckedChangedCallback;</span>
+<span class="d-ctx">     };</span>
+<span class="d-ctx"> }</span>
+</code></pre></div>
+
+    <h3 class="file-heading" id="file-6-2"><span class="file-index">6.2</span> Elixir/Source/Engine/GUI/Checkbox.cpp</h3>
+    <p>
+      Tema estático (padrão de 5.7/5.8), com <code class="i">CheckedStyle()</code>/<code class="i">CheckedDisabledStyle()</code>
+      (5.3) carregando os mesmos dois valores que <code class="i">m_CheckedColor</code>
+      representava - <code class="i">SColor{ 0.208f, 0.455f, 0.941f, 1.0f }</code> - e um segundo,
+      dessaturado, para <code class="i">Checked+Disabled</code>, que não existia antes (o
+      construtor antigo nunca combinava <code class="i">m_Checked</code> com o estado
+      <code class="i">Disabled</code> herdado do <code class="i">StyleSet</code> - via
+      <code class="i">BuildDrawCommands</code> antigo, um checkbox marcado e desabilitado ainda
+      desenhava azul sólido, já que o <code class="i">if (m_Checked)</code> vencia
+      incondicionalmente. Ver <a href="#sec-riscos">R2</a>.
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Checkbox.cpp</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Checkbox.cpp</span>
+<span class="d-hunk">@@ -1,113 +1,120 @@</span>
+<span class="d-ctx"> #include "epch.h"</span>
+<span class="d-ctx"> #include "Checkbox.h"</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx"> #include &lt;Engine/Core/Platform.h&gt;</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx"> namespace Elixir::GUI</span>
+<span class="d-ctx"> {</span>
+<span class="d-del">-    Checkbox::Checkbox()</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        // Border/fill shown only in the unchecked state (see BuildDrawCommands) - Normal/</span>
+<span class="d-del">-        // Hovered/Disabled all compose through GetResolvedStyle() like any other widget;</span>
+<span class="d-del">-        // only the checked-state fill (m_CheckedColor) sits outside StyleSet.</span>
+<span class="d-del">-        SStyleOverride normal;</span>
+<span class="d-del">-        normal.BackgroundColor = SColor{ 0.094f, 0.098f, 0.106f, 1.0f };</span>
+<span class="d-del">-        normal.CornerRadius = glm::vec4{ 3.0f };</span>
+<span class="d-del">-        normal.Outline = SOutline{ SColor{ 0.224f, 0.231f, 0.251f, 1.0f }, 1.0f };</span>
+<span class="d-del">-        SetStyle(EStyleLayer::Normal, normal);</span>
+<span class="d-del">-</span>
+<span class="d-del">-        SStyleOverride hovered;</span>
+<span class="d-del">-        hovered.BackgroundColor = SColor{ 0.145f, 0.149f, 0.161f, 1.0f };</span>
+<span class="d-del">-        SetStyle(EStyleLayer::Hovered, hovered);</span>
+<span class="d-del">-</span>
+<span class="d-del">-        SStyleOverride disabled;</span>
+<span class="d-del">-        disabled.BackgroundColor = SColor{ 0.094f, 0.098f, 0.106f, 0.5f };</span>
+<span class="d-del">-        SetStyle(EStyleLayer::Disabled, disabled);</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-del">-    void Checkbox::SetChecked(const bool checked)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        if (m_Checked == checked) return;</span>
+<span class="d-del">-        m_Checked = checked;</span>
+<span class="d-del">-        MarkRenderDirty();</span>
+<span class="d-del">-    }</span>
+<span class="d-add">+    namespace</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        // Same static-theme shape as Button/TextField - see the migration doc, Secao 3.3.</span>
+<span class="d-add">+        // Checked+Disabled is declared explicitly (Secao 7.4): left undeclared, the generic</span>
+<span class="d-add">+        // Disabled rule below would silently win and erase the checked blue (see</span>
+<span class="d-add">+        // StyleTest.cpp, CheckedDisabledMustBeDeclaredExplicitlyOrDisabledWins).</span>
+<span class="d-add">+        Ref&lt;const Theme&gt; DefaultCheckboxTheme()</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            static const Ref&lt;Theme&gt; theme = [] {</span>
+<span class="d-add">+                auto t = CreateRef&lt;Theme&gt;();</span>
+<span class="d-add">+                StyleSet styles;</span>
+<span class="d-add">+</span>
+<span class="d-add">+                SStyleOverride normal;</span>
+<span class="d-add">+                normal.BackgroundColor = SColor{ 0.094f, 0.098f, 0.106f, 1.0f };</span>
+<span class="d-add">+                normal.CornerRadius = glm::vec4{ 3.0f };</span>
+<span class="d-add">+                normal.Outline = SOutline{ SColor{ 0.224f, 0.231f, 0.251f, 1.0f }, 1.0f };</span>
+<span class="d-add">+                styles.Set(NormalStyle(), normal);</span>
+<span class="d-add">+</span>
+<span class="d-add">+                SStyleOverride hovered;</span>
+<span class="d-add">+                hovered.BackgroundColor = SColor{ 0.145f, 0.149f, 0.161f, 1.0f };</span>
+<span class="d-add">+                styles.Set(HoveredStyle(), hovered);</span>
+<span class="d-add">+</span>
+<span class="d-add">+                SStyleOverride checked;</span>
+<span class="d-add">+                checked.BackgroundColor = SColor{ 0.208f, 0.455f, 0.941f, 1.0f };</span>
+<span class="d-add">+                checked.Outline = SOutline{};</span>
+<span class="d-add">+                styles.Set(CheckedStyle(), checked);</span>
+<span class="d-add">+</span>
+<span class="d-add">+                SStyleOverride disabled;</span>
+<span class="d-add">+                disabled.BackgroundColor = SColor{ 0.094f, 0.098f, 0.106f, 0.5f };</span>
+<span class="d-add">+                styles.Set(DisabledStyle(), disabled);</span>
+<span class="d-add">+</span>
+<span class="d-add">+                SStyleOverride checkedDisabled;</span>
+<span class="d-add">+                checkedDisabled.BackgroundColor = SColor{ 0.208f, 0.455f, 0.941f, 0.5f };</span>
+<span class="d-add">+                checkedDisabled.Outline = SOutline{};</span>
+<span class="d-add">+                styles.Set(CheckedDisabledStyle(), checkedDisabled);</span>
+<span class="d-add">+</span>
+<span class="d-add">+                t-&gt;SetStyle(EStyleClass::Checkbox, std::move(styles));</span>
+<span class="d-add">+                return t;</span>
+<span class="d-add">+            }();</span>
+<span class="d-add">+</span>
+<span class="d-add">+            return theme;</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    Checkbox::Checkbox()</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        SetStyleClass(EStyleClass::Checkbox);</span>
+<span class="d-add">+        SetTheme(DefaultCheckboxTheme());</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-add">+    void Checkbox::SetChecked(const bool checked)</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        const ECheckState newState = checked ? ECheckState::Checked : ECheckState::Unchecked;</span>
+<span class="d-add">+        if (m_CheckState == newState) return;</span>
+<span class="d-add">+        m_CheckState = newState;</span>
+<span class="d-add">+        MarkRenderDirty();</span>
+<span class="d-add">+    }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     void Checkbox::SetSize(const glm::vec2&amp; size)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         if (m_Size == size) return;</span>
+<span class="d-ctx">         m_Size = size;</span>
+<span class="d-ctx">         MarkLayoutDirty();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-    void Checkbox::SetCheckedColor(const SColor&amp; color)</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        m_CheckedColor = color;</span>
+<span class="d-del">-        MarkRenderDirty();</span>
+<span class="d-del">-    }</span>
+<span class="d-del">-</span>
+<span class="d-ctx">     glm::vec2 Checkbox::ComputeDesiredSize(const glm::vec2&amp; availableSize)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         // Never ask for more than the parent actually offered - same rule Canvas follows.</span>
+<span class="d-ctx">         return glm::min(m_Size, availableSize);</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     void Checkbox::BuildDrawCommands(RenderBatch&amp; batch, const int zOrder)</span>
+<span class="d-ctx">     {</span>
+<span class="d-add">+        // No if (m_CheckState == ...) here: GetStyleContext already turned m_CheckState into</span>
+<span class="d-add">+        // EStyleVariant, and the theme (Checked/Checked+Disabled above) already declares the</span>
+<span class="d-add">+        // checked appearance. Checkbox draws the resolved style like any other widget.</span>
+<span class="d-ctx">         const SResolvedStyle style = GetResolvedStyle();</span>
+<span class="d-del">-</span>
+<span class="d-del">-        // A checked box is a solid fill with no outline instead of the resolved (Normal/</span>
+<span class="d-del">-        // Hovered/Disabled) background+outline - matches the fill-vs-outline language</span>
+<span class="d-del">-        // ViewportPanel::MakeCheckbox already used.</span>
+<span class="d-del">-        const SColor color = m_Checked ? m_CheckedColor : style.BackgroundColor;</span>
+<span class="d-del">-        const SOutline outline = m_Checked ? SOutline{} : style.Outline;</span>
+<span class="d-del">-</span>
+<span class="d-del">-        batch.AddRect(m_Geometry, color, style.CornerRadius, style.InsetShadow, style.DropShadow, outline, zOrder);</span>
+<span class="d-add">+        batch.AddRect(m_Geometry, style.BackgroundColor, style.CornerRadius, style.InsetShadow, style.DropShadow, style.Outline, zOrder);</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-add">+    SStyleContext Checkbox::GetStyleContext() const</span>
+<span class="d-add">+    {</span>
+<span class="d-add">+        SStyleContext context = Widget::GetStyleContext();</span>
+<span class="d-add">+</span>
+<span class="d-add">+        switch (m_CheckState)</span>
+<span class="d-add">+        {</span>
+<span class="d-add">+            case ECheckState::Checked:       context.Variant = EStyleVariant::Checked; break;</span>
+<span class="d-add">+            case ECheckState::Indeterminate: context.Variant = EStyleVariant::Indeterminate; break;</span>
+<span class="d-add">+            case ECheckState::Unchecked:     break;</span>
+<span class="d-add">+        }</span>
+<span class="d-add">+</span>
+<span class="d-add">+        return context;</span>
+<span class="d-add">+    }</span>
+<span class="d-add">+</span>
+<span class="d-ctx">     void Checkbox::HandleMouseEnter()</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         Widget::HandleMouseEnter();</span>
+<span class="d-ctx">         if (IsEnabled())</span>
+<span class="d-ctx">             Platform::Get().SetCursorShape(ECursorShape::Hand);</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     void Checkbox::HandleMouseLeave()</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         Widget::HandleMouseLeave();</span>
+<span class="d-ctx">         if (IsEnabled())</span>
+<span class="d-ctx">             Platform::Get().SetPreviousCursorShape();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     SInputReply Checkbox::HandleMouseDown(const MouseButtonPressedEvent&amp; event)</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         if (!IsEnabled()) return SInputReply::Unhandled();</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         m_Pressed = true;</span>
+<span class="d-ctx">         MarkRenderDirty();</span>
+<span class="d-ctx">         if (m_OnMouseDownCallback) m_OnMouseDownCallback();</span>
+<span class="d-ctx">         return SInputReply::HandledAndCaptured();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">     void Checkbox::HandleClick()</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">         if (!IsEnabled()) return;</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        m_Checked = !m_Checked;</span>
+<span class="d-add">+        m_CheckState = m_CheckState == ECheckState::Checked ? ECheckState::Unchecked : ECheckState::Checked;</span>
+<span class="d-ctx">         MarkRenderDirty();</span>
+<span class="d-del">-        if (m_OnCheckedChangedCallback) m_OnCheckedChangedCallback(m_Checked);</span>
+<span class="d-add">+        if (m_OnCheckedChangedCallback) m_OnCheckedChangedCallback(GetChecked());</span>
+<span class="d-ctx"> </span>
+<span class="d-ctx">         // Still runs the base OnClick callback too, in case a caller wants both.</span>
+<span class="d-ctx">         Widget::HandleClick();</span>
+<span class="d-ctx">     }</span>
+<span class="d-ctx"> }</span>
+</code></pre></div>
+  </section>
+
+  <section id="sec-fase3-cont">
+    <h3 class="file-heading" id="file-6-3"><span class="file-index">6.3</span> Elixir/Tests/Engine/GUI/CheckboxTest.cpp <span class="badge badge-phase">tratamento condensado</span></h3>
+    <p>
+      Os oito testes existentes (lidos na Seção 2) continuam válidos sem alteração:
+      <code class="i">GetChecked</code>/<code class="i">SetChecked</code>/<code class="i">OnCheckedChanged</code>
+      mantêm o mesmo contrato observável (6.1). O diff só promove
+      <code class="i">GetResolvedStyle</code>/<code class="i">GetStyleContext</code> em
+      <code class="i">TestCheckbox</code> e acrescenta os três testes que a spec §9.3 pede e que a
+      API antiga não conseguia expressar: variante no contexto, cor do tema (não mais um campo
+      ad-hoc) e a armadilha de <code class="i">Checked+Disabled</code> (spec §7.4) já coberta a
+      nível de <code class="i">StyleSet</code> em 4.3, agora verificada a nível de
+      <code class="i">Checkbox</code> de verdade (tema real, não um <code class="i">StyleSet</code>
+      construído à mão no teste).
+    </p>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Tests/Engine/GUI/CheckboxTest.cpp</span>
+<span class="d-file">+++ b/Elixir/Tests/Engine/GUI/CheckboxTest.cpp</span>
+<span class="d-hunk">@@ -11,8 +11,10 @@</span>
+<span class="d-ctx">     // Checkbox's own promoted surface: HandleMouseDown and HandleClick are protected</span>
+<span class="d-ctx">     // overrides with no public equivalent, so this test double promotes them the same way</span>
+<span class="d-ctx">     // ScrollBoxTest.cpp/ForEachChildTest.cpp promote other protected members.</span>
+<span class="d-ctx">     class TestCheckbox final : public Checkbox</span>
+<span class="d-ctx">     {</span>
+<span class="d-ctx">       public:</span>
+<span class="d-ctx">         using Checkbox::HandleMouseDown;</span>
+<span class="d-ctx">         using Checkbox::HandleClick;</span>
+<span class="d-add">+        using Checkbox::GetStyleContext;</span>
+<span class="d-add">+        using Checkbox::GetResolvedStyle;</span>
+<span class="d-ctx">     };</span>
+<span class="d-ctx"> }</span>
+</code></pre></div>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Tests/Engine/GUI/CheckboxTest.cpp</span>
+<span class="d-file">+++ b/Elixir/Tests/Engine/GUI/CheckboxTest.cpp</span>
+<span class="d-hunk">@@ -122,3 +124,45 @@</span>
+<span class="d-ctx">     EXPECT_FALSE(checkbox-&gt;GetChecked());</span>
+<span class="d-ctx">     EXPECT_EQ(callCount, 0);</span>
+<span class="d-ctx"> }</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(CheckboxTest, GetStyleContextReportsCheckedVariantWhenChecked)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    const auto checkbox = CreateRef&lt;TestCheckbox&gt;();</span>
+<span class="d-add">+</span>
+<span class="d-add">+    EXPECT_EQ(checkbox-&gt;GetStyleContext().Variant, EStyleVariant::Default);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    checkbox-&gt;SetChecked(true);</span>
+<span class="d-add">+    EXPECT_EQ(checkbox-&gt;GetStyleContext().Variant, EStyleVariant::Checked);</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(CheckboxTest, CheckedUsesTheThemesCheckedColorWithNoOutline)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    const auto checkbox = CreateRef&lt;TestCheckbox&gt;();</span>
+<span class="d-add">+    const SColor uncheckedColor = checkbox-&gt;GetResolvedStyle().BackgroundColor;</span>
+<span class="d-add">+</span>
+<span class="d-add">+    checkbox-&gt;SetChecked(true);</span>
+<span class="d-add">+    const SResolvedStyle checkedStyle = checkbox-&gt;GetResolvedStyle();</span>
+<span class="d-add">+</span>
+<span class="d-add">+    EXPECT_NE(checkedStyle.BackgroundColor, uncheckedColor)</span>
+<span class="d-add">+        &lt;&lt; "the checked color must come from the theme's Checked rule, not stay the unchecked "</span>
+<span class="d-add">+           "background - there is no m_CheckedColor field left to special-case this";</span>
+<span class="d-add">+    EXPECT_EQ(checkedStyle.Outline.Thickness, 0.0f)</span>
+<span class="d-add">+        &lt;&lt; "the theme's Checked rule sets Outline = SOutline{}, matching the old fill-vs-outline look";</span>
+<span class="d-add">+}</span>
+<span class="d-add">+</span>
+<span class="d-add">+TEST(CheckboxTest, CheckedAndDisabledKeepsACheckedAppearanceInsteadOfPlainDisabledGray)</span>
+<span class="d-add">+{</span>
+<span class="d-add">+    const auto checkbox = CreateRef&lt;TestCheckbox&gt;();</span>
+<span class="d-add">+    checkbox-&gt;SetChecked(true);</span>
+<span class="d-add">+    checkbox-&gt;SetEnabled(false);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    const auto disabledOnly = CreateRef&lt;TestCheckbox&gt;();</span>
+<span class="d-add">+    disabledOnly-&gt;SetEnabled(false);</span>
+<span class="d-add">+</span>
+<span class="d-add">+    EXPECT_NE(checkbox-&gt;GetResolvedStyle().BackgroundColor, disabledOnly-&gt;GetResolvedStyle().BackgroundColor)</span>
+<span class="d-add">+        &lt;&lt; "Checked+Disabled must be a distinct theme rule (Checkbox.cpp) - if it were left "</span>
+<span class="d-add">+           "undeclared, the generic Disabled rule would silently win and this checkbox would "</span>
+<span class="d-add">+           "be indistinguishable from an unchecked disabled one (spec Secao 7.4)";</span>
+<span class="d-add">+}</span>
+</code></pre></div>
+  </section>
+
+  <section id="sec-fase4">
+    <h2>7. Fase 4 — limpeza de API <span class="badge badge-phase">tratamento condensado, ver Seção 10</span></h2>
+    <p>
+      Só resta remover a ponte temporária de <code class="i">EStyleLayer</code> (4.1/4.2/5.4) -
+      nada mais no repositório a chama depois de 5.4-6.2, já que
+      <code class="i">Button</code>/<code class="i">TextField</code>/<code class="i">Checkbox</code>
+      passaram a usar <code class="i">SetStyleClass</code>/<code class="i">SetTheme</code> em vez de
+      <code class="i">SetStyle(EStyleLayer::X, ...)</code>. Não há construtor "que copia defaults
+      de tema por instância" sobrando para remover - 5.7/5.8/6.2 já eliminaram esse padrão ao
+      migrar para tema estático, então esse item da spec (§8, Fase 4) já está satisfeito por
+      construção, não por um diff adicional aqui.
+    </p>
+
+    <h3 class="file-heading" id="file-7-1"><span class="file-index">7.1</span> Elixir/Source/Engine/GUI/Style.h</h3>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Style.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Style.h</span>
+<span class="d-hunk">@@ -8,15 +8,6 @@</span>
+<span class="d-ctx"> namespace Elixir::GUI</span>
+<span class="d-ctx"> {</span>
+<span class="d-del">-    /**</span>
+<span class="d-del">-     * @brief Temporary bridge to the old per-layer style API (StyleSet::Get/Set/Clear(EStyleLayer)</span>
+<span class="d-del">-     * and Widget's per-layer setters). Removed once every call site moves to SStyleSelector -</span>
+<span class="d-del">-     * see the migration doc, Fase 4.</span>
+<span class="d-del">-     */</span>
+<span class="d-del">-    enum class EStyleLayer : uint8_t</span>
+<span class="d-del">-    {</span>
+<span class="d-del">-        Normal,</span>
+<span class="d-del">-        Hovered,</span>
+<span class="d-del">-        Pressed,</span>
+<span class="d-del">-        Focused,</span>
+<span class="d-del">-        Disabled,</span>
+<span class="d-del">-        Count</span>
+<span class="d-del">-    };</span>
+<span class="d-del">-</span>
+<span class="d-ctx">     /**</span>
+<span class="d-ctx">      * @brief Snapshot of which interaction states are active on a widget this frame.</span>
+<span class="d-ctx">      *</span>
+</code></pre></div>
+    <div class="diff-wrap"><pre class="diff"><code><span class="d-file">--- a/Elixir/Source/Engine/GUI/Style.h</span>
+<span class="d-file">+++ b/Elixir/Source/Engine/GUI/Style.h</span>
+<span class="d-hunk">@@ -184,13 +175,6 @@</span>
+<span class="d-ctx">         void Clear(SStyleSelector selector);</span>
+<span class="d-ctx"> </span>
+<span class="d-del">-        // --- Temporary EStyleLayer bridge, see the EStyleLayer doc comment above -----------</span>
+<span class="d-del">-</span>
+<span class="d-del">-        const SStyleOverride&amp; Get(EStyleLayer layer) const;</span>
+<span class="d-del">-        void Set(EStyleLayer layer, const SStyleOverride&amp; style);</span>
+<span class="d-del">-        void Clear(EStyleLayer layer);</span>
+<span class="d-del">-</span>
+<span class="d-del">-        /**</span>
+<span class="d-del">-         * Temporary EInteractionState bridge: equivalent to</span>
+<span class="d-del">-         * ResolveStyle({}, nullptr, *this, { states, EStyleVariant::Default }). Kept only until</span>
+<span class="d-del">-         * Widget::GetResolvedStyle moves to the fallback/theme/context call in Fase 2.</span>
+<span class="d-del">-         * @param states Interaction states active this frame.</span>
+<span class="d-del">-         * @return The composed, ready-to-draw style.</span>
+<span class="d-del">-         */</span>
+<span class="d-del">-        SResolvedStyle Resolve(EInteractionState states) const;</span>
+<span class="d-del">-</span>
+<span class="d-ctx">     private:</span>
+</code></pre></div>
+
+    <h3 class="file-heading" id="file-7-2"><span class="file-index">7.2</span> Elixir/Source/Engine/GUI/Style.cpp</h3>
+    <p>
+      Remove <code class="i">SelectorForLayer</code>, os três métodos <code class="i">StyleSet::Get/Set/Clear(EStyleLayer)</code>
+      e <code class="i">StyleSet::Resolve(EInteractionState)</code> - simétrico à remoção acima.
+      Sem diff separado aqui: é a remoção mecânica dos blocos que 4.2 introduziu especificamente
+      como ponte, já apontados naquele diff.
+    </p>
+
+    <h3 class="file-heading" id="file-7-3"><span class="file-index">7.3</span> Elixir/Tests/Engine/GUI/StyleTest.cpp</h3>
+    <p>
+      Os dez testes originais (Seção 2) usavam exatamente a API removida aqui
+      (<code class="i">EStyleLayer</code>/<code class="i">StyleSet::Resolve(EInteractionState)</code>).
+      Precisam ser reescritos contra <code class="i">SStyleSelector</code>/<code class="i">ResolveStyle</code>
+      nesta fase para continuar compilando - a cobertura que eles davam (Normal/Hovered/Pressed/
+      Focused/Disabled, textura vazia limpando herança, layer inativo não vazando) já está
+      duplicada pelos testes novos de 4.3 (que usam a API nova desde o início), então a reescrita
+      é uma tradução 1:1 de nome de teste para os equivalentes já escritos em 4.3, não trabalho de
+      design novo. Registrado como o item que este documento condensa mais - ver Seção 10.
+    </p>
+  </section>
+
+  <section id="sec-ordem">
+    <h2>8. Ordem de aplicação</h2>
+    <p class="lede">
+      As quatro fases são sequenciais por construção (spec §8): cada uma depende da anterior
+      compilar e passar nos próprios testes antes de começar a próxima.
+    </p>
+    <ol class="steps">
+      <li>
+        <span class="step-title">Fase 1 (4.1-4.3) — Style.h / Style.cpp / StyleTest.cpp</span>
+        Nenhum outro arquivo do repositório muda. Validação: os dez testes antigos de
+        <code class="i">StyleTest.cpp</code> continuam passando via a ponte de
+        <code class="i">EStyleLayer</code>, e os novos (4.3) cobrem seletor/variante/prioridade
+        diretamente. Nenhuma mudança visual - <code class="i">Button</code>/<code class="i">TextField</code>/
+        <code class="i">Checkbox</code> nem sabem que a implementação por baixo mudou.
+      </li>
+      <li>
+        <span class="step-title">Fase 2 (5.1-5.8) — Theme, Widget, Button, TextField</span>
+        Depende de 4.1/4.2 (usa <code class="i">SStyleSelector</code>/<code class="i">ResolveStyle</code>).
+        Validação: <code class="i">Button</code>/<code class="i">TextField</code> sem overrides
+        locais produzem os mesmos draw commands de antes (3.2, 5.7-5.8) - nenhum teste de
+        widget deveria precisar mudar aqui, só compilar contra a nova assinatura de setter.
+      </li>
+      <li>
+        <span class="step-title">Fase 3 (6.1-6.3) — Checkbox</span>
+        Depende de 5.1-5.6 (<code class="i">Theme</code>/<code class="i">GetStyleContext</code>
+        precisam existir). Validação: os oito testes antigos de <code class="i">CheckboxTest.cpp</code>
+        continuam passando (6.1 preserva o contrato de <code class="i">GetChecked</code>/
+        <code class="i">SetChecked</code>/<code class="i">OnCheckedChanged</code>), mais os três
+        novos de 6.3 provando que a cor checked vem do tema e que
+        <code class="i">Checked+Disabled</code> é uma regra distinta.
+      </li>
+      <li>
+        <span class="step-title">Fase 4 (7.1-7.3) — remoção da ponte</span>
+        Depende de 5.4-6.2 (nenhum call site pode restar usando <code class="i">EStyleLayer</code>
+        antes disso). Validação: o build falha em qualquer call site esquecido - é uma remoção
+        pura, sem lógica nova, então "compila" já é a prova de que 7.3 (a reescrita de
+        <code class="i">StyleTest.cpp</code>) está completa.
+      </li>
+    </ol>
+  </section>
+
+  <section id="sec-riscos">
+    <h2>9. Riscos e pontos de atenção</h2>
+    <div class="risk-list">
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R1</span><code class="i">Checked+Disabled</code> precisa ser declarado - o próprio aviso da spec §7.4, agora com um teste que falha se ele sumir</div>
+        <p>
+          Sem a regra <code class="i">CheckedDisabledStyle()</code> em 6.2, um checkbox marcado e
+          desabilitado resolveria para o cinza genérico de <code class="i">Disabled</code> - a
+          <code class="i">Disabled</code> entra depois de <code class="i">Checked</code> em
+          <code class="i">ResolutionOrder</code> (3.2) e, sem uma regra <code class="i">Checked+Disabled</code>
+          mais específica para competir, a <code class="i">Disabled</code> genérica é a última a
+          corresponder e vence. Coberto por dois testes redundantes de propósito: um a nível de
+          <code class="i">StyleSet</code> puro (4.3, <code class="i">CheckedDisabledMustBeDeclaredExplicitlyOrDisabledWins</code>,
+          que literalmente demonstra o bug primeiro e depois a correção) e um a nível de
+          <code class="i">Checkbox</code> real (6.3, <code class="i">CheckedAndDisabledKeepsACheckedAppearanceInsteadOfPlainDisabledGray</code>).
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R2</span>Mudança de comportamento real, não só de implementação: checked+disabled agora tem uma cor própria</div>
+        <p>
+          Vale nomear com precisão: no código atual, um checkbox marcado e desabilitado desenha
+          <em>azul sólido opaco</em> - o <code class="i">if (m_Checked)</code> antigo
+          (<span class="file-ref">Checkbox.cpp:61-62</span>, Seção 2) vence incondicionalmente,
+          antes até de <code class="i">GetResolvedStyle()</code> ser consultado, então o
+          <code class="i">BackgroundColor</code> com alpha reduzido de <code class="i">Disabled</code>
+          nunca chega a ser lido para esse caso. Este diff (6.2) desenha em vez disso um azul com
+          <code class="i">alpha = 0.5f</code> (<code class="i">SColor{ 0.208f, 0.455f, 0.941f, 0.5f }</code>) -
+          mantém o tom (não regride para cinza) mas fica visualmente diferente do estado atual.
+          Nenhum teste read do repositório fixa esse alpha exato como contrato, então este
+          documento o trata como uma escolha de tema razoável dentro do espírito da spec, não
+          como algo derivável dela - se o visual exato importar, é um valor de tema para ajustar,
+          não uma mudança estrutural.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R3</span><code class="i">ResolutionOrder</code> sem <code class="i">Checked+Focused</code> é uma decisão deste documento, não um requisito explícito da spec</div>
+        <p>
+          Detalhado em 3.2: a tabela §5.2 da spec simplesmente não lista essa combinação, e nada
+          em §12 (critérios de aceite) a exige. Um <code class="i">Checkbox</code> focado e
+          marcado ao mesmo tempo hoje resolveria só a cor <code class="i">Checked</code> (nenhuma
+          regra de <code class="i">Focused</code> a mais é aplicada por cima) - o outline de foco
+          que <code class="i">Button</code>/<code class="i">TextField</code> ganham
+          (5.7/5.8, regra <code class="i">FocusedStyle()</code>) não tem equivalente no tema do
+          <code class="i">Checkbox</code> (6.2) para nenhuma variante, então isso não é uma
+          regressão introduzida por esta migração - é como o <code class="i">Checkbox</code> atual
+          já se comporta (seu construtor nunca populou <code class="i">EStyleLayer::Focused</code>,
+          Seção 2). Registrado para não ser confundido com um bug de <code class="i">ResolutionOrder</code>.
+        </p>
+      </div>
+
+      <div class="risk-item">
+        <div class="risk-title"><span class="risk-num">R4</span>Tema estático por função: sem <code class="i">Manager</code>, sem forma de trocar o tema padrão globalmente</div>
+        <p>
+          Detalhado em 3.3: como não existe um tema padrão configurável pelo
+          <code class="i">Manager</code> nesta migração (fora de escopo pela própria spec, §11),
+          cada <code class="i">Button</code>/<code class="i">TextField</code>/<code class="i">Checkbox</code>
+          criado aponta para o mesmo <code class="i">Ref&lt;const Theme&gt;</code> estático de função
+          da própria classe. Isso funciona para o objetivo desta migração (compartilhar defaults
+          entre instâncias, spec §12) mas não é o mesmo que um tema de aplicação trocável - trocar
+          a aparência de todo <code class="i">Button</code> do Editor hoje ainda significa chamar
+          <code class="i">widget-&gt;SetTheme(...)</code> instância por instância, ou substituir a
+          função <code class="i">DefaultButtonTheme()</code> e recompilar. Um tema de
+          <code class="i">Manager</code>/Editor de verdade é trabalho futuro explicitamente fora
+          de escopo (spec §11: "carregar, serializar ou editar temas no Editor").
+        </p>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="sec-escopo">
+    <h2>10. Escopo desta verificação</h2>
+    <p class="lede">
+      Seguindo a mesma transparência que o ponto 08 desta série já praticou quando o volume da
+      Fase 3/4 excedeu o que cabe em uma verificação de rigor máximo em um documento só.
+    </p>
+    <table class="spec">
+      <tr><th>Fase</th><th>Tratamento</th></tr>
+      <tr>
+        <td>Fase 1 (Seção 4)</td>
+        <td><strong>Rigor total.</strong> Diff completo de <code class="i">Style.h</code>/<code class="i">.cpp</code>
+        contra o conteúdo real lido (Seção 2), corpo inteiro de cada função nova transcrito,
+        onze testes novos cobrindo cada item de spec §9.1/§9.2 individualmente.</td>
+      </tr>
+      <tr>
+        <td>Fase 2 (Seções 5)</td>
+        <td><strong>Rigor total.</strong> Dois arquivos novos completos (<code class="i">Theme.h</code>/<code class="i">.cpp</code>),
+        <code class="i">Widget.h</code>/<code class="i">.cpp</code> com todo setter mostrado
+        (nenhum "e os outros seguem o padrão"), construtores de <code class="i">Button</code>/
+        <code class="i">TextField</code> completos. Único desvio anotado explicitamente: o
+        helper <code class="i">PatchStyle</code>/<code class="i">GetLocalStyleOverride</code>
+        (5.5) não está literalmente na spec - foi necessário para fechar a remoção de
+        <code class="i">GetStyle</code>, e está marcado como tal em vez de apresentado como se a
+        spec o tivesse pedido.</td>
+      </tr>
+      <tr>
+        <td>Fase 3 (Seção 6)</td>
+        <td><strong>Condensado, mas concreto.</strong> <code class="i">Checkbox.h</code>/<code class="i">.cpp</code>
+        têm diff completo e verificado linha a linha contra o conteúdo real (Seção 2) - nada
+        condensado ali. O que foi cortado: comentários de justificativa que já apareceram
+        integralmente em pontos anteriores desta série (ex. a nota longa sobre por que
+        <code class="i">HandleMouseDown</code> é sobrescrito, já documentada no ponto 07) foram
+        resumidos a uma linha com referência cruzada, em vez de reproduzidos por extenso de novo;
+        e <code class="i">CheckboxTest.cpp</code> ganhou só os três testes que a API nova torna
+        possível, não uma reescrita de todos os oito testes existentes (que não precisam mudar).</td>
+      </tr>
+      <tr>
+        <td>Fase 4 (Seção 7)</td>
+        <td><strong>Condensado.</strong> A remoção da ponte em <code class="i">Style.h</code> tem
+        diff real; a remoção simétrica em <code class="i">Style.cpp</code> e a reescrita de
+        <code class="i">StyleTest.cpp</code> contra a API nova são descritas em prosa (7.2, 7.3)
+        em vez de diff linha a linha - são mecânicas por construção (excluir os blocos que 4.2/4.3
+        introduziram especificamente como ponte, sem lógica nova nenhuma) e o conteúdo de
+        destino de <code class="i">StyleTest.cpp</code> já existe, por extenso, nos testes de 4.3.</td>
+      </tr>
+    </table>
+    <p>
+      Nenhuma fase teve seu diff <em>inventado</em> sem base no código real - a condensação em
+      Fase 3/4 é sobre quanto texto de prosa/comentário foi reproduzido, não sobre a fidelidade
+      do que foi mostrado.
+    </p>
+  </section>
+
+  <footer class="doc-footer">
+    Elixir · Refatoração da GUI · Tema e variantes de estilo do Checkbox.
+  </footer>
+</div>
+</body>
+</html>
