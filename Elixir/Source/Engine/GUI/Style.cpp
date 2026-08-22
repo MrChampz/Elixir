@@ -4,6 +4,7 @@
 #include <Engine/GUI/Button.h>
 #include <Engine/GUI/Checkbox.h>
 #include <Engine/GUI/Icon.h>
+#include <Engine/GUI/ScrollBox.h>
 #include <Engine/GUI/TextField.h>
 #include <Engine/GUI/Widget.h>
 
@@ -25,6 +26,18 @@ namespace Elixir::GUI
             StyleSet styles;
 
             styles.SetWidgetStyle(SWidgetStyle{});
+
+            SScrollBarStyle scrollBar;
+            scrollBar.Normal.Track.Color = { 0.0f, 0.0f, 0.0f, 0.15f };
+            scrollBar.Normal.Thumb.Color = { 1.0f, 1.0f, 1.0f, 0.35f };
+            scrollBar.Normal.Thumb.CornerRadius = glm::vec4{ 4.0f };
+            scrollBar.Hovered = scrollBar.Normal;
+            scrollBar.Hovered->Thumb.Color.A = 0.55f;
+            scrollBar.Pressed = scrollBar.Hovered;
+            scrollBar.Focused = scrollBar.Normal;
+            scrollBar.Disabled = scrollBar.Normal;
+            scrollBar.Disabled->Thumb.Color.A = 0.2f;
+            styles.SetWidgetStyle(std::move(scrollBar));
 
             SIconStyle icon;
             icon.Normal.Foreground = { 0.875f, 0.882f, 0.898f, 1.0f };

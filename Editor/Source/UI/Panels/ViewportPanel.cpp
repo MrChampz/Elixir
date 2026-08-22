@@ -1,4 +1,5 @@
 #include "ViewportPanel.h"
+#include "../EditorStyles.h"
 
 #include <Engine/GUI/Button.h>
 #include <Engine/GUI/Checkbox.h>
@@ -11,24 +12,10 @@
 
 namespace
 {
-    // Same rough token stand-ins EditorUI uses, kept local since there's no shared theme
-    // object yet.
-    const GUI::SColor ColorPanelBg = { 0.071f, 0.075f, 0.082f, 0.9f };
-    const GUI::SColor ColorPanelBorder = { 0.25f, 0.26f, 0.29f, 1.0f };
-    const GUI::SColor ColorSectionHeaderBg = { 0.169f, 0.176f, 0.188f, 1.0f };
-    const GUI::SColor ColorFieldBg = { 0.094f, 0.098f, 0.106f, 1.0f };
-    const GUI::SColor ColorFieldBorder = { 0.224f, 0.231f, 0.251f, 1.0f };
-    const GUI::SColor ColorTextPrimary = { 0.875f, 0.882f, 0.898f, 1.0f };
-    const GUI::SColor ColorTextSecondary = { 0.616f, 0.627f, 0.659f, 1.0f };
-    const GUI::SColor ColorAccent = { 0.208f, 0.455f, 0.941f, 1.0f };
-    const GUI::SColor ColorAxisX = { 0.86f, 0.23f, 0.29f, 1.0f };
-    const GUI::SColor ColorAxisY = { 0.37f, 0.68f, 0.40f, 1.0f };
-    const GUI::SColor ColorAxisZ = { 0.33f, 0.54f, 0.97f, 1.0f };
-    const GUI::SColor ColorToolModeOff = { 0.35f, 0.36f, 0.40f, 0.0f };
-    const GUI::SColor ColorPlayOn = { 0.29f, 0.61f, 0.33f, 1.0f };
-    const GUI::SColor ColorPlayOff = { 0.16f, 0.24f, 0.18f, 0.0f };
-    const GUI::SColor ColorPauseOn = { 0.35f, 0.36f, 0.40f, 1.0f };
-    const GUI::SColor ColorPauseOff = { 0.20f, 0.21f, 0.23f, 0.0f };
+    const EditorStyle::SChromeStyles& Styles()
+    {
+        return EditorStyle::Get();
+    }
 
     constexpr float PanelHeaderHeight = 28.0f;
     constexpr float RowHeight = 24.0f;
@@ -43,19 +30,16 @@ namespace
         return buffer;
     }
 
-    Ref<GUI::Button> CreateChromeButton(const GUI::SBrush& brush)
+    Ref<GUI::Button> CreateChromeButton(const GUI::SButtonStyle& style)
     {
         const auto button = CreateRef<GUI::Button>();
-        auto style = GUI::GetDefaultStyles().GetWidgetStyle<GUI::SButtonStyle>();
-        for (size_t index = 0; index < static_cast<size_t>(GUI::EStyleLayer::Count); ++index)
-            style.Get(static_cast<GUI::EStyleLayer>(index)).Background = brush;
         button->SetStyle(style);
         return button;
     }
 
     Ref<GUI::Button> CreatePanelHeaderButton()
     {
-        return CreateChromeButton({});
+        return CreateChromeButton(Styles().PanelHeaderButton);
     }
 }
 
@@ -64,7 +48,7 @@ Ref<GUI::Widget> ViewportPanel::Build()
     const auto root = CreateRef<GUI::Canvas>();
     // Neutral placeholder - the real scene render will fill this in later, so there's no
     // stand-in landscape here, just the floating chrome (toolbar, panels, stats overlay).
-    root->SetBackgroundColor(GUI::EStyleLayer::Normal, { 0.0f, 0.0f, 0.0f, 0.0f });
+    root->SetStyle(Styles().Transparent);
 
     BuildToolbar(root);
     BuildHierarchyPanel(root);
@@ -77,9 +61,7 @@ Ref<GUI::Widget> ViewportPanel::Build()
 void ViewportPanel::BuildToolbar(const Ref<GUI::Canvas>& root)
 {
     const auto panel = CreateRef<GUI::Overlay>();
-    panel->SetBackgroundColor(GUI::EStyleLayer::Normal, { 0.118f, 0.122f, 0.133f, 0.78f });
-    panel->SetOutline(GUI::EStyleLayer::Normal, { ColorPanelBorder, 1.0f });
-    panel->SetCornerRadius(GUI::EStyleLayer::Normal, 8.0f);
+    panel->SetStyle(Styles().Toolbar);
     panel->SetPadding(GUI::SMargin(4.0f));
 
     const auto row = CreateRef<GUI::HorizontalBox>();
@@ -97,13 +79,14 @@ void ViewportPanel::BuildToolbar(const Ref<GUI::Canvas>& root)
     {
         const auto swatch = CreateRef<GUI::Canvas>();
         swatch->SetSize({ 24.0f, 24.0f });
-        swatch->SetCornerRadius(GUI::EStyleLayer::Normal, 24.0f * 0.22f);
+        swatch->SetStyle(Styles().ToolbarButtonInactive);
         row->AddChild(swatch).SetMargin(GUI::SMargin(0.0f, 0.0f, index < 2 ? 2.0f : 0.0f, 0.0f));
         m_ToolModeSwatches.push_back(swatch);
 
         const auto icon = CreateRef<GUI::Icon>();
         icon->SetIcon(IconManager::Load(toolIconPaths[index]));
         icon->SetSize({ 14.0f, 14.0f });
+        icon->SetStyle(Styles().SecondaryIcon);
         swatch->AddChild(icon)
             .SetAnchors(GUI::SAnchors::MiddleCenter())
             .SetAlignment({ 0.5f, 0.5f })
@@ -115,34 +98,33 @@ void ViewportPanel::BuildToolbar(const Ref<GUI::Canvas>& root)
 
     const auto divider1 = CreateRef<GUI::Canvas>();
     divider1->SetSize({ 1.0f, 18.0f });
-    divider1->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorPanelBorder);
+    divider1->SetStyle(Styles().PanelHeaderBorder);
     row->AddChild(divider1).SetMargin(GUI::SMargin(8.0f, 0.0f));
 
     const auto pivot = CreateRef<GUI::Overlay>();
-    pivot->SetBackgroundColor(GUI::EStyleLayer::Normal, {});
-    pivot->SetOutline(GUI::EStyleLayer::Normal, { ColorPanelBorder, 1.0f });
-    pivot->SetCornerRadius(GUI::EStyleLayer::Normal, 4.0f);
+    pivot->SetStyle(Styles().InspectorField);
     pivot->SetPadding(GUI::SMargin(8.0f, 3.0f));
     row->AddChild(pivot);
 
     const auto pivotLabel = CreateRef<GUI::TextBlock>("Local");
-    pivotLabel->SetColor(ColorTextPrimary);
+    pivotLabel->SetColor(Styles().TextPrimary);
     pivotLabel->SetFontSize(11.0f);
     pivot->AddChild(pivotLabel);
 
     const auto divider2 = CreateRef<GUI::Canvas>();
     divider2->SetSize({ 1.0f, 18.0f });
-    divider2->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorPanelBorder);
+    divider2->SetStyle(Styles().PanelHeaderBorder);
     row->AddChild(divider2).SetMargin(GUI::SMargin(8.0f, 0.0f));
 
     const auto play = CreateRef<GUI::Canvas>();
     play->SetSize({ 26.0f, 26.0f });
-    play->SetCornerRadius(GUI::EStyleLayer::Normal, 6.0f);
+    play->SetStyle(Styles().PlayButtonInactive);
     row->AddChild(play).SetMargin(GUI::SMargin(0.0f, 0.0f, 2.0f, 0.0f));
     m_PlayButton = play;
     m_PlayIcon = CreateRef<GUI::Icon>();
     m_PlayIcon->SetIcon(IconManager::Load("./Assets/Icons/play.svg"));
     m_PlayIcon->SetSize({ 13.0f, 13.0f });
+    m_PlayIcon->SetStyle(Styles().SecondaryIcon);
     play->AddChild(m_PlayIcon)
         .SetAnchors(GUI::SAnchors::MiddleCenter())
         .SetAlignment({ 0.5f, 0.5f })
@@ -151,12 +133,13 @@ void ViewportPanel::BuildToolbar(const Ref<GUI::Canvas>& root)
 
     const auto pause = CreateRef<GUI::Canvas>();
     pause->SetSize({ 26.0f, 26.0f });
-    pause->SetCornerRadius(GUI::EStyleLayer::Normal, 6.0f);
+    pause->SetStyle(Styles().PauseButtonInactive);
     row->AddChild(pause);
     m_PauseButton = pause;
     m_PauseIcon = CreateRef<GUI::Icon>();
     m_PauseIcon->SetIcon(IconManager::Load("./Assets/Icons/pause.svg"));
     m_PauseIcon->SetSize({ 13.0f, 13.0f });
+    m_PauseIcon->SetStyle(Styles().SecondaryIcon);
     pause->AddChild(m_PauseIcon)
         .SetAnchors(GUI::SAnchors::MiddleCenter())
         .SetAlignment({ 0.5f, 0.5f })
@@ -175,9 +158,7 @@ void ViewportPanel::BuildToolbar(const Ref<GUI::Canvas>& root)
 void ViewportPanel::BuildHierarchyPanel(const Ref<GUI::Canvas>& root)
 {
     const auto panel = CreateRef<GUI::Overlay>();
-    panel->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorPanelBg);
-    panel->SetOutline(GUI::EStyleLayer::Normal, { ColorPanelBorder, 1.0f });
-    panel->SetCornerRadius(GUI::EStyleLayer::Normal, 8.0f);
+    panel->SetStyle(Styles().Panel);
 
     root->AddChild(panel)
         .SetAnchors(GUI::SAnchors::TopLeft())
@@ -202,12 +183,12 @@ void ViewportPanel::BuildHierarchyPanel(const Ref<GUI::Canvas>& root)
     header->OnClick([this] { SetHierarchyPanelOpen(false); });
 
     const auto title = CreateRef<GUI::TextBlock>("Hierarchy");
-    title->SetColor(ColorTextPrimary);
+    title->SetColor(Styles().TextPrimary);
     title->SetFontSize(12.0f);
     const auto icon = CreateRef<GUI::Icon>();
     icon->SetIcon(IconManager::Load("./Assets/Icons/hierarchy.svg"));
     icon->SetSize({ 14.0f, 14.0f });
-    icon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
+    icon->SetStyle(Styles().SecondaryIcon);
     headerContent->AddChild(icon).SetMargin(GUI::SMargin(0.0f, 0.0f, 6.0f, 0.0f));
     headerContent->AddChild(title);
 
@@ -217,17 +198,17 @@ void ViewportPanel::BuildHierarchyPanel(const Ref<GUI::Canvas>& root)
     const auto closeIcon = CreateRef<GUI::Icon>();
     closeIcon->SetIcon(IconManager::Load("./Assets/Icons/close.svg"));
     closeIcon->SetSize({ 11.0f, 11.0f });
-    closeIcon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
+    closeIcon->SetStyle(Styles().SecondaryIcon);
     headerContent->AddChild(closeIcon);
 
     const auto headerBorder = CreateRef<GUI::Canvas>();
-    headerBorder->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorPanelBorder);
+    headerBorder->SetStyle(Styles().PanelHeaderBorder);
     column->AddChild(headerBorder)
         .SetFixedSize(1.0f)
         .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
 
     const auto scrollBox = CreateRef<GUI::ScrollBox>();
-    scrollBox->SetScrollbarThickness(8.0f);
+    scrollBox->SetStyle(Styles().ScrollBar);
     column->AddChild(scrollBox)
         .SetFillSize()
         .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
@@ -252,8 +233,8 @@ void ViewportPanel::BuildHierarchyPanel(const Ref<GUI::Canvas>& root)
         const auto& item = items[i];
 
         const auto row = CreateRef<GUI::Overlay>();
+        row->SetStyle(Styles().Transparent);
         row->SetPadding(GUI::SMargin(8.0f + item.Indent, 0.0f, 8.0f, 0.0f));
-        row->SetCornerRadius(GUI::EStyleLayer::Normal, 4.0f);
         list->AddChild(row)
             .SetFixedSize(22.0f)
             .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
@@ -270,11 +251,7 @@ void ViewportPanel::BuildHierarchyPanel(const Ref<GUI::Canvas>& root)
 
     SetSelectedHierarchyRow(m_SelectedHierarchyIndex);
 
-    GUI::SBrush panelToggleBrush;
-    panelToggleBrush.Color = ColorPanelBg;
-    panelToggleBrush.Outline = { ColorPanelBorder, 1.0f };
-    panelToggleBrush.CornerRadius = glm::vec4(8.0f);
-    const auto panelToggle = CreateChromeButton(panelToggleBrush);
+    const auto panelToggle = CreateChromeButton(Styles().PanelToggleButton);
     root->AddChild(panelToggle)
         .SetAnchors(GUI::SAnchors::TopLeft())
         .SetPosition({ 10.0f, 10.0f })
@@ -284,7 +261,7 @@ void ViewportPanel::BuildHierarchyPanel(const Ref<GUI::Canvas>& root)
     const auto panelToggleIcon = CreateRef<GUI::Icon>();
     panelToggleIcon->SetIcon(IconManager::Load("./Assets/Icons/hierarchy.svg"));
     panelToggleIcon->SetSize({ 14.0f, 14.0f });
-    panelToggleIcon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
+    panelToggleIcon->SetStyle(Styles().SecondaryIcon);
     panelToggle->SetContent(panelToggleIcon);
     panelToggle->OnClick([this] { SetHierarchyPanelOpen(true); });
     SetHierarchyPanelOpen(true);
@@ -293,9 +270,7 @@ void ViewportPanel::BuildHierarchyPanel(const Ref<GUI::Canvas>& root)
 void ViewportPanel::BuildInspectorPanel(const Ref<GUI::Canvas>& root)
 {
     const auto panel = CreateRef<GUI::Overlay>();
-    panel->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorPanelBg);
-    panel->SetOutline(GUI::EStyleLayer::Normal, { ColorPanelBorder, 1.0f });
-    panel->SetCornerRadius(GUI::EStyleLayer::Normal, 8.0f);
+    panel->SetStyle(Styles().Panel);
 
     // Right-anchored, stretched vertically (top:10, bottom:10 in the mock); horizontal is
     // non-stretching, so Position/Alignment place the panel's own right edge 10px in from
@@ -325,12 +300,12 @@ void ViewportPanel::BuildInspectorPanel(const Ref<GUI::Canvas>& root)
     header->OnClick([this] { SetInspectorPanelOpen(false); });
 
     const auto title = CreateRef<GUI::TextBlock>("Inspector");
-    title->SetColor(ColorTextPrimary);
+    title->SetColor(Styles().TextPrimary);
     title->SetFontSize(12.0f);
     const auto icon = CreateRef<GUI::Icon>();
     icon->SetIcon(IconManager::Load("./Assets/Icons/inspector.svg"));
     icon->SetSize({ 13.0f, 13.0f });
-    icon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
+    icon->SetStyle(Styles().SecondaryIcon);
     headerContent->AddChild(icon).SetMargin(GUI::SMargin(0.0f, 0.0f, 6.0f, 0.0f));
     headerContent->AddChild(title);
 
@@ -340,17 +315,17 @@ void ViewportPanel::BuildInspectorPanel(const Ref<GUI::Canvas>& root)
     const auto closeIcon = CreateRef<GUI::Icon>();
     closeIcon->SetIcon(IconManager::Load("./Assets/Icons/close.svg"));
     closeIcon->SetSize({ 11.0f, 11.0f });
-    closeIcon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
+    closeIcon->SetStyle(Styles().SecondaryIcon);
     headerContent->AddChild(closeIcon);
 
     const auto headerBorder = CreateRef<GUI::Canvas>();
-    headerBorder->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorPanelBorder);
+    headerBorder->SetStyle(Styles().PanelHeaderBorder);
     column->AddChild(headerBorder)
         .SetFixedSize(1.0f)
         .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
 
     const auto scrollBox = CreateRef<GUI::ScrollBox>();
-    scrollBox->SetScrollbarThickness(8.0f);
+    scrollBox->SetStyle(Styles().ScrollBar);
     column->AddChild(scrollBox)
         .SetFillSize()
         .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
@@ -365,13 +340,10 @@ void ViewportPanel::BuildInspectorPanel(const Ref<GUI::Canvas>& root)
         list->AddChild(block).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
 
         const auto nameField = CreateRef<GUI::TextField>(m_HierarchyRows.empty() ? "Player" : m_HierarchyRows[m_SelectedHierarchyIndex].Label->GetText());
-        nameField->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorFieldBg);
-        nameField->SetOutline(GUI::EStyleLayer::Normal, { ColorFieldBorder, 1.0f });
-        nameField->SetCornerRadius(GUI::EStyleLayer::Normal, 4.0f);
+        nameField->SetStyle(Styles().TextField);
         nameField->SetPadding({ 8.0f, 5.0f });
-        nameField->SetTextColor(GUI::EStyleLayer::Normal, ColorTextPrimary);
-        nameField->SetCursorColor(ColorTextPrimary);
-        nameField->SetSelectionColor({ ColorAccent.R, ColorAccent.G, ColorAccent.B, 0.35f });
+        nameField->SetCursorColor(Styles().TextPrimary);
+        nameField->SetSelectionColor({ Styles().Accent.R, Styles().Accent.G, Styles().Accent.B, 0.35f });
         nameField->SetFontSize(13.0f);
         block->AddChild(nameField).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
     }
@@ -408,36 +380,29 @@ void ViewportPanel::BuildInspectorPanel(const Ref<GUI::Canvas>& root)
         list->AddChild(block).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
 
         const auto addButton = CreateRef<GUI::Overlay>();
-        addButton->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorSectionHeaderBg);
-        addButton->SetCornerRadius(GUI::EStyleLayer::Normal, 4.0f);
+        addButton->SetStyle(Styles().PanelSection);
         addButton->SetPadding({ 12.0f, 6.0f });
         block->AddChild(addButton).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
 
         const auto label = CreateRef<GUI::TextBlock>("Add Component");
-        label->SetColor(ColorTextPrimary);
+        label->SetColor(Styles().TextPrimary);
         label->SetFontSize(13.0f);
         addButton->AddChild(label);
 
-        // No real component registry to add to - a demo click still needs to visibly do
-        // something, so it just flashes the button darker on press.
         const WeakRef<GUI::Widget> addButtonWeak = addButton;
         addButton->OnMouseDown([addButtonWeak]
         {
             if (const auto widget = addButtonWeak.lock())
-                std::static_pointer_cast<GUI::Overlay>(widget)->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorFieldBg);
+                std::static_pointer_cast<GUI::Overlay>(widget)->SetStyle(Styles().InspectorField);
         });
         addButton->OnMouseUp([addButtonWeak]
         {
             if (const auto widget = addButtonWeak.lock())
-                std::static_pointer_cast<GUI::Overlay>(widget)->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorSectionHeaderBg);
+                std::static_pointer_cast<GUI::Overlay>(widget)->SetStyle(Styles().PanelSection);
         });
     }
 
-    GUI::SBrush panelToggleBrush;
-    panelToggleBrush.Color = ColorPanelBg;
-    panelToggleBrush.Outline = { ColorPanelBorder, 1.0f };
-    panelToggleBrush.CornerRadius = glm::vec4(8.0f);
-    const auto panelToggle = CreateChromeButton(panelToggleBrush);
+    const auto panelToggle = CreateChromeButton(Styles().PanelToggleButton);
     root->AddChild(panelToggle)
         .SetAnchors(GUI::SAnchors::TopRight())
         .SetPosition({ -10.0f, 10.0f })
@@ -448,7 +413,7 @@ void ViewportPanel::BuildInspectorPanel(const Ref<GUI::Canvas>& root)
     const auto panelToggleIcon = CreateRef<GUI::Icon>();
     panelToggleIcon->SetIcon(IconManager::Load("./Assets/Icons/inspector.svg"));
     panelToggleIcon->SetSize({ 13.0f, 13.0f });
-    panelToggleIcon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
+    panelToggleIcon->SetStyle(Styles().SecondaryIcon);
     panelToggle->SetContent(panelToggleIcon);
     panelToggle->OnClick([this] { SetInspectorPanelOpen(true); });
     SetInspectorPanelOpen(true);
@@ -457,9 +422,7 @@ void ViewportPanel::BuildInspectorPanel(const Ref<GUI::Canvas>& root)
 void ViewportPanel::BuildStatsOverlay(const Ref<GUI::Canvas>& root)
 {
     const auto panel = CreateRef<GUI::Overlay>();
-    panel->SetBackgroundColor(GUI::EStyleLayer::Normal, { 0.118f, 0.122f, 0.133f, 0.55f });
-    panel->SetOutline(GUI::EStyleLayer::Normal, { ColorPanelBorder, 1.0f });
-    panel->SetCornerRadius(GUI::EStyleLayer::Normal, 5.0f);
+    panel->SetStyle(Styles().StatsOverlay);
     panel->SetPadding({ 10.0f, 6.0f });
 
     root->AddChild(panel)
@@ -471,12 +434,12 @@ void ViewportPanel::BuildStatsOverlay(const Ref<GUI::Canvas>& root)
     panel->AddChild(column);
 
     const auto line1 = CreateRef<GUI::TextBlock>("60 FPS - 4.2ms");
-    line1->SetColor({ 0.7f, 0.72f, 0.75f, 1.0f });
+    line1->SetColor(Styles().TextSecondary);
     line1->SetFontSize(11.0f);
     column->AddChild(line1);
 
     const auto line2 = CreateRef<GUI::TextBlock>("12,480 tris - 38 draw calls");
-    line2->SetColor({ 0.7f, 0.72f, 0.75f, 1.0f });
+    line2->SetColor(Styles().TextSecondary);
     line2->SetFontSize(11.0f);
     column->AddChild(line2);
 }
@@ -488,21 +451,22 @@ void ViewportPanel::SetActiveToolMode(const int index)
     {
         const auto canvas = std::static_pointer_cast<GUI::Canvas>(m_ToolModeSwatches[i]);
         const bool active = static_cast<int>(i) == index;
-        canvas->SetBackgroundColor(GUI::EStyleLayer::Normal, active ? ColorAccent : ColorToolModeOff);
-        m_ToolModeIcons[i]->SetColor(
-            GUI::EStyleLayer::Normal,
-            active ? GUI::SColor{ 1.0f, 1.0f, 1.0f, 1.0f } : ColorTextSecondary
-        );
+        canvas->SetStyle(active ? Styles().ToolbarButtonActive : Styles().ToolbarButtonInactive);
+        m_ToolModeIcons[i]->SetStyle(active ? Styles().PrimaryIcon : Styles().SecondaryIcon);
     }
 }
 
 void ViewportPanel::SetPlaying(const bool playing)
 {
     m_IsPlaying = playing;
-    std::static_pointer_cast<GUI::Canvas>(m_PlayButton)->SetBackgroundColor(GUI::EStyleLayer::Normal, playing ? ColorPlayOn : ColorPlayOff);
-    std::static_pointer_cast<GUI::Canvas>(m_PauseButton)->SetBackgroundColor(GUI::EStyleLayer::Normal, playing ? ColorPauseOff : ColorPauseOn);
-    m_PlayIcon->SetColor(GUI::EStyleLayer::Normal, playing ? GUI::SColor{ 1.0f, 1.0f, 1.0f, 1.0f } : ColorTextSecondary);
-    m_PauseIcon->SetColor(GUI::EStyleLayer::Normal, playing ? ColorTextSecondary : GUI::SColor{ 1.0f, 1.0f, 1.0f, 1.0f });
+    std::static_pointer_cast<GUI::Canvas>(m_PlayButton)->SetStyle(
+        playing ? Styles().PlayButtonActive : Styles().PlayButtonInactive
+    );
+    std::static_pointer_cast<GUI::Canvas>(m_PauseButton)->SetStyle(
+        playing ? Styles().PauseButtonInactive : Styles().PauseButtonActive
+    );
+    m_PlayIcon->SetStyle(playing ? Styles().PrimaryIcon : Styles().SecondaryIcon);
+    m_PauseIcon->SetStyle(playing ? Styles().SecondaryIcon : Styles().PrimaryIcon);
 }
 
 void ViewportPanel::SetSelectedHierarchyRow(const int index)
@@ -512,8 +476,8 @@ void ViewportPanel::SetSelectedHierarchyRow(const int index)
     {
         const bool selected = static_cast<int>(i) == index;
         std::static_pointer_cast<GUI::Overlay>(m_HierarchyRows[i].Row)
-            ->SetBackgroundColor(GUI::EStyleLayer::Normal, selected ? GUI::SColor{ ColorAccent.R, ColorAccent.G, ColorAccent.B, 0.28f } : GUI::SColor{});
-        m_HierarchyRows[i].Label->SetColor(selected ? ColorTextPrimary : ColorTextSecondary);
+            ->SetStyle(selected ? Styles().Selection : Styles().Transparent);
+        m_HierarchyRows[i].Label->SetColor(selected ? Styles().TextPrimary : Styles().TextSecondary);
     }
 }
 
@@ -537,7 +501,7 @@ void ViewportPanel::AddInspectorSectionHeader(
 )
 {
     const auto header = CreateRef<GUI::HorizontalBox>();
-    header->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorSectionHeaderBg);
+    header->SetStyle(Styles().PanelSection);
     header->SetPadding({ 10.0f, 0.0f });
     list->AddChild(header)
         .SetFixedSize(PanelHeaderHeight)
@@ -547,7 +511,7 @@ void ViewportPanel::AddInspectorSectionHeader(
     const auto disclosureIcon = CreateRef<GUI::Icon>();
     disclosureIcon->SetIcon(IconManager::Load("./Assets/Icons/chevron-right.svg"));
     disclosureIcon->SetSize({ 9.0f, 9.0f });
-    disclosureIcon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
+    disclosureIcon->SetStyle(Styles().SecondaryIcon);
     header->AddChild(disclosureIcon).SetMargin(GUI::SMargin(0.0f, 0.0f, 6.0f, 0.0f));
 
     if (iconPath)
@@ -560,7 +524,7 @@ void ViewportPanel::AddInspectorSectionHeader(
     }
 
     const auto label = CreateRef<GUI::TextBlock>(name);
-    label->SetColor(ColorTextPrimary);
+    label->SetColor(Styles().TextPrimary);
     label->SetFontSize(12.0f);
     header->AddChild(label);
 
@@ -571,10 +535,7 @@ void ViewportPanel::AddInspectorSectionHeader(
 
         const auto checkbox = CreateRef<GUI::Checkbox>();
         checkbox->SetSize({ 13.0f, 13.0f });
-        checkbox->SetCornerRadius(GUI::EStyleLayer::Normal, 3.0f);
-        checkbox->SetCheckedColor(ColorAccent);
-        checkbox->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorFieldBg);
-        checkbox->SetOutline(GUI::EStyleLayer::Normal, { ColorFieldBorder, 1.0f });
+        checkbox->SetStyle(Styles().Checkbox);
         checkbox->SetChecked(*enabledValue);
         checkbox->OnCheckedChanged([enabledValue](const bool checked) { *enabledValue = checked; });
         header->AddChild(checkbox).SetVerticalAlignment(GUI::EVerticalAlignment::Center);
@@ -596,20 +557,17 @@ void ViewportPanel::AddInspectorRow(
         .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
 
     const auto labelText = CreateRef<GUI::TextBlock>(label);
-    labelText->SetColor(ColorTextSecondary);
+    labelText->SetColor(Styles().TextSecondary);
     labelText->SetFontSize(11.0f);
     row->AddChild(labelText)
         .SetFixedSize(LabelWidth)
         .SetVerticalAlignment(GUI::EVerticalAlignment::Center);
 
     const auto field = CreateRef<GUI::TextField>(value);
-    field->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorFieldBg);
-    field->SetOutline(GUI::EStyleLayer::Normal, { ColorFieldBorder, 1.0f });
-    field->SetCornerRadius(GUI::EStyleLayer::Normal, 4.0f);
+    field->SetStyle(Styles().TextField);
     field->SetPadding({ 8.0f, 4.0f });
-    field->SetTextColor(GUI::EStyleLayer::Normal, ColorTextPrimary);
-    field->SetCursorColor(ColorTextPrimary);
-    field->SetSelectionColor({ ColorAccent.R, ColorAccent.G, ColorAccent.B, 0.35f });
+    field->SetCursorColor(Styles().TextPrimary);
+    field->SetSelectionColor({ Styles().Accent.R, Styles().Accent.G, Styles().Accent.B, 0.35f });
     field->SetFontSize(monospace ? 11.0f : 12.0f);
     field->OnChange([&value](const std::string& text) { value = text; });
     // Vertical Fill (not Center) so the row's real height wins over TextField's own 30px
@@ -630,10 +588,7 @@ void ViewportPanel::AddInspectorToggleRow(const Ref<GUI::VerticalBox>& list, con
 
     const auto checkbox = CreateRef<GUI::Checkbox>();
     checkbox->SetSize({ 13.0f, 13.0f });
-    checkbox->SetCornerRadius(GUI::EStyleLayer::Normal, 3.0f);
-    checkbox->SetCheckedColor(ColorAccent);
-    checkbox->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorFieldBg);
-    checkbox->SetOutline(GUI::EStyleLayer::Normal, { ColorFieldBorder, 1.0f });
+    checkbox->SetStyle(Styles().Checkbox);
     checkbox->SetChecked(value);
     checkbox->OnCheckedChanged([&value](const bool checked) { value = checked; });
     row->AddChild(checkbox)
@@ -641,7 +596,7 @@ void ViewportPanel::AddInspectorToggleRow(const Ref<GUI::VerticalBox>& list, con
         .SetVerticalAlignment(GUI::EVerticalAlignment::Center);
 
     const auto labelText = CreateRef<GUI::TextBlock>(label);
-    labelText->SetColor(ColorTextPrimary);
+    labelText->SetColor(Styles().TextPrimary);
     labelText->SetFontSize(12.0f);
     row->AddChild(labelText).SetVerticalAlignment(GUI::EVerticalAlignment::Center);
 }
@@ -660,7 +615,7 @@ void ViewportPanel::AddInspectorVectorRow(
         .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
 
     const auto labelText = CreateRef<GUI::TextBlock>(label);
-    labelText->SetColor(ColorTextSecondary);
+    labelText->SetColor(Styles().TextSecondary);
     labelText->SetFontSize(11.0f);
     row->AddChild(labelText)
         .SetFixedSize(LabelWidth)
@@ -677,9 +632,7 @@ void ViewportPanel::AddInspectorVectorRow(
     const auto addAxis = [&fields](const char* axis, const GUI::SColor& color, float& component)
     {
         const auto chip = CreateRef<GUI::Overlay>();
-        chip->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorFieldBg);
-        chip->SetOutline(GUI::EStyleLayer::Normal, { ColorFieldBorder, 1.0f });
-        chip->SetCornerRadius(GUI::EStyleLayer::Normal, 4.0f);
+        chip->SetStyle(Styles().InspectorField);
         // Vertical Fill all the way down (chip -> row -> field) so the field's nested
         // TextField never inflates anything above the row's actual allocated height - see
         // the Fill note above AddInspectorRow's field.
@@ -694,7 +647,9 @@ void ViewportPanel::AddInspectorVectorRow(
             .SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
 
         const auto badge = CreateRef<GUI::Overlay>();
-        badge->SetBackgroundColor(GUI::EStyleLayer::Normal, { color.R, color.G, color.B, 0.2f });
+        auto badgeStyle = Styles().Transparent;
+        badgeStyle.Normal.Background.Color = { color.R, color.G, color.B, 0.2f };
+        badge->SetStyle(badgeStyle);
         badge->SetPadding({ 5.0f, 4.0f });
         row->AddChild(badge);
 
@@ -706,9 +661,8 @@ void ViewportPanel::AddInspectorVectorRow(
         // Transparent background: the chip built above already supplies the outline/bg -
         // this field just needs to be able to take focus and text input over it.
         const auto field = CreateRef<GUI::TextField>(FormatFloat(component));
-        field->SetBackgroundColor(GUI::EStyleLayer::Normal, { 0.0f, 0.0f, 0.0f, 0.0f });
-        field->SetTextColor(GUI::EStyleLayer::Normal, ColorTextPrimary);
-        field->SetCursorColor(ColorTextPrimary);
+        field->SetStyle(Styles().TransparentTextField);
+        field->SetCursorColor(Styles().TextPrimary);
         field->SetFontSize(11.0f);
         field->SetPadding({ 5.0f, 4.0f, 0.0f, 4.0f });
         field->OnChange([&component](const std::string& text)
@@ -721,7 +675,7 @@ void ViewportPanel::AddInspectorVectorRow(
             .SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
     };
 
-    addAxis("X", ColorAxisX, value.x);
-    addAxis("Y", ColorAxisY, value.y);
-    addAxis("Z", ColorAxisZ, value.z);
+    addAxis("X", Styles().AxisX, value.x);
+    addAxis("Y", Styles().AxisY, value.y);
+    addAxis("Z", Styles().AxisZ, value.z);
 }

@@ -1,5 +1,6 @@
 #include "EditorUI.h"
 #include "EditorPanel.h"
+#include "EditorStyles.h"
 
 #include <Engine/GUI/Icon.h>
 #include <Engine/Icon/IconManager.h>
@@ -18,14 +19,6 @@ namespace
     constexpr float DropdownMaxVisibleRows = 6.0f;
     constexpr float DropdownPadding = 4.0f;
 
-    // Rough stand-ins for the dark theme tokens the mock was built against (no design-token
-    // system on this side, just flat colors picked to land in the same neighborhood).
-    const GUI::SColor ColorSurface = { 0.118f, 0.122f, 0.133f, 1.0f };
-    const GUI::SColor ColorSurfaceSunken = { 0.094f, 0.098f, 0.106f, 1.0f };
-    const GUI::SColor ColorBorder = { 0.224f, 0.231f, 0.251f, 1.0f };
-    const GUI::SColor ColorTextPrimary = { 0.875f, 0.882f, 0.898f, 1.0f };
-    const GUI::SColor ColorTextSecondary = { 0.616f, 0.627f, 0.659f, 1.0f };
-    const GUI::SColor ColorAccent = { 0.208f, 0.455f, 0.941f, 1.0f };
 }
 
 EditorUI::EditorUI(GUI::Manager* guiManager)
@@ -53,8 +46,9 @@ void EditorUI::Build()
 
 void EditorUI::BuildMenuBar()
 {
+    const auto& styles = EditorStyle::Get();
     m_MenuBar = CreateRef<GUI::HorizontalBox>();
-    m_MenuBar->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorSurface);
+    m_MenuBar->SetStyle(styles.MenuBar);
     m_MenuBar->SetPadding({ 10.0f, 0.0f });
 
     m_Root->AddChild(m_MenuBar)
@@ -66,12 +60,13 @@ void EditorUI::BuildMenuBar()
     // Logo swatch: a plain colored square stands in for a real product mark.
     const auto logo = CreateRef<GUI::Canvas>();
     logo->SetSize({ 16.0f, 16.0f });
-    logo->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorAccent);
-    logo->SetCornerRadius(GUI::EStyleLayer::Normal, 3.0f);
+    auto logoStyle = styles.ToolbarButtonActive;
+    logoStyle.Normal.Background.CornerRadius = glm::vec4(3.0f);
+    logo->SetStyle(logoStyle);
     m_MenuBar->AddChild(logo).SetFixedSize(16.0f);
 
     const auto title = CreateRef<GUI::TextBlock>("Elixir Engine");
-    title->SetColor(ColorTextPrimary);
+    title->SetColor(styles.TextPrimary);
     title->SetFontSize(12.0f);
     m_MenuBar->AddChild(title).SetMargin(GUI::SMargin(8.0f, 0.0f, 14.0f, 0.0f));
 
@@ -82,25 +77,23 @@ void EditorUI::BuildMenuBar()
     m_MenuBar->AddChild(spacer).SetFillSize();
 
     const auto branchPill = CreateRef<GUI::HorizontalBox>();
-    branchPill->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorSurfaceSunken);
-    branchPill->SetOutline(GUI::EStyleLayer::Normal, { ColorBorder, 1.0f });
-    branchPill->SetCornerRadius(GUI::EStyleLayer::Normal, 4.0f);
+    branchPill->SetStyle(styles.BranchPill);
     branchPill->SetPadding(GUI::SMargin(10.0f, 4.0f));
     m_MenuBar->AddChild(branchPill);
 
     const auto branchIcon = CreateRef<GUI::Icon>();
     branchIcon->SetIcon(IconManager::Load("./Assets/Icons/git-branch.svg"));
     branchIcon->SetSize({ 11.0f, 11.0f });
-    branchIcon->SetColor(GUI::EStyleLayer::Normal, ColorTextSecondary);
+    branchIcon->SetStyle(styles.SecondaryIcon);
     branchPill->AddChild(branchIcon).SetMargin(GUI::SMargin(0.0f, 0.0f, 5.0f, 0.0f));
 
     const auto branchLabel = CreateRef<GUI::TextBlock>("main");
-    branchLabel->SetColor(ColorTextSecondary);
+    branchLabel->SetColor(styles.TextSecondary);
     branchLabel->SetFontSize(11.0f);
     branchPill->AddChild(branchLabel);
 
     const auto border = CreateRef<GUI::Canvas>();
-    border->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorBorder);
+    border->SetStyle(styles.MenuBorder);
     m_Root->AddChild(border)
         .SetAnchors({ 0.0f, 0.0f, 1.0f, 0.0f })
         .SetPosition({ 0.0f, MenuBarHeight - 1.0f })
@@ -109,8 +102,9 @@ void EditorUI::BuildMenuBar()
 
 void EditorUI::BuildTabBar()
 {
+    const auto& styles = EditorStyle::Get();
     m_TabBar = CreateRef<GUI::HorizontalBox>();
-    m_TabBar->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorSurface);
+    m_TabBar->SetStyle(styles.TabBar);
     m_TabBar->SetPadding({ 8.0f, 0.0f });
 
     m_Root->AddChild(m_TabBar)
@@ -122,8 +116,9 @@ void EditorUI::BuildTabBar()
 
 void EditorUI::BuildAssetBrowser()
 {
+    const auto& styles = EditorStyle::Get();
     m_AssetBrowser = CreateRef<GUI::HorizontalBox>();
-    m_AssetBrowser->SetBackgroundColor(GUI::EStyleLayer::Normal, ColorSurface);
+    m_AssetBrowser->SetStyle(styles.AssetBrowser);
     m_AssetBrowser->SetPadding({ 12.0f, 0.0f });
 
     // Stretches horizontally (like the menu/tab bars); pinned to the bottom edge via a
@@ -137,20 +132,21 @@ void EditorUI::BuildAssetBrowser()
         .SetSize({ 0.0f, AssetBrowserHeight });
 
     const auto title = CreateRef<GUI::TextBlock>("Project");
-    title->SetColor(ColorTextPrimary);
+    title->SetColor(styles.TextPrimary);
     title->SetFontSize(12.0f);
     m_AssetBrowser->AddChild(title).SetMargin(GUI::SMargin(0.0f, 0.0f, 8.0f, 0.0f));
 
     const auto path = CreateRef<GUI::TextBlock>("Assets / Prefabs -- 6 items");
-    path->SetColor(ColorTextSecondary);
+    path->SetColor(styles.TextSecondary);
     path->SetFontSize(11.0f);
     m_AssetBrowser->AddChild(path);
 }
 
 void EditorUI::AddMenuItem(const std::string& label)
 {
+    const auto& styles = EditorStyle::Get();
     const auto text = CreateRef<GUI::TextBlock>(label);
-    text->SetColor(ColorTextSecondary);
+    text->SetColor(styles.TextSecondary);
     text->SetFontSize(12.0f);
 
     m_MenuItems->AddChild(text)
@@ -191,19 +187,21 @@ void EditorUI::AddTab(const std::string& label, const bool active)
 
 void EditorUI::SetActiveTab(const int index)
 {
+    const auto& styles = EditorStyle::Get();
     m_ActiveTabIndex = index;
     for (size_t i = 0; i < m_Tabs.size(); ++i)
     {
         const bool active = static_cast<int>(i) == index;
-        m_Tabs[i].Label->SetColor(active ? ColorTextPrimary : ColorTextSecondary);
-        m_Tabs[i].Underline->SetBackgroundColor(GUI::EStyleLayer::Normal, active ? ColorAccent : GUI::SColor{});
+        m_Tabs[i].Label->SetColor(active ? styles.TextPrimary : styles.TextSecondary);
+        m_Tabs[i].Underline->SetStyle(active ? styles.TabActiveIndicator : styles.Transparent);
     }
 }
 
 void EditorUI::AddDropdownMenu(const std::string& label, const std::vector<std::string>& items)
 {
+    const auto& styles = EditorStyle::Get();
     const auto text = CreateRef<GUI::TextBlock>(label);
-    text->SetColor(ColorTextSecondary);
+    text->SetColor(styles.TextSecondary);
     text->SetFontSize(12.0f);
 
     m_MenuItems->AddChild(text)
@@ -232,24 +230,20 @@ void EditorUI::AddDropdownMenu(const std::string& label, const std::vector<std::
 
 Ref<GUI::Widget> EditorUI::BuildDropdownContent(const std::vector<std::string>& items) const
 {
+    const auto& styles = EditorStyle::Get();
     // Overlay, not Canvas: Canvas::ComputeDesiredSize ignores its children and always
     // reports a fixed 800x600 fallback (it exists for absolute/anchored positioning, not
     // content-driven sizing), which is what made the popup balloon to that size regardless
     // of the ScrollBox inside it. Overlay's desired size is the max child size plus padding,
     // so the popup shrink-wraps to the ScrollBox's configured size instead.
     const auto panel = CreateRef<GUI::Overlay>();
-    panel->SetBackgroundColor(GUI::EStyleLayer::Normal, { 0.16f, 0.16f, 0.19f, 1.0f });
-    panel->SetCornerRadius(GUI::EStyleLayer::Normal, 4.0f);
+    panel->SetStyle(styles.Popup);
     panel->SetPadding(GUI::SPadding(DropdownPadding));
 
     const auto scrollBox = CreateRef<GUI::ScrollBox>();
     const float visibleRows = std::min(static_cast<float>(items.size()), DropdownMaxVisibleRows);
     scrollBox->SetSize({ DropdownWidth, visibleRows * DropdownRowHeight });
-    // The default 8px/35%-opacity scrollbar is easy to miss against a dark dropdown this
-    // narrow - bump both up so the whole point of this example (there's more content than
-    // fits) is actually visible instead of just technically present.
-    scrollBox->SetScrollbarThickness(10.0f);
-    scrollBox->SetScrollbarColor({ 1.0f, 1.0f, 1.0f, 0.6f });
+    scrollBox->SetStyle(styles.ScrollBar);
 
     panel->AddChild(scrollBox)
         .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill)
@@ -259,7 +253,7 @@ Ref<GUI::Widget> EditorUI::BuildDropdownContent(const std::vector<std::string>& 
     for (const auto& item : items)
     {
         const auto row = CreateRef<GUI::TextBlock>(item);
-        row->SetColor({ 0.85f, 0.85f, 0.88f, 1.0f });
+        row->SetColor(styles.TextPrimary);
         row->SetFontSize(13.0f);
 
         // Selecting an item closes the dropdown, same as a real menu would.

@@ -9,10 +9,30 @@ namespace Elixir::GUI
         Vertical, Horizontal, Both
     };
 
+    /** @brief Visual data for a scrollbar in one interaction state. */
+    struct SScrollBarAppearance
+    {
+        SBrush Track;
+        SBrush Thumb;
+    };
+
+    /** @brief Complete visual and sizing style for a scrollbar. */
+    struct SScrollBarStyle final : SStyle, TStateStyles<SScrollBarAppearance>
+    {
+        float Thickness = 8.0f;
+        float MinimumThumbLength = 8.0f;
+    };
+
     class ELIXIR_API ScrollBox : public ContentWidget
     {
     public:
         ScrollBox();
+
+        /**
+         * @brief Replace this scroll box's complete scrollbar style.
+         * @param style Style to copy.
+         */
+        void SetStyle(const SScrollBarStyle& style);
 
         /**
          * @brief Set the viewport size this ScrollBox asks for.
@@ -37,10 +57,10 @@ namespace Elixir::GUI
         bool IsShowingScrollbar() const { return m_ShowScrollbar; }
         void SetShowScrollbar(bool show);
 
-        float GetScrollbarThickness() const { return m_ScrollbarThickness; }
+        float GetScrollbarThickness() const { return m_ScrollBarStyle.Thickness; }
         void SetScrollbarThickness(float thickness);
 
-        SColor GetScrollbarColor() const { return m_ScrollbarColor; }
+        SColor GetScrollbarColor() const { return m_ScrollBarStyle.Normal.Thumb.Color; }
         void SetScrollbarColor(const SColor& color);
 
     protected:
@@ -84,7 +104,6 @@ namespace Elixir::GUI
         glm::vec2 m_ContentSize{};
 
         bool m_ShowScrollbar = true;
-        float m_ScrollbarThickness = 8.0f;
-        SColor m_ScrollbarColor{ 1.0f, 1.0f, 1.0f, 0.35f };
+        SScrollBarStyle m_ScrollBarStyle;
     };
 }

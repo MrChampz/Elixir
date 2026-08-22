@@ -3,15 +3,11 @@ include (Utils.cmake)
 project("Editor")
 
 # Files
-add_executable(${PROJECT_NAME}
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Editor.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/Editor.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/Source/UI/EditorPanel.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/UI/EditorUI.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/UI/EditorUI.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/Source/UI/Panels/ViewportPanel.h
-    ${CMAKE_CURRENT_LIST_DIR}/Source/UI/Panels/ViewportPanel.cpp
+file(GLOB_RECURSE SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/Source/*.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Source/*.cpp"
 )
+add_executable(${PROJECT_NAME} ${SOURCES})
 
 # Set output name
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${PROJECT_NAME}")

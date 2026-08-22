@@ -140,6 +140,22 @@ TEST(ScrollBoxTest, ClipsChildrenIsTrue)
     EXPECT_TRUE(scrollBox->ClipsChildren());
 }
 
+TEST(ScrollBoxTest, ScrollBarStyleFallsBackToNormalAndKeepsSizingMetrics)
+{
+    const auto scrollBox = CreateRef<ScrollBox>();
+
+    SScrollBarStyle style;
+    style.Thickness = 12.0f;
+    style.MinimumThumbLength = 20.0f;
+    style.Normal.Thumb.Color = { 0.3f, 0.4f, 0.5f, 1.0f };
+    scrollBox->SetStyle(style);
+
+    EXPECT_EQ(scrollBox->GetStyle().Thickness, 12.0f);
+    EXPECT_EQ(scrollBox->GetStyle().MinimumThumbLength, 20.0f);
+    EXPECT_EQ(scrollBox->GetStyle().Get(EStyleLayer::Hovered).Thumb.Color,
+              SColor(0.3f, 0.4f, 0.5f, 1.0f));
+}
+
 TEST(ScrollBoxTest, HitTestExcludesScrolledContentOutsideTheViewport)
 {
     const auto scrollBox = CreateRef<ScrollBox>();

@@ -5,7 +5,17 @@
 
 namespace Elixir::GUI
 {
-    ScrollBox::ScrollBox() = default;
+    ScrollBox::ScrollBox()
+      : m_ScrollBarStyle(GetDefaultStyles().GetWidgetStyle<SScrollBarStyle>())
+    {
+    }
+
+    void ScrollBox::SetStyle(const SScrollBarStyle& style)
+    {
+        m_ScrollBarStyle = style;
+        MarkLayoutDirty();
+        MarkRenderDirty();
+    }
 
     void ScrollBox::SetSize(const glm::vec2& size)
     {
@@ -40,14 +50,15 @@ namespace Elixir::GUI
 
     void ScrollBox::SetScrollbarThickness(const float thickness)
     {
-        if (m_ScrollbarThickness == thickness) return;
-        m_ScrollbarThickness = thickness;
+        if (m_ScrollBarStyle.Thickness == thickness) return;
+        m_ScrollBarStyle.Thickness = thickness;
+        MarkLayoutDirty();
         MarkRenderDirty();
     }
 
     void ScrollBox::SetScrollbarColor(const SColor& color)
     {
-        m_ScrollbarColor = color;
+        m_ScrollBarStyle.Normal.Thumb.Color = color;
         MarkRenderDirty();
     }
 
@@ -147,8 +158,10 @@ namespace Elixir::GUI
         // whatever's next to it. A vertical scrollbar (shown whenever this axis isn't purely
         // Horizontal) is itself thickness-wide, eating into the content's width; a horizontal
         // one eats into its height.
-        if (m_ScrollAxis != EScrollAxis::Horizontal) space.x = std::max(0.0f, space.x - m_ScrollbarThickness);
-        if (m_ScrollAxis != EScrollAxis::Vertical)   space.y = std::max(0.0f, space.y - m_ScrollbarThickness);
+        if (m_ScrollAxis != EScrollAxis::Horizontal)
+            space.x = std::max(0.0f, space.x - m_ScrollBarStyle.Thickness);
+        if (m_ScrollAxis != EScrollAxis::Vertical)
+            space.y = std::max(0.0f, space.y - m_ScrollBarStyle.Thickness);
 
         return space;
     }
@@ -172,45 +185,52 @@ namespace Elixir::GUI
 
     void ScrollBox::AddScrollbar(RenderBatch& batch, const int zOrder, const bool vertical) const
     {
-        const SColor trackColor = { 0.0f, 0.0f, 0.0f, 0.15f };
+        const auto& appearance = m_ScrollBarStyle.Resolve(GetInteractionState());
+        const float thickness = m_ScrollBarStyle.Thickness;
 
         if (vertical)
         {
             const SRect track = {
-                { m_Geometry.Position.x + m_Geometry.Size.x - m_ScrollbarThickness, m_Geometry.Position.y },
-                { m_ScrollbarThickness, m_Geometry.Size.y }
+                { m_Geometry.Position.x + m_Geometry.Size.x - thickness, m_Geometry.Position.y },
+                { thickness, m_Geometry.Size.y }
             };
 
             const float maxScroll = m_ContentSize.y - m_Geometry.Size.y;
-            const float thumbHeight = std::max(track.Size.y * (m_Geometry.Size.y / m_ContentSize.y), m_ScrollbarThickness);
+            const float thumbHeight = std::max(
+                track.Size.y * (m_Geometry.Size.y / m_ContentSize.y),
+                m_ScrollBarStyle.MinimumThumbLength
+            );
             const float scrollRatio = maxScroll > 0.0f ? m_ScrollOffset.y / maxScroll : 0.0f;
 
             const SRect thumb = {
                 { track.Position.x, track.Position.y + scrollRatio * (track.Size.y - thumbHeight) },
-                { m_ScrollbarThickness, thumbHeight }
+                { thickness, thumbHeight }
             };
 
-            batch.AddRect(track, trackColor, {}, {}, {}, {}, zOrder);
-            batch.AddRect(thumb, m_ScrollbarColor, {}, {}, {}, {}, zOrder + 1);
+            batch.AddBrush(appearance.Track, track, zOrder);
+            batch.AddBrush(appearance.Thumb, thumb, zOrder + 1);
         }
         else
         {
             const SRect track = {
-                { m_Geometry.Position.x, m_Geometry.Position.y + m_Geometry.Size.y - m_ScrollbarThickness },
-                { m_Geometry.Size.x, m_ScrollbarThickness }
+                { m_Geometry.Position.x, m_Geometry.Position.y + m_Geometry.Size.y - thickness },
+                { m_Geometry.Size.x, thickness }
             };
 
             const float maxScroll = m_ContentSize.x - m_Geometry.Size.x;
-            const float thumbWidth = std::max(track.Size.x * (m_Geometry.Size.x / m_ContentSize.x), m_ScrollbarThickness);
+            const float thumbWidth = std::max(
+                track.Size.x * (m_Geometry.Size.x / m_ContentSize.x),
+                m_ScrollBarStyle.MinimumThumbLength
+            );
             const float scrollRatio = maxScroll > 0.0f ? m_ScrollOffset.x / maxScroll : 0.0f;
 
             const SRect thumb = {
                 { track.Position.x + scrollRatio * (track.Size.x - thumbWidth), track.Position.y },
-                { thumbWidth, m_ScrollbarThickness }
+                { thumbWidth, thickness }
             };
 
-            batch.AddRect(track, trackColor, {}, {}, {}, {}, zOrder);
-            batch.AddRect(thumb, m_ScrollbarColor, {}, {}, {}, {}, zOrder + 1);
+            batch.AddBrush(appearance.Track, track, zOrder);
+            batch.AddBrush(appearance.Thumb, thumb, zOrder + 1);
         }
     }
 }
