@@ -94,8 +94,16 @@ namespace Elixir::GUI
          * @param zOffset Value added to each appended command's ZOrder.
          * @param clipRect Ancestor clip inherit from the caller; pass the invalid
          * {-1, -1}/{-1, -1} sentinel when there is no active clip (see SRect::IsValid).
+         * @param offset Presentation displacement inherited from ancestors.
+         * @param opacity Presentation opacity inherited from ancestors.
          */
-        void Append(const RenderBatch& other, int zOffset, const SRect& clipRect);
+        void Append(
+            const RenderBatch& other,
+            int zOffset,
+            const SRect& clipRect,
+            const glm::vec2& offset = {},
+            float opacity = 1.0f
+        );
 
         void Sort();
         void Clear();

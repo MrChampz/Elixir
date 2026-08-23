@@ -8,9 +8,7 @@ namespace Elixir::GUI
     /* Widget */
 
     Widget::Widget()
-      : m_Style(GetDefaultStyles().GetWidgetStyle<SWidgetStyle>())
-    {
-    }
+      : m_Style(GetDefaultStyles().GetWidgetStyle<SWidgetStyle>()) {}
 
     const glm::vec2& Widget::Measure(const glm::vec2& availableSize)
     {
@@ -105,7 +103,14 @@ namespace Elixir::GUI
     {
         if (m_Opacity == opacity) return;
         m_Opacity = opacity;
-        MarkRenderDirty();
+        ++s_DirtyEpoch;
+    }
+
+    void Widget::SetRenderOffset(const glm::vec2& offset)
+    {
+        if (m_RenderOffset == offset) return;
+        m_RenderOffset = offset;
+        ++s_DirtyEpoch;
     }
 
     void Widget::SetVisibility(const EVisibility visibility)
@@ -322,7 +327,9 @@ namespace Elixir::GUI
         RenderBatch& batch,
         int& zCursor,
         bool& rebuilt,
-        const SRect& clipRect
+        const SRect& clipRect,
+        const glm::vec2 inheritedOffset,
+        const float inheritedOpacity
     )
     {
         if (!IsRenderVisible()) return;
@@ -336,6 +343,9 @@ namespace Elixir::GUI
             rebuilt = true;
         }
 
+        const glm::vec2 renderOffset = inheritedOffset + m_RenderOffset;
+        const float renderOpacity = inheritedOpacity * m_Opacity;
+
         // Own commands occupy [zCursor, zCursor + span); advance so children stack above,
         // and the next sibling starts above this whole subtree. The ancestor clip is applied
         // here, at Append time, rather than baked into m_CachedCommands: this widget's own
@@ -346,20 +356,31 @@ namespace Elixir::GUI
         // widget on every rebuild regardless, so intersecting the clip here costs nothing
         // extra; baking it into BuildDrawCommands would require a new downward invalidation
         // pass to avoid going stale.
-        batch.Append(m_CachedCommands, zCursor, clipRect);
+        batch.Append(m_CachedCommands, zCursor, clipRect, renderOffset, renderOpacity);
         zCursor += m_CachedCommands.LayerSpan();
 
         // A clipping container (e.g. ScrollBox) intersects its own bounds with whatever clip
         // it inherited and hands that down; everyone else just forwards the inherited clip
         // unchanged. With no inherited clip yet (root, or the first clipping ancestor in the
         // chain), the container's own geometry becomes the clip outright.
+        SRect renderGeometry = m_Geometry;
+        renderGeometry.Position += renderOffset;
         const SRect childClipRect = ClipsChildren()
-            ? (clipRect.IsValid() ? SRect::Intersect(m_Geometry, clipRect) : m_Geometry)
+            ? (clipRect.IsValid()
+                ? SRect::Intersect(renderGeometry, clipRect)
+                : renderGeometry)
             : clipRect;
 
         ForEachChild([&](const Ref<Widget>& child)
         {
-            child->CollectDrawCommands(batch, zCursor, rebuilt, childClipRect);
+            child->CollectDrawCommands(
+                batch,
+                zCursor,
+                rebuilt,
+                childClipRect,
+                renderOffset,
+                renderOpacity
+            );
         });
     }
 
@@ -571,7 +592,8 @@ namespace Elixir::GUI
 
     void ContentWidget::Update(const Timestep frameTime)
     {
-        if (m_ContentSlot && m_ContentSlot->IsVisible())
+        Widget::Update(frameTime);
+        if (m_ContentSlot && m_ContentSlot->GetWidget()->TakesSpace())
         {
             m_ContentSlot->GetWidget()->Update(frameTime);
         }

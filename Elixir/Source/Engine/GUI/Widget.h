@@ -129,7 +129,21 @@ namespace Elixir::GUI
         float GetOpacity() const { return m_Opacity; }
         void SetOpacity(float opacity);
 
+        /** @brief Get this widget's visual displacement from its layout geometry. */
+        glm::vec2 GetRenderOffset() const { return m_RenderOffset; }
+
+        /**
+         * @brief Set a displacement applied only while rendering this widget and its children.
+         * @param offset Offset in GUI units.
+         */
+        void SetRenderOffset(const glm::vec2& offset);
+
         EVisibility GetVisibility() const { return m_Visibility; }
+
+        /**
+         * @brief Set this widget's visibility immediately.
+         * @param visibility New visibility state.
+         */
         void SetVisibility(EVisibility visibility);
 
         bool IsVisible() const;
@@ -354,7 +368,9 @@ namespace Elixir::GUI
             RenderBatch& batch,
             int& zCursor,
             bool& rebuilt,
-            const SRect& clipRect
+            const SRect& clipRect,
+            glm::vec2 inheritedOffset = {},
+            float inheritedOpacity = 1.0f
         );
 
         /**
@@ -524,6 +540,7 @@ namespace Elixir::GUI
 
         SRect m_Geometry{};
         float m_Opacity = 1.0f;
+        glm::vec2 m_RenderOffset{};
 
         EVisibility m_Visibility = EVisibility::Visible;
 

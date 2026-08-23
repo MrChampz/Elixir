@@ -2,6 +2,7 @@
 
 #include <Engine/Core/UUID.h>
 #include <Engine/Core/CoreTypes.h>
+#include <Engine/Core/Animation/Animator.h>
 #include <Engine/Core/Color.h>
 #include <Engine/Core/Timer.h>
 #include <Engine/Core/Malloc.h>
@@ -62,6 +63,7 @@
 #include <Engine/GUI/Button.h>
 #include <Engine/GUI/Icon.h>
 #include <Engine/GUI/TextBlock.h>
+#include <Engine/GUI/WidgetAnimation.h>
 
 #include <Engine/Aether/System.h>
 #include <Engine/Aether/Modules.h>

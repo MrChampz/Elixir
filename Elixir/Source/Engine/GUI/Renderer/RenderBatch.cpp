@@ -8,28 +8,56 @@ namespace Elixir::GUI
         // Debug rects exist to visualize layout/hitboxes; they must always draw above
         // everything else, regardless of where in the tree AddDebugRect was called from.
         constexpr int DEBUG_Z_ORDER = std::numeric_limits<int>::max();
+
+        SColor ApplyOpacity(SColor color, const float opacity)
+        {
+            color.A *= opacity;
+            return color;
+        }
+
+        void ApplyPresentation(
+            SDrawCommand& command,
+            const int zOffset,
+            const SRect& clipRect,
+            const glm::vec2& offset,
+            const float opacity
+        )
+        {
+            command.Geometry.Position += offset;
+            command.ZOrder += zOffset;
+            command.Color = ApplyOpacity(command.Color, opacity);
+            command.Outline.Color = ApplyOpacity(command.Outline.Color, opacity);
+            command.InsetShadow.w *= opacity;
+            command.DropShadow.w *= opacity;
+
+            if (command.ScissorRect.IsValid())
+            {
+                command.ScissorRect.Position += offset;
+                if (clipRect.IsValid())
+                    command.ScissorRect = SRect::Intersect(command.ScissorRect, clipRect);
+            }
+            else if (clipRect.IsValid())
+            {
+                command.ScissorRect = clipRect;
+            }
+        }
+
     }
 
-    void RenderBatch::Append(const RenderBatch& other, const int zOffset, const SRect& clipRect)
+    void RenderBatch::Append(
+        const RenderBatch& other,
+        const int zOffset,
+        const SRect& clipRect,
+        const glm::vec2& offset,
+        const float opacity
+    )
     {
         m_Commands.reserve(m_Commands.size() + other.m_Commands.size());
         for (const auto& command : other.m_Commands)
         {
             m_Commands.push_back(command);
             auto& cmd = m_Commands.back();
-            cmd.ZOrder += zOffset;
-
-            if (cmd.ScissorRect.IsValid())
-            {
-                // Own ad-hoc scissor (Button/TextField clipping their own label to their own
-                // bounds) narrowed further by whatever the caller inherited from its ancestors.
-                if (clipRect.IsValid())
-                    cmd.ScissorRect = SRect::Intersect(cmd.ScissorRect, clipRect);
-            }
-            else if (clipRect.IsValid())
-            {
-                cmd.ScissorRect = clipRect;
-            }
+            ApplyPresentation(cmd, zOffset, clipRect, offset, opacity);
         }
     }
 

@@ -23,6 +23,22 @@ namespace
     // column starts at the same X regardless of how long its own label happens to be.
     constexpr float LabelWidth = 76.0f;
 
+    template<typename TValue>
+    AnimationCurve<TValue> MakeCurve(
+        const TValue& from,
+        const TValue& to,
+        const float delay,
+        const float duration
+    )
+    {
+        AnimationCurve<TValue> curve;
+        curve.AddKey({ .Time = 0.0f, .Value = from, .Interpolation = EKeyframeInterpolation::EaseOut });
+        if (delay > 0.0f)
+            curve.AddKey({ .Time = delay, .Value = from, .Interpolation = EKeyframeInterpolation::EaseOut });
+        curve.AddKey({ .Time = delay + duration, .Value = to });
+        return curve;
+    }
+
     std::string FormatFloat(const float value)
     {
         char buffer[32];
@@ -56,6 +72,14 @@ Ref<GUI::Widget> ViewportPanel::Build()
     BuildStatsOverlay(root);
 
     return root;
+}
+
+void ViewportPanel::OnUpdate(const Timestep frameTime)
+{
+    if (m_HierarchyPanelAnimation) m_HierarchyPanelAnimation->Update(frameTime);
+    if (m_HierarchyPanelToggleAnimation) m_HierarchyPanelToggleAnimation->Update(frameTime);
+    if (m_InspectorPanelAnimation) m_InspectorPanelAnimation->Update(frameTime);
+    if (m_InspectorPanelToggleAnimation) m_InspectorPanelToggleAnimation->Update(frameTime);
 }
 
 void ViewportPanel::BuildToolbar(const Ref<GUI::Canvas>& root)
@@ -264,7 +288,9 @@ void ViewportPanel::BuildHierarchyPanel(const Ref<GUI::Canvas>& root)
     panelToggleIcon->SetStyle(Styles().SecondaryIcon);
     panelToggle->SetContent(panelToggleIcon);
     panelToggle->OnClick([this] { SetHierarchyPanelOpen(true); });
-    SetHierarchyPanelOpen(true);
+    m_HierarchyPanelAnimation = CreateScope<GUI::WidgetAnimation>(m_HierarchyPanel);
+    m_HierarchyPanelToggleAnimation = CreateScope<GUI::WidgetAnimation>(m_HierarchyPanelToggle);
+    SetHierarchyPanelOpen(true, false);
 }
 
 void ViewportPanel::BuildInspectorPanel(const Ref<GUI::Canvas>& root)
@@ -416,7 +442,9 @@ void ViewportPanel::BuildInspectorPanel(const Ref<GUI::Canvas>& root)
     panelToggleIcon->SetStyle(Styles().SecondaryIcon);
     panelToggle->SetContent(panelToggleIcon);
     panelToggle->OnClick([this] { SetInspectorPanelOpen(true); });
-    SetInspectorPanelOpen(true);
+    m_InspectorPanelAnimation = CreateScope<GUI::WidgetAnimation>(m_InspectorPanel);
+    m_InspectorPanelToggleAnimation = CreateScope<GUI::WidgetAnimation>(m_InspectorPanelToggle);
+    SetInspectorPanelOpen(true, false);
 }
 
 void ViewportPanel::BuildStatsOverlay(const Ref<GUI::Canvas>& root)
@@ -481,16 +509,88 @@ void ViewportPanel::SetSelectedHierarchyRow(const int index)
     }
 }
 
-void ViewportPanel::SetHierarchyPanelOpen(const bool open)
+void ViewportPanel::SetHierarchyPanelOpen(const bool open, const bool animate)
 {
-    m_HierarchyPanel->SetVisibility(open ? GUI::EVisibility::Visible : GUI::EVisibility::Collapsed);
-    m_HierarchyPanelToggle->SetVisibility(open ? GUI::EVisibility::Collapsed : GUI::EVisibility::Visible);
+    if (animate)
+    {
+        AnimatePanel(m_HierarchyPanel, *m_HierarchyPanelAnimation, open, { -12.0f, 0.0f });
+        AnimatePanelToggle(m_HierarchyPanelToggle, *m_HierarchyPanelToggleAnimation, open);
+    }
+    else
+    {
+        m_HierarchyPanelAnimation->Stop();
+        m_HierarchyPanelToggleAnimation->Stop();
+        m_HierarchyPanel->SetOpacity(1.0f);
+        m_HierarchyPanel->SetRenderOffset({});
+        m_HierarchyPanel->SetVisibility(open ? GUI::EVisibility::Visible : GUI::EVisibility::Collapsed);
+        m_HierarchyPanelToggle->SetOpacity(1.0f);
+        m_HierarchyPanelToggle->SetRenderOffset({});
+        m_HierarchyPanelToggle->SetVisibility(open ? GUI::EVisibility::Collapsed : GUI::EVisibility::Visible);
+    }
 }
 
-void ViewportPanel::SetInspectorPanelOpen(const bool open)
+void ViewportPanel::SetInspectorPanelOpen(const bool open, const bool animate)
 {
-    m_InspectorPanel->SetVisibility(open ? GUI::EVisibility::Visible : GUI::EVisibility::Collapsed);
-    m_InspectorPanelToggle->SetVisibility(open ? GUI::EVisibility::Collapsed : GUI::EVisibility::Visible);
+    if (animate)
+    {
+        AnimatePanel(m_InspectorPanel, *m_InspectorPanelAnimation, open, { 12.0f, 0.0f });
+        AnimatePanelToggle(m_InspectorPanelToggle, *m_InspectorPanelToggleAnimation, open);
+    }
+    else
+    {
+        m_InspectorPanelAnimation->Stop();
+        m_InspectorPanelToggleAnimation->Stop();
+        m_InspectorPanel->SetOpacity(1.0f);
+        m_InspectorPanel->SetRenderOffset({});
+        m_InspectorPanel->SetVisibility(open ? GUI::EVisibility::Visible : GUI::EVisibility::Collapsed);
+        m_InspectorPanelToggle->SetOpacity(1.0f);
+        m_InspectorPanelToggle->SetRenderOffset({});
+        m_InspectorPanelToggle->SetVisibility(open ? GUI::EVisibility::Collapsed : GUI::EVisibility::Visible);
+    }
+}
+
+void ViewportPanel::AnimatePanel(
+    const Ref<GUI::Widget>& panel,
+    GUI::WidgetAnimation& animation,
+    const bool open,
+    const glm::vec2& offset
+)
+{
+    panel->SetVisibility(GUI::EVisibility::HitTestInvisible);
+    animation.ClearTracks();
+    animation.AddTrack(
+        MakeCurve(open ? 0.0f : 1.0f, open ? 1.0f : 0.0f, Styles().PanelTransitionDelay, Styles().PanelTransitionDuration),
+        [](GUI::Widget& widget, const float value) { widget.SetOpacity(value); }
+    );
+    animation.AddTrack(
+        MakeCurve(open ? offset : glm::vec2{}, open ? glm::vec2{} : offset, Styles().PanelTransitionDelay, Styles().PanelTransitionDuration),
+        [](GUI::Widget& widget, const glm::vec2& value) { widget.SetRenderOffset(value); }
+    );
+    animation.OnFinished([panel, open]
+    {
+        panel->SetVisibility(open ? GUI::EVisibility::Visible : GUI::EVisibility::Collapsed);
+    });
+    animation.Play();
+}
+
+void ViewportPanel::AnimatePanelToggle(
+    const Ref<GUI::Widget>& toggle,
+    GUI::WidgetAnimation& animation,
+    const bool panelOpen
+)
+{
+    toggle->SetVisibility(GUI::EVisibility::HitTestInvisible);
+    animation.ClearTracks();
+    const float delay = panelOpen ? 0.0f : Styles().PanelToggleShowDelay;
+    animation.AddTrack(
+        MakeCurve(panelOpen ? 1.0f : 0.0f, panelOpen ? 0.0f : 1.0f, delay, Styles().PanelToggleDuration),
+        [](GUI::Widget& widget, const float value) { widget.SetOpacity(value); }
+    );
+    animation.OnFinished([toggle, panelOpen]
+    {
+        toggle->SetVisibility(panelOpen ? GUI::EVisibility::Collapsed : GUI::EVisibility::Visible);
+    });
+    animation.Play();
 }
 
 void ViewportPanel::AddInspectorSectionHeader(

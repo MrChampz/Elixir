@@ -6,6 +6,8 @@
 #include <Engine/GUI/ScrollBox.h>
 #include <Engine/GUI/TextField.h>
 
+using namespace Elixir;
+
 namespace EditorStyle
 {
     /** @brief Stores the visual styles used by the Editor chrome. */
@@ -40,6 +42,10 @@ namespace EditorStyle
         SScrollBarStyle ScrollBar;
         SIconStyle PrimaryIcon;
         SIconStyle SecondaryIcon;
+        float PanelTransitionDelay = 0.12f;
+        float PanelTransitionDuration = 0.18f;
+        float PanelToggleShowDelay = 0.3f;
+        float PanelToggleDuration = 0.15f;
         SColor TextPrimary;
         SColor TextSecondary;
         SColor Accent;

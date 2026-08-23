@@ -7,10 +7,15 @@ namespace Elixir::GUI
 {
     void Panel::Update(const Timestep frameTime)
     {
+        Widget::Update(frameTime);
         for (size_t i = 0; i < GetSlotCount(); ++i)
         {
-            if (const Slot* slot = GetSlotAt(i); slot->IsVisible())
-                slot->GetWidget()->Update(frameTime);
+            if (const Slot* slot = GetSlotAt(i))
+            {
+                const auto child = slot->GetWidget();
+                if (child && child->TakesSpace())
+                    child->Update(frameTime);
+            }
         }
     }
 

@@ -2,6 +2,8 @@
 
 #include "../EditorPanel.h"
 
+#include <Engine/GUI/WidgetAnimation.h>
+
 #include <vector>
 
 // The scene viewport: the floating chrome that would normally sit on top of a real render
@@ -18,6 +20,7 @@ public:
     const char* GetName() const override { return "Viewport"; }
 
     Ref<GUI::Widget> Build() override;
+    void OnUpdate(Timestep frameTime) override;
 
 private:
     // root is the panel's own Canvas - every floating piece below anchors into it directly,
@@ -45,8 +48,19 @@ private:
     void SetActiveToolMode(int index);
     void SetPlaying(bool playing);
     void SetSelectedHierarchyRow(int index);
-    void SetHierarchyPanelOpen(bool open);
-    void SetInspectorPanelOpen(bool open);
+    void SetHierarchyPanelOpen(bool open, bool animate = true);
+    void SetInspectorPanelOpen(bool open, bool animate = true);
+    void AnimatePanel(
+        const Ref<GUI::Widget>& panel,
+        GUI::WidgetAnimation& animation,
+        bool open,
+        const glm::vec2& offset
+    );
+    void AnimatePanelToggle(
+        const Ref<GUI::Widget>& toggle,
+        GUI::WidgetAnimation& animation,
+        bool panelOpen
+    );
 
     // --- Toolbar state ---
     std::vector<Ref<GUI::Widget>> m_ToolModeSwatches; // 0 = Move, 1 = Rotate, 2 = Scale
@@ -61,6 +75,8 @@ private:
     // --- Hierarchy state ---
     Ref<GUI::Widget> m_HierarchyPanel;
     Ref<GUI::Widget> m_HierarchyPanelToggle;
+    Scope<GUI::WidgetAnimation> m_HierarchyPanelAnimation;
+    Scope<GUI::WidgetAnimation> m_HierarchyPanelToggleAnimation;
     struct SHierarchyRow
     {
         Ref<GUI::Widget> Row;
@@ -72,6 +88,8 @@ private:
     // --- Inspector state (stand-in for a real selected-entity data model) ---
     Ref<GUI::Widget> m_InspectorPanel;
     Ref<GUI::Widget> m_InspectorPanelToggle;
+    Scope<GUI::WidgetAnimation> m_InspectorPanelAnimation;
+    Scope<GUI::WidgetAnimation> m_InspectorPanelToggleAnimation;
     struct SInspectorState
     {
         std::string Tag = "Player";
