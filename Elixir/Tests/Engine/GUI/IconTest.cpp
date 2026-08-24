@@ -4,6 +4,7 @@ using namespace testing;
 #include "ManagerTestUtils.h"
 
 #include <Engine/GUI/Icon.h>
+#include <Engine/GUI/VerticalBox.h>
 using namespace Elixir;
 using namespace Elixir::GUI;
 
@@ -28,8 +29,11 @@ TEST(IconStyleTest, RequestedStateMaterializesFromNormal)
 TEST(IconTest, ColorSetterMarksTheIconForRerender)
 {
     const auto icon = CreateRef<GUI::Icon>();
+    const auto root = CreateRef<VerticalBox>();
+    root->AddChild(icon);
+
     TestGUIManager manager;
-    manager.SetRoot(icon);
+    manager.SetRoot(root);
     manager.AssembleFrame();
     ASSERT_FALSE(icon->IsRenderDirty());
 
