@@ -62,7 +62,7 @@ namespace Elixir::GUI
         SConstraint m_Constraint;
     };
 
-    extern template class ELIXIR_API TPanel<CanvasSlot>;
+    extern template class TPanel<CanvasSlot>;
 
     class ELIXIR_API Canvas final : public TPanel<CanvasSlot>
     {

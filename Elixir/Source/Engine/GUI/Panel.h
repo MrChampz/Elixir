@@ -66,6 +66,10 @@ namespace Elixir::GUI
     class TPanel : public Panel
     {
     public:
+        TPanel() = default;
+        TPanel(const TPanel&) = delete;
+        TPanel& operator=(const TPanel&) = delete;
+
         virtual TSlot& AddChild(const Ref<Widget>& child)
         {
             auto slot = CreateScope<TSlot>(child);
