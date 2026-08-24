@@ -45,11 +45,11 @@ namespace Elixir
         /** @brief Stop every binding without calling completion callbacks. */
         void StopAll();
 
-        /** @brief Advance every active binding by one frame. */
+        /** @brief Advance every active binding; callbacks bind new tracks for the next frame. */
         void Update(Timestep frameTime);
 
         /** @brief Return true while at least one binding is active. */
-        bool IsAnimating() const { return !m_Tracks.empty(); }
+        bool IsAnimating() const;
 
       private:
         AnimationId Bind(
@@ -65,9 +65,13 @@ namespace Elixir
             float Elapsed = 0.0f;
             std::function<void(float)> Apply;
             std::function<void()> OnComplete;
+            bool Cancelled = false;
+            bool Completed = false;
         };
 
         std::vector<STrack> m_Tracks;
+        std::vector<STrack> m_PendingTracks;
         AnimationId m_NextId = 1;
+        bool m_IsUpdating = false;
     };
 }
