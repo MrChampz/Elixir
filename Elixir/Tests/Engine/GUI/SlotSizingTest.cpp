@@ -77,3 +77,35 @@ TEST(SlotSizingTest, VerticalBoxDesiredSizeIgnoresFillSlotMeasuredSize)
 
     EXPECT_FLOAT_EQ(desired.y, 10.0f);
 }
+
+TEST(SlotSizingTest, HorizontalBoxKeepsMeasurementsAlignedAfterCollapsedSlot)
+{
+    const auto box = CreateRef<HorizontalBox>();
+    const auto collapsed = CreateRef<CountingWidget>(glm::vec2{ 10.0f, 10.0f });
+    const auto visible = CreateRef<CountingWidget>(glm::vec2{ 25.0f, 15.0f });
+    collapsed->SetVisibility(EVisibility::Collapsed);
+    box->AddChild(collapsed);
+    box->AddChild(visible);
+
+    Arrange(box, { { 0.0f, 0.0f }, { 100.0f, 40.0f } });
+
+    EXPECT_EQ(collapsed->ArrangeCount, 0);
+    EXPECT_EQ(visible->GetGeometry().Position, glm::vec2(0.0f, 12.5f));
+    EXPECT_EQ(visible->GetGeometry().Size, glm::vec2(25.0f, 15.0f));
+}
+
+TEST(SlotSizingTest, VerticalBoxKeepsMeasurementsAlignedAfterCollapsedSlot)
+{
+    const auto box = CreateRef<VerticalBox>();
+    const auto collapsed = CreateRef<CountingWidget>(glm::vec2{ 10.0f, 10.0f });
+    const auto visible = CreateRef<CountingWidget>(glm::vec2{ 15.0f, 25.0f });
+    collapsed->SetVisibility(EVisibility::Collapsed);
+    box->AddChild(collapsed);
+    box->AddChild(visible);
+
+    Arrange(box, { { 0.0f, 0.0f }, { 40.0f, 100.0f } });
+
+    EXPECT_EQ(collapsed->ArrangeCount, 0);
+    EXPECT_EQ(visible->GetGeometry().Position, glm::vec2(12.5f, 0.0f));
+    EXPECT_EQ(visible->GetGeometry().Size, glm::vec2(15.0f, 25.0f));
+}
