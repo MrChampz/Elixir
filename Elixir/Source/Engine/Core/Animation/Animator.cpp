@@ -20,42 +20,82 @@ namespace Elixir
         }
 
         apply(0.0f);
-        m_Tracks.push_back({
+        STrack track{
             .Id = id,
             .Duration = duration,
             .Apply = std::move(apply),
             .OnComplete = std::move(onComplete),
-        });
+        };
+        if (m_IsUpdating)
+            m_PendingTracks.push_back(std::move(track));
+        else
+            m_Tracks.push_back(std::move(track));
         return id;
     }
 
     void Animator::Stop(const AnimationId id)
     {
+        if (m_IsUpdating)
+        {
+            for (auto& track : m_Tracks)
+            {
+                if (track.Id == id)
+                    track.Cancelled = true;
+            }
+            std::erase_if(m_PendingTracks, [id](const STrack& track) { return track.Id == id; });
+            return;
+        }
+
         std::erase_if(m_Tracks, [id](const STrack& track) { return track.Id == id; });
     }
 
     void Animator::StopAll()
     {
+        if (m_IsUpdating)
+        {
+            for (auto& track : m_Tracks)
+                track.Cancelled = true;
+            m_PendingTracks.clear();
+            return;
+        }
+
         m_Tracks.clear();
     }
 
     void Animator::Update(const Timestep frameTime)
     {
         const float delta = std::max(0.0f, frameTime.GetSeconds());
-        for (auto it = m_Tracks.begin(); it != m_Tracks.end();)
+        m_IsUpdating = true;
+        for (auto& track : m_Tracks)
         {
-            it->Elapsed = std::min(it->Elapsed + delta, it->Duration);
-            it->Apply(it->Elapsed);
+            if (track.Cancelled) continue;
 
-            if (it->Elapsed < it->Duration)
-            {
-                ++it;
-                continue;
-            }
+            track.Elapsed = std::min(track.Elapsed + delta, track.Duration);
+            const float elapsed = track.Elapsed;
+            const auto apply = track.Apply;
+            apply(elapsed);
+            if (track.Cancelled || track.Elapsed < track.Duration) continue;
 
-            const auto onComplete = std::move(it->OnComplete);
-            it = m_Tracks.erase(it);
+            track.Completed = true;
+            const auto onComplete = std::move(track.OnComplete);
             if (onComplete) onComplete();
         }
+
+        m_IsUpdating = false;
+        std::erase_if(m_Tracks, [](const STrack& track) { return track.Cancelled || track.Completed; });
+        m_Tracks.insert(
+            m_Tracks.end(),
+            std::make_move_iterator(m_PendingTracks.begin()),
+            std::make_move_iterator(m_PendingTracks.end())
+        );
+        m_PendingTracks.clear();
+    }
+
+    bool Animator::IsAnimating() const
+    {
+        return !m_PendingTracks.empty() || std::ranges::any_of(m_Tracks, [](const STrack& track)
+        {
+            return !track.Cancelled && !track.Completed;
+        });
     }
 }

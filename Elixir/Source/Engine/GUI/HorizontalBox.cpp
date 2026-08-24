@@ -68,11 +68,14 @@ namespace Elixir::GUI
         // Measure every child exactly once, with its real constraint, and reuse the result in
         // both loops below. Fill/Fixed children still get measured on the cross axis (height)
         // - their main-axis (width) entry is only actually used below for Auto children.
-        std::vector<glm::vec2> childSizes;
-        childSizes.reserve(m_Slots.size());
+        // Keep measurements indexed by slot. Collapsed children are skipped by both later
+        // passes, but they still need an unused entry so a preceding collapsed slot cannot
+        // shift the measurement belonging to a visible sibling.
+        std::vector<glm::vec2> childSizes(m_Slots.size());
 
-        for (const auto& slot : m_Slots)
+        for (size_t i = 0; i < m_Slots.size(); ++i)
         {
+            const auto& slot = m_Slots[i];
             if (!slot->GetWidget()->TakesSpace()) continue;
 
             const auto margin = slot->GetMargin();
@@ -82,7 +85,7 @@ namespace Elixir::GUI
                 innerSpace.Size.y - margin.GetTotalVertical()
             };
 
-            childSizes.push_back(slot->GetWidget()->Measure(childConstraint));
+            childSizes[i] = slot->GetWidget()->Measure(childConstraint);
         }
 
         // First pass: space already spoken for by Auto/Fixed children (main axis = width),

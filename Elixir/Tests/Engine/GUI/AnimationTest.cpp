@@ -72,6 +72,74 @@ TEST(AnimationTest, AnimatorAppliesCurveValues)
     EXPECT_FLOAT_EQ(value.Thickness, 1.0f);
 }
 
+TEST(AnimationTest, AnimatorCompletionCanBindAnotherAnimation)
+{
+    AnimationCurve<float> curve;
+    curve.AddKey({ .Time = 0.0f, .Value = 0.0f });
+    curve.AddKey({ .Time = 0.1f, .Value = 1.0f });
+
+    Animator animator;
+    int completed = 0;
+    animator.Bind<float>(curve, [](const float&) {}, [&]
+    {
+        ++completed;
+        animator.Bind<float>(curve, [](const float&) {}, [&] { ++completed; });
+    });
+
+    animator.Update(Timestep(0.1f));
+
+    EXPECT_EQ(completed, 1);
+    EXPECT_TRUE(animator.IsAnimating());
+
+    animator.Update(Timestep(0.1f));
+
+    EXPECT_EQ(completed, 2);
+    EXPECT_FALSE(animator.IsAnimating());
+}
+
+TEST(AnimationTest, AnimatorCompletionCanStopAnotherAnimation)
+{
+    AnimationCurve<float> curve;
+    curve.AddKey({ .Time = 0.0f, .Value = 0.0f });
+    curve.AddKey({ .Time = 0.1f, .Value = 1.0f });
+
+    Animator animator;
+    int completed = 0;
+    Animator::AnimationId second = 0;
+    animator.Bind<float>(curve, [](const float&) {}, [&]
+    {
+        ++completed;
+        animator.Stop(second);
+    });
+    second = animator.Bind<float>(curve, [](const float&) {}, [&] { ++completed; });
+
+    animator.Update(Timestep(0.1f));
+
+    EXPECT_EQ(completed, 1);
+    EXPECT_FALSE(animator.IsAnimating());
+}
+
+TEST(AnimationTest, AnimatorCompletionCanStopAllAnimations)
+{
+    AnimationCurve<float> curve;
+    curve.AddKey({ .Time = 0.0f, .Value = 0.0f });
+    curve.AddKey({ .Time = 0.1f, .Value = 1.0f });
+
+    Animator animator;
+    int completed = 0;
+    animator.Bind<float>(curve, [](const float&) {}, [&]
+    {
+        ++completed;
+        animator.StopAll();
+    });
+    animator.Bind<float>(curve, [](const float&) {}, [&] { ++completed; });
+
+    animator.Update(Timestep(0.1f));
+
+    EXPECT_EQ(completed, 1);
+    EXPECT_FALSE(animator.IsAnimating());
+}
+
 TEST(AnimationTest, WidgetAnimationUpdatesWidgetPropertiesOutsideWidget)
 {
     const auto widget = CreateRef<AnimatedLeaf>();

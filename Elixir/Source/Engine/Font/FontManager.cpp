@@ -101,16 +101,81 @@ namespace Elixir
         const Ref<Font>& font,
         float fontSize,
         float maxWidth,
-        std::vector<std::string>* outLines
+        std::vector<std::string>* lines
     )
     {
         EE_PROFILE_ZONE_SCOPED()
 
-        // TODO: Temporary, implement the real logic!
-        if (outLines)
-            outLines->assign(1, text);
+        std::vector<std::string> outLines;
+        std::string line;
+        float widestLine = 0.0f;
+        float lineWidth = 0.0f;
 
-        return MeasureText(text, font, fontSize);
+        const auto appendLine = [&]
+        {
+            widestLine = std::max(widestLine, lineWidth);
+            outLines.push_back(std::move(line));
+            line.clear();
+            lineWidth = 0.0f;
+        };
+
+        size_t index = 0;
+        while (index < text.size())
+        {
+            const int charLength = UTF8::UTF8CharLength(text[index]);
+            const uint32_t codepoint = UTF8::UTF8ToCodepoint(text, (int)index);
+
+            if (codepoint == '\n' || codepoint == '\r')
+            {
+                appendLine();
+                index += charLength;
+                if (codepoint == '\r' && index < text.size() && text[index] == '\n')
+                    ++index;
+                continue;
+            }
+
+            if (line.empty() && (codepoint == ' ' || codepoint == '\t'))
+            {
+                index += charLength;
+                continue;
+            }
+
+            const std::string character = text.substr(index, charLength);
+            const auto glyph = font->GetGlyph(codepoint);
+            const float characterWidth = glyph.has_value()
+                ? glyph->Advance * font->GetScale() * fontSize
+                : 0.0f;
+            if (maxWidth > 0.0f && !line.empty() &&
+                lineWidth + characterWidth > maxWidth)
+            {
+                const size_t wrapAt = line.find_last_of(" \t");
+                if (wrapAt != std::string::npos)
+                {
+                    std::string remainder = line.substr(wrapAt + 1);
+                    line.erase(wrapAt);
+                    lineWidth = MeasureText(line, font, fontSize).x;
+                    appendLine();
+                    line = std::move(remainder);
+                    lineWidth = MeasureText(line, font, fontSize).x;
+                }
+                else
+                {
+                    appendLine();
+                }
+                continue;
+            }
+
+            line += character;
+            lineWidth += characterWidth;
+            index += charLength;
+        }
+
+        appendLine();
+        const size_t lineCount = outLines.size();
+        if (lines)
+            *lines = std::move(outLines);
+
+        return { widestLine, GetLineHeight(font, fontSize) * lineCount };
     }
 
     float FontManager::GetLineHeight(const Ref<Font>& font, const float fontSize)
