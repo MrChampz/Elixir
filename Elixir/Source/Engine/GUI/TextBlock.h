@@ -12,7 +12,12 @@ namespace Elixir::GUI
      */
     enum class ETextOverflow
     {
-        Ellipsis, Wrap, Clip
+        /** Truncate the first logical line and append an ellipsis when needed. */
+        Ellipsis,
+        /** Preserve explicit line breaks and wrap additional lines within the allocated rect. */
+        Wrap,
+        /** Truncate the first logical line at the allocated width. */
+        Clip,
     };
 
     class ELIXIR_API TextBlock final : public Widget
@@ -41,9 +46,14 @@ namespace Elixir::GUI
 
         void BuildDrawCommands(RenderBatch& batch, int zOrder) override;
 
-        std::string ProcessText(const std::string& text, float availableWidth) const;
+        std::string ClipText(const std::string& text, float availableWidth) const;
+        std::string EllipsizeText(
+            const std::string& text,
+            float availableWidth,
+            bool appendEllipsis
+        ) const;
 
-        glm::vec2 UpdateWrappedDisplayText(float maxWidth);
+        glm::vec2 UpdateWrappedDisplayText(float maxWidth, float maxHeight = UnconstrainedSize);
 
       private:
         std::string m_Text;

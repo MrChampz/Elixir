@@ -135,7 +135,9 @@ namespace Elixir::GUI
         const float lineHeight = FontManager::GetLineHeight(font, cmd.FontSize);
 
         float cursorX = cmd.Geometry.Position.x;
-        float cursorY = cmd.Geometry.Position.y + (cmd.Geometry.Size.y - lineHeight) * 0.5f;
+        const size_t lineCount = std::count(cmd.Text.begin(), cmd.Text.end(), '\n') + 1;
+        const float textHeight = lineHeight * lineCount;
+        float cursorY = cmd.Geometry.Position.y + (cmd.Geometry.Size.y - textHeight) * 0.5f;
 
         int i = 0;
         while (i < (int)cmd.Text.size())
