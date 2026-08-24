@@ -6,25 +6,25 @@
 namespace Elixir::GUI::Util
 {
     /** @brief Interpolate two scalar style values. */
-    ELIXIR_API inline float Interpolate(float from, float to, float amount)
+    inline float Interpolate(float from, float to, float amount)
     {
         return glm::mix(from, to, amount);
     }
 
     /** @brief Interpolate two two-dimensional style values. */
-    ELIXIR_API inline glm::vec2 Interpolate(const glm::vec2& from, const glm::vec2& to, float amount)
+    inline glm::vec2 Interpolate(const glm::vec2& from, const glm::vec2& to, float amount)
     {
         return glm::mix(from, to, amount);
     }
 
     /** @brief Interpolate two four-dimensional style values. */
-    ELIXIR_API inline glm::vec4 Interpolate(const glm::vec4& from, const glm::vec4& to, float amount)
+    inline glm::vec4 Interpolate(const glm::vec4& from, const glm::vec4& to, float amount)
     {
         return glm::mix(from, to, amount);
     }
 
     /** @brief Interpolate two colors. */
-    ELIXIR_API inline SColor Interpolate(const SColor& from, const SColor& to, float amount)
+    inline SColor Interpolate(const SColor& from, const SColor& to, float amount)
     {
         return {
             Interpolate(from.R, to.R, amount),
@@ -35,13 +35,13 @@ namespace Elixir::GUI::Util
     }
 
     /** @brief Interpolate an outline's color and thickness. */
-    ELIXIR_API inline SOutline Interpolate(const SOutline& from, const SOutline& to, float amount)
+    inline SOutline Interpolate(const SOutline& from, const SOutline& to, float amount)
     {
         return { Interpolate(from.Color, to.Color, amount), Interpolate(from.Thickness, to.Thickness, amount) };
     }
 
     /** @brief Interpolate the scalar and color properties of a brush. */
-    ELIXIR_API inline SBrush Interpolate(const SBrush& from, const SBrush& to, float amount)
+    inline SBrush Interpolate(const SBrush& from, const SBrush& to, float amount)
     {
         return {
             .Color = Interpolate(from.Color, to.Color, amount),

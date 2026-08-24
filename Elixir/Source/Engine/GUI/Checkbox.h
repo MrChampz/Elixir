@@ -25,7 +25,7 @@ namespace Elixir::GUI
         * @param states Interaction states active on the checkbox.
         * @return The selected complete appearance.
         */
-        const SAppearance& Resolve(bool checked, EInteractionState states) const;
+        ELIXIR_API const SAppearance& Resolve(bool checked, EInteractionState states) const;
     };
 
     /**
