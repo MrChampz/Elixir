@@ -1,7 +1,6 @@
 #pragma once
 
-#include "Engine/Graphics/TextureSet.h"
-
+#include <Engine/Graphics/TextureSet.h>
 #include <Engine/Font/Font.h>
 #include <Engine/Font/FontBackend.h>
 
@@ -56,16 +55,16 @@ namespace Elixir
          * @param font The font used to display the text.
          * @param fontSize The font size in pixels.
          * @param maxWidth The maximum line width, in pixels, before wrapping to the next line.
-         * @param outLines When non-null, receives the text split into wrapped lines.
+         * @param lines When non-null, receives the text split into wrapped lines.
          * @return A 2D vector with the wrapped block's width (<= maxWidth, unless a single
-         * word alone exceeds it) and total height (outLines->size() * GetLineHeight()).
+         * glyph alone exceeds it) and total height (lineCount * GetLineHeight()).
          */
         static glm::vec2 MeasureWrapped(
             const std::string& text,
             const Ref<Font>& font,
             float fontSize,
             float maxWidth,
-            std::vector<std::string>* outLines = nullptr
+            std::vector<std::string>* lines = nullptr
         );
 
         /**

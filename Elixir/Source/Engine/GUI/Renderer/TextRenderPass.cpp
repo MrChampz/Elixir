@@ -146,6 +146,7 @@ namespace Elixir::GUI
             if (codepoint == '\n') {
                 cursorX = cmd.Geometry.Position.x;
                 cursorY += lineHeight;
+                i += charLen;
                 continue;
             }
 
