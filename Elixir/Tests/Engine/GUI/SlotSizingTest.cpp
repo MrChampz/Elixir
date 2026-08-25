@@ -78,6 +78,44 @@ TEST(SlotSizingTest, VerticalBoxDesiredSizeIgnoresFillSlotMeasuredSize)
     EXPECT_FLOAT_EQ(desired.y, 10.0f);
 }
 
+TEST(SlotSizingTest, VerticalBoxDesiredSizeRespectsSlotConstraints)
+{
+    const auto box = CreateRef<VerticalBox>();
+    const auto fixed = CreateRef<CountingWidget>(glm::vec2{ 10.0f, 10.0f });
+    const auto automatic = CreateRef<CountingWidget>(glm::vec2{ 10.0f, 100.0f });
+    const auto fill = CreateRef<CountingWidget>(glm::vec2{ 10.0f, 500.0f });
+
+    box->AddChild(fixed).SetFixedSize(26.0f).SetMinSize({ 0.0f, 50.0f });
+    box->AddChild(automatic).SetMaxSize({ FLT_MAX, 40.0f });
+    box->AddChild(fill)
+        .SetFillSize()
+        .SetMinSize({ 0.0f, 20.0f })
+        .SetMargin(SMargin(0.0f, 5.0f));
+
+    const glm::vec2 desired = box->Measure({ 100.0f, UnconstrainedSize });
+
+    EXPECT_FLOAT_EQ(desired.y, 120.0f);
+}
+
+TEST(SlotSizingTest, HorizontalBoxDesiredSizeRespectsSlotConstraints)
+{
+    const auto box = CreateRef<HorizontalBox>();
+    const auto fixed = CreateRef<CountingWidget>(glm::vec2{ 10.0f, 10.0f });
+    const auto automatic = CreateRef<CountingWidget>(glm::vec2{ 100.0f, 10.0f });
+    const auto fill = CreateRef<CountingWidget>(glm::vec2{ 500.0f, 10.0f });
+
+    box->AddChild(fixed).SetFixedSize(26.0f).SetMinSize({ 50.0f, 0.0f });
+    box->AddChild(automatic).SetMaxSize({ 40.0f, FLT_MAX });
+    box->AddChild(fill)
+        .SetFillSize()
+        .SetMinSize({ 20.0f, 0.0f })
+        .SetMargin(SMargin(5.0f, 0.0f));
+
+    const glm::vec2 desired = box->Measure({ UnconstrainedSize, 100.0f });
+
+    EXPECT_FLOAT_EQ(desired.x, 120.0f);
+}
+
 TEST(SlotSizingTest, HorizontalBoxKeepsMeasurementsAlignedAfterCollapsedSlot)
 {
     const auto box = CreateRef<HorizontalBox>();
