@@ -139,8 +139,7 @@ namespace Elixir
             const float characterWidth = glyph.has_value()
                 ? glyph->Advance * font->GetScale() * fontSize
                 : 0.0f;
-            if (maxWidth > 0.0f && !line.empty() &&
-                lineWidth + characterWidth > maxWidth)
+            if (!line.empty() && lineWidth + characterWidth > maxWidth)
             {
                 const size_t wrapAt = line.find_last_of(" \t");
                 if (wrapAt != std::string::npos)

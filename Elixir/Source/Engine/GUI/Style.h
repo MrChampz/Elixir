@@ -163,8 +163,9 @@ namespace Elixir::GUI
     /**
      * @brief Owns the complete styles used as the application's defaults.
      *
-     * A StyleSet is a typed registry. It has no relationship with a widget's lifetime: a
-     * widget reads its registered style until SetStyle gives that widget an explicit override.
+     * A StyleSet is a typed registry. Widgets copy their registered style when constructed, so
+     * replacing an entry affects subsequently constructed widgets. SetStyle replaces a widget's
+     * local copy explicitly.
      */
     class ELIXIR_API StyleSet
     {
@@ -214,9 +215,9 @@ namespace Elixir::GUI
     /**
      * @brief Get the application's built-in default styles.
      *
-     * The returned registry is shared by widgets without explicit styles. Applications can
-     * replace registered styles to update their default look without selecting a named theme.
-     * A widget that received SetStyle keeps its own copy.
+     * The returned registry supplies styles for subsequently constructed widgets. Applications
+     * can replace registered styles to update their default look without selecting a named theme.
+     * Existing widgets keep their copied styles until SetStyle replaces them.
      *
      * @return The shared default style registry.
      */

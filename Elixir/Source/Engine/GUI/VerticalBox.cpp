@@ -18,6 +18,8 @@ namespace Elixir::GUI
 
             const auto margin = slot->GetMargin();
             const auto sizeRule = slot->GetSizeRule();
+            const auto minSize = slot->GetMinSize();
+            const auto maxSize = slot->GetMaxSize();
 
             const glm::vec2 childConstraint = {
                 innerAvailable.x - margin.GetTotalHorizontal(),
@@ -30,25 +32,20 @@ namespace Elixir::GUI
             // Width is the maximum
             totalSize.x = std::max(totalSize.x, childSize.x);
 
-            // Height accumulates using the SAME per-slot rule LayoutChildren applies below,
-            // not the raw measured size: a Fixed slot occupies its configured pixels
-            // regardless of what its content measures to, and a Fill slot has no intrinsic
-            // size of its own - it just stretches into whatever LayoutChildren ends up
-            // giving it - so only Auto slots use their measured height. Using the raw
-            // measured height unconditionally here made a container (and anything reading
-            // its desired size, e.g. a ScrollBox wrapping it) under-report how much space it
-            // actually occupies whenever a Fixed slot's content measured smaller than its
-            // configured size.
+            // Height accumulates using the same rule and main-axis constraints as layout.
+            // Fill has no measured intrinsic height, but its minimum and margins still
+            // reserve space because LayoutChildren enforces that minimum.
             switch (sizeRule.Rule)
             {
                 case SSizeParam::ERule::Fill:
+                    totalSize.y += minSize.y + margin.GetTotalVertical();
                     break;
                 case SSizeParam::ERule::Fixed:
-                    totalSize.y += sizeRule.Value + margin.GetTotalVertical();
+                    totalSize.y += std::max(minSize.y, std::min(maxSize.y, sizeRule.Value)) + margin.GetTotalVertical();
                     break;
                 case SSizeParam::ERule::Auto:
                 default:
-                    totalSize.y += childSize.y + margin.GetTotalVertical();
+                    totalSize.y += std::max(minSize.y, std::min(maxSize.y, childSize.y)) + margin.GetTotalVertical();
                     break;
             }
         }

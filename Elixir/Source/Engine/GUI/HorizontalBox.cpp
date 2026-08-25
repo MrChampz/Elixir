@@ -18,6 +18,8 @@ namespace Elixir::GUI
 
             const auto margin = slot->GetMargin();
             const auto sizeRule = slot->GetSizeRule();
+            const auto minSize = slot->GetMinSize();
+            const auto maxSize = slot->GetMaxSize();
 
             const glm::vec2 childConstraint = {
                 innerAvailable.x,
@@ -30,25 +32,20 @@ namespace Elixir::GUI
             // Height is the maximum
             totalSize.y = std::max(totalSize.y, childSize.y);
 
-            // Width accumulates using the SAME per-slot rule LayoutChildren applies below,
-            // not the raw measured size: a Fixed slot occupies its configured pixels
-            // regardless of what its content measures to, and a Fill slot has no intrinsic
-            // size of its own - it just stretches into whatever LayoutChildren ends up
-            // giving it - so only Auto slots use their measured width. Using the raw
-            // measured width unconditionally here made a container (and anything reading its
-            // desired size, e.g. a ScrollBox wrapping it) under-report how much space it
-            // actually occupies whenever a Fixed slot's content measured smaller than its
-            // configured size.
+            // Width accumulates using the same rule and main-axis constraints as layout.
+            // Fill has no measured intrinsic width, but its minimum and margins still
+            // reserve space because LayoutChildren enforces that minimum.
             switch (sizeRule.Rule)
             {
                 case SSizeParam::ERule::Fill:
+                    totalSize.x += minSize.x + margin.GetTotalHorizontal();
                     break;
                 case SSizeParam::ERule::Fixed:
-                    totalSize.x += sizeRule.Value + margin.GetTotalHorizontal();
+                    totalSize.x += std::max(minSize.x, std::min(maxSize.x, sizeRule.Value)) + margin.GetTotalHorizontal();
                     break;
                 case SSizeParam::ERule::Auto:
                 default:
-                    totalSize.x += childSize.x + margin.GetTotalHorizontal();
+                    totalSize.x += std::max(minSize.x, std::min(maxSize.x, childSize.x)) + margin.GetTotalHorizontal();
                     break;
             }
         }

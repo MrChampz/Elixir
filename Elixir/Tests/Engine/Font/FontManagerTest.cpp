@@ -45,6 +45,17 @@ TEST(FontManagerTest, MeasureWrappedBreaksOverlongWords)
     EXPECT_EQ(size, glm::vec2(10.0f, 30.0f));
 }
 
+TEST(FontManagerTest, MeasureWrappedBreaksAtZeroWidth)
+{
+    const auto font = CreateTestFont();
+    std::vector<std::string> lines;
+
+    const glm::vec2 size = FontManager::MeasureWrapped("aaa", font, 10.0f, 0.0f, &lines);
+
+    EXPECT_EQ(lines, (std::vector<std::string>{ "a", "a", "a" }));
+    EXPECT_EQ(size, glm::vec2(10.0f, 30.0f));
+}
+
 TEST(FontManagerTest, MeasureWrappedDoesNotSplitUtf8Characters)
 {
     const auto font = CreateTestFont();

@@ -46,6 +46,7 @@ namespace Elixir::GUI
     {
         if (m_ShowScrollbar == show) return;
         m_ShowScrollbar = show;
+        MarkLayoutDirty();
         MarkRenderDirty();
     }
 
@@ -73,7 +74,7 @@ namespace Elixir::GUI
         // every container is expected to call on a child.
         if (HasContent())
         {
-            const glm::vec2 contentConstraint = ContentMeasureConstraint(availableSize);
+            const glm::vec2 contentConstraint = ContentMeasureConstraint(desired);
             const glm::vec2 contentSize = m_ContentSlot->GetWidget()->Measure(contentConstraint);
             const glm::vec2 contentViewport = CrossAxisSpace(desired);
 
@@ -228,9 +229,12 @@ namespace Elixir::GUI
             };
 
             const float maxScroll = m_ContentSize.y - contentViewport.y;
-            const float thumbHeight = std::max(
-                track.Size.y * (contentViewport.y / m_ContentSize.y),
-                m_ScrollBarStyle.MinimumThumbLength
+            const float thumbHeight = std::min(
+                track.Size.y,
+                std::max(
+                    track.Size.y * (contentViewport.y / m_ContentSize.y),
+                    m_ScrollBarStyle.MinimumThumbLength
+                )
             );
             const float scrollRatio = maxScroll > 0.0f ? m_ScrollOffset.y / maxScroll : 0.0f;
 
@@ -250,9 +254,12 @@ namespace Elixir::GUI
             };
 
             const float maxScroll = m_ContentSize.x - contentViewport.x;
-            const float thumbWidth = std::max(
-                track.Size.x * (contentViewport.x / m_ContentSize.x),
-                m_ScrollBarStyle.MinimumThumbLength
+            const float thumbWidth = std::min(
+                track.Size.x,
+                std::max(
+                    track.Size.x * (contentViewport.x / m_ContentSize.x),
+                    m_ScrollBarStyle.MinimumThumbLength
+                )
             );
             const float scrollRatio = maxScroll > 0.0f ? m_ScrollOffset.x / maxScroll : 0.0f;
 
