@@ -85,10 +85,10 @@ namespace Elixir::GUI
             childSizes[i] = slot->GetWidget()->Measure(childConstraint);
         }
 
-        // First pass: space already spoken for by Auto/Fixed children (main axis = width),
-        // and the total ratio claimed by Fill children.
-        float fixedSpace = 0.0f;
-        float totalFillRatio = 0.0f;
+        // First reserve every constrained size. Fill slots start at their minimum so those
+        // constraints cannot make the final arrangement overflow after space is divided.
+        std::vector<float> childWidths(m_Slots.size());
+        float occupiedSpace = 0.0f;
 
         for (size_t i = 0; i < m_Slots.size(); ++i)
         {
@@ -97,24 +97,67 @@ namespace Elixir::GUI
 
             const auto margin = slot->GetMargin();
             const auto sizeRule = slot->GetSizeRule();
+            const auto minSize = slot->GetMinSize();
+            const auto maxSize = slot->GetMaxSize();
 
             switch (sizeRule.Rule)
             {
                 case SSizeParam::ERule::Fill:
-                    totalFillRatio += sizeRule.Value;
+                    childWidths[i] = minSize.x;
                     break;
                 case SSizeParam::ERule::Fixed:
-                    fixedSpace += sizeRule.Value + margin.GetTotalHorizontal();
+                    childWidths[i] = std::max(minSize.x, std::min(maxSize.x, sizeRule.Value));
                     break;
                 case SSizeParam::ERule::Auto:
                 default:
-                    fixedSpace += childSizes[i].x + margin.GetTotalHorizontal();
+                    childWidths[i] = std::max(minSize.x, std::min(maxSize.x, childSizes[i].x));
                     break;
             }
+
+            occupiedSpace += childWidths[i] + margin.GetTotalHorizontal();
         }
 
-        // Calculate space available for Fill slots
-        const float fillSpace = std::max(0.0f, innerSpace.Size.x - fixedSpace);
+        // Divide the remaining space by Fill ratio. A slot that reaches MaxSize is removed
+        // from later rounds, so its unused share is redistributed to its siblings.
+        float remainingSpace = std::max(0.0f, innerSpace.Size.x - occupiedSpace);
+        while (remainingSpace > 0.0f)
+        {
+            float activeFillRatio = 0.0f;
+            for (size_t i = 0; i < m_Slots.size(); ++i)
+            {
+                const auto& slot = m_Slots[i];
+                if (!slot->GetWidget()->TakesSpace()) continue;
+
+                const auto sizeRule = slot->GetSizeRule();
+                if (sizeRule.Rule != SSizeParam::ERule::Fill || sizeRule.Value <= 0.0f) continue;
+                if (childWidths[i] >= slot->GetMaxSize().x) continue;
+
+                activeFillRatio += sizeRule.Value;
+            }
+
+            if (activeFillRatio <= 0.0f) break;
+
+            float distributedSpace = 0.0f;
+            for (size_t i = 0; i < m_Slots.size(); ++i)
+            {
+                const auto& slot = m_Slots[i];
+                if (!slot->GetWidget()->TakesSpace()) continue;
+
+                const auto sizeRule = slot->GetSizeRule();
+                if (sizeRule.Rule != SSizeParam::ERule::Fill || sizeRule.Value <= 0.0f) continue;
+
+                const float capacity = slot->GetMaxSize().x - childWidths[i];
+                if (capacity <= 0.0f) continue;
+
+                const float share = remainingSpace * (sizeRule.Value / activeFillRatio);
+                const float addedSize = std::min(share, capacity);
+                childWidths[i] += addedSize;
+                distributedSpace += addedSize;
+            }
+
+            if (distributedSpace <= 0.0f) break;
+            remainingSpace -= distributedSpace;
+        }
 
         // Second: Arrange children
         float currentX = innerSpace.Position.x;
@@ -124,38 +167,16 @@ namespace Elixir::GUI
             const auto& slot = m_Slots[i];
             if (!slot->GetWidget()->TakesSpace()) continue;
 
-            const glm::vec2 childSize = childSizes[i];
             const auto margin = slot->GetMargin();
             const auto vAlignment = slot->GetVerticalAlignment();
-            const auto sizeRule = slot->GetSizeRule();
             const auto minSize = slot->GetMinSize();
             const auto maxSize = slot->GetMaxSize();
 
-            // Calculate child width from its sizing rule
-            float childWidth;
-
-            switch (sizeRule.Rule)
-            {
-                case SSizeParam::ERule::Fill:
-                    // Guard: if no sibling claims a Fill ratio, no extra space is handed out.
-                    childWidth = totalFillRatio > 0.0f
-                        ? fillSpace * (sizeRule.Value / totalFillRatio) - margin.GetTotalHorizontal()
-                        : 0.0f;
-                    break;
-                case SSizeParam::ERule::Fixed:
-                    childWidth = sizeRule.Value;
-                    break;
-                case SSizeParam::ERule::Auto:
-                default:
-                    childWidth = childSize.x;
-                    break;
-            }
-
-            childWidth = std::max(minSize.x, std::min(maxSize.x, childWidth));
+            const float childWidth = childWidths[i];
 
             // Clamp the desired height; EVerticalAlignment::Fill overrides it below with the
             // full available height regardless of this value (see Widget::AlignVertically).
-            float childHeight = std::max(minSize.y, std::min(maxSize.y, childSize.y));
+            const float childHeight = std::max(minSize.y, std::min(maxSize.y, childSizes[i].y));
 
             // Create available space for this child
             SRect childAvailableSpace;

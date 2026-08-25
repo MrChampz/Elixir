@@ -116,6 +116,50 @@ TEST(SlotSizingTest, HorizontalBoxDesiredSizeRespectsSlotConstraints)
     EXPECT_FLOAT_EQ(desired.x, 120.0f);
 }
 
+TEST(SlotSizingTest, HorizontalBoxDistributesSpaceAfterConstrainedSlots)
+{
+    const auto box = CreateRef<HorizontalBox>();
+    const auto fixed = CreateRef<CountingWidget>(glm::vec2{ 10.0f, 10.0f });
+    const auto cappedFill = CreateRef<CountingWidget>(glm::vec2{ 10.0f, 10.0f });
+    const auto flexibleFill = CreateRef<CountingWidget>(glm::vec2{ 10.0f, 10.0f });
+
+    box->AddChild(fixed).SetFixedSize(10.0f).SetMinSize({ 50.0f, 0.0f });
+    box->AddChild(cappedFill)
+        .SetFillSize()
+        .SetMinSize({ 20.0f, 0.0f })
+        .SetMaxSize({ 20.0f, FLT_MAX });
+    box->AddChild(flexibleFill).SetFillSize();
+
+    Arrange(box, { { 0.0f, 0.0f }, { 100.0f, 20.0f } });
+
+    EXPECT_FLOAT_EQ(fixed->GetGeometry().Size.x, 50.0f);
+    EXPECT_FLOAT_EQ(cappedFill->GetGeometry().Size.x, 20.0f);
+    EXPECT_FLOAT_EQ(flexibleFill->GetGeometry().Size.x, 30.0f);
+    EXPECT_FLOAT_EQ(flexibleFill->GetGeometry().Position.x + flexibleFill->GetGeometry().Size.x, 100.0f);
+}
+
+TEST(SlotSizingTest, VerticalBoxDistributesSpaceAfterConstrainedSlots)
+{
+    const auto box = CreateRef<VerticalBox>();
+    const auto fixed = CreateRef<CountingWidget>(glm::vec2{ 10.0f, 10.0f });
+    const auto cappedFill = CreateRef<CountingWidget>(glm::vec2{ 10.0f, 10.0f });
+    const auto flexibleFill = CreateRef<CountingWidget>(glm::vec2{ 10.0f, 10.0f });
+
+    box->AddChild(fixed).SetFixedSize(10.0f).SetMinSize({ 0.0f, 50.0f });
+    box->AddChild(cappedFill)
+        .SetFillSize()
+        .SetMinSize({ 0.0f, 20.0f })
+        .SetMaxSize({ FLT_MAX, 20.0f });
+    box->AddChild(flexibleFill).SetFillSize();
+
+    Arrange(box, { { 0.0f, 0.0f }, { 20.0f, 100.0f } });
+
+    EXPECT_FLOAT_EQ(fixed->GetGeometry().Size.y, 50.0f);
+    EXPECT_FLOAT_EQ(cappedFill->GetGeometry().Size.y, 20.0f);
+    EXPECT_FLOAT_EQ(flexibleFill->GetGeometry().Size.y, 30.0f);
+    EXPECT_FLOAT_EQ(flexibleFill->GetGeometry().Position.y + flexibleFill->GetGeometry().Size.y, 100.0f);
+}
+
 TEST(SlotSizingTest, HorizontalBoxKeepsMeasurementsAlignedAfterCollapsedSlot)
 {
     const auto box = CreateRef<HorizontalBox>();
