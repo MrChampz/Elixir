@@ -143,6 +143,17 @@ namespace Elixir::GUI
         return m_Visibility == EVisibility::Visible;
     }
 
+    bool Widget::CanHandleMouseInput() const
+    {
+        return m_Enabled && (
+            m_OnMouseEnterCallback ||
+            m_OnMouseLeaveCallback ||
+            m_OnMouseDownCallback ||
+            m_OnMouseUpCallback ||
+            m_OnClickCallback
+        );
+    }
+
     const SWidgetStyle& Widget::GetStyle() const
     {
         return m_Style;

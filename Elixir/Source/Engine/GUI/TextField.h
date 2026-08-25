@@ -69,7 +69,9 @@ namespace Elixir::GUI
         SColor GetSelectionColor() const { return m_SelectionColor; }
         void SetSelectionColor(const SColor& color);
 
-    protected:
+        bool CanHandleMouseInput() const override { return IsEnabled(); }
+
+      protected:
         glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) override;
         void LayoutChildren(const SRect& allocatedSpace) override;
         void BuildDrawCommands(RenderBatch& batch, int zOrder) override;

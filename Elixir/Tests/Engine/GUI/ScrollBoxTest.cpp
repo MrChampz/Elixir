@@ -1,7 +1,11 @@
 #include <gtest/gtest.h>
 using namespace testing;
 
+#include <Engine/GUI/Canvas.h>
+#include <Engine/GUI/Manager.h>
+#include <Engine/GUI/Renderer/RenderBatch.h>
 #include <Engine/GUI/ScrollBox.h>
+#include <Engine/Input/InputManager.h>
 using namespace Elixir;
 using namespace Elixir::GUI;
 
@@ -16,6 +20,13 @@ namespace
 
         glm::vec2 ComputeDesiredSize(const glm::vec2&) override { return m_Desired; }
 
+        void SetDesiredSize(const glm::vec2& desired)
+        {
+            if (m_Desired == desired) return;
+            m_Desired = desired;
+            MarkLayoutDirty();
+        }
+
       private:
         glm::vec2 m_Desired;
     };
@@ -27,12 +38,22 @@ namespace
     {
       public:
         using ScrollBox::ClipsChildren;
+        using ScrollBox::BuildDrawCommands;
+        using ScrollBox::CollectDrawCommands;
         using ScrollBox::HandleMouseScrolled;
     };
 
     void Arrange(const Ref<Widget>& widget, const SRect& space)
     {
         widget->ArrangeChildren(space);
+    }
+
+    void BuildDrawCache(const Ref<TestScrollBox>& widget)
+    {
+        RenderBatch batch;
+        int zOrder = 0;
+        bool rebuilt = false;
+        widget->CollectDrawCommands(batch, zOrder, rebuilt, {{ -1, -1 }, { -1, -1 }});
     }
 }
 
@@ -59,6 +80,23 @@ TEST(ScrollBoxTest, DesiredSizeShrinksToContentWhenContentIsSmallerThanViewport)
     const glm::vec2 desired = scrollBox->Measure({ 1000.0f, 1000.0f });
     EXPECT_EQ(desired.x, 30.0f);
     EXPECT_EQ(desired.y, 20.0f);
+}
+
+TEST(ScrollBoxTest, DesiredSizePreservesTheActiveScrollbarGutter)
+{
+    const auto scrollBox = CreateRef<ScrollBox>();
+    scrollBox->SetSize({ 100.0f, 100.0f });
+    const auto content = CreateRef<SizedLeaf>(glm::vec2{ 30.0f, 200.0f });
+    scrollBox->SetContent(content);
+
+    // The vertical scrollbar needs 8 pixels, so a 30-pixel-wide child requires a
+    // 38-pixel-wide ScrollBox. The child then receives its full 30-pixel width.
+    const glm::vec2 desired = scrollBox->Measure({ 1000.0f, 1000.0f });
+    EXPECT_EQ(desired.x, 38.0f);
+    EXPECT_EQ(desired.y, 100.0f);
+
+    Arrange(scrollBox, { { 0.0f, 0.0f }, desired });
+    EXPECT_EQ(content->GetGeometry().Size.x, 30.0f);
 }
 
 TEST(ScrollBoxTest, LayoutChildrenOffsetsContentByCurrentScrollOffset)
@@ -89,15 +127,76 @@ TEST(ScrollBoxTest, SetScrollOffsetClampsAboveMaxAndBelowZero)
 
     Arrange(scrollBox, { { 0, 0 }, { 50, 50 } }); // establishes m_ContentSize used to clamp
 
-    // Above the max: content (200,150) minus viewport (50,50) = (150,100) max scroll.
+    // Both scrollbars reserve 8 pixels, leaving a (42,42) content viewport. The final
+    // (8-pixel) gutter remains reachable rather than being clipped at (150,100).
     scrollBox->SetScrollOffset({ 9999.0f, 9999.0f });
-    EXPECT_EQ(scrollBox->GetScrollOffset().x, 150.0f);
-    EXPECT_EQ(scrollBox->GetScrollOffset().y, 100.0f);
+    EXPECT_EQ(scrollBox->GetScrollOffset().x, 158.0f);
+    EXPECT_EQ(scrollBox->GetScrollOffset().y, 108.0f);
 
     // Below zero clamps to zero.
     scrollBox->SetScrollOffset({ -50.0f, -50.0f });
     EXPECT_EQ(scrollBox->GetScrollOffset().x, 0.0f);
     EXPECT_EQ(scrollBox->GetScrollOffset().y, 0.0f);
+}
+
+TEST(ScrollBoxTest, BothAxisScrollbarsUseTheGutterReducedViewport)
+{
+    const auto scrollBox = CreateRef<TestScrollBox>();
+    scrollBox->SetSize({ 50.0f, 50.0f });
+    scrollBox->SetScrollAxis(EScrollAxis::Both);
+    scrollBox->SetContent(CreateRef<SizedLeaf>(glm::vec2{ 200.0f, 150.0f }));
+    Arrange(scrollBox, { { 0.0f, 0.0f }, { 50.0f, 50.0f } });
+    scrollBox->SetScrollOffset({ 9999.0f, 9999.0f });
+
+    RenderBatch batch;
+    scrollBox->BuildDrawCommands(batch, 0);
+
+    const auto& commands = batch.GetCommands();
+    ASSERT_EQ(commands.size(), 4u);
+
+    const SRect& verticalTrack = commands[0].Geometry;
+    const SRect& verticalThumb = commands[1].Geometry;
+    const SRect& horizontalTrack = commands[2].Geometry;
+    const SRect& horizontalThumb = commands[3].Geometry;
+
+    EXPECT_EQ(verticalTrack.Position.x, 42.0f);
+    EXPECT_EQ(verticalTrack.Size.y, 42.0f);
+    EXPECT_EQ(horizontalTrack.Position.y, 42.0f);
+    EXPECT_EQ(horizontalTrack.Size.x, 42.0f);
+    EXPECT_FLOAT_EQ(verticalThumb.Position.y + verticalThumb.Size.y, 42.0f);
+    EXPECT_FLOAT_EQ(horizontalThumb.Position.x + horizontalThumb.Size.x, 42.0f);
+}
+
+TEST(ScrollBoxTest, LayoutInvalidatesRenderingWhenContentSizeChanges)
+{
+    const auto scrollBox = CreateRef<TestScrollBox>();
+    scrollBox->SetSize({ 50.0f, 50.0f });
+    const auto content = CreateRef<SizedLeaf>(glm::vec2{ 50.0f, 200.0f });
+    scrollBox->SetContent(content);
+    Arrange(scrollBox, { { 0.0f, 0.0f }, { 50.0f, 50.0f } });
+
+    BuildDrawCache(scrollBox);
+    ASSERT_FALSE(scrollBox->IsRenderDirty());
+
+    content->SetDesiredSize({ 50.0f, 100.0f });
+    Arrange(scrollBox, { { 0.0f, 0.0f }, { 50.0f, 50.0f } });
+
+    EXPECT_TRUE(scrollBox->IsRenderDirty());
+}
+
+TEST(ScrollBoxTest, ChangingScrollAxisInvalidatesRendering)
+{
+    const auto scrollBox = CreateRef<TestScrollBox>();
+    scrollBox->SetSize({ 50.0f, 50.0f });
+    scrollBox->SetContent(CreateRef<SizedLeaf>(glm::vec2{ 200.0f, 200.0f }));
+    Arrange(scrollBox, { { 0.0f, 0.0f }, { 50.0f, 50.0f } });
+
+    BuildDrawCache(scrollBox);
+    ASSERT_FALSE(scrollBox->IsRenderDirty());
+
+    scrollBox->SetScrollAxis(EScrollAxis::Horizontal);
+
+    EXPECT_TRUE(scrollBox->IsRenderDirty());
 }
 
 TEST(ScrollBoxTest, HandleMouseScrolledMovesOffsetWithinBoundsAndReportsHandled)
@@ -132,6 +231,36 @@ TEST(ScrollBoxTest, HandleMouseScrolledAtEdgeIsUnhandledSoAnAncestorCanTry)
 
     EXPECT_FALSE(reply.EventHandled);
     EXPECT_EQ(scrollBox->GetScrollOffset().y, 0.0f);
+}
+
+TEST(ScrollBoxTest, WheelEventUsesTheCurrentPointerHitPath)
+{
+    const auto root = CreateRef<Canvas>();
+    root->SetSize({ 200.0f, 100.0f });
+
+    const auto left = CreateRef<ScrollBox>();
+    left->SetSize({ 100.0f, 100.0f });
+    left->SetContent(CreateRef<SizedLeaf>(glm::vec2{ 100.0f, 200.0f }));
+    root->AddChild(left).SetSize({ 100.0f, 100.0f });
+
+    const auto right = CreateRef<ScrollBox>();
+    right->SetSize({ 100.0f, 100.0f });
+    right->SetContent(CreateRef<SizedLeaf>(glm::vec2{ 100.0f, 200.0f }));
+    root->AddChild(right).SetPosition({ 100.0f, 0.0f }).SetSize({ 100.0f, 100.0f });
+
+    root->ArrangeChildren({ { 0.0f, 0.0f }, { 200.0f, 100.0f } });
+
+    Manager manager;
+    manager.SetRoot(root);
+
+    MouseMovedEvent moved(150.0f, 50.0f);
+    InputManager::OnEvent(moved);
+
+    MouseScrolledEvent scrollDown(0.0f, -1.0f);
+    manager.ProcessEvent(scrollDown);
+
+    EXPECT_EQ(left->GetScrollOffset().y, 0.0f);
+    EXPECT_GT(right->GetScrollOffset().y, 0.0f);
 }
 
 TEST(ScrollBoxTest, ClipsChildrenIsTrue)

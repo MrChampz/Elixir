@@ -66,6 +66,17 @@ TEST(WidgetLifetimeTest, RemovedChildNoLongerDirtiesContainer)
     EXPECT_FALSE(box->IsLayoutDirty());
 }
 
+TEST(WidgetLifetimeTest, RemovingTheSlotOwnedReferenceKeepsTheChildAliveUntilDetached)
+{
+    const auto box = CreateRef<PanelTestWidget>();
+    box->AddChild(CreateRef<CountingWidget>());
+
+    const Ref<Widget>& child = box->GetSlotAt(0)->GetWidget();
+    box->RemoveChild(child);
+
+    EXPECT_EQ(box->GetSlotCount(), 0u);
+}
+
 TEST(WidgetLifetimeTest, ReparentingDetachesFromPreviousContainer)
 {
     const auto boxA = CreateRef<VerticalBox>();

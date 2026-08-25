@@ -2,6 +2,7 @@
 
 #include <Engine/GUI/Definitions.h>
 #include <Engine/Graphics/Texture.h>
+#include <Engine/Logging/Log.h>
 
 #include <optional>
 #include <typeindex>
@@ -190,14 +191,19 @@ namespace Elixir::GUI
         /**
          * @brief Get the style registered for one component type.
          * @tparam TStyle Concrete style type to retrieve.
-         * @return The registered complete style.
+         * @return The registered complete style, or an empty fallback when it is not registered.
          */
         template<typename TStyle>
         const TStyle& GetWidgetStyle() const
         {
             static_assert(std::is_base_of_v<SStyle, TStyle>);
             const auto it = m_Styles.find(std::type_index(typeid(TStyle)));
-            EE_CORE_ASSERT(it != m_Styles.end(), "StyleSet has no style for this component type");
+            if (it == m_Styles.end())
+            {
+                EE_CORE_ERROR("StyleSet has no style for component type {}", typeid(TStyle).name())
+                static const TStyle fallback{};
+                return fallback;
+            }
             return static_cast<const TStyle&>(*it->second);
         }
 

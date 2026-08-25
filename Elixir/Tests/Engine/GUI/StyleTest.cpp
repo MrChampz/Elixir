@@ -107,7 +107,16 @@ TEST(StyleTest, StyleSetStoresStylesByConcreteType)
 
     styles.SetWidgetStyle(button);
 
-    EXPECT_EQ(styles.GetWidgetStyle<SButtonStyle>().Normal.Foreground, button.Normal.Foreground);
+    const SButtonStyle& registered = styles.GetWidgetStyle<SButtonStyle>();
+    EXPECT_EQ(registered.Normal.Foreground, button.Normal.Foreground);
+}
+
+TEST(StyleTest, MissingWidgetStyleReturnsAnEmptyFallback)
+{
+    const StyleSet styles;
+
+    const SButtonStyle& fallback = styles.GetWidgetStyle<SButtonStyle>();
+    EXPECT_EQ(fallback.Normal.Foreground, SColor{});
 }
 
 TEST(StyleTest, WidgetOwnsTheStyleItReceives)
@@ -124,6 +133,27 @@ TEST(StyleTest, WidgetOwnsTheStyleItReceives)
     EXPECT_EQ(leaf.GetStyle().Hovered->Background.Color, SColor(0.0f, 1.0f, 0.0f, 1.0f));
 }
 
+TEST(StyleTest, PanelEmitsABrushForOutlineAndShadowWithoutFill)
+{
+    const auto panel = CreateRef<VerticalBox>();
+    SWidgetStyle style;
+    style.Normal.Background.Outline = { { 1.0f, 0.0f, 0.0f, 1.0f }, 1.0f };
+    style.Normal.Background.DropShadow = { 2.0f, 2.0f, 4.0f, 0.5f };
+    panel->SetStyle(style);
+    panel->ArrangeChildren({ {}, { 100.0f, 100.0f } });
+
+    TestGUIManager manager;
+    manager.SetRoot(panel);
+    manager.AssembleFrame();
+
+    const auto& commands = manager.GetRenderBatch().GetCommands();
+    ASSERT_EQ(commands.size(), 1u);
+    EXPECT_EQ(commands.front().Color.A, 0.0f);
+    EXPECT_EQ(commands.front().Outline.Color, style.Normal.Background.Outline.Color);
+    EXPECT_EQ(commands.front().Outline.Thickness, style.Normal.Background.Outline.Thickness);
+    EXPECT_EQ(commands.front().DropShadow, style.Normal.Background.DropShadow);
+}
+
 TEST(StyleTest, LegacyBackgroundSetterMarksTheWidgetForRerender)
 {
     const auto root = CreateRef<VerticalBox>();
@@ -138,6 +168,24 @@ TEST(StyleTest, LegacyBackgroundSetterMarksTheWidgetForRerender)
     leaf->SetBackgroundColor(EStyleLayer::Normal, { 1.0f, 0.0f, 0.0f, 1.0f });
 
     EXPECT_TRUE(leaf->IsRenderDirty());
+}
+
+TEST(StyleTest, ComponentStyleReplacementMarksTheWidgetForRerender)
+{
+    const auto root = CreateRef<VerticalBox>();
+    const auto checkbox = CreateRef<Checkbox>();
+    root->AddChild(checkbox);
+
+    TestGUIManager manager;
+    manager.SetRoot(root);
+    manager.AssembleFrame();
+    ASSERT_FALSE(checkbox->IsRenderDirty());
+
+    SCheckboxStyle style;
+    style.Normal.Background.Color = { 1.0f, 0.0f, 0.0f, 1.0f };
+    checkbox->SetStyle(style);
+
+    EXPECT_TRUE(checkbox->IsRenderDirty());
 }
 
 TEST(StyleTest, HoverPressAndEnabledChangesMarkTheWidgetForRerender)

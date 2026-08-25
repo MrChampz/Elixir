@@ -5,6 +5,23 @@
 
 namespace Elixir::GUI
 {
+    namespace
+    {
+        bool HasShadow(const glm::vec4& shadow)
+        {
+            return shadow.w > 0.0f && (shadow.x != 0.0f || shadow.y != 0.0f);
+        }
+
+        bool HasVisualOutput(const SBrush& brush)
+        {
+            return brush.Color.A > 0.0f ||
+                brush.Texture ||
+                (brush.Outline.Thickness > 0.0f && brush.Outline.Color.A > 0.0f) ||
+                HasShadow(brush.InsetShadow) ||
+                HasShadow(brush.DropShadow);
+        }
+    }
+
     void Panel::Update(const Timestep frameTime)
     {
         Widget::Update(frameTime);
@@ -51,8 +68,8 @@ namespace Elixir::GUI
         {
             if (GetSlotAt(i)->GetWidget() == child)
             {
-                RemoveSlotAt(i);
                 DetachChild(child);
+                RemoveSlotAt(i);
                 break;
             }
         }
@@ -62,10 +79,8 @@ namespace Elixir::GUI
     {
         const SBrush& brush = GetResolvedAppearance().Background;
 
-        if (brush.Color.A > 0.0f || brush.Texture)
-        {
+        if (HasVisualOutput(brush))
             batch.AddBrush(brush, m_Geometry, zOrder);
-        }
     }
 
     template class ELIXIR_API TPanel<LayoutSlot>;

@@ -29,6 +29,7 @@ namespace Elixir::GUI
     {
         m_Style = style;
         MarkLayoutDirty();
+        MarkRenderDirty();
     }
 
     void Checkbox::SetChecked(const bool checked)

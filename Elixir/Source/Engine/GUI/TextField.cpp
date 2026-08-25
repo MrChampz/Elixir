@@ -25,6 +25,7 @@ namespace Elixir::GUI
     {
         m_Style = style;
         MarkLayoutDirty();
+        MarkRenderDirty();
     }
 
     void TextField::SetTextColor(const EStyleLayer layer, const SColor& color)
@@ -221,6 +222,9 @@ namespace Elixir::GUI
 
     SInputReply TextField::HandleMouseDown(const MouseButtonPressedEvent& event)
     {
+        if (!IsEnabled())
+            return SInputReply::Unhandled();
+
         // TextField is unconditionally interactive:
         // it must not depend on m_On*Callback being set, so it sets the press state itself
         // instead of delegating to Widget::HandleMouseDown. Without this, m_Pressed would
@@ -265,6 +269,12 @@ namespace Elixir::GUI
     {
         Widget::HandleKeyPressed(event);
 
+        const auto handled = [this]
+        {
+            MarkRenderDirty();
+            return SInputReply::Handled();
+        };
+
         switch (event.GetKeyCode())
         {
         case EE_KEY_LEFT:
@@ -279,7 +289,7 @@ namespace Elixir::GUI
                 ClearSelection();
                 MoveCursorLeft();
             }
-            break;
+            return handled();
         case EE_KEY_RIGHT:
             if (event.IsShiftPressed())
             {
@@ -292,37 +302,34 @@ namespace Elixir::GUI
                 ClearSelection();
                 MoveCursorRight();
             }
-            break;
+            return handled();
         case EE_KEY_HOME:
             MoveCursorToStart();
-            break;
+            return handled();
         case EE_KEY_END:
             MoveCursorToEnd();
-            break;
+            return handled();
         case EE_KEY_BACKSPACE:
             ClearPreviousCharacter();
-            break;
+            return handled();
         case EE_KEY_DELETE:
             ClearNextCharacter();
-            break;
+            return handled();
         case EE_KEY_A:
-            if (event.IsCtrlPressed())
-                SelectWholeText();
-            break;
+            if (!event.IsCtrlPressed()) return SInputReply::Unhandled();
+            SelectWholeText();
+            return handled();
         case EE_KEY_C:
-            if (event.IsCtrlPressed())
-                CopyToClipboard(m_Text);
-            break;
+            if (!event.IsCtrlPressed()) return SInputReply::Unhandled();
+            CopyToClipboard(m_Text);
+            return handled();
         case EE_KEY_V:
-            if (event.IsCtrlPressed())
-                InsertText(GetFromClipboard());
-            break;
+            if (!event.IsCtrlPressed()) return SInputReply::Unhandled();
+            InsertText(GetFromClipboard());
+            return handled();
         default:
-            break;
+            return SInputReply::Unhandled();
         }
-
-        MarkRenderDirty();
-        return SInputReply::Handled();
     }
 
     SInputReply TextField::HandleKeyTyped(const KeyTypedEvent& event)

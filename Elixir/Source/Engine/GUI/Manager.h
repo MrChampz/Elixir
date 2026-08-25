@@ -72,8 +72,7 @@ namespace Elixir::GUI
         size_t GetPopupCount() const { return m_Layers.empty() ? 0 : m_Layers.size() - 1; }
 
         /**
-         * @brief True if the GUI currently wants mouse input: the hover path is non-empty or
-         * a widget is capturing the mouse.
+         * @brief True if an interactive widget is hovered or capturing the mouse.
          *
          * Lets a consumer (e.g. an editor camera controller polling its own mouse input) skips
          * its own handling while the user is interacting with the GUI instead.
@@ -111,9 +110,18 @@ namespace Elixir::GUI
         bool HandleFramebufferResize(const FramebufferResizeEvent& event) const;
         bool HandleKeyTyped(const KeyTypedEvent& event) const;
 
-        // Bubbles a wheel tick leaf -> root over m_HoverPath, stopping at the first
-        // widget whose HandleMouseScrolled reports EventHandled.
-        bool HandleMouseScrolled(const MouseScrolledEvent& event) const;
+        // Hit-tests the current pointer position before bubbling a wheel tick leaf -> root,
+        // stopping at the first widget whose HandleMouseScrolled reports EventHandled.
+        bool HandleMouseScrolled(const MouseScrolledEvent& event);
+
+        // Clears focus, press, capture and hover state that can otherwise keep a removed
+        // layer's subtree alive and receiving input.
+        void ResetInputRouting();
+
+        // Returns the topmost root-to-leaf hit path at point. Used by both per-frame mouse
+        // processing and wheel routing, because a scroll event can arrive before the next
+        // ProcessInput refreshes m_HoverPath.
+        std::vector<Ref<Widget>> GetHitPath(const glm::vec2& point) const;
 
         void ProcessInput();
 

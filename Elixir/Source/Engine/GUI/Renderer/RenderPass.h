@@ -3,8 +3,22 @@
 #include <Engine/Graphics/CommandBuffer.h>
 #include <Engine/GUI/Renderer/RenderBatch.h>
 
+#include <algorithm>
+#include <limits>
+
 namespace Elixir::GUI
 {
+    constexpr size_t GrowBufferCapacity(const size_t capacity, const size_t requiredCapacity)
+    {
+        if (requiredCapacity <= capacity)
+            return capacity;
+
+        if (capacity > std::numeric_limits<size_t>::max() / 2)
+            return requiredCapacity;
+
+        return std::max(requiredCapacity, capacity * 2);
+    }
+
     class RenderPass
     {
     public:

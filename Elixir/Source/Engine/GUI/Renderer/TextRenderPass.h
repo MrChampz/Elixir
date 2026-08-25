@@ -40,6 +40,7 @@ namespace Elixir::GUI
       private:
         void InitRenderPass(const ShaderLoader* shaderLoader);
         void BindShaderParameters() const;
+        void EnsureQuadBufferCapacity(size_t requiredCapacity);
 
         void BuildTextGeometry(const SDrawCommand& cmd);
         void BuildTextureGeometry(const SDrawCommand& cmd);
@@ -60,9 +61,11 @@ namespace Elixir::GUI
         Ref<Shader> m_Shader;
         Ref<GraphicsPipeline> m_Pipeline;
         Ref<DynamicVertexBuffer> m_QuadBuffer;
+        std::vector<Ref<DynamicVertexBuffer>> m_RetiredQuadBuffers;
 
         float m_DPIScale;
         Ref<UniformBuffer> m_PerFrameConstantBuffer;
         const GraphicsContext* m_GraphicsContext = nullptr;
+        size_t m_QuadCapacity = 0;
     };
 }

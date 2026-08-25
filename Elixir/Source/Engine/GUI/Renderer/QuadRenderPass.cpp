@@ -36,6 +36,7 @@ namespace Elixir::GUI
     {
         if (!m_Quads.empty())
         {
+            EnsureQuadBufferCapacity(m_Quads.size());
             m_QuadBuffer->UpdateData(m_Quads.data(),  m_Quads.size() * sizeof(SQuad));
         }
     }
@@ -122,6 +123,7 @@ namespace Elixir::GUI
         m_Quads.reserve(MAX_QUADS);
         m_QuadBuffer = DynamicVertexBuffer::Create(m_GraphicsContext, MAX_QUADS * sizeof(SQuad));
         m_QuadBuffer->SetLayout(bufferLayout);
+        m_QuadCapacity = MAX_QUADS;
 
         m_WhiteTexture = Texture2D::Create(
             m_GraphicsContext,
@@ -145,6 +147,20 @@ namespace Elixir::GUI
             .SetMinFilter(ESamplerFilter::Linear)
             .Build(m_GraphicsContext);
         m_Shader->BindSampler("samplerState", sampler);
+    }
+
+    void QuadRenderPass::EnsureQuadBufferCapacity(const size_t requiredCapacity)
+    {
+        if (requiredCapacity <= m_QuadCapacity)
+            return;
+
+        const size_t newCapacity = GrowBufferCapacity(m_QuadCapacity, requiredCapacity);
+        auto buffer = DynamicVertexBuffer::Create(m_GraphicsContext, newCapacity * sizeof(SQuad));
+        buffer->SetLayout(m_QuadBuffer->GetLayout());
+
+        m_RetiredQuadBuffers.push_back(std::move(m_QuadBuffer));
+        m_QuadBuffer = std::move(buffer);
+        m_QuadCapacity = newCapacity;
     }
 
     void QuadRenderPass::BuildRectGeometry(const SDrawCommand& cmd)
