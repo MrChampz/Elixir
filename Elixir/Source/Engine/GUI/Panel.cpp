@@ -51,8 +51,8 @@ namespace Elixir::GUI
         {
             if (GetSlotAt(i)->GetWidget() == child)
             {
-                RemoveSlotAt(i);
                 DetachChild(child);
+                RemoveSlotAt(i);
                 break;
             }
         }
