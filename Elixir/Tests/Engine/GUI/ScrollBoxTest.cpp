@@ -3,6 +3,7 @@ using namespace testing;
 
 #include <Engine/GUI/Canvas.h>
 #include <Engine/GUI/Manager.h>
+#include <Engine/GUI/Renderer/RenderBatch.h>
 #include <Engine/GUI/ScrollBox.h>
 #include <Engine/Input/InputManager.h>
 using namespace Elixir;
@@ -30,6 +31,7 @@ namespace
     {
       public:
         using ScrollBox::ClipsChildren;
+        using ScrollBox::BuildDrawCommands;
         using ScrollBox::HandleMouseScrolled;
     };
 
@@ -64,6 +66,23 @@ TEST(ScrollBoxTest, DesiredSizeShrinksToContentWhenContentIsSmallerThanViewport)
     EXPECT_EQ(desired.y, 20.0f);
 }
 
+TEST(ScrollBoxTest, DesiredSizePreservesTheActiveScrollbarGutter)
+{
+    const auto scrollBox = CreateRef<ScrollBox>();
+    scrollBox->SetSize({ 100.0f, 100.0f });
+    const auto content = CreateRef<SizedLeaf>(glm::vec2{ 30.0f, 200.0f });
+    scrollBox->SetContent(content);
+
+    // The vertical scrollbar needs 8 pixels, so a 30-pixel-wide child requires a
+    // 38-pixel-wide ScrollBox. The child then receives its full 30-pixel width.
+    const glm::vec2 desired = scrollBox->Measure({ 1000.0f, 1000.0f });
+    EXPECT_EQ(desired.x, 38.0f);
+    EXPECT_EQ(desired.y, 100.0f);
+
+    Arrange(scrollBox, { { 0.0f, 0.0f }, desired });
+    EXPECT_EQ(content->GetGeometry().Size.x, 30.0f);
+}
+
 TEST(ScrollBoxTest, LayoutChildrenOffsetsContentByCurrentScrollOffset)
 {
     const auto scrollBox = CreateRef<ScrollBox>();
@@ -92,15 +111,44 @@ TEST(ScrollBoxTest, SetScrollOffsetClampsAboveMaxAndBelowZero)
 
     Arrange(scrollBox, { { 0, 0 }, { 50, 50 } }); // establishes m_ContentSize used to clamp
 
-    // Above the max: content (200,150) minus viewport (50,50) = (150,100) max scroll.
+    // Both scrollbars reserve 8 pixels, leaving a (42,42) content viewport. The final
+    // (8-pixel) gutter remains reachable rather than being clipped at (150,100).
     scrollBox->SetScrollOffset({ 9999.0f, 9999.0f });
-    EXPECT_EQ(scrollBox->GetScrollOffset().x, 150.0f);
-    EXPECT_EQ(scrollBox->GetScrollOffset().y, 100.0f);
+    EXPECT_EQ(scrollBox->GetScrollOffset().x, 158.0f);
+    EXPECT_EQ(scrollBox->GetScrollOffset().y, 108.0f);
 
     // Below zero clamps to zero.
     scrollBox->SetScrollOffset({ -50.0f, -50.0f });
     EXPECT_EQ(scrollBox->GetScrollOffset().x, 0.0f);
     EXPECT_EQ(scrollBox->GetScrollOffset().y, 0.0f);
+}
+
+TEST(ScrollBoxTest, BothAxisScrollbarsUseTheGutterReducedViewport)
+{
+    const auto scrollBox = CreateRef<TestScrollBox>();
+    scrollBox->SetSize({ 50.0f, 50.0f });
+    scrollBox->SetScrollAxis(EScrollAxis::Both);
+    scrollBox->SetContent(CreateRef<SizedLeaf>(glm::vec2{ 200.0f, 150.0f }));
+    Arrange(scrollBox, { { 0.0f, 0.0f }, { 50.0f, 50.0f } });
+    scrollBox->SetScrollOffset({ 9999.0f, 9999.0f });
+
+    RenderBatch batch;
+    scrollBox->BuildDrawCommands(batch, 0);
+
+    const auto& commands = batch.GetCommands();
+    ASSERT_EQ(commands.size(), 4u);
+
+    const SRect& verticalTrack = commands[0].Geometry;
+    const SRect& verticalThumb = commands[1].Geometry;
+    const SRect& horizontalTrack = commands[2].Geometry;
+    const SRect& horizontalThumb = commands[3].Geometry;
+
+    EXPECT_EQ(verticalTrack.Position.x, 42.0f);
+    EXPECT_EQ(verticalTrack.Size.y, 42.0f);
+    EXPECT_EQ(horizontalTrack.Position.y, 42.0f);
+    EXPECT_EQ(horizontalTrack.Size.x, 42.0f);
+    EXPECT_FLOAT_EQ(verticalThumb.Position.y + verticalThumb.Size.y, 42.0f);
+    EXPECT_FLOAT_EQ(horizontalThumb.Position.x + horizontalThumb.Size.x, 42.0f);
 }
 
 TEST(ScrollBoxTest, HandleMouseScrolledMovesOffsetWithinBoundsAndReportsHandled)

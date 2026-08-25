@@ -74,7 +74,27 @@ namespace Elixir::GUI
         {
             const glm::vec2 contentConstraint = ContentMeasureConstraint(availableSize);
             const glm::vec2 contentSize = m_ContentSlot->GetWidget()->Measure(contentConstraint);
-            desired = glm::min(desired, contentSize);
+            const glm::vec2 contentViewport = CrossAxisSpace(desired);
+
+            const bool verticalScrollbarVisible =
+                m_ShowScrollbar &&
+                m_ScrollAxis != EScrollAxis::Horizontal &&
+                contentSize.y > contentViewport.y;
+            const bool horizontalScrollbarVisible =
+                m_ShowScrollbar &&
+                m_ScrollAxis != EScrollAxis::Vertical &&
+                contentSize.x > contentViewport.x;
+
+            glm::vec2 contentSizeWithGutters = contentSize;
+            if (verticalScrollbarVisible)
+                contentSizeWithGutters.x += m_ScrollBarStyle.Thickness;
+            if (horizontalScrollbarVisible)
+                contentSizeWithGutters.y += m_ScrollBarStyle.Thickness;
+
+            // Content is measured against the gutter-reduced cross axis. Include each
+            // visible gutter in the desired size so a narrow scrolling child is not laid
+            // out underneath its own scrollbar.
+            desired = glm::min(desired, contentSizeWithGutters);
         }
 
         return desired;
@@ -117,10 +137,12 @@ namespace Elixir::GUI
     {
         if (!m_ShowScrollbar) return;
 
-        if (m_ScrollAxis != EScrollAxis::Horizontal && m_ContentSize.y > m_Geometry.Size.y)
+        const glm::vec2 contentViewport = CrossAxisSpace(m_Geometry.Size);
+
+        if (m_ScrollAxis != EScrollAxis::Horizontal && m_ContentSize.y > contentViewport.y)
             AddScrollbar(batch, zOrder, true);
 
-        if (m_ScrollAxis != EScrollAxis::Vertical && m_ContentSize.x > m_Geometry.Size.x)
+        if (m_ScrollAxis != EScrollAxis::Vertical && m_ContentSize.x > contentViewport.x)
             AddScrollbar(batch, zOrder, false);
     }
 
@@ -179,7 +201,8 @@ namespace Elixir::GUI
         const glm::vec2& viewportSize
     ) const
     {
-        const glm::vec2 maxOffset = glm::max(m_ContentSize - viewportSize, glm::vec2(0.0f));
+        const glm::vec2 contentViewport = CrossAxisSpace(viewportSize);
+        const glm::vec2 maxOffset = glm::max(m_ContentSize - contentViewport, glm::vec2(0.0f));
         return glm::clamp(offset, glm::vec2(0.0f), maxOffset);
     }
 
@@ -187,17 +210,18 @@ namespace Elixir::GUI
     {
         const auto& appearance = m_ScrollBarStyle.Resolve(GetInteractionState());
         const float thickness = m_ScrollBarStyle.Thickness;
+        const glm::vec2 contentViewport = CrossAxisSpace(m_Geometry.Size);
 
         if (vertical)
         {
             const SRect track = {
-                { m_Geometry.Position.x + m_Geometry.Size.x - thickness, m_Geometry.Position.y },
-                { thickness, m_Geometry.Size.y }
+                { m_Geometry.Position.x + contentViewport.x, m_Geometry.Position.y },
+                { thickness, contentViewport.y }
             };
 
-            const float maxScroll = m_ContentSize.y - m_Geometry.Size.y;
+            const float maxScroll = m_ContentSize.y - contentViewport.y;
             const float thumbHeight = std::max(
-                track.Size.y * (m_Geometry.Size.y / m_ContentSize.y),
+                track.Size.y * (contentViewport.y / m_ContentSize.y),
                 m_ScrollBarStyle.MinimumThumbLength
             );
             const float scrollRatio = maxScroll > 0.0f ? m_ScrollOffset.y / maxScroll : 0.0f;
@@ -213,13 +237,13 @@ namespace Elixir::GUI
         else
         {
             const SRect track = {
-                { m_Geometry.Position.x, m_Geometry.Position.y + m_Geometry.Size.y - thickness },
-                { m_Geometry.Size.x, thickness }
+                { m_Geometry.Position.x, m_Geometry.Position.y + contentViewport.y },
+                { contentViewport.x, thickness }
             };
 
-            const float maxScroll = m_ContentSize.x - m_Geometry.Size.x;
+            const float maxScroll = m_ContentSize.x - contentViewport.x;
             const float thumbWidth = std::max(
-                track.Size.x * (m_Geometry.Size.x / m_ContentSize.x),
+                track.Size.x * (contentViewport.x / m_ContentSize.x),
                 m_ScrollBarStyle.MinimumThumbLength
             );
             const float scrollRatio = maxScroll > 0.0f ? m_ScrollOffset.x / maxScroll : 0.0f;
