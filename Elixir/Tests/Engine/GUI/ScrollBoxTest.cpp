@@ -20,6 +20,13 @@ namespace
 
         glm::vec2 ComputeDesiredSize(const glm::vec2&) override { return m_Desired; }
 
+        void SetDesiredSize(const glm::vec2& desired)
+        {
+            if (m_Desired == desired) return;
+            m_Desired = desired;
+            MarkLayoutDirty();
+        }
+
       private:
         glm::vec2 m_Desired;
     };
@@ -32,12 +39,21 @@ namespace
       public:
         using ScrollBox::ClipsChildren;
         using ScrollBox::BuildDrawCommands;
+        using ScrollBox::CollectDrawCommands;
         using ScrollBox::HandleMouseScrolled;
     };
 
     void Arrange(const Ref<Widget>& widget, const SRect& space)
     {
         widget->ArrangeChildren(space);
+    }
+
+    void BuildDrawCache(const Ref<TestScrollBox>& widget)
+    {
+        RenderBatch batch;
+        int zOrder = 0;
+        bool rebuilt = false;
+        widget->CollectDrawCommands(batch, zOrder, rebuilt, {{ -1, -1 }, { -1, -1 }});
     }
 }
 
@@ -149,6 +165,38 @@ TEST(ScrollBoxTest, BothAxisScrollbarsUseTheGutterReducedViewport)
     EXPECT_EQ(horizontalTrack.Size.x, 42.0f);
     EXPECT_FLOAT_EQ(verticalThumb.Position.y + verticalThumb.Size.y, 42.0f);
     EXPECT_FLOAT_EQ(horizontalThumb.Position.x + horizontalThumb.Size.x, 42.0f);
+}
+
+TEST(ScrollBoxTest, LayoutInvalidatesRenderingWhenContentSizeChanges)
+{
+    const auto scrollBox = CreateRef<TestScrollBox>();
+    scrollBox->SetSize({ 50.0f, 50.0f });
+    const auto content = CreateRef<SizedLeaf>(glm::vec2{ 50.0f, 200.0f });
+    scrollBox->SetContent(content);
+    Arrange(scrollBox, { { 0.0f, 0.0f }, { 50.0f, 50.0f } });
+
+    BuildDrawCache(scrollBox);
+    ASSERT_FALSE(scrollBox->IsRenderDirty());
+
+    content->SetDesiredSize({ 50.0f, 100.0f });
+    Arrange(scrollBox, { { 0.0f, 0.0f }, { 50.0f, 50.0f } });
+
+    EXPECT_TRUE(scrollBox->IsRenderDirty());
+}
+
+TEST(ScrollBoxTest, ChangingScrollAxisInvalidatesRendering)
+{
+    const auto scrollBox = CreateRef<TestScrollBox>();
+    scrollBox->SetSize({ 50.0f, 50.0f });
+    scrollBox->SetContent(CreateRef<SizedLeaf>(glm::vec2{ 200.0f, 200.0f }));
+    Arrange(scrollBox, { { 0.0f, 0.0f }, { 50.0f, 50.0f } });
+
+    BuildDrawCache(scrollBox);
+    ASSERT_FALSE(scrollBox->IsRenderDirty());
+
+    scrollBox->SetScrollAxis(EScrollAxis::Horizontal);
+
+    EXPECT_TRUE(scrollBox->IsRenderDirty());
 }
 
 TEST(ScrollBoxTest, HandleMouseScrolledMovesOffsetWithinBoundsAndReportsHandled)

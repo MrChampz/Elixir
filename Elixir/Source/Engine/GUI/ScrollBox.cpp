@@ -29,6 +29,7 @@ namespace Elixir::GUI
         if (m_ScrollAxis == axis) return;
         m_ScrollAxis = axis;
         MarkLayoutDirty();
+        MarkRenderDirty();
     }
 
     void ScrollBox::SetScrollOffset(const glm::vec2& offset)
@@ -126,8 +127,15 @@ namespace Elixir::GUI
         if (m_ScrollAxis != EScrollAxis::Horizontal) contentSize.y = desired.y;
         if (m_ScrollAxis != EScrollAxis::Vertical)   contentSize.x = desired.x;
 
+        const glm::vec2 previousContentSize = m_ContentSize;
+        const glm::vec2 previousScrollOffset = m_ScrollOffset;
+
         m_ContentSize = contentSize;
-        m_ScrollOffset = ClampScrollOffset(m_ScrollOffset, allocatedSpace.Size);
+        const glm::vec2 clampedOffset = ClampScrollOffset(previousScrollOffset, allocatedSpace.Size);
+        m_ScrollOffset = clampedOffset;
+
+        if (m_ContentSize != previousContentSize || m_ScrollOffset != previousScrollOffset)
+            MarkRenderDirty(); // scrollbar thumb size and position changed
 
         const SRect contentRect = { allocatedSpace.Position - m_ScrollOffset, contentSize };
         content->ArrangeChildren(contentRect);
