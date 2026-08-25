@@ -107,7 +107,16 @@ TEST(StyleTest, StyleSetStoresStylesByConcreteType)
 
     styles.SetWidgetStyle(button);
 
-    EXPECT_EQ(styles.GetWidgetStyle<SButtonStyle>().Normal.Foreground, button.Normal.Foreground);
+    const SButtonStyle& registered = styles.GetWidgetStyle<SButtonStyle>();
+    EXPECT_EQ(registered.Normal.Foreground, button.Normal.Foreground);
+}
+
+TEST(StyleTest, MissingWidgetStyleReturnsAnEmptyFallback)
+{
+    const StyleSet styles;
+
+    const SButtonStyle& fallback = styles.GetWidgetStyle<SButtonStyle>();
+    EXPECT_EQ(fallback.Normal.Foreground, SColor{});
 }
 
 TEST(StyleTest, WidgetOwnsTheStyleItReceives)
