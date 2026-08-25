@@ -18,6 +18,7 @@ namespace Elixir::GUI
     {
         m_Style = style;
         MarkLayoutDirty();
+        MarkRenderDirty();
     }
 
     void Button::SetText(const std::string& text)

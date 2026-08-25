@@ -140,6 +140,24 @@ TEST(StyleTest, LegacyBackgroundSetterMarksTheWidgetForRerender)
     EXPECT_TRUE(leaf->IsRenderDirty());
 }
 
+TEST(StyleTest, ComponentStyleReplacementMarksTheWidgetForRerender)
+{
+    const auto root = CreateRef<VerticalBox>();
+    const auto checkbox = CreateRef<Checkbox>();
+    root->AddChild(checkbox);
+
+    TestGUIManager manager;
+    manager.SetRoot(root);
+    manager.AssembleFrame();
+    ASSERT_FALSE(checkbox->IsRenderDirty());
+
+    SCheckboxStyle style;
+    style.Normal.Background.Color = { 1.0f, 0.0f, 0.0f, 1.0f };
+    checkbox->SetStyle(style);
+
+    EXPECT_TRUE(checkbox->IsRenderDirty());
+}
+
 TEST(StyleTest, HoverPressAndEnabledChangesMarkTheWidgetForRerender)
 {
     const auto root = CreateRef<VerticalBox>();

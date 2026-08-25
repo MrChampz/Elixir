@@ -25,6 +25,7 @@ namespace Elixir::GUI
     {
         m_Style = style;
         MarkLayoutDirty();
+        MarkRenderDirty();
     }
 
     void TextField::SetTextColor(const EStyleLayer layer, const SColor& color)
