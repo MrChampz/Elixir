@@ -76,20 +76,42 @@ namespace Elixir::GUI
         SInputReply HandleMouseScrolled(const MouseScrolledEvent& event) override;
 
     private:
-        // viewportSize with the scrollbar's own gutter subtracted from whichever axis it
-        // actually occupies (a no-op axis, or the whole thing, when m_ShowScrollbar is
-        // false). Shared by ContentMeasureConstraint and LayoutChildren so content is
-        // consistently measured AND arranged narrower than the scrollbar, never under it.
-        glm::vec2 CrossAxisSpace(const glm::vec2& viewportSize) const;
+        struct SScrollbarVisibility
+        {
+            bool Vertical = false;
+            bool Horizontal = false;
+        };
+
+        SScrollbarVisibility ResolveScrollbarVisibility(const glm::vec2& viewportSize) const;
+
+        // viewportSize with the gutters for the scrollbars that are actually visible
+        // subtracted. Shared by measurement and arrangement so content never sits under a
+        // rendered scrollbar, without reserving space for one that is not needed.
+        glm::vec2 CrossAxisSpace(
+            const glm::vec2& viewportSize,
+            const SScrollbarVisibility& visibility
+        ) const;
 
         // Constraint handed to the content's Measure() call: UnconstrainedSize on every axis
         // this ScrollBox scrolls (so content reports its full natural size to scroll
         // through), CrossAxisSpace's result on the axis it doesn't (content is capped to the
-        // gutter-reserved viewport there, same as a non-scrolling child would be).
-        glm::vec2 ContentMeasureConstraint(const glm::vec2& viewportSize) const;
+        // viewport remaining after visible gutters, same as a non-scrolling child would be).
+        glm::vec2 ContentMeasureConstraint(
+            const glm::vec2& viewportSize,
+            const SScrollbarVisibility& visibility
+        ) const;
 
-        glm::vec2 ClampScrollOffset(const glm::vec2& offset, const glm::vec2& viewportSize) const;
-        void AddScrollbar(RenderBatch& batch, int zOrder, bool vertical) const;
+        glm::vec2 ClampScrollOffset(
+            const glm::vec2& offset,
+            const glm::vec2& viewportSize,
+            const SScrollbarVisibility& visibility
+        ) const;
+        void AddScrollbar(
+            RenderBatch& batch,
+            int zOrder,
+            bool vertical,
+            const SScrollbarVisibility& visibility
+        ) const;
 
         static constexpr float SCROLL_SPEED = 40.0f;
 
@@ -104,6 +126,8 @@ namespace Elixir::GUI
         // the viewport on the other axis). Recomputed by LayoutChildren; used to clamp
         // m_ScrollOffset and to size/position the scrollbar thumb.
         glm::vec2 m_ContentSize{};
+
+        SScrollbarVisibility m_ScrollbarVisibility;
 
         bool m_ShowScrollbar = true;
         SScrollBarStyle m_ScrollBarStyle;
