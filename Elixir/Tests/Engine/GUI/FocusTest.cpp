@@ -3,7 +3,9 @@ using namespace testing;
 
 #include "ManagerTestUtils.h"
 
+#include <Engine/GUI/Canvas.h>
 #include <Engine/GUI/VerticalBox.h>
+#include <Engine/Input/InputManager.h>
 #include <Engine/Input/InputCodes.h>
 using namespace Elixir;
 using namespace Elixir::GUI;
@@ -152,6 +154,57 @@ TEST(FocusTest, EscapeClearsFocus)
 
     manager.HandleKeyPressed(EscapeEvent());
     EXPECT_FALSE(a->IsFocused());
+}
+
+TEST(FocusTest, RemovingAPopupClearsItsFocusedWidget)
+{
+    const auto root = CreateRef<VerticalBox>();
+    const auto popup = CreateRef<VerticalBox>();
+    const auto focused = CreateRef<KeyRecordingLeaf>();
+    popup->AddChild(focused);
+
+    TestGUIManager manager;
+    manager.SetRoot(root);
+    manager.PushPopup(popup, { { 0.0f, 0.0f }, { 10.0f, 10.0f } });
+    manager.SetFocusedWidget(focused);
+    ASSERT_TRUE(focused->IsFocused());
+
+    manager.PopPopup();
+    EXPECT_FALSE(focused->IsFocused());
+
+    manager.HandleKeyPressed(KeyPressedEvent(EE_KEY_A, 0, false, false, false));
+    EXPECT_FALSE(focused->ReceivedKeyPressed);
+}
+
+TEST(FocusTest, ReplacingTheRootClearsThePreviousFocus)
+{
+    const auto firstRoot = CreateRef<VerticalBox>();
+    const auto focused = CreateRef<FocusLeaf>();
+    focused->SetFocusable(true);
+    firstRoot->AddChild(focused);
+
+    TestGUIManager manager;
+    manager.SetRoot(firstRoot);
+    manager.SetFocusedWidget(focused);
+    ASSERT_TRUE(focused->IsFocused());
+
+    manager.SetRoot(CreateRef<VerticalBox>());
+    EXPECT_FALSE(focused->IsFocused());
+}
+
+TEST(FocusTest, NonInteractiveRootDoesNotClaimTheMouse)
+{
+    const auto root = CreateRef<Canvas>();
+    root->ArrangeChildren({ { 0.0f, 0.0f }, { 100.0f, 100.0f } });
+
+    TestGUIManager manager;
+    manager.SetRoot(root);
+
+    MouseMovedEvent moved(50.0f, 50.0f);
+    InputManager::OnEvent(moved);
+    manager.Update(Timestep(0.0f));
+
+    EXPECT_FALSE(manager.WantsMouse());
 }
 
 // The central guarantee behind scoping BuildFocusOrder to the topmost layer: once a popup is

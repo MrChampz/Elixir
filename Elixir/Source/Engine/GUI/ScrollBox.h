@@ -63,7 +63,9 @@ namespace Elixir::GUI
         SColor GetScrollbarColor() const { return m_ScrollBarStyle.Normal.Thumb.Color; }
         void SetScrollbarColor(const SColor& color);
 
-    protected:
+        bool CanHandleMouseInput() const override { return IsEnabled(); }
+
+      protected:
         glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) override;
 
         bool ClipsChildren() const override { return true; }

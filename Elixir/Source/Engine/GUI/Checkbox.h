@@ -89,6 +89,8 @@ namespace Elixir::GUI
          */
         void SetCheckedColor(const SColor& color);
 
+        bool CanHandleMouseInput() const override { return IsEnabled(); }
+
       protected:
         glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) override;
         void BuildDrawCommands(RenderBatch& batch, int zOrder) override;

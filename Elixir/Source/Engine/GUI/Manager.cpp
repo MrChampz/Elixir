@@ -83,7 +83,11 @@ namespace Elixir::GUI
         if (m_Layers.empty())
             m_Layers.push_back({ root, {}, false });
         else
+        {
+            if (m_Layers[0].Root != root)
+                ResetInputRouting();
             m_Layers[0] = { root, {}, false };
+        }
 
         ++m_LayerStackVersion;
     }
@@ -107,6 +111,7 @@ namespace Elixir::GUI
         if (m_Layers.size() <= 1) return;
 
         m_Layers.pop_back();
+        ResetInputRouting();
         ++m_LayerStackVersion;
     }
 
@@ -115,12 +120,16 @@ namespace Elixir::GUI
         if (m_Layers.size() <= 1) return;
 
         m_Layers.resize(1);
+        ResetInputRouting();
         ++m_LayerStackVersion;
     }
 
     bool Manager::WantsMouse() const
     {
-        return !m_HoverPath.empty() || !m_MouseCapture.expired();
+        return !m_MouseCapture.expired() || std::ranges::any_of(
+            m_HoverPath,
+            [](const Ref<Widget>& widget) { return widget->CanHandleMouseInput(); }
+        );
     }
 
     void Manager::AssembleFrame()
@@ -236,6 +245,14 @@ namespace Elixir::GUI
         }
 
         return false;
+    }
+
+    void Manager::ResetInputRouting()
+    {
+        SetFocusedWidget(nullptr);
+        m_PressedWidget.reset();
+        m_MouseCapture.reset();
+        UpdateHoverPath({});
     }
 
     void Manager::ProcessInput()

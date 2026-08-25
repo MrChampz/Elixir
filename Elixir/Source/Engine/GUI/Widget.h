@@ -169,6 +169,15 @@ namespace Elixir::GUI
         bool IsSelfHitTestVisible() const;
 
         /**
+         * @brief Whether this widget can consume mouse input at its current state.
+         *
+         * Manager uses this to distinguish a visual hit-test surface from an interactive
+         * control when reporting WantsMouse(). Components with built-in mouse behavior
+         * override it; the base implementation recognizes registered mouse callbacks.
+         */
+        virtual bool CanHandleMouseInput() const;
+
+        /**
          * @brief Get this widget's complete style.
          * @return Complete style currently used by this widget.
          */
