@@ -109,8 +109,9 @@ namespace Elixir::GUI
         void Clear();
 
         /**
-         * Number of distinct z-layers these commands occupy: max ZOrder + 1, or 0 if empty.
-         * Used to advance the layer cursor past a widget's own commands during collection.
+         * Number of distinct non-debug z-layers these commands occupy: max ZOrder + 1, or 0
+         * when they contain only debug commands. Used to advance the layer cursor past a
+         * widget's own commands during collection.
          */
         int LayerSpan() const;
 

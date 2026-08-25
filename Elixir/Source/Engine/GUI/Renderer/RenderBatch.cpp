@@ -5,10 +5,6 @@ namespace Elixir::GUI
 {
     namespace
     {
-        // Debug rects exist to visualize layout/hitboxes; they must always draw above
-        // everything else, regardless of where in the tree AddDebugRect was called from.
-        constexpr int DEBUG_Z_ORDER = std::numeric_limits<int>::max();
-
         SColor ApplyOpacity(SColor color, const float opacity)
         {
             color.A *= opacity;
@@ -67,6 +63,11 @@ namespace Elixir::GUI
             m_Commands,
             [](const SDrawCommand& a, const SDrawCommand& b)
             {
+                const bool aIsDebug = a.Type == EDrawCommandType::DebugRect;
+                const bool bIsDebug = b.Type == EDrawCommandType::DebugRect;
+                if (aIsDebug != bIsDebug)
+                    return !aIsDebug;
+
                 if (a.ZOrder != b.ZOrder)
                     return a.ZOrder < b.ZOrder;
 
@@ -87,7 +88,10 @@ namespace Elixir::GUI
     {
         int maxZ = -1;
         for (const auto& command : m_Commands)
-            maxZ = std::max(maxZ, command.ZOrder);
+        {
+            if (command.Type != EDrawCommandType::DebugRect)
+                maxZ = std::max(maxZ, command.ZOrder);
+        }
         return maxZ + 1;
     }
 
@@ -214,7 +218,6 @@ namespace Elixir::GUI
         cmd.Type = EDrawCommandType::DebugRect;
         cmd.Geometry = rect;
         cmd.Color = color;
-        cmd.ZOrder = DEBUG_Z_ORDER;
 
         m_Commands.push_back(cmd);
     }
