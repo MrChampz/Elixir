@@ -45,7 +45,7 @@ namespace Elixir
         /** @brief Stop every binding without calling completion callbacks. */
         void StopAll();
 
-        /** @brief Advance every active binding; callbacks bind new tracks for the next frame. */
+        /** @brief Advance every active binding; callbacks bind new tracks for the next frame and nested updates are ignored. */
         void Update(Timestep frameTime);
 
         /** @brief Return true while at least one binding is active. */

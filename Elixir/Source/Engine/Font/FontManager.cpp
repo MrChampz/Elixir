@@ -134,12 +134,6 @@ namespace Elixir
                 continue;
             }
 
-            if (line.empty() && (codepoint == ' ' || codepoint == '\t'))
-            {
-                index += charLength;
-                continue;
-            }
-
             const std::string character = text.substr(index, charLength);
             const auto glyph = font->GetGlyph(codepoint);
             const float characterWidth = glyph.has_value()

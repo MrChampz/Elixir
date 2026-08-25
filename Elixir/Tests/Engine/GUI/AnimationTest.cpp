@@ -140,6 +140,36 @@ TEST(AnimationTest, AnimatorCompletionCanStopAllAnimations)
     EXPECT_FALSE(animator.IsAnimating());
 }
 
+TEST(AnimationTest, AnimatorIgnoresNestedUpdates)
+{
+    AnimationCurve<float> curve;
+    curve.AddKey({ .Time = 0.0f, .Value = 0.0f });
+    curve.AddKey({ .Time = 0.1f, .Value = 1.0f });
+
+    Animator animator;
+    float outerValue = 0.0f;
+    float nestedValue = 0.0f;
+    bool requestedNestedUpdate = false;
+    animator.Bind<float>(curve, [&](const float value)
+    {
+        outerValue = value;
+        if (requestedNestedUpdate || value == 0.0f) return;
+
+        requestedNestedUpdate = true;
+        animator.Bind<float>(curve, [&](const float nested) { nestedValue = nested; });
+        animator.Update(Timestep(0.1f));
+    });
+
+    animator.Update(Timestep(0.05f));
+
+    EXPECT_FLOAT_EQ(outerValue, 0.5f);
+    EXPECT_FLOAT_EQ(nestedValue, 0.0f);
+
+    animator.Update(Timestep(0.05f));
+
+    EXPECT_FLOAT_EQ(nestedValue, 0.5f);
+}
+
 TEST(AnimationTest, WidgetAnimationUpdatesWidgetPropertiesOutsideWidget)
 {
     const auto widget = CreateRef<AnimatedLeaf>();
