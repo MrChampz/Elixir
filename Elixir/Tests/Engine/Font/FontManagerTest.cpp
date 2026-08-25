@@ -73,3 +73,14 @@ TEST(FontManagerTest, MeasureWrappedPreservesExplicitAndEmptyLines)
     EXPECT_EQ(lines, (std::vector<std::string>{ "a", "", "b" }));
     EXPECT_EQ(size, glm::vec2(10.0f, 30.0f));
 }
+
+TEST(FontManagerTest, MeasureWrappedPreservesLeadingWhitespace)
+{
+    const auto font = CreateTestFont();
+    std::vector<std::string> lines;
+
+    const glm::vec2 size = FontManager::MeasureWrapped(" a\n\ta", font, 10.0f, 100.0f, &lines);
+
+    EXPECT_EQ(lines, (std::vector<std::string>{ " a", "\ta" }));
+    EXPECT_EQ(size, glm::vec2(15.0f, 20.0f));
+}
