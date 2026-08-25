@@ -31,6 +31,15 @@ namespace
         glm::vec2 m_Desired;
     };
 
+    class WidthDependentLeaf final : public Widget
+    {
+      protected:
+        glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) override
+        {
+            return { availableSize.x, availableSize.x > 200.0f ? 20.0f : 100.0f };
+        }
+    };
+
     // ScrollBox's own promoted surface: HandleMouseScrolled and ClipsChildren are protected
     // overrides with no public equivalent, so this test double promotes them the same way
     // ForEachChildTest.cpp/WidgetLifetimeTest.cpp promote other protected members.
@@ -80,6 +89,17 @@ TEST(ScrollBoxTest, DesiredSizeShrinksToContentWhenContentIsSmallerThanViewport)
     const glm::vec2 desired = scrollBox->Measure({ 1000.0f, 1000.0f });
     EXPECT_EQ(desired.x, 30.0f);
     EXPECT_EQ(desired.y, 20.0f);
+}
+
+TEST(ScrollBoxTest, DesiredSizeMeasuresContentAgainstTheConfiguredViewport)
+{
+    const auto scrollBox = CreateRef<ScrollBox>();
+    scrollBox->SetSize({ 200.0f, 200.0f });
+    scrollBox->SetContent(CreateRef<WidthDependentLeaf>());
+
+    const glm::vec2 desired = scrollBox->Measure({ 1000.0f, 1000.0f });
+
+    EXPECT_EQ(desired.y, 100.0f);
 }
 
 TEST(ScrollBoxTest, DesiredSizePreservesTheActiveScrollbarGutter)
@@ -199,6 +219,20 @@ TEST(ScrollBoxTest, ChangingScrollAxisInvalidatesRendering)
     EXPECT_TRUE(scrollBox->IsRenderDirty());
 }
 
+TEST(ScrollBoxTest, ChangingScrollbarVisibilityInvalidatesLayout)
+{
+    const auto scrollBox = CreateRef<TestScrollBox>();
+    scrollBox->SetSize({ 50.0f, 50.0f });
+    scrollBox->SetContent(CreateRef<SizedLeaf>(glm::vec2{ 200.0f, 200.0f }));
+    Arrange(scrollBox, { { 0.0f, 0.0f }, { 50.0f, 50.0f } });
+
+    ASSERT_FALSE(scrollBox->IsLayoutDirty());
+    scrollBox->SetShowScrollbar(false);
+
+    EXPECT_TRUE(scrollBox->IsLayoutDirty());
+    EXPECT_TRUE(scrollBox->IsRenderDirty());
+}
+
 TEST(ScrollBoxTest, HandleMouseScrolledMovesOffsetWithinBoundsAndReportsHandled)
 {
     const auto scrollBox = CreateRef<TestScrollBox>();
@@ -293,6 +327,36 @@ TEST(ScrollBoxTest, SetStyleUpdatesExposedScrollbarProperties)
 
     EXPECT_EQ(scrollBox->GetScrollbarThickness(), 12.0f);
     EXPECT_EQ(scrollBox->GetScrollbarColor(), SColor(0.3f, 0.4f, 0.5f, 1.0f));
+}
+
+TEST(ScrollBoxTest, MinimumThumbLengthNeverExceedsTheTrack)
+{
+    const auto scrollBox = CreateRef<TestScrollBox>();
+    scrollBox->SetSize({ 20.0f, 20.0f });
+    scrollBox->SetScrollAxis(EScrollAxis::Both);
+    scrollBox->SetContent(CreateRef<SizedLeaf>(glm::vec2{ 200.0f, 200.0f }));
+
+    SScrollBarStyle style;
+    style.MinimumThumbLength = 100.0f;
+    scrollBox->SetStyle(style);
+
+    Arrange(scrollBox, { { 0.0f, 0.0f }, { 20.0f, 20.0f } });
+    scrollBox->SetScrollOffset({ 9999.0f, 9999.0f });
+
+    RenderBatch batch;
+    scrollBox->BuildDrawCommands(batch, 0);
+    const auto& commands = batch.GetCommands();
+    ASSERT_EQ(commands.size(), 4u);
+
+    const SRect& verticalTrack = commands[0].Geometry;
+    const SRect& verticalThumb = commands[1].Geometry;
+    const SRect& horizontalTrack = commands[2].Geometry;
+    const SRect& horizontalThumb = commands[3].Geometry;
+
+    EXPECT_LE(verticalThumb.Size.y, verticalTrack.Size.y);
+    EXPECT_LE(verticalThumb.Position.y + verticalThumb.Size.y, verticalTrack.Position.y + verticalTrack.Size.y);
+    EXPECT_LE(horizontalThumb.Size.x, horizontalTrack.Size.x);
+    EXPECT_LE(horizontalThumb.Position.x + horizontalThumb.Size.x, horizontalTrack.Position.x + horizontalTrack.Size.x);
 }
 
 TEST(ScrollBoxTest, HitTestExcludesScrolledContentOutsideTheViewport)
