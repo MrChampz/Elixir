@@ -40,6 +40,17 @@ namespace
         }
     };
 
+    class GutterSensitiveLeaf final : public Widget
+    {
+      protected:
+        glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) override
+        {
+            return availableSize.x < 100.0f
+                ? glm::vec2{ availableSize.x, 200.0f }
+                : glm::vec2{ availableSize.x, 20.0f };
+        }
+    };
+
     // ScrollBox's own promoted surface: HandleMouseScrolled and ClipsChildren are protected
     // overrides with no public equivalent, so this test double promotes them the same way
     // ForEachChildTest.cpp/WidgetLifetimeTest.cpp promote other protected members.
@@ -89,6 +100,24 @@ TEST(ScrollBoxTest, DesiredSizeShrinksToContentWhenContentIsSmallerThanViewport)
     const glm::vec2 desired = scrollBox->Measure({ 1000.0f, 1000.0f });
     EXPECT_EQ(desired.x, 30.0f);
     EXPECT_EQ(desired.y, 20.0f);
+}
+
+TEST(ScrollBoxTest, ContentThatFitsDoesNotReserveAScrollbarGutter)
+{
+    const auto scrollBox = CreateRef<TestScrollBox>();
+    scrollBox->SetSize({ 100.0f, 100.0f });
+    const auto content = CreateRef<GutterSensitiveLeaf>();
+    scrollBox->SetContent(content);
+
+    const glm::vec2 desired = scrollBox->Measure({ 1000.0f, 1000.0f });
+    EXPECT_EQ(desired, glm::vec2(100.0f, 20.0f));
+
+    Arrange(scrollBox, { { 0.0f, 0.0f }, desired });
+    EXPECT_EQ(content->GetGeometry().Size.x, 100.0f);
+
+    RenderBatch batch;
+    scrollBox->BuildDrawCommands(batch, 0);
+    EXPECT_TRUE(batch.GetCommands().empty());
 }
 
 TEST(ScrollBoxTest, DesiredSizeMeasuresContentAgainstTheConfiguredViewport)
@@ -185,6 +214,23 @@ TEST(ScrollBoxTest, BothAxisScrollbarsUseTheGutterReducedViewport)
     EXPECT_EQ(horizontalTrack.Size.x, 42.0f);
     EXPECT_FLOAT_EQ(verticalThumb.Position.y + verticalThumb.Size.y, 42.0f);
     EXPECT_FLOAT_EQ(horizontalThumb.Position.x + horizontalThumb.Size.x, 42.0f);
+}
+
+TEST(ScrollBoxTest, BothAxisScrollbarsAccountForGuttersIntroducedByEachOther)
+{
+    const auto scrollBox = CreateRef<TestScrollBox>();
+    scrollBox->SetSize({ 100.0f, 100.0f });
+    scrollBox->SetScrollAxis(EScrollAxis::Both);
+    scrollBox->SetContent(CreateRef<SizedLeaf>(glm::vec2{ 95.0f, 200.0f }));
+    Arrange(scrollBox, { { 0.0f, 0.0f }, { 100.0f, 100.0f } });
+
+    RenderBatch batch;
+    scrollBox->BuildDrawCommands(batch, 0);
+
+    const auto& commands = batch.GetCommands();
+    ASSERT_EQ(commands.size(), 4u);
+    EXPECT_EQ(commands[0].Geometry.Size.y, 92.0f);
+    EXPECT_EQ(commands[2].Geometry.Size.x, 92.0f);
 }
 
 TEST(ScrollBoxTest, LayoutInvalidatesRenderingWhenContentSizeChanges)

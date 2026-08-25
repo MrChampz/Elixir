@@ -34,7 +34,8 @@ namespace Elixir::GUI
 
     void ScrollBox::SetScrollOffset(const glm::vec2& offset)
     {
-        const glm::vec2 clamped = ClampScrollOffset(offset, m_Geometry.Size);
+        const SScrollbarVisibility visibility = ResolveScrollbarVisibility(m_Geometry.Size);
+        const glm::vec2 clamped = ClampScrollOffset(offset, m_Geometry.Size, visibility);
         if (m_ScrollOffset == clamped) return;
 
         m_ScrollOffset = clamped;
@@ -74,23 +75,14 @@ namespace Elixir::GUI
         // every container is expected to call on a child.
         if (HasContent())
         {
-            const glm::vec2 contentConstraint = ContentMeasureConstraint(desired);
+            const SScrollbarVisibility visibility = ResolveScrollbarVisibility(desired);
+            const glm::vec2 contentConstraint = ContentMeasureConstraint(desired, visibility);
             const glm::vec2 contentSize = m_ContentSlot->GetWidget()->Measure(contentConstraint);
-            const glm::vec2 contentViewport = CrossAxisSpace(desired);
-
-            const bool verticalScrollbarVisible =
-                m_ShowScrollbar &&
-                m_ScrollAxis != EScrollAxis::Horizontal &&
-                contentSize.y > contentViewport.y;
-            const bool horizontalScrollbarVisible =
-                m_ShowScrollbar &&
-                m_ScrollAxis != EScrollAxis::Vertical &&
-                contentSize.x > contentViewport.x;
 
             glm::vec2 contentSizeWithGutters = contentSize;
-            if (verticalScrollbarVisible)
+            if (visibility.Vertical)
                 contentSizeWithGutters.x += m_ScrollBarStyle.Thickness;
-            if (horizontalScrollbarVisible)
+            if (visibility.Horizontal)
                 contentSizeWithGutters.y += m_ScrollBarStyle.Thickness;
 
             // Content is measured against the gutter-reduced cross axis. Include each
@@ -106,23 +98,28 @@ namespace Elixir::GUI
     {
         if (!HasContent())
         {
+            const bool visibilityChanged =
+                m_ScrollbarVisibility.Vertical || m_ScrollbarVisibility.Horizontal;
             m_ContentSize = {};
+            m_ScrollbarVisibility = {};
+            if (visibilityChanged) MarkRenderDirty();
             return;
         }
 
         const auto& content = m_ContentSlot->GetWidget();
+        const SScrollbarVisibility visibility = ResolveScrollbarVisibility(allocatedSpace.Size);
 
         // The content keeps its DESIRED size along the scrolling axis/axes - that's what
         // there is to scroll through - but is capped to the viewport on the other axis,
         // same as a non-scrolling child would be.
-        const glm::vec2 contentConstraint = ContentMeasureConstraint(allocatedSpace.Size);
+        const glm::vec2 contentConstraint = ContentMeasureConstraint(allocatedSpace.Size, visibility);
         const glm::vec2 desired = content->Measure(contentConstraint);
 
         // Same gutter CrossAxisSpace reserves in ContentMeasureConstraint, applied to the
         // space content is actually ARRANGED into - measuring content against a narrower
         // width but then stretching it back out to the full viewport here would put it right
         // back under the scrollbar it was just measured to avoid.
-        const glm::vec2 crossAxisSpace = CrossAxisSpace(allocatedSpace.Size);
+        const glm::vec2 crossAxisSpace = CrossAxisSpace(allocatedSpace.Size, visibility);
 
         glm::vec2 contentSize = crossAxisSpace;
         if (m_ScrollAxis != EScrollAxis::Horizontal) contentSize.y = desired.y;
@@ -130,12 +127,20 @@ namespace Elixir::GUI
 
         const glm::vec2 previousContentSize = m_ContentSize;
         const glm::vec2 previousScrollOffset = m_ScrollOffset;
+        const SScrollbarVisibility previousVisibility = m_ScrollbarVisibility;
 
         m_ContentSize = contentSize;
-        const glm::vec2 clampedOffset = ClampScrollOffset(previousScrollOffset, allocatedSpace.Size);
+        m_ScrollbarVisibility = visibility;
+        const glm::vec2 clampedOffset = ClampScrollOffset(
+            previousScrollOffset,
+            allocatedSpace.Size,
+            visibility
+        );
         m_ScrollOffset = clampedOffset;
 
-        if (m_ContentSize != previousContentSize || m_ScrollOffset != previousScrollOffset)
+        if (m_ContentSize != previousContentSize || m_ScrollOffset != previousScrollOffset ||
+            m_ScrollbarVisibility.Vertical != previousVisibility.Vertical ||
+            m_ScrollbarVisibility.Horizontal != previousVisibility.Horizontal)
             MarkRenderDirty(); // scrollbar thumb size and position changed
 
         const SRect contentRect = { allocatedSpace.Position - m_ScrollOffset, contentSize };
@@ -146,13 +151,11 @@ namespace Elixir::GUI
     {
         if (!m_ShowScrollbar) return;
 
-        const glm::vec2 contentViewport = CrossAxisSpace(m_Geometry.Size);
+        if (m_ScrollbarVisibility.Vertical)
+            AddScrollbar(batch, zOrder, true, m_ScrollbarVisibility);
 
-        if (m_ScrollAxis != EScrollAxis::Horizontal && m_ContentSize.y > contentViewport.y)
-            AddScrollbar(batch, zOrder, true);
-
-        if (m_ScrollAxis != EScrollAxis::Vertical && m_ContentSize.x > contentViewport.x)
-            AddScrollbar(batch, zOrder, false);
+        if (m_ScrollbarVisibility.Horizontal)
+            AddScrollbar(batch, zOrder, false, m_ScrollbarVisibility);
     }
 
     SInputReply ScrollBox::HandleMouseScrolled(const MouseScrolledEvent& event)
@@ -167,7 +170,11 @@ namespace Elixir::GUI
         if (delta == glm::vec2(0.0f))
             return SInputReply::Unhandled();
 
-        const glm::vec2 clamped = ClampScrollOffset(m_ScrollOffset + delta, m_Geometry.Size);
+        const glm::vec2 clamped = ClampScrollOffset(
+            m_ScrollOffset + delta,
+            m_Geometry.Size,
+            m_ScrollbarVisibility
+        );
         if (clamped == m_ScrollOffset)
             return SInputReply::Unhandled(); // at the edge; let an ancestor try.
 
@@ -178,28 +185,55 @@ namespace Elixir::GUI
         return SInputReply::Handled();
     }
 
-    glm::vec2 ScrollBox::CrossAxisSpace(const glm::vec2& viewportSize) const
+    ScrollBox::SScrollbarVisibility ScrollBox::ResolveScrollbarVisibility(
+        const glm::vec2& viewportSize
+    ) const
+    {
+        SScrollbarVisibility visibility;
+        if (!m_ShowScrollbar || !HasContent()) return visibility;
+
+        const auto& content = m_ContentSlot->GetWidget();
+        while (true)
+        {
+            const glm::vec2 contentConstraint = ContentMeasureConstraint(viewportSize, visibility);
+            const glm::vec2 contentSize = content->Measure(contentConstraint);
+            const glm::vec2 contentViewport = CrossAxisSpace(viewportSize, visibility);
+
+            SScrollbarVisibility required = visibility;
+            if (m_ScrollAxis != EScrollAxis::Horizontal && contentSize.y > contentViewport.y)
+                required.Vertical = true;
+            if (m_ScrollAxis != EScrollAxis::Vertical && contentSize.x > contentViewport.x)
+                required.Horizontal = true;
+
+            if (required.Vertical == visibility.Vertical &&
+                required.Horizontal == visibility.Horizontal)
+                return visibility;
+
+            visibility = required;
+        }
+    }
+
+    glm::vec2 ScrollBox::CrossAxisSpace(
+        const glm::vec2& viewportSize,
+        const SScrollbarVisibility& visibility
+    ) const
     {
         glm::vec2 space = viewportSize;
-        if (!m_ShowScrollbar) return space;
 
-        // Reserve a gutter for the scrollbar on whichever axis it actually occupies, so
-        // content never has to be measured or arranged under it - same reasoning as an
-        // outline budgeting its own space in Widget::Measure instead of bleeding into
-        // whatever's next to it. A vertical scrollbar (shown whenever this axis isn't purely
-        // Horizontal) is itself thickness-wide, eating into the content's width; a horizontal
-        // one eats into its height.
-        if (m_ScrollAxis != EScrollAxis::Horizontal)
+        if (visibility.Vertical)
             space.x = std::max(0.0f, space.x - m_ScrollBarStyle.Thickness);
-        if (m_ScrollAxis != EScrollAxis::Vertical)
+        if (visibility.Horizontal)
             space.y = std::max(0.0f, space.y - m_ScrollBarStyle.Thickness);
 
         return space;
     }
 
-    glm::vec2 ScrollBox::ContentMeasureConstraint(const glm::vec2& viewportSize) const
+    glm::vec2 ScrollBox::ContentMeasureConstraint(
+        const glm::vec2& viewportSize,
+        const SScrollbarVisibility& visibility
+    ) const
     {
-        glm::vec2 constraint = CrossAxisSpace(viewportSize);
+        glm::vec2 constraint = CrossAxisSpace(viewportSize, visibility);
         if (m_ScrollAxis != EScrollAxis::Horizontal) constraint.y = UnconstrainedSize;
         if (m_ScrollAxis != EScrollAxis::Vertical)   constraint.x = UnconstrainedSize;
         return constraint;
@@ -207,19 +241,25 @@ namespace Elixir::GUI
 
     glm::vec2 ScrollBox::ClampScrollOffset(
         const glm::vec2& offset,
-        const glm::vec2& viewportSize
+        const glm::vec2& viewportSize,
+        const SScrollbarVisibility& visibility
     ) const
     {
-        const glm::vec2 contentViewport = CrossAxisSpace(viewportSize);
+        const glm::vec2 contentViewport = CrossAxisSpace(viewportSize, visibility);
         const glm::vec2 maxOffset = glm::max(m_ContentSize - contentViewport, glm::vec2(0.0f));
         return glm::clamp(offset, glm::vec2(0.0f), maxOffset);
     }
 
-    void ScrollBox::AddScrollbar(RenderBatch& batch, const int zOrder, const bool vertical) const
+    void ScrollBox::AddScrollbar(
+        RenderBatch& batch,
+        const int zOrder,
+        const bool vertical,
+        const SScrollbarVisibility& visibility
+    ) const
     {
         const auto& appearance = m_ScrollBarStyle.Resolve(GetInteractionState());
         const float thickness = m_ScrollBarStyle.Thickness;
-        const glm::vec2 contentViewport = CrossAxisSpace(m_Geometry.Size);
+        const glm::vec2 contentViewport = CrossAxisSpace(m_Geometry.Size, visibility);
 
         if (vertical)
         {
