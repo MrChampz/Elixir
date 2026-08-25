@@ -1,7 +1,10 @@
 #include <gtest/gtest.h>
 using namespace testing;
 
+#include <Engine/GUI/Canvas.h>
+#include <Engine/GUI/Manager.h>
 #include <Engine/GUI/ScrollBox.h>
+#include <Engine/Input/InputManager.h>
 using namespace Elixir;
 using namespace Elixir::GUI;
 
@@ -132,6 +135,36 @@ TEST(ScrollBoxTest, HandleMouseScrolledAtEdgeIsUnhandledSoAnAncestorCanTry)
 
     EXPECT_FALSE(reply.EventHandled);
     EXPECT_EQ(scrollBox->GetScrollOffset().y, 0.0f);
+}
+
+TEST(ScrollBoxTest, WheelEventUsesTheCurrentPointerHitPath)
+{
+    const auto root = CreateRef<Canvas>();
+    root->SetSize({ 200.0f, 100.0f });
+
+    const auto left = CreateRef<ScrollBox>();
+    left->SetSize({ 100.0f, 100.0f });
+    left->SetContent(CreateRef<SizedLeaf>(glm::vec2{ 100.0f, 200.0f }));
+    root->AddChild(left).SetSize({ 100.0f, 100.0f });
+
+    const auto right = CreateRef<ScrollBox>();
+    right->SetSize({ 100.0f, 100.0f });
+    right->SetContent(CreateRef<SizedLeaf>(glm::vec2{ 100.0f, 200.0f }));
+    root->AddChild(right).SetPosition({ 100.0f, 0.0f }).SetSize({ 100.0f, 100.0f });
+
+    root->ArrangeChildren({ { 0.0f, 0.0f }, { 200.0f, 100.0f } });
+
+    Manager manager;
+    manager.SetRoot(root);
+
+    MouseMovedEvent moved(150.0f, 50.0f);
+    InputManager::OnEvent(moved);
+
+    MouseScrolledEvent scrollDown(0.0f, -1.0f);
+    manager.ProcessEvent(scrollDown);
+
+    EXPECT_EQ(left->GetScrollOffset().y, 0.0f);
+    EXPECT_GT(right->GetScrollOffset().y, 0.0f);
 }
 
 TEST(ScrollBoxTest, ClipsChildrenIsTrue)

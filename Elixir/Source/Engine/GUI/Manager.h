@@ -111,9 +111,14 @@ namespace Elixir::GUI
         bool HandleFramebufferResize(const FramebufferResizeEvent& event) const;
         bool HandleKeyTyped(const KeyTypedEvent& event) const;
 
-        // Bubbles a wheel tick leaf -> root over m_HoverPath, stopping at the first
-        // widget whose HandleMouseScrolled reports EventHandled.
-        bool HandleMouseScrolled(const MouseScrolledEvent& event) const;
+        // Hit-tests the current pointer position before bubbling a wheel tick leaf -> root,
+        // stopping at the first widget whose HandleMouseScrolled reports EventHandled.
+        bool HandleMouseScrolled(const MouseScrolledEvent& event);
+
+        // Returns the topmost root-to-leaf hit path at point. Used by both per-frame mouse
+        // processing and wheel routing, because a scroll event can arrive before the next
+        // ProcessInput refreshes m_HoverPath.
+        std::vector<Ref<Widget>> GetHitPath(const glm::vec2& point) const;
 
         void ProcessInput();
 

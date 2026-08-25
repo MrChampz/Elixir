@@ -223,9 +223,13 @@ namespace Elixir::GUI
         return false;
     }
 
-    bool Manager::HandleMouseScrolled(const MouseScrolledEvent& event) const
+    bool Manager::HandleMouseScrolled(const MouseScrolledEvent& event)
     {
-        for (auto it = m_HoverPath.rbegin(); it != m_HoverPath.rend(); ++it)
+        const auto [x, y] = InputManager::GetMousePosition();
+        const auto hitPath = GetHitPath({ x, y });
+        UpdateHoverPath(hitPath);
+
+        for (auto it = hitPath.rbegin(); it != hitPath.rend(); ++it)
         {
             if ((*it)->HandleMouseScrolled(event).EventHandled)
                 return true;
@@ -252,11 +256,7 @@ namespace Elixir::GUI
         if (m_MousePressed)
             DismissPopupsOutside(m_MousePos);
 
-        const Ref<Widget>& activeRoot = GetTopmostHitLayer(m_MousePos).Root;
-        if (!activeRoot) return;
-
-        std::vector<Ref<Widget>> hitPath;
-        activeRoot->HitTest(m_MousePos, hitPath);
+        const auto hitPath = GetHitPath(m_MousePos);
 
         UpdateHoverPath(hitPath);
 
@@ -268,6 +268,18 @@ namespace Elixir::GUI
 
         if (m_MouseMoved)
             ProcessMouseMove(hitPath);
+    }
+
+    std::vector<Ref<Widget>> Manager::GetHitPath(const glm::vec2& point) const
+    {
+        std::vector<Ref<Widget>> hitPath;
+        if (m_Layers.empty()) return hitPath;
+
+        const Ref<Widget>& activeRoot = GetTopmostHitLayer(point).Root;
+        if (activeRoot)
+            activeRoot->HitTest(point, hitPath);
+
+        return hitPath;
     }
 
     void Manager::UpdateHoverPath(const std::vector<Ref<Widget>>& path)
