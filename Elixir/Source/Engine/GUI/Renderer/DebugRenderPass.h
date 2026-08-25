@@ -41,6 +41,7 @@ namespace Elixir::GUI
       private:
         void InitRenderPass(const ShaderLoader* shaderLoader);
         void BindShaderParameters() const;
+        void EnsureVertexBufferCapacity(size_t requiredCapacity);
 
         void BuildDebugRectGeometry(const SDrawCommand& cmd);
 
@@ -55,9 +56,11 @@ namespace Elixir::GUI
         Ref<Shader> m_Shader;
         Ref<GraphicsPipeline> m_Pipeline;
         Ref<DynamicVertexBuffer> m_VertexBuffer;
+        std::vector<Ref<DynamicVertexBuffer>> m_RetiredVertexBuffers;
 
         float m_DPIScale;
         Ref<UniformBuffer> m_PerFrameConstantBuffer;
         const GraphicsContext* m_GraphicsContext;
+        size_t m_VertexCapacity = 0;
     };
 }
