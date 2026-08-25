@@ -86,21 +86,19 @@ namespace Elixir::GUI
     void Checkbox::HandleMouseEnter()
     {
         Widget::HandleMouseEnter();
-        if (IsEnabled())
-            Platform::Get().SetCursorShape(ECursorShape::Hand);
+        if (!IsEnabled())
+        {
+            Platform::Get().SetDefaultCursorShape();
+            return;
+        }
+
+        Platform::Get().SetCursorShape(ECursorShape::Hand);
     }
 
     void Checkbox::HandleMouseLeave()
     {
         Widget::HandleMouseLeave();
-
-        // Mirrors HandleMouseEnter's own IsEnabled() gate: Platform's "previous cursor" is a
-        // single global slot (Platform::SetCursorShape overwrites it on every call), not a
-        // per-widget stack. If Enter never called SetCursorShape for this widget (disabled),
-        // Leave popping it anyway would restore whatever unrelated shape happened to be the
-        // global previous one - not this widget's own.
-        if (IsEnabled())
-            Platform::Get().SetPreviousCursorShape();
+        Platform::Get().SetPreviousCursorShape();
     }
 
     SInputReply Checkbox::HandleMouseDown(const MouseButtonPressedEvent& event)
