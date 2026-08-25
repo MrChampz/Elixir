@@ -60,7 +60,7 @@ namespace Elixir::GUI
         int ZOrder = 0;
 
         // Scissor rect for clipping (optional)
-        SRect ScissorRect;
+        SRect ScissorRect{ { -1.0f, -1.0f }, { -1.0f, -1.0f } };
     };
 
     /**

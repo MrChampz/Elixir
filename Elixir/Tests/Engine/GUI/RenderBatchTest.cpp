@@ -63,6 +63,7 @@ TEST(RenderBatchTest, AppendingDebugCommandsDoesNotOverflowTheirZOrder)
 
     ASSERT_EQ(destination.GetCommands().size(), 1u);
     EXPECT_EQ(destination.GetCommands().front().ZOrder, 10'000);
+    EXPECT_FALSE(destination.GetCommands().front().ScissorRect.IsValid());
     EXPECT_EQ(destination.LayerSpan(), 0);
 }
 
