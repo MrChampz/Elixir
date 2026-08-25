@@ -64,6 +64,8 @@ namespace Elixir
 
     void Animator::Update(const Timestep frameTime)
     {
+        if (m_IsUpdating) return;
+
         const float delta = std::max(0.0f, frameTime.GetSeconds());
         m_IsUpdating = true;
         for (auto& track : m_Tracks)
