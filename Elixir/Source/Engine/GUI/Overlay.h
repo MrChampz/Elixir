@@ -4,18 +4,10 @@
 
 namespace Elixir::GUI
 {
-    class ELIXIR_API Overlay final : public Panel
+    class ELIXIR_API Overlay final : public TPanel<LayoutSlot>
     {
-      public:
-        LayoutSlot& AddChild(const Ref<Widget>& child);
-
-        bool IsStretching() const { return m_Stretching; }
-        void SetStretching(bool stretching);
-
-      protected:
-        glm::vec2 ComputeDesiredSize() override;
+    protected:
+        glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) override;
         void LayoutChildren(const SRect& allocatedSpace) override;
-
-        bool m_Stretching = false;
     };
 }

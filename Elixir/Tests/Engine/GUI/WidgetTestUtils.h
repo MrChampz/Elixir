@@ -15,10 +15,10 @@ namespace
 
         explicit CountingWidget(const glm::vec2& desired = { 10.0f, 10.0f })
         {
-            m_DesiredSize = desired;
+            m_FakeSize = desired;
         }
 
-        glm::vec2 ComputeDesiredSize() override { return m_DesiredSize; }
+        glm::vec2 ComputeDesiredSize(const glm::vec2&) override { return m_FakeSize; }
 
         // MarkLayoutDirty is protected on Widget; promote it so tests can simulate a
         // widget dirtying itself without weakening the production API.
@@ -32,6 +32,12 @@ namespace
         {
             ++ArrangeCount;
         }
+
+    private:
+        // m_DesiredSize no longer exists on Widget — Measure() now owns the desired-size
+        // cache (m_CachedDesiredSize) exclusively, so a test double that wants a fixed fake
+        // size keeps its own copy instead.
+        glm::vec2 m_FakeSize{};
     };
 
     // Minimal single-child container to exercise ContentWidget lifecycle
@@ -39,7 +45,7 @@ namespace
     class TestContentWidget final : public ContentWidget
     {
     public:
-        glm::vec2 ComputeDesiredSize() override { return { 10.0f, 10.0f }; }
+        glm::vec2 ComputeDesiredSize(const glm::vec2&) override { return { 10.0f, 10.0f }; }
     };
 
     // ArrangeChildren is the non-virtual template method on Widget; call it directly.

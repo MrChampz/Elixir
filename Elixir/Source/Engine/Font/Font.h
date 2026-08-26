@@ -38,7 +38,7 @@ namespace Elixir
         float DescenderY;
     };
 
-    class Font
+    class ELIXIR_API Font
     {
         friend class FontManager;
       public:

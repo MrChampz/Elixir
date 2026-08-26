@@ -4,6 +4,7 @@
 .idea/
 .claude/
 Build/
+build/
 Bin/
 Intermediate/
 out/

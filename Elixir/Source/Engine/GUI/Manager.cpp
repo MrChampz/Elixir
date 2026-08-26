@@ -24,10 +24,22 @@ namespace Elixir::GUI
 
     void Manager::ArrangeLayout(const Extent2D& extent) const
     {
-        if (m_RootWidget)
+        m_LastExtent = extent;
+
+        if (m_Layers.empty() || !m_Layers[0].Root)
+            return;
+
+        const SRect screenRect = { { 0, 0 }, { extent.Width, extent.Height } };
+        m_Layers[0].Root->ArrangeChildren(screenRect);
+
+        for (size_t i = 1; i < m_Layers.size(); ++i)
         {
-            const SRect rootGeometry = { { 0, 0 }, { extent.Width, extent.Height } };
-            m_RootWidget->ArrangeChildren(rootGeometry);
+            const auto& layer = m_Layers[i];
+            if (!layer.Root) continue;
+
+            const glm::vec2 desiredSize = layer.Root->Measure({ UnconstrainedSize, UnconstrainedSize });
+            const SRect popupRect = ComputePopupRect(layer.Anchor, desiredSize, screenRect);
+            layer.Root->ArrangeChildren(popupRect);
         }
     }
 
@@ -35,13 +47,17 @@ namespace Elixir::GUI
     {
         ProcessInput();
 
-        if (m_RootWidget)
-            m_RootWidget->Update(frameTime);
+        for (const auto& layer : m_Layers)
+        {
+            if (layer.Root)
+                layer.Root->Update(frameTime);
+        }
     }
 
     void Manager::Render()
     {
-        if (!m_RootWidget || !m_RootWidget->IsVisible()) return;
+        if (m_Layers.empty() || !m_Layers[0].Root || !m_Layers[0].Root->IsRenderVisible())
+            return;
 
         if (NeedsRebuild())
         {
@@ -59,32 +75,103 @@ namespace Elixir::GUI
         dispatcher.Dispatch<FramebufferResizeEvent>(EE_BIND_EVENT_FN(Manager::HandleFramebufferResize));
         dispatcher.Dispatch<KeyPressedEvent>(EE_BIND_EVENT_FN(Manager::HandleKeyPressed));
         dispatcher.Dispatch<KeyTypedEvent>(EE_BIND_EVENT_FN(Manager::HandleKeyTyped));
+        dispatcher.Dispatch<MouseScrolledEvent>(EE_BIND_EVENT_FN(Manager::HandleMouseScrolled));
+    }
+
+    void Manager::SetRoot(const Ref<Panel>& root)
+    {
+        if (m_Layers.empty())
+            m_Layers.push_back({ root, {}, false });
+        else
+        {
+            if (m_Layers[0].Root != root)
+                ResetInputRouting();
+            m_Layers[0] = { root, {}, false };
+        }
+
+        ++m_LayerStackVersion;
+    }
+
+    void Manager::PushPopup(const Ref<Widget>& widget, const SRect& anchor)
+    {
+        m_Layers.push_back({ widget, anchor, true });
+        ++m_LayerStackVersion;
+
+        if (widget)
+        {
+            const SRect screenRect = { { 0, 0 }, { m_LastExtent.Width, m_LastExtent.Height } };
+            const glm::vec2 desiredSize = widget->Measure({ UnconstrainedSize, UnconstrainedSize });
+            const SRect popupRect = ComputePopupRect(anchor, desiredSize, screenRect);
+            widget->ArrangeChildren(popupRect);
+        }
+    }
+
+    void Manager::PopPopup()
+    {
+        if (m_Layers.size() <= 1) return;
+
+        m_Layers.pop_back();
+        ResetInputRouting();
+        ++m_LayerStackVersion;
+    }
+
+    void Manager::ClearPopups()
+    {
+        if (m_Layers.size() <= 1) return;
+
+        m_Layers.resize(1);
+        ResetInputRouting();
+        ++m_LayerStackVersion;
+    }
+
+    bool Manager::WantsMouse() const
+    {
+        return !m_MouseCapture.expired() || std::ranges::any_of(
+            m_HoverPath,
+            [](const Ref<Widget>& widget) { return widget->CanHandleMouseInput(); }
+        );
     }
 
     void Manager::AssembleFrame()
     {
         m_RenderBatch.Clear();
 
-        if (m_RootWidget && m_RootWidget->IsVisible())
+        int zCursor = 0;
+        bool rebuilt = false;
+
+        // Same zCursor continuing across layers: layer 0 occupies the low z-bands, and each
+        // popup above it starts its own CollectDrawCommands walk above everything the layers
+        // below it used — reusing the existing per-subtree z-banding, so popups always end
+        // up on top without a magic z offset.
+        for (const auto& layer : m_Layers)
         {
-            int zCursor = 0;
-            bool rebuilt = false;
-            m_RootWidget->CollectDrawCommands(m_RenderBatch, zCursor, rebuilt);
+            if (layer.Root && layer.Root->IsRenderVisible())
+                layer.Root->CollectDrawCommands(
+                    m_RenderBatch,
+                    zCursor,
+                    rebuilt,
+                    {{ -1, -1 }, { -1, -1 }}
+                );
         }
 
+        // No default focus visual here on purpose: a widget's own IsFocused() is already
+        // enough for it to render its own focus state - color swap, outline, background
+        // texture, whatever fits - inside its own BuildDrawCommands, the same way Button
+        // already reacts to m_Hovered. A widget that doesn't opt in just has no focus visual,
+        // rather than the Manager imposing a generic ring on every widget regardless of type.
         m_RenderBatch.Sort();
     }
 
     bool Manager::NeedsRebuild() const
     {
         return Widget::CurrentDirtyEpoch() != m_LastRenderedEpoch
-            || m_LastRenderedRoot.lock() != m_RootWidget;
+            || m_LayerStackVersion != m_LastRenderedLayerVersion;
     }
 
     void Manager::MarkRebuilt()
     {
         m_LastRenderedEpoch = Widget::CurrentDirtyEpoch();
-        m_LastRenderedRoot = m_RootWidget;
+        m_LastRenderedLayerVersion = m_LayerStackVersion;
     }
 
     bool Manager::HandleFramebufferResize(const FramebufferResizeEvent& event) const
@@ -95,24 +182,77 @@ namespace Elixir::GUI
         return true;
     }
 
-    bool Manager::HandleKeyPressed(const KeyPressedEvent& event) const
+    bool Manager::HandleKeyPressed(const KeyPressedEvent& event)
     {
-        if (m_FocusedWidget)
+        if (event.GetKeyCode() == EE_KEY_TAB)
         {
-            ProcessKeyPressedRecursive(m_FocusedWidget, event);
+            if (event.IsShiftPressed())
+                FocusPrevious();
+            else
+                FocusNext();
+
+            return true;
         }
 
-        return true;
+        if (event.GetKeyCode() == EE_KEY_ESCAPE)
+        {
+            SetFocusedWidget(nullptr);
+            return true;
+        }
+
+        // SetEnabled(false) has no way to clear m_FocusedWidget itself - Widget has no
+        // back-reference to the Manager - so a widget disabled while focused stays focused,
+        // just Disabled-styled. Its own contract ("stops accepting input events") still has
+        // to hold for the keyboard, not only for HandleMouseDown/HandleClick, or a disabled
+        // TextField that was focused before being disabled would keep taking keystrokes.
+        if (m_FocusedWidget && !m_FocusedWidget->IsEnabled())
+            return false;
+
+        for (auto widget = m_FocusedWidget; widget; widget = widget->GetParent())
+        {
+            if (widget->HandleKeyPressed(event).EventHandled)
+                return true;
+        }
+
+        return false;
     }
 
     bool Manager::HandleKeyTyped(const KeyTypedEvent& event) const
     {
-        if (m_FocusedWidget)
+        // See the matching guard in HandleKeyPressed for why this checks IsEnabled() at all.
+        if (m_FocusedWidget && !m_FocusedWidget->IsEnabled())
+            return false;
+
+        for (auto widget = m_FocusedWidget; widget; widget = widget->GetParent())
         {
-            ProcessKeyTypedRecursive(m_FocusedWidget, event);
+            if (widget->HandleKeyTyped(event).EventHandled)
+                return true;
         }
 
-        return true;
+        return false;
+    }
+
+    bool Manager::HandleMouseScrolled(const MouseScrolledEvent& event)
+    {
+        const auto [x, y] = InputManager::GetMousePosition();
+        const auto hitPath = GetHitPath({ x, y });
+        UpdateHoverPath(hitPath);
+
+        for (auto it = hitPath.rbegin(); it != hitPath.rend(); ++it)
+        {
+            if ((*it)->HandleMouseScrolled(event).EventHandled)
+                return true;
+        }
+
+        return false;
+    }
+
+    void Manager::ResetInputRouting()
+    {
+        SetFocusedWidget(nullptr);
+        m_PressedWidget.reset();
+        m_MouseCapture.reset();
+        UpdateHoverPath({});
     }
 
     void Manager::ProcessInput()
@@ -128,109 +268,251 @@ namespace Elixir::GUI
         m_MouseReleased = !isMouseDown && m_WasMouseDown;
         m_WasMouseDown = isMouseDown;
 
-        if (m_RootWidget)
-        {
-            ProcessInputRecursive(m_RootWidget);
+        if (m_Layers.empty()) return;
 
-            if (m_MouseReleased && m_PressedWidget)
-            {
-                const auto event = MouseButtonReleasedEvent(EE_MOUSE_BUTTON_LEFT, m_MousePos);
-                m_PressedWidget->HandleMouseUp(event);
-                m_PressedWidget = nullptr;
-            }
+        if (m_MousePressed)
+            DismissPopupsOutside(m_MousePos);
 
-            // If user clicked but nothing captured focus, clear it
-            if (m_MousePressed && !m_PressedWidget && m_FocusedWidget)
-            {
-                m_FocusedWidget->HandleLostFocus();
-                m_FocusedWidget = nullptr;
-            }
+        const auto hitPath = GetHitPath(m_MousePos);
 
-            // Mouse move, notify pressed widget (for dragging/selection)
-            if (m_MouseMoved && m_PressedWidget)
-            {
-                const auto event = MouseMovedEvent(m_MousePos);
-                m_PressedWidget->HandleMouseMove(event);
-            }
-        }
+        UpdateHoverPath(hitPath);
+
+        if (m_MousePressed)
+            ProcessMousePress(hitPath);
+
+        if (m_MouseReleased)
+            ProcessMouseRelease(hitPath);
+
+        if (m_MouseMoved)
+            ProcessMouseMove(hitPath);
     }
 
-    void Manager::ProcessWidget(const Ref<Widget>& widget)
+    std::vector<Ref<Widget>> Manager::GetHitPath(const glm::vec2& point) const
     {
-        if (!widget || !widget->IsVisible()) return;
+        std::vector<Ref<Widget>> hitPath;
+        if (m_Layers.empty()) return hitPath;
 
-        const auto geometry = widget->GetGeometry();
-        const bool isOver = geometry.Contains(m_MousePos);
+        const Ref<Widget>& activeRoot = GetTopmostHitLayer(point).Root;
+        if (activeRoot)
+            activeRoot->HitTest(point, hitPath);
 
-        // Hover
-        if (isOver && !widget->IsHovered())
+        return hitPath;
+    }
+
+    void Manager::UpdateHoverPath(const std::vector<Ref<Widget>>& path)
+    {
+        // Leave widgets that were hovered but fell out of the path, deepest (leaf) first.
+        for (auto it = m_HoverPath.rbegin(); it != m_HoverPath.rend(); ++it)
         {
-            widget->HandleMouseEnter();
+            if (std::ranges::find(path, *it) == path.end())
+                (*it)->HandleMouseLeave();
         }
-        else if (!isOver && widget->IsHovered())
+
+        // Enter widgets newly under the cursor, root first.
+        for (const auto& widget : path)
         {
-            widget->HandleMouseLeave();
+            if (std::ranges::find(m_HoverPath, widget) == m_HoverPath.end())
+                widget->HandleMouseEnter();
         }
 
-        // Press + Focus
-        if (isOver && m_MousePressed)
-        {
-            const auto event = MouseButtonPressedEvent(EE_MOUSE_BUTTON_LEFT, m_MousePos);
-            widget->HandleMouseDown(event);
-            m_PressedWidget = widget;
+        m_HoverPath = path;
+    }
 
-            // Focus: only change if clicking a different widget
-            if (m_FocusedWidget != widget)
+    void Manager::ProcessMousePress(const std::vector<Ref<Widget>>& path)
+    {
+        const auto event = MouseButtonPressedEvent(EE_MOUSE_BUTTON_LEFT, m_MousePos);
+
+        for (auto it = path.rbegin(); it != path.rend(); ++it)
+        {
+            const auto& widget = *it;
+            const SInputReply reply = widget->HandleMouseDown(event);
+
+            if (reply.EventHandled)
             {
-                if (m_FocusedWidget)
-                    m_FocusedWidget->HandleLostFocus();
+                if (reply.CaptureMouse)
+                    m_MouseCapture = widget;
 
-                m_FocusedWidget = widget;
-                m_FocusedWidget->HandleFocus();
+                m_PressedWidget = widget;
+                SetFocusedWidget(widget);
+                return;
             }
         }
 
-        // Click
-        if (isOver && m_MouseReleased)
-        {
-            const auto event = MouseButtonReleasedEvent(EE_MOUSE_BUTTON_LEFT, m_MousePos);
-            widget->HandleMouseUp(event);
+        // Nobody under the cursor wanted the press: treat it as "clicked outside".
+        SetFocusedWidget(nullptr);
+    }
 
-            if (widget->IsPressed() && m_PressedWidget == widget)
-                widget->HandleClick();
+    void Manager::ProcessMouseRelease(const std::vector<Ref<Widget>>& path)
+    {
+        const auto event = MouseButtonReleasedEvent(EE_MOUSE_BUTTON_LEFT, m_MousePos);
+
+        if (const auto captured = m_MouseCapture.lock())
+        {
+            captured->HandleMouseUp(event);
+        }
+        else
+        {
+            for (auto it = path.rbegin(); it != path.rend(); ++it)
+                if ((*it)->HandleMouseUp(event).EventHandled)
+                    break;
+        }
+
+        if (m_PressedWidget && std::ranges::find(path, m_PressedWidget) != path.end())
+            m_PressedWidget->HandleClick();
+
+        m_MouseCapture.reset();
+        m_PressedWidget = nullptr;
+    }
+
+    void Manager::ProcessMouseMove(const std::vector<Ref<Widget>>& path)
+    {
+        const auto event = MouseMovedEvent(m_MousePos);
+
+        if (const auto captured = m_MouseCapture.lock())
+        {
+            captured->HandleMouseMove(event);
+            return;
+        }
+
+        for (auto it = path.rbegin(); it != path.rend(); ++it)
+        {
+            if ((*it)->HandleMouseMove(event).EventHandled)
+                break;
         }
     }
 
-    void Manager::ProcessInputRecursive(const Ref<Widget>& widget)
+    void Manager::SetFocusedWidget(const Ref<Widget>& widget)
     {
-        ProcessWidget(widget);
+        if (m_FocusedWidget == widget) return;
 
-        widget->ForEachChild([this](const Ref<Widget>& child)
-        {
-            ProcessInputRecursive(child);
-        });
+        if (m_FocusedWidget)
+            m_FocusedWidget->HandleLostFocus();
+
+        m_FocusedWidget = widget;
+
+        if (m_FocusedWidget)
+            m_FocusedWidget->HandleFocus();
     }
 
-    void Manager::ProcessKeyPressedRecursive(
+    void Manager::CollectFocusOrder(
         const Ref<Widget>& widget,
-        const KeyPressedEvent& event
+        std::vector<Ref<Widget>>& out
     )
     {
-        widget->HandleKeyPressed(event);
+        if (!widget) return;
 
-        widget->ForEachChild([&event](const Ref<Widget>& child)
+        const auto visibility = widget->GetVisibility();
+        if (visibility == EVisibility::HitTestInvisible ||
+            visibility == EVisibility::Hidden ||
+            visibility == EVisibility::Collapsed)
+            return;
+
+        // Excludes a SelfHitTestVisible widget from the order itself while still walking
+        // into its children - same treatment for a disabled one: Tab must not be able to
+        // land somewhere a mouse click already can't (Widget::HandleMouseDown's own
+        // IsEnabled() check), even though a widget already focused before being disabled
+        // stays in m_FocusedWidget (see the guard in Manager::HandleKeyPressed).
+        if (widget->IsFocusable() && widget->IsSelfHitTestVisible() && widget->IsEnabled())
+            out.push_back(widget);
+
+        widget->ForEachChild([&](const Ref<Widget>& child)
         {
-            ProcessKeyPressedRecursive(child, event);
+            CollectFocusOrder(child, out);
         });
     }
 
-    void Manager::ProcessKeyTypedRecursive(const Ref<Widget>& widget, const KeyTypedEvent& event)
+    const std::vector<Ref<Widget>>& Manager::GetFocusOrder()
     {
-        widget->HandleKeyTyped(event);
+        const uint64_t epoch = Widget::CurrentDirtyEpoch();
+        if (epoch == m_FocusOrderEpoch && m_LayerStackVersion == m_FocusOrderLayerVersion)
+            return m_FocusOrder;
 
-        widget->ForEachChild([&event](const Ref<Widget>& child)
+        m_FocusOrder.clear();
+
+        if (!m_Layers.empty())
+            CollectFocusOrder(m_Layers.back().Root, m_FocusOrder);
+
+        m_FocusOrderEpoch = epoch;
+        m_FocusOrderLayerVersion = m_LayerStackVersion;
+
+        return m_FocusOrder;
+    }
+
+    void Manager::FocusNext()
+    {
+        const auto& order = GetFocusOrder();
+
+        // Nothing to Tab to: leave m_FocusedWidget exactly as it is.
+        if (order.empty()) return;
+
+        const auto it = std::ranges::find(order, m_FocusedWidget);
+        const size_t nextIndex = (it == order.end())
+            ? 0
+            : (size_t(it - order.begin()) + 1) % order.size();
+
+        SetFocusedWidget(order[nextIndex]);
+    }
+
+    void Manager::FocusPrevious()
+    {
+        const auto& order = GetFocusOrder();
+
+        // Nothing to back focus to: leave m_FocusedWidget exactly as it is.
+        if (order.empty()) return;
+
+        const auto it = std::ranges::find(order, m_FocusedWidget);
+        const size_t currIndex = (it == order.end()) ? 0 : size_t(it - order.begin());
+        const size_t prevIndex = (currIndex == 0) ? order.size() - 1 : currIndex - 1;
+
+        SetFocusedWidget(order[prevIndex]);
+    }
+
+    const SLayer& Manager::GetTopmostHitLayer(const glm::vec2& point) const
+    {
+        for (size_t i = m_Layers.size(); i-- > 1;)
         {
-            ProcessKeyTypedRecursive(child, event);
-        });
+            if (m_Layers[i].Root && m_Layers[i].Root->GetGeometry().Contains(point))
+                return m_Layers[i];
+        }
+
+        return m_Layers[0]; // the UI root always hits
+    }
+
+    void Manager::DismissPopupsOutside(const glm::vec2& point)
+    {
+        while (m_Layers.size() > 1)
+        {
+            const auto& top = m_Layers.back();
+            if (!top.DismissOnClickOutside) break;
+            if (top.Root && top.Root->GetGeometry().Contains(point)) break;
+
+            PopPopup();
+        }
+    }
+
+    SRect Manager::ComputePopupRect(
+        const SRect& anchor,
+        const glm::vec2& desiredSize,
+        const SRect& screenRect
+    )
+    {
+        // Default: flush against the anchor's left edge, opening below it.
+        glm::vec2 position = { anchor.Position.x, anchor.Position.y + anchor.Size.y };
+
+        // Doesn't fit below -> flip above the anchor.
+        if (position.y + desiredSize.y > screenRect.Position.y + screenRect.Size.y)
+            position.y = anchor.Position.y - desiredSize.y;
+
+        // Clamp fully on-screen as a last resort (flipping alone doesn't help when the
+        // screen itself is smaller than the popup, or the anchor is near the top with
+        // nothing to flip into).
+        const glm::vec2 maxPosition = glm::max(
+            screenRect.Position,
+            screenRect.Position + screenRect.Size - desiredSize
+        );
+
+        position = glm::clamp(position, screenRect.Position, maxPosition);
+
+        return { position, desiredSize };
     }
 }

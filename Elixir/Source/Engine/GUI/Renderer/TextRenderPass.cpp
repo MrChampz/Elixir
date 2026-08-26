@@ -19,33 +19,43 @@ namespace Elixir::GUI
         BindShaderParameters();
     }
 
-    void TextRenderPass::GenerateDrawCommands(const RenderBatch& batch)
+    void TextRenderPass::BeginFrame()
     {
         m_Quads.clear();
+    }
 
-        for (const auto& drawCmd : batch.GetCommands())
-        {
-            switch (drawCmd.Type)
-            {
-                case SDrawCommand::EType::Text:
-                    BuildTextGeometry(drawCmd);
-                    break;
-                default:
-                    break;
-            }
-        }
-
+    void TextRenderPass::EndFrame()
+    {
         if (!m_Quads.empty())
         {
+            EnsureQuadBufferCapacity(m_Quads.size());
             m_QuadBuffer->UpdateData(m_Quads.data(),  m_Quads.size() * sizeof(SQuad));
         }
     }
 
-    void TextRenderPass::Render(const Ref<CommandBuffer>& cmd)
+    uint32_t TextRenderPass::AppendRange(const std::span<const SDrawCommand> commands)
+    {
+        const auto firstInstance = (uint32_t)m_Quads.size();
+
+        for (const auto& drawCmd : commands)
+            BuildTextGeometry(drawCmd);
+
+        return firstInstance;
+    }
+
+    void TextRenderPass::Bind(const Ref<CommandBuffer>& cmd)
     {
         m_Pipeline->Bind(cmd);
         m_QuadBuffer->Bind(cmd);
-        cmd->Draw(6, m_Quads.size());
+    }
+
+    void TextRenderPass::Render(
+        const Ref<CommandBuffer>& cmd,
+        const uint32_t firstInstance,
+        const uint32_t instanceCount
+    )
+    {
+        cmd->Draw(6, instanceCount, 0, firstInstance);
     }
 
     bool TextRenderPass::HasData() const
@@ -56,6 +66,16 @@ namespace Elixir::GUI
     void TextRenderPass::Clear()
     {
         m_Quads.clear();
+    }
+
+    uint32_t TextRenderPass::GetInstanceCount() const
+    {
+        return (uint32_t)m_Quads.size();
+    }
+
+    EDrawCommandType TextRenderPass::GetHandleType() const
+    {
+        return EDrawCommandType::Text;
     }
 
     void TextRenderPass::InitRenderPass(const ShaderLoader* shaderLoader)
@@ -91,6 +111,7 @@ namespace Elixir::GUI
         m_Quads.reserve(MAX_CHARACTERS);
         m_QuadBuffer = DynamicVertexBuffer::Create(m_GraphicsContext, MAX_CHARACTERS * sizeof(SQuad));
         m_QuadBuffer->SetLayout(bufferLayout);
+        m_QuadCapacity = MAX_CHARACTERS;
     }
 
     void TextRenderPass::BindShaderParameters() const
@@ -107,6 +128,20 @@ namespace Elixir::GUI
         m_Shader->BindSampler("atlasSampler", sampler);
     }
 
+    void TextRenderPass::EnsureQuadBufferCapacity(const size_t requiredCapacity)
+    {
+        if (requiredCapacity <= m_QuadCapacity)
+            return;
+
+        const size_t newCapacity = GrowBufferCapacity(m_QuadCapacity, requiredCapacity);
+        auto buffer = DynamicVertexBuffer::Create(m_GraphicsContext, newCapacity * sizeof(SQuad));
+        buffer->SetLayout(m_QuadBuffer->GetLayout());
+
+        m_RetiredQuadBuffers.push_back(std::move(m_QuadBuffer));
+        m_QuadBuffer = std::move(buffer);
+        m_QuadCapacity = newCapacity;
+    }
+
     void TextRenderPass::BuildTextGeometry(const SDrawCommand& cmd)
     {
         const auto font = cmd.Font;
@@ -116,7 +151,9 @@ namespace Elixir::GUI
         const float lineHeight = FontManager::GetLineHeight(font, cmd.FontSize);
 
         float cursorX = cmd.Geometry.Position.x;
-        float cursorY = cmd.Geometry.Position.y + (cmd.Geometry.Size.y - lineHeight) * 0.5f;
+        const size_t lineCount = std::count(cmd.Text.begin(), cmd.Text.end(), '\n') + 1;
+        const float textHeight = lineHeight * lineCount;
+        float cursorY = cmd.Geometry.Position.y + (cmd.Geometry.Size.y - textHeight) * 0.5f;
 
         int i = 0;
         while (i < (int)cmd.Text.size())
@@ -127,6 +164,7 @@ namespace Elixir::GUI
             if (codepoint == '\n') {
                 cursorX = cmd.Geometry.Position.x;
                 cursorY += lineHeight;
+                i += charLen;
                 continue;
             }
 

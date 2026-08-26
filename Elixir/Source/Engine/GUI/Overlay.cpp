@@ -3,31 +3,27 @@
 
 namespace Elixir::GUI
 {
-    LayoutSlot& Overlay::AddChild(const Ref<Widget>& child)
+    glm::vec2 Overlay::ComputeDesiredSize(const glm::vec2& availableSize)
     {
-        const auto slot = CreateRef<LayoutSlot>(child);
-        m_Slots.push_back(slot);
-        AttachChild(child);
-        return *slot;
-    }
+        const glm::vec2 innerAvailable = {
+            availableSize.x - m_Padding.GetTotalHorizontal(),
+            availableSize.y - m_Padding.GetTotalVertical()
+        };
 
-    void Overlay::SetStretching(const bool stretching)
-    {
-        if (m_Stretching == stretching) return;
-        m_Stretching = stretching;
-        MarkLayoutDirty();
-    }
-
-    glm::vec2 Overlay::ComputeDesiredSize()
-    {
         glm::vec2 totalSize = { 0, 0 };
 
-        for (auto& slot : m_Slots)
+        for (const auto& slot : m_Slots)
         {
-            const auto layoutSlot = std::static_pointer_cast<LayoutSlot>(slot);
+            if (!slot->GetWidget()->TakesSpace()) continue;
 
-            auto childSize = slot->GetWidget()->ComputeDesiredSize();
-            const auto margin = layoutSlot->GetMargin();
+            const auto margin = slot->GetMargin();
+
+            const glm::vec2 childConstraint = {
+                innerAvailable.x - margin.GetTotalHorizontal(),
+                innerAvailable.y - margin.GetTotalVertical()
+            };
+
+            auto childSize = slot->GetWidget()->Measure(childConstraint);
 
             // Add margin
             childSize.x += margin.GetTotalHorizontal();
@@ -42,7 +38,6 @@ namespace Elixir::GUI
         totalSize.x += m_Padding.GetTotalHorizontal();
         totalSize.y += m_Padding.GetTotalVertical();
 
-        m_DesiredSize = totalSize;
         return totalSize;
     }
 
@@ -51,26 +46,27 @@ namespace Elixir::GUI
         // Calculate available space after padding
         const SRect innerSpace = ApplyPadding(allocatedSpace, m_Padding);
 
-        for (auto& slot : m_Slots)
+        // Overlay has no main axis - every child gets the full inner space and is placed by
+        // alignment alone. EHorizontalAlignment::Fill / EVerticalAlignment::Fill stretch a
+        // child across that space; SSizeParam does not apply here (see LayoutSlot).
+        for (const auto& slot : m_Slots)
         {
-            const auto layoutSlot = std::static_pointer_cast<LayoutSlot>(slot);
+            if (!slot->GetWidget()->TakesSpace()) continue;
 
-            const glm::vec2 childSize = slot->GetWidget()->ComputeDesiredSize();
-            const auto margin = layoutSlot->GetMargin();
-            const auto hAlignment = layoutSlot->GetHorizontalAlignment();
-            const auto vAlignment = layoutSlot->GetVerticalAlignment();
+            const auto margin = slot->GetMargin();
+            const auto hAlignment = slot->GetHorizontalAlignment();
+            const auto vAlignment = slot->GetVerticalAlignment();
 
-            // Handle fill alignment
-            const float childWidth = m_Stretching
-                ? innerSpace.Size.x - margin.GetTotalHorizontal()
-                : childSize.x;
-            const float childHeight = m_Stretching
-                ? innerSpace.Size.y - margin.GetTotalVertical()
-                : childSize.y;
+            const glm::vec2 childConstraint = {
+                innerSpace.Size.x - margin.GetTotalHorizontal(),
+                innerSpace.Size.y - margin.GetTotalVertical()
+            };
+
+            const glm::vec2 childSize = slot->GetWidget()->Measure(childConstraint);
 
             // Align within the overlay space
             SRect childGeometry = AlignChild(
-                glm::vec2(childWidth, childHeight),
+                childSize,
                 innerSpace,
                 hAlignment,
                 vAlignment,

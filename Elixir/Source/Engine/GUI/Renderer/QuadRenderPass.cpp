@@ -27,33 +27,43 @@ namespace Elixir::GUI
         m_WhiteTexture.reset();
     }
 
-    void QuadRenderPass::GenerateDrawCommands(const RenderBatch& batch)
+    void QuadRenderPass::BeginFrame()
     {
         m_Quads.clear();
+    }
 
-        for (const auto& drawCmd : batch.GetCommands())
-        {
-            switch (drawCmd.Type)
-            {
-                case SDrawCommand::EType::Rect:
-                    BuildRectGeometry(drawCmd);
-                    break;
-                default:
-                    break;
-            }
-        }
-
+    void QuadRenderPass::EndFrame()
+    {
         if (!m_Quads.empty())
         {
+            EnsureQuadBufferCapacity(m_Quads.size());
             m_QuadBuffer->UpdateData(m_Quads.data(),  m_Quads.size() * sizeof(SQuad));
         }
     }
 
-    void QuadRenderPass::Render(const Ref<CommandBuffer>& cmd)
+    uint32_t QuadRenderPass::AppendRange(const std::span<const SDrawCommand> commands)
+    {
+        const auto firstInstance = (uint32_t)m_Quads.size();
+
+        for (const auto& drawCmd : commands)
+            BuildRectGeometry(drawCmd);
+
+        return firstInstance;
+    }
+
+    void QuadRenderPass::Bind(const Ref<CommandBuffer>& cmd)
     {
         m_Pipeline->Bind(cmd);
         m_QuadBuffer->Bind(cmd);
-        cmd->Draw(6, m_Quads.size());
+    }
+
+    void QuadRenderPass::Render(
+        const Ref<CommandBuffer>& cmd,
+        const uint32_t firstInstance,
+        const uint32_t instanceCount
+    )
+    {
+        cmd->Draw(6, instanceCount, 0, firstInstance);
     }
 
     bool QuadRenderPass::HasData() const
@@ -64,6 +74,16 @@ namespace Elixir::GUI
     void QuadRenderPass::Clear()
     {
         m_Quads.clear();
+    }
+
+    uint32_t QuadRenderPass::GetInstanceCount() const
+    {
+        return (uint32_t)m_Quads.size();
+    }
+
+    EDrawCommandType QuadRenderPass::GetHandleType() const
+    {
+        return EDrawCommandType::Rect;
     }
 
     void QuadRenderPass::InitRenderPass(const ShaderLoader* shaderLoader)
@@ -80,6 +100,7 @@ namespace Elixir::GUI
                     { EDataType::Vec4,  "OutlineColor"      },
                     { EDataType::Float, "OutlineThickness"  },
                     { EDataType::UInt,  "TextureIndex"      },
+                    { EDataType::UInt,  "TextureMapping"    },
                     { EDataType::Vec4,  "ScissorRect"       },
                 },
                 EInputRate::Instance
@@ -102,6 +123,7 @@ namespace Elixir::GUI
         m_Quads.reserve(MAX_QUADS);
         m_QuadBuffer = DynamicVertexBuffer::Create(m_GraphicsContext, MAX_QUADS * sizeof(SQuad));
         m_QuadBuffer->SetLayout(bufferLayout);
+        m_QuadCapacity = MAX_QUADS;
 
         m_WhiteTexture = Texture2D::Create(
             m_GraphicsContext,
@@ -127,6 +149,20 @@ namespace Elixir::GUI
         m_Shader->BindSampler("samplerState", sampler);
     }
 
+    void QuadRenderPass::EnsureQuadBufferCapacity(const size_t requiredCapacity)
+    {
+        if (requiredCapacity <= m_QuadCapacity)
+            return;
+
+        const size_t newCapacity = GrowBufferCapacity(m_QuadCapacity, requiredCapacity);
+        auto buffer = DynamicVertexBuffer::Create(m_GraphicsContext, newCapacity * sizeof(SQuad));
+        buffer->SetLayout(m_QuadBuffer->GetLayout());
+
+        m_RetiredQuadBuffers.push_back(std::move(m_QuadBuffer));
+        m_QuadBuffer = std::move(buffer);
+        m_QuadCapacity = newCapacity;
+    }
+
     void QuadRenderPass::BuildRectGeometry(const SDrawCommand& cmd)
     {
         const SQuad quad = {
@@ -141,6 +177,7 @@ namespace Elixir::GUI
             .TextureIndex = cmd.Texture
                 ? m_TextureSet->AddTexture(cmd.Texture).Index
                 : m_WhiteTextureHandle.Index,
+            .TextureMapping = (uint32_t)cmd.TextureMapping,
             .ScissorRect = cmd.ScissorRect.IsValid()
                 ? cmd.ScissorRect * m_DPIScale
                 : cmd.ScissorRect

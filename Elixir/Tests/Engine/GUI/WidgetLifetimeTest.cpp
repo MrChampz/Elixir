@@ -7,6 +7,20 @@ using namespace testing;
 using namespace Elixir;
 using namespace Elixir::GUI;
 
+namespace
+{
+    // RemoveChild is protected on Widget/Panel (no production code calls it from outside a
+    // container's own AddChild/SetContent-style methods); promote it here so this file's
+    // detach test can drive it directly, same idiom as PanelTestWidget in ForEachChildTest.cpp.
+    class PanelTestWidget final : public TPanel<LayoutSlot>
+    {
+      public:
+        glm::vec2 ComputeDesiredSize(const glm::vec2&) override { return {}; }
+
+        using Panel::RemoveChild;
+    };
+}
+
 TEST(WidgetLifetimeTest, MutatingChildAfterParentDestroyedIsSafe)
 {
     const auto child = CreateRef<CountingWidget>();
@@ -38,7 +52,7 @@ TEST(WidgetLifetimeTest, ReplacedContentNoLongerBubblesDirty)
 
 TEST(WidgetLifetimeTest, RemovedChildNoLongerDirtiesContainer)
 {
-    const auto box = CreateRef<VerticalBox>();
+    const auto box = CreateRef<PanelTestWidget>();
     const auto a = CreateRef<CountingWidget>();
     box->AddChild(a);
 
@@ -52,6 +66,17 @@ TEST(WidgetLifetimeTest, RemovedChildNoLongerDirtiesContainer)
     EXPECT_FALSE(box->IsLayoutDirty());
 }
 
+TEST(WidgetLifetimeTest, RemovingTheSlotOwnedReferenceKeepsTheChildAliveUntilDetached)
+{
+    const auto box = CreateRef<PanelTestWidget>();
+    box->AddChild(CreateRef<CountingWidget>());
+
+    const Ref<Widget>& child = box->GetSlotAt(0)->GetWidget();
+    box->RemoveChild(child);
+
+    EXPECT_EQ(box->GetSlotCount(), 0u);
+}
+
 TEST(WidgetLifetimeTest, ReparentingDetachesFromPreviousContainer)
 {
     const auto boxA = CreateRef<VerticalBox>();
@@ -61,8 +86,8 @@ TEST(WidgetLifetimeTest, ReparentingDetachesFromPreviousContainer)
     boxA->AddChild(child);
     boxB->AddChild(child);
 
-    EXPECT_TRUE(boxA->GetSlots().empty());
-    EXPECT_EQ(boxB->GetSlots().size(), 1u);
+    EXPECT_EQ(boxA->GetSlotCount(), 0u);
+    EXPECT_EQ(boxB->GetSlotCount(), 1u);
 
     Arrange(boxA, { { 0, 0 }, { 100, 100 } });
     Arrange(boxB, { { 0, 0 }, { 100, 100 } });

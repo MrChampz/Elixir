@@ -108,6 +108,10 @@ set(FASTGLTF_COMPILE_AS_CPP20 ON)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/simdjson)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/fastgltf)
 
+set(LUNASVG_BUILD_EXAMPLES OFF CACHE BOOL "Disable LunaSVG examples" FORCE)
+set(LUNASVG_DISABLE_LOAD_SYSTEM_FONTS ON CACHE BOOL "Disable LunaSVG system font lookup" FORCE)
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Vendor/lunasvg)
+
 # Resolve msdf-atlas-gen dependencies (skia, freetype, png) through vcpkg.
 # Enabled in CI (-DELIXIR_USE_VCPKG=ON) where those libraries are not installed
 # system-wide; defaults OFF so local builds keep using system packages.
@@ -157,6 +161,7 @@ target_link_libraries(${PROJECT_NAME}
     spdlog
     simdjson
     fastgltf
+    lunasvg::lunasvg
     msdf-atlas-gen
     imgui
     glfw

@@ -22,6 +22,7 @@ struct VS_INPUT
     float4 OutlineColor     : OUTLINE0;             // Outline color
     float  OutlineThickness : OUTLINE1;             // Outline thickness
     uint   TextureIndex     : TEXTURE;              // Texture index
+    uint   TextureMapping   : TEXTURE_MAPPING;      // 0 = stretch, 1 = nine-slice
     float4 ScissorRect      : SCISSOR;              // Scissor rect (x, y, width, height)
 
     uint VertexId : SV_VertexID;
@@ -42,6 +43,7 @@ struct VS_OUTPUT
     float4 OutlineColor     : OUTLINE0;             // Outline color
     float  OutlineThickness : OUTLINE1;             // Outline thickness
     uint   TextureIndex     : TEXTURE;              // Texture index
+    uint   TextureMapping   : TEXTURE_MAPPING;      // Texture mapping mode
     float4 ScissorRect      : SCISSOR;              // Scissor rect (x, y, width, height)
 };
 
@@ -66,8 +68,9 @@ VS_OUTPUT main(VS_INPUT input)
         shadowExpansion = length(shadowOffset) + shadowBlur * 3.0;
     }
 
-    // Total expansion is the maximum of all effects
-    float expansion = max(input.OutlineThickness, shadowExpansion);
+    // Only drop shadow needs extra room outside the content bounds - the outline is drawn
+    // INSET (see applyOutline in GUI.ps.hlsl), so it never needs to expand past input.Size.
+    float expansion = shadowExpansion;
 
     // Expand the quad geometry
     float2 expandedSize = input.Size + float2(expansion * 2.0, expansion * 2.0);
@@ -98,6 +101,7 @@ VS_OUTPUT main(VS_INPUT input)
     output.OutlineColor = input.OutlineColor;
     output.OutlineThickness = input.OutlineThickness;
     output.TextureIndex = input.TextureIndex;
+    output.TextureMapping = input.TextureMapping;
     output.ScissorRect = input.ScissorRect;
 
     return output;

@@ -19,6 +19,25 @@ namespace Elixir::GUI
             return Position.x != -1 && Position.y != -1 && Size.x != -1 && Size.y != -1;
         }
 
+        /**
+         * @brief Intersect two rects, returning the overlapping region.
+         *
+         * Both inputs are assumed to be real geometric rects - callers check IsValid() first,
+         * same convention IsValid() itself already relies on.
+         *
+         * The result's Size is clamped to a minimum of (0, 0) when the rect do not overlap.
+         *
+         * @param a First rect.
+         * @param b Second rect.
+         * @return The overlapping rect; zero-sized (never negative) when a and b don't overlap.
+         */
+        static SRect Intersect(const SRect& a, const SRect& b)
+        {
+            const glm::vec2 min = glm::max(a.Position, b.Position);
+            const glm::vec2 max = glm::min(a.Position + a.Size, b.Position + b.Size);
+            return { min, glm::max(max - min, glm::vec2(0.0f)) };
+        }
+
         SRect operator*(const float scale) const
         {
             return SRect(Position * scale, Size * scale);
@@ -68,17 +87,25 @@ namespace Elixir::GUI
 
     enum class EHorizontalAlignment : uint8_t
     {
-        Left, Center, Right
+        Left, Center, Right, Fill
     };
 
     enum class EVerticalAlignment : uint8_t
     {
-        Top, Center, Bottom
+        Top, Center, Bottom, Fill
     };
 
+    /**
+     * @brief Controls whether a widget renders, occupies layout space, and receives
+     * hit-tests.
+     */
     enum class EVisibility : uint8_t
     {
-        Visible, Hidden
+        Visible,
+        HitTestInvisible,
+        SelfHitTestInvisible,
+        Hidden,
+        Collapsed
     };
 
     struct SMargin
@@ -115,6 +142,31 @@ namespace Elixir::GUI
     };
 
     typedef SMargin SPadding;
+
+    /**
+     * @brief How a LayoutSlot sizes its child along the owner's MAIN axis.
+     *
+     * VerticalBox: height;
+     * HorizontalBox: width;
+     * Overlay: ignores this - it has no main axis.
+     *
+     * The cross axis is sized independently, via EHorizontalAlignment::Fill /
+     * EVerticalAlignment::Fill on the same slot.
+     */
+    struct SSizeParam
+    {
+        enum class ERule : uint8_t
+        {
+            Auto, Fill, Fixed
+        };
+
+        ERule Rule = ERule::Auto;
+        float Value = 1.0f; // Fill: proportion; Fixed: pixels; Auto: ignored.
+
+        static SSizeParam Auto() { return { ERule::Auto, 0.0f }; }
+        static SSizeParam Fill(const float ratio = 1.0f) { return { ERule::Fill, ratio }; }
+        static SSizeParam Fixed(const float pixels) { return { ERule::Fixed, pixels }; }
+    };
 
     struct SAnchors
     {

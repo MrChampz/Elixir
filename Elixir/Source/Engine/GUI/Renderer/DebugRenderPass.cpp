@@ -18,33 +18,48 @@ namespace Elixir::GUI
         BindShaderParameters();
     }
 
-    void DebugRenderPass::GenerateDrawCommands(const RenderBatch& batch)
+    void DebugRenderPass::BeginFrame()
     {
         m_Vertices.clear();
+    }
 
-        for (const auto& drawCmd : batch.GetCommands())
-        {
-            switch (drawCmd.Type)
-            {
-                case SDrawCommand::EType::DebugRect:
-                    BuildDebugRectGeometry(drawCmd);
-                    break;
-                default:
-                    break;
-            }
-        }
-
+    void DebugRenderPass::EndFrame()
+    {
         if (!m_Vertices.empty())
         {
-            m_VertexBuffer->UpdateData(m_Vertices.data(), m_Vertices.size() * sizeof(SVertex));
+            EnsureVertexBufferCapacity(m_Vertices.size());
+            m_VertexBuffer->UpdateData(
+                m_Vertices.data(),
+                m_Vertices.size() * sizeof(SVertex)
+            );
         }
     }
 
-    void DebugRenderPass::Render(const Ref<CommandBuffer>& cmd)
+    uint32_t DebugRenderPass::AppendRange(std::span<const SDrawCommand> commands)
+    {
+        const auto firstVertex = (uint32_t)m_Vertices.size();
+
+        for (const auto& drawCmd : commands)
+            BuildDebugRectGeometry(drawCmd);
+
+        return firstVertex;
+    }
+
+    void DebugRenderPass::Bind(const Ref<CommandBuffer>& cmd)
     {
         m_Pipeline->Bind(cmd);
         m_VertexBuffer->Bind(cmd);
-        cmd->Draw(m_Vertices.size());
+    }
+
+    void DebugRenderPass::Render(
+        const Ref<CommandBuffer>& cmd,
+        const uint32_t firstInstance,
+        const uint32_t instanceCount
+    )
+    {
+        // Non-instanced LineList draw: reinterpret the generic firstInstance/instanceCount
+        // range as firstVertex/vertexCount, matching what AppendRange produced above.
+        cmd->Draw(instanceCount, 1, firstInstance, 0);
     }
 
     bool DebugRenderPass::HasData() const
@@ -55,6 +70,16 @@ namespace Elixir::GUI
     void DebugRenderPass::Clear()
     {
         m_Vertices.clear();
+    }
+
+    uint32_t DebugRenderPass::GetInstanceCount() const
+    {
+        return (uint32_t)m_Vertices.size();
+    }
+
+    EDrawCommandType DebugRenderPass::GetHandleType() const
+    {
+        return EDrawCommandType::DebugRect;
     }
 
     void DebugRenderPass::InitRenderPass(const ShaderLoader* shaderLoader)
@@ -84,6 +109,7 @@ namespace Elixir::GUI
         constexpr auto vertexCount = MAX_LINES * 2;
         m_VertexBuffer = DynamicVertexBuffer::Create(m_GraphicsContext, vertexCount * sizeof(SVertex));
         m_VertexBuffer->SetLayout(bufferLayout);
+        m_VertexCapacity = vertexCount;
     }
 
     void DebugRenderPass::BindShaderParameters() const
@@ -91,12 +117,33 @@ namespace Elixir::GUI
         m_Shader->BindConstantBuffer("cbPerFrame", m_PerFrameConstantBuffer);
     }
 
+    void DebugRenderPass::EnsureVertexBufferCapacity(const size_t requiredCapacity)
+    {
+        if (requiredCapacity <= m_VertexCapacity)
+            return;
+
+        const size_t newCapacity = GrowBufferCapacity(m_VertexCapacity, requiredCapacity);
+        auto buffer = DynamicVertexBuffer::Create(m_GraphicsContext, newCapacity * sizeof(SVertex));
+        buffer->SetLayout(m_VertexBuffer->GetLayout());
+
+        m_RetiredVertexBuffers.push_back(std::move(m_VertexBuffer));
+        m_VertexBuffer = std::move(buffer);
+        m_VertexCapacity = newCapacity;
+    }
+
     void DebugRenderPass::BuildDebugRectGeometry(const SDrawCommand& cmd)
     {
-        const auto topLeft = cmd.Geometry.Position;
-        const auto topRight = (cmd.Geometry.Position + glm::vec2(cmd.Geometry.Size.x, 0));
-        const auto bottomLeft = (cmd.Geometry.Position + glm::vec2(0, cmd.Geometry.Size.y));
-        const auto bottomRight = (cmd.Geometry.Position + cmd.Geometry.Size);
+        // cmd.Geometry arrives in logical points, same as every other pass - QuadRenderPass
+        // and TextRenderPass both scale Position/Size by m_DPIScale before building vertex
+        // data (see QuadRenderPass.cpp:152-153, TextRenderPass.cpp:198-199); this pass has to
+        // match, or its rects land at half the intended screen position on a 2x display.
+        const auto position = cmd.Geometry.Position * m_DPIScale;
+        const auto size = cmd.Geometry.Size * m_DPIScale;
+
+        const auto topLeft = position;
+        const auto topRight = (position + glm::vec2(size.x, 0));
+        const auto bottomLeft = (position + glm::vec2(0, size.y));
+        const auto bottomRight = (position + size);
 
         m_Vertices.push_back({ topLeft, cmd.Color });
         m_Vertices.push_back({ topRight, cmd.Color });

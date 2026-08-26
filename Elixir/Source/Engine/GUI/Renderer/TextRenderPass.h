@@ -18,14 +18,29 @@ namespace Elixir::GUI
             const Ref<UniformBuffer>& perFrameCB
         );
 
-        void GenerateDrawCommands(const RenderBatch& batch) override;
-        void Render(const Ref<CommandBuffer>& cmd) override;
+        void BeginFrame() override;
+        void EndFrame() override;
+
+        uint32_t AppendRange(std::span<const SDrawCommand> commands) override;
+
+        void Bind(const Ref<CommandBuffer>& cmd) override;
+        void Render(
+            const Ref<CommandBuffer>& cmd,
+            uint32_t firstInstance,
+            uint32_t instanceCount
+        ) override;
+
         bool HasData() const override;
         void Clear() override;
+
+        uint32_t GetInstanceCount() const override;
+
+        EDrawCommandType GetHandleType() const override;
 
       private:
         void InitRenderPass(const ShaderLoader* shaderLoader);
         void BindShaderParameters() const;
+        void EnsureQuadBufferCapacity(size_t requiredCapacity);
 
         void BuildTextGeometry(const SDrawCommand& cmd);
         void BuildTextureGeometry(const SDrawCommand& cmd);
@@ -46,9 +61,11 @@ namespace Elixir::GUI
         Ref<Shader> m_Shader;
         Ref<GraphicsPipeline> m_Pipeline;
         Ref<DynamicVertexBuffer> m_QuadBuffer;
+        std::vector<Ref<DynamicVertexBuffer>> m_RetiredQuadBuffers;
 
         float m_DPIScale;
         Ref<UniformBuffer> m_PerFrameConstantBuffer;
         const GraphicsContext* m_GraphicsContext = nullptr;
+        size_t m_QuadCapacity = 0;
     };
 }
