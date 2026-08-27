@@ -23,7 +23,7 @@ struct PS_INPUT
     float4 ScissorRect        : SCISSOR;              // Scissor rect (x, y, width, height)
 };
 
-float median(float r, float g, float b)
+float Median(float r, float g, float b)
 {
     return max(min(r, g), min(max(r, g), b));
 }
@@ -31,20 +31,18 @@ float median(float r, float g, float b)
 float4 main(PS_INPUT input) : SV_TARGET
 {
     // Discard pixels outside the scissor rect
-    if (isScissorRectValid(input.ScissorRect) &&
+    if (IsScissorRectValid(input.ScissorRect) &&
        (input.ClipPos.x < input.ScissorRect.x ||
         input.ClipPos.y < input.ScissorRect.y ||
         input.ClipPos.x > input.ScissorRect.x + input.ScissorRect.z ||
         input.ClipPos.y > input.ScissorRect.y + input.ScissorRect.w))
-    {
         discard;
-    }
 
     // Sample MTSDF atlas: RGB = multi-channel SDF, A = true SDF
     float4 atlas = atlases[input.AtlasIndex].Sample(atlasSampler, input.TexCoords);
 
     // Median-of-three reconstructs sharp corners from the multi-channel encoding
-    float sd = median(atlas.r, atlas.g, atlas.b);
+    float sd = Median(atlas.r, atlas.g, atlas.b);
 
     // Screen-space derivative of distance for resolution-independent anti-aliasing
     float screenPxDistance = fwidth(sd);

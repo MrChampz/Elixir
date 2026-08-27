@@ -5,18 +5,32 @@
 
 namespace Elixir::GUI
 {
+    /** @brief Button visual data for one interactive state. */
+    struct SButtonAppearance : SAppearance
+    {
+        SColor Foreground{};
+    };
+
+    /** @brief Complete visual style for Button. */
+    struct SButtonStyle final : SStyle, TStateStyles<SButtonAppearance>{};
+
     class ELIXIR_API Button : public ContentWidget
     {
       public:
+        /**
+         * @brief Construct a button with a copy of the current default button style.
+         * @param text Initial label.
+         */
         explicit Button(const std::string& text = "");
 
-        glm::vec2 ComputeDesiredSize() override;
+        /**
+         * @brief Replace this button's complete style.
+         * @param style Style to copy.
+         */
+        void SetStyle(const SButtonStyle& style);
 
         const std::string& GetText() const { return m_Text; }
         void SetText(const std::string& text);
-
-        SColor GetTextColor() const { return m_TextColor; }
-        void SetTextColor(const SColor& color);
 
         const Ref<Font>& GetFont() const { return m_Font; }
         void SetFont(const Ref<Font>& font);
@@ -28,39 +42,16 @@ namespace Elixir::GUI
         void SetPadding(const SPadding& padding);
 
         /**
-         * Get corner radius for each corner individually.
-         * @return vector (top-left, top-right, bottom-right, bottom-left)
+         * @brief Set one legacy layer's text color.
+         * @param layer Legacy interaction layer to change.
+         * @param color Text color for that layer.
          */
-        glm::vec4 GetCornerRadius() const { return m_CornerRadius; }
+        void SetTextColor(EStyleLayer layer, const SColor& color);
 
-        /**
-         * Set the same radius for all corners.
-         * @param radius corner radius in pixels
-         */
-        void SetCornerRadius(const float radius)
-        {
-            SetCornerRadius({ radius, radius, radius, radius });
-        }
-
-        /**
-         * Set a radius for each corner individually.
-         * @param radius vector (top-left, top-right, bottom-right, bottom-left)
-         */
-        void SetCornerRadius(const glm::vec4& radius);
-
-        SColor GetNormalColor() const { return m_NormalColor; }
-        void SetNormalColor(const SColor& color);
-
-        SColor GetHoverColor() const { return m_HoverColor; }
-        void SetHoverColor(const SColor& color);
-
-        const glm::vec4& GetBackgroundBorders() const { return m_BackgroundBorders; }
-        void SetBackgroundBorders(const glm::vec4& borders);
-
-        const Ref<Texture2D>& GetNormalBackground() const { return m_NormalBackground; }
-        void SetNormalBackground(const Ref<Texture2D>& texture);
+        bool CanHandleMouseInput() const override { return IsEnabled(); }
 
       protected:
+        glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) override;
         void LayoutChildren(const SRect& allocatedSpace) override;
         void BuildDrawCommands(RenderBatch& batch, int zOrder) override;
 
@@ -70,27 +61,18 @@ namespace Elixir::GUI
 
         void HandleMouseEnter() override;
         void HandleMouseLeave() override;
+        SInputReply HandleMouseDown(const MouseButtonPressedEvent& event) override;
+
+        const SAppearance& GetResolvedAppearance() const override;
+        SBrush& GetMutableBackgroundBrush(EStyleLayer layer) override;
 
       private:
         std::string m_Text;
-        SColor m_TextColor{1.0f, 0.0f, 0.0f, 1.0f};
         Ref<Font> m_Font;
         float m_FontSize = 16.0f;
 
         SPadding m_Padding;
-
-        // top-left, top-right, bottom-right, bottom-left
-        glm::vec4 m_CornerRadius = {0.0f, 0.0f, 0.0f, 0.0f};
-
-        // Colors for different states
-        SColor m_NormalColor{0.3f, 0.3f, 0.8f, 1.0f};
-        SColor m_HoverColor{1.0f, 0.0f, 0.0f, 1.0f};
-
-        // When texture is used, this represents the borders of 9-patch texture.
-        // Border mapping = (left, top, right, bottom).
-        glm::vec4 m_BackgroundBorders = {30.0f, 30.0f, 30.0f, 30.0f};
-
-        // Textures for different states
-        Ref<Texture2D> m_NormalBackground;
+        glm::vec2 m_MinDesiredSize{ 120.0f, 40.0f };
+        SButtonStyle m_Style;
     };
 }

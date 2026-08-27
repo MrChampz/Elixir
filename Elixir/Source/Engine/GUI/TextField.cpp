@@ -9,22 +9,35 @@
 namespace Elixir::GUI
 {
     TextField::TextField(const std::string& text)
-        : m_Text(text)
+      : m_Text(text),
+        m_Style(GetDefaultStyles().GetWidgetStyle<STextFieldStyle>())
     {
         m_Font = FontManager::GetDefaultFont();
-        m_DesiredSize = { 120.0f, 30.0f };
         m_CursorPosition = m_Text.size();
+        SetFocusable(true);
+
+        SetCursorColor(SColor{ 0.8941f, 0.8941f, 0.9059f, 1.0f });
+        SetPlaceholderColor(SColor{ 0.6314f, 0.6314f, 0.6667f, 1.0f });
+        SetSelectionColor(SColor{ 0.6314f, 0.6314f, 0.6667f, 0.35f });
+    }
+
+    void TextField::SetStyle(const STextFieldStyle& style)
+    {
+        m_Style = style;
+        MarkLayoutDirty();
+        MarkRenderDirty();
+    }
+
+    void TextField::SetTextColor(const EStyleLayer layer, const SColor& color)
+    {
+        m_Style.Get(layer).Foreground = color;
+        MarkRenderDirty();
     }
 
     void TextField::Update(const Timestep frameTime)
     {
         Widget::Update(frameTime);
         UpdateCursorState(frameTime);
-    }
-
-    glm::vec2 TextField::ComputeDesiredSize()
-    {
-        return m_DesiredSize;
     }
 
     void TextField::SetFont(const Ref<Font>& font)
@@ -34,6 +47,7 @@ namespace Elixir::GUI
 
         m_Font = font;
         UpdateScrollOffset();
+        MarkLayoutDirty();
         MarkRenderDirty();
     }
 
@@ -50,12 +64,7 @@ namespace Elixir::GUI
         m_CursorPosition = m_Text.size();
         ClearSelection();
         UpdateScrollOffset();
-        MarkRenderDirty();
-    }
-
-    void TextField::SetTextColor(const SColor& color)
-    {
-        m_TextColor = color;
+        MarkLayoutDirty();
         MarkRenderDirty();
     }
 
@@ -74,30 +83,7 @@ namespace Elixir::GUI
     void TextField::SetPadding(const SPadding& padding)
     {
         m_Padding = padding;
-        MarkRenderDirty();
-    }
-
-    void TextField::SetCornerRadius(const glm::vec4& radius)
-    {
-        m_CornerRadius = radius;
-        MarkRenderDirty();
-    }
-
-    void TextField::SetBackgroundColor(const SColor& color)
-    {
-        m_BackgroundColor = color;
-        MarkRenderDirty();
-    }
-
-    void TextField::SetBackgroundBorders(const glm::vec4& borders)
-    {
-        m_BackgroundBorders = borders;
-        MarkRenderDirty();
-    }
-
-    void TextField::SetBackground(const Ref<Texture2D>& texture)
-    {
-        m_Background = texture;
+        MarkLayoutDirty();
         MarkRenderDirty();
     }
 
@@ -113,6 +99,21 @@ namespace Elixir::GUI
         MarkRenderDirty();
     }
 
+    glm::vec2 TextField::ComputeDesiredSize(const glm::vec2& availableSize)
+    {
+        glm::vec2 contentSize{ 0.0f, 0.0f };
+
+        if (!m_Text.empty())
+            contentSize = MeasureTextSize(m_Text);
+
+        const glm::vec2 desiredSize = contentSize + glm::vec2(
+            m_Padding.GetTotalHorizontal(),
+            m_Padding.GetTotalVertical()
+        );
+
+        return glm::max(desiredSize, m_MinDesiredSize);
+    }
+
     void TextField::LayoutChildren(const SRect&)
     {
         UpdateScrollOffset();
@@ -120,29 +121,8 @@ namespace Elixir::GUI
 
     void TextField::BuildDrawCommands(RenderBatch& batch, const int zOrder)
     {
-        // Background
-        if (m_Background)
-        {
-            batch.AddTexture(
-                m_Background,
-                m_Geometry,
-                m_BackgroundBorders,
-                m_BackgroundColor,
-                zOrder
-            );
-        }
-        else
-        {
-            batch.AddRect(
-                m_Geometry,
-                m_BackgroundColor,
-                m_CornerRadius,
-                m_InsetShadow,
-                m_DropShadow,
-                m_Outline,
-                zOrder
-            );
-        }
+        const auto& appearance = (const STextFieldAppearance&)GetResolvedAppearance();
+        batch.AddBrush(appearance.Background, m_Geometry, zOrder);
 
         const auto textSize = MeasureTextSize(m_Text);
         const auto textPos = CalculateTextPosition(textSize);
@@ -177,7 +157,7 @@ namespace Elixir::GUI
                 { textPos, textSize },
                 m_Font,
                 m_FontSize,
-                m_TextColor,
+                appearance.Foreground,
                 zOrder + 2,
                 m_Geometry
             );
@@ -218,6 +198,16 @@ namespace Elixir::GUI
         }
     }
 
+    const SAppearance& TextField::GetResolvedAppearance() const
+    {
+        return m_Style.Resolve(GetInteractionState());
+    }
+
+    SBrush& TextField::GetMutableBackgroundBrush(const EStyleLayer layer)
+    {
+        return m_Style.Get(layer).Background;
+    }
+
     void TextField::HandleMouseEnter()
     {
         Widget::HandleMouseEnter();
@@ -230,9 +220,20 @@ namespace Elixir::GUI
         Platform::Get().SetPreviousCursorShape();
     }
 
-    void TextField::HandleMouseDown(const MouseButtonPressedEvent& event)
+    SInputReply TextField::HandleMouseDown(const MouseButtonPressedEvent& event)
     {
-        Widget::HandleMouseDown(event);
+        if (!IsEnabled())
+            return SInputReply::Unhandled();
+
+        // TextField is unconditionally interactive:
+        // it must not depend on m_On*Callback being set, so it sets the press state itself
+        // instead of delegating to Widget::HandleMouseDown. Without this, m_Pressed would
+        // stay false (nothing here ever registers an OnClick/OnMouseDown/OnMouseUp callback
+        // on the field itself), and the drag-select below - gated on IsPressed() - would
+        // never engage.
+        m_Pressed = true;
+        MarkRenderDirty();
+        if (m_OnMouseDownCallback) m_OnMouseDownCallback();
 
         const auto x = event.GetX() - m_Geometry.Position.x - m_Padding.Left + m_ScrollOffset;
         m_CursorPosition = GetCharIndexAtX(m_Text, x);
@@ -241,14 +242,19 @@ namespace Elixir::GUI
 
         ResetCursorState();
         UpdateScrollOffset();
+
+        // Capture: keep receiving move events while dragging a selection past the field's
+        // own bounds, and guarantee a matching HandleMouseUp to clear m_Pressed on release.
+        return SInputReply::HandledAndCaptured();
     }
 
-    void TextField::HandleMouseMove(const MouseMovedEvent& event)
+    SInputReply TextField::HandleMouseMove(const MouseMovedEvent& event)
     {
         Widget::HandleMouseMove(event);
 
         // Only extend selection if mouse button is held (widget is pressed)
-        if (!IsPressed()) return;
+        if (!IsPressed())
+            return SInputReply::Unhandled();
 
         const auto x = event.GetX() - m_Geometry.Position.x - m_Padding.Left + m_ScrollOffset;
         m_CursorPosition = GetCharIndexAtX(m_Text, x);
@@ -256,78 +262,79 @@ namespace Elixir::GUI
 
         UpdateScrollOffset();
         MarkRenderDirty();
+        return SInputReply::Handled();
     }
 
-    void TextField::HandleKeyPressed(const KeyPressedEvent& event)
+    SInputReply TextField::HandleKeyPressed(const KeyPressedEvent& event)
     {
         Widget::HandleKeyPressed(event);
 
-        if (!m_Focused) return;
+        const auto handled = [this]
+        {
+            MarkRenderDirty();
+            return SInputReply::Handled();
+        };
 
         switch (event.GetKeyCode())
         {
-            case EE_KEY_LEFT:
-                if (event.IsShiftPressed())
-                {
-                    if (m_SelectionStart == -1) m_SelectionStart = m_CursorPosition;
-                    MoveCursorLeft();
-                    SelectText(m_SelectionStart, m_CursorPosition);
-                }
-                else
-                {
-                    ClearSelection();
-                    MoveCursorLeft();
-                }
-                break;
-            case EE_KEY_RIGHT:
-                if (event.IsShiftPressed())
-                {
-                    if (m_SelectionStart == -1) m_SelectionStart = m_CursorPosition;
-                    MoveCursorRight();
-                    SelectText(m_SelectionStart, m_CursorPosition);
-                }
-                else
-                {
-                    ClearSelection();
-                    MoveCursorRight();
-                }
-                break;
-            case EE_KEY_HOME:
-                MoveCursorToStart();
-                break;
-            case EE_KEY_END:
-                MoveCursorToEnd();
-                break;
-            case EE_KEY_BACKSPACE:
-                ClearPreviousCharacter();
-                break;
-            case EE_KEY_DELETE:
-                ClearNextCharacter();
-                break;
-            case EE_KEY_A:
-                if (event.IsCtrlPressed())
-                    SelectWholeText();
-                break;
-            case EE_KEY_C:
-                if (event.IsCtrlPressed())
-                    CopyToClipboard(m_Text);
-                break;
-            case EE_KEY_V:
-                if (event.IsCtrlPressed())
-                    InsertText(GetFromClipboard());
-                break;
-            default:
-                break;
+        case EE_KEY_LEFT:
+            if (event.IsShiftPressed())
+            {
+                if (m_SelectionStart == -1) m_SelectionStart = m_CursorPosition;
+                MoveCursorLeft();
+                SelectText(m_SelectionStart, m_CursorPosition);
+            }
+            else
+            {
+                ClearSelection();
+                MoveCursorLeft();
+            }
+            return handled();
+        case EE_KEY_RIGHT:
+            if (event.IsShiftPressed())
+            {
+                if (m_SelectionStart == -1) m_SelectionStart = m_CursorPosition;
+                MoveCursorRight();
+                SelectText(m_SelectionStart, m_CursorPosition);
+            }
+            else
+            {
+                ClearSelection();
+                MoveCursorRight();
+            }
+            return handled();
+        case EE_KEY_HOME:
+            MoveCursorToStart();
+            return handled();
+        case EE_KEY_END:
+            MoveCursorToEnd();
+            return handled();
+        case EE_KEY_BACKSPACE:
+            ClearPreviousCharacter();
+            return handled();
+        case EE_KEY_DELETE:
+            ClearNextCharacter();
+            return handled();
+        case EE_KEY_A:
+            if (!event.IsCtrlPressed()) return SInputReply::Unhandled();
+            SelectWholeText();
+            return handled();
+        case EE_KEY_C:
+            if (!event.IsCtrlPressed()) return SInputReply::Unhandled();
+            CopyToClipboard(m_Text);
+            return handled();
+        case EE_KEY_V:
+            if (!event.IsCtrlPressed()) return SInputReply::Unhandled();
+            InsertText(GetFromClipboard());
+            return handled();
+        default:
+            return SInputReply::Unhandled();
         }
-
-        MarkRenderDirty();
     }
 
-    void TextField::HandleKeyTyped(const KeyTypedEvent& event)
+    SInputReply TextField::HandleKeyTyped(const KeyTypedEvent& event)
     {
         Widget::HandleKeyTyped(event);
-
-        if (!m_Focused) return;
 
         ResetCursorState();
 
@@ -336,6 +343,7 @@ namespace Elixir::GUI
         InsertText(c);
 
         MarkRenderDirty();
+        return SInputReply::Handled();
     }
 
     void TextField::HandleFocus()
@@ -347,6 +355,7 @@ namespace Elixir::GUI
     void TextField::HandleLostFocus()
     {
         Widget::HandleLostFocus();
+        ClearSelection();
         m_CursorVisible = false;
     }
 
@@ -498,6 +507,7 @@ namespace Elixir::GUI
         m_Text.insert(m_CursorPosition, text);
         m_CursorPosition += text.size();
         UpdateScrollOffset();
+        MarkLayoutDirty();
 
         // Fire input changed callback
         if (m_OnChangeCallback) m_OnChangeCallback(m_Text);
@@ -527,6 +537,7 @@ namespace Elixir::GUI
         }
 
         UpdateScrollOffset();
+        MarkLayoutDirty();
 
         // Fire input changed callback
         if (m_OnChangeCallback) m_OnChangeCallback(m_Text);
@@ -548,6 +559,7 @@ namespace Elixir::GUI
         }
 
         UpdateScrollOffset();
+        MarkLayoutDirty();
 
         // Fire input changed callback
         if (m_OnChangeCallback) m_OnChangeCallback(m_Text);

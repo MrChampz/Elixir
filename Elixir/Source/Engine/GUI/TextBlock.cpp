@@ -5,23 +5,26 @@
 
 namespace Elixir::GUI
 {
-    TextBlock::TextBlock(const std::string& text)
-        : m_Text(text)
+    namespace
     {
-        m_Font = FontManager::GetDefaultFont();
-        UpdateTextSize();
+        std::string GetFirstLine(const std::string& text)
+        {
+            return text.substr(0, text.find_first_of("\r\n"));
+        }
     }
 
-    glm::vec2 TextBlock::ComputeDesiredSize()
+    TextBlock::TextBlock(const std::string& text)
+      : m_Text(text),
+        m_DisplayText(GetFirstLine(text))
     {
-        return m_DesiredSize;
+        m_Font = FontManager::GetDefaultFont();
     }
 
     void TextBlock::SetText(const std::string& text)
     {
         if (m_Text == text) return;
         m_Text = text;
-        UpdateTextSize();
+        m_DisplayText = m_Overflow == ETextOverflow::Wrap ? text : GetFirstLine(text);
         MarkLayoutDirty();
         MarkRenderDirty(); // the drawn glyphs change even when geometry does not
     }
@@ -32,7 +35,7 @@ namespace Elixir::GUI
         if (!font || m_Font == font) return;
 
         m_Font = font;
-        UpdateTextSize();
+        m_DisplayText = m_Overflow == ETextOverflow::Wrap ? m_Text : GetFirstLine(m_Text);
         MarkLayoutDirty();
         MarkRenderDirty();
     }
@@ -47,58 +50,131 @@ namespace Elixir::GUI
     {
         if (m_FontSize == size) return;
         m_FontSize = size;
-        UpdateTextSize();
+        m_DisplayText = m_Overflow == ETextOverflow::Wrap ? m_Text : GetFirstLine(m_Text);
         MarkLayoutDirty();
         MarkRenderDirty();
     }
 
+    void TextBlock::SetOverflow(const ETextOverflow overflow)
+    {
+        if (m_Overflow == overflow) return;
+        m_Overflow = overflow;
+        m_DisplayText = overflow == ETextOverflow::Wrap ? m_Text : GetFirstLine(m_Text);
+        MarkLayoutDirty();
+        MarkRenderDirty();
+    }
+
+    glm::vec2 TextBlock::ComputeDesiredSize(const glm::vec2& availableSize)
+    {
+        if (m_Overflow == ETextOverflow::Wrap)
+            return UpdateWrappedDisplayText(availableSize.x);
+
+        m_DisplayText = GetFirstLine(m_Text);
+
+        return FontManager::MeasureText(m_DisplayText, m_Font, m_FontSize);
+    }
+
+    void TextBlock::LayoutChildren(const SRect& allocatedSpace)
+    {
+        if (m_Overflow == ETextOverflow::Ellipsis)
+            m_DisplayText = EllipsizeText(GetFirstLine(m_Text), allocatedSpace.Size.x, false);
+        else if (m_Overflow == ETextOverflow::Wrap)
+            UpdateWrappedDisplayText(allocatedSpace.Size.x, allocatedSpace.Size.y);
+        else
+            m_DisplayText = ClipText(GetFirstLine(m_Text), allocatedSpace.Size.x);
+    }
+
     void TextBlock::BuildDrawCommands(RenderBatch& batch, const int zOrder)
     {
-        if (!m_Text.empty())
-        {
-            const float availableWidth = m_Geometry.Size.x;
-            const auto displayText = ProcessText(m_Text, availableWidth);
-
-            batch.AddText(
-                displayText,
-                m_Geometry,
-                m_Font,
-                m_FontSize,
-                m_Color,
-                zOrder
-            );
-        }
+        if (m_DisplayText.empty()) return;
+        batch.AddText(
+            m_DisplayText,
+            m_Geometry,
+            m_Font,
+            m_FontSize,
+            m_Color,
+            zOrder
+        );
     }
 
-    void TextBlock::UpdateTextSize()
-    {
-        m_DesiredSize = FontManager::MeasureText(m_Text, m_Font, m_FontSize);
-    }
-
-    std::string TextBlock::ProcessText(
+    std::string TextBlock::ClipText(
         const std::string& text,
         const float availableWidth
     ) const
     {
-        auto size = FontManager::MeasureText(text, m_Font, m_FontSize);
-        if (size.x <= availableWidth)
+        if (availableWidth <= 0.0f) return {};
+
+        std::string clipped = text;
+        while (!clipped.empty()
+            && FontManager::MeasureText(clipped, m_Font, m_FontSize).x > availableWidth)
+        {
+            UTF8::UTF8RemoveLastChar(clipped);
+        }
+        return clipped;
+    }
+
+    std::string TextBlock::EllipsizeText(
+        const std::string& text,
+        const float availableWidth,
+        const bool appendEllipsis
+    ) const
+    {
+        if (!appendEllipsis && FontManager::MeasureText(text, m_Font, m_FontSize).x <= availableWidth)
             return text;
 
-        std::string ellipsis = "...";
-        const float ellipsisWidth = FontManager::MeasureText(ellipsis, m_Font, m_FontSize).x;
-
-        if (ellipsisWidth >= availableWidth)
-            return ellipsis;
+        constexpr std::string_view ellipsis = "...";
+        const float ellipsisWidth = FontManager::MeasureText(std::string(ellipsis), m_Font, m_FontSize).x;
+        if (ellipsisWidth > availableWidth)
+            return {};
 
         std::string truncated = text;
         while (!truncated.empty())
         {
             UTF8::UTF8RemoveLastChar(truncated);
-            size = FontManager::MeasureText(truncated, m_Font, m_FontSize);
-            if (size.x + ellipsisWidth <= availableWidth)
-                return truncated + ellipsis;
+            const float truncatedWidth = FontManager::MeasureText(truncated, m_Font, m_FontSize).x;
+            if (truncatedWidth + ellipsisWidth <= availableWidth)
+                return truncated + std::string(ellipsis);
         }
 
-        return ellipsis;
+        return std::string(ellipsis);
+    }
+
+    glm::vec2 TextBlock::UpdateWrappedDisplayText(const float maxWidth, const float maxHeight)
+    {
+        std::vector<std::string> lines;
+        FontManager::MeasureWrapped(
+            m_Text,
+            m_Font,
+            m_FontSize,
+            maxWidth,
+            &lines
+        );
+
+        size_t visibleLineCount = lines.size();
+        const float lineHeight = FontManager::GetLineHeight(m_Font, m_FontSize);
+        if (maxHeight != UnconstrainedSize && lineHeight > 0.0f)
+        {
+            visibleLineCount = std::min(
+                visibleLineCount,
+                static_cast<size_t>(std::floor(std::max(0.0f, maxHeight) / lineHeight))
+            );
+        }
+
+        if (visibleLineCount < lines.size() && visibleLineCount > 0)
+            lines[visibleLineCount - 1] = EllipsizeText(lines[visibleLineCount - 1], maxWidth, true);
+
+        m_DisplayText.clear();
+        float widestLine = 0.0f;
+        for (size_t i = 0; i < visibleLineCount; ++i)
+        {
+            if (i > 0) m_DisplayText += '\n';
+            m_DisplayText += lines[i];
+            widestLine = std::max(
+                widestLine,
+                FontManager::MeasureText(lines[i], m_Font, m_FontSize).x
+            );
+        }
+
+        return { widestLine, lineHeight * visibleLineCount };
     }
 }

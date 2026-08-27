@@ -18,7 +18,7 @@ namespace Elixir::GUI
         CanvasSlot& SetAnchors(const SAnchors& anchors)
         {
             m_Anchors = anchors;
-            if (m_Widget) m_Widget->MarkLayoutDirty();
+            InvalidateOwnerLayout();
             return *this;
         }
 
@@ -27,14 +27,14 @@ namespace Elixir::GUI
         CanvasSlot& SetPosition(const glm::vec2& pos)
         {
             m_Constraint.Position = pos;
-            if (m_Widget) m_Widget->MarkLayoutDirty();
+            InvalidateOwnerLayout();
             return *this;
         }
 
         CanvasSlot& SetSize(const glm::vec2& size)
         {
             m_Constraint.Size = size;
-            if (m_Widget) m_Widget->MarkLayoutDirty();
+            InvalidateOwnerLayout();
             return *this;
         }
 
@@ -46,14 +46,14 @@ namespace Elixir::GUI
         )
         {
             m_Constraint.Offsets = { left, top, right, bottom };
-            if (m_Widget) m_Widget->MarkLayoutDirty();
+            InvalidateOwnerLayout();
             return *this;
         }
 
         CanvasSlot& SetAlignment(const glm::vec2& alignment)
         {
             m_Constraint.Alignment = alignment;
-            if (m_Widget) m_Widget->MarkLayoutDirty();
+            InvalidateOwnerLayout();
             return *this;
         }
 
@@ -62,19 +62,36 @@ namespace Elixir::GUI
         SConstraint m_Constraint;
     };
 
-    class ELIXIR_API Canvas final : public Panel
+    extern template class TPanel<CanvasSlot>;
+
+    class ELIXIR_API Canvas final : public TPanel<CanvasSlot>
     {
       public:
         Canvas();
 
-        CanvasSlot& AddChild(const Ref<Widget>& child);
+        CanvasSlot& AddChild(const Ref<Widget>& child) override;
 
-        glm::vec2 ComputeDesiredSize() override;
+        /**
+         * @brief Set the Canvas size.
+         *
+         * Canvas has no intrinsic content-driven size the way a flow container does -
+         * children are absolutely positioned, so there is no general way to derive "how big
+         * this panel wants to be" from them. This is the configured value ComputeDesiredSize
+         * reports, capped to whatever the parent actually offers (same rule ScrollBox
+         * follows) - it does not clip or otherwise constrain children placed outside it.
+         *
+         * @param size The desired size.
+         */
+        void SetSize(const glm::vec2& size);
 
       protected:
+        glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) override;
         void LayoutChildren(const SRect& allocatedSpace) override;
 
       private:
-        SRect ComputeChildGeometry(const Ref<CanvasSlot>& slot, const glm::vec2& canvasSize) const;
+        SRect ComputeChildGeometry(const CanvasSlot& slot, const glm::vec2& canvasSize) const;
+
+        // The size this Canvas wants to occupy in the parent layout if no constraints.
+        glm::vec2 m_Size;
     };
 }

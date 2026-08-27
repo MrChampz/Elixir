@@ -1,42 +1,49 @@
 #include "epch.h"
 #include "Panel.h"
 
+#include <Engine/GUI/Canvas.h>
+
 namespace Elixir::GUI
 {
+    namespace
+    {
+        bool HasShadow(const glm::vec4& shadow)
+        {
+            return shadow.w > 0.0f && (shadow.x != 0.0f || shadow.y != 0.0f);
+        }
+
+        bool HasVisualOutput(const SBrush& brush)
+        {
+            return brush.Color.A > 0.0f ||
+                brush.Texture ||
+                (brush.Outline.Thickness > 0.0f && brush.Outline.Color.A > 0.0f) ||
+                HasShadow(brush.InsetShadow) ||
+                HasShadow(brush.DropShadow);
+        }
+    }
+
     void Panel::Update(const Timestep frameTime)
     {
-        for (const auto& slot : m_Slots)
+        Widget::Update(frameTime);
+        for (size_t i = 0; i < GetSlotCount(); ++i)
         {
-            if (slot->IsVisible())
+            if (const Slot* slot = GetSlotAt(i))
             {
-                slot->GetWidget()->Update(frameTime);
+                const auto child = slot->GetWidget();
+                if (child && child->TakesSpace())
+                    child->Update(frameTime);
             }
         }
     }
 
-    void Panel::RemoveChild(const Ref<Widget>& child)
-    {
-        if (!child) return;
-
-        const auto it = std::ranges::find_if(
-            m_Slots,
-            [&](const Ref<Slot>& slot) { return slot->GetWidget() == child; }
-        );
-
-        if (it == m_Slots.end()) return;
-
-        m_Slots.erase(it);
-        DetachChild(child);
-    }
-
     void Panel::ClearChildren()
     {
-        if (m_Slots.empty()) return;
+        if (GetSlotCount() == 0) return;
 
-        for (const auto& slot : m_Slots)
-            DetachChild(slot->GetWidget());
+        for (size_t i = 0; i < GetSlotCount(); ++i)
+            DetachChild(GetSlotAt(i)->GetWidget());
 
-        m_Slots.clear();
+        ClearSlots();
         MarkLayoutDirty();
     }
 
@@ -47,41 +54,35 @@ namespace Elixir::GUI
         MarkLayoutDirty();
     }
 
-    void Panel::SetBackground(const SColor& color)
+    Ref<Widget> Panel::GetChildAt(const size_t index) const
     {
-        m_Background = color;
-        MarkRenderDirty();
+        if (index >= GetSlotCount()) return nullptr;
+        return GetSlotAt(index)->GetWidget();
     }
 
-    void Panel::SetCornerRadius(const glm::vec4& radius)
+    void Panel::RemoveChild(const Ref<Widget>& child)
     {
-        m_CornerRadius = radius;
-        MarkRenderDirty();
-    }
+        if (!child) return;
 
-    void Panel::ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const
-    {
-        for (const auto& slot : m_Slots)
+        for (size_t i = 0; i < GetSlotCount(); ++i)
         {
-            if (slot->IsVisible())
-                if (const auto& child = slot->GetWidget())
-                    fn(child);
+            if (GetSlotAt(i)->GetWidget() == child)
+            {
+                DetachChild(child);
+                RemoveSlotAt(i);
+                break;
+            }
         }
     }
 
     void Panel::BuildDrawCommands(RenderBatch& batch, const int zOrder)
     {
-        if (m_Background.A > 0.0f)
-        {
-            batch.AddRect(
-                m_Geometry,
-                m_Background,
-                m_CornerRadius,
-                m_InsetShadow,
-                m_DropShadow,
-                m_Outline,
-                zOrder
-            );
-        }
+        const SBrush& brush = GetResolvedAppearance().Background;
+
+        if (HasVisualOutput(brush))
+            batch.AddBrush(brush, m_Geometry, zOrder);
     }
+
+    template class ELIXIR_API TPanel<LayoutSlot>;
+    template class ELIXIR_API TPanel<CanvasSlot>;
 }

@@ -6,7 +6,7 @@
  * @param r The corner radii for each corner (top-left, top-right, bottom-right, bottom-left).
  * @return The signed distance from the point to the rectangle's edge. Negative inside, positive outside.
  */
-float sdfRect(float2 p, float2 b, float4 r)
+float SDFRect(float2 p, float2 b, float4 r)
 {
     // Default: top-left
     float radius = r.x;

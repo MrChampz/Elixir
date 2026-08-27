@@ -3,6 +3,7 @@
 #include "Engine/GUI/Button.h"
 #include "Engine/GUI/Canvas.h"
 #include "Engine/GUI/HorizontalBox.h"
+#include "Engine/Icon/IconManager.h"
 #include "Engine/GUI/Overlay.h"
 #include "Engine/GUI/TextBlock.h"
 #include "Engine/GUI/TextField.h"
@@ -39,6 +40,7 @@ namespace Elixir
 
         TextureLoader::Initialize(m_GraphicsContext.get());
         FontManager::Initialize(m_GraphicsContext.get());
+        IconManager::Initialize(m_GraphicsContext.get());
 
         m_MaterialRegistry = CreateScope<MaterialRegistry>();
         m_MaterialSystem = CreateScope<MaterialSystem>(
@@ -67,17 +69,17 @@ namespace Elixir
         //panel->SetBackground({ 1.0f, 0.0f, 0.0f, 1.0f });
         panel->SetPadding({ 10, 20, 10, 10 });
         const auto button = CreateRef<GUI::Button>("Hello World until 2020");
-        button->SetCornerRadius(4.0);
-        button->SetNormalBackground(std::dynamic_pointer_cast<Texture2D>(buttonBg));
+        button->SetCornerRadius(EStyleLayer::Normal, 4.0);
+        button->SetBackgroundTexture(EStyleLayer::Normal, std::dynamic_pointer_cast<Texture2D>(buttonBg));
         button->SetPadding({ 20.0f, 0.0f });
 
         const auto button2 = CreateRef<GUI::Button>();
-        button2->SetNormalColor({ 1.0f, 1.0f, 1.0f, 1.0f });
-        button2->SetHoverColor({ 0.8f, 0.8f, 1.0f, 1.0f });
+        button2->SetBackgroundColor(EStyleLayer::Normal, { 1.0f, 1.0f, 1.0f, 1.0f });
+        button2->SetBackgroundColor(EStyleLayer::Hovered, { 0.8f, 0.8f, 1.0f, 1.0f });
         //button2->SetCornerRadius(12);
-        button2->SetInsetShadow({ 10, 10    , 2, 0.3 });
-        button2->SetDropShadow({ 20, 20, 10, 1 });
-        button2->SetOutline({ { 1, 1, 0, 1 }, 5.0f });
+        button2->SetInsetShadow(EStyleLayer::Normal, { 10, 10    , 2, 0.3 });
+        button2->SetDropShadow(EStyleLayer::Normal, { 20, 20, 10, 1 });
+        button2->SetOutline(EStyleLayer::Normal, { { 1, 1, 0, 1 }, 5.0f });
         button2->OnMouseEnter([&]() { EE_CORE_INFO("Mouse entered button!"); });
         button2->OnMouseLeave([&]() { EE_CORE_INFO("Mouse left button!"); });
         button2->OnMouseDown([&]() { EE_CORE_INFO("Mouse down on button!"); });
@@ -92,9 +94,9 @@ namespace Elixir
             .SetMargin({ 10, 20, 10, 10 });
 
         const auto button3 = CreateRef<GUI::Button>();
-        button3->SetNormalColor({ 1.0f, 1.0f, 1.0f, 1.0f });
-        button3->SetNormalBackground(std::dynamic_pointer_cast<Texture2D>(buttonBg));
-        button3->SetCornerRadius(12);
+        button3->SetBackgroundColor(EStyleLayer::Normal, { 1.0f, 1.0f, 1.0f, 1.0f });
+        button3->SetBackgroundTexture(EStyleLayer::Normal, std::dynamic_pointer_cast<Texture2D>(buttonBg));
+        button3->SetCornerRadius(EStyleLayer::Normal, 12);
 
         const auto font2 = FontManager::Load("./Assets/Fonts/PlayfairDisplay-Regular.ttf");
         const auto txt = CreateRef<GUI::TextBlock>("Everyone, A pretty text block..");
@@ -144,6 +146,7 @@ namespace Elixir
     Application::~Application()
     {
         EE_PROFILE_ZONE_SCOPED()
+        IconManager::Shutdown();
         FontManager::Shutdown();
         Platform::Shutdown();
         m_Running = false;

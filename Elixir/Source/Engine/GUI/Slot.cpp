@@ -80,9 +80,23 @@ namespace Elixir::GUI
         return *this;
     }
 
-    LayoutSlot& LayoutSlot::SetFillRatio(const float ratio)
+    LayoutSlot& LayoutSlot::SetAutoSize()
     {
-        m_FillRatio = ratio;
+        m_SizeRule = SSizeParam::Auto();
+        InvalidateOwnerLayout();
+        return *this;
+    }
+
+    LayoutSlot& LayoutSlot::SetFillSize(const float ratio)
+    {
+        m_SizeRule = SSizeParam::Fill(ratio);
+        InvalidateOwnerLayout();
+        return *this;
+    }
+
+    LayoutSlot& LayoutSlot::SetFixedSize(const float pixels)
+    {
+        m_SizeRule = SSizeParam::Fixed(pixels);
         InvalidateOwnerLayout();
         return *this;
     }

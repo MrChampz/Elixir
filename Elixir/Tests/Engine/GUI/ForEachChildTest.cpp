@@ -12,7 +12,7 @@ namespace
     class LeafWidget final : public Widget
     {
       public:
-        glm::vec2 ComputeDesiredSize() override { return {}; }
+        glm::vec2 ComputeDesiredSize(const glm::vec2&) override { return {}; }
         using Widget::ForEachChild;
     };
 
@@ -20,23 +20,18 @@ namespace
     class ContentTestWidget final : public ContentWidget
     {
       public:
-        glm::vec2 ComputeDesiredSize() override { return {}; }
+        glm::vec2 ComputeDesiredSize(const glm::vec2&) override { return {}; }
         using ContentWidget::ForEachChild;
     };
 
     // Minimal multi-child container exercising Panel::ForEachChild.
-    // VerticalBox is final, so we drive the Panel-level override directly, mirroring
-    // VerticalBox::AddChild (push a LayoutSlot + AttachChild).
-    class PanelTestWidget final : public Panel
+    // VerticalBox is final, so we drive TPanel<LayoutSlot> directly instead - the same base
+    // VerticalBox itself now uses. It already provides AddChild (see Panel.h), so this no
+    // longer needs to hand-roll the push_back/AttachChild pair Panel::m_Slots used to allow.
+    class PanelTestWidget final : public TPanel<LayoutSlot>
     {
       public:
-        glm::vec2 ComputeDesiredSize() override { return {}; }
-
-        void AddChild(const Ref<Widget>& child)
-        {
-            m_Slots.push_back(CreateRef<LayoutSlot>(child));
-            AttachChild(child);
-        }
+        glm::vec2 ComputeDesiredSize(const glm::vec2&) override { return {}; }
 
         using Panel::ForEachChild;
     };

@@ -6,19 +6,50 @@
 #include <Engine/GUI/Definitions.h>
 #include <Engine/GUI/Renderer/RenderBatch.h>
 #include <Engine/GUI/Slot.h>
+#include <Engine/GUI/Style.h>
 
 namespace Elixir::GUI
 {
     class Manager;
 
+    /**
+     * @brief Result of routing an input event to a widget: whether it was consumed (stops
+     * further bubbling) and, for mouse-down, whether the widget wants to keep receiving mouse
+     * move/up regardless of hover (see Manager::m_MouseCapture).
+     */
+    struct SInputReply
+    {
+        bool EventHandled = false;
+        bool CaptureMouse = false;
+
+        static SInputReply Unhandled() { return {}; }
+        static SInputReply Handled() { return { true, false }; }
+        static SInputReply HandledAndCaptured() { return { true, true }; }
+    };
+
+    /**
+     * @brief Sentinel meaning "no limit" for one axis of a Measure/ComputeDesiredSize
+     * constraint.
+     *
+     * Containers propagate this on the axis they do not constrain (e.g. the main axis of a
+     * stacking panel). ComputeDesiredSize overrides may receive it as input on either axis,
+     * but must never return it in the result.
+     */
+    inline constexpr float UnconstrainedSize = std::numeric_limits<float>::infinity();
+
+    /** @brief Complete visual style for a widget that only draws a background. */
+    struct SWidgetStyle final : SStyle, TStateStyles<SAppearance>{};
+
     class ELIXIR_API Widget : public std::enable_shared_from_this<Widget>
     {
         friend class Manager;
         friend class Slot;
-        friend class ContentSlot;
-        friend class LayoutSlot;
-        friend class CanvasSlot;
+
       public:
+        /**
+         * @brief Construct a widget with a copy of the current default widget style.
+         */
+        Widget();
         virtual ~Widget() = default;
 
         /**
@@ -28,10 +59,18 @@ namespace Elixir::GUI
         virtual void Update(Timestep frameTime) {}
 
         /**
-         * Compute how much space this widget wants.
-         * @return a 2d vector representing width and height.
+         * @brief Get how much space this widget wants, given the space available to it.
+         *
+         * This is the template method: it is non-virtual, so subclasses override
+         * ComputeDesiredSize instead. Caches the result keyed by availableSize and by
+         * m_MeasureDirty: calling this again on a clean widget with the same constraint is
+         * O(1) and does not touch this widget's subtree.
+         *
+         * @param availableSize Space available to this widget on each axis; an axis may be
+         * UnconstrainedSize when the caller places no limit on it.
+         * @return This widget's desired size for the given constraint.
          */
-        virtual glm::vec2 ComputeDesiredSize() = 0;
+        const glm::vec2& Measure(const glm::vec2& availableSize);
 
         /**
          * Arrange this widget in the given space. Short-circuits when the layout is clean and
@@ -41,6 +80,26 @@ namespace Elixir::GUI
          * @param allocatedSpace the space available for this widget.
          */
         void ArrangeChildren(const SRect& allocatedSpace);
+
+        /**
+         * @brief Finds the topmost widget under point and every hit-testable ancestor above it,
+         * in root -> leaf order.
+         *
+         * Descends children back-to-front (last child = highest z, see CollectDrawCommands)
+         * so the first matching branch, depth-first, wins. Prunes HitTestInvisible/Hidden/Collapsed
+         * branches entirely; skips (but still descends through) SelfHitTestInvisible widgets.
+         * A clipping ancestor limits the hit area of every descendant.
+         * Non-virtual: built on HitTestSelf and the GetChildCount/GetChildAt traversal primitives.
+         *
+         * @param point Point to test, in the same space as m_Geometry.
+         * @param path Appended with the hit path; left untouched if nothing was hit.
+         * @param clipRect Clip inherited from a clipping ancestor, or an invalid rect when none applies.
+         */
+        void HitTest(
+            const glm::vec2& point,
+            std::vector<Ref<Widget>>& path,
+            const SRect& clipRect = {{ -1, -1 }, { -1, -1 }}
+        );
 
         /**
          * Get this widget's parent, or nullptr if it has none (or the parent was destroyed).
@@ -67,6 +126,158 @@ namespace Elixir::GUI
          */
         static uint64_t CurrentDirtyEpoch() { return s_DirtyEpoch; }
 
+        float GetOpacity() const { return m_Opacity; }
+        void SetOpacity(float opacity);
+
+        /** @brief Get this widget's visual displacement from its layout geometry. */
+        glm::vec2 GetRenderOffset() const { return m_RenderOffset; }
+
+        /**
+         * @brief Set a displacement applied only while rendering this widget and its children.
+         * @param offset Offset in GUI units.
+         */
+        void SetRenderOffset(const glm::vec2& offset);
+
+        EVisibility GetVisibility() const { return m_Visibility; }
+
+        /**
+         * @brief Set this widget's visibility immediately.
+         * @param visibility New visibility state.
+         */
+        void SetVisibility(EVisibility visibility);
+
+        bool IsVisible() const;
+
+        /**
+         * @brief True for whether this widget should still be drawn, regardless of whether
+         * it can be clicked.
+         * @return True for Visible/HitTestInvisible/SelfHitTestInvisible (and Opacity > 0).
+         */
+        bool IsRenderVisible() const;
+
+        /**
+         * @brief Whether this widget should still occupy a slot in its parent's layout.
+         * @return True for everything excepts Collapsed.
+         */
+        bool TakesSpace() const;
+
+        /**
+         * @brief Whether HitTest may consider THIS widget (as opposed
+         * to its children) a hit target. See the EVisibility semantics table.
+         * @return True only for Visible.
+         */
+        bool IsSelfHitTestVisible() const;
+
+        /**
+         * @brief Whether this widget can consume mouse input at its current state.
+         *
+         * Manager uses this to distinguish a visual hit-test surface from an interactive
+         * control when reporting WantsMouse(). Components with built-in mouse behavior
+         * override it; the base implementation recognizes registered mouse callbacks.
+         */
+        virtual bool CanHandleMouseInput() const;
+
+        /**
+         * @brief Get this widget's complete style.
+         * @return Complete style currently used by this widget.
+         */
+        const SWidgetStyle& GetStyle() const;
+
+        /**
+         * @brief Replace this widget's complete style.
+         * @param style Complete style to copy into this widget.
+         */
+        void SetStyle(const SWidgetStyle& style);
+
+        /**
+         * @brief Set one layer's background color.
+         * @param layer Layer that owns the override.
+         * @param color Background color for that layer.
+         */
+        void SetBackgroundColor(EStyleLayer layer, const SColor& color);
+
+        /**
+         * @brief Set one legacy layer's background texture.
+         * @param layer Layer that owns the override.
+         * @param texture Texture for that layer.
+         */
+        void SetBackgroundTexture(EStyleLayer layer, const Ref<Texture2D>& texture);
+
+        /**
+         * @brief Clear one legacy layer's background texture.
+         * @param layer Layer to change.
+         */
+        void ClearBackgroundTexture(EStyleLayer layer);
+
+        /**
+         * @brief Set the border metric for a 9-patch background texture.
+         * @param layer Layer that owns the override.
+         * @param borders Border mapping = (left, top, right, bottom).
+         */
+        void SetBackgroundBorders(EStyleLayer layer, const glm::vec4& borders);
+
+        /**
+         * Set the same radius for all corners.
+         * @param layer Layer that owns the override.
+         * @param radius corner radius in pixels
+         */
+        void SetCornerRadius(const EStyleLayer layer, const float radius)
+        {
+            SetCornerRadius(layer, { radius, radius, radius, radius });
+        }
+
+        /**
+         * Set a radius for each corner individually.
+         * @param layer Layer that owns the override.
+         * @param radius vector (top-left, top-right, bottom-right, bottom-left)
+         */
+        void SetCornerRadius(EStyleLayer layer, const glm::vec4& radius);
+
+        /**
+         * Set the inset shadow parameters.
+         * @param layer Layer that owns the override.
+         * @param shadow Shadow offset (x, y), blur (z) and intensity (w).
+         */
+        void SetInsetShadow(EStyleLayer layer, const glm::vec4& shadow);
+        void SetInsetShadowOffset(EStyleLayer layer, const glm::vec2& offset);
+        void SetInsetShadowBlur(EStyleLayer layer, float blur);
+        void SetInsetShadowIntensity(EStyleLayer layer, float intensity);
+
+        /**
+         * Set the drop shadow parameters.
+         * @param layer Layer that owns the override.
+         * @param shadow Shadow offset (x, y), blur (z) and intensity (w).
+         */
+        void SetDropShadow(EStyleLayer layer, const glm::vec4& shadow);
+        void SetDropShadowOffset(EStyleLayer layer, const glm::vec2& offset);
+        void SetDropShadowBlur(EStyleLayer layer, float blur);
+        void SetDropShadowIntensity(EStyleLayer layer, float intensity);
+
+        void SetOutline(EStyleLayer layer, const SOutline& outline);
+        void SetOutlineColor(EStyleLayer layer, const SColor& color);
+        void SetOutlineThickness(EStyleLayer layer, float thickness);
+
+        bool IsFocusable() const { return m_Focusable; }
+        void SetFocusable(bool focusable);
+
+        bool IsHovered() const { return m_Hovered; }
+        bool IsPressed() const { return m_Pressed; }
+        bool IsFocused() const { return m_Focused; }
+
+        bool IsEnabled() const { return m_Enabled; }
+
+        /**
+         * @brief Enable or disable this widget's interactivity.
+         *
+         * A disabled widget keeps rendering and keeps its layout slot; only interaction
+         * changes. It stops accepting input events. Visibility and layout are untouched -
+         * callers that also want the  widget hidden or removed from layout still need
+         * SetVisibility for that.
+         *
+         * @param enabled New enabled state.
+         */
+        void SetEnabled(bool enabled);
+
         /* Callbacks */
 
         void OnFocus(const std::function<void()>& callback) { m_OnFocusCallback = callback; }
@@ -76,43 +287,6 @@ namespace Elixir::GUI
         void OnMouseLeave(const std::function<void()>& callback) { m_OnMouseLeaveCallback = callback; }
         void OnMouseDown(const std::function<void()>& callback) { m_OnMouseDownCallback = callback; }
         void OnMouseUp(const std::function<void()>& callback) { m_OnMouseUpCallback = callback; }
-
-        float GetOpacity() const { return m_Opacity; }
-        void SetOpacity(float opacity);
-
-        EVisibility GetVisibility() const { return m_Visibility; }
-        void SetVisibility(EVisibility visibility);
-        bool IsVisible() const;
-
-        glm::vec4 GetInsetShadow() const { return m_InsetShadow; }
-        glm::vec4 GetDropShadow() const { return m_DropShadow; }
-
-        /**
-         * Set the inset shadow parameters.
-         * @param shadow Shadow offset (x, y), blur (z) and intensity (w).
-         */
-        void SetInsetShadow(const glm::vec4& shadow);
-        void SetInsetShadowOffset(const glm::vec2& offset);
-        void SetInsetShadowBlur(float blur);
-        void SetInsetShadowIntensity(float intensity);
-
-        /**
-         * Set the drop shadow parameters.
-         * @param shadow Shadow offset (x, y), blur (z) and intensity (w).
-         */
-        void SetDropShadow(const glm::vec4& shadow);
-        void SetDropShadowOffset(const glm::vec2& offset);
-        void SetDropShadowBlur(float blur);
-        void SetDropShadowIntensity(float intensity);
-
-        SOutline GetOutline() const { return m_Outline; }
-        void SetOutline(const SOutline& outline);
-        void SetOutlineColor(const SColor& color);
-        void SetOutlineThickness(float thickness);
-
-        bool IsHovered() const { return m_Hovered; }
-        bool IsPressed() const { return m_Pressed; }
-        bool IsFocused() const { return m_Focused; }
 
       protected:
         /**
@@ -137,7 +311,38 @@ namespace Elixir::GUI
         void DetachChild(const Ref<Widget>& child);
 
         virtual void RemoveChild(const Ref<Widget>& child) {}
-        virtual void ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const {}
+
+        /**
+         * @brief Number of direct children this widget exposes to generic tree traversal (render,
+         * HitTest, ...).
+         * Leaf widgets keep the default of zero; containers override this alongside GetChildAt.
+         * @return Number of children.
+         */
+        virtual size_t GetChildCount() const { return 0; }
+
+        /**
+         * @brief Get the direct child at the given index, in the same order/index space as
+         * GetChildCount.
+         * @param index Child index; must be in [0, GetChildCount()).
+         * @return The child widget, or nullptr if index is out of range.
+         */
+        virtual Ref<Widget> GetChildAt(size_t index) const { return nullptr; }
+
+        /**
+         * @brief Invoke fn for each direct child of this widget, in order.
+         *
+         * Non-virtual: built on GetChildCount/GetChildAt so every container gets consistent
+         * iteration for free.
+         *
+         * Does not filter by visibility.
+         *
+         * @param fn Callback invoked once per child widget.
+         */
+        void ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const;
+
+        // Compute how much space this widget wants, given the space available
+        // to it on each axis.
+        virtual glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) = 0;
 
         /**
          * Position this widget's children within its (already updated) geometry. Container
@@ -157,11 +362,25 @@ namespace Elixir::GUI
          * starts above this widget's whole subtree — so sibling subtrees never overlap
          * in z.
          *
+         * Also threads the ancestor clip rect: applied at Append time (not baked into
+         * m_CachedCommands by BuildDrawCommands), so changing a ScrollBox's scroll offset -
+         * or anything else that only moves an ancestor's clip - never has to invalidate a
+         * descendant's command cache. See ClipsChildren.
+         *
          * @param batch destination batch.
          * @param zCursor running layer index; advanced past everything this subtree.
          * @param rebuilt set to true if any widget's command cache was regenerated.
+         * @param clipRect Clip rect inherited from ancestors; the invalid
+         * {-1, -1}/{-1, -1} sentinel (see SRect::IsValid) means "no clip".
          */
-        void CollectDrawCommands(RenderBatch& batch, int& zCursor, bool& rebuilt);
+        void CollectDrawCommands(
+            RenderBatch& batch,
+            int& zCursor,
+            bool& rebuilt,
+            const SRect& clipRect,
+            glm::vec2 inheritedOffset = {},
+            float inheritedOpacity = 1.0f
+        );
 
         /**
          * Build the draw commands for THIS widget only (no children). Containers emit their
@@ -171,6 +390,42 @@ namespace Elixir::GUI
          * @param zOrder z-order for layering, relative to this widget.
          */
         virtual void BuildDrawCommands(RenderBatch& batch, int zOrder) {}
+
+        /**
+         * @brief Whether this widget clips its children to its own geometry.
+         *
+         * A container that returns true (e.g. ScrollBox) intersects m_Geometry with
+         * whatever clip it inherited and hands the result down to CollectDrawCommands for
+         * each child; everyone else (default) just forwards the intersected clip unchanged.
+         *
+         * @return True if this widget's own bounds should clip its children.
+         */
+        virtual bool ClipsChildren() const { return false; }
+
+        /**
+         * Build this frame's interaction state mask from this widget's own
+         * hover/press/enabled flags. Feeds StyleSet::Resolve only - it does not feed back
+         * into input routing.
+         * @return Mask combining Hovered/Pressed/Disabled as currently active.
+         */
+        EInteractionState GetInteractionState() const;
+
+        /**
+         * Get the complete appearance selected for this widget's current interaction state.
+         * Component widgets override this to resolve their own typed style.
+         * @return Current background appearance.
+         */
+        virtual const SAppearance& GetResolvedAppearance() const;
+
+        /**
+         * @brief Get the brush a legacy setter must change.
+         *
+         * Component widgets override this so legacy background setters still create a typed
+         * component-style override rather than changing a separate base style.
+         * @param layer Legacy interaction layer to change.
+         * @return Mutable background brush for that layer.
+         */
+        virtual SBrush& GetMutableBackgroundBrush(EStyleLayer layer);
 
         /**
          * Mark this widget's layout as dirty and propagate the mark to ancestors.
@@ -186,13 +441,25 @@ namespace Elixir::GUI
          */
         void MarkRenderDirty();
 
+        /**
+         * @brief Per-widget hit test, used by HitTest.
+         *
+         * Default hits the widget's own geometry; override for non-rectangular or
+         * custom-shaped hit areas.
+         *
+         * @param point Point to test, in the same space as m_Geometry.
+         * @return True if point is within this widget's hit area.
+         */
+        virtual bool HitTestSelf(const glm::vec2& point) const;
+
         virtual void HandleMouseEnter();
         virtual void HandleMouseLeave();
-        virtual void HandleMouseDown(const MouseButtonPressedEvent& event);
-        virtual void HandleMouseUp(const MouseButtonReleasedEvent& event);
-        virtual void HandleMouseMove(const MouseMovedEvent&  event) {}
-        virtual void HandleKeyPressed(const KeyPressedEvent& event) {}
-        virtual void HandleKeyTyped(const KeyTypedEvent& event) {}
+        virtual SInputReply HandleMouseDown(const MouseButtonPressedEvent& event);
+        virtual SInputReply HandleMouseUp(const MouseButtonReleasedEvent& event);
+        virtual SInputReply HandleMouseMove(const MouseMovedEvent&  event) { return SInputReply::Unhandled(); }
+        virtual SInputReply HandleMouseScrolled(const MouseScrolledEvent& event) { return SInputReply::Unhandled(); }
+        virtual SInputReply HandleKeyPressed(const KeyPressedEvent& event) { return SInputReply::Unhandled(); }
+        virtual SInputReply HandleKeyTyped(const KeyTypedEvent& event) { return SInputReply::Unhandled(); }
         virtual void HandleFocus();
         virtual void HandleLostFocus();
         virtual void HandleClick();
@@ -276,21 +543,24 @@ namespace Elixir::GUI
         // Bumped by MarkLayoutDirty / MarkRenderDirty.
         inline static uint64_t s_DirtyEpoch = 1;
 
-        SRect m_Geometry{};
         glm::vec2 m_DesiredSize{};
+        glm::vec2 m_LastMeasureConstraint{ -1.0f, -1.0f };
+        bool m_MeasureDirty = true;
 
+        SRect m_Geometry{};
         float m_Opacity = 1.0f;
+        glm::vec2 m_RenderOffset{};
 
         EVisibility m_Visibility = EVisibility::Visible;
 
-        glm::vec4 m_InsetShadow = {};
-        glm::vec4 m_DropShadow = {};
+        SWidgetStyle m_Style;
 
-        SOutline m_Outline = {};
+        bool m_Focusable = false;
 
         bool m_Hovered = false;
         bool m_Pressed = false;
         bool m_Focused = false;
+        bool m_Enabled = true;
         std::function<void()> m_OnMouseEnterCallback;
         std::function<void()> m_OnMouseLeaveCallback;
         std::function<void()> m_OnMouseDownCallback;
@@ -344,12 +614,9 @@ namespace Elixir::GUI
          */
         void RemoveChild(const Ref<Widget>& child) override;
 
-        /**
-         * Invoke fn with this widget's content, if any. Calls fn at most once, since a
-         * ContentWidget hosts a single child; no-op when there is no content.
-         * @param fn callback invoked with the content widget.
-         */
-        void ForEachChild(const std::function<void(const Ref<Widget>&)>& fn) const override;
+        size_t GetChildCount() const override { return m_ContentSlot ? 1 : 0; }
+
+        Ref<Widget> GetChildAt(size_t index) const override;
 
         Ref<ContentSlot> m_ContentSlot;
     };

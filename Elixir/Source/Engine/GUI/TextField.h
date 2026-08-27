@@ -5,14 +5,31 @@
 
 namespace Elixir::GUI
 {
+    /** @brief Text-field visual data for one interactive state. */
+    struct STextFieldAppearance : SAppearance
+    {
+        SColor Foreground{};
+    };
+
+    /** @brief Complete visual style for TextField. */
+    struct STextFieldStyle final : SStyle, TStateStyles<STextFieldAppearance>{};
+
     class ELIXIR_API TextField : public Widget
     {
       public:
+        /**
+         * @brief Construct a text field with a copy of the current default text-field style.
+         * @param text Initial text.
+         */
         explicit TextField(const std::string& text = "");
 
-        void Update(Timestep frameTime) override;
+        /**
+         * @brief Replace this text field's complete style.
+         * @param style Style to copy.
+         */
+        void SetStyle(const STextFieldStyle& style);
 
-        glm::vec2 ComputeDesiredSize() override;
+        void Update(Timestep frameTime) override;
 
         /* Callbacks */
 
@@ -30,8 +47,12 @@ namespace Elixir::GUI
         const std::string& GetText() const { return m_Text; }
         void SetText(const std::string& text);
 
-        SColor GetTextColor() const { return m_TextColor; }
-        void SetTextColor(const SColor& color);
+        /**
+         * @brief Set one legacy layer's text color.
+         * @param layer Layer to change.
+         * @param color New text color.
+         */
+        void SetTextColor(EStyleLayer layer, const SColor& color);
 
         const std::string& GetPlaceholder() const { return m_Placeholder; }
         void SetPlaceholder(const std::string& placeholder);
@@ -42,54 +63,30 @@ namespace Elixir::GUI
         SPadding GetPadding() const { return m_Padding; }
         void SetPadding(const SPadding& padding);
 
-        /**
-         * Get corner radius for each corner individually.
-         * @return vector (top-left, top-right, bottom-right, bottom-left)
-         */
-        glm::vec4 GetCornerRadius() const { return m_CornerRadius; }
-
-        /**
-         * Set the same radius for all corners.
-         * @param radius corner radius in pixels
-         */
-        void SetCornerRadius(const float radius)
-        {
-            SetCornerRadius({ radius, radius, radius, radius });
-        }
-
-        /**
-         * Set a radius for each corner individually.
-         * @param radius vector (top-left, top-right, bottom-right, bottom-left)
-         */
-        void SetCornerRadius(const glm::vec4& radius);
-
-        SColor GetBackgroundColor() const { return m_BackgroundColor; }
-        void SetBackgroundColor(const SColor& color);
-
-        const glm::vec4& GetBackgroundBorders() const { return m_BackgroundBorders; }
-        void SetBackgroundBorders(const glm::vec4& borders);
-
-        const Ref<Texture2D>& GetBackground() const { return m_Background; }
-        void SetBackground(const Ref<Texture2D>& texture);
-
         SColor GetCursorColor() const { return m_CursorColor; }
         void SetCursorColor(const SColor& color);
 
         SColor GetSelectionColor() const { return m_SelectionColor; }
         void SetSelectionColor(const SColor& color);
 
-    protected:
+        bool CanHandleMouseInput() const override { return IsEnabled(); }
+
+      protected:
+        glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) override;
         void LayoutChildren(const SRect& allocatedSpace) override;
         void BuildDrawCommands(RenderBatch& batch, int zOrder) override;
 
         void HandleMouseEnter() override;
         void HandleMouseLeave() override;
-        void HandleMouseDown(const MouseButtonPressedEvent& event) override;
-        void HandleMouseMove(const MouseMovedEvent& event) override;
-        void HandleKeyPressed(const KeyPressedEvent& event) override;
-        void HandleKeyTyped(const KeyTypedEvent& event) override;
+        SInputReply HandleMouseDown(const MouseButtonPressedEvent& event) override;
+        SInputReply HandleMouseMove(const MouseMovedEvent& event) override;
+        SInputReply HandleKeyPressed(const KeyPressedEvent& event) override;
+        SInputReply HandleKeyTyped(const KeyTypedEvent& event) override;
         void HandleFocus() override;
         void HandleLostFocus() override;
+
+        const SAppearance& GetResolvedAppearance() const override;
+        SBrush& GetMutableBackgroundBrush(EStyleLayer layer) override;
 
         virtual glm::vec2 MeasureTextSize(const std::string& text);
         virtual glm::vec2 CalculateTextPosition(glm::vec2 textSize);
@@ -124,25 +121,11 @@ namespace Elixir::GUI
         float m_FontSize = 16.0f;
 
         std::string m_Text;
-        SColor m_TextColor{0.0f, 0.0f, 0.0f, 1.0f};
 
         std::string m_Placeholder;
         SColor m_PlaceholderColor{0.3f, 0.3f, 0.3f, 1.0f};
 
         SPadding m_Padding = { 5.0f, 5.0f, 5.0f, 5.0f };
-
-        // top-left, top-right, bottom-right, bottom-left
-        glm::vec4 m_CornerRadius = {0.0f, 0.0f, 0.0f, 0.0f};
-
-        // Colors for different states
-        SColor m_BackgroundColor{1.0f, 1.0f, 1.0f, 1.0f};
-
-        // When texture is used, this represents the borders of 9-patch texture.
-        // Border mapping = (left, top, right, bottom).
-        glm::vec4 m_BackgroundBorders = {30.0f, 30.0f, 30.0f, 30.0f};
-
-        // Textures for different states
-        Ref<Texture2D> m_Background;
 
         // Cursor blinking related stuff
         float m_BlinkTimer = 0.0f;
@@ -158,6 +141,9 @@ namespace Elixir::GUI
         size_t m_SelectionStart = -1;
         size_t m_SelectionEnd = -1;
         SColor m_SelectionColor = { 0.3f, 0.5f, 1.0f, 0.4f };
+
+        glm::vec2 m_MinDesiredSize{ 120.0f, 30.0f };
+        STextFieldStyle m_Style;
 
         // Callbacks
         std::function<void(const std::string&)> m_OnChangeCallback;

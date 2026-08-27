@@ -63,12 +63,13 @@ namespace Elixir::GUI
         glm::vec2 GetMinSize() const { return m_MinSize; }
         LayoutSlot& SetMinSize(const glm::vec2& size);
 
-
         glm::vec2 GetMaxSize() const { return m_MaxSize; }
         LayoutSlot& SetMaxSize(const glm::vec2& size);
 
-        float GetFillRatio() const { return m_FillRatio; }
-        LayoutSlot& SetFillRatio(float ratio);
+        SSizeParam GetSizeRule() const { return m_SizeRule; }
+        LayoutSlot& SetAutoSize();
+        LayoutSlot& SetFillSize(float ratio = 1.0f);
+        LayoutSlot& SetFixedSize(float pixels);
 
     private:
         EHorizontalAlignment m_HAlignment = EHorizontalAlignment::Center;
@@ -79,8 +80,7 @@ namespace Elixir::GUI
         glm::vec2 m_MinSize{0, 0};
         glm::vec2 m_MaxSize{FLT_MAX, FLT_MAX};
 
-        // For proportional layouts (like Flexbox flex property)
-        // Work only with Stretch alignment
-        float m_FillRatio = 1.0f;
+        // Sizing rule along the owner's main axis.
+        SSizeParam m_SizeRule;
     };
 }
