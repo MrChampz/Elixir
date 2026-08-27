@@ -201,6 +201,27 @@ namespace Elixir::Aether::Simulation
             desc.Data1 = op.Data1;
             desc.Data2 = op.Data2;
 
+            if (op.Type == EParticleOp::ApplyVortex)
+            {
+                // ApplyVortex keeps its optional tangential and radial parameter
+                // indices in Data2.z and Data2.w. Unlike Header.zw, these values
+                // were left relative to the compiled system, causing instances
+                // beyond parameter buffer offset zero to read another system's
+                // forces.
+                const auto ResolveEmbeddedParameterIndex = [parameterBaseOffset](
+                    const float parameterIndex
+                )
+                {
+                    const auto index = (int32_t)parameterIndex;
+                    return index < 0
+                        ? -1.0f
+                        : (float)(parameterBaseOffset + (uint32_t)index);
+                };
+
+                desc.Data2.z = ResolveEmbeddedParameterIndex(op.Data2.z);
+                desc.Data2.w = ResolveEmbeddedParameterIndex(op.Data2.w);
+            }
+
             return desc;
         }
 
