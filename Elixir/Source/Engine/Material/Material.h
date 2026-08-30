@@ -123,7 +123,7 @@ namespace Elixir
         EMaterialParameterKind Kind = EMaterialParameterKind::Value;
 
         /** Expected type for value parameters. */
-        EMaterialGraphValueType ValueType = EMaterialGraphValueType::Float4;
+        EMaterialValueType ValueType = EMaterialValueType::Float4;
 
         /** Value used when an instance does not provide an override. */
         SMaterialParam DefaultValue;

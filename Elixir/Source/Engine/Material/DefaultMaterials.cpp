@@ -1,6 +1,10 @@
 #include "epch.h"
 #include "DefaultMaterials.h"
 
+#include <Engine/Material/Nodes/CheckerboardNode.h>
+#include <Engine/Material/Nodes/ConstantNode.h>
+#include <Engine/Material/Nodes/RadialGradientExponentialNode.h>
+
 namespace Elixir
 {
     namespace
@@ -22,18 +26,10 @@ namespace Elixir
         {
             MaterialGraph graph;
 
-            const auto baseColor = graph.AddNode({
-                .Type = EMaterialNodeType::Constant,
-                .OutputType = EMaterialGraphValueType::Float3,
-                .ConstantValue = { 1.0f, 1.0f, 1.0f, 0.0f },
-            });
-            const auto opacity = graph.AddNode({
-                .Type = EMaterialNodeType::RadialGradientExponential,
-                .OutputType = EMaterialGraphValueType::Float,
-                .RadialGradientCenter = { 0.5f, 0.5f },
-                .RadialGradientRadius = 0.5f,
-                .RadialGradientExponent = 2.0f,
-            });
+            const auto baseColor = graph.AddNode<MaterialNodes::ConstantNode>(
+                glm::vec4{ 1.0f, 1.0f, 1.0f, 0.0f }, EMaterialValueType::Float3);
+            const auto opacity = graph.AddNode<MaterialNodes::RadialGradientExponentialNode>(
+                glm::vec2{ 0.5f, 0.5f }, 0.5f, 2.0f);
             graph.SetChannel(EMaterialChannel::BaseColor, baseColor);
             graph.SetChannel(EMaterialChannel::Opacity, opacity);
 
@@ -48,11 +44,8 @@ namespace Elixir
         {
             MaterialGraph graph;
 
-            const auto checkerboard = graph.AddNode({
-                .Type = EMaterialNodeType::Constant,
-                .OutputType = EMaterialGraphValueType::Float3,
-                .ConstantValue = { 1.0f, 1.0f, 1.0f, 0.0f },
-            });
+            const auto checkerboard = graph.AddNode<MaterialNodes::ConstantNode>(
+                glm::vec4{ 1.0f, 1.0f, 1.0f, 0.0f }, EMaterialValueType::Float3);
             graph.SetChannel(EMaterialChannel::BaseColor, checkerboard);
 
             return MakeMaterial(
@@ -66,11 +59,7 @@ namespace Elixir
         {
             MaterialGraph graph;
 
-            const auto checkerboard = graph.AddNode({
-                .Type = EMaterialNodeType::Checkerboard,
-                .OutputType = EMaterialGraphValueType::Float3,
-                .ConstantValue = { 8.0f, 0.0f, 0.0f, 0.0f },
-            });
+            const auto checkerboard = graph.AddNode<MaterialNodes::CheckerboardNode>(8.0f);
             graph.SetChannel(EMaterialChannel::BaseColor, checkerboard);
 
             return MakeMaterial(

@@ -41,10 +41,10 @@ namespace Elixir
 
             switch (parameter.ValueType)
             {
-                case EMaterialGraphValueType::Float:    return value + ".x";
-                case EMaterialGraphValueType::Float2:   return value + ".xy";
-                case EMaterialGraphValueType::Float3:   return value + ".xyz";
-                case EMaterialGraphValueType::Float4:   return value;
+                case EMaterialValueType::Float:    return value + ".x";
+                case EMaterialValueType::Float2:   return value + ".xy";
+                case EMaterialValueType::Float3:   return value + ".xyz";
+                case EMaterialValueType::Float4:   return value;
             }
 
             return value;

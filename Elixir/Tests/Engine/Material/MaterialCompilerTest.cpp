@@ -12,7 +12,7 @@ TEST(MaterialCompilerTest, AssignsStableSlotsByParameterKindAndName)
 
     ASSERT_TRUE(material->DefineParameter("Tint", {
         .Kind = EMaterialParameterKind::Value,
-        .ValueType = EMaterialGraphValueType::Float4,
+        .ValueType = EMaterialValueType::Float4,
         .DefaultValue = SMaterialParam::MakeVector(glm::vec4(1.0f)),
     }));
     ASSERT_TRUE(material->DefineParameter("Albedo", {

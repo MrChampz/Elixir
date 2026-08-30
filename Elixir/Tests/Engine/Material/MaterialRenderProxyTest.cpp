@@ -9,7 +9,7 @@ TEST(MaterialRenderProxyTest, ResolvesOverridesIntoAnImmutableSnapshot)
     const auto material = CreateRef<Material>("Tinted");
     ASSERT_TRUE(material->DefineParameter("Tint", {
         .Kind = EMaterialParameterKind::Value,
-        .ValueType = EMaterialGraphValueType::Float4,
+        .ValueType = EMaterialValueType::Float4,
         .DefaultValue = SMaterialParam::MakeVector(glm::vec4(1.0f)),
     }));
 
@@ -31,7 +31,7 @@ TEST(MaterialRenderProxyTest, RejectsACompiledMaterialForAnOldSchema)
     const auto material = CreateRef<Material>("Tinted");
     ASSERT_TRUE(material->DefineParameter("Tint", {
         .Kind = EMaterialParameterKind::Value,
-        .ValueType = EMaterialGraphValueType::Float4,
+        .ValueType = EMaterialValueType::Float4,
         .DefaultValue = SMaterialParam::MakeVector(glm::vec4(1.0f)),
     }));
 

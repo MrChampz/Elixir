@@ -2,6 +2,10 @@
 #include "MaterialFactory.h"
 
 #include <Engine/Graphics/TextureLoader.h>
+#include <Engine/Material/Nodes/BinaryOperationNode.h>
+#include <Engine/Material/Nodes/ComponentMaskNode.h>
+#include <Engine/Material/Nodes/ConstantNode.h>
+#include <Engine/Material/Nodes/TextureSampleNode.h>
 
 namespace Elixir::Aether::Effect
 {
@@ -30,25 +34,16 @@ namespace Elixir::Aether::Effect
 
         MaterialGraph graph;
 
-        const auto baseColor = graph.AddNode({
-            .Type = EMaterialNodeType::Constant,
-            .OutputType = EMaterialGraphValueType::Float3,
-            .ConstantValue = { desc.BaseColor, 0.0f },
-        });
+        const auto baseColor = graph.AddNode<MaterialNodes::ConstantNode>(
+            glm::vec4{ desc.BaseColor, 0.0f }, EMaterialValueType::Float3);
         graph.SetChannel(EMaterialChannel::BaseColor, baseColor);
 
-        const auto opacity = graph.AddNode({
-            .Type = EMaterialNodeType::Constant,
-            .OutputType = EMaterialGraphValueType::Float,
-            .ConstantValue = { desc.Opacity, 0.0f, 0.0f, 0.0f },
-        });
+        const auto opacity = graph.AddNode<MaterialNodes::ConstantNode>(
+            glm::vec4{ desc.Opacity, 0.0f, 0.0f, 0.0f }, EMaterialValueType::Float);
         graph.SetChannel(EMaterialChannel::Opacity, opacity);
 
-        const auto emissive = graph.AddNode({
-            .Type = EMaterialNodeType::Constant,
-            .OutputType = EMaterialGraphValueType::Float3,
-            .ConstantValue = { desc.Emissive, 0.0f },
-        });
+        const auto emissive = graph.AddNode<MaterialNodes::ConstantNode>(
+            glm::vec4{ desc.Emissive, 0.0f }, EMaterialValueType::Float3);
         graph.SetChannel(EMaterialChannel::Emissive, emissive);
 
         if (renderMode == Core::EParticleRenderMode::Sprite && !desc.BaseColorTexturePath.empty())
@@ -60,27 +55,20 @@ namespace Elixir::Aether::Effect
                 .DefaultValue = SMaterialParam::MakeTexture(tex),
             });
 
-            const auto texture = graph.AddNode({
-                .Type = EMaterialNodeType::TextureSample,
-                .TextureParameterName = texParam,
-            });
+            const auto texture = graph.AddNode<MaterialNodes::TextureSampleNode>(texParam);
+            const auto alpha = graph.AddNode<MaterialNodes::ComponentMaskNode>(3);
+            graph.Connect(texture, alpha, 0);
 
-            const auto alpha = graph.AddNode({
-                .Type = EMaterialNodeType::ComponentMask,
-                .Inputs = { int32_t(texture) },
-                .ComponentIndex = 3
-            });
-
-            const auto baseColorMul = graph.AddNode({
-                .Type = EMaterialNodeType::Multiply,
-                .Inputs = { int32_t(baseColor), int32_t(texture) },
-            });
+            const auto baseColorMul = graph.AddNode<MaterialNodes::BinaryOperationNode>(
+                MaterialNodes::EBinaryMaterialOperation::Multiply);
+            graph.Connect(baseColor, baseColorMul, 0);
+            graph.Connect(texture, baseColorMul, 1);
             graph.SetChannel(EMaterialChannel::BaseColor, baseColorMul);
 
-            const auto opacityMul = graph.AddNode({
-                .Type = EMaterialNodeType::Multiply,
-                .Inputs = { int32_t(opacity), int32_t(alpha) },
-            });
+            const auto opacityMul = graph.AddNode<MaterialNodes::BinaryOperationNode>(
+                MaterialNodes::EBinaryMaterialOperation::Multiply);
+            graph.Connect(opacity, opacityMul, 0);
+            graph.Connect(alpha, opacityMul, 1);
             graph.SetChannel(EMaterialChannel::Opacity, opacityMul);
         }
 
