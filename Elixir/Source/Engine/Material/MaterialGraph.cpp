@@ -169,9 +169,9 @@ namespace Elixir
         it->second.Inputs[toSlot] = (int32_t)fromNode;
     }
 
-    void MaterialGraph::SetChannel(EMaterialChannel channel, uint32_t nodeId)
+    void MaterialGraph::SetChannel(const EMaterialChannel channel, const uint32_t nodeId)
     {
-        m_Channels[(uint8_t)channel] = nodeId;
+        m_Channels[channel] = nodeId;
     }
 
     std::string MaterialGraph::GenerateHLSL() const
@@ -185,14 +185,13 @@ namespace Elixir
         std::unordered_map<uint32_t, std::string> emitted;
         std::unordered_map<uint32_t, EMaterialGraphValueType> types;
 
-        for (const auto& [channelIndex, nodeId] : m_Channels)
+        for (const auto& [channel, nodeId] : m_Channels)
         {
             const std::string var = EmitNode(nodeId, emitted, types, body, &bindings);
             const EMaterialGraphValueType from = types.contains(nodeId)
                 ? types[nodeId]
                 : EMaterialGraphValueType::Float4;
 
-            const auto channel = (EMaterialChannel)channelIndex;
             const auto channelName = ChannelName(channel);
             body += "   surface." + std::string(channelName) + " = " + Coerce(var, from, channel) + ";\n";
         }

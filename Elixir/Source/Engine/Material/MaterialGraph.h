@@ -2,96 +2,225 @@
 
 namespace Elixir
 {
-    // The HLSL value type a node output carries.
+    /**
+     * @brief Defines the HLSL value type produced by a graph node.
+     */
     enum class EMaterialGraphValueType : uint8_t
     {
-        Float, Float2, Float3, Float4,
+        /** @brief One floating-point component. */
+        Float,
+
+        /** @brief Two floating-point components. */
+        Float2,
+
+        /** @brief Three floating-point components. */
+        Float3,
+
+        /** @brief Four floating-point components. */
+        Float4,
     };
 
-    // The kind of computation a node performs. The codegen switches on this.
+    /**
+     * @brief Defines the operation performed by a material graph node.
+     */
     enum class EMaterialNodeType : uint8_t
     {
-        Constant,                   // a literal value
-        Parameter,                  // a named material-instance parameters (mat.<field>)
-        TexCoord,                   // input.TexCoord
-        TextureSample,              // sample a bound texture at a UV (input 0)
-        ComponentMask,              // Select one component from a vector input.
-        Time,                       // seconds since start (cbFrame.start)
-        Sine,                       // sin(a)
-        Panner,                     // uv + Time * speed (speed from ConstantValue.xy)
-        Checkerboard,               // procedural two-color checkerboard from UV
+        /** @brief Outputs a literal value. */
+        Constant,
+
+        /** @brief Reads a named material value parameter. */
+        Parameter,      // mat.<field>
+
+        /** @brief Outputs the input texture coordinates. */
+        TexCoord,       // input.TexCoord
+
+        /** @brief Samples a named material texture parameter. */
+        TextureSample,  // sample a bound texture at a UV (input 0)
+
+        /** @brief Selects one component from an input value. */
+        ComponentMask,
+
+        /** @brief Outputs elapsed time in seconds. */
+        Time,           // cbFrame.Time
+
+        /** @brief Applies the sine function to an input. */
+        Sine,           // sin(a)
+
+        /** @brief Offsets texture coordinates over time. */
+        Panner,         // uv + Time * speed (speed from ConstantValue.xy)
+
+        /** @brief Generates a procedural checkerboard. */
+        Checkerboard,
+
+        /** @brief Generates an exponential radial gradient. */
         RadialGradientExponential,  // pow(saturate(1 - distance / radius), exponent)
-        Multiply,                   // a * b
-        Add,                        // a + b
-        Subtract,                   // a - b
-        Divide,                     // a / b
-        Power,                      // pow(a, b)
-        Dot,                        // dot(a, b) -> scalar
-        Lerp,                       // lerp(a, b, t)
-        OneMinus,                   // 1 - a
-        Saturate,                   // saturate(a
-        Fresnel,                    // schlick fresnel from N,V
+
+        /** @brief Multiplies two input values. */
+        Multiply,       // a * b
+
+        /** @brief Adds two input values. */
+        Add,            // a + b
+
+        /** @brief Subtracts two input values. */
+        Subtract,       // a - b
+
+        /** @brief Divides two input values. */
+        Divide,         // a / b
+
+        /** @brief Raises one input value to another. */
+        Power,          // pow(a, b)
+
+        /** @brief Calculates the dot product of two input values. */
+        Dot,            // dot(a, b) -> scalar
+
+        /** @brief Linearly interpolates between two input values. */
+        Lerp,           // lerp(a, b, t)
+
+        /** @brief Subtracts an input value from one. */
+        OneMinus,       // 1 - a
+
+        /** @brief Clamps an input value to the zero-to-one range. */
+        Saturate,       // saturate(a)
+
+        /** @brief Calculates a Schlick Fresnel factor. */
+        Fresnel,
     };
 
-    // The surface output a channel drives.
+    /**
+     * @brief Defines a surface property driven by a material graph.
+     */
     enum class EMaterialChannel : uint8_t
     {
-        BaseColor, Normal, Metallic, Roughness, Opacity, Emissive
+        /** @brief Surface base color. */
+        BaseColor,
+
+        /** @brief Surface normal. */
+        Normal,
+
+        /** @brief Surface metallic value. */
+        Metallic,
+
+        /** @brief Surface roughness value. */
+        Roughness,
+
+        /** @brief Surface opacity value. */
+        Opacity,
+
+        /** @brief Surface emissive color. */
+        Emissive,
     };
 
+    /**
+     * @brief Maps material parameter names to generated HLSL expressions.
+     */
     struct SMaterialGraphBindings
     {
+        /** @brief Expressions for numeric material parameters. */
         std::unordered_map<std::string, std::string> Values;
+
+        /** @brief Expressions for texture material parameters. */
         std::unordered_map<std::string, std::string> Textures;
     };
 
-    // One node in a material graph. Nodes are plain data (no lambdas) so the graph
-    // can be serialized and edited; the codegen interprets Type.
+    /**
+     * @brief Stores the data and input connections for one material graph node.
+     */
     struct SMaterialNode
     {
+        /** @brief Unique graph identifier assigned when the node is added. */
         uint32_t Id = 0;
+
+        /** @brief Operation performed by the node. */
         EMaterialNodeType Type = EMaterialNodeType::Constant;
+
+        /** @brief Value type produced by the node. */
         EMaterialGraphValueType OutputType = EMaterialGraphValueType::Float4;
 
-        // For each input slot: the id of the source node, or -1 to use the matching
-        // DefaultInputs literal.
+        /**
+         * @brief Source node IDs for each input slot.
+         *
+         * A value of -1 selects the matching entry in DefaultInputs.
+         */
         std::vector<int32_t> Inputs;
+
+        /** @brief Literal expressions used by unconnected input slots. */
         std::vector<std::string> DefaultInputs;
 
-        // Per-type payload.
-        glm::vec4   ConstantValue{ 0.0f };    // Constant
-        std::string ParameterName;                  // Parameter -> mat.<ParameterName>
-        std::string TextureParameterName;           // TextureSample -> material texture parameter
-        uint32_t    ComponentIndex = 0;             // ComponentMask: x, y, z or w.
+        /** @brief Constant value and type-specific numeric settings. */
+        glm::vec4 ConstantValue{ 0.0f };
 
-        // RadialGradientExponential
-        glm::vec2   RadialGradientCenter{ 0.5f };
-        float       RadialGradientRadius = 0.5f;
-        float       RadialGradientExponent = 1.0f;
+        /** @brief Material value parameter read by a Parameter node. */
+        std::string ParameterName;
+
+        /** @brief Material texture parameter sampled by a TextureSample node. */
+        std::string TextureParameterName;
+
+        /** @brief Component selected by a ComponentMask node. */
+        uint32_t ComponentIndex = 0;
+
+        /** @brief Center used by a RadialGradientExponential node. */
+        glm::vec2 RadialGradientCenter{ 0.5f };
+
+        /** @brief Radius used by a RadialGradientExponential node. */
+        float RadialGradientRadius = 0.5f;
+
+        /** @brief Exponent used by a RadialGradientExponential node. */
+        float RadialGradientExponent = 1.0f;
     };
 
-    // A node graph describing a material's surface. Compiles to an HLSL body that
-    // fills a surface struct, plugged into a template pixel shader.
+    /**
+     * @brief Stores a node graph that defines material surface properties.
+     *
+     * The graph generates an HLSL body that writes values to a material surface
+     * structure in a shader template.
+     */
     class ELIXIR_API MaterialGraph
     {
     public:
+        /**
+         * @brief Adds a node to the graph.
+         * @param node Node data to add.
+         * @return The unique ID assigned to the added node.
+         *
+         * The graph assigns Id and does not use the ID supplied in node.
+         */
         uint32_t AddNode(const SMaterialNode& node);
 
-        // Wire the output of 'fromNode' into input 'toSlot' of 'toNode'.
+        /**
+         * @brief Connects a node output to an input slot.
+         * @param fromNode Source node ID.
+         * @param toNode Destination node ID.
+         * @param toSlot Destination input slot.
+         *
+         * The call has no effect when toNode does not exist.
+         */
         void Connect(uint32_t fromNode, uint32_t toNode, uint32_t toSlot);
 
-        // Drive a surface channel from a node's output.
+        /**
+         * @brief Connects a node output to a surface channel.
+         * @param channel Surface channel to drive.
+         * @param nodeId Node that provides the channel value.
+         */
         void SetChannel(EMaterialChannel channel, uint32_t nodeId);
 
-        // Generate the HLSL statements that fill 'surface.<channel> = ...;'.
+        /**
+         * @brief Generates HLSL statements for the configured surface channels.
+         * @return Generated HLSL that uses default material parameter expressions.
+         */
         std::string GenerateHLSL() const;
 
-        // Generate the HLSL statements that fill 'surface.<channel> = ...;'.
+        /**
+         * @brief Generates HLSL statements for the configured surface channels.
+         * @param bindings Expressions that replace named material parameters.
+         * @return Generated HLSL that uses the supplied parameter bindings.
+         */
         std::string GenerateHLSL(const SMaterialGraphBindings& bindings) const;
 
+        /** @brief Gets the graph nodes indexed by their assigned IDs. */
         const std::unordered_map<uint32_t, SMaterialNode>& GetNodes() const { return m_Nodes; }
 
     private:
+        /** @brief Emits HLSL for a node and its dependencies. */
         std::string EmitNode(
             uint32_t id,
             std::unordered_map<uint32_t, std::string>& emitted,
@@ -101,7 +230,7 @@ namespace Elixir
         ) const;
 
         std::unordered_map<uint32_t, SMaterialNode> m_Nodes;
-        std::unordered_map<uint8_t, uint32_t> m_Channels; // EMaterialChannel -> node id
+        std::unordered_map<EMaterialChannel, uint32_t> m_Channels;
         uint32_t m_NextId = 1;
     };
 }
