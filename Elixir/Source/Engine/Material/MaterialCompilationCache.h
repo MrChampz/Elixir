@@ -7,15 +7,38 @@ namespace Elixir
 {
     class ShaderLoader;
 
-    // Renderer-owned, GraphicsContext-scoped cache for compiled material programs.
+    /**
+     * @brief Caches compiled material data for one shader loader.
+     *
+     * Cached entries are rebuilt when the source material revision changes. Access
+     * is serialized so one compilation updates the cache at a time.
+     */
     class ELIXIR_API MaterialCompilationCache final
     {
     public:
+        /**
+         * @brief Creates a material compilation cache.
+         *
+         * When shaderLoader is null, the cache validates graphs and builds layouts
+         * without producing shader programs.
+         *
+         * @param shaderLoader Shader loader used for full shader compilation.
+         */
         explicit MaterialCompilationCache(const ShaderLoader* shaderLoader);
 
+        /**
+         * @brief Gets compiled data for a material.
+         *
+         * The cache returns the existing result when its revision matches the source
+         * material. Otherwise, it rebuilds the material before returning it.
+         *
+         * @param material Material to compile or retrieve.
+         * @return Compiled material data, or null when material is null or compilation fails.
+         */
         Ref<const SCompiledMaterial> GetOrCompile(const Ref<Material>& material);
 
     private:
+        /** @brief Stores the source material, compiled revision, and cached result. */
         struct SEntry
         {
             Ref<Material> Source;
