@@ -115,7 +115,7 @@ namespace Elixir
 
     namespace Hash
     {
-        inline void HashCombine(std::size_t& seed, std::size_t value)
+        inline void HashCombine(std::size_t& seed, const std::size_t value)
         {
             // Similar to boost::hash_combine
             seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
