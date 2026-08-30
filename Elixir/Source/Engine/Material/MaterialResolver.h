@@ -5,12 +5,22 @@
 
 namespace Elixir
 {
-    // Boundary used by scene compilers to publish immutable GPU material state.
+    /**
+     * @brief Resolves a material instance into render-ready material data.
+     *
+     * Implementations publish an immutable proxy that render code can safely use.
+     */
     class ELIXIR_API MaterialResolver
     {
     public:
+        /** @brief Destroys the resolver. */
         virtual ~MaterialResolver() = default;
 
+        /**
+         * @brief Resolves an instance into a render proxy.
+         * @param instance Material instance to resolve.
+         * @return The render proxy, or null when the instance cannot be resolved.
+         */
         virtual Ref<const MaterialRenderProxy> Resolve(
             const Ref<MaterialInstance>& instance
         ) = 0;
