@@ -84,37 +84,32 @@ namespace Elixir
 
     bool Material::ValidateGraph(std::string* error) const
     {
-        for (const auto& [_, node] : m_Graph.GetNodes())
+        class ParameterLookup final : public MaterialNodeValidationContext
         {
-            if (node.Type == EMaterialNodeType::Parameter)
+        public:
+            explicit ParameterLookup(const Material& material) : m_Material(material) {}
+
+            bool HasValueParameter(
+                const std::string_view name,
+                const EMaterialValueType type
+            ) const override
             {
-                const auto* parameter = FindParameter(node.ParameterName);
-                if (parameter &&
-                    parameter->Kind == EMaterialParameterKind::Value &&
-                    parameter->ValueType == node.OutputType)
-                    continue;
-
-                if (error)
-                    *error = "Invalid value parameter: " + node.ParameterName;
-
-                return false;
+                const auto* parameter = m_Material.FindParameter(std::string(name));
+                return parameter && parameter->Kind == EMaterialParameterKind::Value &&
+                    parameter->ValueType == type;
             }
 
-            if (node.Type == EMaterialNodeType::TextureSample)
+            bool HasTextureParameter(const std::string_view name) const override
             {
-                const auto* parameter = FindParameter(node.TextureParameterName);
-                if (parameter &&
-                    parameter->Kind == EMaterialParameterKind::Texture)
-                    continue;
-
-                if (error)
-                    *error = "Invalid texture parameter: " + node.TextureParameterName;
-
-                return false;
+                const auto* parameter = m_Material.FindParameter(std::string(name));
+                return parameter && parameter->Kind == EMaterialParameterKind::Texture;
             }
-        }
 
-        return true;
+        private:
+            const Material& m_Material;
+        };
+
+        return m_Graph.Validate(ParameterLookup(*this), error);
     }
 
     bool Material::IsValueCompatible(
@@ -125,7 +120,7 @@ namespace Elixir
         if (definition.Kind == EMaterialParameterKind::Texture)
             return value.Type == EMaterialParameterType::Texture;
 
-        if (definition.ValueType == EMaterialGraphValueType::Float)
+        if (definition.ValueType == EMaterialValueType::Float)
             return value.Type == EMaterialParameterType::Scalar;
 
         return value.Type == EMaterialParameterType::Vector;

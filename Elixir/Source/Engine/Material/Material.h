@@ -115,6 +115,24 @@ namespace Elixir
     };
 
     /**
+     * @brief Defines the HLSL value type carried by a material graph connection.
+     */
+    enum class EMaterialValueType : uint8_t
+    {
+        /** @brief One floating-point component. */
+        Float,
+
+        /** @brief Two floating-point components. */
+        Float2,
+
+        /** @brief Three floating-point components. */
+        Float3,
+
+        /** @brief Four floating-point components. */
+        Float4,
+    };
+
+    /**
      * @brief Defines one parameter in a material schema.
      */
     struct SMaterialParameterDefinition
@@ -123,7 +141,7 @@ namespace Elixir
         EMaterialParameterKind Kind = EMaterialParameterKind::Value;
 
         /** Expected type for value parameters. */
-        EMaterialGraphValueType ValueType = EMaterialGraphValueType::Float4;
+        EMaterialValueType ValueType = EMaterialValueType::Float4;
 
         /** Value used when an instance does not provide an override. */
         SMaterialParam DefaultValue;

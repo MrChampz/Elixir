@@ -17,7 +17,7 @@ namespace Elixir
         EMaterialParameterKind Kind = EMaterialParameterKind::Value;
 
         /** @brief Value type used when Kind is Value. */
-        EMaterialGraphValueType ValueType = EMaterialGraphValueType::Float4;
+        EMaterialValueType ValueType = EMaterialValueType::Float4;
 
         /** @brief Slot in the compiled value or texture array. */
         uint32_t Slot = 0;
