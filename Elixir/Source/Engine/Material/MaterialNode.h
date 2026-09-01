@@ -114,7 +114,10 @@ namespace Elixir
         virtual bool Validate(
             const MaterialNodeValidationContext& parameters,
             std::string& error
-        ) const = 0;
+        ) const
+        {
+            return true;
+        }
 
         /** @brief Emits the HLSL expression represented by this node. */
         virtual SMaterialExpression Emit(const MaterialEmitContext& context) const = 0;

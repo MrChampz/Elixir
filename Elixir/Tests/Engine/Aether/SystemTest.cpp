@@ -133,7 +133,7 @@ TEST(SystemTest, CompileSnapshotsParticleSpriteMaterialForRenderData)
     ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleSprite, true));
     ASSERT_TRUE(material->DefineParameter("Tint", {
         .Kind = EMaterialParameterKind::Value,
-        .ValueType = EMaterialGraphValueType::Float4,
+        .ValueType = EMaterialValueType::Float4,
         .DefaultValue = SMaterialParam::MakeVector({ 1.0f, 1.0f, 1.0f, 1.0f }),
     }));
 

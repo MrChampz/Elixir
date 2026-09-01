@@ -115,21 +115,11 @@ namespace Elixir
     };
 
     /**
-     * @brief Defines the HLSL value type carried by a material graph connection.
+     * @brief Defines the numeric value type used by a material.
      */
     enum class EMaterialValueType : uint8_t
     {
-        /** @brief One floating-point component. */
-        Float,
-
-        /** @brief Two floating-point components. */
-        Float2,
-
-        /** @brief Three floating-point components. */
-        Float3,
-
-        /** @brief Four floating-point components. */
-        Float4,
+        Float, Float2, Float3, Float4,
     };
 
     /**

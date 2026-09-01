@@ -107,5 +107,6 @@ namespace Elixir
         const std::vector<SMaterialExpression>& inputs,
         const SMaterialGraphBindings* bindings
     ) : m_Inputs(inputs),
-        m_Bindings(bindings) {}
+        m_Bindings(bindings) {
+    }
 }

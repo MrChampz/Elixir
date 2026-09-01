@@ -9,17 +9,20 @@
 namespace Elixir::Materials::Nodes
 {
     /**
-     * @brief Outputs elapsed time in seconds.
+     * @brief Outputs the input texture coordinates.
      */
-    class TimeNode : public MaterialNode
+    class TexCoord final : public MaterialNode
     {
     public:
-        std::string_view GetTypeName() const override { return "material.time"; }
+        std::string_view GetTypeName() const override { return "Material.TexCoord"; }
         const std::vector<SMaterialNodeInput>& GetInputs() const override { return m_Inputs; }
 
         SMaterialExpression Emit(const MaterialEmitContext& context) const override
         {
-            return { .Code = "Time", .ValueType = EMaterialValueType::Float };
+            return {
+                .Code = "input.TexCoord",
+                .ValueType = EMaterialValueType::Float2
+            };
         }
 
     private:

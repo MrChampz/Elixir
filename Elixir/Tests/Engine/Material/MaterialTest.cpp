@@ -1,25 +1,27 @@
 #include <gtest/gtest.h>
 
 #include <Engine/Material/MaterialInstance.h>
+#include <Engine/Material/Nodes/Parameter.h>
+#include <Engine/Material/Nodes/TextureSample.h>
 
 using namespace Elixir;
+using namespace Elixir::Materials::Nodes;
 
 TEST(MaterialTest, ValidateGraphParametersAgainstMaterialSchema)
 {
     MaterialGraph graph;
 
-    SMaterialNode tint;
-    tint.Type = EMaterialNodeType::Parameter;
-    tint.OutputType = EMaterialGraphValueType::Float4;
-    tint.ParameterName = "Tint";
-    graph.SetChannel(EMaterialChannel::BaseColor, graph.AddNode(tint));
+    graph.SetChannel(
+        EMaterialChannel::BaseColor,
+        graph.AddNode<Parameter>("Tint", EMaterialValueType::Float4)
+    );
 
     auto material = CreateRef<Material>("Tinted");
     material->SetGraph(std::move(graph));
 
     EXPECT_TRUE(material->DefineParameter("Tint", {
         .Kind = EMaterialParameterKind::Value,
-        .ValueType = EMaterialGraphValueType::Float4,
+        .ValueType = EMaterialValueType::Float4,
         .DefaultValue = SMaterialParam::MakeVector(glm::vec4{ 1.0f }),
     }));
     EXPECT_TRUE(material->ValidateGraph());
@@ -31,7 +33,7 @@ TEST(MaterialTest, RejectsOverridesThatDoNotMatchTheSchema)
 
     ASSERT_TRUE(material->DefineParameter("Tint", {
         .Kind = EMaterialParameterKind::Value,
-        .ValueType = EMaterialGraphValueType::Float4,
+        .ValueType = EMaterialValueType::Float4,
         .DefaultValue = SMaterialParam::MakeVector(glm::vec4{ 1.0f }),
     }));
 
@@ -47,11 +49,10 @@ TEST(MaterialTest, ValidatesTextureSampleAgainstTextureParameter)
 {
     MaterialGraph graph;
 
-    SMaterialNode sample;
-    sample.Type = EMaterialNodeType::TextureSample;
-    sample.TextureParameterName = "AlbedoTexture";
-    sample.ParameterName = "Tint";
-    graph.SetChannel(EMaterialChannel::BaseColor, graph.AddNode(sample));
+    graph.SetChannel(
+        EMaterialChannel::BaseColor,
+        graph.AddNode<TextureSample>("AlbedoTexture")
+    );
 
     auto material = CreateRef<Material>("Textured");
     material->SetGraph(std::move(graph));
