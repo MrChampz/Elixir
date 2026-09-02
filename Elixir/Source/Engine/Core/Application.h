@@ -12,18 +12,18 @@
 
 namespace Elixir
 {
-    namespace GUI
+    namespace GUI { class TextBlock; }
+    namespace Aether { class Manager; }
+    namespace Materials
     {
-        class TextBlock;
+        class MaterialSystem;
+        class MaterialRegistry;
     }
+}
 
-    namespace Aether
-    {
-        class Manager;
-    }
-
-    class MaterialSystem;
-    class MaterialRegistry;
+namespace Elixir
+{
+    using namespace Elixir::Materials;
 
     class ELIXIR_API Application
     {

@@ -2,10 +2,12 @@
 
 #include <Engine/Aether/Core/Particle.h>
 #include <Engine/Aether/Effect/MaterialDescription.h>
-#include <Engine/Material/Material.h>
+#include <Engine/Materials/Material.h>
 
 namespace Elixir::Aether::Effect
 {
+    using namespace Materials;
+
     /**
      * @brief Returns the material usage required by an Aether render mode.
      *

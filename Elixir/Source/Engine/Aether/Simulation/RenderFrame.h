@@ -1,13 +1,15 @@
 #pragma once
 
 #include <Engine/Graphics/Buffer.h>
-#include <Engine/Material/MaterialRenderProxy.h>
+#include <Engine/Materials/Rendering/MaterialRenderProxy.h>
 #include <Engine/Aether/Core/Particle.h>
 #include <Engine/Aether/Core/ParticleStateLayout.h>
 #include <Engine/Aether/Core/ResourceAllocation.h>
 
 namespace Elixir::Aether::Simulation
 {
+    using namespace Materials::Rendering;
+
     /**
      * @brief Retains the particle-state buffer for one simulation layout.
      *

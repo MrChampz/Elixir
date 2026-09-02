@@ -3,7 +3,7 @@
 
 #include <Engine/Aether/System.h>
 #include <Engine/Aether/Effect/MaterialFactory.h>
-#include <Engine/Material/MaterialRegistry.h>
+#include <Engine/Materials/MaterialRegistry.h>
 
 namespace Elixir::Aether::Effect
 {

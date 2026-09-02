@@ -10,9 +10,17 @@ namespace Elixir
     class ShaderLoader;
     class Timestep;
 
-    class MaterialRegistry;
-    class MaterialResolver;
-    class MaterialSystem;
+    namespace Materials
+    {
+        class MaterialSystem;
+        class MaterialRegistry;
+
+        namespace Rendering
+        {
+            class Resolver;
+            class RenderContext;
+        }
+    }
 
     namespace Aether
     {
@@ -37,6 +45,7 @@ namespace Elixir::Aether
     using namespace Runtime;
     using namespace Simulation;
     using namespace Rendering;
+    using namespace Materials;
 
     /**
      * @brief Coordinates Aether effects, runtime instances, simulation, and rendering.

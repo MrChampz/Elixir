@@ -1,8 +1,8 @@
 #include "epch.h"
 #include "InstanceRegistry.h"
 
-#include <Engine/Material/MaterialRegistry.h>
-#include <Engine/Material/MaterialResolver.h>
+#include <Engine/Materials/MaterialRegistry.h>
+#include <Engine/Materials/Rendering/MaterialResolver.h>
 
 namespace Elixir::Aether::Runtime
 {

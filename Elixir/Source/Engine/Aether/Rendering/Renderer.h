@@ -3,16 +3,18 @@
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/Buffer.h>
 #include <Engine/Graphics/CommandBuffer.h>
-#include <Engine/Material/MaterialRenderScene.h>
+#include <Engine/Materials/Rendering/MaterialRenderScene.h>
 #include <Engine/Aether/Core/ParticleStateLayout.h>
 #include <Engine/Aether/Simulation/RenderFrame.h>
 
-namespace Elixir { class MaterialSystem; }
+namespace Elixir::Materials { class MaterialSystem; }
 
 namespace Elixir::Aether::Rendering
 {
     using namespace Core;
     using namespace Simulation;
+    using namespace Materials;
+    using namespace Materials::Rendering;
 
     struct alignas(16) SFrameData
     {
@@ -61,10 +63,7 @@ namespace Elixir::Aether::Rendering
          * @pre context is not null and outlives the renderer.
          * @pre materialSystem outlives the renderer.
          */
-        Renderer(
-            const GraphicsContext* context,
-            MaterialSystem& materialSystem
-        );
+        Renderer(const GraphicsContext* context, MaterialSystem& materialSystem);
 
         /**
          * @brief Records the draw commands for a simulated particle frame.

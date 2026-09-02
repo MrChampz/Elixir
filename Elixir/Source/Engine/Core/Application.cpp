@@ -13,8 +13,8 @@
 #include <Engine/Input/InputCodes.h>
 #include <Engine/Font/FontManager.h>
 #include <Engine/Graphics/TextureLoader.h>
-#include <Engine/Material/MaterialSystem.h>
-#include <Engine/Material/MaterialRegistry.h>
+#include <Engine/Materials/MaterialSystem.h>
+#include <Engine/Materials/MaterialRegistry.h>
 #include <Engine/Aether/Manager.h>
 
 namespace Elixir

@@ -1,10 +1,12 @@
 #pragma once
 
-namespace Elixir { class MaterialRegistry; }
+namespace Elixir::Materials { class MaterialRegistry; }
 namespace Elixir::Aether { class System; }
 
 namespace Elixir::Aether::Effect
 {
+    using namespace Elixir::Materials;
+
     /**
      * @brief Resolves effect-authored material data into emitter material instances.
      *

@@ -8,7 +8,7 @@
 
 namespace Elixir
 {
-    class MaterialResolver;
+    namespace Materials::Rendering { class Resolver; }
     namespace Aether::Runtime { class InstanceRegistry; }
 }
 

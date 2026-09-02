@@ -3,13 +3,13 @@
 
 #include <Engine/Graphics/TextureLoader.h>
 
-#include <Engine/Material/Nodes/Add.h>
-#include <Engine/Material/Nodes/Subtract.h>
-#include <Engine/Material/Nodes/Multiply.h>
-#include <Engine/Material/Nodes/Divide.h>
-#include <Engine/Material/Nodes/Constant.h>
-#include <Engine/Material/Nodes/ComponentMask.h>
-#include <Engine/Material/Nodes/TextureSample.h>
+#include <Engine/Materials/Nodes/Add.h>
+#include <Engine/Materials/Nodes/Subtract.h>
+#include <Engine/Materials/Nodes/Multiply.h>
+#include <Engine/Materials/Nodes/Divide.h>
+#include <Engine/Materials/Nodes/Constant.h>
+#include <Engine/Materials/Nodes/ComponentMask.h>
+#include <Engine/Materials/Nodes/TextureSample.h>
 
 namespace Elixir::Aether::Effect
 {

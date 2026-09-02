@@ -1,8 +1,8 @@
 #pragma once
 
 #include <Engine/Core/UUID.h>
-#include <Engine/Material/MaterialInstance.h>
-#include <Engine/Material/MaterialResolver.h>
+#include <Engine/Materials/MaterialInstance.h>
+#include <Engine/Materials/Rendering/MaterialResolver.h>
 #include <Engine/Aether/Modules/Modules.h>
 #include <Engine/Aether/Core/ParameterStore.h>
 #include <Engine/Aether/Core/CurveStore.h>
@@ -14,6 +14,9 @@ namespace Elixir::Aether
 {
     using namespace Core;
     using namespace Modules;
+    using namespace Materials;
+    using namespace Materials::Rendering;
+
     /**
      * @brief Stores immutable GPU-ready data for one compiled emitter.
      *

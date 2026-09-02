@@ -1,11 +1,12 @@
 #include "epch.h"
 #include "Renderer.h"
 
-#include <Engine/Material/MaterialSystem.h>
+#include <Engine/Materials/MaterialSystem.h>
 
 namespace Elixir::Aether::Rendering
 {
     using namespace Core;
+    using namespace Materials::Rendering;
 
     namespace
     {
@@ -282,18 +283,18 @@ namespace Elixir::Aether::Rendering
                 return std::nullopt;
 
             const std::array constantBuffers{
-                SMaterialConstantBufferBinding{
+                SConstantBufferBinding{
                     .Name = "cbFrame",
                     .Buffer = m_FrameConstantBuffer,
                 },
             };
 
             const std::array ribbonStorageBuffers{
-                SMaterialStorageBufferBinding{
+                SStorageBufferBinding{
                     .Name = "particles",
                     .Buffer = MaterialStorageBuffer{ resource->ParticleStateBuffer },
                 },
-                SMaterialStorageBufferBinding{
+                SStorageBufferBinding{
                     .Name = "emitters",
                     .Buffer = MaterialStorageBuffer{ frame.GetEmitterBuffer() },
                 },

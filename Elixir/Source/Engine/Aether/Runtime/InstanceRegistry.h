@@ -4,10 +4,10 @@
 #include <Engine/Aether/Effect/MaterialResolver.h>
 #include <Engine/Aether/Rendering/FrameSubmission.h>
 
-namespace Elixir
+namespace Elixir::Materials
 {
     class MaterialRegistry;
-    class MaterialResolver;
+    namespace Rendering { class MaterialResolver; }
 }
 
 namespace Elixir::Aether::Runtime

@@ -1,18 +1,18 @@
 #include "Dissolve.h"
 
-#include "Engine/Material/Nodes/Parameter.h"
+#include "Engine/Materials/Nodes/Parameter.h"
 
 #include <Engine/Core/Entrypoint.h>
 #include <Engine/Graphics/SamplerBuilder.h>
 #include <Engine/Aether/Manager.h>
 
-#include <Engine/Material/MaterialGraph.h>
-#include <Engine/Material/MaterialInstance.h>
-#include <Engine/Material/MaterialSystem.h>
-#include <Engine/Material/MaterialRegistry.h>
-#include <Engine/Material/Nodes/Multiply.h>
-#include <Engine/Material/Nodes/TextureSample.h>
-#include <Engine/Material/Nodes/Panner.h>
+#include <Engine/Materials/MaterialGraph.h>
+#include <Engine/Materials/MaterialInstance.h>
+#include <Engine/Materials/MaterialSystem.h>
+#include <Engine/Materials/MaterialRegistry.h>
+#include <Engine/Materials/Nodes/Multiply.h>
+#include <Engine/Materials/Nodes/TextureSample.h>
+#include <Engine/Materials/Nodes/Panner.h>
 
 using namespace Elixir::Materials::Nodes;
 
