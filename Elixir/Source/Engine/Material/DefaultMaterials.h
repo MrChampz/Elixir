@@ -22,5 +22,5 @@ namespace Elixir
      * @brief Creates the engine's built-in default materials.
      * @return Default materials indexed by their material usage.
      */
-    DefaultMaterialArray CreateDefaultMaterials();
+    ELIXIR_API DefaultMaterialArray CreateDefaultMaterials();
 }

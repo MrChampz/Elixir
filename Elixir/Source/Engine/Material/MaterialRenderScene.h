@@ -10,7 +10,7 @@ namespace Elixir
      * The structure keeps the raw constant data and can replace the material index
      * before the draw is recorded.
      */
-    struct SMaterialPushConstants
+    struct ELIXIR_API SMaterialPushConstants
     {
         /** Maximum number of bytes available for push constants. */
         static constexpr uint32_t CAPACITY = 128;
