@@ -63,7 +63,7 @@ namespace Elixir
     /**
      * @brief Gives a node access to resolved inputs and material parameter bindings.
      */
-    class MaterialEmitContext
+    class ELIXIR_API MaterialEmitContext
     {
         friend class MaterialGraph;
 
