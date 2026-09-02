@@ -72,7 +72,7 @@ namespace Elixir
          * @param name Parameter name.
          * @return Resolved parameter, or null if it is unavailable.
          */
-        const SMaterialParam* GetResolvedParameter(const std::string& name) const;
+        const SMaterialParameter* GetResolvedParameter(const std::string& name) const;
 
         /** @brief Returns the parent material. */
         const Ref<Material>& GetParent() const { return m_Parent; }
@@ -82,13 +82,13 @@ namespace Elixir
 
     private:
         // Stores a compatible parameter override.
-        bool SetOverride(const std::string& name, const SMaterialParam& value);
+        bool SetOverride(const std::string& name, const SMaterialParameter& value);
 
         // Finds an override or the parent material's default value.
-        const SMaterialParam* Resolve(const std::string& name) const;
+        const SMaterialParameter* Resolve(const std::string& name) const;
 
         Ref<Material> m_Parent;
-        std::unordered_map<std::string, SMaterialParam> m_Overrides;
+        std::unordered_map<std::string, SMaterialParameter> m_Overrides;
         uint32_t m_Revision = 1;
     };
 }

@@ -22,7 +22,7 @@ TEST(MaterialTest, ValidateGraphParametersAgainstMaterialSchema)
     EXPECT_TRUE(material->DefineParameter("Tint", {
         .Kind = EMaterialParameterKind::Value,
         .ValueType = EMaterialValueType::Float4,
-        .DefaultValue = SMaterialParam::MakeVector(glm::vec4{ 1.0f }),
+        .DefaultValue = SMaterialParameter::MakeVector(glm::vec4{ 1.0f }),
     }));
     EXPECT_TRUE(material->ValidateGraph());
 }
@@ -34,7 +34,7 @@ TEST(MaterialTest, RejectsOverridesThatDoNotMatchTheSchema)
     ASSERT_TRUE(material->DefineParameter("Tint", {
         .Kind = EMaterialParameterKind::Value,
         .ValueType = EMaterialValueType::Float4,
-        .DefaultValue = SMaterialParam::MakeVector(glm::vec4{ 1.0f }),
+        .DefaultValue = SMaterialParameter::MakeVector(glm::vec4{ 1.0f }),
     }));
 
     MaterialInstance instance(material);
@@ -59,7 +59,7 @@ TEST(MaterialTest, ValidatesTextureSampleAgainstTextureParameter)
 
     EXPECT_TRUE(material->DefineParameter("AlbedoTexture", {
         .Kind = EMaterialParameterKind::Texture,
-        .DefaultValue = SMaterialParam::MakeTexture(nullptr),
+        .DefaultValue = SMaterialParameter::MakeTexture(nullptr),
     }));
     EXPECT_TRUE(material->ValidateGraph());
 }

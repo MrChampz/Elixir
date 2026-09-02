@@ -36,7 +36,7 @@ namespace Elixir
         return (m_UsageMask & GetMaterialUsageMask(usage)) != 0;
     }
 
-    bool Material::SetDefaultParam(const std::string& name, const SMaterialParam& value)
+    bool Material::SetDefaultParameter(const std::string& name, const SMaterialParameter& value)
     {
         const auto it  = m_Parameters.find(name);
         if (it == m_Parameters.end() || !IsValueCompatible(it->second, value))
@@ -47,7 +47,7 @@ namespace Elixir
         return true;
     }
 
-    const SMaterialParam* Material::GetDefaultParam(const std::string& name) const
+    const SMaterialParameter* Material::GetDefaultParameter(const std::string& name) const
     {
         const auto* parameter = FindParameter(name);
         return parameter ? &parameter->DefaultValue : nullptr;
@@ -75,7 +75,7 @@ namespace Elixir
 
     bool Material::IsParameterValueCompatible(
         const std::string& name,
-        const SMaterialParam& value
+        const SMaterialParameter& value
     ) const
     {
         const auto* parameter = FindParameter(name);
@@ -114,7 +114,7 @@ namespace Elixir
 
     bool Material::IsValueCompatible(
         const SMaterialParameterDefinition& definition,
-        const SMaterialParam& value
+        const SMaterialParameter& value
     )
     {
         if (definition.Kind == EMaterialParameterKind::Texture)

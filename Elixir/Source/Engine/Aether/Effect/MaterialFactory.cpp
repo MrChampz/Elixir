@@ -65,7 +65,7 @@ namespace Elixir::Aether::Effect
             const auto tex = TextureLoader::Load(desc.BaseColorTexturePath);
             material->DefineParameter(texParam, {
                 .Kind = EMaterialParameterKind::Texture,
-                .DefaultValue = SMaterialParam::MakeTexture(tex),
+                .DefaultValue = SMaterialParameter::MakeTexture(tex),
             });
 
             const auto texture = graph.AddNode<TextureSample>(texParam);

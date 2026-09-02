@@ -1,5 +1,8 @@
 #pragma once
 
+#include <vector>
+#include <string_view>
+
 namespace Elixir
 {
     struct SMaterialGraphBindings;

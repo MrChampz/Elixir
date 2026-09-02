@@ -5,7 +5,7 @@ namespace Elixir
 {
     bool MaterialInstance::SetScalar(const std::string& name, const float value)
     {
-        return SetOverride(name, SMaterialParam::MakeScalar(value));
+        return SetOverride(name, SMaterialParameter::MakeScalar(value));
     }
 
     float MaterialInstance::GetScalar(const std::string& name) const
@@ -16,7 +16,7 @@ namespace Elixir
 
     bool MaterialInstance::SetVector(const std::string& name, const glm::vec4& value)
     {
-        return SetOverride(name, SMaterialParam::MakeVector(value));
+        return SetOverride(name, SMaterialParameter::MakeVector(value));
     }
 
     glm::vec4 MaterialInstance::GetVector(const std::string& name) const
@@ -27,7 +27,7 @@ namespace Elixir
 
     bool MaterialInstance::SetTexture(const std::string& name, const Ref<Texture>& texture)
     {
-        return SetOverride(name, SMaterialParam::MakeTexture(texture));
+        return SetOverride(name, SMaterialParameter::MakeTexture(texture));
     }
 
     Ref<Texture> MaterialInstance::GetTexture(const std::string& name) const
@@ -36,12 +36,17 @@ namespace Elixir
         return param ? param->Texture : nullptr;
     }
 
-    const SMaterialParam* MaterialInstance::GetResolvedParameter(const std::string& name) const
+    const SMaterialParameter* MaterialInstance::GetResolvedParameter(
+        const std::string& name
+    ) const
     {
         return Resolve(name);
     }
 
-    bool MaterialInstance::SetOverride(const std::string& name, const SMaterialParam& value)
+    bool MaterialInstance::SetOverride(
+        const std::string& name,
+        const SMaterialParameter& value
+    )
     {
         if (!m_Parent || !m_Parent->IsParameterValueCompatible(name, value))
             return false;
@@ -52,11 +57,11 @@ namespace Elixir
         return true;
     }
 
-    const SMaterialParam* MaterialInstance::Resolve(const std::string& name) const
+    const SMaterialParameter* MaterialInstance::Resolve(const std::string& name) const
     {
         const auto it = m_Overrides.find(name);
         if (it != m_Overrides.end())
             return &it->second;
-        return m_Parent ? m_Parent->GetDefaultParam(name) : nullptr;
+        return m_Parent ? m_Parent->GetDefaultParameter(name) : nullptr;
     }
 }

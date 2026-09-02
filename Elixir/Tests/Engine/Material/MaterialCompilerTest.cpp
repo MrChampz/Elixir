@@ -13,11 +13,11 @@ TEST(MaterialCompilerTest, AssignsStableSlotsByParameterKindAndName)
     ASSERT_TRUE(material->DefineParameter("Tint", {
         .Kind = EMaterialParameterKind::Value,
         .ValueType = EMaterialValueType::Float4,
-        .DefaultValue = SMaterialParam::MakeVector(glm::vec4(1.0f)),
+        .DefaultValue = SMaterialParameter::MakeVector(glm::vec4(1.0f)),
     }));
     ASSERT_TRUE(material->DefineParameter("Albedo", {
         .Kind = EMaterialParameterKind::Texture,
-        .DefaultValue = SMaterialParam::MakeTexture(nullptr),
+        .DefaultValue = SMaterialParameter::MakeTexture(nullptr),
     }));
 
     const auto result = MaterialCompiler::Build(*material);

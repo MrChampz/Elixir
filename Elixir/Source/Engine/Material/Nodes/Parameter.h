@@ -1,10 +1,7 @@
 #pragma once
 
-#include <vector>
-#include <string_view>
-
 #include <Engine/Material/Material.h>
-#include <Engine/Material/MaterialGraph.h>
+#include <Engine/Material/MaterialNode.h>
 
 namespace Elixir::Materials::Nodes
 {

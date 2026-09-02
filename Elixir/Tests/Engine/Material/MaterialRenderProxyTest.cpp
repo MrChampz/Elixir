@@ -10,7 +10,7 @@ TEST(MaterialRenderProxyTest, ResolvesOverridesIntoAnImmutableSnapshot)
     ASSERT_TRUE(material->DefineParameter("Tint", {
         .Kind = EMaterialParameterKind::Value,
         .ValueType = EMaterialValueType::Float4,
-        .DefaultValue = SMaterialParam::MakeVector(glm::vec4(1.0f)),
+        .DefaultValue = SMaterialParameter::MakeVector(glm::vec4(1.0f)),
     }));
 
     const auto compiled = MaterialCompiler::Build(*material).Material;
@@ -32,14 +32,14 @@ TEST(MaterialRenderProxyTest, RejectsACompiledMaterialForAnOldSchema)
     ASSERT_TRUE(material->DefineParameter("Tint", {
         .Kind = EMaterialParameterKind::Value,
         .ValueType = EMaterialValueType::Float4,
-        .DefaultValue = SMaterialParam::MakeVector(glm::vec4(1.0f)),
+        .DefaultValue = SMaterialParameter::MakeVector(glm::vec4(1.0f)),
     }));
 
     const auto compiled = MaterialCompiler::Build(*material).Material;
     ASSERT_TRUE(compiled);
-    ASSERT_TRUE(material->SetDefaultParam(
+    ASSERT_TRUE(material->SetDefaultParameter(
         "Tint",
-        SMaterialParam::MakeVector(glm::vec4(0.5f))
+        SMaterialParameter::MakeVector(glm::vec4(0.5f))
     ));
 
     MaterialInstance instance(material);

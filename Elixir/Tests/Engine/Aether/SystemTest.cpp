@@ -134,7 +134,7 @@ TEST(SystemTest, CompileSnapshotsParticleSpriteMaterialForRenderData)
     ASSERT_TRUE(material->DefineParameter("Tint", {
         .Kind = EMaterialParameterKind::Value,
         .ValueType = EMaterialValueType::Float4,
-        .DefaultValue = SMaterialParam::MakeVector({ 1.0f, 1.0f, 1.0f, 1.0f }),
+        .DefaultValue = SMaterialParameter::MakeVector({ 1.0f, 1.0f, 1.0f, 1.0f }),
     }));
 
     const auto instance = material->CreateInstance();

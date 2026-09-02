@@ -45,7 +45,7 @@ TEST(MaterialFrameTableTest, DeduplicatesAProxyAndPreserveItsValues)
     ASSERT_TRUE(material->DefineParameter("Tint", {
         .Kind = EMaterialParameterKind::Value,
         .ValueType = EMaterialValueType::Float4,
-        .DefaultValue = SMaterialParam::MakeVector({ 1.0f, 1.0f, 1.0f, 1.0f }),
+        .DefaultValue = SMaterialParameter::MakeVector({ 1.0f, 1.0f, 1.0f, 1.0f }),
     }));
 
     auto instance = CreateRef<MaterialInstance>(material);
@@ -102,7 +102,7 @@ TEST(MaterialFrameTableTest, ResolvesAuthoredTextureSlots)
     auto material = CreateRef<Material>("Particle material");
     ASSERT_TRUE(material->DefineParameter("Albedo", {
         .Kind = EMaterialParameterKind::Texture,
-        .DefaultValue = SMaterialParam::MakeTexture(texture),
+        .DefaultValue = SMaterialParameter::MakeTexture(texture),
     }));
 
     auto instance = CreateRef<MaterialInstance>(material);
