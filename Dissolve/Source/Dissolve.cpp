@@ -1,5 +1,7 @@
 #include "Dissolve.h"
 
+#include "Engine/Material/Nodes/Parameter.h"
+
 #include <Engine/Core/Entrypoint.h>
 #include <Engine/Graphics/SamplerBuilder.h>
 #include <Engine/Aether/Manager.h>
@@ -8,6 +10,11 @@
 #include <Engine/Material/MaterialInstance.h>
 #include <Engine/Material/MaterialSystem.h>
 #include <Engine/Material/MaterialRegistry.h>
+#include <Engine/Material/Nodes/Multiply.h>
+#include <Engine/Material/Nodes/TextureSample.h>
+#include <Engine/Material/Nodes/Panner.h>
+
+using namespace Elixir::Materials::Nodes;
 
 Ref<GraphicsPipeline> pipeline;
 std::array<Ref<Aether::System>, 2> m_ParticleSystems;
@@ -83,34 +90,23 @@ Dissolve::Dissolve()
 
         EE_CORE_ASSERT(graphMaterial->DefineParameter("Tint", {
             .Kind = EMaterialParameterKind::Value,
-            .ValueType = EMaterialGraphValueType::Float4,
-            .DefaultValue = SMaterialParam::MakeVector({ 1.0f, 0.5f, 0.2f, 1.0f }),
+            .ValueType = EMaterialValueType::Float4,
+            .DefaultValue = SMaterialParameter::MakeVector({ 1.0f, 0.5f, 0.2f, 1.0f }),
         }), "")
 
         EE_CORE_ASSERT(graphMaterial->DefineParameter("Albedo", {
             .Kind = EMaterialParameterKind::Texture,
-            .DefaultValue = SMaterialParam::MakeTexture(tex),
+            .DefaultValue = SMaterialParameter::MakeTexture(tex),
         }), "")
 
-        SMaterialNode albedo;
-        albedo.Type = EMaterialNodeType::TextureSample;
-        albedo.TextureParameterName = "Albedo";
-        const auto albedoNode = graph.AddNode(albedo);
+        const auto albedo = graph.AddNode<TextureSample>("Albedo");
+        const auto tint = graph.AddNode<Parameter>("Tint", EMaterialValueType::Float4);
 
-        SMaterialNode tint;
-        tint.Type = EMaterialNodeType::Parameter;
-        tint.OutputType = EMaterialGraphValueType::Float4;
-        tint.ParameterName = "Tint";
-        const auto tintNode = graph.AddNode(tint);
+        const auto baseColor = graph.AddNode<Multiply>();
+        graph.Connect(albedo, baseColor, 0);
+        graph.Connect(tint, baseColor, 0);
 
-        SMaterialNode baseColor;
-        baseColor.Type = EMaterialNodeType::Multiply;
-        baseColor.OutputType = EMaterialGraphValueType::Float4;
-        baseColor.Inputs = {
-            (int32_t)albedoNode,
-            (int32_t)tintNode,
-        };
-        graph.SetChannel(EMaterialChannel::BaseColor, graph.AddNode(baseColor));
+        graph.SetChannel(EMaterialChannel::BaseColor, baseColor);
 
         graphMaterial->SetGraph(std::move(graph));
         EE_CORE_ASSERT(GetMaterialRegistry().Register(graphMaterial), "GraphMaterial must be unique.")
@@ -147,54 +143,38 @@ Dissolve::Dissolve()
 
         EE_CORE_ASSERT(ribbonMaterial->DefineParameter("Tint", {
             .Kind = EMaterialParameterKind::Value,
-            .ValueType = EMaterialGraphValueType::Float4,
-            .DefaultValue = SMaterialParam::MakeVector({ 0.2f, 0.5f, 1.0f, 1.0f }),
+            .ValueType = EMaterialValueType::Float4,
+            .DefaultValue = SMaterialParameter::MakeVector({ 0.2f, 0.5f, 1.0f, 1.0f }),
         }), "")
 
         EE_CORE_ASSERT(ribbonMaterial->DefineParameter("Glow", {
             .Kind = EMaterialParameterKind::Value,
-            .ValueType = EMaterialGraphValueType::Float4,
-            .DefaultValue = SMaterialParam::MakeVector({ 0.05f, 0.2f, 1.0f, 1.0f }),
+            .ValueType = EMaterialValueType::Float4,
+            .DefaultValue = SMaterialParameter::MakeVector({ 0.05f, 0.2f, 1.0f, 1.0f }),
         }), "")
 
         EE_CORE_ASSERT(ribbonMaterial->DefineParameter("Albedo", {
             .Kind = EMaterialParameterKind::Texture,
-            .DefaultValue = SMaterialParam::MakeTexture(tex),
+            .DefaultValue = SMaterialParameter::MakeTexture(tex),
         }), "")
 
-        SMaterialNode panner;
-        panner.Type = EMaterialNodeType::Panner;
-        panner.OutputType = EMaterialGraphValueType::Float2;
-        panner.ConstantValue = { 0.08f, -0.35f, 0.0f, 0.0f };
-        const auto pannerNode = graph1.AddNode(panner);
+        const auto panner = graph1.AddNode<Panner>(glm::vec2{ 0.08f, -0.35f });
 
-        SMaterialNode albedo1;
-        albedo1.Type = EMaterialNodeType::TextureSample;
-        albedo1.OutputType = EMaterialGraphValueType::Float3;
-        albedo1.TextureParameterName = "Albedo";
-        albedo1.Inputs = { static_cast<int32_t>(pannerNode) };
-        const auto albedoNode1 = graph1.AddNode(albedo1);
+        const auto albedo1 = graph1.AddNode<TextureSample>("Albedo");
+        graph1.Connect(panner, albedo1, 0);
 
-        SMaterialNode tint1;
-        tint1.Type = EMaterialNodeType::Parameter;
-        tint1.OutputType = EMaterialGraphValueType::Float4;
-        tint1.ParameterName = "Tint";
-        const auto tintNode1 = graph1.AddNode(tint1);
+        const auto tint1 = graph1.AddNode<Parameter>(
+            "Tint",
+            EMaterialValueType::Float4
+        );
 
-        SMaterialNode color;
-        color.Type = EMaterialNodeType::Multiply;
-        color.OutputType = EMaterialGraphValueType::Float4;
-        color.Inputs = {
-            static_cast<int32_t>(albedoNode1),
-            static_cast<int32_t>(tintNode1),
-        };
-        graph1.SetChannel(EMaterialChannel::BaseColor, albedoNode1);
+        const auto multiply = graph1.AddNode<Multiply>();
+        graph1.Connect(albedo1, multiply, 0);
+        graph1.Connect(tint1, multiply, 1);
+        graph1.SetChannel(EMaterialChannel::BaseColor, albedo1);
 
-        SMaterialNode glow;
-        glow.Type = EMaterialNodeType::Parameter;
-        glow.OutputType = EMaterialGraphValueType::Float4;
-        glow.ParameterName = "Glow";
-        //graph1.SetChannel(EMaterialChannel::Emissive, graph1.AddNode(glow));
+        // const auto glow = graph1.AddNode<Parameter>("Glow", EMaterialValueType::Float4);
+        //graph1.SetChannel(EMaterialChannel::Emissive, glow);
 
         ribbonMaterial->SetGraph(std::move(graph1));
         EE_CORE_ASSERT(GetMaterialRegistry().Register(ribbonMaterial), "RibbonEnergy must be unique.")
