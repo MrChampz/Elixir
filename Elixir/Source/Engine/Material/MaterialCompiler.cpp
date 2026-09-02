@@ -154,7 +154,7 @@ namespace Elixir
     {
         std::string out = hlsl;
 
-        constexpr std::string marker = "// __GRAPH_BODY__";
+        constexpr std::string_view marker = "// __GRAPH_BODY__";
         if (const auto pos = out.find(marker); pos != std::string::npos)
             out.replace(pos, marker.size(), graphBody);
 
