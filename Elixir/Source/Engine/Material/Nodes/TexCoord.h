@@ -12,7 +12,6 @@ namespace Elixir::Materials::Nodes
     {
     public:
         std::string_view GetTypeName() const override { return "Material.TexCoord"; }
-        const std::vector<SMaterialNodeInput>& GetInputs() const override { return m_Inputs; }
 
         SMaterialExpression Emit(const MaterialEmitContext& context) const override
         {
@@ -21,8 +20,5 @@ namespace Elixir::Materials::Nodes
                 .ValueType = EMaterialValueType::Float2
             };
         }
-
-    private:
-        std::vector<SMaterialNodeInput> m_Inputs;
     };
 }

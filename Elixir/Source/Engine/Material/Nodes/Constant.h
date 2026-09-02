@@ -21,7 +21,6 @@ namespace Elixir::Materials::Nodes
             m_ValueType(type) {}
 
         std::string_view GetTypeName() const override { return "Material.Constant"; }
-        const std::vector<SMaterialNodeInput>& GetInputs() const override { return m_Inputs; }
 
         SMaterialExpression Emit(const MaterialEmitContext& context) const override
         {
@@ -55,6 +54,5 @@ namespace Elixir::Materials::Nodes
     private:
         glm::vec4 m_Value;
         EMaterialValueType m_ValueType;
-        std::vector<SMaterialNodeInput> m_Inputs;
     };
 }

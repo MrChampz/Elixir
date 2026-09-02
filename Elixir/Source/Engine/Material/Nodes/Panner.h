@@ -12,16 +12,15 @@ namespace Elixir::Materials::Nodes
     {
     public:
         explicit Panner(const glm::vec2& speed)
-          : m_Speed(speed),
-            m_Inputs{{
+          : MaterialNode({{
                 "UV",
                 EMaterialValueType::Float2,
                 "input.TexCoord",
                 EMaterialValueType::Float2
-            }} {}
+            }}),
+            m_Speed(speed) {}
 
         std::string_view GetTypeName() const override { return "Material.Panner"; }
-        const std::vector<SMaterialNodeInput>& GetInputs() const override { return m_Inputs; }
 
         SMaterialExpression Emit(const MaterialEmitContext& context) const override
         {
@@ -36,6 +35,5 @@ namespace Elixir::Materials::Nodes
 
     private:
         glm::vec2 m_Speed;
-        std::vector<SMaterialNodeInput> m_Inputs;
     };
 }

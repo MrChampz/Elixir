@@ -110,9 +110,6 @@ namespace Elixir
         /** @brief Gets the stable identifier used by tools and serialization. */
         virtual std::string_view GetTypeName() const = 0;
 
-        /** @brief Gets the input slots defined by the node. */
-        virtual const std::vector<SMaterialNodeInput>& GetInputs() const = 0;
-
         /** @brief Validates node-specific references against material parameters. */
         virtual bool Validate(
             const MaterialNodeValidationContext& parameters,
@@ -124,5 +121,14 @@ namespace Elixir
 
         /** @brief Emits the HLSL expression represented by this node. */
         virtual SMaterialExpression Emit(const MaterialEmitContext& context) const = 0;
+
+        /** @brief Gets the input slots defined by the node. */
+        const std::vector<SMaterialNodeInput>& GetInputs() const { return m_Inputs; }
+
+    protected:
+        explicit MaterialNode(std::vector<SMaterialNodeInput> inputs = {})
+          : m_Inputs(std::move(inputs)) {}
+
+        std::vector<SMaterialNodeInput> m_Inputs;
     };
 }

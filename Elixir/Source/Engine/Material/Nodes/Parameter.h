@@ -21,7 +21,6 @@ namespace Elixir::Materials::Nodes
             m_ValueType(type) {}
 
         std::string_view GetTypeName() const override { return "Material.Parameter"; }
-        const std::vector<SMaterialNodeInput>& GetInputs() const override { return m_Inputs; }
 
         bool Validate(
             const MaterialNodeValidationContext& parameters,
@@ -44,6 +43,5 @@ namespace Elixir::Materials::Nodes
     private:
         std::string m_Name;
         EMaterialValueType m_ValueType;
-        std::vector<SMaterialNodeInput> m_Inputs;
     };
 }

@@ -16,16 +16,15 @@ namespace Elixir::Materials::Nodes
          * @param parameterName Texture parameter name.
          */
         explicit TextureSample(std::string parameterName)
-          : m_ParameterName(std::move(parameterName)),
-            m_Inputs{{
+          : MaterialNode({{
                 "UV",
                 EMaterialValueType::Float2,
                 "input.TexCoord",
                 EMaterialValueType::Float2
-            }} {}
+            }}),
+            m_ParameterName(std::move(parameterName)) {}
 
         std::string_view GetTypeName() const override { return "Material.TextureSample"; }
-        const std::vector<SMaterialNodeInput>& GetInputs() const override { return m_Inputs; }
 
         SMaterialExpression Emit(const MaterialEmitContext& context) const override
         {
@@ -43,6 +42,5 @@ namespace Elixir::Materials::Nodes
 
     private:
         std::string m_ParameterName;
-        std::vector<SMaterialNodeInput> m_Inputs;
     };
 }

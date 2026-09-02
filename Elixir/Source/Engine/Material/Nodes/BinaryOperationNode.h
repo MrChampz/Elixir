@@ -10,15 +10,12 @@ namespace Elixir::Materials::Nodes
      */
     class BinaryOperationNode : public MaterialNode
     {
-    public:
-        const std::vector<SMaterialNodeInput>& GetInputs() const override { return m_Inputs; }
-
     protected:
         BinaryOperationNode()
-          : m_Inputs{
-            { "A", EMaterialValueType::Float4, "0.0" },
-            { "B", EMaterialValueType::Float4, "0.0" }
-            } {}
+          : MaterialNode({
+                { "A", EMaterialValueType::Float4, "0.0" },
+                { "B", EMaterialValueType::Float4, "0.0" }
+            }) {}
 
         static EMaterialValueType GetOutputType(const MaterialEmitContext& context)
         {
@@ -27,8 +24,5 @@ namespace Elixir::Materials::Nodes
                 context.Input(1).ValueType
             );
         }
-
-    private:
-        std::vector<SMaterialNodeInput> m_Inputs;
     };
 }

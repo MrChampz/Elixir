@@ -16,16 +16,15 @@ namespace Elixir::Materials::Nodes
          * @param componentIndex Zero-based component index.
          */
         explicit ComponentMask(const uint32_t componentIndex)
-          : m_ComponentIndex(componentIndex),
-            m_Inputs{{
+          : MaterialNode({{
                 .Name = "Value",
                 .ValueType = EMaterialValueType::Float4,
                 .DefaultExpression = "float4(0.0, 0.0, 0.0, 0.0)",
                 .DefaultValueType = EMaterialValueType::Float4
-            }} {}
+            }}),
+            m_ComponentIndex(componentIndex) {}
 
         std::string_view GetTypeName() const override { return "Material.ComponentMask"; }
-        const std::vector<SMaterialNodeInput>& GetInputs() const override { return m_Inputs; }
 
         SMaterialExpression Emit(const MaterialEmitContext& context) const override
         {
@@ -39,6 +38,5 @@ namespace Elixir::Materials::Nodes
 
     private:
         uint32_t m_ComponentIndex;
-        std::vector<SMaterialNodeInput> m_Inputs;
     };
 }

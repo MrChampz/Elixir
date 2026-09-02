@@ -21,18 +21,17 @@ namespace Elixir::Materials::Nodes
             const glm::vec2& center,
             const float radius,
             const float exponent
-        ) : m_Center(center),
-            m_Radius(radius),
-            m_Exponent(exponent),
-            m_Inputs{{
+        ) : MaterialNode({{
                 "UV",
                 EMaterialValueType::Float2,
                 "input.TexCoord",
                 EMaterialValueType::Float2
-            }} {}
+            }}),
+            m_Center(center),
+            m_Radius(radius),
+            m_Exponent(exponent) {}
 
         std::string_view GetTypeName() const override { return "Material.RadialGradientExponential"; }
-        const std::vector<SMaterialNodeInput>& GetInputs() const override { return m_Inputs; }
 
         SMaterialExpression Emit(const MaterialEmitContext& context) const override
         {
@@ -51,6 +50,5 @@ namespace Elixir::Materials::Nodes
         glm::vec2 m_Center;
         float m_Radius;
         float m_Exponent;
-        std::vector<SMaterialNodeInput> m_Inputs;
     };
 }

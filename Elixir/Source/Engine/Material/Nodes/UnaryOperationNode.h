@@ -10,9 +10,6 @@ namespace Elixir::Materials::Nodes
      */
     class UnaryOperationNode : public MaterialNode
     {
-    public:
-        const std::vector<SMaterialNodeInput>& GetInputs() const override { return m_Inputs; }
-
     protected:
         UnaryOperationNode()
           : m_Inputs{{
@@ -20,8 +17,5 @@ namespace Elixir::Materials::Nodes
               EMaterialValueType::Float4,
               "0.0"
           }} {}
-
-    private:
-        std::vector<SMaterialNodeInput> m_Inputs;
     };
 }

@@ -11,14 +11,14 @@ namespace Elixir::Materials::Nodes
     class Lerp final : public MaterialNode
     {
     public:
-        Lerp() : m_Inputs{
-            { "A", EMaterialValueType::Float4, "0.0" },
-            { "B", EMaterialValueType::Float4, "0.0" },
-            { "T", EMaterialValueType::Float4, "0.0" }
-        } {}
+        Lerp()
+          : MaterialNode({
+                { "A", EMaterialValueType::Float4, "0.0" },
+                { "B", EMaterialValueType::Float4, "0.0" },
+                { "T", EMaterialValueType::Float4, "0.0" }
+            }) {}
 
         std::string_view GetTypeName() const override { return "Material.Lerp"; }
-        const std::vector<SMaterialNodeInput>& GetInputs() const override { return m_Inputs; }
 
         SMaterialExpression Emit(const MaterialEmitContext& context) const override
         {
@@ -34,8 +34,5 @@ namespace Elixir::Materials::Nodes
                 .ValueType = type
             };
         }
-
-    private:
-        std::vector<SMaterialNodeInput> m_Inputs;
     };
 }
