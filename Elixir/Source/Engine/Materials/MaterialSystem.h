@@ -23,25 +23,13 @@ namespace Elixir::Materials
     };
 
     /**
-     * @brief Stores material data prepared for one submitted frame.
-     */
-    struct SMaterialFrameSnapshot
-    {
-        /** @brief Maps resolved material proxies to their frame data. */
-        Ref<const FrameTable> Table;
-
-        /** @brief Number of materials stored in Table. */
-        uint32_t MaterialCount = 0;
-
-        /** @brief Serial that identifies the submission that owns this snapshot. */
-        uint64_t SubmissionSerial = 0;
-    };
-
-    /**
      * @brief Reports the work recorded by a material render pass.
      */
     struct SMaterialRenderResult
     {
+        /** @brief Number of materials prepared for the rendered submission. */
+        uint32_t MaterialCount = 0;
+
         /** @brief Number of material batches rendered. */
         uint32_t BatchCount = 0;
 
@@ -73,15 +61,11 @@ namespace Elixir::Materials
         );
 
         /**
-         * @brief Builds and uploads material data for a scene submission.
+         * @brief Prepares and uploads material data for a scene submission.
          * @param scene Scene that provides material render items.
          * @param submissionSerial Serial that identifies the submission.
-         * @return A snapshot that contains the resolved frame material data.
          */
-        SMaterialFrameSnapshot BuildFrameSnapshot(
-            const MaterialRenderScene& scene,
-            uint64_t submissionSerial
-        );
+        void PrepareFrame(const MaterialRenderScene& scene, uint64_t submissionSerial);
 
         /**
          * @brief Gets the shader program key required for a material pass.
@@ -105,13 +89,14 @@ namespace Elixir::Materials
          * @brief Records draw commands for the scene materials.
          * @param cmd Command buffer that receives the draw commands.
          * @param scene Scene that provides render items.
-         * @param snapshot Material data built for this scene submission.
+         * @param submissionSerial Serial passed to @ref PreparedFrame.
          * @return Counts of rendered batches and recorded draw commands.
+         * @pre @ref PrepareFrame was called for @p submissionSerial.
          */
         SMaterialRenderResult Render(
             const Ref<CommandBuffer>& cmd,
             const MaterialRenderScene& scene,
-            const SMaterialFrameSnapshot& snapshot
+            uint64_t submissionSerial
         ) const;
 
         /**
@@ -133,9 +118,18 @@ namespace Elixir::Materials
         const Ref<Sampler>& GetSampler() const { return m_Textures.GetSampler(); }
 
     private:
+        /** @brief Stores material data prepared for the current submission. */
+        struct SPreparedFrame
+        {
+            Ref<const FrameTable> Table;
+            uint32_t MaterialCount = 0;
+            uint64_t SubmissionSerial = 0;
+        };
+
         uint32_t m_MaterialCapacity = 0;
         Ref<DynamicStorageBuffer> m_FrameBuffer;
         TextureRegistry m_Textures;
         Scope<Renderer> m_Renderer;
+        SPreparedFrame m_PreparedFrame;
     };
 }

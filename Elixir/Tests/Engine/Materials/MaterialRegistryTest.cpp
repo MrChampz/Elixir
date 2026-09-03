@@ -1,8 +1,9 @@
 #include <gtest/gtest.h>
 
-#include <Engine/Material/MaterialRegistry.h>
+#include <Engine/Materials/MaterialRegistry.h>
 
 using namespace Elixir;
+using namespace Elixir::Materials;
 
 TEST(MaterialRegistryTest, RegistersAndFindsDefaultMaterials)
 {

@@ -71,17 +71,13 @@ namespace Elixir::Aether::Rendering
             return;
 
         const auto scene = BuildMaterialRenderScene(frame);
-        const auto snapshot = m_MaterialSystem.BuildFrameSnapshot(
-            scene,
-            frame.GetSubmissionSerial()
-        );
-
-        m_LastMetrics.SubmittedMaterialCount = snapshot.MaterialCount;
+        m_MaterialSystem.PrepareFrame(scene, frame.GetSubmissionSerial());
 
         BeginRendering(cmd);
-        const auto result = m_MaterialSystem.Render(cmd, scene, snapshot);
+        const auto result = m_MaterialSystem.Render(cmd, scene, frame.GetSubmissionSerial());
         EndRendering(cmd);
 
+        m_LastMetrics.SubmittedMaterialCount = result.MaterialCount;
         m_LastMetrics.RenderBatchCount = result.BatchCount;
         m_LastMetrics.SubmittedRenderItemCount = result.DrawCount;
     }

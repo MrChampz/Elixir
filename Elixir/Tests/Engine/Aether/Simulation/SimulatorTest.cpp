@@ -7,7 +7,7 @@
 #include <Engine/Aether/Rendering/FrameSubmission.h>
 #include <Engine/Aether/Simulation/Simulator.h>
 
-namespace Elixir { class MaterialSystem; }
+namespace Elixir::Materials { class MaterialSystem; }
 
 using namespace Elixir;
 using namespace Elixir::Aether::Core;
@@ -31,7 +31,7 @@ static_assert(std::is_constructible_v<
 static_assert(!std::is_constructible_v<
     Simulator,
     const GraphicsContext*,
-    MaterialSystem&
+    Materials::MaterialSystem&
 >);
 
 TEST(SimulatorTest, MetricsContainOnlySimulationResults)

@@ -1,15 +1,16 @@
 #include <gtest/gtest.h>
 
-#include <Engine/Material/MaterialGraph.h>
+#include <Engine/Materials/MaterialGraph.h>
 
-#include <Engine/Material/Nodes/Multiply.h>
-#include <Engine/Material/Nodes/ComponentMask.h>
-#include <Engine/Material/Nodes/Constant.h>
-#include <Engine/Material/Nodes/Parameter.h>
-#include <Engine/Material/Nodes/RadialGradientExponential.h>
-#include <Engine/Material/Nodes/TextureSample.h>
+#include <Engine/Materials/Nodes/Multiply.h>
+#include <Engine/Materials/Nodes/ComponentMask.h>
+#include <Engine/Materials/Nodes/Constant.h>
+#include <Engine/Materials/Nodes/Parameter.h>
+#include <Engine/Materials/Nodes/RadialGradientExponential.h>
+#include <Engine/Materials/Nodes/TextureSample.h>
 
 using namespace Elixir;
+using namespace Elixir::Materials;
 using namespace Elixir::Materials::Nodes;
 
 // BaseColor = Constant([1,0,0,1]) * Parameter(BaseColorFactor)

@@ -1,10 +1,14 @@
 #include <gtest/gtest.h>
 
 #include <Engine/Graphics/Texture.h>
-#include <Engine/Material/MaterialFrameTable.h>
-#include <Engine/Material/MaterialCompiler.h>
+#include <Engine/Materials/Compilation/Compiler.h>
+#include <Engine/Materials/MaterialInstance.h>
+#include <Engine/Materials/Rendering/FrameTable.h>
 
 using namespace Elixir;
+using namespace Elixir::Materials;
+using namespace Elixir::Materials::Compilation;
+using namespace Elixir::Materials::Rendering;
 
 namespace
 {
@@ -38,7 +42,7 @@ namespace
     };
 }
 
-TEST(MaterialFrameTableTest, DeduplicatesAProxyAndPreserveItsValues)
+TEST(FrameTableTest, DeduplicatesAProxyAndPreservesItsValues)
 {
     auto material = CreateRef<Material>("Particle material");
     ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleSprite, true));
@@ -51,13 +55,13 @@ TEST(MaterialFrameTableTest, DeduplicatesAProxyAndPreserveItsValues)
     auto instance = CreateRef<MaterialInstance>(material);
     ASSERT_TRUE(instance->SetVector("Tint", { 0.25f, 0.5f, 0.75f, 1.0f }));
 
-    const auto compiled = MaterialCompiler::Build(*material);
+    const auto compiled = Compiler::Build(*material);
     ASSERT_TRUE(compiled);
 
     const auto proxy = MaterialRenderProxy::Create(compiled.Material, *instance);
     ASSERT_TRUE(proxy);
 
-    MaterialFrameTable table(
+    FrameTable table(
         1,
         17,
         [](const Ref<Texture>&) { return 23; }
@@ -77,9 +81,9 @@ TEST(MaterialFrameTableTest, DeduplicatesAProxyAndPreserveItsValues)
     EXPECT_EQ(data.TextureIndices.back(), 17);
 }
 
-TEST(MaterialFrameTableTest, RejectsAUniqueProxyPastCapacity)
+TEST(FrameTableTest, RejectsAUniqueProxyPastCapacity)
 {
-    MaterialFrameTable table(
+    FrameTable table(
         0,
         0,
         [](const Ref<Texture>&) { return 0; }
@@ -87,7 +91,7 @@ TEST(MaterialFrameTableTest, RejectsAUniqueProxyPastCapacity)
 
     auto material = CreateRef<Material>("Particle material");
     auto instance = CreateRef<MaterialInstance>(material);
-    const auto compiled = MaterialCompiler::Build(*material);
+    const auto compiled = Compiler::Build(*material);
     ASSERT_TRUE(compiled);
 
     const auto proxy = MaterialRenderProxy::Create(compiled.Material, *instance);
@@ -95,7 +99,7 @@ TEST(MaterialFrameTableTest, RejectsAUniqueProxyPastCapacity)
     EXPECT_FALSE(table.Add(*proxy));
 }
 
-TEST(MaterialFrameTableTest, ResolvesAuthoredTextureSlots)
+TEST(FrameTableTest, ResolvesAuthoredTextureSlots)
 {
     const auto texture = CreateRef<TestTexture>();
 
@@ -106,14 +110,14 @@ TEST(MaterialFrameTableTest, ResolvesAuthoredTextureSlots)
     }));
 
     auto instance = CreateRef<MaterialInstance>(material);
-    const auto compiled = MaterialCompiler::Build(*material);
+    const auto compiled = Compiler::Build(*material);
     ASSERT_TRUE(compiled);
 
     const auto proxy = MaterialRenderProxy::Create(compiled.Material, *instance);
     ASSERT_TRUE(proxy);
 
     uint32_t resolveCount = 0;
-    MaterialFrameTable table(
+    FrameTable table(
         1,
         5,
         [&resolveCount, &texture](const Ref<Texture>& resolved)

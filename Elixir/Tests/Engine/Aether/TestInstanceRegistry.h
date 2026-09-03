@@ -1,12 +1,13 @@
 #pragma once
 
 #include <Engine/Aether/Runtime/InstanceRegistry.h>
-#include <Engine/Material/MaterialRegistry.h>
+#include <Engine/Materials/MaterialRegistry.h>
 
 #include "TestMaterialResolver.h"
 
 using namespace Elixir;
 using namespace Elixir::Aether;
+using namespace Elixir::Materials;
 
 class TestInstanceRegistry final
 {

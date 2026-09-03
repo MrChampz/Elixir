@@ -1,10 +1,12 @@
 #include <gtest/gtest.h>
 
-#include <Engine/Material/MaterialCompiler.h>
+#include <Engine/Materials/Compilation/Compiler.h>
 
 using namespace Elixir;
+using namespace Elixir::Materials;
+using namespace Elixir::Materials::Compilation;
 
-TEST(MaterialCompilerTest, AssignsStableSlotsByParameterKindAndName)
+TEST(CompilerTest, AssignsStableSlotsByParameterKindAndName)
 {
     MaterialGraph graph;
     const auto material = CreateRef<Material>("Test");
@@ -20,7 +22,7 @@ TEST(MaterialCompilerTest, AssignsStableSlotsByParameterKindAndName)
         .DefaultValue = SMaterialParameter::MakeTexture(nullptr),
     }));
 
-    const auto result = MaterialCompiler::Build(*material);
+    const auto result = Compiler::Build(*material);
 
     ASSERT_TRUE(result);
     ASSERT_EQ(result.Material->Parameters.size(), 2);
@@ -30,14 +32,14 @@ TEST(MaterialCompilerTest, AssignsStableSlotsByParameterKindAndName)
     EXPECT_EQ(result.Material->Parameters[1].Slot, 0);
 }
 
-TEST(MaterialCompilerTest, PreservesEnabledRendererUsages)
+TEST(CompilerTest, PreservesEnabledRendererUsages)
 {
     const auto material = CreateRef<Material>("Particle material");
     ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleSprite, true));
     ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleRibbon, true));
     ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleMesh, true));
 
-    const auto result = MaterialCompiler::Build(*material);
+    const auto result = Compiler::Build(*material);
 
     ASSERT_TRUE(result);
     EXPECT_TRUE(result.Material->SupportsUsage(EMaterialUsage::ParticleSprite));
@@ -45,7 +47,7 @@ TEST(MaterialCompilerTest, PreservesEnabledRendererUsages)
     EXPECT_TRUE(result.Material->SupportsUsage(EMaterialUsage::ParticleMesh));
 }
 
-TEST(MaterialCompilerTest, DoesNotAliasParticleUsageShadersToSurfaceShader)
+TEST(CompilerTest, DoesNotAliasParticleUsageShadersToSurfaceShader)
 {
     SCompiledMaterial material;
 

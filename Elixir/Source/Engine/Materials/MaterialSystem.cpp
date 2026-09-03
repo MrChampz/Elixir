@@ -53,7 +53,7 @@ namespace Elixir::Materials
             shaderLoader
         )) {}
 
-    SMaterialFrameSnapshot MaterialSystem::BuildFrameSnapshot(
+    void MaterialSystem::PrepareFrame(
         const MaterialRenderScene& scene,
         const uint64_t submissionSerial
     )
@@ -84,7 +84,11 @@ namespace Elixir::Materials
             );
         }
 
-        return { table, table->GetCount(), submissionSerial };
+        m_PreparedFrame = {
+            .Table = table,
+            .MaterialCount = table->GetCount(),
+            .SubmissionSerial = submissionSerial,
+        };
     }
 
     std::optional<SProgramKey> MaterialSystem::GetProgramKey(
@@ -105,11 +109,21 @@ namespace Elixir::Materials
     SMaterialRenderResult MaterialSystem::Render(
         const Ref<CommandBuffer>& cmd,
         const MaterialRenderScene& scene,
-        const SMaterialFrameSnapshot& snapshot
+        const uint64_t submissionSerial
     ) const
     {
-        if (!cmd || !snapshot.Table)
-            return {};
+        const auto isPrepared = m_PreparedFrame.Table &&
+            m_PreparedFrame.SubmissionSerial == submissionSerial;
+
+        EE_CORE_ASSERT(isPrepared, "Material rendering requires a prepared frame for the submission.")
+
+        SMaterialRenderResult result{
+            .MaterialCount = m_PreparedFrame.MaterialCount,
+        };
+
+        if (!cmd || !isPrepared) return result;
+
+        const auto& table = m_PreparedFrame.Table;
 
         // Batching
 
@@ -131,8 +145,8 @@ namespace Elixir::Materials
             EE_CORE_ASSERT(program, "Material render item does not support its requested pass.")
             if (!program) continue;
 
-            const auto materialIndex = snapshot.Table->Find(*item.Material);
-            EE_CORE_ASSERT(materialIndex, "Material frame snapshot is missing a render item material.")
+            const auto materialIndex = table->Find(*item.Material);
+            EE_CORE_ASSERT(materialIndex, "Prepared material frame is missing a render item material.")
             if (!materialIndex) continue;
 
             const SMaterialBatchKey key{
@@ -174,8 +188,6 @@ namespace Elixir::Materials
                 right.Key.Program.Identity
             );
         });
-
-        SMaterialRenderResult result{};
 
         for (const auto& batch : batches)
         {

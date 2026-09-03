@@ -1,18 +1,22 @@
 #include <gtest/gtest.h>
 
 #include <Engine/Aether/System.h>
-#include <Engine/Material/MaterialInstance.h>
-#include <Engine/Material/MaterialCompiler.h>
-#include <Engine/Material/MaterialRenderProxy.h>
+#include <Engine/Materials/Compilation/Compiler.h>
+#include <Engine/Materials/MaterialInstance.h>
+#include <Engine/Materials/Rendering/MaterialRenderProxy.h>
 
 #include "TestInstanceRegistry.h"
 
 using namespace Elixir;
 using namespace Elixir::Aether;
 using namespace Elixir::Aether::Core;
+using namespace Elixir::Materials;
 
 template <typename T>
-concept HasPublicCompile = requires(const T& system, MaterialResolver& resolver)
+concept HasPublicCompile = requires(
+    const T& system,
+    Materials::Rendering::MaterialResolver& resolver
+)
 {
     system.Compile(resolver);
 };
@@ -30,7 +34,7 @@ namespace
         if (!instance || !runtime.Registry.Register(instance))
             return {};
 
-        Rendering::FrameSubmission submission;
+        Elixir::Aether::Rendering::FrameSubmission submission;
         EXPECT_TRUE(submission.Submit(*instance));
 
         if (submission.IsEmpty())

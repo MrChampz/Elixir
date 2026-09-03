@@ -1,12 +1,14 @@
 #include <gtest/gtest.h>
 
-#include <Engine/Material/MaterialCompilationCache.h>
+#include <Engine/Materials/Compilation/CompilationCache.h>
 
 using namespace Elixir;
+using namespace Elixir::Materials;
+using namespace Elixir::Materials::Compilation;
 
-TEST(MaterialCompilationCacheTest, ReusesACompiledMaterialUntilTheSourceRevisionChanges)
+TEST(CompilationCacheTest, ReusesACompiledMaterialUntilTheSourceRevisionChanges)
 {
-    MaterialCompilationCache cache{ nullptr };
+    CompilationCache cache{ nullptr };
     const auto material = CreateRef<Material>("Cache test");
 
     ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleSprite, true));

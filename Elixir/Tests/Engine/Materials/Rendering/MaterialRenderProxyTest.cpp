@@ -1,8 +1,13 @@
 #include <gtest/gtest.h>
 
-#include <Engine/Material/MaterialRenderProxy.h>
+#include <Engine/Materials/Compilation/Compiler.h>
+#include <Engine/Materials/MaterialInstance.h>
+#include <Engine/Materials/Rendering/MaterialRenderProxy.h>
 
 using namespace Elixir;
+using namespace Elixir::Materials;
+using namespace Elixir::Materials::Compilation;
+using namespace Elixir::Materials::Rendering;
 
 TEST(MaterialRenderProxyTest, ResolvesOverridesIntoAnImmutableSnapshot)
 {
@@ -13,7 +18,7 @@ TEST(MaterialRenderProxyTest, ResolvesOverridesIntoAnImmutableSnapshot)
         .DefaultValue = SMaterialParameter::MakeVector(glm::vec4(1.0f)),
     }));
 
-    const auto compiled = MaterialCompiler::Build(*material).Material;
+    const auto compiled = Compiler::Build(*material).Material;
     ASSERT_TRUE(compiled);
 
     MaterialInstance instance(material);
@@ -35,7 +40,7 @@ TEST(MaterialRenderProxyTest, RejectsACompiledMaterialForAnOldSchema)
         .DefaultValue = SMaterialParameter::MakeVector(glm::vec4(1.0f)),
     }));
 
-    const auto compiled = MaterialCompiler::Build(*material).Material;
+    const auto compiled = Compiler::Build(*material).Material;
     ASSERT_TRUE(compiled);
     ASSERT_TRUE(material->SetDefaultParameter(
         "Tint",

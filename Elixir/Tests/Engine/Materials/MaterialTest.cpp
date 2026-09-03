@@ -1,10 +1,11 @@
 #include <gtest/gtest.h>
 
-#include <Engine/Material/MaterialInstance.h>
-#include <Engine/Material/Nodes/Parameter.h>
-#include <Engine/Material/Nodes/TextureSample.h>
+#include <Engine/Materials/MaterialInstance.h>
+#include <Engine/Materials/Nodes/Parameter.h>
+#include <Engine/Materials/Nodes/TextureSample.h>
 
 using namespace Elixir;
+using namespace Elixir::Materials;
 using namespace Elixir::Materials::Nodes;
 
 TEST(MaterialTest, ValidateGraphParametersAgainstMaterialSchema)

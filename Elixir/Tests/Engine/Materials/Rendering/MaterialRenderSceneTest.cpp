@@ -1,9 +1,11 @@
 #include <span>
 #include <gtest/gtest.h>
 
-#include <Engine/Material/MaterialRenderScene.h>
+#include <Engine/Materials/Rendering/MaterialRenderScene.h>
 
 using namespace Elixir;
+using namespace Elixir::Materials;
+using namespace Elixir::Materials::Rendering;
 
 TEST(MaterialRenderSceneTest, PreservesAnUnboundMaterialItem)
 {

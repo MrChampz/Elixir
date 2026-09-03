@@ -2,11 +2,12 @@
 
 #include <Engine/Aether/System.h>
 #include <Engine/Aether/Effect/MaterialResolver.h>
-#include <Engine/Material/MaterialRegistry.h>
+#include <Engine/Materials/MaterialRegistry.h>
 
 using namespace Elixir;
 using namespace Elixir::Aether;
 using namespace Elixir::Aether::Core;
+using namespace Elixir::Materials;
 
 TEST(MaterialResolverTest, CreatesAuthoredMaterialsAndUsesUsageDefaults)
 {

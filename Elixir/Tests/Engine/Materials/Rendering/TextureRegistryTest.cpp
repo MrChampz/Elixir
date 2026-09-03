@@ -1,15 +1,16 @@
 #include <gtest/gtest.h>
 
-#include <Engine/Material/MaterialTextureRegistry.h>
+#include <Engine/Materials/Rendering/TextureRegistry.h>
 
 using namespace Elixir;
+using namespace Elixir::Materials::Rendering;
 
-TEST(MaterialTextureRegistryTest, UsesFallbackUntilDescriptorIsVisible)
+TEST(TextureRegistryTest, UsesFallbackUntilDescriptorIsVisible)
 {
     constexpr uint32_t fallbackIndex = 3;
 
-    const SMaterialTextureBinding binding{
-        .   Handle = SResourceHandle::Texture(17),
+    const STextureBinding binding{
+        .Handle = SResourceHandle::Texture(17),
         .ReadySubmission = 8,
     };
 
