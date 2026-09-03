@@ -87,8 +87,9 @@ namespace Elixir::Vulkan
 
         bool m_BindlessSet = false;
 
-        std::vector<VkDescriptorSet> m_DescriptorSets;
+        std::array<std::vector<VkDescriptorSet>, GraphicsContext::FRAMES> m_DescriptorSets;
         std::vector<VkDescriptorSetLayout> m_DescriptorSetLayouts;
+        mutable uint32_t m_DescriptorFrameIndex = 0;
 
         VkPipelineLayout m_PipelineLayout;
 

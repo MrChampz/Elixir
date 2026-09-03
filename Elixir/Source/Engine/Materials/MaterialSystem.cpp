@@ -93,6 +93,8 @@ namespace Elixir::Materials
             "Material rendering requires BeginFrame for the current graphics frame."
         )
 
+        PrepareScenes(m_SubmittedScenes, m_CurrentFrameNumber);
+
         const auto cmd = m_Context->GetSecondaryCommandBuffer();
         cmd->Begin({
             .ColorAttachment = m_Context->GetRenderTarget(),
@@ -111,7 +113,6 @@ namespace Elixir::Materials
 
         for (const auto& scene : m_SubmittedScenes)
         {
-            PrepareFrame(scene, m_CurrentFrameNumber);
             const auto sceneResult = Render(cmd, scene, m_CurrentFrameNumber);
             result.MaterialCount += sceneResult.MaterialCount;
             result.BatchCount += sceneResult.BatchCount;
@@ -129,6 +130,14 @@ namespace Elixir::Materials
         const uint64_t submissionSerial
     )
     {
+        PrepareScenes(std::span<const MaterialRenderScene>{ &scene, 1 }, submissionSerial);
+    }
+
+    void MaterialSystem::PrepareScenes(
+        const std::span<const MaterialRenderScene> scenes,
+        const uint64_t submissionSerial
+    )
+    {
         const auto& frameBuffer = GetFrameBuffer();
 
         const auto table = CreateRef<FrameTable>(
@@ -140,11 +149,13 @@ namespace Elixir::Materials
             }
         );
 
-        for (const auto& item : scene.GetItems())
+        for (const auto& scene : scenes)
         {
-            const auto& material = item.Material;
-            if (material)
+            for (const auto& item : scene.GetItems())
             {
+                const auto& material = item.Material;
+                if (!material) continue;
+
                 const auto proxy = Resolve(material);
                 if (proxy) table->Add(*proxy);
             }

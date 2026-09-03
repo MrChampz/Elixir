@@ -135,6 +135,9 @@ namespace Elixir::Materials
         const Ref<Sampler>& GetSampler() const { return m_Textures.GetSampler(); }
 
     private:
+        // Builds and uploads the material table shared by one or more frame scenes.
+        void PrepareScenes(std::span<const MaterialRenderScene> scenes, uint64_t submissionSerial);
+
         /** @brief Stores material resources that are safe to reuse with one frame slot. */
         struct SFrameSlot
         {

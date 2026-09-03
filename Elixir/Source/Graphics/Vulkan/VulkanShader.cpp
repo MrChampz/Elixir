@@ -33,10 +33,12 @@ namespace Elixir::Vulkan
             nullptr
         );
 
-        if (!m_DescriptorSets.empty())
+        for (auto& sets : m_DescriptorSets)
         {
-            m_GraphicsContext->GetDescriptorPool()->FreeDescriptorSets(m_DescriptorSets);
-            m_DescriptorSets.clear();
+            if (sets.empty()) continue;
+
+            m_GraphicsContext->GetDescriptorPool()->FreeDescriptorSets(sets);
+            sets.clear();
         }
 
         for (const auto& layout : m_DescriptorSetLayouts)
@@ -54,6 +56,9 @@ namespace Elixir::Vulkan
     void VulkanShader::Bind(const Ref<CommandBuffer>& cmd, const Pipeline* pipeline)
     {
         const auto vkCmd = static_pointer_cast<VulkanCommandBuffer>(cmd);
+
+        m_DescriptorFrameIndex = m_GraphicsContext->GetFrameIndex();
+        UpdateDescriptorSets();
 
         vkCmd->BindDescriptorSets(pipeline, m_PipelineLayout, 0, GetDescriptorSets());
 
@@ -147,7 +152,6 @@ namespace Elixir::Vulkan
         if (const auto binding = GetShaderBinding(name))
         {
             m_Textures[*binding] = texture;
-            UpdateDescriptorSet(*binding, texture.get());
             return;
         }
 
@@ -170,7 +174,6 @@ namespace Elixir::Vulkan
         if (const auto binding = GetShaderBinding(name))
         {
             m_Samplers[*binding] = sampler;
-            UpdateDescriptorSet(*binding, sampler);
             return;
         }
 
@@ -185,7 +188,6 @@ namespace Elixir::Vulkan
         if (const auto binding = GetShaderBinding(name))
         {
             m_StorageBuffers[*binding] = buffer;
-            UpdateDescriptorSet(*binding, buffer);
             return;
         }
 
@@ -200,7 +202,6 @@ namespace Elixir::Vulkan
         if (const auto binding = GetShaderBinding(name))
         {
             m_DynStorageBuffers[*binding] = buffer;
-            UpdateDescriptorSet(*binding, buffer);
             return;
         }
 
@@ -215,7 +216,6 @@ namespace Elixir::Vulkan
         if (const auto binding = GetShaderBinding(name))
         {
             m_ConstantBuffers[*binding] = buffer;
-            UpdateDescriptorSet(*binding, buffer);
             return;
         }
 
@@ -224,7 +224,7 @@ namespace Elixir::Vulkan
 
     std::vector<VkDescriptorSet> VulkanShader::GetDescriptorSets() const
     {
-        std::vector sets(m_DescriptorSets);
+        std::vector sets(m_DescriptorSets[m_DescriptorFrameIndex]);
         if (m_BindlessSet)
         {
             const auto bindlessPool = m_GraphicsContext->GetBindlessDescriptorPool();
@@ -339,23 +339,26 @@ namespace Elixir::Vulkan
         if (m_DescriptorSetLayouts.empty())
             return;
 
-        m_DescriptorSets.resize(m_DescriptorSetLayouts.size());
-
-        for (auto i = 0; i < m_DescriptorSetLayouts.size(); i++)
+        for (auto& sets : m_DescriptorSets)
         {
-            VkDescriptorSetAllocateInfo allocInfo = {};
-            allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-            allocInfo.pSetLayouts = &m_DescriptorSetLayouts[i];
-            allocInfo.descriptorSetCount = 1;
-            allocInfo.descriptorPool = m_GraphicsContext->GetDescriptorPool()->GetVulkanDescriptorPool();
+            sets.resize(m_DescriptorSetLayouts.size());
 
-            VK_CHECK_RESULT(
-                vkAllocateDescriptorSets(
-                    m_GraphicsContext->GetDevice(),
-                    &allocInfo,
-                    &m_DescriptorSets[i]
-                )
-            );
+            for (auto i = 0; i < m_DescriptorSetLayouts.size(); i++)
+            {
+                VkDescriptorSetAllocateInfo allocInfo = {};
+                allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+                allocInfo.pSetLayouts = &m_DescriptorSetLayouts[i];
+                allocInfo.descriptorSetCount = 1;
+                allocInfo.descriptorPool = m_GraphicsContext->GetDescriptorPool()->GetVulkanDescriptorPool();
+
+                VK_CHECK_RESULT(
+                    vkAllocateDescriptorSets(
+                        m_GraphicsContext->GetDevice(),
+                        &allocInfo,
+                        &sets[i]
+                    )
+                );
+            }
         }
 
         UpdateDescriptorSets();
@@ -397,6 +400,12 @@ namespace Elixir::Vulkan
         for (const auto [binding, texture] : m_Textures)
         {
             const auto writeSet = GetWriteDescriptorSet(binding, texture.get());
+            writeDescriptorSets.push_back(writeSet);
+        }
+
+        for (const auto [binding, sampler] : m_Samplers)
+        {
+            const auto writeSet = GetWriteDescriptorSet(binding, sampler);
             writeDescriptorSets.push_back(writeSet);
         }
 
@@ -446,7 +455,7 @@ namespace Elixir::Vulkan
 
         VkWriteDescriptorSet writeSet = {};
         writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeSet.dstSet = m_DescriptorSets[resource.GetSet()];
+        writeSet.dstSet = m_DescriptorSets[m_DescriptorFrameIndex][resource.GetSet()];
         writeSet.dstBinding = resource.GetBinding();
         writeSet.descriptorType = Converters::GetDescriptorType(resource.GetType());
         writeSet.descriptorCount = m_ImageInfoCache[binding].size();
@@ -493,7 +502,7 @@ namespace Elixir::Vulkan
 
         VkWriteDescriptorSet writeSet = {};
         writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeSet.dstSet = m_DescriptorSets[resource.GetSet()];
+        writeSet.dstSet = m_DescriptorSets[m_DescriptorFrameIndex][resource.GetSet()];
         writeSet.dstBinding = resource.GetBinding();
         writeSet.descriptorType = Converters::GetDescriptorType(resource.GetType());
         writeSet.descriptorCount = m_ImageInfoCache[binding].size();
@@ -530,7 +539,7 @@ namespace Elixir::Vulkan
 
         VkWriteDescriptorSet writeSet = {};
         writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeSet.dstSet = m_DescriptorSets[resource.GetSet()];
+        writeSet.dstSet = m_DescriptorSets[m_DescriptorFrameIndex][resource.GetSet()];
         writeSet.dstBinding = resource.GetBinding();
         writeSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         writeSet.descriptorCount = 1;
@@ -567,7 +576,7 @@ namespace Elixir::Vulkan
 
         VkWriteDescriptorSet writeSet = {};
         writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeSet.dstSet = m_DescriptorSets[resource.GetSet()];
+        writeSet.dstSet = m_DescriptorSets[m_DescriptorFrameIndex][resource.GetSet()];
         writeSet.dstBinding = resource.GetBinding();
         writeSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         writeSet.descriptorCount = 1;
@@ -604,7 +613,7 @@ namespace Elixir::Vulkan
 
         VkWriteDescriptorSet writeSet = {};
         writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeSet.dstSet = m_DescriptorSets[resource.GetSet()];
+        writeSet.dstSet = m_DescriptorSets[m_DescriptorFrameIndex][resource.GetSet()];
         writeSet.dstBinding = resource.GetBinding();
         writeSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         writeSet.descriptorCount = 1;
