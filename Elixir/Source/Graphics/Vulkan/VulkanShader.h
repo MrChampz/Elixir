@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Engine/Graphics/FrameSlotState.h>
 #include <Engine/Graphics/Shader/Shader.h>
 #include <Graphics/Vulkan/VulkanGraphicsContext.h>
 
@@ -47,22 +48,24 @@ namespace Elixir::Vulkan
 
         void UpdateDescriptorSets();
 
+        // Records that a descriptor binding must be copied to every frame slot.
+        void MarkDescriptorBindingDirty(SShaderBinding binding);
+
+        // Checks whether a descriptor binding must be copied to the active slot.
+        bool IsDescriptorBindingDirty(SShaderBinding binding) const;
+
+        // Records that the active slot contains the current binding revision.
+        void MarkDescriptorBindingClean(SShaderBinding binding);
+
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding, const Texture* texture
         ) const;
-        void UpdateDescriptorSet(SShaderBinding binding, const Texture* texture) const;
-
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding,
             const Ref<Sampler>& sampler
         ) const;
-        void UpdateDescriptorSet(SShaderBinding binding, const Ref<Sampler>& sampler) const;
 
         VkWriteDescriptorSet GetWriteDescriptorSet(
-            SShaderBinding binding,
-            const Ref<StorageBuffer>& buffer
-        ) const;
-        void UpdateDescriptorSet(
             SShaderBinding binding,
             const Ref<StorageBuffer>& buffer
         ) const;
@@ -71,25 +74,24 @@ namespace Elixir::Vulkan
             SShaderBinding binding,
             const Ref<DynamicStorageBuffer>& buffer
         ) const;
-        void UpdateDescriptorSet(
-            SShaderBinding binding,
-            const Ref<DynamicStorageBuffer>& buffer
-        ) const;
 
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding,
             const Ref<UniformBuffer>& buffer
         ) const;
-        void UpdateDescriptorSet(
-            SShaderBinding binding,
-            const Ref<UniformBuffer>& buffer
-        ) const;
+
+        /** Stores descriptor-binding revisions applied to individual frame slots. */
+        struct SDescriptorBindingState
+        {
+            uint64_t Revision = 1;
+            std::array<uint64_t, GraphicsContext::FRAMES> AppliedRevisions{};
+        };
 
         bool m_BindlessSet = false;
 
-        std::array<std::vector<VkDescriptorSet>, GraphicsContext::FRAMES> m_DescriptorSets;
+        FrameSlotState<std::vector<VkDescriptorSet>, GraphicsContext::FRAMES> m_DescriptorSets;
         std::vector<VkDescriptorSetLayout> m_DescriptorSetLayouts;
-        mutable uint32_t m_DescriptorFrameIndex = 0;
+        std::unordered_map<SShaderBinding, SDescriptorBindingState> m_DescriptorBindingStates;
 
         VkPipelineLayout m_PipelineLayout;
 
