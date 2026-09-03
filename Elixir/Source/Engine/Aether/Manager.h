@@ -201,6 +201,7 @@ namespace Elixir::Aether
         Scope<InstanceRegistry> m_Runtime;
         Scope<Simulator> m_Simulator;
         Scope<Renderer> m_Renderer;
+        MaterialSystem& m_MaterialSystem;
 
         SystemInstanceRetirementQueue m_PendingRetirements;
 

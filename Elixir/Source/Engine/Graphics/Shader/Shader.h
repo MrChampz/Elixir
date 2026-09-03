@@ -83,6 +83,18 @@ namespace Elixir
         virtual Ref<Sampler> GetSampler(SShaderBinding binding) const;
 
         const std::string& GetName() const { return m_Name; }
+
+        /**
+         * @brief Checks whether the reflected shader declares a named binding.
+         *
+         * The shader compiler can remove declarations that are not used by an
+         * optimized permutation.
+         *
+         * @param name Binding name to find.
+         * @return `true` when the reflection contains @p name.
+         */
+        bool HasBinding(const std::string& name) const;
+
         Ref<ShaderModule> GetModule(EShaderStage stage) const;
 
         auto GetModules() const

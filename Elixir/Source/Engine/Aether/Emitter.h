@@ -36,8 +36,8 @@ namespace Elixir::Aether
         EParticleRenderMode RenderMode = EParticleRenderMode::Sprite;
         EParticleSimulationSpace SimulationSpace = EParticleSimulationSpace::World;
 
-        // Immutable GPU material state published by System::Compile.
-        Ref<const MaterialRenderProxy> Material;
+        // Material instance submitted to the material system with each frame.
+        Ref<MaterialInstance> Material;
 
         float SpawnRatePerSecond = 1.0f;
         uint32_t BurstCount = 0u;

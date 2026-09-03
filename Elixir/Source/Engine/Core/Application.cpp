@@ -199,7 +199,9 @@ namespace Elixir
 
             m_GraphicsContext->RenderFrame([this, frameTime]()
             {
+                m_MaterialSystem->BeginFrame();
                 Render(frameTime);
+                m_MaterialSystem->RenderFrame();
                 m_GUIManager->Render();
             });
 

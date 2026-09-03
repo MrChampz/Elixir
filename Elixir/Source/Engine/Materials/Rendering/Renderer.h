@@ -111,6 +111,9 @@ namespace Elixir::Materials::Rendering
         /** External buffers required by the pass. */
         SExternalResources ExternalResources;
 
+        /** Per-frame buffer that stores resolved material data. */
+        Ref<DynamicStorageBuffer> MaterialBuffer;
+
         /** Push constants applied before the first draw. */
         std::span<const std::byte> InitialPushConstants;
     };
@@ -142,14 +145,12 @@ namespace Elixir::Materials::Rendering
         /**
          * @brief Creates a material renderer.
          * @param context Graphics context used to create pipelines.
-         * @param frameBuffer Buffer that stores per-frame material data.
          * @param textures Registry that provides material textures and a sampler.
          * @param shaderLoader Loader used to compile material shaders.
          * @pre All arguments are valid for the renderer lifetime.
          */
         Renderer(
             const GraphicsContext* context,
-            Ref<DynamicStorageBuffer> frameBuffer,
             const TextureRegistry& textures,
             const ShaderLoader* shaderLoader
         );
@@ -258,7 +259,6 @@ namespace Elixir::Materials::Rendering
         /** Binds and validates the descriptor resources for a shader. */
         bool BindDescriptorResources(const Ref<Shader>& shader, const SPassRequest& request);
 
-        Ref<DynamicStorageBuffer> m_FrameBuffer;
         const TextureRegistry& m_Textures;
         std::unordered_map<SPipelineKey, Ref<GraphicsPipeline>, SPipelineKeyHasher> m_Pipelines;
         std::unordered_map<const Shader*, SDescriptorBindingState> m_DescriptorBindings;

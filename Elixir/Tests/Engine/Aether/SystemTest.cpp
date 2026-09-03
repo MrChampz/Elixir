@@ -131,7 +131,7 @@ TEST(SystemTest, FindsNamedEmitterForMaterialPublication)
     EXPECT_EQ(system.FindEmitter("Missing"), nullptr);
 }
 
-TEST(SystemTest, CompileSnapshotsParticleSpriteMaterialForRenderData)
+TEST(SystemTest, CompilePublishesParticleSpriteMaterialInstance)
 {
     const auto material = CreateRef<Material>("Particle tint");
     ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleSprite, true));
@@ -152,11 +152,11 @@ TEST(SystemTest, CompileSnapshotsParticleSpriteMaterialForRenderData)
 
     ASSERT_EQ(first.Emitters.size(), 1);
     ASSERT_TRUE(first.Emitters[0].Material);
-    EXPECT_TRUE(first.Emitters[0].Material->GetCompiledMaterial()->SupportsUsage(
+    EXPECT_TRUE(first.Emitters[0].Material->GetParent()->SupportsUsage(
         EMaterialUsage::ParticleSprite
     ));
-    EXPECT_EQ(first.Emitters[0].Material->GetInstanceRevision(), instance->GetRevision());
-    EXPECT_FLOAT_EQ(first.Emitters[0].Material->GetValues()[0].x, 0.25f);
+    EXPECT_EQ(first.Emitters[0].Material, instance);
+    EXPECT_FLOAT_EQ(first.Emitters[0].Material->GetVector("Tint").x, 0.25f);
 
     ASSERT_TRUE(instance->SetVector("Tint", { 0.75f, 0.5f, 0.25f, 1.0f }));
 
@@ -164,8 +164,8 @@ TEST(SystemTest, CompileSnapshotsParticleSpriteMaterialForRenderData)
     const auto second = Compile(system);
 
     ASSERT_TRUE(second.Emitters[0].Material);
-    EXPECT_FLOAT_EQ(first.Emitters[0].Material->GetValues()[0].x, 0.25f);
-    EXPECT_FLOAT_EQ(second.Emitters[0].Material->GetValues()[0].x, 0.75f);
+    EXPECT_EQ(second.Emitters[0].Material, instance);
+    EXPECT_FLOAT_EQ(second.Emitters[0].Material->GetVector("Tint").x, 0.75f);
 }
 
 TEST(SystemTest, CompileSnapshotsParticleRibbonMaterialForRenderData)
@@ -184,7 +184,7 @@ TEST(SystemTest, CompileSnapshotsParticleRibbonMaterialForRenderData)
 
     ASSERT_EQ(compiled.Emitters.size(), 1);
     ASSERT_TRUE(compiled.Emitters[0].Material);
-    EXPECT_TRUE(compiled.Emitters[0].Material->GetCompiledMaterial()->SupportsUsage(
+    EXPECT_TRUE(compiled.Emitters[0].Material->GetParent()->SupportsUsage(
         EMaterialUsage::ParticleRibbon
     ));
 }
@@ -205,7 +205,7 @@ TEST(SystemTest, CompileSnapshotsParticleMeshMaterialForRenderData)
 
     ASSERT_EQ(compiled.Emitters.size(), 1);
     ASSERT_TRUE(compiled.Emitters[0].Material);
-    EXPECT_TRUE(compiled.Emitters[0].Material->GetCompiledMaterial()->SupportsUsage(
+    EXPECT_TRUE(compiled.Emitters[0].Material->GetParent()->SupportsUsage(
         EMaterialUsage::ParticleMesh
     ));
 }
@@ -219,7 +219,7 @@ TEST(SystemTest, CompileAssignsTheDefaultMaterialWhenNoneIsExplicit)
 
     ASSERT_EQ(compiled.Emitters.size(), 1);
     ASSERT_TRUE(compiled.Emitters[0].Material);
-    EXPECT_TRUE(compiled.Emitters[0].Material->GetCompiledMaterial()->SupportsUsage(
+    EXPECT_TRUE(compiled.Emitters[0].Material->GetParent()->SupportsUsage(
         EMaterialUsage::ParticleSprite
     ));
 }

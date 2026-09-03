@@ -101,6 +101,11 @@ namespace Elixir
         return m_Modules[GetStageIndex(stage)];
     }
 
+    bool Shader::HasBinding(const std::string& name) const
+    {
+        return GetShaderBinding(name) != nullptr;
+    }
+
     Ref<Shader> Shader::Create(const GraphicsContext* context, SShaderCreateInfo&& info)
     {
         switch (context->GetAPI())

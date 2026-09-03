@@ -8,17 +8,15 @@ namespace Elixir::Materials::Rendering
 {
     Renderer::Renderer(
         const GraphicsContext* context,
-        Ref<DynamicStorageBuffer> frameBuffer,
         const TextureRegistry& textures,
         const ShaderLoader* shaderLoader
-    ) : m_FrameBuffer(std::move(frameBuffer)),
-        m_Textures(textures),
+    ) : m_Textures(textures),
         m_CompilationCache(shaderLoader),
         m_Context(context) {}
 
     std::optional<SPreparedPass> Renderer::Prepare(const SPassRequest& request)
     {
-        if (!request.Material || !request.Pipeline.VertexLayout)
+        if (!request.Material || !request.Pipeline.VertexLayout || !request.MaterialBuffer)
             return std::nullopt;
 
         const auto program = GetProgramKey(request.Pass, *request.Material);
@@ -203,6 +201,8 @@ namespace Elixir::Materials::Rendering
                 return false;
             }
 
+            if (shader->HasBinding("materials"))
+                shader->BindStorageBuffer("materials", request.MaterialBuffer);
             return true;
         }
 
@@ -222,9 +222,12 @@ namespace Elixir::Materials::Rendering
             );
         }
 
-        shader->BindStorageBuffer("materials", m_FrameBuffer);
-        shader->BindTextureSet("sprites", m_Textures.GetTextureSet());
-        shader->BindSampler("spriteSampler", m_Textures.GetSampler());
+        if (shader->HasBinding("materials"))
+            shader->BindStorageBuffer("materials", request.MaterialBuffer);
+        if (shader->HasBinding("sprites"))
+            shader->BindTextureSet("sprites", m_Textures.GetTextureSet());
+        if (shader->HasBinding("spriteSampler"))
+            shader->BindSampler("spriteSampler", m_Textures.GetSampler());
 
         m_DescriptorBindings.emplace(shader.get(), std::move(state));
         return true;
