@@ -1,5 +1,8 @@
 #pragma once
 
+#include <variant>
+
+#include <Engine/Graphics/FrameSlotState.h>
 #include <Engine/Graphics/Shader/Shader.h>
 #include <Graphics/Vulkan/VulkanGraphicsContext.h>
 
@@ -45,49 +48,45 @@ namespace Elixir::Vulkan
         void CreateDescriptorSets();
         void CreatePipelineLayout();
 
-        void UpdateDescriptorSets();
+        void ApplyPendingDescriptorState();
 
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding, const Texture* texture
         ) const;
-        void UpdateDescriptorSet(SShaderBinding binding, const Texture* texture) const;
-
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding,
             const Ref<Sampler>& sampler
         ) const;
-        void UpdateDescriptorSet(SShaderBinding binding, const Ref<Sampler>& sampler) const;
-
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding,
             const Ref<StorageBuffer>& buffer
         ) const;
-        void UpdateDescriptorSet(
-            SShaderBinding binding,
-            const Ref<StorageBuffer>& buffer
-        ) const;
-
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding,
             const Ref<DynamicStorageBuffer>& buffer
         ) const;
-        void UpdateDescriptorSet(
-            SShaderBinding binding,
-            const Ref<DynamicStorageBuffer>& buffer
-        ) const;
-
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding,
             const Ref<UniformBuffer>& buffer
         ) const;
-        void UpdateDescriptorSet(
-            SShaderBinding binding,
-            const Ref<UniformBuffer>& buffer
-        ) const;
+
+        using DescriptorValue = std::variant<
+            Ref<Texture>,
+            Ref<Sampler>,
+            Ref<StorageBuffer>,
+            Ref<DynamicStorageBuffer>,
+            Ref<UniformBuffer>
+        >;
+
+        using DescriptorSetState = FrameSlotState<
+            std::vector<VkDescriptorSet>,
+            SShaderBinding,
+            DescriptorValue
+        >;
 
         bool m_BindlessSet = false;
 
-        std::vector<VkDescriptorSet> m_DescriptorSets;
+        DescriptorSetState m_DescriptorSets;
         std::vector<VkDescriptorSetLayout> m_DescriptorSetLayouts;
 
         VkPipelineLayout m_PipelineLayout;

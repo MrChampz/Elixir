@@ -400,7 +400,7 @@ namespace Elixir
             { VK_DESCRIPTOR_TYPE_SAMPLER, 0.05 }
         };
 
-        m_DescriptorPool = CreateRef<VulkanDescriptorPool>(*this, 128, sizes);
+        m_DescriptorPool = CreateRef<VulkanDescriptorPool>(*this, 128 * FRAMES, sizes);
         m_BindlessDescriptorPool = CreateRef<VulkanBindlessDescriptorPool>(*this);
     }
 
