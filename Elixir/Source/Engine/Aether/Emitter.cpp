@@ -59,18 +59,7 @@ namespace Elixir::Aether
             emitter.SpawnRatePerSecond = params[spawnRateParamIndex].Value.x;
 
         if (m_Material)
-        {
-            const auto proxy = materialResolver.Resolve(m_Material);
-            if (!proxy || !proxy->GetCompiledMaterial()->SupportsUsage(
-                    Effect::GetMaterialUsage(m_RenderMode)
-                ))
-                EE_CORE_ERROR(
-                    "Aether emitter '{}' material does not support its render mode.",
-                    m_Name
-                )
-            else
-                emitter.Material = proxy;
-        }
+            emitter.Material = m_Material;
 
         for (const auto& module : m_SpawnModules)
         {

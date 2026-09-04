@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Engine/Graphics/FrameSlotState.h"
+
 #include <Engine/Graphics/Buffer.h>
 #include <Engine/Materials/Rendering/MaterialResolver.h>
 #include <Engine/Materials/Rendering/MaterialRenderScene.h>
@@ -61,6 +63,25 @@ namespace Elixir::Materials
         );
 
         /**
+         * @brief Starts material collection for the current graphics frame.
+         */
+        void BeginFrame();
+
+        /**
+         * @brief Adds a scene to the current material frame.
+         * @param scene Frame-local material draw data.
+         * @pre BeginFrame was called for the current graphics frame.
+         */
+        void Submit(MaterialRenderScene scene);
+
+        /**
+         * @brief Records all scenes submitted for the current graphics frame.
+         * @return Counts of prepared materials, batches, and draws.
+         * @pre BeginFrame was called for the current graphics frame.
+         */
+        SMaterialRenderResult RenderFrame();
+
+        /**
          * @brief Prepares and uploads material data for a scene submission.
          * @param scene Scene that provides material render items.
          * @param submissionSerial Serial that identifies the submission.
@@ -76,7 +97,7 @@ namespace Elixir::Materials
         std::optional<SProgramKey> GetProgramKey(
             EMaterialPass pass,
             const MaterialRenderProxy& material
-        ) const;
+        );
 
         /**
          * @brief Prepares GPU state for one material pass request.
@@ -97,7 +118,7 @@ namespace Elixir::Materials
             const Ref<CommandBuffer>& cmd,
             const MaterialRenderScene& scene,
             uint64_t submissionSerial
-        ) const;
+        );
 
         /**
          * @brief Resolves an instance into a render-ready material proxy.
@@ -108,8 +129,8 @@ namespace Elixir::Materials
             const Ref<MaterialInstance>& instance
         ) override;
 
-        /** @brief Gets the buffer that stores frame material data. */
-        const Ref<DynamicStorageBuffer>& GetFrameBuffer() const { return m_FrameBuffer; }
+        /** @brief Gets the buffer that stores material data for the current frame slot. */
+        const Ref<DynamicStorageBuffer>& GetFrameBuffer() const;
 
         /** @brief Gets the texture set used by material rendering. */
         const Ref<TextureSet>& GetTextureSet() const { return m_Textures.GetTextureSet(); }
@@ -118,6 +139,14 @@ namespace Elixir::Materials
         const Ref<Sampler>& GetSampler() const { return m_Textures.GetSampler(); }
 
     private:
+        /** @brief Stores material resources that are safe to reuse with one frame slot. */
+        struct SFrameSlot
+        {
+            Ref<DynamicStorageBuffer> Buffer;
+            Ref<const FrameTable> Table;
+            uint64_t FrameNumber = UINT64_MAX;
+        };
+
         /** @brief Stores material data prepared for the current submission. */
         struct SPreparedFrame
         {
@@ -126,10 +155,23 @@ namespace Elixir::Materials
             uint64_t SubmissionSerial = 0;
         };
 
+        struct SCachedMaterial
+        {
+            Ref<const MaterialRenderProxy> Proxy;
+            uint32_t InstanceRevision = 0;
+            uint32_t MaterialRevision = 0;
+        };
+
         uint32_t m_MaterialCapacity = 0;
-        Ref<DynamicStorageBuffer> m_FrameBuffer;
+        std::array<SFrameSlot, GraphicsContext::FRAMES> m_FrameSlots;
         TextureRegistry m_Textures;
         Scope<Renderer> m_Renderer;
+
+        std::unordered_map<const MaterialInstance*, SCachedMaterial> m_MaterialCache;
+        std::vector<MaterialRenderScene> m_SubmittedScenes;
         SPreparedFrame m_PreparedFrame;
+        uint64_t m_CurrentFrameNumber = UINT64_MAX;
+
+        const GraphicsContext* m_GraphicsContext = nullptr;
     };
 }

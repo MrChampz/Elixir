@@ -45,6 +45,7 @@
 #include <Engine/Graphics/Texture.h>
 #include <Engine/Graphics/TextureSet.h>
 #include <Engine/Graphics/TextureLoader.h>
+#include <Engine/Graphics/FrameSlotState.h>
 #include <Engine/Graphics/Pipeline/PipelineBuilder.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
 

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <variant>
-
 #include <Engine/Graphics/FrameSlotState.h>
 #include <Engine/Graphics/Shader/Shader.h>
 #include <Graphics/Vulkan/VulkanGraphicsContext.h>

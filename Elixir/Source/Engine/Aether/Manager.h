@@ -202,6 +202,8 @@ namespace Elixir::Aether
         Scope<Simulator> m_Simulator;
         Scope<Renderer> m_Renderer;
 
+        MaterialSystem& m_MaterialSystem;
+
         SystemInstanceRetirementQueue m_PendingRetirements;
 
         const GraphicsContext* m_GraphicsContext = nullptr;

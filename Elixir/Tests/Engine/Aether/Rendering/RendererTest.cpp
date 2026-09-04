@@ -1,17 +1,14 @@
 #include <gtest/gtest.h>
 
-#include <concepts>
 #include <type_traits>
 
 #include <Engine/Aether/Rendering/FrameSubmission.h>
 #include <Engine/Aether/Rendering/Renderer.h>
-#include <Engine/Materials/MaterialSystem.h>
 
 namespace Elixir { class ShaderLoader; }
 
 using namespace Elixir;
 using namespace Elixir::Aether::Rendering;
-using Elixir::Materials::MaterialSystem;
 
 namespace
 {
@@ -27,21 +24,20 @@ namespace
     };
 }
 
-static_assert(!RendersFrameSubmission<Elixir::Aether::Rendering::Renderer>);
+static_assert(!RendersFrameSubmission<Aether::Rendering::Renderer>);
 static_assert(std::is_constructible_v<
-    Elixir::Aether::Rendering::Renderer,
-    const GraphicsContext*,
-    MaterialSystem&
+    Aether::Rendering::Renderer,
+    const GraphicsContext*
 >);
 static_assert(!std::is_constructible_v<
-    Elixir::Aether::Rendering::Renderer,
+    Aether::Rendering::Renderer,
     const GraphicsContext*,
     const ShaderLoader*
 >);
 
 TEST(RendererTest, MetricsContainOnlyRenderingResults)
 {
-    const SRenderingMetrics metrics{
+    constexpr SRenderingMetrics metrics{
         .SubmissionSerial = 12u,
         .RenderBatchCount = 4u,
         .SubmittedRenderItemCount = 6u,

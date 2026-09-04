@@ -1,14 +1,14 @@
 #pragma once
 
 #include <Engine/Graphics/Buffer.h>
-#include <Engine/Materials/Rendering/MaterialRenderProxy.h>
+#include <Engine/Materials/MaterialInstance.h>
 #include <Engine/Aether/Core/Particle.h>
 #include <Engine/Aether/Core/ParticleStateLayout.h>
 #include <Engine/Aether/Core/ResourceAllocation.h>
 
 namespace Elixir::Aether::Simulation
 {
-    using namespace Materials::Rendering;
+    using namespace Materials;
 
     /**
      * @brief Retains the particle-state buffer for one simulation layout.
@@ -35,7 +35,7 @@ namespace Elixir::Aether::Simulation
         Core::SSystemInstanceAllocation Allocation;
         Core::EParticleStateLayout ParticleStateLayout = Core::EParticleStateLayout::CoreV1;
         Core::EParticleRenderMode RenderMode = Core::EParticleRenderMode::Sprite;
-        Ref<const MaterialRenderProxy> Material;
+        Ref<MaterialInstance> Material;
         glm::mat4 WorldTransform{ 1.0f };
         uint32_t EmitterIndex = 0;
         uint32_t LocalParticleOffset = 0;

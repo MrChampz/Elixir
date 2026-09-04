@@ -21,7 +21,8 @@ namespace Elixir::Aether
             materialSystem
         )),
         m_Simulator(CreateScope<Simulator>(context, shaderLoader)),
-        m_Renderer(CreateScope<Renderer>(context, materialSystem)),
+        m_Renderer(CreateScope<Renderer>(context)),
+        m_MaterialSystem(materialSystem),
         m_GraphicsContext(context) {}
 
     Manager::~Manager() = default;
@@ -72,10 +73,11 @@ namespace Elixir::Aether
         });
 
         const auto frame = GetSimulator().Simulate(*submission, cmd);
-        GetRenderer().Render(*frame, camera, cmd);
-
         cmd->End();
         m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
+
+        MaterialRenderScene scene = GetRenderer().BuildRenderScene(*frame, camera);
+        m_MaterialSystem.Submit(scene);
     }
 
     const SSimulationMetrics& Manager::GetLastSimulationMetrics() const

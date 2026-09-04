@@ -1,8 +1,6 @@
 #include "epch.h"
 #include "Renderer.h"
 
-#include <Engine/Materials/MaterialSystem.h>
-
 namespace Elixir::Aether::Rendering
 {
     using namespace Core;
@@ -37,9 +35,8 @@ namespace Elixir::Aether::Rendering
         };
     }
 
-    Renderer::Renderer(const GraphicsContext* context, MaterialSystem& materialSystem)
-      : m_MaterialSystem(materialSystem),
-        m_GraphicsContext(context)
+    Renderer::Renderer(const GraphicsContext* context)
+      : m_GraphicsContext(context)
     {
         EE_CORE_ASSERT(context, "Aether Renderer requires a graphics context.")
         EE_CORE_INFO("Initializing Aether Renderer.")
@@ -49,16 +46,12 @@ namespace Elixir::Aether::Rendering
         InitPerFrameData();
     }
 
-    void Renderer::Render(
+    MaterialRenderScene Renderer::BuildRenderScene(
         const RenderFrame& frame,
-        const Camera& camera,
-        const Ref<CommandBuffer>& cmd
+        const Camera& camera
     )
     {
-        EE_CORE_ASSERT(cmd, "Aether rendering requires a command buffer.")
-
         m_LastMetrics = { .SubmissionSerial = frame.GetSubmissionSerial() };
-        m_RenderExtent = m_GraphicsContext->GetRenderTarget()->GetExtent();
 
         m_FrameData.View = camera.GetViewMatrix();
         m_FrameData.Proj = camera.GetProjectionMatrix();
@@ -67,19 +60,10 @@ namespace Elixir::Aether::Rendering
         m_FrameData.Time = frame.GetElapsedTimeSeconds();
         m_FrameConstantBuffer->UpdateData(&m_FrameData, sizeof(m_FrameData));
 
-        if (frame.GetItems().empty())
-            return;
+        auto scene = BuildScene(frame);
+        m_LastMetrics.SubmittedMaterialCount = scene.GetItems().size();
 
-        const auto scene = BuildMaterialRenderScene(frame);
-        m_MaterialSystem.PrepareFrame(scene, frame.GetSubmissionSerial());
-
-        BeginRendering(cmd);
-        const auto result = m_MaterialSystem.Render(cmd, scene, frame.GetSubmissionSerial());
-        EndRendering(cmd);
-
-        m_LastMetrics.SubmittedMaterialCount = result.MaterialCount;
-        m_LastMetrics.RenderBatchCount = result.BatchCount;
-        m_LastMetrics.SubmittedRenderItemCount = result.DrawCount;
+        return scene;
     }
 
     void Renderer::CreateCoreV1GraphicsLayout()
@@ -195,37 +179,6 @@ namespace Elixir::Aether::Rendering
         );
     }
 
-    void Renderer::BeginRendering(const Ref<CommandBuffer>& cmd) const
-    {
-        const auto renderingInfo = SRenderingInfo
-        {
-            .ColorAttachment = m_GraphicsContext->GetRenderTarget(),
-            .DepthStencilAttachment = m_GraphicsContext->GetDepthStencilRenderTarget(),
-            .RenderArea = m_RenderExtent
-        };
-
-        Viewport viewport = {};
-        viewport.X = 0.0f;
-        viewport.Y = 0.0f;
-        viewport.Width = (float)m_RenderExtent.Width;
-        viewport.Height = (float)m_RenderExtent.Height;
-        viewport.MinDepth = 0.0f;
-        viewport.MaxDepth = 1.0f;
-
-        Rect2D scissor = {};
-        scissor.Offset = { 0, 0 };
-        scissor.Extent = m_RenderExtent;
-
-        cmd->BeginRendering(renderingInfo);
-        cmd->SetViewports({ viewport });
-        cmd->SetScissors({ scissor });
-    }
-
-    void Renderer::EndRendering(const Ref<CommandBuffer>& cmd)
-    {
-        cmd->EndRendering();
-    }
-
     const Renderer::SParticleGraphicsLayout* Renderer::FindGraphicsLayout(
         const EParticleStateLayout key
     ) const
@@ -246,7 +199,7 @@ namespace Elixir::Aether::Rendering
         return nullptr;
     }
 
-    MaterialRenderScene Renderer::BuildMaterialRenderScene(const RenderFrame& frame) const
+    MaterialRenderScene Renderer::BuildScene(const RenderFrame& frame) const
     {
         MaterialRenderScene scene;
 

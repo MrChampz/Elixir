@@ -73,6 +73,17 @@ namespace Elixir
         virtual void BindStorageBuffer(const std::string& name, const Ref<DynamicStorageBuffer>& buffer) = 0;
         virtual void BindConstantBuffer(const std::string& name, const Ref<UniformBuffer>& buffer) = 0;
 
+        /**
+         * @brief Checks whether the shader declares a named binding.
+         *
+         * The shader compiler can remove declarations that are not used by an
+         * optimized permutation.
+         *
+         * @param name Binding name to find.
+         * @return True when the shader contains @p name binding.
+         */
+        bool HasBinding(const std::string& name) const;
+
         virtual Ref<Texture> GetTexture(const std::string& name) const;
         virtual Ref<Texture> GetTexture(SShaderBinding binding) const;
 

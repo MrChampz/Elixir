@@ -2,12 +2,9 @@
 
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/Buffer.h>
-#include <Engine/Graphics/CommandBuffer.h>
 #include <Engine/Materials/Rendering/MaterialRenderScene.h>
 #include <Engine/Aether/Core/ParticleStateLayout.h>
 #include <Engine/Aether/Simulation/RenderFrame.h>
-
-namespace Elixir::Materials { class MaterialSystem; }
 
 namespace Elixir::Aether::Rendering
 {
@@ -56,32 +53,24 @@ namespace Elixir::Aether::Rendering
       public:
         /**
          * @brief Creates the resources required to render particles.
-         *
          * @param context Graphics context that owns the rendering resources.
-         * @param materialSystem Material system used to render particle materials.
-         *
          * @pre context is not null and outlives the renderer.
-         * @pre materialSystem outlives the renderer.
          */
-        Renderer(const GraphicsContext* context, MaterialSystem& materialSystem);
+        explicit Renderer(const GraphicsContext* context);
 
         /**
-         * @brief Records the draw commands for a simulated particle frame.
+         * @brief Builds material draw data for a simulated particle frame.
          *
          * The method updates the frame constants, creates a material render scene,
-         * and records the particle graphics passes. An empty frame records no
-         * graphics pass.
+         * and returns it to the application-owned material system.
          *
          * @param frame Particle data produced by Simulator.
          * @param camera Camera used to transform and project the particles.
-         * @param cmd Command buffer that receives the graphics commands.
-         *
-         * @pre cmd is not null and is recording commands.
+         * @return Material render scene.
          */
-        void Render(
+        MaterialRenderScene BuildRenderScene(
             const RenderFrame& frame,
-            const Camera& camera,
-            const Ref<CommandBuffer>& cmd
+            const Camera& camera
         );
 
         /**
@@ -112,12 +101,6 @@ namespace Elixir::Aether::Rendering
         // Initializes per-frame constant-buffer data.
         void InitPerFrameData();
 
-        // Begins the graphics rendering scope for particle material passes.
-        void BeginRendering(const Ref<CommandBuffer>& cmd) const;
-
-        // Ends the graphics rendering scope for particle material passes.
-        static void EndRendering(const Ref<CommandBuffer>& cmd);
-
         // Finds the graphics layout for a particle-state layout.
         const SParticleGraphicsLayout* FindGraphicsLayout(EParticleStateLayout key) const;
 
@@ -128,7 +111,7 @@ namespace Elixir::Aether::Rendering
         );
 
         // Converts particle render items into material geometry and draw commands.
-        MaterialRenderScene BuildMaterialRenderScene(const RenderFrame& frame) const;
+        MaterialRenderScene BuildScene(const RenderFrame& frame) const;
 
         SFrameData m_FrameData{};
         Ref<UniformBuffer> m_FrameConstantBuffer;
@@ -137,8 +120,6 @@ namespace Elixir::Aether::Rendering
 
         uint32_t m_MeshVertexCount = 0;
         Ref<VertexBuffer> m_MeshVertexBuffer;
-
-        MaterialSystem& m_MaterialSystem;
 
         SRenderingMetrics m_LastMetrics{};
 

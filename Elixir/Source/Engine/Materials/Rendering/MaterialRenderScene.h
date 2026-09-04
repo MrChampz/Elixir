@@ -2,6 +2,7 @@
 
 #include <Engine/Core/Core.h>
 #include <Engine/Core/Memory.h>
+#include <Engine/Materials/MaterialInstance.h>
 #include <Engine/Materials/Rendering/Renderer.h>
 
 namespace Elixir::Materials::Rendering
@@ -123,8 +124,8 @@ namespace Elixir::Materials::Rendering
         /** Material pass used to render the item. */
         EMaterialPass Pass = EMaterialPass::ParticleSprite;
 
-        /** Resolved material data used by the pass. */
-        Ref<const MaterialRenderProxy> Material;
+        /** Material instance used by the pass. */
+        Ref<MaterialInstance> Material;
 
         /** Index of the geometry used by this item. */
         uint32_t GeometryIndex = UINT32_MAX;
