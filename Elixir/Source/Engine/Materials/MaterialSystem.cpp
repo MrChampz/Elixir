@@ -41,6 +41,7 @@ namespace Elixir::Materials
         const ShaderLoader* shaderLoader,
         const SMaterialSystemConfig config
     ) : m_MaterialCapacity(GetInitialFrameCapacity(config)),
+        m_FrameSlots(*context),
         m_Textures(context),
         m_Renderer(CreateScope<Renderer>(
             context,
@@ -51,13 +52,13 @@ namespace Elixir::Materials
     {
         EE_CORE_ASSERT(context, "Material system requires a graphics context.")
 
-        for (auto& slot : m_FrameSlots)
+        m_FrameSlots.ForEach([&](SFrameSlot& slot)
         {
             slot.Buffer = DynamicStorageBuffer::Create(
                 context,
                 sizeof(SMaterialFrameData) * m_MaterialCapacity
             );
-        }
+        });
     }
 
     void MaterialSystem::BeginFrame()
@@ -68,7 +69,7 @@ namespace Elixir::Materials
         m_SubmittedScenes.clear();
         m_Textures.BeginFrame(m_CurrentFrameNumber);
 
-        auto& slot = m_FrameSlots[m_GraphicsContext->GetFrameIndex()];
+        auto& slot = m_FrameSlots.GetCurrent();
         slot.Table.reset();
         slot.FrameNumber = m_CurrentFrameNumber;
         m_PreparedFrame = {};
@@ -178,7 +179,7 @@ namespace Elixir::Materials
             .SubmissionSerial = submissionSerial,
         };
 
-        auto& slot = m_FrameSlots[m_GraphicsContext->GetFrameIndex()];
+        auto& slot = m_FrameSlots.GetCurrent();
         slot.Table = table;
         slot.FrameNumber = submissionSerial;
     }
@@ -381,6 +382,6 @@ namespace Elixir::Materials
     const Ref<DynamicStorageBuffer>& MaterialSystem::GetFrameBuffer() const
     {
         EE_CORE_ASSERT(m_GraphicsContext, "Material system graphics context is unavailable.")
-        return m_FrameSlots[m_GraphicsContext->GetFrameIndex()].Buffer;
+        return m_FrameSlots.GetCurrent().Buffer;
     }
 }

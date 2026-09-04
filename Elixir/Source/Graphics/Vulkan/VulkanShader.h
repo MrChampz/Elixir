@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/Graphics/FrameSlotState.h>
+#include <Engine/Graphics/FrameSlotPendingState.h>
 #include <Engine/Graphics/Shader/Shader.h>
 #include <Graphics/Vulkan/VulkanGraphicsContext.h>
 
@@ -76,7 +76,7 @@ namespace Elixir::Vulkan
             Ref<UniformBuffer>
         >;
 
-        using DescriptorSetState = FrameSlotState<
+        using DescriptorSetState = FrameSlotPendingState<
             std::vector<VkDescriptorSet>,
             SShaderBinding,
             DescriptorValue

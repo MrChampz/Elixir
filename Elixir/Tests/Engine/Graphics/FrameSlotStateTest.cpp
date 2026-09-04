@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <Engine/Graphics/FrameSlotPendingState.h>
 #include <Engine/Graphics/FrameSlotState.h>
 
 namespace Elixir
@@ -29,10 +30,28 @@ namespace Elixir
         void CreateRenderTargets() override {}
     };
 
-    TEST(FrameSlotStateTest, AppliesEachRevisionOncePerFrameSlot)
+    TEST(FrameSlotStateTest, SelectsValuesForTheCurrentFrameSlot)
     {
         FrameSlotStateTestContext context;
-        FrameSlotState<uint32_t, std::string, uint32_t> state(context);
+        FrameSlotState<uint32_t> state(context);
+
+        context.SetFrameNumber(0);
+        state.GetCurrent() = 3;
+
+        context.SetFrameNumber(1);
+        state.GetCurrent() = 8;
+
+        context.SetFrameNumber(2);
+        EXPECT_EQ(state.GetCurrent(), 3u);
+
+        context.SetFrameNumber(3);
+        EXPECT_EQ(state.GetCurrent(), 8u);
+    }
+
+    TEST(FrameSlotPendingStateTest, AppliesEachRevisionOncePerFrameSlot)
+    {
+        FrameSlotStateTestContext context;
+        FrameSlotPendingState<uint32_t, std::string, uint32_t> state(context);
         uint32_t applyCount = 0;
 
         const auto apply = [&applyCount](uint32_t& resource, const auto changes)
@@ -47,27 +66,27 @@ namespace Elixir
         context.SetFrameNumber(0);
         state.ApplyPendingState(apply);
         state.ApplyPendingState(apply);
-        EXPECT_EQ(state.GetCurrentFrameResource(), 3u);
+        EXPECT_EQ(state.GetCurrent(), 3u);
 
         context.SetFrameNumber(1);
         state.ApplyPendingState(apply);
-        EXPECT_EQ(state.GetCurrentFrameResource(), 3u);
+        EXPECT_EQ(state.GetCurrent(), 3u);
         EXPECT_EQ(applyCount, 2u);
 
         EXPECT_TRUE(state.Set("value", 8));
         state.ApplyPendingState(apply);
-        EXPECT_EQ(state.GetCurrentFrameResource(), 8u);
+        EXPECT_EQ(state.GetCurrent(), 8u);
 
         context.SetFrameNumber(2);
         state.ApplyPendingState(apply);
-        EXPECT_EQ(state.GetCurrentFrameResource(), 8u);
+        EXPECT_EQ(state.GetCurrent(), 8u);
         EXPECT_EQ(applyCount, 4u);
     }
 
-    TEST(FrameSlotStateTest, DoesNotApplyAnUnchangedValue)
+    TEST(FrameSlotPendingStateTest, DoesNotApplyAnUnchangedValue)
     {
         FrameSlotStateTestContext context;
-        FrameSlotState<uint32_t, std::string, uint32_t> state(context);
+        FrameSlotPendingState<uint32_t, std::string, uint32_t> state(context);
         uint32_t applyCount = 0;
 
         EXPECT_TRUE(state.Set("value", 3));

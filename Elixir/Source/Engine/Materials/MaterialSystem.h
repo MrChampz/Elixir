@@ -1,8 +1,7 @@
 #pragma once
 
-#include "Engine/Graphics/FrameSlotState.h"
-
 #include <Engine/Graphics/Buffer.h>
+#include <Engine/Graphics/FrameSlotState.h>
 #include <Engine/Materials/Rendering/MaterialResolver.h>
 #include <Engine/Materials/Rendering/MaterialRenderScene.h>
 #include <Engine/Materials/Rendering/FrameTable.h>
@@ -163,7 +162,7 @@ namespace Elixir::Materials
         };
 
         uint32_t m_MaterialCapacity = 0;
-        std::array<SFrameSlot, GraphicsContext::FRAMES> m_FrameSlots;
+        FrameSlotState<SFrameSlot> m_FrameSlots;
         TextureRegistry m_Textures;
         Scope<Renderer> m_Renderer;
 
