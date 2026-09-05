@@ -189,7 +189,7 @@ namespace Elixir::Aether
         std::optional<glm::vec4> GetParameterDefault(std::string_view name) const;
 
         // Compiles the authored system into immutable runtime data.
-        SCompiledSystem Compile(MaterialResolver& materialResolver) const;
+        SCompiledSystem Compile() const;
 
         UUID m_UUID;
         mutable uint32_t m_CompilationRevision = 0;

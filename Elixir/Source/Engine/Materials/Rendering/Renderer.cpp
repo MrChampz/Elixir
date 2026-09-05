@@ -2,16 +2,13 @@
 #include "Renderer.h"
 
 #include <Engine/Graphics/Pipeline/PipelineBuilder.h>
-#include <Engine/Materials/MaterialInstance.h>
 
 namespace Elixir::Materials::Rendering
 {
     Renderer::Renderer(
         const GraphicsContext* context,
-        const TextureRegistry& textures,
-        const ShaderLoader* shaderLoader
+        const TextureRegistry& textures
     ) : m_Textures(textures),
-        m_CompilationCache(shaderLoader),
         m_Context(context) {}
 
     std::optional<SPreparedPass> Renderer::Prepare(const SPassRequest& request)
@@ -42,16 +39,6 @@ namespace Elixir::Materials::Rendering
             .Shader = shader,
             .Pipeline = GetPipeline(request.Pass, shader, request.Pipeline),
         };
-    }
-
-    Ref<const MaterialRenderProxy> Renderer::Resolve(const Ref<MaterialInstance>& instance)
-    {
-        if (!instance || !instance->GetParent()) return nullptr;
-
-        const auto compiled = m_CompilationCache.GetOrCompile(instance->GetParent());
-        return compiled
-            ? MaterialRenderProxy::Create(compiled, *instance)
-            : nullptr;
     }
 
     std::optional<SProgramKey> Renderer::GetProgramKey(

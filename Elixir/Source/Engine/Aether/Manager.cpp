@@ -16,10 +16,7 @@ namespace Elixir::Aether
         const ShaderLoader* shaderLoader,
         MaterialRegistry& materialRegistry,
         MaterialSystem& materialSystem
-    ) : m_Runtime(CreateScope<InstanceRegistry>(
-            materialRegistry,
-            materialSystem
-        )),
+    ) : m_Runtime(CreateScope<InstanceRegistry>(materialRegistry)),
         m_Simulator(CreateScope<Simulator>(context, shaderLoader)),
         m_Renderer(CreateScope<Renderer>(context)),
         m_MaterialSystem(materialSystem),

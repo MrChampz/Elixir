@@ -2,7 +2,6 @@
 
 #include <Engine/Graphics/Buffer.h>
 #include <Engine/Graphics/Pipeline/Pipeline.h>
-#include <Engine/Materials/Compilation/CompilationCache.h>
 #include <Engine/Materials/Rendering/MaterialRenderProxy.h>
 #include <Engine/Materials/Rendering/TextureRegistry.h>
 
@@ -134,10 +133,10 @@ namespace Elixir::Materials::Rendering
     };
 
     /**
-     * @brief Compiles material instances and prepares their render passes.
+     * @brief Prepares material render passes.
      *
-     * The renderer caches compiled materials, descriptor bindings, and graphics
-     * pipelines for reuse across render items.
+     * The renderer caches descriptor bindings and graphics pipelines for reuse
+     * across render items.
      */
     class ELIXIR_API Renderer final
     {
@@ -146,13 +145,11 @@ namespace Elixir::Materials::Rendering
          * @brief Creates a material renderer.
          * @param context Graphics context used to create pipelines.
          * @param textures Registry that provides material textures and a sampler.
-         * @param shaderLoader Loader used to compile material shaders.
          * @pre All arguments are valid for the renderer lifetime.
          */
         Renderer(
             const GraphicsContext* context,
-            const TextureRegistry& textures,
-            const ShaderLoader* shaderLoader
+            const TextureRegistry& textures
         );
 
         /**
@@ -163,13 +160,6 @@ namespace Elixir::Materials::Rendering
          * @pre `request.Pipeline.VertexLayout` is not null.
          */
         std::optional<SPreparedPass> Prepare(const SPassRequest& request);
-
-        /**
-         * @brief Resolves an instance into render-ready material data.
-         * @param instance Material instance to resolve.
-         * @return Render proxy, or null if the instance cannot be compiled.
-         */
-        Ref<const MaterialRenderProxy> Resolve(const Ref<MaterialInstance>& instance);
 
         /**
          * @brief Returns the program key for a material pass.
@@ -262,7 +252,6 @@ namespace Elixir::Materials::Rendering
         const TextureRegistry& m_Textures;
         std::unordered_map<SPipelineKey, Ref<GraphicsPipeline>, SPipelineKeyHasher> m_Pipelines;
         std::unordered_map<const Shader*, SDescriptorBindingState> m_DescriptorBindings;
-        CompilationCache m_CompilationCache;
 
         const GraphicsContext* m_Context = nullptr;
     };

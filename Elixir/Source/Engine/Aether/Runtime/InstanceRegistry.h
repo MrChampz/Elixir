@@ -7,7 +7,6 @@
 namespace Elixir::Materials
 {
     class MaterialRegistry;
-    namespace Rendering { class MaterialResolver; }
 }
 
 namespace Elixir::Aether::Runtime
@@ -26,7 +25,7 @@ namespace Elixir::Aether::Runtime
      * System after creating its instances. The compiled representation remains
      * available until this registry is destroyed.
      *
-     * @note MaterialRegistry and MaterialResolver must outlive this registry.
+     * @note MaterialRegistry must outlive this registry.
      *
      * @thread_safety Public methods synchronize compilation, instance ownership,
      * and frame publication.
@@ -36,14 +35,9 @@ namespace Elixir::Aether::Runtime
     public:
         /**
          * @brief Creates an instance registry.
-         *
          * @param materialRegistry Stores effect-authored and default materials.
-         * @param materialResolver Compiles material instances into render proxies.
          */
-        InstanceRegistry(
-            MaterialRegistry& materialRegistry,
-            MaterialResolver& materialResolver
-        );
+        explicit InstanceRegistry(MaterialRegistry& materialRegistry);
 
         /**
          * @brief Recompiles a System and updates all of its registered instances.
@@ -105,7 +99,6 @@ namespace Elixir::Aether::Runtime
         bool IsManagedInstance(const Ref<SystemInstance>& instance) const;
 
         Effect::MaterialResolver m_EffectMaterials;
-        MaterialResolver& m_MaterialResolver;
 
         std::unordered_map<UUID, Ref<const SCompiledSystem>> m_CompiledSystems;
         std::unordered_map<SSystemInstanceKey, Ref<SystemInstance>> m_Instances;

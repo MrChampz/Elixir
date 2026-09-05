@@ -61,7 +61,7 @@ namespace Elixir::Aether
         return found->Value;
     }
 
-    SCompiledSystem System::Compile(MaterialResolver& materialResolver) const
+    SCompiledSystem System::Compile() const
     {
         SCompiledSystem system;
         system.SourceId = m_UUID;
@@ -125,8 +125,7 @@ namespace Elixir::Aether
             auto compiled = emitter->Compile(
                 m_Parameters,
                 system.Parameters,
-                system.Ops,
-                materialResolver
+                system.Ops
             );
             compiled.LocalParticleOffset = localParticleOffset;
 

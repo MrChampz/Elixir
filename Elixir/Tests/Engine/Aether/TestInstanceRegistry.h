@@ -3,8 +3,6 @@
 #include <Engine/Aether/Runtime/InstanceRegistry.h>
 #include <Engine/Materials/MaterialRegistry.h>
 
-#include "TestMaterialResolver.h"
-
 using namespace Elixir;
 using namespace Elixir::Aether;
 using namespace Elixir::Materials;
@@ -13,11 +11,10 @@ class TestInstanceRegistry final
 {
 private:
     MaterialRegistry m_MaterialRegistry;
-    TestMaterialResolver m_MaterialResolver;
 
 public:
     TestInstanceRegistry()
-      : Registry(m_MaterialRegistry, m_MaterialResolver) {}
+      : Registry(m_MaterialRegistry) {}
 
     Ref<SystemInstance> CreateRegisteredInstance(const Ref<System>& system)
     {

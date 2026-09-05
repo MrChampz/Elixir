@@ -12,9 +12,9 @@ using namespace Elixir::Aether::Core;
 using namespace Elixir::Materials;
 
 template <typename T>
-concept HasPublicCompile = requires(const T& system, MaterialResolver& resolver)
+concept HasPublicCompile = requires(const T& system)
 {
-    system.Compile(resolver);
+    system.Compile();
 };
 
 static_assert(!HasPublicCompile<System>);

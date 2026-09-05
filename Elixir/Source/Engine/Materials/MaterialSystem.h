@@ -2,7 +2,8 @@
 
 #include <Engine/Graphics/Buffer.h>
 #include <Engine/Graphics/FrameSlotState.h>
-#include <Engine/Materials/Rendering/MaterialResolver.h>
+#include <Engine/Materials/MaterialProxyCache.h>
+#include <Engine/Materials/MaterialProxyResolver.h>
 #include <Engine/Materials/Rendering/MaterialRenderScene.h>
 #include <Engine/Materials/Rendering/FrameTable.h>
 #include <Engine/Materials/Rendering/Renderer.h>
@@ -44,7 +45,7 @@ namespace Elixir::Materials
      * The system owns shared material buffers, texture bindings, and render-state
      * preparation for a graphics context.
      */
-    class ELIXIR_API MaterialSystem final : public MaterialResolver
+    class ELIXIR_API MaterialSystem final
     {
     public:
         /**
@@ -80,30 +81,13 @@ namespace Elixir::Materials
          */
         SMaterialRenderResult RenderFrame();
 
+    private:
         /**
          * @brief Prepares and uploads material data for a scene submission.
          * @param scene Scene that provides material render items.
          * @param submissionSerial Serial that identifies the submission.
          */
-        void PrepareFrame(const MaterialRenderScene& scene, uint64_t submissionSerial);
-
-        /**
-         * @brief Gets the shader program key required for a material pass.
-         * @param pass Material pass to prepare.
-         * @param material Resolved material data.
-         * @return The program key, or no value when the pass is unsupported.
-         */
-        std::optional<SProgramKey> GetProgramKey(
-            EMaterialPass pass,
-            const MaterialRenderProxy& material
-        );
-
-        /**
-         * @brief Prepares GPU state for one material pass request.
-         * @param request Material pass and geometry requirements.
-         * @return Prepared pass state, or no value when preparation fails.
-         */
-        std::optional<SPreparedPass> PrepareMaterialPass(const SPassRequest& request) const;
+        void PrepareScene(const MaterialRenderScene& scene, uint64_t submissionSerial);
 
         /**
          * @brief Records draw commands for the scene materials.
@@ -111,9 +95,9 @@ namespace Elixir::Materials
          * @param scene Scene that provides render items.
          * @param submissionSerial Serial passed to @ref PreparedFrame.
          * @return Counts of rendered batches and recorded draw commands.
-         * @pre @ref PrepareFrame was called for @p submissionSerial.
+         * @pre @ref PrepareScene was called for @p submissionSerial.
          */
-        SMaterialRenderResult Render(
+        SMaterialRenderResult RecordScene(
             const Ref<CommandBuffer>& cmd,
             const MaterialRenderScene& scene,
             uint64_t submissionSerial
@@ -124,20 +108,11 @@ namespace Elixir::Materials
          * @param instance Material instance to resolve.
          * @return The render proxy, or null when the instance cannot be resolved.
          */
-        Ref<const MaterialRenderProxy> Resolve(
-            const Ref<MaterialInstance>& instance
-        ) override;
+        Ref<const MaterialRenderProxy> ResolveMaterialProxy(const Ref<MaterialInstance>& instance);
 
         /** @brief Gets the buffer that stores material data for the current frame slot. */
-        const Ref<DynamicStorageBuffer>& GetFrameBuffer() const;
+        const Ref<DynamicStorageBuffer>& GetActiveFrameBuffer() const;
 
-        /** @brief Gets the texture set used by material rendering. */
-        const Ref<TextureSet>& GetTextureSet() const { return m_Textures.GetTextureSet(); }
-
-        /** @brief Gets the sampler used by material textures. */
-        const Ref<Sampler>& GetSampler() const { return m_Textures.GetSampler(); }
-
-    private:
         /** @brief Stores material resources that are safe to reuse with one frame slot. */
         struct SFrameSlot
         {
@@ -154,19 +129,13 @@ namespace Elixir::Materials
             uint64_t SubmissionSerial = 0;
         };
 
-        struct SCachedMaterial
-        {
-            Ref<const MaterialRenderProxy> Proxy;
-            uint32_t InstanceRevision = 0;
-            uint32_t MaterialRevision = 0;
-        };
-
         uint32_t m_MaterialCapacity = 0;
         FrameSlotState<SFrameSlot> m_FrameSlots;
         TextureRegistry m_Textures;
+        MaterialProxyResolver m_ProxyResolver;
+        MaterialProxyCache m_ProxyCache;
         Scope<Renderer> m_Renderer;
 
-        std::unordered_map<const MaterialInstance*, SCachedMaterial> m_MaterialCache;
         std::vector<MaterialRenderScene> m_SubmittedScenes;
         SPreparedFrame m_PreparedFrame;
         uint64_t m_CurrentFrameNumber = UINT64_MAX;

@@ -2,15 +2,11 @@
 #include "InstanceRegistry.h"
 
 #include <Engine/Materials/MaterialRegistry.h>
-#include <Engine/Materials/Rendering/MaterialResolver.h>
 
 namespace Elixir::Aether::Runtime
 {
-    InstanceRegistry::InstanceRegistry(
-        MaterialRegistry& materialRegistry,
-        MaterialResolver& materialResolver
-    ) : m_EffectMaterials(materialRegistry),
-        m_MaterialResolver(materialResolver) {}
+    InstanceRegistry::InstanceRegistry(MaterialRegistry& materialRegistry)
+      : m_EffectMaterials(materialRegistry) {}
 
     bool InstanceRegistry::Recompile(const Ref<System>& system)
     {
@@ -124,9 +120,7 @@ namespace Elixir::Aether::Runtime
         return m_Publisher.Acquire();
     }
 
-    Ref<const SCompiledSystem> InstanceRegistry::CompileSystem(
-        const System& system
-    ) const
+    Ref<const SCompiledSystem> InstanceRegistry::CompileSystem(const System& system) const
     {
         if (!m_EffectMaterials.Resolve(system))
         {
@@ -137,14 +131,10 @@ namespace Elixir::Aether::Runtime
             return nullptr;
         }
 
-        return CreateRef<SCompiledSystem>(
-            system.Compile(m_MaterialResolver)
-        );
+        return CreateRef<SCompiledSystem>(system.Compile());
     }
 
-    bool InstanceRegistry::IsManagedInstance(
-        const Ref<SystemInstance>& instance
-    ) const
+    bool InstanceRegistry::IsManagedInstance(const Ref<SystemInstance>& instance) const
     {
         if (!instance) return false;
 

@@ -43,11 +43,9 @@ namespace Elixir::Materials
     ) : m_MaterialCapacity(GetInitialFrameCapacity(config)),
         m_FrameSlots(*context),
         m_Textures(context),
-        m_Renderer(CreateScope<Renderer>(
-            context,
-            m_Textures,
-            shaderLoader
-        )),
+        m_ProxyResolver(shaderLoader),
+        m_ProxyCache(m_ProxyResolver),
+        m_Renderer(CreateScope<Renderer>(context, m_Textures)),
         m_GraphicsContext(context)
     {
         EE_CORE_ASSERT(context, "Material system requires a graphics context.")
@@ -67,6 +65,7 @@ namespace Elixir::Materials
 
         m_CurrentFrameNumber = m_GraphicsContext->GetFrameNumber();
         m_SubmittedScenes.clear();
+        m_ProxyCache.PruneExpired();
         m_Textures.BeginFrame(m_CurrentFrameNumber);
 
         auto& slot = m_FrameSlots.GetCurrent();
@@ -123,8 +122,8 @@ namespace Elixir::Materials
 
         for (const auto& scene : m_SubmittedScenes)
         {
-            PrepareFrame(scene, m_CurrentFrameNumber);
-            const auto sceneResult = Render(cmd, scene, m_CurrentFrameNumber);
+            PrepareScene(scene, m_CurrentFrameNumber);
+            const auto sceneResult = RecordScene(cmd, scene, m_CurrentFrameNumber);
 
             result.MaterialCount += sceneResult.MaterialCount;
             result.BatchCount += sceneResult.BatchCount;
@@ -139,12 +138,12 @@ namespace Elixir::Materials
         return result;
     }
 
-    void MaterialSystem::PrepareFrame(
+    void MaterialSystem::PrepareScene(
         const MaterialRenderScene& scene,
         const uint64_t submissionSerial
     )
     {
-        const auto& frameBuffer = GetFrameBuffer();
+        const auto& frameBuffer = GetActiveFrameBuffer();
 
         const auto table = CreateRef<FrameTable>(
             m_MaterialCapacity,
@@ -160,7 +159,7 @@ namespace Elixir::Materials
             const auto& material = item.Material;
             if (material)
             {
-                const auto proxy = Resolve(material);
+                const auto proxy = ResolveMaterialProxy(material);
                 if (proxy) table->Add(*proxy);
             }
         }
@@ -184,22 +183,7 @@ namespace Elixir::Materials
         slot.FrameNumber = submissionSerial;
     }
 
-    std::optional<SProgramKey> MaterialSystem::GetProgramKey(
-        const EMaterialPass pass,
-        const MaterialRenderProxy& material
-    )
-    {
-        return m_Renderer->GetProgramKey(pass, material);
-    }
-
-    std::optional<SPreparedPass> MaterialSystem::PrepareMaterialPass(
-        const SPassRequest& request
-    ) const
-    {
-        return m_Renderer->Prepare(request);
-    }
-
-    SMaterialRenderResult MaterialSystem::Render(
+    SMaterialRenderResult MaterialSystem::RecordScene(
         const Ref<CommandBuffer>& cmd,
         const MaterialRenderScene& scene,
         const uint64_t submissionSerial
@@ -234,10 +218,10 @@ namespace Elixir::Materials
             EE_CORE_ASSERT(geometry, "Material render item geometry is unavailable.")
             if (!geometry) continue;
 
-            const auto material = Resolve(item.Material);
+            const auto material = ResolveMaterialProxy(item.Material);
             if (!material) continue;
 
-            const auto program = GetProgramKey(item.Pass, *material);
+            const auto program = m_Renderer->GetProgramKey(item.Pass, *material);
             EE_CORE_ASSERT(program, "Material render item does not support its requested pass.")
             if (!program) continue;
 
@@ -296,15 +280,15 @@ namespace Elixir::Materials
             if (!geometry) continue;
 
             const auto& first = *batch.Items.front().Item;
-            const auto prepared = PrepareMaterialPass({
+            const auto prepared = m_Renderer->Prepare({
                 .Pass = batch.Key.Pass,
-                .Material = Resolve(first.Material).get(),
+                .Material = ResolveMaterialProxy(first.Material).get(),
                 .Pipeline = geometry->Pipeline,
                 .ExternalResources = {
                     .ConstantBuffers = geometry->ConstantBuffers,
                     .StorageBuffers = geometry->StorageBuffers,
                 },
-                .MaterialBuffer = GetFrameBuffer(),
+                .MaterialBuffer = GetActiveFrameBuffer(),
                 .InitialPushConstants = std::span{
                     first.PushConstants.Data.data(),
                     first.PushConstants.Size,
@@ -354,32 +338,14 @@ namespace Elixir::Materials
         return result;
     }
 
-    Ref<const MaterialRenderProxy> MaterialSystem::Resolve(
+    Ref<const MaterialRenderProxy> MaterialSystem::ResolveMaterialProxy(
         const Ref<MaterialInstance>& instance
     )
     {
-        if (!instance || !instance->GetParent()) return nullptr;
-
-        const auto materialRevision = instance->GetParent()->GetRevision();
-        if (const auto found = m_MaterialCache.find(instance.get());
-            found != m_MaterialCache.end() &&
-            found->second.InstanceRevision == instance->GetRevision() &&
-            found->second.MaterialRevision == materialRevision)
-        {
-            return found->second.Proxy;
-        }
-
-        const auto proxy = m_Renderer->Resolve(instance);
-        m_MaterialCache.insert_or_assign(instance.get(), SCachedMaterial{
-            .Proxy = proxy,
-            .InstanceRevision = instance->GetRevision(),
-            .MaterialRevision = materialRevision,
-        });
-
-        return proxy;
+        return m_ProxyCache.Resolve(instance);
     }
 
-    const Ref<DynamicStorageBuffer>& MaterialSystem::GetFrameBuffer() const
+    const Ref<DynamicStorageBuffer>& MaterialSystem::GetActiveFrameBuffer() const
     {
         EE_CORE_ASSERT(m_GraphicsContext, "Material system graphics context is unavailable.")
         return m_FrameSlots.GetCurrent().Buffer;
