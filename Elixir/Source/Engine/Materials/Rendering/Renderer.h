@@ -9,6 +9,9 @@ namespace Elixir { class ShaderLoader; }
 
 namespace Elixir::Materials::Rendering
 {
+    class MaterialRenderScene;
+    struct SRenderItem;
+
     /**
      * @brief Identifies a material render pass.
      */
@@ -34,6 +37,57 @@ namespace Elixir::Materials::Rendering
 
         /** @brief Compares two program keys. */
         bool operator==(const SProgramKey&) const = default;
+    };
+
+    /**
+     * @brief Associates a scene draw with resolved material data.
+     */
+    struct SResolvedRenderItem
+    {
+        /** Source draw item owned by the render scene. */
+        const SRenderItem* Item = nullptr;
+
+        /** Immutable material data resolved by MaterialSystem. */
+        Ref<const MaterialRenderProxy> Proxy;
+
+        /** Index of the material in the active frame buffer. */
+        uint32_t MaterialIndex = UINT32_MAX;
+    };
+
+    /**
+     * @brief Describes one prepared material scene to record.
+     */
+    struct SMaterialSceneRecordRequest
+    {
+        /** Command buffer that receives draw commands. */
+        Ref<CommandBuffer> CommandBuffer;
+
+        /** Scene that owns geometry and source draw items. */
+        const MaterialRenderScene* Scene = nullptr;
+
+        /** Draw items with their already resolved material proxies. */
+        std::span<const SResolvedRenderItem> Items;
+
+        /** Storage buffer containing this scene's material table. */
+        Ref<DynamicStorageBuffer> MaterialBuffer;
+
+        /** Number of unique materials uploaded to MaterialBuffer. */
+        uint32_t MaterialCount = 0;
+    };
+
+    /**
+     * @brief Reports the work recorded by a material renderer.
+     */
+    struct SRenderResult
+    {
+        /** Number of materials uploaded for the rendered scene. */
+        uint32_t MaterialCount = 0;
+
+        /** Number of material batches rendered. */
+        uint32_t BatchCount = 0;
+
+        /** Number of draw commands recorded. */
+        uint32_t DrawCount = 0;
     };
 
     /**
@@ -162,6 +216,17 @@ namespace Elixir::Materials::Rendering
         std::optional<SPreparedPass> Prepare(const SPassRequest& request);
 
         /**
+         * @brief Records the prepared scene's material draws.
+         *
+         * The renderer batches compatible draws, prepares pass state, and records
+         * pipeline bindings, push constants, and draw commands.
+         *
+         * @param request Render-ready scene data.
+         * @return Counts of materials, batches, and draw commands recorded.
+         */
+        SRenderResult Record(const SMaterialSceneRecordRequest& request);
+
+        /**
          * @brief Returns the program key for a material pass.
          * @param pass Material pass.
          * @param material Resolved material data.
@@ -237,6 +302,21 @@ namespace Elixir::Materials::Rendering
                 Hash::HashCombine(hash, Hash::Hash<uint64_t>(key.VertexLayoutKey));
                 return hash;
             }
+        };
+
+        struct SBatchKey
+        {
+            EMaterialPass Pass = EMaterialPass::ParticleSprite;
+            uint32_t GeometryIndex = UINT32_MAX;
+            SProgramKey Program;
+
+            bool operator==(const SBatchKey&) const = default;
+        };
+
+        struct SBatch
+        {
+            SBatchKey Key;
+            std::vector<const SResolvedRenderItem*> Items;
         };
 
         /** Returns a cached pipeline or creates one for the request. */

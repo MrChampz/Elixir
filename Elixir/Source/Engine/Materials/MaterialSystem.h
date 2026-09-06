@@ -5,7 +5,6 @@
 #include <Engine/Materials/MaterialProxyCache.h>
 #include <Engine/Materials/MaterialProxyResolver.h>
 #include <Engine/Materials/Rendering/MaterialRenderScene.h>
-#include <Engine/Materials/Rendering/FrameTable.h>
 #include <Engine/Materials/Rendering/Renderer.h>
 #include <Engine/Materials/Rendering/TextureRegistry.h>
 
@@ -22,21 +21,6 @@ namespace Elixir::Materials
     {
         /** @brief Initial number of material entries supported by a frame snapshot. */
         uint32_t InitialFrameCapacity = 256;
-    };
-
-    /**
-     * @brief Reports the work recorded by a material render pass.
-     */
-    struct SMaterialRenderResult
-    {
-        /** @brief Number of materials prepared for the rendered submission. */
-        uint32_t MaterialCount = 0;
-
-        /** @brief Number of material batches rendered. */
-        uint32_t BatchCount = 0;
-
-        /** @brief Number of draw commands recorded. */
-        uint32_t DrawCount = 0;
     };
 
     /**
@@ -79,29 +63,22 @@ namespace Elixir::Materials
          * @return Counts of prepared materials, batches, and draws.
          * @pre BeginFrame was called for the current graphics frame.
          */
-        SMaterialRenderResult RenderFrame();
+        SRenderResult RenderFrame();
 
     private:
-        /**
-         * @brief Prepares and uploads material data for a scene submission.
-         * @param scene Scene that provides material render items.
-         * @param submissionSerial Serial that identifies the submission.
-         */
-        void PrepareScene(const MaterialRenderScene& scene, uint64_t submissionSerial);
+        /** @brief Stores resolved render items for one submitted scene. */
+        struct SPreparedScene
+        {
+            std::vector<SResolvedRenderItem> Items;
+            uint32_t MaterialCount = 0;
+        };
 
         /**
-         * @brief Records draw commands for the scene materials.
-         * @param cmd Command buffer that receives the draw commands.
-         * @param scene Scene that provides render items.
-         * @param submissionSerial Serial passed to @ref PreparedFrame.
-         * @return Counts of rendered batches and recorded draw commands.
-         * @pre @ref PrepareScene was called for @p submissionSerial.
+         * @brief Resolves material proxies and uploads material data for one scene.
+         * @param scene Scene that provides material render items.
+         * @return Render-ready scene items with their proxies and frame-buffer indices.
          */
-        SMaterialRenderResult RecordScene(
-            const Ref<CommandBuffer>& cmd,
-            const MaterialRenderScene& scene,
-            uint64_t submissionSerial
-        );
+        SPreparedScene PrepareScene(const MaterialRenderScene& scene);
 
         /**
          * @brief Resolves an instance into a render-ready material proxy.
@@ -117,16 +94,6 @@ namespace Elixir::Materials
         struct SFrameSlot
         {
             Ref<DynamicStorageBuffer> Buffer;
-            Ref<const FrameTable> Table;
-            uint64_t FrameNumber = UINT64_MAX;
-        };
-
-        /** @brief Stores material data prepared for the current submission. */
-        struct SPreparedFrame
-        {
-            Ref<const FrameTable> Table;
-            uint32_t MaterialCount = 0;
-            uint64_t SubmissionSerial = 0;
         };
 
         uint32_t m_MaterialCapacity = 0;
@@ -137,7 +104,6 @@ namespace Elixir::Materials
         Scope<Renderer> m_Renderer;
 
         std::vector<MaterialRenderScene> m_SubmittedScenes;
-        SPreparedFrame m_PreparedFrame;
         uint64_t m_CurrentFrameNumber = UINT64_MAX;
 
         const GraphicsContext* m_GraphicsContext = nullptr;

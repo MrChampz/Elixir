@@ -2,6 +2,7 @@
 #include "Renderer.h"
 
 #include <Engine/Graphics/Pipeline/PipelineBuilder.h>
+#include <Engine/Materials/Rendering/MaterialRenderScene.h>
 
 namespace Elixir::Materials::Rendering
 {
@@ -39,6 +40,134 @@ namespace Elixir::Materials::Rendering
             .Shader = shader,
             .Pipeline = GetPipeline(request.Pass, shader, request.Pipeline),
         };
+    }
+
+    SRenderResult Renderer::Record(const SMaterialSceneRecordRequest& request)
+    {
+        SRenderResult result{
+            .MaterialCount = request.MaterialCount,
+        };
+
+        if (!request.CommandBuffer || !request.Scene || !request.MaterialBuffer)
+            return result;
+
+        std::vector<SBatch> batches;
+
+        for (const auto& resolved : request.Items)
+        {
+            if (!resolved.Item || !resolved.Proxy) continue;
+
+            const auto& item = *resolved.Item;
+            const auto* geometry = request.Scene->FindGeometry(item.GeometryIndex);
+            EE_CORE_ASSERT(geometry, "Material render item geometry is unavailable.");
+            if (!geometry) continue;
+
+            const auto program = GetProgramKey(item.Pass, *resolved.Proxy);
+            EE_CORE_ASSERT(program, "Material render item does not support its requested pass.")
+            if (!program) continue;
+
+            const SBatchKey key{
+                .Pass = item.Pass,
+                .GeometryIndex = item.GeometryIndex,
+                .Program = *program
+            };
+
+            auto batch = std::ranges::find_if(
+                batches,
+                [&key](const SBatch& candidate)
+                {
+                    return candidate.Key == key;
+                }
+            );
+
+            if (batch == batches.end())
+            {
+                batches.push_back({ .Key = key });
+                batch = std::prev(batches.end());
+            }
+
+            batch->Items.push_back(&resolved);
+        }
+
+        std::ranges::stable_sort(
+            batches,
+            [](const SBatch& left, const SBatch& right)
+            {
+                if (left.Key.Pass != right.Key.Pass)
+                    return GetPassOrder(left.Key.Pass) < GetPassOrder(right.Key.Pass);
+
+                if (left.Key.GeometryIndex != right.Key.GeometryIndex)
+                    return left.Key.GeometryIndex < right.Key.GeometryIndex;
+
+                return std::less<const void*>{}(
+                    left.Key.Program.Identity,
+                    right.Key.Program.Identity
+                );
+            }
+        );
+
+        for (const auto& batch : batches)
+        {
+            if (batch.Items.empty()) continue;
+
+            const auto* geometry = request.Scene->FindGeometry(batch.Key.GeometryIndex);
+            if (!geometry) continue;
+
+            const auto& first = *batch.Items.front();
+            const auto prepared = Prepare({
+                .Pass = batch.Key.Pass,
+                .Material = first.Proxy.get(),
+                .Pipeline = geometry->Pipeline,
+                .ExternalResources = {
+                    .ConstantBuffers = geometry->ConstantBuffers,
+                    .StorageBuffers = geometry->StorageBuffers,
+                },
+                .MaterialBuffer = request.MaterialBuffer,
+                .InitialPushConstants = std::span{
+                    first.Item->PushConstants.Data.data(),
+                    first.Item->PushConstants.Size
+                },
+            });
+            if (!prepared) continue;
+
+            ++result.BatchCount;
+            prepared->Pipeline->Bind(request.CommandBuffer);
+
+            for (const auto& binding : geometry->VertexBuffers)
+            {
+                request.CommandBuffer->BindBuffer<VertexBuffer>(
+                    binding.Buffer,
+                    std::span<uint64_t>{},
+                    1,
+                    binding.Binding
+                );
+            }
+
+            for (const auto* resolved : batch.Items)
+            {
+                const auto constants = resolved->Item->PushConstants.Resolve(
+                    resolved->MaterialIndex
+                );
+
+                prepared->Shader->SetPushConstant(
+                    request.CommandBuffer,
+                    "pc",
+                    const_cast<std::byte*>(constants.data()),
+                    resolved->Item->PushConstants.Size
+                );
+
+                request.CommandBuffer->Draw(
+                    resolved->Item->Draw.VertexCount,
+                    resolved->Item->Draw.InstanceCount,
+                    resolved->Item->Draw.FirstVertex,
+                    resolved->Item->Draw.FirstInstance
+                );
+
+                ++result.DrawCount;
+            }
+        }
+
+        return result;
     }
 
     std::optional<SProgramKey> Renderer::GetProgramKey(
