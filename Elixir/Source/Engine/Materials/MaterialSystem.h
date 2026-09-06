@@ -23,6 +23,13 @@ namespace Elixir::Materials
         uint32_t InitialFrameCapacity = 256;
     };
 
+    /** @brief Stores resolved render items for one submitted scene. */
+    struct SPreparedScene
+    {
+        std::vector<SResolvedRenderItem> Items;
+        uint32_t MaterialCount = 0;
+    };
+
     /**
      * @brief Prepares frame material data and records material draw commands.
      *
@@ -66,13 +73,6 @@ namespace Elixir::Materials
         SRenderResult RenderFrame();
 
     private:
-        /** @brief Stores resolved render items for one submitted scene. */
-        struct SPreparedScene
-        {
-            std::vector<SResolvedRenderItem> Items;
-            uint32_t MaterialCount = 0;
-        };
-
         /**
          * @brief Resolves material proxies and uploads material data for one scene.
          * @param scene Scene that provides material render items.

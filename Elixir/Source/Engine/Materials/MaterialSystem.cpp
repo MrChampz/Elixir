@@ -102,7 +102,7 @@ namespace Elixir::Materials
             const auto sceneResult = m_Renderer->Record({
                 .CommandBuffer = cmd,
                 .Scene = &scene,
-                .Items = std::span<const SResolvedRenderItem>{ prepared.Items },
+                .Items = std::span{ prepared.Items },
                 .MaterialBuffer = GetActiveFrameBuffer(),
                 .MaterialCount = prepared.MaterialCount,
             });
@@ -120,9 +120,7 @@ namespace Elixir::Materials
         return result;
     }
 
-    MaterialSystem::SPreparedScene MaterialSystem::PrepareScene(
-        const MaterialRenderScene& scene
-    )
+    SPreparedScene MaterialSystem::PrepareScene(const MaterialRenderScene& scene)
     {
         SPreparedScene prepared{};
         const auto& frameBuffer = GetActiveFrameBuffer();
