@@ -45,6 +45,10 @@
 #include <Engine/Graphics/Texture.h>
 #include <Engine/Graphics/TextureSet.h>
 #include <Engine/Graphics/TextureLoader.h>
+#include <Engine/Graphics/StaticMesh.h>
+#include <Engine/Graphics/StaticMeshInstance.h>
+#include <Engine/Graphics/StaticMeshLoader.h>
+#include <Engine/Graphics/StaticMeshLoaderRegistry.h>
 #include <Engine/Graphics/FrameSlotState.h>
 #include <Engine/Graphics/Pipeline/PipelineBuilder.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>

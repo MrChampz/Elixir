@@ -13,6 +13,7 @@
 #include <Engine/Input/InputCodes.h>
 #include <Engine/Font/FontManager.h>
 #include <Engine/Graphics/TextureLoader.h>
+#include <Engine/Graphics/StaticMeshLoaderRegistry.h>
 #include <Engine/Materials/MaterialSystem.h>
 #include <Engine/Materials/MaterialRegistry.h>
 #include <Engine/Aether/Manager.h>
@@ -39,6 +40,7 @@ namespace Elixir
         m_ShaderLoader = CreateScope<ShaderLoader>(m_GraphicsContext.get());
 
         TextureLoader::Initialize(m_GraphicsContext.get());
+        StaticMeshLoaderRegistry::Initialize(m_GraphicsContext.get());
         FontManager::Initialize(m_GraphicsContext.get());
         IconManager::Initialize(m_GraphicsContext.get());
 
@@ -148,6 +150,7 @@ namespace Elixir
         EE_PROFILE_ZONE_SCOPED()
         IconManager::Shutdown();
         FontManager::Shutdown();
+        StaticMeshLoaderRegistry::Shutdown();
         Platform::Shutdown();
         m_Running = false;
     }
