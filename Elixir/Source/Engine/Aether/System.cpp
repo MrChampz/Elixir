@@ -1,9 +1,16 @@
 #include "epch.h"
 #include "System.h"
 
+#include <Engine/Aether/SystemInstance.h>
+
 namespace Elixir::Aether
 {
     System::System(const std::string& name) : m_Name(name) {}
+
+    Ref<SystemInstance> System::CreateInstance()
+    {
+        return Ref<SystemInstance>(new SystemInstance(shared_from_this()));
+    }
 
     Emitter& System::AddEmitter(
         const std::string& name,
@@ -15,14 +22,52 @@ namespace Elixir::Aether
         return *m_Emitters.back();
     }
 
+    Emitter* System::FindEmitter(const std::string_view name) const
+    {
+        for (const auto& emitter : m_Emitters)
+        {
+            if (emitter->GetName() == name)
+                return emitter.get();
+        }
+
+        return nullptr;
+    }
+
+    std::vector<SGPUParameter> System::BuildExposedParameters() const
+    {
+        auto parameters = m_Parameters.Compile();
+
+        for (const auto& emitter : m_Emitters)
+        {
+            const auto prefix = emitter->GetName() + ".";
+            const auto params = emitter->GetParameters().Compile(prefix);
+            parameters.insert(parameters.end(), params.begin(), params.end());
+        }
+
+        return parameters;
+    }
+
+    std::optional<glm::vec4> System::GetParameterDefault(std::string_view name) const
+    {
+        const auto parameters = BuildExposedParameters();
+        const auto found = std::ranges::find_if(parameters, [&name](const auto& param)
+        {
+            return param.Name == name;
+        });
+
+        if (found == parameters.end())
+            return std::nullopt;
+
+        return found->Value;
+    }
+
     SCompiledSystem System::Compile() const
     {
         SCompiledSystem system;
         system.SourceId = m_UUID;
         system.CompilationRevision = ++m_CompilationRevision;
-        system.Name = m_Name;
 
-        system.Parameters = m_Parameters.Compile();
+        system.Parameters = BuildExposedParameters();
 
         const auto systemCurves = m_Curves.Compile();
         system.Curves.insert(system.Curves.end(), systemCurves.begin(), systemCurves.end());
@@ -33,9 +78,6 @@ namespace Elixir::Aether
         for (const auto& emitter : m_Emitters)
         {
             const auto prefix = emitter->GetName() + ".";
-
-            const auto emitterParams = emitter->GetParameters().Compile(prefix);
-            system.Parameters.insert(system.Parameters.end(), emitterParams.begin(), emitterParams.end());
 
             const auto emitterCurves = emitter->GetCurves().Compile(prefix);
             system.Curves.insert(system.Curves.end(), emitterCurves.begin(), emitterCurves.end());
@@ -80,7 +122,11 @@ namespace Elixir::Aether
 
         for (const auto& emitter : m_Emitters)
         {
-            auto compiled = emitter->Compile(m_Parameters, system.Parameters, system.Ops);
+            auto compiled = emitter->Compile(
+                m_Parameters,
+                system.Parameters,
+                system.Ops
+            );
             compiled.LocalParticleOffset = localParticleOffset;
 
             localParticleOffset += compiled.MaxParticles;
@@ -98,14 +144,14 @@ namespace Elixir::Aether
             const auto& name = emitter->GetTriggerEmitterName();
             if (name.empty()) continue;
 
-            auto found = std::ranges::find_if(system.Emitters, [&name](const SCompiledEmitter& e)
+            const auto found = std::ranges::find_if(m_Emitters, [&name](const auto& e)
             {
-                return e.Name == name;
+                return e->GetName() == name;
             });
 
-            if (found != system.Emitters.end())
+            if (found != m_Emitters.end())
             {
-                const auto sourceIndex = (uint32_t)std::distance(system.Emitters.begin(), found);
+                const auto sourceIndex = (uint32_t)std::distance(m_Emitters.begin(), found);
 
                 auto& target = system.Emitters[targetIndex];
                 target.TriggerSourceEmitterIndex = (int32_t)sourceIndex;
@@ -119,7 +165,11 @@ namespace Elixir::Aether
             }
             else
             {
-                EE_CORE_ERROR("Trigger source emitter '{}' not found for emitter '{}'.", name, emitter->GetName());
+                EE_CORE_ERROR(
+                    "Trigger source emitter '{}' not found for emitter '{}'.",
+                    name,
+                    emitter->GetName()
+                )
             }
         }
 

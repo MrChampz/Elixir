@@ -37,7 +37,7 @@
     {
       "name": "RainDrops",
       "renderMode": "Sprite",
-      "spriteTexture": "./Assets/Textures/RainDrop.png",
+      "material": { "color": "$rain_drop_start", "texture": "./Assets/Textures/RainDrop.png" },
       "maxParticles": 5600,
       "spawnRate": "$spawn_rate",
       "parameters": {
@@ -67,7 +67,7 @@
     {
       "name": "GroundMist",
       "renderMode": "Sprite",
-      "spriteTexture": "./Assets/Textures/RainDrop.png",
+      "material": { "color": "$mist_start", "texture": "./Assets/Textures/RainDrop.png" },
       "maxParticles": 640,
       "spawnRate": "$spawn_rate",
       "parameters": {

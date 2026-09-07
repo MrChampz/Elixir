@@ -48,6 +48,26 @@ namespace Elixir
 
 GENERATE_HASH_FUNCTION(Elixir::UUID)
 
+inline std::string operator+(const char* lhs, const Elixir::UUID& rhs)
+{
+    return std::string(lhs) + rhs.ToString();
+}
+
+inline std::string operator+(const std::string& lhs, const Elixir::UUID& rhs)
+{
+    return lhs + rhs.ToString();
+}
+
+inline std::string operator+(const Elixir::UUID& lhs, const char* rhs)
+{
+    return lhs.ToString() + rhs;
+}
+
+inline std::string operator+(const Elixir::UUID& lhs, const std::string& rhs)
+{
+    return lhs.ToString() + rhs;
+}
+
 /**
  * Formatter for seamless UUID output in the logging system.
  */

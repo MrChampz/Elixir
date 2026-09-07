@@ -1,4 +1,3 @@
-#include "epch.h"
 #include "Application.h"
 
 #include "Engine/GUI/Button.h"
@@ -14,6 +13,9 @@
 #include <Engine/Input/InputCodes.h>
 #include <Engine/Font/FontManager.h>
 #include <Engine/Graphics/TextureLoader.h>
+#include <Engine/Materials/MaterialSystem.h>
+#include <Engine/Materials/MaterialRegistry.h>
+#include <Engine/Aether/Manager.h>
 
 namespace Elixir
 {
@@ -40,11 +42,25 @@ namespace Elixir
         FontManager::Initialize(m_GraphicsContext.get());
         IconManager::Initialize(m_GraphicsContext.get());
 
+        m_MaterialRegistry = CreateScope<MaterialRegistry>();
+        m_MaterialSystem = CreateScope<MaterialSystem>(
+            m_GraphicsContext.get(),
+            m_ShaderLoader.get(),
+            SMaterialSystemConfig{ .InitialFrameCapacity = 256 }
+        );
+
         m_GUIManager = CreateScope<GUI::Manager>();
         m_GUIManager->Initialize(
             m_GraphicsContext.get(),
             m_ShaderLoader.get(),
             m_Window->GetFramebufferExtent() // TODO: Get from Ctx->GetRenderTargetExtent()..
+        );
+
+        m_AetherManager = CreateScope<Aether::Manager>(
+            m_GraphicsContext.get(),
+            m_ShaderLoader.get(),
+            *m_MaterialRegistry,
+            *m_MaterialSystem
         );
 
         const auto buttonBg = TextureLoader::Load("./Assets/Button_Background.png");
@@ -124,7 +140,7 @@ namespace Elixir
             .SetPosition({ 10, 10 })
             .SetSize({ 280, 24 });
 
-        m_GUIManager->SetRoot(panel);
+        //m_GUIManager->SetRoot(panel);
     }
 
     Application::~Application()
@@ -179,9 +195,13 @@ namespace Elixir
             m_GUIManager->ArrangeLayout(m_Window->GetWindowExtent()); // TODO: Remove from here and handle only when resizing
             m_GUIManager->Update(frameTime);
 
+            Prepare(frameTime);
+
             m_GraphicsContext->RenderFrame([this, frameTime]()
             {
-                OnRender(frameTime);
+                m_MaterialSystem->BeginFrame();
+                Render(frameTime);
+                m_MaterialSystem->RenderFrame();
                 m_GUIManager->Render();
             });
 
@@ -201,6 +221,40 @@ namespace Elixir
         m_GraphicsContext->ProcessEvent(event);
         ::InputManager::OnEvent(event);
         m_GUIManager->ProcessEvent(event);
+    }
+
+    MaterialSystem& Application::GetMaterialSystem()
+    {
+        EE_CORE_ASSERT(m_MaterialSystem, "Application material system is unavailable.")
+        return *m_MaterialSystem;
+    }
+
+    const MaterialSystem& Application::GetMaterialSystem() const
+    {
+        EE_CORE_ASSERT(m_MaterialSystem, "Application material system is unavailable.")
+        return *m_MaterialSystem;
+    }
+
+    MaterialRegistry& Application::GetMaterialRegistry()
+    {
+        return *m_MaterialRegistry;
+    }
+
+    const MaterialRegistry& Application::GetMaterialRegistry() const
+    {
+        return *m_MaterialRegistry;
+    }
+
+    Aether::Manager& Application::GetAetherManager()
+    {
+        EE_CORE_ASSERT(m_AetherManager, "Application Aether manager is unavailable.")
+        return *m_AetherManager;
+    }
+
+    const Aether::Manager& Application::GetAetherManager() const
+    {
+        EE_CORE_ASSERT(m_AetherManager, "Application Aether manager is unavailable.")
+        return *m_AetherManager;
     }
 
     bool Application::OnWindowClose(WindowCloseEvent& event)

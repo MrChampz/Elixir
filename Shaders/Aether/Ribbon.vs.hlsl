@@ -19,6 +19,7 @@ struct Emitter
     float4 MetaD; // x = emission index
 };
 
+
 [[vk::binding(2, 0)]]
 StructuredBuffer<Emitter> emitters;
 
@@ -37,6 +38,7 @@ struct PushConstants
     float4x4 WorldTransform;
     uint EmitterIndex;
     uint ParticleBaseOffset;
+    uint MaterialIndex;
 };
 
 [[vk::push_constant]]

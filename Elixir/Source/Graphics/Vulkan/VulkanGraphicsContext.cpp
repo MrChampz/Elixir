@@ -87,7 +87,7 @@ namespace Elixir
 
         EE_CORE_INFO("Vulkan Renderer:")
 		EE_CORE_INFO("  Vendor: {0}", DeviceUtils::GetVendorName(m_GPUProperties.vendorID));
-		EE_CORE_INFO("  Renderer: {0}", m_GPUProperties.deviceName)
+		EE_CORE_INFO("  Renderer: {0}", std::string_view{ m_GPUProperties.deviceName })
 		EE_CORE_INFO("  Version: {0}", DeviceUtils::GetApiVersion(m_GPUProperties.apiVersion));
 
         m_IsInitialized = true;
@@ -178,7 +178,7 @@ namespace Elixir
         m_Executor->ShutdownRenderPool();
 
         WaitDeviceIdle();
-        WaitForAllFrames();
+        ResetFrameUsageState();
     }
 
     void VulkanGraphicsContext::SetClearColor(const glm::vec4& color)
@@ -229,6 +229,12 @@ namespace Elixir
     void VulkanGraphicsContext::EnqueueSecondaryCommandBuffer(const Ref<CommandBuffer>& cmd) const
     {
         m_CommandPoolManager->EnqueueSecondaryCommandBuffer(cmd);
+    }
+
+    void VulkanGraphicsContext::WaitDeviceIdle() const
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        VK_CHECK_RESULT(vkDeviceWaitIdle(m_Device));
     }
 
     void VulkanGraphicsContext::InitVulkan()
@@ -394,7 +400,7 @@ namespace Elixir
             { VK_DESCRIPTOR_TYPE_SAMPLER, 0.05 }
         };
 
-        m_DescriptorPool = CreateRef<VulkanDescriptorPool>(*this, 128, sizes);
+        m_DescriptorPool = CreateRef<VulkanDescriptorPool>(*this, 128 * FRAMES, sizes);
         m_BindlessDescriptorPool = CreateRef<VulkanBindlessDescriptorPool>(*this);
     }
 
@@ -499,13 +505,7 @@ namespace Elixir
         m_DepthStencilRenderTarget = CreateRef<VulkanDepthStencilImage>(this, depthStencilInfo);
     }
 
-    void VulkanGraphicsContext::WaitDeviceIdle() const
-    {
-        EE_PROFILE_ZONE_SCOPED()
-        VK_CHECK_RESULT(vkDeviceWaitIdle(m_Device));
-    }
-
-    void VulkanGraphicsContext::WaitForAllFrames()
+    void VulkanGraphicsContext::ResetFrameUsageState()
     {
         EE_PROFILE_ZONE_SCOPED()
 

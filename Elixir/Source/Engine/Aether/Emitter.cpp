@@ -1,8 +1,6 @@
 #include "epch.h"
 #include "Emitter.h"
 
-#include "System.h"
-
 namespace Elixir::Aether
 {
     Emitter::Emitter(
@@ -12,6 +10,17 @@ namespace Elixir::Aether
     ) : m_Name(name),
         m_MaxParticles(maxParticles),
         m_SpawnRate(spawnRate) {}
+
+    void Emitter::SetMaterial(const Ref<Material>& material)
+    {
+        if (!material)
+        {
+            EE_CORE_ERROR("Trying to set a null material to emitter.")
+            return;
+        }
+
+        SetMaterial(material->CreateInstance());
+    }
 
     void Emitter::SetBurst(const uint32_t count, const float intervalSeconds)
     {
@@ -33,10 +42,8 @@ namespace Elixir::Aether
     {
         SCompiledEmitter emitter;
         emitter.Id = m_Id;
-        emitter.Name = m_Name;
         emitter.RenderMode = m_RenderMode;
         emitter.SimulationSpace = m_SimulationSpace;
-        emitter.SpriteTexture = m_SpriteTexture;
         emitter.MaxParticles = m_MaxParticles;
         emitter.GravityScale = paramStore.GetFloat("GravityScale", 1.0f);
         emitter.SpawnOpOffset = (uint32_t)ops.size();
@@ -49,6 +56,9 @@ namespace Elixir::Aether
             FindScopedParameterIndex(params, m_Name, m_SpawnRateParamName);
         if (spawnRateParamIndex != UINT32_MAX)
             emitter.SpawnRatePerSecond = params[spawnRateParamIndex].Value.x;
+
+        if (m_Material)
+            emitter.Material = m_Material;
 
         for (const auto& module : m_SpawnModules)
         {

@@ -1,6 +1,7 @@
 Checks: >
   -*,
   readability-identifier-naming
+  '-modernize-use-nodiscard'
 
 CheckOptions:
   - key:             readability-identifier-naming.EnumCase

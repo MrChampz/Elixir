@@ -14,7 +14,8 @@ public:
     ~Dissolve() override;
 
     void OnGUI(Timestep frameTime) override;
-    void OnRender(Timestep frameTime) override;
+    void Prepare(Timestep frameTime) override;
+    void Render(Timestep frameTime) override;
 
     void OnEvent(Event& event) override;
 
