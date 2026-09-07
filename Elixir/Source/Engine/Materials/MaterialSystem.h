@@ -1,12 +1,9 @@
 #pragma once
 
-#include <Engine/Graphics/Buffer.h>
-#include <Engine/Graphics/FrameSlotState.h>
 #include <Engine/Materials/MaterialProxyCache.h>
 #include <Engine/Materials/MaterialProxyResolver.h>
 #include <Engine/Materials/Rendering/MaterialRenderScene.h>
 #include <Engine/Materials/Rendering/Renderer.h>
-#include <Engine/Materials/Rendering/TextureRegistry.h>
 
 namespace Elixir { class ShaderLoader; }
 
@@ -23,25 +20,15 @@ namespace Elixir::Materials
         uint32_t InitialFrameCapacity = 256;
     };
 
-    /** @brief Stores resolved render items for one submitted scene. */
-    struct SPreparedScene
-    {
-        std::vector<SResolvedRenderItem> Items;
-        uint32_t MaterialCount = 0;
-    };
-
     /**
-     * @brief Prepares frame material data and records material draw commands.
-     *
-     * The system owns shared material buffers, texture bindings, and render-state
-     * preparation for a graphics context.
+     * @brief Resolves material instances for rendering.
      */
     class ELIXIR_API MaterialSystem final
     {
     public:
         /**
          * @brief Creates a material system.
-         * @param context Graphics context that owns material resources.
+         * @param context Graphics context used by the material renderer.
          * @param shaderLoader Loader used to obtain material shaders.
          * @param config Initial frame-data storage configuration.
          * @pre context and shaderLoader are valid.
@@ -53,9 +40,7 @@ namespace Elixir::Materials
             SMaterialSystemConfig config
         );
 
-        /**
-         * @brief Starts material collection for the current graphics frame.
-         */
+        /** @brief Starts material collection for the current graphics frame. */
         void BeginFrame();
 
         /**
@@ -74,9 +59,9 @@ namespace Elixir::Materials
 
     private:
         /**
-         * @brief Resolves material proxies and uploads material data for one scene.
+         * @brief Resolves material proxies for one scene.
          * @param scene Scene that provides material render items.
-         * @return Render-ready scene items with their proxies and frame-buffer indices.
+         * @return Scene items with immutable material proxies.
          */
         SPreparedScene PrepareScene(const MaterialRenderScene& scene);
 
@@ -87,25 +72,12 @@ namespace Elixir::Materials
          */
         Ref<const MaterialRenderProxy> ResolveMaterialProxy(const Ref<MaterialInstance>& instance);
 
-        /** @brief Gets the buffer that stores material data for the current frame slot. */
-        const Ref<DynamicStorageBuffer>& GetActiveFrameBuffer() const;
-
-        /** @brief Stores material resources that are safe to reuse with one frame slot. */
-        struct SFrameSlot
-        {
-            Ref<DynamicStorageBuffer> Buffer;
-        };
-
-        uint32_t m_MaterialCapacity = 0;
-        FrameSlotState<SFrameSlot> m_FrameSlots;
-        TextureRegistry m_Textures;
         MaterialProxyResolver m_ProxyResolver;
         MaterialProxyCache m_ProxyCache;
         Scope<Renderer> m_Renderer;
 
         std::vector<MaterialRenderScene> m_SubmittedScenes;
-        uint64_t m_CurrentFrameNumber = UINT64_MAX;
 
-        const GraphicsContext* m_GraphicsContext = nullptr;
+        bool m_IsCollectingFrame = false;
     };
 }

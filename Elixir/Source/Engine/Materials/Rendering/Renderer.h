@@ -1,11 +1,14 @@
 #pragma once
 
 #include <Engine/Graphics/Buffer.h>
+#include <Engine/Graphics/FrameSlotState.h>
 #include <Engine/Graphics/Pipeline/Pipeline.h>
+#include <Engine/Materials/Rendering/FrameTable.h>
 #include <Engine/Materials/Rendering/MaterialRenderProxy.h>
 #include <Engine/Materials/Rendering/TextureRegistry.h>
 
 namespace Elixir { class ShaderLoader; }
+namespace Elixir::Materials { struct SMaterialSystemConfig; }
 
 namespace Elixir::Materials::Rendering
 {
@@ -49,30 +52,16 @@ namespace Elixir::Materials::Rendering
 
         /** Immutable material data resolved by MaterialSystem. */
         Ref<const MaterialRenderProxy> Proxy;
-
-        /** Index of the material in the active frame buffer. */
-        uint32_t MaterialIndex = UINT32_MAX;
     };
 
-    /**
-     * @brief Describes one prepared material scene to record.
-     */
-    struct SMaterialSceneRecordRequest
+    /** @brief Stores material proxies resolved for one render scene. */
+    struct SPreparedScene
     {
-        /** Command buffer that receives draw commands. */
-        Ref<CommandBuffer> CommandBuffer;
-
         /** Scene that owns geometry and source draw items. */
         const MaterialRenderScene* Scene = nullptr;
 
         /** Draw items with their already resolved material proxies. */
-        std::span<const SResolvedRenderItem> Items;
-
-        /** Storage buffer containing this scene's material table. */
-        Ref<DynamicStorageBuffer> MaterialBuffer;
-
-        /** Number of unique materials uploaded to MaterialBuffer. */
-        uint32_t MaterialCount = 0;
+        std::vector<SResolvedRenderItem> Items;
     };
 
     /**
@@ -187,10 +176,10 @@ namespace Elixir::Materials::Rendering
     };
 
     /**
-     * @brief Prepares material render passes.
+     * @brief Owns frame material resources and records material draw commands.
      *
-     * The renderer caches descriptor bindings and graphics pipelines for reuse
-     * across render items.
+     * The renderer owns texture bindings, per-frame material buffers, descriptor
+     * bindings, graphics pipelines, and secondary command buffers.
      */
     class ELIXIR_API Renderer final
     {
@@ -198,33 +187,23 @@ namespace Elixir::Materials::Rendering
         /**
          * @brief Creates a material renderer.
          * @param context Graphics context used to create pipelines.
-         * @param textures Registry that provides material textures and a sampler.
+         * @param materialCapacity Maximum unique materials supported by one scene.
          * @pre All arguments are valid for the renderer lifetime.
          */
         Renderer(
             const GraphicsContext* context,
-            const TextureRegistry& textures
+            uint32_t materialCapacity
         );
 
-        /**
-         * @brief Prepares a shader and graphics pipeline for a material pass.
-         * @param request Pass requirements and external resources.
-         * @return Prepared pass, or no value if the request is invalid or unsupported.
-         * @pre `request.Material` is not null.
-         * @pre `request.Pipeline.VertexLayout` is not null.
-         */
-        std::optional<SPreparedPass> Prepare(const SPassRequest& request);
+        /** @brief Selects resources for the current graphics frame. */
+        void BeginFrame();
 
         /**
-         * @brief Records the prepared scene's material draws.
-         *
-         * The renderer batches compatible draws, prepares pass state, and records
-         * pipeline bindings, push constants, and draw commands.
-         *
-         * @param request Render-ready scene data.
+         * @brief Records all resolved material scenes for the current frame.
+         * @param scenes Scenes with material proxies resolved by MaterialSystem.
          * @return Counts of materials, batches, and draw commands recorded.
          */
-        SRenderResult Record(const SMaterialSceneRecordRequest& request);
+        SRenderResult RenderFrame(std::span<const SPreparedScene> scenes);
 
         /**
          * @brief Returns the program key for a material pass.
@@ -304,6 +283,28 @@ namespace Elixir::Materials::Rendering
             }
         };
 
+        /** Stores data needed to record one material draw. */
+        struct SPreparedRenderItem
+        {
+            const SRenderItem* Item = nullptr;
+            Ref<const MaterialRenderProxy> Proxy;
+            uint32_t MaterialIndex = UINT32_MAX;
+        };
+
+        /** Stores frame-buffer indices assigned to one render scene. */
+        struct SPreparedRenderScene
+        {
+            const MaterialRenderScene* Scene = nullptr;
+            std::vector<SPreparedRenderItem> Items;
+            uint32_t MaterialCount = 0;
+        };
+
+        /** Stores resources that are safe to reuse for one graphics frame slot. */
+        struct SFrameSlot
+        {
+            Ref<DynamicStorageBuffer> MaterialBuffer;
+        };
+
         struct SBatchKey
         {
             EMaterialPass Pass = EMaterialPass::ParticleSprite;
@@ -316,8 +317,23 @@ namespace Elixir::Materials::Rendering
         struct SBatch
         {
             SBatchKey Key;
-            std::vector<const SResolvedRenderItem*> Items;
+            std::vector<const SPreparedRenderItem*> Items;
         };
+
+        /** Builds and uploads the material table for one resolved scene. */
+        SPreparedRenderScene PrepareScene(const SPreparedScene& scene);
+
+        /** Records draw commands for a scene with prepared material indices. */
+        SRenderResult RecordScene(
+            const Ref<CommandBuffer>& cmd,
+            const SPreparedRenderScene& scene
+        );
+
+        /** Prepares a shader and graphics pipeline for a material pass. */
+        std::optional<SPreparedPass> PreparePass(const SPassRequest& request);
+
+        /** Returns the buffer for the active graphics frame slot. */
+        const Ref<DynamicStorageBuffer>& GetActiveMaterialBuffer() const;
 
         /** Returns a cached pipeline or creates one for the request. */
         Ref<GraphicsPipeline> GetPipeline(
@@ -329,10 +345,13 @@ namespace Elixir::Materials::Rendering
         /** Binds and validates the descriptor resources for a shader. */
         bool BindDescriptorResources(const Ref<Shader>& shader, const SPassRequest& request);
 
-        const TextureRegistry& m_Textures;
+        uint32_t m_MaterialCapacity = 0;
+        FrameSlotState<SFrameSlot> m_FrameSlots;
+        TextureRegistry m_Textures;
         std::unordered_map<SPipelineKey, Ref<GraphicsPipeline>, SPipelineKeyHasher> m_Pipelines;
         std::unordered_map<const Shader*, SDescriptorBindingState> m_DescriptorBindings;
 
+        uint64_t m_CurrentFrameNumber = UINT64_MAX;
         const GraphicsContext* m_Context = nullptr;
     };
 }

@@ -2,170 +2,88 @@
 #include "Renderer.h"
 
 #include <Engine/Graphics/Pipeline/PipelineBuilder.h>
+#include <Engine/Materials/MaterialSystem.h>
 #include <Engine/Materials/Rendering/MaterialRenderScene.h>
 
 namespace Elixir::Materials::Rendering
 {
     Renderer::Renderer(
         const GraphicsContext* context,
-        const TextureRegistry& textures
-    ) : m_Textures(textures),
-        m_Context(context) {}
-
-    std::optional<SPreparedPass> Renderer::Prepare(const SPassRequest& request)
+        const uint32_t materialCapacity
+    ) : m_MaterialCapacity(materialCapacity),
+        m_FrameSlots(*context),
+        m_Textures(context),
+        m_Context(context)
     {
-        if (!request.Material || !request.Pipeline.VertexLayout || !request.MaterialBuffer)
-            return std::nullopt;
+        EE_CORE_ASSERT(context, "Material renderer requires a graphics context.")
+        EE_CORE_ASSERT(
+            m_MaterialCapacity > 0,
+            "Material renderer frame capacity must be greater than zero."
+        )
 
-        const auto program = GetProgramKey(request.Pass, *request.Material);
-        if (!program)
-            return std::nullopt;
-
-        const auto compiled = request.Material->GetCompiledMaterial();
-        const auto& shader = compiled->GetShader(GetUsage(request.Pass));
-
-        if (!BindDescriptorResources(shader, request))
-            return std::nullopt;
-
-        if (!request.InitialPushConstants.empty())
+        m_FrameSlots.ForEach([this, context](SFrameSlot& slot)
         {
-            shader->SetPushConstant(
-                "pc",
-                const_cast<void*>(static_cast<const void*>(request.InitialPushConstants.data())),
-                request.InitialPushConstants.size()
+            slot.MaterialBuffer = DynamicStorageBuffer::Create(
+                context,
+                sizeof(SMaterialFrameData) * m_MaterialCapacity
             );
-        }
-
-        return SPreparedPass{
-            .Shader = shader,
-            .Pipeline = GetPipeline(request.Pass, shader, request.Pipeline),
-        };
+        });
     }
 
-    SRenderResult Renderer::Record(const SMaterialSceneRecordRequest& request)
+    void Renderer::BeginFrame()
     {
-        SRenderResult result{
-            .MaterialCount = request.MaterialCount,
+        EE_CORE_ASSERT(m_Context, "Material renderer graphics context is unavailable.")
+
+        m_CurrentFrameNumber = m_Context->GetFrameNumber();
+        m_Textures.BeginFrame(m_CurrentFrameNumber);
+    }
+
+    SRenderResult Renderer::RenderFrame(std::span<const SPreparedScene> scenes)
+    {
+        SRenderResult result{};
+        if (scenes.empty()) return result;
+
+        EE_CORE_ASSERT(
+            m_CurrentFrameNumber == m_Context->GetFrameNumber(),
+            "Material rendering requires BeginFrame for the current graphics frame."
+        )
+
+        const auto cmd = m_Context->GetSecondaryCommandBuffer();
+        const auto extent = m_Context->GetRenderTarget()->GetExtent();
+
+        const SRenderingInfo renderingInfo{
+            .ColorAttachment = m_Context->GetRenderTarget(),
+            .DepthStencilAttachment = m_Context->GetDepthStencilRenderTarget(),
+            .RenderArea = extent,
         };
 
-        if (!request.CommandBuffer || !request.Scene || !request.MaterialBuffer)
-            return result;
+        cmd->Begin(renderingInfo);
+        cmd->BeginRendering(renderingInfo);
 
-        std::vector<SBatch> batches;
+        cmd->SetViewports({{
+            .Width = (float)extent.Width,
+            .Height = (float)extent.Height,
+            .MinDepth = 0.0f,
+            .MaxDepth = 1.0f,
+        }});
 
-        for (const auto& resolved : request.Items)
+        cmd->SetScissors({{
+            .Offset = { 0, 0 },
+            .Extent = extent,
+        }});
+
+        for (const auto& scene : scenes)
         {
-            if (!resolved.Item || !resolved.Proxy) continue;
-
-            const auto& item = *resolved.Item;
-            const auto* geometry = request.Scene->FindGeometry(item.GeometryIndex);
-            EE_CORE_ASSERT(geometry, "Material render item geometry is unavailable.");
-            if (!geometry) continue;
-
-            const auto program = GetProgramKey(item.Pass, *resolved.Proxy);
-            EE_CORE_ASSERT(program, "Material render item does not support its requested pass.")
-            if (!program) continue;
-
-            const SBatchKey key{
-                .Pass = item.Pass,
-                .GeometryIndex = item.GeometryIndex,
-                .Program = *program
-            };
-
-            auto batch = std::ranges::find_if(
-                batches,
-                [&key](const SBatch& candidate)
-                {
-                    return candidate.Key == key;
-                }
-            );
-
-            if (batch == batches.end())
-            {
-                batches.push_back({ .Key = key });
-                batch = std::prev(batches.end());
-            }
-
-            batch->Items.push_back(&resolved);
+            const auto prepared = PrepareScene(scene);
+            const auto sceneResult = RecordScene(cmd, prepared);
+            result.MaterialCount += sceneResult.MaterialCount;
+            result.BatchCount += sceneResult.BatchCount;
+            result.DrawCount += sceneResult.DrawCount;
         }
 
-        std::ranges::stable_sort(
-            batches,
-            [](const SBatch& left, const SBatch& right)
-            {
-                if (left.Key.Pass != right.Key.Pass)
-                    return GetPassOrder(left.Key.Pass) < GetPassOrder(right.Key.Pass);
-
-                if (left.Key.GeometryIndex != right.Key.GeometryIndex)
-                    return left.Key.GeometryIndex < right.Key.GeometryIndex;
-
-                return std::less<const void*>{}(
-                    left.Key.Program.Identity,
-                    right.Key.Program.Identity
-                );
-            }
-        );
-
-        for (const auto& batch : batches)
-        {
-            if (batch.Items.empty()) continue;
-
-            const auto* geometry = request.Scene->FindGeometry(batch.Key.GeometryIndex);
-            if (!geometry) continue;
-
-            const auto& first = *batch.Items.front();
-            const auto prepared = Prepare({
-                .Pass = batch.Key.Pass,
-                .Material = first.Proxy.get(),
-                .Pipeline = geometry->Pipeline,
-                .ExternalResources = {
-                    .ConstantBuffers = geometry->ConstantBuffers,
-                    .StorageBuffers = geometry->StorageBuffers,
-                },
-                .MaterialBuffer = request.MaterialBuffer,
-                .InitialPushConstants = std::span{
-                    first.Item->PushConstants.Data.data(),
-                    first.Item->PushConstants.Size
-                },
-            });
-            if (!prepared) continue;
-
-            ++result.BatchCount;
-            prepared->Pipeline->Bind(request.CommandBuffer);
-
-            for (const auto& binding : geometry->VertexBuffers)
-            {
-                request.CommandBuffer->BindBuffer<VertexBuffer>(
-                    binding.Buffer,
-                    std::span<uint64_t>{},
-                    1,
-                    binding.Binding
-                );
-            }
-
-            for (const auto* resolved : batch.Items)
-            {
-                const auto constants = resolved->Item->PushConstants.Resolve(
-                    resolved->MaterialIndex
-                );
-
-                prepared->Shader->SetPushConstant(
-                    request.CommandBuffer,
-                    "pc",
-                    const_cast<std::byte*>(constants.data()),
-                    resolved->Item->PushConstants.Size
-                );
-
-                request.CommandBuffer->Draw(
-                    resolved->Item->Draw.VertexCount,
-                    resolved->Item->Draw.InstanceCount,
-                    resolved->Item->Draw.FirstVertex,
-                    resolved->Item->Draw.FirstInstance
-                );
-
-                ++result.DrawCount;
-            }
-        }
+        cmd->EndRendering();
+        cmd->End();
+        m_Context->EnqueueSecondaryCommandBuffer(cmd);
 
         return result;
     }
@@ -210,6 +128,216 @@ namespace Elixir::Materials::Rendering
         }
 
         return UINT32_MAX;
+    }
+
+    Renderer::SPreparedRenderScene Renderer::PrepareScene(const SPreparedScene& scene)
+    {
+        SPreparedRenderScene prepared{
+            .Scene = scene.Scene,
+        };
+
+        if (!scene.Scene) return prepared;
+
+        const auto table = CreateRef<FrameTable>(
+            m_MaterialCapacity,
+            m_Textures.GetFallbackIndex(),
+            [this](const Ref<Texture>& texture)
+            {
+                return m_Textures.Resolve(texture);
+            }
+        );
+
+        for (const auto& resolved : scene.Items)
+        {
+            if (!resolved.Item || !resolved.Proxy) continue;
+
+            const auto materialIndex = table->Add(*resolved.Proxy);
+            EE_CORE_ASSERT(materialIndex, "Material frame capacity was exceeded.")
+            if (!materialIndex) continue;
+
+            prepared.Items.push_back({
+                .Item = resolved.Item,
+                .Proxy = resolved.Proxy,
+                .MaterialIndex = *materialIndex,
+            });
+        }
+
+        if (!table->GetData().empty())
+        {
+            GetActiveMaterialBuffer()->UpdateData(
+                table->GetData().data(),
+                table->GetData().size() * sizeof(SMaterialFrameData)
+            );
+        }
+
+        prepared.MaterialCount = table->GetCount();
+        return prepared;
+    }
+
+    SRenderResult Renderer::RecordScene(
+        const Ref<CommandBuffer>& cmd,
+        const SPreparedRenderScene& scene
+    )
+    {
+        SRenderResult result{
+            .MaterialCount = scene.MaterialCount,
+        };
+
+        if (!cmd || !scene.Scene) return result;
+
+        std::vector<SBatch> batches;
+
+        for (const auto& prepared : scene.Items)
+        {
+            if (!prepared.Item || !prepared.Proxy) continue;
+
+            const auto& item = *prepared.Item;
+            const auto* geometry = scene.Scene->FindGeometry(item.GeometryIndex);
+            EE_CORE_ASSERT(geometry, "Material render item geometry is unavailable.");
+            if (!geometry) continue;
+
+            const auto program = GetProgramKey(item.Pass, *prepared.Proxy);
+            EE_CORE_ASSERT(program, "Material render item does not support its requested pass.")
+            if (!program) continue;
+
+            const SBatchKey key{
+                .Pass = item.Pass,
+                .GeometryIndex = item.GeometryIndex,
+                .Program = *program
+            };
+
+            auto batch = std::ranges::find_if(
+                batches,
+                [&key](const SBatch& candidate)
+                {
+                    return candidate.Key == key;
+                }
+            );
+
+            if (batch == batches.end())
+            {
+                batches.push_back({ .Key = key });
+                batch = std::prev(batches.end());
+            }
+
+            batch->Items.push_back(&prepared);
+        }
+
+        std::ranges::stable_sort(
+            batches,
+            [](const SBatch& left, const SBatch& right)
+            {
+                if (left.Key.Pass != right.Key.Pass)
+                    return GetPassOrder(left.Key.Pass) < GetPassOrder(right.Key.Pass);
+
+                if (left.Key.GeometryIndex != right.Key.GeometryIndex)
+                    return left.Key.GeometryIndex < right.Key.GeometryIndex;
+
+                return std::less<const void*>{}(
+                    left.Key.Program.Identity,
+                    right.Key.Program.Identity
+                );
+            }
+        );
+
+        for (const auto& batch : batches)
+        {
+            if (batch.Items.empty()) continue;
+
+            const auto* geometry = scene.Scene->FindGeometry(batch.Key.GeometryIndex);
+            if (!geometry) continue;
+
+            const auto& first = *batch.Items.front();
+            const auto prepared = PreparePass({
+                .Pass = batch.Key.Pass,
+                .Material = first.Proxy.get(),
+                .Pipeline = geometry->Pipeline,
+                .ExternalResources = {
+                    .ConstantBuffers = geometry->ConstantBuffers,
+                    .StorageBuffers = geometry->StorageBuffers,
+                },
+                .MaterialBuffer = GetActiveMaterialBuffer(),
+                .InitialPushConstants = std::span{
+                    first.Item->PushConstants.Data.data(),
+                    first.Item->PushConstants.Size
+                },
+            });
+            if (!prepared) continue;
+
+            ++result.BatchCount;
+            prepared->Pipeline->Bind(cmd);
+
+            for (const auto& binding : geometry->VertexBuffers)
+            {
+                cmd->BindBuffer<VertexBuffer>(
+                    binding.Buffer,
+                    std::span<uint64_t>{},
+                    1,
+                    binding.Binding
+                );
+            }
+
+            for (const auto* resolved : batch.Items)
+            {
+                const auto constants = resolved->Item->PushConstants.Resolve(
+                    resolved->MaterialIndex
+                );
+
+                prepared->Shader->SetPushConstant(
+                    cmd,
+                    "pc",
+                    const_cast<std::byte*>(constants.data()),
+                    resolved->Item->PushConstants.Size
+                );
+
+                cmd->Draw(
+                    resolved->Item->Draw.VertexCount,
+                    resolved->Item->Draw.InstanceCount,
+                    resolved->Item->Draw.FirstVertex,
+                    resolved->Item->Draw.FirstInstance
+                );
+
+                ++result.DrawCount;
+            }
+        }
+
+        return result;
+    }
+
+    std::optional<SPreparedPass> Renderer::PreparePass(const SPassRequest& request)
+    {
+        if (!request.Material || !request.Pipeline.VertexLayout || !request.MaterialBuffer)
+            return std::nullopt;
+
+        const auto program = GetProgramKey(request.Pass, *request.Material);
+        if (!program)
+            return std::nullopt;
+
+        const auto compiled = request.Material->GetCompiledMaterial();
+        const auto& shader = compiled->GetShader(GetUsage(request.Pass));
+
+        if (!BindDescriptorResources(shader, request))
+            return std::nullopt;
+
+        if (!request.InitialPushConstants.empty())
+        {
+            shader->SetPushConstant(
+                "pc",
+                const_cast<void*>(static_cast<const void*>(request.InitialPushConstants.data())),
+                request.InitialPushConstants.size()
+            );
+        }
+
+        return SPreparedPass{
+            .Shader = shader,
+            .Pipeline = GetPipeline(request.Pass, shader, request.Pipeline),
+        };
+    }
+
+    const Ref<DynamicStorageBuffer>& Renderer::GetActiveMaterialBuffer() const
+    {
+        EE_CORE_ASSERT(m_Context, "Material renderer graphics context is unavailable.")
+        return m_FrameSlots.GetCurrent().MaterialBuffer;
     }
 
     Ref<GraphicsPipeline> Renderer::GetPipeline(
