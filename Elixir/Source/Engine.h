@@ -60,5 +60,9 @@
 #include <Engine/GUI/Button.h>
 #include <Engine/GUI/TextBlock.h>
 
+#include <Engine/Mesh/StaticMesh.h>
+#include <Engine/Mesh/StaticMeshLoader.h>
+#include <Engine/Mesh/StaticMeshLoaderRegistry.h>
+
 #include <Engine/Aether/System.h>
 #include <Engine/Aether/Modules/Modules.h>

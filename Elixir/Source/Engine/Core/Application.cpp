@@ -15,6 +15,7 @@
 #include <Engine/Graphics/TextureLoader.h>
 #include <Engine/Materials/MaterialSystem.h>
 #include <Engine/Materials/MaterialRegistry.h>
+#include <Engine/Mesh/StaticMeshLoaderRegistry.h>
 #include <Engine/Aether/Manager.h>
 
 namespace Elixir
@@ -48,6 +49,8 @@ namespace Elixir
             m_ShaderLoader.get(),
             SMaterialSystemConfig{ .InitialFrameCapacity = 256 }
         );
+
+        StaticMeshLoaderRegistry::Initialize(*m_GraphicsContext);
 
         m_GUIManager = CreateScope<GUI::Manager>();
         m_GUIManager->Initialize(
@@ -146,6 +149,7 @@ namespace Elixir
     Application::~Application()
     {
         EE_PROFILE_ZONE_SCOPED()
+        StaticMeshLoaderRegistry::Shutdown();
         IconManager::Shutdown();
         FontManager::Shutdown();
         Platform::Shutdown();
