@@ -8,19 +8,6 @@ namespace Elixir
 {
     namespace
     {
-        void AddDiagnostic(
-            SStaticMeshLoadResult& result,
-            const EStaticMeshLoadDiagnosticSeverity severity,
-            std::string message
-        )
-        {
-            if (severity == EStaticMeshLoadDiagnosticSeverity::Error)
-                EE_CORE_ERROR("{}", message)
-            else
-                EE_CORE_WARN("{}", message);
-            result.Diagnostics.push_back({ severity, std::move(message) });
-        }
-
         SStaticMeshBounds GetBounds(const std::vector<SStaticMeshVertex>& vertices)
         {
             SStaticMeshBounds bounds{
@@ -54,7 +41,6 @@ namespace Elixir
 
     static void LoadPrimitive(
         const SStaticMeshLoadRequest& request,
-        SStaticMeshLoadResult& result,
         SStaticMeshCreateInfo& mesh,
         const fastgltf::Asset& asset,
         const fastgltf::Primitive& primitive,
@@ -63,14 +49,10 @@ namespace Elixir
     {
         if (primitive.type != fastgltf::PrimitiveType::Triangles)
         {
-            AddDiagnostic(
-                result,
-                EStaticMeshLoadDiagnosticSeverity::Warning,
-                std::format(
-                    "Skipping primitive in mesh '{}': only triangles are supported.",
-                    mesh.Name
-                )
-            );
+            EE_CORE_WARN(
+                "Skipping primitive in mesh '{}': only triangles are supported.",
+                mesh.Name
+            )
             return;
         }
 
@@ -79,28 +61,17 @@ namespace Elixir
         if (position == primitive.attributes.end() ||
             position->accessorIndex >= asset.accessors.size())
         {
-            AddDiagnostic(
-                result,
-                EStaticMeshLoadDiagnosticSeverity::Warning,
-                std::format(
-                    "Skipping primitive in mesh '{}': POSITION is missing.",
-                    mesh.Name
-                )
-            );
+            EE_CORE_WARN("Skipping primitive in mesh '{}': POSITION is missing.", mesh.Name)
             return;
         }
 
         const auto& positionAccessor = asset.accessors[position->accessorIndex];
         if (positionAccessor.count > std::numeric_limits<uint32_t>::max())
         {
-            AddDiagnostic(
-                result,
-                EStaticMeshLoadDiagnosticSeverity::Warning,
-                std::format(
-                    "Skipping primitive in mesh '{}': it exceeds the vertex limit.",
-                    mesh.Name
-                )
-            );
+            EE_CORE_WARN(
+                "Skipping primitive in mesh '{}': it exceeds the vertex limit.",
+                mesh.Name
+            )
             return;
         }
 
@@ -130,15 +101,11 @@ namespace Elixir
             const auto& accessor = asset.accessors[attribute->accessorIndex];
             if (accessor.count != vertices.size())
             {
-                AddDiagnostic(
-                    result,
-                    EStaticMeshLoadDiagnosticSeverity::Warning,
-                    std::format(
-                        "Ignoring {} in primitive of mesh '{}': its count differs from POSITION.",
-                        name,
-                        mesh.Name
-                    )
-                );
+                EE_CORE_WARN(
+                    "Ignoring {} in primitive of mesh '{}': its count differs from POSITION.",
+                    name,
+                    mesh.Name
+                )
                 return;
             }
 
@@ -185,14 +152,10 @@ namespace Elixir
 
             if (accessor.count > std::numeric_limits<uint32_t>::max())
             {
-                AddDiagnostic(
-                    result,
-                    EStaticMeshLoadDiagnosticSeverity::Warning,
-                    std::format(
-                        "Skipping primitive in mesh '{}': it exceeds the index limit.",
-                        mesh.Name
-                    )
-                );
+                EE_CORE_WARN(
+                    "Skipping primitive in mesh '{}': it exceeds the index limit.",
+                    mesh.Name
+                )
                 return;
             }
 
@@ -214,14 +177,7 @@ namespace Elixir
 
         if (vertices.empty() || indices.empty())
         {
-            AddDiagnostic(
-                result,
-                EStaticMeshLoadDiagnosticSeverity::Warning,
-                std::format(
-                    "Skipping empty primitive in mesh '{}'.",
-                    mesh.Name
-                )
-            );
+            EE_CORE_WARN("Skipping empty primitive in mesh '{}'.", mesh.Name)
             return;
         }
 
@@ -246,14 +202,10 @@ namespace Elixir
 
         if (!section.Vertices || !section.Indices)
         {
-            AddDiagnostic(
-                result,
-                EStaticMeshLoadDiagnosticSeverity::Error,
-                std::format(
-                    "Failed to create GPU buffers for primitive in mesh '{}'.",
-                    mesh.Name
-                )
-            );
+            EE_CORE_ERROR(
+                "Failed to create GPU buffers for primitive in mesh '{}'.",
+                mesh.Name
+            )
             return;
         }
 
@@ -274,7 +226,7 @@ namespace Elixir
 
     static void LoadMesh(
         const SStaticMeshLoadRequest& request,
-        SStaticMeshLoadResult& result,
+        std::vector<Ref<StaticMesh>>& meshes,
         const fastgltf::Asset& asset,
         const fastgltf::Mesh& mesh
     )
@@ -287,24 +239,20 @@ namespace Elixir
         bool hasBounds = false;
 
         for (const auto& primitive : mesh.primitives)
-            LoadPrimitive(request, result, info, asset, primitive, hasBounds);
+            LoadPrimitive(request, info, asset, primitive, hasBounds);
 
         if (const auto staticMesh = StaticMesh::Create(std::move(info)))
-            result.Meshes.push_back(staticMesh);
+            meshes.push_back(staticMesh);
         else
-            AddDiagnostic(
-                result,
-                EStaticMeshLoadDiagnosticSeverity::Error,
-                std::format(
-                    "Skipping mesh '{}' because it has no valid triangle sections.",
-                    name
-                )
-            );
+            EE_CORE_ERROR(
+                "Skipping mesh '{}' because it has no valid triangle sections.",
+                name
+            )
     }
 
     static void LoadMergedMesh(
         const SStaticMeshLoadRequest& request,
-        SStaticMeshLoadResult& result,
+        std::vector<Ref<StaticMesh>>& meshes,
         const fastgltf::Asset& asset
     )
     {
@@ -315,45 +263,37 @@ namespace Elixir
 
         for (const auto& mesh : asset.meshes)
             for (const auto& primitive : mesh.primitives)
-                LoadPrimitive(request, result, info, asset, primitive, hasBounds);
+                LoadPrimitive(request, info, asset, primitive, hasBounds);
 
         if (!info.Sections.empty())
             if (const auto staticMesh = StaticMesh::Create(std::move(info)))
-                result.Meshes.push_back(staticMesh);
+                meshes.push_back(staticMesh);
     }
 
     GLTFStaticMeshLoader::GLTFStaticMeshLoader(SGLTFStaticMeshImportOptions options)
       : m_Options(options) {}
 
-    SStaticMeshLoadResult GLTFStaticMeshLoader::Load(
+    StaticMeshLoadResult GLTFStaticMeshLoader::Load(
         const SStaticMeshLoadRequest& request
     ) const
     {
-        SStaticMeshLoadResult result;
+        std::vector<Ref<StaticMesh>> meshes;
 
         if (!request.GraphicsContext)
         {
-            AddDiagnostic(
-                result,
-                EStaticMeshLoadDiagnosticSeverity::Error,
-                "Cannot load a static mesh without a graphics context."
-            );
-            return result;
+            EE_CORE_ERROR("Cannot load a static mesh without a graphics context.")
+            return std::nullopt;
         }
 
         auto data = fastgltf::GltfDataBuffer::FromPath(request.Path);
         if (data.error() != fastgltf::Error::None)
         {
-            AddDiagnostic(
-                result,
-                EStaticMeshLoadDiagnosticSeverity::Error,
-                std::format(
-                    "Failed to open glTF file '{}': {}.",
-                    request.Path.string(),
-                    fastgltf::getErrorMessage(data.error())
-                )
-            );
-            return result;
+            EE_CORE_ERROR(
+                "Failed to open glTF file '{}': {}.",
+                request.Path.string(),
+                fastgltf::getErrorMessage(data.error())
+            )
+            return std::nullopt;
         }
 
         fastgltf::Parser parser;
@@ -367,38 +307,28 @@ namespace Elixir
 
         if (loadResult.error() != fastgltf::Error::None)
         {
-            AddDiagnostic(
-                result,
-                EStaticMeshLoadDiagnosticSeverity::Error,
-                std::format(
-                    "Failed to parse glTF file '{}': {}.",
-                    request.Path.string(),
-                    fastgltf::getErrorMessage(loadResult.error())
-                )
-            );
-            return result;
+            EE_CORE_ERROR(
+                "Failed to parse glTF file '{}': {}.",
+                request.Path.string(),
+                fastgltf::getErrorMessage(loadResult.error())
+            )
+            return std::nullopt;
         }
 
         const fastgltf::Asset& asset = loadResult.get();
 
         if (m_Options.MergeMeshes)
-            LoadMergedMesh(request, result, asset);
+            LoadMergedMesh(request, meshes, asset);
         else
             for (auto& mesh : asset.meshes)
-                LoadMesh(request, result, asset, mesh);
+                LoadMesh(request, meshes, asset, mesh);
 
-        if (result.Meshes.empty() && !result.HasErrors())
+        if (meshes.empty())
         {
-            AddDiagnostic(
-                result,
-                EStaticMeshLoadDiagnosticSeverity::Error,
-                std::format(
-                    "No valid static meshes were found in '{}'.",
-                    request.Path.string()
-                )
-            );
+            EE_CORE_ERROR("No valid static meshes were found in '{}'.", request.Path.string())
+            return std::nullopt;
         }
 
-        return result;
+        return meshes;
     }
 }

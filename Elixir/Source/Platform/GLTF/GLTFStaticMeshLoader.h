@@ -19,9 +19,9 @@ namespace Elixir
         /**
          * @brief Import all static meshes stored in one glTF or GLB file.
          * @param request Source file and graphics context.
-         * @return Imported meshes and diagnostics.
+         * @return Loaded meshes, or std::nullopt when loading fails.
          */
-        SStaticMeshLoadResult Load(const SStaticMeshLoadRequest& request) const override;
+        StaticMeshLoadResult Load(const SStaticMeshLoadRequest& request) const override;
 
     private:
         SGLTFStaticMeshImportOptions m_Options;

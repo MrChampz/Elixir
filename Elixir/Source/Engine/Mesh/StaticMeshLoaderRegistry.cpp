@@ -11,12 +11,10 @@ namespace Elixir
         const GraphicsContext* s_GraphicsContext;
         Scope<StaticMeshLoader> s_Loader;
 
-        SStaticMeshLoadResult MakeError(const std::string& message)
+        StaticMeshLoadResult MakeError(const std::string_view message)
         {
             EE_CORE_ERROR("{}", message)
-            return {
-                .Diagnostics = {{ EStaticMeshLoadDiagnosticSeverity::Error, message }}
-            };
+            return std::nullopt;
         }
     }
 
@@ -51,7 +49,7 @@ namespace Elixir
         return true;
     }
 
-    SStaticMeshLoadResult StaticMeshLoaderRegistry::Load(const std::filesystem::path& path)
+    StaticMeshLoadResult StaticMeshLoaderRegistry::Load(const std::filesystem::path& path)
     {
         if (!s_GraphicsContext)
             return MakeError("StaticMeshLoaderRegistry must be initialized before loading meshes.");

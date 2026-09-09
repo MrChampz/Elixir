@@ -42,8 +42,8 @@ namespace Elixir
         /**
          * @brief Import every static mesh defined by one supported source file.
          * @param path Local source file.
-         * @return Imported meshes and diagnostics.
+         * @return Loaded meshes, or std::nullopt when loading fails.
          */
-        static SStaticMeshLoadResult Load(const std::filesystem::path& path);
+        static StaticMeshLoadResult Load(const std::filesystem::path& path);
     };
 }

@@ -20,7 +20,7 @@ std::array<Ref<Aether::SystemInstance>, 2> m_ParticleSystemInstances;
 
 Ref<Material> graphMaterial;
 
-SStaticMeshLoadResult mesh;
+std::vector<Ref<StaticMesh>> meshes;
 
 Dissolve::Dissolve()
 {
@@ -104,7 +104,8 @@ Dissolve::Dissolve()
             EE_CORE_ERROR("Dissolve particle emitter 'FlameCore' was not found.")
         }
 
-        mesh = StaticMeshLoaderRegistry::Load("./Assets/Meshes/McLaren/scene.gltf");
+        if (auto loadedMeshes = StaticMeshLoaderRegistry::Load("./Assets/Meshes/McLaren/scene.gltf"))
+            meshes = std::move(*loadedMeshes);
     }
 
     {
@@ -235,7 +236,7 @@ void Dissolve::OnEvent(Event& event)
 void Dissolve::DrawGeometry()
 {
     if (m_StaticMeshRenderer)
-        m_StaticMeshRenderer->Render(mesh.Meshes, m_CameraController->GetCamera());
+        m_StaticMeshRenderer->Render(meshes, m_CameraController->GetCamera());
 }
 
 Application* Elixir::CreateApplication()

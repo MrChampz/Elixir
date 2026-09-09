@@ -14,37 +14,8 @@ namespace Elixir
         std::filesystem::path Path;
     };
 
-    /** @brief Marks the severity of one static mesh import diagnostic. */
-    enum class EStaticMeshLoadDiagnosticSeverity : uint8_t
-    {
-        Warning, Error,
-    };
-
-    /** @brief Reports an import condition without exposing a parser implementation. */
-    struct SStaticMeshLoadDiagnostic
-    {
-        EStaticMeshLoadDiagnosticSeverity Severity = EStaticMeshLoadDiagnosticSeverity::Error;
-        std::string Message;
-    };
-
-    /** @brief Contains all static meshes produced from one source file. */
-    struct SStaticMeshLoadResult
-    {
-        /** Imported meshes, one for each valid source mesh. */
-        std::vector<Ref<StaticMesh>> Meshes;
-
-        /** Warnings and errors produced while importing. */
-        std::vector<SStaticMeshLoadDiagnostic> Diagnostics;
-
-        /** Check whether the import produced an error. */
-        bool HasErrors() const
-        {
-            return std::ranges::any_of(Diagnostics, [](const auto& diagnostic)
-            {
-                return diagnostic.Severity == EStaticMeshLoadDiagnosticSeverity::Error;
-            });
-        }
-    };
+    /** @brief Contains the meshes loaded from one asset path, when loading succeeds. */
+    using StaticMeshLoadResult = std::optional<std::vector<Ref<StaticMesh>>>;
 
     /**
      * @brief Imports one static mesh source format into engine assets.
@@ -59,8 +30,8 @@ namespace Elixir
         /**
          * @brief Import all valid static meshes from one source file.
          * @param request Source file and graphics context.
-         * @return Imported meshes and diagnostics.
+         * @return Loaded meshes, or std::nullopt when loading fails.
          */
-        virtual SStaticMeshLoadResult Load(const SStaticMeshLoadRequest& request) const = 0;
+        virtual StaticMeshLoadResult Load(const SStaticMeshLoadRequest& request) const = 0;
     };
 }
