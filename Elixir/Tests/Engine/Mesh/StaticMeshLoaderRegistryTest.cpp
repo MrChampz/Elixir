@@ -6,11 +6,9 @@ using namespace Elixir;
 
 namespace
 {
-    class TestGltfStaticMeshLoader final : public StaticMeshLoader
+    class TestStaticMeshLoader final : public StaticMeshLoader
     {
     public:
-        EStaticMeshFormat GetFormat() const override { return EStaticMeshFormat::GLTF; }
-
         SStaticMeshLoadResult Load(const SStaticMeshLoadRequest&) const override
         {
             return {};
@@ -18,13 +16,13 @@ namespace
     };
 }
 
-TEST(StaticMeshLoaderRegistryTest, RegistrationRejectsDuplicatesAndAllowsReplacement)
+TEST(StaticMeshLoaderRegistryTest, RegistrationKeepsOneActiveImplementation)
 {
     StaticMeshLoaderRegistry::Shutdown();
 
-    EXPECT_TRUE(StaticMeshLoaderRegistry::RegisterLoader(CreateScope<TestGltfStaticMeshLoader>()));
-    EXPECT_FALSE(StaticMeshLoaderRegistry::RegisterLoader(CreateScope<TestGltfStaticMeshLoader>()));
-    EXPECT_TRUE(StaticMeshLoaderRegistry::ReplaceLoader(CreateScope<TestGltfStaticMeshLoader>()));
+    EXPECT_TRUE(StaticMeshLoaderRegistry::RegisterLoader(CreateScope<TestStaticMeshLoader>()));
+    EXPECT_FALSE(StaticMeshLoaderRegistry::RegisterLoader(CreateScope<TestStaticMeshLoader>()));
+    EXPECT_TRUE(StaticMeshLoaderRegistry::ReplaceLoader(CreateScope<TestStaticMeshLoader>()));
 
     StaticMeshLoaderRegistry::Shutdown();
 }

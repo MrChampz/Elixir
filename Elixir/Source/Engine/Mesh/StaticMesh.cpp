@@ -19,6 +19,17 @@ namespace Elixir
         return Ref<StaticMesh>(new StaticMesh(std::move(info)));
     }
 
+    const BufferLayout& StaticMesh::GetVertexLayout()
+    {
+        static const BufferLayout layout = {{
+            { EDataType::Vec3, "Position" },
+            { EDataType::Vec3, "Normal" },
+            { EDataType::Vec4, "Tangent" },
+            { EDataType::Vec2, "TexCoord" },
+        }};
+        return layout;
+    }
+
     StaticMesh::StaticMesh(SStaticMeshCreateInfo info)
       : m_Name(std::move(info.Name)),
         m_Sections(std::move(info.Sections)),

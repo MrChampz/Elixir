@@ -21,16 +21,6 @@ namespace Elixir
             result.Diagnostics.push_back({ severity, std::move(message) });
         }
 
-        BufferLayout GetStaticMeshVertexLayout()
-        {
-            return {{
-                { EDataType::Vec3, "a_Position" },
-                { EDataType::Vec3, "a_Normal"   },
-                { EDataType::Vec4, "a_Tangent"  },
-                { EDataType::Vec2, "a_TexCoord" },
-            }};
-        }
-
         SStaticMeshBounds GetBounds(const std::vector<SStaticMeshVertex>& vertices)
         {
             SStaticMeshBounds bounds{
@@ -41,7 +31,7 @@ namespace Elixir
             for (const auto& vertex : vertices)
             {
                 bounds.Min = glm::min(bounds.Min, vertex.Position);
-                bounds.Max = glm::min(bounds.Max, vertex.Position);
+                bounds.Max = glm::max(bounds.Max, vertex.Position);
             }
 
             return bounds;
@@ -62,109 +52,7 @@ namespace Elixir
                                              fastgltf::Category::BufferViews |
                                              fastgltf::Category::Buffers;
 
-    SStaticMeshLoadResult GLTFStaticMeshLoader::Load(
-        const SStaticMeshLoadRequest& request
-    ) const
-    {
-        SStaticMeshLoadResult result;
-
-        if (!request.GraphicsContext)
-        {
-            AddDiagnostic(
-                result,
-                EStaticMeshLoadDiagnosticSeverity::Error,
-                "Cannot load a static mesh without a graphics context."
-            );
-            return result;
-        }
-
-        auto data = fastgltf::GltfDataBuffer::FromPath(request.Path);
-        if (data.error() != fastgltf::Error::None)
-        {
-            AddDiagnostic(
-                result,
-                EStaticMeshLoadDiagnosticSeverity::Error,
-                std::format(
-                    "Failed to open glTF file '{}': {}.",
-                    request.Path.string(),
-                    fastgltf::getErrorMessage(data.error())
-                )
-            );
-            return result;
-        }
-
-        fastgltf::Parser parser;
-
-        auto loadResult = parser.loadGltf(
-            data.get(),
-            request.Path.parent_path(),
-            GLTF_OPTIONS,
-            GLTF_CATEGORIES
-        );
-
-        if (loadResult.error() != fastgltf::Error::None)
-        {
-            AddDiagnostic(
-                result,
-                EStaticMeshLoadDiagnosticSeverity::Error,
-                std::format(
-                    "Failed to parse glTF file '{}': {}.",
-                    request.Path.string(),
-                    fastgltf::getErrorMessage(loadResult.error())
-                )
-            );
-            return result;
-        }
-
-        const fastgltf::Asset& asset = loadResult.get();
-
-        for (auto& mesh : asset.meshes)
-            LoadMesh(request, result, asset, mesh);
-
-        if (result.Meshes.empty() && !result.HasErrors())
-        {
-            AddDiagnostic(
-                result,
-                EStaticMeshLoadDiagnosticSeverity::Error,
-                std::format(
-                    "No valid static meshes were found in '{}'.",
-                    request.Path.string()
-                )
-            );
-        }
-
-        return result;
-    }
-
-    void GLTFStaticMeshLoader::LoadMesh(
-    const SStaticMeshLoadRequest& request,
-        SStaticMeshLoadResult& result,
-        const fastgltf::Asset& asset,
-        const fastgltf::Mesh& mesh
-    )
-    {
-        SStaticMeshCreateInfo info;
-        info.Name = std::string(mesh.name);
-
-        bool hasBounds = false;
-
-        for (const auto& primitive : mesh.primitives)
-            LoadPrimitive(request, result, info, asset, primitive, hasBounds);
-
-        if (const auto staticMesh = StaticMesh::Create(std::move(info)))
-            result.Meshes.push_back(staticMesh);
-        else
-            AddDiagnostic(
-                result,
-                EStaticMeshLoadDiagnosticSeverity::Error,
-                std::format(
-                    "Skipping mesh '{}' because it has no valid triangle sections.",
-                    info.Name
-                )
-            );
-    }
-
-    void GLTFStaticMeshLoader::LoadPrimitive(
+    static void LoadPrimitive(
         const SStaticMeshLoadRequest& request,
         SStaticMeshLoadResult& result,
         SStaticMeshCreateInfo& mesh,
@@ -369,7 +257,7 @@ namespace Elixir
             return;
         }
 
-        section.Vertices->SetLayout(GetStaticMeshVertexLayout());
+        section.Vertices->SetLayout(StaticMesh::GetVertexLayout());
 
         if (!hasBounds)
         {
@@ -382,5 +270,135 @@ namespace Elixir
         }
 
         mesh.Sections.push_back(std::move(section));
+    }
+
+    static void LoadMesh(
+        const SStaticMeshLoadRequest& request,
+        SStaticMeshLoadResult& result,
+        const fastgltf::Asset& asset,
+        const fastgltf::Mesh& mesh
+    )
+    {
+        const auto name = mesh.name;
+
+        SStaticMeshCreateInfo info;
+        info.Name = name;
+
+        bool hasBounds = false;
+
+        for (const auto& primitive : mesh.primitives)
+            LoadPrimitive(request, result, info, asset, primitive, hasBounds);
+
+        if (const auto staticMesh = StaticMesh::Create(std::move(info)))
+            result.Meshes.push_back(staticMesh);
+        else
+            AddDiagnostic(
+                result,
+                EStaticMeshLoadDiagnosticSeverity::Error,
+                std::format(
+                    "Skipping mesh '{}' because it has no valid triangle sections.",
+                    name
+                )
+            );
+    }
+
+    static void LoadMergedMesh(
+        const SStaticMeshLoadRequest& request,
+        SStaticMeshLoadResult& result,
+        const fastgltf::Asset& asset
+    )
+    {
+        SStaticMeshCreateInfo info;
+        info.Name = request.Path.stem().string();
+
+        bool hasBounds = false;
+
+        for (const auto& mesh : asset.meshes)
+            for (const auto& primitive : mesh.primitives)
+                LoadPrimitive(request, result, info, asset, primitive, hasBounds);
+
+        if (!info.Sections.empty())
+            if (const auto staticMesh = StaticMesh::Create(std::move(info)))
+                result.Meshes.push_back(staticMesh);
+    }
+
+    GLTFStaticMeshLoader::GLTFStaticMeshLoader(SGLTFStaticMeshImportOptions options)
+      : m_Options(options) {}
+
+    SStaticMeshLoadResult GLTFStaticMeshLoader::Load(
+        const SStaticMeshLoadRequest& request
+    ) const
+    {
+        SStaticMeshLoadResult result;
+
+        if (!request.GraphicsContext)
+        {
+            AddDiagnostic(
+                result,
+                EStaticMeshLoadDiagnosticSeverity::Error,
+                "Cannot load a static mesh without a graphics context."
+            );
+            return result;
+        }
+
+        auto data = fastgltf::GltfDataBuffer::FromPath(request.Path);
+        if (data.error() != fastgltf::Error::None)
+        {
+            AddDiagnostic(
+                result,
+                EStaticMeshLoadDiagnosticSeverity::Error,
+                std::format(
+                    "Failed to open glTF file '{}': {}.",
+                    request.Path.string(),
+                    fastgltf::getErrorMessage(data.error())
+                )
+            );
+            return result;
+        }
+
+        fastgltf::Parser parser;
+
+        auto loadResult = parser.loadGltf(
+            data.get(),
+            request.Path.parent_path(),
+            GLTF_OPTIONS,
+            GLTF_CATEGORIES
+        );
+
+        if (loadResult.error() != fastgltf::Error::None)
+        {
+            AddDiagnostic(
+                result,
+                EStaticMeshLoadDiagnosticSeverity::Error,
+                std::format(
+                    "Failed to parse glTF file '{}': {}.",
+                    request.Path.string(),
+                    fastgltf::getErrorMessage(loadResult.error())
+                )
+            );
+            return result;
+        }
+
+        const fastgltf::Asset& asset = loadResult.get();
+
+        if (m_Options.MergeMeshes)
+            LoadMergedMesh(request, result, asset);
+        else
+            for (auto& mesh : asset.meshes)
+                LoadMesh(request, result, asset, mesh);
+
+        if (result.Meshes.empty() && !result.HasErrors())
+        {
+            AddDiagnostic(
+                result,
+                EStaticMeshLoadDiagnosticSeverity::Error,
+                std::format(
+                    "No valid static meshes were found in '{}'.",
+                    request.Path.string()
+                )
+            );
+        }
+
+        return result;
     }
 }

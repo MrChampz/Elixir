@@ -2,11 +2,6 @@
 
 #include <Engine.h>
 
-struct SFrameData
-{
-    glm::mat4 ViewProj;
-};
-
 class Dissolve final : public Elixir::Application
 {
 public:
@@ -22,11 +17,7 @@ public:
 private:
     void DrawGeometry();
 
-    WaitGroup m_WaitGroup;
-    Extent2D m_DrawExtent;
-
-    SFrameData m_FrameData;
-    Ref<UniformBuffer> m_FrameConstantBuffer;
+    Scope<StaticMeshRenderer> m_StaticMeshRenderer;
 
     Scope<ArcBallCameraController> m_CameraController;
 };

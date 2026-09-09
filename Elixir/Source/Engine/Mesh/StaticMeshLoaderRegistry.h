@@ -7,10 +7,9 @@ namespace Elixir
     class GraphicsContext;
 
     /**
-     * @brief Loads static mesh files through registered format loaders.
+     * @brief Loads static mesh files through the active loader.
      *
-     * The registry installs the glTF loader by default. Applications can add another
-     * format loader or explicitly replace the implementation for an existing format.
+     * The application selects the implementation during startup.
      */
     class ELIXIR_API StaticMeshLoaderRegistry final
     {
@@ -27,14 +26,14 @@ namespace Elixir
         static void Shutdown();
 
         /**
-         * @brief Register a loader for a previously unsupported source format.
+         * @brief Register the active static mesh loader.
          * @param loader Loader to register.
          * @return False when loader is null or its format is already registered.
          */
         static bool RegisterLoader(Scope<StaticMeshLoader> loader);
 
         /**
-         * @brief Replace the loader registered for one source format.
+         * @brief Replace the active static mesh loader.
          * @param loader Loader that becomes responsible for its declared format.
          * @return False when loader is null.
          */
@@ -46,10 +45,5 @@ namespace Elixir
          * @return Imported meshes and diagnostics.
          */
         static SStaticMeshLoadResult Load(const std::filesystem::path& path);
-
-    private:
-        static std::optional<EStaticMeshFormat> InferFormat(
-            const std::filesystem::path& path
-        );
     };
 }

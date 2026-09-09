@@ -79,6 +79,9 @@ namespace Elixir
          */
         static Ref<StaticMesh> Create(SStaticMeshCreateInfo info);
 
+        /** @brief Get the vertex layout used by every static mesh section. */
+        static const BufferLayout& GetVertexLayout();
+
         /** @brief Get the display name supplied by the creator. */
         const std::string& GetName() const { return m_Name; }
 

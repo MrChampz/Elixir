@@ -63,6 +63,7 @@
 #include <Engine/Mesh/StaticMesh.h>
 #include <Engine/Mesh/StaticMeshLoader.h>
 #include <Engine/Mesh/StaticMeshLoaderRegistry.h>
+#include <Engine/Mesh/StaticMeshRenderer.h>
 
 #include <Engine/Aether/System.h>
 #include <Engine/Aether/Modules/Modules.h>

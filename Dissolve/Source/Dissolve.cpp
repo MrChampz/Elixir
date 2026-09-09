@@ -3,7 +3,6 @@
 #include "Engine/Materials/Nodes/Parameter.h"
 
 #include <Engine/Core/Entrypoint.h>
-#include <Engine/Graphics/SamplerBuilder.h>
 #include <Engine/Aether/Manager.h>
 
 #include <Engine/Materials/MaterialGraph.h>
@@ -16,20 +15,20 @@
 
 using namespace Elixir::Materials::Nodes;
 
-Ref<GraphicsPipeline> pipeline;
 std::array<Ref<Aether::System>, 2> m_ParticleSystems;
 std::array<Ref<Aether::SystemInstance>, 2> m_ParticleSystemInstances;
 
 Ref<Material> graphMaterial;
+
+SStaticMeshLoadResult mesh;
 
 Dissolve::Dissolve()
 {
     EE_PROFILE_ZONE_SCOPED()
 
     m_Window->SetTitle("Dissolve");
-    m_DrawExtent = m_Window->GetFramebufferExtent();
-
-    const auto aspectRatio = (float)m_DrawExtent.Width / (float)m_DrawExtent.Height;
+    const auto drawExtent = m_Window->GetFramebufferExtent();
+    const auto aspectRatio = (float)drawExtent.Width / (float)drawExtent.Height;
     // m_CameraController = CreateScope<SplineCameraController>(aspectRatio);
     // m_CameraController->AddKeyframe({ { 0.0f, 0.5f, 5.0f }, { 0.0f, 0.0f, 0.0f }, 60.0f });
     // m_CameraController->AddKeyframe({ { 1.0f, 0.3f, 2.5f }, { 0.0f, 0.0f, 0.0f }, 50.0f });
@@ -38,34 +37,12 @@ Dissolve::Dissolve()
     // m_CameraController->SetLooping(true);
     // m_CameraController->Play();
     m_CameraController = CreateScope<ArcBallCameraController>(60.0f, aspectRatio);
-    m_FrameData.ViewProj = m_CameraController->GetCamera().GetViewProjectionMatrix();
-
-    const auto sampler = SamplerBuilder()
-        .Build(m_GraphicsContext.get());
-
     const auto tex = TextureLoader::Load("./Assets/Bricks.png");
 
-    const auto shader = m_ShaderLoader->LoadShader("./Shaders/", "FixedTriangle");
-    shader->BindTexture("texture", tex);
-    shader->BindSampler("sampl", sampler);
-
-    PipelineBuilder builder;
-    builder.SetShader(shader);
-    builder.SetInputTopology(EPrimitiveTopology::TriangleList);
-    builder.SetPolygonMode(EPolygonMode::Fill);
-    builder.DisableBlending();
-    builder.DisableDepthTest();
-    builder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
-    builder.SetBufferLayout({});
-    pipeline = builder.Build(m_GraphicsContext.get());
-
-    m_FrameConstantBuffer = UniformBuffer::Create(
+    m_StaticMeshRenderer = CreateScope<StaticMeshRenderer>(
         m_GraphicsContext.get(),
-        sizeof(SFrameData),
-        &m_FrameData
+        m_ShaderLoader.get()
     );
-
-    shader->BindConstantBuffer("cbFrame", m_FrameConstantBuffer);
 
     m_ParticleSystems[0] = GetAetherManager().LoadEffect("./Assets/VFX/FireAndFireworks.json");
     EE_CORE_ASSERT(
@@ -126,6 +103,8 @@ Dissolve::Dissolve()
         {
             EE_CORE_ERROR("Dissolve particle emitter 'FlameCore' was not found.")
         }
+
+        mesh = StaticMeshLoaderRegistry::Load("./Assets/Meshes/McLaren/scene.gltf");
     }
 
     {
@@ -216,7 +195,7 @@ Dissolve::Dissolve()
 
 Dissolve::~Dissolve()
 {
-    pipeline.reset();
+    m_StaticMeshRenderer.reset();
 }
 
 void Dissolve::OnGUI(const Timestep frameTime)
@@ -237,19 +216,14 @@ void Dissolve::Render(const Timestep frameTime)
     Application::Render(frameTime);
 
     m_CameraController->Update(frameTime);
-    m_FrameData.ViewProj = m_CameraController->GetCamera().GetViewProjectionMatrix();
-    m_FrameConstantBuffer->UpdateData(&m_FrameData, sizeof(SFrameData));
-
     auto& aether = GetAetherManager();
     aether.BeginFrame(frameTime);
 
     m_GraphicsContext->Clear();
 
-    //DrawGeometry();
+    DrawGeometry();
 
     aether.Render(m_CameraController->GetCamera());
-    const auto& simulationMetrics = aether.GetLastSimulationMetrics();
-    const auto& renderMetrics = aether.GetLastRenderingMetrics();
 }
 
 void Dissolve::OnEvent(Event& event)
@@ -260,37 +234,8 @@ void Dissolve::OnEvent(Event& event)
 
 void Dissolve::DrawGeometry()
 {
-     const auto renderingInfo = SRenderingInfo
-     {
-         .ColorAttachment = m_GraphicsContext->GetRenderTarget(),
-         .RenderArea = m_DrawExtent
-     };
-
-     Viewport viewport = {};
-     viewport.X = 0;
-     viewport.Y = 0;
-     viewport.Width = m_DrawExtent.Width;
-     viewport.Height = m_DrawExtent.Height;
-     viewport.MinDepth = 0.0f;
-     viewport.MaxDepth = 1.0f;
-
-     Rect2D scissor = {};
-     scissor.Offset = { 0, 0 };
-     scissor.Extent = m_DrawExtent;
-
-     m_Executor.Enqueue([this, renderingInfo, viewport, scissor]()
-     {
-         const auto cmd = this->m_GraphicsContext->GetSecondaryCommandBuffer();
-         cmd->BeginRendering(renderingInfo);
-         cmd->SetViewports({ viewport });
-         cmd->SetScissors({ scissor });
-         pipeline->Bind(cmd);
-         cmd->Draw(3);
-         cmd->EndRendering();
-         this->m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
-     }, &m_WaitGroup);
-
-    m_WaitGroup.Wait();
+    if (m_StaticMeshRenderer)
+        m_StaticMeshRenderer->Render(mesh.Meshes, m_CameraController->GetCamera());
 }
 
 Application* Elixir::CreateApplication()

@@ -7,12 +7,6 @@ namespace Elixir
 {
     class GraphicsContext;
 
-    /** @brief Identifies a source format supported by a static mesh loader. */
-    enum class EStaticMeshFormat : uint8_t
-    {
-        GLTF,
-    };
-
     /** @brief Supplies the engine state and source file for one mesh import. */
     struct SStaticMeshLoadRequest
     {
@@ -61,9 +55,6 @@ namespace Elixir
     {
     public:
         virtual ~StaticMeshLoader() = default;
-
-        /** Get the source format accepted by this loader. */
-        virtual EStaticMeshFormat GetFormat() const = 0;
 
         /**
          * @brief Import all valid static meshes from one source file.
