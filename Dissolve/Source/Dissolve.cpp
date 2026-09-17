@@ -20,7 +20,7 @@ std::array<Ref<Aether::SystemInstance>, 2> m_ParticleSystemInstances;
 
 Ref<Material> graphMaterial;
 
-std::vector<Ref<StaticMesh>> meshes;
+Ref<StaticMesh> mesh;
 
 Dissolve::Dissolve()
 {
@@ -41,7 +41,8 @@ Dissolve::Dissolve()
 
     m_StaticMeshRenderer = CreateScope<StaticMeshRenderer>(
         m_GraphicsContext.get(),
-        m_ShaderLoader.get()
+        m_ShaderLoader.get(),
+        StaticMeshLoaderRegistry::GetGeometryPool()
     );
 
     m_ParticleSystems[0] = GetAetherManager().LoadEffect("./Assets/VFX/FireAndFireworks.json");
@@ -104,8 +105,8 @@ Dissolve::Dissolve()
             EE_CORE_ERROR("Dissolve particle emitter 'FlameCore' was not found.")
         }
 
-        if (auto loadedMeshes = StaticMeshLoaderRegistry::Load("./Assets/Meshes/McLaren/scene.gltf"))
-            meshes = std::move(*loadedMeshes);
+        if (auto loaded = StaticMeshLoaderRegistry::Load("./Assets/Meshes/McLaren/scene.gltf"))
+            mesh = std::move(*loaded);
     }
 
     {
@@ -222,7 +223,9 @@ void Dissolve::Render(const Timestep frameTime)
 
     m_GraphicsContext->Clear();
 
+    m_StaticMeshRenderer->BeginFrame(m_CameraController->GetCamera());
     DrawGeometry();
+    m_StaticMeshRenderer->EndFrame();
 
     aether.Render(m_CameraController->GetCamera());
 }
@@ -236,7 +239,9 @@ void Dissolve::OnEvent(Event& event)
 void Dissolve::DrawGeometry()
 {
     if (m_StaticMeshRenderer)
-        m_StaticMeshRenderer->Render(meshes, m_CameraController->GetCamera());
+    {
+        m_StaticMeshRenderer->Render(mesh);
+    }
 }
 
 Application* Elixir::CreateApplication()

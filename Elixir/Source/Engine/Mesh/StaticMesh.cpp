@@ -1,22 +1,35 @@
 #include "epch.h"
 #include "StaticMesh.h"
 
+#include <Engine/Mesh/GeometryPool.h>
+
 namespace Elixir
 {
-    Ref<StaticMesh> StaticMesh::Create(SStaticMeshCreateInfo info)
+    Ref<StaticMesh> StaticMesh::Create(
+        std::string name,
+        GeometryAllocation geometry,
+        std::vector<SStaticMeshSection> sections,
+        SStaticMeshBounds localBounds
+    )
     {
-        const bool hasValidSection = std::ranges::any_of(info.Sections, [](const auto& section)
+        if (!geometry.IsValid())
         {
-            return section.Vertices && section.Indices && section.IndexCount > 0;
-        });
-
-        if (!hasValidSection)
-        {
-            EE_CORE_ERROR("StaticMesh requires at least one valid section.")
+            EE_CORE_ERROR("StaticMesh requires a valid geometry handle.")
             return nullptr;
         }
 
-        return Ref<StaticMesh>(new StaticMesh(std::move(info)));
+        if (sections.empty())
+        {
+            EE_CORE_ERROR("StaticMesh requires at least one section.")
+            return nullptr;
+        }
+
+        return Ref<StaticMesh>(new StaticMesh(
+            std::move(name),
+            std::move(geometry),
+            std::move(sections),
+            localBounds
+        ));
     }
 
     const BufferLayout& StaticMesh::GetVertexLayout()
@@ -30,8 +43,13 @@ namespace Elixir
         return layout;
     }
 
-    StaticMesh::StaticMesh(SStaticMeshCreateInfo info)
-      : m_Name(std::move(info.Name)),
-        m_Sections(std::move(info.Sections)),
-        m_LocalBounds(info.LocalBounds) {}
+    StaticMesh::StaticMesh(
+        std::string name,
+        GeometryAllocation geometry,
+        std::vector<SStaticMeshSection> sections,
+        const SStaticMeshBounds& localBounds
+    ) : m_Name(std::move(name)),
+        m_Geometry(std::move(geometry)),
+        m_Sections(std::move(sections)),
+        m_LocalBounds(localBounds) {}
 }

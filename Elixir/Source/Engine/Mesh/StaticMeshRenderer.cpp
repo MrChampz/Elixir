@@ -1,6 +1,7 @@
 #include "epch.h"
 #include "StaticMeshRenderer.h"
 
+#include <Engine/Mesh/GeometryPool.h>
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/CommandBuffer.h>
 #include <Engine/Graphics/GraphicsContext.h>
@@ -30,8 +31,10 @@ namespace Elixir
 
     StaticMeshRenderer::StaticMeshRenderer(
         const GraphicsContext* context,
-        const ShaderLoader* shaderLoader
-    ) : m_Context(context)
+        const ShaderLoader* shaderLoader,
+        const GeometryPool& geometryPool
+    ) : m_Context(context),
+        m_GeometryPool(geometryPool)
     {
         EE_CORE_ASSERT(m_Context, "StaticMeshRenderer requires a graphics context")
         EE_CORE_ASSERT(shaderLoader, "StaticMeshRenderer requires a shader loader")
@@ -54,13 +57,8 @@ namespace Elixir
         m_Shader->BindConstantBuffer("cbFrame", m_FrameBuffer);
     }
 
-    void StaticMeshRenderer::Render(
-        const std::span<const Ref<StaticMesh>> meshes,
-        const Camera& camera
-    )
+    void StaticMeshRenderer::BeginFrame(const Camera& camera)
     {
-        if (meshes.empty()) return;
-
         const SStaticMeshFrameData frameData{ .ViewProjection = camera.GetViewProjectionMatrix() };
         m_FrameBuffer->UpdateData(&frameData, sizeof(frameData));
 
@@ -70,41 +68,58 @@ namespace Elixir
             .RenderArea = extent,
         };
 
-        const auto commandBuffer = m_Context->GetSecondaryCommandBuffer();
-        commandBuffer->Begin(renderingInfo);
-        commandBuffer->BeginRendering(renderingInfo);
-        commandBuffer->SetViewports({{
+        m_CommandBuffer = m_Context->GetSecondaryCommandBuffer();
+        m_CommandBuffer->Begin(renderingInfo);
+        m_CommandBuffer->BeginRendering(renderingInfo);
+
+        m_CommandBuffer->SetViewports({{
             .Width = static_cast<float>(extent.Width),
             .Height = static_cast<float>(extent.Height),
             .MinDepth = 0.0f,
             .MaxDepth = 1.0f,
         }});
-        commandBuffer->SetScissors({{
+
+        m_CommandBuffer->SetScissors({{
             .Offset = { 0, 0 },
             .Extent = extent,
         }});
-        m_Pipeline->Bind(commandBuffer);
 
-        for (const Ref<StaticMesh>& mesh : meshes)
+        m_Pipeline->Bind(m_CommandBuffer);
+    }
+
+    void StaticMeshRenderer::Render(const Ref<StaticMesh>& mesh)
+    {
+        if (!mesh) return;
+
+        glm::vec4 color = GetColor(*mesh);
+        m_Shader->SetPushConstant(m_CommandBuffer, "pc", &color, sizeof(color));
+
+        const auto geometry = mesh->GetGeometry();
+        if (!geometry) return;
+
+        std::array<const DynamicVertexBuffer*, 1> vertexBuffers = {
+            m_GeometryPool.GetVertexBuffer().get()
+        };
+
+        m_CommandBuffer->BindVertexBuffers(vertexBuffers);
+        m_CommandBuffer->BindIndexBuffer(m_GeometryPool.GetIndexBuffer().get());
+
+        for (const auto& section : mesh->GetSections())
         {
-            if (!mesh) continue;
-
-            glm::vec4 color = GetColor(*mesh);
-            m_Shader->SetPushConstant(commandBuffer, "pc", &color, sizeof(color));
-
-            for (const SStaticMeshSection& section : mesh->GetSections())
-            {
-                if (!section.Vertices || !section.Indices || section.IndexCount == 0) continue;
-
-                section.Vertices->Bind(commandBuffer);
-                section.Indices->Bind(commandBuffer);
-                commandBuffer->DrawIndexed(section.IndexCount);
-            }
+            m_CommandBuffer->DrawIndexed(
+                section.IndexCount,
+                1,
+                geometry->IndexOffset + section.FirstIndex,
+                geometry->VertexOffset + section.VertexOffset
+            );
         }
+    }
 
-        commandBuffer->EndRendering();
-        commandBuffer->End();
-        m_Context->EnqueueSecondaryCommandBuffer(commandBuffer);
+    void StaticMeshRenderer::EndFrame()
+    {
+        m_CommandBuffer->EndRendering();
+        m_CommandBuffer->End();
+        m_Context->EnqueueSecondaryCommandBuffer(m_CommandBuffer);
     }
 
     glm::vec4 StaticMeshRenderer::GetColor(const StaticMesh& mesh)

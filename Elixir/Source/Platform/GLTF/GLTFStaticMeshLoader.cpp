@@ -40,8 +40,7 @@ namespace Elixir
                                              fastgltf::Category::Buffers;
 
     static void LoadPrimitive(
-        const SStaticMeshLoadRequest& request,
-        SStaticMeshCreateInfo& mesh,
+        SStaticMeshData& mesh,
         const fastgltf::Asset& asset,
         const fastgltf::Primitive& primitive,
         bool& hasBounds
@@ -182,34 +181,26 @@ namespace Elixir
         }
 
         SStaticMeshSection section;
+        section.FirstIndex = (uint32_t)mesh.Indices.size();
         section.IndexCount = (uint32_t)indices.size();
+        section.VertexOffset = (uint32_t)mesh.Vertices.size();
         section.MaterialSlot = primitive.materialIndex &&
             *primitive.materialIndex <= StaticMesh::NO_MATERIAL_SLOT - 1
                 ? (uint32_t)*primitive.materialIndex
                 : StaticMesh::NO_MATERIAL_SLOT;
         section.LocalBounds = GetBounds(vertices);
-        section.Vertices = VertexBuffer::Create(
-            request.GraphicsContext,
-            vertices.size() * sizeof(SStaticMeshVertex),
-            vertices.data()
-        );
-        section.Indices = IndexBuffer::Create(
-            request.GraphicsContext,
-            indices.size() * sizeof(uint32_t),
-            indices.data(),
-            EIndexType::UInt32
+
+        mesh.Vertices.insert(
+            mesh.Vertices.end(),
+            std::make_move_iterator(vertices.begin()),
+            std::make_move_iterator(vertices.end())
         );
 
-        if (!section.Vertices || !section.Indices)
-        {
-            EE_CORE_ERROR(
-                "Failed to create GPU buffers for primitive in mesh '{}'.",
-                mesh.Name
-            )
-            return;
-        }
-
-        section.Vertices->SetLayout(StaticMesh::GetVertexLayout());
+        mesh.Indices.insert(
+            mesh.Indices.end(),
+            std::make_move_iterator(indices.begin()),
+            std::make_move_iterator(indices.end())
+        );
 
         if (!hasBounds)
         {
@@ -224,73 +215,17 @@ namespace Elixir
         mesh.Sections.push_back(std::move(section));
     }
 
-    static void LoadMesh(
-        const SStaticMeshLoadRequest& request,
-        std::vector<Ref<StaticMesh>>& meshes,
-        const fastgltf::Asset& asset,
-        const fastgltf::Mesh& mesh
-    )
+    std::optional<SStaticMeshData> GLTFStaticMeshLoader::Load(std::filesystem::path path) const
     {
-        const auto name = mesh.name;
+        SStaticMeshData mesh;
+        mesh.Name = path.stem().string();
 
-        SStaticMeshCreateInfo info;
-        info.Name = name;
-
-        bool hasBounds = false;
-
-        for (const auto& primitive : mesh.primitives)
-            LoadPrimitive(request, info, asset, primitive, hasBounds);
-
-        if (const auto staticMesh = StaticMesh::Create(std::move(info)))
-            meshes.push_back(staticMesh);
-        else
-            EE_CORE_ERROR(
-                "Skipping mesh '{}' because it has no valid triangle sections.",
-                name
-            )
-    }
-
-    static void LoadMergedMesh(
-        const SStaticMeshLoadRequest& request,
-        std::vector<Ref<StaticMesh>>& meshes,
-        const fastgltf::Asset& asset
-    )
-    {
-        SStaticMeshCreateInfo info;
-        info.Name = request.Path.stem().string();
-
-        bool hasBounds = false;
-
-        for (const auto& mesh : asset.meshes)
-            for (const auto& primitive : mesh.primitives)
-                LoadPrimitive(request, info, asset, primitive, hasBounds);
-
-        if (!info.Sections.empty())
-            if (const auto staticMesh = StaticMesh::Create(std::move(info)))
-                meshes.push_back(staticMesh);
-    }
-
-    GLTFStaticMeshLoader::GLTFStaticMeshLoader(SGLTFStaticMeshImportOptions options)
-      : m_Options(options) {}
-
-    StaticMeshLoadResult GLTFStaticMeshLoader::Load(
-        const SStaticMeshLoadRequest& request
-    ) const
-    {
-        std::vector<Ref<StaticMesh>> meshes;
-
-        if (!request.GraphicsContext)
-        {
-            EE_CORE_ERROR("Cannot load a static mesh without a graphics context.")
-            return std::nullopt;
-        }
-
-        auto data = fastgltf::GltfDataBuffer::FromPath(request.Path);
+        auto data = fastgltf::GltfDataBuffer::FromPath(path);
         if (data.error() != fastgltf::Error::None)
         {
             EE_CORE_ERROR(
                 "Failed to open glTF file '{}': {}.",
-                request.Path.string(),
+                path.string(),
                 fastgltf::getErrorMessage(data.error())
             )
             return std::nullopt;
@@ -300,7 +235,7 @@ namespace Elixir
 
         auto loadResult = parser.loadGltf(
             data.get(),
-            request.Path.parent_path(),
+            path.parent_path(),
             GLTF_OPTIONS,
             GLTF_CATEGORIES
         );
@@ -309,26 +244,26 @@ namespace Elixir
         {
             EE_CORE_ERROR(
                 "Failed to parse glTF file '{}': {}.",
-                request.Path.string(),
+                path.string(),
                 fastgltf::getErrorMessage(loadResult.error())
             )
             return std::nullopt;
         }
 
         const fastgltf::Asset& asset = loadResult.get();
+        bool hasBounds = false;
 
-        if (m_Options.MergeMeshes)
-            LoadMergedMesh(request, meshes, asset);
-        else
-            for (auto& mesh : asset.meshes)
-                LoadMesh(request, meshes, asset, mesh);
+        // Combine every glTF mesh into this single static mesh.
+        for (const auto& assetMesh : asset.meshes)
+            for (const auto& primitive : assetMesh.primitives)
+                LoadPrimitive(mesh, asset, primitive, hasBounds);
 
-        if (meshes.empty())
+        if (mesh.Sections.empty())
         {
-            EE_CORE_ERROR("No valid static meshes were found in '{}'.", request.Path.string())
+            EE_CORE_ERROR("No valid static meshes were found in '{}'.", path.string())
             return std::nullopt;
         }
 
-        return meshes;
+        return mesh;
     }
 }

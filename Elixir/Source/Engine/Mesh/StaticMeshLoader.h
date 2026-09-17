@@ -5,20 +5,8 @@
 
 namespace Elixir
 {
-    class GraphicsContext;
-
-    /** @brief Supplies the engine state and source file for one mesh import. */
-    struct SStaticMeshLoadRequest
-    {
-        const GraphicsContext* GraphicsContext = nullptr;
-        std::filesystem::path Path;
-    };
-
-    /** @brief Contains the meshes loaded from one asset path, when loading succeeds. */
-    using StaticMeshLoadResult = std::optional<std::vector<Ref<StaticMesh>>>;
-
     /**
-     * @brief Imports one static mesh source format into engine assets.
+     * @brief Loads CPU data for one static mesh from an asset source.
      *
      * Implementations must not expose parser-specific types through this contract.
      */
@@ -28,10 +16,10 @@ namespace Elixir
         virtual ~StaticMeshLoader() = default;
 
         /**
-         * @brief Import all valid static meshes from one source file.
-         * @param request Source file and graphics context.
-         * @return Loaded meshes, or std::nullopt when loading fails.
+         * @brief Load CPU mesh data from one source file.
+         * @param path Local source file path.
+         * @return Loaded mesh data, or std::nullopt when loading fails.
          */
-        virtual StaticMeshLoadResult Load(const SStaticMeshLoadRequest& request) const = 0;
+        virtual std::optional<SStaticMeshData> Load(std::filesystem::path path) const = 0;
     };
 }

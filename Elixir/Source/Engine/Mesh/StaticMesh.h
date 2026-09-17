@@ -1,10 +1,11 @@
 #pragma once
 
-#include <Engine/Core/Core.h>
-#include <Engine/Graphics/Buffer.h>
+#include <Engine/Mesh/GeometryAllocation.h>
 
 namespace Elixir
 {
+    struct SGeometry;
+
     /** @brief Stores the vertex attributes supported by static meshes. */
     struct SStaticMeshVertex
     {
@@ -28,43 +29,31 @@ namespace Elixir
         glm::vec3 Max{};
     };
 
-    /** @brief Describes one drawable triangle range of a static mesh. */
+    /** @brief Describes one drawable range in a static mesh. */
     struct SStaticMeshSection
     {
-        /** Vertex data used by this section. */
-        Ref<VertexBuffer> Vertices;
-
-        /** Triangle indices used by this section. */
-        Ref<IndexBuffer> Indices;
-
-        /** Number of indices in this section. */
+        uint32_t FirstIndex = 0;
         uint32_t IndexCount = 0;
-
-        /** Slot of the material assigned by the source asset. */
+        uint32_t VertexOffset = 0;
         uint32_t MaterialSlot = std::numeric_limits<uint32_t>::max();
-
-        /** Bound of this section in mesh-local space. */
         SStaticMeshBounds LocalBounds;
     };
 
-    /** @brief Supplies immutable data for a new static mesh. */
-    struct SStaticMeshCreateInfo
+    /** @brief Stores CPU geometry loaded from one mesh asset. */
+    struct SStaticMeshData
     {
-        /** Optional display name of the mesh. */
         std::string Name;
-
-        /** Sections that form the mesh. */
+        std::vector<SStaticMeshVertex> Vertices;
+        std::vector<uint32_t> Indices;
         std::vector<SStaticMeshSection> Sections;
-
-        /** Bound of all sections in mesh-local space. */
         SStaticMeshBounds LocalBounds;
     };
 
     /**
-     * @brief Stores reusable, non-deforming geometry.
+     * @brief Represents reusable, non-deforming geometry in the runtime.
      *
-     * A static mesh contains no scene transform. Its sections correspond to source draw
-     * primitives.
+     * A static mesh references geometry stored by GeometryPool. It contains no scene
+     * transform. Its sections correspond to source draw primitives.
      */
     class ELIXIR_API StaticMesh final
     {
@@ -73,17 +62,28 @@ namespace Elixir
         static constexpr uint32_t NO_MATERIAL_SLOT = std::numeric_limits<uint32_t>::max();
 
         /**
-         * @brief Create one static mesh from prepared GPU sections.
-         * @param info Immutable geometry and metadata for the mesh.
-         * @return A mesh, or nullptr when no valid section was supplied.
+         * @brief Create a mesh that references uploaded pooled geometry.
+         * @param name Display name for the mesh.
+         * @param geometry Allocation that owns the uploaded geometry range.
+         * @param sections Draw ranges that belong to the geometry.
+         * @param localBounds Bound of the mesh in mesh-local space.
+         * @return A mesh, or nullptr when geometry is invalid or sections are empty.
          */
-        static Ref<StaticMesh> Create(SStaticMeshCreateInfo info);
+        static Ref<StaticMesh> Create(
+            std::string name,
+            GeometryAllocation geometry,
+            std::vector<SStaticMeshSection> sections,
+            SStaticMeshBounds localBounds
+        );
 
         /** @brief Get the vertex layout used by every static mesh section. */
         static const BufferLayout& GetVertexLayout();
 
         /** @brief Get the display name supplied by the creator. */
         const std::string& GetName() const { return m_Name; }
+
+        /** @brief Get metadata for the mesh geometry, or nullptr when it is no longer valid. */
+        const SGeometry* GetGeometry() const { return m_Geometry.Get(); }
 
         /** @brief Get the immutable sections of this mesh. */
         const std::vector<SStaticMeshSection>& GetSections() const { return m_Sections; }
@@ -92,9 +92,15 @@ namespace Elixir
         const SStaticMeshBounds& GetLocalBounds() const { return m_LocalBounds; }
 
     private:
-        explicit StaticMesh(SStaticMeshCreateInfo info);
+        explicit StaticMesh(
+            std::string name,
+            GeometryAllocation geometry,
+            std::vector<SStaticMeshSection> sections,
+            const SStaticMeshBounds& localBounds
+        );
 
         std::string m_Name;
+        GeometryAllocation m_Geometry;
         std::vector<SStaticMeshSection> m_Sections;
         SStaticMeshBounds m_LocalBounds;
     };

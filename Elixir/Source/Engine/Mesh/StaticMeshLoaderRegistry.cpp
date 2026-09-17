@@ -10,8 +10,9 @@ namespace Elixir
     {
         const GraphicsContext* s_GraphicsContext;
         Scope<StaticMeshLoader> s_Loader;
+        Scope<GeometryPool> s_GeometryPool;
 
-        StaticMeshLoadResult MakeError(const std::string_view message)
+        std::optional<Ref<StaticMesh>> MakeError(const std::string_view message)
         {
             EE_CORE_ERROR("{}", message)
             return std::nullopt;
@@ -23,6 +24,7 @@ namespace Elixir
         if (s_GraphicsContext == &context) return;
 
         s_GraphicsContext = &context;
+        s_GeometryPool = CreateScope<GeometryPool>(context);
         s_Loader.reset();
         RegisterLoader(CreateScope<GLTFStaticMeshLoader>());
     }
@@ -49,7 +51,9 @@ namespace Elixir
         return true;
     }
 
-    StaticMeshLoadResult StaticMeshLoaderRegistry::Load(const std::filesystem::path& path)
+    std::optional<Ref<StaticMesh>> StaticMeshLoaderRegistry::Load(
+        const std::filesystem::path& path
+    )
     {
         if (!s_GraphicsContext)
             return MakeError("StaticMeshLoaderRegistry must be initialized before loading meshes.");
@@ -57,9 +61,26 @@ namespace Elixir
         if (!s_Loader)
             return MakeError("No static mesh loader is registered.");
 
-        return s_Loader->Load({
-            .GraphicsContext = s_GraphicsContext,
-            .Path = path
-        });
+        const auto data = s_Loader->Load(path);
+        if (!data) return std::nullopt;
+
+        auto geometry = s_GeometryPool->Upload(*data);
+        if (!geometry.IsValid())
+        {
+            EE_CORE_ERROR("Could not upload static mesh geometry '{}'.", data->Name)
+            return std::nullopt;
+        }
+
+        return StaticMesh::Create(
+            std::move(data->Name),
+            std::move(geometry),
+            std::move(data->Sections),
+            data->LocalBounds
+        );
+    }
+
+    const GeometryPool& StaticMeshLoaderRegistry::GetGeometryPool()
+    {
+        return *s_GeometryPool;
     }
 }

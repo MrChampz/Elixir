@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Engine/Mesh/GeometryPool.h>
 #include <Engine/Mesh/StaticMeshLoader.h>
 
 namespace Elixir
@@ -7,7 +8,7 @@ namespace Elixir
     class GraphicsContext;
 
     /**
-     * @brief Loads static mesh files through the active loader.
+     * @brief Creates runtime static meshes through the active loader and GeometryPool.
      *
      * The application selects the implementation during startup.
      */
@@ -22,28 +23,31 @@ namespace Elixir
          */
         static void Initialize(const GraphicsContext& context);
 
-        /** @brief Release registered loaders and the current graphics context. */
+        /** @brief Release the loader, geometry pool, and graphics context. */
         static void Shutdown();
 
         /**
          * @brief Register the active static mesh loader.
          * @param loader Loader to register.
-         * @return False when loader is null or its format is already registered.
+         * @return False when loader is null or another loader is already active.
          */
         static bool RegisterLoader(Scope<StaticMeshLoader> loader);
 
         /**
          * @brief Replace the active static mesh loader.
-         * @param loader Loader that becomes responsible for its declared format.
+         * @param loader Loader that becomes active.
          * @return False when loader is null.
          */
         static bool ReplaceLoader(Scope<StaticMeshLoader> loader);
 
         /**
-         * @brief Import every static mesh defined by one supported source file.
+         * @brief Load CPU data and create one runtime static mesh.
          * @param path Local source file.
-         * @return Loaded meshes, or std::nullopt when loading fails.
+         * @return Loaded mesh, or std::nullopt when loading fails.
          */
-        static StaticMeshLoadResult Load(const std::filesystem::path& path);
+        static std::optional<Ref<StaticMesh>> Load(const std::filesystem::path& path);
+
+        /** @brief Get the pool that owns static mesh GPU geometry. */
+        static const GeometryPool& GetGeometryPool();
     };
 }
