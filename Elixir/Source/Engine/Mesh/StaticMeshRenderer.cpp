@@ -3,134 +3,135 @@
 
 #include <Engine/Mesh/GeometryPool.h>
 #include <Engine/Camera/Camera.h>
-#include <Engine/Graphics/CommandBuffer.h>
 #include <Engine/Graphics/GraphicsContext.h>
-#include <Engine/Graphics/Pipeline/PipelineBuilder.h>
-#include <Engine/Graphics/Shader/ShaderLoader.h>
+#include <Engine/Materials/MaterialInstance.h>
+#include <Engine/Materials/MaterialSystem.h>
 
 namespace Elixir
 {
     namespace
     {
-        struct SStaticMeshFrameData
+        struct SSurfaceFrameData
         {
-            glm::mat4 ViewProjection{ 1.0f };
+            glm::mat4 View{ 1.0f };
+            glm::mat4 Proj{ 1.0f };
+            glm::mat4 ViewProj{ 1.0f };
+            glm::vec3 CameraPos{};
+            float Time = 0.0f;
+            uint32_t EnvIndex = UINT32_MAX;
+            uint32_t IrradianceIndex = UINT32_MAX;
+            float EnvIntensity = 0.0f;
+            float EnvMaxLod = 0.0f;
+            uint32_t PrefIndex = UINT32_MAX;
+            uint32_t SceneColorIndex = UINT32_MAX;
+            float ScreenWidth = 1.0f;
+            float ScreenHeight = 1.0f;
+            glm::vec4 LightDirection{};
+            glm::vec4 LightColor{};
         };
 
-        glm::vec3 HsvToRgb(const float hue)
+        struct SSurfacePushConstants
         {
-            const glm::vec3 ramp = glm::clamp(
-                glm::abs(glm::fract(glm::vec3(hue) + glm::vec3(0.0f, 2.0f / 3.0f, 1.0f / 3.0f)) *
-                    6.0f - 3.0f) - 1.0f,
-                0.0f,
-                1.0f
-            );
-            return glm::mix(glm::vec3(0.32f), ramp, 0.82f);
-        }
+            glm::mat4 Model{ 1.0f };
+            uint32_t MaterialIndex = 0;
+        };
     }
 
     StaticMeshRenderer::StaticMeshRenderer(
         const GraphicsContext* context,
-        const ShaderLoader* shaderLoader,
+        MaterialSystem& materialSystem,
         const GeometryPool& geometryPool
-    ) : m_Context(context),
-        m_GeometryPool(geometryPool)
+    ) : m_MaterialSystem(materialSystem),
+        m_GeometryPool(geometryPool),
+        m_Context(context)
     {
         EE_CORE_ASSERT(m_Context, "StaticMeshRenderer requires a graphics context")
-        EE_CORE_ASSERT(shaderLoader, "StaticMeshRenderer requires a shader loader")
 
-        m_Shader = shaderLoader->LoadShader("./Shaders/", "StaticMesh");
-        EE_CORE_ASSERT(m_Shader, "StaticMesh visualization shader could not be loaded")
-
-        PipelineBuilder builder;
-        builder.SetShader(m_Shader);
-        builder.SetInputTopology(EPrimitiveTopology::TriangleList);
-        builder.SetPolygonMode(EPolygonMode::Fill);
-        builder.DisableBlending();
-        builder.DisableDepthTest();
-        builder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
-        builder.SetBufferLayout(StaticMesh::GetVertexLayout());
-        m_Pipeline = builder.Build(m_Context);
-
-        const SStaticMeshFrameData frameData;
+        constexpr SSurfaceFrameData frameData;
         m_FrameBuffer = UniformBuffer::Create(m_Context, sizeof(frameData), &frameData);
-        m_Shader->BindConstantBuffer("cbFrame", m_FrameBuffer);
     }
 
     void StaticMeshRenderer::BeginFrame(const Camera& camera)
     {
-        const SStaticMeshFrameData frameData{ .ViewProjection = camera.GetViewProjectionMatrix() };
+        const auto extent = m_Context->GetRenderTarget()->GetExtent();
+        const SSurfaceFrameData frameData{
+            .View = camera.GetViewMatrix(),
+            .Proj = camera.GetProjectionMatrix(),
+            .ViewProj = camera.GetViewProjectionMatrix(),
+            .CameraPos = camera.GetPosition(),
+            .ScreenWidth = (float)extent.Width,
+            .ScreenHeight = (float)extent.Height,
+        };
         m_FrameBuffer->UpdateData(&frameData, sizeof(frameData));
 
-        const Extent2D extent = m_Context->GetRenderTarget()->GetExtent();
-        const SRenderingInfo renderingInfo{
-            .ColorAttachment = m_Context->GetRenderTarget(),
-            .RenderArea = extent,
-        };
-
-        m_CommandBuffer = m_Context->GetSecondaryCommandBuffer();
-        m_CommandBuffer->Begin(renderingInfo);
-        m_CommandBuffer->BeginRendering(renderingInfo);
-
-        m_CommandBuffer->SetViewports({{
-            .Width = static_cast<float>(extent.Width),
-            .Height = static_cast<float>(extent.Height),
-            .MinDepth = 0.0f,
-            .MaxDepth = 1.0f,
-        }});
-
-        m_CommandBuffer->SetScissors({{
-            .Offset = { 0, 0 },
-            .Extent = extent,
-        }});
-
-        m_Pipeline->Bind(m_CommandBuffer);
+        m_Scene = {};
+        m_GeometryIndex = m_Scene.AddGeometry({
+            .Pipeline = {
+                .VertexLayoutKey = reinterpret_cast<uintptr_t>(&StaticMesh::GetVertexLayout()),
+                .VertexLayout = &StaticMesh::GetVertexLayout(),
+            },
+            .ConstantBuffers = {{
+                .Name = "cbFrame",
+                .Buffer = m_FrameBuffer,
+            }},
+            .VertexBuffers = {{
+                .Buffer = m_GeometryPool.GetVertexBuffer().get(),
+                .Binding = 0,
+            }},
+            .IndexBuffer = m_GeometryPool.GetIndexBuffer().get(),
+        });
     }
 
     void StaticMeshRenderer::Render(const Ref<StaticMesh>& mesh)
     {
         if (!mesh) return;
 
-        glm::vec4 color = GetColor(*mesh);
-        m_Shader->SetPushConstant(m_CommandBuffer, "pc", &color, sizeof(color));
-
         const auto geometry = mesh->GetGeometry();
         if (!geometry) return;
 
-        std::array<const DynamicVertexBuffer*, 1> vertexBuffers = {
-            m_GeometryPool.GetVertexBuffer().get()
-        };
-
-        m_CommandBuffer->BindVertexBuffers(vertexBuffers);
-        m_CommandBuffer->BindIndexBuffer(m_GeometryPool.GetIndexBuffer().get());
+        const auto& materials = mesh->GetMaterials();
 
         for (const auto& section : mesh->GetSections())
         {
-            m_CommandBuffer->DrawIndexed(
-                section.IndexCount,
-                1,
-                geometry->IndexOffset + section.FirstIndex,
-                geometry->VertexOffset + section.VertexOffset
-            );
+            if (section.MaterialIndex >= materials.size()) continue;
+
+            const auto instance = GetDefaultInstance(materials[section.MaterialIndex]);
+            if (!instance) continue;
+
+            m_Scene.Add({
+                .Pass = EMaterialPass::Surface,
+                .Material = instance,
+                .GeometryIndex = m_GeometryIndex,
+                .PushConstants = SMaterialPushConstants::Create(
+                    SSurfacePushConstants{},
+                    offsetof(SSurfacePushConstants, MaterialIndex)
+                ),
+                .IndexedDraw = SIndexedDrawCommand{
+                    .IndexCount = section.IndexCount,
+                    .FirstIndex = geometry->IndexOffset + section.FirstIndex,
+                    .VertexOffset = geometry->VertexOffset + section.VertexOffset,
+                },
+            });
         }
     }
 
     void StaticMeshRenderer::EndFrame()
     {
-        m_CommandBuffer->EndRendering();
-        m_CommandBuffer->End();
-        m_Context->EnqueueSecondaryCommandBuffer(m_CommandBuffer);
+        m_MaterialSystem.Submit(std::move(m_Scene));
     }
 
-    glm::vec4 StaticMeshRenderer::GetColor(const StaticMesh& mesh)
+    Ref<MaterialInstance> StaticMeshRenderer::GetDefaultInstance(const Ref<Material>& material)
     {
-        if (const auto existing = m_Colors.find(&mesh); existing != m_Colors.end())
-            return existing->second;
+        if (!material) return nullptr;
 
-        const uint64_t identity = std::hash<const StaticMesh*>{}(&mesh);
-        const float hue = static_cast<float>(identity % 360u) / 360.0f;
-        const glm::vec4 color(HsvToRgb(hue), 1.0f);
-        m_Colors.emplace(&mesh, color);
-        return color;
+        const auto existing = m_DefaultInstances.find(material.get());
+        if (existing != m_DefaultInstances.end())
+        {
+            return existing->second;
+        }
+
+        const auto instance = material->CreateInstance();
+        m_DefaultInstances.emplace(material.get(), instance);
+        return instance;
     }
 }

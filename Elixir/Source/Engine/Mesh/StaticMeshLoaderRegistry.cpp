@@ -61,7 +61,7 @@ namespace Elixir
         if (!s_Loader)
             return MakeError("No static mesh loader is registered.");
 
-        const auto data = s_Loader->Load(path);
+        const auto data = s_Loader->Load(*s_GraphicsContext, path);
         if (!data) return std::nullopt;
 
         auto geometry = s_GeometryPool->Upload(*data);
@@ -75,6 +75,7 @@ namespace Elixir
             std::move(data->Name),
             std::move(geometry),
             std::move(data->Sections),
+            std::move(data->Materials),
             data->LocalBounds
         );
     }

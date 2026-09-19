@@ -109,6 +109,7 @@ namespace Elixir::Materials::Rendering
     {
         switch (pass)
         {
+            case EMaterialPass::Surface:        return EMaterialUsage::Surface;
             case EMaterialPass::ParticleSprite: return EMaterialUsage::ParticleSprite;
             case EMaterialPass::ParticleRibbon: return EMaterialUsage::ParticleRibbon;
             case EMaterialPass::ParticleMesh:   return EMaterialUsage::ParticleMesh;
@@ -122,9 +123,10 @@ namespace Elixir::Materials::Rendering
     {
         switch (pass)
         {
-            case EMaterialPass::ParticleSprite: return 2;
-            case EMaterialPass::ParticleRibbon: return 1;
-            case EMaterialPass::ParticleMesh:   return 0;
+            case EMaterialPass::Surface:        return 0;
+            case EMaterialPass::ParticleSprite: return 3;
+            case EMaterialPass::ParticleRibbon: return 2;
+            case EMaterialPass::ParticleMesh:   return 1;
         }
 
         return UINT32_MAX;
@@ -203,6 +205,7 @@ namespace Elixir::Materials::Rendering
             const SBatchKey key{
                 .Pass = item.Pass,
                 .GeometryIndex = item.GeometryIndex,
+                .Indexed = item.IndexedDraw.has_value(),
                 .Program = *program
             };
 
@@ -277,6 +280,11 @@ namespace Elixir::Materials::Rendering
                 );
             }
 
+            if (batch.Key.Indexed)
+            {
+                cmd->BindIndexBuffer(geometry->IndexBuffer, geometry->IndexType);
+            }
+
             for (const auto* resolved : batch.Items)
             {
                 const auto constants = resolved->Item->PushConstants.Resolve(
@@ -290,12 +298,25 @@ namespace Elixir::Materials::Rendering
                     resolved->Item->PushConstants.Size
                 );
 
-                cmd->Draw(
-                    resolved->Item->Draw.VertexCount,
-                    resolved->Item->Draw.InstanceCount,
-                    resolved->Item->Draw.FirstVertex,
-                    resolved->Item->Draw.FirstInstance
-                );
+                if (const auto& indexed = resolved->Item->IndexedDraw)
+                {
+                    cmd->DrawIndexed(
+                        indexed->IndexCount,
+                        resolved->Item->Draw.InstanceCount,
+                        indexed->FirstIndex,
+                        indexed->VertexOffset,
+                        resolved->Item->Draw.FirstInstance
+                    );
+                }
+                else
+                {
+                    cmd->Draw(
+                        resolved->Item->Draw.VertexCount,
+                        resolved->Item->Draw.InstanceCount,
+                        resolved->Item->Draw.FirstVertex,
+                        resolved->Item->Draw.FirstInstance
+                    );
+                }
 
                 ++result.DrawCount;
             }
@@ -365,6 +386,9 @@ namespace Elixir::Materials::Rendering
 
         switch (pass)
         {
+            case EMaterialPass::Surface:
+                builder.SetCullMode(ECullMode::Back, EFrontFace::CounterClockwise);
+                break;
             case EMaterialPass::ParticleSprite:
                 builder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
                 builder.EnableAlphaBlending();
@@ -383,7 +407,7 @@ namespace Elixir::Materials::Rendering
 
         auto info = builder.GetCreateInfo();
 
-        if (pass == EMaterialPass::ParticleMesh)
+        if (pass == EMaterialPass::Surface || pass == EMaterialPass::ParticleMesh)
         {
             info.DepthStencil.DepthTestEnable = true;
             info.DepthStencil.DepthWriteEnable = true;
@@ -473,6 +497,10 @@ namespace Elixir::Materials::Rendering
             shader->BindTextureSet("sprites", m_Textures.GetTextureSet());
         if (shader->HasBinding("spriteSampler"))
             shader->BindSampler("spriteSampler", m_Textures.GetSampler());
+        if (shader->HasBinding("textures"))
+            shader->BindTextureSet("textures", m_Textures.GetTextureSet());
+        if (shader->HasBinding("texSampler"))
+            shader->BindSampler("texSampler", m_Textures.GetSampler());
 
         m_DescriptorBindings.emplace(shader.get(), std::move(state));
         return true;

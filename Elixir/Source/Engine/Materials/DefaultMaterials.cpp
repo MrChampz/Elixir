@@ -24,6 +24,20 @@ namespace Elixir::Materials
             return material;
         }
 
+        Ref<Material> CreateDefaultSurfaceMaterial()
+        {
+            MaterialGraph graph;
+
+            const auto checkerboard = graph.AddNode<Checkerboard>(8.0f);
+            graph.SetChannel(EMaterialChannel::BaseColor, checkerboard);
+
+            return MakeMaterial(
+                "Engine.Materials.Defaults.Surface",
+                EMaterialUsage::Surface,
+                std::move(graph)
+            );
+        }
+
         Ref<Material> CreateDefaultSpriteMaterial()
         {
             MaterialGraph graph;
@@ -80,6 +94,7 @@ namespace Elixir::Materials
     DefaultMaterialArray CreateDefaultMaterials()
     {
         return {
+            CreateDefaultSurfaceMaterial(),
             CreateDefaultSpriteMaterial(),
             CreateDefaultRibbonMaterial(),
             CreateDefaultMeshMaterial()

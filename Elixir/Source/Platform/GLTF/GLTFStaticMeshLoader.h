@@ -10,9 +10,13 @@ namespace Elixir
       public:
         /**
          * @brief Combine all glTF meshes into one static mesh data object.
+         * @param context Graphics context available for material resolution.
          * @param path Local glTF or GLB file path.
          * @return Loaded mesh data, or std::nullopt when loading fails.
          */
-        std::optional<SStaticMeshData> Load(std::filesystem::path path) const override;
+        std::optional<SStaticMeshData> Load(
+            const GraphicsContext& context,
+            std::filesystem::path path
+        ) const override;
     };
 }

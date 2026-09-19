@@ -98,6 +98,19 @@ namespace Elixir::Materials::Rendering
         uint32_t FirstInstance = 0;
     };
 
+    /** @brief Describes one indexed range of a draw call. */
+    struct SIndexedDrawCommand
+    {
+        /** Number of indices to draw. */
+        uint32_t IndexCount = 0;
+
+        /** First index in the bound index buffer. */
+        uint32_t FirstIndex = 0;
+
+        /** Offset added to each index before vertex fetch. */
+        uint32_t VertexOffset = 0;
+    };
+
     /**
      * @brief Stores shared resources for render items with compatible geometry.
      */
@@ -114,6 +127,12 @@ namespace Elixir::Materials::Rendering
 
         /** Vertex buffers required by the draw. */
         std::vector<SVertexBufferBinding> VertexBuffers;
+
+        /** Index buffer used by indexed draws, or null for non-indexed geometry. */
+        const Buffer* IndexBuffer = nullptr;
+
+        /** Index element type used by @ref IndexBuffer. */
+        EIndexType IndexType = EIndexType::UInt32;
     };
 
     /**
@@ -135,6 +154,9 @@ namespace Elixir::Materials::Rendering
 
         /** Draw range for the item. */
         SDrawCommand Draw;
+
+        /** Optional indexed draw range. */
+        std::optional<SIndexedDrawCommand> IndexedDraw;
     };
 
     /**

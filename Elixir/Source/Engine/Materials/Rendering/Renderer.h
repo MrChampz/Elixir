@@ -20,6 +20,7 @@ namespace Elixir::Materials::Rendering
      */
     enum class EMaterialPass : uint8_t
     {
+        Surface,
         ParticleSprite,
         ParticleRibbon,
         ParticleMesh,
@@ -142,7 +143,7 @@ namespace Elixir::Materials::Rendering
     struct SPassRequest
     {
         /** Material pass to prepare. */
-        EMaterialPass Pass = EMaterialPass::ParticleSprite;
+        EMaterialPass Pass = EMaterialPass::Surface;
 
         /** Resolved material data for the pass. */
         const MaterialRenderProxy* Material = nullptr;
@@ -309,6 +310,7 @@ namespace Elixir::Materials::Rendering
         {
             EMaterialPass Pass = EMaterialPass::ParticleSprite;
             uint32_t GeometryIndex = UINT32_MAX;
+            bool Indexed = false;
             SProgramKey Program;
 
             bool operator==(const SBatchKey&) const = default;

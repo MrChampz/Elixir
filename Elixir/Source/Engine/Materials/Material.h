@@ -15,8 +15,11 @@ namespace Elixir::Materials
      */
     enum class EMaterialUsage : uint8_t
     {
+        /** Material for surface geometry. */
+        Surface = 0,
+
         /** Material for particle sprites. */
-        ParticleSprite = 0,
+        ParticleSprite,
 
         /** Material for particle ribbons. */
         ParticleRibbon,

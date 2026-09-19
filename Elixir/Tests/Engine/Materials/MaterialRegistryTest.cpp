@@ -10,6 +10,7 @@ TEST(MaterialRegistryTest, RegistersAndFindsDefaultMaterials)
     const MaterialRegistry registry;
 
     for (const auto usage : {
+        EMaterialUsage::Surface,
         EMaterialUsage::ParticleSprite,
         EMaterialUsage::ParticleRibbon,
         EMaterialUsage::ParticleMesh

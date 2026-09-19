@@ -34,7 +34,8 @@ TEST(CompilerTest, AssignsStableSlotsByParameterKindAndName)
 
 TEST(CompilerTest, PreservesEnabledRendererUsages)
 {
-    const auto material = CreateRef<Material>("Particle material");
+    const auto material = CreateRef<Material>("Material");
+    ASSERT_TRUE(material->SetUsage(EMaterialUsage::Surface, true));
     ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleSprite, true));
     ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleRibbon, true));
     ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleMesh, true));
@@ -42,6 +43,7 @@ TEST(CompilerTest, PreservesEnabledRendererUsages)
     const auto result = Compiler::Build(*material);
 
     ASSERT_TRUE(result);
+    EXPECT_TRUE(result.Material->SupportsUsage(EMaterialUsage::Surface));
     EXPECT_TRUE(result.Material->SupportsUsage(EMaterialUsage::ParticleSprite));
     EXPECT_TRUE(result.Material->SupportsUsage(EMaterialUsage::ParticleRibbon));
     EXPECT_TRUE(result.Material->SupportsUsage(EMaterialUsage::ParticleMesh));
@@ -51,10 +53,12 @@ TEST(CompilerTest, DoesNotAliasParticleUsageShadersToSurfaceShader)
 {
     SCompiledMaterial material;
 
+    const auto& surfaceShader = material.GetShader(EMaterialUsage::Surface);
     const auto& spriteShader = material.GetShader(EMaterialUsage::ParticleSprite);
     const auto& ribbonShader = material.GetShader(EMaterialUsage::ParticleRibbon);
     const auto& meshShader = material.GetShader(EMaterialUsage::ParticleMesh);
 
+    EXPECT_EQ(&surfaceShader, &material.SurfaceShader);
     EXPECT_EQ(&spriteShader, &material.ParticleSpriteShader);
     EXPECT_EQ(&ribbonShader, &material.ParticleRibbonShader);
     EXPECT_EQ(&meshShader, &material.ParticleMeshShader);

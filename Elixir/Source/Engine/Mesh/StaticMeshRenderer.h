@@ -1,41 +1,41 @@
 #pragma once
 
 #include <Engine/Mesh/StaticMesh.h>
+#include <Engine/Materials/Rendering/MaterialRenderScene.h>
 
 namespace Elixir
 {
+    namespace Materials { class MaterialSystem; }
+    using namespace Materials;
+
     class Camera;
     class GraphicsContext;
     class ShaderLoader;
     class GeometryPool;
 
     /**
-     * @brief Renders static meshes with one stable pseudo-random color per mesh.
-     *
-     * This renderer is a temporary visualisation path. It does not resolve materials,
-     * scene transforms, lighting, or ECS data.
+     * @brief Collects static mesh surface draws for MaterialSystem.
      */
     class ELIXIR_API StaticMeshRenderer final
     {
       public:
         /**
          * @brief Create a static mesh renderer for one graphics context.
-         * @param context Graphics context used to record commands and create the pipeline.
-         * @param shaderLoader Loader used to create the visualization shader.
+         * @param context Graphics context used to create frame resources.
+         * @param materialSystem Material system that records submitted surface draws.
          * @param geometryPool Pool that stores the geometry referenced by rendered meshes.
-         * @pre context, shaderLoader, and geometryPool remain valid for the renderer lifetime.
+         * @pre All arguments remain valid for the renderer lifetime.
          */
         StaticMeshRenderer(
             const GraphicsContext* context,
-            const ShaderLoader* shaderLoader,
+            MaterialSystem& materialSystem,
             const GeometryPool& geometryPool
         );
 
         /**
          * @brief Begin recording static mesh draws for one frame.
          *
-         * Updates camera data, begins rendering, configures viewport and scissor,
-         * and binds the pipeline and shared geometry buffers.
+         * Updates camera data and begins collecting material draw commands.
          *
          * @param camera Camera used to build the view-projection matrix.
          * @pre EndFrame was called after the previous BeginFrame.
@@ -45,8 +45,7 @@ namespace Elixir
         /**
          * @brief Record draw commands for one static mesh.
          *
-         * Each section produces one indexed draw using its geometry range and
-         * material slot. The mesh remains in mesh-local space.
+         * Each section produces one indexed surface draw.
          *
          * @param mesh Static mesh to draw.
          * @pre BeginFrame was called and EndFrame was not called yet.
@@ -54,23 +53,22 @@ namespace Elixir
         void Render(const Ref<StaticMesh>& mesh);
 
         /**
-         * @brief Finish recording and submit static mesh draws for the current frame.
-         *
+         * @brief Submit collected static mesh draws to MaterialSystem.
          * @pre BeginFrame was called and EndFrame was not called yet.
          */
         void EndFrame();
 
       private:
-        /** Return a stable pseudo-random color for one mesh identity. */
-        glm::vec4 GetColor(const StaticMesh& mesh);
+        Ref<MaterialInstance> GetDefaultInstance(const Ref<Material>& material);
 
-        const GraphicsContext* m_Context = nullptr;
-        Ref<Shader> m_Shader;
-        Ref<GraphicsPipeline> m_Pipeline;
+        MaterialSystem& m_MaterialSystem;
         Ref<UniformBuffer> m_FrameBuffer;
-        Ref<CommandBuffer> m_CommandBuffer;
         const GeometryPool& m_GeometryPool;
 
-        std::unordered_map<const StaticMesh*, glm::vec4> m_Colors;
+        Rendering::MaterialRenderScene m_Scene;
+        uint32_t m_GeometryIndex = UINT32_MAX;
+        std::unordered_map<const Material*, Ref<MaterialInstance>> m_DefaultInstances;
+
+        const GraphicsContext* m_Context = nullptr;
     };
 }

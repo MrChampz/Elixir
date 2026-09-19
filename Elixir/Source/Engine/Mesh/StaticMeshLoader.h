@@ -5,8 +5,10 @@
 
 namespace Elixir
 {
+    class GraphicsContext;
+
     /**
-     * @brief Loads CPU data for one static mesh from an asset source.
+     * @brief Loads runtime data for one static mesh from an asset source.
      *
      * Implementations must not expose parser-specific types through this contract.
      */
@@ -16,10 +18,18 @@ namespace Elixir
         virtual ~StaticMeshLoader() = default;
 
         /**
-         * @brief Load CPU mesh data from one source file.
+         * @brief Load static mesh data from one source file.
+         *
+         * The graphics context enable loaders to resolve material textures and
+         * other graphics resources required by the loaded materials.
+         *
+         * @param context Graphics context used by the loader.
          * @param path Local source file path.
          * @return Loaded mesh data, or std::nullopt when loading fails.
          */
-        virtual std::optional<SStaticMeshData> Load(std::filesystem::path path) const = 0;
+        virtual std::optional<SStaticMeshData> Load(
+            const GraphicsContext& context,
+            std::filesystem::path path
+        ) const = 0;
     };
 }

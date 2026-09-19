@@ -9,7 +9,10 @@ namespace
     class TestStaticMeshLoader final : public StaticMeshLoader
     {
     public:
-        std::optional<SStaticMeshData> Load(std::filesystem::path) const override
+        std::optional<SStaticMeshData> Load(
+            const GraphicsContext&,
+            std::filesystem::path
+        ) const override
         {
             return SStaticMeshData{};
         }

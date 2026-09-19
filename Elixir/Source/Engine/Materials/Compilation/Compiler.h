@@ -60,17 +60,16 @@ namespace Elixir::Materials::Compilation
         }
 
         /**
-         * @brief Gets the particle shader for a material usage.
-         *
-         * Surface rendering uses SurfaceShader directly.
-         *
-         * @param usage Particle material usage.
-         * @return The matching particle shader, or null for an unsupported usage.
+         * @brief Gets the shader for a material usage.
+         * @param usage Material usage.
+         * @return The matching shader, or null for an unsupported usage.
          */
         const Ref<Shader>& GetShader(const EMaterialUsage usage) const
         {
             switch (usage)
             {
+                case EMaterialUsage::Surface:
+                    return SurfaceShader;
                 case EMaterialUsage::ParticleSprite:
                     return ParticleSpriteShader;
                 case EMaterialUsage::ParticleRibbon:

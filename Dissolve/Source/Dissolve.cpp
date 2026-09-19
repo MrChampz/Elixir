@@ -41,7 +41,7 @@ Dissolve::Dissolve()
 
     m_StaticMeshRenderer = CreateScope<StaticMeshRenderer>(
         m_GraphicsContext.get(),
-        m_ShaderLoader.get(),
+        GetMaterialSystem(),
         StaticMeshLoaderRegistry::GetGeometryPool()
     );
 

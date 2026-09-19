@@ -1,6 +1,8 @@
 #include "epch.h"
 #include "GLTFStaticMeshLoader.h"
 
+#include <Engine/Materials/DefaultMaterials.h>
+
 #include <fastgltf/core.hpp>
 #include <fastgltf/tools.hpp>
 
@@ -184,10 +186,7 @@ namespace Elixir
         section.FirstIndex = (uint32_t)mesh.Indices.size();
         section.IndexCount = (uint32_t)indices.size();
         section.VertexOffset = (uint32_t)mesh.Vertices.size();
-        section.MaterialSlot = primitive.materialIndex &&
-            *primitive.materialIndex <= StaticMesh::NO_MATERIAL_SLOT - 1
-                ? (uint32_t)*primitive.materialIndex
-                : StaticMesh::NO_MATERIAL_SLOT;
+        section.MaterialIndex = 0;
         section.LocalBounds = GetBounds(vertices);
 
         mesh.Vertices.insert(
@@ -215,10 +214,14 @@ namespace Elixir
         mesh.Sections.push_back(std::move(section));
     }
 
-    std::optional<SStaticMeshData> GLTFStaticMeshLoader::Load(std::filesystem::path path) const
+    std::optional<SStaticMeshData> GLTFStaticMeshLoader::Load(
+        const GraphicsContext& context,
+        std::filesystem::path path
+    ) const
     {
         SStaticMeshData mesh;
         mesh.Name = path.stem().string();
+        mesh.Materials.push_back(CreateDefaultMaterials()[0]);
 
         auto data = fastgltf::GltfDataBuffer::FromPath(path);
         if (data.error() != fastgltf::Error::None)
