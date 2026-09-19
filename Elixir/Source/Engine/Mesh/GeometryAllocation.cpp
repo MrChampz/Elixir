@@ -1,8 +1,6 @@
 #include "epch.h"
 #include "GeometryAllocation.h"
 
-#include "VkBootstrap.h"
-
 #include <Engine/Mesh/GeometryPool.h>
 
 namespace Elixir
