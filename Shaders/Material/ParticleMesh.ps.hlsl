@@ -19,8 +19,10 @@ Texture2D sprites[] : register(t0);
 
 struct CompiledMaterial
 {
-    float4 Values[32];
-    uint TextureIndices[32];
+    float4  Values[32];
+    uint    TextureIndices[32];
+    uint    BlendMode;
+    float   AlphaCutoff;
 };
 
 [[vk::binding(2, 0)]]
@@ -75,6 +77,12 @@ float4 main(PSInput input) : SV_Target0
     surface.Emissive = float3(0.0f, 0.0f, 0.0f);
 
     // __GRAPH_BODY__
+
+    static const uint MATERIAL_BLEND_MASK = 1u;
+    if (mat.BlendMode == MATERIAL_BLEND_MASK)
+    {
+        clip(surface.Opacity - mat.AlphaCutoff);
+    }
 
     const float3 normal = normalize(input.Normal);
     const float3 lightDirection = normalize(LIGHT_DIRECTION);

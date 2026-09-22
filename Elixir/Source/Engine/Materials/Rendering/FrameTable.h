@@ -19,6 +19,12 @@ namespace Elixir::Materials::Rendering
 
         /** @brief Bindless texture indices, stored by material texture slot. */
         std::array<uint32_t, 32> TextureIndices{};
+
+        /** @brief Material blend mode encoded as EMaterialBlendMode. */
+        uint32_t BlendMode = 0;
+
+        /** @brief Opacity threshold used when BlendMode is EMaterialBlendMode::Masked. */
+        float AlphaCutoff = 0.5f;
     };
 
     /**

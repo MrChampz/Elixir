@@ -278,6 +278,7 @@ namespace Elixir::Materials::Rendering
         struct SPipelineKey
         {
             EMaterialPass Pass = EMaterialPass::ParticleSprite;
+            EMaterialBlendMode BlendMode = EMaterialBlendMode::Opaque;
             const Shader* Shader = nullptr;
             uint64_t VertexLayoutKey = 0;
 
@@ -291,6 +292,7 @@ namespace Elixir::Materials::Rendering
             {
                 size_t hash = Hash::Hash<uint32_t>(static_cast<uint32_t>(key.Pass));
                 Hash::HashCombine(hash, Hash::Hash<const Shader*>(key.Shader));
+                Hash::HashCombine(hash, Hash::Hash<uint32_t>((uint32_t)key.BlendMode));
                 Hash::HashCombine(hash, Hash::Hash<uint64_t>(key.VertexLayoutKey));
                 return hash;
             }
@@ -321,6 +323,7 @@ namespace Elixir::Materials::Rendering
         struct SBatchKey
         {
             EMaterialPass Pass = EMaterialPass::ParticleSprite;
+            EMaterialBlendMode BlendMode = EMaterialBlendMode::Opaque;
             uint32_t GeometryIndex = UINT32_MAX;
             bool Indexed = false;
             SProgramKey Program;
@@ -352,6 +355,7 @@ namespace Elixir::Materials::Rendering
         /** Returns a cached pipeline or creates one for the request. */
         Ref<GraphicsPipeline> GetPipeline(
             EMaterialPass pass,
+            EMaterialBlendMode blendMode,
             const Ref<Shader>& shader,
             const SPipelineRequest& request
         );

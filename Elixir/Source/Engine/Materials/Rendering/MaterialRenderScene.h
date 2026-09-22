@@ -152,6 +152,12 @@ namespace Elixir::Materials::Rendering
         /** Material instance used by the pass. */
         Ref<MaterialInstance> Material;
 
+        /**
+         * Camera-space distance used to order translucent draws.
+         * Greater values are rendered first.
+         */
+        float SortDepth = 0.0f;
+
         /** Index of the geometry used by this item. */
         uint32_t GeometryIndex = UINT32_MAX;
 

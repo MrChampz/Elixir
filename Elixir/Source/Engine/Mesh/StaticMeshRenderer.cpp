@@ -55,10 +55,12 @@ namespace Elixir
     {
         const auto extent = m_Context->GetRenderTarget()->GetExtent();
 
+        m_View = camera.GetViewMatrix();
+
         const auto lightDirection = glm::normalize(lighting.DirectionalLightDirection);
 
         const SSurfaceFrameData frameData{
-            .View = camera.GetViewMatrix(),
+            .View = m_View,
             .Proj = camera.GetProjectionMatrix(),
             .ViewProj = camera.GetViewProjectionMatrix(),
             .CameraPos = camera.GetPosition(),
@@ -126,9 +128,13 @@ namespace Elixir
             const auto instance = GetDefaultInstance(materials[section.MaterialIndex]);
             if (!instance) continue;
 
+            const glm::vec3 center = (section.LocalBounds.Min + section.LocalBounds.Max) * 0.5f;
+            const float sortDepth = -(m_View * glm::vec4(center, 1.0f)).z;
+
             m_Scene.Add({
                 .Pass = EMaterialPass::Surface,
                 .Material = instance,
+                .SortDepth = sortDepth,
                 .GeometryIndex = m_GeometryIndex,
                 .PushConstants = SMaterialPushConstants::Create(
                     SSurfacePushConstants{},

@@ -3,10 +3,7 @@
 
 #include <Engine/Graphics/TextureLoader.h>
 
-#include <Engine/Materials/Nodes/Add.h>
-#include <Engine/Materials/Nodes/Subtract.h>
 #include <Engine/Materials/Nodes/Multiply.h>
-#include <Engine/Materials/Nodes/Divide.h>
 #include <Engine/Materials/Nodes/Constant.h>
 #include <Engine/Materials/Nodes/ComponentMask.h>
 #include <Engine/Materials/Nodes/TextureSample.h>
@@ -35,8 +32,11 @@ namespace Elixir::Aether::Effect
     {
         const auto material = CreateRef<Material>(std::move(name));
 
-        const auto result = material->SetUsage(GetMaterialUsage(renderMode), true);
+        auto result = material->SetUsage(GetMaterialUsage(renderMode), true);
         EE_CORE_ASSERT(result, "Particle material usage must be enabled.")
+
+        result = material->SetBlendMode(EMaterialBlendMode::Translucent);
+        EE_CORE_ASSERT(result, "Particle materials must enable translucent blending.")
 
         MaterialGraph graph;
 

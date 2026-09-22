@@ -19,8 +19,10 @@ Texture2D sprites[] : register(t0);
 
 struct CompiledMaterial
 {
-    float4 Values[32];
-    uint TextureIndices[32];
+    float4  Values[32];
+    uint    TextureIndices[32];
+    uint    BlendMode;
+    float   AlphaCutoff;
 };
 
 [[vk::binding(4, 0)]]
@@ -75,6 +77,12 @@ float4 main(PSInput input) : SV_Target0
     surface.Emissive = float3(0.0f, 0.0f, 0.0f);
 
     // __GRAPH_BODY__
+
+    static const uint MATERIAL_BLEND_MASK = 1u;
+    if (mat.BlendMode == MATERIAL_BLEND_MASK)
+    {
+        clip(surface.Opacity - mat.AlphaCutoff);
+    }
 
     //const float centeredAcrossRibbon = abs((input.TexCoord.x * 2.0f) - 1.0f);
     //const float edgeFade = 1.0f - smoothstep(0.72f, 1.0f, centeredAcrossRibbon);

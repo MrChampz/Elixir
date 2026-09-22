@@ -32,6 +32,21 @@ namespace Elixir::Materials
     };
 
     /**
+     * @brief Defines how a material combines with the color target.
+     */
+    enum class EMaterialBlendMode : uint8_t
+    {
+        /** Fully opaque material. */
+        Opaque,
+
+        /** Discards fragments whose opacity is below the alpha cutoff. */
+        Masked,
+
+        /** Blends fragments with the color already in the target. */
+        Translucent,
+    };
+
+    /**
      * @brief Defines the numeric value type used by a material.
      */
     enum class EMaterialValueType : uint8_t
@@ -88,6 +103,29 @@ namespace Elixir::Materials
          * @return Read-only material graph.
          */
         const MaterialGraph& GetGraph() const { return m_Graph; }
+
+        /**
+         * @brief Sets how renderers combine this material with the color target.
+         * @param mode Blend mode to use for every compatible material pass.
+         * @return True when the blend mode changed.
+         */
+        bool SetBlendMode(EMaterialBlendMode mode);
+
+        /** @brief Returns the blend mode used by compatible material passes. */
+        EMaterialBlendMode GetBlendMode() const { return m_BlendMode; }
+
+        /**
+         * @brief Sets the opacity threshold used by masked material passes.
+         *
+         * The cutoff is clamped to [0, 1] range.
+         *
+         * @param cutoff Opacity required for a fragment to remain visible.
+         * @return True when the cutoff changed.
+         */
+        bool SetAlphaCutoff(float cutoff);
+
+        /** @brief Returns the opacity threshold used by masked material passes. */
+        float GetAlphaCutoff() const { return m_AlphaCutoff; }
 
         /**
          * @brief Enables or disables a material usage.
@@ -180,6 +218,8 @@ namespace Elixir::Materials
         MaterialGraph m_Graph;
         std::unordered_map<std::string, SMaterialParameterDefinition> m_Parameters;
         uint32_t m_UsageMask = 0;
+        EMaterialBlendMode m_BlendMode = EMaterialBlendMode::Opaque;
+        float m_AlphaCutoff = 0.5f;
         uint32_t m_Revision = 1;
     };
 

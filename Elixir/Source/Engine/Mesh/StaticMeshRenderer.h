@@ -117,6 +117,7 @@ namespace Elixir
         Rendering::MaterialRenderScene m_Scene;
         uint32_t m_GeometryIndex = UINT32_MAX;
         std::unordered_map<const Material*, Ref<MaterialInstance>> m_DefaultInstances;
+        glm::mat4 m_View{ 1.0f };
 
         const GraphicsContext* m_Context = nullptr;
     };

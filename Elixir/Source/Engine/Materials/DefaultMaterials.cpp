@@ -14,13 +14,23 @@ namespace Elixir::Materials
         Ref<Material> MakeMaterial(
             std::string name,
             const EMaterialUsage usage,
-            MaterialGraph graph
+            MaterialGraph graph,
+            const EMaterialBlendMode blendMode = EMaterialBlendMode::Opaque
         )
         {
             const auto material = CreateRef<Material>(std::move(name));
-            const auto result = material->SetUsage(usage, true);
+
+            auto result = material->SetUsage(usage, true);
             EE_CORE_ASSERT(result, "Default material usage must be enabled.")
+
+            if (blendMode != EMaterialBlendMode::Opaque)
+            {
+                result = material->SetBlendMode(blendMode);
+                EE_CORE_ASSERT(result, "Default material blend mode must be enabled.")
+            }
+
             material->SetGraph(std::move(graph));
+
             return material;
         }
 
@@ -58,7 +68,8 @@ namespace Elixir::Materials
             return MakeMaterial(
                 "Engine.Materials.Defaults.ParticleSprite",
                 EMaterialUsage::ParticleSprite,
-                std::move(graph)
+                std::move(graph),
+                EMaterialBlendMode::Translucent
             );
         }
 
@@ -72,7 +83,8 @@ namespace Elixir::Materials
             return MakeMaterial(
                 "Engine.Materials.Defaults.ParticleRibbon",
                 EMaterialUsage::ParticleRibbon,
-                std::move(graph)
+                std::move(graph),
+                EMaterialBlendMode::Translucent
             );
         }
 
@@ -86,7 +98,8 @@ namespace Elixir::Materials
             return MakeMaterial(
                 "Engine.Materials.Defaults.ParticleMesh",
                 EMaterialUsage::ParticleMesh,
-                std::move(graph)
+                std::move(graph),
+                EMaterialBlendMode::Translucent
             );
         }
     }

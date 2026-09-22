@@ -188,12 +188,20 @@ namespace Elixir::Materials::Rendering
         if (!cmd || !scene.Scene) return result;
 
         std::vector<SBatch> batches;
+        std::vector<const SPreparedRenderItem*> translucentItems;
 
         for (const auto& prepared : scene.Items)
         {
             if (!prepared.Item || !prepared.Proxy) continue;
 
             const auto& item = *prepared.Item;
+
+            if (prepared.Proxy->GetBlendMode() == EMaterialBlendMode::Translucent)
+            {
+                translucentItems.push_back(&prepared);
+                continue;
+            }
+
             const auto* geometry = scene.Scene->FindGeometry(item.GeometryIndex);
             EE_CORE_ASSERT(geometry, "Material render item geometry is unavailable.");
             if (!geometry) continue;
@@ -204,6 +212,7 @@ namespace Elixir::Materials::Rendering
 
             const SBatchKey key{
                 .Pass = item.Pass,
+                .BlendMode = prepared.Proxy->GetBlendMode(),
                 .GeometryIndex = item.GeometryIndex,
                 .Indexed = item.IndexedDraw.has_value(),
                 .Program = *program
@@ -233,6 +242,9 @@ namespace Elixir::Materials::Rendering
                 if (left.Key.Pass != right.Key.Pass)
                     return GetPassOrder(left.Key.Pass) < GetPassOrder(right.Key.Pass);
 
+                if (left.Key.BlendMode != right.Key.BlendMode)
+                    return left.Key.BlendMode < right.Key.BlendMode;
+
                 if (left.Key.GeometryIndex != right.Key.GeometryIndex)
                     return left.Key.GeometryIndex < right.Key.GeometryIndex;
 
@@ -242,6 +254,37 @@ namespace Elixir::Materials::Rendering
                 );
             }
         );
+
+        std::ranges::stable_sort(
+            translucentItems,
+            [](const SPreparedRenderItem* left, const SPreparedRenderItem* right)
+            {
+                return left->Item->SortDepth > right->Item->SortDepth;
+            }
+        );
+
+        for (const auto& prepared : translucentItems)
+        {
+            const auto& item = *prepared->Item;
+            const auto* geometry = scene.Scene->FindGeometry(item.GeometryIndex);
+            EE_CORE_ASSERT(geometry, "Material render item geometry is unavailable.")
+            if (!geometry) continue;
+
+            const auto program = GetProgramKey(item.Pass, *prepared->Proxy);
+            EE_CORE_ASSERT(program, "Material render item does not support its requested pass.")
+            if (!program) continue;
+
+            batches.push_back({
+                .Key = {
+                    .Pass = item.Pass,
+                    .BlendMode = prepared->Proxy->GetBlendMode(),
+                    .GeometryIndex = item.GeometryIndex,
+                    .Indexed = item.IndexedDraw.has_value(),
+                    .Program = *program,
+                },
+                .Items = { prepared },
+            });
+        }
 
         for (const auto& batch : batches)
         {
@@ -353,7 +396,12 @@ namespace Elixir::Materials::Rendering
 
         return SPreparedPass{
             .Shader = shader,
-            .Pipeline = GetPipeline(request.Pass, shader, request.Pipeline),
+            .Pipeline = GetPipeline(
+                request.Pass,
+                request.Material->GetBlendMode(),
+                shader,
+                request.Pipeline
+            ),
         };
     }
 
@@ -365,12 +413,14 @@ namespace Elixir::Materials::Rendering
 
     Ref<GraphicsPipeline> Renderer::GetPipeline(
         const EMaterialPass pass,
+        const EMaterialBlendMode blendMode,
         const Ref<Shader>& shader,
         const SPipelineRequest& request
     )
     {
         const SPipelineKey key{
             .Pass = pass,
+            .BlendMode = blendMode,
             .Shader = shader.get(),
             .VertexLayoutKey = request.VertexLayoutKey,
         };
@@ -385,34 +435,30 @@ namespace Elixir::Materials::Rendering
         builder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
         builder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
         builder.SetBufferLayout(*request.VertexLayout);
+        builder.DisableBlending();
 
         switch (pass)
         {
             case EMaterialPass::Surface:
+            case EMaterialPass::ParticleMesh:
                 builder.SetCullMode(ECullMode::Back, EFrontFace::CounterClockwise);
                 break;
             case EMaterialPass::ParticleSprite:
-                builder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
-                builder.EnableAlphaBlending();
-                builder.DisableDepthTest();
-                break;
             case EMaterialPass::ParticleRibbon:
                 builder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
-                builder.EnableAlphaBlendingMax();
                 builder.DisableDepthTest();
                 break;
-            case EMaterialPass::ParticleMesh:
-                builder.SetCullMode(ECullMode::Back, EFrontFace::CounterClockwise);
-                builder.EnableAlphaBlendingMax();
-                break;
         }
+
+        if (blendMode == EMaterialBlendMode::Translucent)
+            builder.EnableAlphaBlending();
 
         auto info = builder.GetCreateInfo();
 
         if (pass == EMaterialPass::Surface || pass == EMaterialPass::ParticleMesh)
         {
             info.DepthStencil.DepthTestEnable = true;
-            info.DepthStencil.DepthWriteEnable = true;
+            info.DepthStencil.DepthWriteEnable = blendMode != EMaterialBlendMode::Translucent;
             info.DepthStencil.DepthCompareOp = ECompareOp::LessOrEqual;
         }
 

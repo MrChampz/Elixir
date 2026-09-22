@@ -10,14 +10,18 @@ namespace Elixir::Materials::Rendering
         const MaterialInstance& instance
     )
     {
+        const auto& parent = instance.GetParent();
+
         if (!material ||
-            !instance.GetParent() ||
-            material->MaterialRevision != instance.GetParent()->GetRevision())
+            !parent ||
+            material->MaterialRevision != parent->GetRevision())
             return nullptr;
 
         auto proxy = CreateRef<MaterialRenderProxy>();
         proxy->m_CompiledMaterial = std::move(material);
         proxy->m_InstanceRevision = instance.GetRevision();
+        proxy->m_BlendMode = parent->GetBlendMode();
+        proxy->m_AlphaCutoff = parent->GetAlphaCutoff();
 
         for (const auto& parameter : proxy->m_CompiledMaterial->Parameters)
         {

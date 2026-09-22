@@ -111,7 +111,10 @@ namespace Elixir::Aether::Rendering
         );
 
         // Converts particle render items into material geometry and draw commands.
-        MaterialRenderScene BuildScene(const RenderFrame& frame) const;
+        MaterialRenderScene BuildScene(
+            const RenderFrame& frame,
+            const Camera& camera
+        ) const;
 
         SFrameData m_FrameData{};
         Ref<UniformBuffer> m_FrameConstantBuffer;

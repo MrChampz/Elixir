@@ -8,6 +8,36 @@ using namespace Elixir;
 using namespace Elixir::Materials;
 using namespace Elixir::Materials::Nodes;
 
+TEST(MaterialTest, StoresTransparencySettings)
+{
+    Material material("Transparency");
+
+    EXPECT_EQ(material.GetBlendMode(), EMaterialBlendMode::Opaque);
+    EXPECT_FLOAT_EQ(material.GetAlphaCutoff(), 0.5f);
+
+    const auto initialRevision = material.GetRevision();
+    EXPECT_TRUE(material.SetBlendMode(EMaterialBlendMode::Masked));
+    EXPECT_EQ(material.GetBlendMode(), EMaterialBlendMode::Masked);
+    EXPECT_EQ(material.GetRevision(), initialRevision + 1);
+
+    EXPECT_TRUE(material.SetAlphaCutoff(0.35f));
+    EXPECT_FLOAT_EQ(material.GetAlphaCutoff(), 0.35f);
+    EXPECT_EQ(material.GetRevision(), initialRevision + 2);
+}
+
+TEST(MaterialTest, ClampsAlphaCutoff)
+{
+    Material material("Transparency");
+
+    EXPECT_TRUE(material.SetAlphaCutoff(-0.01f));
+    EXPECT_FLOAT_EQ(material.GetAlphaCutoff(), 0.0f);
+
+    EXPECT_TRUE(material.SetAlphaCutoff(1.01f));
+    EXPECT_FLOAT_EQ(material.GetAlphaCutoff(), 1.0f);
+
+    EXPECT_FALSE(material.SetAlphaCutoff(1.5f));
+}
+
 TEST(MaterialTest, ValidateGraphParametersAgainstMaterialSchema)
 {
     MaterialGraph graph;

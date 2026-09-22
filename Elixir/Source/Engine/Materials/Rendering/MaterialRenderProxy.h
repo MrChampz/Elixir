@@ -60,10 +60,18 @@ namespace Elixir::Materials::Rendering
          */
         const std::vector<Ref<Texture>>& GetTextures() const { return m_Textures; }
 
+        /** @brief Returns the blend mode captured from the source material. */
+        EMaterialBlendMode GetBlendMode() const { return m_BlendMode; }
+
+        /** @brief Returns the alpha cutoff captured from the source material. */
+        float GetAlphaCutoff() const { return m_AlphaCutoff; }
+
     private:
         Ref<const SCompiledMaterial> m_CompiledMaterial;
         uint32_t m_InstanceRevision = 0;
         std::vector<glm::vec4> m_Values;
         std::vector<Ref<Texture>> m_Textures;
+        EMaterialBlendMode m_BlendMode = EMaterialBlendMode::Opaque;
+        float m_AlphaCutoff = 0.5f;
     };
 }

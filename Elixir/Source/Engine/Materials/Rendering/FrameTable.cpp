@@ -39,6 +39,9 @@ namespace Elixir::Materials::Rendering
         SMaterialFrameData data{};
         std::ranges::fill(data.TextureIndices, m_FallbackTextureIndex);
 
+        data.BlendMode = (uint32_t)material.GetBlendMode();
+        data.AlphaCutoff = material.GetAlphaCutoff();
+
         const auto& values = material.GetValues();
         const auto valueCount = std::min(values.size(), data.Values.size());
         std::copy_n(values.begin(), valueCount, data.Values.begin());

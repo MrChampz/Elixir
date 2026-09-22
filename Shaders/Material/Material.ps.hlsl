@@ -26,6 +26,8 @@ struct CompiledMaterial
 {
     float4  Values[32];
     uint    TextureIndices[32];
+    uint    BlendMode;
+    float   AlphaCutoff;
 };
 
 [[vk::binding(2, 0)]]
@@ -151,6 +153,12 @@ float4 main(PSInput input) : SV_Target0
     surface.AmbientOcclusion = 1.0f;
 
     // __GRAPH_BODY__
+
+    static const uint MATERIAL_BLEND_MASK = 1u;
+    if (mat.BlendMode == MATERIAL_BLEND_MASK)
+    {
+        clip(surface.Opacity - mat.AlphaCutoff);
+    }
 
     float roughness = clamp(surface.Roughness, 0.045f, 1.0f);
     float3 F0 = lerp(0.04f.xxx, surface.BaseColor, surface.Metallic);

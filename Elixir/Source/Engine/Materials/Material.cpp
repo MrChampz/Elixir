@@ -16,6 +16,27 @@ namespace Elixir::Materials
         ++m_Revision;
     }
 
+    bool Material::SetBlendMode(const EMaterialBlendMode mode)
+    {
+        if (m_BlendMode == mode)
+            return false;
+
+        m_BlendMode = mode;
+        ++m_Revision;
+        return true;
+    }
+
+    bool Material::SetAlphaCutoff(const float cutoff)
+    {
+        const auto normalized = std::min(std::max(0.0f, cutoff), 1.0f);
+        if (m_AlphaCutoff == normalized)
+            return false;
+
+        m_AlphaCutoff = normalized;
+        ++m_Revision;
+        return true;
+    }
+
     bool Material::SetUsage(const EMaterialUsage usage, const bool enabled)
     {
         const uint32_t mask = GetMaterialUsageMask(usage);

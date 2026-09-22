@@ -60,7 +60,7 @@ namespace Elixir::Aether::Rendering
         m_FrameData.Time = frame.GetElapsedTimeSeconds();
         m_FrameConstantBuffer->UpdateData(&m_FrameData, sizeof(m_FrameData));
 
-        auto scene = BuildScene(frame);
+        auto scene = BuildScene(frame, camera);
         m_LastMetrics.SubmittedMaterialCount = scene.GetItems().size();
 
         return scene;
@@ -199,9 +199,14 @@ namespace Elixir::Aether::Rendering
         return nullptr;
     }
 
-    MaterialRenderScene Renderer::BuildScene(const RenderFrame& frame) const
+    MaterialRenderScene Renderer::BuildScene(
+        const RenderFrame& frame,
+        const Camera& camera
+    ) const
     {
         MaterialRenderScene scene;
+
+        const auto view = camera.GetViewMatrix();
 
         static const BufferLayout ribbonVertexLayout;
 
@@ -290,6 +295,11 @@ namespace Elixir::Aether::Rendering
             const auto geometry = getGeometry(item.ParticleStateLayout);
             if (!geometry) continue;
 
+            const float sortDepth = -(
+                view * item.WorldTransform *
+                glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)
+            ).z;
+
             switch (item.RenderMode)
             {
                 case EParticleRenderMode::Sprite:
@@ -301,6 +311,7 @@ namespace Elixir::Aether::Rendering
                     scene.Add({
                         .Pass = EMaterialPass::ParticleSprite,
                         .Material = item.Material,
+                        .SortDepth = sortDepth,
                         .GeometryIndex = geometry->Sprite,
                         .PushConstants = SMaterialPushConstants::Create(
                             constants,
@@ -327,6 +338,7 @@ namespace Elixir::Aether::Rendering
                     scene.Add({
                         .Pass = EMaterialPass::ParticleRibbon,
                         .Material = item.Material,
+                        .SortDepth = sortDepth,
                         .GeometryIndex = geometry->Ribbon,
                         .PushConstants = SMaterialPushConstants::Create(
                             constants,
@@ -346,6 +358,7 @@ namespace Elixir::Aether::Rendering
                     scene.Add({
                         .Pass = EMaterialPass::ParticleMesh,
                         .Material = item.Material,
+                        .SortDepth = sortDepth,
                         .GeometryIndex = geometry->Mesh,
                         .PushConstants = SMaterialPushConstants::Create(
                             constants,
