@@ -92,31 +92,35 @@ namespace Elixir::Materials::Rendering
         const BufferLayout* VertexLayout = nullptr;
     };
 
-    /**
-     * @brief Associates a constant buffer with a shader binding name.
-     */
+    /** @brief Associates a constant buffer with a shader binding name. */
     struct SConstantBufferBinding
     {
-        /** Shader binding name. */
-        std::string_view Name;
-
-        /** Constant buffer to bind. */
+        std::string Name;
         Ref<UniformBuffer> Buffer;
     };
 
     /** @brief Holds a storage-buffer type supported by material passes. */
     using MaterialStorageBuffer = std::variant<Ref<StorageBuffer>, Ref<DynamicStorageBuffer>>;
 
-    /**
-     * @brief Associates a storage buffer with a shader binding name.
-     */
+    /** @brief Associates a storage buffer with a shader binding name. */
     struct SStorageBufferBinding
     {
-        /** Shader binding name. */
-        std::string_view Name;
-
-        /** Storage buffer to bind. */
+        std::string Name;
         MaterialStorageBuffer Buffer;
+    };
+
+    /** @brief Associates a texture with a shader binding name. */
+    struct STextureBinding
+    {
+        std::string Name;
+        Ref<Texture> Texture;
+    };
+
+    /** @brief Associates a sampler with a shader binding name. */
+    struct SSamplerBinding
+    {
+        std::string Name;
+        Ref<Sampler> Sampler;
     };
 
     /**
@@ -126,6 +130,8 @@ namespace Elixir::Materials::Rendering
     {
         std::span<const SConstantBufferBinding> ConstantBuffers;
         std::span<const SStorageBufferBinding> StorageBuffers;
+        std::span<const STextureBinding> Textures;
+        std::span<const SSamplerBinding> Samplers;
 
         /**
          * @brief Returns the number of external resource bindings.
@@ -133,7 +139,12 @@ namespace Elixir::Materials::Rendering
          */
         uint32_t GetResourceCount() const
         {
-            return (uint32_t)(ConstantBuffers.size() + StorageBuffers.size());
+            return (uint32_t)(
+                ConstantBuffers.size() +
+                StorageBuffers.size() +
+                Textures.size() +
+                Samplers.size()
+            );
         }
     };
 
@@ -241,13 +252,14 @@ namespace Elixir::Materials::Rendering
             ConstantBuffer,
             StorageBuffer,
             DynamicStorageBuffer,
+            Texture,
+            Sampler,
         };
 
         /** Describes one descriptor binding used by a shader. */
         struct SDescriptorBinding
         {
             std::string Name;
-            const void* Resource = nullptr;
             EDescriptorBindingType Type = EDescriptorBindingType::ConstantBuffer;
 
             bool operator==(const SDescriptorBinding&) const = default;

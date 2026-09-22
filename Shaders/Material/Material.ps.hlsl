@@ -10,11 +10,8 @@ cbuffer cbFrame : register(b0)
     float4x4 ViewProj;
     float3 CameraPos;
     float Time;
-    uint EnvIndex;
-    uint IrradianceIndex;
     float EnvIntensity;
     float EnvMaxLod;
-    uint PrefIndex;
     uint SceneColorIndex;
     float ScreenWidth;
     float ScreenHeight;
@@ -36,6 +33,18 @@ StructuredBuffer<CompiledMaterial> materials;
 
 [[vk::binding(1, 1)]]
 Texture2D textures[] : register(t0);
+
+[[vk::binding(0, 2)]]
+Texture2D environmentTexture : register(t1);
+
+[[vk::binding(1, 2)]]
+Texture2D irradianceTexture : register(t2);
+
+[[vk::binding(2, 2)]]
+Texture2D prefilteredTexture : register(t3);
+
+[[vk::binding(3, 2)]]
+SamplerState environmentSampler : register(s1);
 
 struct PushConstants
 {
@@ -92,16 +101,28 @@ float2 DirToEquirect(float3 dir)
 
 float3 SampleIrradiance(float3 dir)
 {
-    if (IrradianceIndex == NO_TEXTURE)
-        return float3(0.1f, 0.12f, 0.15f);
-    return textures[IrradianceIndex].SampleLevel(texSampler, DirToEquirect(dir), 0).rgb * EnvIntensity;
+    return irradianceTexture.SampleLevel(
+        environmentSampler,
+        DirToEquirect(dir),
+        0
+    ).rgb * EnvIntensity;
 }
 
 float3 SampleEnv(float3 dir, float roughness)
 {
-    if (EnvIndex == NO_TEXTURE)
-        return float3(0.1f, 0.12f, 0.15f);
-    return textures[EnvIndex].SampleLevel(texSampler, DirToEquirect(dir), roughness * EnvMaxLod).rgb * EnvIntensity;
+    const float prefilterLevel = saturate(roughness) * EnvMaxLod;
+    const float prefilterLevels = EnvMaxLod + 1.0f;
+
+    // The prefiltered texture is an equirectangular atlas. Each vertical block
+    // stores the GGX convolution for one roughness level.
+    float2 uv = DirToEquirect(dir);
+    uv.y = (uv.y + prefilterLevel) / prefilterLevels;
+
+    return prefilteredTexture.SampleLevel(
+        environmentSampler,
+        uv,
+        0
+    ).rgb * EnvIntensity;
 }
 
 float3 ACESFilm(float3 x)
@@ -134,6 +155,8 @@ float4 main(PSInput input) : SV_Target0
     float roughness = clamp(surface.Roughness, 0.045f, 1.0f);
     float3 F0 = lerp(0.04f.xxx, surface.BaseColor, surface.Metallic);
 
+    // surface.Normal is tangent-space. Transform it into world space through
+    // the orthonormal tangent basis reconstructed from the mesh vertex data.
     float3 tangentNormal = normalize(surface.Normal);
     float3 tangent = normalize(input.Tangent.xyz - N * dot(N, input.Tangent.xyz));
     float3 bitangent = cross(N, tangent) * input.Tangent.w;

@@ -18,11 +18,8 @@ namespace Elixir
             glm::mat4 ViewProj{ 1.0f };
             glm::vec3 CameraPos{};
             float Time = 0.0f;
-            uint32_t EnvIndex = UINT32_MAX;
-            uint32_t IrradianceIndex = UINT32_MAX;
             float EnvIntensity = 0.0f;
             float EnvMaxLod = 0.0f;
-            uint32_t PrefIndex = UINT32_MAX;
             uint32_t SceneColorIndex = UINT32_MAX;
             float ScreenWidth = 1.0f;
             float ScreenHeight = 1.0f;
@@ -51,16 +48,29 @@ namespace Elixir
         m_FrameBuffer = UniformBuffer::Create(m_Context, sizeof(frameData), &frameData);
     }
 
-    void StaticMeshRenderer::BeginFrame(const Camera& camera)
+    void StaticMeshRenderer::BeginFrame(
+        const Camera& camera,
+        const SStaticMeshLighting& lighting
+    )
     {
         const auto extent = m_Context->GetRenderTarget()->GetExtent();
+
+        const auto lightDirection = glm::normalize(lighting.DirectionalLightDirection);
+
         const SSurfaceFrameData frameData{
             .View = camera.GetViewMatrix(),
             .Proj = camera.GetProjectionMatrix(),
             .ViewProj = camera.GetViewProjectionMatrix(),
             .CameraPos = camera.GetPosition(),
+            .EnvIntensity = lighting.Environment.Intensity,
+            .EnvMaxLod = lighting.Environment.MaxLod,
             .ScreenWidth = (float)extent.Width,
             .ScreenHeight = (float)extent.Height,
+            .LightDirection = glm::vec4(lightDirection, 0.0f),
+            .LightColor = glm::vec4(
+                lighting.DirectionalLightColor,
+                lighting.DirectionalLightIntensity
+            ),
         };
         m_FrameBuffer->UpdateData(&frameData, sizeof(frameData));
 
@@ -73,6 +83,24 @@ namespace Elixir
             .ConstantBuffers = {{
                 .Name = "cbFrame",
                 .Buffer = m_FrameBuffer,
+            }},
+            .Textures = {
+                {
+                    .Name = "environmentTexture",
+                    .Texture = lighting.Environment.Environment,
+                },
+                {
+                    .Name = "irradianceTexture",
+                    .Texture = lighting.Environment.Irradiance,
+                },
+                {
+                    .Name = "prefilteredTexture",
+                    .Texture = lighting.Environment.Prefiltered,
+                }
+            },
+            .Samplers = {{
+                .Name = "environmentSampler",
+                .Sampler = lighting.Environment.Sampler,
             }},
             .VertexBuffers = {{
                 .Buffer = m_GeometryPool.GetVertexBuffer().get(),

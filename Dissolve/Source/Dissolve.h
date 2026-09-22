@@ -2,6 +2,8 @@
 
 #include <Engine.h>
 
+#include "Environment.h"
+
 class Dissolve final : public Elixir::Application
 {
 public:
@@ -16,6 +18,8 @@ public:
 
 private:
     void DrawGeometry();
+
+    Scope<Environment> m_Environment;
 
     Scope<StaticMeshRenderer> m_StaticMeshRenderer;
 

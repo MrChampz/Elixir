@@ -125,6 +125,12 @@ namespace Elixir::Materials::Rendering
         /** Storage buffers required by the material pass. */
         std::vector<SStorageBufferBinding> StorageBuffers;
 
+        /** Textures required by the material pass independently of the material. */
+        std::vector<STextureBinding> Textures;
+
+        /** Samplers required by the material pass independently of the material. */
+        std::vector<SSamplerBinding> Samplers;
+
         /** Vertex buffers required by the draw. */
         std::vector<SVertexBufferBinding> VertexBuffers;
 

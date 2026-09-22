@@ -258,6 +258,8 @@ namespace Elixir::Materials::Rendering
                 .ExternalResources = {
                     .ConstantBuffers = geometry->ConstantBuffers,
                     .StorageBuffers = geometry->StorageBuffers,
+                    .Textures = geometry->Textures,
+                    .Samplers = geometry->Samplers,
                 },
                 .MaterialBuffer = GetActiveMaterialBuffer(),
                 .InitialPushConstants = std::span{
@@ -436,7 +438,6 @@ namespace Elixir::Materials::Rendering
         {
             state.ExternalResources.push_back({
                 .Name = std::string(binding.Name),
-                .Resource = binding.Buffer.get(),
                 .Type = EDescriptorBindingType::ConstantBuffer,
             });
         }
@@ -450,7 +451,6 @@ namespace Elixir::Materials::Rendering
 
                     state.ExternalResources.push_back({
                         .Name = std::string(binding.Name),
-                        .Resource = buffer.get(),
                         .Type = std::is_same_v<TBuffer, Ref<StorageBuffer>>
                             ? EDescriptorBindingType::StorageBuffer
                             : EDescriptorBindingType::DynamicStorageBuffer
@@ -458,6 +458,22 @@ namespace Elixir::Materials::Rendering
                 },
                 binding.Buffer
             );
+        }
+
+        for (const auto& binding : request.ExternalResources.Textures)
+        {
+            state.ExternalResources.push_back({
+                .Name = std::string(binding.Name),
+                .Type = EDescriptorBindingType::Texture
+            });
+        }
+
+        for (const auto& binding : request.ExternalResources.Samplers)
+        {
+            state.ExternalResources.push_back({
+                .Name = std::string(binding.Name),
+                .Type = EDescriptorBindingType::Sampler
+            });
         }
 
         const auto found = m_DescriptorBindings.find(shader.get());
@@ -468,28 +484,31 @@ namespace Elixir::Materials::Rendering
                 EE_CORE_ERROR("Material shader descriptor bindings changed after initialization.")
                 return false;
             }
-
-            if (shader->HasBinding("materials"))
-                shader->BindStorageBuffer("materials", request.MaterialBuffer);
-
-            return true;
+        }
+        else
+        {
+            m_DescriptorBindings.emplace(shader.get(), std::move(state));
         }
 
         for (const auto& binding : request.ExternalResources.ConstantBuffers)
-        {
-            shader->BindConstantBuffer(std::string(binding.Name), binding.Buffer);
-        }
+            shader->BindConstantBuffer(binding.Name, binding.Buffer);
 
         for (const auto& binding : request.ExternalResources.StorageBuffers)
         {
             std::visit(
                 [&shader, &binding](const auto& buffer)
                 {
-                    shader->BindStorageBuffer(std::string(binding.Name), buffer);
+                    shader->BindStorageBuffer(binding.Name, buffer);
                 },
                 binding.Buffer
             );
         }
+
+        for (const auto& binding : request.ExternalResources.Textures)
+            shader->BindTexture(binding.Name, binding.Texture);
+
+        for (const auto& binding : request.ExternalResources.Samplers)
+            shader->BindSampler(binding.Name, binding.Sampler);
 
         if (shader->HasBinding("materials"))
             shader->BindStorageBuffer("materials", request.MaterialBuffer);
@@ -502,7 +521,6 @@ namespace Elixir::Materials::Rendering
         if (shader->HasBinding("texSampler"))
             shader->BindSampler("texSampler", m_Textures.GetSampler());
 
-        m_DescriptorBindings.emplace(shader.get(), std::move(state));
         return true;
     }
 }

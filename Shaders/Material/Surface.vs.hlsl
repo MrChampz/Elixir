@@ -8,11 +8,8 @@ cbuffer cbFrame : register(b0)
     float4x4    ViewProj;
     float3      CameraPos;
     float       Time;
-    uint        EnvIndex;
-    uint        IrradianceIndex;
     float       EnvIntensity;
     float       EnvMaxLod;
-    uint        PrefIndex;
     uint        SceneColorIndex;
     float       ScreenWidth;
     float       ScreenHeight;

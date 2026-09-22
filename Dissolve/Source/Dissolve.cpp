@@ -21,6 +21,7 @@ std::array<Ref<Aether::SystemInstance>, 2> m_ParticleSystemInstances;
 Ref<Material> graphMaterial;
 
 Ref<StaticMesh> mesh;
+SStaticMeshLighting s_LightingSetup;
 
 Dissolve::Dissolve()
 {
@@ -39,11 +40,28 @@ Dissolve::Dissolve()
     m_CameraController = CreateScope<ArcBallCameraController>(60.0f, aspectRatio);
     const auto tex = TextureLoader::Load("./Assets/Bricks.png");
 
+    m_Environment = Environment::Load(
+        *m_GraphicsContext,
+        "./Assets/Textures/white_home_studio_2k.hdr"
+    );
+    EE_CORE_ASSERT(m_Environment, "Could not load the Environment.")
+
     m_StaticMeshRenderer = CreateScope<StaticMeshRenderer>(
         m_GraphicsContext.get(),
         GetMaterialSystem(),
         StaticMeshLoaderRegistry::GetGeometryPool()
     );
+
+    s_LightingSetup = {
+        .Environment = {
+            .Environment = m_Environment->GetEnvironment(),
+            .Irradiance = m_Environment->GetIrradiance(),
+            .Prefiltered = m_Environment->GetPrefiltered(),
+            .Sampler = m_Environment->GetSampler(),
+            .Intensity = 1.0f,
+            .MaxLod = m_Environment->GetMaxLod(),
+        },
+    };
 
     m_ParticleSystems[0] = GetAetherManager().LoadEffect("./Assets/VFX/FireAndFireworks.json");
     EE_CORE_ASSERT(
@@ -223,7 +241,7 @@ void Dissolve::Render(const Timestep frameTime)
 
     m_GraphicsContext->Clear();
 
-    m_StaticMeshRenderer->BeginFrame(m_CameraController->GetCamera());
+    m_StaticMeshRenderer->BeginFrame(m_CameraController->GetCamera(), s_LightingSetup);
     DrawGeometry();
     m_StaticMeshRenderer->EndFrame();
 

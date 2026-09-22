@@ -6,34 +6,6 @@
 namespace Elixir::Materials::Rendering
 {
     /**
-     * @brief Stores a texture binding and submission where it becomes available.
-     */
-    struct STextureBinding
-    {
-        /** @brief Handle of the texture in the texture set. */
-        SResourceHandle Handle{};
-
-        /** @brief First submission that can use Handle. */
-        uint64_t ReadySubmission = 0;
-
-        /**
-         * @brief Gets the texture index that is safe for a submission.
-         * @param submissionSerial Serial of the submission being prepared.
-         * @param fallbackIndex Index to use before the binding is available.
-         * @return The texture index, or fallbackIndex when the binding is not ready.
-         */
-        uint32_t GetIndexForSubmission(
-            const uint64_t submissionSerial,
-            const uint32_t fallbackIndex
-        ) const
-        {
-            return ReadySubmission <= submissionSerial
-                ? Handle.Index
-                : fallbackIndex;
-        }
-    };
-
-    /**
      * @brief Manages bindless texture bindings used by material rendering.
      *
      * Newly added bindings use the fallback texture until descriptor updates become
@@ -82,6 +54,32 @@ namespace Elixir::Materials::Rendering
         const Ref<Sampler>& GetSampler() const { return m_Sampler; }
 
     private:
+        /** @brief Stores a texture binding and submission where it becomes available. */
+        struct STextureBinding
+        {
+            /** @brief Handle of the texture in the texture set. */
+            SResourceHandle Handle{};
+
+            /** @brief First submission that can use Handle. */
+            uint64_t ReadySubmission = 0;
+
+            /**
+             * @brief Gets the texture index that is safe for a submission.
+             * @param submissionSerial Serial of the submission being prepared.
+             * @param fallbackIndex Index to use before the binding is available.
+             * @return The texture index, or fallbackIndex when the binding is not ready.
+             */
+            uint32_t GetIndexForSubmission(
+                const uint64_t submissionSerial,
+                const uint32_t fallbackIndex
+            ) const
+            {
+                return ReadySubmission <= submissionSerial
+                    ? Handle.Index
+                    : fallbackIndex;
+            }
+        };
+
         Ref<TextureSet> m_Textures;
         Ref<Sampler> m_Sampler;
         SResourceHandle m_FallbackTextureHandle;
