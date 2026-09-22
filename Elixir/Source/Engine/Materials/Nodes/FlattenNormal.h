@@ -14,7 +14,6 @@ namespace Elixir::Materials::Nodes
     class FlattenNormal final : public MaterialNode
     {
     public:
-        /** @brief Creates a tangent-space normal flattening operation. */
         FlattenNormal()
           : MaterialNode({{
                 "Normal",
@@ -29,10 +28,8 @@ namespace Elixir::Materials::Nodes
                 EMaterialValueType::Float
             }}) {}
 
-        /** @brief Gets the stable identifier used by tools and serialization. */
         std::string_view GetTypeName() const override { return "Material.FlattenNormal"; }
 
-        /** @brief Emits HLSL that blends the input normal toward the flat normal. */
         SMaterialExpression Emit(const MaterialEmitContext& context) const override
         {
             const auto normal = context.Widen(
