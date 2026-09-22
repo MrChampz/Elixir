@@ -224,6 +224,24 @@ namespace Elixir
             return result;
         }
 
+        EMaterialBlendMode GetBlendMode(const fastgltf::AlphaMode mode)
+        {
+            using namespace Materials;
+
+            switch (mode)
+            {
+                case fastgltf::AlphaMode::Mask:
+                    return EMaterialBlendMode::Masked;
+
+                case fastgltf::AlphaMode::Blend:
+                    return EMaterialBlendMode::Translucent;
+
+                case fastgltf::AlphaMode::Opaque:
+                default:
+                    return EMaterialBlendMode::Opaque;
+            }
+        }
+
         Ref<Material> CreateSurfaceMaterial(
             const fastgltf::Material& source,
             const size_t materialIndex,
@@ -244,6 +262,10 @@ namespace Elixir
 
             const auto material = CreateRef<Material>(name);
             material->SetUsage(EMaterialUsage::Surface, true);
+            material->SetBlendMode(GetBlendMode(source.alphaMode));
+
+            if (source.alphaMode == fastgltf::AlphaMode::Mask)
+                material->SetAlphaCutoff(source.alphaCutoff);
 
             const auto& pbr = source.pbrData;
             const auto baseColorFactor = glm::vec4(
@@ -373,9 +395,13 @@ namespace Elixir
                 emissive = multiply;
             }
 
+            const auto opacity = graph.AddNode<ComponentMask>(3);
+            graph.Connect(baseColor, opacity, 0);
+
             graph.SetChannel(EMaterialChannel::BaseColor, baseColor);
             graph.SetChannel(EMaterialChannel::Metallic, metallic);
             graph.SetChannel( EMaterialChannel::Roughness, roughness);
+            graph.SetChannel( EMaterialChannel::Opacity, opacity);
             graph.SetChannel(EMaterialChannel::Emissive, emissive);
 
             if (normalTexture)

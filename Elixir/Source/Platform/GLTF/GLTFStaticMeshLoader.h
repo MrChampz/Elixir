@@ -11,7 +11,8 @@ namespace Elixir
         /**
          * @brief Combine all glTF meshes into one static mesh data object.
          *
-         * The loader creates one Surface material for every glTF material. It
+         * The loader creates one Surface material for every glTF material and
+         * maps glTF alpha modes to the material blend mode. It
          * imports metallic-roughness PBR factors and base-color,
          * metallic-roughness, normal, occlusion, and emissive maps.
          *
