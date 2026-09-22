@@ -5,6 +5,8 @@
 #include <Engine/Materials/Nodes/Multiply.h>
 #include <Engine/Materials/Nodes/ComponentMask.h>
 #include <Engine/Materials/Nodes/Constant.h>
+#include <Engine/Materials/Nodes/FlattenNormal.h>
+#include <Engine/Materials/Nodes/Lerp.h>
 #include <Engine/Materials/Nodes/Parameter.h>
 #include <Engine/Materials/Nodes/RadialGradientExponential.h>
 #include <Engine/Materials/Nodes/TextureSample.h>
@@ -76,6 +78,66 @@ TEST(MaterialGraphTest, RoutesTextureAlphaToOpacity)
     EXPECT_NE(hlsl.find("surface.Opacity"), std::string::npos);
     EXPECT_NE(hlsl.find("SampleTex"), std::string::npos);
     EXPECT_NE(hlsl.find(".w"), std::string::npos);
+}
+
+TEST(MaterialGraphTest, GeneratesNormalTextureSamplingAndFlattening)
+{
+    MaterialGraph graph;
+
+    const auto texture = graph.AddNode<TextureSample>(
+        "NormalTexture",
+        ETextureSampleType::Normal
+    );
+    const auto flatness = graph.AddNode<Parameter>(
+        "NormalScale",
+        EMaterialValueType::Float
+    );
+    const auto flatten = graph.AddNode<FlattenNormal>();
+    graph.Connect(texture, flatten, 0);
+    graph.Connect(flatness, flatten, 1);
+    graph.SetChannel(EMaterialChannel::Normal, flatten);
+
+    const auto hlsl = graph.GenerateHLSL({
+        .Values = {{ "NormalScale", "mat.Values[0].x" }},
+        .Textures = {{ "NormalTexture", "mat.TextureIndices[0]" }}
+    });
+
+    EXPECT_NE(hlsl.find("SampleNormal(mat.TextureIndices[0], input.TexCoord)"), std::string::npos);
+    EXPECT_NE(hlsl.find("lerp(1.0"), std::string::npos);
+    EXPECT_NE(hlsl.find("surface.Normal ="), std::string::npos);
+}
+
+TEST(MaterialGraphTest, InterpolatesAmbientOcclusionFromOne)
+{
+    MaterialGraph graph;
+
+    const auto one = graph.AddNode<Constant>(
+        glm::vec4{ 1.0f },
+        EMaterialValueType::Float
+    );
+    const auto occlusion = graph.AddNode<Parameter>(
+        "Occlusion",
+        EMaterialValueType::Float
+    );
+    const auto strength = graph.AddNode<Parameter>(
+        "OcclusionStrength",
+        EMaterialValueType::Float
+    );
+    const auto lerp = graph.AddNode<Lerp>();
+    graph.Connect(one, lerp, 0);
+    graph.Connect(occlusion, lerp, 1);
+    graph.Connect(strength, lerp, 2);
+    graph.SetChannel(EMaterialChannel::AmbientOcclusion, lerp);
+
+    const auto hlsl = graph.GenerateHLSL({
+        .Values = {
+            { "Occlusion", "mat.Values[0].x" },
+            { "OcclusionStrength", "mat.Values[1].x" }
+        }
+    });
+
+    EXPECT_NE(hlsl.find("lerp(1.000000"), std::string::npos);
+    EXPECT_NE(hlsl.find("surface.AmbientOcclusion ="), std::string::npos);
 }
 
 TEST(MaterialGraphTest, GeneratesExponentialRadialGradientForOpacity)

@@ -10,6 +10,11 @@ namespace Elixir
       public:
         /**
          * @brief Combine all glTF meshes into one static mesh data object.
+         *
+         * The loader creates one Surface material for every glTF material. It
+         * imports metallic-roughness PBR factors and base-color,
+         * metallic-roughness, normal, occlusion, and emissive maps.
+         *
          * @param context Graphics context available for material resolution.
          * @param path Local glTF or GLB file path.
          * @return Loaded mesh data, or std::nullopt when loading fails.

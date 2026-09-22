@@ -64,6 +64,7 @@ struct Surface
     float   Roughness;
     float   Opacity;
     float3  Emissive;
+    float   AmbientOcclusion;
 };
 
 static const uint NO_TEXTURE = 0xFFFFFFFFu;
@@ -71,6 +72,15 @@ static const uint NO_TEXTURE = 0xFFFFFFFFu;
 float4 SampleTex(uint index, float2 uv)
 {
     return textures[index].Sample(texSampler, uv);
+}
+
+float3 SampleNormal(uint index, float2 uv)
+{
+    if (index == NO_TEXTURE)
+        return float3(0.0f, 0.0f, 1.0f);
+
+    const float3 packedNormal = SampleTex(index, uv).xyz;
+    return normalize(packedNormal * 2.0f - 1.0f);
 }
 
 float2 DirToEquirect(float3 dir)
@@ -117,14 +127,23 @@ float4 main(PSInput input) : SV_Target0
     surface.Roughness = 0.5f;
     surface.Opacity = 1.0f;
     surface.Emissive = float3(0.0f, 0.0f, 0.0f);
+    surface.AmbientOcclusion = 1.0f;
 
     // __GRAPH_BODY__
 
     float roughness = clamp(surface.Roughness, 0.045f, 1.0f);
     float3 F0 = lerp(0.04f.xxx, surface.BaseColor, surface.Metallic);
+
+    float3 tangentNormal = normalize(surface.Normal);
+    float3 tangent = normalize(input.Tangent.xyz - N * dot(N, input.Tangent.xyz));
+    float3 bitangent = cross(N, tangent) * input.Tangent.w;
+    N = normalize(mul(tangentNormal, float3x3(tangent, bitangent, N)));
+
     float NdotV = saturate(dot(N, V)) + 1e-4f;
 
-    float3 diffuse = SampleIrradiance(N) * surface.BaseColor * (1.0f - surface.Metallic);
+    float ao = saturate(surface.AmbientOcclusion);
+
+    float3 diffuse = SampleIrradiance(N) * surface.BaseColor * (1.0f - surface.Metallic) * ao;
     float3 R = reflect(-V, N);
 
     float3 fresnel = F0 + (max((1.0f - roughness).xxx, F0) - F0) * pow(saturate(1.0f - NdotV), 5.0f);
@@ -137,7 +156,7 @@ float4 main(PSInput input) : SV_Target0
     float NdotL = saturate(dot(N, L));
     float3 H = normalize(V + L);
     float spec = pow(saturate(dot(N, H)), max(2.0f, (1.0f - roughness) * 128.0f));
-    color += (surface.BaseColor * (1.0f - surface.Metallic) + F0 * spec) * LightColor.rgb * LightColor.w * NdotL;
+    color += (surface.BaseColor * (1.0f - surface.Metallic) + F0 * spec) * LightColor.rgb * LightColor.w * NdotL * ao;
 
     // Tone mapping
     color = ACESFilm(color);

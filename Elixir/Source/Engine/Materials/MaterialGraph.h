@@ -26,6 +26,9 @@ namespace Elixir::Materials
 
         /** @brief Surface emissive color. */
         Emissive,
+
+        /** @brief Ambient-occlusion multiplier for indirect and direct lighting. */
+        AmbientOcclusion,
     };
 
     /** @brief Maps material parameter names to generated HLSL expressions. */
