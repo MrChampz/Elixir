@@ -2,6 +2,10 @@
 
 #include <Engine/Materials/MaterialGraph.h>
 
+#include <Engine/Materials/Nodes/Add.h>
+#include <Engine/Materials/Nodes/Append.h>
+#include <Engine/Materials/Nodes/Cosine.h>
+#include <Engine/Materials/Nodes/Dot.h>
 #include <Engine/Materials/Nodes/Multiply.h>
 #include <Engine/Materials/Nodes/ComponentMask.h>
 #include <Engine/Materials/Nodes/Constant.h>
@@ -9,6 +13,8 @@
 #include <Engine/Materials/Nodes/Lerp.h>
 #include <Engine/Materials/Nodes/Parameter.h>
 #include <Engine/Materials/Nodes/RadialGradientExponential.h>
+#include <Engine/Materials/Nodes/Sine.h>
+#include <Engine/Materials/Nodes/Subtract.h>
 #include <Engine/Materials/Nodes/TexCoord.h>
 #include <Engine/Materials/Nodes/TextureSample.h>
 
@@ -120,6 +126,73 @@ TEST(MaterialGraphTest, SelectsSecondStaticMeshTextureCoordinate)
 
     EXPECT_NE(hlsl.find("input.TexCoord1"), std::string::npos);
     EXPECT_NE(hlsl.find("surface.BaseColor"), std::string::npos);
+}
+
+TEST(MaterialGraphTest, GeneratesStaticTextureCoordinateTransform)
+{
+    MaterialGraph graph;
+
+    const auto texCoord = graph.AddNode<TexCoord>(1);
+    const auto scale = graph.AddNode<Parameter>("UVScale", EMaterialValueType::Float2);
+    const auto offset = graph.AddNode<Parameter>("UVOffset", EMaterialValueType::Float2);
+    const auto rotation = graph.AddNode<Parameter>("UVRotation", EMaterialValueType::Float);
+    const auto scaled = graph.AddNode<Multiply>();
+    graph.Connect(texCoord, scaled, 0);
+    graph.Connect(scale, scaled, 1);
+
+    const auto sine = graph.AddNode<Sine>();
+    const auto cosine = graph.AddNode<Cosine>();
+    graph.Connect(rotation, sine, 0);
+    graph.Connect(rotation, cosine, 0);
+
+    const auto zero = graph.AddNode<Constant>(glm::vec4(0.0f), EMaterialValueType::Float);
+    const auto negativeSine = graph.AddNode<Subtract>();
+    graph.Connect(zero, negativeSine, 0);
+    graph.Connect(sine, negativeSine, 1);
+
+    const auto firstRow = graph.AddNode<Append>();
+    graph.Connect(cosine, firstRow, 0);
+    graph.Connect(negativeSine, firstRow, 1);
+
+    const auto secondRow = graph.AddNode<Append>();
+    graph.Connect(sine, secondRow, 0);
+    graph.Connect(cosine, secondRow, 1);
+
+    const auto rotatedX = graph.AddNode<Dot>();
+    graph.Connect(scaled, rotatedX, 0);
+    graph.Connect(firstRow, rotatedX, 1);
+
+    const auto rotatedY = graph.AddNode<Dot>();
+    graph.Connect(scaled, rotatedY, 0);
+    graph.Connect(secondRow, rotatedY, 1);
+
+    const auto rotated = graph.AddNode<Append>();
+    graph.Connect(rotatedX, rotated, 0);
+    graph.Connect(rotatedY, rotated, 1);
+
+    const auto transformed = graph.AddNode<Add>();
+    graph.Connect(rotated, transformed, 0);
+    graph.Connect(offset, transformed, 1);
+
+    const auto texture = graph.AddNode<TextureSample>("Albedo");
+    graph.Connect(transformed, texture, 0);
+    graph.SetChannel(EMaterialChannel::BaseColor, texture);
+
+    const auto hlsl = graph.GenerateHLSL({
+        .Values = {
+            { "UVScale", "mat.Values[0].xy" },
+            { "UVOffset", "mat.Values[1].xy" },
+            { "UVRotation", "mat.Values[2].x" },
+        },
+        .Textures = {{ "Albedo", "mat.TextureIndices[0]" }},
+    });
+
+    EXPECT_NE(hlsl.find("input.TexCoord1"), std::string::npos);
+    EXPECT_NE(hlsl.find("cos(mat.Values[2].x)"), std::string::npos);
+    EXPECT_NE(hlsl.find("sin(mat.Values[2].x)"), std::string::npos);
+    EXPECT_NE(hlsl.find("mat.Values[0].xy"), std::string::npos);
+    EXPECT_NE(hlsl.find("mat.Values[1].xy"), std::string::npos);
+    EXPECT_NE(hlsl.find("SampleTex(mat.TextureIndices[0]"), std::string::npos);
 }
 
 TEST(MaterialGraphTest, GeneratesNormalTextureSamplingAndFlattening)

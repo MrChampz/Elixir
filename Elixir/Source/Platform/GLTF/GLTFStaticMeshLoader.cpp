@@ -6,12 +6,19 @@
 #include <Engine/Materials/DefaultMaterials.h>
 #include <Engine/Materials/Material.h>
 #include <Engine/Materials/MaterialParameter.h>
+#include <Engine/Materials/Nodes/Add.h>
+#include <Engine/Materials/Nodes/Append.h>
 #include <Engine/Materials/Nodes/ComponentMask.h>
 #include <Engine/Materials/Nodes/Constant.h>
+#include <Engine/Materials/Nodes/Cosine.h>
+#include <Engine/Materials/Nodes/Dot.h>
 #include <Engine/Materials/Nodes/FlattenNormal.h>
 #include <Engine/Materials/Nodes/Lerp.h>
 #include <Engine/Materials/Nodes/Multiply.h>
 #include <Engine/Materials/Nodes/Parameter.h>
+#include <Engine/Materials/Nodes/Sine.h>
+#include <Engine/Materials/Nodes/Subtract.h>
+#include <Engine/Materials/Nodes/TexCoord.h>
 #include <Engine/Materials/Nodes/TextureSample.h>
 
 #include <fastgltf/core.hpp>
@@ -242,6 +249,136 @@ namespace Elixir
             }
         }
 
+        uint32_t GetTextureCoordinateIndex(const fastgltf::TextureInfo& source)
+        {
+            const size_t index = source.transform && source.transform->texCoordIndex
+                ? *source.transform->texCoordIndex
+                : source.texCoordIndex;
+
+            if (index <= 1)
+                return static_cast<uint32_t>(index);
+
+            EE_CORE_WARN(
+                "glTF texture coordinate channel {} is unsupported; using TEXCOORD_0.",
+                index
+            )
+            return 0;
+        }
+
+        uint32_t AddTextureSample(
+            MaterialGraph& graph,
+            Material& material,
+            const std::string_view parameterName,
+            const fastgltf::TextureInfo& source,
+            const Nodes::ETextureSampleType sampleType = Nodes::ETextureSampleType::Color
+        )
+        {
+            using namespace Materials;
+            using namespace Materials::Nodes;
+
+            const auto sample = graph.AddNode<TextureSample>(
+                std::string(parameterName),
+                sampleType
+            );
+            const auto texCoord = graph.AddNode<TexCoord>(
+                GetTextureCoordinateIndex(source)
+            );
+
+            if (!source.transform)
+            {
+                graph.Connect(texCoord, sample, 0);
+                return sample;
+            }
+
+            const std::string scaleParameter = std::string(parameterName) + "UVScale";
+            const std::string offsetParameter = std::string(parameterName) + "UVOffset";
+            const std::string rotationParameter = std::string(parameterName) + "UVRotation";
+
+            EE_CORE_ASSERT(material.DefineParameter(scaleParameter, {
+                .Kind = EMaterialParameterKind::Value,
+                .ValueType = EMaterialValueType::Float2,
+                .DefaultValue = SMaterialParameter::MakeVector({
+                    source.transform->uvScale.x(),
+                    source.transform->uvScale.y(),
+                    0.0f,
+                    0.0f,
+                }),
+            }), "Could not define texture UV scale parameter.")
+
+            EE_CORE_ASSERT(material.DefineParameter(offsetParameter, {
+                .Kind = EMaterialParameterKind::Value,
+                .ValueType = EMaterialValueType::Float2,
+                .DefaultValue = SMaterialParameter::MakeVector({
+                    source.transform->uvOffset.x(),
+                    source.transform->uvOffset.y(),
+                    0.0f,
+                    0.0f,
+                }),
+            }), "Could not define texture UV offset parameter.")
+
+            EE_CORE_ASSERT(material.DefineParameter(rotationParameter, {
+                .Kind = EMaterialParameterKind::Value,
+                .ValueType = EMaterialValueType::Float,
+                .DefaultValue = SMaterialParameter::MakeScalar(source.transform->rotation),
+            }), "Could not define texture UV rotation parameter.")
+
+            const auto scale = graph.AddNode<Parameter>(
+                scaleParameter,
+                EMaterialValueType::Float2
+            );
+            const auto offset = graph.AddNode<Parameter>(
+                offsetParameter,
+                EMaterialValueType::Float2
+            );
+            const auto rotation = graph.AddNode<Parameter>(
+                rotationParameter,
+                EMaterialValueType::Float
+            );
+            const auto scaled = graph.AddNode<Multiply>();
+            graph.Connect(texCoord, scaled, 0);
+            graph.Connect(scale, scaled, 1);
+
+            const auto sine = graph.AddNode<Sine>();
+            const auto cosine = graph.AddNode<Cosine>();
+            graph.Connect(rotation, sine, 0);
+            graph.Connect(rotation, cosine, 0);
+
+            const auto zero = graph.AddNode<Constant>(
+                glm::vec4(0.0f),
+                EMaterialValueType::Float
+            );
+            const auto negativeSine = graph.AddNode<Subtract>();
+            graph.Connect(zero, negativeSine, 0);
+            graph.Connect(sine, negativeSine, 1);
+
+            const auto firstRow = graph.AddNode<Append>();
+            graph.Connect(cosine, firstRow, 0);
+            graph.Connect(negativeSine, firstRow, 1);
+
+            const auto secondRow = graph.AddNode<Append>();
+            graph.Connect(sine, secondRow, 0);
+            graph.Connect(cosine, secondRow, 1);
+
+            const auto rotatedX = graph.AddNode<Dot>();
+            graph.Connect(scaled, rotatedX, 0);
+            graph.Connect(firstRow, rotatedX, 1);
+
+            const auto rotatedY = graph.AddNode<Dot>();
+            graph.Connect(scaled, rotatedY, 0);
+            graph.Connect(secondRow, rotatedY, 1);
+
+            const auto rotated = graph.AddNode<Append>();
+            graph.Connect(rotatedX, rotated, 0);
+            graph.Connect(rotatedY, rotated, 1);
+
+            const auto transformed = graph.AddNode<Add>();
+            graph.Connect(rotated, transformed, 0);
+            graph.Connect(offset, transformed, 1);
+            graph.Connect(transformed, sample, 0);
+
+            return sample;
+        }
+
         Ref<Material> CreateSurfaceMaterial(
             const fastgltf::Material& source,
             const size_t materialIndex,
@@ -394,7 +531,12 @@ namespace Elixir
                     .DefaultValue = SMaterialParameter::MakeTexture(baseColorTexture),
                 }), "Could not define BaseColorTexture.");
 
-                const auto texture = graph.AddNode<TextureSample>("BaseColorTexture");
+                const auto texture = AddTextureSample(
+                    graph,
+                    *material,
+                    "BaseColorTexture",
+                    *pbr.baseColorTexture
+                );
                 const auto multiply = graph.AddNode<Multiply>();
                 graph.Connect(baseColor, multiply, 0);
                 graph.Connect(texture, multiply, 1);
@@ -418,7 +560,13 @@ namespace Elixir
                     .DefaultValue = SMaterialParameter::MakeTexture(metallicRoughnessTexture),
                 }), "Could not define MetallicRoughnessTexture.");
 
-                const auto sample = graph.AddNode<TextureSample>("MetallicRoughnessTexture");
+                const auto sample = AddTextureSample(
+                    graph,
+                    *material,
+                    "MetallicRoughnessTexture",
+                    *pbr.metallicRoughnessTexture,
+                    ETextureSampleType::LinearColor
+                );
 
                 const auto textureRoughness = graph.AddNode<ComponentMask>(1);
                 graph.Connect(sample, textureRoughness, 0);
@@ -449,7 +597,12 @@ namespace Elixir
                     .DefaultValue = SMaterialParameter::MakeTexture(emissiveTexture),
                 }), "Could not define EmissiveTexture.");
 
-                const auto sample = graph.AddNode<TextureSample>("EmissiveTexture");
+                const auto sample = AddTextureSample(
+                    graph,
+                    *material,
+                    "EmissiveTexture",
+                    *source.emissiveTexture
+                );
                 const auto multiply = graph.AddNode<Multiply>();
                 graph.Connect(emissive, multiply, 0);
                 graph.Connect(sample, multiply, 1);
@@ -472,8 +625,11 @@ namespace Elixir
                     .DefaultValue = SMaterialParameter::MakeTexture(normalTexture),
                 }), "Could not define NormalTexture.");
 
-                const auto sample = graph.AddNode<TextureSample>(
+                const auto sample = AddTextureSample(
+                    graph,
+                    *material,
                     "NormalTexture",
+                    *source.normalTexture,
                     ETextureSampleType::Normal
                 );
 
@@ -501,7 +657,13 @@ namespace Elixir
                     .DefaultValue = SMaterialParameter::MakeTexture(occlusionTexture),
                 }), "Could not define OcclusionTexture.");
 
-                const auto sample = graph.AddNode<TextureSample>("OcclusionTexture");
+                const auto sample = AddTextureSample(
+                    graph,
+                    *material,
+                    "OcclusionTexture",
+                    *source.occlusionTexture,
+                    ETextureSampleType::LinearColor
+                );
                 const auto red = graph.AddNode<ComponentMask>(0);
                 graph.Connect(sample, red, 0);
 
@@ -537,8 +699,11 @@ namespace Elixir
                         .DefaultValue = SMaterialParameter::MakeTexture(specularTexture),
                     }), "Could not define SpecularTexture.");
 
-                    const auto sample = graph.AddNode<TextureSample>(
+                    const auto sample = AddTextureSample(
+                        graph,
+                        *material,
                         "SpecularTexture",
+                        *source.specular->specularTexture,
                         ETextureSampleType::LinearColor
                     );
                     const auto alpha = graph.AddNode<ComponentMask>(3);
@@ -562,7 +727,12 @@ namespace Elixir
                         .DefaultValue = SMaterialParameter::MakeTexture(specularColorTexture),
                     }), "Could not define SpecularColorTexture.");
 
-                    const auto sample = graph.AddNode<TextureSample>("SpecularColorTexture");
+                    const auto sample = AddTextureSample(
+                        graph,
+                        *material,
+                        "SpecularColorTexture",
+                        *source.specular->specularColorTexture
+                    );
 
                     const auto multiply = graph.AddNode<Multiply>();
                     graph.Connect(specularColor, multiply, 0);
@@ -588,8 +758,11 @@ namespace Elixir
                         .DefaultValue = SMaterialParameter::MakeTexture(clearCoatTexture),
                     }), "Could not define ClearCoatTexture.");
 
-                    const auto sample = graph.AddNode<TextureSample>(
+                    const auto sample = AddTextureSample(
+                        graph,
+                        *material,
                         "ClearCoatTexture",
+                        *source.clearcoat->clearcoatTexture,
                         ETextureSampleType::LinearColor
                     );
                     const auto red = graph.AddNode<ComponentMask>(0);
@@ -615,8 +788,11 @@ namespace Elixir
                         ),
                     }), "Could not define ClearCoatRoughnessTexture.");
 
-                    const auto sample = graph.AddNode<TextureSample>(
+                    const auto sample = AddTextureSample(
+                        graph,
+                        *material,
                         "ClearCoatRoughnessTexture",
+                        *source.clearcoat->clearcoatRoughnessTexture,
                         ETextureSampleType::LinearColor
                     );
                     const auto green = graph.AddNode<ComponentMask>(1);
@@ -642,8 +818,11 @@ namespace Elixir
                         ),
                     }), "Could not define ClearCoatNormalTexture.");
 
-                    const auto sample = graph.AddNode<TextureSample>(
+                    const auto sample = AddTextureSample(
+                        graph,
+                        *material,
                         "ClearCoatNormalTexture",
+                        *source.clearcoat->clearcoatNormalTexture,
                         ETextureSampleType::Normal
                     );
 
@@ -1053,6 +1232,7 @@ namespace Elixir
         fastgltf::Parser parser{
             fastgltf::Extensions::KHR_materials_emissive_strength |
             fastgltf::Extensions::KHR_materials_specular |
+            fastgltf::Extensions::KHR_texture_transform |
             fastgltf::Extensions::KHR_materials_clearcoat
         };
 

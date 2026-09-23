@@ -5,17 +5,15 @@
 
 namespace Elixir::Materials::Nodes
 {
-    /**
-     * @brief Applies a single-input operation while preserving input width.
-     */
+    /** @brief Applies a single-input operation while preserving input width. */
     class UnaryOperationNode : public MaterialNode
     {
     protected:
         UnaryOperationNode()
-          : m_Inputs{{
+          : MaterialNode({{
               "Value",
               EMaterialValueType::Float4,
               "0.0"
-          }} {}
+          }}) {}
     };
 }

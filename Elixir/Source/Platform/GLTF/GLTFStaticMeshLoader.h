@@ -21,6 +21,8 @@ namespace Elixir
          * tint, and optional textures.
          * `KHR_materials_emissive_strength` scales the imported emissive
          * color factor.
+         * `KHR_texture_transform` selects TEXCOORD_0 or TEXCOORD_1 and maps
+         * each texture transform to generic material graph nodes.
          *
          * @param context Graphics context available for material resolution.
          * @param path Local glTF or GLB file path.
