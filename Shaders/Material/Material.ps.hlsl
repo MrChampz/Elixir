@@ -141,6 +141,56 @@ float3 SampleEnv(float3 dir, float roughness)
     ).rgb * EnvIntensity;
 }
 
+float DistributionGGX(float NdotH, float roughness)
+{
+    const float alpha = roughness * roughness;
+    const float alphaSquared = alpha * alpha;
+    const float denominator = NdotH * NdotH * (alphaSquared - 1.0f) + 1.0f;
+    return alphaSquared / max(3.14159265359f * denominator * denominator, 1e-7f);
+}
+
+float GeometrySchlickGGX(float NdotX, float roughness)
+{
+    const float roughnessPlusOne = roughness + 1.0f;
+    const float k = (roughnessPlusOne * roughnessPlusOne) * 0.125f;
+    return NdotX / max(NdotX * (1.0f - k) + k, 1e-7f);
+}
+
+float GeometrySmith(float NdotV, float NdotL, float roughness)
+{
+    return GeometrySchlickGGX(NdotV, roughness) * GeometrySchlickGGX(NdotL, roughness);
+}
+
+float3 FresnelSchlick(float VdotH, float3 F0)
+{
+    return F0 + (1.0f - F0) * pow(saturate(1.0f - VdotH), 5.0f);
+}
+
+float3 FresnelSchlickRoughness(float NdotV, float3 F0, float roughness)
+{
+    const float3 roughnessF0 = max((1.0f - roughness).xxx, F0);
+    return F0 + (roughnessF0 - F0) * pow(saturate(1.0f - NdotV), 5.0f);
+}
+
+/**
+ * Kari's analytical approximation for the split-sum environment BRDF.
+ *
+ * This replaces a precomputed BRDF LUT while retaining the roughness and
+ * view-angle response needed by image-based specular lighting.
+ */
+float2 EnvBRDFApprox(float roughness, float NdotV)
+{
+    const float4 c0 = float4(-1.0f, -0.0275f, -0.572f, 0.022f);
+    const float4 c1 = float4(1.0f, 0.0425f, 1.04f, -0.04f);
+    const float4 coefficients = roughness * c0 + c1;
+    const float a004 = min(
+        coefficients.x * coefficients.x,
+        exp2(-9.28f * NdotV)
+    ) * coefficients.x + coefficients.y;
+
+    return float2(-1.04f, 1.04f) * a004 + coefficients.zw;
+}
+
 float3 ACESFilm(float3 x)
 {
     const float a = 2.51f, b = 0.03f, c = 2.43f, d = 0.59f, e = 0.14f;
@@ -206,24 +256,42 @@ float4 main(PSInput input) : SV_Target0
     N = normalize(mul(tangentNormal, tangentBasis));
 #endif
 
+    float3 R = reflect(-V, N);
+    float3 L = normalize(LightDirection.xyz);
     float NdotV = saturate(dot(N, V)) + 1e-4f;
-
+    float NdotL = saturate(dot(N, L));
     float ao = saturate(surface.AmbientOcclusion);
 
-    float3 diffuse = SampleIrradiance(N) * surface.BaseColor * (1.0f - surface.Metallic) * ao;
-    float3 R = reflect(-V, N);
+    // Image-based lighting uses the split-sum approximation. The irradiance map
+    // provides the diffuse hemisphere integral, while the prefiltered map and
+    // analytical BRDF approximate the specular hemisphere integral.
+    const float3 fresnelIBL = FresnelSchlickRoughness(NdotV, F0, roughness);
+    const float3 diffuseWeightIBL = (1.0f - fresnelIBL) * (1.0f - surface.Metallic);
+    const float3 diffuseIBL = SampleIrradiance(N) * surface.BaseColor;
+    const float2 environmentBRDF = EnvBRDFApprox(roughness, NdotV);
+    const float3 specularIBL = SampleEnv(R, roughness) * (F0 * environmentBRDF.x + environmentBRDF.y);
 
-    float3 fresnel = F0 + (max((1.0f - roughness).xxx, F0) - F0) * pow(saturate(1.0f - NdotV), 5.0f);
-    float3 specular = SampleEnv(R, roughness) * fresnel;
+    float3 color = (diffuseWeightIBL * diffuseIBL + specularIBL) * ao + surface.Emissive;
 
-    float3 color = diffuse + specular + surface.Emissive;
+    // Cook-Torrance microfacet BRDF for the directional light.
+    if (NdotL > 0.0f)
+    {
+        const float3 H = normalize(V + L);
+        const float NdotH = saturate(dot(N, H));
+        const float VdotH = saturate(dot(V, H));
 
-    // Direcional light: Lambert diffuse + a simple spec.
-    float3 L = normalize(LightDirection.xyz);
-    float NdotL = saturate(dot(N, L));
-    float3 H = normalize(V + L);
-    float spec = pow(saturate(dot(N, H)), max(2.0f, (1.0f - roughness) * 128.0f));
-    color += (surface.BaseColor * (1.0f - surface.Metallic) + F0 * spec) * LightColor.rgb * LightColor.w * NdotL * ao;
+        const float distribution = DistributionGGX(NdotH, roughness);
+        const float geometry = GeometrySmith(NdotV, NdotL, roughness);
+        const float3 fresnelDirect = FresnelSchlick(VdotH, F0);
+        const float3 specularDirect = (distribution * geometry * fresnelDirect) /
+            max(4.0f * NdotV * NdotL, 1e-4f);
+
+        const float3 diffuseWeightDirect = (1.0f - fresnelDirect) * (1.0f - surface.Metallic);
+        const float3 radiance = LightColor.rgb * LightColor.a;
+
+        color += (diffuseWeightDirect * surface.BaseColor / 3.14159265359f + specularDirect) *
+            radiance * NdotL * ao;
+    }
 
 #if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_CLEAR_COAT
     const float clearCoat = saturate(surface.ClearCoat);
@@ -231,20 +299,29 @@ float4 main(PSInput input) : SV_Target0
     {
         const float coatRoughness = clamp(surface.ClearCoatRoughness, 0.045f, 1.0f);
         const float coatNdotV = saturate(dot(coatNormal, V)) + 1e-4f;
-        const float coatFresnel = clearCoat * (0.04f + 0.96f * pow(saturate(1.0f - coatNdotV), 5.0f));
-        const float3 coatReflection = SampleEnv(reflect(-V, coatNormal), coatRoughness);
-        color = color * (1.0f - coatFresnel) + coatReflection * coatFresnel;
-
         const float coatNdotL = saturate(dot(coatNormal, L));
+
+        const float3 coatF0 = 0.04f.xxx;
+        const float coatFresnel = clearCoat * FresnelSchlick(coatNdotV, coatF0).x;
+        const float2 coatEnvBRDF = EnvBRDFApprox(coatRoughness, coatNdotV);
+        const float3 coatReflection = SampleEnv(reflect(-V, coatNormal), coatRoughness) *
+            (coatF0 * coatEnvBRDF.x + coatEnvBRDF.y);
+
+        color = color * (1.0f - coatFresnel) + coatReflection * clearCoat;
+
         if (coatNdotL > 0.0f)
         {
             const float3 coatHalfVector = normalize(V + L);
             const float coatNdotH = saturate(dot(coatNormal, coatHalfVector));
             const float coatVdotH = saturate(dot(V, coatHalfVector));
-            const float coatSpecular = pow(coatNdotH, max(2.0f, (1.0f - coatRoughness) * 128.0f));
-            const float coatDirectFresnel = clearCoat * (0.04f + 0.96f * pow(1.0f - coatVdotH, 5.0f));
 
-            color += coatDirectFresnel * coatSpecular * LightColor.rgb * LightColor.a * coatNdotL;
+            const float coatDistribution = DistributionGGX(coatNdotH, coatRoughness);
+            const float coatGeometry = GeometrySmith(coatNdotV, coatNdotL, coatRoughness);
+            const float coatFresnelDirect = clearCoat * FresnelSchlick(coatVdotH, coatF0).x;
+            const float coatSpecular = coatDistribution * coatGeometry * coatFresnelDirect /
+                max(4.0f * coatNdotV * coatNdotL, 1e-4f);
+
+            color += coatSpecular * LightColor.rgb * LightColor.a * coatNdotL;
         }
     }
 #endif
