@@ -124,21 +124,41 @@ float3 SampleIrradiance(float3 dir)
     ).rgb * EnvIntensity;
 }
 
-float3 SampleEnv(float3 dir, float roughness)
+float3 SamplePrefilteredLevel(float3 dir, uint level)
 {
-    const float prefilterLevel = saturate(roughness) * EnvMaxLod;
-    const float prefilterLevels = EnvMaxLod + 1.0f;
+    uint width = 0;
+    uint height = 0;
+    prefilteredTexture.GetDimensions(width, height);
 
-    // The prefiltered texture is an equirectangular atlas. Each vertical block
-    // stores the GGX convolution for one roughness level.
+    const float levelCount = EnvMaxLod + 1.0f;
+    const float blockTexelSize = levelCount / float(height);
+
+    // Each vertical block contains one equirectangular GGX convolution. Keep
+    // bilinear filtering inside the selected block so it cannot sample another
+    // roughness level at the top or bottom edge.
     float2 uv = DirToEquirect(dir);
-    uv.y = (uv.y + prefilterLevel) / prefilterLevels;
+
+    uv.y = clamp(uv.y, 0.5f * blockTexelSize, 1.0f - 0.5f * blockTexelSize);
+    uv.y = (float(level) + uv.y) / levelCount;
 
     return prefilteredTexture.SampleLevel(
         environmentSampler,
         uv,
         0
     ).rgb * EnvIntensity;
+}
+
+float3 SampleEnv(float3 dir, float roughness)
+{
+    const float prefilterLevel = saturate(roughness) * EnvMaxLod;
+    const uint lowerLevel = uint(floor(prefilterLevel));
+    const uint upperLevel = min(lowerLevel + 1u, uint(EnvMaxLod));
+    const float levelBlend = frac(prefilterLevel);
+
+    const float3 lower = SamplePrefilteredLevel(dir, lowerLevel);
+    const float3 upper = SamplePrefilteredLevel(dir, upperLevel);
+    
+    return lerp(lower, upper, levelBlend);
 }
 
 float DistributionGGX(float NdotH, float roughness)
