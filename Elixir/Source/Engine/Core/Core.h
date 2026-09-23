@@ -32,8 +32,8 @@
             DEBUG_BREAK()                                                                   \
         }
 #else
-    #define EE_ASSERT(x, message, ...)
-    #define EE_CORE_ASSERT(x, message, ...)
+    #define EE_ASSERT(x, message, ...) x;
+    #define EE_CORE_ASSERT(x, message, ...) x;
 #endif // EE_ENABLE_ASSERTS
 
 #if defined(_MSC_VER)
