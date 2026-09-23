@@ -213,6 +213,7 @@ namespace Elixir::Materials::Rendering
             const SBatchKey key{
                 .Pass = item.Pass,
                 .BlendMode = prepared.Proxy->GetBlendMode(),
+                .DoubleSided = prepared.Proxy->IsDoubleSided(),
                 .GeometryIndex = item.GeometryIndex,
                 .Indexed = item.IndexedDraw.has_value(),
                 .Program = *program
@@ -278,6 +279,7 @@ namespace Elixir::Materials::Rendering
                 .Key = {
                     .Pass = item.Pass,
                     .BlendMode = prepared->Proxy->GetBlendMode(),
+                    .DoubleSided = prepared->Proxy->IsDoubleSided(),
                     .GeometryIndex = item.GeometryIndex,
                     .Indexed = item.IndexedDraw.has_value(),
                     .Program = *program,
@@ -399,6 +401,7 @@ namespace Elixir::Materials::Rendering
             .Pipeline = GetPipeline(
                 request.Pass,
                 request.Material->GetBlendMode(),
+                request.Material->IsDoubleSided(),
                 shader,
                 request.Pipeline
             ),
@@ -414,6 +417,7 @@ namespace Elixir::Materials::Rendering
     Ref<GraphicsPipeline> Renderer::GetPipeline(
         const EMaterialPass pass,
         const EMaterialBlendMode blendMode,
+        const bool doubleSided,
         const Ref<Shader>& shader,
         const SPipelineRequest& request
     )
@@ -421,6 +425,7 @@ namespace Elixir::Materials::Rendering
         const SPipelineKey key{
             .Pass = pass,
             .BlendMode = blendMode,
+            .DoubleSided = doubleSided,
             .Shader = shader.get(),
             .VertexLayoutKey = request.VertexLayoutKey,
         };
@@ -441,7 +446,10 @@ namespace Elixir::Materials::Rendering
         {
             case EMaterialPass::Surface:
             case EMaterialPass::ParticleMesh:
-                builder.SetCullMode(ECullMode::Back, EFrontFace::CounterClockwise);
+                builder.SetCullMode(
+                    doubleSided ? ECullMode::None : ECullMode::Back,
+                    EFrontFace::CounterClockwise
+                );
                 break;
             case EMaterialPass::ParticleSprite:
             case EMaterialPass::ParticleRibbon:

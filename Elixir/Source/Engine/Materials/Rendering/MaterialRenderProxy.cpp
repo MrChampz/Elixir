@@ -21,6 +21,7 @@ namespace Elixir::Materials::Rendering
         proxy->m_CompiledMaterial = std::move(material);
         proxy->m_InstanceRevision = instance.GetRevision();
         proxy->m_BlendMode = parent->GetBlendMode();
+        proxy->m_DoubleSided = parent->IsDoubleSided();
         proxy->m_AlphaCutoff = parent->GetAlphaCutoff();
 
         for (const auto& parameter : proxy->m_CompiledMaterial->Parameters)

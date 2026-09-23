@@ -268,6 +268,7 @@ namespace Elixir
             const auto material = CreateRef<Material>(name);
             material->SetUsage(EMaterialUsage::Surface, true);
             material->SetBlendMode(GetBlendMode(source.alphaMode));
+            material->SetDoubleSided(source.doubleSided);
 
             if (source.clearcoat)
                 material->SetShadingModel(EMaterialShadingModel::ClearCoat);

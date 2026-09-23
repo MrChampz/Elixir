@@ -63,6 +63,9 @@ namespace Elixir::Materials::Rendering
         /** @brief Returns the blend mode captured from the source material. */
         EMaterialBlendMode GetBlendMode() const { return m_BlendMode; }
 
+        /** @brief Checks whether the source material renders both triangle faces. */
+        bool IsDoubleSided() const { return m_DoubleSided; }
+
         /** @brief Returns the alpha cutoff captured from the source material. */
         float GetAlphaCutoff() const { return m_AlphaCutoff; }
 
@@ -72,6 +75,7 @@ namespace Elixir::Materials::Rendering
         std::vector<glm::vec4> m_Values;
         std::vector<Ref<Texture>> m_Textures;
         EMaterialBlendMode m_BlendMode = EMaterialBlendMode::Opaque;
+        bool m_DoubleSided = false;
         float m_AlphaCutoff = 0.5f;
     };
 }

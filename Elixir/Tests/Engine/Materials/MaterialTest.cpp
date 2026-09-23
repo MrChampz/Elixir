@@ -38,6 +38,19 @@ TEST(MaterialTest, StoresTransparencySettings)
     EXPECT_EQ(material.GetRevision(), revision + 2);
 }
 
+TEST(MaterialTest, StoresDoubleSidedSetting)
+{
+    Material material("DoubleSided");
+
+    EXPECT_FALSE(material.IsDoubleSided());
+    
+    const auto revision = material.GetRevision();
+    EXPECT_TRUE(material.SetDoubleSided(true));
+    EXPECT_TRUE(material.IsDoubleSided());
+    EXPECT_EQ(material.GetRevision(), revision + 1);
+    EXPECT_FALSE(material.SetDoubleSided(true));
+}
+
 TEST(MaterialTest, ClampsAlphaCutoff)
 {
     Material material("Transparency");

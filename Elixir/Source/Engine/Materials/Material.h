@@ -160,6 +160,16 @@ namespace Elixir::Materials
         float GetAlphaCutoff() const { return m_AlphaCutoff; }
 
         /**
+         * @brief Enables or disables back-face culling for compatible mesh passes.
+         * @param enabled Whether both faces should be rendered.
+         * @return True when the setting changed.
+         */
+        bool SetDoubleSided(bool enabled);
+
+        /** @brief Checks whether compatible mesh passes render both triangle faces. */
+        bool IsDoubleSided() const { return m_DoubleSided; }
+
+        /**
          * @brief Updates a parameter default value.
          * @param name Parameter name.
          * @param value Compatible value to store.
@@ -237,6 +247,7 @@ namespace Elixir::Materials
         uint32_t m_UsageMask = 0;
         EMaterialShadingModel m_ShadingModel = EMaterialShadingModel::Lit;
         EMaterialBlendMode m_BlendMode = EMaterialBlendMode::Opaque;
+        bool m_DoubleSided = false;
         float m_AlphaCutoff = 0.5f;
         uint32_t m_Revision = 1;
     };

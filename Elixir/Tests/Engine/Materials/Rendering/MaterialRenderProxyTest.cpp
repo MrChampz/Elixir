@@ -50,3 +50,18 @@ TEST(MaterialRenderProxyTest, RejectsACompiledMaterialForAnOldSchema)
     MaterialInstance instance(material);
     EXPECT_FALSE(MaterialRenderProxy::Create(compiled, instance));
 }
+
+TEST(MaterialRenderProxyTest, CapturesDoubleSidedSetting)
+{
+    const auto material = CreateRef<Material>("DoubleSided");
+    ASSERT_TRUE(material->SetDoubleSided(true));
+
+    const auto compiled = Compiler::Build(*material).Material;
+    ASSERT_TRUE(compiled);
+
+    const MaterialInstance instance(material);
+    const auto proxy = MaterialRenderProxy::Create(compiled, instance);
+
+    ASSERT_TRUE(proxy);
+    EXPECT_TRUE(proxy->IsDoubleSided());
+}
