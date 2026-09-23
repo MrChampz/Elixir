@@ -17,6 +17,8 @@ namespace Elixir
          * metallic-roughness, normal, occlusion, and emissive maps. Materials
          * that use `KHR_materials_clearcoat` use the ClearCoat shading model
          * and import the clear-coat factor, roughness, and normal map.
+         * `KHR_materials_specular` imports the dielectric specular factor,
+         * tint, and optional textures.
          *
          * @param context Graphics context available for material resolution.
          * @param path Local glTF or GLB file path.

@@ -30,6 +30,12 @@ namespace Elixir::Materials
         /** @brief Ambient-occlusion multiplier for indirect and direct lighting. */
         AmbientOcclusion,
 
+        /** @brief Dielectric specular intensity. */
+        Specular,
+
+        /** @brief Dielectric specular tint. */
+        SpecularColor,
+
         /** @brief Coverage of the clear-coat layer. */
         ClearCoat,
 

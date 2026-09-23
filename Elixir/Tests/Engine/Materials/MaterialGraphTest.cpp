@@ -80,6 +80,34 @@ TEST(MaterialGraphTest, RoutesTextureAlphaToOpacity)
     EXPECT_NE(hlsl.find(".w"), std::string::npos);
 }
 
+TEST(MaterialGraphTest, RoutesSpecularInputs)
+{
+    MaterialGraph graph;
+
+    const auto specular = graph.AddNode<Parameter>(
+        "SpecularFactor",
+        EMaterialValueType::Float
+    );
+    const auto specularColor = graph.AddNode<Parameter>(
+        "SpecularColorFactor",
+        EMaterialValueType::Float3
+    );
+    graph.SetChannel(EMaterialChannel::Specular, specular);
+    graph.SetChannel(EMaterialChannel::SpecularColor, specularColor);
+
+    const auto hlsl = graph.GenerateHLSL({
+        .Values = {
+            { "SpecularFactor", "mat.Values[0].x" },
+            { "SpecularColorFactor", "mat.Values[1].xyz" },
+        },
+    });
+
+    EXPECT_NE(hlsl.find("mat.Values[0].x"), std::string::npos);
+    EXPECT_NE(hlsl.find("mat.Values[1].xyz"), std::string::npos);
+    EXPECT_NE(hlsl.find("surface.Specular = n"), std::string::npos);
+    EXPECT_NE(hlsl.find("surface.SpecularColor = n"), std::string::npos);
+}
+
 TEST(MaterialGraphTest, GeneratesNormalTextureSamplingAndFlattening)
 {
     MaterialGraph graph;

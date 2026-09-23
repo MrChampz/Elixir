@@ -251,6 +251,8 @@ namespace Elixir
             const Ref<Texture>& normalTexture,
             const Ref<Texture>& occlusionTexture,
             const Ref<Texture>& emissiveTexture,
+            const Ref<Texture>& specularTexture,
+            const Ref<Texture>& specularColorTexture,
             const Ref<Texture>& clearCoatTexture,
             const Ref<Texture>& clearCoatRoughnessTexture,
             const Ref<Texture>& clearCoatNormalTexture
@@ -324,6 +326,29 @@ namespace Elixir
                 .DefaultValue = SMaterialParameter::MakeScalar(
                     source.occlusionTexture ? source.occlusionTexture->strength : 1.0f),
             }), "Could not define OcclusionStrength.")
+
+            if (source.specular)
+            {
+                EE_CORE_ASSERT(material->DefineParameter("SpecularFactor", {
+                    .Kind = EMaterialParameterKind::Value,
+                    .ValueType = EMaterialValueType::Float,
+                    .DefaultValue = SMaterialParameter::MakeScalar(
+                        source.specular->specularFactor
+                    ),
+                }), "Could not define SpecularFactor.")
+
+                const auto& colorFactor = source.specular->specularColorFactor;
+                EE_CORE_ASSERT(material->DefineParameter("SpecularColorFactor", {
+                    .Kind = EMaterialParameterKind::Value,
+                    .ValueType = EMaterialValueType::Float3,
+                    .DefaultValue = SMaterialParameter::MakeVector({
+                        colorFactor.x(),
+                        colorFactor.y(),
+                        colorFactor.z(),
+                        0.0f
+                    }),
+                }), "Could not define SpecularColorFactor.")
+            }
 
             if (source.clearcoat)
             {
@@ -497,6 +522,57 @@ namespace Elixir
                 graph.SetChannel(EMaterialChannel::AmbientOcclusion, occlusion);
             }
 
+            if (source.specular)
+            {
+                auto specular = graph.AddNode<Parameter>(
+                    "SpecularFactor",
+                    EMaterialValueType::Float
+                );
+
+                if (specularTexture)
+                {
+                    EE_CORE_ASSERT(material->DefineParameter("SpecularTexture", {
+                        .Kind = EMaterialParameterKind::Texture,
+                        .DefaultValue = SMaterialParameter::MakeTexture(specularTexture),
+                    }), "Could not define SpecularTexture.");
+
+                    const auto sample = graph.AddNode<TextureSample>(
+                        "SpecularTexture",
+                        ETextureSampleType::LinearColor
+                    );
+                    const auto alpha = graph.AddNode<ComponentMask>(3);
+                    graph.Connect(sample, alpha, 0);
+
+                    const auto multiply = graph.AddNode<Multiply>();
+                    graph.Connect(specular, multiply, 0);
+                    graph.Connect(alpha, multiply, 1);
+                    specular = multiply;
+                }
+
+                auto specularColor = graph.AddNode<Parameter>(
+                    "SpecularColorFactor",
+                    EMaterialValueType::Float3
+                );
+
+                if (specularColorTexture)
+                {
+                    EE_CORE_ASSERT(material->DefineParameter("SpecularColorTexture", {
+                        .Kind = EMaterialParameterKind::Texture,
+                        .DefaultValue = SMaterialParameter::MakeTexture(specularColorTexture),
+                    }), "Could not define SpecularColorTexture.");
+
+                    const auto sample = graph.AddNode<TextureSample>("SpecularColorTexture");
+
+                    const auto multiply = graph.AddNode<Multiply>();
+                    graph.Connect(specularColor, multiply, 0);
+                    graph.Connect(sample, multiply, 1);
+                    specularColor = multiply;
+                }
+
+                graph.SetChannel(EMaterialChannel::Specular, specular);
+                graph.SetChannel(EMaterialChannel::SpecularColor, specularColor);
+            }
+
             if (source.clearcoat)
             {
                 auto clearCoat = graph.AddNode<Parameter>(
@@ -608,6 +684,8 @@ namespace Elixir
                 Ref<Texture> normalTexture;
                 Ref<Texture> occlusionTexture;
                 Ref<Texture> emissiveTexture;
+                Ref<Texture> specularTexture;
+                Ref<Texture> specularColorTexture;
                 Ref<Texture> clearCoatTexture;
                 Ref<Texture> clearCoatRoughnessTexture;
                 Ref<Texture> clearCoatNormalTexture;
@@ -672,6 +750,33 @@ namespace Elixir
                     );
                 }
 
+                if (source.specular)
+                {
+                    if (source.specular->specularTexture)
+                    {
+                        specularTexture = LoadTexture(
+                            context,
+                            asset,
+                            source.specular->specularTexture->textureIndex,
+                            sourceDirectory,
+                            EImageFormat::R8G8B8A8_UNORM,
+                            textureCache
+                        );
+                    }
+
+                    if (source.specular->specularColorTexture)
+                    {
+                        specularColorTexture = LoadTexture(
+                            context,
+                            asset,
+                            source.specular->specularColorTexture->textureIndex,
+                            sourceDirectory,
+                            EImageFormat::R8G8B8A8_SRGB,
+                            textureCache
+                        );
+                    }
+                }
+
                 if (source.clearcoat)
                 {
                     if (source.clearcoat->clearcoatTexture)
@@ -720,6 +825,8 @@ namespace Elixir
                     normalTexture,
                     occlusionTexture,
                     emissiveTexture,
+                    specularTexture,
+                    specularColorTexture,
                     clearCoatTexture,
                     clearCoatRoughnessTexture,
                     clearCoatNormalTexture
@@ -935,6 +1042,7 @@ namespace Elixir
         }
 
         fastgltf::Parser parser{
+            fastgltf::Extensions::KHR_materials_specular |
             fastgltf::Extensions::KHR_materials_clearcoat
         };
 

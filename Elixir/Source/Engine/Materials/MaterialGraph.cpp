@@ -18,6 +18,8 @@ namespace Elixir::Materials
                 case EMaterialChannel::Opacity:                 return "Opacity";
                 case EMaterialChannel::Emissive:                return "Emissive";
                 case EMaterialChannel::AmbientOcclusion:        return "AmbientOcclusion";
+                case EMaterialChannel::Specular:                return "Specular";
+                case EMaterialChannel::SpecularColor:           return "SpecularColor";
                 case EMaterialChannel::ClearCoat:               return "ClearCoat";
                 case EMaterialChannel::ClearCoatRoughness:      return "ClearCoatRoughness";
                 case EMaterialChannel::ClearCoatBottomNormal:   return "ClearCoatBottomNormal";
@@ -35,6 +37,7 @@ namespace Elixir::Materials
                 channel == EMaterialChannel::Roughness ||
                 channel == EMaterialChannel::Opacity ||
                 channel == EMaterialChannel::AmbientOcclusion ||
+                channel == EMaterialChannel::Specular ||
                 channel == EMaterialChannel::ClearCoat ||
                 channel == EMaterialChannel::ClearCoatRoughness;
 

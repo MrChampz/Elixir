@@ -84,6 +84,8 @@ struct Surface
     float   Opacity;
     float3  Emissive;
     float   AmbientOcclusion;
+    float   Specular;
+    float3  SpecularColor;
     float   ClearCoat;
     float   ClearCoatRoughness;
     float3  ClearCoatBottomNormal;
@@ -162,6 +164,8 @@ float4 main(PSInput input) : SV_Target0
     surface.Opacity = 1.0f;
     surface.Emissive = float3(0.0f, 0.0f, 0.0f);
     surface.AmbientOcclusion = 1.0f;
+    surface.Specular = 1.0f;
+    surface.SpecularColor = float3(1.0f, 1.0f, 1.0f);
     surface.ClearCoat = 0.0f;
     surface.ClearCoatRoughness = 0.0f;
     surface.ClearCoatBottomNormal = float3(0.0f, 0.0f, 1.0f);
@@ -174,14 +178,18 @@ float4 main(PSInput input) : SV_Target0
         clip(surface.Opacity - mat.AlphaCutoff);
     }
 
-
 #if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_UNLIT
     const float3 unlit = ACESFilm(surface.BaseColor + surface.Emissive);
     return float4(unlit, surface.Opacity);
 #endif
 
     float roughness = clamp(surface.Roughness, 0.045f, 1.0f);
-    float3 F0 = lerp(0.04f.xxx, surface.BaseColor, surface.Metallic);
+
+    float3 dielectricF0 = min(
+        0.04f.xxx * surface.SpecularColor * surface.Specular,
+        1.0f.xxx
+    );
+    float3 F0 = lerp(dielectricF0, surface.BaseColor, surface.Metallic);
 
     // surface.Normal is tangent-space. Transform it into world space through
     // the orthonormal tangent basis reconstructed from the mesh vertex data.
