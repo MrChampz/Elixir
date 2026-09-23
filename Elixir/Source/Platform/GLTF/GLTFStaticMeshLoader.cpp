@@ -282,12 +282,12 @@ namespace Elixir
                 pbr.baseColorFactor.z(),
                 pbr.baseColorFactor.w()
             );
-            const auto emissiveFactor = glm::vec4(
+            const auto emissiveFactor =glm::vec4(
                 source.emissiveFactor.x(),
                 source.emissiveFactor.y(),
                 source.emissiveFactor.z(),
                 0.0f
-            );
+            ) * source.emissiveStrength;
 
             EE_CORE_ASSERT(material->DefineParameter("BaseColorFactor", {
                 .Kind = EMaterialParameterKind::Value,
@@ -949,6 +949,14 @@ namespace Elixir
             }
         );
 
+        loadAttribute.operator()<fastgltf::math::fvec2>(
+            "TEXCOORD_1",
+            [&vertices](const auto value, const size_t index)
+            {
+                vertices[index].TexCoord1 = { value.x(), value.y() };
+            }
+        );
+
         std::vector<uint32_t> indices;
 
         if (primitive.indicesAccessor &&
@@ -1042,6 +1050,7 @@ namespace Elixir
         }
 
         fastgltf::Parser parser{
+            fastgltf::Extensions::KHR_materials_emissive_strength |
             fastgltf::Extensions::KHR_materials_specular |
             fastgltf::Extensions::KHR_materials_clearcoat
         };

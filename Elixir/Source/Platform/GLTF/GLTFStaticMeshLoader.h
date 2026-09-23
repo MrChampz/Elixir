@@ -19,6 +19,8 @@ namespace Elixir
          * and import the clear-coat factor, roughness, and normal map.
          * `KHR_materials_specular` imports the dielectric specular factor,
          * tint, and optional textures.
+         * `KHR_materials_emissive_strength` scales the imported emissive
+         * color factor.
          *
          * @param context Graphics context available for material resolution.
          * @param path Local glTF or GLB file path.

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Engine/Material/Material.h>
-#include <Engine/Material/MaterialNode.h>
+#include <Engine/Materials/Material.h>
+#include <Engine/Materials/MaterialNode.h>
 
 namespace Elixir::Materials::Nodes
 {

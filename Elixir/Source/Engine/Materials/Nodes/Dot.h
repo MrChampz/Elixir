@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/Material/Nodes/BinaryOperationNode.h>
+#include <Engine/Materials/Nodes/BinaryOperationNode.h>
 
 namespace Elixir::Materials::Nodes
 {

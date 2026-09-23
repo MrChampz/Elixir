@@ -28,10 +28,11 @@ MaterialPushConstants pc;
 
 struct VSInput
 {
-    float3 Position : POSITION0;
-    float3 Normal   : NORMAL0;
-    float4 Tangent  : TANGENT0;
-    float2 TexCoord : TEXCOORD0;
+    float3 Position     : POSITION0;
+    float3 Normal       : NORMAL0;
+    float4 Tangent      : TANGENT0;
+    float2 TexCoord     : TEXCOORD0;
+    float2 TexCoord1    : TEXCOORD1;
 };
 
 struct VSOutput
@@ -40,6 +41,7 @@ struct VSOutput
     float3 Normal       : NORMAL0;
     float4 Tangent      : TANGENT0;
     float2 TexCoord     : TEXCOORD0;
+    float2 TexCoord1    : TEXCOORD1;
     float3 WorldPos     : POSITION0;
 };
 
@@ -56,6 +58,7 @@ VSOutput main(VSInput input)
     output.Normal = worldNormal;
     output.Tangent = float4(worldTangent, input.Tangent.w);
     output.TexCoord = input.TexCoord;
+    output.TexCoord1 = input.TexCoord1;
 
     return output;
 }

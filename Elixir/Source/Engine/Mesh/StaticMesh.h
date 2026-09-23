@@ -23,6 +23,9 @@ namespace Elixir
 
         /** First texture coordinate channel. */
         glm::vec2 TexCoord{};
+
+        /** Second texture coordinate channel. */
+        glm::vec2 TexCoord1{};
     };
 
     /** @brief Defines an axis-aligned bound in mesh-local space. */

@@ -9,6 +9,7 @@
 #include <Engine/Materials/Nodes/Lerp.h>
 #include <Engine/Materials/Nodes/Parameter.h>
 #include <Engine/Materials/Nodes/RadialGradientExponential.h>
+#include <Engine/Materials/Nodes/TexCoord.h>
 #include <Engine/Materials/Nodes/TextureSample.h>
 
 using namespace Elixir;
@@ -106,6 +107,19 @@ TEST(MaterialGraphTest, RoutesSpecularInputs)
     EXPECT_NE(hlsl.find("mat.Values[1].xyz"), std::string::npos);
     EXPECT_NE(hlsl.find("surface.Specular = n"), std::string::npos);
     EXPECT_NE(hlsl.find("surface.SpecularColor = n"), std::string::npos);
+}
+
+TEST(MaterialGraphTest, SelectsSecondStaticMeshTextureCoordinate)
+{
+    MaterialGraph graph;
+
+    const auto texCoord = graph.AddNode<TexCoord>(1);
+    graph.SetChannel(EMaterialChannel::BaseColor, texCoord);
+
+    const auto hlsl = graph.GenerateHLSL();
+
+    EXPECT_NE(hlsl.find("input.TexCoord1"), std::string::npos);
+    EXPECT_NE(hlsl.find("surface.BaseColor"), std::string::npos);
 }
 
 TEST(MaterialGraphTest, GeneratesNormalTextureSamplingAndFlattening)

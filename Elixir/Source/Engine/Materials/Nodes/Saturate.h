@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/Material/Nodes/UnaryOperationNode.h>
+#include <Engine/Materials/Nodes/UnaryOperationNode.h>
 
 namespace Elixir::Materials::Nodes
 {

@@ -61,10 +61,11 @@ namespace Elixir
     const BufferLayout& StaticMesh::GetVertexLayout()
     {
         static const BufferLayout layout = {{
-            { EDataType::Vec3, "Position" },
-            { EDataType::Vec3, "Normal" },
-            { EDataType::Vec4, "Tangent" },
-            { EDataType::Vec2, "TexCoord" },
+            { EDataType::Vec3, "Position"  },
+            { EDataType::Vec3, "Normal"    },
+            { EDataType::Vec4, "Tangent"   },
+            { EDataType::Vec2, "TexCoord"  },
+            { EDataType::Vec2, "TexCoord1" },
         }};
         return layout;
     }

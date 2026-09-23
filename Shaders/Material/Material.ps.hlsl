@@ -71,6 +71,7 @@ struct PSInput
     float3 Normal       : NORMAL0;
     float4 Tangent      : TANGENT0;
     float2 TexCoord     : TEXCOORD0;
+    float2 TexCoord1    : TEXCOORD1;
     float3 WorldPos     : POSITION0;
     bool   FrontFace    : SV_IsFrontFace;
 };
