@@ -233,6 +233,18 @@ float4 main(PSInput input) : SV_Target0
         const float coatFresnel = clearCoat * (0.04f + 0.96f * pow(saturate(1.0f - coatNdotV), 5.0f));
         const float3 coatReflection = SampleEnv(reflect(-V, coatNormal), coatRoughness);
         color = color * (1.0f - coatFresnel) + coatReflection * coatFresnel;
+
+        const float coatNdotL = saturate(dot(coatNormal, L));
+        if (coatNdotL > 0.0f)
+        {
+            const float3 coatHalfVector = normalize(V + L);
+            const float coatNdotH = saturate(dot(coatNormal, coatHalfVector));
+            const float coatVdotH = saturate(dot(V, coatHalfVector));
+            const float coatSpecular = pow(coatNdotH, max(2.0f, (1.0f - coatRoughness) * 128.0f));
+            const float coatDirectFresnel = clearCoat * (0.04f + 0.96f * pow(1.0f - coatVdotH, 5.0f));
+
+            color += coatDirectFresnel * coatSpecular * LightColor.rgb * LightColor.a * coatNdotL;
+        }
     }
 #endif
 
