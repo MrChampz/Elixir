@@ -31,9 +31,20 @@ namespace Elixir::Materials
         Count
     };
 
-    /**
-     * @brief Defines how a material combines with the color target.
-     */
+    /** @brief Defines how a surface material evaluates lighting. */
+    enum class EMaterialShadingModel : uint8_t
+    {
+        /** Emits material color without evaluating scene lighting. */
+        Unlit,
+
+        /** Evaluates the engine metallic-roughness PBR lighting model. */
+        Lit,
+
+        /** Evaluates Lit with a dielectric clear-coat layer over a base layer. */
+        ClearCoat,
+    };
+
+    /** @brief Defines how a material combines with the color target. */
     enum class EMaterialBlendMode : uint8_t
     {
         /** Fully opaque material. */
@@ -46,17 +57,13 @@ namespace Elixir::Materials
         Translucent,
     };
 
-    /**
-     * @brief Defines the numeric value type used by a material.
-     */
+    /** @brief Defines the numeric value type used by a material. */
     enum class EMaterialValueType : uint8_t
     {
         Float, Float2, Float3, Float4,
     };
 
-    /**
-     * @brief Defines one parameter in a material schema.
-     */
+    /** @brief Defines one parameter in a material schema. */
     struct SMaterialParameterDefinition
     {
         /** Parameter category. */
@@ -105,6 +112,31 @@ namespace Elixir::Materials
         const MaterialGraph& GetGraph() const { return m_Graph; }
 
         /**
+         * @brief Enables or disables a material usage.
+         * @param usage Usage to update.
+         * @param enabled Whether the usage is supported.
+         * @return `true` if the supported-usage set changed.
+         */
+        bool SetUsage(EMaterialUsage usage, bool enabled);
+
+        /**
+         * @brief Checks whether a material usage is supported.
+         * @param usage Usage to check.
+         * @return `true` if the usage is enabled.
+         */
+        bool SupportsUsage(EMaterialUsage usage) const;
+
+        /**
+         * @brief Sets the lighting model used when rendering this material as a surface.
+         * @param model Lighting model to use.
+         * @return True when the shading model changed.
+         */
+        bool SetShadingModel(EMaterialShadingModel model);
+
+        /** @brief Returns the lighting model used by this material as a surface. */
+        EMaterialShadingModel GetShadingModel() const { return m_ShadingModel; }
+
+        /**
          * @brief Sets how renderers combine this material with the color target.
          * @param mode Blend mode to use for every compatible material pass.
          * @return True when the blend mode changed.
@@ -126,21 +158,6 @@ namespace Elixir::Materials
 
         /** @brief Returns the opacity threshold used by masked material passes. */
         float GetAlphaCutoff() const { return m_AlphaCutoff; }
-
-        /**
-         * @brief Enables or disables a material usage.
-         * @param usage Usage to update.
-         * @param enabled Whether the usage is supported.
-         * @return `true` if the supported-usage set changed.
-         */
-        bool SetUsage(EMaterialUsage usage, bool enabled);
-
-        /**
-         * @brief Checks whether a material usage is supported.
-         * @param usage Usage to check.
-         * @return `true` if the usage is enabled.
-         */
-        bool SupportsUsage(EMaterialUsage usage) const;
 
         /**
          * @brief Updates a parameter default value.
@@ -218,6 +235,7 @@ namespace Elixir::Materials
         MaterialGraph m_Graph;
         std::unordered_map<std::string, SMaterialParameterDefinition> m_Parameters;
         uint32_t m_UsageMask = 0;
+        EMaterialShadingModel m_ShadingModel = EMaterialShadingModel::Lit;
         EMaterialBlendMode m_BlendMode = EMaterialBlendMode::Opaque;
         float m_AlphaCutoff = 0.5f;
         uint32_t m_Revision = 1;

@@ -11,13 +11,16 @@ namespace Elixir::Materials
         {
             switch (channel)
             {
-                case EMaterialChannel::BaseColor:           return "BaseColor";
-                case EMaterialChannel::Normal:              return "Normal";
-                case EMaterialChannel::Metallic:            return "Metallic";
-                case EMaterialChannel::Roughness:           return "Roughness";
-                case EMaterialChannel::Opacity:             return "Opacity";
-                case EMaterialChannel::Emissive:            return "Emissive";
-                case EMaterialChannel::AmbientOcclusion:    return "AmbientOcclusion";
+                case EMaterialChannel::BaseColor:               return "BaseColor";
+                case EMaterialChannel::Normal:                  return "Normal";
+                case EMaterialChannel::Metallic:                return "Metallic";
+                case EMaterialChannel::Roughness:               return "Roughness";
+                case EMaterialChannel::Opacity:                 return "Opacity";
+                case EMaterialChannel::Emissive:                return "Emissive";
+                case EMaterialChannel::AmbientOcclusion:        return "AmbientOcclusion";
+                case EMaterialChannel::ClearCoat:               return "ClearCoat";
+                case EMaterialChannel::ClearCoatRoughness:      return "ClearCoatRoughness";
+                case EMaterialChannel::ClearCoatBottomNormal:   return "ClearCoatBottomNormal";
             }
 
             return "BaseColor";
@@ -31,7 +34,9 @@ namespace Elixir::Materials
             const bool isScalar = channel == EMaterialChannel::Metallic ||
                 channel == EMaterialChannel::Roughness ||
                 channel == EMaterialChannel::Opacity ||
-                channel == EMaterialChannel::AmbientOcclusion;
+                channel == EMaterialChannel::AmbientOcclusion ||
+                channel == EMaterialChannel::ClearCoat ||
+                channel == EMaterialChannel::ClearCoatRoughness;
 
             if (isScalar)
                 return expression.ValueType == EMaterialValueType::Float

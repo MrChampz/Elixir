@@ -1,6 +1,14 @@
-// Template pixel shader for node-graph materials. The graph codegen fills the
-// surface struct at the __GRAPH_BODY__ marker; the rest is fixed shading shared
-// by every graph material (IBL diffuse + specular, ACES tonemap).
+// Template pixel shader for node-graph surface materials.
+//
+// The compiler replaces both markers below. The graph marker provides the
+// material values, while the shading-model marker selects Unlit, Lit, or
+// ClearCoat at shader-compilation time.
+
+// __SHADING_MODEL__
+
+#define MATERIAL_SHADING_MODEL_UNLIT      0
+#define MATERIAL_SHADING_MODEL_LIT        1
+#define MATERIAL_SHADING_MODEL_CLEAR_COAT 2
 
 [[vk::binding(0, 0)]]
 cbuffer cbFrame : register(b0)
@@ -76,6 +84,9 @@ struct Surface
     float   Opacity;
     float3  Emissive;
     float   AmbientOcclusion;
+    float   ClearCoat;
+    float   ClearCoatRoughness;
+    float3  ClearCoatBottomNormal;
 };
 
 static const uint NO_TEXTURE = 0xFFFFFFFFu;
@@ -151,6 +162,9 @@ float4 main(PSInput input) : SV_Target0
     surface.Opacity = 1.0f;
     surface.Emissive = float3(0.0f, 0.0f, 0.0f);
     surface.AmbientOcclusion = 1.0f;
+    surface.ClearCoat = 0.0f;
+    surface.ClearCoatRoughness = 0.0f;
+    surface.ClearCoatBottomNormal = float3(0.0f, 0.0f, 1.0f);
 
     // __GRAPH_BODY__
 
@@ -160,6 +174,12 @@ float4 main(PSInput input) : SV_Target0
         clip(surface.Opacity - mat.AlphaCutoff);
     }
 
+
+#if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_UNLIT
+    const float3 unlit = ACESFilm(surface.BaseColor + surface.Emissive);
+    return float4(unlit, surface.Opacity);
+#endif
+
     float roughness = clamp(surface.Roughness, 0.045f, 1.0f);
     float3 F0 = lerp(0.04f.xxx, surface.BaseColor, surface.Metallic);
 
@@ -168,7 +188,14 @@ float4 main(PSInput input) : SV_Target0
     float3 tangentNormal = normalize(surface.Normal);
     float3 tangent = normalize(input.Tangent.xyz - N * dot(N, input.Tangent.xyz));
     float3 bitangent = cross(N, tangent) * input.Tangent.w;
-    N = normalize(mul(tangentNormal, float3x3(tangent, bitangent, N)));
+    const float3x3 tangentBasis = float3x3(tangent, bitangent, N);
+
+#if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_CLEAR_COAT
+    const float3 coatNormal = normalize(mul(tangentNormal, tangentBasis));
+    N = normalize(mul(normalize(surface.ClearCoatBottomNormal), tangentBasis));
+#else
+    N = normalize(mul(tangentNormal, tangentBasis));
+#endif
 
     float NdotV = saturate(dot(N, V)) + 1e-4f;
 
@@ -188,6 +215,18 @@ float4 main(PSInput input) : SV_Target0
     float3 H = normalize(V + L);
     float spec = pow(saturate(dot(N, H)), max(2.0f, (1.0f - roughness) * 128.0f));
     color += (surface.BaseColor * (1.0f - surface.Metallic) + F0 * spec) * LightColor.rgb * LightColor.w * NdotL * ao;
+
+#if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_CLEAR_COAT
+    const float clearCoat = saturate(surface.ClearCoat);
+    if (clearCoat > 0.0f)
+    {
+        const float coatRoughness = clamp(surface.ClearCoatRoughness, 0.045f, 1.0f);
+        const float coatNdotV = saturate(dot(coatNormal, V)) + 1e-4f;
+        const float coatFresnel = clearCoat * (0.04f + 0.96f * pow(saturate(1.0f - coatNdotV), 5.0f));
+        const float3 coatReflection = SampleEnv(reflect(-V, coatNormal), coatRoughness);
+        color = color * (1.0f - coatFresnel) + coatReflection * coatFresnel;
+    }
+#endif
 
     // Tone mapping
     color = ACESFilm(color);

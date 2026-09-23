@@ -29,6 +29,15 @@ namespace Elixir::Materials
 
         /** @brief Ambient-occlusion multiplier for indirect and direct lighting. */
         AmbientOcclusion,
+
+        /** @brief Coverage of the clear-coat layer. */
+        ClearCoat,
+
+        /** @brief Roughness of the clear-coat layer. */
+        ClearCoatRoughness,
+
+        /** @brief Tangent-space normal of the layer below clear coat. */
+        ClearCoatBottomNormal,
     };
 
     /** @brief Maps material parameter names to generated HLSL expressions. */

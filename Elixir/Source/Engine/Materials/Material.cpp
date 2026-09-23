@@ -16,6 +16,36 @@ namespace Elixir::Materials
         ++m_Revision;
     }
 
+    bool Material::SetUsage(const EMaterialUsage usage, const bool enabled)
+    {
+        const uint32_t mask = GetMaterialUsageMask(usage);
+        const uint32_t updatedMask = enabled
+            ? m_UsageMask | mask
+            : m_UsageMask & ~mask;
+
+        if (updatedMask == m_UsageMask)
+            return false;
+
+        m_UsageMask = updatedMask;
+        ++m_Revision;
+        return true;
+    }
+
+    bool Material::SupportsUsage(const EMaterialUsage usage) const
+    {
+        return (m_UsageMask & GetMaterialUsageMask(usage)) != 0;
+    }
+
+    bool Material::SetShadingModel(EMaterialShadingModel model)
+    {
+        if (m_ShadingModel == model)
+            return false;
+
+        m_ShadingModel = model;
+        ++m_Revision;
+        return true;
+    }
+
     bool Material::SetBlendMode(const EMaterialBlendMode mode)
     {
         if (m_BlendMode == mode)
@@ -35,26 +65,6 @@ namespace Elixir::Materials
         m_AlphaCutoff = normalized;
         ++m_Revision;
         return true;
-    }
-
-    bool Material::SetUsage(const EMaterialUsage usage, const bool enabled)
-    {
-        const uint32_t mask = GetMaterialUsageMask(usage);
-        const uint32_t updatedMask = enabled
-            ? m_UsageMask | mask
-            : m_UsageMask & ~mask;
-
-        if (updatedMask == m_UsageMask)
-            return false;
-
-        m_UsageMask = updatedMask;
-        ++m_Revision;
-        return true;
-    }
-
-    bool Material::SupportsUsage(const EMaterialUsage usage) const
-    {
-        return (m_UsageMask & GetMaterialUsageMask(usage)) != 0;
     }
 
     bool Material::SetDefaultParameter(const std::string& name, const SMaterialParameter& value)

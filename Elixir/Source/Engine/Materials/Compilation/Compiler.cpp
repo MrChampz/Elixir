@@ -151,13 +151,28 @@ namespace Elixir::Materials::Compilation
         return result;
     }
 
-    std::string Compiler::InjectBody(const std::string& hlsl, const std::string& graphBody)
+    std::string Compiler::InjectBody(
+        const std::string& hlsl,
+        const std::string& graphBody,
+        const EMaterialShadingModel shadingModel
+    )
     {
         std::string out = hlsl;
 
-        constexpr std::string_view marker = "// __GRAPH_BODY__";
-        if (const auto pos = out.find(marker); pos != std::string::npos)
-            out.replace(pos, marker.size(), graphBody);
+        constexpr std::string_view graphMarker = "// __GRAPH_BODY__";
+        if (const auto pos = out.find(graphMarker); pos != std::string::npos)
+            out.replace(pos, graphMarker.size(), graphBody);
+
+        constexpr std::string_view shadingModelMarker = "// __SHADING_MODEL__";
+        if (const auto pos = out.find(shadingModelMarker); pos != std::string::npos)
+        {
+            const auto value = (uint8_t)shadingModel;
+            out.replace(
+                pos,
+                shadingModelMarker.size(),
+                "#define MATERIAL_SHADING_MODEL " + std::to_string(value)
+            );
+        }
 
         return out;
     }
@@ -201,7 +216,11 @@ namespace Elixir::Materials::Compilation
             std::ofstream out(pixelSourcePath, std::ios::binary);
 
             const auto graphHlsl = GenerateGraphHLSL(material.GetGraph(), *result.Material);
-            out << InjectBody(pixelHlsl, graphHlsl);
+            out << InjectBody(
+                pixelHlsl,
+                graphHlsl,
+                material.GetShadingModel()
+            );
         }
 
         const fs::path dxc = FindDXC();

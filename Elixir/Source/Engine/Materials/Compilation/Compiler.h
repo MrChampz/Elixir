@@ -125,8 +125,12 @@ namespace Elixir::Materials::Compilation
         static SCompileResult Compile(const ShaderLoader* loader, const Material& material);
 
     private:
-        /** @brief Replaces the graph-body marker in a shader template. */
-        static std::string InjectBody(const std::string& hlsl, const std::string& graphBody);
+        /** @brief Replaces shader-template markers with generated material code. */
+        static std::string InjectBody(
+            const std::string& hlsl,
+            const std::string& graphBody,
+            EMaterialShadingModel shadingModel = EMaterialShadingModel::Lit
+        );
 
         /** @brief Compiles the surface shader program. */
         static SCompileResult CompileSurface(

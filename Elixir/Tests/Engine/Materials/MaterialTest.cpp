@@ -8,6 +8,19 @@ using namespace Elixir;
 using namespace Elixir::Materials;
 using namespace Elixir::Materials::Nodes;
 
+TEST(MaterialTest, StoresSurfaceShadingModel)
+{
+    Material material("ClearCoated");
+
+    EXPECT_EQ(material.GetShadingModel(), EMaterialShadingModel::Lit);
+
+    const auto revision = material.GetRevision();
+    EXPECT_TRUE(material.SetShadingModel(EMaterialShadingModel::ClearCoat));
+    EXPECT_EQ(material.GetShadingModel(), EMaterialShadingModel::ClearCoat);
+    EXPECT_EQ(material.GetRevision(), revision + 1);
+    EXPECT_FALSE(material.SetShadingModel(EMaterialShadingModel::ClearCoat));
+}
+
 TEST(MaterialTest, StoresTransparencySettings)
 {
     Material material("Transparency");
@@ -15,14 +28,14 @@ TEST(MaterialTest, StoresTransparencySettings)
     EXPECT_EQ(material.GetBlendMode(), EMaterialBlendMode::Opaque);
     EXPECT_FLOAT_EQ(material.GetAlphaCutoff(), 0.5f);
 
-    const auto initialRevision = material.GetRevision();
+    const auto revision = material.GetRevision();
     EXPECT_TRUE(material.SetBlendMode(EMaterialBlendMode::Masked));
     EXPECT_EQ(material.GetBlendMode(), EMaterialBlendMode::Masked);
-    EXPECT_EQ(material.GetRevision(), initialRevision + 1);
+    EXPECT_EQ(material.GetRevision(), revision + 1);
 
     EXPECT_TRUE(material.SetAlphaCutoff(0.35f));
     EXPECT_FLOAT_EQ(material.GetAlphaCutoff(), 0.35f);
-    EXPECT_EQ(material.GetRevision(), initialRevision + 2);
+    EXPECT_EQ(material.GetRevision(), revision + 2);
 }
 
 TEST(MaterialTest, ClampsAlphaCutoff)
