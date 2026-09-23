@@ -250,7 +250,10 @@ namespace Elixir
             const Ref<Texture>& metallicRoughnessTexture,
             const Ref<Texture>& normalTexture,
             const Ref<Texture>& occlusionTexture,
-            const Ref<Texture>& emissiveTexture
+            const Ref<Texture>& emissiveTexture,
+            const Ref<Texture>& clearCoatTexture,
+            const Ref<Texture>& clearCoatRoughnessTexture,
+            const Ref<Texture>& clearCoatNormalTexture
         )
         {
             using namespace Materials;
@@ -263,6 +266,9 @@ namespace Elixir
             const auto material = CreateRef<Material>(name);
             material->SetUsage(EMaterialUsage::Surface, true);
             material->SetBlendMode(GetBlendMode(source.alphaMode));
+
+            if (source.clearcoat)
+                material->SetShadingModel(EMaterialShadingModel::ClearCoat);
 
             if (source.alphaMode == fastgltf::AlphaMode::Mask)
                 material->SetAlphaCutoff(source.alphaCutoff);
@@ -318,6 +324,35 @@ namespace Elixir
                 .DefaultValue = SMaterialParameter::MakeScalar(
                     source.occlusionTexture ? source.occlusionTexture->strength : 1.0f),
             }), "Could not define OcclusionStrength.")
+
+            if (source.clearcoat)
+            {
+                EE_CORE_ASSERT(material->DefineParameter("ClearCoatFactor", {
+                    .Kind = EMaterialParameterKind::Value,
+                    .ValueType = EMaterialValueType::Float,
+                    .DefaultValue = SMaterialParameter::MakeScalar(
+                        source.clearcoat->clearcoatFactor
+                    ),
+                }), "Could not define ClearCoatFactor.")
+
+                EE_CORE_ASSERT(material->DefineParameter("ClearCoatRoughnessFactor", {
+                    .Kind = EMaterialParameterKind::Value,
+                    .ValueType = EMaterialValueType::Float,
+                    .DefaultValue = SMaterialParameter::MakeScalar(
+                        source.clearcoat->clearcoatRoughnessFactor
+                    ),
+                }), "Could not define ClearCoatRoughnessFactor.")
+
+                EE_CORE_ASSERT(material->DefineParameter("ClearCoatNormalScale", {
+                    .Kind = EMaterialParameterKind::Value,
+                    .ValueType = EMaterialValueType::Float,
+                    .DefaultValue = SMaterialParameter::MakeScalar(
+                        source.clearcoat->clearcoatNormalTexture
+                            ? source.clearcoat->clearcoatNormalTexture->scale
+                            : 1.0f
+                    ),
+                }), "Could not define ClearCoatNormalScale.")
+            }
 
             MaterialGraph graph;
 
@@ -425,7 +460,12 @@ namespace Elixir
                 graph.Connect(sample, flatten, 0);
                 graph.Connect(scale, flatten, 1);
 
-                graph.SetChannel(EMaterialChannel::Normal, flatten);
+                graph.SetChannel(
+                    source.clearcoat
+                        ? EMaterialChannel::ClearCoatBottomNormal
+                        : EMaterialChannel::Normal,
+                    flatten
+                );
             }
 
             if (occlusionTexture)
@@ -457,6 +497,92 @@ namespace Elixir
                 graph.SetChannel(EMaterialChannel::AmbientOcclusion, occlusion);
             }
 
+            if (source.clearcoat)
+            {
+                auto clearCoat = graph.AddNode<Parameter>(
+                    "ClearCoatFactor",
+                    EMaterialValueType::Float
+                );
+
+                if (clearCoatTexture)
+                {
+                    EE_CORE_ASSERT(material->DefineParameter("ClearCoatTexture", {
+                        .Kind = EMaterialParameterKind::Texture,
+                        .DefaultValue = SMaterialParameter::MakeTexture(clearCoatTexture),
+                    }), "Could not define ClearCoatTexture.");
+
+                    const auto sample = graph.AddNode<TextureSample>(
+                        "ClearCoatTexture",
+                        ETextureSampleType::LinearColor
+                    );
+                    const auto red = graph.AddNode<ComponentMask>(0);
+                    graph.Connect(sample, red, 0);
+
+                    const auto multiply = graph.AddNode<Multiply>();
+                    graph.Connect(clearCoat, multiply, 0);
+                    graph.Connect(red, multiply, 1);
+                    clearCoat = multiply;
+                }
+
+                auto clearCoatRoughness = graph.AddNode<Parameter>(
+                    "ClearCoatRoughnessFactor",
+                    EMaterialValueType::Float
+                );
+
+                if (clearCoatRoughnessTexture)
+                {
+                    EE_CORE_ASSERT(material->DefineParameter("ClearCoatRoughnessTexture", {
+                        .Kind = EMaterialParameterKind::Texture,
+                        .DefaultValue = SMaterialParameter::MakeTexture(
+                            clearCoatRoughnessTexture
+                        ),
+                    }), "Could not define ClearCoatRoughnessTexture.");
+
+                    const auto sample = graph.AddNode<TextureSample>(
+                        "ClearCoatRoughnessTexture",
+                        ETextureSampleType::LinearColor
+                    );
+                    const auto green = graph.AddNode<ComponentMask>(1);
+                    graph.Connect(sample, green, 0);
+
+                    const auto multiply = graph.AddNode<Multiply>();
+                    graph.Connect(clearCoatRoughness, multiply, 0);
+                    graph.Connect(green, multiply, 1);
+                    clearCoatRoughness = multiply;
+                }
+
+                graph.SetChannel(EMaterialChannel::ClearCoat, clearCoat);
+                graph.SetChannel(EMaterialChannel::ClearCoatRoughness, clearCoatRoughness);
+
+                // In glTF, clearCoatNormalTexture belongs to the external
+                // clear-coat layer.
+                if (clearCoatNormalTexture)
+                {
+                    EE_CORE_ASSERT(material->DefineParameter("ClearCoatNormalTexture", {
+                        .Kind = EMaterialParameterKind::Texture,
+                        .DefaultValue = SMaterialParameter::MakeTexture(
+                            clearCoatNormalTexture
+                        ),
+                    }), "Could not define ClearCoatNormalTexture.");
+
+                    const auto sample = graph.AddNode<TextureSample>(
+                        "ClearCoatNormalTexture",
+                        ETextureSampleType::Normal
+                    );
+
+                    const auto scale = graph.AddNode<Parameter>(
+                        "ClearCoatNormalScale",
+                        EMaterialValueType::Float
+                    );
+
+                    const auto flatten = graph.AddNode<FlattenNormal>();
+                    graph.Connect(sample, flatten, 0);
+                    graph.Connect(scale, flatten, 1);
+
+                    graph.SetChannel(EMaterialChannel::Normal, flatten);
+                }
+            }
+
             material->SetGraph(std::move(graph));
             return material;
         }
@@ -482,6 +608,9 @@ namespace Elixir
                 Ref<Texture> normalTexture;
                 Ref<Texture> occlusionTexture;
                 Ref<Texture> emissiveTexture;
+                Ref<Texture> clearCoatTexture;
+                Ref<Texture> clearCoatRoughnessTexture;
+                Ref<Texture> clearCoatNormalTexture;
 
                 if (source.pbrData.baseColorTexture)
                 {
@@ -543,6 +672,45 @@ namespace Elixir
                     );
                 }
 
+                if (source.clearcoat)
+                {
+                    if (source.clearcoat->clearcoatTexture)
+                    {
+                        clearCoatTexture = LoadTexture(
+                            context,
+                            asset,
+                            source.clearcoat->clearcoatTexture->textureIndex,
+                            sourceDirectory,
+                            EImageFormat::R8G8B8A8_UNORM,
+                            textureCache
+                        );
+                    }
+
+                    if (source.clearcoat->clearcoatRoughnessTexture)
+                    {
+                        clearCoatRoughnessTexture = LoadTexture(
+                            context,
+                            asset,
+                            source.clearcoat->clearcoatRoughnessTexture->textureIndex,
+                            sourceDirectory,
+                            EImageFormat::R8G8B8A8_UNORM,
+                            textureCache
+                        );
+                    }
+
+                    if (source.clearcoat->clearcoatNormalTexture)
+                    {
+                        clearCoatNormalTexture = LoadTexture(
+                            context,
+                            asset,
+                            source.clearcoat->clearcoatNormalTexture->textureIndex,
+                            sourceDirectory,
+                            EImageFormat::R8G8B8A8_UNORM,
+                            textureCache
+                        );
+                    }
+                }
+
                 mesh.Materials.push_back(CreateSurfaceMaterial(
                     source,
                     i,
@@ -551,7 +719,10 @@ namespace Elixir
                     metallicRoughnessTexture,
                     normalTexture,
                     occlusionTexture,
-                    emissiveTexture
+                    emissiveTexture,
+                    clearCoatTexture,
+                    clearCoatRoughnessTexture,
+                    clearCoatNormalTexture
                 ));
             }
         }
@@ -763,7 +934,9 @@ namespace Elixir
             return std::nullopt;
         }
 
-        fastgltf::Parser parser;
+        fastgltf::Parser parser{
+            fastgltf::Extensions::KHR_materials_clearcoat
+        };
 
         auto loadResult = parser.loadGltf(
             data.get(),
