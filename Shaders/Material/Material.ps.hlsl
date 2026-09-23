@@ -124,6 +124,15 @@ float3 SampleIrradiance(float3 dir)
     ).rgb * EnvIntensity;
 }
 
+float3 SampleEnvironment(float3 dir)
+{
+    return environmentTexture.SampleLevel(
+        environmentSampler,
+        DirToEquirect(dir),
+        0
+    ).rgb * EnvIntensity;
+}
+
 float3 SamplePrefilteredLevel(float3 dir, uint level)
 {
     uint width = 0;
@@ -148,17 +157,21 @@ float3 SamplePrefilteredLevel(float3 dir, uint level)
     ).rgb * EnvIntensity;
 }
 
-float3 SampleEnv(float3 dir, float roughness)
+float3 SampleSpecular(float3 dir, float roughness)
 {
-    const float prefilterLevel = saturate(roughness) * EnvMaxLod;
+    const float3 env = SampleEnvironment(dir);
+
+    const float r = saturate(roughness);
+    const float prefilterLevel = r * EnvMaxLod;
     const uint lowerLevel = uint(floor(prefilterLevel));
     const uint upperLevel = min(lowerLevel + 1u, uint(EnvMaxLod));
-    const float levelBlend = frac(prefilterLevel);
+    const float blend = frac(prefilterLevel);
 
     const float3 lower = SamplePrefilteredLevel(dir, lowerLevel);
     const float3 upper = SamplePrefilteredLevel(dir, upperLevel);
-    
-    return lerp(lower, upper, levelBlend);
+    const float3 prefiltered = lerp(lower, upper, blend);
+
+    return lerp(env, prefiltered, r);
 }
 
 float DistributionGGX(float NdotH, float roughness)
@@ -276,6 +289,13 @@ float4 main(PSInput input) : SV_Target0
     N = normalize(mul(tangentNormal, tangentBasis));
 #endif
 
+    const float3 normalDerivativeX = ddx(N);
+    const float3 normalDerivativeY = ddy(N);
+    const float normalVariance = sqrt(dot(normalDerivativeX, normalDerivativeX) +
+        dot(normalDerivativeY, normalDerivativeY));
+
+    roughness = saturate(roughness + min(normalVariance * 0.7f, 0.4f));
+
     float3 R = reflect(-V, N);
     float3 L = normalize(LightDirection.xyz);
     float NdotV = saturate(dot(N, V)) + 1e-4f;
@@ -289,7 +309,7 @@ float4 main(PSInput input) : SV_Target0
     const float3 diffuseWeightIBL = (1.0f - fresnelIBL) * (1.0f - surface.Metallic);
     const float3 diffuseIBL = SampleIrradiance(N) * surface.BaseColor;
     const float2 environmentBRDF = EnvBRDFApprox(roughness, NdotV);
-    const float3 specularIBL = SampleEnv(R, roughness) * (F0 * environmentBRDF.x + environmentBRDF.y);
+    const float3 specularIBL = SampleSpecular(R, roughness) * (F0 * environmentBRDF.x + environmentBRDF.y);
 
     float3 color = (diffuseWeightIBL * diffuseIBL + specularIBL) * ao + surface.Emissive;
 
@@ -324,7 +344,7 @@ float4 main(PSInput input) : SV_Target0
         const float3 coatF0 = 0.04f.xxx;
         const float coatFresnel = clearCoat * FresnelSchlick(coatNdotV, coatF0).x;
         const float2 coatEnvBRDF = EnvBRDFApprox(coatRoughness, coatNdotV);
-        const float3 coatReflection = SampleEnv(reflect(-V, coatNormal), coatRoughness) *
+        const float3 coatReflection = SampleSpecular(reflect(-V, coatNormal), coatRoughness) *
             (coatF0 * coatEnvBRDF.x + coatEnvBRDF.y);
 
         color = color * (1.0f - coatFresnel) + coatReflection * clearCoat;
