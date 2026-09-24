@@ -11,7 +11,7 @@ namespace Elixir
 {
     namespace
     {
-        struct SSurfaceFrameData
+        struct alignas(16) SSurfaceFrameData
         {
             glm::mat4 View{ 1.0f };
             glm::mat4 Proj{ 1.0f };
@@ -21,8 +21,10 @@ namespace Elixir
             float EnvIntensity = 0.0f;
             float EnvMaxLod = 0.0f;
             uint32_t SceneColorIndex = UINT32_MAX;
+            uint32_t DebugView = 0;
             float ScreenWidth = 1.0f;
             float ScreenHeight = 1.0f;
+            glm::vec2 Padding{};
             glm::vec4 LightDirection{};
             glm::vec4 LightColor{};
         };
@@ -66,6 +68,7 @@ namespace Elixir
             .CameraPos = camera.GetPosition(),
             .EnvIntensity = lighting.Environment.Intensity,
             .EnvMaxLod = lighting.Environment.MaxLod,
+            .DebugView = (uint32_t)lighting.DebugView,
             .ScreenWidth = (float)extent.Width,
             .ScreenHeight = (float)extent.Height,
             .LightDirection = glm::vec4(lightDirection, 0.0f),

@@ -112,7 +112,7 @@ namespace Elixir
 
             std::visit(
                 fastgltf::visitor{
-                    [](auto&) {},
+                    [](const auto&) {},
                     [&](const fastgltf::sources::URI& source)
                     {
                         const auto path = sourceDirectory / source.uri.fspath();
@@ -139,7 +139,7 @@ namespace Elixir
                             format
                         );
                     },
-                    [&](fastgltf::sources::BufferView& viewSource)
+                    [&](const fastgltf::sources::BufferView& viewSource)
                     {
                         if (viewSource.bufferViewIndex >= asset.bufferViews.size())
                         {
@@ -157,7 +157,7 @@ namespace Elixir
                         auto& buffer = asset.buffers[view.bufferIndex];
                         std::visit(
                             fastgltf::visitor{
-                                [](auto&) {},
+                                [](const auto&) {},
                                 [&](const fastgltf::sources::Array& source)
                                 {
                                     texture = DecodeImage(

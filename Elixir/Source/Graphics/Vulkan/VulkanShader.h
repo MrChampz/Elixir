@@ -82,10 +82,9 @@ namespace Elixir::Vulkan
             DescriptorValue
         >;
 
-        bool m_BindlessSet = false;
-
         DescriptorSetState m_DescriptorSets;
         std::vector<VkDescriptorSetLayout> m_DescriptorSetLayouts;
+        std::optional<uint32_t> m_BindlessSetIndex;
 
         VkPipelineLayout m_PipelineLayout;
 

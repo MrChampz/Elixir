@@ -228,10 +228,10 @@ namespace Elixir::Vulkan
     std::vector<VkDescriptorSet> VulkanShader::GetDescriptorSets() const
     {
         std::vector sets(m_DescriptorSets.GetCurrent());
-        if (m_BindlessSet)
+        if (m_BindlessSetIndex)
         {
             const auto bindlessPool = m_GraphicsContext->GetBindlessDescriptorPool();
-            sets.push_back(bindlessPool->GetDescriptorSet());
+            sets[*m_BindlessSetIndex] = bindlessPool->GetDescriptorSet();
         }
 
         return std::move(sets);
@@ -289,7 +289,13 @@ namespace Elixir::Vulkan
         {
             if (resource.IsBindless())
             {
-                m_BindlessSet = true;
+                const auto set = resource.GetSet();
+                EE_CORE_ASSERT(
+                    !m_BindlessSetIndex || *m_BindlessSetIndex == set,
+                    "A shader can use bindless resources from only one descriptor set."
+                )
+                m_BindlessSetIndex = set;
+                sets.try_emplace(set);
                 continue;
             }
 
@@ -371,11 +377,11 @@ namespace Elixir::Vulkan
         std::vector layouts(m_DescriptorSetLayouts);
         const std::vector ranges = GetPushConstantRanges();
 
-        if (m_BindlessSet)
+        if (m_BindlessSetIndex)
         {
             const auto bindlessPool = m_GraphicsContext->GetBindlessDescriptorPool();
             const auto bindlessLayout = bindlessPool->GetDescriptorSetLayout();
-            layouts.push_back(bindlessLayout);
+            layouts[*m_BindlessSetIndex] = bindlessLayout;
         }
 
         VkPipelineLayoutCreateInfo info = {};

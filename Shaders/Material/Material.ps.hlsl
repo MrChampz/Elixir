@@ -21,6 +21,7 @@ cbuffer cbFrame : register(b0)
     float EnvIntensity;
     float EnvMaxLod;
     uint SceneColorIndex;
+    uint DebugView;
     float ScreenWidth;
     float ScreenHeight;
     float4 LightDirection;
@@ -93,6 +94,14 @@ struct Surface
 };
 
 static const uint NO_TEXTURE = 0xFFFFFFFFu;
+static const uint PREFILTER_LEVEL_COUNT = 6u;
+static const uint SURFACE_DEBUG_COMPOSITE = 0u;
+static const uint SURFACE_DEBUG_BASE_COLOR = 1u;
+static const uint SURFACE_DEBUG_DIFFUSE_IBL = 2u;
+static const uint SURFACE_DEBUG_SPECULAR_IBL = 3u;
+static const uint SURFACE_DEBUG_DIRECT_DIFFUSE = 4u;
+static const uint SURFACE_DEBUG_DIRECT_SPECULAR = 5u;
+static const uint SURFACE_DEBUG_CLEAR_COAT = 6u;
 
 float4 SampleTex(uint index, float2 uv)
 {
@@ -124,13 +133,17 @@ float3 SampleIrradiance(float3 dir)
     ).rgb * EnvIntensity;
 }
 
-float3 SampleEnvironment(float3 dir)
+float3 SampleEnvironment(float3 dir, float lod)
 {
-    return environmentTexture.SampleLevel(
+    float3 color = environmentTexture.SampleLevel(
         environmentSampler,
         DirToEquirect(dir),
-        0
-    ).rgb * EnvIntensity;
+        lod
+    ).rgb;
+
+    // Limit extreme HDR texels before they are scattered by a glossy BRDF.
+    // This prevents isolated light sources from becoming fireflies.
+    return min(color, 3.0f) * EnvIntensity;
 }
 
 float3 SamplePrefilteredLevel(float3 dir, uint level)
@@ -159,9 +172,11 @@ float3 SamplePrefilteredLevel(float3 dir, uint level)
 
 float3 SampleSpecular(float3 dir, float roughness)
 {
-    const float3 env = SampleEnvironment(dir);
-
     const float r = saturate(roughness);
+    const float3 env = SampleEnvironment(dir, r * EnvMaxLod);
+    if (r < 0.12f)
+        return env;
+
     const float prefilterLevel = r * EnvMaxLod;
     const uint lowerLevel = uint(floor(prefilterLevel));
     const uint upperLevel = min(lowerLevel + 1u, uint(EnvMaxLod));
@@ -171,7 +186,7 @@ float3 SampleSpecular(float3 dir, float roughness)
     const float3 upper = SamplePrefilteredLevel(dir, upperLevel);
     const float3 prefiltered = lerp(lower, upper, blend);
 
-    return lerp(env, prefiltered, r);
+    return lerp(env, prefiltered, smoothstep(0.12f, 0.35f, r));
 }
 
 float DistributionGGX(float NdotH, float roughness)
@@ -289,13 +304,6 @@ float4 main(PSInput input) : SV_Target0
     N = normalize(mul(tangentNormal, tangentBasis));
 #endif
 
-    const float3 normalDerivativeX = ddx(N);
-    const float3 normalDerivativeY = ddy(N);
-    const float normalVariance = sqrt(dot(normalDerivativeX, normalDerivativeX) +
-        dot(normalDerivativeY, normalDerivativeY));
-
-    roughness = saturate(roughness + min(normalVariance * 0.7f, 0.4f));
-
     float3 R = reflect(-V, N);
     float3 L = normalize(LightDirection.xyz);
     float NdotV = saturate(dot(N, V)) + 1e-4f;
@@ -311,7 +319,12 @@ float4 main(PSInput input) : SV_Target0
     const float2 environmentBRDF = EnvBRDFApprox(roughness, NdotV);
     const float3 specularIBL = SampleSpecular(R, roughness) * (F0 * environmentBRDF.x + environmentBRDF.y);
 
-    float3 color = (diffuseWeightIBL * diffuseIBL + specularIBL) * ao + surface.Emissive;
+    const float3 diffuseIBLContribution = diffuseWeightIBL * diffuseIBL * ao;
+    const float3 specularIBLContribution = specularIBL * ao;
+    float3 directDiffuseContribution = 0.0f.xxx;
+    float3 directSpecularContribution = 0.0f.xxx;
+    float3 clearCoatContribution = 0.0f.xxx;
+    float3 color = diffuseIBLContribution + specularIBLContribution + surface.Emissive;
 
     // Cook-Torrance microfacet BRDF for the directional light.
     if (NdotL > 0.0f)
@@ -329,8 +342,10 @@ float4 main(PSInput input) : SV_Target0
         const float3 diffuseWeightDirect = (1.0f - fresnelDirect) * (1.0f - surface.Metallic);
         const float3 radiance = LightColor.rgb * LightColor.a;
 
-        color += (diffuseWeightDirect * surface.BaseColor / 3.14159265359f + specularDirect) *
-            radiance * NdotL * ao;
+        directDiffuseContribution = diffuseWeightDirect * surface.BaseColor /
+            3.14159265359f * radiance * NdotL * ao;
+        directSpecularContribution = specularDirect * radiance * NdotL * ao;
+        color += directDiffuseContribution + directSpecularContribution;
     }
 
 #if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_CLEAR_COAT
@@ -347,7 +362,8 @@ float4 main(PSInput input) : SV_Target0
         const float3 coatReflection = SampleSpecular(reflect(-V, coatNormal), coatRoughness) *
             (coatF0 * coatEnvBRDF.x + coatEnvBRDF.y);
 
-        color = color * (1.0f - coatFresnel) + coatReflection * clearCoat;
+        clearCoatContribution = coatReflection * clearCoat;
+        color = color * (1.0f - coatFresnel) + clearCoatContribution;
 
         if (coatNdotL > 0.0f)
         {
@@ -361,10 +377,26 @@ float4 main(PSInput input) : SV_Target0
             const float coatSpecular = coatDistribution * coatGeometry * coatFresnelDirect /
                 max(4.0f * coatNdotV * coatNdotL, 1e-4f);
 
-            color += coatSpecular * LightColor.rgb * LightColor.a * coatNdotL;
+            const float3 coatDirectContribution = coatSpecular * LightColor.rgb *
+                LightColor.a * coatNdotL;
+            clearCoatContribution += coatDirectContribution;
+            color += coatDirectContribution;
         }
     }
 #endif
+
+    if (DebugView == SURFACE_DEBUG_BASE_COLOR)
+        color = surface.BaseColor;
+    else if (DebugView == SURFACE_DEBUG_DIFFUSE_IBL)
+        color = diffuseIBLContribution;
+    else if (DebugView == SURFACE_DEBUG_SPECULAR_IBL)
+        color = specularIBLContribution;
+    else if (DebugView == SURFACE_DEBUG_DIRECT_DIFFUSE)
+        color = directDiffuseContribution;
+    else if (DebugView == SURFACE_DEBUG_DIRECT_SPECULAR)
+        color = directSpecularContribution;
+    else if (DebugView == SURFACE_DEBUG_CLEAR_COAT)
+        color = clearCoatContribution;
 
     // Tone mapping
     color = ACESFilm(color);

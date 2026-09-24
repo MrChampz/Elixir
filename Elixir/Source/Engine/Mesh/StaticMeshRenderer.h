@@ -42,6 +42,31 @@ namespace Elixir
         float MaxLod = 0.0f;
     };
 
+    /** @brief Selects the Surface lighting contribution shown by the renderer. */
+    enum class ESurfaceDebugView : uint32_t
+    {
+        /** Render the fully lit material. */
+        Composite,
+
+        /** Render the material base color before lighting. */
+        BaseColor,
+
+        /** Render the diffuse contribution from image-based lighting. */
+        DiffuseIBL,
+
+        /** Render the specular contribution from image-based lighting. */
+        SpecularIBL,
+
+        /** Render the diffuse contribution from the directional light. */
+        DirectDiffuse,
+
+        /** Render the specular contribution from the directional light. */
+        DirectSpecular,
+
+        /** Render the clear-coat reflection and direct-light contribution. */
+        ClearCoat,
+    };
+
     /** @brief Stores frame lighting used by static mesh Surface materials. */
     struct SStaticMeshLighting
     {
@@ -56,6 +81,9 @@ namespace Elixir
 
         /** Intensity multiplier of the directional light. */
         float DirectionalLightIntensity = 2.2f;
+
+        /** Surface lighting contribution to display for diagnostics. */
+        ESurfaceDebugView DebugView = ESurfaceDebugView::Composite;
     };
 
     /**

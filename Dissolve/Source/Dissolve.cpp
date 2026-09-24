@@ -58,9 +58,15 @@ Dissolve::Dissolve()
             .Irradiance = m_Environment->GetIrradiance(),
             .Prefiltered = m_Environment->GetPrefiltered(),
             .Sampler = m_Environment->GetSampler(),
-            .Intensity = 1.0f,
-            .MaxLod = m_Environment->GetMaxLod(),
+            .Intensity = 1.5f,
+            .MaxLod = Environment::GetMaxLod(),
         },
+        .DirectionalLightDirection = glm::normalize(
+            glm::vec3{ -0.5f, 0.65f, -0.55f }
+        ),
+        .DirectionalLightColor = { 1.0f, 0.96f, 0.9f },
+        .DirectionalLightIntensity = 2.2f,
+        .DebugView = ESurfaceDebugView::Composite,
     };
 
     m_ParticleSystems[0] = GetAetherManager().LoadEffect("./Assets/VFX/FireAndFireworks.json");
@@ -236,8 +242,8 @@ void Dissolve::Render(const Timestep frameTime)
     Application::Render(frameTime);
 
     m_CameraController->Update(frameTime);
-    auto& aether = GetAetherManager();
-    aether.BeginFrame(frameTime);
+    //auto& aether = GetAetherManager();
+    //aether.BeginFrame(frameTime);
 
     m_GraphicsContext->Clear();
 
@@ -245,7 +251,7 @@ void Dissolve::Render(const Timestep frameTime)
     DrawGeometry();
     m_StaticMeshRenderer->EndFrame();
 
-    aether.Render(m_CameraController->GetCamera());
+    //aether.Render(m_CameraController->GetCamera());
 }
 
 void Dissolve::OnEvent(Event& event)

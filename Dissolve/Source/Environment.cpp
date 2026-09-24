@@ -184,8 +184,8 @@ namespace
     }
 }
 
-Elixir::Scope<Environment> Environment::Load(
-    const Elixir::GraphicsContext& context,
+Scope<Environment> Environment::Load(
+    const GraphicsContext& context,
     const std::filesystem::path& path
 )
 {
@@ -199,11 +199,11 @@ Elixir::Scope<Environment> Environment::Load(
         return nullptr;
     }
 
-    auto environment = Elixir::Scope<Environment>(new Environment());
+    auto environment = Scope<Environment>(new Environment());
     const auto* graphicsContext = &context;
-    environment->m_Environment = Elixir::Texture2D::Create(
+    environment->m_Environment = Texture2D::Create(
         graphicsContext,
-        Elixir::EImageFormat::R32G32B32A32_SFLOAT,
+        EImageFormat::R32G32B32A32_SFLOAT,
         static_cast<uint32_t>(width),
         static_cast<uint32_t>(height),
         pixels,
@@ -211,30 +211,31 @@ Elixir::Scope<Environment> Environment::Load(
     );
 
     const auto irradiance = BakeIrradiance(pixels, width, height);
-    environment->m_Irradiance = Elixir::Texture2D::Create(
+    environment->m_Irradiance = Texture2D::Create(
         graphicsContext,
-        Elixir::EImageFormat::R32G32B32A32_SFLOAT,
+        EImageFormat::R32G32B32A32_SFLOAT,
         IrradianceWidth,
         IrradianceHeight,
         irradiance.data()
     );
 
     const auto prefiltered = BakePrefiltered(pixels, width, height);
-    environment->m_Prefiltered = Elixir::Texture2D::Create(
+    environment->m_Prefiltered = Texture2D::Create(
         graphicsContext,
-        Elixir::EImageFormat::R32G32B32A32_SFLOAT,
+        EImageFormat::R32G32B32A32_SFLOAT,
         PrefilterWidth,
         PrefilterHeight * PrefilterLevels,
         prefiltered.data()
     );
     stbi_image_free(pixels);
 
-    environment->m_Sampler = Elixir::SamplerBuilder()
-        .SetMagFilter(Elixir::ESamplerFilter::Linear)
-        .SetMinFilter(Elixir::ESamplerFilter::Linear)
-        .SetAddressModeU(Elixir::ESamplerAddressMode::Repeat)
-        .SetAddressModeV(Elixir::ESamplerAddressMode::ClampToEdge)
-        .SetAddressModeW(Elixir::ESamplerAddressMode::ClampToEdge)
+    environment->m_Sampler = SamplerBuilder()
+        .SetMagFilter(ESamplerFilter::Linear)
+        .SetMinFilter(ESamplerFilter::Linear)
+        .SetMaxLod(GetMaxLod())
+        .SetAddressModeU(ESamplerAddressMode::Repeat)
+        .SetAddressModeV(ESamplerAddressMode::ClampToEdge)
+        .SetAddressModeW(ESamplerAddressMode::ClampToEdge)
         .Build(graphicsContext);
 
     EE_CORE_INFO("Loaded HDR environment '{0}' ({1}x{2}).", path.filename().string(), width, height)
