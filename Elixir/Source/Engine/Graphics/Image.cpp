@@ -10,23 +10,26 @@ namespace Elixir
 {
     using namespace Elixir::Graphics;
 
-    uint32_t CalculateBitsPerPixel(const Image* image)
+    namespace
     {
-        EE_PROFILE_ZONE_SCOPED()
+        uint32_t CalculateBitsPerPixel(const Image* image)
+        {
+            EE_PROFILE_ZONE_SCOPED()
 
-        const auto blockSize = Utils::GetFormatBlockSizeBits(image);
-        const auto blockExtent = Utils::GetFormatBlockExtent(image);
-        const uint32_t texels = blockExtent.x * blockExtent.y * blockExtent.z;
+            const auto blockSize = Utils::GetFormatBlockSizeBits(image);
+            const auto blockExtent = Utils::GetFormatBlockExtent(image);
+            const uint32_t texels = blockExtent.x * blockExtent.y * blockExtent.z;
 
-        return blockSize / texels;
-    }
+            return blockSize / texels;
+        }
 
-    size_t CalculateSize(const Image* image)
-    {
-        EE_PROFILE_ZONE_SCOPED()
+        size_t CalculateSize(const Image* image)
+        {
+            EE_PROFILE_ZONE_SCOPED()
 
-        const auto extent = image->GetExtent();
-        return extent.Width * extent.Height * extent.Depth * image->GetBytesPerPixel();
+            const auto extent = image->GetExtent();
+            return extent.Width * extent.Height * extent.Depth * image->GetBytesPerPixel();
+        }
     }
 
     /* Image */
@@ -175,6 +178,20 @@ namespace Elixir
         };
     }
 
+    uint32_t Image::GetFullMipLevelCount(const Extent3D& extent)
+    {
+        uint32_t largestDimension = std::max({ extent.Width, extent.Height, extent.Depth });
+        uint32_t levelCount = 1;
+
+        while (largestDimension > 1)
+        {
+            largestDimension >>= 1;
+            ++levelCount;
+        }
+
+        return levelCount;
+    }
+
     Image::Image(const GraphicsContext* context, const SImageCreateInfo& info)
         : m_GraphicsContext(context)
     {
@@ -230,7 +247,7 @@ namespace Elixir
     )
     {
         const auto imageFormat = Converters::GetImageFormat(format);
-        const auto usage = EImageUsage::Sampled | EImageUsage::DepthStencilAttachment;
+        constexpr auto usage = EImageUsage::Sampled | EImageUsage::DepthStencilAttachment;
         return {
             .Width = width,
             .Height = height,

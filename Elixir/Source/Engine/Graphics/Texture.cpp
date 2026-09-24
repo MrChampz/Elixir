@@ -55,7 +55,9 @@ namespace Elixir
             .Width = info.Width,
             .Type = EImageType::_1D,
             .Format = info.Format,
-            .MipLevels = info.MipLevels,
+            .MipLevels = info.GenerateMipmaps
+                ? GetFullMipLevelCount({ info.Width, 1, 1 })
+                : info.MipLevels,
             .Usage = usage,
             .InitialLayout = EImageLayout::ShaderReadOnly,
             .AllocationInfo = {
@@ -154,7 +156,9 @@ namespace Elixir
             .Height = info.Height,
             .Type = EImageType::_2D,
             .Format = info.Format,
-            .MipLevels = info.MipLevels,
+            .MipLevels = info.GenerateMipmaps
+                ? GetFullMipLevelCount({ info.Width, info.Height, 1 })
+                : info.MipLevels,
             .Usage = usage,
             .InitialLayout = EImageLayout::ShaderReadOnly,
             .AllocationInfo = {
@@ -256,7 +260,9 @@ namespace Elixir
             .Depth = info.Depth,
             .Type = EImageType::_3D,
             .Format = info.Format,
-            .MipLevels = info.MipLevels,
+            .MipLevels = info.GenerateMipmaps
+                ? GetFullMipLevelCount({ info.Width, info.Height, info.Depth })
+                : info.MipLevels,
             .Usage = usage,
             .InitialLayout = EImageLayout::ShaderReadOnly,
             .AllocationInfo = {

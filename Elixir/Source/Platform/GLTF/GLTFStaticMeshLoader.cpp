@@ -51,20 +51,6 @@ namespace Elixir
             target.Max = glm::max(target.Max, source.Max);
         }
 
-        uint32_t GetFullMipLevelCount(const uint32_t width, const uint32_t height)
-        {
-            uint32_t largestDimension = std::max(width, height);
-            uint32_t levelCount = 1;
-
-            while (largestDimension > 1)
-            {
-                largestDimension >>= 1;
-                ++levelCount;
-            }
-
-            return levelCount;
-        }
-
         Ref<Texture> DecodeImage(
             const GraphicsContext& context,
             const std::byte* bytes,
@@ -98,9 +84,6 @@ namespace Elixir
             createInfo.InitialData = pixels;
             createInfo.Width = width;
             createInfo.Height = height;
-
-            if (createInfo.GenerateMipmaps)
-                createInfo.MipLevels = GetFullMipLevelCount(width, height);
 
             const auto texture = Texture2D::Create(&context, createInfo);
 

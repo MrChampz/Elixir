@@ -11,20 +11,6 @@ namespace Elixir
 
     namespace
     {
-        uint32_t GetFullMipLevelCount(const uint32_t width, const uint32_t height)
-        {
-            uint32_t largestDimension = std::max(width, height);
-            uint32_t levelCount = 1;
-
-            while (largestDimension > 1)
-            {
-                largestDimension >>= 1;
-                ++levelCount;
-            }
-
-            return levelCount;
-        }
-
         void TraceTextureInfo(
             const std::string& path,
             bool isHdr,
@@ -102,9 +88,6 @@ namespace Elixir
         createInfo.Width = width;
         createInfo.Height = height;
         createInfo.Path = pathStr;
-
-        if (createInfo.GenerateMipmaps)
-            createInfo.MipLevels = GetFullMipLevelCount(width, height);
 
         TraceTextureInfo(pathStr, isHdr, createInfo.Format, channels);
 

@@ -29,7 +29,7 @@ TEST(ImageTest, Texture2DCreateInfoBuildsAMipmapChain)
     textureInfo.Format = EImageFormat::R8G8B8A8_UNORM;
     textureInfo.Width = 8;
     textureInfo.Height = 4;
-    textureInfo.MipLevels = 4;
+    textureInfo.MipLevels = 1;
     textureInfo.GenerateMipmaps = true;
 
     const auto imageInfo = Texture2D::CreateImageInfo(textureInfo);
@@ -40,4 +40,11 @@ TEST(ImageTest, Texture2DCreateInfoBuildsAMipmapChain)
         imageInfo.Usage,
         EImageUsage::Sampled | EImageUsage::TransferSrc | EImageUsage::TransferDst
     );
+}
+
+TEST(ImageTest, GetFullMipLevelCountUsesTheLargestDimension)
+{
+    EXPECT_EQ(Image::GetFullMipLevelCount({ 8, 4, 1 }), 4u);
+    EXPECT_EQ(Image::GetFullMipLevelCount({ 1, 1, 1 }), 1u);
+    EXPECT_EQ(Image::GetFullMipLevelCount({ 2, 8, 16 }), 5u);
 }

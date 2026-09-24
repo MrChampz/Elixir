@@ -320,6 +320,9 @@ namespace Elixir
             const void* data = nullptr
         );
 
+        /** Returns the number of mip levels from a base image extent. */
+        static uint32_t GetFullMipLevelCount(const Extent3D& extent);
+
       protected:
         Image(const GraphicsContext* context, const SImageCreateInfo& info);
         Image(const Image&) = delete;

@@ -71,8 +71,10 @@ namespace Elixir::Vulkan
 
         void CreateImage(const SImageCreateInfo& info);
         void InitImage(const SImageCreateInfo& info);
+
         /** Generates the missing mip levels after the base level upload. */
         void GenerateMipmaps(const CommandBuffer* cmd, EImageLayout finalLayout);
+
         void CreateImageView();
         void CreateDescriptorInfo();
         void UpdateSampler() override;
