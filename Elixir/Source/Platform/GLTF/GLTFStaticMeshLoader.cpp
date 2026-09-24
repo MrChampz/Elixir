@@ -51,11 +51,25 @@ namespace Elixir
             target.Max = glm::max(target.Max, source.Max);
         }
 
+        uint32_t GetFullMipLevelCount(const uint32_t width, const uint32_t height)
+        {
+            uint32_t largestDimension = std::max(width, height);
+            uint32_t levelCount = 1;
+
+            while (largestDimension > 1)
+            {
+                largestDimension >>= 1;
+                ++levelCount;
+            }
+
+            return levelCount;
+        }
+
         Ref<Texture> DecodeImage(
             const GraphicsContext& context,
             const std::byte* bytes,
             const size_t size,
-            const EImageFormat format
+            const STexture2DCreateInfo& info
         )
         {
             int width = 0;
@@ -80,13 +94,15 @@ namespace Elixir
                 return nullptr;
             }
 
-            const auto texture = Texture2D::Create(
-                &context,
-                format,
-                (uint32_t)width,
-                (uint32_t)height,
-                pixels
-            );
+            auto createInfo = info;
+            createInfo.InitialData = pixels;
+            createInfo.Width = width;
+            createInfo.Height = height;
+
+            if (createInfo.GenerateMipmaps)
+                createInfo.MipLevels = GetFullMipLevelCount(width, height);
+
+            const auto texture = Texture2D::Create(&context, createInfo);
 
             stbi_image_free(pixels);
 
@@ -97,8 +113,8 @@ namespace Elixir
             const GraphicsContext& context,
             fastgltf::Asset& asset,
             const size_t imageIndex,
-            const std::filesystem::path& sourceDirectory,
-            const EImageFormat format
+            const std::filesystem::path& dir,
+            const STexture2DCreateInfo& info
         )
         {
             if (imageIndex >= asset.images.size())
@@ -115,11 +131,8 @@ namespace Elixir
                     [](const auto&) {},
                     [&](const fastgltf::sources::URI& source)
                     {
-                        const auto path = sourceDirectory / source.uri.fspath();
-                        texture = TextureLoader::Load(
-                            path,
-                            format
-                        );
+                        const auto path = dir / source.uri.fspath();
+                        texture = TextureLoader::Load(path, info);
                     },
                     [&](const fastgltf::sources::Array& source)
                     {
@@ -127,7 +140,7 @@ namespace Elixir
                             context,
                             source.bytes.data(),
                             source.bytes.size(),
-                            format
+                            info
                         );
                     },
                     [&](const fastgltf::sources::Vector& source)
@@ -136,7 +149,7 @@ namespace Elixir
                             context,
                             source.bytes.data(),
                             source.bytes.size(),
-                            format
+                            info
                         );
                     },
                     [&](const fastgltf::sources::BufferView& viewSource)
@@ -164,7 +177,7 @@ namespace Elixir
                                         context,
                                         source.bytes.data() + view.byteOffset,
                                         view.byteLength,
-                                        format
+                                        info
                                     );
                                 },
                                 [&](const fastgltf::sources::Vector& source)
@@ -173,7 +186,7 @@ namespace Elixir
                                         context,
                                         source.bytes.data() + view.byteOffset,
                                         view.byteLength,
-                                        format
+                                        info
                                     );
                                 }
                             },
@@ -191,14 +204,15 @@ namespace Elixir
             const GraphicsContext& context,
             fastgltf::Asset& asset,
             const size_t textureIndex,
-            const std::filesystem::path& sourceDirectory,
-            const EImageFormat format,
+            const std::filesystem::path& dir,
+            const STexture2DCreateInfo& info,
             std::unordered_map<uint64_t, Ref<Texture>>& cache
         )
         {
             const uint64_t cacheKey =
-                (uint64_t(textureIndex) << 1) |
-                (format == EImageFormat::R8G8B8A8_SRGB ? 1ull : 0ull);
+                (uint64_t(textureIndex) << 2) |
+                (info.Format == EImageFormat::R8G8B8A8_SRGB ? 1ull : 0ull) |
+                (info.GenerateMipmaps ? 2ull : 0ull);
 
             const auto existing = cache.find(cacheKey);
             if (existing != cache.end())
@@ -223,8 +237,8 @@ namespace Elixir
                 context,
                 asset,
                 *texture.imageIndex,
-                sourceDirectory,
-                format
+                dir,
+                info
             );
             cache.emplace(cacheKey, result);
 
@@ -847,7 +861,7 @@ namespace Elixir
             SStaticMeshData& mesh,
             const GraphicsContext& context,
             fastgltf::Asset& asset,
-            const std::filesystem::path& sourceDirectory
+            const std::filesystem::path& dir
         )
         {
             // Index zero is the fallback for primitives without a glTF material.
@@ -872,60 +886,71 @@ namespace Elixir
 
                 if (source.pbrData.baseColorTexture)
                 {
+                    STexture2DCreateInfo info;
+                    info.Format = EImageFormat::R8G8B8A8_SRGB;
                     baseColorTexture = LoadTexture(
                         context,
                         asset,
                         source.pbrData.baseColorTexture->textureIndex,
-                        sourceDirectory,
-                        EImageFormat::R8G8B8A8_SRGB,
+                        dir,
+                        info,
                         textureCache
                     );
                 }
 
                 if (source.pbrData.metallicRoughnessTexture)
                 {
+                    STexture2DCreateInfo info;
+                    info.Format = EImageFormat::R8G8B8A8_UNORM;
                     metallicRoughnessTexture = LoadTexture(
                         context,
                         asset,
                         source.pbrData.metallicRoughnessTexture->textureIndex,
-                        sourceDirectory,
-                        EImageFormat::R8G8B8A8_UNORM,
+                        dir,
+                        info,
                         textureCache
                     );
                 }
 
                 if (source.normalTexture)
                 {
+                    STexture2DCreateInfo info;
+                    info.Format = EImageFormat::R8G8B8A8_UNORM;
+                    info.GenerateMipmaps = true;
                     normalTexture = LoadTexture(
                         context,
                         asset,
                         source.normalTexture->textureIndex,
-                        sourceDirectory,
-                        EImageFormat::R8G8B8A8_UNORM,
+                        dir,
+                        info,
                         textureCache
                     );
                 }
 
                 if (source.occlusionTexture)
                 {
+                    STexture2DCreateInfo info;
+                    info.Format = EImageFormat::R8G8B8A8_UNORM;
                     occlusionTexture = LoadTexture(
                         context,
                         asset,
                         source.occlusionTexture->textureIndex,
-                        sourceDirectory,
-                        EImageFormat::R8G8B8A8_UNORM,
+                        dir,
+                        info,
                         textureCache
                     );
                 }
 
                 if (source.emissiveTexture)
                 {
+                    STexture2DCreateInfo info;
+                    info.Format = EImageFormat::R8G8B8A8_SRGB;
                     emissiveTexture = LoadTexture(
                         context,
                         asset,
                         source.emissiveTexture->textureIndex,
-                        sourceDirectory,
-                        EImageFormat::R8G8B8A8_SRGB,
+                        dir,
+                        info,
                         textureCache
                     );
                 }
@@ -934,24 +959,28 @@ namespace Elixir
                 {
                     if (source.specular->specularTexture)
                     {
+                        STexture2DCreateInfo info;
+                        info.Format = EImageFormat::R8G8B8A8_UNORM;
                         specularTexture = LoadTexture(
                             context,
                             asset,
                             source.specular->specularTexture->textureIndex,
-                            sourceDirectory,
-                            EImageFormat::R8G8B8A8_UNORM,
+                            dir,
+                            info,
                             textureCache
                         );
                     }
 
                     if (source.specular->specularColorTexture)
                     {
+                        STexture2DCreateInfo info;
+                        info.Format = EImageFormat::R8G8B8A8_SRGB;
                         specularColorTexture = LoadTexture(
                             context,
                             asset,
                             source.specular->specularColorTexture->textureIndex,
-                            sourceDirectory,
-                            EImageFormat::R8G8B8A8_SRGB,
+                            dir,
+                            info,
                             textureCache
                         );
                     }
@@ -961,36 +990,43 @@ namespace Elixir
                 {
                     if (source.clearcoat->clearcoatTexture)
                     {
+                        STexture2DCreateInfo info;
+                        info.Format = EImageFormat::R8G8B8A8_UNORM;
                         clearCoatTexture = LoadTexture(
                             context,
                             asset,
                             source.clearcoat->clearcoatTexture->textureIndex,
-                            sourceDirectory,
-                            EImageFormat::R8G8B8A8_UNORM,
+                            dir,
+                            info,
                             textureCache
                         );
                     }
 
                     if (source.clearcoat->clearcoatRoughnessTexture)
                     {
+                        STexture2DCreateInfo info;
+                        info.Format = EImageFormat::R8G8B8A8_UNORM;
                         clearCoatRoughnessTexture = LoadTexture(
                             context,
                             asset,
                             source.clearcoat->clearcoatRoughnessTexture->textureIndex,
-                            sourceDirectory,
-                            EImageFormat::R8G8B8A8_UNORM,
+                            dir,
+                            info,
                             textureCache
                         );
                     }
 
                     if (source.clearcoat->clearcoatNormalTexture)
                     {
+                        STexture2DCreateInfo info;
+                        info.Format = EImageFormat::R8G8B8A8_UNORM;
+                        info.GenerateMipmaps = true;
                         clearCoatNormalTexture = LoadTexture(
                             context,
                             asset,
                             source.clearcoat->clearcoatNormalTexture->textureIndex,
-                            sourceDirectory,
-                            EImageFormat::R8G8B8A8_UNORM,
+                            dir,
+                            info,
                             textureCache
                         );
                     }

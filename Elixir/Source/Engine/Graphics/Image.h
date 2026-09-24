@@ -195,6 +195,9 @@ namespace Elixir
         EImageUsage Usage;
         EImageLayout InitialLayout = EImageLayout::Undefined;
         SAllocationInfo AllocationInfo;
+
+        /** @brief Generates lower mip levels from the supplied base level. */
+        bool GenerateMipmaps = false;
     };
 
     class ELIXIR_API Image

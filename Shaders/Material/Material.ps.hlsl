@@ -221,6 +221,18 @@ float3 FresnelSchlickRoughness(float NdotV, float3 F0, float roughness)
 }
 
 /**
+ * Filters specular highlights where the final shading normal changes sharply
+ * between adjacent screen pixels.
+ */
+float FilterSpecularRoughness(float roughness, float3 normal)
+{
+    const float3 ndx = ddx(normal);
+    const float3 ndy = ddy(normal);
+    const float variance = max(dot(ndx, ndx), dot(ndy, ndy));
+    return sqrt(saturate(roughness * roughness + variance));
+}
+
+/**
  * Kari's analytical approximation for the split-sum environment BRDF.
  *
  * This replaces a precomputed BRDF LUT while retaining the roughness and
@@ -304,6 +316,8 @@ float4 main(PSInput input) : SV_Target0
     N = normalize(mul(tangentNormal, tangentBasis));
 #endif
 
+    roughness = FilterSpecularRoughness(roughness, N);
+
     float3 R = reflect(-V, N);
     float3 L = normalize(LightDirection.xyz);
     float NdotV = saturate(dot(N, V)) + 1e-4f;
@@ -352,7 +366,8 @@ float4 main(PSInput input) : SV_Target0
     const float clearCoat = saturate(surface.ClearCoat);
     if (clearCoat > 0.0f)
     {
-        const float coatRoughness = clamp(surface.ClearCoatRoughness, 0.045f, 1.0f);
+        float coatRoughness = clamp(surface.ClearCoatRoughness, 0.045f, 1.0f);
+        coatRoughness = FilterSpecularRoughness(coatRoughness, coatNormal);
         const float coatNdotV = saturate(dot(coatNormal, V)) + 1e-4f;
         const float coatNdotL = saturate(dot(coatNormal, L));
 

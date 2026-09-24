@@ -5,9 +5,12 @@ using namespace testing;
 #include <Engine/Core/Executor/Executor.h>
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Graphics/CommandBuffer.h>
+#include <Engine/Graphics/Texture.h>
 #include <Graphics/Vulkan/VulkanImage.h>
 
 #include "VulkanTestContext.h"
+
+#include <array>
 
 using namespace Elixir;
 using namespace Elixir::Vulkan;
@@ -120,6 +123,30 @@ TEST_F(VulkanImageTest, VulkanDepthStencilImage_DepthStencil)
 
     image->Destroy();
     SUCCEED();
+}
+
+TEST_F(VulkanImageTest, VulkanTexture2DGeneratesMipmapChain)
+{
+    std::array<uint8_t, 8 * 4 * 4> pixels{};
+    STexture2DCreateInfo info;
+    info.InitialData = pixels.data();
+    info.Format = EImageFormat::R8G8B8A8_UNORM;
+    info.Width = 8;
+    info.Height = 4;
+    info.MipLevels = 4;
+    info.GenerateMipmaps = true;
+
+    const auto texture = Texture2D::Create(Context, info);
+
+    ASSERT_NE(texture, nullptr);
+    EXPECT_EQ(texture->GetMipLevels(), 4u);
+    EXPECT_EQ(texture->GetLayout(), EImageLayout::ShaderReadOnly);
+    EXPECT_EQ(
+        texture->GetUsage(),
+        EImageUsage::Sampled | EImageUsage::TransferSrc | EImageUsage::TransferDst
+    );
+
+    texture->Destroy();
 }
 
 TEST_F(VulkanImageTest, VulkanImage_LayoutTransition) {

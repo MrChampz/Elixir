@@ -7,19 +7,36 @@
 
 namespace Elixir
 {
-    using namespace Elixir::Graphics;
+    using namespace Graphics;
 
-    void TraceTextureInfo(
-        const std::string& path,
-        bool isHdr,
-        const EImageFormat format,
-        int channelCount
-    )
+    namespace
     {
-        EE_CORE_TRACE(
-            "Creating texture {0} [HDR = {1}, Format = {2}, Channels = {3}].", path, isHdr,
-            format, channelCount
+        uint32_t GetFullMipLevelCount(const uint32_t width, const uint32_t height)
+        {
+            uint32_t largestDimension = std::max(width, height);
+            uint32_t levelCount = 1;
+
+            while (largestDimension > 1)
+            {
+                largestDimension >>= 1;
+                ++levelCount;
+            }
+
+            return levelCount;
+        }
+
+        void TraceTextureInfo(
+            const std::string& path,
+            bool isHdr,
+            const EImageFormat format,
+            int channelCount
         )
+        {
+            EE_CORE_TRACE(
+                "Creating texture {0} [HDR = {1}, Format = {2}, Channels = {3}].", path, isHdr,
+                format, channelCount
+            )
+        }
     }
 
     const GraphicsContext* TextureLoader::s_Context = nullptr;
@@ -34,6 +51,16 @@ namespace Elixir
     Ref<Texture> TextureLoader::Load(
         const std::filesystem::path& path,
         const EImageFormat format
+    )
+    {
+        STexture2DCreateInfo info;
+        info.Format = format;
+        return Load(path, info);
+    }
+
+    Ref<Texture> TextureLoader::Load(
+        const std::filesystem::path& path,
+        const STexture2DCreateInfo& info
     )
     {
         EE_CORE_ASSERT(s_Initialized, "TextureLoader is not initialized!")
@@ -70,16 +97,18 @@ namespace Elixir
 
         EE_CORE_ASSERT(data, "Could not read texture data!")
 
-        TraceTextureInfo(pathStr, isHdr, format, channels);
+        auto createInfo = info;
+        createInfo.InitialData = data;
+        createInfo.Width = width;
+        createInfo.Height = height;
+        createInfo.Path = pathStr;
 
-        auto texture = Texture2D::Create(
-            s_Context,
-            format,
-            width,
-            height,
-            data,
-            pathStr
-        );
+        if (createInfo.GenerateMipmaps)
+            createInfo.MipLevels = GetFullMipLevelCount(width, height);
+
+        TraceTextureInfo(pathStr, isHdr, createInfo.Format, channels);
+
+        auto texture = Texture2D::Create(s_Context, createInfo);
         texture->m_HDR = isHdr;
         EE_CORE_TRACE("Loaded texture: {0} [{1}].", pathStr, texture->GetUUID())
 

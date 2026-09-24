@@ -271,6 +271,76 @@ namespace Elixir::Vulkan
     }
 
     template <typename Base>
+    void VulkanBaseImage<Base>::GenerateMipmaps(
+        const CommandBuffer* cmd,
+        const EImageLayout finalLayout
+    )
+    {
+        const auto vkCmd = static_cast<const VulkanCommandBuffer*>(cmd);
+        const auto vkFinalLayout = Converters::GetImageLayout(finalLayout);
+        const auto aspect = Converters::GetImageAspect(this->GetAspect());
+
+        uint32_t sourceWidth = this->GetWidth();
+        uint32_t sourceHeight = this->GetExtent().Height;
+        uint32_t sourceDepth = this->GetExtent().Depth;
+
+        for (uint32_t level = 1; level < this->GetMipLevels(); ++level)
+        {
+            const uint32_t destinationWidth = std::max(1u, sourceWidth >> 1u);
+            const uint32_t destinationHeight = std::max(1u, sourceHeight >> 1u);
+            const uint32_t destinationDepth = std::max(1u, sourceDepth >> 1u);
+
+            CommandUtils::TransitionImage(
+                vkCmd->GetVulkanCommandBuffer(),
+                m_Image,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                aspect,
+                level - 1,
+                1
+            );
+
+            CommandUtils::CopyImageToImage(
+                vkCmd->GetVulkanCommandBuffer(),
+                m_Image,
+                m_Image,
+                { sourceWidth, sourceHeight, sourceDepth },
+                { destinationWidth, destinationHeight, destinationDepth },
+                aspect,
+                VK_FILTER_LINEAR,
+                level - 1,
+                level
+            );
+
+            CommandUtils::TransitionImage(
+                vkCmd->GetVulkanCommandBuffer(),
+                m_Image,
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                vkFinalLayout,
+                aspect,
+                level - 1,
+                1
+            );
+
+            sourceWidth = destinationWidth;
+            sourceHeight = destinationHeight;
+            sourceDepth = destinationDepth;
+        }
+
+        CommandUtils::TransitionImage(
+            vkCmd->GetVulkanCommandBuffer(),
+            m_Image,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            vkFinalLayout,
+            aspect,
+            this->GetMipLevels() - 1,
+            1
+        );
+
+        this->m_Layout = finalLayout;
+    }
+
+    template <typename Base>
     void VulkanBaseImage<Base>::InitImage(const SImageCreateInfo& info)
     {
         EE_PROFILE_ZONE_SCOPED()
@@ -280,6 +350,10 @@ namespace Elixir::Vulkan
 
         cmd->Begin();
 
+        EE_CORE_ASSERT(
+            !info.GenerateMipmaps || info.InitialData,
+            "Generated mipmaps require initial image data."
+        )
         if (info.InitialData)
         {
             this->Transition(cmd.get(), EImageLayout::TransferDst);
@@ -298,7 +372,11 @@ namespace Elixir::Vulkan
             SBufferImageCopy regions[] = { copyRegion };
             this->CopyFrom(cmd, stagingBuffer, regions);
 
-            this->Transition(cmd.get(), info.InitialLayout);
+            if (info.GenerateMipmaps)
+                GenerateMipmaps(cmd.get(), info.InitialLayout);
+            else
+                this->Transition(cmd.get(), info.InitialLayout);
+
             cmd->Flush();
 
             stagingBuffer->Destroy();

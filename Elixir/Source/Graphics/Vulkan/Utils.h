@@ -181,7 +181,9 @@ namespace Elixir::Vulkan
             const VkImage image,
             const VkImageLayout currentLayout,
             const VkImageLayout newLayout,
-            const VkImageAspectFlags aspectMask
+            const VkImageAspectFlags aspectMask,
+            const uint32_t baseMipLevel = 0,
+            const uint32_t levelCount = VK_REMAINING_MIP_LEVELS
         )
         {
             EE_PROFILE_ZONE_SCOPED()
@@ -196,6 +198,8 @@ namespace Elixir::Vulkan
             barrier.oldLayout = currentLayout;
             barrier.newLayout = newLayout;
             barrier.subresourceRange = Initializers::ImageSubresourceRange(aspectMask);
+            barrier.subresourceRange.baseMipLevel = baseMipLevel;
+            barrier.subresourceRange.levelCount = levelCount;
             barrier.image = image;
 
             VkDependencyInfo depInfo = {};
@@ -214,7 +218,9 @@ namespace Elixir::Vulkan
             const VkExtent3D srcExtent,
             const VkExtent3D dstExtent,
             const VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            const VkFilter filter = VK_FILTER_LINEAR
+            const VkFilter filter = VK_FILTER_LINEAR,
+            const uint32_t srcMipLevel = 0,
+            const uint32_t dstMipLevel = 0
         )
         {
             EE_PROFILE_ZONE_SCOPED()
@@ -234,12 +240,12 @@ namespace Elixir::Vulkan
             blitRegion.srcSubresource.aspectMask = aspectMask;
             blitRegion.srcSubresource.baseArrayLayer = 0;
             blitRegion.srcSubresource.layerCount = 1;
-            blitRegion.srcSubresource.mipLevel = 0;
+            blitRegion.srcSubresource.mipLevel = srcMipLevel;
 
             blitRegion.dstSubresource.aspectMask = aspectMask;
             blitRegion.dstSubresource.baseArrayLayer = 0;
             blitRegion.dstSubresource.layerCount = 1;
-            blitRegion.dstSubresource.mipLevel = 0;
+            blitRegion.dstSubresource.mipLevel = dstMipLevel;
 
             VkBlitImageInfo2 blitInfo = {};
             blitInfo.sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2;
