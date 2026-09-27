@@ -1,6 +1,7 @@
 #include "epch.h"
 #include "Manager.h"
 
+#include <Engine/Graphics/Image.h>
 #include <Engine/Materials/MaterialSystem.h>
 #include <Engine/Aether/Effect/Effect.h>
 #include <Engine/Aether/Runtime/InstanceRegistry.h>
@@ -56,17 +57,19 @@ namespace Elixir::Aether
         RetireDestroyedInstances();
     }
 
-    void Manager::Render(const Camera& camera)
+    void Manager::Render(const Camera& camera, const Ref<Image>& sceneTarget)
     {
         const auto submission = GetRuntime().AcquireSubmission();
         if (!submission) return;
 
+        EE_CORE_ASSERT(sceneTarget, "Aether rendering requires a scene target.")
+
         const auto cmd = m_GraphicsContext->GetSecondaryCommandBuffer();
 
         cmd->Begin({
-            .ColorAttachment = m_GraphicsContext->GetRenderTarget(),
+            .ColorAttachment = sceneTarget,
             .DepthStencilAttachment =  m_GraphicsContext->GetDepthStencilRenderTarget(),
-            .RenderArea = m_GraphicsContext->GetRenderTarget()->GetExtent(),
+            .RenderArea = sceneTarget->GetExtent(),
         });
 
         const auto frame = GetSimulator().Simulate(*submission, cmd);

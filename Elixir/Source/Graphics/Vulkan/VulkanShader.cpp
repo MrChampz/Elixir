@@ -157,6 +157,18 @@ namespace Elixir::Vulkan
         EE_CORE_ERROR("No texture binding named \"{0}\" found in shader...", name)
     }
 
+    void VulkanShader::BindImage(const std::string& name, const Ref<Image>& image)
+    {
+        if (const auto binding = GetShaderBinding(name))
+        {
+            if (m_DescriptorSets.Set(*binding, DescriptorValue{ image }))
+                m_Images[*binding] = image;
+            return;
+        }
+
+        EE_CORE_ERROR("No image binding named \"{0}\" found in shader...", name)
+    }
+
     void VulkanShader::BindTextureSet(const std::string& name, const Ref<TextureSet>& set)
     {
         if (const auto binding = GetShaderBinding(name))
@@ -414,7 +426,9 @@ namespace Elixir::Vulkan
                     [this, &writes, binding = change.Key](const auto& value)
                     {
                         using Value = std::decay_t<decltype(value)>;
-                        if constexpr (std::is_same_v<Value, Ref<Texture>>)
+                        if constexpr (std::is_same_v<Value, Ref<Image>>)
+                            writes.push_back(GetWriteDescriptorSet(binding, value.get()));
+                        else if constexpr (std::is_same_v<Value, Ref<Texture>>)
                             writes.push_back(GetWriteDescriptorSet(binding, value.get()));
                         else
                             writes.push_back(GetWriteDescriptorSet(binding, value));
@@ -431,6 +445,29 @@ namespace Elixir::Vulkan
                 nullptr
             );
         });
+    }
+
+    VkWriteDescriptorSet VulkanShader::GetWriteDescriptorSet(
+        const SShaderBinding binding,
+        const Image* image
+    ) const
+    {
+        const auto& resource = m_Resources.Resources.at(binding);
+        const auto vkImage = TryToGetVulkanImage(image);
+
+        EE_CORE_ASSERT(vkImage, "Image bindings require a Vulkan image.")
+
+        m_ImageInfoCache[binding] = { vkImage->GetVulkanDescriptorInfo() };
+
+        VkWriteDescriptorSet writeSet = {};
+        writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writeSet.dstSet = m_DescriptorSets.GetCurrent()[resource.GetSet()];
+        writeSet.dstBinding = resource.GetBinding();
+        writeSet.descriptorType = Converters::GetDescriptorType(resource.GetType());
+        writeSet.descriptorCount = (uint32_t)m_ImageInfoCache[binding].size();
+        writeSet.pImageInfo = m_ImageInfoCache[binding].data();
+
+        return writeSet;
     }
 
     VkWriteDescriptorSet VulkanShader::GetWriteDescriptorSet(

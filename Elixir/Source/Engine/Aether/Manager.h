@@ -7,6 +7,7 @@ namespace Elixir
 {
     class Camera;
     class GraphicsContext;
+    class Image;
     class ShaderLoader;
     class Timestep;
 
@@ -171,10 +172,11 @@ namespace Elixir::Aether
          * The method does nothing when no submission is available.
          *
          * @param camera Camera used to render particle geometry.
+         * @param sceneTarget Color target that receives particle geometry.
          *
          * @note Call this method from the render-frame path after BeginFrame().
          */
-        void Render(const Camera& camera);
+        void Render(const Camera& camera, const Ref<Image>& sceneTarget);
 
         /**
          * @brief Returns statistics from the most recent particle simulation.

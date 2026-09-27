@@ -12,7 +12,9 @@
 #include <Engine/Input/InputManager.h>
 #include <Engine/Input/InputCodes.h>
 #include <Engine/Font/FontManager.h>
+#include <Engine/Graphics/Image.h>
 #include <Engine/Graphics/TextureLoader.h>
+#include <Engine/Graphics/PostProcessor.h>
 #include <Engine/Materials/MaterialSystem.h>
 #include <Engine/Materials/MaterialRegistry.h>
 #include <Engine/Mesh/StaticMeshLoaderRegistry.h>
@@ -36,8 +38,10 @@ namespace Elixir
 
         m_GraphicsContext = GraphicsContext::Create(EGraphicsAPI::Vulkan, &m_Executor, m_Window.get());
         m_GraphicsContext->Init();
+        CreateSceneTarget(m_GraphicsContext->GetSwapchainExtent());
 
         m_ShaderLoader = CreateScope<ShaderLoader>(m_GraphicsContext.get());
+        m_PostProcessor = CreateScope<PostProcessor>(m_GraphicsContext.get(), m_ShaderLoader.get());
 
         TextureLoader::Initialize(m_GraphicsContext.get());
         FontManager::Initialize(m_GraphicsContext.get());
@@ -204,8 +208,10 @@ namespace Elixir
             m_GraphicsContext->RenderFrame([this, frameTime]()
             {
                 m_MaterialSystem->BeginFrame();
+                m_GraphicsContext->Clear(m_SceneTarget);
                 Render(frameTime);
-                m_MaterialSystem->RenderFrame();
+                m_MaterialSystem->RenderFrame(m_SceneTarget);
+                m_PostProcessor->Apply(m_SceneTarget, m_GraphicsContext->GetRenderTarget());
                 m_GUIManager->Render();
             });
 
@@ -221,6 +227,7 @@ namespace Elixir
         EventDispatcher dispatcher(event);
         dispatcher.Dispatch<WindowCloseEvent>(EE_BIND_EVENT_FN(Application::OnWindowClose));
         dispatcher.Dispatch<WindowResizeEvent>(EE_BIND_EVENT_FN(Application::OnWindowResize));
+        dispatcher.Dispatch<FramebufferResizeEvent>(EE_BIND_EVENT_FN(Application::OnFramebufferResize));
 
         m_GraphicsContext->ProcessEvent(event);
         ::InputManager::OnEvent(event);
@@ -280,5 +287,34 @@ namespace Elixir
         m_Minimized = false;
 
         return false;
+    }
+
+    bool Application::OnFramebufferResize(const FramebufferResizeEvent& event)
+    {
+        const auto& extent = event.GetExtent();
+        if (extent.Width == 0 || extent.Height == 0 || !m_SceneTarget)
+            return false;
+
+        m_SceneTarget->Resize(
+            m_GraphicsContext->GetUploadCommandBuffer(),
+            { extent.Width, extent.Height, 1 }
+        );
+
+        return false;
+    }
+
+    void Application::CreateSceneTarget(const Extent3D& extent)
+    {
+        m_SceneTarget = Image::Create(m_GraphicsContext.get(), {
+            .Width = extent.Width,
+            .Height = extent.Height,
+            .Depth = extent.Depth,
+            .Type = EImageType::_2D,
+            .Format = EImageFormat::R16G16B16A16_SFLOAT,
+            .Usage = EImageUsage::ColorAttachment | EImageUsage::Sampled |
+                EImageUsage::TransferSrc | EImageUsage::TransferDst,
+            .InitialLayout = EImageLayout::General,
+        });
+        EE_CORE_ASSERT(m_SceneTarget, "Application could not create the HDR scene target.")
     }
 }

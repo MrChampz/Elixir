@@ -251,7 +251,7 @@ void Dissolve::Render(const Timestep frameTime)
     DrawGeometry();
     m_StaticMeshRenderer->EndFrame();
 
-    //aether.Render(m_CameraController->GetCamera());
+    aether.Render(m_CameraController->GetCamera(), m_SceneTarget);
 }
 
 void Dissolve::OnEvent(Event& event)

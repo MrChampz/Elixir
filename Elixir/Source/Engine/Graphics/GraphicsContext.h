@@ -33,7 +33,15 @@ namespace Elixir
         virtual void DrainRenderQueue() = 0;
 
         virtual void SetClearColor(const glm::vec4& color) = 0;
-        virtual void Clear() = 0;
+
+        /** @brief Clears the context-owned LDR render target with the configured clear color. */
+        void Clear();
+
+        /**
+         * @brief Clears a color target with the configured clear color.
+         * @param image Target image to clear; it must be in the General layout.
+         */
+        void Clear(const Ref<Image>& image);
 
         virtual void Resize(Extent2D extent) = 0;
 
@@ -106,6 +114,7 @@ namespace Elixir
         }
 
       private:
+        virtual void ClearImage(const Ref<Image>& image) = 0;
         virtual void CreateRenderTargets() = 0;
 
       protected:

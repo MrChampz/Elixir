@@ -29,6 +29,7 @@ namespace Elixir::Vulkan
 
         void SetConstantBuffer(const std::string& name, void* data, size_t size) override;
 
+        void BindImage(const std::string& name, const Ref<Image>& image) override;
         void BindTexture(const std::string& name, const Ref<Texture>& texture) override;
         void BindTextureSet(const std::string& name, const Ref<TextureSet>& set) override;
         void BindSampler(const std::string& name, const Ref<Sampler>& sampler) override;
@@ -48,6 +49,9 @@ namespace Elixir::Vulkan
 
         void ApplyPendingDescriptorState();
 
+        VkWriteDescriptorSet GetWriteDescriptorSet(
+            SShaderBinding binding, const Image* image
+        ) const;
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding, const Texture* texture
         ) const;
@@ -69,6 +73,7 @@ namespace Elixir::Vulkan
         ) const;
 
         using DescriptorValue = std::variant<
+            Ref<Image>,
             Ref<Texture>,
             Ref<Sampler>,
             Ref<StorageBuffer>,

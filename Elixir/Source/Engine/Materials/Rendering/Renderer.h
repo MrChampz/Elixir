@@ -7,7 +7,12 @@
 #include <Engine/Materials/Rendering/MaterialRenderProxy.h>
 #include <Engine/Materials/Rendering/TextureRegistry.h>
 
-namespace Elixir { class ShaderLoader; }
+namespace Elixir
+{
+    class Image;
+    class ShaderLoader;
+}
+
 namespace Elixir::Materials { struct SMaterialSystemConfig; }
 
 namespace Elixir::Materials::Rendering
@@ -213,9 +218,13 @@ namespace Elixir::Materials::Rendering
         /**
          * @brief Records all resolved material scenes for the current frame.
          * @param scenes Scenes with material proxies resolved by MaterialSystem.
+         * @param sceneTarget Color target that receives the recorded scene.
          * @return Counts of materials, batches, and draw commands recorded.
          */
-        SRenderResult RenderFrame(std::span<const SPreparedScene> scenes);
+        SRenderResult RenderFrame(
+            std::span<const SPreparedScene> scenes,
+            const Ref<Image>& sceneTarget
+        );
 
         /**
          * @brief Returns the program key for a material pass.

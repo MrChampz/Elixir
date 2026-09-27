@@ -62,7 +62,6 @@ namespace Elixir::Vulkan
         void DrainRenderQueue() override;
 
         void SetClearColor(const glm::vec4& color) override;
-        void Clear() override;
 
         void Resize(Extent2D extent) override;
 
@@ -103,6 +102,7 @@ namespace Elixir::Vulkan
         void DestroySwapchain();
         void RecreateSwapchain();
 
+        void ClearImage(const Ref<Image>& image) override;
         void CreateRenderTargets() override;
 
         void ResetFrameUsageState();

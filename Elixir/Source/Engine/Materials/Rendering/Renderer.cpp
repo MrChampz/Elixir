@@ -1,6 +1,7 @@
 #include "epch.h"
 #include "Renderer.h"
 
+#include <Engine/Graphics/Image.h>
 #include <Engine/Graphics/Pipeline/PipelineBuilder.h>
 #include <Engine/Materials/MaterialSystem.h>
 #include <Engine/Materials/Rendering/MaterialRenderScene.h>
@@ -38,10 +39,15 @@ namespace Elixir::Materials::Rendering
         m_Textures.BeginFrame(m_CurrentFrameNumber);
     }
 
-    SRenderResult Renderer::RenderFrame(std::span<const SPreparedScene> scenes)
+    SRenderResult Renderer::RenderFrame(
+        const std::span<const SPreparedScene> scenes,
+        const Ref<Image>& sceneTarget
+    )
     {
         SRenderResult result{};
         if (scenes.empty()) return result;
+
+        EE_CORE_ASSERT(sceneTarget, "Material rendering requires a scene target.")
 
         EE_CORE_ASSERT(
             m_CurrentFrameNumber == m_Context->GetFrameNumber(),
@@ -74,10 +80,10 @@ namespace Elixir::Materials::Rendering
         result.MaterialCount = materialTable.GetCount();
 
         const auto cmd = m_Context->GetSecondaryCommandBuffer();
-        const auto extent = m_Context->GetRenderTarget()->GetExtent();
+        const auto extent = sceneTarget->GetExtent();
 
         const SRenderingInfo renderingInfo{
-            .ColorAttachment = m_Context->GetRenderTarget(),
+            .ColorAttachment = sceneTarget,
             .DepthStencilAttachment = m_Context->GetDepthStencilRenderTarget(),
             .RenderArea = extent,
         };
@@ -443,7 +449,7 @@ namespace Elixir::Materials::Rendering
         builder.SetShader(shader);
         builder.SetInputTopology(EPrimitiveTopology::TriangleList);
         builder.SetPolygonMode(EPolygonMode::Fill);
-        builder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_SRGB);
+        builder.SetColorAttachmentFormat(EImageFormat::R16G16B16A16_SFLOAT);
         builder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
         builder.SetBufferLayout(*request.VertexLayout);
         builder.DisableBlending();

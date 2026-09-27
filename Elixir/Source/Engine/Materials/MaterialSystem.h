@@ -5,7 +5,11 @@
 #include <Engine/Materials/Rendering/MaterialRenderScene.h>
 #include <Engine/Materials/Rendering/Renderer.h>
 
-namespace Elixir { class ShaderLoader; }
+namespace Elixir
+{
+    class Image;
+    class ShaderLoader;
+}
 
 namespace Elixir::Materials
 {
@@ -52,10 +56,11 @@ namespace Elixir::Materials
 
         /**
          * @brief Records all scenes submitted for the current graphics frame.
+         * @param sceneTarget Color target that receives the material scene.
          * @return Counts of prepared materials, batches, and draws.
          * @pre BeginFrame was called for the current graphics frame.
          */
-        SRenderResult RenderFrame();
+        SRenderResult RenderFrame(const Ref<Image>& sceneTarget);
 
     private:
         /**

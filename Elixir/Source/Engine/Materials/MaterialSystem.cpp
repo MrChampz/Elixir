@@ -28,9 +28,10 @@ namespace Elixir::Materials
         m_SubmittedScenes.push_back(std::move(scene));
     }
 
-    SRenderResult MaterialSystem::RenderFrame()
+    SRenderResult MaterialSystem::RenderFrame(const Ref<Image>& sceneTarget)
     {
         EE_CORE_ASSERT(m_IsCollectingFrame, "Material rendering requires BeginFrame.")
+        EE_CORE_ASSERT(sceneTarget, "Material rendering requires a scene target.")
 
         std::vector<SPreparedScene> scenes;
         scenes.reserve(m_SubmittedScenes.size());
@@ -39,7 +40,7 @@ namespace Elixir::Materials
             scenes.push_back(PrepareScene(scene));
 
         m_IsCollectingFrame = false;
-        return m_Renderer->RenderFrame(scenes);
+        return m_Renderer->RenderFrame(scenes, sceneTarget);
     }
 
     SPreparedScene MaterialSystem::PrepareScene(const MaterialRenderScene& scene)

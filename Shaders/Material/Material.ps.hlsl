@@ -251,12 +251,6 @@ float2 EnvBRDFApprox(float roughness, float NdotV)
     return float2(-1.04f, 1.04f) * a004 + coefficients.zw;
 }
 
-float3 ACESFilm(float3 x)
-{
-    const float a = 2.51f, b = 0.03f, c = 2.43f, d = 0.59f, e = 0.14f;
-    return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
-}
-
 float4 main(PSInput input) : SV_Target0
 {
     CompiledMaterial mat = materials[pc.MaterialIndex];
@@ -290,8 +284,7 @@ float4 main(PSInput input) : SV_Target0
     }
 
 #if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_UNLIT
-    const float3 unlit = ACESFilm(surface.BaseColor + surface.Emissive);
-    return float4(unlit, surface.Opacity);
+    return float4(surface.BaseColor + surface.Emissive, surface.Opacity);
 #endif
 
     float roughness = clamp(surface.Roughness, 0.045f, 1.0f);
@@ -411,9 +404,6 @@ float4 main(PSInput input) : SV_Target0
         color = directSpecularContribution;
     else if (DebugView == SURFACE_DEBUG_CLEAR_COAT)
         color = clearCoatContribution;
-
-    // Tone mapping
-    color = ACESFilm(color);
 
     return float4(color, surface.Opacity);
 }

@@ -187,21 +187,6 @@ namespace Elixir
         m_ClearColor = {{ color.r, color.g, color.b, color.a }};
     }
 
-    void VulkanGraphicsContext::Clear()
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-        const auto range = Initializers::ImageSubresourceRange(EImageAspect::Color);
-        vkCmdClearColorImage(
-            m_MainCommandBuffer->GetVulkanCommandBuffer(),
-            TryToGetVulkanImage(m_RenderTarget.get())->GetVulkanImage(),
-            VK_IMAGE_LAYOUT_GENERAL,
-            &m_ClearColor,
-            1,
-            &range
-        );
-    }
-
     void VulkanGraphicsContext::Resize(const Extent2D extent)
     {
         EE_PROFILE_ZONE_SCOPED()
@@ -483,6 +468,22 @@ namespace Elixir
         DestroySwapchain();
         CreateSwapchain(m_SwapchainExtent);
         m_SwapchainRecreateRequested = false;
+    }
+
+    void VulkanGraphicsContext::ClearImage(const Ref<Image>& image)
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        EE_CORE_ASSERT(image, "An target image is required for clearing.")
+
+        const auto range = Initializers::ImageSubresourceRange(EImageAspect::Color);
+        vkCmdClearColorImage(
+            m_MainCommandBuffer->GetVulkanCommandBuffer(),
+            TryToGetVulkanImage(image.get())->GetVulkanImage(),
+            VK_IMAGE_LAYOUT_GENERAL,
+            &m_ClearColor,
+            1,
+            &range
+        );
     }
 
     void VulkanGraphicsContext::CreateRenderTargets()
