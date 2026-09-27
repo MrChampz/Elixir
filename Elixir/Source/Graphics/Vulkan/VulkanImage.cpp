@@ -68,12 +68,22 @@ namespace Elixir::Vulkan
         const uint32_t queueFamily = m_Context->GetGraphicsQueueFamily();
         const auto imageInfo = Initializers::ImageCreateInfo(info, queueFamily);
         const auto allocInfo = Initializers::AllocationCreateInfo(info.AllocationInfo);
-        VK_CHECK_RESULT(vmaCreateImage(
-            m_Context->GetAllocator(), &imageInfo, &allocInfo, &m_Image, &m_Allocation, nullptr
-        ));
+        VK_CHECK_RESULT(
+            vmaCreateImage(
+                m_Context->GetAllocator(),
+                &imageInfo, &allocInfo,
+                &m_Image,
+                &m_Allocation,
+                nullptr
+            )
+        );
 
         if (!m_DebugName.empty())
-            vmaSetAllocationName(m_Context->GetAllocator(), m_Allocation, m_DebugName.c_str());
+            vmaSetAllocationName(
+                m_Context->GetAllocator(),
+                m_Allocation,
+                m_DebugName.c_str()
+            );
 
         constexpr auto viewUsage = EImageUsage::Sampled |
             EImageUsage::Storage |

@@ -445,12 +445,17 @@ namespace Elixir::Materials::Rendering
         if (const auto found = m_Pipelines.find(key); found != m_Pipelines.end())
             return found->second;
 
+        const auto depthTarget = m_Context->GetDepthStencilRenderTarget();
+
+        const auto colorFormat = m_SceneTarget->GetFormat();
+        const auto depthFormat = (EDepthStencilImageFormat)depthTarget->GetFormat();
+
         PipelineBuilder builder;
         builder.SetShader(shader);
         builder.SetInputTopology(EPrimitiveTopology::TriangleList);
         builder.SetPolygonMode(EPolygonMode::Fill);
-        builder.SetColorAttachmentFormat(m_SceneTarget->GetFormat());
-        builder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
+        builder.SetColorAttachmentFormat(colorFormat);
+        builder.SetDepthAttachmentFormat(depthFormat);
         builder.SetBufferLayout(*request.VertexLayout);
         builder.DisableBlending();
 

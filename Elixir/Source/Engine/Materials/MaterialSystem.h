@@ -76,7 +76,9 @@ namespace Elixir::Materials
          * @param instance Material instance to resolve.
          * @return The render proxy, or null when the instance cannot be resolved.
          */
-        Ref<const MaterialRenderProxy> ResolveMaterialProxy(const Ref<MaterialInstance>& instance);
+        Ref<const MaterialRenderProxy> ResolveMaterialProxy(
+            const Ref<MaterialInstance>& instance
+        );
 
         MaterialProxyResolver m_ProxyResolver;
         MaterialProxyCache m_ProxyCache;

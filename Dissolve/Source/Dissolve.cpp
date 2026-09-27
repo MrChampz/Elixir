@@ -129,7 +129,7 @@ Dissolve::Dissolve()
             EE_CORE_ERROR("Dissolve particle emitter 'FlameCore' was not found.")
         }
 
-        if (auto loaded = StaticMeshLoaderRegistry::Load("./Assets/Meshes/Porsche/scene.gltf"))
+        if (auto loaded = StaticMeshLoaderRegistry::Load("./Assets/Meshes/McLaren/scene.gltf"))
             mesh = std::move(*loaded);
     }
 
@@ -242,8 +242,8 @@ void Dissolve::Render(const Timestep frameTime)
     Application::Render(frameTime);
 
     m_CameraController->Update(frameTime);
-    //auto& aether = GetAetherManager();
-    //aether.BeginFrame(frameTime);
+    auto& aether = GetAetherManager();
+    aether.BeginFrame(frameTime);
 
     m_GraphicsContext->Clear();
 
