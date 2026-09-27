@@ -48,6 +48,31 @@ namespace Elixir::Materials::Rendering
             "Material rendering requires BeginFrame for the current graphics frame."
         )
 
+        FrameTable materialTable{
+            m_MaterialCapacity,
+            m_Textures.GetFallbackIndex(),
+            [this](const Ref<Texture>& texture)
+            {
+                return m_Textures.Resolve(texture);
+            }
+        };
+
+        std::vector<SPreparedRenderScene> preparedScenes;
+        preparedScenes.reserve(scenes.size());
+
+        for (const auto& scene : scenes)
+            preparedScenes.push_back(PrepareScene(scene, materialTable));
+
+        if (!materialTable.GetData().empty())
+        {
+            GetActiveMaterialBuffer()->UpdateData(
+                materialTable.GetData().data(),
+                materialTable.GetData().size() * sizeof(SMaterialFrameData)
+            );
+        }
+
+        result.MaterialCount = materialTable.GetCount();
+
         const auto cmd = m_Context->GetSecondaryCommandBuffer();
         const auto extent = m_Context->GetRenderTarget()->GetExtent();
 
@@ -72,11 +97,9 @@ namespace Elixir::Materials::Rendering
             .Extent = extent,
         }});
 
-        for (const auto& scene : scenes)
+        for (const auto& scene : preparedScenes)
         {
-            const auto prepared = PrepareScene(scene);
-            const auto sceneResult = RecordScene(cmd, prepared);
-            result.MaterialCount += sceneResult.MaterialCount;
+            const auto sceneResult = RecordScene(cmd, scene);
             result.BatchCount += sceneResult.BatchCount;
             result.DrawCount += sceneResult.DrawCount;
         }
@@ -132,7 +155,10 @@ namespace Elixir::Materials::Rendering
         return UINT32_MAX;
     }
 
-    Renderer::SPreparedRenderScene Renderer::PrepareScene(const SPreparedScene& scene)
+    Renderer::SPreparedRenderScene Renderer::PrepareScene(
+        const SPreparedScene& scene,
+        FrameTable& materialTable
+    )
     {
         SPreparedRenderScene prepared{
             .Scene = scene.Scene,
@@ -140,20 +166,11 @@ namespace Elixir::Materials::Rendering
 
         if (!scene.Scene) return prepared;
 
-        const auto table = CreateRef<FrameTable>(
-            m_MaterialCapacity,
-            m_Textures.GetFallbackIndex(),
-            [this](const Ref<Texture>& texture)
-            {
-                return m_Textures.Resolve(texture);
-            }
-        );
-
         for (const auto& resolved : scene.Items)
         {
             if (!resolved.Item || !resolved.Proxy) continue;
 
-            const auto materialIndex = table->Add(*resolved.Proxy);
+            const auto materialIndex = materialTable.Add(*resolved.Proxy);
             EE_CORE_ASSERT(materialIndex, "Material frame capacity was exceeded.")
             if (!materialIndex) continue;
 
@@ -164,15 +181,6 @@ namespace Elixir::Materials::Rendering
             });
         }
 
-        if (!table->GetData().empty())
-        {
-            GetActiveMaterialBuffer()->UpdateData(
-                table->GetData().data(),
-                table->GetData().size() * sizeof(SMaterialFrameData)
-            );
-        }
-
-        prepared.MaterialCount = table->GetCount();
         return prepared;
     }
 
@@ -181,9 +189,7 @@ namespace Elixir::Materials::Rendering
         const SPreparedRenderScene& scene
     )
     {
-        SRenderResult result{
-            .MaterialCount = scene.MaterialCount,
-        };
+        SRenderResult result{};
 
         if (!cmd || !scene.Scene) return result;
 

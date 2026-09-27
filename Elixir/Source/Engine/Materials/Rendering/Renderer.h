@@ -70,7 +70,7 @@ namespace Elixir::Materials::Rendering
      */
     struct SRenderResult
     {
-        /** Number of materials uploaded for the rendered scene. */
+        /** Number of unique materials uploaded for the rendered frame. */
         uint32_t MaterialCount = 0;
 
         /** Number of material batches rendered. */
@@ -199,7 +199,7 @@ namespace Elixir::Materials::Rendering
         /**
          * @brief Creates a material renderer.
          * @param context Graphics context used to create pipelines.
-         * @param materialCapacity Maximum unique materials supported by one scene.
+         * @param materialCapacity Maximum unique materials supported by one frame.
          * @pre All arguments are valid for the renderer lifetime.
          */
         Renderer(
@@ -308,12 +308,11 @@ namespace Elixir::Materials::Rendering
             uint32_t MaterialIndex = UINT32_MAX;
         };
 
-        /** Stores frame-buffer indices assigned to one render scene. */
+        /** Stores frame-table indices assigned to one render scene. */
         struct SPreparedRenderScene
         {
             const MaterialRenderScene* Scene = nullptr;
             std::vector<SPreparedRenderItem> Items;
-            uint32_t MaterialCount = 0;
         };
 
         /** Stores resources that are safe to reuse for one graphics frame slot. */
@@ -340,8 +339,11 @@ namespace Elixir::Materials::Rendering
             std::vector<const SPreparedRenderItem*> Items;
         };
 
-        /** Builds and uploads the material table for one resolved scene. */
-        SPreparedRenderScene PrepareScene(const SPreparedScene& scene);
+        /** Builds render items for one scene using the frame material table. */
+        static SPreparedRenderScene PrepareScene(
+            const SPreparedScene& scene,
+            FrameTable& materialTable
+        );
 
         /** Records draw commands for a scene with prepared material indices. */
         SRenderResult RecordScene(

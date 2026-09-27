@@ -30,76 +30,105 @@ namespace Elixir
 {
     namespace
     {
-        SStaticMeshBounds GetBounds(const std::vector<SStaticMeshVertex>& vertices)
+        constexpr auto GLTF_OPTIONS = fastgltf::Options::LoadExternalBuffers |
+                                      fastgltf::Options::GenerateMeshIndices;
+
+        constexpr auto GLTF_CATEGORIES = fastgltf::Category::Meshes |
+                                         fastgltf::Category::Accessors |
+                                         fastgltf::Category::BufferViews |
+                                         fastgltf::Category::Buffers |
+                                         fastgltf::Category::Images |
+                                         fastgltf::Category::Textures |
+                                         fastgltf::Category::Materials |
+                                         fastgltf::Category::Scenes;
+
+        constexpr auto GLTF_EXTENSIONS =
+            fastgltf::Extensions::KHR_materials_emissive_strength |
+            fastgltf::Extensions::KHR_materials_specular |
+            fastgltf::Extensions::KHR_texture_transform |
+            fastgltf::Extensions::KHR_materials_clearcoat;
+
+        class MaterialLoader final
         {
-            SStaticMeshBounds bounds{
-                .Min = glm::vec3(std::numeric_limits<float>::max()),
-                .Max = glm::vec3(std::numeric_limits<float>::lowest()),
+        public:
+            MaterialLoader(
+                const GraphicsContext& context,
+                fastgltf::Asset& asset,
+                std::filesystem::path directory,
+                std::string_view meshName
+            );
+
+            std::vector<Ref<Material>> Load();
+
+        private:
+            struct SMaterialTextures
+            {
+                Ref<Texture> BaseColor;
+                Ref<Texture> MetallicRoughness;
+                Ref<Texture> Normal;
+                Ref<Texture> Occlusion;
+                Ref<Texture> Emissive;
+                Ref<Texture> Specular;
+                Ref<Texture> SpecularColor;
+                Ref<Texture> ClearCoat;
+                Ref<Texture> ClearCoatRoughness;
+                Ref<Texture> ClearCoatNormal;
             };
 
-            for (const auto& vertex : vertices)
-            {
-                bounds.Min = glm::min(bounds.Min, vertex.Position);
-                bounds.Max = glm::max(bounds.Max, vertex.Position);
-            }
+            Ref<Texture> DecodeImage(
+                const std::byte* bytes,
+                size_t size,
+                const STexture2DCreateInfo& info
+            ) const;
 
-            return bounds;
-        }
+            Ref<Texture> LoadImage(
+                size_t imageIndex,
+                const STexture2DCreateInfo& info
+            ) const;
 
-        void ExpandBounds(SStaticMeshBounds& target, const SStaticMeshBounds& source)
-        {
-            target.Min = glm::min(target.Min, source.Min);
-            target.Max = glm::max(target.Max, source.Max);
-        }
+            Ref<Texture> LoadTexture(
+                size_t textureIndex,
+                const STexture2DCreateInfo& info
+            );
 
-        glm::mat4 ToGlmMatrix(const fastgltf::math::fmat4x4& source)
-        {
-            glm::mat4 result{ 1.0f };
-            for (size_t column = 0; column < 4; ++column)
-                for (size_t row = 0; row < 4; ++row)
-                    result[column][row] = source.col(column)[row];
+            Ref<Material> CreateSurfaceMaterial(
+                const fastgltf::Material& source,
+                size_t materialIndex,
+                const SMaterialTextures& textures
+            ) const;
 
-            return result;
-        }
+            static EMaterialBlendMode GetBlendMode(fastgltf::AlphaMode mode);
+            static uint32_t GetTextureCoordinateIndex(const fastgltf::TextureInfo& source);
+            static uint32_t AddTextureSample(
+                MaterialGraph& graph,
+                Material& material,
+                std::string_view parameterName,
+                const fastgltf::TextureInfo& source,
+                Nodes::ETextureSampleType sampleType = Nodes::ETextureSampleType::Color
+            );
 
-        bool ApplyLocalTransform(
-            std::vector<SStaticMeshVertex>& vertices,
-            const glm::mat4& localTransform
-        )
-        {
-            const glm::mat3 linearTransform{ localTransform };
-            const float determinant = glm::determinant(linearTransform);
-            if (determinant == 0.0f)
-            {
-                EE_CORE_WARN("glTF node has a singular local transform; skipping its primitive.")
-                return false;
-            }
+            const GraphicsContext& m_Context;
+            fastgltf::Asset& m_Asset;
+            std::filesystem::path m_Directory;
+            std::string_view m_MeshName;
+            std::unordered_map<uint64_t, Ref<Texture>> m_TextureCache;
+        };
 
-            const glm::mat3 normalTransform = glm::transpose(glm::inverse(linearTransform));
-            const float handedness = determinant < 0.0f ? -1.0f : 1.0f;
-
-            for (auto& vertex : vertices)
-            {
-                vertex.Position = glm::vec3(localTransform * glm::vec4(vertex.Position, 1.0f));
-                vertex.Normal = glm::normalize(normalTransform * vertex.Normal);
-
-                glm::vec3 tangent = linearTransform * glm::vec3(vertex.Tangent);
-                tangent -= vertex.Normal * glm::dot(vertex.Normal, tangent);
-                vertex.Tangent = {
-                    glm::normalize(tangent),
-                    vertex.Tangent.w * handedness
-                };
-            }
-
-            return true;
-        }
-
-        Ref<Texture> DecodeImage(
+        MaterialLoader::MaterialLoader(
             const GraphicsContext& context,
+            fastgltf::Asset& asset,
+            std::filesystem::path directory,
+            const std::string_view meshName
+        ) : m_Context(context),
+            m_Asset(asset),
+            m_Directory(std::move(directory)),
+            m_MeshName(meshName) {}
+
+        Ref<Texture> MaterialLoader::DecodeImage(
             const std::byte* bytes,
             const size_t size,
             const STexture2DCreateInfo& info
-        )
+        ) const
         {
             int width = 0;
             int height = 0;
@@ -128,42 +157,38 @@ namespace Elixir
             createInfo.Width = width;
             createInfo.Height = height;
 
-            const auto texture = Texture2D::Create(&context, createInfo);
+            const auto texture = Texture2D::Create(&m_Context, createInfo);
 
             stbi_image_free(pixels);
 
             return texture;
         }
 
-        Ref<Texture> LoadImage(
-            const GraphicsContext& context,
-            fastgltf::Asset& asset,
+        Ref<Texture> MaterialLoader::LoadImage(
             const size_t imageIndex,
-            const std::filesystem::path& dir,
             const STexture2DCreateInfo& info
-        )
+        ) const
         {
-            if (imageIndex >= asset.images.size())
+            if (imageIndex >= m_Asset.images.size())
             {
                 EE_CORE_WARN("glTF material references an invalid image index.")
                 return nullptr;
             }
 
             Ref<Texture> texture;
-            auto& image = asset.images[imageIndex];
+            auto& image = m_Asset.images[imageIndex];
 
             std::visit(
                 fastgltf::visitor{
                     [](const auto&) {},
                     [&](const fastgltf::sources::URI& source)
                     {
-                        const auto path = dir / source.uri.fspath();
+                        const auto path = m_Directory / source.uri.fspath();
                         texture = TextureLoader::Load(path, info);
                     },
                     [&](const fastgltf::sources::Array& source)
                     {
                         texture = DecodeImage(
-                            context,
                             source.bytes.data(),
                             source.bytes.size(),
                             info
@@ -172,7 +197,6 @@ namespace Elixir
                     [&](const fastgltf::sources::Vector& source)
                     {
                         texture = DecodeImage(
-                            context,
                             source.bytes.data(),
                             source.bytes.size(),
                             info
@@ -180,27 +204,26 @@ namespace Elixir
                     },
                     [&](const fastgltf::sources::BufferView& viewSource)
                     {
-                        if (viewSource.bufferViewIndex >= asset.bufferViews.size())
+                        if (viewSource.bufferViewIndex >= m_Asset.bufferViews.size())
                         {
                             EE_CORE_WARN("glTF image references an invalid buffer view.")
                             return;
                         }
 
-                        const auto& view = asset.bufferViews[viewSource.bufferViewIndex];
-                        if (view.bufferIndex >= asset.buffers.size())
+                        const auto& view = m_Asset.bufferViews[viewSource.bufferViewIndex];
+                        if (view.bufferIndex >= m_Asset.buffers.size())
                         {
                             EE_CORE_WARN("glTF image references an invalid buffer.")
                             return;
                         }
 
-                        auto& buffer = asset.buffers[view.bufferIndex];
+                        auto& buffer = m_Asset.buffers[view.bufferIndex];
                         std::visit(
                             fastgltf::visitor{
                                 [](const auto&) {},
                                 [&](const fastgltf::sources::Array& source)
                                 {
                                     texture = DecodeImage(
-                                        context,
                                         source.bytes.data() + view.byteOffset,
                                         view.byteLength,
                                         info
@@ -209,7 +232,6 @@ namespace Elixir
                                 [&](const fastgltf::sources::Vector& source)
                                 {
                                     texture = DecodeImage(
-                                        context,
                                         source.bytes.data() + view.byteOffset,
                                         view.byteLength,
                                         info
@@ -226,13 +248,9 @@ namespace Elixir
             return texture;
         }
 
-        Ref<Texture> LoadTexture(
-            const GraphicsContext& context,
-            fastgltf::Asset& asset,
+        Ref<Texture> MaterialLoader::LoadTexture(
             const size_t textureIndex,
-            const std::filesystem::path& dir,
-            const STexture2DCreateInfo& info,
-            std::unordered_map<uint64_t, Ref<Texture>>& cache
+            const STexture2DCreateInfo& info
         )
         {
             const uint64_t cacheKey =
@@ -240,19 +258,19 @@ namespace Elixir
                 (info.Format == EImageFormat::R8G8B8A8_SRGB ? 1ull : 0ull) |
                 (static_cast<uint64_t>(info.MipmapMode) << 1);
 
-            const auto existing = cache.find(cacheKey);
-            if (existing != cache.end())
+            const auto existing = m_TextureCache.find(cacheKey);
+            if (existing != m_TextureCache.end())
             {
                 return existing->second;
             }
 
-            if (textureIndex >= asset.textures.size())
+            if (textureIndex >= m_Asset.textures.size())
             {
                 EE_CORE_WARN("glTF material references an invalid texture index.")
                 return nullptr;
             }
 
-            const auto& texture = asset.textures[textureIndex];
+            const auto& texture = m_Asset.textures[textureIndex];
             if (!texture.imageIndex)
             {
                 EE_CORE_WARN("glTF texture does not reference an image.")
@@ -260,18 +278,15 @@ namespace Elixir
             }
 
             const auto result = LoadImage(
-                context,
-                asset,
                 *texture.imageIndex,
-                dir,
                 info
             );
-            cache.emplace(cacheKey, result);
+            m_TextureCache.emplace(cacheKey, result);
 
             return result;
         }
 
-        EMaterialBlendMode GetBlendMode(const fastgltf::AlphaMode mode)
+        EMaterialBlendMode MaterialLoader::GetBlendMode(const fastgltf::AlphaMode mode)
         {
             using namespace Materials;
 
@@ -289,7 +304,7 @@ namespace Elixir
             }
         }
 
-        uint32_t GetTextureCoordinateIndex(const fastgltf::TextureInfo& source)
+        uint32_t MaterialLoader::GetTextureCoordinateIndex(const fastgltf::TextureInfo& source)
         {
             const size_t index = source.transform && source.transform->texCoordIndex
                 ? *source.transform->texCoordIndex
@@ -305,16 +320,16 @@ namespace Elixir
             return 0;
         }
 
-        uint32_t AddTextureSample(
+        uint32_t MaterialLoader::AddTextureSample(
             MaterialGraph& graph,
             Material& material,
             const std::string_view parameterName,
             const fastgltf::TextureInfo& source,
-            const Nodes::ETextureSampleType sampleType = Nodes::ETextureSampleType::Color
+            const Nodes::ETextureSampleType sampleType
         )
         {
             using namespace Materials;
-            using namespace Materials::Nodes;
+            using namespace Nodes;
 
             const auto sample = graph.AddNode<TextureSample>(
                 std::string(parameterName),
@@ -419,27 +434,17 @@ namespace Elixir
             return sample;
         }
 
-        Ref<Material> CreateSurfaceMaterial(
+        Ref<Material> MaterialLoader::CreateSurfaceMaterial(
             const fastgltf::Material& source,
             const size_t materialIndex,
-            const std::string_view meshName,
-            const Ref<Texture>& baseColorTexture,
-            const Ref<Texture>& metallicRoughnessTexture,
-            const Ref<Texture>& normalTexture,
-            const Ref<Texture>& occlusionTexture,
-            const Ref<Texture>& emissiveTexture,
-            const Ref<Texture>& specularTexture,
-            const Ref<Texture>& specularColorTexture,
-            const Ref<Texture>& clearCoatTexture,
-            const Ref<Texture>& clearCoatRoughnessTexture,
-            const Ref<Texture>& clearCoatNormalTexture
-        )
+            const SMaterialTextures& textures
+        ) const
         {
             using namespace Materials;
-            using namespace Materials::Nodes;
+            using namespace Nodes;
 
             const std::string name = source.name.empty()
-                ? std::string(meshName) + ".Material." + std::to_string(materialIndex)
+                ? std::string(m_MeshName) + ".Material." + std::to_string(materialIndex)
                 : std::string(source.name);
 
             const auto material = CreateRef<Material>(name);
@@ -564,11 +569,11 @@ namespace Elixir
                 EMaterialValueType::Float4
             );
 
-            if (baseColorTexture)
+            if (textures.BaseColor)
             {
                 EE_CORE_ASSERT(material->DefineParameter("BaseColorTexture", {
                     .Kind = EMaterialParameterKind::Texture,
-                    .DefaultValue = SMaterialParameter::MakeTexture(baseColorTexture),
+                    .DefaultValue = SMaterialParameter::MakeTexture(textures.BaseColor),
                 }), "Could not define BaseColorTexture.");
 
                 const auto texture = AddTextureSample(
@@ -593,11 +598,11 @@ namespace Elixir
                 EMaterialValueType::Float
             );
 
-            if (metallicRoughnessTexture)
+            if (textures.MetallicRoughness)
             {
                 EE_CORE_ASSERT(material->DefineParameter("MetallicRoughnessTexture", {
                     .Kind = EMaterialParameterKind::Texture,
-                    .DefaultValue = SMaterialParameter::MakeTexture(metallicRoughnessTexture),
+                    .DefaultValue = SMaterialParameter::MakeTexture(textures.MetallicRoughness),
                 }), "Could not define MetallicRoughnessTexture.");
 
                 const auto sample = AddTextureSample(
@@ -630,11 +635,11 @@ namespace Elixir
                 EMaterialValueType::Float3
             );
 
-            if (emissiveTexture)
+            if (textures.Emissive)
             {
                 EE_CORE_ASSERT(material->DefineParameter("EmissiveTexture", {
                     .Kind = EMaterialParameterKind::Texture,
-                    .DefaultValue = SMaterialParameter::MakeTexture(emissiveTexture),
+                    .DefaultValue = SMaterialParameter::MakeTexture(textures.Emissive),
                 }), "Could not define EmissiveTexture.");
 
                 const auto sample = AddTextureSample(
@@ -658,11 +663,11 @@ namespace Elixir
             graph.SetChannel( EMaterialChannel::Opacity, opacity);
             graph.SetChannel(EMaterialChannel::Emissive, emissive);
 
-            if (normalTexture)
+            if (textures.Normal)
             {
                 EE_CORE_ASSERT(material->DefineParameter("NormalTexture", {
                     .Kind = EMaterialParameterKind::Texture,
-                    .DefaultValue = SMaterialParameter::MakeTexture(normalTexture),
+                    .DefaultValue = SMaterialParameter::MakeTexture(textures.Normal),
                 }), "Could not define NormalTexture.");
 
                 const auto sample = AddTextureSample(
@@ -690,11 +695,11 @@ namespace Elixir
                 );
             }
 
-            if (occlusionTexture)
+            if (textures.Occlusion)
             {
                 EE_CORE_ASSERT(material->DefineParameter("OcclusionTexture", {
                     .Kind = EMaterialParameterKind::Texture,
-                    .DefaultValue = SMaterialParameter::MakeTexture(occlusionTexture),
+                    .DefaultValue = SMaterialParameter::MakeTexture(textures.Occlusion),
                 }), "Could not define OcclusionTexture.");
 
                 const auto sample = AddTextureSample(
@@ -732,11 +737,11 @@ namespace Elixir
                     EMaterialValueType::Float
                 );
 
-                if (specularTexture)
+                if (textures.Specular)
                 {
                     EE_CORE_ASSERT(material->DefineParameter("SpecularTexture", {
                         .Kind = EMaterialParameterKind::Texture,
-                        .DefaultValue = SMaterialParameter::MakeTexture(specularTexture),
+                        .DefaultValue = SMaterialParameter::MakeTexture(textures.Specular),
                     }), "Could not define SpecularTexture.");
 
                     const auto sample = AddTextureSample(
@@ -760,11 +765,11 @@ namespace Elixir
                     EMaterialValueType::Float3
                 );
 
-                if (specularColorTexture)
+                if (textures.SpecularColor)
                 {
                     EE_CORE_ASSERT(material->DefineParameter("SpecularColorTexture", {
                         .Kind = EMaterialParameterKind::Texture,
-                        .DefaultValue = SMaterialParameter::MakeTexture(specularColorTexture),
+                        .DefaultValue = SMaterialParameter::MakeTexture(textures.SpecularColor),
                     }), "Could not define SpecularColorTexture.");
 
                     const auto sample = AddTextureSample(
@@ -791,11 +796,11 @@ namespace Elixir
                     EMaterialValueType::Float
                 );
 
-                if (clearCoatTexture)
+                if (textures.ClearCoat)
                 {
                     EE_CORE_ASSERT(material->DefineParameter("ClearCoatTexture", {
                         .Kind = EMaterialParameterKind::Texture,
-                        .DefaultValue = SMaterialParameter::MakeTexture(clearCoatTexture),
+                        .DefaultValue = SMaterialParameter::MakeTexture(textures.ClearCoat),
                     }), "Could not define ClearCoatTexture.");
 
                     const auto sample = AddTextureSample(
@@ -819,12 +824,12 @@ namespace Elixir
                     EMaterialValueType::Float
                 );
 
-                if (clearCoatRoughnessTexture)
+                if (textures.ClearCoatRoughness)
                 {
                     EE_CORE_ASSERT(material->DefineParameter("ClearCoatRoughnessTexture", {
                         .Kind = EMaterialParameterKind::Texture,
                         .DefaultValue = SMaterialParameter::MakeTexture(
-                            clearCoatRoughnessTexture
+                            textures.ClearCoatRoughness
                         ),
                     }), "Could not define ClearCoatRoughnessTexture.");
 
@@ -849,12 +854,12 @@ namespace Elixir
 
                 // In glTF, clearCoatNormalTexture belongs to the external
                 // clear-coat layer.
-                if (clearCoatNormalTexture)
+                if (textures.ClearCoatNormal)
                 {
                     EE_CORE_ASSERT(material->DefineParameter("ClearCoatNormalTexture", {
                         .Kind = EMaterialParameterKind::Texture,
                         .DefaultValue = SMaterialParameter::MakeTexture(
-                            clearCoatNormalTexture
+                            textures.ClearCoatNormal
                         ),
                     }), "Could not define ClearCoatNormalTexture.");
 
@@ -883,44 +888,26 @@ namespace Elixir
             return material;
         }
 
-        void LoadMaterials(
-            SStaticMeshData& mesh,
-            const GraphicsContext& context,
-            fastgltf::Asset& asset,
-            const std::filesystem::path& dir
-        )
+        std::vector<Ref<Material>> MaterialLoader::Load()
         {
             // Index zero is the fallback for primitives without a glTF material.
-            mesh.Materials.push_back(CreateDefaultMaterials()[0]);
+            std::vector<Ref<Material>> materials;
+            materials.push_back(CreateDefaultMaterials()[0]);
 
-            std::unordered_map<uint64_t, Ref<Texture>> textureCache;
-            mesh.Materials.reserve(asset.materials.size() + 1);
+            materials.reserve(m_Asset.materials.size() + 1);
 
-            for (size_t i = 0; i < asset.materials.size(); ++i)
+            for (size_t i = 0; i < m_Asset.materials.size(); ++i)
             {
-                const auto& source = asset.materials[i];
-                Ref<Texture> baseColorTexture;
-                Ref<Texture> metallicRoughnessTexture;
-                Ref<Texture> normalTexture;
-                Ref<Texture> occlusionTexture;
-                Ref<Texture> emissiveTexture;
-                Ref<Texture> specularTexture;
-                Ref<Texture> specularColorTexture;
-                Ref<Texture> clearCoatTexture;
-                Ref<Texture> clearCoatRoughnessTexture;
-                Ref<Texture> clearCoatNormalTexture;
+                const auto& source = m_Asset.materials[i];
+                SMaterialTextures textures;
 
                 if (source.pbrData.baseColorTexture)
                 {
                     STexture2DCreateInfo info;
                     info.Format = EImageFormat::R8G8B8A8_SRGB;
-                    baseColorTexture = LoadTexture(
-                        context,
-                        asset,
+                    textures.BaseColor = LoadTexture(
                         source.pbrData.baseColorTexture->textureIndex,
-                        dir,
-                        info,
-                        textureCache
+                        info
                     );
                 }
 
@@ -928,13 +915,9 @@ namespace Elixir
                 {
                     STexture2DCreateInfo info;
                     info.Format = EImageFormat::R8G8B8A8_UNORM;
-                    metallicRoughnessTexture = LoadTexture(
-                        context,
-                        asset,
+                    textures.MetallicRoughness = LoadTexture(
                         source.pbrData.metallicRoughnessTexture->textureIndex,
-                        dir,
-                        info,
-                        textureCache
+                        info
                     );
                 }
 
@@ -943,13 +926,9 @@ namespace Elixir
                     STexture2DCreateInfo info;
                     info.Format = EImageFormat::R8G8B8A8_UNORM;
                     info.MipmapMode = EImageMipmapMode::NormalMap;
-                    normalTexture = LoadTexture(
-                        context,
-                        asset,
+                    textures.Normal = LoadTexture(
                         source.normalTexture->textureIndex,
-                        dir,
-                        info,
-                        textureCache
+                        info
                     );
                 }
 
@@ -957,13 +936,9 @@ namespace Elixir
                 {
                     STexture2DCreateInfo info;
                     info.Format = EImageFormat::R8G8B8A8_UNORM;
-                    occlusionTexture = LoadTexture(
-                        context,
-                        asset,
+                    textures.Occlusion = LoadTexture(
                         source.occlusionTexture->textureIndex,
-                        dir,
-                        info,
-                        textureCache
+                        info
                     );
                 }
 
@@ -971,13 +946,9 @@ namespace Elixir
                 {
                     STexture2DCreateInfo info;
                     info.Format = EImageFormat::R8G8B8A8_SRGB;
-                    emissiveTexture = LoadTexture(
-                        context,
-                        asset,
+                    textures.Emissive = LoadTexture(
                         source.emissiveTexture->textureIndex,
-                        dir,
-                        info,
-                        textureCache
+                        info
                     );
                 }
 
@@ -987,13 +958,9 @@ namespace Elixir
                     {
                         STexture2DCreateInfo info;
                         info.Format = EImageFormat::R8G8B8A8_UNORM;
-                        specularTexture = LoadTexture(
-                            context,
-                            asset,
+                        textures.Specular = LoadTexture(
                             source.specular->specularTexture->textureIndex,
-                            dir,
-                            info,
-                            textureCache
+                            info
                         );
                     }
 
@@ -1001,13 +968,9 @@ namespace Elixir
                     {
                         STexture2DCreateInfo info;
                         info.Format = EImageFormat::R8G8B8A8_SRGB;
-                        specularColorTexture = LoadTexture(
-                            context,
-                            asset,
+                        textures.SpecularColor = LoadTexture(
                             source.specular->specularColorTexture->textureIndex,
-                            dir,
-                            info,
-                            textureCache
+                            info
                         );
                     }
                 }
@@ -1018,13 +981,9 @@ namespace Elixir
                     {
                         STexture2DCreateInfo info;
                         info.Format = EImageFormat::R8G8B8A8_UNORM;
-                        clearCoatTexture = LoadTexture(
-                            context,
-                            asset,
+                        textures.ClearCoat = LoadTexture(
                             source.clearcoat->clearcoatTexture->textureIndex,
-                            dir,
-                            info,
-                            textureCache
+                            info
                         );
                     }
 
@@ -1032,13 +991,9 @@ namespace Elixir
                     {
                         STexture2DCreateInfo info;
                         info.Format = EImageFormat::R8G8B8A8_UNORM;
-                        clearCoatRoughnessTexture = LoadTexture(
-                            context,
-                            asset,
+                        textures.ClearCoatRoughness = LoadTexture(
                             source.clearcoat->clearcoatRoughnessTexture->textureIndex,
-                            dir,
-                            info,
-                            textureCache
+                            info
                         );
                     }
 
@@ -1047,255 +1002,443 @@ namespace Elixir
                         STexture2DCreateInfo info;
                         info.Format = EImageFormat::R8G8B8A8_UNORM;
                         info.MipmapMode = EImageMipmapMode::NormalMap;
-                        clearCoatNormalTexture = LoadTexture(
-                            context,
-                            asset,
+                        textures.ClearCoatNormal = LoadTexture(
                             source.clearcoat->clearcoatNormalTexture->textureIndex,
-                            dir,
-                            info,
-                            textureCache
+                            info
                         );
                     }
                 }
 
-                mesh.Materials.push_back(CreateSurfaceMaterial(
-                    source,
-                    i,
-                    mesh.Name,
-                    baseColorTexture,
-                    metallicRoughnessTexture,
-                    normalTexture,
-                    occlusionTexture,
-                    emissiveTexture,
-                    specularTexture,
-                    specularColorTexture,
-                    clearCoatTexture,
-                    clearCoatRoughnessTexture,
-                    clearCoatNormalTexture
-                ));
-            }
-        }
-    }
-
-    constexpr auto GLTF_OPTIONS = fastgltf::Options::LoadExternalBuffers |
-                                  fastgltf::Options::GenerateMeshIndices;
-
-    constexpr auto GLTF_CATEGORIES = fastgltf::Category::Meshes |
-                                             fastgltf::Category::Accessors |
-                                             fastgltf::Category::BufferViews |
-                                             fastgltf::Category::Buffers |
-                                             fastgltf::Category::Images |
-                                             fastgltf::Category::Textures |
-                                             fastgltf::Category::Materials |
-                                             fastgltf::Category::Scenes;
-
-    static void LoadPrimitive(
-        SStaticMeshData& mesh,
-        const fastgltf::Asset& asset,
-        const fastgltf::Primitive& primitive,
-        const glm::mat4& localTransform,
-        bool& hasBounds
-    )
-    {
-        if (primitive.type != fastgltf::PrimitiveType::Triangles)
-        {
-            EE_CORE_WARN(
-                "Skipping primitive in mesh '{}': only triangles are supported.",
-                mesh.Name
-            )
-            return;
-        }
-
-        const auto position = primitive.findAttribute("POSITION");
-
-        if (position == primitive.attributes.end() ||
-            position->accessorIndex >= asset.accessors.size())
-        {
-            EE_CORE_WARN("Skipping primitive in mesh '{}': POSITION is missing.", mesh.Name)
-            return;
-        }
-
-        const auto& positionAccessor = asset.accessors[position->accessorIndex];
-        if (positionAccessor.count > std::numeric_limits<uint32_t>::max())
-        {
-            EE_CORE_WARN(
-                "Skipping primitive in mesh '{}': it exceeds the vertex limit.",
-                mesh.Name
-            )
-            return;
-        }
-
-        std::vector<SStaticMeshVertex> vertices(positionAccessor.count);
-        fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(
-            asset,
-            positionAccessor,
-            [&vertices](const auto value, const size_t index)
-            {
-                vertices[index].Position = { value.x(), value.y(), value.z() };
-            }
-        );
-
-        const auto loadAttribute = [&]<typename TValue>(
-            const std::string_view name,
-            auto&& assign
-        )
-        {
-            const auto attribute = primitive.findAttribute(name);
-
-            if (attribute == primitive.attributes.end() ||
-                attribute->accessorIndex >= asset.accessors.size())
-            {
-                return;
+                materials.push_back(CreateSurfaceMaterial(source, i, textures));
             }
 
-            const auto& accessor = asset.accessors[attribute->accessorIndex];
-            if (accessor.count != vertices.size())
-            {
-                EE_CORE_WARN(
-                    "Ignoring {} in primitive of mesh '{}': its count differs from POSITION.",
-                    name,
-                    mesh.Name
-                )
-                return;
-            }
+            return materials;
+        }
 
-            fastgltf::iterateAccessorWithIndex<TValue>(
-                asset,
-                accessor,
-                [&assign](const auto value, const size_t index)
-                {
-                    assign(value, index);
-                }
+        class Loader final
+        {
+        public:
+            Loader(const GraphicsContext& context, std::filesystem::path path);
+
+            std::optional<SStaticMeshData> Load();
+
+        private:
+            bool ParseAsset();
+            bool LoadGeometry();
+            void LoadPrimitive(
+                const fastgltf::Primitive& primitive,
+                const glm::mat4& localTransform
             );
+            void LoadNodeMesh(
+                const fastgltf::Node& node,
+                const glm::mat4& localTransform
+            );
+
+            static SStaticMeshBounds GetBounds(
+                const std::vector<SStaticMeshVertex>& vertices
+            );
+            static void ExpandBounds(
+                SStaticMeshBounds& target,
+                const SStaticMeshBounds& source
+            );
+            static glm::mat4 ToGlmMatrix(const fastgltf::math::fmat4x4& source);
+            static bool ApplyLocalTransform(
+                std::vector<SStaticMeshVertex>& vertices,
+                const glm::mat4& localTransform
+            );
+
+            const GraphicsContext& m_Context;
+            std::filesystem::path m_Path;
+            std::optional<fastgltf::Asset> m_Asset;
+            SStaticMeshData m_Mesh;
+            bool m_HasBounds = false;
         };
 
-        loadAttribute.operator()<fastgltf::math::fvec3>(
-            "NORMAL",
-            [&vertices](const auto value, const size_t index)
-            {
-                vertices[index].Normal = { value.x(), value.y(), value.z() };
-            }
-        );
-
-        loadAttribute.operator()<fastgltf::math::fvec4>(
-            "TANGENT",
-            [&vertices](const auto value, const size_t index)
-            {
-                vertices[index].Tangent = { value.x(), value.y(), value.z(), value.w() };
-            }
-        );
-
-        loadAttribute.operator()<fastgltf::math::fvec2>(
-            "TEXCOORD_0",
-            [&vertices](const auto value, const size_t index)
-            {
-                vertices[index].TexCoord = { value.x(), value.y() };
-            }
-        );
-
-        loadAttribute.operator()<fastgltf::math::fvec2>(
-            "TEXCOORD_1",
-            [&vertices](const auto value, const size_t index)
-            {
-                vertices[index].TexCoord1 = { value.x(), value.y() };
-            }
-        );
-
-        std::vector<uint32_t> indices;
-
-        if (primitive.indicesAccessor &&
-            *primitive.indicesAccessor < asset.accessors.size())
+        SStaticMeshBounds Loader::GetBounds(const std::vector<SStaticMeshVertex>& vertices)
         {
-            const auto& accessor = asset.accessors[*primitive.indicesAccessor];
+            SStaticMeshBounds bounds{
+                .Min = glm::vec3(std::numeric_limits<float>::max()),
+                .Max = glm::vec3(std::numeric_limits<float>::lowest()),
+            };
 
-            if (accessor.count > std::numeric_limits<uint32_t>::max())
+            for (const auto& vertex : vertices)
+            {
+                bounds.Min = glm::min(bounds.Min, vertex.Position);
+                bounds.Max = glm::max(bounds.Max, vertex.Position);
+            }
+
+            return bounds;
+        }
+
+        void Loader::ExpandBounds(
+            SStaticMeshBounds& target,
+            const SStaticMeshBounds& source
+        )
+        {
+            target.Min = glm::min(target.Min, source.Min);
+            target.Max = glm::max(target.Max, source.Max);
+        }
+
+        glm::mat4 Loader::ToGlmMatrix(const fastgltf::math::fmat4x4& source)
+        {
+            glm::mat4 result{ 1.0f };
+            for (size_t column = 0; column < 4; ++column)
+                for (size_t row = 0; row < 4; ++row)
+                    result[column][row] = source.col(column)[row];
+
+            return result;
+        }
+
+        bool Loader::ApplyLocalTransform(
+            std::vector<SStaticMeshVertex>& vertices,
+            const glm::mat4& localTransform
+        )
+        {
+            const glm::mat3 linearTransform{ localTransform };
+            const float determinant = glm::determinant(linearTransform);
+            if (determinant == 0.0f)
+            {
+                EE_CORE_WARN("glTF node has a singular local transform; skipping its primitive.")
+                return false;
+            }
+
+            const glm::mat3 normalTransform = glm::transpose(glm::inverse(linearTransform));
+            const float handedness = determinant < 0.0f ? -1.0f : 1.0f;
+
+            for (auto& vertex : vertices)
+            {
+                vertex.Position = glm::vec3(localTransform * glm::vec4(vertex.Position, 1.0f));
+                vertex.Normal = glm::normalize(normalTransform * vertex.Normal);
+
+                glm::vec3 tangent = linearTransform * glm::vec3(vertex.Tangent);
+                tangent -= vertex.Normal * glm::dot(vertex.Normal, tangent);
+                vertex.Tangent = {
+                    glm::normalize(tangent),
+                    vertex.Tangent.w * handedness
+                };
+            }
+
+            return true;
+        }
+
+        void Loader::LoadPrimitive(
+            const fastgltf::Primitive& primitive,
+            const glm::mat4& localTransform
+        )
+        {
+            const auto& asset = *m_Asset;
+            auto& mesh = m_Mesh;
+
+            if (primitive.type != fastgltf::PrimitiveType::Triangles)
             {
                 EE_CORE_WARN(
-                    "Skipping primitive in mesh '{}': it exceeds the index limit.",
+                    "Skipping primitive in mesh '{}': only triangles are supported.",
                     mesh.Name
                 )
                 return;
             }
 
-            indices.resize(accessor.count);
-            fastgltf::iterateAccessorWithIndex<uint32_t>(
+            const auto position = primitive.findAttribute("POSITION");
+
+            if (position == primitive.attributes.end() ||
+                position->accessorIndex >= asset.accessors.size())
+            {
+                EE_CORE_WARN("Skipping primitive in mesh '{}': POSITION is missing.", mesh.Name)
+                return;
+            }
+
+            const auto& positionAccessor = asset.accessors[position->accessorIndex];
+            if (positionAccessor.count > std::numeric_limits<uint32_t>::max())
+            {
+                EE_CORE_WARN(
+                    "Skipping primitive in mesh '{}': it exceeds the vertex limit.",
+                    mesh.Name
+                )
+                return;
+            }
+
+            std::vector<SStaticMeshVertex> vertices(positionAccessor.count);
+            fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(
                 asset,
-                accessor,
-                [&indices](const uint32_t value, const size_t index)
+                positionAccessor,
+                [&vertices](const auto value, const size_t index)
                 {
-                    indices[index] = value;
+                    vertices[index].Position = { value.x(), value.y(), value.z() };
                 }
             );
+
+            const auto loadAttribute = [&]<typename TValue>(
+                const std::string_view name,
+                auto&& assign
+            )
+            {
+                const auto attribute = primitive.findAttribute(name);
+
+                if (attribute == primitive.attributes.end() ||
+                    attribute->accessorIndex >= asset.accessors.size())
+                {
+                    return;
+                }
+
+                const auto& accessor = asset.accessors[attribute->accessorIndex];
+                if (accessor.count != vertices.size())
+                {
+                    EE_CORE_WARN(
+                        "Ignoring {} in primitive of mesh '{}': its count differs from POSITION.",
+                        name,
+                        mesh.Name
+                    )
+                    return;
+                }
+
+                fastgltf::iterateAccessorWithIndex<TValue>(
+                    asset,
+                    accessor,
+                    [&assign](const auto value, const size_t index)
+                    {
+                        assign(value, index);
+                    }
+                );
+            };
+
+            loadAttribute.operator()<fastgltf::math::fvec3>(
+                "NORMAL",
+                [&vertices](const auto value, const size_t index)
+                {
+                    vertices[index].Normal = { value.x(), value.y(), value.z() };
+                }
+            );
+
+            loadAttribute.operator()<fastgltf::math::fvec4>(
+                "TANGENT",
+                [&vertices](const auto value, const size_t index)
+                {
+                    vertices[index].Tangent = { value.x(), value.y(), value.z(), value.w() };
+                }
+            );
+
+            loadAttribute.operator()<fastgltf::math::fvec2>(
+                "TEXCOORD_0",
+                [&vertices](const auto value, const size_t index)
+                {
+                    vertices[index].TexCoord = { value.x(), value.y() };
+                }
+            );
+
+            loadAttribute.operator()<fastgltf::math::fvec2>(
+                "TEXCOORD_1",
+                [&vertices](const auto value, const size_t index)
+                {
+                    vertices[index].TexCoord1 = { value.x(), value.y() };
+                }
+            );
+
+            std::vector<uint32_t> indices;
+
+            if (primitive.indicesAccessor &&
+                *primitive.indicesAccessor < asset.accessors.size())
+            {
+                const auto& accessor = asset.accessors[*primitive.indicesAccessor];
+
+                if (accessor.count > std::numeric_limits<uint32_t>::max())
+                {
+                    EE_CORE_WARN(
+                        "Skipping primitive in mesh '{}': it exceeds the index limit.",
+                        mesh.Name
+                    )
+                    return;
+                }
+
+                indices.resize(accessor.count);
+                fastgltf::iterateAccessorWithIndex<uint32_t>(
+                    asset,
+                    accessor,
+                    [&indices](const uint32_t value, const size_t index)
+                    {
+                        indices[index] = value;
+                    }
+                );
+            }
+            else
+            {
+                indices.resize(vertices.size());
+                std::iota(indices.begin(), indices.end(), 0u);
+            }
+
+            if (vertices.empty() || indices.empty())
+            {
+                EE_CORE_WARN("Skipping empty primitive in mesh '{}'.", mesh.Name)
+                return;
+            }
+
+            if (!ApplyLocalTransform(vertices, localTransform))
+                return;
+
+            SStaticMeshSection section;
+            section.FirstIndex = (uint32_t)mesh.Indices.size();
+            section.IndexCount = (uint32_t)indices.size();
+            section.VertexOffset = (uint32_t)mesh.Vertices.size();
+            section.MaterialIndex =
+                primitive.materialIndex && *primitive.materialIndex < asset.materials.size()
+                    ? uint32_t(*primitive.materialIndex + 1)
+                    : 0;
+            section.LocalBounds = GetBounds(vertices);
+
+            mesh.Vertices.insert(
+                mesh.Vertices.end(),
+                std::make_move_iterator(vertices.begin()),
+                std::make_move_iterator(vertices.end())
+            );
+
+            mesh.Indices.insert(
+                mesh.Indices.end(),
+                std::make_move_iterator(indices.begin()),
+                std::make_move_iterator(indices.end())
+            );
+
+            if (!m_HasBounds)
+            {
+                mesh.LocalBounds = section.LocalBounds;
+                m_HasBounds = true;
+            }
+            else
+            {
+                ExpandBounds(mesh.LocalBounds, section.LocalBounds);
+            }
+
+            mesh.Sections.push_back(std::move(section));
         }
-        else
+
+        void Loader::LoadNodeMesh(
+            const fastgltf::Node& node,
+            const glm::mat4& localTransform
+        )
         {
-            indices.resize(vertices.size());
-            std::iota(indices.begin(), indices.end(), 0u);
+            const auto& asset = *m_Asset;
+
+            if (!node.meshIndex)
+                return;
+
+            if (*node.meshIndex >= asset.meshes.size())
+            {
+                EE_CORE_WARN("glTF node references an invalid mesh index.")
+                return;
+            }
+
+            for (const auto& primitive : asset.meshes[*node.meshIndex].primitives)
+                LoadPrimitive(primitive, localTransform);
         }
 
-        if (vertices.empty() || indices.empty())
+        Loader::Loader(const GraphicsContext& context, std::filesystem::path path)
+          : m_Context(context),
+            m_Path(std::move(path)) {}
+
+        bool Loader::ParseAsset()
         {
-            EE_CORE_WARN("Skipping empty primitive in mesh '{}'.", mesh.Name)
-            return;
+            auto data = fastgltf::GltfDataBuffer::FromPath(m_Path);
+            if (data.error() != fastgltf::Error::None)
+            {
+                EE_CORE_ERROR(
+                    "Failed to open glTF file '{}': {}.",
+                    m_Path.string(),
+                    fastgltf::getErrorMessage(data.error())
+                )
+                return false;
+            }
+
+            fastgltf::Parser parser{ GLTF_EXTENSIONS };
+
+            auto loadResult = parser.loadGltf(
+                data.get(),
+                m_Path.parent_path(),
+                GLTF_OPTIONS,
+                GLTF_CATEGORIES
+            );
+
+            if (loadResult.error() != fastgltf::Error::None)
+            {
+                EE_CORE_ERROR(
+                    "Failed to parse glTF file '{}': {}.",
+                    m_Path.string(),
+                    fastgltf::getErrorMessage(loadResult.error())
+                )
+                return false;
+            }
+
+            m_Asset.emplace(std::move(loadResult.get()));
+            return true;
         }
 
-        if (!ApplyLocalTransform(vertices, localTransform))
-            return;
-
-        SStaticMeshSection section;
-        section.FirstIndex = (uint32_t)mesh.Indices.size();
-        section.IndexCount = (uint32_t)indices.size();
-        section.VertexOffset = (uint32_t)mesh.Vertices.size();
-        section.MaterialIndex =
-            primitive.materialIndex && *primitive.materialIndex < asset.materials.size()
-                ? uint32_t(*primitive.materialIndex + 1)
-                : 0;
-        section.LocalBounds = GetBounds(vertices);
-
-        mesh.Vertices.insert(
-            mesh.Vertices.end(),
-            std::make_move_iterator(vertices.begin()),
-            std::make_move_iterator(vertices.end())
-        );
-
-        mesh.Indices.insert(
-            mesh.Indices.end(),
-            std::make_move_iterator(indices.begin()),
-            std::make_move_iterator(indices.end())
-        );
-
-        if (!hasBounds)
+        bool Loader::LoadGeometry()
         {
-            mesh.LocalBounds = section.LocalBounds;
-            hasBounds = true;
+            const auto& asset = *m_Asset;
+
+            if (!asset.scenes.empty())
+            {
+                const size_t sceneIndex = asset.defaultScene.value_or(0);
+                if (sceneIndex >= asset.scenes.size())
+                {
+                    EE_CORE_ERROR("glTF default scene index is invalid.")
+                    return false;
+                }
+
+                fastgltf::iterateSceneNodes(
+                    asset,
+                    sceneIndex,
+                    fastgltf::math::fmat4x4{},
+                    [&](const fastgltf::Node& node, const fastgltf::math::fmat4x4& transform)
+                    {
+                        LoadNodeMesh(node, ToGlmMatrix(transform));
+                    }
+                );
+            }
+
+            else
+            {
+                if (asset.nodes.empty())
+                {
+                    for (const auto& assetMesh : asset.meshes)
+                        for (const auto& primitive : assetMesh.primitives)
+                            LoadPrimitive(primitive, glm::mat4{ 1.0f });
+                }
+                else
+                {
+                    for (const auto& node : asset.nodes)
+                        LoadNodeMesh(
+                            node,
+                            ToGlmMatrix(fastgltf::getTransformMatrix(node))
+                        );
+                }
+            }
+
+            return true;
         }
-        else
+
+        std::optional<SStaticMeshData> Loader::Load()
         {
-            ExpandBounds(mesh.LocalBounds, section.LocalBounds);
+            m_Mesh.Name = m_Path.stem().string();
+
+            if (!ParseAsset())
+                return std::nullopt;
+
+            m_Mesh.Materials = MaterialLoader(
+                m_Context,
+                *m_Asset,
+                m_Path.parent_path(),
+                m_Mesh.Name
+            ).Load();
+
+            if (!LoadGeometry())
+                return std::nullopt;
+
+            if (m_Mesh.Sections.empty())
+            {
+                EE_CORE_ERROR("No valid static meshes were found in '{}'.", m_Path.string())
+                return std::nullopt;
+            }
+
+            return std::move(m_Mesh);
         }
-
-        mesh.Sections.push_back(std::move(section));
-    }
-
-    static void LoadNodeMesh(
-        SStaticMeshData& mesh,
-        const fastgltf::Asset& asset,
-        const fastgltf::Node& node,
-        const glm::mat4& localTransform,
-        bool& hasBounds
-    )
-    {
-        if (!node.meshIndex)
-            return;
-
-        if (*node.meshIndex >= asset.meshes.size())
-        {
-            EE_CORE_WARN("glTF node references an invalid mesh index.")
-            return;
-        }
-
-        for (const auto& primitive : asset.meshes[*node.meshIndex].primitives)
-            LoadPrimitive(mesh, asset, primitive, localTransform, hasBounds);
     }
 
     std::optional<SStaticMeshData> GLTFStaticMeshLoader::Load(
@@ -1303,95 +1446,6 @@ namespace Elixir
         std::filesystem::path path
     ) const
     {
-        SStaticMeshData mesh;
-        mesh.Name = path.stem().string();
-
-        auto data = fastgltf::GltfDataBuffer::FromPath(path);
-        if (data.error() != fastgltf::Error::None)
-        {
-            EE_CORE_ERROR(
-                "Failed to open glTF file '{}': {}.",
-                path.string(),
-                fastgltf::getErrorMessage(data.error())
-            )
-            return std::nullopt;
-        }
-
-        fastgltf::Parser parser{
-            fastgltf::Extensions::KHR_materials_emissive_strength |
-            fastgltf::Extensions::KHR_materials_specular |
-            fastgltf::Extensions::KHR_texture_transform |
-            fastgltf::Extensions::KHR_materials_clearcoat
-        };
-
-        auto loadResult = parser.loadGltf(
-            data.get(),
-            path.parent_path(),
-            GLTF_OPTIONS,
-            GLTF_CATEGORIES
-        );
-
-        if (loadResult.error() != fastgltf::Error::None)
-        {
-            EE_CORE_ERROR(
-                "Failed to parse glTF file '{}': {}.",
-                path.string(),
-                fastgltf::getErrorMessage(loadResult.error())
-            )
-            return std::nullopt;
-        }
-
-        fastgltf::Asset& asset = loadResult.get();
-        bool hasBounds = false;
-
-        LoadMaterials(mesh, context, asset, path.parent_path());
-
-        if (!asset.scenes.empty())
-        {
-            const size_t sceneIndex = asset.defaultScene.value_or(0);
-            if (sceneIndex >= asset.scenes.size())
-            {
-                EE_CORE_ERROR("glTF default scene index is invalid.")
-                return std::nullopt;
-            }
-
-            fastgltf::iterateSceneNodes(
-                asset,
-                sceneIndex,
-                fastgltf::math::fmat4x4{},
-                [&](const fastgltf::Node& node, const fastgltf::math::fmat4x4& transform)
-                {
-                    LoadNodeMesh(mesh, asset, node, ToGlmMatrix(transform), hasBounds);
-                }
-            );
-        }
-        else
-        {
-            if (asset.nodes.empty())
-            {
-                for (const auto& assetMesh : asset.meshes)
-                    for (const auto& primitive : assetMesh.primitives)
-                        LoadPrimitive(mesh, asset, primitive, glm::mat4{ 1.0f }, hasBounds);
-            }
-            else
-            {
-                for (const auto& node : asset.nodes)
-                    LoadNodeMesh(
-                        mesh,
-                        asset,
-                        node,
-                        ToGlmMatrix(fastgltf::getTransformMatrix(node)),
-                        hasBounds
-                    );
-            }
-        }
-
-        if (mesh.Sections.empty())
-        {
-            EE_CORE_ERROR("No valid static meshes were found in '{}'.", path.string())
-            return std::nullopt;
-        }
-
-        return mesh;
+        return Loader(context, std::move(path)).Load();
     }
 }
