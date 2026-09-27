@@ -23,6 +23,8 @@ namespace Elixir
          * color factor.
          * `KHR_texture_transform` selects TEXCOORD_0 or TEXCOORD_1 and maps
          * each texture transform to generic material graph nodes.
+         * Node transforms are composed within the glTF scene and baked into
+         * mesh-local vertex data.
          *
          * @param context Graphics context available for material resolution.
          * @param path Local glTF or GLB file path.

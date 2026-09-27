@@ -23,6 +23,7 @@
 
 #include <fastgltf/core.hpp>
 #include <fastgltf/tools.hpp>
+#include <glm/gtc/matrix_inverse.hpp>
 #include <stb_image.h>
 
 namespace Elixir
@@ -49,6 +50,48 @@ namespace Elixir
         {
             target.Min = glm::min(target.Min, source.Min);
             target.Max = glm::max(target.Max, source.Max);
+        }
+
+        glm::mat4 ToGlmMatrix(const fastgltf::math::fmat4x4& source)
+        {
+            glm::mat4 result{ 1.0f };
+            for (size_t column = 0; column < 4; ++column)
+                for (size_t row = 0; row < 4; ++row)
+                    result[column][row] = source.col(column)[row];
+
+            return result;
+        }
+
+        bool ApplyLocalTransform(
+            std::vector<SStaticMeshVertex>& vertices,
+            const glm::mat4& localTransform
+        )
+        {
+            const glm::mat3 linearTransform{ localTransform };
+            const float determinant = glm::determinant(linearTransform);
+            if (determinant == 0.0f)
+            {
+                EE_CORE_WARN("glTF node has a singular local transform; skipping its primitive.")
+                return false;
+            }
+
+            const glm::mat3 normalTransform = glm::transpose(glm::inverse(linearTransform));
+            const float handedness = determinant < 0.0f ? -1.0f : 1.0f;
+
+            for (auto& vertex : vertices)
+            {
+                vertex.Position = glm::vec3(localTransform * glm::vec4(vertex.Position, 1.0f));
+                vertex.Normal = glm::normalize(normalTransform * vertex.Normal);
+
+                glm::vec3 tangent = linearTransform * glm::vec3(vertex.Tangent);
+                tangent -= vertex.Normal * glm::dot(vertex.Normal, tangent);
+                vertex.Tangent = {
+                    glm::normalize(tangent),
+                    vertex.Tangent.w * handedness
+                };
+            }
+
+            return true;
         }
 
         Ref<Texture> DecodeImage(
@@ -1043,12 +1086,14 @@ namespace Elixir
                                              fastgltf::Category::Buffers |
                                              fastgltf::Category::Images |
                                              fastgltf::Category::Textures |
-                                             fastgltf::Category::Materials;
+                                             fastgltf::Category::Materials |
+                                             fastgltf::Category::Scenes;
 
     static void LoadPrimitive(
         SStaticMeshData& mesh,
         const fastgltf::Asset& asset,
         const fastgltf::Primitive& primitive,
+        const glm::mat4& localTransform,
         bool& hasBounds
     )
     {
@@ -1194,6 +1239,9 @@ namespace Elixir
             return;
         }
 
+        if (!ApplyLocalTransform(vertices, localTransform))
+            return;
+
         SStaticMeshSection section;
         section.FirstIndex = (uint32_t)mesh.Indices.size();
         section.IndexCount = (uint32_t)indices.size();
@@ -1227,6 +1275,27 @@ namespace Elixir
         }
 
         mesh.Sections.push_back(std::move(section));
+    }
+
+    static void LoadNodeMesh(
+        SStaticMeshData& mesh,
+        const fastgltf::Asset& asset,
+        const fastgltf::Node& node,
+        const glm::mat4& localTransform,
+        bool& hasBounds
+    )
+    {
+        if (!node.meshIndex)
+            return;
+
+        if (*node.meshIndex >= asset.meshes.size())
+        {
+            EE_CORE_WARN("glTF node references an invalid mesh index.")
+            return;
+        }
+
+        for (const auto& primitive : asset.meshes[*node.meshIndex].primitives)
+            LoadPrimitive(mesh, asset, primitive, localTransform, hasBounds);
     }
 
     std::optional<SStaticMeshData> GLTFStaticMeshLoader::Load(
@@ -1277,10 +1346,45 @@ namespace Elixir
 
         LoadMaterials(mesh, context, asset, path.parent_path());
 
-        // Combine every glTF mesh into this single static mesh.
-        for (const auto& assetMesh : asset.meshes)
-            for (const auto& primitive : assetMesh.primitives)
-                LoadPrimitive(mesh, asset, primitive, hasBounds);
+        if (!asset.scenes.empty())
+        {
+            const size_t sceneIndex = asset.defaultScene.value_or(0);
+            if (sceneIndex >= asset.scenes.size())
+            {
+                EE_CORE_ERROR("glTF default scene index is invalid.")
+                return std::nullopt;
+            }
+
+            fastgltf::iterateSceneNodes(
+                asset,
+                sceneIndex,
+                fastgltf::math::fmat4x4{},
+                [&](const fastgltf::Node& node, const fastgltf::math::fmat4x4& transform)
+                {
+                    LoadNodeMesh(mesh, asset, node, ToGlmMatrix(transform), hasBounds);
+                }
+            );
+        }
+        else
+        {
+            if (asset.nodes.empty())
+            {
+                for (const auto& assetMesh : asset.meshes)
+                    for (const auto& primitive : assetMesh.primitives)
+                        LoadPrimitive(mesh, asset, primitive, glm::mat4{ 1.0f }, hasBounds);
+            }
+            else
+            {
+                for (const auto& node : asset.nodes)
+                    LoadNodeMesh(
+                        mesh,
+                        asset,
+                        node,
+                        ToGlmMatrix(fastgltf::getTransformMatrix(node)),
+                        hasBounds
+                    );
+            }
+        }
 
         if (mesh.Sections.empty())
         {
