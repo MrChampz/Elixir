@@ -193,9 +193,9 @@ namespace Elixir
         )
         {
             const uint64_t cacheKey =
-                (uint64_t(textureIndex) << 2) |
+                (uint64_t(textureIndex) << 3) |
                 (info.Format == EImageFormat::R8G8B8A8_SRGB ? 1ull : 0ull) |
-                (info.GenerateMipmaps ? 2ull : 0ull);
+                (static_cast<uint64_t>(info.MipmapMode) << 1);
 
             const auto existing = cache.find(cacheKey);
             if (existing != cache.end())
@@ -899,7 +899,7 @@ namespace Elixir
                 {
                     STexture2DCreateInfo info;
                     info.Format = EImageFormat::R8G8B8A8_UNORM;
-                    info.GenerateMipmaps = true;
+                    info.MipmapMode = EImageMipmapMode::NormalMap;
                     normalTexture = LoadTexture(
                         context,
                         asset,
@@ -1003,7 +1003,7 @@ namespace Elixir
                     {
                         STexture2DCreateInfo info;
                         info.Format = EImageFormat::R8G8B8A8_UNORM;
-                        info.GenerateMipmaps = true;
+                        info.MipmapMode = EImageMipmapMode::NormalMap;
                         clearCoatNormalTexture = LoadTexture(
                             context,
                             asset,

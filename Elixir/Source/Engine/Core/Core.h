@@ -56,6 +56,13 @@ constexpr bool operator&(EnumClass lhs, EnumClass rhs)                          
     return (static_cast<T>(lhs) & static_cast<T>(rhs)) ==  static_cast<T>(rhs);     \
 }                                                                                   \
                                                                                     \
+/** @brief Reports whether two flag sets share at least one flag. */                \
+constexpr bool HasAnyFlags(EnumClass lhs, EnumClass rhs)                            \
+{                                                                                   \
+	using T = std::underlying_type_t<EnumClass>;                                    \
+    return (static_cast<T>(lhs) & static_cast<T>(rhs)) != 0;                        \
+}                                                                                   \
+                                                                                    \
 constexpr EnumClass operator|(EnumClass lhs, EnumClass rhs)							\
 {																					\
 	using T = std::underlying_type_t<EnumClass>; 								    \

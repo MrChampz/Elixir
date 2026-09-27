@@ -16,29 +16,7 @@ namespace
     {
     public:
         TestTexture()
-            : Texture(nullptr, EImageFormat::R8G8B8A8_UNORM, 1) {}
-
-        void Destroy() override {}
-        void Resize(const Ref<CommandBuffer>& cmd, Extent3D extent) override {}
-        void Transition(const CommandBuffer* cmd, EImageLayout layout) override {}
-
-        void Copy(
-            const CommandBuffer* cmd,
-            Image* dst,
-            const Extent3D& srcExtent,
-            const Extent3D& dstExtent
-        ) override {}
-
-        void CopyFrom(
-            const CommandBuffer* cmd,
-            const Buffer* src,
-            std::span<SBufferImageCopy> regions
-        ) override {}
-
-        bool IsValid() const override { return true; }
-
-    protected:
-        void UpdateSampler() override {}
+            : Texture(nullptr, {}) {}
     };
 }
 

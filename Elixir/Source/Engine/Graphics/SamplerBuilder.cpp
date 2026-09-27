@@ -46,7 +46,7 @@ namespace Elixir
 
 		m_MipLodBias = 0;
 		m_MinLod = 0;
-		m_MaxLod = 0;
+		m_MaxLod = 1000.0f;
 
 		m_AnisotropyEnable = false;
 		m_MaxAnisotropy = 0;

@@ -2,17 +2,12 @@
 
 #include <Engine/Core/Core.h>
 #include <Engine/Graphics/Buffer.h>
-#include <Engine/Graphics/Sampler.h>
+
+#include <span>
 
 namespace Elixir
 {
     class Image;
-
-    namespace Vulkan
-    {
-        template <typename>
-        class VulkanBaseImage;
-    }
 
     enum class EImageLayout
     {
@@ -64,6 +59,22 @@ namespace Elixir
 	{
 		_1D, _2D, _3D
 	};
+
+    /** @brief Defines how an image receives its mip chain. */
+    enum class EImageMipmapMode
+    {
+        /** Keeps only the base mip level. */
+        NoMipmaps,
+
+        /** Generates lower mip levels by averaging pixel values. */
+        SimpleAverage,
+
+        /** Generates lower mip levels by averaging and normalizing normal vectors. */
+        NormalMap,
+
+        /** Preserves the mip levels supplied by the image source. */
+        LeaveExistingMips
+    };
 
 	enum class EImageFormat
 	{
@@ -173,6 +184,7 @@ namespace Elixir
         Offset3D ImageOffset;
         Extent3D ImageExtent;
 
+        /** @param extent Dimensions of the image region to copy, in texels. */
         static SBufferImageCopy Default(const Extent3D& extent = Extent3D())
         {
             return {
@@ -182,122 +194,353 @@ namespace Elixir
         }
     };
 
-    struct SImageCreateInfo
+    /** @brief Supplies tightly packed pixels for one mip level and array layer. */
+    struct SImageMipData
     {
-        const void* InitialData = nullptr;
-        uint32_t Width = 0;
-        uint32_t Height = 1;
-        uint32_t Depth = 1;
-        EImageType Type;
-        EImageFormat Format;
-        uint32_t MipLevels = 1;
-        uint32_t ArrayLayers = 1;
-        EImageUsage Usage;
-        EImageLayout InitialLayout = EImageLayout::Undefined;
-        SAllocationInfo AllocationInfo;
+        /** Pixel storage borrowed until Image::Create returns. */
+        const void* Data = nullptr;
 
-        /** Generates lower mip levels from the supplied base level. */
-        bool GenerateMipmaps = false;
+        /** Size of the subresource in bytes, including compressed blocks. */
+        size_t Size = 0;
+
+        /** Zero-based mip level. */
+        uint32_t MipLevel = 0;
+
+        /** Zero-based array layer; use zero for volume images. */
+        uint32_t ArrayLayer = 0;
     };
 
+    /** @brief Describes image storage and optional synchronous initialization. */
+    struct SImageCreateInfo
+    {
+        /** Base-level width in texels; must be greater than zero. */
+        uint32_t Width = 0;
+
+        /** Base-level height in texels; must be one for a 1D image. */
+        uint32_t Height = 1;
+
+        /** Base-level depth in texels; must be one unless Type is _3D. */
+        uint32_t Depth = 1;
+
+        EImageType Type = EImageType::_2D;
+
+        EImageFormat Format = EImageFormat::Undefined;
+
+        /** Defines how the image receives its mip chain. */
+        EImageMipmapMode MipmapMode = EImageMipmapMode::NoMipmaps;
+
+        /** Used only by LeaveExistingMips; other modes determine the count. */
+        uint32_t MipLevels = 1;
+
+        /** Number of array layers; volume images require one layer. */
+        uint32_t ArrayLayers = 1;
+
+        /** Requested uses; Image adds the transfer flags needed for initialization. */
+        EImageUsage Usage = EImageUsage::Sampled;
+
+        /** Layout after initialization; Undefined with initial pixels resolves to General. */
+        EImageLayout InitialLayout = EImageLayout::Undefined;
+
+        /** Memory properties requested from the backend allocator. */
+        SAllocationInfo AllocationInfo{ .RequiredFlags = EMemoryProperty::DeviceLocal };
+
+        /**
+         * Tightly packed base-level pixels for all layers; mutually exclusive with
+         * InitialMipData.
+         */
+        const void* InitialData = nullptr;
+
+        /** Complete supplied mip chain, or empty to allocate without uploading it. */
+        std::span<const SImageMipData> InitialMipData;
+    };
+
+    /**
+     * @brief Owns a graphics image and coordinates initialization independently of its
+     * backend.
+     */
     class ELIXIR_API Image
     {
-        friend class TextureLoader;
-
-        template <typename>
-        friend class Vulkan::VulkanBaseImage;
-    public:
+      public:
         virtual ~Image() = default;
 
+        /**
+         * @brief Releases storage after all GPU work using the image has completed; repeated
+         * calls are safe.
+         */
         virtual void Destroy() = 0;
 
-        virtual void Resize(const Ref<CommandBuffer>& cmd, Extent3D extent) = 0;
+        /**
+         * @brief Resizes storage and scales each existing mip level, waiting for the copies
+         * to finish.
+         *
+         * Mip levels that do not fit the new extent are removed; no new levels are generated.
+         *
+         * @param cmd Command buffer used to record and synchronously submit the resize copies.
+         * @param extent New base-level dimensions in texels.
+         * @pre The image has TransferSrc and TransferDst usage, and cmd is not recording.
+         */
+        void Resize(const Ref<CommandBuffer>& cmd, const Extent3D& extent);
 
+        /**
+         * @brief Records a layout transition for all mip levels and layers.
+         * @param cmd Recording command buffer that receives the transition.
+         * @param layout Target layout for all mip levels and array layers.
+         */
         void Transition(const Ref<CommandBuffer>& cmd, EImageLayout layout);
+
+        /**
+         * @brief Records a layout transition for all mip levels and layers.
+         * @param cmd Recording command buffer that receives the transition.
+         * @param layout Target layout for all mip levels and array layers.
+         */
         virtual void Transition(const CommandBuffer* cmd, EImageLayout layout) = 0;
 
+        /**
+         * @brief Blits the base level into dst.
+         *
+         * Images must already use transfer layouts and usages.
+         *
+         * @param cmd Recording command buffer that receives the blit.
+         * @param dst Destination image whose base level receives the scaled source pixels.
+         */
         void Copy(const Ref<CommandBuffer>& cmd, const Ref<Image>& dst);
+
+        /**
+         * @brief Blits the base level into dst.
+         *
+         * Images must already use transfer layouts and usages.
+         *
+         * @param cmd Recording command buffer that receives the blit.
+         * @param dst Destination image whose base level receives the scaled source pixels.
+         */
         void Copy(const Ref<CommandBuffer>& cmd, Image* dst);
+
+        /**
+         * @brief Blits the base level into dst.
+         *
+         * Images must already use transfer layouts and usages.
+         *
+         * @param cmd Recording command buffer that receives the blit.
+         * @param dst Destination image whose base level receives the scaled source pixels.
+         */
         void Copy(const CommandBuffer* cmd, const Ref<Image>& dst);
+
+        /**
+         * @brief Blits the base level into dst.
+         *
+         * Images must already use transfer layouts and usages.
+         *
+         * @param cmd Recording command buffer that receives the blit.
+         * @param dst Destination image whose base level receives the scaled source pixels.
+         */
         void Copy(const CommandBuffer* cmd, Image* dst);
 
+        /**
+         * @brief Blits between base-level extents without resizing either image.
+         *
+         * Transfer layouts are required.
+         *
+         * @param cmd Recording command buffer that receives the blit.
+         * @param dst Destination image that receives the scaled source pixels.
+         * @param srcExtent Source region dimensions in texels, measured from the base-level
+         * origin.
+         * @param dstExtent Destination region dimensions in texels, measured from the
+         * base-level origin.
+         */
         void Copy(
             const Ref<CommandBuffer>& cmd,
             const Ref<Image>& dst,
             const Extent3D& srcExtent,
             const Extent3D& dstExtent
         );
-        void Copy(
-            const Ref<CommandBuffer>& cmd,
-            Image* dst,
-            const Extent3D& srcExtent,
-            const Extent3D& dstExtent
-        );
-        void Copy(
-            const CommandBuffer* cmd,
-            const Ref<Image>& dst,
-            const Extent3D& srcExtent,
-            const Extent3D& dstExtent
-        );
-        virtual void Copy(
-            const CommandBuffer* cmd,
-            Image* dst,
-            const Extent3D& srcExtent,
-            const Extent3D& dstExtent
-        ) = 0;
 
+        /**
+         * @brief Blits between base-level extents without resizing either image.
+         *
+         * Transfer layouts are required.
+         *
+         * @param cmd Recording command buffer that receives the blit.
+         * @param dst Destination image that receives the scaled source pixels.
+         * @param srcExtent Source region dimensions in texels, measured from the base-level
+         * origin.
+         * @param dstExtent Destination region dimensions in texels, measured from the
+         * base-level origin.
+         */
+        void Copy(
+            const Ref<CommandBuffer>& cmd,
+            Image* dst,
+            const Extent3D& srcExtent,
+            const Extent3D& dstExtent
+        );
+
+        /**
+         * @brief Blits between base-level extents without resizing either image.
+         *
+         * Transfer layouts are required.
+         *
+         * @param cmd Recording command buffer that receives the blit.
+         * @param dst Destination image that receives the scaled source pixels.
+         * @param srcExtent Source region dimensions in texels, measured from the base-level
+         * origin.
+         * @param dstExtent Destination region dimensions in texels, measured from the
+         * base-level origin.
+         */
+        void Copy(
+            const CommandBuffer* cmd,
+            const Ref<Image>& dst,
+            const Extent3D& srcExtent,
+            const Extent3D& dstExtent
+        );
+
+        /**
+         * @brief Blits between base-level extents without resizing either image.
+         *
+         * Transfer layouts are required.
+         *
+         * @param cmd Recording command buffer that receives the blit.
+         * @param dst Destination image that receives the scaled source pixels.
+         * @param srcExtent Source region dimensions in texels, measured from the base-level
+         * origin.
+         * @param dstExtent Destination region dimensions in texels, measured from the
+         * base-level origin.
+         */
+        void Copy(
+            const CommandBuffer* cmd,
+            Image* dst,
+            const Extent3D& srcExtent,
+            const Extent3D& dstExtent
+        );
+
+        /**
+         * @brief Records a buffer upload into TransferDst storage.
+         *
+         * An empty region list selects the base level.
+         *
+         * @param cmd Recording command buffer that receives the upload.
+         * @param src Source buffer containing the pixel data.
+         * @param regions Buffer-to-image copy regions; empty selects the full base level of
+         * every array layer.
+         */
         void CopyFrom(
             const Ref<CommandBuffer>& cmd,
             const Ref<Buffer>& src,
             std::span<SBufferImageCopy> regions = {}
         );
+
+        /**
+         * @brief Records a buffer upload into TransferDst storage.
+         *
+         * An empty region list selects the base level.
+         *
+         * @param cmd Recording command buffer that receives the upload.
+         * @param src Source buffer containing the pixel data.
+         * @param regions Buffer-to-image copy regions; empty selects the full base level of
+         * every array layer.
+         */
         void CopyFrom(
             const Ref<CommandBuffer>& cmd,
             const Buffer* src,
             std::span<SBufferImageCopy> regions = {}
         );
+
+        /**
+         * @brief Records a buffer upload into TransferDst storage.
+         *
+         * An empty region list selects the base level.
+         *
+         * @param cmd Recording command buffer that receives the upload.
+         * @param src Source buffer containing the pixel data.
+         * @param regions Buffer-to-image copy regions; empty selects the full base level of
+         * every array layer.
+         */
         void CopyFrom(
             const CommandBuffer* cmd,
             const Ref<Buffer>& src,
             std::span<SBufferImageCopy> regions = {}
         );
+
+        /**
+         * @brief Records a buffer upload into TransferDst storage.
+         *
+         * An empty region list selects the base level.
+         *
+         * @param cmd Recording command buffer that receives the upload.
+         * @param src Source buffer containing the pixel data.
+         * @param regions Buffer-to-image copy regions; empty selects the full base level of
+         * every array layer.
+         */
         virtual void CopyFrom(
             const CommandBuffer* cmd,
             const Buffer* src,
             std::span<SBufferImageCopy> regions = {}
         ) = 0;
 
-        [[nodiscard]] virtual bool IsValid() const = 0;
+        /** @brief Reports whether this image is valid. */
+        virtual bool IsValid() const = 0;
 
-        [[nodiscard]] const UUID& GetUUID() const { return m_UUID; }
+        /** @brief Returns the identity of this resource. */
+        const UUID& GetUUID() const { return m_UUID; }
 
-        [[nodiscard]] EImageType GetType() const { return m_Type; }
-        [[nodiscard]] EImageLayout GetLayout() const { return m_Layout; }
-        [[nodiscard]] EImageFormat GetFormat() const { return m_Format; }
-        [[nodiscard]] EImageUsage GetUsage() const { return m_Usage; }
-        [[nodiscard]] EImageAspect GetAspect() const { return m_Aspect; }
+        /** @brief Returns the dimensionality of the image. */
+        EImageType GetType() const { return m_Type; }
 
-        [[nodiscard]] Extent3D GetExtent() const { return m_Extent; }
-        [[nodiscard]] uint32_t GetWidth() const { return m_Extent.Width; }
+        /** @brief Returns the layout tracked for all mip levels and layers. */
+        EImageLayout GetLayout() const { return m_Layout; }
 
-        [[nodiscard]] uint32_t GetMipLevels() const { return m_MipLevels; }
-        [[nodiscard]] uint32_t GetArrayLayers() const { return m_ArrayLayers; }
+        /** @brief Returns the pixel or compressed-block format. */
+        EImageFormat GetFormat() const { return m_Format; }
 
-        [[nodiscard]] uint32_t GetBitsPerPixel() const { return m_BitsPerPixel; }
-        [[nodiscard]] uint32_t GetBytesPerPixel() const { return m_BitsPerPixel / CHAR_BIT; }
+        /** @brief Returns the resolved usage flags, including upload requirements. */
+        EImageUsage GetUsage() const { return m_Usage; }
 
+        /** @brief Returns the color, depth, or stencil aspects stored by the image. */
+        EImageAspect GetAspect() const { return m_Aspect; }
+
+        /** @brief Returns the base-level dimensions in texels. */
+        Extent3D GetExtent() const { return m_Extent; }
+
+        /** @brief Returns the base-level width in texels. */
+        uint32_t GetWidth() const { return m_Extent.Width; }
+
+        /** @brief Returns the base-level height in texels. */
+        uint32_t GetHeight() const { return m_Extent.Height; }
+
+        /** @brief Returns the base-level depth in texels. */
+        uint32_t GetDepth() const { return m_Extent.Depth; }
+
+        /** @brief Returns the extent of an allocated mip level.
+         * @param level Zero-based mip level, less than GetMipLevels().
+         */
+        Extent3D GetMipExtent(uint32_t level) const;
+
+        /** @brief Returns tightly packed bytes for one array layer of an allocated mip level.
+         * @param level Zero-based mip level, less than GetMipLevels().
+         */
+        size_t GetMipSize(uint32_t level) const;
+
+        /** @brief Returns the allocated mip-level count. */
+        uint32_t GetMipLevels() const { return m_MipLevels; }
+
+        /** @brief Returns the allocated array-layer count. */
+        uint32_t GetArrayLayers() const { return m_ArrayLayers; }
+
+        /** @brief Returns bits per texel, averaged across a block for compressed formats. */
+        uint32_t GetBitsPerPixel() const { return m_BitsPerPixel; }
+
+        /** @brief Returns whole bytes per texel; use GetMipSize for compressed storage sizes. */
+        uint32_t GetBytesPerPixel() const { return m_BitsPerPixel / CHAR_BIT; }
+
+        /**
+         * @brief Returns the resolved allocation description without borrowed upload data
+         * or generation requests.
+         */
         SImageCreateInfo GetCreateInfo() const;
 
         /**
-         * Returns the image/texture size in bytes.
-         * @return The image/texture size in bytes.
+         * @brief Returns tightly packed base-level bytes across all layers, including
+         * compressed blocks.
          */
-        [[nodiscard]] size_t GetSize() const { return m_Size; }
-
-        [[nodiscard]] bool IsHDR() const { return m_HDR; }
-
-        [[nodiscard]] const Ref<Sampler>& GetSampler() const { return m_Sampler; }
-        void SetSampler(const Ref<Sampler>& sampler);
+        size_t GetSize() const { return m_Size; }
 
         bool operator==(const Image& other) const
         {
@@ -307,6 +550,28 @@ namespace Elixir
         Image& operator=(const Image&) = delete;
         Image& operator=(Image&&) = delete;
 
+        /**
+         * @brief Resolves the description, creates the backend, uploads data, and prepares
+         * the final layout.
+         *
+         * Upload storage is borrowed only for this call.
+         *
+         * @pre The context outlives the image, and no upload command buffer is recording on
+         * this thread.
+         * @param context Graphics context used to create the image; must outlive it.
+         * @param info Image description; supplied pixel storage must remain valid until this
+         * call returns.
+         */
+        static Ref<Image> Create(const GraphicsContext* context, SImageCreateInfo info);
+
+        /**
+         * @brief Creates a one-dimensional sampled image.
+         * @param context Graphics context that must outlive the image.
+         * @param format Pixel or compressed-block format.
+         * @param width Base-level width in texels; must be greater than zero.
+         * @param data Optional tightly packed base-level pixels, borrowed until this call
+         * returns.
+         */
         static Ref<Image> Create(
             const GraphicsContext* context,
             EImageFormat format,
@@ -314,21 +579,37 @@ namespace Elixir
             const void* data = nullptr
         );
 
+        /**
+         * @brief Builds a one-dimensional sampled-image request without resolving mip levels.
+         * @param format Pixel or compressed-block format.
+         * @param width Base-level width in texels; must be greater than zero when creating
+         * the image.
+         * @param data Optional base-level pixels; the returned description borrows this
+         * storage.
+         */
         static SImageCreateInfo CreateImageInfo(
             EImageFormat format,
             uint32_t width,
             const void* data = nullptr
         );
 
-        /** Returns the number of mip levels from a base image extent. */
+        /** @brief Returns the number of mip levels from a base image extent.
+         * @param extent Base-level dimensions in texels; the largest dimension determines
+         * the chain length.
+         */
         static uint32_t GetFullMipLevelCount(const Extent3D& extent);
+
+        /**
+         * @brief Resolves the mip count from the requested mode and validates its range.
+         * @param info Requested dimensions, mipmap mode, and explicit count for
+         * LeaveExistingMips.
+         */
+        static uint32_t GetMipLevelCount(const SImageCreateInfo& info);
 
       protected:
         Image(const GraphicsContext* context, const SImageCreateInfo& info);
         Image(const Image&) = delete;
         Image(Image&&) = delete;
-
-        virtual void UpdateSampler() = 0;
 
         /**
          * Recompute cached size fields (bits-per-pixel and byte size) from the
@@ -354,34 +635,28 @@ namespace Elixir
         uint32_t m_BitsPerPixel;
         size_t m_Size;
 
-        bool m_HDR = false;
-
-        Ref<Sampler> m_Sampler;
+        SAllocationInfo m_AllocationInfo;
 
         const GraphicsContext* m_GraphicsContext;
+
+      private:
+        // Creates storage and completes the requested upload after backend construction.
+        void Initialize(const SImageCreateInfo& info);
+
+        // Allocates backend resources from the already resolved description.
+        virtual void CreateResource(const SImageCreateInfo& info) = 0;
+
+        // Generates simple-average mip levels on the device and transitions the whole image.
+        virtual void GenerateMipmaps(const CommandBuffer* cmd, EImageLayout finalLayout) = 0;
+
+        // Scales one mip level across all array layers without changing either allocation.
+        virtual void CopyMip(
+            const CommandBuffer* cmd,
+            Image* dst,
+            const Extent3D& srcExtent,
+            const Extent3D& dstExtent,
+            uint32_t level
+        ) = 0;
     };
 
-    class ELIXIR_API DepthStencilImage : public Image
-    {
-      public:
-        ~DepthStencilImage() override = default;
-
-        [[nodiscard]] virtual uint32_t GetHeight() const { return m_Extent.Height; }
-
-        static Ref<DepthStencilImage> Create(
-            const GraphicsContext* context,
-            EDepthStencilImageFormat format,
-            uint32_t width,
-            uint32_t height
-        );
-
-        static SImageCreateInfo CreateImageInfo(
-            EDepthStencilImageFormat format,
-            uint32_t width,
-            uint32_t height
-        );
-
-      protected:
-        DepthStencilImage(const GraphicsContext* context, const SImageCreateInfo& info);
-    };
 }

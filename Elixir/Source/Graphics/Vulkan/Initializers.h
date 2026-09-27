@@ -67,7 +67,7 @@ namespace Elixir::Vulkan::Initializers
 
     static VkImageCreateInfo ImageCreateInfo(
         const SImageCreateInfo& info,
-        const uint32_t queueFamily
+        const uint32_t& queueFamily
     )
     {
         VkImageCreateInfo imageInfo = {};
@@ -139,7 +139,7 @@ namespace Elixir::Vulkan::Initializers
     }
 
     static VkRenderingAttachmentInfo DepthStencilAttachmentInfo(
-        const Ref<DepthStencilImage>& image,
+        const Ref<Image>& image,
         const float depthClearValue = 1.0f,
         const VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED
     )

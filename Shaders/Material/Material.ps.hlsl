@@ -366,8 +366,7 @@ float4 main(PSInput input) : SV_Target0
     const float clearCoat = saturate(surface.ClearCoat);
     if (clearCoat > 0.0f)
     {
-        float coatRoughness = clamp(surface.ClearCoatRoughness, 0.045f, 1.0f);
-        coatRoughness = FilterSpecularRoughness(coatRoughness, coatNormal);
+        float coatRoughness = saturate(surface.ClearCoatRoughness);
         const float coatNdotV = saturate(dot(coatNormal, V)) + 1e-4f;
         const float coatNdotL = saturate(dot(coatNormal, L));
 

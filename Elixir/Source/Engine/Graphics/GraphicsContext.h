@@ -8,8 +8,7 @@ namespace Elixir
 {
     class Executor;
     class Window;
-    class DepthStencilImage;
-    class Texture2D;
+    class Image;
     class CommandBuffer;
     class Pipeline;
 
@@ -61,7 +60,7 @@ namespace Elixir
          */
         virtual void WaitDeviceIdle() const {}
 
-        [[nodiscard]] EGraphicsAPI GetAPI() const { return m_API; }
+        EGraphicsAPI GetAPI() const { return m_API; }
 
         const Window* GetWindow() const { return m_Window; }
         float GetDPIScale() const;
@@ -72,25 +71,28 @@ namespace Elixir
          * The number of frames being processed at a concurrent time. Double buffering.
          * @return the number of frames.
          */
-        [[nodiscard]] uint32_t GetFramesInFlight() const { return m_FramesInFlight; }
+        uint32_t GetFramesInFlight() const { return m_FramesInFlight; }
 
         /**
          * Returns the number of frames rendered since the app started.
          * @return the number of frames since app start.
          */
-        [[nodiscard]] uint32_t GetFrameNumber() const { return m_FrameNumber; }
+        uint32_t GetFrameNumber() const { return m_FrameNumber; }
 
         /**
          * Returns the index of the current frame.
          * @return the index of the current frame.
          */
-        [[nodiscard]] uint32_t GetFrameIndex() const { return m_FrameNumber % m_FramesInFlight; }
+        uint32_t GetFrameIndex() const { return m_FrameNumber % m_FramesInFlight; }
 
         virtual void SetVSyncEnabled(const bool enabled) { m_VSyncEnabled = enabled; }
         bool IsVSyncEnabled() const { return m_VSyncEnabled; }
 
-        Ref<Texture2D> GetRenderTarget() const { return m_RenderTarget; }
-        Ref<DepthStencilImage> GetDepthStencilRenderTarget() const { return m_DepthStencilRenderTarget; }
+        /** Returns the frame's color attachment as an image resource. */
+        Ref<Image> GetRenderTarget() const { return m_RenderTarget; }
+        
+        /** Returns the frame's depth/stencil attachment as an image resource. */
+        Ref<Image> GetDepthStencilRenderTarget() const { return m_DepthStencilRenderTarget; }
 
         virtual Extent3D GetSwapchainExtent() const = 0;
 
@@ -112,8 +114,8 @@ namespace Elixir
 
         EGraphicsAPI m_API;
         const Window* m_Window;
-        Ref<Texture2D> m_RenderTarget;
-        Ref<DepthStencilImage> m_DepthStencilRenderTarget;
+        Ref<Image> m_RenderTarget;
+        Ref<Image> m_DepthStencilRenderTarget;
         Scope<ShaderBackend> m_ShaderBackend = nullptr;
 
         bool m_VSyncEnabled = false;

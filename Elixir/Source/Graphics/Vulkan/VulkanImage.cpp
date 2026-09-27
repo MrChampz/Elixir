@@ -1,295 +1,227 @@
 #include "epch.h"
 #include "VulkanImage.h"
 
-#include <Engine/Graphics/GraphicsContext.h>
-#include <Engine/Graphics/Texture.h>
-#include <Engine/Graphics/Converters.h>
 #include <Graphics/Vulkan/VulkanBuffer.h>
-#include <Graphics/Vulkan/VulkanSampler.h>
 #include <Graphics/Vulkan/VulkanCommandBuffer.h>
-#include <Graphics/Vulkan/Converters.h>
+#include <Graphics/Vulkan/VulkanGraphicsContext.h>
 #include <Graphics/Vulkan/Utils.h>
 
 namespace Elixir::Vulkan
 {
-    using namespace Elixir::Graphics::Converters;
-    using namespace Elixir::Graphics::Utils;
-    using namespace Elixir::Vulkan;
-
-    namespace
+    const VulkanImage* TryToGetVulkanImage(const Image* image)
     {
-        using VulkanImageTypes = std::tuple<
-            VulkanBaseImage<Texture3D>,
-            VulkanBaseImage<Texture2D>,
-            VulkanBaseImage<Texture>,
-            VulkanBaseImage<DepthStencilImage>,
-            VulkanBaseImage<Image>
-        >;
-
-        template <size_t I = 0>
-        const VulkanBaseImageBase* TryToGetVulkanImageImpl(const Image* image)
-        {
-            if constexpr (I < std::tuple_size_v<VulkanImageTypes>)
-            {
-                using ImageType = std::tuple_element_t<I, VulkanImageTypes>;
-
-                if (auto* img = dynamic_cast<const ImageType*>(image))
-                {
-                    return img;
-                }
-
-                return TryToGetVulkanImageImpl<I + 1>(image);
-            }
-
-            EE_CORE_ASSERT(false, "Unsupported image type!")
-            return nullptr;
-        }
-
-        template <size_t I = 0>
-        VkImage TryToGetVulkanImageHandleImpl(const Image* image)
-        {
-            return TryToGetVulkanImageImpl<I>(image)->GetVulkanImage();
-        }
-    }
-
-    const VulkanBaseImageBase* TryToGetVulkanImage(const Image* image)
-    {
-        if (!image) return nullptr;
-        return TryToGetVulkanImageImpl(image);
+        return dynamic_cast<const VulkanImage*>(image);
     }
 
     VkImage TryToGetVulkanImageHandle(const Image* image)
     {
-        if (!image) return VK_NULL_HANDLE;
-        return TryToGetVulkanImageHandleImpl(image);
+        const auto* vkImage = TryToGetVulkanImage(image);
+        return vkImage ? vkImage->GetVulkanImage() : VK_NULL_HANDLE;
     }
 
-    /* VulkanBaseImage */
+    VulkanImage::VulkanImage(const GraphicsContext* context, const SImageCreateInfo& info)
+      : Image(context, info),
+        m_Context((const VulkanGraphicsContext*)context) {}
 
-    template <typename Base>
-    void VulkanBaseImage<Base>::Destroy()
+    VulkanImage::~VulkanImage()
     {
-        EE_PROFILE_ZONE_SCOPED()
+        Destroy();
+    }
 
-        if (!IsValid()) return;
+    void VulkanImage::Destroy()
+    {
+        if (m_ImageView)
+            vkDestroyImageView(m_Context->GetDevice(), m_ImageView, nullptr);
 
-        vkDestroyImageView(m_GraphicsContext->GetDevice(), m_ImageView, nullptr);
-        vmaDestroyImage(m_GraphicsContext->GetAllocator(), m_Image, m_Allocation);
+        if (m_Image)
+            vmaDestroyImage(m_Context->GetAllocator(), m_Image, m_Allocation);
+
         m_Image = VK_NULL_HANDLE;
         m_ImageView = VK_NULL_HANDLE;
         m_Allocation = VK_NULL_HANDLE;
         m_DescriptorInfo = {};
     }
 
-    template <typename Base>
-    void VulkanBaseImage<Base>::Resize(const Ref<CommandBuffer>& cmd, const Extent3D extent)
+    void VulkanImage::CreateResource(const SImageCreateInfo& info)
     {
-        EE_PROFILE_ZONE_SCOPED()
-        if (extent.Width <= 0 || extent.Height <= 0 || extent.Depth <= 0) return;
-        if (extent.Width == this->m_Extent.Width &&
-            extent.Height == this->m_Extent.Height &&
-            extent.Depth == this->m_Extent.Depth) return;
-
-        // Remember the layout the image is currently used in (e.g. depth/color
-        // attachment) so it can be restored after the resize. Otherwise, the image
-        // is left in TransferDst, which is invalid for a rendering attachment.
-        const EImageLayout originalLayout = this->GetLayout();
-        const Extent3D oldExtent = this->m_Extent;
-
-        // 1. Preserve the current content in a staging image of the SAME size.
-        //    (The underlying VkImage allocation is fixed at creation, so the image
-        //    must be recreated to actually change its dimensions.)
-        SImageCreateInfo stagingInfo = this->GetCreateInfo();
-        stagingInfo.InitialLayout = EImageLayout::TransferDst;
-        const auto staging = CreateRef<VulkanImage>(m_GraphicsContext, stagingInfo);
-
-        cmd->Begin();
-        Transition(cmd, EImageLayout::TransferSrc);
-        Copy(cmd, staging, oldExtent, oldExtent);
-        staging->Transition(cmd, EImageLayout::TransferSrc);
-        cmd->Flush(); // Waits for the GPU; the old image is safe to destroy after.
-
-        // 2. Reallocate this image at the new extent.
-        Destroy();
-        this->m_Extent = extent;
-        this->m_Layout = EImageLayout::Undefined;
-        this->RecalculateSize();
-
-        SImageCreateInfo info = this->GetCreateInfo();
-        info.InitialLayout = EImageLayout::Undefined;
-        CreateImage(info);
-        CreateImageView();
-
-        // 3. Blit the preserved content into the resized image, scaling as needed.
-        cmd->Begin();
-        Transition(cmd, EImageLayout::TransferDst);
-        staging->Copy(cmd, this, oldExtent, extent);
-        Transition(cmd, originalLayout);
-        cmd->Flush();
-
-        // Refresh the descriptor to point at the new view and final layout.
-        CreateDescriptorInfo();
-        if (this->GetSampler()) UpdateSampler();
-
-        EE_CORE_TRACE("Image ({0}) resized: {1}.", this->m_UUID, this->m_Extent)
-    }
-
-    template <typename Base>
-    void VulkanBaseImage<Base>::Transition(const CommandBuffer* cmd, const EImageLayout layout)
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-        const auto vk_Cmd = static_cast<const VulkanCommandBuffer*>(cmd);
-
-        CommandUtils::TransitionImage(
-            vk_Cmd->GetVulkanCommandBuffer(),
-            m_Image,
-            Converters::GetImageLayout(this->GetLayout()),
-            Converters::GetImageLayout(layout),
-            Converters::GetImageAspect(this->GetAspect())
-        );
-
-        this->m_Layout = layout;
-    }
-
-    template <typename Base>
-    void VulkanBaseImage<Base>::Copy(
-        const CommandBuffer* cmd,
-        Image* dst,
-        const Extent3D& srcExtent,
-        const Extent3D& dstExtent
-    )
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-        const auto vk_Cmd = static_cast<const VulkanCommandBuffer*>(cmd);
-        const auto vk_Dst = TryToGetVulkanImageHandle(dst);
-
-        EE_CORE_ASSERT(vk_Dst != nullptr, "Invalid destination image!")
-        EE_CORE_ASSERT(vk_Dst != VK_NULL_HANDLE, "Invalid destination image!")
-
-        // Blit with the image's own aspect. Depth/stencil images must use the depth
-        // aspect and the NEAREST filter (linear filtering is invalid for depth formats).
-        const auto aspect = this->GetAspect();
-        const bool isDepthStencil = (aspect & EImageAspect::Depth) || (aspect & EImageAspect::Stencil);
-
-        CommandUtils::CopyImageToImage(
-            vk_Cmd->GetVulkanCommandBuffer(),
-            m_Image,
-            vk_Dst,
-            Converters::GetExtent3D(srcExtent),
-            Converters::GetExtent3D(dstExtent),
-            Converters::GetImageAspect(aspect),
-            isDepthStencil ? VK_FILTER_NEAREST : VK_FILTER_LINEAR
-        );
-
-        dst->m_Extent = dstExtent;
-    }
-
-    template <typename Base>
-    void VulkanBaseImage<Base>::CopyFrom(
-        const CommandBuffer* cmd,
-        const Buffer* src,
-        const std::span<SBufferImageCopy> regions
-    )
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-        const auto vk_Cmd = static_cast<const VulkanCommandBuffer*>(cmd);
-        const auto vk_Src = TryToGetVulkanBuffer(src);
-
-        EE_CORE_ASSERT(vk_Src != VK_NULL_HANDLE, "Invalid source buffer!")
-
-        std::span copyRegions = regions;
-
-        if (copyRegions.empty())
+        if (info.MipmapMode == EImageMipmapMode::SimpleAverage && info.MipLevels > 1)
         {
-            SBufferImageCopy defaultRegion[] = {
-                SBufferImageCopy::Default(this->GetExtent())
-            };
-            copyRegions = std::span(defaultRegion);
+            VkFormatProperties properties{};
+            vkGetPhysicalDeviceFormatProperties(
+                m_Context->GetGPU(),
+                Converters::GetFormat(info.Format),
+                &properties
+            );
+
+            constexpr VkFormatFeatureFlags required = VK_FORMAT_FEATURE_BLIT_SRC_BIT |
+                VK_FORMAT_FEATURE_BLIT_DST_BIT |
+                VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+
+            if (m_Aspect != EImageAspect::Color ||
+               (properties.optimalTilingFeatures & required) != required)
+            {
+                EE_CORE_ERROR("The Vulkan format does not support linear mip generation.")
+                return;
+            }
         }
 
-        std::vector<VkBufferImageCopy> imageCopies(copyRegions.size());
-
-        std::ranges::transform(
-            copyRegions, imageCopies.begin(), Converters::GetBufferImageCopy
-        );
-
-        vkCmdCopyBufferToImage(
-            vk_Cmd->GetVulkanCommandBuffer(), vk_Src, m_Image,
-            Converters::GetImageLayout(this->GetLayout()), imageCopies.size(),
-            imageCopies.data()
-        );
-    }
-
-    template <typename Base>
-    VulkanBaseImage<Base>::VulkanBaseImage(
-        const GraphicsContext* context,
-        const SImageCreateInfo& info
-    ) : Base(context, info), VulkanBaseImageBase()
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-        m_GraphicsContext = static_cast<const VulkanGraphicsContext*>(context);
-
-        CreateImage(info);
-        InitImage(info);
-        CreateImageView();
-        CreateDescriptorInfo();
-    }
-
-    template <typename Base>
-    void VulkanBaseImage<Base>::CreateImage(const SImageCreateInfo& info)
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-        const uint32_t queueFamily = m_GraphicsContext->GetGraphicsQueueFamily();
-
+        const uint32_t queueFamily = m_Context->GetGraphicsQueueFamily();
         const auto imageInfo = Initializers::ImageCreateInfo(info, queueFamily);
         const auto allocInfo = Initializers::AllocationCreateInfo(info.AllocationInfo);
+        VK_CHECK_RESULT(vmaCreateImage(
+            m_Context->GetAllocator(), &imageInfo, &allocInfo, &m_Image, &m_Allocation, nullptr
+        ));
 
-        VK_CHECK_RESULT(
-            vmaCreateImage(
-                m_GraphicsContext->GetAllocator(),
-                &imageInfo,
-                &allocInfo,
-                &m_Image,
-                &m_Allocation,
-                nullptr
-            )
+        if (!m_DebugName.empty())
+            vmaSetAllocationName(m_Context->GetAllocator(), m_Allocation, m_DebugName.c_str());
+
+        constexpr auto viewUsage = EImageUsage::Sampled |
+            EImageUsage::Storage |
+            EImageUsage::ColorAttachment |
+            EImageUsage::DepthStencilAttachment |
+            EImageUsage::InputAttachment;
+
+        if (HasAnyFlags(m_Usage, viewUsage))
+        {
+            const auto viewInfo = Initializers::ImageViewCreateInfo(this);
+            VK_CHECK_RESULT(
+                vkCreateImageView(
+                    m_Context->GetDevice(),
+                    &viewInfo,
+                    nullptr,
+                    &m_ImageView
+                )
+            );
+        }
+
+        m_DescriptorInfo = {};
+        m_DescriptorInfo.imageLayout = Converters::GetImageLayout(m_Layout);
+        m_DescriptorInfo.imageView = m_ImageView;
+    }
+
+    void VulkanImage::Transition(const CommandBuffer* cmd, const EImageLayout layout)
+    {
+        if (!IsValid())
+        {
+            EE_CORE_ERROR("Cannot transition an image without native storage.")
+            return;
+        }
+
+        if (layout == m_Layout)
+            return;
+
+        if (layout == EImageLayout::Undefined || layout == EImageLayout::PreInitialized)
+        {
+            EE_CORE_ERROR("Cannot transition an image into an initial-only layout.")
+            return;
+        }
+
+        const auto* vkCmd = static_cast<const VulkanCommandBuffer*>(cmd);
+        CommandUtils::TransitionImage(
+            vkCmd->GetVulkanCommandBuffer(),
+            m_Image,
+            Converters::GetImageLayout(m_Layout),
+            Converters::GetImageLayout(layout),
+            Converters::GetImageAspect(m_Aspect)
         );
 
-        if (!this->m_DebugName.empty())
+        m_Layout = layout;
+        m_DescriptorInfo.imageLayout = Converters::GetImageLayout(layout);
+    }
+
+    void VulkanImage::CopyMip(
+        const CommandBuffer* cmd, Image* dst,
+        const Extent3D& srcExtent, const Extent3D& dstExtent,
+        const uint32_t level
+    )
+    {
+        const auto* vkCmd = static_cast<const VulkanCommandBuffer*>(cmd);
+        const auto target = TryToGetVulkanImageHandle(dst);
+
+        if (!IsValid() || !target || dst->GetArrayLayers() != m_ArrayLayers ||
+            dst->GetAspect() != m_Aspect ||
+            level >= m_MipLevels || level >= dst->GetMipLevels())
         {
-            vmaSetAllocationName(
-                m_GraphicsContext->GetAllocator(),
-                m_Allocation,
-                this->m_DebugName.c_str()
+            EE_CORE_ERROR("Invalid source image or incompatible image blit destination.")
+            return;
+        }
+
+        const bool depthStencil = (m_Aspect & EImageAspect::Depth) ||
+            (m_Aspect & EImageAspect::Stencil);
+
+        for (const auto aspect : { EImageAspect::Color, EImageAspect::Depth, EImageAspect::Stencil })
+        {
+            if (!(m_Aspect & aspect))
+                continue;
+
+            CommandUtils::CopyImageToImage(
+                vkCmd->GetVulkanCommandBuffer(),
+                m_Image,
+                target,
+                Converters::GetExtent3D(srcExtent),
+                Converters::GetExtent3D(dstExtent),
+                Converters::GetImageAspect(aspect),
+                depthStencil ? VK_FILTER_NEAREST : VK_FILTER_LINEAR,
+                level,
+                level,
+                m_ArrayLayers
             );
         }
     }
 
-    template <typename Base>
-    void VulkanBaseImage<Base>::GenerateMipmaps(
-        const CommandBuffer* cmd,
-        const EImageLayout finalLayout
+    void VulkanImage::CopyFrom(
+        const CommandBuffer* cmd, const Buffer* src,
+        const std::span<SBufferImageCopy> regions
     )
     {
-        const auto vkCmd = static_cast<const VulkanCommandBuffer*>(cmd);
-        const auto vkFinalLayout = Converters::GetImageLayout(finalLayout);
-        const auto aspect = Converters::GetImageAspect(this->GetAspect());
-
-        uint32_t sourceWidth = this->GetWidth();
-        uint32_t sourceHeight = this->GetExtent().Height;
-        uint32_t sourceDepth = this->GetExtent().Depth;
-
-        for (uint32_t level = 1; level < this->GetMipLevels(); ++level)
+        if (!IsValid())
         {
-            const uint32_t destinationWidth = std::max(1u, sourceWidth >> 1u);
-            const uint32_t destinationHeight = std::max(1u, sourceHeight >> 1u);
-            const uint32_t destinationDepth = std::max(1u, sourceDepth >> 1u);
+            EE_CORE_ERROR("Cannot upload to an image without native storage.")
+            return;
+        }
 
+        const auto* vkCmd = static_cast<const VulkanCommandBuffer*>(cmd);
+        const auto source = TryToGetVulkanBuffer(src);
+        EE_CORE_ASSERT(source != VK_NULL_HANDLE, "Invalid source buffer!")
+
+        SBufferImageCopy defaultRegion{};
+        defaultRegion.ImageSubresource = { m_Aspect, 0, 0, m_ArrayLayers };
+        defaultRegion.ImageExtent = m_Extent;
+
+        const auto copyRegions = regions.empty()
+            ? std::span(&defaultRegion, 1)
+            : regions;
+        std::vector<VkBufferImageCopy> copies(copyRegions.size());
+        std::ranges::transform(
+            copyRegions,
+            copies.begin(),
+            Converters::GetBufferImageCopy
+        );
+
+        vkCmdCopyBufferToImage(
+            vkCmd->GetVulkanCommandBuffer(),
+            source,
+            m_Image,
+            Converters::GetImageLayout(m_Layout),
+            uint32_t(copies.size()),
+            copies.data()
+        );
+    }
+
+    void VulkanImage::GenerateMipmaps(const CommandBuffer* cmd, const EImageLayout finalLayout)
+    {
+        if (!IsValid())
+        {
+            EE_CORE_ERROR("Cannot generate mipmaps for an image without native storage.")
+            return;
+        }
+
+        const auto vkCmd = static_cast<const VulkanCommandBuffer*>(cmd);
+        const auto aspect = Converters::GetImageAspect(m_Aspect);
+        const auto targetLayout = Converters::GetImageLayout(finalLayout);
+
+        for (uint32_t level = 1; level < m_MipLevels; ++level)
+        {
             CommandUtils::TransitionImage(
                 vkCmd->GetVulkanCommandBuffer(),
                 m_Image,
@@ -304,176 +236,37 @@ namespace Elixir::Vulkan
                 vkCmd->GetVulkanCommandBuffer(),
                 m_Image,
                 m_Image,
-                { sourceWidth, sourceHeight, sourceDepth },
-                { destinationWidth, destinationHeight, destinationDepth },
+                Converters::GetExtent3D(GetMipExtent(level - 1)),
+                Converters::GetExtent3D(GetMipExtent(level)),
                 aspect,
                 VK_FILTER_LINEAR,
                 level - 1,
-                level
+                level,
+                m_ArrayLayers
             );
 
             CommandUtils::TransitionImage(
                 vkCmd->GetVulkanCommandBuffer(),
                 m_Image,
                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                vkFinalLayout,
+                targetLayout,
                 aspect,
                 level - 1,
                 1
             );
-
-            sourceWidth = destinationWidth;
-            sourceHeight = destinationHeight;
-            sourceDepth = destinationDepth;
         }
 
         CommandUtils::TransitionImage(
             vkCmd->GetVulkanCommandBuffer(),
             m_Image,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            vkFinalLayout,
+            targetLayout,
             aspect,
-            this->GetMipLevels() - 1,
+            m_MipLevels - 1,
             1
         );
 
-        this->m_Layout = finalLayout;
+        m_Layout = finalLayout;
+        m_DescriptorInfo.imageLayout = targetLayout;
     }
-
-    template <typename Base>
-    void VulkanBaseImage<Base>::InitImage(const SImageCreateInfo& info)
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-        auto cmd = m_GraphicsContext->GetUploadCommandBuffer();
-        auto vk_Cmd = std::static_pointer_cast<VulkanCommandBuffer>(cmd);
-
-        cmd->Begin();
-
-        EE_CORE_ASSERT(
-            !info.GenerateMipmaps || info.InitialData,
-            "Generated mipmaps require initial image data."
-        )
-        if (info.InitialData)
-        {
-            this->Transition(cmd.get(), EImageLayout::TransferDst);
-
-            const auto stagingBuffer = StagingBuffer::Create(
-                m_GraphicsContext,
-                this->GetSize(),
-                info.InitialData
-            );
-
-            SBufferImageCopy copyRegion = {};
-            copyRegion.ImageSubresource.AspectMask = this->GetAspect();
-            copyRegion.ImageSubresource.LayerCount = this->GetArrayLayers();
-            copyRegion.ImageExtent = this->GetExtent();
-
-            SBufferImageCopy regions[] = { copyRegion };
-            this->CopyFrom(cmd, stagingBuffer, regions);
-
-            if (info.GenerateMipmaps)
-                GenerateMipmaps(cmd.get(), info.InitialLayout);
-            else
-                this->Transition(cmd.get(), info.InitialLayout);
-
-            cmd->Flush();
-
-            stagingBuffer->Destroy();
-        }
-        else
-        {
-            this->Transition(cmd.get(), info.InitialLayout);
-            cmd->Flush();
-        }
-    }
-
-    template <typename Base>
-    void VulkanBaseImage<Base>::CreateImageView()
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-        const auto viewInfo = Initializers::ImageViewCreateInfo(this);
-        VK_CHECK_RESULT(
-            vkCreateImageView(
-                m_GraphicsContext->GetDevice(),
-                &viewInfo,
-                nullptr,
-                &m_ImageView
-            )
-        );
-    }
-
-    template <typename Base>
-    void VulkanBaseImage<Base>::CreateDescriptorInfo()
-    {
-        EE_PROFILE_ZONE_SCOPED()
-        m_DescriptorInfo = VkDescriptorImageInfo{};
-        m_DescriptorInfo.imageLayout = Converters::GetImageLayout(this->GetLayout());
-        m_DescriptorInfo.imageView = m_ImageView;
-    }
-
-    template <class Base>
-    void VulkanBaseImage<Base>::UpdateSampler()
-    {
-        auto vk_Sampler = std::static_pointer_cast<VulkanSampler>(this->GetSampler());
-        m_DescriptorInfo.sampler = vk_Sampler->GetVulkanSampler();
-        // TODO: Should update in shader too!
-    }
-
-    /* VulkanImage */
-
-    VulkanImage::VulkanImage(
-        const GraphicsContext* context,
-        const EImageFormat format,
-        const uint32_t width,
-            const void* data
-    ) : VulkanImage(context, CreateImageInfo(format, width, data)) {}
-
-    VulkanImage::VulkanImage(const GraphicsContext* context, const SImageCreateInfo& info)
-        : VulkanBaseImage(context, info)
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-        // TODO: Set a default sampler
-        // auto sampler = SamplerBuilder()
-        //     .SetMagFilter(ESamplerFilter::Nearest)
-        //     .SetMinFilter(ESamplerFilter::Nearest)
-        //     .Build();
-
-        // SetSampler(sampler);
-    }
-
-    VulkanImage::~VulkanImage()
-    {
-        EE_PROFILE_ZONE_SCOPED()
-        VulkanBaseImage::Destroy();
-    }
-
-    /* VulkanDepthStencilImage */
-
-    VulkanDepthStencilImage::VulkanDepthStencilImage(
-        const GraphicsContext* context,
-        const EDepthStencilImageFormat format,
-        const uint32_t width,
-        const uint32_t height
-    ) : VulkanDepthStencilImage(context, CreateImageInfo(format, width, height)) {}
-
-    VulkanDepthStencilImage::VulkanDepthStencilImage(
-        const GraphicsContext* context,
-        const SImageCreateInfo& info
-    )
-        : VulkanBaseImage(context, info)
-    {
-    }
-
-    VulkanDepthStencilImage::~VulkanDepthStencilImage()
-    {
-        EE_PROFILE_ZONE_SCOPED()
-        VulkanBaseImage::Destroy();
-    }
-
-    template class VulkanBaseImage<Texture>;
-    template class VulkanBaseImage<Texture2D>;
-    template class VulkanBaseImage<Texture3D>;
 }

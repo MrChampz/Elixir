@@ -403,8 +403,8 @@ namespace Elixir::Vulkan
 
         for (const auto& texture : textures)
         {
-            const auto vkTexture = TryToGetVulkanImage(texture.get());
-            imageInfos.push_back(vkTexture->GetVulkanDescriptorInfo());
+            const auto image = TryToGetVulkanImage(texture->GetImage().get());
+            imageInfos.push_back(image->GetVulkanDescriptorInfo());
 
             VkWriteDescriptorSet writeSet = {};
             writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

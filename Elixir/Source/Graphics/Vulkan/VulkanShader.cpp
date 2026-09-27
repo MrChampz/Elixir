@@ -447,8 +447,8 @@ namespace Elixir::Vulkan
 
         for (auto i = 0; i < count; i++)
         {
-            const auto tex = TryToGetVulkanImage(texture);
-            imageInfos.push_back(tex->GetVulkanDescriptorInfo());
+            const auto image = TryToGetVulkanImage(texture->GetImage().get());
+            imageInfos.push_back(image->GetVulkanDescriptorInfo());
         }
 
         m_ImageInfoCache[binding] = std::move(imageInfos);

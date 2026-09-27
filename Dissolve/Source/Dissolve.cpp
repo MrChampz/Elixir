@@ -129,7 +129,7 @@ Dissolve::Dissolve()
             EE_CORE_ERROR("Dissolve particle emitter 'FlameCore' was not found.")
         }
 
-        if (auto loaded = StaticMeshLoaderRegistry::Load("./Assets/Meshes/McLaren/scene.gltf"))
+        if (auto loaded = StaticMeshLoaderRegistry::Load("./Assets/Meshes/Porsche/scene.gltf"))
             mesh = std::move(*loaded);
     }
 

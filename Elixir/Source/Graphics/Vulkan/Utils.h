@@ -220,7 +220,8 @@ namespace Elixir::Vulkan
             const VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             const VkFilter filter = VK_FILTER_LINEAR,
             const uint32_t srcMipLevel = 0,
-            const uint32_t dstMipLevel = 0
+            const uint32_t dstMipLevel = 0,
+            const uint32_t layerCount = 1
         )
         {
             EE_PROFILE_ZONE_SCOPED()
@@ -239,12 +240,12 @@ namespace Elixir::Vulkan
 
             blitRegion.srcSubresource.aspectMask = aspectMask;
             blitRegion.srcSubresource.baseArrayLayer = 0;
-            blitRegion.srcSubresource.layerCount = 1;
+            blitRegion.srcSubresource.layerCount = layerCount;
             blitRegion.srcSubresource.mipLevel = srcMipLevel;
 
             blitRegion.dstSubresource.aspectMask = aspectMask;
             blitRegion.dstSubresource.baseArrayLayer = 0;
-            blitRegion.dstSubresource.layerCount = 1;
+            blitRegion.dstSubresource.layerCount = layerCount;
             blitRegion.dstSubresource.mipLevel = dstMipLevel;
 
             VkBlitImageInfo2 blitInfo = {};

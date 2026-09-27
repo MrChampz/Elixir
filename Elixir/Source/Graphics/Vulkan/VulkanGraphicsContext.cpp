@@ -4,7 +4,7 @@
 #include <Graphics/SpirV/SpirVShaderBackend.h>
 #include <Graphics/Vulkan/VulkanCommandBuffer.h>
 #include <Graphics/Vulkan/VulkanCommandPool.h>
-#include <Graphics/Vulkan/VulkanTexture.h>
+#include <Graphics/Vulkan/VulkanImage.h>
 #include <Graphics/Vulkan/Converters.h>
 #include <Graphics/Vulkan/Utils.h>
 
@@ -487,22 +487,27 @@ namespace Elixir
 
     void VulkanGraphicsContext::CreateRenderTargets()
     {
-        auto colorInfo = Texture2D::CreateImageInfo(
-            EImageFormat::R8G8B8A8_SRGB,
-            m_SwapchainExtent.Width,
-            m_SwapchainExtent.Height
-        );
-        colorInfo.Usage = EImageUsage::ColorAttachment | EImageUsage::TransferSrc | EImageUsage::TransferDst;
-        colorInfo.InitialLayout = EImageLayout::General;
-        m_RenderTarget = CreateRef<VulkanTexture2D>(this, colorInfo);
+        const SImageCreateInfo colorInfo{
+            .Width = m_SwapchainExtent.Width,
+            .Height = m_SwapchainExtent.Height,
+            .Type = EImageType::_2D,
+            .Format = EImageFormat::R8G8B8A8_SRGB,
+            .Usage = EImageUsage::ColorAttachment | EImageUsage::TransferSrc |
+                EImageUsage::TransferDst,
+            .InitialLayout = EImageLayout::General,
+        };
+        m_RenderTarget = Image::Create(this, colorInfo);
 
-        auto depthStencilInfo = DepthStencilImage::CreateImageInfo(
-            EDepthStencilImageFormat::D32_SFLOAT,
-            m_SwapchainExtent.Width,
-            m_SwapchainExtent.Height
-        );
-        depthStencilInfo.Usage = depthStencilInfo.Usage | EImageUsage::TransferSrc | EImageUsage::TransferDst;
-        m_DepthStencilRenderTarget = CreateRef<VulkanDepthStencilImage>(this, depthStencilInfo);
+        const SImageCreateInfo depthInfo{
+            .Width = m_SwapchainExtent.Width,
+            .Height = m_SwapchainExtent.Height,
+            .Type = EImageType::_2D,
+            .Format = EImageFormat::D32_SFLOAT,
+            .Usage = EImageUsage::Sampled | EImageUsage::DepthStencilAttachment |
+                EImageUsage::TransferSrc | EImageUsage::TransferDst,
+            .InitialLayout = EImageLayout::DepthAttachment,
+        };
+        m_DepthStencilRenderTarget = Image::Create(this, depthInfo);
     }
 
     void VulkanGraphicsContext::ResetFrameUsageState()
