@@ -19,7 +19,6 @@ namespace Elixir
         void RenderFrame(std::function<void()>) override {}
         void DrainRenderQueue() override {}
         void SetClearColor(const glm::vec4&) override {}
-        void Clear() override {}
         void Resize(Extent2D) override {}
         Ref<CommandBuffer> GetSecondaryCommandBuffer() const override { return nullptr; }
         Ref<CommandBuffer> GetUploadCommandBuffer() const override { return nullptr; }
@@ -27,6 +26,7 @@ namespace Elixir
         Extent3D GetSwapchainExtent() const override { return {}; }
 
     private:
+        void ClearImage(const Ref<Image>&) override {}
         void CreateRenderTargets() override {}
     };
 

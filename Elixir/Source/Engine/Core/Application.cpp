@@ -51,6 +51,7 @@ namespace Elixir
         m_MaterialSystem = CreateScope<MaterialSystem>(
             m_GraphicsContext.get(),
             m_ShaderLoader.get(),
+            m_SceneTarget,
             SMaterialSystemConfig{ .InitialFrameCapacity = 256 }
         );
 
@@ -210,7 +211,7 @@ namespace Elixir
                 m_MaterialSystem->BeginFrame();
                 m_GraphicsContext->Clear(m_SceneTarget);
                 Render(frameTime);
-                m_MaterialSystem->RenderFrame(m_SceneTarget);
+                m_MaterialSystem->RenderFrame();
                 m_PostProcessor->Apply(m_SceneTarget, m_GraphicsContext->GetRenderTarget());
                 m_GUIManager->Render();
             });

@@ -6,10 +6,15 @@ namespace Elixir::Materials
     MaterialSystem::MaterialSystem(
         const GraphicsContext* context,
         const ShaderLoader* shaderLoader,
+        const Ref<Image>& sceneTarget,
         const SMaterialSystemConfig config
     ) : m_ProxyResolver(shaderLoader),
         m_ProxyCache(m_ProxyResolver),
-        m_Renderer(CreateScope<Renderer>(context, config.InitialFrameCapacity)) {}
+        m_Renderer(CreateScope<Renderer>(
+            context,
+            sceneTarget,
+            config.InitialFrameCapacity
+        )) {}
 
     void MaterialSystem::BeginFrame()
     {
@@ -28,10 +33,9 @@ namespace Elixir::Materials
         m_SubmittedScenes.push_back(std::move(scene));
     }
 
-    SRenderResult MaterialSystem::RenderFrame(const Ref<Image>& sceneTarget)
+    SRenderResult MaterialSystem::RenderFrame()
     {
         EE_CORE_ASSERT(m_IsCollectingFrame, "Material rendering requires BeginFrame.")
-        EE_CORE_ASSERT(sceneTarget, "Material rendering requires a scene target.")
 
         std::vector<SPreparedScene> scenes;
         scenes.reserve(m_SubmittedScenes.size());
@@ -40,7 +44,7 @@ namespace Elixir::Materials
             scenes.push_back(PrepareScene(scene));
 
         m_IsCollectingFrame = false;
-        return m_Renderer->RenderFrame(scenes, sceneTarget);
+        return m_Renderer->RenderFrame(scenes);
     }
 
     SPreparedScene MaterialSystem::PrepareScene(const MaterialRenderScene& scene)

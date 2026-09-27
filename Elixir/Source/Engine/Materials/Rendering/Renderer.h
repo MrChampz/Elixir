@@ -204,11 +204,13 @@ namespace Elixir::Materials::Rendering
         /**
          * @brief Creates a material renderer.
          * @param context Graphics context used to create pipelines.
+         * @param sceneTarget Color target that receives material rendering.
          * @param materialCapacity Maximum unique materials supported by one frame.
          * @pre All arguments are valid for the renderer lifetime.
          */
         Renderer(
             const GraphicsContext* context,
+            const Ref<Image>& sceneTarget,
             uint32_t materialCapacity
         );
 
@@ -218,13 +220,9 @@ namespace Elixir::Materials::Rendering
         /**
          * @brief Records all resolved material scenes for the current frame.
          * @param scenes Scenes with material proxies resolved by MaterialSystem.
-         * @param sceneTarget Color target that receives the recorded scene.
          * @return Counts of materials, batches, and draw commands recorded.
          */
-        SRenderResult RenderFrame(
-            std::span<const SPreparedScene> scenes,
-            const Ref<Image>& sceneTarget
-        );
+        SRenderResult RenderFrame(std::span<const SPreparedScene> scenes);
 
         /**
          * @brief Returns the program key for a material pass.
@@ -384,6 +382,7 @@ namespace Elixir::Materials::Rendering
         std::unordered_map<SPipelineKey, Ref<GraphicsPipeline>, SPipelineKeyHasher> m_Pipelines;
         std::unordered_map<const Shader*, SDescriptorBindingState> m_DescriptorBindings;
 
+        Ref<Image> m_SceneTarget;
         uint64_t m_CurrentFrameNumber = UINT64_MAX;
         const GraphicsContext* m_Context = nullptr;
     };

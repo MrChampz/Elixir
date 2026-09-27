@@ -10,13 +10,16 @@ namespace Elixir::Materials::Rendering
 {
     Renderer::Renderer(
         const GraphicsContext* context,
+        const Ref<Image>& sceneTarget,
         const uint32_t materialCapacity
     ) : m_MaterialCapacity(materialCapacity),
         m_FrameSlots(*context),
         m_Textures(context),
+        m_SceneTarget(sceneTarget),
         m_Context(context)
     {
         EE_CORE_ASSERT(context, "Material renderer requires a graphics context.")
+        EE_CORE_ASSERT(m_SceneTarget, "Material renderer requires a scene target.")
         EE_CORE_ASSERT(
             m_MaterialCapacity > 0,
             "Material renderer frame capacity must be greater than zero."
@@ -39,15 +42,12 @@ namespace Elixir::Materials::Rendering
         m_Textures.BeginFrame(m_CurrentFrameNumber);
     }
 
-    SRenderResult Renderer::RenderFrame(
-        const std::span<const SPreparedScene> scenes,
-        const Ref<Image>& sceneTarget
-    )
+    SRenderResult Renderer::RenderFrame(const std::span<const SPreparedScene> scenes)
     {
         SRenderResult result{};
         if (scenes.empty()) return result;
 
-        EE_CORE_ASSERT(sceneTarget, "Material rendering requires a scene target.")
+        EE_CORE_ASSERT(m_SceneTarget, "Material rendering requires a scene target.")
 
         EE_CORE_ASSERT(
             m_CurrentFrameNumber == m_Context->GetFrameNumber(),
@@ -80,10 +80,10 @@ namespace Elixir::Materials::Rendering
         result.MaterialCount = materialTable.GetCount();
 
         const auto cmd = m_Context->GetSecondaryCommandBuffer();
-        const auto extent = sceneTarget->GetExtent();
+        const auto extent = m_SceneTarget->GetExtent();
 
         const SRenderingInfo renderingInfo{
-            .ColorAttachment = sceneTarget,
+            .ColorAttachment = m_SceneTarget,
             .DepthStencilAttachment = m_Context->GetDepthStencilRenderTarget(),
             .RenderArea = extent,
         };
@@ -449,7 +449,7 @@ namespace Elixir::Materials::Rendering
         builder.SetShader(shader);
         builder.SetInputTopology(EPrimitiveTopology::TriangleList);
         builder.SetPolygonMode(EPolygonMode::Fill);
-        builder.SetColorAttachmentFormat(EImageFormat::R16G16B16A16_SFLOAT);
+        builder.SetColorAttachmentFormat(m_SceneTarget->GetFormat());
         builder.SetDepthAttachmentFormat(EDepthStencilImageFormat::D32_SFLOAT);
         builder.SetBufferLayout(*request.VertexLayout);
         builder.DisableBlending();
