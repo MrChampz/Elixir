@@ -1,5 +1,8 @@
 #pragma once
 
+#include <mutex>
+#include <optional>
+
 #include <Engine/Core/Core.h>
 #include <Engine/Core/Window.h>
 #include <Engine/Core/Timer.h>

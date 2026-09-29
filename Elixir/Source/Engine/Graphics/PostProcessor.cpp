@@ -167,7 +167,7 @@ namespace Elixir
 
         if (m_BloomTarget)
         {
-            m_BloomTarget->Resize(m_Context->GetUploadCommandBuffer(), extent);
+            m_BloomTarget->Resize(extent);
             return;
         }
 

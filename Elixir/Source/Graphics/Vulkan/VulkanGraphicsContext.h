@@ -60,6 +60,9 @@ namespace Elixir::Vulkan
 
         void RenderFrame(std::function<void()> callback) override;
         void DrainRenderQueue() override;
+        bool EnqueueRenderTask(std::function<void()> task) const override;
+        bool RunRenderTaskAndWait(std::function<void()> task) const override;
+        bool IsRenderThread() const override;
 
         void SetClearColor(const glm::vec4& color) override;
 
@@ -110,8 +113,6 @@ namespace Elixir::Vulkan
         bool Prepare();
         void Submit();
         void Present();
-
-        bool HandleFramebufferResize(const FramebufferResizeEvent& event);
 
         bool m_IsInitialized = false;
 

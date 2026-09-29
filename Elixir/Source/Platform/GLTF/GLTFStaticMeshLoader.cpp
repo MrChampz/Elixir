@@ -40,6 +40,7 @@ namespace Elixir
                                          fastgltf::Category::Images |
                                          fastgltf::Category::Textures |
                                          fastgltf::Category::Materials |
+                                         fastgltf::Category::Nodes |
                                          fastgltf::Category::Scenes;
 
         constexpr auto GLTF_EXTENSIONS =

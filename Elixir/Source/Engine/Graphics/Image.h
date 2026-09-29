@@ -3,11 +3,15 @@
 #include <Engine/Core/Core.h>
 #include <Engine/Graphics/Buffer.h>
 
+#include <mutex>
+#include <optional>
 #include <span>
 
 namespace Elixir
 {
     class Image;
+
+    namespace Vulkan { class VulkanGraphicsContext; }
 
     enum class EImageLayout
     {
@@ -258,7 +262,7 @@ namespace Elixir
      * @brief Owns a graphics image and coordinates initialization independently of its
      * backend.
      */
-    class ELIXIR_API Image
+    class ELIXIR_API Image : public std::enable_shared_from_this<Image>
     {
       public:
         virtual ~Image() = default;
@@ -270,16 +274,17 @@ namespace Elixir
         virtual void Destroy() = 0;
 
         /**
-         * @brief Resizes storage and scales each existing mip level, waiting for the copies
-         * to finish.
-         *
-         * Mip levels that do not fit the new extent are removed; no new levels are generated.
-         *
-         * @param cmd Command buffer used to record and synchronously submit the resize copies.
+         * @brief Queues an image resize and returns without waiting when called off the rendering thread.
          * @param extent New base-level dimensions in texels.
-         * @pre The image has TransferSrc and TransferDst usage, and cmd is not recording.
          */
-        void Resize(const Ref<CommandBuffer>& cmd, const Extent3D& extent);
+        void Resize(const Extent3D& extent);
+
+        /**
+         * @brief Resizes the image and waits until the operation completes.
+         * @param extent New base-level dimensions in texels.
+         * @return True when the resize task was accepted by the graphics context.
+         */
+        bool ResizeAndWait(const Extent3D& extent);
 
         /**
          * @brief Records a layout transition for all mip levels and layers.
@@ -639,7 +644,13 @@ namespace Elixir
 
         const GraphicsContext* m_GraphicsContext;
 
+        std::mutex m_ResizeMutex;
+        std::optional<Extent3D> m_PendingResize;
+        bool m_ResizeQueued = false;
+
       private:
+        friend class Vulkan::VulkanGraphicsContext;
+
         // Creates storage and completes the requested upload after backend construction.
         void Initialize(const SImageCreateInfo& info);
 
@@ -657,6 +668,12 @@ namespace Elixir
             const Extent3D& dstExtent,
             uint32_t level
         ) = 0;
+
+        // Applies queued resize requests on the rendering thread.
+        void ApplyPendingResize();
+
+        // Resizes storage and scales existing mip levels on the rendering thread.
+        void ResizeOnRenderThread(const Ref<CommandBuffer>& cmd, const Extent3D& extent);
     };
 
 }

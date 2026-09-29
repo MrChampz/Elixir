@@ -17,12 +17,36 @@
 #include "GLFW/glfw3.h"
 
 #include <fstream>
+#include <future>
 
 namespace Elixir
 {
     using namespace Vulkan;
     using namespace Vulkan::Converters;
     using namespace SpirV;
+
+    namespace
+    {
+        thread_local const VulkanGraphicsContext* s_RenderThreadContext = nullptr;
+
+        class SRenderThreadScope
+        {
+        public:
+            explicit SRenderThreadScope(const VulkanGraphicsContext* context)
+                : m_PreviousContext(s_RenderThreadContext)
+            {
+                s_RenderThreadContext = context;
+            }
+
+            ~SRenderThreadScope()
+            {
+                s_RenderThreadContext = m_PreviousContext;
+            }
+
+        private:
+            const VulkanGraphicsContext* m_PreviousContext;
+        };
+    }
 
     template <typename T>
     void LogError(vkb::Result<T> result, std::string preMessage = "")
@@ -130,12 +154,9 @@ namespace Elixir
         }
     }
 
-    void VulkanGraphicsContext::ProcessEvent(Event& event)
+    void VulkanGraphicsContext::ProcessEvent(Event&)
     {
-        EventDispatcher dispatcher(event);
-        dispatcher.Dispatch<FramebufferResizeEvent>(
-            EE_BIND_EVENT_FN(VulkanGraphicsContext::HandleFramebufferResize)
-        );
+        // Framebuffer resize work is queued by Application and runs on the rendering thread.
     }
 
     void VulkanGraphicsContext::RenderFrame(std::function<void()> callback)
@@ -148,7 +169,7 @@ namespace Elixir
 
         m_FrameSemaphore.acquire();
 
-        m_Executor->Enqueue(EThreadName::Rendering, [this, callback]()
+        if (!EnqueueRenderTask([this, callback]()
         {
             if (!Prepare())
             {
@@ -163,7 +184,10 @@ namespace Elixir
             Present();
 
             m_FrameSemaphore.release();
-        });
+        }))
+        {
+            m_FrameSemaphore.release();
+        }
     }
 
     void VulkanGraphicsContext::DrainRenderQueue()
@@ -181,6 +205,57 @@ namespace Elixir
         ResetFrameUsageState();
     }
 
+    bool VulkanGraphicsContext::EnqueueRenderTask(std::function<void()> task) const
+    {
+        if (!task || !m_AcceptingFrames.load())
+            return false;
+
+        m_Executor->Enqueue(EThreadName::Rendering, [this, task = std::move(task)]()
+        {
+            SRenderThreadScope scope(this);
+            task();
+        });
+        return true;
+    }
+
+    bool VulkanGraphicsContext::RunRenderTaskAndWait(std::function<void()> task) const
+    {
+        if (!task)
+            return false;
+
+        if (IsRenderThread())
+        {
+            task();
+            return true;
+        }
+
+        const auto completion = CreateRef<std::promise<void>>();
+        auto result = completion->get_future();
+        if (!EnqueueRenderTask([task = std::move(task), completion]() mutable
+        {
+            try
+            {
+                task();
+                completion->set_value();
+            }
+            catch (...)
+            {
+                completion->set_exception(std::current_exception());
+            }
+        }))
+        {
+            return false;
+        }
+
+        result.get();
+        return true;
+    }
+
+    bool VulkanGraphicsContext::IsRenderThread() const
+    {
+        return s_RenderThreadContext == this;
+    }
+
     void VulkanGraphicsContext::SetClearColor(const glm::vec4& color)
     {
         EE_PROFILE_ZONE_SCOPED()
@@ -196,8 +271,8 @@ namespace Elixir
         m_SwapchainRecreateRequested = true;
 
         const auto cmd = GetUploadCommandBuffer();
-        m_RenderTarget->Resize(cmd, extent);
-        m_DepthStencilRenderTarget->Resize(cmd, extent);
+        m_RenderTarget->ResizeOnRenderThread(cmd, extent);
+        m_DepthStencilRenderTarget->ResizeOnRenderThread(cmd, extent);
     }
 
     Ref<CommandBuffer> VulkanGraphicsContext::GetSecondaryCommandBuffer() const
@@ -665,9 +740,4 @@ namespace Elixir
         EE_PROFILE_FRAME_MARK_NAMED(EE_PROFILE_RENDER)
     }
 
-    bool VulkanGraphicsContext::HandleFramebufferResize(const FramebufferResizeEvent& event)
-    {
-        Resize(event.GetExtent());
-        return true;
-    }
 }

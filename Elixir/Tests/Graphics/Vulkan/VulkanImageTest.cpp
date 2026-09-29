@@ -245,7 +245,7 @@ TEST_F(VulkanImageTest, ResizePreservesContentAndClampsTheAllocatedMipCount)
         .MipmapMode = EImageMipmapMode::SimpleAverage,
         .InitialLayout = EImageLayout::ShaderReadOnly,
     });
-    image->Resize(Context->GetUploadCommandBuffer(), { 2, 2, 1 });
+    ASSERT_TRUE(image->ResizeAndWait({ 2, 2, 1 }));
     EXPECT_EQ(image->GetWidth(), 2u);
     EXPECT_EQ(image->GetMipLevels(), 2u);
     EXPECT_EQ(image->GetSize(), 16u);

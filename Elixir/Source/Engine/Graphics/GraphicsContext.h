@@ -32,6 +32,15 @@ namespace Elixir
         virtual void RenderFrame(std::function<void()> callback) = 0;
         virtual void DrainRenderQueue() = 0;
 
+        /** @brief Queues a task that must run on the rendering thread. */
+        virtual bool EnqueueRenderTask(std::function<void()> task) const = 0;
+
+        /** @brief Runs a rendering-thread task and waits until it completes. */
+        virtual bool RunRenderTaskAndWait(std::function<void()> task) const = 0;
+
+        /** @brief Reports whether the caller is the rendering thread for this context. */
+        virtual bool IsRenderThread() const = 0;
+
         virtual void SetClearColor(const glm::vec4& color) = 0;
 
         /** @brief Clears the context-owned LDR render target with the configured clear color. */

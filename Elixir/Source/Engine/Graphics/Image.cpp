@@ -528,7 +528,80 @@ namespace Elixir
         cmd->Flush();
     }
 
-    void Image::Resize(const Ref<CommandBuffer>& cmd, const Extent3D& extent)
+    void Image::Resize(const Extent3D& extent)
+    {
+        if (m_GraphicsContext->IsRenderThread())
+        {
+            m_GraphicsContext->WaitDeviceIdle();
+            ResizeOnRenderThread(m_GraphicsContext->GetUploadCommandBuffer(), extent);
+            return;
+        }
+
+        {
+            std::scoped_lock lock(m_ResizeMutex);
+            m_PendingResize = extent;
+            if (m_ResizeQueued)
+                return;
+
+            m_ResizeQueued = true;
+        }
+
+        const auto enqueued = m_GraphicsContext->EnqueueRenderTask(
+            [self = shared_from_this()]()
+            {
+                self->ApplyPendingResize();
+            }
+        );
+
+        if (!enqueued)
+        {
+            std::scoped_lock lock(m_ResizeMutex);
+            m_ResizeQueued = false;
+            EE_CORE_ERROR("Could not queue image resize because the graphics context is unavailable.")
+        }
+    }
+
+    bool Image::ResizeAndWait(const Extent3D& extent)
+    {
+        return m_GraphicsContext->RunRenderTaskAndWait(
+            [self = shared_from_this(), extent]()
+            {
+                self->m_GraphicsContext->WaitDeviceIdle();
+                self->ResizeOnRenderThread(
+                    self->m_GraphicsContext->GetUploadCommandBuffer(),
+                    extent
+                );
+            }
+        );
+    }
+
+    void Image::RecalculateSize()
+    {
+        m_BitsPerPixel = CalculateBitsPerPixel(this);
+        m_Size = GetMipSize(0) * m_ArrayLayers;
+    }
+
+    void Image::ApplyPendingResize()
+    {
+        while (true)
+        {
+            std::optional<Extent3D> extent;
+            {
+                std::scoped_lock lock(m_ResizeMutex);
+                extent.swap(m_PendingResize);
+                if (!extent)
+                {
+                    m_ResizeQueued = false;
+                    return;
+                }
+            }
+
+            m_GraphicsContext->WaitDeviceIdle();
+            ResizeOnRenderThread(m_GraphicsContext->GetUploadCommandBuffer(), *extent);
+        }
+    }
+
+    void Image::ResizeOnRenderThread(const Ref<CommandBuffer>& cmd, const Extent3D& extent)
     {
         if (!extent.Width || !extent.Height || !extent.Depth)
         {
@@ -612,11 +685,5 @@ namespace Elixir
             Transition(cmd, originalLayout);
             cmd->Flush();
         }
-    }
-
-    void Image::RecalculateSize()
-    {
-        m_BitsPerPixel = CalculateBitsPerPixel(this);
-        m_Size = GetMipSize(0) * m_ArrayLayers;
     }
 }
