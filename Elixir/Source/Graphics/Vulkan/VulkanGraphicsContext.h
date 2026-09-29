@@ -74,6 +74,12 @@ namespace Elixir::Vulkan
 
         void WaitDeviceIdle() const override;
 
+        /**
+         * @brief Defers native image destruction until every frame that can use it has
+         * completed.
+         */
+        void RetireImage(VkImageView imageView, VkImage image, VmaAllocation allocation) const;
+
         Extent3D GetSwapchainExtent() const override { return m_SwapchainExtent;}
 
         SFrameData& GetCurrentFrame() { return m_Frames[GetFrameIndex()]; }
@@ -149,7 +155,7 @@ namespace Elixir::Vulkan
         Scope<VulkanCommandPoolManager> m_CommandPoolManager;
         Ref<VulkanCommandBuffer> m_MainCommandBuffer;
 
-        std::vector<SFrameData> m_Frames;
+        mutable std::vector<SFrameData> m_Frames;
         VkClearColorValue m_ClearColor;
 
         SDeletionQueue m_DeletionQueue;

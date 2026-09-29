@@ -46,41 +46,64 @@ namespace Elixir
         private:
             const VulkanGraphicsContext* m_PreviousContext;
         };
-    }
 
-    template <typename T>
-    void LogError(vkb::Result<T> result, std::string preMessage = "")
-    {
-        if (!result)
+        struct SRetiredImage
         {
-            const auto message = preMessage + result.error().message();
-            EE_CORE_FATAL(message)
+            VkDevice Device = VK_NULL_HANDLE;
+            VmaAllocator Allocator = VK_NULL_HANDLE;
+            VkImageView View = VK_NULL_HANDLE;
+            VkImage Image = VK_NULL_HANDLE;
+            VmaAllocation Allocation = VK_NULL_HANDLE;
+            std::atomic<uint32_t> PendingFrames = 0;
+
+            void Release() const
+            {
+                if (View)
+                    vkDestroyImageView(Device, View, nullptr);
+
+                if (Image)
+                    vmaDestroyImage(Allocator, Image, Allocation);
+            }
+        };
+
+        template <typename T>
+        void LogError(vkb::Result<T> result, std::string preMessage = "")
+        {
+            if (!result)
+            {
+                const auto message = preMessage + result.error().message();
+                EE_CORE_FATAL(message)
+            }
         }
-    }
 
-    void DumpAllocatorStats(
-        const VmaAllocator allocator,
-        const std::string& filename = "AllocatorStats.json"
-    )
-    {
-        std::ofstream statsFile(filename);
-        if (statsFile.is_open())
+        void DumpAllocatorStats(
+            const VmaAllocator allocator,
+            const std::string& filename = "AllocatorStats.json"
+        )
         {
-            char* stats;
-            vmaBuildStatsString(allocator, &stats, VK_TRUE);
-            statsFile << stats;
+            std::ofstream statsFile(filename);
+            if (statsFile.is_open())
+            {
+                char* stats;
+                vmaBuildStatsString(allocator, &stats, VK_TRUE);
+                statsFile << stats;
 
-            vmaFreeStatsString(allocator, stats);
-            statsFile.close();
+                vmaFreeStatsString(allocator, stats);
+                statsFile.close();
 
-            EE_CORE_INFO("Allocator stats dumped to {0}.", filename);
+                EE_CORE_INFO("Allocator stats dumped to {0}.", filename);
+            }
         }
     }
 
     /* VulkanGraphicsContext */
 
-    VulkanGraphicsContext::VulkanGraphicsContext(const EGraphicsAPI api, Executor* executor, const Window* window)
-        : GraphicsContext(api, window), m_Executor(executor)
+    VulkanGraphicsContext::VulkanGraphicsContext(
+        const EGraphicsAPI api,
+        Executor* executor,
+        const Window* window
+    ) : GraphicsContext(api, window),
+        m_Executor(executor)
     {
         EE_PROFILE_ZONE_SCOPED()
         EE_CORE_ASSERT(executor, "Invalid executor!")
@@ -202,6 +225,9 @@ namespace Elixir
         m_Executor->ShutdownRenderPool();
 
         WaitDeviceIdle();
+        for (auto& frame : m_Frames)
+            frame.DeletionQueue.Flush();
+
         ResetFrameUsageState();
     }
 
@@ -270,9 +296,8 @@ namespace Elixir
         m_SwapchainExtent = extent;
         m_SwapchainRecreateRequested = true;
 
-        const auto cmd = GetUploadCommandBuffer();
-        m_RenderTarget->ResizeOnRenderThread(cmd, extent);
-        m_DepthStencilRenderTarget->ResizeOnRenderThread(cmd, extent);
+        m_RenderTarget->Resize(extent);
+        m_DepthStencilRenderTarget->Resize(extent);
     }
 
     Ref<CommandBuffer> VulkanGraphicsContext::GetSecondaryCommandBuffer() const
@@ -295,6 +320,60 @@ namespace Elixir
     {
         EE_PROFILE_ZONE_SCOPED()
         VK_CHECK_RESULT(vkDeviceWaitIdle(m_Device));
+    }
+
+    void VulkanGraphicsContext::RetireImage(
+        const VkImageView imageView,
+        const VkImage image,
+        const VmaAllocation allocation
+    ) const
+    {
+        if (!imageView && !image)
+            return;
+
+        if (!IsRenderThread())
+        {
+            const auto enqueued = EnqueueRenderTask([this, imageView, image, allocation]()
+            {
+                RetireImage(imageView, image, allocation);
+            });
+
+            if (enqueued) return;
+        }
+
+        const auto retired = CreateRef<SRetiredImage>(
+            m_Device,
+            m_Allocator,
+            imageView,
+            image,
+            allocation
+        );
+
+        uint32_t pendingFrames = 0;
+        for (const auto& frame : m_Frames)
+        {
+            if (frame.InUseByRenderThread.load())
+                ++pendingFrames;
+        }
+
+        if (pendingFrames == 0)
+        {
+            retired->Release();
+            return;
+        }
+
+        retired->PendingFrames = pendingFrames;
+        for (auto& frame : m_Frames)
+        {
+            if (!frame.InUseByRenderThread.load())
+                continue;
+
+            frame.DeletionQueue.Push([retired]()
+            {
+                if (retired->PendingFrames.fetch_sub(1) == 1)
+                    retired->Release();
+            });
+        }
     }
 
     void VulkanGraphicsContext::InitVulkan()

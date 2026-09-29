@@ -30,16 +30,13 @@ namespace Elixir::Vulkan
 
     void VulkanImage::Destroy()
     {
-        if (m_ImageView)
-            vkDestroyImageView(m_Context->GetDevice(), m_ImageView, nullptr);
+        const auto imageView = std::exchange(m_ImageView, VK_NULL_HANDLE);
+        const auto image = std::exchange(m_Image, VK_NULL_HANDLE);
+        const auto allocation = std::exchange(m_Allocation, VK_NULL_HANDLE);
 
-        if (m_Image)
-            vmaDestroyImage(m_Context->GetAllocator(), m_Image, m_Allocation);
-
-        m_Image = VK_NULL_HANDLE;
-        m_ImageView = VK_NULL_HANDLE;
-        m_Allocation = VK_NULL_HANDLE;
         m_DescriptorInfo = {};
+
+        m_Context->RetireImage(imageView, image, allocation);
     }
 
     void VulkanImage::CreateResource(const SImageCreateInfo& info)

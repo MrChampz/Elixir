@@ -532,7 +532,6 @@ namespace Elixir
     {
         if (m_GraphicsContext->IsRenderThread())
         {
-            m_GraphicsContext->WaitDeviceIdle();
             ResizeOnRenderThread(m_GraphicsContext->GetUploadCommandBuffer(), extent);
             return;
         }
@@ -566,7 +565,6 @@ namespace Elixir
         return m_GraphicsContext->RunRenderTaskAndWait(
             [self = shared_from_this(), extent]()
             {
-                self->m_GraphicsContext->WaitDeviceIdle();
                 self->ResizeOnRenderThread(
                     self->m_GraphicsContext->GetUploadCommandBuffer(),
                     extent
@@ -596,7 +594,6 @@ namespace Elixir
                 }
             }
 
-            m_GraphicsContext->WaitDeviceIdle();
             ResizeOnRenderThread(m_GraphicsContext->GetUploadCommandBuffer(), *extent);
         }
     }

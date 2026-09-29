@@ -294,13 +294,13 @@ namespace Elixir
     {
         // TODO: When GLFW is replaced with native window backends, defer target recreation
         // until each platform reports that its live resize operation has finished.
-        m_GraphicsContext->EnqueueRenderTask([
+        m_GraphicsContext->EnqueueRenderTask(
+            [
                 context = m_GraphicsContext.get(),
                 sceneTarget = m_SceneTarget,
                 extent = event.GetExtent()
             ]()
             {
-                context->WaitDeviceIdle();
                 context->Resize(extent);
                 sceneTarget->Resize({ extent.Width, extent.Height, 1 });
             }

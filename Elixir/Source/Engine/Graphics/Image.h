@@ -11,8 +11,6 @@ namespace Elixir
 {
     class Image;
 
-    namespace Vulkan { class VulkanGraphicsContext; }
-
     enum class EImageLayout
     {
         Undefined,
@@ -649,8 +647,6 @@ namespace Elixir
         bool m_ResizeQueued = false;
 
       private:
-        friend class Vulkan::VulkanGraphicsContext;
-
         // Creates storage and completes the requested upload after backend construction.
         void Initialize(const SImageCreateInfo& info);
 
