@@ -122,12 +122,12 @@ TEST(ImageTest, AllocationDescriptionDoesNotKeepUploadDataOrGenerationRequests)
 {
     std::array<uint8_t, 8 * 4 * 4> pixels{};
     SImageCreateInfo info{
-        .InitialData = pixels.data(),
         .Width = 8, .Height = 4,
         .Format = EImageFormat::R8G8B8A8_UNORM,
         .MipmapMode = EImageMipmapMode::NormalMap,
         .MipLevels = 4,
-        .AllocationInfo = { .RequiredFlags = EMemoryProperty::HostVisible }
+        .AllocationInfo = { .RequiredFlags = EMemoryProperty::HostVisible },
+        .InitialData = pixels.data(),
     };
     ImageMetadata image(info);
     const auto allocation = image.GetCreateInfo();

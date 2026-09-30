@@ -140,13 +140,13 @@ TEST_F(VulkanImageTest, NormalMapMipsAreGeneratedByImageAndUploaded)
         128, 255, 128, 60, 127, 0, 255, 80
     };
     SImageCreateInfo info{
-        .InitialData = pixels.data(),
         .Width = 2, .Height = 2,
         .Format = EImageFormat::R8G8B8A8_UNORM,
         .MipmapMode = EImageMipmapMode::NormalMap,
         .MipLevels = 99,
         .Usage = EImageUsage::Sampled | EImageUsage::TransferSrc,
-        .InitialLayout = EImageLayout::ShaderReadOnly
+        .InitialLayout = EImageLayout::ShaderReadOnly,
+        .InitialData = pixels.data(),
     };
     const auto image = Image::Create(Context, info);
     EXPECT_EQ(image->GetMipLevels(), 2u);
