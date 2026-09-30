@@ -32,7 +32,6 @@ namespace Elixir
     SImageCreateInfo Texture::CreateImageInfo(const STextureCreateInfo& info)
     {
         return {
-            .InitialData = info.InitialData,
             .Width = info.Width,
             .Type = EImageType::_1D,
             .Format = info.Format,
@@ -40,6 +39,7 @@ namespace Elixir
             .MipLevels = info.MipLevels,
             .Usage = EImageUsage::Sampled,
             .InitialLayout = EImageLayout::ShaderReadOnly,
+            .InitialData = info.InitialData,
             .InitialMipData = info.InitialMipData,
         };
     }
