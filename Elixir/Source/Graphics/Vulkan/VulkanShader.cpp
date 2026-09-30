@@ -20,6 +20,14 @@ namespace Elixir::Vulkan
             const auto vkImage = TryToGetVulkanImage(image.get());
             return vkImage ? vkImage->GetVulkanResourceGeneration() : 0;
         }
+
+        VkImageLayout GetDescriptorImageLayout(const Ref<Image>& image)
+        {
+            const auto vkImage = TryToGetVulkanImage(image.get());
+            return vkImage
+                ? vkImage->GetVulkanDescriptorInfo().imageLayout
+                : VK_IMAGE_LAYOUT_UNDEFINED;
+        }
     }
 
     VulkanShader::VulkanShader(const GraphicsContext* context, SShaderCreateInfo&& info)
@@ -163,7 +171,9 @@ namespace Elixir::Vulkan
                 *binding,
                 DescriptorValue{ STextureDescriptorValue{
                     texture,
-                    texture ? GetResourceGeneration(texture->GetImage()) : 0
+                    texture ? GetResourceGeneration(texture->GetImage()) : 0,
+                    texture ? GetDescriptorImageLayout(texture->GetImage())
+                            : VK_IMAGE_LAYOUT_UNDEFINED
                 } }
             );
             return;
@@ -181,7 +191,8 @@ namespace Elixir::Vulkan
                 *binding,
                 DescriptorValue{ SImageDescriptorValue{
                     image,
-                    GetResourceGeneration(image)
+                    GetResourceGeneration(image),
+                    GetDescriptorImageLayout(image)
                 } }
             );
             return;
@@ -478,7 +489,8 @@ namespace Elixir::Vulkan
                 binding,
                 DescriptorValue{ SImageDescriptorValue{
                     image,
-                    GetResourceGeneration(image)
+                    GetResourceGeneration(image),
+                    GetDescriptorImageLayout(image)
                 } }
             );
         }
@@ -489,7 +501,9 @@ namespace Elixir::Vulkan
                 binding,
                 DescriptorValue{ STextureDescriptorValue{
                     texture,
-                    texture ? GetResourceGeneration(texture->GetImage()) : 0
+                    texture ? GetResourceGeneration(texture->GetImage()) : 0,
+                    texture ? GetDescriptorImageLayout(texture->GetImage())
+                            : VK_IMAGE_LAYOUT_UNDEFINED
                 } }
             );
         }

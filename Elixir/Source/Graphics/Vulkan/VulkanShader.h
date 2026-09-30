@@ -77,6 +77,7 @@ namespace Elixir::Vulkan
         {
             Ref<Image> Image;
             uint64_t ResourceGeneration = 0;
+            VkImageLayout ImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
             bool operator==(const SImageDescriptorValue&) const = default;
         };
@@ -85,6 +86,7 @@ namespace Elixir::Vulkan
         {
             Ref<Texture> Texture;
             uint64_t ResourceGeneration = 0;
+            VkImageLayout ImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
             bool operator==(const STextureDescriptorValue&) const = default;
         };
