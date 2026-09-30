@@ -7,8 +7,6 @@
 #include <Engine/Materials/Rendering/MaterialRenderProxy.h>
 #include <Engine/Materials/Rendering/TextureRegistry.h>
 
-#include <variant>
-
 namespace Elixir
 {
     class Image;
