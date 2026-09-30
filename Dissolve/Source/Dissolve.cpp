@@ -89,6 +89,10 @@ Dissolve::Dissolve()
             graphMaterial->SetUsage(EMaterialUsage::ParticleSprite, true),
             "Dissolve graph material must enable ParticleSprite usage."
         )
+        EE_CORE_ASSERT(
+            graphMaterial->SetBlendMode(EMaterialBlendMode::Translucent),
+            "Dissolve graph material must enable translucent blending."
+        )
 
         EE_CORE_ASSERT(graphMaterial->DefineParameter("Tint", {
             .Kind = EMaterialParameterKind::Value,
@@ -144,6 +148,10 @@ Dissolve::Dissolve()
         EE_CORE_ASSERT(
             ribbonMaterial->SetUsage(EMaterialUsage::ParticleMesh, true),
             "Ribbon material must enable ParticleRibbon usage."
+        )
+        EE_CORE_ASSERT(
+            ribbonMaterial->SetBlendMode(EMaterialBlendMode::Translucent),
+            "Ribbon material must enable translucent blending."
         )
 
         EE_CORE_ASSERT(ribbonMaterial->DefineParameter("Tint", {
