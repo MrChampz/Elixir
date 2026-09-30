@@ -12,10 +12,10 @@
 #include <Engine/Materials/Nodes/Constant.h>
 #include <Engine/Materials/Nodes/Cosine.h>
 #include <Engine/Materials/Nodes/Dot.h>
-#include <Engine/Materials/Nodes/FlattenNormal.h>
 #include <Engine/Materials/Nodes/Lerp.h>
 #include <Engine/Materials/Nodes/Multiply.h>
 #include <Engine/Materials/Nodes/Parameter.h>
+#include <Engine/Materials/Nodes/ScaleNormal.h>
 #include <Engine/Materials/Nodes/Sine.h>
 #include <Engine/Materials/Nodes/Subtract.h>
 #include <Engine/Materials/Nodes/TexCoord.h>
@@ -48,6 +48,20 @@ namespace Elixir
             fastgltf::Extensions::KHR_materials_specular |
             fastgltf::Extensions::KHR_texture_transform |
             fastgltf::Extensions::KHR_materials_clearcoat;
+
+        bool IsPathWithinAssetDirectory(const std::filesystem::path& path)
+        {
+            if (path.is_absolute())
+                return false;
+
+            for (const auto& component : path.lexically_normal())
+            {
+                if (component == "..")
+                    return false;
+            }
+
+            return true;
+        }
 
         class MaterialLoader final
         {
@@ -184,7 +198,14 @@ namespace Elixir
                     [](const auto&) {},
                     [&](const fastgltf::sources::URI& source)
                     {
-                        const auto path = m_Directory / source.uri.fspath();
+                        const auto relativePath = source.uri.fspath();
+                        if (!IsPathWithinAssetDirectory(relativePath))
+                        {
+                            EE_CORE_WARN("glTF image URI escapes the asset directory.")
+                            return;
+                        }
+
+                        const auto path = m_Directory / relativePath;
                         texture = TextureLoader::Load(path, info);
                     },
                     [&](const fastgltf::sources::Array& source)
@@ -684,15 +705,15 @@ namespace Elixir
                     EMaterialValueType::Float
                 );
 
-                const auto flatten = graph.AddNode<FlattenNormal>();
-                graph.Connect(sample, flatten, 0);
-                graph.Connect(scale, flatten, 1);
+                const auto scaledNormal = graph.AddNode<ScaleNormal>();
+                graph.Connect(sample, scaledNormal, 0);
+                graph.Connect(scale, scaledNormal, 1);
 
                 graph.SetChannel(
                     source.clearcoat
                         ? EMaterialChannel::ClearCoatBottomNormal
                         : EMaterialChannel::Normal,
-                    flatten
+                    scaledNormal
                 );
             }
 
@@ -877,11 +898,11 @@ namespace Elixir
                         EMaterialValueType::Float
                     );
 
-                    const auto flatten = graph.AddNode<FlattenNormal>();
-                    graph.Connect(sample, flatten, 0);
-                    graph.Connect(scale, flatten, 1);
+                    const auto scaledNormal = graph.AddNode<ScaleNormal>();
+                    graph.Connect(sample, scaledNormal, 0);
+                    graph.Connect(scale, scaledNormal, 1);
 
-                    graph.SetChannel(EMaterialChannel::Normal, flatten);
+                    graph.SetChannel(EMaterialChannel::Normal, scaledNormal);
                 }
             }
 
@@ -1045,7 +1066,12 @@ namespace Elixir
             static glm::mat4 ToGlmMatrix(const fastgltf::math::fmat4x4& source);
             static bool ApplyLocalTransform(
                 std::vector<SStaticMeshVertex>& vertices,
+                std::vector<uint32_t>& indices,
                 const glm::mat4& localTransform
+            );
+            static void GenerateTangents(
+                std::vector<SStaticMeshVertex>& vertices,
+                const std::vector<uint32_t>& indices
             );
 
             const GraphicsContext& m_Context;
@@ -1090,8 +1116,86 @@ namespace Elixir
             return result;
         }
 
+        namespace
+        {
+            constexpr float NORMAL_EPSILON_SQUARED = 1.0e-12f;
+
+            glm::vec3 NormalizeOrFallback(
+                const glm::vec3 value,
+                const glm::vec3 fallback
+            )
+            {
+                if (glm::dot(value, value) <= NORMAL_EPSILON_SQUARED)
+                    return fallback;
+
+                return glm::normalize(value);
+            }
+
+            glm::vec3 GetFallbackTangent(const glm::vec3& normal)
+            {
+                const glm::vec3 axis = std::abs(normal.z) < 0.999f
+                    ? glm::vec3(0.0f, 0.0f, 1.0f)
+                    : glm::vec3(0.0f, 1.0f, 0.0f);
+                return NormalizeOrFallback(glm::cross(axis, normal), glm::vec3(1.0f, 0.0f, 0.0f));
+            }
+        }
+
+        void Loader::GenerateTangents(
+            std::vector<SStaticMeshVertex>& vertices,
+            const std::vector<uint32_t>& indices
+        )
+        {
+            std::vector<glm::vec3> tangentSums(vertices.size());
+            std::vector<glm::vec3> bitangentSums(vertices.size());
+
+            for (size_t index = 0; index < indices.size(); index += 3)
+            {
+                const auto first = indices[index];
+                const auto second = indices[index + 1];
+                const auto third = indices[index + 2];
+
+                const auto& firstVertex = vertices[first];
+                const auto& secondVertex = vertices[second];
+                const auto& thirdVertex = vertices[third];
+                const glm::vec3 positionDelta1 = secondVertex.Position - firstVertex.Position;
+                const glm::vec3 positionDelta2 = thirdVertex.Position - firstVertex.Position;
+                const glm::vec2 texCoordDelta1 = secondVertex.TexCoord - firstVertex.TexCoord;
+                const glm::vec2 texCoordDelta2 = thirdVertex.TexCoord - firstVertex.TexCoord;
+                const float determinant = texCoordDelta1.x * texCoordDelta2.y -
+                    texCoordDelta1.y * texCoordDelta2.x;
+
+                if (std::abs(determinant) <= NORMAL_EPSILON_SQUARED)
+                    continue;
+
+                const float inverseDeterminant = 1.0f / determinant;
+                const glm::vec3 tangent = (positionDelta1 * texCoordDelta2.y -
+                    positionDelta2 * texCoordDelta1.y) * inverseDeterminant;
+                const glm::vec3 bitangent = (positionDelta2 * texCoordDelta1.x -
+                    positionDelta1 * texCoordDelta2.x) * inverseDeterminant;
+
+                for (const auto vertexIndex : { first, second, third })
+                {
+                    tangentSums[vertexIndex] += tangent;
+                    bitangentSums[vertexIndex] += bitangent;
+                }
+            }
+
+            for (size_t index = 0; index < vertices.size(); ++index)
+            {
+                auto& vertex = vertices[index];
+                const glm::vec3 normal = NormalizeOrFallback(vertex.Normal, glm::vec3(0.0f, 1.0f, 0.0f));
+                glm::vec3 tangent = tangentSums[index] - normal * glm::dot(normal, tangentSums[index]);
+                tangent = NormalizeOrFallback(tangent, GetFallbackTangent(normal));
+                const float handedness = glm::dot(glm::cross(normal, tangent), bitangentSums[index]) < 0.0f
+                    ? -1.0f
+                    : 1.0f;
+                vertex.Tangent = { tangent, handedness };
+            }
+        }
+
         bool Loader::ApplyLocalTransform(
             std::vector<SStaticMeshVertex>& vertices,
+            std::vector<uint32_t>& indices,
             const glm::mat4& localTransform
         )
         {
@@ -1109,14 +1213,23 @@ namespace Elixir
             for (auto& vertex : vertices)
             {
                 vertex.Position = glm::vec3(localTransform * glm::vec4(vertex.Position, 1.0f));
-                vertex.Normal = glm::normalize(normalTransform * vertex.Normal);
+                vertex.Normal = NormalizeOrFallback(
+                    normalTransform * vertex.Normal,
+                    glm::vec3(0.0f, 1.0f, 0.0f)
+                );
 
                 glm::vec3 tangent = linearTransform * glm::vec3(vertex.Tangent);
                 tangent -= vertex.Normal * glm::dot(vertex.Normal, tangent);
                 vertex.Tangent = {
-                    glm::normalize(tangent),
+                    NormalizeOrFallback(tangent, GetFallbackTangent(vertex.Normal)),
                     vertex.Tangent.w * handedness
                 };
+            }
+
+            if (handedness < 0.0f)
+            {
+                for (size_t index = 0; index < indices.size(); index += 3)
+                    std::swap(indices[index + 1], indices[index + 2]);
             }
 
             return true;
@@ -1272,7 +1385,19 @@ namespace Elixir
                 return;
             }
 
-            if (!ApplyLocalTransform(vertices, localTransform))
+            if (indices.size() % 3 != 0 || std::ranges::any_of(indices, [&vertices](const uint32_t index)
+            {
+                return index >= vertices.size();
+            }))
+            {
+                EE_CORE_WARN("Skipping invalid indexed primitive in mesh '{}'.", mesh.Name)
+                return;
+            }
+
+            if (primitive.findAttribute("TANGENT") == primitive.attributes.end())
+                GenerateTangents(vertices, indices);
+
+            if (!ApplyLocalTransform(vertices, indices, localTransform))
                 return;
 
             SStaticMeshSection section;
@@ -1404,11 +1529,50 @@ namespace Elixir
                 }
                 else
                 {
+                    std::vector<bool> childNodes(asset.nodes.size());
                     for (const auto& node : asset.nodes)
-                        LoadNodeMesh(
-                            node,
-                            ToGlmMatrix(fastgltf::getTransformMatrix(node))
-                        );
+                    {
+                        for (const auto childIndex : node.children)
+                        {
+                            if (childIndex < childNodes.size())
+                                childNodes[childIndex] = true;
+                            else
+                                EE_CORE_WARN("glTF node references an invalid child node index.")
+                        }
+                    }
+
+                    std::vector<bool> visitingNodes(asset.nodes.size());
+                    const auto visitNode = [&](auto&& self, const size_t nodeIndex, const glm::mat4& parentTransform) -> void
+                    {
+                        if (nodeIndex >= asset.nodes.size())
+                        {
+                            EE_CORE_WARN("glTF node references an invalid child node index.")
+                            return;
+                        }
+
+                        if (visitingNodes[nodeIndex])
+                        {
+                            EE_CORE_WARN("glTF node hierarchy contains a cycle.")
+                            return;
+                        }
+
+                        visitingNodes[nodeIndex] = true;
+                        const auto& node = asset.nodes[nodeIndex];
+                        const glm::mat4 transform = parentTransform *
+                            ToGlmMatrix(fastgltf::getTransformMatrix(node));
+                        LoadNodeMesh(node, transform);
+
+                        for (const auto childIndex : node.children)
+                            self(self, childIndex, transform);
+
+                        visitingNodes[nodeIndex] = false;
+                    };
+
+                    for (size_t nodeIndex = 0; nodeIndex < asset.nodes.size(); ++nodeIndex)
+                    {
+                        if (!childNodes[nodeIndex])
+                            visitNode(visitNode, nodeIndex, glm::mat4(1.0f));
+                    }
                 }
             }
 

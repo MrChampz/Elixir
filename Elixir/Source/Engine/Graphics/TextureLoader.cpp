@@ -51,9 +51,11 @@ namespace Elixir
     {
         EE_CORE_ASSERT(s_Initialized, "TextureLoader is not initialized!")
 
-        void* data;
+        void* data = nullptr;
         bool isHdr = false;
-        int width, height, channels;
+        int width = 0;
+        int height = 0;
+        int channels = 0;
 
         const auto pathStr = path.string();
 
@@ -81,7 +83,15 @@ namespace Elixir
             );
         }
 
-        EE_CORE_ASSERT(data, "Could not read texture data!")
+        if (!data)
+        {
+            EE_CORE_ERROR(
+                "Could not read texture data from {0}: {1}.",
+                pathStr,
+                stbi_failure_reason()
+            )
+            return nullptr;
+        }
 
         auto createInfo = info;
         createInfo.InitialData = data;
@@ -93,7 +103,8 @@ namespace Elixir
         TraceTextureInfo(pathStr, isHdr, createInfo.Format, channels);
 
         auto texture = Texture2D::Create(s_Context, createInfo);
-        EE_CORE_TRACE("Loaded texture: {0} [{1}].", pathStr, texture->GetUUID())
+        if (texture)
+            EE_CORE_TRACE("Loaded texture: {0} [{1}].", pathStr, texture->GetUUID())
 
         stbi_image_free(data);
 

@@ -10,6 +10,7 @@
 #include <Engine/Materials/Nodes/ComponentMask.h>
 #include <Engine/Materials/Nodes/Constant.h>
 #include <Engine/Materials/Nodes/FlattenNormal.h>
+#include <Engine/Materials/Nodes/ScaleNormal.h>
 #include <Engine/Materials/Nodes/Lerp.h>
 #include <Engine/Materials/Nodes/Parameter.h>
 #include <Engine/Materials/Nodes/RadialGradientExponential.h>
@@ -220,6 +221,33 @@ TEST(MaterialGraphTest, GeneratesNormalTextureSamplingAndFlattening)
     EXPECT_NE(hlsl.find("SampleNormal(mat.TextureIndices[0], input.TexCoord)"), std::string::npos);
     EXPECT_NE(hlsl.find("lerp(1.0"), std::string::npos);
     EXPECT_NE(hlsl.find("surface.Normal ="), std::string::npos);
+}
+
+TEST(MaterialGraphTest, ScalesNormalMapXYComponentsWithoutChangingZ)
+{
+    MaterialGraph graph;
+
+    const auto texture = graph.AddNode<TextureSample>(
+        "NormalTexture",
+        ETextureSampleType::Normal
+    );
+    const auto scale = graph.AddNode<Parameter>(
+        "NormalScale",
+        EMaterialValueType::Float
+    );
+    const auto scaledNormal = graph.AddNode<ScaleNormal>();
+    graph.Connect(texture, scaledNormal, 0);
+    graph.Connect(scale, scaledNormal, 1);
+    graph.SetChannel(EMaterialChannel::Normal, scaledNormal);
+
+    const auto hlsl = graph.GenerateHLSL({
+        .Values = {{ "NormalScale", "mat.Values[0].x" }},
+        .Textures = {{ "NormalTexture", "mat.TextureIndices[0]" }}
+    });
+
+    EXPECT_NE(hlsl.find("normalize(float3("), std::string::npos);
+    EXPECT_NE(hlsl.find("SampleNormal(mat.TextureIndices[0], input.TexCoord)"), std::string::npos);
+    EXPECT_EQ(hlsl.find("lerp(1.0"), std::string::npos);
 }
 
 TEST(MaterialGraphTest, InterpolatesAmbientOcclusionFromOne)
