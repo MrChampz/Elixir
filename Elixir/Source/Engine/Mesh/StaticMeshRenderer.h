@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Engine/Graphics/FrameSlotState.h>
 #include <Engine/Graphics/Texture.h>
 #include <Engine/Graphics/Sampler.h>
 #include <Engine/Mesh/StaticMesh.h>
@@ -139,7 +140,6 @@ namespace Elixir
         Ref<MaterialInstance> GetDefaultInstance(const Ref<Material>& material);
 
         MaterialSystem& m_MaterialSystem;
-        Ref<UniformBuffer> m_FrameBuffer;
         const GeometryPool& m_GeometryPool;
 
         Rendering::MaterialRenderScene m_Scene;
@@ -148,5 +148,6 @@ namespace Elixir
         glm::mat4 m_View{ 1.0f };
 
         const GraphicsContext* m_Context = nullptr;
+        FrameSlotState<Ref<UniformBuffer>> m_FrameBuffers;
     };
 }

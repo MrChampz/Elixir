@@ -9,7 +9,8 @@ namespace Elixir
         const GraphicsContext& context,
         const SGeometryPoolConfig config
     ) : m_VertexCapacity(config.VertexCapacity),
-        m_IndexCapacity(config.IndexCapacity)
+        m_IndexCapacity(config.IndexCapacity),
+        m_GraphicsContext(context)
     {
         EE_CORE_ASSERT(m_VertexCapacity > 0, "GeometryPool vertex capacity must be greater than 0.")
         EE_CORE_ASSERT(m_IndexCapacity > 0, "GeometryPool index capacity must be greater than 0.")
@@ -136,6 +137,21 @@ namespace Elixir
     }
 
     void GeometryPool::Free(const SHandle<SGeometry> handle)
+    {
+        if (!handle.IsValid() || handle.Index >= m_Slots.size())
+            return;
+
+        const SGeometryPoolSlot& slot = m_Slots[handle.Index];
+        if (!slot.Allocated || slot.Generation != handle.Generation)
+            return;
+
+        m_GraphicsContext.DeferResourceRelease([this, handle]()
+        {
+            FreeCompleted(handle);
+        });
+    }
+
+    void GeometryPool::FreeCompleted(const SHandle<SGeometry> handle)
     {
         if (!handle.IsValid() || handle.Index >= m_Slots.size())
             return;

@@ -27,6 +27,15 @@ namespace Elixir
 
     namespace
     {
+        struct SDeferredResourceRelease
+        {
+            explicit SDeferredResourceRelease(std::function<void()> task)
+              : Task(std::move(task)) {}
+
+            std::function<void()> Task;
+            std::atomic<uint32_t> PendingFrames = 0;
+        };
+
         thread_local const VulkanGraphicsContext* s_RenderThreadContext = nullptr;
 
         class SRenderThreadScope
@@ -274,6 +283,48 @@ namespace Elixir
         }
 
         result.get();
+        return true;
+    }
+
+    bool VulkanGraphicsContext::DeferResourceRelease(std::function<void()> task) const
+    {
+        if (!task) return false;
+
+        if (!IsRenderThread())
+        {
+            return EnqueueRenderTask([this, task = std::move(task)]() mutable
+            {
+                DeferResourceRelease(std::move(task));
+            });
+        }
+
+        uint32_t pendingFrames = 0;
+        for (const auto& frame : m_Frames)
+        {
+            if (frame.InUseByRenderThread.load())
+                ++pendingFrames;
+        }
+
+        if (pendingFrames == 0)
+        {
+            task();
+            return true;
+        }
+
+        const auto deferred = CreateRef<SDeferredResourceRelease>(std::move(task));
+        deferred->PendingFrames = pendingFrames;
+        for (auto& frame : m_Frames)
+        {
+            if (!frame.InUseByRenderThread.load())
+                continue;
+
+            frame.DeletionQueue.Push([deferred]()
+            {
+                if (deferred->PendingFrames.fetch_sub(1) == 1)
+                    deferred->Task();
+            });
+        }
+
         return true;
     }
 

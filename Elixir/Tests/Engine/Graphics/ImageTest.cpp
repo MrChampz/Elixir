@@ -13,6 +13,7 @@ namespace
         explicit ImageMetadata(const SImageCreateInfo& info) : Image(nullptr, info) {}
         void Destroy() override {}
         void Transition(const CommandBuffer*, EImageLayout) override {}
+        void Barrier(const CommandBuffer*) override {}
         void CopyFrom(const CommandBuffer*, const Buffer*, std::span<SBufferImageCopy>) override {}
         bool IsValid() const override { return false; }
 
@@ -54,6 +55,24 @@ TEST(ImageTest, TextureMappingDoesNotResolveMipmapsOrUploadUsage)
     EXPECT_EQ(imageInfo.MipmapMode, EImageMipmapMode::NormalMap);
     EXPECT_EQ(imageInfo.Usage, EImageUsage::Sampled);
     EXPECT_EQ(Image::GetMipLevelCount(imageInfo), 4u);
+}
+
+TEST(ImageTest, TextureCreationPropagatesImageCreationFailure)
+{
+    STextureCreateInfo textureInfo;
+    textureInfo.Width = 1;
+    EXPECT_FALSE(Texture::Create(nullptr, textureInfo));
+
+    STexture2DCreateInfo texture2DInfo;
+    texture2DInfo.Width = 1;
+    texture2DInfo.Height = 1;
+    EXPECT_FALSE(Texture2D::Create(nullptr, texture2DInfo));
+
+    STexture3DCreateInfo texture3DInfo;
+    texture3DInfo.Width = 1;
+    texture3DInfo.Height = 1;
+    texture3DInfo.Depth = 1;
+    EXPECT_FALSE(Texture3D::Create(nullptr, texture3DInfo));
 }
 
 TEST(ImageTest, MipCountUsesTheLargestDimension)

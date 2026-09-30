@@ -105,6 +105,7 @@ namespace Elixir
          * Image.
          * @param context Graphics context that must outlive the texture's image.
          * @param info Texture properties, pixel data, mip policy, and asset metadata.
+         * @return The initialized texture, or null when image creation fails.
          */
         static Ref<Texture> Create(
             const GraphicsContext* context,
@@ -167,6 +168,7 @@ namespace Elixir
          * @brief Creates a two-dimensional asset and initializes its image.
          * @param context Graphics context that must outlive the texture's image.
          * @param info Texture properties, pixel data, mip policy, and asset metadata.
+         * @return The initialized texture, or null when image creation fails.
          */
         static Ref<Texture2D> Create(
             const GraphicsContext* context,
@@ -225,6 +227,7 @@ namespace Elixir
          * @brief Creates a three-dimensional asset and initializes its image.
          * @param context Graphics context that must outlive the texture's image.
          * @param info Texture properties, pixel data, mip policy, and asset metadata.
+         * @return The initialized texture, or null when image creation fails.
          */
         static Ref<Texture3D> Create(
             const GraphicsContext* context,

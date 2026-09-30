@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Engine/Graphics/FrameSlotState.h>
 #include <Engine/Graphics/Image.h>
 
 namespace Elixir
@@ -75,7 +76,7 @@ namespace Elixir
         Ref<GraphicsPipeline> m_BloomPipeline;
         Ref<GraphicsPipeline> m_ToneMapPipeline;
         Ref<Sampler> m_Sampler;
-        Ref<UniformBuffer> m_FrameBuffer;
+        FrameSlotState<Ref<UniformBuffer>> m_FrameBuffers;
         SPostProcessSettings m_Settings;
     };
 }

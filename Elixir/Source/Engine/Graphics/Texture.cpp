@@ -10,7 +10,10 @@ namespace Elixir
 
     Ref<Texture> Texture::Create(const GraphicsContext* context, const STextureCreateInfo& info)
     {
-        return Ref<Texture>(new Texture(Image::Create(context, CreateImageInfo(info)), info));
+        const auto image = Image::Create(context, CreateImageInfo(info));
+        if (!image) return nullptr;
+
+        return Ref<Texture>(new Texture(image, info));
     }
 
     Ref<Texture> Texture::Create(
@@ -61,7 +64,10 @@ namespace Elixir
 
     Ref<Texture2D> Texture2D::Create(const GraphicsContext* context, const STexture2DCreateInfo& info)
     {
-        return Ref<Texture2D>(new Texture2D(Image::Create(context, CreateImageInfo(info)), info));
+        const auto image = Image::Create(context, CreateImageInfo(info));
+        if (!image) return nullptr;
+
+        return Ref<Texture2D>(new Texture2D(image, info));
     }
 
     Ref<Texture2D> Texture2D::Create(
@@ -105,7 +111,10 @@ namespace Elixir
 
     Ref<Texture3D> Texture3D::Create(const GraphicsContext* context, const STexture3DCreateInfo& info)
     {
-        return Ref<Texture3D>(new Texture3D(Image::Create(context, CreateImageInfo(info)), info));
+        const auto image = Image::Create(context, CreateImageInfo(info));
+        if (!image) return nullptr;
+
+        return Ref<Texture3D>(new Texture3D(image, info));
     }
 
     Ref<Texture3D> Texture3D::Create(

@@ -49,7 +49,8 @@ namespace Elixir
         const GraphicsContext* context,
         const ShaderLoader* shaderLoader,
         const Extent3D& extent
-    ) : m_Context(context)
+    ) : m_Context(context),
+        m_FrameBuffers(*context)
     {
         EE_CORE_ASSERT(m_Context, "PostProcessor requires a graphics context.")
         EE_CORE_ASSERT(shaderLoader, "PostProcessor requires a shader loader.")
@@ -72,16 +73,17 @@ namespace Elixir
         );
 
         constexpr SPostProcessFrameData frameData{};
-        m_FrameBuffer = UniformBuffer::Create(m_Context, sizeof(frameData), &frameData);
+        m_FrameBuffers.ForEach([this, &frameData](Ref<UniformBuffer>& frameBuffer)
+        {
+            frameBuffer = UniformBuffer::Create(m_Context, sizeof(frameData), &frameData);
+        });
         m_Sampler = SamplerBuilder()
             .SetAddressModeU(ESamplerAddressMode::ClampToEdge)
             .SetAddressModeV(ESamplerAddressMode::ClampToEdge)
             .SetAddressModeW(ESamplerAddressMode::ClampToEdge)
             .Build(m_Context);
 
-        m_BloomShader->BindConstantBuffer("cbPostProcess", m_FrameBuffer);
         m_BloomShader->BindSampler("postProcessSampler", m_Sampler);
-        m_ToneMapShader->BindConstantBuffer("cbPostProcess", m_FrameBuffer);
         m_ToneMapShader->BindSampler("postProcessSampler", m_Sampler);
 
         EE_CORE_ASSERT(
@@ -144,7 +146,10 @@ namespace Elixir
             .BloomIntensity = m_Settings.BloomIntensity,
             .Exposure = m_Settings.Exposure,
         };
-        m_FrameBuffer->UpdateData(&frameData, sizeof(frameData));
+        const auto& frameBuffer = m_FrameBuffers.GetCurrent();
+        frameBuffer->UpdateData(&frameData, sizeof(frameData));
+        m_BloomShader->BindConstantBuffer("cbPostProcess", frameBuffer);
+        m_ToneMapShader->BindConstantBuffer("cbPostProcess", frameBuffer);
 
         const SRenderingInfo bloomRenderingInfo{
             .ColorAttachment = m_BloomTarget,

@@ -1,13 +1,12 @@
 #pragma once
 
 #include <Engine/Graphics/Buffer.h>
+#include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Mesh/GeometryAllocation.h>
 #include <Engine/Mesh/StaticMesh.h>
 
 namespace Elixir
 {
-    class GraphicsContext;
-
     /** @brief Identifies a contiguous geometry range in GeometryPool buffers. */
     struct SGeometry
     {
@@ -27,7 +26,7 @@ namespace Elixir
     /**
      * @brief Owns shared GPU buffers used by static meshes.
      *
-     * Geometry remains valid until Free receives its matching handle.
+     * Geometry remains valid until all submitted draws using it complete.
      */
     class ELIXIR_API GeometryPool final
     {
@@ -74,8 +73,11 @@ namespace Elixir
             bool Allocated = false;
         };
 
-        /** @brief Release a geometry range when its handle is valid. */
+        /** @brief Defers a geometry release until submitted draws no longer use it. */
         void Free(SHandle<SGeometry> handle);
+
+        /** @brief Releases a geometry range when its handle is valid. */
+        void FreeCompleted(SHandle<SGeometry> handle);
 
         /** @brief Check whether this allocation still identifies live pool geometry. */
         bool IsValid(const SHandle<SGeometry>& handle) const;
@@ -111,5 +113,7 @@ namespace Elixir
         Ref<DynamicIndexBuffer> m_IndexBuffer;
         std::vector<SGeometry> m_Geometries;
         std::vector<uint32_t> m_Generations;
+
+        const GraphicsContext& m_GraphicsContext;
     };
 }

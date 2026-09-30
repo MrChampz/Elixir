@@ -42,12 +42,16 @@ namespace Elixir
         const GeometryPool& geometryPool
     ) : m_MaterialSystem(materialSystem),
         m_GeometryPool(geometryPool),
-        m_Context(context)
+        m_Context(context),
+        m_FrameBuffers(*context)
     {
         EE_CORE_ASSERT(m_Context, "StaticMeshRenderer requires a graphics context")
 
         constexpr SSurfaceFrameData frameData;
-        m_FrameBuffer = UniformBuffer::Create(m_Context, sizeof(frameData), &frameData);
+        m_FrameBuffers.ForEach([this, &frameData](Ref<UniformBuffer>& frameBuffer)
+        {
+            frameBuffer = UniformBuffer::Create(m_Context, sizeof(frameData), &frameData);
+        });
     }
 
     void StaticMeshRenderer::BeginFrame(
@@ -77,7 +81,8 @@ namespace Elixir
                 lighting.DirectionalLightIntensity
             ),
         };
-        m_FrameBuffer->UpdateData(&frameData, sizeof(frameData));
+        const auto& frameBuffer = m_FrameBuffers.GetCurrent();
+        frameBuffer->UpdateData(&frameData, sizeof(frameData));
 
         m_Scene = {};
         m_GeometryIndex = m_Scene.AddGeometry({
@@ -87,7 +92,7 @@ namespace Elixir
             },
             .ConstantBuffers = {{
                 .Name = "cbFrame",
-                .Buffer = m_FrameBuffer,
+                .Buffer = frameBuffer,
             }},
             .Textures = {
                 {

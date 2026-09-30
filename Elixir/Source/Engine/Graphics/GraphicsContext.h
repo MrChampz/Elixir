@@ -38,6 +38,23 @@ namespace Elixir
         /** @brief Runs a rendering-thread task and waits until it completes. */
         virtual bool RunRenderTaskAndWait(std::function<void()> task) const = 0;
 
+        /**
+         * @brief Runs a resource-release task after submitted frames complete.
+         *
+         * Backends can defer the task without blocking. The default implementation waits
+         * for submitted frames and then runs the task.
+         * @param task Resource-release task.
+         * @return True when the task was accepted.
+         */
+        virtual bool DeferResourceRelease(std::function<void()> task) const
+        {
+            if (!task) return false;
+
+            WaitForSubmittedFrames();
+            task();
+            return true;
+        }
+
         /** @brief Reports whether the caller is the rendering thread for this context. */
         virtual bool IsRenderThread() const = 0;
 

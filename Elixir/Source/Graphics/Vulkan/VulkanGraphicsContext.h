@@ -62,6 +62,7 @@ namespace Elixir::Vulkan
         void DrainRenderQueue() override;
         bool EnqueueRenderTask(std::function<void()> task) const override;
         bool RunRenderTaskAndWait(std::function<void()> task) const override;
+        bool DeferResourceRelease(std::function<void()> task) const override;
         bool IsRenderThread() const override;
         bool IsFrameRecording() const override { return m_IsFrameRecording; }
         void WaitForSubmittedFrames() const override;

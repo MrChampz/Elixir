@@ -32,6 +32,7 @@ namespace Elixir
     void StaticMeshLoaderRegistry::Shutdown()
     {
         s_Loader.reset();
+        s_GeometryPool.reset();
         s_GraphicsContext = nullptr;
     }
 
