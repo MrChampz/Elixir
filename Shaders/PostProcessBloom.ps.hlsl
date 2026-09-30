@@ -22,14 +22,28 @@ struct PSInput
     float2 UV : TEXCOORD0;
 };
 
+float SanitizeHDRChannel(const float value)
+{
+    static const float maxHDRValue = 65504.0f;
+    if (value >= 0.0f && value <= maxHDRValue)
+        return value;
+
+    return value > maxHDRValue ? maxHDRValue : 0.0f;
+}
+
 float3 ExtractBloom(const float3 color)
 {
-    const float brightness = max(color.r, max(color.g, color.b));
+    const float3 sanitizedColor = float3(
+        SanitizeHDRChannel(color.r),
+        SanitizeHDRChannel(color.g),
+        SanitizeHDRChannel(color.b)
+    );
+    const float brightness = max(sanitizedColor.r, max(sanitizedColor.g, sanitizedColor.b));
     const float knee = max(BloomKnee, 1e-4f);
     const float soft = saturate((brightness - BloomThreshold + knee) / (2.0f * knee));
     const float softContribution = soft * soft * knee;
     const float contribution = max(brightness - BloomThreshold, softContribution);
-    return color * contribution / max(brightness, 1e-4f);
+    return sanitizedColor * contribution / max(brightness, 1e-4f);
 }
 
 float4 main(PSInput input) : SV_Target0

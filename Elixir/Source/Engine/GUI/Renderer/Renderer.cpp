@@ -28,6 +28,15 @@ namespace Elixir::GUI
 
     void Renderer::Resize(const Extent2D& extent)
     {
+        if (!m_GraphicsContext->IsRenderThread() || m_GraphicsContext->IsFrameRecording())
+        {
+            m_GraphicsContext->EnqueueRenderTask([this, extent]()
+            {
+                Resize(extent);
+            });
+            return;
+        }
+
         EE_CORE_ASSERT(extent.Width > 0 && extent.Height > 0, "Render extent must be greater than zero!")
         EE_CORE_INFO("Resizing GUI Renderer {}.", extent)
 
@@ -129,23 +138,25 @@ namespace Elixir::GUI
 
     void Renderer::BeginRendering(const Ref<CommandBuffer>& cmd) const
     {
+        const auto renderTarget = m_GraphicsContext->GetRenderTarget();
+        const auto extent = renderTarget->GetExtent();
         const auto renderingInfo = SRenderingInfo
         {
-            .ColorAttachment = m_GraphicsContext->GetRenderTarget(),
-            .RenderArea = m_RenderExtent
+            .ColorAttachment = renderTarget,
+            .RenderArea = extent
         };
 
         Viewport viewport = {};
         viewport.X = 0;
         viewport.Y = 0;
-        viewport.Width = m_RenderExtent.Width;
-        viewport.Height = m_RenderExtent.Height;
+        viewport.Width = extent.Width;
+        viewport.Height = extent.Height;
         viewport.MinDepth = 0.0f;
         viewport.MaxDepth = 1.0f;
 
         Rect2D scissor = {};
         scissor.Offset = { 0, 0 };
-        scissor.Extent = m_RenderExtent;
+        scissor.Extent = extent;
 
         cmd->BeginRendering(renderingInfo);
         cmd->SetViewports({ viewport });

@@ -41,6 +41,17 @@ namespace Elixir
         /** @brief Reports whether the caller is the rendering thread for this context. */
         virtual bool IsRenderThread() const = 0;
 
+        /** @brief Reports whether the rendering thread is currently recording a frame. */
+        virtual bool IsFrameRecording() const = 0;
+
+        /**
+         * @brief Waits for submitted rendering frames without waiting for unrelated GPU work.
+         *
+         * Resource operations that read or change an image already used by a frame must call
+         * this before recording conflicting commands.
+         */
+        virtual void WaitForSubmittedFrames() const = 0;
+
         virtual void SetClearColor(const glm::vec4& color) = 0;
 
         /** @brief Clears the context-owned LDR render target with the configured clear color. */

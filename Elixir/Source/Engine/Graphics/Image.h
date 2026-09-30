@@ -237,7 +237,7 @@ namespace Elixir
         /** Number of array layers; volume images require one layer. */
         uint32_t ArrayLayers = 1;
 
-        /** Requested uses; Image adds the transfer flags needed for initialization. */
+        /** Requested uses; Image adds transfer flags needed for initialization and resize. */
         EImageUsage Usage = EImageUsage::Sampled;
 
         /** Layout after initialization; Undefined with initial pixels resolves to General. */
@@ -272,17 +272,10 @@ namespace Elixir
         virtual void Destroy() = 0;
 
         /**
-         * @brief Queues an image resize and returns without waiting when called off the rendering thread.
+         * @brief Recreates image storage at a new size and preserves its current pixels.
          * @param extent New base-level dimensions in texels.
          */
         void Resize(const Extent3D& extent);
-
-        /**
-         * @brief Resizes the image and waits until the operation completes.
-         * @param extent New base-level dimensions in texels.
-         * @return True when the resize task was accepted by the graphics context.
-         */
-        bool ResizeAndWait(const Extent3D& extent);
 
         /**
          * @brief Records a layout transition for all mip levels and layers.
@@ -297,6 +290,13 @@ namespace Elixir
          * @param layout Target layout for all mip levels and array layers.
          */
         virtual void Transition(const CommandBuffer* cmd, EImageLayout layout) = 0;
+
+        /**
+         * @brief Makes earlier image writes visible to later image accesses.
+         * @param cmd Recording command buffer that receives the memory dependency.
+         * @pre The image layout does not change.
+         */
+        virtual void Barrier(const CommandBuffer* cmd) = 0;
 
         /**
          * @brief Blits the base level into dst.
@@ -668,7 +668,7 @@ namespace Elixir
         // Applies queued resize requests on the rendering thread.
         void ApplyPendingResize();
 
-        // Resizes storage and scales existing mip levels on the rendering thread.
+        // Recreates storage on the rendering thread.
         void ResizeOnRenderThread(const Ref<CommandBuffer>& cmd, const Extent3D& extent);
     };
 

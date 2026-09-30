@@ -41,6 +41,9 @@ namespace Elixir::Vulkan
          */
         void Transition(const CommandBuffer* cmd, EImageLayout layout) override;
 
+        /** @brief Records a memory dependency without changing the image layout. */
+        void Barrier(const CommandBuffer* cmd) override;
+
         using Image::CopyFrom;
 
         /** @brief Records a buffer upload; an empty region list copies the base level of all layers.
@@ -63,6 +66,9 @@ namespace Elixir::Vulkan
 
         /** @brief Returns the view spanning every mip level and layer. */
         VkImageView GetVulkanImageView() const { return m_ImageView; }
+
+        /** @brief Returns the generation of the current native image allocation. */
+        uint64_t GetVulkanResourceGeneration() const { return m_ResourceGeneration; }
 
         /** @brief Returns the current view and layout; samplers are bound separately. */
         const VkDescriptorImageInfo& GetVulkanDescriptorInfo() const { return m_DescriptorInfo; }
@@ -87,6 +93,7 @@ namespace Elixir::Vulkan
         VkImageView m_ImageView = VK_NULL_HANDLE;
         VkDescriptorImageInfo m_DescriptorInfo{};
         VmaAllocation m_Allocation = VK_NULL_HANDLE;
+        uint64_t m_ResourceGeneration = 0;
 
         const VulkanGraphicsContext* m_Context;
     };

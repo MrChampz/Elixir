@@ -21,6 +21,8 @@ namespace Elixir
         bool EnqueueRenderTask(std::function<void()> task) const override { task(); return true; }
         bool RunRenderTaskAndWait(std::function<void()> task) const override { task(); return true; }
         bool IsRenderThread() const override { return true; }
+        bool IsFrameRecording() const override { return false; }
+        void WaitForSubmittedFrames() const override {}
         void SetClearColor(const glm::vec4&) override {}
         void Resize(Extent2D) override {}
         Ref<CommandBuffer> GetSecondaryCommandBuffer() const override { return nullptr; }

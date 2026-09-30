@@ -104,6 +104,7 @@ namespace Elixir::Vulkan
         m_DescriptorInfo = {};
         m_DescriptorInfo.imageLayout = Converters::GetImageLayout(m_Layout);
         m_DescriptorInfo.imageView = m_ImageView;
+        ++m_ResourceGeneration;
     }
 
     void VulkanImage::Transition(const CommandBuffer* cmd, const EImageLayout layout)
@@ -134,6 +135,24 @@ namespace Elixir::Vulkan
 
         m_Layout = layout;
         m_DescriptorInfo.imageLayout = Converters::GetImageLayout(layout);
+    }
+
+    void VulkanImage::Barrier(const CommandBuffer* cmd)
+    {
+        if (!IsValid())
+        {
+            EE_CORE_ERROR("Cannot synchronize an image without native storage.")
+            return;
+        }
+
+        const auto* vkCmd = static_cast<const VulkanCommandBuffer*>(cmd);
+        CommandUtils::TransitionImage(
+            vkCmd->GetVulkanCommandBuffer(),
+            m_Image,
+            Converters::GetImageLayout(m_Layout),
+            Converters::GetImageLayout(m_Layout),
+            Converters::GetImageAspect(m_Aspect)
+        );
     }
 
     void VulkanImage::CopyMip(

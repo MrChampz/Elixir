@@ -322,6 +322,29 @@ namespace Elixir
         VK_CHECK_RESULT(vkDeviceWaitIdle(m_Device));
     }
 
+    void VulkanGraphicsContext::WaitForSubmittedFrames() const
+    {
+        EE_CORE_ASSERT(IsRenderThread(), "Submitted frame fences must be waited on the rendering thread.")
+
+        for (auto& frame : m_Frames)
+        {
+            if (!frame.InUseByRenderThread.load())
+                continue;
+
+            VK_CHECK_RESULT(
+                vkWaitForFences(
+                    m_Device,
+                    1,
+                    &frame.RenderFence,
+                    VK_TRUE, UINT64_MAX
+                )
+            );
+
+            frame.InUseByRenderThread = false;
+            frame.DeletionQueue.Flush();
+        }
+    }
+
     void VulkanGraphicsContext::RetireImage(
         const VkImageView imageView,
         const VkImage image,
@@ -734,6 +757,7 @@ namespace Elixir
             VK_CHECK_RESULT(result);
 
         m_MainCommandBuffer->Begin();
+        m_IsFrameRecording = true;
 
         m_RenderTarget->Transition(m_MainCommandBuffer, EImageLayout::General);
 
@@ -790,6 +814,7 @@ namespace Elixir
             swapchain.RenderSemaphore,
             frame.RenderFence
         );
+        m_IsFrameRecording = false;
 
         m_CommandPoolManager->RecycleCommandBuffer(m_MainCommandBuffer);
 

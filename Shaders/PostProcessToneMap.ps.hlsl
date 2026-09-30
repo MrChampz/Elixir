@@ -25,6 +25,15 @@ struct PSInput
     float2 UV : TEXCOORD0;
 };
 
+float SanitizeHDRChannel(const float value)
+{
+    static const float maxHDRValue = 65504.0f;
+    if (value >= 0.0f && value <= maxHDRValue)
+        return value;
+
+    return value > maxHDRValue ? maxHDRValue : 0.0f;
+}
+
 float3 ACESFilm(const float3 color)
 {
     const float a = 2.51f;
@@ -37,8 +46,18 @@ float3 ACESFilm(const float3 color)
 
 float4 main(PSInput input) : SV_Target0
 {
-    const float3 scene = sceneTarget.Sample(postProcessSampler, input.UV).rgb;
-    const float3 bloom = bloomTarget.Sample(postProcessSampler, input.UV).rgb;
+    const float3 sampledScene = sceneTarget.Sample(postProcessSampler, input.UV).rgb;
+    const float3 sampledBloom = bloomTarget.Sample(postProcessSampler, input.UV).rgb;
+    const float3 scene = float3(
+        SanitizeHDRChannel(sampledScene.r),
+        SanitizeHDRChannel(sampledScene.g),
+        SanitizeHDRChannel(sampledScene.b)
+    );
+    const float3 bloom = float3(
+        SanitizeHDRChannel(sampledBloom.r),
+        SanitizeHDRChannel(sampledBloom.g),
+        SanitizeHDRChannel(sampledBloom.b)
+    );
     const float3 hdrColor = (scene + bloom * BloomIntensity) * exp2(Exposure);
     return float4(ACESFilm(hdrColor), 1.0f);
 }

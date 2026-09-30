@@ -96,6 +96,13 @@ namespace Elixir
         bool m_Minimized = false;
 
     private:
+        // Applies the newest framebuffer resize request on the rendering thread.
+        void ApplyPendingFramebufferResizes();
+
+        std::mutex m_FramebufferResizeMutex;
+        std::optional<Extent2D> m_PendingFramebufferExtent;
+        bool m_FramebufferResizeQueued = false;
+
         static Application* s_Application;
     };
 

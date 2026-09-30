@@ -13,6 +13,15 @@
 
 namespace Elixir::Vulkan
 {
+    namespace
+    {
+        uint64_t GetResourceGeneration(const Ref<Image>& image)
+        {
+            const auto vkImage = TryToGetVulkanImage(image.get());
+            return vkImage ? vkImage->GetVulkanResourceGeneration() : 0;
+        }
+    }
+
     VulkanShader::VulkanShader(const GraphicsContext* context, SShaderCreateInfo&& info)
       : Shader(context, std::move(info)),
         m_DescriptorSets(*context)
@@ -149,8 +158,14 @@ namespace Elixir::Vulkan
     {
         if (const auto binding = GetShaderBinding(name))
         {
-            if (m_DescriptorSets.Set(*binding, DescriptorValue{ texture }))
-                m_Textures[*binding] = texture;
+            m_Textures[*binding] = texture;
+            m_DescriptorSets.Set(
+                *binding,
+                DescriptorValue{ STextureDescriptorValue{
+                    texture,
+                    texture ? GetResourceGeneration(texture->GetImage()) : 0
+                } }
+            );
             return;
         }
 
@@ -161,8 +176,14 @@ namespace Elixir::Vulkan
     {
         if (const auto binding = GetShaderBinding(name))
         {
-            if (m_DescriptorSets.Set(*binding, DescriptorValue{ image }))
-                m_Images[*binding] = image;
+            m_Images[*binding] = image;
+            m_DescriptorSets.Set(
+                *binding,
+                DescriptorValue{ SImageDescriptorValue{
+                    image,
+                    GetResourceGeneration(image)
+                } }
+            );
             return;
         }
 
@@ -415,6 +436,8 @@ namespace Elixir::Vulkan
 
     void VulkanShader::ApplyPendingDescriptorState()
     {
+        RefreshImageDescriptorState();
+
         m_DescriptorSets.ApplyPendingState([this](auto&, const auto changes)
         {
             std::vector<VkWriteDescriptorSet> writes;
@@ -426,10 +449,10 @@ namespace Elixir::Vulkan
                     [this, &writes, binding = change.Key](const auto& value)
                     {
                         using Value = std::decay_t<decltype(value)>;
-                        if constexpr (std::is_same_v<Value, Ref<Image>>)
-                            writes.push_back(GetWriteDescriptorSet(binding, value.get()));
-                        else if constexpr (std::is_same_v<Value, Ref<Texture>>)
-                            writes.push_back(GetWriteDescriptorSet(binding, value.get()));
+                        if constexpr (std::is_same_v<Value, SImageDescriptorValue>)
+                            writes.push_back(GetWriteDescriptorSet(binding, value.Image.get()));
+                        else if constexpr (std::is_same_v<Value, STextureDescriptorValue>)
+                            writes.push_back(GetWriteDescriptorSet(binding, value.Texture.get()));
                         else
                             writes.push_back(GetWriteDescriptorSet(binding, value));
                     },
@@ -445,6 +468,31 @@ namespace Elixir::Vulkan
                 nullptr
             );
         });
+    }
+
+    void VulkanShader::RefreshImageDescriptorState()
+    {
+        for (const auto& [binding, image] : m_Images)
+        {
+            m_DescriptorSets.Set(
+                binding,
+                DescriptorValue{ SImageDescriptorValue{
+                    image,
+                    GetResourceGeneration(image)
+                } }
+            );
+        }
+
+        for (const auto& [binding, texture] : m_Textures)
+        {
+            m_DescriptorSets.Set(
+                binding,
+                DescriptorValue{ STextureDescriptorValue{
+                    texture,
+                    texture ? GetResourceGeneration(texture->GetImage()) : 0
+                } }
+            );
+        }
     }
 
     VkWriteDescriptorSet VulkanShader::GetWriteDescriptorSet(

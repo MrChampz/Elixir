@@ -38,9 +38,20 @@ namespace Elixir
          * @brief Creates post-processing resources.
          * @param context Graphics context used to create and submit GPU resources.
          * @param shaderLoader Loader used to obtain post-process shaders.
+         * @param extent Dimensions of the HDR scene target in texels.
          * @pre context and shaderLoader remain valid for this object's lifetime.
          */
-        PostProcessor(const GraphicsContext* context, const ShaderLoader* shaderLoader);
+        PostProcessor(
+            const GraphicsContext* context,
+            const ShaderLoader* shaderLoader,
+            const Extent3D& extent
+        );
+
+        /**
+         * @brief Resizes post-process targets before recording the next frame.
+         * @param extent Dimensions of the HDR scene target in texels.
+         */
+        void Resize(const Extent3D& extent);
 
         /**
          * @brief Applies HDR bloom, exposure, and tone mapping to a scene.
@@ -57,9 +68,6 @@ namespace Elixir
         const SPostProcessSettings& GetSettings() const { return m_Settings; }
 
     private:
-        // Creates or resizes the HDR image that stores the blurred bloom contribution.
-        void EnsureBloomTarget(const Extent3D& extent);
-
         const GraphicsContext* m_Context = nullptr;
         Ref<Image> m_BloomTarget;
         Ref<Shader> m_BloomShader;

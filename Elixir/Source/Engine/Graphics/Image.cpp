@@ -360,8 +360,7 @@ namespace Elixir
                 info.InitialLayout = EImageLayout::General;
         }
 
-        if (info.MipmapMode == EImageMipmapMode::SimpleAverage && info.MipLevels > 1)
-            info.Usage |= EImageUsage::TransferSrc;
+        info.Usage |= EImageUsage::TransferSrc | EImageUsage::TransferDst;
 
         if (!context)
         {
@@ -530,7 +529,7 @@ namespace Elixir
 
     void Image::Resize(const Extent3D& extent)
     {
-        if (m_GraphicsContext->IsRenderThread())
+        if (m_GraphicsContext->IsRenderThread() && !m_GraphicsContext->IsFrameRecording())
         {
             ResizeOnRenderThread(m_GraphicsContext->GetUploadCommandBuffer(), extent);
             return;
@@ -560,19 +559,6 @@ namespace Elixir
         }
     }
 
-    bool Image::ResizeAndWait(const Extent3D& extent)
-    {
-        return m_GraphicsContext->RunRenderTaskAndWait(
-            [self = shared_from_this(), extent]()
-            {
-                self->ResizeOnRenderThread(
-                    self->m_GraphicsContext->GetUploadCommandBuffer(),
-                    extent
-                );
-            }
-        );
-    }
-
     void Image::RecalculateSize()
     {
         m_BitsPerPixel = CalculateBitsPerPixel(this);
@@ -594,7 +580,10 @@ namespace Elixir
                 }
             }
 
-            ResizeOnRenderThread(m_GraphicsContext->GetUploadCommandBuffer(), *extent);
+            ResizeOnRenderThread(
+                m_GraphicsContext->GetUploadCommandBuffer(),
+                *extent
+            );
         }
     }
 
@@ -624,17 +613,17 @@ namespace Elixir
         }
 
         auto info = GetCreateInfo();
-        info.InitialLayout = EImageLayout::TransferDst;
-
-        const auto staging = Create(m_GraphicsContext, info);
-        if (!staging)
-            return;
-
         const auto originalLayout = m_Layout;
         const bool preserve = originalLayout != EImageLayout::Undefined;
+        Ref<Image> staging;
 
         if (preserve)
         {
+            info.InitialLayout = EImageLayout::TransferDst;
+            staging = Create(m_GraphicsContext, info);
+            if (!staging)
+                return;
+
             cmd->Begin();
             Transition(cmd, EImageLayout::TransferSrc);
 

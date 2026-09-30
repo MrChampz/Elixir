@@ -47,7 +47,8 @@ namespace Elixir
 
     PostProcessor::PostProcessor(
         const GraphicsContext* context,
-        const ShaderLoader* shaderLoader
+        const ShaderLoader* shaderLoader,
+        const Extent3D& extent
     ) : m_Context(context)
     {
         EE_CORE_ASSERT(m_Context, "PostProcessor requires a graphics context.")
@@ -82,6 +83,36 @@ namespace Elixir
         m_BloomShader->BindSampler("postProcessSampler", m_Sampler);
         m_ToneMapShader->BindConstantBuffer("cbPostProcess", m_FrameBuffer);
         m_ToneMapShader->BindSampler("postProcessSampler", m_Sampler);
+
+        EE_CORE_ASSERT(
+            extent.Width > 0 && extent.Height > 0 && extent.Depth > 0,
+            "Post-process targets require a non-zero extent."
+        )
+        m_BloomTarget = Image::Create(m_Context, {
+            .Width = extent.Width,
+            .Height = extent.Height,
+            .Depth = extent.Depth,
+            .Type = EImageType::_2D,
+            .Format = EImageFormat::R16G16B16A16_SFLOAT,
+            .Usage = EImageUsage::ColorAttachment | EImageUsage::Sampled |
+                EImageUsage::TransferSrc | EImageUsage::TransferDst,
+            .InitialLayout = EImageLayout::General,
+        });
+        EE_CORE_ASSERT(m_BloomTarget, "PostProcessor could not create its bloom target.")
+    }
+
+    void PostProcessor::Resize(const Extent3D& extent)
+    {
+        EE_CORE_ASSERT(
+            m_Context->IsRenderThread() && !m_Context->IsFrameRecording(),
+            "Post-process targets must be resized on the rendering thread before frame recording."
+        )
+        EE_CORE_ASSERT(
+            extent.Width > 0 && extent.Height > 0 && extent.Depth > 0,
+            "Post-process targets require a non-zero extent."
+        )
+        if (!HasEqualExtent(m_BloomTarget->GetExtent(), extent))
+            m_BloomTarget->Resize(extent);
     }
 
     void PostProcessor::Apply(
@@ -97,7 +128,10 @@ namespace Elixir
         )
 
         const auto extent = sceneTarget->GetExtent();
-        EnsureBloomTarget(extent);
+        EE_CORE_ASSERT(
+            m_BloomTarget && HasEqualExtent(m_BloomTarget->GetExtent(), extent),
+            "Post-process targets must be resized before Apply."
+        )
 
         const SPostProcessFrameData frameData{
             .InverseSceneSize = {
@@ -120,6 +154,8 @@ namespace Elixir
         const auto bloomCommandBuffer = m_Context->GetSecondaryCommandBuffer();
         bloomCommandBuffer->Begin(bloomRenderingInfo);
 
+        sceneTarget->Barrier(bloomCommandBuffer.get());
+        m_BloomTarget->Barrier(bloomCommandBuffer.get());
         m_BloomShader->BindImage("sceneTarget", sceneTarget);
         bloomCommandBuffer->BeginRendering(bloomRenderingInfo);
         bloomCommandBuffer->SetViewports({{
@@ -135,9 +171,6 @@ namespace Elixir
         bloomCommandBuffer->End();
         m_Context->EnqueueSecondaryCommandBuffer(bloomCommandBuffer);
 
-        m_ToneMapShader->BindImage("sceneTarget", sceneTarget);
-        m_ToneMapShader->BindImage("bloomTarget", m_BloomTarget);
-
         const SRenderingInfo toneMapRenderingInfo{
             .ColorAttachment = renderTarget,
             .RenderArea = extent,
@@ -145,6 +178,11 @@ namespace Elixir
 
         const auto toneMapCommandBuffer = m_Context->GetSecondaryCommandBuffer();
         toneMapCommandBuffer->Begin(toneMapRenderingInfo);
+
+        m_BloomTarget->Barrier(toneMapCommandBuffer.get());
+        renderTarget->Barrier(toneMapCommandBuffer.get());
+        m_ToneMapShader->BindImage("sceneTarget", sceneTarget);
+        m_ToneMapShader->BindImage("bloomTarget", m_BloomTarget);
         toneMapCommandBuffer->BeginRendering(toneMapRenderingInfo);
         toneMapCommandBuffer->SetViewports({{
             .Width = static_cast<float>(extent.Width),
@@ -160,27 +198,4 @@ namespace Elixir
         m_Context->EnqueueSecondaryCommandBuffer(toneMapCommandBuffer);
     }
 
-    void PostProcessor::EnsureBloomTarget(const Extent3D& extent)
-    {
-        if (m_BloomTarget && HasEqualExtent(m_BloomTarget->GetExtent(), extent))
-            return;
-
-        if (m_BloomTarget)
-        {
-            m_BloomTarget->Resize(extent);
-            return;
-        }
-
-        m_BloomTarget = Image::Create(m_Context, {
-            .Width = extent.Width,
-            .Height = extent.Height,
-            .Depth = extent.Depth,
-            .Type = EImageType::_2D,
-            .Format = EImageFormat::R16G16B16A16_SFLOAT,
-            .Usage = EImageUsage::ColorAttachment | EImageUsage::Sampled |
-                EImageUsage::TransferSrc | EImageUsage::TransferDst,
-            .InitialLayout = EImageLayout::General,
-        });
-        EE_CORE_ASSERT(m_BloomTarget, "PostProcessor could not create its bloom target.")
-    }
 }

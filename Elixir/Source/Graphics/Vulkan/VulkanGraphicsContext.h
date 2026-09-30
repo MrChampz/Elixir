@@ -63,6 +63,8 @@ namespace Elixir::Vulkan
         bool EnqueueRenderTask(std::function<void()> task) const override;
         bool RunRenderTaskAndWait(std::function<void()> task) const override;
         bool IsRenderThread() const override;
+        bool IsFrameRecording() const override { return m_IsFrameRecording; }
+        void WaitForSubmittedFrames() const override;
 
         void SetClearColor(const glm::vec4& color) override;
 
@@ -154,6 +156,7 @@ namespace Elixir::Vulkan
 
         Scope<VulkanCommandPoolManager> m_CommandPoolManager;
         Ref<VulkanCommandBuffer> m_MainCommandBuffer;
+        bool m_IsFrameRecording = false;
 
         mutable std::vector<SFrameData> m_Frames;
         VkClearColorValue m_ClearColor;

@@ -48,6 +48,7 @@ namespace Elixir::Vulkan
         void CreatePipelineLayout();
 
         void ApplyPendingDescriptorState();
+        void RefreshImageDescriptorState();
 
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding, const Image* image
@@ -72,9 +73,25 @@ namespace Elixir::Vulkan
             const Ref<UniformBuffer>& buffer
         ) const;
 
+        struct SImageDescriptorValue
+        {
+            Ref<Image> Image;
+            uint64_t ResourceGeneration = 0;
+
+            bool operator==(const SImageDescriptorValue&) const = default;
+        };
+
+        struct STextureDescriptorValue
+        {
+            Ref<Texture> Texture;
+            uint64_t ResourceGeneration = 0;
+
+            bool operator==(const STextureDescriptorValue&) const = default;
+        };
+
         using DescriptorValue = std::variant<
-            Ref<Image>,
-            Ref<Texture>,
+            SImageDescriptorValue,
+            STextureDescriptorValue,
             Ref<Sampler>,
             Ref<StorageBuffer>,
             Ref<DynamicStorageBuffer>,

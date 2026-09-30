@@ -77,7 +77,10 @@ TEST_F(VulkanImageTest, CreatesAndDestroysAnImage)
     EXPECT_EQ(image->GetType(), EImageType::_1D);
     EXPECT_EQ(image->GetFormat(), EImageFormat::R8G8B8A8_SRGB);
     EXPECT_EQ(image->GetMipLevels(), 1u);
-    EXPECT_EQ(image->GetUsage(), EImageUsage::Sampled);
+    EXPECT_EQ(
+        image->GetUsage(),
+        EImageUsage::Sampled | EImageUsage::TransferSrc | EImageUsage::TransferDst
+    );
     EXPECT_EQ(image->GetLayout(), EImageLayout::Undefined);
     image->Destroy();
     EXPECT_FALSE(image->IsValid());
@@ -245,7 +248,7 @@ TEST_F(VulkanImageTest, ResizePreservesContentAndClampsTheAllocatedMipCount)
         .MipmapMode = EImageMipmapMode::SimpleAverage,
         .InitialLayout = EImageLayout::ShaderReadOnly,
     });
-    ASSERT_TRUE(image->ResizeAndWait({ 2, 2, 1 }));
+    ASSERT_TRUE(Context->RunRenderTaskAndWait([image]() { image->Resize({ 2, 2, 1 }); }));
     EXPECT_EQ(image->GetWidth(), 2u);
     EXPECT_EQ(image->GetMipLevels(), 2u);
     EXPECT_EQ(image->GetSize(), 16u);
