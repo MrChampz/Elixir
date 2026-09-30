@@ -191,12 +191,12 @@ TEST_F(VulkanImageTest, SimpleAverageHandlesEveryArrayLayer)
     std::fill_n(pixels.begin(), 16, 40);
     std::fill_n(pixels.begin() + 16, 16, 80);
     const auto image = Image::Create(Context, {
-        .InitialData = pixels.data(),
         .Width = 2, .Height = 2,
         .Format = EImageFormat::R8G8B8A8_UNORM,
         .MipmapMode = EImageMipmapMode::SimpleAverage,
         .ArrayLayers = 2,
         .InitialLayout = EImageLayout::ShaderReadOnly,
+        .InitialData = pixels.data(),
     });
     EXPECT_EQ(ReadMip(image, 1, 0), (std::vector<uint8_t>(4, 40)));
     EXPECT_EQ(ReadMip(image, 1, 1), (std::vector<uint8_t>(4, 80)));
@@ -242,11 +242,11 @@ TEST_F(VulkanImageTest, ResizePreservesContentAndClampsTheAllocatedMipCount)
     std::array<uint8_t, 64> pixels;
     pixels.fill(80);
     const auto image = Image::Create(Context, {
-        .InitialData = pixels.data(),
         .Width = 4, .Height = 4,
         .Format = EImageFormat::R8G8B8A8_UNORM,
         .MipmapMode = EImageMipmapMode::SimpleAverage,
         .InitialLayout = EImageLayout::ShaderReadOnly,
+        .InitialData = pixels.data(),
     });
     ASSERT_TRUE(Context->RunRenderTaskAndWait([image]() { image->Resize({ 2, 2, 1 }); }));
     EXPECT_EQ(image->GetWidth(), 2u);
@@ -261,10 +261,11 @@ TEST_F(VulkanImageTest, CopyDoesNotChangeDestinationExtent)
 {
     std::array<uint8_t, 64> pixels{};
     const auto source = Image::Create(Context, {
-        .InitialData = pixels.data(), .Width = 4, .Height = 4,
+        .Width = 4, .Height = 4,
         .Format = EImageFormat::R8G8B8A8_UNORM,
         .Usage = EImageUsage::Sampled | EImageUsage::TransferSrc,
         .InitialLayout = EImageLayout::TransferSrc,
+        .InitialData = pixels.data(),
     });
     const auto target = Image::Create(Context, {
         .Width = 4, .Height = 4, .Format = EImageFormat::R8G8B8A8_UNORM,

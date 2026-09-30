@@ -7,6 +7,7 @@ file(GLOB_RECURSE SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Source/*.h"
     "${CMAKE_CURRENT_LIST_DIR}/Source/*.cpp"
 )
+list(APPEND SOURCES "${CMAKE_SOURCE_DIR}/Elixir/Vendor/stb/stb_image.cpp")
 add_executable(${PROJECT_NAME} ${SOURCES})
 
 # Set output name
