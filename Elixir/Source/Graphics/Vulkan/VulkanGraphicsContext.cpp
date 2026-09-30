@@ -883,7 +883,8 @@ namespace Elixir
         if (result == VK_ERROR_OUT_OF_DATE_KHR)
         {
             m_SwapchainRecreateRequested = true;
-            frame.InUseByRenderThread = false;
+            // Submission already signalled RenderFence. Keep this frame tracked until its
+            // fence is waited so deferred resource releases cannot destroy in-use images.
             return;
         }
 
