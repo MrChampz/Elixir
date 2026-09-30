@@ -222,6 +222,11 @@ Dissolve::Dissolve()
 Dissolve::~Dissolve()
 {
     m_StaticMeshRenderer.reset();
+    mesh.reset();
+    s_LightingSetup = {};
+    graphMaterial.reset();
+    m_ParticleSystemInstances = {};
+    m_ParticleSystems = {};
 }
 
 void Dissolve::OnGUI(const Timestep frameTime)
