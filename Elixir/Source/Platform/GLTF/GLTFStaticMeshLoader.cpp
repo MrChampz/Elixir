@@ -1,6 +1,8 @@
 #include "epch.h"
 #include "GLTFStaticMeshLoader.h"
 
+#include <numeric>
+
 #include <Engine/Graphics/Texture.h>
 #include <Engine/Graphics/TextureLoader.h>
 #include <Engine/Materials/DefaultMaterials.h>
