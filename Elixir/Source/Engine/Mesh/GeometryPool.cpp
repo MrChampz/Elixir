@@ -8,21 +8,23 @@ namespace Elixir
     GeometryPool::GeometryPool(
         const GraphicsContext& context,
         const SGeometryPoolConfig config
-    ) : m_VertexCapacity(config.VertexCapacity),
-        m_IndexCapacity(config.IndexCapacity),
+    ) : m_State(CreateRef<SGeometryPoolState>(SGeometryPoolState{
+            .VertexCapacity = config.VertexCapacity,
+            .IndexCapacity = config.IndexCapacity,
+        })),
         m_GraphicsContext(context)
     {
-        EE_CORE_ASSERT(m_VertexCapacity > 0, "GeometryPool vertex capacity must be greater than 0.")
-        EE_CORE_ASSERT(m_IndexCapacity > 0, "GeometryPool index capacity must be greater than 0.")
+        EE_CORE_ASSERT(m_State->VertexCapacity > 0, "GeometryPool vertex capacity must be greater than 0.")
+        EE_CORE_ASSERT(m_State->IndexCapacity > 0, "GeometryPool index capacity must be greater than 0.")
 
         m_VertexBuffer = DynamicVertexBuffer::Create(
             &context,
-            m_VertexCapacity * sizeof(SStaticMeshVertex)
+            m_State->VertexCapacity * sizeof(SStaticMeshVertex)
         );
 
         m_IndexBuffer = DynamicIndexBuffer::Create(
             &context,
-            m_IndexCapacity * sizeof(uint32_t),
+            m_State->IndexCapacity * sizeof(uint32_t),
             nullptr,
             EIndexType::UInt32
         );
@@ -52,9 +54,9 @@ namespace Elixir
         const uint32_t indexCount = (uint32_t)data.Indices.size();
 
         const auto vertexOffset = AllocateRange(
-            m_FreeVertexRanges,
-            m_NextVertexOffset,
-            m_VertexCapacity,
+            m_State->FreeVertexRanges,
+            m_State->NextVertexOffset,
+            m_State->VertexCapacity,
             vertexCount
         );
         if (!vertexOffset)
@@ -64,15 +66,15 @@ namespace Elixir
         }
 
         const auto indexOffset = AllocateRange(
-            m_FreeIndexRanges,
-            m_NextIndexOffset,
-            m_IndexCapacity,
+            m_State->FreeIndexRanges,
+            m_State->NextIndexOffset,
+            m_State->IndexCapacity,
             indexCount
         );
         if (!indexOffset)
         {
             FreeRange(
-                m_FreeVertexRanges,
+                m_State->FreeVertexRanges,
                 {
                     .Offset = *vertexOffset,
                     .Count = vertexCount,
@@ -95,18 +97,18 @@ namespace Elixir
         );
 
         uint32_t slotIndex;
-        if (!m_FreeSlots.empty())
+        if (!m_State->FreeSlots.empty())
         {
-            slotIndex = m_FreeSlots.back();
-            m_FreeSlots.pop_back();
+            slotIndex = m_State->FreeSlots.back();
+            m_State->FreeSlots.pop_back();
         }
         else
         {
-            slotIndex = (uint32_t)m_Slots.size();
-            m_Slots.push_back({});
+            slotIndex = (uint32_t)m_State->Slots.size();
+            m_State->Slots.push_back({});
         }
 
-        SGeometryPoolSlot& slot = m_Slots[slotIndex];
+        SGeometryPoolSlot& slot = m_State->Slots[slotIndex];
         slot.Geometry = {
             .VertexOffset = *vertexOffset,
             .IndexOffset = *indexOffset,
@@ -126,10 +128,10 @@ namespace Elixir
 
     const SGeometry* GeometryPool::Get(const SHandle<SGeometry> handle) const
     {
-        if (!handle.IsValid() || handle.Index >= m_Slots.size())
+        if (!handle.IsValid() || handle.Index >= m_State->Slots.size())
             return nullptr;
 
-        const SGeometryPoolSlot& slot = m_Slots[handle.Index];
+        const SGeometryPoolSlot& slot = m_State->Slots[handle.Index];
         if (!slot.Allocated || slot.Generation != handle.Generation)
             return nullptr;
 
@@ -138,30 +140,34 @@ namespace Elixir
 
     void GeometryPool::Free(const SHandle<SGeometry> handle)
     {
-        if (!handle.IsValid() || handle.Index >= m_Slots.size())
+        if (!handle.IsValid() || handle.Index >= m_State->Slots.size())
             return;
 
-        const SGeometryPoolSlot& slot = m_Slots[handle.Index];
+        const SGeometryPoolSlot& slot = m_State->Slots[handle.Index];
         if (!slot.Allocated || slot.Generation != handle.Generation)
             return;
 
-        m_GraphicsContext.DeferResourceRelease([this, handle]()
+        const Ref<SGeometryPoolState> state = m_State;
+        m_GraphicsContext.DeferResourceRelease([state, handle]()
         {
-            FreeCompleted(handle);
+            FreeCompleted(*state, handle);
         });
     }
 
-    void GeometryPool::FreeCompleted(const SHandle<SGeometry> handle)
+    void GeometryPool::FreeCompleted(
+        SGeometryPoolState& state,
+        const SHandle<SGeometry> handle
+    )
     {
-        if (!handle.IsValid() || handle.Index >= m_Slots.size())
+        if (!handle.IsValid() || handle.Index >= state.Slots.size())
             return;
 
-        SGeometryPoolSlot& slot = m_Slots[handle.Index];
+        SGeometryPoolSlot& slot = state.Slots[handle.Index];
         if (!slot.Allocated || slot.Generation != handle.Generation)
             return;
 
         FreeRange(
-            m_FreeVertexRanges,
+            state.FreeVertexRanges,
         {
                 .Offset = slot.Geometry.VertexOffset,
                 .Count = slot.Geometry.VertexCount,
@@ -169,7 +175,7 @@ namespace Elixir
         );
 
         FreeRange(
-            m_FreeIndexRanges,
+            state.FreeIndexRanges,
         {
                 .Offset = slot.Geometry.IndexOffset,
                 .Count = slot.Geometry.IndexCount,
@@ -179,15 +185,23 @@ namespace Elixir
         slot.Allocated = false;
         ++slot.Generation;
         slot.Geometry = {};
-        m_FreeSlots.push_back(handle.Index);
+        state.FreeSlots.push_back(handle.Index);
     }
 
     bool GeometryPool::IsValid(const SHandle<SGeometry>& handle) const
     {
+        return IsHandleValid(*m_State, handle);
+    }
+
+    bool GeometryPool::IsHandleValid(
+        const SGeometryPoolState& state,
+        const SHandle<SGeometry>& handle
+    )
+    {
         return handle.IsValid() &&
-            handle.Index < m_Slots.size() &&
-            m_Slots[handle.Index].Allocated &&
-            m_Slots[handle.Index].Generation == handle.Generation;
+            handle.Index < state.Slots.size() &&
+            state.Slots[handle.Index].Allocated &&
+            state.Slots[handle.Index].Generation == handle.Generation;
     }
 
     std::optional<uint32_t> GeometryPool::AllocateRange(

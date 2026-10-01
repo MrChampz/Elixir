@@ -73,14 +73,34 @@ namespace Elixir
             bool Allocated = false;
         };
 
+        /** @brief Holds allocation metadata that can outlive the pool. */
+        struct SGeometryPoolState
+        {
+            uint32_t VertexCapacity = 0;
+            uint32_t IndexCapacity = 0;
+            uint32_t NextVertexOffset = 0;
+            uint32_t NextIndexOffset = 0;
+
+            std::vector<SGeometryPoolRange> FreeVertexRanges;
+            std::vector<SGeometryPoolRange> FreeIndexRanges;
+            std::vector<SGeometryPoolSlot> Slots;
+            std::vector<uint32_t> FreeSlots;
+        };
+
         /** @brief Defers a geometry release until submitted draws no longer use it. */
         void Free(SHandle<SGeometry> handle);
 
         /** @brief Releases a geometry range when its handle is valid. */
-        void FreeCompleted(SHandle<SGeometry> handle);
+        static void FreeCompleted(SGeometryPoolState& state, SHandle<SGeometry> handle);
 
         /** @brief Check whether this allocation still identifies live pool geometry. */
         bool IsValid(const SHandle<SGeometry>& handle) const;
+
+        /** @brief Check whether a handle identifies live geometry in a pool state. */
+        static bool IsHandleValid(
+            const SGeometryPoolState& state,
+            const SHandle<SGeometry>& handle
+        );
 
         /**
          * @brief Allocate one contiguous range in a pool buffer.
@@ -99,15 +119,7 @@ namespace Elixir
             SGeometryPoolRange range
         );
 
-        uint32_t m_VertexCapacity = 0;
-        uint32_t m_IndexCapacity = 0;
-        uint32_t m_NextVertexOffset = 0;
-        uint32_t m_NextIndexOffset = 0;
-
-        std::vector<SGeometryPoolRange> m_FreeVertexRanges;
-        std::vector<SGeometryPoolRange> m_FreeIndexRanges;
-        std::vector<SGeometryPoolSlot> m_Slots;
-        std::vector<uint32_t> m_FreeSlots;
+        Ref<SGeometryPoolState> m_State;
 
         Ref<DynamicVertexBuffer> m_VertexBuffer;
         Ref<DynamicIndexBuffer> m_IndexBuffer;
