@@ -650,6 +650,15 @@ namespace Elixir::Aether::Simulation
         const auto allocation = m_ResourcePool.Allocate(system);
         if (!allocation)
         {
+            // A replacement can fail to fit beside its previous allocation even
+            // when it fits by itself. Retire the stale allocation so a later
+            // frame can retry after this frame slot's fence completes.
+            if (found != m_InstanceRecords.end())
+            {
+                QueueRetirement(found->second.Allocation);
+                m_InstanceRecords.erase(found);
+            }
+
             if (m_AllocationFailures.insert(proxy.GetKey()).second)
             {
                 EE_CORE_ERROR(
@@ -682,7 +691,7 @@ namespace Elixir::Aether::Simulation
         }
 
         // The replacement is fully allocated and uploaded before retiring the
-        // previous record. If allocation fails, the old record remains intact.
+        // previous record.
         QueueRetirement(found->second.Allocation);
         found->second = replacement;
         m_AllocationFailures.erase(proxy.GetKey());
