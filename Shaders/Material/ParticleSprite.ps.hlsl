@@ -1,5 +1,5 @@
 // Template for EMaterialUsage::ParticleSprite. The generated graph body writes
-// Surface fields using particle color, UV, time, material values and textures.
+// Surface fields using UV, time, material values and textures.
 
 [[vk::binding(0, 0)]]
 cbuffer cbFrame : register(b0)
@@ -41,6 +41,7 @@ struct PSInput
 {
     float4 ClipPos       : SV_POSITION;
     float2 TexCoord      : TEXCOORD0;
+    float3 ViewPos       : POSITION0;
 };
 
 struct Surface
@@ -69,6 +70,10 @@ float4 main(PSInput input) : SV_Target0
     surface.Roughness = 0.5f;
     surface.Opacity = 1.0f;
     surface.Emissive = float3(0.0f, 0.0f, 0.0f);
+
+    float3 V = normalize(-input.ViewPos);
+    float3 N = normalize(cross(ddy(input.ViewPos), ddx(input.ViewPos)));
+    N = faceforward(N, -V, N);
 
     // __GRAPH_BODY__
 

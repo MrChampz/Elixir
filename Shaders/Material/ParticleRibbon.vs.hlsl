@@ -52,6 +52,7 @@ struct VSOutput
     float4 ClipPos              : SV_POSITION;
     float2 TexCoord             : TEXCOORD0;
     nointerpolation float Valid : TEXCOORD1;
+    float3 WorldPos             : POSITION0;
 };
 
 float3 SafeNormalize(float3 value, float3 fallback)
@@ -191,6 +192,7 @@ VSOutput EmptyVertex()
     output.ClipPos = float4(0.0, 0.0, 0.0, 1.0);
     output.TexCoord = float2(0.5, 0.0);
     output.Valid = 0.0;
+    output.WorldPos = float3(0.0, 0.0, 0.0);
     return output;
 }
 
@@ -265,7 +267,8 @@ VSOutput main(uint vertexId : SV_VertexID)
     float sideSign = usePositiveSide ? 1.0 : -1.0;
 
     VSOutput output;
-    output.ClipPos = mul(ViewProj, float4(center + side * (width * 0.5 * sideSign), 1.0));
+    output.WorldPos = center + side * (width * 0.5 * sideSign);
+    output.ClipPos = mul(ViewProj, float4(output.WorldPos, 1.0));
     output.TexCoord = float2(usePositiveSide ? 1.0 : 0.0, useEndParticle ? 1.0 : 0.0);
     output.Valid = 1.0;
 

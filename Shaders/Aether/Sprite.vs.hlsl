@@ -35,6 +35,7 @@ struct VSOutput
     float4 ClipPos       : SV_POSITION;
     float4 Color         : COLOR;
     float2 TexCoord      : TEXCOORD0;
+    float3 ViewPos       : POSITION0;
 };
 
 // TODO: TEMP approximation, replace by a better solution!
@@ -68,6 +69,7 @@ VSOutput main(VSInput input, uint vertexId : SV_VertexID)
     output.ClipPos = mul(Proj, float4(viewPos, 1.0f));
     output.Color = input.Color;
     output.TexCoord = normalizedPos;
+    output.ViewPos = viewPos;
 
     return output;
 }

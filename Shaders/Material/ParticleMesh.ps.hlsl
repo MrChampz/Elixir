@@ -1,5 +1,5 @@
 // Template for EMaterialUsage::ParticleMesh. The generated graph body writes
-// Surface fields using mesh colors, planar UVs, time, material values and textures.
+// Surface fields using planar UVs, time, material values and textures.
 
 [[vk::binding(0, 0)]]
 cbuffer cbFrame : register(b0)
@@ -75,6 +75,9 @@ float4 main(PSInput input) : SV_Target0
     surface.Opacity = 1.0f;
     surface.Emissive = float3(0.0f, 0.0f, 0.0f);
 
+    const float3 N = normalize(input.Normal);
+    const float3 V = normalize(CameraPos - input.WorldPos);
+
     // __GRAPH_BODY__
 
     static const uint MATERIAL_BLEND_MASK = 1u;
@@ -83,12 +86,10 @@ float4 main(PSInput input) : SV_Target0
         clip(surface.Opacity - mat.AlphaCutoff);
     }
 
-    const float3 normal = normalize(input.Normal);
     const float3 lightDirection = normalize(LIGHT_DIRECTION);
-    const float3 viewDirection = normalize(CameraPos - input.WorldPos);
 
-    const float diffuse = max(dot(normal, lightDirection), 0.0f);
-    const float rim = pow(1.0f - max(dot(normal, viewDirection), 0.0f), 2.8f);
+    const float diffuse = max(dot(N, lightDirection), 0.0f);
+    const float rim = pow(1.0f - max(dot(N, V), 0.0f), 2.8f);
     const float3 litColor = (surface.BaseColor * (0.24f + diffuse * 0.92f)) +
         surface.Emissive +
         (RIM_COLOR * rim * 0.35f);

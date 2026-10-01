@@ -1,5 +1,5 @@
 // Template for EMaterialUsage::ParticleRibbon. The generated graph body writes
-// Surface fields using ribbon vertex color, UV, material values and textures.
+// Surface fields using UV, material values and textures.
 
 [[vk::binding(0, 0)]]
 cbuffer cbFrame : register(b0)
@@ -44,6 +44,7 @@ struct PSInput
     float4 ClipPos              : SV_POSITION;
     float2 TexCoord             : TEXCOORD0;
     nointerpolation float Valid : TEXCOORD1;
+    float3 WorldPos             : POSITION0;
 };
 
 struct Surface
@@ -74,6 +75,10 @@ float4 main(PSInput input) : SV_Target0
     surface.Roughness = 0.5f;
     surface.Opacity = 1.0f;
     surface.Emissive = float3(0.0f, 0.0f, 0.0f);
+
+    float3 V = normalize(CameraPos - input.WorldPos);
+    float3 N = normalize(cross(ddy(input.WorldPos), ddx(input.WorldPos)));
+    N = faceforward(N, -V, N);
 
     // __GRAPH_BODY__
 
