@@ -45,7 +45,6 @@ namespace Elixir::Materials::Rendering
     SRenderResult Renderer::RenderFrame(const std::span<const SPreparedScene> scenes)
     {
         SRenderResult result{};
-        if (scenes.empty()) return result;
 
         EE_CORE_ASSERT(m_SceneTarget, "Material rendering requires a scene target.")
 
@@ -53,6 +52,12 @@ namespace Elixir::Materials::Rendering
             m_CurrentFrameNumber == m_Context->GetFrameNumber(),
             "Material rendering requires BeginFrame for the current graphics frame."
         )
+
+        if (scenes.empty())
+        {
+            m_Textures.EndFrame();
+            return result;
+        }
 
         FrameTable materialTable{
             m_MaterialCapacity,
@@ -68,6 +73,8 @@ namespace Elixir::Materials::Rendering
 
         for (const auto& scene : scenes)
             preparedScenes.push_back(PrepareScene(scene, materialTable));
+
+        m_Textures.EndFrame();
 
         if (!materialTable.GetData().empty())
         {

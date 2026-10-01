@@ -9,6 +9,7 @@ namespace Elixir::Materials::Rendering
     TextureRegistry::TextureRegistry(const GraphicsContext* context)
       : m_Textures(TextureSet::Create(context)),
         m_Sampler(SamplerBuilder().Build(context)),
+        m_BindingState(CreateRef<SBindingState>()),
         m_GraphicsContext(context)
     {
         const auto whiteTexture = Texture2D::Create(
@@ -25,6 +26,38 @@ namespace Elixir::Materials::Rendering
     void TextureRegistry::BeginFrame(const uint64_t submissionSerial)
     {
         m_SubmissionSerial = submissionSerial;
+        m_ReferencedTextures.clear();
+    }
+
+    void TextureRegistry::EndFrame()
+    {
+        auto& bindings = m_BindingState->Bindings;
+        for (auto binding = bindings.begin(); binding != bindings.end();)
+        {
+            if (m_ReferencedTextures.contains(binding->first))
+            {
+                ++binding;
+                continue;
+            }
+
+            const Ref<Texture> texture = binding->first;
+            const SResourceHandle handle = binding->second.Handle;
+            binding = bindings.erase(binding);
+
+            const Ref<SBindingState> state = m_BindingState;
+            const Ref<TextureSet> textures = m_Textures;
+            const uint64_t retirement = state->NextRetirement++;
+            state->Retirements[texture] = retirement;
+            m_GraphicsContext->DeferResourceRelease([state, textures, texture, handle, retirement]()
+            {
+                const auto retired = state->Retirements.find(texture);
+                if (retired == state->Retirements.end() || retired->second != retirement)
+                    return;
+
+                state->Retirements.erase(retired);
+                textures->RemoveTexture(handle);
+            });
+        }
     }
 
     uint32_t TextureRegistry::Resolve(const Ref<Texture>& texture)
@@ -32,13 +65,16 @@ namespace Elixir::Materials::Rendering
         if (!texture)
             return GetFallbackIndex();
 
-        const auto found = m_Bindings.find(texture);
-        if (found != m_Bindings.end())
+        m_ReferencedTextures.insert(texture);
+        m_BindingState->Retirements.erase(texture);
+
+        const auto found = m_BindingState->Bindings.find(texture);
+        if (found != m_BindingState->Bindings.end())
             return Find(texture);
 
         // Bindless descriptor updates become visible before the next render callback.
         const auto handle = m_Textures->AddTexture(texture);
-        m_Bindings.emplace(texture, STextureBinding{
+        m_BindingState->Bindings.emplace(texture, STextureBinding{
             .Handle = handle,
             .ReadySubmission = m_SubmissionSerial + 1,
         });
@@ -51,8 +87,8 @@ namespace Elixir::Materials::Rendering
         if (!texture)
             return GetFallbackIndex();
 
-        const auto found = m_Bindings.find(texture);
-        if (found == m_Bindings.end())
+        const auto found = m_BindingState->Bindings.find(texture);
+        if (found == m_BindingState->Bindings.end())
             return GetFallbackIndex();
 
         return found->second.GetIndexForSubmission(

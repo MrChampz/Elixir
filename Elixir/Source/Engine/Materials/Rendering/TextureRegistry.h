@@ -28,6 +28,13 @@ namespace Elixir::Materials::Rendering
         void BeginFrame(uint64_t submissionSerial);
 
         /**
+         * @brief Releases bindings that were not used by the current frame.
+         *
+         * Releases wait for submitted frames before changing bindless descriptors.
+         */
+        void EndFrame();
+
+        /**
          * @brief Resolves a texture to an index in the material texture set.
          *
          * A newly registered texture returns the fallback index until it is ready.
@@ -80,10 +87,19 @@ namespace Elixir::Materials::Rendering
             }
         };
 
+        /** @brief Keeps bindings alive while deferred releases are pending. */
+        struct SBindingState
+        {
+            std::unordered_map<Ref<Texture>, STextureBinding> Bindings;
+            std::unordered_map<Ref<Texture>, uint64_t> Retirements;
+            uint64_t NextRetirement = 1;
+        };
+
         Ref<TextureSet> m_Textures;
         Ref<Sampler> m_Sampler;
         SResourceHandle m_FallbackTextureHandle;
-        std::unordered_map<Ref<Texture>, STextureBinding> m_Bindings;
+        Ref<SBindingState> m_BindingState;
+        std::unordered_set<Ref<Texture>> m_ReferencedTextures;
 
         uint64_t m_SubmissionSerial = 0;
 
