@@ -21,6 +21,17 @@ namespace Elixir::Materials
         return m_Materials.emplace(material->GetName(), material).second;
     }
 
+    bool MaterialRegistry::Replace(const Ref<Material>& material)
+    {
+        if (!material || material->GetName().empty()) return false;
+
+        const auto found = m_Materials.find(material->GetName());
+        if (found == m_Materials.end()) return false;
+
+        found->second = material;
+        return true;
+    }
+
     Ref<Material> MaterialRegistry::Find(const std::string_view name) const
     {
         const auto found = m_Materials.find(std::string(name));

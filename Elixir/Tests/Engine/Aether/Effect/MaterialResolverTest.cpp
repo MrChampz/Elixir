@@ -37,3 +37,26 @@ TEST(MaterialResolverTest, CreatesAuthoredMaterialsAndUsesUsageDefaults)
 
     EXPECT_TRUE(resolver.Resolve(system));
 }
+
+TEST(MaterialResolverTest, RefreshesAuthoredMaterialsWhenDescriptionsChange)
+{
+    MaterialRegistry registry;
+    const Effect::MaterialResolver resolver{ registry };
+    System system{ "Effect material refresh" };
+
+    auto& sprite = system.AddEmitter("Sprite", 8, 0.0f);
+    sprite.SetMaterialDescription({ .BaseColor = { 0.25f, 0.5f, 0.75f } });
+    ASSERT_TRUE(resolver.Resolve(system));
+
+    const auto initialMaterial = sprite.GetMaterial()->GetParent();
+
+    sprite.SetMaterialDescription({ .BaseColor = { 0.75f, 0.5f, 0.25f } });
+    ASSERT_TRUE(resolver.Resolve(system));
+
+    ASSERT_TRUE(sprite.GetMaterial());
+    EXPECT_NE(sprite.GetMaterial()->GetParent(), initialMaterial);
+    EXPECT_EQ(
+        registry.Find("Aether." + system.GetId() + ".Sprite"),
+        sprite.GetMaterial()->GetParent()
+    );
+}

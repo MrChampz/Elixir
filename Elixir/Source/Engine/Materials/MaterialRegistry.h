@@ -22,6 +22,13 @@ namespace Elixir::Materials
         bool Register(const Ref<Material>& material);
 
         /**
+         * @brief Replaces a registered material with the same name.
+         * @param material Material that replaces the current registration.
+         * @return True when a registered material was replaced.
+         */
+        bool Replace(const Ref<Material>& material);
+
+        /**
          * @brief Finds a registered material by name.
          * @param name Material name.
          * @return The registered material, or null when no material has that name.

@@ -14,21 +14,33 @@ namespace Elixir::Aether::Effect
     {
         for (const auto& emitter : system.GetEmitters())
         {
-            // A caller may replace an effect-authored instance before creating a
-            // SystemInstance. Do not overwrite that explicit choice.
-            if (emitter->GetMaterial())
-                continue;
-
             Ref<Material> material;
 
             if (const auto& desc = emitter->GetMaterialDescription())
             {
                 const auto name = "Aether." + system.GetId() + "." + emitter->GetName();
 
+                // Preserve a caller-selected material, but recreate the material
+                // previously generated for this emitter when its asset data changes.
+                if (const auto& assigned = emitter->GetMaterial(); assigned
+                    && assigned->GetParent()->GetName() != name)
+                    continue;
+
                 material = m_Registry.Find(name);
-                if (!material)
+                const auto refreshed = CreateMaterial(name, *desc);
+                if (material)
                 {
-                    material = CreateMaterial(name, *desc);
+                    if (!m_Registry.Replace(refreshed))
+                    {
+                        EE_CORE_ERROR("Aether material '{}' could not be refreshed.", name)
+                        return false;
+                    }
+
+                    material = refreshed;
+                }
+                else
+                {
+                    material = std::move(refreshed);
                     if (!m_Registry.Register(material))
                     {
                         EE_CORE_ERROR("Aether material '{}' could not be registered.", name)
@@ -38,6 +50,11 @@ namespace Elixir::Aether::Effect
             }
             else
             {
+                // A caller may replace a default instance before creating a
+                // SystemInstance. Do not overwrite that explicit choice.
+                if (emitter->GetMaterial())
+                    continue;
+
                 material = m_Registry.GetDefault(EMaterialUsage::Particle);
             }
 
