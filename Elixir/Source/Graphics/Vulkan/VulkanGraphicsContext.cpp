@@ -879,7 +879,6 @@ namespace Elixir
         presentInfo.pImageIndices = &m_CurrentSwapchainImageIndex;
 
         const auto result = vkQueuePresentKHR(m_GraphicsQueue, &presentInfo);
-
         if (result == VK_ERROR_OUT_OF_DATE_KHR)
         {
             m_SwapchainRecreateRequested = true;
