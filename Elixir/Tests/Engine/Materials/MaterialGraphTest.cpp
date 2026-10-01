@@ -7,6 +7,7 @@
 #include <Engine/Materials/Nodes/Cosine.h>
 #include <Engine/Materials/Nodes/Dot.h>
 #include <Engine/Materials/Nodes/Multiply.h>
+#include <Engine/Materials/Nodes/OneMinus.h>
 #include <Engine/Materials/Nodes/ComponentMask.h>
 #include <Engine/Materials/Nodes/Constant.h>
 #include <Engine/Materials/Nodes/FlattenNormal.h>
@@ -15,6 +16,7 @@
 #include <Engine/Materials/Nodes/Parameter.h>
 #include <Engine/Materials/Nodes/RadialGradientExponential.h>
 #include <Engine/Materials/Nodes/Sine.h>
+#include <Engine/Materials/Nodes/Saturate.h>
 #include <Engine/Materials/Nodes/Subtract.h>
 #include <Engine/Materials/Nodes/TexCoord.h>
 #include <Engine/Materials/Nodes/TextureSample.h>
@@ -70,6 +72,18 @@ TEST(MaterialGraphTest, ScalarChannelsAndSharedNode)
     const auto first = hlsl.find("float n");
     ASSERT_NE(first, std::string::npos);
     EXPECT_EQ(hlsl.find("float n", first + 1), std::string::npos);
+}
+
+TEST(MaterialGraphTest, UsesDefaultsForUnconnectedUnaryNodes)
+{
+    MaterialGraph graph;
+    graph.SetChannel(EMaterialChannel::BaseColor, graph.AddNode<OneMinus>());
+    graph.SetChannel(EMaterialChannel::Emissive, graph.AddNode<Saturate>());
+
+    const auto hlsl = graph.GenerateHLSL();
+
+    EXPECT_NE(hlsl.find("(1.0 - 0.0)"), std::string::npos);
+    EXPECT_NE(hlsl.find("saturate(0.0)"), std::string::npos);
 }
 
 TEST(MaterialGraphTest, RoutesTextureAlphaToOpacity)
