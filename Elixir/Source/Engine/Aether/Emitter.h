@@ -12,6 +12,8 @@
 
 namespace Elixir::Aether
 {
+    namespace Effect { class MaterialResolver; }
+
     using namespace Core;
     using namespace Modules;
     using namespace Materials;
@@ -228,7 +230,11 @@ namespace Elixir::Aether
          * @param material Material instance to assign.
          * @note Pass a null reference to clear the current selection.
          */
-        void SetMaterial(Ref<MaterialInstance> material) { m_Material = std::move(material); }
+        void SetMaterial(Ref<MaterialInstance> material)
+        {
+            m_Material = std::move(material);
+            m_MaterialIsResolved = false;
+        }
 
         /**
          * @brief Configure periodic burst emission.
@@ -321,6 +327,18 @@ namespace Elixir::Aether
         void SetSpawnRateParamName(const std::string& paramName) { m_SpawnRateParamName = paramName; }
 
       private:
+        friend class Effect::MaterialResolver;
+
+        /** Assigns an instance created by the effect material resolver. */
+        void SetResolvedMaterial(Ref<MaterialInstance> material)
+        {
+            m_Material = std::move(material);
+            m_MaterialIsResolved = true;
+        }
+
+        /** Checks whether the current material was assigned by the effect resolver. */
+        bool HasResolvedMaterial() const { return m_MaterialIsResolved; }
+
         // Compiles this emitter into internal GPU-ready runtime data.
         SCompiledEmitter Compile(
             const ParameterStore& paramStore,
@@ -334,6 +352,7 @@ namespace Elixir::Aether
         EParticleSimulationSpace m_SimulationSpace = EParticleSimulationSpace::World;
         std::optional<Effect::SMaterialDescription> m_MaterialDescription;
         Ref<MaterialInstance> m_Material;
+        bool m_MaterialIsResolved = false;
         uint32_t m_MaxParticles;
 
         std::vector<Scope<ParticleSpawnModule>> m_SpawnModules;

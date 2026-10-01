@@ -60,3 +60,21 @@ TEST(MaterialResolverTest, RefreshesAuthoredMaterialsWhenDescriptionsChange)
         sprite.GetMaterial()->GetParent()
     );
 }
+
+TEST(MaterialResolverTest, PreservesExplicitMaterialOverrides)
+{
+    MaterialRegistry registry;
+    const Effect::MaterialResolver resolver{ registry };
+    System system{ "Effect material override" };
+
+    auto& sprite = system.AddEmitter("Sprite", 8, 0.0f);
+    sprite.SetMaterialDescription({ .BaseColor = { 0.25f, 0.5f, 0.75f } });
+    ASSERT_TRUE(resolver.Resolve(system));
+
+    const auto override = registry.GetDefault(EMaterialUsage::Particle)->CreateInstance();
+    sprite.SetMaterial(override);
+    sprite.SetMaterialDescription({ .BaseColor = { 0.75f, 0.5f, 0.25f } });
+
+    ASSERT_TRUE(resolver.Resolve(system));
+    EXPECT_EQ(sprite.GetMaterial(), override);
+}

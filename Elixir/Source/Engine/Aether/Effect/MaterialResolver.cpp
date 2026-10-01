@@ -22,8 +22,7 @@ namespace Elixir::Aether::Effect
 
                 // Preserve a caller-selected material, but recreate the material
                 // previously generated for this emitter when its asset data changes.
-                if (const auto& assigned = emitter->GetMaterial(); assigned
-                    && assigned->GetParent()->GetName() != name)
+                if (emitter->GetMaterial() && !emitter->HasResolvedMaterial())
                     continue;
 
                 material = m_Registry.Find(name);
@@ -52,13 +51,13 @@ namespace Elixir::Aether::Effect
             {
                 // A caller may replace a default instance before creating a
                 // SystemInstance. Do not overwrite that explicit choice.
-                if (emitter->GetMaterial())
+                if (emitter->GetMaterial() && !emitter->HasResolvedMaterial())
                     continue;
 
                 material = m_Registry.GetDefault(EMaterialUsage::Particle);
             }
 
-            emitter->SetMaterial(material);
+            emitter->SetResolvedMaterial(material->CreateInstance());
             if (!emitter->GetMaterial()) return false;
         }
 
