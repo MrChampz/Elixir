@@ -64,7 +64,6 @@ struct VSInput
     float4 VelocityAge     : TEXCOORD0;
     float4 Transform       : TEXCOORD1;
     float4 TangentRibbonId : TANGENT;
-    float4 Color           : COLOR;
     float4 Metadata        : TEXCOORD2;
 };
 
@@ -73,7 +72,6 @@ struct VSOutput
     float4 ClipPos  : SV_POSITION;
     float3 WorldPos : POSITION0;
     float3 Normal   : NORMAL0;
-    float4 Color    : COLOR0;
     float2 TexCoord : TEXCOORD0;
 };
 
@@ -115,7 +113,6 @@ VSOutput main(VSInput input)
     output.WorldPos = mul(pc.WorldTransform, float4(localPos, 1.0f)).xyz;
     output.ClipPos = mul(ViewProj, float4(output.WorldPos, 1.0));
     output.Normal = normalize(mul((float3x3)pc.WorldTransform, localNormal));
-    output.Color = float4(input.Color.rgb, input.Color.a * alive);
     output.TexCoord = input.LocalPos.xy * 0.5f + 0.5f;
 
     return output;

@@ -40,7 +40,6 @@ MaterialPushConstants pc;
 struct PSInput
 {
     float4 ClipPos       : SV_POSITION;
-    float4 Color         : COLOR;
     float2 TexCoord      : TEXCOORD0;
 };
 

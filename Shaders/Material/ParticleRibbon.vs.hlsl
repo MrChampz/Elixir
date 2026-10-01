@@ -50,7 +50,6 @@ PushConstants pc;
 struct VSOutput
 {
     float4 ClipPos              : SV_POSITION;
-    float4 Color                : COLOR0;
     float2 TexCoord             : TEXCOORD0;
     nointerpolation float Valid : TEXCOORD1;
 };
@@ -190,7 +189,6 @@ VSOutput EmptyVertex()
 {
     VSOutput output;
     output.ClipPos = float4(0.0, 0.0, 0.0, 1.0);
-    output.Color = float4(0.0, 0.0, 0.0, 0.0);
     output.TexCoord = float2(0.5, 0.0);
     output.Valid = 0.0;
     return output;
@@ -268,7 +266,6 @@ VSOutput main(uint vertexId : SV_VertexID)
 
     VSOutput output;
     output.ClipPos = mul(ViewProj, float4(center + side * (width * 0.5 * sideSign), 1.0));
-    output.Color = useEndParticle ? endParticle.Color : startParticle.Color;
     output.TexCoord = float2(usePositiveSide ? 1.0 : 0.0, useEndParticle ? 1.0 : 0.0);
     output.Valid = 1.0;
 

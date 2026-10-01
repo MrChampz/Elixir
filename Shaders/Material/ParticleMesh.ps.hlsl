@@ -42,7 +42,6 @@ struct PSInput
     float4 ClipPos  : SV_POSITION;
     float3 WorldPos : POSITION0;
     float3 Normal   : NORMAL0;
-    float4 Color    : COLOR0;
     float2 TexCoord : TEXCOORD0;
 };
 
