@@ -1,8 +1,5 @@
 #pragma once
 
-#include <mutex>
-#include <optional>
-
 #include <Engine/Core/Core.h>
 #include <Engine/Core/Window.h>
 #include <Engine/Core/Timer.h>
@@ -83,7 +80,7 @@ namespace Elixir
 
         Scope<Aether::Manager> m_AetherManager;
 
-        Scope<PostProcessor> m_PostProcessor;
+        Ref<PostProcessor> m_PostProcessor;
 
         Timer m_Timer;
         FrameProfiler m_Profiler;
@@ -96,13 +93,6 @@ namespace Elixir
         bool m_Minimized = false;
 
     private:
-        // Applies the newest framebuffer resize request on the rendering thread.
-        void ApplyPendingFramebufferResizes();
-
-        std::mutex m_FramebufferResizeMutex;
-        std::optional<Extent2D> m_PendingFramebufferExtent;
-        bool m_FramebufferResizeQueued = false;
-
         static Application* s_Application;
     };
 

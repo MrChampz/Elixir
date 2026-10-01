@@ -41,7 +41,7 @@ namespace Elixir
         CreateSceneTarget(m_GraphicsContext->GetSwapchainExtent());
 
         m_ShaderLoader = CreateScope<ShaderLoader>(m_GraphicsContext.get());
-        m_PostProcessor = CreateScope<PostProcessor>(
+        m_PostProcessor = CreateRef<PostProcessor>(
             m_GraphicsContext.get(),
             m_ShaderLoader.get(),
             m_SceneTarget->GetExtent()
@@ -296,48 +296,25 @@ namespace Elixir
 
     bool Application::OnFramebufferResize(const FramebufferResizeEvent& event)
     {
+        const Extent2D extent = event.GetExtent();
+        if (extent.Width == 0 || extent.Height == 0)
+            return false;
+
         // TODO: When GLFW is replaced with native window backends, defer target recreation
         // until each platform reports that its live resize operation has finished.
+        m_GraphicsContext->EnqueueRenderTask([
+            context = m_GraphicsContext.get(),
+            sceneTarget = m_SceneTarget,
+            postProcessor = m_PostProcessor,
+            extent
+        ]()
         {
-            std::scoped_lock lock(m_FramebufferResizeMutex);
-            m_PendingFramebufferExtent = event.GetExtent();
-            if (m_FramebufferResizeQueued)
-                return false;
-
-            m_FramebufferResizeQueued = true;
-        }
-
-        if (!m_GraphicsContext->EnqueueRenderTask([this]()
-        {
-            ApplyPendingFramebufferResizes();
-        }))
-        {
-            std::scoped_lock lock(m_FramebufferResizeMutex);
-            m_FramebufferResizeQueued = false;
-        }
+            context->Resize(extent);
+            sceneTarget->Resize({ extent.Width, extent.Height, 1 });
+            postProcessor->Resize({ extent.Width, extent.Height, 1 });
+        });
 
         return false;
-    }
-
-    void Application::ApplyPendingFramebufferResizes()
-    {
-        while (true)
-        {
-            std::optional<Extent2D> extent;
-            {
-                std::scoped_lock lock(m_FramebufferResizeMutex);
-                extent.swap(m_PendingFramebufferExtent);
-                if (!extent)
-                {
-                    m_FramebufferResizeQueued = false;
-                    return;
-                }
-            }
-
-            m_GraphicsContext->Resize(*extent);
-            m_SceneTarget->Resize({ extent->Width, extent->Height, 1 });
-            m_PostProcessor->Resize({ extent->Width, extent->Height, 1 });
-        }
     }
 
     void Application::CreateSceneTarget(const Extent3D& extent)
