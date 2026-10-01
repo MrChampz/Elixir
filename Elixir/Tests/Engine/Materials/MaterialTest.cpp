@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <Engine/Materials/MaterialInstance.h>
+#include <Engine/Materials/Nodes/Add.h>
 #include <Engine/Materials/Nodes/Parameter.h>
 #include <Engine/Materials/Nodes/TextureSample.h>
 
@@ -82,6 +83,21 @@ TEST(MaterialTest, ValidateGraphParametersAgainstMaterialSchema)
         .DefaultValue = SMaterialParameter::MakeVector(glm::vec4{ 1.0f }),
     }));
     EXPECT_TRUE(material->ValidateGraph());
+}
+
+TEST(MaterialTest, RejectsCyclicGraphConnections)
+{
+    MaterialGraph graph;
+    const auto add = graph.AddNode<Add>();
+    graph.Connect(add, add, 0);
+    graph.SetChannel(EMaterialChannel::BaseColor, add);
+
+    Material material("Cyclic");
+    material.SetGraph(std::move(graph));
+
+    std::string error;
+    EXPECT_FALSE(material.ValidateGraph(&error));
+    EXPECT_NE(error.find("cycle"), std::string::npos);
 }
 
 TEST(MaterialTest, RejectsOverridesThatDoNotMatchTheSchema)

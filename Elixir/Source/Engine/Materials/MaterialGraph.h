@@ -96,6 +96,12 @@ namespace Elixir::Materials
          */
         void SetChannel(EMaterialChannel channel, uint32_t nodeId);
 
+        /**
+         * @brief Checks that nodes and their connections form a valid graph.
+         * @param parameters Defines the material parameters available to graph nodes.
+         * @param error Receives a description when validation fails.
+         * @return `true` when the graph can be compiled safely.
+         */
         bool Validate(
             const MaterialNodeValidationContext& parameters,
             std::string* error = nullptr

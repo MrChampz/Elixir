@@ -108,6 +108,44 @@ namespace Elixir::Materials
             return false;
         }
 
+        std::unordered_set<uint32_t> visiting;
+        std::unordered_set<uint32_t> visited;
+        std::function<bool(uint32_t)> visit = [&](const uint32_t id)
+        {
+            if (visiting.contains(id))
+            {
+                if (error)
+                    *error = "Material graph contains a cycle involving node " + std::to_string(id) + ".";
+
+                return false;
+            }
+
+            if (visited.contains(id))
+                return true;
+
+            visiting.insert(id);
+
+            const auto nodeIt = m_Nodes.find(id);
+            if (nodeIt != m_Nodes.end())
+            {
+                for (const int32_t input : nodeIt->second.Inputs)
+                {
+                    if (input >= 0 && !visit(static_cast<uint32_t>(input)))
+                        return false;
+                }
+            }
+
+            visiting.erase(id);
+            visited.insert(id);
+            return true;
+        };
+
+        for (const auto& [id, _] : m_Nodes)
+        {
+            if (!visit(id))
+                return false;
+        }
+
         return true;
     }
 
