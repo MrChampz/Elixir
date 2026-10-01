@@ -86,8 +86,8 @@ Dissolve::Dissolve()
 
         graphMaterial = CreateRef<Material>("DissolveGraph");
         EE_CORE_ASSERT(
-            graphMaterial->SetUsage(EMaterialUsage::ParticleSprite, true),
-            "Dissolve graph material must enable ParticleSprite usage."
+            graphMaterial->SetUsage(EMaterialUsage::Particle, true),
+            "Dissolve graph material must enable Particle usage."
         )
         EE_CORE_ASSERT(
             graphMaterial->SetBlendMode(EMaterialBlendMode::Translucent),
@@ -142,12 +142,8 @@ Dissolve::Dissolve()
 
         const auto ribbonMaterial = CreateRef<Material>("RibbonEnergy");
         EE_CORE_ASSERT(
-            ribbonMaterial->SetUsage(EMaterialUsage::ParticleRibbon, true),
-            "Ribbon material must enable ParticleRibbon usage."
-        )
-        EE_CORE_ASSERT(
-            ribbonMaterial->SetUsage(EMaterialUsage::ParticleMesh, true),
-            "Ribbon material must enable ParticleRibbon usage."
+            ribbonMaterial->SetUsage(EMaterialUsage::Particle, true),
+            "Ribbon material must enable Particle usage."
         )
         EE_CORE_ASSERT(
             ribbonMaterial->SetBlendMode(EMaterialBlendMode::Translucent),

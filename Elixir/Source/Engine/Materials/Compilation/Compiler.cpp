@@ -130,20 +130,12 @@ namespace Elixir::Materials::Compilation
             if (!result) return result;
         }
 
-        if (material.SupportsUsage(EMaterialUsage::ParticleSprite))
+        if (material.SupportsUsage(EMaterialUsage::Particle))
         {
             result = CompileParticleSprite(loader, material, std::move(result));
             if (!result) return result;
-        }
-
-        if (material.SupportsUsage(EMaterialUsage::ParticleRibbon))
-        {
             result = CompileParticleRibbon(loader, material, std::move(result));
             if (!result) return result;
-        }
-
-        if (material.SupportsUsage(EMaterialUsage::ParticleMesh))
-        {
             result = CompileParticleMesh(loader, material, std::move(result));
             if (!result) return result;
         }
@@ -273,11 +265,12 @@ namespace Elixir::Materials::Compilation
         SCompileResult result
     )
     {
-        const auto hlsl = ReadFile(s_ShadersDir / "Material" / "ParticleSprite.ps.hlsl");
+        const auto vertexHlsl = ReadFile(s_ShadersDir / "Material" / "ParticleSprite.vs.hlsl");
+        const auto pixelHlsl = ReadFile(s_ShadersDir / "Material" / "ParticleSprite.ps.hlsl");
 
-        if (hlsl.empty())
+        if (vertexHlsl.empty() || pixelHlsl.empty())
         {
-            result.Diagnostics = "Material template ParticleSprite.ps.hlsl was not found.";
+            result.Diagnostics = "Material sprite shader template was not found.";
             result.Material.reset();
             return result;
         }
@@ -290,47 +283,49 @@ namespace Elixir::Materials::Compilation
         std::error_code error;
         fs::create_directories(loadDir, error);
 
-        const fs::path spriteSourcePath = s_GeneratedDir / (name + ".src.ps.hlsl");
+        const fs::path vertexSourcePath = s_GeneratedDir / (name + ".src.vs.hlsl");
         {
-            std::ofstream out(spriteSourcePath, std::ios::binary);
-
-            const auto graphHlsl = GenerateGraphHLSL(material.GetGraph(), *result.Material);
-            out << InjectBody(hlsl, graphHlsl);
+            std::ofstream out(vertexSourcePath, std::ios::binary);
+            out << vertexHlsl;
         }
 
-        // Compile the generated pixel shader to SPIR-V with DXC.
-        const fs::path dxc = FindDXC();
-        const fs::path spvPath = loadDir / (name + ".ps.spirv");
-        const std::string cmd =
-            "\"" + dxc.string() + "\" -spirv -T ps_6_0 -E main \""
-            + spriteSourcePath.string() + "\" -Fo \"" + spvPath.string() + "\"";
+        const fs::path pixelSourcePath = s_GeneratedDir / (name + ".src.ps.hlsl");
+        {
+            std::ofstream out(pixelSourcePath, std::ios::binary);
 
-        const int rc = std::system(cmd.c_str());
-        if (rc != 0 || !fs::exists(spvPath))
+            const auto graphHlsl = GenerateGraphHLSL(material.GetGraph(), *result.Material);
+            out << InjectBody(pixelHlsl, graphHlsl);
+        }
+
+        const fs::path dxc = FindDXC();
+        const auto compileStage = [&dxc](
+            const fs::path& sourcePath,
+            const fs::path& spvPath,
+            const std::string_view profile
+        )
+        {
+            const std::string cmd =
+                "\"" + dxc.string() + "\" -spirv -T " + std::string(profile) + " -E main \""
+                + sourcePath.string() + "\" -Fo \"" + spvPath.string() + "\"";
+
+            return std::system(cmd.c_str()) == 0 && fs::exists(spvPath);
+        };
+
+        if (!compileStage(
+            vertexSourcePath,
+            loadDir / (name + ".vs.spirv"),
+            "vs_6_0"
+        ) || !compileStage(
+            pixelSourcePath,
+            loadDir / (name + ".ps.spirv"),
+            "ps_6_0"
+        ))
         {
             EE_CORE_ERROR(
-                "Particle sprite material: DXC compilation failed (rc={0}) for {1}.",
-                rc,
+                "Particle sprite material: DXC compilation failed for {}.",
                 name
             )
             result.Diagnostics = "DXC failed while compiling the particle sprite material.";
-            result.Material.reset();
-            return result;
-        }
-
-        // The generated pixel stage shares the existing Aether sprite vertex ABI.
-        // Put both stages in an isolated directory so ShaderLoader sees one shader.
-        const fs::path spriteVertexSpv = s_ShadersDir / "Aether" / "Sprite.vs.spirv";
-        fs::copy_file(
-            spriteVertexSpv,
-            loadDir / (name + ".vs.spirv"),
-            fs::copy_options::overwrite_existing,
-            error
-        );
-
-        if (error)
-        {
-            result.Diagnostics = "Could not prepare the particle sprite vertex shader.";
             result.Material.reset();
             return result;
         }

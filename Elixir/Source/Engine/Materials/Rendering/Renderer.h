@@ -253,6 +253,9 @@ namespace Elixir::Materials::Rendering
         static uint32_t GetPassOrder(EMaterialPass pass);
 
     private:
+        // Selects the shader variant that implements a material render pass.
+        static Compilation::EMaterialShaderVariant GetShaderVariant(EMaterialPass pass);
+
         /** Identifies the type of a cached descriptor binding. */
         enum class EDescriptorBindingType : uint8_t
         {

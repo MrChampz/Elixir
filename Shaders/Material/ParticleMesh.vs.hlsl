@@ -1,5 +1,5 @@
-// Template for EMaterialUsage::ParticleMesh. It mirrors Aether/Mesh.vs.hlsl
-// while exposing MaterialIndex and planar UVs to the generated fragment graph.
+// Shader variant for EMaterialUsage::Particle. It exposes MaterialIndex and
+// planar UVs to the generated fragment graph.
 
 float3x3 RotationX(float angle)
 {
@@ -73,6 +73,7 @@ struct VSOutput
     float3 WorldPos : POSITION0;
     float3 Normal   : NORMAL0;
     float2 TexCoord : TEXCOORD0;
+    float2 TexCoord1 : TEXCOORD1;
 };
 
 float Hash01(uint x)
@@ -114,6 +115,7 @@ VSOutput main(VSInput input)
     output.ClipPos = mul(ViewProj, float4(output.WorldPos, 1.0));
     output.Normal = normalize(mul((float3x3)pc.WorldTransform, localNormal));
     output.TexCoord = input.LocalPos.xy * 0.5f + 0.5f;
+    output.TexCoord1 = output.TexCoord;
 
     return output;
 }

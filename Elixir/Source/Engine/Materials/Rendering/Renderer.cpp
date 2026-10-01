@@ -127,7 +127,7 @@ namespace Elixir::Materials::Rendering
         if (!compiled || !compiled->SupportsUsage(usage))
             return std::nullopt;
 
-        const auto& shader = compiled->GetShader(usage);
+        const auto& shader = compiled->GetShader(GetShaderVariant(pass));
         if (!shader)
             return std::nullopt;
 
@@ -139,13 +139,31 @@ namespace Elixir::Materials::Rendering
         switch (pass)
         {
             case EMaterialPass::Surface:        return EMaterialUsage::Surface;
-            case EMaterialPass::ParticleSprite: return EMaterialUsage::ParticleSprite;
-            case EMaterialPass::ParticleRibbon: return EMaterialUsage::ParticleRibbon;
-            case EMaterialPass::ParticleMesh:   return EMaterialUsage::ParticleMesh;
+            case EMaterialPass::ParticleSprite:
+            case EMaterialPass::ParticleRibbon:
+            case EMaterialPass::ParticleMesh:   return EMaterialUsage::Particle;
         }
 
         EE_CORE_ASSERT(false, "Material pass does not have a material usage.")
-        return EMaterialUsage::ParticleSprite;
+        return EMaterialUsage::Particle;
+    }
+
+    Compilation::EMaterialShaderVariant Renderer::GetShaderVariant(const EMaterialPass pass)
+    {
+        switch (pass)
+        {
+            case EMaterialPass::Surface:
+                return Compilation::EMaterialShaderVariant::Surface;
+            case EMaterialPass::ParticleSprite:
+                return Compilation::EMaterialShaderVariant::ParticleSprite;
+            case EMaterialPass::ParticleRibbon:
+                return Compilation::EMaterialShaderVariant::ParticleRibbon;
+            case EMaterialPass::ParticleMesh:
+                return Compilation::EMaterialShaderVariant::ParticleMesh;
+        }
+
+        EE_CORE_ASSERT(false, "Material pass does not have a shader variant.")
+        return Compilation::EMaterialShaderVariant::ParticleSprite;
     }
 
     uint32_t Renderer::GetPassOrder(const EMaterialPass pass)
@@ -394,7 +412,7 @@ namespace Elixir::Materials::Rendering
             return std::nullopt;
 
         const auto compiled = request.Material->GetCompiledMaterial();
-        const auto& shader = compiled->GetShader(GetUsage(request.Pass));
+        const auto& shader = compiled->GetShader(GetShaderVariant(request.Pass));
 
         if (!BindDescriptorResources(shader, request))
             return std::nullopt;

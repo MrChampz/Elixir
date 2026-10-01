@@ -12,27 +12,14 @@ namespace Elixir::Aether::Effect
 {
     using namespace Elixir::Materials::Nodes;
 
-    EMaterialUsage GetMaterialUsage(const Core::EParticleRenderMode mode)
-    {
-        switch (mode)
-        {
-            case Core::EParticleRenderMode::Sprite: return EMaterialUsage::ParticleSprite;
-            case Core::EParticleRenderMode::Ribbon: return EMaterialUsage::ParticleRibbon;
-            case Core::EParticleRenderMode::Mesh:   return EMaterialUsage::ParticleMesh;
-        }
-
-        return EMaterialUsage::ParticleSprite;
-    }
-
     Ref<Material> CreateMaterial(
         std::string name,
-        const Core::EParticleRenderMode renderMode,
         const SMaterialDescription& desc
     )
     {
         const auto material = CreateRef<Material>(std::move(name));
 
-        auto result = material->SetUsage(GetMaterialUsage(renderMode), true);
+        auto result = material->SetUsage(EMaterialUsage::Particle, true);
         EE_CORE_ASSERT(result, "Particle material usage must be enabled.")
 
         result = material->SetBlendMode(EMaterialBlendMode::Translucent);
@@ -58,8 +45,7 @@ namespace Elixir::Aether::Effect
         );
         graph.SetChannel(EMaterialChannel::Emissive, emissive);
 
-        if (renderMode == Core::EParticleRenderMode::Sprite &&
-            !desc.BaseColorTexturePath.empty())
+        if (!desc.BaseColorTexturePath.empty())
         {
             constexpr auto texParam = "BaseColorTexture";
             const auto tex = TextureLoader::Load(desc.BaseColorTexturePath);

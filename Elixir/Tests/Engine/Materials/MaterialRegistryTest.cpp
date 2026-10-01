@@ -11,9 +11,7 @@ TEST(MaterialRegistryTest, RegistersAndFindsDefaultMaterials)
 
     for (const auto usage : {
         EMaterialUsage::Surface,
-        EMaterialUsage::ParticleSprite,
-        EMaterialUsage::ParticleRibbon,
-        EMaterialUsage::ParticleMesh
+        EMaterialUsage::Particle
     })
     {
         const auto& material = registry.GetDefault(usage);

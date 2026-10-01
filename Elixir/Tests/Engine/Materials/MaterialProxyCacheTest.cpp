@@ -76,7 +76,7 @@ TEST(MaterialProxyCacheTest, RebuildsTheProxyWhenTheParentMaterialRevisionChange
     const auto instance = CreateInstance();
 
     const auto first = cache.Resolve(instance);
-    ASSERT_TRUE(instance->GetParent()->SetUsage(EMaterialUsage::ParticleSprite, true));
+    ASSERT_TRUE(instance->GetParent()->SetUsage(EMaterialUsage::Particle, true));
     const auto rebuilt = cache.Resolve(instance);
 
     ASSERT_TRUE(first);

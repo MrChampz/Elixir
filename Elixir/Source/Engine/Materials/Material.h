@@ -18,14 +18,8 @@ namespace Elixir::Materials
         /** Material for surface geometry. */
         Surface = 0,
 
-        /** Material for particle sprites. */
-        ParticleSprite,
-
-        /** Material for particle ribbons. */
-        ParticleRibbon,
-
-        /** Material for particle meshes. */
-        ParticleMesh,
+        /** Material for every particle geometry mode. */
+        Particle,
 
         /** Number of supported usages. */
         Count

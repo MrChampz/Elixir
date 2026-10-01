@@ -48,7 +48,7 @@ namespace Elixir::Materials
             );
         }
 
-        Ref<Material> CreateDefaultSpriteMaterial()
+        Ref<Material> CreateDefaultParticleMaterial()
         {
             MaterialGraph graph;
 
@@ -66,38 +66,8 @@ namespace Elixir::Materials
             graph.SetChannel(EMaterialChannel::Opacity, opacity);
 
             return MakeMaterial(
-                "Engine.Materials.Defaults.ParticleSprite",
-                EMaterialUsage::ParticleSprite,
-                std::move(graph),
-                EMaterialBlendMode::Translucent
-            );
-        }
-
-        Ref<Material> CreateDefaultRibbonMaterial()
-        {
-            MaterialGraph graph;
-
-            const auto checkerboard = graph.AddNode<Checkerboard>(8.0f);
-            graph.SetChannel(EMaterialChannel::BaseColor, checkerboard);
-
-            return MakeMaterial(
-                "Engine.Materials.Defaults.ParticleRibbon",
-                EMaterialUsage::ParticleRibbon,
-                std::move(graph),
-                EMaterialBlendMode::Translucent
-            );
-        }
-
-        Ref<Material> CreateDefaultMeshMaterial()
-        {
-            MaterialGraph graph;
-
-            const auto checkerboard = graph.AddNode<Checkerboard>(8.0f);
-            graph.SetChannel(EMaterialChannel::BaseColor, checkerboard);
-
-            return MakeMaterial(
-                "Engine.Materials.Defaults.ParticleMesh",
-                EMaterialUsage::ParticleMesh,
+                "Engine.Materials.Defaults.Particle",
+                EMaterialUsage::Particle,
                 std::move(graph),
                 EMaterialBlendMode::Translucent
             );
@@ -108,9 +78,7 @@ namespace Elixir::Materials
     {
         return {
             CreateDefaultSurfaceMaterial(),
-            CreateDefaultSpriteMaterial(),
-            CreateDefaultRibbonMaterial(),
-            CreateDefaultMeshMaterial()
+            CreateDefaultParticleMaterial()
         };
     }
 }

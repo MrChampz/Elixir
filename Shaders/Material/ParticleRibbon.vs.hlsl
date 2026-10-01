@@ -1,4 +1,4 @@
-// Template for EMaterialUsage::ParticleRibbon.
+// Shader variant for EMaterialUsage::Particle.
 
 struct ParticleState
 {
@@ -52,6 +52,7 @@ struct VSOutput
     float4 ClipPos              : SV_POSITION;
     float2 TexCoord             : TEXCOORD0;
     nointerpolation float Valid : TEXCOORD1;
+    float2 TexCoord1            : TEXCOORD2;
     float3 WorldPos             : POSITION0;
 };
 
@@ -192,6 +193,7 @@ VSOutput EmptyVertex()
     output.ClipPos = float4(0.0, 0.0, 0.0, 1.0);
     output.TexCoord = float2(0.5, 0.0);
     output.Valid = 0.0;
+    output.TexCoord1 = float2(0.5, 0.0);
     output.WorldPos = float3(0.0, 0.0, 0.0);
     return output;
 }
@@ -271,6 +273,7 @@ VSOutput main(uint vertexId : SV_VertexID)
     output.ClipPos = mul(ViewProj, float4(output.WorldPos, 1.0));
     output.TexCoord = float2(usePositiveSide ? 1.0 : 0.0, useEndParticle ? 1.0 : 0.0);
     output.Valid = 1.0;
+    output.TexCoord1 = output.TexCoord;
 
     return output;
 }

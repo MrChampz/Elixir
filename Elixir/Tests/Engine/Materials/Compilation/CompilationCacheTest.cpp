@@ -11,7 +11,7 @@ TEST(CompilationCacheTest, ReusesACompiledMaterialUntilTheSourceRevisionChanges)
     CompilationCache cache{ nullptr };
     const auto material = CreateRef<Material>("Cache test");
 
-    ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleSprite, true));
+    ASSERT_TRUE(material->SetUsage(EMaterialUsage::Particle, true));
 
     const auto first = cache.GetOrCompile(material);
     const auto second = cache.GetOrCompile(material);
@@ -19,11 +19,11 @@ TEST(CompilationCacheTest, ReusesACompiledMaterialUntilTheSourceRevisionChanges)
     ASSERT_TRUE(first);
     EXPECT_EQ(first, second);
 
-    ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleRibbon, true));
+    ASSERT_TRUE(material->SetUsage(EMaterialUsage::Surface, true));
 
     const auto rebuilt = cache.GetOrCompile(material);
     ASSERT_TRUE(rebuilt);
 
     EXPECT_NE(first, rebuilt);
-    EXPECT_TRUE(rebuilt->SupportsUsage(EMaterialUsage::ParticleRibbon));
+    EXPECT_TRUE(rebuilt->SupportsUsage(EMaterialUsage::Surface));
 }

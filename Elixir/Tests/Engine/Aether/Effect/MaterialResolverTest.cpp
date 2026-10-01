@@ -28,12 +28,12 @@ TEST(MaterialResolverTest, CreatesAuthoredMaterialsAndUsesUsageDefaults)
     ASSERT_TRUE(resolver.Resolve(system));
 
     ASSERT_TRUE(sprite.GetMaterial());
-    EXPECT_NE(sprite.GetMaterial()->GetParent(), registry.GetDefault(EMaterialUsage::ParticleSprite));
+    EXPECT_NE(sprite.GetMaterial()->GetParent(), registry.GetDefault(EMaterialUsage::Particle));
 
-    EXPECT_TRUE(sprite.GetMaterial()->GetParent()->SupportsUsage(EMaterialUsage::ParticleSprite));
+    EXPECT_TRUE(sprite.GetMaterial()->GetParent()->SupportsUsage(EMaterialUsage::Particle));
 
     ASSERT_TRUE(ribbon.GetMaterial());
-    EXPECT_EQ(ribbon.GetMaterial()->GetParent(), registry.GetDefault(EMaterialUsage::ParticleRibbon));
+    EXPECT_EQ(ribbon.GetMaterial()->GetParent(), registry.GetDefault(EMaterialUsage::Particle));
 
     EXPECT_TRUE(resolver.Resolve(system));
 }

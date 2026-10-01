@@ -1,4 +1,4 @@
-// Template for EMaterialUsage::ParticleSprite. The generated graph body writes
+// Shader variant for EMaterialUsage::Particle. The generated graph body writes
 // Surface fields using UV, time, material values and textures.
 
 [[vk::binding(0, 0)]]
@@ -41,6 +41,7 @@ struct PSInput
 {
     float4 ClipPos       : SV_POSITION;
     float2 TexCoord      : TEXCOORD0;
+    float2 TexCoord1     : TEXCOORD1;
     float3 ViewPos       : POSITION0;
 };
 

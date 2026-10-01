@@ -36,15 +36,15 @@ TEST(RendererTest, MapsParticlePassesToMaterialUsages)
 {
     EXPECT_EQ(
         Renderer::GetUsage(EMaterialPass::ParticleSprite),
-        EMaterialUsage::ParticleSprite
+        EMaterialUsage::Particle
     );
     EXPECT_EQ(
         Renderer::GetUsage(EMaterialPass::ParticleRibbon),
-        EMaterialUsage::ParticleRibbon
+        EMaterialUsage::Particle
     );
     EXPECT_EQ(
         Renderer::GetUsage(EMaterialPass::ParticleMesh),
-        EMaterialUsage::ParticleMesh
+        EMaterialUsage::Particle
     );
 }
 

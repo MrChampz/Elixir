@@ -127,10 +127,10 @@ TEST(SystemTest, FindsNamedEmitterForMaterialPublication)
     EXPECT_EQ(system.FindEmitter("Missing"), nullptr);
 }
 
-TEST(SystemTest, CompilePublishesParticleSpriteMaterialInstance)
+TEST(SystemTest, CompilePublishesParticleMaterialInstance)
 {
     const auto material = CreateRef<Material>("Particle tint");
-    ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleSprite, true));
+    ASSERT_TRUE(material->SetUsage(EMaterialUsage::Particle, true));
     ASSERT_TRUE(material->DefineParameter("Tint", {
         .Kind = EMaterialParameterKind::Value,
         .ValueType = EMaterialValueType::Float4,
@@ -149,7 +149,7 @@ TEST(SystemTest, CompilePublishesParticleSpriteMaterialInstance)
     ASSERT_EQ(first.Emitters.size(), 1);
     ASSERT_TRUE(first.Emitters[0].Material);
     EXPECT_TRUE(first.Emitters[0].Material->GetParent()->SupportsUsage(
-        EMaterialUsage::ParticleSprite
+        EMaterialUsage::Particle
     ));
     EXPECT_EQ(first.Emitters[0].Material, instance);
     EXPECT_FLOAT_EQ(first.Emitters[0].Material->GetVector("Tint").x, 0.25f);
@@ -167,7 +167,7 @@ TEST(SystemTest, CompilePublishesParticleSpriteMaterialInstance)
 TEST(SystemTest, CompileSnapshotsParticleRibbonMaterialForRenderData)
 {
     const auto material = CreateRef<Material>("Particle ribbon");
-    ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleRibbon, true));
+    ASSERT_TRUE(material->SetUsage(EMaterialUsage::Particle, true));
 
     const auto system = CreateRef<System>("Ribbon material snapshot contract");
     auto& emitter = system->AddEmitter("Ribbon", 8, 0.0f);
@@ -181,14 +181,35 @@ TEST(SystemTest, CompileSnapshotsParticleRibbonMaterialForRenderData)
     ASSERT_EQ(compiled.Emitters.size(), 1);
     ASSERT_TRUE(compiled.Emitters[0].Material);
     EXPECT_TRUE(compiled.Emitters[0].Material->GetParent()->SupportsUsage(
-        EMaterialUsage::ParticleRibbon
+        EMaterialUsage::Particle
+    ));
+}
+
+TEST(SystemTest, CompilePreservesParticleMaterialWhenRenderModeChanges)
+{
+    const auto material = CreateRef<Material>("Particle material");
+    ASSERT_TRUE(material->SetUsage(EMaterialUsage::Particle, true));
+
+    const auto system = CreateRef<System>("Particle render mode contract");
+    auto& emitter = system->AddEmitter("Emitter", 8, 0.0f);
+    const auto instance = material->CreateInstance();
+    emitter.SetMaterial(instance);
+    emitter.SetRenderMode(EParticleRenderMode::Ribbon);
+
+    const auto compiled = Compile(system);
+
+    ASSERT_EQ(compiled.Emitters.size(), 1);
+    EXPECT_EQ(compiled.Emitters[0].RenderMode, EParticleRenderMode::Ribbon);
+    EXPECT_EQ(compiled.Emitters[0].Material, instance);
+    EXPECT_TRUE(compiled.Emitters[0].Material->GetParent()->SupportsUsage(
+        EMaterialUsage::Particle
     ));
 }
 
 TEST(SystemTest, CompileSnapshotsParticleMeshMaterialForRenderData)
 {
     const auto material = CreateRef<Material>("Particle mesh");
-    material->SetUsage(EMaterialUsage::ParticleMesh, true);
+    material->SetUsage(EMaterialUsage::Particle, true);
 
     const auto system = CreateRef<System>("Mesh material");
     auto& emitter = system->AddEmitter("Mesh", 8, 0.0f);
@@ -202,7 +223,7 @@ TEST(SystemTest, CompileSnapshotsParticleMeshMaterialForRenderData)
     ASSERT_EQ(compiled.Emitters.size(), 1);
     ASSERT_TRUE(compiled.Emitters[0].Material);
     EXPECT_TRUE(compiled.Emitters[0].Material->GetParent()->SupportsUsage(
-        EMaterialUsage::ParticleMesh
+        EMaterialUsage::Particle
     ));
 }
 
@@ -216,6 +237,6 @@ TEST(SystemTest, CompileAssignsTheDefaultMaterialWhenNoneIsExplicit)
     ASSERT_EQ(compiled.Emitters.size(), 1);
     ASSERT_TRUE(compiled.Emitters[0].Material);
     EXPECT_TRUE(compiled.Emitters[0].Material->GetParent()->SupportsUsage(
-        EMaterialUsage::ParticleSprite
+        EMaterialUsage::Particle
     ));
 }

@@ -28,7 +28,7 @@ namespace Elixir::Aether::Effect
                 material = m_Registry.Find(name);
                 if (!material)
                 {
-                    material = CreateMaterial(name, emitter->GetRenderMode(), *desc);
+                    material = CreateMaterial(name, *desc);
                     if (!m_Registry.Register(material))
                     {
                         EE_CORE_ERROR("Aether material '{}' could not be registered.", name)
@@ -38,7 +38,7 @@ namespace Elixir::Aether::Effect
             }
             else
             {
-                material = m_Registry.GetDefault(GetMaterialUsage(emitter->GetRenderMode()));
+                material = m_Registry.GetDefault(EMaterialUsage::Particle);
             }
 
             emitter->SetMaterial(material);

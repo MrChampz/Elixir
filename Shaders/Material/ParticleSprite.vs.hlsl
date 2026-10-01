@@ -1,3 +1,6 @@
+// Shader variant for EMaterialUsage::Particle. It shares sprite geometry while
+// exposing only the varyings used by material particle fragment shaders.
+
 #include "../Quad.hlsl"
 
 [[vk::binding(0, 0)]]
@@ -32,44 +35,37 @@ struct VSInput
 
 struct VSOutput
 {
-    float4 ClipPos       : SV_POSITION;
-    float4 Color         : COLOR;
-    float2 TexCoord      : TEXCOORD0;
-    float3 ViewPos       : POSITION0;
+    float4 ClipPos   : SV_POSITION;
+    float2 TexCoord  : TEXCOORD0;
+    float2 TexCoord1 : TEXCOORD1;
+    float3 ViewPos   : POSITION0;
 };
 
-// TODO: TEMP approximation, replace by a better solution!
 float MaxAxisScale(float4x4 transform)
 {
     return max(
         length(transform[0].xyz),
-        max(length(transform[1].xyz),length(transform[2].xyz))
+        max(length(transform[1].xyz), length(transform[2].xyz))
     );
 }
 
 VSOutput main(VSInput input, uint vertexId : SV_VertexID)
 {
     VSOutput output;
-
-    // Generate quad positions using bit manipulation
-    float2 normalizedPos = CalculateQuadPosition(vertexId % 6);
-
-    float size = input.PositionSize.w *
+    const float2 normalizedPos = CalculateQuadPosition(vertexId % 6);
+    const float size = input.PositionSize.w *
         max(input.Transform.y, 0.0f) *
         MaxAxisScale(pc.WorldTransform);
-
-    float3 worldPosition = mul(
+    const float3 worldPosition = mul(
         pc.WorldTransform,
         float4(input.PositionSize.xyz, 1.0f)
     ).xyz;
-
-    float3 viewPos = mul(View, float4(worldPosition, 1.0f)).xyz;
-    viewPos.xy += (normalizedPos - 0.5f) * size; // Center around origin
+    const float3 viewPos = mul(View, float4(worldPosition, 1.0f)).xyz +
+        float3((normalizedPos - 0.5f) * size, 0.0f);
 
     output.ClipPos = mul(Proj, float4(viewPos, 1.0f));
-    output.Color = input.Color;
     output.TexCoord = normalizedPos;
+    output.TexCoord1 = normalizedPos;
     output.ViewPos = viewPos;
-
     return output;
 }

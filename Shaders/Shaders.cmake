@@ -28,8 +28,8 @@ file(MAKE_DIRECTORY "${SHADER_STAGING_DIR}")
 
 # --- Collect shader sources ---
 
-file(GLOB_RECURSE HLSL_FILES "${SHADER_SOURCE_DIR}/*.hlsl")
-file(GLOB_RECURSE GLSL_FILES "${SHADER_SOURCE_DIR}/*.glsl")
+file(GLOB_RECURSE HLSL_FILES CONFIGURE_DEPENDS "${SHADER_SOURCE_DIR}/*.hlsl")
+file(GLOB_RECURSE GLSL_FILES CONFIGURE_DEPENDS "${SHADER_SOURCE_DIR}/*.glsl")
 
 # --- Separate compilable shaders from include/utility files ---
 # Compilable shaders have a stage suffix: Name.{vs,ps,cs,gs,hs,ds}.{hlsl,glsl}
@@ -201,14 +201,13 @@ function(copy_shaders_for_targets)
             COMMAND "${CMAKE_COMMAND}" -E copy_directory
                     "${SHADER_STAGING_DIR}"
                     "${TARGET_SHADER_DIR}"
-            # The node-graph material templates are compiled at runtime, so its HLSL
-            # sources must be available next to the compiled shaders.
+            # Runtime shader compilation needs templates and shared HLSL includes.
             COMMAND "${CMAKE_COMMAND}" -E copy_directory
-                    "${SHADER_SOURCE_DIR}/Material"
-                    "${TARGET_SHADER_DIR}/Material"
+                    "${SHADER_SOURCE_DIR}"
+                    "${TARGET_SHADER_DIR}"
             COMMAND "${CMAKE_COMMAND}" -E touch
                     "${CMAKE_CURRENT_BINARY_DIR}/${target}_copy_shaders.stamp"
-            DEPENDS ${ALL_SPIRV_OUTPUTS}
+            DEPENDS ${ALL_SPIRV_OUTPUTS} ${HLSL_FILES} ${GLSL_FILES}
             COMMENT "Copying compiled shaders to ${TARGET_SHADER_DIR}..."
             VERBATIM
         )

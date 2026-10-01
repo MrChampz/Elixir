@@ -23,7 +23,7 @@ namespace
 TEST(FrameTableTest, DeduplicatesAProxyAndPreservesItsValues)
 {
     auto material = CreateRef<Material>("Particle material");
-    ASSERT_TRUE(material->SetUsage(EMaterialUsage::ParticleSprite, true));
+    ASSERT_TRUE(material->SetUsage(EMaterialUsage::Particle, true));
     ASSERT_TRUE(material->DefineParameter("Tint", {
         .Kind = EMaterialParameterKind::Value,
         .ValueType = EMaterialValueType::Float4,

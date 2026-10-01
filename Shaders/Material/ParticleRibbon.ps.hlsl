@@ -1,4 +1,4 @@
-// Template for EMaterialUsage::ParticleRibbon. The generated graph body writes
+// Shader variant for EMaterialUsage::Particle. The generated graph body writes
 // Surface fields using UV, material values and textures.
 
 [[vk::binding(0, 0)]]
@@ -44,6 +44,7 @@ struct PSInput
     float4 ClipPos              : SV_POSITION;
     float2 TexCoord             : TEXCOORD0;
     nointerpolation float Valid : TEXCOORD1;
+    float2 TexCoord1            : TEXCOORD2;
     float3 WorldPos             : POSITION0;
 };
 

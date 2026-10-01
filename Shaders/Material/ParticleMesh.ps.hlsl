@@ -1,4 +1,4 @@
-// Template for EMaterialUsage::ParticleMesh. The generated graph body writes
+// Shader variant for EMaterialUsage::Particle. The generated graph body writes
 // Surface fields using planar UVs, time, material values and textures.
 
 [[vk::binding(0, 0)]]
@@ -43,6 +43,7 @@ struct PSInput
     float3 WorldPos : POSITION0;
     float3 Normal   : NORMAL0;
     float2 TexCoord : TEXCOORD0;
+    float2 TexCoord1 : TEXCOORD1;
 };
 
 static const float3 LIGHT_DIRECTION = float3(-0.45, 0.8, 0.55);

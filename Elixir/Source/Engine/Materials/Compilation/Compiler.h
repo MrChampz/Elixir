@@ -5,6 +5,15 @@
 
 namespace Elixir::Materials::Compilation
 {
+    /** @brief Identifies a shader variant produced for a compiled material. */
+    enum class EMaterialShaderVariant : uint8_t
+    {
+        Surface,
+        ParticleSprite,
+        ParticleRibbon,
+        ParticleMesh,
+    };
+
     /**
      * @brief Describes one material parameter in compiled GPU data.
      */
@@ -37,13 +46,13 @@ namespace Elixir::Materials::Compilation
         /** @brief Shader used by surface material rendering. */
         Ref<Shader> SurfaceShader;
 
-        /** @brief Shader used by particle sprite rendering. */
+        /** @brief Shader variant used by particle sprite rendering. */
         Ref<Shader> ParticleSpriteShader;
 
-        /** @brief Shader used by particle ribbon rendering. */
+        /** @brief Shader variant used by particle ribbon rendering. */
         Ref<Shader> ParticleRibbonShader;
 
-        /** @brief Shader used by particle mesh rendering. */
+        /** @brief Shader variant used by particle mesh rendering. */
         Ref<Shader> ParticleMeshShader;
 
         /** @brief Parameter layout shared by the material graph and GPU data. */
@@ -60,21 +69,21 @@ namespace Elixir::Materials::Compilation
         }
 
         /**
-         * @brief Gets the shader for a material usage.
-         * @param usage Material usage.
-         * @return The matching shader, or null for an unsupported usage.
+         * @brief Gets the shader for a compiled material variant.
+         * @param variant Shader variant.
+         * @return The matching shader, or null when the variant is unavailable.
          */
-        const Ref<Shader>& GetShader(const EMaterialUsage usage) const
+        const Ref<Shader>& GetShader(const EMaterialShaderVariant variant) const
         {
-            switch (usage)
+            switch (variant)
             {
-                case EMaterialUsage::Surface:
+                case EMaterialShaderVariant::Surface:
                     return SurfaceShader;
-                case EMaterialUsage::ParticleSprite:
+                case EMaterialShaderVariant::ParticleSprite:
                     return ParticleSpriteShader;
-                case EMaterialUsage::ParticleRibbon:
+                case EMaterialShaderVariant::ParticleRibbon:
                     return ParticleRibbonShader;
-                case EMaterialUsage::ParticleMesh:
+                case EMaterialShaderVariant::ParticleMesh:
                     return ParticleMeshShader;
                 default:
                     static const Ref<Shader> unsupportedUsageShader;
