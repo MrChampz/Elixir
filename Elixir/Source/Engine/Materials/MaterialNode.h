@@ -7,6 +7,7 @@ namespace Elixir::Materials
 {
     struct SMaterialGraphBindings;
     enum class EMaterialValueType : uint8_t;
+    enum class EMaterialUsage : uint8_t;
 
     /**
      * @brief Describes one input accepted by a material node.
@@ -58,6 +59,9 @@ namespace Elixir::Materials
          * @return True if the texture parameter exists.
          */
         virtual bool HasTextureParameter(std::string_view name) const = 0;
+
+        /** @brief Returns the renderer usage of the material being validated. */
+        virtual EMaterialUsage GetUsage() const = 0;
     };
 
     /**

@@ -40,8 +40,8 @@ namespace Elixir::Materials::Compilation
         /** @brief Source material revision used during compilation. */
         uint32_t MaterialRevision = 0;
 
-        /** @brief Bit mask of supported material usages. */
-        uint32_t UsageMask = 0;
+        /** @brief Renderer usage compiled for this material. */
+        EMaterialUsage Usage = EMaterialUsage::Surface;
 
         /** @brief Shader used by surface material rendering. */
         Ref<Shader> SurfaceShader;
@@ -58,15 +58,8 @@ namespace Elixir::Materials::Compilation
         /** @brief Parameter layout shared by the material graph and GPU data. */
         std::vector<SCompiledParameter> Parameters;
 
-        /**
-         * @brief Checks whether the compiled material supports a usage.
-         * @param usage Material usage to check.
-         * @return True when the usage is present in UsageMask.
-         */
-        bool SupportsUsage(const EMaterialUsage usage) const
-        {
-            return (UsageMask & GetMaterialUsageMask(usage)) != 0;
-        }
+        /** @brief Returns the renderer usage compiled for this material. */
+        EMaterialUsage GetUsage() const { return Usage; }
 
         /**
          * @brief Gets the shader for a compiled material variant.

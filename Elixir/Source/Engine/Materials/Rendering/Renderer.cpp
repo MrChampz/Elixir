@@ -131,7 +131,7 @@ namespace Elixir::Materials::Rendering
     {
         const auto usage = GetUsage(pass);
         const auto compiled = material.GetCompiledMaterial();
-        if (!compiled || !compiled->SupportsUsage(usage))
+        if (!compiled || compiled->GetUsage() != usage)
             return std::nullopt;
 
         const auto& shader = compiled->GetShader(GetShaderVariant(pass));

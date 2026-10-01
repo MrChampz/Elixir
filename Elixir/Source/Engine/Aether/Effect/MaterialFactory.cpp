@@ -6,6 +6,7 @@
 #include <Engine/Materials/Nodes/Multiply.h>
 #include <Engine/Materials/Nodes/Constant.h>
 #include <Engine/Materials/Nodes/ComponentMask.h>
+#include <Engine/Materials/Nodes/Color.h>
 #include <Engine/Materials/Nodes/TextureSample.h>
 
 namespace Elixir::Aether::Effect
@@ -17,12 +18,12 @@ namespace Elixir::Aether::Effect
         const SMaterialDescription& desc
     )
     {
-        const auto material = CreateRef<Material>(std::move(name));
+        const auto material = CreateRef<Material>(
+            std::move(name),
+            EMaterialUsage::Particle
+        );
 
-        auto result = material->SetUsage(EMaterialUsage::Particle, true);
-        EE_CORE_ASSERT(result, "Particle material usage must be enabled.")
-
-        result = material->SetBlendMode(EMaterialBlendMode::Translucent);
+        const auto result = material->SetBlendMode(EMaterialBlendMode::Translucent);
         EE_CORE_ASSERT(result, "Particle materials must enable translucent blending.")
 
         MaterialGraph graph;
@@ -45,6 +46,20 @@ namespace Elixir::Aether::Effect
         );
         graph.SetChannel(EMaterialChannel::Emissive, emissive);
 
+        const auto color = graph.AddNode<Color>();
+        const auto particleAlpha = graph.AddNode<ComponentMask>(3);
+        graph.Connect(color, particleAlpha, 0);
+
+        const auto coloredBase = graph.AddNode<Multiply>();
+        graph.Connect(baseColor, coloredBase, 0);
+        graph.Connect(color, coloredBase, 1);
+        graph.SetChannel(EMaterialChannel::BaseColor, coloredBase);
+
+        const auto coloredOpacity = graph.AddNode<Multiply>();
+        graph.Connect(opacity, coloredOpacity, 0);
+        graph.Connect(particleAlpha, coloredOpacity, 1);
+        graph.SetChannel(EMaterialChannel::Opacity, coloredOpacity);
+
         if (!desc.BaseColorTexturePath.empty())
         {
             constexpr auto texParam = "BaseColorTexture";
@@ -59,12 +74,12 @@ namespace Elixir::Aether::Effect
             graph.Connect(texture, alpha, 0);
 
             const auto baseColorMul = graph.AddNode<Multiply>();
-            graph.Connect(baseColor, baseColorMul, 0);
+            graph.Connect(coloredBase, baseColorMul, 0);
             graph.Connect(texture, baseColorMul, 1);
             graph.SetChannel(EMaterialChannel::BaseColor, baseColorMul);
 
             const auto opacityMul = graph.AddNode<Multiply>();
-            graph.Connect(opacity, opacityMul, 0);
+            graph.Connect(coloredOpacity, opacityMul, 0);
             graph.Connect(alpha, opacityMul, 1);
             graph.SetChannel(EMaterialChannel::Opacity, opacityMul);
         }

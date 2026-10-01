@@ -113,7 +113,7 @@ namespace Elixir::Materials::Compilation
         }
 
         const auto compiled = CreateRef<SCompiledMaterial>();
-        compiled->UsageMask = material.GetUsageMask();
+        compiled->Usage = material.GetUsage();
         compiled->MaterialRevision = material.GetRevision();
         compiled->Parameters = std::move(layout);
         return { .Material = compiled };
@@ -124,13 +124,13 @@ namespace Elixir::Materials::Compilation
         auto result = Build(material);
         if (!result) return result;
 
-        if (material.SupportsUsage(EMaterialUsage::Surface))
+        if (material.GetUsage() == EMaterialUsage::Surface)
         {
             result = CompileSurface(loader, material, std::move(result));
             if (!result) return result;
         }
 
-        if (material.SupportsUsage(EMaterialUsage::Particle))
+        if (material.GetUsage() == EMaterialUsage::Particle)
         {
             result = CompileParticleSprite(loader, material, std::move(result));
             if (!result) return result;

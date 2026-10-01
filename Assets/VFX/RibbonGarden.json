@@ -38,7 +38,7 @@
     {
       "name": "PathRibbon",
       "renderMode": "Ribbon",
-      "material": { "color": "$canopy_color_start", "emissive": [0.10, 0.25, 0.50, 0.0] },
+      "material": { "color": "$canopy_color_start", "emissive": [10.0, 25.0, 50.0, 0.0] },
       "maxParticles": 256,
       "spawnRate": "$spawn_rate",
       "parameters": {

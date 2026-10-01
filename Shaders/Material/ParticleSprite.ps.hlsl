@@ -43,6 +43,7 @@ struct PSInput
     float2 TexCoord      : TEXCOORD0;
     float2 TexCoord1     : TEXCOORD1;
     float3 ViewPos       : POSITION0;
+    float4 Color : COLOR;
 };
 
 struct Surface

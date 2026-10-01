@@ -8,9 +8,9 @@ namespace Elixir::Materials
     class MaterialInstance;
 
     /**
-     * @brief Identifies a shader permutation supported by a material.
+     * @brief Identifies the shader permutation used by a material.
      *
-     * A usage selects a renderer-specific implementation without changing the
+     * A usage selects one renderer-specific implementation without changing the
      * material graph or its parameter schema.
      */
     enum class EMaterialUsage : uint8_t
@@ -71,20 +71,24 @@ namespace Elixir::Materials
     };
 
     /**
-     * @brief Defines a material graph, parameter schema, and supported usages.
+     * @brief Defines a material graph, parameter schema, and render usage.
      *
      * Instances created from a material inherit its parameter definitions and
-     * default values. Changing the graph, schema, or usages increments the
+     * default values. Changing the graph, schema, or usage increments the
      * material revision.
      */
     class ELIXIR_API Material : public std::enable_shared_from_this<Material>
     {
     public:
         /**
-         * @brief Creates a material with a name.
+         * @brief Creates a material with a name and renderer usage.
          * @param name Material name.
+         * @param usage Renderer usage to compile and render for this material.
          */
-        explicit Material(std::string name) : m_Name(std::move(name)) {}
+        explicit Material(
+            std::string name,
+            EMaterialUsage usage = EMaterialUsage::Surface
+        ) : m_Name(std::move(name)), m_Usage(usage) {}
 
         /**
          * @brief Creates an instance of this material.
@@ -105,20 +109,8 @@ namespace Elixir::Materials
          */
         const MaterialGraph& GetGraph() const { return m_Graph; }
 
-        /**
-         * @brief Enables or disables a material usage.
-         * @param usage Usage to update.
-         * @param enabled Whether the usage is supported.
-         * @return `true` if the supported-usage set changed.
-         */
-        bool SetUsage(EMaterialUsage usage, bool enabled);
-
-        /**
-         * @brief Checks whether a material usage is supported.
-         * @param usage Usage to check.
-         * @return `true` if the usage is enabled.
-         */
-        bool SupportsUsage(EMaterialUsage usage) const;
+        /** @brief Returns the renderer usage for this material. */
+        EMaterialUsage GetUsage() const { return m_Usage; }
 
         /**
          * @brief Sets the lighting model used when rendering this material as a surface.
@@ -222,9 +214,6 @@ namespace Elixir::Materials
         /** @brief Returns the parameter schema. */
         const auto& GetParameters() const { return m_Parameters; }
 
-        /** @brief Returns the bit mask of supported usages. */
-        uint32_t GetUsageMask() const { return m_UsageMask; }
-
         /** @brief Returns the current material revision. */
         uint32_t GetRevision() const { return m_Revision; }
 
@@ -238,7 +227,7 @@ namespace Elixir::Materials
         std::string m_Name;
         MaterialGraph m_Graph;
         std::unordered_map<std::string, SMaterialParameterDefinition> m_Parameters;
-        uint32_t m_UsageMask = 0;
+        EMaterialUsage m_Usage = EMaterialUsage::Surface;
         EMaterialShadingModel m_ShadingModel = EMaterialShadingModel::Lit;
         EMaterialBlendMode m_BlendMode = EMaterialBlendMode::Opaque;
         bool m_DoubleSided = false;
@@ -246,13 +235,4 @@ namespace Elixir::Materials
         uint32_t m_Revision = 1;
     };
 
-    /**
-     * @brief Returns the bit mask for one material usage.
-     * @param usage Material usage.
-     * @return Bit mask that represents @p usage.
-     */
-    constexpr uint32_t GetMaterialUsageMask(const EMaterialUsage usage)
-    {
-        return 1u << static_cast<uint32_t>(usage);
-    }
 }

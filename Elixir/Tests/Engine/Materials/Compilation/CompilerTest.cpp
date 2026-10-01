@@ -32,17 +32,14 @@ TEST(CompilerTest, AssignsStableSlotsByParameterKindAndName)
     EXPECT_EQ(result.Material->Parameters[1].Slot, 0);
 }
 
-TEST(CompilerTest, PreservesEnabledRendererUsages)
+TEST(CompilerTest, CompilesOnlyTheSelectedRendererUsage)
 {
-    const auto material = CreateRef<Material>("Material");
-    ASSERT_TRUE(material->SetUsage(EMaterialUsage::Surface, true));
-    ASSERT_TRUE(material->SetUsage(EMaterialUsage::Particle, true));
+    const auto material = CreateRef<Material>("Material", EMaterialUsage::Particle);
 
     const auto result = Compiler::Build(*material);
 
     ASSERT_TRUE(result);
-    EXPECT_TRUE(result.Material->SupportsUsage(EMaterialUsage::Surface));
-    EXPECT_TRUE(result.Material->SupportsUsage(EMaterialUsage::Particle));
+    EXPECT_EQ(result.Material->GetUsage(), EMaterialUsage::Particle);
 }
 
 TEST(CompilerTest, DoesNotAliasParticleUsageShadersToSurfaceShader)

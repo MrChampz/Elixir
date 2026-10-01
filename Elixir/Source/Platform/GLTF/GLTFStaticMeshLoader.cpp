@@ -471,8 +471,7 @@ namespace Elixir
                 ? std::string(m_MeshName) + ".Material." + std::to_string(materialIndex)
                 : std::string(source.name);
 
-            const auto material = CreateRef<Material>(name);
-            material->SetUsage(EMaterialUsage::Surface, true);
+            const auto material = CreateRef<Material>(name, EMaterialUsage::Surface);
             material->SetBlendMode(GetBlendMode(source.alphaMode));
             material->SetDoubleSided(source.doubleSided);
 

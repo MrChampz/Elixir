@@ -4,6 +4,7 @@
 #include <Engine/Materials/Nodes/Add.h>
 #include <Engine/Materials/Nodes/Parameter.h>
 #include <Engine/Materials/Nodes/TextureSample.h>
+#include <Engine/Materials/Nodes/Color.h>
 
 using namespace Elixir;
 using namespace Elixir::Materials;
@@ -13,6 +14,7 @@ TEST(MaterialTest, StoresSurfaceShadingModel)
 {
     Material material("ClearCoated");
 
+    EXPECT_EQ(material.GetUsage(), EMaterialUsage::Surface);
     EXPECT_EQ(material.GetShadingModel(), EMaterialShadingModel::Lit);
 
     const auto revision = material.GetRevision();
@@ -116,6 +118,26 @@ TEST(MaterialTest, RejectsOverridesThatDoNotMatchTheSchema)
     EXPECT_FALSE(instance.SetScalar("Tint", 0.5f));
     EXPECT_TRUE(instance.SetVector("Tint", { 0.5f, 0.2f, 0.1f, 1.0f }));
     EXPECT_EQ(instance.GetRevision(), revision + 1);
+}
+
+TEST(MaterialTest, ColorNodeRequiresParticleUsage)
+{
+    MaterialGraph surfaceGraph;
+    surfaceGraph.SetChannel(EMaterialChannel::BaseColor, surfaceGraph.AddNode<Color>());
+
+    Material surfaceMaterial("Surface color");
+    surfaceMaterial.SetGraph(std::move(surfaceGraph));
+
+    std::string error;
+    EXPECT_FALSE(surfaceMaterial.ValidateGraph(&error));
+    EXPECT_NE(error.find("requires particle"), std::string::npos);
+
+    MaterialGraph particleGraph;
+    particleGraph.SetChannel(EMaterialChannel::BaseColor, particleGraph.AddNode<Color>());
+
+    Material particleMaterial("Particle color", EMaterialUsage::Particle);
+    particleMaterial.SetGraph(std::move(particleGraph));
+    EXPECT_TRUE(particleMaterial.ValidateGraph());
 }
 
 TEST(MaterialTest, ValidatesTextureSampleAgainstTextureParameter)

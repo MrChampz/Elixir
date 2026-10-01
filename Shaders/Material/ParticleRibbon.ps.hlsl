@@ -46,6 +46,7 @@ struct PSInput
     nointerpolation float Valid : TEXCOORD1;
     float2 TexCoord1            : TEXCOORD2;
     float3 WorldPos             : POSITION0;
+    float4 Color                : COLOR;
 };
 
 struct Surface

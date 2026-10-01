@@ -30,7 +30,7 @@ TEST(MaterialResolverTest, CreatesAuthoredMaterialsAndUsesUsageDefaults)
     ASSERT_TRUE(sprite.GetMaterial());
     EXPECT_NE(sprite.GetMaterial()->GetParent(), registry.GetDefault(EMaterialUsage::Particle));
 
-    EXPECT_TRUE(sprite.GetMaterial()->GetParent()->SupportsUsage(EMaterialUsage::Particle));
+    EXPECT_EQ(sprite.GetMaterial()->GetParent()->GetUsage(), EMaterialUsage::Particle);
 
     ASSERT_TRUE(ribbon.GetMaterial());
     EXPECT_EQ(ribbon.GetMaterial()->GetParent(), registry.GetDefault(EMaterialUsage::Particle));

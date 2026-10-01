@@ -44,6 +44,7 @@ struct PSInput
     float3 Normal   : NORMAL0;
     float2 TexCoord : TEXCOORD0;
     float2 TexCoord1 : TEXCOORD1;
+    float4 Color : COLOR;
 };
 
 static const float3 LIGHT_DIRECTION = float3(-0.45, 0.8, 0.55);

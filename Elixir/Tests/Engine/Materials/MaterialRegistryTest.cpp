@@ -17,7 +17,7 @@ TEST(MaterialRegistryTest, RegistersAndFindsDefaultMaterials)
         const auto& material = registry.GetDefault(usage);
         ASSERT_TRUE(material);
         EXPECT_EQ(registry.Find(material->GetName()), material);
-        EXPECT_TRUE(material->SupportsUsage(usage));
+        EXPECT_EQ(material->GetUsage(), usage);
         EXPECT_TRUE(material->ValidateGraph());
         EXPECT_TRUE(material->GetParameters().empty());
     }

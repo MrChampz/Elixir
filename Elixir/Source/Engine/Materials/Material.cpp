@@ -16,26 +16,6 @@ namespace Elixir::Materials
         ++m_Revision;
     }
 
-    bool Material::SetUsage(const EMaterialUsage usage, const bool enabled)
-    {
-        const uint32_t mask = GetMaterialUsageMask(usage);
-        const uint32_t updatedMask = enabled
-            ? m_UsageMask | mask
-            : m_UsageMask & ~mask;
-
-        if (updatedMask == m_UsageMask)
-            return false;
-
-        m_UsageMask = updatedMask;
-        ++m_Revision;
-        return true;
-    }
-
-    bool Material::SupportsUsage(const EMaterialUsage usage) const
-    {
-        return (m_UsageMask & GetMaterialUsageMask(usage)) != 0;
-    }
-
     bool Material::SetShadingModel(EMaterialShadingModel model)
     {
         if (m_ShadingModel == model)
@@ -144,6 +124,11 @@ namespace Elixir::Materials
             {
                 const auto* parameter = m_Material.FindParameter(std::string(name));
                 return parameter && parameter->Kind == EMaterialParameterKind::Texture;
+            }
+
+            EMaterialUsage GetUsage() const override
+            {
+                return m_Material.GetUsage();
             }
 
         private:

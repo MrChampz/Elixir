@@ -20,6 +20,7 @@
 #include <Engine/Materials/Nodes/Subtract.h>
 #include <Engine/Materials/Nodes/TexCoord.h>
 #include <Engine/Materials/Nodes/TextureSample.h>
+#include <Engine/Materials/Nodes/Color.h>
 
 using namespace Elixir;
 using namespace Elixir::Materials;
@@ -100,6 +101,16 @@ TEST(MaterialGraphTest, RoutesTextureAlphaToOpacity)
     EXPECT_NE(hlsl.find("surface.Opacity"), std::string::npos);
     EXPECT_NE(hlsl.find("SampleTex"), std::string::npos);
     EXPECT_NE(hlsl.find(".w"), std::string::npos);
+}
+
+TEST(MaterialGraphTest, EmitsColor)
+{
+    MaterialGraph graph;
+    graph.SetChannel(EMaterialChannel::BaseColor, graph.AddNode<Color>());
+
+    const auto hlsl = graph.GenerateHLSL();
+
+    EXPECT_NE(hlsl.find("input.Color"), std::string::npos);
 }
 
 TEST(MaterialGraphTest, RoutesSpecularInputs)

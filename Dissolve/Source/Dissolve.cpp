@@ -1,5 +1,6 @@
 #include "Dissolve.h"
 
+#include "Engine/Materials/Nodes/Color.h"
 #include "Engine/Materials/Nodes/Parameter.h"
 
 #include <Engine/Core/Entrypoint.h>
@@ -84,11 +85,7 @@ Dissolve::Dissolve()
     {
         MaterialGraph graph;
 
-        graphMaterial = CreateRef<Material>("DissolveGraph");
-        EE_CORE_ASSERT(
-            graphMaterial->SetUsage(EMaterialUsage::Particle, true),
-            "Dissolve graph material must enable Particle usage."
-        )
+        graphMaterial = CreateRef<Material>("DissolveGraph", EMaterialUsage::Particle);
         EE_CORE_ASSERT(
             graphMaterial->SetBlendMode(EMaterialBlendMode::Translucent),
             "Dissolve graph material must enable translucent blending."
@@ -140,11 +137,7 @@ Dissolve::Dissolve()
     {
         MaterialGraph graph1;
 
-        const auto ribbonMaterial = CreateRef<Material>("RibbonEnergy");
-        EE_CORE_ASSERT(
-            ribbonMaterial->SetUsage(EMaterialUsage::Particle, true),
-            "Ribbon material must enable Particle usage."
-        )
+        const auto ribbonMaterial = CreateRef<Material>("RibbonEnergy", EMaterialUsage::Particle);
         EE_CORE_ASSERT(
             ribbonMaterial->SetBlendMode(EMaterialBlendMode::Translucent),
             "Ribbon material must enable translucent blending."
@@ -153,34 +146,20 @@ Dissolve::Dissolve()
         EE_CORE_ASSERT(ribbonMaterial->DefineParameter("Tint", {
             .Kind = EMaterialParameterKind::Value,
             .ValueType = EMaterialValueType::Float4,
-            .DefaultValue = SMaterialParameter::MakeVector({ 0.2f, 0.5f, 1.0f, 1.0f }),
+            .DefaultValue = SMaterialParameter::MakeVector({ 1.0f, 1.0f, 1.0f, 1.0f }),
         }), "")
 
-        EE_CORE_ASSERT(ribbonMaterial->DefineParameter("Glow", {
-            .Kind = EMaterialParameterKind::Value,
-            .ValueType = EMaterialValueType::Float4,
-            .DefaultValue = SMaterialParameter::MakeVector({ 0.05f, 0.2f, 1.0f, 1.0f }),
-        }), "")
-
-        EE_CORE_ASSERT(ribbonMaterial->DefineParameter("Albedo", {
-            .Kind = EMaterialParameterKind::Texture,
-            .DefaultValue = SMaterialParameter::MakeTexture(tex),
-        }), "")
-
-        const auto panner = graph1.AddNode<Panner>(glm::vec2{ 0.08f, -0.35f });
-
-        const auto albedo1 = graph1.AddNode<TextureSample>("Albedo");
-        graph1.Connect(panner, albedo1, 0);
-
-        const auto tint1 = graph1.AddNode<Parameter>(
+        const auto tint = graph1.AddNode<Parameter>(
             "Tint",
             EMaterialValueType::Float4
         );
 
+        const auto color = graph1.AddNode<Nodes::Color>();
+
         const auto multiply = graph1.AddNode<Multiply>();
-        graph1.Connect(albedo1, multiply, 0);
-        graph1.Connect(tint1, multiply, 1);
-        graph1.SetChannel(EMaterialChannel::BaseColor, albedo1);
+        graph1.Connect(tint, multiply, 0);
+        graph1.Connect(color, multiply, 1);
+        graph1.SetChannel(EMaterialChannel::BaseColor, multiply);
 
         // const auto glow = graph1.AddNode<Parameter>("Glow", EMaterialValueType::Float4);
         //graph1.SetChannel(EMaterialChannel::Emissive, glow);
@@ -188,22 +167,10 @@ Dissolve::Dissolve()
         ribbonMaterial->SetGraph(std::move(graph1));
         EE_CORE_ASSERT(GetMaterialRegistry().Register(ribbonMaterial), "RibbonEnergy must be unique.")
 
-        const auto instance = ribbonMaterial->CreateInstance();
-        EE_CORE_ASSERT(
-            instance->SetVector("Tint", { 0.15f, 0.6f, 1.0f, 1.0f }),
-            "Ribbon tint override must match the schema."
-        )
-
         if (auto* emitter = m_ParticleSystems[1]->FindEmitter("PathRibbon"))
         {
-            emitter->SetMaterial(instance);
+            //emitter->SetMaterial(ribbonMaterial);
             EE_CORE_INFO("Published graph material to the PathRibbon particle emitter.")
-        }
-
-        if (auto* emitter = m_ParticleSystems[1]->FindEmitter("CrystalShards"))
-        {
-            emitter->SetMaterial(instance);
-            EE_CORE_INFO("Published graph material to the CrystalShards particle emitter.")
         }
     }
 

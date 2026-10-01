@@ -39,6 +39,7 @@ struct VSOutput
     float2 TexCoord  : TEXCOORD0;
     float2 TexCoord1 : TEXCOORD1;
     float3 ViewPos   : POSITION0;
+    float4 Color : COLOR;
 };
 
 float MaxAxisScale(float4x4 transform)
@@ -67,5 +68,6 @@ VSOutput main(VSInput input, uint vertexId : SV_VertexID)
     output.TexCoord = normalizedPos;
     output.TexCoord1 = normalizedPos;
     output.ViewPos = viewPos;
+    output.Color = input.Color;
     return output;
 }

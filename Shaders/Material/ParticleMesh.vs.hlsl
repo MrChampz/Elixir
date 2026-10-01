@@ -64,6 +64,7 @@ struct VSInput
     float4 VelocityAge     : TEXCOORD0;
     float4 Transform       : TEXCOORD1;
     float4 TangentRibbonId : TANGENT;
+    float4 Color           : COLOR;
     float4 Metadata        : TEXCOORD2;
 };
 
@@ -74,6 +75,7 @@ struct VSOutput
     float3 Normal   : NORMAL0;
     float2 TexCoord : TEXCOORD0;
     float2 TexCoord1 : TEXCOORD1;
+    float4 Color : COLOR;
 };
 
 float Hash01(uint x)
@@ -116,6 +118,7 @@ VSOutput main(VSInput input)
     output.Normal = normalize(mul((float3x3)pc.WorldTransform, localNormal));
     output.TexCoord = input.LocalPos.xy * 0.5f + 0.5f;
     output.TexCoord1 = output.TexCoord;
+    output.Color = input.Color;
 
     return output;
 }

@@ -54,6 +54,7 @@ struct VSOutput
     nointerpolation float Valid : TEXCOORD1;
     float2 TexCoord1            : TEXCOORD2;
     float3 WorldPos             : POSITION0;
+    float4 Color                : COLOR;
 };
 
 float3 SafeNormalize(float3 value, float3 fallback)
@@ -195,6 +196,7 @@ VSOutput EmptyVertex()
     output.Valid = 0.0;
     output.TexCoord1 = float2(0.5, 0.0);
     output.WorldPos = float3(0.0, 0.0, 0.0);
+    output.Color = float4(0.0, 0.0, 0.0, 0.0);
     return output;
 }
 
@@ -274,6 +276,7 @@ VSOutput main(uint vertexId : SV_VertexID)
     output.TexCoord = float2(usePositiveSide ? 1.0 : 0.0, useEndParticle ? 1.0 : 0.0);
     output.Valid = 1.0;
     output.TexCoord1 = output.TexCoord;
+    output.Color = useEndParticle ? endParticle.Color : startParticle.Color;
 
     return output;
 }
