@@ -38,10 +38,15 @@ namespace Elixir::Vulkan
         );
     }
 
-    void VulkanBaseDescriptorPool::DestroyPool() const
+    void VulkanBaseDescriptorPool::DestroyPool()
     {
         EE_PROFILE_ZONE_SCOPED()
+
+        if (m_Pool == VK_NULL_HANDLE)
+            return;
+
         vkDestroyDescriptorPool(m_GraphicsContext->GetDevice(), m_Pool, nullptr);
+        m_Pool = VK_NULL_HANDLE;
     }
 
     /* VulkanDescriptorPool */
@@ -398,8 +403,8 @@ namespace Elixir::Vulkan
 
         for (const auto& texture : textures)
         {
-            const auto vkTexture = TryToGetVulkanImage(texture.get());
-            imageInfos.push_back(vkTexture->GetVulkanDescriptorInfo());
+            const auto image = TryToGetVulkanImage(texture->GetImage().get());
+            imageInfos.push_back(image->GetVulkanDescriptorInfo());
 
             VkWriteDescriptorSet writeSet = {};
             writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

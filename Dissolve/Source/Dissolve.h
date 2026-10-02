@@ -2,10 +2,7 @@
 
 #include <Engine.h>
 
-struct SFrameData
-{
-    glm::mat4 ViewProj;
-};
+#include "Environment.h"
 
 class Dissolve final : public Elixir::Application
 {
@@ -14,18 +11,17 @@ public:
     ~Dissolve() override;
 
     void OnGUI(Timestep frameTime) override;
-    void OnRender(Timestep frameTime) override;
+    void Prepare(Timestep frameTime) override;
+    void Render(Timestep frameTime) override;
 
     void OnEvent(Event& event) override;
 
 private:
     void DrawGeometry();
 
-    WaitGroup m_WaitGroup;
-    Extent2D m_DrawExtent;
+    Scope<Environment> m_Environment;
 
-    SFrameData m_FrameData;
-    Ref<UniformBuffer> m_FrameConstantBuffer;
+    Scope<StaticMeshRenderer> m_StaticMeshRenderer;
 
     Scope<ArcBallCameraController> m_CameraController;
 };

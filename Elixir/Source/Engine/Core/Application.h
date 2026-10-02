@@ -13,6 +13,20 @@
 namespace Elixir
 {
     namespace GUI { class TextBlock; }
+    namespace Aether { class Manager; }
+
+    namespace Materials
+    {
+        class MaterialSystem;
+        class MaterialRegistry;
+    }
+
+    class PostProcessor;
+}
+
+namespace Elixir
+{
+    using namespace Elixir::Materials;
 
     class ELIXIR_API Application
     {
@@ -23,23 +37,50 @@ namespace Elixir
         void Run();
 
         virtual void OnGUI(Timestep frameTime) {}
-        virtual void OnRender(Timestep frameTime) {}
+
+        // Runs on the application thread before its render task is queued.
+        // Implementations must not record GPU commands from this method.
+        virtual void Prepare(Timestep frameTime) {}
+
+        virtual void Render(Timestep frameTime) {}
         virtual void OnEvent(Event& event);
 
-        [[nodiscard]] const Window* GetWindow() const { return m_Window.get(); }
+        const Window* GetWindow() const { return m_Window.get(); }
+
+        MaterialSystem& GetMaterialSystem();
+        const MaterialSystem& GetMaterialSystem() const;
+
+        MaterialRegistry& GetMaterialRegistry();
+        const MaterialRegistry& GetMaterialRegistry() const;
+
+        Aether::Manager& GetAetherManager();
+        const Aether::Manager& GetAetherManager() const;
 
         static Application& Get() { return *s_Application; }
 
     protected:
         bool OnWindowClose(WindowCloseEvent& event);
         bool OnWindowResize(WindowResizeEvent& event);
+        bool OnFramebufferResize(const FramebufferResizeEvent& event);
+
+        // Creates the application-owned HDR target used by world renderers.
+        void CreateSceneTarget(const Extent3D& extent);
 
         Executor& m_Executor;
         Scope<Window> m_Window;
         Scope<GraphicsContext> m_GraphicsContext;
 
+        Ref<Image> m_SceneTarget;
+
         Scope<ShaderLoader> m_ShaderLoader;
         Scope<GUI::Manager> m_GUIManager;
+
+        Scope<MaterialSystem> m_MaterialSystem;
+        Scope<MaterialRegistry> m_MaterialRegistry;
+
+        Scope<Aether::Manager> m_AetherManager;
+
+        Ref<PostProcessor> m_PostProcessor;
 
         Timer m_Timer;
         FrameProfiler m_Profiler;

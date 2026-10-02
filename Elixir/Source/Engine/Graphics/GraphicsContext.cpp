@@ -5,6 +5,16 @@
 
 namespace Elixir
 {
+    void GraphicsContext::Clear()
+    {
+        ClearImage(m_RenderTarget);
+    }
+
+    void GraphicsContext::Clear(const Ref<Image>& image)
+    {
+        ClearImage(image);
+    }
+
     float GraphicsContext::GetDPIScale() const
     {
         return m_Window->GetDPIScale();

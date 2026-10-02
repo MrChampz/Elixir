@@ -21,6 +21,11 @@ namespace Elixir
         }
     }
 
+    bool Shader::HasBinding(const std::string& name) const
+    {
+        return GetShaderBinding(name) != nullptr;
+    }
+
     Ref<Texture> Shader::GetTexture(const std::string& name) const
     {
         if (const auto binding = GetShaderBinding(name))

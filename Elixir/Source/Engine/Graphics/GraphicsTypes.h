@@ -3,7 +3,6 @@
 namespace Elixir
 {
     class Image;
-    class DepthStencilImage;
 
     enum class EPrimitiveTopology : uint8_t
     {
@@ -234,10 +233,14 @@ namespace Elixir
 
     struct SRenderingInfo
     {
+        /** Image receiving color output. */
         Ref<Image> ColorAttachment;
-        Ref<DepthStencilImage> DepthStencilAttachment = nullptr;
+
+        /** Optional image used for depth and stencil testing. */
+        Ref<Image> DepthStencilAttachment = nullptr;
+
         float DepthClearValue = 1.0f;
+
         Extent2D RenderArea;
     };
 }
-

@@ -60,15 +60,28 @@ namespace Elixir::Vulkan
 
         void RenderFrame(std::function<void()> callback) override;
         void DrainRenderQueue() override;
+        bool EnqueueRenderTask(std::function<void()> task) const override;
+        bool RunRenderTaskAndWait(std::function<void()> task) const override;
+        bool DeferResourceRelease(std::function<void()> task) const override;
+        bool IsRenderThread() const override;
+        bool IsFrameRecording() const override { return m_IsFrameRecording; }
+        void WaitForSubmittedFrames() const override;
 
         void SetClearColor(const glm::vec4& color) override;
-        void Clear() override;
 
         void Resize(Extent2D extent) override;
 
         Ref<CommandBuffer> GetSecondaryCommandBuffer() const override;
         Ref<CommandBuffer> GetUploadCommandBuffer() const override;
         void EnqueueSecondaryCommandBuffer(const Ref<CommandBuffer>& cmd) const override;
+
+        void WaitDeviceIdle() const override;
+
+        /**
+         * @brief Defers native image destruction until every frame that can use it has
+         * completed.
+         */
+        void RetireImage(VkImageView imageView, VkImage image, VmaAllocation allocation) const;
 
         Extent3D GetSwapchainExtent() const override { return m_SwapchainExtent;}
 
@@ -101,16 +114,14 @@ namespace Elixir::Vulkan
         void DestroySwapchain();
         void RecreateSwapchain();
 
+        void ClearImage(const Ref<Image>& image) override;
         void CreateRenderTargets() override;
 
-        void WaitDeviceIdle() const;
-        void WaitForAllFrames();
+        void ResetFrameUsageState();
 
         bool Prepare();
         void Submit();
         void Present();
-
-        bool HandleFramebufferResize(const FramebufferResizeEvent& event);
 
         bool m_IsInitialized = false;
 
@@ -146,8 +157,9 @@ namespace Elixir::Vulkan
 
         Scope<VulkanCommandPoolManager> m_CommandPoolManager;
         Ref<VulkanCommandBuffer> m_MainCommandBuffer;
+        bool m_IsFrameRecording = false;
 
-        std::vector<SFrameData> m_Frames;
+        mutable std::vector<SFrameData> m_Frames;
         VkClearColorValue m_ClearColor;
 
         SDeletionQueue m_DeletionQueue;

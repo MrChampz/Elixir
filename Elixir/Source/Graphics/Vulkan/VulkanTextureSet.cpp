@@ -1,7 +1,7 @@
 #include "epch.h"
 #include "VulkanTextureSet.h"
 
-#include <Graphics/Vulkan/VulkanTexture.h>
+#include <Engine/Graphics/Texture.h>
 #include <Graphics/Vulkan/VulkanShader.h>
 #include <Graphics/Vulkan/VulkanGraphicsContext.h>
 #include <Graphics/Vulkan/Utils.h>

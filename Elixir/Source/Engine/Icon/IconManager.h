@@ -48,7 +48,7 @@ namespace Elixir
          * @param path Local icon file.
          * @return Icon, or nullptr when no loader accepts the file.
          */
-        static Ref<Icon> Load(const std::filesystem::path& path);
+        static Ref<::Icon> Load(const std::filesystem::path& path);
 
       private:
         static std::optional<EIconFormat> InferFormat(const std::filesystem::path& path);

@@ -2,6 +2,7 @@
 
 #include "../EditorPanel.h"
 
+#include <Engine/GUI/Icon.h>
 #include <Engine/GUI/WidgetAnimation.h>
 
 #include <vector>

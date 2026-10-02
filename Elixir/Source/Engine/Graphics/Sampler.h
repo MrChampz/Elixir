@@ -46,7 +46,7 @@ namespace Elixir
         bool CompareEnable                  = false;
         ECompareOp CompareOp                = ECompareOp::Always;
         float MinLod                        = 0.0f;
-        float MaxLod                        = 0.0f;
+        float MaxLod                        = 1000.0f;
         ESamplerBorderColor BorderColor     = ESamplerBorderColor::FloatTransparentBlack;
         bool UnnormalizedCoordinates        = false;
     };

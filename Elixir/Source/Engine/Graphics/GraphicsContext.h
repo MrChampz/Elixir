@@ -8,8 +8,7 @@ namespace Elixir
 {
     class Executor;
     class Window;
-    class DepthStencilImage;
-    class Texture2D;
+    class Image;
     class CommandBuffer;
     class Pipeline;
 
@@ -33,8 +32,53 @@ namespace Elixir
         virtual void RenderFrame(std::function<void()> callback) = 0;
         virtual void DrainRenderQueue() = 0;
 
+        /** @brief Queues a task that must run on the rendering thread. */
+        virtual bool EnqueueRenderTask(std::function<void()> task) const = 0;
+
+        /** @brief Runs a rendering-thread task and waits until it completes. */
+        virtual bool RunRenderTaskAndWait(std::function<void()> task) const = 0;
+
+        /**
+         * @brief Runs a resource-release task after submitted frames complete.
+         *
+         * Backends can defer the task without blocking. The default implementation waits
+         * for submitted frames and then runs the task.
+         * @param task Resource-release task.
+         * @return True when the task was accepted.
+         */
+        virtual bool DeferResourceRelease(std::function<void()> task) const
+        {
+            if (!task) return false;
+
+            WaitForSubmittedFrames();
+            task();
+            return true;
+        }
+
+        /** @brief Reports whether the caller is the rendering thread for this context. */
+        virtual bool IsRenderThread() const = 0;
+
+        /** @brief Reports whether the rendering thread is currently recording a frame. */
+        virtual bool IsFrameRecording() const = 0;
+
+        /**
+         * @brief Waits for submitted rendering frames without waiting for unrelated GPU work.
+         *
+         * Resource operations that read or change an image already used by a frame must call
+         * this before recording conflicting commands.
+         */
+        virtual void WaitForSubmittedFrames() const = 0;
+
         virtual void SetClearColor(const glm::vec4& color) = 0;
-        virtual void Clear() = 0;
+
+        /** @brief Clears the context-owned LDR render target with the configured clear color. */
+        void Clear();
+
+        /**
+         * @brief Clears a color target with the configured clear color.
+         * @param image Target image to clear; it must be in the General layout.
+         */
+        void Clear(const Ref<Image>& image);
 
         virtual void Resize(Extent2D extent) = 0;
 
@@ -56,7 +100,12 @@ namespace Elixir
         virtual Ref<CommandBuffer> GetUploadCommandBuffer() const = 0;
         virtual void EnqueueSecondaryCommandBuffer(const Ref<CommandBuffer>& cmd) const = 0;
 
-        [[nodiscard]] EGraphicsAPI GetAPI() const { return m_API; }
+        /**
+         * Block until the GPU has finished all submitted work.
+         */
+        virtual void WaitDeviceIdle() const {}
+
+        EGraphicsAPI GetAPI() const { return m_API; }
 
         const Window* GetWindow() const { return m_Window; }
         float GetDPIScale() const;
@@ -67,25 +116,28 @@ namespace Elixir
          * The number of frames being processed at a concurrent time. Double buffering.
          * @return the number of frames.
          */
-        [[nodiscard]] uint32_t GetFramesInFlight() const { return m_FramesInFlight; }
+        uint32_t GetFramesInFlight() const { return m_FramesInFlight; }
 
         /**
          * Returns the number of frames rendered since the app started.
          * @return the number of frames since app start.
          */
-        [[nodiscard]] uint32_t GetFrameNumber() const { return m_FrameNumber; }
+        uint32_t GetFrameNumber() const { return m_FrameNumber; }
 
         /**
          * Returns the index of the current frame.
          * @return the index of the current frame.
          */
-        [[nodiscard]] uint32_t GetFrameIndex() const { return m_FrameNumber % m_FramesInFlight; }
+        uint32_t GetFrameIndex() const { return m_FrameNumber % m_FramesInFlight; }
 
         virtual void SetVSyncEnabled(const bool enabled) { m_VSyncEnabled = enabled; }
         bool IsVSyncEnabled() const { return m_VSyncEnabled; }
 
-        Ref<Texture2D> GetRenderTarget() const { return m_RenderTarget; }
-        Ref<DepthStencilImage> GetDepthStencilRenderTarget() const { return m_DepthStencilRenderTarget; }
+        /** Returns the frame's color attachment as an image resource. */
+        Ref<Image> GetRenderTarget() const { return m_RenderTarget; }
+        
+        /** Returns the frame's depth/stencil attachment as an image resource. */
+        Ref<Image> GetDepthStencilRenderTarget() const { return m_DepthStencilRenderTarget; }
 
         virtual Extent3D GetSwapchainExtent() const = 0;
 
@@ -99,6 +151,7 @@ namespace Elixir
         }
 
       private:
+        virtual void ClearImage(const Ref<Image>& image) = 0;
         virtual void CreateRenderTargets() = 0;
 
       protected:
@@ -107,8 +160,8 @@ namespace Elixir
 
         EGraphicsAPI m_API;
         const Window* m_Window;
-        Ref<Texture2D> m_RenderTarget;
-        Ref<DepthStencilImage> m_DepthStencilRenderTarget;
+        Ref<Image> m_RenderTarget;
+        Ref<Image> m_DepthStencilRenderTarget;
         Scope<ShaderBackend> m_ShaderBackend = nullptr;
 
         bool m_VSyncEnabled = false;

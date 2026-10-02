@@ -1,32 +1,34 @@
 #pragma once
 
+#include <Engine/Graphics/Sampler.h>
+
 namespace Elixir
 {
-    class ELIXIR_API SamplerBuilder
+    class ELIXIR_API SamplerBuilder final
     {
       public:
         SamplerBuilder();
 
-        virtual Ref<Sampler> Build(const GraphicsContext* context);
-        virtual SamplerBuilder& Clear();
+        Ref<Sampler> Build(const GraphicsContext* context);
+        SamplerBuilder& Clear();
 
-        virtual SamplerBuilder& SetMagFilter(ESamplerFilter filter);
-        virtual SamplerBuilder& SetMinFilter(ESamplerFilter filter);
+        SamplerBuilder& SetMagFilter(ESamplerFilter filter);
+        SamplerBuilder& SetMinFilter(ESamplerFilter filter);
 
-        virtual SamplerBuilder& SetMipmapMode(ESamplerMipmapMode mode);
+        SamplerBuilder& SetMipmapMode(ESamplerMipmapMode mode);
 
-        virtual SamplerBuilder& SetAddressModeU(ESamplerAddressMode mode);
-        virtual SamplerBuilder& SetAddressModeV(ESamplerAddressMode mode);
-        virtual SamplerBuilder& SetAddressModeW(ESamplerAddressMode mode);
+        SamplerBuilder& SetAddressModeU(ESamplerAddressMode mode);
+        SamplerBuilder& SetAddressModeV(ESamplerAddressMode mode);
+        SamplerBuilder& SetAddressModeW(ESamplerAddressMode mode);
 
-        virtual SamplerBuilder& SetMipLodBias(float bias);
-        virtual SamplerBuilder& SetMinLod(float lod);
-        virtual SamplerBuilder& SetMaxLod(float lod);
+        SamplerBuilder& SetMipLodBias(float bias);
+        SamplerBuilder& SetMinLod(float lod);
+        SamplerBuilder& SetMaxLod(float lod);
 
-        virtual SamplerBuilder& SetAnisotropyEnable(bool enable);
-        virtual SamplerBuilder& SetMaxAnisotropy(float maxAnisotropy);
+        SamplerBuilder& SetAnisotropyEnable(bool enable);
+        SamplerBuilder& SetMaxAnisotropy(float maxAnisotropy);
 
-        virtual SamplerBuilder& SetBorderColor(ESamplerBorderColor color);
+        SamplerBuilder& SetBorderColor(ESamplerBorderColor color);
 
     protected:
         ESamplerFilter m_MagFilter;

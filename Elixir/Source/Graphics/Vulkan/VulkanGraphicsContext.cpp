@@ -4,7 +4,7 @@
 #include <Graphics/SpirV/SpirVShaderBackend.h>
 #include <Graphics/Vulkan/VulkanCommandBuffer.h>
 #include <Graphics/Vulkan/VulkanCommandPool.h>
-#include <Graphics/Vulkan/VulkanTexture.h>
+#include <Graphics/Vulkan/VulkanImage.h>
 #include <Graphics/Vulkan/Converters.h>
 #include <Graphics/Vulkan/Utils.h>
 
@@ -17,6 +17,7 @@
 #include "GLFW/glfw3.h"
 
 #include <fstream>
+#include <future>
 
 namespace Elixir
 {
@@ -24,39 +25,94 @@ namespace Elixir
     using namespace Vulkan::Converters;
     using namespace SpirV;
 
-    template <typename T>
-    void LogError(vkb::Result<T> result, std::string preMessage = "")
+    namespace
     {
-        if (!result)
+        struct SDeferredResourceRelease
         {
-            const auto message = preMessage + result.error().message();
-            EE_CORE_FATAL(message)
+            explicit SDeferredResourceRelease(std::function<void()> task)
+              : Task(std::move(task)) {}
+
+            std::function<void()> Task;
+            std::atomic<uint32_t> PendingFrames = 0;
+        };
+
+        thread_local const VulkanGraphicsContext* s_RenderThreadContext = nullptr;
+
+        class SRenderThreadScope
+        {
+        public:
+            explicit SRenderThreadScope(const VulkanGraphicsContext* context)
+                : m_PreviousContext(s_RenderThreadContext)
+            {
+                s_RenderThreadContext = context;
+            }
+
+            ~SRenderThreadScope()
+            {
+                s_RenderThreadContext = m_PreviousContext;
+            }
+
+        private:
+            const VulkanGraphicsContext* m_PreviousContext;
+        };
+
+        struct SRetiredImage
+        {
+            VkDevice Device = VK_NULL_HANDLE;
+            VmaAllocator Allocator = VK_NULL_HANDLE;
+            VkImageView View = VK_NULL_HANDLE;
+            VkImage Image = VK_NULL_HANDLE;
+            VmaAllocation Allocation = VK_NULL_HANDLE;
+            std::atomic<uint32_t> PendingFrames = 0;
+
+            void Release() const
+            {
+                if (View)
+                    vkDestroyImageView(Device, View, nullptr);
+
+                if (Image)
+                    vmaDestroyImage(Allocator, Image, Allocation);
+            }
+        };
+
+        template <typename T>
+        void LogError(vkb::Result<T> result, std::string preMessage = "")
+        {
+            if (!result)
+            {
+                const auto message = preMessage + result.error().message();
+                EE_CORE_FATAL(message)
+            }
         }
-    }
 
-    void DumpAllocatorStats(
-        const VmaAllocator allocator,
-        const std::string& filename = "AllocatorStats.json"
-    )
-    {
-        std::ofstream statsFile(filename);
-        if (statsFile.is_open())
+        void DumpAllocatorStats(
+            const VmaAllocator allocator,
+            const std::string& filename = "AllocatorStats.json"
+        )
         {
-            char* stats;
-            vmaBuildStatsString(allocator, &stats, VK_TRUE);
-            statsFile << stats;
+            std::ofstream statsFile(filename);
+            if (statsFile.is_open())
+            {
+                char* stats;
+                vmaBuildStatsString(allocator, &stats, VK_TRUE);
+                statsFile << stats;
 
-            vmaFreeStatsString(allocator, stats);
-            statsFile.close();
+                vmaFreeStatsString(allocator, stats);
+                statsFile.close();
 
-            EE_CORE_INFO("Allocator stats dumped to {0}.", filename);
+                EE_CORE_INFO("Allocator stats dumped to {0}.", filename);
+            }
         }
     }
 
     /* VulkanGraphicsContext */
 
-    VulkanGraphicsContext::VulkanGraphicsContext(const EGraphicsAPI api, Executor* executor, const Window* window)
-        : GraphicsContext(api, window), m_Executor(executor)
+    VulkanGraphicsContext::VulkanGraphicsContext(
+        const EGraphicsAPI api,
+        Executor* executor,
+        const Window* window
+    ) : GraphicsContext(api, window),
+        m_Executor(executor)
     {
         EE_PROFILE_ZONE_SCOPED()
         EE_CORE_ASSERT(executor, "Invalid executor!")
@@ -87,7 +143,7 @@ namespace Elixir
 
         EE_CORE_INFO("Vulkan Renderer:")
 		EE_CORE_INFO("  Vendor: {0}", DeviceUtils::GetVendorName(m_GPUProperties.vendorID));
-		EE_CORE_INFO("  Renderer: {0}", m_GPUProperties.deviceName)
+		EE_CORE_INFO("  Renderer: {0}", std::string_view{ m_GPUProperties.deviceName })
 		EE_CORE_INFO("  Version: {0}", DeviceUtils::GetApiVersion(m_GPUProperties.apiVersion));
 
         m_IsInitialized = true;
@@ -130,12 +186,9 @@ namespace Elixir
         }
     }
 
-    void VulkanGraphicsContext::ProcessEvent(Event& event)
+    void VulkanGraphicsContext::ProcessEvent(Event&)
     {
-        EventDispatcher dispatcher(event);
-        dispatcher.Dispatch<FramebufferResizeEvent>(
-            EE_BIND_EVENT_FN(VulkanGraphicsContext::HandleFramebufferResize)
-        );
+        // Framebuffer resize work is queued by Application and runs on the rendering thread.
     }
 
     void VulkanGraphicsContext::RenderFrame(std::function<void()> callback)
@@ -148,7 +201,7 @@ namespace Elixir
 
         m_FrameSemaphore.acquire();
 
-        m_Executor->Enqueue(EThreadName::Rendering, [this, callback]()
+        if (!EnqueueRenderTask([this, callback]()
         {
             if (!Prepare())
             {
@@ -163,7 +216,10 @@ namespace Elixir
             Present();
 
             m_FrameSemaphore.release();
-        });
+        }))
+        {
+            m_FrameSemaphore.release();
+        }
     }
 
     void VulkanGraphicsContext::DrainRenderQueue()
@@ -178,28 +234,109 @@ namespace Elixir
         m_Executor->ShutdownRenderPool();
 
         WaitDeviceIdle();
-        WaitForAllFrames();
+        for (auto& frame : m_Frames)
+            frame.DeletionQueue.Flush();
+
+        ResetFrameUsageState();
+    }
+
+    bool VulkanGraphicsContext::EnqueueRenderTask(std::function<void()> task) const
+    {
+        if (!task || !m_AcceptingFrames.load())
+            return false;
+
+        m_Executor->Enqueue(EThreadName::Rendering, [this, task = std::move(task)]()
+        {
+            SRenderThreadScope scope(this);
+            task();
+        });
+        return true;
+    }
+
+    bool VulkanGraphicsContext::RunRenderTaskAndWait(std::function<void()> task) const
+    {
+        if (!task)
+            return false;
+
+        if (IsRenderThread())
+        {
+            task();
+            return true;
+        }
+
+        const auto completion = CreateRef<std::promise<void>>();
+        auto result = completion->get_future();
+        if (!EnqueueRenderTask([task = std::move(task), completion]() mutable
+        {
+            try
+            {
+                task();
+                completion->set_value();
+            }
+            catch (...)
+            {
+                completion->set_exception(std::current_exception());
+            }
+        }))
+        {
+            return false;
+        }
+
+        result.get();
+        return true;
+    }
+
+    bool VulkanGraphicsContext::DeferResourceRelease(std::function<void()> task) const
+    {
+        if (!task) return false;
+
+        if (!IsRenderThread())
+        {
+            return EnqueueRenderTask([this, task = std::move(task)]() mutable
+            {
+                DeferResourceRelease(std::move(task));
+            });
+        }
+
+        uint32_t pendingFrames = 0;
+        for (const auto& frame : m_Frames)
+        {
+            if (frame.InUseByRenderThread.load())
+                ++pendingFrames;
+        }
+
+        if (pendingFrames == 0)
+        {
+            task();
+            return true;
+        }
+
+        const auto deferred = CreateRef<SDeferredResourceRelease>(std::move(task));
+        deferred->PendingFrames = pendingFrames;
+        for (auto& frame : m_Frames)
+        {
+            if (!frame.InUseByRenderThread.load())
+                continue;
+
+            frame.DeletionQueue.Push([deferred]()
+            {
+                if (deferred->PendingFrames.fetch_sub(1) == 1)
+                    deferred->Task();
+            });
+        }
+
+        return true;
+    }
+
+    bool VulkanGraphicsContext::IsRenderThread() const
+    {
+        return s_RenderThreadContext == this;
     }
 
     void VulkanGraphicsContext::SetClearColor(const glm::vec4& color)
     {
         EE_PROFILE_ZONE_SCOPED()
         m_ClearColor = {{ color.r, color.g, color.b, color.a }};
-    }
-
-    void VulkanGraphicsContext::Clear()
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-        const auto range = Initializers::ImageSubresourceRange(EImageAspect::Color);
-        vkCmdClearColorImage(
-            m_MainCommandBuffer->GetVulkanCommandBuffer(),
-            TryToGetVulkanImage(m_RenderTarget.get())->GetVulkanImage(),
-            VK_IMAGE_LAYOUT_GENERAL,
-            &m_ClearColor,
-            1,
-            &range
-        );
     }
 
     void VulkanGraphicsContext::Resize(const Extent2D extent)
@@ -210,9 +347,8 @@ namespace Elixir
         m_SwapchainExtent = extent;
         m_SwapchainRecreateRequested = true;
 
-        const auto cmd = GetUploadCommandBuffer();
-        m_RenderTarget->Resize(cmd, extent);
-        m_DepthStencilRenderTarget->Resize(cmd, extent);
+        m_RenderTarget->Resize(extent);
+        m_DepthStencilRenderTarget->Resize(extent);
     }
 
     Ref<CommandBuffer> VulkanGraphicsContext::GetSecondaryCommandBuffer() const
@@ -229,6 +365,89 @@ namespace Elixir
     void VulkanGraphicsContext::EnqueueSecondaryCommandBuffer(const Ref<CommandBuffer>& cmd) const
     {
         m_CommandPoolManager->EnqueueSecondaryCommandBuffer(cmd);
+    }
+
+    void VulkanGraphicsContext::WaitDeviceIdle() const
+    {
+        EE_PROFILE_ZONE_SCOPED()
+        VK_CHECK_RESULT(vkDeviceWaitIdle(m_Device));
+    }
+
+    void VulkanGraphicsContext::WaitForSubmittedFrames() const
+    {
+        EE_CORE_ASSERT(IsRenderThread(), "Submitted frame fences must be waited on the rendering thread.")
+
+        for (auto& frame : m_Frames)
+        {
+            if (!frame.InUseByRenderThread.load())
+                continue;
+
+            VK_CHECK_RESULT(
+                vkWaitForFences(
+                    m_Device,
+                    1,
+                    &frame.RenderFence,
+                    VK_TRUE, UINT64_MAX
+                )
+            );
+
+            frame.InUseByRenderThread = false;
+            frame.DeletionQueue.Flush();
+        }
+    }
+
+    void VulkanGraphicsContext::RetireImage(
+        const VkImageView imageView,
+        const VkImage image,
+        const VmaAllocation allocation
+    ) const
+    {
+        if (!imageView && !image)
+            return;
+
+        if (!IsRenderThread())
+        {
+            const auto enqueued = EnqueueRenderTask([this, imageView, image, allocation]()
+            {
+                RetireImage(imageView, image, allocation);
+            });
+
+            if (enqueued) return;
+        }
+
+        const auto retired = CreateRef<SRetiredImage>(
+            m_Device,
+            m_Allocator,
+            imageView,
+            image,
+            allocation
+        );
+
+        uint32_t pendingFrames = 0;
+        for (const auto& frame : m_Frames)
+        {
+            if (frame.InUseByRenderThread.load())
+                ++pendingFrames;
+        }
+
+        if (pendingFrames == 0)
+        {
+            retired->Release();
+            return;
+        }
+
+        retired->PendingFrames = pendingFrames;
+        for (auto& frame : m_Frames)
+        {
+            if (!frame.InUseByRenderThread.load())
+                continue;
+
+            frame.DeletionQueue.Push([retired]()
+            {
+                if (retired->PendingFrames.fetch_sub(1) == 1)
+                    retired->Release();
+            });
+        }
     }
 
     void VulkanGraphicsContext::InitVulkan()
@@ -394,7 +613,7 @@ namespace Elixir
             { VK_DESCRIPTOR_TYPE_SAMPLER, 0.05 }
         };
 
-        m_DescriptorPool = CreateRef<VulkanDescriptorPool>(*this, 128, sizes);
+        m_DescriptorPool = CreateRef<VulkanDescriptorPool>(*this, 512 * FRAMES, sizes);
         m_BindlessDescriptorPool = CreateRef<VulkanBindlessDescriptorPool>(*this);
     }
 
@@ -479,33 +698,48 @@ namespace Elixir
         m_SwapchainRecreateRequested = false;
     }
 
-    void VulkanGraphicsContext::CreateRenderTargets()
-    {
-        auto colorInfo = Texture2D::CreateImageInfo(
-            EImageFormat::R8G8B8A8_SRGB,
-            m_SwapchainExtent.Width,
-            m_SwapchainExtent.Height
-        );
-        colorInfo.Usage = EImageUsage::ColorAttachment | EImageUsage::TransferSrc | EImageUsage::TransferDst;
-        colorInfo.InitialLayout = EImageLayout::General;
-        m_RenderTarget = CreateRef<VulkanTexture2D>(this, colorInfo);
-
-        auto depthStencilInfo = DepthStencilImage::CreateImageInfo(
-            EDepthStencilImageFormat::D32_SFLOAT,
-            m_SwapchainExtent.Width,
-            m_SwapchainExtent.Height
-        );
-        depthStencilInfo.Usage = depthStencilInfo.Usage | EImageUsage::TransferSrc | EImageUsage::TransferDst;
-        m_DepthStencilRenderTarget = CreateRef<VulkanDepthStencilImage>(this, depthStencilInfo);
-    }
-
-    void VulkanGraphicsContext::WaitDeviceIdle() const
+    void VulkanGraphicsContext::ClearImage(const Ref<Image>& image)
     {
         EE_PROFILE_ZONE_SCOPED()
-        VK_CHECK_RESULT(vkDeviceWaitIdle(m_Device));
+        EE_CORE_ASSERT(image, "An target image is required for clearing.")
+
+        const auto range = Initializers::ImageSubresourceRange(EImageAspect::Color);
+        vkCmdClearColorImage(
+            m_MainCommandBuffer->GetVulkanCommandBuffer(),
+            TryToGetVulkanImage(image.get())->GetVulkanImage(),
+            VK_IMAGE_LAYOUT_GENERAL,
+            &m_ClearColor,
+            1,
+            &range
+        );
     }
 
-    void VulkanGraphicsContext::WaitForAllFrames()
+    void VulkanGraphicsContext::CreateRenderTargets()
+    {
+        const SImageCreateInfo colorInfo{
+            .Width = m_SwapchainExtent.Width,
+            .Height = m_SwapchainExtent.Height,
+            .Type = EImageType::_2D,
+            .Format = EImageFormat::R8G8B8A8_SRGB,
+            .Usage = EImageUsage::ColorAttachment | EImageUsage::TransferSrc |
+                EImageUsage::TransferDst,
+            .InitialLayout = EImageLayout::General,
+        };
+        m_RenderTarget = Image::Create(this, colorInfo);
+
+        const SImageCreateInfo depthInfo{
+            .Width = m_SwapchainExtent.Width,
+            .Height = m_SwapchainExtent.Height,
+            .Type = EImageType::_2D,
+            .Format = EImageFormat::D32_SFLOAT,
+            .Usage = EImageUsage::Sampled | EImageUsage::DepthStencilAttachment |
+                EImageUsage::TransferSrc | EImageUsage::TransferDst,
+            .InitialLayout = EImageLayout::DepthAttachment,
+        };
+        m_DepthStencilRenderTarget = Image::Create(this, depthInfo);
+    }
+
+    void VulkanGraphicsContext::ResetFrameUsageState()
     {
         EE_PROFILE_ZONE_SCOPED()
 
@@ -574,6 +808,7 @@ namespace Elixir
             VK_CHECK_RESULT(result);
 
         m_MainCommandBuffer->Begin();
+        m_IsFrameRecording = true;
 
         m_RenderTarget->Transition(m_MainCommandBuffer, EImageLayout::General);
 
@@ -630,6 +865,7 @@ namespace Elixir
             swapchain.RenderSemaphore,
             frame.RenderFence
         );
+        m_IsFrameRecording = false;
 
         m_CommandPoolManager->RecycleCommandBuffer(m_MainCommandBuffer);
 
@@ -643,11 +879,11 @@ namespace Elixir
         presentInfo.pImageIndices = &m_CurrentSwapchainImageIndex;
 
         const auto result = vkQueuePresentKHR(m_GraphicsQueue, &presentInfo);
-
         if (result == VK_ERROR_OUT_OF_DATE_KHR)
         {
             m_SwapchainRecreateRequested = true;
-            frame.InUseByRenderThread = false;
+            // Submission already signalled RenderFence. Keep this frame tracked until its
+            // fence is waited so deferred resource releases cannot destroy in-use images.
             return;
         }
 
@@ -659,9 +895,4 @@ namespace Elixir
         EE_PROFILE_FRAME_MARK_NAMED(EE_PROFILE_RENDER)
     }
 
-    bool VulkanGraphicsContext::HandleFramebufferResize(const FramebufferResizeEvent& event)
-    {
-        Resize(event.GetExtent());
-        return true;
-    }
 }

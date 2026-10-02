@@ -72,7 +72,7 @@ namespace Elixir
             const auto path = entry.path();
             const auto filename = RemoveFileExtension(path);
             const auto isIncluded = std::ranges::find(filenames, filename) != filenames.end();
-            if (entry.is_regular_file() && path.has_extension() && isIncluded)
+            if (entry.is_regular_file() && path.extension() == ".spirv" && isIncluded)
             {
                 if (const auto stage = GetShaderStage(path))
                     files.push_back({ stage.value(), path });

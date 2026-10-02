@@ -32,6 +32,7 @@ namespace Elixir::GUI
             const Extent2D& extent
         );
 
+        /** @brief Updates GUI rendering state for a new framebuffer extent. */
         void Resize(const Extent2D& extent);
 
         /**

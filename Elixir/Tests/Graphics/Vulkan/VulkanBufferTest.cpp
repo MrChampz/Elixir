@@ -4,6 +4,9 @@ using namespace testing;
 #include <Engine/Core/Executor/Executor.h>
 #include <Engine/Graphics/CommandBuffer.h>
 #include <Graphics/Vulkan/VulkanBuffer.h>
+
+#include "VulkanTestContext.h"
+
 using namespace Elixir::Vulkan;
 
 class VulkanBufferTest : public Test
@@ -11,23 +14,13 @@ class VulkanBufferTest : public Test
   protected:
     static void SetUpTestSuite()
     {
-        Memory::s_Malloc = CreateScope<SystemMalloc>();
-        Window = Window::Create();
-        Context = GraphicsContext::Create(EGraphicsAPI::Vulkan, &Elixir::Executor::Get(), Window.get());
-        Context->Init();
+        Context = VulkanTestContext::Get().GetGraphicsContext();
     }
 
-    static void TearDownTestSuite()
-    {
-        Context->Shutdown();
-    }
-
-    static Scope<Window> Window;
-    static Scope<GraphicsContext> Context;
+    static GraphicsContext* Context;
 };
 
-Scope<Window> VulkanBufferTest::Window = nullptr;
-Scope<GraphicsContext> VulkanBufferTest::Context = nullptr;
+GraphicsContext* VulkanBufferTest::Context = nullptr;
 
 TEST_F(VulkanBufferTest, VulkanBaseBuffer_IsNotConstructibleAndAssignable)
 {
@@ -66,7 +59,7 @@ TEST_F(VulkanBufferTest, VulkanBuffer_CreationAndDestruction)
     info.Usage = EBufferUsage::TransferDst;
     info.AllocationInfo = {};
 
-    const auto buffer = Buffer::Create(Context.get(), info);
+    const auto buffer = Buffer::Create(Context, info);
 
     EXPECT_EQ(buffer->GetSize(), 256);
     EXPECT_EQ(buffer->GetUsage(), EBufferUsage::TransferDst);
@@ -82,10 +75,10 @@ TEST_F(VulkanBufferTest, VulkanBuffer_DestroyAfterCopy)
     info.Usage = EBufferUsage::TransferDst;
     info.AllocationInfo = {};
 
-    const auto staging = StagingBuffer::Create(Context.get(), info.Buffer.Size);
-    const auto target = Buffer::Create(Context.get(), info);
+    const auto staging = StagingBuffer::Create(Context, info.Buffer.Size);
+    const auto target = Buffer::Create(Context, info);
 
-    const auto cmd = Context->GetSecondaryCommandBuffer();
+    const auto cmd = Context->GetUploadCommandBuffer();
     cmd->Begin();
     staging->Copy(cmd, target);
     cmd->End();
@@ -104,7 +97,7 @@ TEST_F(VulkanBufferTest, VulkanBuffer_DoubleDestroyIsSafe)
     info.Usage = EBufferUsage::TransferDst;
     info.AllocationInfo = {};
 
-    const auto buffer = Buffer::Create(Context.get(), info);
+    const auto buffer = Buffer::Create(Context, info);
 
     // First destroy
     buffer->Destroy();
@@ -132,7 +125,7 @@ TEST_F(VulkanBufferTest, VulkanStagingBuffer_CreationAndMapping)
     constexpr size_t size = 128;
     const std::vector<uint8_t> data(size, 0xFF);
 
-    const auto buffer = StagingBuffer::Create(Context.get(), size, data.data());
+    const auto buffer = StagingBuffer::Create(Context, size, data.data());
 
     EXPECT_EQ(buffer->GetSize(), size);
     EXPECT_EQ(buffer->GetUsage(), EBufferUsage::TransferSrc);
@@ -166,7 +159,7 @@ TEST_F(VulkanBufferTest, VulkanVertexBuffer_CreationAndAddress)
     constexpr size_t size = 512;
     const std::vector data(size, (Byte)0xAA);
 
-    const auto buffer = VertexBuffer::Create(Context.get(), size, data.data());
+    const auto buffer = VertexBuffer::Create(Context, size, data.data());
 
     EXPECT_EQ(buffer->GetSize(), size);
     EXPECT_GT(buffer->GetAddress(), 0);
@@ -194,7 +187,7 @@ TEST_F(VulkanBufferTest, VulkanIndexBuffer_CreationAndIndexType)
     const std::vector<uint32_t> data(size, 0xBB);
 
     const auto buffer = IndexBuffer::Create(
-        Context.get(),
+        Context,
         size,
         data.data(),
         EIndexType::UInt32
@@ -225,7 +218,7 @@ TEST_F(VulkanBufferTest, VulkanUniformBuffer_CreationAndMapping)
     constexpr size_t size = 128;
     const std::vector<uint8_t> data(size, 0xFF);
 
-    const auto buffer = UniformBuffer::Create(Context.get(), size, data.data());
+    const auto buffer = UniformBuffer::Create(Context, size, data.data());
 
     EXPECT_EQ(buffer->GetSize(), size);
     EXPECT_EQ(buffer->GetUsage(), EBufferUsage::UniformBuffer);

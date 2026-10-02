@@ -32,8 +32,8 @@
             DEBUG_BREAK()                                                                   \
         }
 #else
-    #define EE_ASSERT(x, message, ...)
-    #define EE_CORE_ASSERT(x, message, ...)
+    #define EE_ASSERT(x, message, ...) x;
+    #define EE_CORE_ASSERT(x, message, ...) x;
 #endif // EE_ENABLE_ASSERTS
 
 #if defined(_MSC_VER)
@@ -54,6 +54,13 @@ constexpr bool operator&(EnumClass lhs, EnumClass rhs)                          
 {                                                                                   \
 	using T = std::underlying_type_t<EnumClass>;                                    \
     return (static_cast<T>(lhs) & static_cast<T>(rhs)) ==  static_cast<T>(rhs);     \
+}                                                                                   \
+                                                                                    \
+/** @brief Reports whether two flag sets share at least one flag. */                \
+constexpr bool HasAnyFlags(EnumClass lhs, EnumClass rhs)                            \
+{                                                                                   \
+	using T = std::underlying_type_t<EnumClass>;                                    \
+    return (static_cast<T>(lhs) & static_cast<T>(rhs)) != 0;                        \
 }                                                                                   \
                                                                                     \
 constexpr EnumClass operator|(EnumClass lhs, EnumClass rhs)							\
@@ -79,11 +86,11 @@ struct HasGetHashParams<T, std::void_t<decltype(std::declval<T>().GetHashParams(
 namespace std                                                                                    \
 {                                                                                                \
     template <>                                                                                  \
-    struct hash<T> {                                                                             \
+    struct hash<T> {                                                                                \
         size_t operator()(const T& obj) const noexcept                                           \
         {                                                                                        \
             static_assert(HasGetHashParams<T>::value, #T " must define GetHashParams()");        \
-            return Elixir::Hash::HashValues(obj.GetHashParams());                                                                            \
+            return Elixir::Hash::HashValues(obj.GetHashParams());                                \
         }                                                                                        \
     };                                                                                           \
 }
@@ -115,7 +122,7 @@ namespace Elixir
 
     namespace Hash
     {
-        inline void HashCombine(std::size_t& seed, std::size_t value)
+        inline void HashCombine(std::size_t& seed, const std::size_t value)
         {
             // Similar to boost::hash_combine
             seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);

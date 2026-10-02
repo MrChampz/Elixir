@@ -33,7 +33,7 @@ namespace Elixir::Vulkan
             std::vector<VkDescriptorPoolSize> sizes,
             VkDescriptorPoolCreateFlags flags
         );
-        virtual void DestroyPool() const;
+        virtual void DestroyPool();
 
         uint32_t m_MaxSets;
 

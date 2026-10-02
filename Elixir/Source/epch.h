@@ -9,6 +9,7 @@
 #include <format>
 #include <cstdint>
 #include <fstream>
+#include <variant>
 
 #include <string>
 #include <sstream>

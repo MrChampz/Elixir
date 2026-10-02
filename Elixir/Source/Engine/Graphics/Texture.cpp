@@ -1,201 +1,157 @@
 #include "epch.h"
 #include "Texture.h"
 
-#include <Engine/Graphics/GraphicsContext.h>
-#include <Graphics/Vulkan/VulkanTexture.h>
-
 namespace Elixir
 {
-    /* Texture */
+    Texture::Texture(Ref<Image> image, const STextureCreateInfo& info)
+        : m_Image(std::move(image)), m_Path(info.Path), m_HDR(info.HDR)
+    {
+    }
+
+    Ref<Texture> Texture::Create(const GraphicsContext* context, const STextureCreateInfo& info)
+    {
+        const auto image = Image::Create(context, CreateImageInfo(info));
+        if (!image) return nullptr;
+
+        return Ref<Texture>(new Texture(image, info));
+    }
 
     Ref<Texture> Texture::Create(
-        const GraphicsContext* context,
-        EImageFormat format,
-        uint32_t width,
-        const void* data,
-        const std::string& path
+        const GraphicsContext* context, const EImageFormat format, const uint32_t width,
+        const void* data, const std::string& path
     )
     {
-        switch (context->GetAPI())
-        {
-            case EGraphicsAPI::Vulkan:
-                return CreateRef<Vulkan::VulkanTexture>(context, format, width, data, path);
-            default:
-                EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
-                return nullptr;
-        }
+        STextureCreateInfo info;
+        info.InitialData = data;
+        info.Format = format;
+        info.Width = width;
+        info.Path = path;
+        return Create(context, info);
+    }
+
+    SImageCreateInfo Texture::CreateImageInfo(const STextureCreateInfo& info)
+    {
+        return {
+            .Width = info.Width,
+            .Type = EImageType::_1D,
+            .Format = info.Format,
+            .MipmapMode = info.MipmapMode,
+            .MipLevels = info.MipLevels,
+            .Usage = EImageUsage::Sampled,
+            .InitialLayout = EImageLayout::ShaderReadOnly,
+            .InitialData = info.InitialData,
+            .InitialMipData = info.InitialMipData,
+        };
     }
 
     SImageCreateInfo Texture::CreateImageInfo(
-        const EImageFormat format,
-        const uint32_t width,
-        const void* data,
-        const std::string& path
+        const EImageFormat format, const uint32_t width,
+        const void* data, const std::string& path
     )
     {
-        return {
-            .InitialData = data,
-            .Width = width,
-            .Type = EImageType::_1D,
-            .Format = format,
-            .Usage = EImageUsage::Sampled | EImageUsage::TransferDst,
-            .InitialLayout = EImageLayout::ShaderReadOnly,
-            .AllocationInfo = {
-                .RequiredFlags = EMemoryProperty::DeviceLocal
-            }
-        };
+        STextureCreateInfo info;
+        info.InitialData = data;
+        info.Format = format;
+        info.Width = width;
+        info.Path = path;
+        return CreateImageInfo(info);
     }
 
-    Texture::Texture(
-        const GraphicsContext* context,
-        const EImageFormat format,
-        const uint32_t width,
-        const void* data,
-        const std::string& path
-    ) : Texture(context, CreateImageInfo(format, width, data), path) {}
-
-    Texture::Texture(
-        const GraphicsContext* context,
-        const SImageCreateInfo& info,
-        const std::string& path
-    ) : Image(context, info), m_Path(std::move(path))
+    Texture2D::Texture2D(Ref<Image> image, const STextureCreateInfo& info)
+        : Texture(std::move(image), info)
     {
-        EE_PROFILE_ZONE_SCOPED()
-
-#ifdef EE_DEBUG
-        m_DebugName = "Texture[" + m_UUID.ToString() + "]";
-#endif
     }
 
-    /* Texture2D */
+    Ref<Texture2D> Texture2D::Create(const GraphicsContext* context, const STexture2DCreateInfo& info)
+    {
+        const auto image = Image::Create(context, CreateImageInfo(info));
+        if (!image) return nullptr;
+
+        return Ref<Texture2D>(new Texture2D(image, info));
+    }
 
     Ref<Texture2D> Texture2D::Create(
-        const GraphicsContext* context,
-        EImageFormat format,
-        uint32_t width,
-        uint32_t height,
-        const void* data,
-        const std::string& path
+        const GraphicsContext* context, const EImageFormat format,
+        const uint32_t width, const uint32_t height, const void* data, const std::string& path
     )
     {
-        switch (context->GetAPI())
-        {
-            case EGraphicsAPI::Vulkan:
-                return CreateRef<Vulkan::VulkanTexture2D>(context, format, width, height, data, path);
-            default:
-                EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
-                return nullptr;
-        }
+        STexture2DCreateInfo info;
+        info.InitialData = data;
+        info.Format = format;
+        info.Width = width;
+        info.Height = height;
+        info.Path = path;
+        return Create(context, info);
+    }
+
+    SImageCreateInfo Texture2D::CreateImageInfo(const STexture2DCreateInfo& info)
+    {
+        auto image = Texture::CreateImageInfo(info);
+        image.Type = EImageType::_2D;
+        image.Height = info.Height;
+        return image;
     }
 
     SImageCreateInfo Texture2D::CreateImageInfo(
-        const EImageFormat format,
-        const uint32_t width,
-        const uint32_t height,
-        const void* data
+        const EImageFormat format, const uint32_t width, const uint32_t height, const void* data
     )
     {
-        return {
-            .InitialData = data,
-            .Width = width,
-            .Height = height,
-            .Type = EImageType::_2D,
-            .Format = format,
-            .Usage = EImageUsage::Sampled | EImageUsage::TransferDst,
-            .InitialLayout = EImageLayout::ShaderReadOnly,
-            .AllocationInfo = {
-                .RequiredFlags = EMemoryProperty::DeviceLocal
-            }
-        };
+        STexture2DCreateInfo info;
+        info.InitialData = data;
+        info.Format = format;
+        info.Width = width;
+        info.Height = height;
+        return CreateImageInfo(info);
     }
 
-    Texture2D::Texture2D(
-        const GraphicsContext* context,
-        const EImageFormat format,
-        const uint32_t width,
-        const uint32_t height,
-        const void* data,
-        const std::string& path
-    ) : Texture2D(context, CreateImageInfo(format, width, height, data), path) {}
-
-    Texture2D::Texture2D(
-        const GraphicsContext* context,
-        const SImageCreateInfo& info,
-        const std::string& path
-    ) : Texture(context, info, path)
+    Texture3D::Texture3D(Ref<Image> image, const STextureCreateInfo& info)
+        : Texture(std::move(image), info)
     {
-        EE_PROFILE_ZONE_SCOPED()
-
-#ifdef EE_DEBUG
-        m_DebugName = "Texture2D[" + m_UUID.ToString() + "]";
-#endif
     }
 
-    /* Texture3D */
+    Ref<Texture3D> Texture3D::Create(const GraphicsContext* context, const STexture3DCreateInfo& info)
+    {
+        const auto image = Image::Create(context, CreateImageInfo(info));
+        if (!image) return nullptr;
+
+        return Ref<Texture3D>(new Texture3D(image, info));
+    }
 
     Ref<Texture3D> Texture3D::Create(
-        const GraphicsContext* context,
-        EImageFormat format,
-        uint32_t width,
-        uint32_t height,
-        uint32_t depth,
-        const void* data,
-        const std::string& path
+        const GraphicsContext* context, const EImageFormat format,
+        const uint32_t width, const uint32_t height, const uint32_t depth,
+        const void* data, const std::string& path
     )
     {
-        switch (context->GetAPI())
-        {
-            case EGraphicsAPI::Vulkan:
-                return CreateRef<Vulkan::VulkanTexture3D>(context, format, width, height, depth, data, path);
-            default:
-                EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
-                return nullptr;
-        }
+        STexture3DCreateInfo info;
+        info.InitialData = data;
+        info.Format = format;
+        info.Width = width;
+        info.Height = height;
+        info.Depth = depth;
+        info.Path = path;
+        return Create(context, info);
+    }
+
+    SImageCreateInfo Texture3D::CreateImageInfo(const STexture3DCreateInfo& info)
+    {
+        auto image = Texture2D::CreateImageInfo(info);
+        image.Type = EImageType::_3D;
+        image.Depth = info.Depth;
+        return image;
     }
 
     SImageCreateInfo Texture3D::CreateImageInfo(
-        const EImageFormat format,
-        const uint32_t width,
-        const uint32_t height,
-        const uint32_t depth,
-        const void* data
+        const EImageFormat format, const uint32_t width, const uint32_t height,
+        const uint32_t depth, const void* data
     )
     {
-        return {
-            .InitialData = data,
-            .Width = width,
-            .Height = height,
-            .Depth = depth,
-            .Type = EImageType::_3D,
-            .Format = format,
-            .Usage = EImageUsage::Sampled | EImageUsage::TransferDst,
-            .InitialLayout = EImageLayout::ShaderReadOnly,
-            .AllocationInfo = {
-                .RequiredFlags = EMemoryProperty::DeviceLocal
-            }
-        };
-    }
-
-    Texture3D::Texture3D(
-        const GraphicsContext* context,
-        const EImageFormat format,
-        const uint32_t width,
-        const uint32_t height,
-        const uint32_t depth,
-        const void* data,
-        const std::string& path
-    ) : Texture3D(context, CreateImageInfo(format, width, height, depth, data), path) {}
-
-    Texture3D::Texture3D(
-        const GraphicsContext* context,
-        const SImageCreateInfo& info,
-        const std::string& path
-    ) : Texture2D(context, info, path)
-    {
-        EE_PROFILE_ZONE_SCOPED()
-
-#ifdef EE_DEBUG
-        m_DebugName = "Texture3D[" + m_UUID.ToString() + "]";
-#endif
+        STexture3DCreateInfo info;
+        info.InitialData = data;
+        info.Format = format;
+        info.Width = width;
+        info.Height = height;
+        info.Depth = depth;
+        return CreateImageInfo(info);
     }
 }

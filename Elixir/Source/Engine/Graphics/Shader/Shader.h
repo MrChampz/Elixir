@@ -66,12 +66,30 @@ namespace Elixir
 
         virtual void SetConstantBuffer(const std::string& name, void* data, size_t size) = 0;
 
+        /**
+         * @brief Binds an image resource for shader sampling.
+         * @param name Name of the shader resource binding.
+         * @param image Image to sample; it must remain valid while the shader uses it.
+         */
+        virtual void BindImage(const std::string& name, const Ref<Image>& image) = 0;
+
         virtual void BindTexture(const std::string& name, const Ref<Texture>& texture) = 0;
         virtual void BindTextureSet(const std::string& name, const Ref<TextureSet>& set) = 0;
         virtual void BindSampler(const std::string& name, const Ref<Sampler>& sampler) = 0;
         virtual void BindStorageBuffer(const std::string& name, const Ref<StorageBuffer>& buffer) = 0;
         virtual void BindStorageBuffer(const std::string& name, const Ref<DynamicStorageBuffer>& buffer) = 0;
         virtual void BindConstantBuffer(const std::string& name, const Ref<UniformBuffer>& buffer) = 0;
+
+        /**
+         * @brief Checks whether the shader declares a named binding.
+         *
+         * The shader compiler can remove declarations that are not used by an
+         * optimized permutation.
+         *
+         * @param name Binding name to find.
+         * @return True when the shader contains @p name binding.
+         */
+        bool HasBinding(const std::string& name) const;
 
         virtual Ref<Texture> GetTexture(const std::string& name) const;
         virtual Ref<Texture> GetTexture(SShaderBinding binding) const;
@@ -124,6 +142,7 @@ namespace Elixir
 
         // Shader resources
         std::unordered_map<std::string, SShaderBinding> m_BindingLookup;
+        std::unordered_map<SShaderBinding, Ref<Image>> m_Images;
         std::unordered_map<SShaderBinding, Ref<Texture>> m_Textures;
         std::unordered_map<SShaderBinding, Ref<TextureSet>> m_TextureSets;
         std::unordered_map<SShaderBinding, Ref<Sampler>> m_Samplers;

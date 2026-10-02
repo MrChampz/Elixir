@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Engine/Graphics/FrameSlotPendingState.h>
 #include <Engine/Graphics/Shader/Shader.h>
 #include <Graphics/Vulkan/VulkanGraphicsContext.h>
 
@@ -28,6 +29,7 @@ namespace Elixir::Vulkan
 
         void SetConstantBuffer(const std::string& name, void* data, size_t size) override;
 
+        void BindImage(const std::string& name, const Ref<Image>& image) override;
         void BindTexture(const std::string& name, const Ref<Texture>& texture) override;
         void BindTextureSet(const std::string& name, const Ref<TextureSet>& set) override;
         void BindSampler(const std::string& name, const Ref<Sampler>& sampler) override;
@@ -45,50 +47,68 @@ namespace Elixir::Vulkan
         void CreateDescriptorSets();
         void CreatePipelineLayout();
 
-        void UpdateDescriptorSets();
+        void ApplyPendingDescriptorState();
+        void RefreshImageDescriptorState();
 
+        VkWriteDescriptorSet GetWriteDescriptorSet(
+            SShaderBinding binding, const Image* image
+        ) const;
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding, const Texture* texture
         ) const;
-        void UpdateDescriptorSet(SShaderBinding binding, const Texture* texture) const;
-
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding,
             const Ref<Sampler>& sampler
         ) const;
-        void UpdateDescriptorSet(SShaderBinding binding, const Ref<Sampler>& sampler) const;
-
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding,
             const Ref<StorageBuffer>& buffer
         ) const;
-        void UpdateDescriptorSet(
-            SShaderBinding binding,
-            const Ref<StorageBuffer>& buffer
-        ) const;
-
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding,
             const Ref<DynamicStorageBuffer>& buffer
         ) const;
-        void UpdateDescriptorSet(
-            SShaderBinding binding,
-            const Ref<DynamicStorageBuffer>& buffer
-        ) const;
-
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding,
             const Ref<UniformBuffer>& buffer
         ) const;
-        void UpdateDescriptorSet(
-            SShaderBinding binding,
-            const Ref<UniformBuffer>& buffer
-        ) const;
 
-        bool m_BindlessSet = false;
+        struct SImageDescriptorValue
+        {
+            Ref<Image> Image;
+            uint64_t ResourceGeneration = 0;
+            VkImageLayout ImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-        std::vector<VkDescriptorSet> m_DescriptorSets;
+            bool operator==(const SImageDescriptorValue&) const = default;
+        };
+
+        struct STextureDescriptorValue
+        {
+            Ref<Texture> Texture;
+            uint64_t ResourceGeneration = 0;
+            VkImageLayout ImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+            bool operator==(const STextureDescriptorValue&) const = default;
+        };
+
+        using DescriptorValue = std::variant<
+            SImageDescriptorValue,
+            STextureDescriptorValue,
+            Ref<Sampler>,
+            Ref<StorageBuffer>,
+            Ref<DynamicStorageBuffer>,
+            Ref<UniformBuffer>
+        >;
+
+        using DescriptorSetState = FrameSlotPendingState<
+            std::vector<VkDescriptorSet>,
+            SShaderBinding,
+            DescriptorValue
+        >;
+
+        DescriptorSetState m_DescriptorSets;
         std::vector<VkDescriptorSetLayout> m_DescriptorSetLayouts;
+        std::optional<uint32_t> m_BindlessSetIndex;
 
         VkPipelineLayout m_PipelineLayout;
 

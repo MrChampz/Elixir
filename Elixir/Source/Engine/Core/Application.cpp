@@ -1,4 +1,3 @@
-#include "epch.h"
 #include "Application.h"
 
 #include "Engine/GUI/Button.h"
@@ -13,7 +12,13 @@
 #include <Engine/Input/InputManager.h>
 #include <Engine/Input/InputCodes.h>
 #include <Engine/Font/FontManager.h>
+#include <Engine/Graphics/Image.h>
 #include <Engine/Graphics/TextureLoader.h>
+#include <Engine/Graphics/PostProcessor.h>
+#include <Engine/Materials/MaterialSystem.h>
+#include <Engine/Materials/MaterialRegistry.h>
+#include <Engine/Mesh/StaticMeshLoaderRegistry.h>
+#include <Engine/Aether/Manager.h>
 
 namespace Elixir
 {
@@ -33,18 +38,41 @@ namespace Elixir
 
         m_GraphicsContext = GraphicsContext::Create(EGraphicsAPI::Vulkan, &m_Executor, m_Window.get());
         m_GraphicsContext->Init();
+        CreateSceneTarget(m_GraphicsContext->GetSwapchainExtent());
 
         m_ShaderLoader = CreateScope<ShaderLoader>(m_GraphicsContext.get());
+        m_PostProcessor = CreateRef<PostProcessor>(
+            m_GraphicsContext.get(),
+            m_ShaderLoader.get(),
+            m_SceneTarget->GetExtent()
+        );
 
         TextureLoader::Initialize(m_GraphicsContext.get());
         FontManager::Initialize(m_GraphicsContext.get());
         IconManager::Initialize(m_GraphicsContext.get());
+
+        m_MaterialRegistry = CreateScope<MaterialRegistry>();
+        m_MaterialSystem = CreateScope<MaterialSystem>(
+            m_GraphicsContext.get(),
+            m_ShaderLoader.get(),
+            m_SceneTarget,
+            SMaterialSystemConfig{ .InitialFrameCapacity = 256 }
+        );
+
+        StaticMeshLoaderRegistry::Initialize(*m_GraphicsContext);
 
         m_GUIManager = CreateScope<GUI::Manager>();
         m_GUIManager->Initialize(
             m_GraphicsContext.get(),
             m_ShaderLoader.get(),
             m_Window->GetFramebufferExtent() // TODO: Get from Ctx->GetRenderTargetExtent()..
+        );
+
+        m_AetherManager = CreateScope<Aether::Manager>(
+            m_GraphicsContext.get(),
+            m_ShaderLoader.get(),
+            *m_MaterialRegistry,
+            *m_MaterialSystem
         );
 
         const auto buttonBg = TextureLoader::Load("./Assets/Button_Background.png");
@@ -124,12 +152,13 @@ namespace Elixir
             .SetPosition({ 10, 10 })
             .SetSize({ 280, 24 });
 
-        m_GUIManager->SetRoot(panel);
+        //m_GUIManager->SetRoot(panel);
     }
 
     Application::~Application()
     {
         EE_PROFILE_ZONE_SCOPED()
+        StaticMeshLoaderRegistry::Shutdown();
         IconManager::Shutdown();
         FontManager::Shutdown();
         Platform::Shutdown();
@@ -179,9 +208,15 @@ namespace Elixir
             m_GUIManager->ArrangeLayout(m_Window->GetWindowExtent()); // TODO: Remove from here and handle only when resizing
             m_GUIManager->Update(frameTime);
 
+            Prepare(frameTime);
+
             m_GraphicsContext->RenderFrame([this, frameTime]()
             {
-                OnRender(frameTime);
+                m_MaterialSystem->BeginFrame();
+                m_GraphicsContext->Clear(m_SceneTarget);
+                Render(frameTime);
+                m_MaterialSystem->RenderFrame();
+                m_PostProcessor->Apply(m_SceneTarget, m_GraphicsContext->GetRenderTarget());
                 m_GUIManager->Render();
             });
 
@@ -197,10 +232,45 @@ namespace Elixir
         EventDispatcher dispatcher(event);
         dispatcher.Dispatch<WindowCloseEvent>(EE_BIND_EVENT_FN(Application::OnWindowClose));
         dispatcher.Dispatch<WindowResizeEvent>(EE_BIND_EVENT_FN(Application::OnWindowResize));
+        dispatcher.Dispatch<FramebufferResizeEvent>(EE_BIND_EVENT_FN(Application::OnFramebufferResize));
 
         m_GraphicsContext->ProcessEvent(event);
         ::InputManager::OnEvent(event);
         m_GUIManager->ProcessEvent(event);
+    }
+
+    MaterialSystem& Application::GetMaterialSystem()
+    {
+        EE_CORE_ASSERT(m_MaterialSystem, "Application material system is unavailable.")
+        return *m_MaterialSystem;
+    }
+
+    const MaterialSystem& Application::GetMaterialSystem() const
+    {
+        EE_CORE_ASSERT(m_MaterialSystem, "Application material system is unavailable.")
+        return *m_MaterialSystem;
+    }
+
+    MaterialRegistry& Application::GetMaterialRegistry()
+    {
+        return *m_MaterialRegistry;
+    }
+
+    const MaterialRegistry& Application::GetMaterialRegistry() const
+    {
+        return *m_MaterialRegistry;
+    }
+
+    Aether::Manager& Application::GetAetherManager()
+    {
+        EE_CORE_ASSERT(m_AetherManager, "Application Aether manager is unavailable.")
+        return *m_AetherManager;
+    }
+
+    const Aether::Manager& Application::GetAetherManager() const
+    {
+        EE_CORE_ASSERT(m_AetherManager, "Application Aether manager is unavailable.")
+        return *m_AetherManager;
     }
 
     bool Application::OnWindowClose(WindowCloseEvent& event)
@@ -222,5 +292,43 @@ namespace Elixir
         m_Minimized = false;
 
         return false;
+    }
+
+    bool Application::OnFramebufferResize(const FramebufferResizeEvent& event)
+    {
+        const Extent2D extent = event.GetExtent();
+        if (extent.Width == 0 || extent.Height == 0)
+            return false;
+
+        // TODO: When GLFW is replaced with native window backends, defer target recreation
+        // until each platform reports that its live resize operation has finished.
+        m_GraphicsContext->EnqueueRenderTask([
+            context = m_GraphicsContext.get(),
+            sceneTarget = m_SceneTarget,
+            postProcessor = m_PostProcessor,
+            extent
+        ]()
+        {
+            context->Resize(extent);
+            sceneTarget->Resize({ extent.Width, extent.Height, 1 });
+            postProcessor->Resize({ extent.Width, extent.Height, 1 });
+        });
+
+        return false;
+    }
+
+    void Application::CreateSceneTarget(const Extent3D& extent)
+    {
+        m_SceneTarget = Image::Create(m_GraphicsContext.get(), {
+            .Width = extent.Width,
+            .Height = extent.Height,
+            .Depth = extent.Depth,
+            .Type = EImageType::_2D,
+            .Format = EImageFormat::R16G16B16A16_SFLOAT,
+            .Usage = EImageUsage::ColorAttachment | EImageUsage::Sampled |
+                EImageUsage::TransferSrc | EImageUsage::TransferDst,
+            .InitialLayout = EImageLayout::General,
+        });
+        EE_CORE_ASSERT(m_SceneTarget, "Application could not create the HDR scene target.")
     }
 }
