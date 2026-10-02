@@ -68,7 +68,13 @@ namespace Elixir::Aether::Effect
                 return 0.0f;
             }
 
-            return ToFiniteFloat(value, key);
+            const auto converted = ToFiniteFloat(value);
+            if (!converted)
+            {
+                Fail("Field '{}' must be a finite float.", key);
+                return 0.0f;
+            }
+            return *converted;
         }
 
         /** @brief Reads a required integer within the uint32 range. */
@@ -170,7 +176,13 @@ namespace Elixir::Aether::Effect
                     return result;
                 }
 
-                result.Value = ToFiniteFloat(value, key);
+                const auto converted = ToFiniteFloat(value);
+                if (!converted)
+                {
+                    Fail("Field '{}' must be a finite float.", key);
+                    return result;
+                }
+                result.Value = *converted;
                 return result;
             }
 
@@ -321,8 +333,13 @@ namespace Elixir::Aether::Effect
                     return result;
                 }
 
-                result[i++] = ToFiniteFloat(value, "array element");
-                if (Failed()) return result;
+                const auto converted = ToFiniteFloat(value);
+                if (!converted)
+                {
+                    Fail("Field array element must be a finite float.");
+                    return result;
+                }
+                result[i++] = *converted;
             }
 
             return result;
@@ -330,13 +347,12 @@ namespace Elixir::Aether::Effect
 
     private:
         // Rejects non-finite values and overflow before narrowing to float.
-        float ToFiniteFloat(const double value, std::string_view key)
+        static std::optional<float> ToFiniteFloat(const double value)
         {
             if (!std::isfinite(value) ||
                 std::abs(value) > static_cast<double>(std::numeric_limits<float>::max()))
             {
-                Fail("Field '{}' must be a finite float.", key);
-                return 0.0f;
+                return std::nullopt;
             }
             return static_cast<float>(value);
         }
