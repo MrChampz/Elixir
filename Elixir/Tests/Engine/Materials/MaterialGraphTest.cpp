@@ -53,6 +53,25 @@ TEST(MaterialGraphTest, GeneratesMultiplyBaseColor)
     EXPECT_NE(hlsl.find(").rgb"), std::string::npos);
 }
 
+TEST(MaterialGraphTest, PreservesSeparateBaseAndClearCoatNormals)
+{
+    MaterialGraph graph;
+    const auto base = graph.AddNode<Parameter>("BaseNormal", EMaterialValueType::Float3);
+    const auto coat = graph.AddNode<Parameter>("CoatNormal", EMaterialValueType::Float3);
+    const auto baseNormal = graph.AddNode<ScaleNormal>();
+    const auto coatNormal = graph.AddNode<ScaleNormal>();
+    graph.Connect(base, baseNormal, 0);
+    graph.Connect(coat, coatNormal, 0);
+    graph.SetChannel(EMaterialChannel::Normal, baseNormal);
+    graph.SetChannel(EMaterialChannel::ClearCoatNormal, coatNormal);
+
+    const auto hlsl = graph.GenerateHLSL();
+    EXPECT_NE(hlsl.find("mat.BaseNormal"), std::string::npos);
+    EXPECT_NE(hlsl.find("mat.CoatNormal"), std::string::npos);
+    EXPECT_NE(hlsl.find("surface.Normal = n" + std::to_string(baseNormal) + ";"), std::string::npos);
+    EXPECT_NE(hlsl.find("surface.ClearCoatNormal = n" + std::to_string(coatNormal) + ";"), std::string::npos);
+}
+
 // Scalar channels coerce and a shared node is emitted once.
 TEST(MaterialGraphTest, ScalarChannelsAndSharedNode)
 {

@@ -929,7 +929,12 @@ namespace Elixir
                     graph.Connect(sample, scaledNormal, 0);
                     graph.Connect(scale, scaledNormal, 1);
 
-                    graph.SetChannel(EMaterialChannel::Normal, scaledNormal);
+                    graph.SetChannel(
+                        source.sheen
+                            ? EMaterialChannel::ClearCoatNormal
+                            : EMaterialChannel::Normal,
+                        scaledNormal
+                    );
                 }
             }
 

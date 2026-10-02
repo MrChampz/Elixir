@@ -97,6 +97,7 @@ struct Surface
     float   ClearCoat;
     float   ClearCoatRoughness;
     float3  ClearCoatBottomNormal;
+    float3  ClearCoatNormal;
 };
 
 static const uint NO_TEXTURE = 0xFFFFFFFFu;
@@ -284,6 +285,7 @@ float4 main(PSInput input) : SV_Target0
     surface.ClearCoat = 0.0f;
     surface.ClearCoatRoughness = 0.0f;
     surface.ClearCoatBottomNormal = float3(0.0f, 0.0f, 1.0f);
+    surface.ClearCoatNormal = float3(0.0f, 0.0f, 1.0f);
 
     // __GRAPH_BODY__
 
