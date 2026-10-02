@@ -43,10 +43,4 @@ namespace Elixir::Aether::Modules
     Module::Module(const EModulePhase phase) : m_Phase(phase) {}
 
     Module::~Module() = default;
-
-    bool Module::Compile(ModuleCompileContext& context) const
-    {
-        (void)context;
-        return false;
-    }
 }

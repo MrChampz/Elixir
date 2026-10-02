@@ -3,7 +3,7 @@
 #include <Engine/Core/UUID.h>
 #include <Engine/Materials/MaterialInstance.h>
 #include <Engine/Materials/Rendering/MaterialResolver.h>
-#include <Engine/Aether/Modules/Modules.h>
+#include <Engine/Aether/Modules/Module.h>
 #include <Engine/Aether/Core/ParameterStore.h>
 #include <Engine/Aether/Core/CurveStore.h>
 #include <Engine/Aether/Core/ColorCurveStore.h>

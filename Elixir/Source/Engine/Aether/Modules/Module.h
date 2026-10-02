@@ -1,5 +1,15 @@
 #pragma once
 
+#include <cstdint>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <vector>
+
+#include <glm/vec3.hpp>
+#include <glm/vec4.hpp>
+
+#include <Engine/Core/Core.h>
 #include <Engine/Aether/Core/CurveStore.h>
 #include <Engine/Aether/Core/ParameterStore.h>
 #include <Engine/Aether/Core/Particle.h>
@@ -94,12 +104,8 @@ namespace Elixir::Aether::Modules
         explicit Module(EModulePhase phase = EModulePhase::Spawn);
         virtual ~Module();
 
-        /**
-         * @brief Appends this module's GPU operations to the supplied context.
-         * @return True when the module emitted its own operations. False keeps
-         * legacy built-in modules on the compatibility compilation path.
-         */
-        virtual bool Compile(ModuleCompileContext& context) const;
+        /** @brief Appends this module's GPU operations to the supplied context. */
+        virtual void Compile(ModuleCompileContext& context) const = 0;
 
         /** @brief Returns the phase in which this module is compiled. */
         EModulePhase GetPhase() const { return m_Phase; }
