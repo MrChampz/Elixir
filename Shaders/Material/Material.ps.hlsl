@@ -359,7 +359,7 @@ float4 main(PSInput input) : SV_Target0
 
 #if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_CLOTH
     const float fuzzExponent = lerp(6.0f, 1.0f, saturate(surface.FuzzRoughness));
-    const float clothWeight = saturate(surface.Cloth) * pow(1.0f - NdotV, fuzzExponent);
+    const float clothWeight = saturate(surface.Cloth) * pow(saturate(1.0f - NdotV), fuzzExponent);
     clothContribution = SampleIrradiance(N) * surface.FuzzColor * clothWeight * ao;
     color += clothContribution;
 #endif

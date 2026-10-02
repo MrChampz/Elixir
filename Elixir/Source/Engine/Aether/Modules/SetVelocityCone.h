@@ -21,13 +21,17 @@ namespace Elixir::Aether::Modules
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {
+            const uint32_t angleIndex = context.FindParameter(m_AngleParamName);
             context.Emit({
                 Core::EParticleOp::SampleCone,
                 Core::EParticleAttribute::Velocity,
-                UINT32_MAX,
-                UINT32_MAX,
+                context.FindParameter(m_MinSpeedParamName),
+                context.FindParameter(m_MaxSpeedParamName),
                 { m_Direction, m_Angle },
-                { m_MinSpeed, m_MaxSpeed, 0.0f, 0.0f }
+                {
+                    m_MinSpeed, m_MaxSpeed,
+                    (float)(angleIndex == UINT32_MAX ? -1 : (int32_t)angleIndex), 0.0f
+                }
             });
         }
 

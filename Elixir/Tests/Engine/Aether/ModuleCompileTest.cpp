@@ -5,6 +5,7 @@
 #include <Engine/Aether/Modules/ApplyVortex.h>
 #include <Engine/Aether/Modules/ScaleOverLife.h>
 #include <Engine/Aether/Modules/SetLifetime.h>
+#include <Engine/Aether/Modules/SetVelocityCone.h>
 
 #include "TestInstanceRegistry.h"
 
@@ -122,4 +123,60 @@ TEST(ModuleCompileTest, CompilesScaleCurveWithRangeOffsetAndClamp)
     EXPECT_EQ(operations[3].Data1, glm::vec4(4.0f));
     EXPECT_EQ(operations[4].Type, EParticleOp::CopyFromAttribute);
     EXPECT_EQ(operations[4].Target, EParticleAttribute::Scale);
+}
+
+TEST(ModuleCompileTest, CompilesConeBindingsAndLiteralFallbacks)
+{
+    const std::vector<SGPUParameter> parameters{
+        { "Angle", glm::vec4(0.5f) },
+        { "Smoke.Angle", glm::vec4(1.0f) },
+        { "Low", glm::vec4(2.0f) },
+        { "Smoke.High", glm::vec4(3.0f) },
+    };
+    std::vector<SGPUParticleOp> operations;
+    ModuleCompileContext context(operations, parameters, "Smoke", 1.0f);
+    SetVelocityCone({ 0, 1, 0 }, 0.25f, 4.0f, 5.0f)
+        .BindParameters("Angle", "Low", "High").Compile(context);
+    SetVelocityCone({ 0, 1, 0 }, 0.25f, 4.0f, 5.0f)
+        .BindParameters("Missing", "Low", "Missing").Compile(context);
+    SetVelocityCone({ 0, 1, 0 }, 0.25f, 4.0f, 5.0f).Compile(context);
+
+    ASSERT_EQ(operations.size(), 3u);
+    EXPECT_EQ(operations[0].Parameter0Index, 2u);
+    EXPECT_EQ(operations[0].Parameter1Index, 3u);
+    EXPECT_FLOAT_EQ(operations[0].Data1.z, 1.0f);
+    EXPECT_EQ(operations[1].Parameter0Index, 2u);
+    EXPECT_EQ(operations[1].Parameter1Index, UINT32_MAX);
+    EXPECT_FLOAT_EQ(operations[1].Data1.z, -1.0f);
+    EXPECT_EQ(operations[2].Parameter0Index, UINT32_MAX);
+    EXPECT_EQ(operations[2].Parameter1Index, UINT32_MAX);
+    EXPECT_FLOAT_EQ(operations[2].Data1.z, -1.0f);
+    for (const auto& operation : operations)
+    {
+        EXPECT_EQ(operation.Type, EParticleOp::SampleCone);
+        EXPECT_EQ(operation.Target, EParticleAttribute::Velocity);
+        EXPECT_EQ(operation.Data0, glm::vec4(0, 1, 0, 0.25f));
+        EXPECT_FLOAT_EQ(operation.Data1.x, 4.0f);
+        EXPECT_FLOAT_EQ(operation.Data1.y, 5.0f);
+    }
+}
+
+TEST(ModuleCompileTest, IgnoresNullModulesBeforeCompilingValidModules)
+{
+    const auto system = CreateRef<System>("Null modules");
+    auto& emitter = system->AddEmitter("Smoke", 8, 0.0f);
+    emitter.AddModule(nullptr);
+    emitter.AddModule(CreateScope<SetLifetime>(1.0f, 2.0f));
+    emitter.AddModule(nullptr);
+
+    TestInstanceRegistry runtime;
+    const auto instance = runtime.CreateRegisteredInstance(system);
+    ASSERT_TRUE(instance);
+    Elixir::Aether::Rendering::FrameSubmission submission;
+    ASSERT_TRUE(submission.Submit(*instance));
+    const auto& compiled = submission.GetRenderProxies().front()->GetCompiledSystem();
+    ASSERT_EQ(compiled.Emitters.size(), 1u);
+    ASSERT_EQ(compiled.Ops.size(), 1u);
+    EXPECT_EQ(compiled.Emitters[0].SpawnOpCount, 1u);
+    EXPECT_EQ(compiled.Ops[0].Type, EParticleOp::RandomRange);
 }

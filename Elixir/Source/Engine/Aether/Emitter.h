@@ -115,13 +115,13 @@ namespace Elixir::Aether
          * @brief Adds an authored module.
          *
          * The emitter takes ownership. Module phase determines whether the
-         * operation runs during spawn or update.
+         * operation runs during spawn or update. Null modules are ignored.
          *
          * @param module Module to own.
          */
         void AddModule(Scope<Module> module)
         {
-            EE_CORE_ASSERT(module, "Aether modules must be valid.")
+            if (!module) return;
             m_Modules.push_back(std::move(module));
         }
 
