@@ -1,5 +1,6 @@
 #include "epch.h"
 #include "Simulator.h"
+#include "ParticleOpData.h"
 
 #include <Engine/Core/Timer.h>
 
@@ -7,6 +8,8 @@ namespace Elixir::Aether::Simulation
 {
     using namespace Core;
     using namespace Modules;
+    using Detail::SParticleOpData;
+    using Detail::ToOpData;
     using Rendering::SystemInstanceRenderProxy;
     using Rendering::FrameSubmission;
 
@@ -25,14 +28,6 @@ namespace Elixir::Aether::Simulation
             glm::vec4 MetaB{};
             glm::vec4 MetaC{};
             glm::vec4 MetaD{};
-        };
-
-        struct SParticleOpData
-        {
-            glm::vec4 Header{};
-            glm::vec4 Data0{};
-            glm::vec4 Data1{};
-            glm::vec4 Data2{};
         };
 
         struct SParameterData
@@ -177,52 +172,6 @@ namespace Elixir::Aether::Simulation
                 .BurstCount = target.BurstCount,
                 .DelaySeconds = target.DelaySeconds,
             };
-        }
-
-        SParticleOpData ToOpData(const SGPUParticleOp& op, uint32_t parameterBaseOffset)
-        {
-            const auto ResolveParameterIndex = [parameterBaseOffset](const uint32_t parameterIndex)
-            {
-                return parameterIndex == UINT32_MAX
-                    ? -1.0f
-                    : (float)(parameterBaseOffset + parameterIndex);
-            };
-
-            SParticleOpData desc{};
-
-            desc.Header = {
-                (float)(uint32_t)op.Type,
-                (float)op.Target,
-                ResolveParameterIndex(op.Parameter0Index),
-                ResolveParameterIndex(op.Parameter1Index)
-            };
-
-            desc.Data0 = op.Data0;
-            desc.Data1 = op.Data1;
-            desc.Data2 = op.Data2;
-
-            if (op.Type == EParticleOp::ApplyVortex)
-            {
-                // ApplyVortex keeps its optional tangential and radial parameter
-                // indices in Data2.z and Data2.w. Unlike Header.zw, these values
-                // were left relative to the compiled system, causing instances
-                // beyond parameter buffer offset zero to read another system's
-                // forces.
-                const auto ResolveEmbeddedParameterIndex = [parameterBaseOffset](
-                    const float parameterIndex
-                )
-                {
-                    const auto index = (int32_t)parameterIndex;
-                    return index < 0
-                        ? -1.0f
-                        : (float)(parameterBaseOffset + (uint32_t)index);
-                };
-
-                desc.Data2.z = ResolveEmbeddedParameterIndex(op.Data2.z);
-                desc.Data2.w = ResolveEmbeddedParameterIndex(op.Data2.w);
-            }
-
-            return desc;
         }
 
         SParameterData ToParameterData(const SGPUParameter& parameter)

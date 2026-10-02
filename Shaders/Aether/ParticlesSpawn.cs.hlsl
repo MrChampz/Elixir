@@ -424,13 +424,16 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         else if (type == 3u) // SampleCone
         {
             float3 axis = SafeNormalize(op.Data0.xyz, float3(0.0, 1.0, 0.0));
-            float angle = op.Data0.w * 0.5;
+            // Data1.z stores the angle parameter index, or -1 for the literal.
+            float angle = ResolveValue((int)op.Data1.z, float4(op.Data0.w, 0.0, 0.0, 0.0)).x * 0.5;
+            float minSpeed = ResolveValue(param0, float4(op.Data1.x, 0.0, 0.0, 0.0)).x;
+            float maxSpeed = ResolveValue(param1, float4(op.Data1.y, 0.0, 0.0, 0.0)).x;
 
             float angleRandom = Hash2(seedBase + float2(3.17, 9.41));
             float speedRandom = Hash2(seedBase + float2(5.23, 2.19));
             float coneRandom = Hash2(seedBase + float2(8.41, 4.77));
 
-            float speed = lerp(op.Data1.x, op.Data1.y, speedRandom);
+            float speed = lerp(minSpeed, maxSpeed, speedRandom);
 
             float cosTheta = lerp(1.0, cos(angle), coneRandom);
             float sinTheta = sqrt(max(0.0, 1.0 - cosTheta * cosTheta));

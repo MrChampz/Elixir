@@ -49,7 +49,8 @@ namespace Elixir
             fastgltf::Extensions::KHR_materials_emissive_strength |
             fastgltf::Extensions::KHR_materials_specular |
             fastgltf::Extensions::KHR_texture_transform |
-            fastgltf::Extensions::KHR_materials_clearcoat;
+            fastgltf::Extensions::KHR_materials_clearcoat |
+            fastgltf::Extensions::KHR_materials_sheen;
 
         bool IsPathWithinAssetDirectory(const std::filesystem::path& path)
         {
@@ -90,6 +91,8 @@ namespace Elixir
                 Ref<Texture> ClearCoat;
                 Ref<Texture> ClearCoatRoughness;
                 Ref<Texture> ClearCoatNormal;
+                Ref<Texture> SheenColor;
+                Ref<Texture> SheenRoughness;
             };
 
             Ref<Texture> DecodeImage(
@@ -475,7 +478,10 @@ namespace Elixir
             material->SetBlendMode(GetBlendMode(source.alphaMode));
             material->SetDoubleSided(source.doubleSided);
 
-            if (source.clearcoat)
+            // Cloth and ClearCoat are separate material types; sheen takes precedence.
+            if (source.sheen)
+                material->SetShadingModel(EMaterialShadingModel::Cloth);
+            else if (source.clearcoat)
                 material->SetShadingModel(EMaterialShadingModel::ClearCoat);
 
             if (source.alphaMode == fastgltf::AlphaMode::Mask)
@@ -556,7 +562,7 @@ namespace Elixir
                 }), "Could not define SpecularColorFactor.")
             }
 
-            if (source.clearcoat)
+            if (source.clearcoat && !source.sheen)
             {
                 EE_CORE_ASSERT(material->DefineParameter("ClearCoatFactor", {
                     .Kind = EMaterialParameterKind::Value,
@@ -583,6 +589,26 @@ namespace Elixir
                             : 1.0f
                     ),
                 }), "Could not define ClearCoatNormalScale.")
+            }
+
+            if (source.sheen)
+            {
+                const auto& colorFactor = source.sheen->sheenColorFactor;
+                EE_CORE_ASSERT(material->DefineParameter("FuzzColorFactor", {
+                    .Kind = EMaterialParameterKind::Value,
+                    .ValueType = EMaterialValueType::Float3,
+                    .DefaultValue = SMaterialParameter::MakeVector({
+                        colorFactor.x(), colorFactor.y(), colorFactor.z(), 0.0f
+                    }),
+                }), "Could not define FuzzColorFactor.")
+
+                EE_CORE_ASSERT(material->DefineParameter("FuzzRoughnessFactor", {
+                    .Kind = EMaterialParameterKind::Value,
+                    .ValueType = EMaterialValueType::Float,
+                    .DefaultValue = SMaterialParameter::MakeScalar(
+                        source.sheen->sheenRoughnessFactor
+                    ),
+                }), "Could not define FuzzRoughnessFactor.")
             }
 
             MaterialGraph graph;
@@ -711,7 +737,7 @@ namespace Elixir
                 graph.Connect(scale, scaledNormal, 1);
 
                 graph.SetChannel(
-                    source.clearcoat
+                    material->GetShadingModel() == EMaterialShadingModel::ClearCoat
                         ? EMaterialChannel::ClearCoatBottomNormal
                         : EMaterialChannel::Normal,
                     scaledNormal
@@ -812,7 +838,7 @@ namespace Elixir
                 graph.SetChannel(EMaterialChannel::SpecularColor, specularColor);
             }
 
-            if (source.clearcoat)
+            if (source.clearcoat && !source.sheen)
             {
                 auto clearCoat = graph.AddNode<Parameter>(
                     "ClearCoatFactor",
@@ -907,6 +933,68 @@ namespace Elixir
                 }
             }
 
+            if (source.sheen)
+            {
+                auto fuzzColor = graph.AddNode<Parameter>(
+                    "FuzzColorFactor",
+                    EMaterialValueType::Float3
+                );
+
+                if (textures.SheenColor)
+                {
+                    EE_CORE_ASSERT(material->DefineParameter("FuzzColorTexture", {
+                        .Kind = EMaterialParameterKind::Texture,
+                        .DefaultValue = SMaterialParameter::MakeTexture(textures.SheenColor),
+                    }), "Could not define FuzzColorTexture.");
+
+                    const auto sample = AddTextureSample(
+                        graph,
+                        *material,
+                        "FuzzColorTexture",
+                        *source.sheen->sheenColorTexture
+                    );
+                    const auto multiply = graph.AddNode<Multiply>();
+                    graph.Connect(fuzzColor, multiply, 0);
+                    graph.Connect(sample, multiply, 1);
+                    fuzzColor = multiply;
+                }
+
+                auto fuzzRoughness = graph.AddNode<Parameter>(
+                    "FuzzRoughnessFactor",
+                    EMaterialValueType::Float
+                );
+
+                if (textures.SheenRoughness)
+                {
+                    EE_CORE_ASSERT(material->DefineParameter("FuzzRoughnessTexture", {
+                        .Kind = EMaterialParameterKind::Texture,
+                        .DefaultValue = SMaterialParameter::MakeTexture(textures.SheenRoughness),
+                    }), "Could not define FuzzRoughnessTexture.");
+
+                    const auto sample = AddTextureSample(
+                        graph,
+                        *material,
+                        "FuzzRoughnessTexture",
+                        *source.sheen->sheenRoughnessTexture,
+                        ETextureSampleType::LinearColor
+                    );
+                    const auto alpha = graph.AddNode<ComponentMask>(3);
+                    graph.Connect(sample, alpha, 0);
+                    const auto multiply = graph.AddNode<Multiply>();
+                    graph.Connect(fuzzRoughness, multiply, 0);
+                    graph.Connect(alpha, multiply, 1);
+                    fuzzRoughness = multiply;
+                }
+
+                const auto cloth = graph.AddNode<Constant>(
+                    glm::vec4{ 1.0f },
+                    EMaterialValueType::Float
+                );
+                graph.SetChannel(EMaterialChannel::FuzzColor, fuzzColor);
+                graph.SetChannel(EMaterialChannel::FuzzRoughness, fuzzRoughness);
+                graph.SetChannel(EMaterialChannel::Cloth, cloth);
+            }
+
             material->SetGraph(std::move(graph));
             return material;
         }
@@ -998,7 +1086,7 @@ namespace Elixir
                     }
                 }
 
-                if (source.clearcoat)
+                if (source.clearcoat && !source.sheen)
                 {
                     if (source.clearcoat->clearcoatTexture)
                     {
@@ -1027,6 +1115,29 @@ namespace Elixir
                         info.MipmapMode = EImageMipmapMode::NormalMap;
                         textures.ClearCoatNormal = LoadTexture(
                             source.clearcoat->clearcoatNormalTexture->textureIndex,
+                            info
+                        );
+                    }
+                }
+
+                if (source.sheen)
+                {
+                    if (source.sheen->sheenColorTexture)
+                    {
+                        STexture2DCreateInfo info;
+                        info.Format = EImageFormat::R8G8B8A8_SRGB;
+                        textures.SheenColor = LoadTexture(
+                            source.sheen->sheenColorTexture->textureIndex,
+                            info
+                        );
+                    }
+
+                    if (source.sheen->sheenRoughnessTexture)
+                    {
+                        STexture2DCreateInfo info;
+                        info.Format = EImageFormat::R8G8B8A8_UNORM;
+                        textures.SheenRoughness = LoadTexture(
+                            source.sheen->sheenRoughnessTexture->textureIndex,
                             info
                         );
                     }

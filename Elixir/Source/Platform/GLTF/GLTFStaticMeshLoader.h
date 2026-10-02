@@ -17,6 +17,7 @@ namespace Elixir
          * metallic-roughness, normal, occlusion, and emissive maps. Materials
          * that use `KHR_materials_clearcoat` use the ClearCoat shading model
          * and import the clear-coat factor, roughness, and normal map.
+         * When sheen is also present, the material uses Cloth and ignores clear coat.
          * `KHR_materials_specular` imports the dielectric specular factor,
          * tint, and optional textures.
          * `KHR_materials_emissive_strength` scales the imported emissive

@@ -18,6 +18,9 @@ namespace Elixir::Materials
 
     bool Material::SetShadingModel(EMaterialShadingModel model)
     {
+        if (m_Usage != EMaterialUsage::Surface && model != EMaterialShadingModel::Lit)
+            return false;
+
         if (m_ShadingModel == model)
             return false;
 
