@@ -1,21 +1,10 @@
 #pragma once
 
-#include <Engine/Aether/Core/Particle.h>
+#include <Engine/Aether/Modules/Module.h>
 
 namespace Elixir::Aether::Modules
 {
     using namespace Elixir::Aether::Core;
-
-    struct SGPUParticleOp
-    {
-        EParticleOp Type = EParticleOp::SetLiteral;
-        EParticleAttribute Target = EParticleAttribute::None;
-        uint32_t Parameter0Index = UINT32_MAX;
-        uint32_t Parameter1Index = UINT32_MAX;
-        glm::vec4 Data0{};
-        glm::vec4 Data1{};
-        glm::vec4 Data2{};
-    };
 
     enum class EDynamicInput : uint32_t
     {
@@ -27,19 +16,7 @@ namespace Elixir::Aether::Modules
         ParticleSeed
     };
 
-    class ParticleSpawnModule
-    {
-    public:
-        virtual ~ParticleSpawnModule() = default;
-    };
-
-    class ParticleUpdateModule
-    {
-    public:
-        virtual ~ParticleUpdateModule() = default;
-    };
-
-    class ELIXIR_API SetPositionDisk final : public ParticleSpawnModule
+    class ELIXIR_API SetPositionDisk final : public SpawnModule
     {
     public:
         explicit SetPositionDisk(glm::vec3 center, float radius, glm::vec3 normal = { 0, 1, 0 });
@@ -54,7 +31,7 @@ namespace Elixir::Aether::Modules
         float m_Radius;
     };
 
-    class ELIXIR_API SetPositionBox final : public ParticleSpawnModule
+    class ELIXIR_API SetPositionBox final : public SpawnModule
     {
     public:
         explicit SetPositionBox(glm::vec3 minBounds, glm::vec3 maxBounds);
@@ -67,7 +44,7 @@ namespace Elixir::Aether::Modules
         glm::vec3 m_MaxBounds;
     };
 
-    class ELIXIR_API SetVelocityCone final : public ParticleSpawnModule
+    class ELIXIR_API SetVelocityCone final : public SpawnModule
     {
     public:
         explicit SetVelocityCone(glm::vec3 direction, float angle, float minSpeed, float maxSpeed);
@@ -93,7 +70,7 @@ namespace Elixir::Aether::Modules
         std::string m_MaxSpeedParamName;
     };
 
-    class ELIXIR_API SetLifetime final : public ParticleSpawnModule
+    class ELIXIR_API SetLifetime final : public SpawnModule
     {
     public:
         explicit SetLifetime(float minSeconds, float maxSeconds);
@@ -112,7 +89,7 @@ namespace Elixir::Aether::Modules
         std::string m_MaxSecondsParamName;
     };
 
-    class ELIXIR_API SetSize final : public ParticleSpawnModule
+    class ELIXIR_API SetSize final : public SpawnModule
     {
     public:
         explicit SetSize(float minSize, float maxSize);
@@ -131,7 +108,7 @@ namespace Elixir::Aether::Modules
         std::string m_MaxSizeParamName;
     };
 
-    class ELIXIR_API SetColor final : public ParticleSpawnModule
+    class ELIXIR_API SetColor final : public SpawnModule
     {
     public:
         explicit SetColor(glm::vec4 color);
@@ -146,7 +123,7 @@ namespace Elixir::Aether::Modules
         std::string m_ParamName;
     };
 
-    class ELIXIR_API SetRotation final : public ParticleSpawnModule
+    class ELIXIR_API SetRotation final : public SpawnModule
     {
     public:
         explicit SetRotation(float minRotation, float maxRotation);
@@ -166,7 +143,7 @@ namespace Elixir::Aether::Modules
 
     };
 
-    class ELIXIR_API SetScale final : public ParticleSpawnModule
+    class ELIXIR_API SetScale final : public SpawnModule
     {
     public:
         explicit SetScale(float minScale, float maxScale);
@@ -185,7 +162,7 @@ namespace Elixir::Aether::Modules
         std::string m_MaxScaleParamName;
     };
 
-    class ELIXIR_API SetPositionOnCircle final : public ParticleSpawnModule
+    class ELIXIR_API SetPositionOnCircle final : public SpawnModule
     {
     public:
         explicit SetPositionOnCircle(glm::vec3 center, float radius, float angularSpeed, float startAngle = 0.0f);
@@ -202,7 +179,7 @@ namespace Elixir::Aether::Modules
         float m_StartAngle;
     };
 
-    class ELIXIR_API SetPositionCircularPath final : public ParticleSpawnModule
+    class ELIXIR_API SetPositionCircularPath final : public SpawnModule
     {
     public:
         explicit SetPositionCircularPath(
@@ -224,7 +201,7 @@ namespace Elixir::Aether::Modules
         float m_TimeScale;
     };
 
-    class ELIXIR_API SetPositionVortexRibbonPath final : public ParticleSpawnModule
+    class ELIXIR_API SetPositionVortexRibbonPath final : public SpawnModule
     {
     public:
         explicit SetPositionVortexRibbonPath(
@@ -261,7 +238,7 @@ namespace Elixir::Aether::Modules
         float m_DepthAmplitude;
     };
 
-    class ELIXIR_API SetRibbonId final : public ParticleSpawnModule
+    class ELIXIR_API SetRibbonId final : public SpawnModule
     {
       public:
         explicit SetRibbonId(uint32_t ribbonId);
@@ -272,7 +249,7 @@ namespace Elixir::Aether::Modules
         uint32_t m_RibbonId;
     };
 
-    class ELIXIR_API SetRibbonIdFromSpawnOrder final : public ParticleSpawnModule
+    class ELIXIR_API SetRibbonIdFromSpawnOrder final : public SpawnModule
     {
       public:
         explicit SetRibbonIdFromSpawnOrder(uint32_t ribbonCount, uint32_t firstRibbonId = 0);
@@ -285,7 +262,7 @@ namespace Elixir::Aether::Modules
         uint32_t m_FirstRibbonId;
     };
 
-    class ELIXIR_API ApplyGravity final : public ParticleUpdateModule
+    class ELIXIR_API ApplyGravity final : public UpdateModule
     {
       public:
         explicit ApplyGravity(glm::vec3 gravity);
@@ -300,7 +277,7 @@ namespace Elixir::Aether::Modules
         std::string m_ParamName;
     };
 
-    class ELIXIR_API ApplyLinearDrag final : public ParticleUpdateModule
+    class ELIXIR_API ApplyLinearDrag final : public UpdateModule
     {
       public:
         explicit ApplyLinearDrag(float dragPerSecond);
@@ -315,7 +292,7 @@ namespace Elixir::Aether::Modules
         std::string m_ParamName;
     };
 
-    class ELIXIR_API ApplyAngularVelocity final : public ParticleUpdateModule
+    class ELIXIR_API ApplyAngularVelocity final : public UpdateModule
     {
     public:
         explicit ApplyAngularVelocity(float radiansPerSecond);
@@ -333,7 +310,7 @@ namespace Elixir::Aether::Modules
         EDynamicInput m_Input = EDynamicInput::None;
     };
 
-    class ELIXIR_API ApplyVortex final : public ParticleUpdateModule
+    class ELIXIR_API ApplyVortex final : public UpdateModule
     {
     public:
         explicit ApplyVortex(
@@ -372,7 +349,7 @@ namespace Elixir::Aether::Modules
         std::string m_RadialParamName;
     };
 
-    class ELIXIR_API ColorOverLife final : public ParticleUpdateModule
+    class ELIXIR_API ColorOverLife final : public UpdateModule
     {
       public:
         explicit ColorOverLife(glm::vec4 startColor, glm::vec4 endColor);
@@ -396,7 +373,7 @@ namespace Elixir::Aether::Modules
         EDynamicInput m_CurveInput = EDynamicInput::None;
     };
 
-    class ELIXIR_API SizeOverLife final : public ParticleUpdateModule
+    class ELIXIR_API SizeOverLife final : public UpdateModule
     {
     public:
         SizeOverLife(float startSize, float endSize);
@@ -415,7 +392,7 @@ namespace Elixir::Aether::Modules
         std::string m_EndSizeParamName;
     };
 
-    class ELIXIR_API ScaleOverLife final : public ParticleUpdateModule
+    class ELIXIR_API ScaleOverLife final : public UpdateModule
     {
     public:
         ScaleOverLife(float startScale, float endScale);
@@ -439,7 +416,7 @@ namespace Elixir::Aether::Modules
         EDynamicInput m_CurveInput = EDynamicInput::None;
     };
 
-    class ELIXIR_API KillOutsideBounds final : public ParticleUpdateModule
+    class ELIXIR_API KillOutsideBounds final : public UpdateModule
     {
       public:
         explicit KillOutsideBounds(glm::vec3 min, glm::vec3 max);

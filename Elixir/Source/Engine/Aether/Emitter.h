@@ -112,41 +112,17 @@ namespace Elixir::Aether
         Emitter& operator=(const Emitter&) = delete;
 
         /**
-         * @brief Adds a module that runs when particles spawn.
+         * @brief Adds an authored module.
          *
-         * The emitter owns the returned module.
+         * The emitter takes ownership. Module phase determines whether the
+         * operation runs during spawn or update.
          *
-         * @tparam Module A type derived from ParticleSpawnModule.
-         * @tparam Args Constructor argument types for Module.
-         * @param args Arguments forwarded to the module constructor.
-         * @return The newly created spawn module.
+         * @param module Module to own.
          */
-        template <typename Module, typename... Args>
-        Module& AddSpawnModule(Args&&... args)
+        void AddModule(Scope<Module> module)
         {
-            auto module = CreateScope<Module>(std::forward<Args>(args)...);
-            auto& ref = *module;
-            m_SpawnModules.push_back(std::move(module));
-            return ref;
-        }
-
-        /**
-         * @brief Adds a module that runs while particles update.
-         *
-         * The emitter owns the returned module.
-         *
-         * @tparam Module A type derived from ParticleUpdateModule.
-         * @tparam Args Constructor argument types for Module.
-         * @param args Arguments forwarded to the module constructor.
-         * @return The newly created update module.
-         */
-        template <typename Module, typename... Args>
-        Module& AddUpdateModule(Args&&... args)
-        {
-            auto module = CreateScope<Module>(std::forward<Args>(args)...);
-            auto& ref = *module;
-            m_UpdateModules.push_back(std::move(module));
-            return ref;
+            EE_CORE_ASSERT(module, "Aether modules must be valid.")
+            m_Modules.push_back(std::move(module));
         }
 
         /**
@@ -355,8 +331,7 @@ namespace Elixir::Aether
         bool m_MaterialIsResolved = false;
         uint32_t m_MaxParticles;
 
-        std::vector<Scope<ParticleSpawnModule>> m_SpawnModules;
-        std::vector<Scope<ParticleUpdateModule>> m_UpdateModules;
+        std::vector<Scope<Module>> m_Modules;
 
         std::string m_SpawnRateParamName;
         float m_SpawnRate = 0.0f; // particles per second

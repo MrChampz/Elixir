@@ -7,6 +7,7 @@
 
 #include <Engine/Aether/Effect/MaterialDescription.h>
 #include <Engine/Aether/Effect/MaterialFactory.h>
+#include <Engine/Aether/Modules/ModuleRegistry.h>
 
 namespace Elixir::Aether::Effect
 {
@@ -542,22 +543,17 @@ namespace Elixir::Aether::Effect
 
             using ModuleBuilder = void (*)(EffectParser&, Emitter&, od::object&);
 
-            template <typename Module>
-            void AddSpawnModule_Range(
-                Emitter& emitter,
-                od::object& object,
-                const std::string_view lowKey,
-                const std::string_view highKey
-            )
+            template <typename Module, typename... Args>
+            Module& AddModule(Emitter& emitter, Args&&... args)
             {
-                const auto low = ParseScalar(object, lowKey);
-                const auto high = ParseScalar(object, highKey);
-                emitter.AddSpawnModule<Module>(low.Value, high.Value)
-                    .BindParameters(low.Param, high.Param);
+                auto module = CreateScope<Module>(std::forward<Args>(args)...);
+                auto& reference = *module;
+                emitter.AddModule(std::move(module));
+                return reference;
             }
 
             template <typename Module>
-            void AddUpdateModule_Range(
+            void AddModule_Range(
                 Emitter& emitter,
                 od::object& object,
                 const std::string_view lowKey,
@@ -566,7 +562,7 @@ namespace Elixir::Aether::Effect
             {
                 const auto low = ParseScalar(object, lowKey);
                 const auto high = ParseScalar(object, highKey);
-                emitter.AddUpdateModule<Module>(low.Value, high.Value)
+                AddModule<Module>(emitter, low.Value, high.Value)
                     .BindParameters(low.Param, high.Param);
             }
 
@@ -582,6 +578,21 @@ namespace Elixir::Aether::Effect
                 const std::string type = RequireString(json, "type");
                 if (m_Failed) return;
 
+                if (auto module = ModuleRegistry::Create(type, json))
+                {
+                    const auto phase = kind == "spawn"
+                        ? EModulePhase::Spawn
+                        : EModulePhase::Update;
+                    if (module->GetPhase() != phase)
+                    {
+                        Fail("Module type '{}' cannot run during {}.", type, kind);
+                        return;
+                    }
+
+                    emitter.AddModule(std::move(module));
+                    return;
+                }
+
                 const auto it = builders.find(type);
                 if (it == builders.end())
                 {
@@ -596,15 +607,15 @@ namespace Elixir::Aether::Effect
             {
                 static const std::unordered_map<std::string_view, ModuleBuilder> builders =
                 {
-                    { "SetLifetime", [](EffectParser& p, Emitter& e, od::object& o) { p.AddSpawnModule_Range<SetLifetime>(e, o, "min", "max"); }},
-                    { "SetSize", [](EffectParser& p, Emitter& e, od::object& o) { p.AddSpawnModule_Range<SetSize>(e, o, "min", "max"); }},
-                    { "SetScale", [](EffectParser& p, Emitter& e, od::object& o) { p.AddSpawnModule_Range<SetScale>(e, o, "min", "max"); }},
-                    { "SetRotation", [](EffectParser& p, Emitter& e, od::object& o) { p.AddSpawnModule_Range<SetRotation>(e, o, "min", "max"); }},
+                    { "SetLifetime", [](EffectParser& p, Emitter& e, od::object& o) { p.AddModule_Range<SetLifetime>(e, o, "min", "max"); }},
+                    { "SetSize", [](EffectParser& p, Emitter& e, od::object& o) { p.AddModule_Range<SetSize>(e, o, "min", "max"); }},
+                    { "SetScale", [](EffectParser& p, Emitter& e, od::object& o) { p.AddModule_Range<SetScale>(e, o, "min", "max"); }},
+                    { "SetRotation", [](EffectParser& p, Emitter& e, od::object& o) { p.AddModule_Range<SetRotation>(e, o, "min", "max"); }},
                     {
                         "SetColor", [](EffectParser& p, Emitter& e, od::object& o)
                         {
                             const auto color = p.ParseFloat4(o, "color", glm::vec4(1.0f));
-                            e.AddSpawnModule<SetColor>(color.Value).BindParameter(color.Param);
+                            p.AddModule<SetColor>(e, color.Value).BindParameter(color.Param);
                         }
                     },
                     {
@@ -615,11 +626,11 @@ namespace Elixir::Aether::Effect
                             if (p.HasField(o, "normal"))
                             {
                                 const auto normal = p.RequireFloatVec<3>(o, "normal");
-                                e.AddSpawnModule<SetPositionDisk>(center, radius, normal);
+                                p.AddModule<SetPositionDisk>(e, center, radius, normal);
                             }
                             else
                             {
-                                e.AddSpawnModule<SetPositionDisk>(center, radius);
+                                p.AddModule<SetPositionDisk>(e, center, radius);
                             }
                         }
                     },
@@ -628,7 +639,7 @@ namespace Elixir::Aether::Effect
                         {
                             const glm::vec3 min = p.RequireFloatVec<3>(o, "min");
                             const glm::vec3 max = p.RequireFloatVec<3>(o, "max");
-                            e.AddSpawnModule<SetPositionBox>(min, max);
+                            p.AddModule<SetPositionBox>(e, min, max);
                         }
                     },
                     {
@@ -638,7 +649,7 @@ namespace Elixir::Aether::Effect
                             const auto angle = p.ParseScalar(o, "angle");
                             const auto minSpeed = p.ParseScalar(o, "minSpeed");
                             const auto maxSpeed = p.ParseScalar(o, "maxSpeed");
-                            e.AddSpawnModule<SetVelocityCone>(dir, angle.Value, minSpeed.Value, maxSpeed.Value)
+                            p.AddModule<SetVelocityCone>(e, dir, angle.Value, minSpeed.Value, maxSpeed.Value)
                                 .BindParameters(angle.Param, minSpeed.Param, maxSpeed.Param);
                         }
                     },
@@ -649,9 +660,9 @@ namespace Elixir::Aether::Effect
                             const float radius = p.RequireFloat(o, "radius");
                             const float angularSpeed = p.RequireFloat(o, "angularSpeed");
                             if (p.HasField(o, "startAngle"))
-                                e.AddSpawnModule<SetPositionOnCircle>(center, radius, angularSpeed, p.RequireFloat(o, "startAngle"));
+                                p.AddModule<SetPositionOnCircle>(e, center, radius, angularSpeed, p.RequireFloat(o, "startAngle"));
                             else
-                                e.AddSpawnModule<SetPositionOnCircle>(center, radius, angularSpeed);
+                                p.AddModule<SetPositionOnCircle>(e, center, radius, angularSpeed);
                         }
                     },
                     {
@@ -661,7 +672,7 @@ namespace Elixir::Aether::Effect
                             const glm::vec3 primary = p.RequireFloatVec<3>(o, "primaryAmplitude");
                             const glm::vec3 secondary = p.RequireFloatVec<3>(o, "secondaryAmplitude");
                             const float timeScale = p.RequireFloat(o, "timeScale");
-                            e.AddSpawnModule<SetPositionCircularPath>(baseOffset, primary, secondary, timeScale);
+                            p.AddModule<SetPositionCircularPath>(e, baseOffset, primary, secondary, timeScale);
                         }
                     },
                     {
@@ -677,7 +688,7 @@ namespace Elixir::Aether::Effect
                             const float curlAmplitude = p.RequireFloat(o, "curlAmplitude");
                             const float depthAmplitude = p.RequireFloat(o, "depthAmplitude");
 
-                            e.AddSpawnModule<SetPositionVortexRibbonPath>(
+                            p.AddModule<SetPositionVortexRibbonPath>(e,
                                 center,
                                 orbitSpeed,
                                 baseRadius,
@@ -693,7 +704,7 @@ namespace Elixir::Aether::Effect
                     {
                         "SetRibbonId", [](EffectParser& p, Emitter& e, od::object& o)
                         {
-                            e.AddSpawnModule<SetRibbonId>(p.RequireUInt(o, "ribbonId"));
+                            p.AddModule<SetRibbonId>(e, p.RequireUInt(o, "ribbonId"));
                         }
                     },
                     {
@@ -701,7 +712,7 @@ namespace Elixir::Aether::Effect
                         {
                             const uint32_t count = p.RequireUInt(o, "ribbonCount");
                             const uint32_t first = p.RequireUInt(o, "firstRibbonId");
-                            e.AddSpawnModule<SetRibbonIdFromSpawnOrder>(count, first);
+                            p.AddModule<SetRibbonIdFromSpawnOrder>(e, count, first);
                         }
                     },
                 };
@@ -713,13 +724,13 @@ namespace Elixir::Aether::Effect
             {
                 static const std::unordered_map<std::string_view, ModuleBuilder> builders =
                 {
-                    { "SizeOverLife", [](EffectParser& s, Emitter& e, od::object& j) { s.AddUpdateModule_Range<SizeOverLife>(e, j, "start", "end"); } },
+                    { "SizeOverLife", [](EffectParser& s, Emitter& e, od::object& j) { s.AddModule_Range<SizeOverLife>(e, j, "start", "end"); } },
                     {
                         "ColorOverLife", [](EffectParser& s, Emitter& e, od::object& j)
                         {
                             const auto start = s.ParseFloat4(j, "start");
                             const auto end = s.ParseFloat4(j, "end");
-                            auto& module = e.AddUpdateModule<ColorOverLife>(start.Value, end.Value);
+                            auto& module = s.AddModule<ColorOverLife>(e, start.Value, end.Value);
                             module.BindParameters(start.Param, end.Param);
 
                             if (s.HasField(j, "curve"))
@@ -730,21 +741,21 @@ namespace Elixir::Aether::Effect
                         "ApplyGravity", [](EffectParser& s, Emitter& e, od::object& j)
                         {
                             const auto gravity = s.ParseFloat4(j, "gravity");
-                            e.AddUpdateModule<ApplyGravity>(glm::vec3{ gravity.Value }).BindParameter(gravity.Param);
+                            s.AddModule<ApplyGravity>(e, glm::vec3{ gravity.Value }).BindParameter(gravity.Param);
                         }
                     },
                     {
                         "ApplyLinearDrag", [](EffectParser& s, Emitter& e, od::object& j)
                         {
                             const auto drag = s.ParseScalar(j, "drag");
-                            e.AddUpdateModule<ApplyLinearDrag>(drag.Value).BindParameter(drag.Param);
+                            s.AddModule<ApplyLinearDrag>(e, drag.Value).BindParameter(drag.Param);
                         }
                     },
                     {
                         "ApplyAngularVelocity", [](EffectParser& s, Emitter& e, od::object& j)
                         {
                             const auto value = s.ParseScalar(j, "value");
-                            auto& module = e.AddUpdateModule<ApplyAngularVelocity>(value.Value);
+                            auto& module = s.AddModule<ApplyAngularVelocity>(e, value.Value);
                             module.BindParameter(value.Param);
                             if (s.HasField(j, "input"))
                                 module.BindInput(s.ParseDynamicInput(j, "input"));
@@ -760,7 +771,7 @@ namespace Elixir::Aether::Effect
                             if (s.HasField(j, "normal"))
                             {
                                 const auto normal = s.ParseFloat4(j, "normal");
-                                e.AddUpdateModule<ApplyVortex>(glm::vec3(center.Value), tangential.Value, radial.Value, normal.Value)
+                                s.AddModule<ApplyVortex>(e, glm::vec3(center.Value), tangential.Value, radial.Value, normal.Value)
                                     .BindParameters(
                                         center.Param,
                                         tangential.Param,
@@ -770,7 +781,7 @@ namespace Elixir::Aether::Effect
                             }
                             else
                             {
-                                e.AddUpdateModule<ApplyVortex>(glm::vec3(center.Value), tangential.Value, radial.Value)
+                                s.AddModule<ApplyVortex>(e, glm::vec3(center.Value), tangential.Value, radial.Value)
                                     .BindParameters(
                                         center.Param,
                                         tangential.Param,
@@ -784,7 +795,7 @@ namespace Elixir::Aether::Effect
                         {
                             const auto start = s.ParseScalar(j, "start");
                             const auto end = s.ParseScalar(j, "end");
-                            auto& module = e.AddUpdateModule<ScaleOverLife>(start.Value, end.Value);
+                            auto& module = s.AddModule<ScaleOverLife>(e, start.Value, end.Value);
                             module.BindParameters(start.Param, end.Param);
 
                             if (s.HasField(j, "curve"))
@@ -796,7 +807,7 @@ namespace Elixir::Aether::Effect
                         {
                             const glm::vec3 min = s.RequireFloatVec<3>(j, "min");
                             const glm::vec3 max = s.RequireFloatVec<3>(j, "max");
-                            e.AddUpdateModule<KillOutsideBounds>(min, max);
+                            s.AddModule<KillOutsideBounds>(e, min, max);
                         }
                     },
                 };

@@ -60,8 +60,15 @@ namespace Elixir::Aether
         if (m_Material)
             emitter.Material = m_Material;
 
-        for (const auto& module : m_SpawnModules)
+        for (const auto& module : m_Modules)
         {
+            if (module->GetPhase() != EModulePhase::Spawn)
+                continue;
+
+            ModuleCompileContext context(ops, params, m_Name, emitter.GravityScale);
+            if (module->Compile(context))
+                continue;
+
             if (const auto* typed = dynamic_cast<const SetPositionDisk*>(module.get()))
             {
                 ops.push_back({
@@ -223,8 +230,15 @@ namespace Elixir::Aether
         emitter.SpawnOpCount = (uint32_t)ops.size() - emitter.SpawnOpOffset;
         emitter.UpdateOpOffset = (uint32_t)ops.size();
 
-        for (const auto& module : m_UpdateModules)
+        for (const auto& module : m_Modules)
         {
+            if (module->GetPhase() != EModulePhase::Update)
+                continue;
+
+            ModuleCompileContext context(ops, params, m_Name, emitter.GravityScale);
+            if (module->Compile(context))
+                continue;
+
             if (const auto* typed = dynamic_cast<const ApplyGravity*>(module.get()))
             {
                 ops.push_back({

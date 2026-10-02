@@ -159,7 +159,8 @@ namespace Elixir::Aether::Modules
 
     /* ApplyGravity */
 
-    ApplyGravity::ApplyGravity(const glm::vec3 gravity) : m_Gravity(gravity) {}
+    ApplyGravity::ApplyGravity(const glm::vec3 gravity)
+        : m_Gravity(gravity) {}
 
     ApplyGravity& ApplyGravity::BindParameter(std::string paramName)
     {
