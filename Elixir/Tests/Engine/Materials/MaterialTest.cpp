@@ -35,6 +35,17 @@ TEST(MaterialTest, SupportsSubsurfaceOnlyForSurfaceMaterials)
     EXPECT_EQ(particle.GetShadingModel(), EMaterialShadingModel::Lit);
 }
 
+TEST(MaterialTest, SupportsClothOnlyForSurfaceMaterials)
+{
+    Material surface("Cloth");
+    EXPECT_TRUE(surface.SetShadingModel(EMaterialShadingModel::Cloth));
+    EXPECT_EQ(surface.GetShadingModel(), EMaterialShadingModel::Cloth);
+
+    Material particle("Particle", EMaterialUsage::Particle);
+    EXPECT_FALSE(particle.SetShadingModel(EMaterialShadingModel::Cloth));
+    EXPECT_EQ(particle.GetShadingModel(), EMaterialShadingModel::Lit);
+}
+
 TEST(MaterialTest, StoresTransparencySettings)
 {
     Material material("Transparency");

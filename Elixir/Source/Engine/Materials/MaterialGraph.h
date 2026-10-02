@@ -30,6 +30,12 @@ namespace Elixir::Materials
         /** @brief Color of light transmitted through a subsurface material. */
         SubsurfaceColor,
 
+        /** @brief Color of the fiber sheen on a cloth material. */
+        FuzzColor,
+
+        /** @brief Strength of the fiber sheen on a cloth material. */
+        Cloth,
+
         /** @brief Ambient-occlusion multiplier for indirect and direct lighting. */
         AmbientOcclusion,
 

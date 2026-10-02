@@ -2,7 +2,7 @@
 //
 // The compiler replaces both markers below. The graph marker provides the
 // material values, while the shading-model marker selects Unlit, Lit, or
-// ClearCoat, or Subsurface at shader-compilation time.
+// ClearCoat, Subsurface, or Cloth at shader-compilation time.
 
 // __SHADING_MODEL__
 
@@ -10,6 +10,7 @@
 #define MATERIAL_SHADING_MODEL_LIT        1
 #define MATERIAL_SHADING_MODEL_CLEAR_COAT 2
 #define MATERIAL_SHADING_MODEL_SUBSURFACE 3
+#define MATERIAL_SHADING_MODEL_CLOTH      4
 
 [[vk::binding(0, 0)]]
 cbuffer cbFrame : register(b0)
@@ -87,6 +88,8 @@ struct Surface
     float   Opacity;
     float3  Emissive;
     float3  SubsurfaceColor;
+    float3  FuzzColor;
+    float   Cloth;
     float   AmbientOcclusion;
     float   Specular;
     float3  SpecularColor;
@@ -271,6 +274,8 @@ float4 main(PSInput input) : SV_Target0
     surface.Opacity = 1.0f;
     surface.Emissive = float3(0.0f, 0.0f, 0.0f);
     surface.SubsurfaceColor = float3(0.0f, 0.0f, 0.0f);
+    surface.FuzzColor = float3(0.0f, 0.0f, 0.0f);
+    surface.Cloth = 0.0f;
     surface.AmbientOcclusion = 1.0f;
     surface.Specular = 1.0f;
     surface.SpecularColor = float3(1.0f, 1.0f, 1.0f);
@@ -334,6 +339,7 @@ float4 main(PSInput input) : SV_Target0
     float3 directDiffuseContribution = 0.0f.xxx;
     float3 directSpecularContribution = 0.0f.xxx;
     float3 subsurfaceContribution = 0.0f.xxx;
+    float3 clothContribution = 0.0f.xxx;
     float3 clearCoatContribution = 0.0f.xxx;
     float3 color = diffuseIBLContribution + specularIBLContribution + surface.Emissive;
     const float3 radiance = LightColor.rgb * LightColor.a;
@@ -347,6 +353,12 @@ float4 main(PSInput input) : SV_Target0
     subsurfaceContribution += surface.SubsurfaceColor * radiance *
         (backNdotL * backNdotL * subsurfaceWeight * ao);
     color += subsurfaceContribution;
+#endif
+
+#if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_CLOTH
+    const float clothWeight = saturate(surface.Cloth) * pow(1.0f - NdotV, 4.0f);
+    clothContribution = SampleIrradiance(N) * surface.FuzzColor * clothWeight * ao;
+    color += clothContribution;
 #endif
 
     // Cook-Torrance microfacet BRDF for the directional light.
@@ -367,6 +379,13 @@ float4 main(PSInput input) : SV_Target0
             3.14159265359f * radiance * NdotL * ao;
         directSpecularContribution = specularDirect * radiance * NdotL * ao;
         color += directDiffuseContribution + directSpecularContribution;
+
+#if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_CLOTH
+        const float3 clothDirect = surface.FuzzColor * radiance *
+            (clothWeight * NdotL * ao / 3.14159265359f);
+        clothContribution += clothDirect;
+        color += clothDirect;
+#endif
     }
 
 #if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_CLEAR_COAT
