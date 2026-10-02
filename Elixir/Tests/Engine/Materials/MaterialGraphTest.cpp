@@ -141,6 +141,31 @@ TEST(MaterialGraphTest, RoutesSpecularInputs)
     EXPECT_NE(hlsl.find("surface.SpecularColor = n"), std::string::npos);
 }
 
+TEST(MaterialGraphTest, RoutesClothInputs)
+{
+    MaterialGraph graph;
+    const auto fuzzColor = graph.AddNode<Parameter>(
+        "FuzzColorFactor",
+        EMaterialValueType::Float3
+    );
+    const auto fuzzRoughness = graph.AddNode<Parameter>(
+        "FuzzRoughnessFactor",
+        EMaterialValueType::Float
+    );
+    graph.SetChannel(EMaterialChannel::FuzzColor, fuzzColor);
+    graph.SetChannel(EMaterialChannel::FuzzRoughness, fuzzRoughness);
+
+    const auto hlsl = graph.GenerateHLSL({
+        .Values = {
+            { "FuzzColorFactor", "mat.Values[0].xyz" },
+            { "FuzzRoughnessFactor", "mat.Values[1].x" },
+        },
+    });
+
+    EXPECT_NE(hlsl.find("surface.FuzzColor = n"), std::string::npos);
+    EXPECT_NE(hlsl.find("surface.FuzzRoughness = n"), std::string::npos);
+}
+
 TEST(MaterialGraphTest, SelectsSecondStaticMeshTextureCoordinate)
 {
     MaterialGraph graph;

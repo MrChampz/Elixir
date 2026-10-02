@@ -90,6 +90,7 @@ struct Surface
     float3  SubsurfaceColor;
     float3  FuzzColor;
     float   Cloth;
+    float   FuzzRoughness;
     float   AmbientOcclusion;
     float   Specular;
     float3  SpecularColor;
@@ -276,6 +277,7 @@ float4 main(PSInput input) : SV_Target0
     surface.SubsurfaceColor = float3(0.0f, 0.0f, 0.0f);
     surface.FuzzColor = float3(0.0f, 0.0f, 0.0f);
     surface.Cloth = 0.0f;
+    surface.FuzzRoughness = 1.0f;
     surface.AmbientOcclusion = 1.0f;
     surface.Specular = 1.0f;
     surface.SpecularColor = float3(1.0f, 1.0f, 1.0f);
@@ -356,7 +358,8 @@ float4 main(PSInput input) : SV_Target0
 #endif
 
 #if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_CLOTH
-    const float clothWeight = saturate(surface.Cloth) * pow(1.0f - NdotV, 4.0f);
+    const float fuzzExponent = lerp(6.0f, 1.0f, saturate(surface.FuzzRoughness));
+    const float clothWeight = saturate(surface.Cloth) * pow(1.0f - NdotV, fuzzExponent);
     clothContribution = SampleIrradiance(N) * surface.FuzzColor * clothWeight * ao;
     color += clothContribution;
 #endif

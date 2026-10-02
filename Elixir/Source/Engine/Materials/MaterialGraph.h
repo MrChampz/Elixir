@@ -36,6 +36,9 @@ namespace Elixir::Materials
         /** @brief Strength of the fiber sheen on a cloth material. */
         Cloth,
 
+        /** @brief Roughness of the fiber sheen on a cloth material. */
+        FuzzRoughness,
+
         /** @brief Ambient-occlusion multiplier for indirect and direct lighting. */
         AmbientOcclusion,
 
