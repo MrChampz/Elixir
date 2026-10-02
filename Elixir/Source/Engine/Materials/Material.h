@@ -36,6 +36,9 @@ namespace Elixir::Materials
 
         /** Evaluates Lit with a dielectric clear-coat layer over a base layer. */
         ClearCoat,
+
+        /** Evaluates Lit with light transmitted through a scattering surface. */
+        Subsurface,
     };
 
     /** @brief Defines how a material combines with the color target. */

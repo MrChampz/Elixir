@@ -27,6 +27,9 @@ namespace Elixir::Materials
         /** @brief Surface emissive color. */
         Emissive,
 
+        /** @brief Color of light transmitted through a subsurface material. */
+        SubsurfaceColor,
+
         /** @brief Ambient-occlusion multiplier for indirect and direct lighting. */
         AmbientOcclusion,
 

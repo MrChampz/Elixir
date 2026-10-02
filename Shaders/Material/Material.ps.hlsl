@@ -2,13 +2,14 @@
 //
 // The compiler replaces both markers below. The graph marker provides the
 // material values, while the shading-model marker selects Unlit, Lit, or
-// ClearCoat at shader-compilation time.
+// ClearCoat, or Subsurface at shader-compilation time.
 
 // __SHADING_MODEL__
 
 #define MATERIAL_SHADING_MODEL_UNLIT      0
 #define MATERIAL_SHADING_MODEL_LIT        1
 #define MATERIAL_SHADING_MODEL_CLEAR_COAT 2
+#define MATERIAL_SHADING_MODEL_SUBSURFACE 3
 
 [[vk::binding(0, 0)]]
 cbuffer cbFrame : register(b0)
@@ -85,6 +86,7 @@ struct Surface
     float   Roughness;
     float   Opacity;
     float3  Emissive;
+    float3  SubsurfaceColor;
     float   AmbientOcclusion;
     float   Specular;
     float3  SpecularColor;
@@ -268,6 +270,7 @@ float4 main(PSInput input) : SV_Target0
     surface.Roughness = 0.5f;
     surface.Opacity = 1.0f;
     surface.Emissive = float3(0.0f, 0.0f, 0.0f);
+    surface.SubsurfaceColor = float3(0.0f, 0.0f, 0.0f);
     surface.AmbientOcclusion = 1.0f;
     surface.Specular = 1.0f;
     surface.SpecularColor = float3(1.0f, 1.0f, 1.0f);
@@ -330,8 +333,21 @@ float4 main(PSInput input) : SV_Target0
     const float3 specularIBLContribution = specularIBL * ao;
     float3 directDiffuseContribution = 0.0f.xxx;
     float3 directSpecularContribution = 0.0f.xxx;
+    float3 subsurfaceContribution = 0.0f.xxx;
     float3 clearCoatContribution = 0.0f.xxx;
     float3 color = diffuseIBLContribution + specularIBLContribution + surface.Emissive;
+    const float3 radiance = LightColor.rgb * LightColor.a;
+
+#if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_SUBSURFACE
+    const float subsurfaceWeight = 1.0f - surface.Metallic;
+    const float backNdotL = saturate(dot(-N, L));
+    const float3 subsurfaceIrradiance = SampleIrradiance(-N);
+    subsurfaceContribution = subsurfaceIrradiance * surface.SubsurfaceColor *
+        (0.25f * subsurfaceWeight * ao);
+    subsurfaceContribution += surface.SubsurfaceColor * radiance *
+        (backNdotL * backNdotL * subsurfaceWeight * ao);
+    color += subsurfaceContribution;
+#endif
 
     // Cook-Torrance microfacet BRDF for the directional light.
     if (NdotL > 0.0f)
@@ -347,8 +363,6 @@ float4 main(PSInput input) : SV_Target0
             max(4.0f * NdotV * NdotL, 1e-4f);
 
         const float3 diffuseWeightDirect = (1.0f - fresnelDirect) * (1.0f - surface.Metallic);
-        const float3 radiance = LightColor.rgb * LightColor.a;
-
         directDiffuseContribution = diffuseWeightDirect * surface.BaseColor /
             3.14159265359f * radiance * NdotL * ao;
         directSpecularContribution = specularDirect * radiance * NdotL * ao;
