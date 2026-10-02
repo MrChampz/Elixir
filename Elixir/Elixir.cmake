@@ -12,6 +12,12 @@ add_library(${PROJECT_NAME} SHARED
     ${CMAKE_CURRENT_LIST_DIR}/Vendor/stb/stb_image_write.h
 )
 
+if (APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    # Work around LLVM #120129: final-class dynamic_cast can fail across dylibs.
+    # Consumers also need this option because they compile casts from our headers.
+    target_compile_options(${PROJECT_NAME} PUBLIC -fno-assume-unique-vtables)
+endif()
+
 # PCH
 target_precompile_headers(${PROJECT_NAME} PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}/Source/epch.h
