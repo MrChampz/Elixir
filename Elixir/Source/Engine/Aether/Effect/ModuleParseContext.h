@@ -238,7 +238,7 @@ namespace Elixir::Aether::Effect
                 }
             }
 
-            Fail("Field '{}' must be a number or a parameter reference.", key);
+            Fail("Field '{}' must be a Float4 array or a parameter reference.", key);
             return result;
         }
 
