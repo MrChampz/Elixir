@@ -1,5 +1,9 @@
 #include <gtest/gtest.h>
 
+#include <array>
+#include <format>
+#include <limits>
+
 #include <Engine/Aether/Effect/Effect.h>
 #include <Engine/Aether/Effect/ModuleRegistry.h>
 #include <Engine/Aether/Modules/ApplyAngularVelocity.h>
@@ -302,6 +306,53 @@ TEST(ModuleRegistryTest, RejectsInvalidFieldsAndPreservesTheFirstError)
         EXPECT_FALSE(error.empty());
         context.Fail("Subsequent error");
         EXPECT_EQ(context.GetError(), error);
+    }
+}
+
+TEST(ModuleRegistryTest, RejectsNumbersOutsideTheFiniteFloatRange)
+{
+    for (const auto* value : { "1e39", "-1e39", "1e309", "-1e309" })
+    {
+        SCOPED_TRACE(value);
+        const std::array cases{
+            std::pair{ "SetPositionDisk", std::format(R"({{"center":[0,0,0],"radius":{}}})", value) },
+            std::pair{ "SetLifetime", std::format(R"({{"min":{},"max":1}})", value) },
+            std::pair{ "SetPositionBox", std::format(R"({{"min":[0,0,{}],"max":[1,1,1]}})", value) },
+            std::pair{ "SetColor", std::format(R"({{"color":[0,0,0,{}]}})", value) },
+        };
+        for (const auto& [type, json] : cases)
+        {
+            SCOPED_TRACE(type);
+            Effect::ModuleParseContext context;
+            EXPECT_FALSE(CreateRegistered(type, json, context));
+            ASSERT_TRUE(context.Failed());
+            EXPECT_FALSE(context.GetError().empty());
+            const auto error = context.GetError();
+            context.Fail("Subsequent error");
+            EXPECT_EQ(context.GetError(), error);
+        }
+    }
+}
+
+TEST(ModuleRegistryTest, AcceptsFiniteFloatLimits)
+{
+    for (const auto value : { std::numeric_limits<float>::max(), -std::numeric_limits<float>::max() })
+    {
+        SCOPED_TRACE(value);
+        const auto literal = std::format("{:.17g}", static_cast<double>(value));
+        const std::array cases{
+            std::pair{ "SetPositionDisk", std::format(R"({{"center":[0,0,0],"radius":{}}})", literal) },
+            std::pair{ "SetLifetime", std::format(R"({{"min":{},"max":1}})", literal) },
+            std::pair{ "SetPositionBox", std::format(R"({{"min":[0,0,{}],"max":[1,1,1]}})", literal) },
+            std::pair{ "SetColor", std::format(R"({{"color":[0,0,0,{}]}})", literal) },
+        };
+        for (const auto& [type, json] : cases)
+        {
+            SCOPED_TRACE(type);
+            Effect::ModuleParseContext context;
+            EXPECT_TRUE(CreateRegistered(type, json, context));
+            EXPECT_FALSE(context.Failed()) << context.GetError();
+        }
     }
 }
 

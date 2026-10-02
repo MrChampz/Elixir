@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <format>
 #include <limits>
 #include <optional>
@@ -67,7 +68,7 @@ namespace Elixir::Aether::Effect
                 return 0.0f;
             }
 
-            return static_cast<float>(value);
+            return ToFiniteFloat(value, key);
         }
 
         /** @brief Reads a required integer within the uint32 range. */
@@ -169,7 +170,7 @@ namespace Elixir::Aether::Effect
                     return result;
                 }
 
-                result.Value = static_cast<float>(value);
+                result.Value = ToFiniteFloat(value, key);
                 return result;
             }
 
@@ -320,13 +321,26 @@ namespace Elixir::Aether::Effect
                     return result;
                 }
 
-                result[i++] = static_cast<float>(value);
+                result[i++] = ToFiniteFloat(value, "array element");
+                if (Failed()) return result;
             }
 
             return result;
         }
 
     private:
+        // Rejects non-finite values and overflow before narrowing to float.
+        float ToFiniteFloat(const double value, std::string_view key)
+        {
+            if (!std::isfinite(value) ||
+                std::abs(value) > static_cast<double>(std::numeric_limits<float>::max()))
+            {
+                Fail("Field '{}' must be a finite float.", key);
+                return 0.0f;
+            }
+            return static_cast<float>(value);
+        }
+
         // Removes the dollar prefix from a parameter reference.
         static std::optional<std::string> ResolveParamRef(std::string_view value)
         {
