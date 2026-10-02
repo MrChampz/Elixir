@@ -478,11 +478,11 @@ namespace Elixir
             material->SetBlendMode(GetBlendMode(source.alphaMode));
             material->SetDoubleSided(source.doubleSided);
 
-            if (source.clearcoat)
-                material->SetShadingModel(EMaterialShadingModel::ClearCoat);
-
+            // Cloth and ClearCoat are separate material types; sheen takes precedence.
             if (source.sheen)
                 material->SetShadingModel(EMaterialShadingModel::Cloth);
+            else if (source.clearcoat)
+                material->SetShadingModel(EMaterialShadingModel::ClearCoat);
 
             if (source.alphaMode == fastgltf::AlphaMode::Mask)
                 material->SetAlphaCutoff(source.alphaCutoff);
@@ -562,7 +562,7 @@ namespace Elixir
                 }), "Could not define SpecularColorFactor.")
             }
 
-            if (source.clearcoat)
+            if (source.clearcoat && !source.sheen)
             {
                 EE_CORE_ASSERT(material->DefineParameter("ClearCoatFactor", {
                     .Kind = EMaterialParameterKind::Value,
@@ -737,7 +737,7 @@ namespace Elixir
                 graph.Connect(scale, scaledNormal, 1);
 
                 graph.SetChannel(
-                    source.clearcoat && !source.sheen
+                    material->GetShadingModel() == EMaterialShadingModel::ClearCoat
                         ? EMaterialChannel::ClearCoatBottomNormal
                         : EMaterialChannel::Normal,
                     scaledNormal
@@ -838,7 +838,7 @@ namespace Elixir
                 graph.SetChannel(EMaterialChannel::SpecularColor, specularColor);
             }
 
-            if (source.clearcoat)
+            if (source.clearcoat && !source.sheen)
             {
                 auto clearCoat = graph.AddNode<Parameter>(
                     "ClearCoatFactor",
@@ -929,12 +929,7 @@ namespace Elixir
                     graph.Connect(sample, scaledNormal, 0);
                     graph.Connect(scale, scaledNormal, 1);
 
-                    graph.SetChannel(
-                        source.sheen
-                            ? EMaterialChannel::ClearCoatNormal
-                            : EMaterialChannel::Normal,
-                        scaledNormal
-                    );
+                    graph.SetChannel(EMaterialChannel::Normal, scaledNormal);
                 }
             }
 
@@ -1091,7 +1086,7 @@ namespace Elixir
                     }
                 }
 
-                if (source.clearcoat)
+                if (source.clearcoat && !source.sheen)
                 {
                     if (source.clearcoat->clearcoatTexture)
                     {

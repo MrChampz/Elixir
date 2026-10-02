@@ -56,9 +56,6 @@ namespace Elixir::Materials
 
         /** @brief Tangent-space normal of the layer below clear coat. */
         ClearCoatBottomNormal,
-
-        /** @brief Tangent-space normal of the clear-coat layer, separate from the base normal. */
-        ClearCoatNormal,
     };
 
     /** @brief Maps material parameter names to generated HLSL expressions. */

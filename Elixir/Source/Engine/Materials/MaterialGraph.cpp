@@ -27,7 +27,6 @@ namespace Elixir::Materials
                 case EMaterialChannel::ClearCoat:               return "ClearCoat";
                 case EMaterialChannel::ClearCoatRoughness:      return "ClearCoatRoughness";
                 case EMaterialChannel::ClearCoatBottomNormal:   return "ClearCoatBottomNormal";
-                case EMaterialChannel::ClearCoatNormal:         return "ClearCoatNormal";
             }
 
             return "BaseColor";
