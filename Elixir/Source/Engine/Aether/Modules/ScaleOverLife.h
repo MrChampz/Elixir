@@ -127,7 +127,12 @@ namespace Elixir::Aether::Modules
             module->BindParameters(start.Param, end.Param);
 
             if (context.HasField(object, "curve"))
-                module->BindCurve(context.RequireString(object, "curve"), context.ParseDynamicInput(object, "input"));
+            {
+                const auto input = context.HasField(object, "input")
+                    ? context.ParseDynamicInput(object, "input")
+                    : EDynamicInput::NormalizedAge;
+                module->BindCurve(context.RequireString(object, "curve"), input);
+            }
             return module;
         }
 

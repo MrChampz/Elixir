@@ -254,6 +254,39 @@ TEST(ModuleRegistryTest, CreatesScaleOverLifeFromJson)
     EXPECT_NE(dynamic_cast<const ScaleOverLife*>(module.get()), nullptr);
 }
 
+TEST(ModuleRegistryTest, CompilesDefaultAndExplicitCurveInputsFromJson)
+{
+    const std::array modules{
+        std::pair{ "ColorOverLife", Elixir::Aether::Core::EParticleOp::SampleColorCurve },
+        std::pair{ "ScaleOverLife", Elixir::Aether::Core::EParticleOp::SampleCurve },
+    };
+    const std::array inputs{
+        std::pair{ "", EDynamicInput::NormalizedAge },
+        std::pair{ R"(,"input":"Random")", EDynamicInput::Random },
+        std::pair{ R"(,"input":"None")", EDynamicInput::None },
+    };
+    for (const auto& [type, operation] : modules)
+    {
+        SCOPED_TRACE(type);
+        for (const auto& [field, input] : inputs)
+        {
+            SCOPED_TRACE(field);
+            Effect::ModuleParseContext context;
+            const auto module = CreateRegistered(type, std::format(R"({{"curve":"Curve"{}}})", field), context);
+            ASSERT_FALSE(context.Failed()) << context.GetError();
+            ASSERT_TRUE(module);
+
+            std::vector<SGPUParticleOp> operations;
+            const std::vector<Elixir::Aether::Core::SGPUParameter> parameters;
+            ModuleCompileContext compileContext(operations, parameters, "Test", 1.0f);
+            module->Compile(compileContext);
+            ASSERT_FALSE(operations.empty());
+            EXPECT_EQ(operations[0].Type, operation);
+            EXPECT_FLOAT_EQ(operations[0].Data0.x, static_cast<float>(input));
+        }
+    }
+}
+
 TEST(ModuleRegistryTest, CreatesKillOutsideBoundsFromJson)
 {
     Effect::ModuleParseContext context;
@@ -295,6 +328,8 @@ TEST(ModuleRegistryTest, RejectsInvalidFieldsAndPreservesTheFirstError)
         std::pair{ "SetPositionDisk", R"({"radius":4})" },
         std::pair{ "SetLifetime", R"({"min":true,"max":false})" },
         std::pair{ "ApplyAngularVelocity", R"({"value":1,"input":"Unknown"})" },
+        std::pair{ "ColorOverLife", R"({"curve":"Color","input":"Unknown"})" },
+        std::pair{ "ScaleOverLife", R"({"curve":"Scale","input":"Unknown"})" },
     };
     for (const auto& [type, json] : cases)
     {
