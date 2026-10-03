@@ -16,12 +16,8 @@ namespace Elixir::Aether::Modules
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit({
-                Core::EParticleOp::SetLiteral,
-                Core::EParticleAttribute::RibbonId,
-                UINT32_MAX,
-                UINT32_MAX,
-                { (float)m_RibbonId, 0.0f, 0.0f, 0.0f }
+            context.Emit(Core::EParticleOp::SetLiteral, Core::EParticleAttribute::RibbonId, {
+                context.UInt(m_RibbonId)
             });
         }
 

@@ -24,10 +24,10 @@ StructuredBuffer<Emitter> emitters;
 
 struct Op
 {
-    float4 Header; // x = type, y = unused, z = parameter 0 index, w = parameter 1 index
-    float4 Data0;
-    float4 Data1;
-    float4 Data2;
+    uint Type;
+    uint Target;
+    uint OperandOffset;
+    uint OperandCount;
 };
 
 [[vk::binding(2, 0)]]
@@ -59,6 +59,8 @@ struct SystemInstance
     uint Generation;
 
     uint ParticleStateLayoutIndex;
+    uint OperandBaseOffset;
+    uint ConstantBaseOffset;
 };
 
 [[vk::binding(4, 0)]]
@@ -97,14 +99,6 @@ PushConstants pc;
 
 float Hash1(float x) {
   return frac(sin(x * 91.3458 + 12.345) * 45678.5453);
-}
-
-float4 ResolveValue(int parameterIndex, float4 fallbackValue)
-{
-    if (parameterIndex < 0)
-        return fallbackValue;
-
-    return parameters[parameterIndex].Value;
 }
 
 float ResolveDynamicInput(uint inputType, float normalizedAge, float particleSeed)
@@ -276,6 +270,8 @@ float3 SafeNormalize(float3 value, float3 fallback)
     return value * rsqrt(lengthSquared);
 }
 
+#include "ParticleOperands.hlsl"
+
 [numthreads(256, 1, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
@@ -313,105 +309,104 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     for (uint i = 0u; i < opCount; ++i)
     {
         Op op = ops[opOffset + i];
-        uint type = (uint)op.Header.x;
-        uint target = (uint)op.Header.y;
+        uint type = op.Type;
+        uint target = op.Target;
 
-        int param0 = (int)op.Header.z;
-        int param1 = (int)op.Header.w;
-
-        if (type == 0u) // SetLiteral
+        if (type == Op_SetLiteral) // SetLiteral
         {
-            SetAttribute(attributes, target, ResolveValue(param0, op.Data0));
+            SetAttribute(attributes, target, target == 9u
+                ? float4(float(ReadUIntOperand(op, SetLiteral_Value, instance)), 0.0, 0.0, 0.0)
+                : ReadOperand(op, SetLiteral_Value, instance, attributes, life, particleSeed));
         }
-        else if (type == 5u) // AddWithDelta
+        else if (type == Op_AddWithDelta) // AddWithDelta
         {
             float4 value = GetAttribute(attributes, target);
-            float inputMultiplier = ResolveDynamicInput(uint(op.Data1.x + 0.5), life, particleSeed);
+            float inputMultiplier = ReadOperand(op, AddWithDelta_Multiplier, instance, attributes, life, particleSeed).x;
 
-            value += ResolveValue(param0, op.Data0) * (dt * inputMultiplier);
+            value += ReadOperand(op, AddWithDelta_Value, instance, attributes, life, particleSeed) * (dt * inputMultiplier);
 
             SetAttribute(attributes, target, value);
         }
-        else if (type == 6u) // Dampen
+        else if (type == Op_Dampen) // Dampen
         {
             float4 value = GetAttribute(attributes, target);
-            float drag = ResolveValue(param0, op.Data0).x;
+            float drag = ReadOperand(op, Dampen_Drag, instance, attributes, life, particleSeed).x;
             value *= max(0.0, 1.0 - drag * dt);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 7u) // LerpOverLife
+        else if (type == Op_LerpOverLife) // LerpOverLife
         {
-            float4 value0 = ResolveValue(param0, op.Data0);
-            float4 value1 = ResolveValue(param1, op.Data1);
+            float4 value0 = ReadOperand(op, LerpOverLife_Start, instance, attributes, life, particleSeed);
+            float4 value1 = ReadOperand(op, LerpOverLife_End, instance, attributes, life, particleSeed);
             float4 value = lerp(value0, value1, life);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 8u) // KillOutsideBounds
+        else if (type == Op_KillOutsideBounds) // KillOutsideBounds
         {
             float4 position = GetAttribute(attributes, 1u);
-            bool outsideBounds = position.x < op.Data0.x || position.x > op.Data1.x ||
-                                 position.y < op.Data0.y || position.y > op.Data1.y ||
-                                 position.z < op.Data0.z || position.z > op.Data1.z;
+            float3 minimum = ReadOperand(op, KillOutsideBounds_Minimum, instance, attributes, life, particleSeed).xyz;
+            float3 maximum = ReadOperand(op, KillOutsideBounds_Maximum, instance, attributes, life, particleSeed).xyz;
+            bool outsideBounds = any(position.xyz < minimum) || any(position.xyz > maximum);
             kill = kill || outsideBounds;
         }
-        else if (type == 9u) // AddFromAttribute
+        else if (type == Op_AddFromAttribute) // AddFromAttribute
         {
             float4 value = GetAttribute(attributes, target);
-            float4 sourceValue = GetAttribute(attributes, uint(op.Data0.x + 0.5));
-            value += sourceValue * (op.Data0.y * dt);
+            float4 sourceValue = ReadOperand(op, AddFromAttribute_Value, instance, attributes, life, particleSeed);
+            value += sourceValue * (ReadOperand(op, AddFromAttribute_Scale, instance, attributes, life, particleSeed).x * dt);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 14u) // SampleCurve
+        else if (type == Op_SampleCurve) // SampleCurve
         {
-            float inputValue = ResolveDynamicInput(uint(op.Data0.x + 0.5), life, particleSeed);
-            float value = SampleCurve(param0, inputValue);
+            float inputValue = ReadOperand(op, SampleCurve_Input, instance, attributes, life, particleSeed).x;
+            float value = SampleCurve(ReadCurveOperand(op, SampleCurve_Curve, instance), inputValue);
             SetAttribute(attributes, target, float4(value, 0.0, 0.0, 0.0));
         }
-        else if (type == 15u) // SampleColorCurve
+        else if (type == Op_SampleColorCurve) // SampleColorCurve
         {
-            float inputValue = ResolveDynamicInput(uint(op.Data0.x + 0.5), life, particleSeed);
-            float4 value = SampleColorCurve(param0, inputValue);
+            float inputValue = ReadOperand(op, SampleColorCurve_Input, instance, attributes, life, particleSeed).x;
+            float4 value = SampleColorCurve(ReadCurveOperand(op, SampleColorCurve_Curve, instance), inputValue);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 16u) // Add
+        else if (type == Op_Add) // Add
         {
             float4 value = GetAttribute(attributes, target);
-            value += ResolveValue(param0, op.Data0);
+            value += ReadOperand(op, Add_Value, instance, attributes, life, particleSeed);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 17u) // Mul
+        else if (type == Op_Mul) // Mul
         {
             float4 value = GetAttribute(attributes, target);
-            value *= ResolveValue(param0, op.Data0);
+            value *= ReadOperand(op, Mul_Value, instance, attributes, life, particleSeed);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 18u) // Clamp
+        else if (type == Op_Clamp) // Clamp
         {
             float4 value = GetAttribute(attributes, target);
-            float4 minValue = ResolveValue(param0, op.Data0);
-            float4 maxValue = ResolveValue(param1, op.Data1);
+            float4 minValue = ReadOperand(op, Clamp_Minimum, instance, attributes, life, particleSeed);
+            float4 maxValue = ReadOperand(op, Clamp_Maximum, instance, attributes, life, particleSeed);
             value = clamp(value, minValue, maxValue);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 19u) // CopyFromAttribute
+        else if (type == Op_CopyFromAttribute) // CopyFromAttribute
         {
-            float4 value = GetAttribute(attributes, uint(op.Data0.x + 0.5));
+            float4 value = ReadOperand(op, CopyFromAttribute_Value, instance, attributes, life, particleSeed);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 20u) // ApplyVortex
+        else if (type == Op_ApplyVortex) // ApplyVortex
         {
             float4 velocity = GetAttribute(attributes, target);
             float4 position = GetAttribute(attributes, 1u);
 
-            float3 center = ResolveValue(param0, op.Data0).xyz;
-            float3 normal = SafeNormalize(ResolveValue(param1, op.Data1).xyz, float3(0.0, 1.0, 0.0));
+            float3 center = ReadOperand(op, ApplyVortex_Center, instance, attributes, life, particleSeed).xyz;
+            float3 normal = SafeNormalize(ReadOperand(op, ApplyVortex_Normal, instance, attributes, life, particleSeed).xyz, float3(0.0, 1.0, 0.0));
             float3 offset = position.xyz - center;
 
             float3 radial = SafeNormalize(offset, 0.0);
-            float radialStrength = ResolveValue((int)op.Data2.w, float4(op.Data2.y, 0.0, 0.0, 0.0)).x;
+            float radialStrength = ReadOperand(op, ApplyVortex_Radial, instance, attributes, life, particleSeed).x;
 
             float3 tangent = SafeNormalize(cross(normal, radial), 0.0);
-            float tangentialStrength = ResolveValue((int)op.Data2.z, float4(op.Data2.x, 0.0, 0.0, 0.0)).x;
+            float tangentialStrength = ReadOperand(op, ApplyVortex_Tangential, instance, attributes, life, particleSeed).x;
 
             velocity.xyz += (tangent * tangentialStrength + radial * radialStrength) * dt;
 

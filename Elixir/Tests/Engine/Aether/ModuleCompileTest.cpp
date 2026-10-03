@@ -1,4 +1,6 @@
 #include <gtest/gtest.h>
+#include <bit>
+#include <stdexcept>
 
 #include <Engine/Aether/System.h>
 #include <Engine/Aether/Modules/ApplyGravity.h>
@@ -6,6 +8,9 @@
 #include <Engine/Aether/Modules/ScaleOverLife.h>
 #include <Engine/Aether/Modules/SetLifetime.h>
 #include <Engine/Aether/Modules/SetVelocityCone.h>
+#include <Engine/Aether/Modules/SetPositionVortexRibbonPath.h>
+#include <Engine/Aether/Modules/SetRibbonId.h>
+#include <Engine/Aether/Modules/SetRibbonIdFromSpawnOrder.h>
 
 #include "TestInstanceRegistry.h"
 
@@ -30,8 +35,8 @@ namespace
         /** @brief Appends two marker operations to the compilation context. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit({ .Data0 = glm::vec4(m_Marker) });
-            context.Emit({ .Data0 = glm::vec4(m_Marker + 1.0f) });
+            context.Emit(EParticleOp::SetLiteral, EParticleAttribute::Color, { context.Value(glm::vec4(m_Marker)) });
+            context.Emit(EParticleOp::SetLiteral, EParticleAttribute::Color, { context.Value(glm::vec4(m_Marker + 1.0f)) });
         }
 
     private:
@@ -57,7 +62,7 @@ TEST(ModuleCompileTest, DispatchesCustomModulesInPhaseOrderAndPreservesOffsets)
     const auto& compiled = submission.GetRenderProxies().front()->GetCompiledSystem();
 
     ASSERT_EQ(compiled.Emitters.size(), 2u);
-    ASSERT_EQ(compiled.Ops.size(), 8u);
+    ASSERT_EQ(compiled.Program.Ops.size(), 8u);
     EXPECT_EQ(compiled.Emitters[0].SpawnOpOffset, 0u);
     EXPECT_EQ(compiled.Emitters[0].SpawnOpCount, 4u);
     EXPECT_EQ(compiled.Emitters[0].UpdateOpOffset, 4u);
@@ -68,97 +73,129 @@ TEST(ModuleCompileTest, DispatchesCustomModulesInPhaseOrderAndPreservesOffsets)
     EXPECT_EQ(compiled.Emitters[1].UpdateOpCount, 2u);
     const std::array expected{ 10.0f, 11.0f, 20.0f, 21.0f, 30.0f, 31.0f, 40.0f, 41.0f };
     for (size_t i = 0; i < expected.size(); ++i)
-        EXPECT_FLOAT_EQ(compiled.Ops[i].Data0.x, expected[i]);
+        EXPECT_FLOAT_EQ(std::bit_cast<float>(compiled.Program.Constants[compiled.Program.Operands[compiled.Program.Ops[i].OperandOffset] & OperandIndexMask]), expected[i]);
+}
+
+namespace
+{
+    uint32_t Reference(const SParticleProgram& program, size_t operation, uint32_t argument)
+    {
+        return program.Operands.at(program.Ops.at(operation).OperandOffset + argument);
+    }
+
+    float Literal(const SParticleProgram& program, size_t operation, uint32_t argument, uint32_t component = 0)
+    {
+        return std::bit_cast<float>(program.Constants.at((Reference(program, operation, argument) & OperandIndexMask) + component));
+    }
+
+    uint32_t Encoded(EOperandSource source, uint32_t index)
+    {
+        return (uint32_t(source) << 29) | index;
+    }
 }
 
 TEST(ModuleCompileTest, ResolvesLocalParametersThenSystemParametersAndMissingValues)
 {
     const std::vector<SGPUParameter> parameters{
-        { "Low", glm::vec4(1.0f) },
-        { "Smoke.Low", glm::vec4(2.0f) },
-        { "High", glm::vec4(3.0f) },
+        { "Low", glm::vec4(1.0f) }, { "Smoke.Low", glm::vec4(2.0f) }, { "High", glm::vec4(3.0f) },
     };
-    std::vector<SGPUParticleOp> operations;
-    ModuleCompileContext context(operations, parameters, "Smoke", 2.5f);
+    SParticleProgram program;
+    ModuleCompileContext context(program, parameters, "Smoke", 2.5f);
     SetLifetime(1.0f, 4.0f).BindParameters("Low", "High").Compile(context);
     ApplyGravity({ 0.0f, -4.0f, 0.0f }).BindParameter("Missing").Compile(context);
     ApplyVortex({ 1.0f, 2.0f, 3.0f }, 4.0f, 5.0f)
         .BindParameters("Low", "High", "Missing", "Missing").Compile(context);
 
-    ASSERT_EQ(operations.size(), 3u);
-    EXPECT_EQ(operations[0].Type, EParticleOp::RandomRange);
-    EXPECT_EQ(operations[0].Target, EParticleAttribute::Lifetime);
-    EXPECT_EQ(operations[0].Parameter0Index, 1u);
-    EXPECT_EQ(operations[0].Parameter1Index, 2u);
-    EXPECT_FLOAT_EQ(operations[0].Data0.x, 1.0f);
-    EXPECT_FLOAT_EQ(operations[0].Data1.x, 4.0f);
-    EXPECT_EQ(operations[1].Parameter0Index, UINT32_MAX);
-    EXPECT_FLOAT_EQ(operations[1].Data0.y, -10.0f);
-    EXPECT_EQ(operations[2].Parameter0Index, 1u);
-    EXPECT_EQ(operations[2].Parameter1Index, UINT32_MAX);
-    EXPECT_FLOAT_EQ(operations[2].Data2.z, 2.0f);
-    EXPECT_FLOAT_EQ(operations[2].Data2.w, -1.0f);
+    ASSERT_EQ(program.Ops.size(), 3u);
+    EXPECT_EQ(Reference(program, 0, Inputs::RandomRange_Minimum), Encoded(EOperandSource::Parameter, 1));
+    EXPECT_EQ(Reference(program, 0, Inputs::RandomRange_Maximum), Encoded(EOperandSource::Parameter, 2));
+    EXPECT_FLOAT_EQ(Literal(program, 1, Inputs::AddWithDelta_Value, 1), -10.0f);
+    EXPECT_EQ(Reference(program, 2, Inputs::ApplyVortex_Center), Encoded(EOperandSource::Parameter, 1));
+    EXPECT_EQ(Reference(program, 2, Inputs::ApplyVortex_Tangential), Encoded(EOperandSource::Parameter, 2));
+    EXPECT_FLOAT_EQ(Literal(program, 2, Inputs::ApplyVortex_Radial), 5.0f);
 }
 
 TEST(ModuleCompileTest, CompilesScaleCurveWithRangeOffsetAndClamp)
 {
-    const std::vector<SGPUParameter> parameters{
-        { "Curve:0", glm::vec4(0.0f) },
-        { "Smoke.Curve:0", glm::vec4(1.0f) },
-    };
-    std::vector<SGPUParticleOp> operations;
-    ModuleCompileContext context(operations, parameters, "Smoke", 1.0f);
+    const std::vector<SGPUParameter> parameters{ { "Curve:0", glm::vec4(0) }, { "Smoke.Curve:0", glm::vec4(1) } };
+    SParticleProgram program;
+    ModuleCompileContext context(program, parameters, "Smoke", 1.0f);
     ScaleOverLife(1.0f, 3.0f).BindCurve("Curve", EDynamicInput::EmitterTime).Compile(context);
 
-    ASSERT_EQ(operations.size(), 5u);
-    EXPECT_EQ(operations[0].Type, EParticleOp::SampleCurve);
-    EXPECT_EQ(operations[0].Parameter0Index, 1u);
-    EXPECT_FLOAT_EQ(operations[0].Data0.x, static_cast<float>(EDynamicInput::EmitterTime));
-    EXPECT_EQ(operations[1].Type, EParticleOp::Mul);
-    EXPECT_FLOAT_EQ(operations[1].Data0.x, 2.0f);
-    EXPECT_EQ(operations[2].Type, EParticleOp::Add);
-    EXPECT_FLOAT_EQ(operations[2].Data0.x, 1.0f);
-    EXPECT_EQ(operations[3].Type, EParticleOp::Clamp);
-    EXPECT_EQ(operations[3].Data0, glm::vec4(0.0f));
-    EXPECT_EQ(operations[3].Data1, glm::vec4(4.0f));
-    EXPECT_EQ(operations[4].Type, EParticleOp::CopyFromAttribute);
-    EXPECT_EQ(operations[4].Target, EParticleAttribute::Scale);
+    ASSERT_EQ(program.Ops.size(), 5u);
+    EXPECT_EQ(Reference(program, 0, Inputs::SampleCurve_Curve), Encoded(EOperandSource::Curve, 1));
+    EXPECT_EQ(Reference(program, 0, Inputs::SampleCurve_Input), Encoded(EOperandSource::DynamicInput, uint32_t(EDynamicInput::EmitterTime)));
+    EXPECT_EQ(program.Ops[1].Type, EParticleOp::Mul);
+    EXPECT_FLOAT_EQ(Literal(program, 1, Inputs::Mul_Value), 2.0f);
+    EXPECT_EQ(program.Ops[2].Type, EParticleOp::Add);
+    EXPECT_FLOAT_EQ(Literal(program, 2, Inputs::Add_Value), 1.0f);
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        EXPECT_FLOAT_EQ(Literal(program, 3, Inputs::Clamp_Minimum, i), 0.0f);
+        EXPECT_FLOAT_EQ(Literal(program, 3, Inputs::Clamp_Maximum, i), 4.0f);
+    }
+    EXPECT_EQ(program.Ops[4].Target, EParticleAttribute::Scale);
+    EXPECT_EQ(Reference(program, 4, Inputs::CopyFromAttribute_Value), Encoded(EOperandSource::ParticleAttribute, uint32_t(EParticleAttribute::Temp0)));
 }
 
 TEST(ModuleCompileTest, CompilesConeBindingsAndLiteralFallbacks)
 {
     const std::vector<SGPUParameter> parameters{
-        { "Angle", glm::vec4(0.5f) },
-        { "Smoke.Angle", glm::vec4(1.0f) },
-        { "Low", glm::vec4(2.0f) },
-        { "Smoke.High", glm::vec4(3.0f) },
+        { "Angle", glm::vec4(0.5f) }, { "Smoke.Angle", glm::vec4(1) }, { "Low", glm::vec4(2) }, { "Smoke.High", glm::vec4(3) },
     };
-    std::vector<SGPUParticleOp> operations;
-    ModuleCompileContext context(operations, parameters, "Smoke", 1.0f);
-    SetVelocityCone({ 0, 1, 0 }, 0.25f, 4.0f, 5.0f)
-        .BindParameters("Angle", "Low", "High").Compile(context);
-    SetVelocityCone({ 0, 1, 0 }, 0.25f, 4.0f, 5.0f)
-        .BindParameters("Missing", "Low", "Missing").Compile(context);
+    SParticleProgram program;
+    ModuleCompileContext context(program, parameters, "Smoke", 1.0f);
+    SetVelocityCone({ 0, 1, 0 }, 0.25f, 4.0f, 5.0f).BindParameters("Angle", "Low", "High").Compile(context);
+    SetVelocityCone({ 0, 1, 0 }, 0.25f, 4.0f, 5.0f).BindParameters("Missing", "Low", "Missing").Compile(context);
     SetVelocityCone({ 0, 1, 0 }, 0.25f, 4.0f, 5.0f).Compile(context);
 
-    ASSERT_EQ(operations.size(), 3u);
-    EXPECT_EQ(operations[0].Parameter0Index, 2u);
-    EXPECT_EQ(operations[0].Parameter1Index, 3u);
-    EXPECT_FLOAT_EQ(operations[0].Data1.z, 1.0f);
-    EXPECT_EQ(operations[1].Parameter0Index, 2u);
-    EXPECT_EQ(operations[1].Parameter1Index, UINT32_MAX);
-    EXPECT_FLOAT_EQ(operations[1].Data1.z, -1.0f);
-    EXPECT_EQ(operations[2].Parameter0Index, UINT32_MAX);
-    EXPECT_EQ(operations[2].Parameter1Index, UINT32_MAX);
-    EXPECT_FLOAT_EQ(operations[2].Data1.z, -1.0f);
-    for (const auto& operation : operations)
+    ASSERT_EQ(program.Ops.size(), 3u);
+    EXPECT_EQ(Reference(program, 0, Inputs::SampleCone_Angle), Encoded(EOperandSource::Parameter, 1));
+    EXPECT_EQ(Reference(program, 0, Inputs::SampleCone_MinSpeed), Encoded(EOperandSource::Parameter, 2));
+    EXPECT_EQ(Reference(program, 0, Inputs::SampleCone_MaxSpeed), Encoded(EOperandSource::Parameter, 3));
+    EXPECT_FLOAT_EQ(Literal(program, 1, Inputs::SampleCone_Angle), 0.25f);
+    EXPECT_EQ(Reference(program, 1, Inputs::SampleCone_MinSpeed), Encoded(EOperandSource::Parameter, 2));
+    EXPECT_FLOAT_EQ(Literal(program, 1, Inputs::SampleCone_MaxSpeed), 5.0f);
+    EXPECT_FLOAT_EQ(Literal(program, 2, Inputs::SampleCone_MinSpeed), 4.0f);
+    for (size_t i = 0; i < 3; ++i)
     {
-        EXPECT_EQ(operation.Type, EParticleOp::SampleCone);
-        EXPECT_EQ(operation.Target, EParticleAttribute::Velocity);
-        EXPECT_EQ(operation.Data0, glm::vec4(0, 1, 0, 0.25f));
-        EXPECT_FLOAT_EQ(operation.Data1.x, 4.0f);
-        EXPECT_FLOAT_EQ(operation.Data1.y, 5.0f);
+        EXPECT_EQ(program.Ops[i].Type, EParticleOp::SampleCone);
+        EXPECT_EQ(program.Ops[i].OperandCount, 4u);
+        EXPECT_FLOAT_EQ(Literal(program, i, Inputs::SampleCone_Direction, 1), 1.0f);
     }
+    EXPECT_EQ(Reference(program, 0, Inputs::SampleCone_Direction), Reference(program, 2, Inputs::SampleCone_Direction));
+}
+
+TEST(ModuleCompileTest, PacksAndInternsTypedConstantsWithoutFloat4Padding)
+{
+    SParticleProgram program;
+    const std::vector<SGPUParameter> parameters;
+    ModuleCompileContext context(program, parameters, "", 1);
+    const auto scalar = context.Scalar(1);
+    EXPECT_EQ(context.Scalar(1).Reference, scalar.Reference);
+    context.Vector({1, 2, 3});
+    context.Value({1, 2, 3, 4});
+    EXPECT_EQ(program.Constants.size(), 8u);
+    EXPECT_NE(context.Scalar(0).Reference, context.Scalar(-0.0f).Reference);
+    const auto integer = context.UInt(UINT32_MAX);
+    EXPECT_EQ(program.Constants[integer.Reference & OperandIndexMask], UINT32_MAX);
+    EXPECT_EQ(context.UInt(17).Reference, Encoded(EOperandSource::ImmediateUInt, 17));
+}
+
+TEST(ModuleCompileTest, ValidatesContractsAndNamedParameterTypes)
+{
+    const std::vector<SGPUParameter> parameters{
+        { "Scalar", glm::vec4(1), EParameterType::Scalar }, { "Vector", glm::vec4(1), EParameterType::Vector },
+    };
+    SParticleProgram program;
+    ModuleCompileContext context(program, parameters, "", 1);
+    EXPECT_THROW(context.Scalar(0, "Vector"), std::invalid_argument);
+    EXPECT_THROW(context.Vector(glm::vec3(0), "Scalar"), std::invalid_argument);
+    EXPECT_THROW(context.Emit(EParticleOp::SampleCone, EParticleAttribute::Velocity, {context.Scalar(1)}), std::invalid_argument);
+    EXPECT_THROW(context.Emit(EParticleOp::SetLiteral, EParticleAttribute::Position, {context.Scalar(1)}), std::invalid_argument);
+    EXPECT_TRUE(program.Ops.empty());
+    EXPECT_TRUE(program.Operands.empty());
+    EXPECT_EQ(context.Curve("Missing").Reference, Encoded(EOperandSource::Curve, OperandIndexMask));
 }
 
 TEST(ModuleCompileTest, IgnoresNullModulesBeforeCompilingValidModules)
@@ -176,7 +213,79 @@ TEST(ModuleCompileTest, IgnoresNullModulesBeforeCompilingValidModules)
     ASSERT_TRUE(submission.Submit(*instance));
     const auto& compiled = submission.GetRenderProxies().front()->GetCompiledSystem();
     ASSERT_EQ(compiled.Emitters.size(), 1u);
-    ASSERT_EQ(compiled.Ops.size(), 1u);
+    ASSERT_EQ(compiled.Program.Ops.size(), 1u);
     EXPECT_EQ(compiled.Emitters[0].SpawnOpCount, 1u);
-    EXPECT_EQ(compiled.Ops[0].Type, EParticleOp::RandomRange);
+    EXPECT_EQ(compiled.Program.Ops[0].Type, EParticleOp::RandomRange);
+}
+
+TEST(ModuleCompileTest, SupportsNineArgumentsWithoutPayloadStructs)
+{
+    SParticleProgram program;
+    const std::vector<SGPUParameter> parameters;
+    ModuleCompileContext context(program, parameters, "", 1);
+    SetPositionVortexRibbonPath({1, 2, 3}, 4, 5, 6, 7, 8, 9, 10, 11).Compile(context);
+    ASSERT_EQ(program.Ops.size(), 1u);
+    EXPECT_EQ(program.Ops[0].OperandCount, 9u);
+    EXPECT_EQ(program.Operands.size(), 9u);
+    EXPECT_EQ(program.Constants.size(), 11u);
+    EXPECT_FLOAT_EQ(Literal(program, 0, Inputs::SetPositionVortexRibbonPath_Center, 2), 3);
+    EXPECT_FLOAT_EQ(Literal(program, 0, Inputs::SetPositionVortexRibbonPath_DepthAmplitude), 11);
+}
+
+TEST(ModuleCompileTest, KeepsLargeRibbonIntegersExactUntilParticleStorage)
+{
+    SParticleProgram program;
+    const std::vector<SGPUParameter> parameters;
+    ModuleCompileContext context(program, parameters, "", 1);
+    SetRibbonId(UINT32_MAX).Compile(context);
+    SetRibbonIdFromSpawnOrder(17, UINT32_MAX).Compile(context);
+    const auto identifier = Reference(program, 0, Inputs::SetLiteral_Value);
+    EXPECT_EQ(identifier >> 29, uint32_t(EOperandSource::Constant));
+    EXPECT_EQ(program.Constants.at(identifier & OperandIndexMask), UINT32_MAX);
+    EXPECT_EQ(Reference(program, 1, Inputs::SetRibbonIdFromSpawnOrder_FirstRibbonId), identifier);
+    EXPECT_EQ(Reference(program, 1, Inputs::SetRibbonIdFromSpawnOrder_RibbonCount), Encoded(EOperandSource::ImmediateUInt, 17));
+}
+
+TEST(ModuleCompileTest, RejectsMalformedReferencesBeforeEmittingInstructions)
+{
+    SParticleProgram program;
+    const std::vector<SGPUParameter> parameters;
+    ModuleCompileContext context(program, parameters, "", 1);
+    EXPECT_THROW(context.Emit(EParticleOp::SetLiteral, EParticleAttribute::Scale,
+        {{Encoded(EOperandSource::Constant, 0), EOperandType::Scalar}}), std::invalid_argument);
+    EXPECT_THROW(context.Emit(EParticleOp::SetLiteral, EParticleAttribute::Scale,
+        {context.Dynamic(static_cast<EDynamicInput>(99))}), std::invalid_argument);
+    EXPECT_THROW(context.Emit(EParticleOp::SetLiteral, EParticleAttribute::Scale,
+        {context.Attribute(EParticleAttribute::Color, EOperandType::Scalar)}), std::invalid_argument);
+    EXPECT_THROW(context.Emit(EParticleOp::SetLiteral, EParticleAttribute::Temp0,
+        {context.Curve("Missing")}), std::invalid_argument);
+    EXPECT_TRUE(program.Ops.empty());
+    EXPECT_TRUE(program.Operands.empty());
+}
+
+TEST(ModuleCompileTest, UsesTwentyFourBytesForOneScalarInstruction)
+{
+    SParticleProgram program;
+    const std::vector<SGPUParameter> parameters;
+    ModuleCompileContext context(program, parameters, "", 1);
+    context.Emit(EParticleOp::SetLiteral, EParticleAttribute::Scale, {context.Scalar(2)});
+    EXPECT_EQ(program.Ops.size() * sizeof(SGPUParticleOp) +
+        (program.Operands.size() + program.Constants.size()) * sizeof(uint32_t), 24u);
+}
+
+TEST(ParameterStoreTest, ReplacingAParameterTypeKeepsItsNameUnique)
+{
+    ParameterStore store;
+    store.SetFloat("Value", 1);
+    store.SetFloat4("Value", glm::vec4(2));
+    auto parameters = store.Compile("Emitter.");
+    ASSERT_EQ(parameters.size(), 1u);
+    EXPECT_EQ(parameters[0].Name, "Emitter.Value");
+    EXPECT_EQ(parameters[0].Type, EParameterType::Vector);
+    EXPECT_EQ(parameters[0].Value, glm::vec4(2));
+    store.SetFloat("Value", 3);
+    parameters = store.Compile();
+    ASSERT_EQ(parameters.size(), 1u);
+    EXPECT_EQ(parameters[0].Type, EParameterType::Scalar);
+    EXPECT_EQ(parameters[0].Value, glm::vec4(3, 0, 0, 0));
 }

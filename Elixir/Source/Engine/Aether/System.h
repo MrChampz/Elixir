@@ -64,7 +64,7 @@ namespace Elixir::Aether
         std::vector<SCompiledEmitter> Emitters;
         std::vector<SCompiledTriggerTarget> TriggerTargets;
 
-        std::vector<SGPUParticleOp> Ops;
+        Modules::SParticleProgram Program;
 
         std::vector<SGPUParameter> Parameters;
         std::vector<SExposedParameter> ExposedParameters;

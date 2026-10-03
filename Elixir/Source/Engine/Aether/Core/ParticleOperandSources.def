@@ -1,0 +1,9 @@
+// Shared three-bit source tags. Consumers define AETHER_OPERAND_SOURCE.
+AETHER_OPERAND_SOURCE(Constant, 0)
+AETHER_OPERAND_SOURCE(Parameter, 1)
+AETHER_OPERAND_SOURCE(DynamicInput, 2)
+AETHER_OPERAND_SOURCE(ParticleAttribute, 3)
+AETHER_OPERAND_SOURCE(ImmediateUInt, 4)
+AETHER_OPERAND_SOURCE(Curve, 5)
+AETHER_OPERAND_SOURCE(ConstantVector3, 6)
+AETHER_OPERAND_SOURCE(ConstantVector4, 7)

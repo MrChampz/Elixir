@@ -21,30 +21,19 @@ namespace Elixir::Aether::Modules
         {
             if (!m_CurveName.empty())
             {
-                context.Emit({
-                    Core::EParticleOp::SampleColorCurve,
-                    Core::EParticleAttribute::Temp0,
-                    context.FindCurve(m_CurveName),
-                    UINT32_MAX,
-                    { (float)(uint32_t)m_CurveInput, 0.0f, 0.0f, 0.0f },
+                context.Emit(Core::EParticleOp::SampleColorCurve, Core::EParticleAttribute::Temp0, {
+                    context.Curve(m_CurveName),
+                    context.Dynamic(m_CurveInput)
                 });
-                context.Emit({
-                    Core::EParticleOp::CopyFromAttribute,
-                    Core::EParticleAttribute::Color,
-                    UINT32_MAX,
-                    UINT32_MAX,
-                    { (float)(uint32_t)Core::EParticleAttribute::Temp0, 0.0f, 0.0f, 0.0f },
+                context.Emit(Core::EParticleOp::CopyFromAttribute, Core::EParticleAttribute::Color, {
+                    context.Attribute(Core::EParticleAttribute::Temp0, EOperandType::Vector4)
                 });
             }
             else
             {
-                context.Emit({
-                    Core::EParticleOp::LerpOverLife,
-                    Core::EParticleAttribute::Color,
-                    context.FindParameter(m_StartColorParamName),
-                    context.FindParameter(m_EndColorParamName),
-                    m_StartColor,
-                    m_EndColor
+                context.Emit(Core::EParticleOp::LerpOverLife, Core::EParticleAttribute::Color, {
+                    context.Value(m_StartColor, m_StartColorParamName),
+                    context.Value(m_EndColor, m_EndColorParamName)
                 });
             }
         }

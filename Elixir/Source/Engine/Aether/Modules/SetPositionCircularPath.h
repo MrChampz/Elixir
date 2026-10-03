@@ -23,14 +23,11 @@ namespace Elixir::Aether::Modules
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit({
-                Core::EParticleOp::SetPositionCircularPath,
-                Core::EParticleAttribute::Position,
-                UINT32_MAX,
-                UINT32_MAX,
-                { m_BaseOffset, m_TimeScale },
-                { m_PrimaryAmplitude, 0.0 },
-                { m_SecondaryAmplitude, 0.0 }
+            context.Emit(Core::EParticleOp::SetPositionCircularPath, Core::EParticleAttribute::Position, {
+                context.Vector(m_BaseOffset),
+                context.Scalar(m_TimeScale),
+                context.Vector(m_PrimaryAmplitude),
+                context.Vector(m_SecondaryAmplitude)
             });
         }
 

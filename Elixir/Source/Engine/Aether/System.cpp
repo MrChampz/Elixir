@@ -125,7 +125,7 @@ namespace Elixir::Aether
             auto compiled = emitter->Compile(
                 m_Parameters,
                 system.Parameters,
-                system.Ops
+                system.Program
             );
             compiled.LocalParticleOffset = localParticleOffset;
 
@@ -134,6 +134,8 @@ namespace Elixir::Aether
 
             system.Emitters.push_back(compiled);
         }
+
+        system.Program.Finalize();
 
         std::vector<std::vector<SCompiledTriggerTarget>> targetsBySource(system.Emitters.size());
 

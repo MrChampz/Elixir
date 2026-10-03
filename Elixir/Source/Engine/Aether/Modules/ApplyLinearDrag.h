@@ -18,13 +18,8 @@ namespace Elixir::Aether::Modules
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit({
-                Core::EParticleOp::Dampen,
-                Core::EParticleAttribute::Velocity,
-                context.FindParameter(m_ParamName),
-                UINT32_MAX,
-                { m_DragPerSecond, 0.0f, 0.0f, 0.0f },
-                {}
+            context.Emit(Core::EParticleOp::Dampen, Core::EParticleAttribute::Velocity, {
+                context.Scalar(m_DragPerSecond, m_ParamName)
             });
         }
 

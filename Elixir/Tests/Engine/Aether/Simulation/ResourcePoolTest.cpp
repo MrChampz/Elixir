@@ -19,7 +19,9 @@ namespace
         SCompiledSystem system{};
         system.TotalMaxParticles = particleCount;
         system.Emitters.resize(emitterCount);
-        system.Ops.resize(opCount);
+        system.Program.Ops.resize(opCount);
+        system.Program.Operands.resize(opCount * 2);
+        system.Program.Constants.resize(opCount * 3);
         system.Parameters.resize(parameterCount);
         system.TriggerTargets.resize(triggerTargetCount);
         return system;
@@ -57,6 +59,8 @@ TEST(ResourcePoolTest, AllocatesDisjointRangesForLiveInstances)
     EXPECT_EQ(second->Particles.Offset, first->Particles.Count);
     EXPECT_EQ(second->Emitters.Offset, first->Emitters.Count);
     EXPECT_EQ(second->Ops.Offset, first->Ops.Count);
+    EXPECT_EQ(second->Operands.Offset, first->Operands.Count);
+    EXPECT_EQ(second->Constants.Offset, first->Constants.Count);
     EXPECT_EQ(second->Parameters.Offset, first->Parameters.Count);
     EXPECT_EQ(second->TriggerTargets.Offset, first->TriggerTargets.Count);
     EXPECT_EQ(second->EmitterStates.Offset, first->EmitterStates.Count);
@@ -85,6 +89,8 @@ TEST(ResourcePoolTest, ReusesReleasedRanges)
     EXPECT_EQ(reused->Particles.Offset, first->Particles.Offset);
     EXPECT_EQ(reused->Emitters.Offset, first->Emitters.Offset);
     EXPECT_EQ(reused->Ops.Offset, first->Ops.Offset);
+    EXPECT_EQ(reused->Operands.Offset, first->Operands.Offset);
+    EXPECT_EQ(reused->Constants.Offset, first->Constants.Offset);
     EXPECT_EQ(reused->Parameters.Offset, first->Parameters.Offset);
     EXPECT_EQ(reused->TriggerTargets.Offset, first->TriggerTargets.Offset);
     EXPECT_EQ(reused->EmitterStates.Offset, first->EmitterStates.Offset);
@@ -128,4 +134,89 @@ TEST(ResourcePoolTest, RejectsAnUnregisteredParticleStateLayout)
     system.ParticleStateLayout = (EParticleStateLayout)1;
 
     EXPECT_FALSE(pool.Allocate(system));
+}
+
+TEST(ResourcePoolTest, RollsBackOperandAndConstantCapacityFailures)
+{
+    for (const bool exhaustConstants : {false, true})
+    {
+        auto limits = MakePoolLimits();
+        limits.OperandCapacity = exhaustConstants ? 4 : 2;
+        limits.ConstantCapacity = 3;
+        const ParticleStateLayoutRegistry layouts{ limits.ParticleCapacity };
+        ResourcePool pool{ limits, layouts };
+        EXPECT_FALSE(pool.Allocate(MakeCompiledSystem(4, 1, 2, 1, 1)));
+        const auto allocation = pool.Allocate(MakeCompiledSystem(4, 1, 1, 1, 1));
+        ASSERT_TRUE(allocation);
+        EXPECT_EQ(allocation->InstanceIndex, 0u);
+        EXPECT_EQ(allocation->Ops.Offset, 0u);
+        EXPECT_EQ(allocation->Operands.Offset, 0u);
+        EXPECT_EQ(allocation->Constants.Offset, 0u);
+    }
+}
+
+TEST(ResourcePoolTest, SharesProgramsButKeepsInstanceParametersSeparate)
+{
+    auto limits = MakePoolLimits();
+    limits.OpCapacity = 1;
+    limits.OperandCapacity = 2;
+    limits.ConstantCapacity = 3;
+    const ParticleStateLayoutRegistry layouts{limits.ParticleCapacity};
+    ResourcePool pool{limits, layouts};
+    const auto system = MakeCompiledSystem(4, 1, 1, 1, 1);
+    const auto first = pool.Allocate(system);
+    const auto second = pool.Allocate(system);
+    ASSERT_TRUE(first);
+    ASSERT_TRUE(second);
+    EXPECT_TRUE(first->UploadProgram);
+    EXPECT_FALSE(second->UploadProgram);
+    EXPECT_EQ(first->ProgramAllocationId, second->ProgramAllocationId);
+    EXPECT_EQ(first->Operands.Offset, second->Operands.Offset);
+    EXPECT_EQ(first->Constants.Offset, second->Constants.Offset);
+    EXPECT_NE(first->Parameters.Offset, second->Parameters.Offset);
+
+    pool.Release(*first);
+    EXPECT_FALSE(pool.Allocate(MakeCompiledSystem(4, 1, 1, 1, 1)));
+    pool.Release(*second);
+    const auto replacement = pool.Allocate(MakeCompiledSystem(4, 1, 1, 1, 1));
+    ASSERT_TRUE(replacement);
+    EXPECT_TRUE(replacement->UploadProgram);
+    EXPECT_EQ(replacement->Operands.Offset, 0u);
+    EXPECT_EQ(replacement->Constants.Offset, 0u);
+}
+
+TEST(ResourcePoolTest, KeepsProgramRevisionsAliveUntilTheirLastInstanceRetires)
+{
+    const auto limits = MakePoolLimits();
+    const ParticleStateLayoutRegistry layouts{limits.ParticleCapacity};
+    ResourcePool pool{limits, layouts};
+    auto system = MakeCompiledSystem(4, 1, 1, 1, 1);
+    system.CompilationRevision = 1;
+    const auto oldRevision = pool.Allocate(system);
+    ASSERT_TRUE(oldRevision);
+    system.CompilationRevision = 2;
+    const auto newRevision = pool.Allocate(system);
+    ASSERT_TRUE(newRevision);
+    EXPECT_NE(oldRevision->ProgramAllocationId, newRevision->ProgramAllocationId);
+    EXPECT_NE(oldRevision->Ops.Offset, newRevision->Ops.Offset);
+    EXPECT_NE(oldRevision->Operands.Offset, newRevision->Operands.Offset);
+    pool.Release(*oldRevision);
+    const auto another = pool.Allocate(system);
+    ASSERT_TRUE(another);
+    EXPECT_EQ(newRevision->ProgramAllocationId, another->ProgramAllocationId);
+}
+
+TEST(ResourcePoolTest, FailedSharedInstanceAllocationDoesNotReleaseTheLiveProgram)
+{
+    auto limits = MakePoolLimits();
+    limits.OpCapacity = 1;
+    limits.ParticleCapacity = 4;
+    const ParticleStateLayoutRegistry layouts{limits.ParticleCapacity};
+    ResourcePool pool{limits, layouts};
+    const auto system = MakeCompiledSystem(4, 1, 1, 1, 1);
+    const auto live = pool.Allocate(system);
+    ASSERT_TRUE(live);
+    EXPECT_FALSE(pool.Allocate(system));
+    pool.Release(*live);
+    EXPECT_TRUE(pool.Allocate(MakeCompiledSystem(4, 1, 1, 1, 1)));
 }

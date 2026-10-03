@@ -18,12 +18,8 @@ namespace Elixir::Aether::Modules
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit({
-                Core::EParticleOp::SetLiteral,
-                Core::EParticleAttribute::Color,
-                context.FindParameter(m_ParamName),
-                UINT32_MAX,
-                m_Color,
+            context.Emit(Core::EParticleOp::SetLiteral, Core::EParticleAttribute::Color, {
+                context.Value(m_Color, m_ParamName)
             });
         }
 

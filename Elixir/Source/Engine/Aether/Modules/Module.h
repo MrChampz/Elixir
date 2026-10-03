@@ -1,6 +1,10 @@
 #pragma once
 
 #include <cstdint>
+#include <initializer_list>
+#include <span>
+#include "DynamicInput.h"
+#include "ParticleProgram.h"
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -23,18 +27,6 @@ namespace Elixir::Aether::Modules
         Update
     };
 
-    /** @brief Stores one GPU operation emitted by an authored particle module. */
-    struct SGPUParticleOp
-    {
-        Core::EParticleOp Type = Core::EParticleOp::SetLiteral;
-        Core::EParticleAttribute Target = Core::EParticleAttribute::None;
-        uint32_t Parameter0Index = UINT32_MAX;
-        uint32_t Parameter1Index = UINT32_MAX;
-        glm::vec4 Data0{};
-        glm::vec4 Data1{};
-        glm::vec4 Data2{};
-    };
-
     /**
      * @brief Gives a module the data it needs to compile GPU operations.
      *
@@ -46,13 +38,13 @@ namespace Elixir::Aether::Modules
     public:
         /**
          * @brief Creates a context for one emitter compilation.
-         * @param operations Destination for the module's GPU operations.
+         * @param program Destination for instructions, references, and constants.
          * @param parameters Compiled parameters available to the emitter.
          * @param emitterName Name used to resolve emitter-local parameters.
          * @param gravityScale Multiplier configured by the emitter.
          */
         ModuleCompileContext(
-            std::vector<SGPUParticleOp>& operations,
+            SParticleProgram& program,
             const std::vector<Core::SGPUParameter>& parameters,
             std::string_view emitterName,
             float gravityScale
@@ -86,12 +78,30 @@ namespace Elixir::Aether::Modules
 
         /**
          * @brief Appends one operation to the compiled system.
-         * @param operation Operation to execute on the GPU.
+         * The operand count and types must match the shared operation contract.
+         * Invalid arguments throw std::invalid_argument.
          */
-        void Emit(SGPUParticleOp operation);
+        void Emit(Core::EParticleOp type, Core::EParticleAttribute target, std::initializer_list<SModuleOperand> operands);
+
+        /** @brief Compiles a scalar literal or optional named binding. */
+        SModuleOperand Scalar(float value, std::string_view parameter = "");
+        /** @brief Compiles a three-component literal or optional named binding. */
+        SModuleOperand Vector(glm::vec3 value, std::string_view parameter = "");
+        /** @brief Compiles a four-component literal or optional named binding. */
+        SModuleOperand Value(glm::vec4 value, std::string_view parameter = "");
+        /** @brief Compiles an unsigned integer without converting it to float. */
+        SModuleOperand UInt(uint32_t value);
+        /** @brief Compiles a scalar value evaluated for each particle. */
+        SModuleOperand Dynamic(EDynamicInput input);
+        /** @brief Compiles an attribute read with the supplied logical type. */
+        SModuleOperand Attribute(Core::EParticleAttribute attribute, EOperandType type);
+        /** @brief Compiles a curve reference, preserving missing-curve defaults. */
+        SModuleOperand Curve(std::string_view name);
 
     private:
-        std::vector<SGPUParticleOp>& m_Operations;
+        // Interns typed literal words or resolves a named parameter binding.
+        SModuleOperand Literal(EOperandType type, std::span<const uint32_t> words, std::string_view parameter);
+        SParticleProgram& m_Program;
         const std::vector<Core::SGPUParameter>& m_Parameters;
         std::string_view m_EmitterName;
         float m_GravityScale;

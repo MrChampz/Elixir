@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <bit>
 
 #include <array>
 #include <format>
@@ -45,7 +46,7 @@ namespace
         /** @brief Emits the test value as a literal operation. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit({ .Data0 = glm::vec4(m_Value) });
+            context.Emit(EParticleOp::SetLiteral, EParticleAttribute::Color, { context.Value(glm::vec4(m_Value)) });
         }
 
         /** @brief Reads the test value from its JSON object. */
@@ -276,13 +277,14 @@ TEST(ModuleRegistryTest, CompilesDefaultAndExplicitCurveInputsFromJson)
             ASSERT_FALSE(context.Failed()) << context.GetError();
             ASSERT_TRUE(module);
 
-            std::vector<SGPUParticleOp> operations;
+            SParticleProgram program;
+            auto& operations = program.Ops;
             const std::vector<Elixir::Aether::Core::SGPUParameter> parameters;
-            ModuleCompileContext compileContext(operations, parameters, "Test", 1.0f);
+            ModuleCompileContext compileContext(program, parameters, "Test", 1.0f);
             module->Compile(compileContext);
             ASSERT_FALSE(operations.empty());
             EXPECT_EQ(operations[0].Type, operation);
-            EXPECT_FLOAT_EQ(operations[0].Data0.x, static_cast<float>(input));
+            EXPECT_EQ(program.Operands[operations[0].OperandOffset + Inputs::SampleCurve_Input], (uint32_t(EOperandSource::DynamicInput) << 29) | uint32_t(input));
         }
     }
 }
@@ -438,10 +440,11 @@ TEST(ModuleRegistryTest, CreatesAndCompilesModulesRegisteredOutsideTheEngine)
     ASSERT_FALSE(context.Failed()) << context.GetError();
     ASSERT_TRUE(module);
     EXPECT_EQ(module->GetPhase(), EModulePhase::Spawn);
-    std::vector<SGPUParticleOp> operations;
+    SParticleProgram program;
+    auto& operations = program.Ops;
     const std::vector<Elixir::Aether::Core::SGPUParameter> parameters;
-    ModuleCompileContext compileContext(operations, parameters, "Test", 1.0f);
+    ModuleCompileContext compileContext(program, parameters, "Test", 1.0f);
     module->Compile(compileContext);
     ASSERT_EQ(operations.size(), 1u);
-    EXPECT_EQ(operations[0].Data0, glm::vec4(7.0f));
+    EXPECT_FLOAT_EQ(std::bit_cast<float>(program.Constants[program.Operands[0] & OperandIndexMask]), 7.0f);
 }

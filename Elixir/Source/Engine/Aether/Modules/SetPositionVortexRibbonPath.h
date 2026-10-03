@@ -33,24 +33,16 @@ namespace Elixir::Aether::Modules
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit({
-                Core::EParticleOp::SetPositionVortexRibbonPath,
-                Core::EParticleAttribute::Position,
-                UINT32_MAX,
-                UINT32_MAX,
-                { m_Center, 0.0 },
-                {
-                    m_OrbitSpeed,
-                    m_BaseRadius,
-                    m_RadiusAmplitude,
-                    m_RadiusSpeed
-                },
-                {
-                    m_PulseAmplitude,
-                    m_PulseSpeed,
-                    m_CurlAmplitude,
-                    m_DepthAmplitude
-                }
+            context.Emit(Core::EParticleOp::SetPositionVortexRibbonPath, Core::EParticleAttribute::Position, {
+                context.Vector(m_Center),
+                context.Scalar(m_OrbitSpeed),
+                context.Scalar(m_BaseRadius),
+                context.Scalar(m_RadiusAmplitude),
+                context.Scalar(m_RadiusSpeed),
+                context.Scalar(m_PulseAmplitude),
+                context.Scalar(m_PulseSpeed),
+                context.Scalar(m_CurlAmplitude),
+                context.Scalar(m_DepthAmplitude)
             });
         }
 

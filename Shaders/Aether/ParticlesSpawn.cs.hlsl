@@ -24,10 +24,10 @@ StructuredBuffer<Emitter> emitters;
 
 struct Op
 {
-    float4 Header; // x = type, y = unused, z = parameter 0 index, w = parameter 1 index
-    float4 Data0;
-    float4 Data1;
-    float4 Data2;
+    uint Type;
+    uint Target;
+    uint OperandOffset;
+    uint OperandCount;
 };
 
 [[vk::binding(2, 0)]]
@@ -59,6 +59,8 @@ struct SystemInstance
     uint Generation;
 
     uint ParticleStateLayoutIndex;
+    uint OperandBaseOffset;
+    uint ConstantBaseOffset;
 };
 
 [[vk::binding(4, 0)]]
@@ -124,14 +126,6 @@ float4 RandomVector(float2 seed)
         Hash2(seed + float2(5.71, 6.13)),
         Hash2(seed + float2(7.43, 8.59))
     );
-}
-
-float4 ResolveValue(int parameterIndex, float4 fallbackValue)
-{
-    if (parameterIndex < 0)
-        return fallbackValue;
-
-    return parameters[parameterIndex].Value;
 }
 
 float ResolveDynamicInput(uint inputType, float randomValue, float particleSeed)
@@ -325,6 +319,8 @@ float3 VortexRibbonPath(float timeSeconds, VortexRibbonPathParams p)
     return float3(p.Center.xy + swirl + curl, z);
 }
 
+#include "ParticleOperands.hlsl"
+
 [numthreads(256, 1, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
@@ -377,30 +373,29 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     for (uint i = 0u; i < opCount; ++i)
     {
         Op op = ops[opOffset + i];
-        uint type = (uint)op.Header.x;
-        uint target = (uint)op.Header.y;
+        uint type = op.Type;
+        uint target = op.Target;
 
-        int param0 = (int)op.Header.z;
-        int param1 = (int)op.Header.w;
-
-        if (type == 0u) // SetLiteral
+        if (type == Op_SetLiteral) // SetLiteral
         {
-            SetAttribute(attributes, target, ResolveValue(param0, op.Data0));
+            SetAttribute(attributes, target, target == 9u
+                ? float4(float(ReadUIntOperand(op, SetLiteral_Value, instance)), 0.0, 0.0, 0.0)
+                : ReadOperand(op, SetLiteral_Value, instance, attributes, randomInput, particleSeed));
         }
-        else if (type == 1u) // RandomRange
+        else if (type == Op_RandomRange) // RandomRange
         {
             float2 seed = seedBase + float2(float(i) * 1.7, float(target) * 2.3);
             float4 randomValue = RandomVector(seed);
-            float4 value0 = ResolveValue(param0, op.Data0);
-            float4 value1 = ResolveValue(param1, op.Data1);
+            float4 value0 = ReadOperand(op, RandomRange_Minimum, instance, attributes, randomInput, particleSeed);
+            float4 value1 = ReadOperand(op, RandomRange_Maximum, instance, attributes, randomInput, particleSeed);
             float4 value = lerp(value0, value1, randomValue);
             SetAttribute(attributes, target, value);
         }
-        else if (type == 2u) // SampleDisk
+        else if (type == Op_SampleDisk) // SampleDisk
         {
-            float3 center = op.Data0.xyz;
-            float3 normal = op.Data1.xyz;
-            float maxRadius = op.Data0.w;
+            float3 center = ReadOperand(op, SampleDisk_Center, instance, attributes, randomInput, particleSeed).xyz;
+            float3 normal = ReadOperand(op, SampleDisk_Normal, instance, attributes, randomInput, particleSeed).xyz;
+            float maxRadius = ReadOperand(op, SampleDisk_Radius, instance, attributes, randomInput, particleSeed).x;
 
             float radiusRandom = sqrt(Hash2(seedBase + float2(8.63, 6.53)));
             float arcRandom = Hash2(seedBase + float2(4.71, 1.29));
@@ -421,13 +416,12 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             tangent = SafeNormalize(tangent, right);
             SetAttribute(attributes, 8u, float4(tangent, 0.0));
         }
-        else if (type == 3u) // SampleCone
+        else if (type == Op_SampleCone) // SampleCone
         {
-            float3 axis = SafeNormalize(op.Data0.xyz, float3(0.0, 1.0, 0.0));
-            // Data1.z stores the angle parameter index, or -1 for the literal.
-            float angle = ResolveValue((int)op.Data1.z, float4(op.Data0.w, 0.0, 0.0, 0.0)).x * 0.5;
-            float minSpeed = ResolveValue(param0, float4(op.Data1.x, 0.0, 0.0, 0.0)).x;
-            float maxSpeed = ResolveValue(param1, float4(op.Data1.y, 0.0, 0.0, 0.0)).x;
+            float3 axis = SafeNormalize(ReadOperand(op, SampleCone_Direction, instance, attributes, randomInput, particleSeed).xyz, float3(0.0, 1.0, 0.0));
+            float angle = ReadOperand(op, SampleCone_Angle, instance, attributes, randomInput, particleSeed).x * 0.5;
+            float minSpeed = ReadOperand(op, SampleCone_MinSpeed, instance, attributes, randomInput, particleSeed).x;
+            float maxSpeed = ReadOperand(op, SampleCone_MaxSpeed, instance, attributes, randomInput, particleSeed).x;
 
             float angleRandom = Hash2(seedBase + float2(3.17, 9.41));
             float speedRandom = Hash2(seedBase + float2(5.23, 2.19));
@@ -454,10 +448,10 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             float3 tangent = SafeNormalize(velocity, GetAttribute(attributes, 6u).xyz);
             SetAttribute(attributes, 8u, float4(tangent, 0.0));
         }
-        else if (type == 4u) // SampleBox
+        else if (type == Op_SampleBox) // SampleBox
         {
-            float3 minBounds = op.Data0.xyz;
-            float3 maxBounds = op.Data1.xyz;
+            float3 minBounds = ReadOperand(op, SampleBox_Minimum, instance, attributes, randomInput, particleSeed).xyz;
+            float3 maxBounds = ReadOperand(op, SampleBox_Maximum, instance, attributes, randomInput, particleSeed).xyz;
 
             float2 seed = seedBase + float2(float(i) * 1.3, 5.7);
             float3 random = RandomVector(seed).xyz;
@@ -465,12 +459,12 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             float3 position = lerp(minBounds, maxBounds, random);
             SetAttribute(attributes, target, float4(position, 0.0));
         }
-        else if (type == 10u) // SetPositionOnCircle
+        else if (type == Op_SetPositionOnCircle) // SetPositionOnCircle
         {
-            float3 center = op.Data0.xyz;
-            float radius = op.Data0.w;
-            float angularSpeed = op.Data1.x;
-            float startAngle = op.Data1.y;
+            float3 center = ReadOperand(op, SetPositionOnCircle_Center, instance, attributes, randomInput, particleSeed).xyz;
+            float radius = ReadOperand(op, SetPositionOnCircle_Radius, instance, attributes, randomInput, particleSeed).x;
+            float angularSpeed = ReadOperand(op, SetPositionOnCircle_AngularSpeed, instance, attributes, randomInput, particleSeed).x;
+            float startAngle = ReadOperand(op, SetPositionOnCircle_StartAngle, instance, attributes, randomInput, particleSeed).x;
             float angle = TimeData.y * angularSpeed + startAngle;
 
             float3 position = center + float3(cos(angle), sin(angle), 0.0) * radius;
@@ -482,12 +476,12 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
             SetAttribute(attributes, 4u, float4(0.0, 0.0, 0.0, 0.0));
         }
-        else if (type == 11u) // SetPositionCircularPath
+        else if (type == Op_SetPositionCircularPath) // SetPositionCircularPath
         {
-            float3 baseOffset = op.Data0.xyz;
-            float3 primaryAmplitude = op.Data1.xyz;
-            float3 secondaryAmplitude = op.Data2.xyz;
-            float timeScale = op.Data0.w;
+            float3 baseOffset = ReadOperand(op, SetPositionCircularPath_BaseOffset, instance, attributes, randomInput, particleSeed).xyz;
+            float3 primaryAmplitude = ReadOperand(op, SetPositionCircularPath_PrimaryAmplitude, instance, attributes, randomInput, particleSeed).xyz;
+            float3 secondaryAmplitude = ReadOperand(op, SetPositionCircularPath_SecondaryAmplitude, instance, attributes, randomInput, particleSeed).xyz;
+            float timeScale = ReadOperand(op, SetPositionCircularPath_TimeScale, instance, attributes, randomInput, particleSeed).x;
 
             float spawnRate = max(emitter.MetaC.y, 0.001);
             float timeOffset = float((spawnCount - 1u) - spawnOrder) / spawnRate;
@@ -511,21 +505,21 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
             SetAttribute(attributes, 8u, float4(tangent, 0.0));
         }
-        else if (type == 12u) // SetPositionVortexRibbonPath
+        else if (type == Op_SetPositionVortexRibbonPath) // SetPositionVortexRibbonPath
         {
             VortexRibbonPathParams params;
-            params.Center = op.Data0.xyz;
+            params.Center = ReadOperand(op, SetPositionVortexRibbonPath_Center, instance, attributes, randomInput, particleSeed).xyz;
 
-            params.OrbitSpeed = op.Data1.x;
-            params.BaseRadius = op.Data1.y;
-            params.RadiusAmplitude = op.Data1.z;
-            params.RadiusSpeed = op.Data1.w;
+            params.OrbitSpeed = ReadOperand(op, SetPositionVortexRibbonPath_OrbitSpeed, instance, attributes, randomInput, particleSeed).x;
+            params.BaseRadius = ReadOperand(op, SetPositionVortexRibbonPath_BaseRadius, instance, attributes, randomInput, particleSeed).x;
+            params.RadiusAmplitude = ReadOperand(op, SetPositionVortexRibbonPath_RadiusAmplitude, instance, attributes, randomInput, particleSeed).x;
+            params.RadiusSpeed = ReadOperand(op, SetPositionVortexRibbonPath_RadiusSpeed, instance, attributes, randomInput, particleSeed).x;
 
-            params.PulseAmplitude = op.Data2.x;
-            params.PulseSpeed = op.Data2.y;
+            params.PulseAmplitude = ReadOperand(op, SetPositionVortexRibbonPath_PulseAmplitude, instance, attributes, randomInput, particleSeed).x;
+            params.PulseSpeed = ReadOperand(op, SetPositionVortexRibbonPath_PulseSpeed, instance, attributes, randomInput, particleSeed).x;
             params.PulsePhase = 0.0;
-            params.CurlAmplitude = op.Data2.z;
-            params.DepthAmplitude = op.Data2.w;
+            params.CurlAmplitude = ReadOperand(op, SetPositionVortexRibbonPath_CurlAmplitude, instance, attributes, randomInput, particleSeed).x;
+            params.DepthAmplitude = ReadOperand(op, SetPositionVortexRibbonPath_DepthAmplitude, instance, attributes, randomInput, particleSeed).x;
 
             params.CurlFrequency = float2(1.9, 1.7);
             params.CurlPhase = float2(0.6, -0.3);
@@ -547,22 +541,22 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
             SetAttribute(attributes, 8u, float4(tangent, 0.0));
         }
-        else if (type == 13u) // SetRibbonIdFromSpawnOrder
+        else if (type == Op_SetRibbonIdFromSpawnOrder) // SetRibbonIdFromSpawnOrder
         {
-            uint ribbonCount = max(1u, (uint)op.Data0.x);
-            uint firstRibbonId = (uint)op.Data0.y;
+            uint ribbonCount = max(1u, ReadUIntOperand(op, SetRibbonIdFromSpawnOrder_RibbonCount, instance));
+            uint firstRibbonId = ReadUIntOperand(op, SetRibbonIdFromSpawnOrder_FirstRibbonId, instance);
             uint ribbonId = firstRibbonId + (emissionIndex % ribbonCount);
             SetAttribute(attributes, target, float4(float(ribbonId), 0.0, 0.0, 0.0));
         }
-        else if (type == 14u) // SampleCurve
+        else if (type == Op_SampleCurve) // SampleCurve
         {
-            float inputValue = ResolveDynamicInput(uint(op.Data0.x + 0.5), randomInput, particleSeed);
-            float value = SampleCurve(param0, inputValue);
+            float inputValue = ReadOperand(op, SampleCurve_Input, instance, attributes, randomInput, particleSeed).x;
+            float value = SampleCurve(ReadCurveOperand(op, SampleCurve_Curve, instance), inputValue);
             SetAttribute(attributes, target, float4(value, 0.0, 0.0, 0.0));
         }
-        else if (type == 19u) // CopyFromAttribute
+        else if (type == Op_CopyFromAttribute) // CopyFromAttribute
         {
-            float4 value = GetAttribute(attributes, uint(op.Data0.x + 0.5));
+            float4 value = ReadOperand(op, CopyFromAttribute_Value, instance, attributes, randomInput, particleSeed);
             SetAttribute(attributes, target, value);
         }
     }

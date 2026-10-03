@@ -9,6 +9,7 @@ namespace Elixir::Aether::Core
     /**
      * @brief Allocates shared logical resource ranges for Aether system instances.
      *
+     * Instances of the same source and compilation revision share program ranges.
      * The pool reserves contiguous ranges for all tables required by a compiled
      * system. Allocation is atomic from the caller's perspective: when any required
      * range is unavailable, all ranges reserved by that request are released.
@@ -39,7 +40,8 @@ namespace Elixir::Aether::Core
         /**
          * @brief Reserves all ranges required by a compiled system.
          *
-         * @param system Compiled system whose tables require allocation.
+         * @param system Immutable compiled system whose tables require allocation.
+         * @pre SourceId and CompilationRevision identify unchanged program data.
          * @return A complete allocation when all required ranges are available.
          * @return std::nullopt when any required capacity is unavailable or the
          * system requests an unsupported particle-state layout.
@@ -74,6 +76,23 @@ namespace Elixir::Aether::Core
         // Finds the free-list associated with a particle-state layout.
         std::vector<SBufferRange>* FindParticleFreeRanges(EParticleStateLayout layout);
 
+        // Releases shared program ranges after their last instance retires.
+        void ReleaseProgram(const SSystemInstanceAllocation& allocation);
+
+        struct SProgramAllocation
+        {
+            uint64_t Id;
+            UUID SourceId;
+            uint64_t CompilationRevision;
+            uint32_t ReferenceCount;
+            SBufferRange Ops;
+            SBufferRange Operands;
+            SBufferRange Constants;
+        };
+        // Revision keys remain valid while older GPU submissions retire.
+        std::vector<SProgramAllocation> m_Programs;
+        uint64_t m_NextProgramAllocationId = 1;
+
         SResourcePoolLimits m_Limits;
 
         // Tracks free particle-state ranges for one registered layout.
@@ -89,6 +108,8 @@ namespace Elixir::Aether::Core
 
         std::vector<SBufferRange> m_FreeEmitters;
         std::vector<SBufferRange> m_FreeOps;
+        std::vector<SBufferRange> m_FreeOperands;
+        std::vector<SBufferRange> m_FreeConstants;
         std::vector<SBufferRange> m_FreeParameters;
         std::vector<SBufferRange> m_FreeTriggerTargets;
         std::vector<SBufferRange> m_FreeEmitterStates;

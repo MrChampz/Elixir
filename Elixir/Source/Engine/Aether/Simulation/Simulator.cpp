@@ -1,6 +1,5 @@
 #include "epch.h"
 #include "Simulator.h"
-#include "ParticleOpData.h"
 
 #include <Engine/Core/Timer.h>
 
@@ -8,8 +7,6 @@ namespace Elixir::Aether::Simulation
 {
     using namespace Core;
     using namespace Modules;
-    using Detail::SParticleOpData;
-    using Detail::ToOpData;
     using Rendering::SystemInstanceRenderProxy;
     using Rendering::FrameSubmission;
 
@@ -53,6 +50,8 @@ namespace Elixir::Aether::Simulation
             uint32_t Generation = 0;
 
             uint32_t ParticleStateLayoutIndex = 0;
+            uint32_t OperandBaseOffset = 0;
+            uint32_t ConstantBaseOffset = 0;
         };
 
         struct SEmitterInstanceStateData
@@ -202,6 +201,7 @@ namespace Elixir::Aether::Simulation
         m_ResourcePool(m_Limits, m_ParticleStateLayouts),
         m_GraphicsContext(context)
     {
+        static_assert(sizeof(SSystemInstanceData) == 60);
         static_assert(sizeof(SGPUParticleState) == PARTICLE_STATE_CORE_V1_STRIDE);
         EE_CORE_ASSERT(context, "Aether Simulator requires a graphics context.")
         EE_CORE_ASSERT(shaderLoader, "Aether Simulator requires a shader loader.")
@@ -426,8 +426,11 @@ namespace Elixir::Aether::Simulation
 
         m_OpBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SParticleOpData) * m_Limits.OpCapacity
+            sizeof(SGPUParticleOp) * m_Limits.OpCapacity
         );
+
+        m_OperandBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(uint32_t) * m_Limits.OperandCapacity);
+        m_ConstantBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(uint32_t) * m_Limits.ConstantCapacity);
 
         m_ParameterBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
@@ -565,6 +568,8 @@ namespace Elixir::Aether::Simulation
         runtime.SpawnShader->BindStorageBuffer("spawnRequests", m_SpawnRequestBuffer);
         runtime.SpawnShader->BindStorageBuffer("ops", m_OpBuffer);
         runtime.SpawnShader->BindStorageBuffer("parameters", m_ParameterBuffer);
+        runtime.SpawnShader->BindStorageBuffer("operands", m_OperandBuffer);
+        runtime.SpawnShader->BindStorageBuffer("constantWords", m_ConstantBuffer);
         runtime.SpawnShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
 
         constexpr SUpdatePushConstants updatePushConstants{};
@@ -579,6 +584,8 @@ namespace Elixir::Aether::Simulation
         runtime.UpdateShader->BindStorageBuffer("emitters", m_EmitterBuffer);
         runtime.UpdateShader->BindStorageBuffer("ops", m_OpBuffer);
         runtime.UpdateShader->BindStorageBuffer("parameters", m_ParameterBuffer);
+        runtime.UpdateShader->BindStorageBuffer("operands", m_OperandBuffer);
+        runtime.UpdateShader->BindStorageBuffer("constantWords", m_ConstantBuffer);
         runtime.UpdateShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
     }
 
@@ -676,6 +683,8 @@ namespace Elixir::Aether::Simulation
             .TriggerEventCapacityPerEmitter = m_Limits.TriggerEventCapacityPerEmitter,
             .Generation = allocation.Generation,
             .ParticleStateLayoutIndex = (uint32_t)system.ParticleStateLayout,
+            .OperandBaseOffset = allocation.Operands.Offset,
+            .ConstantBaseOffset = allocation.Constants.Offset,
         };
 
         m_SystemInstanceBuffer->UpdateData(
@@ -702,13 +711,15 @@ namespace Elixir::Aether::Simulation
             );
         }
 
-        auto* ops = (SParticleOpData*)m_OpBuffer->Map();
-        for (uint32_t i = 0; i < allocation.Ops.Count; ++i)
+        // Shared references remain relative to the compiled program and the instance.
+        if (allocation.UploadProgram)
         {
-            ops[allocation.Ops.Offset + i] = ToOpData(
-                system.Ops[i],
-                allocation.Parameters.Offset
-            );
+            if (allocation.Ops.Count)
+                m_OpBuffer->UpdateData(system.Program.Ops.data(), allocation.Ops.Count * sizeof(SGPUParticleOp), allocation.Ops.Offset * sizeof(SGPUParticleOp));
+            if (allocation.Operands.Count)
+                m_OperandBuffer->UpdateData(system.Program.Operands.data(), allocation.Operands.Count * sizeof(uint32_t), allocation.Operands.Offset * sizeof(uint32_t));
+            if (allocation.Constants.Count)
+                m_ConstantBuffer->UpdateData(system.Program.Constants.data(), allocation.Constants.Count * sizeof(uint32_t), allocation.Constants.Offset * sizeof(uint32_t));
         }
 
         UploadInstanceParameters(proxy, allocation);

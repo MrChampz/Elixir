@@ -11,6 +11,7 @@ namespace Elixir::Aether::Core
 
     void ParameterStore::SetFloat(const std::string& name, const float value)
     {
+        m_Float4.erase(name);
         m_Float[name] = value;
     }
 
@@ -25,6 +26,7 @@ namespace Elixir::Aether::Core
 
     void ParameterStore::SetFloat4(const std::string& name, const glm::vec4& value)
     {
+        m_Float.erase(name);
         m_Float4[name] = value;
     }
 
@@ -34,10 +36,10 @@ namespace Elixir::Aether::Core
         parameters.reserve(m_Float.size() + m_Float4.size());
 
         for (const auto& [name, value] : m_Float)
-            parameters.push_back({ prefix + name, { value, 0.0f, 0.0f, 0.0f } });
+            parameters.push_back({ prefix + name, { value, 0.0f, 0.0f, 0.0f }, EParameterType::Scalar });
 
         for (const auto& [name, value] : m_Float4)
-            parameters.push_back({ prefix + name, value });
+            parameters.push_back({ prefix + name, value, EParameterType::Vector });
 
         return parameters;
     }

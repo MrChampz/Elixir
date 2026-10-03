@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 namespace Elixir::Aether::Core
 {
     enum class EParticleAttribute : uint32_t
@@ -35,26 +37,10 @@ namespace Elixir::Aether::Core
 
     enum class EParticleOp : uint32_t
     {
-        SetLiteral = 0,
-        RandomRange,
-        SampleDisk,
-        SampleCone,
-        SampleBox,
-        AddWithDelta,
-        Dampen,
-        LerpOverLife,
-        KillOutsideBounds,
-        AddFromAttribute,
-        SetPositionOnCircle,
-        SetPositionCircularPath,
-        SetPositionVortexRibbonPath,
-        SetRibbonIdFromSpawnOrder,
-        SampleCurve,
-        SampleColorCurve,
-        Add,
-        Mul,
-        Clamp,
-        CopyFromAttribute,
-        ApplyVortex,
+#define AETHER_OPERATION(Name, Opcode, ...) Name = Opcode,
+#define AETHER_ARGUMENT(Op, Name, Index)
+#include "ParticleOperations.def"
+#undef AETHER_ARGUMENT
+#undef AETHER_OPERATION
     };
 }

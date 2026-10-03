@@ -4,21 +4,33 @@
 
 namespace Elixir::Aether::Core
 {
+    /** @brief Identifies authored scalar or vector parameter storage. */
+    enum class EParameterType : uint32_t { Unspecified, Scalar, Vector };
+
+    /** @brief Stores one named parameter and its declared authoring type. */
     struct SGPUParameter
     {
         std::string Name;
         glm::vec4 Value{};
+        /** @brief Declared type, or Unspecified for low-level compiled values. */
+        EParameterType Type = EParameterType::Unspecified;
     };
 
+    /** @brief Stores named scalar and vector defaults with one type per name. */
     class ELIXIR_API ParameterStore
     {
       public:
+        /** @brief Returns a scalar default, or the fallback when its name is absent. */
         float GetFloat(const std::string& name, float fallback = 0.0f) const;
+        /** @brief Sets a scalar default, replacing any vector with the same name. */
         void SetFloat(const std::string& name, float value);
 
+        /** @brief Returns a vector default, or the fallback when its name is absent. */
         glm::vec4 GetFloat4(const std::string& name, const glm::vec4& fallback = glm::vec4()) const;
+        /** @brief Sets a vector default, replacing any scalar with the same name. */
         void SetFloat4(const std::string& name, const glm::vec4& value);
 
+        /** @brief Compiles typed defaults with the optional scope prefix. */
         std::vector<SGPUParameter> Compile(const std::string& prefix = "") const;
 
       private:

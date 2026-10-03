@@ -29,6 +29,10 @@ namespace Elixir::Aether::Core
         uint32_t ParticleCapacity = 1'000'000;
         uint32_t EmitterCapacity = 4'096;
         uint32_t OpCapacity = 65'536;
+        /** @brief Maximum number of four-byte operand references. */
+        uint32_t OperandCapacity = 262'144;
+        /** @brief Maximum number of four-byte literal words. */
+        uint32_t ConstantCapacity = 262'144;
         uint32_t ParameterCapacity = 16'384;
         uint32_t TriggerTargetCapacity = 4'096;
         uint32_t TriggerEventCapacityPerEmitter = 64;
@@ -47,10 +51,16 @@ namespace Elixir::Aether::Core
         uint32_t InstanceIndex = UINT32_MAX;
         EParticleStateLayout ParticleStateLayout = EParticleStateLayout::CoreV1;
         uint32_t Generation = 1;
+        /** @brief Identifies the shared program reservation owned by this allocation. */
+        uint64_t ProgramAllocationId = 0;
+        /** @brief Upload the immutable program only when its reservation is first created. */
+        bool UploadProgram = false;
 
         SBufferRange Particles;
         SBufferRange Emitters;
         SBufferRange Ops;
+        SBufferRange Operands;
+        SBufferRange Constants;
         SBufferRange Parameters;
         SBufferRange TriggerTargets;
 
