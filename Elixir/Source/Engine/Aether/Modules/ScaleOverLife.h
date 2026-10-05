@@ -35,7 +35,7 @@ namespace Elixir::Aether::Modules
                 context.Emit(Core::EParticleOp::Clamp, Core::EParticleAttribute::Temp0, { context.Value(glm::vec4(0.0f)), context.Value(glm::vec4(4.0f)) });
 
                 context.Emit(Core::EParticleOp::CopyFromAttribute, Core::EParticleAttribute::Scale, {
-                    context.Attribute(Core::EParticleAttribute::Temp0, EOperandType::Scalar)
+                    context.Attribute(Core::EParticleAttribute::Temp0, Core::EOperandType::Scalar)
                 });
             }
             else

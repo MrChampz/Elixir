@@ -35,10 +35,6 @@ file(GLOB_RECURSE GLSL_FILES CONFIGURE_DEPENDS "${SHADER_SOURCE_DIR}/*.glsl")
 # Compilable shaders have a stage suffix: Name.{vs,ps,cs,gs,hs,ds}.{hlsl,glsl}
 # Everything else (e.g. Quad.hlsl, SDF.hlsl) is treated as an include dependency.
 
-set(SHADER_INCLUDES
-    "${CMAKE_SOURCE_DIR}/Elixir/Source/Engine/Aether/Core/ParticleOperations.def"
-    "${CMAKE_SOURCE_DIR}/Elixir/Source/Engine/Aether/Core/ParticleOperandSources.def"
-)
 set(COMPILABLE_HLSL "")
 set(COMPILABLE_GLSL "")
 

@@ -6,7 +6,7 @@
 
 #include <Engine/Aether/Rendering/FrameSubmission.h>
 #include <Engine/Aether/Simulation/Simulator.h>
-#include <Engine/Aether/Modules/ParticleProgram.h>
+#include <Engine/Aether/Core/Operation.h>
 
 namespace Elixir::Materials { class MaterialSystem; }
 

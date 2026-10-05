@@ -21,8 +21,9 @@ namespace Elixir::Aether::Core
         std::map<std::string, std::vector<float>> m_Curves;
     };
 
+    /** @brief Finds the first curve chunk in emitter scope, then system scope. */
     inline uint32_t FindCurveParameterIndex(
-        const std::vector<SGPUParameter>& parameters,
+        const std::vector<SParameter>& parameters,
         const std::string& emitterName,
         const std::string& curveName
     )

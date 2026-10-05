@@ -35,12 +35,29 @@ namespace Elixir::Aether::Core
         Local = 1,
     };
 
+    /** @brief Identifies the GPU operation executed by a particle instruction. */
     enum class EParticleOp : uint32_t
     {
-#define AETHER_OPERATION(Name, Opcode, ...) Name = Opcode,
-#define AETHER_ARGUMENT(Op, Name, Index)
-#include "ParticleOperations.def"
-#undef AETHER_ARGUMENT
-#undef AETHER_OPERATION
+        SetLiteral = 0,
+        RandomRange = 1,
+        SampleDisk = 2,
+        SampleCone = 3,
+        SampleBox = 4,
+        AddWithDelta = 5,
+        Dampen = 6,
+        LerpOverLife = 7,
+        KillOutsideBounds = 8,
+        AddFromAttribute = 9,
+        SetPositionOnCircle = 10,
+        SetPositionCircularPath = 11,
+        SetPositionVortexRibbonPath = 12,
+        SetRibbonIdFromSpawnOrder = 13,
+        SampleCurve = 14,
+        SampleColorCurve = 15,
+        Add = 16,
+        Mul = 17,
+        Clamp = 18,
+        CopyFromAttribute = 19,
+        ApplyVortex = 20,
     };
 }

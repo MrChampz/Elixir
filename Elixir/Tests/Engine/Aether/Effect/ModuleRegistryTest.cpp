@@ -5,8 +5,10 @@
 #include <format>
 #include <limits>
 
+#include <Engine/Aether/Core/Operand.h>
 #include <Engine/Aether/Effect/Effect.h>
 #include <Engine/Aether/Effect/ModuleRegistry.h>
+#include <Engine/Aether/Core/OperationInputs.h>
 #include <Engine/Aether/Modules/ApplyAngularVelocity.h>
 #include <Engine/Aether/Modules/ApplyGravity.h>
 #include <Engine/Aether/Modules/ApplyLinearDrag.h>
@@ -277,14 +279,20 @@ TEST(ModuleRegistryTest, CompilesDefaultAndExplicitCurveInputsFromJson)
             ASSERT_FALSE(context.Failed()) << context.GetError();
             ASSERT_TRUE(module);
 
-            SParticleProgram program;
+            SCompiledOperations program;
             auto& operations = program.Ops;
-            const std::vector<Elixir::Aether::Core::SGPUParameter> parameters;
+            const std::vector<Elixir::Aether::Core::SParameter> parameters;
             ModuleCompileContext compileContext(program, parameters, "Test", 1.0f);
             module->Compile(compileContext);
             ASSERT_FALSE(operations.empty());
             EXPECT_EQ(operations[0].Type, operation);
-            EXPECT_EQ(program.Operands[operations[0].OperandOffset + Inputs::SampleCurve_Input], (uint32_t(EOperandSource::DynamicInput) << 29) | uint32_t(input));
+            const auto operand = program.Operands[operations[0].OperandOffset + Inputs::SampleCurve_Input];
+            if (input == EDynamicInput::None)
+            {
+                EXPECT_EQ(operand >> 29, uint32_t(Core::EOperandSource::Constant));
+                EXPECT_EQ(program.Constants.at(operand & Core::OperandIndexMask), std::bit_cast<uint32_t>(1.0f));
+            }
+            else EXPECT_EQ(operand, (uint32_t(Core::EOperandSource::DynamicInput) << 29) | uint32_t(input));
         }
     }
 }
@@ -440,11 +448,11 @@ TEST(ModuleRegistryTest, CreatesAndCompilesModulesRegisteredOutsideTheEngine)
     ASSERT_FALSE(context.Failed()) << context.GetError();
     ASSERT_TRUE(module);
     EXPECT_EQ(module->GetPhase(), EModulePhase::Spawn);
-    SParticleProgram program;
+    SCompiledOperations program;
     auto& operations = program.Ops;
-    const std::vector<Elixir::Aether::Core::SGPUParameter> parameters;
+    const std::vector<Elixir::Aether::Core::SParameter> parameters;
     ModuleCompileContext compileContext(program, parameters, "Test", 1.0f);
     module->Compile(compileContext);
     ASSERT_EQ(operations.size(), 1u);
-    EXPECT_FLOAT_EQ(std::bit_cast<float>(program.Constants[program.Operands[0] & OperandIndexMask]), 7.0f);
+    EXPECT_FLOAT_EQ(std::bit_cast<float>(program.Constants[program.Operands[0] & Core::OperandIndexMask]), 7.0f);
 }

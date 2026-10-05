@@ -1,0 +1,25 @@
+{
+  "source_root": "/Users/felpsmac/projects/Elixir",
+  "build": "/private/tmp/elixir-pr39-release",
+  "source_hashes": {
+    "Engine/Aether/Modules/Module.cpp": "4c566b53f8d61a96a2eb7d0cc942d3968d96d2c513c79497a8dae14be9bfadde",
+    "Engine/Aether/Simulation/Simulator.cpp": "1f80a676b36cea35413da4edf5fcc9d73b8dea5344d9fb1a00a236e6631336bc",
+    "Engine/Aether/System.cpp": "8d487808837aa3bc2a2b86ea908bd86c9ca6413c0d15fed2b337ca41ef0879ba"
+  },
+  "fixed_delta_seconds": 0.016666666666666666,
+  "capture_start_simulation_frame": 2400,
+  "runtime_hashes": {
+    "inline": {
+      "Elixir/libElixir.dylib": "06dcbed172329a0dc07eac0837a0a99477a2032a3e2fdb2637e4b7431ff17e56",
+      "Dissolve/Dissolve": "9cc79f9297670ff9e4b1b9f19684147b6d90f5bf6258fd8f9ad582dc58718611",
+      "Dissolve/Shaders/Aether/ParticlesSpawn.cs.spirv": "e7e2f3df9727748981190e4cc8d1a479432e423103a6a39152baf0090dfe9929",
+      "Dissolve/Shaders/Aether/ParticlesUpdate.cs.spirv": "016bcde8e30e90ec45a6eaa1a95e1edc3996c04329bdd244a4bc2d9adeb69eb1"
+    },
+    "table": {
+      "Elixir/libElixir.dylib": "6914ef887bff68c7c4d75b5e7dd5ee5c1928ca486bfdcd9808c2b97219073883",
+      "Dissolve/Dissolve": "9cc79f9297670ff9e4b1b9f19684147b6d90f5bf6258fd8f9ad582dc58718611",
+      "Dissolve/Shaders/Aether/ParticlesSpawn.cs.spirv": "77bb3a29d656e84a982ae3dde2e29a5d82036a66a4df0cd98a911a444e5af09f",
+      "Dissolve/Shaders/Aether/ParticlesUpdate.cs.spirv": "7ee952871354677935060c3001492d8f7969d16e60ac18d6398e27f1984117a0"
+    }
+  }
+}

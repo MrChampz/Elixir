@@ -2,7 +2,9 @@ struct SystemInstance
 {
     uint ParticleBaseOffset;
     uint EmitterBaseOffset;
-    uint OpBaseOffset;
+    uint OperationBaseOffset;
+    uint OperandBaseOffset;
+    uint ConstantBaseOffset;
     uint ParameterBaseOffset;
 
     uint EmitterStateBaseOffset;
@@ -16,8 +18,6 @@ struct SystemInstance
     uint Generation;
 
     uint ParticleStateLayoutIndex;
-    uint OperandBaseOffset;
-    uint ConstantBaseOffset;
 };
 
 struct Emitter

@@ -2,6 +2,7 @@
 #include "Simulator.h"
 
 #include <Engine/Core/Timer.h>
+#include <Engine/Aether/Core/Operation.h>
 
 namespace Elixir::Aether::Simulation
 {
@@ -36,7 +37,9 @@ namespace Elixir::Aether::Simulation
         {
             uint32_t ParticleBaseOffset = 0;
             uint32_t EmitterBaseOffset = 0;
-            uint32_t OpBaseOffset = 0;
+            uint32_t OperationBaseOffset = 0;
+            uint32_t OperandBaseOffset = 0;
+            uint32_t ConstantBaseOffset = 0;
             uint32_t ParameterBaseOffset = 0;
 
             uint32_t EmitterStateBaseOffset = 0;
@@ -50,8 +53,6 @@ namespace Elixir::Aether::Simulation
             uint32_t Generation = 0;
 
             uint32_t ParticleStateLayoutIndex = 0;
-            uint32_t OperandBaseOffset = 0;
-            uint32_t ConstantBaseOffset = 0;
         };
 
         struct SEmitterInstanceStateData
@@ -173,7 +174,7 @@ namespace Elixir::Aether::Simulation
             };
         }
 
-        SParameterData ToParameterData(const SGPUParameter& parameter)
+        SParameterData ToParameterData(const SParameter& parameter)
         {
             SParameterData desc{};
             desc.Value = parameter.Value;
@@ -426,7 +427,7 @@ namespace Elixir::Aether::Simulation
 
         m_OpBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SGPUParticleOp) * m_Limits.OpCapacity
+            sizeof(SOperation) * m_Limits.OpCapacity
         );
 
         m_OperandBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(uint32_t) * m_Limits.OperandCapacity);
@@ -566,10 +567,10 @@ namespace Elixir::Aether::Simulation
         runtime.SpawnShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
         runtime.SpawnShader->BindStorageBuffer("emitters", m_EmitterBuffer);
         runtime.SpawnShader->BindStorageBuffer("spawnRequests", m_SpawnRequestBuffer);
-        runtime.SpawnShader->BindStorageBuffer("ops", m_OpBuffer);
+        runtime.SpawnShader->BindStorageBuffer("operations", m_OpBuffer);
         runtime.SpawnShader->BindStorageBuffer("parameters", m_ParameterBuffer);
         runtime.SpawnShader->BindStorageBuffer("operands", m_OperandBuffer);
-        runtime.SpawnShader->BindStorageBuffer("constantWords", m_ConstantBuffer);
+        runtime.SpawnShader->BindStorageBuffer("constants", m_ConstantBuffer);
         runtime.SpawnShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
 
         constexpr SUpdatePushConstants updatePushConstants{};
@@ -582,10 +583,10 @@ namespace Elixir::Aether::Simulation
         runtime.UpdateShader->BindStorageBuffer("particles", runtime.ParticleStateBuffer);
         runtime.UpdateShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
         runtime.UpdateShader->BindStorageBuffer("emitters", m_EmitterBuffer);
-        runtime.UpdateShader->BindStorageBuffer("ops", m_OpBuffer);
+        runtime.UpdateShader->BindStorageBuffer("operations", m_OpBuffer);
         runtime.UpdateShader->BindStorageBuffer("parameters", m_ParameterBuffer);
         runtime.UpdateShader->BindStorageBuffer("operands", m_OperandBuffer);
-        runtime.UpdateShader->BindStorageBuffer("constantWords", m_ConstantBuffer);
+        runtime.UpdateShader->BindStorageBuffer("constants", m_ConstantBuffer);
         runtime.UpdateShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
     }
 
@@ -672,7 +673,7 @@ namespace Elixir::Aether::Simulation
         {
             .ParticleBaseOffset = allocation.Particles.Offset,
             .EmitterBaseOffset = allocation.Emitters.Offset,
-            .OpBaseOffset = allocation.Ops.Offset,
+            .OperationBaseOffset = allocation.Ops.Offset,
             .ParameterBaseOffset = allocation.Parameters.Offset,
             .EmitterStateBaseOffset = allocation.EmitterStates.Offset,
             .SpawnRequestBaseOffset = allocation.SpawnRequests.Offset,
@@ -715,11 +716,11 @@ namespace Elixir::Aether::Simulation
         if (allocation.UploadProgram)
         {
             if (allocation.Ops.Count)
-                m_OpBuffer->UpdateData(system.Program.Ops.data(), allocation.Ops.Count * sizeof(SGPUParticleOp), allocation.Ops.Offset * sizeof(SGPUParticleOp));
+                m_OpBuffer->UpdateData(system.Operations.Ops.data(), allocation.Ops.Count * sizeof(SOperation), allocation.Ops.Offset * sizeof(SOperation));
             if (allocation.Operands.Count)
-                m_OperandBuffer->UpdateData(system.Program.Operands.data(), allocation.Operands.Count * sizeof(uint32_t), allocation.Operands.Offset * sizeof(uint32_t));
+                m_OperandBuffer->UpdateData(system.Operations.Operands.data(), allocation.Operands.Count * sizeof(uint32_t), allocation.Operands.Offset * sizeof(uint32_t));
             if (allocation.Constants.Count)
-                m_ConstantBuffer->UpdateData(system.Program.Constants.data(), allocation.Constants.Count * sizeof(uint32_t), allocation.Constants.Offset * sizeof(uint32_t));
+                m_ConstantBuffer->UpdateData(system.Operations.Constants.data(), allocation.Constants.Count * sizeof(uint32_t), allocation.Constants.Offset * sizeof(uint32_t));
         }
 
         UploadInstanceParameters(proxy, allocation);
@@ -992,7 +993,7 @@ namespace Elixir::Aether::Simulation
                 };
 
                 runtime->SpawnShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
-                cmd->Dispatch((maxParticles + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
+                cmd->Dispatch((maxParticles + SPAWN_GROUP_SIZE - 1) / SPAWN_GROUP_SIZE);
             }
         }
 
@@ -1014,7 +1015,7 @@ namespace Elixir::Aether::Simulation
             };
 
             runtime->UpdateShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
-            cmd->Dispatch((instance->Allocation.Particles.Count + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
+            cmd->Dispatch((instance->Allocation.Particles.Count + UPDATE_GROUP_SIZE - 1) / UPDATE_GROUP_SIZE);
         }
     }
 

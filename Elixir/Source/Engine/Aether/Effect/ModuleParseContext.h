@@ -68,13 +68,14 @@ namespace Elixir::Aether::Effect
                 return 0.0f;
             }
 
-            const auto converted = ToFiniteFloat(value);
-            if (!converted)
+            const auto finite = ToFiniteFloat(value);
+            if (!finite)
             {
                 Fail("Field '{}' must be a finite float.", key);
                 return 0.0f;
             }
-            return *converted;
+
+            return *finite;
         }
 
         /** @brief Reads a required integer within the uint32 range. */
@@ -176,13 +177,14 @@ namespace Elixir::Aether::Effect
                     return result;
                 }
 
-                const auto converted = ToFiniteFloat(value);
-                if (!converted)
+                const auto finite = ToFiniteFloat(value);
+                if (!finite)
                 {
                     Fail("Field '{}' must be a finite float.", key);
                     return result;
                 }
-                result.Value = *converted;
+
+                result.Value = *finite;
                 return result;
             }
 
@@ -333,13 +335,14 @@ namespace Elixir::Aether::Effect
                     return result;
                 }
 
-                const auto converted = ToFiniteFloat(value);
-                if (!converted)
+                const auto finite = ToFiniteFloat(value);
+                if (!finite)
                 {
                     Fail("Field array element must be a finite float.");
                     return result;
                 }
-                result[i++] = *converted;
+
+                result[i++] = *finite;
             }
 
             return result;
@@ -350,11 +353,10 @@ namespace Elixir::Aether::Effect
         static std::optional<float> ToFiniteFloat(const double value)
         {
             if (!std::isfinite(value) ||
-                std::abs(value) > static_cast<double>(std::numeric_limits<float>::max()))
-            {
+                std::abs(value) > (double)std::numeric_limits<float>::max())
                 return std::nullopt;
-            }
-            return static_cast<float>(value);
+
+            return float(value);
         }
 
         // Removes the dollar prefix from a parameter reference.

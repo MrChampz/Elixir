@@ -26,7 +26,7 @@ namespace Elixir::Aether::Modules
                     context.Dynamic(m_CurveInput)
                 });
                 context.Emit(Core::EParticleOp::CopyFromAttribute, Core::EParticleAttribute::Color, {
-                    context.Attribute(Core::EParticleAttribute::Temp0, EOperandType::Vector4)
+                    context.Attribute(Core::EParticleAttribute::Temp0, Core::EOperandType::Vector4)
                 });
             }
             else

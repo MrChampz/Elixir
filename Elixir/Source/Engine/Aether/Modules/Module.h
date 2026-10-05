@@ -1,30 +1,18 @@
 #pragma once
 
-#include <cstdint>
-#include <initializer_list>
-#include <span>
-#include "DynamicInput.h"
-#include "ParticleProgram.h"
-#include <string>
-#include <string_view>
-#include <tuple>
-#include <vector>
-
-#include <glm/vec3.hpp>
-#include <glm/vec4.hpp>
-
 #include <Engine/Core/Core.h>
-#include <Engine/Aether/Core/CurveStore.h>
 #include <Engine/Aether/Core/ParameterStore.h>
 #include <Engine/Aether/Core/Particle.h>
+#include <Engine/Aether/Core/Operation.h>
+#include <Engine/Aether/Core/Operand.h>
+#include <Engine/Aether/Modules/DynamicInput.h>
 
 namespace Elixir::Aether::Modules
 {
     /** @brief Identifies the point in the particle lifetime at which a module runs. */
     enum class EModulePhase : uint8_t
     {
-        Spawn,
-        Update
+        Spawn, Update
     };
 
     /**
@@ -44,8 +32,8 @@ namespace Elixir::Aether::Modules
          * @param gravityScale Multiplier configured by the emitter.
          */
         ModuleCompileContext(
-            SParticleProgram& program,
-            const std::vector<Core::SGPUParameter>& parameters,
+            Core::SCompiledOperations& program,
+            const std::vector<Core::SParameter>& parameters,
             std::string_view emitterName,
             float gravityScale
         );
@@ -81,30 +69,33 @@ namespace Elixir::Aether::Modules
          * The operand count and types must match the shared operation contract.
          * Invalid arguments throw std::invalid_argument.
          */
-        void Emit(Core::EParticleOp type, Core::EParticleAttribute target, std::initializer_list<SModuleOperand> operands);
+        void Emit(Core::EParticleOp type, Core::EParticleAttribute target, std::initializer_list<Core::SOperand> operands);
 
         /** @brief Compiles a scalar literal or optional named binding. */
-        SModuleOperand Scalar(float value, std::string_view parameter = "");
+        Core::SOperand Scalar(float value, std::string_view parameter = "");
         /** @brief Compiles a three-component literal or optional named binding. */
-        SModuleOperand Vector(glm::vec3 value, std::string_view parameter = "");
+        Core::SOperand Vector(glm::vec3 value, std::string_view parameter = "");
         /** @brief Compiles a four-component literal or optional named binding. */
-        SModuleOperand Value(glm::vec4 value, std::string_view parameter = "");
+        Core::SOperand Value(glm::vec4 value, std::string_view parameter = "");
         /** @brief Compiles an unsigned integer without converting it to float. */
-        SModuleOperand UInt(uint32_t value);
-        /** @brief Compiles a scalar value evaluated for each particle. */
-        SModuleOperand Dynamic(EDynamicInput input);
+        Core::SOperand UInt(uint32_t value);
+        /** @brief Compiles a particle input, or the constant one for None. */
+        Core::SOperand Dynamic(EDynamicInput input);
         /** @brief Compiles an attribute read with the supplied logical type. */
-        SModuleOperand Attribute(Core::EParticleAttribute attribute, EOperandType type);
+        Core::SOperand Attribute(Core::EParticleAttribute attribute, Core::EOperandType type);
         /** @brief Compiles a curve reference, preserving missing-curve defaults. */
-        SModuleOperand Curve(std::string_view name);
+        Core::SOperand Curve(std::string_view name);
 
     private:
         // Interns typed literal words or resolves a named parameter binding.
-        SModuleOperand Literal(EOperandType type, std::span<const uint32_t> words, std::string_view parameter);
-        SParticleProgram& m_Program;
-        const std::vector<Core::SGPUParameter>& m_Parameters;
+        Core::SOperand Literal(Core::EOperandType type, std::span<const uint32_t> words, std::string_view parameter);
+        Core::SCompiledOperations& m_Program;
+        const std::vector<Core::SParameter>& m_Parameters;
         std::string_view m_EmitterName;
         float m_GravityScale;
+
+        // Includes the logical type in each key to preserve literal identity.
+        std::map<std::array<uint32_t, 5>, uint32_t> m_Literals;
     };
 
     /** @brief Base class for every authored particle module. */

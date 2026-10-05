@@ -19,9 +19,9 @@ namespace
         SCompiledSystem system{};
         system.TotalMaxParticles = particleCount;
         system.Emitters.resize(emitterCount);
-        system.Program.Ops.resize(opCount);
-        system.Program.Operands.resize(opCount * 2);
-        system.Program.Constants.resize(opCount * 3);
+        system.Operations.Ops.resize(opCount);
+        system.Operations.Operands.resize(opCount * 2);
+        system.Operations.Constants.resize(opCount * 3);
         system.Parameters.resize(parameterCount);
         system.TriggerTargets.resize(triggerTargetCount);
         return system;

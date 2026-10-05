@@ -250,7 +250,7 @@ namespace Elixir::Aether
 
         // Resolves one compiled parameter against the instance overrides.
         static glm::vec4 ResolveParameterValue(
-            const SGPUParameter& parameter,
+            const SParameter& parameter,
             const ParameterOverridesMap& overrides
         );
 

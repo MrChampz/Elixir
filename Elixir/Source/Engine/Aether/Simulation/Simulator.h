@@ -65,8 +65,14 @@ namespace Elixir::Aether::Simulation
     class ELIXIR_API Simulator final
     {
     public:
-        /** Number of threads used by Aether compute shader dispatches. */
+        /** Number of threads used by emitter scheduler dispatches. */
         static constexpr uint32_t COMPUTE_GROUP_SIZE = 256;
+
+        /** Number of threads used by spawn dispatches. */
+        static constexpr uint32_t SPAWN_GROUP_SIZE = 256;
+
+        /** Number of threads used by update dispatches. */
+        static constexpr uint32_t UPDATE_GROUP_SIZE = 256;
 
         /**
          * @brief Creates the GPU resources required for particle simulation.

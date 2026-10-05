@@ -13,25 +13,14 @@ RWStructuredBuffer<ParticleState> particles;
 
 struct Emitter
 {
-    float4 MetaA; // x = offset in particle buffer, y = max particles, z = op offset(spawn), w = op count(spawn)
-    float4 MetaB; // x = op offset(update), y = op count(update), z = buffer cursor, w = spawn count
+    float4 MetaA; // x = offset in particle buffer, y = max particles, z = operation offset(spawn), w = operation count(spawn)
+    float4 MetaB; // x = operation offset(update), y = operation count(update), z = buffer cursor, w = spawn count
     float4 MetaC; // x = render mode, y = spawn rate seconds, z = gravity scale, w = next buffer cursor
 	float4 MetaD; // x = emission index
 };
 
 [[vk::binding(1, 0)]]
 StructuredBuffer<Emitter> emitters;
-
-struct Op
-{
-    uint Type;
-    uint Target;
-    uint OperandOffset;
-    uint OperandCount;
-};
-
-[[vk::binding(2, 0)]]
-StructuredBuffer<Op> ops;
 
 struct Parameter
 {
@@ -45,7 +34,9 @@ struct SystemInstance
 {
     uint ParticleBaseOffset;
     uint EmitterBaseOffset;
-    uint OpBaseOffset;
+    uint OperationBaseOffset;
+    uint OperandBaseOffset;
+    uint ConstantBaseOffset;
     uint ParameterBaseOffset;
 
     uint EmitterStateBaseOffset;
@@ -59,8 +50,6 @@ struct SystemInstance
     uint Generation;
 
     uint ParticleStateLayoutIndex;
-    uint OperandBaseOffset;
-    uint ConstantBaseOffset;
 };
 
 [[vk::binding(4, 0)]]
@@ -239,38 +228,6 @@ float3 SafeNormalize(float3 value, float3 fallback)
     return value * rsqrt(lengthSquared);
 }
 
-uint SpawnOrderInBatch(uint localIndex, uint start, uint capacity)
-{
-    return (localIndex + capacity - start) % capacity;
-}
-
-/**
- * Determines if a given local index falls within the spawn range defined by start and count,
- * considering wrap-around.
- *
- * @param localIndex The index to check.
- * @param start The starting index of the spawn range.
- * @param count The number of indices in the spawn range.
- * @param capacity The total capacity of the buffer (used for wrap-around).
- * @return true if localIndex is within the spawn range, false otherwise.
- */
-bool InSpawnRange(uint localIndex, uint start, uint count, uint capacity)
-{
-    if (count == 0)
-        return false;
-
-    if (count >= capacity)
-        return true;
-
-    uint end = start + count;
-    if (end <= capacity) {
-        return localIndex >= start && localIndex < end;
-    }
-
-    uint wrappedEnd = end - capacity;
-    return localIndex >= start || localIndex < wrappedEnd;
-}
-
 void BuildBasis(float3 axis, out float3 right, out float3 up)
 {
     float3 helper = abs(axis.z) < 0.999 ? float3(0.0, 0.0, 1.0) : float3(0.0, 1.0, 0.0);
@@ -319,7 +276,36 @@ float3 VortexRibbonPath(float timeSeconds, VortexRibbonPathParams p)
     return float3(p.Center.xy + swirl + curl, z);
 }
 
-#include "ParticleOperands.hlsl"
+#include "Operations.hlsl"
+
+[[vk::binding(2, 0)]]
+StructuredBuffer<SOperation> operations;
+
+[[vk::binding(7, 0)]]
+StructuredBuffer<uint> operands;
+
+[[vk::binding(8, 0)]]
+ByteAddressBuffer constants;
+
+float4 MakeValue(uint value)
+{
+    return float4(float(value), 0.0, 0.0, 0.0);
+}
+
+float4 MakeValue(float value)
+{
+    return float4(value, 0.0, 0.0, 0.0);
+}
+
+float4 MakeValue(float2 value)
+{
+    return float4(value, 0.0, 0.0);
+}
+
+float4 MakeValue(float3 value)
+{
+    return float4(value, 0.0);
+}
 
 [numthreads(256, 1, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
@@ -329,9 +315,9 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     uint emitterIndex = instance.EmitterBaseOffset + pc.EmitterIndex;
     Emitter emitter = emitters[emitterIndex];
 
-    uint localIndex = dispatchThreadId.x;
+    uint spawnOrder = dispatchThreadId.x;
     uint emitterCount = (uint)emitter.MetaA.y;
-    if (localIndex >= emitterCount)
+    if (spawnOrder >= emitterCount)
         return;
 
     SpawnRequest request = spawnRequests[instance.SpawnRequestBaseOffset + pc.EmitterIndex];
@@ -341,15 +327,19 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     uint spawnCursor = request.SpawnCursor;
     uint spawnCount = request.SpawnCount;
 
-    if (!InSpawnRange(localIndex, spawnCursor, spawnCount, emitterCount))
+    if (spawnOrder >= spawnCount)
         return;
+
+    // Keep new particles in consecutive lanes even when the ring cursor wraps.
+    uint remaining = emitterCount - spawnCursor;
+    uint localIndex = spawnOrder < remaining
+        ? spawnCursor + spawnOrder
+        : spawnOrder - remaining;
 
     uint globalIndex = instance.ParticleBaseOffset + (uint)emitter.MetaA.x + localIndex;
     float2 seedBase = float2((float)globalIndex, TimeData.y + float(spawnCursor));
     float particleSeed = Hash1((float)globalIndex);
     float randomInput = Hash2(seedBase + float2(8.11, 3.41));
-    uint spawnOrder = SpawnOrderInBatch(localIndex, spawnCursor, emitterCount);
-    spawnOrder = min(spawnOrder, spawnCount - 1u);
     uint emissionIndex = request.EmissionIndex + spawnOrder;
 
     AttributeTable attributes;
@@ -367,35 +357,48 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     attributes.Temp2 = 0.0;
     attributes.Temp3 = 0.0;
 
-    uint opOffset = (uint)emitter.MetaA.z;
-    uint opCount = (uint)emitter.MetaA.w;
+    uint operationOffset = (uint)emitter.MetaA.z;
+    uint operationCount = (uint)emitter.MetaA.w;
 
-    for (uint i = 0u; i < opCount; ++i)
+    for (uint i = 0u; i < operationCount; ++i)
     {
-        Op op = ops[opOffset + i];
-        uint type = op.Type;
-        uint target = op.Target;
+        SOperation operation = operations[operationOffset + i];
+        uint type = operation.Type;
+        uint target = operation.Target;
 
-        if (type == Op_SetLiteral) // SetLiteral
+        SOperandReader reader = CreateOperandReader(
+            operation,
+            operands,
+            constants,
+            parameters,
+            instance,
+            attributes,
+            randomInput,
+            particleSeed
+        );
+
+        if (type == Operation_SetLiteral)
         {
-            SetAttribute(attributes, target, target == 9u
-                ? float4(float(ReadUIntOperand(op, SetLiteral_Value, instance)), 0.0, 0.0, 0.0)
-                : ReadOperand(op, SetLiteral_Value, instance, attributes, randomInput, particleSeed));
+            float4 value = target == 9u
+                ? MakeValue(reader.ReadUInt(SetLiteral_Value))
+                : reader.ReadValue(SetLiteral_Value);
+            SetAttribute(attributes, target, value);
         }
-        else if (type == Op_RandomRange) // RandomRange
+        else if (type == Operation_RandomRange)
         {
             float2 seed = seedBase + float2(float(i) * 1.7, float(target) * 2.3);
             float4 randomValue = RandomVector(seed);
-            float4 value0 = ReadOperand(op, RandomRange_Minimum, instance, attributes, randomInput, particleSeed);
-            float4 value1 = ReadOperand(op, RandomRange_Maximum, instance, attributes, randomInput, particleSeed);
+            float4 value0 = reader.ReadValue(RandomRange_Minimum);
+            float4 value1 = reader.ReadValue(RandomRange_Maximum);
+
             float4 value = lerp(value0, value1, randomValue);
             SetAttribute(attributes, target, value);
         }
-        else if (type == Op_SampleDisk) // SampleDisk
+        else if (type == Operation_SampleDisk)
         {
-            float3 center = ReadOperand(op, SampleDisk_Center, instance, attributes, randomInput, particleSeed).xyz;
-            float3 normal = ReadOperand(op, SampleDisk_Normal, instance, attributes, randomInput, particleSeed).xyz;
-            float maxRadius = ReadOperand(op, SampleDisk_Radius, instance, attributes, randomInput, particleSeed).x;
+            float3 center = reader.ReadVector3(SampleDisk_Center);
+            float3 normal = reader.ReadVector3(SampleDisk_Normal);
+            float maxRadius = reader.ReadScalar(SampleDisk_Radius);
 
             float radiusRandom = sqrt(Hash2(seedBase + float2(8.63, 6.53)));
             float arcRandom = Hash2(seedBase + float2(4.71, 1.29));
@@ -416,12 +419,12 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             tangent = SafeNormalize(tangent, right);
             SetAttribute(attributes, 8u, float4(tangent, 0.0));
         }
-        else if (type == Op_SampleCone) // SampleCone
+        else if (type == Operation_SampleCone)
         {
-            float3 axis = SafeNormalize(ReadOperand(op, SampleCone_Direction, instance, attributes, randomInput, particleSeed).xyz, float3(0.0, 1.0, 0.0));
-            float angle = ReadOperand(op, SampleCone_Angle, instance, attributes, randomInput, particleSeed).x * 0.5;
-            float minSpeed = ReadOperand(op, SampleCone_MinSpeed, instance, attributes, randomInput, particleSeed).x;
-            float maxSpeed = ReadOperand(op, SampleCone_MaxSpeed, instance, attributes, randomInput, particleSeed).x;
+            float3 axis = SafeNormalize(reader.ReadVector3(SampleCone_Direction), float3(0.0, 1.0, 0.0));
+            float angle = reader.ReadScalar(SampleCone_Angle) * 0.5;
+            float minSpeed = reader.ReadScalar(SampleCone_MinSpeed);
+            float maxSpeed = reader.ReadScalar(SampleCone_MaxSpeed);
 
             float angleRandom = Hash2(seedBase + float2(3.17, 9.41));
             float speedRandom = Hash2(seedBase + float2(5.23, 2.19));
@@ -448,10 +451,10 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             float3 tangent = SafeNormalize(velocity, GetAttribute(attributes, 6u).xyz);
             SetAttribute(attributes, 8u, float4(tangent, 0.0));
         }
-        else if (type == Op_SampleBox) // SampleBox
+        else if (type == Operation_SampleBox)
         {
-            float3 minBounds = ReadOperand(op, SampleBox_Minimum, instance, attributes, randomInput, particleSeed).xyz;
-            float3 maxBounds = ReadOperand(op, SampleBox_Maximum, instance, attributes, randomInput, particleSeed).xyz;
+            float3 minBounds = reader.ReadVector3(SampleBox_Minimum);
+            float3 maxBounds = reader.ReadVector3(SampleBox_Maximum);
 
             float2 seed = seedBase + float2(float(i) * 1.3, 5.7);
             float3 random = RandomVector(seed).xyz;
@@ -459,12 +462,12 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             float3 position = lerp(minBounds, maxBounds, random);
             SetAttribute(attributes, target, float4(position, 0.0));
         }
-        else if (type == Op_SetPositionOnCircle) // SetPositionOnCircle
+        else if (type == Operation_SetPositionOnCircle)
         {
-            float3 center = ReadOperand(op, SetPositionOnCircle_Center, instance, attributes, randomInput, particleSeed).xyz;
-            float radius = ReadOperand(op, SetPositionOnCircle_Radius, instance, attributes, randomInput, particleSeed).x;
-            float angularSpeed = ReadOperand(op, SetPositionOnCircle_AngularSpeed, instance, attributes, randomInput, particleSeed).x;
-            float startAngle = ReadOperand(op, SetPositionOnCircle_StartAngle, instance, attributes, randomInput, particleSeed).x;
+            float3 center = reader.ReadVector3(SetPositionOnCircle_Center);
+            float radius = reader.ReadScalar(SetPositionOnCircle_Radius);
+            float angularSpeed = reader.ReadScalar(SetPositionOnCircle_AngularSpeed);
+            float startAngle = reader.ReadScalar(SetPositionOnCircle_StartAngle);
             float angle = TimeData.y * angularSpeed + startAngle;
 
             float3 position = center + float3(cos(angle), sin(angle), 0.0) * radius;
@@ -476,12 +479,12 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
             SetAttribute(attributes, 4u, float4(0.0, 0.0, 0.0, 0.0));
         }
-        else if (type == Op_SetPositionCircularPath) // SetPositionCircularPath
+        else if (type == Operation_SetPositionCircularPath)
         {
-            float3 baseOffset = ReadOperand(op, SetPositionCircularPath_BaseOffset, instance, attributes, randomInput, particleSeed).xyz;
-            float3 primaryAmplitude = ReadOperand(op, SetPositionCircularPath_PrimaryAmplitude, instance, attributes, randomInput, particleSeed).xyz;
-            float3 secondaryAmplitude = ReadOperand(op, SetPositionCircularPath_SecondaryAmplitude, instance, attributes, randomInput, particleSeed).xyz;
-            float timeScale = ReadOperand(op, SetPositionCircularPath_TimeScale, instance, attributes, randomInput, particleSeed).x;
+            float3 baseOffset = reader.ReadVector3(SetPositionCircularPath_BaseOffset);
+            float3 primaryAmplitude = reader.ReadVector3(SetPositionCircularPath_PrimaryAmplitude);
+            float3 secondaryAmplitude = reader.ReadVector3(SetPositionCircularPath_SecondaryAmplitude);
+            float timeScale = reader.ReadScalar(SetPositionCircularPath_TimeScale);
 
             float spawnRate = max(emitter.MetaC.y, 0.001);
             float timeOffset = float((spawnCount - 1u) - spawnOrder) / spawnRate;
@@ -505,21 +508,21 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
             SetAttribute(attributes, 8u, float4(tangent, 0.0));
         }
-        else if (type == Op_SetPositionVortexRibbonPath) // SetPositionVortexRibbonPath
+        else if (type == Operation_SetPositionVortexRibbonPath)
         {
             VortexRibbonPathParams params;
-            params.Center = ReadOperand(op, SetPositionVortexRibbonPath_Center, instance, attributes, randomInput, particleSeed).xyz;
+            params.Center = reader.ReadVector3(SetPositionVortexRibbonPath_Center);
 
-            params.OrbitSpeed = ReadOperand(op, SetPositionVortexRibbonPath_OrbitSpeed, instance, attributes, randomInput, particleSeed).x;
-            params.BaseRadius = ReadOperand(op, SetPositionVortexRibbonPath_BaseRadius, instance, attributes, randomInput, particleSeed).x;
-            params.RadiusAmplitude = ReadOperand(op, SetPositionVortexRibbonPath_RadiusAmplitude, instance, attributes, randomInput, particleSeed).x;
-            params.RadiusSpeed = ReadOperand(op, SetPositionVortexRibbonPath_RadiusSpeed, instance, attributes, randomInput, particleSeed).x;
+            params.OrbitSpeed = reader.ReadScalar(SetPositionVortexRibbonPath_OrbitSpeed);
+            params.BaseRadius = reader.ReadScalar(SetPositionVortexRibbonPath_BaseRadius);
+            params.RadiusAmplitude = reader.ReadScalar(SetPositionVortexRibbonPath_RadiusAmplitude);
+            params.RadiusSpeed = reader.ReadScalar(SetPositionVortexRibbonPath_RadiusSpeed);
 
-            params.PulseAmplitude = ReadOperand(op, SetPositionVortexRibbonPath_PulseAmplitude, instance, attributes, randomInput, particleSeed).x;
-            params.PulseSpeed = ReadOperand(op, SetPositionVortexRibbonPath_PulseSpeed, instance, attributes, randomInput, particleSeed).x;
+            params.PulseAmplitude = reader.ReadScalar(SetPositionVortexRibbonPath_PulseAmplitude);
+            params.PulseSpeed = reader.ReadScalar(SetPositionVortexRibbonPath_PulseSpeed);
             params.PulsePhase = 0.0;
-            params.CurlAmplitude = ReadOperand(op, SetPositionVortexRibbonPath_CurlAmplitude, instance, attributes, randomInput, particleSeed).x;
-            params.DepthAmplitude = ReadOperand(op, SetPositionVortexRibbonPath_DepthAmplitude, instance, attributes, randomInput, particleSeed).x;
+            params.CurlAmplitude = reader.ReadScalar(SetPositionVortexRibbonPath_CurlAmplitude);
+            params.DepthAmplitude = reader.ReadScalar(SetPositionVortexRibbonPath_DepthAmplitude);
 
             params.CurlFrequency = float2(1.9, 1.7);
             params.CurlPhase = float2(0.6, -0.3);
@@ -541,22 +544,22 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
             SetAttribute(attributes, 8u, float4(tangent, 0.0));
         }
-        else if (type == Op_SetRibbonIdFromSpawnOrder) // SetRibbonIdFromSpawnOrder
+        else if (type == Operation_SetRibbonIdFromSpawnOrder)
         {
-            uint ribbonCount = max(1u, ReadUIntOperand(op, SetRibbonIdFromSpawnOrder_RibbonCount, instance));
-            uint firstRibbonId = ReadUIntOperand(op, SetRibbonIdFromSpawnOrder_FirstRibbonId, instance);
+            uint ribbonCount = max(1u, reader.ReadUInt(SetRibbonIdFromSpawnOrder_RibbonCount));
+            uint firstRibbonId = reader.ReadUInt(SetRibbonIdFromSpawnOrder_FirstRibbonId);
             uint ribbonId = firstRibbonId + (emissionIndex % ribbonCount);
             SetAttribute(attributes, target, float4(float(ribbonId), 0.0, 0.0, 0.0));
         }
-        else if (type == Op_SampleCurve) // SampleCurve
+        else if (type == Operation_SampleCurve)
         {
-            float inputValue = ReadOperand(op, SampleCurve_Input, instance, attributes, randomInput, particleSeed).x;
-            float value = SampleCurve(ReadCurveOperand(op, SampleCurve_Curve, instance), inputValue);
+            float inputValue = reader.ReadScalar(SampleCurve_Input);
+            float value = SampleCurve(reader.ReadCurve(SampleCurve_Curve), inputValue);
             SetAttribute(attributes, target, float4(value, 0.0, 0.0, 0.0));
         }
-        else if (type == Op_CopyFromAttribute) // CopyFromAttribute
+        else if (type == Operation_CopyFromAttribute)
         {
-            float4 value = ReadOperand(op, CopyFromAttribute_Value, instance, attributes, randomInput, particleSeed);
+            float4 value = reader.ReadValue(CopyFromAttribute_Value);
             SetAttribute(attributes, target, value);
         }
     }

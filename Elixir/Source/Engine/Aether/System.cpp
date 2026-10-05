@@ -33,7 +33,7 @@ namespace Elixir::Aether
         return nullptr;
     }
 
-    std::vector<SGPUParameter> System::BuildExposedParameters() const
+    std::vector<SParameter> System::BuildExposedParameters() const
     {
         auto parameters = m_Parameters.Compile();
 
@@ -106,15 +106,15 @@ namespace Elixir::Aether
             if (samples.size() < 8)
                 samples.resize(8, samples.back());
 
-            system.Parameters.push_back({ curve.Name + ":0", CurveChunk(samples, 0) });
-            system.Parameters.push_back({ curve.Name + ":1", CurveChunk(samples, 1) });
+            system.Parameters.push_back({ .Name = curve.Name + ":0", .Value = CurveChunk(samples, 0) });
+            system.Parameters.push_back({ .Name = curve.Name + ":1", .Value = CurveChunk(samples, 1) });
         }
 
         for (const auto& curve : system.ColorCurves)
         {
             const auto baked = BakeColorCurve(curve.Samples);
             for (std::size_t i = 0; i < 8; ++i)
-                system.Parameters.push_back({ curve.Name + ":" + std::to_string(i), baked[i] });
+                system.Parameters.push_back({ .Name = curve.Name + ":" + std::to_string(i), .Value = baked[i] });
         }
 
         uint32_t localParticleOffset = 0;
@@ -125,7 +125,7 @@ namespace Elixir::Aether
             auto compiled = emitter->Compile(
                 m_Parameters,
                 system.Parameters,
-                system.Program
+                system.Operations
             );
             compiled.LocalParticleOffset = localParticleOffset;
 
@@ -135,7 +135,7 @@ namespace Elixir::Aether
             system.Emitters.push_back(compiled);
         }
 
-        system.Program.Finalize();
+        system.Operations.CompactConstants();
 
         std::vector<std::vector<SCompiledTriggerTarget>> targetsBySource(system.Emitters.size());
 

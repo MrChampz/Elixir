@@ -273,7 +273,7 @@ namespace Elixir::Aether
     }
 
     glm::vec4 SystemInstance::ResolveParameterValue(
-        const SGPUParameter& parameter,
+        const SParameter& parameter,
         const ParameterOverridesMap& overrides
     )
     {

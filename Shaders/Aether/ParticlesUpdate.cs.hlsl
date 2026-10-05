@@ -13,25 +13,14 @@ RWStructuredBuffer<ParticleState> particles;
 
 struct Emitter
 {
-    float4 MetaA; // x = offset in particle buffer, y = max particles, z = op offset(spawn), w = op count(spawn)
-    float4 MetaB; // x = op offset(update), y = op count(update), z = buffer cursor, w = spawn count
+    float4 MetaA; // x = offset in particle buffer, y = max particles, z = operation offset(spawn), w = operation count(spawn)
+    float4 MetaB; // x = operation offset(update), y = operation count(update), z = buffer cursor, w = spawn count
     float4 MetaC; // x = render mode, y = spawn rate seconds, z = gravity scale, w = next buffer cursor
     float4 MetaD; // x = emission index
 };
 
 [[vk::binding(1, 0)]]
 StructuredBuffer<Emitter> emitters;
-
-struct Op
-{
-    uint Type;
-    uint Target;
-    uint OperandOffset;
-    uint OperandCount;
-};
-
-[[vk::binding(2, 0)]]
-StructuredBuffer<Op> ops;
 
 struct Parameter
 {
@@ -45,7 +34,9 @@ struct SystemInstance
 {
     uint ParticleBaseOffset;
     uint EmitterBaseOffset;
-    uint OpBaseOffset;
+    uint OperationBaseOffset;
+    uint OperandBaseOffset;
+    uint ConstantBaseOffset;
     uint ParameterBaseOffset;
 
     uint EmitterStateBaseOffset;
@@ -59,8 +50,6 @@ struct SystemInstance
     uint Generation;
 
     uint ParticleStateLayoutIndex;
-    uint OperandBaseOffset;
-    uint ConstantBaseOffset;
 };
 
 [[vk::binding(4, 0)]]
@@ -270,7 +259,16 @@ float3 SafeNormalize(float3 value, float3 fallback)
     return value * rsqrt(lengthSquared);
 }
 
-#include "ParticleOperands.hlsl"
+#include "Operations.hlsl"
+
+[[vk::binding(2, 0)]]
+StructuredBuffer<SOperation> operations;
+
+[[vk::binding(7, 0)]]
+StructuredBuffer<uint> operands;
+
+[[vk::binding(8, 0)]]
+ByteAddressBuffer constants;
 
 [numthreads(256, 1, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
@@ -303,110 +301,121 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     float life = clamp(age / lifetime, 0.0, 1.0);
     bool kill = age >= lifetime;
 
-    uint opOffset = (uint)emitter.MetaB.x;
-    uint opCount = (uint)emitter.MetaB.y;
+    uint operationOffset = (uint)emitter.MetaB.x;
+    uint operationCount = (uint)emitter.MetaB.y;
 
-    for (uint i = 0u; i < opCount; ++i)
+    for (uint i = 0u; i < operationCount; ++i)
     {
-        Op op = ops[opOffset + i];
-        uint type = op.Type;
-        uint target = op.Target;
+        SOperation operation = operations[operationOffset + i];
+        uint type = operation.Type;
+        uint target = operation.Target;
 
-        if (type == Op_SetLiteral) // SetLiteral
+        SOperandReader reader = CreateOperandReader(
+            operation,
+            operands,
+            constants,
+            parameters,
+            instance,
+            attributes,
+            life,
+            particleSeed
+        );
+
+        if (type == Operation_SetLiteral)
         {
             SetAttribute(attributes, target, target == 9u
-                ? float4(float(ReadUIntOperand(op, SetLiteral_Value, instance)), 0.0, 0.0, 0.0)
-                : ReadOperand(op, SetLiteral_Value, instance, attributes, life, particleSeed));
+                ? float4(float(reader.ReadUInt(SetLiteral_Value)), 0.0, 0.0, 0.0)
+                : reader.ReadValue(SetLiteral_Value));
         }
-        else if (type == Op_AddWithDelta) // AddWithDelta
+        else if (type == Operation_AddWithDelta)
         {
             float4 value = GetAttribute(attributes, target);
-            float inputMultiplier = ReadOperand(op, AddWithDelta_Multiplier, instance, attributes, life, particleSeed).x;
+            float inputMultiplier = reader.ReadScalar(AddWithDelta_Multiplier);
 
-            value += ReadOperand(op, AddWithDelta_Value, instance, attributes, life, particleSeed) * (dt * inputMultiplier);
+            value += reader.ReadValue(AddWithDelta_Value) * (dt * inputMultiplier);
 
             SetAttribute(attributes, target, value);
         }
-        else if (type == Op_Dampen) // Dampen
+        else if (type == Operation_Dampen)
         {
             float4 value = GetAttribute(attributes, target);
-            float drag = ReadOperand(op, Dampen_Drag, instance, attributes, life, particleSeed).x;
+            float drag = reader.ReadScalar(Dampen_Drag);
             value *= max(0.0, 1.0 - drag * dt);
             SetAttribute(attributes, target, value);
         }
-        else if (type == Op_LerpOverLife) // LerpOverLife
+        else if (type == Operation_LerpOverLife)
         {
-            float4 value0 = ReadOperand(op, LerpOverLife_Start, instance, attributes, life, particleSeed);
-            float4 value1 = ReadOperand(op, LerpOverLife_End, instance, attributes, life, particleSeed);
+            float4 value0 = reader.ReadValue(LerpOverLife_Start);
+            float4 value1 = reader.ReadValue(LerpOverLife_End);
             float4 value = lerp(value0, value1, life);
             SetAttribute(attributes, target, value);
         }
-        else if (type == Op_KillOutsideBounds) // KillOutsideBounds
+        else if (type == Operation_KillOutsideBounds)
         {
             float4 position = GetAttribute(attributes, 1u);
-            float3 minimum = ReadOperand(op, KillOutsideBounds_Minimum, instance, attributes, life, particleSeed).xyz;
-            float3 maximum = ReadOperand(op, KillOutsideBounds_Maximum, instance, attributes, life, particleSeed).xyz;
+            float3 minimum = reader.ReadVector3(KillOutsideBounds_Minimum);
+            float3 maximum = reader.ReadVector3(KillOutsideBounds_Maximum);
             bool outsideBounds = any(position.xyz < minimum) || any(position.xyz > maximum);
             kill = kill || outsideBounds;
         }
-        else if (type == Op_AddFromAttribute) // AddFromAttribute
+        else if (type == Operation_AddFromAttribute)
         {
             float4 value = GetAttribute(attributes, target);
-            float4 sourceValue = ReadOperand(op, AddFromAttribute_Value, instance, attributes, life, particleSeed);
-            value += sourceValue * (ReadOperand(op, AddFromAttribute_Scale, instance, attributes, life, particleSeed).x * dt);
+            float4 sourceValue = reader.ReadValue(AddFromAttribute_Value);
+            value += sourceValue * (reader.ReadScalar(AddFromAttribute_Scale) * dt);
             SetAttribute(attributes, target, value);
         }
-        else if (type == Op_SampleCurve) // SampleCurve
+        else if (type == Operation_SampleCurve)
         {
-            float inputValue = ReadOperand(op, SampleCurve_Input, instance, attributes, life, particleSeed).x;
-            float value = SampleCurve(ReadCurveOperand(op, SampleCurve_Curve, instance), inputValue);
+            float inputValue = reader.ReadScalar(SampleCurve_Input);
+            float value = SampleCurve(reader.ReadCurve(SampleCurve_Curve), inputValue);
             SetAttribute(attributes, target, float4(value, 0.0, 0.0, 0.0));
         }
-        else if (type == Op_SampleColorCurve) // SampleColorCurve
+        else if (type == Operation_SampleColorCurve)
         {
-            float inputValue = ReadOperand(op, SampleColorCurve_Input, instance, attributes, life, particleSeed).x;
-            float4 value = SampleColorCurve(ReadCurveOperand(op, SampleColorCurve_Curve, instance), inputValue);
+            float inputValue = reader.ReadScalar(SampleColorCurve_Input);
+            float4 value = SampleColorCurve(reader.ReadCurve(SampleColorCurve_Curve), inputValue);
             SetAttribute(attributes, target, value);
         }
-        else if (type == Op_Add) // Add
+        else if (type == Operation_Add)
         {
             float4 value = GetAttribute(attributes, target);
-            value += ReadOperand(op, Add_Value, instance, attributes, life, particleSeed);
+            value += reader.ReadValue(Add_Value);
             SetAttribute(attributes, target, value);
         }
-        else if (type == Op_Mul) // Mul
+        else if (type == Operation_Mul)
         {
             float4 value = GetAttribute(attributes, target);
-            value *= ReadOperand(op, Mul_Value, instance, attributes, life, particleSeed);
+            value *= reader.ReadValue(Mul_Value);
             SetAttribute(attributes, target, value);
         }
-        else if (type == Op_Clamp) // Clamp
+        else if (type == Operation_Clamp)
         {
             float4 value = GetAttribute(attributes, target);
-            float4 minValue = ReadOperand(op, Clamp_Minimum, instance, attributes, life, particleSeed);
-            float4 maxValue = ReadOperand(op, Clamp_Maximum, instance, attributes, life, particleSeed);
+            float4 minValue = reader.ReadValue(Clamp_Minimum);
+            float4 maxValue = reader.ReadValue(Clamp_Maximum);
             value = clamp(value, minValue, maxValue);
             SetAttribute(attributes, target, value);
         }
-        else if (type == Op_CopyFromAttribute) // CopyFromAttribute
+        else if (type == Operation_CopyFromAttribute)
         {
-            float4 value = ReadOperand(op, CopyFromAttribute_Value, instance, attributes, life, particleSeed);
+            float4 value = reader.ReadValue(CopyFromAttribute_Value);
             SetAttribute(attributes, target, value);
         }
-        else if (type == Op_ApplyVortex) // ApplyVortex
+        else if (type == Operation_ApplyVortex)
         {
             float4 velocity = GetAttribute(attributes, target);
             float4 position = GetAttribute(attributes, 1u);
 
-            float3 center = ReadOperand(op, ApplyVortex_Center, instance, attributes, life, particleSeed).xyz;
-            float3 normal = SafeNormalize(ReadOperand(op, ApplyVortex_Normal, instance, attributes, life, particleSeed).xyz, float3(0.0, 1.0, 0.0));
+            float3 center = reader.ReadVector3(ApplyVortex_Center);
+            float3 normal = SafeNormalize(reader.ReadVector3(ApplyVortex_Normal), float3(0.0, 1.0, 0.0));
             float3 offset = position.xyz - center;
 
             float3 radial = SafeNormalize(offset, 0.0);
-            float radialStrength = ReadOperand(op, ApplyVortex_Radial, instance, attributes, life, particleSeed).x;
+            float radialStrength = reader.ReadScalar(ApplyVortex_Radial);
 
             float3 tangent = SafeNormalize(cross(normal, radial), 0.0);
-            float tangentialStrength = ReadOperand(op, ApplyVortex_Tangential, instance, attributes, life, particleSeed).x;
+            float tangentialStrength = reader.ReadScalar(ApplyVortex_Tangential);
 
             velocity.xyz += (tangent * tangentialStrength + radial * radialStrength) * dt;
 

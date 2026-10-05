@@ -64,9 +64,9 @@ namespace Elixir::Aether
         std::vector<SCompiledEmitter> Emitters;
         std::vector<SCompiledTriggerTarget> TriggerTargets;
 
-        Modules::SParticleProgram Program;
+        Core::SCompiledOperations Operations;
 
-        std::vector<SGPUParameter> Parameters;
+        std::vector<SParameter> Parameters;
         std::vector<SExposedParameter> ExposedParameters;
         std::vector<SGPUCurve> Curves;
         std::vector<SGPUColorCurve> ColorCurves;
@@ -183,7 +183,7 @@ namespace Elixir::Aether
 
       private:
         // Builds the authored parameters that can be overridden by instances.
-        std::vector<SGPUParameter> BuildExposedParameters() const;
+        std::vector<SParameter> BuildExposedParameters() const;
 
         // Returns an authored parameter default before an instance is compiled.
         std::optional<glm::vec4> GetParameterDefault(std::string_view name) const;

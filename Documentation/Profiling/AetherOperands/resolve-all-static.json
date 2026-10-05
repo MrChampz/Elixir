@@ -1,0 +1,14 @@
+{
+  "Spawn": {
+    "bytes": 73212,
+    "instructions": 3847,
+    "OpLoad": 74,
+    "OpBranchConditional": 194
+  },
+  "Update": {
+    "bytes": 79116,
+    "instructions": 4310,
+    "OpLoad": 73,
+    "OpBranchConditional": 295
+  }
+}

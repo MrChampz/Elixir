@@ -1,0 +1,34 @@
+{
+  "array": {
+    "Spawn": {
+      "bytes": 96964,
+      "instructions": 5394,
+      "OpLoad": 113,
+      "OpBranchConditional": 281,
+      "sha256": "746b9b6d1e2133d4340ad9eee56f2d337aba01a71afdfdc2f26fab1d40c28bc7"
+    },
+    "Update": {
+      "bytes": 84584,
+      "instructions": 4676,
+      "OpLoad": 72,
+      "OpBranchConditional": 327,
+      "sha256": "48f36c05133e8c9cefe94b828d2a666f9e6667e336c0b50ede517ec423b8ad73"
+    }
+  },
+  "separate": {
+    "Spawn": {
+      "bytes": 96964,
+      "instructions": 5394,
+      "OpLoad": 113,
+      "OpBranchConditional": 281,
+      "sha256": "746b9b6d1e2133d4340ad9eee56f2d337aba01a71afdfdc2f26fab1d40c28bc7"
+    },
+    "Update": {
+      "bytes": 84584,
+      "instructions": 4676,
+      "OpLoad": 72,
+      "OpBranchConditional": 327,
+      "sha256": "48f36c05133e8c9cefe94b828d2a666f9e6667e336c0b50ede517ec423b8ad73"
+    }
+  }
+}
