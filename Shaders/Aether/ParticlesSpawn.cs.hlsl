@@ -102,20 +102,9 @@ float Hash1(float x) {
   return frac(sin(x * 91.3458 + 12.345) * 45678.5453);
 }
 
-float Hash2(float2 p)
-{
-    return frac(sin(dot(p, float2(127.1, 311.7))) * 43758.5453123);
-}
 
-float4 RandomVector(float2 seed)
-{
-    return float4(
-        Hash2(seed + float2(1.31, 2.17)),
-        Hash2(seed + float2(3.11, 4.29)),
-        Hash2(seed + float2(5.71, 6.13)),
-        Hash2(seed + float2(7.43, 8.59))
-    );
-}
+
+
 
 float ResolveDynamicInput(uint inputType, float randomValue, float particleSeed)
 {
@@ -137,25 +126,7 @@ float ResolveDynamicInput(uint inputType, float randomValue, float particleSeed)
     return 1.0;
 }
 
-float SampleCurve(int baseParameterIndex, float t)
-{
-    if (baseParameterIndex < 0)
-        return 0.0;
 
-    float4 a = parameters[baseParameterIndex].Value;
-    float4 b = parameters[baseParameterIndex + 1].Value;
-
-    float samples[8] = { a.x, a.y, a.z, a.w, b.x, b.y, b.z, b.w };
-
-    float clampedT = clamp(t, 0.0, 1.0);
-    float samplePosition = clampedT * 7.0;
-
-    uint lowerIndex = (uint)floor(samplePosition);
-    uint upperIndex = min(lowerIndex + 1u, 7u);
-    float fraction = frac(samplePosition);
-
-    return lerp(samples[lowerIndex], samples[upperIndex], fraction);
-}
 
 float4 GetAttribute(AttributeTable table, uint attrId)
 {
@@ -219,64 +190,11 @@ void SetAttribute(inout AttributeTable table, uint attrId, float4 value)
         table.Temp3 = value;
 }
 
-float3 SafeNormalize(float3 value, float3 fallback)
-{
-    float lengthSquared = dot(value, value);
-    if (lengthSquared < 0.000001)
-        return fallback;
 
-    return value * rsqrt(lengthSquared);
-}
 
-void BuildBasis(float3 axis, out float3 right, out float3 up)
-{
-    float3 helper = abs(axis.z) < 0.999 ? float3(0.0, 0.0, 1.0) : float3(0.0, 1.0, 0.0);
-    right = SafeNormalize(cross(helper, axis), float3(1.0, 0.0, 0.0));
-    up = cross(axis, right);
-}
 
-struct VortexRibbonPathParams
-{
-    float3 Center;
-    float  OrbitSpeed;
-    float  BaseRadius;
-    float  RadiusAmplitude;
-    float  RadiusSpeed;
-    float  PulseAmplitude;
-    float  PulseSpeed;
-    float  PulsePhase;
-    float  CurlAmplitude;
-    float2 CurlFrequency;
-    float2 CurlPhase;
-    float  DepthAmplitude;
-    float  DepthFrequency;
-    float  DepthPhase;
-};
 
-float3 VortexRibbonPath(float timeSeconds, VortexRibbonPathParams p)
-{
-    float phase = timeSeconds * p.OrbitSpeed;
-
-    float radialPulse = p.PulseAmplitude * sin((timeSeconds * p.PulseSpeed) + p.PulsePhase);
-
-    float radius =
-        p.BaseRadius +
-        (p.RadiusAmplitude * (0.5 + 0.5 * sin(timeSeconds * p.RadiusSpeed))) +
-        radialPulse;
-
-    float2 swirl = float2(cos(phase), sin(phase * 0.96)) * radius;
-
-    float2 curl = float2(
-        cos(phase * p.CurlFrequency.x + p.CurlPhase.x),
-        sin(phase * p.CurlFrequency.y + p.CurlPhase.y)
-    ) * p.CurlAmplitude;
-
-    float z = p.Center.z + p.DepthAmplitude * sin(phase * p.DepthFrequency + p.DepthPhase);
-
-    return float3(p.Center.xy + swirl + curl, z);
-}
-
-#include "Operations.hlsl"
+#include "Operation.hlsl"
 
 [[vk::binding(2, 0)]]
 StructuredBuffer<SOperation> operations;
@@ -287,25 +205,8 @@ StructuredBuffer<uint> operands;
 [[vk::binding(8, 0)]]
 ByteAddressBuffer constants;
 
-float4 MakeValue(uint value)
-{
-    return float4(float(value), 0.0, 0.0, 0.0);
-}
-
-float4 MakeValue(float value)
-{
-    return float4(value, 0.0, 0.0, 0.0);
-}
-
-float4 MakeValue(float2 value)
-{
-    return float4(value, 0.0, 0.0);
-}
-
-float4 MakeValue(float3 value)
-{
-    return float4(value, 0.0);
-}
+#include "OperationExecutor.hlsl"
+#include "Operations/RandomSampling.hlsl"
 
 [numthreads(256, 1, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
@@ -360,209 +261,26 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     uint operationOffset = (uint)emitter.MetaA.z;
     uint operationCount = (uint)emitter.MetaA.w;
 
+    SOperationExecutorContext context = CreateOperationExecutorContext(
+        operands, constants, parameters, instance, attributes, randomInput, particleSeed
+    );
+    context.Time = TimeData.y;
+    context.SeedBase = seedBase;
+    context.SpawnRate = emitter.MetaC.y;
+    context.SpawnCount = spawnCount;
+    context.SpawnOrder = spawnOrder;
+    context.EmissionIndex = emissionIndex;
+
     for (uint i = 0u; i < operationCount; ++i)
     {
+        context.OperationIndex = i;
         SOperation operation = operations[operationOffset + i];
-        uint type = operation.Type;
-        uint target = operation.Target;
 
-        SOperandReader reader = CreateOperandReader(
-            operation,
-            operands,
-            constants,
-            parameters,
-            instance,
-            attributes,
-            randomInput,
-            particleSeed
-        );
-
-        if (type == Operation_SetLiteral)
-        {
-            float4 value = target == 9u
-                ? MakeValue(reader.ReadUInt(SetLiteral_Value))
-                : reader.ReadValue(SetLiteral_Value);
-            SetAttribute(attributes, target, value);
-        }
-        else if (type == Operation_RandomRange)
-        {
-            float2 seed = seedBase + float2(float(i) * 1.7, float(target) * 2.3);
-            float4 randomValue = RandomVector(seed);
-            float4 value0 = reader.ReadValue(RandomRange_Minimum);
-            float4 value1 = reader.ReadValue(RandomRange_Maximum);
-
-            float4 value = lerp(value0, value1, randomValue);
-            SetAttribute(attributes, target, value);
-        }
-        else if (type == Operation_SampleDisk)
-        {
-            float3 center = reader.ReadVector3(SampleDisk_Center);
-            float3 normal = reader.ReadVector3(SampleDisk_Normal);
-            float maxRadius = reader.ReadScalar(SampleDisk_Radius);
-
-            float radiusRandom = sqrt(Hash2(seedBase + float2(8.63, 6.53)));
-            float arcRandom = Hash2(seedBase + float2(4.71, 1.29));
-
-            float spawnAngle = arcRandom * 6.28318530718;
-            float radius = maxRadius * radiusRandom;
-
-            float3 right;
-            float3 up;
-            BuildBasis(normal, right, up);
-
-            float3 direction = right * cos(spawnAngle) + up * sin(spawnAngle);
-
-            float3 position = center + direction * radius;
-            SetAttribute(attributes, target, float4(position, 0.0));
-
-            float3 tangent = right * -sin(spawnAngle) + up * cos(spawnAngle);
-            tangent = SafeNormalize(tangent, right);
-            SetAttribute(attributes, 8u, float4(tangent, 0.0));
-        }
-        else if (type == Operation_SampleCone)
-        {
-            float3 axis = SafeNormalize(reader.ReadVector3(SampleCone_Direction), float3(0.0, 1.0, 0.0));
-            float angle = reader.ReadScalar(SampleCone_Angle) * 0.5;
-            float minSpeed = reader.ReadScalar(SampleCone_MinSpeed);
-            float maxSpeed = reader.ReadScalar(SampleCone_MaxSpeed);
-
-            float angleRandom = Hash2(seedBase + float2(3.17, 9.41));
-            float speedRandom = Hash2(seedBase + float2(5.23, 2.19));
-            float coneRandom = Hash2(seedBase + float2(8.41, 4.77));
-
-            float speed = lerp(minSpeed, maxSpeed, speedRandom);
-
-            float cosTheta = lerp(1.0, cos(angle), coneRandom);
-            float sinTheta = sqrt(max(0.0, 1.0 - cosTheta * cosTheta));
-            float phi = angleRandom * 6.28318530718;
-
-            float3 right;
-            float3 up;
-            BuildBasis(axis, right, up);
-
-            float3 direction = right * (cos(phi) * sinTheta) +
-                               up * (sin(phi) * sinTheta) +
-                               axis * cosTheta;
-            direction = SafeNormalize(direction, axis);
-
-            float3 velocity = direction * speed;
-            SetAttribute(attributes, target, float4(velocity, 0.0));
-
-            float3 tangent = SafeNormalize(velocity, GetAttribute(attributes, 6u).xyz);
-            SetAttribute(attributes, 8u, float4(tangent, 0.0));
-        }
-        else if (type == Operation_SampleBox)
-        {
-            float3 minBounds = reader.ReadVector3(SampleBox_Minimum);
-            float3 maxBounds = reader.ReadVector3(SampleBox_Maximum);
-
-            float2 seed = seedBase + float2(float(i) * 1.3, 5.7);
-            float3 random = RandomVector(seed).xyz;
-
-            float3 position = lerp(minBounds, maxBounds, random);
-            SetAttribute(attributes, target, float4(position, 0.0));
-        }
-        else if (type == Operation_SetPositionOnCircle)
-        {
-            float3 center = reader.ReadVector3(SetPositionOnCircle_Center);
-            float radius = reader.ReadScalar(SetPositionOnCircle_Radius);
-            float angularSpeed = reader.ReadScalar(SetPositionOnCircle_AngularSpeed);
-            float startAngle = reader.ReadScalar(SetPositionOnCircle_StartAngle);
-            float angle = TimeData.y * angularSpeed + startAngle;
-
-            float3 position = center + float3(cos(angle), sin(angle), 0.0) * radius;
-            SetAttribute(attributes, target, float4(position, 1.0));
-
-            float orientation = angularSpeed < 0.0 ? -1.0 : 1.0;
-            float3 tangent = float3(-sin(angle), cos(angle), 0.0) * orientation;
-            SetAttribute(attributes, 8u, float4(tangent, 0.0));
-
-            SetAttribute(attributes, 4u, float4(0.0, 0.0, 0.0, 0.0));
-        }
-        else if (type == Operation_SetPositionCircularPath)
-        {
-            float3 baseOffset = reader.ReadVector3(SetPositionCircularPath_BaseOffset);
-            float3 primaryAmplitude = reader.ReadVector3(SetPositionCircularPath_PrimaryAmplitude);
-            float3 secondaryAmplitude = reader.ReadVector3(SetPositionCircularPath_SecondaryAmplitude);
-            float timeScale = reader.ReadScalar(SetPositionCircularPath_TimeScale);
-
-            float spawnRate = max(emitter.MetaC.y, 0.001);
-            float timeOffset = float((spawnCount - 1u) - spawnOrder) / spawnRate;
-            float sampleTime = TimeData.y - timeOffset;
-
-            float phase = sampleTime * timeScale;
-
-            float x = baseOffset.x + (primaryAmplitude.x * sin(phase)) + (secondaryAmplitude.x * sin(phase * 2.1));
-            float y = baseOffset.y + (primaryAmplitude.y * sin((phase * 0.58) + 0.65)) +
-                (secondaryAmplitude.y * cos((phase * 1.34) - 0.4));
-            float z = baseOffset.z + (primaryAmplitude.z * cos((phase * 0.72) + 0.35)) +
-                (secondaryAmplitude.z * sin((phase * 1.61) - 0.2));
-
-            SetAttribute(attributes, target, float4(x, y, z, 1.0));
-            SetAttribute(attributes, 4u, 0.0);
-
-            float dx = primaryAmplitude.x * cos(phase) + secondaryAmplitude.x * 2.1 * cos(phase * 2.1);
-            float dy = primaryAmplitude.y * 0.58 * cos(phase * 0.58 + 0.65) - secondaryAmplitude.y * 1.34 * sin(phase * 1.34 - 0.4);
-            float dz = -primaryAmplitude.z * 0.72 * sin((phase * 0.72) + 0.35) + secondaryAmplitude.z * 1.61 * cos((phase * 1.61) - 0.2);
-            float3 tangent = SafeNormalize(float3(dx, dy, dz), float3(1.0, 0.0, 0.0));
-
-            SetAttribute(attributes, 8u, float4(tangent, 0.0));
-        }
-        else if (type == Operation_SetPositionVortexRibbonPath)
-        {
-            VortexRibbonPathParams params;
-            params.Center = reader.ReadVector3(SetPositionVortexRibbonPath_Center);
-
-            params.OrbitSpeed = reader.ReadScalar(SetPositionVortexRibbonPath_OrbitSpeed);
-            params.BaseRadius = reader.ReadScalar(SetPositionVortexRibbonPath_BaseRadius);
-            params.RadiusAmplitude = reader.ReadScalar(SetPositionVortexRibbonPath_RadiusAmplitude);
-            params.RadiusSpeed = reader.ReadScalar(SetPositionVortexRibbonPath_RadiusSpeed);
-
-            params.PulseAmplitude = reader.ReadScalar(SetPositionVortexRibbonPath_PulseAmplitude);
-            params.PulseSpeed = reader.ReadScalar(SetPositionVortexRibbonPath_PulseSpeed);
-            params.PulsePhase = 0.0;
-            params.CurlAmplitude = reader.ReadScalar(SetPositionVortexRibbonPath_CurlAmplitude);
-            params.DepthAmplitude = reader.ReadScalar(SetPositionVortexRibbonPath_DepthAmplitude);
-
-            params.CurlFrequency = float2(1.9, 1.7);
-            params.CurlPhase = float2(0.6, -0.3);
-            params.DepthFrequency = 0.73;
-            params.DepthPhase = 0.4;
-
-            float spawnRate = max(emitter.MetaC.y, 0.001);
-            float timeOffset = float((spawnCount - 1u) - spawnOrder) / spawnRate;
-            float sampleTime = TimeData.y - timeOffset;
-
-            float3 position = VortexRibbonPath(sampleTime, params);
-            SetAttribute(attributes, target, float4(position.xyz, 1.0));
-            SetAttribute(attributes, 4u, 0.0);
-
-            float tangentStep = max(1.0 / spawnRate, 0.001);
-            float3 prevPosition = VortexRibbonPath(sampleTime - tangentStep, params);
-            float3 nextPosition = VortexRibbonPath(sampleTime + tangentStep, params);
-            float3 tangent = SafeNormalize(nextPosition - prevPosition, float3(1.0, 0.0, 0.0));
-
-            SetAttribute(attributes, 8u, float4(tangent, 0.0));
-        }
-        else if (type == Operation_SetRibbonIdFromSpawnOrder)
-        {
-            uint ribbonCount = max(1u, reader.ReadUInt(SetRibbonIdFromSpawnOrder_RibbonCount));
-            uint firstRibbonId = reader.ReadUInt(SetRibbonIdFromSpawnOrder_FirstRibbonId);
-            uint ribbonId = firstRibbonId + (emissionIndex % ribbonCount);
-            SetAttribute(attributes, target, float4(float(ribbonId), 0.0, 0.0, 0.0));
-        }
-        else if (type == Operation_SampleCurve)
-        {
-            float inputValue = reader.ReadScalar(SampleCurve_Input);
-            float value = SampleCurve(reader.ReadCurve(SampleCurve_Curve), inputValue);
-            SetAttribute(attributes, target, float4(value, 0.0, 0.0, 0.0));
-        }
-        else if (type == Operation_CopyFromAttribute)
-        {
-            float4 value = reader.ReadValue(CopyFromAttribute_Value);
-            SetAttribute(attributes, target, value);
-        }
+        SOperationExecutor executor = CreateOperationExecutor(operation, context);
+        executor.Execute(context);
     }
+
+    attributes = context.Attributes;
 
     particles[globalIndex].PositionSize = float4(GetAttribute(attributes, 1u).xyz, GetAttribute(attributes, 6u).x);
     particles[globalIndex].VelocityAge = float4(GetAttribute(attributes, 4u).xyz, 0.0);

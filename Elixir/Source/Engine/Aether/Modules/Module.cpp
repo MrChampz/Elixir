@@ -2,6 +2,7 @@
 #include "Module.h"
 
 #include <Engine/Aether/Core/CurveStore.h>
+#include <Engine/Aether/Core/Operations/OperationRegistry.h>
 
 #include <bit>
 #include <stdexcept>
@@ -129,154 +130,26 @@ namespace Elixir::Aether::Modules
 
     void ModuleCompileContext::Emit(Core::EParticleOp type, Core::EParticleAttribute target, std::initializer_list<Core::SOperand> operands)
     {
-        std::span<const Core::EOperandType> contract;
+        const auto* definition = Core::FindOperationDefinition(type);
+        if (!definition) throw std::invalid_argument("Unknown particle operation.");
+        const auto inputs = definition->Inputs;
         using enum Core::EOperandType;
-        switch (type)
-        {
-            case Core::EParticleOp::SetLiteral:
-            {
-                static constexpr Core::EOperandType types[]{ Target };
-                contract = types;
-                break;
-            }
-            case Core::EParticleOp::RandomRange:
-            {
-                static constexpr Core::EOperandType types[]{ Target, Target };
-                contract = types;
-                break;
-            }
-            case Core::EParticleOp::SampleDisk:
-            {
-                static constexpr Core::EOperandType types[]{ Vector3, Scalar, Vector3 };
-                contract = types;
-                break;
-            }
-            case Core::EParticleOp::SampleCone:
-            {
-                static constexpr Core::EOperandType types[]{ Vector3, Scalar, Scalar, Scalar };
-                contract = types;
-                break;
-            }
-            case Core::EParticleOp::SampleBox:
-            {
-                static constexpr Core::EOperandType types[]{ Vector3, Vector3 };
-                contract = types;
-                break;
-            }
-            case Core::EParticleOp::AddWithDelta:
-            {
-                static constexpr Core::EOperandType types[]{ Target, Scalar };
-                contract = types;
-                break;
-            }
-            case Core::EParticleOp::Dampen:
-            {
-                static constexpr Core::EOperandType types[]{ Scalar };
-                contract = types;
-                break;
-            }
-            case Core::EParticleOp::LerpOverLife:
-            {
-                static constexpr Core::EOperandType types[]{ Target, Target };
-                contract = types;
-                break;
-            }
-            case Core::EParticleOp::KillOutsideBounds:
-            {
-                static constexpr Core::EOperandType types[]{ Vector3, Vector3 };
-                contract = types;
-                break;
-            }
-            case Core::EParticleOp::AddFromAttribute:
-            {
-                static constexpr Core::EOperandType types[]{ Target, Scalar };
-                contract = types;
-                break;
-            }
-            case Core::EParticleOp::SetPositionOnCircle:
-            {
-                static constexpr Core::EOperandType types[]{ Vector3, Scalar, Scalar, Scalar };
-                contract = types;
-                break;
-            }
-            case Core::EParticleOp::SetPositionCircularPath:
-            {
-                static constexpr Core::EOperandType types[]{ Vector3, Scalar, Vector3, Vector3 };
-                contract = types;
-                break;
-            }
-            case Core::EParticleOp::SetPositionVortexRibbonPath:
-            {
-                static constexpr Core::EOperandType types[]{ Vector3, Scalar, Scalar, Scalar, Scalar, Scalar, Scalar, Scalar, Scalar };
-                contract = types;
-                break;
-            }
-            case Core::EParticleOp::SetRibbonIdFromSpawnOrder:
-            {
-                static constexpr Core::EOperandType types[]{ UInt, UInt };
-                contract = types;
-                break;
-            }
-            case Core::EParticleOp::SampleCurve:
-            {
-                static constexpr Core::EOperandType types[]{ Curve, Scalar };
-                contract = types;
-                break;
-            }
-            case Core::EParticleOp::SampleColorCurve:
-            {
-                static constexpr Core::EOperandType types[]{ Curve, Scalar };
-                contract = types;
-                break;
-            }
-            case Core::EParticleOp::Add:
-            {
-                static constexpr Core::EOperandType types[]{ Target };
-                contract = types;
-                break;
-            }
-            case Core::EParticleOp::Mul:
-            {
-                static constexpr Core::EOperandType types[]{ Target };
-                contract = types;
-                break;
-            }
-            case Core::EParticleOp::Clamp:
-            {
-                static constexpr Core::EOperandType types[]{ Target, Target };
-                contract = types;
-                break;
-            }
-            case Core::EParticleOp::CopyFromAttribute:
-            {
-                static constexpr Core::EOperandType types[]{ Target };
-                contract = types;
-                break;
-            }
-            case Core::EParticleOp::ApplyVortex:
-            {
-                static constexpr Core::EOperandType types[]{ Vector3, Vector3, Scalar, Scalar };
-                contract = types;
-                break;
-            }
-            default: throw std::invalid_argument("Unknown particle operation.");
-        }
         if (operands.size() > UINT32_MAX) throw std::length_error("Particle operation exceeds the 32-bit argument-count range.");
-        if (contract.size() != operands.size()) throw std::invalid_argument("Particle operation argument count does not match its contract.");
+        if (inputs.size() != operands.size()) throw std::invalid_argument("Particle operation argument count does not match its definition.");
         if (target > Core::EParticleAttribute::Temp3)
             throw std::invalid_argument("Unknown particle operation target.");
-        const auto targetType = type == Core::EParticleOp::SetLiteral && target == Core::EParticleAttribute::RibbonId
+        const auto targetType = definition->IntegerRibbonTarget && target == Core::EParticleAttribute::RibbonId
             ? UInt : TargetType(target);
         const bool temporaryTarget = target >= Core::EParticleAttribute::Temp0 && target <= Core::EParticleAttribute::Temp3;
         size_t i = 0;
         for (const auto& operand : operands)
         {
-            const auto expected = contract[i++];
+            const auto expected = inputs[i++];
             const auto actual = operand.Type;
             const bool matches = expected == actual ||
                 (expected == Target && (actual == targetType ||
                     (temporaryTarget && (actual == Scalar || actual == Vector3 || actual == Vector4))));
-            if (!matches) throw std::invalid_argument("Particle operation argument type does not match its contract.");
+            if (!matches) throw std::invalid_argument("Particle operation argument type does not match its definition.");
             const auto source = Core::EOperandSource(operand.Reference >> 29);
             const auto index = operand.Reference & Core::OperandIndexMask;
             bool valid = false;

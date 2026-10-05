@@ -1,0 +1,19 @@
+#ifndef AETHER_OPERATION_COPYFROMATTRIBUTE_HLSL
+#define AETHER_OPERATION_COPYFROMATTRIBUTE_HLSL
+
+static const uint Operation_CopyFromAttribute = 19u;
+static const uint CopyFromAttribute_Value = 0u;
+
+void CopyFromAttribute(inout SOperationExecutor executor, inout SOperationExecutorContext context)
+{
+    float4 value = executor.Reader.ReadValue(CopyFromAttribute_Value);
+
+    SetAttribute(
+        context.Attributes,
+        executor.Reader.Operation.Target,
+        value
+    );
+
+}
+
+#endif

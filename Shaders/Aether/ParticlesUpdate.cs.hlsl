@@ -110,52 +110,9 @@ float ResolveDynamicInput(uint inputType, float normalizedAge, float particleSee
     return 1.0;
 }
 
-float SampleCurve(int baseParameterIndex, float t)
-{
-    if (baseParameterIndex < 0)
-        return 0.0;
 
-    float4 a = parameters[baseParameterIndex].Value;
-    float4 b = parameters[baseParameterIndex + 1].Value;
 
-    float samples[8] = { a.x, a.y, a.z, a.w, b.x, b.y, b.z, b.w };
 
-    float clampedT = clamp(t, 0.0, 1.0);
-    float samplePosition = clampedT * 7.0;
-
-    uint lowerIndex = (uint)floor(samplePosition);
-    uint upperIndex = min(lowerIndex + 1u, 7u);
-    float fraction = frac(samplePosition);
-
-    return lerp(samples[lowerIndex], samples[upperIndex], fraction);
-}
-
-float4 SampleColorCurve(int baseParameterIndex, float t)
-{
-    if (baseParameterIndex < 0)
-        return 1.0;
-
-    float4 samples[8] =
-    {
-        parameters[baseParameterIndex + 0].Value,
-        parameters[baseParameterIndex + 1].Value,
-        parameters[baseParameterIndex + 2].Value,
-        parameters[baseParameterIndex + 3].Value,
-        parameters[baseParameterIndex + 4].Value,
-        parameters[baseParameterIndex + 5].Value,
-        parameters[baseParameterIndex + 6].Value,
-        parameters[baseParameterIndex + 7].Value
-    };
-
-    float clampedT = clamp(t, 0.0, 1.0);
-    float samplePosition = clampedT * 7.0;
-
-    uint lowerIndex = (uint)floor(samplePosition);
-    uint upperIndex = min(lowerIndex + 1u, 7u);
-    float fraction = frac(samplePosition);
-
-    return lerp(samples[lowerIndex], samples[upperIndex], fraction);
-}
 
 AttributeTable LoadAttributes(ParticleState state)
 {
@@ -250,16 +207,9 @@ void SetAttribute(inout AttributeTable table, uint attrId, float4 value)
         table.Temp3 = value;
 }
 
-float3 SafeNormalize(float3 value, float3 fallback)
-{
-    float lengthSquared = dot(value, value);
-    if (lengthSquared < 0.000001)
-        return fallback;
 
-    return value * rsqrt(lengthSquared);
-}
 
-#include "Operations.hlsl"
+#include "Operation.hlsl"
 
 [[vk::binding(2, 0)]]
 StructuredBuffer<SOperation> operations;
@@ -269,6 +219,8 @@ StructuredBuffer<uint> operands;
 
 [[vk::binding(8, 0)]]
 ByteAddressBuffer constants;
+
+#include "OperationExecutor.hlsl"
 
 [numthreads(256, 1, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
@@ -304,125 +256,25 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     uint operationOffset = (uint)emitter.MetaB.x;
     uint operationCount = (uint)emitter.MetaB.y;
 
+    SOperationExecutorContext context = CreateOperationExecutorContext(
+        operands, constants, parameters, instance, attributes, life, particleSeed
+    );
+    context.Time = TimeData.y;
+    context.DeltaTime = dt;
+    context.NormalizedAge = life;
+    context.Kill = kill;
+
     for (uint i = 0u; i < operationCount; ++i)
     {
+        context.OperationIndex = i;
         SOperation operation = operations[operationOffset + i];
-        uint type = operation.Type;
-        uint target = operation.Target;
 
-        SOperandReader reader = CreateOperandReader(
-            operation,
-            operands,
-            constants,
-            parameters,
-            instance,
-            attributes,
-            life,
-            particleSeed
-        );
-
-        if (type == Operation_SetLiteral)
-        {
-            SetAttribute(attributes, target, target == 9u
-                ? float4(float(reader.ReadUInt(SetLiteral_Value)), 0.0, 0.0, 0.0)
-                : reader.ReadValue(SetLiteral_Value));
-        }
-        else if (type == Operation_AddWithDelta)
-        {
-            float4 value = GetAttribute(attributes, target);
-            float inputMultiplier = reader.ReadScalar(AddWithDelta_Multiplier);
-
-            value += reader.ReadValue(AddWithDelta_Value) * (dt * inputMultiplier);
-
-            SetAttribute(attributes, target, value);
-        }
-        else if (type == Operation_Dampen)
-        {
-            float4 value = GetAttribute(attributes, target);
-            float drag = reader.ReadScalar(Dampen_Drag);
-            value *= max(0.0, 1.0 - drag * dt);
-            SetAttribute(attributes, target, value);
-        }
-        else if (type == Operation_LerpOverLife)
-        {
-            float4 value0 = reader.ReadValue(LerpOverLife_Start);
-            float4 value1 = reader.ReadValue(LerpOverLife_End);
-            float4 value = lerp(value0, value1, life);
-            SetAttribute(attributes, target, value);
-        }
-        else if (type == Operation_KillOutsideBounds)
-        {
-            float4 position = GetAttribute(attributes, 1u);
-            float3 minimum = reader.ReadVector3(KillOutsideBounds_Minimum);
-            float3 maximum = reader.ReadVector3(KillOutsideBounds_Maximum);
-            bool outsideBounds = any(position.xyz < minimum) || any(position.xyz > maximum);
-            kill = kill || outsideBounds;
-        }
-        else if (type == Operation_AddFromAttribute)
-        {
-            float4 value = GetAttribute(attributes, target);
-            float4 sourceValue = reader.ReadValue(AddFromAttribute_Value);
-            value += sourceValue * (reader.ReadScalar(AddFromAttribute_Scale) * dt);
-            SetAttribute(attributes, target, value);
-        }
-        else if (type == Operation_SampleCurve)
-        {
-            float inputValue = reader.ReadScalar(SampleCurve_Input);
-            float value = SampleCurve(reader.ReadCurve(SampleCurve_Curve), inputValue);
-            SetAttribute(attributes, target, float4(value, 0.0, 0.0, 0.0));
-        }
-        else if (type == Operation_SampleColorCurve)
-        {
-            float inputValue = reader.ReadScalar(SampleColorCurve_Input);
-            float4 value = SampleColorCurve(reader.ReadCurve(SampleColorCurve_Curve), inputValue);
-            SetAttribute(attributes, target, value);
-        }
-        else if (type == Operation_Add)
-        {
-            float4 value = GetAttribute(attributes, target);
-            value += reader.ReadValue(Add_Value);
-            SetAttribute(attributes, target, value);
-        }
-        else if (type == Operation_Mul)
-        {
-            float4 value = GetAttribute(attributes, target);
-            value *= reader.ReadValue(Mul_Value);
-            SetAttribute(attributes, target, value);
-        }
-        else if (type == Operation_Clamp)
-        {
-            float4 value = GetAttribute(attributes, target);
-            float4 minValue = reader.ReadValue(Clamp_Minimum);
-            float4 maxValue = reader.ReadValue(Clamp_Maximum);
-            value = clamp(value, minValue, maxValue);
-            SetAttribute(attributes, target, value);
-        }
-        else if (type == Operation_CopyFromAttribute)
-        {
-            float4 value = reader.ReadValue(CopyFromAttribute_Value);
-            SetAttribute(attributes, target, value);
-        }
-        else if (type == Operation_ApplyVortex)
-        {
-            float4 velocity = GetAttribute(attributes, target);
-            float4 position = GetAttribute(attributes, 1u);
-
-            float3 center = reader.ReadVector3(ApplyVortex_Center);
-            float3 normal = SafeNormalize(reader.ReadVector3(ApplyVortex_Normal), float3(0.0, 1.0, 0.0));
-            float3 offset = position.xyz - center;
-
-            float3 radial = SafeNormalize(offset, 0.0);
-            float radialStrength = reader.ReadScalar(ApplyVortex_Radial);
-
-            float3 tangent = SafeNormalize(cross(normal, radial), 0.0);
-            float tangentialStrength = reader.ReadScalar(ApplyVortex_Tangential);
-
-            velocity.xyz += (tangent * tangentialStrength + radial * radialStrength) * dt;
-
-            SetAttribute(attributes, target, velocity);
-            SetAttribute(attributes, 8u, float4(tangent, 0.0));
-        }
+        SOperationExecutor executor = CreateOperationExecutor(operation, context);
+        executor.Execute(context);
     }
+
+    attributes = context.Attributes;
+    kill = context.Kill;
 
     float4 position = GetAttribute(attributes, 1u);
     float4 velocity = GetAttribute(attributes, 4u);
