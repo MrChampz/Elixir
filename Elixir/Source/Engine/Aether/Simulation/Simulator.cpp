@@ -419,7 +419,7 @@ namespace Elixir::Aether::Simulation
 
         m_OperationBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SOperation) * m_Limits.OperationCapacity
+            sizeof(SGPUOperation) * m_Limits.OperationCapacity
         );
 
         m_OperandBuffer = DynamicStorageBuffer::Create(
@@ -716,19 +716,19 @@ namespace Elixir::Aether::Simulation
         {
             if (allocation.Operations.Count)
                 m_OperationBuffer->UpdateData(
-                    system.Operations.Operations.data(),
-                    allocation.Operations.Count * sizeof(SOperation),
-                    allocation.Operations.Offset * sizeof(SOperation)
+                    system.ModuleData.Operations.data(),
+                    allocation.Operations.Count * sizeof(SGPUOperation),
+                    allocation.Operations.Offset * sizeof(SGPUOperation)
                 );
             if (allocation.Operands.Count)
                 m_OperandBuffer->UpdateData(
-                    system.Operations.Operands.data(),
+                    system.ModuleData.Operands.data(),
                     allocation.Operands.Count * sizeof(uint32_t),
                     allocation.Operands.Offset * sizeof(uint32_t)
                 );
             if (allocation.Constants.Count)
                 m_ConstantBuffer->UpdateData(
-                    system.Operations.Constants.data(),
+                    system.ModuleData.Constants.data(),
                     allocation.Constants.Count * sizeof(uint32_t),
                     allocation.Constants.Offset * sizeof(uint32_t)
                 );

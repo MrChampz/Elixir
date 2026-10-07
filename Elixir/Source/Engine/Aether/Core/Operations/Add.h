@@ -1,26 +1,38 @@
 #pragma once
 
-#include "OperationDefinition.h"
-#include <array>
+#include <Engine/Aether/Core/Operation.h>
 
-namespace Elixir::Aether::Core::Operations::Add
+namespace Elixir::Aether::Core::Operations
 {
-    namespace Inputs
+    /** @brief Defines the arguments and allowed destinations for Add. */
+    class Add final : public Operation
     {
-        /** @brief Position of the Value argument for Add. */
-        inline constexpr uint32_t Value = 0;
-    }
-
-    /** @brief Returns the input definition and destination rules for Add. */
-    inline const SOperationDefinition& GetDefinition()
-    {
-        static constexpr std::array inputs{ EOperandType::Target };
-        static constexpr SOperationDefinition definition{
-            EOperationType::Add,
-            inputs,
-            false,
-            true
+    public:
+        /** @brief Identifies the argument positions for Add. */
+        struct Inputs
+        {
+            /** @brief Position of the Value argument for Add. */
+            static constexpr uint32_t Value = 0;
         };
-        return definition;
-    }
+
+        /** @brief Returns the input definition and destination rules for Add. */
+        const SOperationDefinition& GetDefinition() const override
+        {
+            static constexpr std::array inputs{ EOperandType::Target };
+            static constexpr SOperationDefinition definition{
+                EOperationType::Add,
+                inputs,
+                false,
+                true
+            };
+            return definition;
+        }
+
+        /** @brief Checks whether this operation supports the destination attribute. */
+        bool IsValidTarget(const EParticleAttribute target) const override
+        {
+            return target <= EParticleAttribute::Temp3 &&
+                target != EParticleAttribute::RibbonId;
+        }
+    };
 }

@@ -2,7 +2,7 @@
 #include "Module.h"
 
 #include <Engine/Aether/Core/CurveStore.h>
-#include <Engine/Aether/Core/Operations/OperationRegistry.h>
+#include <Engine/Aether/Core/OperationRegistry.h>
 
 #include <bit>
 #include <algorithm>
@@ -26,11 +26,11 @@ namespace Elixir::Aether::Modules
     /* ModuleCompileContext */
 
     ModuleCompileContext::ModuleCompileContext(
-        SCompiledOperations& operations,
+        SCompiledModuleData& operations,
         const std::vector<SParameter>& parameters,
         const std::string_view emitterName,
         const float gravityScale
-    ) : m_Operations(operations),
+    ) : m_ModuleData(operations),
         m_Parameters(parameters),
         m_EmitterName(emitterName),
         m_GravityScale(gravityScale) {}
@@ -55,7 +55,7 @@ namespace Elixir::Aether::Modules
         );
     }
 
-    SOperand ModuleCompileContext::Literal(
+    SGPUOperand ModuleCompileContext::Literal(
         EOperandType type,
         std::span<const uint32_t> words,
         const std::string_view parameter
@@ -89,26 +89,26 @@ namespace Elixir::Aether::Modules
         if (const auto found = m_Literals.find(key); found != m_Literals.end())
             return { type, Encode(source, found->second) };
 
-        if (m_Operations.Constants.size() + words.size() > OperandIndexMask)
+        if (m_ModuleData.Constants.size() + words.size() > OperandIndexMask)
         {
             EE_CORE_ERROR("Particle constant pool exceeds 29 bits.");
             return { static_cast<EOperandType>(UINT8_MAX), 0 };
         }
 
-        const auto offset = (uint32_t)m_Operations.Constants.size();
-        m_Operations.Constants.insert(m_Operations.Constants.end(), words.begin(), words.end());
+        const auto offset = (uint32_t)m_ModuleData.Constants.size();
+        m_ModuleData.Constants.insert(m_ModuleData.Constants.end(), words.begin(), words.end());
         m_Literals.emplace(std::move(key), offset);
 
         return { type, Encode(source, offset) };
     }
 
-    SOperand ModuleCompileContext::Scalar(const float value, const std::string_view parameter)
+    SGPUOperand ModuleCompileContext::Scalar(const float value, const std::string_view parameter)
     {
         const uint32_t words[]{ std::bit_cast<uint32_t>(value) };
         return Literal(EOperandType::Scalar, words, parameter);
     }
 
-    SOperand ModuleCompileContext::Vector(
+    SGPUOperand ModuleCompileContext::Vector(
         const glm::vec3 value,
         const std::string_view parameter
     )
@@ -122,7 +122,7 @@ namespace Elixir::Aether::Modules
         return Literal(EOperandType::Vector3, words, parameter);
     }
 
-    SOperand ModuleCompileContext::Value(
+    SGPUOperand ModuleCompileContext::Value(
         const glm::vec4 value,
         const std::string_view parameter
     )
@@ -137,7 +137,7 @@ namespace Elixir::Aether::Modules
         return Literal(EOperandType::Vector4, words, parameter);
     }
 
-    SOperand ModuleCompileContext::UInt(uint32_t value)
+    SGPUOperand ModuleCompileContext::UInt(uint32_t value)
     {
         if (value <= OperandIndexMask)
             return {
@@ -148,7 +148,7 @@ namespace Elixir::Aether::Modules
         return Literal(EOperandType::UInt, std::span(&value, 1), "");
     }
 
-    SOperand ModuleCompileContext::Dynamic(EDynamicInput input)
+    SGPUOperand ModuleCompileContext::Dynamic(EDynamicInput input)
     {
         if (input == EDynamicInput::None) return Scalar(1.0f);
         return {
@@ -157,7 +157,7 @@ namespace Elixir::Aether::Modules
         };
     }
 
-    SOperand ModuleCompileContext::Attribute(
+    SGPUOperand ModuleCompileContext::Attribute(
         const EParticleAttribute attribute,
         const EOperandType type
     )
@@ -168,7 +168,7 @@ namespace Elixir::Aether::Modules
         };
     }
 
-    SOperand ModuleCompileContext::Curve(const std::string_view name)
+    SGPUOperand ModuleCompileContext::Curve(const std::string_view name)
     {
         const auto index = FindCurve(name);
         if (index != UINT32_MAX && index >= OperandIndexMask)
@@ -187,17 +187,17 @@ namespace Elixir::Aether::Modules
     void ModuleCompileContext::Emit(
         const EOperationType type,
         const EParticleAttribute target,
-        const std::initializer_list<SOperand> operands
+        const std::initializer_list<SGPUOperand> operands
     )
     {
-        const auto* definition = FindOperationDefinition(type);
-        if (!definition)
+        const auto* operation = FindOperation(type);
+        if (!operation)
         {
             EE_CORE_ERROR("Unknown particle operation.");
             return;
         }
 
-        const auto inputs = definition->Inputs;
+        const auto inputs = operation->GetDefinition().Inputs;
         using enum EOperandType;
 
         if (operands.size() > UINT32_MAX)
@@ -212,25 +212,9 @@ namespace Elixir::Aether::Modules
             return;
         }
 
-        if (target > EParticleAttribute::Temp3)
+        if (!operation->IsValidTarget(target))
         {
-            EE_CORE_ERROR("Unknown particle operation target.");
-            return;
-        }
-
-        if (type == EOperationType::SetRibbonIdFromSpawnOrder &&
-            target != EParticleAttribute::RibbonId)
-        {
-            EE_CORE_ERROR("SetRibbonIdFromSpawnOrder requires RibbonId as its destination.");
-            return;
-        }
-
-        if (target == EParticleAttribute::RibbonId &&
-            type != EOperationType::SetLiteral &&
-            type != EOperationType::CopyFromAttribute &&
-            type != EOperationType::SetRibbonIdFromSpawnOrder)
-        {
-            EE_CORE_ERROR("Particle operation does not support an unsigned integer destination.");
+            EE_CORE_ERROR("Invalid destination for the particle operation.");
             return;
         }
 
@@ -239,7 +223,7 @@ namespace Elixir::Aether::Modules
             target <= EParticleAttribute::Temp3;
 
         const SOperandValidationContext validationContext{
-            m_Operations.Constants,
+            m_ModuleData.Constants,
             m_Parameters
         };
 
@@ -267,18 +251,18 @@ namespace Elixir::Aether::Modules
             }
         }
 
-        if (m_Operations.Operands.size() + operands.size() > UINT32_MAX)
+        if (m_ModuleData.Operands.size() + operands.size() > UINT32_MAX)
         {
             EE_CORE_ERROR("Particle operand table exceeds uint32 range.");
             return;
         }
 
-        const auto offset = uint32_t(m_Operations.Operands.size());
+        const auto offset = uint32_t(m_ModuleData.Operands.size());
 
         for (const auto& operand : operands)
-            m_Operations.Operands.push_back(operand.Reference);
+            m_ModuleData.Operands.push_back(operand.Reference);
 
-        m_Operations.Operations.push_back({
+        m_ModuleData.Operations.push_back({
             type,
             target,
             offset,

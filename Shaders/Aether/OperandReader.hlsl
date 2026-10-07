@@ -10,7 +10,7 @@ struct SOperandReader
     ByteAddressBuffer Constants;
     StructuredBuffer<Parameter> Parameters;
 
-    SOperation Operation;
+    SGPUOperation Operation;
     SystemInstance Instance;
     AttributeTable Attributes;
     float InputContext;
@@ -172,7 +172,7 @@ struct SOperandReader
 
 /** @brief Captures the operand context and predecodes the first two numeric positions. */
 SOperandReader CreateOperandReader(
-    SOperation operation,
+    SGPUOperation operation,
     StructuredBuffer<uint> operands,
     ByteAddressBuffer constants,
     StructuredBuffer<Parameter> parameters,

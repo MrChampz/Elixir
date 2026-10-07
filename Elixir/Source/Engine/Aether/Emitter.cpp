@@ -37,7 +37,7 @@ namespace Elixir::Aether
     SCompiledEmitter Emitter::Compile(
         const ParameterStore& paramStore,
         const std::vector<SParameter>& params,
-        Core::SCompiledOperations& program
+        SCompiledModuleData& program
     ) const
     {
         SCompiledEmitter emitter;

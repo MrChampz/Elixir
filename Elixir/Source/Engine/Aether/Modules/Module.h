@@ -17,6 +17,63 @@ namespace Elixir::Aether::Modules
         Spawn, Update
     };
 
+    /** @brief Stores compiled instructions, references, and packed literal words. */
+    struct SCompiledModuleData
+    {
+        std::vector<SGPUOperation> Operations;
+
+        /** @brief Four-byte source references addressed by each instruction. */
+        std::vector<uint32_t> Operands;
+
+        /** @brief Literal bit patterns packed without float4 padding. */
+        std::vector<uint32_t> Constants;
+
+        /**
+         * @brief Removes unused literals and relocates references.
+         * @pre Operand references address valid ranges in the constant table.
+         */
+        void CompactConstants()
+        {
+            std::vector<uint32_t> packed;
+            std::vector relocated(Constants.size(), UINT32_MAX);
+
+            for (auto& reference : Operands)
+            {
+                const auto source = EOperandSource(reference >> 29);
+
+                const auto width = GetSourceWidth(source);
+                if (width == 0) continue;
+
+                const auto index = reference & OperandIndexMask;
+                if (relocated[index] == UINT32_MAX)
+                {
+                    relocated[index] = uint32_t(packed.size());
+                    packed.insert(packed.end(), Constants.begin() + index, Constants.begin() + index + width);
+                }
+
+                reference = (uint32_t(source) << 29) | relocated[index];
+            }
+
+            Constants.swap(packed);
+        }
+
+    private:
+        // Returns the number of constant words addressed by a source.
+        static uint32_t GetSourceWidth(const EOperandSource source)
+        {
+            if (source == EOperandSource::Constant)
+                return 1u;
+
+            if (source == EOperandSource::ConstantVector3)
+                return 3u;
+
+            if (source == EOperandSource::ConstantVector4)
+                return 4u;
+
+            return 0u;
+        }
+    };
+
     /**
      * @brief Gives a module the data it needs to compile GPU operations.
      *
@@ -36,7 +93,7 @@ namespace Elixir::Aether::Modules
          * @param gravityScale Multiplier configured by the emitter.
          */
         ModuleCompileContext(
-            SCompiledOperations& operations,
+            SCompiledModuleData& operations,
             const std::vector<SParameter>& parameters,
             std::string_view emitterName,
             float gravityScale
@@ -73,38 +130,38 @@ namespace Elixir::Aether::Modules
          * The operand count and types must match the operation definition.
          * Invalid arguments are logged and leave the operation and operand tables unchanged.
          */
-        void Emit(EOperationType type, EParticleAttribute target, std::initializer_list<SOperand> operands);
+        void Emit(EOperationType type, EParticleAttribute target, std::initializer_list<SGPUOperand> operands);
 
         /** @brief Compiles a scalar literal or optional named binding. */
-        SOperand Scalar(float value, std::string_view parameter = "");
+        SGPUOperand Scalar(float value, std::string_view parameter = "");
 
         /** @brief Compiles a three-component literal or optional named binding. */
-        SOperand Vector(glm::vec3 value, std::string_view parameter = "");
+        SGPUOperand Vector(glm::vec3 value, std::string_view parameter = "");
 
         /** @brief Compiles a four-component literal or optional named binding. */
-        SOperand Value(glm::vec4 value, std::string_view parameter = "");
+        SGPUOperand Value(glm::vec4 value, std::string_view parameter = "");
 
         /** @brief Compiles an unsigned integer without converting it to float. */
-        SOperand UInt(uint32_t value);
+        SGPUOperand UInt(uint32_t value);
 
         /** @brief Compiles a particle input, or the constant one for None. */
-        SOperand Dynamic(EDynamicInput input);
+        SGPUOperand Dynamic(EDynamicInput input);
 
         /** @brief Compiles an attribute read with the supplied logical type. */
-        static SOperand Attribute(EParticleAttribute attribute, EOperandType type);
+        static SGPUOperand Attribute(EParticleAttribute attribute, EOperandType type);
 
         /** @brief Compiles a curve reference, preserving missing-curve defaults. */
-        SOperand Curve(std::string_view name);
+        SGPUOperand Curve(std::string_view name);
 
     private:
         // Interns typed literal words or resolves a named parameter binding.
-        SOperand Literal(
+        SGPUOperand Literal(
             EOperandType type,
             std::span<const uint32_t> words,
             std::string_view parameter
         );
 
-        SCompiledOperations& m_Operations;
+        SCompiledModuleData& m_ModuleData;
         const std::vector<SParameter>& m_Parameters;
         std::string_view m_EmitterName;
         float m_GravityScale;

@@ -319,7 +319,7 @@ namespace Elixir::Aether
         SCompiledEmitter Compile(
             const ParameterStore& paramStore,
             const std::vector<SParameter>& params,
-            Core::SCompiledOperations& program
+            SCompiledModuleData& program
         ) const;
 
         UUID m_Id;

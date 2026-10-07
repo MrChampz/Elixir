@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <bit>
+#include <cstring>
 
 #include <Engine/Aether/System.h>
 #include <Engine/Aether/Core/Operand.h>
@@ -75,7 +76,7 @@ TEST(ModuleCompileTest, DispatchesCustomModulesInPhaseOrderAndPreservesOffsets)
     const auto& compiled = submission.GetRenderProxies().front()->GetCompiledSystem();
 
     ASSERT_EQ(compiled.Emitters.size(), 2u);
-    ASSERT_EQ(compiled.Operations.Operations.size(), 8u);
+    ASSERT_EQ(compiled.ModuleData.Operations.size(), 8u);
     EXPECT_EQ(compiled.Emitters[0].SpawnOperationOffset, 0u);
     EXPECT_EQ(compiled.Emitters[0].SpawnOperationCount, 4u);
     EXPECT_EQ(compiled.Emitters[0].UpdateOperationOffset, 4u);
@@ -86,17 +87,17 @@ TEST(ModuleCompileTest, DispatchesCustomModulesInPhaseOrderAndPreservesOffsets)
     EXPECT_EQ(compiled.Emitters[1].UpdateOperationCount, 2u);
     const std::array expected{ 10.0f, 11.0f, 20.0f, 21.0f, 30.0f, 31.0f, 40.0f, 41.0f };
     for (size_t i = 0; i < expected.size(); ++i)
-        EXPECT_FLOAT_EQ(std::bit_cast<float>(compiled.Operations.Constants[compiled.Operations.Operands[compiled.Operations.Operations[i].OperandOffset] & OperandIndexMask]), expected[i]);
+        EXPECT_FLOAT_EQ(std::bit_cast<float>(compiled.ModuleData.Constants[compiled.ModuleData.Operands[compiled.ModuleData.Operations[i].OperandOffset] & OperandIndexMask]), expected[i]);
 }
 
 namespace
 {
-    uint32_t Reference(const SCompiledOperations& program, size_t operation, uint32_t argument)
+    uint32_t Reference(const SCompiledModuleData& program, size_t operation, uint32_t argument)
     {
         return program.Operands.at(program.Operations.at(operation).OperandOffset + argument);
     }
 
-    float Literal(const SCompiledOperations& program, size_t operation, uint32_t argument, uint32_t component = 0)
+    float Literal(const SCompiledModuleData& program, size_t operation, uint32_t argument, uint32_t component = 0)
     {
         return std::bit_cast<float>(program.Constants.at((Reference(program, operation, argument) & OperandIndexMask) + component));
     }
@@ -112,7 +113,7 @@ TEST(ModuleCompileTest, ResolvesLocalParametersThenSystemParametersAndMissingVal
     const std::vector<SParameter> parameters{
         { .Name = "Low", .Value = glm::vec4(1.0f) }, { .Name = "Smoke.Low", .Value = glm::vec4(2.0f) }, { .Name = "High", .Value = glm::vec4(3.0f) },
     };
-    SCompiledOperations program;
+    SCompiledModuleData program;
     ModuleCompileContext context(program, parameters, "Smoke", 2.5f);
     SetLifetime(1.0f, 4.0f).BindParameters("Low", "High").Compile(context);
     ApplyGravity({ 0.0f, -4.0f, 0.0f }).BindParameter("Missing").Compile(context);
@@ -131,7 +132,7 @@ TEST(ModuleCompileTest, ResolvesLocalParametersThenSystemParametersAndMissingVal
 TEST(ModuleCompileTest, CompilesScaleCurveWithRangeOffsetAndClamp)
 {
     const std::vector<SParameter> parameters{ { .Name = "Curve:0", .Value = glm::vec4(0) }, { .Name = "Smoke.Curve:0", .Value = glm::vec4(1) } };
-    SCompiledOperations program;
+    SCompiledModuleData program;
     ModuleCompileContext context(program, parameters, "Smoke", 1.0f);
     ScaleOverLife(1.0f, 3.0f).BindCurve("Curve", EDynamicInput::EmitterTime).Compile(context);
 
@@ -156,7 +157,7 @@ TEST(ModuleCompileTest, CompilesConeBindingsAndLiteralFallbacks)
     const std::vector<SParameter> parameters{
         { .Name = "Angle", .Value = glm::vec4(0.5f) }, { .Name = "Smoke.Angle", .Value = glm::vec4(1) }, { .Name = "Low", .Value = glm::vec4(2) }, { .Name = "Smoke.High", .Value = glm::vec4(3) },
     };
-    SCompiledOperations program;
+    SCompiledModuleData program;
     ModuleCompileContext context(program, parameters, "Smoke", 1.0f);
     SetVelocityCone({ 0, 1, 0 }, 0.25f, 4.0f, 5.0f).BindParameters("Angle", "Low", "High").Compile(context);
     SetVelocityCone({ 0, 1, 0 }, 0.25f, 4.0f, 5.0f).BindParameters("Missing", "Low", "Missing").Compile(context);
@@ -181,7 +182,7 @@ TEST(ModuleCompileTest, CompilesConeBindingsAndLiteralFallbacks)
 
 TEST(ModuleCompileTest, PacksAndInternsTypedConstantsWithoutFloat4Padding)
 {
-    SCompiledOperations program;
+    SCompiledModuleData program;
     const std::vector<SParameter> parameters;
     ModuleCompileContext context(program, parameters, "", 1);
     const auto scalar = context.Scalar(1);
@@ -200,7 +201,7 @@ TEST(ModuleCompileTest, ValidatesContractsAndNamedParameterTypes)
     const std::vector<SParameter> parameters{
         { .Name = "Scalar", .Type = EParameterType::Scalar, .Value = glm::vec4(1) }, { .Name = "Vector", .Type = EParameterType::Vector, .Value = glm::vec4(1) },
     };
-    SCompiledOperations program;
+    SCompiledModuleData program;
     ModuleCompileContext context(program, parameters, "", 1);
     const auto invalidScalar = context.Scalar(0, "Vector");
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::Temp0, {invalidScalar});
@@ -229,14 +230,14 @@ TEST(ModuleCompileTest, IgnoresNullModulesBeforeCompilingValidModules)
     ASSERT_TRUE(submission.Submit(*instance));
     const auto& compiled = submission.GetRenderProxies().front()->GetCompiledSystem();
     ASSERT_EQ(compiled.Emitters.size(), 1u);
-    ASSERT_EQ(compiled.Operations.Operations.size(), 1u);
+    ASSERT_EQ(compiled.ModuleData.Operations.size(), 1u);
     EXPECT_EQ(compiled.Emitters[0].SpawnOperationCount, 1u);
-    EXPECT_EQ(compiled.Operations.Operations[0].Type, EOperationType::RandomRange);
+    EXPECT_EQ(compiled.ModuleData.Operations[0].Type, EOperationType::RandomRange);
 }
 
 TEST(ModuleCompileTest, SupportsNineArgumentsWithoutPayloadStructs)
 {
-    SCompiledOperations program;
+    SCompiledModuleData program;
     const std::vector<SParameter> parameters;
     ModuleCompileContext context(program, parameters, "", 1);
     SetPositionVortexRibbonPath({1, 2, 3}, 4, 5, 6, 7, 8, 9, 10, 11).Compile(context);
@@ -252,7 +253,7 @@ TEST(ModuleCompileTest, SupportsNineArgumentsWithoutPayloadStructs)
 
 TEST(ModuleCompileTest, KeepsLargeRibbonIntegersExactUntilParticleStorage)
 {
-    SCompiledOperations program;
+    SCompiledModuleData program;
     const std::vector<SParameter> parameters;
     ModuleCompileContext context(program, parameters, "", 1);
     SetRibbonId(UINT32_MAX).Compile(context);
@@ -266,7 +267,7 @@ TEST(ModuleCompileTest, KeepsLargeRibbonIntegersExactUntilParticleStorage)
 
 TEST(ModuleCompileTest, RequiresUnsignedRibbonIdsForDestinationsAndAttributeReads)
 {
-    SCompiledOperations program;
+    SCompiledModuleData program;
     const std::vector<SParameter> parameters;
     ModuleCompileContext context(program, parameters, "", 1);
 
@@ -288,7 +289,7 @@ TEST(ModuleCompileTest, RequiresUnsignedRibbonIdsForDestinationsAndAttributeRead
 
 TEST(ModuleCompileTest, RejectsOtherDestinationsForRibbonIdsFromSpawnOrder)
 {
-    SCompiledOperations program;
+    SCompiledModuleData program;
     const std::vector<SParameter> parameters;
     ModuleCompileContext context(program, parameters, "", 1);
     const auto count = context.UInt(2);
@@ -344,7 +345,7 @@ TEST(OperandValidationTest, ChecksTableBoundariesWithoutCompilingAnOperation)
 
 TEST(ModuleCompileTest, RejectsMalformedReferencesBeforeEmittingInstructions)
 {
-    SCompiledOperations program;
+    SCompiledModuleData program;
     const std::vector<SParameter> parameters;
     ModuleCompileContext context(program, parameters, "", 1);
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::Scale,
@@ -359,20 +360,46 @@ TEST(ModuleCompileTest, RejectsMalformedReferencesBeforeEmittingInstructions)
     EXPECT_TRUE(program.Operands.empty());
 }
 
+TEST(GPUOperationTest, MatchesTheShaderHeaderLayout)
+{
+    ASSERT_EQ(sizeof(EOperationType), sizeof(uint32_t));
+    ASSERT_EQ(sizeof(SGPUOperation), 16u);
+    EXPECT_EQ(offsetof(SGPUOperation, Type), 0u);
+    EXPECT_EQ(offsetof(SGPUOperation, Target), 4u);
+    EXPECT_EQ(offsetof(SGPUOperation, OperandOffset), 8u);
+    EXPECT_EQ(offsetof(SGPUOperation, OperandCount), 12u);
+
+    const SGPUOperation operation{
+        EOperationType::RandomRange,
+        EParticleAttribute::Size,
+        7,
+        2
+    };
+    std::array<uint32_t, 4> words{};
+    std::memcpy(words.data(), &operation, sizeof(operation));
+    const std::array<uint32_t, 4> expected{
+        uint32_t(EOperationType::RandomRange),
+        uint32_t(EParticleAttribute::Size),
+        7,
+        2
+    };
+    EXPECT_EQ(words, expected);
+}
+
 TEST(ModuleCompileTest, UsesTwentyFourBytesForOneScalarInstruction)
 {
-    SCompiledOperations program;
+    SCompiledModuleData program;
     const std::vector<SParameter> parameters;
     ModuleCompileContext context(program, parameters, "", 1);
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::Scale, {context.Scalar(2)});
     program.CompactConstants();
-    EXPECT_EQ(program.Operations.size() * sizeof(SOperation) +
+    EXPECT_EQ(program.Operations.size() * sizeof(SGPUOperation) +
         (program.Operands.size() + program.Constants.size()) * sizeof(uint32_t), 24u);
 }
 
 TEST(ModuleCompileTest, PreservesScalarBitsAndSignedZeroInConstants)
 {
-    SCompiledOperations program;
+    SCompiledModuleData program;
     const std::vector<SParameter> parameters{{ .Name = "Bound", .Type = EParameterType::Scalar, .Value = glm::vec4(3) }};
     ModuleCompileContext context(program, parameters, "", 1);
     const uint32_t bits = 0xe0000001u;
@@ -394,7 +421,7 @@ TEST(ModuleCompileTest, PreservesScalarBitsAndSignedZeroInConstants)
 
 TEST(ModuleCompileTest, CompactsRemainingConstantsAndPreservesSharingAndIntegerBits)
 {
-    SCompiledOperations program;
+    SCompiledModuleData program;
     const std::vector<SParameter> parameters;
     ModuleCompileContext context(program, parameters, "", 1);
     context.Scalar(99);

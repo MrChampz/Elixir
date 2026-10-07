@@ -203,7 +203,7 @@ void SetAttribute(inout AttributeTable table, uint attrId, uint value)
 #include "Operation.hlsl"
 
 [[vk::binding(2, 0)]]
-StructuredBuffer<SOperation> operations;
+StructuredBuffer<SGPUOperation> operations;
 
 [[vk::binding(7, 0)]]
 StructuredBuffer<uint> operands;
@@ -280,7 +280,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     for (uint i = 0u; i < operationCount; ++i)
     {
         context.OperationIndex = i;
-        SOperation operation = operations[operationOffset + i];
+        SGPUOperation operation = operations[operationOffset + i];
 
         SOperationExecutor executor = CreateOperationExecutor(operation, context);
         executor.Execute(context);

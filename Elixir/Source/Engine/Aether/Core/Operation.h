@@ -32,7 +32,7 @@ namespace Elixir::Aether::Core
     };
     
     /** @brief Stores the fixed 16-byte header of a compiled particle instruction. */
-    struct SOperation
+    struct SGPUOperation
     {
         EOperationType Type = EOperationType::SetLiteral;
         EParticleAttribute Target = EParticleAttribute::None;
@@ -44,60 +44,32 @@ namespace Elixir::Aether::Core
         uint32_t OperandCount = 0;
     };
 
-    /** @brief Stores compiled instructions, references, and packed literal words. */
-    struct SCompiledOperations
+    /** @brief Describes the inputs and destination rules of a particle operation. */
+    struct SOperationDefinition
     {
-        std::vector<SOperation> Operations;
+        EOperationType Type;
 
-        /** @brief Four-byte source references addressed by each instruction. */
-        std::vector<uint32_t> Operands;
+        /** @brief Required logical type at each argument position. */
+        std::span<const EOperandType> Inputs;
 
-        /** @brief Literal bit patterns packed without float4 padding. */
-        std::vector<uint32_t> Constants;
+        /** @brief Indicates whether the spawn shader executes this operation. */
+        bool SupportsSpawn;
 
-        /**
-         * @brief Removes unused literals and relocates references.
-         * @pre Operand references address valid ranges in the constant table.
-         */
-        void CompactConstants()
-        {
-            std::vector<uint32_t> packed;
-            std::vector relocated(Constants.size(), UINT32_MAX);
+        /** @brief Indicates whether the update shader executes this operation. */
+        bool SupportsUpdate;
+    };
 
-            for (auto& reference : Operands)
-            {
-                const auto source = EOperandSource(reference >> 29);
+    /** @brief Defines the argument and destination rules of a runtime operation. */
+    class Operation
+    {
+    public:
+        /** @brief Destroys the operation through its common interface. */
+        virtual ~Operation() = default;
 
-                const auto width = GetSourceWidth(source);
-                if (width == 0) continue;
+        /** @brief Returns the argument types and supported execution phases. */
+        virtual const SOperationDefinition& GetDefinition() const = 0;
 
-                const auto index = reference & OperandIndexMask;
-                if (relocated[index] == UINT32_MAX)
-                {
-                    relocated[index] = uint32_t(packed.size());
-                    packed.insert(packed.end(), Constants.begin() + index, Constants.begin() + index + width);
-                }
-
-                reference = (uint32_t(source) << 29) | relocated[index];
-            }
-
-            Constants.swap(packed);
-        }
-
-    private:
-        // Returns the number of constant words addressed by a source.
-        static uint32_t GetSourceWidth(const EOperandSource source)
-        {
-            if (source == EOperandSource::Constant)
-                return 1u;
-
-            if (source == EOperandSource::ConstantVector3)
-                return 3u;
-
-            if (source == EOperandSource::ConstantVector4)
-                return 4u;
-
-            return 0u;
-        }
+        /** @brief Checks whether the operation supports the supplied destination attribute. */
+        virtual bool IsValidTarget(const EParticleAttribute target) const = 0;
     };
 }

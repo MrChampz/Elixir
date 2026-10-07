@@ -279,7 +279,7 @@ TEST(ModuleRegistryTest, CompilesDefaultAndExplicitCurveInputsFromJson)
             ASSERT_FALSE(context.Failed()) << context.GetError();
             ASSERT_TRUE(module);
 
-            SCompiledOperations program;
+            SCompiledModuleData program;
             auto& operations = program.Operations;
             const std::vector<Elixir::Aether::Core::SParameter> parameters;
             ModuleCompileContext compileContext(program, parameters, "Test", 1.0f);
@@ -448,7 +448,7 @@ TEST(ModuleRegistryTest, CreatesAndCompilesModulesRegisteredOutsideTheEngine)
     ASSERT_FALSE(context.Failed()) << context.GetError();
     ASSERT_TRUE(module);
     EXPECT_EQ(module->GetPhase(), EModulePhase::Spawn);
-    SCompiledOperations program;
+    SCompiledModuleData program;
     auto& operations = program.Operations;
     const std::vector<Elixir::Aether::Core::SParameter> parameters;
     ModuleCompileContext compileContext(program, parameters, "Test", 1.0f);

@@ -81,7 +81,7 @@ struct SOperationExecutor
 
 /** @brief Captures operand values from the context before destination writes. */
 SOperationExecutor CreateOperationExecutor(
-    SOperation operation,
+    SGPUOperation operation,
     SOperationExecutorContext context
 )
 {

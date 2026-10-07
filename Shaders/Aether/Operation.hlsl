@@ -1,7 +1,7 @@
 #ifndef AETHER_OPERATION_HLSL
 #define AETHER_OPERATION_HLSL
 
-struct SOperation
+struct SGPUOperation
 {
     uint Type;
     uint Target;

@@ -64,7 +64,7 @@ namespace Elixir::Aether
         std::vector<SCompiledEmitter> Emitters;
         std::vector<SCompiledTriggerTarget> TriggerTargets;
 
-        Core::SCompiledOperations Operations;
+        SCompiledModuleData ModuleData;
 
         std::vector<SParameter> Parameters;
         std::vector<SExposedParameter> ExposedParameters;

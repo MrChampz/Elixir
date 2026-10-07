@@ -7,7 +7,7 @@
 namespace Elixir::Aether::Core
 {
     /** @brief Identifies the storage or runtime source addressed by an operand. */
-    enum class EOperandSource : uint32_t
+    enum class EOperandSource : uint8_t
     {
         /** @brief Reads one 32-bit word from the constant table. */
         Constant            = 0,
@@ -60,7 +60,7 @@ namespace Elixir::Aether::Core
     inline constexpr uint32_t OperandIndexMask = 0x1fffffffu;
 
     /** @brief Stores a typed operand while a module is being compiled. */
-    struct SOperand
+    struct SGPUOperand
     {
         /** @brief Logical value type used to validate the operation argument. */
         EOperandType Type;
@@ -80,7 +80,7 @@ namespace Elixir::Aether::Core
     };
 
     /** @brief Returns the logical operand type of a particle attribute. */
-    inline EOperandType GetAttributeOperandType(EParticleAttribute attribute)
+    inline EOperandType GetAttributeOperandType(const EParticleAttribute attribute)
     {
         switch (attribute)
         {
@@ -103,7 +103,7 @@ namespace Elixir::Aether::Core
 
     /** @brief Checks whether an operand's type and reference match its source and available tables. */
     inline bool IsValidOperand(
-        const SOperand& operand,
+        const SGPUOperand& operand,
         const SOperandValidationContext& context
     )
     {

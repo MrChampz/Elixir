@@ -37,9 +37,9 @@ namespace Elixir::Aether::Core
     {
         const auto particleCount = system.TotalMaxParticles;
         const auto emitterCount = (uint32_t)system.Emitters.size();
-        const auto operationCount = (uint32_t)system.Operations.Operations.size();
-        const auto operandCount = (uint32_t)system.Operations.Operands.size();
-        const auto constantCount = (uint32_t)system.Operations.Constants.size();
+        const auto operationCount = (uint32_t)system.ModuleData.Operations.size();
+        const auto operandCount = (uint32_t)system.ModuleData.Operands.size();
+        const auto constantCount = (uint32_t)system.ModuleData.Constants.size();
         const auto parameterCount = (uint32_t)system.Parameters.size();
         const auto triggerTargetCount = (uint32_t)system.TriggerTargets.size();
         const auto emitterStateCount = emitterCount;

@@ -1,32 +1,44 @@
 #pragma once
 
-#include "OperationDefinition.h"
+#include <Engine/Aether/Core/Operation.h>
 #include <array>
 
-namespace Elixir::Aether::Core::Operations::SetRibbonIdFromSpawnOrder
+namespace Elixir::Aether::Core::Operations
 {
-    namespace Inputs
+    /** @brief Defines the arguments and allowed destinations for SetRibbonIdFromSpawnOrder. */
+    class SetRibbonIdFromSpawnOrder final : public Operation
     {
-        /** @brief Position of the RibbonCount argument for SetRibbonIdFromSpawnOrder. */
-        inline constexpr uint32_t RibbonCount = 0;
+    public:
+        /** @brief Identifies the argument positions for SetRibbonIdFromSpawnOrder. */
+        struct Inputs
+        {
+            /** @brief Position of the RibbonCount argument for SetRibbonIdFromSpawnOrder. */
+            static constexpr uint32_t RibbonCount = 0;
 
-        /** @brief Position of the FirstRibbonId argument for SetRibbonIdFromSpawnOrder. */
-        inline constexpr uint32_t FirstRibbonId = 1;
-    }
+            /** @brief Position of the FirstRibbonId argument for SetRibbonIdFromSpawnOrder. */
+            static constexpr uint32_t FirstRibbonId = 1;
+        };
 
-    /** @brief Returns the input definition and destination rules for SetRibbonIdFromSpawnOrder. */
-    inline const SOperationDefinition& GetDefinition()
-    {
-        static constexpr std::array inputs{
-            EOperandType::UInt,
-            EOperandType::UInt
-        };
-        static constexpr SOperationDefinition definition{
-            EOperationType::SetRibbonIdFromSpawnOrder,
-            inputs,
-            true,
-            false
-        };
-        return definition;
-    }
+        /** @brief Returns the input definition and destination rules for SetRibbonIdFromSpawnOrder. */
+        const SOperationDefinition& GetDefinition() const override
+        {
+            static constexpr std::array inputs{
+                EOperandType::UInt,
+                EOperandType::UInt
+            };
+            static constexpr SOperationDefinition definition{
+                EOperationType::SetRibbonIdFromSpawnOrder,
+                inputs,
+                true,
+                false
+            };
+            return definition;
+        }
+
+        /** @brief Checks whether this operation supports the destination attribute. */
+        bool IsValidTarget(const EParticleAttribute target) const override
+        {
+            return target == EParticleAttribute::RibbonId;
+        }
+    };
 }
