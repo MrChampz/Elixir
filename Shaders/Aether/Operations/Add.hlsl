@@ -4,14 +4,18 @@
 static const uint Operation_Add = 16u;
 static const uint Add_Value = 0u;
 
-void Add(inout SOperationExecutor executor, inout SOperationExecutorContext context)
+void Add(
+    inout SOperationExecutor executor,
+    SOperandResolver resolver,
+    inout SOperationExecutorContext context
+)
 {
-    float4 value = GetAttribute(context.Attributes, executor.Reader.Operation.Target);
-    value += executor.Reader.ReadValue(Add_Value);
+    float4 value = GetAttribute(context.Attributes, resolver.Operation.Target);
+    value += resolver.ReadValue(Add_Value);
 
     SetAttribute(
         context.Attributes,
-        executor.Reader.Operation.Target,
+        resolver.Operation.Target,
         value
     );
 }

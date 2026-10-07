@@ -55,21 +55,25 @@ float3 VortexRibbonPath(float timeSeconds, VortexRibbonPathParams p)
     return float3(p.Center.xy + swirl + curl, z);
 }
 
-void SetPositionVortexRibbonPath(inout SOperationExecutor executor, inout SOperationExecutorContext context)
+void SetPositionVortexRibbonPath(
+    inout SOperationExecutor executor,
+    SOperandResolver resolver,
+    inout SOperationExecutorContext context
+)
 {
     VortexRibbonPathParams params;
-    params.Center = executor.Reader.ReadVector3(SetPositionVortexRibbonPath_Center);
+    params.Center = resolver.ReadVector3(SetPositionVortexRibbonPath_Center);
 
-    params.OrbitSpeed = executor.Reader.ReadScalar(SetPositionVortexRibbonPath_OrbitSpeed);
-    params.BaseRadius = executor.Reader.ReadScalar(SetPositionVortexRibbonPath_BaseRadius);
-    params.RadiusAmplitude = executor.Reader.ReadScalar(SetPositionVortexRibbonPath_RadiusAmplitude);
-    params.RadiusSpeed = executor.Reader.ReadScalar(SetPositionVortexRibbonPath_RadiusSpeed);
+    params.OrbitSpeed = resolver.ReadScalar(SetPositionVortexRibbonPath_OrbitSpeed);
+    params.BaseRadius = resolver.ReadScalar(SetPositionVortexRibbonPath_BaseRadius);
+    params.RadiusAmplitude = resolver.ReadScalar(SetPositionVortexRibbonPath_RadiusAmplitude);
+    params.RadiusSpeed = resolver.ReadScalar(SetPositionVortexRibbonPath_RadiusSpeed);
 
-    params.PulseAmplitude = executor.Reader.ReadScalar(SetPositionVortexRibbonPath_PulseAmplitude);
-    params.PulseSpeed = executor.Reader.ReadScalar(SetPositionVortexRibbonPath_PulseSpeed);
+    params.PulseAmplitude = resolver.ReadScalar(SetPositionVortexRibbonPath_PulseAmplitude);
+    params.PulseSpeed = resolver.ReadScalar(SetPositionVortexRibbonPath_PulseSpeed);
     params.PulsePhase = 0.0;
-    params.CurlAmplitude = executor.Reader.ReadScalar(SetPositionVortexRibbonPath_CurlAmplitude);
-    params.DepthAmplitude = executor.Reader.ReadScalar(SetPositionVortexRibbonPath_DepthAmplitude);
+    params.CurlAmplitude = resolver.ReadScalar(SetPositionVortexRibbonPath_CurlAmplitude);
+    params.DepthAmplitude = resolver.ReadScalar(SetPositionVortexRibbonPath_DepthAmplitude);
 
     params.CurlFrequency = float2(1.9, 1.7);
     params.CurlPhase = float2(0.6, -0.3);
@@ -85,14 +89,14 @@ void SetPositionVortexRibbonPath(inout SOperationExecutor executor, inout SOpera
 
     SetAttribute(
         context.Attributes,
-        executor.Reader.Operation.Target,
+        resolver.Operation.Target,
         positionValue
     );
     float4 velocityValue = 0.0;
 
     SetAttribute(
         context.Attributes,
-        4u,
+        ParticleAttribute_Velocity,
         velocityValue
     );
 
@@ -105,7 +109,7 @@ void SetPositionVortexRibbonPath(inout SOperationExecutor executor, inout SOpera
 
     SetAttribute(
         context.Attributes,
-        8u,
+        ParticleAttribute_Tangent,
         tangentValue
     );
 }

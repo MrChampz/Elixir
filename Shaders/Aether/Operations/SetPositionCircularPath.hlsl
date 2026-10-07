@@ -9,12 +9,16 @@ static const uint SetPositionCircularPath_SecondaryAmplitude = 3u;
 
 #include "OperationMath.hlsl"
 
-void SetPositionCircularPath(inout SOperationExecutor executor, inout SOperationExecutorContext context)
+void SetPositionCircularPath(
+    inout SOperationExecutor executor,
+    SOperandResolver resolver,
+    inout SOperationExecutorContext context
+)
 {
-    float3 baseOffset = executor.Reader.ReadVector3(SetPositionCircularPath_BaseOffset);
-    float3 primaryAmplitude = executor.Reader.ReadVector3(SetPositionCircularPath_PrimaryAmplitude);
-    float3 secondaryAmplitude = executor.Reader.ReadVector3(SetPositionCircularPath_SecondaryAmplitude);
-    float timeScale = executor.Reader.ReadScalar(SetPositionCircularPath_TimeScale);
+    float3 baseOffset = resolver.ReadVector3(SetPositionCircularPath_BaseOffset);
+    float3 primaryAmplitude = resolver.ReadVector3(SetPositionCircularPath_PrimaryAmplitude);
+    float3 secondaryAmplitude = resolver.ReadVector3(SetPositionCircularPath_SecondaryAmplitude);
+    float timeScale = resolver.ReadScalar(SetPositionCircularPath_TimeScale);
 
     float spawnRate = max(context.SpawnRate, 0.001);
     float timeOffset = float((context.SpawnCount - 1u) - context.SpawnOrder) / spawnRate;
@@ -32,14 +36,14 @@ void SetPositionCircularPath(inout SOperationExecutor executor, inout SOperation
 
     SetAttribute(
         context.Attributes,
-        executor.Reader.Operation.Target,
+        resolver.Operation.Target,
         positionValue
     );
     float4 velocityValue = 0.0;
 
     SetAttribute(
         context.Attributes,
-        4u,
+        ParticleAttribute_Velocity,
         velocityValue
     );
 
@@ -52,7 +56,7 @@ void SetPositionCircularPath(inout SOperationExecutor executor, inout SOperation
 
     SetAttribute(
         context.Attributes,
-        8u,
+        ParticleAttribute_Tangent,
         tangentValue
     );
 }

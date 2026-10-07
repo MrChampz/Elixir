@@ -7,12 +7,16 @@ static const uint SetPositionOnCircle_Radius = 1u;
 static const uint SetPositionOnCircle_AngularSpeed = 2u;
 static const uint SetPositionOnCircle_StartAngle = 3u;
 
-void SetPositionOnCircle(inout SOperationExecutor executor, inout SOperationExecutorContext context)
+void SetPositionOnCircle(
+    inout SOperationExecutor executor,
+    SOperandResolver resolver,
+    inout SOperationExecutorContext context
+)
 {
-    float3 center = executor.Reader.ReadVector3(SetPositionOnCircle_Center);
-    float radius = executor.Reader.ReadScalar(SetPositionOnCircle_Radius);
-    float angularSpeed = executor.Reader.ReadScalar(SetPositionOnCircle_AngularSpeed);
-    float startAngle = executor.Reader.ReadScalar(SetPositionOnCircle_StartAngle);
+    float3 center = resolver.ReadVector3(SetPositionOnCircle_Center);
+    float radius = resolver.ReadScalar(SetPositionOnCircle_Radius);
+    float angularSpeed = resolver.ReadScalar(SetPositionOnCircle_AngularSpeed);
+    float startAngle = resolver.ReadScalar(SetPositionOnCircle_StartAngle);
     float angle = context.Time * angularSpeed + startAngle;
 
     float3 position = center + float3(cos(angle), sin(angle), 0.0) * radius;
@@ -20,7 +24,7 @@ void SetPositionOnCircle(inout SOperationExecutor executor, inout SOperationExec
 
     SetAttribute(
         context.Attributes,
-        executor.Reader.Operation.Target,
+        resolver.Operation.Target,
         positionValue
     );
 
@@ -30,7 +34,7 @@ void SetPositionOnCircle(inout SOperationExecutor executor, inout SOperationExec
 
     SetAttribute(
         context.Attributes,
-        8u,
+        ParticleAttribute_Tangent,
         tangentValue
     );
 
@@ -38,7 +42,7 @@ void SetPositionOnCircle(inout SOperationExecutor executor, inout SOperationExec
 
     SetAttribute(
         context.Attributes,
-        4u,
+        ParticleAttribute_Velocity,
         velocityValue
     );
 }

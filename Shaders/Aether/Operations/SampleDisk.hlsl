@@ -8,11 +8,15 @@ static const uint SampleDisk_Normal = 2u;
 
 #include "RandomSampling.hlsl"
 
-void SampleDisk(inout SOperationExecutor executor, inout SOperationExecutorContext context)
+void SampleDisk(
+    inout SOperationExecutor executor,
+    SOperandResolver resolver,
+    inout SOperationExecutorContext context
+)
 {
-    float3 center = executor.Reader.ReadVector3(SampleDisk_Center);
-    float3 normal = executor.Reader.ReadVector3(SampleDisk_Normal);
-    float maxRadius = executor.Reader.ReadScalar(SampleDisk_Radius);
+    float3 center = resolver.ReadVector3(SampleDisk_Center);
+    float3 normal = resolver.ReadVector3(SampleDisk_Normal);
+    float maxRadius = resolver.ReadScalar(SampleDisk_Radius);
 
     float radiusRandom = sqrt(Hash2(context.SeedBase + float2(8.63, 6.53)));
     float arcRandom = Hash2(context.SeedBase + float2(4.71, 1.29));
@@ -31,7 +35,7 @@ void SampleDisk(inout SOperationExecutor executor, inout SOperationExecutorConte
 
     SetAttribute(
         context.Attributes,
-        executor.Reader.Operation.Target,
+        resolver.Operation.Target,
         positionValue
     );
 
@@ -41,7 +45,7 @@ void SampleDisk(inout SOperationExecutor executor, inout SOperationExecutorConte
 
     SetAttribute(
         context.Attributes,
-        8u,
+        ParticleAttribute_Tangent,
         tangentValue
     );
 }

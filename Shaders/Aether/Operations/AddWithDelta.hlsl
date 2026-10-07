@@ -5,16 +5,20 @@ static const uint Operation_AddWithDelta = 5u;
 static const uint AddWithDelta_Value = 0u;
 static const uint AddWithDelta_Multiplier = 1u;
 
-void AddWithDelta(inout SOperationExecutor executor, inout SOperationExecutorContext context)
+void AddWithDelta(
+    inout SOperationExecutor executor,
+    SOperandResolver resolver,
+    inout SOperationExecutorContext context
+)
 {
-    float4 value = GetAttribute(context.Attributes, executor.Reader.Operation.Target);
-    float inputMultiplier = executor.Reader.ReadScalar(AddWithDelta_Multiplier);
+    float4 value = GetAttribute(context.Attributes, resolver.Operation.Target);
+    float inputMultiplier = resolver.ReadScalar(AddWithDelta_Multiplier);
 
-    value += executor.Reader.ReadValue(AddWithDelta_Value) * (context.DeltaTime * inputMultiplier);
+    value += resolver.ReadValue(AddWithDelta_Value) * (context.DeltaTime * inputMultiplier);
 
     SetAttribute(
         context.Attributes,
-        executor.Reader.Operation.Target,
+        resolver.Operation.Target,
         value
     );
 }

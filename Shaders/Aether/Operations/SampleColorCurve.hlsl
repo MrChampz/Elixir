@@ -32,14 +32,18 @@ float4 SampleColorCurve(int baseParameterIndex, float t)
     return lerp(samples[lowerIndex], samples[upperIndex], fraction);
 }
 
-void SampleColorCurve(inout SOperationExecutor executor, inout SOperationExecutorContext context)
+void SampleColorCurve(
+    inout SOperationExecutor executor,
+    SOperandResolver resolver,
+    inout SOperationExecutorContext context
+)
 {
-    float inputValue = executor.Reader.ReadScalar(SampleColorCurve_Input);
-    float4 value = SampleColorCurve(executor.Reader.ReadCurve(SampleColorCurve_Curve), inputValue);
+    float inputValue = resolver.ReadScalar(SampleColorCurve_Input);
+    float4 value = SampleColorCurve(resolver.ReadCurve(SampleColorCurve_Curve), inputValue);
 
     SetAttribute(
         context.Attributes,
-        executor.Reader.Operation.Target,
+        resolver.Operation.Target,
         value
     );
 }

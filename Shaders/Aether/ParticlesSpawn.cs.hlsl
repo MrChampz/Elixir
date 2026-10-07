@@ -67,22 +67,7 @@ struct SpawnRequest
 [[vk::binding(6, 0)]]
 StructuredBuffer<SpawnRequest> spawnRequests;
 
-struct AttributeTable
-{
-    float4 Position;
-    float4 Rotation;
-    float4 Scale;
-    float4 Velocity;
-    float4 Color;
-    float4 Size;
-    float4 Lifetime;
-    float4 Tangent;
-    uint   RibbonId;
-    float4 Temp0;
-    float4 Temp1;
-    float4 Temp2;
-    float4 Temp3;
-};
+#include "ParticleAttributes.hlsl"
 
 [[vk::binding(0, 1)]]
 cbuffer cbParams : register(b0)
@@ -126,77 +111,6 @@ float ResolveDynamicInput(uint inputType, float randomValue, float particleSeed)
 
     return 1.0;
 }
-
-
-
-float4 GetAttribute(AttributeTable table, uint attrId)
-{
-    if (attrId == 1u)
-        return table.Position;
-    if (attrId == 2u)
-        return table.Rotation;
-    if (attrId == 3u)
-        return table.Scale;
-    if (attrId == 4u)
-        return table.Velocity;
-    if (attrId == 5u)
-        return table.Color;
-    if (attrId == 6u)
-        return table.Size;
-    if (attrId == 7u)
-        return table.Lifetime;
-    if (attrId == 8u)
-        return table.Tangent;
-    if (attrId == 9u)
-        return float4(float(table.RibbonId), 0.0, 0.0, 0.0);
-    if (attrId == 10u)
-        return table.Temp0;
-    if (attrId == 11u)
-        return table.Temp1;
-    if (attrId == 12u)
-        return table.Temp2;
-    if (attrId == 13u)
-        return table.Temp3;
-
-    return float4(0.0, 0.0, 0.0, 0.0);
-}
-
-void SetAttribute(inout AttributeTable table, uint attrId, float4 value)
-{
-    if (attrId == 1u)
-        table.Position = value;
-    else if (attrId == 2u)
-        table.Rotation = value;
-    else if (attrId == 3u)
-        table.Scale = value;
-    else if (attrId == 4u)
-        table.Velocity = value;
-    else if (attrId == 5u)
-        table.Color = value;
-    else if (attrId == 6u)
-        table.Size = value;
-    else if (attrId == 7u)
-        table.Lifetime = value;
-    else if (attrId == 8u)
-        table.Tangent = value;
-    else if (attrId == 10u)
-        table.Temp0 = value;
-    else if (attrId == 11u)
-        table.Temp1 = value;
-    else if (attrId == 12u)
-        table.Temp2 = value;
-    else if (attrId == 13u)
-        table.Temp3 = value;
-}
-
-// Writes an unsigned integer destination without converting it to float.
-void SetAttribute(inout AttributeTable table, uint attrId, uint value)
-{
-    if (attrId == 9u)
-        table.RibbonId = value;
-}
-
-
 
 
 
@@ -249,27 +163,17 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     float randomInput = Hash2(seedBase + float2(8.11, 3.41));
     uint emissionIndex = request.EmissionIndex + spawnOrder;
 
-    AttributeTable attributes;
-    attributes.Position = 0.0;
-    attributes.Rotation = 0.0;
-    attributes.Scale = float4(1.0, 0.0, 0.0, 0.0);
-    attributes.Velocity = 0.0;
-    attributes.Color = 1.0;
-    attributes.Size = float4(6.0, 0.0, 0.0, 0.0);
-    attributes.Lifetime = float4(1.0, 0.0, 0.0, 0.0);
-    attributes.Tangent = float4(1.0, 0.0, 0.0, 0.0);
-    attributes.RibbonId = 0u;
-    attributes.Temp0 = 0.0;
-    attributes.Temp1 = 0.0;
-    attributes.Temp2 = 0.0;
-    attributes.Temp3 = 0.0;
+    AttributeTable attributes = EmptyAttributeTable();
 
     uint operationOffset = (uint)emitter.MetaA.z;
     uint operationCount = (uint)emitter.MetaA.w;
 
-    SOperationExecutorContext context = CreateOperationExecutorContext(
-        operands, constants, parameters, instance, attributes, randomInput, particleSeed
-    );
+    SOperationExecutor executor = CreateOperationExecutor(operands, constants, parameters);
+
+    SOperationExecutorContext context = (SOperationExecutorContext)0;
+    context.Instance = instance;
+    context.ParticleSeed = particleSeed;
+    context.Attributes = attributes;
     context.Time = TimeData.y;
     context.SeedBase = seedBase;
     context.SpawnRate = emitter.MetaC.y;
@@ -282,22 +186,21 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         context.OperationIndex = i;
         SGPUOperation operation = operations[operationOffset + i];
 
-        SOperationExecutor executor = CreateOperationExecutor(operation, context);
-        executor.Execute(context);
+        executor.Execute(operation, context);
     }
 
     attributes = context.Attributes;
 
-    particles[globalIndex].PositionSize = float4(GetAttribute(attributes, 1u).xyz, GetAttribute(attributes, 6u).x);
-    particles[globalIndex].VelocityAge = float4(GetAttribute(attributes, 4u).xyz, 0.0);
-    particles[globalIndex].Transform = float4(GetAttribute(attributes, 2u).x, GetAttribute(attributes, 3u).x, 0.0, 0.0);
-    particles[globalIndex].Tangent = GetAttribute(attributes, 8u).xyz;
+    particles[globalIndex].PositionSize = float4(GetAttribute(attributes, ParticleAttribute_Position).xyz, GetAttribute(attributes, ParticleAttribute_Size).x);
+    particles[globalIndex].VelocityAge = float4(GetAttribute(attributes, ParticleAttribute_Velocity).xyz, 0.0);
+    particles[globalIndex].Transform = float4(GetAttribute(attributes, ParticleAttribute_Rotation).x, GetAttribute(attributes, ParticleAttribute_Scale).x, 0.0, 0.0);
+    particles[globalIndex].Tangent = GetAttribute(attributes, ParticleAttribute_Tangent).xyz;
     particles[globalIndex].RibbonId = attributes.RibbonId;
-    particles[globalIndex].Color = GetAttribute(attributes, 5u);
+    particles[globalIndex].Color = GetAttribute(attributes, ParticleAttribute_Color);
     particles[globalIndex].Metadata = float4(
         float(pc.EmitterIndex),
         asfloat(emissionIndex),
-        GetAttribute(attributes, 7u).x,
+        GetAttribute(attributes, ParticleAttribute_Lifetime).x,
         1.0
     );
 }

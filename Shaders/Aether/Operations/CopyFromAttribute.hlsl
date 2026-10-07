@@ -4,25 +4,29 @@
 static const uint Operation_CopyFromAttribute = 19u;
 static const uint CopyFromAttribute_Value = 0u;
 
-void CopyFromAttribute(inout SOperationExecutor executor, inout SOperationExecutorContext context)
+void CopyFromAttribute(
+    inout SOperationExecutor executor,
+    SOperandResolver resolver,
+    inout SOperationExecutorContext context
+)
 {
-    if (executor.Reader.Operation.Target == 9u)
+    if (resolver.Operation.Target == ParticleAttribute_RibbonId)
     {
-        uint value = executor.Reader.ReadUInt(CopyFromAttribute_Value);
+        uint value = resolver.ReadUInt(CopyFromAttribute_Value);
 
         SetAttribute(
             context.Attributes,
-            executor.Reader.Operation.Target,
+            resolver.Operation.Target,
             value
         );
         return;
     }
 
-    float4 value = executor.Reader.ReadValue(CopyFromAttribute_Value);
+    float4 value = resolver.ReadValue(CopyFromAttribute_Value);
 
     SetAttribute(
         context.Attributes,
-        executor.Reader.Operation.Target,
+        resolver.Operation.Target,
         value
     );
 }

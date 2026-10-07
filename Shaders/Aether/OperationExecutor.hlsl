@@ -1,14 +1,11 @@
 #ifndef AETHER_OPERATION_EXECUTOR_HLSL
 #define AETHER_OPERATION_EXECUTOR_HLSL
 
-#include "OperandReader.hlsl"
+#include "OperandResolver.hlsl"
 
-/** @brief Stores shared resources and mutable state for a sequence of operations. */
+/** @brief Stores particle inputs and mutable state for a sequence of operations. */
 struct SOperationExecutorContext
 {
-    StructuredBuffer<uint> Operands;
-    ByteAddressBuffer Constants;
-    StructuredBuffer<Parameter> Parameters;
     SystemInstance Instance;
     float InputContext;
     float ParticleSeed;
@@ -25,79 +22,54 @@ struct SOperationExecutorContext
     bool Kill;
 };
 
-/** @brief Initializes the context before executing a particle's operation sequence. */
-SOperationExecutorContext CreateOperationExecutorContext(
-    StructuredBuffer<uint> operands,
-    ByteAddressBuffer constants,
-    StructuredBuffer<Parameter> parameters,
-    SystemInstance instance,
-    AttributeTable attributes,
-    float inputContext,
-    float particleSeed
-)
-{
-    SOperationExecutorContext context;
-    context.Operands = operands;
-    context.Constants = constants;
-    context.Parameters = parameters;
-    context.Instance = instance;
-    context.InputContext = inputContext;
-    context.ParticleSeed = particleSeed;
-    context.Attributes = attributes;
-    context.DeltaTime = 0.0;
-    context.NormalizedAge = 0.0;
-    context.Time = 0.0;
-    context.SeedBase = 0.0;
-    context.OperationIndex = 0u;
-    context.SpawnRate = 0.0;
-    context.SpawnCount = 0u;
-    context.SpawnOrder = 0u;
-    context.EmissionIndex = 0u;
-    context.Kill = false;
-    return context;
-}
-
 struct SOperationExecutor;
 
 // Dispatches through the operation set selected by the shader entry point.
 void ExecuteOperation(
     inout SOperationExecutor executor,
+    SGPUOperation operation,
+    SOperandResolver resolver,
     inout SOperationExecutorContext context
 );
 
-/** @brief Executes one operation using a snapshot of its operand values. */
+/** @brief Executes operations with shared context and a fresh operand snapshot. */
 struct SOperationExecutor
 {
-    SOperandReader Reader;
+    StructuredBuffer<uint> Operands;
+    ByteAddressBuffer Constants;
+    StructuredBuffer<Parameter> Parameters;
 
     /** @brief Applies the operation to the shared attributes and discard state. */
-    void Execute(inout SOperationExecutorContext context)
+    void Execute(SGPUOperation operation, inout SOperationExecutorContext context)
     {
-        ExecuteOperation(this, context);
+        SOperandResolver resolver = CreateOperandResolver(
+            operation,
+            Operands,
+            Constants,
+            Parameters,
+            context.Instance,
+            context.Attributes,
+            context.InputContext,
+            context.ParticleSeed
+        );
+        ExecuteOperation(this, operation, resolver, context);
     }
 };
 
-#include "OperationDispatch.hlsl"
-
-/** @brief Captures operand values from the context before destination writes. */
 SOperationExecutor CreateOperationExecutor(
-    SGPUOperation operation,
-    SOperationExecutorContext context
+    StructuredBuffer<uint> operands,
+    ByteAddressBuffer constants,
+    StructuredBuffer<Parameter> parameters
 )
 {
     SOperationExecutor executor;
-    executor.Reader = CreateOperandReader(
-        operation,
-        context.Operands,
-        context.Constants,
-        context.Parameters,
-        context.Instance,
-        context.Attributes,
-        context.InputContext,
-        context.ParticleSeed
-    );
+    executor.Operands = operands;
+    executor.Constants = constants;
+    executor.Parameters = parameters;
 
     return executor;
 }
+
+#include "OperationDispatch.hlsl"
 
 #endif

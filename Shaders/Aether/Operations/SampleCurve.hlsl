@@ -25,15 +25,19 @@ float SampleCurve(int baseParameterIndex, float t)
     return lerp(samples[lowerIndex], samples[upperIndex], fraction);
 }
 
-void SampleCurve(inout SOperationExecutor executor, inout SOperationExecutorContext context)
+void SampleCurve(
+    inout SOperationExecutor executor,
+    SOperandResolver resolver,
+    inout SOperationExecutorContext context
+)
 {
-    float inputValue = executor.Reader.ReadScalar(SampleCurve_Input);
-    float value = SampleCurve(executor.Reader.ReadCurve(SampleCurve_Curve), inputValue);
+    float inputValue = resolver.ReadScalar(SampleCurve_Input);
+    float value = SampleCurve(resolver.ReadCurve(SampleCurve_Curve), inputValue);
     float4 attributeValue = float4(value, 0.0, 0.0, 0.0);
 
     SetAttribute(
         context.Attributes,
-        executor.Reader.Operation.Target,
+        resolver.Operation.Target,
         attributeValue
     );
 }

@@ -7,10 +7,14 @@ static const uint SampleBox_Maximum = 1u;
 
 #include "RandomSampling.hlsl"
 
-void SampleBox(inout SOperationExecutor executor, inout SOperationExecutorContext context)
+void SampleBox(
+    inout SOperationExecutor executor,
+    SOperandResolver resolver,
+    inout SOperationExecutorContext context
+)
 {
-    float3 minBounds = executor.Reader.ReadVector3(SampleBox_Minimum);
-    float3 maxBounds = executor.Reader.ReadVector3(SampleBox_Maximum);
+    float3 minBounds = resolver.ReadVector3(SampleBox_Minimum);
+    float3 maxBounds = resolver.ReadVector3(SampleBox_Maximum);
 
     float2 seed = context.SeedBase + float2(float(context.OperationIndex) * 1.3, 5.7);
     float3 random = RandomVector(seed).xyz;
@@ -20,7 +24,7 @@ void SampleBox(inout SOperationExecutor executor, inout SOperationExecutorContex
 
     SetAttribute(
         context.Attributes,
-        executor.Reader.Operation.Target,
+        resolver.Operation.Target,
         positionValue
     );
 }

@@ -25,51 +25,53 @@
 
 void ExecuteOperation(
     inout SOperationExecutor executor,
+    SGPUOperation operation,
+    SOperandResolver resolver,
     inout SOperationExecutorContext context
 )
 {
-    if (executor.Reader.Operation.Type == Operation_SetLiteral)
-        SetLiteral(executor, context);
-    else if (executor.Reader.Operation.Type == Operation_RandomRange)
-        RandomRange(executor, context);
-    else if (executor.Reader.Operation.Type == Operation_SampleDisk)
-        SampleDisk(executor, context);
-    else if (executor.Reader.Operation.Type == Operation_SampleCone)
-        SampleCone(executor, context);
-    else if (executor.Reader.Operation.Type == Operation_SampleBox)
-        SampleBox(executor, context);
-    else if (executor.Reader.Operation.Type == Operation_SetPositionOnCircle)
-        SetPositionOnCircle(executor, context);
-    else if (executor.Reader.Operation.Type == Operation_SetPositionCircularPath)
-        SetPositionCircularPath(executor, context);
-    else if (executor.Reader.Operation.Type == Operation_SetPositionVortexRibbonPath)
-        SetPositionVortexRibbonPath(executor, context);
-    else if (executor.Reader.Operation.Type == Operation_SetRibbonIdFromSpawnOrder)
-        SetRibbonIdFromSpawnOrder(executor, context);
-    else if (executor.Reader.Operation.Type == Operation_AddWithDelta)
-        AddWithDelta(executor, context);
-    else if (executor.Reader.Operation.Type == Operation_Dampen)
-        Dampen(executor, context);
-    else if (executor.Reader.Operation.Type == Operation_LerpOverLife)
-        LerpOverLife(executor, context);
-    else if (executor.Reader.Operation.Type == Operation_KillOutsideBounds)
-        KillOutsideBounds(executor, context);
-    else if (executor.Reader.Operation.Type == Operation_AddFromAttribute)
-        AddFromAttribute(executor, context);
-    else if (executor.Reader.Operation.Type == Operation_SampleCurve)
-        SampleCurve(executor, context);
-    else if (executor.Reader.Operation.Type == Operation_SampleColorCurve)
-        SampleColorCurve(executor, context);
-    else if (executor.Reader.Operation.Type == Operation_Add)
-        Add(executor, context);
-    else if (executor.Reader.Operation.Type == Operation_Mul)
-        Mul(executor, context);
-    else if (executor.Reader.Operation.Type == Operation_Clamp)
-        Clamp(executor, context);
-    else if (executor.Reader.Operation.Type == Operation_CopyFromAttribute)
-        CopyFromAttribute(executor, context);
-    else if (executor.Reader.Operation.Type == Operation_ApplyVortex)
-        ApplyVortex(executor, context);
+    if (operation.Type == Operation_SetLiteral)
+        SetLiteral(executor, resolver, context);
+    else if (operation.Type == Operation_RandomRange)
+        RandomRange(executor, resolver, context);
+    else if (operation.Type == Operation_SampleDisk)
+        SampleDisk(executor, resolver, context);
+    else if (operation.Type == Operation_SampleCone)
+        SampleCone(executor, resolver, context);
+    else if (operation.Type == Operation_SampleBox)
+        SampleBox(executor, resolver, context);
+    else if (operation.Type == Operation_SetPositionOnCircle)
+        SetPositionOnCircle(executor, resolver, context);
+    else if (operation.Type == Operation_SetPositionCircularPath)
+        SetPositionCircularPath(executor, resolver, context);
+    else if (operation.Type == Operation_SetPositionVortexRibbonPath)
+        SetPositionVortexRibbonPath(executor, resolver, context);
+    else if (operation.Type == Operation_SetRibbonIdFromSpawnOrder)
+        SetRibbonIdFromSpawnOrder(executor, resolver, context);
+    else if (operation.Type == Operation_AddWithDelta)
+        AddWithDelta(executor, resolver, context);
+    else if (operation.Type == Operation_Dampen)
+        Dampen(executor, resolver, context);
+    else if (operation.Type == Operation_LerpOverLife)
+        LerpOverLife(executor, resolver, context);
+    else if (operation.Type == Operation_KillOutsideBounds)
+        KillOutsideBounds(executor, resolver, context);
+    else if (operation.Type == Operation_AddFromAttribute)
+        AddFromAttribute(executor, resolver, context);
+    else if (operation.Type == Operation_SampleCurve)
+        SampleCurve(executor, resolver, context);
+    else if (operation.Type == Operation_SampleColorCurve)
+        SampleColorCurve(executor, resolver, context);
+    else if (operation.Type == Operation_Add)
+        Add(executor, resolver, context);
+    else if (operation.Type == Operation_Mul)
+        Mul(executor, resolver, context);
+    else if (operation.Type == Operation_Clamp)
+        Clamp(executor, resolver, context);
+    else if (operation.Type == Operation_CopyFromAttribute)
+        CopyFromAttribute(executor, resolver, context);
+    else if (operation.Type == Operation_ApplyVortex)
+        ApplyVortex(executor, resolver, context);
 }
 
 #endif

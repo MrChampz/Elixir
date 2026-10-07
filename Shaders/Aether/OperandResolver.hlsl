@@ -4,7 +4,7 @@
 #include "Operand.hlsl"
 
 /** @brief Reads operation operands from a snapshot taken before destination writes. */
-struct SOperandReader
+struct SOperandResolver
 {
     StructuredBuffer<uint> Operands;
     ByteAddressBuffer Constants;
@@ -57,14 +57,14 @@ struct SOperandReader
     {
         switch (index)
         {
-            case 2u:  return Attributes.Rotation.x;
-            case 3u:  return Attributes.Scale.x;
-            case 6u:  return Attributes.Size.x;
-            case 7u:  return Attributes.Lifetime.x;
-            case 10u: return Attributes.Temp0.x;
-            case 11u: return Attributes.Temp1.x;
-            case 12u: return Attributes.Temp2.x;
-            case 13u: return Attributes.Temp3.x;
+            case ParticleAttribute_Rotation:  return Attributes.Rotation.x;
+            case ParticleAttribute_Scale:  return Attributes.Scale.x;
+            case ParticleAttribute_Size:  return Attributes.Size.x;
+            case ParticleAttribute_Lifetime:  return Attributes.Lifetime.x;
+            case ParticleAttribute_Temp0: return Attributes.Temp0.x;
+            case ParticleAttribute_Temp1: return Attributes.Temp1.x;
+            case ParticleAttribute_Temp2: return Attributes.Temp2.x;
+            case ParticleAttribute_Temp3: return Attributes.Temp3.x;
             default:  return 0.0;
         }
     }
@@ -74,13 +74,13 @@ struct SOperandReader
     {
         switch (index)
         {
-            case 1u:  return Attributes.Position.xyz;
-            case 4u:  return Attributes.Velocity.xyz;
-            case 8u:  return Attributes.Tangent.xyz;
-            case 10u: return Attributes.Temp0.xyz;
-            case 11u: return Attributes.Temp1.xyz;
-            case 12u: return Attributes.Temp2.xyz;
-            case 13u: return Attributes.Temp3.xyz;
+            case ParticleAttribute_Position:  return Attributes.Position.xyz;
+            case ParticleAttribute_Velocity:  return Attributes.Velocity.xyz;
+            case ParticleAttribute_Tangent:  return Attributes.Tangent.xyz;
+            case ParticleAttribute_Temp0: return Attributes.Temp0.xyz;
+            case ParticleAttribute_Temp1: return Attributes.Temp1.xyz;
+            case ParticleAttribute_Temp2: return Attributes.Temp2.xyz;
+            case ParticleAttribute_Temp3: return Attributes.Temp3.xyz;
             default:  return 0.0;
         }
     }
@@ -155,7 +155,7 @@ struct SOperandReader
 
         if ((reference >> 29) == OperandSource_ImmediateUInt)
             return index;
-        if ((reference >> 29) == OperandSource_ParticleAttribute && index == 9u)
+        if ((reference >> 29) == OperandSource_ParticleAttribute && index == ParticleAttribute_RibbonId)
             return Attributes.RibbonId;
 
         return Constants.Load((Instance.ConstantBaseOffset + index) * 4u);
@@ -171,7 +171,7 @@ struct SOperandReader
 };
 
 /** @brief Captures the operand context and predecodes the first two numeric positions. */
-SOperandReader CreateOperandReader(
+SOperandResolver CreateOperandResolver(
     SGPUOperation operation,
     StructuredBuffer<uint> operands,
     ByteAddressBuffer constants,
@@ -182,23 +182,23 @@ SOperandReader CreateOperandReader(
     float particleSeed
 )
 {
-    SOperandReader reader;
-    reader.Operation = operation;
-    reader.Operands = operands;
-    reader.Constants = constants;
-    reader.Parameters = parameters;
-    reader.Instance = instance;
-    reader.Attributes = attributes;
-    reader.InputContext = inputContext;
-    reader.ParticleSeed = particleSeed;
-    reader.CachedValues[1] = 0.0;
+    SOperandResolver resolver;
+    resolver.Operation = operation;
+    resolver.Operands = operands;
+    resolver.Constants = constants;
+    resolver.Parameters = parameters;
+    resolver.Instance = instance;
+    resolver.Attributes = attributes;
+    resolver.InputContext = inputContext;
+    resolver.ParticleSeed = particleSeed;
+    resolver.CachedValues[1] = 0.0;
 
-    reader.CachedValues[0] = reader.DecodeValue(0u);
+    resolver.CachedValues[0] = resolver.DecodeValue(0u);
 
     if (operation.OperandCount > 1u)
-        reader.CachedValues[1] = reader.DecodeValue(1u);
+        resolver.CachedValues[1] = resolver.DecodeValue(1u);
 
-    return reader;
+    return resolver;
 }
 
 #endif

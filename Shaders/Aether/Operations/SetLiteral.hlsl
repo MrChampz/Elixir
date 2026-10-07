@@ -4,25 +4,29 @@
 static const uint Operation_SetLiteral = 0u;
 static const uint SetLiteral_Value = 0u;
 
-void SetLiteral(inout SOperationExecutor executor, inout SOperationExecutorContext context)
+void SetLiteral(
+    inout SOperationExecutor executor,
+    SOperandResolver resolver,
+    inout SOperationExecutorContext context
+)
 {
-    if (executor.Reader.Operation.Target == 9u)
+    if (resolver.Operation.Target == ParticleAttribute_RibbonId)
     {
-        uint value = executor.Reader.ReadUInt(SetLiteral_Value);
+        uint value = resolver.ReadUInt(SetLiteral_Value);
 
         SetAttribute(
             context.Attributes,
-            executor.Reader.Operation.Target,
+            resolver.Operation.Target,
             value
         );
         return;
     }
 
-    float4 value = executor.Reader.ReadValue(SetLiteral_Value);
+    float4 value = resolver.ReadValue(SetLiteral_Value);
 
     SetAttribute(
         context.Attributes,
-        executor.Reader.Operation.Target,
+        resolver.Operation.Target,
         value
     );
 }

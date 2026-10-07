@@ -4,15 +4,19 @@
 static const uint Operation_Dampen = 6u;
 static const uint Dampen_Drag = 0u;
 
-void Dampen(inout SOperationExecutor executor, inout SOperationExecutorContext context)
+void Dampen(
+    inout SOperationExecutor executor,
+    SOperandResolver resolver,
+    inout SOperationExecutorContext context
+)
 {
-    float4 value = GetAttribute(context.Attributes, executor.Reader.Operation.Target);
-    float drag = executor.Reader.ReadScalar(Dampen_Drag);
+    float4 value = GetAttribute(context.Attributes, resolver.Operation.Target);
+    float drag = resolver.ReadScalar(Dampen_Drag);
     value *= max(0.0, 1.0 - drag * context.DeltaTime);
 
     SetAttribute(
         context.Attributes,
-        executor.Reader.Operation.Target,
+        resolver.Operation.Target,
         value
     );
 }
