@@ -6,7 +6,7 @@
 /** @brief Stores particle inputs and mutable state for a sequence of operations. */
 struct SOperationExecutorContext
 {
-    SystemInstance Instance;
+    SGPUSystemInstance Instance;
     float InputContext;
     float ParticleSeed;
     AttributeTable Attributes;
@@ -37,7 +37,7 @@ struct SOperationExecutor
 {
     StructuredBuffer<uint> Operands;
     ByteAddressBuffer Constants;
-    StructuredBuffer<Parameter> Parameters;
+    StructuredBuffer<SGPUParameter> Parameters;
 
     /** @brief Applies the operation to the shared attributes and discard state. */
     void Execute(SGPUOperation operation, inout SOperationExecutorContext context)
@@ -59,7 +59,7 @@ struct SOperationExecutor
 SOperationExecutor CreateOperationExecutor(
     StructuredBuffer<uint> operands,
     ByteAddressBuffer constants,
-    StructuredBuffer<Parameter> parameters
+    StructuredBuffer<SGPUParameter> parameters
 )
 {
     SOperationExecutor executor;

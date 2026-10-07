@@ -1,34 +1,10 @@
-struct SystemInstance
-{
-    uint ParticleBaseOffset;
-    uint EmitterBaseOffset;
-    uint OperationBaseOffset;
-    uint OperandBaseOffset;
-    uint ConstantBaseOffset;
-    uint ParameterBaseOffset;
+#ifndef AETHER_PARTICLES_SCHEDULER_COMMON_HLSL
+#define AETHER_PARTICLES_SCHEDULER_COMMON_HLSL
 
-    uint EmitterStateBaseOffset;
-    uint SpawnRequestBaseOffset;
-    uint TriggerEventBaseOffset;
-    uint TriggerQueueStateBaseOffset;
+#include "ParticleData.hlsl"
+#include "ParticleSpawnCommon.hlsl"
 
-    uint ParticleCount;
-    uint EmitterCount;
-    uint TriggerEventCapacityPerEmitter;
-    uint Generation;
-
-    uint ParticleStateLayoutIndex;
-};
-
-struct Emitter
-{
-    float4 MetaA;
-    float4 MetaB;
-    float4 MetaC;
-    float4 MetaD;
-};
-
-struct EmitterInstanceState
+struct SGPUEmitterInstanceState
 {
     float SpawnAccumulator;
     float BurstAccumulator;
@@ -37,53 +13,45 @@ struct EmitterInstanceState
     uint Generation;
 };
 
-struct SpawnRequest
-{
-    uint SpawnCursor;
-    uint SpawnCount;
-    uint EmissionIndex;
-    uint Generation;
-};
-
-struct TriggerTarget
+struct SGPUTriggerTarget
 {
     uint TargetEmitterIndex;
     uint BurstCount;
     float DelaySeconds;
 };
 
-struct TriggerEvent
+struct SGPUTriggerEvent
 {
     float RemainingDelaySeconds;
     uint SpawnCount;
     uint Generation;
 };
 
-struct TriggerQueueState
+struct SGPUTriggerQueueState
 {
     uint Count;
     uint OverflowCount;
 };
 
-struct SystemSchedulerState
+struct SGPUSystemSchedulerState
 {
     uint Generation;
     uint ActiveTriggerBufferIndex;
     uint ResetPending;
 };
 
-uint EmitterStateIndex(SystemInstance instance, uint localEmitterIndex)
+uint EmitterStateIndex(SGPUSystemInstance instance, uint localEmitterIndex)
 {
     return instance.EmitterStateBaseOffset + localEmitterIndex;
 }
 
-uint SpawnRequestIndex(SystemInstance instance, uint localEmitterIndex)
+uint SpawnRequestIndex(SGPUSystemInstance instance, uint localEmitterIndex)
 {
     return instance.SpawnRequestBaseOffset + localEmitterIndex;
 }
 
 uint TriggerQueueStateIndex(
-    SystemInstance instance,
+    SGPUSystemInstance instance,
     uint triggerBufferIndex,
     uint localEmitterIndex
 )
@@ -94,7 +62,7 @@ uint TriggerQueueStateIndex(
 }
 
 uint TriggerEventIndex(
-    SystemInstance instance,
+    SGPUSystemInstance instance,
     uint localEmitterIndex,
     uint slot
 )
@@ -103,3 +71,5 @@ uint TriggerEventIndex(
         localEmitterIndex * instance.TriggerEventCapacityPerEmitter +
         slot;
 }
+
+#endif

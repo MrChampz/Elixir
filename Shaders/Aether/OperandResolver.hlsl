@@ -8,10 +8,10 @@ struct SOperandResolver
 {
     StructuredBuffer<uint> Operands;
     ByteAddressBuffer Constants;
-    StructuredBuffer<Parameter> Parameters;
+    StructuredBuffer<SGPUParameter> Parameters;
 
     SGPUOperation Operation;
-    SystemInstance Instance;
+    SGPUSystemInstance Instance;
     AttributeTable Attributes;
     float InputContext;
     float ParticleSeed;
@@ -175,8 +175,8 @@ SOperandResolver CreateOperandResolver(
     SGPUOperation operation,
     StructuredBuffer<uint> operands,
     ByteAddressBuffer constants,
-    StructuredBuffer<Parameter> parameters,
-    SystemInstance instance,
+    StructuredBuffer<SGPUParameter> parameters,
+    SGPUSystemInstance instance,
     AttributeTable attributes,
     float inputContext,
     float particleSeed

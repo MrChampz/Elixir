@@ -1,10 +1,10 @@
 #include "ParticlesSchedulerCommon.hlsl"
 
 [[vk::binding(4, 0)]]
-StructuredBuffer<SystemInstance> instances;
+StructuredBuffer<SGPUSystemInstance> instances;
 
 [[vk::binding(11, 0)]]
-RWStructuredBuffer<SystemSchedulerState> schedulerStates;
+RWStructuredBuffer<SGPUSystemSchedulerState> schedulerStates;
 
 struct PushConstants
 {
@@ -17,8 +17,8 @@ PushConstants pc;
 [numthreads(1, 1, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
-    SystemInstance instance = instances[pc.InstanceIndex];
-    SystemSchedulerState scheduler = schedulerStates[pc.InstanceIndex];
+    SGPUSystemInstance instance = instances[pc.InstanceIndex];
+    SGPUSystemSchedulerState scheduler = schedulerStates[pc.InstanceIndex];
 
     if (scheduler.Generation != instance.Generation)
         return;

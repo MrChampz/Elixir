@@ -1,61 +1,4 @@
-struct ParticleState
-{
-    float4 PositionSize;    // xyz = position, w = size
-    float4 VelocityAge;     // xyz = velocity, w = age
-    float4 Transform;       // x = rotation, y = scale
-    float3 Tangent;
-    uint   RibbonId;
-    float4 Color;
-    float4 Metadata;        // x = emitter index, y = ribbon link order, z = lifetime, w = alive
-};
-
-[[vk::binding(0, 0)]]
-RWStructuredBuffer<ParticleState> particles;
-
-struct Emitter
-{
-    float4 MetaA; // x = offset in particle buffer, y = max particles, z = operation offset(spawn), w = operation count(spawn)
-    float4 MetaB; // x = operation offset(update), y = operation count(update), z = buffer cursor, w = spawn count
-    float4 MetaC; // x = render mode, y = spawn rate seconds, z = gravity scale, w = next buffer cursor
-    float4 MetaD; // x = emission index
-};
-
-[[vk::binding(1, 0)]]
-StructuredBuffer<Emitter> emitters;
-
-struct Parameter
-{
-    float4 Value;
-};
-
-[[vk::binding(3, 0)]]
-StructuredBuffer<Parameter> parameters;
-
-struct SystemInstance
-{
-    uint ParticleBaseOffset;
-    uint EmitterBaseOffset;
-    uint OperationBaseOffset;
-    uint OperandBaseOffset;
-    uint ConstantBaseOffset;
-    uint ParameterBaseOffset;
-
-    uint EmitterStateBaseOffset;
-    uint SpawnRequestBaseOffset;
-    uint TriggerEventBaseOffset;
-    uint TriggerQueueStateBaseOffset;
-
-    uint ParticleCount;
-    uint EmitterCount;
-    uint TriggerEventCapacityPerEmitter;
-    uint Generation;
-
-    uint ParticleStateLayoutIndex;
-};
-
-[[vk::binding(4, 0)]]
-StructuredBuffer<SystemInstance> instances;
-
+#include "ParticleData.hlsl"
 #include "ParticleAttributes.hlsl"
 
 [[vk::binding(0, 1)]]
@@ -71,6 +14,18 @@ struct PushConstants {
 
 [[vk::push_constant]]
 PushConstants pc;
+
+[[vk::binding(0, 0)]]
+RWStructuredBuffer<SGPUParticle> particles;
+
+[[vk::binding(1, 0)]]
+StructuredBuffer<SGPUEmitter> emitters;
+
+[[vk::binding(3, 0)]]
+StructuredBuffer<SGPUParameter> parameters;
+
+[[vk::binding(4, 0)]]
+StructuredBuffer<SGPUSystemInstance> instances;
 
 float Hash1(float x) {
   return frac(sin(x * 91.3458 + 12.345) * 45678.5453);
@@ -116,7 +71,7 @@ ByteAddressBuffer constants;
 [numthreads(256, 1, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
-    SystemInstance instance = instances[pc.InstanceIndex];
+    SGPUSystemInstance instance = instances[pc.InstanceIndex];
 
     uint localParticleIndex = dispatchThreadId.x;
     if (localParticleIndex >= instance.ParticleCount)
@@ -124,28 +79,28 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
     uint particleIndex = instance.ParticleBaseOffset + localParticleIndex;
 
-    ParticleState state = particles[particleIndex];
-    if (state.Metadata.w < 0.5)
+    SGPUParticle state = particles[particleIndex];
+    if (state.Alive < 0.5)
     {
-        particles[particleIndex].PositionSize.w = 0.0;
+        particles[particleIndex].Size = 0.0;
         particles[particleIndex].Color.a = 0.0;
         return;
     }
 
     float particleSeed = Hash1((float)particleIndex);
 
-    uint emitterIndex = instance.EmitterBaseOffset + (uint)(state.Metadata.x + 0.5);
-    Emitter emitter = emitters[emitterIndex];
+    uint emitterIndex = instance.EmitterBaseOffset + state.EmitterIndex;
+    SGPUEmitter emitter = emitters[emitterIndex];
     float dt = TimeData.x;
 
     AttributeTable attributes = LoadAttributes(state);
-    float age = state.VelocityAge.w + dt;
-    float lifetime = max(state.Metadata.z, 0.001);
+    float age = state.Age + dt;
+    float lifetime = max(state.Lifetime, 0.001);
     float life = clamp(age / lifetime, 0.0, 1.0);
     bool kill = age >= lifetime;
 
-    uint operationOffset = (uint)emitter.MetaB.x;
-    uint operationCount = (uint)emitter.MetaB.y;
+    uint operationOffset = emitter.UpdateOperationOffset;
+    uint operationCount = emitter.UpdateOperationCount;
 
     SOperationExecutor executor = CreateOperationExecutor(operands, constants, parameters);
 
@@ -178,11 +133,13 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
     if (kill)
     {
-        state.PositionSize = float4(position.xyz, 0.0);
-        state.VelocityAge = float4(0.0, 0.0, 0.0, 0.0);
+        state.Position = position.xyz;
+        state.Size = 0.0;
+        state.Velocity = 0.0;
+        state.Age = 0.0;
         state.Transform = float4(0.0, 0.0, 0.0, 0.0);
         state.Color = float4(0.0, 0.0, 0.0, 0.0);
-        state.Metadata.w = 0.0;
+        state.Alive = 0.0;
 
         particles[particleIndex] = state;
         return;

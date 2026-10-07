@@ -13,27 +13,36 @@ namespace Elixir::Aether::Simulation
 
     namespace
     {
-
         struct alignas(16) SParamsData
         {
             glm::vec4 Time{};
             glm::vec4 Viewport{};
         };
 
-        struct SEmitterData
+        struct alignas(16) SGPUEmitter
         {
-            glm::vec4 MetaA{};
-            glm::vec4 MetaB{};
-            glm::vec4 MetaC{};
-            glm::vec4 MetaD{};
+            uint32_t    LocalParticleOffset{};
+            uint32_t    MaxParticles{};
+            uint32_t    SpawnOperationOffset{};
+            uint32_t    SpawnOperationCount{};
+            uint32_t    UpdateOperationOffset{};
+            uint32_t    UpdateOperationCount{};
+            uint32_t    TriggerTargetOffset{};
+            uint32_t    TriggerTargetCount{};
+            uint32_t    RenderMode{};
+            float       SpawnRatePerSecond{};
+            float       GravityScale{};
+            float       BurstIntervalSeconds{};
+            uint32_t    BurstCount{};
+            uint32_t    IsTriggerDriven{};
         };
 
-        struct SParameterData
+        struct SGPUParameter
         {
             glm::vec4 Value{};
         };
 
-        struct SSystemInstanceData
+        struct SGPUSystemInstance
         {
             uint32_t ParticleBaseOffset = 0;
             uint32_t EmitterBaseOffset = 0;
@@ -55,7 +64,7 @@ namespace Elixir::Aether::Simulation
             uint32_t ParticleStateLayoutIndex = 0;
         };
 
-        struct SEmitterInstanceStateData
+        struct SGPUEmitterInstanceState
         {
             float SpawnAccumulator = 0.0f;
             float BurstAccumulator = 0.0f;
@@ -65,7 +74,7 @@ namespace Elixir::Aether::Simulation
             uint32_t Generation = 0;
         };
 
-        struct SSpawnRequestData
+        struct SGPUSpawnRequest
         {
             uint32_t SpawnCursor = 0;
             uint32_t SpawnCount = 0;
@@ -73,27 +82,27 @@ namespace Elixir::Aether::Simulation
             uint32_t Generation = 0;
         };
 
-        struct STriggerTargetData
+        struct SGPUTriggerTarget
         {
             uint32_t TargetEmitterIndex = 0;
             uint32_t BurstCount = 0;
             float DelaySeconds = 0.0f;
         };
 
-        struct STriggerEventData
+        struct SGPUTriggerEvent
         {
             float RemainingDelaySeconds = 0.0f;
             uint32_t SpawnCount = 0;
             uint32_t Generation = 0;
         };
 
-        struct STriggerQueueStateData
+        struct SGPUTriggerQueueState
         {
             uint32_t Count = 0;
             uint32_t OverflowCount = 0;
         };
 
-        struct SSystemSchedulerStateData
+        struct SGPUSystemSchedulerState
         {
             uint32_t Generation = 0;
             uint32_t ActiveTriggerBufferIndex = 0;
@@ -101,15 +110,20 @@ namespace Elixir::Aether::Simulation
         };
 
         // Mirrors one CoreV1 particle state in GPU storage.
-        struct alignas(16) SGPUParticleState
+        struct alignas(16) SGPUParticle
         {
-            glm::vec4 PositionSize{};
-            glm::vec4 VelocityAge{};
-            glm::vec4 Transform{};
-            glm::vec3 Tangent{};
-            uint32_t RibbonId = 0;
-            glm::vec4 Color{};
-            glm::vec4 Metadata{};
+            glm::vec3   Position{};
+            float       Size{};
+            glm::vec3   Velocity{};
+            float       Age{};
+            glm::vec4   Transform{};
+            glm::vec3   Tangent{};
+            uint32_t    RibbonId = 0;
+            glm::vec4   Color{};
+            uint32_t    EmitterIndex = 0;
+            uint32_t    LinkOrder = 0;
+            float       Lifetime{};
+            float       Alive{};
         };
 
         // Identifies the system instance processed by scheduler compute dispatches.
@@ -128,45 +142,31 @@ namespace Elixir::Aether::Simulation
         // Update dispatches use the same ABI as scheduler dispatches.
         using SUpdatePushConstants = SSchedulePushConstants;
 
-        SEmitterData ToEmitterData(
+        SGPUEmitter ToEmitterData(
             const SCompiledEmitter& emitter,
             uint32_t operationBaseOffset,
             uint32_t triggerTargetBaseOffset
         )
         {
-            SEmitterData desc{};
-            desc.MetaA = {
-                emitter.LocalParticleOffset,
-                emitter.MaxParticles,
-                operationBaseOffset + emitter.SpawnOperationOffset,
-                emitter.SpawnOperationCount
+            return {
+                .LocalParticleOffset = emitter.LocalParticleOffset,
+                .MaxParticles = emitter.MaxParticles,
+                .SpawnOperationOffset = operationBaseOffset + emitter.SpawnOperationOffset,
+                .SpawnOperationCount = emitter.SpawnOperationCount,
+                .UpdateOperationOffset = operationBaseOffset + emitter.UpdateOperationOffset,
+                .UpdateOperationCount = emitter.UpdateOperationCount,
+                .TriggerTargetOffset = triggerTargetBaseOffset + emitter.TriggerTargetOffset,
+                .TriggerTargetCount = emitter.TriggerTargetCount,
+                .RenderMode = uint32_t(emitter.RenderMode),
+                .SpawnRatePerSecond = emitter.SpawnRatePerSecond,
+                .GravityScale = emitter.GravityScale,
+                .BurstIntervalSeconds = emitter.BurstIntervalSeconds,
+                .BurstCount = emitter.BurstCount,
+                .IsTriggerDriven = emitter.IsTriggerDriven ? 1u : 0u,
             };
-
-            desc.MetaB = {
-                operationBaseOffset + emitter.UpdateOperationOffset,
-                emitter.UpdateOperationCount,
-                triggerTargetBaseOffset + emitter.TriggerTargetOffset,
-                emitter.TriggerTargetCount
-            };
-
-            desc.MetaC = {
-                (float)emitter.RenderMode,
-                emitter.SpawnRatePerSecond,
-                emitter.GravityScale,
-                emitter.BurstIntervalSeconds
-            };
-
-            desc.MetaD = {
-                (float)emitter.BurstCount,
-                emitter.IsTriggerDriven ? 1.0f : 0.0f,
-                0.0f,
-                0.0f
-            };
-
-            return desc;
         }
 
-        STriggerTargetData ToTriggerTargetData(const SCompiledTriggerTarget& target)
+        SGPUTriggerTarget ToTriggerTargetData(const SCompiledTriggerTarget& target)
         {
             return {
                 .TargetEmitterIndex = target.TargetEmitterIndex,
@@ -195,7 +195,7 @@ namespace Elixir::Aether::Simulation
         m_ResourcePool(m_Limits, m_ParticleStateLayouts),
         m_GraphicsContext(context)
     {
-        static_assert(sizeof(SGPUParticleState) == PARTICLE_STATE_CORE_V1_STRIDE);
+        static_assert(sizeof(SGPUParticle) == PARTICLE_STATE_CORE_V1_STRIDE);
         EE_CORE_ASSERT(context, "Aether Simulator requires a graphics context.")
         EE_CORE_ASSERT(shaderLoader, "Aether Simulator requires a shader loader.")
         EE_CORE_INFO("Initializing Aether Simulator.")
@@ -373,24 +373,24 @@ namespace Elixir::Aether::Simulation
 
         m_EmitterStateBuffer = StorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SEmitterInstanceStateData) * m_Limits.EmitterCapacity
+            sizeof(SGPUEmitterInstanceState) * m_Limits.EmitterCapacity
         );
 
         m_SpawnRequestBuffer = StorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SSpawnRequestData) * m_Limits.EmitterCapacity
+            sizeof(SGPUSpawnRequest) * m_Limits.EmitterCapacity
         );
 
         m_TriggerTargetBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(STriggerTargetData) * m_Limits.TriggerTargetCapacity
+            sizeof(SGPUTriggerTarget) * m_Limits.TriggerTargetCapacity
         );
 
         for (auto& buffer : m_TriggerEventBuffers)
         {
             buffer = StorageBuffer::Create(
                 m_GraphicsContext,
-                sizeof(STriggerEventData) *
+                sizeof(SGPUTriggerEvent) *
                     m_Limits.EmitterCapacity *
                     m_Limits.TriggerEventCapacityPerEmitter
             );
@@ -399,22 +399,22 @@ namespace Elixir::Aether::Simulation
 
         m_TriggerQueueStateBuffer = StorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(STriggerQueueStateData) * m_Limits.EmitterCapacity * 2
+            sizeof(SGPUTriggerQueueState) * m_Limits.EmitterCapacity * 2
         );
 
         m_SystemInstanceBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SSystemInstanceData) * m_Limits.MaxSystemInstances
+            sizeof(SGPUSystemInstance) * m_Limits.MaxSystemInstances
         );
 
         m_SystemSchedulerStateBuffer = StorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SSystemSchedulerStateData) * m_Limits.MaxSystemInstances
+            sizeof(SGPUSystemSchedulerState) * m_Limits.MaxSystemInstances
         );
 
         m_EmitterBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SEmitterData) * m_Limits.EmitterCapacity
+            sizeof(SGPUEmitter) * m_Limits.EmitterCapacity
         );
 
         m_OperationBuffer = DynamicStorageBuffer::Create(
@@ -434,7 +434,7 @@ namespace Elixir::Aether::Simulation
 
         m_ParameterBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SParameterData) * m_Limits.ParameterCapacity
+            sizeof(SGPUParameter) * m_Limits.ParameterCapacity
         );
 
         m_ParamsBuffer = UniformBuffer::Create(
@@ -668,7 +668,7 @@ namespace Elixir::Aether::Simulation
         const auto& system = proxy.GetCompiledSystem();
         const auto& allocation = record.Allocation;
 
-        const SSystemInstanceData data
+        const SGPUSystemInstance data
         {
             .ParticleBaseOffset = allocation.Particles.Offset,
             .EmitterBaseOffset = allocation.Emitters.Offset,
@@ -701,7 +701,7 @@ namespace Elixir::Aether::Simulation
     {
         const auto& system = proxy.GetCompiledSystem();
 
-        auto* emitters = (SEmitterData*)m_EmitterBuffer->Map();
+        auto* emitters = (SGPUEmitter*)m_EmitterBuffer->Map();
         for (uint32_t i = 0; i < allocation.Emitters.Count; ++i)
         {
             emitters[allocation.Emitters.Offset + i] = ToEmitterData(
@@ -736,7 +736,7 @@ namespace Elixir::Aether::Simulation
 
         UploadInstanceParameters(proxy, allocation);
 
-        auto* targets = (STriggerTargetData*)m_TriggerTargetBuffer->Map();
+        auto* targets = (SGPUTriggerTarget*)m_TriggerTargetBuffer->Map();
         for (uint32_t i = 0; i < allocation.TriggerTargets.Count; ++i)
             targets[allocation.TriggerTargets.Offset + i] =
                 ToTriggerTargetData(system.TriggerTargets[i]);
@@ -747,7 +747,7 @@ namespace Elixir::Aether::Simulation
         const SSystemInstanceAllocation& allocation
     ) const
     {
-        auto* parameters = (SParameterData*)m_ParameterBuffer->Map();
+        auto* parameters = (SGPUParameter*)m_ParameterBuffer->Map();
         for (uint32_t i = 0; i < allocation.Parameters.Count; ++i)
             parameters[allocation.Parameters.Offset + i].Value =
                 proxy.GetParameterValue(i);

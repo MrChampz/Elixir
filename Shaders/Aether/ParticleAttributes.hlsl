@@ -53,17 +53,17 @@ AttributeTable EmptyAttributeTable()
     return attributes;
 }
 
-AttributeTable LoadAttributes(ParticleState state)
+AttributeTable LoadAttributes(SGPUParticle state)
 {
     AttributeTable table;
-    table.Position = float4(state.PositionSize.xyz, state.Metadata.w);
+    table.Position = float4(state.Position, state.Alive);
     table.Rotation = float4(state.Transform.x, 0.0, 0.0, 0.0);
     table.Scale = float4(state.Transform.y, 0.0, 0.0, 0.0);
-    table.Velocity = float4(state.VelocityAge.xyz, 0.0);
+    table.Velocity = float4(state.Velocity, 0.0);
     table.Tangent = float4(state.Tangent, 0.0);
     table.Color = state.Color;
-    table.Size = float4(state.PositionSize.w, 0.0, 0.0, 0.0);
-    table.Lifetime = float4(state.Metadata.z, state.VelocityAge.w, 0.0, 0.0);
+    table.Size = float4(state.Size, 0.0, 0.0, 0.0);
+    table.Lifetime = float4(state.Lifetime, state.Age, 0.0, 0.0);
     table.RibbonId = state.RibbonId;
     table.Temp0 = 0.0;
     table.Temp1 = 0.0;
@@ -73,15 +73,18 @@ AttributeTable LoadAttributes(ParticleState state)
     return table;
 }
 
-ParticleState StoreAttributes(ParticleState state, AttributeTable table, float age)
+SGPUParticle StoreAttributes(SGPUParticle state, AttributeTable table, float age)
 {
-    state.PositionSize = float4(table.Position.xyz, table.Size.x);
-    state.VelocityAge = float4(table.Velocity.xyz, age);
+    state.Position = table.Position.xyz;
+    state.Size = table.Size.x;
+    state.Velocity = table.Velocity.xyz;
+    state.Age = age;
     state.Transform = float4(table.Rotation.x, table.Scale.x, 0.0, 0.0);
     state.Tangent = table.Tangent.xyz;
     state.RibbonId = table.RibbonId;
     state.Color = table.Color;
-    state.Metadata = float4(state.Metadata.xy, table.Lifetime.x, table.Position.w);
+    state.Lifetime = table.Lifetime.x;
+    state.Alive = table.Position.w;
     return state;
 }
 
