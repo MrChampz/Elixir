@@ -17,7 +17,6 @@ void AddWithDelta(inout SOperationExecutor executor, inout SOperationExecutorCon
         executor.Reader.Operation.Target,
         value
     );
-
 }
 
 #endif

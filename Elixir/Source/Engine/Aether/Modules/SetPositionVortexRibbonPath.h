@@ -33,17 +33,21 @@ namespace Elixir::Aether::Modules
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit(Core::EParticleOp::SetPositionVortexRibbonPath, Core::EParticleAttribute::Position, {
-                context.Vector(m_Center),
-                context.Scalar(m_OrbitSpeed),
-                context.Scalar(m_BaseRadius),
-                context.Scalar(m_RadiusAmplitude),
-                context.Scalar(m_RadiusSpeed),
-                context.Scalar(m_PulseAmplitude),
-                context.Scalar(m_PulseSpeed),
-                context.Scalar(m_CurlAmplitude),
-                context.Scalar(m_DepthAmplitude)
-            });
+            context.Emit(
+                EOperationType::SetPositionVortexRibbonPath,
+                EParticleAttribute::Position,
+                {
+                    context.Vector(m_Center),
+                    context.Scalar(m_OrbitSpeed),
+                    context.Scalar(m_BaseRadius),
+                    context.Scalar(m_RadiusAmplitude),
+                    context.Scalar(m_RadiusSpeed),
+                    context.Scalar(m_PulseAmplitude),
+                    context.Scalar(m_PulseSpeed),
+                    context.Scalar(m_CurlAmplitude),
+                    context.Scalar(m_DepthAmplitude)
+                }
+            );
         }
 
         /** @brief Returns the configured center. */

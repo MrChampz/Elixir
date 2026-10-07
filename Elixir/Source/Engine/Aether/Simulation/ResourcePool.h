@@ -85,7 +85,7 @@ namespace Elixir::Aether::Core
             UUID SourceId;
             uint64_t CompilationRevision;
             uint32_t ReferenceCount;
-            SBufferRange Ops;
+            SBufferRange Operations;
             SBufferRange Operands;
             SBufferRange Constants;
         };
@@ -107,7 +107,7 @@ namespace Elixir::Aether::Core
         std::vector<uint32_t> m_InstanceGenerations;
 
         std::vector<SBufferRange> m_FreeEmitters;
-        std::vector<SBufferRange> m_FreeOps;
+        std::vector<SBufferRange> m_FreeOperations;
         std::vector<SBufferRange> m_FreeOperands;
         std::vector<SBufferRange> m_FreeConstants;
         std::vector<SBufferRange> m_FreeParameters;

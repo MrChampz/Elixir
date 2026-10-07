@@ -10,14 +10,12 @@ void SetRibbonIdFromSpawnOrder(inout SOperationExecutor executor, inout SOperati
     uint ribbonCount = max(1u, executor.Reader.ReadUInt(SetRibbonIdFromSpawnOrder_RibbonCount));
     uint firstRibbonId = executor.Reader.ReadUInt(SetRibbonIdFromSpawnOrder_FirstRibbonId);
     uint ribbonId = firstRibbonId + (context.EmissionIndex % ribbonCount);
-    float4 ribbonValue = float4(float(ribbonId), 0.0, 0.0, 0.0);
 
     SetAttribute(
         context.Attributes,
         executor.Reader.Operation.Target,
-        ribbonValue
+        ribbonId
     );
-
 }
 
 #endif

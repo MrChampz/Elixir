@@ -5,10 +5,36 @@
 
 namespace Elixir::Aether::Core
 {
+    /** @brief Identifies the GPU operation executed by a particle instruction. */
+    enum class EOperationType : uint32_t
+    {
+        SetLiteral = 0,
+        RandomRange = 1,
+        SampleDisk = 2,
+        SampleCone = 3,
+        SampleBox = 4,
+        AddWithDelta = 5,
+        Dampen = 6,
+        LerpOverLife = 7,
+        KillOutsideBounds = 8,
+        AddFromAttribute = 9,
+        SetPositionOnCircle = 10,
+        SetPositionCircularPath = 11,
+        SetPositionVortexRibbonPath = 12,
+        SetRibbonIdFromSpawnOrder = 13,
+        SampleCurve = 14,
+        SampleColorCurve = 15,
+        Add = 16,
+        Mul = 17,
+        Clamp = 18,
+        CopyFromAttribute = 19,
+        ApplyVortex = 20,
+    };
+    
     /** @brief Stores the fixed 16-byte header of a compiled particle instruction. */
     struct SOperation
     {
-        EParticleOp Type = EParticleOp::SetLiteral;
+        EOperationType Type = EOperationType::SetLiteral;
         EParticleAttribute Target = EParticleAttribute::None;
 
         /** First word in the program's operand table. */
@@ -21,7 +47,7 @@ namespace Elixir::Aether::Core
     /** @brief Stores compiled instructions, references, and packed literal words. */
     struct SCompiledOperations
     {
-        std::vector<SOperation> Ops;
+        std::vector<SOperation> Operations;
 
         /** @brief Four-byte source references addressed by each instruction. */
         std::vector<uint32_t> Operands;

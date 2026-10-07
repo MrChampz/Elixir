@@ -4,7 +4,7 @@
 
 #include <utility>
 
-#include <Engine/Aether/Modules/DynamicInput.h>
+#include <Engine/Aether/Core/DynamicInput.h>
 #include <Engine/Aether/Modules/Module.h>
 #include <Engine/Aether/Effect/ModuleParseContext.h>
 
@@ -23,27 +23,58 @@ namespace Elixir::Aether::Modules
         {
             if (!m_CurveName.empty())
             {
-                context.Emit(Core::EParticleOp::SampleCurve, Core::EParticleAttribute::Temp0, {
-                    context.Curve(m_CurveName),
-                    context.Dynamic(m_CurveInput)
-                });
+                context.Emit(
+                    EOperationType::SampleCurve,
+                    EParticleAttribute::Temp0,
+                    {
+                        context.Curve(m_CurveName),
+                        context.Dynamic(m_CurveInput)
+                    }
+                );
                 const float scaleRange = m_EndScale - m_StartScale;
                 if (std::abs(scaleRange - 1.0f) > 0.0001f)
-                    context.Emit(Core::EParticleOp::Mul, Core::EParticleAttribute::Temp0, { context.Scalar(scaleRange) });
+                    context.Emit(
+                        EOperationType::Mul,
+                        EParticleAttribute::Temp0,
+                        {
+                            context.Scalar(scaleRange)
+                        }
+                    );
                 if (std::abs(m_StartScale) > 0.0001f)
-                    context.Emit(Core::EParticleOp::Add, Core::EParticleAttribute::Temp0, { context.Scalar(m_StartScale) });
-                context.Emit(Core::EParticleOp::Clamp, Core::EParticleAttribute::Temp0, { context.Value(glm::vec4(0.0f)), context.Value(glm::vec4(4.0f)) });
+                    context.Emit(
+                        EOperationType::Add,
+                        EParticleAttribute::Temp0,
+                        {
+                            context.Scalar(m_StartScale)
+                        }
+                    );
+                context.Emit(
+                    EOperationType::Clamp,
+                    EParticleAttribute::Temp0,
+                    {
+                        context.Value(glm::vec4(0.0f)),
+                        context.Value(glm::vec4(4.0f))
+                    }
+                );
 
-                context.Emit(Core::EParticleOp::CopyFromAttribute, Core::EParticleAttribute::Scale, {
-                    context.Attribute(Core::EParticleAttribute::Temp0, Core::EOperandType::Scalar)
-                });
+                context.Emit(
+                    EOperationType::CopyFromAttribute,
+                    EParticleAttribute::Scale,
+                    {
+                        context.Attribute(EParticleAttribute::Temp0, EOperandType::Scalar)
+                    }
+                );
             }
             else
             {
-                context.Emit(Core::EParticleOp::LerpOverLife, Core::EParticleAttribute::Scale, {
-                    context.Scalar(m_StartScale, m_StartScaleParamName),
-                    context.Scalar(m_EndScale, m_EndScaleParamName)
-                });
+                context.Emit(
+                    EOperationType::LerpOverLife,
+                    EParticleAttribute::Scale,
+                    {
+                        context.Scalar(m_StartScale, m_StartScaleParamName),
+                        context.Scalar(m_EndScale, m_EndScaleParamName)
+                    }
+                );
             }
         }
 

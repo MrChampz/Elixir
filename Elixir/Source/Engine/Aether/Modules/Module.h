@@ -5,10 +5,12 @@
 #include <Engine/Aether/Core/Particle.h>
 #include <Engine/Aether/Core/Operation.h>
 #include <Engine/Aether/Core/Operand.h>
-#include <Engine/Aether/Modules/DynamicInput.h>
+#include <Engine/Aether/Core/DynamicInput.h>
 
 namespace Elixir::Aether::Modules
 {
+    using namespace Elixir::Aether::Core;
+
     /** @brief Identifies the point in the particle lifetime at which a module runs. */
     enum class EModulePhase : uint8_t
     {
@@ -20,20 +22,22 @@ namespace Elixir::Aether::Modules
      *
      * The context resolves emitter-local values before system-level values. It
      * appends operations to the compiled system and does not own its inputs.
+     * Failed operand compilation logs an error and returns an invalid operand
+     * that Emit rejects.
      */
     class ELIXIR_API ModuleCompileContext final
     {
     public:
         /**
          * @brief Creates a context for one emitter compilation.
-         * @param program Destination for instructions, references, and constants.
+         * @param operations Destination for instructions, references, and constants.
          * @param parameters Compiled parameters available to the emitter.
          * @param emitterName Name used to resolve emitter-local parameters.
          * @param gravityScale Multiplier configured by the emitter.
          */
         ModuleCompileContext(
-            Core::SCompiledOperations& program,
-            const std::vector<Core::SParameter>& parameters,
+            SCompiledOperations& operations,
+            const std::vector<SParameter>& parameters,
             std::string_view emitterName,
             float gravityScale
         );
@@ -66,31 +70,42 @@ namespace Elixir::Aether::Modules
 
         /**
          * @brief Appends one operation to the compiled system.
-         * The operand count and types must match the shared operation contract.
-         * Invalid arguments throw std::invalid_argument.
+         * The operand count and types must match the operation definition.
+         * Invalid arguments are logged and leave the operation and operand tables unchanged.
          */
-        void Emit(Core::EParticleOp type, Core::EParticleAttribute target, std::initializer_list<Core::SOperand> operands);
+        void Emit(EOperationType type, EParticleAttribute target, std::initializer_list<SOperand> operands);
 
         /** @brief Compiles a scalar literal or optional named binding. */
-        Core::SOperand Scalar(float value, std::string_view parameter = "");
+        SOperand Scalar(float value, std::string_view parameter = "");
+
         /** @brief Compiles a three-component literal or optional named binding. */
-        Core::SOperand Vector(glm::vec3 value, std::string_view parameter = "");
+        SOperand Vector(glm::vec3 value, std::string_view parameter = "");
+
         /** @brief Compiles a four-component literal or optional named binding. */
-        Core::SOperand Value(glm::vec4 value, std::string_view parameter = "");
+        SOperand Value(glm::vec4 value, std::string_view parameter = "");
+
         /** @brief Compiles an unsigned integer without converting it to float. */
-        Core::SOperand UInt(uint32_t value);
+        SOperand UInt(uint32_t value);
+
         /** @brief Compiles a particle input, or the constant one for None. */
-        Core::SOperand Dynamic(EDynamicInput input);
+        SOperand Dynamic(EDynamicInput input);
+
         /** @brief Compiles an attribute read with the supplied logical type. */
-        Core::SOperand Attribute(Core::EParticleAttribute attribute, Core::EOperandType type);
+        static SOperand Attribute(EParticleAttribute attribute, EOperandType type);
+
         /** @brief Compiles a curve reference, preserving missing-curve defaults. */
-        Core::SOperand Curve(std::string_view name);
+        SOperand Curve(std::string_view name);
 
     private:
         // Interns typed literal words or resolves a named parameter binding.
-        Core::SOperand Literal(Core::EOperandType type, std::span<const uint32_t> words, std::string_view parameter);
-        Core::SCompiledOperations& m_Program;
-        const std::vector<Core::SParameter>& m_Parameters;
+        SOperand Literal(
+            EOperandType type,
+            std::span<const uint32_t> words,
+            std::string_view parameter
+        );
+
+        SCompiledOperations& m_Operations;
+        const std::vector<SParameter>& m_Parameters;
         std::string_view m_EmitterName;
         float m_GravityScale;
 

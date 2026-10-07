@@ -38,7 +38,6 @@ void ApplyVortex(inout SOperationExecutor executor, inout SOperationExecutorCont
         8u,
         tangentValue
     );
-
 }
 
 #endif

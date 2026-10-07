@@ -17,7 +17,6 @@ void Clamp(inout SOperationExecutor executor, inout SOperationExecutorContext co
         executor.Reader.Operation.Target,
         value
     );
-
 }
 
 #endif

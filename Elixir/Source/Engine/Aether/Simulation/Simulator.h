@@ -286,7 +286,7 @@ namespace Elixir::Aether::Simulation
 
         Ref<DynamicStorageBuffer> m_SystemInstanceBuffer;
         Ref<DynamicStorageBuffer> m_EmitterBuffer;
-        Ref<DynamicStorageBuffer> m_OpBuffer;
+        Ref<DynamicStorageBuffer> m_OperationBuffer;
         Ref<DynamicStorageBuffer> m_OperandBuffer;
         Ref<DynamicStorageBuffer> m_ConstantBuffer;
         Ref<DynamicStorageBuffer> m_ParameterBuffer;

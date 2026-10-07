@@ -3,7 +3,8 @@ struct ParticleState
     float4 PositionSize;    // xyz = position, w = size
     float4 VelocityAge;     // xyz = velocity, w = age
     float4 Transform;       // x = rotation, y = scale
-    float4 TangentRibbonId; // xyz = tangent, w = ribbon id
+    float3 Tangent;
+    uint RibbonId;
     float4 Color;
     float4 Metadata;        // x = emitter index, y = ribbon link order, z = lifetime, w = alive
 };
@@ -65,7 +66,7 @@ struct AttributeTable
     float4 Size;
     float4 Lifetime;
     float4 Tangent;
-    float4 RibbonId;
+    uint RibbonId;
     float4 Temp0;
     float4 Temp1;
     float4 Temp2;
@@ -121,11 +122,11 @@ AttributeTable LoadAttributes(ParticleState state)
     table.Rotation = float4(state.Transform.x, 0.0, 0.0, 0.0);
     table.Scale = float4(state.Transform.y, 0.0, 0.0, 0.0);
     table.Velocity = float4(state.VelocityAge.xyz, 0.0);
-    table.Tangent = float4(state.TangentRibbonId.xyz, 0.0);
+    table.Tangent = float4(state.Tangent, 0.0);
     table.Color = state.Color;
     table.Size = float4(state.PositionSize.w, 0.0, 0.0, 0.0);
     table.Lifetime = float4(state.Metadata.z, state.VelocityAge.w, 0.0, 0.0);
-    table.RibbonId = float4(state.TangentRibbonId.w, 0.0, 0.0, 0.0);
+    table.RibbonId = state.RibbonId;
     table.Temp0 = 0.0;
     table.Temp1 = 0.0;
     table.Temp2 = 0.0;
@@ -139,7 +140,8 @@ ParticleState StoreAttributes(ParticleState state, AttributeTable table, float a
     state.PositionSize = float4(table.Position.xyz, table.Size.x);
     state.VelocityAge = float4(table.Velocity.xyz, age);
     state.Transform = float4(table.Rotation.x, table.Scale.x, 0.0, 0.0);
-    state.TangentRibbonId = float4(table.Tangent.xyz, table.RibbonId.x);
+    state.Tangent = table.Tangent.xyz;
+    state.RibbonId = table.RibbonId;
     state.Color = table.Color;
     state.Metadata = float4(state.Metadata.xy, table.Lifetime.x, table.Position.w);
     return state;
@@ -164,7 +166,7 @@ float4 GetAttribute(AttributeTable table, uint attrId)
     if (attrId == 8u)
         return table.Tangent;
     if (attrId == 9u)
-        return table.RibbonId;
+        return float4(float(table.RibbonId), 0.0, 0.0, 0.0);
     if (attrId == 10u)
         return table.Temp0;
     if (attrId == 11u)
@@ -195,8 +197,6 @@ void SetAttribute(inout AttributeTable table, uint attrId, float4 value)
         table.Lifetime = value;
     else if (attrId == 8u)
         table.Tangent = value;
-    else if (attrId == 9u)
-        table.RibbonId = value;
     else if (attrId == 10u)
         table.Temp0 = value;
     else if (attrId == 11u)
@@ -205,6 +205,13 @@ void SetAttribute(inout AttributeTable table, uint attrId, float4 value)
         table.Temp2 = value;
     else if (attrId == 13u)
         table.Temp3 = value;
+}
+
+// Writes an unsigned integer destination without converting it to float.
+void SetAttribute(inout AttributeTable table, uint attrId, uint value)
+{
+    if (attrId == 9u)
+        table.RibbonId = value;
 }
 
 

@@ -52,7 +52,6 @@ void SampleCone(inout SOperationExecutor executor, inout SOperationExecutorConte
         8u,
         tangentValue
     );
-
 }
 
 #endif

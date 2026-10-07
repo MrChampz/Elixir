@@ -3,24 +3,30 @@
 #include "OperationDefinition.h"
 #include <array>
 
-namespace Elixir::Aether::Core::Inputs
-{
-    /** @brief Position of the Value argument for AddWithDelta. */
-    inline constexpr uint32_t AddWithDelta_Value = 0;
-    /** @brief Position of the Multiplier argument for AddWithDelta. */
-    inline constexpr uint32_t AddWithDelta_Multiplier = 1;
-}
-
 namespace Elixir::Aether::Core::Operations::AddWithDelta
 {
+    namespace Inputs
+    {
+        /** @brief Position of the Value argument for AddWithDelta. */
+        inline constexpr uint32_t Value = 0;
+
+        /** @brief Position of the Multiplier argument for AddWithDelta. */
+        inline constexpr uint32_t Multiplier = 1;
+    }
+
     /** @brief Returns the input definition and destination rules for AddWithDelta. */
     inline const SOperationDefinition& GetDefinition()
     {
-        static const std::array Inputs{ EOperandType::Target, EOperandType::Scalar };
-        static const SOperationDefinition Definition{
-            EParticleOp::AddWithDelta, Inputs, false,
-            false, true
+        static constexpr std::array inputs{
+            EOperandType::Target,
+            EOperandType::Scalar
         };
-        return Definition;
+        static constexpr SOperationDefinition definition{
+            EOperationType::AddWithDelta,
+            inputs,
+            false,
+            true
+        };
+        return definition;
     }
 }

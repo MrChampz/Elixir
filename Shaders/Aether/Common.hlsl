@@ -14,9 +14,9 @@ bool IsAlive(ParticleState particle)
         particle.PositionSize.w > 0.0001;
 }
 
-bool SameRibbon(float a, float b)
+bool SameRibbon(uint a, uint b)
 {
-    return abs(a - b) < 0.5;
+    return a == b;
 }
 
 uint LinkOrder(ParticleState particle)
@@ -51,7 +51,7 @@ bool TryBuildSegment(
     if (!IsAlive(startParticle))
         return false;
 
-    float ribbonId      = startParticle.TangentRibbonId.w;
+    uint ribbonId       = startParticle.RibbonId;
     uint startLinkOrder = LinkOrder(startParticle);
     uint bestLinkDelta  = 0xFFFFFFFFu; // UINT_MAX
     bool  found         = false;
@@ -71,7 +71,7 @@ bool TryBuildSegment(
         // subtraction would wrap around to a near-UINT_MAX value and falsely pass
         // the range check, connecting the ribbon start to stale/old-cycle particles.
         if (!IsAlive(candidate) ||
-            !SameRibbon(candidate.TangentRibbonId.w, ribbonId) ||
+            !SameRibbon(candidate.RibbonId, ribbonId) ||
             candidateLinkOrder <= startLinkOrder)
             continue;
 
@@ -96,7 +96,7 @@ float3 BuildSegmentSide(
 )
 {
     float3 tangentFallback = SafeNormalize(
-        startParticle.TangentRibbonId.xyz + endParticle.TangentRibbonId.xyz,
+        startParticle.Tangent + endParticle.Tangent,
         float3(1.0, 0.0, 0.0)
     );
 
@@ -122,7 +122,7 @@ float3 BuildDirectionSide(float3 viewDirection, float3 direction, float3 referen
 
 float3 BuildParticleSide(ParticleState particle, float3 referenceSide)
 {
-    float3 tangentFallback = SafeNormalize(particle.TangentRibbonId.xyz, float3(1.0, 0.0, 0.0));
+    float3 tangentFallback = SafeNormalize(particle.Tangent, float3(1.0, 0.0, 0.0));
     float3 viewDirection = SafeNormalize(CameraPos - particle.PositionSize.xyz, float3(0.0, 0.0, 1.0));
     return BuildDirectionSide(viewDirection, tangentFallback, referenceSide);
 }

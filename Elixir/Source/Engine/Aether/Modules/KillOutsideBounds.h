@@ -16,10 +16,14 @@ namespace Elixir::Aether::Modules
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit(Core::EParticleOp::KillOutsideBounds, Core::EParticleAttribute::Position, {
-                context.Vector(m_Min),
-                context.Vector(m_Max)
-            });
+            context.Emit(
+                EOperationType::KillOutsideBounds,
+                EParticleAttribute::Position,
+                {
+                    context.Vector(m_Min),
+                    context.Vector(m_Max)
+                }
+            );
         }
 
         /** @brief Returns the configured min. */

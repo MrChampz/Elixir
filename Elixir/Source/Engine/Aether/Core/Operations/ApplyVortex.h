@@ -3,28 +3,38 @@
 #include "OperationDefinition.h"
 #include <array>
 
-namespace Elixir::Aether::Core::Inputs
-{
-    /** @brief Position of the Center argument for ApplyVortex. */
-    inline constexpr uint32_t ApplyVortex_Center = 0;
-    /** @brief Position of the Normal argument for ApplyVortex. */
-    inline constexpr uint32_t ApplyVortex_Normal = 1;
-    /** @brief Position of the Tangential argument for ApplyVortex. */
-    inline constexpr uint32_t ApplyVortex_Tangential = 2;
-    /** @brief Position of the Radial argument for ApplyVortex. */
-    inline constexpr uint32_t ApplyVortex_Radial = 3;
-}
-
 namespace Elixir::Aether::Core::Operations::ApplyVortex
 {
+    namespace Inputs
+    {
+        /** @brief Position of the Center argument for ApplyVortex. */
+        inline constexpr uint32_t Center = 0;
+
+        /** @brief Position of the Normal argument for ApplyVortex. */
+        inline constexpr uint32_t Normal = 1;
+
+        /** @brief Position of the Tangential argument for ApplyVortex. */
+        inline constexpr uint32_t Tangential = 2;
+
+        /** @brief Position of the Radial argument for ApplyVortex. */
+        inline constexpr uint32_t Radial = 3;
+    }
+
     /** @brief Returns the input definition and destination rules for ApplyVortex. */
     inline const SOperationDefinition& GetDefinition()
     {
-        static const std::array Inputs{ EOperandType::Vector3, EOperandType::Vector3, EOperandType::Scalar, EOperandType::Scalar };
-        static const SOperationDefinition Definition{
-            EParticleOp::ApplyVortex, Inputs, false,
-            false, true
+        static constexpr std::array inputs{
+            EOperandType::Vector3,
+            EOperandType::Vector3,
+            EOperandType::Scalar,
+            EOperandType::Scalar
         };
-        return Definition;
+        static constexpr SOperationDefinition definition{
+            EOperationType::ApplyVortex,
+            inputs,
+            false,
+            true
+        };
+        return definition;
     }
 }

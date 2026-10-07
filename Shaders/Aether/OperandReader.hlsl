@@ -61,7 +61,6 @@ struct SOperandReader
             case 3u:  return Attributes.Scale.x;
             case 6u:  return Attributes.Size.x;
             case 7u:  return Attributes.Lifetime.x;
-            case 9u:  return Attributes.RibbonId.x;
             case 10u: return Attributes.Temp0.x;
             case 11u: return Attributes.Temp1.x;
             case 12u: return Attributes.Temp2.x;
@@ -156,6 +155,8 @@ struct SOperandReader
 
         if ((reference >> 29) == OperandSource_ImmediateUInt)
             return index;
+        if ((reference >> 29) == OperandSource_ParticleAttribute && index == 9u)
+            return Attributes.RibbonId;
 
         return Constants.Load((Instance.ConstantBaseOffset + index) * 4u);
     }

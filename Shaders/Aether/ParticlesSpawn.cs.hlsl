@@ -3,7 +3,8 @@ struct ParticleState
     float4 PositionSize;    // xyz = position, w = size
     float4 VelocityAge;     // xyz = velocity, w = age
     float4 Transform;       // x = rotation, y = scale
-    float4 TangentRibbonId; // xyz = tangent, w = ribbon id
+    float3 Tangent;
+    uint   RibbonId;
     float4 Color;
     float4 Metadata;        // x = emitter index, y = ribbon link order, z = lifetime, w = alive
 };
@@ -76,7 +77,7 @@ struct AttributeTable
     float4 Size;
     float4 Lifetime;
     float4 Tangent;
-    float4 RibbonId;
+    uint   RibbonId;
     float4 Temp0;
     float4 Temp1;
     float4 Temp2;
@@ -147,7 +148,7 @@ float4 GetAttribute(AttributeTable table, uint attrId)
     if (attrId == 8u)
         return table.Tangent;
     if (attrId == 9u)
-        return table.RibbonId;
+        return float4(float(table.RibbonId), 0.0, 0.0, 0.0);
     if (attrId == 10u)
         return table.Temp0;
     if (attrId == 11u)
@@ -178,8 +179,6 @@ void SetAttribute(inout AttributeTable table, uint attrId, float4 value)
         table.Lifetime = value;
     else if (attrId == 8u)
         table.Tangent = value;
-    else if (attrId == 9u)
-        table.RibbonId = value;
     else if (attrId == 10u)
         table.Temp0 = value;
     else if (attrId == 11u)
@@ -188,6 +187,13 @@ void SetAttribute(inout AttributeTable table, uint attrId, float4 value)
         table.Temp2 = value;
     else if (attrId == 13u)
         table.Temp3 = value;
+}
+
+// Writes an unsigned integer destination without converting it to float.
+void SetAttribute(inout AttributeTable table, uint attrId, uint value)
+{
+    if (attrId == 9u)
+        table.RibbonId = value;
 }
 
 
@@ -252,7 +258,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     attributes.Size = float4(6.0, 0.0, 0.0, 0.0);
     attributes.Lifetime = float4(1.0, 0.0, 0.0, 0.0);
     attributes.Tangent = float4(1.0, 0.0, 0.0, 0.0);
-    attributes.RibbonId = 0.0;
+    attributes.RibbonId = 0u;
     attributes.Temp0 = 0.0;
     attributes.Temp1 = 0.0;
     attributes.Temp2 = 0.0;
@@ -285,7 +291,8 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     particles[globalIndex].PositionSize = float4(GetAttribute(attributes, 1u).xyz, GetAttribute(attributes, 6u).x);
     particles[globalIndex].VelocityAge = float4(GetAttribute(attributes, 4u).xyz, 0.0);
     particles[globalIndex].Transform = float4(GetAttribute(attributes, 2u).x, GetAttribute(attributes, 3u).x, 0.0, 0.0);
-    particles[globalIndex].TangentRibbonId = float4(GetAttribute(attributes, 8u).xyz, GetAttribute(attributes, 9u).x);
+    particles[globalIndex].Tangent = GetAttribute(attributes, 8u).xyz;
+    particles[globalIndex].RibbonId = attributes.RibbonId;
     particles[globalIndex].Color = GetAttribute(attributes, 5u);
     particles[globalIndex].Metadata = float4(
         float(pc.EmitterIndex),

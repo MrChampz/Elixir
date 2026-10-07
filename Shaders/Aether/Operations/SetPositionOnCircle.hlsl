@@ -41,7 +41,6 @@ void SetPositionOnCircle(inout SOperationExecutor executor, inout SOperationExec
         4u,
         velocityValue
     );
-
 }
 
 #endif

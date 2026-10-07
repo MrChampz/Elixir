@@ -8,7 +8,7 @@
 #include <magic_enum/magic_enum.hpp>
 #include <simdjson.h>
 
-#include <Engine/Aether/Modules/DynamicInput.h>
+#include <Engine/Aether/Core/DynamicInput.h>
 #include <Engine/Aether/Modules/Module.h>
 
 namespace Elixir::Aether::Effect
@@ -293,9 +293,9 @@ namespace Elixir::Aether::Effect
         /* Enums */
 
         /** @brief Reads a dynamic input name, using None when absent. */
-        Modules::EDynamicInput ParseDynamicInput(simdjson::ondemand::object& object, std::string_view key)
+        Core::EDynamicInput ParseDynamicInput(simdjson::ondemand::object& object, std::string_view key)
         {
-            constexpr auto result = Modules::EDynamicInput::None;
+            constexpr auto result = Core::EDynamicInput::None;
 
             if (Failed() || !HasField(object, key))
                 return result;
@@ -303,7 +303,7 @@ namespace Elixir::Aether::Effect
             const std::string value = RequireString(object, key);
             if (Failed()) return result;
 
-            if (const auto input = magic_enum::enum_cast<Modules::EDynamicInput>(value))
+            if (const auto input = magic_enum::enum_cast<Core::EDynamicInput>(value))
                 return *input;
 
             Fail("Unknown dynamic input '{}'.", value);

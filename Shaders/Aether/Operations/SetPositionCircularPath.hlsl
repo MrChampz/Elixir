@@ -55,7 +55,6 @@ void SetPositionCircularPath(inout SOperationExecutor executor, inout SOperation
         8u,
         tangentValue
     );
-
 }
 
 #endif

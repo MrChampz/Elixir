@@ -2,7 +2,7 @@
 
 #include <utility>
 
-#include <Engine/Aether/Modules/DynamicInput.h>
+#include <Engine/Aether/Core/DynamicInput.h>
 #include <Engine/Aether/Modules/Module.h>
 #include <Engine/Aether/Effect/ModuleParseContext.h>
 
@@ -21,20 +21,32 @@ namespace Elixir::Aether::Modules
         {
             if (!m_CurveName.empty())
             {
-                context.Emit(Core::EParticleOp::SampleColorCurve, Core::EParticleAttribute::Temp0, {
-                    context.Curve(m_CurveName),
-                    context.Dynamic(m_CurveInput)
-                });
-                context.Emit(Core::EParticleOp::CopyFromAttribute, Core::EParticleAttribute::Color, {
-                    context.Attribute(Core::EParticleAttribute::Temp0, Core::EOperandType::Vector4)
-                });
+                context.Emit(
+                    EOperationType::SampleColorCurve,
+                    EParticleAttribute::Temp0,
+                    {
+                        context.Curve(m_CurveName),
+                        context.Dynamic(m_CurveInput)
+                    }
+                );
+                context.Emit(
+                    EOperationType::CopyFromAttribute,
+                    EParticleAttribute::Color,
+                    {
+                        context.Attribute(EParticleAttribute::Temp0, EOperandType::Vector4)
+                    }
+                );
             }
             else
             {
-                context.Emit(Core::EParticleOp::LerpOverLife, Core::EParticleAttribute::Color, {
-                    context.Value(m_StartColor, m_StartColorParamName),
-                    context.Value(m_EndColor, m_EndColorParamName)
-                });
+                context.Emit(
+                    EOperationType::LerpOverLife,
+                    EParticleAttribute::Color,
+                    {
+                        context.Value(m_StartColor, m_StartColorParamName),
+                        context.Value(m_EndColor, m_EndColorParamName)
+                    }
+                );
             }
         }
 

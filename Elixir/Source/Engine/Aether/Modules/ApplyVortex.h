@@ -25,12 +25,16 @@ namespace Elixir::Aether::Modules
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit(Core::EParticleOp::ApplyVortex, Core::EParticleAttribute::Velocity, {
-                context.Vector(m_Center, m_CenterParamName),
-                context.Vector(m_Normal, m_NormalParamName),
-                context.Scalar(m_TangentialStrength, m_TangentialParamName),
-                context.Scalar(m_RadialStrength, m_RadialParamName)
-            });
+            context.Emit(
+                EOperationType::ApplyVortex,
+                EParticleAttribute::Velocity,
+                {
+                    context.Vector(m_Center, m_CenterParamName),
+                    context.Vector(m_Normal, m_NormalParamName),
+                    context.Scalar(m_TangentialStrength, m_TangentialParamName),
+                    context.Scalar(m_RadialStrength, m_RadialParamName)
+                }
+            );
         }
 
         /** @brief Binds named parameters to the configured values and returns this module. */

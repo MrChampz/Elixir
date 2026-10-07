@@ -16,7 +16,6 @@ void AddFromAttribute(inout SOperationExecutor executor, inout SOperationExecuto
         executor.Reader.Operation.Target,
         value
     );
-
 }
 
 #endif

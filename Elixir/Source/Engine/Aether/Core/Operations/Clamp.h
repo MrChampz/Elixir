@@ -3,24 +3,30 @@
 #include "OperationDefinition.h"
 #include <array>
 
-namespace Elixir::Aether::Core::Inputs
-{
-    /** @brief Position of the Minimum argument for Clamp. */
-    inline constexpr uint32_t Clamp_Minimum = 0;
-    /** @brief Position of the Maximum argument for Clamp. */
-    inline constexpr uint32_t Clamp_Maximum = 1;
-}
-
 namespace Elixir::Aether::Core::Operations::Clamp
 {
+    namespace Inputs
+    {
+        /** @brief Position of the Minimum argument for Clamp. */
+        inline constexpr uint32_t Minimum = 0;
+
+        /** @brief Position of the Maximum argument for Clamp. */
+        inline constexpr uint32_t Maximum = 1;
+    }
+
     /** @brief Returns the input definition and destination rules for Clamp. */
     inline const SOperationDefinition& GetDefinition()
     {
-        static const std::array Inputs{ EOperandType::Target, EOperandType::Target };
-        static const SOperationDefinition Definition{
-            EParticleOp::Clamp, Inputs, false,
-            false, true
+        static constexpr std::array inputs{
+            EOperandType::Target,
+            EOperandType::Target
         };
-        return Definition;
+        static constexpr SOperationDefinition definition{
+            EOperationType::Clamp,
+            inputs,
+            false,
+            true
+        };
+        return definition;
     }
 }

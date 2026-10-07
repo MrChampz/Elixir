@@ -16,7 +16,6 @@ void LerpOverLife(inout SOperationExecutor executor, inout SOperationExecutorCon
         executor.Reader.Operation.Target,
         value
     );
-
 }
 
 #endif

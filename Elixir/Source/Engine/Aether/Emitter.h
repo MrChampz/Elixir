@@ -57,10 +57,10 @@ namespace Elixir::Aether
         uint32_t LocalParticleOffset = 0;
 
         uint32_t MaxParticles = 0u;
-        uint32_t SpawnOpOffset = 0u;
-        uint32_t SpawnOpCount = 0u;
-        uint32_t UpdateOpOffset = 0u;
-        uint32_t UpdateOpCount = 0u;
+        uint32_t SpawnOperationOffset = 0u;
+        uint32_t SpawnOperationCount = 0u;
+        uint32_t UpdateOperationOffset = 0u;
+        uint32_t UpdateOperationCount = 0u;
 
         bool operator==(const SCompiledEmitter& other) const noexcept
         {

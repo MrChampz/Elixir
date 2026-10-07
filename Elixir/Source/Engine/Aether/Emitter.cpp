@@ -46,7 +46,7 @@ namespace Elixir::Aether
         emitter.SimulationSpace = m_SimulationSpace;
         emitter.MaxParticles = m_MaxParticles;
         emitter.GravityScale = paramStore.GetFloat("GravityScale", 1.0f);
-        emitter.SpawnOpOffset = (uint32_t)program.Ops.size();
+        emitter.SpawnOperationOffset = (uint32_t)program.Operations.size();
         emitter.SpawnRatePerSecond = m_SpawnRate;
         emitter.TriggerDelaySeconds = m_TriggerDelaySeconds;
         emitter.BurstCount = m_BurstCount;
@@ -70,8 +70,8 @@ namespace Elixir::Aether
             module->Compile(context);
         }
 
-        emitter.SpawnOpCount = (uint32_t)program.Ops.size() - emitter.SpawnOpOffset;
-        emitter.UpdateOpOffset = (uint32_t)program.Ops.size();
+        emitter.SpawnOperationCount = (uint32_t)program.Operations.size() - emitter.SpawnOperationOffset;
+        emitter.UpdateOperationOffset = (uint32_t)program.Operations.size();
 
         for (const auto& module : m_Modules)
         {
@@ -81,7 +81,7 @@ namespace Elixir::Aether
             module->Compile(context);
         }
 
-        emitter.UpdateOpCount = (uint32_t)program.Ops.size() - emitter.UpdateOpOffset;
+        emitter.UpdateOperationCount = (uint32_t)program.Operations.size() - emitter.UpdateOperationOffset;
 
         return emitter;
     }

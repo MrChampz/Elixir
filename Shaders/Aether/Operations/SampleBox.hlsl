@@ -23,7 +23,6 @@ void SampleBox(inout SOperationExecutor executor, inout SOperationExecutorContex
         executor.Reader.Operation.Target,
         positionValue
     );
-
 }
 
 #endif

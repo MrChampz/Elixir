@@ -3,28 +3,38 @@
 #include "OperationDefinition.h"
 #include <array>
 
-namespace Elixir::Aether::Core::Inputs
-{
-    /** @brief Position of the BaseOffset argument for SetPositionCircularPath. */
-    inline constexpr uint32_t SetPositionCircularPath_BaseOffset = 0;
-    /** @brief Position of the TimeScale argument for SetPositionCircularPath. */
-    inline constexpr uint32_t SetPositionCircularPath_TimeScale = 1;
-    /** @brief Position of the PrimaryAmplitude argument for SetPositionCircularPath. */
-    inline constexpr uint32_t SetPositionCircularPath_PrimaryAmplitude = 2;
-    /** @brief Position of the SecondaryAmplitude argument for SetPositionCircularPath. */
-    inline constexpr uint32_t SetPositionCircularPath_SecondaryAmplitude = 3;
-}
-
 namespace Elixir::Aether::Core::Operations::SetPositionCircularPath
 {
+    namespace Inputs
+    {
+        /** @brief Position of the BaseOffset argument for SetPositionCircularPath. */
+        inline constexpr uint32_t BaseOffset = 0;
+
+        /** @brief Position of the TimeScale argument for SetPositionCircularPath. */
+        inline constexpr uint32_t TimeScale = 1;
+
+        /** @brief Position of the PrimaryAmplitude argument for SetPositionCircularPath. */
+        inline constexpr uint32_t PrimaryAmplitude = 2;
+
+        /** @brief Position of the SecondaryAmplitude argument for SetPositionCircularPath. */
+        inline constexpr uint32_t SecondaryAmplitude = 3;
+    }
+
     /** @brief Returns the input definition and destination rules for SetPositionCircularPath. */
     inline const SOperationDefinition& GetDefinition()
     {
-        static const std::array Inputs{ EOperandType::Vector3, EOperandType::Scalar, EOperandType::Vector3, EOperandType::Vector3 };
-        static const SOperationDefinition Definition{
-            EParticleOp::SetPositionCircularPath, Inputs, false,
-            true, false
+        static constexpr std::array inputs{
+            EOperandType::Vector3,
+            EOperandType::Scalar,
+            EOperandType::Vector3,
+            EOperandType::Vector3
         };
-        return Definition;
+        static constexpr SOperationDefinition definition{
+            EOperationType::SetPositionCircularPath,
+            inputs,
+            true,
+            false
+        };
+        return definition;
     }
 }

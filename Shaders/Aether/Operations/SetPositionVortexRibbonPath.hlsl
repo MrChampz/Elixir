@@ -108,7 +108,6 @@ void SetPositionVortexRibbonPath(inout SOperationExecutor executor, inout SOpera
         8u,
         tangentValue
     );
-
 }
 
 #endif

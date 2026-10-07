@@ -14,7 +14,6 @@ void Add(inout SOperationExecutor executor, inout SOperationExecutorContext cont
         executor.Reader.Operation.Target,
         value
     );
-
 }
 
 #endif

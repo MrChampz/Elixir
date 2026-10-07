@@ -16,10 +16,14 @@ namespace Elixir::Aether::Modules
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit(Core::EParticleOp::SampleBox, Core::EParticleAttribute::Position, {
-                context.Vector(m_MinBounds),
-                context.Vector(m_MaxBounds)
-            });
+            context.Emit(
+                EOperationType::SampleBox,
+                EParticleAttribute::Position,
+                {
+                    context.Vector(m_MinBounds),
+                    context.Vector(m_MaxBounds)
+                }
+            );
         }
 
         /** @brief Returns the configured minimum bounds. */

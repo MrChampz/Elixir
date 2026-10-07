@@ -15,7 +15,6 @@ void Dampen(inout SOperationExecutor executor, inout SOperationExecutorContext c
         executor.Reader.Operation.Target,
         value
     );
-
 }
 
 #endif

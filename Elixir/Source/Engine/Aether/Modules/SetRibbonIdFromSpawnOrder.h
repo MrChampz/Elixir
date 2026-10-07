@@ -19,10 +19,14 @@ namespace Elixir::Aether::Modules
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit(Core::EParticleOp::SetRibbonIdFromSpawnOrder, Core::EParticleAttribute::RibbonId, {
-                context.UInt(m_RibbonCount),
-                context.UInt(m_FirstRibbonId)
-            });
+            context.Emit(
+                EOperationType::SetRibbonIdFromSpawnOrder,
+                EParticleAttribute::RibbonId,
+                {
+                    context.UInt(m_RibbonCount),
+                    context.UInt(m_FirstRibbonId)
+                }
+            );
         }
 
         /** @brief Returns the ribbon count, which is at least one. */

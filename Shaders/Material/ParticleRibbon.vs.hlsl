@@ -5,7 +5,8 @@ struct ParticleState
     float4 PositionSize;    // xyz = position, w = size
     float4 VelocityAge;     // xyz = velocity, w = age
     float4 Transform;       // x = rotation, y = scale
-    float4 TangentRibbonId; // xyz = tangent, w = ribbon id
+    float3 Tangent;
+    uint   RibbonId;
     float4 Color;
     float4 Metadata;        // x = emitter index, y = ribbon link order, z = lifetime, w = alive
 };
@@ -73,9 +74,9 @@ bool IsAlive(ParticleState particle)
         particle.PositionSize.w > 0.0001;
 }
 
-bool SameRibbon(float a, float b)
+bool SameRibbon(uint a, uint b)
 {
-    return abs(a - b) < 0.5;
+    return a == b;
 }
 
 uint LinkOrder(ParticleState particle)
@@ -110,7 +111,7 @@ bool TryBuildSegment(
     if (!IsAlive(startParticle))
         return false;
 
-    float ribbonId      = startParticle.TangentRibbonId.w;
+    uint ribbonId       = startParticle.RibbonId;
     uint startLinkOrder = LinkOrder(startParticle);
     uint bestLinkDelta  = 0xFFFFFFFFu; // UINT_MAX
     bool  found         = false;
@@ -130,7 +131,7 @@ bool TryBuildSegment(
         // subtraction would wrap around to a near-UINT_MAX value and falsely pass
         // the range check, connecting the ribbon start to stale/old-cycle particles.
         if (!IsAlive(candidate) ||
-            !SameRibbon(candidate.TangentRibbonId.w, ribbonId) ||
+            !SameRibbon(candidate.RibbonId, ribbonId) ||
             candidateLinkOrder <= startLinkOrder)
             continue;
 
@@ -155,7 +156,7 @@ float3 BuildSegmentSide(
 )
 {
     float3 tangentFallback = SafeNormalize(
-        startParticle.TangentRibbonId.xyz + endParticle.TangentRibbonId.xyz,
+        startParticle.Tangent + endParticle.Tangent,
         float3(1.0, 0.0, 0.0)
     );
 
@@ -181,7 +182,7 @@ float3 BuildDirectionSide(float3 viewDirection, float3 direction, float3 referen
 
 float3 BuildParticleSide(ParticleState particle, float3 referenceSide)
 {
-    float3 tangentFallback = SafeNormalize(particle.TangentRibbonId.xyz, float3(1.0, 0.0, 0.0));
+    float3 tangentFallback = SafeNormalize(particle.Tangent, float3(1.0, 0.0, 0.0));
     float3 viewDirection = SafeNormalize(CameraPos - particle.PositionSize.xyz, float3(0.0, 0.0, 1.0));
     return BuildDirectionSide(viewDirection, tangentFallback, referenceSide);
 }
@@ -241,15 +242,15 @@ VSOutput main(uint vertexId : SV_VertexID)
         mul(pc.WorldTransform, float4(startParticle.PositionSize.xyz, 1.0f)).xyz;
     startParticle.VelocityAge.xyz =
         mul(worldLinearTransform, startParticle.VelocityAge.xyz);
-    startParticle.TangentRibbonId.xyz =
-        mul(worldLinearTransform, startParticle.TangentRibbonId.xyz);
+    startParticle.Tangent =
+        mul(worldLinearTransform, startParticle.Tangent);
 
     endParticle.PositionSize.xyz =
         mul(pc.WorldTransform, float4(endParticle.PositionSize.xyz, 1.0f)).xyz;
     endParticle.VelocityAge.xyz =
         mul(worldLinearTransform, endParticle.VelocityAge.xyz);
-    endParticle.TangentRibbonId.xyz =
-        mul(worldLinearTransform, endParticle.TangentRibbonId.xyz);
+    endParticle.Tangent =
+        mul(worldLinearTransform, endParticle.Tangent);
 
     float3 p0 = startParticle.PositionSize.xyz;
     float3 p1 = endParticle.PositionSize.xyz;

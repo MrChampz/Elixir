@@ -19,12 +19,16 @@ namespace Elixir::Aether::Modules
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit(Core::EParticleOp::SetPositionOnCircle, Core::EParticleAttribute::Position, {
-                context.Vector(m_Center),
-                context.Scalar(m_Radius),
-                context.Scalar(m_AngularSpeed),
-                context.Scalar(m_StartAngle)
-            });
+            context.Emit(
+                EOperationType::SetPositionOnCircle,
+                EParticleAttribute::Position,
+                {
+                    context.Vector(m_Center),
+                    context.Scalar(m_Radius),
+                    context.Scalar(m_AngularSpeed),
+                    context.Scalar(m_StartAngle)
+                }
+            );
         }
 
         /** @brief Returns the configured center. */

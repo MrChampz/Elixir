@@ -8,7 +8,8 @@
 #include <Engine/Aether/Core/Operand.h>
 #include <Engine/Aether/Effect/Effect.h>
 #include <Engine/Aether/Effect/ModuleRegistry.h>
-#include <Engine/Aether/Core/OperationInputs.h>
+#include <Engine/Aether/Core/Operations/RandomRange.h>
+#include <Engine/Aether/Core/Operations/SampleCurve.h>
 #include <Engine/Aether/Modules/ApplyAngularVelocity.h>
 #include <Engine/Aether/Modules/ApplyGravity.h>
 #include <Engine/Aether/Modules/ApplyLinearDrag.h>
@@ -31,7 +32,6 @@
 #include <Engine/Aether/Modules/SetVelocityCone.h>
 #include <Engine/Aether/Modules/SizeOverLife.h>
 
-
 using namespace Elixir;
 using namespace Elixir::Aether;
 using namespace Elixir::Aether::Modules;
@@ -48,7 +48,7 @@ namespace
         /** @brief Emits the test value as a literal operation. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit(EParticleOp::SetLiteral, EParticleAttribute::Color, { context.Value(glm::vec4(m_Value)) });
+            context.Emit(EOperationType::SetLiteral, EParticleAttribute::Color, { context.Value(glm::vec4(m_Value)) });
         }
 
         /** @brief Reads the test value from its JSON object. */
@@ -260,8 +260,8 @@ TEST(ModuleRegistryTest, CreatesScaleOverLifeFromJson)
 TEST(ModuleRegistryTest, CompilesDefaultAndExplicitCurveInputsFromJson)
 {
     const std::array modules{
-        std::pair{ "ColorOverLife", Elixir::Aether::Core::EParticleOp::SampleColorCurve },
-        std::pair{ "ScaleOverLife", Elixir::Aether::Core::EParticleOp::SampleCurve },
+        std::pair{ "ColorOverLife", Elixir::Aether::Core::EOperationType::SampleColorCurve },
+        std::pair{ "ScaleOverLife", Elixir::Aether::Core::EOperationType::SampleCurve },
     };
     const std::array inputs{
         std::pair{ "", EDynamicInput::NormalizedAge },
@@ -280,13 +280,13 @@ TEST(ModuleRegistryTest, CompilesDefaultAndExplicitCurveInputsFromJson)
             ASSERT_TRUE(module);
 
             SCompiledOperations program;
-            auto& operations = program.Ops;
+            auto& operations = program.Operations;
             const std::vector<Elixir::Aether::Core::SParameter> parameters;
             ModuleCompileContext compileContext(program, parameters, "Test", 1.0f);
             module->Compile(compileContext);
             ASSERT_FALSE(operations.empty());
             EXPECT_EQ(operations[0].Type, operation);
-            const auto operand = program.Operands[operations[0].OperandOffset + Inputs::SampleCurve_Input];
+            const auto operand = program.Operands[operations[0].OperandOffset + Operations::SampleCurve::Inputs::Input];
             if (input == EDynamicInput::None)
             {
                 EXPECT_EQ(operand >> 29, uint32_t(Core::EOperandSource::Constant));
@@ -449,7 +449,7 @@ TEST(ModuleRegistryTest, CreatesAndCompilesModulesRegisteredOutsideTheEngine)
     ASSERT_TRUE(module);
     EXPECT_EQ(module->GetPhase(), EModulePhase::Spawn);
     SCompiledOperations program;
-    auto& operations = program.Ops;
+    auto& operations = program.Operations;
     const std::vector<Elixir::Aether::Core::SParameter> parameters;
     ModuleCompileContext compileContext(program, parameters, "Test", 1.0f);
     module->Compile(compileContext);

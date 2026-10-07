@@ -3,24 +3,30 @@
 #include "OperationDefinition.h"
 #include <array>
 
-namespace Elixir::Aether::Core::Inputs
-{
-    /** @brief Position of the RibbonCount argument for SetRibbonIdFromSpawnOrder. */
-    inline constexpr uint32_t SetRibbonIdFromSpawnOrder_RibbonCount = 0;
-    /** @brief Position of the FirstRibbonId argument for SetRibbonIdFromSpawnOrder. */
-    inline constexpr uint32_t SetRibbonIdFromSpawnOrder_FirstRibbonId = 1;
-}
-
 namespace Elixir::Aether::Core::Operations::SetRibbonIdFromSpawnOrder
 {
+    namespace Inputs
+    {
+        /** @brief Position of the RibbonCount argument for SetRibbonIdFromSpawnOrder. */
+        inline constexpr uint32_t RibbonCount = 0;
+
+        /** @brief Position of the FirstRibbonId argument for SetRibbonIdFromSpawnOrder. */
+        inline constexpr uint32_t FirstRibbonId = 1;
+    }
+
     /** @brief Returns the input definition and destination rules for SetRibbonIdFromSpawnOrder. */
     inline const SOperationDefinition& GetDefinition()
     {
-        static const std::array Inputs{ EOperandType::UInt, EOperandType::UInt };
-        static const SOperationDefinition Definition{
-            EParticleOp::SetRibbonIdFromSpawnOrder, Inputs, false,
-            true, false
+        static constexpr std::array inputs{
+            EOperandType::UInt,
+            EOperandType::UInt
         };
-        return Definition;
+        static constexpr SOperationDefinition definition{
+            EOperationType::SetRibbonIdFromSpawnOrder,
+            inputs,
+            true,
+            false
+        };
+        return definition;
     }
 }

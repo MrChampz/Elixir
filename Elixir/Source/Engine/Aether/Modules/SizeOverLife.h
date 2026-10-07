@@ -18,10 +18,14 @@ namespace Elixir::Aether::Modules
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit(Core::EParticleOp::LerpOverLife, Core::EParticleAttribute::Size, {
-                context.Scalar(m_StartSize, m_StartSizeParamName),
-                context.Scalar(m_EndSize, m_EndSizeParamName)
-            });
+            context.Emit(
+                EOperationType::LerpOverLife,
+                EParticleAttribute::Size,
+                {
+                    context.Scalar(m_StartSize, m_StartSizeParamName),
+                    context.Scalar(m_EndSize, m_EndSizeParamName)
+                }
+            );
         }
 
         /** @brief Binds named parameters to the configured values and returns this module. */

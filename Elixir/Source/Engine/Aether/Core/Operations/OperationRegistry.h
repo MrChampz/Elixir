@@ -1,33 +1,33 @@
 #pragma once
 
-#include "SetLiteral.h"
-#include "RandomRange.h"
-#include "SampleDisk.h"
-#include "SampleCone.h"
-#include "SampleBox.h"
-#include "AddWithDelta.h"
-#include "Dampen.h"
-#include "LerpOverLife.h"
-#include "KillOutsideBounds.h"
-#include "AddFromAttribute.h"
-#include "SetPositionOnCircle.h"
-#include "SetPositionCircularPath.h"
-#include "SetPositionVortexRibbonPath.h"
-#include "SetRibbonIdFromSpawnOrder.h"
-#include "SampleCurve.h"
-#include "SampleColorCurve.h"
-#include "Add.h"
-#include "Mul.h"
-#include "Clamp.h"
-#include "CopyFromAttribute.h"
-#include "ApplyVortex.h"
+#include <Engine/Aether/Core/Operations/SetLiteral.h>
+#include <Engine/Aether/Core/Operations/RandomRange.h>
+#include <Engine/Aether/Core/Operations/SampleDisk.h>
+#include <Engine/Aether/Core/Operations/SampleCone.h>
+#include <Engine/Aether/Core/Operations/SampleBox.h>
+#include <Engine/Aether/Core/Operations/AddWithDelta.h>
+#include <Engine/Aether/Core/Operations/Dampen.h>
+#include <Engine/Aether/Core/Operations/LerpOverLife.h>
+#include <Engine/Aether/Core/Operations/KillOutsideBounds.h>
+#include <Engine/Aether/Core/Operations/AddFromAttribute.h>
+#include <Engine/Aether/Core/Operations/SetPositionOnCircle.h>
+#include <Engine/Aether/Core/Operations/SetPositionCircularPath.h>
+#include <Engine/Aether/Core/Operations/SetPositionVortexRibbonPath.h>
+#include <Engine/Aether/Core/Operations/SetRibbonIdFromSpawnOrder.h>
+#include <Engine/Aether/Core/Operations/SampleCurve.h>
+#include <Engine/Aether/Core/Operations/SampleColorCurve.h>
+#include <Engine/Aether/Core/Operations/Add.h>
+#include <Engine/Aether/Core/Operations/Mul.h>
+#include <Engine/Aether/Core/Operations/Clamp.h>
+#include <Engine/Aether/Core/Operations/CopyFromAttribute.h>
+#include <Engine/Aether/Core/Operations/ApplyVortex.h>
 
 namespace Elixir::Aether::Core
 {
     /** @brief Returns all operation definitions registered by the runtime. */
     inline std::span<const SOperationDefinition* const> GetOperationDefinitions()
     {
-        static const std::array Definitions{
+        static const std::array definitions{
             &Operations::SetLiteral::GetDefinition(),
             &Operations::RandomRange::GetDefinition(),
             &Operations::SampleDisk::GetDefinition(),
@@ -50,14 +50,16 @@ namespace Elixir::Aether::Core
             &Operations::CopyFromAttribute::GetDefinition(),
             &Operations::ApplyVortex::GetDefinition()
         };
-        return Definitions;
+
+        return definitions;
     }
 
     /** @brief Returns the definition, or nullptr when the operation is unknown. */
-    inline const SOperationDefinition* FindOperationDefinition(EParticleOp type)
+    inline const SOperationDefinition* FindOperationDefinition(const EOperationType type)
     {
         for (const auto* definition : GetOperationDefinitions())
             if (definition->Type == type) return definition;
+
         return nullptr;
     }
 }

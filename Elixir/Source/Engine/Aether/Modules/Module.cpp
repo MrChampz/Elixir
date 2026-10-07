@@ -5,19 +5,32 @@
 #include <Engine/Aether/Core/Operations/OperationRegistry.h>
 
 #include <bit>
-#include <stdexcept>
 #include <algorithm>
 
 namespace Elixir::Aether::Modules
 {
+    namespace
+    {
+        // Packs a reference without silently truncating its index.
+        uint32_t Encode(EOperandSource source, const uint32_t index)
+        {
+            if (index > OperandIndexMask)
+            {
+                EE_CORE_ERROR("Particle operand index exceeds 29 bits.");
+                return UINT32_MAX;
+            }
+            return (uint32_t(source) << 29) | index;
+        }
+    }
+    
     /* ModuleCompileContext */
 
     ModuleCompileContext::ModuleCompileContext(
-        Core::SCompiledOperations& program,
-        const std::vector<Core::SParameter>& parameters,
+        SCompiledOperations& operations,
+        const std::vector<SParameter>& parameters,
         const std::string_view emitterName,
         const float gravityScale
-    ) : m_Program(program),
+    ) : m_Operations(operations),
         m_Parameters(parameters),
         m_EmitterName(emitterName),
         m_GravityScale(gravityScale) {}
@@ -25,7 +38,7 @@ namespace Elixir::Aether::Modules
     uint32_t ModuleCompileContext::FindParameter(const std::string_view name) const
     {
         if (name.empty()) return UINT32_MAX;
-        return Core::FindScopedParameterIndex(
+        return FindScopedParameterIndex(
             m_Parameters,
             std::string(m_EmitterName),
             std::string(name)
@@ -35,159 +48,242 @@ namespace Elixir::Aether::Modules
     uint32_t ModuleCompileContext::FindCurve(const std::string_view name) const
     {
         if (name.empty()) return UINT32_MAX;
-        return Core::FindCurveParameterIndex(
+        return FindCurveParameterIndex(
             m_Parameters,
             std::string(m_EmitterName),
             std::string(name)
         );
     }
 
-    namespace
-    {
-        // Packs a reference without silently truncating its index.
-        uint32_t Encode(Core::EOperandSource source, uint32_t index)
-        {
-            if (index > Core::OperandIndexMask) throw std::length_error("Particle operand index exceeds 29 bits.");
-            return (uint32_t(source) << 29) | index;
-        }
-
-        // Returns the width implied by a particle destination.
-        Core::EOperandType TargetType(Core::EParticleAttribute target)
-        {
-            switch (target)
-            {
-                case Core::EParticleAttribute::Position:
-                case Core::EParticleAttribute::Velocity:
-                case Core::EParticleAttribute::Tangent: return Core::EOperandType::Vector3;
-                case Core::EParticleAttribute::Color:
-                case Core::EParticleAttribute::None: return Core::EOperandType::Vector4;
-                default: return Core::EOperandType::Scalar;
-            }
-        }
-    }
-
-    Core::SOperand ModuleCompileContext::Literal(Core::EOperandType type, std::span<const uint32_t> words, std::string_view parameter)
+    SOperand ModuleCompileContext::Literal(
+        EOperandType type,
+        std::span<const uint32_t> words,
+        const std::string_view parameter
+    )
     {
         const auto index = FindParameter(parameter);
         if (index != UINT32_MAX)
         {
             const auto declared = m_Parameters[index].Type;
-            if ((declared == Core::EParameterType::Scalar && type != Core::EOperandType::Scalar) ||
-                (declared == Core::EParameterType::Vector && type == Core::EOperandType::Scalar))
-                throw std::invalid_argument("Particle parameter type does not match its binding.");
-            return { type, Encode(Core::EOperandSource::Parameter, index) };
+
+            if ((declared == EParameterType::Scalar && type != EOperandType::Scalar) ||
+                (declared == EParameterType::Vector && type == EOperandType::Scalar))
+            {
+                EE_CORE_ERROR("Particle parameter type does not match its binding.");
+                return { static_cast<EOperandType>(UINT8_MAX), 0 };
+            }
+
+            return { type, Encode(EOperandSource::Parameter, index) };
         }
-        const auto source = type == Core::EOperandType::Vector3 ? Core::EOperandSource::ConstantVector3 :
-            type == Core::EOperandType::Vector4 ? Core::EOperandSource::ConstantVector4 : Core::EOperandSource::Constant;
+
+        auto source = EOperandSource::Constant;
+
+        if (type == EOperandType::Vector3)
+            source = EOperandSource::ConstantVector3;
+        else if (type == EOperandType::Vector4)
+            source = EOperandSource::ConstantVector4;
+
         std::array<uint32_t, 5> key{ uint32_t(type) };
         std::ranges::copy(words, key.begin() + 1);
+
         if (const auto found = m_Literals.find(key); found != m_Literals.end())
             return { type, Encode(source, found->second) };
-        if (m_Program.Constants.size() + words.size() > Core::OperandIndexMask)
-            throw std::length_error("Particle constant pool exceeds 29 bits.");
-        const auto offset = uint32_t(m_Program.Constants.size());
-        m_Program.Constants.insert(m_Program.Constants.end(), words.begin(), words.end());
+
+        if (m_Operations.Constants.size() + words.size() > OperandIndexMask)
+        {
+            EE_CORE_ERROR("Particle constant pool exceeds 29 bits.");
+            return { static_cast<EOperandType>(UINT8_MAX), 0 };
+        }
+
+        const auto offset = (uint32_t)m_Operations.Constants.size();
+        m_Operations.Constants.insert(m_Operations.Constants.end(), words.begin(), words.end());
         m_Literals.emplace(std::move(key), offset);
+
         return { type, Encode(source, offset) };
     }
 
-    Core::SOperand ModuleCompileContext::Scalar(float value, std::string_view parameter)
+    SOperand ModuleCompileContext::Scalar(const float value, const std::string_view parameter)
     {
         const uint32_t words[]{ std::bit_cast<uint32_t>(value) };
-        return Literal(Core::EOperandType::Scalar, words, parameter);
-    }
-    Core::SOperand ModuleCompileContext::Vector(glm::vec3 value, std::string_view parameter)
-    {
-        const uint32_t words[]{ std::bit_cast<uint32_t>(value.x), std::bit_cast<uint32_t>(value.y), std::bit_cast<uint32_t>(value.z) };
-        return Literal(Core::EOperandType::Vector3, words, parameter);
-    }
-    Core::SOperand ModuleCompileContext::Value(glm::vec4 value, std::string_view parameter)
-    {
-        const uint32_t words[]{ std::bit_cast<uint32_t>(value.x), std::bit_cast<uint32_t>(value.y), std::bit_cast<uint32_t>(value.z), std::bit_cast<uint32_t>(value.w) };
-        return Literal(Core::EOperandType::Vector4, words, parameter);
-    }
-    Core::SOperand ModuleCompileContext::UInt(uint32_t value)
-    {
-        if (value <= Core::OperandIndexMask) return { Core::EOperandType::UInt, Encode(Core::EOperandSource::ImmediateUInt, value) };
-        return Literal(Core::EOperandType::UInt, std::span(&value, 1), "");
-    }
-    Core::SOperand ModuleCompileContext::Dynamic(EDynamicInput input)
-    {
-        if (input == EDynamicInput::None) return Scalar(1.0f);
-        return { Core::EOperandType::Scalar, Encode(Core::EOperandSource::DynamicInput, uint32_t(input)) };
-    }
-    Core::SOperand ModuleCompileContext::Attribute(Core::EParticleAttribute attribute, Core::EOperandType type)
-    {
-        return { type, Encode(Core::EOperandSource::ParticleAttribute, uint32_t(attribute)) };
-    }
-    Core::SOperand ModuleCompileContext::Curve(std::string_view name)
-    {
-        const auto index = FindCurve(name);
-        if (index != UINT32_MAX && index >= Core::OperandIndexMask)
-            throw std::length_error("Particle curve index collides with the missing-curve sentinel.");
-        return { Core::EOperandType::Curve, Encode(Core::EOperandSource::Curve, index == UINT32_MAX ? Core::OperandIndexMask : index) };
+        return Literal(EOperandType::Scalar, words, parameter);
     }
 
-    void ModuleCompileContext::Emit(Core::EParticleOp type, Core::EParticleAttribute target, std::initializer_list<Core::SOperand> operands)
+    SOperand ModuleCompileContext::Vector(
+        const glm::vec3 value,
+        const std::string_view parameter
+    )
     {
-        const auto* definition = Core::FindOperationDefinition(type);
-        if (!definition) throw std::invalid_argument("Unknown particle operation.");
+        const uint32_t words[]
+        {
+            std::bit_cast<uint32_t>(value.x),
+            std::bit_cast<uint32_t>(value.y),
+            std::bit_cast<uint32_t>(value.z)
+        };
+        return Literal(EOperandType::Vector3, words, parameter);
+    }
+
+    SOperand ModuleCompileContext::Value(
+        const glm::vec4 value,
+        const std::string_view parameter
+    )
+    {
+        const uint32_t words[]
+        {
+            std::bit_cast<uint32_t>(value.x),
+            std::bit_cast<uint32_t>(value.y),
+            std::bit_cast<uint32_t>(value.z),
+            std::bit_cast<uint32_t>(value.w)
+        };
+        return Literal(EOperandType::Vector4, words, parameter);
+    }
+
+    SOperand ModuleCompileContext::UInt(uint32_t value)
+    {
+        if (value <= OperandIndexMask)
+            return {
+                EOperandType::UInt,
+                Encode(EOperandSource::ImmediateUInt, value)
+            };
+
+        return Literal(EOperandType::UInt, std::span(&value, 1), "");
+    }
+
+    SOperand ModuleCompileContext::Dynamic(EDynamicInput input)
+    {
+        if (input == EDynamicInput::None) return Scalar(1.0f);
+        return {
+            EOperandType::Scalar,
+            Encode(EOperandSource::DynamicInput, uint32_t(input))
+        };
+    }
+
+    SOperand ModuleCompileContext::Attribute(
+        const EParticleAttribute attribute,
+        const EOperandType type
+    )
+    {
+        return {
+            type,
+            Encode(EOperandSource::ParticleAttribute, uint32_t(attribute))
+        };
+    }
+
+    SOperand ModuleCompileContext::Curve(const std::string_view name)
+    {
+        const auto index = FindCurve(name);
+        if (index != UINT32_MAX && index >= OperandIndexMask)
+        {
+            EE_CORE_ERROR("Particle curve index collides with the missing-curve sentinel.");
+            return { static_cast<EOperandType>(UINT8_MAX), 0 };
+        }
+
+        return {
+            EOperandType::Curve,
+            Encode(EOperandSource::Curve,
+            index == UINT32_MAX ? OperandIndexMask : index)
+        };
+    }
+
+    void ModuleCompileContext::Emit(
+        const EOperationType type,
+        const EParticleAttribute target,
+        const std::initializer_list<SOperand> operands
+    )
+    {
+        const auto* definition = FindOperationDefinition(type);
+        if (!definition)
+        {
+            EE_CORE_ERROR("Unknown particle operation.");
+            return;
+        }
+
         const auto inputs = definition->Inputs;
-        using enum Core::EOperandType;
-        if (operands.size() > UINT32_MAX) throw std::length_error("Particle operation exceeds the 32-bit argument-count range.");
-        if (inputs.size() != operands.size()) throw std::invalid_argument("Particle operation argument count does not match its definition.");
-        if (target > Core::EParticleAttribute::Temp3)
-            throw std::invalid_argument("Unknown particle operation target.");
-        const auto targetType = definition->IntegerRibbonTarget && target == Core::EParticleAttribute::RibbonId
-            ? UInt : TargetType(target);
-        const bool temporaryTarget = target >= Core::EParticleAttribute::Temp0 && target <= Core::EParticleAttribute::Temp3;
+        using enum EOperandType;
+
+        if (operands.size() > UINT32_MAX)
+        {
+            EE_CORE_ERROR("Particle operation exceeds the 32-bit argument-count range.");
+            return;
+        }
+
+        if (inputs.size() != operands.size())
+        {
+            EE_CORE_ERROR("Particle operation argument count does not match its definition.");
+            return;
+        }
+
+        if (target > EParticleAttribute::Temp3)
+        {
+            EE_CORE_ERROR("Unknown particle operation target.");
+            return;
+        }
+
+        if (type == EOperationType::SetRibbonIdFromSpawnOrder &&
+            target != EParticleAttribute::RibbonId)
+        {
+            EE_CORE_ERROR("SetRibbonIdFromSpawnOrder requires RibbonId as its destination.");
+            return;
+        }
+
+        if (target == EParticleAttribute::RibbonId &&
+            type != EOperationType::SetLiteral &&
+            type != EOperationType::CopyFromAttribute &&
+            type != EOperationType::SetRibbonIdFromSpawnOrder)
+        {
+            EE_CORE_ERROR("Particle operation does not support an unsigned integer destination.");
+            return;
+        }
+
+        const auto targetType = GetAttributeOperandType(target);
+        const bool isTempTarget = target >= EParticleAttribute::Temp0 &&
+            target <= EParticleAttribute::Temp3;
+
+        const SOperandValidationContext validationContext{
+            m_Operations.Constants,
+            m_Parameters
+        };
+
         size_t i = 0;
         for (const auto& operand : operands)
         {
             const auto expected = inputs[i++];
             const auto actual = operand.Type;
-            const bool matches = expected == actual ||
-                (expected == Target && (actual == targetType ||
-                    (temporaryTarget && (actual == Scalar || actual == Vector3 || actual == Vector4))));
-            if (!matches) throw std::invalid_argument("Particle operation argument type does not match its definition.");
-            const auto source = Core::EOperandSource(operand.Reference >> 29);
-            const auto index = operand.Reference & Core::OperandIndexMask;
-            bool valid = false;
-            switch (source)
+
+            const auto isNumeric = actual == Scalar || actual == Vector3 || actual == Vector4;
+            const auto isValidTempTarget = isTempTarget && isNumeric;
+            const auto matchesTarget = actual == targetType || isValidTempTarget;
+            const bool matches = expected == actual || (expected == Target && matchesTarget);
+
+            if (!matches)
             {
-                case Core::EOperandSource::Constant:
-                    valid = (actual == Scalar || actual == UInt) && index < m_Program.Constants.size(); break;
-                case Core::EOperandSource::ConstantVector3:
-                    valid = actual == Vector3 && size_t(index) + 3 <= m_Program.Constants.size(); break;
-                case Core::EOperandSource::ConstantVector4:
-                    valid = actual == Vector4 && size_t(index) + 4 <= m_Program.Constants.size(); break;
-                case Core::EOperandSource::Parameter:
-                    valid = (actual == Scalar || actual == Vector3 || actual == Vector4) && index < m_Parameters.size();
-                    if (valid)
-                    {
-                        const auto declared = m_Parameters[index].Type;
-                        valid = declared == Core::EParameterType::Unspecified ||
-                            (declared == Core::EParameterType::Scalar ? actual == Scalar : actual != Scalar);
-                    }
-                    break;
-                case Core::EOperandSource::DynamicInput:
-                    valid = actual == Scalar && index <= uint32_t(EDynamicInput::ParticleSeed); break;
-                case Core::EOperandSource::ParticleAttribute:
-                    valid = index > uint32_t(Core::EParticleAttribute::None) && index <= uint32_t(Core::EParticleAttribute::Temp3) &&
-                        (actual == TargetType(Core::EParticleAttribute(index)) ||
-                            (index >= uint32_t(Core::EParticleAttribute::Temp0) && (actual == Scalar || actual == Vector3 || actual == Vector4))); break;
-                case Core::EOperandSource::ImmediateUInt:
-                    valid = actual == UInt; break;
-                case Core::EOperandSource::Curve:
-                    valid = actual == Curve && (index == Core::OperandIndexMask || index < m_Parameters.size()); break;
+                EE_CORE_ERROR("Particle operation argument type does not match its definition.");
+                return;
             }
-            if (!valid) throw std::invalid_argument("Particle operand reference does not match its source.");
+
+            if (!IsValidOperand(operand, validationContext))
+            {
+                EE_CORE_ERROR("Particle operand reference does not match its source.");
+                return;
+            }
         }
-        if (m_Program.Operands.size() + operands.size() > UINT32_MAX) throw std::length_error("Particle operand table exceeds uint32 range.");
-        const auto offset = uint32_t(m_Program.Operands.size());
+
+        if (m_Operations.Operands.size() + operands.size() > UINT32_MAX)
+        {
+            EE_CORE_ERROR("Particle operand table exceeds uint32 range.");
+            return;
+        }
+
+        const auto offset = uint32_t(m_Operations.Operands.size());
+
         for (const auto& operand : operands)
-            m_Program.Operands.push_back(operand.Reference);
-        m_Program.Ops.push_back({ type, target, offset, uint32_t(operands.size()) });
+            m_Operations.Operands.push_back(operand.Reference);
+
+        m_Operations.Operations.push_back({
+            type,
+            target,
+            offset,
+            uint32_t(operands.size())
+        });
     }
 
     /* Module */

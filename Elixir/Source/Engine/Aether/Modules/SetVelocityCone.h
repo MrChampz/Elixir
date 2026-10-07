@@ -21,12 +21,16 @@ namespace Elixir::Aether::Modules
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit(Core::EParticleOp::SampleCone, Core::EParticleAttribute::Velocity, {
-                context.Vector(m_Direction),
-                context.Scalar(m_Angle, m_AngleParamName),
-                context.Scalar(m_MinSpeed, m_MinSpeedParamName),
-                context.Scalar(m_MaxSpeed, m_MaxSpeedParamName)
-            });
+            context.Emit(
+                EOperationType::SampleCone,
+                EParticleAttribute::Velocity,
+                {
+                    context.Vector(m_Direction),
+                    context.Scalar(m_Angle, m_AngleParamName),
+                    context.Scalar(m_MinSpeed, m_MinSpeedParamName),
+                    context.Scalar(m_MaxSpeed, m_MaxSpeedParamName)
+                }
+            );
         }
 
         /** @brief Binds named parameters to the configured values and returns this module. */

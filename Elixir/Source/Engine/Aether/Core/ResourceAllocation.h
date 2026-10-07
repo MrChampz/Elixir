@@ -28,7 +28,7 @@ namespace Elixir::Aether::Core
         uint32_t MaxSystemInstances = 256;
         uint32_t ParticleCapacity = 1'000'000;
         uint32_t EmitterCapacity = 4'096;
-        uint32_t OpCapacity = 65'536;
+        uint32_t OperationCapacity = 65'536;
         /** @brief Maximum number of four-byte operand references. */
         uint32_t OperandCapacity = 262'144;
         /** @brief Maximum number of four-byte literal words. */
@@ -58,7 +58,7 @@ namespace Elixir::Aether::Core
 
         SBufferRange Particles;
         SBufferRange Emitters;
-        SBufferRange Ops;
+        SBufferRange Operations;
         SBufferRange Operands;
         SBufferRange Constants;
         SBufferRange Parameters;

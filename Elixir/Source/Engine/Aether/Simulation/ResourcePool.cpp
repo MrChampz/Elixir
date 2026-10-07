@@ -10,7 +10,7 @@ namespace Elixir::Aether::Core
         m_FreeInstanceSlots(MakeFreeRanges(limits.MaxSystemInstances)),
         m_InstanceGenerations(limits.MaxSystemInstances, 0),
         m_FreeEmitters(MakeFreeRanges(limits.EmitterCapacity)),
-        m_FreeOps(MakeFreeRanges(limits.OpCapacity)),
+        m_FreeOperations(MakeFreeRanges(limits.OperationCapacity)),
         m_FreeOperands(MakeFreeRanges(limits.OperandCapacity)),
         m_FreeConstants(MakeFreeRanges(limits.ConstantCapacity)),
         m_FreeParameters(MakeFreeRanges(limits.ParameterCapacity)),
@@ -37,7 +37,7 @@ namespace Elixir::Aether::Core
     {
         const auto particleCount = system.TotalMaxParticles;
         const auto emitterCount = (uint32_t)system.Emitters.size();
-        const auto opCount = (uint32_t)system.Operations.Ops.size();
+        const auto operationCount = (uint32_t)system.Operations.Operations.size();
         const auto operandCount = (uint32_t)system.Operations.Operands.size();
         const auto constantCount = (uint32_t)system.Operations.Constants.size();
         const auto parameterCount = (uint32_t)system.Parameters.size();
@@ -66,13 +66,13 @@ namespace Elixir::Aether::Core
         {
             ++sharedProgram->ReferenceCount;
             allocation.ProgramAllocationId = sharedProgram->Id;
-            allocation.Ops = sharedProgram->Ops;
+            allocation.Operations = sharedProgram->Operations;
             allocation.Operands = sharedProgram->Operands;
             allocation.Constants = sharedProgram->Constants;
         }
         else
         {
-            allocation.Ops = AllocateRange(m_FreeOps, opCount);
+            allocation.Operations = AllocateRange(m_FreeOperations, operationCount);
             allocation.Operands = AllocateRange(m_FreeOperands, operandCount);
             allocation.Constants = AllocateRange(m_FreeConstants, constantCount);
             allocation.UploadProgram = true;
@@ -89,7 +89,7 @@ namespace Elixir::Aether::Core
             instanceSlot.Count == 0 ||
             allocation.Particles.Count != particleCount ||
             allocation.Emitters.Count != emitterCount ||
-            allocation.Ops.Count != opCount ||
+            allocation.Operations.Count != operationCount ||
             allocation.Operands.Count != operandCount ||
             allocation.Constants.Count != constantCount ||
             allocation.Parameters.Count != parameterCount ||
@@ -111,7 +111,7 @@ namespace Elixir::Aether::Core
             allocation.ProgramAllocationId = m_NextProgramAllocationId++;
             m_Programs.push_back({
                 allocation.ProgramAllocationId, system.SourceId, system.CompilationRevision, 1,
-                allocation.Ops, allocation.Operands, allocation.Constants
+                allocation.Operations, allocation.Operands, allocation.Constants
             });
         }
         allocation.InstanceIndex = instanceSlot.Offset;
@@ -160,7 +160,7 @@ namespace Elixir::Aether::Core
             if (--found->ReferenceCount != 0) return;
             m_Programs.erase(found);
         }
-        ReleaseRange(m_FreeOps, allocation.Ops);
+        ReleaseRange(m_FreeOperations, allocation.Operations);
         ReleaseRange(m_FreeOperands, allocation.Operands);
         ReleaseRange(m_FreeConstants, allocation.Constants);
     }

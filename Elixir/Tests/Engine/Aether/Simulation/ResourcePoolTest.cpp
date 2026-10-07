@@ -11,7 +11,7 @@ namespace
     SCompiledSystem MakeCompiledSystem(
         const uint32_t particleCount,
         const uint32_t emitterCount,
-        const uint32_t opCount,
+        const uint32_t operationCount,
         const uint32_t parameterCount,
         const uint32_t triggerTargetCount
     )
@@ -19,9 +19,9 @@ namespace
         SCompiledSystem system{};
         system.TotalMaxParticles = particleCount;
         system.Emitters.resize(emitterCount);
-        system.Operations.Ops.resize(opCount);
-        system.Operations.Operands.resize(opCount * 2);
-        system.Operations.Constants.resize(opCount * 3);
+        system.Operations.Operations.resize(operationCount);
+        system.Operations.Operands.resize(operationCount * 2);
+        system.Operations.Constants.resize(operationCount * 3);
         system.Parameters.resize(parameterCount);
         system.TriggerTargets.resize(triggerTargetCount);
         return system;
@@ -33,7 +33,7 @@ namespace
             .MaxSystemInstances = 4,
             .ParticleCapacity = 64,
             .EmitterCapacity = 16,
-            .OpCapacity = 32,
+            .OperationCapacity = 32,
             .ParameterCapacity = 32,
             .TriggerTargetCapacity = 16,
             .TriggerEventCapacityPerEmitter = 4,
@@ -58,7 +58,7 @@ TEST(ResourcePoolTest, AllocatesDisjointRangesForLiveInstances)
     EXPECT_EQ(second->ParticleStateLayout, EParticleStateLayout::CoreV1);
     EXPECT_EQ(second->Particles.Offset, first->Particles.Count);
     EXPECT_EQ(second->Emitters.Offset, first->Emitters.Count);
-    EXPECT_EQ(second->Ops.Offset, first->Ops.Count);
+    EXPECT_EQ(second->Operations.Offset, first->Operations.Count);
     EXPECT_EQ(second->Operands.Offset, first->Operands.Count);
     EXPECT_EQ(second->Constants.Offset, first->Constants.Count);
     EXPECT_EQ(second->Parameters.Offset, first->Parameters.Count);
@@ -88,7 +88,7 @@ TEST(ResourcePoolTest, ReusesReleasedRanges)
     EXPECT_NE(reused->Generation, first->Generation);
     EXPECT_EQ(reused->Particles.Offset, first->Particles.Offset);
     EXPECT_EQ(reused->Emitters.Offset, first->Emitters.Offset);
-    EXPECT_EQ(reused->Ops.Offset, first->Ops.Offset);
+    EXPECT_EQ(reused->Operations.Offset, first->Operations.Offset);
     EXPECT_EQ(reused->Operands.Offset, first->Operands.Offset);
     EXPECT_EQ(reused->Constants.Offset, first->Constants.Offset);
     EXPECT_EQ(reused->Parameters.Offset, first->Parameters.Offset);
@@ -115,7 +115,7 @@ TEST(ResourcePoolTest, RollsBackPartialAllocationFailure)
     EXPECT_EQ(allocation->InstanceIndex, 0u);
     EXPECT_EQ(allocation->Particles.Offset, 0u);
     EXPECT_EQ(allocation->Emitters.Offset, 0u);
-    EXPECT_EQ(allocation->Ops.Offset, 0u);
+    EXPECT_EQ(allocation->Operations.Offset, 0u);
     EXPECT_EQ(allocation->Parameters.Offset, 0u);
     EXPECT_EQ(allocation->TriggerTargets.Offset, 0u);
     EXPECT_EQ(allocation->EmitterStates.Offset, 0u);
@@ -149,7 +149,7 @@ TEST(ResourcePoolTest, RollsBackOperandAndConstantCapacityFailures)
         const auto allocation = pool.Allocate(MakeCompiledSystem(4, 1, 1, 1, 1));
         ASSERT_TRUE(allocation);
         EXPECT_EQ(allocation->InstanceIndex, 0u);
-        EXPECT_EQ(allocation->Ops.Offset, 0u);
+        EXPECT_EQ(allocation->Operations.Offset, 0u);
         EXPECT_EQ(allocation->Operands.Offset, 0u);
         EXPECT_EQ(allocation->Constants.Offset, 0u);
     }
@@ -158,7 +158,7 @@ TEST(ResourcePoolTest, RollsBackOperandAndConstantCapacityFailures)
 TEST(ResourcePoolTest, SharesProgramsButKeepsInstanceParametersSeparate)
 {
     auto limits = MakePoolLimits();
-    limits.OpCapacity = 1;
+    limits.OperationCapacity = 1;
     limits.OperandCapacity = 2;
     limits.ConstantCapacity = 3;
     const ParticleStateLayoutRegistry layouts{limits.ParticleCapacity};
@@ -198,7 +198,7 @@ TEST(ResourcePoolTest, KeepsProgramRevisionsAliveUntilTheirLastInstanceRetires)
     const auto newRevision = pool.Allocate(system);
     ASSERT_TRUE(newRevision);
     EXPECT_NE(oldRevision->ProgramAllocationId, newRevision->ProgramAllocationId);
-    EXPECT_NE(oldRevision->Ops.Offset, newRevision->Ops.Offset);
+    EXPECT_NE(oldRevision->Operations.Offset, newRevision->Operations.Offset);
     EXPECT_NE(oldRevision->Operands.Offset, newRevision->Operands.Offset);
     pool.Release(*oldRevision);
     const auto another = pool.Allocate(system);
@@ -209,7 +209,7 @@ TEST(ResourcePoolTest, KeepsProgramRevisionsAliveUntilTheirLastInstanceRetires)
 TEST(ResourcePoolTest, FailedSharedInstanceAllocationDoesNotReleaseTheLiveProgram)
 {
     auto limits = MakePoolLimits();
-    limits.OpCapacity = 1;
+    limits.OperationCapacity = 1;
     limits.ParticleCapacity = 4;
     const ParticleStateLayoutRegistry layouts{limits.ParticleCapacity};
     ResourcePool pool{limits, layouts};
