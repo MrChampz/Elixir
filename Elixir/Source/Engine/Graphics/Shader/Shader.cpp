@@ -111,7 +111,10 @@ namespace Elixir
         switch (context->GetAPI())
         {
             case EGraphicsAPI::Vulkan:
-                return CreateRef<Vulkan::VulkanShader>(context, std::move(info));
+            {
+                const auto shader = CreateRef<Vulkan::VulkanShader>(context, std::move(info));
+                return shader->IsValid() ? shader : nullptr;
+            }
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;

@@ -16,4 +16,7 @@ public:
 
     // Called once per frame, after the base Application has ticked its own GUI.
     virtual void OnUpdate(Timestep frameTime) {}
+
+    /** @brief Notifies the panel when its tab becomes active or inactive. */
+    virtual void OnActivated(bool active) {}
 };

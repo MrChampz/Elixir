@@ -136,10 +136,11 @@ void EditorUI::BuildAssetBrowser()
     title->SetFontSize(12.0f);
     m_AssetBrowser->AddChild(title).SetMargin(GUI::SMargin(0.0f, 0.0f, 8.0f, 0.0f));
 
-    const auto path = CreateRef<GUI::TextBlock>("Assets / Prefabs -- 6 items");
+    const auto path = CreateRef<GUI::TextBlock>("Assets / VFX");
     path->SetColor(styles.TextSecondary);
     path->SetFontSize(11.0f);
     m_AssetBrowser->AddChild(path);
+    m_AssetBrowserStatus = path;
 }
 
 void EditorUI::AddMenuItem(const std::string& label)
@@ -187,6 +188,7 @@ void EditorUI::AddTab(const std::string& label, const bool active)
 
 void EditorUI::SetActiveTab(const int index)
 {
+    m_GUIManager->ClearPopups();
     const auto& styles = EditorStyle::Get();
     m_ActiveTabIndex = index;
     for (size_t i = 0; i < m_Tabs.size(); ++i)
@@ -194,6 +196,13 @@ void EditorUI::SetActiveTab(const int index)
         const bool active = static_cast<int>(i) == index;
         m_Tabs[i].Label->SetColor(active ? styles.TextPrimary : styles.TextSecondary);
         m_Tabs[i].Underline->SetStyle(active ? styles.TabActiveIndicator : styles.Transparent);
+    }
+    for (auto& panel : m_Panels)
+    {
+        const bool active = panel.TabIndex < 0 || panel.TabIndex == index;
+        if (panel.Widget)
+            panel.Widget->SetVisibility(active ? GUI::EVisibility::Visible : GUI::EVisibility::Collapsed);
+        panel.Panel->OnActivated(active);
     }
 }
 
@@ -270,7 +279,7 @@ Ref<GUI::Widget> EditorUI::BuildDropdownContent(const std::vector<std::string>& 
     return panel;
 }
 
-void EditorUI::AddPanel(Scope<EditorPanel> panel)
+void EditorUI::AddPanel(Scope<EditorPanel> panel, const int tabIndex)
 {
     const auto widget = panel->Build();
     if (widget)
@@ -279,11 +288,21 @@ void EditorUI::AddPanel(Scope<EditorPanel> panel)
             .SetAnchors(GUI::SAnchors::StretchAll());
     }
 
-    m_Panels.push_back(std::move(panel));
+    const bool active = tabIndex < 0 || tabIndex == m_ActiveTabIndex;
+    if (widget)
+        widget->SetVisibility(active ? GUI::EVisibility::Visible : GUI::EVisibility::Collapsed);
+    panel->OnActivated(active);
+    m_Panels.push_back({ std::move(panel), widget, tabIndex });
+}
+
+void EditorUI::SetAssetBrowserStatus(const std::string& status)
+{
+    m_AssetBrowserStatus->SetText(status);
 }
 
 void EditorUI::Update(const Timestep frameTime)
 {
     for (auto& panel : m_Panels)
-        panel->OnUpdate(frameTime);
+        if (panel.TabIndex < 0 || panel.TabIndex == m_ActiveTabIndex)
+            panel.Panel->OnUpdate(frameTime);
 }

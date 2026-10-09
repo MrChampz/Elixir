@@ -32,6 +32,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 # Compile definitions
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
+    ELIXIR_EDITOR_PROJECT_ROOT="${CMAKE_SOURCE_DIR}"
     $<$<BOOL:${ELIXIR_PROFILE}>:EE_PROFILE>
     $<$<CONFIG:Debug>:EE_DEBUG>
     $<$<CONFIG:Release>:EE_RELEASE>
@@ -67,3 +68,14 @@ add_dependencies(${PROJECT_NAME}
 )
 
 link_target_to_engine(${PROJECT_NAME})
+
+if (BUILD_TESTING)
+    add_executable(Editor.UnitTests
+        "${CMAKE_CURRENT_LIST_DIR}/Tests/VFXAssetsTest.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Source/Assets/VFXAssets.cpp"
+    )
+    target_include_directories(Editor.UnitTests PRIVATE "${CMAKE_CURRENT_LIST_DIR}/Source")
+    target_link_libraries(Editor.UnitTests PRIVATE GTest::gtest_main)
+    include(GoogleTest)
+    gtest_discover_tests(Editor.UnitTests)
+endif()

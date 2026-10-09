@@ -72,6 +72,12 @@ namespace Elixir::Vulkan
 
     void VulkanShader::Bind(const Ref<CommandBuffer>& cmd, const Pipeline* pipeline)
     {
+        if (!m_Valid)
+        {
+            EE_CORE_ERROR("Cannot bind invalid Vulkan shader '{}'.", m_Name)
+            return;
+        }
+
         const auto vkCmd = static_pointer_cast<VulkanCommandBuffer>(cmd);
 
         ApplyPendingDescriptorState();
@@ -271,7 +277,10 @@ namespace Elixir::Vulkan
 
     std::vector<VkDescriptorSet> VulkanShader::GetDescriptorSets() const
     {
+        if (!m_Valid) return {};
+
         std::vector sets(m_DescriptorSets.GetCurrent());
+
         if (m_BindlessSetIndex)
         {
             const auto bindlessPool = m_GraphicsContext->GetBindlessDescriptorPool();
@@ -338,6 +347,13 @@ namespace Elixir::Vulkan
                     !m_BindlessSetIndex || *m_BindlessSetIndex == set,
                     "A shader can use bindless resources from only one descriptor set."
                 )
+
+                if (m_BindlessSetIndex && *m_BindlessSetIndex != set)
+                {
+                    m_Valid = false;
+                    return;
+                }
+
                 m_BindlessSetIndex = set;
                 sets.try_emplace(set);
                 continue;
@@ -359,6 +375,15 @@ namespace Elixir::Vulkan
         for (const auto& set : sets | std::views::keys)
             maxSet = std::max(maxSet, set);
 
+        VkPhysicalDeviceProperties properties{};
+        vkGetPhysicalDeviceProperties(m_GraphicsContext->GetGPU(), &properties);
+        if (!sets.empty() && maxSet >= properties.limits.maxBoundDescriptorSets)
+        {
+            EE_CORE_ERROR("Descriptor set index {} exceeds the device limit for Vulkan shader '{}'.", maxSet, m_Name)
+            m_Valid = false;
+            return;
+        }
+
         const auto setCount = sets.empty() ? 0 : maxSet + 1;
         m_DescriptorSetLayouts.resize(setCount);
 
@@ -376,48 +401,58 @@ namespace Elixir::Vulkan
                 layoutInfo.bindingCount = (uint32_t)bindings.size();
             }
 
-            VK_CHECK_RESULT(
-                vkCreateDescriptorSetLayout(
-                    m_GraphicsContext->GetDevice(),
-                    &layoutInfo,
-                    nullptr,
-                    &m_DescriptorSetLayouts[set]
-                )
+            const auto result = vkCreateDescriptorSetLayout(
+                m_GraphicsContext->GetDevice(),
+                &layoutInfo,
+                nullptr,
+                &m_DescriptorSetLayouts[set]
             );
+
+            if (result != VK_SUCCESS)
+            {
+                EE_CORE_ERROR(
+                    "Could not create descriptor layout for Vulkan shader '{}': {}",
+                    m_Name, (int)result
+                )
+                m_DescriptorSetLayouts[set] = VK_NULL_HANDLE;
+                m_Valid = false;
+                return;
+            }
         }
     }
 
     void VulkanShader::CreateDescriptorSets()
     {
-        if (m_DescriptorSetLayouts.empty())
+        if (!m_Valid || m_DescriptorSetLayouts.empty())
             return;
 
         m_DescriptorSets.ForEach([this](auto& sets)
         {
+            if (!m_Valid) return;
             sets.resize(m_DescriptorSetLayouts.size());
 
             for (auto i = 0; i < m_DescriptorSetLayouts.size(); ++i)
             {
-                VkDescriptorSetAllocateInfo allocInfo = {};
-                allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-                allocInfo.pSetLayouts = &m_DescriptorSetLayouts[i];
-                allocInfo.descriptorSetCount = 1;
-                allocInfo.descriptorPool =
-                    m_GraphicsContext->GetDescriptorPool()->GetVulkanDescriptorPool();
+                sets[i] = m_GraphicsContext->GetDescriptorPool()
+                    ->Allocate(m_DescriptorSetLayouts[i]);
 
-                VK_CHECK_RESULT(
-                    vkAllocateDescriptorSets(
-                        m_GraphicsContext->GetDevice(),
-                        &allocInfo,
-                        &sets[i]
+                if (!sets[i])
+                {
+                    EE_CORE_ERROR(
+                        "Could not allocate descriptors for Vulkan shader '{}'.",
+                        m_Name
                     )
-                );
+                    m_Valid = false;
+                    return;
+                }
             }
         });
     }
 
     void VulkanShader::CreatePipelineLayout()
     {
+        if (!m_Valid) return;
+
         std::vector layouts(m_DescriptorSetLayouts);
         const std::vector ranges = GetPushConstantRanges();
 
@@ -435,14 +470,23 @@ namespace Elixir::Vulkan
         info.pushConstantRangeCount = (uint32_t)ranges.size();
         info.pPushConstantRanges = ranges.data();
 
-        VK_CHECK_RESULT(
-            vkCreatePipelineLayout(
-                m_GraphicsContext->GetDevice(),
-                &info,
-                nullptr,
-                &m_PipelineLayout
-            )
+        const auto result = vkCreatePipelineLayout(
+            m_GraphicsContext->GetDevice(),
+            &info,
+            nullptr,
+            &m_PipelineLayout
         );
+
+        if (result != VK_SUCCESS)
+        {
+            EE_CORE_ERROR(
+                "Could not create pipeline layout for Vulkan shader '{}': {}",
+                m_Name,
+                (int)result
+            )
+            m_PipelineLayout = VK_NULL_HANDLE;
+            m_Valid = false;
+        }
     }
 
     void VulkanShader::ApplyPendingDescriptorState()

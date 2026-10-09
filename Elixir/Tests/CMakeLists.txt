@@ -25,7 +25,7 @@ include (GoogleTest)
 # (SwiftShader) does not provide. Tag them with the "gpu" label via a separate
 # discovery pass so CI can skip them with `ctest -LE gpu` while still running
 # the pure unit tests (converters, initializers, traits, ...).
-set(GPU_TEST_FILTER "VulkanBufferTest.*:VulkanImageTest.*")
+set(GPU_TEST_FILTER "VulkanBufferTest.*:VulkanImageTest.*:VulkanDescriptorPoolTest.*:VulkanShaderTest.*")
 
 gtest_discover_tests(${PROJECT_NAME}.UnitTests
     TEST_FILTER "${GPU_TEST_FILTER}"

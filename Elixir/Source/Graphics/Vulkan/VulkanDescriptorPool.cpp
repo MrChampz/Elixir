@@ -60,8 +60,7 @@ namespace Elixir::Vulkan
         EE_PROFILE_ZONE_SCOPED()
         EE_CORE_TRACE("Initializing descriptor pool with capacity for {0} sets.", maxSets)
 
-        std::vector<VkDescriptorPoolSize> sizes;
-        sizes.reserve(ratios.size());
+        m_PoolSizes.reserve(ratios.size());
 
         for (auto& [Type, Ratio] : ratios)
         {
@@ -69,70 +68,182 @@ namespace Elixir::Vulkan
             size.type = Type;
             size.descriptorCount = (uint32_t)(Ratio * maxSets);
 
-            sizes.emplace_back(size);
+            m_PoolSizes.emplace_back(size);
         }
 
         VulkanBaseDescriptorPool::InitPool(
-            std::move(sizes),
+            m_PoolSizes,
             VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT
         );
 
         EE_CORE_TRACE("Initialized descriptor pool.")
     }
 
+    VulkanDescriptorPool::~VulkanDescriptorPool()
+    {
+        for (const auto pool : m_AdditionalPools)
+            vkDestroyDescriptorPool(m_GraphicsContext->GetDevice(), pool, nullptr);
+    }
+
+    VkResult VulkanDescriptorPool::AllocateFromPool(
+        const VkDescriptorPool pool,
+        const VkDescriptorSetLayout layout,
+        VkDescriptorSet& set
+    ) const
+    {
+        const auto count = std::ranges::count_if(m_SetOwners,
+            [pool](const auto& entry) { return entry.second == pool; });
+        if (count >= m_MaxSets) return VK_ERROR_OUT_OF_POOL_MEMORY;
+
+        VkDescriptorSetAllocateInfo info{};
+        info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        info.descriptorPool = pool;
+        info.descriptorSetCount = 1;
+        info.pSetLayouts = &layout;
+        const auto result = vkAllocateDescriptorSets(m_GraphicsContext->GetDevice(), &info, &set);
+        if (result == VK_SUCCESS)
+            m_SetOwners.emplace(set, pool);
+        return result;
+    }
+
     VkDescriptorSet VulkanDescriptorPool::Allocate(const VkDescriptorSetLayout layout) const
     {
-        EE_PROFILE_ZONE_SCOPED()
+        const std::scoped_lock lock(m_Mutex);
 
-        VkDescriptorSetAllocateInfo allocInfo = {};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.pNext = nullptr;
-        allocInfo.descriptorPool = m_Pool;
-        allocInfo.descriptorSetCount = 1;
-        allocInfo.pSetLayouts = &layout;
+        if (!layout || !m_Pool) return VK_NULL_HANDLE;
 
-        VkDescriptorSet set;
-        VK_CHECK_RESULT(
-            vkAllocateDescriptorSets(
-                m_GraphicsContext->GetDevice(),
-                &allocInfo,
-                &set
-            )
+        VkDescriptorSet set = VK_NULL_HANDLE;
+
+        auto result = AllocateFromPool(m_Pool, layout, set);
+        if (result == VK_SUCCESS) return set;
+
+        for (const auto pool : m_AdditionalPools)
+        {
+            if (result != VK_ERROR_OUT_OF_POOL_MEMORY && result != VK_ERROR_FRAGMENTED_POOL)
+                break;
+
+            result = AllocateFromPool(pool, layout, set);
+            if (result == VK_SUCCESS) return set;
+        }
+
+        if (result != VK_ERROR_OUT_OF_POOL_MEMORY && result != VK_ERROR_FRAGMENTED_POOL)
+        {
+            EE_CORE_ERROR("Could not allocate Vulkan descriptor set: {}", (int)result)
+            return VK_NULL_HANDLE;
+        }
+
+        VkDescriptorPoolCreateInfo info{};
+        info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+        info.maxSets = m_MaxSets;
+        info.poolSizeCount = static_cast<uint32_t>(m_PoolSizes.size());
+        info.pPoolSizes = m_PoolSizes.data();
+
+        VkDescriptorPool pool = VK_NULL_HANDLE;
+        result = vkCreateDescriptorPool(
+            m_GraphicsContext->GetDevice(),
+            &info,
+            nullptr,
+            &pool
         );
+
+        if (result != VK_SUCCESS)
+        {
+            EE_CORE_ERROR("Could not grow Vulkan descriptor pool: {}", (int)result)
+            return VK_NULL_HANDLE;
+        }
+
+        result = AllocateFromPool(pool, layout, set);
+
+        if (result != VK_SUCCESS)
+        {
+            vkDestroyDescriptorPool(m_GraphicsContext->GetDevice(), pool, nullptr);
+            EE_CORE_ERROR(
+                "Could not allocate a descriptor set from a new pool: {}",
+                (int)result
+            )
+            return VK_NULL_HANDLE;
+        }
+
+        m_AdditionalPools.push_back(pool);
+
+        EE_CORE_TRACE(
+            "Expanded descriptor allocator to {} pools.",
+            m_AdditionalPools.size() + 1
+        )
 
         return set;
     }
 
     void VulkanDescriptorPool::FreeDescriptorSet(const VkDescriptorSet set) const
     {
-        VK_CHECK_RESULT(
-            vkFreeDescriptorSets(
-                m_GraphicsContext->GetDevice(),
-                m_Pool,
-                1,
-                &set
-            )
+        if (!set) return;
+
+        const std::scoped_lock lock(m_Mutex);
+
+        const auto owner = m_SetOwners.find(set);
+        if (owner == m_SetOwners.end())
+        {
+            EE_CORE_ERROR("Cannot free a Vulkan descriptor set owned by another allocator.")
+            return;
+        }
+
+        const auto result = vkFreeDescriptorSets(
+            m_GraphicsContext->GetDevice(),
+            owner->second,
+            1,
+            &set
         );
+
+        if (result != VK_SUCCESS)
+        {
+            EE_CORE_ERROR("Could not free Vulkan descriptor set: {}", (int)result)
+            return;
+        }
+
+        m_SetOwners.erase(owner);
     }
 
     void VulkanDescriptorPool::FreeDescriptorSets(
         const std::vector<VkDescriptorSet>& sets
     ) const
     {
-        VK_CHECK_RESULT(
-            vkFreeDescriptorSets(
-                m_GraphicsContext->GetDevice(),
-                m_Pool,
-                sets.size(),
-                sets.data()
-            )
-        );
+        for (const auto set : sets)
+            FreeDescriptorSet(set);
     }
 
     void VulkanDescriptorPool::Reset() const
     {
-        EE_PROFILE_ZONE_SCOPED()
-        vkResetDescriptorPool(m_GraphicsContext->GetDevice(), m_Pool, 0);
+        const std::scoped_lock lock(m_Mutex);
+
+        auto pools = m_AdditionalPools;
+        pools.push_back(m_Pool);
+
+        for (const auto pool : pools)
+        {
+            const auto result = vkResetDescriptorPool(
+                m_GraphicsContext->GetDevice(),
+                pool,
+                0
+            );
+
+            if (result != VK_SUCCESS)
+            {
+                EE_CORE_ERROR("Could not reset Vulkan descriptor pool: {}", (int)result)
+                continue;
+            }
+
+            std::erase_if(
+                m_SetOwners,
+                [pool](const auto& entry) { return entry.second == pool; }
+            );
+        }
+    }
+
+    size_t VulkanDescriptorPool::GetPoolCount() const
+    {
+        const std::scoped_lock lock(m_Mutex);
+        return m_AdditionalPools.size() + (m_Pool ? 1 : 0);
     }
 
     /* VulkanBindlessDescriptorPool */
