@@ -188,16 +188,16 @@ namespace Elixir::Aether
         SystemInstance(SystemInstance&&) = delete;
         SystemInstance& operator=(SystemInstance&&) = delete;
 
-        /** @brief Sets an override only when the exposed parameter is Scalar. */
+        /** @brief Sets an override only when the exposed parameter is Float. */
         bool SetParameterOverride(const std::string& name, float value);
 
-        /** @brief Sets an override only when the exposed parameter is Vector2. */
+        /** @brief Sets an override only when the exposed parameter is Float2. */
         bool SetParameterOverride(const std::string& name, const glm::vec2& value);
 
-        /** @brief Sets an override only when the exposed parameter is Vector3. */
+        /** @brief Sets an override only when the exposed parameter is Float3. */
         bool SetParameterOverride(const std::string& name, const glm::vec3& value);
 
-        /** @brief Sets an override only when the exposed parameter is Vector4. */
+        /** @brief Sets an override only when the exposed parameter is Float4. */
         bool SetParameterOverride(const std::string& name, const glm::vec4& value);
 
         /** @brief Sets an unsigned integer override only when the exposed parameter is UInt. */

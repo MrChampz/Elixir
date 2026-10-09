@@ -33,7 +33,7 @@ namespace Elixir::Aether::Modules
                     EOperationType::CopyFromAttribute,
                     EParticleAttribute::Color,
                     {
-                        context.Attribute(EParticleAttribute::Temp0, EOperandType::Vector4)
+                        context.Attribute(EParticleAttribute::Temp0, EOperandInput::Float4)
                     }
                 );
             }

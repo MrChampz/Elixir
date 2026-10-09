@@ -121,11 +121,11 @@ TEST(ModuleCompileTest, ResolvesLocalParametersThenSystemParametersAndMissingVal
         .BindParameters("Low", "High", "Missing", "Missing").Compile(context);
 
     ASSERT_EQ(program.Operations.size(), 3u);
-    EXPECT_EQ(Reference(program, 0, Operations::RandomRange::Inputs::Minimum), Encoded(EOperandSource::Parameter, EOperandFormat::Vector4, 4));
-    EXPECT_EQ(Reference(program, 0, Operations::RandomRange::Inputs::Maximum), Encoded(EOperandSource::Parameter, EOperandFormat::Vector4, 8));
+    EXPECT_EQ(Reference(program, 0, Operations::RandomRange::Inputs::Minimum), Encoded(EOperandSource::Parameter, EOperandFormat::Float4, 4));
+    EXPECT_EQ(Reference(program, 0, Operations::RandomRange::Inputs::Maximum), Encoded(EOperandSource::Parameter, EOperandFormat::Float4, 8));
     EXPECT_FLOAT_EQ(Literal(program, 1, Operations::AddWithDelta::Inputs::Value, 1), -10.0f);
-    EXPECT_EQ(Reference(program, 2, Operations::ApplyVortex::Inputs::Center), Encoded(EOperandSource::Parameter, EOperandFormat::Vector4, 4));
-    EXPECT_EQ(Reference(program, 2, Operations::ApplyVortex::Inputs::Tangential), Encoded(EOperandSource::Parameter, EOperandFormat::Vector4, 8));
+    EXPECT_EQ(Reference(program, 2, Operations::ApplyVortex::Inputs::Center), Encoded(EOperandSource::Parameter, EOperandFormat::Float4, 4));
+    EXPECT_EQ(Reference(program, 2, Operations::ApplyVortex::Inputs::Tangential), Encoded(EOperandSource::Parameter, EOperandFormat::Float4, 8));
     EXPECT_FLOAT_EQ(Literal(program, 2, Operations::ApplyVortex::Inputs::Radial), 5.0f);
 }
 
@@ -138,7 +138,7 @@ TEST(ModuleCompileTest, CompilesScaleCurveWithRangeOffsetAndClamp)
 
     ASSERT_EQ(program.Operations.size(), 5u);
     EXPECT_EQ(Reference(program, 0, Operations::SampleCurve::Inputs::Curve), Encoded(EOperandSource::Parameter, EOperandFormat::Curve, 4));
-    EXPECT_EQ(Reference(program, 0, Operations::SampleCurve::Inputs::Input), Encoded(EOperandSource::DynamicInput, EOperandFormat::Scalar, uint32_t(EDynamicInput::EmitterTime)));
+    EXPECT_EQ(Reference(program, 0, Operations::SampleCurve::Inputs::Input), Encoded(EOperandSource::DynamicInput, EOperandFormat::Float, uint32_t(EDynamicInput::EmitterTime)));
     EXPECT_EQ(program.Operations[1].Type, EOperationType::Mul);
     EXPECT_FLOAT_EQ(Literal(program, 1, Operations::Mul::Inputs::Value), 2.0f);
     EXPECT_EQ(program.Operations[2].Type, EOperationType::Add);
@@ -164,11 +164,11 @@ TEST(ModuleCompileTest, CompilesConeBindingsAndLiteralFallbacks)
     SetVelocityCone({ 0, 1, 0 }, 0.25f, 4.0f, 5.0f).Compile(context);
 
     ASSERT_EQ(program.Operations.size(), 3u);
-    EXPECT_EQ(Reference(program, 0, Operations::SampleCone::Inputs::Angle), Encoded(EOperandSource::Parameter, EOperandFormat::Vector4, 4));
-    EXPECT_EQ(Reference(program, 0, Operations::SampleCone::Inputs::MinSpeed), Encoded(EOperandSource::Parameter, EOperandFormat::Vector4, 8));
-    EXPECT_EQ(Reference(program, 0, Operations::SampleCone::Inputs::MaxSpeed), Encoded(EOperandSource::Parameter, EOperandFormat::Vector4, 12));
+    EXPECT_EQ(Reference(program, 0, Operations::SampleCone::Inputs::Angle), Encoded(EOperandSource::Parameter, EOperandFormat::Float4, 4));
+    EXPECT_EQ(Reference(program, 0, Operations::SampleCone::Inputs::MinSpeed), Encoded(EOperandSource::Parameter, EOperandFormat::Float4, 8));
+    EXPECT_EQ(Reference(program, 0, Operations::SampleCone::Inputs::MaxSpeed), Encoded(EOperandSource::Parameter, EOperandFormat::Float4, 12));
     EXPECT_FLOAT_EQ(Literal(program, 1, Operations::SampleCone::Inputs::Angle), 0.25f);
-    EXPECT_EQ(Reference(program, 1, Operations::SampleCone::Inputs::MinSpeed), Encoded(EOperandSource::Parameter, EOperandFormat::Vector4, 8));
+    EXPECT_EQ(Reference(program, 1, Operations::SampleCone::Inputs::MinSpeed), Encoded(EOperandSource::Parameter, EOperandFormat::Float4, 8));
     EXPECT_FLOAT_EQ(Literal(program, 1, Operations::SampleCone::Inputs::MaxSpeed), 5.0f);
     EXPECT_FLOAT_EQ(Literal(program, 2, Operations::SampleCone::Inputs::MinSpeed), 4.0f);
     for (size_t i = 0; i < 3; ++i)
@@ -199,7 +199,7 @@ TEST(ModuleCompileTest, PacksAndInternsTypedConstantsWithoutFloat4Padding)
 TEST(ModuleCompileTest, ValidatesContractsAndNamedParameterTypes)
 {
     const auto parameters = CompileParameters(std::vector<SParameter>{
-        { .Name = "Scalar", .Type = EParameterType::Scalar, .Value = glm::vec4(1) }, { .Name = "Vector", .Type = EParameterType::Vector4, .Value = glm::vec4(1) },
+        { .Name = "Scalar", .Type = EParameterType::Float, .Value = glm::vec4(1) }, { .Name = "Vector", .Type = EParameterType::Float4, .Value = glm::vec4(1) },
     });
     SCompiledModuleData program;
     ModuleCompileContext context(program, parameters, "", 1);
@@ -273,7 +273,7 @@ TEST(ModuleCompileTest, RequiresUnsignedRibbonIdsForDestinationsAndAttributeRead
 
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::RibbonId, {context.Scalar(1)});
     context.Emit(EOperationType::CopyFromAttribute, EParticleAttribute::Scale,
-        {context.Attribute(EParticleAttribute::RibbonId, EOperandType::Scalar)});
+        {context.Attribute(EParticleAttribute::RibbonId, EOperandInput::Float)});
     context.Emit(EOperationType::RandomRange, EParticleAttribute::RibbonId,
         {context.UInt(1), context.UInt(2)});
     EXPECT_TRUE(program.Operations.empty());
@@ -281,7 +281,7 @@ TEST(ModuleCompileTest, RequiresUnsignedRibbonIdsForDestinationsAndAttributeRead
 
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::RibbonId, {context.UInt(UINT32_MAX)});
     context.Emit(EOperationType::CopyFromAttribute, EParticleAttribute::RibbonId,
-        {context.Attribute(EParticleAttribute::RibbonId, EOperandType::UInt)});
+        {context.Attribute(EParticleAttribute::RibbonId, EOperandInput::UInt)});
     ASSERT_EQ(program.Operations.size(), 2u);
     EXPECT_EQ(Reference(program, 1, Operations::CopyFromAttribute::Inputs::Value),
         Encoded(EOperandSource::ParticleAttribute, GetAttributeOperandFormat(EParticleAttribute(uint32_t(EParticleAttribute::RibbonId))), uint32_t(EParticleAttribute::RibbonId)));
@@ -317,34 +317,34 @@ TEST(OperandValidationTest, ChecksTableBoundariesWithoutCompilingAnOperation)
 {
     const std::array<uint32_t, 4> constants{};
     const auto parameters = CompileParameters(std::vector<SParameter>{
-        { .Name = "Scalar", .Type = EParameterType::Scalar },
-        { .Name = "Vector", .Type = EParameterType::Vector4 },
+        { .Name = "Scalar", .Type = EParameterType::Float },
+        { .Name = "Vector", .Type = EParameterType::Float4 },
     });
     const SOperandValidationContext context{constants, parameters};
-    const auto valid = [&](EOperandType type, EOperandSource source, EOperandFormat format, uint32_t index)
+    const auto valid = [&](EOperandInput type, EOperandSource source, EOperandFormat format, uint32_t index)
     {
         return IsValidOperand({type, Encoded(source, format, index)}, context);
     };
 
-    EXPECT_TRUE(valid(EOperandType::Scalar, EOperandSource::Constant, EOperandFormat::Scalar, 3));
-    EXPECT_FALSE(valid(EOperandType::Scalar, EOperandSource::Constant, EOperandFormat::Scalar, 4));
-    EXPECT_TRUE(valid(EOperandType::Vector3, EOperandSource::Constant, EOperandFormat::Vector3, 1));
-    EXPECT_FALSE(valid(EOperandType::Vector3, EOperandSource::Constant, EOperandFormat::Vector3, 2));
-    EXPECT_TRUE(valid(EOperandType::Vector4, EOperandSource::Constant, EOperandFormat::Vector4, 0));
-    EXPECT_FALSE(valid(EOperandType::Vector4, EOperandSource::Constant, EOperandFormat::Vector4, 1));
+    EXPECT_TRUE(valid(EOperandInput::Float, EOperandSource::Constant, EOperandFormat::Float, 3));
+    EXPECT_FALSE(valid(EOperandInput::Float, EOperandSource::Constant, EOperandFormat::Float, 4));
+    EXPECT_TRUE(valid(EOperandInput::Float3, EOperandSource::Constant, EOperandFormat::Float3, 1));
+    EXPECT_FALSE(valid(EOperandInput::Float3, EOperandSource::Constant, EOperandFormat::Float3, 2));
+    EXPECT_TRUE(valid(EOperandInput::Float4, EOperandSource::Constant, EOperandFormat::Float4, 0));
+    EXPECT_FALSE(valid(EOperandInput::Float4, EOperandSource::Constant, EOperandFormat::Float4, 1));
 
-    const auto parameter = [&](EOperandType type, EOperandFormat format, uint32_t index)
+    const auto parameter = [&](EOperandInput type, EOperandFormat format, uint32_t index)
     {
         return IsValidOperand({type, Encoded(EOperandSource::Parameter, format, index)}, context);
     };
-    EXPECT_TRUE(parameter(EOperandType::Scalar, EOperandFormat::Scalar, 0));
-    EXPECT_FALSE(parameter(EOperandType::Vector3, EOperandFormat::Scalar, 0));
-    EXPECT_TRUE(parameter(EOperandType::Vector3, EOperandFormat::Vector4, 1));
-    EXPECT_FALSE(parameter(EOperandType::Scalar, EOperandFormat::Vector4, 1));
-    EXPECT_FALSE(parameter(EOperandType::Vector4, EOperandFormat::Vector4, 2));
+    EXPECT_TRUE(parameter(EOperandInput::Float, EOperandFormat::Float, 0));
+    EXPECT_FALSE(parameter(EOperandInput::Float3, EOperandFormat::Float, 0));
+    EXPECT_TRUE(parameter(EOperandInput::Float3, EOperandFormat::Float4, 1));
+    EXPECT_FALSE(parameter(EOperandInput::Float, EOperandFormat::Float4, 1));
+    EXPECT_FALSE(parameter(EOperandInput::Float4, EOperandFormat::Float4, 2));
 
-    EXPECT_TRUE(valid(EOperandType::Curve, EOperandSource::Parameter, EOperandFormat::Curve, OperandIndexMask));
-    EXPECT_FALSE(valid(EOperandType::Curve, EOperandSource::Parameter, EOperandFormat::Curve, 2));
+    EXPECT_TRUE(valid(EOperandInput::Curve, EOperandSource::Parameter, EOperandFormat::Curve, OperandIndexMask));
+    EXPECT_FALSE(valid(EOperandInput::Curve, EOperandSource::Parameter, EOperandFormat::Curve, 2));
 }
 
 TEST(ModuleCompileTest, RejectsMalformedReferencesBeforeEmittingInstructions)
@@ -353,11 +353,11 @@ TEST(ModuleCompileTest, RejectsMalformedReferencesBeforeEmittingInstructions)
     const std::vector<Elixir::Aether::Core::SCompiledParameter> parameters;
     ModuleCompileContext context(program, parameters, "", 1);
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::Scale,
-        {{EOperandType::Scalar, Encoded(EOperandSource::Constant, EOperandFormat::Scalar, 0)}});
+        {{EOperandInput::Float, Encoded(EOperandSource::Constant, EOperandFormat::Float, 0)}});
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::Scale,
         {context.Dynamic(static_cast<EDynamicInput>(99))});
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::Scale,
-        {context.Attribute(EParticleAttribute::Color, EOperandType::Scalar)});
+        {context.Attribute(EParticleAttribute::Color, EOperandInput::Float)});
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::Temp0,
         {context.Curve("Missing")});
     EXPECT_TRUE(program.Operations.empty());
@@ -404,7 +404,7 @@ TEST(ModuleCompileTest, UsesTwentyFourBytesForOneScalarInstruction)
 TEST(ModuleCompileTest, PreservesScalarBitsAndSignedZeroInConstants)
 {
     SCompiledModuleData program;
-    const auto parameters = CompileParameters(std::vector<SParameter>{{ .Name = "Bound", .Type = EParameterType::Scalar, .Value = glm::vec4(3) }});
+    const auto parameters = CompileParameters(std::vector<SParameter>{{ .Name = "Bound", .Type = EParameterType::Float, .Value = glm::vec4(3) }});
     ModuleCompileContext context(program, parameters, "", 1);
     const uint32_t bits = 0xe0000001u;
     context.Emit(EOperationType::RandomRange, EParticleAttribute::Scale,
@@ -416,7 +416,7 @@ TEST(ModuleCompileTest, PreservesScalarBitsAndSignedZeroInConstants)
     EXPECT_EQ(program.Operations[1].OperandCount, 2u);
     EXPECT_EQ(Reference(program, 0, 0) >> OperandSourceShift, uint32_t(EOperandSource::Constant));
     EXPECT_EQ(program.Constants.at(Reference(program, 0, 0) & OperandIndexMask), bits);
-    EXPECT_EQ(Reference(program, 0, 1), (Encoded(EOperandSource::Parameter, EOperandFormat::Scalar, 0)));
+    EXPECT_EQ(Reference(program, 0, 1), (Encoded(EOperandSource::Parameter, EOperandFormat::Float, 0)));
     EXPECT_EQ(program.Constants.at(Reference(program, 1, 0) & OperandIndexMask), 0u);
     EXPECT_EQ(program.Constants.at(Reference(program, 1, 1) & OperandIndexMask), 0x80000000u);
     EXPECT_NE(Reference(program, 1, 0), Reference(program, 1, 1));
@@ -454,22 +454,22 @@ TEST(ParameterStoreTest, ReplacingAParameterTypeKeepsItsNameUnique)
     auto parameters = store.Compile("Emitter.");
     ASSERT_EQ(parameters.size(), 1u);
     EXPECT_EQ(parameters[0].Name, "Emitter.Value");
-    EXPECT_EQ(parameters[0].Type, EParameterType::Vector4);
+    EXPECT_EQ(parameters[0].Type, EParameterType::Float4);
     EXPECT_EQ(parameters[0].Value, glm::vec4(2));
     store.SetFloat("Value", 3);
     parameters = store.Compile();
     ASSERT_EQ(parameters.size(), 1u);
-    EXPECT_EQ(parameters[0].Type, EParameterType::Scalar);
+    EXPECT_EQ(parameters[0].Type, EParameterType::Float);
     EXPECT_EQ(parameters[0].Value, glm::vec4(3, 0, 0, 0));
 }
 
 TEST(CompiledParameterTest, PacksNativeWidthsAndPreservesUnsignedAndSignedZeroBits)
 {
     const std::vector<SParameter> authored{
-        { .Name = "Scalar", .Type = EParameterType::Scalar, .Value = {2, 0, 0, 0} },
-        { .Name = "Vector2", .Type = EParameterType::Vector2, .Value = {3, 4, 0, 0} },
-        { .Name = "Vector3", .Type = EParameterType::Vector3, .Value = {5, -0.0f, 7, 0} },
-        { .Name = "Vector4", .Type = EParameterType::Vector4, .Value = {8, 9, 10, 11} },
+        { .Name = "Scalar", .Type = EParameterType::Float, .Value = {2, 0, 0, 0} },
+        { .Name = "Vector2", .Type = EParameterType::Float2, .Value = {3, 4, 0, 0} },
+        { .Name = "Vector3", .Type = EParameterType::Float3, .Value = {5, -0.0f, 7, 0} },
+        { .Name = "Vector4", .Type = EParameterType::Float4, .Value = {8, 9, 10, 11} },
         { .Name = "UInt", .Type = EParameterType::UInt, .Value = EncodeUIntParameter(UINT32_MAX) },
         { .Name = "Curve:0", .Value = {12, 13, 14, 15} }
     };
@@ -491,7 +491,7 @@ TEST(CompiledParameterTest, PacksNativeWidthsAndPreservesUnsignedAndSignedZeroBi
 
 TEST(CompiledParameterTest, RejectsMalformedOffsetsAndTypesBeforeCopyingPayloads)
 {
-    auto compiled = CompileParameters(std::array{SParameter{.Type = EParameterType::Scalar}});
+    auto compiled = CompileParameters(std::array{SParameter{.Type = EParameterType::Float}});
     for (const auto offset : {1u, UINT32_MAX})
     {
         compiled[0].WordOffset = offset;
@@ -508,10 +508,10 @@ TEST(CompiledParameterTest, RejectsMalformedOffsetsAndTypesBeforeCopyingPayloads
 TEST(ModuleCompileTest, BindsNativeParameterFormatsAndKeepsTheirOffsetsDuringCompaction)
 {
     const auto parameters = CompileParameters(std::vector<SParameter>{
-        {.Name = "Scalar", .Type = EParameterType::Scalar},
-        {.Name = "Vector2", .Type = EParameterType::Vector2},
-        {.Name = "Vector3", .Type = EParameterType::Vector3},
-        {.Name = "Vector4", .Type = EParameterType::Vector4},
+        {.Name = "Scalar", .Type = EParameterType::Float},
+        {.Name = "Vector2", .Type = EParameterType::Float2},
+        {.Name = "Vector3", .Type = EParameterType::Float3},
+        {.Name = "Vector4", .Type = EParameterType::Float4},
         {.Name = "UInt", .Type = EParameterType::UInt},
         {.Name = "Curve:0"}, {.Name = "Curve:1"}
     });
@@ -525,8 +525,8 @@ TEST(ModuleCompileTest, BindsNativeParameterFormatsAndKeepsTheirOffsetsDuringCom
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::RibbonId, {context.UInt(0, "UInt")});
     context.Emit(EOperationType::SampleCurve, EParticleAttribute::Scale, {context.Curve("Curve"), context.Scalar(0.5f)});
     ASSERT_EQ(program.Operations.size(), 6u);
-    const std::array formats{EOperandFormat::Scalar, EOperandFormat::Vector2, EOperandFormat::Vector3,
-        EOperandFormat::Vector4, EOperandFormat::UInt};
+    const std::array formats{EOperandFormat::Float, EOperandFormat::Float2, EOperandFormat::Float3,
+        EOperandFormat::Float4, EOperandFormat::UInt};
     const std::array<uint32_t, 5> offsets{0, 1, 3, 6, 10};
     program.CompactConstants();
     for (size_t i = 0; i < formats.size(); ++i)
@@ -542,43 +542,43 @@ TEST(ModuleCompileTest, BindsNativeParameterFormatsAndKeepsTheirOffsetsDuringCom
 TEST(OperandValidationTest, RejectsInteriorWordsAndIncorrectNativeParameterFormats)
 {
     const auto parameters = CompileParameters(std::vector<SParameter>{
-        {.Type = EParameterType::Scalar}, {.Type = EParameterType::Vector3}, {.Type = EParameterType::UInt}
+        {.Type = EParameterType::Float}, {.Type = EParameterType::Float3}, {.Type = EParameterType::UInt}
     });
     const SOperandValidationContext context{{}, parameters};
-    const auto valid = [&](EOperandType type, EOperandFormat format, uint32_t offset)
+    const auto valid = [&](EOperandInput type, EOperandFormat format, uint32_t offset)
     {
         return IsValidOperand({type, Encoded(EOperandSource::Parameter, format, offset)}, context);
     };
-    EXPECT_TRUE(valid(EOperandType::Vector3, EOperandFormat::Vector3, 1));
-    EXPECT_FALSE(valid(EOperandType::Vector3, EOperandFormat::Vector3, 2));
-    EXPECT_FALSE(valid(EOperandType::Vector3, EOperandFormat::Vector4, 1));
-    EXPECT_TRUE(valid(EOperandType::UInt, EOperandFormat::UInt, 4));
-    EXPECT_FALSE(valid(EOperandType::Scalar, EOperandFormat::Scalar, 4));
-    EXPECT_FALSE(IsValidOperand({EOperandType::UInt, Encoded(EOperandSource::Immediate, EOperandFormat::Scalar, 4)}, context));
+    EXPECT_TRUE(valid(EOperandInput::Float3, EOperandFormat::Float3, 1));
+    EXPECT_FALSE(valid(EOperandInput::Float3, EOperandFormat::Float3, 2));
+    EXPECT_FALSE(valid(EOperandInput::Float3, EOperandFormat::Float4, 1));
+    EXPECT_TRUE(valid(EOperandInput::UInt, EOperandFormat::UInt, 4));
+    EXPECT_FALSE(valid(EOperandInput::Float, EOperandFormat::Float, 4));
+    EXPECT_FALSE(IsValidOperand({EOperandInput::UInt, Encoded(EOperandSource::Immediate, EOperandFormat::Float, 4)}, context));
 
     auto invalidParameters = parameters;
-    invalidParameters[1].Type = EParameterType::Vector4;
-    EXPECT_FALSE(IsValidOperand({EOperandType::Vector3, Encoded(EOperandSource::Parameter, EOperandFormat::Vector3, 1)},
+    invalidParameters[1].Type = EParameterType::Float4;
+    EXPECT_FALSE(IsValidOperand({EOperandInput::Float3, Encoded(EOperandSource::Parameter, EOperandFormat::Float3, 1)},
         {{}, invalidParameters}));
     invalidParameters = parameters;
     invalidParameters[1].WordOffset = 2;
-    EXPECT_FALSE(IsValidOperand({EOperandType::Vector3, Encoded(EOperandSource::Parameter, EOperandFormat::Vector3, 2)},
+    EXPECT_FALSE(IsValidOperand({EOperandInput::Float3, Encoded(EOperandSource::Parameter, EOperandFormat::Float3, 2)},
         {{}, invalidParameters}));
 }
 
 TEST(OperandReferenceTest, KeepsOriginFormatAndPayloadInIndependentFields)
 {
-    const auto reference = EncodeOperandReference(EOperandSource::Parameter, EOperandFormat::Vector3, OperandIndexMask);
+    const auto reference = EncodeOperandReference(EOperandSource::Parameter, EOperandFormat::Float3, OperandIndexMask);
     EXPECT_EQ(reference, 0x2bffffffu);
     EXPECT_EQ(GetOperandSource(reference), EOperandSource::Parameter);
-    EXPECT_EQ(GetOperandFormat(reference), EOperandFormat::Vector3);
+    EXPECT_EQ(GetOperandFormat(reference), EOperandFormat::Float3);
     EXPECT_EQ(reference & OperandIndexMask, OperandIndexMask);
-    EXPECT_EQ(GetOperandSource(EncodeOperandReference(EOperandSource::Constant, EOperandFormat::Vector3, 0)),
+    EXPECT_EQ(GetOperandSource(EncodeOperandReference(EOperandSource::Constant, EOperandFormat::Float3, 0)),
         EOperandSource::Constant);
-    EXPECT_EQ(GetOperandFormat(EncodeOperandReference(EOperandSource::Parameter, EOperandFormat::Scalar, 0)),
-        EOperandFormat::Scalar);
-    EXPECT_EQ(EncodeOperandReference(EOperandSource::Constant, EOperandFormat::Scalar, OperandIndexMask + 1), UINT32_MAX);
-    EXPECT_EQ(EncodeOperandReference(EOperandSource(8), EOperandFormat::Scalar, 0), UINT32_MAX);
+    EXPECT_EQ(GetOperandFormat(EncodeOperandReference(EOperandSource::Parameter, EOperandFormat::Float, 0)),
+        EOperandFormat::Float);
+    EXPECT_EQ(EncodeOperandReference(EOperandSource::Constant, EOperandFormat::Float, OperandIndexMask + 1), UINT32_MAX);
+    EXPECT_EQ(EncodeOperandReference(EOperandSource(8), EOperandFormat::Float, 0), UINT32_MAX);
     EXPECT_EQ(EncodeOperandReference(EOperandSource::Constant, EOperandFormat(8), 0), UINT32_MAX);
 }
 
@@ -587,20 +587,20 @@ TEST(OperandValidationTest, RejectsFormatsThatDoNotMatchTheirOrigin)
     const std::array<uint32_t, 4> constants{};
     const auto parameters = CompileParameters(std::vector<SParameter>{{.Type = EParameterType::Unspecified}});
     const SOperandValidationContext context{constants, parameters};
-    const auto valid = [&](EOperandType type, EOperandSource source, EOperandFormat format, uint32_t index)
+    const auto valid = [&](EOperandInput type, EOperandSource source, EOperandFormat format, uint32_t index)
     {
         return IsValidOperand({type, Encoded(source, format, index)}, context);
     };
-    EXPECT_TRUE(valid(EOperandType::Curve, EOperandSource::Parameter, EOperandFormat::Curve, 0));
-    EXPECT_FALSE(valid(EOperandType::Curve, EOperandSource::Constant, EOperandFormat::Curve, 0));
-    EXPECT_FALSE(valid(EOperandType::Scalar, EOperandSource::Parameter, EOperandFormat::Curve, OperandIndexMask));
-    EXPECT_FALSE(valid(EOperandType::UInt, EOperandSource::Immediate, EOperandFormat::Scalar, 0));
-    EXPECT_TRUE(valid(EOperandType::UInt, EOperandSource::Immediate, EOperandFormat::UInt, OperandIndexMask));
-    EXPECT_FALSE(valid(EOperandType::Scalar, EOperandSource::DynamicInput, EOperandFormat::Vector4, uint32_t(EDynamicInput::EmitterTime)));
-    EXPECT_FALSE(valid(EOperandType::Scalar, EOperandSource(7), EOperandFormat::Scalar, 0));
-    EXPECT_FALSE(valid(EOperandType::Scalar, EOperandSource::Constant, EOperandFormat(7), 0));
-    EXPECT_TRUE(valid(EOperandType::Vector3, EOperandSource::Constant, EOperandFormat::Vector2, 2));
-    EXPECT_FALSE(valid(EOperandType::Vector3, EOperandSource::Constant, EOperandFormat::Vector2, 3));
+    EXPECT_TRUE(valid(EOperandInput::Curve, EOperandSource::Parameter, EOperandFormat::Curve, 0));
+    EXPECT_FALSE(valid(EOperandInput::Curve, EOperandSource::Constant, EOperandFormat::Curve, 0));
+    EXPECT_FALSE(valid(EOperandInput::Float, EOperandSource::Parameter, EOperandFormat::Curve, OperandIndexMask));
+    EXPECT_FALSE(valid(EOperandInput::UInt, EOperandSource::Immediate, EOperandFormat::Float, 0));
+    EXPECT_TRUE(valid(EOperandInput::UInt, EOperandSource::Immediate, EOperandFormat::UInt, OperandIndexMask));
+    EXPECT_FALSE(valid(EOperandInput::Float, EOperandSource::DynamicInput, EOperandFormat::Float4, uint32_t(EDynamicInput::EmitterTime)));
+    EXPECT_FALSE(valid(EOperandInput::Float, EOperandSource(7), EOperandFormat::Float, 0));
+    EXPECT_FALSE(valid(EOperandInput::Float, EOperandSource::Constant, EOperandFormat(7), 0));
+    EXPECT_TRUE(valid(EOperandInput::Float3, EOperandSource::Constant, EOperandFormat::Float2, 2));
+    EXPECT_FALSE(valid(EOperandInput::Float3, EOperandSource::Constant, EOperandFormat::Float2, 3));
 }
 
 TEST(ModuleCompileTest, MovesUnsignedValuesBeyondTheImmediatePayloadIntoConstants)
@@ -622,15 +622,15 @@ TEST(ModuleCompileTest, MovesUnsignedValuesBeyondTheImmediatePayloadIntoConstant
 TEST(OperandValidationTest, UsesStoredFormatsForAttributesAndTemporaryRegisters)
 {
     const SOperandValidationContext context{};
-    for (const auto type : {EOperandType::Scalar, EOperandType::Vector3, EOperandType::Vector4})
+    for (const auto type : {EOperandInput::Float, EOperandInput::Float3, EOperandInput::Float4})
     {
-        const auto reference = Encoded(EOperandSource::ParticleAttribute, EOperandFormat::Vector4, uint32_t(EParticleAttribute::Temp0));
+        const auto reference = Encoded(EOperandSource::ParticleAttribute, EOperandFormat::Float4, uint32_t(EParticleAttribute::Temp0));
         EXPECT_TRUE(IsValidOperand({type, reference}, context));
-        EXPECT_FALSE(IsValidOperand({type, Encoded(EOperandSource::ParticleAttribute, EOperandFormat::Scalar,
+        EXPECT_FALSE(IsValidOperand({type, Encoded(EOperandSource::ParticleAttribute, EOperandFormat::Float,
             uint32_t(EParticleAttribute::Temp0))}, context));
     }
-    EXPECT_TRUE(IsValidOperand({EOperandType::UInt, Encoded(EOperandSource::ParticleAttribute, EOperandFormat::UInt,
+    EXPECT_TRUE(IsValidOperand({EOperandInput::UInt, Encoded(EOperandSource::ParticleAttribute, EOperandFormat::UInt,
         uint32_t(EParticleAttribute::RibbonId))}, context));
-    EXPECT_FALSE(IsValidOperand({EOperandType::UInt, Encoded(EOperandSource::ParticleAttribute, EOperandFormat::Vector4,
+    EXPECT_FALSE(IsValidOperand({EOperandInput::UInt, Encoded(EOperandSource::ParticleAttribute, EOperandFormat::Float4,
         uint32_t(EParticleAttribute::RibbonId))}, context));
 }

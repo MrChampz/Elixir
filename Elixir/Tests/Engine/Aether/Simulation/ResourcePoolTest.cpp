@@ -229,8 +229,8 @@ TEST(ResourcePoolTest, AllocatesNativeParameterWordsAndRollsBackExhaustion)
     const ParticleStateLayoutRegistry layouts{limits.ParticleCapacity};
     ResourcePool pool{limits, layouts};
     auto system = MakeCompiledSystem(4, 1, 1, 0, 0);
-    system.Parameters = CompileParameters(std::array{SParameter{.Type = EParameterType::Scalar},
-        SParameter{.Type = EParameterType::Vector2}, SParameter{.Type = EParameterType::UInt}});
+    system.Parameters = CompileParameters(std::array{SParameter{.Type = EParameterType::Float},
+        SParameter{.Type = EParameterType::Float2}, SParameter{.Type = EParameterType::UInt}});
     system.DefaultParameterWords = PackParameterValues(system.Parameters);
     const auto first = pool.Allocate(system);
     ASSERT_TRUE(first);

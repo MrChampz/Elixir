@@ -19,7 +19,7 @@ namespace Elixir::Aether::Core::Operations
         /** @brief Returns the input definition and destination rules for Dampen. */
         const SOperationDefinition& GetDefinition() const override
         {
-            static constexpr std::array inputs{ EOperandType::Scalar };
+            static constexpr std::array inputs{ EOperandInput::Float };
             static constexpr SOperationDefinition definition{
                 EOperationType::Dampen,
                 inputs,

@@ -42,7 +42,7 @@ namespace Elixir::Aether::Modules
     }
 
     SGPUOperand ModuleCompileContext::Literal(
-        EOperandType type,
+        const EOperandInput input,
         std::span<const uint32_t> words,
         const std::string_view parameter
     )
@@ -52,10 +52,10 @@ namespace Elixir::Aether::Modules
         {
             const auto declared = m_Parameters[index].Type;
 
-            if (!IsParameterOperandType(declared, type))
+            if (!IsParameterOperandType(declared, input))
             {
                 EE_CORE_ERROR("Particle parameter type does not match its binding.");
-                return { static_cast<EOperandType>(UINT8_MAX), 0 };
+                return { static_cast<EOperandInput>(UINT8_MAX), 0 };
             }
 
             const auto& definition = m_Parameters[index];
@@ -64,11 +64,11 @@ namespace Elixir::Aether::Modules
             if (std::size_t(definition.WordOffset) + count > OperandIndexMask)
             {
                 EE_CORE_ERROR("Particle parameter offset exceeds the operand word range.");
-                return { static_cast<EOperandType>(UINT8_MAX), 0 };
+                return { static_cast<EOperandInput>(UINT8_MAX), 0 };
             }
 
             return {
-                type,
+                input,
                 EncodeOperandReference(
                     EOperandSource::Parameter,
                     GetParameterOperandFormat(declared),
@@ -77,21 +77,21 @@ namespace Elixir::Aether::Modules
             };
         }
 
-        const auto format = GetOperandTypeFormat(type);
+        const auto format = GetOperandTypeFormat(input);
 
-        std::array<uint32_t, 5> key{ uint32_t(type) };
+        std::array<uint32_t, 5> key{ uint32_t(input) };
         std::ranges::copy(words, key.begin() + 1);
 
         if (const auto found = m_Literals.find(key); found != m_Literals.end())
             return {
-                type,
+                input,
                 EncodeOperandReference(EOperandSource::Constant, format, found->second)
             };
 
         if (m_ModuleData.Constants.size() + words.size() > OperandIndexMask)
         {
             EE_CORE_ERROR("Particle constant pool exceeds 26 bits.");
-            return { static_cast<EOperandType>(UINT8_MAX), 0 };
+            return { static_cast<EOperandInput>(UINT8_MAX), 0 };
         }
 
         const auto offset = (uint32_t)m_ModuleData.Constants.size();
@@ -99,7 +99,7 @@ namespace Elixir::Aether::Modules
         m_Literals.emplace(std::move(key), offset);
 
         return {
-            type,
+            input,
             EncodeOperandReference(EOperandSource::Constant, format, offset)
         };
     }
@@ -107,7 +107,7 @@ namespace Elixir::Aether::Modules
     SGPUOperand ModuleCompileContext::Scalar(const float value, const std::string_view parameter)
     {
         const uint32_t words[]{ std::bit_cast<uint32_t>(value) };
-        return Literal(EOperandType::Scalar, words, parameter);
+        return Literal(EOperandInput::Float, words, parameter);
     }
 
     SGPUOperand ModuleCompileContext::Vector(
@@ -121,7 +121,7 @@ namespace Elixir::Aether::Modules
             std::bit_cast<uint32_t>(value.y),
             std::bit_cast<uint32_t>(value.z)
         };
-        return Literal(EOperandType::Vector3, words, parameter);
+        return Literal(EOperandInput::Float3, words, parameter);
     }
 
     SGPUOperand ModuleCompileContext::Value(
@@ -136,31 +136,31 @@ namespace Elixir::Aether::Modules
             std::bit_cast<uint32_t>(value.z),
             std::bit_cast<uint32_t>(value.w)
         };
-        return Literal(EOperandType::Vector4, words, parameter);
+        return Literal(EOperandInput::Float4, words, parameter);
     }
 
     SGPUOperand ModuleCompileContext::UInt(uint32_t value, const std::string_view parameter)
     {
         if (!parameter.empty())
-            return Literal(EOperandType::UInt, std::span(&value, 1), parameter);
+            return Literal(EOperandInput::UInt, std::span(&value, 1), parameter);
 
         if (value <= OperandIndexMask)
             return {
-                EOperandType::UInt,
+                EOperandInput::UInt,
                 EncodeOperandReference(EOperandSource::Immediate, EOperandFormat::UInt, value)
             };
 
-        return Literal(EOperandType::UInt, std::span(&value, 1), "");
+        return Literal(EOperandInput::UInt, std::span(&value, 1), "");
     }
 
     SGPUOperand ModuleCompileContext::Dynamic(EDynamicInput input)
     {
         if (input == EDynamicInput::None) return Scalar(1.0f);
         return {
-            EOperandType::Scalar,
+            EOperandInput::Float,
             EncodeOperandReference(
                 EOperandSource::DynamicInput,
-                EOperandFormat::Scalar,
+                EOperandFormat::Float,
                 uint32_t(input)
             )
         };
@@ -168,7 +168,7 @@ namespace Elixir::Aether::Modules
 
     SGPUOperand ModuleCompileContext::Attribute(
         const EParticleAttribute attribute,
-        const EOperandType type
+        const EOperandInput type
     )
     {
         return {
@@ -191,11 +191,11 @@ namespace Elixir::Aether::Modules
         if (index != UINT32_MAX && index >= OperandIndexMask)
         {
             EE_CORE_ERROR("Particle curve index collides with the missing-curve sentinel.");
-            return { static_cast<EOperandType>(UINT8_MAX), 0 };
+            return { static_cast<EOperandInput>(UINT8_MAX), 0 };
         }
 
         return {
-            EOperandType::Curve,
+            EOperandInput::Curve,
             EncodeOperandReference(
                 EOperandSource::Parameter,
                 EOperandFormat::Curve,
@@ -218,7 +218,7 @@ namespace Elixir::Aether::Modules
         }
 
         const auto inputs = operation->GetDefinition().Inputs;
-        using enum EOperandType;
+        using enum EOperandInput;
 
         if (operands.size() > UINT32_MAX)
         {
@@ -253,7 +253,7 @@ namespace Elixir::Aether::Modules
             const auto expected = inputs[i++];
             const auto actual = operand.Type;
 
-            const auto isNumeric = actual == Scalar || actual == Vector3 || actual == Vector4;
+            const auto isNumeric = actual == Float || actual == Float3 || actual == Float4;
             const auto isValidTempTarget = isTempTarget && isNumeric;
             const auto matchesTarget = actual == targetType || isValidTempTarget;
             const bool matches = expected == actual || (expected == Target && matchesTarget);

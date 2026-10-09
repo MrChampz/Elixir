@@ -19,7 +19,7 @@ namespace Elixir::Aether::Core::Operations
         /** @brief Returns the input definition and destination rules for Mul. */
         const SOperationDefinition& GetDefinition() const override
         {
-            static constexpr std::array inputs{ EOperandType::Target };
+            static constexpr std::array inputs{ EOperandInput::Target };
             static constexpr SOperationDefinition definition{
                 EOperationType::Mul,
                 inputs,

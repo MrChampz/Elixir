@@ -85,13 +85,13 @@ struct SOperandResolver
         {
             uint format = GetOperandFormat(reference);
 
-            if (format == OperandFormat_Scalar)
+            if (format == OperandFormat_Float)
                 return float4(asfloat(Load(reference, address)), 0.0, 0.0, 0.0);
-            if (format == OperandFormat_Vector3)
+            if (format == OperandFormat_Float3)
                 return float4(asfloat(Load3(reference, address)), 0.0);
-            if (format == OperandFormat_Vector4)
+            if (format == OperandFormat_Float4)
                 return asfloat(Load4(reference, address));
-            if (format == OperandFormat_Vector2)
+            if (format == OperandFormat_Float2)
                 return float4(asfloat(Load2(reference, address)), 0.0, 0.0);
             if (format == OperandFormat_UInt)
                 return CacheUInt(Load(reference, address));
@@ -181,7 +181,7 @@ struct SOperandResolver
         {
             uint format = GetOperandFormat(reference);
 
-            if (format == OperandFormat_Vector2)
+            if (format == OperandFormat_Float2)
                 return float3(asfloat(Load2(reference, GetValueAddress(reference))), 0.0);
 
             return asfloat(Load3(reference, GetValueAddress(reference)));

@@ -23,8 +23,8 @@ namespace Elixir::Aether::Core::Operations
         const SOperationDefinition& GetDefinition() const override
         {
             static constexpr std::array inputs{
-                EOperandType::Curve,
-                EOperandType::Scalar
+                EOperandInput::Curve,
+                EOperandInput::Float
             };
             static constexpr SOperationDefinition definition{
                 EOperationType::SampleColorCurve,

@@ -10,19 +10,19 @@ namespace
 {
     class OperationDefinitionTest : public testing::TestWithParam<const Operation*> {};
 
-    SGPUOperand MakeOperand(ModuleCompileContext& context, EOperandType type)
+    SGPUOperand MakeOperand(ModuleCompileContext& context, EOperandInput type)
     {
         switch (type)
         {
-            case EOperandType::Target:
-            case EOperandType::Scalar: return context.Scalar(2.0f);
-            case EOperandType::Vector3: return context.Vector(glm::vec3(2.0f));
-            case EOperandType::Vector4: return context.Value(glm::vec4(2.0f));
-            case EOperandType::UInt: return context.UInt(UINT32_MAX);
-            case EOperandType::Curve: return context.Curve("missing");
+            case EOperandInput::Target:
+            case EOperandInput::Float: return context.Scalar(2.0f);
+            case EOperandInput::Float3: return context.Vector(glm::vec3(2.0f));
+            case EOperandInput::Float4: return context.Value(glm::vec4(2.0f));
+            case EOperandInput::UInt: return context.UInt(UINT32_MAX);
+            case EOperandInput::Curve: return context.Curve("missing");
         }
         ADD_FAILURE() << "Unknown operand type.";
-        return { static_cast<EOperandType>(UINT8_MAX), 0 };
+        return { static_cast<EOperandInput>(UINT8_MAX), 0 };
     }
 }
 
@@ -64,7 +64,7 @@ TEST_P(OperationDefinitionTest, ValidatesEveryInputAndKeepsEmissionAtomic)
     for (size_t index = 0; index < operands.size(); ++index)
     {
         const auto original = operands[index];
-        operands[index] = definition->Inputs[index] == EOperandType::UInt
+        operands[index] = definition->Inputs[index] == EOperandInput::UInt
             ? context.Scalar(1.0f) : context.UInt(1u);
         emit();
         EXPECT_EQ(operations.Operations.size(), 1u) << "argument " << index;

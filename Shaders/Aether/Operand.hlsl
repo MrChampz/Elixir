@@ -7,10 +7,10 @@ static const uint OperandSource_DynamicInput        = 2u;
 static const uint OperandSource_ParticleAttribute   = 3u;
 static const uint OperandSource_Immediate           = 4u;
 
-static const uint OperandFormat_Scalar              = 0u;
-static const uint OperandFormat_Vector2             = 1u;
-static const uint OperandFormat_Vector3             = 2u;
-static const uint OperandFormat_Vector4             = 3u;
+static const uint OperandFormat_Float               = 0u;
+static const uint OperandFormat_Float2              = 1u;
+static const uint OperandFormat_Float3              = 2u;
+static const uint OperandFormat_Float4              = 3u;
 static const uint OperandFormat_UInt                = 4u;
 static const uint OperandFormat_Curve               = 5u;
 

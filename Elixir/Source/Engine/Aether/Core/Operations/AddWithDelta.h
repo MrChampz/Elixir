@@ -23,8 +23,8 @@ namespace Elixir::Aether::Core::Operations
         const SOperationDefinition& GetDefinition() const override
         {
             static constexpr std::array inputs{
-                EOperandType::Target,
-                EOperandType::Scalar
+                EOperandInput::Target,
+                EOperandInput::Float
             };
             static constexpr SOperationDefinition definition{
                 EOperationType::AddWithDelta,

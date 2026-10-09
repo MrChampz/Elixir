@@ -81,19 +81,39 @@ namespace Elixir::Aether::Core
         parameters.reserve(m_Float.size() + m_Float4.size() + m_Float2.size() + m_Float3.size() + m_UInt.size());
 
         for (const auto& [name, value] : m_Float)
-            parameters.push_back({ .Name = prefix + name, .Type = EParameterType::Scalar, .Value = { value, 0.0f, 0.0f, 0.0f } });
+            parameters.push_back({
+                .Name = prefix + name,
+                .Type = EParameterType::Float,
+                .Value = { value, 0.0f, 0.0f, 0.0f }
+            });
 
         for (const auto& [name, value] : m_Float4)
-            parameters.push_back({ .Name = prefix + name, .Type = EParameterType::Vector4, .Value = value });
+            parameters.push_back({
+                .Name = prefix + name,
+                .Type = EParameterType::Float4,
+                .Value = value
+            });
 
         for (const auto& [name, value] : m_Float2)
-            parameters.push_back({ .Name = prefix + name, .Type = EParameterType::Vector2, .Value = { value, 0.0f, 0.0f } });
+            parameters.push_back({
+                .Name = prefix + name,
+                .Type = EParameterType::Float2,
+                .Value = { value, 0.0f, 0.0f }
+            });
 
         for (const auto& [name, value] : m_Float3)
-            parameters.push_back({ .Name = prefix + name, .Type = EParameterType::Vector3, .Value = { value, 0.0f } });
+            parameters.push_back({
+                .Name = prefix + name,
+                .Type = EParameterType::Float3,
+                .Value = { value, 0.0f }
+            });
 
         for (const auto& [name, value] : m_UInt)
-            parameters.push_back({ .Name = prefix + name, .Type = EParameterType::UInt, .Value = EncodeUIntParameter(value) });
+            parameters.push_back({
+                .Name = prefix + name,
+                .Type = EParameterType::UInt,
+                .Value = EncodeUIntParameter(value)
+            });
 
         return parameters;
     }

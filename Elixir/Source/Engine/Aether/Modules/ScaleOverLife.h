@@ -61,7 +61,7 @@ namespace Elixir::Aether::Modules
                     EOperationType::CopyFromAttribute,
                     EParticleAttribute::Scale,
                     {
-                        context.Attribute(EParticleAttribute::Temp0, EOperandType::Scalar)
+                        context.Attribute(EParticleAttribute::Temp0, EOperandInput::Float)
                     }
                 );
             }

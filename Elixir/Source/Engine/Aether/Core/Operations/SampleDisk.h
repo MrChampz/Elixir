@@ -26,9 +26,9 @@ namespace Elixir::Aether::Core::Operations
         const SOperationDefinition& GetDefinition() const override
         {
             static constexpr std::array inputs{
-                EOperandType::Vector3,
-                EOperandType::Scalar,
-                EOperandType::Vector3
+                EOperandInput::Float3,
+                EOperandInput::Float,
+                EOperandInput::Float3
             };
             static constexpr SOperationDefinition definition{
                 EOperationType::SampleDisk,

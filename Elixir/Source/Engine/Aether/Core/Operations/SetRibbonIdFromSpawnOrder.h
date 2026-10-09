@@ -23,8 +23,8 @@ namespace Elixir::Aether::Core::Operations
         const SOperationDefinition& GetDefinition() const override
         {
             static constexpr std::array inputs{
-                EOperandType::UInt,
-                EOperandType::UInt
+                EOperandInput::UInt,
+                EOperandInput::UInt
             };
             static constexpr SOperationDefinition definition{
                 EOperationType::SetRibbonIdFromSpawnOrder,

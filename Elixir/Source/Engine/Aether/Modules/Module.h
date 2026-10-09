@@ -134,7 +134,7 @@ namespace Elixir::Aether::Modules
         SGPUOperand Dynamic(EDynamicInput input);
 
         /** @brief Compiles an attribute read with the supplied logical type. */
-        static SGPUOperand Attribute(EParticleAttribute attribute, EOperandType type);
+        static SGPUOperand Attribute(EParticleAttribute attribute, EOperandInput type);
 
         /** @brief Compiles a curve reference, preserving missing-curve defaults. */
         SGPUOperand Curve(std::string_view name);
@@ -142,7 +142,7 @@ namespace Elixir::Aether::Modules
     private:
         // Interns typed literal words or resolves a named parameter binding.
         SGPUOperand Literal(
-            EOperandType type,
+            EOperandInput type,
             std::span<const uint32_t> words,
             std::string_view parameter
         );

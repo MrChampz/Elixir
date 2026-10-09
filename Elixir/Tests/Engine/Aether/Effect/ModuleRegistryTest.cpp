@@ -290,7 +290,7 @@ TEST(ModuleRegistryTest, CompilesDefaultAndExplicitCurveInputsFromJson)
             if (input == EDynamicInput::None)
             {
                 EXPECT_EQ(Core::GetOperandSource(operand), Core::EOperandSource::Constant);
-                EXPECT_EQ(Core::GetOperandFormat(operand), Core::EOperandFormat::Scalar);
+                EXPECT_EQ(Core::GetOperandFormat(operand), Core::EOperandFormat::Float);
                 EXPECT_EQ(program.Constants.at(operand & Core::OperandIndexMask), std::bit_cast<uint32_t>(1.0f));
             }
             else EXPECT_EQ(operand, (uint32_t(Core::EOperandSource::DynamicInput) << Core::OperandSourceShift) | uint32_t(input));

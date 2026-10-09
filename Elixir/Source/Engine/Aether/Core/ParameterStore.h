@@ -12,16 +12,16 @@ namespace Elixir::Aether::Core
         Unspecified,
 
         /** @brief Uses one floating-point component. */
-        Scalar,
+        Float,
 
         /** @brief Uses four floating-point components. */
-        Vector4,
+        Float4,
 
         /** @brief Uses two floating-point components. */
-        Vector2,
+        Float2,
 
         /** @brief Uses three floating-point components. */
-        Vector3,
+        Float3,
 
         /** @brief Uses one unsigned 32-bit integer. */
         UInt
@@ -45,16 +45,12 @@ namespace Elixir::Aether::Core
     {
         switch (type)
         {
-            case EParameterType::Scalar:
-            case EParameterType::UInt:
-                return 1;
-            case EParameterType::Vector2:
-                return 2;
-            case EParameterType::Vector3:
-                return 3;
-            case EParameterType::Vector4:
-            case EParameterType::Unspecified:
-                return 4;
+            case EParameterType::Float:
+            case EParameterType::UInt:          return 1;
+            case EParameterType::Float2:        return 2;
+            case EParameterType::Float3:        return 3;
+            case EParameterType::Float4:
+            case EParameterType::Unspecified:   return 4;
         }
 
         return 0;

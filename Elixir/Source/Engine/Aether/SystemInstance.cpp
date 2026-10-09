@@ -40,7 +40,11 @@ namespace Elixir::Aether
 
     bool SystemInstance::SetParameterOverride(const std::string& name, const float value)
     {
-        return StoreParameterOverride(name, glm::vec4(value, 0.0f, 0.0f, 0.0f), EParameterType::Scalar);
+        return StoreParameterOverride(
+            name,
+            glm::vec4(value, 0.0f, 0.0f, 0.0f),
+            EParameterType::Float
+        );
     }
 
     bool SystemInstance::SetParameterOverride(const std::string& name, const glm::vec2& value)
@@ -48,7 +52,7 @@ namespace Elixir::Aether
         return StoreParameterOverride(
             name,
             glm::vec4(value, 0.0f, 0.0f),
-            EParameterType::Vector2
+            EParameterType::Float2
         );
     }
 
@@ -57,13 +61,13 @@ namespace Elixir::Aether
         return StoreParameterOverride(
             name,
             glm::vec4(value, 0.0f),
-            EParameterType::Vector3
+            EParameterType::Float3
         );
     }
 
     bool SystemInstance::SetParameterOverride(const std::string& name, const glm::vec4& value)
     {
-        return StoreParameterOverride(name, value, EParameterType::Vector4);
+        return StoreParameterOverride(name, value, EParameterType::Float4);
     }
 
     bool SystemInstance::SetParameterOverride(const std::string& name, const uint32_t value)
@@ -118,13 +122,13 @@ namespace Elixir::Aether
         glm::vec4 payload = value;
         switch (parameter->Type)
         {
-            case EParameterType::Scalar:
+            case EParameterType::Float:
                 payload = { value.x, 0.0f, 0.0f, 0.0f };
                 break;
-            case EParameterType::Vector2:
+            case EParameterType::Float2:
                 payload = { value.x, value.y, 0.0f, 0.0f };
                 break;
-            case EParameterType::Vector3:
+            case EParameterType::Float3:
                 payload.w = 0.0f;
                 break;
             default:

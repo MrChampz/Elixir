@@ -49,8 +49,8 @@ namespace Elixir::Aether::Core
     {
         EOperationType Type;
 
-        /** @brief Required logical type at each argument position. */
-        std::span<const EOperandType> Inputs;
+        /** @brief Expected operand input type at each argument position. */
+        std::span<const EOperandInput> Inputs;
 
         /** @brief Indicates whether the spawn shader executes this operation. */
         bool SupportsSpawn;
@@ -66,7 +66,7 @@ namespace Elixir::Aether::Core
         /** @brief Destroys the operation through its common interface. */
         virtual ~Operation() = default;
 
-        /** @brief Returns the argument types and supported execution phases. */
+        /** @brief Returns the operand input types and supported execution phases. */
         virtual const SOperationDefinition& GetDefinition() const = 0;
 
         /** @brief Checks whether the operation supports the supplied destination attribute. */

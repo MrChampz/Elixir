@@ -25,20 +25,20 @@ namespace Elixir::Aether::Core
         Immediate = 4,
     };
 
-    /** @brief Identifies how an operand's payload is stored or resolved. */
+    /** @brief Identifies how an operand's value is stored or encoded. */
     enum class EOperandFormat : uint8_t
     {
         /** @brief Stores one 32-bit floating-point component. */
-        Scalar = 0,
+        Float = 0,
 
         /** @brief Stores two floating-point components and pads vector reads with zero. */
-        Vector2 = 1,
+        Float2 = 1,
 
         /** @brief Stores three floating-point components and pads the fourth with zero. */
-        Vector3 = 2,
+        Float3 = 2,
 
         /** @brief Stores four floating-point components. */
-        Vector4 = 3,
+        Float4 = 3,
 
         /** @brief Stores an unsigned 32-bit integer without changing its bits. */
         UInt = 4,
@@ -47,17 +47,17 @@ namespace Elixir::Aether::Core
         Curve = 5,
     };
 
-    /** @brief Identifies the logical type required by an operation argument. */
-    enum class EOperandType : uint8_t
+    /** @brief Identifies the operand input type expected by an operation argument. */
+    enum class EOperandInput : uint8_t
     {
         /** @brief Requires a single floating-point component. */
-        Scalar,
+        Float,
 
         /** @brief Requires three floating-point components. */
-        Vector3,
+        Float3,
 
         /** @brief Requires four floating-point components. */
-        Vector4,
+        Float4,
 
         /** @brief Requires an unsigned 32-bit integer. */
         UInt,
@@ -117,30 +117,25 @@ namespace Elixir::Aether::Core
     {
         switch (format)
         {
-            case EOperandFormat::Scalar:
-            case EOperandFormat::UInt:
-                return 1;
-            case EOperandFormat::Vector2:
-                return 2;
-            case EOperandFormat::Vector3:
-                return 3;
-            case EOperandFormat::Vector4:
-                return 4;
-            default:
-                return 0;
+            case EOperandFormat::Float:
+            case EOperandFormat::UInt:      return 1;
+            case EOperandFormat::Float2:    return 2;
+            case EOperandFormat::Float3:    return 3;
+            case EOperandFormat::Float4:    return 4;
+            default: return 0;
         }
     }
 
     /** @brief Returns a concrete type's storage format, or an invalid format for Target. */
-    constexpr EOperandFormat GetOperandTypeFormat(const EOperandType type)
+    constexpr EOperandFormat GetOperandTypeFormat(const EOperandInput type)
     {
         switch (type)
         {
-            case EOperandType::Scalar:  return EOperandFormat::Scalar;
-            case EOperandType::Vector3: return EOperandFormat::Vector3;
-            case EOperandType::Vector4: return EOperandFormat::Vector4;
-            case EOperandType::UInt:    return EOperandFormat::UInt;
-            case EOperandType::Curve:   return EOperandFormat::Curve;
+            case EOperandInput::Float:  return EOperandFormat::Float;
+            case EOperandInput::Float3: return EOperandFormat::Float3;
+            case EOperandInput::Float4: return EOperandFormat::Float4;
+            case EOperandInput::UInt:   return EOperandFormat::UInt;
+            case EOperandInput::Curve:  return EOperandFormat::Curve;
             default: return EOperandFormat(UINT8_MAX);
         }
     }
@@ -150,12 +145,12 @@ namespace Elixir::Aether::Core
     {
         switch (type)
         {
-            case EParameterType::Scalar:        return EOperandFormat::Scalar;
-            case EParameterType::Vector2:       return EOperandFormat::Vector2;
-            case EParameterType::Vector3:       return EOperandFormat::Vector3;
+            case EParameterType::Float:         return EOperandFormat::Float;
+            case EParameterType::Float2:        return EOperandFormat::Float2;
+            case EParameterType::Float3:        return EOperandFormat::Float3;
             case EParameterType::UInt:          return EOperandFormat::UInt;
-            case EParameterType::Vector4:
-            case EParameterType::Unspecified:   return EOperandFormat::Vector4;
+            case EParameterType::Float4:
+            case EParameterType::Unspecified:   return EOperandFormat::Float4;
             default: return EOperandFormat(UINT8_MAX);
         }
     }
@@ -163,30 +158,30 @@ namespace Elixir::Aether::Core
     /** @brief Checks whether a declared parameter can supply a logical operand type. */
     constexpr bool IsParameterOperandType(
         const EParameterType declared,
-        const EOperandType actual
+        const EOperandInput actual
     )
     {
-        if (actual == EOperandType::UInt)
+        if (actual == EOperandInput::UInt)
             return declared == EParameterType::UInt;
 
         if (declared == EParameterType::Unspecified)
-            return actual == EOperandType::Scalar || actual == EOperandType::Vector3 ||
-                actual == EOperandType::Vector4;
+            return actual == EOperandInput::Float || actual == EOperandInput::Float3 ||
+                actual == EOperandInput::Float4;
 
-        if (declared == EParameterType::Scalar)
-            return actual == EOperandType::Scalar;
+        if (declared == EParameterType::Float)
+            return actual == EOperandInput::Float;
 
-        const bool vector = declared == EParameterType::Vector2 ||
-            declared == EParameterType::Vector3 || declared == EParameterType::Vector4;
+        const bool vector = declared == EParameterType::Float2 ||
+            declared == EParameterType::Float3 || declared == EParameterType::Float4;
 
-        return vector && (actual == EOperandType::Vector3 || actual == EOperandType::Vector4);
+        return vector && (actual == EOperandInput::Float3 || actual == EOperandInput::Float4);
     }
 
     /** @brief Stores a typed operand while a module is being compiled. */
     struct SGPUOperand
     {
         /** @brief Logical value type used to validate the operation argument. */
-        EOperandType Type;
+        EOperandInput Type;
 
         /** @brief Packed three-bit origin, three-bit format, and 26-bit source-relative payload. */
         uint32_t Reference;
@@ -203,24 +198,24 @@ namespace Elixir::Aether::Core
     };
 
     /** @brief Returns the logical operand type of a particle attribute. */
-    inline EOperandType GetAttributeOperandType(const EParticleAttribute attribute)
+    inline EOperandInput GetAttributeOperandType(const EParticleAttribute attribute)
     {
         switch (attribute)
         {
             case EParticleAttribute::Position:
             case EParticleAttribute::Velocity:
             case EParticleAttribute::Tangent:
-                return EOperandType::Vector3;
+                return EOperandInput::Float3;
 
             case EParticleAttribute::RibbonId:
-                return EOperandType::UInt;
+                return EOperandInput::UInt;
 
             case EParticleAttribute::Color:
             case EParticleAttribute::None:
-                return EOperandType::Vector4;
+                return EOperandInput::Float4;
 
             default:
-                return EOperandType::Scalar;
+                return EOperandInput::Float;
         }
     }
 
@@ -228,7 +223,7 @@ namespace Elixir::Aether::Core
     inline EOperandFormat GetAttributeOperandFormat(const EParticleAttribute attribute)
     {
         if (attribute >= EParticleAttribute::Temp0 && attribute <= EParticleAttribute::Temp3)
-            return EOperandFormat::Vector4;
+            return EOperandFormat::Float4;
         return GetOperandTypeFormat(GetAttributeOperandType(attribute));
     }
 
@@ -238,7 +233,7 @@ namespace Elixir::Aether::Core
         const SOperandValidationContext& context
     )
     {
-        using enum EOperandType;
+        using enum EOperandInput;
 
         const auto source = GetOperandSource(operand.Reference);
         const auto format = GetOperandFormat(operand.Reference);
@@ -289,14 +284,14 @@ namespace Elixir::Aether::Core
 
                 switch (format)
                 {
-                    case EOperandFormat::Scalar:
-                        return actual == Scalar;
-                    case EOperandFormat::Vector2:
-                        return actual == Vector3 || actual == Vector4;
-                    case EOperandFormat::Vector3:
-                        return actual == Vector3;
-                    case EOperandFormat::Vector4:
-                        return actual == Vector4;
+                    case EOperandFormat::Float:
+                        return actual == Float;
+                    case EOperandFormat::Float2:
+                        return actual == Float3 || actual == Float4;
+                    case EOperandFormat::Float3:
+                        return actual == Float3;
+                    case EOperandFormat::Float4:
+                        return actual == Float4;
                     case EOperandFormat::UInt:
                         return actual == UInt;
                     default:
@@ -305,8 +300,8 @@ namespace Elixir::Aether::Core
             }
 
             case EOperandSource::DynamicInput:
-                return format == EOperandFormat::Scalar &&
-                    actual == Scalar && index <= uint32_t(EDynamicInput::ParticleSeed);
+                return format == EOperandFormat::Float &&
+                    actual == Float && index <= uint32_t(EDynamicInput::ParticleSeed);
 
             case EOperandSource::ParticleAttribute:
             {
@@ -322,7 +317,7 @@ namespace Elixir::Aether::Core
                     return false;
 
                 const auto validTempRegister = index >= uint32_t(EParticleAttribute::Temp0) &&
-                    (actual == Scalar || actual == Vector3 || actual == Vector4);
+                    (actual == Float || actual == Float3 || actual == Float4);
 
                 if (sameType || validTempRegister)
                     return true;
