@@ -75,12 +75,12 @@ namespace Elixir::Aether::Rendering
         layout.SpriteVertexLayout = {{
             {
                 {
-                    { EDataType::Vec4,  "PositionSize"    },
-                    { EDataType::Vec4,  "VelocityAge"     },
-                    { EDataType::Vec4,  "Transform"       },
-                    { EDataType::Vec4,  "TangentRibbonId" },
-                    { EDataType::Vec4,  "Color"           },
-                    { EDataType::Vec4,  "Metadata"        }
+                    { EDataType::Float4,  "PositionSize"    },
+                    { EDataType::Float4,  "VelocityAge"     },
+                    { EDataType::Float4,  "Transform"       },
+                    { EDataType::Float4,  "TangentRibbonId" },
+                    { EDataType::Float4,  "Color"           },
+                    { EDataType::Float4,  "Metadata"        }
                 },
                 EInputRate::Instance
             }
@@ -89,19 +89,19 @@ namespace Elixir::Aether::Rendering
         layout.MeshVertexLayout = {{
             {
                 {
-                    { EDataType::Vec3,  "Position" },
-                    { EDataType::Vec3,  "Normal"   },
+                    { EDataType::Float3,  "Position" },
+                    { EDataType::Float3,  "Normal"   },
                 },
                 EInputRate::Vertex
             },
             {
                 {
-                    { EDataType::Vec4,  "PositionSize"    },
-                    { EDataType::Vec4,  "VelocityAge"     },
-                    { EDataType::Vec4,  "Transform"       },
-                    { EDataType::Vec4,  "TangentRibbonId" },
-                    { EDataType::Vec4,  "Color"           },
-                    { EDataType::Vec4,  "Metadata"        }
+                    { EDataType::Float4,  "PositionSize"    },
+                    { EDataType::Float4,  "VelocityAge"     },
+                    { EDataType::Float4,  "Transform"       },
+                    { EDataType::Float4,  "TangentRibbonId" },
+                    { EDataType::Float4,  "Color"           },
+                    { EDataType::Float4,  "Metadata"        }
                 },
                 EInputRate::Instance
             }

@@ -83,13 +83,13 @@ namespace Elixir::GUI
         const BufferLayout bufferLayout({
             {
                 {
-                    { EDataType::Vec2, "Position"    },
-                    { EDataType::Vec2, "Size"        },
-                    { EDataType::Vec4, "TexCoords"   },
-                    { EDataType::Vec4, "Color"       },
+                    { EDataType::Float2, "Position"    },
+                    { EDataType::Float2, "Size"        },
+                    { EDataType::Float4, "TexCoords"   },
+                    { EDataType::Float4, "Color"       },
                     { EDataType::UInt, "AtlasIndex"  },
-                    { EDataType::Vec2, "UnitRange"   },
-                    { EDataType::Vec4, "ScissorRect" },
+                    { EDataType::Float2, "UnitRange"   },
+                    { EDataType::Float4, "ScissorRect" },
                 },
                 EInputRate::Instance
             }

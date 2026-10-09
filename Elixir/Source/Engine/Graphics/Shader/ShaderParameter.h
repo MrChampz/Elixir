@@ -56,13 +56,14 @@ namespace Elixir
         bool m_IsBindless;
     };
 
+    /** @brief Identifies the value type of a reflected shader constant. */
     enum class EConstantType : uint8_t
     {
         Struct = 0,
         Bool,
-        Float, Vec2, Vec3, Vec4,
-        Int, IntVec2, IntVec3, IntVec4,
-        UInt, UIntVec2, UIntVec3, UIntVec4,
+        Float, Float2, Float3, Float4,
+        Int, Int2, Int3, Int4,
+        UInt, UInt2, UInt3, UInt4,
         Mat3, Mat4
     };
 

@@ -2,12 +2,13 @@
 
 namespace Elixir
 {
+    /** @brief Identifies the numeric type of a buffer attribute. */
     enum class EDataType : uint8_t
     {
         Bool,
-        Float, Vec2, Vec3, Vec4,
-        Int, IntVec2, IntVec3, IntVec4,
-        UInt, UIntVec2, UIntVec3, UIntVec4,
+        Float, Float2, Float3, Float4,
+        Int, Int2, Int3, Int4,
+        UInt, UInt2, UInt3, UInt4,
         Mat3, Mat4
     };
 

@@ -20,10 +20,10 @@ namespace Elixir::Materials
     enum class EMaterialParameterType : uint8_t
     {
         /** A single floating-point value. */
-        Scalar,
+        Float,
 
         /** A four-component floating-point value. */
-        Vector,
+        Float4,
 
         /** A texture reference. */
         Texture
@@ -37,12 +37,12 @@ namespace Elixir::Materials
     struct SMaterialParameter
     {
         /** Type of the active value. */
-        EMaterialParameterType Type = EMaterialParameterType::Scalar;
+        EMaterialParameterType Type = EMaterialParameterType::Float;
 
-        /** Scalar value when @ref Type is `Scalar`. */
+        /** Scalar value when @ref Type is `Float`. */
         float Scalar = 0.0f;
 
-        /** Vector value when @ref Type is `Vector`. */
+        /** Vector value when @ref Type is `Float4`. */
         glm::vec4 Vector{ 0.0f };
 
         /** Texture value when @ref Type is `Texture`. */
@@ -51,12 +51,12 @@ namespace Elixir::Materials
         /**
          * @brief Creates a scalar material parameter.
          * @param value Scalar value to store.
-         * @return A parameter whose type is `Scalar`.
+         * @return A parameter whose type is `Float`.
          */
         static SMaterialParameter MakeScalar(const float value)
         {
             SMaterialParameter param;
-            param.Type = EMaterialParameterType::Scalar;
+            param.Type = EMaterialParameterType::Float;
             param.Scalar = value;
             return param;
         }
@@ -64,12 +64,12 @@ namespace Elixir::Materials
         /**
          * @brief Creates a vector material parameter.
          * @param value Vector value to store.
-         * @return A parameter whose type is `Vector`.
+         * @return A parameter whose type is `Float4`.
          */
         static SMaterialParameter MakeVector(const glm::vec4& value)
         {
             SMaterialParameter param;
-            param.Type = EMaterialParameterType::Vector;
+            param.Type = EMaterialParameterType::Float4;
             param.Vector = value;
             return param;
         }

@@ -91,17 +91,17 @@ namespace Elixir::GUI
         const BufferLayout bufferLayout({
             {
                 {
-                    { EDataType::Vec2,  "Position"          },
-                    { EDataType::Vec2,  "Size"              },
-                    { EDataType::Vec4,  "Border"            },
-                    { EDataType::Vec4,  "InsetShadow"       },
-                    { EDataType::Vec4,  "DropShadow"        },
-                    { EDataType::Vec4,  "Color"             },
-                    { EDataType::Vec4,  "OutlineColor"      },
+                    { EDataType::Float2,  "Position"          },
+                    { EDataType::Float2,  "Size"              },
+                    { EDataType::Float4,  "Border"            },
+                    { EDataType::Float4,  "InsetShadow"       },
+                    { EDataType::Float4,  "DropShadow"        },
+                    { EDataType::Float4,  "Color"             },
+                    { EDataType::Float4,  "OutlineColor"      },
                     { EDataType::Float, "OutlineThickness"  },
                     { EDataType::UInt,  "TextureIndex"      },
                     { EDataType::UInt,  "TextureMapping"    },
-                    { EDataType::Vec4,  "ScissorRect"       },
+                    { EDataType::Float4,  "ScissorRect"       },
                 },
                 EInputRate::Instance
             }

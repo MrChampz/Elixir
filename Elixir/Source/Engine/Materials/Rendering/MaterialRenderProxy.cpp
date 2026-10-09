@@ -39,7 +39,7 @@ namespace Elixir::Materials::Rendering
 
             const auto valueCount = std::max(proxy->m_Values.size(), size_t(parameter.Slot + 1));
             proxy->m_Values.resize(valueCount);
-            proxy->m_Values[parameter.Slot] = value->Type == EMaterialParameterType::Scalar
+            proxy->m_Values[parameter.Slot] = value->Type == EMaterialParameterType::Float
                 ? glm::vec4(value->Scalar, 0.0f, 0.0f, 0.0f)
                 : value->Vector;
         }

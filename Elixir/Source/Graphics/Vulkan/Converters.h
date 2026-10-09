@@ -218,27 +218,27 @@ namespace Elixir::Vulkan::Converters
         {
             case EDataType::Float:
                 return VK_FORMAT_R32_SFLOAT;
-            case EDataType::Vec2:
+            case EDataType::Float2:
                 return VK_FORMAT_R32G32_SFLOAT;
-            case EDataType::Vec3:
+            case EDataType::Float3:
                 return VK_FORMAT_R32G32B32_SFLOAT;
-            case EDataType::Vec4:
+            case EDataType::Float4:
                 return VK_FORMAT_R32G32B32A32_SFLOAT;
             case EDataType::Int:
                 return VK_FORMAT_R32_SINT;
-            case EDataType::IntVec2:
+            case EDataType::Int2:
                 return VK_FORMAT_R32G32_SINT;
-            case EDataType::IntVec3:
+            case EDataType::Int3:
                 return VK_FORMAT_R32G32B32_SINT;
-            case EDataType::IntVec4:
+            case EDataType::Int4:
                 return VK_FORMAT_R32G32B32A32_SINT;
             case EDataType::UInt:
                 return VK_FORMAT_R32_UINT;
-            case EDataType::UIntVec2:
+            case EDataType::UInt2:
                 return VK_FORMAT_R32G32_UINT;
-            case EDataType::UIntVec3:
+            case EDataType::UInt3:
                 return VK_FORMAT_R32G32B32_UINT;
-            case EDataType::UIntVec4:
+            case EDataType::UInt4:
                 return VK_FORMAT_R32G32B32A32_UINT;
             default:
                 EE_CORE_ASSERT(false, "Unknown data type!")

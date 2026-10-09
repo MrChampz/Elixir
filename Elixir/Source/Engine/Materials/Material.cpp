@@ -150,8 +150,8 @@ namespace Elixir::Materials
             return value.Type == EMaterialParameterType::Texture;
 
         if (definition.ValueType == EMaterialValueType::Float)
-            return value.Type == EMaterialParameterType::Scalar;
+            return value.Type == EMaterialParameterType::Float;
 
-        return value.Type == EMaterialParameterType::Vector;
+        return value.Type == EMaterialParameterType::Float4;
     }
 }

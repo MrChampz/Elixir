@@ -230,11 +230,11 @@ namespace Elixir::SpirV
                         if (memberType.vecsize == 1)
                             type = EConstantType::Float;
                         else if (memberType.vecsize == 2)
-                            type = EConstantType::Vec2;
+                            type = EConstantType::Float2;
                         else if (memberType.vecsize == 3)
-                            type = EConstantType::Vec3;
+                            type = EConstantType::Float3;
                         else if (memberType.vecsize == 4 && memberType.columns == 1)
-                            type = EConstantType::Vec4;
+                            type = EConstantType::Float4;
                         else if (memberType.vecsize == 4 && memberType.columns == 3)
                             type = EConstantType::Mat3;
                         else if (memberType.vecsize == 4 && memberType.columns == 4)
@@ -311,11 +311,11 @@ namespace Elixir::SpirV
                         if (memberType.vecsize == 1)
                             type = EConstantType::Float;
                         else if (memberType.vecsize == 2)
-                            type = EConstantType::Vec2;
+                            type = EConstantType::Float2;
                         else if (memberType.vecsize == 3)
-                            type = EConstantType::Vec3;
+                            type = EConstantType::Float3;
                         else if (memberType.vecsize == 4 && memberType.columns == 1)
-                            type = EConstantType::Vec4;
+                            type = EConstantType::Float4;
                         else if (memberType.vecsize == 4 && memberType.columns == 3)
                             type = EConstantType::Mat3;
                         else if (memberType.vecsize == 4 && memberType.columns == 4)
@@ -393,11 +393,11 @@ namespace Elixir::SpirV
                         if (memberType.vecsize == 1)
                             type = EConstantType::Float;
                         else if (memberType.vecsize == 2)
-                            type = EConstantType::Vec2;
+                            type = EConstantType::Float2;
                         else if (memberType.vecsize == 3)
-                            type = EConstantType::Vec3;
+                            type = EConstantType::Float3;
                         else if (memberType.vecsize == 4 && memberType.columns == 1)
-                            type = EConstantType::Vec4;
+                            type = EConstantType::Float4;
                         else if (memberType.vecsize == 4 && memberType.columns == 3)
                             type = EConstantType::Mat3;
                         else if (memberType.vecsize == 4 && memberType.columns == 4)
@@ -494,11 +494,11 @@ namespace Elixir::SpirV
                     if (baseType.vecsize == 1)
                         fieldType = EConstantType::Float;
                     else if (baseType.vecsize == 2)
-                        fieldType = EConstantType::Vec2;
+                        fieldType = EConstantType::Float2;
                     else if (baseType.vecsize == 3)
-                        fieldType = EConstantType::Vec3;
+                        fieldType = EConstantType::Float3;
                     else if (baseType.vecsize == 4 && baseType.columns == 1)
-                        fieldType = EConstantType::Vec4;
+                        fieldType = EConstantType::Float4;
                     else if (baseType.vecsize == 4 && baseType.columns == 3)
                         fieldType = EConstantType::Mat3;
                     else if (baseType.vecsize == 4 && baseType.columns == 4)

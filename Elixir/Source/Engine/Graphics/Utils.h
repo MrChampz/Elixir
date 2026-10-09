@@ -15,21 +15,21 @@ namespace Elixir::Graphics::Utils
     {
         switch (type)
         {
-            case EDataType::Bool:		    return 1;
-            case EDataType::Float:		    return 4;
-            case EDataType::Vec2:	        return 8;
-            case EDataType::Vec3:	        return 12;
-            case EDataType::Vec4:	        return 16;
-            case EDataType::Int:		    return 4;
-            case EDataType::IntVec2:		return 8;
-            case EDataType::IntVec3:		return 12;
-            case EDataType::IntVec4:		return 16;
-            case EDataType::UInt:		    return 4;
-            case EDataType::UIntVec2:		return 8;
-            case EDataType::UIntVec3:		return 12;
-            case EDataType::UIntVec4:		return 16;
-            case EDataType::Mat3:		    return 36;
-            case EDataType::Mat4:		    return 64;
+            case EDataType::Bool:	    return 1;
+            case EDataType::Float:		return 4;
+            case EDataType::Float2:	    return 8;
+            case EDataType::Float3:	    return 12;
+            case EDataType::Float4:	    return 16;
+            case EDataType::Int:		return 4;
+            case EDataType::Int2:		return 8;
+            case EDataType::Int3:		return 12;
+            case EDataType::Int4:		return 16;
+            case EDataType::UInt:		return 4;
+            case EDataType::UInt2:		return 8;
+            case EDataType::UInt3:		return 12;
+            case EDataType::UInt4:		return 16;
+            case EDataType::Mat3:		return 36;
+            case EDataType::Mat4:		return 64;
             default:
                 EE_CORE_ASSERT(false, "Unknown DataType!")
                 break;
@@ -42,21 +42,21 @@ namespace Elixir::Graphics::Utils
     {
         switch (type)
         {
-            case EDataType::Bool:		    return 1;
-            case EDataType::Float:		    return 1;
-            case EDataType::Vec2:	        return 2;
-            case EDataType::Vec3:	        return 3;
-            case EDataType::Vec4:	        return 4;
-            case EDataType::Int:		    return 1;
-            case EDataType::IntVec2:		return 2;
-            case EDataType::IntVec3:		return 3;
-            case EDataType::IntVec4:		return 4;
-            case EDataType::UInt:		    return 1;
-            case EDataType::UIntVec2:		return 2;
-            case EDataType::UIntVec3:		return 3;
-            case EDataType::UIntVec4:		return 4;
-            case EDataType::Mat3:		    return 9;
-            case EDataType::Mat4:		    return 16;
+            case EDataType::Bool:		return 1;
+            case EDataType::Float:		return 1;
+            case EDataType::Float2:	    return 2;
+            case EDataType::Float3:	    return 3;
+            case EDataType::Float4:	    return 4;
+            case EDataType::Int:		return 1;
+            case EDataType::Int2:		return 2;
+            case EDataType::Int3:		return 3;
+            case EDataType::Int4:		return 4;
+            case EDataType::UInt:		return 1;
+            case EDataType::UInt2:		return 2;
+            case EDataType::UInt3:		return 3;
+            case EDataType::UInt4:		return 4;
+            case EDataType::Mat3:		return 9;
+            case EDataType::Mat4:		return 16;
             default:
                 EE_CORE_ASSERT(false, "Unknown DataType!")
                 break;
@@ -69,21 +69,21 @@ namespace Elixir::Graphics::Utils
     {
         switch (type)
         {
-            case EConstantType::Bool:		    return 1;
-            case EConstantType::Float:		    return 4;
-            case EConstantType::Vec2:	        return 8;
-            case EConstantType::Vec3:	        return 12;
-            case EConstantType::Vec4:	        return 16;
-            case EConstantType::Int:		    return 4;
-            case EConstantType::IntVec2:		return 8;
-            case EConstantType::IntVec3:		return 12;
-            case EConstantType::IntVec4:		return 16;
-            case EConstantType::UInt:		    return 4;
-            case EConstantType::UIntVec2:		return 8;
-            case EConstantType::UIntVec3:		return 12;
-            case EConstantType::UIntVec4:		return 16;
-            case EConstantType::Mat3:		    return 36;
-            case EConstantType::Mat4:		    return 64;
+            case EConstantType::Bool:		return 1;
+            case EConstantType::Float:		return 4;
+            case EConstantType::Float2:	    return 8;
+            case EConstantType::Float3:	    return 12;
+            case EConstantType::Float4:	    return 16;
+            case EConstantType::Int:		return 4;
+            case EConstantType::Int2:		return 8;
+            case EConstantType::Int3:		return 12;
+            case EConstantType::Int4:		return 16;
+            case EConstantType::UInt:		return 4;
+            case EConstantType::UInt2:		return 8;
+            case EConstantType::UInt3:		return 12;
+            case EConstantType::UInt4:		return 16;
+            case EConstantType::Mat3:		return 36;
+            case EConstantType::Mat4:		return 64;
             default:
                 EE_CORE_ASSERT(false, "Unknown ShaderConstantType!")
                 break;
