@@ -46,6 +46,13 @@ namespace Elixir::Materials
             SMaterialSystemConfig config
         );
 
+        /**
+         * @brief Selects matching color and depth targets for subsequent frames.
+         * @return False when the target pair is invalid.
+         * @pre Serialize changes with frame recording.
+         */
+        bool SetRenderTargets(const Ref<Image>& color, const Ref<Image>& depth);
+
         /** @brief Starts material collection for the current graphics frame. */
         void BeginFrame();
 

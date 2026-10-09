@@ -1,9 +1,12 @@
 #include <gtest/gtest.h>
 
 #include <Engine/Graphics/Texture.h>
+#include <Engine/Materials/Rendering/Renderer.h>
 #include <Graphics/Vulkan/VulkanImage.h>
 #include <Graphics/Vulkan/VulkanBuffer.h>
 #include <Graphics/Vulkan/VulkanCommandBuffer.h>
+#include <Graphics/Vulkan/VulkanGraphicsContext.h>
+#include <Graphics/Vulkan/VulkanDescriptorPool.h>
 #include "VulkanTestContext.h"
 
 #include <array>
@@ -59,6 +62,34 @@ class VulkanImageTest : public testing::Test
 };
 
 GraphicsContext* VulkanImageTest::Context = nullptr;
+
+TEST_F(VulkanImageTest, MaterialRendererAcceptsIndependentMatchingAttachments)
+{
+    const auto color = Image::Create(Context, {
+        .Width = 96, .Height = 48, .Format = EImageFormat::R16G16B16A16_SFLOAT,
+        .Usage = EImageUsage::ColorAttachment | EImageUsage::Sampled,
+        .InitialLayout = EImageLayout::General,
+    });
+    const auto depth = Image::Create(Context, {
+        .Width = 96, .Height = 48, .Format = EImageFormat::D32_SFLOAT,
+        .Usage = EImageUsage::DepthStencilAttachment,
+        .InitialLayout = EImageLayout::DepthAttachment,
+    });
+    const auto mismatchedDepth = Image::Create(Context, {
+        .Width = 48, .Height = 48, .Format = EImageFormat::D32_SFLOAT,
+        .Usage = EImageUsage::DepthStencilAttachment,
+        .InitialLayout = EImageLayout::DepthAttachment,
+    });
+    ASSERT_TRUE(color && depth && mismatchedDepth);
+    Materials::Rendering::Renderer renderer(Context, color, 8);
+    EXPECT_TRUE(renderer.SetRenderTargets(color, depth));
+    EXPECT_FALSE(renderer.SetRenderTargets(color, mismatchedDepth));
+    EXPECT_FALSE(renderer.SetRenderTargets(color, color));
+    EXPECT_FALSE(renderer.SetRenderTargets(nullptr, depth));
+    EXPECT_TRUE(renderer.SetRenderTargets(color, depth));
+    // Publish the fallback texture as a frame would before releasing the renderer.
+    static_cast<VulkanGraphicsContext*>(Context)->GetBindlessDescriptorPool()->FlushDescriptors();
+}
 
 TEST_F(VulkanImageTest, VulkanImageCannotBeCopiedOrMoved)
 {
@@ -131,6 +162,27 @@ TEST_F(VulkanImageTest, TextureOwnsAnInitializedImageAndMetadata)
     EXPECT_EQ(ReadMip(image, 3), (std::vector<uint8_t>{128, 128, 128, 128}));
     texture.reset();
     EXPECT_TRUE(image->IsValid());
+}
+
+TEST_F(VulkanImageTest, PreviewTextureSharesTheExistingRenderTarget)
+{
+    auto image = Image::Create(Context, {
+        .Width = 64, .Height = 32, .Type = EImageType::_2D,
+        .Format = EImageFormat::R16G16B16A16_SFLOAT,
+        .Usage = EImageUsage::Sampled | EImageUsage::ColorAttachment,
+        .InitialLayout = EImageLayout::General,
+    });
+    ASSERT_TRUE(image);
+    const auto handle = TryToGetVulkanImageHandle(image.get());
+    auto texture = Texture2D::WrapImage(image);
+    ASSERT_TRUE(texture);
+    EXPECT_EQ(texture->GetImage(), image);
+    EXPECT_EQ(image->GetLayout(), EImageLayout::General);
+    image.reset();
+    EXPECT_TRUE(texture->IsValid());
+    EXPECT_EQ(TryToGetVulkanImageHandle(texture->GetImage().get()), handle);
+    EXPECT_FALSE(Texture2D::WrapImage(nullptr));
+    EXPECT_FALSE(Texture2D::WrapImage(Image::Create(Context, EImageFormat::R8G8B8A8_UNORM, 4)));
 }
 
 TEST_F(VulkanImageTest, NormalMapMipsAreGeneratedByImageAndUploaded)

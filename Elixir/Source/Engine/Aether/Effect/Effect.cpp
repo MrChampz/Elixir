@@ -25,6 +25,16 @@ namespace Elixir::Aether::Effect
             Ref<System> Parse(od::object& root);
 
         private:
+            // Reads the optional authoring toggle without hiding invalid values.
+            bool IsEnabled(od::object& object)
+            {
+                if (!HasField(object, "enabled")) return true;
+                bool enabled = true;
+                if (object["enabled"].get_bool().get(enabled))
+                    Fail("Field 'enabled' must be a boolean.");
+                return enabled;
+            }
+
             EParticleRenderMode ParseRenderMode(od::object& object, const std::string_view key)
             {
                 constexpr auto result = EParticleRenderMode::Sprite;
@@ -307,7 +317,8 @@ namespace Elixir::Aether::Effect
                         return;
                     }
 
-                    BuildModule(emitter, module, spawn ? EModulePhase::Spawn : EModulePhase::Update);
+                    if (IsEnabled(module))
+                        BuildModule(emitter, module, spawn ? EModulePhase::Spawn : EModulePhase::Update);
                 }
             }
 
@@ -368,6 +379,7 @@ namespace Elixir::Aether::Effect
             void ParseEmitter(const Ref<System>& system, od::object& json)
             {
                 if (Failed()) return;
+                if (!IsEnabled(json) || Failed()) return;
 
                 const std::string name = RequireString(json, "name");
                 const auto renderMode = ParseRenderMode(json, "renderMode");
@@ -472,8 +484,6 @@ namespace Elixir::Aether::Effect
 
     Ref<System> LoadEffectFile(const std::filesystem::path& filepath)
     {
-        od::parser parser;
-
         auto json = simdjson::padded_string::load(filepath.string());
         if (const auto error = json.error())
         {
@@ -482,18 +492,28 @@ namespace Elixir::Aether::Effect
             return nullptr;
         }
 
-        auto document = parser.iterate(json.value());
-        if (const auto error = document.error())
+        return LoadEffectText(std::string_view(json.value().data(), json.value().size()));
+    }
+
+    Ref<System> LoadEffectText(const std::string_view source, std::string* error)
+    {
+        if (error) error->clear();
+        od::parser parser;
+        const simdjson::padded_string json(source);
+        auto document = parser.iterate(json);
+        if (const auto parseError = document.error())
         {
-            const auto message = simdjson::error_message(error);
-            EE_CORE_ERROR("Failed to parse effect asset '{}': {}", filepath.string(), message)
+            const auto message = simdjson::error_message(parseError);
+            EE_CORE_ERROR("Failed to parse effect data: {}", message)
+            if (error) *error = message;
             return nullptr;
         }
 
         od::object root;
         if (document.get_object().get(root))
         {
-            EE_CORE_ERROR("Effect asset root must be an object: {}", filepath.string())
+            EE_CORE_ERROR("Effect asset root must be an object.")
+            if (error) *error = "Effect asset root must be an object.";
             return nullptr;
         }
 
@@ -502,7 +522,7 @@ namespace Elixir::Aether::Effect
         if (effectParser.Failed())
         {
             EE_CORE_ERROR("{}", effectParser.GetError());
-            EE_CORE_ERROR("    in effect asset: {}", filepath.string());
+            if (error) *error = effectParser.GetError();
         }
         return system;
     }

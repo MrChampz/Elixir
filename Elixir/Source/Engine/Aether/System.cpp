@@ -7,6 +7,16 @@ namespace Elixir::Aether
 {
     System::System(const std::string& name) : m_Name(name) {}
 
+    void System::SwapDefinition(System& other)
+    {
+        using std::swap;
+        swap(m_Name, other.m_Name);
+        swap(m_Parameters, other.m_Parameters);
+        swap(m_Curves, other.m_Curves);
+        swap(m_ColorCurves, other.m_ColorCurves);
+        swap(m_Emitters, other.m_Emitters);
+    }
+
     Ref<SystemInstance> System::CreateInstance()
     {
         return CreateRef<SystemInstance>(shared_from_this());

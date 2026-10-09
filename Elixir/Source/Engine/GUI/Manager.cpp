@@ -76,6 +76,34 @@ namespace Elixir::GUI
         dispatcher.Dispatch<KeyPressedEvent>(EE_BIND_EVENT_FN(Manager::HandleKeyPressed));
         dispatcher.Dispatch<KeyTypedEvent>(EE_BIND_EVENT_FN(Manager::HandleKeyTyped));
         dispatcher.Dispatch<MouseScrolledEvent>(EE_BIND_EVENT_FN(Manager::HandleMouseScrolled));
+        dispatcher.Dispatch<MouseButtonPressedEvent>([this](MouseButtonPressedEvent& input) { return HandlePointerEvent(input); });
+        dispatcher.Dispatch<MouseButtonReleasedEvent>([this](MouseButtonReleasedEvent& input) { return HandlePointerEvent(input); });
+        dispatcher.Dispatch<MouseMovedEvent>([this](MouseMovedEvent& input) { return HandlePointerEvent(input); });
+    }
+
+    bool Manager::HandlePointerEvent(Event& event)
+    {
+        const auto type = event.GetEventType();
+        if (type == EventType::MouseMoved)
+        {
+            const auto& move = static_cast<const MouseMovedEvent&>(event);
+            m_MousePos = {move.GetX(), move.GetY()};
+        }
+        else
+        {
+            const auto& button = static_cast<const MouseButtonEvent&>(event);
+            if (button.GetMouseButton() != EE_MOUSE_BUTTON_LEFT) return false;
+            m_MousePos = {button.GetX(), button.GetY()};
+            m_WasMouseDown = type == EventType::MouseButtonPressed;
+        }
+        m_LastMousePos = m_MousePos;
+        if (type == EventType::MouseButtonPressed) DismissPopupsOutside(m_MousePos);
+        const auto path = GetHitPath(m_MousePos);
+        UpdateHoverPath(path);
+        if (type == EventType::MouseButtonPressed) ProcessMousePress(path);
+        else if (type == EventType::MouseButtonReleased) ProcessMouseRelease(path);
+        else ProcessMouseMove(path);
+        return false;
     }
 
     void Manager::SetRoot(const Ref<Panel>& root)

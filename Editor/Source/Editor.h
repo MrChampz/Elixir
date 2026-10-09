@@ -3,6 +3,8 @@
 #include <Engine.h>
 
 #include "UI/EditorUI.h"
+#include <Engine/Graphics/PostProcessor.h>
+#include <Engine/Materials/MaterialSystem.h>
 
 class VFXPanel;
 
@@ -11,13 +13,13 @@ class Editor final : public Elixir::Application
 {
 public:
     /** @brief Builds the Editor UI and its preview panels. */
-    Editor();
+    Editor(std::filesystem::path asset = {});
     /** @brief Releases editor panels while the engine services are still available. */
     ~Editor() override;
 
     /** @brief Updates the active editor panel. */
     void OnGUI(Timestep frameTime) override;
-    /** @brief Renders the selected effect into the application's HDR scene target. */
+    /** @brief Renders document previews into their own targets. */
     void Render(Timestep frameTime) override;
 
     /** @brief Routes application events and VFX camera input. */
@@ -25,5 +27,21 @@ public:
 
 private:
     Scope<EditorUI> m_EditorUI;
-    VFXPanel* m_VFXPanel = nullptr; // Owned by EditorUI.
+    // Opens or focuses an asset document without replacing other tab sessions.
+    void OpenVFXAsset(const std::filesystem::path& asset);
+    struct SDocument
+    {
+        std::filesystem::path Path;
+        Ref<Image> HDRTarget, DisplayTarget, DepthTarget;
+        Scope<Materials::MaterialSystem> Materials;
+        Scope<PostProcessor> PostProcess;
+        Scope<Aether::Manager> Manager;
+        VFXPanel* Panel;
+        int Tab;
+    };
+    // Recreates preview attachments when the viewport dimensions change.
+    bool ResizePreview(SDocument& document, const Extent3D& extent);
+    std::vector<SDocument> m_Documents;
+    std::vector<std::filesystem::path> m_OpenRequests;
+    std::vector<int> m_CloseRequests;
 };

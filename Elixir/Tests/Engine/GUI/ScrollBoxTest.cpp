@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include "ManagerTestUtils.h"
 using namespace testing;
 
 #include <Engine/GUI/Canvas.h>
@@ -6,6 +7,7 @@ using namespace testing;
 #include <Engine/GUI/Renderer/RenderBatch.h>
 #include <Engine/GUI/ScrollBox.h>
 #include <Engine/Input/InputManager.h>
+#include <Engine/Input/InputCodes.h>
 using namespace Elixir;
 using namespace Elixir::GUI;
 
@@ -61,6 +63,9 @@ namespace
         using ScrollBox::BuildDrawCommands;
         using ScrollBox::CollectDrawCommands;
         using ScrollBox::HandleMouseScrolled;
+        using ScrollBox::HandleMouseDown;
+        using ScrollBox::HandleMouseMove;
+        using ScrollBox::HandleMouseUp;
     };
 
     void Arrange(const Ref<Widget>& widget, const SRect& space)
@@ -420,4 +425,68 @@ TEST(ScrollBoxTest, HitTestExcludesScrolledContentOutsideTheViewport)
     scrollBox->HitTest({ 10.0f, 10.0f }, path);
 
     EXPECT_TRUE(path.empty());
+}
+
+TEST(ScrollBoxTest, DraggingEitherThumbKeepsGrabOffsetAndClampsOutsideTheTrack)
+{
+    for (const auto axis : {EScrollAxis::Vertical, EScrollAxis::Horizontal})
+    {
+        const int index = axis == EScrollAxis::Vertical ? 1 : 0;
+        const auto scroll = CreateRef<TestScrollBox>();
+        scroll->SetScrollAxis(axis);
+        scroll->SetContent(CreateRef<SizedLeaf>(glm::vec2(500, 500)));
+        Arrange(scroll, {{20, 30}, {100, 100}});
+        RenderBatch batch; scroll->BuildDrawCommands(batch, 0);
+        const auto track = batch.GetCommands()[0].Geometry;
+        const auto thumb = batch.GetCommands()[1].Geometry;
+        auto pointer = thumb.Position + thumb.Size * 0.75f;
+        const auto press = scroll->HandleMouseDown(MouseButtonPressedEvent(EE_MOUSE_BUTTON_LEFT, pointer));
+        EXPECT_TRUE(press.EventHandled);
+        EXPECT_TRUE(press.CaptureMouse);
+        EXPECT_FLOAT_EQ(scroll->GetScrollOffset()[index], 0);
+        pointer[index] += (track.Size[index] - thumb.Size[index]) * 0.5f;
+        scroll->HandleMouseMove(MouseMovedEvent(pointer));
+        EXPECT_NEAR(scroll->GetScrollOffset()[index], 200, 0.001f);
+        pointer[index] += 1000;
+        scroll->HandleMouseMove(MouseMovedEvent(pointer));
+        EXPECT_FLOAT_EQ(scroll->GetScrollOffset()[index], 400);
+        EXPECT_FLOAT_EQ(scroll->GetScrollOffset()[1 - index], 0);
+        EXPECT_TRUE(scroll->HandleMouseUp(MouseButtonReleasedEvent(EE_MOUSE_BUTTON_LEFT, pointer)).EventHandled);
+        pointer[index] -= 2000;
+        EXPECT_FALSE(scroll->HandleMouseMove(MouseMovedEvent(pointer)).EventHandled);
+        EXPECT_FLOAT_EQ(scroll->GetScrollOffset()[index], 400);
+    }
+}
+
+TEST(ScrollBoxTest, ClickingTrackMovesThumbWithoutCapturingContentClicks)
+{
+    const auto scroll = CreateRef<TestScrollBox>();
+    scroll->SetContent(CreateRef<SizedLeaf>(glm::vec2(500, 500)));
+    Arrange(scroll, {{0, 0}, {100, 100}});
+    EXPECT_FALSE(scroll->HandleMouseDown(MouseButtonPressedEvent(EE_MOUSE_BUTTON_LEFT, 20, 20)).EventHandled);
+    EXPECT_TRUE(scroll->HandleMouseDown(MouseButtonPressedEvent(EE_MOUSE_BUTTON_LEFT, 96, 50)).CaptureMouse);
+    EXPECT_NEAR(scroll->GetScrollOffset().y, 200, 0.001f);
+    scroll->HandleMouseUp(MouseButtonReleasedEvent(EE_MOUSE_BUTTON_LEFT));
+    scroll->SetShowScrollbar(false);
+    EXPECT_FALSE(scroll->HandleMouseDown(MouseButtonPressedEvent(EE_MOUSE_BUTTON_LEFT, 96, 50)).EventHandled);
+}
+
+TEST(ScrollBoxTest, NativePointerEventsDragTheThumbWithoutAFrameBetweenEvents)
+{
+    const auto scroll = CreateRef<ScrollBox>();
+    scroll->SetContent(CreateRef<SizedLeaf>(glm::vec2(500, 500)));
+    const auto root = CreateRef<Canvas>();
+    root->AddChild(scroll).SetSize({100, 100});
+    Arrange(root, {{0, 0}, {100, 100}});
+    TestGUIManager manager; manager.SetRoot(root);
+    MouseButtonPressedEvent press(EE_MOUSE_BUTTON_LEFT, 96, 10);
+    MouseMovedEvent move(96, 50);
+    MouseButtonReleasedEvent release(EE_MOUSE_BUTTON_LEFT, 96, 50);
+    manager.ProcessEvent(press);
+    manager.ProcessEvent(move);
+    manager.ProcessEvent(release);
+    EXPECT_NEAR(scroll->GetScrollOffset().y, 200, 0.001f);
+    MouseMovedEvent afterRelease(96, 90);
+    manager.ProcessEvent(afterRelease);
+    EXPECT_NEAR(scroll->GetScrollOffset().y, 200, 0.001f);
 }

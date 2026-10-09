@@ -62,6 +62,19 @@ namespace Elixir
     {
     }
 
+    Ref<Texture2D> Texture2D::WrapImage(const Ref<Image>& image)
+    {
+        if (!image || image->GetType() != EImageType::_2D)
+        {
+            EE_CORE_ERROR("A two-dimensional texture requires a two-dimensional image.");
+            return nullptr;
+        }
+        STextureCreateInfo info;
+        info.Format = image->GetFormat();
+        info.Width = image->GetExtent().Width;
+        return Ref<Texture2D>(new Texture2D(image, info));
+    }
+
     Ref<Texture2D> Texture2D::Create(const GraphicsContext* context, const STexture2DCreateInfo& info)
     {
         const auto image = Image::Create(context, CreateImageInfo(info));

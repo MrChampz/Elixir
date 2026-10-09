@@ -158,6 +158,12 @@ namespace Elixir::Aether
         const std::string& GetName() const { return m_Name; }
 
         /**
+         * @brief Exchanges authoring data while preserving both systems' identities and compilation revisions.
+         * @pre Serialize this call with compilation and recompile before publishing the new definition.
+         */
+        void SwapDefinition(System& other);
+
+        /**
          * @brief Returns the system's emitters.
          * @return Read-only list of emitters owned by this system.
          */

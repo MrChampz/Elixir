@@ -4,6 +4,7 @@ using namespace testing;
 #include "ManagerTestUtils.h"
 
 #include <Engine/GUI/ScrollBox.h>
+#include <Engine/GUI/Canvas.h>
 #include <Engine/GUI/VerticalBox.h>
 #include <Engine/GUI/Renderer/RenderBatch.h>
 using namespace Elixir;
@@ -227,4 +228,29 @@ TEST(ClipStackTest, ScrollBoxClipsChildrenIsTrueAndOversizedContentGetsScissored
     EXPECT_GT(cmd->ScissorRect.Size.y, 0.0f);
     EXPECT_EQ(cmd->ScissorRect.Size.x, scrollBox->GetGeometry().Size.x);
     EXPECT_EQ(cmd->ScissorRect.Size.y, scrollBox->GetGeometry().Size.y);
+}
+
+TEST(ClipStackTest, DocumentCanvasClipsPannedContentBelowTheTabBar)
+{
+    const auto canvas = CreateRef<Canvas>();
+    canvas->SetClipChildren(true);
+    const SColor color(0.2f, 0.3f, 0.4f, 1.0f);
+    const auto probe = CreateRef<ProbeWidget>(color, glm::vec2(80, 120));
+    canvas->AddChild(probe).SetPosition({0, -40}).SetSize({80, 120});
+    Arrange(canvas, {{0, 66}, {200, 200}});
+
+    TestGUIManager manager;
+    manager.SetRoot(canvas);
+    manager.AssembleFrame();
+    const auto* command = FindByColor(manager.GetRenderBatch().GetCommands(), color);
+    ASSERT_NE(command, nullptr);
+    EXPECT_EQ(command->ScissorRect.Position, glm::vec2(0, 66));
+    EXPECT_EQ(command->ScissorRect.Size, glm::vec2(200, 200));
+
+    std::vector<Ref<Widget>> path;
+    canvas->HitTest({20, 40}, path);
+    EXPECT_TRUE(path.empty());
+    canvas->HitTest({20, 70}, path);
+    ASSERT_FALSE(path.empty());
+    EXPECT_EQ(path.back(), probe);
 }

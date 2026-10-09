@@ -16,6 +16,11 @@ namespace Elixir::Materials
             config.InitialFrameCapacity
         )) {}
 
+    bool MaterialSystem::SetRenderTargets(const Ref<Image>& color, const Ref<Image>& depth)
+    {
+        return m_Renderer->SetRenderTargets(color, depth);
+    }
+
     void MaterialSystem::BeginFrame()
     {
         m_SubmittedScenes.clear();

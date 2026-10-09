@@ -164,6 +164,9 @@ namespace Elixir
     class ELIXIR_API Texture2D final : public Texture
     {
     public:
+        /** @brief Shares an existing two-dimensional image without allocating another GPU image. */
+        static Ref<Texture2D> WrapImage(const Ref<Image>& image);
+
         /**
          * @brief Creates a two-dimensional asset and initializes its image.
          * @param context Graphics context that must outlive the texture's image.

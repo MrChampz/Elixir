@@ -113,6 +113,8 @@ namespace Elixir::GUI
         // Hit-tests the current pointer position before bubbling a wheel tick leaf -> root,
         // stopping at the first widget whose HandleMouseScrolled reports EventHandled.
         bool HandleMouseScrolled(const MouseScrolledEvent& event);
+        // Routes native pointer events without waiting for the next frame's polling pass.
+        bool HandlePointerEvent(Event& event);
 
         // Clears focus, press, capture and hover state that can otherwise keep a removed
         // layer's subtree alive and receiving input.

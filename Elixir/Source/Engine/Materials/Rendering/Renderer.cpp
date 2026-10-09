@@ -16,6 +16,7 @@ namespace Elixir::Materials::Rendering
         m_FrameSlots(*context),
         m_Textures(context),
         m_SceneTarget(sceneTarget),
+        m_DepthTarget(context->GetDepthStencilRenderTarget()),
         m_Context(context)
     {
         EE_CORE_ASSERT(context, "Material renderer requires a graphics context.")
@@ -32,6 +33,24 @@ namespace Elixir::Materials::Rendering
                 sizeof(SMaterialFrameData) * m_MaterialCapacity
             );
         });
+    }
+
+    bool Renderer::SetRenderTargets(const Ref<Image>& color, const Ref<Image>& depth)
+    {
+        if (!color || !depth || !color->IsValid() || !depth->IsValid() ||
+            !(color->GetUsage() & EImageUsage::ColorAttachment) ||
+            !(depth->GetUsage() & EImageUsage::DepthStencilAttachment) ||
+            color->GetType() != EImageType::_2D || depth->GetType() != EImageType::_2D ||
+            color->GetExtent().Width != depth->GetExtent().Width || color->GetExtent().Height != depth->GetExtent().Height)
+        {
+            EE_CORE_ERROR("Material rendering requires matching two-dimensional color and depth targets.");
+            return false;
+        }
+        if (color->GetFormat() != m_SceneTarget->GetFormat() || depth->GetFormat() != m_DepthTarget->GetFormat())
+            m_Pipelines.clear();
+        m_SceneTarget = color;
+        m_DepthTarget = depth;
+        return true;
     }
 
     void Renderer::BeginFrame()
@@ -91,11 +110,13 @@ namespace Elixir::Materials::Rendering
 
         const SRenderingInfo renderingInfo{
             .ColorAttachment = m_SceneTarget,
-            .DepthStencilAttachment = m_Context->GetDepthStencilRenderTarget(),
+            .DepthStencilAttachment = m_DepthTarget,
             .RenderArea = extent,
         };
 
         cmd->Begin(renderingInfo);
+        m_SceneTarget->Barrier(cmd.get());
+        m_DepthTarget->Barrier(cmd.get());
         cmd->BeginRendering(renderingInfo);
 
         cmd->SetViewports({{
@@ -105,11 +126,7 @@ namespace Elixir::Materials::Rendering
             .MaxDepth = 1.0f,
         }});
 
-        cmd->SetScissors({{
-            .Offset = { 0, 0 },
-            .Extent = extent,
-        }});
-
+        cmd->SetScissors({{{0, 0}, {extent.Width, extent.Height}}});
         for (const auto& scene : preparedScenes)
         {
             const auto sceneResult = RecordScene(cmd, scene);
@@ -470,7 +487,7 @@ namespace Elixir::Materials::Rendering
         if (const auto found = m_Pipelines.find(key); found != m_Pipelines.end())
             return found->second;
 
-        const auto depthTarget = m_Context->GetDepthStencilRenderTarget();
+        const auto depthTarget = m_DepthTarget;
 
         const auto colorFormat = m_SceneTarget->GetFormat();
         const auto depthFormat = (EDepthStencilImageFormat)depthTarget->GetFormat();

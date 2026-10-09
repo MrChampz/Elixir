@@ -73,9 +73,11 @@ if (BUILD_TESTING)
     add_executable(Editor.UnitTests
         "${CMAKE_CURRENT_LIST_DIR}/Tests/VFXAssetsTest.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/Source/Assets/VFXAssets.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Tests/VFXDocumentTest.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Source/VFX/VFXDocument.cpp"
     )
     target_include_directories(Editor.UnitTests PRIVATE "${CMAKE_CURRENT_LIST_DIR}/Source")
-    target_link_libraries(Editor.UnitTests PRIVATE GTest::gtest_main)
+    target_link_libraries(Editor.UnitTests PRIVATE GTest::gtest_main simdjson)
     include(GoogleTest)
     gtest_discover_tests(Editor.UnitTests)
 endif()

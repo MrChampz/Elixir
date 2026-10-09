@@ -185,13 +185,13 @@ namespace Elixir
                 {
                 case GLFW_PRESS:
                 {
-                    MouseButtonPressedEvent event(button);
+                    MouseButtonPressedEvent event(button, data.CursorPosition);
                     data.EventCallback(event);
                     break;
                 }
                 case GLFW_RELEASE:
                 {
-                    MouseButtonReleasedEvent event(button);
+                    MouseButtonReleasedEvent event(button, data.CursorPosition);
                     data.EventCallback(event);
                     break;
                 }
@@ -211,7 +211,8 @@ namespace Elixir
             glfwSetCursorPosCallback(m_Window, [](GLFWwindow* window, double xPos, double yPos)
             {
                 WindowData& data = *(WindowData*)glfwGetWindowUserPointer(window);
-                MouseMovedEvent event((float)xPos, (float)yPos);
+                data.CursorPosition = {static_cast<float>(xPos), static_cast<float>(yPos)};
+                MouseMovedEvent event(data.CursorPosition);
                 data.EventCallback(event);
             });
         }

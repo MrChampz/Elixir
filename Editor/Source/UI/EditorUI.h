@@ -27,6 +27,14 @@ public:
 
     /** @brief Adds a tab that switches visibility of panels registered for its index. */
     void AddTab(const std::string& label, bool active);
+    /** @brief Opens a document panel in a new active tab and returns its index. */
+    int AddDocument(Scope<EditorPanel> panel, const std::string& title, std::function<void(int)> closeRequested);
+    /** @brief Removes a document and returns to Scene when closing the active tab. */
+    void CloseDocument(int index);
+    /** @brief Activates a document tab or the main Scene tab. */
+    void ActivateTab(int index);
+    /** @brief Updates the document label and unsaved marker. */
+    void SetTabTitle(int index, const std::string& title);
 
     /** @brief Docks a panel in a tab; a negative index keeps it visible in all tabs. */
     void AddPanel(Scope<EditorPanel> panel, int tabIndex = -1);
@@ -49,6 +57,8 @@ private:
 
     // Switches the active tab and updates panel visibility.
     void SetActiveTab(int index);
+    // Sizes the tab to its label and close control, up to the document width limit.
+    void UpdateTabWidth(int index);
 
     GUI::Manager* m_GUIManager;
 
@@ -62,8 +72,12 @@ private:
 
     struct STab
     {
+        Ref<GUI::Widget> Root;
+        Ref<GUI::HorizontalBox> Header;
         Ref<GUI::TextBlock> Label;
         Ref<GUI::Canvas> Underline;
+        GUI::LayoutSlot* Slot;
+        float CloseWidth = 0;
     };
     std::vector<STab> m_Tabs;
     int m_ActiveTabIndex = 0;

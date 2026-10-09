@@ -214,6 +214,13 @@ namespace Elixir::Materials::Rendering
             uint32_t materialCapacity
         );
 
+        /**
+         * @brief Selects matching color and depth targets for subsequent frames.
+         * @return False when the target pair is invalid.
+         * @pre Serialize changes with frame recording.
+         */
+        bool SetRenderTargets(const Ref<Image>& color, const Ref<Image>& depth);
+
         /** @brief Selects resources for the current graphics frame. */
         void BeginFrame();
 
@@ -386,6 +393,7 @@ namespace Elixir::Materials::Rendering
         std::unordered_map<const Shader*, SDescriptorBindingState> m_DescriptorBindings;
 
         Ref<Image> m_SceneTarget;
+        Ref<Image> m_DepthTarget;
         uint64_t m_CurrentFrameNumber = UINT64_MAX;
         const GraphicsContext* m_Context = nullptr;
     };
