@@ -102,17 +102,17 @@ namespace
         return std::bit_cast<float>(program.Constants.at((Reference(program, operation, argument) & OperandIndexMask) + component));
     }
 
-    uint32_t Encoded(EOperandSource source, uint32_t index)
+    uint32_t Encoded(EOperandSource source, EOperandFormat format, uint32_t index)
     {
-        return (uint32_t(source) << 29) | index;
+        return (uint32_t(source) << OperandSourceShift) | (uint32_t(format) << OperandFormatShift) | index;
     }
 }
 
 TEST(ModuleCompileTest, ResolvesLocalParametersThenSystemParametersAndMissingValues)
 {
-    const std::vector<SParameter> parameters{
+    const auto parameters = CompileParameters(std::vector<SParameter>{
         { .Name = "Low", .Value = glm::vec4(1.0f) }, { .Name = "Smoke.Low", .Value = glm::vec4(2.0f) }, { .Name = "High", .Value = glm::vec4(3.0f) },
-    };
+    });
     SCompiledModuleData program;
     ModuleCompileContext context(program, parameters, "Smoke", 2.5f);
     SetLifetime(1.0f, 4.0f).BindParameters("Low", "High").Compile(context);
@@ -121,24 +121,24 @@ TEST(ModuleCompileTest, ResolvesLocalParametersThenSystemParametersAndMissingVal
         .BindParameters("Low", "High", "Missing", "Missing").Compile(context);
 
     ASSERT_EQ(program.Operations.size(), 3u);
-    EXPECT_EQ(Reference(program, 0, Operations::RandomRange::Inputs::Minimum), Encoded(EOperandSource::Parameter, 1));
-    EXPECT_EQ(Reference(program, 0, Operations::RandomRange::Inputs::Maximum), Encoded(EOperandSource::Parameter, 2));
+    EXPECT_EQ(Reference(program, 0, Operations::RandomRange::Inputs::Minimum), Encoded(EOperandSource::Parameter, EOperandFormat::Vector4, 4));
+    EXPECT_EQ(Reference(program, 0, Operations::RandomRange::Inputs::Maximum), Encoded(EOperandSource::Parameter, EOperandFormat::Vector4, 8));
     EXPECT_FLOAT_EQ(Literal(program, 1, Operations::AddWithDelta::Inputs::Value, 1), -10.0f);
-    EXPECT_EQ(Reference(program, 2, Operations::ApplyVortex::Inputs::Center), Encoded(EOperandSource::Parameter, 1));
-    EXPECT_EQ(Reference(program, 2, Operations::ApplyVortex::Inputs::Tangential), Encoded(EOperandSource::Parameter, 2));
+    EXPECT_EQ(Reference(program, 2, Operations::ApplyVortex::Inputs::Center), Encoded(EOperandSource::Parameter, EOperandFormat::Vector4, 4));
+    EXPECT_EQ(Reference(program, 2, Operations::ApplyVortex::Inputs::Tangential), Encoded(EOperandSource::Parameter, EOperandFormat::Vector4, 8));
     EXPECT_FLOAT_EQ(Literal(program, 2, Operations::ApplyVortex::Inputs::Radial), 5.0f);
 }
 
 TEST(ModuleCompileTest, CompilesScaleCurveWithRangeOffsetAndClamp)
 {
-    const std::vector<SParameter> parameters{ { .Name = "Curve:0", .Value = glm::vec4(0) }, { .Name = "Smoke.Curve:0", .Value = glm::vec4(1) } };
+    const auto parameters = CompileParameters(std::vector<SParameter>{ { .Name = "Curve:0", .Value = glm::vec4(0) }, { .Name = "Smoke.Curve:0", .Value = glm::vec4(1) } });
     SCompiledModuleData program;
     ModuleCompileContext context(program, parameters, "Smoke", 1.0f);
     ScaleOverLife(1.0f, 3.0f).BindCurve("Curve", EDynamicInput::EmitterTime).Compile(context);
 
     ASSERT_EQ(program.Operations.size(), 5u);
-    EXPECT_EQ(Reference(program, 0, Operations::SampleCurve::Inputs::Curve), Encoded(EOperandSource::Curve, 1));
-    EXPECT_EQ(Reference(program, 0, Operations::SampleCurve::Inputs::Input), Encoded(EOperandSource::DynamicInput, uint32_t(EDynamicInput::EmitterTime)));
+    EXPECT_EQ(Reference(program, 0, Operations::SampleCurve::Inputs::Curve), Encoded(EOperandSource::Parameter, EOperandFormat::Curve, 4));
+    EXPECT_EQ(Reference(program, 0, Operations::SampleCurve::Inputs::Input), Encoded(EOperandSource::DynamicInput, EOperandFormat::Scalar, uint32_t(EDynamicInput::EmitterTime)));
     EXPECT_EQ(program.Operations[1].Type, EOperationType::Mul);
     EXPECT_FLOAT_EQ(Literal(program, 1, Operations::Mul::Inputs::Value), 2.0f);
     EXPECT_EQ(program.Operations[2].Type, EOperationType::Add);
@@ -149,14 +149,14 @@ TEST(ModuleCompileTest, CompilesScaleCurveWithRangeOffsetAndClamp)
         EXPECT_FLOAT_EQ(Literal(program, 3, Operations::Clamp::Inputs::Maximum, i), 4.0f);
     }
     EXPECT_EQ(program.Operations[4].Target, EParticleAttribute::Scale);
-    EXPECT_EQ(Reference(program, 4, Operations::CopyFromAttribute::Inputs::Value), Encoded(EOperandSource::ParticleAttribute, uint32_t(EParticleAttribute::Temp0)));
+    EXPECT_EQ(Reference(program, 4, Operations::CopyFromAttribute::Inputs::Value), Encoded(EOperandSource::ParticleAttribute, GetAttributeOperandFormat(EParticleAttribute(uint32_t(EParticleAttribute::Temp0))), uint32_t(EParticleAttribute::Temp0)));
 }
 
 TEST(ModuleCompileTest, CompilesConeBindingsAndLiteralFallbacks)
 {
-    const std::vector<SParameter> parameters{
+    const auto parameters = CompileParameters(std::vector<SParameter>{
         { .Name = "Angle", .Value = glm::vec4(0.5f) }, { .Name = "Smoke.Angle", .Value = glm::vec4(1) }, { .Name = "Low", .Value = glm::vec4(2) }, { .Name = "Smoke.High", .Value = glm::vec4(3) },
-    };
+    });
     SCompiledModuleData program;
     ModuleCompileContext context(program, parameters, "Smoke", 1.0f);
     SetVelocityCone({ 0, 1, 0 }, 0.25f, 4.0f, 5.0f).BindParameters("Angle", "Low", "High").Compile(context);
@@ -164,11 +164,11 @@ TEST(ModuleCompileTest, CompilesConeBindingsAndLiteralFallbacks)
     SetVelocityCone({ 0, 1, 0 }, 0.25f, 4.0f, 5.0f).Compile(context);
 
     ASSERT_EQ(program.Operations.size(), 3u);
-    EXPECT_EQ(Reference(program, 0, Operations::SampleCone::Inputs::Angle), Encoded(EOperandSource::Parameter, 1));
-    EXPECT_EQ(Reference(program, 0, Operations::SampleCone::Inputs::MinSpeed), Encoded(EOperandSource::Parameter, 2));
-    EXPECT_EQ(Reference(program, 0, Operations::SampleCone::Inputs::MaxSpeed), Encoded(EOperandSource::Parameter, 3));
+    EXPECT_EQ(Reference(program, 0, Operations::SampleCone::Inputs::Angle), Encoded(EOperandSource::Parameter, EOperandFormat::Vector4, 4));
+    EXPECT_EQ(Reference(program, 0, Operations::SampleCone::Inputs::MinSpeed), Encoded(EOperandSource::Parameter, EOperandFormat::Vector4, 8));
+    EXPECT_EQ(Reference(program, 0, Operations::SampleCone::Inputs::MaxSpeed), Encoded(EOperandSource::Parameter, EOperandFormat::Vector4, 12));
     EXPECT_FLOAT_EQ(Literal(program, 1, Operations::SampleCone::Inputs::Angle), 0.25f);
-    EXPECT_EQ(Reference(program, 1, Operations::SampleCone::Inputs::MinSpeed), Encoded(EOperandSource::Parameter, 2));
+    EXPECT_EQ(Reference(program, 1, Operations::SampleCone::Inputs::MinSpeed), Encoded(EOperandSource::Parameter, EOperandFormat::Vector4, 8));
     EXPECT_FLOAT_EQ(Literal(program, 1, Operations::SampleCone::Inputs::MaxSpeed), 5.0f);
     EXPECT_FLOAT_EQ(Literal(program, 2, Operations::SampleCone::Inputs::MinSpeed), 4.0f);
     for (size_t i = 0; i < 3; ++i)
@@ -183,7 +183,7 @@ TEST(ModuleCompileTest, CompilesConeBindingsAndLiteralFallbacks)
 TEST(ModuleCompileTest, PacksAndInternsTypedConstantsWithoutFloat4Padding)
 {
     SCompiledModuleData program;
-    const std::vector<SParameter> parameters;
+    const std::vector<Elixir::Aether::Core::SCompiledParameter> parameters;
     ModuleCompileContext context(program, parameters, "", 1);
     const auto scalar = context.Scalar(1);
     EXPECT_EQ(context.Scalar(1).Reference, scalar.Reference);
@@ -193,14 +193,14 @@ TEST(ModuleCompileTest, PacksAndInternsTypedConstantsWithoutFloat4Padding)
     EXPECT_NE(context.Scalar(0).Reference, context.Scalar(-0.0f).Reference);
     const auto integer = context.UInt(UINT32_MAX);
     EXPECT_EQ(program.Constants[integer.Reference & OperandIndexMask], UINT32_MAX);
-    EXPECT_EQ(context.UInt(17).Reference, Encoded(EOperandSource::ImmediateUInt, 17));
+    EXPECT_EQ(context.UInt(17).Reference, Encoded(EOperandSource::Immediate, EOperandFormat::UInt, 17));
 }
 
 TEST(ModuleCompileTest, ValidatesContractsAndNamedParameterTypes)
 {
-    const std::vector<SParameter> parameters{
-        { .Name = "Scalar", .Type = EParameterType::Scalar, .Value = glm::vec4(1) }, { .Name = "Vector", .Type = EParameterType::Vector, .Value = glm::vec4(1) },
-    };
+    const auto parameters = CompileParameters(std::vector<SParameter>{
+        { .Name = "Scalar", .Type = EParameterType::Scalar, .Value = glm::vec4(1) }, { .Name = "Vector", .Type = EParameterType::Vector4, .Value = glm::vec4(1) },
+    });
     SCompiledModuleData program;
     ModuleCompileContext context(program, parameters, "", 1);
     const auto invalidScalar = context.Scalar(0, "Vector");
@@ -212,7 +212,7 @@ TEST(ModuleCompileTest, ValidatesContractsAndNamedParameterTypes)
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::Position, {context.Scalar(1)});
     EXPECT_TRUE(program.Operations.empty());
     EXPECT_TRUE(program.Operands.empty());
-    EXPECT_EQ(context.Curve("Missing").Reference, Encoded(EOperandSource::Curve, OperandIndexMask));
+    EXPECT_EQ(context.Curve("Missing").Reference, Encoded(EOperandSource::Parameter, EOperandFormat::Curve, OperandIndexMask));
 }
 
 TEST(ModuleCompileTest, IgnoresNullModulesBeforeCompilingValidModules)
@@ -238,7 +238,7 @@ TEST(ModuleCompileTest, IgnoresNullModulesBeforeCompilingValidModules)
 TEST(ModuleCompileTest, SupportsNineArgumentsWithoutPayloadStructs)
 {
     SCompiledModuleData program;
-    const std::vector<SParameter> parameters;
+    const std::vector<Elixir::Aether::Core::SCompiledParameter> parameters;
     ModuleCompileContext context(program, parameters, "", 1);
     SetPositionVortexRibbonPath({1, 2, 3}, 4, 5, 6, 7, 8, 9, 10, 11).Compile(context);
     ASSERT_EQ(program.Operations.size(), 1u);
@@ -254,21 +254,21 @@ TEST(ModuleCompileTest, SupportsNineArgumentsWithoutPayloadStructs)
 TEST(ModuleCompileTest, KeepsLargeRibbonIntegersExactUntilParticleStorage)
 {
     SCompiledModuleData program;
-    const std::vector<SParameter> parameters;
+    const std::vector<Elixir::Aether::Core::SCompiledParameter> parameters;
     ModuleCompileContext context(program, parameters, "", 1);
     SetRibbonId(UINT32_MAX).Compile(context);
     SetRibbonIdFromSpawnOrder(17, UINT32_MAX).Compile(context);
     const auto identifier = Reference(program, 0, Operations::SetLiteral::Inputs::Value);
-    EXPECT_EQ(identifier >> 29, uint32_t(EOperandSource::Constant));
+    EXPECT_EQ(identifier >> OperandSourceShift, uint32_t(EOperandSource::Constant));
     EXPECT_EQ(program.Constants.at(identifier & OperandIndexMask), UINT32_MAX);
     EXPECT_EQ(Reference(program, 1, Operations::SetRibbonIdFromSpawnOrder::Inputs::FirstRibbonId), identifier);
-    EXPECT_EQ(Reference(program, 1, Operations::SetRibbonIdFromSpawnOrder::Inputs::RibbonCount), Encoded(EOperandSource::ImmediateUInt, 17));
+    EXPECT_EQ(Reference(program, 1, Operations::SetRibbonIdFromSpawnOrder::Inputs::RibbonCount), Encoded(EOperandSource::Immediate, EOperandFormat::UInt, 17));
 }
 
 TEST(ModuleCompileTest, RequiresUnsignedRibbonIdsForDestinationsAndAttributeReads)
 {
     SCompiledModuleData program;
-    const std::vector<SParameter> parameters;
+    const std::vector<Elixir::Aether::Core::SCompiledParameter> parameters;
     ModuleCompileContext context(program, parameters, "", 1);
 
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::RibbonId, {context.Scalar(1)});
@@ -284,13 +284,13 @@ TEST(ModuleCompileTest, RequiresUnsignedRibbonIdsForDestinationsAndAttributeRead
         {context.Attribute(EParticleAttribute::RibbonId, EOperandType::UInt)});
     ASSERT_EQ(program.Operations.size(), 2u);
     EXPECT_EQ(Reference(program, 1, Operations::CopyFromAttribute::Inputs::Value),
-        Encoded(EOperandSource::ParticleAttribute, uint32_t(EParticleAttribute::RibbonId)));
+        Encoded(EOperandSource::ParticleAttribute, GetAttributeOperandFormat(EParticleAttribute(uint32_t(EParticleAttribute::RibbonId))), uint32_t(EParticleAttribute::RibbonId)));
 }
 
 TEST(ModuleCompileTest, RejectsOtherDestinationsForRibbonIdsFromSpawnOrder)
 {
     SCompiledModuleData program;
-    const std::vector<SParameter> parameters;
+    const std::vector<Elixir::Aether::Core::SCompiledParameter> parameters;
     ModuleCompileContext context(program, parameters, "", 1);
     const auto count = context.UInt(2);
     const auto firstId = context.UInt(1);
@@ -316,40 +316,44 @@ TEST(ModuleCompileTest, RejectsOtherDestinationsForRibbonIdsFromSpawnOrder)
 TEST(OperandValidationTest, ChecksTableBoundariesWithoutCompilingAnOperation)
 {
     const std::array<uint32_t, 4> constants{};
-    const std::vector<SParameter> parameters{
+    const auto parameters = CompileParameters(std::vector<SParameter>{
         { .Name = "Scalar", .Type = EParameterType::Scalar },
-        { .Name = "Vector", .Type = EParameterType::Vector },
-    };
+        { .Name = "Vector", .Type = EParameterType::Vector4 },
+    });
     const SOperandValidationContext context{constants, parameters};
-    const auto valid = [&](EOperandType type, EOperandSource source, uint32_t index)
+    const auto valid = [&](EOperandType type, EOperandSource source, EOperandFormat format, uint32_t index)
     {
-        return IsValidOperand({type, Encoded(source, index)}, context);
+        return IsValidOperand({type, Encoded(source, format, index)}, context);
     };
 
-    EXPECT_TRUE(valid(EOperandType::Scalar, EOperandSource::Constant, 3));
-    EXPECT_FALSE(valid(EOperandType::Scalar, EOperandSource::Constant, 4));
-    EXPECT_TRUE(valid(EOperandType::Vector3, EOperandSource::ConstantVector3, 1));
-    EXPECT_FALSE(valid(EOperandType::Vector3, EOperandSource::ConstantVector3, 2));
-    EXPECT_TRUE(valid(EOperandType::Vector4, EOperandSource::ConstantVector4, 0));
-    EXPECT_FALSE(valid(EOperandType::Vector4, EOperandSource::ConstantVector4, 1));
+    EXPECT_TRUE(valid(EOperandType::Scalar, EOperandSource::Constant, EOperandFormat::Scalar, 3));
+    EXPECT_FALSE(valid(EOperandType::Scalar, EOperandSource::Constant, EOperandFormat::Scalar, 4));
+    EXPECT_TRUE(valid(EOperandType::Vector3, EOperandSource::Constant, EOperandFormat::Vector3, 1));
+    EXPECT_FALSE(valid(EOperandType::Vector3, EOperandSource::Constant, EOperandFormat::Vector3, 2));
+    EXPECT_TRUE(valid(EOperandType::Vector4, EOperandSource::Constant, EOperandFormat::Vector4, 0));
+    EXPECT_FALSE(valid(EOperandType::Vector4, EOperandSource::Constant, EOperandFormat::Vector4, 1));
 
-    EXPECT_TRUE(valid(EOperandType::Scalar, EOperandSource::Parameter, 0));
-    EXPECT_FALSE(valid(EOperandType::Vector3, EOperandSource::Parameter, 0));
-    EXPECT_TRUE(valid(EOperandType::Vector3, EOperandSource::Parameter, 1));
-    EXPECT_FALSE(valid(EOperandType::Scalar, EOperandSource::Parameter, 1));
-    EXPECT_FALSE(valid(EOperandType::Scalar, EOperandSource::Parameter, 2));
+    const auto parameter = [&](EOperandType type, EOperandFormat format, uint32_t index)
+    {
+        return IsValidOperand({type, Encoded(EOperandSource::Parameter, format, index)}, context);
+    };
+    EXPECT_TRUE(parameter(EOperandType::Scalar, EOperandFormat::Scalar, 0));
+    EXPECT_FALSE(parameter(EOperandType::Vector3, EOperandFormat::Scalar, 0));
+    EXPECT_TRUE(parameter(EOperandType::Vector3, EOperandFormat::Vector4, 1));
+    EXPECT_FALSE(parameter(EOperandType::Scalar, EOperandFormat::Vector4, 1));
+    EXPECT_FALSE(parameter(EOperandType::Vector4, EOperandFormat::Vector4, 2));
 
-    EXPECT_TRUE(valid(EOperandType::Curve, EOperandSource::Curve, OperandIndexMask));
-    EXPECT_FALSE(valid(EOperandType::Curve, EOperandSource::Curve, 2));
+    EXPECT_TRUE(valid(EOperandType::Curve, EOperandSource::Parameter, EOperandFormat::Curve, OperandIndexMask));
+    EXPECT_FALSE(valid(EOperandType::Curve, EOperandSource::Parameter, EOperandFormat::Curve, 2));
 }
 
 TEST(ModuleCompileTest, RejectsMalformedReferencesBeforeEmittingInstructions)
 {
     SCompiledModuleData program;
-    const std::vector<SParameter> parameters;
+    const std::vector<Elixir::Aether::Core::SCompiledParameter> parameters;
     ModuleCompileContext context(program, parameters, "", 1);
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::Scale,
-        {{EOperandType::Scalar, Encoded(EOperandSource::Constant, 0)}});
+        {{EOperandType::Scalar, Encoded(EOperandSource::Constant, EOperandFormat::Scalar, 0)}});
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::Scale,
         {context.Dynamic(static_cast<EDynamicInput>(99))});
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::Scale,
@@ -389,7 +393,7 @@ TEST(GPUOperationTest, MatchesTheShaderHeaderLayout)
 TEST(ModuleCompileTest, UsesTwentyFourBytesForOneScalarInstruction)
 {
     SCompiledModuleData program;
-    const std::vector<SParameter> parameters;
+    const std::vector<Elixir::Aether::Core::SCompiledParameter> parameters;
     ModuleCompileContext context(program, parameters, "", 1);
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::Scale, {context.Scalar(2)});
     program.CompactConstants();
@@ -400,7 +404,7 @@ TEST(ModuleCompileTest, UsesTwentyFourBytesForOneScalarInstruction)
 TEST(ModuleCompileTest, PreservesScalarBitsAndSignedZeroInConstants)
 {
     SCompiledModuleData program;
-    const std::vector<SParameter> parameters{{ .Name = "Bound", .Type = EParameterType::Scalar, .Value = glm::vec4(3) }};
+    const auto parameters = CompileParameters(std::vector<SParameter>{{ .Name = "Bound", .Type = EParameterType::Scalar, .Value = glm::vec4(3) }});
     ModuleCompileContext context(program, parameters, "", 1);
     const uint32_t bits = 0xe0000001u;
     context.Emit(EOperationType::RandomRange, EParticleAttribute::Scale,
@@ -410,9 +414,9 @@ TEST(ModuleCompileTest, PreservesScalarBitsAndSignedZeroInConstants)
     program.CompactConstants();
     EXPECT_EQ(program.Operations[0].OperandCount, 2u);
     EXPECT_EQ(program.Operations[1].OperandCount, 2u);
-    EXPECT_EQ(Reference(program, 0, 0) >> 29, uint32_t(EOperandSource::Constant));
+    EXPECT_EQ(Reference(program, 0, 0) >> OperandSourceShift, uint32_t(EOperandSource::Constant));
     EXPECT_EQ(program.Constants.at(Reference(program, 0, 0) & OperandIndexMask), bits);
-    EXPECT_EQ(Reference(program, 0, 1), Encoded(EOperandSource::Parameter, 0));
+    EXPECT_EQ(Reference(program, 0, 1), (Encoded(EOperandSource::Parameter, EOperandFormat::Scalar, 0)));
     EXPECT_EQ(program.Constants.at(Reference(program, 1, 0) & OperandIndexMask), 0u);
     EXPECT_EQ(program.Constants.at(Reference(program, 1, 1) & OperandIndexMask), 0x80000000u);
     EXPECT_NE(Reference(program, 1, 0), Reference(program, 1, 1));
@@ -422,7 +426,7 @@ TEST(ModuleCompileTest, PreservesScalarBitsAndSignedZeroInConstants)
 TEST(ModuleCompileTest, CompactsRemainingConstantsAndPreservesSharingAndIntegerBits)
 {
     SCompiledModuleData program;
-    const std::vector<SParameter> parameters;
+    const std::vector<Elixir::Aether::Core::SCompiledParameter> parameters;
     ModuleCompileContext context(program, parameters, "", 1);
     context.Scalar(99);
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::Scale, {context.Scalar(2)});
@@ -450,11 +454,183 @@ TEST(ParameterStoreTest, ReplacingAParameterTypeKeepsItsNameUnique)
     auto parameters = store.Compile("Emitter.");
     ASSERT_EQ(parameters.size(), 1u);
     EXPECT_EQ(parameters[0].Name, "Emitter.Value");
-    EXPECT_EQ(parameters[0].Type, EParameterType::Vector);
+    EXPECT_EQ(parameters[0].Type, EParameterType::Vector4);
     EXPECT_EQ(parameters[0].Value, glm::vec4(2));
     store.SetFloat("Value", 3);
     parameters = store.Compile();
     ASSERT_EQ(parameters.size(), 1u);
     EXPECT_EQ(parameters[0].Type, EParameterType::Scalar);
     EXPECT_EQ(parameters[0].Value, glm::vec4(3, 0, 0, 0));
+}
+
+TEST(CompiledParameterTest, PacksNativeWidthsAndPreservesUnsignedAndSignedZeroBits)
+{
+    const std::vector<SParameter> authored{
+        { .Name = "Scalar", .Type = EParameterType::Scalar, .Value = {2, 0, 0, 0} },
+        { .Name = "Vector2", .Type = EParameterType::Vector2, .Value = {3, 4, 0, 0} },
+        { .Name = "Vector3", .Type = EParameterType::Vector3, .Value = {5, -0.0f, 7, 0} },
+        { .Name = "Vector4", .Type = EParameterType::Vector4, .Value = {8, 9, 10, 11} },
+        { .Name = "UInt", .Type = EParameterType::UInt, .Value = EncodeUIntParameter(UINT32_MAX) },
+        { .Name = "Curve:0", .Value = {12, 13, 14, 15} }
+    };
+    const auto compiled = CompileParameters(authored);
+    const auto words = PackParameterValues(compiled);
+    ASSERT_EQ(compiled.size(), 6u);
+    const std::array<uint32_t, 6> offsets{0, 1, 3, 6, 10, 11};
+    for (size_t i = 0; i < compiled.size(); ++i)
+    {
+        EXPECT_EQ(compiled[i].WordOffset, offsets[i]);
+        EXPECT_EQ(compiled[i].Name, authored[i].Name);
+        EXPECT_EQ(compiled[i].Type, authored[i].Type);
+    }
+    ASSERT_EQ(words.size() * sizeof(uint32_t), 60u);
+    EXPECT_EQ(words[4], 0x80000000u);
+    EXPECT_EQ(words[10], UINT32_MAX);
+    EXPECT_FLOAT_EQ(std::bit_cast<float>(words.back()), 15);
+}
+
+TEST(CompiledParameterTest, RejectsMalformedOffsetsAndTypesBeforeCopyingPayloads)
+{
+    auto compiled = CompileParameters(std::array{SParameter{.Type = EParameterType::Scalar}});
+    for (const auto offset : {1u, UINT32_MAX})
+    {
+        compiled[0].WordOffset = offset;
+        EXPECT_TRUE(PackParameterValues(compiled).empty());
+    }
+    compiled[0].WordOffset = 0;
+    compiled[0].Type = EParameterType(255);
+    EXPECT_TRUE(PackParameterValues(compiled).empty());
+    EXPECT_TRUE(CompileParameters(std::array{SParameter{.Type = EParameterType(255)}}).empty());
+    EXPECT_TRUE(CompileParameters(std::span<const SParameter>{}).empty());
+    EXPECT_TRUE(PackParameterValues(std::span<const Elixir::Aether::Core::SCompiledParameter>{}).empty());
+}
+
+TEST(ModuleCompileTest, BindsNativeParameterFormatsAndKeepsTheirOffsetsDuringCompaction)
+{
+    const auto parameters = CompileParameters(std::vector<SParameter>{
+        {.Name = "Scalar", .Type = EParameterType::Scalar},
+        {.Name = "Vector2", .Type = EParameterType::Vector2},
+        {.Name = "Vector3", .Type = EParameterType::Vector3},
+        {.Name = "Vector4", .Type = EParameterType::Vector4},
+        {.Name = "UInt", .Type = EParameterType::UInt},
+        {.Name = "Curve:0"}, {.Name = "Curve:1"}
+    });
+    SCompiledModuleData program;
+    ModuleCompileContext context(program, parameters, "", 1);
+    context.Scalar(99);
+    context.Emit(EOperationType::SetLiteral, EParticleAttribute::Size, {context.Scalar(0, "Scalar")});
+    context.Emit(EOperationType::SetLiteral, EParticleAttribute::Position, {context.Vector({}, "Vector2")});
+    context.Emit(EOperationType::SetLiteral, EParticleAttribute::Velocity, {context.Vector({}, "Vector3")});
+    context.Emit(EOperationType::SetLiteral, EParticleAttribute::Color, {context.Value({}, "Vector4")});
+    context.Emit(EOperationType::SetLiteral, EParticleAttribute::RibbonId, {context.UInt(0, "UInt")});
+    context.Emit(EOperationType::SampleCurve, EParticleAttribute::Scale, {context.Curve("Curve"), context.Scalar(0.5f)});
+    ASSERT_EQ(program.Operations.size(), 6u);
+    const std::array formats{EOperandFormat::Scalar, EOperandFormat::Vector2, EOperandFormat::Vector3,
+        EOperandFormat::Vector4, EOperandFormat::UInt};
+    const std::array<uint32_t, 5> offsets{0, 1, 3, 6, 10};
+    program.CompactConstants();
+    for (size_t i = 0; i < formats.size(); ++i)
+        EXPECT_EQ(Reference(program, i, 0), Encoded(EOperandSource::Parameter, formats[i], offsets[i]));
+    EXPECT_EQ(Reference(program, 5, 0), Encoded(EOperandSource::Parameter, EOperandFormat::Curve, 11));
+    ASSERT_EQ(program.Constants.size(), 1u);
+    EXPECT_FLOAT_EQ(Literal(program, 5, 1), 0.5f);
+    const auto operations = program.Operations.size();
+    context.Emit(EOperationType::SetLiteral, EParticleAttribute::Scale, {context.Scalar(0, "UInt")});
+    EXPECT_EQ(program.Operations.size(), operations);
+}
+
+TEST(OperandValidationTest, RejectsInteriorWordsAndIncorrectNativeParameterFormats)
+{
+    const auto parameters = CompileParameters(std::vector<SParameter>{
+        {.Type = EParameterType::Scalar}, {.Type = EParameterType::Vector3}, {.Type = EParameterType::UInt}
+    });
+    const SOperandValidationContext context{{}, parameters};
+    const auto valid = [&](EOperandType type, EOperandFormat format, uint32_t offset)
+    {
+        return IsValidOperand({type, Encoded(EOperandSource::Parameter, format, offset)}, context);
+    };
+    EXPECT_TRUE(valid(EOperandType::Vector3, EOperandFormat::Vector3, 1));
+    EXPECT_FALSE(valid(EOperandType::Vector3, EOperandFormat::Vector3, 2));
+    EXPECT_FALSE(valid(EOperandType::Vector3, EOperandFormat::Vector4, 1));
+    EXPECT_TRUE(valid(EOperandType::UInt, EOperandFormat::UInt, 4));
+    EXPECT_FALSE(valid(EOperandType::Scalar, EOperandFormat::Scalar, 4));
+    EXPECT_FALSE(IsValidOperand({EOperandType::UInt, Encoded(EOperandSource::Immediate, EOperandFormat::Scalar, 4)}, context));
+
+    auto invalidParameters = parameters;
+    invalidParameters[1].Type = EParameterType::Vector4;
+    EXPECT_FALSE(IsValidOperand({EOperandType::Vector3, Encoded(EOperandSource::Parameter, EOperandFormat::Vector3, 1)},
+        {{}, invalidParameters}));
+    invalidParameters = parameters;
+    invalidParameters[1].WordOffset = 2;
+    EXPECT_FALSE(IsValidOperand({EOperandType::Vector3, Encoded(EOperandSource::Parameter, EOperandFormat::Vector3, 2)},
+        {{}, invalidParameters}));
+}
+
+TEST(OperandReferenceTest, KeepsOriginFormatAndPayloadInIndependentFields)
+{
+    const auto reference = EncodeOperandReference(EOperandSource::Parameter, EOperandFormat::Vector3, OperandIndexMask);
+    EXPECT_EQ(reference, 0x2bffffffu);
+    EXPECT_EQ(GetOperandSource(reference), EOperandSource::Parameter);
+    EXPECT_EQ(GetOperandFormat(reference), EOperandFormat::Vector3);
+    EXPECT_EQ(reference & OperandIndexMask, OperandIndexMask);
+    EXPECT_EQ(GetOperandSource(EncodeOperandReference(EOperandSource::Constant, EOperandFormat::Vector3, 0)),
+        EOperandSource::Constant);
+    EXPECT_EQ(GetOperandFormat(EncodeOperandReference(EOperandSource::Parameter, EOperandFormat::Scalar, 0)),
+        EOperandFormat::Scalar);
+    EXPECT_EQ(EncodeOperandReference(EOperandSource::Constant, EOperandFormat::Scalar, OperandIndexMask + 1), UINT32_MAX);
+    EXPECT_EQ(EncodeOperandReference(EOperandSource(8), EOperandFormat::Scalar, 0), UINT32_MAX);
+    EXPECT_EQ(EncodeOperandReference(EOperandSource::Constant, EOperandFormat(8), 0), UINT32_MAX);
+}
+
+TEST(OperandValidationTest, RejectsFormatsThatDoNotMatchTheirOrigin)
+{
+    const std::array<uint32_t, 4> constants{};
+    const auto parameters = CompileParameters(std::vector<SParameter>{{.Type = EParameterType::Unspecified}});
+    const SOperandValidationContext context{constants, parameters};
+    const auto valid = [&](EOperandType type, EOperandSource source, EOperandFormat format, uint32_t index)
+    {
+        return IsValidOperand({type, Encoded(source, format, index)}, context);
+    };
+    EXPECT_TRUE(valid(EOperandType::Curve, EOperandSource::Parameter, EOperandFormat::Curve, 0));
+    EXPECT_FALSE(valid(EOperandType::Curve, EOperandSource::Constant, EOperandFormat::Curve, 0));
+    EXPECT_FALSE(valid(EOperandType::Scalar, EOperandSource::Parameter, EOperandFormat::Curve, OperandIndexMask));
+    EXPECT_FALSE(valid(EOperandType::UInt, EOperandSource::Immediate, EOperandFormat::Scalar, 0));
+    EXPECT_TRUE(valid(EOperandType::UInt, EOperandSource::Immediate, EOperandFormat::UInt, OperandIndexMask));
+    EXPECT_FALSE(valid(EOperandType::Scalar, EOperandSource::DynamicInput, EOperandFormat::Vector4, uint32_t(EDynamicInput::EmitterTime)));
+    EXPECT_FALSE(valid(EOperandType::Scalar, EOperandSource(7), EOperandFormat::Scalar, 0));
+    EXPECT_FALSE(valid(EOperandType::Scalar, EOperandSource::Constant, EOperandFormat(7), 0));
+    EXPECT_TRUE(valid(EOperandType::Vector3, EOperandSource::Constant, EOperandFormat::Vector2, 2));
+    EXPECT_FALSE(valid(EOperandType::Vector3, EOperandSource::Constant, EOperandFormat::Vector2, 3));
+}
+
+TEST(ModuleCompileTest, MovesUnsignedValuesBeyondTheImmediatePayloadIntoConstants)
+{
+    SCompiledModuleData program;
+    const std::vector<Elixir::Aether::Core::SCompiledParameter> parameters;
+    ModuleCompileContext context(program, parameters, "", 1);
+    const auto immediate = context.UInt(OperandIndexMask);
+    const auto constant = context.UInt(OperandIndexMask + 1);
+    context.Emit(EOperationType::SetLiteral, EParticleAttribute::RibbonId, {constant});
+    program.CompactConstants();
+    EXPECT_EQ(immediate.Reference, Encoded(EOperandSource::Immediate, EOperandFormat::UInt, OperandIndexMask));
+    EXPECT_EQ(GetOperandSource(Reference(program, 0, 0)), EOperandSource::Constant);
+    EXPECT_EQ(GetOperandFormat(Reference(program, 0, 0)), EOperandFormat::UInt);
+    ASSERT_EQ(program.Constants.size(), 1u);
+    EXPECT_EQ(program.Constants[0], 0x04000000u);
+}
+
+TEST(OperandValidationTest, UsesStoredFormatsForAttributesAndTemporaryRegisters)
+{
+    const SOperandValidationContext context{};
+    for (const auto type : {EOperandType::Scalar, EOperandType::Vector3, EOperandType::Vector4})
+    {
+        const auto reference = Encoded(EOperandSource::ParticleAttribute, EOperandFormat::Vector4, uint32_t(EParticleAttribute::Temp0));
+        EXPECT_TRUE(IsValidOperand({type, reference}, context));
+        EXPECT_FALSE(IsValidOperand({type, Encoded(EOperandSource::ParticleAttribute, EOperandFormat::Scalar,
+            uint32_t(EParticleAttribute::Temp0))}, context));
+    }
+    EXPECT_TRUE(IsValidOperand({EOperandType::UInt, Encoded(EOperandSource::ParticleAttribute, EOperandFormat::UInt,
+        uint32_t(EParticleAttribute::RibbonId))}, context));
+    EXPECT_FALSE(IsValidOperand({EOperandType::UInt, Encoded(EOperandSource::ParticleAttribute, EOperandFormat::Vector4,
+        uint32_t(EParticleAttribute::RibbonId))}, context));
 }

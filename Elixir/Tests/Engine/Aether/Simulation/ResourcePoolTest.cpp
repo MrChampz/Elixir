@@ -22,7 +22,8 @@ namespace
         system.ModuleData.Operations.resize(operationCount);
         system.ModuleData.Operands.resize(operationCount * 2);
         system.ModuleData.Constants.resize(operationCount * 3);
-        system.Parameters.resize(parameterCount);
+        system.Parameters = CompileParameters(std::vector<SParameter>(parameterCount));
+        system.ParameterValues = PackParameterValues(system.Parameters);
         system.TriggerTargets.resize(triggerTargetCount);
         return system;
     }
@@ -34,7 +35,7 @@ namespace
             .ParticleCapacity = 64,
             .EmitterCapacity = 16,
             .OperationCapacity = 32,
-            .ParameterCapacity = 32,
+            .ParameterWordCapacity = 128,
             .TriggerTargetCapacity = 16,
             .TriggerEventCapacityPerEmitter = 4,
         };
@@ -219,4 +220,25 @@ TEST(ResourcePoolTest, FailedSharedInstanceAllocationDoesNotReleaseTheLiveProgra
     EXPECT_FALSE(pool.Allocate(system));
     pool.Release(*live);
     EXPECT_TRUE(pool.Allocate(MakeCompiledSystem(4, 1, 1, 1, 1)));
+}
+
+TEST(ResourcePoolTest, AllocatesNativeParameterWordsAndRollsBackExhaustion)
+{
+    auto limits = MakePoolLimits();
+    limits.ParameterWordCapacity = 7;
+    const ParticleStateLayoutRegistry layouts{limits.ParticleCapacity};
+    ResourcePool pool{limits, layouts};
+    auto system = MakeCompiledSystem(4, 1, 1, 0, 0);
+    system.Parameters = CompileParameters(std::array{SParameter{.Type = EParameterType::Scalar},
+        SParameter{.Type = EParameterType::Vector2}, SParameter{.Type = EParameterType::UInt}});
+    system.ParameterValues = PackParameterValues(system.Parameters);
+    const auto first = pool.Allocate(system);
+    ASSERT_TRUE(first);
+    EXPECT_EQ(first->Parameters.Count, 4u);
+    EXPECT_FALSE(pool.Allocate(system));
+    pool.Release(*first);
+    const auto reused = pool.Allocate(system);
+    ASSERT_TRUE(reused);
+    EXPECT_EQ(reused->Parameters.Offset, first->Parameters.Offset);
+    EXPECT_EQ(reused->Constants.Offset, first->Constants.Offset);
 }

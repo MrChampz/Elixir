@@ -1,37 +1,50 @@
 #pragma once
 
 #include <Engine/Aether/Core/DynamicInput.h>
-#include <Engine/Aether/Core/ParameterStore.h>
+#include <Engine/Aether/Core/CompiledParameter.h>
 #include <Engine/Aether/Core/Particle.h>
 
 namespace Elixir::Aether::Core
 {
-    /** @brief Identifies the storage or runtime source addressed by an operand. */
+    /** @brief Identifies where an operand obtains its value. */
     enum class EOperandSource : uint8_t
     {
-        /** @brief Reads one 32-bit word from the constant table. */
-        Constant            = 0,
+        /** @brief Reads shared literal words from the constant buffer. */
+        Constant = 0,
 
-        /** @brief Reads a value from the system instance's parameter table. */
-        Parameter           = 1,
+        /** @brief Reads instance values or curve samples from the parameter buffer. */
+        Parameter = 1,
 
         /** @brief Resolves a runtime input identified by EDynamicInput. */
-        DynamicInput        = 2,
+        DynamicInput = 2,
 
         /** @brief Reads a particle attribute identified by EParticleAttribute. */
-        ParticleAttribute   = 3,
+        ParticleAttribute = 3,
 
-        /** @brief Stores an unsigned integer directly in the reference's 29 payload bits. */
-        ImmediateUInt       = 4,
+        /** @brief Stores the value directly in the reference's payload bits. */
+        Immediate = 4,
+    };
 
-        /** @brief References a curve through its compiled parameter index. */
-        Curve               = 5,
+    /** @brief Identifies how an operand's payload is stored or resolved. */
+    enum class EOperandFormat : uint8_t
+    {
+        /** @brief Stores one 32-bit floating-point component. */
+        Scalar = 0,
 
-        /** @brief Reads three consecutive 32-bit words from the constant table. */
-        ConstantVector3     = 6,
+        /** @brief Stores two floating-point components and pads vector reads with zero. */
+        Vector2 = 1,
 
-        /** @brief Reads four consecutive 32-bit words from the constant table. */
-        ConstantVector4     = 7,
+        /** @brief Stores three floating-point components and pads the fourth with zero. */
+        Vector3 = 2,
+
+        /** @brief Stores four floating-point components. */
+        Vector4 = 3,
+
+        /** @brief Stores an unsigned 32-bit integer without changing its bits. */
+        UInt = 4,
+
+        /** @brief References the first parameter word of a curve's sample table. */
+        Curve = 5,
     };
 
     /** @brief Identifies the logical type required by an operation argument. */
@@ -56,8 +69,118 @@ namespace Elixir::Aether::Core
         Target
     };
 
-    /** @brief Reserves three tag bits and 29 payload bits in each operand reference. */
-    inline constexpr uint32_t OperandIndexMask = 0x1fffffffu;
+    /** @brief Number of low bits preceding the three-bit source field. */
+    inline constexpr uint32_t OperandSourceShift = 29;
+
+    /** @brief Number of low bits preceding the three-bit format field. */
+    inline constexpr uint32_t OperandFormatShift = 26;
+
+    /** @brief Masks the format bits after shifting the reference. */
+    inline constexpr uint32_t OperandFormatMask = 0x7u;
+
+    /** @brief Masks the 26-bit word offset or immediate payload. */
+    inline constexpr uint32_t OperandIndexMask = 0x03ffffffu;
+
+    /** @brief Returns the origin encoded in an operand reference. */
+    constexpr EOperandSource GetOperandSource(const uint32_t reference)
+    {
+        return EOperandSource(reference >> OperandSourceShift);
+    }
+
+    /** @brief Returns the payload format encoded in an operand reference. */
+    constexpr EOperandFormat GetOperandFormat(const uint32_t reference)
+    {
+        return EOperandFormat((reference >> OperandFormatShift) & OperandFormatMask);
+    }
+
+    /** @brief Packs origin, format, and index, or returns UINT32_MAX for an invalid field. */
+    inline uint32_t EncodeOperandReference(
+        const EOperandSource source,
+        const EOperandFormat format,
+        const uint32_t index
+    )
+    {
+        if (source > EOperandSource::Immediate ||
+            format > EOperandFormat::Curve ||
+            index > OperandIndexMask)
+        {
+            EE_CORE_ERROR("Particle operand source, format, or 26-bit index is invalid.");
+            return UINT32_MAX;
+        }
+
+        return (uint32_t(source) << OperandSourceShift)
+            | (uint32_t(format) << OperandFormatShift) | index;
+    }
+
+    /** @brief Returns the numeric word count, or zero for a curve or unsupported format. */
+    constexpr uint32_t GetOperandFormatWordCount(const EOperandFormat format)
+    {
+        switch (format)
+        {
+            case EOperandFormat::Scalar:
+            case EOperandFormat::UInt:
+                return 1;
+            case EOperandFormat::Vector2:
+                return 2;
+            case EOperandFormat::Vector3:
+                return 3;
+            case EOperandFormat::Vector4:
+                return 4;
+            default:
+                return 0;
+        }
+    }
+
+    /** @brief Returns a concrete type's storage format, or an invalid format for Target. */
+    constexpr EOperandFormat GetOperandTypeFormat(const EOperandType type)
+    {
+        switch (type)
+        {
+            case EOperandType::Scalar:  return EOperandFormat::Scalar;
+            case EOperandType::Vector3: return EOperandFormat::Vector3;
+            case EOperandType::Vector4: return EOperandFormat::Vector4;
+            case EOperandType::UInt:    return EOperandFormat::UInt;
+            case EOperandType::Curve:   return EOperandFormat::Curve;
+            default: return EOperandFormat(UINT8_MAX);
+        }
+    }
+
+    /** @brief Returns a parameter's stored format, or an invalid format for an unsupported type. */
+    constexpr EOperandFormat GetParameterOperandFormat(const EParameterType type)
+    {
+        switch (type)
+        {
+            case EParameterType::Scalar:        return EOperandFormat::Scalar;
+            case EParameterType::Vector2:       return EOperandFormat::Vector2;
+            case EParameterType::Vector3:       return EOperandFormat::Vector3;
+            case EParameterType::UInt:          return EOperandFormat::UInt;
+            case EParameterType::Vector4:
+            case EParameterType::Unspecified:   return EOperandFormat::Vector4;
+            default: return EOperandFormat(UINT8_MAX);
+        }
+    }
+
+    /** @brief Checks whether a declared parameter can supply a logical operand type. */
+    constexpr bool IsParameterOperandType(
+        const EParameterType declared,
+        const EOperandType actual
+    )
+    {
+        if (actual == EOperandType::UInt)
+            return declared == EParameterType::UInt;
+
+        if (declared == EParameterType::Unspecified)
+            return actual == EOperandType::Scalar || actual == EOperandType::Vector3 ||
+                actual == EOperandType::Vector4;
+
+        if (declared == EParameterType::Scalar)
+            return actual == EOperandType::Scalar;
+
+        const bool vector = declared == EParameterType::Vector2 ||
+            declared == EParameterType::Vector3 || declared == EParameterType::Vector4;
+
+        return vector && (actual == EOperandType::Vector3 || actual == EOperandType::Vector4);
+    }
 
     /** @brief Stores a typed operand while a module is being compiled. */
     struct SGPUOperand
@@ -65,7 +188,7 @@ namespace Elixir::Aether::Core
         /** @brief Logical value type used to validate the operation argument. */
         EOperandType Type;
 
-        /** @brief Packed source tag and source-relative index. */
+        /** @brief Packed three-bit origin, three-bit format, and 26-bit source-relative payload. */
         uint32_t Reference;
     };
 
@@ -76,7 +199,7 @@ namespace Elixir::Aether::Core
         std::span<const uint32_t> Constants;
 
         /** @brief Compiled parameters available to the operand and curve references. */
-        std::span<const SParameter> Parameters;
+        std::span<const SCompiledParameter> Parameters;
     };
 
     /** @brief Returns the logical operand type of a particle attribute. */
@@ -101,6 +224,14 @@ namespace Elixir::Aether::Core
         }
     }
 
+    /** @brief Returns an attribute's stored format; temporary registers hold four components. */
+    inline EOperandFormat GetAttributeOperandFormat(const EParticleAttribute attribute)
+    {
+        if (attribute >= EParticleAttribute::Temp0 && attribute <= EParticleAttribute::Temp3)
+            return EOperandFormat::Vector4;
+        return GetOperandTypeFormat(GetAttributeOperandType(attribute));
+    }
+
     /** @brief Checks whether an operand's type and reference match its source and available tables. */
     inline bool IsValidOperand(
         const SGPUOperand& operand,
@@ -109,49 +240,81 @@ namespace Elixir::Aether::Core
     {
         using enum EOperandType;
 
-        const auto source = EOperandSource(operand.Reference >> 29);
+        const auto source = GetOperandSource(operand.Reference);
+        const auto format = GetOperandFormat(operand.Reference);
         const auto index = operand.Reference & OperandIndexMask;
         const auto actual = operand.Type;
+        const auto valueWidth = GetOperandFormatWordCount(format);
+
+        if (source == EOperandSource::Parameter)
+        {
+            const bool curve = format == EOperandFormat::Curve;
+            if (curve && actual != Curve) return false;
+            if (curve && index == OperandIndexMask) return true;
+
+            if (!curve && valueWidth == 0) return false;
+
+            uint32_t offset = 0;
+            for (const auto& definition : context.Parameters)
+            {
+                const auto width = GetParameterWordCount(definition.Type);
+                if (width == 0 || definition.WordOffset != offset) return false;
+
+                if (definition.WordOffset == index)
+                {
+                    if (curve)
+                        return definition.Type == EParameterType::Unspecified && width == 4;
+
+                    return valueWidth == width &&
+                        format == GetParameterOperandFormat(definition.Type) &&
+                        IsParameterOperandType(definition.Type, actual);
+                }
+
+                if (offset > OperandIndexMask - width)
+                    return false;
+
+                offset += width;
+            }
+
+            return false;
+        }
 
         switch (source)
         {
             case EOperandSource::Constant:
-                return (actual == Scalar || actual == UInt) &&
-                    index < context.Constants.size();
-
-            case EOperandSource::ConstantVector3:
-                return actual == Vector3 &&
-                    std::size_t(index) + 3 <= context.Constants.size();
-
-            case EOperandSource::ConstantVector4:
-                return actual == Vector4 &&
-                    std::size_t(index) + 4 <= context.Constants.size();
-
-            case EOperandSource::Parameter:
             {
-                const auto invalid = actual != Scalar && actual != Vector3 && actual != Vector4;
-                if (invalid || index >= context.Parameters.size())
+                if (valueWidth == 0 ||
+                    std::size_t(index) + valueWidth > context.Constants.size())
                     return false;
 
-                const auto declared = context.Parameters[index].Type;
-                if (declared == EParameterType::Unspecified)
-                    return true;
-
-                if (declared == EParameterType::Scalar)
-                    return actual == Scalar;
-
-                if (declared == EParameterType::Vector)
-                    return actual == Vector3 || actual == Vector4;
-
-                return false;
+                switch (format)
+                {
+                    case EOperandFormat::Scalar:
+                        return actual == Scalar;
+                    case EOperandFormat::Vector2:
+                        return actual == Vector3 || actual == Vector4;
+                    case EOperandFormat::Vector3:
+                        return actual == Vector3;
+                    case EOperandFormat::Vector4:
+                        return actual == Vector4;
+                    case EOperandFormat::UInt:
+                        return actual == UInt;
+                    default:
+                        return false;
+                }
             }
 
             case EOperandSource::DynamicInput:
-                return actual == Scalar && index <= uint32_t(EDynamicInput::ParticleSeed);
+                return format == EOperandFormat::Scalar &&
+                    actual == Scalar && index <= uint32_t(EDynamicInput::ParticleSeed);
 
             case EOperandSource::ParticleAttribute:
             {
                 const auto attr = EParticleAttribute(index);
+
+                if (format != GetAttributeOperandFormat(attr))
+                    return false;
+
                 const auto sameType = actual == GetAttributeOperandType(attr);
 
                 if (index <= uint32_t(EParticleAttribute::None) ||
@@ -167,12 +330,10 @@ namespace Elixir::Aether::Core
                 return false;
             }
 
-            case EOperandSource::ImmediateUInt:
-                return actual == UInt;
+            case EOperandSource::Immediate:
+                return format == EOperandFormat::UInt && actual == UInt;
 
-            case EOperandSource::Curve:
-                return actual == Curve &&
-                    (index == OperandIndexMask || index < context.Parameters.size());
+            default: return false;
         }
 
         return false;

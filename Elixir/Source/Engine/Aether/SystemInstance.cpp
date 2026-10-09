@@ -38,21 +38,112 @@ namespace Elixir::Aether
         EE_CORE_ASSERT(m_SourceSystem, "SystemInstance requires an authored system.")
     }
 
-    bool SystemInstance::SetParameterOverride(
+    bool SystemInstance::SetParameterOverride(const std::string& name, const float value)
+    {
+        return StoreParameterOverride(name, glm::vec4(value, 0.0f, 0.0f, 0.0f), EParameterType::Scalar);
+    }
+
+    bool SystemInstance::SetParameterOverride(const std::string& name, const glm::vec2& value)
+    {
+        return StoreParameterOverride(
+            name,
+            glm::vec4(value, 0.0f, 0.0f),
+            EParameterType::Vector2
+        );
+    }
+
+    bool SystemInstance::SetParameterOverride(const std::string& name, const glm::vec3& value)
+    {
+        return StoreParameterOverride(
+            name,
+            glm::vec4(value, 0.0f),
+            EParameterType::Vector3
+        );
+    }
+
+    bool SystemInstance::SetParameterOverride(const std::string& name, const glm::vec4& value)
+    {
+        return StoreParameterOverride(name, value, EParameterType::Vector4);
+    }
+
+    bool SystemInstance::SetParameterOverride(const std::string& name, const uint32_t value)
+    {
+        return StoreParameterOverride(
+            name,
+            EncodeUIntParameter(value),
+            EParameterType::UInt
+        );
+    }
+
+    const SParameter* SystemInstance::FindParameterDefinition(
         const std::string& name,
-        const glm::vec4& value
+        std::optional<SParameter>& authored
+    ) const
+    {
+        if (!m_CompiledSystem)
+        {
+            if (!m_SourceSystem) return nullptr;
+            authored = m_SourceSystem->GetParameterDefault(name);
+            return authored ? &*authored : nullptr;
+        }
+
+        const auto* exposed = FindExposedParameter(*m_CompiledSystem, name);
+        if (!exposed) return nullptr;
+
+        EE_CORE_ASSERT(
+            exposed->ParameterIndex < m_CompiledSystem->Parameters.size(),
+            "Aether exposed parameter index is outside the compiled parameter table."
+        )
+
+        return exposed->ParameterIndex < m_CompiledSystem->Parameters.size()
+            ? &m_CompiledSystem->Parameters[exposed->ParameterIndex]
+            : nullptr;
+    }
+
+    bool SystemInstance::StoreParameterOverride(
+        const std::string& name,
+        const glm::vec4& value,
+        const std::optional<EParameterType> type
     )
     {
         const std::scoped_lock lock(m_SnapshotMutex);
 
-        const bool isExposed = m_CompiledSystem
-            ? FindExposedParameter(*m_CompiledSystem, name) != nullptr
-            : m_SourceSystem
-                && m_SourceSystem->GetParameterDefault(name).has_value();
+        std::optional<SParameter> authored;
+        const auto* parameter = FindParameterDefinition(name, authored);
 
-        if (!isExposed) return false;
+        if (!parameter ||
+            (type ? *type != parameter->Type : parameter->Type == EParameterType::UInt))
+            return false;
 
-        m_ParameterOverrides.insert_or_assign(name, value);
+        glm::vec4 payload = value;
+        switch (parameter->Type)
+        {
+            case EParameterType::Scalar:
+                payload = { value.x, 0.0f, 0.0f, 0.0f };
+                break;
+            case EParameterType::Vector2:
+                payload = { value.x, value.y, 0.0f, 0.0f };
+                break;
+            case EParameterType::Vector3:
+                payload.w = 0.0f;
+                break;
+            default:
+                break;
+        }
+
+        const auto compiled = m_CompiledSystem
+            ? static_cast<const SCompiledParameter*>(parameter)
+            : nullptr;
+        const auto parameterIndex = m_CompiledSystem
+            ? uint32_t(compiled - m_CompiledSystem->Parameters.data())
+            : UINT32_MAX;
+
+        m_ParameterOverrides.insert_or_assign(name, SParameterOverride{
+            .Type = parameter->Type,
+            .Value = payload,
+            .ParameterIndex = parameterIndex
+        });
+
         ++m_ParameterRevision;
 
         if (m_CompiledSystem)
@@ -94,36 +185,26 @@ namespace Elixir::Aether
     {
         const std::scoped_lock lock(m_SnapshotMutex);
 
-        if (!m_CompiledSystem)
-        {
-            if (!m_SourceSystem)
-                return std::nullopt;
+        std::optional<SParameter> authored;
+        const auto* parameter = FindParameterDefinition(name, authored);
 
-            const auto defaultValue = m_SourceSystem->GetParameterDefault(name);
-            if (!defaultValue)
-                return std::nullopt;
-
-            const auto override = m_ParameterOverrides.find(name);
-            return override != m_ParameterOverrides.end()
-                ? override->second
-                : *defaultValue;
-        }
-
-        const auto* exposedParameter = FindExposedParameter(*m_CompiledSystem, name);
-        if (!exposedParameter) return std::nullopt;
-
-        EE_CORE_ASSERT(
-            exposedParameter->ParameterIndex < m_CompiledSystem->Parameters.size(),
-            "Aether exposed parameter index is outside the compiled parameter table."
-        )
-
-        if (exposedParameter->ParameterIndex >= m_CompiledSystem->Parameters.size())
+        if (!parameter || parameter->Type == EParameterType::UInt)
             return std::nullopt;
 
-        return ResolveParameterValue(
-            m_CompiledSystem->Parameters[exposedParameter->ParameterIndex],
-            m_ParameterOverrides
-        );
+        return ResolveParameterValue(*parameter, m_ParameterOverrides);
+    }
+
+    std::optional<uint32_t> SystemInstance::GetParameterUInt(const std::string& name) const
+    {
+        const std::scoped_lock lock(m_SnapshotMutex);
+
+        std::optional<SParameter> authored;
+        const auto* parameter = FindParameterDefinition(name, authored);
+
+        if (!parameter || parameter->Type != EParameterType::UInt)
+            return std::nullopt;
+
+        return DecodeUIntParameter(ResolveParameterValue(*parameter, m_ParameterOverrides));
     }
 
     void SystemInstance::SetWorldTransform(const glm::mat4& worldTransform)
@@ -187,9 +268,17 @@ namespace Elixir::Aether
             m_ParameterOverrides,
             [&system](const auto& entry)
             {
-                return FindExposedParameter(*system, entry.first) == nullptr;
+                const auto* exposed = FindExposedParameter(*system, entry.first);
+                return !exposed || exposed->ParameterIndex >= system->Parameters.size() ||
+                    entry.second.Type != system->Parameters[exposed->ParameterIndex].Type;
             }
         );
+
+        for (auto& [name, override] : m_ParameterOverrides)
+        {
+            const auto* exposed = FindExposedParameter(*system, name);
+            override.ParameterIndex = exposed ? exposed->ParameterIndex : UINT32_MAX;
+        }
 
         m_CompiledSystem = std::move(system);
         m_SourceSystem.reset();
@@ -219,8 +308,16 @@ namespace Elixir::Aether
 
         const auto removed = std::erase_if(m_ParameterOverrides, [&system](const auto& entry)
         {
-           return FindExposedParameter(*system, entry.first) == nullptr;
+            const auto* exposed = FindExposedParameter(*system, entry.first);
+            return !exposed || exposed->ParameterIndex >= system->Parameters.size() ||
+                entry.second.Type != system->Parameters[exposed->ParameterIndex].Type;
         });
+
+        for (auto& [name, override] : m_ParameterOverrides)
+        {
+            const auto* exposed = FindExposedParameter(*system, name);
+            override.ParameterIndex = exposed ? exposed->ParameterIndex : UINT32_MAX;
+        }
 
         m_CompiledSystem = std::move(system);
         ++m_Revision;
@@ -278,8 +375,8 @@ namespace Elixir::Aether
     )
     {
         const auto found = overrides.find(parameter.Name);
-        return found != overrides.end()
-            ? found->second
+        return found != overrides.end() && found->second.Type == parameter.Type
+            ? found->second.Value
             : parameter.Value;
     }
 
@@ -288,11 +385,26 @@ namespace Elixir::Aether
         const ParameterOverridesMap& overrides
     )
     {
-        auto values = CreateRef<ResolvedParameterValues>();
-        values->reserve(system.Parameters.size());
+        auto values = CreateRef<ResolvedParameterValues>(system.ParameterValues);
+        for (const auto& override : overrides | std::views::values)
+        {
+            const auto index = override.ParameterIndex;
+            if (index >= system.Parameters.size())
+                continue;
 
-        for (const auto& parameter : system.Parameters)
-            values->push_back(ResolveParameterValue(parameter, overrides));
+            const auto& parameter = system.Parameters[index];
+            const auto count = GetParameterWordCount(parameter.Type);
+
+            if (override.Type != parameter.Type || count == 0 ||
+                std::size_t(parameter.WordOffset) + count > values->size())
+                continue;
+
+            std::memcpy(
+                values->data() + parameter.WordOffset,
+                &override.Value.x,
+                count * sizeof(uint32_t)
+            );
+        }
 
         return values;
     }

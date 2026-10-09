@@ -36,7 +36,7 @@ namespace Elixir::Aether
 
     SCompiledEmitter Emitter::Compile(
         const ParameterStore& paramStore,
-        const std::vector<SParameter>& params,
+        const std::vector<SCompiledParameter>& params,
         SCompiledModuleData& program
     ) const
     {
@@ -52,10 +52,23 @@ namespace Elixir::Aether
         emitter.BurstCount = m_BurstCount;
         emitter.BurstIntervalSeconds = m_BurstIntervalSeconds;
 
-        const uint32_t spawnRateParamIndex =
-            FindScopedParameterIndex(params, m_Name, m_SpawnRateParamName);
+        const uint32_t spawnRateParamIndex = FindScopedParameterIndex(
+            params,
+            m_Name,
+            m_SpawnRateParamName
+        );
+
         if (spawnRateParamIndex != UINT32_MAX)
-            emitter.SpawnRatePerSecond = params[spawnRateParamIndex].Value.x;
+        {
+            if (params[spawnRateParamIndex].Type == EParameterType::UInt)
+            {
+                EE_CORE_ERROR("Aether spawn rate requires a floating-point parameter.");
+            }
+            else
+            {
+                emitter.SpawnRatePerSecond = params[spawnRateParamIndex].Value.x;
+            }
+        }
 
         if (m_Material)
             emitter.Material = m_Material;

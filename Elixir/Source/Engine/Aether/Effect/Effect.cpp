@@ -88,11 +88,26 @@ namespace Elixir::Aether::Effect
                             return;
                         }
 
-                        store.SetFloat4(name, ParseFloatVec<4>(array));
+                        size_t count;
+
+                        if (array.count_elements().get(count))
+                        {
+                            Fail("Parameter '{}' has an invalid array length.", name);
+                            return;
+                        }
+
+                        if (count == 2)
+                            store.SetFloat2(name, ParseFloatVec<2>(array));
+                        else if (count == 3)
+                            store.SetFloat3(name, ParseFloatVec<3>(array));
+                        else if (count == 4)
+                            store.SetFloat4(name, ParseFloatVec<4>(array));
+                        else
+                            Fail("Parameter '{}' requires two, three, or four vector components.", name);
                     }
                     else
                     {
-                        Fail("Parameter '{}' must be a number or a Float4 array.", name);
+                        Fail("Parameter '{}' must be a number or a vector array.", name);
                     }
                 }
             }

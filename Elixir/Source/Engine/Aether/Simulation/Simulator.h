@@ -111,7 +111,7 @@ namespace Elixir::Aether::Simulation
          *
          * @param submission Immutable system instances requested for the frame.
          * @param cmd Command buffer that receives the simulation commands.
-         * @return Immutable render data produced by the simulation.
+         * @return Immutable render data, or no frame when initialization failed or cmd is null.
          *
          * @pre cmd is not null and is recording commands.
          * @pre BeginFrame() was called for the current frame.

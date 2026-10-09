@@ -9,25 +9,11 @@
 
 namespace Elixir::Aether::Modules
 {
-    namespace
-    {
-        // Packs a reference without silently truncating its index.
-        uint32_t Encode(EOperandSource source, const uint32_t index)
-        {
-            if (index > OperandIndexMask)
-            {
-                EE_CORE_ERROR("Particle operand index exceeds 29 bits.");
-                return UINT32_MAX;
-            }
-            return (uint32_t(source) << 29) | index;
-        }
-    }
-    
     /* ModuleCompileContext */
 
     ModuleCompileContext::ModuleCompileContext(
         SCompiledModuleData& operations,
-        const std::vector<SParameter>& parameters,
+        const std::vector<SCompiledParameter>& parameters,
         const std::string_view emitterName,
         const float gravityScale
     ) : m_ModuleData(operations),
@@ -66,32 +52,45 @@ namespace Elixir::Aether::Modules
         {
             const auto declared = m_Parameters[index].Type;
 
-            if ((declared == EParameterType::Scalar && type != EOperandType::Scalar) ||
-                (declared == EParameterType::Vector && type == EOperandType::Scalar))
+            if (!IsParameterOperandType(declared, type))
             {
                 EE_CORE_ERROR("Particle parameter type does not match its binding.");
                 return { static_cast<EOperandType>(UINT8_MAX), 0 };
             }
 
-            return { type, Encode(EOperandSource::Parameter, index) };
+            const auto& definition = m_Parameters[index];
+            const auto count = GetParameterWordCount(definition.Type);
+
+            if (std::size_t(definition.WordOffset) + count > OperandIndexMask)
+            {
+                EE_CORE_ERROR("Particle parameter offset exceeds the operand word range.");
+                return { static_cast<EOperandType>(UINT8_MAX), 0 };
+            }
+
+            return {
+                type,
+                EncodeOperandReference(
+                    EOperandSource::Parameter,
+                    GetParameterOperandFormat(declared),
+                    definition.WordOffset
+                )
+            };
         }
 
-        auto source = EOperandSource::Constant;
-
-        if (type == EOperandType::Vector3)
-            source = EOperandSource::ConstantVector3;
-        else if (type == EOperandType::Vector4)
-            source = EOperandSource::ConstantVector4;
+        const auto format = GetOperandTypeFormat(type);
 
         std::array<uint32_t, 5> key{ uint32_t(type) };
         std::ranges::copy(words, key.begin() + 1);
 
         if (const auto found = m_Literals.find(key); found != m_Literals.end())
-            return { type, Encode(source, found->second) };
+            return {
+                type,
+                EncodeOperandReference(EOperandSource::Constant, format, found->second)
+            };
 
         if (m_ModuleData.Constants.size() + words.size() > OperandIndexMask)
         {
-            EE_CORE_ERROR("Particle constant pool exceeds 29 bits.");
+            EE_CORE_ERROR("Particle constant pool exceeds 26 bits.");
             return { static_cast<EOperandType>(UINT8_MAX), 0 };
         }
 
@@ -99,7 +98,10 @@ namespace Elixir::Aether::Modules
         m_ModuleData.Constants.insert(m_ModuleData.Constants.end(), words.begin(), words.end());
         m_Literals.emplace(std::move(key), offset);
 
-        return { type, Encode(source, offset) };
+        return {
+            type,
+            EncodeOperandReference(EOperandSource::Constant, format, offset)
+        };
     }
 
     SGPUOperand ModuleCompileContext::Scalar(const float value, const std::string_view parameter)
@@ -137,12 +139,15 @@ namespace Elixir::Aether::Modules
         return Literal(EOperandType::Vector4, words, parameter);
     }
 
-    SGPUOperand ModuleCompileContext::UInt(uint32_t value)
+    SGPUOperand ModuleCompileContext::UInt(uint32_t value, const std::string_view parameter)
     {
+        if (!parameter.empty())
+            return Literal(EOperandType::UInt, std::span(&value, 1), parameter);
+
         if (value <= OperandIndexMask)
             return {
                 EOperandType::UInt,
-                Encode(EOperandSource::ImmediateUInt, value)
+                EncodeOperandReference(EOperandSource::Immediate, EOperandFormat::UInt, value)
             };
 
         return Literal(EOperandType::UInt, std::span(&value, 1), "");
@@ -153,7 +158,11 @@ namespace Elixir::Aether::Modules
         if (input == EDynamicInput::None) return Scalar(1.0f);
         return {
             EOperandType::Scalar,
-            Encode(EOperandSource::DynamicInput, uint32_t(input))
+            EncodeOperandReference(
+                EOperandSource::DynamicInput,
+                EOperandFormat::Scalar,
+                uint32_t(input)
+            )
         };
     }
 
@@ -164,13 +173,21 @@ namespace Elixir::Aether::Modules
     {
         return {
             type,
-            Encode(EOperandSource::ParticleAttribute, uint32_t(attribute))
+            EncodeOperandReference(
+                EOperandSource::ParticleAttribute,
+                GetAttributeOperandFormat(attribute),
+                uint32_t(attribute)
+            )
         };
     }
 
     SGPUOperand ModuleCompileContext::Curve(const std::string_view name)
     {
-        const auto index = FindCurve(name);
+        const auto parameter = FindCurve(name);
+        const auto index = parameter < m_Parameters.size()
+            ? m_Parameters[parameter].WordOffset
+            : UINT32_MAX;
+
         if (index != UINT32_MAX && index >= OperandIndexMask)
         {
             EE_CORE_ERROR("Particle curve index collides with the missing-curve sentinel.");
@@ -179,8 +196,11 @@ namespace Elixir::Aether::Modules
 
         return {
             EOperandType::Curve,
-            Encode(EOperandSource::Curve,
-            index == UINT32_MAX ? OperandIndexMask : index)
+            EncodeOperandReference(
+                EOperandSource::Parameter,
+                EOperandFormat::Curve,
+                index == UINT32_MAX ? OperandIndexMask : index
+            )
         };
     }
 

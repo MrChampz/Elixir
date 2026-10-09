@@ -22,7 +22,7 @@ namespace Elixir::Aether::Rendering
             "SystemInstanceRenderProxy requires resolved parameter values."
         )
         EE_CORE_ASSERT(
-            m_Parameters->size() == m_CompiledSystem->Parameters.size(),
+            m_Parameters->size() == m_CompiledSystem->ParameterValues.size(),
             "Aether resolved parameter table does not match the compiled system."
         )
     }

@@ -318,7 +318,7 @@ namespace Elixir::Aether
         // Compiles this emitter into internal GPU-ready runtime data.
         SCompiledEmitter Compile(
             const ParameterStore& paramStore,
-            const std::vector<SParameter>& params,
+            const std::vector<SCompiledParameter>& params,
             SCompiledModuleData& program
         ) const;
 

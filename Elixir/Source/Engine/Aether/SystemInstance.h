@@ -45,8 +45,24 @@ namespace Elixir::Aether
         UUID m_Id;
     };
 
-    using ParameterOverridesMap = std::unordered_map<std::string, glm::vec4>;
-    using ResolvedParameterValues = std::vector<glm::vec4>;
+    /** @brief Stores one typed override and its binding to the current compilation. */
+    struct SParameterOverride
+    {
+        /** @brief Declared type retained to reject incompatible recompilations. */
+        EParameterType Type = EParameterType::Unspecified;
+
+        /** @brief CPU payload; UInt uses the raw bits of x. */
+        glm::vec4 Value{};
+
+        /** @brief Index in Parameters, or UINT32_MAX before the first compilation. */
+        uint32_t ParameterIndex = UINT32_MAX;
+    };
+
+    /** @brief Maps exposed parameter names to their typed instance overrides. */
+    using ParameterOverridesMap = std::unordered_map<std::string, SParameterOverride>;
+
+    /** @brief Stores an immutable parameter snapshot as contiguous native payload words. */
+    using ResolvedParameterValues = std::vector<uint32_t>;
 
     /**
      * @brief Stores one immutable view of a SystemInstance.
@@ -77,7 +93,7 @@ namespace Elixir::Aether
          * @param parameterRevision Revision of the resolved parameter values.
          * @param system Compiled system selected by the instance.
          * @param worldTransform World transform selected by the instance.
-         * @param parameters Resolved values in compiled parameter order.
+         * @param parameters Packed words addressed by the compiled parameter layouts.
          *
          * @pre system is not null.
          * @pre parameters is not null.
@@ -172,15 +188,23 @@ namespace Elixir::Aether
         SystemInstance(SystemInstance&&) = delete;
         SystemInstance& operator=(SystemInstance&&) = delete;
 
-        /**
-         * @brief Sets an override for an exposed compiled-system parameter.
-         *
-         * @param name Name of the exposed parameter.
-         * @param value Replacement float4 value.
-         * @return True when the parameter is exposed and the override was stored.
-         * @return False when the parameter is not exposed.
-         */
+        /** @brief Sets an override only when the exposed parameter is Scalar. */
+        bool SetParameterOverride(const std::string& name, float value);
+
+        /** @brief Sets an override only when the exposed parameter is Vector2. */
+        bool SetParameterOverride(const std::string& name, const glm::vec2& value);
+
+        /** @brief Sets an override only when the exposed parameter is Vector3. */
+        bool SetParameterOverride(const std::string& name, const glm::vec3& value);
+
+        /** @brief Sets an override only when the exposed parameter is Vector4. */
         bool SetParameterOverride(const std::string& name, const glm::vec4& value);
+
+        /** @brief Sets an unsigned integer override only when the exposed parameter is UInt. */
+        bool SetParameterOverride(const std::string& name, uint32_t value);
+
+        /** @brief Returns an exposed UInt value, or no value for an unknown name or different type. */
+        std::optional<uint32_t> GetParameterUInt(const std::string& name) const;
 
         /**
          * @brief Removes one parameter override.
@@ -204,7 +228,7 @@ namespace Elixir::Aether
          * returns the default value from the selected compiled system.
          *
          * @param name Name of the exposed parameter.
-         * @return Effective value, or no value when the parameter is not exposed.
+         * @return Floating-point components, or no value for UInt parameters and unknown names.
          */
         std::optional<glm::vec4> GetParameterValue(const std::string& name) const;
 
@@ -221,6 +245,19 @@ namespace Elixir::Aether
         void SetWorldTransform(const glm::mat4& worldTransform);
 
     private:
+        // Stores a type-checked payload while holding the snapshot lock.
+        bool StoreParameterOverride(
+            const std::string& name,
+            const glm::vec4& value,
+            std::optional<EParameterType> type
+        );
+
+        // Finds a compiled default, or keeps the authored default alive in the supplied optional.
+        const SParameter* FindParameterDefinition(
+            const std::string& name,
+            std::optional<SParameter>& authored
+        ) const;
+
         // Returns the authored System retained before the first submission.
         Ref<System> GetSourceSystem() const;
 

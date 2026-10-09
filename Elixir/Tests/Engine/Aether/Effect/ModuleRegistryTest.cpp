@@ -281,7 +281,7 @@ TEST(ModuleRegistryTest, CompilesDefaultAndExplicitCurveInputsFromJson)
 
             SCompiledModuleData program;
             auto& operations = program.Operations;
-            const std::vector<Elixir::Aether::Core::SParameter> parameters;
+            const std::vector<Elixir::Aether::Core::SCompiledParameter> parameters;
             ModuleCompileContext compileContext(program, parameters, "Test", 1.0f);
             module->Compile(compileContext);
             ASSERT_FALSE(operations.empty());
@@ -289,10 +289,11 @@ TEST(ModuleRegistryTest, CompilesDefaultAndExplicitCurveInputsFromJson)
             const auto operand = program.Operands[operations[0].OperandOffset + Operations::SampleCurve::Inputs::Input];
             if (input == EDynamicInput::None)
             {
-                EXPECT_EQ(operand >> 29, uint32_t(Core::EOperandSource::Constant));
+                EXPECT_EQ(Core::GetOperandSource(operand), Core::EOperandSource::Constant);
+                EXPECT_EQ(Core::GetOperandFormat(operand), Core::EOperandFormat::Scalar);
                 EXPECT_EQ(program.Constants.at(operand & Core::OperandIndexMask), std::bit_cast<uint32_t>(1.0f));
             }
-            else EXPECT_EQ(operand, (uint32_t(Core::EOperandSource::DynamicInput) << 29) | uint32_t(input));
+            else EXPECT_EQ(operand, (uint32_t(Core::EOperandSource::DynamicInput) << Core::OperandSourceShift) | uint32_t(input));
         }
     }
 }
@@ -441,6 +442,29 @@ TEST(ModuleRegistryTest, EffectLoaderRejectsUnknownTypesAndWrongPhases)
     std::filesystem::remove(filepath);
 }
 
+TEST(ModuleRegistryTest, EffectLoaderPreservesNativeVectorParameterWidths)
+{
+    const auto filepath = std::filesystem::temp_directory_path() / ("Elixir-native-parameters-" + UUID().ToString() + ".json");
+    {
+        std::ofstream file(filepath);
+        file << R"({"name":"Native parameters","parameters":{"Pair":[1,2],"Direction":[3,4,5],"Tint":[6,7,8,9]},"emitters":[]})";
+    }
+    const auto system = Effect::LoadEffectFile(filepath);
+    std::filesystem::remove(filepath);
+    ASSERT_TRUE(system);
+    const auto& store = system->GetParameters();
+    EXPECT_EQ(store.GetFloat2("Pair"), glm::vec2(1, 2));
+    EXPECT_EQ(store.GetFloat3("Direction"), glm::vec3(3, 4, 5));
+    EXPECT_EQ(store.GetFloat4("Tint"), glm::vec4(6, 7, 8, 9));
+    const glm::vec4 fallback{10, 11, 12, 13};
+    EXPECT_EQ(store.GetFloat4("Pair", fallback), fallback);
+    EXPECT_EQ(store.GetFloat4("Direction", fallback), fallback);
+    EXPECT_EQ(store.GetFloat4("Missing", fallback), fallback);
+    const auto parameters = store.Compile();
+    const auto compiled = Core::CompileParameters(parameters);
+    EXPECT_EQ(Core::PackParameterValues(compiled).size() * sizeof(uint32_t), 36u);
+}
+
 TEST(ModuleRegistryTest, CreatesAndCompilesModulesRegisteredOutsideTheEngine)
 {
     Effect::ModuleParseContext context;
@@ -450,7 +474,7 @@ TEST(ModuleRegistryTest, CreatesAndCompilesModulesRegisteredOutsideTheEngine)
     EXPECT_EQ(module->GetPhase(), EModulePhase::Spawn);
     SCompiledModuleData program;
     auto& operations = program.Operations;
-    const std::vector<Elixir::Aether::Core::SParameter> parameters;
+    const std::vector<Elixir::Aether::Core::SCompiledParameter> parameters;
     ModuleCompileContext compileContext(program, parameters, "Test", 1.0f);
     module->Compile(compileContext);
     ASSERT_EQ(operations.size(), 1u);

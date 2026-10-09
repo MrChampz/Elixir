@@ -37,11 +37,6 @@ namespace Elixir::Aether::Simulation
             uint32_t    IsTriggerDriven{};
         };
 
-        struct SGPUParameter
-        {
-            glm::vec4 Value{};
-        };
-
         struct SGPUSystemInstance
         {
             uint32_t ParticleBaseOffset = 0;
@@ -200,6 +195,14 @@ namespace Elixir::Aether::Simulation
         EE_CORE_ASSERT(shaderLoader, "Aether Simulator requires a shader loader.")
         EE_CORE_INFO("Initializing Aether Simulator.")
 
+        if (!context || !shaderLoader ||
+            m_Limits.ConstantCapacity > UINT32_MAX / sizeof(uint32_t) ||
+            m_Limits.ParameterWordCapacity > UINT32_MAX / sizeof(uint32_t))
+        {
+            EE_CORE_ERROR("Aether requires a graphics context, a shader loader, and value buffers within the 32-bit byte address range.");
+            return;
+        }
+
         Init(shaderLoader);
         CreateBuffers();
         BindShaderParameters();
@@ -207,6 +210,7 @@ namespace Elixir::Aether::Simulation
 
     void Simulator::BeginFrame(const Timestep& timestep)
     {
+        if (!m_ConstantBuffer || !m_ParameterBuffer) return;
         ProcessCompletedRetirements();
         m_LastDeltaTimeSeconds = timestep.GetSeconds();
         m_ElapsedTimeSeconds += timestep.GetSeconds();
@@ -218,6 +222,7 @@ namespace Elixir::Aether::Simulation
     )
     {
         EE_CORE_ASSERT(cmd, "Aether simulation requires a command buffer.")
+        if (!cmd || !m_ConstantBuffer || !m_ParameterBuffer) return nullptr;
 
         const auto serial = ++m_SubmissionSerial;
 
@@ -429,12 +434,12 @@ namespace Elixir::Aether::Simulation
 
         m_ConstantBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(uint32_t) * m_Limits.ConstantCapacity
+            sizeof(uint32_t) * std::max<std::size_t>(1, m_Limits.ConstantCapacity)
         );
 
         m_ParameterBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SGPUParameter) * m_Limits.ParameterCapacity
+            sizeof(uint32_t) * std::max<std::size_t>(1, m_Limits.ParameterWordCapacity)
         );
 
         m_ParamsBuffer = UniformBuffer::Create(
@@ -567,9 +572,9 @@ namespace Elixir::Aether::Simulation
         runtime.SpawnShader->BindStorageBuffer("emitters", m_EmitterBuffer);
         runtime.SpawnShader->BindStorageBuffer("spawnRequests", m_SpawnRequestBuffer);
         runtime.SpawnShader->BindStorageBuffer("operations", m_OperationBuffer);
-        runtime.SpawnShader->BindStorageBuffer("parameters", m_ParameterBuffer);
         runtime.SpawnShader->BindStorageBuffer("operands", m_OperandBuffer);
         runtime.SpawnShader->BindStorageBuffer("constants", m_ConstantBuffer);
+        runtime.SpawnShader->BindStorageBuffer("parameters", m_ParameterBuffer);
         runtime.SpawnShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
 
         constexpr SUpdatePushConstants updatePushConstants{};
@@ -583,9 +588,9 @@ namespace Elixir::Aether::Simulation
         runtime.UpdateShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
         runtime.UpdateShader->BindStorageBuffer("emitters", m_EmitterBuffer);
         runtime.UpdateShader->BindStorageBuffer("operations", m_OperationBuffer);
-        runtime.UpdateShader->BindStorageBuffer("parameters", m_ParameterBuffer);
         runtime.UpdateShader->BindStorageBuffer("operands", m_OperandBuffer);
         runtime.UpdateShader->BindStorageBuffer("constants", m_ConstantBuffer);
+        runtime.UpdateShader->BindStorageBuffer("parameters", m_ParameterBuffer);
         runtime.UpdateShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
     }
 
@@ -747,10 +752,20 @@ namespace Elixir::Aether::Simulation
         const SSystemInstanceAllocation& allocation
     ) const
     {
-        auto* parameters = (SGPUParameter*)m_ParameterBuffer->Map();
-        for (uint32_t i = 0; i < allocation.Parameters.Count; ++i)
-            parameters[allocation.Parameters.Offset + i].Value =
-                proxy.GetParameterValue(i);
+        const auto words = proxy.GetParameterWords();
+
+        EE_CORE_ASSERT(
+            words.size() == allocation.Parameters.Count,
+            "Aether parameter upload does not match its allocation."
+        )
+        if (words.size() != allocation.Parameters.Count || words.empty())
+            return;
+
+        m_ParameterBuffer->UpdateData(
+            words.data(),
+            words.size_bytes(),
+            std::size_t(allocation.Parameters.Offset) * sizeof(uint32_t)
+        );
     }
 
     Simulator::SParticleStateLayoutRuntime* Simulator::FindParticleStateLayoutRuntime(

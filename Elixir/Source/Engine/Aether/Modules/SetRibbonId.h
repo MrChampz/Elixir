@@ -10,7 +10,7 @@ namespace Elixir::Aether::Modules
     {
     public:
         /** @brief Creates the module with the supplied values. */
-        explicit SetRibbonId(uint32_t ribbonId)
+        explicit SetRibbonId(const uint32_t ribbonId)
             : m_RibbonId(ribbonId) {}
 
         /** @brief Appends this module's GPU operations to the supplied context. */
@@ -20,7 +20,7 @@ namespace Elixir::Aether::Modules
                 EOperationType::SetLiteral,
                 EParticleAttribute::RibbonId,
                 {
-                    context.UInt(m_RibbonId)
+                    context.UInt(m_RibbonId, m_ParamName)
                 }
             );
         }
@@ -28,14 +28,26 @@ namespace Elixir::Aether::Modules
         /** @brief Returns the configured ribbon id. */
         uint32_t GetRibbonId() const { return m_RibbonId; }
 
-        /** @brief Creates this module from its serialized fields. */
-        static Scope<Module> Create(Effect::ModuleParseContext& context, simdjson::ondemand::object& object)
+        /** @brief Binds a named UInt parameter and returns this module. */
+        SetRibbonId& BindParameter(std::string name)
         {
-            auto module = CreateScope<SetRibbonId>(context.RequireUInt(object, "ribbonId"));
+            m_ParamName = std::move(name);
+            return *this;
+        }
+
+        /** @brief Creates this module from its serialized fields. */
+        static Scope<Module> Create(
+            Effect::ModuleParseContext& context,
+            simdjson::ondemand::object& object
+        )
+        {
+            const auto ribbonId = context.RequireUInt(object, "ribbonId");
+            auto module = CreateScope<SetRibbonId>(ribbonId);
             return module;
         }
 
     private:
         uint32_t m_RibbonId;
+        std::string m_ParamName;
     };
 }

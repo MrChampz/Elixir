@@ -39,9 +39,10 @@ namespace Elixir::Aether::Modules
 
             for (auto& reference : Operands)
             {
-                const auto source = EOperandSource(reference >> 29);
+                const auto source = GetOperandSource(reference);
+                if (source != EOperandSource::Constant) continue;
 
-                const auto width = GetSourceWidth(source);
+                const auto width = GetOperandFormatWordCount(GetOperandFormat(reference));
                 if (width == 0) continue;
 
                 const auto index = reference & OperandIndexMask;
@@ -51,27 +52,12 @@ namespace Elixir::Aether::Modules
                     packed.insert(packed.end(), Constants.begin() + index, Constants.begin() + index + width);
                 }
 
-                reference = (uint32_t(source) << 29) | relocated[index];
+                reference = (reference & ~OperandIndexMask) | relocated[index];
             }
 
             Constants.swap(packed);
         }
 
-    private:
-        // Returns the number of constant words addressed by a source.
-        static uint32_t GetSourceWidth(const EOperandSource source)
-        {
-            if (source == EOperandSource::Constant)
-                return 1u;
-
-            if (source == EOperandSource::ConstantVector3)
-                return 3u;
-
-            if (source == EOperandSource::ConstantVector4)
-                return 4u;
-
-            return 0u;
-        }
     };
 
     /**
@@ -94,7 +80,7 @@ namespace Elixir::Aether::Modules
          */
         ModuleCompileContext(
             SCompiledModuleData& operations,
-            const std::vector<SParameter>& parameters,
+            const std::vector<SCompiledParameter>& parameters,
             std::string_view emitterName,
             float gravityScale
         );
@@ -142,7 +128,7 @@ namespace Elixir::Aether::Modules
         SGPUOperand Value(glm::vec4 value, std::string_view parameter = "");
 
         /** @brief Compiles an unsigned integer without converting it to float. */
-        SGPUOperand UInt(uint32_t value);
+        SGPUOperand UInt(uint32_t value, std::string_view parameter = "");
 
         /** @brief Compiles a particle input, or the constant one for None. */
         SGPUOperand Dynamic(EDynamicInput input);
@@ -162,7 +148,7 @@ namespace Elixir::Aether::Modules
         );
 
         SCompiledModuleData& m_ModuleData;
-        const std::vector<SParameter>& m_Parameters;
+        const std::vector<SCompiledParameter>& m_Parameters;
         std::string_view m_EmitterName;
         float m_GravityScale;
 

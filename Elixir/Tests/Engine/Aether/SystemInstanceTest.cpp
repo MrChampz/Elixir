@@ -210,3 +210,86 @@ TEST(SystemInstanceTest, KeepsCapturedProxyImmutableDuringConcurrentOverrides)
     EXPECT_FLOAT_EQ(capturedBeforeOverrides->GetParameterValue(0).x, 1.0f);
     EXPECT_FLOAT_EQ(CaptureForTest(instance)->GetParameterValue(0).x, 64.0f);
 }
+
+TEST(SystemInstanceTest, AppliesTypedOverridesBeforeAndAfterRegistration)
+{
+    using namespace Elixir::Aether::Core;
+    TestInstanceRegistry runtime;
+    const auto system = CreateRef<System>("Typed parameters");
+    system->GetParameters().SetFloat("Size", 1.0f);
+    system->GetParameters().SetFloat2("Pair", { 1, 2 });
+    system->GetParameters().SetFloat3("Direction", { 3, 4, 5 });
+    system->GetParameters().SetUInt("Ribbon", 0x80000001u);
+    const auto instance = system->CreateInstance();
+    ASSERT_TRUE(instance);
+    ASSERT_TRUE(instance->SetParameterOverride("Size", 2.0f));
+    ASSERT_TRUE(instance->SetParameterOverride("Pair", glm::vec2{ 6, 7 }));
+    ASSERT_TRUE(instance->SetParameterOverride("Ribbon", UINT32_MAX));
+    EXPECT_EQ(instance->GetParameterValue("Pair"), glm::vec4(6, 7, 0, 0));
+    EXPECT_EQ(instance->GetParameterUInt("Ribbon"), UINT32_MAX);
+    ASSERT_TRUE(runtime.Registry.Register(instance));
+    const auto before = CaptureForTest(instance);
+    const auto& compiled = before->GetCompiledSystem();
+    const uint32_t ribbon = FindParameterIndex(compiled.Parameters, "Ribbon");
+    EXPECT_EQ(before->GetParameterValue(FindParameterIndex(compiled.Parameters, "Size")), glm::vec4(2, 0, 0, 0));
+    ASSERT_TRUE(instance->SetParameterOverride("Size", 3.0f));
+    EXPECT_EQ(instance->GetParameterValue("Size"), glm::vec4(3, 0, 0, 0));
+    EXPECT_EQ(before->GetParameterUInt(ribbon), UINT32_MAX);
+    ASSERT_TRUE(instance->SetParameterOverride("Direction", glm::vec3{ 8, 9, 10 }));
+    ASSERT_TRUE(instance->SetParameterOverride("Ribbon", 0x80000001u));
+    EXPECT_EQ(instance->GetParameterValue("Direction"), glm::vec4(8, 9, 10, 0));
+    EXPECT_EQ(instance->GetParameterUInt("Ribbon"), 0x80000001u);
+    EXPECT_EQ(before->GetParameterUInt(ribbon), UINT32_MAX);
+    EXPECT_EQ(CaptureForTest(instance)->GetParameterUInt(ribbon), 0x80000001u);
+    EXPECT_FALSE(instance->SetParameterOverride("Ribbon", glm::vec4(1)));
+    EXPECT_FALSE(instance->SetParameterOverride("Pair", 1u));
+    EXPECT_FALSE(instance->SetParameterOverride("Pair", 1.0f));
+    EXPECT_FALSE(instance->SetParameterOverride("Ribbon", 1.0f));
+    EXPECT_FALSE(instance->SetParameterOverride("Missing", 1.0f));
+    EXPECT_FALSE(instance->SetParameterOverride("Direction", glm::vec2{ 1, 2 }));
+    EXPECT_FALSE(instance->SetParameterOverride("Pair", glm::vec3{ 1, 2, 3 }));
+    EXPECT_FALSE(instance->GetParameterValue("Ribbon"));
+    EXPECT_FALSE(instance->GetParameterUInt("Pair"));
+    EXPECT_FALSE(instance->GetParameterUInt("Missing"));
+    ASSERT_TRUE(instance->ClearParameterOverride("Ribbon"));
+    EXPECT_EQ(instance->GetParameterUInt("Ribbon"), 0x80000001u);
+}
+
+TEST(SystemInstanceTest, DiscardsOverridesWhenTheDeclaredTypeChanges)
+{
+    TestInstanceRegistry runtime;
+    const auto system = CreateRef<System>("Changing parameter types");
+    system->GetParameters().SetUInt("Value", 17);
+    const auto instance = runtime.CreateRegisteredInstance(system);
+    ASSERT_TRUE(instance);
+    ASSERT_TRUE(instance->SetParameterOverride("Value", UINT32_MAX));
+    system->GetParameters().SetFloat3("Value", { 1, 2, 3 });
+    ASSERT_TRUE(runtime.Registry.Recompile(system));
+    EXPECT_FALSE(instance->GetParameterUInt("Value"));
+    EXPECT_EQ(instance->GetParameterValue("Value"), glm::vec4(1, 2, 3, 0));
+    ASSERT_TRUE(instance->SetParameterOverride("Value", glm::vec3{ 4, 5, 6 }));
+    EXPECT_EQ(instance->GetParameterValue("Value"), glm::vec4(4, 5, 6, 0));
+}
+
+TEST(SystemInstanceTest, RebindsOverridesWhenNativeParameterOffsetsChange)
+{
+    using namespace Elixir::Aether::Core;
+    TestInstanceRegistry runtime;
+    const auto system = MakeSystem();
+    const auto instance = runtime.CreateRegisteredInstance(system);
+    ASSERT_TRUE(instance);
+    ASSERT_TRUE(instance->SetParameterOverride("Tint", { 2, 3, 4, 5 }));
+    const auto before = CaptureForTest(instance);
+    const auto previousIndex = FindParameterIndex(before->GetCompiledSystem().Parameters, "Tint");
+    system->GetParameters().SetFloat("Size", 7);
+    ASSERT_TRUE(runtime.Registry.Recompile(system));
+    const auto after = CaptureForTest(instance);
+    const auto& compiled = after->GetCompiledSystem();
+    const auto currentIndex = FindParameterIndex(compiled.Parameters, "Tint");
+    ASSERT_NE(currentIndex, previousIndex);
+    EXPECT_EQ(compiled.Parameters[currentIndex].WordOffset, 1u);
+    EXPECT_EQ(after->GetParameterValue(currentIndex), glm::vec4(2, 3, 4, 5));
+    EXPECT_EQ(before->GetParameterValue(previousIndex), glm::vec4(2, 3, 4, 5));
+    EXPECT_FLOAT_EQ(after->GetParameterValue(FindParameterIndex(compiled.Parameters, "Size")).x, 7);
+    EXPECT_EQ(after->GetParameterWords().size(), before->GetParameterWords().size() + 1);
+}

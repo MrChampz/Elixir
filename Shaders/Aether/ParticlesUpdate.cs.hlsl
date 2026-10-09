@@ -22,7 +22,7 @@ RWStructuredBuffer<SGPUParticle> particles;
 StructuredBuffer<SGPUEmitter> emitters;
 
 [[vk::binding(3, 0)]]
-StructuredBuffer<SGPUParameter> parameters;
+ByteAddressBuffer parameters;
 
 [[vk::binding(4, 0)]]
 StructuredBuffer<SGPUSystemInstance> instances;

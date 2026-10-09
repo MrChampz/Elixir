@@ -1,5 +1,5 @@
-#ifndef AETHER_OPERAND_READER_HLSL
-#define AETHER_OPERAND_READER_HLSL
+#ifndef AETHER_OPERAND_RESOLVER_HLSL
+#define AETHER_OPERAND_RESOLVER_HLSL
 
 #include "Operand.hlsl"
 
@@ -8,7 +8,7 @@ struct SOperandResolver
 {
     StructuredBuffer<uint> Operands;
     ByteAddressBuffer Constants;
-    StructuredBuffer<SGPUParameter> Parameters;
+    ByteAddressBuffer Parameters;
 
     SGPUOperation Operation;
     SGPUSystemInstance Instance;
@@ -25,29 +25,93 @@ struct SOperandResolver
         return Operands[Instance.OperandBaseOffset + Operation.OperandOffset + argument];
     }
 
+    // Returns the byte address within the operand's constant or parameter buffer.
+    uint GetValueAddress(uint reference)
+    {
+        uint baseOffset = GetOperandSource(reference) == OperandSource_Parameter
+            ? Instance.ParameterBaseOffset
+            : Instance.ConstantBaseOffset;
+        return (baseOffset + (reference & OperandIndexMask)) * 4u;
+    }
+
+    // Reads one raw word from the selected buffer.
+    uint Load(uint reference, uint address)
+    {
+        if (GetOperandSource(reference) == OperandSource_Parameter)
+            return Parameters.Load(address);
+        return Constants.Load(address);
+    }
+
+    // Reads two raw words from the selected buffer.
+    uint2 Load2(uint reference, uint address)
+    {
+        if (GetOperandSource(reference) == OperandSource_Parameter)
+            return Parameters.Load2(address);
+        return Constants.Load2(address);
+    }
+
+    // Reads three raw words from the selected buffer.
+    uint3 Load3(uint reference, uint address)
+    {
+        if (GetOperandSource(reference) == OperandSource_Parameter)
+            return Parameters.Load3(address);
+        return Constants.Load3(address);
+    }
+
+    // Reads four raw words from the selected buffer.
+    uint4 Load4(uint reference, uint address)
+    {
+        if (GetOperandSource(reference) == OperandSource_Parameter)
+            return Parameters.Load4(address);
+        return Constants.Load4(address);
+    }
+
+    // Each 16-bit half fits exactly in the existing float cache.
+    float4 CacheUInt(uint value)
+    {
+        return float4(float(value & 0xffffu), float(value >> 16u), 0.0, 0.0);
+    }
+
     // Decodes a numeric value without consulting the cache.
     float4 DecodeValue(uint argument)
     {
         uint reference = GetOperandReference(argument);
 
-        uint source = reference >> 29;
+        uint source = GetOperandSource(reference);
         uint index = reference & OperandIndexMask;
-        uint address = (Instance.ConstantBaseOffset + index) * 4u;
+        uint address = GetValueAddress(reference);
 
-        if (source == OperandSource_Constant)
-            return float4(asfloat(Constants.Load(address)), 0.0, 0.0, 0.0);
-        if (source == OperandSource_ConstantVector3)
-            return float4(asfloat(Constants.Load3(address)), 0.0);
-        if (source == OperandSource_ConstantVector4)
-            return asfloat(Constants.Load4(address));
-        if (source == OperandSource_Parameter)
-            return Parameters[Instance.ParameterBaseOffset + index].Value;
+        if (source == OperandSource_Constant || source == OperandSource_Parameter)
+        {
+            uint format = GetOperandFormat(reference);
+
+            if (format == OperandFormat_Scalar)
+                return float4(asfloat(Load(reference, address)), 0.0, 0.0, 0.0);
+            if (format == OperandFormat_Vector3)
+                return float4(asfloat(Load3(reference, address)), 0.0);
+            if (format == OperandFormat_Vector4)
+                return asfloat(Load4(reference, address));
+            if (format == OperandFormat_Vector2)
+                return float4(asfloat(Load2(reference, address)), 0.0, 0.0);
+            if (format == OperandFormat_UInt)
+                return CacheUInt(Load(reference, address));
+        }
+
         if (source == OperandSource_DynamicInput)
-            return float4(ResolveDynamicInput(index, InputContext, ParticleSeed), 0.0, 0.0, 0.0);
+            return float4(
+                ResolveDynamicInput(index, InputContext, ParticleSeed),
+                0.0,
+                0.0,
+                0.0
+            );
+
         if (source == OperandSource_ParticleAttribute)
-            return GetAttribute(Attributes, index);
-        if (source == OperandSource_ImmediateUInt)
-            return float4(float(index), 0.0, 0.0, 0.0);
+            return index == ParticleAttribute_RibbonId
+                ? CacheUInt(Attributes.RibbonId)
+                : GetAttribute(Attributes, index);
+
+        if (source == OperandSource_Immediate)
+            return CacheUInt(index);
 
         return 0.0;
     }
@@ -92,12 +156,11 @@ struct SOperandResolver
 
         uint index = reference & OperandIndexMask;
 
-        switch (reference >> 29)
+        switch (GetOperandSource(reference))
         {
             case OperandSource_Constant:
-                return asfloat(Constants.Load((Instance.ConstantBaseOffset + index) * 4u));
             case OperandSource_Parameter:
-                return Parameters[Instance.ParameterBaseOffset + index].Value.x;
+                return asfloat(Load(reference, GetValueAddress(reference)));
             case OperandSource_DynamicInput:
                 return ResolveDynamicInput(index, InputContext, ParticleSeed);
             case OperandSource_ParticleAttribute:
@@ -113,17 +176,21 @@ struct SOperandResolver
         uint reference = GetOperandReference(argument);
         uint index = reference & OperandIndexMask;
 
-        switch (reference >> 29)
+        uint source = GetOperandSource(reference);
+        if (source == OperandSource_Constant || source == OperandSource_Parameter)
         {
-            case OperandSource_ConstantVector3:
-                return asfloat(Constants.Load3((Instance.ConstantBaseOffset + index) * 4u));
-            case OperandSource_Parameter:
-                return Parameters[Instance.ParameterBaseOffset + index].Value.xyz;
-            case OperandSource_ParticleAttribute:
-                return ReadVector3Attribute(index);
-            default:
-                return 0.0;
+            uint format = GetOperandFormat(reference);
+
+            if (format == OperandFormat_Vector2)
+                return float3(asfloat(Load2(reference, GetValueAddress(reference))), 0.0);
+
+            return asfloat(Load3(reference, GetValueAddress(reference)));
         }
+
+        if (source == OperandSource_ParticleAttribute)
+            return ReadVector3Attribute(index);
+
+        return 0.0;
     }
 
     /** @brief Returns a numeric value with the operation's required component count. */
@@ -147,21 +214,37 @@ struct SOperandResolver
         return DecodeVector3(argument);
     }
 
-    /** @brief Returns an unsigned integer without converting its payload to float. */
-    uint ReadUInt(uint argument)
+    /** @brief Returns all 32 bits of an unsigned integer operand. */
+    uint DecodeUInt(uint argument)
     {
         uint reference = GetOperandReference(argument);
         uint index = reference & OperandIndexMask;
+        uint source = GetOperandSource(reference);
 
-        if ((reference >> 29) == OperandSource_ImmediateUInt)
+        if ((source == OperandSource_Constant || source == OperandSource_Parameter) &&
+            GetOperandFormat(reference) == OperandFormat_UInt)
+            return Load(reference, GetValueAddress(reference));
+
+        if (source == OperandSource_Immediate)
             return index;
-        if ((reference >> 29) == OperandSource_ParticleAttribute && index == ParticleAttribute_RibbonId)
+
+        if (source == OperandSource_ParticleAttribute && index == ParticleAttribute_RibbonId)
             return Attributes.RibbonId;
 
-        return Constants.Load((Instance.ConstantBaseOffset + index) * 4u);
+        return 0u;
     }
 
-    /** @brief Returns the curve parameter index, or -1 when the curve is missing. */
+    uint ReadUInt(uint argument)
+    {
+        if (argument < 2u)
+        {
+            float4 value = CachedValues[argument];
+            return uint(value.x) | (uint(value.y) << 16u);
+        }
+        return DecodeUInt(argument);
+    }
+
+    /** @brief Returns the curve's absolute word offset, or -1 when the curve is missing. */
     int ReadCurve(uint argument)
     {
         uint index = GetOperandReference(argument) & OperandIndexMask;
@@ -175,7 +258,7 @@ SOperandResolver CreateOperandResolver(
     SGPUOperation operation,
     StructuredBuffer<uint> operands,
     ByteAddressBuffer constants,
-    StructuredBuffer<SGPUParameter> parameters,
+    ByteAddressBuffer parameters,
     SGPUSystemInstance instance,
     AttributeTable attributes,
     float inputContext,
@@ -191,10 +274,9 @@ SOperandResolver CreateOperandResolver(
     resolver.Attributes = attributes;
     resolver.InputContext = inputContext;
     resolver.ParticleSeed = particleSeed;
+    resolver.CachedValues[0] = 0.0;
     resolver.CachedValues[1] = 0.0;
-
     resolver.CachedValues[0] = resolver.DecodeValue(0u);
-
     if (operation.OperandCount > 1u)
         resolver.CachedValues[1] = resolver.DecodeValue(1u);
 

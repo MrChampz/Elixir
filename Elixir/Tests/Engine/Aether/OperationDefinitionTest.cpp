@@ -29,7 +29,7 @@ namespace
 TEST_P(OperationDefinitionTest, ValidatesEveryInputAndKeepsEmissionAtomic)
 {
     SCompiledModuleData operations;
-    const std::vector<SParameter> parameters;
+    const std::vector<SCompiledParameter> parameters;
     ModuleCompileContext context(operations, parameters, "Emitter", 1.0f);
     const auto* operation = FindOperation(GetParam()->GetDefinition().Type);
     ASSERT_NE(operation, nullptr);
@@ -99,7 +99,7 @@ TEST_P(OperationDefinitionTest, DefinesValidDestinationsForItsRuntimeImplementat
 TEST(OperationCatalogTest, RejectsUnknownOperationWithoutWritingTables)
 {
     SCompiledModuleData operations;
-    const std::vector<SParameter> parameters;
+    const std::vector<SCompiledParameter> parameters;
     ModuleCompileContext context(operations, parameters, "Emitter", 1.0f);
     const auto unknown = static_cast<EOperationType>(UINT32_MAX);
     EXPECT_EQ(FindOperation(unknown), nullptr);

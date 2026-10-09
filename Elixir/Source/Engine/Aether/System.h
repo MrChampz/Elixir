@@ -2,6 +2,7 @@
 
 #include <Engine/Aether/Emitter.h>
 #include <Engine/Aether/Core/ParameterStore.h>
+#include <Engine/Aether/Core/CompiledParameter.h>
 #include <Engine/Aether/Core/CurveStore.h>
 #include <Engine/Aether/Core/ColorCurveStore.h>
 #include <Engine/Aether/Core/ParticleStateLayout.h>
@@ -66,7 +67,12 @@ namespace Elixir::Aether
 
         SCompiledModuleData ModuleData;
 
-        std::vector<SParameter> Parameters;
+        /** @brief Defaults and native word offsets for numeric parameters and curve chunks. */
+        std::vector<SCompiledParameter> Parameters;
+
+        /** @brief Packed default words copied into each instance's parameter snapshot. */
+        std::vector<uint32_t> ParameterValues;
+
         std::vector<SExposedParameter> ExposedParameters;
         std::vector<SGPUCurve> Curves;
         std::vector<SGPUColorCurve> ColorCurves;
@@ -186,7 +192,7 @@ namespace Elixir::Aether
         std::vector<SParameter> BuildExposedParameters() const;
 
         // Returns an authored parameter default before an instance is compiled.
-        std::optional<glm::vec4> GetParameterDefault(std::string_view name) const;
+        std::optional<SParameter> GetParameterDefault(std::string_view name) const;
 
         // Compiles the authored system into immutable runtime data.
         SCompiledSystem Compile() const;

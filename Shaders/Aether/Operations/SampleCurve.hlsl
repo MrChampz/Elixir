@@ -10,8 +10,8 @@ float SampleCurve(int baseParameterIndex, float t)
     if (baseParameterIndex < 0)
         return 0.0;
 
-    float4 a = parameters[baseParameterIndex].Value;
-    float4 b = parameters[baseParameterIndex + 1].Value;
+    float4 a = asfloat(parameters.Load4(uint(baseParameterIndex) * 4u));
+    float4 b = asfloat(parameters.Load4(uint(baseParameterIndex + 4) * 4u));
 
     float samples[8] = { a.x, a.y, a.z, a.w, b.x, b.y, b.z, b.w };
 

@@ -12,14 +12,14 @@ float4 SampleColorCurve(int baseParameterIndex, float t)
 
     float4 samples[8] =
     {
-        parameters[baseParameterIndex + 0].Value,
-        parameters[baseParameterIndex + 1].Value,
-        parameters[baseParameterIndex + 2].Value,
-        parameters[baseParameterIndex + 3].Value,
-        parameters[baseParameterIndex + 4].Value,
-        parameters[baseParameterIndex + 5].Value,
-        parameters[baseParameterIndex + 6].Value,
-        parameters[baseParameterIndex + 7].Value
+        asfloat(parameters.Load4(uint(baseParameterIndex + 0)  * 4u)),
+        asfloat(parameters.Load4(uint(baseParameterIndex + 4)  * 4u)),
+        asfloat(parameters.Load4(uint(baseParameterIndex + 8)  * 4u)),
+        asfloat(parameters.Load4(uint(baseParameterIndex + 12) * 4u)),
+        asfloat(parameters.Load4(uint(baseParameterIndex + 16) * 4u)),
+        asfloat(parameters.Load4(uint(baseParameterIndex + 20) * 4u)),
+        asfloat(parameters.Load4(uint(baseParameterIndex + 24) * 4u)),
+        asfloat(parameters.Load4(uint(baseParameterIndex + 28) * 4u))
     };
 
     float clampedT = clamp(t, 0.0, 1.0);

@@ -37,7 +37,7 @@ struct SOperationExecutor
 {
     StructuredBuffer<uint> Operands;
     ByteAddressBuffer Constants;
-    StructuredBuffer<SGPUParameter> Parameters;
+    ByteAddressBuffer Parameters;
 
     /** @brief Applies the operation to the shared attributes and discard state. */
     void Execute(SGPUOperation operation, inout SOperationExecutorContext context)
@@ -59,7 +59,7 @@ struct SOperationExecutor
 SOperationExecutor CreateOperationExecutor(
     StructuredBuffer<uint> operands,
     ByteAddressBuffer constants,
-    StructuredBuffer<SGPUParameter> parameters
+    ByteAddressBuffer parameters
 )
 {
     SOperationExecutor executor;

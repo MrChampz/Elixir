@@ -33,7 +33,8 @@ namespace Elixir::Aether::Core
         uint32_t OperandCapacity = 262'144;
         /** @brief Maximum number of four-byte literal words. */
         uint32_t ConstantCapacity = 262'144;
-        uint32_t ParameterCapacity = 16'384;
+        /** @brief Maximum number of four-byte parameter words across live instances. */
+        uint32_t ParameterWordCapacity = 65'536;
         uint32_t TriggerTargetCapacity = 4'096;
         uint32_t TriggerEventCapacityPerEmitter = 64;
     };
@@ -61,6 +62,7 @@ namespace Elixir::Aether::Core
         SBufferRange Operations;
         SBufferRange Operands;
         SBufferRange Constants;
+        /** @brief Instance parameter range in four-byte words, relative to the parameter buffer. */
         SBufferRange Parameters;
         SBufferRange TriggerTargets;
 

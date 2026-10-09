@@ -37,19 +37,14 @@ struct SGPUEmitter
     uint  Padding1;
 };
 
-struct SGPUParameter
-{
-    float4 Value;
-};
-
 struct SGPUSystemInstance
 {
     uint ParticleBaseOffset;
     uint EmitterBaseOffset;
     uint OperationBaseOffset;
     uint OperandBaseOffset;
-    uint ConstantBaseOffset;
-    uint ParameterBaseOffset;
+    uint ConstantBaseOffset;  // Shared literal word offset in constants.
+    uint ParameterBaseOffset; // Instance parameter word offset in parameters.
 
     uint EmitterStateBaseOffset;
     uint SpawnRequestBaseOffset;

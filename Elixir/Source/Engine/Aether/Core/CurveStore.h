@@ -22,8 +22,9 @@ namespace Elixir::Aether::Core
     };
 
     /** @brief Finds the first curve chunk in emitter scope, then system scope. */
-    inline uint32_t FindCurveParameterIndex(
-        const std::vector<SParameter>& parameters,
+    template<typename Parameter>
+    uint32_t FindCurveParameterIndex(
+        const std::vector<Parameter>& parameters,
         const std::string& emitterName,
         const std::string& curveName
     )

@@ -17,7 +17,7 @@ namespace Elixir::Aether::Rendering
      * so Renderer never reads mutable SystemInstance state.
      *
      * The proxy shares the immutable parameter table created by SystemInstance.
-     * Its values have the same order as SCompiledSystem::Parameters.
+     * Each SCompiledParameter locates its native payload in that table.
      *
      * @thread_safety Immutable after construction.
      */
@@ -34,6 +34,7 @@ namespace Elixir::Aether::Rendering
          * @param parameterIndex Index in SCompiledSystem::Parameters.
          * @return The instance override when present; otherwise, the compiled
          * default value.
+         * Unused vector components are zero; unsigned values retain their bits in x.
          *
          * @pre parameterIndex is less than SCompiledSystem::Parameters::size().
          * @warning An invalid index triggers an assertion and returns a zero vector
@@ -41,13 +42,47 @@ namespace Elixir::Aether::Rendering
          */
         glm::vec4 GetParameterValue(const uint32_t parameterIndex) const
         {
+            const auto& parameters = m_CompiledSystem->Parameters;
+
             EE_CORE_ASSERT(
-                parameterIndex < m_Parameters->size(),
+                parameterIndex < parameters.size(),
                 "Aether parameter index is outside the render proxy table."
             )
-            return parameterIndex < m_Parameters->size()
-                ? (*m_Parameters)[parameterIndex]
-                : glm::vec4{};
+            if (parameterIndex >= parameters.size())
+                return {};
+
+            const auto& parameter = parameters[parameterIndex];
+            const auto count = GetParameterWordCount(parameter.Type);
+
+            EE_CORE_ASSERT(
+                std::size_t(parameter.WordOffset) + count <= m_Parameters->size(),
+                "Aether parameter range is outside the render proxy table."
+            )
+            if (count == 0 || count > 4 ||
+                std::size_t(parameter.WordOffset) + count > m_Parameters->size())
+                return {};
+
+            glm::vec4 value{};
+            std::memcpy(
+                &value.x,
+                m_Parameters->data() + parameter.WordOffset,
+                count * sizeof(uint32_t)
+            );
+
+            return value;
+        }
+
+        /** @brief Returns the native payload as a span that remains valid while this proxy is alive. */
+        std::span<const uint32_t> GetParameterWords() const { return *m_Parameters; }
+
+        /** @brief Returns an unsigned parameter without converting its bits to float. */
+        uint32_t GetParameterUInt(const uint32_t parameterIndex) const
+        {
+            if (parameterIndex >= m_CompiledSystem->Parameters.size() ||
+                m_CompiledSystem->Parameters[parameterIndex].Type != EParameterType::UInt)
+                return 0;
+
+            return DecodeUIntParameter(GetParameterValue(parameterIndex));
         }
 
         /**
