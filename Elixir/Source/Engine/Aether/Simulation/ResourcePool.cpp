@@ -40,7 +40,7 @@ namespace Elixir::Aether::Core
         const auto operationCount = (uint32_t)system.ModuleData.Operations.size();
         const auto operandCount = (uint32_t)system.ModuleData.Operands.size();
         const auto constantCount = (uint32_t)system.ModuleData.Constants.size();
-        const auto parameterCount = (uint32_t)system.ParameterValues.size();
+        const auto parameterCount = (uint32_t)system.DefaultParameterWords.size();
         const auto triggerTargetCount = (uint32_t)system.TriggerTargets.size();
         const auto emitterStateCount = emitterCount;
         const auto spawnRequestCount = emitterCount;

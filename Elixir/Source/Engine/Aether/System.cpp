@@ -9,7 +9,7 @@ namespace Elixir::Aether
 
     Ref<SystemInstance> System::CreateInstance()
     {
-        return Ref<SystemInstance>(new SystemInstance(shared_from_this()));
+        return CreateRef<SystemInstance>(shared_from_this());
     }
 
     Emitter& System::AddEmitter(
@@ -123,9 +123,9 @@ namespace Elixir::Aether
         system.Parameters = CompileParameters(parameters);
         if (system.Parameters.size() != parameters.size()) return system;
 
-        system.ParameterValues = PackParameterValues(system.Parameters);
+        system.DefaultParameterWords = PackParameterValues(system.Parameters);
 
-        if (system.ParameterValues.size() > OperandIndexMask)
+        if (system.DefaultParameterWords.size() > OperandIndexMask)
         {
             EE_CORE_ERROR("Aether parameter table exceeds the operand word range.");
             return system;

@@ -62,7 +62,7 @@ namespace Elixir::Aether
     using ParameterOverridesMap = std::unordered_map<std::string, SParameterOverride>;
 
     /** @brief Stores an immutable parameter snapshot as contiguous native payload words. */
-    using ResolvedParameterValues = std::vector<uint32_t>;
+    using ResolvedParameterWords = std::vector<uint32_t>;
 
     /**
      * @brief Stores one immutable view of a SystemInstance.
@@ -93,10 +93,10 @@ namespace Elixir::Aether
          * @param parameterRevision Revision of the resolved parameter values.
          * @param system Compiled system selected by the instance.
          * @param worldTransform World transform selected by the instance.
-         * @param parameters Packed words addressed by the compiled parameter layouts.
+         * @param parameterWords Packed words addressed by each compiled parameter definition.
          *
          * @pre system is not null.
-         * @pre parameters is not null.
+         * @pre parameterWords is not null.
          */
         SystemInstanceSnapshot(
             SSystemInstanceKey key,
@@ -104,7 +104,7 @@ namespace Elixir::Aether
             uint32_t parameterRevision,
             Ref<const SCompiledSystem> system,
             const glm::mat4& worldTransform,
-            Ref<const ResolvedParameterValues> parameters
+            Ref<const ResolvedParameterWords> parameterWords
         );
 
         /**
@@ -146,7 +146,7 @@ namespace Elixir::Aether
         uint32_t m_ParameterRevision = 1;
         Ref<const SCompiledSystem> m_CompiledSystem;
         glm::mat4 m_WorldTransform{ 1.0f };
-        Ref<const ResolvedParameterValues> m_Parameters;
+        Ref<const ResolvedParameterWords> m_ParameterWords;
         Ref<const Rendering::SystemInstanceRenderProxy> m_RenderProxy;
     };
 
@@ -292,7 +292,7 @@ namespace Elixir::Aether
         );
 
         // Resolves all compiled parameters into immutable renderer table order.
-        static Ref<const ResolvedParameterValues> ResolveParameterValues(
+        static Ref<const ResolvedParameterWords> ResolveParameterWords(
             const SCompiledSystem& system,
             const ParameterOverridesMap& overrides
         );

@@ -71,7 +71,7 @@ namespace Elixir::Aether
         std::vector<SCompiledParameter> Parameters;
 
         /** @brief Packed default words copied into each instance's parameter snapshot. */
-        std::vector<uint32_t> ParameterValues;
+        std::vector<uint32_t> DefaultParameterWords;
 
         std::vector<SExposedParameter> ExposedParameters;
         std::vector<SGPUCurve> Curves;

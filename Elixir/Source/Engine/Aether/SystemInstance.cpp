@@ -13,20 +13,20 @@ namespace Elixir::Aether
         const uint32_t parameterRevision,
         Ref<const SCompiledSystem> system,
         const glm::mat4& worldTransform,
-        Ref<const ResolvedParameterValues> parameters
+        Ref<const ResolvedParameterWords> parameterWords
     ) : m_Key(std::move(key)),
         m_Revision(revision),
         m_ParameterRevision(parameterRevision),
         m_CompiledSystem(std::move(system)),
         m_WorldTransform(worldTransform),
-        m_Parameters(std::move(parameters)),
+        m_ParameterWords(std::move(parameterWords)),
         m_RenderProxy(new Rendering::SystemInstanceRenderProxy(
             m_Key,
             m_Revision,
             m_ParameterRevision,
             m_CompiledSystem,
             m_WorldTransform,
-            m_Parameters
+            m_ParameterWords
         )) {}
 
     /* SystemInstance */
@@ -131,12 +131,12 @@ namespace Elixir::Aether
                 break;
         }
 
-        const auto compiled = m_CompiledSystem
-            ? static_cast<const SCompiledParameter*>(parameter)
-            : nullptr;
-        const auto parameterIndex = m_CompiledSystem
-            ? uint32_t(compiled - m_CompiledSystem->Parameters.data())
-            : UINT32_MAX;
+        auto parameterIndex = UINT32_MAX;
+        if (m_CompiledSystem)
+        {
+            const auto compiled = static_cast<const SCompiledParameter*>(parameter);
+            parameterIndex = uint32_t(compiled - m_CompiledSystem->Parameters.data());
+        }
 
         m_ParameterOverrides.insert_or_assign(name, SParameterOverride{
             .Type = parameter->Type,
@@ -347,7 +347,7 @@ namespace Elixir::Aether
             m_ParameterRevision,
             m_CompiledSystem,
             m_WorldTransform,
-            ResolveParameterValues(*m_CompiledSystem, m_ParameterOverrides)
+            ResolveParameterWords(*m_CompiledSystem, m_ParameterOverrides)
         );
     }
 
@@ -380,12 +380,12 @@ namespace Elixir::Aether
             : parameter.Value;
     }
 
-    Ref<const ResolvedParameterValues> SystemInstance::ResolveParameterValues(
+    Ref<const ResolvedParameterWords> SystemInstance::ResolveParameterWords(
         const SCompiledSystem& system,
         const ParameterOverridesMap& overrides
     )
     {
-        auto values = CreateRef<ResolvedParameterValues>(system.ParameterValues);
+        auto words = CreateRef<ResolvedParameterWords>(system.DefaultParameterWords);
         for (const auto& override : overrides | std::views::values)
         {
             const auto index = override.ParameterIndex;
@@ -396,16 +396,16 @@ namespace Elixir::Aether
             const auto count = GetParameterWordCount(parameter.Type);
 
             if (override.Type != parameter.Type || count == 0 ||
-                std::size_t(parameter.WordOffset) + count > values->size())
+                std::size_t(parameter.WordOffset) + count > words->size())
                 continue;
 
             std::memcpy(
-                values->data() + parameter.WordOffset,
+                words->data() + parameter.WordOffset,
                 &override.Value.x,
                 count * sizeof(uint32_t)
             );
         }
 
-        return values;
+        return words;
     }
 }

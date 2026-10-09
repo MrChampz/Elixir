@@ -23,7 +23,7 @@ namespace
         system.ModuleData.Operands.resize(operationCount * 2);
         system.ModuleData.Constants.resize(operationCount * 3);
         system.Parameters = CompileParameters(std::vector<SParameter>(parameterCount));
-        system.ParameterValues = PackParameterValues(system.Parameters);
+        system.DefaultParameterWords = PackParameterValues(system.Parameters);
         system.TriggerTargets.resize(triggerTargetCount);
         return system;
     }
@@ -231,7 +231,7 @@ TEST(ResourcePoolTest, AllocatesNativeParameterWordsAndRollsBackExhaustion)
     auto system = MakeCompiledSystem(4, 1, 1, 0, 0);
     system.Parameters = CompileParameters(std::array{SParameter{.Type = EParameterType::Scalar},
         SParameter{.Type = EParameterType::Vector2}, SParameter{.Type = EParameterType::UInt}});
-    system.ParameterValues = PackParameterValues(system.Parameters);
+    system.DefaultParameterWords = PackParameterValues(system.Parameters);
     const auto first = pool.Allocate(system);
     ASSERT_TRUE(first);
     EXPECT_EQ(first->Parameters.Count, 4u);

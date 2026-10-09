@@ -55,17 +55,17 @@ namespace Elixir::Aether::Rendering
             const auto count = GetParameterWordCount(parameter.Type);
 
             EE_CORE_ASSERT(
-                std::size_t(parameter.WordOffset) + count <= m_Parameters->size(),
+                std::size_t(parameter.WordOffset) + count <= m_ParameterWords->size(),
                 "Aether parameter range is outside the render proxy table."
             )
             if (count == 0 || count > 4 ||
-                std::size_t(parameter.WordOffset) + count > m_Parameters->size())
+                std::size_t(parameter.WordOffset) + count > m_ParameterWords->size())
                 return {};
 
             glm::vec4 value{};
             std::memcpy(
                 &value.x,
-                m_Parameters->data() + parameter.WordOffset,
+                m_ParameterWords->data() + parameter.WordOffset,
                 count * sizeof(uint32_t)
             );
 
@@ -73,7 +73,7 @@ namespace Elixir::Aether::Rendering
         }
 
         /** @brief Returns the native payload as a span that remains valid while this proxy is alive. */
-        std::span<const uint32_t> GetParameterWords() const { return *m_Parameters; }
+        std::span<const uint32_t> GetParameterWords() const { return *m_ParameterWords; }
 
         /** @brief Returns an unsigned parameter without converting its bits to float. */
         uint32_t GetParameterUInt(const uint32_t parameterIndex) const
@@ -117,7 +117,7 @@ namespace Elixir::Aether::Rendering
             uint32_t parameterRevision,
             Ref<const SCompiledSystem> system,
             const glm::mat4& worldTransform,
-            Ref<const ResolvedParameterValues> parameters
+            Ref<const ResolvedParameterWords> parameterWords
         );
 
         // Returns the internal identity used by Renderer instance records.
@@ -128,6 +128,6 @@ namespace Elixir::Aether::Rendering
         uint32_t m_ParameterRevision = 1;
         Ref<const SCompiledSystem> m_CompiledSystem;
         glm::mat4 m_WorldTransform{ 1.0f };
-        Ref<const ResolvedParameterValues> m_Parameters;
+        Ref<const ResolvedParameterWords> m_ParameterWords;
     };
 }
