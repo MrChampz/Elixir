@@ -40,28 +40,6 @@ float Hash1(float x) {
 
 
 
-float ResolveDynamicInput(uint inputType, float randomValue, float particleSeed)
-{
-    if (inputType == 1u) // DeltaTime
-        return TimeData.x;
-
-    if (inputType == 2u) // NormalizedAge
-        return 0.0;
-
-    if (inputType == 3u) // EmitterTime
-        return TimeData.y;
-
-    if (inputType == 4u) // Random
-        return randomValue;
-
-    if (inputType == 5u) // ParticleSeed
-        return particleSeed;
-
-    return 1.0;
-}
-
-
-
 #include "Operation.hlsl"
 
 [[vk::binding(2, 0)]]
@@ -108,7 +86,6 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     uint globalIndex = instance.ParticleBaseOffset + emitter.LocalParticleOffset + localIndex;
     float2 seedBase = float2((float)globalIndex, TimeData.y + float(spawnCursor));
     float particleSeed = Hash1((float)globalIndex);
-    float randomInput = Hash2(seedBase + float2(8.11, 3.41));
     uint emissionIndex = request.EmissionIndex + spawnOrder;
 
     AttributeTable attributes = EmptyAttributeTable();
@@ -120,7 +97,11 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
     SOperationExecutorContext context = (SOperationExecutorContext)0;
     context.Instance = instance;
-    context.ParticleSeed = particleSeed;
+    context.DynamicInputs.DeltaTime = TimeData.x;
+    context.DynamicInputs.NormalizedAge = 0.0;
+    context.DynamicInputs.Time = TimeData.y;
+    context.DynamicInputs.Random = CalculateDynamicInputRandom(particleSeed, TimeData.y);
+    context.DynamicInputs.ParticleSeed = particleSeed;
     context.Attributes = attributes;
     context.Time = TimeData.y;
     context.SeedBase = seedBase;

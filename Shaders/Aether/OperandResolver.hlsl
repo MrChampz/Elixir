@@ -2,6 +2,7 @@
 #define AETHER_OPERAND_RESOLVER_HLSL
 
 #include "Operand.hlsl"
+#include "DynamicInput.hlsl"
 
 /** @brief Reads operation operands from a snapshot taken before destination writes. */
 struct SOperandResolver
@@ -13,8 +14,7 @@ struct SOperandResolver
     SGPUOperation Operation;
     SGPUSystemInstance Instance;
     AttributeTable Attributes;
-    float InputContext;
-    float ParticleSeed;
+    SDynamicInputContext DynamicInputs;
 
     // Predecode the common numeric positions before selecting the operation.
     float4 CachedValues[2];
@@ -99,7 +99,7 @@ struct SOperandResolver
 
         if (source == OperandSource_DynamicInput)
             return float4(
-                ResolveDynamicInput(index, InputContext, ParticleSeed),
+                ResolveDynamicInput(index, DynamicInputs),
                 0.0,
                 0.0,
                 0.0
@@ -162,7 +162,7 @@ struct SOperandResolver
             case OperandSource_Parameter:
                 return asfloat(Load(reference, GetValueAddress(reference)));
             case OperandSource_DynamicInput:
-                return ResolveDynamicInput(index, InputContext, ParticleSeed);
+                return ResolveDynamicInput(index, DynamicInputs);
             case OperandSource_ParticleAttribute:
                 return ReadScalarAttribute(index);
             default:
@@ -261,8 +261,7 @@ SOperandResolver CreateOperandResolver(
     ByteAddressBuffer parameters,
     SGPUSystemInstance instance,
     AttributeTable attributes,
-    float inputContext,
-    float particleSeed
+    SDynamicInputContext dynamicInputs
 )
 {
     SOperandResolver resolver;
@@ -272,8 +271,7 @@ SOperandResolver CreateOperandResolver(
     resolver.Parameters = parameters;
     resolver.Instance = instance;
     resolver.Attributes = attributes;
-    resolver.InputContext = inputContext;
-    resolver.ParticleSeed = particleSeed;
+    resolver.DynamicInputs = dynamicInputs;
     resolver.CachedValues[0] = 0.0;
     resolver.CachedValues[1] = 0.0;
     resolver.CachedValues[0] = resolver.DecodeValue(0u);

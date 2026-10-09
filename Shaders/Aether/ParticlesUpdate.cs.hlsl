@@ -31,30 +31,6 @@ float Hash1(float x) {
   return frac(sin(x * 91.3458 + 12.345) * 45678.5453);
 }
 
-float ResolveDynamicInput(uint inputType, float normalizedAge, float particleSeed)
-{
-    if (inputType == 1u) // DeltaTime
-        return TimeData.x;
-
-    if (inputType == 2u) // NormalizedAge
-        return normalizedAge;
-
-    if (inputType == 3u) // EmitterTime
-        return TimeData.y;
-
-    if (inputType == 4u) // Random
-        return frac(sin((particleSeed * 91.37) + TimeData.y * 0.71) * 43758.5453);
-
-    if (inputType == 5u) // ParticleSeed
-        return particleSeed;
-
-    return 1.0;
-}
-
-
-
-
-
 #include "Operation.hlsl"
 
 [[vk::binding(2, 0)]]
@@ -106,8 +82,11 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
     SOperationExecutorContext context = (SOperationExecutorContext)0;
     context.Instance = instance;
-    context.InputContext = life;
-    context.ParticleSeed = particleSeed;
+    context.DynamicInputs.DeltaTime = dt;
+    context.DynamicInputs.NormalizedAge = life;
+    context.DynamicInputs.Time = TimeData.y;
+    context.DynamicInputs.Random = CalculateDynamicInputRandom(particleSeed, TimeData.y);
+    context.DynamicInputs.ParticleSeed = particleSeed;
     context.Attributes = attributes;
     context.DeltaTime = dt;
     context.NormalizedAge = life;

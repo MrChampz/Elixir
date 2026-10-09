@@ -7,8 +7,7 @@
 struct SOperationExecutorContext
 {
     SGPUSystemInstance Instance;
-    float InputContext;
-    float ParticleSeed;
+    SDynamicInputContext DynamicInputs;
     AttributeTable Attributes;
     float DeltaTime;
     float NormalizedAge;
@@ -49,8 +48,7 @@ struct SOperationExecutor
             Parameters,
             context.Instance,
             context.Attributes,
-            context.InputContext,
-            context.ParticleSeed
+            context.DynamicInputs
         );
         ExecuteOperation(this, operation, resolver, context);
     }
