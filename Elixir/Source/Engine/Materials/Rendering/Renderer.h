@@ -204,14 +204,16 @@ namespace Elixir::Materials::Rendering
         /**
          * @brief Creates a material renderer.
          * @param context Graphics context used to create pipelines.
-         * @param sceneTarget Color target that receives material rendering.
          * @param materialCapacity Maximum unique materials supported by one frame.
+         * @param colorTarget Color target that receives material rendering.
+         * @param depthTarget Optional depth target that receives material rendering.
          * @pre All arguments are valid for the renderer lifetime.
          */
         Renderer(
             const GraphicsContext* context,
-            const Ref<Image>& sceneTarget,
-            uint32_t materialCapacity
+            uint32_t materialCapacity,
+            const Ref<Image>& colorTarget,
+            const Ref<Image>& depthTarget = nullptr
         );
 
         /**
@@ -261,7 +263,7 @@ namespace Elixir::Materials::Rendering
 
     private:
         // Selects the shader variant that implements a material render pass.
-        static Compilation::EMaterialShaderVariant GetShaderVariant(EMaterialPass pass);
+        static EMaterialShaderVariant GetShaderVariant(EMaterialPass pass);
 
         /** Identifies the type of a cached descriptor binding. */
         enum class EDescriptorBindingType : uint8_t
@@ -392,7 +394,7 @@ namespace Elixir::Materials::Rendering
         std::unordered_map<SPipelineKey, Ref<GraphicsPipeline>, SPipelineKeyHasher> m_Pipelines;
         std::unordered_map<const Shader*, SDescriptorBindingState> m_DescriptorBindings;
 
-        Ref<Image> m_SceneTarget;
+        Ref<Image> m_ColorTarget;
         Ref<Image> m_DepthTarget;
         uint64_t m_CurrentFrameNumber = UINT64_MAX;
         const GraphicsContext* m_Context = nullptr;

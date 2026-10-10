@@ -90,8 +90,8 @@ bool Editor::ResizePreview(SDocument& document, const Extent3D& extent)
         return false;
     }
     if (!document.Materials)
-        document.Materials = CreateScope<Materials::MaterialSystem>(m_GraphicsContext.get(), m_ShaderLoader.get(), hdr,
-            Materials::SMaterialSystemConfig{});
+        document.Materials = CreateScope<Materials::MaterialSystem>(m_GraphicsContext.get(),
+            Materials::SMaterialSystemConfig{}, m_ShaderLoader.get(), hdr);
     if (!document.PostProcess)
         document.PostProcess = CreateScope<PostProcessor>(m_GraphicsContext.get(), m_ShaderLoader.get(), extent);
     else

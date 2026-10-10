@@ -33,17 +33,19 @@ namespace Elixir::Materials
         /**
          * @brief Creates a material system.
          * @param context Graphics context used by the material renderer.
-         * @param shaderLoader Loader used to obtain material shaders.
-         * @param sceneTarget Color target that receives material rendering.
          * @param config Initial frame-data storage configuration.
+         * @param shaderLoader Loader used to obtain material shaders.
+         * @param colorTarget Color target that receives material rendering.
+         * @param depthTarget Optional depth target that receives material rendering.
          * @pre context and shaderLoader are valid.
          * @pre config.InitialFrameCapacity is greater than zero.
          */
         MaterialSystem(
             const GraphicsContext* context,
+            SMaterialSystemConfig config,
             const ShaderLoader* shaderLoader,
-            const Ref<Image>& sceneTarget,
-            SMaterialSystemConfig config
+            const Ref<Image>& colorTarget,
+            const Ref<Image>& depthTarget = nullptr
         );
 
         /**

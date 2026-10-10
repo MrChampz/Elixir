@@ -5,15 +5,17 @@ namespace Elixir::Materials
 {
     MaterialSystem::MaterialSystem(
         const GraphicsContext* context,
+        const SMaterialSystemConfig config,
         const ShaderLoader* shaderLoader,
-        const Ref<Image>& sceneTarget,
-        const SMaterialSystemConfig config
+        const Ref<Image>& colorTarget,
+        const Ref<Image>& depthTarget
     ) : m_ProxyResolver(shaderLoader),
         m_ProxyCache(m_ProxyResolver),
         m_Renderer(CreateScope<Renderer>(
             context,
-            sceneTarget,
-            config.InitialFrameCapacity
+            config.InitialFrameCapacity,
+            colorTarget,
+            depthTarget
         )) {}
 
     bool MaterialSystem::SetRenderTargets(const Ref<Image>& color, const Ref<Image>& depth)

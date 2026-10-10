@@ -10,17 +10,18 @@ namespace Elixir::Materials::Rendering
 {
     Renderer::Renderer(
         const GraphicsContext* context,
-        const Ref<Image>& sceneTarget,
-        const uint32_t materialCapacity
+        const uint32_t materialCapacity,
+        const Ref<Image>& colorTarget,
+        const Ref<Image>& depthTarget
     ) : m_MaterialCapacity(materialCapacity),
         m_FrameSlots(*context),
         m_Textures(context),
-        m_SceneTarget(sceneTarget),
-        m_DepthTarget(context->GetDepthStencilRenderTarget()),
+        m_ColorTarget(colorTarget),
+        m_DepthTarget(depthTarget ? depthTarget : context->GetDepthStencilRenderTarget()),
         m_Context(context)
     {
         EE_CORE_ASSERT(context, "Material renderer requires a graphics context.")
-        EE_CORE_ASSERT(m_SceneTarget, "Material renderer requires a scene target.")
+        EE_CORE_ASSERT(m_ColorTarget, "Material renderer requires a color target.")
         EE_CORE_ASSERT(
             m_MaterialCapacity > 0,
             "Material renderer frame capacity must be greater than zero."
@@ -41,15 +42,20 @@ namespace Elixir::Materials::Rendering
             !(color->GetUsage() & EImageUsage::ColorAttachment) ||
             !(depth->GetUsage() & EImageUsage::DepthStencilAttachment) ||
             color->GetType() != EImageType::_2D || depth->GetType() != EImageType::_2D ||
-            color->GetExtent().Width != depth->GetExtent().Width || color->GetExtent().Height != depth->GetExtent().Height)
+            color->GetExtent().Width != depth->GetExtent().Width ||
+            color->GetExtent().Height != depth->GetExtent().Height)
         {
             EE_CORE_ERROR("Material rendering requires matching two-dimensional color and depth targets.");
             return false;
         }
-        if (color->GetFormat() != m_SceneTarget->GetFormat() || depth->GetFormat() != m_DepthTarget->GetFormat())
+
+        if (color->GetFormat() != m_ColorTarget->GetFormat() ||
+            depth->GetFormat() != m_DepthTarget->GetFormat())
             m_Pipelines.clear();
-        m_SceneTarget = color;
+
+        m_ColorTarget = color;
         m_DepthTarget = depth;
+
         return true;
     }
 
@@ -65,7 +71,7 @@ namespace Elixir::Materials::Rendering
     {
         SRenderResult result{};
 
-        EE_CORE_ASSERT(m_SceneTarget, "Material rendering requires a scene target.")
+        EE_CORE_ASSERT(m_ColorTarget, "Material rendering requires a color target.")
 
         EE_CORE_ASSERT(
             m_CurrentFrameNumber == m_Context->GetFrameNumber(),
@@ -106,17 +112,18 @@ namespace Elixir::Materials::Rendering
         result.MaterialCount = materialTable.GetCount();
 
         const auto cmd = m_Context->GetSecondaryCommandBuffer();
-        const auto extent = m_SceneTarget->GetExtent();
+        const auto extent = m_ColorTarget->GetExtent();
 
         const SRenderingInfo renderingInfo{
-            .ColorAttachment = m_SceneTarget,
+            .ColorAttachment = m_ColorTarget,
             .DepthStencilAttachment = m_DepthTarget,
             .RenderArea = extent,
         };
 
         cmd->Begin(renderingInfo);
-        m_SceneTarget->Barrier(cmd.get());
+        m_ColorTarget->Barrier(cmd.get());
         m_DepthTarget->Barrier(cmd.get());
+
         cmd->BeginRendering(renderingInfo);
 
         cmd->SetViewports({{
@@ -126,7 +133,11 @@ namespace Elixir::Materials::Rendering
             .MaxDepth = 1.0f,
         }});
 
-        cmd->SetScissors({{{0, 0}, {extent.Width, extent.Height}}});
+        cmd->SetScissors({{
+            { 0, 0 },
+            { extent.Width, extent.Height }
+        }});
+
         for (const auto& scene : preparedScenes)
         {
             const auto sceneResult = RecordScene(cmd, scene);
@@ -489,7 +500,7 @@ namespace Elixir::Materials::Rendering
 
         const auto depthTarget = m_DepthTarget;
 
-        const auto colorFormat = m_SceneTarget->GetFormat();
+        const auto colorFormat = m_ColorTarget->GetFormat();
         const auto depthFormat = (EDepthStencilImageFormat)depthTarget->GetFormat();
 
         PipelineBuilder builder;

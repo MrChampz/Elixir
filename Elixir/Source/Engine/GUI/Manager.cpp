@@ -76,34 +76,53 @@ namespace Elixir::GUI
         dispatcher.Dispatch<KeyPressedEvent>(EE_BIND_EVENT_FN(Manager::HandleKeyPressed));
         dispatcher.Dispatch<KeyTypedEvent>(EE_BIND_EVENT_FN(Manager::HandleKeyTyped));
         dispatcher.Dispatch<MouseScrolledEvent>(EE_BIND_EVENT_FN(Manager::HandleMouseScrolled));
-        dispatcher.Dispatch<MouseButtonPressedEvent>([this](MouseButtonPressedEvent& input) { return HandlePointerEvent(input); });
-        dispatcher.Dispatch<MouseButtonReleasedEvent>([this](MouseButtonReleasedEvent& input) { return HandlePointerEvent(input); });
-        dispatcher.Dispatch<MouseMovedEvent>([this](MouseMovedEvent& input) { return HandlePointerEvent(input); });
+        dispatcher.Dispatch<MouseButtonPressedEvent>(EE_BIND_EVENT_FN(Manager::HandleMouseButtonPressed));
+        dispatcher.Dispatch<MouseButtonReleasedEvent>(EE_BIND_EVENT_FN(Manager::HandleMouseButtonReleased));
+        dispatcher.Dispatch<MouseMovedEvent>(EE_BIND_EVENT_FN(Manager::HandleMouseMoved));
     }
 
-    bool Manager::HandlePointerEvent(Event& event)
+    bool Manager::HandleMouseButtonPressed(const MouseButtonPressedEvent& event)
     {
-        const auto type = event.GetEventType();
-        if (type == EventType::MouseMoved)
-        {
-            const auto& move = static_cast<const MouseMovedEvent&>(event);
-            m_MousePos = {move.GetX(), move.GetY()};
-        }
-        else
-        {
-            const auto& button = static_cast<const MouseButtonEvent&>(event);
-            if (button.GetMouseButton() != EE_MOUSE_BUTTON_LEFT) return false;
-            m_MousePos = {button.GetX(), button.GetY()};
-            m_WasMouseDown = type == EventType::MouseButtonPressed;
-        }
+        if (event.GetMouseButton() != EE_MOUSE_BUTTON_LEFT) return false;
+
+        m_MousePos = { event.GetX(), event.GetY() };
+        m_WasMouseDown = true;
         m_LastMousePos = m_MousePos;
-        if (type == EventType::MouseButtonPressed) DismissPopupsOutside(m_MousePos);
+
+        DismissPopupsOutside(m_MousePos);
+        ProcessMousePress(UpdatePointerHover());
+
+        return false;
+    }
+
+    bool Manager::HandleMouseButtonReleased(const MouseButtonReleasedEvent& event)
+    {
+        if (event.GetMouseButton() != EE_MOUSE_BUTTON_LEFT) return false;
+
+        m_MousePos = { event.GetX(), event.GetY() };
+        m_WasMouseDown = false;
+        m_LastMousePos = m_MousePos;
+
+        ProcessMouseRelease(UpdatePointerHover());
+
+        return false;
+    }
+
+    bool Manager::HandleMouseMoved(const MouseMovedEvent& event)
+    {
+        m_MousePos = { event.GetX(), event.GetY() };
+        m_LastMousePos = m_MousePos;
+
+        ProcessMouseMove(UpdatePointerHover());
+
+        return false;
+    }
+
+    std::vector<Ref<Widget>> Manager::UpdatePointerHover()
+    {
         const auto path = GetHitPath(m_MousePos);
         UpdateHoverPath(path);
-        if (type == EventType::MouseButtonPressed) ProcessMousePress(path);
-        else if (type == EventType::MouseButtonReleased) ProcessMouseRelease(path);
-        else ProcessMouseMove(path);
-        return false;
+        return path;
     }
 
     void Manager::SetRoot(const Ref<Panel>& root)

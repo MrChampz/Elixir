@@ -85,6 +85,13 @@ namespace Elixir::GUI
             bool Horizontal = false;
         };
 
+        struct SScrollbarGeometry
+        {
+            SRect Track;
+            SRect Thumb;
+            float MaxScroll;
+        };
+
         SScrollbarVisibility ResolveScrollbarVisibility(const glm::vec2& viewportSize) const;
 
         // viewportSize with the gutters for the scrollbars that are actually visible
@@ -109,6 +116,7 @@ namespace Elixir::GUI
             const glm::vec2& viewportSize,
             const SScrollbarVisibility& visibility
         ) const;
+
         void AddScrollbar(
             RenderBatch& batch,
             int zOrder,
@@ -116,23 +124,19 @@ namespace Elixir::GUI
             const SScrollbarVisibility& visibility
         ) const;
 
-        struct SScrollbarGeometry
-        {
-            SRect Track;
-            SRect Thumb;
-            float MaxScroll;
-        };
         // Shares track and thumb bounds between drawing and pointer input.
         SScrollbarGeometry GetScrollbarGeometry(bool vertical) const;
+
         // Maps the captured pointer position to a clamped content offset.
         void DragScrollbar(const glm::vec2& position);
 
-        int m_DragAxis = -1;
-        float m_DragGrabOffset = 0;
         static constexpr float SCROLL_SPEED = 40.0f;
 
         EScrollAxis m_ScrollAxis = EScrollAxis::Vertical;
         glm::vec2 m_ScrollOffset{};
+
+        int m_DragAxis = -1;
+        float m_DragGrabOffset = 0;
 
         // Configured viewport size; ComputeDesiredSize never returns more than this on
         // either axis. A reasonable non-zero default.

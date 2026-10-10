@@ -113,8 +113,18 @@ namespace Elixir::GUI
         // Hit-tests the current pointer position before bubbling a wheel tick leaf -> root,
         // stopping at the first widget whose HandleMouseScrolled reports EventHandled.
         bool HandleMouseScrolled(const MouseScrolledEvent& event);
-        // Routes native pointer events without waiting for the next frame's polling pass.
-        bool HandlePointerEvent(Event& event);
+
+        // Routes a native left-button press after dismissing popups outside the pointer.
+        bool HandleMouseButtonPressed(const MouseButtonPressedEvent& event);
+
+        // Routes a native left-button release without waiting for frame polling.
+        bool HandleMouseButtonReleased(const MouseButtonReleasedEvent& event);
+
+        // Routes native pointer movement without waiting for frame polling.
+        bool HandleMouseMoved(const MouseMovedEvent& event);
+
+        // Updates hover state and returns the hit path at the current pointer position.
+        std::vector<Ref<Widget>> UpdatePointerHover();
 
         // Clears focus, press, capture and hover state that can otherwise keep a removed
         // layer's subtree alive and receiving input.

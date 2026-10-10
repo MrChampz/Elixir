@@ -83,7 +83,7 @@ TEST_F(VulkanImageTest, MaterialRendererAcceptsIndependentMatchingAttachments)
         .InitialLayout = EImageLayout::DepthAttachment,
     });
     ASSERT_TRUE(color && depth && mismatchedDepth);
-    Materials::Rendering::Renderer renderer(Context, color, 8);
+    Materials::Rendering::Renderer renderer(Context, 8, color);
     EXPECT_TRUE(renderer.SetRenderTargets(color, depth));
     EXPECT_FALSE(renderer.SetRenderTargets(color, mismatchedDepth));
     EXPECT_FALSE(renderer.SetRenderTargets(color, color));
