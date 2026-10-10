@@ -5,6 +5,11 @@
 
 namespace Elixir
 {
+    SResourceHandle TextureSet::AddTexture(const Ref<Texture>& texture)
+    {
+        return AddImage(texture ? texture->GetImage() : nullptr);
+    }
+
     Ref<TextureSet> TextureSet::Create(const GraphicsContext* context)
     {
         switch (context->GetAPI())

@@ -13,8 +13,11 @@ namespace Elixir::Vulkan
 
         void Clear() override;
 
-        SResourceHandle AddTexture(const Ref<Texture>& texture) override;
-        void RemoveTexture(SResourceHandle handle) override;
+        /** @brief Registers a sampled image in the shared descriptor pool. */
+        SResourceHandle AddImage(const Ref<Image>& image) override;
+
+        /** @brief Releases this set's reference to a registered image. */
+        void RemoveImage(SResourceHandle handle) override;
 
         VkDescriptorSet GetDescriptorSet() const;
         VkDescriptorSetLayout GetDescriptorSetLayout() const;

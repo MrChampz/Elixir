@@ -1,7 +1,6 @@
 #include "epch.h"
 #include "VulkanTextureSet.h"
 
-#include <Engine/Graphics/Texture.h>
 #include <Graphics/Vulkan/VulkanShader.h>
 #include <Graphics/Vulkan/VulkanGraphicsContext.h>
 #include <Graphics/Vulkan/Utils.h>
@@ -24,35 +23,36 @@ namespace Elixir::Vulkan
 
     void VulkanTextureSet::Clear()
     {
-        for (const auto& handle : m_Textures | std::views::values)
-            m_Pool->UnregisterTexture(handle);
+        for (const auto& handle : m_Images | std::views::values)
+            m_Pool->UnregisterImage(handle);
 
-        m_Textures.clear();
+        m_Images.clear();
+        m_ImageCount = 0;
     }
 
-    SResourceHandle VulkanTextureSet::AddTexture(const Ref<Texture>& texture)
+    SResourceHandle VulkanTextureSet::AddImage(const Ref<Image>& image)
     {
-        if (m_Textures.contains(texture))
+        if (m_Images.contains(image))
         {
-            return m_Textures[texture];
+            return m_Images[image];
         }
 
-        const auto handle = m_Pool->RegisterTexture(texture);
-        m_Textures[texture] = handle;
-        m_TextureCount++;
+        const auto handle = m_Pool->RegisterImage(image);
+        if (!handle.IsValid()) return handle;
+        m_Images[image] = handle;
+        m_ImageCount++;
         return handle;
     }
 
-    void VulkanTextureSet::RemoveTexture(const SResourceHandle handle)
+    void VulkanTextureSet::RemoveImage(const SResourceHandle handle)
     {
 
-        const auto texture = m_Pool->GetTexture(handle);
-        m_Pool->UnregisterTexture(handle);
-
-        if (const auto it = m_Textures.find(texture); it != m_Textures.end())
+        const auto it = std::ranges::find_if(m_Images, [handle](const auto& entry) { return entry.second == handle; });
+        if (it != m_Images.end())
         {
-            m_Textures.erase(it);
-            m_TextureCount--;
+            m_Pool->UnregisterImage(handle);
+            m_Images.erase(it);
+            m_ImageCount--;
         }
     }
 

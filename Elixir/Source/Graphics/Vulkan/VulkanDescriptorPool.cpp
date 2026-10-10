@@ -248,7 +248,7 @@ namespace Elixir::Vulkan
 
     /* VulkanBindlessDescriptorPool */
 
-    // Binding 0: Texture array (combined image samplers)
+    // Binding 0: Image array (combined image samplers)
     // Binding 1: Texture array (sampled images)
     // Binding 2: Sampler array
     static constexpr std::array BINDLESS_LAYOUT_BINDINGS = {
@@ -257,7 +257,7 @@ namespace Elixir::Vulkan
         VK_DESCRIPTOR_TYPE_SAMPLER,
     };
 
-    constexpr uint32_t GetBinding(const VkDescriptorType type)
+    static constexpr uint32_t GetBinding(const VkDescriptorType type)
     {
         switch (type)
         {
@@ -270,22 +270,22 @@ namespace Elixir::Vulkan
 
     VulkanBindlessDescriptorPool::VulkanBindlessDescriptorPool(
         const VulkanGraphicsContext& context,
-        const uint32_t maxTextures,
+        const uint32_t maxImages,
         const uint32_t maxSamplers
     ):  VulkanBaseDescriptorPool(context, 1),
-        m_MaxTextures(maxTextures),
+        m_MaxImages(maxImages),
         m_MaxSamplers(maxSamplers)
     {
         EE_PROFILE_ZONE_SCOPED()
-        EE_CORE_ASSERT(maxTextures > 0, "Max textures must be greater than 0!")
+        EE_CORE_ASSERT(maxImages > 0, "Max images must be greater than 0!")
         EE_CORE_TRACE(
-            "Initializing bindless descriptor pool with capacity for {0} textures and {1} samplers",
-            maxTextures, maxSamplers
+            "Initializing bindless descriptor pool with capacity for {0} images and {1} samplers",
+            maxImages, maxSamplers
         );
 
         std::vector<VkDescriptorPoolSize> sizes = {
-            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_MaxTextures },
-            { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, m_MaxTextures          },
+            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_MaxImages },
+            { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, m_MaxImages          },
             { VK_DESCRIPTOR_TYPE_SAMPLER, m_MaxSamplers                }
         };
 
@@ -296,7 +296,7 @@ namespace Elixir::Vulkan
 
         CreateDescriptorSetLayout();
         AllocateDescriptorSet();
-        InitTexturesStructures();
+        InitImagesStructures();
 
         EE_CORE_TRACE("Initialized bindless descriptor pool.")
     }
@@ -317,114 +317,142 @@ namespace Elixir::Vulkan
 
         m_DescriptorSet = VK_NULL_HANDLE;
 
-        m_Textures.clear();
-        m_TextureLookup.clear();
-        m_TextureCount = 0;
+        m_Images.clear();
+        m_ImageLookup.clear();
+        m_ImageCount = 0;
     }
 
     void VulkanBindlessDescriptorPool::FlushDescriptors()
     {
-        std::lock_guard lock(m_TextureMutex);
-        if (!m_DirtyTextures.empty())
+        std::lock_guard lock(m_ImageMutex);
+        if (!m_DirtyImages.empty())
         {
-            UpdateTextureDescriptors(m_DirtyTextures);
-            m_DirtyTextures.clear();
+            UpdateImageDescriptors(m_DirtyImages);
+            m_DirtyImages.clear();
         }
     }
 
-    SResourceHandle VulkanBindlessDescriptorPool::RegisterTexture(const Ref<Texture>& texture)
+    SResourceHandle VulkanBindlessDescriptorPool::RegisterImage(const Ref<Image>& image)
     {
-        std::lock_guard lock(m_TextureMutex);
+        std::lock_guard lock(m_ImageMutex);
 
-        EE_CORE_ASSERT(texture, "Texture is null!")
+        if (!image || !image->IsValid() || !(image->GetUsage() & EImageUsage::Sampled) ||
+            !TryToGetVulkanImage(image.get()))
+        {
+            EE_CORE_ERROR("Bindless image registration requires a valid sampled Vulkan image.");
+            return {};
+        }
 
-        // Check if the texture is already registered
-        const auto it = m_TextureLookup.find(texture.get());
-        if (it != m_TextureLookup.end())
+        // Check if the image is already registered
+        const auto it = m_ImageLookup.find(image.get());
+        if (it != m_ImageLookup.end())
         {
             const auto handle = it->second;
-            m_Textures[handle.Index].RefCount++;
+            m_Images[handle.Index].RefCount++;
             return handle;
         }
 
         // Allocate new index
-        const auto handle = AllocateTextureHandle();
-        EE_CORE_ASSERT(handle.IsValid(), "Failed to allocate texture handle!")
+        const auto handle = AllocateImageHandle();
+        if (!handle.IsValid())
+        {
+            EE_CORE_ERROR("The bindless image descriptor pool is full.");
+            return {};
+        }
 
-        // Store texture
-        m_Textures[handle.Index].Texture = texture;
-        m_Textures[handle.Index].RefCount = 1;
-        m_TextureLookup[texture.get()] = handle;
-        m_TextureCount++;
+        // Store image
+        m_Images[handle.Index].Resource = image;
+        m_Images[handle.Index].RefCount = 1;
+        m_ImageLookup[image.get()] = handle;
+        m_ImageCount++;
 
-        // Add to dirty texture list, to be updated
-        m_DirtyTextures.push_back(texture);
+        // Add to dirty image list, to be updated
+        m_DirtyImages.push_back(image);
 
         return handle;
     }
 
-    void VulkanBindlessDescriptorPool::UpdateTexture(
+    void VulkanBindlessDescriptorPool::UpdateImage(
         const SResourceHandle handle,
-        const Ref<Texture>& texture
+        const Ref<Image>& image
     )
     {
-        std::lock_guard lock(m_TextureMutex);
+        std::lock_guard lock(m_ImageMutex);
 
-        EE_CORE_ASSERT(texture, "Texture is null!")
-        EE_CORE_ASSERT(handle.Index < m_MaxTextures, "Index out of bounds!")
-        EE_CORE_ASSERT(m_Textures[handle.Index].Texture, "No texture at the given handle!")
-
-        // Remove old texture from lookup
-        const auto oldTexture = m_Textures[handle.Index].Texture;
-        m_TextureLookup.erase(oldTexture.get());
-
-        // Update texture
-        m_Textures[handle.Index].Texture = texture;
-        m_TextureLookup[texture.get()] = handle;
-
-        // Add to dirty texture list, to be updated
-        m_DirtyTextures.push_back(texture);
-    }
-
-    void VulkanBindlessDescriptorPool::UnregisterTexture(SResourceHandle handle)
-    {
-        std::lock_guard lock(m_TextureMutex);
-
-        if (handle.Index >= m_MaxTextures)
+        if (!image || !image->IsValid() || !(image->GetUsage() & EImageUsage::Sampled) ||
+            !TryToGetVulkanImage(image.get()) || !handle.IsValid() ||
+            handle.Type != SResourceHandle::EResourceType::Texture || handle.Index >= m_MaxImages ||
+            !m_Images[handle.Index].Resource)
         {
-            EE_CORE_WARN("Attempted to unregister texture with invalid handle: {0}", handle)
+            EE_CORE_ERROR("Cannot update an invalid bindless image registration.");
+            return;
+        }
+        const auto registered = m_ImageLookup.find(image.get());
+        if (registered != m_ImageLookup.end())
+        {
+            if (registered->second != handle)
+                EE_CORE_ERROR("Cannot replace a bindless image with one registered at another handle.");
             return;
         }
 
-        if (!m_Textures[handle.Index].Texture)
+        // Remove old image from lookup
+        const auto oldImage = m_Images[handle.Index].Resource;
+        m_ImageLookup.erase(oldImage.get());
+        std::erase(m_DirtyImages, oldImage);
+
+        // Update image
+        m_Images[handle.Index].Resource = image;
+        m_ImageLookup[image.get()] = handle;
+
+        // Add to dirty image list, to be updated
+        m_DirtyImages.push_back(image);
+    }
+
+    void VulkanBindlessDescriptorPool::UnregisterImage(SResourceHandle handle)
+    {
+        std::lock_guard lock(m_ImageMutex);
+
+        if (!handle.IsValid() || handle.Type != SResourceHandle::EResourceType::Texture || handle.Index >= m_MaxImages)
         {
-            EE_CORE_WARN("Attempted to unregister texture that is not registered: {0}", handle)
+            EE_CORE_WARN("Attempted to unregister image with invalid handle: {0}", handle)
+            return;
+        }
+
+        if (!m_Images[handle.Index].Resource)
+        {
+            EE_CORE_WARN("Attempted to unregister image that is not registered: {0}", handle)
             return;
         }
 
         // Decrement reference count
-        m_Textures[handle.Index].RefCount--;
+        m_Images[handle.Index].RefCount--;
 
         // Only free if no more references
-        if (m_Textures[handle.Index].RefCount == 0)
+        if (m_Images[handle.Index].RefCount == 0)
         {
-            const auto texture = m_Textures[handle.Index].Texture;
-            m_TextureLookup.erase(texture.get());
-            m_Textures[handle.Index].Texture = nullptr;
-            m_TextureCount--;
-            FreeTextureHandle(handle);
+            const auto image = m_Images[handle.Index].Resource;
+            m_ImageLookup.erase(image.get());
+            std::erase(m_DirtyImages, image);
+            m_Images[handle.Index].Resource = nullptr;
+            m_ImageCount--;
+            FreeImageHandle(handle);
         }
     }
 
     SResourceHandle
-    VulkanBindlessDescriptorPool::GetTextureHandle(const Ref<Texture>& texture) const
+    VulkanBindlessDescriptorPool::GetImageHandle(const Ref<Image>& image) const
     {
-        return m_TextureLookup.at(texture.get());
+        std::lock_guard lock(m_ImageMutex);
+        const auto found = m_ImageLookup.find(image.get());
+        return found != m_ImageLookup.end() ? found->second : SResourceHandle{};
     }
 
-    Ref<Texture> VulkanBindlessDescriptorPool::GetTexture(const SResourceHandle handle) const
+    Ref<Image> VulkanBindlessDescriptorPool::GetImage(const SResourceHandle handle) const
     {
-        return m_Textures[handle.Index].Texture;
+        std::lock_guard lock(m_ImageMutex);
+        if (!handle.IsValid() || handle.Type != SResourceHandle::EResourceType::Texture || handle.Index >= m_MaxImages)
+            return nullptr;
+        return m_Images[handle.Index].Resource;
     }
 
     std::vector<VkDescriptorSetLayoutBinding>
@@ -496,32 +524,32 @@ namespace Elixir::Vulkan
         );
     }
 
-    void VulkanBindlessDescriptorPool::InitTexturesStructures()
+    void VulkanBindlessDescriptorPool::InitImagesStructures()
     {
-        m_Textures.resize(m_MaxTextures);
-        m_RecycledIndices.reserve(m_MaxTextures / 10); // 10% churn
+        m_Images.resize(m_MaxImages);
+        m_RecycledIndices.reserve(m_MaxImages / 10); // 10% churn
     }
 
-    void VulkanBindlessDescriptorPool::UpdateTextureDescriptors(
-        const std::vector<Ref<Texture>>& textures
+    void VulkanBindlessDescriptorPool::UpdateImageDescriptors(
+        const std::vector<Ref<Image>>& images
     ) const
     {
         std::vector<VkWriteDescriptorSet> writeSets;
         std::vector<VkDescriptorImageInfo> imageInfos;
 
-        writeSets.reserve(textures.size());
-        imageInfos.reserve(textures.size());
+        writeSets.reserve(images.size());
+        imageInfos.reserve(images.size());
 
-        for (const auto& texture : textures)
+        for (const auto& image : images)
         {
-            const auto image = TryToGetVulkanImage(texture->GetImage().get());
-            imageInfos.push_back(image->GetVulkanDescriptorInfo());
+            const auto nativeImage = TryToGetVulkanImage(image.get());
+            imageInfos.push_back(nativeImage->GetVulkanDescriptorInfo());
 
             VkWriteDescriptorSet writeSet = {};
             writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             writeSet.dstSet = m_DescriptorSet;
             writeSet.dstBinding = GetBinding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
-            writeSet.dstArrayElement = GetTextureHandle(texture).Index;
+            writeSet.dstArrayElement = m_ImageLookup.find(image.get())->second.Index;
             writeSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
             writeSet.descriptorCount = 1,
             writeSet.pImageInfo = &imageInfos.back();
@@ -538,7 +566,7 @@ namespace Elixir::Vulkan
         );
     }
 
-    SResourceHandle VulkanBindlessDescriptorPool::AllocateTextureHandle()
+    SResourceHandle VulkanBindlessDescriptorPool::AllocateImageHandle()
     {
         // First, try to reuse a recycled index
         if (!m_RecycledIndices.empty())
@@ -549,7 +577,7 @@ namespace Elixir::Vulkan
         }
 
         // If no recycled indices, use the next fresh index
-        if (m_NextFreeIndex < m_MaxTextures)
+        if (m_NextFreeIndex < m_MaxImages)
         {
             return SResourceHandle::Texture(m_NextFreeIndex++);
         }
@@ -558,7 +586,7 @@ namespace Elixir::Vulkan
         return SResourceHandle{};
     }
 
-    void VulkanBindlessDescriptorPool::FreeTextureHandle(const SResourceHandle handle)
+    void VulkanBindlessDescriptorPool::FreeImageHandle(const SResourceHandle handle)
     {
         m_RecycledIndices.push_back(handle.Index);
     }
@@ -571,7 +599,7 @@ namespace Elixir::Vulkan
         {
             case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
             case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
-                return m_MaxTextures;
+                return m_MaxImages;
             case VK_DESCRIPTOR_TYPE_SAMPLER:
                 return m_MaxSamplers;
             default:

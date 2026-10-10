@@ -165,6 +165,10 @@ namespace Elixir::GUI
 
     void QuadRenderPass::BuildRectGeometry(const SDrawCommand& cmd)
     {
+        const auto imageHandle = cmd.Image
+            ? m_TextureSet->AddImage(cmd.Image)
+            : m_WhiteTextureHandle;
+
         const SQuad quad = {
             .Position = cmd.Geometry.Position * m_DPIScale,
             .Size = cmd.Geometry.Size * m_DPIScale,
@@ -174,8 +178,8 @@ namespace Elixir::GUI
             .Color = cmd.Color,
             .OutlineColor = cmd.Outline.Color,
             .OutlineThickness = cmd.Outline.Thickness * m_DPIScale,
-            .TextureIndex = cmd.Texture
-                ? m_TextureSet->AddTexture(cmd.Texture).Index
+            .TextureIndex = imageHandle.IsValid()
+                ? imageHandle.Index
                 : m_WhiteTextureHandle.Index,
             .TextureMapping = (uint32_t)cmd.TextureMapping,
             .ScissorRect = cmd.ScissorRect.IsValid()

@@ -168,6 +168,40 @@ namespace Elixir::GUI
         m_Commands.push_back(cmd);
     }
 
+    void RenderBatch::AddImage(
+        const Ref<Image>& image,
+        const SRect& rect,
+        const SColor& tint,
+        const int zOrder,
+        const SRect& scissorRect,
+        const ETextureMapping mapping,
+        const glm::vec4& borders
+    )
+    {
+        if (!image ||
+            !image->IsValid() ||
+            image->GetType() != EImageType::_2D ||
+            image->GetArrayLayers() != 1 ||
+            image->GetAspect() != EImageAspect::Color ||
+            !(image->GetUsage() & EImageUsage::Sampled))
+        {
+            EE_CORE_ERROR("GUI image drawing requires a valid sampled two-dimensional color image.");
+            return;
+        }
+
+        SDrawCommand cmd;
+        cmd.Type = EDrawCommandType::Rect;
+        cmd.Geometry = rect;
+        cmd.Color = tint;
+        cmd.Image = image;
+        cmd.Border = borders;
+        cmd.TextureMapping = mapping;
+        cmd.ZOrder = zOrder;
+        cmd.ScissorRect = scissorRect;
+
+        m_Commands.push_back(cmd);
+    }
+
     void RenderBatch::AddTexture(
         const Ref<Texture2D>& texture,
         const SRect& rect,
@@ -177,17 +211,16 @@ namespace Elixir::GUI
         const SRect& scissorRect
     )
     {
-        SDrawCommand cmd;
-        cmd.Type = EDrawCommandType::Rect;
-        cmd.Geometry = rect;
-        cmd.Color = tint;
-        cmd.Texture = texture;
-        cmd.Border = borders;
-        cmd.TextureMapping = ETextureMapping::NineSlice;
-        cmd.ZOrder = zOrder;
-        cmd.ScissorRect = scissorRect;
-
-        m_Commands.push_back(cmd);
+        if (texture)
+            AddImage(
+                texture->GetImage(),
+                rect,
+                tint,
+                zOrder,
+                scissorRect,
+                ETextureMapping::NineSlice,
+                borders
+            );
     }
 
     void RenderBatch::AddIcon(
@@ -200,16 +233,7 @@ namespace Elixir::GUI
     {
         if (!texture) return;
 
-        SDrawCommand cmd;
-        cmd.Type = EDrawCommandType::Rect;
-        cmd.Geometry = rect;
-        cmd.Color = color;
-        cmd.Texture = texture;
-        cmd.TextureMapping = ETextureMapping::Stretch;
-        cmd.ZOrder = zOrder;
-        cmd.ScissorRect = scissorRect;
-
-        m_Commands.push_back(cmd);
+        AddImage(texture->GetImage(), rect, color, zOrder, scissorRect);
     }
 
     void RenderBatch::AddDebugRect(const SRect& rect, const SColor& color)

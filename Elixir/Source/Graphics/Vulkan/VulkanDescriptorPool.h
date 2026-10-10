@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/Graphics/Texture.h>
+#include <Engine/Graphics/Image.h>
 #include <Engine/Graphics/Definitions.h>
 
 #include <vulkan/vulkan.h>
@@ -97,12 +97,12 @@ namespace Elixir::Vulkan
     class VulkanBindlessDescriptorPool final : public VulkanBaseDescriptorPool
     {
       public:
-        static constexpr uint32_t MAX_TEXTURES = 16384;
+        static constexpr uint32_t MAX_IMAGES   = 16384;
         static constexpr uint32_t MAX_SAMPLERS = 256;
 
         explicit VulkanBindlessDescriptorPool(
             const VulkanGraphicsContext& context,
-            uint32_t maxTextures = MAX_TEXTURES,
+            uint32_t maxImages = MAX_IMAGES,
             uint32_t maxSamplers = MAX_SAMPLERS
         );
 
@@ -120,50 +120,50 @@ namespace Elixir::Vulkan
         void FlushDescriptors();
 
         /**
-         * Register a texture and get its handle in the bindless array.
-         * If the texture is already registered, returns its handle.
-         * @param texture The texture to register
-         * @return A handle to the texture in the bindless array.
+         * Register a sampled image and get its handle in the bindless array.
+         * If the image is already registered, returns its handle.
+         * @param image The image to register
+         * @return An invalid handle when the image cannot be sampled or the pool is full.
          */
-        SResourceHandle RegisterTexture(const Ref<Texture>& texture);
+        SResourceHandle RegisterImage(const Ref<Image>& image);
 
         /**
-         * Update the texture bind at a specific handle.
+         * Update the image binding at a specific handle.
          * @param handle The handle to be updated.
-         * @param texture The new texture.
+         * @param image The new image, which must not be registered at another handle.
          */
-        void UpdateTexture(SResourceHandle handle, const Ref<Texture>& texture);
+        void UpdateImage(SResourceHandle handle, const Ref<Image>& image);
 
         /**
-         * Unregister a texture by its handle.
+         * Unregister an image by its handle.
          * This decrements the reference count and frees the slot if count reaches 0.
-         * @param handle The handle to the texture to be unregistered.
+         * @param handle The handle to the image to be unregistered.
          */
-        void UnregisterTexture(SResourceHandle handle);
+        void UnregisterImage(SResourceHandle handle);
 
         /**
-         * Get the handle for a registered texture.
-         * @param texture The texture to look up.
-         * @return The handle for the texture, or an invalid handle if not found.
+         * Get the handle for a registered image.
+         * @param image The image to look up.
+         * @return The handle for the image, or an invalid handle if not found.
          */
-        SResourceHandle GetTextureHandle(const Ref<Texture>& texture) const;
+        SResourceHandle GetImageHandle(const Ref<Image>& image) const;
 
         /**
-         * Get the texture associated with a handle.
+         * Get the image associated with a handle.
          * @param handle The handle to look up.
-         * @return The texture associated with the handle, or nullptr if not found.
+         * @return The image associated with the handle, or nullptr if not found.
          */
-        Ref<Texture> GetTexture(SResourceHandle handle) const;
+        Ref<Image> GetImage(SResourceHandle handle) const;
 
         /**
-         * Get the maximum number of textures.
+         * Get the maximum number of images.
          */
-        uint32_t GetMaxTextures() const { return m_MaxTextures; }
+        uint32_t GetMaxImages() const { return m_MaxImages; }
 
         /**
-         * Get the number of currently registered textures.
+         * Get the number of currently registered images.
          */
-        uint32_t GetTextureCount() const { return m_TextureCount; }
+        uint32_t GetImageCount() const { return m_ImageCount; }
 
         VkDescriptorSetLayout GetDescriptorSetLayout() const { return m_DescriptorSetLayout; }
         VkDescriptorSet GetDescriptorSet() const { return m_DescriptorSet; }
@@ -172,33 +172,34 @@ namespace Elixir::Vulkan
         std::vector<VkDescriptorSetLayoutBinding> GetDescriptorSetLayoutBindings() const;
         void CreateDescriptorSetLayout();
         void AllocateDescriptorSet();
-        void InitTexturesStructures();
+        void InitImagesStructures();
 
-        void UpdateTextureDescriptors(const std::vector<Ref<Texture>>& textures) const;
+        // Writes pending sampled-image descriptors while the registry mutex is held.
+        void UpdateImageDescriptors(const std::vector<Ref<Image>>& images) const;
 
-        SResourceHandle AllocateTextureHandle();
-        void FreeTextureHandle(SResourceHandle handle);
+        SResourceHandle AllocateImageHandle();
+        void FreeImageHandle(SResourceHandle handle);
 
         uint32_t GetMaxDescriptorsByType(VkDescriptorType type) const;
 
-        uint32_t m_MaxTextures;
+        uint32_t m_MaxImages;
         uint32_t m_MaxSamplers;
 
         VkDescriptorSetLayout m_DescriptorSetLayout = VK_NULL_HANDLE;
         VkDescriptorSet m_DescriptorSet = VK_NULL_HANDLE;
 
-        struct STextureEntry
+        struct SImageEntry
         {
-            Ref<Texture> Texture;
+            Ref<Image> Resource;
             uint32_t RefCount = 0;
         };
 
-        std::vector<STextureEntry> m_Textures;
-        std::vector<Ref<Texture>> m_DirtyTextures;
-        std::unordered_map<Texture*, SResourceHandle> m_TextureLookup;
+        std::vector<SImageEntry> m_Images;
+        std::vector<Ref<Image>> m_DirtyImages;
+        std::unordered_map<Image*, SResourceHandle> m_ImageLookup;
         uint32_t m_NextFreeIndex = 0;
         std::vector<uint32_t> m_RecycledIndices;
-        uint32_t m_TextureCount = 0;
-        mutable std::mutex m_TextureMutex;
+        uint32_t m_ImageCount = 0;
+        mutable std::mutex m_ImageMutex;
     };
 }

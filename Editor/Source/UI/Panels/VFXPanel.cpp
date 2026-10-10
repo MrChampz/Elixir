@@ -161,19 +161,18 @@ namespace
         /** @brief Updates the scene image displayed in the floating preview. */
         void SetSource(const Ref<Image>& image)
         {
-            if (!m_Texture || m_Texture->GetImage() != image)
-                m_Texture = Texture2D::WrapImage(image);
+            m_Image = image;
             MarkRenderDirty();
         }
     protected:
         glm::vec2 ComputeDesiredSize(const glm::vec2& size) override { return glm::min(size, glm::vec2(284, 160)); }
         void BuildDrawCommands(GUI::RenderBatch& batch, const int zOrder) override
         {
-            if (m_Texture)
-                batch.AddTexture(m_Texture, GetGeometry(), {}, {1, 1, 1, 1}, zOrder, GetGeometry());
+            if (m_Image)
+                batch.AddImage(m_Image, GetGeometry(), {1, 1, 1, 1}, zOrder, GetGeometry());
         }
     private:
-        Ref<Texture2D> m_Texture;
+        Ref<Image> m_Image;
     };
 
     // Draws a time ruler and playhead using the same retained rendering path as other widgets.

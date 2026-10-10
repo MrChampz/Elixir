@@ -12,36 +12,49 @@ namespace Elixir
         virtual ~TextureSet() = default;
 
         /**
-         * Clear all textures
+         * Releases all image registrations held by this set.
          */
         virtual void Clear() = 0;
 
         /**
-         * Add a texture to the set and get its handle.
-         * @param texture Reference to the texture
-         * @return The texture handle in the set
+         * @brief Registers a sampled image and retains it until removal or Clear.
+         * @param image Reference to the image.
+         * @return An invalid handle when registration fails.
          */
-        virtual SResourceHandle AddTexture(const Ref<Texture>& texture) = 0;
+        virtual SResourceHandle AddImage(const Ref<Image>& image) = 0;
+
+        /**
+         * @brief Releases this set's registration of an image.
+         * @param handle Image handle
+         */
+        virtual void RemoveImage(SResourceHandle handle) = 0;
+
+        /**
+         * Registers the image owned by a texture asset.
+         * @param texture Reference to the texture.
+         * @return An invalid handle when image registration fails.
+         */
+        virtual SResourceHandle AddTexture(const Ref<Texture>& texture);
 
         /**
          * Remove a texture by its handle.
          * @param handle Texture handle
          */
-        virtual void RemoveTexture(SResourceHandle handle) = 0;
+        virtual void RemoveTexture(const SResourceHandle handle) { RemoveImage(handle); }
 
         /**
-         * Get the number of textures currently in the set.
-         * @return The number of textures currently in the set.
+         * Get the number of images currently in the set.
+         * @return The number of images currently in the set.
          */
-        uint32_t GetTextureCount() const { return m_TextureCount; }
+        uint32_t GetImageCount() const { return m_ImageCount; }
 
         static Ref<TextureSet> Create(const GraphicsContext* context);
 
       protected:
         explicit TextureSet(const GraphicsContext* context);
 
-        uint32_t m_TextureCount = 0;
-        std::unordered_map<Ref<Texture>, SResourceHandle> m_Textures;
+        uint32_t m_ImageCount = 0;
+        std::unordered_map<Ref<Image>, SResourceHandle> m_Images;
 
         const GraphicsContext* m_GraphicsContext;
     };

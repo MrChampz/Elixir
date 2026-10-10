@@ -51,8 +51,8 @@ namespace Elixir::GUI
         Ref<Font> Font;
         float FontSize = 16.0f;
 
-        // For texture rendering
-        Ref<Texture2D> Texture;
+        /** Sampled image retained until the draw command is released. */
+        Ref<Image> Image;
         SRect TexCoords;
         ETextureMapping TextureMapping = ETextureMapping::Stretch;
 
@@ -154,6 +154,21 @@ namespace Elixir::GUI
             const SRect& scissorRect = {{ -1, -1 }, { -1, -1 }}
         );
 
+        /** @brief Draws a sampled 2D color image without creating a texture asset.
+         * @param mapping Stretch uses the full image; NineSlice preserves the supplied borders.
+         * @param borders Nine-slice borders in left, top, right, bottom order.
+         */
+        void AddImage(
+            const Ref<Image>& image,
+            const SRect& rect,
+            const SColor& tint,
+            int zOrder = 0,
+            const SRect& scissorRect = {{ -1, -1 }, { -1, -1 }},
+            ETextureMapping mapping = ETextureMapping::Stretch,
+            const glm::vec4& borders = {}
+        );
+
+        /** @brief Draws a texture asset's image with nine-slice mapping. */
         void AddTexture(
             const Ref<Texture2D>& texture,
             const SRect& rect,
