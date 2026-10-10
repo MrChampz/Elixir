@@ -1,28 +1,28 @@
 #include "epch.h"
-#include "TextureSet.h"
+#include "ImageSet.h"
 
-#include <Graphics/Vulkan/VulkanTextureSet.h>
+#include <Graphics/Vulkan/VulkanImageSet.h>
 
 namespace Elixir
 {
-    SResourceHandle TextureSet::AddTexture(const Ref<Texture>& texture)
+    SResourceHandle ImageSet::AddTexture(const Ref<Texture>& texture)
     {
         return AddImage(texture ? texture->GetImage() : nullptr);
     }
 
-    Ref<TextureSet> TextureSet::Create(const GraphicsContext* context)
+    Ref<ImageSet> ImageSet::Create(const GraphicsContext* context)
     {
         switch (context->GetAPI())
         {
             case EGraphicsAPI::Vulkan:
-                return CreateRef<Vulkan::VulkanTextureSet>(context);
+                return CreateRef<Vulkan::VulkanImageSet>(context);
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;
         }
     }
 
-    TextureSet::TextureSet(const GraphicsContext* context)
+    ImageSet::ImageSet(const GraphicsContext* context)
         : m_GraphicsContext(context)
     {
         EE_PROFILE_ZONE_SCOPED()

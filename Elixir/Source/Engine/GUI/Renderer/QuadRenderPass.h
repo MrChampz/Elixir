@@ -2,7 +2,7 @@
 
 #include <Engine/GUI/Renderer/RenderBatch.h>
 #include <Engine/GUI/Renderer/RenderPass.h>
-#include <Engine/Graphics/TextureSet.h>
+#include <Engine/Graphics/ImageSet.h>
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
 
@@ -89,7 +89,7 @@ namespace Elixir::GUI
         Ref<GraphicsPipeline> m_Pipeline;
         Ref<DynamicVertexBuffer> m_QuadBuffer;
         std::vector<Ref<DynamicVertexBuffer>> m_RetiredQuadBuffers;
-        Ref<TextureSet> m_TextureSet;
+        Ref<ImageSet> m_ImageSet;
 
         Ref<Texture2D> m_WhiteTexture;
         SResourceHandle m_WhiteTextureHandle;

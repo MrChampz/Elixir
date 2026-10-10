@@ -6,10 +6,12 @@
 
 namespace Elixir
 {
-    class ELIXIR_API TextureSet
+    /** @brief Retains sampled images registered in a shared descriptor array. */
+    class ELIXIR_API ImageSet
     {
       public:
-        virtual ~TextureSet() = default;
+        /** @brief Releases the set and its image registrations. */
+        virtual ~ImageSet() = default;
 
         /**
          * Releases all image registrations held by this set.
@@ -48,10 +50,13 @@ namespace Elixir
          */
         uint32_t GetImageCount() const { return m_ImageCount; }
 
-        static Ref<TextureSet> Create(const GraphicsContext* context);
+        /** @brief Creates an image set for the context's graphics backend.
+         * @param context Graphics context that must outlive the set.
+         */
+        static Ref<ImageSet> Create(const GraphicsContext* context);
 
       protected:
-        explicit TextureSet(const GraphicsContext* context);
+        explicit ImageSet(const GraphicsContext* context);
 
         uint32_t m_ImageCount = 0;
         std::unordered_map<Ref<Image>, SResourceHandle> m_Images;

@@ -6,7 +6,7 @@
 #include "Utils.h"
 #include "VulkanCommandBuffer.h"
 #include "VulkanSampler.h"
-#include "VulkanTextureSet.h"
+#include "VulkanImageSet.h"
 
 #include <ranges>
 #include <type_traits>
@@ -207,15 +207,15 @@ namespace Elixir::Vulkan
         EE_CORE_ERROR("No image binding named \"{0}\" found in shader...", name)
     }
 
-    void VulkanShader::BindTextureSet(const std::string& name, const Ref<TextureSet>& set)
+    void VulkanShader::BindImageSet(const std::string& name, const Ref<ImageSet>& set)
     {
         if (const auto binding = GetShaderBinding(name))
         {
-            m_TextureSets[*binding] = set;
+            m_ImageSets[*binding] = set;
             return;
         }
 
-        EE_CORE_ERROR("No texture set binding named \"{0}\" found in shader...", name)
+        EE_CORE_ERROR("No image set binding named \"{0}\" found in shader...", name)
     }
 
     void VulkanShader::BindSampler(const std::string& name, const Ref<Sampler>& sampler)

@@ -7,7 +7,7 @@
 namespace Elixir::Materials::Rendering
 {
     TextureRegistry::TextureRegistry(const GraphicsContext* context)
-      : m_Textures(TextureSet::Create(context)),
+      : m_Textures(ImageSet::Create(context)),
         m_Sampler(SamplerBuilder().Build(context)),
         m_BindingState(CreateRef<SBindingState>()),
         m_GraphicsContext(context)
@@ -45,7 +45,7 @@ namespace Elixir::Materials::Rendering
             binding = bindings.erase(binding);
 
             const Ref<SBindingState> state = m_BindingState;
-            const Ref<TextureSet> textures = m_Textures;
+            const Ref<ImageSet> textures = m_Textures;
             const uint64_t retirement = state->NextRetirement++;
             state->Retirements[texture] = retirement;
             m_GraphicsContext->DeferResourceRelease([state, textures, texture, handle, retirement]()

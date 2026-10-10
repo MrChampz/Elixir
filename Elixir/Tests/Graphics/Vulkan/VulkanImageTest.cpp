@@ -2,7 +2,7 @@
 
 #include <Engine/Graphics/Texture.h>
 #include <Engine/GUI/Renderer/RenderBatch.h>
-#include <Engine/Graphics/TextureSet.h>
+#include <Engine/Graphics/ImageSet.h>
 #include <Engine/Materials/Rendering/Renderer.h>
 #include <Graphics/Vulkan/VulkanImage.h>
 #include <Graphics/Vulkan/VulkanBuffer.h>
@@ -215,8 +215,8 @@ TEST_F(VulkanImageTest, TextureAssetsAndDirectImagesShareOneDescriptorRegistrati
     EXPECT_EQ(batch.GetCommands()[0].Border, glm::vec4(2, 3, 4, 5));
     EXPECT_EQ(batch.GetCommands()[1].Image, texture->GetImage());
     EXPECT_EQ(batch.GetCommands()[1].TextureMapping, GUI::ETextureMapping::Stretch);
-    const auto first = TextureSet::Create(Context);
-    const auto second = TextureSet::Create(Context);
+    const auto first = ImageSet::Create(Context);
+    const auto second = ImageSet::Create(Context);
     const auto pool = static_cast<VulkanGraphicsContext*>(Context)->GetBindlessDescriptorPool();
     const auto originalCount = pool->GetImageCount();
     const auto textureHandle = first->AddTexture(texture);

@@ -626,11 +626,11 @@ namespace Elixir::Materials::Rendering
         if (shader->HasBinding("materials"))
             shader->BindStorageBuffer("materials", request.MaterialBuffer);
         if (shader->HasBinding("sprites"))
-            shader->BindTextureSet("sprites", m_Textures.GetTextureSet());
+            shader->BindImageSet("sprites", m_Textures.GetImageSet());
         if (shader->HasBinding("spriteSampler"))
             shader->BindSampler("spriteSampler", m_Textures.GetSampler());
         if (shader->HasBinding("textures"))
-            shader->BindTextureSet("textures", m_Textures.GetTextureSet());
+            shader->BindImageSet("textures", m_Textures.GetImageSet());
         if (shader->HasBinding("texSampler"))
             shader->BindSampler("texSampler", m_Textures.GetSampler());
 

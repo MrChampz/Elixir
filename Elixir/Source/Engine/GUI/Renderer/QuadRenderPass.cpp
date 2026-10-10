@@ -132,14 +132,14 @@ namespace Elixir::GUI
             &Color::WhiteAlpha
         );
 
-        m_TextureSet = TextureSet::Create(m_GraphicsContext);
-        m_WhiteTextureHandle = m_TextureSet->AddTexture(m_WhiteTexture);
+        m_ImageSet = ImageSet::Create(m_GraphicsContext);
+        m_WhiteTextureHandle = m_ImageSet->AddTexture(m_WhiteTexture);
     }
 
     void QuadRenderPass::BindShaderParameters() const
     {
         m_Shader->BindConstantBuffer("cbPerFrame", m_PerFrameConstantBuffer);
-        m_Shader->BindTextureSet("textures", m_TextureSet);
+        m_Shader->BindImageSet("textures", m_ImageSet);
         m_Shader->SetPushConstant("pcWhiteTexture", (void*)&m_WhiteTextureHandle.Index, sizeof(uint32_t));
 
         const auto sampler = SamplerBuilder()
@@ -166,7 +166,7 @@ namespace Elixir::GUI
     void QuadRenderPass::BuildRectGeometry(const SDrawCommand& cmd)
     {
         const auto imageHandle = cmd.Image
-            ? m_TextureSet->AddImage(cmd.Image)
+            ? m_ImageSet->AddImage(cmd.Image)
             : m_WhiteTextureHandle;
 
         const SQuad quad = {

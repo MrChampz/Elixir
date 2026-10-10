@@ -125,7 +125,7 @@ namespace Elixir
 
         std::string m_Name;
 
-        // A handle to the atlas in the font manager's texture set.
+        // A handle to the atlas in the font manager's image set.
         SResourceHandle m_AtlasHandle;
         SAtlas m_Atlas = {};
         std::unordered_map<int, SGlyph> m_Glyphs;

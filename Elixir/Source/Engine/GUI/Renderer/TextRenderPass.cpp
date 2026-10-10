@@ -117,7 +117,7 @@ namespace Elixir::GUI
     void TextRenderPass::BindShaderParameters() const
     {
         m_Shader->BindConstantBuffer("cbPerFrame", m_PerFrameConstantBuffer);
-        m_Shader->BindTextureSet("atlases", FontManager::GetAtlasesTextureSet());
+        m_Shader->BindImageSet("atlases", FontManager::GetAtlasesImageSet());
 
         const auto sampler = SamplerBuilder()
             .SetMagFilter(ESamplerFilter::Linear)

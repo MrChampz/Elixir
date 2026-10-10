@@ -8,11 +8,11 @@ namespace Elixir::Vulkan
 {
     using namespace Elixir;
 
-    class VulkanTextureSet;
+    class VulkanImageSet;
 
     class ELIXIR_API VulkanShader final : public Shader
     {
-        friend class VulkanTextureSet;
+        friend class VulkanImageSet;
       public:
         VulkanShader(const GraphicsContext* context, SShaderCreateInfo&& info);
         ~VulkanShader() override;
@@ -31,7 +31,10 @@ namespace Elixir::Vulkan
 
         void BindImage(const std::string& name, const Ref<Image>& image) override;
         void BindTexture(const std::string& name, const Ref<Texture>& texture) override;
-        void BindTextureSet(const std::string& name, const Ref<TextureSet>& set) override;
+
+        /** @brief Binds an image set to a named shader resource. */
+        void BindImageSet(const std::string& name, const Ref<ImageSet>& set) override;
+
         void BindSampler(const std::string& name, const Ref<Sampler>& sampler) override;
         void BindStorageBuffer(const std::string& name, const Ref<StorageBuffer>& buffer) override;
         void BindStorageBuffer(const std::string& name, const Ref<DynamicStorageBuffer>& buffer) override;

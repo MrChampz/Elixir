@@ -1,5 +1,5 @@
 #include "epch.h"
-#include "VulkanTextureSet.h"
+#include "VulkanImageSet.h"
 
 #include <Graphics/Vulkan/VulkanShader.h>
 #include <Graphics/Vulkan/VulkanGraphicsContext.h>
@@ -7,21 +7,21 @@
 
 namespace Elixir::Vulkan
 {
-    VulkanTextureSet::VulkanTextureSet(const GraphicsContext* context)
-        : TextureSet(context)
+    VulkanImageSet::VulkanImageSet(const GraphicsContext* context)
+        : ImageSet(context)
     {
         EE_PROFILE_ZONE_SCOPED()
         m_GraphicsContext = static_cast<const VulkanGraphicsContext*>(context);
         m_Pool = m_GraphicsContext->GetBindlessDescriptorPool();
     }
 
-    VulkanTextureSet::~VulkanTextureSet()
+    VulkanImageSet::~VulkanImageSet()
     {
         EE_PROFILE_ZONE_SCOPED()
         Clear();
     }
 
-    void VulkanTextureSet::Clear()
+    void VulkanImageSet::Clear()
     {
         for (const auto& handle : m_Images | std::views::values)
             m_Pool->UnregisterImage(handle);
@@ -30,24 +30,30 @@ namespace Elixir::Vulkan
         m_ImageCount = 0;
     }
 
-    SResourceHandle VulkanTextureSet::AddImage(const Ref<Image>& image)
+    SResourceHandle VulkanImageSet::AddImage(const Ref<Image>& image)
     {
         if (m_Images.contains(image))
-        {
             return m_Images[image];
-        }
 
         const auto handle = m_Pool->RegisterImage(image);
         if (!handle.IsValid()) return handle;
+
         m_Images[image] = handle;
         m_ImageCount++;
         return handle;
     }
 
-    void VulkanTextureSet::RemoveImage(const SResourceHandle handle)
+    void VulkanImageSet::RemoveImage(const SResourceHandle handle)
     {
 
-        const auto it = std::ranges::find_if(m_Images, [handle](const auto& entry) { return entry.second == handle; });
+        const auto it = std::ranges::find_if(
+            m_Images,
+            [handle](const auto& entry)
+            {
+                return entry.second == handle;
+            }
+        );
+
         if (it != m_Images.end())
         {
             m_Pool->UnregisterImage(handle);
@@ -56,12 +62,12 @@ namespace Elixir::Vulkan
         }
     }
 
-    VkDescriptorSet VulkanTextureSet::GetDescriptorSet() const
+    VkDescriptorSet VulkanImageSet::GetDescriptorSet() const
     {
         return m_Pool->GetDescriptorSet();
     }
 
-    VkDescriptorSetLayout VulkanTextureSet::GetDescriptorSetLayout() const
+    VkDescriptorSetLayout VulkanImageSet::GetDescriptorSetLayout() const
     {
         return m_Pool->GetDescriptorSetLayout();
     }
