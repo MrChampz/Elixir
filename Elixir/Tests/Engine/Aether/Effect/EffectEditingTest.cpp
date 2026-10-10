@@ -46,13 +46,13 @@ TEST(EffectEditingTest, SwapsDefinitionsWithoutChangingSystemIdentities)
     replacement->AddEmitter("New emitter", 20, 2);
     original->GetParameters().SetFloat("Rate", 1);
     replacement->GetParameters().SetFloat("Rate", 2);
-    original->SwapDefinition(*replacement);
+    original->Swap(*replacement);
     EXPECT_EQ(original->GetId(), originalId);
     EXPECT_EQ(replacement->GetId(), replacementId);
     EXPECT_EQ(original->GetName(), "Edited");
     EXPECT_EQ(original->GetEmitters()[0]->GetName(), "New emitter");
     EXPECT_FLOAT_EQ(original->GetParameters().GetFloat("Rate"), 2);
-    original->SwapDefinition(*replacement);
+    original->Swap(*replacement);
     EXPECT_EQ(original->GetName(), "Original");
     EXPECT_EQ(original->GetEmitters()[0]->GetName(), "Old emitter");
     EXPECT_FLOAT_EQ(original->GetParameters().GetFloat("Rate"), 1);

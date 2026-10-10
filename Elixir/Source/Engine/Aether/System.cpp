@@ -7,7 +7,7 @@ namespace Elixir::Aether
 {
     System::System(const std::string& name) : m_Name(name) {}
 
-    void System::SwapDefinition(System& other)
+    void System::Swap(System& other)
     {
         using std::swap;
         swap(m_Name, other.m_Name);

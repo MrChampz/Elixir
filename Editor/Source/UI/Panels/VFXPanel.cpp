@@ -440,9 +440,9 @@ bool VFXPanel::CompilePreview()
     const auto system = current ? current : replacement;
     const bool completed = m_Context.RunRenderTaskAndWait([this, &compiled, system, replacement, current]
     {
-        if (current) current->SwapDefinition(*replacement);
+        if (current) current->Swap(*replacement);
         compiled = m_Manager.Recompile(system);
-        if (!compiled && current) current->SwapDefinition(*replacement);
+        if (!compiled && current) current->Swap(*replacement);
     });
     if (!completed || !compiled) { UpdateStatus("Could not compile the effect. Previous preview preserved."); return false; }
     m_System = system; m_LoadedSystems.insert_or_assign(m_SelectedPath, system);
