@@ -218,22 +218,22 @@ TEST_F(VulkanImageTest, TextureAssetsAndDirectImagesShareOneDescriptorRegistrati
     const auto first = TextureSet::Create(Context);
     const auto second = TextureSet::Create(Context);
     const auto pool = static_cast<VulkanGraphicsContext*>(Context)->GetBindlessDescriptorPool();
-    const auto originalCount = pool->GetTextureCount();
+    const auto originalCount = pool->GetImageCount();
     const auto textureHandle = first->AddTexture(texture);
     ASSERT_TRUE(textureHandle.IsValid());
     EXPECT_EQ(first->AddImage(texture->GetImage()), textureHandle);
-    EXPECT_EQ(first->GetTextureCount(), 1u);
+    EXPECT_EQ(first->GetImageCount(), 1u);
     EXPECT_EQ(second->AddImage(texture->GetImage()), textureHandle);
-    EXPECT_EQ(pool->GetTextureCount(), originalCount + 1);
+    EXPECT_EQ(pool->GetImageCount(), originalCount + 1);
     first->RemoveImage(textureHandle);
     EXPECT_EQ(pool->GetImage(textureHandle), texture->GetImage());
-    EXPECT_EQ(first->GetTextureCount(), 0u);
+    EXPECT_EQ(first->GetImageCount(), 0u);
     first->RemoveImage(textureHandle); // A set cannot release another set's registration.
     EXPECT_EQ(pool->GetImage(textureHandle), texture->GetImage());
     second->Clear();
-    EXPECT_EQ(second->GetTextureCount(), 0u);
+    EXPECT_EQ(second->GetImageCount(), 0u);
     EXPECT_FALSE(pool->GetImage(textureHandle));
-    EXPECT_EQ(pool->GetTextureCount(), originalCount);
+    EXPECT_EQ(pool->GetImageCount(), originalCount);
     pool->FlushDescriptors(); // Removed images must not remain in pending descriptor writes.
     EXPECT_FALSE(first->AddImage(nullptr).IsValid());
     const auto attachmentOnly = Image::Create(Context, {
