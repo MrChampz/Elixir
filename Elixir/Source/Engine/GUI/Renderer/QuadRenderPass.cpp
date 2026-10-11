@@ -98,10 +98,12 @@ namespace Elixir::GUI
                     { EDataType::Float4,  "DropShadow"        },
                     { EDataType::Float4,  "Color"             },
                     { EDataType::Float4,  "OutlineColor"      },
-                    { EDataType::Float, "OutlineThickness"  },
-                    { EDataType::UInt,  "TextureIndex"      },
-                    { EDataType::UInt,  "TextureMapping"    },
-                    { EDataType::Float4,  "ScissorRect"       },
+                    { EDataType::Float,   "OutlineThickness"  },
+                    { EDataType::UInt,    "TextureIndex"      },
+                    { EDataType::UInt,    "TextureMapping"    },
+                    { EDataType::Float4,  "ClipRect"       },
+                    { EDataType::Float4,  "RoundedClipRect"   },
+                    { EDataType::Float4,  "ClipCornerRadius"  },
                 },
                 EInputRate::Instance
             }
@@ -182,9 +184,11 @@ namespace Elixir::GUI
                 ? imageHandle.Index
                 : m_WhiteTextureHandle.Index,
             .TextureMapping = (uint32_t)cmd.TextureMapping,
-            .ScissorRect = cmd.ScissorRect.IsValid()
-                ? cmd.ScissorRect * m_DPIScale
-                : cmd.ScissorRect
+            .ClipRect = cmd.ClipRect.IsValid()
+                ? cmd.ClipRect * m_DPIScale
+                : cmd.ClipRect,
+            .RoundedClipRect = cmd.RoundedClipRect * m_DPIScale,
+            .ClipCornerRadius = cmd.ClipCornerRadius * m_DPIScale,
         };
 
         m_Quads.push_back(quad);

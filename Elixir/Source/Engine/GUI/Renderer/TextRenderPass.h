@@ -53,7 +53,9 @@ namespace Elixir::GUI
             SColor Color;
             uint32_t AtlasIndex = 0;
             glm::vec2 UnitRange;
-            SRect ScissorRect;
+            SRect ClipRect;
+            SRect RoundedClipRect;
+            glm::vec4 ClipCornerRadius;
         };
 
         std::vector<SQuad> m_Quads;

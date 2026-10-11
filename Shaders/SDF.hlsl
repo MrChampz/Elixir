@@ -1,7 +1,7 @@
 /**
  * Signed Distance Function for a rectangle with variable corner radii.
  *
- * @param p The point to evaluate, relative to the center of the rectangle.
+ * @param p The point relative to the rectangle center, with positive Y pointing down.
  * @param b The half-size of the rectangle (width/2, height/2).
  * @param r The corner radii for each corner (top-left, top-right, bottom-right, bottom-left).
  * @return The signed distance from the point to the rectangle's edge. Negative inside, positive outside.
@@ -12,15 +12,15 @@ float SDFRect(float2 p, float2 b, float4 r)
     float radius = r.x;
 
     // Determine corner radius based on quadrant
-    if (p.x >= 0.0 && p.y >= 0.0)
+    if (p.x >= 0.0 && p.y < 0.0)
     {
         radius = r.y; // top-right
     }
-    else if (p.x >= 0.0 && p.y < 0.0)
+    else if (p.x >= 0.0 && p.y >= 0.0)
     {
         radius = r.z; // bottom-right
     }
-    else if (p.x < 0.0 && p.y < 0.0)
+    else if (p.x < 0.0 && p.y >= 0.0)
     {
         radius = r.w; // bottom-left
     }

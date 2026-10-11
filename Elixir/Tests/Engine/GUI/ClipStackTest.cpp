@@ -12,9 +12,7 @@ using namespace Elixir::GUI;
 
 namespace
 {
-    // Leaf that emits a single rect tagged with `color` at its own geometry, with no ad-hoc
-    // ScissorRect of its own - the default AddRect scissor sentinel {-1,-1}/{-1,-1} (see
-    // RenderBatch::AddRect) - so a test can tell purely-inherited clip from a self-clip.
+    // Emits a tagged rectangle without a local clip to isolate inherited clipping.
     class ProbeWidget final : public Widget
     {
       public:
@@ -34,9 +32,7 @@ namespace
         glm::vec2 m_Desired;
     };
 
-    // Same as ProbeWidget, but emits its own ad-hoc self-clip scissor - the Button/TextField
-    // pattern of clipping their own label to their own bounds - so a test can check that an
-    // inherited clip narrows it further instead of replacing it.
+    // Adds a local clip so tests can verify it survives ancestor clipping.
     class SelfClippingProbeWidget final : public Widget
     {
       public:
@@ -47,7 +43,8 @@ namespace
       protected:
         void BuildDrawCommands(RenderBatch& batch, const int zOrder) override
         {
-            batch.AddRect(m_Geometry, m_Color, glm::vec4(0.0f), glm::vec4(0.0f), glm::vec4(0.0f), SOutline{}, zOrder, m_Geometry);
+            batch.AddRect(m_Geometry, m_Color, glm::vec4(0.0f), glm::vec4(0.0f), glm::vec4(0.0f), SOutline{}, zOrder);
+            batch.Clip(m_Geometry);
         }
 
       private:
@@ -103,7 +100,7 @@ TEST(ClipStackTest, NonClippingContainerLeavesChildScissorInvalid)
 
     const auto* cmd = FindByColor(manager.GetRenderBatch().GetCommands(), probeColor);
     ASSERT_NE(cmd, nullptr);
-    EXPECT_FALSE(cmd->ScissorRect.IsValid());
+    EXPECT_FALSE(cmd->ClipRect.IsValid());
 }
 
 TEST(ClipStackTest, ClippingContainerGivesChildScissorEqualToItsGeometry)
@@ -121,9 +118,9 @@ TEST(ClipStackTest, ClippingContainerGivesChildScissorEqualToItsGeometry)
 
     const auto* cmd = FindByColor(manager.GetRenderBatch().GetCommands(), probeColor);
     ASSERT_NE(cmd, nullptr);
-    ASSERT_TRUE(cmd->ScissorRect.IsValid());
-    EXPECT_EQ(cmd->ScissorRect.Position, box->GetGeometry().Position);
-    EXPECT_EQ(cmd->ScissorRect.Size, box->GetGeometry().Size);
+    ASSERT_TRUE(cmd->ClipRect.IsValid());
+    EXPECT_EQ(cmd->ClipRect.Position, box->GetGeometry().Position);
+    EXPECT_EQ(cmd->ClipRect.Size, box->GetGeometry().Size);
 }
 
 TEST(ClipStackTest, NestedClipsIntersectRatherThanReplace)
@@ -147,16 +144,16 @@ TEST(ClipStackTest, NestedClipsIntersectRatherThanReplace)
 
     const auto* cmd = FindByColor(manager.GetRenderBatch().GetCommands(), probeColor);
     ASSERT_NE(cmd, nullptr);
-    ASSERT_TRUE(cmd->ScissorRect.IsValid());
+    ASSERT_TRUE(cmd->ClipRect.IsValid());
 
     const SRect expected = SRect::Intersect(outer->GetGeometry(), inner->GetGeometry());
-    EXPECT_EQ(cmd->ScissorRect.Position, expected.Position);
-    EXPECT_EQ(cmd->ScissorRect.Size, expected.Size);
+    EXPECT_EQ(cmd->ClipRect.Position, expected.Position);
+    EXPECT_EQ(cmd->ClipRect.Size, expected.Size);
 
     // Sanity: the intersection is genuinely smaller than the outer clip alone, otherwise this
     // test would pass even if nesting silently replaced instead of intersecting.
-    EXPECT_LT(cmd->ScissorRect.Size.x, outer->GetGeometry().Size.x);
-    EXPECT_LT(cmd->ScissorRect.Size.y, outer->GetGeometry().Size.y);
+    EXPECT_LT(cmd->ClipRect.Size.x, outer->GetGeometry().Size.x);
+    EXPECT_LT(cmd->ClipRect.Size.y, outer->GetGeometry().Size.y);
 }
 
 TEST(ClipStackTest, InheritedClipNarrowsExistingSelfClipInsteadOfReplacingIt)
@@ -177,13 +174,14 @@ TEST(ClipStackTest, InheritedClipNarrowsExistingSelfClipInsteadOfReplacingIt)
     manager.SetRoot(box);
     manager.AssembleFrame();
 
-    // Box is bigger than the probe -> self-clip == probe geometry; intersecting with the
-    // inherited (larger) box clip should leave it exactly at the probe's own geometry.
+    // Local bounds stay at the probe while the ancestor has its own larger scissor.
     const auto* cmd = FindByColor(manager.GetRenderBatch().GetCommands(), probeColor);
     ASSERT_NE(cmd, nullptr);
-    ASSERT_TRUE(cmd->ScissorRect.IsValid());
-    EXPECT_EQ(cmd->ScissorRect.Position, probe->GetGeometry().Position);
-    EXPECT_EQ(cmd->ScissorRect.Size, probe->GetGeometry().Size);
+    ASSERT_TRUE(cmd->ClipRect.IsValid());
+    EXPECT_EQ(cmd->RoundedClipRect.Position, probe->GetGeometry().Position);
+    EXPECT_EQ(cmd->RoundedClipRect.Size, probe->GetGeometry().Size);
+    EXPECT_EQ(cmd->ClipRect.Position, box->GetGeometry().Position);
+    EXPECT_EQ(cmd->ClipRect.Size, box->GetGeometry().Size);
 
     // Now narrow the box below the probe's own geometry: the inherited clip must actually
     // shrink the self-clip, not be discarded in favor of it.
@@ -192,14 +190,15 @@ TEST(ClipStackTest, InheritedClipNarrowsExistingSelfClipInsteadOfReplacingIt)
 
     const auto* cmd2 = FindByColor(manager.GetRenderBatch().GetCommands(), probeColor);
     ASSERT_NE(cmd2, nullptr);
-    ASSERT_TRUE(cmd2->ScissorRect.IsValid());
-    EXPECT_EQ(cmd2->ScissorRect.Size.x, 5.0f);
-    EXPECT_EQ(cmd2->ScissorRect.Size.y, 5.0f);
+    ASSERT_TRUE(cmd2->ClipRect.IsValid());
+    EXPECT_EQ(cmd2->ClipRect.Size.x, 5.0f);
+    EXPECT_EQ(cmd2->ClipRect.Size.y, 5.0f);
+    EXPECT_EQ(cmd2->RoundedClipRect.Size, probe->GetGeometry().Size);
 }
 
 // Direct regression test for a real bug: ScrollBox::ClipsChildren() once returned false by
 // mistake, and nothing caught it. Pin both halves of the contract: the flag itself, and the
-// end-to-end effect (oversized content actually gets a non-empty ScissorRect after a frame).
+// end-to-end effect (oversized content actually gets a non-empty ClipRect after a frame).
 TEST(ClipStackTest, ScrollBoxClipsChildrenIsTrueAndOversizedContentGetsScissored)
 {
     // Manager::SetRoot takes a Panel; ScrollBox is a ContentWidget, not a Panel, so it needs
@@ -223,11 +222,11 @@ TEST(ClipStackTest, ScrollBoxClipsChildrenIsTrueAndOversizedContentGetsScissored
 
     const auto* cmd = FindByColor(manager.GetRenderBatch().GetCommands(), probeColor);
     ASSERT_NE(cmd, nullptr);
-    ASSERT_TRUE(cmd->ScissorRect.IsValid()) << "ScrollBox::ClipsChildren() must clip its content";
-    EXPECT_GT(cmd->ScissorRect.Size.x, 0.0f);
-    EXPECT_GT(cmd->ScissorRect.Size.y, 0.0f);
-    EXPECT_EQ(cmd->ScissorRect.Size.x, scrollBox->GetGeometry().Size.x);
-    EXPECT_EQ(cmd->ScissorRect.Size.y, scrollBox->GetGeometry().Size.y);
+    ASSERT_TRUE(cmd->ClipRect.IsValid()) << "ScrollBox::ClipsChildren() must clip its content";
+    EXPECT_GT(cmd->ClipRect.Size.x, 0.0f);
+    EXPECT_GT(cmd->ClipRect.Size.y, 0.0f);
+    EXPECT_EQ(cmd->ClipRect.Size.x, scrollBox->GetGeometry().Size.x);
+    EXPECT_EQ(cmd->ClipRect.Size.y, scrollBox->GetGeometry().Size.y);
 }
 
 TEST(ClipStackTest, DocumentCanvasClipsPannedContentBelowTheTabBar)
@@ -244,8 +243,8 @@ TEST(ClipStackTest, DocumentCanvasClipsPannedContentBelowTheTabBar)
     manager.AssembleFrame();
     const auto* command = FindByColor(manager.GetRenderBatch().GetCommands(), color);
     ASSERT_NE(command, nullptr);
-    EXPECT_EQ(command->ScissorRect.Position, glm::vec2(0, 66));
-    EXPECT_EQ(command->ScissorRect.Size, glm::vec2(200, 200));
+    EXPECT_EQ(command->ClipRect.Position, glm::vec2(0, 66));
+    EXPECT_EQ(command->ClipRect.Size, glm::vec2(200, 200));
 
     std::vector<Ref<Widget>> path;
     canvas->HitTest({20, 40}, path);

@@ -178,13 +178,14 @@ TEST_F(VulkanImageTest, GUICommandRetainsThePreviewImageDirectly)
     const auto handle = TryToGetVulkanImageHandle(image.get());
     const std::weak_ptr<Image> retained = image;
     GUI::RenderBatch batch;
-    batch.AddImage(image, {{12, 24}, {64, 32}}, {1, 1, 1, 1}, 3, {{12, 24}, {64, 32}});
+    batch.AddImage(image, {{12, 24}, {64, 32}}, {1, 1, 1, 1}, 3);
+    batch.Clip({{12, 24}, {64, 32}});
     ASSERT_EQ(batch.GetCommands().size(), 1u);
     const auto& command = batch.GetCommands().front();
     EXPECT_EQ(command.Image, image);
     EXPECT_EQ(command.TextureMapping, GUI::ETextureMapping::Stretch);
     EXPECT_EQ(command.Geometry.Position, glm::vec2(12, 24));
-    EXPECT_EQ(command.ScissorRect.Size, glm::vec2(64, 32));
+    EXPECT_EQ(command.RoundedClipRect.Size, glm::vec2(64, 32));
     EXPECT_EQ(command.ZOrder, 3);
     image.reset();
     EXPECT_FALSE(retained.expired());

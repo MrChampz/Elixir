@@ -56,11 +56,17 @@ namespace Elixir::GUI
         SRect TexCoords;
         ETextureMapping TextureMapping = ETextureMapping::Stretch;
 
-        // Z-order for sorting
+        /** Z-order for sorting. */
         int ZOrder = 0;
 
-        // Scissor rect for clipping (optional)
-        SRect ScissorRect{ { -1.0f, -1.0f }, { -1.0f, -1.0f } };
+        /** Rectangular clip inherited from ancestor widgets. */
+        SRect ClipRect{ { -1.0f, -1.0f }, { -1.0f, -1.0f } };
+
+        /** Rounded clip bounds, retained separately from ancestor rectangular clipping. */
+        SRect RoundedClipRect{{-1, -1}, {-1, -1}};
+
+        /** Clip radii in top-left, top-right, bottom-right, bottom-left order. */
+        glm::vec4 ClipCornerRadius{0};
     };
 
     /**
@@ -83,10 +89,8 @@ namespace Elixir::GUI
          * @brief Append another batch's commands to this one.
          *
          * Offsets each command's z-order and applies the ancestor clip rect inherited
-         * from the caller's position in the widget tree. A command that already carries its
-         * own valid ScissorRect (Button/TextField's ad-hoc self-clip) gets that rect
-         * intersected with clipRect; a command with no ScissorRect of its own adopts clipRect
-         * verbatim, when clipRect itself is valid.
+         * from the caller's position in the widget tree. Intersects ancestor rectangles
+         * while preserving the local clip set by Clip().
          *
          * Used to assemble the per-widget command caches into the frame batch.
          *
@@ -100,10 +104,29 @@ namespace Elixir::GUI
         void Append(
             const RenderBatch& other,
             int zOffset,
-            const SRect& clipRect,
+            const SRect& clipRect = {{-1, -1}, {-1, -1}},
             const glm::vec2& offset = {},
             float opacity = 1.0f
         );
+
+        /**
+         * @brief Clips this batch's rectangle, image and text commands with an optional uniform
+         * corner radius.
+         * @param rect The clip rect.
+         * @param radius Corner radius; zero produces straight corners and negative values
+         * become zero.
+         * @note A later call replaces this clip; ancestor rectangular clips still apply.
+         */
+        void Clip(const SRect& rect, float radius = 0.0f);
+
+        /**
+         * @brief Clips this batch's rectangle, image and text commands with individual corner radii.
+         * @param rect The clip rect.
+         * @param radii Corner radii in top-left, top-right, bottom-right, bottom-left order.
+         * Negative radii become zero.
+         * @note A later call replaces this clip; ancestor rectangular clips still apply.
+         */
+        void Clip(const SRect& rect, const glm::vec4& radii);
 
         void Sort();
         void Clear();
@@ -124,13 +147,11 @@ namespace Elixir::GUI
          * @param brush Surface description to draw.
          * @param rect Destination rectangle.
          * @param zOrder Draw layer for the command.
-         * @param scissorRect Optional clip rectangle.
          */
         void AddBrush(
             const SBrush& brush,
             const SRect& rect,
-            int zOrder = 0,
-            const SRect& scissorRect = {{ -1, -1 }, { -1, -1 }}
+            int zOrder = 0
         );
 
         void AddRect(
@@ -140,8 +161,7 @@ namespace Elixir::GUI
             glm::vec4 insetShadow,
             glm::vec4 dropShadow,
             SOutline outline,
-            int zOrder = 0,
-            const SRect& scissorRect = {{ -1, -1 }, { -1, -1 }}
+            int zOrder = 0
         );
 
         void AddText(
@@ -150,11 +170,11 @@ namespace Elixir::GUI
             const Ref<Font>& font,
             float fontSize,
             const SColor& color,
-            int zOrder = 0,
-            const SRect& scissorRect = {{ -1, -1 }, { -1, -1 }}
+            int zOrder = 0
         );
 
-        /** @brief Draws a sampled 2D color image without creating a texture asset.
+        /**
+         * @brief Draws a sampled 2D color image without creating a texture asset.
          * @param mapping Stretch uses the full image; NineSlice preserves the supplied borders.
          * @param borders Nine-slice borders in left, top, right, bottom order.
          */
@@ -163,7 +183,6 @@ namespace Elixir::GUI
             const SRect& rect,
             const SColor& tint,
             int zOrder = 0,
-            const SRect& scissorRect = {{ -1, -1 }, { -1, -1 }},
             ETextureMapping mapping = ETextureMapping::Stretch,
             const glm::vec4& borders = {}
         );
@@ -174,8 +193,7 @@ namespace Elixir::GUI
             const SRect& rect,
             const glm::vec4& borders,
             const SColor& tint,
-            int zOrder = 0,
-            const SRect& scissorRect = {{ -1, -1 }, { -1, -1 }}
+            int zOrder = 0
         );
 
         /**
@@ -188,14 +206,12 @@ namespace Elixir::GUI
          * @param rect Destination rectangle.
          * @param color Icon tint.
          * @param zOrder Draw layer for the command.
-         * @param scissorRect Optional clip rectangle.
          */
         void AddIcon(
             const Ref<Texture2D>& texture,
             const SRect& rect,
             const SColor& color,
-            int zOrder = 0,
-            const SRect& scissorRect = {{ -1, -1 }, { -1, -1 }}
+            int zOrder = 0
         );
 
         void AddDebugRect(const SRect& rect, const SColor& color = { 1.0f, 0.0f, 0.0f, 1.0f });

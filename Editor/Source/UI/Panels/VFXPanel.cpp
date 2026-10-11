@@ -169,7 +169,14 @@ namespace
         void BuildDrawCommands(GUI::RenderBatch& batch, const int zOrder) override
         {
             if (m_Image)
-                batch.AddImage(m_Image, GetGeometry(), {1, 1, 1, 1}, zOrder, GetGeometry());
+            {
+                const auto& brush = EditorStyle::Get().Panel.Normal.Background;
+                const float inset = brush.Outline.Thickness;
+                const glm::vec4 radius{0, 0, std::max(0.0f, brush.CornerRadius.z - inset),
+                    std::max(0.0f, brush.CornerRadius.w - inset)};
+                batch.AddImage(m_Image, GetGeometry(), {1, 1, 1, 1}, zOrder);
+                batch.Clip(GetGeometry(), radius);
+            }
         }
     private:
         Ref<Image> m_Image;

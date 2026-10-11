@@ -83,13 +83,15 @@ namespace Elixir::GUI
         const BufferLayout bufferLayout({
             {
                 {
-                    { EDataType::Float2, "Position"    },
-                    { EDataType::Float2, "Size"        },
-                    { EDataType::Float4, "TexCoords"   },
-                    { EDataType::Float4, "Color"       },
-                    { EDataType::UInt, "AtlasIndex"  },
-                    { EDataType::Float2, "UnitRange"   },
-                    { EDataType::Float4, "ScissorRect" },
+                    { EDataType::Float2, "Position"        },
+                    { EDataType::Float2, "Size"             },
+                    { EDataType::Float4, "TexCoords"        },
+                    { EDataType::Float4, "Color"            },
+                    { EDataType::UInt,   "AtlasIndex"       },
+                    { EDataType::Float2, "UnitRange"        },
+                    { EDataType::Float4, "ClipRect"      },
+                    { EDataType::Float4, "RoundedClipRect"  },
+                    { EDataType::Float4, "ClipCornerRadius" },
                 },
                 EInputRate::Instance
             }
@@ -220,9 +222,11 @@ namespace Elixir::GUI
             .Color = cmd.Color,
             .AtlasIndex = cmd.Font->GetAtlasHandle().Index,
             .UnitRange = cmd.Font->GetUnitRange(),
-            .ScissorRect = cmd.ScissorRect.IsValid()
-                ? cmd.ScissorRect * m_DPIScale
-                : cmd.ScissorRect
+            .ClipRect = cmd.ClipRect.IsValid()
+                ? cmd.ClipRect * m_DPIScale
+                : cmd.ClipRect,
+            .RoundedClipRect = cmd.RoundedClipRect * m_DPIScale,
+            .ClipCornerRadius = cmd.ClipCornerRadius * m_DPIScale,
         };
 
         m_Quads.push_back(quad);

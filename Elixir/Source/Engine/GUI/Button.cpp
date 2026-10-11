@@ -120,15 +120,17 @@ namespace Elixir::GUI
             const auto textSize = MeasureTextSize(displayText);
             const auto textPos = CalculateTextPosition(textSize);
 
-            batch.AddText(
+            RenderBatch label;
+            label.AddText(
                 displayText,
                 { textPos, textSize },
                 m_Font,
                 m_FontSize,
                 appearance.Foreground,
-                zOrder + 1,
-                m_Geometry
+                zOrder + 1
             );
+            label.Clip(m_Geometry);
+            batch.Append(label, 0);
         }
     }
 

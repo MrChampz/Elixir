@@ -80,7 +80,9 @@ namespace Elixir::GUI
             uint32_t TextureIndex = 0;
             uint32_t TextureMapping = 0;
 
-            SRect ScissorRect;
+            SRect ClipRect;
+            SRect RoundedClipRect;
+            glm::vec4 ClipCornerRadius;
         };
 
         std::vector<SQuad> m_Quads;
