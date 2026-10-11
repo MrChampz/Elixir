@@ -3,6 +3,7 @@
 #include "../../VFX/VFXTimeline.h"
 
 #include <Engine/Aether/Effect/Effect.h>
+#include <Engine/Core/Platform.h>
 #include <Engine/GUI/Button.h>
 #include <Engine/GUI/Checkbox.h>
 #include <Engine/GUI/Icon.h>
@@ -259,6 +260,16 @@ namespace
     class TimeRuler final : public GUI::Widget
     {
     public:
+        /** @brief Shows the pointer cursor over timeline navigation areas. */
+        TimeRuler()
+        {
+            OnMouseEnter([] { Platform::Get().SetCursorShape(ECursorShape::Hand); });
+            OnMouseLeave([] { Platform::Get().SetPreviousCursorShape(); });
+        }
+        /** @brief Sets the callback used to seek when the ruler or a track is dragged. */
+        void OnSeek(std::function<void(float)> callback) { m_OnSeek = std::move(callback); }
+        /** @brief Reports whether this ruler accepts timeline navigation. */
+        bool CanHandleMouseInput() const override { return IsEnabled() && bool(m_OnSeek); }
         /** @brief Colors an emitter track over the preview simulation interval. */
         void SetTrack(const SColor color, std::vector<TimelineInterval> intervals)
         { m_TrackColor = color; m_Intervals = std::move(intervals); m_IsTrack = true; MarkRenderDirty(); }
@@ -269,6 +280,28 @@ namespace
             m_Time = time; m_Duration = duration; MarkRenderDirty();
         }
     protected:
+        GUI::SInputReply HandleMouseDown(const MouseButtonPressedEvent& event) override
+        {
+            if (event.GetMouseButton() != EE_MOUSE_BUTTON_LEFT || !CanHandleMouseInput() ||
+                GetGeometry().Size.x <= 0) return GUI::SInputReply::Unhandled();
+            m_Dragging = true;
+            SeekAt(event.GetX());
+            return GUI::SInputReply::HandledAndCaptured();
+        }
+        GUI::SInputReply HandleMouseMove(const MouseMovedEvent& event) override
+        {
+            if (!m_Dragging) return GUI::SInputReply::Unhandled();
+            SeekAt(event.GetX());
+            return GUI::SInputReply::Handled();
+        }
+        GUI::SInputReply HandleMouseUp(const MouseButtonReleasedEvent& event) override
+        {
+            if (event.GetMouseButton() != EE_MOUSE_BUTTON_LEFT || !m_Dragging)
+                return GUI::SInputReply::Unhandled();
+            m_Dragging = false;
+            SeekAt(event.GetX());
+            return GUI::SInputReply::Handled();
+        }
         glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) override
         { return { std::min(availableSize.x, 400.0f), 18.0f }; }
         void BuildDrawCommands(GUI::RenderBatch& batch, const int zOrder) override
@@ -295,6 +328,17 @@ namespace
                 {}, {}, {}, {}, zOrder + 2);
         }
     private:
+        // Maps captured pointer movement to a bounded time, including outside the track.
+        void SeekAt(const float x)
+        {
+            const auto rect = GetGeometry();
+            if (!m_OnSeek || rect.Size.x <= 0) return;
+            const float fraction = std::clamp((x - rect.Position.x) / rect.Size.x, 0.0f, 1.0f);
+            m_OnSeek(fraction * m_Duration);
+        }
+
+        std::function<void(float)> m_OnSeek;
+        bool m_Dragging = false;
         float m_Time = 0.0f, m_Duration = 5.0f;
         bool m_IsTrack = false;
         SColor m_TrackColor;
@@ -428,8 +472,10 @@ Ref<GUI::Widget> VFXPanel::Build()
     const auto rulerArea = CreateRef<GUI::Overlay>();
     ruler->AddChild(rulerArea).SetFillSize().SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
     m_TimeBar = CreateRef<TimeRuler>();
+    std::static_pointer_cast<TimeRuler>(m_TimeBar)->OnSeek([this](float time) { RequestSeek(time); });
     rulerArea->AddChild(m_TimeBar).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill).SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
     const auto labels = CreateRef<GUI::Canvas>();
+    labels->SetVisibility(GUI::EVisibility::HitTestInvisible);
     for (int second = 0; second <= 5; ++second)
     {
         const float anchor = second / 5.0f;
@@ -447,6 +493,14 @@ Ref<GUI::Widget> VFXPanel::Build()
     RegisterOverlay(selection->GetParent(), {12, 0});
     RegisterOverlay(timeline->GetParent(), {0, 12});
     return root;
+}
+
+void VFXPanel::RequestSeek(const float time)
+{
+    std::lock_guard lock(m_PreviewMutex);
+    m_SeekRequested = std::clamp(time, 0.0f, m_LoopDuration);
+    m_Playing = false;
+    m_LoopRestart = false;
 }
 
 void VFXPanel::QueueEdit(std::function<void(Document&)> edit) { m_EditCommand = std::move(edit); }
@@ -510,10 +564,11 @@ void VFXPanel::OnUpdate(const Timestep frameTime)
         std::lock_guard lock(m_PreviewMutex);
         loopRestart = std::exchange(m_LoopRestart, false);
         seekTime = std::exchange(m_SeekRequested, std::nullopt);
-        m_Clock->SetText(std::format("{:.2f}s / {:.2f}s", m_Playhead, m_LoopDuration));
+        const float displayedTime = seekTime.value_or(m_Playhead);
+        m_Clock->SetText(std::format("{:.2f}s / {:.2f}s", displayedTime, m_LoopDuration));
         m_SpeedLabel->SetText(std::format("{:.2f}x", m_PlaybackSpeed));
-        std::static_pointer_cast<TimeRuler>(m_TimeBar)->SetTime(m_Playhead, m_LoopDuration);
-        for (const auto& track : m_TrackBars) std::static_pointer_cast<TimeRuler>(track)->SetTime(m_Playhead, m_LoopDuration);
+        std::static_pointer_cast<TimeRuler>(m_TimeBar)->SetTime(displayedTime, m_LoopDuration);
+        for (const auto& track : m_TrackBars) std::static_pointer_cast<TimeRuler>(track)->SetTime(displayedTime, m_LoopDuration);
         m_PlayButton->SetStyle(m_Playing ? EditorStyle::Get().PlayButtonActive : EditorStyle::Get().PlayButtonInactive);
         m_PauseButton->SetStyle(m_Playing ? EditorStyle::Get().PauseButtonInactive : EditorStyle::Get().PauseButtonActive);
     }
@@ -806,6 +861,7 @@ void VFXPanel::UpdateOverview()
         trackLabel->AddChild(label).SetFillSize();
         track->AddChild(trackLabel).SetFixedSize(110);
         const auto bar = CreateRef<TimeRuler>();
+        bar->OnSeek([this](float time) { RequestSeek(time); });
         auto trackColor = color; trackColor.A = emitter.Enabled() ? 0.8f : 0.2f; bar->SetTrack(trackColor, EmitterTimeline(m_Document->Root(), index, m_LoopDuration));
         track->AddChild(bar).SetFillSize().SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
         m_TrackBars.push_back(bar);

@@ -62,6 +62,8 @@ private:
     // Commits pending field text as one validated undo transaction.
     bool ApplyDrafts();
     // Schedules authoring changes without destroying widgets during input dispatch.
+    // Pauses playback and requests a replay at the dragged timeline position.
+    void RequestSeek(float time);
     void QueueEdit(std::function<void(EditorVFX::Document&)> edit);
     // Updates dirty markers, command availability, and the preview status.
     void UpdateStatus(const std::string& message);
