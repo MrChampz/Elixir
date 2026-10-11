@@ -5,7 +5,7 @@
 #include "UI/Panels/ViewportPanel.h"
 #include "UI/Panels/VFXPanel.h"
 #include <Engine/Mesh/StaticMeshLoaderRegistry.h>
-#include <Engine/Graphics/TextureLoader.h>
+#include "Environment.h"
 #include <iostream>
 
 Editor::Editor(std::filesystem::path asset)
@@ -51,17 +51,31 @@ void Editor::LoadDefaultScene()
     if (auto loaded = StaticMeshLoaderRegistry::Load(scenePath))
     {
         m_SceneMesh = std::move(*loaded);
-        const auto ambient = TextureLoader::Load((scenePath.parent_path() / "white.png").string());
-        const auto sampler = Sampler::Create(m_GraphicsContext.get(), {});
-        if (!ambient || !sampler || !sampler->IsValid())
+        const auto environment = Environment::Load(*m_GraphicsContext,
+            std::filesystem::path(ELIXIR_EDITOR_PROJECT_ROOT) /
+                "Assets" / "Textures" / "white_home_studio_2k.hdr");
+        if (!environment || !environment->GetEnvironment() || !environment->GetIrradiance() ||
+            !environment->GetPrefiltered() || !environment->GetSampler() ||
+            !environment->GetSampler()->IsValid())
         {
-            EE_CORE_ERROR("Could not create lighting resources for the default Sponza scene.");
+            EE_CORE_ERROR("Could not create lighting resources for the default scene.");
             m_SceneMesh.reset();
             return;
         }
-        m_SceneLighting.Environment = {
-            .Environment = ambient, .Irradiance = ambient, .Prefiltered = ambient,
-            .Sampler = sampler, .Intensity = 0.2f, .MaxLod = 0.0f};
+        m_SceneLighting = {
+            .Environment = {
+                .Environment = environment->GetEnvironment(),
+                .Irradiance = environment->GetIrradiance(),
+                .Prefiltered = environment->GetPrefiltered(),
+                .Sampler = environment->GetSampler(),
+                .Intensity = 1.5f,
+                .MaxLod = Environment::GetMaxLod(),
+            },
+            .DirectionalLightDirection = glm::normalize(glm::vec3{-0.5f, 0.65f, -0.55f}),
+            .DirectionalLightColor = {1.0f, 0.96f, 0.9f},
+            .DirectionalLightIntensity = 2.2f,
+            .DebugView = ESurfaceDebugView::Composite,
+        };
         m_SceneRenderer = CreateScope<StaticMeshRenderer>(m_GraphicsContext.get(),
             GetMaterialSystem(), StaticMeshLoaderRegistry::GetGeometryPool());
         const auto extent = m_Window->GetFramebufferExtent();
