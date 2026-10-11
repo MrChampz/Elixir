@@ -3,6 +3,7 @@
 #include <Engine.h>
 
 #include "UI/EditorUI.h"
+#include "VFX/EditorVFXManager.h"
 #include <Engine/Graphics/PostProcessor.h>
 #include <Engine/Materials/MaterialSystem.h>
 
@@ -35,7 +36,7 @@ private:
         Ref<Image> HDRTarget, DisplayTarget, DepthTarget;
         Scope<Materials::MaterialSystem> Materials;
         Scope<PostProcessor> PostProcess;
-        Scope<Aether::Manager> Manager;
+        Scope<EditorVFXManager> Manager;
         VFXPanel* Panel;
         int Tab;
     };

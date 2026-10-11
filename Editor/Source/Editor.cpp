@@ -51,7 +51,7 @@ void Editor::OpenVFXAsset(const std::filesystem::path& asset)
         if (document.Path == asset) { m_EditorUI->ActivateTab(document.Tab); return; }
     SDocument document{}; document.Path = asset;
     if (!ResizePreview(document, {568, 320, 1})) return;
-    document.Manager = CreateScope<Aether::Manager>(m_GraphicsContext.get(), m_ShaderLoader.get(),
+    document.Manager = CreateScope<EditorVFXManager>(m_GraphicsContext.get(), m_ShaderLoader.get(),
         GetMaterialRegistry(), *document.Materials);
     const auto extent = m_Window->GetFramebufferExtent();
     auto panel = CreateScope<VFXPanel>(*document.Manager, *m_GraphicsContext,

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Aether/SystemInstance.h>
+#include <span>
 #include <Engine/Aether/Rendering/SystemInstanceRetirementQueue.h>
 
 namespace Elixir
@@ -69,7 +70,7 @@ namespace Elixir::Aether
      * @thread_safety Instance registration and frame-submission publication are
      * synchronized. Call BeginFrame() and Render() from the render-frame path.
      */
-    class ELIXIR_API Manager final
+    class ELIXIR_API Manager
     {
     public:
         /**
@@ -92,10 +93,8 @@ namespace Elixir::Aether
             MaterialSystem& materialSystem
         );
 
-        /**
-         * @brief Destroys the manager and its simulation and rendering services.
-         */
-        ~Manager();
+        /** @brief Destroys the manager and its simulation and rendering services. */
+        virtual ~Manager();
 
         Manager(const Manager&) = delete;
         Manager& operator=(const Manager&) = delete;
@@ -191,6 +190,21 @@ namespace Elixir::Aether
          * @note Rendering another frame replaces these values.
          */
         const SRenderingMetrics& GetLastRenderingMetrics() const;
+
+    protected:
+        /**
+         * @brief Simulates ordered steps and renders only their final result.
+         * @param steps Step durations in seconds. An empty span uses the current frame timestep.
+         * @param initialTime Simulation time before the first explicit step, in seconds.
+         * @pre BeginFrame() was called once for the current graphics frame.
+         * @pre sceneTarget is a valid color target.
+         */
+        void RenderSteps(
+            const Camera& camera,
+            const Ref<Image>& sceneTarget,
+            std::span<const float> steps,
+            float initialTime
+        );
 
     private:
         InstanceRegistry& GetRuntime() const;

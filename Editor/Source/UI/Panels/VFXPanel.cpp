@@ -214,7 +214,7 @@ namespace
     };
 }
 
-VFXPanel::VFXPanel(Aether::Manager& manager, GraphicsContext& context, std::filesystem::path projectRoot,
+VFXPanel::VFXPanel(EditorVFXManager& manager, GraphicsContext& context, std::filesystem::path projectRoot,
     const float aspectRatio, std::function<void(const std::string&)> statusChanged)
     : m_Manager(manager), m_Context(context), m_ProjectRoot(std::move(projectRoot)),
       m_StatusChanged(std::move(statusChanged)), m_Camera(60.0f, aspectRatio)

@@ -594,7 +594,7 @@ namespace Elixir
     {
         return {
             .Buffer = SBuffer(data, size),
-            .Usage = EBufferUsage::UniformBuffer,
+            .Usage = EBufferUsage::UniformBuffer | EBufferUsage::TransferDst,
             .AllocationInfo = {
                 .PreferredFlags = EMemoryProperty::HostVisible | EMemoryProperty::HostCoherent
             }

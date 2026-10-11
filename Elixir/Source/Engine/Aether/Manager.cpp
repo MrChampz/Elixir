@@ -59,22 +59,42 @@ namespace Elixir::Aether
 
     void Manager::Render(const Camera& camera, const Ref<Image>& sceneTarget)
     {
+        RenderSteps(camera, sceneTarget, {}, 0);
+    }
+
+    void Manager::RenderSteps(
+        const Camera& camera,
+        const Ref<Image>& sceneTarget,
+        const std::span<const float> steps,
+        const float initialTime
+    )
+    {
         const auto submission = GetRuntime().AcquireSubmission();
         if (!submission) return;
 
         EE_CORE_ASSERT(sceneTarget, "Aether rendering requires a scene target.")
+        if (!sceneTarget)
+        {
+            EE_CORE_ERROR("Aether rendering requires a scene target.");
+            return;
+        }
 
         const auto cmd = m_GraphicsContext->GetSecondaryCommandBuffer();
+        if (!cmd) return;
 
         cmd->Begin({
             .ColorAttachment = sceneTarget,
-            .DepthStencilAttachment =  m_GraphicsContext->GetDepthStencilRenderTarget(),
+            .DepthStencilAttachment = m_GraphicsContext->GetDepthStencilRenderTarget(),
             .RenderArea = sceneTarget->GetExtent(),
         });
 
-        const auto frame = GetSimulator().Simulate(*submission, cmd);
+        const auto frame = steps.empty()
+            ? GetSimulator().Simulate(*submission, cmd)
+            : GetSimulator().RecordSteps(*submission, cmd, steps, initialTime);
+
         cmd->End();
         m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
+
         if (!frame) return;
 
         const MaterialRenderScene scene = GetRenderer().BuildRenderScene(*frame, camera);

@@ -14,6 +14,8 @@ namespace Elixir
     class Timestep;
 }
 
+namespace Elixir::Aether { class Manager; }
+
 namespace Elixir::Aether::Simulation
 {
     using namespace Core;
@@ -142,6 +144,8 @@ namespace Elixir::Aether::Simulation
         }
 
     private:
+        friend class Elixir::Aether::Manager;
+
         // Owns GPU resources and compute pipelines for one particle-state layout.
         struct SParticleStateLayoutRuntime
         {
@@ -265,6 +269,12 @@ namespace Elixir::Aether::Simulation
         // Clears persistent particle state before a released allocation is reused.
         void ClearParticleAllocation(const SSystemInstanceAllocation& allocation);
 
+        // Records ordered simulation steps with separate GPU time values for each step.
+        Ref<const RenderFrame> RecordSteps(const Rendering::FrameSubmission& submission,
+            const Ref<CommandBuffer>& cmd, std::span<const float> steps, float initialTime);
+
+        // Retains parameter uploads until their frame slot is safe to reuse.
+        std::array<std::vector<Ref<StagingBuffer>>, GraphicsContext::FRAMES> m_ParameterUploads;
         SResourcePoolLimits m_Limits;
         ParticleStateLayoutRegistry m_ParticleStateLayouts;
         std::vector<SParticleStateLayoutRuntime> m_ParticleStateLayoutRuntimes;
@@ -301,12 +311,12 @@ namespace Elixir::Aether::Simulation
         Ref<Shader> m_SchedulerFinalizeShader;
         Ref<ComputePipeline> m_SchedulerFinalizePipeline;
 
-        float m_LastDeltaTimeSeconds = 0.0f;
-        float m_ElapsedTimeSeconds = 0.0f;
 
         uint64_t m_SubmissionSerial = 0;
         SSimulationMetrics m_LastMetrics{};
 
         const GraphicsContext* m_GraphicsContext = nullptr;
+        float m_LastDeltaTimeSeconds = 0.0f;
+        float m_ElapsedTimeSeconds = 0.0f;
     };
 }

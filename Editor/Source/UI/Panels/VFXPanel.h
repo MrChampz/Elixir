@@ -2,7 +2,7 @@
 
 #include "../EditorPanel.h"
 #include "../../VFX/VFXDocument.h"
-#include <Engine/Aether/Manager.h>
+#include "../../VFX/EditorVFXManager.h"
 #include <Engine/Camera/ArcBallCameraController.h>
 #include <Engine/GUI/ScrollBox.h>
 #include <map>
@@ -14,7 +14,7 @@ class VFXPanel final : public EditorPanel
 {
 public:
     /** @brief Creates an authoring workspace with an independent preview session. */
-    VFXPanel(Aether::Manager& manager, GraphicsContext& context, std::filesystem::path projectRoot,
+    VFXPanel(EditorVFXManager& manager, GraphicsContext& context, std::filesystem::path projectRoot,
         float aspectRatio, std::function<void(const std::string&)> statusChanged);
     /** @brief Detaches the preview before the application destroys Aether. */
     ~VFXPanel() override;
@@ -67,7 +67,7 @@ private:
     // Creates a unique emitter name within the current definition.
     std::string UniqueEmitterName(const std::string& base) const;
 
-    Aether::Manager& m_Manager;
+    EditorVFXManager& m_Manager;
     GraphicsContext& m_Context;
     std::filesystem::path m_ProjectRoot;
     std::function<void(const std::string&)> m_StatusChanged;

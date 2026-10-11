@@ -2,6 +2,7 @@
 #include "Simulator.h"
 
 #include <Engine/Core/Timer.h>
+#include <cmath>
 #include <Engine/Aether/Core/Operation.h>
 
 namespace Elixir::Aether::Simulation
@@ -212,6 +213,7 @@ namespace Elixir::Aether::Simulation
     {
         if (!m_ConstantBuffer || !m_ParameterBuffer) return;
         ProcessCompletedRetirements();
+        m_ParameterUploads[m_GraphicsContext->GetFrameIndex()].clear();
         m_LastDeltaTimeSeconds = timestep.GetSeconds();
         m_ElapsedTimeSeconds += timestep.GetSeconds();
     }
@@ -221,36 +223,110 @@ namespace Elixir::Aether::Simulation
         const Ref<CommandBuffer>& cmd
     )
     {
+        return RecordSteps(submission, cmd, std::span(&m_LastDeltaTimeSeconds, 1),
+            m_ElapsedTimeSeconds - m_LastDeltaTimeSeconds);
+    }
+
+    Ref<const RenderFrame> Simulator::RecordSteps(
+        const FrameSubmission& submission,
+        const Ref<CommandBuffer>& cmd,
+        const std::span<const float> steps,
+        const float initialTime
+    )
+    {
         EE_CORE_ASSERT(cmd, "Aether simulation requires a command buffer.")
-        if (!cmd || !m_ConstantBuffer || !m_ParameterBuffer) return nullptr;
+
+        if (!cmd || !m_ConstantBuffer || !m_ParameterBuffer || steps.empty())
+            return nullptr;
+
+        const auto invalidStep = std::ranges::any_of(steps, [](const float step) {
+            return !std::isfinite(step) || step < 0;
+        });
+
+        if (!std::isfinite(initialTime) || initialTime < 0 || invalidStep)
+        {
+            EE_CORE_ERROR("Aether simulation requires finite, nonnegative step and initial times.");
+            return nullptr;
+        }
 
         const auto serial = ++m_SubmissionSerial;
-
         m_LastMetrics = {
             .SubmissionSerial = serial,
-            .DeltaTimeSeconds = m_LastDeltaTimeSeconds,
-            .ElapsedTimeSeconds = m_ElapsedTimeSeconds,
+            .DeltaTimeSeconds = steps.back(),
+            .ElapsedTimeSeconds = initialTime,
             .RequestedSystemInstanceCount = submission.GetRenderProxies().size(),
             .TriggerEventCapacityPerEmitter = m_Limits.TriggerEventCapacityPerEmitter,
         };
 
-        const auto extent = m_GraphicsContext->GetRenderTarget()->GetExtent();
-        const SParamsData params{
-            .Time = { m_LastDeltaTimeSeconds, m_ElapsedTimeSeconds, 0.0f, 0.0f },
-            .Viewport = { (float)extent.Width, (float)extent.Height, 0.0f, 0.0f },
-        };
-        m_ParamsBuffer->UpdateData(&params, sizeof(params));
-
-        auto instances = ResolveSubmittedInstances(submission);
-
+        const auto instances = ResolveSubmittedInstances(submission);
         const auto batches = BuildSimulationBatches(instances);
-        m_LastMetrics.SimulationBatchCount = batches.size();
+        const auto extent = m_GraphicsContext->GetRenderTarget()->GetExtent();
 
-        for (const auto& batch : batches)
-            SimulateBatch(cmd, batch);
+        std::vector<SParamsData> parameters;
+        parameters.reserve(steps.size());
+
+        float elapsed = initialTime;
+        for (const float step : steps)
+        {
+            elapsed += step;
+            parameters.push_back({
+                .Time = { step, elapsed, 0, 0 },
+                .Viewport = { (float)extent.Width, (float)extent.Height, 0, 0 }
+            });
+        }
+
+        const auto upload = StagingBuffer::Create(
+            m_GraphicsContext,
+            parameters.size() * sizeof(SParamsData),
+            parameters.data()
+        );
+        if (!upload || !upload->IsValid())
+        {
+            EE_CORE_ERROR("Could not allocate Aether simulation time upload.");
+            return nullptr;
+        }
+
+        m_ParameterUploads[m_GraphicsContext->GetFrameIndex()].push_back(upload);
+
+        for (size_t index = 0; index < steps.size(); ++index)
+        {
+            m_ParamsBuffer->Barrier(
+                cmd,
+                EPipelineStage::Transfer,
+                EPipelineAccess::TransferWrite
+            );
+
+            SBufferCopy region{
+                .SrcOffset = index * sizeof(SParamsData),
+                .DstOffset = 0,
+                .Size = sizeof(SParamsData)
+            };
+
+            cmd->CopyBuffer(
+                upload,
+                m_ParamsBuffer,
+                std::span(&region, 1)
+            );
+
+            m_ParamsBuffer->Barrier(
+                cmd,
+                EPipelineStage::ComputeShader,
+                EPipelineAccess::UniformRead
+            );
+
+            for (const auto& batch : batches)
+                SimulateBatch(cmd, batch);
+        }
 
         for (const auto& batch : batches)
             PublishRenderBarrier(cmd, batch.ParticleStateLayout);
+
+        m_LastDeltaTimeSeconds = steps.back();
+        m_ElapsedTimeSeconds = elapsed;
+
+        m_LastMetrics.DeltaTimeSeconds = m_LastDeltaTimeSeconds;
+        m_LastMetrics.ElapsedTimeSeconds = elapsed;
+        m_LastMetrics.SimulationBatchCount = batches.size();
 
         return CreateRef<RenderFrame>(
             BuildRenderResources(),
