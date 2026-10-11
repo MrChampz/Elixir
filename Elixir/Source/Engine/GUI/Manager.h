@@ -1,5 +1,7 @@
 #pragma once
 
+#include <mutex>
+
 #include <Engine/Event/KeyEvent.h>
 #include <Engine/Event/WindowEvent.h>
 #include <Engine/GUI/Renderer/Renderer.h>
@@ -33,8 +35,19 @@ namespace Elixir::GUI
         void Shutdown();
 
         void ArrangeLayout(const Extent2D& extent) const;
+        /** Updates widgets and publishes their draw commands on the UI thread. */
         void Update(Timestep frameTime);
+        /** Captures immutable draw commands on the UI thread. Reuses unchanged snapshots. */
+        Ref<const RenderBatch> CaptureRenderFrame();
+
+        /** Draws the latest snapshot published by Update or CaptureRenderFrame on the render thread. */
         void Render();
+
+        /**
+         * Draws a captured snapshot without reading widgets or their caches.
+         * @pre Called on the render thread after waiting for the current frame slot's fence.
+         */
+        void Render(const Ref<const RenderBatch>& frame);
 
         void ProcessEvent(Event& event);
 
@@ -81,6 +94,7 @@ namespace Elixir::GUI
          */
         bool WantsMouse() const;
 
+        /** Returns the last assembled batch for inspection on the UI thread. */
         const RenderBatch& GetRenderBatch() const { return m_RenderBatch; }
 
     protected:
@@ -107,6 +121,9 @@ namespace Elixir::GUI
         void SetFocusedWidget(const Ref<Widget>& widget);
 
     private:
+        // Acquires the latest immutable snapshot without accessing UI-thread state.
+        Ref<const RenderBatch> GetPublishedFrame() const;
+
         bool HandleFramebufferResize(const FramebufferResizeEvent& event) const;
         bool HandleKeyTyped(const KeyTypedEvent& event) const;
 
@@ -186,7 +203,12 @@ namespace Elixir::GUI
         );
 
         Scope<Renderer> m_Renderer;
+        // Mutable assembly state belongs only to the UI thread.
         RenderBatch m_RenderBatch;
+        Ref<const RenderBatch> m_PublishedFrame;
+        mutable std::mutex m_FrameMutex;
+        // Only the render thread reads or changes this reference.
+        Ref<const RenderBatch> m_LastDrawnFrame;
 
         // Index 0 is the UI root; anything above it is a popup, topmost last.
         std::vector<SLayer> m_Layers;
@@ -227,8 +249,7 @@ namespace Elixir::GUI
         // rendering at a stale {0,0} geometry for one frame.
         mutable Extent2D m_LastExtent{};
 
-        // Dirty epoch of the last frame we assembled + uploaded. When it still matches the
-        // current epoch, the batch and GPU buffers are reused and only the draws are re-issued.
+        // UI-thread gate: the last assembled snapshot's dirty epoch.
         uint64_t m_LastRenderedEpoch = 0;
 
         // Bumped on every layer stack mutation (SetRoot, PushPopup, PopPopup, ClearPopups).

@@ -1,4 +1,6 @@
 #include <gtest/gtest.h>
+#include <atomic>
+#include <thread>
 using namespace testing;
 
 #include "ManagerTestUtils.h"
@@ -103,4 +105,85 @@ TEST(RenderGateTest, RootSwapTriggersRebuildEvenWhenEpochUnchanged)
 
     // ...yet the gate must still rebuild, driven purely by the root-pointer change.
     EXPECT_TRUE(manager.NeedsRebuild());
+}
+
+TEST(RenderGateTest, CapturedFrameKeepsItsCommandsWhenWidgetsChange)
+{
+    const auto box = CreateRef<VerticalBox>();
+    box->SetBackgroundColor(EStyleLayer::Normal, SColor(1, 0, 0, 1));
+    box->ArrangeChildren({{0, 0}, {100, 100}});
+    TestGUIManager manager;
+    manager.SetRoot(box);
+
+    const auto first = manager.CaptureRenderFrame();
+    ASSERT_FALSE(first->GetCommands().empty());
+    const auto original = first->GetCommands().front();
+    EXPECT_EQ(manager.CaptureRenderFrame(), first);
+
+    box->SetOpacity(0.25f);
+    box->SetRenderOffset({12, 5});
+    const auto second = manager.CaptureRenderFrame();
+    ASSERT_NE(second, first);
+    EXPECT_EQ(first->GetCommands().front().Color.A, original.Color.A);
+    EXPECT_EQ(first->GetCommands().front().Geometry.Position, original.Geometry.Position);
+    EXPECT_FLOAT_EQ(second->GetCommands().front().Color.A, original.Color.A * 0.25f);
+    EXPECT_EQ(second->GetCommands().front().Geometry.Position, original.Geometry.Position + glm::vec2(12, 5));
+}
+
+TEST(RenderGateTest, HiddenOrRemovedRootPublishesAnEmptyFrame)
+{
+    const auto box = CreateRef<VerticalBox>();
+    box->SetBackgroundColor(EStyleLayer::Normal, SColor(1, 0, 0, 1));
+    box->ArrangeChildren({{0, 0}, {100, 100}});
+    TestGUIManager manager;
+    manager.SetRoot(box);
+    const auto visible = manager.CaptureRenderFrame();
+    ASSERT_FALSE(visible->GetCommands().empty());
+
+    box->SetVisibility(EVisibility::Collapsed);
+    EXPECT_TRUE(manager.CaptureRenderFrame()->GetCommands().empty());
+    box->SetVisibility(EVisibility::Visible);
+    EXPECT_FALSE(manager.CaptureRenderFrame()->GetCommands().empty());
+    manager.SetRoot(nullptr);
+    EXPECT_TRUE(manager.CaptureRenderFrame()->GetCommands().empty());
+    EXPECT_FALSE(visible->GetCommands().empty());
+}
+
+TEST(RenderGateTest, RenderThreadCanRetainOldFramesDuringPanelTransitions)
+{
+    const auto box = CreateRef<VerticalBox>();
+    box->SetBackgroundColor(EStyleLayer::Normal, SColor(1, 0, 0, 1));
+    box->ArrangeChildren({{0, 0}, {100, 100}});
+    TestGUIManager manager;
+    manager.SetRoot(box);
+    const auto frame = manager.CaptureRenderFrame();
+    ASSERT_FALSE(frame->GetCommands().empty());
+    const auto original = frame->GetCommands().front();
+    std::atomic<bool> valid{true};
+    std::atomic<bool> ready{false};
+    std::atomic<bool> done{false};
+    std::thread consumer([&]
+    {
+        ready = true;
+        while (!done.load())
+        {
+            const auto& command = frame->GetCommands().front();
+            if (command.Color.A != original.Color.A || command.Geometry.Position != original.Geometry.Position)
+                valid = false;
+            // With no GPU renderer, this still exercises synchronized publication reads.
+            manager.Render();
+            manager.Render(frame);
+        }
+    });
+    while (!ready.load()) std::this_thread::yield();
+    for (int i = 0; i < 1000; ++i)
+    {
+        box->SetOpacity((i % 10) / 10.0f);
+        box->SetRenderOffset({float(i), 0});
+        box->SetVisibility(i % 2 ? EVisibility::Visible : EVisibility::Collapsed);
+        manager.CaptureRenderFrame();
+    }
+    done = true;
+    consumer.join();
+    EXPECT_TRUE(valid.load());
 }

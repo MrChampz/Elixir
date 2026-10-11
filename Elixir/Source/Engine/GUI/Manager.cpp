@@ -52,20 +52,44 @@ namespace Elixir::GUI
             if (layer.Root)
                 layer.Root->Update(frameTime);
         }
+        CaptureRenderFrame();
+    }
+
+    Ref<const RenderBatch> Manager::CaptureRenderFrame()
+    {
+        auto frame = GetPublishedFrame();
+        if (NeedsRebuild() || !frame)
+        {
+            AssembleFrame();
+            frame = CreateRef<RenderBatch>(m_RenderBatch);
+            {
+                std::lock_guard lock(m_FrameMutex);
+                m_PublishedFrame = frame;
+            }
+            MarkRebuilt();
+        }
+        return frame;
+    }
+
+    Ref<const RenderBatch> Manager::GetPublishedFrame() const
+    {
+        std::lock_guard lock(m_FrameMutex);
+        return m_PublishedFrame;
     }
 
     void Manager::Render()
     {
-        if (m_Layers.empty() || !m_Layers[0].Root || !m_Layers[0].Root->IsRenderVisible())
-            return;
+        Render(GetPublishedFrame());
+    }
 
-        if (NeedsRebuild())
+    void Manager::Render(const Ref<const RenderBatch>& frame)
+    {
+        if (!frame || !m_Renderer) return;
+        if (frame != m_LastDrawnFrame)
         {
-            AssembleFrame();
-            m_Renderer->Rebuild(m_RenderBatch);
-            MarkRebuilt();
+            m_Renderer->Rebuild(*frame);
+            m_LastDrawnFrame = frame;
         }
-
         m_Renderer->Draw();
     }
 
@@ -182,6 +206,8 @@ namespace Elixir::GUI
     void Manager::AssembleFrame()
     {
         m_RenderBatch.Clear();
+        if (m_Layers.empty() || !m_Layers[0].Root || !m_Layers[0].Root->IsRenderVisible())
+            return;
 
         int zCursor = 0;
         bool rebuilt = false;
