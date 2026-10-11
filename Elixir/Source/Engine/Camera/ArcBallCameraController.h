@@ -35,6 +35,18 @@ namespace Elixir
         void SetTarget(const glm::vec3& target);
         void SetDistance(float distance);
 
+        /**
+         * @brief Sets the horizontal orbit angle and updates the camera.
+         * @param yawDegrees Angle around the Y axis, measured from positive X.
+         */
+        void SetOrbitYaw(float yawDegrees);
+
+        /**
+         * @brief Sets the vertical orbit angle and updates the camera.
+         * @param pitchDegrees Angle above the XZ plane, clamped to -89 through 89 degrees.
+         */
+        void SetOrbitPitch(float pitchDegrees);
+
         void SetOrbitSensitivity(const float sensitivity) { m_OrbitSensitivity = sensitivity; }
         void SetPanSensitivity(const float sensitivity) { m_PanSensitivity = sensitivity; }
         void SetZoomSensitivity(const float sensitivity) { m_ZoomSensitivity = sensitivity; }

@@ -19,6 +19,7 @@ namespace Elixir::GUI
       public:
         /**
          * @brief Construct a button with a copy of the current default button style.
+         * Uses content plus padding for its desired size, or 120 by 40 when empty.
          * @param text Initial label.
          */
         explicit Button(const std::string& text = "");
@@ -72,7 +73,6 @@ namespace Elixir::GUI
         float m_FontSize = 16.0f;
 
         SPadding m_Padding;
-        glm::vec2 m_MinDesiredSize{ 120.0f, 40.0f };
         SButtonStyle m_Style;
     };
 }

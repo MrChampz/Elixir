@@ -49,6 +49,18 @@ namespace Elixir
         UpdateCameraFromOrbit();
     }
 
+    void ArcBallCameraController::SetOrbitYaw(const float yawDegrees)
+    {
+        m_Yaw = yawDegrees;
+        UpdateCameraFromOrbit();
+    }
+
+    void ArcBallCameraController::SetOrbitPitch(const float pitchDegrees)
+    {
+        m_Pitch = glm::clamp(pitchDegrees, -89.0f, 89.0f);
+        UpdateCameraFromOrbit();
+    }
+
     bool ArcBallCameraController::HandleMouseScrolled(const MouseScrolledEvent& event)
     {
         m_Distance -= event.GetOffsetY() * m_ZoomSensitivity;

@@ -85,7 +85,10 @@ namespace Elixir::GUI
             m_Padding.GetTotalVertical()
         );
 
-        return glm::max(desiredSize, m_MinDesiredSize);
+        if (!HasContent() && m_Text.empty())
+            return glm::max(desiredSize, glm::vec2(120.0f, 40.0f));
+
+        return desiredSize;
     }
 
     void Button::LayoutChildren(const SRect& allocatedSpace)
