@@ -52,10 +52,9 @@ namespace Elixir::GUI
             if (layer.Root)
                 layer.Root->Update(frameTime);
         }
-        CaptureRenderFrame();
     }
 
-    Ref<const RenderBatch> Manager::CaptureRenderFrame()
+    void Manager::PrepareFrame()
     {
         auto frame = GetPublishedFrame();
         if (NeedsRebuild() || !frame)
@@ -68,7 +67,6 @@ namespace Elixir::GUI
             }
             MarkRebuilt();
         }
-        return frame;
     }
 
     Ref<const RenderBatch> Manager::GetPublishedFrame() const
@@ -79,11 +77,7 @@ namespace Elixir::GUI
 
     void Manager::Render()
     {
-        Render(GetPublishedFrame());
-    }
-
-    void Manager::Render(const Ref<const RenderBatch>& frame)
-    {
+        const auto frame = GetPublishedFrame();
         if (!frame || !m_Renderer) return;
         if (frame != m_LastDrawnFrame)
         {

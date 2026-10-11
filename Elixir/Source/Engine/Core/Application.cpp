@@ -210,16 +210,15 @@ namespace Elixir
 
             Prepare(frameTime);
 
-            // Capture on the UI thread and retain this exact revision until its frame is rendered.
-            const auto guiFrame = m_GUIManager->CaptureRenderFrame();
-            m_GraphicsContext->RenderFrame([this, frameTime, guiFrame]()
+            m_GUIManager->PrepareFrame();
+            m_GraphicsContext->RenderFrame([this, frameTime]()
             {
                 m_MaterialSystem->BeginFrame();
                 m_GraphicsContext->Clear(m_SceneTarget);
                 Render(frameTime);
                 m_MaterialSystem->RenderFrame();
                 m_PostProcessor->Apply(m_SceneTarget, m_GraphicsContext->GetRenderTarget());
-                m_GUIManager->Render(guiFrame);
+                m_GUIManager->Render();
             });
 
             EE_PROFILE_FRAME_MARK_NAMED(EE_PROFILE_MAIN_LOOP)

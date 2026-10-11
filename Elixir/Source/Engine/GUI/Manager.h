@@ -35,19 +35,22 @@ namespace Elixir::GUI
         void Shutdown();
 
         void ArrangeLayout(const Extent2D& extent) const;
-        /** Updates widgets and publishes their draw commands on the UI thread. */
-        void Update(Timestep frameTime);
-        /** Captures immutable draw commands on the UI thread. Reuses unchanged snapshots. */
-        Ref<const RenderBatch> CaptureRenderFrame();
 
-        /** Draws the latest snapshot published by Update or CaptureRenderFrame on the render thread. */
-        void Render();
+        /** Updates widget state on the UI thread. */
+        void Update(Timestep frameTime);
 
         /**
-         * Draws a captured snapshot without reading widgets or their caches.
+         * Prepares and publishes the current frame's draw commands internally.
+         * Unchanged frames reuse the previously prepared snapshot.
+         * @pre Called on the UI thread after widget updates and final layout.
+         */
+        void PrepareFrame();
+
+        /**
+         * Draws the latest prepared frame without accessing widgets or their caches.
          * @pre Called on the render thread after waiting for the current frame slot's fence.
          */
-        void Render(const Ref<const RenderBatch>& frame);
+        void Render();
 
         void ProcessEvent(Event& event);
 
