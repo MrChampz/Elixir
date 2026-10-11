@@ -1,6 +1,10 @@
 #include "EditorUI.h"
 #include "EditorPanel.h"
 #include "EditorStyles.h"
+#include "Panels/ContentBrowserPanel.h"
+#include <Engine/Core/Platform.h>
+#include <Engine/GUI/Button.h>
+#include <Engine/Input/InputManager.h>
 
 #include <Engine/GUI/Icon.h>
 #include <Engine/Icon/IconManager.h>
@@ -29,6 +33,30 @@ EditorUI::EditorUI(GUI::Manager* guiManager)
     : m_GUIManager(guiManager)
 {
     Build();
+}
+
+EditorUI::~EditorUI() = default;
+
+void EditorUI::SetContentBrowser(Scope<ContentBrowserPanel> panel)
+{
+    const auto widget = panel->Build();
+    m_Root->AddChild(widget).SetAnchors(GUI::SAnchors::StretchAll())
+        .SetOffsets(10.0f, MenuBarHeight + TabBarHeight, -10.0f, -AssetBrowserHeight - 10.0f);
+    m_ContentBrowser = std::move(panel);
+}
+
+bool EditorUI::IsContentBrowserHovered() const
+{
+    const auto [x, y] = InputManager::GetMousePosition();
+    return m_ContentBrowser && m_ContentBrowser->Contains({x, y});
+}
+
+bool EditorUI::DismissContentBrowserOutside(const glm::vec2& point)
+{
+    if (!m_ContentBrowser || !m_ContentBrowser->IsOpen() || m_ContentBrowser->Contains(point) ||
+        m_ContentBrowserButton->GetGeometry().Contains(point)) return false;
+    m_ContentBrowser->SetOpen(false);
+    return true;
 }
 
 void EditorUI::Build()
@@ -136,10 +164,17 @@ void EditorUI::BuildAssetBrowser()
         .SetAlignment({ 0.0f, 1.0f })
         .SetSize({ 0.0f, AssetBrowserHeight });
 
-    const auto title = CreateRef<GUI::TextBlock>("Project");
-    title->SetColor(styles.TextPrimary);
-    title->SetFontSize(12.0f);
-    m_AssetBrowser->AddChild(title).SetMargin(GUI::SMargin(0.0f, 0.0f, 8.0f, 0.0f));
+    m_ContentBrowserButton = CreateRef<GUI::Button>();
+    m_ContentBrowserButton->SetStyle(styles.PanelHeaderButton);
+    m_ContentBrowserButton->SetPadding({10, 5});
+    const auto title = CreateRef<GUI::TextBlock>("Content Browser");
+    title->SetColor(styles.TextPrimary); title->SetFontSize(11);
+    m_ContentBrowserButton->SetContent(title);
+    m_ContentBrowserButton->OnClick([this]
+    { if (m_ContentBrowser) m_ContentBrowser->SetOpen(!m_ContentBrowser->IsOpen()); });
+    m_AssetBrowser->AddChild(m_ContentBrowserButton)
+        .SetVerticalAlignment(GUI::EVerticalAlignment::Center)
+        .SetMargin({0, 5, 12, 5});
 
     const auto path = CreateRef<GUI::TextBlock>("Assets / VFX");
     path->SetColor(styles.TextSecondary);
@@ -193,6 +228,8 @@ void EditorUI::AddTab(const std::string& label, const bool active)
     // unhandled press on a leaf child bubbles up to the nearest ancestor with a callback -
     // see Widget::HandleMouseDown's early-out when no callback is set.
     column->OnClick([this, index] { SetActiveTab(index); });
+    column->OnMouseEnter([] { Platform::Get().SetCursorShape(ECursorShape::Hand); });
+    column->OnMouseLeave([] { Platform::Get().SetPreviousCursorShape(); });
 
     SetActiveTab(m_ActiveTabIndex);
 }
@@ -304,6 +341,7 @@ void EditorUI::AddPanel(Scope<EditorPanel> panel, const int tabIndex)
     if (widget)
         widget->SetVisibility(active ? GUI::EVisibility::Visible : GUI::EVisibility::Collapsed);
     panel->OnActivated(active);
+    panel->SetOverlaysHidden(m_ContentBrowser && m_ContentBrowser->IsOpen());
     m_Panels.push_back({ std::move(panel), widget, tabIndex });
 }
 
@@ -314,9 +352,28 @@ void EditorUI::SetAssetBrowserStatus(const std::string& status)
 
 void EditorUI::Update(const Timestep frameTime)
 {
+    if (m_ContentBrowser)
+    {
+        m_ContentBrowser->OnUpdate(frameTime);
+        for (auto& panel : m_Panels)
+            panel.Panel->SetOverlaysHidden(m_ContentBrowser->IsOpen());
+        auto style = EditorStyle::Get().PanelHeaderButton;
+        if (m_ContentBrowser->IsOpen())
+        {
+            style.Normal.Background = EditorStyle::Get().PanelSection.Normal.Background;
+            style.Normal.Background.CornerRadius = glm::vec4(4.0f);
+            style.Hovered = style.Normal;
+            style.Pressed = style.Normal;
+            style.Focused = style.Normal;
+        }
+        m_ContentBrowserButton->SetStyle(style);
+    }
     for (auto& panel : m_Panels)
+    {
+        panel.Panel->UpdateOverlayAnimations(frameTime);
         if (panel.TabIndex < 0 || panel.TabIndex == m_ActiveTabIndex)
             panel.Panel->OnUpdate(frameTime);
+    }
 }
 
 int EditorUI::AddDocument(Scope<EditorPanel> panel, const std::string& title, std::function<void(int)> closeRequested)

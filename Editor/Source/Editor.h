@@ -6,8 +6,11 @@
 #include "VFX/EditorVFXManager.h"
 #include <Engine/Graphics/PostProcessor.h>
 #include <Engine/Materials/MaterialSystem.h>
+#include <Engine/Camera/ArcBallCameraController.h>
+#include <Engine/Mesh/StaticMeshRenderer.h>
 
 class VFXPanel;
+class ViewportPanel;
 
 /** @brief Hosts scene tools and the project VFX preview editor. */
 class Editor final : public Elixir::Application
@@ -27,6 +30,16 @@ public:
     void OnEvent(Event& event) override;
 
 private:
+    // Loads Sponza and sets up its camera and lighting.
+    void LoadDefaultScene();
+    // Routes orbit, pan and zoom input outside scene controls.
+    void ProcessSceneCameraEvent(Event& event, bool inputBlocked);
+    Ref<StaticMesh> m_SceneMesh;
+    Scope<StaticMeshRenderer> m_SceneRenderer;
+    Scope<ArcBallCameraController> m_SceneCamera;
+    ViewportPanel* m_ScenePanel = nullptr;
+    bool m_SceneOrbitDragging = false, m_ScenePanDragging = false;
+    SStaticMeshLighting m_SceneLighting;
     Scope<EditorUI> m_EditorUI;
     // Opens or focuses an asset document without replacing other tab sessions.
     void OpenVFXAsset(const std::filesystem::path& asset);

@@ -1,9 +1,12 @@
 #include "VFXPanel.h"
 #include "../EditorStyles.h"
+#include "../../VFX/VFXTimeline.h"
 
 #include <Engine/Aether/Effect/Effect.h>
 #include <Engine/GUI/Button.h>
 #include <Engine/GUI/Checkbox.h>
+#include <Engine/GUI/Icon.h>
+#include <Engine/Icon/IconManager.h>
 #include <Engine/GUI/ScrollBox.h>
 #include <Engine/GUI/TextField.h>
 #include <Engine/GUI/Renderer/RenderBatch.h>
@@ -48,9 +51,7 @@ namespace
     Ref<GUI::Button> Action(const std::string& label, std::function<void()> clicked, const float scale = 1)
     {
         const auto button = CreateRef<StackButton>(scale);
-        auto style = EditorStyle::Get().PanelToggleButton;
-        style.Normal.Background.CornerRadius = glm::vec4(3.0f);
-        button->SetStyle(style);
+        button->SetStyle(EditorStyle::Get().PanelToggleButton);
         button->SetPadding({ 6.0f * scale, 4.0f * scale }); button->SetContent(Text(label, 11.0f * scale));
         button->OnClick(std::move(clicked)); return button;
     }
@@ -61,14 +62,83 @@ namespace
             .SetMargin({ 0.0f, 2.0f });
     }
 
+    Ref<GUI::Icon> CreateIcon(const std::string& name, const float size = 12)
+    {
+        const auto icon = CreateRef<GUI::Icon>();
+        icon->SetIcon(IconManager::Load((std::filesystem::path(ELIXIR_EDITOR_PROJECT_ROOT) / "Assets" / "Icons" / (name + ".svg")).string()));
+        icon->SetStyle(EditorStyle::Get().SecondaryIcon); icon->SetSize({size, size});
+        return icon;
+    }
+
+    SColor EmitterColor(const size_t index)
+    {
+        const float hue = std::fmod(0.08f + static_cast<float>(index) * 0.61803398875f, 1.0f);
+        constexpr float saturation = 0.60f;
+        constexpr float value = 0.78f;
+        const float sectorPosition = hue * 6;
+        const int sector = static_cast<int>(sectorPosition);
+        const float fraction = sectorPosition - static_cast<float>(sector);
+        const float low = value * (1 - saturation);
+        const float falling = value * (1 - saturation * fraction);
+        const float rising = value * (1 - saturation * (1 - fraction));
+        switch (sector)
+        {
+            case 0: return {value, rising, low, 1};
+            case 1: return {falling, value, low, 1};
+            case 2: return {low, value, rising, 1};
+            case 3: return {low, falling, value, 1};
+            case 4: return {rising, low, value, 1};
+            default: return {value, low, falling, 1};
+        }
+    }
+
+    SButtonStyle StackHeaderStyle(const SColor color, const float radius)
+    {
+        auto style = EditorStyle::Get().PanelHeaderButton;
+        style.Normal.Background.Color = color;
+        style.Normal.Background.CornerRadius = {radius, radius, 0, 0};
+        style.Hovered = style.Normal; style.Pressed = style.Normal; style.Focused = style.Normal;
+        style.Disabled = style.Normal;
+        return style;
+    }
+
+    Ref<GUI::Canvas> ColorMarker(const SColor color, const float size = 7)
+    {
+        const auto marker = CreateRef<GUI::Canvas>(); marker->SetSize({size, size});
+        auto style = EditorStyle::Get().Transparent;
+        style.Normal.Background.Color = color; style.Normal.Background.CornerRadius = glm::vec4(2);
+        marker->SetStyle(style); return marker;
+    }
+
+    // Keeps the frame visible above preview images and colored stack headers.
+    class SurfaceOutline final : public GUI::Widget
+    {
+    public:
+        /** @brief Draws a surface border without intercepting input. */
+        explicit SurfaceOutline(const SBrush& brush) : m_Brush(brush)
+        { SetVisibility(GUI::EVisibility::HitTestInvisible); }
+    protected:
+        glm::vec2 ComputeDesiredSize(const glm::vec2&) override { return {}; }
+        void BuildDrawCommands(GUI::RenderBatch& batch, const int zOrder) override
+        { batch.AddRect(GetGeometry(), {}, m_Brush.CornerRadius, {}, {}, m_Brush.Outline, zOrder); }
+    private:
+        SBrush m_Brush;
+    };
+
+    Ref<GUI::Overlay> FramedStack(const Ref<GUI::VerticalBox>& column, const SWidgetStyle& style)
+    {
+        const auto surface = CreateRef<GUI::Overlay>(); surface->SetStyle(style);
+        surface->AddChild(column).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill).SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
+        surface->AddChild(CreateRef<SurfaceOutline>(style.Normal.Background))
+            .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill).SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
+        return surface;
+    }
+
     Ref<GUI::VerticalBox> MakePanel(const Ref<GUI::Canvas>& root, const GUI::SAnchors anchors,
         const float left, const float top, const float right, const float bottom)
     {
         const auto surface = CreateRef<GUI::Overlay>();
-        auto style = EditorStyle::Get().Panel;
-        style.Normal.Background.Color = { 0.075f, 0.079f, 0.09f, 1.0f };
-        style.Normal.Background.CornerRadius = glm::vec4(3.0f);
-        surface->SetStyle(style); surface->SetPadding({ 8.0f, 8.0f });
+        surface->SetStyle(EditorStyle::Get().Panel);
         auto& slot = root->AddChild(surface);
         slot.SetAnchors(anchors).SetOffsets(left, top, right, bottom);
         slot.SetPosition({ anchors.IsStretchingHorizontally() ? 0.0f : left,
@@ -78,6 +148,8 @@ namespace
         const auto column = CreateRef<GUI::VerticalBox>();
         surface->AddChild(column).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill)
             .SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
+        surface->AddChild(CreateRef<SurfaceOutline>(EditorStyle::Get().Panel.Normal.Background))
+            .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill).SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
         return column;
     }
 
@@ -145,9 +217,10 @@ namespace
             const float startX = std::fmod(-m_Offset.x, spacing);
             const float startY = std::fmod(-m_Offset.y, spacing);
             for (float x = startX; x < rect.Size.x; x += spacing)
-                batch.AddRect({ rect.Position + glm::vec2(x, 0), { 1, rect.Size.y } }, { 0.13f, 0.14f, 0.16f, 1 }, {}, {}, {}, {}, zOrder);
-            for (float y = startY; y < rect.Size.y; y += spacing)
-                batch.AddRect({ rect.Position + glm::vec2(0, y), { rect.Size.x, 1 } }, { 0.13f, 0.14f, 0.16f, 1 }, {}, {}, {}, {}, zOrder);
+                for (float y = startY; y < rect.Size.y; y += spacing)
+                    batch.AddRect({ rect.Position + glm::vec2(x, y), { 1.5f, 1.5f } },
+                        { 0.22f, 0.23f, 0.25f, 1 }, {}, {}, {}, {}, zOrder);
+
         }
     private:
         glm::vec2 m_Offset{};
@@ -165,7 +238,7 @@ namespace
             MarkRenderDirty();
         }
     protected:
-        glm::vec2 ComputeDesiredSize(const glm::vec2& size) override { return glm::min(size, glm::vec2(284, 160)); }
+        glm::vec2 ComputeDesiredSize(const glm::vec2& size) override { return glm::min(size, glm::vec2(180, 180)); }
         void BuildDrawCommands(GUI::RenderBatch& batch, const int zOrder) override
         {
             if (m_Image)
@@ -186,6 +259,9 @@ namespace
     class TimeRuler final : public GUI::Widget
     {
     public:
+        /** @brief Colors an emitter track over the preview simulation interval. */
+        void SetTrack(const SColor color, std::vector<TimelineInterval> intervals)
+        { m_TrackColor = color; m_Intervals = std::move(intervals); m_IsTrack = true; MarkRenderDirty(); }
         /** @brief Updates the playback marker in seconds. */
         void SetTime(const float time, const float duration)
         {
@@ -199,18 +275,30 @@ namespace
         {
             const auto rect = GetGeometry();
             batch.AddRect(rect, { 0.10f, 0.11f, 0.13f, 1 }, {}, {}, {}, {}, zOrder);
-            for (int tick = 0; tick <= 20; ++tick)
+            if (m_IsTrack)
+                for (const auto& interval : m_Intervals)
+                {
+                    const float start = std::clamp(interval.Start / m_Duration, 0.0f, 1.0f);
+                    const float end = std::clamp(interval.End / m_Duration, start, 1.0f);
+                    batch.AddRect({rect.Position + glm::vec2(rect.Size.x * start, 5),
+                        {rect.Size.x * (end - start), std::max(0.0f, rect.Size.y - 10)}},
+                        m_TrackColor, glm::vec4(3), {}, {}, {}, zOrder + 1);
+                }
+            for (int tick = 0; !m_IsTrack && tick <= 20; ++tick)
             {
                 const auto x = rect.Position.x + rect.Size.x * tick / 20.0f;
                 batch.AddRect({ { x, rect.Position.y }, { 1, tick % 4 == 0 ? rect.Size.y : 5.0f } },
                     { 0.24f, 0.26f, 0.30f, 1 }, {}, {}, {}, {}, zOrder + 1);
             }
             const auto x = rect.Position.x + rect.Size.x * std::clamp(m_Time / m_Duration, 0.0f, 1.0f);
-            batch.AddRect({ { x, rect.Position.y }, { 2, rect.Size.y } }, EditorStyle::Get().Accent,
+            batch.AddRect({ { x, rect.Position.y }, { 2, rect.Size.y } }, EditorStyle::Get().TextPrimary,
                 {}, {}, {}, {}, zOrder + 2);
         }
     private:
         float m_Time = 0.0f, m_Duration = 5.0f;
+        bool m_IsTrack = false;
+        SColor m_TrackColor;
+        std::vector<TimelineInterval> m_Intervals;
     };
 }
 
@@ -235,79 +323,129 @@ Ref<GUI::Widget> VFXPanel::Build()
     m_Grid = CreateRef<GraphGrid>();
     workbench->AddChild(m_Grid).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill)
         .SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
-    const auto toolbar = CreateRef<GUI::HorizontalBox>();
-    root->AddChild(toolbar).SetAnchors({1, 0, 1, 0}).SetAlignment({1, 0})
-        .SetPosition({-12, 12}).SetSize({125, 30});
-    m_WorkbenchToolbar = toolbar;
-    const auto overviewHeader = toolbar;
-    overviewHeader->AddChild(Action("-", [this] { m_GraphZoom = std::max(0.5f, m_GraphZoom - 0.1f); m_RebuildSelection = true; })).SetFixedSize(24);
-    overviewHeader->AddChild(Action("+", [this] { m_GraphZoom = std::min(1.75f, m_GraphZoom + 0.1f); m_RebuildSelection = true; })).SetFixedSize(24);
-    overviewHeader->AddChild(Action("+ Emitter", [this]
-    {
-        if (!m_Document) return;
-        const auto name = UniqueEmitterName("Emitter");
-        QueueEdit([name](Document& document) { document.Append({"emitters"}, MakeEmitter(name)); });
-    })).SetFixedSize(75);
     const auto graph = CreateRef<GraphScrollBox>(); graph->SetStyle(EditorStyle::Get().ScrollBar);
     graph->SetScrollAxis(GUI::EScrollAxis::Both); graph->SetSize({ 4000, 4000 });
     graph->SetShowScrollbar(false); m_Graph = graph;
     workbench->AddChild(graph).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill)
         .SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
     m_Overview = CreateRef<GUI::HorizontalBox>();
-    m_Overview->SetPadding({ 2320, 2012, 2320, 2080 });
+    m_Overview->SetPadding({ 2260, 2050, 2260, 2080 });
     graph->SetContent(m_Overview);
 
-    const auto preview = MakePanel(root, { 0, 0, 0, 0 }, 12, 44, 312, 278);
-    m_PreviewSurface = preview;
-    Row(preview, Text("PREVIEW", 11), 22);
-    m_PreviewInput = CreateRef<PreviewSurface>();
-    preview->AddChild(m_PreviewInput).SetFillSize().SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
-    const auto previewControls = Buttons(preview);
-    previewControls->AddChild(Action("Reset camera", [this]
+    const auto header = [](const Ref<GUI::VerticalBox>& column, const std::string& title, const std::string& iconName)
     {
-        std::lock_guard lock(m_PreviewMutex); m_Camera.SetTarget({ 0, 0, 0 }); m_Camera.SetDistance(5);
+        const auto heading = CreateRef<GUI::HorizontalBox>(); heading->SetPadding({8, 0});
+        heading->AddChild(CreateIcon(iconName, 9)).SetFixedSize(9).SetMargin({0, 0, 6, 0});
+        heading->AddChild(Text(title, 12)).SetFillSize();
+        column->AddChild(heading).SetFixedSize(27).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
+        const auto divider = CreateRef<GUI::Canvas>(); divider->SetStyle(EditorStyle::Get().PanelHeaderBorder);
+        column->AddChild(divider).SetFixedSize(1).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
+        return heading;
+    };
+    const auto tools = CreateRef<GUI::Overlay>(); tools->SetStyle(EditorStyle::Get().Toolbar); tools->SetPadding({4, 4});
+    root->AddChild(tools).SetAnchors(GUI::SAnchors::TopCenter()).SetAlignment({0.5f, 0}).SetPosition({0, 10}).SetSize({160, 34});
+    m_WorkbenchToolbar = tools;
+    const auto toolbar = CreateRef<GUI::HorizontalBox>(); tools->AddChild(toolbar).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill).SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
+    const auto command = [&](const std::string& name, const std::string& label, std::function<void()> callback)
+    {
+        const auto button = Action("", std::move(callback)); button->SetStyle(EditorStyle::Get().PanelHeaderButton);
+        const auto content = CreateRef<GUI::HorizontalBox>();
+        content->AddChild(CreateIcon(name)).SetFixedSize(13).SetMargin({0, 0, 5, 0}); content->AddChild(Text(label, 11));
+        button->SetContent(content); toolbar->AddChild(button).SetFillSize();
+    };
+    command("save", "Save", [this] { m_SaveRequested = true; });
+    command("compile", "Compile", [this] { m_CompileRequested = true; });
+
+    const auto modules = MakePanel(root, {0, 0, 0, 0}, 10, 10, 190, 44);
+    m_ModuleToolbar = modules;
+    const auto moduleTools = CreateRef<GUI::HorizontalBox>(); moduleTools->SetPadding({4, 4});
+    modules->AddChild(moduleTools).SetFillSize().SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
+    moduleTools->AddChild(Action("+ Emitter", [this]
+    {
+        if (!m_Document) return;
+        const auto name = UniqueEmitterName("Emitter");
+        QueueEdit([name](Document& document) { document.Append({"emitters"}, MakeEmitter(name)); });
     })).SetFillSize();
+    moduleTools->AddChild(Action("System", [this] { m_SelectedEmitter = -1; m_SelectedModule = -1; m_RebuildSelection = true; })).SetFixedSize(64);
 
-    const auto selection = MakePanel(root, { 1, 0, 1, 1 }, -312, 44, -12, -12);
+    const auto preview = MakePanel(root, {0, 0, 0, 0}, 10, 56, 190, 264);
+    m_PreviewSurface = preview;
+    header(preview, "Preview", "eye");
+    m_PreviewInput = CreateRef<PreviewSurface>();
+    const float previewInset = EditorStyle::Get().Panel.Normal.Background.Outline.Thickness;
+    preview->AddChild(m_PreviewInput).SetFillSize().SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill)
+        .SetMargin({previewInset, 0, previewInset, previewInset});
+
+    const auto selection = MakePanel(root, {1, 0, 1, 1}, -270, 10, -10, -10);
     m_InspectorSurface = selection;
-    Row(selection, Text("SELECTION / DETAILS", 11), 26);
-    m_Inspector = ScrollList(selection);
+    header(selection, "Module Properties", "chevron-right");
+    m_Inspector = ScrollList(selection); m_Inspector->SetPadding({10, 8});
 
-    const auto timeline = MakePanel(root, { 0, 1, 1, 1 }, 12, -150, -324, -12);
+    const auto timeline = MakePanel(root, {0, 1, 1, 1}, 10, -190, -290, -14);
     m_TimelineSurface = timeline;
-    const auto playback = Buttons(timeline);
-    playback->AddChild(Text("TIMELINE", 11)).SetFixedSize(90);
-    playback->AddChild(Action("Restart", [this] { m_RestartRequested = true; })).SetFixedSize(65);
-    m_Playback = Action("Pause", [this]
+    const auto timelineHeading = header(timeline, "Timeline", "clock");
+    m_Clock = Text("0.00s / 5.00s", 10); m_Clock->SetColor(EditorStyle::Get().TextSecondary);
+    timelineHeading->AddChild(m_Clock);
+    const auto playback = CreateRef<GUI::HorizontalBox>(); playback->SetPadding({6, 2});
+    timeline->AddChild(playback).SetFixedSize(34).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
+    const auto transport = [&](const std::string& name, std::function<void()> callback)
     {
-        std::lock_guard lock(m_PreviewMutex); m_Playing = !m_Playing;
-    }); playback->AddChild(m_Playback).SetFixedSize(60);
-    playback->AddChild(Action("Step", [this]
-    {
-        std::lock_guard lock(m_PreviewMutex); m_Playing = false; m_StepRequested = true;
-    })).SetFixedSize(55);
-    const auto loop = CreateRef<GUI::Checkbox>(); loop->SetStyle(EditorStyle::Get().Checkbox); loop->SetChecked(true);
-    loop->OnCheckedChanged([this](const bool checked) { std::lock_guard lock(m_PreviewMutex); m_Loop = checked; });
-    playback->AddChild(loop).SetFixedSize(24); playback->AddChild(Text("Loop 5s", 11)).SetFixedSize(65);
-    playback->AddChild(Action("Speed", [this]
+        const auto button = CreateRef<GUI::Canvas>(); button->SetSize({26, 26});
+        button->SetStyle(EditorStyle::Get().ToolbarButtonInactive); button->OnClick(std::move(callback));
+        button->AddChild(CreateIcon(name, 13)).SetAnchors(GUI::SAnchors::MiddleCenter())
+            .SetAlignment({0.5f, 0.5f}).SetSize({13, 13});
+        playback->AddChild(button).SetFixedSize(26).SetMargin({0, 0, 2, 0}); return button;
+    };
+    const auto seek = [this](const float frames)
     {
         std::lock_guard lock(m_PreviewMutex);
-        m_PlaybackSpeed = m_PlaybackSpeed == 0.25f ? 0.5f : m_PlaybackSpeed == 0.5f ? 1.0f : m_PlaybackSpeed == 1.0f ? 2.0f : 0.25f;
-    })).SetFixedSize(60);
-    m_Clock = Text("0.00s / 5.00s", 11); playback->AddChild(m_Clock).SetFillSize();
-    m_TimeBar = CreateRef<TimeRuler>(); Row(timeline, m_TimeBar, 18);
+        const float current = m_SeekRequested.value_or(m_Playhead);
+        m_SeekRequested = std::clamp(current + frames / 60.0f, 0.0f, m_LoopDuration);
+        m_Playing = false;
+    };
+    transport("restart", [this]
+    { std::lock_guard lock(m_PreviewMutex); m_SeekRequested = 0; m_Playing = false; });
+    transport("fast-rewind", [seek] { seek(-10); });
+    transport("step-backward", [seek] { seek(-1); });
+    m_PlayButton = transport("play", [this] { std::lock_guard lock(m_PreviewMutex); m_Playing = true; });
+    m_PauseButton = transport("pause", [this] { std::lock_guard lock(m_PreviewMutex); m_Playing = false; });
+    transport("step-forward", [this] { std::lock_guard lock(m_PreviewMutex); m_Playing = false; m_StepRequested = true; });
+    transport("fast-forward", [seek] { seek(10); });
+    const auto speed = Action("1.00x", [this]
+    {
+        std::lock_guard lock(m_PreviewMutex);
+        m_PlaybackSpeed = m_PlaybackSpeed < 4 ? m_PlaybackSpeed * 2 : 0.25f;
+    });
+    m_SpeedLabel = std::static_pointer_cast<GUI::TextBlock>(speed->GetContentSlot()->GetWidget());
+    playback->AddChild(speed).SetFixedSize(56).SetMargin({8, 0, 8, 0});
+    const auto loop = CreateRef<GUI::Checkbox>(); loop->SetStyle(EditorStyle::Get().Checkbox);
+    loop->SetSize({16, 16}); loop->SetChecked(true);
+    loop->OnCheckedChanged([this](const bool checked) { std::lock_guard lock(m_PreviewMutex); m_Loop = checked; });
+    playback->AddChild(loop).SetFixedSize(16).SetVerticalAlignment(GUI::EVerticalAlignment::Center);
+    playback->AddChild(Text("Loop", 11)).SetMargin({4, 0});
+    const auto ruler = CreateRef<GUI::HorizontalBox>();
+    ruler->AddChild(Text("Emitter", 10)).SetFixedSize(110);
+    const auto rulerArea = CreateRef<GUI::Overlay>();
+    ruler->AddChild(rulerArea).SetFillSize().SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
+    m_TimeBar = CreateRef<TimeRuler>();
+    rulerArea->AddChild(m_TimeBar).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill).SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
     const auto labels = CreateRef<GUI::Canvas>();
     for (int second = 0; second <= 5; ++second)
     {
         const float anchor = second / 5.0f;
         labels->AddChild(Text(std::to_string(second) + "s", 10))
-            .SetAnchors({ anchor, 0, anchor, 0 }).SetPosition({ second == 5 ? -15.0f : 0.0f, 0 })
-            .SetSize({ 20, 18 });
+            .SetAnchors({anchor, 0, anchor, 0}).SetPosition({second == 5 ? -18.0f : 3.0f, 0}).SetSize({20, 18});
     }
-    Row(timeline, labels, 18);
+    rulerArea->AddChild(labels).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill).SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
+    m_TimelineRuler = ruler;
     m_Tracks = ScrollList(timeline);
-    m_Status = Text("Select an effect to begin authoring", 10); Row(timeline, m_Status, 22);
+    m_Status = Text("Select an effect to begin authoring", 10);
     UpdateOverview(); UpdateInspector(); UpdateStatus("Opening effect...");
+    RegisterOverlay(tools);
+    RegisterOverlay(modules->GetParent());
+    RegisterOverlay(preview->GetParent(), {-12, 0});
+    RegisterOverlay(selection->GetParent(), {12, 0});
+    RegisterOverlay(timeline->GetParent(), {0, 12});
     return root;
 }
 
@@ -367,15 +505,27 @@ void VFXPanel::OnUpdate(const Timestep frameTime)
         }
     }
     bool loopRestart = false;
+    std::optional<float> seekTime;
     {
         std::lock_guard lock(m_PreviewMutex);
         loopRestart = std::exchange(m_LoopRestart, false);
-        m_Clock->SetText(std::format("{:.2f}s / {:.2f}s   {:.2f}x", m_Playhead, m_LoopDuration, m_PlaybackSpeed));
+        seekTime = std::exchange(m_SeekRequested, std::nullopt);
+        m_Clock->SetText(std::format("{:.2f}s / {:.2f}s", m_Playhead, m_LoopDuration));
+        m_SpeedLabel->SetText(std::format("{:.2f}x", m_PlaybackSpeed));
         std::static_pointer_cast<TimeRuler>(m_TimeBar)->SetTime(m_Playhead, m_LoopDuration);
-        const auto label = std::dynamic_pointer_cast<GUI::TextBlock>(m_Playback->GetContentSlot()->GetWidget());
-        label->SetText(m_Playing ? "Pause" : "Play");
+        for (const auto& track : m_TrackBars) std::static_pointer_cast<TimeRuler>(track)->SetTime(m_Playhead, m_LoopDuration);
+        m_PlayButton->SetStyle(m_Playing ? EditorStyle::Get().PlayButtonActive : EditorStyle::Get().PlayButtonInactive);
+        m_PauseButton->SetStyle(m_Playing ? EditorStyle::Get().PauseButtonInactive : EditorStyle::Get().PauseButtonActive);
     }
-    if (std::exchange(m_RestartRequested, false) || loopRestart) RestartPreview();
+    if (seekTime)
+    {
+        if (RestartPreview())
+        {
+            std::lock_guard lock(m_PreviewMutex);
+            m_ReplayTime = *seekTime; m_Playhead = *seekTime; m_Playing = false;
+        }
+    }
+    else if (loopRestart) RestartPreview();
     std::static_pointer_cast<GraphGrid>(m_Grid)->SetNavigation(m_Graph->GetScrollOffset(), m_GraphZoom);
 }
 
@@ -405,6 +555,8 @@ void VFXPanel::OpenAsset(const std::filesystem::path& path, const bool reload)
     }
     m_Document = &session->second; m_SelectedPath = path; m_Drafts.clear();
     m_SelectedEmitter = -1; m_SelectedModule = -1; m_SelectedPhase.clear(); m_PalettePhase.clear(); m_ConfirmReload = false;
+    const auto emitters = m_Document->Root().Find("emitters");
+    if (emitters && !emitters->Array.empty()) m_SelectedEmitter = 0;
     const auto cached = m_LoadedSystems.find(path);
     if (cached != m_LoadedSystems.end())
     {
@@ -470,7 +622,7 @@ bool VFXPanel::RestartPreview()
     }
     std::lock_guard lock(m_PreviewMutex);
     if (m_Instance) m_Manager.Remove(m_Instance);
-    m_Instance = instance; m_Playhead = 0; m_Playing = true; m_StepRequested = false; m_LoopRestart = false;
+    m_Instance = instance; m_ReplayTime = 0; m_Playhead = 0; m_Playing = true; m_StepRequested = false; m_LoopRestart = false;
     return true;
 }
 
@@ -489,41 +641,131 @@ std::string VFXPanel::UniqueEmitterName(const std::string& base) const
 
 void VFXPanel::UpdateOverview()
 {
-    m_Overview->ClearChildren(); m_Tracks->ClearChildren();
+    m_Overview->ClearChildren(); m_Tracks->ClearChildren(); m_TrackBars.clear();
+    m_Tracks->AddChild(m_TimelineRuler).SetFixedSize(18).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
     if (!m_Document) { m_Overview->AddChild(Text("Open an effect or create a new system.")); return; }
     const auto graphRow = [this](const Ref<GUI::VerticalBox>& column, const Ref<GUI::Widget>& widget, float height = 28)
-    { Row(column, widget, height * m_GraphZoom); };
+    {
+        column->AddChild(widget).SetFixedSize(height * m_GraphZoom)
+            .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill).SetMargin({0, m_GraphZoom});
+    };
     const auto graphText = [this](const std::string& text, float size = 12)
     { return Text(text, size * m_GraphZoom); };
     const auto graphAction = [this](const std::string& label, std::function<void()> callback)
-    { return Action(label, std::move(callback), m_GraphZoom); };
-    const auto graphSection = [&](const Ref<GUI::VerticalBox>& column, const std::string& title, const SColor color)
-    { const auto text = graphText(title, 11); text->SetColor(color); graphRow(column, text, 24); };
-    const auto system = CreateRef<GUI::VerticalBox>(); system->SetStyle(EditorStyle::Get().PanelSection); system->SetPadding({ 8, 8 });
-    graphRow(system, graphAction(m_Document->Root().String("name"), [this] { m_SelectedEmitter = -1; m_SelectedModule = -1; m_RebuildSelection = true; }), 34);
-    graphRow(system, graphText("SYSTEM", 10), 22);
-    graphRow(system, graphAction("User parameters", [this] { m_SelectedEmitter = -1; m_SelectedModule = -1; m_RebuildSelection = true; }), 28);
-    graphRow(system, graphText("GPU simulation", 10), 22);
-    m_Overview->AddChild(system).SetFixedSize(180 * m_GraphZoom).SetVerticalAlignment(GUI::EVerticalAlignment::Top).SetMargin({ 4, 4 });
+    {
+        const auto button = CreateRef<StackButton>(0.7f * m_GraphZoom);
+        button->SetStyle(EditorStyle::Get().PanelHeaderButton); button->SetPadding({4 * m_GraphZoom, 0});
+        button->SetContent(Text(label, 11 * m_GraphZoom)).SetHorizontalAlignment(GUI::EHorizontalAlignment::Left);
+        button->OnClick(std::move(callback)); return button;
+    };
+    auto sectionStyle = EditorStyle::Get().PanelSection;
+    sectionStyle.Normal.Background.Color = {0.216f, 0.227f, 0.251f, 1};
+    sectionStyle.Normal.Background.Outline = {{0.31f, 0.33f, 0.35f, 1}, m_GraphZoom};
+    sectionStyle.Normal.Background.CornerRadius = glm::vec4(4 * m_GraphZoom);
+    const auto graphSection = [&](const Ref<GUI::VerticalBox>& column, const std::string& title,
+        const SColor color, std::function<void()> addModule = {})
+    {
+        const auto text = graphText(title, 11); text->SetColor(color);
+        const auto heading = CreateRef<GUI::HorizontalBox>(); heading->SetPadding({8 * m_GraphZoom, 0});
+        heading->AddChild(text).SetFillSize();
+        if (addModule)
+        {
+            const auto add = graphAction("+", std::move(addModule));
+            add->SetPadding({0, 0});
+            add->SetContent(graphText("+", 13)).SetHorizontalAlignment(GUI::EHorizontalAlignment::Right);
+            heading->AddChild(add).SetFixedSize(18 * m_GraphZoom)
+                .SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
+        }
+        heading->SetBackgroundColor(GUI::EStyleLayer::Normal,
+            {0.07f + color.R * 0.16f, 0.07f + color.G * 0.16f, 0.07f + color.B * 0.16f, 1});
+        heading->SetCornerRadius(GUI::EStyleLayer::Normal, {4 * m_GraphZoom, 4 * m_GraphZoom, 0, 0});
+        column->AddChild(heading).SetFixedSize(22 * m_GraphZoom).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
+    };
+    const auto system = CreateRef<GUI::VerticalBox>();
+    auto systemStyle = EditorStyle::Get().PanelSection;
+    systemStyle.Normal.Background.CornerRadius = glm::vec4(6 * m_GraphZoom);
+    systemStyle.Normal.Background.Outline = {EditorStyle::Get().PanelHeaderBorder.Normal.Background.Color, 1};
+    const auto systemHeader = graphAction(m_Document->Root().String("name"), [this]
+    { m_SelectedEmitter = -1; m_SelectedModule = -1; m_RebuildSelection = true; });
+    systemHeader->SetStyle(StackHeaderStyle({0.12f, 0.35f, 0.40f, 1}, 6 * m_GraphZoom));
+    system->AddChild(systemHeader).SetFixedSize(26 * m_GraphZoom).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
+    const auto systemBody = CreateRef<GUI::VerticalBox>(); systemBody->SetPadding({6 * m_GraphZoom, 6 * m_GraphZoom});
+    system->AddChild(systemBody).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
+    for (const auto* title : {"Properties", "User Parameters"})
+    {
+        const auto button = graphAction(title, [this]
+        { m_SelectedEmitter = -1; m_SelectedModule = -1; m_RebuildSelection = true; });
+        const auto content = CreateRef<GUI::HorizontalBox>();
+        content->AddChild(CreateIcon(std::string(title) == "Properties" ? "edit" : "user", 11 * m_GraphZoom))
+            .SetFixedSize(11 * m_GraphZoom).SetMargin({0, 0, 5 * m_GraphZoom, 0});
+        content->AddChild(graphText(title, 11)).SetFillSize();
+        button->SetContent(content).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
+        graphRow(systemBody, button, 24);
+    }
+    const auto systemState = CreateRef<GUI::VerticalBox>();
+    systemBody->AddChild(FramedStack(systemState, sectionStyle))
+        .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill).SetMargin({0, 3 * m_GraphZoom});
+    graphSection(systemState, "System State", {0.35f, 0.70f, 0.75f, 1});
+    systemState->AddChild(graphText("GPU simulation", 10)).SetFixedSize(22 * m_GraphZoom)
+        .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill).SetMargin({8 * m_GraphZoom, 2 * m_GraphZoom});
+    m_Overview->AddChild(FramedStack(system, systemStyle)).SetFixedSize(180 * m_GraphZoom)
+        .SetVerticalAlignment(GUI::EVerticalAlignment::Top).SetMargin({4, 4});
     const auto& emitters = m_Document->Root().Find("emitters")->Array;
     if (m_SelectedEmitter >= static_cast<int>(emitters.size())) { m_SelectedEmitter = -1; m_SelectedModule = -1; }
     for (size_t index = 0; index < emitters.size(); ++index)
     {
         const auto& emitter = emitters[index];
         const auto path = Path{ "emitters", std::to_string(index) };
-        const auto card = CreateRef<GUI::VerticalBox>(); card->SetPadding({ 8 * m_GraphZoom, 8 * m_GraphZoom });
-        card->SetStyle(m_SelectedEmitter == static_cast<int>(index) ? EditorStyle::Get().Selection : EditorStyle::Get().PanelSection);
-        const auto header = CreateRef<GUI::HorizontalBox>(); graphRow(card, header, 30);
+        const auto card = CreateRef<GUI::VerticalBox>();
+        auto cardStyle = EditorStyle::Get().PanelSection;
+        cardStyle.Normal.Background.CornerRadius = glm::vec4(6 * m_GraphZoom);
+        cardStyle.Normal.Background.Outline = {m_SelectedEmitter == static_cast<int>(index)
+            ? EditorStyle::Get().Accent : EditorStyle::Get().PanelHeaderBorder.Normal.Background.Color, 1};
+
+        const auto header = CreateRef<GUI::HorizontalBox>(); header->SetPadding({8 * m_GraphZoom, 0});
+        card->AddChild(header).SetFixedSize(26 * m_GraphZoom).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
+        const auto body = CreateRef<GUI::VerticalBox>(); body->SetPadding({6 * m_GraphZoom, 6 * m_GraphZoom});
+        card->AddChild(body).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
         const auto toggle = CreateRef<GUI::Checkbox>(); toggle->SetStyle(EditorStyle::Get().Checkbox); toggle->SetChecked(emitter.Enabled());
+        toggle->SetSize({14 * m_GraphZoom, 14 * m_GraphZoom});
         toggle->OnCheckedChanged([this, path](const bool enabled) { QueueEdit([path, enabled](Document& document) { document.Set(Child(path, "enabled"), Boolean(enabled)); }); });
-        header->AddChild(toggle).SetFixedSize(20);
+        header->AddChild(toggle).SetFixedSize(14 * m_GraphZoom)
+            .SetVerticalAlignment(GUI::EVerticalAlignment::Center).SetMargin({0, 0, 6 * m_GraphZoom, 0});
         header->AddChild(graphAction(emitter.String("name"), [this, index] { m_SelectedEmitter = static_cast<int>(index); m_SelectedModule = -1; m_RebuildSelection = true; })).SetFillSize();
-        graphRow(card, graphText(emitter.String("renderMode", "Sprite") + " renderer", 10), 20);
+        const auto color = EmitterColor(index);
+        header->SetBackgroundColor(GUI::EStyleLayer::Normal, color);
+        header->SetCornerRadius(GUI::EStyleLayer::Normal, {6 * m_GraphZoom, 6 * m_GraphZoom, 0, 0});
+        const auto spawn = CreateRef<GUI::VerticalBox>(); spawn->SetStyle(EditorStyle::Get().Transparent);
+        spawn->SetPadding({0, 0});
+        graphSection(spawn, "Emitter Spawn", EditorStyle::Get().AxisY);
+        const auto rate = emitter.Find("spawnRate");
+        std::string rateText = rate ? rate->Text : "0";
+        if (rateText.starts_with('$'))
+        {
+            const auto key = rateText.substr(1);
+            const auto parameters = emitter.Find("parameters");
+            const auto globals = m_Document->Root().Find("parameters");
+            const auto resolved = parameters && parameters->Find(key) ? parameters->Find(key) : globals ? globals->Find(key) : nullptr;
+            if (resolved) rateText = resolved->Text;
+        }
+        graphRow(spawn, graphAction("Rate " + rateText + " / sec", [this, index]
+        { m_SelectedEmitter = static_cast<int>(index); m_SelectedModule = -1; m_RebuildSelection = true; }), 24);
+        body->AddChild(FramedStack(spawn, sectionStyle)).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill).SetMargin({0, 3 * m_GraphZoom});
         for (const auto& phase : { std::string("spawnModules"), std::string("updateModules") })
         {
-            graphSection(card, phase == "spawnModules" ? "PARTICLE SPAWN" : "PARTICLE UPDATE",
-                phase == "spawnModules" ? EditorStyle::Get().AxisY : EditorStyle::Get().AxisZ);
-            if (const auto modules = emitter.Find(phase))
+            const auto group = CreateRef<GUI::VerticalBox>();
+            body->AddChild(FramedStack(group, sectionStyle)).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill).SetMargin({0, 3 * m_GraphZoom});
+            const auto modules = emitter.Find(phase);
+            const auto phaseTitle = phase == "spawnModules" ? "Particle Spawn" : "Particle Update";
+            const auto phaseColor = phase == "spawnModules" ? EditorStyle::Get().AxisY : EditorStyle::Get().AxisZ;
+            graphSection(group, phaseTitle, phaseColor, [this, index, phase]
+            {
+                m_SelectedEmitter = static_cast<int>(index); m_PalettePhase = phase; m_RebuildSelection = true;
+            });
+            const auto moduleRows = CreateRef<GUI::VerticalBox>();
+            moduleRows->SetPadding({4 * m_GraphZoom, 3 * m_GraphZoom});
+            group->AddChild(moduleRows).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
+            if (modules)
                 for (size_t moduleIndex = 0; moduleIndex < modules->Array.size(); ++moduleIndex)
                 {
                     const auto& module = modules->Array[moduleIndex];
@@ -532,23 +774,43 @@ void VFXPanel::UpdateOverview()
                         m_SelectedEmitter = static_cast<int>(index); m_SelectedModule = static_cast<int>(moduleIndex);
                         m_SelectedPhase = phase; m_RebuildSelection = true;
                     });
-                    graphRow(card, button, 28);
+                    if (m_SelectedEmitter == static_cast<int>(index) && m_SelectedModule == static_cast<int>(moduleIndex) && m_SelectedPhase == phase)
+                    {
+                        auto selectionStyle = EditorStyle::Get().PanelHeaderButton;
+                        selectionStyle.Normal.Background = EditorStyle::Get().Selection.Normal.Background;
+                        selectionStyle.Normal.Background.CornerRadius = glm::vec4(3 * m_GraphZoom);
+                        selectionStyle.Hovered = selectionStyle.Normal;
+                        selectionStyle.Pressed = selectionStyle.Normal;
+                        selectionStyle.Focused = selectionStyle.Normal;
+                        button->SetStyle(selectionStyle);
+                    }
+                    graphRow(moduleRows, button, 18);
                 }
-            graphRow(card, graphAction("+ Add module", [this, index, phase]
-            {
-                m_SelectedEmitter = static_cast<int>(index); m_PalettePhase = phase; m_RebuildSelection = true;
-            }), 28);
         }
-        graphSection(card, "RENDER", EditorStyle::Get().AxisX);
-        graphRow(card, graphAction("Renderer properties", [this, index]
+        const auto renderer = CreateRef<GUI::VerticalBox>();
+        body->AddChild(FramedStack(renderer, sectionStyle)).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill).SetMargin({0, 3 * m_GraphZoom});
+        graphSection(renderer, emitter.String("renderMode", "Sprite") + " Renderer", {0.65f, 0.48f, 0.85f, 1});
+        graphRow(renderer, graphAction("Renderer properties", [this, index]
         {
             m_SelectedEmitter = static_cast<int>(index); m_SelectedModule = -1; m_RebuildSelection = true;
         }), 28);
-        m_Overview->AddChild(card).SetFixedSize(210 * m_GraphZoom).SetVerticalAlignment(GUI::EVerticalAlignment::Top).SetMargin({ 4, 4 });
-        const auto track = CreateRef<GUI::HorizontalBox>(); track->SetStyle(emitter.Enabled() ? EditorStyle::Get().Selection : EditorStyle::Get().PanelSection);
-        track->AddChild(Action(emitter.String("name") + (emitter.Enabled() ? "   |   Active" : "   |   Disabled"), [this, index]
-        { m_SelectedEmitter = static_cast<int>(index); m_SelectedModule = -1; m_RebuildSelection = true; })).SetFillSize();
-        Row(m_Tracks, track, 20);
+        m_Overview->AddChild(FramedStack(card, cardStyle)).SetFixedSize(190 * m_GraphZoom).SetVerticalAlignment(GUI::EVerticalAlignment::Top).SetMargin({ 4, 4 });
+        const auto track = CreateRef<GUI::HorizontalBox>();
+        track->SetStyle(m_SelectedEmitter == static_cast<int>(index) ? EditorStyle::Get().Selection : EditorStyle::Get().Transparent);
+        const auto label = Action(emitter.String("name"), [this, index]
+        { m_SelectedEmitter = static_cast<int>(index); m_SelectedModule = -1; m_RebuildSelection = true; });
+        label->SetStyle(EditorStyle::Get().PanelHeaderButton);
+        label->GetContentSlot()->SetHorizontalAlignment(GUI::EHorizontalAlignment::Left);
+        const auto trackLabel = CreateRef<GUI::HorizontalBox>(); trackLabel->SetPadding({8, 0});
+        trackLabel->AddChild(ColorMarker(color)).SetFixedSize(7).SetMargin({0, 0, 6, 0});
+        trackLabel->AddChild(label).SetFillSize();
+        track->AddChild(trackLabel).SetFixedSize(110);
+        const auto bar = CreateRef<TimeRuler>();
+        auto trackColor = color; trackColor.A = emitter.Enabled() ? 0.8f : 0.2f; bar->SetTrack(trackColor, EmitterTimeline(m_Document->Root(), index, m_LoopDuration));
+        track->AddChild(bar).SetFillSize().SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
+        m_TrackBars.push_back(bar);
+        m_Tracks->AddChild(track).SetFixedSize(26).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
+
     }
 }
 
@@ -576,7 +838,9 @@ void VFXPanel::AddProperties(const Ref<GUI::VerticalBox>& column, const Value& v
             AddProperties(column, value.Array[index], Child(path, std::to_string(index)), std::to_string(index));
         return;
     }
-    Row(column, Text(label, 10), 16);
+    const auto property = CreateRef<GUI::HorizontalBox>();
+    const auto caption = Text(label, 11); caption->SetColor(EditorStyle::Get().TextSecondary);
+    property->AddChild(caption).SetFixedSize(80);
     const auto input = CreateRef<GUI::TextField>(value.Type == EValueType::String ? value.Text : value.JSON());
     input->SetStyle(EditorStyle::Get().TextField); input->SetFontSize(11); input->SetPadding({ 6, 4 });
     input->OnChange([this, path](const std::string& text)
@@ -585,7 +849,8 @@ void VFXPanel::AddProperties(const Ref<GUI::VerticalBox>& column, const Value& v
         if (existing == m_Drafts.end()) m_Drafts.push_back({ path, text }); else existing->Text = text;
         m_EditDelay = 0.6f;
     });
-    Row(column, input, 28);
+    property->AddChild(input).SetFillSize().SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
+    Row(column, property, 24);
 }
 
 void VFXPanel::UpdateInspector()
@@ -618,6 +883,11 @@ void VFXPanel::UpdateInspector()
     }
     const auto emitterPath = Path{ "emitters", std::to_string(m_SelectedEmitter) };
     const auto& emitter = emitters->Array[m_SelectedEmitter];
+    const auto emitterLabel = CreateRef<GUI::HorizontalBox>();
+    emitterLabel->AddChild(ColorMarker(EmitterColor(static_cast<size_t>(m_SelectedEmitter))))
+        .SetFixedSize(7).SetMargin({0, 0, 6, 0});
+    emitterLabel->AddChild(Text(emitter.String("name"), 11)).SetFillSize();
+    Row(m_Inspector, emitterLabel, 24);
     if (!m_PalettePhase.empty())
     {
         Row(m_Inspector, Text(m_PalettePhase == "spawnModules" ? "Add spawn module" : "Add update module", 13));
@@ -650,10 +920,11 @@ void VFXPanel::UpdateInspector()
         const auto enabled = CreateRef<GUI::Checkbox>(); enabled->SetStyle(EditorStyle::Get().Checkbox); enabled->SetChecked(module.Enabled());
         enabled->OnCheckedChanged([this, modulePath](const bool checked) { QueueEdit([modulePath, checked](Document& document) { document.Set(Child(modulePath, "enabled"), Boolean(checked)); }); });
         const auto toggleRow = Buttons(m_Inspector); toggleRow->AddChild(enabled).SetFixedSize(25); toggleRow->AddChild(Text("Module enabled", 11)).SetFillSize();
-        AddProperties(m_Inspector, module, modulePath); return;
+        AddProperties(m_Inspector, module, modulePath);
+        Row(m_Inspector, Action("Apply", [this] { m_RebuildSelection = true; })); return;
     }
     m_SelectedModule = -1;
-    Row(m_Inspector, Text(emitter.String("name"), 13));
+
     const auto commands = Buttons(m_Inspector);
     const auto name = UniqueEmitterName(emitter.String("name") + "Copy");
     commands->AddChild(Action("Duplicate", [this, emitter, name]
@@ -699,7 +970,7 @@ void VFXPanel::Render(const Timestep frameTime, const Ref<Image>& sceneTarget)
 {
     std::lock_guard lock(m_PreviewMutex);
     float seconds = 0.0f;
-    if (m_Active && m_Instance && !m_LoopRestart)
+    if (m_Active && m_Instance && !m_LoopRestart && !m_ReplayTime)
     {
         if (std::exchange(m_StepRequested, false)) seconds = 1.0f / 60.0f;
         else if (m_Playing) seconds = frameTime.GetSeconds() * m_PlaybackSpeed;
@@ -707,13 +978,15 @@ void VFXPanel::Render(const Timestep frameTime, const Ref<Image>& sceneTarget)
         m_Playhead += seconds;
         if (m_Playhead >= m_LoopDuration)
         {
-            if (m_Loop) m_LoopRestart = true; else m_Playing = false;
+            if (m_Loop && m_Playing) m_LoopRestart = true; else m_Playing = false;
         }
     }
     m_Manager.BeginFrame(Timestep(seconds));
     if (m_Active && m_Instance && m_PreviewRect.Size.x > 0 && m_PreviewRect.Size.y > 0)
     {
-        m_Manager.Render(m_Camera.GetCamera(), sceneTarget);
+        if (const auto replayTime = std::exchange(m_ReplayTime, std::nullopt))
+            m_Manager.Replay(m_Camera.GetCamera(), sceneTarget, *replayTime);
+        else m_Manager.Render(m_Camera.GetCamera(), sceneTarget);
     }
 }
 void VFXPanel::ProcessEvent(Event& event, const bool popupOpen)
@@ -735,8 +1008,9 @@ void VFXPanel::ProcessEvent(Event& event, const bool popupOpen)
     const auto [mouseX, mouseY] = InputManager::GetMousePosition();
     const glm::vec2 mouse{mouseX, mouseY};
     const bool graphHit = m_Active && !popupOpen && m_Graph && m_Graph->GetGeometry().Contains(mouse) &&
-        !m_PreviewSurface->GetGeometry().Contains(mouse) && !m_InspectorSurface->GetGeometry().Contains(mouse) &&
-        !m_TimelineSurface->GetGeometry().Contains(mouse) && !m_WorkbenchToolbar->GetGeometry().Contains(mouse);
+        (AreOverlaysHidden() || (!m_PreviewSurface->GetGeometry().Contains(mouse) && !m_InspectorSurface->GetGeometry().Contains(mouse) &&
+        !m_ModuleToolbar->GetGeometry().Contains(mouse) &&
+        !m_TimelineSurface->GetGeometry().Contains(mouse) && !m_WorkbenchToolbar->GetGeometry().Contains(mouse)));
     if (graphHit && event.GetEventType() == EventType::MouseScrolled)
     {
         const float previous = m_GraphZoom;
@@ -773,7 +1047,7 @@ void VFXPanel::ProcessEvent(Event& event, const bool popupOpen)
         }
         return;
     }
-    if (!m_Active || popupOpen || !m_PreviewInput) return;
+    if (!m_Active || popupOpen || AreOverlaysHidden() || !m_PreviewInput) return;
 
     const auto [x, y] = InputManager::GetMousePosition();
     const bool inside = m_PreviewInput->GetGeometry().Contains({ x, y });

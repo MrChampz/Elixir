@@ -6,6 +6,7 @@
 #include <vector>
 
 class EditorPanel;
+class ContentBrowserPanel;
 
 // Owns the editor's root widget tree and the set of registered content panels.
 // Builds a stretch-to-fill menu bar plus a content area panels dock into, and
@@ -15,6 +16,14 @@ class EditorUI
 {
 public:
     explicit EditorUI(GUI::Manager* guiManager);
+    /** @brief Releases global panels after detaching their widgets. */
+    ~EditorUI();
+    /** @brief Installs the shared content drawer above the document panels. */
+    void SetContentBrowser(Scope<ContentBrowserPanel> panel);
+    /** @brief Returns whether the drawer covers the pointer and should block viewport input. */
+    bool IsContentBrowserHovered() const;
+    /** @brief Closes the content drawer on a click outside it and its toggle button. */
+    bool DismissContentBrowserOutside(const glm::vec2& point);
 
     // Adds a labeled item to the menu bar (e.g. "File", "Edit", "Window").
     void AddMenuItem(const std::string& label);
@@ -69,6 +78,8 @@ private:
     Ref<GUI::Canvas> m_ContentArea;
     Ref<GUI::HorizontalBox> m_AssetBrowser;
     Ref<GUI::TextBlock> m_AssetBrowserStatus;
+    Ref<GUI::Button> m_ContentBrowserButton;
+    Scope<ContentBrowserPanel> m_ContentBrowser;
 
     struct STab
     {

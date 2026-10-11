@@ -7,6 +7,7 @@
 #include <Engine/GUI/ScrollBox.h>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <functional>
 
 /** @brief Authors Aether effects using emitter stacks, editable properties, and a live preview. */
@@ -73,15 +74,16 @@ private:
     std::function<void(const std::string&)> m_StatusChanged;
     Ref<GUI::Widget> m_PreviewInput, m_PreviewSurface, m_InspectorSurface, m_TimelineSurface;
     Ref<GUI::ScrollBox> m_Graph;
-    Ref<GUI::Widget> m_WorkbenchToolbar;
+    Ref<GUI::Widget> m_WorkbenchToolbar, m_ModuleToolbar;
     bool m_GraphPanning = false;
     glm::vec2 m_GraphLastPosition{};
     Ref<GUI::VerticalBox> m_Inspector;
     Ref<GUI::HorizontalBox> m_Overview;
     Ref<GUI::VerticalBox> m_Tracks;
-    Ref<GUI::TextBlock> m_Status, m_Clock;
-    Ref<GUI::Button> m_Playback;
-    Ref<GUI::Widget> m_TimeBar, m_Grid;
+    Ref<GUI::TextBlock> m_Status, m_Clock, m_SpeedLabel;
+    Ref<GUI::Widget> m_PlayButton, m_PauseButton;
+    std::vector<Ref<GUI::Widget>> m_TrackBars;
+    Ref<GUI::Widget> m_TimeBar, m_TimelineRuler, m_Grid;
 
     std::map<std::filesystem::path, EditorVFX::Document> m_Documents;
     std::map<std::filesystem::path, Ref<Aether::System>> m_LoadedSystems;
@@ -91,7 +93,7 @@ private:
     std::vector<EditorVFX::Edit> m_Drafts;
     std::function<void(EditorVFX::Document&)> m_EditCommand;
     bool m_SaveRequested = false;
-    bool m_RestartRequested = false, m_ReloadRequested = false, m_CompileRequested = false;
+    bool m_ReloadRequested = false, m_CompileRequested = false;
     bool m_RebuildSelection = false, m_ConfirmReload = false, m_DiscardReloadRequested = false;
     bool m_AutoCompile = true, m_NeedsCompile = false;
     float m_EditDelay = 0.0f;
@@ -104,11 +106,12 @@ private:
     // Render and application threads share only the camera and preview playback state.
     std::mutex m_PreviewMutex;
     ArcBallCameraController m_Camera;
-    GUI::SRect m_PreviewRect;
+    GUI::SRect m_PreviewRect{{0, 0}, {0, 0}};
     Ref<Aether::System> m_System;
     Ref<Aether::SystemInstance> m_Instance;
     bool m_Active = false, m_Playing = true, m_Loop = true, m_StepRequested = false;
     bool m_LoopRestart = false;
     float m_Playhead = 0.0f, m_PlaybackSpeed = 1.0f;
     float m_LoopDuration = 5.0f;
+    std::optional<float> m_SeekRequested, m_ReplayTime;
 };

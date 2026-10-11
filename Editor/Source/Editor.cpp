@@ -4,6 +4,8 @@
 
 #include "UI/Panels/ViewportPanel.h"
 #include "UI/Panels/VFXPanel.h"
+#include <Engine/Mesh/StaticMeshLoaderRegistry.h>
+#include <Engine/Graphics/TextureLoader.h>
 #include <iostream>
 
 Editor::Editor(std::filesystem::path asset)
@@ -31,18 +33,59 @@ Editor::Editor(std::filesystem::path asset)
         "Audio Mixer", "Physics Material", "Shader Graph",
     });
 
-    m_EditorUI->AddPanel(CreateScope<ViewportPanel>(), 0);
-    m_EditorUI->AddPanel(CreateScope<ContentBrowserPanel>(std::filesystem::path(ELIXIR_EDITOR_PROJECT_ROOT),
-        [this](const std::filesystem::path& path) { m_OpenRequests.push_back(path); }), 0);
+    auto scenePanel = CreateScope<ViewportPanel>();
+    m_ScenePanel = scenePanel.get();
+    m_EditorUI->AddPanel(std::move(scenePanel), 0);
+    m_EditorUI->SetContentBrowser(CreateScope<ContentBrowserPanel>(std::filesystem::path(ELIXIR_EDITOR_PROJECT_ROOT),
+        [this](const std::filesystem::path& path) { m_OpenRequests.push_back(path); }));
 
     m_GraphicsContext->SetClearColor({ 0.015f, 0.025f, 0.06f, 1.0f });
+    LoadDefaultScene();
     if (!asset.empty()) m_OpenRequests.push_back(std::move(asset));
+}
+
+void Editor::LoadDefaultScene()
+{
+    const auto scenePath = std::filesystem::path(ELIXIR_EDITOR_PROJECT_ROOT) /
+        "Assets" / "Meshes" / "Sponza" / "glTF" / "Sponza.gltf";
+    if (auto loaded = StaticMeshLoaderRegistry::Load(scenePath))
+    {
+        m_SceneMesh = std::move(*loaded);
+        const auto ambient = TextureLoader::Load((scenePath.parent_path() / "white.png").string());
+        const auto sampler = Sampler::Create(m_GraphicsContext.get(), {});
+        if (!ambient || !sampler || !sampler->IsValid())
+        {
+            EE_CORE_ERROR("Could not create lighting resources for the default Sponza scene.");
+            m_SceneMesh.reset();
+            return;
+        }
+        m_SceneLighting.Environment = {
+            .Environment = ambient, .Irradiance = ambient, .Prefiltered = ambient,
+            .Sampler = sampler, .Intensity = 0.2f, .MaxLod = 0.0f};
+        m_SceneRenderer = CreateScope<StaticMeshRenderer>(m_GraphicsContext.get(),
+            GetMaterialSystem(), StaticMeshLoaderRegistry::GetGeometryPool());
+        const auto extent = m_Window->GetFramebufferExtent();
+        const float aspect = extent.Height ? static_cast<float>(extent.Width) / extent.Height : 1.0f;
+        const auto& bounds = m_SceneMesh->GetLocalBounds();
+        const auto size = bounds.Max - bounds.Min;
+        const auto center = (bounds.Min + bounds.Max) * 0.5f;
+        m_SceneCamera = CreateScope<ArcBallCameraController>(65.0f, aspect);
+        m_SceneCamera->GetPerspectiveCamera().SetProjection(65.0f, aspect, 0.05f,
+            glm::max(glm::length(size) * 4.0f, 100.0f));
+        m_SceneCamera->SetTarget({center.x, bounds.Min.y + size.y * 0.12f, center.z});
+        m_SceneCamera->SetDistance(size.x * 0.35f);
+        m_SceneCamera->SetOrbitYaw(0.0f);
+        m_SceneCamera->SetOrbitPitch(0.0f);
+    }
+    else EE_CORE_ERROR("Could not load the default Sponza scene: {}", scenePath.string());
 }
 
 Editor::~Editor()
 {
     m_EditorUI.reset();
     m_Documents.clear();
+    m_SceneRenderer.reset();
+    m_SceneMesh.reset();
 }
 
 void Editor::OpenVFXAsset(const std::filesystem::path& asset)
@@ -135,6 +178,16 @@ void Editor::Render(const Timestep frameTime)
 {
     EE_PROFILE_ZONE_SCOPED()
     Application::Render(frameTime);
+    const bool sceneActive = std::none_of(m_Documents.begin(), m_Documents.end(),
+        [](const auto& document) { return document.Panel->IsActive(); });
+    if (sceneActive && m_SceneRenderer && m_SceneCamera)
+    {
+        const auto extent = m_SceneTarget->GetExtent();
+        if (extent.Height) m_SceneCamera->GetPerspectiveCamera().SetAspectRatio(static_cast<float>(extent.Width) / extent.Height);
+        m_SceneRenderer->BeginFrame(m_SceneCamera->GetCamera(), m_SceneLighting);
+        m_SceneRenderer->Render(m_SceneMesh);
+        m_SceneRenderer->EndFrame();
+    }
     for (const auto& document : m_Documents)
     {
         document.Materials->BeginFrame();
@@ -155,9 +208,63 @@ void Editor::OnEvent(Event& event)
 {
     // Input callbacks can mutate text and widget trees before OnGUI runs.
     if (!m_GraphicsContext->RunRenderTaskAndWait([] {})) return;
+    bool contentBrowserDismissed = false;
+    if (event.GetEventType() == EventType::MouseButtonPressed &&
+        static_cast<const MouseButtonPressedEvent&>(event).GetMouseButton() == EE_MOUSE_BUTTON_LEFT)
+    {
+        const auto [x, y] = InputManager::GetMousePosition();
+        contentBrowserDismissed = m_EditorUI->DismissContentBrowserOutside({x, y});
+        if (contentBrowserDismissed) event.Handled = true;
+    }
     Application::OnEvent(event);
+    ProcessSceneCameraEvent(event, contentBrowserDismissed || m_GUIManager->GetPopupCount() > 0 ||
+        m_EditorUI->IsContentBrowserHovered());
     for (const auto& document : m_Documents)
-        document.Panel->ProcessEvent(event, m_GUIManager->GetPopupCount() > 0);
+        document.Panel->ProcessEvent(event, contentBrowserDismissed || m_GUIManager->GetPopupCount() > 0 || m_EditorUI->IsContentBrowserHovered());
+}
+
+void Editor::ProcessSceneCameraEvent(Event& event, const bool inputBlocked)
+{
+    if (!m_SceneCamera) return;
+    if (event.GetEventType() == EventType::MouseButtonReleased)
+    {
+        m_SceneCamera->ProcessEvent(event);
+        const auto button = static_cast<const MouseButtonReleasedEvent&>(event).GetMouseButton();
+        if (button == EE_MOUSE_BUTTON_LEFT) m_SceneOrbitDragging = false;
+        if (button == EE_MOUSE_BUTTON_MIDDLE) m_ScenePanDragging = false;
+        return;
+    }
+    const bool sceneActive = std::none_of(m_Documents.begin(), m_Documents.end(),
+        [](const auto& document) { return document.Panel->IsActive(); });
+    if (!sceneActive || inputBlocked)
+    {
+        MouseButtonReleasedEvent orbit(EE_MOUSE_BUTTON_LEFT), pan(EE_MOUSE_BUTTON_MIDDLE);
+        m_SceneCamera->ProcessEvent(orbit);
+        m_SceneCamera->ProcessEvent(pan);
+        m_SceneOrbitDragging = false; m_ScenePanDragging = false;
+        return;
+    }
+    const auto [x, y] = InputManager::GetMousePosition();
+    const bool dragging = m_SceneOrbitDragging || m_ScenePanDragging;
+    if (!(dragging && event.GetEventType() == EventType::MouseMoved) &&
+        (event.Handled || !m_ScenePanel || !m_ScenePanel->CanNavigateAt({x, y}))) return;
+    if (event.GetEventType() == EventType::MouseButtonPressed)
+    {
+        const auto button = static_cast<const MouseButtonPressedEvent&>(event).GetMouseButton();
+        if (button == EE_MOUSE_BUTTON_LEFT) m_SceneOrbitDragging = true;
+        if (button == EE_MOUSE_BUTTON_MIDDLE) m_ScenePanDragging = true;
+        if (!m_SceneOrbitDragging && !m_ScenePanDragging) return;
+        m_SceneCamera->ProcessEvent(event);
+        MouseMovedEvent origin(x, y);
+        m_SceneCamera->ProcessEvent(origin);
+        event.Handled = true;
+    }
+    else if ((dragging && event.GetEventType() == EventType::MouseMoved) ||
+        event.GetEventType() == EventType::MouseScrolled)
+    {
+        m_SceneCamera->ProcessEvent(event);
+        event.Handled = true;
+    }
 }
 
 Application* Elixir::CreateApplication()

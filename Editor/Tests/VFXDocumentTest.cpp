@@ -1,4 +1,5 @@
 #include <VFX/VFXDocument.h>
+#include <VFX/VFXTimeline.h>
 #include <gtest/gtest.h>
 #include <chrono>
 #include <fstream>
@@ -98,4 +99,46 @@ namespace
         ASSERT_TRUE(Value::Parse(value.JSON(), parsed, error)); EXPECT_EQ(value.Text, parsed.Text);
         ASSERT_TRUE(Value::Parse("[1,2,3,4]", parsed, error)); EXPECT_EQ(parsed.Array.size(), 4u);
     }
+}
+
+TEST(VFXTimelineTest, ResolvesSourceBurstPeriodAndTriggerDelay)
+{
+    Value system; std::string error;
+    ASSERT_TRUE(Value::Parse(R"({"parameters":{"life":0.25},"emitters":[
+        {"name":"Rocket","spawnRate":0,"burst":{"count":1,"interval":1.25}},
+        {"name":"Explosion","spawnRate":0,"burst":{"count":10,"interval":9},
+         "trigger":{"source":"Rocket","delay":1.18},
+         "spawnModules":[{"type":"SetLifetime","max":"$life"}]}]})", system, error));
+    const auto intervals = EmitterTimeline(system, 1, 5);
+    ASSERT_EQ(intervals.size(), 3);
+    EXPECT_NEAR(intervals[0].Start, 2.43f, 0.0001f);
+    EXPECT_NEAR(intervals[0].End, 2.68f, 0.0001f);
+    EXPECT_NEAR(intervals[2].End, 5, 0.0001f);
+}
+
+TEST(VFXTimelineTest, ContinuousEmissionFillsPreviewAndDisabledSourcesDoNotTrigger)
+{
+    Value system; std::string error;
+    ASSERT_TRUE(Value::Parse(R"({"emitters":[
+        {"name":"Smoke","spawnRate":20},
+        {"name":"Rocket","enabled":false,"burst":{"count":1,"interval":1}},
+        {"name":"Explosion","burst":{"count":10},"trigger":{"source":"Rocket","delay":0.5}}]})", system, error));
+    const auto continuous = EmitterTimeline(system, 0, 5);
+    ASSERT_EQ(continuous.size(), 1);
+    EXPECT_EQ(continuous[0].Start, 0);
+    EXPECT_EQ(continuous[0].End, 5);
+    EXPECT_TRUE(EmitterTimeline(system, 1, 5).empty());
+    EXPECT_TRUE(EmitterTimeline(system, 2, 5).empty());
+}
+
+TEST(VFXTimelineTest, LocalLifetimeOverridesSystemParameterAndOverlappingBurstsMerge)
+{
+    Value system; std::string error;
+    ASSERT_TRUE(Value::Parse(R"({"parameters":{"life":0.1},"emitters":[
+        {"parameters":{"life":2},"burst":{"count":1,"interval":1},
+         "spawnModules":[{"type":"SetLifetime","max":"$life"}]}]})", system, error));
+    const auto intervals = EmitterTimeline(system, 0, 5);
+    ASSERT_EQ(intervals.size(), 1);
+    EXPECT_EQ(intervals[0].Start, 1);
+    EXPECT_EQ(intervals[0].End, 5);
 }
