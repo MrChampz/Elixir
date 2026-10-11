@@ -12,7 +12,7 @@ namespace Elixir::GUI
         const ShaderLoader* shaderLoader,
         const float dpiScale,
         const Ref<UniformBuffer>& perFrameCB
-    ) : m_DPIScale(dpiScale), m_PerFrameConstantBuffer(perFrameCB), m_GraphicsContext(context)
+    ) : m_GeometrySlots(*context), m_DPIScale(dpiScale), m_PerFrameConstantBuffer(perFrameCB), m_GraphicsContext(context)
     {
         EE_CORE_TRACE("Initializing GUI: TextRenderPass.")
         InitRenderPass(shaderLoader);
@@ -26,11 +26,7 @@ namespace Elixir::GUI
 
     void TextRenderPass::EndFrame()
     {
-        if (!m_Quads.empty())
-        {
-            EnsureQuadBufferCapacity(m_Quads.size());
-            m_QuadBuffer->UpdateData(m_Quads.data(),  m_Quads.size() * sizeof(SQuad));
-        }
+        m_GeometrySlots.MarkChanged();
     }
 
     uint32_t TextRenderPass::AppendRange(const std::span<const SDrawCommand> commands)
@@ -46,7 +42,28 @@ namespace Elixir::GUI
     void TextRenderPass::Bind(const Ref<CommandBuffer>& cmd)
     {
         m_Pipeline->Bind(cmd);
-        m_QuadBuffer->Bind(cmd);
+        auto* geometry = m_GeometrySlots.UpdateCurrent([this](SGeometryBuffer& slot)
+        {
+            if (m_Quads.empty()) return true;
+            if (!slot.Buffer || m_Quads.size() > slot.Capacity)
+            {
+                const size_t capacity = GrowBufferCapacity(slot.Capacity, m_Quads.size());
+                auto buffer = DynamicVertexBuffer::Create(m_GraphicsContext, capacity * sizeof(SQuad));
+                if (!buffer || !buffer->IsValid())
+                {
+                    EE_CORE_ERROR("Failed to allocate GUI geometry buffer.")
+                    return false;
+                }
+                buffer->SetLayout(m_BufferLayout);
+                // The current slot's fence has completed; its previous buffer can be released.
+                slot.Buffer = std::move(buffer);
+                slot.Capacity = capacity;
+            }
+            slot.Buffer->UpdateData(m_Quads.data(), m_Quads.size() * sizeof(SQuad));
+            return true;
+        });
+        m_CanRender = geometry && geometry->Buffer;
+        if (m_CanRender) geometry->Buffer->Bind(cmd);
     }
 
     void TextRenderPass::Render(
@@ -55,6 +72,7 @@ namespace Elixir::GUI
         const uint32_t instanceCount
     )
     {
+        if (!m_CanRender) return;
         cmd->Draw(6, instanceCount, 0, firstInstance);
     }
 
@@ -111,9 +129,7 @@ namespace Elixir::GUI
         m_Pipeline = builder.Build(m_GraphicsContext);
 
         m_Quads.reserve(MAX_CHARACTERS);
-        m_QuadBuffer = DynamicVertexBuffer::Create(m_GraphicsContext, MAX_CHARACTERS * sizeof(SQuad));
-        m_QuadBuffer->SetLayout(bufferLayout);
-        m_QuadCapacity = MAX_CHARACTERS;
+        m_BufferLayout = bufferLayout;
     }
 
     void TextRenderPass::BindShaderParameters() const
@@ -128,20 +144,6 @@ namespace Elixir::GUI
             .SetAddressModeV(ESamplerAddressMode::ClampToEdge)
             .Build(m_GraphicsContext);
         m_Shader->BindSampler("atlasSampler", sampler);
-    }
-
-    void TextRenderPass::EnsureQuadBufferCapacity(const size_t requiredCapacity)
-    {
-        if (requiredCapacity <= m_QuadCapacity)
-            return;
-
-        const size_t newCapacity = GrowBufferCapacity(m_QuadCapacity, requiredCapacity);
-        auto buffer = DynamicVertexBuffer::Create(m_GraphicsContext, newCapacity * sizeof(SQuad));
-        buffer->SetLayout(m_QuadBuffer->GetLayout());
-
-        m_RetiredQuadBuffers.push_back(std::move(m_QuadBuffer));
-        m_QuadBuffer = std::move(buffer);
-        m_QuadCapacity = newCapacity;
     }
 
     void TextRenderPass::BuildTextGeometry(const SDrawCommand& cmd)

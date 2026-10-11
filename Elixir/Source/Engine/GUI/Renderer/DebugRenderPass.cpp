@@ -11,7 +11,7 @@ namespace Elixir::GUI
         const ShaderLoader* shaderLoader,
         const float dpiScale,
         const Ref<UniformBuffer>& perFrameCB
-    ) : m_DPIScale(dpiScale), m_PerFrameConstantBuffer(perFrameCB), m_GraphicsContext(context)
+    ) : m_GeometrySlots(*context), m_DPIScale(dpiScale), m_PerFrameConstantBuffer(perFrameCB), m_GraphicsContext(context)
     {
         EE_CORE_TRACE("Initializing GUI: DebugRenderPass.")
         InitRenderPass(shaderLoader);
@@ -25,14 +25,7 @@ namespace Elixir::GUI
 
     void DebugRenderPass::EndFrame()
     {
-        if (!m_Vertices.empty())
-        {
-            EnsureVertexBufferCapacity(m_Vertices.size());
-            m_VertexBuffer->UpdateData(
-                m_Vertices.data(),
-                m_Vertices.size() * sizeof(SVertex)
-            );
-        }
+        m_GeometrySlots.MarkChanged();
     }
 
     uint32_t DebugRenderPass::AppendRange(std::span<const SDrawCommand> commands)
@@ -48,7 +41,28 @@ namespace Elixir::GUI
     void DebugRenderPass::Bind(const Ref<CommandBuffer>& cmd)
     {
         m_Pipeline->Bind(cmd);
-        m_VertexBuffer->Bind(cmd);
+        auto* geometry = m_GeometrySlots.UpdateCurrent([this](SGeometryBuffer& slot)
+        {
+            if (m_Vertices.empty()) return true;
+            if (!slot.Buffer || m_Vertices.size() > slot.Capacity)
+            {
+                const size_t capacity = GrowBufferCapacity(slot.Capacity, m_Vertices.size());
+                auto buffer = DynamicVertexBuffer::Create(m_GraphicsContext, capacity * sizeof(SVertex));
+                if (!buffer || !buffer->IsValid())
+                {
+                    EE_CORE_ERROR("Failed to allocate GUI geometry buffer.")
+                    return false;
+                }
+                buffer->SetLayout(m_BufferLayout);
+                // The current slot's fence has completed; its previous buffer can be released.
+                slot.Buffer = std::move(buffer);
+                slot.Capacity = capacity;
+            }
+            slot.Buffer->UpdateData(m_Vertices.data(), m_Vertices.size() * sizeof(SVertex));
+            return true;
+        });
+        m_CanRender = geometry && geometry->Buffer;
+        if (m_CanRender) geometry->Buffer->Bind(cmd);
     }
 
     void DebugRenderPass::Render(
@@ -59,6 +73,7 @@ namespace Elixir::GUI
     {
         // Non-instanced LineList draw: reinterpret the generic firstInstance/instanceCount
         // range as firstVertex/vertexCount, matching what AppendRange produced above.
+        if (!m_CanRender) return;
         cmd->Draw(instanceCount, 1, firstInstance, 0);
     }
 
@@ -106,29 +121,12 @@ namespace Elixir::GUI
         builder.SetBufferLayout(bufferLayout);
         m_Pipeline = builder.Build(m_GraphicsContext);
 
-        constexpr auto vertexCount = MAX_LINES * 2;
-        m_VertexBuffer = DynamicVertexBuffer::Create(m_GraphicsContext, vertexCount * sizeof(SVertex));
-        m_VertexBuffer->SetLayout(bufferLayout);
-        m_VertexCapacity = vertexCount;
+        m_BufferLayout = bufferLayout;
     }
 
     void DebugRenderPass::BindShaderParameters() const
     {
         m_Shader->BindConstantBuffer("cbPerFrame", m_PerFrameConstantBuffer);
-    }
-
-    void DebugRenderPass::EnsureVertexBufferCapacity(const size_t requiredCapacity)
-    {
-        if (requiredCapacity <= m_VertexCapacity)
-            return;
-
-        const size_t newCapacity = GrowBufferCapacity(m_VertexCapacity, requiredCapacity);
-        auto buffer = DynamicVertexBuffer::Create(m_GraphicsContext, newCapacity * sizeof(SVertex));
-        buffer->SetLayout(m_VertexBuffer->GetLayout());
-
-        m_RetiredVertexBuffers.push_back(std::move(m_VertexBuffer));
-        m_VertexBuffer = std::move(buffer);
-        m_VertexCapacity = newCapacity;
     }
 
     void DebugRenderPass::BuildDebugRectGeometry(const SDrawCommand& cmd)
