@@ -8,7 +8,7 @@
 class ContentBrowserPanel final : public EditorPanel
 {
 public:
-    /** @brief Creates a project browser with a VFX document opening callback. */
+    /** @brief Creates a project browser with an asset document opening callback. */
     ContentBrowserPanel(std::filesystem::path root, std::function<void(const std::filesystem::path&)> open)
         : m_ProjectRoot(std::move(root)), m_Open(std::move(open)) {}
     /** @brief Returns the panel name. */

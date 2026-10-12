@@ -10,9 +10,10 @@
 #include <Engine/Mesh/StaticMeshRenderer.h>
 
 class VFXPanel;
+class MeshPanel;
 class ViewportPanel;
 
-/** @brief Hosts scene tools and the project VFX preview editor. */
+/** @brief Hosts scene tools and tabbed VFX and mesh asset viewers. */
 class Editor final : public Elixir::Application
 {
 public:
@@ -41,20 +42,38 @@ private:
     bool m_SceneOrbitDragging = false, m_ScenePanDragging = false;
     SStaticMeshLighting m_SceneLighting;
     Scope<EditorUI> m_EditorUI;
-    // Opens or focuses an asset document without replacing other tab sessions.
+    // Chooses a document viewer from the asset format.
+    void OpenAsset(const std::filesystem::path& asset);
+    // Opens or focuses a mesh document with isolated preview resources.
+    void OpenMeshAsset(const std::filesystem::path& asset);
+    // Returns whether no asset document tab is active.
+    bool IsSceneActive() const;
+    // Opens or focuses a VFX document without replacing other tab sessions.
     void OpenVFXAsset(const std::filesystem::path& asset);
-    struct SDocument
+    struct SPreview
     {
-        std::filesystem::path Path;
         Ref<Image> HDRTarget, DisplayTarget, DepthTarget;
         Scope<Materials::MaterialSystem> Materials;
         Scope<PostProcessor> PostProcess;
+    };
+    struct SDocument : SPreview
+    {
+        std::filesystem::path Path;
         Scope<EditorVFXManager> Manager;
         VFXPanel* Panel;
         int Tab;
     };
     // Recreates preview attachments when the viewport dimensions change.
-    bool ResizePreview(SDocument& document, const Extent3D& extent);
+    bool ResizePreview(SPreview& document, const Extent3D& extent);
+    struct SMeshDocument : SPreview
+    {
+        std::filesystem::path Path;
+        Ref<StaticMesh> Mesh;
+        Scope<StaticMeshRenderer> Renderer;
+        MeshPanel* Panel = nullptr;
+        int Tab = -1;
+    };
+    std::vector<SMeshDocument> m_MeshDocuments;
     std::vector<SDocument> m_Documents;
     std::vector<std::filesystem::path> m_OpenRequests;
     std::vector<int> m_CloseRequests;

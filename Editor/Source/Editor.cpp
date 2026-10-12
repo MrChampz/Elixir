@@ -4,6 +4,8 @@
 
 #include "UI/Panels/ViewportPanel.h"
 #include "UI/Panels/VFXPanel.h"
+#include "UI/Panels/MeshPanel.h"
+#include "Assets/MeshAssets.h"
 #include <Engine/Mesh/StaticMeshLoaderRegistry.h>
 #include "Environment.h"
 #include <iostream>
@@ -98,8 +100,51 @@ Editor::~Editor()
 {
     m_EditorUI.reset();
     m_Documents.clear();
+    m_MeshDocuments.clear();
     m_SceneRenderer.reset();
     m_SceneMesh.reset();
+}
+
+void Editor::OpenAsset(const std::filesystem::path& asset)
+{
+    std::error_code error;
+    const auto canonical = std::filesystem::weakly_canonical(asset, error);
+    const auto path = error ? asset.lexically_normal() : canonical;
+    if (EditorAssets::IsMeshAsset(path)) OpenMeshAsset(path);
+    else OpenVFXAsset(path);
+}
+
+void Editor::OpenMeshAsset(const std::filesystem::path& asset)
+{
+    for (auto& document : m_MeshDocuments)
+        if (document.Path == asset) { m_EditorUI->ActivateTab(document.Tab); return; }
+    const auto loaded = StaticMeshLoaderRegistry::Load(asset);
+    if (!loaded || !*loaded)
+    {
+        m_EditorUI->SetAssetBrowserStatus("Could not load mesh: " + asset.filename().string());
+        return;
+    }
+    SMeshDocument document{};
+    document.Path = asset;
+    document.Mesh = *loaded;
+    if (!ResizePreview(document, {512, 512, 1})) return;
+    document.Renderer = CreateScope<StaticMeshRenderer>(m_GraphicsContext.get(),
+        *document.Materials, StaticMeshLoaderRegistry::GetGeometryPool());
+    auto panel = CreateScope<MeshPanel>(*m_GraphicsContext, document.Mesh, asset);
+    document.Panel = panel.get();
+    document.Tab = m_EditorUI->AddDocument(std::move(panel), asset.stem().string(),
+        [this](int index) { m_CloseRequests.push_back(index); });
+    document.Panel->SetPreviewImage(document.DisplayTarget);
+    m_MeshDocuments.push_back(std::move(document));
+    m_EditorUI->SetAssetBrowserStatus(asset.filename().string());
+}
+
+bool Editor::IsSceneActive() const
+{
+    return std::none_of(m_Documents.begin(), m_Documents.end(),
+        [](const auto& document) { return document.Panel->IsActive(); }) &&
+        std::none_of(m_MeshDocuments.begin(), m_MeshDocuments.end(),
+        [](const auto& document) { return document.Panel->IsActive(); });
 }
 
 void Editor::OpenVFXAsset(const std::filesystem::path& asset)
@@ -124,7 +169,7 @@ void Editor::OpenVFXAsset(const std::filesystem::path& asset)
     m_Documents.push_back(std::move(document));
 }
 
-bool Editor::ResizePreview(SDocument& document, const Extent3D& extent)
+bool Editor::ResizePreview(SPreview& document, const Extent3D& extent)
 {
     if (!extent.Width || !extent.Height) return true;
     if (document.HDRTarget && document.HDRTarget->GetExtent().Width == extent.Width &&
@@ -143,7 +188,7 @@ bool Editor::ResizePreview(SDocument& document, const Extent3D& extent)
         EImageUsage::DepthStencilAttachment, EImageLayout::DepthStencilAttachment);
     if (!hdr || !display || !depth)
     {
-        EE_CORE_ERROR("Could not create VFX preview targets.");
+        EE_CORE_ERROR("Could not create asset preview targets.");
         return false;
     }
     if (!document.Materials)
@@ -157,7 +202,6 @@ bool Editor::ResizePreview(SDocument& document, const Extent3D& extent)
     }
     if (!document.Materials->SetRenderTargets(hdr, depth)) return false;
     document.HDRTarget = std::move(hdr); document.DisplayTarget = std::move(display); document.DepthTarget = std::move(depth);
-    if (document.Panel) document.Panel->SetPreviewImage(document.DisplayTarget);
     return true;
 }
 
@@ -175,25 +219,37 @@ void Editor::OnGUI(const Timestep frameTime)
     {
         m_EditorUI->CloseDocument(tab);
         std::erase_if(m_Documents, [tab](const auto& document) { return document.Tab == tab; });
+        std::erase_if(m_MeshDocuments, [tab](const auto& document) { return document.Tab == tab; });
     }
     m_CloseRequests.clear();
     m_EditorUI->Update(frameTime);
-    for (const auto& path : m_OpenRequests) OpenVFXAsset(path);
+    for (const auto& path : m_OpenRequests) OpenAsset(path);
     m_OpenRequests.clear();
     for (auto& document : m_Documents)
     {
         m_EditorUI->SetTabTitle(document.Tab, document.Panel->GetTitle());
-        if (document.Panel->IsActive()) ResizePreview(document, document.Panel->GetPreviewExtent());
+        if (document.Panel->IsActive())
+        {
+            const auto previous = document.DisplayTarget;
+            if (ResizePreview(document, document.Panel->GetPreviewExtent()) && previous != document.DisplayTarget)
+                document.Panel->SetPreviewImage(document.DisplayTarget);
+        }
     }
 
+    for (auto& document : m_MeshDocuments)
+    {
+        if (!document.Panel->IsActive()) continue;
+        const auto previous = document.DisplayTarget;
+        if (ResizePreview(document, document.Panel->GetPreviewExtent()) && previous != document.DisplayTarget)
+            document.Panel->SetPreviewImage(document.DisplayTarget);
+    }
 }
 
 void Editor::Render(const Timestep frameTime)
 {
     EE_PROFILE_ZONE_SCOPED()
     Application::Render(frameTime);
-    const bool sceneActive = std::none_of(m_Documents.begin(), m_Documents.end(),
-        [](const auto& document) { return document.Panel->IsActive(); });
+    const bool sceneActive = IsSceneActive();
     if (sceneActive && m_SceneRenderer && m_SceneCamera)
     {
         const auto extent = m_SceneTarget->GetExtent();
@@ -209,6 +265,22 @@ void Editor::Render(const Timestep frameTime)
         document.Panel->Render(frameTime, document.HDRTarget);
         document.Materials->RenderFrame();
         if (!document.Panel->IsActive()) continue;
+        document.PostProcess->Apply(document.HDRTarget, document.DisplayTarget);
+        const auto command = m_GraphicsContext->GetSecondaryCommandBuffer();
+        command->Begin({.ColorAttachment = document.DisplayTarget, .RenderArea = document.DisplayTarget->GetExtent()});
+        document.DisplayTarget->Barrier(command.get());
+        command->End();
+        m_GraphicsContext->EnqueueSecondaryCommandBuffer(command);
+    }
+    for (const auto& document : m_MeshDocuments)
+    {
+        if (!document.Panel->IsActive()) continue;
+        document.Materials->BeginFrame();
+        m_GraphicsContext->Clear(document.HDRTarget);
+        document.Renderer->BeginFrame(document.Panel->GetCamera(), m_SceneLighting);
+        document.Renderer->Render(document.Mesh);
+        document.Renderer->EndFrame();
+        document.Materials->RenderFrame();
         document.PostProcess->Apply(document.HDRTarget, document.DisplayTarget);
         const auto command = m_GraphicsContext->GetSecondaryCommandBuffer();
         command->Begin({.ColorAttachment = document.DisplayTarget, .RenderArea = document.DisplayTarget->GetExtent()});
@@ -235,6 +307,9 @@ void Editor::OnEvent(Event& event)
         m_EditorUI->IsContentBrowserHovered());
     for (const auto& document : m_Documents)
         document.Panel->ProcessEvent(event, contentBrowserDismissed || m_GUIManager->GetPopupCount() > 0 || m_EditorUI->IsContentBrowserHovered());
+    for (const auto& document : m_MeshDocuments)
+        document.Panel->ProcessEvent(event, contentBrowserDismissed || m_GUIManager->GetPopupCount() > 0 ||
+            m_EditorUI->IsContentBrowserHovered());
 }
 
 void Editor::ProcessSceneCameraEvent(Event& event, const bool inputBlocked)
@@ -248,8 +323,7 @@ void Editor::ProcessSceneCameraEvent(Event& event, const bool inputBlocked)
         if (button == EE_MOUSE_BUTTON_MIDDLE) m_ScenePanDragging = false;
         return;
     }
-    const bool sceneActive = std::none_of(m_Documents.begin(), m_Documents.end(),
-        [](const auto& document) { return document.Panel->IsActive(); });
+    const bool sceneActive = IsSceneActive();
     if (!sceneActive || inputBlocked)
     {
         MouseButtonReleasedEvent orbit(EE_MOUSE_BUTTON_LEFT), pan(EE_MOUSE_BUTTON_MIDDLE);

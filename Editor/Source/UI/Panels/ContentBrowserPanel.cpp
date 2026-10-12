@@ -1,4 +1,5 @@
 #include "ContentBrowserPanel.h"
+#include "../../Assets/MeshAssets.h"
 #include "../EditorStyles.h"
 #include <Engine/Core/Platform.h>
 #include <Engine/GUI/Button.h>
@@ -218,6 +219,7 @@ void ContentBrowserPanel::Refresh()
         const auto path = entry.path();
         const auto name = path.filename().string();
         const auto extension = Fold(path.extension().string());
+        const bool mesh = !folder && EditorAssets::IsMeshAsset(path);
         const auto assetRelative = path.lexically_relative(m_ProjectRoot / "Assets" / "VFX");
         const bool effect = !folder && extension == ".json" && !assetRelative.empty() &&
             *assetRelative.begin() != "..";
@@ -233,6 +235,8 @@ void ContentBrowserPanel::Refresh()
         card->OnMouseLeave([] { Platform::Get().SetPreviousCursorShape(); });
         card->SetStyle(path == m_SelectedAsset ? EditorStyle::Get().Selection : EditorStyle::Get().InspectorField);
         row->AddChild(card).SetFixedSize(118).SetVerticalAlignment(GUI::EVerticalAlignment::Fill).SetMargin({0, 0, 8, 8});
+        const SColor assetColor = effect ? EditorStyle::Get().Accent :
+            mesh ? SColor{0.28f, 0.68f, 0.58f, 1.0f} : EditorStyle::Get().TextSecondary;
         const auto thumbnail = CreateRef<GUI::Overlay>(); thumbnail->SetStyle(EditorStyle::Get().PanelSection);
         card->AddChild(thumbnail).SetFixedSize(74).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
         if (folder)
@@ -240,22 +244,22 @@ void ContentBrowserPanel::Refresh()
                 .SetVerticalAlignment(GUI::EVerticalAlignment::Center);
         else
         {
-            const auto kind = Label(effect ? "VFX" : extension.empty() ? "FILE" : extension.substr(1), 18);
-            kind->SetColor(effect ? EditorStyle::Get().Accent : EditorStyle::Get().TextSecondary);
+            const auto kind = Label(effect ? "VFX" : mesh ? "MESH" : extension.empty() ? "FILE" : extension.substr(1), 18);
+            kind->SetColor(assetColor);
             thumbnail->AddChild(kind).SetHorizontalAlignment(GUI::EHorizontalAlignment::Center)
                 .SetVerticalAlignment(GUI::EVerticalAlignment::Center);
         }
         const auto stripe = CreateRef<GUI::Canvas>(); auto stripeStyle = EditorStyle::Get().Transparent;
-        stripeStyle.Normal.Background.Color = effect ? EditorStyle::Get().Accent : EditorStyle::Get().TextSecondary;
+        stripeStyle.Normal.Background.Color = assetColor;
         stripe->SetStyle(stripeStyle); card->AddChild(stripe).SetFixedSize(2).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
         card->AddChild(Label(folder ? name : path.stem().string(), 11)).SetFixedSize(24)
             .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
-        const auto type = Label(folder ? "Folder" : effect ? "VFX System" : "Asset", 9);
+        const auto type = Label(folder ? "Folder" : effect ? "VFX System" : mesh ? "Static Mesh" : "Asset", 9);
         type->SetColor(EditorStyle::Get().TextSecondary); card->AddChild(type).SetFixedSize(14);
-        card->OnClick([this, path, folder, effect]
+        card->OnClick([this, path, folder, effect, mesh]
         {
             if (folder) Navigate(path);
-            else if (effect) { m_Open(path); SetOpen(false); }
+            else if (effect || mesh) { m_Open(path); SetOpen(false); }
             else { m_SelectedAsset = path; m_Refresh = true; }
         });
         ++count;
