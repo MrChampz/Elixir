@@ -33,6 +33,10 @@ namespace Elixir
         {
             glm::mat4 Model{ 1.0f };
             uint32_t MaterialIndex = 0;
+            glm::vec3 Padding;
+            glm::vec4 VolumeToLocal0{ 1, 0, 0, 0 };
+            glm::vec4 VolumeToLocal1{ 0, 1, 0, 0 };
+            glm::vec4 VolumeToLocal2{ 0, 0, 1, 0 };
         };
     }
 
@@ -145,7 +149,11 @@ namespace Elixir
                 .SortDepth = sortDepth,
                 .GeometryIndex = m_GeometryIndex,
                 .PushConstants = SMaterialPushConstants::Create(
-                    SSurfacePushConstants{},
+                    SSurfacePushConstants{
+                        .VolumeToLocal0 = glm::vec4(section.VolumeToLocal[0][0], section.VolumeToLocal[1][0], section.VolumeToLocal[2][0], 0),
+                        .VolumeToLocal1 = glm::vec4(section.VolumeToLocal[0][1], section.VolumeToLocal[1][1], section.VolumeToLocal[2][1], 0),
+                        .VolumeToLocal2 = glm::vec4(section.VolumeToLocal[0][2], section.VolumeToLocal[1][2], section.VolumeToLocal[2][2], 0),
+                    },
                     offsetof(SSurfacePushConstants, MaterialIndex)
                 ),
                 .IndexedDraw = SIndexedDrawCommand{

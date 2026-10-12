@@ -13,6 +13,8 @@
 #define MATERIAL_SHADING_MODEL_CLOTH        4
 #define MATERIAL_SHADING_MODEL_TRANSMISSION 5
 
+static const float INFINITY = asfloat(0x7F800000u);
+
 [[vk::binding(0, 0)]]
 cbuffer cbFrame : register(b0)
 {
@@ -74,6 +76,10 @@ struct PushConstants
 {
     float4x4 Model;
     uint MaterialIndex;
+    float3 Padding;
+    float4 VolumeToLocal0;
+    float4 VolumeToLocal1;
+    float4 VolumeToLocal2;
 };
 
 [[vk::push_constant]]
@@ -110,6 +116,9 @@ struct Surface
     float3  ClearCoatBottomNormal;
     float   Transmission;
     float   IOR;
+    float   Thickness;
+    float   AttenuationDistance;
+    float3  AttenuationColor;
 };
 
 static const uint NO_TEXTURE = 0xFFFFFFFFu;
@@ -210,7 +219,7 @@ float3 SampleSpecular(float3 dir, float roughness)
 
 #if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_TRANSMISSION
 
-// Thin surfaces do not bend the mean ray. Microfacet roughness filters the background.
+// Microfacet roughness filters the background around the projected exit point.
 float3 SampleTransmission(float2 pixel, float roughness, float ior)
 {
     uint width, height;
@@ -342,6 +351,9 @@ float4 main(PSInput input) : SV_Target0
     surface.ClearCoatBottomNormal = float3(0.0f, 0.0f, 1.0f);
     surface.Transmission = 0.0f;
     surface.IOR = 1.5f;
+    surface.Thickness = 0.0f;
+    surface.AttenuationDistance = INFINITY;
+    surface.AttenuationColor = 1.0f.xxx;
 
     // __GRAPH_BODY__
 
@@ -496,11 +508,44 @@ float4 main(PSInput input) : SV_Target0
 #if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_TRANSMISSION
 
     const float transmission = saturate(surface.Transmission);
-    const float3 background = SampleTransmission(input.ClipPos.xy, roughness, ior);
+    float2 transmissionPixel = input.ClipPos.xy;
+    float3 volumeTransmittance = 1.0f.xxx;
+
+    const float thickness = max(surface.Thickness, 0.0f);
+    if (thickness > 0.0f)
+    {
+        // Approximate the exit point using the thickness map and Snell's law.
+        const float3 refractedDirection = normalize(refract(-V, N, 1.0f / ior));
+        const float3 sourceDirection = float3(
+            dot(pc.VolumeToLocal0.xyz, refractedDirection),
+            dot(pc.VolumeToLocal1.xyz, refractedDirection),
+            dot(pc.VolumeToLocal2.xyz, refractedDirection)
+        );
+        const float pathLength = thickness / max(length(sourceDirection), 1e-6f);
+        const float3 exitPosition = input.WorldPos + refractedDirection * pathLength;
+        const float4 exitClip = mul(ViewProj, float4(exitPosition, 1.0f));
+
+        if (exitClip.w > 1e-4f)
+        {
+            uint width, height;
+            sceneColorTexture.GetDimensions(width, height);
+            transmissionPixel = (exitClip.xy / exitClip.w * 0.5f + 0.5f) * float2(width, height);
+        }
+
+        // Beer-Lambert absorption: T(x) = color^(x / attenuationDistance).
+        if (isfinite(surface.AttenuationDistance) && surface.AttenuationDistance > 0.0f)
+            volumeTransmittance = pow(
+                saturate(surface.AttenuationColor),
+                (pathLength / surface.AttenuationDistance).xxx
+            );
+    }
+
+    const float3 background = SampleTransmission(transmissionPixel, roughness, ior);
 
     // Transmission replaces diffuse scattering while leaving the specular layer intact.
     const float3 transmitted = background *
         surface.BaseColor *
+        volumeTransmittance *
         diffuseWeightIBL *
         transmission;
     color -= (diffuseIBLContribution + directDiffuseContribution) * transmission;

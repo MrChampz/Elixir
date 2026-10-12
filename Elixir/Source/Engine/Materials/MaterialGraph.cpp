@@ -29,6 +29,9 @@ namespace Elixir::Materials
                 case EMaterialChannel::ClearCoatBottomNormal:   return "ClearCoatBottomNormal";
                 case EMaterialChannel::Transmission:            return "Transmission";
                 case EMaterialChannel::IOR:                     return "IOR";
+                case EMaterialChannel::Thickness:               return "Thickness";
+                case EMaterialChannel::AttenuationDistance:     return "AttenuationDistance";
+                case EMaterialChannel::AttenuationColor:        return "AttenuationColor";
             }
 
             return "BaseColor";
@@ -49,7 +52,9 @@ namespace Elixir::Materials
                 channel == EMaterialChannel::ClearCoat ||
                 channel == EMaterialChannel::ClearCoatRoughness ||
                 channel == EMaterialChannel::Transmission ||
-                channel == EMaterialChannel::IOR;
+                channel == EMaterialChannel::IOR ||
+                channel == EMaterialChannel::Thickness ||
+                channel == EMaterialChannel::AttenuationDistance;
 
             if (isScalar)
                 return expression.ValueType == EMaterialValueType::Float

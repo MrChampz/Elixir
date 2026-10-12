@@ -43,6 +43,9 @@ namespace Elixir
         uint32_t VertexOffset = 0;
         uint32_t MaterialIndex = 0;
         SStaticMeshBounds LocalBounds;
+
+        /** Maps baked mesh directions back to source mesh space for volume thickness. */
+        glm::mat3 VolumeToLocal{ 1.0f };
     };
 
     /** @brief Stores CPU geometry loaded from one mesh asset. */

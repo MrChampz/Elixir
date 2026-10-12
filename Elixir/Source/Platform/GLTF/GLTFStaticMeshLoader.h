@@ -20,6 +20,10 @@ namespace Elixir
          * When sheen is also present, the material uses Cloth and ignores clear coat.
          * `KHR_materials_specular` imports the dielectric specular factor,
          * tint, and optional textures.
+         * `KHR_materials_transmission` uses the Transmission shading model.
+         * `KHR_materials_volume` imports thickness, its green-channel texture,
+         * and attenuation color and distance. Baked node transforms preserve
+         * the source coordinate space used by thickness.
          * `KHR_materials_emissive_strength` scales the imported emissive
          * color factor.
          * `KHR_texture_transform` selects TEXCOORD_0 or TEXCOORD_1 and maps
