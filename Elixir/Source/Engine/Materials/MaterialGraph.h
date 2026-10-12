@@ -56,6 +56,12 @@ namespace Elixir::Materials
 
         /** @brief Tangent-space normal of the layer below clear coat. */
         ClearCoatBottomNormal,
+
+        /** Fraction of non-reflected dielectric light transmitted through the surface, from 0 to 1. */
+        Transmission,
+
+        /** Index of refraction: at least 1, or 0 for infinite reflectivity. Default is 1.5. */
+        IOR,
     };
 
     /** @brief Maps material parameter names to generated HLSL expressions. */

@@ -50,7 +50,9 @@ namespace Elixir
             fastgltf::Extensions::KHR_materials_specular |
             fastgltf::Extensions::KHR_texture_transform |
             fastgltf::Extensions::KHR_materials_clearcoat |
-            fastgltf::Extensions::KHR_materials_sheen;
+            fastgltf::Extensions::KHR_materials_sheen |
+            fastgltf::Extensions::KHR_materials_transmission |
+            fastgltf::Extensions::KHR_materials_ior;
 
         bool IsPathWithinAssetDirectory(const std::filesystem::path& path)
         {
@@ -93,6 +95,7 @@ namespace Elixir
                 Ref<Texture> ClearCoatNormal;
                 Ref<Texture> SheenColor;
                 Ref<Texture> SheenRoughness;
+                Ref<Texture> Transmission;
             };
 
             Ref<Texture> DecodeImage(
@@ -479,13 +482,25 @@ namespace Elixir
             material->SetDoubleSided(source.doubleSided);
 
             // Cloth and ClearCoat are separate material types; sheen takes precedence.
-            if (source.sheen)
+            if (source.transmission && source.transmission->transmissionFactor > 0)
+                material->SetShadingModel(EMaterialShadingModel::Transmission);
+            else if (source.sheen)
                 material->SetShadingModel(EMaterialShadingModel::Cloth);
             else if (source.clearcoat)
                 material->SetShadingModel(EMaterialShadingModel::ClearCoat);
 
             if (source.alphaMode == fastgltf::AlphaMode::Mask)
                 material->SetAlphaCutoff(source.alphaCutoff);
+
+            if (!material->DefineParameter("IOR", {
+                .Kind = EMaterialParameterKind::Value,
+                .ValueType = EMaterialValueType::Float,
+                .DefaultValue = SMaterialParameter::MakeScalar(source.ior),
+            }))
+            {
+                EE_CORE_ERROR("Could not define glTF index of refraction.")
+                return nullptr;
+            }
 
             const auto& pbr = source.pbrData;
             const auto baseColorFactor = glm::vec4(
@@ -612,6 +627,11 @@ namespace Elixir
             }
 
             MaterialGraph graph;
+
+            graph.SetChannel(
+                EMaterialChannel::IOR,
+                graph.AddNode<Parameter>("IOR", EMaterialValueType::Float)
+            );
 
             auto baseColor = graph.AddNode<Parameter>(
                 "BaseColorFactor",
@@ -836,6 +856,57 @@ namespace Elixir
 
                 graph.SetChannel(EMaterialChannel::Specular, specular);
                 graph.SetChannel(EMaterialChannel::SpecularColor, specularColor);
+            }
+
+            if (material->GetShadingModel() == EMaterialShadingModel::Transmission)
+            {
+                if (!material->DefineParameter("TransmissionFactor", {
+                    .Kind = EMaterialParameterKind::Value,
+                    .ValueType = EMaterialValueType::Float,
+                    .DefaultValue = SMaterialParameter::MakeScalar(
+                        source.transmission->transmissionFactor
+                    ),
+                }))
+                {
+                    EE_CORE_ERROR("Could not define glTF transmission parameters.")
+                    return nullptr;
+                }
+
+                auto transmission = graph.AddNode<Parameter>(
+                    "TransmissionFactor",
+                    EMaterialValueType::Float
+                );
+
+                if (textures.Transmission)
+                {
+                    if (!material->DefineParameter("TransmissionTexture", {
+                        .Kind = EMaterialParameterKind::Texture,
+                        .DefaultValue = SMaterialParameter::MakeTexture(textures.Transmission),
+                    }))
+                    {
+                        EE_CORE_ERROR("Could not define glTF transmission texture.")
+                        return nullptr;
+                    }
+
+                    const auto sample = AddTextureSample(
+                        graph,
+                        *material,
+                        "TransmissionTexture",
+                        *source.transmission->transmissionTexture,
+                        ETextureSampleType::Mask
+                    );
+
+                    const auto red = graph.AddNode<ComponentMask>(0);
+                    graph.Connect(sample, red, 0);
+
+                    const auto multiply = graph.AddNode<Multiply>();
+                    graph.Connect(transmission, multiply, 0);
+                    graph.Connect(red, multiply, 1);
+
+                    transmission = multiply;
+                }
+
+                graph.SetChannel(EMaterialChannel::Transmission, transmission);
             }
 
             if (source.clearcoat && !source.sheen)
@@ -1063,6 +1134,22 @@ namespace Elixir
                     );
                 }
 
+                if (source.transmission && source.transmission->transmissionTexture)
+                {
+                    STexture2DCreateInfo info;
+                    info.Format = EImageFormat::R8G8B8A8_UNORM;
+                    textures.Transmission = LoadTexture(
+                        source.transmission->transmissionTexture->textureIndex,
+                        info
+                    );
+
+                    if (!textures.Transmission)
+                    {
+                        EE_CORE_ERROR("Could not load glTF transmission texture.")
+                        return {};
+                    }
+                }
+
                 if (source.specular)
                 {
                     if (source.specular->specularTexture)
@@ -1143,7 +1230,14 @@ namespace Elixir
                     }
                 }
 
-                materials.push_back(CreateSurfaceMaterial(source, i, textures));
+                auto material = CreateSurfaceMaterial(source, i, textures);
+                if (!material)
+                {
+                    EE_CORE_ERROR("Could not create glTF material {}.", i)
+                    return {};
+                }
+
+                materials.push_back(std::move(material));
             }
 
             return materials;
@@ -1704,6 +1798,8 @@ namespace Elixir
                 m_Path.parent_path(),
                 m_Mesh.Name
             ).Load();
+
+            if (m_Mesh.Materials.empty()) return std::nullopt;
 
             if (!LoadGeometry())
                 return std::nullopt;

@@ -370,3 +370,19 @@ TEST(MaterialGraphTest, GeneratesExponentialRadialGradientForOpacity)
     EXPECT_NE(hlsl.find(", 3.000000)"), std::string::npos);
     EXPECT_NE(hlsl.find("surface.Opacity ="), std::string::npos);
 }
+
+
+TEST(MaterialGraphTest, TransmissionAndCoverageRemainIndependentScalarChannels)
+{
+    MaterialGraph graph;
+    const auto transmission = graph.AddNode<Constant>(glm::vec4(0.8f, 0.2f, 0, 1), EMaterialValueType::Float4);
+    const auto opacity = graph.AddNode<Constant>(glm::vec4(0.25f), EMaterialValueType::Float);
+    const auto ior = graph.AddNode<Parameter>("IOR", EMaterialValueType::Float);
+    graph.SetChannel(EMaterialChannel::Transmission, transmission);
+    graph.SetChannel(EMaterialChannel::Opacity, opacity);
+    graph.SetChannel(EMaterialChannel::IOR, ior);
+    const auto hlsl = graph.GenerateHLSL();
+    EXPECT_NE(hlsl.find("surface.Transmission = (n" + std::to_string(transmission) + ").x;"), std::string::npos);
+    EXPECT_NE(hlsl.find("surface.Opacity = n" + std::to_string(opacity) + ";"), std::string::npos);
+    EXPECT_NE(hlsl.find("surface.IOR = n" + std::to_string(ior) + ";"), std::string::npos);
+}

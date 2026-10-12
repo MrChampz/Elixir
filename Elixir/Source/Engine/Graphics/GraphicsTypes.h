@@ -239,7 +239,11 @@ namespace Elixir
         /** Optional image used for depth and stencil testing. */
         Ref<Image> DepthStencilAttachment = nullptr;
 
-        float DepthClearValue = 1.0f;
+        /**
+         * Clears depth to this value and stencil to zero; nullopt preserves both.
+         * Ignored without an attachment.
+         */
+        std::optional<float> DepthClearValue = 1.0f;
 
         Extent2D RenderArea;
     };

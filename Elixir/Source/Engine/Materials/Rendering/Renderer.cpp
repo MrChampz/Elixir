@@ -138,11 +138,64 @@ namespace Elixir::Materials::Rendering
             { extent.Width, extent.Height }
         }});
 
-        for (const auto& scene : preparedScenes)
+        // Sort background-dependent surfaces across all submissions, not just within one scene.
+        struct SOrderedItem
+        {
+            const MaterialRenderScene* Scene;
+            SPreparedRenderItem Prepared;
+        };
+
+        std::vector<SOrderedItem> transparentItems;
+
+        const auto record = [&](const SPreparedRenderScene& scene)
         {
             const auto sceneResult = RecordScene(cmd, scene);
             result.BatchCount += sceneResult.BatchCount;
             result.DrawCount += sceneResult.DrawCount;
+        };
+
+        for (const auto& scene : preparedScenes)
+        {
+            SPreparedRenderScene opaque{ .Scene = scene.Scene };
+            for (const auto& item : scene.Items)
+            {
+                if (item.Proxy->GetShadingModel() == EMaterialShadingModel::Transmission ||
+                    item.Proxy->GetBlendMode() == EMaterialBlendMode::Translucent)
+                    transparentItems.push_back({ scene.Scene, item });
+                else
+                    opaque.Items.push_back(item);
+            }
+
+            record(opaque);
+        }
+
+        std::ranges::stable_sort(
+            transparentItems,
+            [](const SOrderedItem& left, const SOrderedItem& right)
+            {
+                return left.Prepared.Item->SortDepth > right.Prepared.Item->SortDepth;
+            }
+        );
+
+        auto transmissionRenderInfo = renderingInfo;
+        transmissionRenderInfo.DepthClearValue = std::nullopt;
+
+        for (const auto& item : transparentItems)
+        {
+            if (item.Prepared.Proxy->GetShadingModel() == EMaterialShadingModel::Transmission)
+            {
+                cmd->EndRendering();
+
+                // Each layer sees opaque geometry and all transparent layers already behind it.
+                const bool captured = CaptureSceneColor(cmd);
+                m_DepthTarget->Barrier(cmd.get());
+
+                cmd->BeginRendering(transmissionRenderInfo);
+
+                if (!captured) continue;
+            }
+
+            record({ .Scene = item.Scene, .Items = { item.Prepared } });
         }
 
         cmd->EndRendering();
@@ -150,6 +203,57 @@ namespace Elixir::Materials::Rendering
         m_Context->EnqueueSecondaryCommandBuffer(cmd);
 
         return result;
+    }
+
+    bool Renderer::CaptureSceneColor(const Ref<CommandBuffer>& cmd)
+    {
+        if (!(m_ColorTarget->GetUsage() & EImageUsage::TransferSrc))
+        {
+            EE_CORE_ERROR("Transmission requires a color target with TransferSrc usage.")
+            return false;
+        }
+
+        auto& image = m_FrameSlots.GetCurrent().SceneColor;
+        const auto extent = m_ColorTarget->GetExtent();
+
+        if (!image ||
+            image->GetExtent().Width != extent.Width ||
+            image->GetExtent().Height != extent.Height ||
+            image->GetFormat() != m_ColorTarget->GetFormat())
+        {
+            auto replacement = Image::Create(
+                m_Context,
+                {
+                    .Width = extent.Width,
+                    .Height = extent.Height,
+                    .Depth = 1,
+                    .Type = EImageType::_2D,
+                    .Format = m_ColorTarget->GetFormat(),
+                    .Usage = EImageUsage::Sampled | EImageUsage::TransferDst,
+                    .InitialLayout = EImageLayout::General,
+                }
+            );
+
+            if (!replacement || !replacement->IsValid())
+            {
+                EE_CORE_ERROR("Could not allocate transmission scene color.")
+                return false;
+            }
+
+            image = std::move(replacement);
+        }
+
+        const auto originalLayout = m_ColorTarget->GetLayout();
+
+        m_ColorTarget->Transition(cmd, EImageLayout::TransferSrc);
+        image->Transition(cmd, EImageLayout::TransferDst);
+
+        m_ColorTarget->Copy(cmd, image);
+
+        image->Transition(cmd, EImageLayout::General);
+        m_ColorTarget->Transition(cmd, originalLayout);
+
+        return true;
     }
 
     std::optional<SProgramKey> Renderer::GetProgramKey(
@@ -465,9 +569,10 @@ namespace Elixir::Materials::Rendering
             .Shader = shader,
             .Pipeline = GetPipeline(
                 request.Pass,
+                request.Material->GetShadingModel(),
                 request.Material->GetBlendMode(),
-                request.Material->IsDoubleSided(),
                 shader,
+                request.Material->IsDoubleSided(),
                 request.Pipeline
             ),
         };
@@ -481,18 +586,20 @@ namespace Elixir::Materials::Rendering
 
     Ref<GraphicsPipeline> Renderer::GetPipeline(
         const EMaterialPass pass,
+        const EMaterialShadingModel shadingModel,
         const EMaterialBlendMode blendMode,
-        const bool doubleSided,
         const Ref<Shader>& shader,
+        const bool doubleSided,
         const SPipelineRequest& request
     )
     {
         const SPipelineKey key{
             .Pass = pass,
+            .ShadingModel = shadingModel,
             .BlendMode = blendMode,
-            .DoubleSided = doubleSided,
             .Shader = shader.get(),
             .VertexLayoutKey = request.VertexLayoutKey,
+            .DoubleSided = doubleSided,
         };
 
         if (const auto found = m_Pipelines.find(key); found != m_Pipelines.end())
@@ -535,8 +642,11 @@ namespace Elixir::Materials::Rendering
 
         if (pass == EMaterialPass::Surface || pass == EMaterialPass::ParticleMesh)
         {
+            const auto depthWrite = blendMode != EMaterialBlendMode::Translucent &&
+                shadingModel != EMaterialShadingModel::Transmission;
+
             info.DepthStencil.DepthTestEnable = true;
-            info.DepthStencil.DepthWriteEnable = blendMode != EMaterialBlendMode::Translucent;
+            info.DepthStencil.DepthWriteEnable = depthWrite;
             info.DepthStencil.DepthCompareOp = ECompareOp::LessOrEqual;
         }
 
@@ -633,6 +743,15 @@ namespace Elixir::Materials::Rendering
 
         for (const auto& binding : request.ExternalResources.Samplers)
             shader->BindSampler(binding.Name, binding.Sampler);
+
+        if (shader->HasBinding("sceneColorTexture"))
+        {
+            const auto& sceneColor = m_FrameSlots.GetCurrent().SceneColor;
+            if (!sceneColor) return false;
+
+            shader->BindImage("sceneColorTexture", sceneColor);
+            shader->BindSampler("sceneColorSampler", m_Textures.GetSampler());
+        }
 
         if (shader->HasBinding("materials"))
             shader->BindStorageBuffer("materials", request.MaterialBuffer);

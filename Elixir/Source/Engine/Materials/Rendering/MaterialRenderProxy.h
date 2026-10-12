@@ -63,6 +63,9 @@ namespace Elixir::Materials::Rendering
         /** @brief Returns the blend mode captured from the source material. */
         EMaterialBlendMode GetBlendMode() const { return m_BlendMode; }
 
+        /** Returns the shading model captured from the source material. */
+        EMaterialShadingModel GetShadingModel() const { return m_ShadingModel; }
+
         /** @brief Checks whether the source material renders both triangle faces. */
         bool IsDoubleSided() const { return m_DoubleSided; }
 
@@ -74,6 +77,7 @@ namespace Elixir::Materials::Rendering
         uint32_t m_InstanceRevision = 0;
         std::vector<glm::vec4> m_Values;
         std::vector<Ref<Texture>> m_Textures;
+        EMaterialShadingModel m_ShadingModel = EMaterialShadingModel::Lit;
         EMaterialBlendMode m_BlendMode = EMaterialBlendMode::Opaque;
         bool m_DoubleSided = false;
         float m_AlphaCutoff = 0.5f;

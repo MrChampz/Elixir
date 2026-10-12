@@ -297,10 +297,11 @@ namespace Elixir::Materials::Rendering
         struct SPipelineKey
         {
             EMaterialPass Pass = EMaterialPass::ParticleSprite;
+            EMaterialShadingModel ShadingModel = EMaterialShadingModel::Lit;
             EMaterialBlendMode BlendMode = EMaterialBlendMode::Opaque;
-            bool DoubleSided = false;
             const Shader* Shader = nullptr;
             uint64_t VertexLayoutKey = 0;
+            bool DoubleSided = false;
 
             bool operator==(const SPipelineKey&) const = default;
         };
@@ -311,10 +312,11 @@ namespace Elixir::Materials::Rendering
             size_t operator()(const SPipelineKey& key) const
             {
                 size_t hash = Hash::Hash<uint32_t>(static_cast<uint32_t>(key.Pass));
-                Hash::HashCombine(hash, Hash::Hash<const Shader*>(key.Shader));
+                Hash::HashCombine(hash, Hash::Hash<uint32_t>((uint32_t)key.ShadingModel));
                 Hash::HashCombine(hash, Hash::Hash<uint32_t>((uint32_t)key.BlendMode));
-                Hash::HashCombine(hash, Hash::Hash<bool>(key.DoubleSided));
+                Hash::HashCombine(hash, Hash::Hash<const Shader*>(key.Shader));
                 Hash::HashCombine(hash, Hash::Hash<uint64_t>(key.VertexLayoutKey));
+                Hash::HashCombine(hash, Hash::Hash<bool>(key.DoubleSided));
                 return hash;
             }
         };
@@ -338,6 +340,7 @@ namespace Elixir::Materials::Rendering
         struct SFrameSlot
         {
             Ref<DynamicStorageBuffer> MaterialBuffer;
+            Ref<Image> SceneColor;
         };
 
         struct SBatchKey
@@ -370,6 +373,12 @@ namespace Elixir::Materials::Rendering
             const SPreparedRenderScene& scene
         );
 
+        /**
+         * Copies the current color target into a sampled image owned by the active frame
+         * slot.
+         */
+        bool CaptureSceneColor(const Ref<CommandBuffer>& cmd);
+
         /** Prepares a shader and graphics pipeline for a material pass. */
         std::optional<SPreparedPass> PreparePass(const SPassRequest& request);
 
@@ -379,9 +388,10 @@ namespace Elixir::Materials::Rendering
         /** Returns a cached pipeline or creates one for the request. */
         Ref<GraphicsPipeline> GetPipeline(
             EMaterialPass pass,
+            EMaterialShadingModel shadingModel,
             EMaterialBlendMode blendMode,
-            bool doubleSided,
             const Ref<Shader>& shader,
+            bool doubleSided,
             const SPipelineRequest& request
         );
 

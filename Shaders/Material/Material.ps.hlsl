@@ -2,15 +2,16 @@
 //
 // The compiler replaces both markers below. The graph marker provides the
 // material values, while the shading-model marker selects Unlit, Lit, or
-// ClearCoat, Subsurface, or Cloth at shader-compilation time.
+// ClearCoat, Subsurface, Cloth, or Transmission at shader-compilation time.
 
 // __SHADING_MODEL__
 
-#define MATERIAL_SHADING_MODEL_UNLIT      0
-#define MATERIAL_SHADING_MODEL_LIT        1
-#define MATERIAL_SHADING_MODEL_CLEAR_COAT 2
-#define MATERIAL_SHADING_MODEL_SUBSURFACE 3
-#define MATERIAL_SHADING_MODEL_CLOTH      4
+#define MATERIAL_SHADING_MODEL_UNLIT        0
+#define MATERIAL_SHADING_MODEL_LIT          1
+#define MATERIAL_SHADING_MODEL_CLEAR_COAT   2
+#define MATERIAL_SHADING_MODEL_SUBSURFACE   3
+#define MATERIAL_SHADING_MODEL_CLOTH        4
+#define MATERIAL_SHADING_MODEL_TRANSMISSION 5
 
 [[vk::binding(0, 0)]]
 cbuffer cbFrame : register(b0)
@@ -59,6 +60,16 @@ Texture2D prefilteredTexture : register(t3);
 [[vk::binding(3, 2)]]
 SamplerState environmentSampler : register(s1);
 
+#if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_TRANSMISSION
+
+[[vk::binding(4, 2)]]
+Texture2D sceneColorTexture;
+
+[[vk::binding(5, 2)]]
+SamplerState sceneColorSampler;
+
+#endif
+
 struct PushConstants
 {
     float4x4 Model;
@@ -97,6 +108,8 @@ struct Surface
     float   ClearCoat;
     float   ClearCoatRoughness;
     float3  ClearCoatBottomNormal;
+    float   Transmission;
+    float   IOR;
 };
 
 static const uint NO_TEXTURE = 0xFFFFFFFFu;
@@ -195,6 +208,49 @@ float3 SampleSpecular(float3 dir, float roughness)
     return lerp(env, prefiltered, smoothstep(0.12f, 0.35f, r));
 }
 
+#if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_TRANSMISSION
+
+// Thin surfaces do not bend the mean ray. Microfacet roughness filters the background.
+float3 SampleTransmission(float2 pixel, float roughness, float ior)
+{
+    uint width, height;
+    sceneColorTexture.GetDimensions(width, height);
+
+    float2 dimensions = float2(width, height);
+    float2 uv = pixel / dimensions;
+    float2 halfTexel = 0.5f / dimensions;
+
+    float filteredRoughness = roughness * saturate(2.0f * (ior - 1.0f));
+
+    float radius = filteredRoughness * filteredRoughness * min(width, height) * 0.04f;
+    if (radius < 0.5f)
+        return sceneColorTexture.SampleLevel(
+            sceneColorSampler,
+            clamp(uv, halfTexel, 1.0f - halfTexel),
+            0
+        ).rgb;
+
+    float3 result = 0.0f.xxx;
+
+    // A deterministic disk avoids temporal noise and works without a scene-color mip chain.
+    [unroll] for (uint sample = 0; sample < 16; ++sample)
+    {
+        float angle = sample * 2.39996323f;
+        float diskRadius = sqrt((sample + 0.5f) / 16.0f);
+        float2 offset = float2(cos(angle), sin(angle)) * diskRadius * radius / dimensions;
+
+        result += sceneColorTexture.SampleLevel(
+            sceneColorSampler,
+            clamp(uv + offset, halfTexel, 1.0f - halfTexel),
+            0
+        ).rgb;
+    }
+
+    return result / 16.0f;
+}
+
+#endif
+
 float DistributionGGX(float NdotH, float roughness)
 {
     const float alpha = roughness * roughness;
@@ -284,6 +340,8 @@ float4 main(PSInput input) : SV_Target0
     surface.ClearCoat = 0.0f;
     surface.ClearCoatRoughness = 0.0f;
     surface.ClearCoatBottomNormal = float3(0.0f, 0.0f, 1.0f);
+    surface.Transmission = 0.0f;
+    surface.IOR = 1.5f;
 
     // __GRAPH_BODY__
 
@@ -298,11 +356,18 @@ float4 main(PSInput input) : SV_Target0
 #endif
 
     float roughness = clamp(surface.Roughness, 0.045f, 1.0f);
+    float ior = max(surface.IOR, 1.0f);
+
+    // glTF also permits zero IOR to represent an infinitely reflective dielectric.
+    float dielectricReflectance = surface.IOR == 0.0f
+        ? 1.0f
+        : pow((ior - 1.0f) / (ior + 1.0f), 2.0f);
 
     float3 dielectricF0 = min(
-        0.04f.xxx * surface.SpecularColor * surface.Specular,
+        dielectricReflectance.xxx * surface.SpecularColor * surface.Specular,
         1.0f.xxx
     );
+
     float3 F0 = lerp(dielectricF0, surface.BaseColor, surface.Metallic);
 
     // surface.Normal is tangent-space. Transform it into world space through
@@ -426,6 +491,21 @@ float4 main(PSInput input) : SV_Target0
             color += coatDirectContribution;
         }
     }
+#endif
+
+#if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_TRANSMISSION
+
+    const float transmission = saturate(surface.Transmission);
+    const float3 background = SampleTransmission(input.ClipPos.xy, roughness, ior);
+
+    // Transmission replaces diffuse scattering while leaving the specular layer intact.
+    const float3 transmitted = background *
+        surface.BaseColor *
+        diffuseWeightIBL *
+        transmission;
+    color -= (diffuseIBLContribution + directDiffuseContribution) * transmission;
+    color += transmitted;
+
 #endif
 
     if (DebugView == SURFACE_DEBUG_BASE_COLOR)

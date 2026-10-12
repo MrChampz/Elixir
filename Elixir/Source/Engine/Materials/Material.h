@@ -42,6 +42,9 @@ namespace Elixir::Materials
 
         /** Evaluates Lit with a grazing-angle fiber sheen. */
         Cloth,
+
+        /** Reflects light and transmits the background through an infinitely thin surface. */
+        Transmission,
     };
 
     /** @brief Defines how a material combines with the color target. */
