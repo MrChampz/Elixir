@@ -38,6 +38,14 @@ struct MaterialPushConstants
     float WidthScale;
     uint MaterialIndex;
     uint Padding;
+    uint BranchCount;
+    uint Debug;
+    uint EmitterIndex;
+    uint GeometryPadding;
+    float RootWidthScale;
+    float TipWidthScale;
+    float WidthExponent;
+    float BranchWidthScale;
 };
 [[vk::push_constant]]
 MaterialPushConstants pc;
@@ -51,6 +59,7 @@ struct PSInput
     float2 TexCoord1 : TEXCOORD1;
     float4 Color : COLOR;
     nointerpolation float Valid : TEXCOORD2;
+    nointerpolation float SurfaceKind : TEXCOORD3;
 };
 
 static const float3 LIGHT_DIRECTION = float3(-0.45, 0.8, 0.55);
@@ -74,6 +83,8 @@ float4 SampleTex(uint index, float2 uv)
 float4 main(PSInput input) : SV_Target0
 {
     clip(input.Valid - 0.5);
+    // Debug geometry bypasses the asset graph.
+    if (input.SurfaceKind > 1.5) return float4(input.Color.rgb, 1);
     CompiledMaterial mat = materials[pc.MaterialIndex];
 
     Surface surface;

@@ -142,3 +142,36 @@ TEST(VFXTimelineTest, LocalLifetimeOverridesSystemParameterAndOverlappingBurstsM
     EXPECT_EQ(intervals[0].Start, 1);
     EXPECT_EQ(intervals[0].End, 5);
 }
+
+TEST_F(VFXDocumentTest, CustomRendererChangesPreserveStrandsAndSupportUndoAndReload)
+{
+    const Path emitterPath{"emitters", "0"};
+    auto emitter = *DocumentValue.Get(emitterPath);
+    emitter.Object["renderMode"] = Value::FromString("Strand");
+    Value strand;
+    ASSERT_TRUE(Value::Parse(R"({"points":40,"rootWidthScale":1,"tipWidthScale":0.2})", strand, Error));
+    emitter.Object["strand"] = strand;
+    ASSERT_TRUE(DocumentValue.Set(emitterPath, emitter));
+    ASSERT_TRUE(DocumentValue.Save(Error));
+    const auto before = DocumentValue.Root().JSON();
+    Value leaves;
+    ASSERT_TRUE(Value::Parse(R"({"enabled":true,"interval":3,"shape":"Ivy","color":[0,1,0,1]})", leaves, Error));
+    ASSERT_TRUE(DocumentValue.Set({"emitters","0","leafRenderer"}, leaves));
+    EXPECT_EQ(DocumentValue.Get({"emitters","0","strand"})->JSON(),strand.JSON());
+    ASSERT_TRUE(DocumentValue.Undo());
+    EXPECT_EQ(DocumentValue.Root().JSON(),before);
+    EXPECT_FALSE(DocumentValue.Dirty());
+    ASSERT_TRUE(DocumentValue.Redo());
+    ASSERT_TRUE(DocumentValue.Save(Error));
+    Document loaded;
+    ASSERT_TRUE(loaded.Load(File, Error));
+    EXPECT_EQ(loaded.Get({"emitters","0","leafRenderer"})->JSON(),leaves.JSON());
+    EXPECT_EQ(loaded.Get({"emitters","0","strand"})->JSON(),strand.JSON());
+    auto withoutLeaves = *loaded.Get(emitterPath);
+    withoutLeaves.Object.erase("leafRenderer");
+    ASSERT_TRUE(loaded.Set(emitterPath, std::move(withoutLeaves)));
+    EXPECT_FALSE(loaded.Get({"emitters","0","leafRenderer"}));
+    EXPECT_EQ(loaded.Get({"emitters","0","strand"})->JSON(),strand.JSON());
+    ASSERT_TRUE(loaded.Undo());
+    EXPECT_EQ(loaded.Get({"emitters","0","leafRenderer"})->JSON(),leaves.JSON());
+}

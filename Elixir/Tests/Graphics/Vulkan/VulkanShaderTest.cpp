@@ -124,8 +124,13 @@ namespace
         uint32_t SolverIterations = 16;
         uint32_t InstanceIndex = 0;
         uint32_t EmitterIndex = 0;
+        float GrowthSpeed = 0;
+        float GrowthMaxLength = 0;
+        uint32_t BranchCount = 0;
+        uint32_t BranchInterval = 8;
+        float BranchLengthScale = 0.5f;
     };
-    static_assert(sizeof(SStrandTestConstants) == 108);
+    static_assert(sizeof(SStrandTestConstants) == 128);
     static_assert(offsetof(SStrandTestConstants, ParticleOffset) == 64);
     static_assert(offsetof(SStrandTestConstants, Generation) == 92);
 
@@ -173,6 +178,16 @@ namespace
         shader->BindStorageBuffer("operands", operandBuffer);
         shader->BindStorageBuffer("constants", constantBuffer);
         shader->BindStorageBuffer("parameters", parameterBuffer);
+        std::array<glm::vec4, 26> surfaceData{};
+        static_assert(sizeof(surfaceData) == 416);
+        const auto surfaceBuffer = DynamicStorageBuffer::Create(context, sizeof(surfaceData), surfaceData.data());
+        shader->BindStorageBuffer("strandSurfaces", surfaceBuffer);
+        std::array<glm::vec4,2> growthData{};
+        const auto growthBuffer = DynamicStorageBuffer::Create(context,sizeof(growthData),growthData.data());
+        shader->BindStorageBuffer("strandGrowth",growthBuffer);
+        glm::vec4 endAnchorData{};
+        const auto endAnchorBuffer = DynamicStorageBuffer::Create(context, sizeof(endAnchorData), &endAnchorData);
+        shader->BindStorageBuffer("strandEndAnchors", endAnchorBuffer);
         SStrandTestConstants pc;
         shader->SetPushConstant("pc", &pc, sizeof(pc));
         shader->BindStorageBuffer("particles", particles);
@@ -264,7 +279,117 @@ namespace
         particles->UpdateData(root.data(), sizeof(root));
         dispatch(0);
         EXPECT_EQ(std::bit_cast<uint32_t>(read()[1].w), 0u);
+        // Guidance follows a plane and pins completed segments in world coordinates.
+        surfaceData[0] = {1, 0.1f, 0.014f, 4};
+        surfaceData[1] = {0, 1, 0, 0};
+        surfaceData[2] = {0, 0, 0, 0};
+        surfaceData[4] = {0, 0, 1, 0};
+        surfaceBuffer->UpdateData(surfaceData.data(), sizeof(surfaceData));
+        pc.PointCount = 24;
+        pc.BranchCount = 0;
+        pc.GrowthSpeed = 0.2f;
+        pc.GrowthMaxLength = 0.6f;
+        pc.RootTransform = glm::mat4(1);
+        pc.Generation = 10;
+        root[0] = {0, 0, 0.014f, 16};
+        root[1].w = 0;
+        root[5].w = 1;
+        particles->UpdateData(root.data(), sizeof(root));
+        dispatch(0);
+        for (int frame = 1; frame <= 20; ++frame)
+        {
+            root[1].w = float(frame) * 0.1f;
+            particles->UpdateData(root.data(), sizeof(root));
+            dispatch(0.1f);
+        }
+        const auto climbing = read();
+        EXPECT_GT(climbing[9 * 3].y, 0.2f);
+        EXPECT_EQ(std::bit_cast<uint32_t>(climbing[2 * 3 + 1].w), 1u);
+        for (uint32_t point = 1; point < 9; ++point)
+            EXPECT_NEAR(climbing[point * 3].z, 0.014f, 0.0001f);
+        pc.RootTransform = glm::translate(glm::mat4(1), glm::vec3(0.2f, 0.1f, 0));
+        dispatch(0.1f);
+        EXPECT_EQ(glm::vec3(read()[2 * 3]), glm::vec3(climbing[2 * 3]));
+        dispatch(0);
+        EXPECT_EQ(glm::vec3(read()[2 * 3]), glm::vec3(climbing[2 * 3]));
+        pc.Generation++;
+        root[1].w = 0;
+        particles->UpdateData(root.data(), sizeof(root));
+        dispatch(0);
+        EXPECT_EQ(std::bit_cast<uint32_t>(read()[2 * 3 + 1].w), 0u);
+        // Enable release, regrow the attachments, then pull the root beyond the stretch limit.
+        pc.RootTransform = glm::mat4(1);
+        surfaceData[1].w = 2.5f;
+        surfaceBuffer->UpdateData(surfaceData.data(), sizeof(surfaceData));
+        pc.Generation++;
+        root[1].w = 0;
+        particles->UpdateData(root.data(), sizeof(root));
+        dispatch(0);
+        for (int frame = 1; frame <= 20; ++frame)
+        {
+            root[1].w = float(frame) * 0.1f;
+            particles->UpdateData(root.data(), sizeof(root));
+            dispatch(0.1f);
+        }
+        EXPECT_EQ(std::bit_cast<uint32_t>(read()[3 + 1].w), 1u);
+        pc.RootTransform = glm::translate(glm::mat4(1), glm::vec3(0.8f, 0, 0));
+        dispatch(0.1f);
+        const auto released = read();
+        EXPECT_LT(released[3 + 1].w, 0);
+        EXPECT_GT(released[3].x, 0.1f);
+        dispatch(0);
+        EXPECT_FLOAT_EQ(read()[3 + 1].w, released[3 + 1].w);
+        dispatch(0.1f);
+        EXPECT_LT(read()[3 + 1].w, 0); // No immediate reattachment while cooldown remains.
+        pc.RootTransform = glm::mat4(1);
+        for (int frame = 0; frame < 30; ++frame) dispatch(1.0f / 30);
+        EXPECT_EQ(std::bit_cast<uint32_t>(read()[3 + 1].w), 1u); // Reattach after the cooldown and tension settle.
+
+        surfaceData[1].w = 0;
+        surfaceBuffer->UpdateData(surfaceData.data(), sizeof(surfaceData));
+        // Grow around a sphere and a rounded box, including fallback tangents at their bottom poles.
+        pc.RootTransform = glm::mat4(1);
+        for (uint32_t shape = 1; shape <= 2; ++shape)
+        {
+            surfaceData[2] = {0, 0, 0, float(shape)};
+            surfaceData[3] = {0.3f, 0.3f, 0.3f, 0.3f};
+            surfaceData[4] = {0, 0, 1, shape == 2 ? 0.05f : 0};
+            surfaceBuffer->UpdateData(surfaceData.data(), sizeof(surfaceData));
+            pc.Generation++;
+            root[0] = {0, -0.314f, 0, 16};
+            root[1].w = 0;
+            particles->UpdateData(root.data(), sizeof(root));
+            dispatch(0);
+            for (int frame = 1; frame <= 20; ++frame)
+            {
+                root[1].w = float(frame) * 0.1f;
+                particles->UpdateData(root.data(), sizeof(root));
+                dispatch(0.1f);
+            }
+            const auto wrapped = read();
+            EXPECT_EQ(std::bit_cast<uint32_t>(wrapped[2 * 3 + 1].w), 1u);
+            for (uint32_t point = 1; point < 9; ++point)
+            {
+                const auto position = glm::vec3(wrapped[point * 3]);
+                for (int axis = 0; axis < 3; ++axis) EXPECT_TRUE(std::isfinite(position[axis]));
+                if (shape == 1) EXPECT_NEAR(glm::length(position), 0.314f, 0.0001f);
+                else
+                {
+                    const auto q = glm::abs(position) - glm::vec3(0.25f);
+                    const float distance = glm::length(glm::max(q, glm::vec3(0))) +
+                        std::min(std::max(q.x, std::max(q.y, q.z)), 0.0f) - 0.05f;
+                    EXPECT_NEAR(distance, 0.014f, 0.0001f);
+                }
+            }
+        }
+        surfaceData[0].x = 0;
+        surfaceBuffer->UpdateData(surfaceData.data(), sizeof(surfaceData));
+        pc.GrowthSpeed = 0;
+        pc.GrowthMaxLength = 0;
+        root[0] = {0, 0, 0, 16};
+        particles->UpdateData(root.data(), sizeof(root));
         // Exercise the maximum supported chain length after changing generation.
+        pc.Generation++;
         pc.PointCount = 96;
         root[5].w = 1;
         particles->UpdateData(root.data(), sizeof(root));
@@ -272,6 +397,139 @@ namespace
         dispatch(0.1f);
         const auto longest = read();
         EXPECT_TRUE(std::isfinite(longest[(96 - 1) * 3].x));
+        // Reserve one main chain and two side chains in the same root invocation.
+        pc.PointCount = 24;
+        pc.BranchCount = 2;
+        pc.BranchInterval = 6;
+        pc.GrowthSpeed = 0.2f;
+        pc.GrowthMaxLength = 0.6f;
+        pc.BranchLengthScale = 0.5f;
+        pc.Generation = 3;
+        root[1].w = 0;
+        particles->UpdateData(root.data(), sizeof(root));
+        dispatch(0);
+        const auto sprout = read();
+        EXPECT_FLOAT_EQ(sprout[2].w, 0);
+        for (uint32_t point = 0; point < 72; ++point)
+            EXPECT_TRUE(std::isfinite(sprout[point * 3].x));
+        root[1].w = 0.5f;
+        particles->UpdateData(root.data(), sizeof(root));
+        dispatch(0.1f);
+        const auto growing = read();
+        EXPECT_NEAR(growing[2].w, 2.5f, 0.00001f);
+        EXPECT_FLOAT_EQ(growing[24 * 3 + 2].w, 0);
+        for (uint32_t point = 4; point < 24; ++point)
+            EXPECT_EQ(glm::vec3(growing[point * 3]), glm::vec3(growing[3 * 3]));
+        root[1].w = 2;
+        particles->UpdateData(root.data(), sizeof(root));
+        dispatch(0.1f);
+        const auto branched = read();
+        EXPECT_NEAR(branched[2].w, 10, 0.0001f);
+        EXPECT_GT(branched[24 * 3 + 2].w, 0);
+        EXPECT_FLOAT_EQ(branched[48 * 3 + 2].w, 0);
+        EXPECT_NEAR(glm::length(glm::vec3(branched[24 * 3]) - glm::vec3(branched[6 * 3])), 0, 0.00001f);
+        root[1].w = 20;
+        particles->UpdateData(root.data(), sizeof(root));
+        dispatch(0.1f);
+        const auto mature = read();
+        for (uint32_t chain = 0; chain < 3; ++chain)
+        {
+            const uint32_t base = chain * 24;
+            EXPECT_NEAR(mature[base * 3 + 2].w, 15, 0.0001f);
+            EXPECT_GT(mature[(base + 1) * 3 + 2].w, 15);
+            for (uint32_t point = 0; point < 24; ++point)
+                for (int axis = 0; axis < 3; ++axis)
+                    EXPECT_TRUE(std::isfinite(mature[(base + point) * 3][axis]));
+        }
+        // The development clock stops without stopping physics or accumulating particle age.
+        growthData[0] = {1,0,std::bit_cast<float>(123u),2};
+        growthData[1] = {.8f,.3f,0,0};
+        growthBuffer->UpdateData(growthData.data(),sizeof(growthData));
+        pc.Generation++;
+        root[1].w = 100;
+        particles->UpdateData(root.data(),sizeof(root));
+        dispatch(.1f);
+        EXPECT_NEAR(read()[2 * 3 + 2].w,.1f,.00001f);
+        time[0].z = 1;
+        pc.RootTransform = glm::translate(glm::mat4(1),glm::vec3(.15f,0,0));
+        for (int frame=0; frame<5; ++frame) dispatch(.1f);
+        EXPECT_NEAR(read()[2 * 3 + 2].w,.1f,.00001f);
+        EXPECT_NEAR(read()[0].x,.15f,.00001f);
+        time[0].z = 0;
+        dispatch(.1f);
+        EXPECT_NEAR(read()[2 * 3 + 2].w,.2f,.00001f);
+        growthData[0].y = 1;
+        growthBuffer->UpdateData(growthData.data(),sizeof(growthData));
+        dispatch(.1f);
+        EXPECT_NEAR(read()[2].w,15,.0001f);
+        growthData[0].y = 2;
+        growthBuffer->UpdateData(growthData.data(),sizeof(growthData));
+        const float matureClock = read()[2 * 3 + 2].w;
+        dispatch(.1f);
+        EXPECT_FLOAT_EQ(read()[2 * 3 + 2].w,matureClock);
+        growthData[0].x = 0;
+        growthBuffer->UpdateData(growthData.data(),sizeof(growthData));
+        pc.Generation++;
+        pc.RootTransform = glm::mat4(1);
+        root[1].w = 20;
+        particles->UpdateData(root.data(),sizeof(root));
+        dispatch(0);
+        // A paused step preserves the final length and a dead root invalidates all branches.
+        dispatch(0);
+        EXPECT_FLOAT_EQ(read()[2].w, mature[2].w);
+        // A two-ended cable has immutable endpoints and free interior points under forces.
+        surfaceData.fill({});
+        surfaceBuffer->UpdateData(surfaceData.data(), sizeof(surfaceData));
+        pc.PointCount = 40; pc.BranchCount = 0; pc.GrowthSpeed = 0; pc.GrowthMaxLength = 0;
+        pc.SegmentLength = .03f; pc.RootTransform = glm::mat4(1); ++pc.Generation;
+        root[0] = {-.5f,.5f,0,16};
+        particles->UpdateData(root.data(),sizeof(root));
+        endAnchorData = {.5f,.5f,0,1};
+        endAnchorBuffer->UpdateData(&endAnchorData,sizeof(endAnchorData));
+        dispatch(0);
+        for (int frame=0; frame<120; ++frame) dispatch(1.0f/60);
+        auto cable = read();
+        EXPECT_NEAR(cable[0].x,-.5f,.00001f);
+        EXPECT_NEAR(cable[0].y,.5f,.00001f);
+        EXPECT_NEAR(cable[39 * 3].x,.5f,.00001f);
+        EXPECT_NEAR(cable[39 * 3].y,.5f,.00001f);
+        EXPECT_LT(cable[20 * 3].y,.45f);
+        for (uint32_t point=0; point<40; ++point)
+        {
+            for (int axis=0; axis<3; ++axis) EXPECT_TRUE(std::isfinite(cable[point * 3][axis]));
+            if (point) EXPECT_LT(glm::distance(glm::vec3(cable[point * 3]),glm::vec3(cable[(point-1) * 3])),.04f);
+        }
+        // Simulation-space anchors follow translation, rotation and scale even at dt zero.
+        pc.RootTransform = glm::translate(glm::mat4(1),glm::vec3(.2f,-.1f,.3f)) *
+            glm::rotate(glm::mat4(1),.35f,glm::vec3(0,0,1)) * glm::scale(glm::mat4(1),glm::vec3(1.3f));
+        dispatch(0);
+        cable = read();
+        auto expectedEnd = pc.RootTransform * glm::vec4(.5f,.5f,0,1);
+        auto expectedRoot = pc.RootTransform * glm::vec4(-.5f,.5f,0,1);
+        EXPECT_LT(glm::distance(glm::vec3(cable[0]),glm::vec3(expectedRoot)),.00001f);
+        EXPECT_LT(glm::distance(glm::vec3(cable[39 * 3]),glm::vec3(expectedEnd)),.00001f);
+        EXPECT_LT(glm::distance(glm::vec3(cable[39 * 3 + 1]),glm::vec3(expectedEnd)),.00001f);
+        // World-space targets remain independent of the root transform and can move while paused.
+        endAnchorData = {.8f,.6f,-.2f,2};
+        endAnchorBuffer->UpdateData(&endAnchorData,sizeof(endAnchorData));
+        dispatch(0);
+        cable = read();
+        EXPECT_LT(glm::distance(glm::vec3(cable[39 * 3]),glm::vec3(endAnchorData)),.00001f);
+        for (int frame=0; frame<30; ++frame) dispatch(1.0f/60);
+        EXPECT_LT(glm::distance(glm::vec3(read()[39 * 3]),glm::vec3(endAnchorData)),.00001f);
+        // Respawning initializes the spanning curve again without detaching either end.
+        ++pc.Generation;
+        dispatch(0);
+        EXPECT_LT(glm::distance(glm::vec3(read()[39 * 3]),glm::vec3(endAnchorData)),.00001f);
+        endAnchorData = {};
+        endAnchorBuffer->UpdateData(&endAnchorData,sizeof(endAnchorData));
+        pc.PointCount = 24; pc.BranchCount = 2;
+        root[5].w = 0;
+        particles->UpdateData(root.data(), sizeof(root));
+        dispatch(0);
+        for (uint32_t chain = 0; chain < 3; ++chain)
+            EXPECT_EQ(std::bit_cast<uint32_t>(read()[chain * 24 * 3 + 1].w), 0u);
+
     }
 
     TEST(VulkanShaderTest, CompilesStrandMaterialVariantWithParticleGraphBindings)
@@ -286,6 +544,7 @@ namespace
         ASSERT_TRUE(compiled.Material->ParticleStrandShader);
         EXPECT_TRUE(compiled.Material->ParticleStrandShader->HasBinding("particles"));
         EXPECT_TRUE(compiled.Material->ParticleStrandShader->HasBinding("strandPoints"));
+        EXPECT_TRUE(compiled.Material->ParticleStrandShader->HasBinding("strandSurfaces"));
     }
 }
 
@@ -297,7 +556,21 @@ TEST(VulkanShaderTest, StrandEffectSimulatesAndRecordsTubeDrawsThroughAether)
     Materials::MaterialRegistry registry;
     Materials::MaterialSystem materials(context, {}, &loader,
         context->GetRenderTarget(), context->GetDepthStencilRenderTarget());
-    Aether::Manager manager(context, &loader, registry, materials);
+    class FrameObserver final : public Aether::Manager
+    {
+    public:
+        using Manager::Manager;
+        uint32_t ObservedFrames = 0;
+        Ref<const Aether::Simulation::RenderFrame> LastFrame;
+    protected:
+        void OnRenderFrame(const Ref<const Aether::Simulation::RenderFrame>& frame,
+            const Camera&, const Ref<Image>&) override
+        {
+            ++ObservedFrames;
+            LastFrame = frame;
+        }
+    };
+    FrameObserver manager(context, &loader, registry, materials);
     const auto assetRoot = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path().parent_path().parent_path();
     const auto system = Aether::Manager::LoadEffect(assetRoot / "Assets/VFX/GPUStrands.json");
     ASSERT_TRUE(system);
@@ -319,6 +592,11 @@ TEST(VulkanShaderTest, StrandEffectSimulatesAndRecordsTubeDrawsThroughAether)
         ASSERT_TRUE(context->RunRenderTaskAndWait([] {}));
     }
     context->WaitDeviceIdle();
+    EXPECT_EQ(manager.ObservedFrames, 3u);
+    ASSERT_TRUE(manager.LastFrame);
+    ASSERT_EQ(manager.LastFrame->GetItems().size(), 1u);
+    ASSERT_FALSE(manager.LastFrame->GetResources().empty());
+    EXPECT_TRUE(manager.LastFrame->GetResources()[0].StrandPointBuffer);
     EXPECT_EQ(result.DrawCount, 1u);
     EXPECT_EQ(result.MaterialCount, 1u);
     EXPECT_EQ(manager.GetLastSimulationMetrics().SubmittedEmitterCount, 1u);
@@ -327,7 +605,7 @@ TEST(VulkanShaderTest, StrandEffectSimulatesAndRecordsTubeDrawsThroughAether)
 
 TEST(VulkanShaderTest, StrandSamplesCompileAndRenderWithMovingRoots)
 {
-    for (const auto* filename : {"StrandCables.json", "StrandSeaweed.json", "StrandEnergy.json"})
+    for (const auto* filename : {"StrandCables.json", "StrandSeaweed.json", "StrandEnergy.json", "StrandIvy.json", "StrandClimbingIvy.json", "StrandFern.json", "StrandWillow.json", "StrandPowerLines.json"})
     {
         SCOPED_TRACE(filename);
         const auto context = VulkanTestContext::Get().GetGraphicsContext();
@@ -357,9 +635,9 @@ TEST(VulkanShaderTest, StrandSamplesCompileAndRenderWithMovingRoots)
             ASSERT_TRUE(context->RunRenderTaskAndWait([] {}));
         }
         context->WaitDeviceIdle();
-        EXPECT_EQ(result.DrawCount, 1u);
-        EXPECT_EQ(result.MaterialCount, 1u);
-        EXPECT_EQ(manager.GetLastSimulationMetrics().SubmittedEmitterCount, 1u);
+        EXPECT_EQ(result.DrawCount, system->GetEmitters().size());
+        EXPECT_EQ(result.MaterialCount, system->GetEmitters().size());
+        EXPECT_EQ(manager.GetLastSimulationMetrics().SubmittedEmitterCount, system->GetEmitters().size());
         EXPECT_TRUE(manager.Remove(instance));
     }
 }

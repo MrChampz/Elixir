@@ -3,6 +3,7 @@
 
 #include <Engine/Aether/Modules/ApplyAngularVelocity.h>
 #include <Engine/Aether/Modules/ApplyGravity.h>
+#include <Engine/Aether/Modules/StrandGrowth.h>
 #include <Engine/Aether/Modules/ApplyCurlNoise.h>
 #include <magic_enum/magic_enum.hpp>
 #include <Engine/Aether/Modules/ApplyLinearDrag.h>
@@ -68,6 +69,7 @@ namespace Elixir::Aether::Effect
     }
 
     // Register built-in factories only in the engine shared library.
+    AETHER_REGISTER_MODULE(StrandGrowth, Modules::StrandGrowth::Create)
     AETHER_REGISTER_MODULE(ApplyAngularVelocity, Modules::ApplyAngularVelocity::Create)
     AETHER_REGISTER_MODULE(ApplyCurlNoise, Modules::ApplyCurlNoise::Create)
     AETHER_REGISTER_MODULE(ApplyGravity, Modules::ApplyGravity::Create)

@@ -36,6 +36,14 @@ namespace Elixir::Aether::Rendering
             float WidthScale = 0;
             uint32_t MaterialIndex = UINT32_MAX;
             uint32_t Padding = 0;
+            uint32_t BranchCount = 0;
+            uint32_t Debug = 0;
+            uint32_t EmitterIndex = 0;
+            uint32_t GeometryPadding = 0;
+            float RootWidthScale = 1;
+            float TipWidthScale = 0;
+            float WidthExponent = 1;
+            float BranchWidthScale = 0.65f;
         };
 
         struct SRibbonPushConstants
@@ -270,6 +278,8 @@ namespace Elixir::Aether::Rendering
             const std::array strandStorageBuffers{
                 SStorageBufferBinding{ .Name = "particles", .Buffer = MaterialStorageBuffer{resource->ParticleStateBuffer} },
                 SStorageBufferBinding{ .Name = "strandPoints", .Buffer = MaterialStorageBuffer{resource->StrandPointBuffer} },
+                SStorageBufferBinding{ .Name = "strandSurfaces", .Buffer = MaterialStorageBuffer{resource->StrandSurfaceBuffer} },
+                SStorageBufferBinding{ .Name = "strandEndAnchors", .Buffer = MaterialStorageBuffer{resource->StrandEndAnchorBuffer} },
             };
 
             const SGeometryIndices indices{
@@ -393,6 +403,13 @@ namespace Elixir::Aether::Rendering
                         .RadialSegments = item.Strand.RadialSegments,
                         .Subdivisions = item.Strand.Subdivisions,
                         .WidthScale = item.Strand.WidthScale * scale,
+                        .BranchCount = item.Strand.BranchCount,
+                        .Debug = m_StrandDebug ? 1u : 0u,
+                        .EmitterIndex = item.Allocation.Emitters.Offset + item.EmitterIndex,
+                        .RootWidthScale = item.Strand.RootWidthScale,
+                        .TipWidthScale = item.Strand.TipWidthScale,
+                        .WidthExponent = item.Strand.WidthExponent,
+                        .BranchWidthScale = item.Strand.BranchWidthScale,
                     };
                     scene.Add({
                         .Pass = EMaterialPass::ParticleStrand,
@@ -400,7 +417,7 @@ namespace Elixir::Aether::Rendering
                         .SortDepth = sortDepth,
                         .GeometryIndex = geometry->Strand,
                         .PushConstants = SMaterialPushConstants::Create(constants, offsetof(SStrandPushConstants, MaterialIndex)),
-                        .Draw = { .VertexCount = item.Strand.GetVertexCount(), .InstanceCount = item.ParticleCount },
+                        .Draw = { .VertexCount = item.Strand.GetVertexCount() + (m_StrandDebug ? item.Strand.PointCount * 48u + 12u : 0u), .InstanceCount = item.ParticleCount * (1 + item.Strand.BranchCount) },
                     });
                     break;
                 }

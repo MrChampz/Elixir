@@ -14,6 +14,7 @@
 #include <Engine/Input/InputCodes.h>
 #include <Engine/Input/InputManager.h>
 #include <algorithm>
+#include <array>
 #include <format>
 #include <cctype>
 #include <cmath>
@@ -628,6 +629,9 @@ bool VFXPanel::CompilePreview()
     if (!m_Document) return false;
     m_NeedsCompile = false;
     std::string error;
+    std::vector<std::optional<LeafSettings>> leaves;
+    if (!ParseLeafRenderers(m_Document->Root(), leaves, error))
+    { UpdateStatus("Compile failed: " + error); return false; }
     const auto replacement = Aether::Effect::LoadEffectText(m_Document->Root().JSON(), &error);
     if (!replacement) { UpdateStatus("Compile failed: " + error); return false; }
     const auto existing = m_LoadedSystems.find(m_SelectedPath);
@@ -652,11 +656,12 @@ bool VFXPanel::CompilePreview()
     }
     bool compiled = false;
     const auto system = current ? current : replacement;
-    const bool completed = m_Context.RunRenderTaskAndWait([this, &compiled, system, replacement, current]
+    const bool completed = m_Context.RunRenderTaskAndWait([this, &compiled, &leaves, system, replacement, current]
     {
         if (current) current->Swap(*replacement);
         compiled = m_Manager.Recompile(system);
         if (!compiled && current) current->Swap(*replacement);
+        if (compiled) m_Manager.SetLeafRenderers(std::move(leaves));
     });
     if (!completed || !compiled) { UpdateStatus("Could not compile the effect. Previous preview preserved."); return false; }
     m_System = system; m_LoadedSystems.insert_or_assign(m_SelectedPath, system);
@@ -855,6 +860,15 @@ void VFXPanel::UpdateOverview()
         {
             m_SelectedEmitter = static_cast<int>(index); m_SelectedModule = -1; m_RebuildSelection = true;
         }), 28);
+        if (emitter.Find("leafRenderer"))
+        {
+            const auto leaves = CreateRef<GUI::VerticalBox>();
+            body->AddChild(FramedStack(leaves, sectionStyle)).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill)
+                .SetMargin({0, 3 * m_GraphZoom});
+            graphSection(leaves, "Leaf Renderer (Editor)", {0.35f, 0.75f, 0.4f, 1});
+            graphRow(leaves, graphAction("Renderer properties", [this, index]
+            { m_SelectedEmitter = static_cast<int>(index); m_SelectedModule = -1; m_RebuildSelection = true; }), 28);
+        }
         m_Overview->AddChild(FramedStack(card, cardStyle)).SetFixedSize(190 * m_GraphZoom).SetVerticalAlignment(GUI::EVerticalAlignment::Top).SetMargin({ 4, 4 });
         const auto track = CreateRef<GUI::HorizontalBox>();
         track->SetStyle(m_SelectedEmitter == static_cast<int>(index) ? EditorStyle::Get().Selection : EditorStyle::Get().Transparent);
@@ -907,6 +921,24 @@ void VFXPanel::AddProperties(const Ref<GUI::VerticalBox>& column, const Value& v
     input->SetStyle(EditorStyle::Get().TextField); input->SetFontSize(11); input->SetPadding({ 6, 4 });
     input->OnChange([this, path](const std::string& text)
     {
+        // Materialize optional strand defaults only when the user edits them.
+        if (m_Document && !m_Document->Get(path) && path.size() == 4 && path[2] == "strand")
+        {
+            Value replacement; std::string error;
+            if (!Value::Parse(text, replacement, error) || replacement.Type != EValueType::Number) return;
+            QueueEdit([path, replacement](Document& document)
+            {
+                const Path emitterPath{path[0], path[1]};
+                const auto existing = document.Get(emitterPath);
+                if (!existing) return;
+                auto emitter = *existing;
+                auto& strand = emitter.Object["strand"];
+                strand.Type = EValueType::Object;
+                strand.Object[path[3]] = replacement;
+                document.Set(emitterPath, std::move(emitter));
+            });
+            return;
+        }
         const auto existing = std::find_if(m_Drafts.begin(), m_Drafts.end(), [&path](const Edit& edit) { return edit.Location == path; });
         if (existing == m_Drafts.end()) m_Drafts.push_back({ path, text }); else existing->Text = text;
         m_EditDelay = 0.6f;
@@ -1049,7 +1081,104 @@ void VFXPanel::UpdateInspector()
     }
     auto properties = emitter;
     properties.Object.erase("particleState");
+    properties.Object.erase("leafRenderer");
+    if (emitter.String("renderMode") == "Strand")
+    {
+        auto& strand = properties.Object["strand"];
+        strand.Type = EValueType::Object;
+        strand.Object.erase("endAttachment");
+        for (const auto& [key, number] : std::array<std::pair<const char*, const char*>, 4>{
+            {{"rootWidthScale", "1"}, {"tipWidthScale", "0"}, {"widthExponent", "1"}, {"branchWidthScale", "0.65"}}})
+        {
+            if (!strand.Find(key))
+            {
+                Value value; value.Type = EValueType::Number; value.Text = number;
+                strand.Object[key] = std::move(value);
+            }
+        }
+    }
     AddProperties(m_Inspector, properties, emitterPath);
+    if (emitter.String("renderMode") == "Strand")
+    {
+        Section(m_Inspector, "Strand End Attachment", EditorStyle::Get().AxisZ);
+        const auto strand = emitter.Find("strand");
+        const auto end = strand ? strand->Find("endAttachment") : nullptr;
+        const auto checkbox = CreateRef<GUI::Checkbox>();
+        checkbox->SetStyle(EditorStyle::Get().Checkbox);
+        checkbox->SetChecked(end && end->Enabled());
+        checkbox->OnCheckedChanged([this, emitterPath](bool enabled)
+        {
+            QueueEdit([emitterPath, enabled](Document& document)
+            {
+                const auto existing = document.Get(emitterPath);
+                if (!existing) return;
+                auto emitter = *existing;
+                auto& strand = emitter.Object["strand"]; strand.Type = EValueType::Object;
+                auto& end = strand.Object["endAttachment"]; end.Type = EValueType::Object;
+                end.Object["enabled"] = Boolean(enabled);
+                if (!end.Find("position"))
+                {
+                    Value position; std::string error;
+                    if (Value::Parse("[0,0,0]", position, error)) end.Object["position"] = std::move(position);
+                }
+                if (!end.Find("space")) end.Object["space"] = Value::FromString("Simulation");
+                document.Set(emitterPath, std::move(emitter));
+            });
+        });
+        const auto row = CreateRef<GUI::HorizontalBox>();
+        row->AddChild(checkbox).SetFixedSize(16);
+        row->AddChild(Text("Pin end", 11)).SetFillSize();
+        Row(m_Inspector, row, 24);
+        if (end) AddProperties(m_Inspector, *end, Child(Child(emitterPath, "strand"), "endAttachment"));
+    }
+
+    if (emitter.String("renderMode") == "Strand")
+    {
+        Section(m_Inspector, "Leaf Renderer (Editor)", {0.35f, 0.75f, 0.4f, 1});
+        const auto leafPath = Child(emitterPath, "leafRenderer");
+        if (const auto leaves = emitter.Find("leafRenderer"))
+        {
+            const auto checkbox = CreateRef<GUI::Checkbox>();
+            checkbox->SetStyle(EditorStyle::Get().Checkbox);
+            checkbox->SetChecked(leaves->Enabled());
+            checkbox->OnCheckedChanged([this, leafPath](bool enabled)
+            {
+                QueueEdit([leafPath, enabled](Document& document)
+                {
+                    const auto existing = document.Get(leafPath);
+                    if (!existing) return;
+                    auto settings = *existing; settings.Object["enabled"] = Boolean(enabled);
+                    document.Set(leafPath, std::move(settings));
+                });
+            });
+            const auto enabledRow = CreateRef<GUI::HorizontalBox>();
+            enabledRow->AddChild(checkbox).SetFixedSize(16);
+            enabledRow->AddChild(Text("Enabled", 11)).SetFillSize();
+            Row(m_Inspector, enabledRow, 24);
+            AddProperties(m_Inspector, *leaves, leafPath);
+            Row(m_Inspector, Action("Remove Leaf Renderer", [this, emitterPath]
+            {
+                QueueEdit([emitterPath](Document& document)
+                {
+                    const auto existing = document.Get(emitterPath);
+                    if (!existing) return;
+                    auto emitter = *existing; emitter.Object.erase("leafRenderer");
+                    document.Set(emitterPath, std::move(emitter));
+                });
+            }));
+        }
+        else Row(m_Inspector, Action("Add Leaf Renderer", [this, leafPath]
+        {
+            QueueEdit([leafPath](Document& document)
+            {
+                Value settings; std::string error;
+                if (Value::Parse(R"({"enabled":true,"interval":3,"length":0.12,"width":0.1,
+                    "color":[0.12,0.45,0.08,1],"shape":"Ivy","maturationSegments":2})", settings, error))
+                    document.Set(leafPath, std::move(settings));
+            });
+        }));
+    }
+
 }
 
 void VFXPanel::UpdateStatus(const std::string& message)

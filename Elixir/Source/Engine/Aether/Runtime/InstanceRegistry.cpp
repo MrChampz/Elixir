@@ -131,7 +131,13 @@ namespace Elixir::Aether::Runtime
             return nullptr;
         }
 
-        return CreateRef<SCompiledSystem>(system.Compile());
+        auto compiled = CreateRef<SCompiledSystem>(system.Compile());
+        if (compiled->Emitters.size() != system.GetEmitters().size())
+        {
+            EE_CORE_ERROR("Aether system '{}' did not compile all emitters.", system.GetName());
+            return nullptr;
+        }
+        return compiled;
     }
 
     bool InstanceRegistry::IsManagedInstance(const Ref<SystemInstance>& instance) const

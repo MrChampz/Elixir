@@ -22,8 +22,22 @@ namespace Elixir::Aether::Simulation
     {
         Core::EParticleStateLayout Layout = Core::EParticleStateLayout::CoreV1;
         Ref<StorageBuffer> ParticleStateBuffer;
-        /** @brief Retains the persistent strand points until this frame is recorded. */
+        /**
+         * Retains strand points until this frame is recorded. Each point stores three
+         * float4 values: world position, solver history, and transported normal.
+         * The root normal's w is the grown segment count. Point one's normal w is
+         * the accumulated development distance in segments, including time after
+         * reaching maximum length. Applications can use these values for attachments.
+         * Point two's normal w is the explicit growth clock in seconds when enabled.
+         * Read normal xyz for orientation; leave solver history and metadata unchanged.
+         */
         Ref<StorageBuffer> StrandPointBuffer;
+        /** Retains the analytic surface blocks used by strand debug rendering. */
+        Ref<DynamicStorageBuffer> StrandSurfaceBuffer;
+        /** Retains development settings for application renderers. */
+        Ref<DynamicStorageBuffer> StrandGrowthBuffer;
+        /** Retains per-emitter endpoint targets used by solver and debug rendering. */
+        Ref<DynamicStorageBuffer> StrandEndAnchorBuffer;
     };
 
     /**

@@ -1,0 +1,131 @@
+{
+  "name": "Willow",
+  "emitters": [
+    {
+      "name": "Willow Stems",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 5,
+      "spawnRate": 0,
+      "strand": {
+        "points": 40,
+        "segmentLength": 0.045,
+        "stiffness": 0.94,
+        "damping": 0.96,
+        "widthScale": 0.14,
+        "rootWidthScale": 1,
+        "tipWidthScale": 0.12,
+        "widthExponent": 0.8,
+        "branchWidthScale": 0.65,
+        "solverIterations": 12,
+        "radialSegments": 5,
+        "subdivisions": 3
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            -0.35,
+            0.65,
+            -0.08
+          ],
+          "max": [
+            0.35,
+            0.65,
+            0.08
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 9,
+          "max": 12
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.22,
+            0.13,
+            0.04,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "StrandGrowth",
+          "target": "StrandPoints",
+          "speed": 0.12,
+          "maxLength": 1.7,
+          "branchCount": 3,
+          "branchInterval": 9,
+          "branchLengthScale": 0.65,
+          "branchVariation": 0.9,
+          "branchDelay": 1.6,
+          "seed": 997,
+          "state": "Growing"
+        },
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            0,
+            -0.8,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.025,
+          "frequency": 1.5,
+          "scrollVelocity": [
+            0.1,
+            0.03,
+            0.06
+          ],
+          "seed": 997
+        }
+      ],
+      "burst": {
+        "count": 5,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      },
+      "leafRenderer": {
+        "enabled": true,
+        "interval": 4,
+        "length": 0.18,
+        "width": 0.025,
+        "color": [
+          0.24,
+          0.48,
+          0.12,
+          1
+        ],
+        "shape": "Lanceolate",
+        "maturationSegments": 4
+      }
+    }
+  ]
+}

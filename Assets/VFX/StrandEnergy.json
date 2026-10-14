@@ -13,6 +13,10 @@
         "stiffness": 0.93,
         "damping": 0.94,
         "widthScale": 0.11,
+        "rootWidthScale": 1,
+        "tipWidthScale": 0,
+        "widthExponent": 1,
+        "branchWidthScale": 0.65,
         "solverIterations": 10,
         "radialSegments": 5,
         "subdivisions": 4

@@ -78,9 +78,11 @@ private:
     };
     struct SStrandScene : SPreview
     {
-        Scope<Aether::Manager> Manager;
+        Scope<EditorVFXManager> Manager;
         Ref<StaticMesh> Mesh;
         Scope<StaticMeshRenderer> Renderer;
+        Ref<StaticMesh> Wall;
+        Ref<StaticMesh> PowerPoles;
         StrandsPanel* Panel = nullptr;
     };
     SStrandScene m_StrandScene;

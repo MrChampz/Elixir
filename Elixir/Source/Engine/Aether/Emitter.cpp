@@ -22,6 +22,13 @@ namespace Elixir::Aether
         SetMaterial(material->CreateInstance());
     }
 
+    const SStrandGrowthSettings* Emitter::GetStrandGrowthSettings() const
+    {
+        for (const auto& module : m_Modules)
+            if (const auto* growth = module->GetStrandGrowthSettings()) return growth;
+        return nullptr;
+    }
+
     bool Emitter::SetStrandSettings(const SStrandSettings& settings)
     {
         if (!settings.IsValid())
@@ -55,6 +62,18 @@ namespace Elixir::Aether
         emitter.Id = m_Id;
         emitter.RenderMode = m_RenderMode;
         emitter.Strand = m_Strand;
+        for (const auto& module : m_Modules)
+            if (const auto* growth = module->GetStrandGrowthSettings())
+            {
+                auto& strand = emitter.Strand;
+                strand.Growth = *growth;
+                strand.HasGrowthModule = true;
+                strand.GrowthSpeed = growth->Speed;
+                strand.GrowthMaxLength = growth->MaxLength;
+                strand.BranchCount = growth->BranchCount;
+                strand.BranchInterval = growth->BranchInterval;
+                strand.BranchLengthScale = growth->BranchLengthScale;
+            }
         emitter.KillOnLifetimeExpired = m_KillOnLifetimeExpired;
         emitter.SimulationSpace = m_SimulationSpace;
         emitter.MaxParticles = m_MaxParticles;

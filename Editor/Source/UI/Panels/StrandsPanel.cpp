@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <cmath>
 #include <format>
+#include <fstream>
+#include <iterator>
 
 namespace
 {
@@ -34,8 +36,8 @@ namespace
     private:
         Ref<Image> m_Image;
     };
-    constexpr std::array SampleFiles{"StrandPlayground.json", "StrandCables.json", "StrandSeaweed.json", "StrandEnergy.json"};
-    constexpr std::array SampleLabels{"Tentacles", "Cables", "Seaweed", "Energy"};
+    constexpr std::array SampleFiles{"StrandPlayground.json", "StrandCables.json", "StrandSeaweed.json", "StrandEnergy.json", "StrandIvy.json", "StrandClimbingIvy.json", "StrandFern.json", "StrandWillow.json", "StrandPowerLines.json"};
+    constexpr std::array SampleLabels{"Tentacles", "Cables", "Seaweed", "Energy", "Ivy", "Climbing Ivy", "Fern", "Willow", "Power Lines"};
     constexpr std::array MoveCodes{EE_KEY_W, EE_KEY_A, EE_KEY_S, EE_KEY_D};
 
     Ref<GUI::TextBlock> Label(const std::string& text)
@@ -47,7 +49,7 @@ namespace
     }
 }
 
-StrandsPanel::StrandsPanel(Aether::Manager& manager, GraphicsContext& context, const std::filesystem::path& effect)
+StrandsPanel::StrandsPanel(EditorVFXManager& manager, GraphicsContext& context, const std::filesystem::path& effect)
     : m_Manager(manager), m_Context(context)
 {
     m_EffectDirectory = effect.parent_path();
@@ -59,21 +61,42 @@ bool StrandsPanel::LoadSample(int index)
 {
     if (index < 0 || index >= int(SampleFiles.size())) return false;
     const auto path = m_EffectDirectory / SampleFiles[index];
+    std::ifstream stream(path);
+    const std::string text{std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
+    EditorVFX::Value asset;
+    std::vector<std::optional<EditorVFX::LeafSettings>> leaves;
+    std::string error;
+    if (!stream || !EditorVFX::Value::Parse(text, asset, error) || !EditorVFX::ParseLeafRenderers(asset, leaves, error))
+    {
+        m_LoadError = "Could not load sample renderer settings: " + error;
+        EE_CORE_ERROR("{}", m_LoadError);
+        return false;
+    }
     const auto system = Aether::Manager::LoadEffect(path);
     auto instance = system ? system->CreateInstance() : nullptr;
-    if (instance) instance->SetWorldTransform(glm::translate(glm::mat4(1), m_Position));
+    const auto position = index == 8 ? glm::vec3(0) : m_Position;
+    if (instance) instance->SetWorldTransform(glm::translate(glm::mat4(1), position));
     bool added = false;
     if (instance && m_Context.RunRenderTaskAndWait([&]
     {
         added = m_Manager.Add(instance);
-        if (added && m_Instance) m_Manager.Remove(m_Instance);
+        if (added)
+        {
+            if (m_Instance) m_Manager.Remove(m_Instance);
+            m_Manager.SetLeafRenderers(std::move(leaves));
+        }
     }) && added)
     {
         m_Instance = std::move(instance);
         m_SampleIndex = index;
+        m_Position = position;
         m_SampleName = system->GetName();
         m_StrandCount = 0;
-        for (const auto& emitter : system->GetEmitters()) m_StrandCount += emitter->GetMaxParticles();
+        for (const auto& emitter : system->GetEmitters())
+        {
+            const auto* growth = emitter->GetStrandGrowthSettings();
+            m_StrandCount += emitter->GetMaxParticles() * (1 + (growth ? growth->BranchCount : emitter->GetStrandSettings().BranchCount));
+        }
         m_LoadError.clear();
         StopNavigation();
         return true;
@@ -94,7 +117,8 @@ Ref<GUI::Widget> StrandsPanel::Build()
     auto controls = CreateRef<GUI::HorizontalBox>();
     toolbar->SetStyle(style.Toolbar);
     toolbar->SetPadding({10, 4});
-    controls->AddChild(Label("WASD: move   |   Drag: orbit   |   Wheel: zoom")).SetFillSize()
+    m_NavigationHint = Label("WASD: move   |   Drag: orbit   |   Wheel: zoom");
+    controls->AddChild(m_NavigationHint).SetFillSize()
         .SetVerticalAlignment(GUI::EVerticalAlignment::Center);
     auto reset = CreateRef<GUI::Button>();
     reset->SetStyle(style.PanelHeaderButton);
@@ -102,6 +126,20 @@ Ref<GUI::Widget> StrandsPanel::Build()
     reset->SetContent(Label("Reset position"));
     reset->OnClick([this] { m_ResetRequested = true; });
     controls->AddChild(reset).SetVerticalAlignment(GUI::EVerticalAlignment::Center);
+    auto debug = CreateRef<GUI::Button>();
+    debug->SetStyle(style.PanelHeaderButton);
+    debug->SetPadding({8, 3});
+    m_DebugLabel = Label("Debug: off");
+    debug->SetContent(m_DebugLabel);
+    debug->OnClick([this] { m_DebugRequested = true; });
+    controls->AddChild(debug).SetVerticalAlignment(GUI::EVerticalAlignment::Center);
+    auto growth = CreateRef<GUI::Button>();
+    growth->SetStyle(style.PanelHeaderButton);
+    growth->SetPadding({8, 3});
+    m_GrowthLabel = Label("Pause growth");
+    growth->SetContent(m_GrowthLabel);
+    growth->OnClick([this] { m_GrowthRequested = true; });
+    controls->AddChild(growth).SetVerticalAlignment(GUI::EVerticalAlignment::Center);
     toolbar->AddChild(controls).SetFixedSize(28).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
     auto samples = CreateRef<GUI::HorizontalBox>();
     for (int index = 0; index < int(SampleLabels.size()); ++index)
@@ -114,12 +152,16 @@ Ref<GUI::Widget> StrandsPanel::Build()
         samples->AddChild(button).SetMargin({0, 2, 6, 0});
     }
     toolbar->AddChild(samples).SetFixedSize(30).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
-    root->AddChild(toolbar).SetPosition({10, 10}).SetSize({530, 66});
+    root->AddChild(toolbar).SetPosition({10, 10}).SetSize({800, 66});
     m_Toolbar = toolbar;
     RegisterOverlay(toolbar);
     m_Status = Label(m_Instance ? "" : "Could not load strand effect. See the log.");
     m_Status->SetVisibility(GUI::EVisibility::HitTestInvisible);
     root->AddChild(m_Status).SetPosition({20, 82}).SetSize({500, 24});
+    auto legend = Label("Debug: green = attached | orange = released | red = free | yellow = normal | blue = tip");
+    legend->SetVisibility(GUI::EVisibility::Collapsed);
+    m_DebugLegend = legend;
+    root->AddChild(legend).SetPosition({20, 106}).SetSize({650, 24});
     return root;
 }
 
@@ -138,18 +180,39 @@ void StrandsPanel::ResetPosition()
 void StrandsPanel::OnUpdate(Timestep frameTime)
 {
     if (!m_Active) return;
+    if (m_GrowthRequested)
+    {
+        m_GrowthRequested = false;
+        const bool paused = !m_GrowthPaused;
+        if (m_Context.RunRenderTaskAndWait([this, paused] { m_Manager.SetStrandGrowthPaused(paused); }))
+        { m_GrowthPaused = paused; m_GrowthLabel->SetText(paused ? "Resume growth" : "Pause growth"); }
+    }
+    if (m_DebugRequested)
+    {
+        m_DebugRequested = false;
+        const bool enabled = !m_Debug;
+        if (m_Context.RunRenderTaskAndWait([this, enabled] { m_Manager.SetStrandDebug(enabled); }))
+        {
+            m_Debug = enabled;
+            m_DebugLabel->SetText(enabled ? "Debug: on" : "Debug: off");
+            m_DebugLegend->SetVisibility(enabled ? GUI::EVisibility::HitTestInvisible : GUI::EVisibility::Collapsed);
+        }
+    }
     if (m_RequestedSample >= 0)
     {
         const int requested = m_RequestedSample;
         m_RequestedSample = -1;
         LoadSample(requested);
     }
+    if (m_NavigationHint) m_NavigationHint->SetText(ShouldShowPowerPoles()
+        ? "Fixed poles   |   Drag: orbit   |   Wheel: zoom"
+        : "WASD: move   |   Drag: orbit   |   Wheel: zoom");
     const auto extent = GetPreviewExtent();
     if (extent.Height) m_Camera.GetPerspectiveCamera().SetAspectRatio(float(extent.Width) / extent.Height);
     if (m_ResetRequested) { m_ResetRequested = false; ResetPosition(); }
     if (!m_Instance) { m_Status->SetText(m_LoadError); return; }
     glm::vec2 direction{};
-    if (!m_InputBlocked)
+    if (!m_InputBlocked && !ShouldShowPowerPoles())
     {
         // Poll as well as tracking unhandled key presses, so losing window focus cannot leave a key held.
         for (size_t index = 0; index < MoveCodes.size(); ++index)

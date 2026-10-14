@@ -141,7 +141,7 @@ namespace Elixir::Aether::Simulation
             uint32_t EmitterIndex = 0;
         };
 
-        // Matches the strand compute push-constant layout (108 bytes).
+        // Matches the strand compute push-constant layout (128 bytes).
         struct SStrandPushConstants
         {
             glm::mat4 RootTransform{1.0f};
@@ -157,10 +157,26 @@ namespace Elixir::Aether::Simulation
             uint32_t SolverIterations = 0;
             uint32_t InstanceIndex = 0;
             uint32_t EmitterIndex = 0;
+            float GrowthSpeed = 0;
+            float GrowthMaxLength = 0;
+            uint32_t BranchCount = 0;
+            uint32_t BranchInterval = 8;
+            float BranchLengthScale = 0.5f;
         };
 
         // Update dispatches use the same ABI as scheduler dispatches.
         using SUpdatePushConstants = SSchedulePushConstants;
+
+        // Development data uses two vectors per emitter, independent of force instructions.
+        struct SGPUStrandGrowth { glm::vec4 Controls{}, Variation{}; };
+
+        // Two control vectors and three vectors per surface match the HLSL buffer stride.
+        struct SGPUStrandSurfaces
+        {
+            glm::vec4 Controls{};
+            glm::vec4 Direction{};
+            std::array<glm::vec4, 24> Shapes{};
+        };
 
         SGPUEmitter ToEmitterData(
             const SCompiledEmitter& emitter,
@@ -234,7 +250,8 @@ namespace Elixir::Aether::Simulation
 
         Init(shaderLoader);
         CreateBuffers();
-        if (!m_StrandPointBuffer || !m_StrandPointBuffer->IsValid()) return;
+        if (!m_StrandPointBuffer || !m_StrandPointBuffer->IsValid() ||
+            !m_StrandEndAnchorBuffer || !m_StrandEndAnchorBuffer->IsValid()) return;
         BindShaderParameters();
     }
 
@@ -266,7 +283,8 @@ namespace Elixir::Aether::Simulation
         EE_CORE_ASSERT(cmd, "Aether simulation requires a command buffer.")
 
         if (!cmd || !m_ConstantBuffer || !m_ParameterBuffer ||
-            !m_StrandPointBuffer || !m_StrandPointBuffer->IsValid() || steps.empty())
+            !m_StrandPointBuffer || !m_StrandPointBuffer->IsValid() ||
+            !m_StrandEndAnchorBuffer || !m_StrandEndAnchorBuffer->IsValid() || steps.empty())
             return nullptr;
 
         const auto invalidStep = std::ranges::any_of(steps, [](const float step) {
@@ -300,7 +318,7 @@ namespace Elixir::Aether::Simulation
         {
             elapsed += step;
             parameters.push_back({
-                .Time = { step, elapsed, 0, 0 },
+                .Time = { step, elapsed, m_StrandGrowthPaused ? 1.0f : 0.0f, 0 },
                 .Viewport = { (float)extent.Width, (float)extent.Height, 0, 0 }
             });
         }
@@ -544,6 +562,12 @@ namespace Elixir::Aether::Simulation
             sizeof(SGPUEmitter) * m_Limits.EmitterCapacity
         );
 
+        m_StrandEndAnchorBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(glm::vec4) * m_Limits.EmitterCapacity);
+        m_StrandGrowthBuffer = DynamicStorageBuffer::Create(m_GraphicsContext, sizeof(SGPUStrandGrowth) * m_Limits.EmitterCapacity);
+
+        m_StrandSurfaceBuffer = DynamicStorageBuffer::Create(m_GraphicsContext,
+            sizeof(SGPUStrandSurfaces) * m_Limits.EmitterCapacity);
+
         m_OperationBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
             sizeof(SGPUOperation) * m_Limits.OperationCapacity
@@ -693,6 +717,9 @@ namespace Elixir::Aether::Simulation
             runtime.StrandShader->BindStorageBuffer("operands", m_OperandBuffer);
             runtime.StrandShader->BindStorageBuffer("constants", m_ConstantBuffer);
             runtime.StrandShader->BindStorageBuffer("parameters", m_ParameterBuffer);
+            runtime.StrandShader->BindStorageBuffer("strandSurfaces", m_StrandSurfaceBuffer);
+            runtime.StrandShader->BindStorageBuffer("strandGrowth", m_StrandGrowthBuffer);
+            runtime.StrandShader->BindStorageBuffer("strandEndAnchors", m_StrandEndAnchorBuffer);
             runtime.StrandShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
         }
 
@@ -844,6 +871,9 @@ namespace Elixir::Aether::Simulation
         const auto& system = proxy.GetCompiledSystem();
 
         auto* emitters = (SGPUEmitter*)m_EmitterBuffer->Map();
+        auto* surfaceBlocks = static_cast<SGPUStrandSurfaces*>(m_StrandSurfaceBuffer->Map());
+        auto* endAnchors = static_cast<glm::vec4*>(m_StrandEndAnchorBuffer->Map());
+        auto* growthBlocks = static_cast<SGPUStrandGrowth*>(m_StrandGrowthBuffer->Map());
         for (uint32_t i = 0; i < allocation.Emitters.Count; ++i)
         {
             emitters[allocation.Emitters.Offset + i] = ToEmitterData(
@@ -851,6 +881,28 @@ namespace Elixir::Aether::Simulation
                 allocation.Operations.Offset,
                 allocation.TriggerTargets.Offset
             );
+            const auto& config = system.Emitters[i].Strand.SurfaceAttachment;
+            SGPUStrandSurfaces block;
+            block.Controls = {float(config.Count), config.SearchRadius, config.Offset, config.ClimbStrength};
+            block.Direction = glm::vec4(config.ClimbDirection, config.BreakStretchRatio);
+            for (uint32_t surface = 0; surface < config.Count; ++surface)
+            {
+                const auto& shape = config.Surfaces[surface];
+                block.Shapes[surface * 3] = glm::vec4(shape.Center, float(shape.Type));
+                block.Shapes[surface * 3 + 1] = glm::vec4(shape.HalfExtents, shape.Radius);
+                block.Shapes[surface * 3 + 2] = glm::vec4(
+                    shape.Type == EStrandSurfaceType::Plane ? glm::normalize(shape.Normal) : shape.Normal, shape.Rounding);
+            }
+            surfaceBlocks[allocation.Emitters.Offset + i] = block;
+            const auto& strand = system.Emitters[i].Strand;
+            const auto& growth = strand.Growth;
+            const auto& end = strand.EndAttachment;
+            endAnchors[allocation.Emitters.Offset + i] = glm::vec4(end.Position,
+                end.Enabled ? (end.Space == EStrandEndSpace::World ? 2.0f : 1.0f) : 0.0f);
+            growthBlocks[allocation.Emitters.Offset + i] = {
+                .Controls = {strand.HasGrowthModule ? 1.0f : 0.0f, float(growth.State), std::bit_cast<float>(growth.Seed), 0.0f},
+                .Variation = {growth.BranchVariation, growth.BranchDelay, 0, 0},
+            };
         }
 
         // Shared references remain relative to the compiled program and the instance.
@@ -1014,6 +1066,9 @@ namespace Elixir::Aether::Simulation
                 .Layout = runtime.Key,
                 .ParticleStateBuffer = runtime.ParticleStateBuffer,
                 .StrandPointBuffer = m_StrandPointBuffer,
+                .StrandSurfaceBuffer = m_StrandSurfaceBuffer,
+                .StrandGrowthBuffer = m_StrandGrowthBuffer,
+                .StrandEndAnchorBuffer = m_StrandEndAnchorBuffer,
             });
         }
 
@@ -1206,8 +1261,14 @@ namespace Elixir::Aether::Simulation
                     .Damping = settings.Damping,
                     .Generation = instance->Allocation.Generation,
                     .SolverIterations = settings.SolverIterations,
+
                     .InstanceIndex = instance->Allocation.InstanceIndex,
                     .EmitterIndex = instance->Allocation.Emitters.Offset + uint32_t(&emitter - instance->Proxy->GetCompiledSystem().Emitters.data()),
+                    .GrowthSpeed = settings.GrowthSpeed,
+                    .GrowthMaxLength = settings.GrowthMaxLength,
+                    .BranchCount = settings.BranchCount,
+                    .BranchInterval = settings.BranchInterval,
+                    .BranchLengthScale = settings.BranchLengthScale,
                 };
                 runtime->StrandShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
                 cmd->Dispatch((emitter.MaxParticles + UPDATE_GROUP_SIZE - 1) / UPDATE_GROUP_SIZE);

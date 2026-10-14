@@ -58,6 +58,9 @@ namespace Elixir::Aether::Rendering
          */
         explicit Renderer(const GraphicsContext* context);
 
+        /** Enables attachment and growth-guidance geometry for strand draws. */
+        void SetStrandDebug(bool enabled) { m_StrandDebug = enabled; }
+
         /**
          * @brief Builds material draw data for a simulated particle frame.
          *
@@ -84,6 +87,7 @@ namespace Elixir::Aether::Rendering
         }
 
       private:
+        bool m_StrandDebug = false;
         // Stores the vertex layouts used to render one particle-state layout.
         struct SParticleGraphicsLayout
         {

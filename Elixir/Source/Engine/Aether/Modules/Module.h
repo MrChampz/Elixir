@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Core/Core.h>
+#include <Engine/Aether/Core/StrandGrowthSettings.h>
 #include <Engine/Aether/Core/ParameterStore.h>
 #include <Engine/Aether/Core/Particle.h>
 #include <Engine/Aether/Core/Operation.h>
@@ -172,6 +173,9 @@ namespace Elixir::Aether::Modules
 
         /** @brief Appends this module's GPU operations to the supplied context. */
         virtual void Compile(ModuleCompileContext& context) const = 0;
+
+        /** Returns development-stage configuration, or null for ordinary VM modules. */
+        virtual const SStrandGrowthSettings* GetStrandGrowthSettings() const { return nullptr; }
 
         /** @brief Returns the phase in which this module is compiled. */
         EModulePhase GetPhase() const { return m_Phase; }

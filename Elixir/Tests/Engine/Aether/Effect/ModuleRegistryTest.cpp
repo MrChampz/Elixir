@@ -486,18 +486,24 @@ TEST(ModuleRegistryTest, LoadsStrandSettingsAndRejectsInvalidRanges)
     std::string error;
     const auto system = Effect::LoadEffectText(R"({"name":"Strands","emitters":[
         {"name":"Root","renderMode":"Strand","simulationSpace":"Local","maxParticles":4,"spawnRate":0,
-         "strand":{"points":32,"gravity":[0,-1,0],"radialSegments":6},"material":{"blendMode":"Opaque"}}]})", &error);
+         "strand":{"points":32,"gravity":[0,-1,0],"radialSegments":6,"rootWidthScale":0.8,"tipWidthScale":0.25,"widthExponent":2,"branchWidthScale":0.4},"material":{"blendMode":"Opaque"}}]})", &error);
     ASSERT_TRUE(system) << error;
     const auto& emitter = *system->GetEmitters().front();
     EXPECT_EQ(emitter.GetRenderMode(), EParticleRenderMode::Strand);
     EXPECT_EQ(emitter.GetSimulationSpace(), EParticleSimulationSpace::Local);
     EXPECT_EQ(emitter.GetStrandSettings().PointCount, 32);
     EXPECT_EQ(emitter.GetStrandSettings().RadialSegments, 6);
+    EXPECT_FLOAT_EQ(emitter.GetStrandSettings().RootWidthScale, 0.8f);
+    EXPECT_FLOAT_EQ(emitter.GetStrandSettings().TipWidthScale, 0.25f);
+    EXPECT_FLOAT_EQ(emitter.GetStrandSettings().WidthExponent, 2.0f);
+    EXPECT_FLOAT_EQ(emitter.GetStrandSettings().BranchWidthScale, 0.4f);
     ASSERT_TRUE(emitter.GetMaterialDescription());
     EXPECT_EQ(emitter.GetMaterialDescription()->BlendMode, Elixir::Materials::EMaterialBlendMode::Opaque);
     for (const auto* fields : {R"("points":1)", R"("points":97)", R"("segmentLength":0)",
         R"("damping":1.1)", R"("stiffness":-1)", R"("solverIterations":0)",
-        R"("radialSegments":2)", R"("subdivisions":9)", R"("gravity":[0,1])"})
+        R"("radialSegments":2)", R"("subdivisions":9)", R"("gravity":[0,1])",
+        R"("rootWidthScale":-1)", R"("tipWidthScale":-1)", R"("widthExponent":0)",
+        R"("widthExponent":-1)", R"("branchWidthScale":-0.1)"})
     {
         SCOPED_TRACE(fields);
         const std::string json = std::string(R"({"name":"Bad","emitters":[{"name":"Root","renderMode":"Strand","maxParticles":1,"spawnRate":0,"strand":{)") + fields + "}}]}";
@@ -552,4 +558,128 @@ TEST(ModuleRegistryTest, ValidatesModuleExecutionTargetsAndCurlParameterBindings
     std::string error;
     EXPECT_FALSE(Effect::LoadEffectText(R"({"name":"Bad","emitters":[{"name":"Sprite","maxParticles":1,"spawnRate":0,
         "updateModules":[{"type":"ApplyGravity","target":"StrandPoints","gravity":[0,-1,0]}]}]})", &error));
+}
+
+TEST(ModuleRegistryTest, ApplicationRendererPropertiesDoNotAffectGenericStrands)
+{
+    std::string error;
+    const auto system = Effect::LoadEffectText(R"({"name":"Custom","emitters":[
+        {"name":"Plain","renderMode":"Strand","maxParticles":1,"spawnRate":0,"strand":{"points":40}},
+        {"name":"Custom","renderMode":"Strand","maxParticles":1,"spawnRate":0,"strand":{"points":40},
+         "leafRenderer":{"shape":"ApplicationOwned","color":[1,0,0,1]}}]})", &error);
+    ASSERT_TRUE(system) << error;
+    EXPECT_EQ(system->GetEmitters()[0]->GetStrandSettings().GetVertexCount(), 39u * 4u * 8u * 6u);
+    EXPECT_EQ(system->GetEmitters()[1]->GetStrandSettings().GetVertexCount(), 39u * 4u * 8u * 6u);
+}
+
+TEST(ModuleRegistryTest, LoadsStrandGrowthAndValidatesBranchAttachments)
+{
+    std::string error;
+    const auto load = [&error](std::string_view settings)
+    {
+        return Effect::LoadEffectText(std::string(R"({"name":"Growth","emitters":[{"name":"Vines","renderMode":"Strand",
+            "maxParticles":8,"spawnRate":0,"strand":)") + std::string(settings) + "}]}", &error);
+    };
+    const auto system = load(R"({"points":40,"growthSpeed":0.18,"growthMaxLength":1.65,"branchCount":3,"branchInterval":8,"branchLengthScale":0.45})");
+    ASSERT_TRUE(system) << error;
+    const auto& settings = system->GetEmitters().front()->GetStrandSettings();
+    EXPECT_EQ(settings.GetStoragePointCount(), 160u);
+    EXPECT_FLOAT_EQ(settings.GrowthSpeed, 0.18f);
+    EXPECT_FLOAT_EQ(settings.GrowthMaxLength, 1.65f);
+    EXPECT_FLOAT_EQ(settings.BranchLengthScale, 0.45f);
+    for (const auto* invalid : {R"({"growthSpeed":-1})", R"({"growthMaxLength":-1})",
+            R"({"branchCount":5})", R"({"branchInterval":0})", R"({"branchCount":3,"branchInterval":8})",
+            R"({"branchLengthScale":0})", R"({"branchLengthScale":1.1})"})
+        EXPECT_FALSE(load(invalid)) << invalid;
+}
+
+TEST(ModuleRegistryTest, LoadsAnalyticStrandSurfacesAndRejectsInvalidShapes)
+{
+    std::string error;
+    const auto load = [&error](std::string_view config)
+    {
+        return Effect::LoadEffectText(std::string(R"({"name":"Climbing","emitters":[{"name":"Vines","renderMode":"Strand",
+            "maxParticles":8,"spawnRate":0,"strand":{"surfaceAttachment":)") + std::string(config) + "}}]}", &error);
+    };
+    const auto system = load(R"({"searchRadius":0.1,"offset":0.01,"breakStretchRatio":2.5,"surfaces":[
+        {"type":"Plane","center":[0,0,0],"normal":[0,0,2]},
+        {"type":"Sphere","center":[1,0,0],"radius":0.3},
+        {"type":"Box","center":[-1,0,0],"halfExtents":[0.2,0.3,0.4],"rounding":0.05}]})");
+    ASSERT_TRUE(system) << error;
+    const auto& config = system->GetEmitters().front()->GetStrandSettings().SurfaceAttachment;
+    EXPECT_EQ(config.Count, 3u);
+    EXPECT_FLOAT_EQ(config.BreakStretchRatio, 2.5f);
+    EXPECT_EQ(config.Surfaces[0].Type, Core::EStrandSurfaceType::Plane);
+    EXPECT_FLOAT_EQ(config.Surfaces[1].Radius, 0.3f);
+    EXPECT_FLOAT_EQ(config.Surfaces[2].Rounding, 0.05f);
+    for (const auto* invalid : {R"({"breakStretchRatio":1,"surfaces":[]})", R"({"breakStretchRatio":-2,"surfaces":[]})", R"({"searchRadius":0,"surfaces":[]})", R"({"offset":0.2,"surfaces":[]})",
+            R"({"climbDirection":[0,0,0],"surfaces":[]})", R"({"surfaces":[{"type":"Mesh","center":[0,0,0]}]})",
+            R"({"surfaces":[{"type":"Sphere","center":[0,0,0],"radius":-1}]})",
+            R"({"surfaces":[{"type":"Plane","center":[0,0,0],"normal":[0,0,0]}]})",
+            R"({"surfaces":[{"type":"Box","center":[0,0,0],"halfExtents":[0.1,0.1,0.1],"rounding":0.2}]})"})
+        EXPECT_FALSE(load(invalid)) << invalid;
+    std::string overflow = R"({"surfaces":[)";
+    for (int i = 0; i < 9; ++i)
+        overflow += (i ? "," : "") + std::string(R"({"type":"Sphere","center":[0,0,0],"radius":1})");
+    EXPECT_FALSE(load(overflow + "]}"));
+}
+
+TEST(ModuleRegistryTest, ParsesStrandGrowthAndRejectsInvalidDevelopment)
+{
+    std::string error;
+    const auto load=[&](std::string_view module) {
+        return Effect::LoadEffectText(std::string(R"({"name":"Plant","emitters":[{"name":"Stem","renderMode":"Strand","maxParticles":5,"spawnRate":0,"updateModules":[)")+std::string(module)+"]}]}",&error);
+    };
+    const auto system=load(R"({"type":"StrandGrowth","speed":0.2,"branchVariation":0.8,"branchDelay":0.5,"seed":4294967295,"state":"Paused"})");
+    ASSERT_TRUE(system)<<error;
+    const auto* settings=system->GetEmitters()[0]->GetStrandGrowthSettings();
+    ASSERT_TRUE(settings);
+    EXPECT_EQ(settings->Seed,UINT32_MAX);
+    EXPECT_EQ(settings->State,Core::EStrandGrowthState::Paused);
+    for (const auto* invalid : {R"({"type":"StrandGrowth","speed":-1})",R"({"type":"StrandGrowth","branchVariation":1.1})",R"({"type":"StrandGrowth","state":"Dead"})",R"({"type":"StrandGrowth","target":"Particle"})"})
+        EXPECT_FALSE(load(invalid))<<invalid;
+}
+
+TEST(ModuleRegistryTest, StrandWidthDefaultsAndOpenEndpoints)
+{
+    std::string error;
+    const auto system = Effect::LoadEffectText(R"({"name":"Widths","emitters":[
+        {"name":"Default","renderMode":"Strand","maxParticles":1,"spawnRate":0},
+        {"name":"ClosedRoot","renderMode":"Strand","maxParticles":1,"spawnRate":0,
+         "strand":{"rootWidthScale":0,"tipWidthScale":1,"widthExponent":0.5,"branchWidthScale":0}}]})", &error);
+    ASSERT_TRUE(system) << error;
+    const auto& defaults = system->GetEmitters()[0]->GetStrandSettings();
+    EXPECT_FLOAT_EQ(defaults.RootWidthScale, 1);
+    EXPECT_FLOAT_EQ(defaults.TipWidthScale, 0);
+    EXPECT_FLOAT_EQ(defaults.WidthExponent, 1);
+    EXPECT_FLOAT_EQ(defaults.BranchWidthScale, 0.65f);
+    const auto& configured = system->GetEmitters()[1]->GetStrandSettings();
+    EXPECT_FLOAT_EQ(configured.RootWidthScale, 0);
+    EXPECT_FLOAT_EQ(configured.TipWidthScale, 1);
+    EXPECT_FLOAT_EQ(configured.WidthExponent, .5f);
+    EXPECT_FLOAT_EQ(configured.BranchWidthScale, 0);
+}
+
+TEST(ModuleRegistryTest, LoadsFixedStrandEndsAndRejectsInvalidAttachments)
+{
+    std::string error;
+    const auto load = [&error](std::string_view strand)
+    {
+        return Effect::LoadEffectText(std::string(R"({"name":"Cable","emitters":[{"name":"Wire","renderMode":"Strand","maxParticles":1,"spawnRate":0,"strand":)") + std::string(strand) + "}]}",&error);
+    };
+    auto cable = load(R"({"endAttachment":{"position":[1,2,3],"space":"World"}})");
+    ASSERT_TRUE(cable) << error;
+    const auto& end = cable->GetEmitters()[0]->GetStrandSettings().EndAttachment;
+    EXPECT_TRUE(end.Enabled);
+    EXPECT_EQ(end.Space, Core::EStrandEndSpace::World);
+    EXPECT_EQ(end.Position,glm::vec3(1,2,3));
+    cable = load(R"({"endAttachment":{"enabled":false}})");
+    ASSERT_TRUE(cable) << error;
+    EXPECT_FALSE(cable->GetEmitters()[0]->GetStrandSettings().EndAttachment.Enabled);
+    for (const auto* invalid : {R"({"endAttachment":true})", R"({"endAttachment":{}})",
+        R"({"endAttachment":{"position":[1,2]}})", R"({"endAttachment":{"position":[1,2,3],"enabled":1}})",
+        R"({"endAttachment":{"position":[1,2,3],"space":"Other"}})",
+        R"({"growthSpeed":0.1,"endAttachment":{"position":[1,0,0]}})",
+        R"({"growthMaxLength":0.5,"endAttachment":{"position":[1,0,0]}})"})
+        EXPECT_FALSE(load(invalid)) << invalid;
 }

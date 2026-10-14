@@ -22,3 +22,26 @@ void EditorVFXManager::Replay(const Elixir::Camera& camera,
 
     RenderSteps(camera, sceneTarget, steps, 0);
 }
+
+EditorVFXManager::EditorVFXManager(const Elixir::GraphicsContext* context, const Elixir::ShaderLoader* loader,
+    Elixir::Materials::MaterialRegistry& registry, Elixir::Materials::MaterialSystem& materials)
+    : Manager(context, loader, registry, materials), m_Leaves(context, loader)
+{
+}
+
+void EditorVFXManager::SetLeafRenderers(std::vector<std::optional<EditorVFX::LeafSettings>> settings)
+{
+    m_Leaves.SetSettings(std::move(settings));
+}
+
+void EditorVFXManager::OnRenderFrame(const Elixir::Ref<const Elixir::Aether::Simulation::RenderFrame>& frame,
+    const Elixir::Camera& camera, const Elixir::Ref<Elixir::Image>&)
+{
+    m_Leaves.Prepare(frame, camera);
+}
+
+void EditorVFXManager::RenderCustomRenderers(const Elixir::Ref<Elixir::Image>& color,
+    const Elixir::Ref<Elixir::Image>& depth)
+{
+    m_Leaves.Render(color, depth);
+}

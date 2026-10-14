@@ -110,9 +110,74 @@ namespace Elixir::Aether::Effect
                     emitter.AddModule(std::move(force));
                 }
                 if (HasField(object, "widthScale")) settings.WidthScale = RequireFloat(object, "widthScale");
+                if (HasField(object, "rootWidthScale")) settings.RootWidthScale = RequireFloat(object, "rootWidthScale");
+                if (HasField(object, "tipWidthScale")) settings.TipWidthScale = RequireFloat(object, "tipWidthScale");
+                if (HasField(object, "widthExponent")) settings.WidthExponent = RequireFloat(object, "widthExponent");
+                if (HasField(object, "branchWidthScale")) settings.BranchWidthScale = RequireFloat(object, "branchWidthScale");
                 if (HasField(object, "solverIterations")) settings.SolverIterations = RequireUInt(object, "solverIterations");
                 if (HasField(object, "radialSegments")) settings.RadialSegments = RequireUInt(object, "radialSegments");
                 if (HasField(object, "subdivisions")) settings.Subdivisions = RequireUInt(object, "subdivisions");
+                if (HasField(object, "growthSpeed")) settings.GrowthSpeed = RequireFloat(object, "growthSpeed");
+                if (HasField(object, "growthMaxLength")) settings.GrowthMaxLength = RequireFloat(object, "growthMaxLength");
+                if (HasField(object, "branchCount")) settings.BranchCount = RequireUInt(object, "branchCount");
+                if (HasField(object, "branchInterval")) settings.BranchInterval = RequireUInt(object, "branchInterval");
+                if (HasField(object, "branchLengthScale")) settings.BranchLengthScale = RequireFloat(object, "branchLengthScale");
+                if (HasField(object, "endAttachment"))
+                {
+                    od::object attachment;
+                    if (object["endAttachment"].get_object().get(attachment))
+                    { Fail("'endAttachment' must be an object."); return; }
+                    auto& config = settings.EndAttachment;
+                    config.Enabled = true;
+                    if (HasField(attachment, "enabled") && attachment["enabled"].get_bool().get(config.Enabled))
+                    { Fail("'endAttachment.enabled' must be a boolean."); return; }
+                    if (HasField(attachment, "position")) config.Position = RequireFloatVec<3>(attachment, "position");
+                    else if (config.Enabled) { Fail("Enabled strand end attachment requires a position."); return; }
+                    if (HasField(attachment, "space"))
+                    {
+                        const auto space = RequireString(attachment, "space");
+                        if (space == "Simulation") config.Space = EStrandEndSpace::Simulation;
+                        else if (space == "World") config.Space = EStrandEndSpace::World;
+                        else { Fail("Unknown strand endpoint space '{}'.", space); return; }
+                    }
+                }
+                if (HasField(object, "surfaceAttachment"))
+                {
+                    od::object attachment;
+                    if (object["surfaceAttachment"].get_object().get(attachment))
+                    { Fail("'surfaceAttachment' must be an object."); return; }
+                    auto& config = settings.SurfaceAttachment;
+                    if (HasField(attachment, "searchRadius")) config.SearchRadius = RequireFloat(attachment, "searchRadius");
+                    if (HasField(attachment, "offset")) config.Offset = RequireFloat(attachment, "offset");
+                    if (HasField(attachment, "breakStretchRatio")) config.BreakStretchRatio = RequireFloat(attachment, "breakStretchRatio");
+                    if (HasField(attachment, "climbStrength")) config.ClimbStrength = RequireFloat(attachment, "climbStrength");
+                    if (HasField(attachment, "climbDirection")) config.ClimbDirection = RequireFloatVec<3>(attachment, "climbDirection");
+                    od::array surfaces;
+                    if (attachment["surfaces"].get_array().get(surfaces))
+                    { Fail("'surfaceAttachment.surfaces' must be an array."); return; }
+                    for (auto value : surfaces)
+                    {
+                        if (config.Count == SStrandSurfaceSettings::Capacity)
+                        { Fail("A strand emitter supports at most eight surfaces."); return; }
+                        od::object surface;
+                        if (value.get_object().get(surface)) { Fail("A strand surface must be an object."); return; }
+                        auto& shape = config.Surfaces[config.Count++];
+                        const auto type = RequireString(surface, "type");
+                        shape.Center = RequireFloatVec<3>(surface, "center");
+                        if (type == "Plane")
+                        { shape.Type = EStrandSurfaceType::Plane; shape.Normal = RequireFloatVec<3>(surface, "normal"); }
+                        else if (type == "Sphere")
+                        { shape.Type = EStrandSurfaceType::Sphere; shape.Radius = RequireFloat(surface, "radius"); }
+                        else if (type == "Box")
+                        {
+                            shape.Type = EStrandSurfaceType::Box;
+                            shape.HalfExtents = RequireFloatVec<3>(surface, "halfExtents");
+                            if (HasField(surface, "rounding")) shape.Rounding = RequireFloat(surface, "rounding");
+                        }
+                        else { Fail("Unknown strand surface type '{}'.", type); return; }
+                        if (Failed()) return;
+                    }
+                }
                 if (Failed()) return;
                 if (!emitter.SetStrandSettings(settings)) Fail("Invalid strand settings.");
             }

@@ -345,6 +345,7 @@ namespace EditorVFX
             R"({"type":"SetRibbonId","ribbonId":0})"
         } : std::vector<std::string>{
             R"({"type":"ApplyGravity","target":"Particle","gravity":[0,-9.8,0,0]})", R"({"type":"ApplyLinearDrag","drag":0.1})",
+            R"({"type":"StrandGrowth","target":"StrandPoints","speed":0.18,"maxLength":1.65,"branchCount":3,"branchInterval":8,"branchLengthScale":0.45,"branchVariation":0,"branchDelay":0,"seed":0,"state":"Growing"})",
             R"({"type":"ApplyCurlNoise","target":"Particle","strength":0.65,"frequency":2.2,"scrollVelocity":[0.12,0.09,0.07],"seed":0})",
             R"({"type":"SizeOverLife","start":0.1,"end":0.01})", R"({"type":"ScaleOverLife","start":1,"end":0})",
             R"({"type":"ApplyAngularVelocity","value":1})", R"({"type":"ColorOverLife","start":[1,1,1,1],"end":[1,1,1,0]})",

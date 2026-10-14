@@ -142,13 +142,25 @@ namespace Elixir::Aether
         }
 
         for (const auto& emitter : m_Emitters)
+        {
+            uint32_t growthModules = 0;
             for (const auto& module : emitter->m_Modules)
+            {
+                if (const auto* growth = module->GetStrandGrowthSettings())
+                {
+                    if (++growthModules > 1 || !growth->IsValid() || emitter->GetStrandSettings().PointCount < 3 ||
+                        (growth->BranchCount && uint64_t(growth->BranchCount) * growth->BranchInterval >= emitter->GetStrandSettings().PointCount - 1))
+                    { EE_CORE_ERROR("Invalid or duplicate StrandGrowth module for emitter '{}'.", emitter->GetName()); return system; }
+                }
                 if (!module->SupportsTarget(module->GetTarget()) ||
                     (module->GetTarget() == EModuleTarget::StrandPoints && emitter->GetRenderMode() != EParticleRenderMode::Strand))
                 {
                     EE_CORE_ERROR("Aether module target is incompatible with its emitter.");
                     return system;
                 }
+
+            }
+        }
 
         uint32_t localParticleOffset = 0;
         system.Emitters.reserve(m_Emitters.size());
@@ -161,10 +173,15 @@ namespace Elixir::Aether
                 system.ModuleData
             );
             compiled.LocalParticleOffset = localParticleOffset;
+            if (compiled.RenderMode == EParticleRenderMode::Strand && !compiled.Strand.IsValid())
+            {
+                EE_CORE_ERROR("Invalid compiled strand settings for emitter '{}'. A fixed end requires a fully grown chain.", emitter->GetName());
+                return system;
+            }
             compiled.LocalStrandPointOffset = system.TotalStrandPoints;
             if (compiled.RenderMode == EParticleRenderMode::Strand)
             {
-                const uint64_t count = uint64_t(compiled.MaxParticles) * compiled.Strand.PointCount;
+                const uint64_t count = uint64_t(compiled.MaxParticles) * compiled.Strand.GetStoragePointCount();
                 if (count > UINT32_MAX - system.TotalStrandPoints)
                 {
                     EE_CORE_ERROR("Aether strand point count exceeds the addressable range.");

@@ -1,0 +1,203 @@
+{
+  "name": "Climbing Ivy",
+  "emitters": [
+    {
+      "name": "Climbing Vines",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 8,
+      "spawnRate": 0,
+      "strand": {
+        "points": 40,
+        "segmentLength": 0.045,
+        "stiffness": 0.9,
+        "damping": 0.97,
+        "widthScale": 0.14,
+        "rootWidthScale": 1,
+        "tipWidthScale": 0.12,
+        "widthExponent": 0.8,
+        "branchWidthScale": 0.65,
+        "solverIterations": 12,
+        "radialSegments": 5,
+        "subdivisions": 3,
+        "surfaceAttachment": {
+          "searchRadius": 0.1,
+          "offset": 0.014,
+          "climbStrength": 4,
+          "climbDirection": [
+            0,
+            1,
+            0
+          ],
+          "surfaces": [
+            {
+              "type": "Plane",
+              "center": [
+                0,
+                0,
+                -0.08
+              ],
+              "normal": [
+                0,
+                0,
+                1
+              ]
+            },
+            {
+              "type": "Sphere",
+              "center": [
+                0.62,
+                0.05,
+                0
+              ],
+              "radius": 0.24
+            },
+            {
+              "type": "Box",
+              "center": [
+                -0.6,
+                0.1,
+                -0.05
+              ],
+              "halfExtents": [
+                0.2,
+                0.2,
+                0.2
+              ],
+              "rounding": 0.05
+            },
+            {
+              "type": "Sphere",
+              "center": [
+                0,
+                0.6,
+                -0.1
+              ],
+              "radius": 0.16
+            },
+            {
+              "type": "Box",
+              "center": [
+                -0.05,
+                -0.62,
+                0
+              ],
+              "halfExtents": [
+                0.34,
+                0.11,
+                0.24
+              ],
+              "rounding": 0.03
+            }
+          ],
+          "breakStretchRatio": 2.5
+        }
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            -0.85,
+            -0.85,
+            -0.066
+          ],
+          "max": [
+            0.85,
+            -0.85,
+            -0.066
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 9,
+          "max": 12
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.22,
+            0.13,
+            0.04,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "StrandGrowth",
+          "target": "StrandPoints",
+          "speed": 0.18,
+          "maxLength": 1.65,
+          "branchCount": 3,
+          "branchInterval": 8,
+          "branchLengthScale": 0.45,
+          "branchVariation": 0,
+          "branchDelay": 0,
+          "seed": 0,
+          "state": "Growing"
+        },
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            0,
+            -0.1,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.07,
+          "frequency": 1.5,
+          "scrollVelocity": [
+            0.1,
+            0.03,
+            0.06
+          ],
+          "seed": 17
+        }
+      ],
+      "burst": {
+        "count": 8,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      },
+      "leafRenderer": {
+        "enabled": true,
+        "interval": 3,
+        "length": 0.13,
+        "width": 0.15,
+        "color": [
+          0.08,
+          0.42,
+          0.1,
+          1
+        ],
+        "shape": "Ivy",
+        "maturationSegments": 2
+      }
+    }
+  ]
+}

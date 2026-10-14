@@ -163,6 +163,9 @@ namespace Elixir::Aether
          */
         void SetRenderMode(const EParticleRenderMode mode) { m_RenderMode = mode; }
 
+        /** Returns growth settings owned by this emitter, or null when using legacy timing. */
+        const SStrandGrowthSettings* GetStrandGrowthSettings() const;
+
         /** @brief Returns the physics and tube settings for this emitter. */
         const SStrandSettings& GetStrandSettings() const { return m_Strand; }
 

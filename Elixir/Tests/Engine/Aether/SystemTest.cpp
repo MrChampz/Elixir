@@ -2,6 +2,7 @@
 
 #include <Engine/Aether/System.h>
 #include <Engine/Aether/Modules/ApplyGravity.h>
+#include <Engine/Aether/Modules/StrandGrowth.h>
 #include <Engine/Aether/Modules/ApplyCurlNoise.h>
 #include <Engine/Materials/Compilation/Compiler.h>
 #include <Engine/Materials/MaterialInstance.h>
@@ -305,4 +306,61 @@ TEST(SystemTest, PartitionsUpdateModulesByTargetAndPreservesEachTargetOrder)
     EXPECT_EQ(compiled.ModuleData.Operations[result.UpdateOperationOffset + 1].Type, EOperationType::ApplyCurlNoise);
     EXPECT_EQ(compiled.ModuleData.Operations[result.StrandUpdateOperationOffset].Type, EOperationType::ApplyCurlNoise);
     EXPECT_EQ(compiled.ModuleData.Operations[result.StrandUpdateOperationOffset + 1].Type, EOperationType::AddWithDelta);
+}
+
+TEST(SystemTest, BranchesReserveIndependentPersistentPointRanges)
+{
+    auto system = CreateRef<System>("Growth");
+    auto& emitter = system->AddEmitter("Vines", 8, 0);
+    emitter.SetRenderMode(EParticleRenderMode::Strand);
+    SStrandSettings settings;
+    settings.PointCount = 40;
+    settings.BranchCount = 3;
+    ASSERT_TRUE(emitter.SetStrandSettings(settings));
+    const auto compiled = Compile(system);
+    EXPECT_EQ(compiled.TotalStrandPoints, 8u * 40u * 4u);
+    EXPECT_EQ(compiled.Emitters.front().Strand.BranchCount, 3u);
+    settings.GrowthSpeed = std::numeric_limits<float>::infinity();
+    EXPECT_FALSE(settings.IsValid());
+}
+
+TEST(SystemTest, StrandGrowthCompilesDevelopmentWithoutPointForceInstructions)
+{
+    auto system = CreateRef<System>("Plant");
+    auto& emitter = system->AddEmitter("Stem",5,0);
+    emitter.SetRenderMode(EParticleRenderMode::Strand);
+    SStrandGrowthSettings growth;
+    growth.Speed=.18f; growth.BranchCount=2;
+    growth.BranchVariation=.5f; growth.Seed=123;
+    emitter.AddModule(CreateScope<Modules::StrandGrowth>(growth));
+    const auto compiled = Compile(system);
+    ASSERT_EQ(compiled.Emitters.size(),1u);
+    EXPECT_TRUE(compiled.Emitters[0].Strand.HasGrowthModule);
+    EXPECT_FLOAT_EQ(compiled.Emitters[0].Strand.GrowthSpeed,.18f);
+    EXPECT_EQ(compiled.TotalStrandPoints,5u * 24u * 3u);
+    EXPECT_EQ(compiled.Emitters[0].StrandUpdateOperationCount,0u);
+    TestInstanceRegistry registry;
+    emitter.AddModule(CreateScope<Modules::StrandGrowth>(growth));
+    EXPECT_FALSE(registry.Registry.Register(system->CreateInstance()));
+}
+
+TEST(SystemTest, FixedEndsRejectGrowthAfterModuleCompilation)
+{
+    auto system = CreateRef<System>("Cable");
+    auto& emitter = system->AddEmitter("Wire",1,0);
+    emitter.SetRenderMode(EParticleRenderMode::Strand);
+    SStrandSettings settings;
+    settings.EndAttachment.Enabled=true;
+    settings.EndAttachment.Position={1,0,0};
+    ASSERT_TRUE(emitter.SetStrandSettings(settings));
+    auto compiled=Compile(system);
+    ASSERT_EQ(compiled.Emitters.size(),1u);
+    EXPECT_TRUE(compiled.Emitters[0].Strand.EndAttachment.Enabled);
+    SStrandGrowthSettings growth;
+    growth.Speed=.1f;
+    emitter.AddModule(CreateScope<Modules::StrandGrowth>(growth));
+    TestInstanceRegistry registry;
+    EXPECT_FALSE(registry.Registry.Register(system->CreateInstance()));
+    settings.EndAttachment.Position.x=std::numeric_limits<float>::infinity();
+    EXPECT_FALSE(settings.IsValid());
 }

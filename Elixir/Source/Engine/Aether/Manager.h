@@ -32,6 +32,7 @@ namespace Elixir
         {
             class Simulator;
             struct SSimulationMetrics;
+            class RenderFrame;
         }
 
         namespace Rendering
@@ -177,6 +178,11 @@ namespace Elixir::Aether
          */
         void Render(const Camera& camera, const Ref<Image>& sceneTarget);
 
+        /** Displays strand attachment markers and growth guidance. Call from the render-frame thread. */
+        void SetStrandDebug(bool enabled);
+        /** Pauses strand development while retaining physical motion; call from the render-frame thread. */
+        void SetStrandGrowthPaused(bool paused);
+
         /**
          * @brief Returns statistics from the most recent particle simulation.
          * @return Statistics for the latest submission processed by Simulator.
@@ -192,6 +198,16 @@ namespace Elixir::Aether
         const SRenderingMetrics& GetLastRenderingMetrics() const;
 
     protected:
+        /**
+         * Adds application rendering after the final simulation frame is recorded.
+         * The default implementation does nothing. The retained frame exposes immutable GPU
+         * buffers and draw metadata; it does not expose mutable simulation state.
+         * @pre Record graphics work on the current render-frame thread. Retain any
+         * resources needed by deferred work and use the application's preview targets.
+         */
+        virtual void OnRenderFrame(const Ref<const Simulation::RenderFrame>& frame,
+            const Camera& camera, const Ref<Image>& sceneTarget);
+
         /**
          * @brief Simulates ordered steps and renders only their final result.
          * @param steps Step durations in seconds. An empty span uses the current frame timestep.

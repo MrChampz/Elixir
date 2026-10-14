@@ -143,6 +143,9 @@ namespace Elixir::Aether::Simulation
             return m_LastMetrics;
         }
 
+        /** Pauses only the independent strand-development clocks. Call from the render-frame thread. */
+        void SetStrandGrowthPaused(bool paused) { m_StrandGrowthPaused = paused; }
+
     private:
         friend class Elixir::Aether::Manager;
 
@@ -299,6 +302,11 @@ namespace Elixir::Aether::Simulation
 
         Ref<DynamicStorageBuffer> m_SystemInstanceBuffer;
         Ref<DynamicStorageBuffer> m_EmitterBuffer;
+        // Fixed surface-query blocks use the same allocation indices as emitters.
+        Ref<DynamicStorageBuffer> m_StrandSurfaceBuffer;
+        Ref<DynamicStorageBuffer> m_StrandGrowthBuffer;
+        Ref<DynamicStorageBuffer> m_StrandEndAnchorBuffer;
+        bool m_StrandGrowthPaused = false;
         Ref<DynamicStorageBuffer> m_OperationBuffer;
         Ref<DynamicStorageBuffer> m_OperandBuffer;
         Ref<DynamicStorageBuffer> m_ConstantBuffer;
