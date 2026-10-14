@@ -17,6 +17,13 @@ namespace Elixir::Aether::Modules
         Spawn, Update
     };
 
+    /** @brief Selects which simulation receives an update module. */
+    enum class EModuleTarget : uint8_t
+    {
+        Particle,
+        StrandPoints
+    };
+
     /** @brief Stores compiled instructions, references, and packed literal words. */
     struct SCompiledModuleData
     {
@@ -169,8 +176,18 @@ namespace Elixir::Aether::Modules
         /** @brief Returns the phase in which this module is compiled. */
         EModulePhase GetPhase() const { return m_Phase; }
 
+        /** @brief Returns the execution target; existing modules default to Particle. */
+        EModuleTarget GetTarget() const { return m_Target; }
+
+        /** @brief Selects an execution target; unsupported targets log an error and leave the selection unchanged. */
+        bool SetTarget(EModuleTarget target);
+
+        /** @brief Reports whether this module can run against the selected simulation. */
+        virtual bool SupportsTarget(EModuleTarget target) const { return target == EModuleTarget::Particle; }
+
     private:
         EModulePhase m_Phase;
+        EModuleTarget m_Target = EModuleTarget::Particle;
     };
 
     /** @brief Base class for modules that run when a particle is created. */

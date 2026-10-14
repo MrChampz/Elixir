@@ -101,13 +101,20 @@ namespace Elixir::Aether
 
         for (const auto& module : m_Modules)
         {
-            if (module->GetPhase() != EModulePhase::Update)
+            if (module->GetPhase() != EModulePhase::Update || module->GetTarget() != EModuleTarget::Particle)
                 continue;
 
             module->Compile(context);
         }
 
         emitter.UpdateOperationCount = (uint32_t)program.Operations.size() - emitter.UpdateOperationOffset;
+        emitter.StrandUpdateOperationOffset = uint32_t(program.Operations.size());
+        for (const auto& module : m_Modules)
+        {
+            if (module->GetPhase() == EModulePhase::Update && module->GetTarget() == EModuleTarget::StrandPoints)
+                module->Compile(context);
+        }
+        emitter.StrandUpdateOperationCount = uint32_t(program.Operations.size()) - emitter.StrandUpdateOperationOffset;
 
         return emitter;
     }

@@ -1,0 +1,101 @@
+{
+  "name": "Energy Filaments",
+  "emitters": [
+    {
+      "name": "Energy Filaments",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 24,
+      "spawnRate": 0,
+      "strand": {
+        "points": 36,
+        "segmentLength": 0.045,
+        "stiffness": 0.93,
+        "damping": 0.94,
+        "widthScale": 0.11,
+        "solverIterations": 10,
+        "radialSegments": 5,
+        "subdivisions": 4
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionDisk",
+          "center": [
+            0,
+            0,
+            0
+          ],
+          "radius": 0.06,
+          "normal": [
+            0,
+            0,
+            1
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 10,
+          "max": 16
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.18,
+            0.65,
+            1,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            0.12,
+            0.08,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 1.5,
+          "frequency": 3.3,
+          "scrollVelocity": [
+            0.4,
+            0.22,
+            0.18
+          ],
+          "seed": 17
+        }
+      ],
+      "burst": {
+        "count": 24,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    }
+  ]
+}

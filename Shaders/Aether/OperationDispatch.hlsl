@@ -22,6 +22,7 @@
 #include "Operations/Clamp.hlsl"
 #include "Operations/CopyFromAttribute.hlsl"
 #include "Operations/ApplyVortex.hlsl"
+#include "Operations/ApplyCurlNoise.hlsl"
 
 void ExecuteOperation(
     inout SOperationExecutor executor,
@@ -30,7 +31,9 @@ void ExecuteOperation(
     inout SOperationExecutorContext context
 )
 {
-    if (operation.Type == Operation_SetLiteral)
+    if (operation.Type == Operation_ApplyCurlNoise)
+        ApplyCurlNoise(executor, resolver, context);
+    else if (operation.Type == Operation_SetLiteral)
         SetLiteral(executor, resolver, context);
     else if (operation.Type == Operation_RandomRange)
         RandomRange(executor, resolver, context);

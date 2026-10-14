@@ -842,6 +842,12 @@ void VFXPanel::UpdateOverview()
                     graphRow(moduleRows, button, 18);
                 }
         }
+        const auto particleState = CreateRef<GUI::VerticalBox>();
+        body->AddChild(FramedStack(particleState, sectionStyle))
+            .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill).SetMargin({0, 3 * m_GraphZoom});
+        graphSection(particleState, "Particle State", EditorStyle::Get().AxisZ);
+        graphRow(particleState, ParticleStateControl(emitter, path, m_GraphZoom), 24);
+
         const auto renderer = CreateRef<GUI::VerticalBox>();
         body->AddChild(FramedStack(renderer, sectionStyle)).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill).SetMargin({0, 3 * m_GraphZoom});
         graphSection(renderer, emitter.String("renderMode", "Sprite") + " Renderer", {0.65f, 0.48f, 0.85f, 1});
@@ -907,6 +913,37 @@ void VFXPanel::AddProperties(const Ref<GUI::VerticalBox>& column, const Value& v
     });
     property->AddChild(input).SetFillSize().SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
     Row(column, property, 24);
+}
+
+Ref<GUI::Widget> VFXPanel::ParticleStateControl(const Value& emitter, const Path& emitterPath, const float scale)
+{
+    const auto state = emitter.Find("particleState");
+    const auto expiry = state ? state->Find("killOnLifetimeExpired") : nullptr;
+    const bool enabled = !expiry || expiry->Type != EValueType::Boolean || expiry->Text != "false";
+    const auto row = CreateRef<GUI::HorizontalBox>();
+    row->SetPadding({6 * scale, 0});
+    const auto checkbox = CreateRef<GUI::Checkbox>();
+    checkbox->SetStyle(EditorStyle::Get().Checkbox);
+    checkbox->SetSize({14 * scale, 14 * scale});
+    checkbox->SetChecked(enabled);
+    const auto statePath = Child(emitterPath, "particleState");
+    checkbox->OnCheckedChanged([this, statePath](const bool checked)
+    {
+        QueueEdit([statePath, checked](Document& document)
+        {
+            const auto existing = document.Get(statePath);
+            auto value = existing ? *existing : Value{};
+            value.Type = EValueType::Object;
+            value.Object["killOnLifetimeExpired"] = Boolean(checked);
+            // Write the parent object once so a missing section is one undo step.
+            document.Set(statePath, std::move(value));
+        });
+    });
+    row->AddChild(checkbox).SetFixedSize(14 * scale)
+        .SetVerticalAlignment(GUI::EVerticalAlignment::Center).SetMargin({0, 0, 6 * scale, 0});
+    row->AddChild(Text("Kill on lifetime", 11 * scale)).SetFillSize()
+        .SetVerticalAlignment(GUI::EVerticalAlignment::Center);
+    return row;
 }
 
 void VFXPanel::UpdateInspector()
@@ -999,7 +1036,20 @@ void VFXPanel::UpdateInspector()
         {
             QueueEdit([emitterPath, mode](Document& document) { document.Set(Child(emitterPath, "renderMode"), Value::FromString(mode)); });
         })).SetFillSize();
-    AddProperties(m_Inspector, emitter, emitterPath);
+    Section(m_Inspector, "Particle State", EditorStyle::Get().AxisZ);
+    Row(m_Inspector, ParticleStateControl(emitter, emitterPath), 24);
+    const auto help = Text("Off: particles stay alive after lifetime.", 10);
+    help->SetColor(EditorStyle::Get().TextSecondary);
+    Row(m_Inspector, help, 22);
+    if (const auto state = emitter.Find("particleState"))
+    {
+        auto otherStateFields = *state;
+        otherStateFields.Object.erase("killOnLifetimeExpired");
+        AddProperties(m_Inspector, otherStateFields, Child(emitterPath, "particleState"));
+    }
+    auto properties = emitter;
+    properties.Object.erase("particleState");
+    AddProperties(m_Inspector, properties, emitterPath);
 }
 
 void VFXPanel::UpdateStatus(const std::string& message)

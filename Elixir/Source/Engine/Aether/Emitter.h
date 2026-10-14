@@ -70,6 +70,10 @@ namespace Elixir::Aether
         uint32_t SpawnOperationCount = 0u;
         uint32_t UpdateOperationOffset = 0u;
         uint32_t UpdateOperationCount = 0u;
+        /** @brief First update instruction executed for free strand points. */
+        uint32_t StrandUpdateOperationOffset = 0;
+        /** @brief Number of update instructions executed for free strand points. */
+        uint32_t StrandUpdateOperationCount = 0;
 
         bool operator==(const SCompiledEmitter& other) const noexcept
         {

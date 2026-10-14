@@ -8,6 +8,8 @@
 #include <Engine/Aether/Effect/MaterialDescription.h>
 #include <Engine/Aether/Effect/MaterialFactory.h>
 #include <Engine/Aether/Effect/ModuleRegistry.h>
+#include <Engine/Aether/Modules/ApplyCurlNoise.h>
+#include <Engine/Aether/Modules/ApplyGravity.h>
 
 namespace Elixir::Aether::Effect
 {
@@ -87,8 +89,26 @@ namespace Elixir::Aether::Effect
                 if (HasField(object, "segmentLength")) settings.SegmentLength = RequireFloat(object, "segmentLength");
                 if (HasField(object, "stiffness")) settings.Stiffness = RequireFloat(object, "stiffness");
                 if (HasField(object, "damping")) settings.Damping = RequireFloat(object, "damping");
-                if (HasField(object, "gravity")) settings.Gravity = RequireFloatVec<3>(object, "gravity");
-                if (HasField(object, "sway")) settings.Sway = RequireFloat(object, "sway");
+                // Translate earlier strand assets to the same explicit force modules.
+                if ((HasField(object, "gravity") || HasField(object, "sway")) && emitter.GetRenderMode() != EParticleRenderMode::Strand)
+                {
+                    Fail("Strand forces require a Strand emitter.");
+                    return;
+                }
+                if (HasField(object, "gravity"))
+                {
+                    auto force = CreateScope<ApplyGravity>(RequireFloatVec<3>(object, "gravity"));
+                    force->SetTarget(EModuleTarget::StrandPoints);
+                    emitter.AddModule(std::move(force));
+                }
+                if (HasField(object, "sway"))
+                {
+                    const float strength = RequireFloat(object, "sway");
+                    if (strength < 0) { Fail("Strand sway must be nonnegative."); return; }
+                    auto force = CreateScope<ApplyCurlNoise>(strength);
+                    force->SetTarget(EModuleTarget::StrandPoints);
+                    emitter.AddModule(std::move(force));
+                }
                 if (HasField(object, "widthScale")) settings.WidthScale = RequireFloat(object, "widthScale");
                 if (HasField(object, "solverIterations")) settings.SolverIterations = RequireUInt(object, "solverIterations");
                 if (HasField(object, "radialSegments")) settings.RadialSegments = RequireUInt(object, "radialSegments");
@@ -328,6 +348,11 @@ namespace Elixir::Aether::Effect
                     return;
                 }
 
+                if (module->GetTarget() == EModuleTarget::StrandPoints && emitter.GetRenderMode() != EParticleRenderMode::Strand)
+                {
+                    Fail("StrandPoints modules require a Strand emitter.");
+                    return;
+                }
                 emitter.AddModule(std::move(module));
             }
 

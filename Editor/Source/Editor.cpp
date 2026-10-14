@@ -5,12 +5,13 @@
 #include "UI/Panels/ViewportPanel.h"
 #include "UI/Panels/VFXPanel.h"
 #include "UI/Panels/MeshPanel.h"
+#include "UI/Panels/StrandsPanel.h"
 #include "Assets/MeshAssets.h"
 #include <Engine/Mesh/StaticMeshLoaderRegistry.h>
 #include "Environment.h"
 #include <iostream>
 
-Editor::Editor(std::filesystem::path asset)
+Editor::Editor(std::filesystem::path asset, bool openStrands)
 {
     EE_PROFILE_ZONE_SCOPED()
 
@@ -43,7 +44,30 @@ Editor::Editor(std::filesystem::path asset)
 
     m_GraphicsContext->SetClearColor({ 0.015f, 0.025f, 0.06f, 1.0f });
     LoadDefaultScene();
+    LoadStrandScene();
+    if (openStrands && m_StrandScene.Panel) m_EditorUI->ActivateTab(1);
     if (!asset.empty()) m_OpenRequests.push_back(std::move(asset));
+}
+
+void Editor::LoadStrandScene()
+{
+    if (!ResizePreview(m_StrandScene, {960, 540, 1})) return;
+    m_StrandScene.Manager = CreateScope<Aether::Manager>(m_GraphicsContext.get(), m_ShaderLoader.get(),
+        GetMaterialRegistry(), *m_StrandScene.Materials);
+    const auto root = std::filesystem::path(ELIXIR_EDITOR_PROJECT_ROOT);
+    if (auto mesh = StaticMeshLoaderRegistry::Load(root / "Assets/Meshes/StrandScene/StrandScene.gltf"))
+    {
+        m_StrandScene.Mesh = *mesh;
+        m_StrandScene.Renderer = CreateScope<StaticMeshRenderer>(m_GraphicsContext.get(),
+            *m_StrandScene.Materials, StaticMeshLoaderRegistry::GetGeometryPool());
+    }
+    else EE_CORE_ERROR("Could not load the strand scene reference objects.");
+    auto panel = CreateScope<StrandsPanel>(*m_StrandScene.Manager, *m_GraphicsContext,
+        root / "Assets/VFX/StrandPlayground.json");
+    m_StrandScene.Panel = panel.get();
+    m_EditorUI->AddTab("Strands", false);
+    m_EditorUI->AddPanel(std::move(panel), 1);
+    m_StrandScene.Panel->SetPreviewImage(m_StrandScene.DisplayTarget);
 }
 
 void Editor::LoadDefaultScene()
@@ -101,6 +125,9 @@ Editor::~Editor()
     m_EditorUI.reset();
     m_Documents.clear();
     m_MeshDocuments.clear();
+    m_StrandScene.Renderer.reset();
+    m_StrandScene.Mesh.reset();
+    m_StrandScene.Manager.reset();
     m_SceneRenderer.reset();
     m_SceneMesh.reset();
 }
@@ -141,7 +168,8 @@ void Editor::OpenMeshAsset(const std::filesystem::path& asset)
 
 bool Editor::IsSceneActive() const
 {
-    return std::none_of(m_Documents.begin(), m_Documents.end(),
+    return (!m_StrandScene.Panel || !m_StrandScene.Panel->IsActive()) &&
+        std::none_of(m_Documents.begin(), m_Documents.end(),
         [](const auto& document) { return document.Panel->IsActive(); }) &&
         std::none_of(m_MeshDocuments.begin(), m_MeshDocuments.end(),
         [](const auto& document) { return document.Panel->IsActive(); });
@@ -222,6 +250,9 @@ void Editor::OnGUI(const Timestep frameTime)
         std::erase_if(m_MeshDocuments, [tab](const auto& document) { return document.Tab == tab; });
     }
     m_CloseRequests.clear();
+    if (m_StrandScene.Panel)
+        m_StrandScene.Panel->SetInputBlocked(m_GUIManager->GetPopupCount() > 0 ||
+            m_EditorUI->IsContentBrowserHovered());
     m_EditorUI->Update(frameTime);
     for (const auto& path : m_OpenRequests) OpenAsset(path);
     m_OpenRequests.clear();
@@ -236,6 +267,12 @@ void Editor::OnGUI(const Timestep frameTime)
         }
     }
 
+    if (m_StrandScene.Panel && m_StrandScene.Panel->IsActive())
+    {
+        const auto previous = m_StrandScene.DisplayTarget;
+        if (ResizePreview(m_StrandScene, m_StrandScene.Panel->GetPreviewExtent()) && previous != m_StrandScene.DisplayTarget)
+            m_StrandScene.Panel->SetPreviewImage(m_StrandScene.DisplayTarget);
+    }
     for (auto& document : m_MeshDocuments)
     {
         if (!document.Panel->IsActive()) continue;
@@ -257,6 +294,34 @@ void Editor::Render(const Timestep frameTime)
         m_SceneRenderer->BeginFrame(m_SceneCamera->GetCamera(), m_SceneLighting);
         m_SceneRenderer->Render(m_SceneMesh);
         m_SceneRenderer->EndFrame();
+    }
+    if (m_StrandScene.Panel)
+    {
+        const bool active = m_StrandScene.Panel->IsActive();
+        m_StrandScene.Materials->BeginFrame();
+        m_StrandScene.Manager->BeginFrame(Timestep(active ? std::clamp(frameTime.GetSeconds(), 0.0f, 0.05f) : 0.0f));
+        if (active)
+        {
+            m_GraphicsContext->Clear(m_StrandScene.HDRTarget);
+            const auto& camera = m_StrandScene.Panel->GetCamera();
+            if (m_StrandScene.Renderer && m_StrandScene.Panel->ShouldShowReferenceObjects())
+            {
+                m_StrandScene.Renderer->BeginFrame(camera, m_SceneLighting);
+                m_StrandScene.Renderer->Render(m_StrandScene.Mesh);
+                m_StrandScene.Renderer->EndFrame();
+            }
+            m_StrandScene.Manager->Render(camera, m_StrandScene.HDRTarget);
+        }
+        m_StrandScene.Materials->RenderFrame();
+        if (active)
+        {
+            m_StrandScene.PostProcess->Apply(m_StrandScene.HDRTarget, m_StrandScene.DisplayTarget);
+            const auto command = m_GraphicsContext->GetSecondaryCommandBuffer();
+            command->Begin({.ColorAttachment = m_StrandScene.DisplayTarget, .RenderArea = m_StrandScene.DisplayTarget->GetExtent()});
+            m_StrandScene.DisplayTarget->Barrier(command.get());
+            command->End();
+            m_GraphicsContext->EnqueueSecondaryCommandBuffer(command);
+        }
     }
     for (const auto& document : m_Documents)
     {
@@ -303,6 +368,9 @@ void Editor::OnEvent(Event& event)
         if (contentBrowserDismissed) event.Handled = true;
     }
     Application::OnEvent(event);
+    if (m_StrandScene.Panel)
+        m_StrandScene.Panel->ProcessEvent(event, contentBrowserDismissed || m_GUIManager->GetPopupCount() > 0 ||
+            m_EditorUI->IsContentBrowserHovered());
     ProcessSceneCameraEvent(event, contentBrowserDismissed || m_GUIManager->GetPopupCount() > 0 ||
         m_EditorUI->IsContentBrowserHovered());
     for (const auto& document : m_Documents)
@@ -364,7 +432,7 @@ Application* Elixir::CreateApplication()
 namespace
 {
     // Runs the main editor and optionally opens an asset document tab.
-    int RunEditor(const std::filesystem::path& binary, const std::filesystem::path& asset)
+    int RunEditor(const std::filesystem::path& binary, const std::filesystem::path& asset, bool openStrands = false)
     {
         std::error_code error;
         const auto executable = std::filesystem::canonical(binary, error);
@@ -378,7 +446,7 @@ namespace
         std::filesystem::current_path(runtime, error);
         if (error) { std::cerr << "Could not open Editor runtime directory: " << error.message(); return 1; }
         Log::Init();
-        Editor editor(asset); editor.Run(); return 0;
+        Editor editor(asset, openStrands); editor.Run(); return 0;
     }
 }
 
@@ -386,6 +454,7 @@ namespace
 int wmain(int argc, wchar_t* argv[])
 {
     if (argc == 1) return RunEditor(argv[0], {});
+    if (argc == 2 && std::wstring_view(argv[1]) == L"--strands") return RunEditor(argv[0], {}, true);
     if (argc == 3 && std::wstring_view(argv[1]) == L"--vfx") return RunEditor(argv[0], argv[2]);
     return 1;
 }
@@ -393,6 +462,7 @@ int wmain(int argc, wchar_t* argv[])
 int main(int argc, char* argv[])
 {
     if (argc == 1) return RunEditor(argv[0], {});
+    if (argc == 2 && std::string_view(argv[1]) == "--strands") return RunEditor(argv[0], {}, true);
     if (argc == 3 && std::string_view(argv[1]) == "--vfx") return RunEditor(argv[0], argv[2]);
     return 1;
 }

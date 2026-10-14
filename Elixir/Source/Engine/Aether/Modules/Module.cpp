@@ -295,4 +295,15 @@ namespace Elixir::Aether::Modules
     Module::Module(const EModulePhase phase) : m_Phase(phase) {}
 
     Module::~Module() = default;
+
+    bool Module::SetTarget(const EModuleTarget target)
+    {
+        if (!SupportsTarget(target) || (m_Phase != EModulePhase::Update && target != EModuleTarget::Particle))
+        {
+            EE_CORE_ERROR("Module does not support the requested execution target.");
+            return false;
+        }
+        m_Target = target;
+        return true;
+    }
 }

@@ -1,9 +1,19 @@
 #include "ParticleData.hlsl"
+#include "ParticleAttributes.hlsl"
+#include "Operation.hlsl"
 #include "StrandMath.hlsl"
 
 [[vk::binding(0, 0)]] StructuredBuffer<SGPUParticle> particles;
 // Position, previous position, and transported normal occupy three float4 slots per pointIndex.
 [[vk::binding(1, 0)]] RWStructuredBuffer<float4> strandPoints;
+[[vk::binding(2, 0)]] StructuredBuffer<SGPUEmitter> emitters;
+[[vk::binding(3, 0)]] StructuredBuffer<SGPUSystemInstance> instances;
+[[vk::binding(4, 0)]] StructuredBuffer<SGPUOperation> operations;
+[[vk::binding(5, 0)]] StructuredBuffer<uint> operands;
+[[vk::binding(6, 0)]] ByteAddressBuffer constants;
+[[vk::binding(7, 0)]] ByteAddressBuffer parameters;
+#include "OperationExecutor.hlsl"
+
 [[vk::binding(0, 1)]] cbuffer cbParams { float4 TimeData; float4 ViewportData; };
 
 struct PushConstants
@@ -16,12 +26,21 @@ struct PushConstants
     float SegmentLength;
     float Stiffness;
     float Damping;
-    float Sway;
-    float3 Gravity;
     uint Generation;
     uint SolverIterations;
+    uint InstanceIndex;
+    uint EmitterIndex;
 };
 [[vk::push_constant]] PushConstants pc;
+
+// Converts world-space points into the module's simulation-space coordinates.
+float3x3 InverseLinear(float3x3 value)
+{
+    float3 a = cross(value[1], value[2]);
+    float determinant = dot(value[0], a);
+    if (abs(determinant) < 0.000001) return float3x3(1,0,0, 0,1,0, 0,0,1);
+    return transpose(float3x3(a, cross(value[2], value[0]), cross(value[0], value[1]))) / determinant;
+}
 
 float3 LoadPoint(uint base, uint index) { return strandPoints[(base + index) * 3].xyz; }
 
@@ -39,6 +58,10 @@ void main(uint3 id : SV_DispatchThreadID)
         strandPoints[base * 3 + 1].w = 0.0;
         return;
     }
+    SGPUSystemInstance instance = instances[pc.InstanceIndex];
+    SGPUEmitter emitter = emitters[pc.EmitterIndex];
+    SOperationExecutor executor = CreateOperationExecutor(operands, constants, parameters);
+    float3 origin = mul(pc.RootTransform, float4(0, 0, 0, 1)).xyz;
     float3 anchor = mul(pc.RootTransform, float4(root.Position, 1)).xyz;
     float3x3 linearTransform = (float3x3)pc.RootTransform;
     float transformScale = max(length(mul(linearTransform, float3(1, 0, 0))),
@@ -76,7 +99,7 @@ void main(uint3 id : SV_DispatchThreadID)
         float dt = duration / float(steps);
         float damping = pow(pc.Damping, dt * 60.0);
         float3 oldAnchor = predicted[0];
-        float3 gravity = mul((float3x3)pc.RootTransform, pc.Gravity);
+        float3x3 inverseLinear = InverseLinear(linearTransform);
         float3 rootVelocity = duration > 0.000001 ? (anchor - oldAnchor) / duration : float3(0, 0, 0);
         float3 drag = -rootVelocity * 0.8;
         for (uint step = 0; step < steps && dt > 0; ++step)
@@ -85,10 +108,28 @@ void main(uint3 id : SV_DispatchThreadID)
             for (uint pointIndex = 1; pointIndex < count; ++pointIndex)
             {
                 float3 position = predicted[pointIndex];
-                float3 noise = curlNoise3(position * 2.2 + float3(seed * 37, seed * 21, seed * 11) +
-                    (TimeData.y - duration + float(step + 1) * dt) * float3(0.12, 0.09, 0.07));
+                SOperationExecutorContext context = (SOperationExecutorContext)0;
+                context.Instance = instance;
+                context.Attributes = LoadAttributes(root);
+                SetAttribute(context.Attributes, ParticleAttribute_Position, float4(mul(inverseLinear, position - origin), 1));
+                // Forces share the particle VM, accumulating a velocity increment from zero.
+                SetAttribute(context.Attributes, ParticleAttribute_Velocity, float4(0, 0, 0, 0));
+                context.DeltaTime = dt;
+                context.Time = TimeData.y - duration + float(step + 1) * dt;
+                context.NormalizedAge = saturate(root.Age / max(root.Lifetime, 0.001));
+                context.DynamicInputs.DeltaTime = dt;
+                context.DynamicInputs.Time = context.Time;
+                context.DynamicInputs.NormalizedAge = context.NormalizedAge;
+                context.DynamicInputs.ParticleSeed = seed;
+                context.DynamicInputs.Random = CalculateDynamicInputRandom(seed, context.Time);
+                for (uint operationIndex = 0; operationIndex < emitter.StrandUpdateOperationCount; ++operationIndex)
+                {
+                    context.OperationIndex = operationIndex;
+                    executor.Execute(operations[emitter.StrandUpdateOperationOffset + operationIndex], context);
+                }
+                float3 deltaVelocity = GetAttribute(context.Attributes, ParticleAttribute_Velocity).xyz;
                 predicted[pointIndex] += (position - previous[pointIndex]) * damping +
-                    (gravity + drag + noise * pc.Sway) * dt * dt;
+                    mul(linearTransform, deltaVelocity) * dt + drag * dt * dt;
                 previous[pointIndex] = position;
             }
             for (uint iteration = 0; iteration < pc.SolverIterations; ++iteration)

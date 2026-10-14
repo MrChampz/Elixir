@@ -141,6 +141,15 @@ namespace Elixir::Aether
             return system;
         }
 
+        for (const auto& emitter : m_Emitters)
+            for (const auto& module : emitter->m_Modules)
+                if (!module->SupportsTarget(module->GetTarget()) ||
+                    (module->GetTarget() == EModuleTarget::StrandPoints && emitter->GetRenderMode() != EParticleRenderMode::Strand))
+                {
+                    EE_CORE_ERROR("Aether module target is incompatible with its emitter.");
+                    return system;
+                }
+
         uint32_t localParticleOffset = 0;
         system.Emitters.reserve(m_Emitters.size());
 

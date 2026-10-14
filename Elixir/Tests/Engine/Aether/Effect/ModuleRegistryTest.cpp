@@ -526,3 +526,30 @@ TEST(ModuleRegistryTest, LoadsLifetimeDeathPolicyAndRejectsNonBooleanValues)
         EXPECT_FALSE(error.empty());
     }
 }
+
+TEST(ModuleRegistryTest, ValidatesModuleExecutionTargetsAndCurlParameterBindings)
+{
+    Effect::ModuleParseContext context;
+    const auto gravity = CreateRegistered("ApplyGravity", R"({"gravity":[0,-1,0]})", context);
+    ASSERT_TRUE(gravity);
+    EXPECT_EQ(gravity->GetTarget(), EModuleTarget::Particle);
+    const auto curl = CreateRegistered("ApplyCurlNoise", R"({"target":"StrandPoints","strength":"$Strength","frequency":2.2,"scrollVelocity":[0.1,0.2,0.3],"seed":"$Seed"})", context);
+    ASSERT_TRUE(curl) << context.GetError();
+    EXPECT_EQ(curl->GetTarget(), EModuleTarget::StrandPoints);
+    for (const auto& entry : {
+        std::pair{"ColorOverLife", R"({"target":"StrandPoints","start":[1,1,1,1],"end":[1,1,1,1]})"},
+        std::pair{"SetLifetime", R"({"target":"StrandPoints","min":1,"max":2})"},
+        std::pair{"ApplyGravity", R"({"target":"Unknown","gravity":[0,-1,0]})"},
+        std::pair{"ApplyGravity", R"({"target":3,"gravity":[0,-1,0]})"},
+        std::pair{"ApplyCurlNoise", R"({"frequency":0})"},
+        std::pair{"ApplyCurlNoise", R"({"strength":-1})"}
+    })
+    {
+        Effect::ModuleParseContext invalid;
+        EXPECT_FALSE(CreateRegistered(entry.first, entry.second, invalid));
+        EXPECT_TRUE(invalid.Failed());
+    }
+    std::string error;
+    EXPECT_FALSE(Effect::LoadEffectText(R"({"name":"Bad","emitters":[{"name":"Sprite","maxParticles":1,"spawnRate":0,
+        "updateModules":[{"type":"ApplyGravity","target":"StrandPoints","gravity":[0,-1,0]}]}]})", &error));
+}

@@ -12,13 +12,14 @@
 class VFXPanel;
 class MeshPanel;
 class ViewportPanel;
+class StrandsPanel;
 
 /** @brief Hosts scene tools and tabbed VFX and mesh asset viewers. */
 class Editor final : public Elixir::Application
 {
 public:
     /** @brief Builds the Editor UI and its preview panels. */
-    Editor(std::filesystem::path asset = {});
+    Editor(std::filesystem::path asset = {}, bool openStrands = false);
     /** @brief Releases editor panels while the engine services are still available. */
     ~Editor() override;
 
@@ -31,6 +32,8 @@ public:
     void OnEvent(Event& event) override;
 
 private:
+    // Creates the persistent strand playground and its scene resources.
+    void LoadStrandScene();
     // Loads Sponza and sets up its camera and lighting.
     void LoadDefaultScene();
     // Routes orbit, pan and zoom input outside scene controls.
@@ -73,6 +76,14 @@ private:
         MeshPanel* Panel = nullptr;
         int Tab = -1;
     };
+    struct SStrandScene : SPreview
+    {
+        Scope<Aether::Manager> Manager;
+        Ref<StaticMesh> Mesh;
+        Scope<StaticMeshRenderer> Renderer;
+        StrandsPanel* Panel = nullptr;
+    };
+    SStrandScene m_StrandScene;
     std::vector<SMeshDocument> m_MeshDocuments;
     std::vector<SDocument> m_Documents;
     std::vector<std::filesystem::path> m_OpenRequests;

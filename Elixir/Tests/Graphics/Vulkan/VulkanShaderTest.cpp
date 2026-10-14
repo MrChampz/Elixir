@@ -16,6 +16,8 @@
 #include <Engine/Aether/System.h>
 #include <Engine/Aether/Modules/KillOutsideBounds.h>
 #include <Engine/Aether/Modules/SizeOverLife.h>
+#include <Engine/Aether/Modules/ApplyCurlNoise.h>
+#include <Engine/Aether/Modules/ApplyGravity.h>
 #include <Engine/Materials/MaterialSystem.h>
 #include <Engine/Materials/MaterialRegistry.h>
 #include <Engine/Camera/PerspectiveCamera.h>
@@ -118,14 +120,14 @@ namespace
         float SegmentLength = 0.04f;
         float Stiffness = 1.0f;
         float Damping = 0.96f;
-        float Sway = 0.5f;
-        glm::vec3 Gravity{0, -0.15f, 0};
         uint32_t Generation = 1;
         uint32_t SolverIterations = 16;
+        uint32_t InstanceIndex = 0;
+        uint32_t EmitterIndex = 0;
     };
-    static_assert(sizeof(SStrandTestConstants) == 116);
+    static_assert(sizeof(SStrandTestConstants) == 108);
     static_assert(offsetof(SStrandTestConstants, ParticleOffset) == 64);
-    static_assert(offsetof(SStrandTestConstants, Generation) == 108);
+    static_assert(offsetof(SStrandTestConstants, Generation) == 92);
 
     TEST(VulkanShaderTest, StrandSolverPinsRootsKeepsFiniteStateAndResetsOnRespawn)
     {
@@ -147,6 +149,30 @@ namespace
         const auto points = DynamicStorageBuffer::Create(context, zeros.size() * sizeof(glm::vec4), zeros.data());
         std::array<glm::vec4, 2> time{};
         const auto params = UniformBuffer::Create(context, sizeof(time), time.data());
+        using namespace Aether::Core;
+        using namespace Aether::Modules;
+        const std::vector<SParameter> authoredParameters{{"CurlStrength", EParameterType::Float, glm::vec4(0.5f, 0, 0, 0)}};
+        const auto compiledParameters = CompileParameters(authoredParameters);
+        auto words = PackParameterValues(compiledParameters);
+        SCompiledModuleData program;
+        ModuleCompileContext compile(program, compiledParameters, "Force", 1);
+        ApplyGravity({0, -0.15f, 0}).Compile(compile);
+        ApplyCurlNoise().BindParameters("CurlStrength", "", "", "").Compile(compile);
+        std::array<uint32_t, 20> emitterData{};
+        emitterData[17] = uint32_t(program.Operations.size());
+        std::array<uint32_t, 15> instanceData{};
+        const auto emitterBuffer = DynamicStorageBuffer::Create(context, sizeof(emitterData), emitterData.data());
+        const auto instanceBuffer = DynamicStorageBuffer::Create(context, sizeof(instanceData), instanceData.data());
+        const auto operationBuffer = DynamicStorageBuffer::Create(context, program.Operations.size() * sizeof(SGPUOperation), program.Operations.data());
+        const auto operandBuffer = DynamicStorageBuffer::Create(context, program.Operands.size() * sizeof(uint32_t), program.Operands.data());
+        const auto constantBuffer = DynamicStorageBuffer::Create(context, program.Constants.size() * sizeof(uint32_t), program.Constants.data());
+        const auto parameterBuffer = DynamicStorageBuffer::Create(context, words.size() * sizeof(uint32_t), words.data());
+        shader->BindStorageBuffer("emitters", emitterBuffer);
+        shader->BindStorageBuffer("instances", instanceBuffer);
+        shader->BindStorageBuffer("operations", operationBuffer);
+        shader->BindStorageBuffer("operands", operandBuffer);
+        shader->BindStorageBuffer("constants", constantBuffer);
+        shader->BindStorageBuffer("parameters", parameterBuffer);
         SStrandTestConstants pc;
         shader->SetPushConstant("pc", &pc, sizeof(pc));
         shader->BindStorageBuffer("particles", particles);
@@ -175,7 +201,6 @@ namespace
         {
             const auto* mapped = static_cast<const glm::vec4*>(points->Map());
             std::vector<glm::vec4> result(mapped, mapped + maxPoints * 3);
-            points->Unmap();
             return result;
         };
         dispatch(0);
@@ -198,6 +223,34 @@ namespace
             if (point > 0)
                 EXPECT_LT(glm::length(glm::vec3(moved[point * 3]) - glm::vec3(moved[(point - 1) * 3])), pc.SegmentLength * 1.5f);
         }
+        const auto stamp = std::bit_cast<uint32_t>(moved[0].w);
+        words[0] = std::bit_cast<uint32_t>(0.0f);
+        parameterBuffer->UpdateData(words.data(), words.size() * sizeof(uint32_t));
+        dispatch(1.0f / 60);
+        const auto withoutCurl = read();
+        EXPECT_EQ(std::bit_cast<uint32_t>(withoutCurl[0].w), stamp);
+        // Compare identical initial chains with and without curl. Runtime bindings
+        // change the force without changing the spawn marker or point allocation.
+        pc.RootTransform = glm::mat4(1);
+        points->UpdateData(initial.data(), initial.size() * sizeof(glm::vec4));
+        time[0].y = 1;
+        dispatch(0.1f);
+        const auto gravityOnly = read();
+        words[0] = std::bit_cast<uint32_t>(1.0f);
+        parameterBuffer->UpdateData(words.data(), words.size() * sizeof(uint32_t));
+        points->UpdateData(initial.data(), initial.size() * sizeof(glm::vec4));
+        time[0].y = 1;
+        dispatch(0.1f);
+        const auto withCurl = read();
+        EXPECT_GT(glm::length(glm::vec3(withCurl[30 * 3]) - glm::vec3(gravityOnly[30 * 3])), 0.000001f);
+        EXPECT_EQ(std::bit_cast<uint32_t>(withCurl[0].w), stamp);
+        // Removing the point operation stream removes both authored forces.
+        emitterData[17] = 0;
+        emitterBuffer->UpdateData(emitterData.data(), sizeof(emitterData));
+        points->UpdateData(initial.data(), initial.size() * sizeof(glm::vec4));
+        dispatch(0.1f);
+        const auto noForces = read();
+        EXPECT_NEAR(glm::length(glm::vec3(noForces[30 * 3]) - glm::vec3(initial[30 * 3])), 0, 0.0001f);
         pc.Generation = 2;
         dispatch(0);
         const auto reset = read();
@@ -272,6 +325,45 @@ TEST(VulkanShaderTest, StrandEffectSimulatesAndRecordsTubeDrawsThroughAether)
     EXPECT_TRUE(manager.Remove(instance));
 }
 
+TEST(VulkanShaderTest, StrandSamplesCompileAndRenderWithMovingRoots)
+{
+    for (const auto* filename : {"StrandCables.json", "StrandSeaweed.json", "StrandEnergy.json"})
+    {
+        SCOPED_TRACE(filename);
+        const auto context = VulkanTestContext::Get().GetGraphicsContext();
+        ShaderLoader loader(context);
+        Materials::MaterialRegistry registry;
+        Materials::MaterialSystem materials(context, {}, &loader,
+            context->GetRenderTarget(), context->GetDepthStencilRenderTarget());
+        Aether::Manager manager(context, &loader, registry, materials);
+        const auto assetRoot = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path().parent_path().parent_path();
+        const auto system = Aether::Manager::LoadEffect(assetRoot / std::filesystem::path("Assets/VFX") / filename);
+        ASSERT_TRUE(system);
+        const auto instance = system->CreateInstance();
+        ASSERT_TRUE(manager.Add(instance));
+        PerspectiveCamera camera(45, 16.0f / 9, 0.01f, 100);
+        camera.SetPosition({0, 0, 3});
+        Materials::Rendering::SRenderResult result;
+        for (int frame = 0; frame < 12; ++frame)
+        {
+            instance->SetWorldTransform(glm::translate(glm::mat4(1), glm::vec3(frame * 0.02f, 0, 0)));
+            context->RenderFrame([&]()
+            {
+                materials.BeginFrame();
+                manager.BeginFrame(Timestep(0.1f));
+                manager.Render(camera, context->GetRenderTarget());
+                result = materials.RenderFrame();
+            });
+            ASSERT_TRUE(context->RunRenderTaskAndWait([] {}));
+        }
+        context->WaitDeviceIdle();
+        EXPECT_EQ(result.DrawCount, 1u);
+        EXPECT_EQ(result.MaterialCount, 1u);
+        EXPECT_EQ(manager.GetLastSimulationMetrics().SubmittedEmitterCount, 1u);
+        EXPECT_TRUE(manager.Remove(instance));
+    }
+}
+
 TEST(VulkanShaderTest, InitialBurstRunsOnceAndPeriodicAndTriggeredBurstsKeepTheirTiming)
 {
     const auto context = VulkanTestContext::Get().GetGraphicsContext();
@@ -281,7 +373,7 @@ TEST(VulkanShaderTest, InitialBurstRunsOnceAndPeriodicAndTriggeredBurstsKeepThei
     const auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
     ASSERT_TRUE(pipeline);
     // Mirror the emitter, instance and scheduler layouts with native four-byte words.
-    std::array<uint32_t, 16> emitter{};
+    std::array<uint32_t, 20> emitter{};
     emitter[1] = 64; // particle capacity
     emitter[12] = 64; // burst count
     std::array<uint32_t, 15> instance{};
@@ -401,28 +493,31 @@ TEST(VulkanShaderTest, LifetimeDeathPolicyPreservesSimulationNormalizedAgeAndExp
     ModuleCompileContext compiler(program, {}, "Policy", 1.0f);
     KillOutsideBounds({-1, -1, -1}, {1, 1, 1}).Compile(compiler);
     SizeOverLife(2, 6).Compile(compiler);
-    ASSERT_EQ(program.Operations.size(), 2);
-    std::array<glm::vec4, 24> roots{};
-    std::array<uint32_t, 64> emittersData{};
-    for (uint32_t index = 0; index < 4; ++index)
+    ApplyCurlNoise(1, 2.2f, {0, 0, 0}, 17).Compile(compiler);
+    ASSERT_EQ(program.Operations.size(), 3);
+    std::array<glm::vec4, 30> roots{};
+    std::array<uint32_t, 100> emittersData{};
+    for (uint32_t index = 0; index < 5; ++index)
     {
         roots[index * 6] = {0, 0, 0, 16};
         roots[index * 6 + 1] = {1, 0, 0, 2}; // velocity and age greater than lifetime
         roots[index * 6 + 2].y = 1;
         roots[index * 6 + 4] = {1, 1, 1, 1};
         roots[index * 6 + 5] = {std::bit_cast<float>(index), 0, 0.25f, 1};
-        emittersData[index * 16 + 1] = 1;
-        // The reused padding word preserves the 64-byte emitter stride.
-        emittersData[index * 16 + 14] = index == 1 ? 1 : 0;
+        emittersData[index * 20 + 1] = 1;
+        // The lifetime flag remains at word 14 in the 80-byte emitter layout.
+        emittersData[index * 20 + 14] = index == 1 ? 1 : 0;
     }
     roots[2 * 6].x = 2; // explicit kill outside the box
-    emittersData[2 * 16 + 4] = 0;
-    emittersData[2 * 16 + 5] = 1;
-    emittersData[3 * 16 + 4] = 1;
-    emittersData[3 * 16 + 5] = 1;
+    emittersData[2 * 20 + 4] = 0;
+    emittersData[2 * 20 + 5] = 1;
+    emittersData[3 * 20 + 4] = 1;
+    emittersData[3 * 20 + 5] = 1;
+    emittersData[4 * 20 + 4] = 2;
+    emittersData[4 * 20 + 5] = 1;
     std::array<uint32_t, 15> instance{};
-    instance[10] = 4;
-    instance[11] = 4;
+    instance[10] = 5;
+    instance[11] = 5;
     std::array<glm::vec4, 2> time{};
     time[0] = {0.1f, 2.1f, 0, 0};
     const uint32_t zero = 0;
@@ -464,4 +559,6 @@ TEST(VulkanShaderTest, LifetimeDeathPolicyPreservesSimulationNormalizedAgeAndExp
     EXPECT_EQ(roots[2 * 6 + 5].w, 0); // explicit kill remains effective
     EXPECT_EQ(roots[3 * 6 + 5].w, 1);
     EXPECT_EQ(roots[3 * 6].w, 6); // NormalizedAge saturates at one instead of freezing at zero
+    EXPECT_EQ(roots[4 * 6 + 5].w, 1);
+    EXPECT_GT(glm::length(glm::vec3(roots[4 * 6 + 1]) - glm::vec3(1, 0, 0)), 0.000001f); // Particle-target curl updates velocity.
 }

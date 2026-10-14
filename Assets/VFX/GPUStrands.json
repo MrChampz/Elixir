@@ -12,12 +12,6 @@
         "segmentLength": 0.04,
         "stiffness": 0.85,
         "damping": 0.96,
-        "gravity": [
-          0,
-          -0.15,
-          0
-        ],
-        "sway": 0.7,
         "widthScale": 0.3,
         "solverIterations": 8,
         "radialSegments": 8,
@@ -72,7 +66,29 @@
           ]
         }
       ],
-      "updateModules": [],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            0,
+            -0.15,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.7,
+          "frequency": 2.2,
+          "scrollVelocity": [
+            0.12,
+            0.09,
+            0.07
+          ],
+          "seed": 0
+        }
+      ],
       "burst": {
         "count": 64,
         "interval": 0

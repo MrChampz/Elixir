@@ -56,6 +56,9 @@ private:
     void UpdateOverview();
     // Rebuilds properties for the current system, emitter, or module selection.
     void UpdateInspector();
+    // Builds the lifetime-death checkbox used by the emitter stack and inspector.
+    Ref<GUI::Widget> ParticleStateControl(const EditorVFX::Value& emitter,
+        const EditorVFX::Path& emitterPath, float scale = 1);
     // Builds editable leaf properties recursively, preserving nested asset fields.
     void AddProperties(const Ref<GUI::VerticalBox>& column, const EditorVFX::Value& value,
         const EditorVFX::Path& path, const std::string& label = "");

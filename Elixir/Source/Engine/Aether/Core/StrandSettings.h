@@ -17,10 +17,6 @@ namespace Elixir::Aether::Core
         float Stiffness = 0.85f;
         /** @brief Velocity retained over a 1/60-second step, from 0 to 1. */
         float Damping = 0.96f;
-        /** @brief Acceleration in simulation-space units per second squared. */
-        glm::vec3 Gravity{0.0f, -0.55f, 0.0f};
-        /** @brief Strength of the animated curl force. */
-        float Sway = 0.65f;
         /** @brief Scale applied to the particle size when computing tube radius. */
         float WidthScale = 0.3f;
         /** @brief Number of distance-constraint iterations per internal step, from 1 to 16. */
@@ -37,8 +33,6 @@ namespace Elixir::Aether::Core
                 std::isfinite(SegmentLength) && SegmentLength > 0.0f &&
                 std::isfinite(Stiffness) && Stiffness >= 0.0f && Stiffness <= 1.0f &&
                 std::isfinite(Damping) && Damping >= 0.0f && Damping <= 1.0f &&
-                std::isfinite(Gravity.x) && std::isfinite(Gravity.y) && std::isfinite(Gravity.z) &&
-                std::isfinite(Sway) && Sway >= 0.0f &&
                 std::isfinite(WidthScale) && WidthScale > 0.0f &&
                 SolverIterations >= 1 && SolverIterations <= 16 &&
                 RadialSegments >= 3 && RadialSegments <= 12 && Subdivisions >= 1 && Subdivisions <= 8;

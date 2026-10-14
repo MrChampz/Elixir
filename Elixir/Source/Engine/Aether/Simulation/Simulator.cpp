@@ -38,6 +38,10 @@ namespace Elixir::Aether::Simulation
             uint32_t    IsTriggerDriven{};
             uint32_t    KillOnLifetimeExpired = 1;
             uint32_t    Padding = 0;
+            uint32_t    StrandUpdateOperationOffset = 0;
+            uint32_t    StrandUpdateOperationCount = 0;
+            uint32_t    Padding2 = 0;
+            uint32_t    Padding3 = 0;
         };
 
         struct SGPUSystemInstance
@@ -137,7 +141,7 @@ namespace Elixir::Aether::Simulation
             uint32_t EmitterIndex = 0;
         };
 
-        // Matches the strand compute push-constant layout (116 bytes).
+        // Matches the strand compute push-constant layout (108 bytes).
         struct SStrandPushConstants
         {
             glm::mat4 RootTransform{1.0f};
@@ -148,10 +152,11 @@ namespace Elixir::Aether::Simulation
             float SegmentLength = 0;
             float Stiffness = 0;
             float Damping = 0;
-            float Sway = 0;
-            glm::vec3 Gravity{};
+
             uint32_t Generation = 0;
             uint32_t SolverIterations = 0;
+            uint32_t InstanceIndex = 0;
+            uint32_t EmitterIndex = 0;
         };
 
         // Update dispatches use the same ABI as scheduler dispatches.
@@ -179,6 +184,8 @@ namespace Elixir::Aether::Simulation
                 .BurstCount = emitter.BurstCount,
                 .IsTriggerDriven = emitter.IsTriggerDriven ? 1u : 0u,
                 .KillOnLifetimeExpired = emitter.KillOnLifetimeExpired ? 1u : 0u,
+                .StrandUpdateOperationOffset = operationBaseOffset + emitter.StrandUpdateOperationOffset,
+                .StrandUpdateOperationCount = emitter.StrandUpdateOperationCount,
             };
         }
 
@@ -680,6 +687,12 @@ namespace Elixir::Aether::Simulation
             runtime.StrandShader->SetPushConstant("pc", (void*)&strandPushConstants, sizeof(strandPushConstants));
             runtime.StrandShader->BindStorageBuffer("particles", runtime.ParticleStateBuffer);
             runtime.StrandShader->BindStorageBuffer("strandPoints", m_StrandPointBuffer);
+            runtime.StrandShader->BindStorageBuffer("emitters", m_EmitterBuffer);
+            runtime.StrandShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
+            runtime.StrandShader->BindStorageBuffer("operations", m_OperationBuffer);
+            runtime.StrandShader->BindStorageBuffer("operands", m_OperandBuffer);
+            runtime.StrandShader->BindStorageBuffer("constants", m_ConstantBuffer);
+            runtime.StrandShader->BindStorageBuffer("parameters", m_ParameterBuffer);
             runtime.StrandShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
         }
 
@@ -1191,10 +1204,10 @@ namespace Elixir::Aether::Simulation
                     .SegmentLength = settings.SegmentLength,
                     .Stiffness = settings.Stiffness,
                     .Damping = settings.Damping,
-                    .Sway = settings.Sway,
-                    .Gravity = settings.Gravity,
                     .Generation = instance->Allocation.Generation,
                     .SolverIterations = settings.SolverIterations,
+                    .InstanceIndex = instance->Allocation.InstanceIndex,
+                    .EmitterIndex = instance->Allocation.Emitters.Offset + uint32_t(&emitter - instance->Proxy->GetCompiledSystem().Emitters.data()),
                 };
                 runtime->StrandShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
                 cmd->Dispatch((emitter.MaxParticles + UPDATE_GROUP_SIZE - 1) / UPDATE_GROUP_SIZE);

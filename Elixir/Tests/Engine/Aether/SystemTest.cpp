@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
 #include <Engine/Aether/System.h>
+#include <Engine/Aether/Modules/ApplyGravity.h>
+#include <Engine/Aether/Modules/ApplyCurlNoise.h>
 #include <Engine/Materials/Compilation/Compiler.h>
 #include <Engine/Materials/MaterialInstance.h>
 
@@ -279,4 +281,28 @@ TEST(SystemTest, LifetimeDeathPolicyDefaultsToEnabledAndIsSnapshottedIndependent
     emitter.SetKillOnLifetimeExpired(true);
     EXPECT_FALSE(compiled.Emitters[0].KillOnLifetimeExpired);
     EXPECT_TRUE(Compile(system).Emitters[0].KillOnLifetimeExpired);
+}
+
+TEST(SystemTest, PartitionsUpdateModulesByTargetAndPreservesEachTargetOrder)
+{
+    const auto system = CreateRef<System>("Targets");
+    auto& emitter = system->AddEmitter("Strand", 1, 0);
+    emitter.SetRenderMode(EParticleRenderMode::Strand);
+    emitter.AddModule(CreateScope<Modules::ApplyGravity>(glm::vec3(0, -1, 0)));
+    auto curl = CreateScope<Modules::ApplyCurlNoise>();
+    ASSERT_TRUE(curl->SetTarget(EModuleTarget::StrandPoints));
+    emitter.AddModule(std::move(curl));
+    auto gravity = CreateScope<Modules::ApplyGravity>(glm::vec3(0, -2, 0));
+    ASSERT_TRUE(gravity->SetTarget(EModuleTarget::StrandPoints));
+    emitter.AddModule(std::move(gravity));
+    emitter.AddModule(CreateScope<Modules::ApplyCurlNoise>());
+    const auto compiled = Compile(system);
+    ASSERT_EQ(compiled.Emitters.size(), 1);
+    const auto& result = compiled.Emitters[0];
+    EXPECT_EQ(result.UpdateOperationCount, 2);
+    EXPECT_EQ(result.StrandUpdateOperationCount, 2);
+    EXPECT_EQ(compiled.ModuleData.Operations[result.UpdateOperationOffset].Type, EOperationType::AddWithDelta);
+    EXPECT_EQ(compiled.ModuleData.Operations[result.UpdateOperationOffset + 1].Type, EOperationType::ApplyCurlNoise);
+    EXPECT_EQ(compiled.ModuleData.Operations[result.StrandUpdateOperationOffset].Type, EOperationType::ApplyCurlNoise);
+    EXPECT_EQ(compiled.ModuleData.Operations[result.StrandUpdateOperationOffset + 1].Type, EOperationType::AddWithDelta);
 }
