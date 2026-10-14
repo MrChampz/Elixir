@@ -152,6 +152,20 @@ namespace Elixir::Aether
                 system.ModuleData
             );
             compiled.LocalParticleOffset = localParticleOffset;
+            compiled.LocalStrandPointOffset = system.TotalStrandPoints;
+            if (compiled.RenderMode == EParticleRenderMode::Strand)
+            {
+                const uint64_t count = uint64_t(compiled.MaxParticles) * compiled.Strand.PointCount;
+                if (count > UINT32_MAX - system.TotalStrandPoints)
+                {
+                    EE_CORE_ERROR("Aether strand point count exceeds the addressable range.");
+                    system.Emitters.clear();
+                    system.TotalMaxParticles = 0;
+                    system.TotalStrandPoints = 0;
+                    return system;
+                }
+                system.TotalStrandPoints += uint32_t(count);
+            }
 
             localParticleOffset += compiled.MaxParticles;
             system.TotalMaxParticles += compiled.MaxParticles;

@@ -77,6 +77,17 @@ void AppendTriggerEvent(
         triggerEventsB[eventIndex] = event;
 }
 
+// Publishes the trigger targets associated with one emitter burst.
+void AppendBurstTargets(SGPUSystemInstance instance, SGPUEmitter emitter, uint writeBufferIndex)
+{
+    for (uint targetIndex = 0; targetIndex < emitter.TriggerTargetCount; ++targetIndex)
+    {
+        SGPUTriggerTarget target = triggerTargets[emitter.TriggerTargetOffset + targetIndex];
+        AppendTriggerEvent(instance, writeBufferIndex, target.TargetEmitterIndex,
+            target.DelaySeconds, target.BurstCount);
+    }
+}
+
 [numthreads(256, 1, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
@@ -147,6 +158,15 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     uint burstCount = emitter.BurstCount;
     float burstInterval = emitter.BurstIntervalSeconds;
 
+    // An interval of zero requests one initial burst per generation. Negative
+    // accumulator marks it as consumed, including for an empty particle pool.
+    if (!isTriggerDriven && burstCount > 0 && burstInterval == 0.0f && state.BurstAccumulator >= 0.0f)
+    {
+        spawnCount = min(maxParticles, spawnCount + burstCount);
+        state.BurstAccumulator = -1.0f;
+        AppendBurstTargets(instance, emitter, writeBufferIndex);
+    }
+
     if (!isTriggerDriven && burstCount > 0 && burstInterval > 0.0f)
     {
         state.BurstAccumulator = min(
@@ -160,20 +180,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             state.BurstAccumulator -= burstInterval;
             spawnCount = min(maxParticles, spawnCount + burstCount);
 
-            uint targetOffset = emitter.TriggerTargetOffset;
-            uint targetCount = emitter.TriggerTargetCount;
-
-            for (uint targetIndex = 0; targetIndex < targetCount; ++targetIndex)
-            {
-                SGPUTriggerTarget target = triggerTargets[targetOffset + targetIndex];
-                AppendTriggerEvent(
-                    instance,
-                    writeBufferIndex,
-                    target.TargetEmitterIndex,
-                    target.DelaySeconds,
-                    target.BurstCount
-                );
-            }
+            AppendBurstTargets(instance, emitter, writeBufferIndex);
 
             ++burstLoops;
         }

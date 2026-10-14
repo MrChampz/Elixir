@@ -1,0 +1,85 @@
+{
+  "name": "GPU Strands",
+  "emitters": [
+    {
+      "name": "Tentacles",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 64,
+      "spawnRate": 0,
+      "strand": {
+        "points": 32,
+        "segmentLength": 0.04,
+        "stiffness": 0.85,
+        "damping": 0.96,
+        "gravity": [
+          0,
+          -0.15,
+          0
+        ],
+        "sway": 0.7,
+        "widthScale": 0.3,
+        "solverIterations": 8,
+        "radialSegments": 8,
+        "subdivisions": 4
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionDisk",
+          "center": [
+            0,
+            0,
+            0
+          ],
+          "radius": 0.1,
+          "normal": [
+            0,
+            0,
+            1
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 12,
+          "max": 20
+        },
+        {
+          "type": "SetScale",
+          "min": 0.85,
+          "max": 1.15
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.8,
+            0.26,
+            0.1,
+            1
+          ]
+        }
+      ],
+      "updateModules": [],
+      "burst": {
+        "count": 64,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    }
+  ]
+}

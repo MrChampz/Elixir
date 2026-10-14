@@ -5,6 +5,7 @@
 #include <Engine/Materials/Rendering/MaterialResolver.h>
 #include <Engine/Aether/Modules/Module.h>
 #include <Engine/Aether/Core/ParameterStore.h>
+#include <Engine/Aether/Core/StrandSettings.h>
 #include <Engine/Aether/Core/CurveStore.h>
 #include <Engine/Aether/Core/ColorCurveStore.h>
 #include <Engine/Aether/Effect/MaterialDescription.h>
@@ -37,6 +38,14 @@ namespace Elixir::Aether
         UUID Id;
         EParticleRenderMode RenderMode = EParticleRenderMode::Sprite;
         EParticleSimulationSpace SimulationSpace = EParticleSimulationSpace::World;
+
+        /** @brief Physics and tube settings copied from the authored emitter. */
+        SStrandSettings Strand;
+        /** @brief First strand point relative to the containing system point range. */
+        uint32_t LocalStrandPointOffset = 0;
+
+        /** @brief Removes particles when their age reaches Lifetime; false keeps them alive until another kill condition. */
+        bool KillOnLifetimeExpired = true;
 
         // Material instance submitted to the material system with each frame.
         Ref<MaterialInstance> Material;
@@ -150,6 +159,21 @@ namespace Elixir::Aether
          */
         void SetRenderMode(const EParticleRenderMode mode) { m_RenderMode = mode; }
 
+        /** @brief Returns the physics and tube settings for this emitter. */
+        const SStrandSettings& GetStrandSettings() const { return m_Strand; }
+
+        /**
+         * @brief Updates the physics and tube settings for this emitter.
+         * @return False when values are invalid; the previous settings remain unchanged.
+         */
+        bool SetStrandSettings(const SStrandSettings& settings);
+
+        /** @brief Reports whether lifetime expiry removes particles from this emitter. */
+        bool ShouldKillOnLifetimeExpired() const { return m_KillOnLifetimeExpired; }
+
+        /** @brief Controls lifetime-based death without changing age, lifetime, or explicit kill modules. */
+        void SetKillOnLifetimeExpired(bool enabled) { m_KillOnLifetimeExpired = enabled; }
+
         /**
          * @brief Returns the simulation space used by this emitter.
          * @return The selected simulation space.
@@ -213,10 +237,10 @@ namespace Elixir::Aether
         }
 
         /**
-         * @brief Configure periodic burst emission.
+         * @brief Configures periodic bursts or one initial burst.
          *
          * @param count Number of particles requested by each burst.
-         * @param intervalSeconds Time between consecutive bursts.
+         * @param intervalSeconds Time between bursts; zero emits once when the instance starts or resets.
          */
         void SetBurst(uint32_t count, float intervalSeconds);
 
@@ -326,6 +350,8 @@ namespace Elixir::Aether
         std::string m_Name;
         EParticleRenderMode m_RenderMode = EParticleRenderMode::Sprite;
         EParticleSimulationSpace m_SimulationSpace = EParticleSimulationSpace::World;
+        SStrandSettings m_Strand;
+        bool m_KillOnLifetimeExpired = true;
         std::optional<Effect::SMaterialDescription> m_MaterialDescription;
         Ref<MaterialInstance> m_Material;
         bool m_MaterialIsResolved = false;

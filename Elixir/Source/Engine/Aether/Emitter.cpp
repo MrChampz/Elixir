@@ -22,6 +22,17 @@ namespace Elixir::Aether
         SetMaterial(material->CreateInstance());
     }
 
+    bool Emitter::SetStrandSettings(const SStrandSettings& settings)
+    {
+        if (!settings.IsValid())
+        {
+            EE_CORE_ERROR("Invalid strand settings for emitter '{}'.", m_Name);
+            return false;
+        }
+        m_Strand = settings;
+        return true;
+    }
+
     void Emitter::SetBurst(const uint32_t count, const float intervalSeconds)
     {
         m_BurstCount = count;
@@ -43,6 +54,8 @@ namespace Elixir::Aether
         SCompiledEmitter emitter;
         emitter.Id = m_Id;
         emitter.RenderMode = m_RenderMode;
+        emitter.Strand = m_Strand;
+        emitter.KillOnLifetimeExpired = m_KillOnLifetimeExpired;
         emitter.SimulationSpace = m_SimulationSpace;
         emitter.MaxParticles = m_MaxParticles;
         emitter.GravityScale = paramStore.GetFloat("GravityScale", 1.0f);

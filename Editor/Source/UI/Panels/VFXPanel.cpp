@@ -994,7 +994,7 @@ void VFXPanel::UpdateInspector()
         QueueEdit([this, index](Document& document) { document.Remove({ "emitters" }, index); m_SelectedEmitter = -1; });
     })).SetFillSize();
     const auto modeButtons = Buttons(m_Inspector);
-    for (const auto* mode : { "Sprite", "Mesh", "Ribbon" })
+    for (const auto* mode : { "Sprite", "Mesh", "Ribbon", "Strand" })
         modeButtons->AddChild(Action(mode, [this, emitterPath, mode]
         {
             QueueEdit([emitterPath, mode](Document& document) { document.Set(Child(emitterPath, "renderMode"), Value::FromString(mode)); });

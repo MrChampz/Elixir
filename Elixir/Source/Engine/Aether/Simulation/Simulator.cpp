@@ -36,6 +36,8 @@ namespace Elixir::Aether::Simulation
             float       BurstIntervalSeconds{};
             uint32_t    BurstCount{};
             uint32_t    IsTriggerDriven{};
+            uint32_t    KillOnLifetimeExpired = 1;
+            uint32_t    Padding = 0;
         };
 
         struct SGPUSystemInstance
@@ -135,6 +137,23 @@ namespace Elixir::Aether::Simulation
             uint32_t EmitterIndex = 0;
         };
 
+        // Matches the strand compute push-constant layout (116 bytes).
+        struct SStrandPushConstants
+        {
+            glm::mat4 RootTransform{1.0f};
+            uint32_t ParticleOffset = 0;
+            uint32_t PointOffset = 0;
+            uint32_t PointCount = 0;
+            uint32_t StrandCount = 0;
+            float SegmentLength = 0;
+            float Stiffness = 0;
+            float Damping = 0;
+            float Sway = 0;
+            glm::vec3 Gravity{};
+            uint32_t Generation = 0;
+            uint32_t SolverIterations = 0;
+        };
+
         // Update dispatches use the same ABI as scheduler dispatches.
         using SUpdatePushConstants = SSchedulePushConstants;
 
@@ -159,6 +178,7 @@ namespace Elixir::Aether::Simulation
                 .BurstIntervalSeconds = emitter.BurstIntervalSeconds,
                 .BurstCount = emitter.BurstCount,
                 .IsTriggerDriven = emitter.IsTriggerDriven ? 1u : 0u,
+                .KillOnLifetimeExpired = emitter.KillOnLifetimeExpired ? 1u : 0u,
             };
         }
 
@@ -197,6 +217,7 @@ namespace Elixir::Aether::Simulation
         EE_CORE_INFO("Initializing Aether Simulator.")
 
         if (!context || !shaderLoader ||
+            m_Limits.StrandPointCapacity > INT32_MAX / (3 * sizeof(glm::vec4)) ||
             m_Limits.ConstantCapacity > UINT32_MAX / sizeof(uint32_t) ||
             m_Limits.ParameterWordCapacity > UINT32_MAX / sizeof(uint32_t))
         {
@@ -206,6 +227,7 @@ namespace Elixir::Aether::Simulation
 
         Init(shaderLoader);
         CreateBuffers();
+        if (!m_StrandPointBuffer || !m_StrandPointBuffer->IsValid()) return;
         BindShaderParameters();
     }
 
@@ -236,7 +258,8 @@ namespace Elixir::Aether::Simulation
     {
         EE_CORE_ASSERT(cmd, "Aether simulation requires a command buffer.")
 
-        if (!cmd || !m_ConstantBuffer || !m_ParameterBuffer || steps.empty())
+        if (!cmd || !m_ConstantBuffer || !m_ParameterBuffer ||
+            !m_StrandPointBuffer || !m_StrandPointBuffer->IsValid() || steps.empty())
             return nullptr;
 
         const auto invalidStep = std::ranges::any_of(steps, [](const float step) {
@@ -436,6 +459,13 @@ namespace Elixir::Aether::Simulation
 
         pipelineInfo.Shader = runtime.UpdateShader;
         runtime.UpdatePipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
+
+        runtime.StrandShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/", std::array<std::string_view, 1>{ "StrandsUpdate" },
+            "StrandsUpdate", EShaderStage::Compute);
+        if (!runtime.StrandShader) return;
+        pipelineInfo.Shader = runtime.StrandShader;
+        runtime.StrandPipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
     }
 
     void Simulator::CreateBuffers()
@@ -451,6 +481,15 @@ namespace Elixir::Aether::Simulation
                 descriptor.ParticleStateStride * descriptor.ParticleCapacity
             );
         }
+
+        m_StrandPointBuffer = StorageBuffer::Create(m_GraphicsContext,
+            3 * sizeof(glm::vec4) * std::max<size_t>(1, m_Limits.StrandPointCapacity));
+        if (!m_StrandPointBuffer || !m_StrandPointBuffer->IsValid())
+        {
+            EE_CORE_ERROR("Could not allocate Aether strand point storage.");
+            return;
+        }
+        m_StrandPointBuffer->Clear();
 
         m_EmitterStateBuffer = StorageBuffer::Create(
             m_GraphicsContext,
@@ -634,6 +673,15 @@ namespace Elixir::Aether::Simulation
             "Aether cannot bind and uninitialized particle state layout runtime."
         )
         if (!runtime.ParticleStateBuffer) return;
+
+        if (runtime.StrandShader)
+        {
+            constexpr SStrandPushConstants strandPushConstants{};
+            runtime.StrandShader->SetPushConstant("pc", (void*)&strandPushConstants, sizeof(strandPushConstants));
+            runtime.StrandShader->BindStorageBuffer("particles", runtime.ParticleStateBuffer);
+            runtime.StrandShader->BindStorageBuffer("strandPoints", m_StrandPointBuffer);
+            runtime.StrandShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
+        }
 
         constexpr SSpawnPushConstants spawnPushConstants{};
 
@@ -952,6 +1000,7 @@ namespace Elixir::Aether::Simulation
             resources.push_back({
                 .Layout = runtime.Key,
                 .ParticleStateBuffer = runtime.ParticleStateBuffer,
+                .StrandPointBuffer = m_StrandPointBuffer,
             });
         }
 
@@ -982,6 +1031,8 @@ namespace Elixir::Aether::Simulation
                     .EmitterIndex = emitterIndex,
                     .LocalParticleOffset = emitter.LocalParticleOffset,
                     .ParticleCount = emitter.MaxParticles,
+                    .StrandPointOffset = instance.Allocation.StrandPoints.Offset + emitter.LocalStrandPointOffset,
+                    .Strand = emitter.Strand,
                 });
             }
         }
@@ -1119,6 +1170,36 @@ namespace Elixir::Aether::Simulation
             runtime->UpdateShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
             cmd->Dispatch((instance->Allocation.Particles.Count + UPDATE_GROUP_SIZE - 1) / UPDATE_GROUP_SIZE);
         }
+
+        // Strand roots consume the updated particle positions; points persist across steps.
+        particleBuffer->Barrier(cmd, EPipelineStage::ComputeShader, EPipelineAccess::ShaderRead);
+        m_StrandPointBuffer->Barrier(cmd, EPipelineStage::ComputeShader,
+            EPipelineAccess::ShaderRead | EPipelineAccess::ShaderWrite);
+        runtime->StrandPipeline->Bind(cmd);
+        for (const auto* instance : batch.Instances)
+        {
+            for (const auto& emitter : instance->Proxy->GetCompiledSystem().Emitters)
+            {
+                if (emitter.RenderMode != EParticleRenderMode::Strand || emitter.MaxParticles == 0) continue;
+                const auto& settings = emitter.Strand;
+                const SStrandPushConstants pc{
+                    .RootTransform = GetParticleRenderTransform(emitter, *instance->Proxy),
+                    .ParticleOffset = instance->Allocation.Particles.Offset + emitter.LocalParticleOffset,
+                    .PointOffset = instance->Allocation.StrandPoints.Offset + emitter.LocalStrandPointOffset,
+                    .PointCount = settings.PointCount,
+                    .StrandCount = emitter.MaxParticles,
+                    .SegmentLength = settings.SegmentLength,
+                    .Stiffness = settings.Stiffness,
+                    .Damping = settings.Damping,
+                    .Sway = settings.Sway,
+                    .Gravity = settings.Gravity,
+                    .Generation = instance->Allocation.Generation,
+                    .SolverIterations = settings.SolverIterations,
+                };
+                runtime->StrandShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
+                cmd->Dispatch((emitter.MaxParticles + UPDATE_GROUP_SIZE - 1) / UPDATE_GROUP_SIZE);
+            }
+        }
     }
 
     void Simulator::PublishRenderBarrier(
@@ -1130,6 +1211,7 @@ namespace Elixir::Aether::Simulation
         EE_CORE_ASSERT(runtime, "Aether particle state layout runtime is missing.")
         if (!runtime) return;
 
+        m_StrandPointBuffer->Barrier(cmd, EPipelineStage::VertexShader, EPipelineAccess::ShaderRead);
         runtime->ParticleStateBuffer->Barrier(
             cmd,
             EPipelineStage::VertexShader | EPipelineStage::VertexInput,
@@ -1180,5 +1262,9 @@ namespace Elixir::Aether::Simulation
             int32_t(allocation.Particles.Offset * layout->ParticleStateStride),
             allocation.Particles.Count * layout->ParticleStateStride
         );
+        if (allocation.StrandPoints.Count != 0)
+            m_StrandPointBuffer->Fill(0,
+                int32_t(allocation.StrandPoints.Offset * 3 * sizeof(glm::vec4)),
+                allocation.StrandPoints.Count * 3 * sizeof(glm::vec4));
     }
 }

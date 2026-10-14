@@ -29,6 +29,7 @@ namespace Elixir::Materials::Rendering
         ParticleSprite,
         ParticleRibbon,
         ParticleMesh,
+        ParticleStrand,
     };
 
     /**

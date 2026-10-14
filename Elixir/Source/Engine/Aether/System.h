@@ -78,6 +78,8 @@ namespace Elixir::Aether
         std::vector<SGPUColorCurve> ColorCurves;
 
         uint32_t TotalMaxParticles = 0;
+        /** @brief Number of persistent strand control points required by one instance. */
+        uint32_t TotalStrandPoints = 0;
     };
 
     /**

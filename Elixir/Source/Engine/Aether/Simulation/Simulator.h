@@ -156,12 +156,14 @@ namespace Elixir::Aether::Simulation
             Ref<ComputePipeline> SpawnPipeline;
             Ref<Shader> UpdateShader;
             Ref<ComputePipeline> UpdatePipeline;
+            Ref<Shader> StrandShader;
+            Ref<ComputePipeline> StrandPipeline;
 
             bool IsReady() const
             {
                 return ParticleStateBuffer &&
                     SpawnShader && SpawnPipeline &&
-                    UpdateShader && UpdatePipeline;
+                    UpdateShader && UpdatePipeline && StrandShader && StrandPipeline;
             }
         };
 
@@ -287,6 +289,7 @@ namespace Elixir::Aether::Simulation
             GraphicsContext::FRAMES
         > m_DeferredRetirements;
 
+        Ref<StorageBuffer> m_StrandPointBuffer;
         Ref<StorageBuffer> m_EmitterStateBuffer;
         Ref<StorageBuffer> m_SpawnRequestBuffer;
         Ref<DynamicStorageBuffer> m_TriggerTargetBuffer;

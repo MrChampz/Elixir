@@ -52,6 +52,51 @@ namespace Elixir::Aether::Effect
                 return result;
             }
 
+            // Reads particle death policy independently of authored lifetime values.
+            void ParseParticleState(Emitter& emitter, od::object& json)
+            {
+                if (!HasField(json, "particleState")) return;
+                od::object state;
+                if (json["particleState"].get_object().get(state))
+                {
+                    Fail("'particleState' must be an object.");
+                    return;
+                }
+                if (!HasField(state, "killOnLifetimeExpired")) return;
+                bool enabled = true;
+                if (state["killOnLifetimeExpired"].get_bool().get(enabled))
+                {
+                    Fail("'killOnLifetimeExpired' must be a boolean.");
+                    return;
+                }
+                emitter.SetKillOnLifetimeExpired(enabled);
+            }
+
+            // Reads optional strand physics and tube settings.
+            void ParseStrand(Emitter& emitter, od::object& json)
+            {
+                if (!HasField(json, "strand")) return;
+                od::object object;
+                if (json["strand"].get_object().get(object))
+                {
+                    Fail("'strand' must be an object.");
+                    return;
+                }
+                SStrandSettings settings;
+                if (HasField(object, "points")) settings.PointCount = RequireUInt(object, "points");
+                if (HasField(object, "segmentLength")) settings.SegmentLength = RequireFloat(object, "segmentLength");
+                if (HasField(object, "stiffness")) settings.Stiffness = RequireFloat(object, "stiffness");
+                if (HasField(object, "damping")) settings.Damping = RequireFloat(object, "damping");
+                if (HasField(object, "gravity")) settings.Gravity = RequireFloatVec<3>(object, "gravity");
+                if (HasField(object, "sway")) settings.Sway = RequireFloat(object, "sway");
+                if (HasField(object, "widthScale")) settings.WidthScale = RequireFloat(object, "widthScale");
+                if (HasField(object, "solverIterations")) settings.SolverIterations = RequireUInt(object, "solverIterations");
+                if (HasField(object, "radialSegments")) settings.RadialSegments = RequireUInt(object, "radialSegments");
+                if (HasField(object, "subdivisions")) settings.Subdivisions = RequireUInt(object, "subdivisions");
+                if (Failed()) return;
+                if (!emitter.SetStrandSettings(settings)) Fail("Invalid strand settings.");
+            }
+
             /* Parameter/curve blocks */
 
             void LoadParametersFromObject(ParameterStore& store, od::object params)
@@ -372,6 +417,13 @@ namespace Elixir::Aether::Effect
                 desc.Opacity = color.w;
                 desc.Emissive = glm::vec3(emissive);
                 desc.BaseColorTexturePath = ParseString(material, "texture");
+                if (HasField(material, "blendMode"))
+                {
+                    const auto value = RequireString(material, "blendMode");
+                    const auto blend = magic_enum::enum_cast<EMaterialBlendMode>(value);
+                    if (!blend) { Fail("Unknown material blend mode '{}'.", value); return std::nullopt; }
+                    desc.BlendMode = *blend;
+                }
 
                 return desc;
             }
@@ -390,6 +442,17 @@ namespace Elixir::Aether::Effect
 
                 auto& emitter = system->AddEmitter(name, maxParticles, spawnRate.Value);
                 emitter.SetRenderMode(renderMode);
+                if (HasField(json, "simulationSpace"))
+                {
+                    const auto value = RequireString(json, "simulationSpace");
+                    const auto space = magic_enum::enum_cast<EParticleSimulationSpace>(value);
+                    if (!space) { Fail("Unknown simulation space '{}'.", value); return; }
+                    emitter.SetSimulationSpace(*space);
+                }
+                ParseParticleState(emitter, json);
+                if (Failed()) return;
+                ParseStrand(emitter, json);
+                if (Failed()) return;
 
                 LoadParameters(json, emitter.GetParameters());
                 if (Failed()) return;

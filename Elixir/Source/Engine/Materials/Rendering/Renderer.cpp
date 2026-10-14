@@ -280,6 +280,7 @@ namespace Elixir::Materials::Rendering
             case EMaterialPass::Surface:        return EMaterialUsage::Surface;
             case EMaterialPass::ParticleSprite:
             case EMaterialPass::ParticleRibbon:
+            case EMaterialPass::ParticleStrand:
             case EMaterialPass::ParticleMesh:   return EMaterialUsage::Particle;
         }
 
@@ -299,6 +300,8 @@ namespace Elixir::Materials::Rendering
                 return Compilation::EMaterialShaderVariant::ParticleRibbon;
             case EMaterialPass::ParticleMesh:
                 return Compilation::EMaterialShaderVariant::ParticleMesh;
+            case EMaterialPass::ParticleStrand:
+                return Compilation::EMaterialShaderVariant::ParticleStrand;
         }
 
         EE_CORE_ASSERT(false, "Material pass does not have a shader variant.")
@@ -312,6 +315,7 @@ namespace Elixir::Materials::Rendering
             case EMaterialPass::Surface:        return 0;
             case EMaterialPass::ParticleSprite: return 3;
             case EMaterialPass::ParticleRibbon: return 2;
+            case EMaterialPass::ParticleStrand:
             case EMaterialPass::ParticleMesh:   return 1;
         }
 
@@ -623,6 +627,7 @@ namespace Elixir::Materials::Rendering
         {
             case EMaterialPass::Surface:
             case EMaterialPass::ParticleMesh:
+            case EMaterialPass::ParticleStrand:
                 builder.SetCullMode(
                     doubleSided ? ECullMode::None : ECullMode::Back,
                     EFrontFace::CounterClockwise
@@ -640,7 +645,7 @@ namespace Elixir::Materials::Rendering
 
         auto info = builder.GetCreateInfo();
 
-        if (pass == EMaterialPass::Surface || pass == EMaterialPass::ParticleMesh)
+        if (pass == EMaterialPass::Surface || pass == EMaterialPass::ParticleMesh || pass == EMaterialPass::ParticleStrand)
         {
             const auto depthWrite = blendMode != EMaterialBlendMode::Translucent &&
                 shadingModel != EMaterialShadingModel::Transmission;

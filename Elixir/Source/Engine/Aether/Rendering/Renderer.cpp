@@ -26,6 +26,18 @@ namespace Elixir::Aether::Rendering
             uint32_t MaterialIndex = UINT32_MAX;
         };
 
+        struct SStrandPushConstants
+        {
+            uint32_t ParticleOffset = 0;
+            uint32_t PointOffset = 0;
+            uint32_t PointCount = 0;
+            uint32_t RadialSegments = 0;
+            uint32_t Subdivisions = 0;
+            float WidthScale = 0;
+            uint32_t MaterialIndex = UINT32_MAX;
+            uint32_t Padding = 0;
+        };
+
         struct SRibbonPushConstants
         {
             glm::mat4 WorldTransform{ 1.0f };
@@ -215,6 +227,7 @@ namespace Elixir::Aether::Rendering
             uint32_t Sprite = UINT32_MAX;
             uint32_t Ribbon = UINT32_MAX;
             uint32_t Mesh   = UINT32_MAX;
+            uint32_t Strand = UINT32_MAX;
         };
 
         std::unordered_map<uint32_t, SGeometryIndices> geometries;
@@ -254,6 +267,11 @@ namespace Elixir::Aether::Rendering
                 },
             };
 
+            const std::array strandStorageBuffers{
+                SStorageBufferBinding{ .Name = "particles", .Buffer = MaterialStorageBuffer{resource->ParticleStateBuffer} },
+                SStorageBufferBinding{ .Name = "strandPoints", .Buffer = MaterialStorageBuffer{resource->StrandPointBuffer} },
+            };
+
             const SGeometryIndices indices{
                 .Sprite = scene.AddGeometry({
                     .Pipeline = {
@@ -283,6 +301,14 @@ namespace Elixir::Aether::Rendering
                         { .Buffer = m_MeshVertexBuffer.get(), .Binding = 0 },
                         { .Buffer = resource->ParticleStateBuffer.get(), .Binding = 1 },
                     },
+                }),
+                .Strand = scene.AddGeometry({
+                    .Pipeline = {
+                        .VertexLayoutKey = cacheKey,
+                        .VertexLayout = &ribbonVertexLayout,
+                    },
+                    .ConstantBuffers = {constantBuffers.begin(), constantBuffers.end()},
+                    .StorageBuffers = {strandStorageBuffers.begin(), strandStorageBuffers.end()},
                 }),
             };
 
@@ -345,6 +371,36 @@ namespace Elixir::Aether::Rendering
                             offsetof(SRibbonPushConstants, MaterialIndex)
                         ),
                         .Draw = { .VertexCount = item.ParticleCount * 6 },
+                    });
+                    break;
+                }
+
+                case EParticleRenderMode::Strand:
+                {
+                    const auto* resource = FindRenderResource(frame, item.ParticleStateLayout);
+                    if (!resource || !resource->StrandPointBuffer || !resource->StrandPointBuffer->IsValid())
+                    {
+                        EE_CORE_ERROR("Aether strand draw requires persistent point storage.");
+                        break;
+                    }
+                    const auto& transform = item.WorldTransform;
+                    const float scale = std::max(glm::length(glm::vec3(transform[0])),
+                        std::max(glm::length(glm::vec3(transform[1])), glm::length(glm::vec3(transform[2]))));
+                    const SStrandPushConstants constants{
+                        .ParticleOffset = item.Allocation.Particles.Offset + item.LocalParticleOffset,
+                        .PointOffset = item.StrandPointOffset,
+                        .PointCount = item.Strand.PointCount,
+                        .RadialSegments = item.Strand.RadialSegments,
+                        .Subdivisions = item.Strand.Subdivisions,
+                        .WidthScale = item.Strand.WidthScale * scale,
+                    };
+                    scene.Add({
+                        .Pass = EMaterialPass::ParticleStrand,
+                        .Material = item.Material,
+                        .SortDepth = sortDepth,
+                        .GeometryIndex = geometry->Strand,
+                        .PushConstants = SMaterialPushConstants::Create(constants, offsetof(SStrandPushConstants, MaterialIndex)),
+                        .Draw = { .VertexCount = item.Strand.GetVertexCount(), .InstanceCount = item.ParticleCount },
                     });
                     break;
                 }

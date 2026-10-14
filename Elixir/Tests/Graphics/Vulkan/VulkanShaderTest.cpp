@@ -1,10 +1,27 @@
 #include <gtest/gtest.h>
-
 #include <Graphics/Vulkan/VulkanDescriptorPool.h>
 #include <Graphics/Vulkan/VulkanShader.h>
 #include "VulkanTestContext.h"
-
 #include <cstring>
+#include <Engine/Graphics/CommandBuffer.h>
+#include <Engine/Graphics/Shader/ShaderLoader.h>
+#include <Engine/Aether/Core/ParticleStateLayout.h>
+#include <Engine/Aether/Effect/MaterialFactory.h>
+#include <Engine/Materials/Compilation/Compiler.h>
+#include <glm/gtc/matrix_transform.hpp>
+#include <bit>
+#include <Graphics/Vulkan/VulkanCommandBuffer.h>
+#include <Engine/Aether/Manager.h>
+#include <Engine/Aether/Simulation/Simulator.h>
+#include <Engine/Aether/System.h>
+#include <Engine/Aether/Modules/KillOutsideBounds.h>
+#include <Engine/Aether/Modules/SizeOverLife.h>
+#include <Engine/Materials/MaterialSystem.h>
+#include <Engine/Materials/MaterialRegistry.h>
+#include <Engine/Camera/PerspectiveCamera.h>
+#include <Engine/Core/Timer.h>
+
+
 
 using namespace Elixir;
 using namespace Elixir::Vulkan;
@@ -85,4 +102,366 @@ namespace
         EXPECT_EQ(Shader::Create(context, std::move(factoryInfo)), nullptr);
         EXPECT_NE(Shader::Create(context, MakeShaderInfo()), nullptr);
     }
+}
+
+// Execute the actual strand shader and read its persistent state back from coherent memory.
+
+namespace
+{
+    struct SStrandTestConstants
+    {
+        glm::mat4 RootTransform{1.0f};
+        uint32_t ParticleOffset = 0;
+        uint32_t PointOffset = 0;
+        uint32_t PointCount = 32;
+        uint32_t StrandCount = 1;
+        float SegmentLength = 0.04f;
+        float Stiffness = 1.0f;
+        float Damping = 0.96f;
+        float Sway = 0.5f;
+        glm::vec3 Gravity{0, -0.15f, 0};
+        uint32_t Generation = 1;
+        uint32_t SolverIterations = 16;
+    };
+    static_assert(sizeof(SStrandTestConstants) == 116);
+    static_assert(offsetof(SStrandTestConstants, ParticleOffset) == 64);
+    static_assert(offsetof(SStrandTestConstants, Generation) == 108);
+
+    TEST(VulkanShaderTest, StrandSolverPinsRootsKeepsFiniteStateAndResetsOnRespawn)
+    {
+        const auto context = VulkanTestContext::Get().GetGraphicsContext();
+        ShaderLoader loader(context);
+        const auto shader = loader.LoadShader("./Shaders/Aether", "StrandsUpdate", EShaderStage::Compute);
+        ASSERT_TRUE(shader);
+        const auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
+        ASSERT_TRUE(pipeline);
+        // CoreV1: position/size, velocity/age, transform, tangent/id, color, metadata.
+        std::array<glm::vec4, 6> root{};
+        root[0] = {0, 0, 0, 16};
+        root[2].y = 1;
+        root[4] = {1, 1, 1, 1};
+        root[5] = {0, std::bit_cast<float>(7u), 30, 1};
+        const auto particles = DynamicStorageBuffer::Create(context, sizeof(root), root.data());
+        constexpr uint32_t maxPoints = 96;
+        const std::vector<glm::vec4> zeros(maxPoints * 3);
+        const auto points = DynamicStorageBuffer::Create(context, zeros.size() * sizeof(glm::vec4), zeros.data());
+        std::array<glm::vec4, 2> time{};
+        const auto params = UniformBuffer::Create(context, sizeof(time), time.data());
+        SStrandTestConstants pc;
+        shader->SetPushConstant("pc", &pc, sizeof(pc));
+        shader->BindStorageBuffer("particles", particles);
+        shader->BindStorageBuffer("strandPoints", points);
+        shader->BindConstantBuffer("cbParams", params);
+        const auto dispatch = [&](float dt)
+        {
+            time[0].x = dt;
+            time[0].y += dt;
+            params->UpdateData(time.data(), sizeof(time));
+            const auto cmd = context->GetUploadCommandBuffer();
+            cmd->Begin();
+            points->Barrier(cmd, EPipelineStage::ComputeShader, EPipelineAccess::ShaderRead | EPipelineAccess::ShaderWrite);
+            pipeline->Bind(cmd);
+            shader->SetPushConstant(cmd, "pc", &pc, sizeof(pc));
+            cmd->Dispatch(1);
+            const VkMemoryBarrier hostBarrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
+                VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT};
+            vkCmdPipelineBarrier(static_cast<VulkanCommandBuffer*>(cmd.get())->GetVulkanCommandBuffer(),
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0,
+                1, &hostBarrier, 0, nullptr, 0, nullptr);
+            cmd->End();
+            cmd->Flush();
+        };
+        const auto read = [&]()
+        {
+            const auto* mapped = static_cast<const glm::vec4*>(points->Map());
+            std::vector<glm::vec4> result(mapped, mapped + maxPoints * 3);
+            points->Unmap();
+            return result;
+        };
+        dispatch(0);
+        const auto initial = read();
+        EXPECT_EQ(std::bit_cast<uint32_t>(initial[0].w), 7u);
+        EXPECT_EQ(std::bit_cast<uint32_t>(initial[1].w), 1u);
+        EXPECT_NEAR(glm::length(glm::vec3(initial[3]) - glm::vec3(initial[0])), pc.SegmentLength, 0.00001f);
+        dispatch(0);
+        EXPECT_EQ(read(), initial);
+        pc.RootTransform = glm::translate(glm::mat4(1), glm::vec3(0.1f, 0.2f, 0.3f));
+        for (int frame = 0; frame < 20; ++frame) dispatch(frame % 2 ? 1.0f / 30 : 1.0f / 120);
+        const auto moved = read();
+        EXPECT_NEAR(moved[0].x, 0.1f, 0.00001f);
+        EXPECT_NEAR(moved[0].y, 0.2f, 0.00001f);
+        EXPECT_NEAR(moved[0].z, 0.3f, 0.00001f);
+        for (uint32_t point = 0; point < pc.PointCount; ++point)
+        {
+            for (int axis = 0; axis < 3; ++axis) EXPECT_TRUE(std::isfinite(moved[point * 3][axis]));
+            EXPECT_NEAR(glm::length(glm::vec3(moved[point * 3 + 2])), 1, 0.0001f);
+            if (point > 0)
+                EXPECT_LT(glm::length(glm::vec3(moved[point * 3]) - glm::vec3(moved[(point - 1) * 3])), pc.SegmentLength * 1.5f);
+        }
+        pc.Generation = 2;
+        dispatch(0);
+        const auto reset = read();
+        EXPECT_EQ(std::bit_cast<uint32_t>(reset[1].w), 2u);
+        EXPECT_NEAR(glm::length(glm::vec3(reset[3]) - glm::vec3(reset[0])), pc.SegmentLength, 0.00001f);
+        root[5].y = std::bit_cast<float>(8u);
+        particles->UpdateData(root.data(), sizeof(root));
+        dispatch(0);
+        EXPECT_EQ(std::bit_cast<uint32_t>(read()[0].w), 8u);
+        root[5].w = 0;
+        particles->UpdateData(root.data(), sizeof(root));
+        dispatch(0);
+        EXPECT_EQ(std::bit_cast<uint32_t>(read()[1].w), 0u);
+        // Exercise the maximum supported chain length after changing generation.
+        pc.PointCount = 96;
+        root[5].w = 1;
+        particles->UpdateData(root.data(), sizeof(root));
+        dispatch(1.0f / 60);
+        dispatch(0.1f);
+        const auto longest = read();
+        EXPECT_TRUE(std::isfinite(longest[(96 - 1) * 3].x));
+    }
+
+    TEST(VulkanShaderTest, CompilesStrandMaterialVariantWithParticleGraphBindings)
+    {
+        const auto context = VulkanTestContext::Get().GetGraphicsContext();
+        ShaderLoader loader(context);
+        Aether::Effect::SMaterialDescription desc;
+        desc.BlendMode = Materials::EMaterialBlendMode::Opaque;
+        const auto material = Aether::Effect::CreateMaterial("Strand test", desc);
+        const auto compiled = Materials::Compilation::Compiler::Compile(&loader, *material);
+        ASSERT_TRUE(compiled) << compiled.Diagnostics;
+        ASSERT_TRUE(compiled.Material->ParticleStrandShader);
+        EXPECT_TRUE(compiled.Material->ParticleStrandShader->HasBinding("particles"));
+        EXPECT_TRUE(compiled.Material->ParticleStrandShader->HasBinding("strandPoints"));
+    }
+}
+
+
+TEST(VulkanShaderTest, StrandEffectSimulatesAndRecordsTubeDrawsThroughAether)
+{
+    const auto context = VulkanTestContext::Get().GetGraphicsContext();
+    ShaderLoader loader(context);
+    Materials::MaterialRegistry registry;
+    Materials::MaterialSystem materials(context, {}, &loader,
+        context->GetRenderTarget(), context->GetDepthStencilRenderTarget());
+    Aether::Manager manager(context, &loader, registry, materials);
+    const auto assetRoot = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path().parent_path().parent_path();
+    const auto system = Aether::Manager::LoadEffect(assetRoot / "Assets/VFX/GPUStrands.json");
+    ASSERT_TRUE(system);
+    const auto instance = system->CreateInstance();
+    ASSERT_TRUE(manager.Add(instance));
+    PerspectiveCamera camera(45, 16.0f / 9, 0.01f, 100);
+    camera.SetPosition({0, 0, 3});
+    Materials::Rendering::SRenderResult result;
+    for (int frame = 0; frame < 3; ++frame)
+    {
+        instance->SetWorldTransform(glm::translate(glm::mat4(1), glm::vec3(frame * 0.02f, 0, 0)));
+        context->RenderFrame([&]()
+        {
+            materials.BeginFrame();
+            manager.BeginFrame(Timestep(1.0f / 30));
+            manager.Render(camera, context->GetRenderTarget());
+            result = materials.RenderFrame();
+        });
+        ASSERT_TRUE(context->RunRenderTaskAndWait([] {}));
+    }
+    context->WaitDeviceIdle();
+    EXPECT_EQ(result.DrawCount, 1u);
+    EXPECT_EQ(result.MaterialCount, 1u);
+    EXPECT_EQ(manager.GetLastSimulationMetrics().SubmittedEmitterCount, 1u);
+    EXPECT_TRUE(manager.Remove(instance));
+}
+
+TEST(VulkanShaderTest, InitialBurstRunsOnceAndPeriodicAndTriggeredBurstsKeepTheirTiming)
+{
+    const auto context = VulkanTestContext::Get().GetGraphicsContext();
+    ShaderLoader loader(context);
+    const auto shader = loader.LoadShader("./Shaders/Aether", "ParticlesSchedulerScheduleEmitters", EShaderStage::Compute);
+    ASSERT_TRUE(shader);
+    const auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
+    ASSERT_TRUE(pipeline);
+    // Mirror the emitter, instance and scheduler layouts with native four-byte words.
+    std::array<uint32_t, 16> emitter{};
+    emitter[1] = 64; // particle capacity
+    emitter[12] = 64; // burst count
+    std::array<uint32_t, 15> instance{};
+    instance[10] = 64;
+    instance[11] = 1;
+    instance[12] = 1;
+    instance[13] = 1;
+    std::array<uint32_t, 5> state{};
+    state[4] = 1;
+    std::array<uint32_t, 4> request{};
+    std::array<uint32_t, 3> scheduler{1, 0, 0};
+    std::array<uint32_t, 4> queues{};
+    std::array<uint32_t, 3> event{};
+    std::array<glm::vec4, 2> time{};
+    const auto emitters = DynamicStorageBuffer::Create(context, sizeof(emitter), emitter.data());
+    const auto instances = DynamicStorageBuffer::Create(context, sizeof(instance), instance.data());
+    const auto states = DynamicStorageBuffer::Create(context, sizeof(state), state.data());
+    const auto requests = DynamicStorageBuffer::Create(context, sizeof(request), request.data());
+    const auto schedulers = DynamicStorageBuffer::Create(context, sizeof(scheduler), scheduler.data());
+    const auto queueBuffer = DynamicStorageBuffer::Create(context, sizeof(queues), queues.data());
+    const auto eventsA = DynamicStorageBuffer::Create(context, sizeof(event), event.data());
+    const auto eventsB = DynamicStorageBuffer::Create(context, sizeof(event), event.data());
+    const auto targets = DynamicStorageBuffer::Create(context, sizeof(event), event.data());
+    const auto params = UniformBuffer::Create(context, sizeof(time), time.data());
+    uint32_t index = 0;
+    shader->SetPushConstant("pc", &index, sizeof(index));
+    shader->BindStorageBuffer("emitters", emitters);
+    shader->BindStorageBuffer("instances", instances);
+    shader->BindStorageBuffer("emitterStates", states);
+    shader->BindStorageBuffer("spawnRequests", requests);
+    shader->BindStorageBuffer("schedulerStates", schedulers);
+    shader->BindStorageBuffer("triggerQueueStates", queueBuffer);
+    shader->BindStorageBuffer("triggerEventsA", eventsA);
+    shader->BindStorageBuffer("triggerEventsB", eventsB);
+    shader->BindStorageBuffer("triggerTargets", targets);
+    shader->BindConstantBuffer("cbParams", params);
+    const auto dispatch = [&](float dt)
+    {
+        time[0].x = dt;
+        params->UpdateData(time.data(), sizeof(time));
+        const auto cmd = context->GetUploadCommandBuffer();
+        cmd->Begin();
+        states->Barrier(cmd, EPipelineStage::ComputeShader, EPipelineAccess::ShaderRead | EPipelineAccess::ShaderWrite);
+        requests->Barrier(cmd, EPipelineStage::ComputeShader, EPipelineAccess::ShaderWrite);
+        pipeline->Bind(cmd);
+        cmd->Dispatch(1);
+        const VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
+            VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT};
+        vkCmdPipelineBarrier(static_cast<VulkanCommandBuffer*>(cmd.get())->GetVulkanCommandBuffer(),
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0,
+            1, &barrier, 0, nullptr, 0, nullptr);
+        cmd->End();
+        cmd->Flush();
+        std::memcpy(request.data(), requests->Map(), sizeof(request));
+        requests->Unmap();
+    };
+    dispatch(0);
+    EXPECT_EQ(request[1], 64u);
+    EXPECT_EQ(request[2], 0u);
+    // More than two seconds of simulation must not replace any root.
+    for (int step = 0; step < 30; ++step)
+    {
+        dispatch(0.1f);
+        EXPECT_EQ(request[1], 0u);
+        EXPECT_EQ(request[2], 64u);
+    }
+    state = {};
+    state[4] = instance[13] = 2;
+    states->UpdateData(state.data(), sizeof(state));
+    instances->UpdateData(instance.data(), sizeof(instance));
+    dispatch(0);
+    EXPECT_EQ(request[1], 64u); // reset starts a new initial burst
+    EXPECT_EQ(request[3], 2u);
+
+    // A positive interval still waits for the interval and repeats.
+    state = {};
+    state[4] = 2;
+    states->UpdateData(state.data(), sizeof(state));
+    emitter[11] = std::bit_cast<uint32_t>(0.5f);
+    emitter[12] = 2;
+    emitters->UpdateData(emitter.data(), sizeof(emitter));
+    dispatch(0.25f);
+    EXPECT_EQ(request[1], 0u);
+    dispatch(0.25f);
+    EXPECT_EQ(request[1], 2u);
+    dispatch(0.5f);
+    EXPECT_EQ(request[1], 2u);
+
+    // Trigger-driven emitters with interval zero must not emit an initial burst.
+    state = {};
+    state[4] = 2;
+    states->UpdateData(state.data(), sizeof(state));
+    emitter[11] = 0;
+    emitter[13] = 1;
+    emitters->UpdateData(emitter.data(), sizeof(emitter));
+    dispatch(0.1f);
+    EXPECT_EQ(request[1], 0u);
+    event = {0, 5, 2};
+    queues[0] = 1;
+    eventsA->UpdateData(event.data(), sizeof(event));
+    queueBuffer->UpdateData(queues.data(), sizeof(queues));
+    dispatch(0.1f);
+    EXPECT_EQ(request[1], 5u);
+}
+
+TEST(VulkanShaderTest, LifetimeDeathPolicyPreservesSimulationNormalizedAgeAndExplicitKills)
+{
+    const auto context = VulkanTestContext::Get().GetGraphicsContext();
+    ShaderLoader loader(context);
+    const auto shader = loader.LoadShader("./Shaders/Aether", "ParticlesUpdate", EShaderStage::Compute);
+    ASSERT_TRUE(shader);
+    const auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
+    ASSERT_TRUE(pipeline);
+    using namespace Aether::Core;
+    using namespace Aether::Modules;
+    SCompiledModuleData program;
+    ModuleCompileContext compiler(program, {}, "Policy", 1.0f);
+    KillOutsideBounds({-1, -1, -1}, {1, 1, 1}).Compile(compiler);
+    SizeOverLife(2, 6).Compile(compiler);
+    ASSERT_EQ(program.Operations.size(), 2);
+    std::array<glm::vec4, 24> roots{};
+    std::array<uint32_t, 64> emittersData{};
+    for (uint32_t index = 0; index < 4; ++index)
+    {
+        roots[index * 6] = {0, 0, 0, 16};
+        roots[index * 6 + 1] = {1, 0, 0, 2}; // velocity and age greater than lifetime
+        roots[index * 6 + 2].y = 1;
+        roots[index * 6 + 4] = {1, 1, 1, 1};
+        roots[index * 6 + 5] = {std::bit_cast<float>(index), 0, 0.25f, 1};
+        emittersData[index * 16 + 1] = 1;
+        // The reused padding word preserves the 64-byte emitter stride.
+        emittersData[index * 16 + 14] = index == 1 ? 1 : 0;
+    }
+    roots[2 * 6].x = 2; // explicit kill outside the box
+    emittersData[2 * 16 + 4] = 0;
+    emittersData[2 * 16 + 5] = 1;
+    emittersData[3 * 16 + 4] = 1;
+    emittersData[3 * 16 + 5] = 1;
+    std::array<uint32_t, 15> instance{};
+    instance[10] = 4;
+    instance[11] = 4;
+    std::array<glm::vec4, 2> time{};
+    time[0] = {0.1f, 2.1f, 0, 0};
+    const uint32_t zero = 0;
+    const auto particles = DynamicStorageBuffer::Create(context, sizeof(roots), roots.data());
+    const auto emitters = DynamicStorageBuffer::Create(context, sizeof(emittersData), emittersData.data());
+    const auto instances = DynamicStorageBuffer::Create(context, sizeof(instance), instance.data());
+    const auto operations = DynamicStorageBuffer::Create(context, program.Operations.size() * sizeof(SGPUOperation), program.Operations.data());
+    const auto operands = DynamicStorageBuffer::Create(context, program.Operands.size() * sizeof(uint32_t), program.Operands.data());
+    const auto constants = DynamicStorageBuffer::Create(context, program.Constants.size() * sizeof(uint32_t), program.Constants.data());
+    const auto parameters = DynamicStorageBuffer::Create(context, sizeof(zero), &zero);
+    const auto params = UniformBuffer::Create(context, sizeof(time), time.data());
+    uint32_t index = 0;
+    shader->SetPushConstant("pc", &index, sizeof(index));
+    shader->BindStorageBuffer("particles", particles);
+    shader->BindStorageBuffer("emitters", emitters);
+    shader->BindStorageBuffer("instances", instances);
+    shader->BindStorageBuffer("operations", operations);
+    shader->BindStorageBuffer("operands", operands);
+    shader->BindStorageBuffer("constants", constants);
+    shader->BindStorageBuffer("parameters", parameters);
+    shader->BindConstantBuffer("cbParams", params);
+    const auto cmd = context->GetUploadCommandBuffer();
+    cmd->Begin();
+    pipeline->Bind(cmd);
+    cmd->Dispatch(1);
+    const VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
+        VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT};
+    vkCmdPipelineBarrier(static_cast<VulkanCommandBuffer*>(cmd.get())->GetVulkanCommandBuffer(),
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0,
+        1, &barrier, 0, nullptr, 0, nullptr);
+    cmd->End();
+    cmd->Flush();
+    std::memcpy(roots.data(), particles->Map(), sizeof(roots));
+    particles->Unmap();
+    EXPECT_EQ(roots[5].w, 1); // persistent particle remains alive
+    EXPECT_NEAR(roots[1].w, 2.1f, 0.00001f); // age still advances
+    EXPECT_NEAR(roots[0].x, 0.1f, 0.00001f); // velocity still integrates
+    EXPECT_EQ(roots[1 * 6 + 5].w, 0); // default policy expires
+    EXPECT_EQ(roots[2 * 6 + 5].w, 0); // explicit kill remains effective
+    EXPECT_EQ(roots[3 * 6 + 5].w, 1);
+    EXPECT_EQ(roots[3 * 6].w, 6); // NormalizedAge saturates at one instead of freezing at zero
 }

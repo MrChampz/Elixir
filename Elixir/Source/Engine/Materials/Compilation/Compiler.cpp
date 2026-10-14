@@ -134,7 +134,9 @@ namespace Elixir::Materials::Compilation
         {
             result = CompileParticleSprite(loader, material, std::move(result));
             if (!result) return result;
-            result = CompileParticleRibbon(loader, material, std::move(result));
+            result = CompileParticleGeometry(loader, material, std::move(result), EMaterialShaderVariant::ParticleRibbon);
+            if (!result) return result;
+            result = CompileParticleGeometry(loader, material, std::move(result), EMaterialShaderVariant::ParticleStrand);
             if (!result) return result;
             result = CompileParticleMesh(loader, material, std::move(result));
             if (!result) return result;
@@ -340,25 +342,28 @@ namespace Elixir::Materials::Compilation
         return result;
     }
 
-    SCompileResult Compiler::CompileParticleRibbon(
+    SCompileResult Compiler::CompileParticleGeometry(
         const ShaderLoader* loader,
         const Material& material,
-        SCompileResult result
+        SCompileResult result,
+        const EMaterialShaderVariant variant
     )
     {
-        const auto vertexHlsl = ReadFile(s_ShadersDir / "Material" / "ParticleRibbon.vs.hlsl");
-        const auto pixelHlsl = ReadFile(s_ShadersDir / "Material" / "ParticleRibbon.ps.hlsl");
+        const std::string shaderName = variant == EMaterialShaderVariant::ParticleStrand
+            ? "ParticleStrand" : "ParticleRibbon";
+        const auto vertexHlsl = ReadFile(s_ShadersDir / "Material" / (shaderName + ".vs.hlsl"));
+        const auto pixelHlsl = ReadFile(s_ShadersDir / "Material" / (shaderName + ".ps.hlsl"));
 
         if (vertexHlsl.empty() || pixelHlsl.empty())
         {
-            result.Diagnostics = "Material ribbon shader template was not found.";
+            result.Diagnostics = "Material geometry shader template was not found.";
             result.Material.reset();
             return result;
         }
 
         // Unique name per compiled graph so instances don't clobber each other.
         static std::atomic<uint32_t> counter{ 0 };
-        const std::string name = "GraphMat_" + std::to_string(counter.fetch_add(1)) + "_ParticleRibbon";
+        const std::string name = "GraphMat_" + std::to_string(counter.fetch_add(1)) + ("_" + shaderName);
 
         const fs::path loadDir = s_GeneratedDir / name;
         std::error_code error;
@@ -406,18 +411,20 @@ namespace Elixir::Materials::Compilation
         ))
         {
             EE_CORE_ERROR(
-                "Particle ribbon material: DXC compilation failed for {}.",
+                "Particle geometry material: DXC compilation failed for {}.",
                 name
             )
-            result.Diagnostics = "DXC failed while compiling the particle ribbon material.";
+            result.Diagnostics = "DXC failed while compiling the particle geometry material.";
             result.Material.reset();
             return result;
         }
 
-        result.Material->ParticleRibbonShader = loader->LoadShader(loadDir, name);
-        if (!result.Material->ParticleRibbonShader)
+        auto& shader = variant == EMaterialShaderVariant::ParticleStrand
+            ? result.Material->ParticleStrandShader : result.Material->ParticleRibbonShader;
+        shader = loader->LoadShader(loadDir, name);
+        if (!shader)
         {
-            result.Diagnostics = "Shader loader could not load the particle ribbon material.";
+            result.Diagnostics = "Shader loader could not load the particle geometry material.";
             result.Material.reset();
         }
 

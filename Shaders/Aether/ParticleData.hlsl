@@ -33,7 +33,7 @@ struct SGPUEmitter
     float BurstIntervalSeconds;
     uint  BurstCount;
     uint  IsTriggerDriven;
-    uint  Padding0;
+    uint  KillOnLifetimeExpired;
     uint  Padding1;
 };
 

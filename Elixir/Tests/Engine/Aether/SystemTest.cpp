@@ -238,3 +238,45 @@ TEST(SystemTest, CompileAssignsTheDefaultMaterialWhenNoneIsExplicit)
         EMaterialUsage::Particle
     );
 }
+
+TEST(SystemTest, CompilesIndependentStrandPointRangesAndSnapshotsSettings)
+{
+    const auto system = CreateRef<System>("Strand ranges");
+    auto& first = system->AddEmitter("First", 3, 0);
+    first.SetRenderMode(EParticleRenderMode::Strand);
+    SStrandSettings settings;
+    settings.PointCount = 32;
+    ASSERT_TRUE(first.SetStrandSettings(settings));
+    system->AddEmitter("Sprites", 7, 0);
+    auto& second = system->AddEmitter("Second", 2, 0);
+    second.SetRenderMode(EParticleRenderMode::Strand);
+    const auto compiled = Compile(system);
+    ASSERT_EQ(compiled.Emitters.size(), 3);
+    EXPECT_EQ(compiled.TotalStrandPoints, 3 * 32 + 2 * 24);
+    EXPECT_EQ(compiled.Emitters[0].LocalStrandPointOffset, 0);
+    EXPECT_EQ(compiled.Emitters[2].LocalStrandPointOffset, 96);
+    EXPECT_EQ(compiled.Emitters[2].LocalParticleOffset, 10);
+    settings.PointCount = 12;
+    ASSERT_TRUE(first.SetStrandSettings(settings));
+    EXPECT_EQ(compiled.Emitters[0].Strand.PointCount, 32);
+    settings.PointCount = 97;
+    EXPECT_FALSE(first.SetStrandSettings(settings));
+    EXPECT_EQ(first.GetStrandSettings().PointCount, 12);
+    settings.PointCount = 12;
+    settings.Damping = std::numeric_limits<float>::quiet_NaN();
+    EXPECT_FALSE(first.SetStrandSettings(settings));
+}
+
+TEST(SystemTest, LifetimeDeathPolicyDefaultsToEnabledAndIsSnapshottedIndependently)
+{
+    const auto system = CreateRef<System>("Particle death policy");
+    auto& emitter = system->AddEmitter("Persistent", 1, 0);
+    EXPECT_TRUE(emitter.ShouldKillOnLifetimeExpired());
+    emitter.SetKillOnLifetimeExpired(false);
+    const auto compiled = Compile(system);
+    ASSERT_EQ(compiled.Emitters.size(), 1);
+    EXPECT_FALSE(compiled.Emitters[0].KillOnLifetimeExpired);
+    emitter.SetKillOnLifetimeExpired(true);
+    EXPECT_FALSE(compiled.Emitters[0].KillOnLifetimeExpired);
+    EXPECT_TRUE(Compile(system).Emitters[0].KillOnLifetimeExpired);
+}

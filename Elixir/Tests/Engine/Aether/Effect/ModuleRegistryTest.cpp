@@ -412,7 +412,7 @@ TEST(ModuleRegistryTest, UnknownTypesReturnNullWithoutConsumingFields)
 TEST(ModuleRegistryTest, LoadsExistingEffectAssets)
 {
     const auto root = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path().parent_path().parent_path().parent_path();
-    for (const auto* asset : { "FireAndFireworks.json", "RainStorm.json", "RibbonGarden.json", "RibbonVortex.json" })
+    for (const auto* asset : { "FireAndFireworks.json", "RainStorm.json", "RibbonGarden.json", "RibbonVortex.json", "GPUStrands.json" })
     {
         SCOPED_TRACE(asset);
         const auto system = Elixir::Aether::Effect::LoadEffectFile(root / "Assets" / "VFX" / asset);
@@ -479,4 +479,50 @@ TEST(ModuleRegistryTest, CreatesAndCompilesModulesRegisteredOutsideTheEngine)
     module->Compile(compileContext);
     ASSERT_EQ(operations.size(), 1u);
     EXPECT_FLOAT_EQ(std::bit_cast<float>(program.Constants[program.Operands[0] & Core::OperandIndexMask]), 7.0f);
+}
+
+TEST(ModuleRegistryTest, LoadsStrandSettingsAndRejectsInvalidRanges)
+{
+    std::string error;
+    const auto system = Effect::LoadEffectText(R"({"name":"Strands","emitters":[
+        {"name":"Root","renderMode":"Strand","simulationSpace":"Local","maxParticles":4,"spawnRate":0,
+         "strand":{"points":32,"gravity":[0,-1,0],"radialSegments":6},"material":{"blendMode":"Opaque"}}]})", &error);
+    ASSERT_TRUE(system) << error;
+    const auto& emitter = *system->GetEmitters().front();
+    EXPECT_EQ(emitter.GetRenderMode(), EParticleRenderMode::Strand);
+    EXPECT_EQ(emitter.GetSimulationSpace(), EParticleSimulationSpace::Local);
+    EXPECT_EQ(emitter.GetStrandSettings().PointCount, 32);
+    EXPECT_EQ(emitter.GetStrandSettings().RadialSegments, 6);
+    ASSERT_TRUE(emitter.GetMaterialDescription());
+    EXPECT_EQ(emitter.GetMaterialDescription()->BlendMode, Elixir::Materials::EMaterialBlendMode::Opaque);
+    for (const auto* fields : {R"("points":1)", R"("points":97)", R"("segmentLength":0)",
+        R"("damping":1.1)", R"("stiffness":-1)", R"("solverIterations":0)",
+        R"("radialSegments":2)", R"("subdivisions":9)", R"("gravity":[0,1])"})
+    {
+        SCOPED_TRACE(fields);
+        const std::string json = std::string(R"({"name":"Bad","emitters":[{"name":"Root","renderMode":"Strand","maxParticles":1,"spawnRate":0,"strand":{)") + fields + "}}]}";
+        EXPECT_FALSE(Effect::LoadEffectText(json, &error));
+        EXPECT_FALSE(error.empty());
+    }
+}
+
+TEST(ModuleRegistryTest, LoadsLifetimeDeathPolicyAndRejectsNonBooleanValues)
+{
+    std::string error;
+    const auto system = Effect::LoadEffectText(R"({"name":"State","emitters":[
+        {"name":"Default","maxParticles":1,"spawnRate":0},
+        {"name":"Persistent","maxParticles":1,"spawnRate":0,"particleState":{"killOnLifetimeExpired":false}},
+        {"name":"Finite","maxParticles":1,"spawnRate":0,"particleState":{"killOnLifetimeExpired":true}}]})", &error);
+    ASSERT_TRUE(system) << error;
+    ASSERT_EQ(system->GetEmitters().size(), 3);
+    EXPECT_TRUE(system->GetEmitters()[0]->ShouldKillOnLifetimeExpired());
+    EXPECT_FALSE(system->GetEmitters()[1]->ShouldKillOnLifetimeExpired());
+    EXPECT_TRUE(system->GetEmitters()[2]->ShouldKillOnLifetimeExpired());
+    for (const auto* state : {"false", "null", R"({"killOnLifetimeExpired":0})", R"({"killOnLifetimeExpired":"false"})"})
+    {
+        SCOPED_TRACE(state);
+        const std::string json = std::string(R"({"name":"Bad","emitters":[{"name":"Root","maxParticles":1,"spawnRate":0,"particleState":)") + state + "}]}";
+        EXPECT_FALSE(Effect::LoadEffectText(json, &error));
+        EXPECT_FALSE(error.empty());
+    }
 }
