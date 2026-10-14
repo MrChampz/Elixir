@@ -36,8 +36,8 @@ namespace
     private:
         Ref<Image> m_Image;
     };
-    constexpr std::array SampleFiles{"StrandPlayground.json", "StrandCables.json", "StrandSeaweed.json", "StrandEnergy.json", "StrandIvy.json", "StrandClimbingIvy.json", "StrandFern.json", "StrandWillow.json", "StrandPowerLines.json"};
-    constexpr std::array SampleLabels{"Tentacles", "Cables", "Seaweed", "Energy", "Ivy", "Climbing Ivy", "Fern", "Willow", "Power Lines"};
+    constexpr std::array SampleFiles{"StrandPlayground.json", "StrandCables.json", "StrandSeaweed.json", "StrandEnergy.json", "StrandIvy.json", "StrandClimbingIvy.json", "StrandFern.json", "StrandWillow.json", "StrandPowerLines.json", "StrandBalloons.json"};
+    constexpr std::array SampleLabels{"Tentacles", "Cables", "Seaweed", "Energy", "Ivy", "Climbing Ivy", "Fern", "Willow", "Power Lines", "Balloons"};
     constexpr std::array MoveCodes{EE_KEY_W, EE_KEY_A, EE_KEY_S, EE_KEY_D};
 
     Ref<GUI::TextBlock> Label(const std::string& text)
@@ -65,8 +65,9 @@ bool StrandsPanel::LoadSample(int index)
     const std::string text{std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
     EditorVFX::Value asset;
     std::vector<std::optional<EditorVFX::LeafSettings>> leaves;
+    std::vector<std::optional<EditorVFX::BalloonSettings>> balloons;
     std::string error;
-    if (!stream || !EditorVFX::Value::Parse(text, asset, error) || !EditorVFX::ParseLeafRenderers(asset, leaves, error))
+    if (!stream || !EditorVFX::Value::Parse(text, asset, error) || !EditorVFX::ParseLeafRenderers(asset, leaves, error) || !EditorVFX::ParseBalloonRenderers(asset, balloons, error))
     {
         m_LoadError = "Could not load sample renderer settings: " + error;
         EE_CORE_ERROR("{}", m_LoadError);
@@ -84,6 +85,7 @@ bool StrandsPanel::LoadSample(int index)
         {
             if (m_Instance) m_Manager.Remove(m_Instance);
             m_Manager.SetLeafRenderers(std::move(leaves));
+            m_Manager.SetBalloonRenderers(std::move(balloons));
         }
     }) && added)
     {

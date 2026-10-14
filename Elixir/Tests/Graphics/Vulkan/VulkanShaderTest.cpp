@@ -605,7 +605,7 @@ TEST(VulkanShaderTest, StrandEffectSimulatesAndRecordsTubeDrawsThroughAether)
 
 TEST(VulkanShaderTest, StrandSamplesCompileAndRenderWithMovingRoots)
 {
-    for (const auto* filename : {"StrandCables.json", "StrandSeaweed.json", "StrandEnergy.json", "StrandIvy.json", "StrandClimbingIvy.json", "StrandFern.json", "StrandWillow.json", "StrandPowerLines.json"})
+    for (const auto* filename : {"StrandCables.json", "StrandSeaweed.json", "StrandEnergy.json", "StrandIvy.json", "StrandClimbingIvy.json", "StrandFern.json", "StrandWillow.json", "StrandPowerLines.json", "StrandBalloons.json"})
     {
         SCOPED_TRACE(filename);
         const auto context = VulkanTestContext::Get().GetGraphicsContext();

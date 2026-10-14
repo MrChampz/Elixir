@@ -509,3 +509,50 @@ there; orbit and zoom remain available. Other samples keep their movement contro
 GPU validation checks sag, segment stability, exact pins under forces, translation,
 rotation and scale of simulation-space targets, independent world targets, paused
 target movement, and respawn. The sample also runs through Aether's normal draw path.
+
+## Balloon bouquet sample (Editor)
+
+**Balloons** activates `StrandBalloons.json`: 64 persistent cords in sixteen groups,
+all rooted at the same position. WASD moves their common root; orbit and zoom work
+as in the other samples. Positive gravity modules provide an upward and outward
+force field, and seeded curl noise adds wind. Cord lengths vary between groups to
+spread the bouquet. The tip remains free, so movement of the root pulls the cords
+and their balloon attachments through the existing Verlet/PBD solver.
+
+`BalloonRenderer` lives entirely in `Editor/Source/VFX/Rendering`, with shaders in
+`Editor/Shaders`. It uses `OnRenderFrame()` to retain the simulated buffers and
+reads the active tip of each main chain on the GPU. It generates a rounded body
+with a tapered neck and a small knot, positioned directly at the cord endpoint.
+The balloon tilts toward the last segment; its size follows instance and particle
+scale. It does not perform CPU readback or modify simulation state. The opaque
+pass runs after the cords and preserves the preview depth buffer.
+
+The application-owned sibling block is editable in **Balloon Renderer (Editor)**,
+with add, remove, enable, and undo support:
+
+```json
+"balloonRenderer": {
+  "enabled": true,
+  "radius": 0.11,
+  "height": 0.24,
+  "tilt": 0.35,
+  "color": [1, 1, 1, 1],
+  "colorVariation": 1,
+  "seed": 311
+}
+```
+
+Radius and height are finite positive simulation-space dimensions. Tilt and color
+variation range from zero to one. Zero variation uses the authored tint; one adds
+seeded rainbow colors. The seed is an unsigned 32-bit value. Color uses linear RGBA;
+this opaque renderer hides balloons at alpha zero and does not blend partial alpha.
+Each main chain draws one balloon with 2,352 procedural vertices. Side branches do
+not receive balloons. Lifetime death remains disabled and the initial burst runs once.
+
+This sample approximates lift with strand force modules. The balloons are render
+attachments, not separate rigid bodies with mass or volume-derived buoyancy. It
+matches the common-root bouquet, shiny colors and moving cord endpoints in the
+provided reference frames; it does not implement the reference's balloon
+self-collision, so balloons and cords can overlap. Balloon geometry, color and
+shading are not built into the Engine, and its shader files are packaged only with
+Editor. No Engine API or Windows DLL export was added for this sample.

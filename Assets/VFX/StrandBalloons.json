@@ -1,0 +1,1829 @@
+{
+  "name": "Balloon Bouquet",
+  "emitters": [
+    {
+      "name": "Balloon Group 01",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 4,
+      "spawnRate": 0,
+      "strand": {
+        "points": 24,
+        "segmentLength": 0.047826,
+        "stiffness": 1,
+        "damping": 0.94,
+        "widthScale": 0.22,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "solverIterations": 16,
+        "radialSegments": 5,
+        "subdivisions": 3
+      },
+      "balloonRenderer": {
+        "enabled": true,
+        "radius": 0.11,
+        "height": 0.24,
+        "tilt": 0.35,
+        "colorVariation": 1,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "seed": 311
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            0,
+            -0.65,
+            0
+          ],
+          "max": [
+            0,
+            -0.65,
+            0
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 5,
+          "max": 5
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.72,
+            0.76,
+            0.82,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            0.25704,
+            0.15469,
+            0.0,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.25,
+          "frequency": 1.5,
+          "seed": 853,
+          "scrollVelocity": [
+            0.12,
+            0.09,
+            0.07,
+            0
+          ]
+        }
+      ],
+      "burst": {
+        "count": 4,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    },
+    {
+      "name": "Balloon Group 02",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 4,
+      "spawnRate": 0,
+      "strand": {
+        "points": 24,
+        "segmentLength": 0.053913,
+        "stiffness": 1,
+        "damping": 0.94,
+        "widthScale": 0.22,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "solverIterations": 16,
+        "radialSegments": 5,
+        "subdivisions": 3
+      },
+      "balloonRenderer": {
+        "enabled": true,
+        "radius": 0.11,
+        "height": 0.24,
+        "tilt": 0.35,
+        "colorVariation": 1,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "seed": 348
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            0,
+            -0.65,
+            0
+          ],
+          "max": [
+            0,
+            -0.65,
+            0
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 5,
+          "max": 5
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.72,
+            0.76,
+            0.82,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            -0.1852,
+            0.16406,
+            0.16966,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.25,
+          "frequency": 1.5,
+          "seed": 870,
+          "scrollVelocity": [
+            0.12,
+            0.09,
+            0.07,
+            0
+          ]
+        }
+      ],
+      "burst": {
+        "count": 4,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    },
+    {
+      "name": "Balloon Group 03",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 4,
+      "spawnRate": 0,
+      "strand": {
+        "points": 24,
+        "segmentLength": 0.06,
+        "stiffness": 1,
+        "damping": 0.94,
+        "widthScale": 0.22,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "solverIterations": 16,
+        "radialSegments": 5,
+        "subdivisions": 3
+      },
+      "balloonRenderer": {
+        "enabled": true,
+        "radius": 0.11,
+        "height": 0.24,
+        "tilt": 0.35,
+        "colorVariation": 1,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "seed": 385
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            0,
+            -0.65,
+            0
+          ],
+          "max": [
+            0,
+            -0.65,
+            0
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 5,
+          "max": 5
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.72,
+            0.76,
+            0.82,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            0.0214,
+            0.17344,
+            -0.24385,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.25,
+          "frequency": 1.5,
+          "seed": 887,
+          "scrollVelocity": [
+            0.12,
+            0.09,
+            0.07,
+            0
+          ]
+        }
+      ],
+      "burst": {
+        "count": 4,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    },
+    {
+      "name": "Balloon Group 04",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 4,
+      "spawnRate": 0,
+      "strand": {
+        "points": 24,
+        "segmentLength": 0.052174,
+        "stiffness": 1,
+        "damping": 0.94,
+        "widthScale": 0.22,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "solverIterations": 16,
+        "radialSegments": 5,
+        "subdivisions": 3
+      },
+      "balloonRenderer": {
+        "enabled": true,
+        "radius": 0.11,
+        "height": 0.24,
+        "tilt": 0.35,
+        "colorVariation": 1,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "seed": 422
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            0,
+            -0.65,
+            0
+          ],
+          "max": [
+            0,
+            -0.65,
+            0
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 5,
+          "max": 5
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.72,
+            0.76,
+            0.82,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            0.14473,
+            0.18281,
+            0.18877,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.25,
+          "frequency": 1.5,
+          "seed": 904,
+          "scrollVelocity": [
+            0.12,
+            0.09,
+            0.07,
+            0
+          ]
+        }
+      ],
+      "burst": {
+        "count": 4,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    },
+    {
+      "name": "Balloon Group 05",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 4,
+      "spawnRate": 0,
+      "strand": {
+        "points": 24,
+        "segmentLength": 0.058261,
+        "stiffness": 1,
+        "damping": 0.94,
+        "widthScale": 0.22,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "solverIterations": 16,
+        "radialSegments": 5,
+        "subdivisions": 3
+      },
+      "balloonRenderer": {
+        "enabled": true,
+        "radius": 0.11,
+        "height": 0.24,
+        "tilt": 0.35,
+        "colorVariation": 1,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "seed": 459
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            0,
+            -0.65,
+            0
+          ],
+          "max": [
+            0,
+            -0.65,
+            0
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 5,
+          "max": 5
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.72,
+            0.76,
+            0.82,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            -0.22683,
+            0.19219,
+            -0.04012,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.25,
+          "frequency": 1.5,
+          "seed": 921,
+          "scrollVelocity": [
+            0.12,
+            0.09,
+            0.07,
+            0
+          ]
+        }
+      ],
+      "burst": {
+        "count": 4,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    },
+    {
+      "name": "Balloon Group 06",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 4,
+      "spawnRate": 0,
+      "strand": {
+        "points": 24,
+        "segmentLength": 0.050435,
+        "stiffness": 1,
+        "damping": 0.94,
+        "widthScale": 0.22,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "solverIterations": 16,
+        "radialSegments": 5,
+        "subdivisions": 3
+      },
+      "balloonRenderer": {
+        "enabled": true,
+        "radius": 0.11,
+        "height": 0.24,
+        "tilt": 0.35,
+        "colorVariation": 1,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "seed": 496
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            0,
+            -0.65,
+            0
+          ],
+          "max": [
+            0,
+            -0.65,
+            0
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 5,
+          "max": 5
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.72,
+            0.76,
+            0.82,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            0.18748,
+            0.20156,
+            -0.11926,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.25,
+          "frequency": 1.5,
+          "seed": 938,
+          "scrollVelocity": [
+            0.12,
+            0.09,
+            0.07,
+            0
+          ]
+        }
+      ],
+      "burst": {
+        "count": 4,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    },
+    {
+      "name": "Balloon Group 07",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 4,
+      "spawnRate": 0,
+      "strand": {
+        "points": 24,
+        "segmentLength": 0.056522,
+        "stiffness": 1,
+        "damping": 0.94,
+        "widthScale": 0.22,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "solverIterations": 16,
+        "radialSegments": 5,
+        "subdivisions": 3
+      },
+      "balloonRenderer": {
+        "enabled": true,
+        "radius": 0.11,
+        "height": 0.24,
+        "tilt": 0.35,
+        "colorVariation": 1,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "seed": 533
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            0,
+            -0.65,
+            0
+          ],
+          "max": [
+            0,
+            -0.65,
+            0
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 5,
+          "max": 5
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.72,
+            0.76,
+            0.82,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            -0.05538,
+            0.21094,
+            0.20601,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.25,
+          "frequency": 1.5,
+          "seed": 955,
+          "scrollVelocity": [
+            0.12,
+            0.09,
+            0.07,
+            0
+          ]
+        }
+      ],
+      "burst": {
+        "count": 4,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    },
+    {
+      "name": "Balloon Group 08",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 4,
+      "spawnRate": 0,
+      "strand": {
+        "points": 24,
+        "segmentLength": 0.048696,
+        "stiffness": 1,
+        "damping": 0.94,
+        "widthScale": 0.22,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "solverIterations": 16,
+        "radialSegments": 5,
+        "subdivisions": 3
+      },
+      "balloonRenderer": {
+        "enabled": true,
+        "radius": 0.11,
+        "height": 0.24,
+        "tilt": 0.35,
+        "colorVariation": 1,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "seed": 570
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            0,
+            -0.65,
+            0
+          ],
+          "max": [
+            0,
+            -0.65,
+            0
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 5,
+          "max": 5
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.72,
+            0.76,
+            0.82,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            -0.09385,
+            0.22031,
+            -0.18071,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.25,
+          "frequency": 1.5,
+          "seed": 972,
+          "scrollVelocity": [
+            0.12,
+            0.09,
+            0.07,
+            0
+          ]
+        }
+      ],
+      "burst": {
+        "count": 4,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    },
+    {
+      "name": "Balloon Group 09",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 4,
+      "spawnRate": 0,
+      "strand": {
+        "points": 24,
+        "segmentLength": 0.054783,
+        "stiffness": 1,
+        "damping": 0.94,
+        "widthScale": 0.22,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "solverIterations": 16,
+        "radialSegments": 5,
+        "subdivisions": 3
+      },
+      "balloonRenderer": {
+        "enabled": true,
+        "radius": 0.11,
+        "height": 0.24,
+        "tilt": 0.35,
+        "colorVariation": 1,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "seed": 607
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            0,
+            -0.65,
+            0
+          ],
+          "max": [
+            0,
+            -0.65,
+            0
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 5,
+          "max": 5
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.72,
+            0.76,
+            0.82,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            0.18128,
+            0.22969,
+            0.0662,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.25,
+          "frequency": 1.5,
+          "seed": 989,
+          "scrollVelocity": [
+            0.12,
+            0.09,
+            0.07,
+            0
+          ]
+        }
+      ],
+      "burst": {
+        "count": 4,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    },
+    {
+      "name": "Balloon Group 10",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 4,
+      "spawnRate": 0,
+      "strand": {
+        "points": 24,
+        "segmentLength": 0.06087,
+        "stiffness": 1,
+        "damping": 0.94,
+        "widthScale": 0.22,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "solverIterations": 16,
+        "radialSegments": 5,
+        "subdivisions": 3
+      },
+      "balloonRenderer": {
+        "enabled": true,
+        "radius": 0.11,
+        "height": 0.24,
+        "tilt": 0.35,
+        "colorVariation": 1,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "seed": 644
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            0,
+            -0.65,
+            0
+          ],
+          "max": [
+            0,
+            -0.65,
+            0
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 5,
+          "max": 5
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.72,
+            0.76,
+            0.82,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            -0.16753,
+            0.23906,
+            0.06915,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.25,
+          "frequency": 1.5,
+          "seed": 1006,
+          "scrollVelocity": [
+            0.12,
+            0.09,
+            0.07,
+            0
+          ]
+        }
+      ],
+      "burst": {
+        "count": 4,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    },
+    {
+      "name": "Balloon Group 11",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 4,
+      "spawnRate": 0,
+      "strand": {
+        "points": 24,
+        "segmentLength": 0.053043,
+        "stiffness": 1,
+        "damping": 0.94,
+        "widthScale": 0.22,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "solverIterations": 16,
+        "radialSegments": 5,
+        "subdivisions": 3
+      },
+      "balloonRenderer": {
+        "enabled": true,
+        "radius": 0.11,
+        "height": 0.24,
+        "tilt": 0.35,
+        "colorVariation": 1,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "seed": 681
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            0,
+            -0.65,
+            0
+          ],
+          "max": [
+            0,
+            -0.65,
+            0
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 5,
+          "max": 5
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.72,
+            0.76,
+            0.82,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            0.07128,
+            0.24844,
+            -0.15231,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.25,
+          "frequency": 1.5,
+          "seed": 1023,
+          "scrollVelocity": [
+            0.12,
+            0.09,
+            0.07,
+            0
+          ]
+        }
+      ],
+      "burst": {
+        "count": 4,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    },
+    {
+      "name": "Balloon Group 12",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 4,
+      "spawnRate": 0,
+      "strand": {
+        "points": 24,
+        "segmentLength": 0.05913,
+        "stiffness": 1,
+        "damping": 0.94,
+        "widthScale": 0.22,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "solverIterations": 16,
+        "radialSegments": 5,
+        "subdivisions": 3
+      },
+      "balloonRenderer": {
+        "enabled": true,
+        "radius": 0.11,
+        "height": 0.24,
+        "tilt": 0.35,
+        "colorVariation": 1,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "seed": 718
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            0,
+            -0.65,
+            0
+          ],
+          "max": [
+            0,
+            -0.65,
+            0
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 5,
+          "max": 5
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.72,
+            0.76,
+            0.82,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            0.04591,
+            0.25781,
+            0.14637,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.25,
+          "frequency": 1.5,
+          "seed": 1040,
+          "scrollVelocity": [
+            0.12,
+            0.09,
+            0.07,
+            0
+          ]
+        }
+      ],
+      "burst": {
+        "count": 4,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    },
+    {
+      "name": "Balloon Group 13",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 4,
+      "spawnRate": 0,
+      "strand": {
+        "points": 24,
+        "segmentLength": 0.051304,
+        "stiffness": 1,
+        "damping": 0.94,
+        "widthScale": 0.22,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "solverIterations": 16,
+        "radialSegments": 5,
+        "subdivisions": 3
+      },
+      "balloonRenderer": {
+        "enabled": true,
+        "radius": 0.11,
+        "height": 0.24,
+        "tilt": 0.35,
+        "colorVariation": 1,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "seed": 755
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            0,
+            -0.65,
+            0
+          ],
+          "max": [
+            0,
+            -0.65,
+            0
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 5,
+          "max": 5
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.72,
+            0.76,
+            0.82,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            -0.11803,
+            0.26719,
+            -0.0684,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.25,
+          "frequency": 1.5,
+          "seed": 1057,
+          "scrollVelocity": [
+            0.12,
+            0.09,
+            0.07,
+            0
+          ]
+        }
+      ],
+      "burst": {
+        "count": 4,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    },
+    {
+      "name": "Balloon Group 14",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 4,
+      "spawnRate": 0,
+      "strand": {
+        "points": 24,
+        "segmentLength": 0.057391,
+        "stiffness": 1,
+        "damping": 0.94,
+        "widthScale": 0.22,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "solverIterations": 16,
+        "radialSegments": 5,
+        "subdivisions": 3
+      },
+      "balloonRenderer": {
+        "enabled": true,
+        "radius": 0.11,
+        "height": 0.24,
+        "tilt": 0.35,
+        "colorVariation": 1,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "seed": 792
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            0,
+            -0.65,
+            0
+          ],
+          "max": [
+            0,
+            -0.65,
+            0
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 5,
+          "max": 5
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.72,
+            0.76,
+            0.82,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            0.11353,
+            0.27656,
+            -0.02496,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.25,
+          "frequency": 1.5,
+          "seed": 1074,
+          "scrollVelocity": [
+            0.12,
+            0.09,
+            0.07,
+            0
+          ]
+        }
+      ],
+      "burst": {
+        "count": 4,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    },
+    {
+      "name": "Balloon Group 15",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 4,
+      "spawnRate": 0,
+      "strand": {
+        "points": 24,
+        "segmentLength": 0.049565,
+        "stiffness": 1,
+        "damping": 0.94,
+        "widthScale": 0.22,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "solverIterations": 16,
+        "radialSegments": 5,
+        "subdivisions": 3
+      },
+      "balloonRenderer": {
+        "enabled": true,
+        "radius": 0.11,
+        "height": 0.24,
+        "tilt": 0.35,
+        "colorVariation": 1,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "seed": 829
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            0,
+            -0.65,
+            0
+          ],
+          "max": [
+            0,
+            -0.65,
+            0
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 5,
+          "max": 5
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.72,
+            0.76,
+            0.82,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            -0.05221,
+            0.28594,
+            0.07426,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.25,
+          "frequency": 1.5,
+          "seed": 1091,
+          "scrollVelocity": [
+            0.12,
+            0.09,
+            0.07,
+            0
+          ]
+        }
+      ],
+      "burst": {
+        "count": 4,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    },
+    {
+      "name": "Balloon Group 16",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 4,
+      "spawnRate": 0,
+      "strand": {
+        "points": 24,
+        "segmentLength": 0.055652,
+        "stiffness": 1,
+        "damping": 0.94,
+        "widthScale": 0.22,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "solverIterations": 16,
+        "radialSegments": 5,
+        "subdivisions": 3
+      },
+      "balloonRenderer": {
+        "enabled": true,
+        "radius": 0.11,
+        "height": 0.24,
+        "tilt": 0.35,
+        "colorVariation": 1,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "seed": 866
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            0,
+            -0.65,
+            0
+          ],
+          "max": [
+            0,
+            -0.65,
+            0
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 5,
+          "max": 5
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.72,
+            0.76,
+            0.82,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            -0.00679,
+            0.29531,
+            -0.05239,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.25,
+          "frequency": 1.5,
+          "seed": 1108,
+          "scrollVelocity": [
+            0.12,
+            0.09,
+            0.07,
+            0
+          ]
+        }
+      ],
+      "burst": {
+        "count": 4,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    }
+  ]
+}

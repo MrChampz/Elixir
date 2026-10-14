@@ -632,6 +632,9 @@ bool VFXPanel::CompilePreview()
     std::vector<std::optional<LeafSettings>> leaves;
     if (!ParseLeafRenderers(m_Document->Root(), leaves, error))
     { UpdateStatus("Compile failed: " + error); return false; }
+    std::vector<std::optional<BalloonSettings>> balloons;
+    if (!ParseBalloonRenderers(m_Document->Root(), balloons, error))
+    { UpdateStatus("Compile failed: " + error); return false; }
     const auto replacement = Aether::Effect::LoadEffectText(m_Document->Root().JSON(), &error);
     if (!replacement) { UpdateStatus("Compile failed: " + error); return false; }
     const auto existing = m_LoadedSystems.find(m_SelectedPath);
@@ -656,12 +659,16 @@ bool VFXPanel::CompilePreview()
     }
     bool compiled = false;
     const auto system = current ? current : replacement;
-    const bool completed = m_Context.RunRenderTaskAndWait([this, &compiled, &leaves, system, replacement, current]
+    const bool completed = m_Context.RunRenderTaskAndWait([this, &compiled, &leaves, &balloons, system, replacement, current]
     {
         if (current) current->Swap(*replacement);
         compiled = m_Manager.Recompile(system);
         if (!compiled && current) current->Swap(*replacement);
-        if (compiled) m_Manager.SetLeafRenderers(std::move(leaves));
+        if (compiled)
+        {
+            m_Manager.SetLeafRenderers(std::move(leaves));
+            m_Manager.SetBalloonRenderers(std::move(balloons));
+        }
     });
     if (!completed || !compiled) { UpdateStatus("Could not compile the effect. Previous preview preserved."); return false; }
     m_System = system; m_LoadedSystems.insert_or_assign(m_SelectedPath, system);
@@ -866,6 +873,15 @@ void VFXPanel::UpdateOverview()
             body->AddChild(FramedStack(leaves, sectionStyle)).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill)
                 .SetMargin({0, 3 * m_GraphZoom});
             graphSection(leaves, "Leaf Renderer (Editor)", {0.35f, 0.75f, 0.4f, 1});
+            graphRow(leaves, graphAction("Renderer properties", [this, index]
+            { m_SelectedEmitter = static_cast<int>(index); m_SelectedModule = -1; m_RebuildSelection = true; }), 28);
+        }
+        if (emitter.Find("balloonRenderer"))
+        {
+            const auto leaves = CreateRef<GUI::VerticalBox>();
+            body->AddChild(FramedStack(leaves, sectionStyle)).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill)
+                .SetMargin({0, 3 * m_GraphZoom});
+            graphSection(leaves, "Balloon Renderer (Editor)", {0.35f, 0.75f, 0.4f, 1});
             graphRow(leaves, graphAction("Renderer properties", [this, index]
             { m_SelectedEmitter = static_cast<int>(index); m_SelectedModule = -1; m_RebuildSelection = true; }), 28);
         }
@@ -1082,6 +1098,7 @@ void VFXPanel::UpdateInspector()
     auto properties = emitter;
     properties.Object.erase("particleState");
     properties.Object.erase("leafRenderer");
+    properties.Object.erase("balloonRenderer");
     if (emitter.String("renderMode") == "Strand")
     {
         auto& strand = properties.Object["strand"];
@@ -1175,6 +1192,52 @@ void VFXPanel::UpdateInspector()
                 if (Value::Parse(R"({"enabled":true,"interval":3,"length":0.12,"width":0.1,
                     "color":[0.12,0.45,0.08,1],"shape":"Ivy","maturationSegments":2})", settings, error))
                     document.Set(leafPath, std::move(settings));
+            });
+        }));
+    }
+    if (emitter.String("renderMode") == "Strand")
+    {
+        Section(m_Inspector, "Balloon Renderer (Editor)", {0.35f, 0.75f, 0.4f, 1});
+        const auto balloonPath = Child(emitterPath, "balloonRenderer");
+        if (const auto balloons = emitter.Find("balloonRenderer"))
+        {
+            const auto checkbox = CreateRef<GUI::Checkbox>();
+            checkbox->SetStyle(EditorStyle::Get().Checkbox);
+            checkbox->SetChecked(balloons->Enabled());
+            checkbox->OnCheckedChanged([this, balloonPath](bool enabled)
+            {
+                QueueEdit([balloonPath, enabled](Document& document)
+                {
+                    const auto existing = document.Get(balloonPath);
+                    if (!existing) return;
+                    auto settings = *existing; settings.Object["enabled"] = Boolean(enabled);
+                    document.Set(balloonPath, std::move(settings));
+                });
+            });
+            const auto enabledRow = CreateRef<GUI::HorizontalBox>();
+            enabledRow->AddChild(checkbox).SetFixedSize(16);
+            enabledRow->AddChild(Text("Enabled", 11)).SetFillSize();
+            Row(m_Inspector, enabledRow, 24);
+            AddProperties(m_Inspector, *balloons, balloonPath);
+            Row(m_Inspector, Action("Remove Balloon Renderer", [this, emitterPath]
+            {
+                QueueEdit([emitterPath](Document& document)
+                {
+                    const auto existing = document.Get(emitterPath);
+                    if (!existing) return;
+                    auto emitter = *existing; emitter.Object.erase("balloonRenderer");
+                    document.Set(emitterPath, std::move(emitter));
+                });
+            }));
+        }
+        else Row(m_Inspector, Action("Add Balloon Renderer", [this, balloonPath]
+        {
+            QueueEdit([balloonPath](Document& document)
+            {
+                Value settings; std::string error;
+                if (Value::Parse(R"({"enabled":true,"radius":0.11,"height":0.28,"tilt":0.4,
+                    "color":[1,1,1,1],"colorVariation":1,"seed":42})", settings, error))
+                    document.Set(balloonPath, std::move(settings));
             });
         }));
     }
