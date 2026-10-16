@@ -48,15 +48,15 @@ namespace Elixir
         EE_CORE_ASSERT(m_Context, "StaticMeshRenderer requires a graphics context")
 
         constexpr SSurfaceFrameData frameData;
-        m_FrameBuffers.ForEach([this, &frameData](Ref<UniformBuffer>& frameBuffer)
+        m_FrameBuffers.ForEach([&](Ref<UniformBuffer>& buffer)
         {
-            frameBuffer = UniformBuffer::Create(m_Context, sizeof(frameData), &frameData);
+            buffer = UniformBuffer::Create(m_Context, sizeof(frameData), &frameData);
         });
     }
 
     void StaticMeshRenderer::BeginFrame(
         const Camera& camera,
-        const SStaticMeshLighting& lighting
+        const SMeshLighting& lighting
     )
     {
         const auto extent = m_Context->GetRenderTarget()->GetExtent();
@@ -168,9 +168,7 @@ namespace Elixir
 
         const auto existing = m_DefaultInstances.find(material.get());
         if (existing != m_DefaultInstances.end())
-        {
             return existing->second;
-        }
 
         const auto instance = material->CreateInstance();
         m_DefaultInstances.emplace(material.get(), instance);

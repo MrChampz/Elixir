@@ -17,11 +17,12 @@ public:
     void OnEvent(Event& event) override;
 
 private:
+    // Submit the complete model to its renderer.
     void DrawGeometry();
 
     Scope<Environment> m_Environment;
 
-    Scope<StaticMeshRenderer> m_StaticMeshRenderer;
+    Scope<SkeletalMeshRenderer> m_SkeletalMeshRenderer;
 
     Scope<ArcBallCameraController> m_CameraController;
 };

@@ -60,9 +60,17 @@
 #include <Engine/GUI/Button.h>
 #include <Engine/GUI/TextBlock.h>
 
+#include <Engine/Mesh/Mesh.h>
+#include <Engine/Mesh/MeshLighting.h>
+#include <Engine/Mesh/MeshLoader.h>
+#include <Engine/Mesh/MeshLoaderRegistry.h>
 #include <Engine/Mesh/StaticMesh.h>
-#include <Engine/Mesh/StaticMeshLoader.h>
-#include <Engine/Mesh/StaticMeshLoaderRegistry.h>
 #include <Engine/Mesh/StaticMeshRenderer.h>
+#include <Engine/Mesh/SkeletalMesh.h>
+#include <Engine/Mesh/SkeletalMeshInstance.h>
+#include <Engine/Mesh/SkeletalMeshRenderer.h>
+
+#include <Engine/Animation/Skeleton.h>
+#include <Engine/Animation/AnimationSequence.h>
 
 #include <Engine/Aether/System.h>

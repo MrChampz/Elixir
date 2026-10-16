@@ -3,10 +3,12 @@
 #include <Engine/Graphics/Buffer.h>
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Mesh/GeometryAllocation.h>
-#include <Engine/Mesh/StaticMesh.h>
+#include <Engine/Mesh/Mesh.h>
 
 namespace Elixir
 {
+    struct SStaticMeshData;
+
     /** @brief Identifies a contiguous geometry range in GeometryPool buffers. */
     struct SGeometry
     {

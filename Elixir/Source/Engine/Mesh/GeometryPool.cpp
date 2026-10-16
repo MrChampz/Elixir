@@ -1,6 +1,7 @@
 #include "epch.h"
 #include "GeometryPool.h"
 
+#include <Engine/Mesh/StaticMesh.h>
 #include <Engine/Graphics/GraphicsContext.h>
 
 namespace Elixir
@@ -32,7 +33,7 @@ namespace Elixir
         EE_CORE_ASSERT(m_VertexBuffer, "GeometryPool failed to create the vertex buffer.")
         EE_CORE_ASSERT(m_IndexBuffer, "GeometryPool failed to create the index buffer.")
 
-        m_VertexBuffer->SetLayout(StaticMesh::GetVertexLayout());
+        m_VertexBuffer->SetLayout(GetMeshVertexLayout());
     }
 
     GeometryAllocation GeometryPool::Upload(const SStaticMeshData& data)

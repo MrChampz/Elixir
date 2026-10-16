@@ -1,7 +1,5 @@
 #include "epch.h"
-#include "GLTFStaticMeshLoader.h"
-
-#include <numeric>
+#include "GLTFMaterialLoader.h"
 
 #include <Engine/Graphics/Texture.h>
 #include <Engine/Graphics/TextureLoader.h>
@@ -25,33 +23,15 @@
 
 #include <fastgltf/core.hpp>
 #include <fastgltf/tools.hpp>
-#include <glm/gtc/matrix_inverse.hpp>
 #include <stb_image.h>
 
 namespace Elixir
 {
+    using namespace Materials;
+
     namespace
     {
-        constexpr auto GLTF_OPTIONS = fastgltf::Options::LoadExternalBuffers |
-                                      fastgltf::Options::GenerateMeshIndices;
-
-        constexpr auto GLTF_CATEGORIES = fastgltf::Category::Meshes |
-                                         fastgltf::Category::Accessors |
-                                         fastgltf::Category::BufferViews |
-                                         fastgltf::Category::Buffers |
-                                         fastgltf::Category::Images |
-                                         fastgltf::Category::Textures |
-                                         fastgltf::Category::Materials |
-                                         fastgltf::Category::Nodes |
-                                         fastgltf::Category::Scenes;
-
-        constexpr auto GLTF_EXTENSIONS =
-            fastgltf::Extensions::KHR_materials_emissive_strength |
-            fastgltf::Extensions::KHR_materials_specular |
-            fastgltf::Extensions::KHR_texture_transform |
-            fastgltf::Extensions::KHR_materials_clearcoat |
-            fastgltf::Extensions::KHR_materials_sheen;
-
+        // Reject texture paths that escape the asset directory.
         bool IsPathWithinAssetDirectory(const std::filesystem::path& path)
         {
             if (path.is_absolute())
@@ -69,6 +49,7 @@ namespace Elixir
         class MaterialLoader final
         {
         public:
+            /** @brief Prepare material import for one source asset. */
             MaterialLoader(
                 const GraphicsContext& context,
                 fastgltf::Asset& asset,
@@ -76,6 +57,7 @@ namespace Elixir
                 std::string_view meshName
             );
 
+            /** @brief Import source materials after the default Surface material. */
             std::vector<Ref<Material>> Load();
 
         private:
@@ -95,30 +77,39 @@ namespace Elixir
                 Ref<Texture> SheenRoughness;
             };
 
+            // Decode image bytes into a texture.
             Ref<Texture> DecodeImage(
                 const std::byte* bytes,
                 size_t size,
                 const STexture2DCreateInfo& info
             ) const;
 
+            // Resolve an image source and decode its pixels.
             Ref<Texture> LoadImage(
                 size_t imageIndex,
                 const STexture2DCreateInfo& info
             ) const;
 
+            // Load and cache one texture for its requested format.
             Ref<Texture> LoadTexture(
                 size_t textureIndex,
                 const STexture2DCreateInfo& info
             );
 
+            // Build a Surface graph from glTF material properties.
             Ref<Material> CreateSurfaceMaterial(
                 const fastgltf::Material& source,
                 size_t materialIndex,
                 const SMaterialTextures& textures
             ) const;
 
+            // Map a glTF alpha mode to an engine blend mode.
             static EMaterialBlendMode GetBlendMode(fastgltf::AlphaMode mode);
+
+            // Resolve the UV channel selected by the texture transform.
             static uint32_t GetTextureCoordinateIndex(const fastgltf::TextureInfo& source);
+
+            // Add a texture sample and its UV transform to the graph.
             static uint32_t AddTextureSample(
                 MaterialGraph& graph,
                 Material& material,
@@ -1149,580 +1140,15 @@ namespace Elixir
             return materials;
         }
 
-        class Loader final
-        {
-        public:
-            Loader(const GraphicsContext& context, std::filesystem::path path);
-
-            std::optional<SStaticMeshData> Load();
-
-        private:
-            bool ParseAsset();
-            bool LoadGeometry();
-            void LoadPrimitive(
-                const fastgltf::Primitive& primitive,
-                const glm::mat4& localTransform
-            );
-            void LoadNodeMesh(
-                const fastgltf::Node& node,
-                const glm::mat4& localTransform
-            );
-
-            static SStaticMeshBounds GetBounds(
-                const std::vector<SStaticMeshVertex>& vertices
-            );
-            static void ExpandBounds(
-                SStaticMeshBounds& target,
-                const SStaticMeshBounds& source
-            );
-            static glm::mat4 ToGlmMatrix(const fastgltf::math::fmat4x4& source);
-            static bool ApplyLocalTransform(
-                std::vector<SStaticMeshVertex>& vertices,
-                std::vector<uint32_t>& indices,
-                const glm::mat4& localTransform
-            );
-            static void GenerateTangents(
-                std::vector<SStaticMeshVertex>& vertices,
-                const std::vector<uint32_t>& indices
-            );
-
-            const GraphicsContext& m_Context;
-            std::filesystem::path m_Path;
-            std::optional<fastgltf::Asset> m_Asset;
-            SStaticMeshData m_Mesh;
-            bool m_HasBounds = false;
-        };
-
-        SStaticMeshBounds Loader::GetBounds(const std::vector<SStaticMeshVertex>& vertices)
-        {
-            SStaticMeshBounds bounds{
-                .Min = glm::vec3(std::numeric_limits<float>::max()),
-                .Max = glm::vec3(std::numeric_limits<float>::lowest()),
-            };
-
-            for (const auto& vertex : vertices)
-            {
-                bounds.Min = glm::min(bounds.Min, vertex.Position);
-                bounds.Max = glm::max(bounds.Max, vertex.Position);
-            }
-
-            return bounds;
-        }
-
-        void Loader::ExpandBounds(
-            SStaticMeshBounds& target,
-            const SStaticMeshBounds& source
-        )
-        {
-            target.Min = glm::min(target.Min, source.Min);
-            target.Max = glm::max(target.Max, source.Max);
-        }
-
-        glm::mat4 Loader::ToGlmMatrix(const fastgltf::math::fmat4x4& source)
-        {
-            glm::mat4 result{ 1.0f };
-            for (size_t column = 0; column < 4; ++column)
-                for (size_t row = 0; row < 4; ++row)
-                    result[column][row] = source.col(column)[row];
-
-            return result;
-        }
-
-        namespace
-        {
-            constexpr float NORMAL_EPSILON_SQUARED = 1.0e-12f;
-
-            glm::vec3 NormalizeOrFallback(
-                const glm::vec3 value,
-                const glm::vec3 fallback
-            )
-            {
-                if (glm::dot(value, value) <= NORMAL_EPSILON_SQUARED)
-                    return fallback;
-
-                return glm::normalize(value);
-            }
-
-            glm::vec3 GetFallbackTangent(const glm::vec3& normal)
-            {
-                const glm::vec3 axis = std::abs(normal.z) < 0.999f
-                    ? glm::vec3(0.0f, 0.0f, 1.0f)
-                    : glm::vec3(0.0f, 1.0f, 0.0f);
-                return NormalizeOrFallback(glm::cross(axis, normal), glm::vec3(1.0f, 0.0f, 0.0f));
-            }
-        }
-
-        void Loader::GenerateTangents(
-            std::vector<SStaticMeshVertex>& vertices,
-            const std::vector<uint32_t>& indices
-        )
-        {
-            std::vector<glm::vec3> tangentSums(vertices.size());
-            std::vector<glm::vec3> bitangentSums(vertices.size());
-
-            for (size_t index = 0; index < indices.size(); index += 3)
-            {
-                const auto first = indices[index];
-                const auto second = indices[index + 1];
-                const auto third = indices[index + 2];
-
-                const auto& firstVertex = vertices[first];
-                const auto& secondVertex = vertices[second];
-                const auto& thirdVertex = vertices[third];
-                const glm::vec3 positionDelta1 = secondVertex.Position - firstVertex.Position;
-                const glm::vec3 positionDelta2 = thirdVertex.Position - firstVertex.Position;
-                const glm::vec2 texCoordDelta1 = secondVertex.TexCoord - firstVertex.TexCoord;
-                const glm::vec2 texCoordDelta2 = thirdVertex.TexCoord - firstVertex.TexCoord;
-                const float determinant = texCoordDelta1.x * texCoordDelta2.y -
-                    texCoordDelta1.y * texCoordDelta2.x;
-
-                if (std::abs(determinant) <= NORMAL_EPSILON_SQUARED)
-                    continue;
-
-                const float inverseDeterminant = 1.0f / determinant;
-                const glm::vec3 tangent = (positionDelta1 * texCoordDelta2.y -
-                    positionDelta2 * texCoordDelta1.y) * inverseDeterminant;
-                const glm::vec3 bitangent = (positionDelta2 * texCoordDelta1.x -
-                    positionDelta1 * texCoordDelta2.x) * inverseDeterminant;
-
-                for (const auto vertexIndex : { first, second, third })
-                {
-                    tangentSums[vertexIndex] += tangent;
-                    bitangentSums[vertexIndex] += bitangent;
-                }
-            }
-
-            for (size_t index = 0; index < vertices.size(); ++index)
-            {
-                auto& vertex = vertices[index];
-                const glm::vec3 normal = NormalizeOrFallback(vertex.Normal, glm::vec3(0.0f, 1.0f, 0.0f));
-                glm::vec3 tangent = tangentSums[index] - normal * glm::dot(normal, tangentSums[index]);
-                tangent = NormalizeOrFallback(tangent, GetFallbackTangent(normal));
-                const float handedness = glm::dot(glm::cross(normal, tangent), bitangentSums[index]) < 0.0f
-                    ? -1.0f
-                    : 1.0f;
-                vertex.Tangent = { tangent, handedness };
-            }
-        }
-
-        bool Loader::ApplyLocalTransform(
-            std::vector<SStaticMeshVertex>& vertices,
-            std::vector<uint32_t>& indices,
-            const glm::mat4& localTransform
-        )
-        {
-            const glm::mat3 linearTransform{ localTransform };
-            const float determinant = glm::determinant(linearTransform);
-            if (determinant == 0.0f)
-            {
-                EE_CORE_WARN("glTF node has a singular local transform; skipping its primitive.")
-                return false;
-            }
-
-            const glm::mat3 normalTransform = glm::transpose(glm::inverse(linearTransform));
-            const float handedness = determinant < 0.0f ? -1.0f : 1.0f;
-
-            for (auto& vertex : vertices)
-            {
-                vertex.Position = glm::vec3(localTransform * glm::vec4(vertex.Position, 1.0f));
-                vertex.Normal = NormalizeOrFallback(
-                    normalTransform * vertex.Normal,
-                    glm::vec3(0.0f, 1.0f, 0.0f)
-                );
-
-                glm::vec3 tangent = linearTransform * glm::vec3(vertex.Tangent);
-                tangent -= vertex.Normal * glm::dot(vertex.Normal, tangent);
-                vertex.Tangent = {
-                    NormalizeOrFallback(tangent, GetFallbackTangent(vertex.Normal)),
-                    vertex.Tangent.w * handedness
-                };
-            }
-
-            if (handedness < 0.0f)
-            {
-                for (size_t index = 0; index < indices.size(); index += 3)
-                    std::swap(indices[index + 1], indices[index + 2]);
-            }
-
-            return true;
-        }
-
-        void Loader::LoadPrimitive(
-            const fastgltf::Primitive& primitive,
-            const glm::mat4& localTransform
-        )
-        {
-            const auto& asset = *m_Asset;
-            auto& mesh = m_Mesh;
-
-            if (primitive.type != fastgltf::PrimitiveType::Triangles)
-            {
-                EE_CORE_WARN(
-                    "Skipping primitive in mesh '{}': only triangles are supported.",
-                    mesh.Name
-                )
-                return;
-            }
-
-            const auto position = primitive.findAttribute("POSITION");
-
-            if (position == primitive.attributes.end() ||
-                position->accessorIndex >= asset.accessors.size())
-            {
-                EE_CORE_WARN("Skipping primitive in mesh '{}': POSITION is missing.", mesh.Name)
-                return;
-            }
-
-            const auto& positionAccessor = asset.accessors[position->accessorIndex];
-            if (positionAccessor.count > std::numeric_limits<uint32_t>::max())
-            {
-                EE_CORE_WARN(
-                    "Skipping primitive in mesh '{}': it exceeds the vertex limit.",
-                    mesh.Name
-                )
-                return;
-            }
-
-            std::vector<SStaticMeshVertex> vertices(positionAccessor.count);
-            fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(
-                asset,
-                positionAccessor,
-                [&vertices](const auto value, const size_t index)
-                {
-                    vertices[index].Position = { value.x(), value.y(), value.z() };
-                }
-            );
-
-            const auto loadAttribute = [&]<typename TValue>(
-                const std::string_view name,
-                auto&& assign
-            )
-            {
-                const auto attribute = primitive.findAttribute(name);
-
-                if (attribute == primitive.attributes.end() ||
-                    attribute->accessorIndex >= asset.accessors.size())
-                {
-                    return;
-                }
-
-                const auto& accessor = asset.accessors[attribute->accessorIndex];
-                if (accessor.count != vertices.size())
-                {
-                    EE_CORE_WARN(
-                        "Ignoring {} in primitive of mesh '{}': its count differs from POSITION.",
-                        name,
-                        mesh.Name
-                    )
-                    return;
-                }
-
-                fastgltf::iterateAccessorWithIndex<TValue>(
-                    asset,
-                    accessor,
-                    [&assign](const auto value, const size_t index)
-                    {
-                        assign(value, index);
-                    }
-                );
-            };
-
-            loadAttribute.operator()<fastgltf::math::fvec3>(
-                "NORMAL",
-                [&vertices](const auto value, const size_t index)
-                {
-                    vertices[index].Normal = { value.x(), value.y(), value.z() };
-                }
-            );
-
-            loadAttribute.operator()<fastgltf::math::fvec4>(
-                "TANGENT",
-                [&vertices](const auto value, const size_t index)
-                {
-                    vertices[index].Tangent = { value.x(), value.y(), value.z(), value.w() };
-                }
-            );
-
-            loadAttribute.operator()<fastgltf::math::fvec2>(
-                "TEXCOORD_0",
-                [&vertices](const auto value, const size_t index)
-                {
-                    vertices[index].TexCoord = { value.x(), value.y() };
-                }
-            );
-
-            loadAttribute.operator()<fastgltf::math::fvec2>(
-                "TEXCOORD_1",
-                [&vertices](const auto value, const size_t index)
-                {
-                    vertices[index].TexCoord1 = { value.x(), value.y() };
-                }
-            );
-
-            std::vector<uint32_t> indices;
-
-            if (primitive.indicesAccessor &&
-                *primitive.indicesAccessor < asset.accessors.size())
-            {
-                const auto& accessor = asset.accessors[*primitive.indicesAccessor];
-
-                if (accessor.count > std::numeric_limits<uint32_t>::max())
-                {
-                    EE_CORE_WARN(
-                        "Skipping primitive in mesh '{}': it exceeds the index limit.",
-                        mesh.Name
-                    )
-                    return;
-                }
-
-                indices.resize(accessor.count);
-                fastgltf::iterateAccessorWithIndex<uint32_t>(
-                    asset,
-                    accessor,
-                    [&indices](const uint32_t value, const size_t index)
-                    {
-                        indices[index] = value;
-                    }
-                );
-            }
-            else
-            {
-                indices.resize(vertices.size());
-                std::iota(indices.begin(), indices.end(), 0u);
-            }
-
-            if (vertices.empty() || indices.empty())
-            {
-                EE_CORE_WARN("Skipping empty primitive in mesh '{}'.", mesh.Name)
-                return;
-            }
-
-            if (indices.size() % 3 != 0 || std::ranges::any_of(indices, [&vertices](const uint32_t index)
-            {
-                return index >= vertices.size();
-            }))
-            {
-                EE_CORE_WARN("Skipping invalid indexed primitive in mesh '{}'.", mesh.Name)
-                return;
-            }
-
-            if (primitive.findAttribute("TANGENT") == primitive.attributes.end())
-                GenerateTangents(vertices, indices);
-
-            if (!ApplyLocalTransform(vertices, indices, localTransform))
-                return;
-
-            SStaticMeshSection section;
-            section.FirstIndex = (uint32_t)mesh.Indices.size();
-            section.IndexCount = (uint32_t)indices.size();
-            section.VertexOffset = (uint32_t)mesh.Vertices.size();
-            section.MaterialIndex =
-                primitive.materialIndex && *primitive.materialIndex < asset.materials.size()
-                    ? uint32_t(*primitive.materialIndex + 1)
-                    : 0;
-            section.LocalBounds = GetBounds(vertices);
-
-            mesh.Vertices.insert(
-                mesh.Vertices.end(),
-                std::make_move_iterator(vertices.begin()),
-                std::make_move_iterator(vertices.end())
-            );
-
-            mesh.Indices.insert(
-                mesh.Indices.end(),
-                std::make_move_iterator(indices.begin()),
-                std::make_move_iterator(indices.end())
-            );
-
-            if (!m_HasBounds)
-            {
-                mesh.LocalBounds = section.LocalBounds;
-                m_HasBounds = true;
-            }
-            else
-            {
-                ExpandBounds(mesh.LocalBounds, section.LocalBounds);
-            }
-
-            mesh.Sections.push_back(std::move(section));
-        }
-
-        void Loader::LoadNodeMesh(
-            const fastgltf::Node& node,
-            const glm::mat4& localTransform
-        )
-        {
-            const auto& asset = *m_Asset;
-
-            if (!node.meshIndex)
-                return;
-
-            if (*node.meshIndex >= asset.meshes.size())
-            {
-                EE_CORE_WARN("glTF node references an invalid mesh index.")
-                return;
-            }
-
-            for (const auto& primitive : asset.meshes[*node.meshIndex].primitives)
-                LoadPrimitive(primitive, localTransform);
-        }
-
-        Loader::Loader(const GraphicsContext& context, std::filesystem::path path)
-          : m_Context(context),
-            m_Path(std::move(path)) {}
-
-        bool Loader::ParseAsset()
-        {
-            auto data = fastgltf::GltfDataBuffer::FromPath(m_Path);
-            if (data.error() != fastgltf::Error::None)
-            {
-                EE_CORE_ERROR(
-                    "Failed to open glTF file '{}': {}.",
-                    m_Path.string(),
-                    fastgltf::getErrorMessage(data.error())
-                )
-                return false;
-            }
-
-            fastgltf::Parser parser{ GLTF_EXTENSIONS };
-
-            auto loadResult = parser.loadGltf(
-                data.get(),
-                m_Path.parent_path(),
-                GLTF_OPTIONS,
-                GLTF_CATEGORIES
-            );
-
-            if (loadResult.error() != fastgltf::Error::None)
-            {
-                EE_CORE_ERROR(
-                    "Failed to parse glTF file '{}': {}.",
-                    m_Path.string(),
-                    fastgltf::getErrorMessage(loadResult.error())
-                )
-                return false;
-            }
-
-            m_Asset.emplace(std::move(loadResult.get()));
-            return true;
-        }
-
-        bool Loader::LoadGeometry()
-        {
-            const auto& asset = *m_Asset;
-
-            if (!asset.scenes.empty())
-            {
-                const size_t sceneIndex = asset.defaultScene.value_or(0);
-                if (sceneIndex >= asset.scenes.size())
-                {
-                    EE_CORE_ERROR("glTF default scene index is invalid.")
-                    return false;
-                }
-
-                fastgltf::iterateSceneNodes(
-                    asset,
-                    sceneIndex,
-                    fastgltf::math::fmat4x4{},
-                    [&](const fastgltf::Node& node, const fastgltf::math::fmat4x4& transform)
-                    {
-                        LoadNodeMesh(node, ToGlmMatrix(transform));
-                    }
-                );
-            }
-
-            else
-            {
-                if (asset.nodes.empty())
-                {
-                    for (const auto& assetMesh : asset.meshes)
-                        for (const auto& primitive : assetMesh.primitives)
-                            LoadPrimitive(primitive, glm::mat4{ 1.0f });
-                }
-                else
-                {
-                    std::vector<bool> childNodes(asset.nodes.size());
-                    for (const auto& node : asset.nodes)
-                    {
-                        for (const auto childIndex : node.children)
-                        {
-                            if (childIndex < childNodes.size())
-                                childNodes[childIndex] = true;
-                            else
-                                EE_CORE_WARN("glTF node references an invalid child node index.")
-                        }
-                    }
-
-                    std::vector<bool> visitingNodes(asset.nodes.size());
-                    const auto visitNode = [&](auto&& self, const size_t nodeIndex, const glm::mat4& parentTransform) -> void
-                    {
-                        if (nodeIndex >= asset.nodes.size())
-                        {
-                            EE_CORE_WARN("glTF node references an invalid child node index.")
-                            return;
-                        }
-
-                        if (visitingNodes[nodeIndex])
-                        {
-                            EE_CORE_WARN("glTF node hierarchy contains a cycle.")
-                            return;
-                        }
-
-                        visitingNodes[nodeIndex] = true;
-                        const auto& node = asset.nodes[nodeIndex];
-                        const glm::mat4 transform = parentTransform *
-                            ToGlmMatrix(fastgltf::getTransformMatrix(node));
-                        LoadNodeMesh(node, transform);
-
-                        for (const auto childIndex : node.children)
-                            self(self, childIndex, transform);
-
-                        visitingNodes[nodeIndex] = false;
-                    };
-
-                    for (size_t nodeIndex = 0; nodeIndex < asset.nodes.size(); ++nodeIndex)
-                    {
-                        if (!childNodes[nodeIndex])
-                            visitNode(visitNode, nodeIndex, glm::mat4(1.0f));
-                    }
-                }
-            }
-
-            return true;
-        }
-
-        std::optional<SStaticMeshData> Loader::Load()
-        {
-            m_Mesh.Name = m_Path.stem().string();
-
-            if (!ParseAsset())
-                return std::nullopt;
-
-            m_Mesh.Materials = MaterialLoader(
-                m_Context,
-                *m_Asset,
-                m_Path.parent_path(),
-                m_Mesh.Name
-            ).Load();
-
-            if (!LoadGeometry())
-                return std::nullopt;
-
-            if (m_Mesh.Sections.empty())
-            {
-                EE_CORE_ERROR("No valid static meshes were found in '{}'.", m_Path.string())
-                return std::nullopt;
-            }
-
-            return std::move(m_Mesh);
-        }
     }
 
-    std::optional<SStaticMeshData> GLTFStaticMeshLoader::Load(
+    std::vector<Ref<Material>> LoadGLTFMaterials(
         const GraphicsContext& context,
-        std::filesystem::path path
-    ) const
+        fastgltf::Asset& asset,
+        const std::filesystem::path& directory,
+        const std::string_view name
+    )
     {
-        return Loader(context, std::move(path)).Load();
+        return MaterialLoader(context, asset, directory, name).Load();
     }
 }

@@ -35,6 +35,9 @@ namespace Elixir
         void SetTarget(const glm::vec3& target);
         void SetDistance(float distance);
 
+        /** @brief Center the camera on finite bounds and fit them within its field of view. */
+        void FrameBounds(const glm::vec3& min, const glm::vec3& max);
+
         void SetOrbitSensitivity(const float sensitivity) { m_OrbitSensitivity = sensitivity; }
         void SetPanSensitivity(const float sensitivity) { m_PanSensitivity = sensitivity; }
         void SetZoomSensitivity(const float sensitivity) { m_ZoomSensitivity = sensitivity; }

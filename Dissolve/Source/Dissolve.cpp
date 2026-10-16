@@ -21,8 +21,8 @@ std::array<Ref<Aether::SystemInstance>, 2> m_ParticleSystemInstances;
 
 Ref<Material> graphMaterial;
 
-Ref<StaticMesh> mesh;
-SStaticMeshLighting s_LightingSetup;
+Ref<SkeletalMesh> mesh;
+SMeshLighting s_LightingSetup;
 
 Dissolve::Dissolve()
 {
@@ -47,10 +47,9 @@ Dissolve::Dissolve()
     );
     EE_CORE_ASSERT(m_Environment, "Could not load the Environment.")
 
-    m_StaticMeshRenderer = CreateScope<StaticMeshRenderer>(
-        m_GraphicsContext.get(),
-        GetMaterialSystem(),
-        StaticMeshLoaderRegistry::GetGeometryPool()
+    m_SkeletalMeshRenderer = CreateScope<SkeletalMeshRenderer>(
+        *m_GraphicsContext,
+        GetMaterialSystem()
     );
 
     s_LightingSetup = {
@@ -130,8 +129,16 @@ Dissolve::Dissolve()
             EE_CORE_ERROR("Dissolve particle emitter 'FlameCore' was not found.")
         }
 
-        if (auto loaded = StaticMeshLoaderRegistry::Load("./Assets/Meshes/McLaren/scene.gltf"))
+        if (auto loaded = MeshLoaderRegistry::LoadSkeletalMesh("./Assets/Meshes/phoenix_bird/scene.gltf"))
+        {
             mesh = std::move(*loaded);
+
+            const auto& bounds = mesh->GetLocalBounds();
+            m_CameraController->FrameBounds(bounds.Min, bounds.Max);
+
+            if (!mesh->GetAnimations().empty())
+                m_SkeletalMeshRenderer->Play(mesh, mesh->GetAnimations().front());
+        }
     }
 
     {
@@ -192,7 +199,7 @@ Dissolve::Dissolve()
 
 Dissolve::~Dissolve()
 {
-    m_StaticMeshRenderer.reset();
+    m_SkeletalMeshRenderer.reset();
     mesh.reset();
     s_LightingSetup = {};
     graphMaterial.reset();
@@ -223,9 +230,9 @@ void Dissolve::Render(const Timestep frameTime)
 
     m_GraphicsContext->Clear();
 
-    m_StaticMeshRenderer->BeginFrame(m_CameraController->GetCamera(), s_LightingSetup);
+    m_SkeletalMeshRenderer->BeginFrame(m_CameraController->GetCamera(), s_LightingSetup, frameTime.GetSeconds());
     DrawGeometry();
-    m_StaticMeshRenderer->EndFrame();
+    m_SkeletalMeshRenderer->EndFrame();
 
     aether.Render(m_CameraController->GetCamera(), m_SceneTarget);
 }
@@ -238,9 +245,9 @@ void Dissolve::OnEvent(Event& event)
 
 void Dissolve::DrawGeometry()
 {
-    if (m_StaticMeshRenderer)
+    if (m_SkeletalMeshRenderer)
     {
-        m_StaticMeshRenderer->Render(mesh);
+        m_SkeletalMeshRenderer->Render(mesh);
     }
 }
 
