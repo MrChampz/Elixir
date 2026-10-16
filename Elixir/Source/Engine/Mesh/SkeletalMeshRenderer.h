@@ -65,7 +65,7 @@ namespace Elixir
         {
             Ref<const SkeletalMesh> Mesh;
             Ref<DynamicVertexBuffer> Vertices;
-            Ref<IndexBuffer> Indices;
+            Ref<DynamicIndexBuffer> Indices;
         };
 
         MaterialSystem& m_MaterialSystem;

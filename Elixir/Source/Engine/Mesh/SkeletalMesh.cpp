@@ -1,6 +1,8 @@
 #include "epch.h"
 #include "SkeletalMesh.h"
 
+#include <Engine/Mesh/StaticMesh.h>
+
 #include <glm/gtc/matrix_inverse.hpp>
 
 namespace Elixir
@@ -147,7 +149,7 @@ namespace Elixir
 
         auto mesh = Ref<SkeletalMesh>(new SkeletalMesh(std::move(data)));
 
-        std::vector<SSkeletalMeshVertex> vertices;
+        std::vector<SStaticMeshVertex> vertices;
         if (!mesh->SkinVertices(referenceModel, vertices))
             return nullptr;
 
@@ -184,7 +186,7 @@ namespace Elixir
 
     bool SkeletalMesh::SkinVertices(
         const std::span<const glm::mat4> modelPose,
-        std::vector<SSkeletalMeshVertex>& output
+        std::vector<SStaticMeshVertex>& output
     ) const
     {
         if (modelPose.size() != GetSkeleton()->GetBones().size())
@@ -204,7 +206,7 @@ namespace Elixir
             }
         }
 
-        std::vector<SSkeletalMeshVertex> result;
+        std::vector<SStaticMeshVertex> result;
         result.reserve(m_Data.Vertices.size());
 
         for (const auto& source : m_Data.Vertices)
@@ -221,7 +223,7 @@ namespace Elixir
                 return false;
             }
 
-            SSkeletalMeshVertex vertex{
+            SStaticMeshVertex vertex{
                 .Position = source.Position,
                 .Normal = source.Normal,
                 .Tangent = source.Tangent,

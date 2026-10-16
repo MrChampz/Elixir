@@ -5,6 +5,9 @@
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Materials/MaterialInstance.h>
 #include <Engine/Materials/MaterialSystem.h>
+#include <Engine/Mesh/MeshDrawList.h>
+
+#include <Engine/Mesh/StaticMesh.h>
 
 namespace Elixir
 {
@@ -176,6 +179,25 @@ namespace Elixir
 
         const auto& data = mesh->GetData();
 
+        std::vector<EMaterialBlendMode> blendModes;
+        blendModes.reserve(data.Materials.size());
+
+        for (const auto& material : data.Materials)
+        {
+            const auto& blendMode = material
+                ? material->GetBlendMode()
+                : EMaterialBlendMode::Opaque;
+            blendModes.push_back(blendMode);
+        }
+
+        const auto draws = BuildMeshDrawList(
+            vertices,
+            data.Indices,
+            data.Sections,
+            blendModes,
+            m_View
+        );
+
         auto& buffers = m_DrawBuffers.GetCurrent();
         if (buffers.size() <= m_DrawIndex)
             buffers.emplace_back();
@@ -188,10 +210,9 @@ namespace Elixir
                 &m_Context,
                 vertices.size() * sizeof(SStaticMeshVertex)
             );
-            draw.Indices = IndexBuffer::Create(
+            draw.Indices = DynamicIndexBuffer::Create(
                 &m_Context,
-                data.Indices.size() * sizeof(uint32_t),
-                data.Indices.data()
+                draws.Indices.size() * sizeof(uint32_t)
             );
         }
 
@@ -209,6 +230,11 @@ namespace Elixir
             vertices.size() * sizeof(SStaticMeshVertex)
         );
 
+        draw.Indices->UpdateData(
+            draws.Indices.data(),
+            draws.Indices.size() * sizeof(uint32_t)
+        );
+
         auto geometry = m_FrameGeometry;
         geometry.VertexBuffers = {{
             .Buffer = draw.Vertices.get(),
@@ -219,36 +245,24 @@ namespace Elixir
         const auto geometryIndex = m_Scene.AddGeometry(std::move(geometry));
         ++m_DrawIndex;
 
-        for (const auto& section : data.Sections)
+        for (const auto& range : draws.Ranges)
         {
-            auto instance = GetDefaultInstance(data.Materials[section.MaterialIndex]);
+            const auto instance = GetDefaultInstance(data.Materials[range.MaterialIndex]);
             if (!instance) continue;
-
-            glm::vec3 min(std::numeric_limits<float>::max());
-            glm::vec3 max(std::numeric_limits<float>::lowest());
-
-            for (size_t i = section.FirstIndex; i < size_t(section.FirstIndex) + section.IndexCount; ++i)
-            {
-                const auto position = vertices[size_t(section.VertexOffset) + data.Indices[i]].Position;
-                min = glm::min(min, position);
-                max = glm::max(max, position);
-            }
-
-            const auto center = (min + max) * 0.5f;
 
             m_Scene.Add({
                 .Pass = EMaterialPass::Surface,
                 .Material = instance,
-                .SortDepth = -(m_View * glm::vec4(center, 1.0f)).z,
+                .SortDepth = range.SortDepth,
                 .GeometryIndex = geometryIndex,
                 .PushConstants = SMaterialPushConstants::Create(
                     SSurfacePushConstants{},
                     offsetof(SSurfacePushConstants, MaterialIndex)
                 ),
                 .IndexedDraw = SIndexedDrawCommand{
-                    .IndexCount = section.IndexCount,
-                    .FirstIndex = section.FirstIndex,
-                    .VertexOffset = section.VertexOffset,
+                    .IndexCount = range.IndexCount,
+                    .FirstIndex = range.FirstIndex,
+                    .VertexOffset = 0,
                 },
             });
         }

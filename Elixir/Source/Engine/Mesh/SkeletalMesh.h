@@ -5,6 +5,8 @@
 
 namespace Elixir
 {
+    struct SStaticMeshVertex;
+
     /** @brief Stores mesh attributes and up to four skin influences. */
     struct SSkeletalMeshVertex
     {
@@ -106,7 +108,7 @@ namespace Elixir
          */
         bool SkinVertices(
             std::span<const glm::mat4> modelPose,
-            std::vector<SSkeletalMeshVertex>& output
+            std::vector<SStaticMeshVertex>& output
         ) const;
 
     private:
