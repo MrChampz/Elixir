@@ -40,7 +40,8 @@ namespace Elixir
         const GraphicsContext& context,
         MaterialSystem& materialSystem,
         const GeometryPool& geometryPool
-    ) : m_FrameBuffers(context),
+    ) : m_Sorter(CreateScope<SectionSorter>()),
+        m_FrameBuffers(context),
         m_GeometryPool(geometryPool),
         m_MaterialSystem(materialSystem),
         m_Context(context)
@@ -137,6 +138,7 @@ namespace Elixir
         if (!geometry) return false;
 
         const auto& materials = mesh->GetMaterials();
+        m_Sorter->SetContext({.Model = transform, .View = m_View});
 
         for (const auto& section : mesh->GetSections())
         {
@@ -145,8 +147,7 @@ namespace Elixir
             const auto material = GetDefaultInstance(materials[section.MaterialIndex]);
             if (!material) continue;
 
-            const glm::vec3 center = (section.LocalBounds.Min + section.LocalBounds.Max) * 0.5f;
-            const float depth = -(m_View * transform * glm::vec4(center, 1.0f)).z;
+            const auto depth = m_Sorter->CalculateDepth(section);
 
             m_Scene.Add({
                 .Pass = EMaterialPass::Surface,
@@ -178,6 +179,12 @@ namespace Elixir
 
         m_Recording = false;
         m_MaterialSystem.Submit(std::move(m_Scene));
+    }
+
+    void StaticMeshRenderer::SetSorter(Scope<Sorter> sorter)
+    {
+        if (!sorter) return;
+        m_Sorter = std::move(sorter);
     }
 
     Ref<MaterialInstance> StaticMeshRenderer::GetDefaultInstance(const Ref<Material>& material)

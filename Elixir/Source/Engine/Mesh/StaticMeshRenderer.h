@@ -3,6 +3,7 @@
 #include <Engine/Graphics/FrameSlotState.h>
 #include <Engine/Mesh/MeshLighting.h>
 #include <Engine/Mesh/StaticMesh.h>
+#include <Engine/Mesh/Sorter.h>
 #include <Engine/Materials/Rendering/MaterialRenderScene.h>
 
 namespace Elixir
@@ -55,12 +56,12 @@ namespace Elixir
         /**
          * @brief Collect indexed surface draws for one static mesh.
          *
-         * Each section with a usable material produces one draw. Transparency sorting uses
-         * the section bounds center transformed into camera space. Sections without a usable
-         * material are skipped without rejecting the mesh.
+         * Each section with a usable material produces one draw. The sorter calculates its
+         * depth; SectionSorter uses the section bounds center in camera space by default.
+         * Sections without a usable material are skipped without rejecting the mesh.
          *
          * @param mesh Mesh whose geometry was uploaded to this renderer's external pool.
-         * @param transform Model-to-world matrix applied to the mesh and its sorting bounds.
+         * @param transform Model-to-world matrix used by the draw and depth strategy.
          * @return True if the mesh was accepted, even if all its sections were skipped.
          * Returns false if the frame is closed, the mesh is null, or its geometry is invalid.
          * @pre BeginFrame opened the frame and EndFrame has not closed it.
@@ -76,6 +77,12 @@ namespace Elixir
          */
         void EndFrame();
 
+        /**
+         * @brief Select the depth strategy used by subsequent Render calls.
+         * @param sorter Depth sorter; if null is provided, do nothing.
+         */
+        void SetSorter(Scope<Sorter> sorter);
+
       private:
         /**
          * @brief Reuse or create the default instance for a material.
@@ -83,6 +90,8 @@ namespace Elixir
          * @return Cached instance, or null if the material is absent or creation fails.
          */
         Ref<MaterialInstance> GetDefaultInstance(const Ref<Material>& material);
+
+        Scope<Sorter> m_Sorter;
 
         // Keep camera and lighting uploads separate for each frame slot in flight.
         FrameSlotState<Ref<UniformBuffer>> m_FrameBuffers;

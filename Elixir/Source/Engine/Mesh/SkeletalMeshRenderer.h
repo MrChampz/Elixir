@@ -4,6 +4,7 @@
 #include <Engine/Mesh/GeometryPool.h>
 #include <Engine/Mesh/MeshLighting.h>
 #include <Engine/Mesh/SkinningPass.h>
+#include <Engine/Mesh/Sorter.h>
 #include <Engine/Materials/Rendering/MaterialRenderScene.h>
 
 namespace Elixir
@@ -91,10 +92,11 @@ namespace Elixir
          *
          * Uploads uncached source geometry, reserves a separate output range, and captures
          * skin matrices in the batch. Each section with a usable material produces one draw.
-         * Sorting uses reference-pose section bounds rather than deformed triangle depths.
+         * The sorter calculates each section's depth; SectionSorter uses reference-pose bounds
+         * by default, rather than deformed triangle depths.
          *
          * @param instance Supplies a mesh and its current skeleton-space model pose.
-         * @param transform Model-to-world matrix applied when drawing, after GPU skinning.
+         * @param transform Model-to-world matrix used by the draw and depth strategy.
          * @return True if the instance was added to the batch. Returns false if the frame is
          * closed, the mesh or pose is invalid, or geometry or bone capacity is insufficient.
          * @pre BeginFrame opened the frame and EndFrame has not closed it.
@@ -114,6 +116,12 @@ namespace Elixir
          * @pre BeginFrame opened the frame and EndFrame has not closed it.
          */
         void EndFrame();
+
+        /**
+         * @brief Select the depth strategy used by subsequent Render calls.
+         * @param sorter Depth sorter; if null is provided, do nothing.
+         */
+        void SetSorter(Scope<Sorter> sorter);
 
     private:
         /** Associates a source asset with its persistent GPU allocation. */
@@ -169,6 +177,7 @@ namespace Elixir
         Ref<MaterialInstance> GetDefaultInstance(const Ref<Material>& material);
 
         SSkeletalMeshRendererConfig m_Config;
+        Scope<Sorter> m_Sorter;
 
         SkinningBatch m_Batch;
         SkinningPass m_SkinningPass;

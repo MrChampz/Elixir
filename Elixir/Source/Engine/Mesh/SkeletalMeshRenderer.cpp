@@ -45,6 +45,7 @@ namespace Elixir
         const ShaderLoader& shaderLoader,
         const SSkeletalMeshRendererConfig& config
     ) : m_Config(config),
+        m_Sorter(CreateScope<SectionSorter>()),
         m_SkinningPass(context, shaderLoader),
         m_Frames(context),
         m_FrameBuffers(context),
@@ -206,13 +207,13 @@ namespace Elixir
 
         if (!appended) return false;
 
+        m_Sorter->SetContext({.Model = transform, .View = m_View});
         for (const auto& section : data.Sections)
         {
             const auto material = GetDefaultInstance(data.Materials[section.MaterialIndex]);
             if (!material) continue;
 
-            const auto center = (section.LocalBounds.Min + section.LocalBounds.Max) * 0.5f;
-            const auto depth = -(m_View * transform * glm::vec4(center, 1)).z;
+            const auto depth = m_Sorter->CalculateDepth(section);
 
             m_Scene.Add({
                 .Pass = EMaterialPass::Surface,
@@ -267,6 +268,12 @@ namespace Elixir
         }
 
         m_MaterialSystem.Submit(std::move(m_Scene));
+    }
+
+    void SkeletalMeshRenderer::SetSorter(Scope<Sorter> sorter)
+    {
+        if (!sorter) return;
+        m_Sorter = std::move(sorter);
     }
 
     const SGeometry* SkeletalMeshRenderer::GetGeometry(const Ref<const SkeletalMesh>& mesh)
