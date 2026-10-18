@@ -13,34 +13,52 @@ namespace Elixir
 
     class Camera;
 
-    /** @brief Sets per-frame geometry and bone limits for batched skeletal rendering. */
+    /** Defines persistent source capacity and per-frame output and bone limits. */
     struct SSkeletalMeshRendererConfig
     {
-        /** Shared source capacity for skeletal vertices and their original indices. */
+        /**
+         * Persistent capacity shared by all source assets. VertexStride must match
+         * sizeof(SSkeletalMeshVertex). Vertices and indices are uploaded once per asset.
+         */
         SGeometryPoolConfig SourceGeometry{
             1'000'000,
             3'000'000,
             sizeof(SSkeletalMeshVertex)
         };
 
-        /** Shared output capacity per frame slot, using the Surface vertex layout. */
+        /**
+         * Output capacity per frame slot, shared by all submitted instances. VertexStride must
+         * match sizeof(SStaticMeshVertex). Draws reuse indices from SourceGeometry.
+         */
         SGeometryPoolConfig FrameGeometry{
             1'000'000,
             3'000'000,
             sizeof(SStaticMeshVertex)
         };
 
-        /** Maximum number of mesh-palette matrices uploaded in one frame. */
+        /**
+         * Nonzero limit on skin matrices summed across all instances submitted in one frame.
+         */
         uint32_t BoneCapacity = 65'536;
     };
 
-    /** @brief Collects skeletal draws and deforms their shared geometry with batched compute. */
+    /**
+     * @brief Deform skeletal mesh instances with batched compute and collect surface draws.
+     *
+     * Owns a shared source geometry pool and separate output pools for frame slots in flight.
+     * Instances supply poses computed on the CPU; this renderer does not advance animation.
+     * BeginFrame opens a batch, Render captures instances, and EndFrame records the GPU work.
+     */
     class ELIXIR_API SkeletalMeshRenderer final
     {
     public:
         /**
          * @brief Create a renderer that owns its source and per-frame geometry pools.
-         * @pre context and materialSystem outlive this renderer.
+         * @param context Graphics context used to allocate buffers and record GPU commands.
+         * @param materialSystem Receives the collected surface draws at EndFrame.
+         * @param shaderLoader Loads the compute shader used by the skinning pass.
+         * @param config Source, output, and bone capacities copied into this renderer.
+         * @pre The context and material system outlive this renderer.
          */
         SkeletalMeshRenderer(
             const GraphicsContext& context,
@@ -49,12 +67,19 @@ namespace Elixir
             const SSkeletalMeshRendererConfig& config = {}
         );
 
-        /** @brief Wait for submitted draws before releasing the shared frame buffers. */
+        /** @brief Wait for submitted GPU work before releasing owned geometry and buffers. */
         ~SkeletalMeshRenderer();
 
         /**
-         * @brief Begin collecting draws and advance renderer-owned asset playbacks.
-         * @pre The current frame slot fence completed, and the previous frame was closed.
+         * @brief Begin collecting skeletal instances for the current frame slot.
+         *
+         * Reuses the slot's completed output allocations, clears the skinning batch, and
+         * updates camera and lighting data. Releases source allocations for expired assets.
+         * Instance animation must be advanced by the caller before Render.
+         *
+         * @param camera Supplies view, projection, position, and section sorting depths.
+         * @param lighting Surface lighting and environment; light direction must be nonzero.
+         * @pre The previous frame was closed and the current slot's GPU work completed.
          */
         void BeginFrame(
             const Camera& camera,
@@ -62,31 +87,64 @@ namespace Elixir
         );
 
         /**
-         * @brief Record an independent instance and a model-to-world transform.
-         * The pose is captured during this call; advance playback before submitting it.
+         * @brief Append an instance's current pose and surface draws to the frame.
+         *
+         * Uploads uncached source geometry, reserves a separate output range, and captures
+         * skin matrices in the batch. Each section with a usable material produces one draw.
+         * Sorting uses reference-pose section bounds rather than deformed triangle depths.
+         *
+         * @param instance Supplies a mesh and its current skeleton-space model pose.
+         * @param transform Model-to-world matrix applied when drawing, after GPU skinning.
+         * @return True if the instance was added to the batch. Returns false if the frame is
+         * closed, the mesh or pose is invalid, or geometry or bone capacity is insufficient.
+         * @pre BeginFrame opened the frame and EndFrame has not closed it.
          */
         bool Render(
             const SkeletalMeshInstance& instance,
             const glm::mat4& transform = glm::mat4(1)
         );
 
-        /** @brief Dispatch collected skinning work and submit surface draws. */
+        /**
+         * @brief Close the frame, record compute skinning, and submit the surface draws.
+         *
+         * Enqueues the compute commands before submitting the material scene. The skinning
+         * pass makes its output available to vertex input without copying it back to the CPU.
+         * If compute recording fails, the collected surface draws are not submitted.
+         *
+         * @pre BeginFrame opened the frame and EndFrame has not closed it.
+         */
         void EndFrame();
 
     private:
+        /** Associates a source asset with its persistent GPU allocation. */
         struct SSourceGeometry
         {
+            /** Weak reference used to release the allocation when the asset expires. */
             WeakRef<const SkeletalMesh> Mesh;
+
+            /** Owns the source vertices and indices in the renderer's shared pool. */
             GeometryAllocation Allocation;
         };
 
+        /** Retains skinning output and asset lifetimes until one frame slot completes. */
         struct SFrameState
         {
+            /** Pool of deformed vertices for this slot; source indices remain shared. */
             Scope<GeometryPool> Geometry;
+
+            /** Keeps each submitted instance's output range reserved for the slot. */
             std::vector<GeometryAllocation> Allocations;
+
+            /** Keeps source assets alive while submitted GPU work may use their geometry. */
             std::vector<Ref<const SkeletalMesh>> Meshes;
+
+            /** Output geometry entry in the material scene, or UINT32_MAX before setup. */
             uint32_t GeometryIndex = UINT32_MAX;
 
+            /**
+             * @brief Release slot references and reset its output allocations for reuse.
+             * @pre Geometry is valid and all GPU work using this slot completed.
+             */
             void Reset()
             {
                 Geometry->Reset();
@@ -96,10 +154,18 @@ namespace Elixir
             }
         };
 
-        // Upload a source asset once and retain its allocation while the asset exists.
+        /**
+         * @brief Reuse or upload a source asset's persistent geometry allocation.
+         * @param mesh Source asset to find or upload; must not be null.
+         * @return Geometry in the shared source pool, or null if upload fails.
+         */
         const SGeometry* GetGeometry(const Ref<const SkeletalMesh>& mesh);
 
-        // Reuse one default instance per material.
+        /**
+         * @brief Reuse or create the default instance for a material.
+         * @param material Material to cache; null is accepted and returns null.
+         * @return Cached instance, or null if the material is absent or creation fails.
+         */
         Ref<MaterialInstance> GetDefaultInstance(const Ref<Material>& material);
 
         SSkeletalMeshRendererConfig m_Config;

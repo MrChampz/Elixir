@@ -14,9 +14,44 @@
 
 - Write Doxygen documentation in English for public types, public members, and public functions.
 - Follow ISO 24495-1 plain-language principles: state the purpose first, use short direct sentences, and use familiar terms.
-- Use `@param`, `@return`, `@tparam`, and `@pre` only when they add information needed to use the API correctly.
+- Document every parameter of every function and method with `@param`, including constructors and private methods.
+- Use `@return`, `@tparam`, and `@pre` when they add information needed to use the API correctly.
+- Use `@brief` for functions and methods. Do not use `@brief` for struct data members; write their descriptions directly.
+- Keep documentation within the 95-character line limit configured in `.clang-format`. If a single-line or trailing documentation comment would exceed that limit, use a multiline documentation block and wrap its text.
+- When there is no description beyond `@brief`, place `@param` and other tags on consecutive lines immediately after `@brief`, without a blank line.
+- When there is a description beyond `@brief`, leave one blank documentation line between `@brief` and that description, and another between the description and the parameter tags.
 - Document public data members when their purpose, unit, ownership, valid range, or relationship to another member is not immediately clear.
-- Use a short single-sentence comment for private methods. Document private data only when it is necessary to explain an invariant or a non-obvious relationship.
+- Keep private method summaries to a short single sentence and document all their parameters. Document private data only when it is necessary to explain an invariant or a non-obvious relationship.
+
+Without an additional description:
+
+```cpp
+/**
+ * @brief Advance the animation playback.
+ * @param deltaSeconds Elapsed time in seconds since the previous update.
+ */
+void Update(float deltaSeconds);
+```
+
+With an additional description:
+
+```cpp
+/**
+ * @brief Advance the animation playback.
+ *
+ * Sample the current sequence and rebuild the model pose.
+ *
+ * @param deltaSeconds Elapsed time in seconds since the previous update.
+ */
+void Update(float deltaSeconds);
+```
+
+For a struct data member:
+
+```cpp
+/** Maximum number of bone matrices uploaded in one frame. */
+uint32_t BoneCapacity = 65'536;
+```
 
 ## Validation
 

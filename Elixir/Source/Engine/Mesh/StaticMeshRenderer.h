@@ -16,17 +16,20 @@ namespace Elixir
     class GeometryPool;
 
     /**
-     * @brief Collects static mesh surface draws for MaterialSystem.
+     * @brief Collect static mesh surface draws for MaterialSystem.
+     *
+     * Reuses geometry already uploaded to an external pool. Each frame starts with
+     * BeginFrame, collects meshes with Render, and submits their draws with EndFrame.
      */
     class ELIXIR_API StaticMeshRenderer final
     {
       public:
         /**
-         * @brief Create a static mesh renderer for one graphics context.
-         * @param context Graphics context used to create frame resources.
-         * @param materialSystem Material system that records submitted surface draws.
-         * @param geometryPool Pool that stores the geometry referenced by rendered meshes.
-         * @pre All arguments remain valid for the renderer lifetime.
+         * @brief Create a renderer that reads static geometry from an external pool.
+         * @param context Graphics context used to create camera and lighting buffers.
+         * @param materialSystem Receives the collected surface draws at EndFrame.
+         * @param geometryPool Pool containing the rendered meshes in SStaticMeshVertex layout.
+         * @pre The context, material system, and geometry pool outlive this renderer.
          */
         StaticMeshRenderer(
             const GraphicsContext& context,
@@ -35,13 +38,14 @@ namespace Elixir
         );
 
         /**
-         * @brief Begin recording static mesh draws for one frame.
+         * @brief Begin collecting static mesh draws for the current frame slot.
          *
-         * Updates camera data and begins collecting material draw commands.
+         * Updates camera and lighting data and binds the shared geometry buffers.
+         * The geometry pool must be valid and use the SStaticMeshVertex stride.
          *
-         * @param camera Camera used to build the view-projection matrix.
-         * @param lighting Lighting resources used by Surface materials.
-         * @pre EndFrame was called after the previous BeginFrame.
+         * @param camera Supplies view, projection, position, and section sorting depths.
+         * @param lighting Surface lighting and environment; light direction must be nonzero.
+         * @pre The previous frame was closed and the current slot's GPU work completed.
          */
         void BeginFrame(
             const Camera& camera,
@@ -49,12 +53,17 @@ namespace Elixir
         );
 
         /**
-         * @brief Record draw commands for one static mesh.
+         * @brief Collect indexed surface draws for one static mesh.
          *
-         * Each section produces one indexed surface draw using the model-to-world transform.
+         * Each section with a usable material produces one draw. Transparency sorting uses
+         * the section bounds center transformed into camera space. Sections without a usable
+         * material are skipped without rejecting the mesh.
          *
-         * @param mesh Static mesh to draw.
-         * @pre BeginFrame was called and EndFrame was not called yet.
+         * @param mesh Mesh whose geometry was uploaded to this renderer's external pool.
+         * @param transform Model-to-world matrix applied to the mesh and its sorting bounds.
+         * @return True if the mesh was accepted, even if all its sections were skipped.
+         * Returns false if the frame is closed, the mesh is null, or its geometry is invalid.
+         * @pre BeginFrame opened the frame and EndFrame has not closed it.
          */
         bool Render(
             const Ref<const StaticMesh>& mesh,
@@ -62,17 +71,24 @@ namespace Elixir
         );
 
         /**
-         * @brief Submit collected static mesh draws to MaterialSystem.
-         * @pre BeginFrame was called and EndFrame was not called yet.
+         * @brief Close the frame and submit its collected draws to MaterialSystem.
+         * @pre BeginFrame opened the frame and EndFrame has not closed it.
          */
         void EndFrame();
 
       private:
+        /**
+         * @brief Reuse or create the default instance for a material.
+         * @param material Material to cache; null is accepted and returns null.
+         * @return Cached instance, or null if the material is absent or creation fails.
+         */
         Ref<MaterialInstance> GetDefaultInstance(const Ref<Material>& material);
 
+        // Keep camera and lighting uploads separate for each frame slot in flight.
         FrameSlotState<Ref<UniformBuffer>> m_FrameBuffers;
 
         const GeometryPool& m_GeometryPool;
+        // Index of the shared pool buffers in the current material scene.
         uint32_t m_GeometryIndex = UINT32_MAX;
 
         MaterialSystem& m_MaterialSystem;
