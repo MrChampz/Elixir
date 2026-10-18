@@ -104,14 +104,11 @@ namespace Elixir::Materials::Rendering
         Ref<UniformBuffer> Buffer;
     };
 
-    /** @brief Holds a storage-buffer type supported by material passes. */
-    using MaterialStorageBuffer = std::variant<Ref<StorageBuffer>, Ref<DynamicStorageBuffer>>;
-
     /** @brief Associates a storage buffer with a shader binding name. */
     struct SStorageBufferBinding
     {
         std::string Name;
-        MaterialStorageBuffer Buffer;
+        Ref<Buffer> Buffer;
     };
 
     /** @brief Associates a texture with a shader binding name. */
@@ -261,7 +258,6 @@ namespace Elixir::Materials::Rendering
         {
             ConstantBuffer,
             StorageBuffer,
-            DynamicStorageBuffer,
             Texture,
             Sampler,
         };

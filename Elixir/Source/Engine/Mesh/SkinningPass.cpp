@@ -60,8 +60,8 @@ namespace Elixir
     bool SkinningPass::Record(
         const Ref<CommandBuffer>& cmd,
         const SkinningBatch& batch,
-        const Ref<StorageBuffer>& source,
-        const Ref<StorageBuffer>& output,
+        const Ref<VertexBuffer>& source,
+        const Ref<VertexBuffer>& output,
         const EPipelineStage dstStage,
         const EPipelineAccess dstAccess
     )
@@ -69,6 +69,13 @@ namespace Elixir
         if (!IsValid() || !cmd || !source || !output || !source->IsValid() || !output->IsValid())
         {
             EE_CORE_ERROR("GPU skinning requires a pipeline, commands, and valid geometry buffers.")
+            return false;
+        }
+
+        if (!HasAnyFlags(source->GetUsage(), EBufferUsage::StorageBuffer) ||
+            !HasAnyFlags(output->GetUsage(), EBufferUsage::StorageBuffer))
+        {
+            EE_CORE_ERROR("GPU skinning requires storage usage on both vertex buffers.")
             return false;
         }
 

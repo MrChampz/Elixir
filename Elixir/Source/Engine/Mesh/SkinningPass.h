@@ -47,15 +47,16 @@ namespace Elixir
          * @return True if recording succeeded or a valid call had no work blocks.
          * Returns false for invalid resources, limits, job ranges, or upload allocations.
          * @pre cmd records outside a render pass on a graphics queue that supports compute.
-         * @pre Source and output buffers are distinct and outlive the submitted GPU work.
+         * @pre Source and output buffers have storage usage, are distinct, and outlive GPU
+         * work.
          * @pre The current frame slot's GPU work completed before its uploads are reused.
          * @pre Call at most once per slot use, before submitting that slot's commands.
          */
         bool Record(
             const Ref<CommandBuffer>& cmd,
             const SkinningBatch& batch,
-            const Ref<StorageBuffer>& source,
-            const Ref<StorageBuffer>& output,
+            const Ref<VertexBuffer>& source,
+            const Ref<VertexBuffer>& output,
             EPipelineStage dstStage = EPipelineStage::VertexInput,
             EPipelineAccess dstAccess = EPipelineAccess::VertexAttributeRead
         );

@@ -28,6 +28,12 @@ namespace Elixir
 
         /** Byte stride of source or output vertices; the default is the Surface layout. */
         uint32_t VertexStride = sizeof(SStaticMeshVertex);
+
+        /**
+         * Vertex buffer roles, including VertexBuffer. The pool adds transfer source and
+         * destination usages.
+         */
+        EBufferUsage VertexUsage = EBufferUsage::VertexBuffer;
     };
 
     /**
@@ -80,7 +86,7 @@ namespace Elixir
         const SGeometry* Get(SHandle<SGeometry> handle) const;
 
         /** @brief Get the shared vertex buffer. */
-        const Ref<StorageBuffer>& GetVertexBuffer() const { return m_VertexBuffer; }
+        const Ref<VertexBuffer>& GetVertexBuffer() const { return m_VertexBuffer; }
 
         /** @brief Get the shared index buffer. */
         const Ref<DynamicIndexBuffer>& GetIndexBuffer() const { return m_IndexBuffer; }
@@ -158,7 +164,7 @@ namespace Elixir
 
         Ref<SGeometryPoolState> m_State;
 
-        Ref<StorageBuffer> m_VertexBuffer;
+        Ref<VertexBuffer> m_VertexBuffer;
         uint32_t m_VertexStride = 0;
         Ref<DynamicIndexBuffer> m_IndexBuffer;
         std::vector<SGeometry> m_Geometries;

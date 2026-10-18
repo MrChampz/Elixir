@@ -76,8 +76,14 @@ namespace Elixir
         virtual void BindTexture(const std::string& name, const Ref<Texture>& texture) = 0;
         virtual void BindTextureSet(const std::string& name, const Ref<TextureSet>& set) = 0;
         virtual void BindSampler(const std::string& name, const Ref<Sampler>& sampler) = 0;
-        virtual void BindStorageBuffer(const std::string& name, const Ref<StorageBuffer>& buffer) = 0;
-        virtual void BindStorageBuffer(const std::string& name, const Ref<DynamicStorageBuffer>& buffer) = 0;
+
+        /**
+         * @brief Bind a buffer that was created with storage usage.
+         * @param name Shader storage resource binding name.
+         * @param buffer Buffer with StorageBuffer usage, including a vertex buffer.
+         */
+        virtual void BindStorageBuffer(const std::string& name, const Ref<Buffer>& buffer) = 0;
+
         virtual void BindConstantBuffer(const std::string& name, const Ref<UniformBuffer>& buffer) = 0;
 
         /**
@@ -146,8 +152,7 @@ namespace Elixir
         std::unordered_map<SShaderBinding, Ref<Texture>> m_Textures;
         std::unordered_map<SShaderBinding, Ref<TextureSet>> m_TextureSets;
         std::unordered_map<SShaderBinding, Ref<Sampler>> m_Samplers;
-        std::unordered_map<SShaderBinding, Ref<StorageBuffer>> m_StorageBuffers;
-        std::unordered_map<SShaderBinding, Ref<DynamicStorageBuffer>> m_DynStorageBuffers;
+        std::unordered_map<SShaderBinding, Ref<Buffer>> m_StorageBuffers;
         // TODO: Rename to ConstantBuffer
         std::unordered_map<SShaderBinding, Ref<UniformBuffer>> m_ConstantBuffers;
         std::unordered_map<SShaderBinding, Ref<PushConstantBuffer>> m_PushConstants;

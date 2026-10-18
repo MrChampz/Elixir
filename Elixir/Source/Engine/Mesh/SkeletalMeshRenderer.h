@@ -20,21 +20,25 @@ namespace Elixir
         /**
          * Persistent capacity shared by all source assets. VertexStride must match
          * sizeof(SSkeletalMeshVertex). Vertices and indices are uploaded once per asset.
+         * VertexUsage must include VertexBuffer and StorageBuffer.
          */
         SGeometryPoolConfig SourceGeometry{
             1'000'000,
             3'000'000,
-            sizeof(SSkeletalMeshVertex)
+            sizeof(SSkeletalMeshVertex),
+            EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer
         };
 
         /**
          * Output capacity per frame slot, shared by all submitted instances. VertexStride must
          * match sizeof(SStaticMeshVertex). Draws reuse indices from SourceGeometry.
+         * VertexUsage must include VertexBuffer and StorageBuffer.
          */
         SGeometryPoolConfig FrameGeometry{
             1'000'000,
             3'000'000,
-            sizeof(SStaticMeshVertex)
+            sizeof(SStaticMeshVertex),
+            EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer
         };
 
         /**

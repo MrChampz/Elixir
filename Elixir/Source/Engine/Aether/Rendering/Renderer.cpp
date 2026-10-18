@@ -246,11 +246,11 @@ namespace Elixir::Aether::Rendering
             const std::array ribbonStorageBuffers{
                 SStorageBufferBinding{
                     .Name = "particles",
-                    .Buffer = MaterialStorageBuffer{ resource->ParticleStateBuffer },
+                    .Buffer = { resource->ParticleStateBuffer },
                 },
                 SStorageBufferBinding{
                     .Name = "emitters",
-                    .Buffer = MaterialStorageBuffer{ frame.GetEmitterBuffer() },
+                    .Buffer = { frame.GetEmitterBuffer() },
                 },
             };
 

@@ -28,10 +28,18 @@ namespace Elixir
             return;
         }
 
-        m_VertexBuffer = StorageBuffer::Create(
-            &context,
-            size_t(config.VertexCapacity) * config.VertexStride
-        );
+        if (!HasAnyFlags(config.VertexUsage, EBufferUsage::VertexBuffer))
+        {
+            EE_CORE_ERROR("GeometryPool requires the vertex buffer usage flag.")
+            return;
+        }
+
+        const SBufferCreateInfo vertexInfo{
+            .Buffer = SBuffer(size_t(config.VertexCapacity) * config.VertexStride),
+            .Usage = config.VertexUsage | EBufferUsage::TransferSrc | EBufferUsage::TransferDst,
+            .AllocationInfo = { .PreferredFlags = EMemoryProperty::DeviceLocal },
+        };
+        m_VertexBuffer = VertexBuffer::Create(&context, vertexInfo);
 
         m_IndexBuffer = DynamicIndexBuffer::Create(
             &context,
@@ -121,11 +129,16 @@ namespace Elixir
         };
         staging->Copy(cmd, m_VertexBuffer, std::span{ &copy, 1 });
 
-        m_VertexBuffer->Barrier(
-            cmd,
-            EPipelineStage::ComputeShader | EPipelineStage::VertexInput,
-            EPipelineAccess::ShaderRead | EPipelineAccess::VertexAttributeRead
-        );
+        auto dstStage = EPipelineStage::VertexInput;
+        auto dstAccess = EPipelineAccess::VertexAttributeRead;
+
+        if (HasAnyFlags(m_VertexBuffer->GetUsage(), EBufferUsage::StorageBuffer))
+        {
+            dstStage |= EPipelineStage::ComputeShader;
+            dstAccess |= EPipelineAccess::ShaderRead;
+        }
+
+        m_VertexBuffer->Barrier(cmd, dstStage, dstAccess);
 
         cmd->Flush();
 

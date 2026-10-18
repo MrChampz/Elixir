@@ -370,9 +370,15 @@ namespace Elixir::Aether::Simulation
             EE_CORE_ASSERT(runtime, "Particle state layout requires a simulation runtime.")
             if (!runtime) continue;
 
+            auto particleInfo = StorageBuffer::CreateBufferInfo(
+                descriptor.ParticleStateStride * descriptor.ParticleCapacity,
+                nullptr
+            );
+            particleInfo.Usage |= EBufferUsage::VertexBuffer;
+
             runtime->ParticleStateBuffer = StorageBuffer::Create(
                 m_GraphicsContext,
-                descriptor.ParticleStateStride * descriptor.ParticleCapacity
+                particleInfo
             );
         }
 

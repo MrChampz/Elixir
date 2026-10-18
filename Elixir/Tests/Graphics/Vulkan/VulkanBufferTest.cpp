@@ -22,6 +22,24 @@ class VulkanBufferTest : public Test
 
 GraphicsContext* VulkanBufferTest::Context = nullptr;
 
+TEST_F(VulkanBufferTest, VertexBufferSupportsExplicitStorageUsageWithoutChangingType)
+{
+    const auto vertex = VertexBuffer::Create(Context, 256);
+    ASSERT_TRUE(vertex && vertex->IsValid());
+    EXPECT_FALSE(HasAnyFlags(vertex->GetUsage(), EBufferUsage::StorageBuffer));
+
+    auto info = VertexBuffer::CreateBufferInfo(256, nullptr);
+    info.Usage |= EBufferUsage::StorageBuffer;
+    const auto storageVertex = VertexBuffer::Create(Context, info);
+    ASSERT_TRUE(storageVertex && storageVertex->IsValid());
+    EXPECT_TRUE(HasAnyFlags(storageVertex->GetUsage(), EBufferUsage::StorageBuffer));
+    EXPECT_TRUE(HasAnyFlags(storageVertex->GetUsage(), EBufferUsage::VertexBuffer));
+    EXPECT_GT(storageVertex->GetAddress(), 0);
+
+    info.Usage = EBufferUsage::StorageBuffer;
+    EXPECT_FALSE(VertexBuffer::Create(Context, info));
+}
+
 TEST_F(VulkanBufferTest, VulkanBaseBuffer_IsNotConstructibleAndAssignable)
 {
     EXPECT_FALSE(std::is_constructible_v<VulkanBaseBuffer<Buffer>>);

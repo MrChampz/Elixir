@@ -55,9 +55,11 @@ namespace Elixir
     {
         if (m_GeometryPool.GetVertexStride() != sizeof(SSkeletalMeshVertex) ||
             config.FrameGeometry.VertexStride != sizeof(SStaticMeshVertex) ||
+            !HasAnyFlags(config.SourceGeometry.VertexUsage, EBufferUsage::StorageBuffer) ||
+            !HasAnyFlags(config.FrameGeometry.VertexUsage, EBufferUsage::StorageBuffer) ||
             config.BoneCapacity == 0)
         {
-            EE_CORE_ERROR("SkeletalMeshRenderer requires skeletal source vertices, Surface output vertices, and bone capacity.")
+            EE_CORE_ERROR("SkeletalMeshRenderer requires storage-enabled skeletal source and Surface output buffers, and bone capacity.")
             m_Config.BoneCapacity = 0;
             return;
         }

@@ -226,32 +226,27 @@ namespace Elixir::Vulkan
 
     void VulkanShader::BindStorageBuffer(
         const std::string& name,
-        const Ref<StorageBuffer>& buffer
+        const Ref<Buffer>& buffer
     )
     {
-        if (const auto binding = GetShaderBinding(name))
+        if (!buffer || !buffer->IsValid() ||
+            !HasAnyFlags(buffer->GetUsage(), EBufferUsage::StorageBuffer) ||
+            buffer->GetSize() == 0 ||
+            buffer->GetSize() > m_GraphicsContext->GetMaxStorageBufferRange())
         {
-            if (m_DescriptorSets.Set(*binding, DescriptorValue{ buffer }))
-                m_StorageBuffers[*binding] = buffer;
+            EE_CORE_ERROR("Storage binding requires a valid buffer with storage usage and range.")
             return;
         }
 
-        EE_CORE_ERROR("No storage buffer binding named \"{0}\" found in shader...", name)
-    }
-
-    void VulkanShader::BindStorageBuffer(
-        const std::string& name,
-        const Ref<DynamicStorageBuffer>& buffer
-    )
-    {
-        if (const auto binding = GetShaderBinding(name))
+        const auto binding = GetShaderBinding(name);
+        if (!binding || !m_Resources.StorageBuffers.contains(*binding))
         {
-            if (m_DescriptorSets.Set(*binding, DescriptorValue{ buffer }))
-                m_DynStorageBuffers[*binding] = buffer;
+            EE_CORE_ERROR("No storage buffer binding named \"{0}\" found in shader...", name)
             return;
         }
 
-        EE_CORE_ERROR("No storage buffer binding named \"{0}\" found in shader...", name)
+        if (m_DescriptorSets.Set(*binding, DescriptorValue{ buffer }))
+            m_StorageBuffers[*binding] = buffer;
     }
 
     void VulkanShader::BindConstantBuffer(
@@ -596,34 +591,15 @@ namespace Elixir::Vulkan
 
     VkWriteDescriptorSet VulkanShader::GetWriteDescriptorSet(
         const SShaderBinding binding,
-        const Ref<StorageBuffer>& buffer
+        const Ref<Buffer>& buffer
     ) const
     {
         const auto& resource = m_Resources.StorageBuffers.at(binding);
-        const auto buf = std::static_pointer_cast<VulkanStorageBuffer>(buffer);
-
-        m_BufferInfoCache[binding] = buf->GetVulkanDescriptorInfo();
-
-        VkWriteDescriptorSet writeSet = {};
-        writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeSet.dstSet = m_DescriptorSets.GetCurrent()[resource.GetSet()];
-        writeSet.dstBinding = resource.GetBinding();
-        writeSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        writeSet.descriptorCount = 1;
-        writeSet.pBufferInfo = &m_BufferInfoCache[binding];
-
-        return writeSet;
-    }
-
-    VkWriteDescriptorSet VulkanShader::GetWriteDescriptorSet(
-        const SShaderBinding binding,
-        const Ref<DynamicStorageBuffer>& buffer
-    ) const
-    {
-        const auto& resource = m_Resources.StorageBuffers.at(binding);
-        const auto buf = std::static_pointer_cast<VulkanDynamicStorageBuffer>(buffer);
-
-        m_BufferInfoCache[binding] = buf->GetVulkanDescriptorInfo();
+        m_BufferInfoCache[binding] = {
+            .buffer = TryToGetVulkanBuffer(buffer.get()),
+            .offset = 0,
+            .range = buffer->GetSize(),
+        };
 
         VkWriteDescriptorSet writeSet = {};
         writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

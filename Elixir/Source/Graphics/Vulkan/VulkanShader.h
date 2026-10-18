@@ -33,8 +33,14 @@ namespace Elixir::Vulkan
         void BindTexture(const std::string& name, const Ref<Texture>& texture) override;
         void BindTextureSet(const std::string& name, const Ref<TextureSet>& set) override;
         void BindSampler(const std::string& name, const Ref<Sampler>& sampler) override;
-        void BindStorageBuffer(const std::string& name, const Ref<StorageBuffer>& buffer) override;
-        void BindStorageBuffer(const std::string& name, const Ref<DynamicStorageBuffer>& buffer) override;
+
+        /**
+         * @brief Bind a buffer after checking storage usage and device limits.
+         * @param name Shader storage resource binding name.
+         * @param buffer Buffer with StorageBuffer usage, including a vertex buffer.
+         */
+        void BindStorageBuffer(const std::string& name, const Ref<Buffer>& buffer) override;
+
         void BindConstantBuffer(const std::string& name, const Ref<UniformBuffer>& buffer) override;
 
         const std::vector<VkDescriptorSetLayout>& GetDescriptorSetLayouts() const { return m_DescriptorSetLayouts; }
@@ -60,14 +66,17 @@ namespace Elixir::Vulkan
             SShaderBinding binding,
             const Ref<Sampler>& sampler
         ) const;
+
+        /**
+         * @brief Build a storage descriptor from a validated buffer.
+         * @param binding Storage resource binding declared by the shader.
+         * @param buffer Buffer with validated storage usage and a valid byte range.
+         */
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding,
-            const Ref<StorageBuffer>& buffer
+            const Ref<Buffer>& buffer
         ) const;
-        VkWriteDescriptorSet GetWriteDescriptorSet(
-            SShaderBinding binding,
-            const Ref<DynamicStorageBuffer>& buffer
-        ) const;
+
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding,
             const Ref<UniformBuffer>& buffer
@@ -95,8 +104,7 @@ namespace Elixir::Vulkan
             SImageDescriptorValue,
             STextureDescriptorValue,
             Ref<Sampler>,
-            Ref<StorageBuffer>,
-            Ref<DynamicStorageBuffer>,
+            Ref<Buffer>,
             Ref<UniformBuffer>
         >;
 

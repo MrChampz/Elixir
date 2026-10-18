@@ -13,8 +13,8 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
     auto* context = VulkanTestContext::Get().GetGraphicsContext();
     ASSERT_TRUE(context->RunRenderTaskAndWait([&]
     {
-        GeometryPool source(*context, {300, 12, sizeof(SSkeletalMeshVertex)});
-        GeometryPool output(*context, {300, 12, sizeof(SStaticMeshVertex)});
+        GeometryPool source(*context, {300, 12, sizeof(SSkeletalMeshVertex), EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer});
+        GeometryPool output(*context, {300, 12, sizeof(SStaticMeshVertex), EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer});
         const auto prefixMesh = SkinningTests::MakeMesh();
         const auto mesh = SkinningTests::MakeMesh(129);
         ASSERT_TRUE(prefixMesh);
@@ -53,7 +53,9 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
                 second.Get()->VertexOffset, 4));
             auto compute = context->GetSecondaryCommandBuffer();
             compute->Begin();
-            ASSERT_TRUE(pass.Record(compute, batch, source.GetVertexBuffer(), output.GetVertexBuffer(),
+            ASSERT_TRUE(pass.Record(compute, batch,
+                source.GetVertexBuffer(),
+                output.GetVertexBuffer(),
                 EPipelineStage::Transfer, EPipelineAccess::TransferRead));
             compute->End();
             const auto cmd = context->GetUploadCommandBuffer();
@@ -102,6 +104,9 @@ TEST(VulkanSkinningTest, GeometryPoolRejectsMismatchedLayoutsAndExhaustion)
     ASSERT_TRUE(context->RunRenderTaskAndWait([&]
     {
         GeometryPool pool(*context, {6, 3, sizeof(SStaticMeshVertex)});
+        ASSERT_TRUE(pool.IsValid());
+        EXPECT_TRUE(HasAnyFlags(pool.GetVertexBuffer()->GetUsage(), EBufferUsage::VertexBuffer));
+        EXPECT_FALSE(HasAnyFlags(pool.GetVertexBuffer()->GetUsage(), EBufferUsage::StorageBuffer));
         auto mesh = SkinningTests::MakeMesh();
         ASSERT_TRUE(mesh);
         EXPECT_FALSE(pool.Upload(mesh->GetData()).IsValid());
@@ -120,6 +125,62 @@ TEST(VulkanSkinningTest, GeometryPoolRejectsMismatchedLayoutsAndExhaustion)
     }));
 }
 
+TEST(VulkanSkinningTest, GeometryPoolsUseExplicitStorageBindings)
+{
+    auto* context = VulkanTestContext::Get().GetGraphicsContext();
+    ASSERT_TRUE(context->RunRenderTaskAndWait([&]
+    {
+        GeometryPool storage(*context, {
+            3, 3, sizeof(SSkeletalMeshVertex),
+            EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer
+        });
+        ASSERT_TRUE(storage.IsValid());
+        ASSERT_TRUE(storage.GetVertexBuffer());
+        EXPECT_TRUE(HasAnyFlags(storage.GetVertexBuffer()->GetUsage(), EBufferUsage::VertexBuffer));
+        EXPECT_TRUE(HasAnyFlags(storage.GetVertexBuffer()->GetUsage(), EBufferUsage::StorageBuffer));
+        EXPECT_FALSE(HasAnyFlags(storage.GetVertexBuffer()->GetUsage(), EBufferUsage::IndexBuffer));
+
+        const auto buffer = StorageBuffer::Create(context, 256);
+        const auto dynamic = DynamicStorageBuffer::Create(context, 256);
+        ASSERT_TRUE(buffer && buffer->IsValid());
+        ASSERT_TRUE(dynamic && dynamic->IsValid());
+        const auto geometryUsage = EBufferUsage::VertexBuffer | EBufferUsage::IndexBuffer;
+        EXPECT_FALSE(HasAnyFlags(buffer->GetUsage(), geometryUsage));
+        EXPECT_FALSE(HasAnyFlags(dynamic->GetUsage(), geometryUsage));
+
+        auto info = StorageBuffer::CreateBufferInfo(256, nullptr);
+        info.Usage = EBufferUsage::VertexBuffer;
+        EXPECT_FALSE(StorageBuffer::Create(context, info));
+        GeometryPool invalid(*context, {3, 3, sizeof(SStaticMeshVertex),
+            EBufferUsage::StorageBuffer});
+        EXPECT_FALSE(invalid.IsValid());
+    }));
+}
+
+TEST(VulkanSkinningTest, RejectsVertexBuffersWithoutStorageUsage)
+{
+    auto* context = VulkanTestContext::Get().GetGraphicsContext();
+    ASSERT_TRUE(context->RunRenderTaskAndWait([&]
+    {
+        GeometryPool source(*context, {3, 3, sizeof(SSkeletalMeshVertex)});
+        GeometryPool output(*context, {3, 3, sizeof(SStaticMeshVertex)});
+        ASSERT_TRUE(source.IsValid());
+        ASSERT_TRUE(output.IsValid());
+        const auto mesh = SkinningTests::MakeMesh();
+        ASSERT_TRUE(mesh);
+        SkeletalMeshInstance instance(mesh);
+        SkinningBatch batch;
+        ASSERT_TRUE(batch.Append(*mesh, instance.GetModelPose(), 0, 0, 2));
+        ShaderLoader loader(context);
+        SkinningPass pass(*context, loader);
+        ASSERT_TRUE(pass.IsValid());
+        const auto cmd = context->GetUploadCommandBuffer();
+        cmd->Begin();
+        EXPECT_FALSE(pass.Record(cmd, batch, source.GetVertexBuffer(), output.GetVertexBuffer()));
+        cmd->End();
+    }));
+}
+
 TEST(VulkanSkinningTest, ProcessesOneThousandIndependentCharactersInOneBatch)
 {
     auto* context = VulkanTestContext::Get().GetGraphicsContext();
@@ -129,8 +190,8 @@ TEST(VulkanSkinningTest, ProcessesOneThousandIndependentCharactersInOneBatch)
         constexpr uint32_t vertexCount = 129;
         const auto mesh = SkinningTests::MakeMesh(vertexCount);
         ASSERT_TRUE(mesh);
-        GeometryPool source(*context, {vertexCount, 3, sizeof(SSkeletalMeshVertex)});
-        GeometryPool output(*context, {vertexCount * instanceCount, 3, sizeof(SStaticMeshVertex)});
+        GeometryPool source(*context, {vertexCount, 3, sizeof(SSkeletalMeshVertex), EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer});
+        GeometryPool output(*context, {vertexCount * instanceCount, 3, sizeof(SStaticMeshVertex), EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer});
         auto geometry = source.Upload(mesh->GetData());
         auto result = output.Allocate(vertexCount * instanceCount);
         ASSERT_TRUE(geometry.IsValid());
@@ -160,7 +221,9 @@ TEST(VulkanSkinningTest, ProcessesOneThousandIndependentCharactersInOneBatch)
         Ref<StagingBuffer> readback = CreateRef<Vulkan::VulkanStagingBuffer>(context, info);
         const auto cmd = context->GetUploadCommandBuffer();
         cmd->Begin();
-        ASSERT_TRUE(pass.Record(cmd, batch, source.GetVertexBuffer(), output.GetVertexBuffer(),
+        ASSERT_TRUE(pass.Record(cmd, batch,
+            source.GetVertexBuffer(),
+            output.GetVertexBuffer(),
             EPipelineStage::Transfer, EPipelineAccess::TransferRead));
         output.GetVertexBuffer()->Copy(cmd, readback);
         cmd->Flush();

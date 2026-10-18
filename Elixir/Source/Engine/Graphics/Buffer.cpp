@@ -156,9 +156,8 @@ namespace Elixir
 
     /* VertexBuffer */
 
-    const auto VERTEX_BUFFER_USAGE =
+    constexpr auto VERTEX_BUFFER_USAGE =
         EBufferUsage::VertexBuffer |
-        EBufferUsage::StorageBuffer |
         EBufferUsage::TransferDst |
         EBufferUsage::ShaderDeviceAddress;
 
@@ -178,10 +177,24 @@ namespace Elixir
         const void* data
     )
     {
+        return Create(context, CreateBufferInfo(size, data));
+    }
+
+    Ref<VertexBuffer> VertexBuffer::Create(
+        const GraphicsContext* context,
+        const SBufferCreateInfo& info
+    )
+    {
+        if (!HasAnyFlags(info.Usage, EBufferUsage::VertexBuffer))
+        {
+            EE_CORE_ERROR("VertexBuffer requires the vertex buffer usage flag.")
+            return nullptr;
+        }
+
         switch (context->GetAPI())
         {
             case EGraphicsAPI::Vulkan:
-                return CreateRef<Vulkan::VulkanVertexBuffer>(context, size, data);
+                return CreateRef<Vulkan::VulkanVertexBuffer>(context, info);
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;
@@ -296,7 +309,7 @@ namespace Elixir
 
     /* IndexBuffer */
 
-    const auto INDEX_BUFFER_USAGE = EBufferUsage::IndexBuffer |
+    constexpr auto INDEX_BUFFER_USAGE = EBufferUsage::IndexBuffer |
         EBufferUsage::TransferDst;
 
     void IndexBuffer::Bind(const Ref<CommandBuffer>& cmd) const
@@ -439,23 +452,35 @@ namespace Elixir
 
     /* StorageBuffer */
 
-    const auto STORAGE_BUFFER_USAGE =
+    constexpr auto STORAGE_BUFFER_USAGE =
         EBufferUsage::TransferSrc |
         EBufferUsage::StorageBuffer |
-        EBufferUsage::VertexBuffer |
-        EBufferUsage::IndexBuffer |
         EBufferUsage::TransferDst;
 
     Ref<StorageBuffer> StorageBuffer::Create(
         const GraphicsContext* context,
-        size_t size,
+        const size_t size,
         const void* data
     )
     {
+        return Create(context, CreateBufferInfo(size, data));
+    }
+
+    Ref<StorageBuffer> StorageBuffer::Create(
+        const GraphicsContext* context,
+        const SBufferCreateInfo& info
+    )
+    {
+        if (!HasAnyFlags(info.Usage, EBufferUsage::StorageBuffer))
+        {
+            EE_CORE_ERROR("StorageBuffer requires the storage buffer usage flag.")
+            return nullptr;
+        }
+
         switch (context->GetAPI())
         {
             case EGraphicsAPI::Vulkan:
-                return CreateRef<Vulkan::VulkanStorageBuffer>(context, size, data);
+                return CreateRef<Vulkan::VulkanStorageBuffer>(context, info);
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;
@@ -491,10 +516,8 @@ namespace Elixir
 
     /* DynamicStorageBuffer */
 
-    const auto DYNAMIC_STORAGE_BUFFER_USAGE =
+    constexpr auto DYNAMIC_STORAGE_BUFFER_USAGE =
         EBufferUsage::StorageBuffer |
-        EBufferUsage::VertexBuffer |
-        EBufferUsage::IndexBuffer |
         EBufferUsage::TransferDst;
 
     void DynamicStorageBuffer::UpdateData(
