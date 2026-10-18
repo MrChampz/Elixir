@@ -49,7 +49,8 @@ Dissolve::Dissolve()
 
     m_SkeletalMeshRenderer = CreateScope<SkeletalMeshRenderer>(
         *m_GraphicsContext,
-        GetMaterialSystem()
+        GetMaterialSystem(),
+        *m_ShaderLoader
     );
 
     s_LightingSetup = {
@@ -136,8 +137,9 @@ Dissolve::Dissolve()
             const auto& bounds = mesh->GetLocalBounds();
             m_CameraController->FrameBounds(bounds.Min, bounds.Max);
 
+            m_MeshInstance.SetMesh(mesh);
             if (!mesh->GetAnimations().empty())
-                m_SkeletalMeshRenderer->Play(mesh, mesh->GetAnimations().front());
+                m_MeshInstance.Play(mesh->GetAnimations().front());
         }
     }
 
@@ -230,7 +232,8 @@ void Dissolve::Render(const Timestep frameTime)
 
     m_GraphicsContext->Clear();
 
-    m_SkeletalMeshRenderer->BeginFrame(m_CameraController->GetCamera(), s_LightingSetup, frameTime.GetSeconds());
+    m_MeshInstance.Update(frameTime.GetSeconds());
+    m_SkeletalMeshRenderer->BeginFrame(m_CameraController->GetCamera(), s_LightingSetup);
     DrawGeometry();
     m_SkeletalMeshRenderer->EndFrame();
 
@@ -247,7 +250,7 @@ void Dissolve::DrawGeometry()
 {
     if (m_SkeletalMeshRenderer)
     {
-        m_SkeletalMeshRenderer->Render(mesh);
+        m_SkeletalMeshRenderer->Render(m_MeshInstance);
     }
 }
 

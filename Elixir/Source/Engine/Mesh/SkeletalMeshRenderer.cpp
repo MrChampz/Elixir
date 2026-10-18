@@ -5,7 +5,6 @@
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Materials/MaterialInstance.h>
 #include <Engine/Materials/MaterialSystem.h>
-#include <Engine/Mesh/MeshDrawList.h>
 
 #include <Engine/Mesh/StaticMesh.h>
 
@@ -42,12 +41,26 @@ namespace Elixir
 
     SkeletalMeshRenderer::SkeletalMeshRenderer(
         const GraphicsContext& context,
-        MaterialSystem& materialSystem
-    ) : m_MaterialSystem(materialSystem),
-        m_DrawBuffers(context),
-        m_Context(context),
-        m_FrameBuffers(context)
+        MaterialSystem& materialSystem,
+        const ShaderLoader& shaderLoader,
+        const SSkeletalMeshRendererConfig& config
+    ) : m_Config(config),
+        m_SkinningPass(context, shaderLoader),
+        m_Frames(context),
+        m_FrameBuffers(context),
+        m_GeometryPool(context, config.SourceGeometry),
+        m_MaterialSystem(materialSystem),
+        m_Context(context)
     {
+        if (m_GeometryPool.GetVertexStride() != sizeof(SSkeletalMeshVertex) ||
+            config.FrameGeometry.VertexStride != sizeof(SStaticMeshVertex) ||
+            config.BoneCapacity == 0)
+        {
+            EE_CORE_ERROR("SkeletalMeshRenderer requires skeletal source vertices, Surface output vertices, and bone capacity.")
+            m_Config.BoneCapacity = 0;
+            return;
+        }
+
         constexpr SSurfaceFrameData frameData;
         m_FrameBuffers.ForEach([&](Ref<UniformBuffer>& buffer)
         {
@@ -55,11 +68,21 @@ namespace Elixir
         });
     }
 
-    void SkeletalMeshRenderer::BeginFrame(
-        const Camera& camera,
-        const SMeshLighting& lighting,
-        const float deltaSeconds
-    )
+    SkeletalMeshRenderer::~SkeletalMeshRenderer()
+    {
+        const auto result = m_Context.RunRenderTaskAndWait([&]
+        {
+            m_Context.WaitForSubmittedFrames();
+        });
+
+        if (!result)
+        {
+            // The render queue can already be drained during application shutdown.
+            m_Context.WaitDeviceIdle();
+        }
+    }
+
+    void SkeletalMeshRenderer::BeginFrame(const Camera& camera, const SMeshLighting& lighting)
     {
         if (m_Recording)
         {
@@ -67,14 +90,28 @@ namespace Elixir
             return;
         }
 
-        for (auto& playback : m_Playbacks | std::views::values)
-            playback.Update(deltaSeconds);
+        if (m_Config.BoneCapacity == 0 ||
+            !m_SkinningPass.IsValid() ||
+            !m_GeometryPool.IsValid())
+            return;
+
+        auto& frame = m_Frames.GetCurrent();
+
+        if (!frame.Geometry)
+            frame.Geometry = CreateScope<GeometryPool>(m_Context, m_Config.FrameGeometry);
+
+        if (!frame.Geometry->IsValid()) return;
+
+        frame.Reset();
+        m_Batch.Reset();
+
+        std::erase_if(
+            m_SourceGeometry,
+            [](const auto& entry) { return entry.second.Mesh.expired(); }
+        );
 
         m_Recording = true;
-        m_DrawIndex = 0;
-
         const auto extent = m_Context.GetRenderTarget()->GetExtent();
-
         m_View = camera.GetViewMatrix();
 
         const auto lightDirection = glm::normalize(lighting.DirectionalLightDirection);
@@ -99,7 +136,7 @@ namespace Elixir
         frameBuffer->UpdateData(&frameData, sizeof(frameData));
 
         m_Scene = {};
-        m_FrameGeometry = {
+        SRenderGeometry geometry{
             .Pipeline = {
                 .VertexLayoutKey = reinterpret_cast<uintptr_t>(&GetMeshVertexLayout()),
                 .VertexLayout = &GetMeshVertexLayout(),
@@ -126,146 +163,77 @@ namespace Elixir
                 .Name = "environmentSampler",
                 .Sampler = lighting.Environment.Sampler,
             }},
+            .VertexBuffers = {{
+                .Buffer = frame.Geometry->GetVertexBuffer().get(),
+                .Binding = 0
+            }},
+            .IndexBuffer = m_GeometryPool.GetIndexBuffer().get(),
         };
+
+        frame.GeometryIndex = m_Scene.AddGeometry(std::move(geometry));
     }
 
-    bool SkeletalMeshRenderer::Play(
-        const Ref<const SkeletalMesh>& mesh,
-        Ref<const AnimationSequence> sequence,
-        const bool looping
+    bool SkeletalMeshRenderer::Render(
+        const SkeletalMeshInstance& instance,
+        const glm::mat4& transform
     )
     {
-        if (!mesh || !sequence || !mesh->GetSkeleton()->IsCompatible(*sequence->GetSkeleton()))
-        {
-            EE_CORE_ERROR("SkeletalMeshRenderer requires a mesh and a compatible animation.")
-            return false;
-        }
-
-        auto [it, inserted] = m_Playbacks.try_emplace(mesh.get(), mesh);
-
-        return it->second.Play(std::move(sequence), looping);
-    }
-
-    void SkeletalMeshRenderer::Stop(const Ref<const SkeletalMesh>& mesh)
-    {
-        if (mesh)
-            m_Playbacks.erase(mesh.get());
-    }
-
-    bool SkeletalMeshRenderer::Render(const Ref<const SkeletalMesh>& mesh)
-    {
-        if (!mesh) return false;
-
-        const auto found = m_Playbacks.find(mesh.get());
-        if (found != m_Playbacks.end())
-            return RenderPose(found->second);
-
-        return RenderPose(SkeletalMeshInstance(mesh));
-    }
-
-    bool SkeletalMeshRenderer::RenderPose(const SkeletalMeshInstance& meshInstance)
-    {
-        if (!m_Recording || !meshInstance.GetMesh())
+        if (!m_Recording || !instance.GetMesh())
         {
             EE_CORE_ERROR("SkeletalMeshRenderer requires an open frame and a mesh instance.")
             return false;
         }
 
-        std::vector<SStaticMeshVertex> vertices;
-        const auto& mesh = meshInstance.GetMesh();
+        const auto& mesh = instance.GetMesh();
 
-        if (!mesh->SkinVertices(meshInstance.GetModelPose(), vertices))
-            return false;
+        const auto* source = GetGeometry(mesh);
+        if (!source) return false;
 
         const auto& data = mesh->GetData();
+        auto& frame = m_Frames.GetCurrent();
+        auto allocation = frame.Geometry->Allocate(source->VertexCount);
 
-        std::vector<EMaterialBlendMode> blendModes;
-        blendModes.reserve(data.Materials.size());
+        const auto* output = allocation.Get();
+        if (!output) return false;
 
-        for (const auto& material : data.Materials)
-        {
-            const auto& blendMode = material
-                ? material->GetBlendMode()
-                : EMaterialBlendMode::Opaque;
-            blendModes.push_back(blendMode);
-        }
-
-        const auto draws = BuildMeshDrawList(
-            vertices,
-            data.Indices,
-            data.Sections,
-            blendModes,
-            m_View
+        const auto appended = m_Batch.Append(
+            *mesh,
+            instance.GetModelPose(),
+            source->VertexOffset,
+            output->VertexOffset,
+            m_Config.BoneCapacity
         );
 
-        auto& buffers = m_DrawBuffers.GetCurrent();
-        if (buffers.size() <= m_DrawIndex)
-            buffers.emplace_back();
+        if (!appended) return false;
 
-        auto& draw = buffers[m_DrawIndex];
-        if (draw.Mesh != mesh || !draw.Vertices || !draw.Indices)
+        for (const auto& section : data.Sections)
         {
-            draw.Mesh = mesh;
-            draw.Vertices = DynamicVertexBuffer::Create(
-                &m_Context,
-                vertices.size() * sizeof(SStaticMeshVertex)
-            );
-            draw.Indices = DynamicIndexBuffer::Create(
-                &m_Context,
-                draws.Indices.size() * sizeof(uint32_t)
-            );
-        }
+            const auto material = GetDefaultInstance(data.Materials[section.MaterialIndex]);
+            if (!material) continue;
 
-        if (!draw.Vertices ||
-            !draw.Indices ||
-            !draw.Vertices->IsValid() ||
-            !draw.Indices->IsValid())
-        {
-            EE_CORE_ERROR("SkeletalMeshRenderer failed to allocate draw buffers.")
-            return false;
-        }
-
-        draw.Vertices->UpdateData(
-            vertices.data(),
-            vertices.size() * sizeof(SStaticMeshVertex)
-        );
-
-        draw.Indices->UpdateData(
-            draws.Indices.data(),
-            draws.Indices.size() * sizeof(uint32_t)
-        );
-
-        auto geometry = m_FrameGeometry;
-        geometry.VertexBuffers = {{
-            .Buffer = draw.Vertices.get(),
-            .Binding = 0
-        }};
-        geometry.IndexBuffer = draw.Indices.get();
-
-        const auto geometryIndex = m_Scene.AddGeometry(std::move(geometry));
-        ++m_DrawIndex;
-
-        for (const auto& range : draws.Ranges)
-        {
-            const auto instance = GetDefaultInstance(data.Materials[range.MaterialIndex]);
-            if (!instance) continue;
+            const auto center = (section.LocalBounds.Min + section.LocalBounds.Max) * 0.5f;
+            const auto depth = -(m_View * transform * glm::vec4(center, 1)).z;
 
             m_Scene.Add({
                 .Pass = EMaterialPass::Surface,
-                .Material = instance,
-                .SortDepth = range.SortDepth,
-                .GeometryIndex = geometryIndex,
+                .Material = material,
+                .SortDepth = depth,
+                .GeometryIndex = frame.GeometryIndex,
                 .PushConstants = SMaterialPushConstants::Create(
-                    SSurfacePushConstants{},
+                    SSurfacePushConstants{ .Model = transform },
                     offsetof(SSurfacePushConstants, MaterialIndex)
                 ),
                 .IndexedDraw = SIndexedDrawCommand{
-                    .IndexCount = range.IndexCount,
-                    .FirstIndex = range.FirstIndex,
-                    .VertexOffset = 0,
+                    .IndexCount = section.IndexCount,
+                    .FirstIndex = source->IndexOffset + section.FirstIndex,
+                    .VertexOffset = output->VertexOffset + section.VertexOffset,
                 },
             });
         }
+
+        frame.Allocations.push_back(std::move(allocation));
+        frame.Meshes.push_back(mesh);
+
         return true;
     }
 
@@ -277,12 +245,50 @@ namespace Elixir
             return;
         }
 
-        m_MaterialSystem.Submit(std::move(m_Scene));
-        m_DrawBuffers.GetCurrent().resize(m_DrawIndex);
         m_Recording = false;
+
+        if (!m_Batch.GetJobs().empty())
+        {
+            const auto cmd = m_Context.GetSecondaryCommandBuffer();
+            if (!cmd) return;
+
+            cmd->Begin();
+            const auto success = m_SkinningPass.Record(
+                cmd,
+                m_Batch,
+                m_GeometryPool.GetVertexBuffer(),
+                m_Frames.GetCurrent().Geometry->GetVertexBuffer()
+            );
+
+            cmd->End();
+            if (!success) return;
+
+            m_Context.EnqueueSecondaryCommandBuffer(cmd);
+        }
+
+        m_MaterialSystem.Submit(std::move(m_Scene));
     }
 
-    Ref<MaterialInstance> SkeletalMeshRenderer::GetDefaultInstance(const Ref<Material>& material)
+    const SGeometry* SkeletalMeshRenderer::GetGeometry(const Ref<const SkeletalMesh>& mesh)
+    {
+        const auto found = m_SourceGeometry.find(mesh.get());
+        if (found != m_SourceGeometry.end() && !found->second.Mesh.expired())
+            return found->second.Allocation.Get();
+
+        auto allocation = m_GeometryPool.Upload(mesh->GetData());
+        if (!allocation.IsValid()) return nullptr;
+
+        auto [entry, inserted] = m_SourceGeometry.insert_or_assign(
+            mesh.get(),
+            SSourceGeometry{ mesh, std::move(allocation) }
+        );
+
+        return entry->second.Allocation.Get();
+    }
+
+    Ref<MaterialInstance> SkeletalMeshRenderer::GetDefaultInstance(
+        const Ref<Material>& material
+    )
     {
         if (!material) return nullptr;
 

@@ -34,6 +34,8 @@ namespace
         Ref<CommandBuffer> GetUploadCommandBuffer() const override { return nullptr; }
         void EnqueueSecondaryCommandBuffer(const Ref<CommandBuffer>&) const override {}
         Extent3D GetSwapchainExtent() const override { return {}; }
+        uint64_t GetMaxStorageBufferRange() const override { return 0; }
+        glm::uvec3 GetMaxComputeWorkGroupCount() const override { return {0, 0, 0}; }
 
     private:
         void ClearImage(const Ref<Image>&) override {}

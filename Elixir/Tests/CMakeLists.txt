@@ -1,7 +1,7 @@
 include(../../Utils.cmake)
 
 # Files
-file(GLOB_RECURSE TEST_SOURCES *.h *.cpp)
+file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS *.h *.cpp)
 add_executable(${PROJECT_NAME}.UnitTests ${TEST_SOURCES}
         Engine/GUI/InvalidationTest.cpp)
 
@@ -25,10 +25,11 @@ include (GoogleTest)
 # (SwiftShader) does not provide. Tag them with the "gpu" label via a separate
 # discovery pass so CI can skip them with `ctest -LE gpu` while still running
 # the pure unit tests (converters, initializers, traits, ...).
-set(GPU_TEST_FILTER "VulkanBufferTest.*:VulkanImageTest.*")
+set(GPU_TEST_FILTER "VulkanBufferTest.*:VulkanImageTest.*:VulkanSkinningTest.*")
 
 gtest_discover_tests(${PROJECT_NAME}.UnitTests
     TEST_FILTER "${GPU_TEST_FILTER}"
+    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
     PROPERTIES LABELS "gpu"
 )
 gtest_discover_tests(${PROJECT_NAME}.UnitTests

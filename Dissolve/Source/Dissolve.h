@@ -23,6 +23,7 @@ private:
     Scope<Environment> m_Environment;
 
     Scope<SkeletalMeshRenderer> m_SkeletalMeshRenderer;
+    SkeletalMeshInstance m_MeshInstance;
 
     Scope<ArcBallCameraController> m_CameraController;
 };

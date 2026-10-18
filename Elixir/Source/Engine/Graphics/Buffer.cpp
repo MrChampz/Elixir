@@ -440,6 +440,7 @@ namespace Elixir
     /* StorageBuffer */
 
     const auto STORAGE_BUFFER_USAGE =
+        EBufferUsage::TransferSrc |
         EBufferUsage::StorageBuffer |
         EBufferUsage::VertexBuffer |
         EBufferUsage::IndexBuffer |

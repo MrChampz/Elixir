@@ -4,10 +4,12 @@
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Mesh/GeometryAllocation.h>
 #include <Engine/Mesh/Mesh.h>
+#include <Engine/Mesh/StaticMesh.h>
 
 namespace Elixir
 {
     struct SStaticMeshData;
+    struct SSkeletalMeshData;
 
     /** @brief Identifies a contiguous geometry range in GeometryPool buffers. */
     struct SGeometry
@@ -23,10 +25,13 @@ namespace Elixir
     {
         uint32_t VertexCapacity = 4'000'000;
         uint32_t IndexCapacity = 12'000'000;
+
+        /** Byte stride of source or output vertices; the default is the Surface layout. */
+        uint32_t VertexStride = sizeof(SStaticMeshVertex);
     };
 
     /**
-     * @brief Owns shared GPU buffers used by static meshes.
+     * @brief Owns shared GPU geometry buffers for upload, compute, and drawing.
      *
      * Geometry remains valid until all submitted draws using it complete.
      */
@@ -36,7 +41,7 @@ namespace Elixir
 
     public:
         /**
-         * @brief Create shared GPU buffers for static mesh geometry.
+         * @brief Create shared GPU buffers with the configured vertex stride.
          * @param context Graphics context that owns the buffers.
          * @param config Capacity of the shared buffers.
          */
@@ -52,16 +57,46 @@ namespace Elixir
          */
         GeometryAllocation Upload(const SStaticMeshData& data);
 
+        /**
+         * @brief Upload skeletal source vertices and indices; the pool stride must match them.
+         * @return An allocation that owns the uploaded geometry, or an empty allocation
+         * when the data is invalid or the pool lacks capacity.
+         */
+        GeometryAllocation Upload(const SSkeletalMeshData& data);
+
+        /** @brief Reserve geometry without uploading vertices; zero indices are allowed. */
+        GeometryAllocation Allocate(uint32_t vertexCount, uint32_t indexCount = 0);
+
+        /**
+         * @brief Invalidate all allocations and reuse their storage.
+         * @pre All GPU work using this pool completed, including work in other frame slots.
+         */
+        void Reset();
+
+        /** @brief Check whether both GPU buffers were created. */
+        bool IsValid() const;
+
         /** @brief Get geometry metadata for a valid handle. */
         const SGeometry* Get(SHandle<SGeometry> handle) const;
 
         /** @brief Get the shared vertex buffer. */
-        const Ref<DynamicVertexBuffer>& GetVertexBuffer() const { return m_VertexBuffer; }
+        const Ref<StorageBuffer>& GetVertexBuffer() const { return m_VertexBuffer; }
 
         /** @brief Get the shared index buffer. */
         const Ref<DynamicIndexBuffer>& GetIndexBuffer() const { return m_IndexBuffer; }
 
+        /** @brief Get the configured byte stride of vertices. */
+        uint32_t GetVertexStride() const { return m_VertexStride; }
+
     private:
+        // Upload geometry bytes after validating the configured vertex stride.
+        GeometryAllocation UploadData(
+            const void* vertices,
+            uint32_t vertexCount,
+            uint32_t stride,
+            std::span<const uint32_t> indices
+        );
+
         struct SGeometryPoolRange
         {
             uint32_t Offset = 0;
@@ -123,7 +158,8 @@ namespace Elixir
 
         Ref<SGeometryPoolState> m_State;
 
-        Ref<DynamicVertexBuffer> m_VertexBuffer;
+        Ref<StorageBuffer> m_VertexBuffer;
+        uint32_t m_VertexStride = 0;
         Ref<DynamicIndexBuffer> m_IndexBuffer;
         std::vector<SGeometry> m_Geometries;
         std::vector<uint32_t> m_Generations;

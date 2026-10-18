@@ -2,6 +2,7 @@
 #include "GeometryPool.h"
 
 #include <Engine/Mesh/StaticMesh.h>
+#include <Engine/Mesh/SkeletalMesh.h>
 #include <Engine/Graphics/GraphicsContext.h>
 
 namespace Elixir
@@ -15,44 +16,138 @@ namespace Elixir
         })),
         m_GraphicsContext(context)
     {
-        EE_CORE_ASSERT(m_State->VertexCapacity > 0, "GeometryPool vertex capacity must be greater than 0.")
-        EE_CORE_ASSERT(m_State->IndexCapacity > 0, "GeometryPool index capacity must be greater than 0.")
+        m_VertexStride = config.VertexStride;
 
-        m_VertexBuffer = DynamicVertexBuffer::Create(
+        if (config.VertexCapacity == 0 ||
+            config.IndexCapacity == 0 ||
+            config.VertexStride == 0 ||
+            config.VertexStride % sizeof(uint32_t) != 0 ||
+            uint64_t(config.VertexCapacity) * config.VertexStride > UINT32_MAX)
+        {
+            EE_CORE_ERROR("GeometryPool requires nonzero capacities and a word-aligned stride within the 32-bit byte range.")
+            return;
+        }
+
+        m_VertexBuffer = StorageBuffer::Create(
             &context,
-            m_State->VertexCapacity * sizeof(SStaticMeshVertex)
+            size_t(config.VertexCapacity) * config.VertexStride
         );
 
         m_IndexBuffer = DynamicIndexBuffer::Create(
             &context,
-            m_State->IndexCapacity * sizeof(uint32_t),
-            nullptr,
-            EIndexType::UInt32
+            size_t(config.IndexCapacity) * sizeof(uint32_t)
         );
 
-        EE_CORE_ASSERT(m_VertexBuffer, "GeometryPool failed to create the vertex buffer.")
-        EE_CORE_ASSERT(m_IndexBuffer, "GeometryPool failed to create the index buffer.")
+        if (!IsValid())
+            EE_CORE_ERROR("GeometryPool failed to create its GPU buffers.")
+    }
 
-        m_VertexBuffer->SetLayout(GetMeshVertexLayout());
+    bool GeometryPool::IsValid() const
+    {
+        return m_VertexBuffer && m_VertexBuffer->IsValid() &&
+            m_IndexBuffer && m_IndexBuffer->IsValid();
     }
 
     GeometryAllocation GeometryPool::Upload(const SStaticMeshData& data)
     {
-        if (data.Vertices.empty() || data.Indices.empty())
+        if (data.Vertices.size() > UINT32_MAX) return {};
+        return UploadData(
+            data.Vertices.data(),
+            (uint32_t)data.Vertices.size(),
+            sizeof(SStaticMeshVertex),
+            data.Indices
+        );
+    }
+
+    GeometryAllocation GeometryPool::Upload(const SSkeletalMeshData& data)
+    {
+        if (data.Vertices.size() > UINT32_MAX) return {};
+        return UploadData(
+            data.Vertices.data(),
+            (uint32_t)data.Vertices.size(),
+            sizeof(SSkeletalMeshVertex),
+            data.Indices
+        );
+    }
+
+    GeometryAllocation GeometryPool::UploadData(
+        const void* vertices,
+        const uint32_t vertexCount,
+        const uint32_t stride,
+        const std::span<const uint32_t> indices
+    )
+    {
+        if (!vertices ||
+            vertexCount == 0 ||
+            indices.empty() ||
+            indices.size() > UINT32_MAX ||
+            stride != m_VertexStride
+        )
         {
-            EE_CORE_ERROR("GeometryPool cannot upload empty geometry.")
+            EE_CORE_ERROR("GeometryPool upload requires nonempty geometry matching its vertex stride.")
             return {};
         }
 
-        if (data.Vertices.size() > std::numeric_limits<uint32_t>::max() ||
-            data.Indices.size() > std::numeric_limits<uint32_t>::max())
+        auto allocation = Allocate(vertexCount, (uint32_t)indices.size());
+        const auto* geometry = allocation.Get();
+        if (!geometry) return {};
+
+        const auto staging = StagingBuffer::Create(
+            &m_GraphicsContext,
+            size_t(vertexCount) * stride,
+            vertices
+        );
+
+        if (!staging || !staging->IsValid())
         {
-            EE_CORE_ERROR("GeometryPool geometry exceeds the supported element count.")
+            EE_CORE_ERROR("GeometryPool failed to create its upload buffer.")
             return {};
         }
 
-        const uint32_t vertexCount = (uint32_t)data.Vertices.size();
-        const uint32_t indexCount = (uint32_t)data.Indices.size();
+        const auto cmd = m_GraphicsContext.GetUploadCommandBuffer();
+        if (!cmd) return {};
+
+        cmd->Begin();
+        m_VertexBuffer->Barrier(
+            cmd,
+            EPipelineStage::Transfer,
+            EPipelineAccess::TransferWrite
+        );
+
+        SBufferCopy copy{
+            .SrcOffset = 0,
+            .DstOffset = size_t(geometry->VertexOffset) * stride,
+            .Size = size_t(vertexCount) * stride
+        };
+        staging->Copy(cmd, m_VertexBuffer, std::span{ &copy, 1 });
+
+        m_VertexBuffer->Barrier(
+            cmd,
+            EPipelineStage::ComputeShader | EPipelineStage::VertexInput,
+            EPipelineAccess::ShaderRead | EPipelineAccess::VertexAttributeRead
+        );
+
+        cmd->Flush();
+
+        m_IndexBuffer->UpdateData(
+            indices.data(),
+            indices.size_bytes(),
+            size_t(geometry->IndexOffset) * sizeof(uint32_t)
+        );
+
+        return allocation;
+    }
+
+    GeometryAllocation GeometryPool::Allocate(
+        const uint32_t vertexCount,
+        const uint32_t indexCount
+    )
+    {
+        if (!IsValid() || vertexCount == 0)
+        {
+            EE_CORE_ERROR("GeometryPool allocation requires valid buffers and a nonzero vertex count.")
+            return {};
+        }
 
         const auto vertexOffset = AllocateRange(
             m_State->FreeVertexRanges,
@@ -60,42 +155,28 @@ namespace Elixir
             m_State->VertexCapacity,
             vertexCount
         );
+
         if (!vertexOffset)
         {
-            EE_CORE_ERROR("GeometryPool has no free vertex range for '{}'.", data.Name)
+            EE_CORE_ERROR("GeometryPool has no free vertex range.")
             return {};
         }
 
-        const auto indexOffset = AllocateRange(
-            m_State->FreeIndexRanges,
-            m_State->NextIndexOffset,
-            m_State->IndexCapacity,
-            indexCount
-        );
-        if (!indexOffset)
-        {
-            FreeRange(
-                m_State->FreeVertexRanges,
-                {
-                    .Offset = *vertexOffset,
-                    .Count = vertexCount,
-                }
+        const auto indexOffset = indexCount == 0
+            ? std::optional<uint32_t>(0)
+            : AllocateRange(
+                m_State->FreeIndexRanges,
+                m_State->NextIndexOffset,
+                m_State->IndexCapacity,
+                indexCount
             );
 
-            EE_CORE_ERROR("GeometryPool has no free index range for '{}'.", data.Name)
+        if (!indexOffset)
+        {
+            FreeRange(m_State->FreeVertexRanges, { *vertexOffset, vertexCount });
+            EE_CORE_ERROR("GeometryPool has no free index range.")
             return {};
         }
-
-        m_VertexBuffer->UpdateData(
-            data.Vertices.data(),
-            data.Vertices.size() * sizeof(SStaticMeshVertex),
-            (size_t)*vertexOffset * sizeof(SStaticMeshVertex)
-        );
-        m_IndexBuffer->UpdateData(
-            data.Indices.data(),
-            data.Indices.size() * sizeof(uint32_t),
-            (size_t)*indexOffset * sizeof(uint32_t)
-        );
 
         uint32_t slotIndex;
         if (!m_State->FreeSlots.empty())
@@ -125,6 +206,25 @@ namespace Elixir
                 .Generation = slot.Generation,
             }
         );
+    }
+
+    void GeometryPool::Reset()
+    {
+        m_State->NextVertexOffset = 0;
+        m_State->NextIndexOffset = 0;
+        m_State->FreeVertexRanges.clear();
+        m_State->FreeIndexRanges.clear();
+        m_State->FreeSlots.clear();
+
+        for (uint32_t i = 0; i < m_State->Slots.size(); ++i)
+        {
+            auto& slot = m_State->Slots[i];
+            slot.Allocated = false;
+            slot.Geometry = {};
+            ++slot.Generation;
+
+            m_State->FreeSlots.push_back(i);
+        }
     }
 
     const SGeometry* GeometryPool::Get(const SHandle<SGeometry> handle) const
@@ -240,6 +340,8 @@ namespace Elixir
         const SGeometryPoolRange range
     )
     {
+        if (range.Count == 0) return;
+
         auto it = std::lower_bound(
             freeRanges.begin(),
             freeRanges.end(),

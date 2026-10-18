@@ -29,7 +29,7 @@ namespace Elixir
          * @pre All arguments remain valid for the renderer lifetime.
          */
         StaticMeshRenderer(
-            const GraphicsContext* context,
+            const GraphicsContext& context,
             MaterialSystem& materialSystem,
             const GeometryPool& geometryPool
         );
@@ -51,12 +51,15 @@ namespace Elixir
         /**
          * @brief Record draw commands for one static mesh.
          *
-         * Each section produces one indexed surface draw.
+         * Each section produces one indexed surface draw using the model-to-world transform.
          *
          * @param mesh Static mesh to draw.
          * @pre BeginFrame was called and EndFrame was not called yet.
          */
-        void Render(const Ref<StaticMesh>& mesh);
+        bool Render(
+            const Ref<const StaticMesh>& mesh,
+            const glm::mat4& transform = glm::mat4(1)
+        );
 
         /**
          * @brief Submit collected static mesh draws to MaterialSystem.
@@ -67,15 +70,19 @@ namespace Elixir
       private:
         Ref<MaterialInstance> GetDefaultInstance(const Ref<Material>& material);
 
-        MaterialSystem& m_MaterialSystem;
-        const GeometryPool& m_GeometryPool;
+        FrameSlotState<Ref<UniformBuffer>> m_FrameBuffers;
 
-        Rendering::MaterialRenderScene m_Scene;
+        const GeometryPool& m_GeometryPool;
         uint32_t m_GeometryIndex = UINT32_MAX;
+
+        MaterialSystem& m_MaterialSystem;
+        Rendering::MaterialRenderScene m_Scene;
         std::unordered_map<const Material*, Ref<MaterialInstance>> m_DefaultInstances;
+
         glm::mat4 m_View{ 1.0f };
 
-        const GraphicsContext* m_Context = nullptr;
-        FrameSlotState<Ref<UniformBuffer>> m_FrameBuffers;
+        bool m_Recording = false;
+
+        const GraphicsContext& m_Context;
     };
 }

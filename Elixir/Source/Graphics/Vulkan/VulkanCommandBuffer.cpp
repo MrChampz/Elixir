@@ -14,8 +14,9 @@ namespace Elixir::Vulkan
         const GraphicsContext* context,
         const VkCommandPool pool,
         const ECommandBufferLevel level
-    ) : CommandBuffer(context, level), m_Ended(true), m_CommandPool(pool),
-        m_InheritanceInfo(nullptr)
+    ) : CommandBuffer(context, level),
+        m_Ended(true),
+        m_CommandPool(pool)
     {
         EE_PROFILE_ZONE_SCOPED()
         m_GraphicsContext = static_cast<const VulkanGraphicsContext*>(context);
@@ -25,12 +26,6 @@ namespace Elixir::Vulkan
     VulkanCommandBuffer::~VulkanCommandBuffer()
     {
         EE_PROFILE_ZONE_SCOPED()
-
-        if (m_InheritanceInfo)
-        {
-            delete m_InheritanceInfo;
-            m_InheritanceInfo = nullptr;
-        }
     }
 
     void VulkanCommandBuffer::Begin(const SRenderingInfo& info)
@@ -40,38 +35,40 @@ namespace Elixir::Vulkan
 
         m_RenderingInfo = info;
 
-        if (IsSecondary())
+        VkCommandBufferInheritanceInfo inheritanceInfo{};
+        inheritanceInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
+
+        VkCommandBufferInheritanceRenderingInfo renderingInfo{};
+        VkFormat colorFormat = VK_FORMAT_UNDEFINED;
+
+        const auto hasAttachment = info.ColorAttachment || info.DepthStencilAttachment;
+
+        if (IsSecondary() && hasAttachment)
         {
+            renderingInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_RENDERING_INFO;
+            renderingInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
             if (info.ColorAttachment)
             {
-                const auto colorFormat = Converters::GetFormat(info.ColorAttachment->GetFormat());
-                const auto depthFormat =
-                    info.DepthStencilAttachment
-                        ? Converters::GetFormat(info.DepthStencilAttachment->GetFormat())
-                        : VK_FORMAT_UNDEFINED;
+                colorFormat = Converters::GetFormat(info.ColorAttachment->GetFormat());
 
-                VkCommandBufferInheritanceRenderingInfo renderingInfo = {};
-                renderingInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_RENDERING_INFO;
                 renderingInfo.colorAttachmentCount = 1;
                 renderingInfo.pColorAttachmentFormats = &colorFormat;
-                renderingInfo.depthAttachmentFormat = depthFormat;
-                renderingInfo.viewMask = 0;
-                renderingInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+            }
 
-                m_InheritanceInfo = new VkCommandBufferInheritanceInfo();
-                m_InheritanceInfo->sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
-                m_InheritanceInfo->pNext = &renderingInfo;
-            }
-            else
+            if (info.DepthStencilAttachment)
             {
-                EE_CORE_ASSERT(false, "Secondary command buffers must have at least one color attachment!")
+                renderingInfo.depthAttachmentFormat =
+                    Converters::GetFormat(info.DepthStencilAttachment->GetFormat());
             }
+
+            inheritanceInfo.pNext = &renderingInfo;
         }
 
         VkCommandBufferBeginInfo beginInfo = {};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.pNext = nullptr;
-        beginInfo.pInheritanceInfo = m_InheritanceInfo;
+        beginInfo.pInheritanceInfo = &inheritanceInfo;
         beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
         VK_CHECK_RESULT(vkBeginCommandBuffer(m_CommandBuffer, &beginInfo));
