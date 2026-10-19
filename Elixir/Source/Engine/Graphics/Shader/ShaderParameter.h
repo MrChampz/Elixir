@@ -180,7 +180,19 @@ namespace Elixir
     {
         friend class Shader;
       public:
-        ShaderConstantBuffer(const std::string& name, uint32_t set, uint32_t binding);
+        /**
+         * @brief Describe a shader constant buffer and its declared capacity.
+         * @param name Shader resource name.
+         * @param set Descriptor set index.
+         * @param binding Binding index within the set.
+         * @param size Reflected byte size, including layout padding.
+         */
+        ShaderConstantBuffer(
+            const std::string& name,
+            uint32_t set,
+            uint32_t binding,
+            uint32_t size
+        );
 
         ShaderConstantBuffer(const ShaderConstantBuffer&) = default;
         ShaderConstantBuffer(ShaderConstantBuffer&&) noexcept = default;
@@ -191,7 +203,10 @@ namespace Elixir
         const std::string& GetName() const { return m_Name; }
         uint32_t GetSet() const { return m_Set; }
         uint32_t GetBinding() const { return m_Binding; }
+
+        /** @brief Get the reflected byte size, including layout padding. */
         uint32_t GetSize() const { return m_Size; }
+
         const std::vector<ShaderConstant>& GetConstants() const { return m_Constants; }
         EShaderStage GetShaderStages() const { return m_Stages; }
 
@@ -204,6 +219,7 @@ namespace Elixir
         std::vector<ShaderConstant> m_Constants;
         EShaderStage m_Stages = EShaderStage::None;
 
+        /** Reflected block size, including layout padding. */
         uint32_t m_Size = 0;
     };
 

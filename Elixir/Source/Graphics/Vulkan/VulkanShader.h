@@ -27,6 +27,12 @@ namespace Elixir::Vulkan
             size_t size
         ) override;
 
+        /**
+         * @brief Update a mappable constant buffer, or create one when none is bound.
+         * @param name Shader constant resource binding name.
+         * @param data Bytes to upload; must not be null.
+         * @param size Number of bytes to upload, within the bound buffer capacity.
+         */
         void SetConstantBuffer(const std::string& name, void* data, size_t size) override;
 
         void BindImage(const std::string& name, const Ref<Image>& image) override;
@@ -41,7 +47,13 @@ namespace Elixir::Vulkan
          */
         void BindStorageBuffer(const std::string& name, const Ref<Buffer>& buffer) override;
 
-        void BindConstantBuffer(const std::string& name, const Ref<UniformBuffer>& buffer) override;
+
+        /**
+         * @brief Bind a buffer after checking uniform usage, capacity, and device limits.
+         * @param name Shader constant resource binding name.
+         * @param buffer Buffer with UniformBuffer usage and sufficient capacity for the resource.
+         */
+        void BindConstantBuffer(const std::string& name, const Ref<Buffer>& buffer) override;
 
         const std::vector<VkDescriptorSetLayout>& GetDescriptorSetLayouts() const { return m_DescriptorSetLayouts; }
         std::vector<VkDescriptorSet> GetDescriptorSets() const;
@@ -68,18 +80,13 @@ namespace Elixir::Vulkan
         ) const;
 
         /**
-         * @brief Build a storage descriptor from a validated buffer.
-         * @param binding Storage resource binding declared by the shader.
-         * @param buffer Buffer with validated storage usage and a valid byte range.
+         * @brief Build a buffer descriptor using the shader resource type.
+         * @param binding Uniform or storage resource binding declared by the shader.
+         * @param buffer Buffer with validated usage and a valid byte range.
          */
         VkWriteDescriptorSet GetWriteDescriptorSet(
             SShaderBinding binding,
             const Ref<Buffer>& buffer
-        ) const;
-
-        VkWriteDescriptorSet GetWriteDescriptorSet(
-            SShaderBinding binding,
-            const Ref<UniformBuffer>& buffer
         ) const;
 
         struct SImageDescriptorValue
@@ -104,8 +111,7 @@ namespace Elixir::Vulkan
             SImageDescriptorValue,
             STextureDescriptorValue,
             Ref<Sampler>,
-            Ref<Buffer>,
-            Ref<UniformBuffer>
+            Ref<Buffer>
         >;
 
         using DescriptorSetState = FrameSlotPendingState<
