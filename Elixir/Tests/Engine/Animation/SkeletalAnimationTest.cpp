@@ -341,3 +341,242 @@ TEST(SkeletalMeshTest, IndependentVertexTypesPreserveSurfaceAttributesDuringSkin
     EXPECT_EQ(vertices[0].Tangent, glm::vec4(1, 0, 0, -1));
     EXPECT_EQ(mesh->GetData().Vertices[0].Position, glm::vec3(2, 1, 0));
 }
+
+TEST(SkeletalMeshInstanceTest, CrossFadeAdvancesBothSequencesAndPreservesTheInitialPose)
+{
+    auto mesh = SkeletalMesh::Create(MakeData());
+    SkeletalMeshInstance instance(mesh);
+    auto target = AnimationSequence::Create("LowerHand", mesh->GetSkeleton(), 4, {
+        { .BoneIndex = 1, .Translations = {{ 0, { 0, 9, 0 } }, { 4, { 0, 13, 0 } }} },
+    });
+    ASSERT_TRUE(instance.Play(MakeSequence(mesh->GetSkeleton())));
+    ASSERT_TRUE(instance.Update(0.5f));
+    ASSERT_TRUE(instance.Play(target, 2.0f));
+    EXPECT_TRUE(instance.IsTransitioning());
+    EXPECT_FLOAT_EQ(instance.GetTime(), 0.0f);
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 1.5f, 0 });
+    ASSERT_TRUE(instance.Update(0.5f));
+    // Source at 1 second: y=2. Target at 0.5 seconds: y=9.5. Weight: 0.25.
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 3.875f, 0 });
+    ASSERT_TRUE(instance.Update(1.5f));
+    EXPECT_FALSE(instance.IsTransitioning());
+    EXPECT_FLOAT_EQ(instance.GetTime(), 2.0f);
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 11, 0 });
+    ASSERT_TRUE(instance.Update(0.5f));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 11.5f, 0 });
+}
+
+TEST(SkeletalMeshInstanceTest, CrossFadeBlendsLocalTranslationScaleAndRotationBeforeHierarchy)
+{
+    auto mesh = SkeletalMesh::Create(MakeData());
+    SkeletalMeshInstance instance(mesh);
+    const auto rotation = glm::angleAxis(glm::radians(120.0f), glm::vec3(0, 0, 1));
+    auto target = AnimationSequence::Create("Turn", mesh->GetSkeleton(), 2, {
+        { .BoneIndex = 0, .Translations = {{ 0, { 6, 0, 0 } }},
+          .Rotations = {{ 0, -rotation }}, .Scales = {{ 0, { 3, 3, 3 } }} },
+    });
+    ASSERT_TRUE(instance.Play(target, 2.0f));
+    ASSERT_TRUE(instance.Update(1.0f));
+    ExpectPosition(instance.GetLocalPose()[0].Translation, { 4, 0, 0 });
+    ExpectPosition(instance.GetLocalPose()[0].Scale, { 2, 2, 2 });
+    const auto expectedRotation = glm::angleAxis(glm::radians(60.0f), glm::vec3(0, 0, 1));
+    EXPECT_NEAR(std::abs(glm::dot(instance.GetLocalPose()[0].Rotation, expectedRotation)),
+        1.0f, 1e-5f);
+    // The unanimated child retains its local reference pose and inherits the blended root.
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 1, 0 });
+    ExpectPosition(glm::vec3(instance.GetModelPose()[1][3]), { 4 - std::sqrt(3.0f), 1, 0 });
+    std::vector<SStaticMeshVertex> vertices;
+    ASSERT_TRUE(mesh->SkinVertices(instance.GetModelPose(), vertices));
+    ExpectPosition(vertices[0].Position, { 4 - std::sqrt(3.0f), 1, 0 });
+}
+
+TEST(SkeletalMeshInstanceTest, InterruptedCrossFadeStartsFromTheVisiblePose)
+{
+    auto mesh = SkeletalMesh::Create(MakeData());
+    SkeletalMeshInstance instance(mesh);
+    auto first = AnimationSequence::Create("First", mesh->GetSkeleton(), 0, {
+        { .BoneIndex = 1, .Translations = {{ 0, { 0, 5, 0 } }} },
+    });
+    auto second = AnimationSequence::Create("Second", mesh->GetSkeleton(), 0, {
+        { .BoneIndex = 1, .Translations = {{ 0, { 0, 9, 0 } }} },
+    });
+    ASSERT_TRUE(instance.Play(first, 2.0f));
+    ASSERT_TRUE(instance.Update(1.0f));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 3, 0 });
+    ASSERT_TRUE(instance.Play(second, 2.0f));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 3, 0 });
+    ASSERT_TRUE(instance.Update(0.0f));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 3, 0 });
+    ASSERT_TRUE(instance.Update(1.0f));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 6, 0 });
+    ASSERT_TRUE(instance.Update(1.0f));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 9, 0 });
+    EXPECT_FALSE(instance.IsTransitioning());
+    EXPECT_FALSE(instance.IsPlaying());
+}
+
+TEST(SkeletalMeshInstanceTest, PauseAndResumeControlTransitionTime)
+{
+    auto mesh = SkeletalMesh::Create(MakeData());
+    SkeletalMeshInstance instance(mesh);
+    auto target = AnimationSequence::Create("Still", mesh->GetSkeleton(), 0, {
+        { .BoneIndex = 1, .Translations = {{ 0, { 0, 5, 0 } }} },
+    });
+    ASSERT_TRUE(instance.Play(target, 2.0f));
+    ASSERT_TRUE(instance.Update(0.5f));
+    instance.Pause();
+    ASSERT_TRUE(instance.Update(10.0f));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 2, 0 });
+    EXPECT_TRUE(instance.IsTransitioning());
+    instance.Resume();
+    EXPECT_TRUE(instance.IsPlaying());
+    ASSERT_TRUE(instance.Update(0.5f));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 3, 0 });
+    ASSERT_TRUE(instance.Update(10.0f));
+    EXPECT_FALSE(instance.IsPlaying());
+    EXPECT_FALSE(instance.IsTransitioning());
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 5, 0 });
+}
+
+TEST(SkeletalMeshInstanceTest, NonloopingTargetFinishesOnlyAfterTheFade)
+{
+    auto mesh = SkeletalMesh::Create(MakeData());
+    SkeletalMeshInstance instance(mesh);
+    ASSERT_TRUE(instance.Play(MakeSequence(mesh->GetSkeleton()), 4.0f, false));
+    ASSERT_TRUE(instance.Update(2.0f));
+    EXPECT_TRUE(instance.IsPlaying());
+    EXPECT_TRUE(instance.IsTransitioning());
+    EXPECT_FLOAT_EQ(instance.GetTime(), 2.0f);
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 2, 0 });
+    ASSERT_TRUE(instance.Update(2.0f));
+    EXPECT_FALSE(instance.IsPlaying());
+    EXPECT_FALSE(instance.IsTransitioning());
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 3, 0 });
+}
+
+TEST(SkeletalMeshInstanceTest, CrossFadeWrapsSourceAndTargetIndependently)
+{
+    auto mesh = SkeletalMesh::Create(MakeData());
+    SkeletalMeshInstance instance(mesh);
+    auto target = AnimationSequence::Create("Target", mesh->GetSkeleton(), 1, {
+        { .BoneIndex = 1, .Translations = {{ 0, { 0, 5, 0 } }, { 1, { 0, 9, 0 } }} },
+    });
+    ASSERT_TRUE(instance.Play(MakeSequence(mesh->GetSkeleton())));
+    ASSERT_TRUE(instance.Update(1.5f));
+    ASSERT_TRUE(instance.Play(target, 3.0f));
+    ASSERT_TRUE(instance.Update(1.5f));
+    EXPECT_FLOAT_EQ(instance.GetTime(), 0.5f);
+    // Source wraps to t=1 (y=2); target wraps to t=0.5 (y=7).
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 4.5f, 0 });
+}
+
+TEST(SkeletalMeshInstanceTest, CrossFadeClampsNonloopingSourceAndSupportsImmediateSwitch)
+{
+    auto mesh = SkeletalMesh::Create(MakeData());
+    SkeletalMeshInstance instance(mesh);
+    auto target = AnimationSequence::Create("Target", mesh->GetSkeleton(), 0, {
+        { .BoneIndex = 1, .Translations = {{ 0, { 0, 9, 0 } }} },
+    });
+    ASSERT_TRUE(instance.Play(MakeSequence(mesh->GetSkeleton()), false));
+    ASSERT_TRUE(instance.Update(1.5f));
+    ASSERT_TRUE(instance.Play(target, 2.0f));
+    ASSERT_TRUE(instance.Update(1.0f));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 6, 0 });
+    ASSERT_TRUE(instance.Play(target, 0.0f));
+    EXPECT_FALSE(instance.IsTransitioning());
+    EXPECT_FALSE(instance.IsPlaying());
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 9, 0 });
+}
+
+TEST(SkeletalMeshInstanceTest, SeekStopManualPoseAndMeshReplacementCancelTransitions)
+{
+    auto mesh = SkeletalMesh::Create(MakeData());
+    SkeletalMeshInstance instance(mesh);
+    auto sequence = MakeSequence(mesh->GetSkeleton());
+    ASSERT_TRUE(instance.Play(sequence, 2.0f));
+    ASSERT_TRUE(instance.Seek(1.0f));
+    EXPECT_FALSE(instance.IsTransitioning());
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 2, 0 });
+    ASSERT_TRUE(instance.Play(sequence, 2.0f));
+    instance.Stop();
+    EXPECT_FALSE(instance.IsTransitioning());
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 1, 0 });
+    auto pose = instance.GetLocalPose();
+    pose[1].Translation = { 0, 7, 0 };
+    ASSERT_TRUE(instance.Play(sequence, 2.0f));
+    ASSERT_TRUE(instance.SetLocalPose(pose));
+    EXPECT_FALSE(instance.IsTransitioning());
+    EXPECT_FALSE(instance.IsPlaying());
+    ASSERT_TRUE(instance.Play(sequence, 2.0f));
+    ASSERT_TRUE(instance.Update(1.0f));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 4.5f, 0 });
+    instance.SetMesh(mesh);
+    EXPECT_FALSE(instance.IsTransitioning());
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 1, 0 });
+    ASSERT_TRUE(instance.Play(sequence, 2.0f));
+    instance.SetMesh(nullptr);
+    EXPECT_FALSE(instance.IsTransitioning());
+    EXPECT_TRUE(instance.GetLocalPose().empty());
+}
+
+TEST(SkeletalMeshInstanceTest, InvalidFadeRequestsPreserveAnActiveTransition)
+{
+    auto mesh = SkeletalMesh::Create(MakeData());
+    SkeletalMeshInstance instance(mesh);
+    const auto sequence = MakeSequence(mesh->GetSkeleton());
+    ASSERT_TRUE(instance.Play(sequence, 2.0f));
+    ASSERT_TRUE(instance.Update(0.5f));
+    const auto before = instance.GetLocalPose()[1].Translation;
+    EXPECT_FALSE(instance.Play(sequence, -1.0f));
+    EXPECT_FALSE(instance.Play(sequence, std::numeric_limits<float>::infinity()));
+    EXPECT_FALSE(instance.Play(sequence, std::numeric_limits<float>::quiet_NaN()));
+    EXPECT_FALSE(instance.Play(nullptr, 1.0f));
+    auto incompatible = AnimationSequence::Create("Other",
+        Skeleton::Create("Other", {{ .Name = "Other" }}), 0, {});
+    EXPECT_FALSE(instance.Play(incompatible, 1.0f));
+    EXPECT_FALSE(instance.Update(-1.0f));
+    EXPECT_FALSE(instance.Seek(std::numeric_limits<float>::quiet_NaN()));
+    EXPECT_TRUE(instance.IsTransitioning());
+    EXPECT_FLOAT_EQ(instance.GetTime(), 0.5f);
+    ExpectPosition(instance.GetLocalPose()[1].Translation, before);
+    ASSERT_TRUE(instance.Update(0.5f));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 1.5f, 0 });
+}
+
+TEST(SkeletalMeshInstanceTest, SingularBlendedScalePreservesPoseAndTransitionProgress)
+{
+    auto mesh = SkeletalMesh::Create(MakeData());
+    SkeletalMeshInstance instance(mesh);
+    auto target = AnimationSequence::Create("Mirror", mesh->GetSkeleton(), 0, {
+        { .BoneIndex = 0, .Scales = {{ 0, { -1, 1, 1 } }} },
+    });
+    ASSERT_TRUE(instance.Play(target, 2.0f));
+    EXPECT_FALSE(instance.Update(1.0f));
+    EXPECT_TRUE(instance.IsTransitioning());
+    EXPECT_FLOAT_EQ(instance.GetTime(), 0.0f);
+    ExpectPosition(instance.GetLocalPose()[0].Scale, { 1, 1, 1 });
+    ASSERT_TRUE(instance.Update(0.5f));
+    ExpectPosition(instance.GetLocalPose()[0].Scale, { 0.5f, 1, 1 });
+    ASSERT_TRUE(instance.Update(1.5f));
+    EXPECT_FALSE(instance.IsTransitioning());
+    ExpectPosition(instance.GetLocalPose()[0].Scale, { -1, 1, 1 });
+}
+
+TEST(SkeletalMeshInstanceTest, CrossFadeUsesMeshSpecificDefaultsAndIndependentInstanceState)
+{
+    auto data = MakeData();
+    for (const auto& bone : data.Skeleton->GetBones())
+        data.ReferencePose.push_back(bone.ReferenceTransform);
+    data.ReferencePose[0].Translation = { 10, 0, 0 };
+    auto mesh = SkeletalMesh::Create(std::move(data));
+    SkeletalMeshInstance first(mesh), second(mesh);
+    auto sequence = MakeSequence(mesh->GetSkeleton());
+    ASSERT_TRUE(first.Play(sequence, 2.0f));
+    ASSERT_TRUE(second.Play(sequence, 4.0f));
+    ASSERT_TRUE(first.Update(1.0f));
+    ASSERT_TRUE(second.Update(1.0f));
+    ExpectPosition(first.GetLocalPose()[1].Translation, { 0, 1.5f, 0 });
+    ExpectPosition(second.GetLocalPose()[1].Translation, { 0, 1.25f, 0 });
+    ExpectPosition(first.GetLocalPose()[0].Translation, { 10, 0, 0 });
+    ExpectPosition(second.GetLocalPose()[0].Translation, { 10, 0, 0 });
+}

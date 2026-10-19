@@ -222,13 +222,13 @@ namespace Elixir::SpirV
                         type = EConstantType::Bool;
                         break;
                     case spirv_cross::SPIRType::Int:
-                        type = GetIntConstantType(baseType);
+                        type = GetIntConstantType(memberType);
                         break;
                     case spirv_cross::SPIRType::UInt:
-                        type = GetUIntConstantType(baseType);
+                        type = GetUIntConstantType(memberType);
                         break;
                     case spirv_cross::SPIRType::Float:
-                        type = GetFloatConstantType(baseType);
+                        type = GetFloatConstantType(memberType);
                         break;
                     default:
                         EE_CORE_ASSERT(false, "Unknown Constant Type!");
@@ -299,13 +299,13 @@ namespace Elixir::SpirV
                         type = EConstantType::Bool;
                         break;
                     case spirv_cross::SPIRType::Int:
-                        type = GetIntConstantType(baseType);
+                        type = GetIntConstantType(memberType);
                         break;
                     case spirv_cross::SPIRType::UInt:
-                        type = GetUIntConstantType(baseType);
+                        type = GetUIntConstantType(memberType);
                         break;
                     case spirv_cross::SPIRType::Float:
-                        type = GetFloatConstantType(baseType);
+                        type = GetFloatConstantType(memberType);
                         break;
                     default:
                         EE_CORE_ASSERT(false, "Unknown Constant Type!");
@@ -371,13 +371,13 @@ namespace Elixir::SpirV
                         type = EConstantType::Bool;
                         break;
                     case spirv_cross::SPIRType::Int:
-                        type = GetIntConstantType(baseType);
+                        type = GetIntConstantType(memberType);
                         break;
                     case spirv_cross::SPIRType::UInt:
-                        type = GetUIntConstantType(baseType);
+                        type = GetUIntConstantType(memberType);
                         break;
                     case spirv_cross::SPIRType::Float:
-                        type = GetFloatConstantType(baseType);
+                        type = GetFloatConstantType(memberType);
                         break;
                     default:
                         EE_CORE_ASSERT(false, "Unknown Constant Type!");

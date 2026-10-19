@@ -40,6 +40,17 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
         for (int frame = 0; frame < 3; ++frame)
         {
             SkeletalMeshInstance firstInstance(mesh), secondInstance(mesh);
+            if (frame > 0)
+            {
+                auto animation = AnimationSequence::Create("Blend", mesh->GetSkeleton(), 2, {
+                    { .BoneIndex = 0, .Translations = {{ 0, { 2, 1, -1 } }},
+                      .Rotations = {{ 0, glm::angleAxis(1.0f, glm::vec3(0, 0, 1)) }},
+                      .Scales = {{ 0, { 2, 3, 1 } }} },
+                });
+                ASSERT_TRUE(firstInstance.Play(animation, 2.0f));
+                ASSERT_TRUE(firstInstance.Update(float(frame) * 0.5f));
+                ASSERT_TRUE(firstInstance.IsTransitioning());
+            }
             auto pose = secondInstance.GetLocalPose();
             pose[0].Scale = {-2, 3, 0.5f};
             pose[0].Translation = {float(frame), 2, -1};

@@ -6,6 +6,8 @@
 #include <Engine/Core/Entrypoint.h>
 #include <Engine/Aether/Manager.h>
 
+#include <glm/gtc/matrix_transform.hpp>
+
 #include <Engine/Materials/MaterialGraph.h>
 #include <Engine/Materials/MaterialInstance.h>
 #include <Engine/Materials/MaterialSystem.h>
@@ -130,7 +132,7 @@ Dissolve::Dissolve()
             EE_CORE_ERROR("Dissolve particle emitter 'FlameCore' was not found.")
         }
 
-        if (auto loaded = MeshLoaderRegistry::LoadSkeletalMesh("./Assets/Meshes/phoenix_bird/scene.gltf"))
+        if (auto loaded = MeshLoaderRegistry::LoadSkeletalMesh("./Assets/Meshes/Fox/Fox.glb"))
         {
             mesh = std::move(*loaded);
 
@@ -139,7 +141,11 @@ Dissolve::Dissolve()
 
             m_MeshInstance.SetMesh(mesh);
             if (!mesh->GetAnimations().empty())
-                m_MeshInstance.Play(mesh->GetAnimations().front());
+            {
+                const auto& animation = mesh->GetAnimations().front();
+                if (m_MeshInstance.Play(animation))
+                    EE_CORE_INFO("Animation demo: playing '{}'.", animation->GetName())
+            }
         }
     }
 
@@ -197,6 +203,9 @@ Dissolve::Dissolve()
     EE_CORE_ASSERT(submitted, "The particle system instance was submitted more than once.")
 
     m_GraphicsContext->SetClearColor({ 0.015f, 0.025f, 0.06f, 1.0f });
+
+    // Start the demo clock after loading assets so the first animation remains visible.
+    m_Timer = Timer{};
 }
 
 Dissolve::~Dissolve()
@@ -232,7 +241,7 @@ void Dissolve::Render(const Timestep frameTime)
 
     m_GraphicsContext->Clear();
 
-    m_MeshInstance.Update(frameTime.GetSeconds());
+    UpdateAnimation(frameTime.GetSeconds());
     m_SkeletalMeshRenderer->BeginFrame(m_CameraController->GetCamera(), s_LightingSetup);
     DrawGeometry();
     m_SkeletalMeshRenderer->EndFrame();
@@ -246,11 +255,50 @@ void Dissolve::OnEvent(Event& event)
     m_CameraController->ProcessEvent(event);
 }
 
+void Dissolve::UpdateAnimation(const float deltaSeconds)
+{
+    const auto& instanceMesh = m_MeshInstance.GetMesh();
+    if (!instanceMesh) return;
+
+    const auto& animations = instanceMesh->GetAnimations();
+    if (animations.empty()) return;
+
+    constexpr float animationInterval = 2.0f;
+    constexpr float fadeDuration = 0.6f;
+    float remaining = deltaSeconds;
+
+    // Split updates at each switch so transitions keep the same timing at any frame rate.
+    while (remaining > 0.0f)
+    {
+        const auto step = std::min(remaining, animationInterval - m_AnimationTime);
+        if (!m_MeshInstance.Update(step)) return;
+
+        remaining -= step;
+        m_AnimationTime += step;
+        if (m_AnimationTime < animationInterval) continue;
+
+        m_AnimationTime = 0.0f;
+        const auto next = (m_AnimationIndex + 1) % animations.size();
+        if (animations.size() > 1 && m_MeshInstance.Play(animations[next], fadeDuration))
+        {
+            EE_CORE_INFO("Animation demo: '{}' -> '{}' over {} seconds.",
+                animations[m_AnimationIndex]->GetName(), animations[next]->GetName(), fadeDuration)
+            m_AnimationIndex = next;
+        }
+    }
+}
+
 void Dissolve::DrawGeometry()
 {
-    if (m_SkeletalMeshRenderer)
+    if (m_SkeletalMeshRenderer && m_MeshInstance.GetMesh())
     {
-        m_SkeletalMeshRenderer->Render(m_MeshInstance);
+        // Show the demo from an angle that keeps the head, tail, and legs visible.
+        const auto& bounds = m_MeshInstance.GetMesh()->GetLocalBounds();
+        const auto center = (bounds.Min + bounds.Max) * 0.5f;
+        const auto transform = glm::translate(glm::mat4(1), center) *
+            glm::rotate(glm::mat4(1), glm::radians(135.0f), glm::vec3(0, 1, 0)) *
+            glm::translate(glm::mat4(1), -center);
+        m_SkeletalMeshRenderer->Render(m_MeshInstance, transform);
     }
 }
 
