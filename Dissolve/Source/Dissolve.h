@@ -35,8 +35,21 @@ class Dissolve final : public Elixir::Application
 
     Scope<SkeletalMeshRenderer> m_SkeletalMeshRenderer;
     Scope<SkeletalMeshInstance> m_MeshInstance;
+    Scope<SkeletalMeshInstance> m_ComparisonInstance;
 
     Scope<AnimationControllerInstance> m_AnimationController;
+    Scope<AnimationControllerInstance> m_ComparisonController;
+    Ref<const BlendSpace> m_LocomotionSpace;
+
+    /** Common phase of the reference clip's left-foot support marker. */
+    float m_ContactPhase = 0.0f;
+    std::atomic<float> m_AnimationPhase = 0.0f;
+    std::atomic<bool> m_AnimationPaused = false;
+    std::atomic<bool> m_StepAnimation = false;
+    std::atomic<bool> m_SeekContact = false;
+    bool m_PauseKeyPressed = false;
+    bool m_StepKeyPressed = false;
+    bool m_ContactKeyPressed = false;
 
     /** Input sampled on the application thread and consumed on the rendering thread. */
     std::atomic<float> m_RequestedForward = 0.0f;
@@ -48,10 +61,10 @@ class Dissolve final : public Elixir::Application
 
     /** Persistent forward coordinate selected with the arrow keys on the application thread.
      */
-    float m_ManualForward = 0.0f;
+    float m_ManualForward = -0.75f;
     std::atomic<float> m_RequestedStrafe = 0.0f;
     std::atomic<float> m_AnimationStrafe = 0.0f;
-    float m_ManualStrafe = 0.0f;
+    float m_ManualStrafe = -1.5f;
 
     Scope<ArcBallCameraController> m_CameraController;
 };

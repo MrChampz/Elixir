@@ -11,7 +11,12 @@ namespace Elixir
         virtual ~BlendSpace();
 
         /**
-         * @brief Sample weighted local poses at a shared normalized cycle phase.
+         * @brief Sample weighted local poses at a shared cycle phase.
+         *
+         * Matching marker tracks align contacts using a fixed reference sequence. Clips with
+         * missing or incompatible tracks retain normalized time. Changing weights never
+         * changes the reference timeline. Marker intervals wrap across the cycle boundary.
+         *
          * @param values One finite coordinate per axis, in axis order.
          * @param phase Finite cycle phase, clamped to [0, 1].
          * @param output Receives the pose; unchanged on failure.
@@ -58,8 +63,33 @@ namespace Elixir
          * @param name Asset name.
          * @param skeleton Compatible skeleton shared by all samples.
          * @param dimensionCount Positive number of input coordinates.
+         * @param synchronizationSequence Fixed marker reference; null uses normalized time.
          */
-        BlendSpace(std::string name, Ref<const Skeleton> skeleton, size_t dimensionCount);
+        BlendSpace(
+            std::string name,
+            Ref<const Skeleton> skeleton,
+            size_t dimensionCount,
+            Ref<const AnimationSequence> synchronizationSequence = nullptr
+        );
+
+        /**
+         * @brief Select the first marked sequence in a stable sample order.
+         * @tparam TSamples Container of samples exposing a Sequence reference.
+         * @param samples Validated samples with non-null sequences.
+         * @return The fixed reference, or null when no clip has markers.
+         */
+        template<typename TSamples>
+        static Ref<const AnimationSequence> FindSynchronizationSequence(
+            const TSamples& samples
+        )
+        {
+            for (const auto& sample : samples)
+            {
+                if (!sample.Sequence->GetSyncMarkers().empty())
+                    return sample.Sequence;
+            }
+            return nullptr;
+        }
 
         /**
          * @brief Resolve contributing samples using the concrete asset's geometry.
@@ -76,5 +106,6 @@ namespace Elixir
         std::string m_Name;
         Ref<const Skeleton> m_Skeleton;
         size_t m_DimensionCount;
+        Ref<const AnimationSequence> m_SynchronizationSequence;
     };
 }

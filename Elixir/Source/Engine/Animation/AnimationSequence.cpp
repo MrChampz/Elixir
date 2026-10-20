@@ -61,13 +61,38 @@ namespace Elixir
         std::string name,
         Ref<const Skeleton> skeleton,
         const float duration,
-        std::vector<SBoneAnimationTrack> tracks
+        std::vector<SBoneAnimationTrack> tracks,
+        std::vector<SAnimationSyncMarker> syncMarkers
     )
     {
         if (!skeleton || !std::isfinite(duration) || duration < 0)
         {
             EE_CORE_ERROR("AnimationSequence requires a skeleton and a finite nonnegative duration.")
             return nullptr;
+        }
+
+        for (const auto& marker : syncMarkers)
+        {
+            if (!std::isfinite(marker.Time))
+            {
+                EE_CORE_ERROR("AnimationSequence sync marker times must be finite.")
+                return nullptr;
+            }
+        }
+
+        std::ranges::sort(syncMarkers, {}, &SAnimationSyncMarker::Time);
+        std::unordered_set<std::string> markerNames;
+        float previousMarkerTime = -1.0f;
+        for (const auto& marker : syncMarkers)
+        {
+            if (marker.Name.empty() || !markerNames.insert(marker.Name).second ||
+                !std::isfinite(marker.Time) || marker.Time < 0.0f ||
+                marker.Time >= duration || marker.Time <= previousMarkerTime)
+            {
+                EE_CORE_ERROR("AnimationSequence contains invalid or duplicate sync markers.")
+                return nullptr;
+            }
+            previousMarkerTime = marker.Time;
         }
 
         std::unordered_set<uint32_t> indices;
@@ -114,7 +139,8 @@ namespace Elixir
             std::move(name),
             std::move(skeleton),
             duration,
-            std::move(tracks)
+            std::move(tracks),
+            std::move(syncMarkers)
         ));
     }
 
@@ -122,11 +148,87 @@ namespace Elixir
         std::string name,
         Ref<const Skeleton> skeleton,
         const float duration,
-        std::vector<SBoneAnimationTrack> tracks
+        std::vector<SBoneAnimationTrack> tracks,
+        std::vector<SAnimationSyncMarker> syncMarkers
     ) : m_Name(std::move(name)),
         m_Skeleton(std::move(skeleton)),
         m_Duration(duration),
-        m_Tracks(std::move(tracks)) {}
+        m_Tracks(std::move(tracks)),
+        m_SyncMarkers(std::move(syncMarkers)) {}
+
+    Ref<AnimationSequence> AnimationSequence::WithSyncMarkers(
+        std::vector<SAnimationSyncMarker> syncMarkers
+    ) const
+    {
+        return Create(m_Name, m_Skeleton, m_Duration, m_Tracks, std::move(syncMarkers));
+    }
+
+    bool AnimationSequence::CanSynchronizeWith(const AnimationSequence& reference) const
+    {
+        const auto count = m_SyncMarkers.size();
+        if (count == 0 || count != reference.m_SyncMarkers.size())
+            return false;
+
+        const auto first = std::ranges::find(
+            m_SyncMarkers, reference.m_SyncMarkers.front().Name, &SAnimationSyncMarker::Name
+        );
+        if (first == m_SyncMarkers.end())
+            return false;
+
+        const auto offset = size_t(first - m_SyncMarkers.begin());
+        for (size_t i = 0; i < count; ++i)
+        {
+            if (m_SyncMarkers[(offset + i) % count].Name != reference.m_SyncMarkers[i].Name)
+                return false;
+        }
+        return true;
+    }
+
+    float AnimationSequence::GetSynchronizedTime(
+        const float phase,
+        const AnimationSequence& reference
+    ) const
+    {
+        if (!std::isfinite(phase))
+        {
+            EE_CORE_ERROR("Animation synchronization phase must be finite.")
+            return 0.0f;
+        }
+
+        const auto normalized = std::clamp(phase, 0.0f, 1.0f);
+        if (this == &reference || !CanSynchronizeWith(reference))
+            return normalized * m_Duration;
+
+        const auto& markers = reference.m_SyncMarkers;
+        const auto count = markers.size();
+        const auto time = double(normalized) * reference.m_Duration;
+        const auto upper = std::ranges::upper_bound(markers, time, {}, &SAnimationSyncMarker::Time);
+        const auto next = upper == markers.end() ? size_t(0) : size_t(upper - markers.begin());
+        const auto previous = (next + count - 1) % count;
+        auto start = double(markers[previous].Time);
+        auto end = double(markers[next].Time);
+        if (upper == markers.begin())
+            start -= reference.m_Duration;
+        else if (upper == markers.end())
+            end += reference.m_Duration;
+
+        const auto first = std::ranges::find(
+            m_SyncMarkers, markers.front().Name, &SAnimationSyncMarker::Name
+        );
+        const auto offset = size_t(first - m_SyncMarkers.begin());
+        const auto targetStart = double(m_SyncMarkers[(offset + previous) % count].Time);
+        auto targetEnd = double(m_SyncMarkers[(offset + next) % count].Time);
+        if (targetEnd <= targetStart)
+            targetEnd += m_Duration;
+
+        const auto weight = std::clamp((time - start) / (end - start), 0.0, 1.0);
+        const auto targetTime = targetStart + (targetEnd - targetStart) * weight;
+        const auto wrapped = std::fmod(targetTime, double(m_Duration));
+        if (wrapped == 0.0 && targetTime > 0.0 && normalized > 0.0f)
+            return m_Duration;
+
+        return float(wrapped);
+    }
 
     bool AnimationSequence::Sample(
         const float time,

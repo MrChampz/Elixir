@@ -45,12 +45,15 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
             if (frame > 0)
             {
                 auto animation = AnimationSequence::Create("Blend", mesh->GetSkeleton(), 2, {
-                    { .BoneIndex = 0, .Translations = {{ 0, { 2, 1, -1 } }},
+                    { .BoneIndex = 0, .Translations = {
+                        { 0, { 2, 1, -1 } }, { 2, { 4, 3, -1 } },
+                      },
                       .Rotations = {{ 0, glm::angleAxis(1.0f, glm::vec3(0, 0, 1)) }},
                       .Scales = {{ 0, { 2, 3, 1 } }} },
-                });
+                }, {{ "LeftFootPlant", 0.2f }, { "RightFootPlant", 1.2f }});
                 const auto reference = AnimationSequence::Create(
-                    "Reference", mesh->GetSkeleton(), 1, {}
+                    "Reference", mesh->GetSkeleton(), 1, {},
+                    {{ "LeftFootPlant", 0.25f }, { "RightFootPlant", 0.75f }}
                 );
                 const auto space = BlendSpace1D::Create("Locomotion", {
                     { 0.0f, reference }, { 1.0f, animation },
@@ -58,7 +61,9 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
                 if (frame == 3)
                 {
                     const auto lateral = AnimationSequence::Create("Lateral", mesh->GetSkeleton(),
-                        3, {{ .BoneIndex = 1, .Translations = {{ 0, { -2, 1, 3 } }} }});
+                        3, {{ .BoneIndex = 1, .Translations = {
+                            { 0, { -2, 1, 3 } }, { 3, { 1, 4, 3 } },
+                        } }}, {{ "RightFootPlant", 0.3f }, { "LeftFootPlant", 1.8f }});
                     const auto plane = BlendSpace2D::Create("Plane", {
                         {{ 0, 0 }, reference }, {{ 1, 0 }, animation }, {{ 0, 1 }, lateral },
                     });

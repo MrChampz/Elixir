@@ -187,7 +187,8 @@ namespace Elixir
       : BlendSpace(
             std::move(name),
             samples.front().Sequence->GetSkeleton(),
-            2
+            2,
+            FindSynchronizationSequence(samples)
         ),
         m_Samples(std::move(samples)) {}
 

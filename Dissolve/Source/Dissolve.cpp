@@ -147,9 +147,15 @@ Dissolve::Dissolve()
             mesh = std::move(*loaded);
 
             const auto& bounds = mesh->GetLocalBounds();
-            m_CameraController->FrameBounds(bounds.Min, bounds.Max);
+            const auto separation = (bounds.Max.y - bounds.Min.y) * 0.7f;
+            m_CameraController->FrameBounds(
+                bounds.Min - glm::vec3(separation, 0, 0),
+                bounds.Max + glm::vec3(separation, 0, 0)
+            );
+            m_CameraController->SetDistance((bounds.Max.y - bounds.Min.y) * 2.0f);
 
             m_MeshInstance = CreateScope<SkeletalMeshInstance>(mesh);
+            m_ComparisonInstance = CreateScope<SkeletalMeshInstance>(mesh);
             InitializeAnimationController();
         }
     }
@@ -218,19 +224,39 @@ Dissolve::Dissolve()
 
     const auto panel = CreateRef<GUI::Canvas>();
     const auto instructions = CreateRef<GUI::TextBlock>(
-        "WASD: move | Shift/R: run | Arrows: blend X/Y | Space: idle"
+        "WASD/Arrows: direction | 1: walk/run | 2: forward/strafe | 3: back/strafe"
     );
     instructions->SetFontSize(20.0f);
     panel->AddChild(instructions)
         .SetAnchors(GUI::SAnchors::TopLeft())
         .SetPosition({20, 20})
-        .SetSize({650, 30});
-    m_AnimationStatus = CreateRef<GUI::TextBlock>("BlendSpace2D | X: 0.00 | Y: 0.00");
+        .SetSize({1100, 30});
+    const auto playbackInstructions = CreateRef<GUI::TextBlock>(
+        "P: pause | N: next frame | F: left-foot contact | Space: idle | Shift/R: run"
+    );
+    playbackInstructions->SetFontSize(18.0f);
+    panel->AddChild(playbackInstructions)
+        .SetAnchors(GUI::SAnchors::TopLeft())
+        .SetPosition({20, 50})
+        .SetSize({1000, 30});
+    for (const auto& [position, caption] : std::array{
+        std::pair{0.25f, "NORMALIZED TIME"}, std::pair{0.75f, "SYNC MARKERS"}
+    })
+    {
+        const auto label = CreateRef<GUI::TextBlock>(caption);
+        label->SetFontSize(24.0f);
+        panel->AddChild(label)
+            .SetAnchors({position, 0, position, 0})
+            .SetAlignment({0.5f, 0})
+            .SetPosition({0, 130})
+            .SetSize({260, 35});
+    }
+    m_AnimationStatus = CreateRef<GUI::TextBlock>("KayKit sync comparison");
     m_AnimationStatus->SetFontSize(20.0f);
     panel->AddChild(m_AnimationStatus)
         .SetAnchors(GUI::SAnchors::TopLeft())
-        .SetPosition({20, 55})
-        .SetSize({650, 30});
+        .SetPosition({20, 85})
+        .SetSize({1100, 30});
     m_GUIManager->SetRoot(panel);
 
     m_GraphicsContext->SetClearColor({0.015f, 0.025f, 0.06f, 1.0f});
@@ -256,9 +282,11 @@ void Dissolve::OnGUI(const Timestep frameTime)
     if (m_AnimationStatus)
         m_AnimationStatus->SetText(
             std::format(
-                "BlendSpace2D | X: {:.2f} | Y: {:.2f}",
+                "X: {:.2f} | Y: {:.2f} | Phase: {:.3f} | {}",
                 m_AnimationStrafe.load(std::memory_order_relaxed),
-                m_AnimationForward.load(std::memory_order_relaxed)
+                m_AnimationForward.load(std::memory_order_relaxed),
+                m_AnimationPhase.load(std::memory_order_relaxed),
+                m_AnimationPaused.load(std::memory_order_relaxed) ? "PAUSED" : "PLAYING"
             )
         );
 }
@@ -267,6 +295,41 @@ void Dissolve::Prepare(const Timestep frameTime)
 {
     EE_PROFILE_ZONE_SCOPED()
     Application::Prepare(frameTime);
+
+    const auto pause = InputManager::IsKeyPressed(EE_KEY_P);
+    if (pause && !m_PauseKeyPressed)
+        m_AnimationPaused.store(!m_AnimationPaused.load(std::memory_order_relaxed),
+            std::memory_order_relaxed);
+    m_PauseKeyPressed = pause;
+    const auto stepFrame = InputManager::IsKeyPressed(EE_KEY_N);
+    if (stepFrame && !m_StepKeyPressed)
+    {
+        m_AnimationPaused.store(true, std::memory_order_relaxed);
+        m_StepAnimation.store(true, std::memory_order_relaxed);
+    }
+    m_StepKeyPressed = stepFrame;
+    const auto contact = InputManager::IsKeyPressed(EE_KEY_F);
+    if (contact && !m_ContactKeyPressed)
+    {
+        m_AnimationPaused.store(true, std::memory_order_relaxed);
+        m_SeekContact.store(true, std::memory_order_relaxed);
+    }
+    m_ContactKeyPressed = contact;
+    if (InputManager::IsKeyPressed(EE_KEY_1))
+    {
+        m_ManualStrafe = 0.0f;
+        m_ManualForward = 2.25f;
+    }
+    if (InputManager::IsKeyPressed(EE_KEY_2))
+    {
+        m_ManualStrafe = 1.0f;
+        m_ManualForward = 1.0f;
+    }
+    if (InputManager::IsKeyPressed(EE_KEY_3))
+    {
+        m_ManualStrafe = -1.5f;
+        m_ManualForward = -0.75f;
+    }
 
     const auto forward = float(InputManager::IsKeyPressed(EE_KEY_UP)) -
                          float(InputManager::IsKeyPressed(EE_KEY_DOWN));
@@ -310,7 +373,7 @@ void Dissolve::Render(const Timestep frameTime)
     DrawGeometry();
     m_SkeletalMeshRenderer->EndFrame();
 
-    aether.Render(m_CameraController->GetCamera(), m_SceneTarget);
+    // Keep particle effects out of the locomotion comparison.
 }
 
 void Dissolve::OnEvent(Event& event)
@@ -345,50 +408,70 @@ void Dissolve::InitializeAnimationController()
         EE_CORE_ERROR("KayKit locomotion requires all six directional animations.")
         return;
     }
-    const auto blendSpace = BlendSpace2D::Create(
-        "KayKitLocomotion", {
-                                {{0, 0}, idle},
-                                {{0, 1.5f}, walk},
-                                {{0, 3}, run},
-                                {{0, -1.5f}, backward},
-                                {{-3, 0}, left},
-                                {{3, 0}, right},
-                            }
-    );
-    if (!blendSpace)
-        return;
-
-    const auto controller = AnimationController::Create({
-        .Name = "KayKitLocomotion",
-        .InitialState = "Locomotion",
-        .Parameters = {
-            { "Strafe", 0.0f },
-            { "Forward", 0.0f }
-        },
-        .States = {{
-            .Name = "Locomotion",
-            .BlendSpace = blendSpace,
-            .BlendParameters = { "Strafe", "Forward" },
-        }},
+    // Authored at the lowest ankle position during full support; see the comparison notes.
+    const auto syncWalk = walk->WithSyncMarkers({
+        { "LeftFootPlant", 0.3217778f }, { "RightFootPlant", 0.8622223f },
     });
-    if (!controller)
+    const auto syncRun = run->WithSyncMarkers({
+        { "LeftFootPlant", 0.1146667f }, { "RightFootPlant", 0.5146667f },
+    });
+    const auto syncBackward = backward->WithSyncMarkers({
+        { "LeftFootPlant", 0.8160000f }, { "RightFootPlant", 0.2826667f },
+    });
+    const auto syncLeft = left->WithSyncMarkers({
+        { "LeftFootPlant", 0.1493333f }, { "RightFootPlant", 0.5613333f },
+    });
+    const auto syncRight = right->WithSyncMarkers({
+        { "LeftFootPlant", 0.1573333f }, { "RightFootPlant", 0.5453333f },
+    });
+    if (!syncWalk || !syncRun || !syncBackward || !syncLeft || !syncRight)
         return;
 
-    auto instance = CreateScope<AnimationControllerInstance>(
-        controller,
-        *m_MeshInstance
+    const auto blendSpace = BlendSpace2D::Create("KayKitSynchronized", {
+        {{ 0, 0 }, idle }, {{ 0, 1.5f }, syncWalk }, {{ 0, 3 }, syncRun },
+        {{ 0, -1.5f }, syncBackward }, {{ -3, 0 }, syncLeft }, {{ 3, 0 }, syncRight },
+    });
+    const auto comparisonSpace = BlendSpace2D::Create("KayKitNormalized", {
+        {{ 0, 0 }, idle }, {{ 0, 1.5f }, walk }, {{ 0, 3 }, run },
+        {{ 0, -1.5f }, backward }, {{ -3, 0 }, left }, {{ 3, 0 }, right },
+    });
+    if (!blendSpace || !comparisonSpace)
+        return;
+
+    const auto makeController = [](Ref<const BlendSpace> space)
+    {
+        return AnimationController::Create({
+            .Name = "KayKitLocomotion",
+            .InitialState = "Locomotion",
+            .Parameters = {{ "Strafe", 0.0f }, { "Forward", 0.0f }},
+            .States = {{
+                .Name = "Locomotion", .BlendSpace = std::move(space),
+                .BlendParameters = { "Strafe", "Forward" },
+            }},
+        });
+    };
+    const auto controller = makeController(blendSpace);
+    const auto comparisonController = makeController(comparisonSpace);
+    if (!controller || !comparisonController)
+        return;
+
+    auto instance = CreateScope<AnimationControllerInstance>(controller, *m_MeshInstance);
+    auto comparison = CreateScope<AnimationControllerInstance>(
+        comparisonController, *m_ComparisonInstance
     );
-
-    if (!instance->Update(0.0f))
+    if (!instance->Update(0.0f) || !comparison->Update(0.0f))
         return;
 
+    m_LocomotionSpace = blendSpace;
+    m_ContactPhase = syncLeft->GetSyncMarkers().front().Time / syncLeft->GetDuration();
     m_AnimationController = std::move(instance);
-    EE_CORE_INFO("KayKit 2D: WASD to move, Shift/R to run, arrows set X/Y, Space resets.")
+    m_ComparisonController = std::move(comparison);
+    EE_CORE_INFO("KayKit comparison: left normalized, right markers; P pauses, N steps, F contact.")
 }
 
 void Dissolve::UpdateAnimation(const float deltaSeconds)
 {
-    if (!m_AnimationController)
+    if (!m_AnimationController || !m_ComparisonController)
         return;
 
     const auto requested = m_RequestedForward.load(std::memory_order_relaxed);
@@ -399,11 +482,25 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
     const auto strafe = m_AnimationStrafe.load(std::memory_order_relaxed);
     const auto targetStrafe = m_RequestedStrafe.load(std::memory_order_relaxed);
     const auto nextStrafe = strafe + std::clamp(targetStrafe - strafe, -step, step);
+    const auto paused = m_AnimationPaused.load(std::memory_order_relaxed);
+    const auto advance = m_StepAnimation.exchange(false, std::memory_order_relaxed)
+        ? 1.0f / 30.0f : (paused ? 0.0f : deltaSeconds);
     if (!m_AnimationController->SetFloat("Forward", forward) ||
         !m_AnimationController->SetFloat("Strafe", nextStrafe) ||
-        !m_AnimationController->Update(deltaSeconds))
+        !m_ComparisonController->SetFloat("Forward", forward) ||
+        !m_ComparisonController->SetFloat("Strafe", nextStrafe) ||
+        !m_AnimationController->Update(advance) ||
+        !m_ComparisonController->Update(advance))
         return;
 
+    if (m_SeekContact.exchange(false, std::memory_order_relaxed))
+    {
+        const auto duration = m_LocomotionSpace->GetDuration(std::array{nextStrafe, forward});
+        if (!m_MeshInstance->Seek(m_ContactPhase * duration) ||
+            !m_ComparisonInstance->Seek(m_ContactPhase * duration))
+            return;
+    }
+    m_AnimationPhase.store(m_MeshInstance->GetNormalizedTime(), std::memory_order_relaxed);
     m_AnimationForward.store(forward, std::memory_order_relaxed);
     m_AnimationStrafe.store(nextStrafe, std::memory_order_relaxed);
 }
@@ -415,11 +512,24 @@ void Dissolve::DrawGeometry()
         // Show the mannequin from an angle that keeps all limbs visible.
         const auto& bounds = m_MeshInstance->GetMesh()->GetLocalBounds();
         const auto center = (bounds.Min + bounds.Max) * 0.5f;
-        const auto transform =
-            glm::translate(glm::mat4(1), center) *
-            glm::rotate(glm::mat4(1), glm::radians(25.0f), glm::vec3(0, 1, 0)) *
-            glm::translate(glm::mat4(1), -center);
-        m_SkeletalMeshRenderer->Render(*m_MeshInstance, transform);
+        const auto separation = (bounds.Max.y - bounds.Min.y) * 0.7f;
+        const auto& cameraPosition = m_CameraController->GetCamera().GetPosition();
+        const auto centerDirection = cameraPosition - center;
+        const auto centerYaw = std::atan2(centerDirection.x, centerDirection.z);
+        const auto renderInstance = [&](const SkeletalMeshInstance& instance, const float offset)
+        {
+            const auto position = center + glm::vec3(offset, 0, 0);
+            const auto direction = cameraPosition - position;
+            // Compensate perspective bearing so both copies show the same viewing angle.
+            const auto correction = std::atan2(direction.x, direction.z) - centerYaw;
+            const auto transform = glm::translate(glm::mat4(1), position) *
+                glm::rotate(glm::mat4(1), glm::radians(25.0f) + correction,
+                    glm::vec3(0, 1, 0)) *
+                glm::translate(glm::mat4(1), -center);
+            m_SkeletalMeshRenderer->Render(instance, transform);
+        };
+        renderInstance(*m_ComparisonInstance, separation);
+        renderInstance(*m_MeshInstance, -separation);
     }
 }
 

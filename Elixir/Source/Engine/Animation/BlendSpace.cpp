@@ -8,10 +8,12 @@ namespace Elixir
     BlendSpace::BlendSpace(
         std::string name,
         Ref<const Skeleton> skeleton,
-        const size_t dimensionCount
+        const size_t dimensionCount,
+        Ref<const AnimationSequence> synchronizationSequence
     ) : m_Name(std::move(name)),
         m_Skeleton(std::move(skeleton)),
-        m_DimensionCount(dimensionCount) {}
+        m_DimensionCount(dimensionCount),
+        m_SynchronizationSequence(std::move(synchronizationSequence)) {}
 
     BlendSpace::~BlendSpace() = default;
 
@@ -98,8 +100,11 @@ namespace Elixir
 
             if (sample.Weight == 0) continue;
 
+            const auto time = m_SynchronizationSequence
+                ? sample.Sequence->GetSynchronizedTime(phase, *m_SynchronizationSequence)
+                : std::clamp(phase, 0.0f, 1.0f) * sample.Sequence->GetDuration();
             const auto sampled = sample.Sequence->Sample(
-                std::clamp(phase, 0.0f, 1.0f) * sample.Sequence->GetDuration(),
+                time,
                 next,
                 referencePose
             );
