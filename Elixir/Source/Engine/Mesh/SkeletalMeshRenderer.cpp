@@ -209,7 +209,8 @@ namespace Elixir
 
         if (!appended) return false;
 
-        m_Sorter->SetContext({.Model = transform, .View = m_View});
+        m_Sorter->SetContext({ .Model = transform, .View = m_View });
+
         for (const auto& section : data.Sections)
         {
             const auto material = GetDefaultInstance(data.Materials[section.MaterialIndex]);

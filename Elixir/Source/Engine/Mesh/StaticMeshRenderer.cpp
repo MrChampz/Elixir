@@ -138,7 +138,7 @@ namespace Elixir
         if (!geometry) return false;
 
         const auto& materials = mesh->GetMaterials();
-        m_Sorter->SetContext({.Model = transform, .View = m_View});
+        m_Sorter->SetContext({ .Model = transform, .View = m_View });
 
         for (const auto& section : mesh->GetSections())
         {

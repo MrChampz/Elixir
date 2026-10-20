@@ -37,7 +37,7 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
         readbackInfo.Usage = EBufferUsage::TransferDst;
         Ref<StagingBuffer> readback = CreateRef<Vulkan::VulkanStagingBuffer>(context, readbackInfo);
 
-        for (int frame = 0; frame < 3; ++frame)
+        for (int frame = 0; frame < 4; ++frame)
         {
             SkeletalMeshInstance firstInstance(mesh), secondInstance(mesh);
             if (frame > 0)
@@ -47,7 +47,23 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
                       .Rotations = {{ 0, glm::angleAxis(1.0f, glm::vec3(0, 0, 1)) }},
                       .Scales = {{ 0, { 2, 3, 1 } }} },
                 });
-                ASSERT_TRUE(firstInstance.Play(animation, 2.0f));
+                const auto reference = AnimationSequence::Create(
+                    "Reference", mesh->GetSkeleton(), 1, {}
+                );
+                const auto space = BlendSpace1D::Create("Locomotion", {
+                    { 0.0f, reference }, { 1.0f, animation },
+                });
+                if (frame == 3)
+                {
+                    const auto lateral = AnimationSequence::Create("Lateral", mesh->GetSkeleton(),
+                        3, {{ .BoneIndex = 1, .Translations = {{ 0, { -2, 1, 3 } }} }});
+                    const auto plane = BlendSpace2D::Create("Plane", {
+                        {{ 0, 0 }, reference }, {{ 1, 0 }, animation }, {{ 0, 1 }, lateral },
+                    });
+                    ASSERT_TRUE(firstInstance.PlayBlendSpace(plane, glm::vec2(0.25f), 2.0f));
+                }
+                else
+                    ASSERT_TRUE(firstInstance.PlayBlendSpace(space, 0.5f, 2.0f));
                 ASSERT_TRUE(firstInstance.Update(float(frame) * 0.5f));
                 ASSERT_TRUE(firstInstance.IsTransitioning());
             }

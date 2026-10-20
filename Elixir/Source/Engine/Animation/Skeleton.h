@@ -13,6 +13,19 @@ namespace Elixir
         glm::quat Rotation{ 1.0f, 0.0f, 0.0f, 0.0f };
         glm::vec3 Scale{ 1.0f };
 
+        /**
+         * @brief Interpolate local translation, scale, and shortest-path rotation.
+         * @param from Source transform with a unit quaternion.
+         * @param to Target transform with a unit quaternion.
+         * @param weight Target weight in [0, 1].
+         * @return Mixed transform; opposite scale signs can produce zero scale.
+         */
+        static SBoneTransform Blend(
+            const SBoneTransform& from,
+            const SBoneTransform& to,
+            float weight
+        );
+
         /** @brief Compose translation, rotation, and scale into a matrix. */
         glm::mat4 ToMatrix() const;
 

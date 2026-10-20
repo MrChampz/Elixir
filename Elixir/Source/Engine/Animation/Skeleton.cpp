@@ -7,6 +7,19 @@ namespace Elixir
 {
     /* SBoneTransform */
 
+    SBoneTransform SBoneTransform::Blend(
+        const SBoneTransform& from,
+        const SBoneTransform& to,
+        const float weight
+    )
+    {
+        return {
+            .Translation = glm::mix(from.Translation, to.Translation, weight),
+            .Rotation = glm::normalize(glm::slerp(from.Rotation, to.Rotation, weight)),
+            .Scale = glm::mix(from.Scale, to.Scale, weight),
+        };
+    }
+
     glm::mat4 SBoneTransform::ToMatrix() const
     {
         return glm::translate(glm::mat4(1.0f), Translation) *
