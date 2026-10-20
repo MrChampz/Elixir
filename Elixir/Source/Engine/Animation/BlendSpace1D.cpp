@@ -17,12 +17,13 @@ namespace Elixir
         Ref<const Skeleton> skeleton;
         for (const auto& sample : samples)
         {
-            if (!std::isfinite(sample.Position) ||
-                !sample.Sequence ||
+            if (!std::isfinite(sample.Position) || !sample.Sequence ||
                 (skeleton && skeleton != sample.Sequence->GetSkeleton() &&
                     !skeleton->IsCompatible(*sample.Sequence->GetSkeleton())))
             {
-                EE_CORE_ERROR("BlendSpace1D requires finite positions and compatible animations.")
+                EE_CORE_ERROR(
+                    "BlendSpace1D requires finite positions and compatible animations."
+                )
                 return nullptr;
             }
 
@@ -46,10 +47,45 @@ namespace Elixir
         ));
     }
 
+    bool BlendSpace1D::Sample(
+        const float value,
+        const float phase,
+        std::vector<SBoneTransform>& output,
+        const std::span<const SBoneTransform> referencePose
+    ) const
+    {
+        return BlendSpace::Sample(
+            std::span(&value, 1),
+            phase,
+            output,
+            referencePose
+        );
+    }
+
+    float BlendSpace1D::GetDuration(const float value) const
+    {
+        return BlendSpace::GetDuration(std::span(&value, 1));
+    }
+
+    void BlendSpace1D::FindSamples(
+        const std::span<const float> values,
+        std::pmr::vector<SContribution>& output
+    ) const
+    {
+        const auto segment = FindSegment(values[0]);
+        output = {
+            { m_Samples[segment.Lower].Sequence.get(), 1.0f - segment.Weight },
+            { m_Samples[segment.Upper].Sequence.get(), segment.Weight },
+        };
+    }
+
     BlendSpace1D::BlendSpace1D(std::string name, std::vector<SBlendSpace1DSample> samples)
-        : m_Name(std::move(name)),
-          m_Skeleton(samples.front().Sequence->GetSkeleton()),
-          m_Samples(std::move(samples)) {}
+      : BlendSpace(
+            std::move(name),
+            samples.front().Sequence->GetSkeleton(),
+            1
+        ),
+        m_Samples(std::move(samples)) {}
 
     BlendSpace1D::SSegment BlendSpace1D::FindSegment(const float value) const
     {
@@ -73,64 +109,5 @@ namespace Elixir
             (double(upper->Position) - lowerPosition));
 
         return { index - 1, index, weight };
-    }
-
-    float BlendSpace1D::GetDuration(const float value) const
-    {
-        if (!std::isfinite(value))
-        {
-            EE_CORE_ERROR("BlendSpace1D coordinate must be finite.")
-            return 0.0f;
-        }
-
-        const auto segment = FindSegment(value);
-        const auto lower = double(m_Samples[segment.Lower].Sequence->GetDuration());
-        const auto upper = double(m_Samples[segment.Upper].Sequence->GetDuration());
-
-        return float(lower + (upper - lower) * segment.Weight);
-    }
-
-    bool BlendSpace1D::Sample(
-        const float value,
-        const float phase,
-        std::vector<SBoneTransform>& output,
-        const std::span<const SBoneTransform> referencePose
-    ) const
-    {
-        if (!std::isfinite(value) || !std::isfinite(phase))
-        {
-            EE_CORE_ERROR("BlendSpace1D coordinate and phase must be finite.")
-            return false;
-        }
-
-        const auto segment = FindSegment(value);
-        const auto& lower = m_Samples[segment.Lower].Sequence;
-        const auto normalized = std::clamp(phase, 0.0f, 1.0f);
-
-        std::vector<SBoneTransform> pose;
-        if (!lower->Sample(normalized * lower->GetDuration(), pose, referencePose))
-            return false;
-
-        if (segment.Weight > 0.0f)
-        {
-            const auto& upper = m_Samples[segment.Upper].Sequence;
-
-            std::vector<SBoneTransform> target;
-            if (!upper->Sample(normalized * upper->GetDuration(), target, referencePose))
-                return false;
-
-            for (size_t i = 0; i < pose.size(); ++i)
-            {
-                pose[i] = SBoneTransform::Blend(pose[i], target[i], segment.Weight);
-                if (!pose[i].IsValid())
-                {
-                    EE_CORE_ERROR("BlendSpace1D produced a singular or invalid transform.")
-                    return false;
-                }
-            }
-        }
-
-        output = std::move(pose);
-        return true;
     }
 }

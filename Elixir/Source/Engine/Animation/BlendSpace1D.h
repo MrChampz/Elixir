@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/Animation/AnimationSequence.h>
+#include <Engine/Animation/BlendSpace.h>
 
 namespace Elixir
 {
@@ -13,7 +13,7 @@ namespace Elixir
     };
 
     /** Stores immutable animation samples blended along one numeric axis. */
-    class ELIXIR_API BlendSpace1D final
+    class ELIXIR_API BlendSpace1D final : public BlendSpace
     {
     public:
         BlendSpace1D(const BlendSpace1D&) = delete;
@@ -56,14 +56,22 @@ namespace Elixir
          */
         float GetDuration(float value) const;
 
-        /** @brief Get the asset name. */
-        const std::string& GetName() const { return m_Name; }
-
-        /** @brief Get the skeleton shared by compatible samples. */
-        const Ref<const Skeleton>& GetSkeleton() const { return m_Skeleton; }
-
         /** @brief Get samples in ascending coordinate order. */
         const std::vector<SBlendSpace1DSample>& GetSamples() const { return m_Samples; }
+
+        using BlendSpace::GetDuration;
+        using BlendSpace::Sample;
+
+    protected:
+        /**
+         * @brief Resolve weighted clips for validated coordinates.
+         * @param values One finite coordinate per axis.
+         * @param output Receives clips and their nonnegative weights.
+         */
+        void FindSamples(
+            std::span<const float> values,
+            std::pmr::vector<SContribution>& output
+        ) const override;
 
     private:
         struct SSegment
@@ -86,8 +94,6 @@ namespace Elixir
          */
         SSegment FindSegment(float value) const;
 
-        std::string m_Name;
-        Ref<const Skeleton> m_Skeleton;
         std::vector<SBlendSpace1DSample> m_Samples;
     };
 }

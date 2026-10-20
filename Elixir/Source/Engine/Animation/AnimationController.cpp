@@ -16,8 +16,7 @@ namespace Elixir
         {
             const auto* value = std::get_if<float>(&parameter.DefaultValue);
 
-            if (parameter.Name.empty() ||
-                !names.insert(parameter.Name).second ||
+            if (parameter.Name.empty() || !names.insert(parameter.Name).second ||
                 (value && !std::isfinite(*value)))
             {
                 EE_CORE_ERROR(
@@ -30,14 +29,12 @@ namespace Elixir
         names.clear();
 
         Ref<const Skeleton> skeleton;
-        std::vector<std::array<std::optional<size_t>, 2>> blendParameters;
+        std::vector<std::vector<size_t>> blendParameters;
 
         for (const auto& state : info.States)
         {
-            if (state.Name.empty() ||
-                !names.insert(state.Name).second ||
-                int(bool(state.Sequence)) + int(bool(state.BlendSpace)) +
-                    int(bool(state.Space2D)) != 1)
+            if (state.Name.empty() || !names.insert(state.Name).second ||
+                bool(state.Sequence) == bool(state.BlendSpace))
             {
                 EE_CORE_ERROR(
                     "Animation states require unique names and exactly one pose source."
@@ -47,12 +44,9 @@ namespace Elixir
 
             const auto& stateSkeleton = state.Sequence
                 ? state.Sequence->GetSkeleton()
-                : state.BlendSpace
-                    ? state.BlendSpace->GetSkeleton()
-                    : state.Space2D->GetSkeleton();
+                : state.BlendSpace->GetSkeleton();
 
-            if (skeleton &&
-                skeleton != stateSkeleton &&
+            if (skeleton && skeleton != stateSkeleton &&
                 !skeleton->IsCompatible(*stateSkeleton))
             {
                 EE_CORE_ERROR("AnimationController states require compatible skeletons.")
@@ -61,30 +55,25 @@ namespace Elixir
 
             skeleton = stateSkeleton;
 
-            std::array<std::optional<size_t>, 2> resolved;
-            const std::array bindings{ state.BlendParameter, state.BlendParameterY };
+            const auto count = state.BlendSpace
+                ? state.BlendSpace->GetDimensionCount()
+                : 0;
 
-            for (size_t axis = 0; axis < 2; ++axis)
+            if (state.BlendParameters.size() != count)
             {
-                const auto required = axis == 0
-                    ? bool(state.BlendSpace || state.Space2D)
-                    : bool(state.Space2D);
+                EE_CORE_ERROR(
+                    "State blend parameters must match its pose source's axis count."
+                )
+                return nullptr;
+            }
 
-                if (!required)
-                {
-                    if (bindings[axis].empty())
-                        continue;
+            std::vector<size_t> resolved;
 
-                    EE_CORE_ERROR("Animation state has an unused blend parameter.")
-                    return nullptr;
-                }
-
+            for (const auto& binding : state.BlendParameters)
+            {
                 const auto parameter = std::ranges::find_if(
                     info.Parameters,
-                    [&](const auto& value)
-                    {
-                        return value.Name == bindings[axis];
-                    }
+                    [&](const auto& value) { return value.Name == binding; }
                 );
 
                 if (parameter == info.Parameters.end() ||
@@ -94,20 +83,17 @@ namespace Elixir
                     return nullptr;
                 }
 
-                resolved[axis] = size_t(parameter - info.Parameters.begin());
+                resolved.push_back(size_t(parameter - info.Parameters.begin()));
             }
 
-            blendParameters.push_back(resolved);
+            blendParameters.push_back(std::move(resolved));
         }
 
         const auto findState = [&](const std::string& name)
         {
             return std::ranges::find_if(
                 info.States,
-                [&](const auto& state)
-                {
-                    return state.Name == name;
-                }
+                [&](const auto& state) { return state.Name == name; }
             );
         };
 
@@ -126,11 +112,8 @@ namespace Elixir
             const auto from = findState(transition.From);
             const auto to = findState(transition.To);
 
-            if (from == info.States.end() ||
-                to == info.States.end() ||
-                from == to ||
-                !std::isfinite(transition.FadeDuration) ||
-                transition.FadeDuration < 0.0f ||
+            if (from == info.States.end() || to == info.States.end() || from == to ||
+                !std::isfinite(transition.FadeDuration) || transition.FadeDuration < 0.0f ||
                 (transition.WaitForCompletion && from->Looping))
             {
                 EE_CORE_ERROR("AnimationController contains an invalid transition.")
@@ -195,7 +178,7 @@ namespace Elixir
         SAnimationControllerCreateInfo info,
         std::vector<std::vector<STransition>> transitions,
         const size_t initialState,
-        std::vector<std::array<std::optional<size_t>, 2>> blendParameters
+        std::vector<std::vector<size_t>> blendParameters
     ) : m_Name(std::move(info.Name)),
         m_Parameters(std::move(info.Parameters)),
         m_States(std::move(info.States)),
@@ -203,10 +186,8 @@ namespace Elixir
         m_InitialState(initialState),
         m_BlendParameters(std::move(blendParameters))
     {
-        m_Skeleton = info.States.front().Sequence
-            ? info.States.front().Sequence->GetSkeleton()
-            : info.States.front().BlendSpace
-                ? info.States.front().BlendSpace->GetSkeleton()
-                : info.States.front().Space2D->GetSkeleton();
+        m_Skeleton = m_States.front().Sequence
+            ? m_States.front().Sequence->GetSkeleton()
+            : m_States.front().BlendSpace->GetSkeleton();
     }
 }

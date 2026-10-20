@@ -94,6 +94,12 @@ namespace Elixir
          */
         bool PlayState(size_t state, float fadeDuration);
 
+        /**
+         * @brief Read a state's axis values into reusable per-instance storage.
+         * @param state Valid state index with resolved parameter bindings.
+         */
+        std::span<const float> GetBlendValues(size_t state);
+
         Ref<const AnimationController> m_Controller;
         SkeletalMeshInstance& m_Instance;
 
@@ -101,6 +107,7 @@ namespace Elixir
         Ref<const SkeletalMesh> m_Mesh;
 
         std::vector<TAnimationParameterValue> m_Parameters;
+        std::vector<float> m_BlendValues;
         std::optional<size_t> m_State;
     };
 }

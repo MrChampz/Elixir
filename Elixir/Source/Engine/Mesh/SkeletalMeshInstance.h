@@ -1,15 +1,15 @@
 #pragma once
 
 #include <Engine/Mesh/SkeletalMesh.h>
-#include <Engine/Animation/BlendSpace1D.h>
-#include <Engine/Animation/BlendSpace2D.h>
+#include <Engine/Animation/BlendSpace.h>
+#include <initializer_list>
 
 namespace Elixir
 {
     /** @brief Owns a mesh instance's pose, playback, and animation transitions. */
     class ELIXIR_API SkeletalMeshInstance final
     {
-      public:
+    public:
         /**
          * @brief Create an empty instance, or initialize a mesh in its reference pose.
          * @param mesh Shared mesh asset, or null for an empty instance.
@@ -40,44 +40,55 @@ namespace Elixir
         );
 
         /**
-         * @brief Start a compatible blend space at cycle phase zero, with an optional fade.
-         * @param blendSpace Shared animation samples.
-         * @param value Finite coordinate along the blend axis.
+         * @brief Start any compatible blend space at cycle phase zero.
+         * @param blendSpace Shared pose source, independent of its dimension count.
+         * @param values One finite coordinate per axis; copied into playback storage.
          * @param fadeDuration Finite nonnegative fade duration in seconds.
          * @param looping Wrap the normalized cycle phase at one.
          */
         bool Play(
-            Ref<const BlendSpace1D> blendSpace,
-            float value,
+            Ref<const BlendSpace> blendSpace,
+            std::span<const float> values,
             float fadeDuration = 0.0f,
             bool looping = true
         );
 
         /**
-         * @brief Set the blend coordinate for the next update without resetting cycle phase.
-         * @param value Finite coordinate, clamped to the sample range during evaluation.
-         */
-        bool SetBlendSpaceValue(float value);
-
-        /**
-         * @brief Play a two-axis blend space with synchronized cycle phases.
-         * @param blendSpace Compatible pose source.
-         * @param value Finite coordinate on the sample plane.
-         * @param fadeDuration Nonnegative cross-fade duration in seconds.
-         * @param looping Wrap the cycle phase at its end.
+         * @brief Start a blend space with a temporary list of coordinates.
+         * @param blendSpace Shared compatible pose source.
+         * @param values One finite coordinate per axis.
+         * @param fadeDuration Finite nonnegative fade duration in seconds.
+         * @param looping Wrap the cycle phase at one.
          */
         bool Play(
-            Ref<const BlendSpace2D> blendSpace,
-            glm::vec2 value,
-            float fadeDuration = 0.0f,
-            bool looping = true
-        );
+            Ref<const BlendSpace> blendSpace,
+            const std::initializer_list<float> values,
+            const float fadeDuration = 0.0f,
+            const bool looping = true
+        )
+        {
+            return Play(
+                std::move(blendSpace),
+                std::span(values.begin(), values.size()),
+                fadeDuration,
+                looping
+            );
+        }
 
         /**
-         * @brief Change both blend axes without restarting playback or an active fade.
-         * @param value Finite coordinate for the next update.
+         * @brief Set coordinates for the next update without resetting phase or fade.
+         * @param values One finite coordinate per active blend-space axis; copied on success.
          */
-        bool SetBlendSpaceValue(glm::vec2 value);
+        bool SetBlendSpaceValue(std::span<const float> values);
+
+        /**
+         * @brief Set blend coordinates using a temporary list.
+         * @param values One finite coordinate per active blend-space axis.
+         */
+        bool SetBlendSpaceValue(const std::initializer_list<float> values)
+        {
+            return SetBlendSpaceValue(std::span(values.begin(), values.size()));
+        }
 
         /** @brief Pause playback while preserving the current pose and time. */
         void Pause() { m_Playing = false; }
@@ -137,10 +148,8 @@ namespace Elixir
         struct SPlayback
         {
             Ref<const AnimationSequence> Sequence;
-            Ref<const BlendSpace1D> BlendSpace;
-            float Value = 0.0f;
-            Ref<const BlendSpace2D> Space2D;
-            glm::vec2 Value2D = {};
+            Ref<const BlendSpace> BlendSpace;
+            std::vector<float> Values;
 
             /** Sequence seconds, or normalized cycle phase for a blend space. */
             float Time = 0.0f;
@@ -168,10 +177,12 @@ namespace Elixir
          * @brief Sample playback into a full local pose.
          * @param playback Assigned sequence or blend space and its sample time.
          * @param output Local transforms to receive the sample.
+         * @param time Seconds for a sequence or normalized phase for a blend space.
          */
         bool SamplePlayback(
             const SPlayback& playback,
-            std::vector<SBoneTransform>& output
+            std::vector<SBoneTransform>& output,
+            float time
         ) const;
 
         /**
@@ -179,15 +190,23 @@ namespace Elixir
          * @param playback Playback to advance.
          * @param dt Finite nonnegative elapsed time in seconds.
          */
-        SPlayback AdvancePlayback(SPlayback playback, float dt) const;
+        static float AdvancePlayback(const SPlayback& playback, float dt);
 
         /**
          * @brief Compose sampled local transforms after blending the fade source.
          * @param playback Target playback to evaluate and store on success.
          * @param source Source playback to sample when a fade is active.
          * @param weight Target weight in [0, 1].
+         * @param time Target seconds or normalized phase.
+         * @param sourceTime Source seconds or normalized phase.
          */
-        bool Evaluate(const SPlayback& playback, const SPlayback& source, float weight);
+        bool Evaluate(
+            const SPlayback& playback,
+            const SPlayback& source,
+            float weight,
+            float time,
+            float sourceTime
+        );
 
         /**
          * @brief Get the cycle duration in seconds for assigned playback.

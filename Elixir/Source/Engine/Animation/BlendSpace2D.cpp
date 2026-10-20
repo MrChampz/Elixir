@@ -25,7 +25,7 @@ namespace Elixir
         {
             const auto reverse = std::ranges::find(edges, std::array{ b, a });
             if (reverse == edges.end())
-                edges.push_back({a, b});
+                edges.push_back({ a, b });
             else
                 edges.erase(reverse);
         }
@@ -45,8 +45,7 @@ namespace Elixir
         Ref<const Skeleton> skeleton;
         for (const auto& sample : samples)
         {
-            if (!std::isfinite(sample.Position.x) ||
-                !std::isfinite(sample.Position.y) ||
+            if (!std::isfinite(sample.Position.x) || !std::isfinite(sample.Position.y) ||
                 !sample.Sequence ||
                 (skeleton && skeleton != sample.Sequence->GetSkeleton() &&
                     !skeleton->IsCompatible(*sample.Sequence->GetSkeleton())))
@@ -91,9 +90,105 @@ namespace Elixir
         return result;
     }
 
+    bool BlendSpace2D::Sample(
+        const glm::vec2 value,
+        const float phase,
+        std::vector<SBoneTransform>& output,
+        const std::span<const SBoneTransform> referencePose
+    ) const
+    {
+        return BlendSpace::Sample(
+            std::array{ value.x, value.y },
+            phase,
+            output,
+            referencePose
+        );
+    }
+
+    SBlendSpace2DWeights BlendSpace2D::GetWeights(const glm::vec2 value) const
+    {
+        if (!std::isfinite(value.x) || !std::isfinite(value.y))
+        {
+            EE_CORE_ERROR("BlendSpace2D coordinates must be finite.")
+            return {};
+        }
+
+        const auto point = (glm::dvec2(value) - m_Center) / m_Extent;
+
+        for (const auto& triangle : m_Triangles)
+        {
+            const auto a = m_Points[triangle[0]];
+            const auto b = m_Points[triangle[1]] - a;
+            const auto c = m_Points[triangle[2]] - a;
+
+            const auto area = Cross(b, c);
+            const auto second = Cross(point - a, c) / area;
+            const auto third = Cross(b, point - a) / area;
+
+            auto weights = glm::dvec3(1.0 - second - third, second, third);
+
+            if (glm::all(glm::greaterThanEqual(weights, glm::dvec3(-1e-12))))
+            {
+                weights = glm::max(weights, glm::dvec3(0));
+                return {
+                    triangle,
+                    glm::vec3(weights / (weights.x + weights.y + weights.z))
+                };
+            }
+        }
+
+        SBlendSpace2DWeights result;
+
+        auto distance = std::numeric_limits<double>::infinity();
+        for (const auto& edge : m_Boundary)
+        {
+            const auto start = m_Points[edge[0]];
+            const auto direction = m_Points[edge[1]] - start;
+
+            const auto weight = std::clamp(
+                glm::dot(point - start, direction) / glm::dot(direction, direction),
+                0.0,
+                1.0
+            );
+
+            const auto delta = point - (start + weight * direction);
+            const auto squared = glm::dot(delta, delta);
+
+            if (squared < distance)
+            {
+                distance = squared;
+                result = {
+                    { edge[0], edge[1], edge[1] },
+                    { float(1 - weight), float(weight), 0 }
+                };
+            }
+        }
+
+        return result;
+    }
+
+    float BlendSpace2D::GetDuration(const glm::vec2 value) const
+    {
+        return BlendSpace::GetDuration(std::array{ value.x, value.y });
+    }
+
+    void BlendSpace2D::FindSamples(
+        const std::span<const float> values,
+        std::pmr::vector<SContribution>& output
+    ) const
+    {
+        const auto blend = GetWeights({values[0], values[1]});
+        output.clear();
+        for (size_t i = 0; i < 3; ++i)
+            output.push_back({m_Samples[blend.Samples[i]].Sequence.get(), blend.Weights[i]});
+    }
+
     BlendSpace2D::BlendSpace2D(std::string name, std::vector<SBlendSpace2DSample> samples)
-      : m_Name(std::move(name)),
-        m_Skeleton(samples.front().Sequence->GetSkeleton()),
+      : BlendSpace(
+            std::move(name),
+            samples.front().Sequence->GetSkeleton(),
+            2
+        ),
         m_Samples(std::move(samples)) {}
 
     bool BlendSpace2D::Triangulate()
@@ -109,8 +204,7 @@ namespace Elixir
         m_Center = (min + min) * 0.5;
         m_Extent = std::max(max.x - min.x, max.y - min.y);
 
-        if (m_Extent == 0.0)
-            return false;
+        if (m_Extent == 0.0) return false;
 
         for (const auto& sample : m_Samples)
             m_Points.push_back((glm::dvec2(sample.Position) - m_Center) / m_Extent);
@@ -118,8 +212,8 @@ namespace Elixir
         const auto count = m_Points.size();
         m_Points.insert(
             m_Points.end(),
-            {{ -16, -16 }, { 16, -16 }, { 0, 16 }
-        });
+            {{ -16, -16 }, { 16, -16 }, { 0, 16 }}
+        );
         m_Triangles.push_back({ count, count + 1, count + 2 });
 
         for (size_t index = 0; index < count; ++index)
@@ -188,151 +282,11 @@ namespace Elixir
         std::ranges::sort(m_Triangles);
         std::ranges::sort(m_Boundary);
 
-        const auto allUsed = std::ranges::all_of(
-           used,
-           [](const bool value) { return value; }
+        const auto allTrianglesUsed = std::ranges::all_of(
+            used,
+            [](const bool value) { return value; }
         );
 
-        return !m_Triangles.empty() && allUsed;
-    }
-
-    SBlendSpace2DWeights BlendSpace2D::GetWeights(const glm::vec2 value) const
-    {
-        if (!std::isfinite(value.x) || !std::isfinite(value.y))
-        {
-            EE_CORE_ERROR("BlendSpace2D coordinates must be finite.")
-            return {};
-        }
-
-        const auto point = (glm::dvec2(value) - m_Center) / m_Extent;
-
-        for (const auto& triangle : m_Triangles)
-        {
-            const auto a = m_Points[triangle[0]];
-            const auto b = m_Points[triangle[1]] - a;
-            const auto c = m_Points[triangle[2]] - a;
-
-            const auto area = Cross(b, c);
-            const auto second = Cross(point - a, c) / area;
-            const auto third = Cross(b, point - a) / area;
-
-            auto weights = glm::dvec3(1.0 - second - third, second, third);
-
-            if (glm::all(glm::greaterThanEqual(weights, glm::dvec3(-1e-12))))
-            {
-                weights = glm::max(weights, glm::dvec3(0));
-                return {
-                    triangle,
-                    glm::vec3(weights / (weights.x + weights.y + weights.z))
-                };
-            }
-        }
-
-        SBlendSpace2DWeights result;
-
-        auto distance = std::numeric_limits<double>::infinity();
-        for (const auto& edge : m_Boundary)
-        {
-            const auto start = m_Points[edge[0]];
-            const auto direction = m_Points[edge[1]] - start;
-
-            const auto weight = std::clamp(
-                glm::dot(point - start, direction) / glm::dot(direction, direction),
-                0.0,
-                1.0
-            );
-
-            const auto delta = point - (start + weight * direction);
-            const auto squared = glm::dot(delta, delta);
-
-            if (squared < distance)
-            {
-                distance = squared;
-                result = {
-                    { edge[0], edge[1], edge[1] },
-                    { float(1 - weight), float(weight), 0 }
-                };
-            }
-        }
-
-        return result;
-    }
-
-    float BlendSpace2D::GetDuration(const glm::vec2 value) const
-    {
-        const auto blend = GetWeights(value);
-        double duration = 0, total = 0, maximum = 0;
-
-        for (size_t i = 0; i < 3; ++i)
-        {
-            const auto sample = double(m_Samples[blend.Samples[i]].Sequence->GetDuration());
-
-            duration += sample * blend.Weights[i];
-            total += blend.Weights[i];
-
-            maximum = std::max(maximum, sample);
-        }
-
-        return total > 0
-            ? float(std::min(duration / total, maximum))
-            : 0.0f;
-    }
-
-    bool BlendSpace2D::Sample(
-        const glm::vec2 value,
-        const float phase,
-        std::vector<SBoneTransform>& output,
-        const std::span<const SBoneTransform> referencePose
-    ) const
-    {
-        if (!std::isfinite(phase))
-        {
-            EE_CORE_ERROR("BlendSpace2D phase must be finite.")
-            return false;
-        }
-
-        const auto blend = GetWeights(value);
-        std::vector<SBoneTransform> pose, next;
-
-        float total = 0;
-        for (size_t i = 0; i < 3; ++i)
-        {
-            const auto weight = blend.Weights[i];
-            if (weight <= 0) continue;
-
-            const auto& sequence = m_Samples[blend.Samples[i]].Sequence;
-            const auto sampled = sequence->Sample(
-                std::clamp(phase, 0.0f, 1.0f) * sequence->GetDuration(),
-                next,
-                referencePose
-            );
-            if (!sampled) return false;
-
-            if (total == 0)
-                pose = next;
-            else
-                for (size_t bone = 0; bone < pose.size(); ++bone)
-                    pose[bone] = SBoneTransform::Blend(
-                        pose[bone],
-                        next[bone],
-                        weight / (total + weight)
-                    );
-
-            total += weight;
-        }
-
-        if (total == 0) return false;
-
-        for (const auto& transform : pose)
-        {
-            if (!transform.IsValid())
-            {
-                EE_CORE_ERROR("BlendSpace2D produced a singular or invalid transform.")
-                return false;
-            }
-        }
-
-        output = std::move(pose);
-        return true;
+        return !m_Triangles.empty() && allTrianglesUsed;
     }
 }

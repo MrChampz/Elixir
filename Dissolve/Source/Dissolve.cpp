@@ -361,12 +361,14 @@ void Dissolve::InitializeAnimationController()
     const auto controller = AnimationController::Create({
         .Name = "KayKitLocomotion",
         .InitialState = "Locomotion",
-        .Parameters = {{"Strafe", 0.0f}, {"Forward", 0.0f}},
+        .Parameters = {
+            { "Strafe", 0.0f },
+            { "Forward", 0.0f }
+        },
         .States = {{
             .Name = "Locomotion",
-            .BlendParameter = "Strafe",
-            .Space2D = blendSpace,
-            .BlendParameterY = "Forward",
+            .BlendSpace = blendSpace,
+            .BlendParameters = { "Strafe", "Forward" },
         }},
     });
     if (!controller)

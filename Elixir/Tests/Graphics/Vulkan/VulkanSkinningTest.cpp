@@ -1,3 +1,5 @@
+#include <Engine/Animation/BlendSpace2D.h>
+#include <Engine/Animation/BlendSpace1D.h>
 #include <gtest/gtest.h>
 #include <Engine/Mesh/GeometryPool.h>
 #include <Engine/Mesh/SkinningPass.h>
@@ -60,10 +62,10 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
                     const auto plane = BlendSpace2D::Create("Plane", {
                         {{ 0, 0 }, reference }, {{ 1, 0 }, animation }, {{ 0, 1 }, lateral },
                     });
-                    ASSERT_TRUE(firstInstance.PlayBlendSpace(plane, glm::vec2(0.25f), 2.0f));
+                    ASSERT_TRUE(firstInstance.Play(plane, { 0.25f, 0.25f }, 2.0f));
                 }
                 else
-                    ASSERT_TRUE(firstInstance.PlayBlendSpace(space, 0.5f, 2.0f));
+                    ASSERT_TRUE(firstInstance.Play(space, { 0.5f }, 2.0f));
                 ASSERT_TRUE(firstInstance.Update(float(frame) * 0.5f));
                 ASSERT_TRUE(firstInstance.IsTransitioning());
             }

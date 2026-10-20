@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/Animation/AnimationSequence.h>
+#include <Engine/Animation/BlendSpace.h>
 
 namespace Elixir
 {
@@ -19,9 +19,9 @@ namespace Elixir
     };
 
     /** Blends synchronized animation cycles on an immutable triangulated plane. */
-    class ELIXIR_API BlendSpace2D final
+    class ELIXIR_API BlendSpace2D final : public BlendSpace
     {
-      public:
+    public:
         /**
          * @brief Triangulate unique, noncollinear samples with compatible skeletons.
          * @param name Nonempty asset name.
@@ -59,16 +59,24 @@ namespace Elixir
          */
         float GetDuration(glm::vec2 value) const;
 
-        /** @brief Get the asset name. */
-        const std::string& GetName() const { return m_Name; }
-
-        /** @brief Get the skeleton shared by the samples. */
-        const Ref<const Skeleton>& GetSkeleton() const { return m_Skeleton; }
-
         /** @brief Get samples sorted by X, then Y. */
         const std::vector<SBlendSpace2DSample>& GetSamples() const { return m_Samples; }
 
-      private:
+        using BlendSpace::GetDuration;
+        using BlendSpace::Sample;
+
+    protected:
+        /**
+        * @brief Resolve weighted clips for validated coordinates.
+        * @param values One finite coordinate per axis.
+        * @param output Receives clips and their nonnegative weights.
+        */
+        void FindSamples(
+            std::span<const float> values,
+            std::pmr::vector<SContribution>& output
+        ) const override;
+
+    private:
         /**
          * @brief Store validated samples before triangulation.
          * @param name Asset name.
@@ -79,8 +87,6 @@ namespace Elixir
         /** @brief Build Delaunay triangles and the convex boundary once at creation. */
         bool Triangulate();
 
-        std::string m_Name;
-        Ref<const Skeleton> m_Skeleton;
         std::vector<SBlendSpace2DSample> m_Samples;
         std::vector<glm::dvec2> m_Points;
         std::vector<std::array<size_t, 3>> m_Triangles;

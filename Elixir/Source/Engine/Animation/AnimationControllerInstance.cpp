@@ -19,6 +19,7 @@ namespace Elixir
         m_State.reset();
         m_Mesh.reset();
         m_Parameters.clear();
+        m_BlendValues.clear();
 
         if (!m_Controller)
             return;
@@ -137,25 +138,23 @@ namespace Elixir
         if (definition.Sequence)
             return m_Instance.Play(definition.Sequence, fadeDuration, definition.Looping);
 
-        const auto& parameters = m_Controller->m_BlendParameters[state];
-
-        if (definition.Space2D)
-            return m_Instance.Play(
-                definition.Space2D,
-                glm::vec2(
-                    std::get<float>(m_Parameters[*parameters[0]]),
-                    std::get<float>(m_Parameters[*parameters[1]])
-                ),
-                fadeDuration,
-                definition.Looping
-            );
-
         return m_Instance.Play(
             definition.BlendSpace,
-            std::get<float>(m_Parameters[*parameters[0]]),
+            GetBlendValues(state),
             fadeDuration,
             definition.Looping
         );
+    }
+
+    std::span<const float> AnimationControllerInstance::GetBlendValues(const size_t state)
+    {
+        const auto& parameters = m_Controller->m_BlendParameters[state];
+        m_BlendValues.resize(parameters.size());
+
+        for (size_t axis = 0; axis < parameters.size(); ++axis)
+            m_BlendValues[axis] = std::get<float>(m_Parameters[parameters[axis]]);
+
+        return m_BlendValues;
     }
 
     bool AnimationControllerInstance::Update(const float dt)
@@ -209,23 +208,9 @@ namespace Elixir
             break;
         }
 
-        const auto& parameters = m_Controller->m_BlendParameters[*m_State];
-        if (parameters[1])
-        {
-            const auto set = m_Instance.SetBlendSpaceValue(
-                glm::vec2(
-                    std::get<float>(m_Parameters[*parameters[0]]),
-                    std::get<float>(m_Parameters[*parameters[1]])
-                )
-            );
-            if (!set) return false;
-        }
-        else if (parameters[0])
-        {
-            const auto parameter = std::get<float>(m_Parameters[*parameters[0]]);
-            const auto set = m_Instance.SetBlendSpaceValue(parameter);
-            if (!set) return false;
-        }
+        if (m_Controller->m_States[*m_State].BlendSpace &&
+            !m_Instance.SetBlendSpaceValue(GetBlendValues(*m_State)))
+            return false;
 
         return m_Instance.Update(dt);
     }

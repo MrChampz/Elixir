@@ -72,6 +72,7 @@
 
 #include <Engine/Animation/Skeleton.h>
 #include <Engine/Animation/AnimationSequence.h>
+#include <Engine/Animation/BlendSpace.h>
 #include <Engine/Animation/BlendSpace1D.h>
 #include <Engine/Animation/BlendSpace2D.h>
 #include <Engine/Animation/AnimationController.h>

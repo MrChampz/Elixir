@@ -55,29 +55,26 @@ namespace Elixir
         if (playback.Sequence)
             return playback.Sequence->GetDuration();
 
-        if (playback.Space2D)
-            return playback.Space2D->GetDuration(playback.Value2D);
-
         return playback.BlendSpace
-            ? playback.BlendSpace->GetDuration(playback.Value)
+            ? playback.BlendSpace->GetDuration(playback.Values)
             : 0.0f;
     }
 
     float SkeletalMeshInstance::GetTime() const
     {
-        return (m_Playback.BlendSpace || m_Playback.Space2D)
-           ? m_Playback.Time * GetDuration(m_Playback)
-           : m_Playback.Time;
+        return m_Playback.BlendSpace
+            ? m_Playback.Time * GetDuration(m_Playback)
+            : m_Playback.Time;
     }
 
     float SkeletalMeshInstance::GetNormalizedTime() const
     {
-        if (!m_Playback.Sequence && !m_Playback.BlendSpace && !m_Playback.Space2D)
+        if (!m_Playback.Sequence && !m_Playback.BlendSpace)
             return 0.0f;
 
         const auto duration = GetDuration(m_Playback);
 
-        if (m_Playback.BlendSpace || m_Playback.Space2D)
+        if (m_Playback.BlendSpace)
             return duration == 0.0f && !m_Playback.Looping
                 ? 1.0f
                 : m_Playback.Time;
@@ -90,33 +87,26 @@ namespace Elixir
     void SkeletalMeshInstance::Resume()
     {
         m_Playing = GetDuration(m_Playback) > 0.0f || IsTransitioning() ||
-            ((m_Playback.BlendSpace || m_Playback.Space2D) && m_Playback.Looping);
+            (m_Playback.BlendSpace && m_Playback.Looping);
     }
 
     bool SkeletalMeshInstance::SamplePlayback(
         const SPlayback& playback,
-        std::vector<SBoneTransform>& output
+        std::vector<SBoneTransform>& output,
+        const float time
     ) const
     {
         if (playback.Sequence)
             return playback.Sequence->Sample(
-                playback.Time,
+                time,
                 output,
                 m_Mesh->GetData().ReferencePose
             );
 
         if (playback.BlendSpace)
             return playback.BlendSpace->Sample(
-                playback.Value,
-                playback.Time,
-                output,
-                m_Mesh->GetData().ReferencePose
-            );
-
-        if (playback.Space2D)
-            return playback.Space2D->Sample(
-                playback.Value2D,
-                playback.Time,
+                playback.Values,
+                time,
                 output,
                 m_Mesh->GetData().ReferencePose
             );
@@ -124,46 +114,31 @@ namespace Elixir
         return false;
     }
 
-    SkeletalMeshInstance::SPlayback SkeletalMeshInstance::AdvancePlayback(
-        SPlayback playback,
-        const float dt
-    ) const
+    float SkeletalMeshInstance::AdvancePlayback(const SPlayback& playback, const float dt)
     {
         const auto duration = GetDuration(playback);
-        if (playback.BlendSpace || playback.Space2D)
-        {
-            const auto elapsed = duration > 0.0f
-                ? double(dt) / duration
-                : 0.0;
 
-            playback.Time = SampleTime(
-                double(playback.Time) + elapsed,
-                1.0f,
-                playback.Looping
-            );
-        }
-        else
+        if (playback.BlendSpace)
         {
-            playback.Time = SampleTime(
-                double(playback.Time) + dt,
-                duration,
-                playback.Looping
-            );
+            const auto elapsed = duration > 0.0f ? double(dt) / duration : 0.0;
+            return SampleTime(double(playback.Time) + elapsed, 1.0f, playback.Looping);
         }
 
-        return playback;
+        return SampleTime(double(playback.Time) + dt, duration, playback.Looping);
     }
 
     bool SkeletalMeshInstance::Evaluate(
         const SPlayback& playback,
         const SPlayback& source,
-        const float weight
+        const float weight,
+        const float time,
+        const float sourceTime
     )
     {
         std::vector<SBoneTransform> local;
         std::vector<glm::mat4> model;
 
-        if (!SamplePlayback(playback, local))
+        if (!SamplePlayback(playback, local, time))
             return false;
 
         if (weight < 1.0f)
@@ -171,9 +146,9 @@ namespace Elixir
             const auto* pose = &m_Transition.Pose;
 
             std::vector<SBoneTransform> sampled;
-            if (source.Sequence || source.BlendSpace || source.Space2D)
+            if (source.Sequence || source.BlendSpace)
             {
-                if (!SamplePlayback(source, sampled))
+                if (!SamplePlayback(source, sampled, sourceTime))
                     return false;
                 pose = &sampled;
             }
@@ -188,6 +163,7 @@ namespace Elixir
         m_LocalPose = std::move(local);
         m_ModelPose = std::move(model);
         m_Playback = playback;
+        m_Playback.Time = time;
 
         return true;
     }
@@ -205,15 +181,14 @@ namespace Elixir
             std::vector<SBoneTransform> local;
             std::vector<glm::mat4> model;
 
-            if (!SamplePlayback(playback, local) ||
+            if (!SamplePlayback(playback, local, playback.Time) ||
                 !m_Mesh->GetSkeleton()->BuildModelPose(local, model))
                 return false;
 
             STransition transition;
             transition.Duration = fadeDuration;
 
-            if (!IsTransitioning() &&
-                (m_Playback.Sequence || m_Playback.BlendSpace || m_Playback.Space2D))
+            if (!IsTransitioning() && (m_Playback.Sequence || m_Playback.BlendSpace))
                 transition.Playback = m_Playback;
             else
                 transition.Pose = m_LocalPose;
@@ -223,7 +198,7 @@ namespace Elixir
         }
         else
         {
-            if (!Evaluate(playback, {}, 1.0f))
+            if (!Evaluate(playback, {}, 1.0f, playback.Time, 0.0f))
                 return false;
             m_Transition = {};
         }
@@ -259,95 +234,60 @@ namespace Elixir
     }
 
     bool SkeletalMeshInstance::Play(
-        Ref<const BlendSpace1D> blendSpace,
-        const float value,
+        Ref<const BlendSpace> blendSpace,
+        const std::span<const float> values,
         const float fadeDuration,
         const bool looping
     )
     {
-        if (!m_Mesh || !blendSpace || !std::isfinite(value) ||
+        if (!m_Mesh || !blendSpace || !blendSpace->HasValidCoordinates(values) ||
             (m_Mesh->GetSkeleton() != blendSpace->GetSkeleton() &&
                 !m_Mesh->GetSkeleton()->IsCompatible(*blendSpace->GetSkeleton())))
         {
             EE_CORE_ERROR(
-                "Blend-space playback requires a compatible mesh and finite coordinate."
+                "Blend-space playback requires compatible assets and valid coordinates."
             )
             return false;
         }
 
         return StartPlayback(
-            { .BlendSpace = std::move(blendSpace), .Value = value, .Looping = looping },
+            {
+                .BlendSpace = std::move(blendSpace),
+                .Values = std::vector(values.begin(), values.end()),
+                .Looping = looping
+            },
             fadeDuration
         );
     }
 
-    bool SkeletalMeshInstance::SetBlendSpaceValue(const float value)
+    bool SkeletalMeshInstance::SetBlendSpaceValue(const std::span<const float> values)
     {
-        if (!m_Playback.BlendSpace || !std::isfinite(value))
+        if (!m_Playback.BlendSpace || !m_Playback.BlendSpace->HasValidCoordinates(values))
         {
-            EE_CORE_ERROR(
-                "Blend coordinate requires active blend-space playback and a finite value."
-            )
+            EE_CORE_ERROR("Blend coordinates must match the active blend space and be finite.")
             return false;
         }
 
-        m_Playback.Value = value;
-        return true;
-    }
-
-    bool SkeletalMeshInstance::Play(
-        Ref<const BlendSpace2D> blendSpace,
-        const glm::vec2 value,
-        const float fadeDuration,
-        const bool looping
-    )
-    {
-        if (!m_Mesh || !blendSpace || !std::isfinite(value.x) || !std::isfinite(value.y) ||
-            (m_Mesh->GetSkeleton() != blendSpace->GetSkeleton() &&
-                !m_Mesh->GetSkeleton()->IsCompatible(*blendSpace->GetSkeleton())))
-        {
-            EE_CORE_ERROR(
-                "Blend-space playback requires a compatible mesh and finite coordinates."
-            )
-            return false;
-        }
-
-        return StartPlayback(
-            { .Space2D = std::move(blendSpace), .Value2D = value, .Looping = looping },
-            fadeDuration
-        );
-    }
-
-    bool SkeletalMeshInstance::SetBlendSpaceValue(const glm::vec2 value)
-    {
-        if (!m_Playback.Space2D || !std::isfinite(value.x) || !std::isfinite(value.y))
-        {
-            EE_CORE_ERROR("Two-axis coordinates require active 2D playback and finite values.")
-            return false;
-        }
-
-        m_Playback.Value2D = value;
+        std::ranges::copy(values, m_Playback.Values.begin());
         return true;
     }
 
     bool SkeletalMeshInstance::Seek(const float time)
     {
-        if ((!m_Playback.Sequence && !m_Playback.BlendSpace && !m_Playback.Space2D) ||
-            !std::isfinite(time))
+        if ((!m_Playback.Sequence && !m_Playback.BlendSpace) || !std::isfinite(time))
         {
             EE_CORE_ERROR("SkeletalMeshInstance requires playback and a finite seek time.")
             return false;
         }
 
-        auto playback = m_Playback;
-        const auto duration = GetDuration(playback);
-        const auto sampled = SampleTime(time, duration, playback.Looping);
+        const auto duration = GetDuration(m_Playback);
+        const auto sampled = SampleTime(time, duration, m_Playback.Looping);
 
-        playback.Time = (playback.BlendSpace || playback.Space2D) && duration > 0.0f
+        const auto targetTime = m_Playback.BlendSpace && duration > 0.0f
             ? sampled / duration
             : sampled;
 
-        if (!Evaluate(playback, {}, 1.0f))
+        if (!Evaluate(m_Playback, {}, 1.0f, targetTime, 0.0f))
             return false;
 
         m_Transition = {};
@@ -362,10 +302,11 @@ namespace Elixir
             return false;
         }
 
-        if (!m_Playing) return true;
+        if (!m_Playing)
+            return true;
 
-        const auto playback = AdvancePlayback(m_Playback, dt);
-        const auto source = AdvancePlayback(m_Transition.Playback, dt);
+        const auto time = AdvancePlayback(m_Playback, dt);
+        const auto sourceTime = AdvancePlayback(m_Transition.Playback, dt);
 
         const auto elapsed = float(std::min(
             double(m_Transition.Elapsed) + dt,
@@ -376,10 +317,10 @@ namespace Elixir
             ? elapsed / m_Transition.Duration
             : 1.0f;
 
-        if (!Evaluate(playback, source, weight))
+        if (!Evaluate(m_Playback, m_Transition.Playback, weight, time, sourceTime))
             return false;
 
-        m_Transition.Playback = source;
+        m_Transition.Playback.Time = sourceTime;
         m_Transition.Elapsed = elapsed;
 
         if (weight >= 1.0f)

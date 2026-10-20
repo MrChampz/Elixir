@@ -1,3 +1,5 @@
+#include <Engine/Animation/BlendSpace2D.h>
+#include <Engine/Animation/BlendSpace1D.h>
 #include <gtest/gtest.h>
 #include <Engine/Animation/AnimationControllerInstance.h>
 #include "../Mesh/SkinningTestData.h"
@@ -43,9 +45,7 @@ namespace
                 .Parameters = {{"X", 0.5f}, {"Y", 0.5f}},
                 .States = {
                     {.Name = "Move",
-                     .BlendParameter = "X",
-                     .Space2D = Space,
-                     .BlendParameterY = "Y"}
+                     .BlendSpace = Space, .BlendParameters = { "X", "Y" }}
                 }
             };
         }
@@ -218,10 +218,10 @@ TEST_F(BlendSpace2DTest, BlendsRotationsAndScaleAndRejectsSingularFinalTransform
 TEST_F(BlendSpace2DTest, PlaybackRetainsPhaseAcrossCoordinateChangesPauseAndSeek)
 {
     SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.PlayBlendSpace(Space, glm::vec2(0.5f)));
+    ASSERT_TRUE(instance.Play(Space, { 0.5f, 0.5f }));
     ASSERT_TRUE(instance.Update(0.4375f));
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 0.25f);
-    ASSERT_TRUE(instance.SetBlendSpaceValue(glm::vec2(0, 2)));
+    ASSERT_TRUE(instance.SetBlendSpaceValue({ 0, 2 }));
     ASSERT_TRUE(instance.Update(0));
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 0.25f);
     EXPECT_FLOAT_EQ(instance.GetTime(), 0.75f);
@@ -234,7 +234,7 @@ TEST_F(BlendSpace2DTest, PlaybackRetainsPhaseAcrossCoordinateChangesPauseAndSeek
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 0.75f);
     ASSERT_TRUE(instance.Update(1.5f));
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 0.25f);
-    ASSERT_TRUE(instance.PlayBlendSpace(Space, glm::vec2(0, 2), 0, false));
+    ASSERT_TRUE(instance.Play(Space, { 0, 2 }, 0, false));
     ASSERT_TRUE(instance.Update(10));
     EXPECT_FALSE(instance.IsPlaying());
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 1);
@@ -244,16 +244,16 @@ TEST_F(BlendSpace2DTest, FadesAcrossAllSourceTypesAndRetainsVisiblePoseOnInterru
 {
     SkeletalMeshInstance instance(Mesh);
     ASSERT_TRUE(instance.Play(Clips[0]));
-    ASSERT_TRUE(instance.PlayBlendSpace(Space, glm::vec2(0, 2), 1));
+    ASSERT_TRUE(instance.Play(Space, { 0, 2 }, 1));
     ASSERT_TRUE(instance.Update(0.5f));
     EXPECT_NEAR(instance.GetLocalPose()[0].Translation.x, 11.333333f, 1e-5f);
     const auto visible = instance.GetLocalPose()[0].Translation.x;
     const auto one = BlendSpace1D::Create("Line", {{0, Clips[0]}, {1, Clips[1]}});
-    ASSERT_TRUE(instance.PlayBlendSpace(one, 1.0f, 1));
+    ASSERT_TRUE(instance.Play(one, { 1.0f }, 1));
     ASSERT_TRUE(instance.Update(0));
     EXPECT_FLOAT_EQ(instance.GetLocalPose()[0].Translation.x, visible);
     ASSERT_TRUE(instance.Update(1));
-    ASSERT_TRUE(instance.PlayBlendSpace(Space, glm::vec2(0.5f), 1));
+    ASSERT_TRUE(instance.Play(Space, { 0.5f, 0.5f }, 1));
     ASSERT_TRUE(instance.Update(1));
     EXPECT_FALSE(instance.IsTransitioning());
     ASSERT_TRUE(instance.Play(Clips[0], 1.0f));
@@ -274,7 +274,7 @@ TEST_F(BlendSpace2DTest, ControllerBindsBothAxesWithoutRestartingAndRejectsInval
     ASSERT_TRUE(instance.Update(0));
     EXPECT_FLOAT_EQ(mesh.GetNormalizedTime(), 0.25f);
     EXPECT_FLOAT_EQ(mesh.GetLocalPose()[0].Translation.x, 21);
-    info.States[0].BlendParameterY = "Missing";
+    info.States[0].BlendParameters[1] = "Missing";
     EXPECT_FALSE(AnimationController::Create(info));
     info = Definition();
     info.Parameters[1].DefaultValue = true;
@@ -283,7 +283,7 @@ TEST_F(BlendSpace2DTest, ControllerBindsBothAxesWithoutRestartingAndRejectsInval
     info.States[0].Sequence = Clips[0];
     EXPECT_FALSE(AnimationController::Create(info));
     info = Definition();
-    info.States[0].Space2D.reset();
+    info.States[0].BlendSpace.reset();
     info.States[0].BlendSpace = BlendSpace1D::Create("Line", {{0, Clips[0]}});
     EXPECT_FALSE(AnimationController::Create(info));
 }
@@ -291,21 +291,21 @@ TEST_F(BlendSpace2DTest, ControllerBindsBothAxesWithoutRestartingAndRejectsInval
 TEST_F(BlendSpace2DTest, InvalidPlaybackRequestsLeaveTheCurrentPoseAndPhaseIntact)
 {
     SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.PlayBlendSpace(Space, glm::vec2(0.5f)));
+    ASSERT_TRUE(instance.Play(Space, { 0.5f, 0.5f }));
     ASSERT_TRUE(instance.Update(0.4375f));
     const auto invalid = std::numeric_limits<float>::quiet_NaN();
-    EXPECT_FALSE(instance.PlayBlendSpace(Ref<const BlendSpace2D>{}, glm::vec2(0)));
-    EXPECT_FALSE(instance.PlayBlendSpace(Space, glm::vec2(invalid, 0)));
-    EXPECT_FALSE(instance.PlayBlendSpace(Space, glm::vec2(0), -1));
-    EXPECT_FALSE(instance.SetBlendSpaceValue(glm::vec2(0, invalid)));
-    EXPECT_FALSE(instance.SetBlendSpaceValue(0.0f));
+    EXPECT_FALSE(instance.Play(Ref<const BlendSpace2D>{}, { 0, 0 }));
+    EXPECT_FALSE(instance.Play(Space, { invalid, 0 }));
+    EXPECT_FALSE(instance.Play(Space, { 0, 0 }, -1));
+    EXPECT_FALSE(instance.SetBlendSpaceValue({ 0, invalid }));
+    EXPECT_FALSE(instance.SetBlendSpaceValue({ 0.0f }));
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 0.25f);
     EXPECT_FLOAT_EQ(instance.GetLocalPose()[0].Translation.x, 8.5f);
     instance.Stop();
-    EXPECT_FALSE(instance.SetBlendSpaceValue(glm::vec2(0)));
+    EXPECT_FALSE(instance.SetBlendSpaceValue({ 0, 0 }));
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 0);
     instance.SetMesh(nullptr);
-    EXPECT_FALSE(instance.PlayBlendSpace(Space, glm::vec2(0)));
+    EXPECT_FALSE(instance.Play(Space, { 0, 0 }));
 }
 
 TEST_F(BlendSpace2DTest, StaticCyclesStayResponsiveAndCharactersKeepIndependentCoordinates)
@@ -319,19 +319,19 @@ TEST_F(BlendSpace2DTest, StaticCyclesStayResponsiveAndCharactersKeepIndependentC
                         }
     );
     SkeletalMeshInstance first(Mesh), second(Mesh);
-    ASSERT_TRUE(first.PlayBlendSpace(space, glm::vec2(0)));
-    ASSERT_TRUE(second.PlayBlendSpace(space, glm::vec2(0, 1)));
+    ASSERT_TRUE(first.Play(space, { 0, 0 }));
+    ASSERT_TRUE(second.Play(space, { 0, 1 }));
     ASSERT_TRUE(first.Update(100));
     EXPECT_TRUE(first.IsPlaying());
     EXPECT_FLOAT_EQ(first.GetNormalizedTime(), 0);
-    ASSERT_TRUE(first.SetBlendSpaceValue(glm::vec2(1, 0)));
+    ASSERT_TRUE(first.SetBlendSpaceValue({ 1, 0 }));
     ASSERT_TRUE(first.Update(0.25f));
     ASSERT_TRUE(second.Update(1));
     EXPECT_FLOAT_EQ(first.GetNormalizedTime(), 0.25f);
     EXPECT_FLOAT_EQ(second.GetNormalizedTime(), 0.5f);
     EXPECT_FLOAT_EQ(first.GetLocalPose()[0].Translation.x, 1);
     EXPECT_FLOAT_EQ(second.GetLocalPose()[0].Translation.x, 12);
-    ASSERT_TRUE(first.PlayBlendSpace(space, glm::vec2(0), 0, false));
+    ASSERT_TRUE(first.Play(space, { 0, 0 }, 0, false));
     EXPECT_FLOAT_EQ(first.GetNormalizedTime(), 1);
     EXPECT_FALSE(first.IsPlaying());
 }

@@ -1,3 +1,4 @@
+#include <Engine/Animation/BlendSpace1D.h>
 #include <gtest/gtest.h>
 
 #include <Engine/Animation/AnimationControllerInstance.h>
@@ -36,7 +37,7 @@ namespace
                 .Name = "Controller", .InitialState = "Locomotion",
                 .Parameters = {{ "Speed", 4.0f }},
                 .States = {{ .Name = "Locomotion", .BlendSpace = Space,
-                    .BlendParameter = "Speed" }},
+                    .BlendParameters = { "Speed" } }},
             };
         }
 
@@ -142,11 +143,11 @@ TEST_F(BlendSpace1DTest, RejectsMissingIncompatibleDuplicateAndNonfiniteSamples)
 TEST_F(BlendSpace1DTest, CoordinateChangesPreservePhaseAndUseTheNewCycleDuration)
 {
     SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.PlayBlendSpace(Space, 4.0f));
+    ASSERT_TRUE(instance.Play(Space, { 4.0f }));
     ASSERT_TRUE(instance.Update(0.75f));
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 0.25f);
     EXPECT_FLOAT_EQ(instance.GetLocalPose()[0].Translation.x, 6.5f);
-    ASSERT_TRUE(instance.SetBlendSpaceValue(6.0f));
+    ASSERT_TRUE(instance.SetBlendSpaceValue({ 6.0f }));
     ASSERT_TRUE(instance.Update(0.0f));
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 0.25f);
     EXPECT_FLOAT_EQ(instance.GetTime(), 1.0f);
@@ -159,17 +160,17 @@ TEST_F(BlendSpace1DTest, CoordinateChangesPreservePhaseAndUseTheNewCycleDuration
 TEST_F(BlendSpace1DTest, StaticSamplesKeepPlaybackResponsiveAndFreezeTheCyclePhase)
 {
     SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.PlayBlendSpace(Space, 0.0f));
+    ASSERT_TRUE(instance.Play(Space, { 0.0f }));
     EXPECT_TRUE(instance.IsPlaying());
     ASSERT_TRUE(instance.Update(100.0f));
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 0.0f);
-    ASSERT_TRUE(instance.SetBlendSpaceValue(2.0f));
+    ASSERT_TRUE(instance.SetBlendSpaceValue({ 2.0f }));
     ASSERT_TRUE(instance.Update(0.5f));
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 0.25f);
-    ASSERT_TRUE(instance.SetBlendSpaceValue(0.0f));
+    ASSERT_TRUE(instance.SetBlendSpaceValue({ 0.0f }));
     ASSERT_TRUE(instance.Update(100.0f));
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 0.25f);
-    ASSERT_TRUE(instance.SetBlendSpaceValue(2.0f));
+    ASSERT_TRUE(instance.SetBlendSpaceValue({ 2.0f }));
     ASSERT_TRUE(instance.Update(0.0f));
     EXPECT_FLOAT_EQ(instance.GetLocalPose()[0].Translation.x, 1.0f);
 }
@@ -177,7 +178,7 @@ TEST_F(BlendSpace1DTest, StaticSamplesKeepPlaybackResponsiveAndFreezeTheCyclePha
 TEST_F(BlendSpace1DTest, SupportsPauseSeekLoopingAndNonloopingCompletion)
 {
     SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.PlayBlendSpace(Space, 4.0f));
+    ASSERT_TRUE(instance.Play(Space, { 4.0f }));
     ASSERT_TRUE(instance.Update(0.75f));
     instance.Pause();
     ASSERT_TRUE(instance.Update(3.0f));
@@ -187,14 +188,14 @@ TEST_F(BlendSpace1DTest, SupportsPauseSeekLoopingAndNonloopingCompletion)
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 0.25f);
     ASSERT_TRUE(instance.Seek(-0.75f));
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 0.75f);
-    ASSERT_TRUE(instance.PlayBlendSpace(Space, 4.0f, 0.0f, false));
+    ASSERT_TRUE(instance.Play(Space, { 4.0f }, 0.0f, false));
     ASSERT_TRUE(instance.Update(4.0f));
     EXPECT_FALSE(instance.IsPlaying());
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 1.0f);
     EXPECT_FLOAT_EQ(instance.GetTime(), 3.0f);
     EXPECT_FLOAT_EQ(instance.GetLocalPose()[0].Translation.x, 11.0f);
     instance.Stop();
-    EXPECT_FALSE(instance.SetBlendSpaceValue(4.0f));
+    EXPECT_FALSE(instance.SetBlendSpaceValue({ 4.0f }));
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 0.0f);
 }
 
@@ -203,7 +204,7 @@ TEST_F(BlendSpace1DTest, SequenceToBlendSpaceFadesAdvanceBothSourcesAndCanBeInte
     SkeletalMeshInstance instance(Mesh);
     ASSERT_TRUE(instance.Play(Walk));
     ASSERT_TRUE(instance.Seek(0.5f));
-    ASSERT_TRUE(instance.PlayBlendSpace(Space, 4.0f, 2.0f));
+    ASSERT_TRUE(instance.Play(Space, { 4.0f }, 2.0f));
     EXPECT_FLOAT_EQ(instance.GetLocalPose()[0].Translation.x, 1.0f);
     ASSERT_TRUE(instance.Update(0.5f));
     EXPECT_NEAR(instance.GetLocalPose()[0].Translation.x, 3.0f, 1e-5f);
@@ -219,10 +220,10 @@ TEST_F(BlendSpace1DTest, BlendSpaceToSequenceAndBlendSpaceFadesRetainTheOutgoing
     for (const bool targetSpace : { false, true })
     {
         SkeletalMeshInstance instance(Mesh);
-        ASSERT_TRUE(instance.PlayBlendSpace(Space, 4.0f));
+        ASSERT_TRUE(instance.Play(Space, { 4.0f }));
         ASSERT_TRUE(instance.Update(0.75f));
         if (targetSpace)
-            ASSERT_TRUE(instance.PlayBlendSpace(Space, 6.0f, 2.0f));
+            ASSERT_TRUE(instance.Play(Space, { 6.0f }, 2.0f));
         else
             ASSERT_TRUE(instance.Play(Run, 2.0f));
         ASSERT_TRUE(instance.Update(0.5f));
@@ -236,17 +237,17 @@ TEST_F(BlendSpace1DTest, BlendSpaceToSequenceAndBlendSpaceFadesRetainTheOutgoing
 TEST_F(BlendSpace1DTest, InvalidPlaybackRequestsPreserveTheCurrentPoseAndPhase)
 {
     SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.PlayBlendSpace(Space, 4.0f));
+    ASSERT_TRUE(instance.Play(Space, { 4.0f }));
     ASSERT_TRUE(instance.Update(0.75f));
-    EXPECT_FALSE(instance.PlayBlendSpace(nullptr, 4.0f));
-    EXPECT_FALSE(instance.PlayBlendSpace(Space, std::numeric_limits<float>::infinity()));
-    EXPECT_FALSE(instance.PlayBlendSpace(Space, 4.0f, -1.0f));
-    EXPECT_FALSE(instance.SetBlendSpaceValue(std::numeric_limits<float>::quiet_NaN()));
+    EXPECT_FALSE(instance.Play(nullptr, { 4.0f }));
+    EXPECT_FALSE(instance.Play(Space, { std::numeric_limits<float>::infinity() }));
+    EXPECT_FALSE(instance.Play(Space, { 4.0f }, -1.0f));
+    EXPECT_FALSE(instance.SetBlendSpaceValue({ std::numeric_limits<float>::quiet_NaN() }));
     EXPECT_FALSE(instance.Update(-1.0f));
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 0.25f);
     EXPECT_FLOAT_EQ(instance.GetLocalPose()[0].Translation.x, 6.5f);
     instance.SetMesh(nullptr);
-    EXPECT_FALSE(instance.PlayBlendSpace(Space, 4.0f));
+    EXPECT_FALSE(instance.Play(Space, { 4.0f }));
 }
 
 TEST_F(BlendSpace1DTest, ControllerEvaluatesContinuousCoordinatesWithoutRestartingTheState)
@@ -314,7 +315,7 @@ TEST_F(BlendSpace1DTest, ControllerWaitsForNonloopingBlendSpaceCompletion)
 TEST_F(BlendSpace1DTest, ControllerRejectsMissingWronglyTypedAndAmbiguousSources)
 {
     auto info = MakeController();
-    info.States[0].BlendParameter = "Missing";
+    info.States[0].BlendParameters = { "Missing" };
     EXPECT_FALSE(AnimationController::Create(info));
     info = MakeController();
     info.Parameters[0].DefaultValue = true;
@@ -326,7 +327,7 @@ TEST_F(BlendSpace1DTest, ControllerRejectsMissingWronglyTypedAndAmbiguousSources
     info.States[0].BlendSpace.reset();
     EXPECT_FALSE(AnimationController::Create(info));
     info = MakeController();
-    info.States.push_back({ .Name = "Other", .Sequence = Run, .BlendParameter = "Speed" });
+    info.States.push_back({ .Name = "Other", .Sequence = Run, .BlendParameters = { "Speed" } });
     EXPECT_FALSE(AnimationController::Create(info));
 }
 

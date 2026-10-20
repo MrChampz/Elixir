@@ -1,11 +1,6 @@
 #pragma once
 
-#include <Engine/Animation/BlendSpace1D.h>
-#include <Engine/Animation/BlendSpace2D.h>
-
-#include <optional>
-#include <string_view>
-#include <variant>
+#include <Engine/Animation/BlendSpace.h>
 
 namespace Elixir
 {
@@ -44,13 +39,10 @@ namespace Elixir
         std::string Name;
         Ref<const AnimationSequence> Sequence;
 
-        Ref<const BlendSpace1D> BlendSpace;
-        /** Numeric parameter supplying a 1D coordinate or the X axis of a 2D space. */
-        std::string BlendParameter;
+        Ref<const BlendSpace> BlendSpace;
 
-        Ref<const BlendSpace2D> Space2D;
-        /** Numeric parameter supplying the second axis of a 2D blend space. */
-        std::string BlendParameterY;
+        /** Numeric parameter names in axis order; count must match the blend space. */
+        std::vector<std::string> BlendParameters;
 
         bool Looping = true;
     };
@@ -131,13 +123,13 @@ namespace Elixir
          * @param info Validated asset definition.
          * @param transitions Outgoing transitions for each state, in priority order.
          * @param initialState Index of the initial state.
-         * @param blendParameters Resolved X and optional Y parameter indices for each state.
+         * @param blendParameters Resolved axis parameter indices for each state.
          */
         AnimationController(
             SAnimationControllerCreateInfo info,
             std::vector<std::vector<STransition>> transitions,
             size_t initialState,
-            std::vector<std::array<std::optional<size_t>, 2>> blendParameters
+            std::vector<std::vector<size_t>> blendParameters
         );
 
         std::string m_Name;
@@ -146,6 +138,6 @@ namespace Elixir
         std::vector<SAnimationState> m_States;
         std::vector<std::vector<STransition>> m_Transitions;
         size_t m_InitialState;
-        std::vector<std::array<std::optional<size_t>, 2>> m_BlendParameters;
+        std::vector<std::vector<size_t>> m_BlendParameters;
     };
 }
