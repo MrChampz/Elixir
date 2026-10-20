@@ -34,7 +34,7 @@ class Dissolve final : public Elixir::Application
     Scope<Environment> m_Environment;
 
     Scope<SkeletalMeshRenderer> m_SkeletalMeshRenderer;
-    SkeletalMeshInstance m_MeshInstance;
+    Scope<SkeletalMeshInstance> m_MeshInstance;
 
     Scope<AnimationControllerInstance> m_AnimationController;
 

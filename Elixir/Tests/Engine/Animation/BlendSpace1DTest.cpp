@@ -246,8 +246,8 @@ TEST_F(BlendSpace1DTest, InvalidPlaybackRequestsPreserveTheCurrentPoseAndPhase)
     EXPECT_FALSE(instance.Update(-1.0f));
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 0.25f);
     EXPECT_FLOAT_EQ(instance.GetLocalPose()[0].Translation.x, 6.5f);
-    instance.SetMesh(nullptr);
-    EXPECT_FALSE(instance.Play(Space, { 4.0f }));
+    SkeletalMeshInstance invalid(nullptr);
+    EXPECT_FALSE(invalid.Play(Space, { 4.0f }));
 }
 
 TEST_F(BlendSpace1DTest, ControllerEvaluatesContinuousCoordinatesWithoutRestartingTheState)

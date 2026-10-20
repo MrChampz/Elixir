@@ -245,14 +245,15 @@ TEST_F(AnimationControllerTest, InvalidUpdatesPreserveTheCurrentPlayback)
     EXPECT_FALSE(instance.Update(std::numeric_limits<float>::quiet_NaN()));
     EXPECT_FLOAT_EQ(mesh.GetTime(), 0.5f);
     EXPECT_EQ(instance.GetCurrentState(), "Idle");
-    mesh.SetMesh(nullptr);
-    EXPECT_FALSE(instance.Update(0.5f));
+    SkeletalMeshInstance invalidMesh(nullptr);
+    AnimationControllerInstance invalid(controller, invalidMesh);
+    EXPECT_FALSE(invalid.Update(0.5f));
     AnimationControllerInstance missing(nullptr, mesh);
     EXPECT_FALSE(missing.Update(0.0f));
     EXPECT_FALSE(missing.SetFloat("Speed", 1.0f));
 }
 
-TEST_F(AnimationControllerTest, AcceptsCompatibleSkeletonsAndRestartsAfterMeshReplacement)
+TEST_F(AnimationControllerTest, AcceptsCompatibleSkeletonsAndBindsEachMeshToANewInstance)
 {
     const auto controller = AnimationController::Create(MakeInfo());
     auto other = SkinningTests::MakeMesh();
@@ -260,16 +261,23 @@ TEST_F(AnimationControllerTest, AcceptsCompatibleSkeletonsAndRestartsAfterMeshRe
     SkeletalMeshInstance mesh(other);
     AnimationControllerInstance instance(controller, mesh);
     ASSERT_TRUE(instance.Update(0.5f));
-    mesh.SetMesh(Mesh);
-    ASSERT_TRUE(instance.Update(0.25f));
-    EXPECT_FLOAT_EQ(mesh.GetTime(), 0.25f);
+    SkeletalMeshInstance replacement(Mesh);
+    AnimationControllerInstance replacementController(controller, replacement);
+    ASSERT_TRUE(replacementController.Update(0.25f));
+    EXPECT_FLOAT_EQ(replacement.GetTime(), 0.25f);
+    EXPECT_FLOAT_EQ(mesh.GetTime(), 0.5f);
     auto data = Mesh->GetData();
     data.Skeleton = Skeleton::Create("Other", {{ .Name = "Other" }, { .Name = "Child" }});
     auto incompatible = SkeletalMesh::Create(std::move(data));
     ASSERT_TRUE(incompatible);
-    mesh.SetMesh(incompatible);
-    EXPECT_FALSE(instance.Update(0.5f));
-    EXPECT_FLOAT_EQ(mesh.GetTime(), 0.0f);
+    SkeletalMeshInstance invalidMesh(incompatible);
+    AnimationControllerInstance invalid(controller, invalidMesh);
+    EXPECT_FALSE(invalid.Update(0.5f));
+    invalid.Reset();
+    EXPECT_FALSE(invalid.Update(0.5f));
+    EXPECT_FLOAT_EQ(invalidMesh.GetTime(), 0.0f);
+    ASSERT_TRUE(instance.Update(0.25f));
+    EXPECT_FLOAT_EQ(mesh.GetTime(), 0.75f);
 }
 
 TEST_F(AnimationControllerTest, RejectsInvalidStatesParametersAndInitialState)

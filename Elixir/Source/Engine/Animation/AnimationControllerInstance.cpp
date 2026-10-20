@@ -11,13 +11,21 @@ namespace Elixir
     ) : m_Controller(std::move(controller)),
         m_Instance(instance)
     {
+        const auto& mesh = m_Instance.GetMesh();
+
+        m_Compatible = m_Controller && mesh &&
+            (m_Controller->GetSkeleton() == mesh->GetSkeleton() ||
+                m_Controller->GetSkeleton()->IsCompatible(*mesh->GetSkeleton()));
+
+        if (!m_Compatible)
+            EE_CORE_ERROR("Animation controller requires a compatible mesh and controller.")
+
         Reset();
     }
 
     void AnimationControllerInstance::Reset()
     {
         m_State.reset();
-        m_Mesh.reset();
         m_Parameters.clear();
         m_BlendValues.clear();
 
@@ -159,21 +167,13 @@ namespace Elixir
 
     bool AnimationControllerInstance::Update(const float dt)
     {
-        const auto& mesh = m_Instance.GetMesh();
-        const auto meshChanged = m_Mesh != mesh;
-
-        if (!m_Controller || !mesh || !std::isfinite(dt) || dt < 0.0f ||
-            (meshChanged && m_Controller->GetSkeleton() != mesh->GetSkeleton() &&
-                !m_Controller->GetSkeleton()->IsCompatible(*mesh->GetSkeleton())))
+        if (!m_Compatible || !std::isfinite(dt) || dt < 0.0f)
         {
             EE_CORE_ERROR(
-                "Animation controller requires a compatible mesh and a valid delta time."
+                "Animation controller requires compatible assets and a valid delta time."
             )
             return false;
         }
-
-        if (meshChanged)
-            m_State.reset();
 
         if (!m_State)
         {
@@ -182,7 +182,6 @@ namespace Elixir
                 return false;
 
             m_State = initial;
-            m_Mesh = mesh;
         }
 
         for (const auto& transition : m_Controller->m_Transitions[*m_State])

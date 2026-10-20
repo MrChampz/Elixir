@@ -149,7 +149,7 @@ Dissolve::Dissolve()
             const auto& bounds = mesh->GetLocalBounds();
             m_CameraController->FrameBounds(bounds.Min, bounds.Max);
 
-            m_MeshInstance.SetMesh(mesh);
+            m_MeshInstance = CreateScope<SkeletalMeshInstance>(mesh);
             InitializeAnimationController();
         }
     }
@@ -321,7 +321,7 @@ void Dissolve::OnEvent(Event& event)
 
 void Dissolve::InitializeAnimationController()
 {
-    const auto& animations = m_MeshInstance.GetMesh()->GetAnimations();
+    const auto& animations = m_MeshInstance->GetMesh()->GetAnimations();
     const auto findAnimation = [&](const std::string_view name) -> Ref<const AnimationSequence>
     {
         const auto found = std::ranges::find_if(
@@ -374,7 +374,11 @@ void Dissolve::InitializeAnimationController()
     if (!controller)
         return;
 
-    auto instance = CreateScope<AnimationControllerInstance>(controller, m_MeshInstance);
+    auto instance = CreateScope<AnimationControllerInstance>(
+        controller,
+        *m_MeshInstance
+    );
+
     if (!instance->Update(0.0f))
         return;
 
@@ -406,16 +410,16 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
 
 void Dissolve::DrawGeometry()
 {
-    if (m_SkeletalMeshRenderer && m_MeshInstance.GetMesh())
+    if (m_SkeletalMeshRenderer && m_MeshInstance)
     {
         // Show the mannequin from an angle that keeps all limbs visible.
-        const auto& bounds = m_MeshInstance.GetMesh()->GetLocalBounds();
+        const auto& bounds = m_MeshInstance->GetMesh()->GetLocalBounds();
         const auto center = (bounds.Min + bounds.Max) * 0.5f;
         const auto transform =
             glm::translate(glm::mat4(1), center) *
             glm::rotate(glm::mat4(1), glm::radians(25.0f), glm::vec3(0, 1, 0)) *
             glm::translate(glm::mat4(1), -center);
-        m_SkeletalMeshRenderer->Render(m_MeshInstance, transform);
+        m_SkeletalMeshRenderer->Render(*m_MeshInstance, transform);
     }
 }
 

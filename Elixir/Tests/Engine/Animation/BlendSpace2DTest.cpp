@@ -304,8 +304,8 @@ TEST_F(BlendSpace2DTest, InvalidPlaybackRequestsLeaveTheCurrentPoseAndPhaseIntac
     instance.Stop();
     EXPECT_FALSE(instance.SetBlendSpaceValue({ 0, 0 }));
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 0);
-    instance.SetMesh(nullptr);
-    EXPECT_FALSE(instance.Play(Space, { 0, 0 }));
+    SkeletalMeshInstance invalidInstance(nullptr);
+    EXPECT_FALSE(invalidInstance.Play(Space, { 0, 0 }));
 }
 
 TEST_F(BlendSpace2DTest, StaticCyclesStayResponsiveAndCharactersKeepIndependentCoordinates)

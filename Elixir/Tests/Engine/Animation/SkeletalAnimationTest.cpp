@@ -6,6 +6,7 @@
 #include <Engine/Materials/DefaultMaterials.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <limits>
+#include <type_traits>
 
 using namespace Elixir;
 
@@ -278,9 +279,7 @@ TEST(SkeletalMeshInstanceTest, FailedOperationsPreservePlaybackAndPose)
     EXPECT_FALSE(meshInstance.SetLocalPose({}));
     EXPECT_FLOAT_EQ(meshInstance.GetTime(), 1);
     EXPECT_TRUE(meshInstance.IsPlaying());
-    meshInstance.SetMesh(nullptr);
-    EXPECT_TRUE(meshInstance.GetModelPose().empty());
-    EXPECT_FALSE(meshInstance.IsPlaying());
+    EXPECT_EQ(meshInstance.GetMesh(), mesh);
 }
 
 TEST(SkeletalMeshInstanceTest, MeshSpecificReferencePoseSuppliesUnanimatedBones)
@@ -488,7 +487,7 @@ TEST(SkeletalMeshInstanceTest, CrossFadeClampsNonloopingSourceAndSupportsImmedia
     ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 9, 0 });
 }
 
-TEST(SkeletalMeshInstanceTest, SeekStopManualPoseAndMeshReplacementCancelTransitions)
+TEST(SkeletalMeshInstanceTest, SeekStopAndManualPoseCancelTransitions)
 {
     auto mesh = SkeletalMesh::Create(MakeData());
     SkeletalMeshInstance instance(mesh);
@@ -510,13 +509,11 @@ TEST(SkeletalMeshInstanceTest, SeekStopManualPoseAndMeshReplacementCancelTransit
     ASSERT_TRUE(instance.Play(sequence, 2.0f));
     ASSERT_TRUE(instance.Update(1.0f));
     ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 4.5f, 0 });
-    instance.SetMesh(mesh);
-    EXPECT_FALSE(instance.IsTransitioning());
-    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 1, 0 });
-    ASSERT_TRUE(instance.Play(sequence, 2.0f));
-    instance.SetMesh(nullptr);
-    EXPECT_FALSE(instance.IsTransitioning());
-    EXPECT_TRUE(instance.GetLocalPose().empty());
+    SkeletalMeshInstance replacement(mesh);
+    EXPECT_FALSE(replacement.IsTransitioning());
+    ExpectPosition(replacement.GetLocalPose()[1].Translation, { 0, 1, 0 });
+    EXPECT_TRUE(instance.IsTransitioning());
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 4.5f, 0 });
 }
 
 TEST(SkeletalMeshInstanceTest, InvalidFadeRequestsPreserveAnActiveTransition)
@@ -579,4 +576,42 @@ TEST(SkeletalMeshInstanceTest, CrossFadeUsesMeshSpecificDefaultsAndIndependentIn
     ExpectPosition(second.GetLocalPose()[1].Translation, { 0, 1.25f, 0 });
     ExpectPosition(first.GetLocalPose()[0].Translation, { 10, 0, 0 });
     ExpectPosition(second.GetLocalPose()[0].Translation, { 10, 0, 0 });
+}
+
+TEST(SkeletalMeshInstanceTest, MeshOwnershipIsFixedAtConstruction)
+{
+    static_assert(!std::is_default_constructible_v<SkeletalMeshInstance>);
+    static_assert(!std::is_copy_assignable_v<SkeletalMeshInstance>);
+    static_assert(!std::is_move_assignable_v<SkeletalMeshInstance>);
+    static_assert(std::is_same_v<decltype(std::declval<SkeletalMeshInstance&>().GetMesh()),
+        const Ref<const SkeletalMesh>&>);
+
+    auto mesh = SkeletalMesh::Create(MakeData());
+    ASSERT_TRUE(mesh);
+    const std::weak_ptr<const SkeletalMesh> weak = mesh;
+    {
+        SkeletalMeshInstance instance(mesh);
+        mesh.reset();
+        EXPECT_FALSE(weak.expired());
+        ASSERT_TRUE(instance.Play(MakeSequence(instance.GetMesh()->GetSkeleton())));
+        ASSERT_TRUE(instance.Update(1));
+        instance.Stop();
+        EXPECT_EQ(instance.GetMesh(), weak.lock());
+        ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 1, 0 });
+    }
+    EXPECT_TRUE(weak.expired());
+}
+
+TEST(SkeletalMeshInstanceTest, NullMeshConstructionLeavesAnInertInstance)
+{
+    SkeletalMeshInstance instance(nullptr);
+    EXPECT_FALSE(instance.GetMesh());
+    EXPECT_TRUE(instance.GetLocalPose().empty());
+    EXPECT_TRUE(instance.GetModelPose().empty());
+    EXPECT_FALSE(instance.IsPlaying());
+    EXPECT_FALSE(instance.Play(nullptr));
+    EXPECT_FALSE(instance.SetLocalPose({}));
+    EXPECT_FALSE(instance.Seek(0));
+    instance.Stop();
+    EXPECT_TRUE(instance.Update(0));
 }

@@ -5,7 +5,6 @@
 namespace Elixir
 {
     class SkeletalMeshInstance;
-    class SkeletalMesh;
 
     /** Owns parameter values and state-machine playback decisions for one mesh instance. */
     class ELIXIR_API AnimationControllerInstance final
@@ -56,8 +55,8 @@ namespace Elixir
          *
          * The first update starts the initial state. Check outgoing transitions in definition
          * order and take at most one per update. Transitions can interrupt an active fade.
-         * Playback must be driven through this controller while it is in use. Replacing
-         * the mesh restarts the machine and retains parameters if the new mesh is compatible.
+         * Playback must be driven through this controller while it is in use. Skeleton
+         * compatibility with the instance's fixed mesh is checked at construction.
          *
          * @param dt Finite nonnegative elapsed time in seconds.
          * @return False for invalid input, an incompatible mesh, or a failed pose update.
@@ -103,8 +102,8 @@ namespace Elixir
         Ref<const AnimationController> m_Controller;
         SkeletalMeshInstance& m_Instance;
 
-        /** Last mesh checked for skeleton compatibility and initialized for playback. */
-        Ref<const SkeletalMesh> m_Mesh;
+        /** Skeleton compatibility is fixed when this controller instance is constructed. */
+        bool m_Compatible = false;
 
         std::vector<TAnimationParameterValue> m_Parameters;
         std::vector<float> m_BlendValues;

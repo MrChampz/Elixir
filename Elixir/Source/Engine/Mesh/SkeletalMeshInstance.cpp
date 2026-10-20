@@ -24,13 +24,14 @@ namespace Elixir
     }
 
     SkeletalMeshInstance::SkeletalMeshInstance(Ref<const SkeletalMesh> mesh)
+        : m_Mesh(std::move(mesh))
     {
-        SetMesh(std::move(mesh));
-    }
+        if (!m_Mesh)
+        {
+            EE_CORE_ERROR("SkeletalMeshInstance requires a non-null mesh.")
+            return;
+        }
 
-    void SkeletalMeshInstance::SetMesh(Ref<const SkeletalMesh> mesh)
-    {
-        m_Mesh = std::move(mesh);
         Stop();
     }
 

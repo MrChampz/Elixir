@@ -11,10 +11,10 @@ namespace Elixir
     {
     public:
         /**
-         * @brief Create an empty instance, or initialize a mesh in its reference pose.
-         * @param mesh Shared mesh asset, or null for an empty instance.
+         * @brief Bind a mesh for this instance's lifetime and initialize its reference pose.
+         * @param mesh Non-null shared mesh asset retained for the entire instance lifetime.
          */
-        explicit SkeletalMeshInstance(Ref<const SkeletalMesh> mesh = nullptr);
+        explicit SkeletalMeshInstance(Ref<const SkeletalMesh> mesh);
 
         /**
          * @brief Start a compatible sequence at time zero; preserve state on failure.
@@ -110,12 +110,6 @@ namespace Elixir
          * @param time Finite time in seconds, wrapped or clamped by the playback mode.
          */
         bool Seek(float time);
-
-        /**
-         * @brief Assign a mesh and reset playback and pose; null clears the instance.
-         * @param mesh Shared mesh asset, or null to clear the instance.
-         */
-        void SetMesh(Ref<const SkeletalMesh> mesh);
 
         /** @brief Get the shared mesh asset. */
         const Ref<const SkeletalMesh>& GetMesh() const { return m_Mesh; }
@@ -218,7 +212,7 @@ namespace Elixir
         SPlayback m_Playback;
         bool m_Playing = false;
 
-        Ref<const SkeletalMesh> m_Mesh;
+        const Ref<const SkeletalMesh> m_Mesh;
         std::vector<SBoneTransform> m_LocalPose;
         std::vector<glm::mat4> m_ModelPose;
     };
