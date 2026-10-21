@@ -1,32 +1,11 @@
 #pragma once
 
 #include <Engine/Mesh/SkeletalMesh.h>
-#include <Engine/Animation/BlendSpace.h>
+#include <Engine/Animation/AnimationLayer.h>
+#include <Engine/Animation/BoneMask.h>
 
 namespace Elixir
 {
-    /** Retains the authored sequence for one event emitted by a successful update. */
-    struct SAnimationNotifyEvent
-    {
-        /** Shared ownership keeps event metadata alive after playback changes. */
-        Ref<const AnimationSequence> Sequence;
-
-        /** Index into Sequence's sorted notify list. */
-        size_t NotifyIndex = 0;
-
-        /** Seconds elapsed within this update when playback crossed the event. */
-        double TimeOffset = 0.0;
-
-        /**
-         * @brief Get the immutable event metadata retained by this occurrence.
-         * @pre Sequence is non-null and NotifyIndex refers to one of its notifies.
-         */
-        const SAnimationNotify& GetNotify() const
-        {
-            return Sequence->GetNotifies()[NotifyIndex];
-        }
-    };
-
     /** @brief Owns a mesh instance's pose, playback, and animation transitions. */
     class ELIXIR_API SkeletalMeshInstance final
     {
@@ -112,18 +91,22 @@ namespace Elixir
         }
 
         /** @brief Pause playback while preserving the current pose and time. */
-        void Pause() { m_Playing = false; }
+        void Pause() { m_Paused = true; }
 
-        /** @brief Resume the assigned sequence or blend space, if one exists. */
+        /** @brief Resume the instance clock while preserving each layer's pause state. */
         void Resume();
 
-        /** @brief Stop playback and restore this mesh's reference pose. */
+        /** @brief Stop the base, remove nonbase layers, and restore the reference pose. */
         void Stop();
 
         /**
          * @brief Advance playback, transition, and instantaneous events; preserve state on
          * failure.
          *
+         * All layers advance together unless paused individually. Instance Pause freezes
+         * every layer. Muted layers and empty masks emit no events. Layer events retain
+         * their source sequence and layer name. The combined event limit applies to all
+         * layers.
          * Only the target playback emits notifies during a fade. A blend space emits from
          * its dominant clip and maps event times through its marker reference. The first
          * positive update includes start events. Paused and zero-delta updates emit none.
@@ -146,7 +129,10 @@ namespace Elixir
         }
 
         /**
-         * @brief Seek silently and clear pending events and the active transition on success.
+         * @brief Seek base playback silently without changing layer clocks.
+         *
+         * Clear pending events and the base transition on success.
+         *
          * @param time Finite time in seconds, wrapped or clamped by the playback mode.
          */
         bool Seek(float time);
@@ -155,7 +141,7 @@ namespace Elixir
         const Ref<const SkeletalMesh>& GetMesh() const { return m_Mesh; }
 
         /**
-         * @brief Set a complete local pose and stop playback; preserve state on failure.
+         * @brief Set the base local pose, stop playback, and remove nonbase layers on success.
          * @param pose One valid parent-relative transform per skeleton bone.
          */
         bool SetLocalPose(std::span<const SBoneTransform> pose);
@@ -172,98 +158,111 @@ namespace Elixir
         /** @brief Get target cycle phase in [0, 1], or zero when no animation is assigned. */
         float GetNormalizedTime() const;
 
-        /** @brief Check whether a transition still contributes to the current pose. */
-        bool IsTransitioning() const { return m_Transition.Duration > 0.0f; }
-
         /** @brief Check whether Update advances playback or a transition. */
-        bool IsPlaying() const { return m_Playing; }
+        bool IsPlaying() const;
+
+        /** @brief Check whether the base playback is transitioning. */
+        bool IsTransitioning() const { return GetBaseLayer().IsTransitioning(); }
+
+        /**
+         * @brief Get the fixed first layer with a full-body mask and weight one.
+         * @return A reference that remains valid for this mesh instance's lifetime.
+         */
+        AnimationLayer& GetBaseLayer() { return *m_Layers.front(); }
+
+        /** @brief Inspect the fixed first layer without modifying its playback. */
+        const AnimationLayer& GetBaseLayer() const { return *m_Layers.front(); }
+
+        /** @brief Get the number of layers, including the base layer. */
+        size_t GetLayerCount() const { return m_Layers.size(); }
+
+        /**
+         * @brief Add an independently controlled override layer after existing layers.
+         *
+         * Each bone blends with weight times its mask value. Later layers override earlier
+         * layers. Changes appear on the next successful Update, including Update(0).
+         * A completed nonlooping animation holds its last pose until stopped or removed.
+         *
+         * @param name Unique nonempty instance-local name; Base is reserved.
+         * @param mask Immutable mask compatible with this mesh's skeleton.
+         * @param weight Finite contribution in [0, 1].
+         * @return False for invalid input or a duplicate name.
+         */
+        bool AddLayer(std::string name, Ref<const BoneMask> mask, float weight = 1.0f);
+
+        /**
+         * @brief Get a layer's composition settings and independent playback.
+         *
+         * The instance evaluates every layer during Update. Playback changes through this
+         * reference appear in the composed pose on the next successful instance update.
+         *
+         * @param name Layer name.
+         * @return Null for an unknown name. Nonbase layers live until removal;
+         * Base lives with the mesh.
+         */
+        AnimationLayer* GetLayer(std::string_view name);
+
+        /**
+         * @brief Inspect a layer without modifying its playback.
+         * @param name Layer name.
+         * @return Null for an unknown name. Nonbase layers live until removal;
+         * Base lives with the mesh.
+         */
+        const AnimationLayer* GetLayer(std::string_view name) const;
+
+        /**
+         * @brief Set a layer's contribution for the next Update without resetting its time.
+         * @param name Layer name.
+         * @param weight Finite contribution in [0, 1]; zero mutes events but advances time.
+         */
+        bool SetLayerWeight(std::string_view name, float weight);
+
+        /**
+         * @brief Get a layer's contribution, or an empty result if it does not exist.
+         * @param name Layer name.
+         */
+        std::optional<float> GetLayerWeight(std::string_view name) const;
+
+        /**
+         * @brief Remove a layer; the next Update rebuilds the composed pose.
+         * @param name Layer name.
+         * @return False if the layer does not exist or is the base layer.
+         */
+        bool RemoveLayer(std::string_view name);
+
+        /** @brief Remove all nonbase layers; the next Update rebuilds the base pose. */
+        void ClearLayers();
 
       private:
-        struct SPlayback
-        {
-            Ref<const AnimationSequence> Sequence;
-            Ref<const BlendSpace> BlendSpace;
-            std::vector<float> Values;
-
-            /** Sequence seconds, or normalized cycle phase for a blend space. */
-            double Time = 0.0;
-
-            bool IncludeNotifyStart = true;
-            bool Looping = true;
-        };
-
-        struct STransition
-        {
-            SPlayback Playback;
-
-            /** Visible source pose when playback is absent or a fade was interrupted. */
-            std::vector<SBoneTransform> Pose;
-            float Duration = 0.0f;
-            float Elapsed = 0.0f;
-        };
-
         /**
-         * @brief Start validated playback and capture the fade source.
-         * @param playback Compatible target sequence or blend space at time zero.
-         * @param fadeDuration Finite nonnegative duration in seconds.
+         * @brief Compose ordered layer poses and validate the final model matrices.
+         * @param evaluations Evaluated layers, or empty to use their current local poses.
+         * @param local Receives the complete blended local pose.
+         * @param model Receives the complete skeleton-space pose.
+         * @param replacement Optional layer preview used before committing a playback change.
          */
-        bool StartPlayback(SPlayback playback, float fadeDuration);
-
-        /**
-         * @brief Sample playback into a full local pose.
-         * @param playback Assigned sequence or blend space and its sample time.
-         * @param output Local transforms to receive the sample.
-         * @param time Seconds for a sequence or normalized phase for a blend space.
-         */
-        bool SamplePlayback(
-            const SPlayback& playback,
-            std::vector<SBoneTransform>& output,
-            double time
+        bool ComposePose(
+            std::span<const AnimationLayer::SLayerEvaluation> evaluations,
+            std::vector<SBoneTransform>& local,
+            std::vector<glm::mat4>& model,
+            const AnimationLayer* replacement = nullptr
         ) const;
 
         /**
-         * @brief Advance seconds or normalized phase using the current cycle duration.
-         * @param playback Playback to advance.
-         * @param dt Finite nonnegative elapsed time in seconds.
+         * @brief Apply a base-layer change after validating the complete composed pose.
+         * @param layer Candidate with the base layer's fixed name, mask, and skeleton.
          */
-        static double AdvancePlayback(const SPlayback& playback, float dt);
-
-        /**
-         * @brief Compose sampled local transforms after blending the fade source.
-         * @param playback Target playback to evaluate and store on success.
-         * @param source Source playback to sample when a fade is active.
-         * @param weight Target weight in [0, 1].
-         * @param time Target seconds or normalized phase.
-         * @param sourceTime Source seconds or normalized phase.
-         */
-        bool Evaluate(
-            const SPlayback& playback,
-            const SPlayback& source,
-            float weight,
-            double time,
-            double sourceTime
-        );
-
-        /**
-         * @brief Get the cycle duration in seconds for assigned playback.
-         * @param playback Sequence or blend-space playback.
-         */
-        static float GetDuration(const SPlayback& playback);
-
-        /**
-         * @brief Gather target events before committing a playback update.
-         * @param dt Positive elapsed time in seconds; zero emits no events.
-         * @param output Receives occurrences retaining the selected source asset.
-         */
-        bool CollectNotifyEvents(float dt, std::vector<SAnimationNotifyEvent>& output) const;
-
-        STransition m_Transition;
-        SPlayback m_Playback;
-        bool m_Playing = false;
-        std::vector<SAnimationNotifyEvent> m_NotifyEvents;
+        bool ApplyBaseLayer(const AnimationLayer& layer);
 
         const Ref<const SkeletalMesh> m_Mesh;
+
+        /** The first layer is Base and remains alive for this instance's lifetime. */
+        std::vector<Scope<AnimationLayer>> m_Layers;
+        std::vector<SAnimationNotifyEvent> m_NotifyEvents;
+
         std::vector<SBoneTransform> m_LocalPose;
         std::vector<glm::mat4> m_ModelPose;
+
+        bool m_Paused = false;
     };
 }

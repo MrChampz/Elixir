@@ -80,6 +80,19 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
             pose[1].Translation = {3, -2, float(frame)};
             pose[1].Rotation = glm::angleAxis(0.7f, glm::normalize(glm::vec3(1, 2, 3)));
             ASSERT_TRUE(secondInstance.SetLocalPose(pose));
+            if (frame > 0)
+            {
+                auto mask = BoneMask::FromBone("Action", mesh->GetSkeleton(),
+                    mesh->GetSkeleton()->GetBones()[1].Name);
+                auto action = AnimationSequence::Create("Layer", mesh->GetSkeleton(), 1, {
+                    { .BoneIndex = 1, .Translations = {
+                        { 0, { 1, 2, 3 } }, { 1, { 3, 4, 5 } },
+                    } },
+                });
+                ASSERT_TRUE(firstInstance.AddLayer("Action", mask, 0.65f));
+                ASSERT_TRUE(firstInstance.GetLayer("Action")->Play(action));
+                ASSERT_TRUE(firstInstance.Update(0.125f));
+            }
             SkinningBatch batch;
             ASSERT_TRUE(batch.Append(*mesh, firstInstance.GetModelPose(), geometry.Get()->VertexOffset,
                 first.Get()->VertexOffset, 4));

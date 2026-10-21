@@ -252,7 +252,7 @@ Dissolve::Dissolve()
         .SetPosition({20, 50})
         .SetSize({1000, 30});
     for (const auto& [position, caption] : std::array{
-        std::pair{0.25f, "NORMALIZED TIME"}, std::pair{0.75f, "SYNC MARKERS"}
+        std::pair{0.25f, "LOCOMOTION"}, std::pair{0.75f, "UPPER BODY LAYER"}
     })
     {
         const auto label = CreateRef<GUI::TextBlock>(caption);
@@ -260,14 +260,22 @@ Dissolve::Dissolve()
         panel->AddChild(label)
             .SetAnchors({position, 0, position, 0})
             .SetAlignment({0.5f, 0})
-            .SetPosition({0, 130})
+            .SetPosition({0, 160})
             .SetSize({260, 35});
     }
-    m_AnimationStatus = CreateRef<GUI::TextBlock>("KayKit sync comparison");
+    const auto layerInstructions = CreateRef<GUI::TextBlock>(
+        "J: wave | K: punch | L: toggle upper-body layer (right character)"
+    );
+    layerInstructions->SetFontSize(18.0f);
+    panel->AddChild(layerInstructions)
+        .SetAnchors(GUI::SAnchors::TopLeft())
+        .SetPosition({20, 80})
+        .SetSize({1100, 30});
+    m_AnimationStatus = CreateRef<GUI::TextBlock>("KayKit animation layers");
     m_AnimationStatus->SetFontSize(20.0f);
     panel->AddChild(m_AnimationStatus)
         .SetAnchors(GUI::SAnchors::TopLeft())
-        .SetPosition({20, 85})
+        .SetPosition({20, 110})
         .SetSize({1100, 30});
     m_GUIManager->SetRoot(panel);
 
@@ -294,15 +302,15 @@ void Dissolve::OnGUI(const Timestep frameTime)
     if (m_AnimationStatus)
         m_AnimationStatus->SetText(
             std::format(
-                "X: {:.2f} | Y: {:.2f} | Phase: {:.3f} | {} | Steps: {} / {} | Last: {}",
-                m_AnimationStrafe.load(std::memory_order_relaxed),
-                m_AnimationForward.load(std::memory_order_relaxed),
+                "Phase: {:.3f} | {} | Steps: {} / {} | Foot: {} | Layer: {:.2f} | Actions: {}",
                 m_AnimationPhase.load(std::memory_order_relaxed),
                 m_AnimationPaused.load(std::memory_order_relaxed) ? "PAUSED" : "PLAYING",
                 m_ComparisonSteps.load(std::memory_order_relaxed),
                 m_SynchronizedSteps.load(std::memory_order_relaxed),
                 m_LastFoot.load(std::memory_order_relaxed) == 1 ? "Left" :
-                    (m_LastFoot.load(std::memory_order_relaxed) == 2 ? "Right" : "None")
+                    (m_LastFoot.load(std::memory_order_relaxed) == 2 ? "Right" : "None"),
+                m_LayerWeight.load(std::memory_order_relaxed),
+                m_ActionEvents.load(std::memory_order_relaxed)
             )
         );
 }
@@ -311,6 +319,20 @@ void Dissolve::Prepare(const Timestep frameTime)
 {
     EE_PROFILE_ZONE_SCOPED()
     Application::Prepare(frameTime);
+
+    const auto wave = InputManager::IsKeyPressed(EE_KEY_J);
+    const auto punch = InputManager::IsKeyPressed(EE_KEY_K);
+    const auto toggleLayer = InputManager::IsKeyPressed(EE_KEY_L);
+    if (wave && !m_WaveKeyPressed)
+        m_ActionRequest.store(1, std::memory_order_relaxed);
+    if (punch && !m_PunchKeyPressed)
+        m_ActionRequest.store(2, std::memory_order_relaxed);
+    if (toggleLayer && !m_LayerKeyPressed)
+        m_LayerEnabled.store(!m_LayerEnabled.load(std::memory_order_relaxed),
+            std::memory_order_relaxed);
+    m_WaveKeyPressed = wave;
+    m_PunchKeyPressed = punch;
+    m_LayerKeyPressed = toggleLayer;
 
     const auto pause = InputManager::IsKeyPressed(EE_KEY_P);
     if (pause && !m_PauseKeyPressed)
@@ -479,18 +501,7 @@ void Dissolve::InitializeAnimationController()
             { { 3, 0 }, syncRight },
         }
     );
-    const auto comparisonSpace = BlendSpace2D::Create(
-        "KayKitNormalized",
-        {
-            { { 0, 0 }, idle },
-            { { 0, 1.5f }, walk },
-            { { 0, 3 }, run },
-            { { 0, -1.5f }, backward },
-            { { -3, 0 }, left },
-            { { 3, 0 }, right },
-        }
-    );
-    if (!blendSpace || !comparisonSpace)
+    if (!blendSpace)
         return;
 
     const auto makeController = [](Ref<const BlendSpace> space)
@@ -510,7 +521,7 @@ void Dissolve::InitializeAnimationController()
         });
     };
     const auto controller = makeController(blendSpace);
-    const auto comparisonController = makeController(comparisonSpace);
+    const auto comparisonController = makeController(blendSpace);
     if (!controller || !comparisonController)
         return;
 
@@ -525,11 +536,22 @@ void Dissolve::InitializeAnimationController()
     if (!instance->Update(0.0f) || !comparison->Update(0.0f))
         return;
 
+    const auto wave = findAnimation("Waving");
+    const auto punch = findAnimation("Melee_Unarmed_Attack_Punch_A");
+    const auto upperBody = BoneMask::FromBone("UpperBody", mesh->GetSkeleton(), "spine");
+    if (!wave || !punch || !upperBody || !m_MeshInstance->AddLayer("UpperBody", upperBody))
+        return;
+    m_WaveAnimation = wave->WithNotifies({{ "WavePeak", wave->GetDuration() * 0.5f }});
+    m_PunchAnimation = punch->WithNotifies({{ "PunchHit", punch->GetDuration() * 0.45f }});
+    if (!m_WaveAnimation || !m_PunchAnimation ||
+        !m_MeshInstance->GetLayer("UpperBody")->Play(m_WaveAnimation))
+        return;
+
     m_LocomotionSpace = blendSpace;
     m_ContactPhase = syncLeft->GetSyncMarkers().front().Time / syncLeft->GetDuration();
     m_AnimationController = std::move(instance);
     m_ComparisonController = std::move(comparison);
-    EE_CORE_INFO("KayKit comparison: left normalized, right markers; P pauses, N steps, F contact.")
+    EE_CORE_INFO("KayKit layers: left locomotion, right upper-body action; J wave, K punch, L toggle.")
 }
 
 void Dissolve::UpdateAnimation(const float deltaSeconds)
@@ -548,6 +570,21 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
     const auto paused = m_AnimationPaused.load(std::memory_order_relaxed);
     const auto advance = m_StepAnimation.exchange(false, std::memory_order_relaxed)
         ? 1.0f / 30.0f : (paused ? 0.0f : deltaSeconds);
+    auto* upperBody = m_MeshInstance->GetLayer("UpperBody");
+    if (!upperBody)
+        return;
+    const auto action = m_ActionRequest.exchange(0, std::memory_order_relaxed);
+    if (action != 0 && !upperBody->Play(
+            action == 1 ? m_WaveAnimation : m_PunchAnimation, 0.15f, true))
+        return;
+    const auto layerWeight = m_LayerWeight.load(std::memory_order_relaxed);
+    const auto targetWeight = m_LayerEnabled.load(std::memory_order_relaxed) ? 1.0f : 0.0f;
+    const auto nextWeight = layerWeight +
+        std::clamp(targetWeight - layerWeight, -advance * 4.0f, advance * 4.0f);
+    if (!m_MeshInstance->SetLayerWeight("UpperBody", nextWeight))
+        return;
+    m_LayerWeight.store(nextWeight, std::memory_order_relaxed);
+
     if (!m_AnimationController->SetFloat("Forward", forward) ||
         !m_AnimationController->SetFloat("Strafe", nextStrafe) ||
         !m_ComparisonController->SetFloat("Forward", forward) ||
@@ -567,6 +604,8 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
     // The application maps generic animation events to feedback for this demo.
     for (const auto& event : m_MeshInstance->GetNotifyEvents())
     {
+        if (event.LayerName == "UpperBody")
+            m_ActionEvents.fetch_add(1, std::memory_order_relaxed);
         if (event.GetNotify().Name == "Footstep")
         {
             const auto* payload = event.GetNotify().GetPayload<SFootstepNotifyPayload>();

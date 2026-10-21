@@ -907,3 +907,424 @@ TEST(AnimationNotifyTest, RetainedBlendEventsKeepCustomPayloadResourcesAlive)
     retained = {};
     EXPECT_TRUE(effectLifetime.expired());
 }
+
+namespace
+{
+    Ref<Skeleton> MakeLayerSkeleton()
+    {
+        return Skeleton::Create("LayerRig", {
+            { .Name = "Root" },
+            { .Name = "Spine", .ParentIndex = 0,
+                .ReferenceTransform = { .Translation = { 0, 1, 0 } } },
+            { .Name = "Hand", .ParentIndex = 1,
+                .ReferenceTransform = { .Translation = { 0, 1, 0 } } },
+            { .Name = "Leg", .ParentIndex = 0,
+                .ReferenceTransform = { .Translation = { 0, -1, 0 } } },
+        });
+    }
+
+    Ref<AnimationSequence> MakeLayerBase(const Ref<const Skeleton>& skeleton)
+    {
+        return AnimationSequence::Create("Walk", skeleton, 2, {
+            { .BoneIndex = 1, .Translations = {{ 0, { 0, 1, 0 } }, { 2, { 0, 3, 0 } }} },
+            { .BoneIndex = 3, .Translations = {{ 0, { 0, -1, 0 } }, { 2, { 0, -3, 0 } }} },
+        });
+    }
+
+    Ref<AnimationSequence> MakeLayerAction(const Ref<const Skeleton>& skeleton)
+    {
+        return AnimationSequence::Create("Action", skeleton, 1, {
+            { .BoneIndex = 1, .Translations = {{ 0, { 0, 10, 0 } }, { 1, { 0, 20, 0 } }} },
+            { .BoneIndex = 2, .Translations = {{ 0, { 2, 1, 0 } }} },
+            { .BoneIndex = 3, .Translations = {{ 0, { 0, 50, 0 } }} },
+        });
+    }
+}
+
+TEST(BoneMaskTest, ValidatesWeightsAndSelectsOnlyTheRequestedSubtree)
+{
+    static_assert(!std::is_copy_constructible_v<BoneMask>);
+    static_assert(!std::is_copy_assignable_v<BoneMask>);
+    auto skeleton = MakeLayerSkeleton();
+    EXPECT_FALSE(BoneMask::Create("Empty", skeleton, {}));
+    EXPECT_FALSE(BoneMask::Create("Bad", nullptr, {}));
+    EXPECT_FALSE(BoneMask::FromBone("Bad", skeleton, "Missing"));
+    for (const auto weight : { -0.1f, 1.1f, std::numeric_limits<float>::quiet_NaN() })
+        EXPECT_FALSE(BoneMask::FromBone("Bad", skeleton, "Spine", weight));
+    auto mask = BoneMask::FromBone("Upper", skeleton, "Spine", 0.5f);
+    ASSERT_TRUE(mask);
+    EXPECT_EQ(mask->GetWeights(), (std::vector<float>{ 0, 0.5f, 0.5f, 0 }));
+    EXPECT_TRUE(mask->HasInfluence());
+    auto single = BoneMask::FromBone("Single", skeleton, "Spine", 1, false);
+    ASSERT_TRUE(single);
+    EXPECT_EQ(single->GetWeights(), (std::vector<float>{ 0, 1, 0, 0 }));
+    auto empty = BoneMask::FromBone("Muted", skeleton, "Root", 0);
+    ASSERT_TRUE(empty);
+    EXPECT_FALSE(empty->HasInfluence());
+}
+
+TEST(AnimationLayerTest, OverridesUpperBodyWhileLegsFollowBasePlayback)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    ASSERT_TRUE(instance.Play(MakeLayerBase(mesh->GetSkeleton())));
+    ASSERT_TRUE(instance.AddLayer("Upper", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine")));
+    auto* layer = instance.GetLayer("Upper");
+    ASSERT_NE(layer, nullptr);
+    ASSERT_TRUE(layer->Play(MakeLayerAction(mesh->GetSkeleton())));
+    ASSERT_TRUE(instance.Update(0.5f));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 15, 0 });
+    ExpectPosition(instance.GetLocalPose()[2].Translation, { 2, 1, 0 });
+    ExpectPosition(instance.GetLocalPose()[3].Translation, { 0, -1.5f, 0 });
+    EXPECT_FLOAT_EQ(instance.GetTime(), 0.5f);
+    EXPECT_FLOAT_EQ(layer->GetTime(), 0.5f);
+    EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 0.25f);
+    EXPECT_FLOAT_EQ(layer->GetNormalizedTime(), 0.5f);
+    ExpectPosition(glm::vec3(instance.GetModelPose()[2][3]), { 2, 16, 0 });
+}
+
+TEST(AnimationLayerTest, MultipliesMaskAndLayerWeightsAndPreservesUnassignedLayers)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    ASSERT_TRUE(instance.Play(MakeLayerBase(mesh->GetSkeleton())));
+    ASSERT_TRUE(instance.AddLayer("Upper",
+        BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine", 0.5f), 0.5f));
+    ASSERT_TRUE(instance.Update(0.5f));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 1.5f, 0 });
+    ASSERT_TRUE(instance.GetLayer("Upper")->Play(MakeLayerAction(mesh->GetSkeleton())));
+    ASSERT_TRUE(instance.Update(0));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 3.625f, 0 });
+    EXPECT_EQ(instance.GetLayerWeight("Upper"), 0.5f);
+    EXPECT_FALSE(instance.SetLayerWeight("Upper", -1));
+    EXPECT_FALSE(instance.SetLayerWeight("Upper", std::numeric_limits<float>::infinity()));
+    EXPECT_FALSE(instance.GetLayerWeight("Missing"));
+    EXPECT_FALSE(instance.RemoveLayer("Missing"));
+    EXPECT_FALSE(instance.AddLayer("Upper",
+        BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine")));
+    EXPECT_FALSE(instance.AddLayer("Bad", BoneMask::FromBone("Other", MakeSkeleton(), "Root")));
+    EXPECT_FALSE(instance.AddLayer("Bad", nullptr));
+    const SkeletalMeshInstance& readOnly = instance;
+    EXPECT_EQ(readOnly.GetLayer("Upper"), instance.GetLayer("Upper"));
+    EXPECT_EQ(readOnly.GetLayer("Missing"), nullptr);
+}
+
+TEST(AnimationLayerTest, AppliesLayersInOrderAndRestoresTheUnderlyingPoseWhenRemoved)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    auto mask = BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine");
+    ASSERT_TRUE(instance.Play(MakeLayerBase(mesh->GetSkeleton())));
+    ASSERT_TRUE(instance.AddLayer("First", mask));
+    auto* first = instance.GetLayer("First");
+    ASSERT_TRUE(first->Play(MakeLayerAction(mesh->GetSkeleton())));
+    ASSERT_TRUE(instance.AddLayer("Second", mask, 0.5f));
+    EXPECT_EQ(instance.GetLayer("First"), first);
+    auto* second = instance.GetLayer("Second");
+    ASSERT_TRUE(second->Play(MakeLayerAction(mesh->GetSkeleton()), false));
+    ASSERT_TRUE(second->Seek(1));
+    ASSERT_TRUE(instance.Update(0));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 15, 0 });
+    ASSERT_TRUE(instance.RemoveLayer("Second"));
+    ASSERT_TRUE(instance.Update(0));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 10, 0 });
+    instance.ClearLayers();
+    ASSERT_TRUE(instance.Update(0));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 1, 0 });
+}
+
+TEST(AnimationLayerTest, SupportsIndependentPauseSeekCompletionAndManualPoses)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    ASSERT_TRUE(instance.AddLayer("Upper", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine")));
+    auto* layer = instance.GetLayer("Upper");
+    ASSERT_TRUE(layer->Play(MakeLayerAction(mesh->GetSkeleton()), false));
+    EXPECT_TRUE(instance.IsPlaying());
+    ASSERT_TRUE(instance.Update(0.25f));
+    layer->Pause();
+    ASSERT_TRUE(instance.Update(0.25f));
+    EXPECT_FLOAT_EQ(layer->GetTime(), 0.25f);
+    layer->Resume();
+    instance.Pause();
+    ASSERT_TRUE(instance.Update(0.25f));
+    EXPECT_FLOAT_EQ(layer->GetTime(), 0.25f);
+    instance.Resume();
+    ASSERT_TRUE(instance.Update(2));
+    EXPECT_FALSE(layer->IsPlaying());
+    EXPECT_FALSE(instance.IsPlaying());
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 20, 0 });
+    ASSERT_TRUE(layer->Seek(0.5f));
+    ASSERT_TRUE(instance.Update(0));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 15, 0 });
+    auto pose = layer->GetLocalPose();
+    pose[1].Translation.y = 30;
+    ASSERT_TRUE(layer->SetLocalPose(pose));
+    ASSERT_TRUE(instance.Update(0));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 30, 0 });
+    layer->Stop();
+    ASSERT_TRUE(instance.Update(0));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 1, 0 });
+    instance.Stop();
+    EXPECT_EQ(instance.GetLayer("Upper"), nullptr);
+}
+
+TEST(AnimationLayerTest, BlendSpacesAndInterruptedTransitionsUseIndependentClocks)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    auto base = MakeLayerBase(mesh->GetSkeleton());
+    auto action = MakeLayerAction(mesh->GetSkeleton());
+    auto space = BlendSpace1D::Create("Actions", {{ 0, base }, { 1, action }});
+    ASSERT_TRUE(instance.Play(base));
+    ASSERT_TRUE(instance.AddLayer("Upper", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine")));
+    auto* layer = instance.GetLayer("Upper");
+    ASSERT_TRUE(layer->Play(space, { 1 }));
+    ASSERT_TRUE(instance.Update(0.25f));
+    ASSERT_TRUE(layer->Play(base, 1.0f));
+    ASSERT_TRUE(instance.Update(0.25f));
+    EXPECT_TRUE(layer->IsTransitioning());
+    const auto before = instance.GetLocalPose()[1].Translation;
+    ASSERT_TRUE(layer->Play(action, 1.0f));
+    ASSERT_TRUE(instance.Update(0));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, before);
+    ASSERT_TRUE(instance.Update(0.25f));
+    EXPECT_FLOAT_EQ(instance.GetTime(), 0.75f);
+    EXPECT_FLOAT_EQ(layer->GetTime(), 0.25f);
+    ASSERT_TRUE(instance.Play(base, 0.5f));
+    ASSERT_TRUE(instance.Update(0));
+    EXPECT_FLOAT_EQ(layer->GetTime(), 0.25f);
+}
+
+TEST(AnimationLayerTest, MergesEventsChronologicallyAndRetainsLayerIdentityAndPayload)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    ASSERT_TRUE(instance.Play(MakeLayerBase(mesh->GetSkeleton())->WithNotifies({{ "Step", 0.5f }})));
+    ASSERT_TRUE(instance.AddLayer("Upper", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine")));
+    auto* layer = instance.GetLayer("Upper");
+    ASSERT_TRUE(layer->Play(MakeLayerAction(mesh->GetSkeleton())->WithNotifies({
+        { "Start", 0 }, { "Hit", 0.25f, 42 }, { "End", 1 },
+    })));
+    ASSERT_TRUE(instance.Update(0.5f));
+    auto events = instance.GetNotifyEvents();
+    ASSERT_EQ(events.size(), 3);
+    EXPECT_EQ(events[0].GetNotify().Name, "Start");
+    EXPECT_EQ(events[0].LayerName, "Upper");
+    EXPECT_EQ(events[1].GetNotify().Name, "Hit");
+    EXPECT_DOUBLE_EQ(events[1].TimeOffset, 0.25);
+    ASSERT_NE(events[1].GetNotify().GetPayload<int>(), nullptr);
+    EXPECT_EQ(*events[1].GetNotify().GetPayload<int>(), 42);
+    EXPECT_EQ(events[2].GetNotify().Name, "Step");
+    EXPECT_EQ(events[2].LayerName, "Base");
+    auto retained = events[1];
+    ASSERT_TRUE(instance.RemoveLayer("Upper"));
+    EXPECT_EQ(retained.LayerName, "Upper");
+    EXPECT_EQ(*retained.GetNotify().GetPayload<int>(), 42);
+}
+
+TEST(AnimationLayerTest, MutedLayersAndEmptyMasksAdvanceWithoutEmittingEvents)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    auto clip = MakeLayerAction(mesh->GetSkeleton())->WithNotifies({{ "Hit", 0.25f }});
+    ASSERT_TRUE(instance.AddLayer("Muted", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine"), 0));
+    ASSERT_TRUE(instance.AddLayer("Empty", BoneMask::FromBone("Empty", mesh->GetSkeleton(), "Root", 0)));
+    ASSERT_TRUE(instance.GetLayer("Muted")->Play(clip));
+    ASSERT_TRUE(instance.GetLayer("Empty")->Play(clip));
+    ASSERT_TRUE(instance.Update(0.5f));
+    EXPECT_TRUE(instance.GetNotifyEvents().empty());
+    EXPECT_FLOAT_EQ(instance.GetLayer("Muted")->GetTime(), 0.5f);
+    ASSERT_TRUE(instance.SetLayerWeight("Muted", 1));
+    ASSERT_TRUE(instance.Update(0.25f));
+    EXPECT_TRUE(instance.GetNotifyEvents().empty());
+    ASSERT_TRUE(instance.Update(0.5f));
+    ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
+    EXPECT_EQ(instance.GetNotifyEvents().front().LayerName, "Muted");
+}
+
+TEST(AnimationLayerTest, FailedCompositionPreservesEveryClockPoseAndEventBatch)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    auto base = MakeLayerBase(mesh->GetSkeleton())->WithNotifies({{ "Step", 0 }});
+    auto flipped = AnimationSequence::Create("Flip", mesh->GetSkeleton(), 1, {
+        { .BoneIndex = 1, .Scales = {{ 0, { -1, 1, 1 } }} },
+    });
+    ASSERT_TRUE(instance.Play(base));
+    ASSERT_TRUE(instance.Update(0.125f));
+    ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
+    ASSERT_TRUE(instance.AddLayer("Upper", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine"), 0.5f));
+    ASSERT_TRUE(instance.GetLayer("Upper")->Play(flipped));
+    EXPECT_FALSE(instance.Update(0.25f));
+    EXPECT_FLOAT_EQ(instance.GetTime(), 0.125f);
+    EXPECT_FLOAT_EQ(instance.GetLayer("Upper")->GetTime(), 0);
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 1.125f, 0 });
+    ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
+    ASSERT_TRUE(instance.SetLayerWeight("Upper", 1));
+    ASSERT_TRUE(instance.Update(0.25f));
+    EXPECT_FLOAT_EQ(instance.GetTime(), 0.375f);
+    EXPECT_FLOAT_EQ(instance.GetLayer("Upper")->GetTime(), 0.25f);
+}
+
+TEST(AnimationLayerTest, CombinedNotifyLimitRollsBackEveryPlayer)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    auto clip = MakeLayerAction(mesh->GetSkeleton())->WithNotifies({{ "Hit", 0.25f }});
+    ASSERT_TRUE(instance.Play(clip));
+    ASSERT_TRUE(instance.AddLayer("Upper", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine")));
+    ASSERT_TRUE(instance.GetLayer("Upper")->Play(clip));
+    EXPECT_FALSE(instance.Update(3000));
+    EXPECT_FLOAT_EQ(instance.GetTime(), 0);
+    EXPECT_FLOAT_EQ(instance.GetLayer("Upper")->GetTime(), 0);
+    EXPECT_TRUE(instance.GetNotifyEvents().empty());
+    ASSERT_TRUE(instance.Update(0.25f));
+    ASSERT_EQ(instance.GetNotifyEvents().size(), 2);
+    EXPECT_EQ(instance.GetNotifyEvents()[0].GetNotify().Name, "Hit");
+    EXPECT_EQ(instance.GetNotifyEvents()[0].LayerName, "Base");
+    EXPECT_EQ(instance.GetNotifyEvents()[1].LayerName, "Upper");
+}
+
+
+TEST(AnimationLayerTest, NonloopingEndNotifySurvivesFloatRoundingNearCompletion)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    ASSERT_TRUE(instance.AddLayer("Upper", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine")));
+    auto* layer = instance.GetLayer("Upper");
+    ASSERT_TRUE(layer->Play(MakeLayerAction(mesh->GetSkeleton())->WithNotifies({{ "End", 1 }}), false));
+    ASSERT_TRUE(instance.Update(0.5f));
+    ASSERT_TRUE(instance.Update(std::nextafter(0.5f, 0.0f)));
+    EXPECT_TRUE(layer->IsPlaying());
+    EXPECT_TRUE(instance.GetNotifyEvents().empty());
+    ASSERT_TRUE(instance.Update(0.0001f));
+    EXPECT_FALSE(layer->IsPlaying());
+    ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
+    EXPECT_EQ(instance.GetNotifyEvents().front().GetNotify().Name, "End");
+    ASSERT_TRUE(instance.Update(1));
+    EXPECT_TRUE(instance.GetNotifyEvents().empty());
+}
+
+TEST(AnimationLayerTest, BaseLayerHasFixedIdentityMaskAndLifetime)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    auto& base = instance.GetBaseLayer();
+    static_assert(std::is_same_v<decltype(base), AnimationLayer&>);
+    static_assert(!std::is_copy_assignable_v<AnimationLayer>);
+    EXPECT_EQ(instance.GetLayerCount(), 1);
+    EXPECT_EQ(instance.GetLayer("Base"), &base);
+    EXPECT_EQ(base.GetName(), "Base");
+    EXPECT_FLOAT_EQ(base.GetWeight(), 1);
+    ASSERT_TRUE(base.GetMask());
+    EXPECT_EQ(base.GetMask()->GetWeights(), (std::vector<float>{ 1, 1, 1, 1 }));
+    EXPECT_FALSE(base.SetWeight(0.5f));
+    EXPECT_FALSE(instance.SetLayerWeight("Base", 0));
+    EXPECT_TRUE(instance.SetLayerWeight("Base", 1));
+    EXPECT_FALSE(instance.RemoveLayer("Base"));
+    EXPECT_FALSE(instance.AddLayer("Base", base.GetMask()));
+    ASSERT_TRUE(instance.Play(MakeLayerBase(mesh->GetSkeleton())));
+    EXPECT_EQ(&instance.GetBaseLayer(), &base);
+    ASSERT_TRUE(instance.Seek(0.5f));
+    EXPECT_EQ(&instance.GetBaseLayer(), &base);
+    auto mask = BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine");
+    for (int i = 0; i < 16; ++i)
+        ASSERT_TRUE(instance.AddLayer("Upper" + std::to_string(i), mask));
+    EXPECT_EQ(instance.GetLayerCount(), 17);
+    EXPECT_EQ(instance.GetLayer("Base"), &base);
+    instance.ClearLayers();
+    EXPECT_EQ(instance.GetLayerCount(), 1);
+    EXPECT_EQ(&instance.GetBaseLayer(), &base);
+    auto pose = base.GetLocalPose();
+    ASSERT_TRUE(instance.SetLocalPose(pose));
+    EXPECT_EQ(&instance.GetBaseLayer(), &base);
+    instance.Stop();
+    EXPECT_EQ(instance.GetLayerCount(), 1);
+    EXPECT_EQ(instance.GetLayer("Base"), &base);
+    EXPECT_FALSE(base.HasPose());
+    const auto& readOnly = instance;
+    EXPECT_EQ(&readOnly.GetBaseLayer(), &base);
+}
+
+TEST(AnimationLayerTest, BaseAndAdditionalLayersExposeTheSamePlaybackAndSettings)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    auto& base = instance.GetBaseLayer();
+    auto walk = MakeLayerBase(mesh->GetSkeleton())->WithNotifies({{ "Step", 0.25f }});
+    auto space = BlendSpace1D::Create("Locomotion", {{ 0, walk }});
+    ASSERT_TRUE(base.Play(space, { 0 }));
+    auto mask = BoneMask::FromBone("UpperMask", mesh->GetSkeleton(), "Spine");
+    ASSERT_TRUE(instance.AddLayer("Upper", mask));
+    auto* upper = instance.GetLayer("Upper");
+    ASSERT_NE(upper, nullptr);
+    EXPECT_EQ(upper->GetName(), "Upper");
+    EXPECT_EQ(upper->GetMask(), mask);
+    ASSERT_TRUE(upper->SetWeight(0.5f));
+    ASSERT_TRUE(upper->Play(MakeLayerAction(mesh->GetSkeleton())->WithNotifies({{ "Hit", 0.25f }})));
+    ASSERT_TRUE(instance.Update(0.25f));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 6.875f, 0 });
+    ExpectPosition(instance.GetLocalPose()[3].Translation, { 0, -1.25f, 0 });
+    EXPECT_FLOAT_EQ(instance.GetTime(), base.GetTime());
+    ASSERT_EQ(base.GetNotifyEvents().size(), 1);
+    EXPECT_EQ(base.GetNotifyEvents().front().LayerName, "Base");
+    ASSERT_EQ(upper->GetNotifyEvents().size(), 1);
+    EXPECT_EQ(upper->GetNotifyEvents().front().LayerName, "Upper");
+    ASSERT_TRUE(instance.SetLayerWeight("Upper", 0));
+    EXPECT_FLOAT_EQ(upper->GetWeight(), 0);
+    ASSERT_TRUE(instance.Update(0));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 1.25f, 0 });
+}
+
+TEST(AnimationLayerTest, InstanceResumePreservesIndependentBasePause)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    auto& base = instance.GetBaseLayer();
+    ASSERT_TRUE(base.Play(MakeLayerBase(mesh->GetSkeleton())));
+    ASSERT_TRUE(instance.AddLayer("Upper", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine")));
+    auto* upper = instance.GetLayer("Upper");
+    ASSERT_TRUE(upper->Play(MakeLayerAction(mesh->GetSkeleton())));
+    ASSERT_TRUE(instance.Update(0.25f));
+    base.Pause();
+    ASSERT_TRUE(instance.Update(0.25f));
+    EXPECT_TRUE(instance.IsPlaying());
+    EXPECT_FLOAT_EQ(base.GetTime(), 0.25f);
+    EXPECT_FLOAT_EQ(upper->GetTime(), 0.5f);
+    instance.Pause();
+    ASSERT_TRUE(instance.Update(0.25f));
+    EXPECT_FALSE(instance.IsPlaying());
+    instance.Resume();
+    ASSERT_TRUE(instance.Update(0.25f));
+    EXPECT_FALSE(base.IsPlaying());
+    EXPECT_FLOAT_EQ(base.GetTime(), 0.25f);
+    EXPECT_FLOAT_EQ(upper->GetTime(), 0.75f);
+    base.Resume();
+    ASSERT_TRUE(instance.Update(0.125f));
+    EXPECT_FLOAT_EQ(base.GetTime(), 0.375f);
+}
+
+TEST(AnimationLayerTest, FailedManualPoseDoesNotChangeTheBaseOrRemoveLayers)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    auto& base = instance.GetBaseLayer();
+    ASSERT_TRUE(base.Play(MakeLayerBase(mesh->GetSkeleton())->WithNotifies({{ "Step", 0 }})));
+    ASSERT_TRUE(instance.AddLayer("Upper", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine")));
+    ASSERT_TRUE(instance.GetLayer("Upper")->Play(MakeLayerAction(mesh->GetSkeleton())));
+    ASSERT_TRUE(instance.Update(0.125f));
+    auto pose = base.GetLocalPose();
+    pose[0].Translation.x = std::numeric_limits<float>::max();
+    pose[1].Translation.x = std::numeric_limits<float>::max();
+    EXPECT_FALSE(instance.SetLocalPose(pose));
+    EXPECT_EQ(instance.GetLayerCount(), 2);
+    EXPECT_EQ(&instance.GetBaseLayer(), &base);
+    EXPECT_FLOAT_EQ(base.GetTime(), 0.125f);
+    EXPECT_TRUE(base.IsPlaying());
+    ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
+    EXPECT_EQ(instance.GetNotifyEvents().front().LayerName, "Base");
+    ASSERT_TRUE(instance.Update(0.125f));
+    EXPECT_FLOAT_EQ(base.GetTime(), 0.25f);
+    EXPECT_FLOAT_EQ(instance.GetLayer("Upper")->GetTime(), 0.25f);
+}
