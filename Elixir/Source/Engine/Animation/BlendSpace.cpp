@@ -26,6 +26,45 @@ namespace Elixir
         return values.size() == m_DimensionCount && allValuesFinite;
     }
 
+    const AnimationSequence* BlendSpace::GetNotifySource(
+        const std::span<const float> values
+    ) const
+    {
+        if (!HasValidCoordinates(values))
+        {
+            EE_CORE_ERROR("Notify source coordinates must match the blend-space axes.")
+            return nullptr;
+        }
+
+        std::array<std::byte, 256> storage;
+        std::pmr::monotonic_buffer_resource resource(storage.data(), storage.size());
+
+        std::pmr::vector<SContribution> samples(&resource);
+        FindSamples(values, samples);
+
+        const AnimationSequence* source = nullptr;
+        float weight = 0.0f;
+
+        for (const auto& sample : samples)
+        {
+            if (!sample.Sequence || !std::isfinite(sample.Weight) || sample.Weight < 0.0f)
+            {
+                EE_CORE_ERROR("Blend space produced an invalid notify contribution.")
+                return nullptr;
+            }
+            if (sample.Weight > weight)
+            {
+                source = sample.Sequence;
+                weight = sample.Weight;
+            }
+        }
+
+        if (!source)
+            EE_CORE_ERROR("Blend space requires a positive notify source weight.")
+
+        return source;
+    }
+
     float BlendSpace::GetDuration(const std::span<const float> values) const
     {
         if (!HasValidCoordinates(values))

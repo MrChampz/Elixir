@@ -11,15 +11,16 @@ namespace Elixir
          * @param duration Duration in the same unit as time.
          * @param looping Wrap the time instead of clamping it.
          */
-        float SampleTime(const double time, const float duration, const bool looping)
+        double SampleTime(const double time, const float duration, const bool looping)
         {
             if (duration == 0.0f)
                 return 0.0f;
+
             if (!looping)
-                return float(std::clamp(time, 0.0, double(duration)));
+                return std::clamp(time, 0.0, double(duration));
 
             const auto wrapped = std::fmod(time, double(duration));
-            return float(wrapped < 0.0 ? wrapped + duration : wrapped);
+            return wrapped < 0.0 ? wrapped + duration : wrapped;
         }
     }
 
@@ -38,6 +39,7 @@ namespace Elixir
     void SkeletalMeshInstance::Stop()
     {
         m_Playing = false;
+        m_NotifyEvents.clear();
         m_Playback = {};
         m_Transition = {};
 
@@ -94,7 +96,7 @@ namespace Elixir
     bool SkeletalMeshInstance::SamplePlayback(
         const SPlayback& playback,
         std::vector<SBoneTransform>& output,
-        const float time
+        const double time
     ) const
     {
         if (playback.Sequence)
@@ -115,7 +117,7 @@ namespace Elixir
         return false;
     }
 
-    float SkeletalMeshInstance::AdvancePlayback(const SPlayback& playback, const float dt)
+    double SkeletalMeshInstance::AdvancePlayback(const SPlayback& playback, const float dt)
     {
         const auto duration = GetDuration(playback);
 
@@ -132,8 +134,8 @@ namespace Elixir
         const SPlayback& playback,
         const SPlayback& source,
         const float weight,
-        const float time,
-        const float sourceTime
+        const double time,
+        const double sourceTime
     )
     {
         std::vector<SBoneTransform> local;
@@ -204,7 +206,9 @@ namespace Elixir
             m_Transition = {};
         }
 
+        m_NotifyEvents.clear();
         Resume();
+
         return true;
     }
 
@@ -292,6 +296,67 @@ namespace Elixir
             return false;
 
         m_Transition = {};
+        m_Playback.IncludeNotifyStart = false;
+        m_NotifyEvents.clear();
+
+        return true;
+    }
+
+    bool SkeletalMeshInstance::CollectNotifyEvents(
+        const float dt,
+        std::vector<SAnimationNotifyEvent>& output
+    ) const
+    {
+        const auto duration = GetDuration(m_Playback);
+        if (dt == 0.0f || duration == 0.0f)
+            return true;
+
+        const auto* source = m_Playback.Sequence.get();
+        const AnimationSequence* reference = nullptr;
+
+        if (m_Playback.BlendSpace)
+        {
+            source = m_Playback.BlendSpace->GetNotifySource(m_Playback.Values);
+            reference = m_Playback.BlendSpace->GetSynchronizationSequence().get();
+        }
+
+        if (!source) return false;
+
+        if (source->GetNotifies().empty())
+            return true;
+
+        const auto phase = m_Playback.BlendSpace
+            ? m_Playback.Time
+            : m_Playback.Time / duration;
+
+        std::vector<SAnimationNotifyOccurrence> occurrences;
+
+        const auto success = source->CollectNotifies(
+            phase,
+            phase + double(dt) / duration,
+            m_Playback.Looping,
+            occurrences,
+            reference,
+            m_Playback.IncludeNotifyStart
+        );
+
+        if (!success) return false;
+
+        if (occurrences.empty())
+            return true;
+
+        const Ref<const AnimationSequence> retained = m_Playback.Sequence
+            ? m_Playback.Sequence
+            : Ref<const AnimationSequence>(m_Playback.BlendSpace, source);
+
+        output.reserve(occurrences.size());
+        for (const auto& occurrence : occurrences)
+            output.push_back({
+                retained,
+                occurrence.NotifyIndex,
+                occurrence.PhaseOffset * duration
+            });
+
         return true;
     }
 
@@ -304,7 +369,14 @@ namespace Elixir
         }
 
         if (!m_Playing)
+        {
+            m_NotifyEvents.clear();
             return true;
+        }
+
+        std::vector<SAnimationNotifyEvent> events;
+        if (!CollectNotifyEvents(dt, events))
+            return false;
 
         const auto time = AdvancePlayback(m_Playback, dt);
         const auto sourceTime = AdvancePlayback(m_Transition.Playback, dt);
@@ -320,6 +392,11 @@ namespace Elixir
 
         if (!Evaluate(m_Playback, m_Transition.Playback, weight, time, sourceTime))
             return false;
+
+        m_NotifyEvents = std::move(events);
+
+        if (dt > 0.0f)
+            m_Playback.IncludeNotifyStart = false;
 
         m_Transition.Playback.Time = sourceTime;
         m_Transition.Elapsed = elapsed;
@@ -353,6 +430,7 @@ namespace Elixir
         m_Playback = {};
         m_Transition = {};
         m_Playing = false;
+        m_NotifyEvents.clear();
 
         return true;
     }

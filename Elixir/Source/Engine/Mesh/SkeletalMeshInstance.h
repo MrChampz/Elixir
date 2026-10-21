@@ -2,10 +2,31 @@
 
 #include <Engine/Mesh/SkeletalMesh.h>
 #include <Engine/Animation/BlendSpace.h>
-#include <initializer_list>
 
 namespace Elixir
 {
+    /** Retains the authored sequence for one event emitted by a successful update. */
+    struct SAnimationNotifyEvent
+    {
+        /** Shared ownership keeps event metadata alive after playback changes. */
+        Ref<const AnimationSequence> Sequence;
+
+        /** Index into Sequence's sorted notify list. */
+        size_t NotifyIndex = 0;
+
+        /** Seconds elapsed within this update when playback crossed the event. */
+        double TimeOffset = 0.0;
+
+        /**
+         * @brief Get the immutable event metadata retained by this occurrence.
+         * @pre Sequence is non-null and NotifyIndex refers to one of its notifies.
+         */
+        const SAnimationNotify& GetNotify() const
+        {
+            return Sequence->GetNotifies()[NotifyIndex];
+        }
+    };
+
     /** @brief Owns a mesh instance's pose, playback, and animation transitions. */
     class ELIXIR_API SkeletalMeshInstance final
     {
@@ -100,13 +121,32 @@ namespace Elixir
         void Stop();
 
         /**
-         * @brief Advance playback and transition; preserve state on failure.
+         * @brief Advance playback, transition, and instantaneous events; preserve state on
+         * failure.
+         *
+         * Only the target playback emits notifies during a fade. A blend space emits from
+         * its dominant clip and maps event times through its marker reference. The first
+         * positive update includes start events. Paused and zero-delta updates emit none.
+         * Updates crossing more than AnimationSequence::MaxNotifyEventsPerUpdate fail safely.
+         *
          * @param dt Finite nonnegative elapsed time in seconds.
          */
         bool Update(float dt);
 
         /**
-         * @brief Seek in the target sequence and cancel any transition on success.
+         * @brief Get events from the last successful update, in chronological order.
+         *
+         * Read on the same thread as playback updates. The span remains valid until the
+         * next successful update, Play, Seek, Stop, or SetLocalPose. Failed operations keep
+         * the previous batch; consumers must process events only after successful updates.
+         */
+        std::span<const SAnimationNotifyEvent> GetNotifyEvents() const
+        {
+            return m_NotifyEvents;
+        }
+
+        /**
+         * @brief Seek silently and clear pending events and the active transition on success.
          * @param time Finite time in seconds, wrapped or clamped by the playback mode.
          */
         bool Seek(float time);
@@ -146,7 +186,9 @@ namespace Elixir
             std::vector<float> Values;
 
             /** Sequence seconds, or normalized cycle phase for a blend space. */
-            float Time = 0.0f;
+            double Time = 0.0;
+
+            bool IncludeNotifyStart = true;
             bool Looping = true;
         };
 
@@ -176,7 +218,7 @@ namespace Elixir
         bool SamplePlayback(
             const SPlayback& playback,
             std::vector<SBoneTransform>& output,
-            float time
+            double time
         ) const;
 
         /**
@@ -184,7 +226,7 @@ namespace Elixir
          * @param playback Playback to advance.
          * @param dt Finite nonnegative elapsed time in seconds.
          */
-        static float AdvancePlayback(const SPlayback& playback, float dt);
+        static double AdvancePlayback(const SPlayback& playback, float dt);
 
         /**
          * @brief Compose sampled local transforms after blending the fade source.
@@ -198,8 +240,8 @@ namespace Elixir
             const SPlayback& playback,
             const SPlayback& source,
             float weight,
-            float time,
-            float sourceTime
+            double time,
+            double sourceTime
         );
 
         /**
@@ -208,9 +250,17 @@ namespace Elixir
          */
         static float GetDuration(const SPlayback& playback);
 
+        /**
+         * @brief Gather target events before committing a playback update.
+         * @param dt Positive elapsed time in seconds; zero emits no events.
+         * @param output Receives occurrences retaining the selected source asset.
+         */
+        bool CollectNotifyEvents(float dt, std::vector<SAnimationNotifyEvent>& output) const;
+
         STransition m_Transition;
         SPlayback m_Playback;
         bool m_Playing = false;
+        std::vector<SAnimationNotifyEvent> m_NotifyEvents;
 
         const Ref<const SkeletalMesh> m_Mesh;
         std::vector<SBoneTransform> m_LocalPose;

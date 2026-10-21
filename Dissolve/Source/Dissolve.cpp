@@ -282,11 +282,15 @@ void Dissolve::OnGUI(const Timestep frameTime)
     if (m_AnimationStatus)
         m_AnimationStatus->SetText(
             std::format(
-                "X: {:.2f} | Y: {:.2f} | Phase: {:.3f} | {}",
+                "X: {:.2f} | Y: {:.2f} | Phase: {:.3f} | {} | Steps: {} / {} | Last: {}",
                 m_AnimationStrafe.load(std::memory_order_relaxed),
                 m_AnimationForward.load(std::memory_order_relaxed),
                 m_AnimationPhase.load(std::memory_order_relaxed),
-                m_AnimationPaused.load(std::memory_order_relaxed) ? "PAUSED" : "PLAYING"
+                m_AnimationPaused.load(std::memory_order_relaxed) ? "PAUSED" : "PLAYING",
+                m_ComparisonSteps.load(std::memory_order_relaxed),
+                m_SynchronizedSteps.load(std::memory_order_relaxed),
+                m_LastFoot.load(std::memory_order_relaxed) == 1 ? "Left" :
+                    (m_LastFoot.load(std::memory_order_relaxed) == 2 ? "Right" : "None")
             )
         );
 }
@@ -398,43 +402,82 @@ void Dissolve::InitializeAnimationController()
     };
 
     const auto idle = findAnimation("Idle_A");
-    const auto walk = findAnimation("Walking_A");
-    const auto run = findAnimation("Running_A");
-    const auto backward = findAnimation("Walking_Backwards");
-    const auto left = findAnimation("Running_Strafe_Left");
-    const auto right = findAnimation("Running_Strafe_Right");
-    if (!idle || !walk || !run || !backward || !left || !right)
+    const auto walkSource = findAnimation("Walking_A");
+    const auto runSource = findAnimation("Running_A");
+    const auto backwardSource = findAnimation("Walking_Backwards");
+    const auto leftSource = findAnimation("Running_Strafe_Left");
+    const auto rightSource = findAnimation("Running_Strafe_Right");
+    if (!idle || !walkSource || !runSource || !backwardSource || !leftSource || !rightSource)
     {
         EE_CORE_ERROR("KayKit locomotion requires all six directional animations.")
         return;
     }
+    const auto addFootsteps = [](
+        const Ref<const AnimationSequence>& clip,
+        const float leftTime,
+        const float rightTime
+    )
+    {
+        return clip->WithNotifies({
+            { "Footstep", leftTime, "Left" },
+            { "Footstep", rightTime, "Right" },
+        });
+    };
+
+    const auto walk = addFootsteps(walkSource, 0.3217778f, 0.8622223f);
+    const auto run = addFootsteps(runSource, 0.1146667f, 0.5146667f);
+    const auto backward = addFootsteps(backwardSource, 0.8160000f, 0.2826667f);
+    const auto left = addFootsteps(leftSource, 0.1493333f, 0.5613333f);
+    const auto right = addFootsteps(rightSource, 0.1573333f, 0.5453333f);
+    if (!walk || !run || !backward || !left || !right)
+        return;
+
     // Authored at the lowest ankle position during full support; see the comparison notes.
     const auto syncWalk = walk->WithSyncMarkers({
-        { "LeftFootPlant", 0.3217778f }, { "RightFootPlant", 0.8622223f },
+        { "LeftFootPlant", 0.3217778f },
+        { "RightFootPlant", 0.8622223f },
     });
     const auto syncRun = run->WithSyncMarkers({
-        { "LeftFootPlant", 0.1146667f }, { "RightFootPlant", 0.5146667f },
+        { "LeftFootPlant", 0.1146667f },
+        { "RightFootPlant", 0.5146667f },
     });
     const auto syncBackward = backward->WithSyncMarkers({
-        { "LeftFootPlant", 0.8160000f }, { "RightFootPlant", 0.2826667f },
+        { "LeftFootPlant", 0.8160000f },
+        { "RightFootPlant", 0.2826667f },
     });
     const auto syncLeft = left->WithSyncMarkers({
-        { "LeftFootPlant", 0.1493333f }, { "RightFootPlant", 0.5613333f },
+        { "LeftFootPlant", 0.1493333f },
+        { "RightFootPlant", 0.5613333f },
     });
     const auto syncRight = right->WithSyncMarkers({
-        { "LeftFootPlant", 0.1573333f }, { "RightFootPlant", 0.5453333f },
+        { "LeftFootPlant", 0.1573333f },
+        { "RightFootPlant", 0.5453333f },
     });
     if (!syncWalk || !syncRun || !syncBackward || !syncLeft || !syncRight)
         return;
 
-    const auto blendSpace = BlendSpace2D::Create("KayKitSynchronized", {
-        {{ 0, 0 }, idle }, {{ 0, 1.5f }, syncWalk }, {{ 0, 3 }, syncRun },
-        {{ 0, -1.5f }, syncBackward }, {{ -3, 0 }, syncLeft }, {{ 3, 0 }, syncRight },
-    });
-    const auto comparisonSpace = BlendSpace2D::Create("KayKitNormalized", {
-        {{ 0, 0 }, idle }, {{ 0, 1.5f }, walk }, {{ 0, 3 }, run },
-        {{ 0, -1.5f }, backward }, {{ -3, 0 }, left }, {{ 3, 0 }, right },
-    });
+    const auto blendSpace = BlendSpace2D::Create(
+        "KayKitSynchronized",
+        {
+            { { 0, 0 }, idle },
+            { { 0, 1.5f }, syncWalk },
+            { { 0, 3 }, syncRun },
+            { { 0, -1.5f }, syncBackward },
+            { { -3, 0 }, syncLeft },
+            { { 3, 0 }, syncRight },
+        }
+    );
+    const auto comparisonSpace = BlendSpace2D::Create(
+        "KayKitNormalized",
+        {
+            { { 0, 0 }, idle },
+            { { 0, 1.5f }, walk },
+            { { 0, 3 }, run },
+            { { 0, -1.5f }, backward },
+            { { -3, 0 }, left },
+            { { 3, 0 }, right },
+        }
+    );
     if (!blendSpace || !comparisonSpace)
         return;
 
@@ -443,9 +486,13 @@ void Dissolve::InitializeAnimationController()
         return AnimationController::Create({
             .Name = "KayKitLocomotion",
             .InitialState = "Locomotion",
-            .Parameters = {{ "Strafe", 0.0f }, { "Forward", 0.0f }},
+            .Parameters = {
+                { "Strafe", 0.0f },
+                { "Forward", 0.0f }
+            },
             .States = {{
-                .Name = "Locomotion", .BlendSpace = std::move(space),
+                .Name = "Locomotion",
+                .BlendSpace = std::move(space),
                 .BlendParameters = { "Strafe", "Forward" },
             }},
         });
@@ -455,9 +502,13 @@ void Dissolve::InitializeAnimationController()
     if (!controller || !comparisonController)
         return;
 
-    auto instance = CreateScope<AnimationControllerInstance>(controller, *m_MeshInstance);
+    auto instance = CreateScope<AnimationControllerInstance>(
+        controller,
+        *m_MeshInstance
+    );
     auto comparison = CreateScope<AnimationControllerInstance>(
-        comparisonController, *m_ComparisonInstance
+        comparisonController,
+        *m_ComparisonInstance
     );
     if (!instance->Update(0.0f) || !comparison->Update(0.0f))
         return;
@@ -500,6 +551,21 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
             !m_ComparisonInstance->Seek(m_ContactPhase * duration))
             return;
     }
+
+    // The application maps generic animation events to feedback for this demo.
+    for (const auto& event : m_MeshInstance->GetNotifyEvents())
+    {
+        if (event.GetNotify().Name == "Footstep")
+        {
+            m_SynchronizedSteps.fetch_add(1, std::memory_order_relaxed);
+            m_LastFoot.store(event.GetNotify().Payload == "Left" ? 1 : 2,
+                std::memory_order_relaxed);
+        }
+    }
+    for (const auto& event : m_ComparisonInstance->GetNotifyEvents())
+        if (event.GetNotify().Name == "Footstep")
+            m_ComparisonSteps.fetch_add(1, std::memory_order_relaxed);
+
     m_AnimationPhase.store(m_MeshInstance->GetNormalizedTime(), std::memory_order_relaxed);
     m_AnimationForward.store(forward, std::memory_order_relaxed);
     m_AnimationStrafe.store(nextStrafe, std::memory_order_relaxed);

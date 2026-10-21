@@ -43,6 +43,11 @@ class Dissolve final : public Elixir::Application
 
     /** Common phase of the reference clip's left-foot support marker. */
     float m_ContactPhase = 0.0f;
+
+    /** Footstep feedback published by rendering-thread playback for the HUD. */
+    std::atomic<uint64_t> m_SynchronizedSteps = 0;
+    std::atomic<uint64_t> m_ComparisonSteps = 0;
+    std::atomic<int> m_LastFoot = 0;
     std::atomic<float> m_AnimationPhase = 0.0f;
     std::atomic<bool> m_AnimationPaused = false;
     std::atomic<bool> m_StepAnimation = false;

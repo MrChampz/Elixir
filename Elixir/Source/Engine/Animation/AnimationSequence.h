@@ -1,4 +1,4 @@
-#pragma once
+ #pragma once
 
 #include <Engine/Animation/Skeleton.h>
 
@@ -43,10 +43,36 @@ namespace Elixir
         float Time = 0.0f;
     };
 
+    /** Describes an instantaneous event authored on an animation timeline. */
+    struct SAnimationNotify
+    {
+        /** Application-defined event name, such as Footstep or AttackHit. */
+        std::string Name;
+
+        /** Finite time in seconds in [0, duration], including a nonlooping clip's end. */
+        float Time = 0.0f;
+
+        /** Optional application-defined data, such as a foot name or effect identifier. */
+        std::string Payload;
+    };
+
+    /** Identifies one event crossed while advancing a cycle. */
+    struct SAnimationNotifyOccurrence
+    {
+        /** Index into the source sequence's sorted notify list. */
+        size_t NotifyIndex = 0;
+
+        /** Elapsed reference phase from the start of this update to the event. */
+        double PhaseOffset = 0.0;
+    };
+
     /** @brief Stores immutable animation tracks associated with a shared skeleton. */
     class ELIXIR_API AnimationSequence final
     {
     public:
+        /** Maximum events emitted by one successful update; larger batches fail safely. */
+        static constexpr size_t MaxNotifyEventsPerUpdate = 4096;
+
         AnimationSequence(const AnimationSequence&) = delete;
         AnimationSequence& operator=(const AnimationSequence&) = delete;
 
@@ -58,12 +84,14 @@ namespace Elixir
          * @param tracks Unique bone tracks with ordered keys in [0, duration].
          * @param syncMarkers Unique named markers at distinct times in [0, duration).
          * Markers are sorted during creation.
+         * @param notifies Named events on a positive-duration timeline, sorted stably by time.
          */
         static Ref<AnimationSequence> Create(
             std::string name, Ref<const Skeleton> skeleton,
             float duration,
             std::vector<SBoneAnimationTrack> tracks,
-            std::vector<SAnimationSyncMarker> syncMarkers = {}
+            std::vector<SAnimationSyncMarker> syncMarkers = {},
+            std::vector<SAnimationNotify> notifies = {}
         );
 
         /**
@@ -113,6 +141,39 @@ namespace Elixir
          */
         float GetSynchronizedTime(float phase, const AnimationSequence& reference) const;
 
+        /**
+         * @brief Copy this sequence with authored events while retaining tracks and markers.
+         * @param notifies Events in [0, duration]; empty removes existing events.
+         * @return A new sequence, or null for invalid event names or times.
+         */
+        Ref<AnimationSequence> WithNotifies(std::vector<SAnimationNotify> notifies) const;
+
+        /** @brief Get immutable events sorted by time, retaining order for equal times. */
+        const std::vector<SAnimationNotify>& GetNotifies() const { return m_Notifies; }
+
+        /**
+         * @brief Collect events crossed during a forward update, in chronological order.
+         *
+         * The interval excludes its start and includes its end. Looping intervals may cross
+         * several cycles. End events precede start events at the same loop boundary.
+         * Leave output unchanged for invalid input or more than MaxNotifyEventsPerUpdate.
+         *
+         * @param startPhase Wrapped phase in [0, 1] before the update.
+         * @param endPhase Unwrapped phase at or after startPhase; nonlooping ends clamp to one.
+         * @param looping Include events from every crossed cycle.
+         * @param output Receives the events for this interval, replacing earlier contents.
+         * @param reference Optional marker reference; null uses this clip's normalized phase.
+         * @param includeStart Include start events on the first positive playback update.
+         */
+        bool CollectNotifies(
+            double startPhase,
+            double endPhase,
+            bool looping,
+            std::vector<SAnimationNotifyOccurrence>& output,
+            const AnimationSequence* reference = nullptr,
+            bool includeStart = false
+        ) const;
+
         /** @brief Get the asset name. */
         const std::string& GetName() const { return m_Name; }
 
@@ -130,13 +191,15 @@ namespace Elixir
          * @param duration Cycle duration in seconds.
          * @param tracks Validated bone tracks.
          * @param syncMarkers Validated cycle markers in ascending time order.
+         * @param notifies Validated events in stable ascending time order.
          */
         AnimationSequence(
             std::string name,
             Ref<const Skeleton> skeleton,
             float duration,
             std::vector<SBoneAnimationTrack> tracks,
-            std::vector<SAnimationSyncMarker> syncMarkers
+            std::vector<SAnimationSyncMarker> syncMarkers,
+            std::vector<SAnimationNotify> notifies
         );
 
         std::string m_Name;
@@ -144,5 +207,6 @@ namespace Elixir
         float m_Duration;
         std::vector<SBoneAnimationTrack> m_Tracks;
         std::vector<SAnimationSyncMarker> m_SyncMarkers;
+        std::vector<SAnimationNotify> m_Notifies;
     };
 }

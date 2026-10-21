@@ -62,7 +62,8 @@ namespace Elixir
         Ref<const Skeleton> skeleton,
         const float duration,
         std::vector<SBoneAnimationTrack> tracks,
-        std::vector<SAnimationSyncMarker> syncMarkers
+        std::vector<SAnimationSyncMarker> syncMarkers,
+        std::vector<SAnimationNotify> notifies
     )
     {
         if (!skeleton || !std::isfinite(duration) || duration < 0)
@@ -95,6 +96,24 @@ namespace Elixir
             previousMarkerTime = marker.Time;
         }
 
+        for (const auto& notify : notifies)
+        {
+            if (notify.Name.empty() ||
+                !std::isfinite(notify.Time) ||
+                notify.Time < 0.0f ||
+                notify.Time > duration ||
+                duration == 0.0f)
+            {
+                EE_CORE_ERROR("AnimationSequence contains an invalid notify name or time.")
+                return nullptr;
+            }
+        }
+
+        std::ranges::stable_sort(notifies, [](const auto& first, const auto& second)
+        {
+            return first.Time < second.Time;
+        });
+
         std::unordered_set<uint32_t> indices;
 
         for (const auto& track : tracks)
@@ -106,19 +125,25 @@ namespace Elixir
 
             const auto rotationValid = [](const glm::quat& q)
             {
-                return std::isfinite(q.x) && std::isfinite(q.y) && std::isfinite(q.z) &&
-                    std::isfinite(q.w) && std::abs(glm::dot(q, q) - 1.0f) < 1e-4f;
+                return std::isfinite(q.x) &&
+                    std::isfinite(q.y) &&
+                    std::isfinite(q.z) &&
+                    std::isfinite(q.w) &&
+                    std::abs(glm::dot(q, q) - 1.0f) < 1e-4f;
             };
 
             const auto scaleValid = [&](const glm::vec3& v)
             {
-                return vectorValid(v) && std::abs(v.x) >= 1e-8f && std::abs(v.y) >= 1e-8f &&
+                return vectorValid(v) &&
+                    std::abs(v.x) >= 1e-8f &&
+                    std::abs(v.y) >= 1e-8f &&
                     std::abs(v.z) >= 1e-8f;
             };
 
             const auto modeValid = [](const auto mode)
             {
-                return mode == EBoneInterpolation::Step || mode == EBoneInterpolation::Linear;
+                return mode == EBoneInterpolation::Step ||
+                    mode == EBoneInterpolation::Linear;
             };
 
             if (track.BoneIndex >= skeleton->GetBones().size() ||
@@ -140,7 +165,8 @@ namespace Elixir
             std::move(skeleton),
             duration,
             std::move(tracks),
-            std::move(syncMarkers)
+            std::move(syncMarkers),
+            std::move(notifies)
         ));
     }
 
@@ -149,18 +175,27 @@ namespace Elixir
         Ref<const Skeleton> skeleton,
         const float duration,
         std::vector<SBoneAnimationTrack> tracks,
-        std::vector<SAnimationSyncMarker> syncMarkers
+        std::vector<SAnimationSyncMarker> syncMarkers,
+        std::vector<SAnimationNotify> notifies
     ) : m_Name(std::move(name)),
         m_Skeleton(std::move(skeleton)),
         m_Duration(duration),
         m_Tracks(std::move(tracks)),
-        m_SyncMarkers(std::move(syncMarkers)) {}
+        m_SyncMarkers(std::move(syncMarkers)),
+        m_Notifies(std::move(notifies)) {}
 
     Ref<AnimationSequence> AnimationSequence::WithSyncMarkers(
         std::vector<SAnimationSyncMarker> syncMarkers
     ) const
     {
-        return Create(m_Name, m_Skeleton, m_Duration, m_Tracks, std::move(syncMarkers));
+        return Create(
+            m_Name,
+            m_Skeleton,
+            m_Duration,
+            m_Tracks,
+            std::move(syncMarkers),
+            m_Notifies
+        );
     }
 
     bool AnimationSequence::CanSynchronizeWith(const AnimationSequence& reference) const
@@ -170,8 +205,11 @@ namespace Elixir
             return false;
 
         const auto first = std::ranges::find(
-            m_SyncMarkers, reference.m_SyncMarkers.front().Name, &SAnimationSyncMarker::Name
+            m_SyncMarkers,
+            reference.m_SyncMarkers.front().Name,
+            &SAnimationSyncMarker::Name
         );
+
         if (first == m_SyncMarkers.end())
             return false;
 
@@ -181,6 +219,7 @@ namespace Elixir
             if (m_SyncMarkers[(offset + i) % count].Name != reference.m_SyncMarkers[i].Name)
                 return false;
         }
+
         return true;
     }
 
@@ -196,38 +235,178 @@ namespace Elixir
         }
 
         const auto normalized = std::clamp(phase, 0.0f, 1.0f);
+
         if (this == &reference || !CanSynchronizeWith(reference))
             return normalized * m_Duration;
 
         const auto& markers = reference.m_SyncMarkers;
         const auto count = markers.size();
+
         const auto time = double(normalized) * reference.m_Duration;
-        const auto upper = std::ranges::upper_bound(markers, time, {}, &SAnimationSyncMarker::Time);
-        const auto next = upper == markers.end() ? size_t(0) : size_t(upper - markers.begin());
+        const auto upper = std::ranges::upper_bound(
+            markers,
+            time,
+            {},
+            &SAnimationSyncMarker::Time
+        );
+
+        const auto next = upper == markers.end()
+            ? size_t(0)
+            : size_t(upper - markers.begin());
         const auto previous = (next + count - 1) % count;
+
         auto start = double(markers[previous].Time);
         auto end = double(markers[next].Time);
+
         if (upper == markers.begin())
             start -= reference.m_Duration;
         else if (upper == markers.end())
             end += reference.m_Duration;
 
         const auto first = std::ranges::find(
-            m_SyncMarkers, markers.front().Name, &SAnimationSyncMarker::Name
+            m_SyncMarkers,
+            markers.front().Name,
+            &SAnimationSyncMarker::Name
         );
+
         const auto offset = size_t(first - m_SyncMarkers.begin());
         const auto targetStart = double(m_SyncMarkers[(offset + previous) % count].Time);
         auto targetEnd = double(m_SyncMarkers[(offset + next) % count].Time);
+
         if (targetEnd <= targetStart)
             targetEnd += m_Duration;
 
         const auto weight = std::clamp((time - start) / (end - start), 0.0, 1.0);
         const auto targetTime = targetStart + (targetEnd - targetStart) * weight;
         const auto wrapped = std::fmod(targetTime, double(m_Duration));
+
         if (wrapped == 0.0 && targetTime > 0.0 && normalized > 0.0f)
             return m_Duration;
 
         return float(wrapped);
+    }
+
+    Ref<AnimationSequence> AnimationSequence::WithNotifies(
+        std::vector<SAnimationNotify> notifies
+    ) const
+    {
+        return Create(
+            m_Name,
+            m_Skeleton,
+            m_Duration,
+            m_Tracks,
+            m_SyncMarkers,
+            std::move(notifies)
+        );
+    }
+
+    bool AnimationSequence::CollectNotifies(
+        const double startPhase,
+        double endPhase,
+        const bool looping,
+        std::vector<SAnimationNotifyOccurrence>& output,
+        const AnimationSequence* reference,
+        const bool includeStart
+    ) const
+    {
+        if (!std::isfinite(startPhase) ||
+            !std::isfinite(endPhase) ||
+            startPhase < 0.0 ||
+            startPhase > 1.0 ||
+            endPhase < startPhase)
+        {
+            EE_CORE_ERROR("Notify collection requires a valid forward phase interval.")
+            return false;
+        }
+
+        if (!looping)
+            endPhase = std::min(endPhase, 1.0);
+
+        if (startPhase == endPhase || m_Notifies.empty())
+        {
+            output.clear();
+            return true;
+        }
+
+        const auto synchronized = reference && CanSynchronizeWith(*reference);
+
+        std::vector<SAnimationNotifyOccurrence> events;
+        for (size_t index = 0; index < m_Notifies.size(); ++index)
+        {
+            const auto& notify = m_Notifies[index];
+            auto position = double(notify.Time) / m_Duration;
+
+            if (synchronized)
+            {
+                const auto marker = std::ranges::find(
+                    m_SyncMarkers,
+                    notify.Time,
+                    &SAnimationSyncMarker::Time
+                );
+
+                if (marker != m_SyncMarkers.end())
+                {
+                    const auto matching = std::ranges::find(
+                        reference->m_SyncMarkers,
+                        marker->Name,
+                        &SAnimationSyncMarker::Name
+                    );
+                    position = double(matching->Time) / reference->GetDuration();
+                }
+                else
+                {
+                    const auto time = reference->GetSynchronizedTime(float(position), *this);
+                    position = double(time) / reference->GetDuration();
+                }
+
+                if (position == 1.0 && notify.Time < m_Duration)
+                    position = 0.0;
+            }
+
+            const auto atStart = includeStart &&
+                position == startPhase &&
+                notify.Time < m_Duration;
+
+            auto firstCycle = 0.0;
+            auto count = 0.0;
+
+            if (looping)
+            {
+                firstCycle = std::floor(startPhase - position) + 1.0;
+                const auto lastCycle = std::floor(endPhase - position);
+                count = std::max(0.0, lastCycle - firstCycle + 1.0);
+            }
+            else if (position > startPhase && position <= endPhase)
+                count = 1.0;
+
+            const auto remaining = MaxNotifyEventsPerUpdate - events.size();
+            if (count + double(atStart) > double(remaining))
+            {
+                EE_CORE_ERROR("Animation update exceeded the notify event capacity.")
+                return false;
+            }
+
+            if (atStart)
+                events.push_back({ index, 0.0 });
+
+            for (size_t cycle = 0; cycle < size_t(count); ++cycle)
+                events.push_back({
+                    index,
+                    position + firstCycle + double(cycle) - startPhase
+                });
+        }
+
+        std::ranges::stable_sort(events, [&](const auto& first, const auto& second)
+        {
+            if (first.PhaseOffset != second.PhaseOffset)
+                return first.PhaseOffset < second.PhaseOffset;
+            const auto firstAtEnd = m_Notifies[first.NotifyIndex].Time == m_Duration;
+            const auto secondAtEnd = m_Notifies[second.NotifyIndex].Time == m_Duration;
+            return firstAtEnd && !secondAtEnd;
+        });
+
+        output = std::move(events);
+        return true;
     }
 
     bool AnimationSequence::Sample(

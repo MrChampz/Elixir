@@ -41,6 +41,24 @@ namespace Elixir
          */
         bool HasValidCoordinates(std::span<const float> values) const;
 
+        /**
+         * @brief Select the highest-weight clip as the sole notify source.
+         *
+         * Equal weights retain the concrete sample order. A dominant clip without notifies
+         * suppresses events rather than falling back to another contributing clip.
+         *
+         * @param values One finite coordinate per axis.
+         * @return Borrowed clip, or null for invalid coordinates or contributions.
+         * @pre Keep this blend space alive while using the returned pointer.
+         */
+        const AnimationSequence* GetNotifySource(std::span<const float> values) const;
+
+        /** @brief Get the fixed marker reference, or null for normalized sampling. */
+        const Ref<const AnimationSequence>& GetSynchronizationSequence() const
+        {
+            return m_SynchronizationSequence;
+        }
+
         /** @brief Get the number of coordinates required by this asset. */
         size_t GetDimensionCount() const { return m_DimensionCount; }
 

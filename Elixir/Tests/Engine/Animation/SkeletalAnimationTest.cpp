@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
 #include <Engine/Animation/AnimationSequence.h>
+#include <Engine/Animation/BlendSpace1D.h>
+#include <Engine/Animation/BlendSpace2D.h>
 #include <Engine/Mesh/SkeletalMeshInstance.h>
 #include <Engine/Mesh/MeshLoaderRegistry.h>
 #include <Engine/Materials/DefaultMaterials.h>
@@ -614,4 +616,199 @@ TEST(SkeletalMeshInstanceTest, NullMeshConstructionLeavesAnInertInstance)
     EXPECT_FALSE(instance.Seek(0));
     instance.Stop();
     EXPECT_TRUE(instance.Update(0));
+}
+
+
+TEST(AnimationNotifyTest, ValidatesAndStablySortsAuthoredEvents)
+{
+    auto clip = MakeSequence(MakeSkeleton());
+    for (const auto time : { -1.0f, 3.0f, std::numeric_limits<float>::infinity(),
+             std::numeric_limits<float>::quiet_NaN() })
+        EXPECT_FALSE(clip->WithNotifies({{ "Hit", time }}));
+    EXPECT_FALSE(clip->WithNotifies({{ "", 1 }}));
+    EXPECT_FALSE(AnimationSequence::Create("Static", MakeSkeleton(), 0, {}, {}, {{ "Hit", 0 }}));
+    auto marked = clip->WithSyncMarkers({{ "Left", 0.5f }, { "Right", 1.5f }});
+    auto events = marked->WithNotifies({{ "End", 2 }, { "Step", 0.5f, "Left" },
+        { "Step", 0.5f, "Right" }});
+    ASSERT_TRUE(events);
+    EXPECT_TRUE(clip->GetNotifies().empty());
+    EXPECT_EQ(events->GetSyncMarkers().size(), 2);
+    EXPECT_EQ(events->GetNotifies()[0].Payload, "Left");
+    EXPECT_EQ(events->GetNotifies()[1].Payload, "Right");
+    EXPECT_EQ(events->WithSyncMarkers({})->GetNotifies().size(), 3);
+    std::vector<SBoneTransform> pose;
+    ASSERT_TRUE(events->Sample(1, pose));
+    ExpectPosition(pose[1].Translation, { 0, 2, 0 });
+}
+
+TEST(AnimationNotifyTest, OrdersSeveralLoopsAndBoundaryEvents)
+{
+    auto clip = MakeSequence(MakeSkeleton())->WithNotifies({
+        { "Start", 0 }, { "Middle", 1 }, { "End", 2 },
+    });
+    std::vector<SAnimationNotifyOccurrence> events;
+    ASSERT_TRUE(clip->CollectNotifies(0, 2, true, events, nullptr, true));
+    ASSERT_EQ(events.size(), 7);
+    const std::array<size_t, 7> expected{ 0, 1, 2, 0, 1, 2, 0 };
+    for (size_t i = 0; i < events.size(); ++i)
+    {
+        EXPECT_EQ(events[i].NotifyIndex, expected[i]);
+        if (i) EXPECT_LE(events[i - 1].PhaseOffset, events[i].PhaseOffset);
+    }
+    ASSERT_TRUE(clip->CollectNotifies(0.5, 1, false, events));
+    ASSERT_EQ(events.size(), 1);
+    EXPECT_EQ(events.front().NotifyIndex, 2);
+    ASSERT_TRUE(clip->CollectNotifies(1, 2, false, events));
+    EXPECT_TRUE(events.empty());
+}
+
+TEST(AnimationNotifyTest, CapacityAndInvalidInputPreserveOutput)
+{
+    auto clip = MakeSequence(MakeSkeleton())->WithNotifies({{ "Step", 1 }});
+    std::vector<SAnimationNotifyOccurrence> events{{ 42, 3 }};
+    EXPECT_FALSE(clip->CollectNotifies(0, 1e30, true, events));
+    EXPECT_FALSE(clip->CollectNotifies(0.5, 0.4, true, events));
+    ASSERT_EQ(events.size(), 1);
+    EXPECT_EQ(events.front().NotifyIndex, 42);
+    ASSERT_TRUE(clip->CollectNotifies(0, 4096, true, events));
+    EXPECT_EQ(events.size(), AnimationSequence::MaxNotifyEventsPerUpdate);
+}
+
+TEST(AnimationNotifyTest, PlaybackPauseSeekAndNonloopingEndAreSilentOrEmitOnce)
+{
+    auto mesh = SkeletalMesh::Create(MakeData());
+    auto clip = MakeSequence(mesh->GetSkeleton())->WithNotifies({
+        { "Start", 0 }, { "Step", 1, "Left" }, { "End", 2 },
+    });
+    SkeletalMeshInstance instance(mesh);
+    ASSERT_TRUE(instance.Play(clip, false));
+    EXPECT_TRUE(instance.GetNotifyEvents().empty());
+    ASSERT_TRUE(instance.Update(0));
+    EXPECT_TRUE(instance.GetNotifyEvents().empty());
+    ASSERT_TRUE(instance.Update(1));
+    ASSERT_EQ(instance.GetNotifyEvents().size(), 2);
+    EXPECT_EQ(instance.GetNotifyEvents()[0].GetNotify().Name, "Start");
+    EXPECT_DOUBLE_EQ(instance.GetNotifyEvents()[1].TimeOffset, 1);
+    instance.Pause();
+    ASSERT_TRUE(instance.Update(5));
+    EXPECT_TRUE(instance.GetNotifyEvents().empty());
+    instance.Resume();
+    ASSERT_TRUE(instance.Seek(0));
+    ASSERT_TRUE(instance.Update(0.5f));
+    EXPECT_TRUE(instance.GetNotifyEvents().empty());
+    ASSERT_TRUE(instance.Seek(1.5f));
+    ASSERT_TRUE(instance.Update(5));
+    ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
+    auto retained = instance.GetNotifyEvents().front();
+    EXPECT_EQ(retained.GetNotify().Name, "End");
+    EXPECT_DOUBLE_EQ(retained.TimeOffset, 0.5);
+    ASSERT_TRUE(instance.Update(5));
+    EXPECT_TRUE(instance.GetNotifyEvents().empty());
+    instance.Stop();
+    clip.reset();
+    EXPECT_EQ(retained.GetNotify().Name, "End");
+}
+
+TEST(AnimationNotifyTest, FailedUpdatePreservesPlaybackAndPreviousBatch)
+{
+    auto mesh = SkeletalMesh::Create(MakeData());
+    SkeletalMeshInstance instance(mesh);
+    ASSERT_TRUE(instance.Play(MakeSequence(mesh->GetSkeleton())->WithNotifies({{ "Step", 1 }})));
+    ASSERT_TRUE(instance.Update(1));
+    EXPECT_FALSE(instance.Update(10000));
+    EXPECT_FLOAT_EQ(instance.GetTime(), 1);
+    ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
+    EXPECT_FALSE(instance.Update(-1));
+    EXPECT_FLOAT_EQ(instance.GetTime(), 1);
+}
+
+TEST(AnimationNotifyTest, FadesAndInterruptedFadesEmitOnlyTargetEvents)
+{
+    auto mesh = SkeletalMesh::Create(MakeData());
+    const auto make = [&](const char* name)
+    {
+        return MakeSequence(mesh->GetSkeleton())->WithNotifies({{ name, 0.5f }});
+    };
+    SkeletalMeshInstance instance(mesh);
+    ASSERT_TRUE(instance.Play(make("Outgoing")));
+    ASSERT_TRUE(instance.Play(make("Target"), 2.0f));
+    ASSERT_TRUE(instance.Update(0.5f));
+    ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
+    EXPECT_EQ(instance.GetNotifyEvents().front().GetNotify().Name, "Target");
+    ASSERT_TRUE(instance.Play(make("Interrupted"), 2.0f));
+    ASSERT_TRUE(instance.Update(0.5f));
+    ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
+    EXPECT_EQ(instance.GetNotifyEvents().front().GetNotify().Name, "Interrupted");
+}
+
+TEST(AnimationNotifyTest, BlendUsesDominantSourceAndIdleSuppressesEvents)
+{
+    auto mesh = SkeletalMesh::Create(MakeData());
+    auto idle = MakeSequence(mesh->GetSkeleton());
+    auto move = idle->WithNotifies({{ "Step", 0.5f }});
+    auto space = BlendSpace1D::Create("Movement", {{ 0, idle }, { 1, move }});
+    SkeletalMeshInstance instance(mesh);
+    ASSERT_TRUE(instance.Play(space, { 0.25f }));
+    ASSERT_TRUE(instance.Update(0.5f));
+    EXPECT_TRUE(instance.GetNotifyEvents().empty());
+    ASSERT_TRUE(instance.SetBlendSpaceValue({ 0.75f }));
+    ASSERT_TRUE(instance.Update(0));
+    EXPECT_TRUE(instance.GetNotifyEvents().empty());
+    ASSERT_TRUE(instance.Update(2));
+    ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
+    EXPECT_EQ(instance.GetNotifyEvents().front().GetNotify().Name, "Step");
+    auto retained = instance.GetNotifyEvents().front();
+    instance.Stop();
+    space.reset();
+    move.reset();
+    EXPECT_EQ(retained.GetNotify().Name, "Step");
+}
+
+TEST(AnimationNotifyTest, MarkerMappingFindsContactsAcrossTheLocalCycleBoundary)
+{
+    auto base = MakeSequence(MakeSkeleton());
+    auto reference = base->WithSyncMarkers({{ "Left", 0.5f }, { "Right", 1.5f }});
+    auto target = base->WithSyncMarkers({{ "Right", 0.25f }, { "Left", 1.25f }})
+        ->WithNotifies({{ "LeftStep", 1.25f }, { "RightStep", 0.25f }, { "Wrap", 0 }});
+    std::vector<SAnimationNotifyOccurrence> events;
+    ASSERT_TRUE(target->CollectNotifies(0, 1, true, events, reference.get()));
+    ASSERT_EQ(events.size(), 3);
+    EXPECT_EQ(target->GetNotifies()[events[0].NotifyIndex].Name, "LeftStep");
+    EXPECT_DOUBLE_EQ(events[0].PhaseOffset, 0.25);
+    EXPECT_EQ(target->GetNotifies()[events[1].NotifyIndex].Name, "Wrap");
+    EXPECT_DOUBLE_EQ(events[1].PhaseOffset, 0.625);
+    EXPECT_EQ(target->GetNotifies()[events[2].NotifyIndex].Name, "RightStep");
+    EXPECT_DOUBLE_EQ(events[2].PhaseOffset, 0.75);
+}
+
+
+TEST(AnimationNotifyTest, DominantSourceChangesKeepAuthoredMarkerEventsOnTheSamePhase)
+{
+    auto mesh = SkeletalMesh::Create(MakeData());
+    auto base = MakeSequence(mesh->GetSkeleton());
+    auto first = base->WithSyncMarkers({{ "Left", 0.3217778f }, { "Right", 0.8622223f }})
+        ->WithNotifies({{ "Step", 0.3217778f, "Left" }});
+    auto second = base->WithSyncMarkers({{ "Left", 0.1146667f }, { "Right", 0.5146667f }})
+        ->WithNotifies({{ "Step", 0.1146667f, "Left" }});
+    auto space = BlendSpace2D::Create("Movement", {
+        {{ 0, 0 }, first }, {{ 1, 0 }, second }, {{ 0, 1 }, base },
+    });
+    std::vector<SAnimationNotifyOccurrence> expected;
+    std::vector<SAnimationNotifyOccurrence> actual;
+    const auto* reference = space->GetSynchronizationSequence().get();
+    ASSERT_TRUE(first->CollectNotifies(0, 1, true, expected, reference));
+    ASSERT_TRUE(second->CollectNotifies(0, 1, true, actual, reference));
+    ASSERT_EQ(expected.size(), 1);
+    ASSERT_EQ(actual.size(), 1);
+    EXPECT_DOUBLE_EQ(actual[0].PhaseOffset, expected[0].PhaseOffset);
+    SkeletalMeshInstance instance(mesh);
+    ASSERT_TRUE(instance.Play(space, { 0, 0 }));
+    ASSERT_TRUE(instance.Update(0.4f));
+    ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
+    ASSERT_TRUE(instance.SetBlendSpaceValue({ 1, 0 }));
+    ASSERT_TRUE(instance.Update(0.01f));
+    EXPECT_TRUE(instance.GetNotifyEvents().empty());
+    ASSERT_TRUE(instance.Update(2));
+    ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
+    EXPECT_EQ(instance.GetNotifyEvents().front().GetNotify().Payload, "Left");
 }
