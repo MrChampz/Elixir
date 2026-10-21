@@ -628,13 +628,15 @@ TEST(AnimationNotifyTest, ValidatesAndStablySortsAuthoredEvents)
     EXPECT_FALSE(clip->WithNotifies({{ "", 1 }}));
     EXPECT_FALSE(AnimationSequence::Create("Static", MakeSkeleton(), 0, {}, {}, {{ "Hit", 0 }}));
     auto marked = clip->WithSyncMarkers({{ "Left", 0.5f }, { "Right", 1.5f }});
-    auto events = marked->WithNotifies({{ "End", 2 }, { "Step", 0.5f, "Left" },
-        { "Step", 0.5f, "Right" }});
+    auto events = marked->WithNotifies({{ "End", 2 }, { "Step", 0.5f, std::string("Left") },
+        { "Step", 0.5f, std::string("Right") }});
     ASSERT_TRUE(events);
     EXPECT_TRUE(clip->GetNotifies().empty());
     EXPECT_EQ(events->GetSyncMarkers().size(), 2);
-    EXPECT_EQ(events->GetNotifies()[0].Payload, "Left");
-    EXPECT_EQ(events->GetNotifies()[1].Payload, "Right");
+    ASSERT_NE(events->GetNotifies()[0].GetPayload<std::string>(), nullptr);
+    ASSERT_NE(events->GetNotifies()[1].GetPayload<std::string>(), nullptr);
+    EXPECT_EQ(*events->GetNotifies()[0].GetPayload<std::string>(), "Left");
+    EXPECT_EQ(*events->GetNotifies()[1].GetPayload<std::string>(), "Right");
     EXPECT_EQ(events->WithSyncMarkers({})->GetNotifies().size(), 3);
     std::vector<SBoneTransform> pose;
     ASSERT_TRUE(events->Sample(1, pose));
@@ -678,7 +680,7 @@ TEST(AnimationNotifyTest, PlaybackPauseSeekAndNonloopingEndAreSilentOrEmitOnce)
 {
     auto mesh = SkeletalMesh::Create(MakeData());
     auto clip = MakeSequence(mesh->GetSkeleton())->WithNotifies({
-        { "Start", 0 }, { "Step", 1, "Left" }, { "End", 2 },
+        { "Start", 0 }, { "Step", 1, std::string("Left") }, { "End", 2 },
     });
     SkeletalMeshInstance instance(mesh);
     ASSERT_TRUE(instance.Play(clip, false));
@@ -787,9 +789,9 @@ TEST(AnimationNotifyTest, DominantSourceChangesKeepAuthoredMarkerEventsOnTheSame
     auto mesh = SkeletalMesh::Create(MakeData());
     auto base = MakeSequence(mesh->GetSkeleton());
     auto first = base->WithSyncMarkers({{ "Left", 0.3217778f }, { "Right", 0.8622223f }})
-        ->WithNotifies({{ "Step", 0.3217778f, "Left" }});
+        ->WithNotifies({{ "Step", 0.3217778f, std::string("Left") }});
     auto second = base->WithSyncMarkers({{ "Left", 0.1146667f }, { "Right", 0.5146667f }})
-        ->WithNotifies({{ "Step", 0.1146667f, "Left" }});
+        ->WithNotifies({{ "Step", 0.1146667f, std::string("Left") }});
     auto space = BlendSpace2D::Create("Movement", {
         {{ 0, 0 }, first }, {{ 1, 0 }, second }, {{ 0, 1 }, base },
     });
@@ -810,5 +812,98 @@ TEST(AnimationNotifyTest, DominantSourceChangesKeepAuthoredMarkerEventsOnTheSame
     EXPECT_TRUE(instance.GetNotifyEvents().empty());
     ASSERT_TRUE(instance.Update(2));
     ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
-    EXPECT_EQ(instance.GetNotifyEvents().front().GetNotify().Payload, "Left");
+    const auto* payload = instance.GetNotifyEvents().front().GetNotify().GetPayload<std::string>();
+    ASSERT_NE(payload, nullptr);
+    EXPECT_EQ(*payload, "Left");
+}
+
+
+namespace
+{
+    enum class ENotifyTestFoot { Left, Right };
+
+    struct SNotifyTestImpact
+    {
+        int Damage;
+        glm::vec3 Direction;
+        Ref<const std::string> Effect;
+    };
+}
+
+TEST(AnimationNotifyTest, SupportsMixedPayloadTypesAndSafeMismatches)
+{
+    const auto effect = CreateRef<const std::string>("Impact");
+    auto clip = MakeSequence(MakeSkeleton())->WithNotifies({
+        { "Footstep", 0.25f, ENotifyTestFoot::Right },
+        { "Hit", 0.5f, SNotifyTestImpact{ 25, { 0, 1, 0 }, effect } },
+        { "Scale", 0.75f, 0.5f },
+        { "Signal", 1 },
+    });
+    ASSERT_TRUE(clip);
+    const auto& notifies = clip->GetNotifies();
+    static_assert(std::is_same_v<decltype(notifies[0].GetPayload<ENotifyTestFoot>()),
+        const ENotifyTestFoot*>);
+    ASSERT_NE(notifies[0].GetPayload<ENotifyTestFoot>(), nullptr);
+    EXPECT_EQ(*notifies[0].GetPayload<ENotifyTestFoot>(), ENotifyTestFoot::Right);
+    const auto* impact = notifies[1].GetPayload<SNotifyTestImpact>();
+    ASSERT_NE(impact, nullptr);
+    EXPECT_EQ(impact->Damage, 25);
+    ExpectPosition(impact->Direction, { 0, 1, 0 });
+    EXPECT_EQ(impact->Effect, effect);
+    ASSERT_NE(notifies[2].GetPayload<float>(), nullptr);
+    EXPECT_FLOAT_EQ(*notifies[2].GetPayload<float>(), 0.5f);
+    EXPECT_EQ(notifies[2].GetPayload<double>(), nullptr);
+    EXPECT_EQ(notifies[0].GetPayload<SNotifyTestImpact>(), nullptr);
+    EXPECT_EQ(notifies[3].GetPayload<SNotifyTestImpact>(), nullptr);
+    EXPECT_FALSE(notifies[3].Payload.has_value());
+}
+
+TEST(AnimationNotifyTest, CopiesAuthoredValuesAndPreservesTypesThroughAssetClones)
+{
+    SNotifyTestImpact original{ 10, { 1, 0, 0 }, CreateRef<const std::string>("Impact") };
+    std::vector<SAnimationNotify> authored{{ "Hit", 1, original }};
+    auto clip = MakeSequence(MakeSkeleton())->WithNotifies(authored);
+    ASSERT_TRUE(clip);
+    original.Damage = 50;
+    std::any_cast<SNotifyTestImpact>(&authored.front().Payload)->Damage = 99;
+    auto marked = clip->WithSyncMarkers({{ "Left", 0.5f }, { "Right", 1.5f }});
+    ASSERT_TRUE(marked);
+    auto cloned = marked->WithNotifies(marked->GetNotifies());
+    ASSERT_TRUE(cloned);
+    EXPECT_EQ(cloned->GetSyncMarkers().size(), 2);
+    for (const auto& asset : { clip, marked, cloned })
+    {
+        const auto* value = asset->GetNotifies().front().GetPayload<SNotifyTestImpact>();
+        ASSERT_NE(value, nullptr);
+        EXPECT_EQ(value->Damage, 10);
+        EXPECT_EQ(*value->Effect, "Impact");
+    }
+}
+
+TEST(AnimationNotifyTest, RetainedBlendEventsKeepCustomPayloadResourcesAlive)
+{
+    auto mesh = SkeletalMesh::Create(MakeData());
+    SkeletalMeshInstance instance(mesh);
+    std::weak_ptr<const std::string> effectLifetime;
+    SAnimationNotifyEvent retained;
+    {
+        auto effect = CreateRef<const std::string>("Impact");
+        effectLifetime = effect;
+        auto clip = MakeSequence(mesh->GetSkeleton())->WithNotifies({
+            { "Hit", 0.5f, SNotifyTestImpact{ 42, { 0, 0, 1 }, effect } },
+        });
+        auto space = BlendSpace1D::Create("Action", {{ 0, clip }});
+        ASSERT_TRUE(instance.Play(space, { 0 }));
+        ASSERT_TRUE(instance.Update(0.5f));
+        ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
+        retained = instance.GetNotifyEvents().front();
+        instance.Stop();
+    }
+    EXPECT_FALSE(effectLifetime.expired());
+    const auto* value = retained.GetNotify().GetPayload<SNotifyTestImpact>();
+    ASSERT_NE(value, nullptr);
+    EXPECT_EQ(value->Damage, 42);
+    EXPECT_EQ(*value->Effect, "Impact");
+    retained = {};
+    EXPECT_TRUE(effectLifetime.expired());
 }

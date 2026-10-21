@@ -19,6 +19,18 @@
 
 using namespace Elixir::Materials::Nodes;
 
+namespace
+{
+    /** Identifies the foot associated with a locomotion event. */
+    enum class EFoot : uint8_t { Left = 1, Right = 2 };
+
+    /** Carries application-specific footstep data without engine-owned gameplay types. */
+    struct SFootstepNotifyPayload
+    {
+        EFoot Foot;
+    };
+}
+
 std::array<Ref<Aether::System>, 2> m_ParticleSystems;
 std::array<Ref<Aether::SystemInstance>, 2> m_ParticleSystemInstances;
 
@@ -419,8 +431,8 @@ void Dissolve::InitializeAnimationController()
     )
     {
         return clip->WithNotifies({
-            { "Footstep", leftTime, "Left" },
-            { "Footstep", rightTime, "Right" },
+            { "Footstep", leftTime, SFootstepNotifyPayload{ EFoot::Left } },
+            { "Footstep", rightTime, SFootstepNotifyPayload{ EFoot::Right } },
         });
     };
 
@@ -557,9 +569,15 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
     {
         if (event.GetNotify().Name == "Footstep")
         {
+            const auto* payload = event.GetNotify().GetPayload<SFootstepNotifyPayload>();
+            if (!payload)
+            {
+                EE_CORE_ERROR("Footstep notify requires an SFootstepNotifyPayload.")
+                continue;
+            }
+
             m_SynchronizedSteps.fetch_add(1, std::memory_order_relaxed);
-            m_LastFoot.store(event.GetNotify().Payload == "Left" ? 1 : 2,
-                std::memory_order_relaxed);
+            m_LastFoot.store(int(payload->Foot), std::memory_order_relaxed);
         }
     }
     for (const auto& event : m_ComparisonInstance->GetNotifyEvents())

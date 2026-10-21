@@ -52,8 +52,22 @@ namespace Elixir
         /** Finite time in seconds in [0, duration], including a nonlooping clip's end. */
         float Time = 0.0f;
 
-        /** Optional application-defined data, such as a foot name or effect identifier. */
-        std::string Payload;
+        /** Optional value of any copyable application-defined type, owned by this notify.
+         * Sequence assets expose it read-only. Referenced resources keep their own ownership
+         * rules. This runtime value does not provide automatic asset serialization.
+         */
+        std::any Payload;
+
+        /**
+         * @brief Read the payload without conversion or exceptions.
+         * @tparam T Exact stored value type, such as an enum or an application-defined struct.
+         * @return A borrowed read-only value, or null if empty or holding another type.
+         */
+        template<typename T>
+        const T* GetPayload() const
+        {
+            return std::any_cast<T>(&Payload);
+        }
     };
 
     /** Identifies one event crossed while advancing a cycle. */
