@@ -331,7 +331,7 @@ namespace Elixir
 
         std::vector<SAnimationNotifyOccurrence> occurrences;
 
-        const auto success = source->CollectNotifies(
+        const auto success = source->CollectNotifyOccurrences(
             phase,
             phase + double(dt) / duration,
             m_Playback.Looping,

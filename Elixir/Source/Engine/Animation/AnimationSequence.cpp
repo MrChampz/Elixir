@@ -300,7 +300,7 @@ namespace Elixir
         );
     }
 
-    bool AnimationSequence::CollectNotifies(
+    bool AnimationSequence::CollectNotifyOccurrences(
         const double startPhase,
         double endPhase,
         const bool looping,

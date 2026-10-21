@@ -179,7 +179,7 @@ namespace Elixir
          * @param reference Optional marker reference; null uses this clip's normalized phase.
          * @param includeStart Include start events on the first positive playback update.
          */
-        bool CollectNotifies(
+        bool CollectNotifyOccurrences(
             double startPhase,
             double endPhase,
             bool looping,

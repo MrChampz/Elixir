@@ -649,7 +649,7 @@ TEST(AnimationNotifyTest, OrdersSeveralLoopsAndBoundaryEvents)
         { "Start", 0 }, { "Middle", 1 }, { "End", 2 },
     });
     std::vector<SAnimationNotifyOccurrence> events;
-    ASSERT_TRUE(clip->CollectNotifies(0, 2, true, events, nullptr, true));
+    ASSERT_TRUE(clip->CollectNotifyOccurrences(0, 2, true, events, nullptr, true));
     ASSERT_EQ(events.size(), 7);
     const std::array<size_t, 7> expected{ 0, 1, 2, 0, 1, 2, 0 };
     for (size_t i = 0; i < events.size(); ++i)
@@ -657,10 +657,10 @@ TEST(AnimationNotifyTest, OrdersSeveralLoopsAndBoundaryEvents)
         EXPECT_EQ(events[i].NotifyIndex, expected[i]);
         if (i) EXPECT_LE(events[i - 1].PhaseOffset, events[i].PhaseOffset);
     }
-    ASSERT_TRUE(clip->CollectNotifies(0.5, 1, false, events));
+    ASSERT_TRUE(clip->CollectNotifyOccurrences(0.5, 1, false, events));
     ASSERT_EQ(events.size(), 1);
     EXPECT_EQ(events.front().NotifyIndex, 2);
-    ASSERT_TRUE(clip->CollectNotifies(1, 2, false, events));
+    ASSERT_TRUE(clip->CollectNotifyOccurrences(1, 2, false, events));
     EXPECT_TRUE(events.empty());
 }
 
@@ -668,11 +668,11 @@ TEST(AnimationNotifyTest, CapacityAndInvalidInputPreserveOutput)
 {
     auto clip = MakeSequence(MakeSkeleton())->WithNotifies({{ "Step", 1 }});
     std::vector<SAnimationNotifyOccurrence> events{{ 42, 3 }};
-    EXPECT_FALSE(clip->CollectNotifies(0, 1e30, true, events));
-    EXPECT_FALSE(clip->CollectNotifies(0.5, 0.4, true, events));
+    EXPECT_FALSE(clip->CollectNotifyOccurrences(0, 1e30, true, events));
+    EXPECT_FALSE(clip->CollectNotifyOccurrences(0.5, 0.4, true, events));
     ASSERT_EQ(events.size(), 1);
     EXPECT_EQ(events.front().NotifyIndex, 42);
-    ASSERT_TRUE(clip->CollectNotifies(0, 4096, true, events));
+    ASSERT_TRUE(clip->CollectNotifyOccurrences(0, 4096, true, events));
     EXPECT_EQ(events.size(), AnimationSequence::MaxNotifyEventsPerUpdate);
 }
 
@@ -773,7 +773,7 @@ TEST(AnimationNotifyTest, MarkerMappingFindsContactsAcrossTheLocalCycleBoundary)
     auto target = base->WithSyncMarkers({{ "Right", 0.25f }, { "Left", 1.25f }})
         ->WithNotifies({{ "LeftStep", 1.25f }, { "RightStep", 0.25f }, { "Wrap", 0 }});
     std::vector<SAnimationNotifyOccurrence> events;
-    ASSERT_TRUE(target->CollectNotifies(0, 1, true, events, reference.get()));
+    ASSERT_TRUE(target->CollectNotifyOccurrences(0, 1, true, events, reference.get()));
     ASSERT_EQ(events.size(), 3);
     EXPECT_EQ(target->GetNotifies()[events[0].NotifyIndex].Name, "LeftStep");
     EXPECT_DOUBLE_EQ(events[0].PhaseOffset, 0.25);
@@ -798,8 +798,8 @@ TEST(AnimationNotifyTest, DominantSourceChangesKeepAuthoredMarkerEventsOnTheSame
     std::vector<SAnimationNotifyOccurrence> expected;
     std::vector<SAnimationNotifyOccurrence> actual;
     const auto* reference = space->GetSynchronizationSequence().get();
-    ASSERT_TRUE(first->CollectNotifies(0, 1, true, expected, reference));
-    ASSERT_TRUE(second->CollectNotifies(0, 1, true, actual, reference));
+    ASSERT_TRUE(first->CollectNotifyOccurrences(0, 1, true, expected, reference));
+    ASSERT_TRUE(second->CollectNotifyOccurrences(0, 1, true, actual, reference));
     ASSERT_EQ(expected.size(), 1);
     ASSERT_EQ(actual.size(), 1);
     EXPECT_DOUBLE_EQ(actual[0].PhaseOffset, expected[0].PhaseOffset);
