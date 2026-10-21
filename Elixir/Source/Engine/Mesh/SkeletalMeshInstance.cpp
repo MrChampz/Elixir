@@ -89,23 +89,12 @@ namespace Elixir
                 ? *replacement
                 : *m_Layers[i];
 
-            if (layer.GetWeight() == 0.0f ||
-                !layer.GetMask()->HasInfluence() ||
-                !layer.HasPose())
-                continue;
-
             const auto& pose = evaluations.empty()
                 ? layer.GetLocalPose()
                 : evaluations[i].LocalPose;
 
-            const auto& weights = layer.GetMask()->GetWeights();
-
-            for (size_t bone = 0; bone < local.size(); ++bone)
-            {
-                const auto weight = layer.GetWeight() * weights[bone];
-                if (weight > 0.0f)
-                    local[bone] = SBoneTransform::Blend(local[bone], pose[bone], weight);
-            }
+            if (!layer.BlendPose(local, pose))
+                return false;
         }
 
         return m_Mesh->GetSkeleton()->BuildModelPose(local, model);

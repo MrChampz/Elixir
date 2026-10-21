@@ -6,6 +6,13 @@
 
 namespace Elixir
 {
+    /** Selects how a layer combines its sampled local pose with underlying layers. */
+    enum class EAnimationLayerBlendMode : uint8_t
+    {
+        Override,
+        Additive
+    };
+
     /** @brief Owns masked pose composition settings and independent animation playback. */
     class ELIXIR_API AnimationLayer final
     {
@@ -101,6 +108,36 @@ namespace Elixir
          * @return False for invalid input; zero mutes events but still advances playback.
          */
         bool SetWeight(float weight);
+
+        /** @brief Get the layer's pose composition mode. */
+        EAnimationLayerBlendMode GetBlendMode() const { return m_BlendMode; }
+
+        /**
+         * @brief Set how this layer combines its pose on the next instance update.
+         * @param mode Override blends absolute poses; Additive applies reference differences.
+         * @return False for an unknown mode or an additive base layer; playback is preserved.
+         */
+        bool SetBlendMode(EAnimationLayerBlendMode mode);
+
+        /**
+         * @brief Set the local reference pose used to calculate additive differences.
+         *
+         * The same reference applies to every sequence and blend-space sample on this layer.
+         * Channels without animation keys retain the mesh's reference transforms.
+         * Changes affect composition on the next instance update without seeking playback.
+         *
+         * @param pose One valid local transform per bone; empty restores the mesh reference.
+         * @return False for invalid input; the previous reference remains unchanged.
+         */
+        bool SetAdditiveReferencePose(std::span<const SBoneTransform> pose);
+
+        /** @brief Get the custom additive reference, or the mesh's local reference pose. */
+        const std::vector<SBoneTransform>& GetAdditiveReferencePose() const
+        {
+            return m_AdditiveReferencePose.empty()
+                ? m_ReferencePose
+                : m_AdditiveReferencePose;
+        }
 
         /** @brief Get the fixed skeleton, or null for invalid construction. */
         const Ref<const Skeleton>& GetSkeleton() const { return m_Skeleton; }
@@ -219,6 +256,22 @@ namespace Elixir
         AnimationLayer& operator=(const AnimationLayer& other) = default;
 
         /**
+         * @brief Blend this layer into a candidate local pose using its mode and mask.
+         *
+         * Additive translation uses parent-relative differences. Weighted rotation
+         * differences pre-multiply the current local rotation. Scale uses per-axis ratios.
+         * A failure may change the candidate, which must then be discarded by the caller.
+         *
+         * @param output Underlying local pose to modify.
+         * @param pose This layer's sampled absolute local pose.
+         * @return False for invalid dimensions or a nonfinite or singular result.
+         */
+        bool BlendPose(
+            std::span<SBoneTransform> output,
+            std::span<const SBoneTransform> pose
+        ) const;
+
+        /**
          * @brief Evaluate this layer without changing its playback state.
          * @param dt Finite nonnegative elapsed time in seconds.
          * @param output Receives the local pose, clocks, and events on success.
@@ -307,8 +360,12 @@ namespace Elixir
         std::string m_Name;
         Ref<const BoneMask> m_Mask;
         float m_Weight = 1.0f;
+        EAnimationLayerBlendMode m_BlendMode = EAnimationLayerBlendMode::Override;
 
-        /** The fixed first layer always uses a full-body mask and weight one. */
+        /** Empty storage selects the mesh reference without duplicating its transforms. */
+        std::vector<SBoneTransform> m_AdditiveReferencePose;
+
+        /** The fixed first layer always uses Override, a full-body mask, and weight one. */
         bool m_Base = false;
 
         STransition m_Transition;

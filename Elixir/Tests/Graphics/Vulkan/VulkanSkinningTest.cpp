@@ -90,6 +90,9 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
                     } },
                 });
                 ASSERT_TRUE(firstInstance.AddLayer("Action", mask, 0.65f));
+                if (frame == 2)
+                    ASSERT_TRUE(firstInstance.GetLayer("Action")->SetBlendMode(
+                        EAnimationLayerBlendMode::Additive));
                 ASSERT_TRUE(firstInstance.GetLayer("Action")->Play(action));
                 ASSERT_TRUE(firstInstance.Update(0.125f));
             }

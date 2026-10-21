@@ -1328,3 +1328,313 @@ TEST(AnimationLayerTest, FailedManualPoseDoesNotChangeTheBaseOrRemoveLayers)
     EXPECT_FLOAT_EQ(base.GetTime(), 0.25f);
     EXPECT_FLOAT_EQ(instance.GetLayer("Upper")->GetTime(), 0.25f);
 }
+
+TEST(AdditiveAnimationLayerTest, DefaultsToOverrideAndKeepsTheBaseModeFixed)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    auto& base = instance.GetBaseLayer();
+    EXPECT_EQ(base.GetBlendMode(), EAnimationLayerBlendMode::Override);
+    EXPECT_FALSE(base.SetBlendMode(EAnimationLayerBlendMode::Additive));
+    EXPECT_TRUE(base.SetBlendMode(EAnimationLayerBlendMode::Override));
+    ASSERT_TRUE(instance.AddLayer("Recoil", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine")));
+    auto* recoil = instance.GetLayer("Recoil");
+    EXPECT_EQ(recoil->GetBlendMode(), EAnimationLayerBlendMode::Override);
+    ASSERT_TRUE(recoil->SetBlendMode(EAnimationLayerBlendMode::Additive));
+    EXPECT_FALSE(recoil->SetBlendMode(static_cast<EAnimationLayerBlendMode>(255)));
+    EXPECT_EQ(recoil->GetBlendMode(), EAnimationLayerBlendMode::Additive);
+}
+
+TEST(AdditiveAnimationLayerTest, ReferencePoseAndZeroWeightPreserveUnderlyingTransforms)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    auto original = instance.GetLocalPose();
+    original[1].Translation = { 3, 4, 5 };
+    original[1].Rotation = glm::angleAxis(0.7f, glm::vec3(0, 0, 1));
+    original[1].Scale = { 2, 3, 4 };
+    ASSERT_TRUE(instance.SetLocalPose(original));
+    ASSERT_TRUE(instance.AddLayer("Recoil", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine")));
+    auto* recoil = instance.GetLayer("Recoil");
+    ASSERT_TRUE(recoil->SetBlendMode(EAnimationLayerBlendMode::Additive));
+    auto sample = recoil->GetAdditiveReferencePose();
+    sample[1].Rotation = -sample[1].Rotation;
+    ASSERT_TRUE(recoil->SetLocalPose(sample));
+    ASSERT_TRUE(instance.Update(0));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, original[1].Translation);
+    ExpectPosition(instance.GetLocalPose()[1].Scale, original[1].Scale);
+    EXPECT_NEAR(std::abs(glm::dot(instance.GetLocalPose()[1].Rotation, original[1].Rotation)), 1, 1e-5f);
+    sample[1].Translation = { 50, 50, 50 };
+    ASSERT_TRUE(recoil->SetLocalPose(sample));
+    ASSERT_TRUE(recoil->SetWeight(0));
+    ASSERT_TRUE(instance.Update(0));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, original[1].Translation);
+}
+
+TEST(AdditiveAnimationLayerTest, WeightsTranslationParentFrameRotationAndScaleRatios)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    auto original = instance.GetLocalPose();
+    original[1].Translation = { 10, 20, 30 };
+    original[1].Rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0, 0, 1));
+    original[1].Scale = { 3, 6, 2 };
+    ASSERT_TRUE(instance.SetLocalPose(original));
+    ASSERT_TRUE(instance.AddLayer("Recoil", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine"), 0.5f));
+    auto* recoil = instance.GetLayer("Recoil");
+    auto reference = recoil->GetAdditiveReferencePose();
+    reference[1].Translation = { 1, 2, 3 };
+    reference[1].Rotation = glm::angleAxis(glm::radians(30.0f), glm::vec3(0, 1, 0));
+    reference[1].Scale = { 2, 4, 0.5f };
+    auto sample = reference;
+    sample[1].Translation = { 3, 1, 7 };
+    sample[1].Rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(1, 0, 0)) * reference[1].Rotation;
+    sample[1].Scale = { 4, 2, 1.5f };
+    ASSERT_TRUE(recoil->SetAdditiveReferencePose(reference));
+    ASSERT_TRUE(recoil->SetBlendMode(EAnimationLayerBlendMode::Additive));
+    ASSERT_TRUE(recoil->SetLocalPose(sample));
+    ASSERT_TRUE(instance.Update(0));
+    const auto& actual = instance.GetLocalPose()[1];
+    ExpectPosition(actual.Translation, { 11, 19.5f, 32 });
+    ExpectPosition(actual.Scale, { 4.5f, 4.5f, 4 });
+    ExpectPosition(actual.Rotation * glm::vec3(1, 0, 0),
+        { 0, std::sqrt(0.5f), std::sqrt(0.5f) });
+}
+
+TEST(AdditiveAnimationLayerTest, FullWeightReconstructsSampleFromItsReference)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    auto reference = instance.GetLocalPose();
+    reference[1].Rotation = glm::angleAxis(0.6f, glm::normalize(glm::vec3(1, 2, 3)));
+    reference[1].Scale = { 2, 3, 4 };
+    ASSERT_TRUE(instance.SetLocalPose(reference));
+    ASSERT_TRUE(instance.AddLayer("Recoil", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine")));
+    auto* recoil = instance.GetLayer("Recoil");
+    ASSERT_TRUE(recoil->SetAdditiveReferencePose(reference));
+    ASSERT_TRUE(recoil->SetBlendMode(EAnimationLayerBlendMode::Additive));
+    auto sample = reference;
+    sample[1].Translation = { 2, 3, 4 };
+    sample[1].Rotation = glm::angleAxis(-0.9f, glm::normalize(glm::vec3(3, 2, 1)));
+    sample[1].Scale = { 1, 6, 2 };
+    ASSERT_TRUE(recoil->SetLocalPose(sample));
+    ASSERT_TRUE(instance.Update(0));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, sample[1].Translation);
+    ExpectPosition(instance.GetLocalPose()[1].Scale, sample[1].Scale);
+    EXPECT_NEAR(std::abs(glm::dot(instance.GetLocalPose()[1].Rotation, sample[1].Rotation)), 1, 1e-5f);
+}
+
+TEST(AdditiveAnimationLayerTest, MultipliesBoneAndLayerWeightsWithoutMovingLegs)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    ASSERT_TRUE(instance.Play(MakeLayerBase(mesh->GetSkeleton())));
+    ASSERT_TRUE(instance.AddLayer("Recoil",
+        BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine", 0.5f), 0.5f));
+    auto* recoil = instance.GetLayer("Recoil");
+    ASSERT_TRUE(recoil->SetBlendMode(EAnimationLayerBlendMode::Additive));
+    ASSERT_TRUE(recoil->Play(MakeLayerAction(mesh->GetSkeleton())));
+    ASSERT_TRUE(instance.Update(0.5f));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 5, 0 });
+    ExpectPosition(instance.GetLocalPose()[2].Translation, { 0.5f, 1, 0 });
+    ExpectPosition(instance.GetLocalPose()[3].Translation, { 0, -1.5f, 0 });
+}
+
+TEST(AdditiveAnimationLayerTest, ComposesWithOverrideLayersInInsertionOrder)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    auto mask = BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine");
+    ASSERT_TRUE(instance.AddLayer("Action", mask));
+    ASSERT_TRUE(instance.GetLayer("Action")->Play(MakeLayerAction(mesh->GetSkeleton())));
+    ASSERT_TRUE(instance.AddLayer("Recoil", mask, 0.5f));
+    auto* recoil = instance.GetLayer("Recoil");
+    auto sample = recoil->GetAdditiveReferencePose();
+    sample[1].Translation.y = 2;
+    ASSERT_TRUE(recoil->SetLocalPose(sample));
+    ASSERT_TRUE(recoil->SetBlendMode(EAnimationLayerBlendMode::Additive));
+    ASSERT_TRUE(instance.Update(0));
+    EXPECT_FLOAT_EQ(instance.GetLocalPose()[1].Translation.y, 10.5f);
+    ASSERT_TRUE(recoil->SetBlendMode(EAnimationLayerBlendMode::Override));
+    ASSERT_TRUE(instance.Update(0));
+    EXPECT_FLOAT_EQ(instance.GetLocalPose()[1].Translation.y, 6);
+    ASSERT_TRUE(recoil->SetBlendMode(EAnimationLayerBlendMode::Additive));
+    ASSERT_TRUE(instance.AddLayer("Last", mask));
+    auto lastPose = sample;
+    lastPose[1].Translation.y = 30;
+    ASSERT_TRUE(instance.GetLayer("Last")->SetLocalPose(lastPose));
+    ASSERT_TRUE(instance.Update(0));
+    EXPECT_FLOAT_EQ(instance.GetLocalPose()[1].Translation.y, 30);
+}
+
+TEST(AdditiveAnimationLayerTest, UsesASampledReferenceAndCanResetItWithoutSeeking)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    ASSERT_TRUE(instance.AddLayer("Recoil", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine")));
+    auto* recoil = instance.GetLayer("Recoil");
+    auto action = MakeLayerAction(mesh->GetSkeleton());
+    std::vector<SBoneTransform> reference;
+    ASSERT_TRUE(action->Sample(0.25f, reference, mesh->GetData().ReferencePose));
+    ASSERT_TRUE(recoil->SetAdditiveReferencePose(reference));
+    ASSERT_TRUE(recoil->SetAdditiveReferencePose(recoil->GetAdditiveReferencePose()));
+    ASSERT_TRUE(recoil->SetBlendMode(EAnimationLayerBlendMode::Additive));
+    ASSERT_TRUE(recoil->Play(action));
+    ASSERT_TRUE(recoil->Seek(0.25f));
+    ASSERT_TRUE(instance.Update(0));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 1, 0 });
+    ASSERT_TRUE(recoil->Seek(0.5f));
+    ASSERT_TRUE(instance.Update(0));
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 3.5f, 0 });
+    ASSERT_TRUE(recoil->SetAdditiveReferencePose({}));
+    ASSERT_TRUE(instance.Update(0));
+    EXPECT_FLOAT_EQ(recoil->GetTime(), 0.5f);
+    EXPECT_EQ(recoil->GetAdditiveReferencePose().size(), mesh->GetData().ReferencePose.size());
+    ExpectPosition(instance.GetLocalPose()[1].Translation, { 0, 15, 0 });
+}
+
+TEST(AdditiveAnimationLayerTest, RejectsInvalidReferenceWithoutChangingThePreviousValue)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    ASSERT_TRUE(instance.AddLayer("Recoil", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine")));
+    auto* recoil = instance.GetLayer("Recoil");
+    auto reference = recoil->GetAdditiveReferencePose();
+    reference[1].Translation = { 4, 5, 6 };
+    ASSERT_TRUE(recoil->SetAdditiveReferencePose(reference));
+    auto invalid = reference;
+    invalid.pop_back();
+    EXPECT_FALSE(recoil->SetAdditiveReferencePose(invalid));
+    invalid = reference;
+    invalid[1].Scale.x = 0;
+    EXPECT_FALSE(recoil->SetAdditiveReferencePose(invalid));
+    invalid = reference;
+    invalid[1].Rotation = { 0, 0, 0, 0 };
+    EXPECT_FALSE(recoil->SetAdditiveReferencePose(invalid));
+    invalid = reference;
+    invalid[1].Translation.x = std::numeric_limits<float>::quiet_NaN();
+    EXPECT_FALSE(recoil->SetAdditiveReferencePose(invalid));
+    ExpectPosition(recoil->GetAdditiveReferencePose()[1].Translation, { 4, 5, 6 });
+}
+
+TEST(AdditiveAnimationLayerTest, BlendsSourcesAndInterruptedFadesBeforeApplyingDifferences)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    auto original = instance.GetLocalPose();
+    original[1].Translation.y = 10;
+    ASSERT_TRUE(instance.SetLocalPose(original));
+    ASSERT_TRUE(instance.AddLayer("Recoil", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine")));
+    auto* recoil = instance.GetLayer("Recoil");
+    auto neutral = AnimationSequence::Create("Neutral", mesh->GetSkeleton(), 1, {});
+    auto pulse = AnimationSequence::Create("Pulse", mesh->GetSkeleton(), 1, {
+        { .BoneIndex = 1, .Translations = {{ 0, { 0, 3, 0 } }} },
+    });
+    auto space = BlendSpace1D::Create("Recoil", {{ 0, neutral }, { 1, pulse }});
+    ASSERT_TRUE(recoil->SetBlendMode(EAnimationLayerBlendMode::Additive));
+    ASSERT_TRUE(recoil->Play(space, { 0.5f }));
+    ASSERT_TRUE(instance.Update(0));
+    EXPECT_FLOAT_EQ(instance.GetLocalPose()[1].Translation.y, 11);
+    ASSERT_TRUE(recoil->Play(pulse, 0.5f));
+    ASSERT_TRUE(instance.Update(0.25f));
+    EXPECT_FLOAT_EQ(instance.GetLocalPose()[1].Translation.y, 11.5f);
+    ASSERT_TRUE(recoil->Play(neutral, 0.5f));
+    ASSERT_TRUE(instance.Update(0));
+    EXPECT_FLOAT_EQ(instance.GetLocalPose()[1].Translation.y, 11.5f);
+    ASSERT_TRUE(instance.Update(0.25f));
+    EXPECT_FLOAT_EQ(instance.GetLocalPose()[1].Translation.y, 10.75f);
+}
+
+TEST(AdditiveAnimationLayerTest, SingularScaleRollsBackAllClocksAndEvents)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    ASSERT_TRUE(instance.Play(MakeLayerBase(mesh->GetSkeleton())->WithNotifies({{ "Step", 0 }})));
+    ASSERT_TRUE(instance.Update(0.125f));
+    ASSERT_TRUE(instance.AddLayer("Recoil", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine"), 0.5f));
+    auto* recoil = instance.GetLayer("Recoil");
+    auto inverted = AnimationSequence::Create("Inverted", mesh->GetSkeleton(), 1, {
+        { .BoneIndex = 1, .Scales = {{ 0, { -1, 1, 1 } }} },
+    });
+    ASSERT_TRUE(recoil->SetBlendMode(EAnimationLayerBlendMode::Additive));
+    ASSERT_TRUE(recoil->Play(inverted));
+    EXPECT_FALSE(instance.Update(0.25f));
+    EXPECT_FLOAT_EQ(instance.GetTime(), 0.125f);
+    EXPECT_FLOAT_EQ(recoil->GetTime(), 0);
+    ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
+    EXPECT_EQ(instance.GetNotifyEvents().front().GetNotify().Name, "Step");
+    ASSERT_TRUE(recoil->SetWeight(1));
+    ASSERT_TRUE(instance.Update(0.25f));
+    EXPECT_FLOAT_EQ(instance.GetTime(), 0.375f);
+    EXPECT_FLOAT_EQ(recoil->GetTime(), 0.25f);
+}
+
+TEST(AdditiveAnimationLayerTest, ScaleRatioOverflowFailsSafelyAndCanBeMuted)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    ASSERT_TRUE(instance.AddLayer("Recoil", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine")));
+    auto* recoil = instance.GetLayer("Recoil");
+    auto reference = recoil->GetAdditiveReferencePose();
+    reference[1].Scale.x = 1e-8f;
+    ASSERT_TRUE(recoil->SetAdditiveReferencePose(reference));
+    ASSERT_TRUE(recoil->SetBlendMode(EAnimationLayerBlendMode::Additive));
+    auto extreme = AnimationSequence::Create("Extreme", mesh->GetSkeleton(), 1, {
+        { .BoneIndex = 1, .Scales = {{ 0, { std::numeric_limits<float>::max(), 1, 1 } }} },
+    });
+    ASSERT_TRUE(recoil->Play(extreme));
+    EXPECT_FALSE(instance.Update(0.25f));
+    EXPECT_FLOAT_EQ(recoil->GetTime(), 0);
+    ASSERT_TRUE(recoil->SetWeight(0));
+    ASSERT_TRUE(instance.Update(0.25f));
+    EXPECT_FLOAT_EQ(recoil->GetTime(), 0.25f);
+}
+
+TEST(AdditiveAnimationLayerTest, KeepsNotifySourcesAndSuppressesMutedEvents)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    ASSERT_TRUE(instance.AddLayer("Recoil", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine")));
+    auto* recoil = instance.GetLayer("Recoil");
+    auto clip = MakeLayerAction(mesh->GetSkeleton())->WithNotifies({{ "Shot", 0.25f, 42 }});
+    ASSERT_TRUE(recoil->SetBlendMode(EAnimationLayerBlendMode::Additive));
+    ASSERT_TRUE(recoil->Play(clip));
+    ASSERT_TRUE(instance.Update(0.5f));
+    ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
+    EXPECT_EQ(instance.GetNotifyEvents().front().Sequence, clip);
+    EXPECT_EQ(instance.GetNotifyEvents().front().LayerName, "Recoil");
+    ASSERT_NE(instance.GetNotifyEvents().front().GetNotify().GetPayload<int>(), nullptr);
+    EXPECT_EQ(*instance.GetNotifyEvents().front().GetNotify().GetPayload<int>(), 42);
+    ASSERT_TRUE(recoil->SetWeight(0));
+    ASSERT_TRUE(instance.Update(1));
+    EXPECT_TRUE(instance.GetNotifyEvents().empty());
+    ASSERT_TRUE(recoil->SetWeight(1));
+    ASSERT_TRUE(instance.Update(0.75f));
+    ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
+    EXPECT_EQ(instance.GetNotifyEvents().front().LayerName, "Recoil");
+}
+
+TEST(AdditiveAnimationLayerTest, CompletedPulseReturnsToTheUnderlyingPose)
+{
+    auto mesh = SkeletalMesh::Create(MakeData(MakeLayerSkeleton()));
+    SkeletalMeshInstance instance(mesh);
+    auto original = instance.GetLocalPose();
+    original[1].Translation.y = 10;
+    ASSERT_TRUE(instance.SetLocalPose(original));
+    ASSERT_TRUE(instance.AddLayer("Recoil", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine")));
+    auto* recoil = instance.GetLayer("Recoil");
+    auto pulse = AnimationSequence::Create("Pulse", mesh->GetSkeleton(), 1, {
+        { .BoneIndex = 1, .Translations = {
+            { 0, { 0, 1, 0 } }, { 0.25f, { 0, 3, 0 } }, { 1, { 0, 1, 0 } },
+        } },
+    });
+    ASSERT_TRUE(recoil->SetBlendMode(EAnimationLayerBlendMode::Additive));
+    ASSERT_TRUE(recoil->Play(pulse, false));
+    ASSERT_TRUE(instance.Update(0.25f));
+    EXPECT_FLOAT_EQ(instance.GetLocalPose()[1].Translation.y, 12);
+    ASSERT_TRUE(instance.Update(0.75f));
+    EXPECT_FALSE(recoil->IsPlaying());
+    EXPECT_FLOAT_EQ(instance.GetLocalPose()[1].Translation.y, 10);
+    ASSERT_TRUE(instance.Update(0));
+    EXPECT_FLOAT_EQ(instance.GetLocalPose()[1].Translation.y, 10);
+}

@@ -24,6 +24,94 @@ namespace Elixir
         }
     }
 
+    bool AnimationLayer::SetBlendMode(const EAnimationLayerBlendMode mode)
+    {
+        if ((mode != EAnimationLayerBlendMode::Override &&
+             mode != EAnimationLayerBlendMode::Additive) ||
+            (m_Base && mode != EAnimationLayerBlendMode::Override))
+        {
+            EE_CORE_ERROR("Animation layer blend mode is invalid; Base requires Override.")
+            return false;
+        }
+
+        m_BlendMode = mode;
+        return true;
+    }
+
+    bool AnimationLayer::SetAdditiveReferencePose(const std::span<const SBoneTransform> pose)
+    {
+        const auto invalidBone = std::ranges::any_of(
+            pose,
+            [](const auto& bone) { return !bone.IsValid(); }
+        );
+
+        if ((!pose.empty() && pose.size() != m_ReferencePose.size()) || invalidBone)
+        {
+            EE_CORE_ERROR("An additive reference requires one valid local transform per bone.")
+            return false;
+        }
+
+        std::vector reference(pose.begin(), pose.end());
+        m_AdditiveReferencePose = std::move(reference);
+
+        return true;
+    }
+
+    bool AnimationLayer::BlendPose(
+        const std::span<SBoneTransform> output,
+        const std::span<const SBoneTransform> pose
+    ) const
+    {
+        if (!m_Assigned || m_Weight == 0.0f || !m_Mask->HasInfluence())
+            return true;
+
+        const auto& weights = m_Mask->GetWeights();
+        const auto& reference = GetAdditiveReferencePose();
+
+        if (output.size() != weights.size() || pose.size() != output.size())
+        {
+            EE_CORE_ERROR("Layer composition requires one transform per skeleton bone.")
+            return false;
+        }
+
+        for (size_t bone = 0; bone < output.size(); ++bone)
+        {
+            const auto weight = m_Weight * weights[bone];
+            if (weight == 0.0f)
+                continue;
+
+            if (m_BlendMode == EAnimationLayerBlendMode::Override)
+            {
+                output[bone] = SBoneTransform::Blend(output[bone], pose[bone], weight);
+            }
+            else
+            {
+                const auto& sample = pose[bone];
+                const auto& origin = reference[bone];
+
+                auto rotation = sample.Rotation * glm::inverse(origin.Rotation);
+                rotation = glm::normalize(rotation);
+                rotation = glm::slerp(glm::identity<glm::quat>(), rotation, weight);
+                rotation = glm::normalize(rotation);
+
+                auto scale = sample.Scale / origin.Scale;
+                scale = glm::mix(glm::vec3(1.0f), scale, weight);
+
+                output[bone].Translation += (sample.Translation - origin.Translation) * weight;
+                output[bone].Rotation = glm::normalize(rotation * output[bone].Rotation);
+                output[bone].Scale *= scale;
+            }
+
+            if (!output[bone].IsValid())
+            {
+                EE_CORE_ERROR("Animation layer composition produced an invalid transform.")
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     bool AnimationLayer::Play(Ref<const AnimationSequence> sequence, const bool looping)
     {
         return Play(std::move(sequence), 0.0f, looping);

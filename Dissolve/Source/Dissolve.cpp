@@ -236,7 +236,7 @@ Dissolve::Dissolve()
 
     const auto panel = CreateRef<GUI::Canvas>();
     const auto instructions = CreateRef<GUI::TextBlock>(
-        "WASD/Arrows: direction | 1: walk/run | 2: forward/strafe | 3: back/strafe"
+        "WASD/Arrows: direction | 1/2/3: movement presets | Shift/R: run"
     );
     instructions->SetFontSize(20.0f);
     panel->AddChild(instructions)
@@ -244,7 +244,7 @@ Dissolve::Dissolve()
         .SetPosition({20, 20})
         .SetSize({1100, 30});
     const auto playbackInstructions = CreateRef<GUI::TextBlock>(
-        "P: pause | N: next frame | F: left-foot contact | Space: idle | Shift/R: run"
+        "P: pause | N: frame | F: contact | Space: idle | U: recoil on/off | I/O: recoil 0.5/1"
     );
     playbackInstructions->SetFontSize(18.0f);
     panel->AddChild(playbackInstructions)
@@ -252,7 +252,7 @@ Dissolve::Dissolve()
         .SetPosition({20, 50})
         .SetSize({1000, 30});
     for (const auto& [position, caption] : std::array{
-        std::pair{0.25f, "LOCOMOTION"}, std::pair{0.75f, "UPPER BODY LAYER"}
+        std::pair{0.25f, "UPPER BODY ACTION"}, std::pair{0.75f, "ACTION + RECOIL"}
     })
     {
         const auto label = CreateRef<GUI::TextBlock>(caption);
@@ -264,7 +264,7 @@ Dissolve::Dissolve()
             .SetSize({260, 35});
     }
     const auto layerInstructions = CreateRef<GUI::TextBlock>(
-        "J: wave | K: punch | L: toggle upper-body layer (right character)"
+        "J: wave | K: punch | L: action on/off | Both: same action; right: additive recoil"
     );
     layerInstructions->SetFontSize(18.0f);
     panel->AddChild(layerInstructions)
@@ -302,15 +302,15 @@ void Dissolve::OnGUI(const Timestep frameTime)
     if (m_AnimationStatus)
         m_AnimationStatus->SetText(
             std::format(
-                "Phase: {:.3f} | {} | Steps: {} / {} | Foot: {} | Layer: {:.2f} | Actions: {}",
+                "Phase {:.2f} | {} | Steps {} / {} | Actions {} | Recoil {:.2f} | Shots {}",
                 m_AnimationPhase.load(std::memory_order_relaxed),
                 m_AnimationPaused.load(std::memory_order_relaxed) ? "PAUSED" : "PLAYING",
                 m_ComparisonSteps.load(std::memory_order_relaxed),
                 m_SynchronizedSteps.load(std::memory_order_relaxed),
-                m_LastFoot.load(std::memory_order_relaxed) == 1 ? "Left" :
-                    (m_LastFoot.load(std::memory_order_relaxed) == 2 ? "Right" : "None"),
-                m_LayerWeight.load(std::memory_order_relaxed),
-                m_ActionEvents.load(std::memory_order_relaxed)
+                m_ActionEvents.load(std::memory_order_relaxed),
+                m_RecoilEnabled.load(std::memory_order_relaxed)
+                    ? m_RecoilStrength.load(std::memory_order_relaxed) : 0.0f,
+                m_RecoilEvents.load(std::memory_order_relaxed)
             )
         );
 }
@@ -319,6 +319,16 @@ void Dissolve::Prepare(const Timestep frameTime)
 {
     EE_PROFILE_ZONE_SCOPED()
     Application::Prepare(frameTime);
+
+    const auto recoil = InputManager::IsKeyPressed(EE_KEY_U);
+    if (recoil && !m_RecoilKeyPressed)
+        m_RecoilEnabled.store(!m_RecoilEnabled.load(std::memory_order_relaxed),
+            std::memory_order_relaxed);
+    m_RecoilKeyPressed = recoil;
+    if (InputManager::IsKeyPressed(EE_KEY_I))
+        m_RecoilStrength.store(0.5f, std::memory_order_relaxed);
+    if (InputManager::IsKeyPressed(EE_KEY_O))
+        m_RecoilStrength.store(1.0f, std::memory_order_relaxed);
 
     const auto wave = InputManager::IsKeyPressed(EE_KEY_J);
     const auto punch = InputManager::IsKeyPressed(EE_KEY_K);
@@ -539,19 +549,66 @@ void Dissolve::InitializeAnimationController()
     const auto wave = findAnimation("Waving");
     const auto punch = findAnimation("Melee_Unarmed_Attack_Punch_A");
     const auto upperBody = BoneMask::FromBone("UpperBody", mesh->GetSkeleton(), "spine");
-    if (!wave || !punch || !upperBody || !m_MeshInstance->AddLayer("UpperBody", upperBody))
+    if (!wave || !punch || !upperBody ||
+        !m_MeshInstance->AddLayer("UpperBody", upperBody) ||
+        !m_ComparisonInstance->AddLayer("UpperBody", upperBody))
         return;
     m_WaveAnimation = wave->WithNotifies({{ "WavePeak", wave->GetDuration() * 0.5f }});
     m_PunchAnimation = punch->WithNotifies({{ "PunchHit", punch->GetDuration() * 0.45f }});
     if (!m_WaveAnimation || !m_PunchAnimation ||
-        !m_MeshInstance->GetLayer("UpperBody")->Play(m_WaveAnimation))
+        !m_MeshInstance->GetLayer("UpperBody")->Play(m_WaveAnimation) ||
+        !m_ComparisonInstance->GetLayer("UpperBody")->Play(m_WaveAnimation) ||
+        !InitializeRecoilLayer())
         return;
 
     m_LocomotionSpace = blendSpace;
     m_ContactPhase = syncLeft->GetSyncMarkers().front().Time / syncLeft->GetDuration();
     m_AnimationController = std::move(instance);
     m_ComparisonController = std::move(comparison);
-    EE_CORE_INFO("KayKit layers: left locomotion, right upper-body action; J wave, K punch, L toggle.")
+    EE_CORE_INFO("KayKit additive recoil: same action on both; U toggles, I/O set strength.")
+}
+
+bool Dissolve::InitializeRecoilLayer()
+{
+    const auto& skeleton = m_MeshInstance->GetMesh()->GetSkeleton();
+    const auto chest = skeleton->FindBone("chest");
+    if (chest < 0)
+    {
+        EE_CORE_ERROR("The recoil demo requires a chest bone.")
+        return false;
+    }
+
+    const auto& reference = m_MeshInstance->GetMesh()->GetData().ReferencePose[size_t(chest)];
+    SBoneAnimationTrack track;
+    track.BoneIndex = uint32_t(chest);
+    track.Translations = {
+        { 0.0f, reference.Translation },
+        { 0.08f, reference.Translation + glm::vec3(0, 0.03f, -0.04f) },
+        { 0.22f, reference.Translation },
+        { 0.65f, reference.Translation },
+    };
+    track.Rotations = {
+        { 0.0f, reference.Rotation },
+        { 0.08f, glm::angleAxis(glm::radians(-18.0f), glm::vec3(1, 0, 0)) * reference.Rotation },
+        { 0.22f, glm::angleAxis(glm::radians(3.0f), glm::vec3(1, 0, 0)) * reference.Rotation },
+        { 0.65f, reference.Rotation },
+    };
+    const auto animation = AnimationSequence::Create(
+        "RecoilPulse",
+        skeleton,
+        0.65f,
+        { std::move(track) },
+        {},
+        {
+            { "RecoilPeak", 0.08f }
+        }
+    );
+    const auto mask = BoneMask::FromBone("Recoil", skeleton, "chest");
+    if (!animation || !mask || !m_MeshInstance->AddLayer("Recoil", mask))
+        return false;
+
+    auto* layer = m_MeshInstance->GetLayer("Recoil");
+    return layer->SetBlendMode(EAnimationLayerBlendMode::Additive) && layer->Play(animation);
 }
 
 void Dissolve::UpdateAnimation(const float deltaSeconds)
@@ -571,17 +628,26 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
     const auto advance = m_StepAnimation.exchange(false, std::memory_order_relaxed)
         ? 1.0f / 30.0f : (paused ? 0.0f : deltaSeconds);
     auto* upperBody = m_MeshInstance->GetLayer("UpperBody");
-    if (!upperBody)
+    auto* comparisonAction = m_ComparisonInstance->GetLayer("UpperBody");
+    auto* recoil = m_MeshInstance->GetLayer("Recoil");
+    if (!upperBody || !comparisonAction || !recoil)
         return;
     const auto action = m_ActionRequest.exchange(0, std::memory_order_relaxed);
-    if (action != 0 && !upperBody->Play(
-            action == 1 ? m_WaveAnimation : m_PunchAnimation, 0.15f, true))
-        return;
+    if (action != 0)
+    {
+        const auto& animation = action == 1 ? m_WaveAnimation : m_PunchAnimation;
+        if (!upperBody->Play(animation, 0.15f, true) ||
+            !comparisonAction->Play(animation, 0.15f, true))
+            return;
+    }
     const auto layerWeight = m_LayerWeight.load(std::memory_order_relaxed);
     const auto targetWeight = m_LayerEnabled.load(std::memory_order_relaxed) ? 1.0f : 0.0f;
     const auto nextWeight = layerWeight +
         std::clamp(targetWeight - layerWeight, -advance * 4.0f, advance * 4.0f);
-    if (!m_MeshInstance->SetLayerWeight("UpperBody", nextWeight))
+    const auto recoilWeight = m_RecoilEnabled.load(std::memory_order_relaxed)
+        ? m_RecoilStrength.load(std::memory_order_relaxed) : 0.0f;
+    if (!upperBody->SetWeight(nextWeight) || !comparisonAction->SetWeight(nextWeight) ||
+        !recoil->SetWeight(recoilWeight))
         return;
     m_LayerWeight.store(nextWeight, std::memory_order_relaxed);
 
@@ -606,6 +672,8 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
     {
         if (event.LayerName == "UpperBody")
             m_ActionEvents.fetch_add(1, std::memory_order_relaxed);
+        if (event.LayerName == "Recoil")
+            m_RecoilEvents.fetch_add(1, std::memory_order_relaxed);
         if (event.GetNotify().Name == "Footstep")
         {
             const auto* payload = event.GetNotify().GetPayload<SFootstepNotifyPayload>();
