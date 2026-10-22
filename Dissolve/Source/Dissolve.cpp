@@ -29,6 +29,7 @@ namespace
     {
         EFoot Foot;
     };
+
 }
 
 std::array<Ref<Aether::System>, 2> m_ParticleSystems;
@@ -264,7 +265,7 @@ Dissolve::Dissolve()
             .SetSize({260, 35});
     }
     const auto layerInstructions = CreateRef<GUI::TextBlock>(
-        "J: cancel punch | K: punch montage | L: action on/off | B: dodge montage | V: reset"
+        "J: recovery | K: start/chain combo | L: action on/off | B: dodge montage | V: reset"
     );
     layerInstructions->SetFontSize(18.0f);
     panel->AddChild(layerInstructions)
@@ -307,7 +308,8 @@ void Dissolve::OnGUI(const Timestep frameTime)
                 m_AnimationPaused.load(std::memory_order_relaxed) ? "PAUSED" : "PLAYING",
                 m_ComparisonSteps.load(std::memory_order_relaxed),
                 m_SynchronizedSteps.load(std::memory_order_relaxed),
-                m_PunchActive.load(std::memory_order_relaxed) ? "PUNCH" : "WAVE",
+                std::array{"WAVE", "ATTACK 1", "ATTACK 2", "ATTACK 3", "RECOVERY"}
+                    [m_ComboSection.load(std::memory_order_relaxed)],
                 m_ActionEvents.load(std::memory_order_relaxed),
                 m_RecoilEnabled.load(std::memory_order_relaxed)
                     ? m_RecoilStrength.load(std::memory_order_relaxed) : 0.0f,
@@ -315,6 +317,7 @@ void Dissolve::OnGUI(const Timestep frameTime)
                 m_RootMotionDistance.load(std::memory_order_relaxed)
             )
         );
+
 }
 
 void Dissolve::Prepare(const Timestep frameTime)
@@ -542,8 +545,18 @@ void Dissolve::InitializeAnimationController()
     if (!dodgeLeft)
         return;
 
+    const auto comboAnimation = CreateComboAnimation(punchAnimation, waveAnimation);
+    if (!comboAnimation)
+        return;
+    const auto attackDuration = punchAnimation->GetDuration();
     const auto punchMontage = AnimationMontage::Create({
-        .Name = "Punch", .Sequence = punchAnimation, .BlendIn = 0.1f, .BlendOut = 0.2f
+        .Name = "PunchCombo", .Sequence = comboAnimation, .BlendIn = 0.1f, .BlendOut = 0.2f,
+        .Sections = {
+            { "Attack1", 0, "Recovery" },
+            { "Attack2", attackDuration, "Recovery" },
+            { "Attack3", attackDuration * 2, "Recovery" },
+            { "Recovery", attackDuration * 3, "" }
+        }
     });
     const auto dodgeMontage = AnimationMontage::Create({
         .Name = "Dodge", .Sequence = dodgeLeft, .BlendIn = 0.05f, .BlendOut = 0.05f
@@ -587,7 +600,57 @@ void Dissolve::InitializeAnimationController()
     m_ContactPhase = syncLeft->GetSyncMarkers().front().Time / syncLeft->GetDuration();
     m_AnimationController = std::move(instance);
     m_ComparisonController = std::move(comparison);
-    EE_CORE_INFO("KayKit montages: K punch, J cancel punch, B dodge with root motion.")
+    EE_CORE_INFO("KayKit sections: K starts or chains attacks, J jumps to recovery, B dodges.")
+}
+
+Ref<const AnimationSequence> Dissolve::CreateComboAnimation(
+    const Ref<const AnimationSequence>& attack,
+    const Ref<const AnimationSequence>& recovery
+)
+{
+    const auto& reference = m_MeshInstance->GetMesh()->GetData().ReferencePose;
+    std::vector<SBoneAnimationTrack> tracks(reference.size());
+    for (size_t i = 0; i < tracks.size(); ++i)
+        tracks[i].BoneIndex = uint32_t(i);
+
+    const auto attackDuration = attack->GetDuration();
+    const auto recoveryStart = attackDuration * 3;
+    constexpr float recoveryDuration = 0.3f;
+    for (int section = 0; section < 4; ++section)
+    {
+        const auto& source = section == 3 ? recovery : attack;
+        const auto duration = section == 3 ? recoveryDuration : attackDuration;
+        const auto start = section == 3 ? recoveryStart : attackDuration * float(section);
+        const auto frames = int(std::ceil(duration * 60));
+        for (int frame = 0; frame <= frames; ++frame)
+        {
+            const auto time = duration * float(frame) / float(frames);
+            const auto timelineTime = start + time;
+            std::vector<SBoneTransform> pose;
+            if (!source->Sample(time, pose, reference))
+                return nullptr;
+            for (size_t bone = 0; bone < tracks.size(); ++bone)
+            {
+                auto& track = tracks[bone];
+                // A shared boundary uses the following section's first sample.
+                if (!track.Translations.empty() &&
+                    timelineTime <= track.Translations.back().Time)
+                {
+                    track.Translations.pop_back();
+                    track.Rotations.pop_back();
+                    track.Scales.pop_back();
+                }
+                track.Translations.push_back({timelineTime, pose[bone].Translation});
+                track.Rotations.push_back({timelineTime, pose[bone].Rotation});
+                track.Scales.push_back({timelineTime, pose[bone].Scale});
+            }
+        }
+    }
+    std::vector<SAnimationNotify> notifies;
+    for (int i = 0; i < 3; ++i)
+        notifies.push_back({"PunchHit", attackDuration * (float(i) + 0.45f)});
+    return AnimationSequence::Create("PunchCombo", attack->GetSkeleton(),
+        recoveryStart + recoveryDuration, std::move(tracks), {}, std::move(notifies));
 }
 
 Ref<const AnimationSequence> Dissolve::CreateRecoilAnimation()
@@ -649,16 +712,29 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
     if (!upperBody || !comparisonAction || !recoil)
         return;
     const auto action = m_ActionRequest.exchange(0, std::memory_order_relaxed);
-    if (action == 1)
+    if (action == 1 && upperBody->GetMontage())
     {
-        if (!upperBody->StopMontage() || !comparisonAction->StopMontage())
+        if (!upperBody->JumpToMontageSection("Recovery") ||
+            !comparisonAction->JumpToMontageSection("Recovery"))
             return;
     }
     else if (action == 2)
     {
-        if (!upperBody->PlayMontage(m_PunchMontage) ||
-            !comparisonAction->PlayMontage(m_PunchMontage))
-            return;
+        if (!upperBody->GetMontage())
+        {
+            if (!upperBody->PlayMontage(m_PunchMontage) ||
+                !comparisonAction->PlayMontage(m_PunchMontage))
+                return;
+        }
+        else
+        {
+            const auto section = upperBody->GetCurrentMontageSection();
+            const auto next = section == "Attack1" ? "Attack2"
+                : section == "Attack2" ? "Attack3" : "";
+            if (*next && (!upperBody->SetNextMontageSection(section, next) ||
+                !comparisonAction->SetNextMontageSection(section, next)))
+                return;
+        }
     }
     const auto dodge = m_DodgeRequested.exchange(false, std::memory_order_relaxed);
     if (dodge && (!m_MeshInstance->GetBaseLayer().PlayMontage(m_DodgeMontage) ||
@@ -691,8 +767,10 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
     m_RootMotionDistance.store(glm::length(glm::vec3(m_CharacterMotion[3])),
         std::memory_order_relaxed);
 
-    m_PunchActive.store(bool(upperBody->GetMontage()),
-        std::memory_order_relaxed);
+    const auto section = upperBody->GetCurrentMontageSection();
+    const auto sectionIndex = section == "Attack1" ? 1 : section == "Attack2" ? 2
+        : section == "Attack3" ? 3 : section == "Recovery" ? 4 : 0;
+    m_ComboSection.store(sectionIndex, std::memory_order_relaxed);
 
     if (m_SeekContact.exchange(false, std::memory_order_relaxed))
     {

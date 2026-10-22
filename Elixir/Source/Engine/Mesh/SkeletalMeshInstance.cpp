@@ -300,7 +300,8 @@ namespace Elixir
         std::vector<glm::mat4> model;
 
         SRootMotionDelta movement;
-        if (m_RootMotionEnabled && !GetBaseLayer().ExtractRootMotion(advance, m_RootMotionBone, movement))
+        if (m_RootMotionEnabled && !GetBaseLayer().ExtractRootMotion(
+                advance, m_RootMotionBone, movement, evaluations.front()))
             return false;
 
         if (m_RootMotionEnabled)

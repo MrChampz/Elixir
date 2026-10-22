@@ -27,11 +27,13 @@ unchanged. No new external assets or license terms are required.
 
 Both characters use the same synchronized locomotion blend space and an `UpperBody`
 layer selecting `spine` and its descendants. Local leg transforms continue to come
-from locomotion. Press `K` to play a punch montage and `L` to blend the action layer
+from locomotion. Press `K` to start a punch combo and `L` to blend the action layer
 out or in over 0.25 seconds on both characters. The UpperBody layer continuously
-plays Waving underneath the punch. The montage fades in over 0.1 seconds and fades
-out over its final 0.2 seconds, returning to the continuing wave. Press `J` to cancel
-the punch early. No action states or transition parameters are needed.
+plays Waving underneath the action. Press `K` again during Attack1 to queue Attack2,
+and during Attack2 to queue Attack3. Without input each attack goes to Recovery.
+Press `J` to jump directly to Recovery. The montage fades in over 0.1 seconds and
+out over its final 0.2 seconds, returning to the continuing wave. No action states
+or transition parameters are needed.
 The HUD shows WAVE or PUNCH independently of the locomotion phase.
 The right character also adds recoil, described below. `P`, `N`, and `F` retain pause,
 frame-step, and silent base-contact seek. The HUD counts layer notifies separately
@@ -207,7 +209,8 @@ layers are left to a later gameplay integration.
 An `AnimationMontage` is an immutable sequence action with entrance and exit times
 and an interruption policy. Each target `AnimationLayer` owns one independent active
 montage; the same asset can play on many characters. It uses the layer's mask and
-composition mode. Sections, queues, play rates, and combo branching are not included.
+composition mode. Named sections provide timeline routing; independent montage queues
+and play rates are not included.
 
 ```cpp
 const auto attack = AnimationMontage::Create({
@@ -244,3 +247,57 @@ if the action ends inside the frame. As with playback fades, this is weighted in
 blending rather than exact integration of nonlinear velocities or rotations. A montage
 on an upper layer changes the pose without contributing character root motion. The
 existing compute skinning pass consumes the final composed pose without another pass.
+
+
+## Montage sections and combos
+
+The demo builds a separate `PunchCombo` timeline by sampling the original punch at
+60 Hz three times and appending 0.3 seconds of the original wave as Recovery. This
+runtime demonstration does not change the GLB. Section boundaries are Attack1 at 0,
+Attack2 at one punch duration, Attack3 at two durations, and Recovery at three durations.
+Each attack defaults to Recovery; K overrides only this character's outgoing link.
+The HUD shows ATTACK 1, ATTACK 2, ATTACK 3, or RECOVERY, and each attack emits PunchHit.
+
+```cpp
+const auto combo = AnimationMontage::Create({
+    .Name = "Combo",
+    .Sequence = comboTimeline,
+    .Sections = {
+        { "Attack1", 0.0f, "Recovery" },
+        { "Attack2", 1.0f, "Recovery" },
+        { "Attack3", 2.0f, "Recovery" },
+        { "Recovery", 3.0f, "" }
+    }
+});
+layer.PlayMontage(combo);
+layer.SetNextMontageSection("Attack1", "Attack2");
+layer.JumpToMontageSection("Recovery");
+```
+
+Sections cover the sequence in strictly increasing timeline order, starting at zero.
+Each ends at the next start or clip end. Names are nonempty and unique. Omitted
+NextSection follows timeline order; an empty string ends the action, and any existing
+name creates a jump or loop. No authored sections creates one Default section,
+preserving earlier playback behavior. `PlayMontage(combo, "Attack2")` starts a named
+section with a fresh entrance clock. GetMontageTime reports sequence position;
+GetCurrentMontageSection reports its section. The blend envelope uses elapsed action
+time independently of sequence jumps and fades toward the end of the selected route.
+Loops do not automatically fade out. The layer's continuing source still advances.
+
+SetNextMontageSection changes per-playback links without modifying the shared asset.
+An empty destination ends at that section boundary. Changes during an exit, or too
+late to preserve the current weight, fail without changing playback. StopMontage can
+fade a loop out. Explicit section jumps are silent and immediate: no skipped events
+or root displacement, no entrance-clock reset, and pause remains in effect. Start
+events emit on the next positive update. Jumps and link changes remain available
+for noninterruptible actions, whose policy rejects replacement and explicit stop;
+section jumps are rejected once an explicit stop has begun.
+
+Each update builds one list of visited forward intervals for pose position, events,
+and movement. Adjacent sections emit a shared boundary event once. A nonadjacent
+link emits outgoing end events before destination start events. Frame offsets remain
+chronological through multiple section crossings; source events resume if the action
+ends inside the frame. Root extraction composes only visited interval deltas, excluding
+absolute offsets between sections. Traversals beyond 4096 intervals or combined events
+beyond the existing capacity fail transactionally, preserving clocks, pose, events,
+and root delta. The Vulkan readback test covers a section jump before compute skinning.

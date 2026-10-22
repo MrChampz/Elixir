@@ -31,6 +31,16 @@ class Dissolve final : public Elixir::Application
     /** @brief Create a chest recoil sequence relative to the mesh reference pose. */
     Ref<const AnimationSequence> CreateRecoilAnimation();
 
+    /**
+     * @brief Build a demonstration timeline with three attacks and a recovery range.
+     * @param attack Source punch sequence sampled at 60 Hz.
+     * @param recovery Source wave sequence used for the final return pose.
+     */
+    Ref<const AnimationSequence> CreateComboAnimation(
+        const Ref<const AnimationSequence>& attack,
+        const Ref<const AnimationSequence>& recovery
+    );
+
     /** @brief Submit the complete model to its renderer. */
     void DrawGeometry();
 
@@ -59,7 +69,7 @@ class Dissolve final : public Elixir::Application
     std::atomic<bool> m_LayerEnabled = true;
     std::atomic<float> m_LayerWeight = 1.0f;
     std::atomic<uint64_t> m_ActionEvents = 0;
-    std::atomic<bool> m_PunchActive = false;
+    std::atomic<int> m_ComboSection = 0;
     bool m_WaveKeyPressed = false;
     bool m_PunchKeyPressed = false;
     bool m_LayerKeyPressed = false;

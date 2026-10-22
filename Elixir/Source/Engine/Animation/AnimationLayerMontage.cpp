@@ -4,7 +4,7 @@
 namespace Elixir
 {
     bool AnimationLayer::PlayMontage(
-        Ref<const AnimationMontage> montage
+        Ref<const AnimationMontage> montage, const std::string_view startSection
     )
     {
         if (!m_Skeleton || !montage ||
@@ -21,27 +21,106 @@ namespace Elixir
             return false;
         }
 
+        const auto section = startSection.empty() ? std::optional<size_t>(0)
+            : montage->FindSection(startSection);
+        if (!section)
+        {
+            EE_CORE_ERROR("Montage starting section '{}' does not exist.", startSection)
+            return false;
+        }
+
         SMontagePlayback playback;
         playback.Asset = std::move(montage);
+        playback.Cursor.Section = *section;
+        playback.Cursor.Time = playback.Asset->GetSections()[*section].StartTime;
         playback.Playing = true;
+        for (size_t i = 0; i < playback.Asset->GetSections().size(); ++i)
+            playback.NextSections.push_back(playback.Asset->GetNextSection(i));
         if (m_Montage.Asset && playback.Asset->GetBlendIn() > 0)
             playback.SourcePose = GetLocalPose();
 
         std::vector<SBoneTransform> sampled;
         if (!playback.Asset->GetSequence()->Sample(
-                0, sampled, m_ReferencePose))
+                float(playback.Cursor.Time), sampled, m_ReferencePose))
             return false;
 
         auto candidate = *this;
         candidate.m_Montage = std::move(playback);
         auto pose = m_LocalPose;
-        if (!candidate.BlendMontage(0, pose))
+        if (!candidate.BlendMontage(candidate.m_Montage.Cursor, pose))
             return false;
 
         m_Montage = std::move(candidate.m_Montage);
         m_MontagePose = std::move(pose);
         m_NotifyEvents.clear();
         return true;
+    }
+
+    bool AnimationLayer::SetNextMontageSection(
+        const std::string_view from, const std::string_view to
+    )
+    {
+        if (!m_Montage.Asset)
+        {
+            EE_CORE_ERROR("Section continuation requires an active montage.")
+            return false;
+        }
+        const auto source = m_Montage.Asset->FindSection(from);
+        const auto target = to.empty() ? std::nullopt : m_Montage.Asset->FindSection(to);
+        if (!source || (!to.empty() && !target))
+        {
+            EE_CORE_ERROR("Montage section continuation requires existing section names.")
+            return false;
+        }
+        const auto& cursor = m_Montage.Cursor;
+        const auto remaining = GetMontageEnd(cursor) - cursor.Elapsed;
+        if (m_Montage.StopTime >= 0 || remaining <= m_Montage.Asset->GetBlendOut())
+        {
+            EE_CORE_ERROR("Montage section continuation cannot change during the exit fade.")
+            return false;
+        }
+        const auto previous = m_Montage.NextSections[*source];
+        const auto previousWeight = GetMontageWeight();
+        m_Montage.NextSections[*source] = target;
+        if (GetMontageWeight() < previousWeight)
+        {
+            m_Montage.NextSections[*source] = previous;
+            EE_CORE_ERROR("Montage continuation was requested too late for a smooth exit.")
+            return false;
+        }
+        return true;
+    }
+
+    bool AnimationLayer::JumpToMontageSection(const std::string_view name)
+    {
+        if (!m_Montage.Asset || m_Montage.StopTime >= 0)
+        {
+            EE_CORE_ERROR("Section jumps require an active montage without an explicit exit.")
+            return false;
+        }
+        const auto section = m_Montage.Asset->FindSection(name);
+        if (!section)
+        {
+            EE_CORE_ERROR("Montage section '{}' does not exist.", name)
+            return false;
+        }
+        auto cursor = m_Montage.Cursor;
+        cursor.Section = *section;
+        cursor.Time = m_Montage.Asset->GetSections()[*section].StartTime;
+        cursor.IncludeNotifyStart = true;
+        auto pose = m_LocalPose;
+        if (!BlendMontage(cursor, pose))
+            return false;
+        m_Montage.Cursor = cursor;
+        m_MontagePose = std::move(pose);
+        m_NotifyEvents.clear();
+        return true;
+    }
+
+    std::string_view AnimationLayer::GetCurrentMontageSection() const
+    {
+        return m_Montage.Asset
+            ? m_Montage.Asset->GetSections()[m_Montage.Cursor.Section].Name : std::string_view{};
     }
 
     bool AnimationLayer::StopMontage(const std::optional<float> blendOut)
@@ -73,99 +152,176 @@ namespace Elixir
             return true;
 
         m_Montage.StopWeight = GetMontageWeight();
-        m_Montage.StopTime = m_Montage.Time;
+        m_Montage.StopTime = m_Montage.Cursor.Elapsed;
         m_Montage.StopDuration = duration;
         return true;
     }
 
-    double AnimationLayer::GetMontageEnd() const
+    double AnimationLayer::GetMontageEnd(const SMontageCursor& cursor) const
     {
-        if (!m_Montage.Asset)
-            return 0;
-        const auto end = double(m_Montage.Asset->GetSequence()->GetDuration());
+        if (!m_Montage.Asset || cursor.Finished)
+            return cursor.Elapsed;
+        auto end = cursor.Elapsed;
+        auto section = cursor.Section;
+        auto time = cursor.Time;
+        const auto& sections = m_Montage.Asset->GetSections();
+        for (size_t visited = 0; visited <= sections.size(); ++visited)
+        {
+            if (visited == sections.size())
+            {
+                end = std::numeric_limits<double>::infinity();
+                break;
+            }
+            end += double(m_Montage.Asset->GetSectionEnd(section)) - time;
+            const auto next = m_Montage.NextSections[section];
+            if (!next)
+                break;
+            section = *next;
+            time = sections[section].StartTime;
+        }
         return m_Montage.StopTime < 0
-            ? end
-            : std::min(end, m_Montage.StopTime + m_Montage.StopDuration);
+            ? end : std::min(end, m_Montage.StopTime + m_Montage.StopDuration);
     }
 
-    float AnimationLayer::GetMontageWeight(const double time) const
+    bool AnimationLayer::EvaluateMontage(
+        const float dt, SMontageEvaluation& output
+    ) const
     {
-        if (!m_Montage.Asset || time >= GetMontageEnd())
+        output = {};
+        output.Cursor = m_Montage.Cursor;
+        if (!m_Montage.Playing || dt == 0)
+            return true;
+
+        auto& cursor = output.Cursor;
+        const auto& asset = *m_Montage.Asset;
+        const auto& sections = asset.GetSections();
+        double remaining = dt;
+        while (remaining > 0)
+        {
+            if (output.Intervals.size() >= 4096)
+            {
+                EE_CORE_ERROR("Montage update exceeded 4096 section intervals.")
+                return false;
+            }
+            const double sectionEnd = asset.GetSectionEnd(cursor.Section);
+            const auto stopRemaining = m_Montage.StopTime >= 0
+                ? std::max(0.0, m_Montage.StopTime + m_Montage.StopDuration - cursor.Elapsed)
+                : remaining;
+            const auto interval = std::min({remaining, sectionEnd - cursor.Time, stopRemaining});
+            if (interval > 0)
+                output.Intervals.push_back({cursor, interval, output.ActiveDuration});
+            cursor.Time += interval;
+            cursor.Elapsed += interval;
+            cursor.IncludeNotifyStart = false;
+            output.ActiveDuration += interval;
+            remaining -= interval;
+
+            if (m_Montage.StopTime >= 0 && stopRemaining <= interval)
+            {
+                cursor.Finished = true;
+                break;
+            }
+            if (cursor.Time >= sectionEnd)
+            {
+                const auto next = m_Montage.NextSections[cursor.Section];
+                if (!next)
+                {
+                    cursor.Finished = true;
+                    break;
+                }
+                cursor.Section = *next;
+                cursor.Time = sections[*next].StartTime;
+                // Adjacent sections share one timeline event at their common boundary.
+                cursor.IncludeNotifyStart = cursor.Time != sectionEnd;
+            }
+        }
+        return true;
+    }
+
+    float AnimationLayer::GetMontageWeight(const SMontageCursor& cursor) const
+    {
+        if (!m_Montage.Asset || cursor.Finished)
+            return 0;
+        const auto end = GetMontageEnd(cursor);
+        if (cursor.Elapsed >= end)
             return 0;
 
         const auto& asset = *m_Montage.Asset;
-        const auto duration = asset.GetSequence()->GetDuration();
         const auto in = asset.GetBlendIn() > 0
-            ? std::clamp(time / asset.GetBlendIn(), 0.0, 1.0) : 1.0;
+            ? std::clamp(cursor.Elapsed / asset.GetBlendIn(), 0.0, 1.0) : 1.0;
         const auto out = asset.GetBlendOut() > 0
-            ? std::clamp((duration - time) / asset.GetBlendOut(), 0.0, 1.0) : 1.0;
+            ? std::clamp((end - cursor.Elapsed) / asset.GetBlendOut(), 0.0, 1.0) : 1.0;
         auto weight = std::min(in, out);
         if (m_Montage.StopTime >= 0)
         {
             const auto stop = std::clamp(
-                1.0 - (time - m_Montage.StopTime) / m_Montage.StopDuration, 0.0, 1.0
+                1.0 - (cursor.Elapsed - m_Montage.StopTime) / m_Montage.StopDuration, 0.0, 1.0
             );
             weight = std::min(out, m_Montage.StopWeight * stop);
         }
         return float(weight);
     }
 
-    float AnimationLayer::GetAverageMontageWeight(const double start, const double end) const
+    float AnimationLayer::GetAverageMontageWeight(const SMontageInterval& interval) const
     {
-        if (end <= start)
+        const auto& start = interval.Start;
+        const auto end = start.Elapsed + interval.Duration;
+        if (interval.Duration <= 0)
             return GetMontageWeight(start);
 
         const auto& asset = *m_Montage.Asset;
-        const double duration = asset.GetSequence()->GetDuration();
+        const auto duration = GetMontageEnd(start);
         const double in = asset.GetBlendIn(), out = asset.GetBlendOut();
-        const auto peak = in + out > 0 ? duration * (in / (in + out)) : 0;
+        const auto peak = std::isfinite(duration) && in + out > 0
+            ? duration * (in / (in + out)) : start.Elapsed;
         const auto denominator = m_Montage.StopDuration - m_Montage.StopWeight * out;
         const auto stopCrossing = m_Montage.StopTime >= 0 && denominator != 0
             ? (duration * m_Montage.StopDuration - m_Montage.StopWeight * out *
-                (m_Montage.StopTime + m_Montage.StopDuration)) / denominator : start;
+                (m_Montage.StopTime + m_Montage.StopDuration)) / denominator : start.Elapsed;
         std::array<double, 9> points = {
-            start, end, in, duration - out, peak, duration,
-            m_Montage.StopTime, GetMontageEnd(), stopCrossing
+            start.Elapsed, end, in, duration - out, peak, duration,
+            m_Montage.StopTime, duration, stopCrossing
         };
         for (auto& point : points)
-            point = std::clamp(point, start, end);
+            point = std::clamp(point, start.Elapsed, end);
         std::ranges::sort(points);
 
         double area = 0;
         for (size_t i = 1; i < points.size(); ++i)
         {
-            // Interior samples avoid treating a zero-length exit as a fade to zero.
-            const auto a = points[i - 1], b = points[i];
-            area += (b - a) * GetMontageWeight((a + b) * 0.5);
+            auto middle = start;
+            middle.Elapsed = (points[i - 1] + points[i]) * 0.5;
+            middle.Time += middle.Elapsed - start.Elapsed;
+            area += (points[i] - points[i - 1]) * GetMontageWeight(middle);
         }
-        return float(area / (end - start));
+        return float(area / interval.Duration);
     }
 
     bool AnimationLayer::BlendMontage(
-        const double time, std::vector<SBoneTransform>& pose
+        const SMontageCursor& cursor, std::vector<SBoneTransform>& pose
     ) const
     {
         if (!m_Montage.Asset)
             return true;
-        const auto weight = GetMontageWeight(time);
-        if (weight == 0 && (m_Montage.SourcePose.empty() || time >= GetMontageEnd()))
+        const auto weight = GetMontageWeight(cursor);
+        if (weight == 0 && (m_Montage.SourcePose.empty() || cursor.Finished))
             return true;
 
         std::vector<SBoneTransform> sampled;
-        if (!m_Montage.Asset->GetSequence()->Sample(float(time), sampled, m_ReferencePose))
+        if (!m_Montage.Asset->GetSequence()->Sample(float(cursor.Time), sampled, m_ReferencePose))
             return false;
 
         const auto fadeIn = m_Montage.Asset->GetBlendIn();
         auto sourceWeight = fadeIn > 0
-            ? float(std::clamp(1.0 - time / fadeIn, 0.0, 1.0)) : 0.0f;
+            ? float(std::clamp(1.0 - cursor.Elapsed / fadeIn, 0.0, 1.0)) : 0.0f;
         const auto fadeOut = m_Montage.Asset->GetBlendOut();
         if (fadeOut > 0)
             sourceWeight *= float(std::clamp(
-                (m_Montage.Asset->GetSequence()->GetDuration() - time) / fadeOut, 0.0, 1.0
+                (GetMontageEnd(cursor) - cursor.Elapsed) / fadeOut, 0.0, 1.0
             ));
         if (m_Montage.StopTime >= 0)
             sourceWeight *= float(std::clamp(
-                1.0 - (time - m_Montage.StopTime) / m_Montage.StopDuration, 0.0, 1.0
+                1.0 - (cursor.Elapsed - m_Montage.StopTime) / m_Montage.StopDuration, 0.0, 1.0
             ));
         for (size_t i = 0; i < pose.size(); ++i)
         {
@@ -187,39 +343,49 @@ namespace Elixir
             return false;
         if (!m_Montage.Asset)
             return true;
-
-        output.PlaybackPose = output.LocalPose;
-        output.MontageTime = m_Montage.Time + (m_Montage.Playing ? dt : 0);
-        return BlendMontage(output.MontageTime, output.LocalPose);
-    }
-
-    bool AnimationLayer::CollectNotifyEvents(
-        const float dt, std::vector<SAnimationNotifyEvent>& output
-    ) const
-    {
-        if (!m_Montage.Asset)
-            return CollectPlaybackNotifyEvents(m_Playback, dt, output);
-
-        if (!m_Montage.Playing || dt == 0)
-            return true;
-
-        const auto activeTime = float(std::min(double(dt), GetMontageEnd() - m_Montage.Time));
-        const SPlayback action = {
-            .Sequence = m_Montage.Asset->GetSequence(),
-            .Time = m_Montage.Time,
-            .IncludeNotifyStart = m_Montage.IncludeNotifyStart,
-            .Looping = false
-        };
-        if (!CollectPlaybackNotifyEvents(action, activeTime, output))
+        if (!EvaluateMontage(dt, output.Montage))
             return false;
 
-        if (dt > activeTime && m_Playing)
+        const auto emitNotifies = m_Weight > 0 && m_Mask->HasInfluence();
+        if (emitNotifies && !CollectMontageNotifyEvents(dt, output.Montage, output.NotifyEvents))
+            return false;
+        output.PlaybackPose = output.LocalPose;
+        return BlendMontage(output.Montage.Cursor, output.LocalPose);
+    }
+
+    bool AnimationLayer::CollectMontageNotifyEvents(
+        const float dt, const SMontageEvaluation& evaluation,
+        std::vector<SAnimationNotifyEvent>& output
+    ) const
+    {
+        const auto& sequence = m_Montage.Asset->GetSequence();
+        const auto duration = sequence->GetDuration();
+        for (const auto& interval : evaluation.Intervals)
+        {
+            std::vector<SAnimationNotifyOccurrence> occurrences;
+            if (!sequence->CollectNotifyOccurrences(
+                    interval.Start.Time / duration,
+                    (interval.Start.Time + interval.Duration) / duration, false,
+                    occurrences, nullptr, interval.Start.IncludeNotifyStart))
+                return false;
+            if (occurrences.size() > AnimationSequence::MaxNotifyEventsPerUpdate - output.size())
+            {
+                EE_CORE_ERROR("Montage sections exceeded the notify event capacity.")
+                return false;
+            }
+            for (const auto& occurrence : occurrences)
+                output.push_back({sequence, occurrence.NotifyIndex,
+                    interval.TimeOffset + occurrence.PhaseOffset * duration, m_Name});
+        }
+
+        if (evaluation.Cursor.Finished && dt > evaluation.ActiveDuration && m_Playing)
         {
             auto playback = m_Playback;
-            playback.Time = AdvancePlayback(playback, activeTime);
+            playback.Time = AdvancePlayback(playback, float(evaluation.ActiveDuration));
             playback.IncludeNotifyStart = false;
             std::vector<SAnimationNotifyEvent> resumed;
-            if (!CollectPlaybackNotifyEvents(playback, dt - activeTime, resumed))
+            if (!CollectPlaybackNotifyEvents(
+                    playback, float(dt - evaluation.ActiveDuration), resumed))
                 return false;
             if (resumed.size() > AnimationSequence::MaxNotifyEventsPerUpdate - output.size())
             {
@@ -228,7 +394,7 @@ namespace Elixir
             }
             for (auto& event : resumed)
             {
-                event.TimeOffset += activeTime;
+                event.TimeOffset += evaluation.ActiveDuration;
                 output.push_back(std::move(event));
             }
         }
@@ -236,7 +402,8 @@ namespace Elixir
     }
 
     bool AnimationLayer::ExtractRootMotion(
-        const float dt, const uint32_t boneIndex, SRootMotionDelta& output
+        const float dt, const uint32_t boneIndex, SRootMotionDelta& output,
+        const SLayerEvaluation& evaluation
     ) const
     {
         if (!m_Montage.Asset)
@@ -247,24 +414,29 @@ namespace Elixir
             return true;
         }
 
-        const auto activeTime = float(std::min(double(dt), GetMontageEnd() - m_Montage.Time));
-        SRootMotionDelta source, action, remaining;
-        if (!ExtractSourceRootMotion(activeTime, boneIndex, source))
-            return false;
         const auto& sequence = m_Montage.Asset->GetSequence();
         const auto duration = sequence->GetDuration();
-        if (!sequence->ExtractRootMotion(
-                m_Montage.Time / duration, (m_Montage.Time + activeTime) / duration,
-                false, m_ReferencePose[boneIndex], action, boneIndex))
-            return false;
-
-        const auto weight = GetAverageMontageWeight(
-            m_Montage.Time, m_Montage.Time + activeTime
-        );
-        const auto movement = SRootMotionDelta::Blend(source, action, weight);
+        SRootMotionDelta result;
+        for (const auto& interval : evaluation.Montage.Intervals)
+        {
+            SRootMotionDelta source, action;
+            if (!ExtractSourceRootMotion(
+                    float(interval.Duration), boneIndex, source, float(interval.TimeOffset)))
+                return false;
+            if (!sequence->ExtractRootMotion(
+                    interval.Start.Time / duration,
+                    (interval.Start.Time + interval.Duration) / duration,
+                    false, m_ReferencePose[boneIndex], action, boneIndex))
+                return false;
+            result = result * SRootMotionDelta::Blend(
+                source, action, GetAverageMontageWeight(interval)
+            );
+        }
+        SRootMotionDelta remaining;
+        const auto activeTime = float(evaluation.Montage.ActiveDuration);
         if (!ExtractSourceRootMotion(dt - activeTime, boneIndex, remaining, activeTime))
             return false;
-        const auto result = movement * remaining;
+        result = result * remaining;
         if (!result.IsValid())
         {
             EE_CORE_ERROR("Montage produced an invalid root-motion delta.")
