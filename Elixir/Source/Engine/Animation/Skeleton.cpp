@@ -48,7 +48,11 @@ namespace Elixir
 
     /* Skeleton */
 
-    Ref<Skeleton> Skeleton::Create(std::string name, std::vector<SBone> bones)
+    Ref<Skeleton> Skeleton::Create(
+        std::string name,
+        std::vector<SBone> bones,
+        std::vector<SSkeletonSocket> sockets
+    )
     {
         if (bones.empty() || bones.size() > INT32_MAX)
         {
@@ -72,15 +76,59 @@ namespace Elixir
             }
         }
 
+        if (sockets.size() > INT32_MAX)
+        {
+            EE_CORE_ERROR("Skeleton socket count exceeds the supported index range.")
+            return nullptr;
+        }
+
+        names.clear();
+        for (const auto& socket : sockets)
+        {
+            if (socket.Name.empty() || names.contains(socket.Name))
+            {
+                EE_CORE_ERROR("Skeleton socket names must be nonempty and unique.")
+                return nullptr;
+            }
+
+            if (socket.BoneIndex >= bones.size() || !socket.RelativeTransform.IsValid())
+            {
+                EE_CORE_ERROR("Skeleton socket '{}' has an invalid bone or transform.", socket.Name)
+                return nullptr;
+            }
+
+            names.insert(socket.Name);
+        }
+
         return Ref<Skeleton>(new Skeleton(
             std::move(name),
-            std::move(bones)
+            std::move(bones),
+            std::move(sockets)
         ));
     }
 
-    Skeleton::Skeleton(std::string name, std::vector<SBone> bones)
+    Skeleton::Skeleton(
+        std::string name,
+        std::vector<SBone> bones,
+        std::vector<SSkeletonSocket> sockets
+    )
       : m_Name(std::move(name)),
-        m_Bones(std::move(bones)) {}
+        m_Bones(std::move(bones)),
+        m_Sockets(std::move(sockets)) {}
+
+    Ref<Skeleton> Skeleton::WithSockets(std::vector<SSkeletonSocket> sockets) const
+    {
+        return Create(m_Name, m_Bones, std::move(sockets));
+    }
+
+    int32_t Skeleton::FindSocket(const std::string_view name) const
+    {
+        for (size_t i = 0; i < m_Sockets.size(); ++i)
+            if (m_Sockets[i].Name == name)
+                return int32_t(i);
+
+        return -1;
+    }
 
     int32_t Skeleton::FindBone(const std::string_view name) const
     {

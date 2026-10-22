@@ -192,6 +192,26 @@ namespace Elixir
         /** @brief Get one skeleton-space matrix per skeleton bone. */
         const std::vector<glm::mat4>& GetModelPose() const { return m_ModelPose; }
 
+        /**
+         * @brief Get an attachment matrix from the final composed pose in skeleton space.
+         *
+         * Includes all layers, montages, and root-motion locking. This reads the last
+         * accepted model pose without advancing animation or applying inverse bind matrices.
+         * Multiply by the character's world transform to place an attachment in the scene.
+         * Read on the same thread as pose updates.
+         *
+         * @param name Case-sensitive socket name in the mesh's skeleton.
+         * @return Empty for a missing socket, mesh, pose, or a nonfinite result.
+         */
+        std::optional<glm::mat4> GetSocketTransform(std::string_view name) const;
+
+        /**
+         * @brief Read a socket using a cached index from Skeleton::FindSocket.
+         * @param socketIndex Index in this mesh's Skeleton::GetSockets().
+         * @return Skeleton-space matrix, or empty for an invalid index, pose, or result.
+         */
+        std::optional<glm::mat4> GetSocketTransform(size_t socketIndex) const;
+
         /** @brief Get target time in seconds using the current blend-space cycle duration. */
         float GetTime() const;
 

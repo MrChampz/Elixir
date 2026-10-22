@@ -50,6 +50,44 @@ namespace Elixir
             m_Mesh->GetSkeleton()->BuildModelPose(m_LocalPose, m_ModelPose);
     }
 
+    std::optional<glm::mat4> SkeletalMeshInstance::GetSocketTransform(
+        const std::string_view name
+    ) const
+    {
+        if (!m_Mesh) return std::nullopt;
+
+        const auto index = m_Mesh->GetSkeleton()->FindSocket(name);
+        return index < 0 ? std::nullopt : GetSocketTransform(size_t(index));
+    }
+
+    std::optional<glm::mat4> SkeletalMeshInstance::GetSocketTransform(
+        const size_t socketIndex
+    ) const
+    {
+        if (!m_Mesh) return std::nullopt;
+
+        const auto& sockets = m_Mesh->GetSkeleton()->GetSockets();
+        if (socketIndex >= sockets.size()) return std::nullopt;
+
+        const auto& socket = sockets[socketIndex];
+        if (socket.BoneIndex >= m_ModelPose.size()) return std::nullopt;
+
+        const auto result = m_ModelPose[socket.BoneIndex] * socket.RelativeTransform.ToMatrix();
+        for (int c = 0; c < 4; ++c)
+        {
+            for (int r = 0; r < 4; ++r)
+            {
+                if (!std::isfinite(result[c][r]))
+                {
+                    EE_CORE_ERROR("Socket '{}' exceeds the supported matrix range.", socket.Name)
+                    return std::nullopt;
+                }
+            }
+        }
+
+        return result;
+    }
+
     float SkeletalMeshInstance::GetTime() const
     {
         return GetBaseLayer().GetTime();

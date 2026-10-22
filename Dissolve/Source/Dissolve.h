@@ -41,12 +41,18 @@ class Dissolve final : public Elixir::Application
         const Ref<const AnimationSequence>& recovery
     );
 
+    /** @brief Create a rigid baton attached to the right-hand socket. */
+    void InitializeSocketAttachment();
+
     /** @brief Submit the complete model to its renderer. */
     void DrawGeometry();
 
     Scope<Environment> m_Environment;
 
     Scope<SkeletalMeshRenderer> m_SkeletalMeshRenderer;
+    Scope<GeometryPool> m_AttachmentGeometryPool;
+    Scope<StaticMeshRenderer> m_AttachmentRenderer;
+    Ref<const StaticMesh> m_AttachmentMesh;
     Scope<SkeletalMeshInstance> m_MeshInstance;
     Scope<SkeletalMeshInstance> m_ComparisonInstance;
 
