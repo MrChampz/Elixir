@@ -8,7 +8,7 @@ Free 1.1 archive mirror: https://github.com/MightyBubble/Ludots-Assets/tree/main
 
 Archive SHA-256: `65882f31f905ad2e953819648a59287cdeab8f623908d5ef701971d3758be20f`
 
-The GLB contains the original Rig_Medium mannequin and eight unmodified clips. Only animation references and binary offsets were merged. Reproduce the original six locomotion clips with:
+The GLB contains the original Rig_Medium mannequin and ten unmodified clips. Only animation references and binary offsets were merged. Reproduce the original six locomotion clips with:
 
 ```sh
 python3 Dissolve/Tools/PrepareBlendSpaceModel.py KayKit-Character-Animations-Free-1.1.zip Assets/Meshes/KayKitCharacter
@@ -109,9 +109,9 @@ clocks and composes the mesh once. `GetCurrentState(layerName)` queries the sele
 machine's target state; direct sources have no named state and return an empty view.
 `GetCurrentState("UpperBody")` queries the demo's action machine. Completion checks use the
 corresponding layer's playback and fade. Override, additive, sequence, and blend-space
-states follow the same update path. The demo's Base plays the locomotion BlendSpace
-directly, UpperBody retains its Wave/Punch machine, and Recoil plays its Sequence
-directly. They share one controller instance per character.
+states follow the same update path. The demo's Base combines the locomotion BlendSpace
+and dodge sequences through a machine. UpperBody retains its Wave/Punch machine and
+Recoil plays its Sequence directly. They share one controller instance per character.
 
 A direct blend-space layer needs only:
 
@@ -149,3 +149,52 @@ constructed for a direct source. Runtime startup tracking for direct playback is
 separate from the selected state of a machine. Both paths share source validation
 and playback, and the mesh still advances and composes all layers only once.
 Machines with one state and no transitions are valid when that structure is useful.
+
+
+## Root motion
+
+The GLB also includes the original `Dodge_Left` and `Dodge_Right` clips from
+`Rig_Medium_MovementAdvanced.glb` in the same CC0 archive. The original node hierarchy,
+reference transforms, and keyframes are preserved. These clips translate the root
+approximately +0.5 and -0.5 units along X. Existing preparation scripts do not merge
+these additional clips.
+
+Press `B` to play the left dodge followed by the right dodge, then return to locomotion.
+The Base layer now uses a state machine for these transitions. The upper-body action
+fades out during the dodge. Both characters extract and lock the root; the left
+character deliberately ignores the extracted delta, while the right applies it to
+its scene transform. `V` resets the right character's position. `Root` in the HUD
+shows its accumulated displacement. Recoil, pause, and frame stepping still work.
+
+Root extraction is opt-in per mesh instance:
+
+```cpp
+mesh.SetRootMotionEnabled(true, "root");
+if (animation.Update(deltaSeconds))
+    characterTransform *= mesh.GetRootMotionDelta().ToMatrix();
+```
+
+Only Base contributes root motion. The selected bone's translation and rotation are
+locked to the mesh reference before upper layers compose. An empty bone name selects
+bone zero. Imported armature wrappers can precede the animated root; this demo selects
+`root` below `Rig_Medium`. Ancestors must remain in their reference pose and use
+uniform scale. Their reference transforms convert the delta into mesh space. Animated scale stays in the pose.
+The returned rigid delta is in mesh-local space and is post-multiplied by gameplay;
+the renderer never moves the character automatically. A successful Update produces
+one delta, including identity when paused, disabled, completed, or given zero time.
+Consume it once and only after successful updates. Seek, Play, Stop, manual pose
+changes, and extraction toggles clear the mesh's last delta.
+
+Sequence extraction accumulates complete rigid cycles, including turning cycles,
+instead of subtracting wrapped positions. Blend spaces combine per-clip deltas using
+the current weights and continuous marker-mapped phases. Changing coordinates does
+not introduce movement from a change of absolute pose. During a fade, source and
+target deltas use the average target weight over the update, including time after
+the fade completes. Interrupted fade snapshots contribute stationary movement.
+This is weighted interval blending, not exact integration of varying velocities
+within a frame; nonlinear clips and rotation blends can vary with coarse frame steps.
+At most 4096 cycles may be extracted in one interval. Invalid or nonfinite extraction
+rejects the whole mesh update, preserving all clocks, the last pose, events, and delta.
+
+Collision, character movement constraints, replication, and root motion from nonbase
+layers are left to a later gameplay integration.

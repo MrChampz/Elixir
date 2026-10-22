@@ -60,6 +60,7 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
                 });
                 if (frame == 3)
                 {
+                    ASSERT_TRUE(firstInstance.SetRootMotionEnabled(true));
                     const auto lateral = AnimationSequence::Create("Lateral", mesh->GetSkeleton(),
                         3, {{ .BoneIndex = 1, .Translations = {
                             { 0, { -2, 1, 3 } }, { 3, { 1, 4, 3 } },
@@ -95,6 +96,12 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
                         EAnimationLayerBlendMode::Additive));
                 ASSERT_TRUE(firstInstance.GetLayer("Action")->Play(action));
                 ASSERT_TRUE(firstInstance.Update(0.125f));
+                if (frame == 3)
+                {
+                    EXPECT_EQ(firstInstance.GetLocalPose()[0].Translation,
+                        mesh->GetData().ReferencePose[0].Translation);
+                    EXPECT_TRUE(firstInstance.GetRootMotionDelta().IsValid());
+                }
             }
             SkinningBatch batch;
             ASSERT_TRUE(batch.Append(*mesh, firstInstance.GetModelPose(), geometry.Get()->VertexOffset,

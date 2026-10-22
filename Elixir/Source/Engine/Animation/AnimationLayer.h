@@ -351,6 +351,28 @@ namespace Elixir
         static float GetDuration(const SPlayback& playback);
 
         /**
+         * @brief Extract base playback movement and blend active fade contributions.
+         * @param dt Finite nonnegative elapsed time in seconds.
+         * @param boneIndex Selected root bone in the mesh skeleton.
+         * @param output Receives movement; snapshots and paused playback contribute identity.
+         */
+        bool ExtractRootMotion(float dt, uint32_t boneIndex, SRootMotionDelta& output) const;
+
+        /**
+         * @brief Extract movement from one playback interval without advancing its clock.
+         * @param playback Sequence or blend space, including its current time and looping.
+         * @param dt Finite nonnegative elapsed time in seconds.
+         * @param boneIndex Selected root bone in the mesh skeleton.
+         * @param output Receives parent-local movement on success.
+         */
+        bool ExtractPlaybackRootMotion(
+            const SPlayback& playback,
+            float dt,
+            uint32_t boneIndex,
+            SRootMotionDelta& output
+        ) const;
+
+        /**
          * @brief Gather target events before committing a playback update.
          * @param dt Positive elapsed time in seconds; zero emits no events.
          * @param output Receives occurrences retaining the selected source asset.

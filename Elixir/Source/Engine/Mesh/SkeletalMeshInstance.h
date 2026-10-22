@@ -117,6 +117,34 @@ namespace Elixir
         bool Update(float dt);
 
         /**
+         * @brief Extract Base movement and lock the selected bone to its reference pose.
+         *
+         * Extraction is disabled by default. Configure before playback to avoid a visible
+         * pose change. Only translation and rotation from Base move the character; other
+         * layers still compose normally. This method does not advance clocks.
+         *
+         * Ancestors must stay in their reference pose and use uniform scale.
+         *
+         * @param enabled Extract movement for gameplay instead of leaving it in the pose.
+         * @param boneName Root-motion bone name; empty selects bone zero.
+         * @return False if the mesh or recomposed pose is invalid; previous state is retained.
+         */
+        bool SetRootMotionEnabled(bool enabled, std::string_view boneName = {});
+
+        /** @brief Check whether Base extracts rigid movement from the selected bone. */
+        bool IsRootMotionEnabled() const { return m_RootMotionEnabled; }
+
+        /**
+         * @brief Get mesh-local movement from the last successful Update.
+         *
+         * Post-multiply the character transform by this delta once after a successful
+         * update. Paused, disabled, and zero-delta updates produce identity. Play, Seek,
+         * Stop, manual pose changes, and extraction toggles clear it. Failed updates keep
+         * the previous delta; consume it only after successful updates.
+         */
+        const SRootMotionDelta& GetRootMotionDelta() const { return m_RootMotionDelta; }
+
+        /**
          * @brief Get events from the last successful update, in chronological order.
          *
          * Read on the same thread as playback updates. The span remains valid until the
@@ -254,6 +282,12 @@ namespace Elixir
          */
         bool ApplyBaseLayer(const AnimationLayer& layer);
 
+        /**
+         * @brief Validate static ancestors and lock the selected root in a candidate pose.
+         * @param pose Complete local pose to validate and modify.
+         */
+        bool LockRootMotion(std::span<SBoneTransform> pose) const;
+
         const Ref<const SkeletalMesh> m_Mesh;
 
         /** The first layer is Base and remains alive for this instance's lifetime. */
@@ -264,5 +298,10 @@ namespace Elixir
         std::vector<glm::mat4> m_ModelPose;
 
         bool m_Paused = false;
+        bool m_RootMotionEnabled = false;
+        SRootMotionDelta m_RootMotionDelta;
+        uint32_t m_RootMotionBone = 0;
+        SRootMotionDelta m_RootMotionParent;
+        float m_RootMotionParentScale = 1;
     };
 }

@@ -38,6 +38,7 @@ namespace Elixir
         GetBaseLayer().Stop();
         ClearLayers();
         m_NotifyEvents.clear();
+        m_RootMotionDelta = {};
 
         m_Paused = false;
 
@@ -95,6 +96,9 @@ namespace Elixir
 
             if (!layer.BlendPose(local, pose))
                 return false;
+
+            if (i == 0 && m_RootMotionEnabled && !LockRootMotion(local))
+                return false;
         }
 
         return m_Mesh->GetSkeleton()->BuildModelPose(local, model);
@@ -114,6 +118,7 @@ namespace Elixir
         m_LocalPose = std::move(local);
         m_ModelPose = std::move(model);
         m_NotifyEvents.clear();
+        m_RootMotionDelta = {};
 
         return true;
     }
@@ -167,6 +172,95 @@ namespace Elixir
         return candidate.Seek(time) && ApplyBaseLayer(candidate);
     }
 
+    bool SkeletalMeshInstance::LockRootMotion(const std::span<SBoneTransform> pose) const
+    {
+        const auto& reference = m_Mesh->GetData().ReferencePose;
+        const auto& bones = m_Mesh->GetSkeleton()->GetBones();
+        for (auto parent = bones[m_RootMotionBone].ParentIndex;
+            parent >= 0; parent = bones[size_t(parent)].ParentIndex)
+        {
+            const auto& actual = pose[size_t(parent)];
+            const auto& expected = reference[size_t(parent)];
+            if (glm::any(glm::greaterThan(glm::abs(actual.Translation - expected.Translation),
+                    glm::vec3(1e-5f))) ||
+                glm::any(glm::greaterThan(glm::abs(actual.Scale - expected.Scale),
+                    glm::vec3(1e-5f))) ||
+                std::abs(glm::dot(actual.Rotation, expected.Rotation)) < 1.0f - 1e-5f)
+            {
+                EE_CORE_ERROR("Root motion requires ancestors to stay in their reference pose.")
+                return false;
+            }
+        }
+        pose[m_RootMotionBone].Translation = reference[m_RootMotionBone].Translation;
+        pose[m_RootMotionBone].Rotation = reference[m_RootMotionBone].Rotation;
+        return true;
+    }
+
+    bool SkeletalMeshInstance::SetRootMotionEnabled(
+        const bool enabled, const std::string_view boneName
+    )
+    {
+        if (!m_Mesh)
+        {
+            EE_CORE_ERROR("Root motion requires a valid skeletal mesh.")
+            return false;
+        }
+        const auto& bones = m_Mesh->GetSkeleton()->GetBones();
+        const auto selected = boneName.empty() ? 0 : m_Mesh->GetSkeleton()->FindBone(boneName);
+        if (selected < 0)
+        {
+            EE_CORE_ERROR("Root-motion bone '{}' does not exist.", boneName)
+            return false;
+        }
+        glm::mat4 parentMatrix(1);
+        glm::quat parentRotation(1, 0, 0, 0);
+        float scale = 1;
+        const auto& reference = m_Mesh->GetData().ReferencePose;
+        for (auto parent = bones[size_t(selected)].ParentIndex;
+            parent >= 0; parent = bones[size_t(parent)].ParentIndex)
+        {
+            const auto& transform = reference[size_t(parent)];
+            if (std::abs(transform.Scale.x - transform.Scale.y) > 1e-5f ||
+                std::abs(transform.Scale.x - transform.Scale.z) > 1e-5f)
+            {
+                EE_CORE_ERROR("Root motion requires uniformly scaled reference ancestors.")
+                return false;
+            }
+            parentMatrix = transform.ToMatrix() * parentMatrix;
+            parentRotation = glm::normalize(transform.Rotation * parentRotation);
+            scale *= transform.Scale.x;
+        }
+        const SRootMotionDelta parentFrame{glm::vec3(parentMatrix[3]), parentRotation};
+        if (!parentFrame.IsValid() || !std::isfinite(scale) || scale == 0)
+        {
+            EE_CORE_ERROR("Root motion requires a finite, invertible reference parent transform.")
+            return false;
+        }
+
+        const auto previous = m_RootMotionEnabled;
+        const auto previousBone = m_RootMotionBone;
+        const auto previousParent = m_RootMotionParent;
+        const auto previousScale = m_RootMotionParentScale;
+        m_RootMotionEnabled = enabled;
+        m_RootMotionBone = uint32_t(selected);
+        m_RootMotionParent = parentFrame;
+        m_RootMotionParentScale = scale;
+        std::vector<SBoneTransform> local;
+        std::vector<glm::mat4> model;
+        if (!ComposePose({}, local, model))
+        {
+            m_RootMotionEnabled = previous;
+            m_RootMotionBone = previousBone;
+            m_RootMotionParent = previousParent;
+            m_RootMotionParentScale = previousScale;
+            return false;
+        }
+        m_LocalPose = std::move(local);
+        m_ModelPose = std::move(model);
+        m_RootMotionDelta = {};
+        return true;
+    }
+
     bool SkeletalMeshInstance::Update(const float dt)
     {
         if (!std::isfinite(dt) || dt < 0.0f)
@@ -178,6 +272,7 @@ namespace Elixir
         if (!m_Mesh)
         {
             m_NotifyEvents.clear();
+            m_RootMotionDelta = {};
             return true;
         }
 
@@ -204,6 +299,21 @@ namespace Elixir
         std::vector<SBoneTransform> local;
         std::vector<glm::mat4> model;
 
+        SRootMotionDelta movement;
+        if (m_RootMotionEnabled && !GetBaseLayer().ExtractRootMotion(advance, m_RootMotionBone, movement))
+            return false;
+
+        if (m_RootMotionEnabled)
+        {
+            movement.Translation *= m_RootMotionParentScale;
+            movement = m_RootMotionParent * movement * m_RootMotionParent.Inverse();
+            if (!movement.IsValid())
+            {
+                EE_CORE_ERROR("Root motion produced a nonfinite mesh-local movement delta.")
+                return false;
+            }
+        }
+
         if (!ComposePose(evaluations, local, model))
             return false;
 
@@ -215,6 +325,7 @@ namespace Elixir
         m_LocalPose = std::move(local);
         m_ModelPose = std::move(model);
         m_NotifyEvents = std::move(events);
+        m_RootMotionDelta = movement;
 
         return true;
     }
@@ -222,19 +333,23 @@ namespace Elixir
     bool SkeletalMeshInstance::SetLocalPose(const std::span<const SBoneTransform> pose)
     {
         auto candidate = GetBaseLayer();
-        std::vector<glm::mat4> model;
+        if (!m_Mesh || !candidate.SetLocalPose(pose))
+            return false;
 
-        if (!m_Mesh ||
-            !candidate.SetLocalPose(pose) ||
-            !m_Mesh->GetSkeleton()->BuildModelPose(pose, model))
+        std::vector local(pose.begin(), pose.end());
+        if (m_RootMotionEnabled && !LockRootMotion(local))
+            return false;
+        std::vector<glm::mat4> model;
+        if (!m_Mesh->GetSkeleton()->BuildModelPose(local, model))
             return false;
 
         GetBaseLayer() = candidate;
         ClearLayers();
         m_NotifyEvents.clear();
+        m_RootMotionDelta = {};
         m_Paused = false;
 
-        m_LocalPose = GetBaseLayer().GetLocalPose();
+        m_LocalPose = std::move(local);
         m_ModelPose = std::move(model);
 
         return true;

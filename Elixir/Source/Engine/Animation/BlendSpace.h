@@ -30,6 +30,26 @@ namespace Elixir
         ) const;
 
         /**
+         * @brief Blend root movement from contributing clips on the marker timeline.
+         * @param values One finite coordinate per axis.
+         * @param startPhase Finite start cycle phase.
+         * @param endPhase Finite unwrapped forward end phase.
+         * @param looping Accumulate cycles; otherwise clamp the reference phase to [0, 1].
+         * @param reference Mesh-specific local reference transform of the selected bone.
+         * @param output Receives blended parent-local movement; unchanged on failure.
+         * @param boneIndex Bone to extract; its ancestors must remain in the reference pose.
+         */
+        bool ExtractRootMotion(
+            std::span<const float> values,
+            double startPhase,
+            double endPhase,
+            bool looping,
+            const SBoneTransform& reference,
+            SRootMotionDelta& output,
+            uint32_t boneIndex = 0
+        ) const;
+
+        /**
          * @brief Get the weighted cycle duration in seconds, or zero on failure.
          * @param values One finite coordinate per axis, in axis order.
          */

@@ -1,6 +1,6 @@
  #pragma once
 
-#include <Engine/Animation/Skeleton.h>
+#include <Engine/Animation/RootMotion.h>
 
 namespace Elixir
 {
@@ -119,6 +119,36 @@ namespace Elixir
             std::vector<SBoneTransform>& output,
             std::span<const SBoneTransform> referencePose = {}
         ) const;
+
+        /**
+         * @brief Extract rigid movement of a selected bone over a forward phase interval.
+         *
+         * Looping intervals may cross cycle boundaries in either positive or negative
+         * phase space. At most 4096 cycles may be crossed per call. Nonlooping phases clamp
+         * to [0, 1]. Output is unchanged on failure. Scale remains in the sampled pose.
+         *
+         * @param startPhase Finite start phase; one unit represents one complete cycle.
+         * @param endPhase Finite unwrapped phase greater than or equal to startPhase.
+         * @param looping Accumulate complete cycles instead of clamping to the clip ends.
+         * @param reference Mesh-specific local reference transform of the selected bone.
+         * @param output Receives parent-local movement, conjugated through the reference root.
+         * @param boneIndex Bone to extract; its ancestors must remain in the reference pose.
+         */
+        bool ExtractRootMotion(
+            double startPhase,
+            double endPhase,
+            bool looping,
+            const SBoneTransform& reference,
+            SRootMotionDelta& output,
+            uint32_t boneIndex = 0
+        ) const;
+
+        /**
+         * @brief Map unwrapped reference phase to continuous phase in this sequence.
+         * @param phase Finite reference phase; complete cycles remain unwrapped.
+         * @param reference Fixed marker timeline; incompatible markers use normalized phase.
+         */
+        double GetSynchronizedPhase(double phase, const AnimationSequence& reference) const;
 
         /**
          * @brief Copy this immutable sequence with authored synchronization markers.

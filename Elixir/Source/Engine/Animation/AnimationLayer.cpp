@@ -549,6 +549,67 @@ namespace Elixir
             : 0.0f;
     }
 
+    bool AnimationLayer::ExtractPlaybackRootMotion(
+        const SPlayback& playback,
+        const float dt,
+        const uint32_t boneIndex,
+        SRootMotionDelta& output
+    ) const
+    {
+        const auto duration = GetDuration(playback);
+        if (dt == 0 || duration == 0 || (!playback.Sequence && !playback.BlendSpace))
+        {
+            output = {};
+            return true;
+        }
+        const auto phase = playback.BlendSpace ? playback.Time : playback.Time / duration;
+        const auto end = phase + double(dt) / duration;
+        if (playback.Sequence)
+            return playback.Sequence->ExtractRootMotion(
+                phase, end, playback.Looping, m_ReferencePose[boneIndex], output, boneIndex
+            );
+
+        return playback.BlendSpace->ExtractRootMotion(
+            playback.Values, phase, end, playback.Looping, m_ReferencePose[boneIndex], output, boneIndex
+        );
+    }
+
+    bool AnimationLayer::ExtractRootMotion(
+        const float dt, const uint32_t boneIndex, SRootMotionDelta& output
+    ) const
+    {
+        if (!m_Playing || dt == 0)
+        {
+            output = {};
+            return true;
+        }
+        SRootMotionDelta target;
+        if (!ExtractPlaybackRootMotion(m_Playback, dt, boneIndex, target))
+            return false;
+        if (!IsTransitioning())
+        {
+            output = target;
+            return true;
+        }
+        SRootMotionDelta source;
+        if (!ExtractPlaybackRootMotion(m_Transition.Playback, dt, boneIndex, source))
+            return false;
+
+        const auto startWeight = m_Transition.Elapsed / m_Transition.Duration;
+        const auto remaining = m_Transition.Duration - m_Transition.Elapsed;
+        const auto fadeTime = std::min(dt, remaining);
+        const auto endWeight = (m_Transition.Elapsed + fadeTime) / m_Transition.Duration;
+        const auto weight = 1.0f - fadeTime / dt * (1.0f - (startWeight + endWeight) * 0.5f);
+        const auto result = SRootMotionDelta::Blend(source, target, weight);
+        if (!result.IsValid())
+        {
+            EE_CORE_ERROR("Animation transition produced invalid root motion.")
+            return false;
+        }
+        output = result;
+        return true;
+    }
+
     bool AnimationLayer::CollectNotifyEvents(
         const float dt,
         std::vector<SAnimationNotifyEvent>& output

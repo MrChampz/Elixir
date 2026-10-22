@@ -252,7 +252,7 @@ Dissolve::Dissolve()
         .SetPosition({20, 50})
         .SetSize({1000, 30});
     for (const auto& [position, caption] : std::array{
-        std::pair{0.25f, "UPPER BODY ACTION"}, std::pair{0.75f, "ACTION + RECOIL"}
+        std::pair{0.25f, "ROOT LOCKED"}, std::pair{0.75f, "ROOT MOTION + RECOIL"}
     })
     {
         const auto label = CreateRef<GUI::TextBlock>(caption);
@@ -264,7 +264,7 @@ Dissolve::Dissolve()
             .SetSize({260, 35});
     }
     const auto layerInstructions = CreateRef<GUI::TextBlock>(
-        "J: wave | K: punch | L: action on/off | Both: same action; right: additive recoil"
+        "J: wave | K: punch | L: action on/off | B: dodge left/right | V: reset position"
     );
     layerInstructions->SetFontSize(18.0f);
     panel->AddChild(layerInstructions)
@@ -302,7 +302,7 @@ void Dissolve::OnGUI(const Timestep frameTime)
     if (m_AnimationStatus)
         m_AnimationStatus->SetText(
             std::format(
-                "Phase {:.2f} | {} | Steps {} / {} | {} | Actions {} | Recoil {:.2f} | Shots {}",
+                "Phase {:.2f} | {} | Steps {} / {} | {} | Actions {} | Recoil {:.2f} | Shots {} | Root {:.2f}",
                 m_AnimationPhase.load(std::memory_order_relaxed),
                 m_AnimationPaused.load(std::memory_order_relaxed) ? "PAUSED" : "PLAYING",
                 m_ComparisonSteps.load(std::memory_order_relaxed),
@@ -311,7 +311,8 @@ void Dissolve::OnGUI(const Timestep frameTime)
                 m_ActionEvents.load(std::memory_order_relaxed),
                 m_RecoilEnabled.load(std::memory_order_relaxed)
                     ? m_RecoilStrength.load(std::memory_order_relaxed) : 0.0f,
-                m_RecoilEvents.load(std::memory_order_relaxed)
+                m_RecoilEvents.load(std::memory_order_relaxed),
+                m_RootMotionDistance.load(std::memory_order_relaxed)
             )
         );
 }
@@ -320,6 +321,15 @@ void Dissolve::Prepare(const Timestep frameTime)
 {
     EE_PROFILE_ZONE_SCOPED()
     Application::Prepare(frameTime);
+
+    const auto dodge = InputManager::IsKeyPressed(EE_KEY_B);
+    if (dodge && !m_DodgeKeyPressed)
+        m_DodgeRequested.store(true, std::memory_order_relaxed);
+    m_DodgeKeyPressed = dodge;
+    const auto resetMotion = InputManager::IsKeyPressed(EE_KEY_V);
+    if (resetMotion && !m_ResetMotionKeyPressed)
+        m_ResetMotion.store(true, std::memory_order_relaxed);
+    m_ResetMotionKeyPressed = resetMotion;
 
     const auto recoil = InputManager::IsKeyPressed(EE_KEY_U);
     if (recoil && !m_RecoilKeyPressed)
@@ -528,16 +538,37 @@ void Dissolve::InitializeAnimationController()
     if (!waveAnimation || !punchAnimation)
         return;
 
+    const auto dodgeLeft = findAnimation("Dodge_Left");
+    const auto dodgeRight = findAnimation("Dodge_Right");
+    if (!dodgeLeft || !dodgeRight)
+        return;
+
     const auto controller = AnimationController::Create({
         .Name = "KayKitCharacter",
         .Parameters = {
             { "Strafe", 0.0f }, { "Forward", 0.0f },
-            { "Wave", false }, { "Punch", false },
+            { "Wave", false }, { "Punch", false }, { "Dodge", false },
         },
         .Layers = {
             {
-                .BlendSpace = blendSpace,
-                .BlendParameters = { "Strafe", "Forward" }
+                .StateMachine = {
+                    .InitialState = "Locomotion",
+                    .States = {
+                        { .Name = "Locomotion", .BlendSpace = blendSpace,
+                          .BlendParameters = { "Strafe", "Forward" } },
+                        { .Name = "DodgeLeft", .Sequence = dodgeLeft, .Looping = false },
+                        { .Name = "DodgeRight", .Sequence = dodgeRight, .Looping = false },
+                    },
+                    .Transitions = {
+                        { .From = "Locomotion", .To = "DodgeLeft",
+                          .Conditions = {{ "Dodge", EAnimationComparison::Equal, true }},
+                          .FadeDuration = 0.1f },
+                        { .From = "DodgeLeft", .To = "DodgeRight", .FadeDuration = 0.1f,
+                          .WaitForCompletion = true },
+                        { .From = "DodgeRight", .To = "Locomotion", .FadeDuration = 0.1f,
+                          .WaitForCompletion = true },
+                    },
+                }
             },
             { .Name = "UpperBody", .Mask = upperBody, .StateMachine = {
                 .InitialState = "Wave",
@@ -569,7 +600,9 @@ void Dissolve::InitializeAnimationController()
 
     auto instance = CreateScope<AnimationControllerInstance>(controller, *m_MeshInstance);
     auto comparison = CreateScope<AnimationControllerInstance>(controller, *m_ComparisonInstance);
-    if (!instance->Update(0.0f) || !comparison->Update(0.0f) ||
+    if (!m_MeshInstance->SetRootMotionEnabled(true, "root") ||
+        !m_ComparisonInstance->SetRootMotionEnabled(true, "root") ||
+        !instance->Update(0.0f) || !comparison->Update(0.0f) ||
         !m_ComparisonInstance->GetLayer("Recoil")->SetWeight(0.0f))
         return;
 
@@ -644,8 +677,14 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
         !m_ComparisonController->SetBool("Wave", action == 1) ||
         !m_ComparisonController->SetBool("Punch", action == 2))
         return;
+    const auto dodge = m_DodgeRequested.exchange(false, std::memory_order_relaxed);
+    if (!m_AnimationController->SetBool("Dodge", dodge) ||
+        !m_ComparisonController->SetBool("Dodge", dodge))
+        return;
+    const auto dodgeActive = dodge || m_AnimationController->GetCurrentState() != "Locomotion";
     const auto layerWeight = m_LayerWeight.load(std::memory_order_relaxed);
-    const auto targetWeight = m_LayerEnabled.load(std::memory_order_relaxed) ? 1.0f : 0.0f;
+    const auto targetWeight = !dodgeActive && m_LayerEnabled.load(std::memory_order_relaxed)
+        ? 1.0f : 0.0f;
     const auto nextWeight = layerWeight +
         std::clamp(targetWeight - layerWeight, -advance * 4.0f, advance * 4.0f);
     const auto recoilWeight = m_RecoilEnabled.load(std::memory_order_relaxed)
@@ -662,6 +701,12 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
         !m_AnimationController->Update(advance) ||
         !m_ComparisonController->Update(advance))
         return;
+
+    m_CharacterMotion *= m_MeshInstance->GetRootMotionDelta().ToMatrix();
+    if (m_ResetMotion.exchange(false, std::memory_order_relaxed))
+        m_CharacterMotion = glm::mat4(1);
+    m_RootMotionDistance.store(glm::length(glm::vec3(m_CharacterMotion[3])),
+        std::memory_order_relaxed);
 
     m_PunchActive.store(m_AnimationController->GetCurrentState("UpperBody") == "Punch",
         std::memory_order_relaxed);
@@ -724,7 +769,9 @@ void Dissolve::DrawGeometry()
                 glm::rotate(glm::mat4(1), glm::radians(25.0f) + correction,
                     glm::vec3(0, 1, 0)) *
                 glm::translate(glm::mat4(1), -center);
-            m_SkeletalMeshRenderer->Render(instance, transform);
+            const auto movement = &instance == m_MeshInstance.get()
+                ? m_CharacterMotion : glm::mat4(1);
+            m_SkeletalMeshRenderer->Render(instance, transform * movement);
         };
         renderInstance(*m_ComparisonInstance, separation);
         renderInstance(*m_MeshInstance, -separation);

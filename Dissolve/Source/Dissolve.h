@@ -44,6 +44,14 @@ class Dissolve final : public Elixir::Application
     Scope<AnimationControllerInstance> m_ComparisonController;
     Ref<const BlendSpace> m_LocomotionSpace;
 
+    /** Root movement is applied by the demo on the rendering thread. */
+    glm::mat4 m_CharacterMotion{1};
+    std::atomic<bool> m_DodgeRequested = false;
+    std::atomic<bool> m_ResetMotion = false;
+    std::atomic<float> m_RootMotionDistance = 0;
+    bool m_DodgeKeyPressed = false;
+    bool m_ResetMotionKeyPressed = false;
+
     /** Application-thread action requests consumed by rendering-thread playback. */
     std::atomic<int> m_ActionRequest = 0;
     std::atomic<bool> m_LayerEnabled = true;
