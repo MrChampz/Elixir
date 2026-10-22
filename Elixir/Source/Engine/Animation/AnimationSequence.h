@@ -70,6 +70,45 @@ namespace Elixir
         }
     };
 
+    /** Defines a named active window on a sequence timeline. */
+    struct SAnimationNotifyState
+    {
+        std::string Name;
+
+        /** Inclusive start in sequence seconds. */
+        float StartTime = 0.0f;
+
+        /** Exclusive end in sequence seconds; must be greater than StartTime. */
+        float EndTime = 0.0f;
+
+        /** Optional application-defined value owned by the immutable sequence. */
+        std::any Payload;
+
+        /**
+         * @brief Read the payload without conversion or exceptions.
+         * @tparam T Exact stored copyable value type.
+         * @return A borrowed read-only value, or null for a different or absent type.
+         */
+        template<typename T>
+        const T* GetPayload() const { return std::any_cast<T>(&Payload); }
+    };
+
+    /** Describes one window overlap measured on the playback reference timeline. */
+    struct SAnimationNotifyStateInterval
+    {
+        /** Index into the sequence's immutable GetNotifyStates list. */
+        size_t NotifyStateIndex = 0;
+
+        /** Reference phase elapsed before the overlap starts. */
+        double StartPhaseOffset = 0.0;
+
+        /** Reference phase elapsed before the overlap ends. */
+        double EndPhaseOffset = 0.0;
+
+        /** The authored window end was reached within this interval. */
+        bool Ends = false;
+    };
+
     /** Identifies one event crossed while advancing a cycle. */
     struct SAnimationNotifyOccurrence
     {
@@ -84,7 +123,7 @@ namespace Elixir
     class ELIXIR_API AnimationSequence final
     {
     public:
-        /** Maximum events emitted by one successful update; larger batches fail safely. */
+        /** Maximum authored events per update; queued cancellation Ends are additional. */
         static constexpr size_t MaxNotifyEventsPerUpdate = 4096;
 
         AnimationSequence(const AnimationSequence&) = delete;
@@ -99,13 +138,15 @@ namespace Elixir
          * @param syncMarkers Unique named markers at distinct times in [0, duration).
          * Markers are sorted during creation.
          * @param notifies Named events on a positive-duration timeline, sorted stably by time.
+         * @param notifyStates Named windows within the timeline; may overlap.
          */
         static Ref<AnimationSequence> Create(
             std::string name, Ref<const Skeleton> skeleton,
             float duration,
             std::vector<SBoneAnimationTrack> tracks,
             std::vector<SAnimationSyncMarker> syncMarkers = {},
-            std::vector<SAnimationNotify> notifies = {}
+            std::vector<SAnimationNotify> notifies = {},
+            std::vector<SAnimationNotifyState> notifyStates = {}
         );
 
         /**
@@ -195,6 +236,35 @@ namespace Elixir
         /** @brief Get immutable events sorted by time, retaining order for equal times. */
         const std::vector<SAnimationNotify>& GetNotifies() const { return m_Notifies; }
 
+        /** @brief Get immutable windows sorted stably by their start time. */
+        const std::vector<SAnimationNotifyState>& GetNotifyStates() const
+        {
+            return m_NotifyStates;
+        }
+
+        /**
+         * @brief Copy this sequence with active windows, retaining tracks and other metadata.
+         * @param notifyStates Windows in [0, duration] with positive lengths.
+         * @return Null for invalid names or times; empty removes all windows.
+         */
+        Ref<AnimationSequence> WithNotifyStates(
+            std::vector<SAnimationNotifyState> notifyStates
+        ) const;
+
+        /**
+         * @brief Collect forward window overlaps; keep output unchanged on error.
+         * @param startPhase Playback reference phase in [0, 1].
+         * @param endPhase Unwrapped end phase at or after startPhase.
+         * @param looping Include repeated cycles instead of clamping at phase one.
+         * @param output Receives at most MaxNotifyEventsPerUpdate window overlaps.
+         * @param reference Optional marker reference used to map window endpoints.
+         */
+        bool CollectNotifyStateIntervals(
+            double startPhase, double endPhase, bool looping,
+            std::vector<SAnimationNotifyStateInterval>& output,
+            const AnimationSequence* reference = nullptr
+        ) const;
+
         /**
          * @brief Collect events crossed during a forward update, in chronological order.
          *
@@ -236,6 +306,7 @@ namespace Elixir
          * @param tracks Validated bone tracks.
          * @param syncMarkers Validated cycle markers in ascending time order.
          * @param notifies Validated events in stable ascending time order.
+         * @param notifyStates Validated windows in stable start-time order.
          */
         AnimationSequence(
             std::string name,
@@ -243,7 +314,8 @@ namespace Elixir
             float duration,
             std::vector<SBoneAnimationTrack> tracks,
             std::vector<SAnimationSyncMarker> syncMarkers,
-            std::vector<SAnimationNotify> notifies
+            std::vector<SAnimationNotify> notifies,
+            std::vector<SAnimationNotifyState> notifyStates
         );
 
         std::string m_Name;
@@ -252,5 +324,6 @@ namespace Elixir
         std::vector<SBoneAnimationTrack> m_Tracks;
         std::vector<SAnimationSyncMarker> m_SyncMarkers;
         std::vector<SAnimationNotify> m_Notifies;
+        std::vector<SAnimationNotifyState> m_NotifyStates;
     };
 }

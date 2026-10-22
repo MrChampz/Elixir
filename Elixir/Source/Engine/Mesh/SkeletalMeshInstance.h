@@ -157,6 +157,18 @@ namespace Elixir
         }
 
         /**
+         * @brief Get window lifecycle events from the last successful Update.
+         *
+         * Process the batch once after success. Playback commands and removed layers queue
+         * cancelled Ends for the next successful Update, even when paused or given zero time.
+         * Queued cancellation Ends are delivered in addition to the authored event budget.
+         */
+        std::span<const SAnimationNotifyStateEvent> GetNotifyStateEvents() const
+        {
+            return m_NotifyStateEvents;
+        }
+
+        /**
          * @brief Seek base playback silently without changing layer clocks.
          *
          * Clear pending events and the base transition on success.
@@ -288,11 +300,19 @@ namespace Elixir
          */
         bool LockRootMotion(std::span<SBoneTransform> pose) const;
 
+        /**
+         * @brief Retain cancelled window events before removing a layer.
+         * @param layer Layer whose active and pending windows must be ended.
+         */
+        void QueueLayerNotifyStateEnds(AnimationLayer& layer);
+
         const Ref<const SkeletalMesh> m_Mesh;
 
         /** The first layer is Base and remains alive for this instance's lifetime. */
         std::vector<Scope<AnimationLayer>> m_Layers;
         std::vector<SAnimationNotifyEvent> m_NotifyEvents;
+        std::vector<SAnimationNotifyStateEvent> m_NotifyStateEvents;
+        std::vector<SAnimationNotifyStateEvent> m_PendingNotifyStateEnds;
 
         std::vector<SBoneTransform> m_LocalPose;
         std::vector<glm::mat4> m_ModelPose;

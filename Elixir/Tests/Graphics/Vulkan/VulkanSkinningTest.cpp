@@ -90,6 +90,8 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
                         { 0, { 1, 2, 3 } }, { 1, { 3, 4, 5 } },
                     } },
                 });
+                action = action->WithNotifyStates({{"Active", 0, 1}});
+                ASSERT_TRUE(action);
                 ASSERT_TRUE(firstInstance.AddLayer("Action", mask, 0.65f));
                 if (frame == 2)
                     ASSERT_TRUE(firstInstance.GetLayer("Action")->SetBlendMode(
@@ -105,6 +107,7 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
                 ASSERT_TRUE(firstInstance.GetLayer("Action")->PlayMontage(montage));
                 ASSERT_TRUE(firstInstance.Update(frame == 3 ? 0.375f : 0.125f));
                 EXPECT_NEAR(firstInstance.GetLayer("Action")->GetMontageWeight(), 0.5f, 1e-6f);
+                EXPECT_EQ(firstInstance.GetNotifyStateEvents().size(), frame == 3 ? 5u : 2u);
                 if (frame == 3)
                     EXPECT_EQ(firstInstance.GetLayer("Action")->GetCurrentMontageSection(), "End");
                 if (frame == 3)
