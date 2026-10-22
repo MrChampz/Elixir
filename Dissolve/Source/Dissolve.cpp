@@ -302,11 +302,12 @@ void Dissolve::OnGUI(const Timestep frameTime)
     if (m_AnimationStatus)
         m_AnimationStatus->SetText(
             std::format(
-                "Phase {:.2f} | {} | Steps {} / {} | Actions {} | Recoil {:.2f} | Shots {}",
+                "Phase {:.2f} | {} | Steps {} / {} | {} | Actions {} | Recoil {:.2f} | Shots {}",
                 m_AnimationPhase.load(std::memory_order_relaxed),
                 m_AnimationPaused.load(std::memory_order_relaxed) ? "PAUSED" : "PLAYING",
                 m_ComparisonSteps.load(std::memory_order_relaxed),
                 m_SynchronizedSteps.load(std::memory_order_relaxed),
+                m_PunchActive.load(std::memory_order_relaxed) ? "PUNCH" : "WAVE",
                 m_ActionEvents.load(std::memory_order_relaxed),
                 m_RecoilEnabled.load(std::memory_order_relaxed)
                     ? m_RecoilStrength.load(std::memory_order_relaxed) : 0.0f,
@@ -514,68 +515,90 @@ void Dissolve::InitializeAnimationController()
     if (!blendSpace)
         return;
 
-    const auto makeController = [](Ref<const BlendSpace> space)
-    {
-        return AnimationController::Create({
-            .Name = "KayKitLocomotion",
-            .InitialState = "Locomotion",
-            .Parameters = {
-                { "Strafe", 0.0f },
-                { "Forward", 0.0f }
-            },
-            .States = {{
-                .Name = "Locomotion",
-                .BlendSpace = std::move(space),
-                .BlendParameters = { "Strafe", "Forward" },
-            }},
-        });
-    };
-    const auto controller = makeController(blendSpace);
-    const auto comparisonController = makeController(blendSpace);
-    if (!controller || !comparisonController)
-        return;
-
-    auto instance = CreateScope<AnimationControllerInstance>(
-        controller,
-        *m_MeshInstance
-    );
-    auto comparison = CreateScope<AnimationControllerInstance>(
-        comparisonController,
-        *m_ComparisonInstance
-    );
-    if (!instance->Update(0.0f) || !comparison->Update(0.0f))
-        return;
-
     const auto wave = findAnimation("Waving");
     const auto punch = findAnimation("Melee_Unarmed_Attack_Punch_A");
     const auto upperBody = BoneMask::FromBone("UpperBody", mesh->GetSkeleton(), "spine");
-    if (!wave || !punch || !upperBody ||
-        !m_MeshInstance->AddLayer("UpperBody", upperBody) ||
-        !m_ComparisonInstance->AddLayer("UpperBody", upperBody))
+    const auto recoilMask = BoneMask::FromBone("Recoil", mesh->GetSkeleton(), "chest");
+    const auto recoilAnimation = CreateRecoilAnimation();
+    if (!wave || !punch || !upperBody || !recoilMask || !recoilAnimation)
         return;
-    m_WaveAnimation = wave->WithNotifies({{ "WavePeak", wave->GetDuration() * 0.5f }});
-    m_PunchAnimation = punch->WithNotifies({{ "PunchHit", punch->GetDuration() * 0.45f }});
-    if (!m_WaveAnimation || !m_PunchAnimation ||
-        !m_MeshInstance->GetLayer("UpperBody")->Play(m_WaveAnimation) ||
-        !m_ComparisonInstance->GetLayer("UpperBody")->Play(m_WaveAnimation) ||
-        !InitializeRecoilLayer())
+
+    const auto waveAnimation = wave->WithNotifies({{ "WavePeak", wave->GetDuration() * 0.5f }});
+    const auto punchAnimation = punch->WithNotifies({{ "PunchHit", punch->GetDuration() * 0.45f }});
+    if (!waveAnimation || !punchAnimation)
+        return;
+
+    const auto controller = AnimationController::Create({
+        .Name = "KayKitCharacter",
+        .Parameters = {
+            { "Strafe", 0.0f }, { "Forward", 0.0f },
+            { "Wave", false }, { "Punch", false },
+        },
+        .Layers = {
+            {
+                .StateMachine = {
+                    .InitialState = "Locomotion",
+                    .States = {
+                        {
+                            .Name = "Locomotion",
+                            .BlendSpace = blendSpace,
+                            .BlendParameters = { "Strafe", "Forward" }
+                        }
+                    },
+                }
+            },
+            { .Name = "UpperBody", .Mask = upperBody, .StateMachine = {
+                .InitialState = "Wave",
+                .States = {
+                    { .Name = "Wave", .Sequence = waveAnimation },
+                    { .Name = "Punch", .Sequence = punchAnimation, .Looping = false },
+                },
+                .Transitions = {
+                    { .From = "Wave", .To = "Punch",
+                      .Conditions = {{ "Punch", EAnimationComparison::Equal, true }},
+                      .FadeDuration = 0.15f },
+                    { .From = "Punch", .To = "Wave",
+                      .Conditions = {{ "Wave", EAnimationComparison::Equal, true }},
+                      .FadeDuration = 0.15f },
+                    { .From = "Punch", .To = "Wave", .FadeDuration = 0.15f,
+                      .WaitForCompletion = true },
+                },
+            } },
+            {
+                .Name = "Recoil",
+                .Mask = recoilMask,
+                .BlendMode = EAnimationLayerBlendMode::Additive,
+                .StateMachine = {
+                    .InitialState = "Active",
+                    .States = {{ "Active", recoilAnimation }},
+                }
+            },
+        },
+    });
+    if (!controller)
+        return;
+
+    auto instance = CreateScope<AnimationControllerInstance>(controller, *m_MeshInstance);
+    auto comparison = CreateScope<AnimationControllerInstance>(controller, *m_ComparisonInstance);
+    if (!instance->Update(0.0f) || !comparison->Update(0.0f) ||
+        !m_ComparisonInstance->GetLayer("Recoil")->SetWeight(0.0f))
         return;
 
     m_LocomotionSpace = blendSpace;
     m_ContactPhase = syncLeft->GetSyncMarkers().front().Time / syncLeft->GetDuration();
     m_AnimationController = std::move(instance);
     m_ComparisonController = std::move(comparison);
-    EE_CORE_INFO("KayKit additive recoil: same action on both; U toggles, I/O set strength.")
+    EE_CORE_INFO("KayKit character controller: locomotion, upper body, and additive recoil.")
 }
 
-bool Dissolve::InitializeRecoilLayer()
+Ref<const AnimationSequence> Dissolve::CreateRecoilAnimation()
 {
     const auto& skeleton = m_MeshInstance->GetMesh()->GetSkeleton();
     const auto chest = skeleton->FindBone("chest");
     if (chest < 0)
     {
         EE_CORE_ERROR("The recoil demo requires a chest bone.")
-        return false;
+        return nullptr;
     }
 
     const auto& reference = m_MeshInstance->GetMesh()->GetData().ReferencePose[size_t(chest)];
@@ -593,7 +616,7 @@ bool Dissolve::InitializeRecoilLayer()
         { 0.22f, glm::angleAxis(glm::radians(3.0f), glm::vec3(1, 0, 0)) * reference.Rotation },
         { 0.65f, reference.Rotation },
     };
-    const auto animation = AnimationSequence::Create(
+    return AnimationSequence::Create(
         "RecoilPulse",
         skeleton,
         0.65f,
@@ -603,12 +626,6 @@ bool Dissolve::InitializeRecoilLayer()
             { "RecoilPeak", 0.08f }
         }
     );
-    const auto mask = BoneMask::FromBone("Recoil", skeleton, "chest");
-    if (!animation || !mask || !m_MeshInstance->AddLayer("Recoil", mask))
-        return false;
-
-    auto* layer = m_MeshInstance->GetLayer("Recoil");
-    return layer->SetBlendMode(EAnimationLayerBlendMode::Additive) && layer->Play(animation);
 }
 
 void Dissolve::UpdateAnimation(const float deltaSeconds)
@@ -633,13 +650,11 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
     if (!upperBody || !comparisonAction || !recoil)
         return;
     const auto action = m_ActionRequest.exchange(0, std::memory_order_relaxed);
-    if (action != 0)
-    {
-        const auto& animation = action == 1 ? m_WaveAnimation : m_PunchAnimation;
-        if (!upperBody->Play(animation, 0.15f, true) ||
-            !comparisonAction->Play(animation, 0.15f, true))
-            return;
-    }
+    if (!m_AnimationController->SetBool("Wave", action == 1) ||
+        !m_AnimationController->SetBool("Punch", action == 2) ||
+        !m_ComparisonController->SetBool("Wave", action == 1) ||
+        !m_ComparisonController->SetBool("Punch", action == 2))
+        return;
     const auto layerWeight = m_LayerWeight.load(std::memory_order_relaxed);
     const auto targetWeight = m_LayerEnabled.load(std::memory_order_relaxed) ? 1.0f : 0.0f;
     const auto nextWeight = layerWeight +
@@ -658,6 +673,9 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
         !m_AnimationController->Update(advance) ||
         !m_ComparisonController->Update(advance))
         return;
+
+    m_PunchActive.store(m_AnimationController->GetCurrentState("UpperBody") == "Punch",
+        std::memory_order_relaxed);
 
     if (m_SeekContact.exchange(false, std::memory_order_relaxed))
     {

@@ -29,6 +29,9 @@ Both characters use the same synchronized locomotion blend space and an `UpperBo
 layer selecting `spine` and its descendants. Local leg transforms continue to come
 from locomotion. Press `J` to wave, `K` to punch, and `L` to blend the action layer out
 or in over 0.25 seconds on both characters. Action switches crossfade over 0.15 seconds.
+The character controller's UpperBody state machine plays a punch once and returns
+to waving automatically. Press J during a punch to interrupt it and return early.
+The HUD shows WAVE or PUNCH independently of the locomotion phase.
 The right character also adds recoil, described below. `P`, `N`, and `F` retain pause,
 frame-step, and silent base-contact seek. The HUD counts layer notifies separately
 from the base footstep events. A muted layer continues its clock without emitting
@@ -74,3 +77,45 @@ spaces continue to supply absolute poses; the layer calculates differences again
 its reference after sampling and transitions. Referenced transforms must be valid,
 including nonzero scale. A singular or nonfinite composed pose rejects the whole
 instance update without advancing any layer or replacing its previous event batch.
+
+
+## One controller per character
+
+`AnimationController` now describes a complete character: shared typed parameters
+and ordered `SAnimationControllerLayer` definitions. Each layer contains its own
+`SAnimationStateMachine`, mask, initial weight, blend mode, and optional additive
+reference pose. State names are local to each machine; parameters are shared across
+all machines. Base must come first, use Override, and have weight one without a mask.
+
+`AnimationControllerInstance(controller, mesh)` stores each character's parameter
+values and one current state per layer. The first update creates the declared layers
+on a mesh that has only Base, then starts every machine. One definition is shared by
+both demo characters; the comparison character mutes its Recoil layer after startup.
+No external controller per layer or separate mesh update is needed.
+
+```cpp
+AnimationControllerInstance animation(characterDefinition, mesh);
+animation.SetFloat("Forward", speed);
+animation.SetBool("Punch", punchRequested);
+if (animation.Update(deltaSeconds))
+{
+    // Consume mesh.GetNotifyEvents() and render the updated mesh.
+}
+```
+
+`Update(dt)` evaluates at most one transition per machine, then advances all layer
+clocks and composes the mesh once. `GetCurrentState()` queries Base;
+`GetCurrentState("UpperBody")` queries the action machine. Completion checks use the
+corresponding layer's playback and fade. Override, additive, sequence, and blend-space
+states follow the same update path. The demo declares locomotion, UpperBody actions,
+and additive Recoil together and uses one controller instance per character.
+
+`Reset()` restores shared parameter defaults and restarts all machines on the next
+update, preserving runtime layer weights, masks, modes, and individual pause settings
+until playback restarts. Use one active controller per mesh and drive its playback
+and frame updates through that controller. The mesh must outlive it. Removing a
+configured layer makes updates fail before evaluating any machine; construct a new
+controller on a fresh mesh to configure a new layer layout. Invalid delta times do
+not create layers or change playback. Failed composition preserves all playback
+clocks, the previous composed pose, and the previous notify batch; chosen target
+states remain selected so a later valid update can retry their transitions.

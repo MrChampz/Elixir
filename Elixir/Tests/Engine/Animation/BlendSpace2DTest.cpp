@@ -41,12 +41,14 @@ namespace
         {
             return {
                 .Name = "Controller",
-                .InitialState = "Move",
                 .Parameters = {{"X", 0.5f}, {"Y", 0.5f}},
-                .States = {
+                .Layers = {{ .StateMachine = {
+                    .InitialState = "Move",
+                    .States = {
                     {.Name = "Move",
                      .BlendSpace = Space, .BlendParameters = { "X", "Y" }}
                 }
+                } }},
             };
         }
 
@@ -274,17 +276,17 @@ TEST_F(BlendSpace2DTest, ControllerBindsBothAxesWithoutRestartingAndRejectsInval
     ASSERT_TRUE(instance.Update(0));
     EXPECT_FLOAT_EQ(mesh.GetNormalizedTime(), 0.25f);
     EXPECT_FLOAT_EQ(mesh.GetLocalPose()[0].Translation.x, 21);
-    info.States[0].BlendParameters[1] = "Missing";
+    info.Layers[0].StateMachine.States[0].BlendParameters[1] = "Missing";
     EXPECT_FALSE(AnimationController::Create(info));
     info = Definition();
     info.Parameters[1].DefaultValue = true;
     EXPECT_FALSE(AnimationController::Create(info));
     info = Definition();
-    info.States[0].Sequence = Clips[0];
+    info.Layers[0].StateMachine.States[0].Sequence = Clips[0];
     EXPECT_FALSE(AnimationController::Create(info));
     info = Definition();
-    info.States[0].BlendSpace.reset();
-    info.States[0].BlendSpace = BlendSpace1D::Create("Line", {{0, Clips[0]}});
+    info.Layers[0].StateMachine.States[0].BlendSpace.reset();
+    info.Layers[0].StateMachine.States[0].BlendSpace = BlendSpace1D::Create("Line", {{0, Clips[0]}});
     EXPECT_FALSE(AnimationController::Create(info));
 }
 
@@ -340,8 +342,8 @@ TEST_F(BlendSpace2DTest, ControllerTransitionsToSequenceAndBackToBothLiveAxes)
 {
     auto info = Definition();
     info.Parameters.push_back({"Attack", false});
-    info.States.push_back({.Name = "Attack", .Sequence = Clips[0], .Looping = false});
-    info.Transitions = {
+    info.Layers[0].StateMachine.States.push_back({.Name = "Attack", .Sequence = Clips[0], .Looping = false});
+    info.Layers[0].StateMachine.Transitions = {
         {.From = "Move",
          .To = "Attack",
          .Conditions = {{"Attack", EAnimationComparison::Equal, true}},

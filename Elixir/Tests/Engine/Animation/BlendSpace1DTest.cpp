@@ -34,10 +34,13 @@ namespace
         SAnimationControllerCreateInfo MakeController() const
         {
             return {
-                .Name = "Controller", .InitialState = "Locomotion",
+                .Name = "Controller",
                 .Parameters = {{ "Speed", 4.0f }},
-                .States = {{ .Name = "Locomotion", .BlendSpace = Space,
-                    .BlendParameters = { "Speed" } }},
+                .Layers = {{ .StateMachine = {
+                    .InitialState = "Locomotion",
+                    .States = {{ .Name = "Locomotion", .BlendSpace = Space,
+                    .BlendParameters = { "Speed" } }}
+                } }},
             };
         }
 
@@ -270,8 +273,8 @@ TEST_F(BlendSpace1DTest, ControllerTransitionsBetweenBlendSpaceAndSequenceStates
 {
     auto info = MakeController();
     info.Parameters.push_back({ "Attack", false });
-    info.States.push_back({ .Name = "Attack", .Sequence = Run, .Looping = false });
-    info.Transitions = {
+    info.Layers[0].StateMachine.States.push_back({ .Name = "Attack", .Sequence = Run, .Looping = false });
+    info.Layers[0].StateMachine.Transitions = {
         { .From = "Locomotion", .To = "Attack",
           .Conditions = {{ "Attack", EAnimationComparison::Equal, true }},
           .FadeDuration = 0.5f },
@@ -299,9 +302,9 @@ TEST_F(BlendSpace1DTest, ControllerTransitionsBetweenBlendSpaceAndSequenceStates
 TEST_F(BlendSpace1DTest, ControllerWaitsForNonloopingBlendSpaceCompletion)
 {
     auto info = MakeController();
-    info.States[0].Looping = false;
-    info.States.push_back({ "Idle", Idle });
-    info.Transitions = {{ .From = "Locomotion", .To = "Idle", .WaitForCompletion = true }};
+    info.Layers[0].StateMachine.States[0].Looping = false;
+    info.Layers[0].StateMachine.States.push_back({ "Idle", Idle });
+    info.Layers[0].StateMachine.Transitions = {{ .From = "Locomotion", .To = "Idle", .WaitForCompletion = true }};
     const auto controller = AnimationController::Create(std::move(info));
     ASSERT_TRUE(controller);
     SkeletalMeshInstance mesh(Mesh);
@@ -315,19 +318,19 @@ TEST_F(BlendSpace1DTest, ControllerWaitsForNonloopingBlendSpaceCompletion)
 TEST_F(BlendSpace1DTest, ControllerRejectsMissingWronglyTypedAndAmbiguousSources)
 {
     auto info = MakeController();
-    info.States[0].BlendParameters = { "Missing" };
+    info.Layers[0].StateMachine.States[0].BlendParameters = { "Missing" };
     EXPECT_FALSE(AnimationController::Create(info));
     info = MakeController();
     info.Parameters[0].DefaultValue = true;
     EXPECT_FALSE(AnimationController::Create(info));
     info = MakeController();
-    info.States[0].Sequence = Walk;
+    info.Layers[0].StateMachine.States[0].Sequence = Walk;
     EXPECT_FALSE(AnimationController::Create(info));
     info = MakeController();
-    info.States[0].BlendSpace.reset();
+    info.Layers[0].StateMachine.States[0].BlendSpace.reset();
     EXPECT_FALSE(AnimationController::Create(info));
     info = MakeController();
-    info.States.push_back({ .Name = "Other", .Sequence = Run, .BlendParameters = { "Speed" } });
+    info.Layers[0].StateMachine.States.push_back({ .Name = "Other", .Sequence = Run, .BlendParameters = { "Speed" } });
     EXPECT_FALSE(AnimationController::Create(info));
 }
 

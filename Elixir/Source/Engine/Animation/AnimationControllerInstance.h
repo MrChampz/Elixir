@@ -6,15 +6,15 @@ namespace Elixir
 {
     class SkeletalMeshInstance;
 
-    /** Owns parameter values and state-machine playback decisions for one mesh instance. */
+    /** Coordinates shared parameters, layer state machines, and playback for one character. */
     class ELIXIR_API AnimationControllerInstance final
     {
     public:
         /**
-         * @brief Bind a shared controller to one character without changing its pose yet.
-         * @param controller Shared state-machine definition.
-         * @param instance Character whose playback this controller drives.
-         * @pre The mesh instance must outlive this controller instance.
+         * @brief Bind a controller to one character without changing its pose yet.
+         * @param controller Shared layer, state-machine, and parameter definitions.
+         * @param instance Mesh instance whose layers and playback this controller drives.
+         * @pre The mesh must outlive this controller and have only Base on its first update.
          */
         AnimationControllerInstance(
             Ref<const AnimationController> controller,
@@ -51,27 +51,28 @@ namespace Elixir
         std::optional<bool> GetBool(std::string_view name) const;
 
         /**
-         * @brief Evaluate one transition, then advance playback and blending.
+         * @brief Evaluate every layer's state machine, then advance and compose the mesh once.
          *
-         * The first update starts the initial state. Check outgoing transitions in definition
-         * order and take at most one per update. Transitions can interrupt an active fade.
-         * Playback must be driven through this controller while it is in use. Skeleton
-         * compatibility with the instance's fixed mesh is checked at construction.
+         * The first update creates the configured layers and starts their initial states.
+         * Each machine takes at most one transition in declaration order. Parameters are
+         * shared by all machines. Drive playback and mesh updates through this controller.
+         * Removing a configured layer makes subsequent updates fail safely.
          *
          * @param dt Finite nonnegative elapsed time in seconds.
-         * @return False for invalid input, an incompatible mesh, or a failed pose update.
+         * @return False for invalid input, missing layers, or failed playback or composition.
          */
         bool Update(float dt);
 
         /**
-         * @brief Restore defaults and start the initial state on the next update.
+         * @brief Restore shared parameters and restart all machines on the next update.
          */
         void Reset();
 
         /**
-         * @brief Get the target state name, or an empty view before the first update.
+         * @brief Get a layer's target state, or an empty view before startup or if unknown.
+         * @param layerName Name of the configured layer; defaults to Base.
          */
-        std::string_view GetCurrentState() const;
+        std::string_view GetCurrentState(std::string_view layerName = BaseLayerName) const;
 
     private:
         /**
@@ -88,25 +89,37 @@ namespace Elixir
 
         /**
          * @brief Start a state's sequence or blend space with the requested fade.
-         * @param state Valid state index in the shared controller.
+         * @param machine Layer and state-machine index in the shared controller.
+         * @param state Valid state index in that machine.
          * @param fadeDuration Fade duration in seconds.
          */
-        bool PlayState(size_t state, float fadeDuration);
+        bool PlayState(size_t machine, size_t state, float fadeDuration);
 
         /**
          * @brief Read a state's axis values into reusable per-instance storage.
+         * @param machine Layer and state-machine index.
          * @param state Valid state index with resolved parameter bindings.
          */
-        std::span<const float> GetBlendValues(size_t state);
+        std::span<const float> GetBlendValues(size_t machine, size_t state);
+
+        /** @brief Create configured layers in composition order on a fresh mesh instance. */
+        bool InitializeLayers();
+
+        /**
+         * @brief Evaluate one layer's state machine without advancing its clock.
+         * @param machine Layer and state-machine index.
+         */
+        bool UpdateStateMachine(size_t machine);
 
         Ref<const AnimationController> m_Controller;
         SkeletalMeshInstance& m_Instance;
 
         /** Skeleton compatibility is fixed when this controller instance is constructed. */
         bool m_Compatible = false;
+        bool m_Initialized = false;
 
         std::vector<TAnimationParameterValue> m_Parameters;
         std::vector<float> m_BlendValues;
-        std::optional<size_t> m_State;
+        std::vector<std::optional<size_t>> m_States;
     };
 }

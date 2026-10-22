@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/Animation/BlendSpace.h>
+#include <Engine/Animation/AnimationLayer.h>
 
 namespace Elixir
 {
@@ -61,20 +61,51 @@ namespace Elixir
         bool WaitForCompletion = false;
     };
 
-    /** Defines an immutable state machine shared by animated characters. */
-    struct SAnimationControllerCreateInfo
+    /** Defines one state machine whose transitions read the controller's parameters. */
+    struct SAnimationStateMachine
     {
-        std::string Name;
         std::string InitialState;
-        std::vector<SAnimationParameter> Parameters;
         std::vector<SAnimationState> States;
 
         /** Declaration order sets priority when several outgoing transitions match. */
         std::vector<SAnimationTransition> Transitions;
     };
 
+    /** Name of the permanent first animation layer. */
+    static constexpr std::string BaseLayerName = "Base";
+
+    /** Defines a layer's state machine and its ordered contribution to the final pose. */
+    struct SAnimationControllerLayer
+    {
+        /** Unique layer name; the first layer must be Base. */
+        std::string Name = BaseLayerName;
+
+        /** Required for nonbase layers; Base uses the mesh's full-body mask. */
+        Ref<const BoneMask> Mask;
+
+        /** Finite contribution in [0, 1]; Base requires one. */
+        float Weight = 1.0f;
+
+        EAnimationLayerBlendMode BlendMode = EAnimationLayerBlendMode::Override;
+
+        /** Empty selects the mesh reference pose for additive differences. */
+        std::vector<SBoneTransform> AdditiveReferencePose;
+
+        SAnimationStateMachine StateMachine;
+    };
+
+    /** Defines a character's shared parameters, state machines, and pose composition. */
+    struct SAnimationControllerCreateInfo
+    {
+        std::string Name;
+        std::vector<SAnimationParameter> Parameters;
+
+        /** Composition order, starting with Base; every layer has its own state machine. */
+        std::vector<SAnimationControllerLayer> Layers;
+    };
+
     /**
-     * Stores validated animation states and transitions without per-character playback data.
+     * Stores a character animation definition without per-character playback data.
      */
     class ELIXIR_API AnimationController final
     {
@@ -85,8 +116,8 @@ namespace Elixir
         AnimationController& operator=(const AnimationController&) = delete;
 
         /**
-         * @brief Create a shared state machine, or return null for an invalid definition.
-         * @param info States, typed parameters, transitions, and initial state.
+         * @brief Create a shared character controller, or return null for invalid definitions.
+         * @param info Shared parameters and ordered layers with their state machines.
          */
         static Ref<AnimationController> Create(SAnimationControllerCreateInfo info);
 
@@ -96,8 +127,8 @@ namespace Elixir
         /** @brief Get the skeleton compatible with every animation in this controller. */
         const Ref<const Skeleton>& GetSkeleton() const { return m_Skeleton; }
 
-        /** @brief Get the immutable state definitions. */
-        const std::vector<SAnimationState>& GetStates() const { return m_States; }
+        /** @brief Get ordered layer settings and immutable state-machine definitions. */
+        const std::vector<SAnimationControllerLayer>& GetLayers() const { return m_Layers; }
 
         /** @brief Get parameter names, types, and default values. */
         const std::vector<SAnimationParameter>& GetParameters() const { return m_Parameters; }
@@ -118,26 +149,41 @@ namespace Elixir
             bool WaitForCompletion;
         };
 
+        struct SStateMachine
+        {
+            size_t InitialState;
+            std::vector<std::vector<STransition>> Transitions;
+            std::vector<std::vector<size_t>> BlendParameters;
+        };
+
         /**
-         * @brief Store the validated definition with resolved state and parameter indices.
-         * @param info Validated asset definition.
-         * @param transitions Outgoing transitions for each state, in priority order.
-         * @param initialState Index of the initial state.
-         * @param blendParameters Resolved axis parameter indices for each state.
+         * @brief Validate and resolve one machine against shared controller parameters.
+         * @param machine Authored states and transitions.
+         * @param parameters Shared typed parameter definitions.
+         * @param skeleton Common skeleton, initialized by the first valid state.
+         */
+        static std::optional<SStateMachine> CompileStateMachine(
+            const SAnimationStateMachine& machine,
+            const std::vector<SAnimationParameter>& parameters,
+            Ref<const Skeleton>& skeleton
+        );
+
+        /**
+         * @brief Store validated layers and their resolved state machines.
+         * @param info Validated controller definition.
+         * @param skeleton Common skeleton for every layer.
+         * @param machines Resolved transitions and parameter bindings per layer.
          */
         AnimationController(
             SAnimationControllerCreateInfo info,
-            std::vector<std::vector<STransition>> transitions,
-            size_t initialState,
-            std::vector<std::vector<size_t>> blendParameters
+            Ref<const Skeleton> skeleton,
+            std::vector<SStateMachine> machines
         );
 
         std::string m_Name;
         Ref<const Skeleton> m_Skeleton;
         std::vector<SAnimationParameter> m_Parameters;
-        std::vector<SAnimationState> m_States;
-        std::vector<std::vector<STransition>> m_Transitions;
-        size_t m_InitialState;
-        std::vector<std::vector<size_t>> m_BlendParameters;
+        std::vector<SAnimationControllerLayer> m_Layers;
+        std::vector<SStateMachine> m_StateMachines;
     };
 }

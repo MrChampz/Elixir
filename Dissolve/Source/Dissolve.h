@@ -28,8 +28,8 @@ class Dissolve final : public Elixir::Application
     /** @brief Configure directional locomotion driven by two numeric parameters. */
     void InitializeAnimationController();
 
-    /** @brief Add a reference-based recoil pulse above the right character's action. */
-    bool InitializeRecoilLayer();
+    /** @brief Create a chest recoil sequence relative to the mesh reference pose. */
+    Ref<const AnimationSequence> CreateRecoilAnimation();
 
     /** @brief Submit the complete model to its renderer. */
     void DrawGeometry();
@@ -43,14 +43,13 @@ class Dissolve final : public Elixir::Application
     Scope<AnimationControllerInstance> m_AnimationController;
     Scope<AnimationControllerInstance> m_ComparisonController;
     Ref<const BlendSpace> m_LocomotionSpace;
-    Ref<const AnimationSequence> m_WaveAnimation;
-    Ref<const AnimationSequence> m_PunchAnimation;
 
     /** Application-thread action requests consumed by rendering-thread playback. */
     std::atomic<int> m_ActionRequest = 0;
     std::atomic<bool> m_LayerEnabled = true;
     std::atomic<float> m_LayerWeight = 1.0f;
     std::atomic<uint64_t> m_ActionEvents = 0;
+    std::atomic<bool> m_PunchActive = false;
     bool m_WaveKeyPressed = false;
     bool m_PunchKeyPressed = false;
     bool m_LayerKeyPressed = false;

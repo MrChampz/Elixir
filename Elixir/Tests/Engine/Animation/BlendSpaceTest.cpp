@@ -73,7 +73,10 @@ TEST(BlendSpaceTest, GenericControllerAndPlaybackSupportAdditionalDimensionsAndC
         std::vector<SBoneTransform> pose;
         ASSERT_TRUE(space->Sample(values, 0.25f, pose));
         EXPECT_NEAR(pose[0].Translation.x, 10 * movingWeight, 1e-5f);
-        SAnimationControllerCreateInfo info{.Name = "Generic", .InitialState = "Move"};
+        SAnimationControllerCreateInfo info{
+            .Name = "Generic",
+            .Layers = {{ .StateMachine = { .InitialState = "Move" } }},
+        };
         SAnimationState state{.Name = "Move", .BlendSpace = space};
         for (size_t axis = 0; axis < dimensions; ++axis)
         {
@@ -81,7 +84,7 @@ TEST(BlendSpaceTest, GenericControllerAndPlaybackSupportAdditionalDimensionsAndC
             info.Parameters.push_back({name, values[axis]});
             state.BlendParameters.push_back(name);
         }
-        info.States.push_back(state);
+        info.Layers[0].StateMachine.States.push_back(state);
         const auto controller = AnimationController::Create(info);
         ASSERT_TRUE(controller);
         SkeletalMeshInstance first(mesh), second(mesh);
@@ -103,9 +106,9 @@ TEST(BlendSpaceTest, GenericControllerAndPlaybackSupportAdditionalDimensionsAndC
             first.GetLocalPose()[0].Translation.x,
             10 * (movingWeight - 0.5f / float(dimensions)), 1e-5f
         );
-        info.States[0].BlendParameters.pop_back();
+        info.Layers[0].StateMachine.States[0].BlendParameters.pop_back();
         EXPECT_FALSE(AnimationController::Create(info));
-        info.States[0].BlendParameters.push_back("Missing");
+        info.Layers[0].StateMachine.States[0].BlendParameters.push_back("Missing");
         EXPECT_FALSE(AnimationController::Create(info));
     }
 }

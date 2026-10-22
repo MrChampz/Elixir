@@ -12,10 +12,11 @@ namespace Elixir
         m_Instance(instance)
     {
         const auto& mesh = m_Instance.GetMesh();
+        const auto skeleton = mesh ? mesh->GetSkeleton() : nullptr;
 
-        m_Compatible = m_Controller && mesh &&
-            (m_Controller->GetSkeleton() == mesh->GetSkeleton() ||
-                m_Controller->GetSkeleton()->IsCompatible(*mesh->GetSkeleton()));
+        m_Compatible = m_Controller && skeleton &&
+            (m_Controller->GetSkeleton() == skeleton ||
+                m_Controller->GetSkeleton()->IsCompatible(*skeleton));
 
         if (!m_Compatible)
             EE_CORE_ERROR("Animation controller requires a compatible mesh and controller.")
@@ -25,7 +26,9 @@ namespace Elixir
 
     void AnimationControllerInstance::Reset()
     {
-        m_State.reset();
+        const auto layerCount = m_Controller ? m_Controller->m_Layers.size() : 0;
+        m_States.assign(layerCount, std::nullopt);
+
         m_Parameters.clear();
         m_BlendValues.clear();
 
@@ -139,24 +142,33 @@ namespace Elixir
         return false;
     }
 
-    bool AnimationControllerInstance::PlayState(const size_t state, const float fadeDuration)
+    bool AnimationControllerInstance::PlayState(
+        const size_t machine,
+        const size_t state,
+        const float fadeDuration
+    )
     {
-        const auto& definition = m_Controller->m_States[state];
+        const auto& layerDefinition = m_Controller->m_Layers[machine];
+        const auto& definition = layerDefinition.StateMachine.States[state];
+        auto& layer = *m_Instance.GetLayer(layerDefinition.Name);
 
         if (definition.Sequence)
-            return m_Instance.Play(definition.Sequence, fadeDuration, definition.Looping);
+            return layer.Play(definition.Sequence, fadeDuration, definition.Looping);
 
-        return m_Instance.Play(
+        return layer.Play(
             definition.BlendSpace,
-            GetBlendValues(state),
+            GetBlendValues(machine, state),
             fadeDuration,
             definition.Looping
         );
     }
 
-    std::span<const float> AnimationControllerInstance::GetBlendValues(const size_t state)
+    std::span<const float> AnimationControllerInstance::GetBlendValues(
+        const size_t machine,
+        const size_t state
+    )
     {
-        const auto& parameters = m_Controller->m_BlendParameters[state];
+        const auto& parameters = m_Controller->m_StateMachines[machine].BlendParameters[state];
         m_BlendValues.resize(parameters.size());
 
         for (size_t axis = 0; axis < parameters.size(); ++axis)
@@ -165,29 +177,85 @@ namespace Elixir
         return m_BlendValues;
     }
 
-    bool AnimationControllerInstance::Update(const float dt)
+    bool AnimationControllerInstance::InitializeLayers()
     {
-        if (!m_Compatible || !std::isfinite(dt) || dt < 0.0f)
+        if (m_Instance.GetLayerCount() != 1)
         {
-            EE_CORE_ERROR(
-                "Animation controller requires compatible assets and a valid delta time."
-            )
+            EE_CORE_ERROR("Animation controller requires a fresh mesh with only Base.")
             return false;
         }
 
-        if (!m_State)
+        for (size_t i = 1; i < m_Controller->m_Layers.size(); ++i)
         {
-            const auto initial = m_Controller->m_InitialState;
-            if (!PlayState(initial, 0.0f))
+            const auto& definition = m_Controller->m_Layers[i];
+            if (!m_Instance.AddLayer(definition.Name, definition.Mask, definition.Weight))
+            {
+                m_Instance.ClearLayers();
                 return false;
+            }
 
-            m_State = initial;
+            auto& layer = *m_Instance.GetLayer(definition.Name);
+            if (!layer.SetBlendMode(definition.BlendMode) ||
+                !layer.SetAdditiveReferencePose(definition.AdditiveReferencePose))
+            {
+                m_Instance.ClearLayers();
+                return false;
+            }
         }
 
-        for (const auto& transition : m_Controller->m_Transitions[*m_State])
+        m_Initialized = true;
+
+        return true;
+    }
+
+    bool AnimationControllerInstance::Update(const float dt)
+    {
+        if (!m_Compatible || !std::isfinite(dt) || dt < 0)
+        {
+            EE_CORE_ERROR("Animation controller requires compatible assets and valid time.")
+            return false;
+        }
+
+        if (!m_Initialized && !InitializeLayers())
+            return false;
+
+        for (const auto& definition : m_Controller->m_Layers)
+        {
+            if (!m_Instance.GetLayer(definition.Name))
+            {
+                EE_CORE_ERROR("Animation controller layer '{}' was removed.", definition.Name)
+                return false;
+            }
+        }
+
+        for (size_t i = 0; i < m_States.size(); ++i)
+        {
+            if (!UpdateStateMachine(i))
+                return false;
+        }
+
+        return m_Instance.Update(dt);
+    }
+
+    bool AnimationControllerInstance::UpdateStateMachine(const size_t machine)
+    {
+        const auto& definition = m_Controller->m_Layers[machine];
+        const auto& compiled = m_Controller->m_StateMachines[machine];
+        auto& layer = *m_Instance.GetLayer(definition.Name);
+        auto& state = m_States[machine];
+        if (!state)
+        {
+            const auto initial = compiled.InitialState;
+            if (!PlayState(machine, initial, 0.0f))
+                return false;
+
+            state = initial;
+        }
+
+        for (const auto& transition : compiled.Transitions[*state])
         {
             if (transition.WaitForCompletion &&
-                (m_Instance.GetNormalizedTime() < 1.0f || m_Instance.IsTransitioning()))
+                (layer.GetNormalizedTime() < 1.0f || layer.IsTransitioning()))
                 continue;
 
             const auto allConditionsValid = std::ranges::all_of(
@@ -200,24 +268,36 @@ namespace Elixir
 
             if (!allConditionsValid) continue;
 
-            if (!PlayState(transition.Target, transition.FadeDuration))
+            if (!PlayState(machine, transition.Target, transition.FadeDuration))
                 return false;
 
-            m_State = transition.Target;
+            state = transition.Target;
             break;
         }
 
-        if (m_Controller->m_States[*m_State].BlendSpace &&
-            !m_Instance.SetBlendSpaceValue(GetBlendValues(*m_State)))
+        if (definition.StateMachine.States[*state].BlendSpace &&
+            !layer.SetBlendSpaceValue(GetBlendValues(machine, *state)))
             return false;
 
-        return m_Instance.Update(dt);
+        return true;
     }
 
-    std::string_view AnimationControllerInstance::GetCurrentState() const
+    std::string_view AnimationControllerInstance::GetCurrentState(
+        const std::string_view layerName
+    ) const
     {
-        return m_State
-            ? std::string_view(m_Controller->m_States[*m_State].Name)
-            : std::string_view{};
+        if (!m_Controller)
+            return {};
+
+        for (size_t i = 0; i < m_Controller->m_Layers.size(); ++i)
+        {
+            const auto& layer = m_Controller->m_Layers[i];
+            if (layer.Name == layerName)
+                return m_States[i]
+                    ? std::string_view(layer.StateMachine.States[*m_States[i]].Name)
+                    : std::string_view{};
+        }
+
+        return {};
     }
 }

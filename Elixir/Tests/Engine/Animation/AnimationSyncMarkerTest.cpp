@@ -241,8 +241,12 @@ TEST_F(AnimationSyncMarkerTest, ControllerPlaybackRetainsMarkerPhaseThroughPause
 {
     const auto space = BlendSpace1D::Create("Locomotion", {{ 0, Reference }, { 1, Target }});
     const auto controller = AnimationController::Create({
-        .Name = "Controller", .InitialState = "Locomotion", .Parameters = {{ "Speed", 0.5f }},
-        .States = {{ .Name = "Locomotion", .BlendSpace = space, .BlendParameters = { "Speed" } }},
+        .Name = "Controller",
+        .Parameters = {{ "Speed", 0.5f }},
+        .Layers = {{ .StateMachine = {
+            .InitialState = "Locomotion",
+            .States = {{ .Name = "Locomotion", .BlendSpace = space, .BlendParameters = { "Speed" } }}
+        } }},
     });
     ASSERT_TRUE(controller);
     SkeletalMeshInstance mesh(Mesh);
