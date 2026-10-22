@@ -27,10 +27,11 @@ unchanged. No new external assets or license terms are required.
 
 Both characters use the same synchronized locomotion blend space and an `UpperBody`
 layer selecting `spine` and its descendants. Local leg transforms continue to come
-from locomotion. Press `J` to wave, `K` to punch, and `L` to blend the action layer out
-or in over 0.25 seconds on both characters. Action switches crossfade over 0.15 seconds.
-The character controller's UpperBody state machine plays a punch once and returns
-to waving automatically. Press J during a punch to interrupt it and return early.
+from locomotion. Press `K` to play a punch montage and `L` to blend the action layer
+out or in over 0.25 seconds on both characters. The UpperBody layer continuously
+plays Waving underneath the punch. The montage fades in over 0.1 seconds and fades
+out over its final 0.2 seconds, returning to the continuing wave. Press `J` to cancel
+the punch early. No action states or transition parameters are needed.
 The HUD shows WAVE or PUNCH independently of the locomotion phase.
 The right character also adds recoil, described below. `P`, `N`, and `F` retain pause,
 frame-step, and silent base-contact seek. The HUD counts layer notifies separately
@@ -159,9 +160,10 @@ reference transforms, and keyframes are preserved. These clips translate the roo
 approximately +0.5 and -0.5 units along X. Existing preparation scripts do not merge
 these additional clips.
 
-Press `B` to play the left dodge followed by the right dodge, then return to locomotion.
-The Base layer now uses a state machine for these transitions. The upper-body action
-fades out during the dodge. Both characters extract and lock the root; the left
+Press `B` to play the left dodge once as a Base montage, then return to locomotion.
+Base uses the locomotion blend space directly, and keeps its phase and coordinates
+advancing underneath the dodge. Entrance and exit take 0.05 seconds each. The
+upper-body action fades out during the dodge. Both characters extract and lock the root; the left
 character deliberately ignores the extracted delta, while the right applies it to
 its scene transform. `V` resets the right character's position. `Root` in the HUD
 shows its accumulated displacement. Recoil, pause, and frame stepping still work.
@@ -198,3 +200,47 @@ rejects the whole mesh update, preserving all clocks, the last pose, events, and
 
 Collision, character movement constraints, replication, and root motion from nonbase
 layers are left to a later gameplay integration.
+
+
+## One-shot montages
+
+An `AnimationMontage` is an immutable sequence action with entrance and exit times
+and an interruption policy. Each target `AnimationLayer` owns one independent active
+montage; the same asset can play on many characters. It uses the layer's mask and
+composition mode. Sections, queues, play rates, and combo branching are not included.
+
+```cpp
+const auto attack = AnimationMontage::Create({
+    .Name = "Attack",
+    .Sequence = attackSequence,
+    .BlendIn = 0.1f,
+    .BlendOut = 0.2f
+});
+mesh.GetLayer("UpperBody")->PlayMontage(attack);
+// The controller still updates the character once per frame.
+animation.Update(deltaSeconds);
+// Optional early exit; no argument uses the asset's BlendOut.
+mesh.GetLayer("UpperBody")->StopMontage();
+```
+
+`Play` and controller transitions change the underlying source while the montage
+continues. `GetTime`, `GetNormalizedTime`, and `IsTransitioning` describe that source;
+`GetMontage`, `GetMontageTime`, and `GetMontageWeight` describe the action. The action
+automatically releases at the clip end. Overlapping entrance and exit durations use
+the smaller envelope, so a very short clip may never reach full weight. Zero exit
+duration switches immediately. Replacement snapshots the visible pose for its
+entrance. An uninterruptible action rejects replacement and StopMontage; explicit
+Stop or SetLocalPose still resets all playback. Pause freezes both clocks.
+
+Only montage notifies emit while the action owns the layer, including fades. If an
+update crosses its end, source events resume for the remaining interval with frame-
+relative offsets. Muted layers suppress all events. Events retain their sequence,
+typed payload, and layer name. Invalid sampling or composition preserves all clocks,
+poses, events, and the last root delta. Consume outputs only after successful Update.
+
+A montage on Base participates in existing root extraction: blend source and action
+movement using the average envelope weight, then extract the remaining source interval
+if the action ends inside the frame. As with playback fades, this is weighted interval
+blending rather than exact integration of nonlinear velocities or rotations. A montage
+on an upper layer changes the pose without contributing character root motion. The
+existing compute skinning pass consumes the final composed pose without another pass.

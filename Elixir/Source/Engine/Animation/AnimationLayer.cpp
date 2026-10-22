@@ -62,7 +62,7 @@ namespace Elixir
         const std::span<const SBoneTransform> pose
     ) const
     {
-        if (!m_Assigned || m_Weight == 0.0f || !m_Mask->HasInfluence())
+        if (!HasPose() || m_Weight == 0.0f || !m_Mask->HasInfluence())
             return true;
 
         const auto& weights = m_Mask->GetWeights();
@@ -170,12 +170,15 @@ namespace Elixir
 
     void AnimationLayer::Resume()
     {
+        m_Montage.Playing = bool(m_Montage.Asset);
         m_Playing = GetDuration(m_Playback) > 0.0f || IsTransitioning() ||
             (m_Playback.BlendSpace && m_Playback.Looping);
     }
 
     void AnimationLayer::Stop()
     {
+        m_Montage = {};
+        m_MontagePose.clear();
         m_Playing = false;
         m_Assigned = false;
         m_NotifyEvents.clear();
@@ -258,6 +261,8 @@ namespace Elixir
 
         std::vector local(pose.begin(), pose.end());
         m_LocalPose = std::move(local);
+        m_Montage = {};
+        m_MontagePose.clear();
 
         m_Playback = {};
         m_Transition = {};
@@ -325,7 +330,7 @@ namespace Elixir
         Stop();
     }
 
-    bool AnimationLayer::Evaluate(const float dt, SLayerEvaluation& output) const
+    bool AnimationLayer::EvaluatePlayback(const float dt, SLayerEvaluation& output) const
     {
         if (!std::isfinite(dt) || dt < 0.0f || !m_Skeleton)
         {
@@ -337,15 +342,16 @@ namespace Elixir
         output.Advance = m_Playing;
         output.ConsumeInitialNotifies = dt > 0.0f && m_Playing;
 
+        const auto emitNotifies = m_Weight > 0.0f && m_Mask->HasInfluence();
+        if (emitNotifies && (m_Playing || m_Montage.Asset) &&
+            !CollectNotifyEvents(dt, output.NotifyEvents))
+            return false;
+
         if (!m_Playing)
         {
             output.LocalPose = m_LocalPose;
             return true;
         }
-
-        const auto emitNotifies = m_Weight > 0.0f && m_Mask->HasInfluence();
-        if (emitNotifies && !CollectNotifyEvents(dt, output.NotifyEvents))
-            return false;
 
         output.PlaybackTime = AdvancePlayback(m_Playback, dt);
         output.TransitionSourceTime = AdvancePlayback(m_Transition.Playback, dt);
@@ -370,7 +376,22 @@ namespace Elixir
 
     void AnimationLayer::Apply(SLayerEvaluation evaluation)
     {
-        m_LocalPose = std::move(evaluation.LocalPose);
+        if (m_Montage.Asset)
+        {
+            m_LocalPose = std::move(evaluation.PlaybackPose);
+            m_MontagePose = std::move(evaluation.LocalPose);
+            m_Montage.Time = evaluation.MontageTime;
+            if (evaluation.MontageTime > 0)
+                m_Montage.IncludeNotifyStart = false;
+            if (m_Montage.Time >= GetMontageEnd())
+            {
+                m_Montage = {};
+                m_MontagePose.clear();
+            }
+        }
+        else
+            m_LocalPose = std::move(evaluation.LocalPose);
+
         m_NotifyEvents = std::move(evaluation.NotifyEvents);
 
         if (!evaluation.Advance)
@@ -553,7 +574,8 @@ namespace Elixir
         const SPlayback& playback,
         const float dt,
         const uint32_t boneIndex,
-        SRootMotionDelta& output
+        SRootMotionDelta& output,
+        const float offset
     ) const
     {
         const auto duration = GetDuration(playback);
@@ -562,7 +584,8 @@ namespace Elixir
             output = {};
             return true;
         }
-        const auto phase = playback.BlendSpace ? playback.Time : playback.Time / duration;
+        const auto phase = (playback.BlendSpace ? playback.Time : playback.Time / duration)
+            + double(offset) / duration;
         const auto end = phase + double(dt) / duration;
         if (playback.Sequence)
             return playback.Sequence->ExtractRootMotion(
@@ -574,8 +597,8 @@ namespace Elixir
         );
     }
 
-    bool AnimationLayer::ExtractRootMotion(
-        const float dt, const uint32_t boneIndex, SRootMotionDelta& output
+    bool AnimationLayer::ExtractSourceRootMotion(
+        const float dt, const uint32_t boneIndex, SRootMotionDelta& output, const float offset
     ) const
     {
         if (!m_Playing || dt == 0)
@@ -584,7 +607,7 @@ namespace Elixir
             return true;
         }
         SRootMotionDelta target;
-        if (!ExtractPlaybackRootMotion(m_Playback, dt, boneIndex, target))
+        if (!ExtractPlaybackRootMotion(m_Playback, dt, boneIndex, target, offset))
             return false;
         if (!IsTransitioning())
         {
@@ -592,13 +615,14 @@ namespace Elixir
             return true;
         }
         SRootMotionDelta source;
-        if (!ExtractPlaybackRootMotion(m_Transition.Playback, dt, boneIndex, source))
+        if (!ExtractPlaybackRootMotion(m_Transition.Playback, dt, boneIndex, source, offset))
             return false;
 
-        const auto startWeight = m_Transition.Elapsed / m_Transition.Duration;
-        const auto remaining = m_Transition.Duration - m_Transition.Elapsed;
+        const auto elapsed = std::min(m_Transition.Elapsed + offset, m_Transition.Duration);
+        const auto startWeight = elapsed / m_Transition.Duration;
+        const auto remaining = m_Transition.Duration - elapsed;
         const auto fadeTime = std::min(dt, remaining);
-        const auto endWeight = (m_Transition.Elapsed + fadeTime) / m_Transition.Duration;
+        const auto endWeight = (elapsed + fadeTime) / m_Transition.Duration;
         const auto weight = 1.0f - fadeTime / dt * (1.0f - (startWeight + endWeight) * 0.5f);
         const auto result = SRootMotionDelta::Blend(source, target, weight);
         if (!result.IsValid())
@@ -610,22 +634,23 @@ namespace Elixir
         return true;
     }
 
-    bool AnimationLayer::CollectNotifyEvents(
+    bool AnimationLayer::CollectPlaybackNotifyEvents(
+        const SPlayback& playback,
         const float dt,
         std::vector<SAnimationNotifyEvent>& output
     ) const
     {
-        const auto duration = GetDuration(m_Playback);
+        const auto duration = GetDuration(playback);
         if (dt == 0.0f || duration == 0.0f)
             return true;
 
-        const auto* source = m_Playback.Sequence.get();
+        const auto* source = playback.Sequence.get();
         const AnimationSequence* reference = nullptr;
 
-        if (m_Playback.BlendSpace)
+        if (playback.BlendSpace)
         {
-            source = m_Playback.BlendSpace->GetNotifySource(m_Playback.Values);
-            reference = m_Playback.BlendSpace->GetSynchronizationSequence().get();
+            source = playback.BlendSpace->GetNotifySource(playback.Values);
+            reference = playback.BlendSpace->GetSynchronizationSequence().get();
         }
 
         if (!source) return false;
@@ -633,19 +658,19 @@ namespace Elixir
         if (source->GetNotifies().empty())
             return true;
 
-        const auto phase = m_Playback.BlendSpace
-            ? m_Playback.Time
-            : m_Playback.Time / duration;
+        const auto phase = playback.BlendSpace
+            ? playback.Time
+            : playback.Time / duration;
 
         std::vector<SAnimationNotifyOccurrence> occurrences;
 
         const auto success = source->CollectNotifyOccurrences(
             phase,
             phase + double(dt) / duration,
-            m_Playback.Looping,
+            playback.Looping,
             occurrences,
             reference,
-            m_Playback.IncludeNotifyStart
+            playback.IncludeNotifyStart
         );
 
         if (!success) return false;
@@ -653,9 +678,9 @@ namespace Elixir
         if (occurrences.empty())
             return true;
 
-        const Ref<const AnimationSequence> retained = m_Playback.Sequence
-            ? m_Playback.Sequence
-            : Ref<const AnimationSequence>(m_Playback.BlendSpace, source);
+        const Ref<const AnimationSequence> retained = playback.Sequence
+            ? playback.Sequence
+            : Ref<const AnimationSequence>(playback.BlendSpace, source);
 
         output.reserve(occurrences.size());
         for (const auto& occurrence : occurrences)

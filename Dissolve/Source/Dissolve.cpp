@@ -264,7 +264,7 @@ Dissolve::Dissolve()
             .SetSize({260, 35});
     }
     const auto layerInstructions = CreateRef<GUI::TextBlock>(
-        "J: wave | K: punch | L: action on/off | B: dodge left/right | V: reset position"
+        "J: cancel punch | K: punch montage | L: action on/off | B: dodge montage | V: reset"
     );
     layerInstructions->SetFontSize(18.0f);
     panel->AddChild(layerInstructions)
@@ -539,54 +539,29 @@ void Dissolve::InitializeAnimationController()
         return;
 
     const auto dodgeLeft = findAnimation("Dodge_Left");
-    const auto dodgeRight = findAnimation("Dodge_Right");
-    if (!dodgeLeft || !dodgeRight)
+    if (!dodgeLeft)
+        return;
+
+    const auto punchMontage = AnimationMontage::Create({
+        .Name = "Punch", .Sequence = punchAnimation, .BlendIn = 0.1f, .BlendOut = 0.2f
+    });
+    const auto dodgeMontage = AnimationMontage::Create({
+        .Name = "Dodge", .Sequence = dodgeLeft, .BlendIn = 0.05f, .BlendOut = 0.05f
+    });
+    if (!punchMontage || !dodgeMontage)
         return;
 
     const auto controller = AnimationController::Create({
         .Name = "KayKitCharacter",
         .Parameters = {
             { "Strafe", 0.0f }, { "Forward", 0.0f },
-            { "Wave", false }, { "Punch", false }, { "Dodge", false },
         },
         .Layers = {
             {
-                .StateMachine = {
-                    .InitialState = "Locomotion",
-                    .States = {
-                        { .Name = "Locomotion", .BlendSpace = blendSpace,
-                          .BlendParameters = { "Strafe", "Forward" } },
-                        { .Name = "DodgeLeft", .Sequence = dodgeLeft, .Looping = false },
-                        { .Name = "DodgeRight", .Sequence = dodgeRight, .Looping = false },
-                    },
-                    .Transitions = {
-                        { .From = "Locomotion", .To = "DodgeLeft",
-                          .Conditions = {{ "Dodge", EAnimationComparison::Equal, true }},
-                          .FadeDuration = 0.1f },
-                        { .From = "DodgeLeft", .To = "DodgeRight", .FadeDuration = 0.1f,
-                          .WaitForCompletion = true },
-                        { .From = "DodgeRight", .To = "Locomotion", .FadeDuration = 0.1f,
-                          .WaitForCompletion = true },
-                    },
-                }
+                .BlendSpace = blendSpace,
+                .BlendParameters = { "Strafe", "Forward" }
             },
-            { .Name = "UpperBody", .Mask = upperBody, .StateMachine = {
-                .InitialState = "Wave",
-                .States = {
-                    { .Name = "Wave", .Sequence = waveAnimation },
-                    { .Name = "Punch", .Sequence = punchAnimation, .Looping = false },
-                },
-                .Transitions = {
-                    { .From = "Wave", .To = "Punch",
-                      .Conditions = {{ "Punch", EAnimationComparison::Equal, true }},
-                      .FadeDuration = 0.15f },
-                    { .From = "Punch", .To = "Wave",
-                      .Conditions = {{ "Wave", EAnimationComparison::Equal, true }},
-                      .FadeDuration = 0.15f },
-                    { .From = "Punch", .To = "Wave", .FadeDuration = 0.15f,
-                      .WaitForCompletion = true },
-                },
-            } },
+            { .Name = "UpperBody", .Mask = upperBody, .Sequence = waveAnimation },
             {
                 .Name = "Recoil",
                 .Mask = recoilMask,
@@ -607,10 +582,12 @@ void Dissolve::InitializeAnimationController()
         return;
 
     m_LocomotionSpace = blendSpace;
+    m_PunchMontage = punchMontage;
+    m_DodgeMontage = dodgeMontage;
     m_ContactPhase = syncLeft->GetSyncMarkers().front().Time / syncLeft->GetDuration();
     m_AnimationController = std::move(instance);
     m_ComparisonController = std::move(comparison);
-    EE_CORE_INFO("KayKit character controller: locomotion, upper body, and additive recoil.")
+    EE_CORE_INFO("KayKit montages: K punch, J cancel punch, B dodge with root motion.")
 }
 
 Ref<const AnimationSequence> Dissolve::CreateRecoilAnimation()
@@ -672,16 +649,22 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
     if (!upperBody || !comparisonAction || !recoil)
         return;
     const auto action = m_ActionRequest.exchange(0, std::memory_order_relaxed);
-    if (!m_AnimationController->SetBool("Wave", action == 1) ||
-        !m_AnimationController->SetBool("Punch", action == 2) ||
-        !m_ComparisonController->SetBool("Wave", action == 1) ||
-        !m_ComparisonController->SetBool("Punch", action == 2))
-        return;
+    if (action == 1)
+    {
+        if (!upperBody->StopMontage() || !comparisonAction->StopMontage())
+            return;
+    }
+    else if (action == 2)
+    {
+        if (!upperBody->PlayMontage(m_PunchMontage) ||
+            !comparisonAction->PlayMontage(m_PunchMontage))
+            return;
+    }
     const auto dodge = m_DodgeRequested.exchange(false, std::memory_order_relaxed);
-    if (!m_AnimationController->SetBool("Dodge", dodge) ||
-        !m_ComparisonController->SetBool("Dodge", dodge))
+    if (dodge && (!m_MeshInstance->GetBaseLayer().PlayMontage(m_DodgeMontage) ||
+        !m_ComparisonInstance->GetBaseLayer().PlayMontage(m_DodgeMontage)))
         return;
-    const auto dodgeActive = dodge || m_AnimationController->GetCurrentState() != "Locomotion";
+    const auto dodgeActive = bool(m_MeshInstance->GetBaseLayer().GetMontage());
     const auto layerWeight = m_LayerWeight.load(std::memory_order_relaxed);
     const auto targetWeight = !dodgeActive && m_LayerEnabled.load(std::memory_order_relaxed)
         ? 1.0f : 0.0f;
@@ -708,7 +691,7 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
     m_RootMotionDistance.store(glm::length(glm::vec3(m_CharacterMotion[3])),
         std::memory_order_relaxed);
 
-    m_PunchActive.store(m_AnimationController->GetCurrentState("UpperBody") == "Punch",
+    m_PunchActive.store(bool(upperBody->GetMontage()),
         std::memory_order_relaxed);
 
     if (m_SeekContact.exchange(false, std::memory_order_relaxed))
