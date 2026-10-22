@@ -82,14 +82,15 @@ instance update without advancing any layer or replacing its previous event batc
 ## One controller per character
 
 `AnimationController` now describes a complete character: shared typed parameters
-and ordered `SAnimationControllerLayer` definitions. Each layer contains its own
-`SAnimationStateMachine`, mask, initial weight, blend mode, and optional additive
-reference pose. State names are local to each machine; parameters are shared across
-all machines. Base must come first, use Override, and have weight one without a mask.
+and ordered `SAnimationControllerLayer` definitions. Each layer selects exactly one
+`Sequence`, `BlendSpace`, or `StateMachine`, alongside its mask, initial weight, blend
+mode, and optional additive reference pose. State names are local to each machine;
+parameters are shared across every layer. Base must come first, use Override, and
+have weight one without a mask.
 
 `AnimationControllerInstance(controller, mesh)` stores each character's parameter
-values and one current state per layer. The first update creates the declared layers
-on a mesh that has only Base, then starts every machine. One definition is shared by
+values and playback progress for every layer source. The first update creates the
+declared layers on a mesh that has only Base, then starts their animation sources. One definition is shared by
 both demo characters; the comparison character mutes its Recoil layer after startup.
 No external controller per layer or separate mesh update is needed.
 
@@ -104,13 +105,30 @@ if (animation.Update(deltaSeconds))
 ```
 
 `Update(dt)` evaluates at most one transition per machine, then advances all layer
-clocks and composes the mesh once. `GetCurrentState()` queries Base;
-`GetCurrentState("UpperBody")` queries the action machine. Completion checks use the
+clocks and composes the mesh once. `GetCurrentState(layerName)` queries the selected
+machine's target state; direct sources have no named state and return an empty view.
+`GetCurrentState("UpperBody")` queries the demo's action machine. Completion checks use the
 corresponding layer's playback and fade. Override, additive, sequence, and blend-space
-states follow the same update path. The demo declares locomotion, UpperBody actions,
-and additive Recoil together and uses one controller instance per character.
+states follow the same update path. The demo's Base plays the locomotion BlendSpace
+directly, UpperBody retains its Wave/Punch machine, and Recoil plays its Sequence
+directly. They share one controller instance per character.
 
-`Reset()` restores shared parameter defaults and restarts all machines on the next
+A direct blend-space layer needs only:
+
+```cpp
+{
+    .BlendSpace = blendSpace,
+    .BlendParameters = { "Strafe", "Forward" }
+}
+```
+
+A direct sequence layer uses `.Sequence = animation`. Set `.Looping = false` to play
+it once and hold its final pose. BlendParameters binds direct blend-space axes to
+shared numeric parameters; count and order must match the source dimensions. In a
+machine layer, configure blend parameters and looping inside each state. Empty or
+ambiguous sources are rejected when creating the controller.
+
+`Reset()` restores shared parameter defaults and restarts every layer source on the next
 update, preserving runtime layer weights, masks, modes, and individual pause settings
 until playback restarts. Use one active controller per mesh and drive its playback
 and frame updates through that controller. The mesh must outlive it. Removing a
@@ -119,3 +137,15 @@ controller on a fresh mesh to configure a new layer layout. Invalid delta times 
 not create layers or change playback. Failed composition preserves all playback
 clocks, the previous composed pose, and the previous notify batch; chosen target
 states remain selected so a later valid update can retry their transitions.
+
+
+Direct sources compile to `SSequenceSource` or `SBlendSpaceSource`. The sequence
+alternative contains its shared clip and looping flag. The blend-space alternative
+contains its shared asset, resolved numeric bindings, and looping flag.
+`TLayerSource` selects one of these two types or `SStateMachine`; each machine state's
+`TPlaybackSource` selects a sequence or blend space. A state machine compiles to its own initial state,
+per-state playback sources, and outgoing transitions. No state or machine is
+constructed for a direct source. Runtime startup tracking for direct playback is
+separate from the selected state of a machine. Both paths share source validation
+and playback, and the mesh still advances and composes all layers only once.
+Machines with one state and no transitions are valid when that structure is useful.

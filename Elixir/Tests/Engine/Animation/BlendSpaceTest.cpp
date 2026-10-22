@@ -75,16 +75,14 @@ TEST(BlendSpaceTest, GenericControllerAndPlaybackSupportAdditionalDimensionsAndC
         EXPECT_NEAR(pose[0].Translation.x, 10 * movingWeight, 1e-5f);
         SAnimationControllerCreateInfo info{
             .Name = "Generic",
-            .Layers = {{ .StateMachine = { .InitialState = "Move" } }},
+            .Layers = {{ .BlendSpace = space }},
         };
-        SAnimationState state{.Name = "Move", .BlendSpace = space};
         for (size_t axis = 0; axis < dimensions; ++axis)
         {
             const auto name = std::to_string(axis);
             info.Parameters.push_back({name, values[axis]});
-            state.BlendParameters.push_back(name);
+            info.Layers[0].BlendParameters.push_back(name);
         }
-        info.Layers[0].StateMachine.States.push_back(state);
         const auto controller = AnimationController::Create(info);
         ASSERT_TRUE(controller);
         SkeletalMeshInstance first(mesh), second(mesh);
@@ -106,9 +104,28 @@ TEST(BlendSpaceTest, GenericControllerAndPlaybackSupportAdditionalDimensionsAndC
             first.GetLocalPose()[0].Translation.x,
             10 * (movingWeight - 0.5f / float(dimensions)), 1e-5f
         );
-        info.Layers[0].StateMachine.States[0].BlendParameters.pop_back();
+        info.Layers[0].Looping = false;
+        const auto nonlooping = AnimationController::Create(info);
+        ASSERT_TRUE(nonlooping);
+        SkeletalMeshInstance completedMesh(mesh);
+        AnimationControllerInstance completed(nonlooping, completedMesh);
+        ASSERT_TRUE(completed.Update((1 + movingWeight) * 2));
+        EXPECT_FLOAT_EQ(completedMesh.GetNormalizedTime(), 1);
+        ASSERT_TRUE(completed.Update(1));
+        EXPECT_FLOAT_EQ(completedMesh.GetNormalizedTime(), 1);
+        completed.Reset();
+        ASSERT_TRUE(completed.Update(0));
+        EXPECT_FLOAT_EQ(completedMesh.GetNormalizedTime(), 0);
+        EXPECT_TRUE(completed.GetCurrentState().empty());
+        info.Layers[0].Sequence = idle;
         EXPECT_FALSE(AnimationController::Create(info));
-        info.Layers[0].StateMachine.States[0].BlendParameters.push_back("Missing");
+        info.Layers[0].Sequence.reset();
+        info.Parameters[0].DefaultValue = true;
+        EXPECT_FALSE(AnimationController::Create(info));
+        info.Parameters[0].DefaultValue = 0.5f / float(dimensions);
+        info.Layers[0].BlendParameters.pop_back();
+        EXPECT_FALSE(AnimationController::Create(info));
+        info.Layers[0].BlendParameters.push_back("Missing");
         EXPECT_FALSE(AnimationController::Create(info));
     }
 }

@@ -27,7 +27,7 @@ namespace Elixir
     void AnimationControllerInstance::Reset()
     {
         const auto layerCount = m_Controller ? m_Controller->m_Layers.size() : 0;
-        m_States.assign(layerCount, std::nullopt);
+        m_Playback.assign(layerCount, {});
 
         m_Parameters.clear();
         m_BlendValues.clear();
@@ -142,33 +142,51 @@ namespace Elixir
         return false;
     }
 
-    bool AnimationControllerInstance::PlayState(
-        const size_t machine,
-        const size_t state,
+    bool AnimationControllerInstance::PlaySource(
+        const size_t layerIndex,
+        const AnimationController::SSequenceSource& source,
         const float fadeDuration
     )
     {
-        const auto& layerDefinition = m_Controller->m_Layers[machine];
-        const auto& definition = layerDefinition.StateMachine.States[state];
-        auto& layer = *m_Instance.GetLayer(layerDefinition.Name);
+        auto& layer = *m_Instance.GetLayer(m_Controller->m_Layers[layerIndex].Name);
+        return layer.Play(source.Sequence, fadeDuration, source.Looping);
+    }
 
-        if (definition.Sequence)
-            return layer.Play(definition.Sequence, fadeDuration, definition.Looping);
-
+    bool AnimationControllerInstance::PlaySource(
+        const size_t layerIndex,
+        const AnimationController::SBlendSpaceSource& source,
+        const float fadeDuration
+    )
+    {
+        auto& layer = *m_Instance.GetLayer(m_Controller->m_Layers[layerIndex].Name);
         return layer.Play(
-            definition.BlendSpace,
-            GetBlendValues(machine, state),
+            source.BlendSpace,
+            GetBlendValues(source),
             fadeDuration,
-            definition.Looping
+            source.Looping
+        );
+    }
+
+    bool AnimationControllerInstance::PlaySource(
+        const size_t layerIndex,
+        const AnimationController::TPlaybackSource& source,
+        const float fadeDuration
+    )
+    {
+        return std::visit(
+            [&](const auto& playback)
+            {
+                return PlaySource(layerIndex, playback, fadeDuration);
+            },
+            source
         );
     }
 
     std::span<const float> AnimationControllerInstance::GetBlendValues(
-        const size_t machine,
-        const size_t state
+        const AnimationController::SBlendSpaceSource& source
     )
     {
-        const auto& parameters = m_Controller->m_StateMachines[machine].BlendParameters[state];
+        const auto& parameters = source.BlendParameters;
         m_BlendValues.resize(parameters.size());
 
         for (size_t axis = 0; axis < parameters.size(); ++axis)
@@ -228,31 +246,75 @@ namespace Elixir
             }
         }
 
-        for (size_t i = 0; i < m_States.size(); ++i)
+        for (size_t i = 0; i < m_Playback.size(); ++i)
         {
-            if (!UpdateStateMachine(i))
+            if (!UpdateLayerSource(i))
                 return false;
         }
 
         return m_Instance.Update(dt);
     }
 
-    bool AnimationControllerInstance::UpdateStateMachine(const size_t machine)
+    bool AnimationControllerInstance::UpdateLayerSource(const size_t layerIndex)
     {
-        const auto& definition = m_Controller->m_Layers[machine];
-        const auto& compiled = m_Controller->m_StateMachines[machine];
-        auto& layer = *m_Instance.GetLayer(definition.Name);
-        auto& state = m_States[machine];
+        return std::visit(
+            [&](const auto& source) { return UpdateSource(layerIndex, source); },
+            m_Controller->m_LayerSources[layerIndex]
+        );
+    }
+
+    bool AnimationControllerInstance::UpdateSource(
+        const size_t layerIndex,
+        const AnimationController::SSequenceSource& source
+    )
+    {
+        auto& progress = m_Playback[layerIndex];
+        if (progress.Started)
+            return true;
+
+        if (!PlaySource(layerIndex, source, 0.0f))
+            return false;
+
+        progress.Started = true;
+        return true;
+    }
+
+    bool AnimationControllerInstance::UpdateSource(
+        const size_t layerIndex,
+        const AnimationController::SBlendSpaceSource& source
+    )
+    {
+        auto& progress = m_Playback[layerIndex];
+        if (!progress.Started)
+        {
+            if (!PlaySource(layerIndex, source, 0.0f))
+                return false;
+
+            progress.Started = true;
+        }
+
+        auto& layer = *m_Instance.GetLayer(m_Controller->m_Layers[layerIndex].Name);
+        return layer.SetBlendSpaceValue(GetBlendValues(source));
+    }
+
+    bool AnimationControllerInstance::UpdateSource(
+        const size_t layerIndex,
+        const AnimationController::SStateMachine& machine
+    )
+    {
+        auto& layer = *m_Instance.GetLayer(m_Controller->m_Layers[layerIndex].Name);
+        auto& state = m_Playback[layerIndex].State;
+
         if (!state)
         {
-            const auto initial = compiled.InitialState;
-            if (!PlayState(machine, initial, 0.0f))
+            const auto initial = machine.InitialState;
+            if (!PlaySource(layerIndex, machine.Sources[initial], 0.0f))
                 return false;
 
             state = initial;
         }
 
-        for (const auto& transition : compiled.Transitions[*state])
+        for (const auto& transition : machine.Transitions[*state])
         {
             if (transition.WaitForCompletion &&
                 (layer.GetNormalizedTime() < 1.0f || layer.IsTransitioning()))
@@ -268,15 +330,22 @@ namespace Elixir
 
             if (!allConditionsValid) continue;
 
-            if (!PlayState(machine, transition.Target, transition.FadeDuration))
-                return false;
+            const auto success = PlaySource(
+                layerIndex,
+                machine.Sources[transition.Target],
+                transition.FadeDuration
+            );
+
+            if (!success) return false;
 
             state = transition.Target;
             break;
         }
 
-        if (definition.StateMachine.States[*state].BlendSpace &&
-            !layer.SetBlendSpaceValue(GetBlendValues(machine, *state)))
+        const auto* blendSpace =
+            std::get_if<AnimationController::SBlendSpaceSource>(&machine.Sources[*state]);
+
+        if (blendSpace && !layer.SetBlendSpaceValue(GetBlendValues(*blendSpace)))
             return false;
 
         return true;
@@ -293,9 +362,11 @@ namespace Elixir
         {
             const auto& layer = m_Controller->m_Layers[i];
             if (layer.Name == layerName)
-                return m_States[i]
-                    ? std::string_view(layer.StateMachine.States[*m_States[i]].Name)
+            {
+                return m_Playback[i].State
+                    ? std::string_view(layer.StateMachine.States[*m_Playback[i].State].Name)
                     : std::string_view{};
+            }
         }
 
         return {};

@@ -536,16 +536,8 @@ void Dissolve::InitializeAnimationController()
         },
         .Layers = {
             {
-                .StateMachine = {
-                    .InitialState = "Locomotion",
-                    .States = {
-                        {
-                            .Name = "Locomotion",
-                            .BlendSpace = blendSpace,
-                            .BlendParameters = { "Strafe", "Forward" }
-                        }
-                    },
-                }
+                .BlendSpace = blendSpace,
+                .BlendParameters = { "Strafe", "Forward" }
             },
             { .Name = "UpperBody", .Mask = upperBody, .StateMachine = {
                 .InitialState = "Wave",
@@ -568,10 +560,7 @@ void Dissolve::InitializeAnimationController()
                 .Name = "Recoil",
                 .Mask = recoilMask,
                 .BlendMode = EAnimationLayerBlendMode::Additive,
-                .StateMachine = {
-                    .InitialState = "Active",
-                    .States = {{ "Active", recoilAnimation }},
-                }
+                .Sequence = recoilAnimation
             },
         },
     });

@@ -51,11 +51,12 @@ namespace Elixir
         std::optional<bool> GetBool(std::string_view name) const;
 
         /**
-         * @brief Evaluate every layer's state machine, then advance and compose the mesh once.
+         * @brief Update layer sources, then advance and compose the mesh once.
          *
-         * The first update creates the configured layers and starts their initial states.
-         * Each machine takes at most one transition in declaration order. Parameters are
-         * shared by all machines. Drive playback and mesh updates through this controller.
+         * The first update creates configured layers and starts their animation sources.
+         * Each machine takes at most one transition in declaration order. Direct sources
+         * keep playing without state transitions. Parameters are shared by every layer.
+         * Drive playback and mesh updates through this controller.
          * Removing a configured layer makes subsequent updates fail safely.
          *
          * @param dt Finite nonnegative elapsed time in seconds.
@@ -64,17 +65,26 @@ namespace Elixir
         bool Update(float dt);
 
         /**
-         * @brief Restore shared parameters and restart all machines on the next update.
+         * @brief Restore shared parameters and restart every layer source on the next update.
          */
         void Reset();
 
         /**
-         * @brief Get a layer's target state, or an empty view before startup or if unknown.
+         * @brief Get a machine's target state; empty for direct sources or before startup.
          * @param layerName Name of the configured layer; defaults to Base.
          */
         std::string_view GetCurrentState(std::string_view layerName = BaseLayerName) const;
 
     private:
+        struct SLayerPlayback
+        {
+            /** Direct playback starts once until Reset. */
+            bool Started = false;
+
+            /** Only state-machine sources select a state. */
+            std::optional<size_t> State;
+        };
+
         /**
          * @brief Find a parameter without allocating a temporary string.
          * @param name Parameter name.
@@ -88,28 +98,87 @@ namespace Elixir
         bool Matches(const AnimationController::SCondition& condition) const;
 
         /**
-         * @brief Start a state's sequence or blend space with the requested fade.
-         * @param machine Layer and state-machine index in the shared controller.
-         * @param state Valid state index in that machine.
+         * @brief Start a sequence on a layer with the requested fade.
+         * @param layerIndex Layer index in the controller.
+         * @param source Validated sequence playback.
          * @param fadeDuration Fade duration in seconds.
          */
-        bool PlayState(size_t machine, size_t state, float fadeDuration);
+        bool PlaySource(
+            size_t layerIndex,
+            const AnimationController::SSequenceSource& source,
+            float fadeDuration
+        );
 
         /**
-         * @brief Read a state's axis values into reusable per-instance storage.
-         * @param machine Layer and state-machine index.
-         * @param state Valid state index with resolved parameter bindings.
+         * @brief Start a blend space on a layer with the requested fade.
+         * @param layerIndex Layer index in the controller.
+         * @param source Validated blend-space playback and numeric bindings.
+         * @param fadeDuration Fade duration in seconds.
          */
-        std::span<const float> GetBlendValues(size_t machine, size_t state);
+        bool PlaySource(
+            size_t layerIndex,
+            const AnimationController::SBlendSpaceSource& source,
+            float fadeDuration
+        );
+
+        /**
+         * @brief Dispatch a state's playback to its sequence or blend-space source.
+         * @param layerIndex Layer index in the controller.
+         * @param source Validated playback alternative selected by the state.
+         * @param fadeDuration Fade duration in seconds.
+         */
+        bool PlaySource(
+            size_t layerIndex,
+            const AnimationController::TPlaybackSource& source,
+            float fadeDuration
+        );
+
+        /**
+         * @brief Read a playback source's axis values into reusable storage.
+         * @param source Validated source with resolved numeric parameter bindings.
+         */
+        std::span<const float> GetBlendValues(
+            const AnimationController::SBlendSpaceSource& source
+        );
+
+        /**
+         * @brief Start or refresh one layer's direct playback or state machine.
+         * @param layerIndex Layer index in the controller.
+         */
+        bool UpdateLayerSource(size_t layerIndex);
 
         /** @brief Create configured layers in composition order on a fresh mesh instance. */
         bool InitializeLayers();
 
         /**
-         * @brief Evaluate one layer's state machine without advancing its clock.
-         * @param machine Layer and state-machine index.
+         * @brief Start direct sequence playback once until Reset.
+         * @param layerIndex Layer index in the controller.
+         * @param source Validated sequence playback.
          */
-        bool UpdateStateMachine(size_t machine);
+        bool UpdateSource(
+            size_t layerIndex,
+            const AnimationController::SSequenceSource& source
+        );
+
+        /**
+         * @brief Start a direct blend space and refresh its numeric coordinates.
+         * @param layerIndex Layer index in the controller.
+         * @param source Validated blend-space playback and numeric bindings.
+         */
+        bool UpdateSource(
+            size_t layerIndex,
+            const AnimationController::SBlendSpaceSource& source
+        );
+
+        /**
+         * @brief Evaluate one layer's state machine without advancing its clock.
+         * @param layerIndex Layer index in the controller.
+         * @param machine Compiled states and transition rules for this layer.
+         */
+        bool UpdateSource(
+            size_t layerIndex,
+            const AnimationController::SStateMachine& machine
+        );
 
         Ref<const AnimationController> m_Controller;
         SkeletalMeshInstance& m_Instance;
@@ -120,6 +189,6 @@ namespace Elixir
 
         std::vector<TAnimationParameterValue> m_Parameters;
         std::vector<float> m_BlendValues;
-        std::vector<std::optional<size_t>> m_States;
+        std::vector<SLayerPlayback> m_Playback;
     };
 }

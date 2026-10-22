@@ -689,3 +689,137 @@ TEST_F(AnimationControllerTest, FailedCompositionKeepsEveryLayerClockAndLastVali
     EXPECT_FLOAT_EQ(mesh.GetLayer("Action")->GetTime(), 0.25f);
     EXPECT_FLOAT_EQ(mesh.GetLocalPose()[1].Scale.x, 0.5f);
 }
+
+TEST_F(AnimationControllerTest, DirectSequenceStartsOnceHoldsItsEndAndRestartsOnReset)
+{
+    const auto sequence = Walk->WithNotifies({{ "Start", 0 }, { "Step", 0.25f }});
+    const auto controller = AnimationController::Create({
+        .Name = "DirectSequence",
+        .Layers = {{ .Sequence = sequence, .Looping = false }},
+    });
+    ASSERT_TRUE(controller);
+    EXPECT_TRUE(controller->GetLayers()[0].StateMachine.States.empty());
+    SkeletalMeshInstance mesh(Mesh);
+    AnimationControllerInstance instance(controller, mesh);
+    ASSERT_TRUE(instance.Update(0.5f));
+    EXPECT_TRUE(instance.GetCurrentState().empty());
+    EXPECT_FLOAT_EQ(mesh.GetTime(), 0.5f);
+    EXPECT_FLOAT_EQ(mesh.GetLocalPose()[0].Translation.x, 4);
+    ASSERT_EQ(mesh.GetNotifyEvents().size(), 2);
+    EXPECT_EQ(mesh.GetNotifyEvents()[0].LayerName, "Base");
+    ASSERT_TRUE(instance.Update(2));
+    EXPECT_FLOAT_EQ(mesh.GetTime(), 2);
+    EXPECT_FALSE(mesh.IsPlaying());
+    ASSERT_TRUE(instance.Update(1));
+    EXPECT_FLOAT_EQ(mesh.GetTime(), 2);
+    EXPECT_TRUE(mesh.GetNotifyEvents().empty());
+    instance.Reset();
+    ASSERT_TRUE(instance.Update(0.1f));
+    EXPECT_FLOAT_EQ(mesh.GetTime(), 0.1f);
+    EXPECT_TRUE(mesh.IsPlaying());
+    ASSERT_EQ(mesh.GetNotifyEvents().size(), 1);
+    EXPECT_EQ(mesh.GetNotifyEvents()[0].GetNotify().Name, "Start");
+}
+
+TEST_F(AnimationControllerTest, DirectSequenceMatchesASingleStateMachineThroughLoopsAndPause)
+{
+    const auto direct = AnimationController::Create({
+        .Name = "Direct", .Layers = {{ .Sequence = Walk }},
+    });
+    const auto machine = AnimationController::Create({
+        .Name = "Machine", .Layers = {{ .StateMachine = {
+            .InitialState = "Walk", .States = {{ "Walk", Walk }},
+        } }},
+    });
+    ASSERT_TRUE(direct);
+    ASSERT_TRUE(machine);
+    SkeletalMeshInstance directMesh(Mesh), machineMesh(Mesh);
+    AnimationControllerInstance first(direct, directMesh), second(machine, machineMesh);
+    for (const auto dt : { 0.0f, 0.25f, 1.5f, 2.75f })
+    {
+        ASSERT_TRUE(first.Update(dt));
+        ASSERT_TRUE(second.Update(dt));
+        EXPECT_FLOAT_EQ(directMesh.GetTime(), machineMesh.GetTime());
+        EXPECT_FLOAT_EQ(directMesh.GetLocalPose()[0].Translation.x,
+            machineMesh.GetLocalPose()[0].Translation.x);
+    }
+    const auto time = directMesh.GetTime();
+    directMesh.Pause();
+    ASSERT_TRUE(first.Update(1));
+    EXPECT_FLOAT_EQ(directMesh.GetTime(), time);
+    directMesh.Resume();
+    ASSERT_TRUE(first.Update(0.25f));
+    EXPECT_FLOAT_EQ(directMesh.GetTime(), time + 0.25f);
+}
+
+TEST_F(AnimationControllerTest, DirectAndMachineSourcesShareParametersAndComposeInLayerOrder)
+{
+    auto info = MakeInfo();
+    info.Layers[0].StateMachine = {};
+    info.Layers[0].Sequence = Walk;
+    const auto mask = BoneMask::FromBone("Child", Mesh->GetSkeleton(), "Child");
+    const auto action = AnimationSequence::Create("Action", Mesh->GetSkeleton(), 2, {
+        { .BoneIndex = 1, .Translations = {{ 0, { 0, 3, 0 } }} },
+    });
+    const auto recoil = AnimationSequence::Create("Recoil", Mesh->GetSkeleton(), 2, {
+        { .BoneIndex = 1, .Translations = {{ 0, { 0, 2, 0 } }} },
+    }, {}, {{ "Recoil", 0.25f }});
+    info.Layers.push_back({ .Name = "Action", .Mask = mask, .StateMachine = {
+        .InitialState = "Idle", .States = {{ "Idle", Idle }, { "Attack", action }},
+        .Transitions = {{ .From = "Idle", .To = "Attack", .Conditions = {
+            { "Speed", EAnimationComparison::Greater, 0.1f } }, .FadeDuration = 0 }},
+    } });
+    info.Layers.push_back({ .Name = "Recoil", .Mask = mask, .Weight = 0.5f,
+        .BlendMode = EAnimationLayerBlendMode::Additive, .Sequence = recoil });
+    const auto controller = AnimationController::Create(info);
+    ASSERT_TRUE(controller);
+    SkeletalMeshInstance mesh(Mesh);
+    AnimationControllerInstance instance(controller, mesh);
+    ASSERT_TRUE(instance.SetFloat("Speed", 1));
+    ASSERT_TRUE(instance.Update(0.5f));
+    EXPECT_TRUE(instance.GetCurrentState().empty());
+    EXPECT_EQ(instance.GetCurrentState("Action"), "Attack");
+    EXPECT_TRUE(instance.GetCurrentState("Recoil").empty());
+    EXPECT_FLOAT_EQ(mesh.GetTime(), 0.5f);
+    EXPECT_FLOAT_EQ(mesh.GetLayer("Action")->GetTime(), 0.5f);
+    EXPECT_FLOAT_EQ(mesh.GetLayer("Recoil")->GetTime(), 0.5f);
+    EXPECT_FLOAT_EQ(mesh.GetLocalPose()[0].Translation.x, 4);
+    EXPECT_FLOAT_EQ(mesh.GetLocalPose()[1].Translation.y, 4);
+    ASSERT_EQ(mesh.GetNotifyEvents().size(), 1);
+    EXPECT_EQ(mesh.GetNotifyEvents()[0].LayerName, "Recoil");
+    ASSERT_TRUE(mesh.GetLayer("Recoil")->SetWeight(0));
+    ASSERT_TRUE(instance.Update(0.1f));
+    EXPECT_FLOAT_EQ(mesh.GetLocalPose()[1].Translation.y, 3);
+    EXPECT_TRUE(mesh.GetNotifyEvents().empty());
+}
+
+TEST_F(AnimationControllerTest, DirectSourceValidationRejectsMissingAmbiguousAndMisplacedSettings)
+{
+    SAnimationControllerCreateInfo info{ .Name = "Direct", .Layers = {{ .Sequence = Walk }} };
+    ASSERT_TRUE(AnimationController::Create(info));
+    info.Layers[0].Sequence.reset();
+    EXPECT_FALSE(AnimationController::Create(info));
+    info.Layers[0].Sequence = Walk;
+    info.Layers[0].StateMachine.InitialState = "Missing";
+    EXPECT_FALSE(AnimationController::Create(info));
+    info.Layers[0].StateMachine = MakeInfo().Layers[0].StateMachine;
+    EXPECT_FALSE(AnimationController::Create(info));
+    info.Layers[0].StateMachine = {};
+    info.Layers[0].StateMachine.Transitions.push_back({ .From = "A", .To = "B" });
+    EXPECT_FALSE(AnimationController::Create(info));
+    info.Layers[0].StateMachine = {};
+    info.Layers[0].BlendParameters = { "Speed" };
+    EXPECT_FALSE(AnimationController::Create(info));
+    info = MakeInfo();
+    info.Layers[0].BlendParameters = { "Speed" };
+    EXPECT_FALSE(AnimationController::Create(info));
+    info.Layers[0].BlendParameters.clear();
+    info.Layers[0].Looping = false;
+    EXPECT_FALSE(AnimationController::Create(info));
+    info = { .Name = "Direct", .Layers = {{ .Sequence = Walk }} };
+    const auto other = Skeleton::Create("Other", {{ .Name = "Other" }});
+    info.Layers.push_back({ .Name = "Other",
+        .Mask = BoneMask::FromBone("Other", other, "Other"),
+        .Sequence = AnimationSequence::Create("Other", other, 1, {}) });
+    EXPECT_FALSE(AnimationController::Create(info));
+}

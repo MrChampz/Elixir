@@ -29,8 +29,8 @@ namespace Elixir
         std::unordered_set<std::string> layerNames;
         Ref<const Skeleton> skeleton;
 
-        std::vector<SStateMachine> machines;
-        machines.reserve(info.Layers.size());
+        std::vector<TLayerSource> sources;
+        sources.reserve(info.Layers.size());
 
         for (size_t i = 0; i < info.Layers.size(); ++i)
         {
@@ -76,12 +76,12 @@ namespace Elixir
                 return nullptr;
             }
 
-            auto machine = CompileStateMachine(
-                layer.StateMachine,
+            auto source = CompileLayerSource(
+                layer,
                 info.Parameters,
                 skeleton
             );
-            if (!machine) return nullptr;
+            if (!source) return nullptr;
 
             if (!base)
             {
@@ -116,14 +116,131 @@ namespace Elixir
                 return nullptr;
             }
 
-            machines.push_back(std::move(*machine));
+            sources.push_back(std::move(*source));
         }
 
         return Ref<AnimationController>(new AnimationController(
             std::move(info),
             std::move(skeleton),
-            std::move(machines)
+            std::move(sources)
         ));
+    }
+
+    template<typename TSource>
+    std::optional<AnimationController::TPlaybackSource>
+    AnimationController::CompilePlaybackSource(
+        const TSource& source,
+        const std::vector<SAnimationParameter>& parameters,
+        Ref<const Skeleton>& skeleton
+    )
+    {
+        const auto& sequence = source.Sequence;
+        const auto& blendSpace = source.BlendSpace;
+        const auto& bindings = source.BlendParameters;
+
+        if (bool(sequence) == bool(blendSpace))
+        {
+            EE_CORE_ERROR("Animation playback requires exactly one sequence or blend space.")
+            return std::nullopt;
+        }
+
+        const auto& sourceSkeleton = sequence
+            ? sequence->GetSkeleton()
+            : blendSpace->GetSkeleton();
+
+        if (skeleton &&
+            skeleton != sourceSkeleton &&
+            !skeleton->IsCompatible(*sourceSkeleton))
+        {
+            EE_CORE_ERROR("Animation sources require compatible skeletons.")
+            return std::nullopt;
+        }
+
+        const auto count = blendSpace ? blendSpace->GetDimensionCount() : 0;
+        if (bindings.size() != count)
+        {
+            EE_CORE_ERROR("Playback parameters must match the source's axis count.")
+            return std::nullopt;
+        }
+
+        std::vector<size_t> resolved;
+        for (const auto& binding : bindings)
+        {
+            const auto parameter = std::ranges::find_if(
+                parameters,
+                [&](const auto& value) { return value.Name == binding; }
+            );
+
+            if (parameter == parameters.end() ||
+                !std::holds_alternative<float>(parameter->DefaultValue))
+            {
+                EE_CORE_ERROR("Blend-space playback requires existing numeric parameters.")
+                return std::nullopt;
+            }
+
+            resolved.push_back(size_t(parameter - parameters.begin()));
+        }
+
+        skeleton = sourceSkeleton;
+
+        if (sequence)
+        {
+            return TPlaybackSource(SSequenceSource{
+                sequence,
+                source.Looping
+            });
+        }
+
+        return TPlaybackSource(SBlendSpaceSource{
+            blendSpace,
+            std::move(resolved),
+            source.Looping
+        });
+    }
+
+    std::optional<AnimationController::TLayerSource> AnimationController::CompileLayerSource(
+        const SAnimationControllerLayer& layer,
+        const std::vector<SAnimationParameter>& parameters,
+        Ref<const Skeleton>& skeleton
+    )
+    {
+        const auto& machine = layer.StateMachine;
+
+        const auto sourceCount = size_t(bool(layer.Sequence)) +
+            size_t(bool(layer.BlendSpace)) + size_t(!machine.IsEmpty());
+        if (sourceCount != 1)
+        {
+            EE_CORE_ERROR(
+                "Animation layer '{}' requires exactly one sequence, blend space, or machine.",
+                layer.Name
+            )
+            return std::nullopt;
+        }
+
+        if (!machine.IsEmpty())
+        {
+            if (!layer.BlendParameters.empty() || !layer.Looping)
+            {
+                EE_CORE_ERROR(
+                    "Animation layer '{}' must configure playback in its machine states.",
+                    layer.Name
+                )
+                return std::nullopt;
+            }
+
+            auto compiled = CompileStateMachine(machine, parameters, skeleton);
+            if (!compiled) return std::nullopt;
+
+            return TLayerSource(std::move(*compiled));
+        }
+
+        auto playback = CompilePlaybackSource(layer, parameters, skeleton);
+        if (!playback) return std::nullopt;
+
+        return std::visit(
+            [](auto&& source) { return TLayerSource(std::move(source)); },
+            std::move(*playback)
+        );
     }
 
     std::optional<AnimationController::SStateMachine> AnimationController::CompileStateMachine(
@@ -140,65 +257,21 @@ namespace Elixir
             return std::nullopt;
         }
 
-        std::vector<std::vector<size_t>> blendParameters;
+        std::vector<TPlaybackSource> sources;
+        sources.reserve(machine.States.size());
 
         for (const auto& state : machine.States)
         {
-            if (state.Name.empty() ||
-                !names.insert(state.Name).second ||
-                bool(state.Sequence) == bool(state.BlendSpace))
+            if (state.Name.empty() || !names.insert(state.Name).second)
             {
-                EE_CORE_ERROR(
-                    "Animation states require unique names and exactly one pose source."
-                )
+                EE_CORE_ERROR("Animation states require unique, nonempty names.")
                 return std::nullopt;
             }
 
-            const auto& stateSkeleton = state.Sequence
-                ? state.Sequence->GetSkeleton()
-                : state.BlendSpace->GetSkeleton();
+            auto source = CompilePlaybackSource(state, parameters, skeleton);
+            if (!source) return std::nullopt;
 
-            if (skeleton && skeleton != stateSkeleton &&
-                !skeleton->IsCompatible(*stateSkeleton))
-            {
-                EE_CORE_ERROR("AnimationController states require compatible skeletons.")
-                return std::nullopt;
-            }
-
-            skeleton = stateSkeleton;
-
-            const auto count = state.BlendSpace
-                ? state.BlendSpace->GetDimensionCount()
-                : 0;
-
-            if (state.BlendParameters.size() != count)
-            {
-                EE_CORE_ERROR(
-                    "State blend parameters must match its pose source's axis count."
-                )
-                return std::nullopt;
-            }
-
-            std::vector<size_t> resolved;
-
-            for (const auto& binding : state.BlendParameters)
-            {
-                const auto parameter = std::ranges::find_if(
-                    parameters,
-                    [&](const auto& value) { return value.Name == binding; }
-                );
-
-                if (parameter == parameters.end() ||
-                    !std::holds_alternative<float>(parameter->DefaultValue))
-                {
-                    EE_CORE_ERROR("Blend-space states require existing numeric parameters.")
-                    return std::nullopt;
-                }
-
-                resolved.push_back(size_t(parameter - parameters.begin()));
-            }
-
-            blendParameters.push_back(std::move(resolved));
+            sources.push_back(std::move(*source));
         }
 
         const auto findState = [&](const std::string& name)
@@ -283,18 +356,18 @@ namespace Elixir
 
         return SStateMachine{
             initialIndex,
-            std::move(transitions),
-            std::move(blendParameters)
+            std::move(sources),
+            std::move(transitions)
         };
     }
 
     AnimationController::AnimationController(
         SAnimationControllerCreateInfo info,
         Ref<const Skeleton> skeleton,
-        std::vector<SStateMachine> machines
+        std::vector<TLayerSource> sources
     ) : m_Name(std::move(info.Name)),
         m_Skeleton(std::move(skeleton)),
         m_Parameters(std::move(info.Parameters)),
         m_Layers(std::move(info.Layers)),
-        m_StateMachines(std::move(machines)) {}
+        m_LayerSources(std::move(sources)) {}
 }
