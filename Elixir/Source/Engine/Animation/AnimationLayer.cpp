@@ -170,7 +170,7 @@ namespace Elixir
 
     void AnimationLayer::Resume()
     {
-        m_Montage.Playing = bool(m_Montage.Asset);
+        m_Montage.Playing = bool(m_Montage.Montage);
         m_Playing = GetDuration(m_Playback) > 0.0f || IsTransitioning() ||
             (m_Playback.BlendSpace && m_Playback.Looping);
     }
@@ -343,7 +343,7 @@ namespace Elixir
         output.ConsumeInitialNotifies = dt > 0.0f && m_Playing;
 
         const auto emitNotifies = m_Weight > 0.0f && m_Mask->HasInfluence();
-        if (emitNotifies && (m_Playing || m_Montage.Asset) &&
+        if (emitNotifies && (m_Playing || m_Montage.Montage) &&
             !CollectNotifyEvents(dt, output.NotifyEvents))
             return false;
 
@@ -376,13 +376,15 @@ namespace Elixir
 
     void AnimationLayer::Apply(SLayerEvaluation evaluation)
     {
-        if (m_Montage.Asset)
+        if (m_Montage.Montage)
         {
             m_LocalPose = std::move(evaluation.PlaybackPose);
             m_MontagePose = std::move(evaluation.LocalPose);
             m_Montage.Time = evaluation.MontageTime;
+
             if (evaluation.MontageTime > 0)
                 m_Montage.IncludeNotifyStart = false;
+
             if (m_Montage.Time >= GetMontageEnd())
             {
                 m_Montage = {};
@@ -390,7 +392,9 @@ namespace Elixir
             }
         }
         else
+        {
             m_LocalPose = std::move(evaluation.LocalPose);
+        }
 
         m_NotifyEvents = std::move(evaluation.NotifyEvents);
 
@@ -641,9 +645,9 @@ namespace Elixir
             return false;
 
         const auto elapsed = std::min(m_Transition.Elapsed + offset, m_Transition.Duration);
-        const auto startWeight = elapsed / m_Transition.Duration;
         const auto remaining = m_Transition.Duration - elapsed;
         const auto fadeTime = std::min(dt, remaining);
+        const auto startWeight = elapsed / m_Transition.Duration;
         const auto endWeight = (elapsed + fadeTime) / m_Transition.Duration;
         const auto weight = 1.0f - fadeTime / dt * (1.0f - (startWeight + endWeight) * 0.5f);
 

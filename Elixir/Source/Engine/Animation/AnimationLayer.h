@@ -79,38 +79,12 @@ namespace Elixir
             );
         }
 
-        /**
-         * @brief Play a one-shot action over this layer without replacing its source.
-         *
-         * The source and its state machine continue advancing underneath the action.
-         * The layer mask and blend mode apply to the resulting pose. A replacement fades
-         * from the visible pose; a noninterruptible action rejects replacement.
-         * Underlying events are suppressed until the action ends. Montage events retain
-         * their sequence and layer name, including events during entrance and exit fades.
-         *
-         * @param montage Compatible action asset, retained until its exit completes.
-         * @return False for invalid input or an active noninterruptible action.
-         */
-        bool PlayMontage(Ref<const AnimationMontage> montage);
-
-        /**
-         * @brief Fade back to this layer's continuing source.
-         * @param blendOut Exit seconds; zero returns immediately, empty uses asset settings.
-         * @return False for invalid duration or a noninterruptible action.
-         */
-        bool StopMontage(std::optional<float> blendOut = std::nullopt);
-
-        /** @brief Get the active action, or null after its exit completes. */
-        const Ref<const AnimationMontage>& GetMontage() const { return m_Montage.Asset; }
-
-        /** @brief Get the active action's elapsed sequence time in seconds. */
-        double GetMontageTime() const { return m_Montage.Time; }
-
-        /** @brief Get the active action's current contribution in [0, 1]. */
-        float GetMontageWeight() const { return GetMontageWeight(m_Montage.Time); }
-
         /** @brief Pause playback while preserving the current pose and time. */
-        void Pause() { m_Playing = false; m_Montage.Playing = false; }
+        void Pause()
+        {
+            m_Playing = false;
+            m_Montage.Playing = false;
+        }
 
         /** @brief Resume the assigned sequence or blend space, if one exists. */
         void Resume();
@@ -123,6 +97,27 @@ namespace Elixir
          * @param time Finite time in seconds, wrapped or clamped by the playback mode.
          */
         bool Seek(float time);
+
+        /**
+         * @brief Play a one-shot action over this layer without replacing its source.
+         *
+         * The source and its state machine continue advancing underneath the action.
+         * The layer mask and blend mode apply to the resulting pose. A replacement fades
+         * from the visible pose; a non-interruptible action rejects replacement.
+         * Underlying events are suppressed until the action ends. Montage events retain
+         * their sequence and layer name, including events during entrance and exit fades.
+         *
+         * @param montage Compatible action asset, retained until its exit completes.
+         * @return False for invalid input or an active non-interruptible action.
+         */
+        bool PlayMontage(Ref<const AnimationMontage> montage);
+
+        /**
+         * @brief Fade back to this layer's continuing source.
+         * @param blendOut Exit seconds; zero returns immediately, empty uses asset settings.
+         * @return False for invalid duration or a non-interruptible action.
+         */
+        bool StopMontage(std::optional<float> blendOut = std::nullopt);
 
         /** @brief Get this instance-local layer's name. */
         const std::string& GetName() const { return m_Name; }
@@ -210,7 +205,7 @@ namespace Elixir
         /** @brief Get one parent-relative transform per skeleton bone. */
         const std::vector<SBoneTransform>& GetLocalPose() const
         {
-            return m_Montage.Asset ? m_MontagePose : m_LocalPose;
+            return m_Montage.Montage ? m_MontagePose : m_LocalPose;
         }
 
         /** @brief Get source time in seconds, independent of any active montage. */
@@ -220,16 +215,25 @@ namespace Elixir
         float GetNormalizedTime() const;
 
         /** @brief Check whether playback or a manual pose has been assigned since Stop. */
-        bool HasPose() const { return m_Assigned || bool(m_Montage.Asset); }
+        bool HasPose() const { return m_Assigned || bool(m_Montage.Montage); }
 
         /** @brief Check whether the owning instance advances this layer's playback. */
         bool IsPlaying() const
         {
-            return m_Playing || (m_Montage.Asset && m_Montage.Playing);
+            return m_Playing || (m_Montage.Montage && m_Montage.Playing);
         }
 
         /** @brief Check whether the underlying source has an active playback transition. */
         bool IsTransitioning() const { return m_Transition.Duration > 0.0f; }
+
+        /** @brief Get the active action, or null after its exit completes. */
+        const Ref<const AnimationMontage>& GetMontage() const { return m_Montage.Montage; }
+
+        /** @brief Get the active action's elapsed sequence time in seconds. */
+        double GetMontageTime() const { return m_Montage.Time; }
+
+        /** @brief Get the active action's current contribution in [0, 1]. */
+        float GetMontageWeight() const { return GetMontageWeight(m_Montage.Time); }
 
       private:
         struct SLayerEvaluation
@@ -270,7 +274,7 @@ namespace Elixir
 
         struct SMontagePlayback
         {
-            Ref<const AnimationMontage> Asset;
+            Ref<const AnimationMontage> Montage;
             double Time = 0.0;
             double StopTime = -1.0;
             float StopDuration = 0.0f;
@@ -320,7 +324,10 @@ namespace Elixir
          * @param offset Seconds from the current source clock to the interval start.
          */
         bool ExtractSourceRootMotion(
-            float dt, uint32_t boneIndex, SRootMotionDelta& output, float offset = 0
+            float dt,
+            uint32_t boneIndex,
+            SRootMotionDelta& output,
+            float offset = 0
         ) const;
 
         /**
@@ -482,7 +489,9 @@ namespace Elixir
          * @param output Receives source events with this layer's name.
          */
         bool CollectPlaybackNotifyEvents(
-            const SPlayback& playback, float dt, std::vector<SAnimationNotifyEvent>& output
+            const SPlayback& playback,
+            float dt,
+            std::vector<SAnimationNotifyEvent>& output
         ) const;
 
         std::string m_Name;
@@ -498,6 +507,7 @@ namespace Elixir
 
         SMontagePlayback m_Montage;
         std::vector<SBoneTransform> m_MontagePose;
+
         STransition m_Transition;
         SPlayback m_Playback;
         bool m_Playing = false;
