@@ -60,6 +60,7 @@ namespace Elixir
         if (!candidate.BlendMontage(candidate.m_Montage.Cursor, pose))
             return false;
 
+        CancelNotifyStates();
         m_Montage = std::move(candidate.m_Montage);
         m_MontagePose = std::move(pose);
         m_NotifyEvents.clear();
@@ -134,6 +135,7 @@ namespace Elixir
         if (!BlendMontage(cursor, pose))
             return false;
 
+        CancelNotifyStates();
         m_Montage.Cursor = cursor;
         m_MontagePose = std::move(pose);
         m_NotifyEvents.clear();
@@ -168,6 +170,7 @@ namespace Elixir
         const auto duration = blendOut.value_or(montage->GetBlendOut());
         if (duration == 0)
         {
+            CancelNotifyStates();
             m_Montage = {};
             m_MontagePose.clear();
             m_NotifyEvents.clear();
@@ -178,6 +181,7 @@ namespace Elixir
         if (m_Montage.StopTime >= 0)
             return true;
 
+        CancelNotifyStates();
         m_Montage.StopWeight = GetMontageWeight();
         m_Montage.StopTime = m_Montage.Cursor.Elapsed;
         m_Montage.StopDuration = duration;
@@ -438,7 +442,7 @@ namespace Elixir
             return false;
 
         if (!m_Montage.Montage)
-            return true;
+            return EvaluateNotifyStates(dt, output);
 
         if (!EvaluateMontage(dt, output.Montage))
             return false;
@@ -456,7 +460,8 @@ namespace Elixir
 
         output.PlaybackPose = output.LocalPose;
 
-        return BlendMontage(output.Montage.Cursor, output.LocalPose);
+        return BlendMontage(output.Montage.Cursor, output.LocalPose) &&
+            EvaluateNotifyStates(dt, output);
     }
 
     bool AnimationLayer::CollectMontageNotifyEvents(

@@ -304,3 +304,76 @@ ends inside the frame. Root extraction composes only visited interval deltas, ex
 absolute offsets between sections. Traversals beyond 4096 intervals or combined events
 beyond the existing capacity fail transactionally, preserving clocks, pose, events,
 and root delta. The Vulkan readback test covers a section jump before compute skinning.
+
+
+## Notify states: active windows
+
+Each attack in the demonstration's runtime combo has an `AttackHitbox` window from
+30% to 65% of that attack, with an application-defined `SAttackWindowPayload`.
+The HUD shows Hitbox ON/OFF, Update count, and cancelled End count. This demonstrates
+event-driven activation; no collision shape or damage query is created. Press K,
+then P during an attack to inspect a window with N. J jumps to Recovery and must
+turn the indicator off even while paused. L mutes the action layer and closes its
+active window when the weight reaches zero. A natural window end also turns it off.
+
+```cpp
+struct SHitboxPayload { float Damage = 12; };
+const auto attack = sequence->WithNotifyStates({
+    { "Hitbox", 0.2f, 0.6f, SHitboxPayload{} }
+});
+layer.Play(attack, false);
+if (animation.Update(deltaSeconds))
+{
+    for (const auto& event : mesh.GetNotifyStateEvents())
+    {
+        const auto* payload = event.GetNotifyState().GetPayload<SHitboxPayload>();
+        // Begin activates, Update covers DeltaSeconds, End releases the gameplay state.
+        // Cancelled distinguishes interruption from an authored or playback end.
+    }
+}
+```
+
+`SAnimationNotifyState` owns a name, inclusive StartTime, exclusive EndTime, and an
+optional copyable typed payload. Finite ranges must satisfy 0 <= start < end <= clip
+duration. Windows may overlap or share names; their immutable list indices identify
+them independently. Sequence clones preserve both instantaneous notifies and windows.
+
+`SAnimationNotifyStateEvent` retains its sequence, window index, layer name, activation
+identity, lifecycle Type (Begin, Update, End), frame TimeOffset, active DeltaSeconds,
+and Cancelled flag. Each activation has one Begin and one End. Only Update has a
+positive DeltaSeconds, measured in elapsed frame seconds rather than authored clip
+seconds. A complete window crossed in one frame still emits all three steps.
+Begin can occur at the frame end with no Update yet. At a shared timestamp Updates
+and Ends precede new Begins within the layer. Process each successful update batch
+once; a failed update preserves the previous batch and all active identities.
+
+Pause and zero delta preserve active windows without emitting Updates. Starting or
+seeking inside a window enters it on the next positive update. Playback replacement,
+seek, montage replacement, immediate or fading StopMontage, manual pose, Stop, mute,
+and section jumps queue cancelled Ends. During an explicit montage exit no action
+window reopens. Changing the underlying source while a montage owns the layer keeps
+its windows. A montage ends source windows when it starts and returns to source
+windows at their current phase when it releases the layer. Removing or clearing
+layers transfers their Ends to the mesh, retaining metadata after layer destruction.
+
+Queued cancellations are delivered on the next successful Update, including paused
+or zero-delta updates; commands do not invoke gameplay callbacks. Continue updating
+and consume the batch after commands that stop or remove playback. Instance destruction
+has no callback delivery; the gameplay owner releases its resources when destroyed.
+Queued cleanup Ends are additional to the existing authored event budget, so stopping
+an active set does not require another Begin/Update allocation budget.
+
+Only the target playback emits windows during transitions. Blend spaces use the same
+dominant clip and synchronization reference as instantaneous notifies. Marker mapping
+preserves active windows across reference cycle boundaries and measures Update overlap
+in frame seconds. A dominant-source change ends the previous clip's windows. Muted
+layers keep advancing clocks without entering windows. Masks and layer modes affect
+the pose; a positive contributing layer can emit its windows.
+
+Montages reuse their validated section intervals. Adjacent sections retain a window
+that spans their shared boundary. Nonadjacent links and explicit jumps close it;
+destination windows get new activation identities. Skipped windows never emit.
+A terminal section closes any remaining active windows at its actual end, even if
+their authored end lies in a later section. Source windows may resume within the
+remaining part of that frame. The Vulkan pose readback test also exercises lifecycle
+events during a nonadjacent section link without changing the compute skinning path.

@@ -177,6 +177,7 @@ namespace Elixir
 
     void AnimationLayer::Stop()
     {
+        CancelNotifyStates();
         m_Montage = {};
         m_MontagePose.clear();
         m_Playing = false;
@@ -206,6 +207,8 @@ namespace Elixir
         if (!SetPlayback(m_Playback, {}, 1.0f, targetTime, 0.0f))
             return false;
 
+        if (!m_Montage.Montage)
+            CancelNotifyStates();
         m_Transition = {};
         m_Playback.IncludeNotifyStart = false;
         m_NotifyEvents.clear();
@@ -224,6 +227,8 @@ namespace Elixir
             return false;
         }
 
+        if (weight == 0)
+            CancelNotifyStates();
         m_Weight = weight;
         return true;
     }
@@ -260,6 +265,7 @@ namespace Elixir
         }
 
         std::vector local(pose.begin(), pose.end());
+        CancelNotifyStates();
         m_LocalPose = std::move(local);
         m_Montage = {};
         m_MontagePose.clear();
@@ -376,6 +382,10 @@ namespace Elixir
 
     void AnimationLayer::Apply(SLayerEvaluation evaluation)
     {
+        m_ActiveNotifyStates = std::move(evaluation.NotifyStates.Active);
+        m_NotifyStateEvents = std::move(evaluation.NotifyStates.Events);
+        m_NextNotifyStateActivationId = evaluation.NotifyStates.NextActivationId;
+        m_PendingNotifyStateEnds.clear();
         if (m_Montage.Montage)
         {
             m_LocalPose = std::move(evaluation.PlaybackPose);
@@ -497,6 +507,8 @@ namespace Elixir
             m_Transition = {};
         }
 
+        if (!m_Montage.Montage)
+            CancelNotifyStates();
         m_NotifyEvents.clear();
         m_Assigned = true;
         Resume();

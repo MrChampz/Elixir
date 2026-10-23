@@ -33,6 +33,11 @@ namespace
         EFoot Foot;
     };
 
+    /** Supplies game-defined damage settings for the demonstration's active attack window. */
+    struct SAttackWindowPayload
+    {
+        uint32_t Damage = 12;
+    };
 }
 
 std::array<Ref<Aether::System>, 2> m_ParticleSystems;
@@ -264,7 +269,7 @@ Dissolve::Dissolve()
         panel->AddChild(label)
             .SetAnchors({position, 0, position, 0})
             .SetAlignment({0.5f, 0})
-            .SetPosition({0, 160})
+            .SetPosition({0, 190})
             .SetSize({260, 35});
     }
     const auto layerInstructions = CreateRef<GUI::TextBlock>(
@@ -280,6 +285,12 @@ Dissolve::Dissolve()
     panel->AddChild(m_AnimationStatus)
         .SetAnchors(GUI::SAnchors::TopLeft())
         .SetPosition({20, 110})
+        .SetSize({1100, 30});
+    m_NotifyStateStatus = CreateRef<GUI::TextBlock>("Hitbox OFF | Window updates 0 | Cancelled 0");
+    m_NotifyStateStatus->SetFontSize(18.0f);
+    panel->AddChild(m_NotifyStateStatus)
+        .SetAnchors(GUI::SAnchors::TopLeft())
+        .SetPosition({20, 140})
         .SetSize({1100, 30});
     m_GUIManager->SetRoot(panel);
 
@@ -320,7 +331,13 @@ void Dissolve::OnGUI(const Timestep frameTime)
                 m_RootMotionDistance.load(std::memory_order_relaxed)
             )
         );
-
+    if (m_NotifyStateStatus)
+        m_NotifyStateStatus->SetText(std::format(
+            "Hitbox {} | Window updates {} | Cancelled {}",
+            m_HitboxActive.load(std::memory_order_relaxed) ? "ON" : "OFF",
+            m_NotifyStateUpdates.load(std::memory_order_relaxed),
+            m_CancelledNotifyStates.load(std::memory_order_relaxed)
+        ));
 }
 
 void Dissolve::Prepare(const Timestep frameTime)
@@ -653,8 +670,13 @@ Ref<const AnimationSequence> Dissolve::CreateComboAnimation(
     std::vector<SAnimationNotify> notifies;
     for (int i = 0; i < 3; ++i)
         notifies.push_back({"PunchHit", attackDuration * (float(i) + 0.45f)});
+    std::vector<SAnimationNotifyState> windows;
+    for (int i = 0; i < 3; ++i)
+        windows.push_back({"AttackHitbox", attackDuration * (float(i) + 0.3f),
+            attackDuration * (float(i) + 0.65f), SAttackWindowPayload{}});
     return AnimationSequence::Create("PunchCombo", attack->GetSkeleton(),
-        recoveryStart + ComboRecoveryDuration, std::move(tracks), {}, std::move(notifies));
+        recoveryStart + ComboRecoveryDuration, std::move(tracks), {}, std::move(notifies),
+        std::move(windows));
 }
 
 Ref<const AnimationSequence> Dissolve::CreateRecoilAnimation()
@@ -782,6 +804,34 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
         if (!m_MeshInstance->Seek(m_ContactPhase * duration) ||
             !m_ComparisonInstance->Seek(m_ContactPhase * duration))
             return;
+    }
+
+    for (const auto& event : m_MeshInstance->GetNotifyStateEvents())
+    {
+        if (event.LayerName != "UpperBody" ||
+            event.GetNotifyState().Name != "AttackHitbox")
+            continue;
+        const auto* payload = event.GetNotifyState().GetPayload<SAttackWindowPayload>();
+        if (!payload)
+        {
+            EE_CORE_ERROR("Attack window requires an SAttackWindowPayload.")
+            continue;
+        }
+        switch (event.Type)
+        {
+            case EAnimationNotifyStateEventType::Begin:
+                m_HitboxActive.store(true, std::memory_order_relaxed);
+                break;
+            case EAnimationNotifyStateEventType::Update:
+                // A game would query targets during this active interval.
+                m_NotifyStateUpdates.fetch_add(1, std::memory_order_relaxed);
+                break;
+            case EAnimationNotifyStateEventType::End:
+                m_HitboxActive.store(false, std::memory_order_relaxed);
+                if (event.Cancelled)
+                    m_CancelledNotifyStates.fetch_add(1, std::memory_order_relaxed);
+                break;
+        }
     }
 
     // The application maps generic animation events to feedback for this demo.

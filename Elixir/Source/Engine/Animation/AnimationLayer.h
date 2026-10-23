@@ -2,6 +2,7 @@
 
 #include <Engine/Animation/BlendSpace.h>
 #include <Engine/Animation/AnimationNotifyEvent.h>
+#include <Engine/Animation/AnimationNotifyStateEvent.h>
 #include <Engine/Animation/BoneMask.h>
 #include <Engine/Animation/AnimationMontage.h>
 
@@ -93,7 +94,10 @@ namespace Elixir
         void Stop();
 
         /**
-         * @brief Seek silently and clear pending events and the active transition on success.
+         * @brief Seek without instantaneous events and clear the active source transition.
+         *
+         * Active source windows queue cancelled Ends. An active montage keeps its windows.
+         *
          * @param time Finite time in seconds, wrapped or clamped by the playback mode.
          */
         bool Seek(float time);
@@ -208,6 +212,19 @@ namespace Elixir
         }
 
         /**
+         * @brief Get Begin, Update, and End events from the last successful instance update.
+         *
+         * Playback changes queue cancelled Ends for the next successful update, including
+         * a paused or zero-delta update. Pause retains active windows without Updates.
+         * Consumers must process each successful batch once. Removed layers transfer their
+         * queued Ends to the owning instance. Events retain their sequence and typed payload.
+         */
+        std::span<const SAnimationNotifyStateEvent> GetNotifyStateEvents() const
+        {
+            return m_NotifyStateEvents;
+        }
+
+        /**
          * @brief Set coordinates for the next update without resetting phase or fade.
          * @param values One finite coordinate per active blend-space axis; copied on success.
          */
@@ -285,12 +302,27 @@ namespace Elixir
             double ActiveDuration = 0.0;
         };
 
+        struct SActiveNotifyState
+        {
+            Ref<const AnimationSequence> Sequence;
+            size_t Index = 0;
+            uint64_t ActivationId = 0;
+        };
+
+        struct SNotifyStateEvaluation
+        {
+            std::vector<SActiveNotifyState> Active;
+            std::vector<SAnimationNotifyStateEvent> Events;
+            uint64_t NextActivationId = 1;
+        };
+
         struct SLayerEvaluation
         {
             std::vector<SBoneTransform> LocalPose;
             std::vector<SBoneTransform> PlaybackPose;
             SMontageEvaluation Montage;
             std::vector<SAnimationNotifyEvent> NotifyEvents;
+            SNotifyStateEvaluation NotifyStates;
             double PlaybackTime = 0.0;
             double TransitionSourceTime = 0.0;
             float TransitionElapsed = 0.0f;
@@ -564,6 +596,38 @@ namespace Elixir
             std::vector<SAnimationNotifyEvent>& output
         ) const;
 
+        /** @brief Queue cancelled Ends and release the layer's currently active windows. */
+        void CancelNotifyStates();
+
+        /**
+         * @brief Evaluate windows on the pose and section playback timeline.
+         * @param dt Elapsed frame seconds.
+         * @param evaluation Validated pose and montage traversal receiving window state.
+         */
+        bool EvaluateNotifyStates(float dt, SLayerEvaluation& evaluation) const;
+
+        /**
+         * @brief Advance active windows on one sequence or blend-space reference timeline.
+         * @param playback Source, phase, coordinates, and looping mode.
+         * @param dt Active interval seconds.
+         * @param offset Frame seconds preceding this interval.
+         * @param output Transactional active windows, events, and activation counter.
+         */
+        bool EvaluatePlaybackNotifyStates(
+            const SPlayback& playback, double dt, double offset,
+            SNotifyStateEvaluation& output
+        ) const;
+
+        /**
+         * @brief End all active windows at a timeline discontinuity or playback completion.
+         * @param output Transactional active windows and events.
+         * @param offset Frame seconds when windows end.
+         * @param cancelled True for interruption; false for timeline completion.
+         */
+        void EndNotifyStates(
+            SNotifyStateEvaluation& output, double offset, bool cancelled
+        ) const;
+
         std::string m_Name;
         Ref<const BoneMask> m_Mask;
         float m_Weight = 1.0f;
@@ -586,6 +650,10 @@ namespace Elixir
         bool m_Assigned = false;
 
         std::vector<SAnimationNotifyEvent> m_NotifyEvents;
+        std::vector<SActiveNotifyState> m_ActiveNotifyStates;
+        std::vector<SAnimationNotifyStateEvent> m_NotifyStateEvents;
+        std::vector<SAnimationNotifyStateEvent> m_PendingNotifyStateEnds;
+        uint64_t m_NextNotifyStateActivationId = 1;
 
         Ref<const Skeleton> m_Skeleton;
         std::vector<SBoneTransform> m_ReferencePose;

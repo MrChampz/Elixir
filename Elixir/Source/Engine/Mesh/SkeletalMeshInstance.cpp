@@ -38,6 +38,7 @@ namespace Elixir
         GetBaseLayer().Stop();
         ClearLayers();
         m_NotifyEvents.clear();
+        m_NotifyStateEvents.clear();
         m_RootMotionDelta = {};
 
         m_Paused = false;
@@ -133,6 +134,8 @@ namespace Elixir
         if (!m_Mesh)
         {
             m_NotifyEvents.clear();
+            m_NotifyStateEvents = std::move(m_PendingNotifyStateEnds);
+            m_PendingNotifyStateEnds.clear();
             m_RootMotionDelta = {};
             return true;
         }
@@ -140,6 +143,8 @@ namespace Elixir
         const auto advance = m_Paused ? 0.0f : dt;
         std::vector<AnimationLayer::SLayerEvaluation> evaluations(m_Layers.size());
         std::vector<SAnimationNotifyEvent> events;
+        auto stateEvents = m_PendingNotifyStateEnds;
+        size_t generatedEvents = 0;
 
         for (size_t i = 0; i < m_Layers.size(); ++i)
         {
@@ -147,14 +152,19 @@ namespace Elixir
                 return false;
 
             const auto& layerEvents = evaluations[i].NotifyEvents;
-            const auto maxEvents = AnimationSequence::MaxNotifyEventsPerUpdate - events.size();
-            if (layerEvents.size() > maxEvents)
+            const auto& layerStateEvents = evaluations[i].NotifyStates.Events;
+            const auto generatedStates = layerStateEvents.size() -
+                m_Layers[i]->m_PendingNotifyStateEnds.size();
+            const auto maxEvents = AnimationSequence::MaxNotifyEventsPerUpdate - generatedEvents;
+            if (layerEvents.size() > maxEvents || generatedStates > maxEvents - layerEvents.size())
             {
                 EE_CORE_ERROR("Animation layers exceeded the combined notify event capacity.")
                 return false;
             }
 
+            generatedEvents += layerEvents.size() + generatedStates;
             events.insert(events.end(), layerEvents.begin(), layerEvents.end());
+            stateEvents.insert(stateEvents.end(), layerStateEvents.begin(), layerStateEvents.end());
         }
 
         SRootMotionDelta movement;
@@ -187,6 +197,7 @@ namespace Elixir
             return false;
 
         std::ranges::stable_sort(events, {}, &SAnimationNotifyEvent::TimeOffset);
+        std::ranges::stable_sort(stateEvents, {}, &SAnimationNotifyStateEvent::TimeOffset);
 
         for (size_t i = 0; i < m_Layers.size(); ++i)
             m_Layers[i]->Apply(std::move(evaluations[i]));
@@ -194,6 +205,8 @@ namespace Elixir
         m_LocalPose = std::move(local);
         m_ModelPose = std::move(model);
         m_NotifyEvents = std::move(events);
+        m_NotifyStateEvents = std::move(stateEvents);
+        m_PendingNotifyStateEnds.clear();
         m_RootMotionDelta = movement;
 
         return true;
@@ -379,19 +392,29 @@ namespace Elixir
             return false;
         }
 
-        const auto removed = std::erase_if(
-            m_Layers,
-            [&](const auto& layer) { return layer->GetName() == name; }
-        );
-
-        if (!removed)
+        const auto layer = std::ranges::find_if(m_Layers,
+            [&](const auto& entry) { return entry->GetName() == name; });
+        if (layer == m_Layers.end())
+        {
             EE_CORE_ERROR("Animation layer '{}' does not exist.", name)
+            return false;
+        }
+        QueueLayerNotifyStateEnds(**layer);
+        m_Layers.erase(layer);
+        return true;
+    }
 
-        return removed != 0;
+    void SkeletalMeshInstance::QueueLayerNotifyStateEnds(AnimationLayer& layer)
+    {
+        layer.CancelNotifyStates();
+        const auto& pending = layer.m_PendingNotifyStateEnds;
+        m_PendingNotifyStateEnds.insert(m_PendingNotifyStateEnds.end(), pending.begin(), pending.end());
     }
 
     void SkeletalMeshInstance::ClearLayers()
     {
+        for (size_t i = 1; i < m_Layers.size(); ++i)
+            QueueLayerNotifyStateEnds(*m_Layers[i]);
         m_Layers.erase(m_Layers.begin() + 1, m_Layers.end());
     }
 

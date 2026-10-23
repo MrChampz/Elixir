@@ -63,7 +63,8 @@ namespace Elixir
         const float duration,
         std::vector<SBoneAnimationTrack> tracks,
         std::vector<SAnimationSyncMarker> syncMarkers,
-        std::vector<SAnimationNotify> notifies
+        std::vector<SAnimationNotify> notifies,
+        std::vector<SAnimationNotifyState> notifyStates
     )
     {
         if (!skeleton || !std::isfinite(duration) || duration < 0)
@@ -113,6 +114,18 @@ namespace Elixir
         {
             return first.Time < second.Time;
         });
+
+        for (const auto& state : notifyStates)
+        {
+            if (state.Name.empty() || !std::isfinite(state.StartTime) ||
+                !std::isfinite(state.EndTime) || state.StartTime < 0 ||
+                state.EndTime > duration || state.StartTime >= state.EndTime)
+            {
+                EE_CORE_ERROR("Animation notify states require a name and a positive time range.")
+                return nullptr;
+            }
+        }
+        std::ranges::stable_sort(notifyStates, {}, &SAnimationNotifyState::StartTime);
 
         std::unordered_set<uint32_t> indices;
 
@@ -166,7 +179,8 @@ namespace Elixir
             duration,
             std::move(tracks),
             std::move(syncMarkers),
-            std::move(notifies)
+            std::move(notifies),
+            std::move(notifyStates)
         ));
     }
 
@@ -176,13 +190,15 @@ namespace Elixir
         const float duration,
         std::vector<SBoneAnimationTrack> tracks,
         std::vector<SAnimationSyncMarker> syncMarkers,
-        std::vector<SAnimationNotify> notifies
+        std::vector<SAnimationNotify> notifies,
+        std::vector<SAnimationNotifyState> notifyStates
     ) : m_Name(std::move(name)),
         m_Skeleton(std::move(skeleton)),
         m_Duration(duration),
         m_Tracks(std::move(tracks)),
         m_SyncMarkers(std::move(syncMarkers)),
-        m_Notifies(std::move(notifies)) {}
+        m_Notifies(std::move(notifies)),
+        m_NotifyStates(std::move(notifyStates)) {}
 
     bool AnimationSequence::Sample(
         const float time,
@@ -452,7 +468,8 @@ namespace Elixir
             m_Duration,
             m_Tracks,
             std::move(syncMarkers),
-            m_Notifies
+            m_Notifies,
+            m_NotifyStates
         );
     }
 
@@ -554,7 +571,8 @@ namespace Elixir
             m_Duration,
             m_Tracks,
             m_SyncMarkers,
-            std::move(notifies)
+            std::move(notifies),
+            m_NotifyStates
         );
     }
 
