@@ -343,8 +343,8 @@ namespace Elixir
         output.ConsumeInitialNotifies = dt > 0.0f && m_Playing;
 
         const auto emitNotifies = m_Weight > 0.0f && m_Mask->HasInfluence();
-        if (emitNotifies && (m_Playing || m_Montage.Montage) &&
-            !CollectNotifyEvents(dt, output.NotifyEvents))
+        if (emitNotifies && m_Playing && !m_Montage.Montage &&
+            !CollectPlaybackNotifyEvents(m_Playback, dt, output.NotifyEvents))
             return false;
 
         if (!m_Playing)
@@ -380,12 +380,8 @@ namespace Elixir
         {
             m_LocalPose = std::move(evaluation.PlaybackPose);
             m_MontagePose = std::move(evaluation.LocalPose);
-            m_Montage.Time = evaluation.MontageTime;
-
-            if (evaluation.MontageTime > 0)
-                m_Montage.IncludeNotifyStart = false;
-
-            if (m_Montage.Time >= GetMontageEnd())
+            m_Montage.Cursor = evaluation.Montage.Cursor;
+            if (m_Montage.Cursor.Finished)
             {
                 m_Montage = {};
                 m_MontagePose.clear();

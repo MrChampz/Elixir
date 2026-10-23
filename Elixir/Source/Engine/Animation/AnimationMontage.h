@@ -4,6 +4,18 @@
 
 namespace Elixir
 {
+    /** Names a timeline range ending at the next section start or the sequence end. */
+    struct SAnimationMontageSection
+    {
+        std::string Name;
+
+        /** Sequence time in seconds; the first section starts at zero. */
+        float StartTime = 0.0f;
+
+        /** Empty optional follows timeline order; empty string ends the montage. */
+        std::optional<std::string> NextSection;
+    };
+
     /** Describes a one-shot action played over a layer's continuing animation. */
     struct SAnimationMontageCreateInfo
     {
@@ -18,6 +30,9 @@ namespace Elixir
 
         /** Allow another montage or StopMontage to interrupt this action. */
         bool Interruptible = true;
+
+        /** Ordered section starts and default links; empty creates one Default section. */
+        std::vector<SAnimationMontageSection> Sections;
     };
 
     /** Stores an immutable action; its target layer owns the playback clock. */
@@ -46,6 +61,33 @@ namespace Elixir
         /** @brief Check whether playback can be stopped or replaced by another action. */
         bool IsInterruptible() const { return m_Info.Interruptible; }
 
+        /** @brief Get the named ranges in timeline order. */
+        const std::vector<SAnimationMontageSection>& GetSections() const
+        {
+            return m_Info.Sections;
+        }
+
+        /**
+         * @brief Find a section without changing playback.
+         * @param name Case-sensitive section name.
+         * @return Empty if the name does not exist.
+         */
+        std::optional<size_t> FindSection(std::string_view name) const;
+
+        /**
+         * @brief Get the timeline end of a valid section in sequence seconds.
+         * @param index Section index in GetSections.
+         * @return Zero for an invalid index.
+         */
+        float GetSectionEnd(size_t index) const;
+
+        /**
+         * @brief Get the compiled default continuation for a valid section.
+         * @param index Section index in GetSections.
+         * @return Empty when the section ends playback or the index is invalid.
+         */
+        std::optional<size_t> GetNextSection(size_t index) const;
+
     private:
         /**
          * @brief Store validated action settings.
@@ -54,5 +96,6 @@ namespace Elixir
         explicit AnimationMontage(SAnimationMontageCreateInfo info);
 
         SAnimationMontageCreateInfo m_Info;
+        std::vector<std::optional<size_t>> m_NextSections;
     };
 }

@@ -108,9 +108,35 @@ namespace Elixir
          * their sequence and layer name, including events during entrance and exit fades.
          *
          * @param montage Compatible action asset, retained until its exit completes.
+         * @param startSection Optional starting section name; empty selects the first section.
          * @return False for invalid input or an active non-interruptible action.
          */
-        bool PlayMontage(Ref<const AnimationMontage> montage);
+        bool PlayMontage(
+            Ref<const AnimationMontage> montage,
+            std::string_view startSection = {}
+        );
+
+        /**
+         * @brief Override a section's continuation for this playback instance.
+         * @param from Existing section whose outgoing link changes.
+         * @param to Existing destination; empty ends playback after the source section.
+         * @return False for unknown names or a link change that interrupts the exit fade.
+         */
+        bool SetNextMontageSection(std::string_view from, std::string_view to);
+
+        /**
+         * @brief Jump silently to a section without extracting the skipped movement.
+         *
+         * Preserve the entrance clock and pause state. The next positive update includes
+         * destination start events. Section jumps switch pose immediately without a fade.
+         *
+         * @param name Existing destination section.
+         * @return False for invalid input or while an explicit StopMontage exit is active.
+         */
+        bool JumpToMontageSection(std::string_view name);
+
+        /** @brief Get the current section name, or empty when no montage is active. */
+        std::string_view GetCurrentMontageSection() const;
 
         /**
          * @brief Fade back to this layer's continuing source.
@@ -229,18 +255,41 @@ namespace Elixir
         /** @brief Get the active action, or null after its exit completes. */
         const Ref<const AnimationMontage>& GetMontage() const { return m_Montage.Montage; }
 
-        /** @brief Get the active action's elapsed sequence time in seconds. */
-        double GetMontageTime() const { return m_Montage.Time; }
+        /** @brief Get the sequence position in seconds; section jumps can move it backward. */
+        double GetMontageTime() const { return m_Montage.Cursor.Time; }
 
         /** @brief Get the active action's current contribution in [0, 1]. */
-        float GetMontageWeight() const { return GetMontageWeight(m_Montage.Time); }
+        float GetMontageWeight() const { return GetMontageWeight(m_Montage.Cursor); }
 
       private:
+        struct SMontageCursor
+        {
+            double Time = 0.0;
+            double Elapsed = 0.0;
+            size_t Section = 0;
+            bool IncludeNotifyStart = true;
+            bool Finished = false;
+        };
+
+        struct SMontageInterval
+        {
+            SMontageCursor Start;
+            double Duration = 0.0;
+            double TimeOffset = 0.0;
+        };
+
+        struct SMontageEvaluation
+        {
+            SMontageCursor Cursor;
+            std::vector<SMontageInterval> Intervals;
+            double ActiveDuration = 0.0;
+        };
+
         struct SLayerEvaluation
         {
             std::vector<SBoneTransform> LocalPose;
             std::vector<SBoneTransform> PlaybackPose;
-            double MontageTime = 0.0;
+            SMontageEvaluation Montage;
             std::vector<SAnimationNotifyEvent> NotifyEvents;
             double PlaybackTime = 0.0;
             double TransitionSourceTime = 0.0;
@@ -275,11 +324,11 @@ namespace Elixir
         struct SMontagePlayback
         {
             Ref<const AnimationMontage> Montage;
-            double Time = 0.0;
+            SMontageCursor Cursor;
+            std::vector<std::optional<size_t>> NextSections;
             double StopTime = -1.0;
             float StopDuration = 0.0f;
             float StopWeight = 0.0f;
-            bool IncludeNotifyStart = true;
             bool Playing = false;
 
             /** Frozen visible pose used only when replacing another montage. */
@@ -295,26 +344,47 @@ namespace Elixir
 
         /**
          * @brief Sample the action and blend it over an evaluated source pose.
-         * @param time Elapsed action seconds.
+         * @param cursor Sequence position, section, and elapsed playback seconds.
          * @param pose Source pose modified on success.
          */
-        bool BlendMontage(double time, std::vector<SBoneTransform>& pose) const;
+        bool BlendMontage(const SMontageCursor& cursor, std::vector<SBoneTransform>& pose) const;
 
         /**
          * @brief Get the action envelope at one time.
-         * @param time Elapsed action seconds.
+         * @param cursor Sequence position and elapsed playback seconds.
          */
-        float GetMontageWeight(double time) const;
+        float GetMontageWeight(const SMontageCursor& cursor) const;
 
-        /** @brief Get the time when the current action releases its layer. */
-        double GetMontageEnd() const;
+        /**
+         * @brief Get the elapsed time when the current route releases its layer.
+         * @param cursor Current section and position; cyclic routes have no natural end.
+         */
+        double GetMontageEnd(const SMontageCursor& cursor) const;
+
+        /**
+         * @brief Traverse section links without changing playback state.
+         * @param dt Finite nonnegative elapsed seconds.
+         * @param output Receives the final cursor and visited forward intervals.
+         * @return False when more than 4096 section intervals are needed.
+         */
+        bool EvaluateMontage(float dt, SMontageEvaluation& output) const;
+
+        /**
+         * @brief Gather action events and any source events after the action ends.
+         * @param dt Elapsed frame seconds.
+         * @param evaluation Previously validated section traversal.
+         * @param output Receives events in chronological frame order.
+         */
+        bool CollectMontageNotifyEvents(
+            float dt, const SMontageEvaluation& evaluation,
+            std::vector<SAnimationNotifyEvent>& output
+        ) const;
 
         /**
          * @brief Average the linear action envelope over a forward interval.
-         * @param start Elapsed action seconds at the interval start.
-         * @param end Elapsed action seconds at the interval end.
+         * @param interval Forward interval within one section.
          */
-        float GetAverageMontageWeight(double start, double end) const;
+        float GetAverageMontageWeight(const SMontageInterval& interval) const;
 
         /**
          * @brief Extract continuing source movement without including the action.
@@ -456,8 +526,12 @@ namespace Elixir
          * @param dt Finite nonnegative elapsed time in seconds.
          * @param boneIndex Selected root bone in the mesh skeleton.
          * @param output Receives movement; snapshots and paused playback contribute identity.
+         * @param evaluation Validated traversal reused for section movement.
          */
-        bool ExtractRootMotion(float dt, uint32_t boneIndex, SRootMotionDelta& output) const;
+        bool ExtractRootMotion(
+            float dt, uint32_t boneIndex, SRootMotionDelta& output,
+            const SLayerEvaluation& evaluation
+        ) const;
 
         /**
          * @brief Extract movement from one playback interval without advancing its clock.
@@ -474,13 +548,6 @@ namespace Elixir
             SRootMotionDelta& output,
             float offset = 0
         ) const;
-
-        /**
-         * @brief Gather target events before committing a playback update.
-         * @param dt Positive elapsed time in seconds; zero emits no events.
-         * @param output Receives occurrences retaining the selected source asset.
-         */
-        bool CollectNotifyEvents(float dt, std::vector<SAnimationNotifyEvent>& output) const;
 
         /**
          * @brief Gather events from one source without changing its clock.
