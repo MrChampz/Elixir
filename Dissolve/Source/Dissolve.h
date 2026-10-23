@@ -41,7 +41,7 @@ class Dissolve final : public Elixir::Application
         const Ref<const AnimationSequence>& recovery
     );
 
-    /** @brief Create a rigid baton attached to the right-hand socket. */
+    /** @brief Create a rigid baton and configure its two hand-grip references. */
     void InitializeSocketAttachment();
 
     /** @brief Submit the complete model to its renderer. */
@@ -89,9 +89,11 @@ class Dissolve final : public Elixir::Application
     bool m_IKKeyPressed = false;
     std::atomic<bool> m_IKRotationEnabled = true;
     bool m_IKRotationKeyPressed = false;
-    const glm::quat m_IKTargetRotation{1, 0, 0, 0};
+    /** Aligns the baton with skeleton +X through the imported wrist-to-weapon offset. */
+    glm::quat m_IKDriverRotation{1, 0, 0, 0};
+    uint32_t m_IKDriverBone = 0;
     uint32_t m_IKEndBone = 0;
-    const glm::vec3 m_IKTarget{0.5f, 1.05f, -0.25f};
+    const glm::vec3 m_IKTarget{-0.2f, 1.2f, -0.3f};
     std::atomic<bool> m_RecoilEnabled = true;
     std::atomic<float> m_RecoilStrength = 1.0f;
     std::atomic<uint64_t> m_RecoilEvents = 0;

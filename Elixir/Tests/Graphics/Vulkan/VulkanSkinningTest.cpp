@@ -317,13 +317,16 @@ TEST(VulkanSkinningTest, TwoBoneIKPoseReachesComputeSkinning)
     {
         auto data = SkinningTests::MakeMesh()->GetData();
         data.Skeleton = Skeleton::Create("Limb", {
-            {.Name = "Root"}, {.Name = "Middle", .ParentIndex = 0,
+            {.Name = "Scene"}, {.Name = "Root", .ParentIndex = 0},
+            {.Name = "Middle", .ParentIndex = 1,
                 .ReferenceTransform = {.Translation = {1, 0, 0}}},
-            {.Name = "End", .ParentIndex = 1,
+            {.Name = "End", .ParentIndex = 2,
+                .ReferenceTransform = {.Translation = {1, 0, 0}}},
+            {.Name = "Target", .ParentIndex = 0,
                 .ReferenceTransform = {.Translation = {1, 0, 0}}}
         });
         data.ReferencePose.clear();
-        data.BoneMap = {2};
+        data.BoneMap = {3};
         data.InverseBindMatrices = {glm::translate(glm::mat4(1), glm::vec3(-2, 0, 0))};
         for (auto& vertex : data.Vertices)
         {
@@ -334,10 +337,15 @@ TEST(VulkanSkinningTest, TwoBoneIKPoseReachesComputeSkinning)
         const auto mesh = SkeletalMesh::Create(std::move(data));
         ASSERT_TRUE(mesh);
         SkeletalMeshInstance instance(mesh);
-        const STwoBoneIKConstraint constraint{2, {1, 1, 0}, {0, 2, 0}, 1,
-            glm::angleAxis(glm::radians(90.0f), glm::vec3(0, 0, 1))};
+        const auto targetAnimation = AnimationSequence::Create("Target", mesh->GetSkeleton(), 1, {{
+            .BoneIndex = 4, .Translations = {{0, {1, 0, 0}}, {1, {1, 2, 0}}},
+            .Rotations = {{0, glm::angleAxis(0.5f, glm::vec3(0, 0, 1))}}
+        }});
+        ASSERT_TRUE(instance.Play(targetAnimation, false));
+        const STwoBoneIKConstraint constraint{3, {}, {0, 2, 0}, 1,
+            glm::angleAxis(glm::radians(90.0f) - 0.5f, glm::vec3(0, 0, 1)), uint32_t(4)};
         ASSERT_TRUE(instance.SetTwoBoneIKConstraints(std::span(&constraint, 1)));
-        ASSERT_TRUE(instance.Update(0));
+        ASSERT_TRUE(instance.Update(0.5f));
         std::vector<SStaticMeshVertex> expected;
         ASSERT_TRUE(mesh->SkinVertices(instance.GetModelPose(), expected));
         EXPECT_NEAR(expected[0].Position.x, 1, 1e-5f);

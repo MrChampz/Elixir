@@ -5,6 +5,117 @@ namespace Elixir
 {
     namespace
     {
+        /** Identifies a validated bone frame with an optional socket offset. */
+        struct SIKReference
+        {
+            uint32_t BoneIndex;
+            const SSkeletonSocket* Socket = nullptr;
+        };
+
+        /** Stores one resolved target in skeleton space for the current solve. */
+        struct SIKTarget
+        {
+            glm::dvec3 Position;
+            std::optional<glm::dquat> Rotation;
+        };
+
+        /**
+         * @brief Find a target frame in the instance's fixed skeleton.
+         * @param skeleton Hierarchy and sockets defining the reference.
+         * @param reference Bone index or socket name.
+         */
+        std::optional<SIKReference> FindTargetReference(
+            const Skeleton& skeleton, const TIKTargetReference& reference
+        )
+        {
+            if (const auto* bone = std::get_if<uint32_t>(&reference))
+            {
+                if (*bone < skeleton.GetBones().size()) return SIKReference{*bone};
+            }
+            else if (const auto* name = std::get_if<std::string>(&reference))
+            {
+                const auto index = skeleton.FindSocket(*name);
+                if (index >= 0)
+                {
+                    const auto& socket = skeleton.GetSockets()[size_t(index)];
+                    return SIKReference{socket.BoneIndex, &socket};
+                }
+            }
+            EE_CORE_ERROR("IK target reference must identify an existing bone or socket.")
+            return std::nullopt;
+        }
+
+        /**
+         * @brief Check whether scale preserves an unambiguous reference rotation.
+         * @param scale Local scale in the target reference hierarchy or socket.
+         */
+        bool HasUniformPositiveScale(const glm::vec3& scale)
+        {
+            const auto tolerance = 1e-5f * std::abs(scale.x);
+            return scale.x > 0 && std::abs(scale.x - scale.y) <= tolerance &&
+                std::abs(scale.x - scale.z) <= tolerance;
+        }
+
+        /**
+         * @brief Resolve a target from the current candidate pose without using prior frames.
+         * @param skeleton Hierarchy and sockets defining reference indices.
+         * @param constraint Target frame and local offsets.
+         * @param local Current parent-relative transforms.
+         * @param model Current skeleton-space matrices, including earlier constraints.
+         */
+        std::optional<SIKTarget> ResolveTarget(
+            const Skeleton& skeleton,
+            const STwoBoneIKConstraint& constraint,
+            const std::span<const SBoneTransform> local,
+            const std::span<const glm::mat4> model
+        )
+        {
+            SIKTarget result{glm::dvec3(constraint.TargetPosition)};
+            if (constraint.TargetRotation)
+                result.Rotation = glm::normalize(glm::dquat(*constraint.TargetRotation));
+            if (!constraint.TargetReference) return result;
+
+            const auto reference = FindTargetReference(skeleton, *constraint.TargetReference);
+            if (!reference) return std::nullopt;
+            auto frame = glm::dmat4(model[reference->BoneIndex]);
+            if (reference->Socket)
+                frame *= glm::dmat4(reference->Socket->RelativeTransform.ToMatrix());
+            result.Position = glm::dvec3(frame * glm::dvec4(result.Position, 1));
+            for (int i = 0; i < 3; ++i)
+            {
+                if (!std::isfinite(result.Position[i]))
+                {
+                    EE_CORE_ERROR("IK target reference produced a nonfinite position.")
+                    return std::nullopt;
+                }
+            }
+            if (!result.Rotation) return result;
+
+            glm::dquat rotation(1, 0, 0, 0);
+            for (auto bone = int32_t(reference->BoneIndex); bone >= 0;
+                bone = skeleton.GetBones()[size_t(bone)].ParentIndex)
+            {
+                if (!HasUniformPositiveScale(local[size_t(bone)].Scale))
+                {
+                    EE_CORE_ERROR("IK rotation references require uniform positive ancestor scales.")
+                    return std::nullopt;
+                }
+                rotation = glm::dquat(local[size_t(bone)].Rotation) * rotation;
+            }
+            if (reference->Socket)
+            {
+                const auto& offset = reference->Socket->RelativeTransform;
+                if (!HasUniformPositiveScale(offset.Scale))
+                {
+                    EE_CORE_ERROR("IK rotation references require uniform positive socket scale.")
+                    return std::nullopt;
+                }
+                rotation *= glm::dquat(offset.Rotation);
+            }
+            result.Rotation = glm::normalize(rotation * *result.Rotation);
+            return result;
+        }
+
         /**
          * @brief Choose a stable unit vector perpendicular to a unit direction.
          * @param direction Unit segment direction.
@@ -82,6 +193,33 @@ namespace Elixir
                 return false;
             }
         }
+        for (size_t i = 0; i < constraints.size(); ++i)
+        {
+            const auto& constraint = constraints[i];
+            if (!constraint.TargetReference) continue;
+            const auto& skeleton = *m_Mesh->GetSkeleton();
+            const auto reference = FindTargetReference(skeleton, *constraint.TargetReference);
+            if (!reference) return false;
+            if (constraint.Weight == 0) continue;
+
+            // A reference must be stable after its follower is solved.
+            for (size_t j = i; j < constraints.size(); ++j)
+            {
+                if (constraints[j].Weight == 0) continue;
+                const auto& bones = skeleton.GetBones();
+                const auto middle = bones[constraints[j].EndBoneIndex].ParentIndex;
+                const auto root = bones[size_t(middle)].ParentIndex;
+                for (auto bone = int32_t(reference->BoneIndex); bone >= 0;
+                    bone = bones[size_t(bone)].ParentIndex)
+                {
+                    if (bone == root)
+                    {
+                        EE_CORE_ERROR("IK target references must precede their followers and avoid feedback.")
+                        return false;
+                    }
+                }
+            }
+        }
         // Preserve overlapping input; ordinary per-frame changes reuse existing capacity.
         for (const auto& existing : m_TwoBoneIKConstraints)
         {
@@ -107,6 +245,8 @@ namespace Elixir
         {
             if (constraint.Weight == 0) continue;
 
+            const auto targetFrame = ResolveTarget(skeleton, constraint, local, model);
+            if (!targetFrame) return false;
             const auto end = constraint.EndBoneIndex;
             const auto middle = uint32_t(bones[end].ParentIndex);
             const auto root = uint32_t(bones[middle].ParentIndex);
@@ -157,7 +297,7 @@ namespace Elixir
                 return false;
             }
 
-            const auto target = glm::dvec3(constraint.TargetPosition) - start;
+            const auto target = targetFrame->Position - start;
             const auto targetDistance = glm::length(target);
             const auto currentDirection = tip - start;
             const auto currentDistance = glm::length(currentDirection);
@@ -196,7 +336,7 @@ namespace Elixir
                 local[root].Rotation, rootLocal, constraint.Weight));
             local[middle].Rotation = glm::normalize(glm::slerp(
                 local[middle].Rotation, middleLocal, constraint.Weight));
-            if (constraint.TargetRotation)
+            if (targetFrame->Rotation)
             {
                 const auto blendedRoot = glm::normalize(
                     parentRotation * glm::dquat(local[root].Rotation));
@@ -205,7 +345,7 @@ namespace Elixir
                 const auto currentEnd = glm::normalize(
                     blendedMiddle * glm::dquat(local[end].Rotation));
                 const auto targetEnd = glm::normalize(glm::slerp(currentEnd,
-                    glm::normalize(glm::dquat(*constraint.TargetRotation)),
+                    *targetFrame->Rotation,
                     double(constraint.Weight)));
                 local[end].Rotation = glm::quat(glm::normalize(
                     glm::conjugate(blendedMiddle) * targetEnd));

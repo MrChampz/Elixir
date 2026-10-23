@@ -196,7 +196,14 @@ namespace Elixir
         /**
          * @brief Replace the ordered two-bone constraints for the next pose evaluation.
          *
-         * Targets and poles use skeleton space, before the character's world transform.
+         * Targets use skeleton space unless TargetReference selects a bone or socket.
+         * Then position and rotation are local offsets in that reference frame. Poles
+         * always use skeleton space, before the character's world transform. References
+         * read the current candidate pose, including earlier constraints. A reference
+         * cannot be affected by its own constraint or any later active constraint;
+         * order drivers before followers. Invalid references or dependencies are rejected.
+         * Referenced rotations require uniform positive scales through the reference
+         * hierarchy and socket; position-only references support affine scale.
          * Each chain uses the end bone's parent and grandparent. Solve after all layers
          * and root-motion locking, before sockets and skinning. Later constraints see
          * earlier results. Local translations and scales are retained. Without a target
@@ -213,8 +220,8 @@ namespace Elixir
          * Stop clears constraints. Read and modify them on the pose update thread.
          *
          * @param constraints Copied ordered list; empty disables IK on the next evaluation.
-         * @return False for invalid bones, nonfinite settings, nonunit target rotations,
-         * or weights outside [0, 1].
+         * @return False for invalid bones, references, dependencies, nonfinite settings,
+         * nonunit target rotations, or weights outside [0, 1].
          */
         bool SetTwoBoneIKConstraints(std::span<const STwoBoneIKConstraint> constraints);
 

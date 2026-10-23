@@ -419,11 +419,12 @@ can control when a weapon hitbox is active while a socket supplies its current t
 
 ### Two Bone IK
 
-The right character adjusts its left arm toward the small orange target next to its
-body; the left character keeps its animated pose. G toggles IK. H toggles target
-rotation; a narrow orange pointer on the solved wrist makes orientation visible.
-P pauses playback, and N steps one frame. G and H still update the arm while paused. The camera angle shows
-the adjusted arm, while the baton remains attached to the other hand's socket.
+The right character holds the baton with both hands. Its right-arm IK positions the
+weapon first; its left-arm IK follows SupportGrip from the same frame. The left
+character keeps its animated pose. G toggles both arm constraints. H toggles target
+rotation for the left wrist; a narrow orange pointer makes its orientation visible.
+P pauses playback, and N steps one frame. G and H still update the pose while paused.
+The support marker follows the baton even when IK is disabled.
 
 ```cpp
 const auto end = mesh->GetSkeleton()->FindBone("wrist.l");
@@ -486,6 +487,48 @@ rotation restores the animated end local rotation on the next evaluation; correc
 do not accumulate. Orientation still applies when the position target is clamped.
 End translation and scale are retained. Descendants and sockets inherit the final
 orientation, and the existing compute skinning batch consumes the corrected matrices.
-For a two-handed attachment, supply a grip socket's skeleton-space position and rotation;
-convert a world-space orientation through the character's inverse rigid rotation first.
-The target is supplied by gameplay; this API does not resolve socket dependencies.
+For world-space targets, convert position through the inverse character transform and
+orientation through its inverse rigid rotation. Bone and socket references can instead
+resolve targets directly from the current candidate pose, as described below.
+
+
+### Bone and socket IK targets
+
+TargetReference optionally selects a bone index (`uint32_t`) or socket name (`std::string`)
+in the instance's own skeleton. Without it, targets retain their skeleton-space behavior.
+With it, TargetPosition and TargetRotation are local offsets in that frame. PolePosition
+always stays in skeleton space. No previous-frame GetSocketTransform query is needed.
+
+```cpp
+STwoBoneIKConstraint support{
+    .EndBoneIndex = uint32_t(leftWrist),
+    .TargetPosition = {0, 0, 0},
+    .PolePosition = {0.9f, 0.8f, -0.2f},
+    .TargetRotation = glm::quat(1, 0, 0, 0),
+    .TargetReference = std::string("SupportGrip")
+};
+// A bone reference uses its numeric skeleton index instead:
+// support.TargetReference = uint32_t(rightHand);
+instance.SetTwoBoneIKConstraints(std::span(&support, 1));
+instance.Update(deltaSeconds);
+```
+
+The demo defines SupportGrip on the right-hand attachment bone. Its offset matches
+0.35 units along the baton's axis, so it represents the other hand's support point
+without adding a socket system to StaticMesh. The right-arm driver precedes the
+left-arm follower. The follower reads the updated right-hand socket in that same
+pose evaluation, including all animation layers, montages, and root-motion locking.
+Sockets and compute skinning consume the final pose afterward.
+
+Constraints run in list order. An active follower's reference cannot be in the subtree
+of its own chain root or any later active constraint's chain root. This rejects feedback,
+cycles, and reversed dependencies. Put all constraints that move a target before its
+followers. Muted constraints do not create dependencies, but their references must still
+exist. Replacing the list revalidates these rules and preserves the old list on failure.
+
+Position references use the complete affine frame, including socket offsets and scale.
+Rotation references require uniform positive scale through the referenced bone's ancestors
+and the socket. They compose reference rotation, socket rotation, and target rotation
+without extracting a quaternion from a sheared matrix. A failure retains the last accepted
+pose, clocks, events, and root delta. Targets outside the limb's reach still clamp normally.
+The reference belongs to this mesh instance; external entities supply converted targets.
