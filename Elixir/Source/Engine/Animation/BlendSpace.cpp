@@ -106,63 +106,6 @@ namespace Elixir
         return float(std::min(duration / total, max));
     }
 
-    bool BlendSpace::ExtractRootMotion(
-        const std::span<const float> values,
-        double startPhase,
-        double endPhase,
-        const bool looping,
-        const SBoneTransform& reference,
-        SRootMotionDelta& output,
-        const uint32_t boneIndex
-    ) const
-    {
-        if (!HasValidCoordinates(values) || !std::isfinite(startPhase) ||
-            !std::isfinite(endPhase) || endPhase < startPhase || !reference.IsValid())
-        {
-            EE_CORE_ERROR("Blend-space root motion requires valid coordinates and phases.")
-            return false;
-        }
-        if (!looping)
-        {
-            startPhase = std::clamp(startPhase, 0.0, 1.0);
-            endPhase = std::clamp(endPhase, 0.0, 1.0);
-        }
-        std::array<std::byte, 256> storage;
-        std::pmr::monotonic_buffer_resource resource(storage.data(), storage.size());
-        std::pmr::vector<SContribution> samples(&resource);
-        FindSamples(values, samples);
-        SRootMotionDelta result;
-        double total = 0;
-        for (const auto& sample : samples)
-        {
-            if (!sample.Sequence || !std::isfinite(sample.Weight) || sample.Weight < 0)
-            {
-                EE_CORE_ERROR("Blend space produced an invalid root-motion contribution.")
-                return false;
-            }
-            if (sample.Weight == 0) continue;
-            const auto start = m_SynchronizationSequence
-                ? sample.Sequence->GetSynchronizedPhase(startPhase, *m_SynchronizationSequence)
-                : startPhase;
-            const auto end = m_SynchronizationSequence
-                ? sample.Sequence->GetSynchronizedPhase(endPhase, *m_SynchronizationSequence)
-                : endPhase;
-            SRootMotionDelta delta;
-            if (!sample.Sequence->ExtractRootMotion(start, end, true, reference, delta, boneIndex))
-                return false;
-            result = total == 0 ? delta : SRootMotionDelta::Blend(result, delta,
-                float(sample.Weight / (total + sample.Weight)));
-            total += sample.Weight;
-        }
-        if (total <= 0 || !result.IsValid())
-        {
-            EE_CORE_ERROR("Blend-space root motion requires a positive finite contribution.")
-            return false;
-        }
-        output = result;
-        return true;
-    }
-
     bool BlendSpace::Sample(
         const std::span<const float> values,
         const float phase,
@@ -241,6 +184,91 @@ namespace Elixir
         }
 
         output = std::move(pose);
+        return true;
+    }
+
+    bool BlendSpace::ExtractRootMotion(
+        const std::span<const float> values,
+        double startPhase,
+        double endPhase,
+        const bool looping,
+        const SBoneTransform& reference,
+        SRootMotionDelta& output,
+        const uint32_t boneIndex
+    ) const
+    {
+        if (!HasValidCoordinates(values) ||
+            !std::isfinite(startPhase) ||
+            !std::isfinite(endPhase) ||
+            endPhase < startPhase ||
+            !reference.IsValid())
+        {
+            EE_CORE_ERROR("Blend-space root motion requires valid coordinates and phases.")
+            return false;
+        }
+
+        if (!looping)
+        {
+            startPhase = std::clamp(startPhase, 0.0, 1.0);
+            endPhase = std::clamp(endPhase, 0.0, 1.0);
+        }
+
+        std::array<std::byte, 256> storage;
+        std::pmr::monotonic_buffer_resource resource(storage.data(), storage.size());
+
+        std::pmr::vector<SContribution> samples(&resource);
+        FindSamples(values, samples);
+
+        SRootMotionDelta result;
+        double total = 0;
+
+        for (const auto& sample : samples)
+        {
+            if (!sample.Sequence || !std::isfinite(sample.Weight) || sample.Weight < 0)
+            {
+                EE_CORE_ERROR("Blend space produced an invalid root-motion contribution.")
+                return false;
+            }
+
+            if (sample.Weight == 0) continue;
+
+            const auto start = m_SynchronizationSequence
+                ? sample.Sequence->GetSynchronizedPhase(startPhase, *m_SynchronizationSequence)
+                : startPhase;
+
+            const auto end = m_SynchronizationSequence
+                ? sample.Sequence->GetSynchronizedPhase(endPhase, *m_SynchronizationSequence)
+                : endPhase;
+
+            SRootMotionDelta delta;
+            const auto success = sample.Sequence->ExtractRootMotion(
+                start,
+                end,
+                true,
+                reference,
+                delta,
+                boneIndex
+            );
+            if (!success) return false;
+
+            result = total == 0
+                ? delta
+                : SRootMotionDelta::Blend(
+                    result,
+                    delta,
+                    float(sample.Weight / (total + sample.Weight))
+                  );
+
+            total += sample.Weight;
+        }
+
+        if (total <= 0 || !result.IsValid())
+        {
+            EE_CORE_ERROR("Blend-space root motion requires a positive finite contribution.")
+            return false;
+        }
+
+        output = result;
         return true;
     }
 }

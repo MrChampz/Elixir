@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Engine/Animation/Skeleton.h>
-#include <glm/gtc/matrix_transform.hpp>
 
 namespace Elixir
 {
@@ -17,7 +16,8 @@ namespace Elixir
         /** @brief Check for finite translation and a unit rotation. */
         bool IsValid() const
         {
-            return SBoneTransform{ Translation, Rotation, glm::vec3(1) }.IsValid();
+            const auto transform = SBoneTransform{ Translation, Rotation, glm::vec3(1) };
+            return transform.IsValid();
         }
 
         /** @brief Build the rigid matrix to post-multiply onto the character transform. */

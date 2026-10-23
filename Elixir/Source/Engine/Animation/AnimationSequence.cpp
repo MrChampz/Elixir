@@ -184,6 +184,264 @@ namespace Elixir
         m_SyncMarkers(std::move(syncMarkers)),
         m_Notifies(std::move(notifies)) {}
 
+    bool AnimationSequence::Sample(
+        const float time,
+        std::vector<SBoneTransform>& output,
+        const std::span<const SBoneTransform> referencePose
+    ) const
+    {
+        if (!std::isfinite(time))
+        {
+            EE_CORE_ERROR("AnimationSequence sample time must be finite.")
+            return false;
+        }
+
+        const auto invalidTransform = std::ranges::any_of(
+            referencePose,
+            [](const auto& t) { return !t.IsValid(); }
+        );
+
+        if (!referencePose.empty() &&
+            (referencePose.size() != m_Skeleton->GetBones().size() || invalidTransform))
+        {
+            EE_CORE_ERROR("AnimationSequence requires valid reference transforms for every bone.")
+            return false;
+        }
+
+        std::vector pose(referencePose.begin(), referencePose.end());
+        if (pose.empty())
+        {
+            for (const auto& bone : m_Skeleton->GetBones())
+                pose.push_back(bone.ReferenceTransform);
+        }
+
+        const float t = std::clamp(time, 0.0f, m_Duration);
+
+        for (const auto& track : m_Tracks)
+        {
+            auto& transform = pose[track.BoneIndex];
+
+            const auto blendVector = [](const auto& a, const auto& b, const float alpha)
+            {
+                return glm::mix(a, b, alpha);
+            };
+
+            const auto blendQuaternion = [](const auto& a, const auto& b, const float alpha)
+            {
+                return glm::normalize(glm::slerp(a, b, alpha));
+            };
+
+            transform.Translation = SampleKeys(
+                track.Translations,
+                t,
+                track.TranslationInterpolation,
+                transform.Translation,
+                blendVector
+            );
+
+            transform.Scale = SampleKeys(
+                track.Scales,
+                t,
+                track.ScaleInterpolation,
+                transform.Scale,
+                blendVector
+            );
+
+            transform.Rotation = SampleKeys(
+                track.Rotations,
+                t,
+                track.RotationInterpolation,
+                transform.Rotation,
+                blendQuaternion
+            );
+
+            if (!transform.IsValid())
+            {
+                EE_CORE_ERROR("AnimationSequence produced a singular or invalid transform.")
+                return false;
+            }
+        }
+
+        output = std::move(pose);
+
+        return true;
+    }
+
+    bool AnimationSequence::ExtractRootMotion(
+        double startPhase,
+        double endPhase,
+        const bool looping,
+        const SBoneTransform& reference,
+        SRootMotionDelta& output,
+        const uint32_t boneIndex
+    ) const
+    {
+        if (!std::isfinite(startPhase) ||
+            !std::isfinite(endPhase) ||
+            endPhase < startPhase ||
+            !reference.IsValid() ||
+            boneIndex >= m_Skeleton->GetBones().size())
+        {
+            EE_CORE_ERROR("Root motion requires valid reference transforms and forward phases.")
+            return false;
+        }
+
+        if (!looping)
+        {
+            startPhase = std::clamp(startPhase, 0.0, 1.0);
+            endPhase = std::clamp(endPhase, 0.0, 1.0);
+        }
+
+        if (endPhase - startPhase > 4096 ||
+            std::abs(startPhase) > 0x1p52 ||
+            std::abs(endPhase) > 0x1p52)
+        {
+            EE_CORE_ERROR("Root motion exceeded the supported cycle interval.")
+            return false;
+        }
+
+        if (startPhase == endPhase || m_Duration == 0)
+        {
+            output = {};
+            return true;
+        }
+
+        const auto track = std::ranges::find(
+            m_Tracks,
+            boneIndex,
+            &SBoneAnimationTrack::BoneIndex
+        );
+
+        if (track == m_Tracks.end())
+        {
+            output = {};
+            return true;
+        }
+
+        const auto sample = [&](const float time) -> SRootMotionDelta
+        {
+            return {
+                SampleKeys(
+                    track->Translations,
+                    time, track->TranslationInterpolation,
+                    reference.Translation,
+                    [](const auto& a, const auto& b, const float w)
+                    {
+                        return glm::mix(a, b, w);
+                    }
+                ),
+                SampleKeys(
+                    track->Rotations,
+                    time,
+                    track->RotationInterpolation,
+                    reference.Rotation,
+                    [](const auto& a, const auto& b, const float w)
+                    {
+                        return glm::normalize(glm::slerp(a, b, w));
+                    }
+                )
+            };
+        };
+
+        const auto origin = sample(0);
+        const auto cycleDelta = origin.Inverse() * sample(m_Duration);
+
+        const auto trajectory = [&](const double phase)
+        {
+            const auto cycles = int64_t(std::floor(phase));
+            auto step = cycles < 0 ? cycleDelta.Inverse() : cycleDelta;
+            auto count = uint64_t(cycles < 0 ? -cycles : cycles);
+
+            SRootMotionDelta result;
+
+            while (count > 0)
+            {
+                if (count & 1) result = result * step;
+                count >>= 1;
+
+                if (count) step = step * step;
+            }
+
+            return result * origin.Inverse() *
+                sample(float((phase - std::floor(phase)) * m_Duration));
+        };
+
+        const SRootMotionDelta root{ reference.Translation, reference.Rotation };
+        const auto delta = root * trajectory(startPhase).Inverse() *
+            trajectory(endPhase) * root.Inverse();
+
+        if (!delta.IsValid())
+        {
+            EE_CORE_ERROR("Root motion produced a nonfinite movement delta.")
+            return false;
+        }
+
+        output = delta;
+        return true;
+    }
+
+    double AnimationSequence::GetSynchronizedPhase(
+        const double phase,
+        const AnimationSequence& reference
+    ) const
+    {
+        if (!std::isfinite(phase))
+        {
+            EE_CORE_ERROR("Animation synchronization phase must be finite.")
+            return 0;
+        }
+
+        if (this == &reference || !CanSynchronizeWith(reference))
+            return phase;
+
+        const auto cycle = std::floor(phase);
+        const auto time = (phase - cycle) * reference.m_Duration;
+        const auto& markers = reference.m_SyncMarkers;
+        const auto count = markers.size();
+
+        const auto upper = std::ranges::upper_bound(
+            markers,
+            time,
+            {},
+            &SAnimationSyncMarker::Time
+        );
+
+        const auto next = upper == markers.end()
+            ? size_t(0)
+            : size_t(upper - markers.begin());
+        const auto previous = (next + count - 1) % count;
+
+        auto start = double(markers[previous].Time);
+        auto end = double(markers[next].Time);
+
+        if (upper == markers.begin())
+            start -= reference.m_Duration;
+        else if (upper == markers.end())
+            end += reference.m_Duration;
+
+        const auto first = std::ranges::find(
+            m_SyncMarkers,
+            markers.front().Name,
+            &SAnimationSyncMarker::Name
+        );
+
+        const auto offset = size_t(first - m_SyncMarkers.begin());
+        auto targetStart = double(m_SyncMarkers[(offset + previous) % count].Time) +
+            double((offset + previous) / count) * m_Duration;
+        auto targetEnd = double(m_SyncMarkers[(offset + previous + 1) % count].Time) +
+            double((offset + previous + 1) / count) * m_Duration;
+
+        if (upper == markers.begin())
+        {
+            targetStart -= m_Duration;
+            targetEnd -= m_Duration;
+        }
+
+        const auto weight = std::clamp((time - start) / (end - start), 0.0, 1.0);
+
+        return cycle + (targetStart + (targetEnd - targetStart) * weight) / m_Duration;
+    }
+
     Ref<AnimationSequence> AnimationSequence::WithSyncMarkers(
         std::vector<SAnimationSyncMarker> syncMarkers
     ) const
@@ -284,126 +542,6 @@ namespace Elixir
             return m_Duration;
 
         return float(wrapped);
-    }
-
-    double AnimationSequence::GetSynchronizedPhase(
-        const double phase,
-        const AnimationSequence& reference
-    ) const
-    {
-        if (!std::isfinite(phase))
-        {
-            EE_CORE_ERROR("Animation synchronization phase must be finite.")
-            return 0;
-        }
-        if (this == &reference || !CanSynchronizeWith(reference))
-            return phase;
-
-        const auto cycle = std::floor(phase);
-        const auto time = (phase - cycle) * reference.m_Duration;
-        const auto& markers = reference.m_SyncMarkers;
-        const auto count = markers.size();
-        const auto upper = std::ranges::upper_bound(markers, time, {}, &SAnimationSyncMarker::Time);
-        const auto next = upper == markers.end() ? size_t(0) : size_t(upper - markers.begin());
-        const auto previous = (next + count - 1) % count;
-        auto start = double(markers[previous].Time);
-        auto end = double(markers[next].Time);
-        if (upper == markers.begin()) start -= reference.m_Duration;
-        else if (upper == markers.end()) end += reference.m_Duration;
-
-        const auto first = std::ranges::find(m_SyncMarkers, markers.front().Name,
-            &SAnimationSyncMarker::Name);
-        const auto offset = size_t(first - m_SyncMarkers.begin());
-        auto targetStart = double(m_SyncMarkers[(offset + previous) % count].Time) +
-            double((offset + previous) / count) * m_Duration;
-        auto targetEnd = double(m_SyncMarkers[(offset + previous + 1) % count].Time) +
-            double((offset + previous + 1) / count) * m_Duration;
-        if (upper == markers.begin())
-        {
-            targetStart -= m_Duration;
-            targetEnd -= m_Duration;
-        }
-
-        const auto weight = std::clamp((time - start) / (end - start), 0.0, 1.0);
-        return cycle + (targetStart + (targetEnd - targetStart) * weight) / m_Duration;
-    }
-
-    bool AnimationSequence::ExtractRootMotion(
-        double startPhase,
-        double endPhase,
-        const bool looping,
-        const SBoneTransform& reference,
-        SRootMotionDelta& output,
-        const uint32_t boneIndex
-    ) const
-    {
-        if (!std::isfinite(startPhase) || !std::isfinite(endPhase) ||
-            endPhase < startPhase || !reference.IsValid() ||
-            boneIndex >= m_Skeleton->GetBones().size())
-        {
-            EE_CORE_ERROR("Root motion requires valid reference transforms and forward phases.")
-            return false;
-        }
-        if (!looping)
-        {
-            startPhase = std::clamp(startPhase, 0.0, 1.0);
-            endPhase = std::clamp(endPhase, 0.0, 1.0);
-        }
-        if (endPhase - startPhase > 4096 ||
-            std::abs(startPhase) > 0x1p52 || std::abs(endPhase) > 0x1p52)
-        {
-            EE_CORE_ERROR("Root motion exceeded the supported cycle interval.")
-            return false;
-        }
-        if (startPhase == endPhase || m_Duration == 0)
-        {
-            output = {};
-            return true;
-        }
-
-        const auto track = std::ranges::find(m_Tracks, boneIndex, &SBoneAnimationTrack::BoneIndex);
-        if (track == m_Tracks.end())
-        {
-            output = {};
-            return true;
-        }
-        const auto sample = [&](const float time) -> SRootMotionDelta
-        {
-            return {
-                SampleKeys(track->Translations, time, track->TranslationInterpolation,
-                    reference.Translation,
-                    [](const auto& a, const auto& b, const float w) { return glm::mix(a, b, w); }),
-                SampleKeys(track->Rotations, time, track->RotationInterpolation,
-                    reference.Rotation,
-                    [](const auto& a, const auto& b, const float w)
-                    { return glm::normalize(glm::slerp(a, b, w)); })
-            };
-        };
-        const auto origin = sample(0);
-        const auto cycleDelta = origin.Inverse() * sample(m_Duration);
-        const auto trajectory = [&](const double phase)
-        {
-            auto cycles = int64_t(std::floor(phase));
-            auto step = cycles < 0 ? cycleDelta.Inverse() : cycleDelta;
-            auto count = uint64_t(cycles < 0 ? -cycles : cycles);
-            SRootMotionDelta result;
-            while (count > 0)
-            {
-                if (count & 1) result = result * step;
-                count >>= 1;
-                if (count) step = step * step;
-            }
-            return result * origin.Inverse() * sample(float((phase - std::floor(phase)) * m_Duration));
-        };
-        const SRootMotionDelta root{ reference.Translation, reference.Rotation };
-        const auto delta = root * trajectory(startPhase).Inverse() * trajectory(endPhase) * root.Inverse();
-        if (!delta.IsValid())
-        {
-            EE_CORE_ERROR("Root motion produced a nonfinite movement delta.")
-            return false;
-        }
-        output = delta;
-        return true;
     }
 
     Ref<AnimationSequence> AnimationSequence::WithNotifies(
@@ -526,89 +664,6 @@ namespace Elixir
         });
 
         output = std::move(events);
-        return true;
-    }
-
-    bool AnimationSequence::Sample(
-        const float time,
-        std::vector<SBoneTransform>& output,
-        const std::span<const SBoneTransform> referencePose
-    ) const
-    {
-        if (!std::isfinite(time))
-        {
-            EE_CORE_ERROR("AnimationSequence sample time must be finite.")
-            return false;
-        }
-
-        const auto invalidTransform = std::ranges::any_of(
-            referencePose,
-            [](const auto& t) { return !t.IsValid(); }
-        );
-
-        if (!referencePose.empty() &&
-            (referencePose.size() != m_Skeleton->GetBones().size() || invalidTransform))
-        {
-            EE_CORE_ERROR("AnimationSequence requires valid reference transforms for every bone.")
-            return false;
-        }
-
-        std::vector pose(referencePose.begin(), referencePose.end());
-        if (pose.empty())
-        {
-            for (const auto& bone : m_Skeleton->GetBones())
-                pose.push_back(bone.ReferenceTransform);
-        }
-
-        const float t = std::clamp(time, 0.0f, m_Duration);
-
-        for (const auto& track : m_Tracks)
-        {
-            auto& transform = pose[track.BoneIndex];
-
-            const auto blendVector = [](const auto& a, const auto& b, const float alpha)
-            {
-                return glm::mix(a, b, alpha);
-            };
-
-            const auto blendQuaternion = [](const auto& a, const auto& b, const float alpha)
-            {
-                return glm::normalize(glm::slerp(a, b, alpha));
-            };
-
-            transform.Translation = SampleKeys(
-                track.Translations,
-                t,
-                track.TranslationInterpolation,
-                transform.Translation,
-                blendVector
-            );
-
-            transform.Scale = SampleKeys(
-                track.Scales,
-                t,
-                track.ScaleInterpolation,
-                transform.Scale,
-                blendVector
-            );
-
-            transform.Rotation = SampleKeys(
-                track.Rotations,
-                t,
-                track.RotationInterpolation,
-                transform.Rotation,
-                blendQuaternion
-            );
-
-            if (!transform.IsValid())
-            {
-                EE_CORE_ERROR("AnimationSequence produced a singular or invalid transform.")
-                return false;
-            }
-        }
-
-        output = std::move(pose);
-
         return true;
     }
 }
