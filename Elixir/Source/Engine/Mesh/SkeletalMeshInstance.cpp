@@ -157,13 +157,17 @@ namespace Elixir
             events.insert(events.end(), layerEvents.begin(), layerEvents.end());
         }
 
-        std::vector<SBoneTransform> local;
-        std::vector<glm::mat4> model;
-
         SRootMotionDelta movement;
-        if (m_RootMotionEnabled && !GetBaseLayer().ExtractRootMotion(
-                advance, m_RootMotionBone, movement, evaluations.front()))
-            return false;
+        if (m_RootMotionEnabled)
+        {
+            const auto success = GetBaseLayer().ExtractRootMotion(
+                advance,
+                m_RootMotionBone,
+                movement,
+                evaluations.front()
+            );
+            if (!success) return false;
+        }
 
         if (m_RootMotionEnabled)
         {
@@ -175,6 +179,9 @@ namespace Elixir
                 return false;
             }
         }
+
+        std::vector<SBoneTransform> local;
+        std::vector<glm::mat4> model;
 
         if (!ComposePose(evaluations, local, model))
             return false;

@@ -32,13 +32,11 @@ class Dissolve final : public Elixir::Application
     Ref<const AnimationSequence> CreateRecoilAnimation();
 
     /**
-     * @brief Build a demonstration timeline with three attacks and a recovery range.
+     * @brief Build three attacks followed by a held end pose for the exit fade.
      * @param attack Source punch sequence sampled at 60 Hz.
-     * @param recovery Source wave sequence used for the final return pose.
      */
     Ref<const AnimationSequence> CreateComboAnimation(
-        const Ref<const AnimationSequence>& attack,
-        const Ref<const AnimationSequence>& recovery
+        const Ref<const AnimationSequence>& attack
     );
 
     /** @brief Submit the complete model to its renderer. */

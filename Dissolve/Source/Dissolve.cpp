@@ -21,6 +21,9 @@ using namespace Elixir::Materials::Nodes;
 
 namespace
 {
+    /** Time spent fading the held final punch pose back to the continuing source. */
+    constexpr float ComboRecoveryDuration = 0.3f;
+
     /** Identifies the foot associated with a locomotion event. */
     enum class EFoot : uint8_t { Left = 1, Right = 2 };
 
@@ -545,17 +548,20 @@ void Dissolve::InitializeAnimationController()
     if (!dodgeLeft)
         return;
 
-    const auto comboAnimation = CreateComboAnimation(punchAnimation, waveAnimation);
+    const auto comboAnimation = CreateComboAnimation(punchAnimation);
     if (!comboAnimation)
         return;
     const auto attackDuration = punchAnimation->GetDuration();
     const auto punchMontage = AnimationMontage::Create({
-        .Name = "PunchCombo", .Sequence = comboAnimation, .BlendIn = 0.1f, .BlendOut = 0.2f,
+        .Name = "PunchCombo",
+        .Sequence = comboAnimation,
+        .BlendIn = 0.1f,
+        .BlendOut = ComboRecoveryDuration,
         .Sections = {
             { "Attack1", 0, "Recovery" },
             { "Attack2", attackDuration, "Recovery" },
             { "Attack3", attackDuration * 2, "Recovery" },
-            { "Recovery", attackDuration * 3, "" }
+            { "Recovery", attackDuration * 3 }
         }
     });
     const auto dodgeMontage = AnimationMontage::Create({
@@ -604,8 +610,7 @@ void Dissolve::InitializeAnimationController()
 }
 
 Ref<const AnimationSequence> Dissolve::CreateComboAnimation(
-    const Ref<const AnimationSequence>& attack,
-    const Ref<const AnimationSequence>& recovery
+    const Ref<const AnimationSequence>& attack
 )
 {
     const auto& reference = m_MeshInstance->GetMesh()->GetData().ReferencePose;
@@ -615,11 +620,9 @@ Ref<const AnimationSequence> Dissolve::CreateComboAnimation(
 
     const auto attackDuration = attack->GetDuration();
     const auto recoveryStart = attackDuration * 3;
-    constexpr float recoveryDuration = 0.3f;
     for (int section = 0; section < 4; ++section)
     {
-        const auto& source = section == 3 ? recovery : attack;
-        const auto duration = section == 3 ? recoveryDuration : attackDuration;
+        const auto duration = section == 3 ? ComboRecoveryDuration : attackDuration;
         const auto start = section == 3 ? recoveryStart : attackDuration * float(section);
         const auto frames = int(std::ceil(duration * 60));
         for (int frame = 0; frame <= frames; ++frame)
@@ -627,7 +630,8 @@ Ref<const AnimationSequence> Dissolve::CreateComboAnimation(
             const auto time = duration * float(frame) / float(frames);
             const auto timelineTime = start + time;
             std::vector<SBoneTransform> pose;
-            if (!source->Sample(time, pose, reference))
+            const auto sampleTime = section == 3 ? attackDuration : time;
+            if (!attack->Sample(sampleTime, pose, reference))
                 return nullptr;
             for (size_t bone = 0; bone < tracks.size(); ++bone)
             {
@@ -650,7 +654,7 @@ Ref<const AnimationSequence> Dissolve::CreateComboAnimation(
     for (int i = 0; i < 3; ++i)
         notifies.push_back({"PunchHit", attackDuration * (float(i) + 0.45f)});
     return AnimationSequence::Create("PunchCombo", attack->GetSkeleton(),
-        recoveryStart + recoveryDuration, std::move(tracks), {}, std::move(notifies));
+        recoveryStart + ComboRecoveryDuration, std::move(tracks), {}, std::move(notifies));
 }
 
 Ref<const AnimationSequence> Dissolve::CreateRecoilAnimation()

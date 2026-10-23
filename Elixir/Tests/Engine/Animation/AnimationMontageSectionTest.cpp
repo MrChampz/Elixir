@@ -342,3 +342,50 @@ TEST_F(AnimationMontageSectionTest, ExitEnvelopeSpansTheRemainingRouteAcrossASec
     EXPECT_NEAR(layer.GetMontageWeight(), 0.25f, 1e-6f);
     EXPECT_NEAR(instance.GetRootMotionDelta().Translation.x, 0.3125f + 0.5625f, 1e-6f);
 }
+
+TEST_F(AnimationMontageSectionTest, ComboRecoveryFadesContinuouslyToTheAdvancingSource)
+{
+    const auto source = AnimationSequence::Create("Wave", Mesh->GetSkeleton(), 4, {{
+        .BoneIndex = 0, .Translations = {{0, {-2, 0, 0}}, {4, {6, 0, 0}}}
+    }});
+    const auto combo = AnimationSequence::Create("Combo", Mesh->GetSkeleton(), 4, {{
+        .BoneIndex = 0,
+        .Translations = {{0, {8, 0, 0}}, {0.5f, {16, 0, 0}}, {1, {8, 0, 0}},
+            {1.5f, {16, 0, 0}}, {2, {8, 0, 0}}, {2.5f, {16, 0, 0}},
+            {3, {8, 0, 0}}, {4, {8, 0, 0}}}
+    }});
+    const auto asset = AnimationMontage::Create({
+        .Name = "Combo", .Sequence = combo, .BlendIn = 0, .BlendOut = 1,
+        .Sections = {{"Attack1", 0, "Recovery"}, {"Attack2", 1, "Recovery"},
+            {"Attack3", 2, "Recovery"}, {"Recovery", 3}}
+    });
+    ASSERT_TRUE(source);
+    ASSERT_TRUE(asset);
+    constexpr float boundaryStep = 1.0f / 4096.0f;
+    for (const auto section : {"Attack1", "Attack2", "Attack3"})
+    {
+        SCOPED_TRACE(section);
+        SkeletalMeshInstance instance(Mesh);
+        ASSERT_TRUE(instance.Play(source));
+        auto& layer = instance.GetBaseLayer();
+        ASSERT_TRUE(layer.PlayMontage(asset, section));
+        ASSERT_TRUE(instance.Update(1.0f - boundaryStep));
+        const auto beforeRecovery = instance.GetLocalPose()[0].Translation.x;
+        ASSERT_TRUE(instance.Update(boundaryStep));
+        EXPECT_EQ(layer.GetCurrentMontageSection(), "Recovery");
+        EXPECT_NEAR(layer.GetMontageWeight(), 1, 1e-5f);
+        EXPECT_NEAR(instance.GetLocalPose()[0].Translation.x, beforeRecovery, 0.005f);
+        ASSERT_TRUE(instance.Update(0.5f));
+        EXPECT_NEAR(layer.GetMontageWeight(), 0.5f, 1e-5f);
+        // The continuing source is at 1.5 seconds (x=1), not restarted at zero (x=-2).
+        EXPECT_NEAR(instance.GetLocalPose()[0].Translation.x, 4.5f, 1e-5f);
+        ASSERT_TRUE(instance.Update(0.5f - boundaryStep));
+        const auto beforeEnd = instance.GetLocalPose()[0].Translation.x;
+        ASSERT_TRUE(instance.Update(boundaryStep + 0.0001f));
+        EXPECT_FALSE(layer.GetMontage());
+        EXPECT_NEAR(instance.GetLocalPose()[0].Translation.x, beforeEnd, 0.002f);
+        EXPECT_NEAR(instance.GetLocalPose()[0].Translation.x, 2.0002f, 1e-5f);
+        ASSERT_TRUE(instance.Update(0.1f));
+        EXPECT_NEAR(instance.GetLocalPose()[0].Translation.x, 2.2002f, 1e-5f);
+    }
+}

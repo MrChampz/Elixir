@@ -381,6 +381,7 @@ namespace Elixir
             m_LocalPose = std::move(evaluation.PlaybackPose);
             m_MontagePose = std::move(evaluation.LocalPose);
             m_Montage.Cursor = evaluation.Montage.Cursor;
+
             if (m_Montage.Cursor.Finished)
             {
                 m_Montage = {};

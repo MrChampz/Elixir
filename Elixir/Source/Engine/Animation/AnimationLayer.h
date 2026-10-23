@@ -376,7 +376,8 @@ namespace Elixir
          * @param output Receives events in chronological frame order.
          */
         bool CollectMontageNotifyEvents(
-            float dt, const SMontageEvaluation& evaluation,
+            float dt,
+            const SMontageEvaluation& evaluation,
             std::vector<SAnimationNotifyEvent>& output
         ) const;
 
@@ -529,7 +530,9 @@ namespace Elixir
          * @param evaluation Validated traversal reused for section movement.
          */
         bool ExtractRootMotion(
-            float dt, uint32_t boneIndex, SRootMotionDelta& output,
+            float dt,
+            uint32_t boneIndex,
+            SRootMotionDelta& output,
             const SLayerEvaluation& evaluation
         ) const;
 

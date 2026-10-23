@@ -32,7 +32,7 @@ out or in over 0.25 seconds on both characters. The UpperBody layer continuously
 plays Waving underneath the action. Press `K` again during Attack1 to queue Attack2,
 and during Attack2 to queue Attack3. Without input each attack goes to Recovery.
 Press `J` to jump directly to Recovery. The montage fades in over 0.1 seconds and
-out over its final 0.2 seconds, returning to the continuing wave. No action states
+out over its 0.3-second Recovery section, returning to the continuing wave. No action states
 or transition parameters are needed.
 The HUD shows WAVE or PUNCH independently of the locomotion phase.
 The right character also adds recoil, described below. `P`, `N`, and `F` retain pause,
@@ -252,10 +252,13 @@ existing compute skinning pass consumes the final composed pose without another 
 ## Montage sections and combos
 
 The demo builds a separate `PunchCombo` timeline by sampling the original punch at
-60 Hz three times and appending 0.3 seconds of the original wave as Recovery. This
+60 Hz three times and holding the final punch pose for 0.3 seconds as Recovery. This
 runtime demonstration does not change the GLB. Section boundaries are Attack1 at 0,
 Attack2 at one punch duration, Attack3 at two durations, and Recovery at three durations.
 Each attack defaults to Recovery; K overrides only this character's outgoing link.
+The montage fades out throughout Recovery toward the live UpperBody source. The
+punch starts and ends in the same pose, so the section jump remains continuous.
+Recovery does not restart Waving at time zero; Waving keeps advancing underneath.
 The HUD shows ATTACK 1, ATTACK 2, ATTACK 3, or RECOVERY, and each attack emits PunchHit.
 
 ```cpp
