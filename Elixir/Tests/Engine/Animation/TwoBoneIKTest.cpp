@@ -289,3 +289,149 @@ TEST(TwoBoneIKTest, ProtectsTheExtractedRootMotionFrame)
     EXPECT_FALSE(instance.IsRootMotionEnabled());
     EXPECT_EQ(instance.GetModelPose(), pose);
 }
+
+namespace
+{
+    /**
+     * @brief Compare skeleton-space rotation axes without including inherited scale.
+     * @param actual Skeleton-space bone matrix.
+     * @param expected Desired unit quaternion.
+     */
+    void ExpectRotation(const glm::mat4& actual, const glm::quat& expected)
+    {
+        const auto rotation = glm::mat3_cast(expected);
+        for (int axis = 0; axis < 3; ++axis)
+            ExpectPosition(glm::normalize(glm::vec3(actual[axis])), rotation[axis]);
+    }
+}
+
+TEST(TwoBoneIKTest, TargetRotationAlignsTheEndWithoutMovingItsPosition)
+{
+    SkeletalMeshInstance instance(MakeIKMesh());
+    const auto rotation = glm::angleAxis(0.8f, glm::normalize(glm::vec3(1, 2, 3)));
+    const STwoBoneIKConstraint constraint{2, {1, 1, 0}, {0, 2, 0}, 1, rotation};
+    ASSERT_TRUE(instance.SetTwoBoneIKConstraints(std::span(&constraint, 1)));
+    ASSERT_TRUE(instance.Update(0));
+    const auto& model = instance.GetModelPose();
+    ExpectPosition(glm::vec3(model[2][3]), {1, 1, 0});
+    ExpectRotation(model[2], rotation);
+    ExpectRotation(*instance.GetSocketTransform("Grip"), rotation);
+    ExpectPosition(glm::vec3(model[3][3]), glm::vec3(1, 1, 0) + rotation * glm::vec3(0.2f, 0, 0));
+}
+
+TEST(TwoBoneIKTest, AbsentRotationPreservesAnimatedEndLocalRotation)
+{
+    auto data = MakeIKMesh()->GetData();
+    const auto rotation = glm::angleAxis(0.6f, glm::vec3(1, 0, 0));
+    data.ReferencePose[2].Rotation = rotation;
+    SkeletalMeshInstance instance(SkeletalMesh::Create(std::move(data)));
+    ASSERT_TRUE(SetTarget(instance, {1, 1, 0}));
+    ASSERT_TRUE(instance.Update(0));
+    EXPECT_EQ(instance.GetLocalPose()[2].Rotation, rotation);
+}
+
+TEST(TwoBoneIKTest, PartialWeightBlendsFromThePositionCorrectedOrientation)
+{
+    const auto mesh = MakeIKMesh();
+    SkeletalMeshInstance positionOnly(mesh), oriented(mesh);
+    const auto rotation = glm::angleAxis(1.4f, glm::vec3(0, 0, 1));
+    ASSERT_TRUE(SetTarget(positionOnly, {1, 1, 0}, {0, 2, 0}, 0.5f));
+    ASSERT_TRUE(positionOnly.Update(0));
+    const auto initialRotation = glm::quat_cast(glm::mat3(positionOnly.GetModelPose()[2]));
+    const STwoBoneIKConstraint constraint{2, {1, 1, 0}, {0, 2, 0}, 0.5f, rotation};
+    ASSERT_TRUE(oriented.SetTwoBoneIKConstraints(std::span(&constraint, 1)));
+    ASSERT_TRUE(oriented.Update(0));
+    ExpectRotation(oriented.GetModelPose()[2], glm::slerp(initialRotation, rotation, 0.5f));
+    ExpectPosition(glm::vec3(oriented.GetModelPose()[2][3]),
+        glm::vec3(positionOnly.GetModelPose()[2][3]));
+}
+
+TEST(TwoBoneIKTest, ZeroWeightPreservesTheEntirePoseWithATargetRotation)
+{
+    SkeletalMeshInstance instance(MakeIKMesh());
+    const auto pose = instance.GetModelPose();
+    const STwoBoneIKConstraint constraint{2, {1, 1, 0}, {0, 2, 0}, 0,
+        glm::angleAxis(1.2f, glm::vec3(0, 1, 0))};
+    ASSERT_TRUE(instance.SetTwoBoneIKConstraints(std::span(&constraint, 1)));
+    ASSERT_TRUE(instance.Update(0));
+    EXPECT_EQ(instance.GetModelPose(), pose);
+}
+
+TEST(TwoBoneIKTest, OppositeQuaternionSignsGiveTheSameShortestPath)
+{
+    const auto mesh = MakeIKMesh();
+    SkeletalMeshInstance first(mesh), second(mesh);
+    const auto rotation = glm::angleAxis(0.8f, glm::normalize(glm::vec3(1, 2, 3)));
+    const STwoBoneIKConstraint positive{2, {1, 1, 0}, {0, 2, 0}, 0.5f, rotation};
+    const STwoBoneIKConstraint negative{2, {1, 1, 0}, {0, 2, 0}, 0.5f, -rotation};
+    ASSERT_TRUE(first.SetTwoBoneIKConstraints(std::span(&positive, 1)));
+    ASSERT_TRUE(second.SetTwoBoneIKConstraints(std::span(&negative, 1)));
+    ASSERT_TRUE(first.Update(0));
+    ASSERT_TRUE(second.Update(0));
+    const auto expected = glm::quat_cast(glm::mat3(first.GetModelPose()[2]));
+    ExpectRotation(second.GetModelPose()[2], expected);
+    EXPECT_NEAR(std::abs(glm::dot(expected, rotation)), std::cos(0.2f), 1e-5f);
+}
+
+TEST(TwoBoneIKTest, TargetRotationUsesSkeletonSpaceUnderRotatedScaledAncestors)
+{
+    auto data = MakeIKMesh()->GetData();
+    auto bones = data.Skeleton->GetBones();
+    bones.insert(bones.begin(), {.Name = "Wrapper", .ReferenceTransform = {
+        .Translation = {3, 4, 5},
+        .Rotation = glm::angleAxis(0.6f, glm::vec3(0, 0, 1)), .Scale = {2, 2, 2}}});
+    for (size_t i = 1; i < bones.size(); ++i) ++bones[i].ParentIndex;
+    data.Skeleton = Skeleton::Create("Wrapped", std::move(bones));
+    data.ReferencePose.clear();
+    SkeletalMeshInstance instance(SkeletalMesh::Create(std::move(data)));
+    const auto target = glm::vec3(instance.GetModelPose()[0] * glm::vec4(1, 1, 0, 1));
+    const auto pole = glm::vec3(instance.GetModelPose()[0] * glm::vec4(0, 2, 0, 1));
+    const auto rotation = glm::angleAxis(0.9f, glm::vec3(0, 1, 0));
+    const STwoBoneIKConstraint constraint{3, target, pole, 1, rotation};
+    ASSERT_TRUE(instance.SetTwoBoneIKConstraints(std::span(&constraint, 1)));
+    ASSERT_TRUE(instance.Update(0));
+    ExpectPosition(glm::vec3(instance.GetModelPose()[3][3]), target);
+    ExpectRotation(instance.GetModelPose()[3], rotation);
+}
+
+TEST(TwoBoneIKTest, RejectsInvalidTargetRotationsAndRetainsSettings)
+{
+    SkeletalMeshInstance instance(MakeIKMesh());
+    const STwoBoneIKConstraint valid{2, {1, 1, 0}, {0, 2, 0}, 1, glm::quat(1, 0, 0, 0)};
+    ASSERT_TRUE(instance.SetTwoBoneIKConstraints(std::span(&valid, 1)));
+    for (const auto rotation : {glm::quat(0, 0, 0, 0), glm::quat(2, 0, 0, 0),
+        glm::quat(std::numeric_limits<float>::infinity(), 0, 0, 0),
+        glm::quat(1, 0, std::numeric_limits<float>::quiet_NaN(), 0)})
+    {
+        auto invalid = valid;
+        invalid.TargetRotation = rotation;
+        EXPECT_FALSE(instance.SetTwoBoneIKConstraints(std::span(&invalid, 1)));
+        EXPECT_EQ(instance.GetTwoBoneIKConstraints()[0].TargetRotation, valid.TargetRotation);
+    }
+}
+
+TEST(TwoBoneIKTest, ClampedTargetsStillReceiveTheRequestedRotation)
+{
+    SkeletalMeshInstance instance(MakeIKMesh());
+    const auto rotation = glm::angleAxis(-0.9f, glm::vec3(1, 0, 0));
+    const STwoBoneIKConstraint constraint{2, {0, 100, 0}, {0, 2, 0}, 1, rotation};
+    ASSERT_TRUE(instance.SetTwoBoneIKConstraints(std::span(&constraint, 1)));
+    ASSERT_TRUE(instance.Update(0));
+    ExpectPosition(glm::vec3(instance.GetModelPose()[2][3]), {0, 2, 0});
+    ExpectRotation(instance.GetModelPose()[2], rotation);
+}
+
+TEST(TwoBoneIKTest, RemovingOrientationRestoresPositionOnlyBehaviorWithoutAccumulation)
+{
+    SkeletalMeshInstance instance(MakeIKMesh());
+    const auto rotation = glm::angleAxis(1.0f, glm::vec3(0, 1, 0));
+    const STwoBoneIKConstraint constraint{2, {1, 1, 0}, {0, 2, 0}, 1, rotation};
+    ASSERT_TRUE(instance.SetTwoBoneIKConstraints(std::span(&constraint, 1)));
+    ASSERT_TRUE(instance.Update(0));
+    const auto pose = instance.GetModelPose();
+    ASSERT_TRUE(instance.Update(0));
+    EXPECT_EQ(instance.GetModelPose(), pose);
+    ASSERT_TRUE(SetTarget(instance, {1, 1, 0}));
+    ASSERT_TRUE(instance.Update(0));
+    EXPECT_EQ(instance.GetLocalPose()[2].Rotation, glm::quat(1, 0, 0, 0));
+}

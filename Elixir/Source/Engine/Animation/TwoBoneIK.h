@@ -16,7 +16,10 @@ namespace Elixir
         /** Skeleton-space point toward which the middle joint bends. */
         glm::vec3 PolePosition{};
 
-        /** Local rotation blend in [0, 1]; zero preserves the animated pose exactly. */
+        /** Rotation blend in [0, 1]; zero preserves the animated pose exactly. */
         float Weight = 1.0f;
+
+        /** Optional unit quaternion in skeleton space; absent preserves end local rotation. */
+        std::optional<glm::quat> TargetRotation;
     };
 }

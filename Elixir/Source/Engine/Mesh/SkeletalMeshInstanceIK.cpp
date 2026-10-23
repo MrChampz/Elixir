@@ -31,7 +31,7 @@ namespace Elixir
 
         /**
          * @brief Check skeleton-space target and blend settings without changing the pose.
-         * @param constraint Requested target, pole, and weight.
+         * @param constraint Target, pole, optional orientation, and weight.
          */
         bool HasValidSettings(const STwoBoneIKConstraint& constraint)
         {
@@ -41,8 +41,19 @@ namespace Elixir
                     !std::isfinite(constraint.PolePosition[i]))
                     return false;
             }
-            return std::isfinite(constraint.Weight) &&
-                constraint.Weight >= 0 && constraint.Weight <= 1;
+            if (!std::isfinite(constraint.Weight) ||
+                constraint.Weight < 0 || constraint.Weight > 1)
+                return false;
+
+            if (constraint.TargetRotation)
+            {
+                const auto& rotation = *constraint.TargetRotation;
+                for (int i = 0; i < 4; ++i)
+                    if (!std::isfinite(rotation[i])) return false;
+                if (std::abs(glm::dot(rotation, rotation) - 1.0f) >= 1e-4f)
+                    return false;
+            }
+            return true;
         }
     }
 
@@ -59,7 +70,7 @@ namespace Elixir
         {
             if (!HasValidSettings(constraint))
             {
-                EE_CORE_ERROR("Two-bone IK requires finite targets and a weight in [0, 1].")
+                EE_CORE_ERROR("Two-bone IK requires finite targets, a unit target rotation, and weight in [0, 1].")
                 return false;
             }
             const auto& bones = m_Mesh->GetSkeleton()->GetBones();
@@ -185,6 +196,20 @@ namespace Elixir
                 local[root].Rotation, rootLocal, constraint.Weight));
             local[middle].Rotation = glm::normalize(glm::slerp(
                 local[middle].Rotation, middleLocal, constraint.Weight));
+            if (constraint.TargetRotation)
+            {
+                const auto blendedRoot = glm::normalize(
+                    parentRotation * glm::dquat(local[root].Rotation));
+                const auto blendedMiddle = glm::normalize(
+                    blendedRoot * glm::dquat(local[middle].Rotation));
+                const auto currentEnd = glm::normalize(
+                    blendedMiddle * glm::dquat(local[end].Rotation));
+                const auto targetEnd = glm::normalize(glm::slerp(currentEnd,
+                    glm::normalize(glm::dquat(*constraint.TargetRotation)),
+                    double(constraint.Weight)));
+                local[end].Rotation = glm::quat(glm::normalize(
+                    glm::conjugate(blendedMiddle) * targetEnd));
+            }
             if (!skeleton.BuildModelPose(local, model)) return false;
         }
         return true;

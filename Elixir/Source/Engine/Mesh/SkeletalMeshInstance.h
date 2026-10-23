@@ -199,9 +199,11 @@ namespace Elixir
          * Targets and poles use skeleton space, before the character's world transform.
          * Each chain uses the end bone's parent and grandparent. Solve after all layers
          * and root-motion locking, before sockets and skinning. Later constraints see
-         * earlier results. Only the two parent rotations change; local translations,
-         * scales, and the end bone's local rotation are retained. Weight blends rotations,
-         * so intermediate weights do not linearly interpolate the end position.
+         * earlier results. Local translations and scales are retained. Without a target
+         * rotation, only the two parent rotations change. With one, also blend the end
+         * orientation after positional correction toward that skeleton-space rotation.
+         * The same weight controls both adjustments. Weight blends rotations, so intermediate
+         * weights do not linearly interpolate the end position.
          *
          * Active chains require nonzero segment lengths and uniform positive scales
          * through their ancestors. Unreachable targets clamp to the reachable range.
@@ -211,7 +213,8 @@ namespace Elixir
          * Stop clears constraints. Read and modify them on the pose update thread.
          *
          * @param constraints Copied ordered list; empty disables IK on the next evaluation.
-         * @return False for invalid bones, nonfinite settings, or weights outside [0, 1].
+         * @return False for invalid bones, nonfinite settings, nonunit target rotations,
+         * or weights outside [0, 1].
          */
         bool SetTwoBoneIKConstraints(std::span<const STwoBoneIKConstraint> constraints);
 

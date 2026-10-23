@@ -420,14 +420,15 @@ can control when a weapon hitbox is active while a socket supplies its current t
 ### Two Bone IK
 
 The right character adjusts its left arm toward the small orange target next to its
-body; the left character keeps its animated pose. G toggles IK. P pauses playback,
-and N steps one frame. G still updates the arm while paused. The camera angle shows
+body; the left character keeps its animated pose. G toggles IK. H toggles target
+rotation; a narrow orange pointer on the solved wrist makes orientation visible.
+P pauses playback, and N steps one frame. G and H still update the arm while paused. The camera angle shows
 the adjusted arm, while the baton remains attached to the other hand's socket.
 
 ```cpp
 const auto end = mesh->GetSkeleton()->FindBone("wrist.l");
 if (end < 0) return;
-const STwoBoneIKConstraint constraint{
+STwoBoneIKConstraint constraint{
     .EndBoneIndex = uint32_t(end),
     .TargetPosition = {0.5f, 1.05f, -0.25f},
     .PolePosition = {0.9f, 0.8f, -0.2f},
@@ -446,11 +447,15 @@ constraints. There is no dependency on world transforms or an attachment system.
 
 Evaluation runs after animation layers, montages, additive blending, and root-motion
 locking. Constraints run in authored order; later ones use earlier results. Only the
-root and middle local rotations change. The end bone keeps its local rotation, so its
-model orientation follows its newly rotated parents. Target orientation is not solved.
+root and middle local rotations change when TargetRotation is absent. The end bone
+then keeps its local rotation, so its model orientation follows its newly rotated
+parents. With TargetRotation set, also adjust the end local rotation to match the
+requested unit quaternion in skeleton space. Position and orientation use the same
+Weight. Orientation blends from the end's orientation after positional correction;
+full weight matches the target and zero preserves the animated pose exactly.
 Sockets, descendants, and compute skinning all use the same final corrected pose.
 
-Weights interpolate local rotations, not end positions. Zero preserves animation
+Weights blend rotations, not end positions. Zero preserves animation
 exactly. Targets outside the reachable distance clamp without stretching segments.
 A coincident target or collinear pole falls back to the current bend or a stable
 perpendicular direction. Active chains require uniform positive scales through both
@@ -465,3 +470,22 @@ also pass through IK. Stop clears the list and restores the reference pose. A fa
 pose evaluation preserves playback, events, root delta, and the last accepted pose;
 configured constraints remain available for correction and retry. Corrections are
 recomputed from animation every frame and do not accumulate on previous IK results.
+
+TargetRotation is optional, for example:
+
+```cpp
+constraint.TargetRotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0, 1, 0));
+instance.SetTwoBoneIKConstraints(std::span(&constraint, 1));
+instance.Update(deltaSeconds);
+// Use std::nullopt to return to position-only IK.
+```
+
+The quaternion must be finite and unit length. Opposite quaternion signs represent
+the same orientation and interpolate along the shortest path. Removing the target
+rotation restores the animated end local rotation on the next evaluation; corrections
+do not accumulate. Orientation still applies when the position target is clamped.
+End translation and scale are retained. Descendants and sockets inherit the final
+orientation, and the existing compute skinning batch consumes the corrected matrices.
+For a two-handed attachment, supply a grip socket's skeleton-space position and rotation;
+convert a world-space orientation through the character's inverse rigid rotation first.
+The target is supplied by gameplay; this API does not resolve socket dependencies.
