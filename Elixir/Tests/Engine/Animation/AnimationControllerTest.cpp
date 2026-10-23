@@ -718,7 +718,7 @@ TEST_F(AnimationControllerTest, DirectSequenceStartsOnceHoldsItsEndAndRestartsOn
     EXPECT_FLOAT_EQ(mesh.GetTime(), 0.1f);
     EXPECT_TRUE(mesh.IsPlaying());
     ASSERT_EQ(mesh.GetNotifyEvents().size(), 1);
-    EXPECT_EQ(mesh.GetNotifyEvents()[0].GetNotify().Name, "Start");
+    EXPECT_EQ(mesh.GetNotifyEvents()[0].GetName(), "Start");
 }
 
 TEST_F(AnimationControllerTest, DirectSequenceMatchesASingleStateMachineThroughLoopsAndPause)

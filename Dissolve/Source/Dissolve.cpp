@@ -286,9 +286,9 @@ Dissolve::Dissolve()
         .SetAnchors(GUI::SAnchors::TopLeft())
         .SetPosition({20, 110})
         .SetSize({1100, 30});
-    m_NotifyStateStatus = CreateRef<GUI::TextBlock>("Hitbox OFF | Window updates 0 | Cancelled 0");
-    m_NotifyStateStatus->SetFontSize(18.0f);
-    panel->AddChild(m_NotifyStateStatus)
+    m_NotifyStatus = CreateRef<GUI::TextBlock>("Hitbox OFF | Window updates 0 | Cancelled 0");
+    m_NotifyStatus->SetFontSize(18.0f);
+    panel->AddChild(m_NotifyStatus)
         .SetAnchors(GUI::SAnchors::TopLeft())
         .SetPosition({20, 140})
         .SetSize({1100, 30});
@@ -331,12 +331,12 @@ void Dissolve::OnGUI(const Timestep frameTime)
                 m_RootMotionDistance.load(std::memory_order_relaxed)
             )
         );
-    if (m_NotifyStateStatus)
-        m_NotifyStateStatus->SetText(std::format(
+    if (m_NotifyStatus)
+        m_NotifyStatus->SetText(std::format(
             "Hitbox {} | Window updates {} | Cancelled {}",
             m_HitboxActive.load(std::memory_order_relaxed) ? "ON" : "OFF",
-            m_NotifyStateUpdates.load(std::memory_order_relaxed),
-            m_CancelledNotifyStates.load(std::memory_order_relaxed)
+            m_NotifyUpdates.load(std::memory_order_relaxed),
+            m_CancelledNotifies.load(std::memory_order_relaxed)
         ));
 }
 
@@ -497,8 +497,8 @@ void Dissolve::InitializeAnimationController()
     )
     {
         return clip->WithNotifies({
-            { "Footstep", leftTime, SFootstepNotifyPayload{ EFoot::Left } },
-            { "Footstep", rightTime, SFootstepNotifyPayload{ EFoot::Right } },
+            { "Footstep", leftTime, 0, SFootstepNotifyPayload{ EFoot::Left } },
+            { "Footstep", rightTime, 0, SFootstepNotifyPayload{ EFoot::Right } },
         });
     };
 
@@ -670,13 +670,11 @@ Ref<const AnimationSequence> Dissolve::CreateComboAnimation(
     std::vector<SAnimationNotify> notifies;
     for (int i = 0; i < 3; ++i)
         notifies.push_back({"PunchHit", attackDuration * (float(i) + 0.45f)});
-    std::vector<SAnimationNotifyState> windows;
     for (int i = 0; i < 3; ++i)
-        windows.push_back({"AttackHitbox", attackDuration * (float(i) + 0.3f),
-            attackDuration * (float(i) + 0.65f), SAttackWindowPayload{}});
+        notifies.push_back({"AttackHitbox", attackDuration * (float(i) + 0.3f),
+            attackDuration * 0.35f, SAttackWindowPayload{}});
     return AnimationSequence::Create("PunchCombo", attack->GetSkeleton(),
-        recoveryStart + ComboRecoveryDuration, std::move(tracks), {}, std::move(notifies),
-        std::move(windows));
+        recoveryStart + ComboRecoveryDuration, std::move(tracks), {}, std::move(notifies));
 }
 
 Ref<const AnimationSequence> Dissolve::CreateRecoilAnimation()
@@ -806,12 +804,12 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
             return;
     }
 
-    for (const auto& event : m_MeshInstance->GetNotifyStateEvents())
+    for (const auto& event : m_MeshInstance->GetNotifyEvents())
     {
         if (event.LayerName != "UpperBody" ||
-            event.GetNotifyState().Name != "AttackHitbox")
+            event.GetName() != "AttackHitbox")
             continue;
-        const auto* payload = event.GetNotifyState().GetPayload<SAttackWindowPayload>();
+        const auto* payload = event.GetPayload<SAttackWindowPayload>();
         if (!payload)
         {
             EE_CORE_ERROR("Attack window requires an SAttackWindowPayload.")
@@ -819,17 +817,19 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
         }
         switch (event.Type)
         {
-            case EAnimationNotifyStateEventType::Begin:
+            case EAnimationNotifyEventType::Instant:
+                break;
+            case EAnimationNotifyEventType::Begin:
                 m_HitboxActive.store(true, std::memory_order_relaxed);
                 break;
-            case EAnimationNotifyStateEventType::Update:
+            case EAnimationNotifyEventType::Update:
                 // A game would query targets during this active interval.
-                m_NotifyStateUpdates.fetch_add(1, std::memory_order_relaxed);
+                m_NotifyUpdates.fetch_add(1, std::memory_order_relaxed);
                 break;
-            case EAnimationNotifyStateEventType::End:
+            case EAnimationNotifyEventType::End:
                 m_HitboxActive.store(false, std::memory_order_relaxed);
                 if (event.Cancelled)
-                    m_CancelledNotifyStates.fetch_add(1, std::memory_order_relaxed);
+                    m_CancelledNotifies.fetch_add(1, std::memory_order_relaxed);
                 break;
         }
     }
@@ -837,13 +837,16 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
     // The application maps generic animation events to feedback for this demo.
     for (const auto& event : m_MeshInstance->GetNotifyEvents())
     {
+        if (event.Type != EAnimationNotifyEventType::Instant)
+            continue;
+
         if (event.LayerName == "UpperBody")
             m_ActionEvents.fetch_add(1, std::memory_order_relaxed);
         if (event.LayerName == "Recoil")
             m_RecoilEvents.fetch_add(1, std::memory_order_relaxed);
-        if (event.GetNotify().Name == "Footstep")
+        if (event.GetName() == "Footstep")
         {
-            const auto* payload = event.GetNotify().GetPayload<SFootstepNotifyPayload>();
+            const auto* payload = event.GetPayload<SFootstepNotifyPayload>();
             if (!payload)
             {
                 EE_CORE_ERROR("Footstep notify requires an SFootstepNotifyPayload.")
@@ -855,7 +858,7 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
         }
     }
     for (const auto& event : m_ComparisonInstance->GetNotifyEvents())
-        if (event.GetNotify().Name == "Footstep")
+        if (event.GetName() == "Footstep")
             m_ComparisonSteps.fetch_add(1, std::memory_order_relaxed);
 
     m_AnimationPhase.store(m_MeshInstance->GetNormalizedTime(), std::memory_order_relaxed);

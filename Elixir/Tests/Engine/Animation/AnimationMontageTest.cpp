@@ -168,10 +168,10 @@ TEST_F(AnimationMontageTest, EventsUseActionTimelineThenResumeSourceWithinTheSam
     ASSERT_TRUE(instance.Update(1.3f));
     const auto events = instance.GetNotifyEvents();
     ASSERT_EQ(events.size(), 4);
-    EXPECT_EQ(events[0].GetNotify().Name, "Start");
-    EXPECT_EQ(events[1].GetNotify().Name, "Hit");
-    EXPECT_EQ(events[2].GetNotify().Name, "End");
-    EXPECT_EQ(events[3].GetNotify().Name, "Source");
+    EXPECT_EQ(events[0].GetName(), "Start");
+    EXPECT_EQ(events[1].GetName(), "Hit");
+    EXPECT_EQ(events[2].GetName(), "End");
+    EXPECT_EQ(events[3].GetName(), "Source");
     EXPECT_NEAR(events[3].TimeOffset, 1.2, 1e-5);
     EXPECT_EQ(events[1].LayerName, "Base");
     EXPECT_EQ(events[1].Sequence, action->GetSequence());
@@ -281,7 +281,7 @@ TEST_F(AnimationMontageTest, UnassignedLayerEmitsTypedEventsOnceAndPauseDoesNotC
     SkeletalMeshInstance instance(Mesh);
     auto& layer = instance.GetBaseLayer();
     const auto action = AnimationMontage::Create({.Name = "Hit", .Sequence =
-        Clip(1, 0, {{"Hit", 0, SHit{}}})});
+        Clip(1, 0, {{"Hit", 0, 0, SHit{}}})});
     ASSERT_TRUE(layer.PlayMontage(action));
     layer.Pause();
     ASSERT_TRUE(instance.Update(0.5f));
@@ -292,12 +292,12 @@ TEST_F(AnimationMontageTest, UnassignedLayerEmitsTypedEventsOnceAndPauseDoesNotC
     ASSERT_TRUE(instance.Update(0.25f));
     ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
     const auto event = instance.GetNotifyEvents()[0];
-    ASSERT_TRUE(event.GetNotify().GetPayload<SHit>());
-    EXPECT_EQ(event.GetNotify().GetPayload<SHit>()->Damage, 7);
+    ASSERT_TRUE(event.GetPayload<SHit>());
+    EXPECT_EQ(event.GetPayload<SHit>()->Damage, 7);
     ASSERT_TRUE(instance.Update(0.25f));
     EXPECT_TRUE(instance.GetNotifyEvents().empty());
     ASSERT_TRUE(layer.StopMontage(0));
-    EXPECT_EQ(event.GetNotify().GetPayload<SHit>()->Damage, 7);
+    EXPECT_EQ(event.GetPayload<SHit>()->Damage, 7);
 }
 
 TEST_F(AnimationMontageTest, BlendSpaceCoordinatesContinueUpdatingUnderAction)

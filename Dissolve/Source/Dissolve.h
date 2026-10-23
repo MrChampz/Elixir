@@ -69,9 +69,9 @@ class Dissolve final : public Elixir::Application
     std::atomic<uint64_t> m_ActionEvents = 0;
     std::atomic<int> m_ComboSection = 0;
     std::atomic<bool> m_HitboxActive = false;
-    std::atomic<uint64_t> m_NotifyStateUpdates = 0;
-    std::atomic<uint64_t> m_CancelledNotifyStates = 0;
-    Ref<GUI::TextBlock> m_NotifyStateStatus;
+    std::atomic<uint64_t> m_NotifyUpdates = 0;
+    std::atomic<uint64_t> m_CancelledNotifies = 0;
+    Ref<GUI::TextBlock> m_NotifyStatus;
     bool m_WaveKeyPressed = false;
     bool m_PunchKeyPressed = false;
     bool m_LayerKeyPressed = false;

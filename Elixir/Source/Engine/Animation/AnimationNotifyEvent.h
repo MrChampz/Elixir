@@ -4,29 +4,59 @@
 
 namespace Elixir
 {
-    /** Retains the authored sequence for one event emitted by a successful update. */
-    struct SAnimationNotifyEvent
+    /** Identifies an instantaneous notification or a notification's lifecycle step. */
+    enum class EAnimationNotifyEventType : uint8_t
     {
-        /** Shared ownership keeps event metadata alive after playback changes. */
-        Ref<const AnimationSequence> Sequence;
-
-        /** Index into Sequence's sorted notify list. */
-        size_t NotifyIndex = 0;
-
-        /** Seconds elapsed within this update when playback crossed the event. */
-        double TimeOffset = 0.0;
-
-        /** Owning layer name, including Base for base playback. Retained with the event. */
-        std::string LayerName;
-
-        /**
-         * @brief Get the immutable event metadata retained by this occurrence.
-         * @pre Sequence is non-null and NotifyIndex refers to one of its notifies.
-         */
-        const SAnimationNotify& GetNotify() const
-        {
-            return Sequence->GetNotifies()[NotifyIndex];
-        }
+        Instant,
+        Begin,
+        Update,
+        End
     };
 
+    /** Retains one notification emitted by a successful animation update. */
+    struct SAnimationNotifyEvent
+    {
+        /** Shared ownership keeps notification metadata and its payload alive. */
+        Ref<const AnimationSequence> Sequence;
+
+        /** Index into the sequence's immutable GetNotifies list. */
+        size_t NotifyIndex = 0;
+
+        /** Layer-local window identity; zero for instantaneous notifications. */
+        uint64_t ActivationId = 0;
+        EAnimationNotifyEventType Type = EAnimationNotifyEventType::Instant;
+
+        /** Seconds from this update's start; Update is timestamped at its overlap end. */
+        double TimeOffset = 0.0;
+
+        /** Active seconds covered by Update; zero for all other event types. */
+        double DeltaSeconds = 0.0;
+
+        /** Owning layer name, including Base; retained after layer removal. */
+        std::string LayerName;
+
+        /** True when End was caused by an interruption instead of timeline completion. */
+        bool Cancelled = false;
+
+        /**
+         * @brief Get the authored notification name.
+         * @pre Sequence is non-null and NotifyIndex refers to one of its notifications.
+         */
+        std::string_view GetName() const
+        {
+            return Sequence->GetNotifies()[NotifyIndex].Name;
+        }
+
+        /**
+         * @brief Read the retained payload without conversion or exceptions.
+         * @tparam T Exact stored copyable value type.
+         * @return A borrowed read-only value, or null for a different or absent type.
+         * @pre Sequence is non-null and NotifyIndex refers to one of its notifications.
+         */
+        template<typename T>
+        const T* GetPayload() const
+        {
+            return Sequence->GetNotifies()[NotifyIndex].GetPayload<T>();
+        }
+    };
 }

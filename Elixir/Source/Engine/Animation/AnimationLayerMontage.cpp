@@ -60,7 +60,7 @@ namespace Elixir
         if (!candidate.BlendMontage(candidate.m_Montage.Cursor, pose))
             return false;
 
-        CancelNotifyStates();
+        CancelActiveNotifies();
         m_Montage = std::move(candidate.m_Montage);
         m_MontagePose = std::move(pose);
         m_NotifyEvents.clear();
@@ -135,7 +135,7 @@ namespace Elixir
         if (!BlendMontage(cursor, pose))
             return false;
 
-        CancelNotifyStates();
+        CancelActiveNotifies();
         m_Montage.Cursor = cursor;
         m_MontagePose = std::move(pose);
         m_NotifyEvents.clear();
@@ -170,7 +170,7 @@ namespace Elixir
         const auto duration = blendOut.value_or(montage->GetBlendOut());
         if (duration == 0)
         {
-            CancelNotifyStates();
+            CancelActiveNotifies();
             m_Montage = {};
             m_MontagePose.clear();
             m_NotifyEvents.clear();
@@ -181,7 +181,7 @@ namespace Elixir
         if (m_Montage.StopTime >= 0)
             return true;
 
-        CancelNotifyStates();
+        CancelActiveNotifies();
         m_Montage.StopWeight = GetMontageWeight();
         m_Montage.StopTime = m_Montage.Cursor.Elapsed;
         m_Montage.StopDuration = duration;
@@ -442,95 +442,15 @@ namespace Elixir
             return false;
 
         if (!m_Montage.Montage)
-            return EvaluateNotifyStates(dt, output);
+            return EvaluateNotifyEvents(dt, output);
 
         if (!EvaluateMontage(dt, output.Montage))
             return false;
 
-        const auto emitNotifies = m_Weight > 0 && m_Mask->HasInfluence();
-        if (emitNotifies)
-        {
-            const auto success = CollectMontageNotifyEvents(
-                dt,
-                output.Montage,
-                output.NotifyEvents
-            );
-            if (!success) return false;
-        }
-
         output.PlaybackPose = output.LocalPose;
 
         return BlendMontage(output.Montage.Cursor, output.LocalPose) &&
-            EvaluateNotifyStates(dt, output);
-    }
-
-    bool AnimationLayer::CollectMontageNotifyEvents(
-        const float dt,
-        const SMontageEvaluation& evaluation,
-        std::vector<SAnimationNotifyEvent>& output
-    ) const
-    {
-        const auto& sequence = m_Montage.Montage->GetSequence();
-        const auto duration = sequence->GetDuration();
-
-        for (const auto& interval : evaluation.Intervals)
-        {
-            std::vector<SAnimationNotifyOccurrence> occurrences;
-            const auto success = sequence->CollectNotifyOccurrences(
-                interval.Start.Time / duration,
-                (interval.Start.Time + interval.Duration) / duration,
-                false,
-                occurrences,
-                nullptr,
-                interval.Start.IncludeNotifyStart
-            );
-
-            if (!success) return false;
-
-            if (occurrences.size() > AnimationSequence::MaxNotifyEventsPerUpdate - output.size())
-            {
-                EE_CORE_ERROR("Montage sections exceeded the notify event capacity.")
-                return false;
-            }
-
-            for (const auto& occurrence : occurrences)
-                output.push_back({
-                    sequence,
-                    occurrence.NotifyIndex,
-                    interval.TimeOffset + occurrence.PhaseOffset * duration,
-                    m_Name
-                });
-        }
-
-        if (evaluation.Cursor.Finished && dt > evaluation.ActiveDuration && m_Playing)
-        {
-            auto playback = m_Playback;
-            playback.Time = AdvancePlayback(playback, float(evaluation.ActiveDuration));
-            playback.IncludeNotifyStart = false;
-
-            std::vector<SAnimationNotifyEvent> resumed;
-            const auto success = CollectPlaybackNotifyEvents(
-                playback,
-                float(dt - evaluation.ActiveDuration),
-                resumed
-            );
-
-            if (!success) return false;
-
-            if (resumed.size() > AnimationSequence::MaxNotifyEventsPerUpdate - output.size())
-            {
-                EE_CORE_ERROR("Montage and source exceeded the notify event capacity.")
-                return false;
-            }
-
-            for (auto& event : resumed)
-            {
-                event.TimeOffset += evaluation.ActiveDuration;
-                output.push_back(std::move(event));
-            }
-        }
-
-        return true;
+            EvaluateNotifyEvents(dt, output);
     }
 
     bool AnimationLayer::ExtractRootMotion(

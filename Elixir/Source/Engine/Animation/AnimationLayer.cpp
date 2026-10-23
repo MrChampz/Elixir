@@ -177,7 +177,7 @@ namespace Elixir
 
     void AnimationLayer::Stop()
     {
-        CancelNotifyStates();
+        CancelActiveNotifies();
         m_Montage = {};
         m_MontagePose.clear();
         m_Playing = false;
@@ -208,7 +208,7 @@ namespace Elixir
             return false;
 
         if (!m_Montage.Montage)
-            CancelNotifyStates();
+            CancelActiveNotifies();
 
         m_Transition = {};
         m_Playback.IncludeNotifyStart = false;
@@ -229,7 +229,7 @@ namespace Elixir
         }
 
         if (weight == 0)
-            CancelNotifyStates();
+            CancelActiveNotifies();
 
         m_Weight = weight;
         return true;
@@ -266,7 +266,7 @@ namespace Elixir
             return false;
         }
 
-        CancelNotifyStates();
+        CancelActiveNotifies();
 
         std::vector local(pose.begin(), pose.end());
         m_LocalPose = std::move(local);
@@ -347,14 +347,8 @@ namespace Elixir
             return false;
         }
 
-        output.NotifyEvents.clear();
         output.Advance = m_Playing;
         output.ConsumeInitialNotifies = dt > 0.0f && m_Playing;
-
-        const auto emitNotifies = m_Weight > 0.0f && m_Mask->HasInfluence();
-        if (emitNotifies && m_Playing && !m_Montage.Montage &&
-            !CollectPlaybackNotifyEvents(m_Playback, dt, output.NotifyEvents))
-            return false;
 
         if (!m_Playing)
         {
@@ -385,10 +379,9 @@ namespace Elixir
 
     void AnimationLayer::Apply(SLayerEvaluation evaluation)
     {
-        m_ActiveNotifyStates = std::move(evaluation.NotifyStates.Active);
-        m_NotifyStateEvents = std::move(evaluation.NotifyStates.Events);
-        m_NextNotifyStateActivationId = evaluation.NotifyStates.NextActivationId;
-        m_PendingNotifyStateEnds.clear();
+        m_ActiveNotifies = std::move(evaluation.Notifies.Active);
+        m_NextNotifyActivationId = evaluation.Notifies.NextActivationId;
+        m_PendingNotifyEnds.clear();
 
         if (m_Montage.Montage)
         {
@@ -407,7 +400,7 @@ namespace Elixir
             m_LocalPose = std::move(evaluation.LocalPose);
         }
 
-        m_NotifyEvents = std::move(evaluation.NotifyEvents);
+        m_NotifyEvents = std::move(evaluation.Notifies.Events);
 
         if (!evaluation.Advance)
             return;
@@ -513,7 +506,7 @@ namespace Elixir
         }
 
         if (!m_Montage.Montage)
-            CancelNotifyStates();
+            CancelActiveNotifies();
         m_NotifyEvents.clear();
         m_Assigned = true;
         Resume();
@@ -676,63 +669,4 @@ namespace Elixir
         return true;
     }
 
-    bool AnimationLayer::CollectPlaybackNotifyEvents(
-        const SPlayback& playback,
-        const float dt,
-        std::vector<SAnimationNotifyEvent>& output
-    ) const
-    {
-        const auto duration = GetDuration(playback);
-        if (dt == 0.0f || duration == 0.0f)
-            return true;
-
-        const auto* source = playback.Sequence.get();
-        const AnimationSequence* reference = nullptr;
-
-        if (playback.BlendSpace)
-        {
-            source = playback.BlendSpace->GetNotifySource(playback.Values);
-            reference = playback.BlendSpace->GetSynchronizationSequence().get();
-        }
-
-        if (!source) return false;
-
-        if (source->GetNotifies().empty())
-            return true;
-
-        const auto phase = playback.BlendSpace
-            ? playback.Time
-            : playback.Time / duration;
-
-        std::vector<SAnimationNotifyOccurrence> occurrences;
-
-        const auto success = source->CollectNotifyOccurrences(
-            phase,
-            phase + double(dt) / duration,
-            playback.Looping,
-            occurrences,
-            reference,
-            playback.IncludeNotifyStart
-        );
-
-        if (!success) return false;
-
-        if (occurrences.empty())
-            return true;
-
-        const Ref<const AnimationSequence> retained = playback.Sequence
-            ? playback.Sequence
-            : Ref<const AnimationSequence>(playback.BlendSpace, source);
-
-        output.reserve(occurrences.size());
-        for (const auto& occurrence : occurrences)
-            output.push_back({
-                retained,
-                occurrence.NotifyIndex,
-                occurrence.PhaseOffset * duration,
-                m_Name
-            });
-
-        return true;
-    }
 }

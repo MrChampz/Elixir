@@ -77,10 +77,10 @@ TEST_F(AnimationMontageSectionTest, AdjacentSectionsDoNotDuplicateSharedBoundary
     EXPECT_FLOAT_EQ(instance.GetLocalPose()[0].Translation.x, 11);
     const auto events = instance.GetNotifyEvents();
     ASSERT_EQ(events.size(), 4);
-    EXPECT_EQ(events[0].GetNotify().Name, "Start");
-    EXPECT_EQ(events[1].GetNotify().Name, "Boundary");
-    EXPECT_EQ(events[2].GetNotify().Name, "Skipped");
-    EXPECT_EQ(events[3].GetNotify().Name, "Second");
+    EXPECT_EQ(events[0].GetName(), "Start");
+    EXPECT_EQ(events[1].GetName(), "Boundary");
+    EXPECT_EQ(events[2].GetName(), "Skipped");
+    EXPECT_EQ(events[3].GetName(), "Second");
     EXPECT_DOUBLE_EQ(events[3].TimeOffset, 2);
 }
 
@@ -111,8 +111,8 @@ TEST_F(AnimationMontageSectionTest, DefaultLinksSkipPoseEventsAndRootMovementOfU
     EXPECT_NEAR(instance.GetRootMotionDelta().Translation.x, 2, 1e-6f);
     const auto events = instance.GetNotifyEvents();
     ASSERT_EQ(events.size(), 3);
-    EXPECT_EQ(events[1].GetNotify().Name, "Boundary");
-    EXPECT_EQ(events[2].GetNotify().Name, "Second");
+    EXPECT_EQ(events[1].GetName(), "Boundary");
+    EXPECT_EQ(events[2].GetName(), "Second");
     EXPECT_DOUBLE_EQ(events[2].TimeOffset, 1);
     ASSERT_TRUE(instance.Update(1));
     EXPECT_FALSE(layer.GetMontage());
@@ -159,7 +159,7 @@ TEST_F(AnimationMontageSectionTest, JumpIsSilentPreservesPauseAndDoesNotExtractT
     ASSERT_TRUE(instance.Update(0.25f));
     EXPECT_NEAR(instance.GetRootMotionDelta().Translation.x, 0.5f, 1e-6f);
     ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
-    EXPECT_EQ(instance.GetNotifyEvents()[0].GetNotify().Name, "Second");
+    EXPECT_EQ(instance.GetNotifyEvents()[0].GetName(), "Second");
     EXPECT_DOUBLE_EQ(instance.GetNotifyEvents()[0].TimeOffset, 0);
 }
 
@@ -300,9 +300,9 @@ TEST_F(AnimationMontageSectionTest, SourceEventsResumeAtTheEffectiveRouteEnd)
     EXPECT_FALSE(layer.GetMontage());
     const auto events = instance.GetNotifyEvents();
     ASSERT_EQ(events.size(), 3);
-    EXPECT_EQ(events[0].GetNotify().Name, "Start");
-    EXPECT_EQ(events[1].GetNotify().Name, "Boundary");
-    EXPECT_EQ(events[2].GetNotify().Name, "Source");
+    EXPECT_EQ(events[0].GetName(), "Start");
+    EXPECT_EQ(events[1].GetName(), "Boundary");
+    EXPECT_EQ(events[2].GetName(), "Source");
     EXPECT_NEAR(events[2].TimeOffset, 1.25, 1e-6);
 }
 

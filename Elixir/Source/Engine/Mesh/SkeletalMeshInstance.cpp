@@ -38,7 +38,6 @@ namespace Elixir
         GetBaseLayer().Stop();
         ClearLayers();
         m_NotifyEvents.clear();
-        m_NotifyStateEvents.clear();
         m_RootMotionDelta = {};
 
         m_Paused = false;
@@ -133,17 +132,15 @@ namespace Elixir
 
         if (!m_Mesh)
         {
-            m_NotifyEvents.clear();
-            m_NotifyStateEvents = std::move(m_PendingNotifyStateEnds);
-            m_PendingNotifyStateEnds.clear();
+            m_NotifyEvents = std::move(m_PendingNotifyEnds);
+            m_PendingNotifyEnds.clear();
             m_RootMotionDelta = {};
             return true;
         }
 
         const auto advance = m_Paused ? 0.0f : dt;
         std::vector<AnimationLayer::SLayerEvaluation> evaluations(m_Layers.size());
-        std::vector<SAnimationNotifyEvent> events;
-        auto stateEvents = m_PendingNotifyStateEnds;
+        auto events = m_PendingNotifyEnds;
         size_t generatedEvents = 0;
 
         for (size_t i = 0; i < m_Layers.size(); ++i)
@@ -151,21 +148,19 @@ namespace Elixir
             if (!m_Layers[i]->Evaluate(advance, evaluations[i]))
                 return false;
 
-            const auto& layerEvents = evaluations[i].NotifyEvents;
-            const auto& layerStateEvents = evaluations[i].NotifyStates.Events;
-            const auto generatedStates = layerStateEvents.size() -
-                m_Layers[i]->m_PendingNotifyStateEnds.size();
+            const auto& layerEvents = evaluations[i].Notifies.Events;
+            const auto authoredEvents = layerEvents.size() -
+                m_Layers[i]->m_PendingNotifyEnds.size();
             const auto maxEvents = AnimationSequence::MaxNotifyEventsPerUpdate - generatedEvents;
 
-            if (layerEvents.size() > maxEvents || generatedStates > maxEvents - layerEvents.size())
+            if (authoredEvents > maxEvents)
             {
                 EE_CORE_ERROR("Animation layers exceeded the combined notify event capacity.")
                 return false;
             }
 
-            generatedEvents += layerEvents.size() + generatedStates;
+            generatedEvents += authoredEvents;
             events.insert(events.end(), layerEvents.begin(), layerEvents.end());
-            stateEvents.insert(stateEvents.end(), layerStateEvents.begin(), layerStateEvents.end());
         }
 
         SRootMotionDelta movement;
@@ -198,7 +193,6 @@ namespace Elixir
             return false;
 
         std::ranges::stable_sort(events, {}, &SAnimationNotifyEvent::TimeOffset);
-        std::ranges::stable_sort(stateEvents, {}, &SAnimationNotifyStateEvent::TimeOffset);
 
         for (size_t i = 0; i < m_Layers.size(); ++i)
             m_Layers[i]->Apply(std::move(evaluations[i]));
@@ -206,8 +200,7 @@ namespace Elixir
         m_LocalPose = std::move(local);
         m_ModelPose = std::move(model);
         m_NotifyEvents = std::move(events);
-        m_NotifyStateEvents = std::move(stateEvents);
-        m_PendingNotifyStateEnds.clear();
+        m_PendingNotifyEnds.clear();
         m_RootMotionDelta = movement;
 
         return true;
@@ -404,18 +397,18 @@ namespace Elixir
             return false;
         }
 
-        QueueLayerNotifyStateEnds(**layer);
+        QueueLayerNotifyEnds(**layer);
         m_Layers.erase(layer);
 
         return true;
     }
 
-    void SkeletalMeshInstance::QueueLayerNotifyStateEnds(AnimationLayer& layer)
+    void SkeletalMeshInstance::QueueLayerNotifyEnds(AnimationLayer& layer)
     {
-        layer.CancelNotifyStates();
-        const auto& pending = layer.m_PendingNotifyStateEnds;
-        m_PendingNotifyStateEnds.insert(
-            m_PendingNotifyStateEnds.end(),
+        layer.CancelActiveNotifies();
+        const auto& pending = layer.m_PendingNotifyEnds;
+        m_PendingNotifyEnds.insert(
+            m_PendingNotifyEnds.end(),
             pending.begin(),
             pending.end()
         );
@@ -424,7 +417,7 @@ namespace Elixir
     void SkeletalMeshInstance::ClearLayers()
     {
         for (size_t i = 1; i < m_Layers.size(); ++i)
-            QueueLayerNotifyStateEnds(*m_Layers[i]);
+            QueueLayerNotifyEnds(*m_Layers[i]);
         m_Layers.erase(m_Layers.begin() + 1, m_Layers.end());
     }
 

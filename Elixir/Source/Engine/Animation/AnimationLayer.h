@@ -2,7 +2,6 @@
 
 #include <Engine/Animation/BlendSpace.h>
 #include <Engine/Animation/AnimationNotifyEvent.h>
-#include <Engine/Animation/AnimationNotifyStateEvent.h>
 #include <Engine/Animation/BoneMask.h>
 #include <Engine/Animation/AnimationMontage.h>
 
@@ -205,23 +204,14 @@ namespace Elixir
          * The span remains valid until the next successful instance update, Play, Seek,
          * Stop, SetLocalPose, PlayMontage, or an immediate StopMontage. Failed operations keep
          * the previous batch; consumers must process events only after successful updates.
+         * Instant, Begin, Update, and End share this list, ordered by TimeOffset.
+         * Playback changes queue cancelled Ends for the next successful update, including
+         * paused or zero-delta updates. Pause retains active windows without Updates.
+         * Queued cancellation Ends do not consume the authored event budget.
          */
         std::span<const SAnimationNotifyEvent> GetNotifyEvents() const
         {
             return m_NotifyEvents;
-        }
-
-        /**
-         * @brief Get Begin, Update, and End events from the last successful instance update.
-         *
-         * Playback changes queue cancelled Ends for the next successful update, including
-         * a paused or zero-delta update. Pause retains active windows without Updates.
-         * Consumers must process each successful batch once. Removed layers transfer their
-         * queued Ends to the owning instance. Events retain their sequence and typed payload.
-         */
-        std::span<const SAnimationNotifyStateEvent> GetNotifyStateEvents() const
-        {
-            return m_NotifyStateEvents;
         }
 
         /**
@@ -302,17 +292,17 @@ namespace Elixir
             double ActiveDuration = 0.0;
         };
 
-        struct SActiveNotifyState
+        struct SActiveNotify
         {
             Ref<const AnimationSequence> Sequence;
             size_t Index = 0;
             uint64_t ActivationId = 0;
         };
 
-        struct SNotifyStateEvaluation
+        struct SNotifyEvaluation
         {
-            std::vector<SActiveNotifyState> Active;
-            std::vector<SAnimationNotifyStateEvent> Events;
+            std::vector<SActiveNotify> Active;
+            std::vector<SAnimationNotifyEvent> Events;
             uint64_t NextActivationId = 1;
         };
 
@@ -321,8 +311,7 @@ namespace Elixir
             std::vector<SBoneTransform> LocalPose;
             std::vector<SBoneTransform> PlaybackPose;
             SMontageEvaluation Montage;
-            std::vector<SAnimationNotifyEvent> NotifyEvents;
-            SNotifyStateEvaluation NotifyStates;
+            SNotifyEvaluation Notifies;
             double PlaybackTime = 0.0;
             double TransitionSourceTime = 0.0;
             float TransitionElapsed = 0.0f;
@@ -400,18 +389,6 @@ namespace Elixir
          * @return False when more than 4096 section intervals are needed.
          */
         bool EvaluateMontage(float dt, SMontageEvaluation& output) const;
-
-        /**
-         * @brief Gather action events and any source events after the action ends.
-         * @param dt Elapsed frame seconds.
-         * @param evaluation Previously validated section traversal.
-         * @param output Receives events in chronological frame order.
-         */
-        bool CollectMontageNotifyEvents(
-            float dt,
-            const SMontageEvaluation& evaluation,
-            std::vector<SAnimationNotifyEvent>& output
-        ) const;
 
         /**
          * @brief Average the linear action envelope over a forward interval.
@@ -584,50 +561,40 @@ namespace Elixir
             float offset = 0
         ) const;
 
-        /**
-         * @brief Gather events from one source without changing its clock.
-         * @param playback Source, clock, and initial-event policy.
-         * @param dt Elapsed seconds to collect.
-         * @param output Receives source events with this layer's name.
-         */
-        bool CollectPlaybackNotifyEvents(
-            const SPlayback& playback,
-            float dt,
-            std::vector<SAnimationNotifyEvent>& output
-        ) const;
-
-        /** @brief Queue cancelled Ends and release the layer's currently active windows. */
-        void CancelNotifyStates();
+        /** @brief Queue cancelled Ends and release the layer's active notifications. */
+        void CancelActiveNotifies();
 
         /**
-         * @brief Evaluate windows on the pose and section playback timeline.
+         * @brief Evaluate notifications on the pose and section playback timeline.
          * @param dt Elapsed frame seconds.
-         * @param evaluation Validated pose and montage traversal receiving window state.
+         * @param evaluation Validated pose and montage traversal receiving notification results.
          */
-        bool EvaluateNotifyStates(float dt, SLayerEvaluation& evaluation) const;
+        bool EvaluateNotifyEvents(float dt, SLayerEvaluation& evaluation) const;
 
         /**
-         * @brief Advance active windows on one sequence or blend-space reference timeline.
+         * @brief Evaluate notifications on a sequence or blend-space reference timeline.
          * @param playback Source, phase, coordinates, and looping mode.
          * @param dt Active interval seconds.
          * @param offset Frame seconds preceding this interval.
-         * @param output Transactional active windows, events, and activation counter.
+         * @param output Transactional active notifications, events, and activation counter.
+         * @param allowActivation Allow notifications with duration to begin or update.
          */
-        bool EvaluatePlaybackNotifyStates(
+        bool EvaluatePlaybackNotifyEvents(
             const SPlayback& playback,
             double dt,
             double offset,
-            SNotifyStateEvaluation& output
+            SNotifyEvaluation& output,
+            bool allowActivation = true
         ) const;
 
         /**
-         * @brief End all active windows at a timeline discontinuity or playback completion.
-         * @param output Transactional active windows and events.
-         * @param offset Frame seconds when windows end.
+         * @brief End active notifications at a timeline discontinuity or playback completion.
+         * @param output Transactional active notifications and events.
+         * @param offset Frame seconds when notifications end.
          * @param cancelled True for interruption; false for timeline completion.
          */
-        void EndNotifyStates(
-            SNotifyStateEvaluation& output,
+        void EndActiveNotifies(
+            SNotifyEvaluation& output,
             double offset,
             bool cancelled
         ) const;
@@ -654,10 +621,9 @@ namespace Elixir
         bool m_Assigned = false;
 
         std::vector<SAnimationNotifyEvent> m_NotifyEvents;
-        std::vector<SActiveNotifyState> m_ActiveNotifyStates;
-        std::vector<SAnimationNotifyStateEvent> m_NotifyStateEvents;
-        std::vector<SAnimationNotifyStateEvent> m_PendingNotifyStateEnds;
-        uint64_t m_NextNotifyStateActivationId = 1;
+        std::vector<SActiveNotify> m_ActiveNotifies;
+        std::vector<SAnimationNotifyEvent> m_PendingNotifyEnds;
+        uint64_t m_NextNotifyActivationId = 1;
 
         Ref<const Skeleton> m_Skeleton;
         std::vector<SBoneTransform> m_ReferencePose;

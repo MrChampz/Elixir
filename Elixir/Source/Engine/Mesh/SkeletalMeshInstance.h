@@ -150,22 +150,14 @@ namespace Elixir
          * Read on the same thread as playback updates. The span remains valid until the
          * next successful update, Play, Seek, Stop, or SetLocalPose. Failed operations keep
          * the previous batch; consumers must process events only after successful updates.
+         * Instant, Begin, Update, and End share this list, ordered by TimeOffset.
+         * Playback changes queue cancelled Ends for the next successful update, including
+         * paused or zero-delta updates. Pause retains active windows without Updates.
+         * Queued cancellation Ends do not consume the authored event budget.
          */
         std::span<const SAnimationNotifyEvent> GetNotifyEvents() const
         {
             return m_NotifyEvents;
-        }
-
-        /**
-         * @brief Get window lifecycle events from the last successful Update.
-         *
-         * Process the batch once after success. Playback commands and removed layers queue
-         * cancelled Ends for the next successful Update, even when paused or given zero time.
-         * Queued cancellation Ends are delivered in addition to the authored event budget.
-         */
-        std::span<const SAnimationNotifyStateEvent> GetNotifyStateEvents() const
-        {
-            return m_NotifyStateEvents;
         }
 
         /**
@@ -304,15 +296,14 @@ namespace Elixir
          * @brief Retain cancelled window events before removing a layer.
          * @param layer Layer whose active and pending windows must be ended.
          */
-        void QueueLayerNotifyStateEnds(AnimationLayer& layer);
+        void QueueLayerNotifyEnds(AnimationLayer& layer);
 
         const Ref<const SkeletalMesh> m_Mesh;
 
         /** The first layer is Base and remains alive for this instance's lifetime. */
         std::vector<Scope<AnimationLayer>> m_Layers;
         std::vector<SAnimationNotifyEvent> m_NotifyEvents;
-        std::vector<SAnimationNotifyStateEvent> m_NotifyStateEvents;
-        std::vector<SAnimationNotifyStateEvent> m_PendingNotifyStateEnds;
+        std::vector<SAnimationNotifyEvent> m_PendingNotifyEnds;
 
         std::vector<SBoneTransform> m_LocalPose;
         std::vector<glm::mat4> m_ModelPose;

@@ -63,8 +63,7 @@ namespace Elixir
         const float duration,
         std::vector<SBoneAnimationTrack> tracks,
         std::vector<SAnimationSyncMarker> syncMarkers,
-        std::vector<SAnimationNotify> notifies,
-        std::vector<SAnimationNotifyState> notifyStates
+        std::vector<SAnimationNotify> notifies
     )
     {
         if (!skeleton || !std::isfinite(duration) || duration < 0)
@@ -103,9 +102,14 @@ namespace Elixir
                 !std::isfinite(notify.Time) ||
                 notify.Time < 0.0f ||
                 notify.Time > duration ||
+                !std::isfinite(notify.Duration) ||
+                notify.Duration < 0.0f ||
+                !std::isfinite(notify.Time + notify.Duration) ||
+                notify.Time + notify.Duration > duration ||
+                (notify.Duration > 0 && notify.Time + notify.Duration <= notify.Time) ||
                 duration == 0.0f)
             {
-                EE_CORE_ERROR("AnimationSequence contains an invalid notify name or time.")
+                EE_CORE_ERROR("AnimationSequence contains an invalid notify name, time, or duration.")
                 return nullptr;
             }
         }
@@ -114,22 +118,6 @@ namespace Elixir
         {
             return first.Time < second.Time;
         });
-
-        for (const auto& state : notifyStates)
-        {
-            if (state.Name.empty() ||
-                !std::isfinite(state.StartTime) ||
-                !std::isfinite(state.EndTime) ||
-                state.StartTime < 0 ||
-                state.EndTime > duration ||
-                state.StartTime >= state.EndTime)
-            {
-                EE_CORE_ERROR("Animation notify states require a name and a positive time range.")
-                return nullptr;
-            }
-        }
-        
-        std::ranges::stable_sort(notifyStates, {}, &SAnimationNotifyState::StartTime);
 
         std::unordered_set<uint32_t> indices;
 
@@ -183,8 +171,7 @@ namespace Elixir
             duration,
             std::move(tracks),
             std::move(syncMarkers),
-            std::move(notifies),
-            std::move(notifyStates)
+            std::move(notifies)
         ));
     }
 
@@ -194,15 +181,13 @@ namespace Elixir
         const float duration,
         std::vector<SBoneAnimationTrack> tracks,
         std::vector<SAnimationSyncMarker> syncMarkers,
-        std::vector<SAnimationNotify> notifies,
-        std::vector<SAnimationNotifyState> notifyStates
+        std::vector<SAnimationNotify> notifies
     ) : m_Name(std::move(name)),
         m_Skeleton(std::move(skeleton)),
         m_Duration(duration),
         m_Tracks(std::move(tracks)),
         m_SyncMarkers(std::move(syncMarkers)),
-        m_Notifies(std::move(notifies)),
-        m_NotifyStates(std::move(notifyStates)) {}
+        m_Notifies(std::move(notifies)) {}
 
     bool AnimationSequence::Sample(
         const float time,
@@ -472,8 +457,7 @@ namespace Elixir
             m_Duration,
             m_Tracks,
             std::move(syncMarkers),
-            m_Notifies,
-            m_NotifyStates
+            m_Notifies
         );
     }
 
@@ -575,117 +559,8 @@ namespace Elixir
             m_Duration,
             m_Tracks,
             m_SyncMarkers,
-            std::move(notifies),
-            m_NotifyStates
+            std::move(notifies)
         );
     }
 
-    bool AnimationSequence::CollectNotifyOccurrences(
-        const double startPhase,
-        double endPhase,
-        const bool looping,
-        std::vector<SAnimationNotifyOccurrence>& output,
-        const AnimationSequence* reference,
-        const bool includeStart
-    ) const
-    {
-        if (!std::isfinite(startPhase) ||
-            !std::isfinite(endPhase) ||
-            startPhase < 0.0 ||
-            startPhase > 1.0 ||
-            endPhase < startPhase)
-        {
-            EE_CORE_ERROR("Notify collection requires a valid forward phase interval.")
-            return false;
-        }
-
-        if (!looping)
-            endPhase = std::min(endPhase, 1.0);
-
-        if (startPhase == endPhase || m_Notifies.empty())
-        {
-            output.clear();
-            return true;
-        }
-
-        const auto synchronized = reference && CanSynchronizeWith(*reference);
-
-        std::vector<SAnimationNotifyOccurrence> events;
-        for (size_t index = 0; index < m_Notifies.size(); ++index)
-        {
-            const auto& notify = m_Notifies[index];
-            auto position = double(notify.Time) / m_Duration;
-
-            if (synchronized)
-            {
-                const auto marker = std::ranges::find(
-                    m_SyncMarkers,
-                    notify.Time,
-                    &SAnimationSyncMarker::Time
-                );
-
-                if (marker != m_SyncMarkers.end())
-                {
-                    const auto matching = std::ranges::find(
-                        reference->m_SyncMarkers,
-                        marker->Name,
-                        &SAnimationSyncMarker::Name
-                    );
-                    position = double(matching->Time) / reference->GetDuration();
-                }
-                else
-                {
-                    const auto time = reference->GetSynchronizedTime(float(position), *this);
-                    position = double(time) / reference->GetDuration();
-                }
-
-                if (position == 1.0 && notify.Time < m_Duration)
-                    position = 0.0;
-            }
-
-            const auto atStart = includeStart &&
-                position == startPhase &&
-                notify.Time < m_Duration;
-
-            auto firstCycle = 0.0;
-            auto count = 0.0;
-
-            if (looping)
-            {
-                firstCycle = std::floor(startPhase - position) + 1.0;
-                const auto lastCycle = std::floor(endPhase - position);
-                count = std::max(0.0, lastCycle - firstCycle + 1.0);
-            }
-            else if (position > startPhase && position <= endPhase)
-                count = 1.0;
-
-            const auto remaining = MaxNotifyEventsPerUpdate - events.size();
-            if (count + double(atStart) > double(remaining))
-            {
-                EE_CORE_ERROR("Animation update exceeded the notify event capacity.")
-                return false;
-            }
-
-            if (atStart)
-                events.push_back({ index, 0.0 });
-
-            for (size_t cycle = 0; cycle < size_t(count); ++cycle)
-                events.push_back({
-                    index,
-                    position + firstCycle + double(cycle) - startPhase
-                });
-        }
-
-        std::ranges::stable_sort(events, [&](const auto& first, const auto& second)
-        {
-            if (first.PhaseOffset != second.PhaseOffset)
-                return first.PhaseOffset < second.PhaseOffset;
-            const auto firstAtEnd = m_Notifies[first.NotifyIndex].Time == m_Duration;
-            const auto secondAtEnd = m_Notifies[second.NotifyIndex].Time == m_Duration;
-            return firstAtEnd && !secondAtEnd;
-        });
-
-        output = std::move(events);
-        return true;
-    }
 }

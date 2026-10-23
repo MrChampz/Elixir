@@ -3,25 +3,25 @@
 
 namespace Elixir
 {
-    void AnimationLayer::CancelNotifyStates()
+    void AnimationLayer::CancelActiveNotifies()
     {
-        for (const auto& state : m_ActiveNotifyStates)
+        for (const auto& state : m_ActiveNotifies)
         {
-            m_PendingNotifyStateEnds.push_back({
+            m_PendingNotifyEnds.push_back({
                 .Sequence = state.Sequence,
-                .NotifyStateIndex = state.Index,
+                .NotifyIndex = state.Index,
                 .ActivationId = state.ActivationId,
-                .Type = EAnimationNotifyStateEventType::End,
+                .Type = EAnimationNotifyEventType::End,
                 .LayerName = m_Name,
                 .Cancelled = true
             });
         }
 
-        m_ActiveNotifyStates.clear();
+        m_ActiveNotifies.clear();
     }
 
-    void AnimationLayer::EndNotifyStates(
-        SNotifyStateEvaluation& output,
+    void AnimationLayer::EndActiveNotifies(
+        SNotifyEvaluation& output,
         const double offset,
         const bool cancelled
     ) const
@@ -30,9 +30,9 @@ namespace Elixir
         {
             output.Events.push_back({
                 .Sequence = state.Sequence,
-                .NotifyStateIndex = state.Index,
+                .NotifyIndex = state.Index,
                 .ActivationId = state.ActivationId,
-                .Type = EAnimationNotifyStateEventType::End,
+                .Type = EAnimationNotifyEventType::End,
                 .TimeOffset = offset,
                 .LayerName = m_Name,
                 .Cancelled = cancelled
@@ -42,11 +42,12 @@ namespace Elixir
         output.Active.clear();
     }
 
-    bool AnimationLayer::EvaluatePlaybackNotifyStates(
+    bool AnimationLayer::EvaluatePlaybackNotifyEvents(
         const SPlayback& playback,
         const double dt,
         const double offset,
-        SNotifyStateEvaluation& output
+        SNotifyEvaluation& output,
+        const bool allowActivation
     ) const
     {
         auto sequence = playback.Sequence;
@@ -57,7 +58,7 @@ namespace Elixir
             const auto* source = playback.BlendSpace->GetNotifySource(playback.Values);
             if (!source)
             {
-                EE_CORE_ERROR("Notify states require a valid blend-space source.")
+                EE_CORE_ERROR("Notifications require a valid blend-space source.")
                 return false;
             }
 
@@ -71,7 +72,7 @@ namespace Elixir
         );
 
         if (!sequence || invalidSequence)
-            EndNotifyStates(output, offset, true);
+            EndActiveNotifies(output, offset, true);
 
         const auto duration = GetDuration(playback);
         if (!sequence || dt == 0 || duration == 0)
@@ -83,13 +84,14 @@ namespace Elixir
 
         const auto end = phase + dt / duration;
 
-        std::vector<SAnimationNotifyStateInterval> intervals;
-        const auto success = sequence->CollectNotifyStateIntervals(
+        std::vector<SAnimationNotifyInterval> intervals;
+        const auto success = sequence->CollectNotifyIntervals(
                 phase,
                 end,
                 playback.Looping,
                 intervals,
-                reference
+                reference,
+                playback.IncludeNotifyStart
         );
 
         if (!success) return false;
@@ -101,7 +103,7 @@ namespace Elixir
                 intervals,
                 [&](const auto& interval)
                 {
-                    return interval.NotifyStateIndex == state->Index &&
+                    return interval.NotifyIndex == state->Index &&
                         interval.StartPhaseOffset == 0;
                 }
             );
@@ -116,7 +118,7 @@ namespace Elixir
                 state->Sequence,
                 state->Index,
                 state->ActivationId,
-                EAnimationNotifyStateEventType::End,
+                EAnimationNotifyEventType::End,
                 offset,
                 0,
                 m_Name,
@@ -128,23 +130,38 @@ namespace Elixir
 
         for (const auto& interval : intervals)
         {
+            const auto& notify = sequence->GetNotifies()[interval.NotifyIndex];
+            if (notify.Duration == 0)
+            {
+                output.Events.push_back({
+                    .Sequence = sequence,
+                    .NotifyIndex = interval.NotifyIndex,
+                    .TimeOffset = offset + interval.StartPhaseOffset * duration,
+                    .LayerName = m_Name
+                });
+                continue;
+            }
+
+            if (!allowActivation)
+                continue;
+
             auto active = std::ranges::find(
                 output.Active,
-                interval.NotifyStateIndex,
-                &SActiveNotifyState::Index
+                interval.NotifyIndex,
+                &SActiveNotify::Index
             );
 
             if (active == output.Active.end())
             {
                 if (output.NextActivationId == std::numeric_limits<uint64_t>::max())
                 {
-                    EE_CORE_ERROR("Animation notify state activation identities are exhausted.")
+                    EE_CORE_ERROR("Animation notify activation identities are exhausted.")
                     return false;
                 }
 
                 output.Active.push_back({
                     sequence,
-                    interval.NotifyStateIndex,
+                    interval.NotifyIndex,
                     output.NextActivationId++
                 });
 
@@ -153,7 +170,7 @@ namespace Elixir
                     sequence,
                     active->Index,
                     active->ActivationId,
-                    EAnimationNotifyStateEventType::Begin,
+                    EAnimationNotifyEventType::Begin,
                     offset + interval.StartPhaseOffset * duration,
                     0,
                     m_Name
@@ -167,7 +184,7 @@ namespace Elixir
                     sequence,
                     active->Index,
                     active->ActivationId,
-                    EAnimationNotifyStateEventType::Update,
+                    EAnimationNotifyEventType::Update,
                     offset + interval.EndPhaseOffset * duration,
                     overlap,
                     m_Name
@@ -180,7 +197,7 @@ namespace Elixir
                     sequence,
                     active->Index,
                     active->ActivationId,
-                    EAnimationNotifyStateEventType::End,
+                    EAnimationNotifyEventType::End,
                     offset + interval.EndPhaseOffset * duration,
                     0,
                     m_Name
@@ -191,7 +208,7 @@ namespace Elixir
         }
 
         if (!playback.Looping && end >= 1)
-            EndNotifyStates(
+            EndActiveNotifies(
                 output,
                 offset + std::max(0.0, 1 - phase) * duration,
                 false
@@ -200,24 +217,24 @@ namespace Elixir
         return true;
     }
 
-    bool AnimationLayer::EvaluateNotifyStates(
+    bool AnimationLayer::EvaluateNotifyEvents(
         const float dt,
         SLayerEvaluation& evaluation
     ) const
     {
-        auto& output = evaluation.NotifyStates;
-        output.Active = m_ActiveNotifyStates;
-        output.Events = m_PendingNotifyStateEnds;
-        output.NextActivationId = m_NextNotifyStateActivationId;
+        auto& output = evaluation.Notifies;
+        output.Active = m_ActiveNotifies;
+        output.Events = m_PendingNotifyEnds;
+        output.NextActivationId = m_NextNotifyActivationId;
 
         if (m_Weight == 0 || !m_Mask->HasInfluence())
         {
-            EndNotifyStates(output, 0, true);
+            EndActiveNotifies(output, 0, true);
         }
         else if (!m_Montage.Montage)
         {
             if (m_Playing &&
-                !EvaluatePlaybackNotifyStates(m_Playback, dt, 0, output))
+                !EvaluatePlaybackNotifyEvents(m_Playback, dt, 0, output))
                 return false;
         }
         else
@@ -226,23 +243,22 @@ namespace Elixir
             for (size_t i = 0; i < montage.Intervals.size(); ++i)
             {
                 const auto& interval = montage.Intervals[i];
-                if (m_Montage.StopTime < 0)
-                {
-                    const SPlayback action{
-                        .Sequence = m_Montage.Montage->GetSequence(),
-                        .Time = interval.Start.Time,
-                        .Looping = false
-                    };
+                const SPlayback action{
+                    .Sequence = m_Montage.Montage->GetSequence(),
+                    .Time = interval.Start.Time,
+                    .IncludeNotifyStart = interval.Start.IncludeNotifyStart,
+                    .Looping = false
+                };
 
-                    const auto success = EvaluatePlaybackNotifyStates(
-                        action,
-                        interval.Duration,
-                        interval.TimeOffset,
-                        output
-                    );
+                const auto success = EvaluatePlaybackNotifyEvents(
+                    action,
+                    interval.Duration,
+                    interval.TimeOffset,
+                    output,
+                    m_Montage.StopTime < 0
+                );
 
-                    if (!success) return false;
-                }
+                if (!success) return false;
 
                 const auto end = interval.Start.Time + interval.Duration;
 
@@ -252,7 +268,7 @@ namespace Elixir
                     : montage.Cursor.Time;
 
                 if (end != nextTime)
-                    EndNotifyStates(
+                    EndActiveNotifies(
                         output,
                         interval.TimeOffset + interval.Duration,
                         true
@@ -261,15 +277,16 @@ namespace Elixir
 
             if (montage.Cursor.Finished)
             {
-                EndNotifyStates(output, montage.ActiveDuration, false);
+                EndActiveNotifies(output, montage.ActiveDuration, false);
                 const auto remaining = double(dt) - montage.ActiveDuration;
 
                 if (m_Playing && remaining > 0)
                 {
                     auto playback = m_Playback;
                     playback.Time = AdvancePlayback(playback, float(montage.ActiveDuration));
+                    playback.IncludeNotifyStart = false;
 
-                    const auto success = EvaluatePlaybackNotifyStates(
+                    const auto success = EvaluatePlaybackNotifyEvents(
                         playback,
                         remaining,
                         montage.ActiveDuration,
@@ -280,10 +297,10 @@ namespace Elixir
             }
         }
 
-        if (output.Events.size() - m_PendingNotifyStateEnds.size() >
+        if (output.Events.size() - m_PendingNotifyEnds.size() >
             AnimationSequence::MaxNotifyEventsPerUpdate)
         {
-            EE_CORE_ERROR("Animation update exceeded the notify state event capacity.")
+            EE_CORE_ERROR("Animation update exceeded the notify event capacity.")
             return false;
         }
 
@@ -294,9 +311,9 @@ namespace Elixir
 
             const auto priority = [](const auto type)
             {
-                return type == EAnimationNotifyStateEventType::Update
+                return type == EAnimationNotifyEventType::Update
                     ? 0
-                    : type == EAnimationNotifyStateEventType::End
+                    : type == EAnimationNotifyEventType::End
                         ? 1
                         : 2;
             };
