@@ -43,6 +43,8 @@ class Dissolve final : public Elixir::Application
     Scope<AnimationControllerInstance> m_AnimationController;
     Scope<AnimationControllerInstance> m_ComparisonController;
     Ref<const BlendSpace> m_LocomotionSpace;
+    Ref<const AnimationMontage> m_PunchMontage;
+    Ref<const AnimationMontage> m_DodgeMontage;
 
     /** Root movement is applied by the demo on the rendering thread. */
     glm::mat4 m_CharacterMotion{1};

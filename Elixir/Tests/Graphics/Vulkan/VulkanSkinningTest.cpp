@@ -95,7 +95,14 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
                     ASSERT_TRUE(firstInstance.GetLayer("Action")->SetBlendMode(
                         EAnimationLayerBlendMode::Additive));
                 ASSERT_TRUE(firstInstance.GetLayer("Action")->Play(action));
+                const auto montage = AnimationMontage::Create({
+                    .Name = "ActionMontage", .Sequence = action,
+                    .BlendIn = 0.25f, .BlendOut = 0.25f
+                });
+                ASSERT_TRUE(montage);
+                ASSERT_TRUE(firstInstance.GetLayer("Action")->PlayMontage(montage));
                 ASSERT_TRUE(firstInstance.Update(0.125f));
+                EXPECT_NEAR(firstInstance.GetLayer("Action")->GetMontageWeight(), 0.5f, 1e-6f);
                 if (frame == 3)
                 {
                     EXPECT_EQ(firstInstance.GetLocalPose()[0].Translation,

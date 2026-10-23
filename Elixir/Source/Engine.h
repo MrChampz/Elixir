@@ -73,6 +73,7 @@
 #include <Engine/Animation/Skeleton.h>
 #include <Engine/Animation/AnimationSequence.h>
 #include <Engine/Animation/AnimationLayer.h>
+#include <Engine/Animation/AnimationMontage.h>
 #include <Engine/Animation/BoneMask.h>
 #include <Engine/Animation/BlendSpace.h>
 #include <Engine/Animation/BlendSpace1D.h>
