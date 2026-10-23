@@ -209,6 +209,7 @@ namespace Elixir
 
         if (!m_Montage.Montage)
             CancelNotifyStates();
+
         m_Transition = {};
         m_Playback.IncludeNotifyStart = false;
         m_NotifyEvents.clear();
@@ -229,6 +230,7 @@ namespace Elixir
 
         if (weight == 0)
             CancelNotifyStates();
+
         m_Weight = weight;
         return true;
     }
@@ -264,8 +266,9 @@ namespace Elixir
             return false;
         }
 
-        std::vector local(pose.begin(), pose.end());
         CancelNotifyStates();
+
+        std::vector local(pose.begin(), pose.end());
         m_LocalPose = std::move(local);
         m_Montage = {};
         m_MontagePose.clear();
@@ -386,6 +389,7 @@ namespace Elixir
         m_NotifyStateEvents = std::move(evaluation.NotifyStates.Events);
         m_NextNotifyStateActivationId = evaluation.NotifyStates.NextActivationId;
         m_PendingNotifyStateEnds.clear();
+
         if (m_Montage.Montage)
         {
             m_LocalPose = std::move(evaluation.PlaybackPose);
@@ -504,6 +508,7 @@ namespace Elixir
         {
             if (!SetPlayback(playback, {}, 1.0f, playback.Time, 0.0f))
                 return false;
+
             m_Transition = {};
         }
 

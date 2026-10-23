@@ -117,14 +117,18 @@ namespace Elixir
 
         for (const auto& state : notifyStates)
         {
-            if (state.Name.empty() || !std::isfinite(state.StartTime) ||
-                !std::isfinite(state.EndTime) || state.StartTime < 0 ||
-                state.EndTime > duration || state.StartTime >= state.EndTime)
+            if (state.Name.empty() ||
+                !std::isfinite(state.StartTime) ||
+                !std::isfinite(state.EndTime) ||
+                state.StartTime < 0 ||
+                state.EndTime > duration ||
+                state.StartTime >= state.EndTime)
             {
                 EE_CORE_ERROR("Animation notify states require a name and a positive time range.")
                 return nullptr;
             }
         }
+        
         std::ranges::stable_sort(notifyStates, {}, &SAnimationNotifyState::StartTime);
 
         std::unordered_set<uint32_t> indices;

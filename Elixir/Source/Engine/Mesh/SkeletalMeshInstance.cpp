@@ -156,6 +156,7 @@ namespace Elixir
             const auto generatedStates = layerStateEvents.size() -
                 m_Layers[i]->m_PendingNotifyStateEnds.size();
             const auto maxEvents = AnimationSequence::MaxNotifyEventsPerUpdate - generatedEvents;
+
             if (layerEvents.size() > maxEvents || generatedStates > maxEvents - layerEvents.size())
             {
                 EE_CORE_ERROR("Animation layers exceeded the combined notify event capacity.")
@@ -392,15 +393,20 @@ namespace Elixir
             return false;
         }
 
-        const auto layer = std::ranges::find_if(m_Layers,
-            [&](const auto& entry) { return entry->GetName() == name; });
+        const auto layer = std::ranges::find_if(
+            m_Layers,
+            [&](const auto& entry) { return entry->GetName() == name; }
+        );
+
         if (layer == m_Layers.end())
         {
             EE_CORE_ERROR("Animation layer '{}' does not exist.", name)
             return false;
         }
+
         QueueLayerNotifyStateEnds(**layer);
         m_Layers.erase(layer);
+
         return true;
     }
 
@@ -408,7 +414,11 @@ namespace Elixir
     {
         layer.CancelNotifyStates();
         const auto& pending = layer.m_PendingNotifyStateEnds;
-        m_PendingNotifyStateEnds.insert(m_PendingNotifyStateEnds.end(), pending.begin(), pending.end());
+        m_PendingNotifyStateEnds.insert(
+            m_PendingNotifyStateEnds.end(),
+            pending.begin(),
+            pending.end()
+        );
     }
 
     void SkeletalMeshInstance::ClearLayers()

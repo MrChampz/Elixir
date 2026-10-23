@@ -260,7 +260,9 @@ namespace Elixir
          * @param reference Optional marker reference used to map window endpoints.
          */
         bool CollectNotifyStateIntervals(
-            double startPhase, double endPhase, bool looping,
+            double startPhase,
+            double endPhase,
+            bool looping,
             std::vector<SAnimationNotifyStateInterval>& output,
             const AnimationSequence* reference = nullptr
         ) const;

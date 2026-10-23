@@ -614,7 +614,9 @@ namespace Elixir
          * @param output Transactional active windows, events, and activation counter.
          */
         bool EvaluatePlaybackNotifyStates(
-            const SPlayback& playback, double dt, double offset,
+            const SPlayback& playback,
+            double dt,
+            double offset,
             SNotifyStateEvaluation& output
         ) const;
 
@@ -625,7 +627,9 @@ namespace Elixir
          * @param cancelled True for interruption; false for timeline completion.
          */
         void EndNotifyStates(
-            SNotifyStateEvaluation& output, double offset, bool cancelled
+            SNotifyStateEvaluation& output,
+            double offset,
+            bool cancelled
         ) const;
 
         std::string m_Name;
