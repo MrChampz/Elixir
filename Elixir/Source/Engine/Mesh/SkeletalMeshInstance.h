@@ -3,6 +3,7 @@
 #include <Engine/Mesh/SkeletalMesh.h>
 #include <Engine/Animation/AnimationLayer.h>
 #include <Engine/Animation/BoneMask.h>
+#include <Engine/Animation/TwoBoneIK.h>
 
 namespace Elixir
 {
@@ -96,7 +97,7 @@ namespace Elixir
         /** @brief Resume the instance clock while preserving each layer's pause state. */
         void Resume();
 
-        /** @brief Stop the base, remove nonbase layers, and restore the reference pose. */
+        /** @brief Stop playback, clear IK and extra layers, and restore the reference pose. */
         void Stop();
 
         /**
@@ -191,6 +192,34 @@ namespace Elixir
 
         /** @brief Get one skeleton-space matrix per skeleton bone. */
         const std::vector<glm::mat4>& GetModelPose() const { return m_ModelPose; }
+
+        /**
+         * @brief Replace the ordered two-bone constraints for the next pose evaluation.
+         *
+         * Targets and poles use skeleton space, before the character's world transform.
+         * Each chain uses the end bone's parent and grandparent. Solve after all layers
+         * and root-motion locking, before sockets and skinning. Later constraints see
+         * earlier results. Only the two parent rotations change; local translations,
+         * scales, and the end bone's local rotation are retained. Weight blends rotations,
+         * so intermediate weights do not linearly interpolate the end position.
+         *
+         * Active chains require nonzero segment lengths and uniform positive scales
+         * through their ancestors. Unreachable targets clamp to the reachable range.
+         * Degenerate pole directions fall back to the animated bend or a stable axis.
+         * Changes appear on Update, including Update(0) while paused. Failed updates
+         * retain the last accepted pose, playback clocks, root delta, and notify batches.
+         * Stop clears constraints. Read and modify them on the pose update thread.
+         *
+         * @param constraints Copied ordered list; empty disables IK on the next evaluation.
+         * @return False for invalid bones, nonfinite settings, or weights outside [0, 1].
+         */
+        bool SetTwoBoneIKConstraints(std::span<const STwoBoneIKConstraint> constraints);
+
+        /** @brief Inspect the ordered constraints used by the next pose evaluation. */
+        std::span<const STwoBoneIKConstraint> GetTwoBoneIKConstraints() const
+        {
+            return m_TwoBoneIKConstraints;
+        }
 
         /**
          * @brief Get an attachment matrix from the final composed pose in skeleton space.
@@ -325,6 +354,18 @@ namespace Elixir
          * @param layer Layer whose active and pending windows must be ended.
          */
         void QueueLayerNotifyStateEnds(AnimationLayer& layer);
+
+        /**
+         * @brief Solve ordered constraints on a candidate pose before accepting the frame.
+         * @param local Candidate parent-relative transforms.
+         * @param model Candidate skeleton-space matrices, rebuilt after each active chain.
+         */
+        bool ApplyTwoBoneIK(
+            std::vector<SBoneTransform>& local,
+            std::vector<glm::mat4>& model
+        ) const;
+
+        std::vector<STwoBoneIKConstraint> m_TwoBoneIKConstraints;
 
         const Ref<const SkeletalMesh> m_Mesh;
 

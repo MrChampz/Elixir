@@ -85,6 +85,10 @@ class Dissolve final : public Elixir::Application
     bool m_LayerKeyPressed = false;
 
     /** Recoil controls published to the rendering thread; strength stays in [0, 1]. */
+    std::atomic<bool> m_IKEnabled = true;
+    bool m_IKKeyPressed = false;
+    uint32_t m_IKEndBone = 0;
+    const glm::vec3 m_IKTarget{0.5f, 1.05f, -0.25f};
     std::atomic<bool> m_RecoilEnabled = true;
     std::atomic<float> m_RecoilStrength = 1.0f;
     std::atomic<uint64_t> m_RecoilEvents = 0;

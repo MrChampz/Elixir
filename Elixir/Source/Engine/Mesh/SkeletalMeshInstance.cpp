@@ -35,6 +35,7 @@ namespace Elixir
 
     void SkeletalMeshInstance::Stop()
     {
+        m_TwoBoneIKConstraints.clear();
         GetBaseLayer().Stop();
         ClearLayers();
         m_NotifyEvents.clear();
@@ -140,7 +141,10 @@ namespace Elixir
                 return false;
         }
 
-        return m_Mesh->GetSkeleton()->BuildModelPose(local, model);
+        if (!m_Mesh->GetSkeleton()->BuildModelPose(local, model))
+            return false;
+
+        return ApplyTwoBoneIK(local, model);
     }
 
     bool SkeletalMeshInstance::ApplyBaseLayer(const AnimationLayer& layer)
@@ -392,7 +396,8 @@ namespace Elixir
         if (m_RootMotionEnabled && !LockRootMotion(local))
             return false;
         std::vector<glm::mat4> model;
-        if (!m_Mesh->GetSkeleton()->BuildModelPose(local, model))
+        if (!m_Mesh->GetSkeleton()->BuildModelPose(local, model) ||
+            !ApplyTwoBoneIK(local, model))
             return false;
 
         GetBaseLayer() = candidate;

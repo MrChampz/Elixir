@@ -416,3 +416,52 @@ indices belong to that specific skeleton and may differ between socket-list clon
 Queries read the last accepted pose without advancing animation or allocating memory.
 Attachments and their scene lifetime remain the caller's responsibility. Notify states
 can control when a weapon hitbox is active while a socket supplies its current transform.
+
+### Two Bone IK
+
+The right character adjusts its left arm toward the small orange target next to its
+body; the left character keeps its animated pose. G toggles IK. P pauses playback,
+and N steps one frame. G still updates the arm while paused. The camera angle shows
+the adjusted arm, while the baton remains attached to the other hand's socket.
+
+```cpp
+const auto end = mesh->GetSkeleton()->FindBone("wrist.l");
+if (end < 0) return;
+const STwoBoneIKConstraint constraint{
+    .EndBoneIndex = uint32_t(end),
+    .TargetPosition = {0.5f, 1.05f, -0.25f},
+    .PolePosition = {0.9f, 0.8f, -0.2f},
+    .Weight = 1.0f
+};
+instance.SetTwoBoneIKConstraints(std::span(&constraint, 1));
+instance.Update(deltaSeconds);
+```
+
+The end bone's parent and grandparent define two directly connected segments.
+Choose an end bone whose two direct ancestors form the intended limb; rigs with
+extra wrist or twist bones may need a different end than the visible hand bone.
+The target and pole are positions in skeleton space, before the scene transform.
+Convert world-space targets through the inverse character transform before setting
+constraints. There is no dependency on world transforms or an attachment system.
+
+Evaluation runs after animation layers, montages, additive blending, and root-motion
+locking. Constraints run in authored order; later ones use earlier results. Only the
+root and middle local rotations change. The end bone keeps its local rotation, so its
+model orientation follows its newly rotated parents. Target orientation is not solved.
+Sockets, descendants, and compute skinning all use the same final corrected pose.
+
+Weights interpolate local rotations, not end positions. Zero preserves animation
+exactly. Targets outside the reachable distance clamp without stretching segments.
+A coincident target or collinear pole falls back to the current bend or a stable
+perpendicular direction. Active chains require uniform positive scales through both
+segments and their ancestors, and segment lengths of at least 1e-8 skeleton units.
+Nonuniform or mirrored scales, zero lengths, and constraints rotating an extracted
+root-motion bone or its ancestors fail safely rather than deforming an invalid pose.
+
+SetTwoBoneIKConstraints copies its input and validates indices, finite settings, and
+weights in [0, 1]. Changes appear on the next pose evaluation, including Update(0).
+An empty list restores the animated pose on that evaluation. Manual poses and seeks
+also pass through IK. Stop clears the list and restores the reference pose. A failed
+pose evaluation preserves playback, events, root delta, and the last accepted pose;
+configured constraints remain available for correction and retry. Corrections are
+recomputed from animation every frame and do not accumulate on previous IK results.

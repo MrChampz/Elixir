@@ -71,6 +71,7 @@
 #include <Engine/Mesh/SkeletalMeshRenderer.h>
 
 #include <Engine/Animation/Skeleton.h>
+#include <Engine/Animation/TwoBoneIK.h>
 #include <Engine/Animation/AnimationSequence.h>
 #include <Engine/Animation/AnimationLayer.h>
 #include <Engine/Animation/AnimationNotifyStateEvent.h>

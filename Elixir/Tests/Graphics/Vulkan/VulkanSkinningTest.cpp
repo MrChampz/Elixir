@@ -309,3 +309,64 @@ TEST(VulkanSkinningTest, ProcessesOneThousandIndependentCharactersInOneBatch)
         readback->Unmap();
     }));
 }
+
+TEST(VulkanSkinningTest, TwoBoneIKPoseReachesComputeSkinning)
+{
+    auto* context = VulkanTestContext::Get().GetGraphicsContext();
+    ASSERT_TRUE(context->RunRenderTaskAndWait([&]
+    {
+        auto data = SkinningTests::MakeMesh()->GetData();
+        data.Skeleton = Skeleton::Create("Limb", {
+            {.Name = "Root"}, {.Name = "Middle", .ParentIndex = 0,
+                .ReferenceTransform = {.Translation = {1, 0, 0}}},
+            {.Name = "End", .ParentIndex = 1,
+                .ReferenceTransform = {.Translation = {1, 0, 0}}}
+        });
+        data.ReferencePose.clear();
+        data.BoneMap = {2};
+        data.InverseBindMatrices = {glm::translate(glm::mat4(1), glm::vec3(-2, 0, 0))};
+        for (auto& vertex : data.Vertices)
+        {
+            vertex.Joints = {};
+            vertex.Weights = {1, 0, 0, 0};
+        }
+        data.Vertices[0].Position = {2, 0, 0};
+        const auto mesh = SkeletalMesh::Create(std::move(data));
+        ASSERT_TRUE(mesh);
+        SkeletalMeshInstance instance(mesh);
+        const STwoBoneIKConstraint constraint{2, {1, 1, 0}, {0, 2, 0}};
+        ASSERT_TRUE(instance.SetTwoBoneIKConstraints(std::span(&constraint, 1)));
+        ASSERT_TRUE(instance.Update(0));
+        std::vector<SStaticMeshVertex> expected;
+        ASSERT_TRUE(mesh->SkinVertices(instance.GetModelPose(), expected));
+        EXPECT_NEAR(expected[0].Position.x, 1, 1e-5f);
+        EXPECT_NEAR(expected[0].Position.y, 1, 1e-5f);
+        GeometryPool source(*context, {3, 3, sizeof(SSkeletalMeshVertex),
+            EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer});
+        GeometryPool output(*context, {3, 3, sizeof(SStaticMeshVertex),
+            EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer});
+        auto geometry = source.Upload(mesh->GetData());
+        auto result = output.Allocate(3);
+        ASSERT_TRUE(geometry.IsValid());
+        ASSERT_TRUE(result.IsValid());
+        SkinningBatch batch;
+        ASSERT_TRUE(batch.Append(*mesh, instance.GetModelPose(),
+            geometry.Get()->VertexOffset, result.Get()->VertexOffset, 3));
+        ShaderLoader loader(context);
+        SkinningPass pass(*context, loader);
+        auto info = StagingBuffer::CreateBufferInfo(output.GetVertexBuffer()->GetSize(), nullptr);
+        info.Usage = EBufferUsage::TransferDst;
+        Ref<StagingBuffer> readback = CreateRef<Vulkan::VulkanStagingBuffer>(context, info);
+        const auto cmd = context->GetUploadCommandBuffer();
+        cmd->Begin();
+        ASSERT_TRUE(pass.Record(cmd, batch, source.GetVertexBuffer(), output.GetVertexBuffer(),
+            EPipelineStage::Transfer, EPipelineAccess::TransferRead));
+        output.GetVertexBuffer()->Copy(cmd, readback);
+        cmd->Flush();
+        const auto* actual = static_cast<const SStaticMeshVertex*>(readback->Map());
+        for (size_t i = 0; i < expected.size(); ++i)
+            for (int axis = 0; axis < 3; ++axis)
+                EXPECT_NEAR(actual[i].Position[axis], expected[i].Position[axis], 1e-5f);
+        readback->Unmap();
+    }));
+}
