@@ -302,6 +302,8 @@ namespace Elixir
                 from == to ||
                 !std::isfinite(transition.FadeDuration) ||
                 transition.FadeDuration < 0.0f ||
+                (transition.Mode != EAnimationTransitionMode::CrossFade &&
+                    transition.Mode != EAnimationTransitionMode::Inertialization) ||
                 (transition.WaitForCompletion && from->Looping))
             {
                 EE_CORE_ERROR("AnimationController contains an invalid transition.")
@@ -312,6 +314,7 @@ namespace Elixir
                 .Target = size_t(to - machine.States.begin()),
                 .FadeDuration = transition.FadeDuration,
                 .WaitForCompletion = transition.WaitForCompletion,
+                .Mode = transition.Mode,
             };
 
             for (const auto& condition : transition.Conditions)

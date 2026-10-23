@@ -120,7 +120,8 @@ namespace Elixir
     bool AnimationLayer::Play(
         Ref<const AnimationSequence> sequence,
         const float fadeDuration,
-        const bool looping
+        const bool looping,
+        const EAnimationTransitionMode mode
     )
     {
         if (!m_Skeleton || !sequence || (m_Skeleton != sequence->GetSkeleton() &&
@@ -137,7 +138,8 @@ namespace Elixir
                 .Sequence = std::move(sequence),
                 .Looping = looping
             },
-            fadeDuration
+            fadeDuration,
+            mode
         );
     }
 
@@ -145,7 +147,8 @@ namespace Elixir
         Ref<const BlendSpace> blendSpace,
         const std::span<const float> values,
         const float fadeDuration,
-        const bool looping
+        const bool looping,
+        const EAnimationTransitionMode mode
     )
     {
         if (!m_Skeleton || !blendSpace || !blendSpace->HasValidCoordinates(values) ||
@@ -164,7 +167,8 @@ namespace Elixir
                 .Values = std::vector(values.begin(), values.end()),
                 .Looping = looping
             },
-            fadeDuration
+            fadeDuration,
+            mode
         );
     }
 
@@ -189,6 +193,7 @@ namespace Elixir
 
         m_LocalPose = m_ReferencePose;
         m_Curves = {};
+        ResetPoseHistory();
     }
 
     bool AnimationLayer::Seek(const float time)
@@ -270,6 +275,7 @@ namespace Elixir
         CancelNotifyStates();
         m_LocalPose = std::move(local);
         m_Curves = {};
+        ResetPoseHistory();
         m_Montage = {};
         m_MontagePose.clear();
         m_MontageCurves = {};
@@ -349,6 +355,7 @@ namespace Elixir
         }
 
         output.NotifyEvents.clear();
+        output.DeltaSeconds = dt;
         output.Advance = m_Playing;
         output.ConsumeInitialNotifies = dt > 0.0f && m_Playing;
 
@@ -388,6 +395,12 @@ namespace Elixir
 
     void AnimationLayer::Apply(SLayerEvaluation evaluation)
     {
+        if (evaluation.Advance && evaluation.DeltaSeconds > 0)
+        {
+            m_PreviousPose = m_LocalPose;
+            m_PreviousCurves = m_Curves;
+            m_PoseDeltaSeconds = evaluation.DeltaSeconds;
+        }
         m_ActiveNotifyStates = std::move(evaluation.NotifyStates.Active);
         m_NotifyStateEvents = std::move(evaluation.NotifyStates.Events);
         m_NextNotifyStateActivationId = evaluation.NotifyStates.NextActivationId;
@@ -454,7 +467,12 @@ namespace Elixir
         if (!SamplePlayback(playback, local, time, &result))
             return false;
 
-        if (weight < 1.0f)
+        if (weight < 1.0f && m_Transition.Mode == EAnimationTransitionMode::Inertialization)
+        {
+            if (!ApplyInertialization(double(weight) * m_Transition.Duration, local, result))
+                return false;
+        }
+        else if (weight < 1.0f)
         {
             const auto* pose = &m_Transition.Pose;
             auto sourceCurves = m_Transition.Curves;
@@ -489,11 +507,15 @@ namespace Elixir
         return true;
     }
 
-    bool AnimationLayer::StartPlayback(SPlayback playback, const float fadeDuration)
+    bool AnimationLayer::StartPlayback(
+        SPlayback playback, const float fadeDuration, const EAnimationTransitionMode mode
+    )
     {
-        if (!std::isfinite(fadeDuration) || fadeDuration < 0.0f)
+        if (!std::isfinite(fadeDuration) || fadeDuration < 0.0f ||
+            (mode != EAnimationTransitionMode::CrossFade &&
+                mode != EAnimationTransitionMode::Inertialization))
         {
-            EE_CORE_ERROR("Animation fade duration must be finite and nonnegative.")
+            EE_CORE_ERROR("Animation transition requires a valid mode and nonnegative finite duration.")
             return false;
         }
 
@@ -506,8 +528,13 @@ namespace Elixir
 
             STransition transition;
             transition.Duration = fadeDuration;
+            transition.Mode = mode;
 
-            if (!IsTransitioning() && (m_Playback.Sequence || m_Playback.BlendSpace))
+            if (mode == EAnimationTransitionMode::Inertialization)
+            {
+                if (!CaptureInertialization(playback, transition)) return false;
+            }
+            else if (!IsTransitioning() && (m_Playback.Sequence || m_Playback.BlendSpace))
                 transition.Playback = m_Playback;
             else
             {
@@ -588,6 +615,7 @@ namespace Elixir
 
         m_LocalPose = std::move(local);
         m_Curves = std::move(curves);
+        ResetPoseHistory();
         m_Playback = playback;
         m_Playback.Time = time;
 
@@ -643,7 +671,7 @@ namespace Elixir
         SRootMotionDelta target;
         if (!ExtractPlaybackRootMotion(m_Playback, dt, boneIndex, target, offset))
             return false;
-        if (!IsTransitioning())
+        if (!IsTransitioning() || m_Transition.Mode == EAnimationTransitionMode::Inertialization)
         {
             output = target;
             return true;

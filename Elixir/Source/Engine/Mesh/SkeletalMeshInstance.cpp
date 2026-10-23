@@ -186,11 +186,12 @@ namespace Elixir
     bool SkeletalMeshInstance::Play(
         Ref<const AnimationSequence> sequence,
         const float fadeDuration,
-        const bool looping
+        const bool looping,
+        const EAnimationTransitionMode mode
     )
     {
         auto candidate = GetBaseLayer();
-        if (!candidate.Play(std::move(sequence), fadeDuration, looping) ||
+        if (!candidate.Play(std::move(sequence), fadeDuration, looping, mode) ||
             !ApplyBaseLayer(candidate))
             return false;
 
@@ -203,11 +204,12 @@ namespace Elixir
         Ref<const BlendSpace> blendSpace,
         const std::span<const float> values,
         const float fadeDuration,
-        const bool looping
+        const bool looping,
+        const EAnimationTransitionMode mode
     )
     {
         auto candidate = GetBaseLayer();
-        if (!candidate.Play(std::move(blendSpace), values, fadeDuration, looping) ||
+        if (!candidate.Play(std::move(blendSpace), values, fadeDuration, looping, mode) ||
             !ApplyBaseLayer(candidate))
             return false;
 

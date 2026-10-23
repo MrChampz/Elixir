@@ -561,3 +561,29 @@ A bone mask with any influence enables scalar composition; individual bone mask
 weights do not scale a curve. `GetCurveValues().GetValue(name)` reads zero for an
 absent name. Values remain unrestricted scalars; only an IK binding clamps to
 `[0, 1]`. These demo curves are authored in code, not imported from glTF.
+
+### Inertialization
+
+Press `T` to switch the UpperBody source between waving and punching. The right
+character uses inertialization for 0.35 seconds; the left uses the existing
+cross-fade. Press `T` again before the transition ends to compare interruptions.
+Disable hand IK with `G` and recoil with `U` to see the underlying arm and chest
+motion clearly. `P` pauses; `N` advances a frame. Run this comparison without an
+active `K` combo, since a montage continues to overlay its layer's source.
+
+Playback and controller transitions select `EAnimationTransitionMode::Inertialization`.
+The runtime captures the last two accepted source poses and curves. It estimates
+outgoing velocities from those frames and destination velocities with a short
+forward probe. Quintic offsets decay to zero over the requested duration; the
+outgoing animation is released instead of sampled throughout the transition.
+An interruption captures the current smoothed source and its recent velocity.
+Without valid history, outgoing velocity is zero. Seek, immediate switches,
+manual poses, and Stop discard history. Failed updates do not consume history.
+
+Rotation offsets use shortest-path rotation vectors. Scale offsets use logarithmic
+magnitudes and preserve reflection signs; a sign change rejects inertialization.
+Curves remain unrestricted scalars and can overshoot while retaining momentum;
+IK clamps its curve-controlled weight. Bone masks and additive composition apply
+after smoothing, followed by root locking and IK. Root motion uses the destination
+immediately; this feature does not smooth gameplay movement. Montage entrance and
+exit envelopes remain cross-fades.

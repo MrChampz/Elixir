@@ -15,6 +15,13 @@ namespace Elixir
         Additive
     };
 
+    /** Selects how playback changes converge to the destination animation. */
+    enum class EAnimationTransitionMode : uint8_t
+    {
+        CrossFade,
+        Inertialization
+    };
+
     /** @brief Owns masked pose composition settings and independent animation playback. */
     class ELIXIR_API AnimationLayer final
     {
@@ -31,17 +38,24 @@ namespace Elixir
         /**
          * @brief Blend into a compatible sequence starting at time zero.
          *
-         * Both sequences advance during the fade. An interrupted fade starts from the
-         * current blended pose. Zero duration switches immediately. Preserve state on failure.
+         * CrossFade advances both sources. Inertialization samples only the destination
+         * and decays pose and velocity offsets from the last accepted source frames.
+         * Without history, outgoing velocity is zero. Translation, shortest-path rotation,
+         * signed logarithmic scale, and scalar curves converge over fadeDuration. Scale
+         * signs must match. Zero duration switches immediately. Preserve state on failure.
+         * Montages retain their own cross-fade envelope; root motion uses the destination
+         * immediately during inertialization. Root locking and IK run after pose smoothing.
          *
          * @param sequence Animation to play.
          * @param fadeDuration Finite nonnegative transition duration in seconds.
          * @param looping Wrap playback at the end of the target animation.
+         * @param mode Cross-fade sources or preserve outgoing motion through decaying offsets.
          */
         bool Play(
             Ref<const AnimationSequence> sequence,
             float fadeDuration,
-            bool looping = true
+            bool looping = true,
+            EAnimationTransitionMode mode = EAnimationTransitionMode::CrossFade
         );
 
         /**
@@ -50,12 +64,14 @@ namespace Elixir
          * @param values One finite coordinate per axis; copied into playback storage.
          * @param fadeDuration Finite nonnegative fade duration in seconds.
          * @param looping Wrap the normalized cycle phase at one.
+         * @param mode Transition method; inertialization releases the outgoing source.
          */
         bool Play(
             Ref<const BlendSpace> blendSpace,
             std::span<const float> values,
             float fadeDuration = 0.0f,
-            bool looping = true
+            bool looping = true,
+            EAnimationTransitionMode mode = EAnimationTransitionMode::CrossFade
         );
 
         /**
@@ -64,19 +80,22 @@ namespace Elixir
          * @param values One finite coordinate per axis.
          * @param fadeDuration Finite nonnegative fade duration in seconds.
          * @param looping Wrap the cycle phase at one.
+         * @param mode Smoothing method for a positive transition duration.
          */
         bool Play(
             Ref<const BlendSpace> blendSpace,
             const std::initializer_list<float> values,
             const float fadeDuration = 0.0f,
-            const bool looping = true
+            const bool looping = true,
+            const EAnimationTransitionMode mode = EAnimationTransitionMode::CrossFade
         )
         {
             return Play(
                 std::move(blendSpace),
                 std::span(values.begin(), values.size()),
                 fadeDuration,
-                looping
+                looping,
+                mode
             );
         }
 
@@ -329,6 +348,7 @@ namespace Elixir
             double PlaybackTime = 0.0;
             double TransitionSourceTime = 0.0;
             float TransitionElapsed = 0.0f;
+            float DeltaSeconds = 0.0f;
             bool Advance = false;
             bool ConsumeInitialNotifies = false;
         };
@@ -346,6 +366,26 @@ namespace Elixir
             bool Looping = true;
         };
 
+        struct SInertialVector
+        {
+            glm::dvec3 Value{};
+            glm::dvec3 Velocity{};
+        };
+
+        struct SInertialScalar
+        {
+            double Value = 0.0;
+            double Velocity = 0.0;
+        };
+
+        struct SBoneInertia
+        {
+            SInertialVector Translation;
+            SInertialVector Rotation;
+            SInertialVector Scale;
+            glm::vec3 ScaleSign{1};
+        };
+
         struct STransition
         {
             SPlayback Playback;
@@ -355,6 +395,9 @@ namespace Elixir
             AnimationCurveValues Curves;
             float Duration = 0.0f;
             float Elapsed = 0.0f;
+            EAnimationTransitionMode Mode = EAnimationTransitionMode::CrossFade;
+            std::vector<SBoneInertia> BoneOffsets;
+            std::map<std::string, SInertialScalar, std::less<>> CurveOffsets;
         };
 
         struct SMontagePlayback
@@ -515,8 +558,28 @@ namespace Elixir
          * @brief Start validated playback and capture the fade source.
          * @param playback Compatible target sequence or blend space at time zero.
          * @param fadeDuration Finite nonnegative duration in seconds.
+         * @param mode Validated transition method.
          */
-        bool StartPlayback(SPlayback playback, float fadeDuration);
+        bool StartPlayback(SPlayback playback, float fadeDuration, EAnimationTransitionMode mode);
+
+        /**
+         * @brief Capture offsets against the destination using accepted source history.
+         * @param playback New destination at its initial playback time.
+         * @param transition Receives offsets and the visible source snapshot on success.
+         */
+        bool CaptureInertialization(const SPlayback& playback, STransition& transition) const;
+
+        /**
+         * @brief Decay captured offsets over the destination sample.
+         * @param elapsed Transition seconds, clamped to its duration.
+         * @param pose Destination pose modified on success; discard on failure.
+         * @param curves Destination curves modified on success; discard on failure.
+         */
+        bool ApplyInertialization(double elapsed, std::vector<SBoneTransform>& pose,
+            AnimationCurveValues& curves) const;
+
+        /** @brief Discard velocity history after a timeline discontinuity. */
+        void ResetPoseHistory();
 
         /**
          * @brief Sample playback into a full local pose.
@@ -662,5 +725,12 @@ namespace Elixir
         Ref<const Skeleton> m_Skeleton;
         std::vector<SBoneTransform> m_ReferencePose;
         std::vector<SBoneTransform> m_LocalPose;
+
+        /**
+         * Underlying accepted source samples, before montage, masking, root locking, and IK.
+         */
+        std::vector<SBoneTransform> m_PreviousPose;
+        AnimationCurveValues m_PreviousCurves;
+        float m_PoseDeltaSeconds = 0.0f;
     };
 }

@@ -102,11 +102,13 @@ namespace Elixir
          * @param layerIndex Layer index in the controller.
          * @param source Validated sequence playback.
          * @param fadeDuration Fade duration in seconds.
+         * @param mode Method used to smooth the source change.
          */
         bool PlaySource(
             size_t layerIndex,
             const AnimationController::SSequenceSource& source,
-            float fadeDuration
+            float fadeDuration,
+            EAnimationTransitionMode mode = EAnimationTransitionMode::CrossFade
         );
 
         /**
@@ -114,11 +116,13 @@ namespace Elixir
          * @param layerIndex Layer index in the controller.
          * @param source Validated blend-space playback and numeric bindings.
          * @param fadeDuration Fade duration in seconds.
+         * @param mode Method used to smooth the source change.
          */
         bool PlaySource(
             size_t layerIndex,
             const AnimationController::SBlendSpaceSource& source,
-            float fadeDuration
+            float fadeDuration,
+            EAnimationTransitionMode mode = EAnimationTransitionMode::CrossFade
         );
 
         /**
@@ -126,11 +130,13 @@ namespace Elixir
          * @param layerIndex Layer index in the controller.
          * @param source Validated playback alternative selected by the state.
          * @param fadeDuration Fade duration in seconds.
+         * @param mode Method used to smooth the source change.
          */
         bool PlaySource(
             size_t layerIndex,
             const AnimationController::TPlaybackSource& source,
-            float fadeDuration
+            float fadeDuration,
+            EAnimationTransitionMode mode = EAnimationTransitionMode::CrossFade
         );
 
         /**

@@ -62,6 +62,12 @@ class Dissolve final : public Elixir::Application
     Ref<const AnimationMontage> m_PunchMontage;
     Ref<const AnimationMontage> m_DodgeMontage;
 
+    /** Sources shared by the cross-fade and inertialization comparison. */
+    std::array<Ref<const AnimationSequence>, 2> m_TransitionSources;
+    std::atomic<bool> m_TransitionRequested = false;
+    bool m_TransitionKeyPressed = false;
+    std::atomic<bool> m_TransitionToPunch = false;
+
     /** Root movement is applied by the demo on the rendering thread. */
     glm::mat4 m_CharacterMotion{1};
     std::atomic<bool> m_DodgeRequested = false;

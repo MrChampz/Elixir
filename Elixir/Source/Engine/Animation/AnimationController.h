@@ -54,11 +54,14 @@ namespace Elixir
         std::string To;
         std::vector<SAnimationCondition> Conditions;
 
-        /** Finite nonnegative cross-fade duration in seconds. */
+        /** Finite nonnegative transition duration in seconds. */
         float FadeDuration = 0.2f;
 
         /** Require a nonlooping source to reach its end and finish its incoming fade. */
         bool WaitForCompletion = false;
+
+        /** Selects source cross-fading or destination-only inertialization. */
+        EAnimationTransitionMode Mode = EAnimationTransitionMode::CrossFade;
     };
 
     /** Defines one state machine whose transitions read the controller's parameters. */
@@ -166,6 +169,7 @@ namespace Elixir
             std::vector<SCondition> Conditions;
             float FadeDuration;
             bool WaitForCompletion;
+            EAnimationTransitionMode Mode;
         };
 
         struct SSequenceSource

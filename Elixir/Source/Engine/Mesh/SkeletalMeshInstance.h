@@ -27,17 +27,24 @@ namespace Elixir
         /**
          * @brief Blend into a compatible sequence starting at time zero.
          *
-         * Both sequences advance during the fade. An interrupted fade starts from the
-         * current blended pose. Zero duration switches immediately. Preserve state on failure.
+         * CrossFade advances both sources. Inertialization samples only the destination
+         * and decays pose and velocity offsets from the last accepted source frames.
+         * Without history, outgoing velocity is zero. Translation, shortest-path rotation,
+         * signed logarithmic scale, and scalar curves converge over fadeDuration. Scale
+         * signs must match. Zero duration switches immediately. Preserve state on failure.
+         * Montages retain their own cross-fade envelope; root motion uses the destination
+         * immediately during inertialization. Root locking and IK run after pose smoothing.
          *
          * @param sequence Animation to play.
          * @param fadeDuration Finite nonnegative transition duration in seconds.
          * @param looping Wrap playback at the end of the target animation.
+         * @param mode Cross-fade sources or preserve outgoing motion through decaying offsets.
          */
         bool Play(
             Ref<const AnimationSequence> sequence,
             float fadeDuration,
-            bool looping = true
+            bool looping = true,
+            EAnimationTransitionMode mode = EAnimationTransitionMode::CrossFade
         );
 
         /**
@@ -46,12 +53,14 @@ namespace Elixir
          * @param values One finite coordinate per axis; copied into playback storage.
          * @param fadeDuration Finite nonnegative fade duration in seconds.
          * @param looping Wrap the normalized cycle phase at one.
+         * @param mode Transition method; inertialization releases the outgoing source.
          */
         bool Play(
             Ref<const BlendSpace> blendSpace,
             std::span<const float> values,
             float fadeDuration = 0.0f,
-            bool looping = true
+            bool looping = true,
+            EAnimationTransitionMode mode = EAnimationTransitionMode::CrossFade
         );
 
         /**
@@ -60,19 +69,22 @@ namespace Elixir
          * @param values One finite coordinate per axis.
          * @param fadeDuration Finite nonnegative fade duration in seconds.
          * @param looping Wrap the cycle phase at one.
+         * @param mode Smoothing method for a positive transition duration.
          */
         bool Play(
             Ref<const BlendSpace> blendSpace,
             const std::initializer_list<float> values,
             const float fadeDuration = 0.0f,
-            const bool looping = true
+            const bool looping = true,
+            const EAnimationTransitionMode mode = EAnimationTransitionMode::CrossFade
         )
         {
             return Play(
                 std::move(blendSpace),
                 std::span(values.begin(), values.size()),
                 fadeDuration,
-                looping
+                looping,
+                mode
             );
         }
 

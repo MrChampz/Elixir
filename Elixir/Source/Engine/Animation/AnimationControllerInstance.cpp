@@ -145,17 +145,19 @@ namespace Elixir
     bool AnimationControllerInstance::PlaySource(
         const size_t layerIndex,
         const AnimationController::SSequenceSource& source,
-        const float fadeDuration
+        const float fadeDuration,
+        const EAnimationTransitionMode mode
     )
     {
         auto& layer = *m_Instance.GetLayer(m_Controller->m_Layers[layerIndex].Name);
-        return layer.Play(source.Sequence, fadeDuration, source.Looping);
+        return layer.Play(source.Sequence, fadeDuration, source.Looping, mode);
     }
 
     bool AnimationControllerInstance::PlaySource(
         const size_t layerIndex,
         const AnimationController::SBlendSpaceSource& source,
-        const float fadeDuration
+        const float fadeDuration,
+        const EAnimationTransitionMode mode
     )
     {
         auto& layer = *m_Instance.GetLayer(m_Controller->m_Layers[layerIndex].Name);
@@ -163,20 +165,22 @@ namespace Elixir
             source.BlendSpace,
             GetBlendValues(source),
             fadeDuration,
-            source.Looping
+            source.Looping,
+            mode
         );
     }
 
     bool AnimationControllerInstance::PlaySource(
         const size_t layerIndex,
         const AnimationController::TPlaybackSource& source,
-        const float fadeDuration
+        const float fadeDuration,
+        const EAnimationTransitionMode mode
     )
     {
         return std::visit(
             [&](const auto& playback)
             {
-                return PlaySource(layerIndex, playback, fadeDuration);
+                return PlaySource(layerIndex, playback, fadeDuration, mode);
             },
             source
         );
@@ -333,7 +337,8 @@ namespace Elixir
             const auto success = PlaySource(
                 layerIndex,
                 machine.Sources[transition.Target],
-                transition.FadeDuration
+                transition.FadeDuration,
+                transition.Mode
             );
 
             if (!success) return false;
