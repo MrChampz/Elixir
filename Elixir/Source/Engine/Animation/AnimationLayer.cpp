@@ -180,6 +180,7 @@ namespace Elixir
         CancelNotifyStates();
         m_Montage = {};
         m_MontagePose.clear();
+        m_MontageCurves = {};
         m_Playing = false;
         m_Assigned = false;
         m_NotifyEvents.clear();
@@ -187,6 +188,7 @@ namespace Elixir
         m_Transition = {};
 
         m_LocalPose = m_ReferencePose;
+        m_Curves = {};
     }
 
     bool AnimationLayer::Seek(const float time)
@@ -267,8 +269,10 @@ namespace Elixir
         std::vector local(pose.begin(), pose.end());
         CancelNotifyStates();
         m_LocalPose = std::move(local);
+        m_Curves = {};
         m_Montage = {};
         m_MontagePose.clear();
+        m_MontageCurves = {};
 
         m_Playback = {};
         m_Transition = {};
@@ -356,6 +360,7 @@ namespace Elixir
         if (!m_Playing)
         {
             output.LocalPose = m_LocalPose;
+            output.Curves = m_Curves;
             return true;
         }
 
@@ -376,7 +381,8 @@ namespace Elixir
             weight,
             output.PlaybackTime,
             output.TransitionSourceTime,
-            output.LocalPose
+            output.LocalPose,
+            output.Curves
         );
     }
 
@@ -389,16 +395,22 @@ namespace Elixir
         if (m_Montage.Asset)
         {
             m_LocalPose = std::move(evaluation.PlaybackPose);
+            m_Curves = std::move(evaluation.PlaybackCurves);
+            m_MontageCurves = std::move(evaluation.Curves);
             m_MontagePose = std::move(evaluation.LocalPose);
             m_Montage.Cursor = evaluation.Montage.Cursor;
             if (m_Montage.Cursor.Finished)
             {
                 m_Montage = {};
                 m_MontagePose.clear();
+                m_MontageCurves = {};
             }
         }
         else
+        {
             m_LocalPose = std::move(evaluation.LocalPose);
+            m_Curves = std::move(evaluation.Curves);
+        }
 
         m_NotifyEvents = std::move(evaluation.NotifyEvents);
 
@@ -432,28 +444,33 @@ namespace Elixir
         const float weight,
         const double time,
         const double sourceTime,
-        std::vector<SBoneTransform>& output
+        std::vector<SBoneTransform>& output,
+        AnimationCurveValues& curves
     ) const
     {
         std::vector<SBoneTransform> local;
 
-        if (!SamplePlayback(playback, local, time))
+        AnimationCurveValues result;
+        if (!SamplePlayback(playback, local, time, &result))
             return false;
 
         if (weight < 1.0f)
         {
             const auto* pose = &m_Transition.Pose;
+            auto sourceCurves = m_Transition.Curves;
 
             std::vector<SBoneTransform> sampled;
             if (source.Sequence || source.BlendSpace)
             {
-                if (!SamplePlayback(source, sampled, sourceTime))
+                if (!SamplePlayback(source, sampled, sourceTime, &sourceCurves))
                     return false;
                 pose = &sampled;
             }
 
             for (size_t i = 0; i < local.size(); ++i)
                 local[i] = SBoneTransform::Blend((*pose)[i], local[i], weight);
+            if (!sourceCurves.Blend(result, weight)) return false;
+            result = std::move(sourceCurves);
         }
 
         const auto invalidBone = std::ranges::any_of(
@@ -468,6 +485,7 @@ namespace Elixir
         }
 
         output = std::move(local);
+        curves = std::move(result);
         return true;
     }
 
@@ -492,7 +510,10 @@ namespace Elixir
             if (!IsTransitioning() && (m_Playback.Sequence || m_Playback.BlendSpace))
                 transition.Playback = m_Playback;
             else
+            {
                 transition.Pose = m_LocalPose;
+                transition.Curves = m_Curves;
+            }
 
             m_Transition = std::move(transition);
             m_Playback = std::move(playback);
@@ -516,7 +537,8 @@ namespace Elixir
     bool AnimationLayer::SamplePlayback(
         const SPlayback& playback,
         std::vector<SBoneTransform>& output,
-        const double time
+        const double time,
+        AnimationCurveValues* curves
     ) const
     {
         if (playback.Sequence)
@@ -524,7 +546,7 @@ namespace Elixir
                 time,
                 output,
                 m_ReferencePose
-            );
+            ) && (!curves || playback.Sequence->SampleCurves(float(time), *curves));
 
         if (playback.BlendSpace)
             return playback.BlendSpace->Sample(
@@ -532,7 +554,7 @@ namespace Elixir
                 time,
                 output,
                 m_ReferencePose
-            );
+            ) && (!curves || playback.BlendSpace->SampleCurves(playback.Values, float(time), *curves));
 
         return false;
     }
@@ -560,10 +582,12 @@ namespace Elixir
     {
         std::vector<SBoneTransform> local;
 
-        if (!SamplePose(playback, source, weight, time, sourceTime, local))
+        AnimationCurveValues curves;
+        if (!SamplePose(playback, source, weight, time, sourceTime, local, curves))
             return false;
 
         m_LocalPose = std::move(local);
+        m_Curves = std::move(curves);
         m_Playback = playback;
         m_Playback.Time = time;
 

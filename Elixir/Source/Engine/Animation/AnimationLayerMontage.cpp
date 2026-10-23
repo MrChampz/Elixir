@@ -37,7 +37,10 @@ namespace Elixir
         for (size_t i = 0; i < playback.Asset->GetSections().size(); ++i)
             playback.NextSections.push_back(playback.Asset->GetNextSection(i));
         if (m_Montage.Asset && playback.Asset->GetBlendIn() > 0)
+        {
             playback.SourcePose = GetLocalPose();
+            playback.SourceCurves = GetCurveValues();
+        }
 
         std::vector<SBoneTransform> sampled;
         if (!playback.Asset->GetSequence()->Sample(
@@ -47,12 +50,14 @@ namespace Elixir
         auto candidate = *this;
         candidate.m_Montage = std::move(playback);
         auto pose = m_LocalPose;
-        if (!candidate.BlendMontage(candidate.m_Montage.Cursor, pose))
+        auto curves = m_Curves;
+        if (!candidate.BlendMontage(candidate.m_Montage.Cursor, pose, curves))
             return false;
 
         CancelNotifyStates();
         m_Montage = std::move(candidate.m_Montage);
         m_MontagePose = std::move(pose);
+        m_MontageCurves = std::move(curves);
         m_NotifyEvents.clear();
         return true;
     }
@@ -110,11 +115,13 @@ namespace Elixir
         cursor.Time = m_Montage.Asset->GetSections()[*section].StartTime;
         cursor.IncludeNotifyStart = true;
         auto pose = m_LocalPose;
-        if (!BlendMontage(cursor, pose))
+        auto curves = m_Curves;
+        if (!BlendMontage(cursor, pose, curves))
             return false;
         CancelNotifyStates();
         m_Montage.Cursor = cursor;
         m_MontagePose = std::move(pose);
+        m_MontageCurves = std::move(curves);
         m_NotifyEvents.clear();
         return true;
     }
@@ -146,6 +153,7 @@ namespace Elixir
             CancelNotifyStates();
             m_Montage = {};
             m_MontagePose.clear();
+            m_MontageCurves = {};
             m_NotifyEvents.clear();
             return true;
         }
@@ -302,7 +310,8 @@ namespace Elixir
     }
 
     bool AnimationLayer::BlendMontage(
-        const SMontageCursor& cursor, std::vector<SBoneTransform>& pose
+        const SMontageCursor& cursor, std::vector<SBoneTransform>& pose,
+        AnimationCurveValues& curves
     ) const
     {
         if (!m_Montage.Asset)
@@ -338,7 +347,13 @@ namespace Elixir
                 return false;
             }
         }
-        return true;
+        AnimationCurveValues sampledCurves;
+        if (!m_Montage.Asset->GetSequence()->SampleCurves(float(cursor.Time), sampledCurves))
+            return false;
+        if (!m_Montage.SourcePose.empty() && sourceWeight > 0 &&
+            !curves.Blend(m_Montage.SourceCurves, sourceWeight))
+            return false;
+        return curves.Blend(sampledCurves, weight);
     }
 
     bool AnimationLayer::Evaluate(const float dt, SLayerEvaluation& output) const
@@ -354,7 +369,8 @@ namespace Elixir
         if (emitNotifies && !CollectMontageNotifyEvents(dt, output.Montage, output.NotifyEvents))
             return false;
         output.PlaybackPose = output.LocalPose;
-        return BlendMontage(output.Montage.Cursor, output.LocalPose) &&
+        output.PlaybackCurves = output.Curves;
+        return BlendMontage(output.Montage.Cursor, output.LocalPose, output.Curves) &&
             EvaluateNotifyStates(dt, output);
     }
 

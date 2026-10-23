@@ -64,7 +64,8 @@ namespace Elixir
         std::vector<SBoneAnimationTrack> tracks,
         std::vector<SAnimationSyncMarker> syncMarkers,
         std::vector<SAnimationNotify> notifies,
-        std::vector<SAnimationNotifyState> notifyStates
+        std::vector<SAnimationNotifyState> notifyStates,
+        std::vector<SAnimationCurve> curves
     )
     {
         if (!skeleton || !std::isfinite(duration) || duration < 0)
@@ -127,6 +128,21 @@ namespace Elixir
         }
         std::ranges::stable_sort(notifyStates, {}, &SAnimationNotifyState::StartTime);
 
+        std::unordered_set<std::string> curveNames;
+        for (const auto& curve : curves)
+        {
+            if (curve.Name.empty() || curveNames.contains(curve.Name) || curve.Keys.empty() ||
+                !ValidateKeys(curve.Keys, duration,
+                    [](const float value) { return std::isfinite(value); }) ||
+                (curve.Interpolation != EAnimationCurveInterpolation::Step &&
+                    curve.Interpolation != EAnimationCurveInterpolation::Linear))
+            {
+                EE_CORE_ERROR("AnimationSequence contains invalid or duplicate scalar curves.")
+                return nullptr;
+            }
+            curveNames.insert(curve.Name);
+        }
+
         std::unordered_set<uint32_t> indices;
 
         for (const auto& track : tracks)
@@ -180,7 +196,8 @@ namespace Elixir
             std::move(tracks),
             std::move(syncMarkers),
             std::move(notifies),
-            std::move(notifyStates)
+            std::move(notifyStates),
+            std::move(curves)
         ));
     }
 
@@ -191,14 +208,16 @@ namespace Elixir
         std::vector<SBoneAnimationTrack> tracks,
         std::vector<SAnimationSyncMarker> syncMarkers,
         std::vector<SAnimationNotify> notifies,
-        std::vector<SAnimationNotifyState> notifyStates
+        std::vector<SAnimationNotifyState> notifyStates,
+        std::vector<SAnimationCurve> curves
     ) : m_Name(std::move(name)),
         m_Skeleton(std::move(skeleton)),
         m_Duration(duration),
         m_Tracks(std::move(tracks)),
         m_SyncMarkers(std::move(syncMarkers)),
         m_Notifies(std::move(notifies)),
-        m_NotifyStates(std::move(notifyStates)) {}
+        m_NotifyStates(std::move(notifyStates)),
+        m_Curves(std::move(curves)) {}
 
     Ref<AnimationSequence> AnimationSequence::WithSyncMarkers(
         std::vector<SAnimationSyncMarker> syncMarkers
@@ -211,8 +230,39 @@ namespace Elixir
             m_Tracks,
             std::move(syncMarkers),
             m_Notifies,
-            m_NotifyStates
+            m_NotifyStates,
+            m_Curves
         );
+    }
+
+    Ref<AnimationSequence> AnimationSequence::WithCurves(std::vector<SAnimationCurve> curves) const
+    {
+        return Create(m_Name, m_Skeleton, m_Duration, m_Tracks, m_SyncMarkers, m_Notifies,
+            m_NotifyStates, std::move(curves));
+    }
+
+    bool AnimationSequence::SampleCurves(const float time, AnimationCurveValues& output) const
+    {
+        if (!std::isfinite(time))
+        {
+            EE_CORE_ERROR("Animation curve sample time must be finite.")
+            return false;
+        }
+        AnimationCurveValues result;
+        const auto sampleTime = std::clamp(time, 0.0f, m_Duration);
+        for (const auto& curve : m_Curves)
+        {
+            const auto mode = curve.Interpolation == EAnimationCurveInterpolation::Step
+                ? EBoneInterpolation::Step : EBoneInterpolation::Linear;
+            const auto value = SampleKeys(curve.Keys, sampleTime, mode, 0.0f,
+                [](const float first, const float second, const float weight)
+                {
+                    return float(double(first) * (1.0 - weight) + double(second) * weight);
+                });
+            if (!result.SetValue(curve.Name, value)) return false;
+        }
+        output = std::move(result);
+        return true;
     }
 
     bool AnimationSequence::CanSynchronizeWith(const AnimationSequence& reference) const
@@ -434,7 +484,8 @@ namespace Elixir
             m_Tracks,
             m_SyncMarkers,
             std::move(notifies),
-            m_NotifyStates
+            m_NotifyStates,
+            m_Curves
         );
     }
 

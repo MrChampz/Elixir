@@ -36,5 +36,13 @@ namespace Elixir
          * remains in skeleton space. Read from the current pose at this constraint's turn.
          */
         std::optional<TIKTargetReference> TargetReference;
+
+        /**
+         * Optional nonempty curve name multiplying Weight in the same evaluated frame.
+         * The sampled value clamps to [0, 1]; an absent curve contributes zero. Dependency
+         * validation uses the configured Weight because curves can change every frame.
+         */
+        std::optional<std::string> WeightCurve;
+
     };
 }

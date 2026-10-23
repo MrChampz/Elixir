@@ -30,6 +30,15 @@ namespace Elixir
         ) const;
 
         /**
+         * @brief Sample weighted scalar tracks on the same marker timeline as the pose.
+         * @param values One finite coordinate per axis.
+         * @param phase Finite cycle phase, clamped to [0, 1].
+         * @param output Receives blended values; unchanged on failure. Missing curves use zero.
+         */
+        bool SampleCurves(std::span<const float> values, float phase,
+            AnimationCurveValues& output) const;
+
+        /**
          * @brief Blend root movement from contributing clips on the marker timeline.
          * @param values One finite coordinate per axis.
          * @param startPhase Finite start cycle phase.

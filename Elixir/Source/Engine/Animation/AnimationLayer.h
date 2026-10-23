@@ -255,6 +255,12 @@ namespace Elixir
             return m_Montage.Asset ? m_MontagePose : m_LocalPose;
         }
 
+        /** @brief Get current layer curves before the layer weight and composition mode. */
+        const AnimationCurveValues& GetCurveValues() const
+        {
+            return m_Montage.Asset ? m_MontageCurves : m_Curves;
+        }
+
         /** @brief Get source time in seconds, independent of any active montage. */
         float GetTime() const;
 
@@ -315,6 +321,8 @@ namespace Elixir
         {
             std::vector<SBoneTransform> LocalPose;
             std::vector<SBoneTransform> PlaybackPose;
+            AnimationCurveValues Curves;
+            AnimationCurveValues PlaybackCurves;
             SMontageEvaluation Montage;
             std::vector<SAnimationNotifyEvent> NotifyEvents;
             SNotifyStateEvaluation NotifyStates;
@@ -344,6 +352,7 @@ namespace Elixir
 
             /** Visible source pose when playback is absent or a fade was interrupted. */
             std::vector<SBoneTransform> Pose;
+            AnimationCurveValues Curves;
             float Duration = 0.0f;
             float Elapsed = 0.0f;
         };
@@ -360,6 +369,7 @@ namespace Elixir
 
             /** Frozen visible pose used only when replacing another montage. */
             std::vector<SBoneTransform> SourcePose;
+            AnimationCurveValues SourceCurves;
         };
 
         /**
@@ -373,8 +383,10 @@ namespace Elixir
          * @brief Sample the action and blend it over an evaluated source pose.
          * @param cursor Sequence position, section, and elapsed playback seconds.
          * @param pose Source pose modified on success.
+         * @param curves Source curves modified with the same action envelope.
          */
-        bool BlendMontage(const SMontageCursor& cursor, std::vector<SBoneTransform>& pose) const;
+        bool BlendMontage(const SMontageCursor& cursor, std::vector<SBoneTransform>& pose,
+            AnimationCurveValues& curves) const;
 
         /**
          * @brief Get the action envelope at one time.
@@ -487,6 +499,7 @@ namespace Elixir
          * @param time Target sample time in seconds or phase.
          * @param sourceTime Source sample time in seconds or phase.
          * @param output Receives a valid local pose on success.
+         * @param curves Receives curves blended with the same transition weight.
          */
         bool SamplePose(
             const SPlayback& playback,
@@ -494,7 +507,8 @@ namespace Elixir
             float weight,
             double time,
             double sourceTime,
-            std::vector<SBoneTransform>& output
+            std::vector<SBoneTransform>& output,
+            AnimationCurveValues& curves
         ) const;
 
         /**
@@ -509,11 +523,13 @@ namespace Elixir
          * @param playback Assigned sequence or blend space and its sample time.
          * @param output Local transforms to receive the sample.
          * @param time Seconds for a sequence or normalized phase for a blend space.
+         * @param curves Optional scalar output using the same sample time.
          */
         bool SamplePlayback(
             const SPlayback& playback,
             std::vector<SBoneTransform>& output,
-            double time
+            double time,
+            AnimationCurveValues* curves = nullptr
         ) const;
 
         /**
@@ -628,6 +644,8 @@ namespace Elixir
 
         SMontagePlayback m_Montage;
         std::vector<SBoneTransform> m_MontagePose;
+        AnimationCurveValues m_MontageCurves;
+        AnimationCurveValues m_Curves;
         STransition m_Transition;
         SPlayback m_Playback;
         bool m_Playing = false;

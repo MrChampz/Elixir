@@ -1,6 +1,7 @@
  #pragma once
 
 #include <Engine/Animation/RootMotion.h>
+#include <Engine/Animation/AnimationCurve.h>
 
 namespace Elixir
 {
@@ -139,6 +140,7 @@ namespace Elixir
          * Markers are sorted during creation.
          * @param notifies Named events on a positive-duration timeline, sorted stably by time.
          * @param notifyStates Named windows within the timeline; may overlap.
+         * @param curves Unique named scalar tracks with finite ordered keys.
          */
         static Ref<AnimationSequence> Create(
             std::string name, Ref<const Skeleton> skeleton,
@@ -146,7 +148,8 @@ namespace Elixir
             std::vector<SBoneAnimationTrack> tracks,
             std::vector<SAnimationSyncMarker> syncMarkers = {},
             std::vector<SAnimationNotify> notifies = {},
-            std::vector<SAnimationNotifyState> notifyStates = {}
+            std::vector<SAnimationNotifyState> notifyStates = {},
+            std::vector<SAnimationCurve> curves = {}
         );
 
         /**
@@ -160,6 +163,23 @@ namespace Elixir
             std::vector<SBoneTransform>& output,
             std::span<const SBoneTransform> referencePose = {}
         ) const;
+
+        /**
+         * @brief Sample scalar tracks at a clamped time; preserve output on failure.
+         * @param time Finite sequence time in seconds.
+         * @param output Receives all authored curves, including zero values.
+         */
+        bool SampleCurves(float time, AnimationCurveValues& output) const;
+
+        /**
+         * @brief Copy this sequence with scalar tracks, preserving all other metadata.
+         * @param curves Unique named tracks; empty removes all curves.
+         * @return A new sequence, or null for invalid names, keys, or interpolation.
+         */
+        Ref<AnimationSequence> WithCurves(std::vector<SAnimationCurve> curves) const;
+
+        /** @brief Get immutable authored scalar tracks. */
+        const std::vector<SAnimationCurve>& GetCurves() const { return m_Curves; }
 
         /**
          * @brief Extract rigid movement of a selected bone over a forward phase interval.
@@ -307,6 +327,7 @@ namespace Elixir
          * @param syncMarkers Validated cycle markers in ascending time order.
          * @param notifies Validated events in stable ascending time order.
          * @param notifyStates Validated windows in stable start-time order.
+         * @param curves Validated scalar tracks.
          */
         AnimationSequence(
             std::string name,
@@ -315,7 +336,8 @@ namespace Elixir
             std::vector<SBoneAnimationTrack> tracks,
             std::vector<SAnimationSyncMarker> syncMarkers,
             std::vector<SAnimationNotify> notifies,
-            std::vector<SAnimationNotifyState> notifyStates
+            std::vector<SAnimationNotifyState> notifyStates,
+            std::vector<SAnimationCurve> curves
         );
 
         std::string m_Name;
@@ -325,5 +347,6 @@ namespace Elixir
         std::vector<SAnimationSyncMarker> m_SyncMarkers;
         std::vector<SAnimationNotify> m_Notifies;
         std::vector<SAnimationNotifyState> m_NotifyStates;
+        std::vector<SAnimationCurve> m_Curves;
     };
 }

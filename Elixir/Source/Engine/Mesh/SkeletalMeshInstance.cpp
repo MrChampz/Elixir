@@ -36,6 +36,7 @@ namespace Elixir
     void SkeletalMeshInstance::Stop()
     {
         m_TwoBoneIKConstraints.clear();
+        m_Curves = {};
         GetBaseLayer().Stop();
         ClearLayers();
         m_NotifyEvents.clear();
@@ -117,12 +118,14 @@ namespace Elixir
         const std::span<const AnimationLayer::SLayerEvaluation> evaluations,
         std::vector<SBoneTransform>& local,
         std::vector<glm::mat4>& model,
+        AnimationCurveValues& curves,
         const AnimationLayer* replacement
     ) const
     {
         if (!m_Mesh) return false;
 
         local = m_Mesh->GetData().ReferencePose;
+        curves = {};
 
         for (size_t i = 0; i < m_Layers.size(); ++i)
         {
@@ -137,6 +140,13 @@ namespace Elixir
             if (!layer.BlendPose(local, pose))
                 return false;
 
+            const auto& sampledCurves = evaluations.empty()
+                ? layer.GetCurveValues() : evaluations[i].Curves;
+            if (layer.HasPose() && layer.GetWeight() > 0 && layer.GetMask()->HasInfluence() &&
+                !curves.ApplyLayer(sampledCurves, layer.GetWeight(),
+                    layer.GetBlendMode() == EAnimationLayerBlendMode::Additive))
+                return false;
+
             if (i == 0 && m_RootMotionEnabled && !LockRootMotion(local))
                 return false;
         }
@@ -144,15 +154,16 @@ namespace Elixir
         if (!m_Mesh->GetSkeleton()->BuildModelPose(local, model))
             return false;
 
-        return ApplyTwoBoneIK(local, model);
+        return ApplyTwoBoneIK(local, model, curves);
     }
 
     bool SkeletalMeshInstance::ApplyBaseLayer(const AnimationLayer& layer)
     {
         std::vector<SBoneTransform> local;
         std::vector<glm::mat4> model;
+        AnimationCurveValues curves;
 
-        if (!ComposePose({}, local, model, &layer))
+        if (!ComposePose({}, local, model, curves, &layer))
             return false;
 
         auto& baseLayer = GetBaseLayer();
@@ -160,6 +171,7 @@ namespace Elixir
 
         m_LocalPose = std::move(local);
         m_ModelPose = std::move(model);
+        m_Curves = std::move(curves);
         m_NotifyEvents.clear();
         m_RootMotionDelta = {};
 
@@ -290,7 +302,8 @@ namespace Elixir
         m_RootMotionParentScale = scale;
         std::vector<SBoneTransform> local;
         std::vector<glm::mat4> model;
-        if (!ComposePose({}, local, model))
+        AnimationCurveValues curves;
+        if (!ComposePose({}, local, model, curves))
         {
             m_RootMotionEnabled = previous;
             m_RootMotionBone = previousBone;
@@ -300,6 +313,7 @@ namespace Elixir
         }
         m_LocalPose = std::move(local);
         m_ModelPose = std::move(model);
+        m_Curves = std::move(curves);
         m_RootMotionDelta = {};
         return true;
     }
@@ -350,6 +364,7 @@ namespace Elixir
 
         std::vector<SBoneTransform> local;
         std::vector<glm::mat4> model;
+        AnimationCurveValues curves;
 
         SRootMotionDelta movement;
         if (m_RootMotionEnabled && !GetBaseLayer().ExtractRootMotion(
@@ -367,7 +382,7 @@ namespace Elixir
             }
         }
 
-        if (!ComposePose(evaluations, local, model))
+        if (!ComposePose(evaluations, local, model, curves))
             return false;
 
         std::ranges::stable_sort(events, {}, &SAnimationNotifyEvent::TimeOffset);
@@ -378,6 +393,7 @@ namespace Elixir
 
         m_LocalPose = std::move(local);
         m_ModelPose = std::move(model);
+        m_Curves = std::move(curves);
         m_NotifyEvents = std::move(events);
         m_NotifyStateEvents = std::move(stateEvents);
         m_PendingNotifyStateEnds.clear();
@@ -396,8 +412,9 @@ namespace Elixir
         if (m_RootMotionEnabled && !LockRootMotion(local))
             return false;
         std::vector<glm::mat4> model;
+        AnimationCurveValues curves;
         if (!m_Mesh->GetSkeleton()->BuildModelPose(local, model) ||
-            !ApplyTwoBoneIK(local, model))
+            !ApplyTwoBoneIK(local, model, curves))
             return false;
 
         GetBaseLayer() = candidate;
@@ -408,6 +425,7 @@ namespace Elixir
 
         m_LocalPose = std::move(local);
         m_ModelPose = std::move(model);
+        m_Curves = std::move(curves);
 
         return true;
     }

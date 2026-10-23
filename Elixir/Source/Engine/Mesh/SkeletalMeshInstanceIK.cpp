@@ -152,7 +152,8 @@ namespace Elixir
                     !std::isfinite(constraint.PolePosition[i]))
                     return false;
             }
-            if (!std::isfinite(constraint.Weight) ||
+            if ((constraint.WeightCurve && constraint.WeightCurve->empty()) ||
+                !std::isfinite(constraint.Weight) ||
                 constraint.Weight < 0 || constraint.Weight > 1)
                 return false;
 
@@ -236,14 +237,17 @@ namespace Elixir
 
     bool SkeletalMeshInstance::ApplyTwoBoneIK(
         std::vector<SBoneTransform>& local,
-        std::vector<glm::mat4>& model
+        std::vector<glm::mat4>& model,
+        const AnimationCurveValues& curves
     ) const
     {
         const auto& skeleton = *m_Mesh->GetSkeleton();
         const auto& bones = skeleton.GetBones();
         for (const auto& constraint : m_TwoBoneIKConstraints)
         {
-            if (constraint.Weight == 0) continue;
+            const auto weight = constraint.Weight * (constraint.WeightCurve
+                ? std::clamp(curves.GetValue(*constraint.WeightCurve), 0.0f, 1.0f) : 1.0f);
+            if (weight == 0) continue;
 
             const auto targetFrame = ResolveTarget(skeleton, constraint, local, model);
             if (!targetFrame) return false;
@@ -333,9 +337,9 @@ namespace Elixir
             const auto rootLocal = glm::quat(glm::normalize(glm::conjugate(parentRotation) * newRoot));
             const auto middleLocal = glm::quat(glm::normalize(glm::conjugate(newRoot) * newMiddle));
             local[root].Rotation = glm::normalize(glm::slerp(
-                local[root].Rotation, rootLocal, constraint.Weight));
+                local[root].Rotation, rootLocal, weight));
             local[middle].Rotation = glm::normalize(glm::slerp(
-                local[middle].Rotation, middleLocal, constraint.Weight));
+                local[middle].Rotation, middleLocal, weight));
             if (targetFrame->Rotation)
             {
                 const auto blendedRoot = glm::normalize(
@@ -346,7 +350,7 @@ namespace Elixir
                     blendedMiddle * glm::dquat(local[end].Rotation));
                 const auto targetEnd = glm::normalize(glm::slerp(currentEnd,
                     *targetFrame->Rotation,
-                    double(constraint.Weight)));
+                    double(weight)));
                 local[end].Rotation = glm::quat(glm::normalize(
                     glm::conjugate(blendedMiddle) * targetEnd));
             }

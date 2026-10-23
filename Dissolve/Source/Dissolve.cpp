@@ -358,10 +358,11 @@ void Dissolve::OnGUI(const Timestep frameTime)
         );
     if (m_NotifyStateStatus)
         m_NotifyStateStatus->SetText(std::format(
-            "Hitbox {} | Window updates {} | Cancelled {}",
+            "Hitbox {} | Window updates {} | Cancelled {} | SupportHandIK {:.2f}",
             m_HitboxActive.load(std::memory_order_relaxed) ? "ON" : "OFF",
             m_NotifyStateUpdates.load(std::memory_order_relaxed),
-            m_CancelledNotifyStates.load(std::memory_order_relaxed)
+            m_CancelledNotifyStates.load(std::memory_order_relaxed),
+            m_SupportHandIKWeight.load(std::memory_order_relaxed)
         ));
 }
 
@@ -516,7 +517,8 @@ void Dissolve::InitializeAnimationController()
                 return animation->GetName() == name;
             }
         );
-        return found == animations.end() ? nullptr : *found;
+        return found == animations.end() ? nullptr
+            : (*found)->WithCurves({{"SupportHandIK", {{0, 1}}}});
     };
 
     const auto idle = findAnimation("Idle_A");
@@ -713,9 +715,19 @@ Ref<const AnimationSequence> Dissolve::CreateComboAnimation(
     for (int i = 0; i < 3; ++i)
         windows.push_back({"AttackHitbox", attackDuration * (float(i) + 0.3f),
             attackDuration * (float(i) + 0.65f), SAttackWindowPayload{}});
+    std::vector<SAnimationCurveKey> gripKeys;
+    for (int i = 0; i < 3; ++i)
+    {
+        const auto start = attackDuration * float(i);
+        for (const auto& [phase, value] : std::array{
+            std::pair{0.0f, 1.0f}, std::pair{0.15f, 1.0f}, std::pair{0.3f, 0.0f},
+            std::pair{0.65f, 0.0f}, std::pair{0.85f, 1.0f}})
+            gripKeys.push_back({start + attackDuration * phase, value});
+    }
+    gripKeys.push_back({recoveryStart, 1});
     return AnimationSequence::Create("PunchCombo", attack->GetSkeleton(),
         recoveryStart + recoveryDuration, std::move(tracks), {}, std::move(notifies),
-        std::move(windows));
+        std::move(windows), {{"SupportHandIK", std::move(gripKeys)}});
 }
 
 Ref<const AnimationSequence> Dissolve::CreateRecoilAnimation()
@@ -834,7 +846,8 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
             .Weight = ikWeight,
             .TargetRotation = m_IKRotationEnabled.load(std::memory_order_relaxed)
                 ? std::optional(m_IKSupportOffset.Rotation) : std::nullopt,
-            .TargetReference = std::string("SupportGrip")
+            .TargetReference = std::string("SupportGrip"),
+            .WeightCurve = "SupportHandIK"
         }
     };
     if (!m_MeshInstance->SetTwoBoneIKConstraints(constraints)) return;
@@ -847,6 +860,8 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
         !m_ComparisonController->Update(advance))
         return;
 
+    m_SupportHandIKWeight.store(m_MeshInstance->GetCurveValues().GetValue("SupportHandIK"),
+        std::memory_order_relaxed);
     m_CharacterMotion *= m_MeshInstance->GetRootMotionDelta().ToMatrix();
     if (m_ResetMotion.exchange(false, std::memory_order_relaxed))
         m_CharacterMotion = glm::mat4(1);

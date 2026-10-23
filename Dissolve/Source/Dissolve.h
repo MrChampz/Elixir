@@ -67,6 +67,9 @@ class Dissolve final : public Elixir::Application
     std::atomic<bool> m_DodgeRequested = false;
     std::atomic<bool> m_ResetMotion = false;
     std::atomic<float> m_RootMotionDistance = 0;
+
+    /** Last composed support-hand curve, published to the GUI thread. */
+    std::atomic<float> m_SupportHandIKWeight = 1;
     bool m_DodgeKeyPressed = false;
     bool m_ResetMotionKeyPressed = false;
 

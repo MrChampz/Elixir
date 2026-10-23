@@ -8,7 +8,7 @@ namespace Elixir
     ) const
     {
         return Create(m_Name, m_Skeleton, m_Duration, m_Tracks, m_SyncMarkers, m_Notifies,
-            std::move(notifyStates));
+            std::move(notifyStates), m_Curves);
     }
 
     bool AnimationSequence::CollectNotifyStateIntervals(

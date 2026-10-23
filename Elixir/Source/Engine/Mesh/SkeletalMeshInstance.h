@@ -332,18 +332,29 @@ namespace Elixir
         /** @brief Remove all nonbase layers; the next Update rebuilds the base pose. */
         void ClearLayers();
 
+        /**
+         * @brief Get curves composed with the last accepted pose, before IK is applied.
+         *
+         * Override layers affect only authored names. Additive layers add values with a
+         * zero reference. Scalars use the layer weight when its mask has any influence;
+         * they have no per-bone mask. Failed updates retain the previous values.
+         */
+        const AnimationCurveValues& GetCurveValues() const { return m_Curves; }
+
       private:
         /**
          * @brief Compose ordered layer poses and validate the final model matrices.
          * @param evaluations Evaluated layers, or empty to use their current local poses.
          * @param local Receives the complete blended local pose.
          * @param model Receives the complete skeleton-space pose.
+         * @param curves Receives scalar values composed before solving IK.
          * @param replacement Optional layer preview used before committing a playback change.
          */
         bool ComposePose(
             std::span<const AnimationLayer::SLayerEvaluation> evaluations,
             std::vector<SBoneTransform>& local,
             std::vector<glm::mat4>& model,
+            AnimationCurveValues& curves,
             const AnimationLayer* replacement = nullptr
         ) const;
 
@@ -369,13 +380,16 @@ namespace Elixir
          * @brief Solve ordered constraints on a candidate pose before accepting the frame.
          * @param local Candidate parent-relative transforms.
          * @param model Candidate skeleton-space matrices, rebuilt after each active chain.
+         * @param curves Current candidate values controlling optional IK weight bindings.
          */
         bool ApplyTwoBoneIK(
             std::vector<SBoneTransform>& local,
-            std::vector<glm::mat4>& model
+            std::vector<glm::mat4>& model,
+            const AnimationCurveValues& curves
         ) const;
 
         std::vector<STwoBoneIKConstraint> m_TwoBoneIKConstraints;
+        AnimationCurveValues m_Curves;
 
         const Ref<const SkeletalMesh> m_Mesh;
 

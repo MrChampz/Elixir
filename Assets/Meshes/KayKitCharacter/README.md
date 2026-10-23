@@ -542,3 +542,22 @@ and the socket. They compose reference rotation, socket rotation, and target rot
 without extracting a quaternion from a sheared matrix. A failure retains the last accepted
 pose, clocks, events, and root delta. Targets outside the limb's reach still clamp normally.
 The reference belongs to this mesh instance; external entities supply converted targets.
+
+### Animation curves
+
+The demo authors a scalar curve named `SupportHandIK` on its sequence copies.
+Locomotion and waving keep it at one. Each attack in the `K` combo smoothly lowers
+it to zero between 30% and 65% of the attack, then restores it before recovery.
+The left-hand constraint binds `WeightCurve = "SupportHandIK"`; its configured
+weight multiplies the clamped curve from the same evaluated frame. The right hand
+keeps holding the baton. The HUD shows the composed value. Use `P` to pause and
+`N` to advance one frame while checking the release and regrip.
+
+Curves follow sequence time, synchronized blend-space sampling, transitions, and
+montage envelopes. Missing names contribute zero inside source blends. At layer
+composition, only names present in that layer affect the result: override lerps
+by the layer weight, while additive adds weighted values from a zero reference.
+A bone mask with any influence enables scalar composition; individual bone mask
+weights do not scale a curve. `GetCurveValues().GetValue(name)` reads zero for an
+absent name. Values remain unrestricted scalars; only an IK binding clamps to
+`[0, 1]`. These demo curves are authored in code, not imported from glTF.
