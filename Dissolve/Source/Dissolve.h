@@ -91,9 +91,11 @@ class Dissolve final : public Elixir::Application
     bool m_IKRotationKeyPressed = false;
     /** Aligns the baton with skeleton +X through the imported wrist-to-weapon offset. */
     glm::quat m_IKDriverRotation{1, 0, 0, 0};
+    /** Left-wrist offset from its grip, expressed in SupportGrip coordinates. */
+    SBoneTransform m_IKSupportOffset;
     uint32_t m_IKDriverBone = 0;
     uint32_t m_IKEndBone = 0;
-    const glm::vec3 m_IKTarget{-0.2f, 1.2f, -0.3f};
+    const glm::vec3 m_IKTarget{-0.2f, 1.02f, -0.28f};
     std::atomic<bool> m_RecoilEnabled = true;
     std::atomic<float> m_RecoilStrength = 1.0f;
     std::atomic<uint64_t> m_RecoilEvents = 0;

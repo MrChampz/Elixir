@@ -175,15 +175,13 @@ Dissolve::Dissolve()
             data.Skeleton = data.Skeleton->WithSockets({{
                 .Name = "WeaponGrip", .BoneIndex = uint32_t(hand),
                 .RelativeTransform = {
-                    .Rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(1, 0, 0))
+                    .Rotation = glm::angleAxis(glm::radians(180.0f), glm::vec3(0, 0, 1))
                 }
-            }, {
-                .Name = "IKGrip", .BoneIndex = uint32_t(wrist)
             }, {
                 .Name = "SupportGrip", .BoneIndex = uint32_t(hand),
                 .RelativeTransform = {
-                    .Translation = {0, 0, 0.35f},
-                    .Rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(1, 0, 0))
+                    .Translation = {0, -0.35f, 0},
+                    .Rotation = glm::angleAxis(glm::radians(180.0f), glm::vec3(0, 0, 1))
                 }
             }});
             if (!data.Skeleton) return;
@@ -825,16 +823,17 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
         STwoBoneIKConstraint{
             .EndBoneIndex = m_IKDriverBone,
             .TargetPosition = m_IKTarget,
-            .PolePosition = {-0.9f, 0.8f, -0.2f},
+            .PolePosition = {-0.45f, 0.55f, 0.25f},
             .Weight = ikWeight,
             .TargetRotation = m_IKDriverRotation
         },
         STwoBoneIKConstraint{
             .EndBoneIndex = m_IKEndBone,
-            .PolePosition = {0.9f, 0.8f, -0.2f},
+            .TargetPosition = m_IKSupportOffset.Translation,
+            .PolePosition = {0.45f, 0.55f, 0.25f},
             .Weight = ikWeight,
             .TargetRotation = m_IKRotationEnabled.load(std::memory_order_relaxed)
-                ? std::optional(glm::quat(1, 0, 0, 0)) : std::nullopt,
+                ? std::optional(m_IKSupportOffset.Rotation) : std::nullopt,
             .TargetReference = std::string("SupportGrip")
         }
     };
@@ -928,15 +927,19 @@ void Dissolve::InitializeSocketAttachment()
 {
     const auto wrist = mesh->GetSkeleton()->FindBone("wrist.l");
     const auto driver = mesh->GetSkeleton()->FindBone("wrist.r");
-    if (wrist < 0 || driver < 0)
+    const auto leftGrip = mesh->GetSkeleton()->FindBone("handslot.l");
+    if (wrist < 0 || driver < 0 || leftGrip < 0)
     {
-        EE_CORE_ERROR("Two-bone IK demonstration requires both wrists.")
+        EE_CORE_ERROR("Two-bone IK demonstration requires both wrists and the left grip.")
         return;
     }
     m_IKEndBone = uint32_t(wrist);
     m_IKDriverBone = uint32_t(driver);
     std::vector<glm::mat4> reference;
     if (!mesh->GetSkeleton()->BuildModelPose(mesh->GetData().ReferencePose, reference)) return;
+    const auto wristFromGrip = glm::inverse(reference[size_t(leftGrip)]) * reference[size_t(wrist)];
+    m_IKSupportOffset.Translation = glm::vec3(wristFromGrip[3]);
+    m_IKSupportOffset.Rotation = glm::normalize(glm::quat_cast(glm::mat3(wristFromGrip)));
     const auto weapon = mesh->GetSkeleton()->FindSocket("WeaponGrip");
     if (weapon < 0) return;
     const auto& socket = mesh->GetSkeleton()->GetSockets()[size_t(weapon)];
@@ -945,6 +948,7 @@ void Dissolve::InitializeSocketAttachment()
     const auto weaponRotation = glm::normalize(glm::quat_cast(glm::mat3(weaponFrame)));
     const auto relativeRotation = glm::conjugate(wristRotation) * weaponRotation;
     m_IKDriverRotation = glm::normalize(
+        glm::angleAxis(glm::radians(-60.0f), glm::vec3(1, 0, 0)) *
         glm::angleAxis(glm::radians(-90.0f), glm::vec3(0, 0, 1)) *
         glm::conjugate(relativeRotation));
     SStaticMeshData data;
@@ -997,7 +1001,7 @@ void Dissolve::DrawGeometry()
 {
     if (m_SkeletalMeshRenderer && m_MeshInstance)
     {
-        // Show the mannequin from an angle that keeps all limbs visible.
+        // Show the calibrated grip from the front for direct pose comparison.
         const auto& bounds = m_MeshInstance->GetMesh()->GetLocalBounds();
         const auto center = (bounds.Min + bounds.Max) * 0.5f;
         const auto separation = (bounds.Max.y - bounds.Min.y) * 0.7f;
@@ -1011,27 +1015,12 @@ void Dissolve::DrawGeometry()
             // Compensate perspective bearing so both copies show the same viewing angle.
             const auto correction = std::atan2(direction.x, direction.z) - centerYaw;
             const auto transform = glm::translate(glm::mat4(1), position) *
-                glm::rotate(glm::mat4(1), glm::radians(25.0f) + correction,
+                glm::rotate(glm::mat4(1), correction,
                     glm::vec3(0, 1, 0)) *
                 glm::translate(glm::mat4(1), -center);
             const auto movement = &instance == m_MeshInstance.get()
                 ? m_CharacterMotion : glm::mat4(1);
             m_SkeletalMeshRenderer->Render(instance, transform * movement);
-            if (m_AttachmentRenderer && &instance == m_MeshInstance.get())
-            {
-                if (const auto support = instance.GetSocketTransform("SupportGrip"))
-                {
-                    const auto target = *support *
-                        glm::scale(glm::mat4(1), glm::vec3(1.8f, 0.15f, 1.8f));
-                    m_AttachmentRenderer->Render(m_AttachmentMesh, transform * movement * target);
-                }
-                if (const auto socket = instance.GetSocketTransform("IKGrip"))
-                {
-                    const auto pointer = *socket *
-                        glm::scale(glm::mat4(1), glm::vec3(0.4f, 0.6f, 0.4f));
-                    m_AttachmentRenderer->Render(m_AttachmentMesh, transform * movement * pointer);
-                }
-            }
             if (m_AttachmentRenderer)
             {
                 if (const auto socket = instance.GetSocketTransform("WeaponGrip"))

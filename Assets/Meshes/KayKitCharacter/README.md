@@ -422,9 +422,8 @@ can control when a weapon hitbox is active while a socket supplies its current t
 The right character holds the baton with both hands. Its right-arm IK positions the
 weapon first; its left-arm IK follows SupportGrip from the same frame. The left
 character keeps its animated pose. G toggles both arm constraints. H toggles target
-rotation for the left wrist; a narrow orange pointer makes its orientation visible.
-P pauses playback, and N steps one frame. G and H still update the pose while paused.
-The support marker follows the baton even when IK is disabled.
+rotation for the left wrist. P pauses playback, and N steps one frame. G and H still
+update the pose while paused. The front view makes hand alignment easier to inspect.
 
 ```cpp
 const auto end = mesh->GetSkeleton()->FindBone("wrist.l");
@@ -500,11 +499,18 @@ With it, TargetPosition and TargetRotation are local offsets in that frame. Pole
 always stays in skeleton space. No previous-frame GetSocketTransform query is needed.
 
 ```cpp
+const auto leftWrist = mesh->GetSkeleton()->FindBone("wrist.l");
+const auto leftGrip = mesh->GetSkeleton()->FindBone("handslot.l");
+if (leftWrist < 0 || leftGrip < 0) return;
+std::vector<glm::mat4> reference;
+if (!mesh->GetSkeleton()->BuildModelPose(mesh->GetData().ReferencePose, reference)) return;
+const auto wristFromGrip = glm::inverse(reference[size_t(leftGrip)]) *
+    reference[size_t(leftWrist)];
 STwoBoneIKConstraint support{
     .EndBoneIndex = uint32_t(leftWrist),
-    .TargetPosition = {0, 0, 0},
-    .PolePosition = {0.9f, 0.8f, -0.2f},
-    .TargetRotation = glm::quat(1, 0, 0, 0),
+    .TargetPosition = glm::vec3(wristFromGrip[3]),
+    .PolePosition = {0.45f, 0.55f, 0.25f},
+    .TargetRotation = glm::normalize(glm::quat_cast(glm::mat3(wristFromGrip))),
     .TargetReference = std::string("SupportGrip")
 };
 // A bone reference uses its numeric skeleton index instead:
@@ -515,7 +521,11 @@ instance.Update(deltaSeconds);
 
 The demo defines SupportGrip on the right-hand attachment bone. Its offset matches
 0.35 units along the baton's axis, so it represents the other hand's support point
-without adding a socket system to StaticMesh. The right-arm driver precedes the
+without adding a socket system to StaticMesh. Since IK solves wrist.l rather than
+handslot.l, the follower applies the inverse reference transform from that wrist to
+its grip. This places the actual hand grip on SupportGrip instead of putting the wrist
+itself on the baton. Both grip frames align the baton across the hands; lower pole
+positions bend the elbows down and slightly outward. The right-arm driver precedes the
 left-arm follower. The follower reads the updated right-hand socket in that same
 pose evaluation, including all animation layers, montages, and root-motion locking.
 Sockets and compute skinning consume the final pose afterward.
