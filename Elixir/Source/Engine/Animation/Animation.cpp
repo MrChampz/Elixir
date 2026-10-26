@@ -129,8 +129,7 @@ namespace Elixir
             const auto authoredEvents = layerEvents.size() -
                 m_Layers[i]->m_Notifies.GetPendingEnds().size();
 
-            auto maxEvents = AnimationSequence::MaxNotifyEventsPerUpdate;
-            maxEvents -= generatedEvents;
+            const auto maxEvents = Sequence::MaxNotifyEventsPerUpdate - generatedEvents;
 
             if (authoredEvents > maxEvents)
             {

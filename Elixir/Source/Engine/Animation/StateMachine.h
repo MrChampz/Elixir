@@ -40,7 +40,7 @@ namespace Elixir
     };
 
     /** Defines one state machine whose transitions read the animation's parameters. */
-    struct ELIXIR_API SAnimationStateMachineCreateInfo
+    struct ELIXIR_API SStateMachineCreateInfo
     {
         std::string InitialState;
         std::vector<SAnimationState> States;
@@ -59,7 +59,7 @@ namespace Elixir
     };
 
     /** Immutable state-machine resource whose states select connected animation nodes. */
-    class ELIXIR_API AnimationStateMachine final
+    class ELIXIR_API StateMachine final
     {
     public:
         /**
@@ -67,7 +67,7 @@ namespace Elixir
          * @param info States, conditions, and transitions to retain.
          * @return Null for an invalid graph or incompatible source skeletons.
          */
-        static Ref<AnimationStateMachine> Create(SAnimationStateMachineCreateInfo info);
+        static Ref<StateMachine> Create(SStateMachineCreateInfo info);
 
         /** @brief Get the common skeleton required by every state source. */
         const Ref<const Skeleton>& GetSkeleton() const { return m_Skeleton; }
@@ -83,7 +83,7 @@ namespace Elixir
         ) const;
 
         /** @brief Inspect the immutable authored graph. */
-        const SAnimationStateMachineCreateInfo& GetCreateInfo() const { return m_CreateInfo; }
+        const SStateMachineCreateInfo& GetCreateInfo() const { return m_CreateInfo; }
 
         /** @brief Get the compiled initial state index. */
         size_t GetInitialState() const { return m_InitialState; }
@@ -112,15 +112,15 @@ namespace Elixir
          * @param targets Compiled transition destinations.
          * @param outgoing Ordered outgoing transitions per state.
          */
-        AnimationStateMachine(
-            SAnimationStateMachineCreateInfo info,
+        StateMachine(
+            SStateMachineCreateInfo info,
             Ref<const Skeleton> skeleton,
             size_t initial,
             std::vector<size_t> targets,
             std::vector<std::vector<size_t>> outgoing
         );
 
-        SAnimationStateMachineCreateInfo m_CreateInfo;
+        SStateMachineCreateInfo m_CreateInfo;
 
         Ref<const Skeleton> m_Skeleton;
 

@@ -11,9 +11,9 @@ using namespace Elixir;
 TEST(AnimationNodeContractTest, ResourcesAndGraphsCannotBeConnectedAsNodes)
 {
     static_assert(!std::is_base_of_v<AnimationNode, AnimationGraph>);
-    static_assert(!std::is_base_of_v<AnimationNode, AnimationSequence>);
+    static_assert(!std::is_base_of_v<AnimationNode, Sequence>);
     static_assert(!std::is_base_of_v<AnimationNode, BlendSpace>);
-    static_assert(!std::is_base_of_v<AnimationNode, AnimationStateMachine>);
+    static_assert(!std::is_base_of_v<AnimationNode, StateMachine>);
     static_assert(!std::is_convertible_v<Ref<const AnimationGraph>, Ref<const AnimationNode>>);
     static_assert(std::is_base_of_v<AnimationNode, SequenceNode>);
     static_assert(std::is_base_of_v<AnimationNode, BlendSpaceNode>);
@@ -25,8 +25,8 @@ TEST(AnimationNodeContractTest, ResourcesAndGraphsCannotBeConnectedAsNodes)
 TEST(AnimationNodeContractTest, NodeRetainsItsResourceForTheAnimationLifetime)
 {
     const auto mesh = SkinningTests::MakeMesh();
-    auto sequence = AnimationSequence::Create("Clip", mesh->GetSkeleton(), 1, {});
-    const std::weak_ptr<const AnimationSequence> resource = sequence;
+    auto sequence = Sequence::Create("Clip", mesh->GetSkeleton(), 1, {});
+    const std::weak_ptr<const Sequence> resource = sequence;
     auto node = SequenceNode::Create(sequence);
     ASSERT_TRUE(node);
     EXPECT_EQ(node->GetSequence(), sequence);
@@ -47,14 +47,14 @@ TEST(AnimationNodeContractTest, NodeRetainsItsResourceForTheAnimationLifetime)
 TEST(AnimationNodeContractTest, OneGraphConnectsResourceNodesAndComposesTheirPoses)
 {
     const auto mesh = SkinningTests::MakeMesh();
-    const auto first = AnimationSequence::Create("First", mesh->GetSkeleton(), 1, {
+    const auto first = Sequence::Create("First", mesh->GetSkeleton(), 1, {
         {.BoneIndex = 0, .Translations = {{0, {1, 0, 0}}}}
     });
-    const auto second = AnimationSequence::Create("Second", mesh->GetSkeleton(), 1, {
+    const auto second = Sequence::Create("Second", mesh->GetSkeleton(), 1, {
         {.BoneIndex = 0, .Translations = {{0, {5, 0, 0}}}}
     });
     const auto space = BlendSpace1D::Create("Movement", {{0, first}, {1, second}});
-    const auto machine = AnimationStateMachine::Create({
+    const auto machine = StateMachine::Create({
         .InitialState = "Idle",
         .States = {{"Idle", SequenceNode::Create(first)},
             {"Attack", SequenceNode::Create(second)}},

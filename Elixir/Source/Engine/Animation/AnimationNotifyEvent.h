@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/Animation/AnimationSequence.h>
+#include <Engine/Animation/Sequence.h>
 
 namespace Elixir
 {
@@ -17,7 +17,7 @@ namespace Elixir
     struct ELIXIR_API SAnimationNotifyEvent
     {
         /** Shared ownership keeps notification metadata and its payload alive. */
-        Ref<const AnimationSequence> Sequence;
+        Ref<const Sequence> Sequence;
 
         /** Index into the sequence's immutable GetNotifies list. */
         size_t NotifyIndex = 0;

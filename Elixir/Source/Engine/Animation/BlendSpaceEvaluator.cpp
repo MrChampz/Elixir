@@ -34,7 +34,7 @@ namespace Elixir
         return {
             .Duration = m_Duration,
             .Continuous = true,
-            .Sources = SAnimationSequenceSources{
+            .Sources = SSequenceSources{
                 m_Samples,
                 m_NotifySource,
                 m_Source->GetSynchronizationSequence().get()
@@ -104,7 +104,7 @@ namespace Elixir
 
         double duration = 0;
         float dominant = -1;
-        const AnimationSequence* notify = nullptr;
+        const Sequence* notify = nullptr;
 
         for (const auto& sample : samples)
         {

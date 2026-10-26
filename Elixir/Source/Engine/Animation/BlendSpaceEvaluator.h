@@ -60,6 +60,6 @@ namespace Elixir
         std::vector<SSequenceContribution> m_Samples;
         std::vector<float> m_Values;
         float m_Duration = 0;
-        const AnimationSequence* m_NotifySource = nullptr;
+        const Sequence* m_NotifySource = nullptr;
     };
 }

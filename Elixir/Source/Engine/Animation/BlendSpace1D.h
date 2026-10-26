@@ -10,7 +10,7 @@ namespace Elixir
     {
         /** Finite coordinate, such as a character's movement speed. */
         float Position = 0.0f;
-        Ref<const AnimationSequence> Sequence;
+        Ref<const Sequence> Sequence;
     };
 
     /** Stores immutable animation samples blended along one numeric axis. */

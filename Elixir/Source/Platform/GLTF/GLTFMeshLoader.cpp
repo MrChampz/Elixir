@@ -1063,7 +1063,7 @@ namespace Elixir
 
                     if (tracks.empty()) continue;
 
-                    auto sequence = AnimationSequence::Create(
+                    auto sequence = Sequence::Create(
                         std::string(animation.name),
                         m_Result.Skeleton,
                         duration,

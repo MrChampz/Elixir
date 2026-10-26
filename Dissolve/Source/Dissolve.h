@@ -29,14 +29,14 @@ class Dissolve final : public Elixir::Application
     void InitializeAnimationGraph();
 
     /** @brief Create a chest recoil sequence relative to the mesh reference pose. */
-    Ref<const AnimationSequence> CreateRecoilAnimation();
+    Ref<const Sequence> CreateRecoilAnimation();
 
     /**
      * @brief Build three attacks followed by a held end pose for the exit fade.
      * @param attack Source punch sequence sampled at 60 Hz.
      */
-    Ref<const AnimationSequence> CreateComboAnimation(
-        const Ref<const AnimationSequence>& attack
+    Ref<const Sequence> CreateComboAnimation(
+        const Ref<const Sequence>& attack
     );
 
     /** @brief Submit the complete model to its renderer. */

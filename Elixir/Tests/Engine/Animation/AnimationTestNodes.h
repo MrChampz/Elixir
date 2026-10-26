@@ -8,7 +8,7 @@
  * @brief Wrap a sequence resource for existing playback regression fixtures.
  * @param sequence Resource referenced by the created node.
  */
-Elixir::Ref<const Elixir::AnimationNode> MakeNode(Elixir::Ref<const Elixir::AnimationSequence> sequence);
+Elixir::Ref<const Elixir::AnimationNode> MakeNode(Elixir::Ref<const Elixir::Sequence> sequence);
 
 /**
  * @brief Wrap a blend-space resource for existing playback regression fixtures.
@@ -20,7 +20,7 @@ Elixir::Ref<const Elixir::AnimationNode> MakeNode(Elixir::Ref<const Elixir::Blen
  * @brief Wrap a state-machine resource for existing playback regression fixtures.
  * @param machine Resource referenced by the created node.
  */
-Elixir::Ref<const Elixir::AnimationNode> MakeNode(Elixir::Ref<const Elixir::AnimationStateMachine> machine);
+Elixir::Ref<const Elixir::AnimationNode> MakeNode(Elixir::Ref<const Elixir::StateMachine> machine);
 
 /**
  * @brief Preserve an already explicit node connection.

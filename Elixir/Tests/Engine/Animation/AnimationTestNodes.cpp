@@ -2,7 +2,7 @@
 
 using namespace Elixir;
 
-Ref<const AnimationNode> MakeNode(Ref<const AnimationSequence> sequence)
+Ref<const AnimationNode> MakeNode(Ref<const Sequence> sequence)
 {
     return SequenceNode::Create(std::move(sequence));
 }
@@ -12,7 +12,7 @@ Ref<const AnimationNode> MakeNode(Ref<const BlendSpace> space)
     return BlendSpaceNode::Create(std::move(space));
 }
 
-Ref<const AnimationNode> MakeNode(Ref<const AnimationStateMachine> machine)
+Ref<const AnimationNode> MakeNode(Ref<const StateMachine> machine)
 {
     return StateMachineNode::Create(std::move(machine));
 }

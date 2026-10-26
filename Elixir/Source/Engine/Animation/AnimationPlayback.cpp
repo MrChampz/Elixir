@@ -283,13 +283,14 @@ namespace Elixir
                 ? SAnimationTraversal{}
                 : layers->Layers.front()->m_Playback.GetTraversal(dt, offset);
         }
-        const auto& sources = std::get<SAnimationSequenceSources>(state.Sources);
+        const auto& sources = std::get<SSequenceSources>(state.Sources);
         const auto phase = m_Phase + (state.Duration > 0 ? offset / state.Duration : 0);
         return {
             .Sequence = sources.NotifySequence
-                ? Ref<const AnimationSequence>(m_Node, sources.NotifySequence) : nullptr,
+                ? Ref<const Sequence>(m_Node, sources.NotifySequence)
+                : nullptr,
             .Reference = sources.SynchronizationSequence
-                ? Ref<const AnimationSequence>(m_Node, sources.SynchronizationSequence)
+                ? Ref<const Sequence>(m_Node, sources.SynchronizationSequence)
                 : nullptr,
             .StartPhase = phase,
             .EndPhase = phase + (state.Duration > 0 ? dt / state.Duration : 0),

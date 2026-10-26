@@ -27,9 +27,9 @@ namespace
          * @param degrees End rotation around local Y.
          * @param offset Authored starting translation, independent of the reference pose.
          */
-        Ref<AnimationSequence> MakeClip(float distance, float degrees = 0, float offset = 0)
+        Ref<Sequence> MakeClip(float distance, float degrees = 0, float offset = 0)
         {
-            return AnimationSequence::Create("Motion", Mesh->GetSkeleton(), 1, {{
+            return Sequence::Create("Motion", Mesh->GetSkeleton(), 1, {{
                 .BoneIndex = 0,
                 .Translations = {{ 0, {offset, 0, 0} }, { 1, {offset + distance, 0, 0} }},
                 .Rotations = {{ 0, {1, 0, 0, 0} },
@@ -275,10 +275,10 @@ TEST_F(RootMotionTest, MissingRootTrackStaticClipsAndInvalidMeshAreSafe)
     ASSERT_TRUE(meshHandle);
     auto& mesh = *meshHandle;
     ASSERT_TRUE(mesh.SetRootMotionEnabled(true));
-    ASSERT_TRUE(mesh.Play(MakeNode(AnimationSequence::Create("Empty", Mesh->GetSkeleton(), 1, {}))));
+    ASSERT_TRUE(mesh.Play(MakeNode(Sequence::Create("Empty", Mesh->GetSkeleton(), 1, {}))));
     ASSERT_TRUE(mesh.Update(0.5f));
     ExpectNear(mesh.GetRootMotionDelta(), {});
-    ASSERT_TRUE(mesh.Play(MakeNode(AnimationSequence::Create("Static", Mesh->GetSkeleton(), 0, {}))));
+    ASSERT_TRUE(mesh.Play(MakeNode(Sequence::Create("Static", Mesh->GetSkeleton(), 0, {}))));
     ASSERT_TRUE(mesh.Update(1));
     ExpectNear(mesh.GetRootMotionDelta(), {});
     ASSERT_TRUE(mesh.SetRootMotionEnabled(false));
@@ -328,7 +328,7 @@ TEST_F(RootMotionTest, FailedUpperLayerCompositionPreservesBaseClockAndPreviousM
     ASSERT_TRUE(mesh.Update(0.1f));
     const auto mask = BoneMask::FromBone("Child", Mesh->GetSkeleton(), "Child");
     ASSERT_TRUE(mesh.AddLayer("Upper", mask));
-    const auto mirror = AnimationSequence::Create("Mirror", Mesh->GetSkeleton(), 1, {
+    const auto mirror = Sequence::Create("Mirror", Mesh->GetSkeleton(), 1, {
         {.BoneIndex = 1, .Scales = {{0, {-1, 1, 1}}}},
     });
     auto& upper = *mesh.GetLayer("Upper");
@@ -351,7 +351,7 @@ TEST_F(RootMotionTest, NamedRootUnderARotatedScaledWrapperMovesInMeshSpace)
     data.ReferencePose.LocalTransforms[0].Scale = glm::vec3(2);
     const auto wrapped = SkeletalMesh::Create(data);
     ASSERT_TRUE(wrapped);
-    const auto clip = AnimationSequence::Create("ChildMotion", wrapped->GetSkeleton(), 1, {
+    const auto clip = Sequence::Create("ChildMotion", wrapped->GetSkeleton(), 1, {
         {.BoneIndex = 1, .Translations = {{0, {0, 0, 0}}, {1, {1, 0, 0}}}},
     });
     const auto meshHandle = AnimationTestCharacter::Create(wrapped);

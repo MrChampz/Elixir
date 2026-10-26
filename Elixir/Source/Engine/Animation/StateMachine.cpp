@@ -1,5 +1,5 @@
 #include "epch.h"
-#include "AnimationStateMachine.h"
+#include "StateMachine.h"
 
 namespace Elixir
 {
@@ -35,7 +35,9 @@ namespace Elixir
         });
     }
 
-    bool SAnimationStateMachineCreateInfo::IsValid() const
+    /* SStateMachineCreateInfo */
+
+    bool SStateMachineCreateInfo::IsValid() const
     {
         if (States.empty()) return false;
 
@@ -62,8 +64,10 @@ namespace Elixir
         });
     }
 
-    AnimationStateMachine::AnimationStateMachine(
-        SAnimationStateMachineCreateInfo info,
+    /* StateMachine */
+
+    StateMachine::StateMachine(
+        SStateMachineCreateInfo info,
         Ref<const Skeleton> skeleton,
         const size_t initial,
         std::vector<size_t> targets,
@@ -74,9 +78,7 @@ namespace Elixir
         m_Targets(std::move(targets)),
         m_Outgoing(std::move(outgoing)) {}
 
-    Ref<AnimationStateMachine> AnimationStateMachine::Create(
-        SAnimationStateMachineCreateInfo info
-    )
+    Ref<StateMachine> StateMachine::Create(SStateMachineCreateInfo info)
     {
         if (!info.IsValid())
         {
@@ -101,7 +103,7 @@ namespace Elixir
             outgoing[indices[transition.From]].push_back(i);
         }
 
-        return Ref<AnimationStateMachine>(new AnimationStateMachine(
+        return Ref<StateMachine>(new StateMachine(
             std::move(info),
             skeleton,
             initial,
@@ -110,7 +112,7 @@ namespace Elixir
         ));
     }
 
-    bool AnimationStateMachine::CanBind(
+    bool StateMachine::CanBind(
         const AnimationParameters& parameters,
         const std::span<const std::string> bindings
     ) const
@@ -128,6 +130,4 @@ namespace Elixir
 
         return true;
     }
-
-
 }

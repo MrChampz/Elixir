@@ -40,10 +40,10 @@ namespace
          * @param duration Duration in seconds.
          * @param markers Optional synchronization markers.
          */
-        Ref<AnimationSequence> MakeSequence(std::string name, float duration,
+        Ref<Sequence> MakeSequence(std::string name, float duration,
             std::vector<SAnimationSyncMarker> markers = {}) const
         {
-            return AnimationSequence::Create(std::move(name), Mesh->GetSkeleton(), duration, {
+            return Sequence::Create(std::move(name), Mesh->GetSkeleton(), duration, {
                 { .BoneIndex = 0, .Translations = {
                     { 0, { 0, 0, 0 } }, { duration, { duration, 0, 0 } },
                 } },
@@ -51,9 +51,9 @@ namespace
         }
 
         Ref<SkeletalMesh> Mesh;
-        Ref<AnimationSequence> Reference;
-        Ref<AnimationSequence> Target;
-        Ref<AnimationSequence> Rotated;
+        Ref<Sequence> Reference;
+        Ref<Sequence> Target;
+        Ref<Sequence> Rotated;
     };
 }
 
@@ -132,7 +132,7 @@ TEST_F(AnimationSyncMarkerTest, RejectsInvalidMarkersAndMarkersOnStaticSequences
 {
     const auto create = [&](std::vector<SAnimationSyncMarker> markers)
     {
-        return AnimationSequence::Create("Invalid", Mesh->GetSkeleton(), 4, {},
+        return Sequence::Create("Invalid", Mesh->GetSkeleton(), 4, {},
             std::move(markers));
     };
     EXPECT_FALSE(create({{ "", 1 }}));
@@ -143,8 +143,8 @@ TEST_F(AnimationSyncMarkerTest, RejectsInvalidMarkersAndMarkersOnStaticSequences
     EXPECT_FALSE(create({{ "Left", 1 }, { "Right", 1 }}));
     EXPECT_FALSE(create({{ "Left", std::numeric_limits<float>::quiet_NaN() }}));
     EXPECT_FALSE(create({{ "Left", 1 }, { "Right", std::numeric_limits<float>::infinity() }}));
-    EXPECT_FALSE(AnimationSequence::Create("Static", Mesh->GetSkeleton(), 0, {}, {{ "Left", 0 }}));
-    EXPECT_TRUE(AnimationSequence::Create("Static", Mesh->GetSkeleton(), 0, {}));
+    EXPECT_FALSE(Sequence::Create("Static", Mesh->GetSkeleton(), 0, {}, {{ "Left", 0 }}));
+    EXPECT_TRUE(Sequence::Create("Static", Mesh->GetSkeleton(), 0, {}));
     EXPECT_TRUE(create({{ "Left", 0 }, { "Right", 3 }}));
 }
 
@@ -222,7 +222,7 @@ TEST_F(AnimationSyncMarkerTest, TwoDimensionalBlendsSynchronizeAllThreeContribut
 
 TEST_F(AnimationSyncMarkerTest, MixedMarkedAndUnmarkedSamplesKeepTheNormalizedFallback)
 {
-    const auto idle = AnimationSequence::Create("Idle", Mesh->GetSkeleton(), 0, {});
+    const auto idle = Sequence::Create("Idle", Mesh->GetSkeleton(), 0, {});
     const auto plain = MakeSequence("Plain", 8);
     const auto space = BlendSpace1D::Create("Mixed", {
         { 0, idle }, { 1, Reference }, { 2, Target }, { 3, plain },
@@ -249,7 +249,7 @@ TEST_F(AnimationSyncMarkerTest, ControllerPlaybackRetainsMarkerPhaseThroughPause
     const auto controller = CreateTestGraph({
         .Name = "Controller",
         .Parameters = {{ "Speed", 0.5f }},
-        .Layers = {{ .Node = MakeNode(AnimationStateMachine::Create({
+        .Layers = {{ .Node = MakeNode(StateMachine::Create({
             .InitialState = "Locomotion",
             .States = {{ .Name = "Locomotion", .Node = MakeNode(space), .InputParameters = { "Speed" } }}
         })) }},

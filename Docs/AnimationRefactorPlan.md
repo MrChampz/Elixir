@@ -55,16 +55,16 @@ significa rollback de toda a atualização do controller.
 
 ### Assets compartilhados
 
-Manter `Skeleton`, `AnimationSequence`, `BlendSpace`, `BlendSpace1D`, `BlendSpace2D`,
+Manter `Skeleton`, `Sequence`, `BlendSpace`, `BlendSpace1D`, `BlendSpace2D`,
 `AnimationMontage`, `BoneMask` e `AnimationController` como dados compartilhados imutáveis.
-Extrair também `AnimationStateMachine` como uma definição imutável de estados e transições.
-`AnimationSequence`, `BlendSpace` e `AnimationStateMachine` implementam `AnimationSource`.
+Extrair também `StateMachine` como uma definição imutável de estados e transições.
+`Sequence`, `BlendSpace` e `StateMachine` implementam `AnimationSource`.
 
 Uma sequência continua responsável pelas suas tracks, markers, notifies e consultas locais.
 Ela não passa a possuir relógio, ativações de notifies, estado do personagem ou referências
-ao renderer. Seus métodos ficam em `AnimationSequence.cpp`. Um algoritmo que ganhar um
+ao renderer. Seus métodos ficam em `Sequence.cpp`. Um algoritmo que ganhar um
 módulo próprio deve declarar seu contrato em um header próprio e não implementar membros
-de `AnimationSequence` em outro arquivo.
+de `Sequence` em outro arquivo.
 
 Um blend space descreve a combinação de amostras. A fonte de sincronização fixa e a escolha
 da amostra dominante para notifies continuam sendo políticas distintas. A refatoração não
@@ -77,9 +77,9 @@ deve trocar a primeira por uma liderança dinâmica como efeito colateral.
 | `AnimationSource` | Interface imutável de uma fonte aplicável à animação | Contrato de skeleton, entradas e criação de uma reprodução independente |
 | `AnimationSourceInstance` | Interface interna da execução de uma fonte por reprodução | Contrato comum de avaliação e publicação do estado candidato |
 | `AnimationPlayback` | Oferecer reprodução uniforme de qualquer `AnimationSource` | Fonte e instância concreta criada por ela, além dos controles comuns |
-| `AnimationSequencePlayback` | Avançar e amostrar uma sequência | Tempo em segundos e regras de reprodução da sequência |
+| `SequencePlayback` | Avançar e amostrar uma sequência | Tempo em segundos e regras de reprodução da sequência |
 | `BlendSpacePlayback` | Resolver e amostrar um blend space | Fase, entradas, contribuições e sincronização |
-| `AnimationStateMachineInstance` | Executar uma máquina e produzir seu resultado de animação | Estado atual, reproduções dos estados e transição entre eles |
+| `StateMachineInstance` | Executar uma máquina e produzir seu resultado de animação | Estado atual, reproduções dos estados e transição entre eles |
 | `AnimationTransition` | Fazer a passagem entre reproduções | Duração, progresso e origem anterior ou pose congelada |
 | `AnimationMontagePlayback` | Executar uma ação com seções sobre a fonte contínua de uma camada | Montage, cursor, links locais, envelope e interrupção |
 | `AnimationNotifyTracker` | Transformar percursos selecionados em eventos e manter ativações | Identidades das ativações, notifies ativos e encerramentos pendentes |
@@ -126,17 +126,17 @@ os markers no asset. Um objeto `AnimationSyncManager` não é necessário neste 
 
 `AnimationSource` é uma interface abstrata implementada pelos assets:
 
-- `AnimationSequence`: uma sequência de tracks e metadados.
+- `Sequence`: uma sequência de tracks e metadados.
 - `BlendSpace`: uma composição de sequências, com implementações 1D e 2D existentes.
-- `AnimationStateMachine`: estados, condições e transições que selecionam outras fontes.
+- `StateMachine`: estados, condições e transições que selecionam outras fontes.
 
 Seu contrato é pequeno: consultar skeleton e entradas necessárias, verificar compatibilidade
 com o contexto e criar uma `AnimationSourceInstance`. Não exigir duração, fase, looping ou
 seek universais: uma máquina de estados não tem obrigatoriamente um único ciclo ou fim.
 
 `AnimationSourceInstance` contém o contrato interno comum de avaliação e aplicação dos
-resultados. As implementações são `AnimationSequencePlayback`, `BlendSpacePlayback` e
-`AnimationStateMachineInstance`. Cada uma conhece seus dados e seus algoritmos. A definição
+resultados. As implementações são `SequencePlayback`, `BlendSpacePlayback` e
+`StateMachineInstance`. Cada uma conhece seus dados e seus algoritmos. A definição
 compartilhada nunca armazena o relógio nem o estado atual de um personagem.
 
 A criação da implementação concreta ocorre em `AnimationSource::CreateInstance(context)`.
@@ -388,7 +388,7 @@ O asset `AnimationController` pode ser compartilhado. A criação de instâncias
 | `ExtractPlaybackRootMotion`, `ExtractSourceRootMotion` e combinação dos trechos | Funções de root motion, consumindo percursos e envelopes |
 | `LockRootMotion` e conversões específicas da referência do root | Avaliação da `AnimationInstance` com contexto fixo |
 | `SkeletalMeshInstance::ComposePose`, atualização das camadas e agregação de eventos | `AnimationInstance` |
-| `AnimationControllerInstance::Matches` e seleção de transição | `AnimationStateMachineInstance`, implementação de `AnimationSourceInstance` |
+| `AnimationControllerInstance::Matches` e seleção de transição | `StateMachineInstance`, implementação de `AnimationSourceInstance` |
 | Parâmetros e getters/setters do controller | `AnimationParameters`, pertencente a `AnimationInstance` |
 | Compilação de nomes de parâmetros, estados e seções | Fábricas dos assets e helpers internos de compilação |
 | `BlendSpace::FindSamples` chamado por cada operação | Uma resolução de contribuições reutilizada pela avaliação |
@@ -465,7 +465,7 @@ além da cobertura de integração com sequências e montages.
 
 ### Etapa 6 — Isolar decisões do controller
 
-- Extrair o asset `AnimationStateMachine` como `AnimationSource` e sua instância concreta.
+- Extrair o asset `StateMachine` como `AnimationSource` e sua instância concreta.
 - Mover parâmetros para `AnimationParameters`, compartilhado pelas fontes do personagem.
 - Fazer máquinas produzirem resultados pelo mesmo contrato de sequência e blend space.
 - Preparar decisões candidatas, sem mutar imediatamente camadas ou estados publicados.
@@ -522,12 +522,12 @@ Exemplos de pares finais, cada um contendo toda a implementação do seu header:
 AnimationSource.h                  AnimationSource.cpp
 AnimationSourceInstance.h          AnimationSourceInstance.cpp
 AnimationPlayback.h                AnimationPlayback.cpp
-AnimationSequence.h                AnimationSequence.cpp
-AnimationSequencePlayback.h        AnimationSequencePlayback.cpp
+Sequence.h                Sequence.cpp
+SequencePlayback.h        SequencePlayback.cpp
 BlendSpace.h                       BlendSpace.cpp
 BlendSpacePlayback.h               BlendSpacePlayback.cpp
-AnimationStateMachine.h            AnimationStateMachine.cpp
-AnimationStateMachineInstance.h    AnimationStateMachineInstance.cpp
+StateMachine.h            StateMachine.cpp
+StateMachineInstance.h    StateMachineInstance.cpp
 AnimationTransition.h              AnimationTransition.cpp
 AnimationMontagePlayback.h         AnimationMontagePlayback.cpp
 AnimationNotifyTracker.h           AnimationNotifyTracker.cpp
@@ -540,9 +540,9 @@ As interfaces também seguem o par único: seus destrutores virtuais e demais s�
 do header ficam somente no `.cpp` correspondente, com exportação conforme a fronteira da
 DLL. Templates permanecem no header quando necessário pela linguagem.
 
-`AnimationLayerMontage.cpp`, `AnimationLayerNotifies.cpp` e `AnimationSequenceNotifies.cpp`
+`AnimationLayerMontage.cpp`, `AnimationLayerNotifies.cpp` e `SequenceNotifies.cpp`
 deixam de existir ao final da migração. Métodos ainda pertencentes à sequência voltam para
-`AnimationSequence.cpp`; o que pertencer a novos componentes vai para os pares próprios.
+`Sequence.cpp`; o que pertencer a novos componentes vai para os pares próprios.
 Helpers privados de um módulo ficam no seu `.cpp`. Um módulo especializado com header
 próprio não pode ser um pretexto para implementar métodos de outro header.
 

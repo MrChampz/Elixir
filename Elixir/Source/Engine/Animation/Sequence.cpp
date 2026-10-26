@@ -1,5 +1,5 @@
 #include "epch.h"
-#include "AnimationSequence.h"
+#include "Sequence.h"
 
 #include <Engine/Animation/Pose.h>
 
@@ -78,9 +78,9 @@ namespace Elixir
             end <= sequenceDuration && (Duration == 0 || end > Time);
     }
 
-    /* AnimationSequence */
+    /* Sequence */
 
-    Ref<AnimationSequence> AnimationSequence::Create(
+    Ref<Sequence> Sequence::Create(
         std::string name,
         Ref<const Skeleton> skeleton,
         const float duration,
@@ -91,7 +91,7 @@ namespace Elixir
     {
         if (!skeleton || !std::isfinite(duration) || duration < 0)
         {
-            EE_CORE_ERROR("AnimationSequence requires a skeleton and a finite nonnegative duration.")
+            EE_CORE_ERROR("Sequence requires a skeleton and a finite nonnegative duration.")
             return nullptr;
         }
 
@@ -99,7 +99,7 @@ namespace Elixir
         {
             if (!std::isfinite(marker.Time))
             {
-                EE_CORE_ERROR("AnimationSequence sync marker times must be finite.")
+                EE_CORE_ERROR("Sequence sync marker times must be finite.")
                 return nullptr;
             }
         }
@@ -118,7 +118,7 @@ namespace Elixir
                 marker.Time >= duration ||
                 marker.Time <= previousMarkerTime)
             {
-                EE_CORE_ERROR("AnimationSequence contains invalid or duplicate sync markers.")
+                EE_CORE_ERROR("Sequence contains invalid or duplicate sync markers.")
                 return nullptr;
             }
 
@@ -129,7 +129,7 @@ namespace Elixir
         {
             if (!notify.IsValid(duration))
             {
-                EE_CORE_ERROR("AnimationSequence contains an invalid notify name, time, or duration.")
+                EE_CORE_ERROR("Sequence contains an invalid notify name, time, or duration.")
                 return nullptr;
             }
         }
@@ -180,12 +180,12 @@ namespace Elixir
                 !modeValid(track.RotationInterpolation) ||
                 !modeValid(track.ScaleInterpolation))
             {
-                EE_CORE_ERROR("AnimationSequence contains invalid or duplicate bone tracks.")
+                EE_CORE_ERROR("Sequence contains invalid or duplicate bone tracks.")
                 return nullptr;
             }
         }
 
-        return Ref<AnimationSequence>(new AnimationSequence(
+        return Ref<Sequence>(new Sequence(
             std::move(name),
             std::move(skeleton),
             duration,
@@ -195,7 +195,7 @@ namespace Elixir
         ));
     }
 
-    AnimationSequence::AnimationSequence(
+    Sequence::Sequence(
         std::string name,
         Ref<const Skeleton> skeleton,
         const float duration,
@@ -209,7 +209,7 @@ namespace Elixir
         m_SyncMarkers(std::move(syncMarkers)),
         m_Notifies(std::move(notifies)) {}
 
-    bool AnimationSequence::Sample(
+    bool Sequence::Sample(
         const float time,
         SLocalPose& output,
         const SLocalPose& referencePose
@@ -217,14 +217,14 @@ namespace Elixir
     {
         if (!std::isfinite(time))
         {
-            EE_CORE_ERROR("AnimationSequence sample time must be finite.")
+            EE_CORE_ERROR("Sequence sample time must be finite.")
             return false;
         }
 
         if (!referencePose.LocalTransforms.empty() &&
             !referencePose.IsValid(m_Skeleton->GetBones().size()))
         {
-            EE_CORE_ERROR("AnimationSequence requires valid reference transforms for every bone.")
+            EE_CORE_ERROR("Sequence requires valid reference transforms for every bone.")
             return false;
         }
 
@@ -277,7 +277,7 @@ namespace Elixir
 
             if (!transform.IsValid())
             {
-                EE_CORE_ERROR("AnimationSequence produced a singular or invalid transform.")
+                EE_CORE_ERROR("Sequence produced a singular or invalid transform.")
                 return false;
             }
         }
@@ -287,7 +287,7 @@ namespace Elixir
         return true;
     }
 
-    bool AnimationSequence::ExtractRootMotion(
+    bool Sequence::ExtractRootMotion(
         double startPhase,
         double endPhase,
         const bool looping,
@@ -400,15 +400,15 @@ namespace Elixir
         return true;
     }
 
-    bool AnimationSequence::IsCompatibleWith(const Ref<const Skeleton>& skeleton) const
+    bool Sequence::IsCompatibleWith(const Ref<const Skeleton>& skeleton) const
     {
         return skeleton && m_Skeleton &&
             (skeleton == m_Skeleton || skeleton->IsCompatible(*m_Skeleton));
     }
 
-    double AnimationSequence::GetSynchronizedPhase(
+    double Sequence::GetSynchronizedPhase(
         const double phase,
-        const AnimationSequence& reference
+        const Sequence& reference
     ) const
     {
         if (!std::isfinite(phase))
@@ -468,7 +468,7 @@ namespace Elixir
         return cycle + (targetStart + (targetEnd - targetStart) * weight) / m_Duration;
     }
 
-    Ref<AnimationSequence> AnimationSequence::WithSyncMarkers(
+    Ref<Sequence> Sequence::WithSyncMarkers(
         std::vector<SAnimationSyncMarker> syncMarkers
     ) const
     {
@@ -482,7 +482,7 @@ namespace Elixir
         );
     }
 
-    bool AnimationSequence::CanSynchronizeWith(const AnimationSequence& reference) const
+    bool Sequence::CanSynchronizeWith(const Sequence& reference) const
     {
         const auto count = m_SyncMarkers.size();
         if (count == 0 || count != reference.m_SyncMarkers.size())
@@ -507,9 +507,9 @@ namespace Elixir
         return true;
     }
 
-    float AnimationSequence::GetSynchronizedTime(
+    float Sequence::GetSynchronizedTime(
         const float phase,
-        const AnimationSequence& reference
+        const Sequence& reference
     ) const
     {
         if (!std::isfinite(phase))
@@ -570,7 +570,7 @@ namespace Elixir
         return float(wrapped);
     }
 
-    Ref<AnimationSequence> AnimationSequence::WithNotifies(
+    Ref<Sequence> Sequence::WithNotifies(
         std::vector<SAnimationNotify> notifies
     ) const
     {
@@ -585,12 +585,12 @@ namespace Elixir
     }
 
 
-    bool AnimationSequence::CollectNotifyIntervals(
+    bool Sequence::CollectNotifyIntervals(
         const double startPhase,
         double endPhase,
         const bool looping,
         std::vector<SAnimationNotifyInterval>& output,
-        const AnimationSequence* reference,
+        const Sequence* reference,
         const bool includeStart
     ) const
     {

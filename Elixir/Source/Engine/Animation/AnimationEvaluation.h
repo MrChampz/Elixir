@@ -14,7 +14,7 @@ namespace Elixir
     struct SSequenceContribution
     {
         /** Clip retained by the source that produced this contribution. */
-        const AnimationSequence* Sequence = nullptr;
+        const Sequence* Sequence = nullptr;
 
         /**
          * Nonnegative weight; CalculateContributions returns positive weights
@@ -24,14 +24,14 @@ namespace Elixir
     };
 
     /** Borrowed sequence contributions resolved by a leaf evaluator. */
-    struct SAnimationSequenceSources
+    struct SSequenceSources
     {
         /** Empty for generated poses that do not contribute sequence movement. */
         std::span<const SSequenceContribution> Contributions;
 
-        const AnimationSequence* NotifySequence = nullptr;
+        const Sequence* NotifySequence = nullptr;
 
-        const AnimationSequence* SynchronizationSequence = nullptr;
+        const Sequence* SynchronizationSequence = nullptr;
     };
 
     /** Child playback selected by a machine, including its candidate transition. */
@@ -60,7 +60,7 @@ namespace Elixir
 
     /** Sources remain valid until their owning evaluator is changed or released. */
     using TAnimationEvaluationSources = std::variant<
-        SAnimationSequenceSources,
+        SSequenceSources,
         SAnimationSelectedSources,
         SAnimationLayerSources
     >;

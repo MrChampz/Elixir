@@ -23,7 +23,7 @@ namespace
         {
             Mesh = SkinningTests::MakeMesh();
             ASSERT_TRUE(Mesh);
-            Sequence = AnimationSequence::Create("Windows", Mesh->GetSkeleton(), 1, {});
+            Sequence = Sequence::Create("Windows", Mesh->GetSkeleton(), 1, {});
             ASSERT_TRUE(Sequence);
         }
 
@@ -32,7 +32,7 @@ namespace
          * @param start Window start in seconds.
          * @param end Window end in seconds.
          */
-        Ref<AnimationSequence> Window(float start = 0.2f, float end = 0.6f)
+        Ref<Sequence> Window(float start = 0.2f, float end = 0.6f)
         {
             return Sequence->WithNotifies({{"Hitbox", start, end - start, SHitPayload{}}});
         }
@@ -42,7 +42,7 @@ namespace
          * @param clip Sequence defining the montage timeline.
          * @param sections Optional section starts and default routes.
          */
-        Ref<AnimationMontage> Montage(Ref<const AnimationSequence> clip,
+        Ref<AnimationMontage> Montage(Ref<const Sequence> clip,
             std::vector<SAnimationMontageSection> sections = {})
         {
             return AnimationMontage::Create({.Name = "Action", .Sequence = std::move(clip),
@@ -50,7 +50,7 @@ namespace
         }
 
         Ref<SkeletalMesh> Mesh;
-        Ref<AnimationSequence> Sequence;
+        Ref<Sequence> Sequence;
     };
 }
 
@@ -565,7 +565,7 @@ TEST_F(AnimationNotifyDurationTest, ReplacingAMontageClosesThenOpensAnotherActiv
 
 TEST_F(AnimationNotifyDurationTest, NonuniformMarkersMeasureActiveFrameSecondsRatherThanClipSeconds)
 {
-    const auto reference = AnimationSequence::Create("Reference", Mesh->GetSkeleton(), 2,
+    const auto reference = Sequence::Create("Reference", Mesh->GetSkeleton(), 2,
         {}, {{"A", 0}, {"B", 1.5f}});
     const auto source = Window(0, 0.5f)->WithSyncMarkers({{"A", 0}, {"B", 0.5f}});
     const auto space = BlendSpace1D::Create("Space", {{0, reference}, {1, source}});

@@ -4,18 +4,18 @@
 
 namespace Elixir
 {
-    Ref<StateMachineNode> StateMachineNode::Create(Ref<const AnimationStateMachine> resource)
+    Ref<StateMachineNode> StateMachineNode::Create(Ref<const StateMachine> resource)
     {
         if (!resource || !resource->GetSkeleton())
         {
-            EE_CORE_ERROR("StateMachineNode requires a valid AnimationStateMachine resource.")
+            EE_CORE_ERROR("StateMachineNode requires a valid StateMachine resource.")
             return nullptr;
         }
 
         return Ref<StateMachineNode>(new StateMachineNode(std::move(resource)));
     }
 
-    StateMachineNode::StateMachineNode(Ref<const AnimationStateMachine> resource)
+    StateMachineNode::StateMachineNode(Ref<const StateMachine> resource)
         : m_Resource(std::move(resource)) {}
 
     Scope<AnimationNodeEvaluator> StateMachineNode::CreateEvaluator() const

@@ -153,7 +153,7 @@ namespace Elixir
             return true;
         }
 
-        const auto& samples = std::get<SAnimationSequenceSources>(sources);
+        const auto& samples = std::get<SSequenceSources>(sources);
         if (samples.Contributions.empty())
         {
             output = {};

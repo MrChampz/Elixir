@@ -9,9 +9,9 @@ Implementação em `feature/skinned-animations`, sobre `22c13eee`.
 | `SLocalPose` | Transforms locais em ordem de skeleton, com validação própria. |
 | `SModelPose` | Matrizes acumuladas no espaço do modelo, sem posicionamento no mundo. |
 | `AnimationNode` | Contrato comum de um nó que participa da avaliação de poses. |
-| `AnimationSequence` | Tracks, markers, notifies e amostragem de uma sequência. |
+| `Sequence` | Tracks, markers, notifies e amostragem de uma sequência. |
 | `BlendSpace` | Mistura de sequências conforme entradas numéricas. |
-| `AnimationStateMachine` | Seleção de fontes e transições a partir de parâmetros. |
+| `StateMachine` | Seleção de fontes e transições a partir de parâmetros. |
 | `BlendNode` | Nó que compõe uma fonte base e contribuições por máscara. |
 | `SequenceNode`, `BlendSpaceNode`, `StateMachineNode` | Referências aos recursos usados pelo grafo. |
 | `AnimationGraph` | Parâmetros e conexão explícita com o nó de saída. |
@@ -19,7 +19,7 @@ Implementação em `feature/skinned-animations`, sobre `22c13eee`.
 | `SkeletalMeshInstance` | Mesh fixa e matrizes de referência para renderização sem animação. |
 
 SequenceNode, BlendSpaceNode, StateMachineNode e BlendNode implementam `AnimationNode`.
-AnimationSequence, BlendSpace e AnimationStateMachine são recursos separados, referenciados
+Sequence, BlendSpace e StateMachine são recursos separados, referenciados
 pelos respectivos nós. A saída pode receber um nó simples; uma máquina de estados não é
 obrigatória. Nós de mistura podem alimentar outros nós ou estados dentro do mesmo grafo.
 

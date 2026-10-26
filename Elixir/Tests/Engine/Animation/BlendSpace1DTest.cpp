@@ -23,11 +23,11 @@ namespace
             Mesh = SkinningTests::MakeMesh();
             ASSERT_TRUE(Mesh);
             const auto skeleton = Mesh->GetSkeleton();
-            Idle = AnimationSequence::Create("Idle", skeleton, 0, {});
-            Walk = AnimationSequence::Create("Walk", skeleton, 2, {
+            Idle = Sequence::Create("Idle", skeleton, 0, {});
+            Walk = Sequence::Create("Walk", skeleton, 2, {
                 { .BoneIndex = 0, .Translations = {{ 0, { 0, 0, 0 } }, { 2, { 4, 0, 0 } }} },
             });
-            Run = AnimationSequence::Create("Run", skeleton, 4, {
+            Run = Sequence::Create("Run", skeleton, 4, {
                 { .BoneIndex = 0, .Translations = {{ 0, { 10, 0, 0 } }, { 4, { 18, 0, 0 } }} },
             });
             Space = BlendSpace1D::Create("Locomotion", {{ 6, Run }, { 0, Idle }, { 2, Walk }});
@@ -40,7 +40,7 @@ namespace
             return {
                 .Name = "Controller",
                 .Parameters = {{ "Speed", 4.0f }},
-                .Layers = {{ .Node = MakeNode(AnimationStateMachine::Create({
+                .Layers = {{ .Node = MakeNode(StateMachine::Create({
                     .InitialState = "Locomotion",
                     .States = {{ .Name = "Locomotion", .Node = MakeNode(Space),
                     .InputParameters = { "Speed" } }}
@@ -49,9 +49,9 @@ namespace
         }
 
         Ref<SkeletalMesh> Mesh;
-        Ref<AnimationSequence> Idle;
-        Ref<AnimationSequence> Walk;
-        Ref<AnimationSequence> Run;
+        Ref<Sequence> Idle;
+        Ref<Sequence> Walk;
+        Ref<Sequence> Run;
         Ref<BlendSpace1D> Space;
     };
 }
@@ -97,7 +97,7 @@ TEST_F(BlendSpace1DTest, ClampsCoordinatesAndPhaseAndSupportsSingleSampleAssets)
 TEST_F(BlendSpace1DTest, BlendsLocalScaleAndShortestPathRotationWithMeshDefaults)
 {
     const auto rotation = glm::angleAxis(glm::radians(120.0f), glm::vec3(0, 0, 1));
-    const auto turn = AnimationSequence::Create("Turn", Mesh->GetSkeleton(), 1, {
+    const auto turn = Sequence::Create("Turn", Mesh->GetSkeleton(), 1, {
         { .BoneIndex = 0, .Rotations = {{ 0, -rotation }}, .Scales = {{ 0, { 3, 3, 3 } }} },
     });
     const auto space = BlendSpace1D::Create("Turn", {{ 0, Idle }, { 1, turn }});
@@ -118,7 +118,7 @@ TEST_F(BlendSpace1DTest, InvalidSamplingAndSingularScaleLeaveOutputUnchanged)
     EXPECT_FALSE(Space->Sample(std::numeric_limits<float>::infinity(), 0.0f, pose));
     EXPECT_FALSE(Space->Sample(0.0f, std::numeric_limits<float>::quiet_NaN(), pose));
     EXPECT_FALSE(Space->Sample(0.0f, 0.0f, pose, SLocalPose{{pose.LocalTransforms.front()}}));
-    const auto mirror = AnimationSequence::Create("Mirror", Mesh->GetSkeleton(), 0, {
+    const auto mirror = Sequence::Create("Mirror", Mesh->GetSkeleton(), 0, {
         { .BoneIndex = 0, .Scales = {{ 0, { -1, 1, 1 } }} },
     });
     const auto space = BlendSpace1D::Create("Mirror", {{ 0, Idle }, { 1, mirror }});
@@ -135,7 +135,7 @@ TEST_F(BlendSpace1DTest, RejectsMissingIncompatibleDuplicateAndNonfiniteSamples)
     EXPECT_FALSE(BlendSpace1D::Create("NaN", {
         { std::numeric_limits<float>::quiet_NaN(), Idle },
     }));
-    const auto incompatible = AnimationSequence::Create("Other",
+    const auto incompatible = Sequence::Create("Other",
         Skeleton::Create("Other", {{ .Name = "Other" }}), 0, {});
     EXPECT_FALSE(BlendSpace1D::Create("Incompatible", {{ 0, Idle }, { 1, incompatible }}));
     // Wide finite axis ranges must not overflow during interpolation.

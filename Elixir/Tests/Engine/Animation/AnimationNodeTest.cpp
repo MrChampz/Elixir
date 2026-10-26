@@ -2,7 +2,7 @@
 #include "AnimationTestNodes.h"
 #include <gtest/gtest.h>
 #include <Engine/Animation/Animation.h>
-#include <Engine/Animation/AnimationStateMachine.h>
+#include <Engine/Animation/StateMachine.h>
 #include <Engine/Animation/BlendSpace1D.h>
 #include "../Mesh/SkinningTestData.h"
 
@@ -18,7 +18,7 @@ namespace
          * @brief Retain one clip for deterministic source sampling.
          * @param clip Sequence used by every coordinate.
          */
-        explicit CountingBlendSpace(Ref<const AnimationSequence> clip)
+        explicit CountingBlendSpace(Ref<const Sequence> clip)
             : BlendSpace("Counted", clip->GetSkeleton(), 1), m_Clip(std::move(clip)) {}
 
         mutable size_t Resolutions = 0;
@@ -39,7 +39,7 @@ namespace
         }
 
     private:
-        Ref<const AnimationSequence> m_Clip;
+        Ref<const Sequence> m_Clip;
     };
 
     /** Third-party source proving the runtime does not dispatch on known source types. */
@@ -50,7 +50,7 @@ namespace
          * @brief Retain a sequence used by a custom source.
          * @param clip Immutable clip retained for every independent playback.
          */
-        explicit DelegatingSource(Ref<const AnimationSequence> clip) : m_Clip(std::move(clip)) {}
+        explicit DelegatingSource(Ref<const Sequence> clip) : m_Clip(std::move(clip)) {}
 
         /** @brief Get the retained clip's skeleton. */
         const Ref<const Skeleton>& GetSkeleton() const override { return m_Clip->GetSkeleton(); }
@@ -62,7 +62,7 @@ namespace
         }
 
     private:
-        Ref<const AnimationSequence> m_Clip;
+        Ref<const Sequence> m_Clip;
     };
 }
 
@@ -70,11 +70,11 @@ TEST(AnimationNodeTest, SequenceBlendSpaceMachineAndCustomSourceUseTheSamePlayEn
 {
     const auto mesh = SkinningTests::MakeMesh();
     ASSERT_TRUE(mesh);
-    const auto clip = AnimationSequence::Create("Clip", mesh->GetSkeleton(), 1, {
+    const auto clip = Sequence::Create("Clip", mesh->GetSkeleton(), 1, {
         {.BoneIndex = 0, .Translations = {{0, {0, 0, 0}}, {1, {4, 0, 0}}}}
     });
     const auto blend = BlendSpace1D::Create("Space", {{0, clip}});
-    const auto machine = AnimationStateMachine::Create({
+    const auto machine = StateMachine::Create({
         .InitialState = "Active", .States = {{"Active", MakeNode(clip)}}
     });
     const auto custom = CreateRef<DelegatingSource>(clip);
@@ -95,9 +95,9 @@ TEST(AnimationNodeTest, SequenceBlendSpaceMachineAndCustomSourceUseTheSamePlayEn
 TEST(AnimationNodeTest, SharedMachineAssetsHaveIndependentParametersAndCommittedState)
 {
     const auto mesh = SkinningTests::MakeMesh();
-    const auto first = AnimationSequence::Create("First", mesh->GetSkeleton(), 1, {});
+    const auto first = Sequence::Create("First", mesh->GetSkeleton(), 1, {});
     const auto second = first->WithNotifies({{"Selected", 0, 0, 12}});
-    const auto machine = AnimationStateMachine::Create({
+    const auto machine = StateMachine::Create({
         .InitialState = "First", .States = {{"First", MakeNode(first)}, {"Second", MakeNode(second)}},
         .Transitions = {{.From = "First", .To = "Second",
             .Conditions = {{"Switch", EAnimationComparison::Equal, true}}, .FadeDuration = 0}}
@@ -126,7 +126,7 @@ TEST(AnimationNodeTest, SharedMachineAssetsHaveIndependentParametersAndCommitted
 TEST(AnimationNodeTest, BoundBlendSpaceResolvesOnceUntilItsInputsChange)
 {
     const auto mesh = SkinningTests::MakeMesh();
-    const auto clip = AnimationSequence::Create("Clip", mesh->GetSkeleton(), 1, {});
+    const auto clip = Sequence::Create("Clip", mesh->GetSkeleton(), 1, {});
     const auto space = CreateRef<CountingBlendSpace>(clip);
     const std::array initial{0.0f};
     AnimationPlayback playback(MakeNode(space), initial);
@@ -157,10 +157,10 @@ TEST(AnimationNodeTest, BoundBlendSpaceResolvesOnceUntilItsInputsChange)
 TEST(AnimationNodeTest, CompositeSourcesConsumeInitialNotifiesOnlyAfterPositivePublication)
 {
     const auto mesh = SkinningTests::MakeMesh();
-    const auto clip = AnimationSequence::Create("Clip", mesh->GetSkeleton(), 1, {}, {}, {
+    const auto clip = Sequence::Create("Clip", mesh->GetSkeleton(), 1, {}, {}, {
         {"Boundary", 0.25f}
     });
-    const auto machine = AnimationStateMachine::Create({
+    const auto machine = StateMachine::Create({
         .InitialState = "Active", .States = {{"Active", MakeNode(clip)}}
     });
     const auto animationHandle = Animation::Create(mesh->GetSkeleton(), mesh->GetData().ReferencePose);
@@ -200,10 +200,10 @@ TEST(AnimationNodeTest, DefinitionsValidateTheirOwnContextWithoutMutatingIt)
 TEST(AnimationNodeTest, SeekingAMachineUsesItsNonloopingChildPolicy)
 {
     const auto mesh = SkinningTests::MakeMesh();
-    const auto clip = AnimationSequence::Create("Clip", mesh->GetSkeleton(), 1, {
+    const auto clip = Sequence::Create("Clip", mesh->GetSkeleton(), 1, {
         {.BoneIndex = 0, .Translations = {{0, {0, 0, 0}}, {1, {4, 0, 0}}}}
     });
-    const auto machine = AnimationStateMachine::Create({
+    const auto machine = StateMachine::Create({
         .InitialState = "Active", .States = {{.Name = "Active", .Node = MakeNode(clip), .Looping = false}}
     });
     const auto animationHandle = Animation::Create(mesh->GetSkeleton(), mesh->GetData().ReferencePose);
@@ -220,15 +220,15 @@ TEST(AnimationNodeTest, SeekingAMachineUsesItsNonloopingChildPolicy)
 TEST(AnimationNodeTest, NestedMachineTransitionsRestartSameAssetNotifyActivations)
 {
     const auto mesh = SkinningTests::MakeMesh();
-    const auto clip = AnimationSequence::Create("Clip", mesh->GetSkeleton(), 1, {}, {}, {
+    const auto clip = Sequence::Create("Clip", mesh->GetSkeleton(), 1, {}, {}, {
         {"Window", 0, 1}
     });
-    const auto inner = AnimationStateMachine::Create({
+    const auto inner = StateMachine::Create({
         .InitialState = "First", .States = {{"First", MakeNode(clip)}, {"Second", MakeNode(clip)}},
         .Transitions = {{.From = "First", .To = "Second",
             .Conditions = {{"Switch", EAnimationComparison::Equal, true}}, .FadeDuration = 0}}
     });
-    const auto outer = AnimationStateMachine::Create({
+    const auto outer = StateMachine::Create({
         .InitialState = "Outer", .States = {{"Outer", MakeNode(inner)}}
     });
     ASSERT_TRUE(outer);
@@ -254,9 +254,9 @@ TEST(AnimationNodeTest, NestedMachineTransitionsRestartSameAssetNotifyActivation
 TEST(AnimationNodeTest, GlobalPauseFreezesMachineDecisionsUntilResume)
 {
     const auto mesh = SkinningTests::MakeMesh();
-    const auto first = AnimationSequence::Create("First", mesh->GetSkeleton(), 1, {});
-    const auto second = AnimationSequence::Create("Second", mesh->GetSkeleton(), 1, {});
-    const auto machine = AnimationStateMachine::Create({
+    const auto first = Sequence::Create("First", mesh->GetSkeleton(), 1, {});
+    const auto second = Sequence::Create("Second", mesh->GetSkeleton(), 1, {});
+    const auto machine = StateMachine::Create({
         .InitialState = "First", .States = {{"First", MakeNode(first)}, {"Second", MakeNode(second)}},
         .Transitions = {{.From = "First", .To = "Second",
             .Conditions = {{"Switch", EAnimationComparison::Equal, true}}, .FadeDuration = 0}}

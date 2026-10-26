@@ -19,7 +19,7 @@ namespace
          * @brief Retain a deterministic sample source.
          * @param sequence Sequence shared by independent evaluators.
          */
-        explicit MinimalEvaluator(Ref<const AnimationSequence> sequence)
+        explicit MinimalEvaluator(Ref<const Sequence> sequence)
             : m_Sequence(std::move(sequence)), m_Source{m_Sequence.get(), 1} {}
 
         /** @brief Copy sampling state without sharing a clock. */
@@ -46,7 +46,7 @@ namespace
         {
             return {
                 .Duration = m_Sequence->GetDuration(),
-                .Sources = SAnimationSequenceSources{
+                .Sources = SSequenceSources{
                     std::span(&m_Source, 1), m_Sequence.get(), nullptr
                 }
             };
@@ -72,7 +72,7 @@ namespace
         }
 
     private:
-        Ref<const AnimationSequence> m_Sequence;
+        Ref<const Sequence> m_Sequence;
         SSequenceContribution m_Source;
     };
 
@@ -84,7 +84,7 @@ namespace
          * @brief Retain a sequence for every evaluator created by this node.
          * @param sequence Immutable source asset.
          */
-        explicit MinimalNode(Ref<const AnimationSequence> sequence)
+        explicit MinimalNode(Ref<const Sequence> sequence)
             : m_Sequence(std::move(sequence)) {}
 
         /** @brief Get the source skeleton. */
@@ -100,14 +100,14 @@ namespace
         }
 
     private:
-        Ref<const AnimationSequence> m_Sequence;
+        Ref<const Sequence> m_Sequence;
     };
 }
 
 TEST(AnimationEvaluatorTest, PlaybackAndConsumersWorkWithOnlyTheMinimalEvaluationContract)
 {
     const auto skeleton = Skeleton::Create("Root", {{.Name = "Root"}});
-    const auto sequence = AnimationSequence::Create(
+    const auto sequence = Sequence::Create(
         "Motion",
         skeleton,
         1,

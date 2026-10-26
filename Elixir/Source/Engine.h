@@ -73,11 +73,11 @@
 #include <Engine/Animation/Skeleton.h>
 #include <Engine/Animation/BoneMask.h>
 #include <Engine/Animation/Pose.h>
-#include <Engine/Animation/AnimationSequence.h>
+#include <Engine/Animation/Sequence.h>
 #include <Engine/Animation/BlendSpace.h>
 #include <Engine/Animation/BlendSpace1D.h>
 #include <Engine/Animation/BlendSpace2D.h>
-#include <Engine/Animation/AnimationStateMachine.h>
+#include <Engine/Animation/StateMachine.h>
 #include <Engine/Animation/AnimationMontage.h>
 #include <Engine/Animation/AnimationLayer.h>
 #include <Engine/Animation/AnimationPlayback.h>

@@ -3,7 +3,7 @@
 #include "AnimationTestCharacter.h"
 
 #include <Engine/Animation/AnimationGraph.h>
-#include <Engine/Animation/AnimationStateMachine.h>
+#include <Engine/Animation/StateMachine.h>
 
 /** Test authoring fixture for the previous ordered-layer regression cases. */
 struct SAnimationGraphTestInfo
@@ -98,9 +98,9 @@ using namespace Elixir;
     void EditMachine(Ref<const AnimationNode>& source, TEdit edit)
     {
         auto machine = std::dynamic_pointer_cast<const StateMachineNode>(source);
-        auto definition = machine ? machine->GetStateMachine()->GetCreateInfo() : SAnimationStateMachineCreateInfo{};
+        auto definition = machine ? machine->GetStateMachine()->GetCreateInfo() : SStateMachineCreateInfo{};
         edit(definition);
-        source = MakeNode(AnimationStateMachine::Create(std::move(definition)));
+        source = MakeNode(StateMachine::Create(std::move(definition)));
     }
 
 }

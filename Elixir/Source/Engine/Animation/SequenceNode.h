@@ -1,11 +1,11 @@
 #pragma once
 
 #include <Engine/Animation/AnimationNode.h>
-#include <Engine/Animation/AnimationSequence.h>
+#include <Engine/Animation/Sequence.h>
 
 namespace Elixir
 {
-    /** Connects a retained AnimationSequence resource to an animation graph. */
+    /** Connects a retained Sequence resource to an animation graph. */
     class ELIXIR_API SequenceNode final : public AnimationNode
     {
     public:
@@ -14,13 +14,13 @@ namespace Elixir
          * @param resource Resource sampled or selected by this node.
          * @return Null if the resource or its skeleton is invalid.
          */
-        static Ref<SequenceNode> Create(Ref<const AnimationSequence> resource);
+        static Ref<SequenceNode> Create(Ref<const Sequence> resource);
 
         /** @brief Create independent playback for this node connection. */
         Scope<AnimationNodeEvaluator> CreateEvaluator() const override;
 
         /** @brief Inspect the immutable resource referenced by this node. */
-        const Ref<const AnimationSequence>& GetSequence() const { return m_Resource; }
+        const Ref<const Sequence>& GetSequence() const { return m_Resource; }
 
         /** @brief Get the skeleton required by the retained resource. */
         const Ref<const Skeleton>& GetSkeleton() const override
@@ -33,8 +33,8 @@ namespace Elixir
          * @brief Retain a validated resource for the node's lifetime.
          * @param resource Non-null immutable animation resource.
          */
-        explicit SequenceNode(Ref<const AnimationSequence> resource);
+        explicit SequenceNode(Ref<const Sequence> resource);
 
-        Ref<const AnimationSequence> m_Resource;
+        Ref<const Sequence> m_Resource;
     };
 }

@@ -1,11 +1,11 @@
 #pragma once
 
 #include <Engine/Animation/AnimationNode.h>
-#include <Engine/Animation/AnimationStateMachine.h>
+#include <Engine/Animation/StateMachine.h>
 
 namespace Elixir
 {
-    /** Connects a retained AnimationStateMachine resource to an animation graph. */
+    /** Connects a retained StateMachine resource to an animation graph. */
     class ELIXIR_API StateMachineNode final : public AnimationNode
     {
     public:
@@ -14,7 +14,7 @@ namespace Elixir
          * @param resource Resource sampled or selected by this node.
          * @return Null if the resource or its skeleton is invalid.
          */
-        static Ref<StateMachineNode> Create(Ref<const AnimationStateMachine> resource);
+        static Ref<StateMachineNode> Create(Ref<const StateMachine> resource);
 
         /** @brief Create independent playback for this node connection. */
         Scope<AnimationNodeEvaluator> CreateEvaluator() const override;
@@ -36,7 +36,7 @@ namespace Elixir
         bool IsValidPlayback(const bool looping) const override { return looping; }
 
         /** @brief Inspect the immutable resource referenced by this node. */
-        const Ref<const AnimationStateMachine>& GetStateMachine() const { return m_Resource; }
+        const Ref<const StateMachine>& GetStateMachine() const { return m_Resource; }
 
         /** @brief Get the skeleton required by the retained resource. */
         const Ref<const Skeleton>& GetSkeleton() const override
@@ -49,8 +49,8 @@ namespace Elixir
          * @brief Retain a validated resource for the node's lifetime.
          * @param resource Non-null immutable animation resource.
          */
-        explicit StateMachineNode(Ref<const AnimationStateMachine> resource);
+        explicit StateMachineNode(Ref<const StateMachine> resource);
 
-        Ref<const AnimationStateMachine> m_Resource;
+        Ref<const StateMachine> m_Resource;
     };
 }

@@ -1,12 +1,12 @@
 #pragma once
 
 #include <Engine/Animation/AnimationNodeEvaluator.h>
-#include <Engine/Animation/AnimationStateMachine.h>
+#include <Engine/Animation/StateMachine.h>
 #include <Engine/Animation/AnimationTransition.h>
 
 namespace Elixir
 {
-    /** Independent pose evaluation and child state for a AnimationStateMachine resource. */
+    /** Independent pose evaluation and child state for a StateMachine resource. */
     class ELIXIR_API StateMachineEvaluator final : public AnimationNodeEvaluator
     {
     public:
@@ -14,7 +14,7 @@ namespace Elixir
          * @brief Borrow a resource retained by the enclosing playback.
          * @param source Resource that outlives this evaluator.
          */
-        explicit StateMachineEvaluator(const AnimationStateMachine& source);
+        explicit StateMachineEvaluator(const StateMachine& source);
 
         /** @brief Copy independent node state. */
         Scope<AnimationNodeEvaluator> Clone() const override;
@@ -96,7 +96,7 @@ namespace Elixir
         /** @brief Get the transition used by the candidate frame. */
         const AnimationTransition& Transition() const;
 
-        const AnimationStateMachine* m_Source;
+        const StateMachine* m_Source;
         Ref<AnimationParameters> m_Parameters;
         std::vector<std::vector<size_t>> m_ConditionBindings;
 

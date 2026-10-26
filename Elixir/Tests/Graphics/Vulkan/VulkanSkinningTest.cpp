@@ -52,14 +52,14 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
             auto& secondInstance = *secondInstanceHandle;
             if (frame > 0)
             {
-                auto animation = AnimationSequence::Create("Blend", mesh->GetSkeleton(), 2, {
+                auto animation = Sequence::Create("Blend", mesh->GetSkeleton(), 2, {
                     { .BoneIndex = 0, .Translations = {
                         { 0, { 2, 1, -1 } }, { 2, { 4, 3, -1 } },
                       },
                       .Rotations = {{ 0, glm::angleAxis(1.0f, glm::vec3(0, 0, 1)) }},
                       .Scales = {{ 0, { 2, 3, 1 } }} },
                 }, {{ "LeftFootPlant", 0.2f }, { "RightFootPlant", 1.2f }});
-                const auto reference = AnimationSequence::Create(
+                const auto reference = Sequence::Create(
                     "Reference", mesh->GetSkeleton(), 1, {},
                     {{ "LeftFootPlant", 0.25f }, { "RightFootPlant", 0.75f }}
                 );
@@ -69,7 +69,7 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
                 if (frame == 3)
                 {
                     ASSERT_TRUE(firstInstance.SetRootMotionEnabled(true));
-                    const auto lateral = AnimationSequence::Create("Lateral", mesh->GetSkeleton(),
+                    const auto lateral = Sequence::Create("Lateral", mesh->GetSkeleton(),
                         3, {{ .BoneIndex = 1, .Translations = {
                             { 0, { -2, 1, 3 } }, { 3, { 1, 4, 3 } },
                         } }}, {{ "RightFootPlant", 0.3f }, { "LeftFootPlant", 1.8f }});
@@ -93,7 +93,7 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
             {
                 auto mask = BoneMask::FromBone("Action", mesh->GetSkeleton(),
                     mesh->GetSkeleton()->GetBones()[1].Name);
-                auto action = AnimationSequence::Create("Layer", mesh->GetSkeleton(), 1, {
+                auto action = Sequence::Create("Layer", mesh->GetSkeleton(), 1, {
                     { .BoneIndex = 1, .Translations = {
                         { 0, { 1, 2, 3 } }, { 1, { 3, 4, 5 } },
                     } },

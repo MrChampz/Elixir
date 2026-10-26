@@ -285,7 +285,7 @@ namespace Elixir
         return values.size() == m_DimensionCount && allValuesFinite;
     }
 
-    const AnimationSequence* BlendSpace::GetNotifySource(
+    const Sequence* BlendSpace::GetNotifySource(
         const std::span<const float> values
     ) const
     {
@@ -301,7 +301,7 @@ namespace Elixir
         std::pmr::vector<SSequenceContribution> samples(&resource);
         FindSamples(values, samples);
 
-        const AnimationSequence* source = nullptr;
+        const Sequence* source = nullptr;
         float weight = 0.0f;
 
         for (const auto& sample : samples)
@@ -328,7 +328,7 @@ namespace Elixir
         std::string name,
         Ref<const Skeleton> skeleton,
         const size_t dimensionCount,
-        Ref<const AnimationSequence> synchronizationSequence
+        Ref<const Sequence> synchronizationSequence
     ) : m_Name(std::move(name)),
         m_Skeleton(std::move(skeleton)),
         m_DimensionCount(dimensionCount),

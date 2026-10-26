@@ -631,8 +631,8 @@ namespace Elixir
             }
         }
 
-        if (output.Events.size() - m_Notifies.GetPendingEnds().size() >
-            AnimationSequence::MaxNotifyEventsPerUpdate)
+        const auto emittedCount = output.Events.size() - m_Notifies.GetPendingEnds().size();
+        if (emittedCount > Sequence::MaxNotifyEventsPerUpdate)
         {
             EE_CORE_ERROR("Animation update exceeded the notify event capacity.")
             return false;

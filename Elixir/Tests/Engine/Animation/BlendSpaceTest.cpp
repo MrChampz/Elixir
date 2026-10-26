@@ -24,8 +24,8 @@ namespace
          * @param dimensions Number of numeric axes.
          */
         TestBlendSpace(
-            Ref<const AnimationSequence> idle,
-            Ref<const AnimationSequence> move,
+            Ref<const Sequence> idle,
+            Ref<const Sequence> move,
             size_t dimensions
         )
             : BlendSpace("Test", idle->GetSkeleton(), dimensions), m_Idle(std::move(idle)),
@@ -53,8 +53,8 @@ namespace
             output.push_back({m_Idle.get(), std::max(0.0f, 1.0f - sum)});
         }
 
-        Ref<const AnimationSequence> m_Idle;
-        Ref<const AnimationSequence> m_Move;
+        Ref<const Sequence> m_Idle;
+        Ref<const Sequence> m_Move;
     };
 }
 
@@ -62,8 +62,8 @@ TEST(BlendSpaceTest, GenericControllerAndPlaybackSupportAdditionalDimensionsAndC
 {
     const auto mesh = SkinningTests::MakeMesh();
     ASSERT_TRUE(mesh);
-    const auto idle = AnimationSequence::Create("Idle", mesh->GetSkeleton(), 1, {});
-    const auto move = AnimationSequence::Create(
+    const auto idle = Sequence::Create("Idle", mesh->GetSkeleton(), 1, {});
+    const auto move = Sequence::Create(
         "Move", mesh->GetSkeleton(), 2, {{.BoneIndex = 0, .Translations = {{0, {10, 0, 0}}}}}
     );
     for (const size_t dimensions : {1, 2, 3, 5, 17})
@@ -145,7 +145,7 @@ TEST(BlendSpaceTest, CommonInterfaceRejectsWrongAxisCountsAndPreservesPlaybackOn
 {
     const auto mesh = SkinningTests::MakeMesh();
     ASSERT_TRUE(mesh);
-    const auto clip = AnimationSequence::Create("Clip", mesh->GetSkeleton(), 2, {});
+    const auto clip = Sequence::Create("Clip", mesh->GetSkeleton(), 2, {});
     const std::array<Ref<const BlendSpace>, 2> spaces{
         BlendSpace1D::Create("Line", {{0, clip}}),
         BlendSpace2D::Create(

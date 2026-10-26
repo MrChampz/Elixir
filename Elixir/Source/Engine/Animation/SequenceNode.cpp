@@ -5,18 +5,18 @@
 
 namespace Elixir
 {
-    Ref<SequenceNode> SequenceNode::Create(Ref<const AnimationSequence> resource)
+    Ref<SequenceNode> SequenceNode::Create(Ref<const Sequence> resource)
     {
         if (!resource || !resource->GetSkeleton())
         {
-            EE_CORE_ERROR("SequenceNode requires a valid AnimationSequence resource.")
+            EE_CORE_ERROR("SequenceNode requires a valid Sequence resource.")
             return nullptr;
         }
 
         return Ref<SequenceNode>(new SequenceNode(std::move(resource)));
     }
 
-    SequenceNode::SequenceNode(Ref<const AnimationSequence> resource)
+    SequenceNode::SequenceNode(Ref<const Sequence> resource)
         : m_Resource(std::move(resource)) {}
 
     Scope<AnimationNodeEvaluator> SequenceNode::CreateEvaluator() const

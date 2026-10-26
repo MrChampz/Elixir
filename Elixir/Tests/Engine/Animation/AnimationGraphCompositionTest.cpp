@@ -1,7 +1,7 @@
 #include "AnimationTestNodes.h"
 #include <gtest/gtest.h>
 #include <Engine/Animation/AnimationGraph.h>
-#include <Engine/Animation/AnimationStateMachine.h>
+#include <Engine/Animation/StateMachine.h>
 #include <Engine/Animation/BlendSpace1D.h>
 #include <Engine/Mesh/SkeletalMeshInstance.h>
 #include "../Mesh/SkinningTestData.h"
@@ -17,9 +17,9 @@ namespace
      * @param mesh Mesh whose skeleton is retained by the clip.
      * @param value Constant root translation on X.
      */
-    Ref<AnimationSequence> Clip(const Ref<SkeletalMesh>& mesh, const float value)
+    Ref<Sequence> Clip(const Ref<SkeletalMesh>& mesh, const float value)
     {
-        return AnimationSequence::Create("Clip", mesh->GetSkeleton(), 1, {
+        return Sequence::Create("Clip", mesh->GetSkeleton(), 1, {
             {.BoneIndex = 0, .Translations = {{0, {value, 0, 0}}}}
         });
     }
@@ -82,12 +82,12 @@ TEST(AnimationGraphCompositionTest, NestedNodesComposeTheirOutputsInsteadOfFlatt
 TEST(AnimationGraphCompositionTest, FailedCompositionPreservesNestedMachineDecisionsAndClocks)
 {
     const auto mesh = SkinningTests::MakeMesh();
-    const auto machine = AnimationStateMachine::Create({.InitialState = "First",
+    const auto machine = StateMachine::Create({.InitialState = "First",
         .States = {{"First", MakeNode(Clip(mesh, 0))}, {"Second", MakeNode(Clip(mesh, 4))}},
         .Transitions = {{.From = "First", .To = "Second",
             .Conditions = {{"Switch", EAnimationComparison::Equal, true}}, .FadeDuration = 0}}
     });
-    const auto mirrored = AnimationSequence::Create("Mirror", mesh->GetSkeleton(), 1, {
+    const auto mirrored = Sequence::Create("Mirror", mesh->GetSkeleton(), 1, {
         {.BoneIndex = 0, .Scales = {{0, {-1, 1, 1}}}}
     });
     const auto blend = BlendNode::Create("Composition", {
@@ -119,7 +119,7 @@ TEST(AnimationGraphCompositionTest, ComposedSourcesEmitAndCancelAllNamedNotifyWi
         {.Name = "Locomotion", .Node = MakeNode(clip)},
         {.Name = "Action", .Mask = Mask(mesh), .Node = MakeNode(clip)}
     });
-    const auto machine = AnimationStateMachine::Create({.InitialState = "Composed",
+    const auto machine = StateMachine::Create({.InitialState = "Composed",
         .States = {{"Composed", MakeNode(blend)}}});
     const auto graph = AnimationGraph::Create({.Name = "Events", .Output = MakeNode(machine)});
     ASSERT_TRUE(graph);
@@ -251,7 +251,7 @@ TEST(AnimationGraphCompositionTest, MontageExitRestoresAllGraphWindowsWithinTheS
             ASSERT_TRUE(previousIds.emplace(event.LayerName, event.ActivationId).second);
     }
     ASSERT_EQ(previousIds.size(), 2);
-    const auto action = AnimationSequence::Create("Action", mesh->GetSkeleton(), 0.2f, {});
+    const auto action = Sequence::Create("Action", mesh->GetSkeleton(), 0.2f, {});
     const auto montage = AnimationMontage::Create({.Name = "Action", .Sequence = action,
         .BlendIn = 0, .BlendOut = 0});
     ASSERT_TRUE(animation->GetBaseLayer().PlayMontage(montage));

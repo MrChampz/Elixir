@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Engine/Animation/Pose.h>
-#include <Engine/Animation/AnimationSequence.h>
+#include <Engine/Animation/Sequence.h>
 
 namespace Elixir
 {
@@ -90,10 +90,10 @@ namespace Elixir
          * @return Borrowed clip, or null for invalid coordinates or contributions.
          * @pre Keep this blend space alive while using the returned pointer.
          */
-        const AnimationSequence* GetNotifySource(std::span<const float> values) const;
+        const Sequence* GetNotifySource(std::span<const float> values) const;
 
         /** @brief Get the fixed marker reference, or null for normalized sampling. */
-        const Ref<const AnimationSequence>& GetSynchronizationSequence() const
+        const Ref<const Sequence>& GetSynchronizationSequence() const
         {
             return m_SynchronizationSequence;
         }
@@ -119,7 +119,7 @@ namespace Elixir
             std::string name,
             Ref<const Skeleton> skeleton,
             size_t dimensionCount,
-            Ref<const AnimationSequence> synchronizationSequence = nullptr
+            Ref<const Sequence> synchronizationSequence = nullptr
         );
 
         /**
@@ -129,7 +129,7 @@ namespace Elixir
          * @return The fixed reference, or null when no clip has markers.
          */
         template<typename TSamples>
-        static Ref<const AnimationSequence> FindSynchronizationSequence(
+        static Ref<const Sequence> FindSynchronizationSequence(
             const TSamples& samples
         )
         {
@@ -156,6 +156,6 @@ namespace Elixir
         std::string m_Name;
         Ref<const Skeleton> m_Skeleton;
         size_t m_DimensionCount;
-        Ref<const AnimationSequence> m_SynchronizationSequence;
+        Ref<const Sequence> m_SynchronizationSequence;
     };
 }

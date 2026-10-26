@@ -3,7 +3,7 @@
 
 namespace Elixir
 {
-    SequenceEvaluator::SequenceEvaluator(const AnimationSequence& source)
+    SequenceEvaluator::SequenceEvaluator(const Sequence& source)
       : m_Source(&source),
         m_Contribution{ &source, 1 } {}
 
@@ -38,7 +38,7 @@ namespace Elixir
     {
         return {
             .Duration = m_Source->GetDuration(),
-            .Sources = SAnimationSequenceSources{
+            .Sources = SSequenceSources{
                 std::span(&m_Contribution, 1),
                 m_Source,
                 nullptr

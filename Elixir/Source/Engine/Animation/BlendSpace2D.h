@@ -9,7 +9,7 @@ namespace Elixir
     struct SBlendSpace2DSample
     {
         glm::vec2 Position = {};
-        Ref<const AnimationSequence> Sequence;
+        Ref<const Sequence> Sequence;
     };
 
     /** Identifies up to three contributing samples and their normalized weights. */

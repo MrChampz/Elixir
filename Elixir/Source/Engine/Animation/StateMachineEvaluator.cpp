@@ -5,7 +5,7 @@
 
 namespace Elixir
 {
-    StateMachineEvaluator::StateMachineEvaluator(const AnimationStateMachine& source)
+    StateMachineEvaluator::StateMachineEvaluator(const StateMachine& source)
       : m_Source(&source),
         m_State(source.GetInitialState())
     {

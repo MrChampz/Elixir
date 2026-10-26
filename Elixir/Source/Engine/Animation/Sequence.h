@@ -104,14 +104,14 @@ namespace Elixir
     };
 
     /** @brief Stores immutable animation tracks associated with a shared skeleton. */
-    class ELIXIR_API AnimationSequence final
+    class ELIXIR_API Sequence final
     {
     public:
         /** Maximum authored events per update; queued cancellation Ends are additional. */
         static constexpr size_t MaxNotifyEventsPerUpdate = 4096;
 
-        AnimationSequence(const AnimationSequence&) = delete;
-        AnimationSequence& operator=(const AnimationSequence&) = delete;
+        Sequence(const Sequence&) = delete;
+        Sequence& operator=(const Sequence&) = delete;
 
         /**
          * @brief Create a sequence with finite keys and optional markers, or return null.
@@ -123,7 +123,7 @@ namespace Elixir
          * Markers are sorted during creation.
          * @param notifies Named events on a positive-duration timeline, sorted stably by time.
          */
-        static Ref<AnimationSequence> Create(
+        static Ref<Sequence> Create(
             std::string name, Ref<const Skeleton> skeleton,
             float duration,
             std::vector<SBoneAnimationTrack> tracks,
@@ -178,14 +178,14 @@ namespace Elixir
          * @param phase Finite reference phase; complete cycles remain unwrapped.
          * @param reference Fixed marker timeline; incompatible markers use normalized phase.
          */
-        double GetSynchronizedPhase(double phase, const AnimationSequence& reference) const;
+        double GetSynchronizedPhase(double phase, const Sequence& reference) const;
 
         /**
          * @brief Copy this immutable sequence with authored synchronization markers.
          * @param syncMarkers Valid cycle markers; empty removes existing markers.
          * @return A new sequence retaining tracks and metadata, or null for invalid markers.
          */
-        Ref<AnimationSequence> WithSyncMarkers(
+        Ref<Sequence> WithSyncMarkers(
             std::vector<SAnimationSyncMarker> syncMarkers
         ) const;
 
@@ -200,7 +200,7 @@ namespace Elixir
          * @param reference Sequence whose marker intervals define the shared phase.
          * @return False if either sequence has no markers or their layouts differ.
          */
-        bool CanSynchronizeWith(const AnimationSequence& reference) const;
+        bool CanSynchronizeWith(const Sequence& reference) const;
 
         /**
          * @brief Map a reference cycle phase into this sequence's matching marker interval.
@@ -213,14 +213,14 @@ namespace Elixir
          * @param reference Sequence defining the shared phase timeline.
          * @return Sample time in seconds, or zero for a nonfinite phase.
          */
-        float GetSynchronizedTime(float phase, const AnimationSequence& reference) const;
+        float GetSynchronizedTime(float phase, const Sequence& reference) const;
 
         /**
          * @brief Copy this sequence with authored events while retaining tracks and markers.
          * @param notifies Notifications within the clip; empty removes existing notifications.
          * @return A new sequence, or null for invalid names, times, or durations.
          */
-        Ref<AnimationSequence> WithNotifies(std::vector<SAnimationNotify> notifies) const;
+        Ref<Sequence> WithNotifies(std::vector<SAnimationNotify> notifies) const;
 
         /** @brief Get immutable events sorted by time, retaining order for equal times. */
         const std::vector<SAnimationNotify>& GetNotifies() const { return m_Notifies; }
@@ -245,7 +245,7 @@ namespace Elixir
             double endPhase,
             bool looping,
             std::vector<SAnimationNotifyInterval>& output,
-            const AnimationSequence* reference = nullptr,
+            const Sequence* reference = nullptr,
             bool includeStart = false
         ) const;
 
@@ -268,7 +268,7 @@ namespace Elixir
          * @param syncMarkers Validated cycle markers in ascending time order.
          * @param notifies Validated events in stable ascending time order.
          */
-        AnimationSequence(
+        Sequence(
             std::string name,
             Ref<const Skeleton> skeleton,
             float duration,

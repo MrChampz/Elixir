@@ -22,7 +22,7 @@ namespace
             Mesh = SkinningTests::MakeMesh();
             ASSERT_TRUE(Mesh);
             for (size_t i = 0; i < 3; ++i)
-                Clips[i] = AnimationSequence::Create(
+                Clips[i] = Sequence::Create(
                     std::to_string(i), Mesh->GetSkeleton(), float(i + 1),
                     {{.BoneIndex = 0,
                       .Translations = {
@@ -46,7 +46,7 @@ namespace
             return {
                 .Name = "Controller",
                 .Parameters = {{"X", 0.5f}, {"Y", 0.5f}},
-                .Layers = {{ .Node = MakeNode(AnimationStateMachine::Create({
+                .Layers = {{ .Node = MakeNode(StateMachine::Create({
                     .InitialState = "Move",
                     .States = {
                     {.Name = "Move",
@@ -57,7 +57,7 @@ namespace
         }
 
         Ref<SkeletalMesh> Mesh;
-        std::array<Ref<AnimationSequence>, 3> Clips;
+        std::array<Ref<Sequence>, 3> Clips;
         Ref<BlendSpace2D> Space;
     };
 }
@@ -139,7 +139,7 @@ TEST_F(BlendSpace2DTest, RejectsInvalidAssetsAndPreservesOutputOnInvalidSampling
     samples = Space->GetSamples();
     samples[0].Sequence.reset();
     EXPECT_FALSE(BlendSpace2D::Create("Missing", samples));
-    samples[0].Sequence = AnimationSequence::Create(
+    samples[0].Sequence = Sequence::Create(
         "Other", Skeleton::Create("Other", {{.Name = "Other"}}), 0, {}
     );
     EXPECT_FALSE(BlendSpace2D::Create("Incompatible", samples));
@@ -166,7 +166,7 @@ TEST_F(BlendSpace2DTest, HandlesWideFiniteCoordinatesAndCycleDurations)
     );
     ASSERT_TRUE(space);
     EXPECT_FLOAT_EQ(space->GetDuration({0, 0}), 2.25f);
-    const auto clip = AnimationSequence::Create("Long", Mesh->GetSkeleton(), maximum, {});
+    const auto clip = Sequence::Create("Long", Mesh->GetSkeleton(), maximum, {});
     const auto longSpace = BlendSpace2D::Create(
         "Long", {
                     {{0, 0}, clip},
@@ -181,7 +181,7 @@ TEST_F(BlendSpace2DTest, HandlesWideFiniteCoordinatesAndCycleDurations)
 TEST_F(BlendSpace2DTest, BlendsRotationsAndScaleAndRejectsSingularFinalTransforms)
 {
     const auto rotation = glm::angleAxis(glm::radians(120.0f), glm::vec3(0, 0, 1));
-    const auto turn = AnimationSequence::Create(
+    const auto turn = Sequence::Create(
         "Turn", Mesh->GetSkeleton(), 1,
         {
             {.BoneIndex = 0, .Rotations = {{0, -rotation}}, .Scales = {{0, {3, 3, 3}}}},
@@ -203,7 +203,7 @@ TEST_F(BlendSpace2DTest, BlendsRotationsAndScaleAndRejectsSingularFinalTransform
     EXPECT_NEAR(glm::length(pose.LocalTransforms[0].Rotation), 1, 1e-5f);
     const auto expected = glm::angleAxis(glm::radians(60.0f), glm::vec3(0, 0, 1));
     EXPECT_NEAR(std::abs(glm::dot(pose.LocalTransforms[0].Rotation, expected)), 1, 1e-5f);
-    const auto mirror = AnimationSequence::Create(
+    const auto mirror = Sequence::Create(
         "Mirror", Mesh->GetSkeleton(), 0,
         {
             {.BoneIndex = 0, .Scales = {{0, {-1, 1, 1}}}},
@@ -332,7 +332,7 @@ TEST_F(BlendSpace2DTest, InvalidPlaybackRequestsLeaveTheCurrentPoseAndPhaseIntac
 
 TEST_F(BlendSpace2DTest, StaticCyclesStayResponsiveAndCharactersKeepIndependentCoordinates)
 {
-    const auto idle = AnimationSequence::Create("Idle", Mesh->GetSkeleton(), 0, {});
+    const auto idle = Sequence::Create("Idle", Mesh->GetSkeleton(), 0, {});
     const auto space = BlendSpace2D::Create(
         "StaticOrigin", {
                             {{0, 0}, idle},

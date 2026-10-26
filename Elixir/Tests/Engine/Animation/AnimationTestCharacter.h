@@ -70,7 +70,7 @@ namespace Elixir
          * Only the target playback emits notifies during a fade. A blend space emits from
          * its dominant clip and maps event times through its marker reference. The first
          * positive update includes start events. Paused and zero-delta updates only deliver queued cancellation Ends.
-         * Updates crossing more than AnimationSequence::MaxNotifyEventsPerUpdate fail safely.
+         * Updates crossing more than Sequence::MaxNotifyEventsPerUpdate fail safely.
          *
          * @param dt Finite nonnegative elapsed time in seconds.
          */

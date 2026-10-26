@@ -4,7 +4,7 @@
 #include "AnimationTestPlayback.h"
 #include <gtest/gtest.h>
 
-#include <Engine/Animation/AnimationSequence.h>
+#include <Engine/Animation/Sequence.h>
 #include <Engine/Animation/BlendSpace1D.h>
 #include <Engine/Animation/BlendSpace2D.h>
 
@@ -46,9 +46,9 @@ namespace
         return data;
     }
 
-    Ref<AnimationSequence> MakeSequence(const Ref<const Skeleton>& skeleton)
+    Ref<Sequence> MakeSequence(const Ref<const Skeleton>& skeleton)
     {
-        return AnimationSequence::Create("RaiseHand", skeleton, 2, {
+        return Sequence::Create("RaiseHand", skeleton, 2, {
             { .BoneIndex = 1, .Translations = {{ 0, { 0, 1, 0 } }, { 2, { 0, 3, 0 } }} },
         });
     }
@@ -96,7 +96,7 @@ TEST(SkeletonTest, CompatibilityUsesNamesAndHierarchy)
     EXPECT_FALSE(MakeSkeleton()->IsCompatible(*other));
 }
 
-TEST(AnimationSequenceTest, SamplesChannelsAndRetainsMissingReferenceChannels)
+TEST(SequenceTest, SamplesChannelsAndRetainsMissingReferenceChannels)
 {
     auto skeleton = MakeSkeleton();
     auto sequence = MakeSequence(skeleton);
@@ -113,13 +113,13 @@ TEST(AnimationSequenceTest, SamplesChannelsAndRetainsMissingReferenceChannels)
     ExpectPosition(pose.LocalTransforms[1].Translation, { 0, 3, 0 });
 }
 
-TEST(AnimationSequenceTest, SupportsStepAndShortestPathQuaternionInterpolation)
+TEST(SequenceTest, SupportsStepAndShortestPathQuaternionInterpolation)
 {
     SBoneAnimationTrack track{ .BoneIndex = 1,
         .Translations = {{ 0, { 0, 1, 0 } }, { 2, { 0, 3, 0 } }},
         .Rotations = {{ 0, { 1, 0, 0, 0 } }, { 2, { -1, 0, 0, 0 } }},
         .TranslationInterpolation = EBoneInterpolation::Step };
-    auto sequence = AnimationSequence::Create("Step", MakeSkeleton(), 2, { track });
+    auto sequence = Sequence::Create("Step", MakeSkeleton(), 2, { track });
     ASSERT_TRUE(sequence);
     SLocalPose pose;
     ASSERT_TRUE(sequence->Sample(1, pose));
@@ -129,18 +129,18 @@ TEST(AnimationSequenceTest, SupportsStepAndShortestPathQuaternionInterpolation)
     ExpectPosition(pose.LocalTransforms[1].Translation, { 0, 3, 0 });
 }
 
-TEST(AnimationSequenceTest, RejectsInvalidKeysAndDuplicateTracks)
+TEST(SequenceTest, RejectsInvalidKeysAndDuplicateTracks)
 {
     auto skeleton = MakeSkeleton();
-    EXPECT_FALSE(AnimationSequence::Create("Bad", skeleton, -1, {}));
-    EXPECT_FALSE(AnimationSequence::Create("Bad", nullptr, 1, {}));
-    EXPECT_FALSE(AnimationSequence::Create("Bad", skeleton, 1, {{ .BoneIndex = 5 }}));
-    EXPECT_FALSE(AnimationSequence::Create("Bad", skeleton, 1, {{ .BoneIndex = 0 }, { .BoneIndex = 0 }}));
-    EXPECT_FALSE(AnimationSequence::Create("Bad", skeleton, 1,
+    EXPECT_FALSE(Sequence::Create("Bad", skeleton, -1, {}));
+    EXPECT_FALSE(Sequence::Create("Bad", nullptr, 1, {}));
+    EXPECT_FALSE(Sequence::Create("Bad", skeleton, 1, {{ .BoneIndex = 5 }}));
+    EXPECT_FALSE(Sequence::Create("Bad", skeleton, 1, {{ .BoneIndex = 0 }, { .BoneIndex = 0 }}));
+    EXPECT_FALSE(Sequence::Create("Bad", skeleton, 1,
         {{ .Translations = {{ 0, {} }, { 0, {} }} }}));
-    EXPECT_FALSE(AnimationSequence::Create("Bad", skeleton, 1,
+    EXPECT_FALSE(Sequence::Create("Bad", skeleton, 1,
         {{ .Translations = {{ 2, {} }} }}));
-    EXPECT_FALSE(AnimationSequence::Create("Bad", skeleton, 1,
+    EXPECT_FALSE(Sequence::Create("Bad", skeleton, 1,
         {{ .Rotations = {{ 0, { 0, 0, 0, 0 } }} }}));
 }
 
@@ -296,7 +296,7 @@ TEST(AnimationTestCharacterTest, FailedOperationsPreservePlaybackAndPose)
     auto& meshInstance = *meshInstanceHandle;
     ASSERT_TRUE(meshInstance.Play(MakeNode(MakeSequence(mesh->GetSkeleton()))));
     ASSERT_TRUE(meshInstance.Update(1));
-    EXPECT_FALSE(meshInstance.Play(MakeNode(AnimationSequence::Create("Wrong", Skeleton::Create("Other", {{ .Name = "Other" }}), 1, {}))));
+    EXPECT_FALSE(meshInstance.Play(MakeNode(Sequence::Create("Wrong", Skeleton::Create("Other", {{ .Name = "Other" }}), 1, {}))));
     EXPECT_FALSE(meshInstance.Update(-1));
     EXPECT_FALSE(meshInstance.Update(std::numeric_limits<float>::infinity()));
     EXPECT_FALSE(meshInstance.SetLocalPose({}));
@@ -328,7 +328,7 @@ TEST(AnimationTestCharacterTest, ZeroDurationSequenceProducesAStablePose)
     const auto meshInstanceHandle = AnimationTestCharacter::Create(mesh);
     ASSERT_TRUE(meshInstanceHandle);
     auto& meshInstance = *meshInstanceHandle;
-    auto sequence = AnimationSequence::Create("Still", mesh->GetSkeleton(), 0,
+    auto sequence = Sequence::Create("Still", mesh->GetSkeleton(), 0,
         {{ .BoneIndex = 1, .Translations = {{ 0, { 0, 4, 0 } }} }});
     ASSERT_TRUE(meshInstance.Play(MakeNode(sequence)));
     EXPECT_FALSE(meshInstance.IsPlaying());
@@ -343,7 +343,7 @@ TEST(SkeletalAnimationApiTest, SharedAssetsCannotBeReassigned)
     static_assert(!std::is_copy_constructible_v<Skeleton>);
     static_assert(!std::is_copy_assignable_v<Skeleton>);
     static_assert(!std::is_copy_assignable_v<SkeletalMesh>);
-    static_assert(!std::is_copy_assignable_v<AnimationSequence>);
+    static_assert(!std::is_copy_assignable_v<Sequence>);
 }
 
 TEST(SkeletalMeshTest, IndependentVertexTypesPreserveSurfaceAttributesDuringSkinning)
@@ -376,7 +376,7 @@ TEST(AnimationTestCharacterTest, CrossFadeAdvancesBothSequencesAndPreservesTheIn
     const auto instanceHandle = AnimationTestCharacter::Create(mesh);
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
-    auto target = AnimationSequence::Create("LowerHand", mesh->GetSkeleton(), 4, {
+    auto target = Sequence::Create("LowerHand", mesh->GetSkeleton(), 4, {
         { .BoneIndex = 1, .Translations = {{ 0, { 0, 9, 0 } }, { 4, { 0, 13, 0 } }} },
     });
     ASSERT_TRUE(instance.Play(MakeNode(MakeSequence(mesh->GetSkeleton()))));
@@ -403,7 +403,7 @@ TEST(AnimationTestCharacterTest, CrossFadeBlendsLocalTranslationScaleAndRotation
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
     const auto rotation = glm::angleAxis(glm::radians(120.0f), glm::vec3(0, 0, 1));
-    auto target = AnimationSequence::Create("Turn", mesh->GetSkeleton(), 2, {
+    auto target = Sequence::Create("Turn", mesh->GetSkeleton(), 2, {
         { .BoneIndex = 0, .Translations = {{ 0, { 6, 0, 0 } }},
           .Rotations = {{ 0, -rotation }}, .Scales = {{ 0, { 3, 3, 3 } }} },
     });
@@ -428,10 +428,10 @@ TEST(AnimationTestCharacterTest, InterruptedCrossFadeStartsFromTheVisiblePose)
     const auto instanceHandle = AnimationTestCharacter::Create(mesh);
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
-    auto first = AnimationSequence::Create("First", mesh->GetSkeleton(), 0, {
+    auto first = Sequence::Create("First", mesh->GetSkeleton(), 0, {
         { .BoneIndex = 1, .Translations = {{ 0, { 0, 5, 0 } }} },
     });
-    auto second = AnimationSequence::Create("Second", mesh->GetSkeleton(), 0, {
+    auto second = Sequence::Create("Second", mesh->GetSkeleton(), 0, {
         { .BoneIndex = 1, .Translations = {{ 0, { 0, 9, 0 } }} },
     });
     ASSERT_TRUE(instance.Play(MakeNode(first), 2.0f));
@@ -455,7 +455,7 @@ TEST(AnimationTestCharacterTest, PauseAndResumeControlTransitionTime)
     const auto instanceHandle = AnimationTestCharacter::Create(mesh);
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
-    auto target = AnimationSequence::Create("Still", mesh->GetSkeleton(), 0, {
+    auto target = Sequence::Create("Still", mesh->GetSkeleton(), 0, {
         { .BoneIndex = 1, .Translations = {{ 0, { 0, 5, 0 } }} },
     });
     ASSERT_TRUE(instance.Play(MakeNode(target), 2.0f));
@@ -498,7 +498,7 @@ TEST(AnimationTestCharacterTest, CrossFadeWrapsSourceAndTargetIndependently)
     const auto instanceHandle = AnimationTestCharacter::Create(mesh);
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
-    auto target = AnimationSequence::Create("Target", mesh->GetSkeleton(), 1, {
+    auto target = Sequence::Create("Target", mesh->GetSkeleton(), 1, {
         { .BoneIndex = 1, .Translations = {{ 0, { 0, 5, 0 } }, { 1, { 0, 9, 0 } }} },
     });
     ASSERT_TRUE(instance.Play(MakeNode(MakeSequence(mesh->GetSkeleton()))));
@@ -516,7 +516,7 @@ TEST(AnimationTestCharacterTest, CrossFadeClampsNonloopingSourceAndSupportsImmed
     const auto instanceHandle = AnimationTestCharacter::Create(mesh);
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
-    auto target = AnimationSequence::Create("Target", mesh->GetSkeleton(), 0, {
+    auto target = Sequence::Create("Target", mesh->GetSkeleton(), 0, {
         { .BoneIndex = 1, .Translations = {{ 0, { 0, 9, 0 } }} },
     });
     ASSERT_TRUE(instance.Play(MakeNode(MakeSequence(mesh->GetSkeleton())), false));
@@ -577,7 +577,7 @@ TEST(AnimationTestCharacterTest, InvalidFadeRequestsPreserveAnActiveTransition)
     EXPECT_FALSE(instance.Play(MakeNode(sequence), std::numeric_limits<float>::infinity()));
     EXPECT_FALSE(instance.Play(MakeNode(sequence), std::numeric_limits<float>::quiet_NaN()));
     EXPECT_FALSE(instance.Play(MakeNode(nullptr), 1.0f));
-    auto incompatible = AnimationSequence::Create("Other",
+    auto incompatible = Sequence::Create("Other",
         Skeleton::Create("Other", {{ .Name = "Other" }}), 0, {});
     EXPECT_FALSE(instance.Play(MakeNode(incompatible), 1.0f));
     EXPECT_FALSE(instance.Update(-1.0f));
@@ -595,7 +595,7 @@ TEST(AnimationTestCharacterTest, SingularBlendedScalePreservesPoseAndTransitionP
     const auto instanceHandle = AnimationTestCharacter::Create(mesh);
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
-    auto target = AnimationSequence::Create("Mirror", mesh->GetSkeleton(), 0, {
+    auto target = Sequence::Create("Mirror", mesh->GetSkeleton(), 0, {
         { .BoneIndex = 0, .Scales = {{ 0, { -1, 1, 1 } }} },
     });
     ASSERT_TRUE(instance.Play(MakeNode(target), 2.0f));
@@ -673,7 +673,7 @@ TEST(AnimationNotifyTest, ValidatesAndStablySortsAuthoredEvents)
              std::numeric_limits<float>::quiet_NaN() })
         EXPECT_FALSE(clip->WithNotifies({{ "Hit", time }}));
     EXPECT_FALSE(clip->WithNotifies({{ "", 1 }}));
-    EXPECT_FALSE(AnimationSequence::Create("Static", MakeSkeleton(), 0, {}, {}, {{ "Hit", 0 }}));
+    EXPECT_FALSE(Sequence::Create("Static", MakeSkeleton(), 0, {}, {}, {{ "Hit", 0 }}));
     auto marked = clip->WithSyncMarkers({{ "Left", 0.5f }, { "Right", 1.5f }});
     auto events = marked->WithNotifies({{ "End", 2 }, { "Step", 0.5f, 0, std::string("Left") },
         { "Step", 0.5f, 0, std::string("Right") }});
@@ -720,7 +720,7 @@ TEST(AnimationNotifyTest, CapacityAndInvalidInputPreserveOutput)
     ASSERT_EQ(events.size(), 1);
     EXPECT_EQ(events.front().NotifyIndex, 42);
     ASSERT_TRUE(clip->CollectNotifyIntervals(0, 4096, true, events));
-    EXPECT_EQ(events.size(), AnimationSequence::MaxNotifyEventsPerUpdate);
+    EXPECT_EQ(events.size(), Sequence::MaxNotifyEventsPerUpdate);
 }
 
 TEST(AnimationNotifyTest, PlaybackPauseSeekAndNonloopingEndAreSilentOrEmitOnce)
@@ -982,17 +982,17 @@ namespace
         });
     }
 
-    Ref<AnimationSequence> MakeLayerBase(const Ref<const Skeleton>& skeleton)
+    Ref<Sequence> MakeLayerBase(const Ref<const Skeleton>& skeleton)
     {
-        return AnimationSequence::Create("Walk", skeleton, 2, {
+        return Sequence::Create("Walk", skeleton, 2, {
             { .BoneIndex = 1, .Translations = {{ 0, { 0, 1, 0 } }, { 2, { 0, 3, 0 } }} },
             { .BoneIndex = 3, .Translations = {{ 0, { 0, -1, 0 } }, { 2, { 0, -3, 0 } }} },
         });
     }
 
-    Ref<AnimationSequence> MakeLayerAction(const Ref<const Skeleton>& skeleton)
+    Ref<Sequence> MakeLayerAction(const Ref<const Skeleton>& skeleton)
     {
-        return AnimationSequence::Create("Action", skeleton, 1, {
+        return Sequence::Create("Action", skeleton, 1, {
             { .BoneIndex = 1, .Translations = {{ 0, { 0, 10, 0 } }, { 1, { 0, 20, 0 } }} },
             { .BoneIndex = 2, .Translations = {{ 0, { 2, 1, 0 } }} },
             { .BoneIndex = 3, .Translations = {{ 0, { 0, 50, 0 } }} },
@@ -1223,7 +1223,7 @@ TEST(AnimationLayerTest, FailedCompositionPreservesEveryClockPoseAndEventBatch)
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
     auto base = MakeLayerBase(mesh->GetSkeleton())->WithNotifies({{ "Step", 0 }});
-    auto flipped = AnimationSequence::Create("Flip", mesh->GetSkeleton(), 1, {
+    auto flipped = Sequence::Create("Flip", mesh->GetSkeleton(), 1, {
         { .BoneIndex = 1, .Scales = {{ 0, { -1, 1, 1 } }} },
     });
     ASSERT_TRUE(instance.Play(MakeNode(base)));
@@ -1630,8 +1630,8 @@ TEST(AdditiveAnimationLayerTest, BlendsSourcesAndInterruptedFadesBeforeApplyingD
     ASSERT_TRUE(instance.SetLocalPose(original));
     ASSERT_TRUE(instance.AddLayer("Recoil", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine")));
     auto* recoil = instance.GetLayer("Recoil");
-    auto neutral = AnimationSequence::Create("Neutral", mesh->GetSkeleton(), 1, {});
-    auto pulse = AnimationSequence::Create("Pulse", mesh->GetSkeleton(), 1, {
+    auto neutral = Sequence::Create("Neutral", mesh->GetSkeleton(), 1, {});
+    auto pulse = Sequence::Create("Pulse", mesh->GetSkeleton(), 1, {
         { .BoneIndex = 1, .Translations = {{ 0, { 0, 3, 0 } }} },
     });
     auto space = BlendSpace1D::Create("Recoil", {{ 0, neutral }, { 1, pulse }});
@@ -1659,7 +1659,7 @@ TEST(AdditiveAnimationLayerTest, SingularScaleRollsBackAllClocksAndEvents)
     ASSERT_TRUE(instance.Update(0.125f));
     ASSERT_TRUE(instance.AddLayer("Recoil", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine"), 0.5f));
     auto* recoil = instance.GetLayer("Recoil");
-    auto inverted = AnimationSequence::Create("Inverted", mesh->GetSkeleton(), 1, {
+    auto inverted = Sequence::Create("Inverted", mesh->GetSkeleton(), 1, {
         { .BoneIndex = 1, .Scales = {{ 0, { -1, 1, 1 } }} },
     });
     ASSERT_TRUE(recoil->SetBlendMode(EAnimationLayerBlendMode::Additive));
@@ -1687,7 +1687,7 @@ TEST(AdditiveAnimationLayerTest, ScaleRatioOverflowFailsSafelyAndCanBeMuted)
     reference.LocalTransforms[1].Scale.x = 1e-8f;
     ASSERT_TRUE(recoil->SetAdditiveReferencePose(reference));
     ASSERT_TRUE(recoil->SetBlendMode(EAnimationLayerBlendMode::Additive));
-    auto extreme = AnimationSequence::Create("Extreme", mesh->GetSkeleton(), 1, {
+    auto extreme = Sequence::Create("Extreme", mesh->GetSkeleton(), 1, {
         { .BoneIndex = 1, .Scales = {{ 0, { std::numeric_limits<float>::max(), 1, 1 } }} },
     });
     ASSERT_TRUE(recoil->Play(MakeNode(extreme)));
@@ -1735,7 +1735,7 @@ TEST(AdditiveAnimationLayerTest, CompletedPulseReturnsToTheUnderlyingPose)
     ASSERT_TRUE(instance.SetLocalPose(original));
     ASSERT_TRUE(instance.AddLayer("Recoil", BoneMask::FromBone("Upper", mesh->GetSkeleton(), "Spine")));
     auto* recoil = instance.GetLayer("Recoil");
-    auto pulse = AnimationSequence::Create("Pulse", mesh->GetSkeleton(), 1, {
+    auto pulse = Sequence::Create("Pulse", mesh->GetSkeleton(), 1, {
         { .BoneIndex = 1, .Translations = {
             { 0, { 0, 1, 0 } }, { 0.25f, { 0, 3, 0 } }, { 1, { 0, 1, 0 } },
         } },

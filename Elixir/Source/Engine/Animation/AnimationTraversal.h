@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/Animation/AnimationSequence.h>
+#include <Engine/Animation/Sequence.h>
 
 namespace Elixir
 {
@@ -8,10 +8,10 @@ namespace Elixir
     struct ELIXIR_API SAnimationTraversal
     {
         /** Retained sequence whose notifications are evaluated. */
-        Ref<const AnimationSequence> Sequence;
+        Ref<const Sequence> Sequence;
 
         /** Retained marker reference for synchronization; null uses normalized sequence time. */
-        Ref<const AnimationSequence> Reference;
+        Ref<const class Sequence> Reference;
 
         /** Finite starting phase on the reference timeline; whole units represent cycles. */
         double StartPhase = 0;

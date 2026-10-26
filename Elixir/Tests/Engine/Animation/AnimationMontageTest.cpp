@@ -22,11 +22,11 @@ namespace
          * @param offset Translation along X at the start.
          * @param notifies Events on the clip timeline.
          */
-        Ref<AnimationSequence> Clip(
+        Ref<Sequence> Clip(
             float distance, float offset = 0, std::vector<SAnimationNotify> notifies = {}
         )
         {
-            return AnimationSequence::Create("Clip", Mesh->GetSkeleton(), 1, {{
+            return Sequence::Create("Clip", Mesh->GetSkeleton(), 1, {{
                 .BoneIndex = 0,
                 .Translations = {{0, {offset, 0, 0}}, {1, {offset + distance, 0, 0}}}
             }}, {}, std::move(notifies));
@@ -54,7 +54,7 @@ TEST_F(AnimationMontageTest, AssetRejectsInvalidSettings)
 {
     EXPECT_FALSE(AnimationMontage::Create({}));
     EXPECT_FALSE(AnimationMontage::Create({.Name = "Empty", .Sequence =
-        AnimationSequence::Create("Empty", Mesh->GetSkeleton(), 0, {})}));
+        Sequence::Create("Empty", Mesh->GetSkeleton(), 0, {})}));
     EXPECT_FALSE(AnimationMontage::Create({.Name = "Invalid", .Sequence = Clip(1),
         .BlendIn = -1}));
     EXPECT_FALSE(AnimationMontage::Create({.Name = "Invalid", .Sequence = Clip(1),
@@ -257,7 +257,7 @@ TEST_F(AnimationMontageTest, ControllerChangesUnderlyingSourceWithoutOverwriting
 {
     const auto a = Clip(1), b = Clip(3);
     auto controller = CreateTestGraph({.Name = "Machine",
-        .Parameters = {{"Switch", false}}, .Layers = {{.Node = MakeNode(AnimationStateMachine::Create({
+        .Parameters = {{"Switch", false}}, .Layers = {{.Node = MakeNode(StateMachine::Create({
             .InitialState = "A", .States = {{.Name = "A", .Node = MakeNode(a)},
                 {.Name = "B", .Node = MakeNode(b)}},
             .Transitions = {{.From = "A", .To = "B",
@@ -368,7 +368,7 @@ TEST_F(AnimationMontageTest, MaskAndAdditiveModeApplyAfterMontagePoseComposition
 TEST_F(AnimationMontageTest, CombinedActionAndResumedEventsRespectCapacityTransactionally)
 {
     std::vector<SAnimationNotify> notifies(
-        AnimationSequence::MaxNotifyEventsPerUpdate, {"Action", 0.5f}
+        Sequence::MaxNotifyEventsPerUpdate, {"Action", 0.5f}
     );
     const auto action = AnimationMontage::Create({.Name = "Many", .Sequence =
         Clip(1, 0, std::move(notifies))});
@@ -383,5 +383,5 @@ TEST_F(AnimationMontageTest, CombinedActionAndResumedEventsRespectCapacityTransa
     EXPECT_FLOAT_EQ(instance.GetTime(), 0);
     EXPECT_TRUE(instance.GetNotifyEvents().empty());
     ASSERT_TRUE(instance.Update(0.6f));
-    EXPECT_EQ(instance.GetNotifyEvents().size(), AnimationSequence::MaxNotifyEventsPerUpdate);
+    EXPECT_EQ(instance.GetNotifyEvents().size(), Sequence::MaxNotifyEventsPerUpdate);
 }

@@ -468,7 +468,7 @@ void Dissolve::OnEvent(Event& event)
 void Dissolve::InitializeAnimationGraph()
 {
     const auto& animations = m_MeshInstance->GetMesh()->GetAnimations();
-    const auto findAnimation = [&](const std::string_view name) -> Ref<const AnimationSequence>
+    const auto findAnimation = [&](const std::string_view name) -> Ref<const Sequence>
     {
         const auto found = std::ranges::find_if(
             animations,
@@ -492,7 +492,7 @@ void Dissolve::InitializeAnimationGraph()
         return;
     }
     const auto addFootsteps = [](
-        const Ref<const AnimationSequence>& clip,
+        const Ref<const Sequence>& clip,
         const float leftTime,
         const float rightTime
     )
@@ -637,8 +637,8 @@ void Dissolve::InitializeAnimationGraph()
     EE_CORE_INFO("KayKit sections: K starts or chains attacks, J jumps to recovery, B dodges.")
 }
 
-Ref<const AnimationSequence> Dissolve::CreateComboAnimation(
-    const Ref<const AnimationSequence>& attack
+Ref<const Sequence> Dissolve::CreateComboAnimation(
+    const Ref<const Sequence>& attack
 )
 {
     const auto& reference = m_MeshInstance->GetMesh()->GetData().ReferencePose;
@@ -684,11 +684,11 @@ Ref<const AnimationSequence> Dissolve::CreateComboAnimation(
     for (int i = 0; i < 3; ++i)
         notifies.push_back({"AttackHitbox", attackDuration * (float(i) + 0.3f),
             attackDuration * 0.35f, SAttackWindowPayload{}});
-    return AnimationSequence::Create("PunchCombo", attack->GetSkeleton(),
+    return Sequence::Create("PunchCombo", attack->GetSkeleton(),
         recoveryStart + ComboRecoveryDuration, std::move(tracks), {}, std::move(notifies));
 }
 
-Ref<const AnimationSequence> Dissolve::CreateRecoilAnimation()
+Ref<const Sequence> Dissolve::CreateRecoilAnimation()
 {
     const auto& skeleton = m_MeshInstance->GetMesh()->GetSkeleton();
     const auto chest = skeleton->FindBone("chest");
@@ -713,7 +713,7 @@ Ref<const AnimationSequence> Dissolve::CreateRecoilAnimation()
         { 0.22f, glm::angleAxis(glm::radians(3.0f), glm::vec3(1, 0, 0)) * reference.Rotation },
         { 0.65f, reference.Rotation },
     };
-    return AnimationSequence::Create(
+    return Sequence::Create(
         "RecoilPulse",
         skeleton,
         0.65f,

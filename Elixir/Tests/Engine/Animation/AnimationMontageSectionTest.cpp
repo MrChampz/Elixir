@@ -17,7 +17,7 @@ namespace
         {
             Mesh = SkinningTests::MakeMesh();
             ASSERT_TRUE(Mesh);
-            Sequence = AnimationSequence::Create("Sections", Mesh->GetSkeleton(), 4, {{
+            Sequence = Sequence::Create("Sections", Mesh->GetSkeleton(), 4, {{
                 .BoneIndex = 0,
                 .Translations = {{0, {0, 0, 0}}, {1, {1, 0, 0}},
                     {2, {10, 0, 0}}, {3, {12, 0, 0}}, {4, {15, 0, 0}}}
@@ -42,7 +42,7 @@ namespace
         }
 
         Ref<SkeletalMesh> Mesh;
-        Ref<AnimationSequence> Sequence;
+        Ref<Sequence> Sequence;
     };
 }
 
@@ -326,7 +326,7 @@ TEST_F(AnimationMontageSectionTest, SourceEventsResumeAtTheEffectiveRouteEnd)
     const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
-    const auto source = AnimationSequence::Create("Source", Mesh->GetSkeleton(), 1, {},
+    const auto source = Sequence::Create("Source", Mesh->GetSkeleton(), 1, {},
         {}, {{"Source", 0.25f}});
     ASSERT_TRUE(instance.Play(MakeNode(source)));
     auto& layer = instance.GetBaseLayer();
@@ -343,7 +343,7 @@ TEST_F(AnimationMontageSectionTest, SourceEventsResumeAtTheEffectiveRouteEnd)
 
 TEST_F(AnimationMontageSectionTest, EventOverflowPreservesSectionCursorAndRootDelta)
 {
-    const auto sequence = AnimationSequence::Create("Dense", Mesh->GetSkeleton(), 4, {}, {},
+    const auto sequence = Sequence::Create("Dense", Mesh->GetSkeleton(), 4, {}, {},
         std::vector<SAnimationNotify>(1024, {"Hit", 0.25f}));
     ASSERT_TRUE(sequence);
     const auto asset = AnimationMontage::Create({.Name = "Dense", .Sequence = sequence,
@@ -384,10 +384,10 @@ TEST_F(AnimationMontageSectionTest, ExitEnvelopeSpansTheRemainingRouteAcrossASec
 
 TEST_F(AnimationMontageSectionTest, ComboRecoveryFadesContinuouslyToTheAdvancingSource)
 {
-    const auto source = AnimationSequence::Create("Wave", Mesh->GetSkeleton(), 4, {{
+    const auto source = Sequence::Create("Wave", Mesh->GetSkeleton(), 4, {{
         .BoneIndex = 0, .Translations = {{0, {-2, 0, 0}}, {4, {6, 0, 0}}}
     }});
-    const auto combo = AnimationSequence::Create("Combo", Mesh->GetSkeleton(), 4, {{
+    const auto combo = Sequence::Create("Combo", Mesh->GetSkeleton(), 4, {{
         .BoneIndex = 0,
         .Translations = {{0, {8, 0, 0}}, {0.5f, {16, 0, 0}}, {1, {8, 0, 0}},
             {1.5f, {16, 0, 0}}, {2, {8, 0, 0}}, {2.5f, {16, 0, 0}},

@@ -20,13 +20,13 @@ namespace
             Mesh = SkinningTests::MakeMesh();
             ASSERT_TRUE(Mesh);
             const auto skeleton = Mesh->GetSkeleton();
-            Idle = AnimationSequence::Create("Idle", skeleton, 2, {
+            Idle = Sequence::Create("Idle", skeleton, 2, {
                 { .BoneIndex = 0, .Translations = {{ 0, { 0, 0, 0 } }} },
             });
-            Walk = AnimationSequence::Create("Walk", skeleton, 2, {
+            Walk = Sequence::Create("Walk", skeleton, 2, {
                 { .BoneIndex = 0, .Translations = {{ 0, { 4, 0, 0 } }} },
             });
-            Run = AnimationSequence::Create("Run", skeleton, 2, {
+            Run = Sequence::Create("Run", skeleton, 2, {
                 { .BoneIndex = 0, .Translations = {{ 0, { 8, 0, 0 } }} },
             });
             ASSERT_TRUE(Idle);
@@ -40,7 +40,7 @@ namespace
             return {
                 .Name = "Locomotion",
                 .Parameters = {{ "Speed", 0.0f }, { "Grounded", true }},
-                .Layers = {{ .Node = MakeNode(AnimationStateMachine::Create({
+                .Layers = {{ .Node = MakeNode(StateMachine::Create({
                     .InitialState = "Idle",
                     .States = {{ "Idle", MakeNode(Idle) }, { "Walk", MakeNode(Walk) }, { "Run", MakeNode(Run) }},
                     .Transitions = {
@@ -65,9 +65,9 @@ namespace
         }
 
         Ref<SkeletalMesh> Mesh;
-        Ref<AnimationSequence> Idle;
-        Ref<AnimationSequence> Walk;
-        Ref<AnimationSequence> Run;
+        Ref<Sequence> Idle;
+        Ref<Sequence> Walk;
+        Ref<Sequence> Run;
     };
 }
 
@@ -416,7 +416,7 @@ TEST_F(AnimationGraphTest, RejectsInvalidStatesParametersAndInitialState)
     info = MakeInfo();
     EditMachine(info.Layers[0].Node, [&](auto& machine)
     {
-        machine.States[1].Node = MakeNode(AnimationSequence::Create("Other",
+        machine.States[1].Node = MakeNode(Sequence::Create("Other",
         Skeleton::Create("Other", {{ .Name = "Other" }}), 0, {}));
     });
     EXPECT_FALSE(CreateTestGraph(info));
@@ -560,7 +560,7 @@ TEST_F(AnimationGraphTest, FailedPoseUpdatesRetainTheCommittedStateAndLastValidP
     auto info = MakeInfo();
     EditMachine(info.Layers[0].Node, [&](auto& machine)
     {
-        machine.States[1].Node = MakeNode(AnimationSequence::Create("Mirror", Mesh->GetSkeleton(), 2, {
+        machine.States[1].Node = MakeNode(Sequence::Create("Mirror", Mesh->GetSkeleton(), 2, {
         { .BoneIndex = 0, .Scales = {{ 0, { -1, 1, 1 } }} },
     }));
     });
@@ -583,13 +583,13 @@ TEST_F(AnimationGraphTest, FailedPoseUpdatesRetainTheCommittedStateAndLastValidP
 TEST_F(AnimationGraphTest, OneGraphDrivesIndependentMachinesAndAdvancesEveryLayerOnce)
 {
     auto info = MakeInfo();
-    const auto action = AnimationSequence::Create("Action", Mesh->GetSkeleton(), 2, {
+    const auto action = Sequence::Create("Action", Mesh->GetSkeleton(), 2, {
         { .BoneIndex = 1, .Translations = {{ 0, { 0, 3, 0 } }} },
     });
     info.Parameters.push_back({ "Attack", false });
     info.Layers.push_back({
         .Name = "UpperBody", .Mask = BoneMask::FromBone("Child", Mesh->GetSkeleton(), "Child"),
-        .Node = MakeNode(AnimationStateMachine::Create({
+        .Node = MakeNode(StateMachine::Create({
             .InitialState = "Idle",
             .States = {{ "Idle", MakeNode(Idle) }, { .Name = "Attack", .Node = MakeNode(action),
                 .Looping = false }},
@@ -674,7 +674,7 @@ TEST_F(AnimationGraphTest, GraphConfiguresOrderedOverrideAndAdditiveLayersWithOw
     const auto mask = BoneMask::FromBone("Child", Mesh->GetSkeleton(), "Child");
     const auto makeClip = [&](const char* name, const float height)
     {
-        return AnimationSequence::Create(name, Mesh->GetSkeleton(), 2, {
+        return Sequence::Create(name, Mesh->GetSkeleton(), 2, {
             { .BoneIndex = 1, .Translations = {{ 0, { 0, height, 0 } }} },
         }, {}, {{ "Event", 0.25f }});
     };
@@ -683,10 +683,10 @@ TEST_F(AnimationGraphTest, GraphConfiguresOrderedOverrideAndAdditiveLayersWithOw
     auto reference = Mesh->GetData().ReferencePose;
     reference.LocalTransforms[1].Translation.y = 1;
     info.Layers.push_back({ .Name = "Action", .Mask = mask,
-        .Node = MakeNode(AnimationStateMachine::Create({ .InitialState = "Active", .States = {{ "Active", MakeNode(action) }} })) });
+        .Node = MakeNode(StateMachine::Create({ .InitialState = "Active", .States = {{ "Active", MakeNode(action) }} })) });
     info.Layers.push_back({ .Name = "Recoil", .Mask = mask, .Weight = 0.5f,
         .BlendMode = EAnimationLayerBlendMode::Additive, .AdditiveReferencePose = reference,
-        .Node = MakeNode(AnimationStateMachine::Create({ .InitialState = "Active", .States = {{ "Active", MakeNode(recoil) }} })) });
+        .Node = MakeNode(StateMachine::Create({ .InitialState = "Active", .States = {{ "Active", MakeNode(recoil) }} })) });
     const auto controller = CreateTestGraph(info);
     ASSERT_TRUE(controller);
     const auto meshHandle = AnimationTestCharacter::Create(Mesh);
@@ -803,7 +803,7 @@ TEST_F(AnimationGraphTest, RejectsInvalidLayerDefinitionsAndCrossMachineSkeleton
     EditMachine(info.Layers[1].Node, [&](auto& machine)
     {
         machine.States = {{ "Other",
-        MakeNode(AnimationSequence::Create("Other", other, 1, {})) }};
+        MakeNode(Sequence::Create("Other", other, 1, {})) }};
         machine.InitialState = "Other";
         machine.Transitions.clear();
     });
@@ -846,13 +846,13 @@ TEST_F(AnimationGraphTest, GlobalPauseAndIndividualLayerPauseKeepIndependentCloc
 TEST_F(AnimationGraphTest, FailedCompositionKeepsEveryLayerClockAndLastValidPose)
 {
     auto info = MakeInfo();
-    const auto mirror = AnimationSequence::Create("Mirror", Mesh->GetSkeleton(), 2, {
+    const auto mirror = Sequence::Create("Mirror", Mesh->GetSkeleton(), 2, {
         { .BoneIndex = 1, .Scales = {{ 0, { -1, 1, 1 } }} },
     });
     info.Parameters.push_back({ "Attack", false });
     info.Layers.push_back({ .Name = "Action",
         .Mask = BoneMask::FromBone("Child", Mesh->GetSkeleton(), "Child"),
-        .Node = MakeNode(AnimationStateMachine::Create({
+        .Node = MakeNode(StateMachine::Create({
             .InitialState = "Idle", .States = {{ "Idle", MakeNode(Idle) }, { "Mirror", MakeNode(mirror) }},
             .Transitions = {{ .From = "Idle", .To = "Mirror",
                 .Conditions = {{ "Attack", EAnimationComparison::Equal, true }},
@@ -919,7 +919,7 @@ TEST_F(AnimationGraphTest, DirectSequenceMatchesASingleStateMachineThroughLoopsA
         .Name = "Direct", .Layers = {{ .Node = MakeNode(Walk) }},
     });
     const auto machine = CreateTestGraph({
-        .Name = "Machine", .Layers = {{ .Node = MakeNode(AnimationStateMachine::Create({
+        .Name = "Machine", .Layers = {{ .Node = MakeNode(StateMachine::Create({
             .InitialState = "Walk", .States = {{ "Walk", MakeNode(Walk) }},
         })) }},
     });
@@ -952,16 +952,16 @@ TEST_F(AnimationGraphTest, DirectSequenceMatchesASingleStateMachineThroughLoopsA
 TEST_F(AnimationGraphTest, DirectAndMachineSourcesShareParametersAndComposeInLayerOrder)
 {
     auto info = MakeInfo();
-    info.Layers[0].Node = MakeNode(AnimationStateMachine::Create({}));
+    info.Layers[0].Node = MakeNode(StateMachine::Create({}));
     info.Layers[0].Node = MakeNode(Walk);
     const auto mask = BoneMask::FromBone("Child", Mesh->GetSkeleton(), "Child");
-    const auto action = AnimationSequence::Create("Action", Mesh->GetSkeleton(), 2, {
+    const auto action = Sequence::Create("Action", Mesh->GetSkeleton(), 2, {
         { .BoneIndex = 1, .Translations = {{ 0, { 0, 3, 0 } }} },
     });
-    const auto recoil = AnimationSequence::Create("Recoil", Mesh->GetSkeleton(), 2, {
+    const auto recoil = Sequence::Create("Recoil", Mesh->GetSkeleton(), 2, {
         { .BoneIndex = 1, .Translations = {{ 0, { 0, 2, 0 } }} },
     }, {}, {{ "Recoil", 0.25f }});
-    info.Layers.push_back({ .Name = "Action", .Mask = mask, .Node = MakeNode(AnimationStateMachine::Create({
+    info.Layers.push_back({ .Name = "Action", .Mask = mask, .Node = MakeNode(StateMachine::Create({
         .InitialState = "Idle", .States = {{ "Idle", MakeNode(Idle) }, { "Attack", MakeNode(action) }},
         .Transitions = {{ .From = "Idle", .To = "Attack", .Conditions = {
             { "Speed", EAnimationComparison::Greater, 0.1f } }, .FadeDuration = 0 }},
@@ -1006,13 +1006,13 @@ TEST_F(AnimationGraphTest, DirectSourceValidationRejectsMissingAmbiguousAndMispl
     EXPECT_FALSE(CreateTestGraph(info));
     info.Layers[0].Node = MakeNode(MakeInfo().Layers[0].Node);
     EXPECT_FALSE(CreateTestGraph(info));
-    info.Layers[0].Node = MakeNode(AnimationStateMachine::Create({}));
+    info.Layers[0].Node = MakeNode(StateMachine::Create({}));
     EditMachine(info.Layers[0].Node, [&](auto& machine)
     {
         machine.Transitions.push_back({ .From = "A", .To = "B" });
     });
     EXPECT_FALSE(CreateTestGraph(info));
-    info.Layers[0].Node = MakeNode(AnimationStateMachine::Create({}));
+    info.Layers[0].Node = MakeNode(StateMachine::Create({}));
     info.Layers[0].InputParameters = { "Speed" };
     EXPECT_FALSE(CreateTestGraph(info));
     info = MakeInfo();
@@ -1025,6 +1025,6 @@ TEST_F(AnimationGraphTest, DirectSourceValidationRejectsMissingAmbiguousAndMispl
     const auto other = Skeleton::Create("Other", {{ .Name = "Other" }});
     info.Layers.push_back({ .Name = "Other",
         .Mask = BoneMask::FromBone("Other", other, "Other"),
-        .Node = MakeNode(AnimationSequence::Create("Other", other, 1, {})) });
+        .Node = MakeNode(Sequence::Create("Other", other, 1, {})) });
     EXPECT_FALSE(CreateTestGraph(info));
 }

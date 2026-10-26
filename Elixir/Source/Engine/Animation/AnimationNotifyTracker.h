@@ -11,7 +11,7 @@ namespace Elixir
     struct SActiveNotify
     {
         /** Retained sequence that owns the notification definition and payload. */
-        Ref<const AnimationSequence> Sequence;
+        Ref<const Sequence> Sequence;
 
         /** Index of the notification in Sequence->GetNotifies(). */
         size_t Index = 0;
