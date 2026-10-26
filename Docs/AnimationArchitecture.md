@@ -124,7 +124,7 @@ sequências, um playback selecionado com sua transição, ou camadas com seus fr
 Essas descrições são vistas emprestadas e não devem sobreviver a uma alteração do avaliador.
 `AnimationNotifyTracker` transforma os intervalos em eventos e agrega os eventos dos filhos.
 `RootMotion` extrai e mistura movimento a partir das mesmas fontes e relógios. Os avaliadores
-não expõem métodos de traversal, notifies ou root motion.
+não expõem métodos de intervalos de playback, notifies ou root motion.
 
 Cada tipo de nó cria seu avaliador por `CreateEvaluator()`: `SequenceEvaluator`,
 `BlendSpaceEvaluator`, `StateMachineEvaluator` ou `BlendNodeEvaluator`. Esses avaliadores

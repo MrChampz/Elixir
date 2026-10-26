@@ -5,7 +5,7 @@
 namespace Elixir
 {
     /** Describes a visited sequence interval on the playback reference timeline. */
-    struct ELIXIR_API SAnimationTraversal
+    struct ELIXIR_API SAnimationPlaybackInterval
     {
         /** Retained sequence whose notifications are evaluated. */
         Ref<const Sequence> Sequence;

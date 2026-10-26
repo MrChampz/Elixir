@@ -50,39 +50,39 @@ namespace Elixir
     }
 
     bool AnimationNotifyTracker::Evaluate(
-        const SAnimationTraversal& traversal,
+        const SAnimationPlaybackInterval& playbackInterval,
         const std::string_view layerName,
         SNotifyEvaluation& output,
         const bool allowActivation
     )
     {
-        const auto offset = traversal.FrameOffset;
-        const auto& sequence = traversal.Sequence;
-        const auto* reference = traversal.Reference.get();
+        const auto offset = playbackInterval.FrameOffset;
+        const auto& sequence = playbackInterval.Sequence;
+        const auto* reference = playbackInterval.Reference.get();
 
         const auto invalidSequence = std::ranges::any_of(
             output.Active,
             [&](const auto& state) { return state.Sequence != sequence; }
         );
 
-        if (!sequence || invalidSequence || traversal.ResetActivations)
+        if (!sequence || invalidSequence || playbackInterval.ResetActivations)
             End(output, offset, true, layerName);
 
-        const auto duration = traversal.DurationSeconds;
-        if (!sequence || traversal.StartPhase == traversal.EndPhase || duration == 0)
+        const auto duration = playbackInterval.DurationSeconds;
+        if (!sequence || playbackInterval.StartPhase == playbackInterval.EndPhase || duration == 0)
             return true;
 
-        const auto phase = traversal.StartPhase;
-        const auto end = traversal.EndPhase;
+        const auto phase = playbackInterval.StartPhase;
+        const auto end = playbackInterval.EndPhase;
 
         std::vector<SAnimationNotifyInterval> intervals;
         const auto success = sequence->CollectNotifyIntervals(
                 phase,
                 end,
-                traversal.Looping,
+                playbackInterval.Looping,
                 intervals,
                 reference,
-                traversal.IncludeStart
+                playbackInterval.IncludeStart
         );
 
         if (!success) return false;
@@ -201,7 +201,7 @@ namespace Elixir
             }
         }
 
-        if (!traversal.Looping && end >= 1)
+        if (!playbackInterval.Looping && end >= 1)
             End(
                 output,
                 offset + std::max(0.0, 1 - phase) * duration,
@@ -252,7 +252,7 @@ namespace Elixir
 
         const auto* sources = std::get_if<SAnimationLayerSources>(&state.Sources);
         if (!sources)
-            return Evaluate(playback.GetTraversal(dt, offset), layerName, output);
+            return Evaluate(playback.GetPlaybackInterval(dt, offset), layerName, output);
 
         if (!sources->Prepared) return true;
 

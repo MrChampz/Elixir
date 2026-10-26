@@ -1,9 +1,9 @@
 #include "epch.h"
-#include "AnimationTraversal.h"
+#include "AnimationPlaybackInterval.h"
 
 namespace Elixir
 {
-    bool SAnimationTraversal::IsValid() const
+    bool SAnimationPlaybackInterval::IsValid() const
     {
         return Sequence &&
             std::isfinite(StartPhase) &&

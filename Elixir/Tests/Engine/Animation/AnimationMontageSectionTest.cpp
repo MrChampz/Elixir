@@ -228,7 +228,7 @@ TEST_F(AnimationMontageSectionTest, ExplicitStopEndsALoopAndRejectsJumpsDuringEx
     EXPECT_FALSE(layer.GetMontage());
 }
 
-TEST_F(AnimationMontageSectionTest, ExcessiveTraversalFailsWithoutAdvancingAnyClock)
+TEST_F(AnimationMontageSectionTest, ExcessiveSectionIntervalsFailWithoutAdvancingAnyClock)
 {
     const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
     ASSERT_TRUE(instanceHandle);

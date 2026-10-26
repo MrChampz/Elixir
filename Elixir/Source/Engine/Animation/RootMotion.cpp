@@ -52,7 +52,7 @@ namespace Elixir
         const auto duration = sequence->GetDuration();
         SRootMotionDelta result;
 
-        for (const auto& interval : context.Traversal.Intervals)
+        for (const auto& interval : context.MontageEvaluation.Intervals)
         {
             SRootMotionDelta source, action;
 
@@ -80,7 +80,7 @@ namespace Elixir
         }
 
         SRootMotionDelta remaining;
-        const auto activeTime = float(context.Traversal.ActiveDuration);
+        const auto activeTime = float(context.MontageEvaluation.ActiveDuration);
 
         const auto success = extractSource(
             context.Interval.DeltaSeconds - activeTime,

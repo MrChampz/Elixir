@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Engine/Animation/AnimationNotifyEvent.h>
-#include <Engine/Animation/AnimationTraversal.h>
+#include <Engine/Animation/AnimationPlaybackInterval.h>
 
 namespace Elixir
 {
@@ -49,13 +49,13 @@ namespace Elixir
 
         /**
          * @brief Evaluate a resolved interval without inspecting its source type.
-         * @param traversal Resolved sequence interval and timing policy.
+         * @param playbackInterval Resolved sequence interval and timing policy.
          * @param layerName Name retained by emitted events.
          * @param output Candidate activation state to advance.
          * @param allowActivation Allow notifications with duration to begin or update.
          */
         static bool Evaluate(
-            const SAnimationTraversal& traversal,
+            const SAnimationPlaybackInterval& playbackInterval,
             std::string_view layerName,
             SNotifyEvaluation& output,
             bool allowActivation = true

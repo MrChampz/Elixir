@@ -443,7 +443,7 @@ namespace Elixir
          * @brief Evaluate notifications on the pose and section playback timeline.
          * @param resetActivations Start fresh candidate windows after enclosing suppression.
          * @param dt Elapsed frame seconds.
-         * @param evaluation Validated pose and montage traversal receiving notification
+         * @param evaluation Validated pose and montage intervals receiving notification
          * results.
          */
         bool EvaluateNotifyEvents(

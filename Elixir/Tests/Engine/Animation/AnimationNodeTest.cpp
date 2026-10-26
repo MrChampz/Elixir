@@ -137,7 +137,7 @@ TEST(AnimationNodeTest, BoundBlendSpaceResolvesOnceUntilItsInputsChange)
         const auto phase = playback.Advance(0.05f, mesh->GetData().ReferencePose);
         SLocalPose pose;
         ASSERT_TRUE(playback.Sample(phase, mesh->GetData().ReferencePose, pose));
-        EXPECT_TRUE(playback.GetTraversal(0.05f).IsValid());
+        EXPECT_TRUE(playback.GetPlaybackInterval(0.05f).IsValid());
         SRootMotionDelta movement;
         const SRootMotionIntervalContext interval{
             .Reference = mesh->GetData().ReferencePose.LocalTransforms[0],

@@ -271,7 +271,7 @@ namespace Elixir
         return true;
     }
 
-    SAnimationTraversal AnimationPlayback::GetTraversal(
+    SAnimationPlaybackInterval AnimationPlayback::GetPlaybackInterval(
         const double dt,
         const double offset
     ) const
@@ -283,17 +283,17 @@ namespace Elixir
             if (!selected->Playback)
                 return {};
 
-            auto traversal = selected->Playback->GetTraversal(dt, offset);
-            traversal.ResetActivations |= selected->ResetActivations;
+            auto interval = selected->Playback->GetPlaybackInterval(dt, offset);
+            interval.ResetActivations |= selected->ResetActivations;
 
-            return traversal;
+            return interval;
         }
 
         if (const auto* layers = std::get_if<SAnimationLayerSources>(&state.Sources))
         {
             return layers->Layers.empty()
-                ? SAnimationTraversal{}
-                : layers->Layers.front()->m_Playback.GetTraversal(dt, offset);
+                ? SAnimationPlaybackInterval{}
+                : layers->Layers.front()->m_Playback.GetPlaybackInterval(dt, offset);
         }
 
         const auto& sources = std::get<SSequenceSources>(state.Sources);

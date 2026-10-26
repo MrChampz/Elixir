@@ -5,7 +5,7 @@
 
 namespace Elixir
 {
-    SAnimationTraversal AnimationMontagePlayback::GetTraversal(
+    SAnimationPlaybackInterval AnimationMontagePlayback::GetPlaybackInterval(
         const SAnimationMontageInterval& interval
     ) const
     {

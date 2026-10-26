@@ -239,7 +239,7 @@ campos internos. Não centralizar regras heterogêneas em um `AnimationValidator
 
 ## 5. Um percurso temporal para pose, eventos e movimento
 
-Criar uma representação interna, `SAnimationTraversal`, para descrever os intervalos
+Criar uma representação interna, `SAnimationPlaybackInterval`, para descrever os intervalos
 realmente percorridos durante uma avaliação. Ela não é uma segunda notificação nem uma
 nova API de gameplay.
 

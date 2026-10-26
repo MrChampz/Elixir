@@ -4,7 +4,7 @@
 #include <Engine/Animation/AnimationNode.h>
 #include <Engine/Animation/AnimationNodeEvaluator.h>
 #include <Engine/Animation/AnimationInputBindings.h>
-#include <Engine/Animation/AnimationTraversal.h>
+#include <Engine/Animation/AnimationPlaybackInterval.h>
 
 namespace Elixir
 {
@@ -135,7 +135,7 @@ namespace Elixir
          * @param dt Elapsed source seconds.
          * @param offset Frame seconds preceding this interval.
          */
-        SAnimationTraversal GetTraversal(double dt, double offset = 0) const;
+        SAnimationPlaybackInterval GetPlaybackInterval(double dt, double offset = 0) const;
 
         /**
          * @brief Collect selected events from this source, including composed children.

@@ -582,10 +582,10 @@ namespace Elixir
             for (size_t i = 0; i < montage.Intervals.size(); ++i)
             {
                 const auto& interval = montage.Intervals[i];
-                const auto traversal = m_Montage.GetTraversal(interval);
+                const auto playbackInterval = m_Montage.GetPlaybackInterval(interval);
 
                 const auto success = m_Notifies.Evaluate(
-                    traversal,
+                    playbackInterval,
                     m_Name,
                     output,
                     !m_Montage.IsStopping()

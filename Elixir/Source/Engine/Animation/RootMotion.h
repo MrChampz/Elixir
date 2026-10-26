@@ -92,7 +92,7 @@ namespace Elixir
         const AnimationPlayback& Playback;
         const AnimationTransition& Transition;
         const AnimationMontagePlayback& Montage;
-        const SAnimationMontageEvaluation& Traversal;
+        const SAnimationMontageEvaluation& MontageEvaluation;
         const SRootMotionIntervalContext& Interval;
         bool Playing = false;
     };
@@ -130,7 +130,7 @@ namespace Elixir
 
         /**
          * @brief Combine continuing playback and visited action movement intervals.
-         * @param context Validated sources and their already evaluated action traversal.
+         * @param context Validated sources and their evaluated montage intervals.
          * @param output Receives the complete layer movement delta.
          */
         ELIXIR_API bool Extract(

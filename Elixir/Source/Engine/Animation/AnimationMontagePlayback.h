@@ -2,7 +2,7 @@
 
 #include <Engine/Animation/Pose.h>
 #include <Engine/Animation/AnimationMontage.h>
-#include <Engine/Animation/AnimationTraversal.h>
+#include <Engine/Animation/AnimationPlaybackInterval.h>
 
 namespace Elixir
 {
@@ -128,7 +128,7 @@ namespace Elixir
         std::string_view GetCurrentSection() const;
 
         /**
-         * @brief Publish a validated traversal cursor.
+         * @brief Publish a validated montage cursor.
          * @param cursor Cursor from a successful evaluation.
          */
         void Apply(const SAnimationMontageCursor& cursor);
@@ -150,7 +150,9 @@ namespace Elixir
          * @brief Resolve the sequence interval already visited by the action cursor.
          * @param interval Visited action interval with its frame offset.
          */
-        SAnimationTraversal GetTraversal(const SAnimationMontageInterval& interval) const;
+        SAnimationPlaybackInterval GetPlaybackInterval(
+            const SAnimationMontageInterval& interval
+        ) const;
 
         /**
          * @brief Average the action envelope over one visited interval.
