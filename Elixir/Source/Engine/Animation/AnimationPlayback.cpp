@@ -1,8 +1,9 @@
 #include "epch.h"
 #include "AnimationPlayback.h"
-#include "AnimationNodeQuery.h"
-#include "AnimationLayer.h"
-#include "AnimationNotifyTracker.h"
+
+#include <Engine/Animation/AnimationNodeQuery.h>
+#include <Engine/Animation/AnimationLayer.h>
+#include <Engine/Animation/AnimationNotifyTracker.h>
 
 namespace Elixir
 {
@@ -244,12 +245,15 @@ namespace Elixir
         SLocalPose& output
     ) const
     {
-        if (!m_Evaluator || !std::isfinite(phase)) return false;
+        if (!m_Evaluator || !std::isfinite(phase))
+            return false;
+
         if (m_Prepared && phase == m_Evaluation.Phase)
         {
             output = m_Evaluation.Pose;
             return true;
         }
+
         SAnimationEvaluation evaluation;
         const SAnimationEvaluationContext context{
             phase,
@@ -259,7 +263,10 @@ namespace Elixir
             referencePose,
             m_Looping
         };
-        if (!m_Evaluator->Evaluate(context, evaluation)) return false;
+
+        if (!m_Evaluator->Evaluate(context, evaluation))
+            return false;
+
         output = std::move(evaluation.Pose);
         return true;
     }
@@ -270,21 +277,31 @@ namespace Elixir
     ) const
     {
         const auto state = GetEvaluationState();
+
         if (const auto* selected = std::get_if<SAnimationSelectedSources>(&state.Sources))
         {
-            if (!selected->Playback) return {};
+            if (!selected->Playback)
+                return {};
+
             auto traversal = selected->Playback->GetTraversal(dt, offset);
             traversal.ResetActivations |= selected->ResetActivations;
+
             return traversal;
         }
+
         if (const auto* layers = std::get_if<SAnimationLayerSources>(&state.Sources))
         {
             return layers->Layers.empty()
                 ? SAnimationTraversal{}
                 : layers->Layers.front()->m_Playback.GetTraversal(dt, offset);
         }
+
         const auto& sources = std::get<SSequenceSources>(state.Sources);
-        const auto phase = m_Phase + (state.Duration > 0 ? offset / state.Duration : 0);
+
+        const auto phaseOffset = state.Duration > 0 ? offset / state.Duration : 0;
+        const auto phaseDelta = state.Duration > 0 ? dt / state.Duration : 0;
+        const auto phase = m_Phase + phaseOffset;
+
         return {
             .Sequence = sources.NotifySequence
                 ? Ref<const Sequence>(m_Node, sources.NotifySequence)
@@ -293,7 +310,7 @@ namespace Elixir
                 ? Ref<const Sequence>(m_Node, sources.SynchronizationSequence)
                 : nullptr,
             .StartPhase = phase,
-            .EndPhase = phase + (state.Duration > 0 ? dt / state.Duration : 0),
+            .EndPhase = phase + phaseDelta,
             .DurationSeconds = state.Duration,
             .FrameOffset = offset,
             .Looping = m_Looping,
@@ -313,6 +330,7 @@ namespace Elixir
         }
 
         const auto state = GetEvaluationState();
+
         const SAnimationMotionContext context{
             state,
             interval,
@@ -331,7 +349,13 @@ namespace Elixir
         const double offset
     ) const
     {
-        return !m_Evaluator || tracker.EvaluatePlayback(*this, dt, layerName, output, offset);
+        return !m_Evaluator || tracker.EvaluatePlayback(
+            *this,
+            dt,
+            layerName,
+            output,
+            offset
+        );
     }
 
     AnimationLayer* AnimationPlayback::GetLayer(const std::string_view name) const
