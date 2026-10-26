@@ -74,7 +74,7 @@ namespace Elixir
             SAnimationPlayerEvaluation& output,
             bool paused = false,
             bool notifiesEnabled = true
-        ) const;
+        );
 
         /**
          * @brief Publish a successful evaluation from this player.

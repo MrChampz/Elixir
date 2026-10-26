@@ -99,7 +99,7 @@ namespace Elixir
         /** Prepare child clocks and decisions instead of only reading a pose. */
         bool Advance = false;
 
-        /** Forward the enclosing control's event policy to composed child controls. */
+        /** Default notify publication policy for this frame's child sources. */
         bool NotifiesEnabled = true;
 
         const SLocalPose& ReferencePose;

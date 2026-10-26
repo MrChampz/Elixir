@@ -43,20 +43,8 @@ namespace Elixir
         SAnimationEvaluation& output
     )
     {
-        m_NotifiesEnabled = context.NotifiesEnabled;
-        if (!m_NotifiesEnabled)
-        {
-            for (const auto& layer : m_Layers)
-                layer->GetPlayer().GetPlayback().SetNotifiesEnabled(false);
-        }
-
         output.Phase = context.Advance
-            ? Prepare(
-                context.Phase,
-                context.DeltaSeconds,
-                context.Looping,
-                context.ReferencePose
-              )
+            ? Prepare(context)
             : context.Phase;
 
         if (!std::isfinite(output.Phase))
@@ -73,7 +61,7 @@ namespace Elixir
     {
         if (!m_Prepared) return;
 
-        const auto discardNotifies = !m_NotifiesEnabled && !m_NotificationsConsumed;
+        const auto discardNotifies = !m_PreparedNotifiesEnabled && !m_NotificationsConsumed;
 
         for (size_t i = 0; i < m_Layers.size(); ++i)
         {
@@ -81,7 +69,6 @@ namespace Elixir
             {
                 m_Evaluations[i].Notifies.Active.clear();
                 m_Evaluations[i].Notifies.Events.clear();
-                m_Layers[i]->GetPlayer().GetPlayback().SetNotifiesEnabled(false);
             }
 
             m_Layers[i]->GetPlayer().Apply(std::move(m_Evaluations[i]));
@@ -129,17 +116,13 @@ namespace Elixir
         };
     }
 
-    double BlendNodeEvaluator::Prepare(
-        const double phase,
-        const float dt,
-        const bool looping,
-        const SLocalPose& referencePose
-    )
+    double BlendNodeEvaluator::Prepare(const SAnimationEvaluationContext& context)
     {
+        m_PreparedNotifiesEnabled = context.NotifiesEnabled;
         m_Prepared = false;
         m_NotificationsConsumed = false;
 
-        if (!Initialize(referencePose))
+        if (!Initialize(context.ReferencePose))
             return std::numeric_limits<double>::quiet_NaN();
 
         m_Evaluations.clear();
@@ -148,7 +131,14 @@ namespace Elixir
         for (size_t i = 0; i < m_Layers.size(); ++i)
         {
             auto& player = m_Layers[i]->GetPlayer();
-            if (!player.Evaluate(dt, m_Evaluations[i], false, m_NotifiesEnabled))
+            const auto evaluated = player.Evaluate(
+                context.DeltaSeconds,
+                m_Evaluations[i],
+                false,
+                context.NotifiesEnabled
+            );
+
+            if (!evaluated)
                 return std::numeric_limits<double>::quiet_NaN();
         }
 

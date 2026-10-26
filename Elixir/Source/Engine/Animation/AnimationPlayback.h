@@ -163,8 +163,8 @@ namespace Elixir
         size_t GetLayerCount() const;
 
         /**
-         * @brief Enable notification tracking in nested controls for the next evaluation.
-         * @param enabled Whether the enclosing composition can publish source events.
+         * @brief Set the default notification policy used to evaluate nested sources.
+         * @param enabled Enable nested notification publication by default.
          */
         void SetNotifiesEnabled(bool enabled);
 
@@ -204,6 +204,6 @@ namespace Elixir
         mutable AnimationInputBindings m_Inputs;
 
         mutable bool m_Prepared = false;
-        mutable bool m_NotifiesEnabled = true;
+        bool m_NotifiesEnabled = true;
     };
 }

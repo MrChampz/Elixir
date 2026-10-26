@@ -28,7 +28,7 @@ namespace Elixir
         SAnimationPlayerEvaluation& output,
         const bool paused,
         const bool notifiesEnabled
-    ) const
+    )
     {
         if (paused)
         {
@@ -41,9 +41,10 @@ namespace Elixir
             return true;
         }
 
-        if (notifiesEnabled && m_NotifiesEnabled && !m_Montage.GetAsset())
-            m_Playback.SetNotifiesEnabled(true);
+        const auto sourceNotifiesEnabled =
+            notifiesEnabled && m_NotifiesEnabled && !m_Montage.GetAsset();
 
+        m_Playback.SetNotifiesEnabled(sourceNotifiesEnabled);
         m_Transition.Playback.SetNotifiesEnabled(false);
 
         if (!EvaluatePlayback(dt, output))

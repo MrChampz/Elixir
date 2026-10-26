@@ -155,6 +155,16 @@ candidatos. `Animation` e `BlendNodeEvaluator` compõem esses resultados antes d
 publicado. Máscaras sem influência e peso zero silenciam o player, mas mantêm seus clocks
 avançando. O player recebe essa política sem conhecer máscaras ou modos de blend.
 
+A política de notifies pertence a `AnimationPlayback` e é definida por `SetNotifiesEnabled`.
+`Advance` e `Sample` consultam essa propriedade ao montar o contexto de avaliação dos nós.
+O getter `GetPlayback()` permite apenas consultas; o setter do playback não é `const`.
+`AnimationPlayer::Evaluate` configura seus playbacks antes de avançá-los, sem passar essa
+flag para `Advance`. `Apply` recebe somente a avaliação preparada:
+o descarte de eventos e ativações candidatas não configura a avaliação seguinte. A composição
+preserva candidatos consumidos por um intervalo visível, inclusive após uma montage terminar
+no meio do frame. Avaliações descartadas podem ser refeitas com outra política sem alterar
+as janelas já publicadas.
+
 `AnimationTransition`, `AnimationMontagePlayback` e `AnimationNotifyTracker` possuem os estados
 de seus respectivos conceitos. `SLocalPose` concentra validação e blending local; `SModelPose` valida matrizes acumuladas.
 `RootMotion` contém as operações de movimento.
@@ -202,3 +212,8 @@ não registrou erros ou falhas de validação Vulkan.
 Na extração de `AnimationPlayer`, Dissolve e Elixir.UnitTests compilaram no macOS arm64.
 Passaram 700 testes de CPU e 26 testes Vulkan. Os novos testes exercitam avaliação sem
 camada, publicação conjunta de pose, clocks e eventos, e cópias com reprodução independente.
+
+Na revisão da propriedade de notifies do playback, passaram 703 testes de CPU e 26 testes
+Vulkan. As novas regressões cobrem a preservação da propriedade entre avanços e cópias,
+avaliações descartadas e fontes aninhadas retomadas após supressão, incluindo uma saída de
+montage no meio do frame.

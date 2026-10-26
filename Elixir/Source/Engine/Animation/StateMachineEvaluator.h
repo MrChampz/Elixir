@@ -57,17 +57,9 @@ namespace Elixir
     private:
         /**
          * @brief Prepare child clocks and candidate poses.
-         * @param phase Parent phase before advancing.
-         * @param dt Elapsed seconds.
-         * @param looping Parent cyclic policy.
-         * @param referencePose Defaults for unanimated channels.
+         * @param context Frame timing, notification policy, and sampling defaults.
          */
-        double Prepare(
-            double phase,
-            float dt,
-            bool looping,
-            const SLocalPose& referencePose
-        );
+        double Prepare(const SAnimationEvaluationContext& context);
 
         /**
          * @brief Sample committed or candidate child data.
@@ -117,6 +109,5 @@ namespace Elixir
         float m_NextElapsed = 0;
 
         bool m_Prepared = false;
-        bool m_NotifiesEnabled = true;
     };
 }

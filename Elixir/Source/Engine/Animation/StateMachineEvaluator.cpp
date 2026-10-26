@@ -62,15 +62,8 @@ namespace Elixir
         SAnimationEvaluation& output
     )
     {
-        m_NotifiesEnabled = context.NotifiesEnabled;
-
         output.Phase = context.Advance
-            ? Prepare(
-                context.Phase,
-                context.DeltaSeconds,
-                context.Looping,
-                context.ReferencePose
-              )
+            ? Prepare(context)
             : context.Phase;
 
         if (!std::isfinite(output.Phase))
@@ -138,13 +131,11 @@ namespace Elixir
         };
     }
 
-    double StateMachineEvaluator::Prepare(
-        const double,
-        const float dt,
-        const bool,
-        const SLocalPose& referencePose
-    )
+    double StateMachineEvaluator::Prepare(const SAnimationEvaluationContext& context)
     {
+        const auto dt = context.DeltaSeconds;
+        const auto& referencePose = context.ReferencePose;
+
         m_Prepared = false;
         m_NextPlayback.reset();
         m_NextTransition.reset();
@@ -183,10 +174,10 @@ namespace Elixir
             break;
         }
 
-        const auto& target = Target();
-        const auto& fade = Transition();
+        auto& target = m_NextPlayback ? *m_NextPlayback : m_Playback;
+        auto& fade = m_NextTransition ? *m_NextTransition : m_Transition;
 
-        target.SetNotifiesEnabled(m_NotifiesEnabled);
+        target.SetNotifiesEnabled(context.NotifiesEnabled);
         fade.Playback.SetNotifiesEnabled(false);
 
         m_NextPhase = target.Advance(dt, referencePose);
