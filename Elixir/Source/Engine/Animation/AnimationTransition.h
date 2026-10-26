@@ -43,6 +43,10 @@ namespace Elixir
 
         /**
          * @brief Extract root movement from playback and blend it with the outgoing transition.
+         *
+         * Use the mean fade weight over the interval. This approximation can vary with
+         * frame partition when root velocity changes or translation combines with rotation.
+         *
          * @param playback Target playback whose movement contributes to the result.
          * @param interval Root reference transform, bone index, and interval to extract.
          * @param output Receives the blended movement on success; unchanged on failure.

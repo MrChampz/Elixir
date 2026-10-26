@@ -68,6 +68,12 @@ namespace Elixir
         SRootMotionDelta& output
     ) const
     {
+        if (!interval.IsValid() || !IsValid())
+        {
+            EE_CORE_ERROR("Root motion requires valid transition timing and interval.")
+            return false;
+        }
+
         if (interval.DeltaSeconds == 0)
         {
             output = {};

@@ -323,6 +323,12 @@ namespace Elixir
         SRootMotionDelta& output
     ) const
     {
+        if (!interval.IsValid())
+        {
+            EE_CORE_ERROR("Root motion requires a valid reference and interval.")
+            return false;
+        }
+
         if (!m_Evaluator || interval.DeltaSeconds== 0)
         {
             output = {};

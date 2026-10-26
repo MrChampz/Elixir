@@ -144,6 +144,19 @@ do grafo somente no intervalo restante, preservando offsets e duração dos Upda
 `AnimationTransition`, `AnimationMontagePlayback` e `AnimationNotifyTracker` possuem os estados
 de seus respectivos conceitos. `SLocalPose` concentra validação e blending local; `SModelPose` valida matrizes acumuladas.
 `RootMotion` contém as operações de movimento.
+Os contextos de root motion validam referência, fase, duração e intervalos de montage.
+A extração de uma composição consulta a camada base por sua API de movimento, preservando
+transições e montages também quando o intervalo começa no meio do frame. Os intervalos
+avaliados da montage são recortados ao trecho solicitado, e o tempo após sua saída continua
+pela fonte da camada, com o offset original.
+
+O blending de root motion ainda usa o peso médio do fade sobre cada deslocamento extraído.
+Essa aproximação não garante o mesmo resultado ao dividir um frame quando a velocidade do
+root varia ou quando translação e rotação se combinam. Uma regressão documenta o caso de um
+root que só se move na segunda metade de um fade: uma atualização de um segundo resulta em
+deslocamento 0,5 e rotação 45°, enquanto duas de meio segundo resultam em 0,75 e 67,5°.
+Eliminar essa diferença exige integrar o movimento ponderado ao longo do fade.
+
 Cada header tem um único `.cpp` para suas implementações fora do header; templates e acessores
 simples permanecem no header.
 

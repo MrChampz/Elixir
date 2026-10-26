@@ -537,6 +537,28 @@ namespace Elixir
 
     bool AnimationLayer::ExtractRootMotion(
         const SRootMotionIntervalContext& interval,
+        SRootMotionDelta& output
+    ) const
+    {
+        if (!interval.IsValid())
+        {
+            EE_CORE_ERROR("Layer root motion requires a valid reference and interval.")
+            return false;
+        }
+
+        SAnimationLayerEvaluation evaluation;
+        if (m_Montage.GetAsset())
+        {
+            const auto end = interval.OffsetSeconds + interval.DeltaSeconds;
+            if (!std::isfinite(end) || !m_Montage.Evaluate(end, evaluation.Montage))
+                return false;
+        }
+
+        return ExtractRootMotion(interval, output, evaluation);
+    }
+
+    bool AnimationLayer::ExtractRootMotion(
+        const SRootMotionIntervalContext& interval,
         SRootMotionDelta& output,
         const SAnimationLayerEvaluation& evaluation
     ) const

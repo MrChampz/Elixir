@@ -52,10 +52,6 @@ namespace Elixir
         friend class BlendNodeEvaluator;
         friend class AnimationNodeQuery;
         friend class AnimationPlayback;
-        friend bool RootMotion::Extract(
-            const SAnimationMotionContext& context,
-            SRootMotionDelta& output
-        );
 
     public:
         /**
@@ -323,6 +319,33 @@ namespace Elixir
         /** @brief Get the committed state of the assigned source, if it is a machine. */
         std::string_view GetCurrentState() const { return m_Playback.GetCurrentState(); }
 
+        /**
+         * @brief Extract layer movement from playback, transitions, and active montage
+         * intervals.
+         * @param interval Root reference transform, bone index, duration, and offset to
+         * extract.
+         * @param output Receives movement on success; paused playback and snapshots contribute
+         * identity.
+         * @param evaluation Validated candidate layer frame containing visited montage
+         * intervals.
+         * @return True on success; output remains unchanged on failure.
+         */
+        bool ExtractRootMotion(
+            const SRootMotionIntervalContext& interval,
+            SRootMotionDelta& output,
+            const SAnimationLayerEvaluation& evaluation
+        ) const;
+
+        /**
+         * @brief Extract layer movement without publishing new playback clocks.
+         * @param interval Root reference, bone index, and requested frame subinterval.
+         * @param output Receives movement on success; unchanged on failure.
+         */
+        bool ExtractRootMotion(
+            const SRootMotionIntervalContext& interval,
+            SRootMotionDelta& output
+        ) const;
+
       private:
         /**
          * @brief Sample the continuing source before applying the action.
@@ -421,23 +444,6 @@ namespace Elixir
             double time,
             double sourceTime
         );
-
-        /**
-         * @brief Extract layer movement from playback, transitions, and active montage
-         * intervals.
-         * @param interval Root reference transform, bone index, duration, and offset to
-         * extract.
-         * @param output Receives movement on success; paused playback and snapshots contribute
-         * identity.
-         * @param evaluation Validated candidate layer frame containing visited montage
-         * intervals.
-         * @return True on success; output remains unchanged on failure.
-         */
-        bool ExtractRootMotion(
-            const SRootMotionIntervalContext& interval,
-            SRootMotionDelta& output,
-            const SAnimationLayerEvaluation& evaluation
-        ) const;
 
         /**
          * @brief Evaluate notifications on the pose and section playback timeline.
