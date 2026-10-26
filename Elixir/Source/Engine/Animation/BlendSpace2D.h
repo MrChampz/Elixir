@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Engine/Animation/Pose.h>
 #include <Engine/Animation/BlendSpace.h>
 
 namespace Elixir
@@ -43,8 +44,8 @@ namespace Elixir
         bool Sample(
             glm::vec2 value,
             float phase,
-            std::vector<SBoneTransform>& output,
-            std::span<const SBoneTransform> referencePose = {}
+            SLocalPose& output,
+            const SLocalPose& referencePose = {}
         ) const;
 
         /**
@@ -73,7 +74,7 @@ namespace Elixir
         */
         void FindSamples(
             std::span<const float> values,
-            std::pmr::vector<SContribution>& output
+            std::pmr::vector<SSequenceContribution>& output
         ) const override;
 
     private:

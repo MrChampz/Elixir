@@ -26,7 +26,7 @@ class Dissolve final : public Elixir::Application
     void UpdateAnimation(float deltaSeconds);
 
     /** @brief Configure directional locomotion driven by two numeric parameters. */
-    void InitializeAnimationController();
+    void InitializeAnimationGraph();
 
     /** @brief Create a chest recoil sequence relative to the mesh reference pose. */
     Ref<const AnimationSequence> CreateRecoilAnimation();
@@ -45,11 +45,12 @@ class Dissolve final : public Elixir::Application
     Scope<Environment> m_Environment;
 
     Scope<SkeletalMeshRenderer> m_SkeletalMeshRenderer;
-    Scope<SkeletalMeshInstance> m_MeshInstance;
-    Scope<SkeletalMeshInstance> m_ComparisonInstance;
+    Ref<SkeletalMeshInstance> m_MeshInstance;
+    Ref<SkeletalMeshInstance> m_ComparisonInstance;
+    Ref<Animation> m_Animation;
+    Ref<Animation> m_ComparisonAnimation;
 
-    Scope<AnimationControllerInstance> m_AnimationController;
-    Scope<AnimationControllerInstance> m_ComparisonController;
+    Ref<const AnimationGraph> m_AnimationGraph;
     Ref<const BlendSpace> m_LocomotionSpace;
     Ref<const AnimationMontage> m_PunchMontage;
     Ref<const AnimationMontage> m_DodgeMontage;

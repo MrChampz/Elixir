@@ -1,14 +1,27 @@
 #pragma once
 
+#include <Engine/Animation/Pose.h>
 #include <Engine/Animation/AnimationSequence.h>
 
 namespace Elixir
 {
+    struct SSequenceContribution;
+
     /** Samples synchronized animation cycles using an arbitrary number of numeric axes. */
     class ELIXIR_API BlendSpace
     {
     public:
         virtual ~BlendSpace();
+
+        /**
+         * @brief Calculate and validate source contributions once for subsequent sampling.
+         * @param values Finite input coordinates matching the space's dimension count.
+         * @param output Receives normalized positive contributions on success.
+         */
+        bool CalculateContributions(
+            std::span<const float> values,
+            std::vector<SSequenceContribution>& output
+        ) const;
 
         /**
          * @brief Sample weighted local poses at a shared cycle phase.
@@ -25,9 +38,15 @@ namespace Elixir
         bool Sample(
             std::span<const float> values,
             float phase,
-            std::vector<SBoneTransform>& output,
-            std::span<const SBoneTransform> referencePose = {}
+            SLocalPose& output,
+            const SLocalPose& referencePose = {}
         ) const;
+
+        /**
+        * @brief Check whether this asset uses a compatible skeleton.
+        * @param skeleton Skeleton whose bone layout will receive sampled poses.
+        */
+        bool IsCompatibleWith(const Ref<const Skeleton>& skeleton) const;
 
         /**
          * @brief Blend root movement from contributing clips on the marker timeline.
@@ -89,13 +108,6 @@ namespace Elixir
         const Ref<const Skeleton>& GetSkeleton() const { return m_Skeleton; }
 
     protected:
-        /** Borrows a sample animation and gives its nonnegative contribution. */
-        struct SContribution
-        {
-            const AnimationSequence* Sequence;
-            float Weight;
-        };
-
         /**
          * @brief Store metadata validated by the concrete asset factory.
          * @param name Asset name.
@@ -137,7 +149,7 @@ namespace Elixir
          */
         virtual void FindSamples(
             std::span<const float> values,
-            std::pmr::vector<SContribution>& output
+            std::pmr::vector<SSequenceContribution>& output
         ) const = 0;
 
     private:

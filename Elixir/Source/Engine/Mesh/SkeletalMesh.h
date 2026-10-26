@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Engine/Animation/Pose.h>
 #include <Engine/Animation/AnimationSequence.h>
 #include <Engine/Mesh/Mesh.h>
 
@@ -43,7 +44,7 @@ namespace Elixir
          * Mesh-specific local reference pose; an empty input uses the shared skeleton
          * reference pose.
          */
-        std::vector<SBoneTransform> ReferencePose;
+        SLocalPose ReferencePose;
 
         std::vector<SSkeletalMeshVertex> Vertices;
 
@@ -107,7 +108,7 @@ namespace Elixir
          * @param output Receives vertices only when every result is valid.
          */
         bool SkinVertices(
-            std::span<const glm::mat4> modelPose,
+            const SModelPose& modelPose,
             std::vector<SStaticMeshVertex>& output
         ) const;
 

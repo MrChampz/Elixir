@@ -1,3 +1,6 @@
+#include "../../Engine/Animation/AnimationTestNodes.h"
+#include <Engine/Animation/Animation.h>
+#include "../../Engine/Animation/AnimationTestPlayback.h"
 #include <Engine/Animation/BlendSpace2D.h>
 #include <Engine/Animation/BlendSpace1D.h>
 #include <gtest/gtest.h>
@@ -41,7 +44,12 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
 
         for (int frame = 0; frame < 4; ++frame)
         {
-            SkeletalMeshInstance firstInstance(mesh), secondInstance(mesh);
+            const auto firstInstanceHandle = Animation::Create(mesh->GetSkeleton(), mesh->GetData().ReferencePose);
+            ASSERT_TRUE(firstInstanceHandle);
+            auto& firstInstance = *firstInstanceHandle;
+            const auto secondInstanceHandle = Animation::Create(mesh->GetSkeleton(), mesh->GetData().ReferencePose);
+            ASSERT_TRUE(secondInstanceHandle);
+            auto& secondInstance = *secondInstanceHandle;
             if (frame > 0)
             {
                 auto animation = AnimationSequence::Create("Blend", mesh->GetSkeleton(), 2, {
@@ -68,18 +76,18 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
                     const auto plane = BlendSpace2D::Create("Plane", {
                         {{ 0, 0 }, reference }, {{ 1, 0 }, animation }, {{ 0, 1 }, lateral },
                     });
-                    ASSERT_TRUE(firstInstance.Play(plane, { 0.25f, 0.25f }, 2.0f));
+                    ASSERT_TRUE(PlayWithInputs(firstInstance, MakeNode(plane), { 0.25f, 0.25f }, 2.0f));
                 }
                 else
-                    ASSERT_TRUE(firstInstance.Play(space, { 0.5f }, 2.0f));
+                    ASSERT_TRUE(PlayWithInputs(firstInstance, MakeNode(space), { 0.5f }, 2.0f));
                 ASSERT_TRUE(firstInstance.Update(float(frame) * 0.5f));
                 ASSERT_TRUE(firstInstance.IsTransitioning());
             }
             auto pose = secondInstance.GetLocalPose();
-            pose[0].Scale = {-2, 3, 0.5f};
-            pose[0].Translation = {float(frame), 2, -1};
-            pose[1].Translation = {3, -2, float(frame)};
-            pose[1].Rotation = glm::angleAxis(0.7f, glm::normalize(glm::vec3(1, 2, 3)));
+            pose.LocalTransforms[0].Scale = {-2, 3, 0.5f};
+            pose.LocalTransforms[0].Translation = {float(frame), 2, -1};
+            pose.LocalTransforms[1].Translation = {3, -2, float(frame)};
+            pose.LocalTransforms[1].Rotation = glm::angleAxis(0.7f, glm::normalize(glm::vec3(1, 2, 3)));
             ASSERT_TRUE(secondInstance.SetLocalPose(pose));
             if (frame > 0)
             {
@@ -96,7 +104,7 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
                 if (frame == 2)
                     ASSERT_TRUE(firstInstance.GetLayer("Action")->SetBlendMode(
                         EAnimationLayerBlendMode::Additive));
-                ASSERT_TRUE(firstInstance.GetLayer("Action")->Play(action));
+                ASSERT_TRUE(firstInstance.GetLayer("Action")->Play(MakeNode(action)));
                 const auto montage = AnimationMontage::Create({
                     .Name = "ActionMontage", .Sequence = action,
                     .BlendIn = 0.25f, .BlendOut = 0.25f,
@@ -112,8 +120,8 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
                     EXPECT_EQ(firstInstance.GetLayer("Action")->GetCurrentMontageSection(), "End");
                 if (frame == 3)
                 {
-                    EXPECT_EQ(firstInstance.GetLocalPose()[0].Translation,
-                        mesh->GetData().ReferencePose[0].Translation);
+                    EXPECT_EQ(firstInstance.GetLocalPose().LocalTransforms[0].Translation,
+                        mesh->GetData().ReferencePose.LocalTransforms[0].Translation);
                     EXPECT_TRUE(firstInstance.GetRootMotionDelta().IsValid());
                 }
             }
@@ -239,7 +247,9 @@ TEST(VulkanSkinningTest, RejectsVertexBuffersWithoutStorageUsage)
         ASSERT_TRUE(output.IsValid());
         const auto mesh = SkinningTests::MakeMesh();
         ASSERT_TRUE(mesh);
-        SkeletalMeshInstance instance(mesh);
+        const auto instanceHandle = Animation::Create(mesh->GetSkeleton(), mesh->GetData().ReferencePose);
+        ASSERT_TRUE(instanceHandle);
+        auto& instance = *instanceHandle;
         SkinningBatch batch;
         ASSERT_TRUE(batch.Append(*mesh, instance.GetModelPose(), 0, 0, 2));
         ShaderLoader loader(context);
@@ -272,10 +282,12 @@ TEST(VulkanSkinningTest, ProcessesOneThousandIndependentCharactersInOneBatch)
         expected.reserve(instanceCount);
         for (uint32_t i = 0; i < instanceCount; ++i)
         {
-            SkeletalMeshInstance instance(mesh);
+            const auto instanceHandle = Animation::Create(mesh->GetSkeleton(), mesh->GetData().ReferencePose);
+            ASSERT_TRUE(instanceHandle);
+            auto& instance = *instanceHandle;
             auto pose = instance.GetLocalPose();
-            pose[0].Translation = {float(i), float(i % 13), -float(i % 7)};
-            pose[1].Translation = {0, float(i % 5), 1};
+            pose.LocalTransforms[0].Translation = {float(i), float(i % 13), -float(i % 7)};
+            pose.LocalTransforms[1].Translation = {0, float(i % 5), 1};
             ASSERT_TRUE(instance.SetLocalPose(pose));
             ASSERT_TRUE(batch.Append(*mesh, instance.GetModelPose(), geometry.Get()->VertexOffset,
                 result.Get()->VertexOffset + i * vertexCount, instanceCount * 2));

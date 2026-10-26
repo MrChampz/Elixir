@@ -1,116 +1,65 @@
 #include "epch.h"
 #include "BlendSpace.h"
 
+#include <Engine/Animation/Pose.h>
+#include <Engine/Animation/AnimationEvaluation.h>
+
 #include <memory_resource>
 
 namespace Elixir
 {
-    BlendSpace::BlendSpace(
-        std::string name,
-        Ref<const Skeleton> skeleton,
-        const size_t dimensionCount,
-        Ref<const AnimationSequence> synchronizationSequence
-    ) : m_Name(std::move(name)),
-        m_Skeleton(std::move(skeleton)),
-        m_DimensionCount(dimensionCount),
-        m_SynchronizationSequence(std::move(synchronizationSequence)) {}
-
     BlendSpace::~BlendSpace() = default;
 
-    bool BlendSpace::HasValidCoordinates(const std::span<const float> values) const
-    {
-        const auto allValuesFinite = std::ranges::all_of(
-            values,
-            [](const float value) { return std::isfinite(value); }
-        );
-        return values.size() == m_DimensionCount && allValuesFinite;
-    }
-
-    const AnimationSequence* BlendSpace::GetNotifySource(
-        const std::span<const float> values
+    bool BlendSpace::CalculateContributions(
+        const std::span<const float> values,
+        std::vector<SSequenceContribution>& output
     ) const
     {
         if (!HasValidCoordinates(values))
-        {
-            EE_CORE_ERROR("Notify source coordinates must match the blend-space axes.")
-            return nullptr;
-        }
+            return false;
 
-        std::array<std::byte, 256> storage;
-        std::pmr::monotonic_buffer_resource resource(storage.data(), storage.size());
-
-        std::pmr::vector<SContribution> samples(&resource);
+        std::pmr::vector<SSequenceContribution> samples;
         FindSamples(values, samples);
 
-        const AnimationSequence* source = nullptr;
-        float weight = 0.0f;
-
+        float total = 0;
         for (const auto& sample : samples)
         {
-            if (!sample.Sequence || !std::isfinite(sample.Weight) || sample.Weight < 0.0f)
+            if (!sample.Sequence ||
+                !std::isfinite(sample.Weight) ||
+                sample.Weight < 0 ||
+                !sample.Sequence->IsCompatibleWith(m_Skeleton))
             {
-                EE_CORE_ERROR("Blend space produced an invalid notify contribution.")
-                return nullptr;
-            }
-            if (sample.Weight > weight)
-            {
-                source = sample.Sequence;
-                weight = sample.Weight;
-            }
-        }
-
-        if (!source)
-            EE_CORE_ERROR("Blend space requires a positive notify source weight.")
-
-        return source;
-    }
-
-    float BlendSpace::GetDuration(const std::span<const float> values) const
-    {
-        if (!HasValidCoordinates(values))
-        {
-            EE_CORE_ERROR("Blend-space coordinates must match the axes and be finite.")
-            return 0.0f;
-        }
-
-        // Keep common sample counts on the stack; larger spaces use the allocator fallback.
-        std::array<std::byte, 256> storage;
-        std::pmr::monotonic_buffer_resource resource(storage.data(), storage.size());
-
-        std::pmr::vector<SContribution> samples(&resource);
-        FindSamples(values, samples);
-
-        double duration = 0, total = 0, max = 0;
-
-        for (const auto& sample : samples)
-        {
-            if (!sample.Sequence || !std::isfinite(sample.Weight) || sample.Weight < 0)
-            {
-                EE_CORE_ERROR("Blend space produced an invalid contribution.")
-                return 0.0f;
+                EE_CORE_ERROR("Blend space produced an invalid source contribution.")
+                return false;
             }
 
-            const auto seconds = double(sample.Sequence->GetDuration());
-            duration += seconds * sample.Weight;
             total += sample.Weight;
-
-            max = std::max(max, seconds);
         }
 
-        if (total <= 0)
+        if (!std::isfinite(total) || total <= 0)
+            return false;
+
+        std::vector<SSequenceContribution> resolved;
+        resolved.reserve(samples.size());
+
+        for (const auto& sample : samples)
         {
-            EE_CORE_ERROR("Blend space requires a positive total sample weight.")
-            return 0.0f;
+            if (sample.Weight > 0)
+                resolved.push_back({
+                    sample.Sequence,
+                    sample.Weight / total
+                });
         }
 
-        return float(std::min(duration / total, max));
+        output = std::move(resolved);
+        return true;
     }
 
     bool BlendSpace::Sample(
         const std::span<const float> values,
         const float phase,
-        std::vector<SBoneTransform>& output,
-        const std::span<const SBoneTransform> referencePose
+        SLocalPose& output,
+        const SLocalPose& referencePose
     ) const
     {
         if (!HasValidCoordinates(values) || !std::isfinite(phase))
@@ -123,10 +72,10 @@ namespace Elixir
         std::array<std::byte, 256> storage;
         std::pmr::monotonic_buffer_resource resource(storage.data(), storage.size());
 
-        std::pmr::vector<SContribution> samples(&resource);
+        std::pmr::vector<SSequenceContribution> samples(&resource);
         FindSamples(values, samples);
 
-        std::vector<SBoneTransform> pose, next;
+        SLocalPose pose, next;
 
         double total = 0;
         for (const auto& sample : samples)
@@ -142,18 +91,22 @@ namespace Elixir
             const auto time = m_SynchronizationSequence
                 ? sample.Sequence->GetSynchronizedTime(phase, *m_SynchronizationSequence)
                 : std::clamp(phase, 0.0f, 1.0f) * sample.Sequence->GetDuration();
+
             const auto sampled = sample.Sequence->Sample(
                 time,
                 next,
                 referencePose
             );
+
             if (!sampled) return false;
 
             if (total == 0)
+            {
                 pose = next;
+            }
             else
             {
-                if (pose.size() != next.size())
+                if (pose.LocalTransforms.size() != next.LocalTransforms.size())
                 {
                     EE_CORE_ERROR("Blend-space samples must have matching pose sizes.")
                     return false;
@@ -161,8 +114,12 @@ namespace Elixir
 
                 const auto weight = float(sample.Weight / (total + sample.Weight));
 
-                for (size_t bone = 0; bone < pose.size(); ++bone)
-                    pose[bone] = SBoneTransform::Blend(pose[bone], next[bone], weight);
+                for (size_t bone = 0; bone < pose.LocalTransforms.size(); ++bone)
+                    pose.LocalTransforms[bone] = SBoneTransform::Blend(
+                        pose.LocalTransforms[bone],
+                        next.LocalTransforms[bone],
+                        weight
+                    );
             }
 
             total += sample.Weight;
@@ -174,7 +131,7 @@ namespace Elixir
             return false;
         }
 
-        for (const auto& transform : pose)
+        for (const auto& transform : pose.LocalTransforms)
         {
             if (!transform.IsValid())
             {
@@ -185,6 +142,12 @@ namespace Elixir
 
         output = std::move(pose);
         return true;
+    }
+
+    bool BlendSpace::IsCompatibleWith(const Ref<const Skeleton>& skeleton) const
+    {
+        return skeleton && m_Skeleton &&
+            (skeleton == m_Skeleton || skeleton->IsCompatible(*m_Skeleton));
     }
 
     bool BlendSpace::ExtractRootMotion(
@@ -216,7 +179,7 @@ namespace Elixir
         std::array<std::byte, 256> storage;
         std::pmr::monotonic_buffer_resource resource(storage.data(), storage.size());
 
-        std::pmr::vector<SContribution> samples(&resource);
+        std::pmr::vector<SSequenceContribution> samples(&resource);
         FindSamples(values, samples);
 
         SRootMotionDelta result;
@@ -271,4 +234,103 @@ namespace Elixir
         output = result;
         return true;
     }
+
+    float BlendSpace::GetDuration(const std::span<const float> values) const
+    {
+        if (!HasValidCoordinates(values))
+        {
+            EE_CORE_ERROR("Blend-space coordinates must match the axes and be finite.")
+            return 0.0f;
+        }
+
+        // Keep common sample counts on the stack; larger spaces use the allocator fallback.
+        std::array<std::byte, 256> storage;
+        std::pmr::monotonic_buffer_resource resource(storage.data(), storage.size());
+
+        std::pmr::vector<SSequenceContribution> samples(&resource);
+        FindSamples(values, samples);
+
+        double duration = 0, total = 0, max = 0;
+
+        for (const auto& sample : samples)
+        {
+            if (!sample.Sequence || !std::isfinite(sample.Weight) || sample.Weight < 0)
+            {
+                EE_CORE_ERROR("Blend space produced an invalid contribution.")
+                return 0.0f;
+            }
+
+            const auto seconds = double(sample.Sequence->GetDuration());
+            duration += seconds * sample.Weight;
+            total += sample.Weight;
+
+            max = std::max(max, seconds);
+        }
+
+        if (total <= 0)
+        {
+            EE_CORE_ERROR("Blend space requires a positive total sample weight.")
+            return 0.0f;
+        }
+
+        return float(std::min(duration / total, max));
+    }
+
+    bool BlendSpace::HasValidCoordinates(const std::span<const float> values) const
+    {
+        const auto allValuesFinite = std::ranges::all_of(
+            values,
+            [](const float value) { return std::isfinite(value); }
+        );
+        return values.size() == m_DimensionCount && allValuesFinite;
+    }
+
+    const AnimationSequence* BlendSpace::GetNotifySource(
+        const std::span<const float> values
+    ) const
+    {
+        if (!HasValidCoordinates(values))
+        {
+            EE_CORE_ERROR("Notify source coordinates must match the blend-space axes.")
+            return nullptr;
+        }
+
+        std::array<std::byte, 256> storage;
+        std::pmr::monotonic_buffer_resource resource(storage.data(), storage.size());
+
+        std::pmr::vector<SSequenceContribution> samples(&resource);
+        FindSamples(values, samples);
+
+        const AnimationSequence* source = nullptr;
+        float weight = 0.0f;
+
+        for (const auto& sample : samples)
+        {
+            if (!sample.Sequence || !std::isfinite(sample.Weight) || sample.Weight < 0.0f)
+            {
+                EE_CORE_ERROR("Blend space produced an invalid notify contribution.")
+                return nullptr;
+            }
+            if (sample.Weight > weight)
+            {
+                source = sample.Sequence;
+                weight = sample.Weight;
+            }
+        }
+
+        if (!source)
+            EE_CORE_ERROR("Blend space requires a positive notify source weight.")
+
+        return source;
+    }
+
+    BlendSpace::BlendSpace(
+        std::string name,
+        Ref<const Skeleton> skeleton,
+        const size_t dimensionCount,
+        Ref<const AnimationSequence> synchronizationSequence
+    ) : m_Name(std::move(name)),
+        m_Skeleton(std::move(skeleton)),
+        m_DimensionCount(dimensionCount),
+        m_SynchronizationSequence(std::move(synchronizationSequence)) {}
 }

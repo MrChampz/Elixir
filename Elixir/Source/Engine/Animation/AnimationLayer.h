@@ -1,78 +1,117 @@
 #pragma once
 
-#include <Engine/Animation/BlendSpace.h>
-#include <Engine/Animation/AnimationNotifyEvent.h>
+#include <Engine/Animation/Pose.h>
 #include <Engine/Animation/BoneMask.h>
-#include <Engine/Animation/AnimationMontage.h>
+#include <Engine/Animation/AnimationPlayback.h>
+#include <Engine/Animation/AnimationMontagePlayback.h>
+#include <Engine/Animation/AnimationNotifyEvent.h>
+#include <Engine/Animation/AnimationNotifyTracker.h>
+#include <Engine/Animation/AnimationTransition.h>
 
 namespace Elixir
 {
-    /** Selects how a layer combines its sampled local pose with underlying layers. */
+    /** How a layer contributes to the existing base layer pose. */
     enum class EAnimationLayerBlendMode : uint8_t
     {
-        Override,
-        Additive
+        Override, Additive
+    };
+
+    /** Name reserved for the full-body base control. */
+    inline constexpr std::string BaseLayerName = "Base";
+
+    /** Candidate pose, events, and clock positions for one layer. */
+    struct SAnimationLayerEvaluation
+    {
+        SLocalPose LocalPose;
+
+        /** Continuing source pose before applying a montage. */
+        SLocalPose PlaybackPose;
+
+        SAnimationMontageEvaluation Montage;
+
+        SNotifyEvaluation Notifies;
+
+        /** Normalized candidate positions for the target and outgoing playbacks. */
+        double PlaybackPhase = 0;
+
+        double TransitionSourcePhase = 0;
+
+        /** Candidate fade time in seconds. */
+        float TransitionElapsed = 0;
+
+        bool Advance = false;
+
+        /** Consume start-point events only after a positive time advance is published. */
+        bool ConsumeInitialNotifies = false;
     };
 
     /** @brief Owns masked pose composition settings and independent animation playback. */
     class ELIXIR_API AnimationLayer final
     {
-        friend class SkeletalMeshInstance;
+        friend class Animation;
+        friend class BlendNodeEvaluator;
+        friend class AnimationNodeQuery;
+        friend class AnimationPlayback;
+        friend bool RootMotion::Extract(
+            const SAnimationMotionContext& context,
+            SRootMotionDelta& output
+        );
 
     public:
         /**
-         * @brief Start a compatible sequence at time zero; preserve state on failure.
-         * @param sequence Animation to play.
+         * @brief Start a compatible animation source at its initial position; preserve state
+         * on failure.
+         * @param source Animation source to play.
          * @param looping Wrap playback at the end of the animation.
          */
-        bool Play(Ref<const AnimationSequence> sequence, bool looping = true);
+        bool Play(Ref<const AnimationNode> source, bool looping = true);
 
         /**
-         * @brief Blend into a compatible sequence starting at time zero.
+         * @brief Blend into a compatible animation source at its initial position.
          *
          * Both sequences advance during the fade. An interrupted fade starts from the
          * current blended pose. Zero duration switches immediately. Preserve state on failure.
          *
-         * @param sequence Animation to play.
+         * @param source Animation source to play.
          * @param fadeDuration Finite nonnegative transition duration in seconds.
          * @param looping Wrap playback at the end of the target animation.
          */
         bool Play(
-            Ref<const AnimationSequence> sequence,
+            Ref<const AnimationNode> source,
             float fadeDuration,
             bool looping = true
         );
 
         /**
-         * @brief Start any compatible blend space at cycle phase zero.
-         * @param blendSpace Shared pose source, independent of its dimension count.
-         * @param values One finite coordinate per axis; copied into playback storage.
+         * @brief Start a compatible animation source with explicit numeric inputs.
+         * @param source Animation source to play.
+         * @param values Numeric inputs required by the concrete source.
          * @param fadeDuration Finite nonnegative fade duration in seconds.
          * @param looping Wrap the normalized cycle phase at one.
          */
         bool Play(
-            Ref<const BlendSpace> blendSpace,
+            Ref<const AnimationNode> source,
             std::span<const float> values,
             float fadeDuration = 0.0f,
             bool looping = true
         );
 
         /**
-         * @brief Start a blend space with a temporary list of coordinates.
-         * @param blendSpace Shared compatible pose source.
-         * @param values One finite coordinate per axis.
+         * @brief Start an animation source with a temporary list of numeric inputs.
+         * @param source Animation source to play.
+         * @param values Numeric inputs required by the concrete source.
          * @param fadeDuration Finite nonnegative fade duration in seconds.
          * @param looping Wrap the cycle phase at one.
          */
         bool Play(
-            Ref<const BlendSpace> blendSpace,
+            Ref<const AnimationNode> source,
             const std::initializer_list<float> values,
             const float fadeDuration = 0.0f,
             const bool looping = true
         )
         {
             return Play(
-                std::move(blendSpace),
+                std::move(source),
                 std::span(values.begin(), values.size()),
                 fadeDuration,
                 looping
@@ -83,7 +122,7 @@ namespace Elixir
         void Pause()
         {
             m_Playing = false;
-            m_Montage.Playing = false;
+            m_Montage.Pause();
         }
 
         /** @brief Resume the assigned sequence or blend space, if one exists. */
@@ -184,12 +223,12 @@ namespace Elixir
          * @param pose One valid local transform per bone; empty restores the mesh reference.
          * @return False for invalid input; the previous reference remains unchanged.
          */
-        bool SetAdditiveReferencePose(std::span<const SBoneTransform> pose);
+        bool SetAdditiveReferencePose(const SLocalPose& pose);
 
         /** @brief Get the custom additive reference, or the mesh's local reference pose. */
-        const std::vector<SBoneTransform>& GetAdditiveReferencePose() const
+        const SLocalPose& GetAdditiveReferencePose() const
         {
-            return m_AdditiveReferencePose.empty()
+            return m_AdditiveReferencePose.LocalTransforms.empty()
                 ? m_ReferencePose
                 : m_AdditiveReferencePose;
         }
@@ -215,200 +254,82 @@ namespace Elixir
         }
 
         /**
-         * @brief Set coordinates for the next update without resetting phase or fade.
-         * @param values One finite coordinate per active blend-space axis; copied on success.
+         * @brief Set source inputs without resetting its position or transition.
+         * @param values Finite numeric inputs validated by the concrete source.
          */
-        bool SetBlendSpaceValue(std::span<const float> values);
+        bool SetSourceInputs(std::span<const float> values);
 
         /**
-         * @brief Set blend coordinates using a temporary list.
+         * @brief Set source inputs using a temporary list.
          * @param values One finite coordinate per active blend-space axis.
          */
-        bool SetBlendSpaceValue(const std::initializer_list<float> values)
+        bool SetSourceInputs(const std::initializer_list<float> values)
         {
-            return SetBlendSpaceValue(std::span(values.begin(), values.size()));
+            return SetSourceInputs(std::span(values.begin(), values.size()));
         }
 
         /**
          * @brief Set a complete local pose and stop playback; preserve state on failure.
          * @param pose One valid parent-relative transform per skeleton bone.
          */
-        bool SetLocalPose(std::span<const SBoneTransform> pose);
+        bool SetLocalPose(const SLocalPose& pose);
 
         /** @brief Get one parent-relative transform per skeleton bone. */
-        const std::vector<SBoneTransform>& GetLocalPose() const
+        const SLocalPose& GetLocalPose() const
         {
-            return m_Montage.Montage ? m_MontagePose : m_LocalPose;
+            return m_Montage.GetAsset() ? m_MontagePose : m_LocalPose;
         }
 
         /** @brief Get source time in seconds, independent of any active montage. */
-        float GetTime() const;
+        float GetTime() const { return m_Playback.GetTime(); }
 
         /** @brief Get source phase in [0, 1], independent of any active montage. */
         float GetNormalizedTime() const;
 
         /** @brief Check whether playback or a manual pose has been assigned since Stop. */
-        bool HasPose() const { return m_Assigned || bool(m_Montage.Montage); }
+        bool HasPose() const { return m_Assigned || bool(m_Montage.GetAsset()); }
 
         /** @brief Check whether the owning instance advances this layer's playback. */
         bool IsPlaying() const
         {
-            return m_Playing || (m_Montage.Montage && m_Montage.Playing);
+            return m_Playing || (m_Montage.GetAsset() && m_Montage.IsPlaying());
         }
 
         /** @brief Check whether the underlying source has an active playback transition. */
-        bool IsTransitioning() const { return m_Transition.Duration > 0.0f; }
+        bool IsTransitioning() const
+        {
+            return m_Transition.IsActive() || m_Playback.IsTransitioning();
+        }
 
         /** @brief Get the active action, or null after its exit completes. */
-        const Ref<const AnimationMontage>& GetMontage() const { return m_Montage.Montage; }
+        const Ref<const AnimationMontage>& GetMontage() const { return m_Montage.GetAsset(); }
 
         /** @brief Get the sequence position in seconds; section jumps can move it backward. */
-        double GetMontageTime() const { return m_Montage.Cursor.Time; }
+        double GetMontageTime() const { return m_Montage.GetCursor().Time; }
 
         /** @brief Get the active action's current contribution in [0, 1]. */
-        float GetMontageWeight() const { return GetMontageWeight(m_Montage.Cursor); }
+        float GetMontageWeight() const { return m_Montage.GetWeight(m_Montage.GetCursor()); }
+
+        /**
+         * @brief Bind character values and resolve this source's numeric input names.
+         * @param parameters Retained character parameter values.
+         * @param bindings Numeric parameter names in source input order.
+         */
+        bool BindParameters(
+            Ref<AnimationParameters> parameters,
+            std::span<const std::string> bindings = {}
+        );
+
+        /** @brief Get the committed state of the assigned source, if it is a machine. */
+        std::string_view GetCurrentState() const { return m_Playback.GetCurrentState(); }
 
       private:
-        struct SMontageCursor
-        {
-            double Time = 0.0;
-            double Elapsed = 0.0;
-            size_t Section = 0;
-            bool IncludeNotifyStart = true;
-            bool Finished = false;
-        };
-
-        struct SMontageInterval
-        {
-            SMontageCursor Start;
-            double Duration = 0.0;
-            double TimeOffset = 0.0;
-        };
-
-        struct SMontageEvaluation
-        {
-            SMontageCursor Cursor;
-            std::vector<SMontageInterval> Intervals;
-            double ActiveDuration = 0.0;
-        };
-
-        struct SActiveNotify
-        {
-            Ref<const AnimationSequence> Sequence;
-            size_t Index = 0;
-            uint64_t ActivationId = 0;
-        };
-
-        struct SNotifyEvaluation
-        {
-            std::vector<SActiveNotify> Active;
-            std::vector<SAnimationNotifyEvent> Events;
-            uint64_t NextActivationId = 1;
-        };
-
-        struct SLayerEvaluation
-        {
-            std::vector<SBoneTransform> LocalPose;
-            std::vector<SBoneTransform> PlaybackPose;
-            SMontageEvaluation Montage;
-            SNotifyEvaluation Notifies;
-            double PlaybackTime = 0.0;
-            double TransitionSourceTime = 0.0;
-            float TransitionElapsed = 0.0f;
-            bool Advance = false;
-            bool ConsumeInitialNotifies = false;
-        };
-
-        struct SPlayback
-        {
-            Ref<const AnimationSequence> Sequence;
-            Ref<const BlendSpace> BlendSpace;
-            std::vector<float> Values;
-
-            /** Sequence seconds, or normalized cycle phase for a blend space. */
-            double Time = 0.0;
-
-            bool IncludeNotifyStart = true;
-            bool Looping = true;
-        };
-
-        struct STransition
-        {
-            SPlayback Playback;
-
-            /** Visible source pose when playback is absent or a fade was interrupted. */
-            std::vector<SBoneTransform> Pose;
-            float Duration = 0.0f;
-            float Elapsed = 0.0f;
-        };
-
-        struct SMontagePlayback
-        {
-            Ref<const AnimationMontage> Montage;
-            SMontageCursor Cursor;
-            std::vector<std::optional<size_t>> NextSections;
-            double StopTime = -1.0;
-            float StopDuration = 0.0f;
-            float StopWeight = 0.0f;
-            bool Playing = false;
-
-            /** Frozen visible pose used only when replacing another montage. */
-            std::vector<SBoneTransform> SourcePose;
-        };
-
         /**
          * @brief Sample the continuing source before applying the action.
          * @param dt Finite nonnegative elapsed seconds.
          * @param output Receives source pose, clocks, and events.
          */
-        bool EvaluatePlayback(float dt, SLayerEvaluation& output) const;
-
-        /**
-         * @brief Sample the action and blend it over an evaluated source pose.
-         * @param cursor Sequence position, section, and elapsed playback seconds.
-         * @param pose Source pose modified on success.
-         */
-        bool BlendMontage(const SMontageCursor& cursor, std::vector<SBoneTransform>& pose) const;
-
-        /**
-         * @brief Get the action envelope at one time.
-         * @param cursor Sequence position and elapsed playback seconds.
-         */
-        float GetMontageWeight(const SMontageCursor& cursor) const;
-
-        /**
-         * @brief Get the elapsed time when the current route releases its layer.
-         * @param cursor Current section and position; cyclic routes have no natural end.
-         */
-        double GetMontageEnd(const SMontageCursor& cursor) const;
-
-        /**
-         * @brief Traverse section links without changing playback state.
-         * @param dt Finite nonnegative elapsed seconds.
-         * @param output Receives the final cursor and visited forward intervals.
-         * @return False when more than 4096 section intervals are needed.
-         */
-        bool EvaluateMontage(float dt, SMontageEvaluation& output) const;
-
-        /**
-         * @brief Average the linear action envelope over a forward interval.
-         * @param interval Forward interval within one section.
-         */
-        float GetAverageMontageWeight(const SMontageInterval& interval) const;
-
-        /**
-         * @brief Extract continuing source movement without including the action.
-         * @param dt Elapsed seconds to extract.
-         * @param boneIndex Root-motion bone index.
-         * @param output Receives source movement on success.
-         * @param offset Seconds from the current source clock to the interval start.
-         */
-        bool ExtractSourceRootMotion(
-            float dt,
-            uint32_t boneIndex,
-            SRootMotionDelta& output,
-            float offset = 0
-        ) const;
+        bool EvaluatePlayback(float dt, SAnimationLayerEvaluation& output) const;
 
         /**
          * @brief Create a layer bound to a mask and mesh-specific reference pose.
@@ -421,7 +342,7 @@ namespace Elixir
             std::string name,
             Ref<const BoneMask> mask,
             float weight,
-            std::span<const SBoneTransform> referencePose
+            const SLocalPose& referencePose
         );
 
         /**
@@ -431,10 +352,16 @@ namespace Elixir
         AnimationLayer(const AnimationLayer& other) = default;
 
         /**
-         * @brief Commit playback prepared for the same mesh instance.
-         * @param other Layer with the same name, mask, skeleton, and reference pose.
+         * @brief Replace a candidate belonging to the same animation instance.
+         * @param other Layer with the same fixed composition context.
          */
         AnimationLayer& operator=(const AnimationLayer& other) = default;
+
+        /**
+         * @brief Publish a prepared layer without cloning its runtime sources.
+         * @param other Layer with the same fixed composition context.
+         */
+        AnimationLayer& operator=(AnimationLayer&& other) noexcept = default;
 
         /**
          * @brief Blend this layer into a candidate local pose using its mode and mask.
@@ -448,185 +375,107 @@ namespace Elixir
          * @return False for invalid dimensions or a nonfinite or singular result.
          */
         bool BlendPose(
-            std::span<SBoneTransform> output,
-            std::span<const SBoneTransform> pose
+            SLocalPose& output,
+            const SLocalPose& pose
         ) const;
 
         /**
          * @brief Evaluate this layer without changing its playback state.
          * @param dt Finite nonnegative elapsed time in seconds.
          * @param output Receives the local pose, clocks, and events on success.
+         * @param notifiesEnabled Whether enclosing composition can publish source events.
+         * @param paused Freeze source decisions and clocks while delivering queued Ends.
          */
-        bool Evaluate(float dt, SLayerEvaluation& output) const;
+        bool Evaluate(
+            float dt,
+            SAnimationLayerEvaluation& output,
+            bool paused = false,
+            bool notifiesEnabled = true
+        ) const;
 
         /**
          * @brief Apply an evaluation accepted by the owning mesh instance.
          * @param evaluation Evaluated local pose, clocks, and events to consume.
          */
-        void Apply(SLayerEvaluation evaluation);
-
-        /**
-         * @brief Sample and blend a target pose without changing playback state.
-         * @param playback Target sequence or blend space.
-         * @param source Source playback for an active fade.
-         * @param weight Target contribution in [0, 1].
-         * @param time Target sample time in seconds or phase.
-         * @param sourceTime Source sample time in seconds or phase.
-         * @param output Receives a valid local pose on success.
-         */
-        bool SamplePose(
-            const SPlayback& playback,
-            const SPlayback& source,
-            float weight,
-            double time,
-            double sourceTime,
-            std::vector<SBoneTransform>& output
-        ) const;
+        void Apply(SAnimationLayerEvaluation evaluation);
 
         /**
          * @brief Start validated playback and capture the fade source.
          * @param playback Compatible target sequence or blend space at time zero.
          * @param fadeDuration Finite nonnegative duration in seconds.
          */
-        bool StartPlayback(SPlayback playback, float fadeDuration);
-
-        /**
-         * @brief Sample playback into a full local pose.
-         * @param playback Assigned sequence or blend space and its sample time.
-         * @param output Local transforms to receive the sample.
-         * @param time Seconds for a sequence or normalized phase for a blend space.
-         */
-        bool SamplePlayback(
-            const SPlayback& playback,
-            std::vector<SBoneTransform>& output,
-            double time
-        ) const;
-
-        /**
-         * @brief Advance seconds or normalized phase using the current cycle duration.
-         * @param playback Playback to advance.
-         * @param dt Finite nonnegative elapsed time in seconds.
-         */
-        static double AdvancePlayback(const SPlayback& playback, float dt);
+        bool StartPlayback(AnimationPlayback playback, float fadeDuration);
 
         /**
          * @brief Compose sampled local transforms after blending the fade source.
          * @param playback Target playback to evaluate and store on success.
          * @param source Source playback to sample when a fade is active.
          * @param weight Target weight in [0, 1].
-         * @param time Target seconds or normalized phase.
-         * @param sourceTime Source seconds or normalized phase.
+         * @param time Target normalized phase.
+         * @param sourceTime Source normalized phase.
          */
         bool SetPlayback(
-            const SPlayback& playback,
-            const SPlayback& source,
+            const AnimationPlayback& playback,
+            const AnimationPlayback& source,
             float weight,
             double time,
             double sourceTime
         );
 
         /**
-         * @brief Get the cycle duration in seconds for assigned playback.
-         * @param playback Sequence or blend-space playback.
-         */
-        static float GetDuration(const SPlayback& playback);
-
-        /**
-         * @brief Extract base playback movement and blend active fade contributions.
-         * @param dt Finite nonnegative elapsed time in seconds.
-         * @param boneIndex Selected root bone in the mesh skeleton.
-         * @param output Receives movement; snapshots and paused playback contribute identity.
-         * @param evaluation Validated traversal reused for section movement.
+         * @brief Extract layer movement from playback, transitions, and active montage
+         * intervals.
+         * @param interval Root reference transform, bone index, duration, and offset to
+         * extract.
+         * @param output Receives movement on success; paused playback and snapshots contribute
+         * identity.
+         * @param evaluation Validated candidate layer frame containing visited montage
+         * intervals.
+         * @return True on success; output remains unchanged on failure.
          */
         bool ExtractRootMotion(
-            float dt,
-            uint32_t boneIndex,
+            const SRootMotionIntervalContext& interval,
             SRootMotionDelta& output,
-            const SLayerEvaluation& evaluation
+            const SAnimationLayerEvaluation& evaluation
         ) const;
-
-        /**
-         * @brief Extract movement from one playback interval without advancing its clock.
-         * @param playback Sequence or blend space, including its current time and looping.
-         * @param dt Finite nonnegative elapsed time in seconds.
-         * @param boneIndex Selected root bone in the mesh skeleton.
-         * @param output Receives parent-local movement on success.
-         * @param offset Seconds from the playback clock to the interval start.
-         */
-        bool ExtractPlaybackRootMotion(
-            const SPlayback& playback,
-            float dt,
-            uint32_t boneIndex,
-            SRootMotionDelta& output,
-            float offset = 0
-        ) const;
-
-        /** @brief Queue cancelled Ends and release the layer's active notifications. */
-        void CancelActiveNotifies();
 
         /**
          * @brief Evaluate notifications on the pose and section playback timeline.
+         * @param resetActivations Start fresh candidate windows after enclosing suppression.
          * @param dt Elapsed frame seconds.
-         * @param evaluation Validated pose and montage traversal receiving notification results.
+         * @param evaluation Validated pose and montage traversal receiving notification
+         * results.
          */
-        bool EvaluateNotifyEvents(float dt, SLayerEvaluation& evaluation) const;
-
-        /**
-         * @brief Evaluate notifications on a sequence or blend-space reference timeline.
-         * @param playback Source, phase, coordinates, and looping mode.
-         * @param dt Active interval seconds.
-         * @param offset Frame seconds preceding this interval.
-         * @param output Transactional active notifications, events, and activation counter.
-         * @param allowActivation Allow notifications with duration to begin or update.
-         */
-        bool EvaluatePlaybackNotifyEvents(
-            const SPlayback& playback,
-            double dt,
-            double offset,
-            SNotifyEvaluation& output,
-            bool allowActivation = true
-        ) const;
-
-        /**
-         * @brief End active notifications at a timeline discontinuity or playback completion.
-         * @param output Transactional active notifications and events.
-         * @param offset Frame seconds when notifications end.
-         * @param cancelled True for interruption; false for timeline completion.
-         */
-        void EndActiveNotifies(
-            SNotifyEvaluation& output,
-            double offset,
-            bool cancelled
+        bool EvaluateNotifyEvents(
+            float dt,
+            SAnimationLayerEvaluation& evaluation,
+            bool resetActivations = false
         ) const;
 
         std::string m_Name;
-        Ref<const BoneMask> m_Mask;
-        float m_Weight = 1.0f;
         EAnimationLayerBlendMode m_BlendMode = EAnimationLayerBlendMode::Override;
+        float m_Weight = 1;
 
-        /** Empty storage selects the mesh reference without duplicating its transforms. */
-        std::vector<SBoneTransform> m_AdditiveReferencePose;
-
-        /** The fixed first layer always uses Override, a full-body mask, and weight one. */
         bool m_Base = false;
-
-        SMontagePlayback m_Montage;
-        std::vector<SBoneTransform> m_MontagePose;
-
-        STransition m_Transition;
-        SPlayback m_Playback;
+        bool m_Assigned = false;
         bool m_Playing = false;
 
-        /** Distinguishes an explicit pose from an unassigned layer's reference pose. */
-        bool m_Assigned = false;
+        Ref<AnimationParameters> m_Parameters = CreateRef<AnimationParameters>();
+        std::vector<size_t> m_InputBindings;
+
+        AnimationMontagePlayback m_Montage;
+        SLocalPose m_MontagePose;
+
+        AnimationTransition m_Transition;
+        AnimationPlayback m_Playback;
 
         std::vector<SAnimationNotifyEvent> m_NotifyEvents;
-        std::vector<SActiveNotify> m_ActiveNotifies;
-        std::vector<SAnimationNotifyEvent> m_PendingNotifyEnds;
-        uint64_t m_NextNotifyActivationId = 1;
+        AnimationNotifyTracker m_Notifies;
 
+        Ref<const BoneMask> m_Mask;
         Ref<const Skeleton> m_Skeleton;
-        std::vector<SBoneTransform> m_ReferencePose;
-        std::vector<SBoneTransform> m_LocalPose;
+        SLocalPose m_ReferencePose;
+        SLocalPose m_AdditiveReferencePose;
+        SLocalPose m_LocalPose;
     };
 }

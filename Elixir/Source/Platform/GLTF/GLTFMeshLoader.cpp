@@ -711,7 +711,7 @@ namespace Elixir
                 }
 
                 for (const auto& bone : bones)
-                    m_Result.ReferencePose.push_back(bone.ReferenceTransform);
+                    m_Result.ReferencePose.LocalTransforms.push_back(bone.ReferenceTransform);
 
                 auto meshSkeleton = Skeleton::Create(
                     m_Result.Name + "_Skeleton",

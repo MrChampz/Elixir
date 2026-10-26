@@ -14,7 +14,7 @@ namespace Elixir
     };
 
     /** Retains one notification emitted by a successful animation update. */
-    struct SAnimationNotifyEvent
+    struct ELIXIR_API SAnimationNotifyEvent
     {
         /** Shared ownership keeps notification metadata and its payload alive. */
         Ref<const AnimationSequence> Sequence;
@@ -24,6 +24,7 @@ namespace Elixir
 
         /** Layer-local window identity; zero for instantaneous notifications. */
         uint64_t ActivationId = 0;
+
         EAnimationNotifyEventType Type = EAnimationNotifyEventType::Instant;
 
         /** Seconds from this update's start; Update is timestamped at its overlap end. */
@@ -42,10 +43,7 @@ namespace Elixir
          * @brief Get the authored notification name.
          * @pre Sequence is non-null and NotifyIndex refers to one of its notifications.
          */
-        std::string_view GetName() const
-        {
-            return Sequence->GetNotifies()[NotifyIndex].Name;
-        }
+        std::string_view GetName() const;
 
         /**
          * @brief Read the retained payload without conversion or exceptions.

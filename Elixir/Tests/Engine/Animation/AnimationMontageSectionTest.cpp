@@ -1,3 +1,5 @@
+#include "AnimationTestNodes.h"
+#include "AnimationTestCharacter.h"
 #include <gtest/gtest.h>
 #include <Engine/Animation/AnimationMontage.h>
 #include "../Mesh/SkinningTestData.h"
@@ -68,13 +70,15 @@ TEST_F(AnimationMontageSectionTest, AdjacentSectionsDoNotDuplicateSharedBoundary
 {
     const auto asset = Montage({{"A", 0}, {"B", 1}, {"C", 2}, {"D", 3}});
     ASSERT_TRUE(asset);
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.PlayMontage(asset));
     ASSERT_TRUE(instance.Update(2.5f));
     EXPECT_EQ(layer.GetCurrentMontageSection(), "C");
     EXPECT_DOUBLE_EQ(layer.GetMontageTime(), 2.5);
-    EXPECT_FLOAT_EQ(instance.GetLocalPose()[0].Translation.x, 11);
+    EXPECT_FLOAT_EQ(instance.GetLocalPose().LocalTransforms[0].Translation.x, 11);
     const auto events = instance.GetNotifyEvents();
     ASSERT_EQ(events.size(), 4);
     EXPECT_EQ(events[0].GetName(), "Start");
@@ -86,7 +90,9 @@ TEST_F(AnimationMontageSectionTest, AdjacentSectionsDoNotDuplicateSharedBoundary
 
 TEST_F(AnimationMontageSectionTest, ExactBoundaryCarriesTheDestinationWithoutDuplicatingEvents)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.PlayMontage(Montage({{"A", 0}, {"B", 1}})));
     ASSERT_TRUE(instance.Update(1));
@@ -100,7 +106,9 @@ TEST_F(AnimationMontageSectionTest, ExactBoundaryCarriesTheDestinationWithoutDup
 
 TEST_F(AnimationMontageSectionTest, DefaultLinksSkipPoseEventsAndRootMovementOfUnvisitedRanges)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     ASSERT_TRUE(instance.SetRootMotionEnabled(true));
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.PlayMontage(Montage({{"A", 0, "C"}, {"Skip", 1},
@@ -122,7 +130,12 @@ TEST_F(AnimationMontageSectionTest, DefaultLinksSkipPoseEventsAndRootMovementOfU
 TEST_F(AnimationMontageSectionTest, InstanceOverridesCanLoopThenExitWithoutChangingSharedAsset)
 {
     const auto asset = Montage({{"Loop", 0, "Loop"}, {"Recovery", 1, ""}});
-    SkeletalMeshInstance first(Mesh), second(Mesh);
+    const auto firstHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(firstHandle);
+    auto& first = *firstHandle;
+    const auto secondHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(secondHandle);
+    auto& second = *secondHandle;
     ASSERT_TRUE(first.GetBaseLayer().PlayMontage(asset));
     ASSERT_TRUE(second.GetBaseLayer().PlayMontage(asset));
     ASSERT_TRUE(first.SetRootMotionEnabled(true));
@@ -141,7 +154,9 @@ TEST_F(AnimationMontageSectionTest, InstanceOverridesCanLoopThenExitWithoutChang
 
 TEST_F(AnimationMontageSectionTest, JumpIsSilentPreservesPauseAndDoesNotExtractThePoseOffset)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     ASSERT_TRUE(instance.SetRootMotionEnabled(true));
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.PlayMontage(Montage({{"A", 0}, {"B", 2}})));
@@ -165,14 +180,16 @@ TEST_F(AnimationMontageSectionTest, JumpIsSilentPreservesPauseAndDoesNotExtractT
 
 TEST_F(AnimationMontageSectionTest, StartingAtNamedSectionUsesASeparateEntranceClock)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
     const auto asset = Montage({{"A", 0}, {"B", 2}}, 1, 0);
     ASSERT_TRUE(layer.PlayMontage(asset, "B"));
     EXPECT_FLOAT_EQ(layer.GetMontageWeight(), 0);
     ASSERT_TRUE(instance.Update(0.5f));
     EXPECT_NEAR(layer.GetMontageWeight(), 0.5f, 1e-6f);
-    EXPECT_NEAR(instance.GetLocalPose()[0].Translation.x, 5.5f, 1e-6f);
+    EXPECT_NEAR(instance.GetLocalPose().LocalTransforms[0].Translation.x, 5.5f, 1e-6f);
     EXPECT_EQ(layer.GetCurrentMontageSection(), "B");
     EXPECT_FALSE(layer.PlayMontage(asset, "Missing"));
     EXPECT_DOUBLE_EQ(layer.GetMontageTime(), 2.5);
@@ -180,7 +197,9 @@ TEST_F(AnimationMontageSectionTest, StartingAtNamedSectionUsesASeparateEntranceC
 
 TEST_F(AnimationMontageSectionTest, TerminalRouteControlsExitEvenWhenSkippingTheClipEnd)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.PlayMontage(Montage({{"A", 0, ""}, {"Skip", 1}}, 0, 0.5f)));
     ASSERT_TRUE(instance.Update(0.75f));
@@ -189,12 +208,14 @@ TEST_F(AnimationMontageSectionTest, TerminalRouteControlsExitEvenWhenSkippingThe
     ASSERT_TRUE(instance.Update(0.25f));
     EXPECT_FALSE(layer.GetMontage());
     EXPECT_TRUE(layer.GetCurrentMontageSection().empty());
-    EXPECT_FLOAT_EQ(instance.GetLocalPose()[0].Translation.x, 0);
+    EXPECT_FLOAT_EQ(instance.GetLocalPose().LocalTransforms[0].Translation.x, 0);
 }
 
 TEST_F(AnimationMontageSectionTest, ExplicitStopEndsALoopAndRejectsJumpsDuringExit)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.PlayMontage(Montage({{"Loop", 0, "Loop"}, {"Other", 1}}, 0, 0)));
     ASSERT_TRUE(instance.Update(2.5f));
@@ -209,20 +230,24 @@ TEST_F(AnimationMontageSectionTest, ExplicitStopEndsALoopAndRejectsJumpsDuringEx
 
 TEST_F(AnimationMontageSectionTest, ExcessiveTraversalFailsWithoutAdvancingAnyClock)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.PlayMontage(Montage({{"Loop", 0, "Loop"}, {"Other", 1}})));
     EXPECT_FALSE(instance.Update(4097));
     EXPECT_DOUBLE_EQ(layer.GetMontageTime(), 0);
     EXPECT_TRUE(instance.GetNotifyEvents().empty());
-    EXPECT_FLOAT_EQ(instance.GetLocalPose()[0].Translation.x, 0);
+    EXPECT_FLOAT_EQ(instance.GetLocalPose().LocalTransforms[0].Translation.x, 0);
     ASSERT_TRUE(instance.Update(0.5f));
     EXPECT_DOUBLE_EQ(layer.GetMontageTime(), 0.5);
 }
 
 TEST_F(AnimationMontageSectionTest, InvalidNamesAndMissingPlaybackLeaveTheCurrentRouteUntouched)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
     EXPECT_FALSE(layer.SetNextMontageSection("A", "B"));
     EXPECT_FALSE(layer.JumpToMontageSection("A"));
@@ -237,7 +262,9 @@ TEST_F(AnimationMontageSectionTest, InvalidNamesAndMissingPlaybackLeaveTheCurren
 
 TEST_F(AnimationMontageSectionTest, CurrentContinuationCanBeClearedToEndTheAction)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.PlayMontage(Montage({{"Loop", 0, "Loop"}, {"Other", 1}})));
     ASSERT_TRUE(layer.SetNextMontageSection("Loop", ""));
@@ -247,7 +274,9 @@ TEST_F(AnimationMontageSectionTest, CurrentContinuationCanBeClearedToEndTheActio
 
 TEST_F(AnimationMontageSectionTest, LoopExitRequestedTooLateDoesNotDropTheCurrentWeight)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.PlayMontage(Montage({{"Loop", 0, "Loop"}, {"Other", 1}}, 0, 0.5f)));
     ASSERT_TRUE(instance.Update(0.75f));
@@ -260,7 +289,9 @@ TEST_F(AnimationMontageSectionTest, LoopExitRequestedTooLateDoesNotDropTheCurren
 
 TEST_F(AnimationMontageSectionTest, BackwardJumpAndLoopPreserveTheEntranceClock)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.PlayMontage(Montage({{"Loop", 0, "Loop"}, {"Other", 1}}, 2, 0.2f)));
     ASSERT_TRUE(instance.Update(1.5f));
@@ -278,7 +309,9 @@ TEST_F(AnimationMontageSectionTest, NoninterruptibleActionsAllowTheirOwnSectionF
         .BlendIn = 0, .BlendOut = 0, .Interruptible = false,
         .Sections = {{"A", 0, "A"}, {"B", 2, ""}}});
     ASSERT_TRUE(asset);
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.PlayMontage(asset));
     EXPECT_FALSE(layer.StopMontage());
@@ -290,10 +323,12 @@ TEST_F(AnimationMontageSectionTest, NoninterruptibleActionsAllowTheirOwnSectionF
 
 TEST_F(AnimationMontageSectionTest, SourceEventsResumeAtTheEffectiveRouteEnd)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     const auto source = AnimationSequence::Create("Source", Mesh->GetSkeleton(), 1, {},
         {}, {{"Source", 0.25f}});
-    ASSERT_TRUE(instance.Play(source));
+    ASSERT_TRUE(instance.Play(MakeNode(source)));
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.PlayMontage(Montage({{"A", 0, ""}, {"Skipped", 1}})));
     ASSERT_TRUE(instance.Update(1.5f));
@@ -313,7 +348,9 @@ TEST_F(AnimationMontageSectionTest, EventOverflowPreservesSectionCursorAndRootDe
     ASSERT_TRUE(sequence);
     const auto asset = AnimationMontage::Create({.Name = "Dense", .Sequence = sequence,
         .Sections = {{"Loop", 0, "Loop"}, {"Other", 1}}});
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     ASSERT_TRUE(instance.SetRootMotionEnabled(true));
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.PlayMontage(asset));
@@ -330,7 +367,9 @@ TEST_F(AnimationMontageSectionTest, EventOverflowPreservesSectionCursorAndRootDe
 
 TEST_F(AnimationMontageSectionTest, ExitEnvelopeSpansTheRemainingRouteAcrossASectionJump)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     ASSERT_TRUE(instance.SetRootMotionEnabled(true));
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.PlayMontage(Montage({{"A", 0, "Recovery"}, {"Skip", 1},
@@ -365,27 +404,29 @@ TEST_F(AnimationMontageSectionTest, ComboRecoveryFadesContinuouslyToTheAdvancing
     for (const auto section : {"Attack1", "Attack2", "Attack3"})
     {
         SCOPED_TRACE(section);
-        SkeletalMeshInstance instance(Mesh);
-        ASSERT_TRUE(instance.Play(source));
+        const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+        ASSERT_TRUE(instanceHandle);
+        auto& instance = *instanceHandle;
+        ASSERT_TRUE(instance.Play(MakeNode(source)));
         auto& layer = instance.GetBaseLayer();
         ASSERT_TRUE(layer.PlayMontage(asset, section));
         ASSERT_TRUE(instance.Update(1.0f - boundaryStep));
-        const auto beforeRecovery = instance.GetLocalPose()[0].Translation.x;
+        const auto beforeRecovery = instance.GetLocalPose().LocalTransforms[0].Translation.x;
         ASSERT_TRUE(instance.Update(boundaryStep));
         EXPECT_EQ(layer.GetCurrentMontageSection(), "Recovery");
         EXPECT_NEAR(layer.GetMontageWeight(), 1, 1e-5f);
-        EXPECT_NEAR(instance.GetLocalPose()[0].Translation.x, beforeRecovery, 0.005f);
+        EXPECT_NEAR(instance.GetLocalPose().LocalTransforms[0].Translation.x, beforeRecovery, 0.005f);
         ASSERT_TRUE(instance.Update(0.5f));
         EXPECT_NEAR(layer.GetMontageWeight(), 0.5f, 1e-5f);
         // The continuing source is at 1.5 seconds (x=1), not restarted at zero (x=-2).
-        EXPECT_NEAR(instance.GetLocalPose()[0].Translation.x, 4.5f, 1e-5f);
+        EXPECT_NEAR(instance.GetLocalPose().LocalTransforms[0].Translation.x, 4.5f, 1e-5f);
         ASSERT_TRUE(instance.Update(0.5f - boundaryStep));
-        const auto beforeEnd = instance.GetLocalPose()[0].Translation.x;
+        const auto beforeEnd = instance.GetLocalPose().LocalTransforms[0].Translation.x;
         ASSERT_TRUE(instance.Update(boundaryStep + 0.0001f));
         EXPECT_FALSE(layer.GetMontage());
-        EXPECT_NEAR(instance.GetLocalPose()[0].Translation.x, beforeEnd, 0.002f);
-        EXPECT_NEAR(instance.GetLocalPose()[0].Translation.x, 2.0002f, 1e-5f);
+        EXPECT_NEAR(instance.GetLocalPose().LocalTransforms[0].Translation.x, beforeEnd, 0.002f);
+        EXPECT_NEAR(instance.GetLocalPose().LocalTransforms[0].Translation.x, 2.0002f, 1e-5f);
         ASSERT_TRUE(instance.Update(0.1f));
-        EXPECT_NEAR(instance.GetLocalPose()[0].Translation.x, 2.2002f, 1e-5f);
+        EXPECT_NEAR(instance.GetLocalPose().LocalTransforms[0].Translation.x, 2.2002f, 1e-5f);
     }
 }

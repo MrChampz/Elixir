@@ -1,6 +1,9 @@
+#include "AnimationTestNodes.h"
+#include "AnimationTestCharacter.h"
+#include "AnimationTestPlayback.h"
 #include <gtest/gtest.h>
 #include <Engine/Animation/BlendSpace1D.h>
-#include <Engine/Animation/AnimationControllerInstance.h>
+#include "AnimationGraphTestDriver.h"
 #include "../Mesh/SkinningTestData.h"
 #include <limits>
 
@@ -79,8 +82,10 @@ TEST_F(AnimationNotifyDurationTest, ValidatesRangesAndPreservesMetadataInEveryCl
 
 TEST_F(AnimationNotifyDurationTest, WholeWindowInsideOneFrameEmitsBeginUpdateAndEndWithTypedPayload)
 {
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Window(), false));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(instance.Play(MakeNode(Window()), false));
     ASSERT_TRUE(instance.Update(1));
     const auto events = instance.GetNotifyEvents();
     ASSERT_EQ(events.size(), 3);
@@ -100,8 +105,10 @@ TEST_F(AnimationNotifyDurationTest, WholeWindowInsideOneFrameEmitsBeginUpdateAnd
 
 TEST_F(AnimationNotifyDurationTest, ExactStartBeginsWithoutUpdatingUntilTimeAdvances)
 {
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Window(0.25f, 0.5f)));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(instance.Play(MakeNode(Window(0.25f, 0.5f))));
     ASSERT_TRUE(instance.Update(0));
     EXPECT_TRUE(instance.GetNotifyEvents().empty());
     ASSERT_TRUE(instance.Update(0.25f));
@@ -117,8 +124,10 @@ TEST_F(AnimationNotifyDurationTest, ExactStartBeginsWithoutUpdatingUntilTimeAdva
 
 TEST_F(AnimationNotifyDurationTest, RepeatedCyclesHaveIndependentActivationIdsAndBoundaryOrder)
 {
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Window(0, 1)));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(instance.Play(MakeNode(Window(0, 1))));
     ASSERT_TRUE(instance.Update(2.5f));
     const auto events = instance.GetNotifyEvents();
     ASSERT_EQ(events.size(), 8);
@@ -134,8 +143,10 @@ TEST_F(AnimationNotifyDurationTest, RepeatedCyclesHaveIndependentActivationIdsAn
 
 TEST_F(AnimationNotifyDurationTest, PauseRetainsWindowsAndResumeUsesTheSameActivation)
 {
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Window(0, 1)));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(instance.Play(MakeNode(Window(0, 1))));
     ASSERT_TRUE(instance.Update(0.25f));
     const auto id = instance.GetNotifyEvents()[0].ActivationId;
     instance.Pause();
@@ -154,8 +165,10 @@ TEST_F(AnimationNotifyDurationTest, PauseRetainsWindowsAndResumeUsesTheSameActiv
 
 TEST_F(AnimationNotifyDurationTest, SeekCancelsThenReentersAWindowOnTheNextPositiveUpdate)
 {
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Window()));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(instance.Play(MakeNode(Window())));
     ASSERT_TRUE(instance.Update(0.3f));
     const auto id = instance.GetNotifyEvents()[0].ActivationId;
     ASSERT_TRUE(instance.Seek(0.4f));
@@ -172,10 +185,12 @@ TEST_F(AnimationNotifyDurationTest, SeekCancelsThenReentersAWindowOnTheNextPosit
 
 TEST_F(AnimationNotifyDurationTest, PlaybackReplacementCancelsTheOutgoingWindowDuringFades)
 {
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Window(0, 1)));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(instance.Play(MakeNode(Window(0, 1))));
     ASSERT_TRUE(instance.Update(0.25f));
-    ASSERT_TRUE(instance.Play(Sequence, 0.5f));
+    ASSERT_TRUE(instance.Play(MakeNode(Sequence), 0.5f));
     ASSERT_TRUE(instance.Update(0.25f));
     ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
     EXPECT_EQ(instance.GetNotifyEvents()[0].Type, EType::End);
@@ -184,11 +199,13 @@ TEST_F(AnimationNotifyDurationTest, PlaybackReplacementCancelsTheOutgoingWindowD
 
 TEST_F(AnimationNotifyDurationTest, MutingEndsAnActiveWindowAndUnmutingReentersAtCurrentTime)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     const auto mask = BoneMask::Create("All", Mesh->GetSkeleton(), {1, 1});
     ASSERT_TRUE(instance.AddLayer("Action", mask));
     auto* layer = instance.GetLayer("Action");
-    ASSERT_TRUE(layer->Play(Window(0, 1)));
+    ASSERT_TRUE(layer->Play(MakeNode(Window(0, 1))));
     ASSERT_TRUE(instance.Update(0.25f));
     ASSERT_TRUE(layer->SetWeight(0));
     ASSERT_TRUE(instance.Update(0.25f));
@@ -204,7 +221,9 @@ TEST_F(AnimationNotifyDurationTest, MutingEndsAnActiveWindowAndUnmutingReentersA
 TEST_F(AnimationNotifyDurationTest, MontageJumpEndsTheWindowWithoutEmittingSkippedStates)
 {
     const auto clip = Sequence->WithNotifies({{"Hit", 0, 0.5f}, {"Skipped", 0.5f, 0.25f}});
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.PlayMontage(Montage(clip,
         {{"Attack", 0}, {"Skip", 0.5f}, {"Recovery", 0.75f}})));
@@ -220,7 +239,9 @@ TEST_F(AnimationNotifyDurationTest, MontageJumpEndsTheWindowWithoutEmittingSkipp
 
 TEST_F(AnimationNotifyDurationTest, AdjacentSectionsRetainTheActivationAcrossTheBoundary)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.PlayMontage(Montage(Window(0, 1), {{"A", 0}, {"B", 0.5f}})));
     ASSERT_TRUE(instance.Update(0.75f));
@@ -236,7 +257,9 @@ TEST_F(AnimationNotifyDurationTest, AdjacentSectionsRetainTheActivationAcrossThe
 
 TEST_F(AnimationNotifyDurationTest, AutomaticNonadjacentLinksEndThenBeginNewActivations)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.PlayMontage(Montage(Window(0, 1),
         {{"A", 0, "C"}, {"Skip", 0.25f}, {"C", 0.75f, ""}})));
@@ -252,7 +275,9 @@ TEST_F(AnimationNotifyDurationTest, AutomaticNonadjacentLinksEndThenBeginNewActi
 
 TEST_F(AnimationNotifyDurationTest, MontageCompletionClosesWindowsThatExtendBeyondTerminalSection)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     ASSERT_TRUE(instance.GetBaseLayer().PlayMontage(Montage(Window(0, 1),
         {{"Attack", 0, ""}, {"Unused", 0.5f}})));
     ASSERT_TRUE(instance.Update(1));
@@ -266,7 +291,9 @@ TEST_F(AnimationNotifyDurationTest, MontageCompletionClosesWindowsThatExtendBeyo
 
 TEST_F(AnimationNotifyDurationTest, ExplicitMontageExitCancelsImmediatelyAndDoesNotReopenDuringFade)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.PlayMontage(Montage(Window(0, 1))));
     ASSERT_TRUE(instance.Update(0.25f));
@@ -280,10 +307,12 @@ TEST_F(AnimationNotifyDurationTest, ExplicitMontageExitCancelsImmediatelyAndDoes
 
 TEST_F(AnimationNotifyDurationTest, LayerRemovalRetainsTheEndAndTypedPayloadAfterAssetRelease)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     const auto mask = BoneMask::Create("All", Mesh->GetSkeleton(), {1, 1});
     ASSERT_TRUE(instance.AddLayer("Action", mask));
-    ASSERT_TRUE(instance.GetLayer("Action")->Play(Window(0, 1)));
+    ASSERT_TRUE(instance.GetLayer("Action")->Play(MakeNode(Window(0, 1))));
     ASSERT_TRUE(instance.Update(0.25f));
     ASSERT_TRUE(instance.RemoveLayer("Action"));
     instance.Pause();
@@ -300,15 +329,17 @@ TEST_F(AnimationNotifyDurationTest, LayerRemovalRetainsTheEndAndTypedPayloadAfte
 
 TEST_F(AnimationNotifyDurationTest, StopAndManualPoseQueueExactlyOneEndEach)
 {
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Window(0, 1)));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(instance.Play(MakeNode(Window(0, 1))));
     ASSERT_TRUE(instance.Update(0.25f));
     instance.Stop();
     instance.Stop();
     ASSERT_TRUE(instance.Update(0));
     ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
     EXPECT_TRUE(instance.GetNotifyEvents()[0].Cancelled);
-    ASSERT_TRUE(instance.Play(Window(0, 1)));
+    ASSERT_TRUE(instance.Play(MakeNode(Window(0, 1))));
     ASSERT_TRUE(instance.Update(0.25f));
     ASSERT_TRUE(instance.SetLocalPose(Mesh->GetData().ReferencePose));
     ASSERT_TRUE(instance.Update(0));
@@ -321,10 +352,12 @@ TEST_F(AnimationNotifyDurationTest, BlendSpaceDominantSourceChangeEndsThePreviou
     const auto first = Window(0, 1), second = Window(0, 1);
     const auto space = BlendSpace1D::Create("Space", {{0, first}, {1, second}});
     ASSERT_TRUE(space);
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(space, {0}));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(PlayWithInputs(instance, MakeNode(space), {0}));
     ASSERT_TRUE(instance.Update(0.25f));
-    ASSERT_TRUE(instance.SetBlendSpaceValue({1}));
+    ASSERT_TRUE(instance.SetInputs({1}));
     ASSERT_TRUE(instance.Update(0.25f));
     const auto events = instance.GetNotifyEvents();
     ASSERT_EQ(events.size(), 3);
@@ -341,8 +374,10 @@ TEST_F(AnimationNotifyDurationTest, MarkerMappingPreservesTheWindowAcrossTheRefe
     const auto shifted = Window(0, 0.5f)->WithSyncMarkers({{"A", 0.25f}, {"B", 0.75f}});
     const auto space = BlendSpace1D::Create("Mapped", {{0, reference}, {1, shifted}});
     ASSERT_TRUE(space);
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(space, {1}));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(PlayWithInputs(instance, MakeNode(space), {1}));
     ASSERT_TRUE(instance.Seek(0.875f));
     ASSERT_TRUE(instance.Update(0.25f));
     const auto events = instance.GetNotifyEvents();
@@ -360,13 +395,15 @@ TEST_F(AnimationNotifyDurationTest, MarkerMappingPreservesTheWindowAcrossTheRefe
 
 TEST_F(AnimationNotifyDurationTest, FailedCompositionPreservesActiveIdentityAndPendingEndsForRetry)
 {
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Window(0, 1)));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(instance.Play(MakeNode(Window(0, 1))));
     ASSERT_TRUE(instance.Update(0.25f));
     const auto id = instance.GetNotifyEvents()[0].ActivationId;
     const auto mask = BoneMask::Create("All", Mesh->GetSkeleton(), {1, 1});
     auto pose = Mesh->GetData().ReferencePose;
-    pose[0].Translation.x = std::numeric_limits<float>::max();
+    pose.LocalTransforms[0].Translation.x = std::numeric_limits<float>::max();
     for (const auto* name : {"OverflowA", "OverflowB"})
     {
         ASSERT_TRUE(instance.AddLayer(name, mask));
@@ -390,8 +427,10 @@ TEST_F(AnimationNotifyDurationTest, AuthoredEventsShareTheExistingCapacityAndFai
     const auto clip = Sequence->WithNotifies(
         std::vector<SAnimationNotify>(1500, {"Window", 0.1f, 0.4f}));
     ASSERT_TRUE(clip);
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(clip));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(instance.Play(MakeNode(clip)));
     EXPECT_FALSE(instance.Update(0.75f));
     EXPECT_FLOAT_EQ(instance.GetTime(), 0);
     EXPECT_TRUE(instance.GetNotifyEvents().empty());
@@ -404,8 +443,10 @@ TEST_F(AnimationNotifyDurationTest, AuthoredEventsShareTheExistingCapacityAndFai
 
 TEST_F(AnimationNotifyDurationTest, NonloopingFullClipWindowDoesNotReopenAtTheClipEnd)
 {
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Window(0, 1), false));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(instance.Play(MakeNode(Window(0, 1)), false));
     ASSERT_TRUE(instance.Update(1));
     ASSERT_EQ(instance.GetNotifyEvents().size(), 3);
     EXPECT_EQ(instance.GetNotifyEvents().back().Type, EType::End);
@@ -417,8 +458,10 @@ TEST_F(AnimationNotifyDurationTest, NonloopingFullClipWindowDoesNotReopenAtTheCl
 TEST_F(AnimationNotifyDurationTest, OverlappingWindowsHaveSeparateIdsAndChronologicalEvents)
 {
     const auto clip = Sequence->WithNotifies({{"A", 0.1f, 0.4f}, {"B", 0.25f, 0.5f}});
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(clip));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(instance.Play(MakeNode(clip)));
     ASSERT_TRUE(instance.Update(1));
     const auto events = instance.GetNotifyEvents();
     ASSERT_EQ(events.size(), 6);
@@ -438,8 +481,10 @@ TEST_F(AnimationNotifyDurationTest, InstantaneousEventsAndWindowEventsUseOneAuth
     notifies.insert(notifies.end(), 1000, {"Window", 0.2f, 0.4f});
     const auto clip = Sequence->WithNotifies(std::move(notifies));
     ASSERT_TRUE(clip);
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(clip));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(instance.Play(MakeNode(clip)));
     EXPECT_FALSE(instance.Update(1));
     EXPECT_FLOAT_EQ(instance.GetTime(), 0);
     EXPECT_TRUE(instance.GetNotifyEvents().empty());
@@ -449,13 +494,15 @@ TEST_F(AnimationNotifyDurationTest, InstantaneousEventsAndWindowEventsUseOneAuth
 
 TEST_F(AnimationNotifyDurationTest, ClearLayersTransfersEveryPendingEndAndDoesNotEndBase)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     const auto mask = BoneMask::Create("All", Mesh->GetSkeleton(), {1, 1});
-    ASSERT_TRUE(instance.Play(Window(0, 1)));
+    ASSERT_TRUE(instance.Play(MakeNode(Window(0, 1))));
     for (const auto* name : {"A", "B"})
     {
         ASSERT_TRUE(instance.AddLayer(name, mask));
-        ASSERT_TRUE(instance.GetLayer(name)->Play(Window(0, 1)));
+        ASSERT_TRUE(instance.GetLayer(name)->Play(MakeNode(Window(0, 1))));
     }
     ASSERT_TRUE(instance.Update(0.25f));
     ASSERT_TRUE(instance.GetLayer("A")->SetWeight(0));
@@ -476,13 +523,15 @@ TEST_F(AnimationNotifyDurationTest, ClearLayersTransfersEveryPendingEndAndDoesNo
 
 TEST_F(AnimationNotifyDurationTest, UnderlyingPlaybackChangesPreserveMontageWindows)
 {
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Sequence));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(instance.Play(MakeNode(Sequence)));
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.PlayMontage(Montage(Window(0, 1))));
     ASSERT_TRUE(instance.Update(0.25f));
     const auto id = instance.GetNotifyEvents()[0].ActivationId;
-    ASSERT_TRUE(layer.Play(Sequence, 0.5f));
+    ASSERT_TRUE(layer.Play(MakeNode(Sequence), 0.5f));
     ASSERT_TRUE(instance.Update(0.25f));
     ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
     EXPECT_EQ(instance.GetNotifyEvents()[0].Type, EType::Update);
@@ -495,7 +544,9 @@ TEST_F(AnimationNotifyDurationTest, UnderlyingPlaybackChangesPreserveMontageWind
 
 TEST_F(AnimationNotifyDurationTest, ReplacingAMontageClosesThenOpensAnotherActivation)
 {
-    SkeletalMeshInstance instance(Mesh);
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
     const auto action = Montage(Window(0, 1));
     ASSERT_TRUE(layer.PlayMontage(action));
@@ -519,8 +570,10 @@ TEST_F(AnimationNotifyDurationTest, NonuniformMarkersMeasureActiveFrameSecondsRa
     const auto source = Window(0, 0.5f)->WithSyncMarkers({{"A", 0}, {"B", 0.5f}});
     const auto space = BlendSpace1D::Create("Space", {{0, reference}, {1, source}});
     ASSERT_TRUE(space);
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(space, {1}));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(PlayWithInputs(instance, MakeNode(space), {1}));
     ASSERT_TRUE(instance.Update(0.5f));
     ASSERT_EQ(instance.GetNotifyEvents().size(), 2);
     EXPECT_DOUBLE_EQ(instance.GetNotifyEvents()[1].DeltaSeconds, 0.5);
@@ -539,10 +592,12 @@ TEST_F(AnimationNotifyDurationTest, InvalidCollectionAndFailedPlaybackPreserveTh
     EXPECT_FALSE(clip->CollectNotifyIntervals(0, 5000, true, intervals));
     ASSERT_EQ(intervals.size(), 1);
     EXPECT_EQ(intervals[0].NotifyIndex, 99);
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Window(0, 1)));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(instance.Play(MakeNode(Window(0, 1))));
     ASSERT_TRUE(instance.Update(0.25f));
-    EXPECT_FALSE(instance.Play(nullptr));
+    EXPECT_FALSE(instance.Play(MakeNode(nullptr)));
     EXPECT_FALSE(instance.Seek(std::numeric_limits<float>::quiet_NaN()));
     ASSERT_TRUE(instance.Update(0.25f));
     ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
@@ -551,8 +606,10 @@ TEST_F(AnimationNotifyDurationTest, InvalidCollectionAndFailedPlaybackPreserveTh
 
 TEST_F(AnimationNotifyDurationTest, SourceWindowsResumeAtTheirCurrentPhaseAfterAMontageReleases)
 {
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Window(0, 1)));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(instance.Play(MakeNode(Window(0, 1))));
     ASSERT_TRUE(instance.Update(0.25f));
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.PlayMontage(Montage(Sequence,
@@ -571,13 +628,15 @@ TEST_F(AnimationNotifyDurationTest, SourceWindowsResumeAtTheirCurrentPhaseAfterA
 
 TEST_F(AnimationNotifyDurationTest, FailedUpdateKeepsQueuedCancellationForAZeroDeltaRetry)
 {
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Window(0, 1)));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(instance.Play(MakeNode(Window(0, 1))));
     ASSERT_TRUE(instance.Update(0.25f));
     const auto id = instance.GetNotifyEvents()[0].ActivationId;
     const auto dense = Sequence->WithNotifies(
         std::vector<SAnimationNotify>(1500, {"Dense", 0, 0.5f}));
-    ASSERT_TRUE(instance.Play(dense, false));
+    ASSERT_TRUE(instance.Play(MakeNode(dense), false));
     EXPECT_FALSE(instance.Update(1));
     ASSERT_TRUE(instance.Update(0));
     ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
@@ -596,8 +655,10 @@ TEST_F(AnimationNotifyDurationTest, InstantAndWindowEventsShareOneChronologicalB
         {"Start", 0, 0, 7}, {"Impact", 0.5f, 0, std::string("Metal")}
     });
     ASSERT_TRUE(clip);
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(clip, false));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(instance.Play(MakeNode(clip), false));
     ASSERT_TRUE(instance.Update(1));
 
     const auto events = instance.GetNotifyEvents();
@@ -659,8 +720,10 @@ TEST_F(AnimationNotifyDurationTest, RejectsInvalidDurationsAndAllowsInstantAtCli
 
     const auto clip = Sequence->WithNotifies({{"End", 1}});
     ASSERT_TRUE(clip);
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(clip, false));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(instance.Play(MakeNode(clip), false));
     ASSERT_TRUE(instance.Update(1));
     const auto events = instance.GetNotifyEvents();
     ASSERT_EQ(events.size(), 1);
@@ -674,8 +737,10 @@ TEST_F(AnimationNotifyDurationTest, MixedBoundaryEventsCloseBeforeTheNextActivat
         {"First", 0, 0.5f}, {"Second", 0.5f, 0.5f}, {"Point", 0.5f}
     });
     ASSERT_TRUE(clip);
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(clip, false));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(instance.Play(MakeNode(clip), false));
     ASSERT_TRUE(instance.Update(0.5f));
     const auto events = instance.GetNotifyEvents();
     ASSERT_EQ(events.size(), 5);

@@ -1,11 +1,16 @@
  #pragma once
 
+#include <Engine/Animation/Pose.h>
+#include <Engine/Animation/Skeleton.h>
 #include <Engine/Animation/RootMotion.h>
 
 namespace Elixir
 {
     /** @brief Selects interpolation between adjacent animation keys. */
-    enum class EBoneInterpolation : uint8_t { Step, Linear };
+    enum class EBoneInterpolation : uint8_t
+    {
+        Step, Linear
+    };
 
     /** @brief Stores a vector animation value at a time in seconds. */
     struct SVectorAnimationKey
@@ -44,7 +49,7 @@ namespace Elixir
     };
 
     /** Defines a notification at a point or over an interval on an animation timeline. */
-    struct SAnimationNotify
+    struct ELIXIR_API SAnimationNotify
     {
         /** Application-defined event name, such as Footstep or AttackHit. */
         std::string Name;
@@ -63,6 +68,12 @@ namespace Elixir
          * rules. This runtime value does not provide automatic asset serialization.
          */
         std::any Payload;
+
+        /**
+         * @brief Check the name and finite time range within its owning sequence.
+         * @param sequenceDuration Positive owning clip duration in seconds.
+         */
+        bool IsValid(float sequenceDuration) const;
 
         /**
          * @brief Read the payload without conversion or exceptions.
@@ -121,15 +132,16 @@ namespace Elixir
         );
 
         /**
-         * @brief Sample a clamped time into a full local pose; leave output unchanged on failure.
+         * @brief Sample a clamped time into a full local pose; leave output unchanged on
+         * failure.
          * @param time Finite sample time in seconds, clamped to the cycle duration.
          * @param output Receives one local transform per bone on success.
          * @param referencePose Optional mesh-specific defaults for channels without keys.
          */
         bool Sample(
             float time,
-            std::vector<SBoneTransform>& output,
-            std::span<const SBoneTransform> referencePose = {}
+            SLocalPose& output,
+            const SLocalPose& referencePose = {}
         ) const;
 
         /**
@@ -154,6 +166,12 @@ namespace Elixir
             SRootMotionDelta& output,
             uint32_t boneIndex = 0
         ) const;
+
+        /**
+         * @brief Check whether this asset uses a compatible skeleton.
+         * @param skeleton Skeleton whose bone layout will receive sampled poses.
+         */
+        bool IsCompatibleWith(const Ref<const Skeleton>& skeleton) const;
 
         /**
          * @brief Map unwrapped reference phase to continuous phase in this sequence.

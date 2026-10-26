@@ -6,9 +6,14 @@
 
 namespace Elixir
 {
+    struct SLocalPose;
+    struct SModelPose;
+
     /** @brief Stores a bone transform relative to its parent. */
     struct ELIXIR_API SBoneTransform
     {
+        static constexpr float BoneTransformTolerance = 1e-5f;
+
         glm::vec3 Translation{};
         glm::quat Rotation{ 1.0f, 0.0f, 0.0f, 0.0f };
         glm::vec3 Scale{ 1.0f };
@@ -28,6 +33,14 @@ namespace Elixir
 
         /** @brief Compose translation, rotation, and scale into a matrix. */
         glm::mat4 ToMatrix() const;
+
+        /**
+         * @brief Check whether another transform differs only within the comparison tolerance.
+         * @param other Transform to compare with this transform.
+         * @return True when translation, scale, and rotation are nearly equal.
+         * @pre Both transforms are valid.
+         */
+        bool IsNearlyEqual(const SBoneTransform& other) const;
 
         /** @brief Check for finite values, a unit quaternion, and nonzero scale. */
         bool IsValid() const;
@@ -50,29 +63,34 @@ namespace Elixir
         Skeleton(const Skeleton&) = delete;
         Skeleton& operator=(const Skeleton&) = delete;
 
-        /** @brief Create a hierarchy with unique names and parents before children, or return null. */
+        /**
+         * @brief Create a hierarchy with unique names and parents before children, or
+         * return null.
+         */
         static Ref<Skeleton> Create(std::string name, std::vector<SBone> bones);
+
+        /**
+         * @brief Compose a local pose into skeleton-space matrices; leave output unchanged
+         * on failure.
+         * @param localPose Local transforms in this skeleton's bone order.
+         * @param output Receives one skeleton-space matrix per bone on success.
+         */
+        bool BuildModelPose(
+            const SLocalPose& localPose,
+            SModelPose& output
+        ) const;
+
+        /** @brief Compare bone names and parent indices for direct animation sharing. */
+        bool IsCompatible(const Skeleton& other) const;
+
+        /** @brief Find a bone by name, or return -1. */
+        int32_t FindBone(std::string_view name) const;
 
         /** @brief Get the asset name. */
         const std::string& GetName() const { return m_Name; }
 
         /** @brief Get bones in parent-before-child order. */
         const std::vector<SBone>& GetBones() const { return m_Bones; }
-
-        /** @brief Find a bone by name, or return -1. */
-        int32_t FindBone(std::string_view name) const;
-
-        /** @brief Compare bone names and parent indices for direct animation sharing. */
-        bool IsCompatible(const Skeleton& other) const;
-
-        /**
-         * @brief Compose a local pose into skeleton-space matrices; leave output unchanged
-         * on failure.
-         */
-        bool BuildModelPose(
-            std::span<const SBoneTransform> localPose,
-            std::vector<glm::mat4>& output
-        ) const;
 
     private:
         Skeleton(std::string name, std::vector<SBone> bones);

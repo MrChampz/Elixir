@@ -1,130 +1,21 @@
 #include "epch.h"
+#include <Engine/Animation/Pose.h>
 #include "AnimationLayer.h"
 
 namespace Elixir
 {
-    namespace
+    bool AnimationLayer::Play(Ref<const AnimationNode> source, const bool looping)
     {
-        /**
-         * @brief Wrap or clamp a playback time to the sequence duration.
-         * @param time Playback time in seconds or normalized phase.
-         * @param duration Duration in the same unit as time.
-         * @param looping Wrap the time instead of clamping it.
-         */
-        double SampleTime(const double time, const float duration, const bool looping)
-        {
-            if (duration == 0.0f)
-                return 0.0f;
-
-            if (!looping)
-                return std::clamp(time, 0.0, double(duration));
-
-            const auto wrapped = std::fmod(time, double(duration));
-            return wrapped < 0.0 ? wrapped + duration : wrapped;
-        }
-    }
-
-    bool AnimationLayer::SetBlendMode(const EAnimationLayerBlendMode mode)
-    {
-        if ((mode != EAnimationLayerBlendMode::Override &&
-             mode != EAnimationLayerBlendMode::Additive) ||
-            (m_Base && mode != EAnimationLayerBlendMode::Override))
-        {
-            EE_CORE_ERROR("Animation layer blend mode is invalid; Base requires Override.")
-            return false;
-        }
-
-        m_BlendMode = mode;
-        return true;
-    }
-
-    bool AnimationLayer::SetAdditiveReferencePose(const std::span<const SBoneTransform> pose)
-    {
-        const auto invalidBone = std::ranges::any_of(
-            pose,
-            [](const auto& bone) { return !bone.IsValid(); }
-        );
-
-        if ((!pose.empty() && pose.size() != m_ReferencePose.size()) || invalidBone)
-        {
-            EE_CORE_ERROR("An additive reference requires one valid local transform per bone.")
-            return false;
-        }
-
-        std::vector reference(pose.begin(), pose.end());
-        m_AdditiveReferencePose = std::move(reference);
-
-        return true;
-    }
-
-    bool AnimationLayer::BlendPose(
-        const std::span<SBoneTransform> output,
-        const std::span<const SBoneTransform> pose
-    ) const
-    {
-        if (!HasPose() || m_Weight == 0.0f || !m_Mask->HasInfluence())
-            return true;
-
-        const auto& weights = m_Mask->GetWeights();
-        const auto& reference = GetAdditiveReferencePose();
-
-        if (output.size() != weights.size() || pose.size() != output.size())
-        {
-            EE_CORE_ERROR("Layer composition requires one transform per skeleton bone.")
-            return false;
-        }
-
-        for (size_t bone = 0; bone < output.size(); ++bone)
-        {
-            const auto weight = m_Weight * weights[bone];
-            if (weight == 0.0f)
-                continue;
-
-            if (m_BlendMode == EAnimationLayerBlendMode::Override)
-            {
-                output[bone] = SBoneTransform::Blend(output[bone], pose[bone], weight);
-            }
-            else
-            {
-                const auto& sample = pose[bone];
-                const auto& origin = reference[bone];
-
-                auto rotation = sample.Rotation * glm::inverse(origin.Rotation);
-                rotation = glm::normalize(rotation);
-                rotation = glm::slerp(glm::identity<glm::quat>(), rotation, weight);
-                rotation = glm::normalize(rotation);
-
-                auto scale = sample.Scale / origin.Scale;
-                scale = glm::mix(glm::vec3(1.0f), scale, weight);
-
-                output[bone].Translation += (sample.Translation - origin.Translation) * weight;
-                output[bone].Rotation = glm::normalize(rotation * output[bone].Rotation);
-                output[bone].Scale *= scale;
-            }
-
-            if (!output[bone].IsValid())
-            {
-                EE_CORE_ERROR("Animation layer composition produced an invalid transform.")
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    bool AnimationLayer::Play(Ref<const AnimationSequence> sequence, const bool looping)
-    {
-        return Play(std::move(sequence), 0.0f, looping);
+        return Play(std::move(source), 0.0f, looping);
     }
 
     bool AnimationLayer::Play(
-        Ref<const AnimationSequence> sequence,
+        Ref<const AnimationNode> source,
         const float fadeDuration,
         const bool looping
     )
     {
-        if (!m_Skeleton || !sequence || (m_Skeleton != sequence->GetSkeleton() &&
-                !m_Skeleton->IsCompatible(*sequence->GetSkeleton())))
+        if (!source || !source->IsCompatibleWith(m_Skeleton))
         {
             EE_CORE_ERROR(
                 "AnimationLayer requires an animation with a compatible skeleton."
@@ -132,87 +23,144 @@ namespace Elixir
             return false;
         }
 
+        std::vector<float> values(source->GetInputCount(), 0);
         return StartPlayback(
-            {
-                .Sequence = std::move(sequence),
-                .Looping = looping
-            },
+            AnimationPlayback(std::move(source), values, looping),
             fadeDuration
         );
     }
 
     bool AnimationLayer::Play(
-        Ref<const BlendSpace> blendSpace,
+        Ref<const AnimationNode> source,
         const std::span<const float> values,
         const float fadeDuration,
         const bool looping
     )
     {
-        if (!m_Skeleton || !blendSpace || !blendSpace->HasValidCoordinates(values) ||
-            (m_Skeleton != blendSpace->GetSkeleton() &&
-                !m_Skeleton->IsCompatible(*blendSpace->GetSkeleton())))
-        {
-            EE_CORE_ERROR(
-                "Blend-space playback requires compatible assets and valid coordinates."
-            )
+        if (!source || !source->IsCompatibleWith(m_Skeleton))
             return false;
-        }
 
         return StartPlayback(
-            {
-                .BlendSpace = std::move(blendSpace),
-                .Values = std::vector(values.begin(), values.end()),
-                .Looping = looping
-            },
+            AnimationPlayback(std::move(source), values, looping),
             fadeDuration
         );
     }
 
     void AnimationLayer::Resume()
     {
-        m_Montage.Playing = bool(m_Montage.Montage);
-        m_Playing = GetDuration(m_Playback) > 0.0f || IsTransitioning() ||
-            (m_Playback.BlendSpace && m_Playback.Looping);
+        m_Montage.Resume();
+        m_Playing = m_Playback.CanAdvance() || IsTransitioning();
     }
 
     void AnimationLayer::Stop()
     {
-        CancelActiveNotifies();
+        m_Notifies.Cancel(m_Name);
         m_Montage = {};
-        m_MontagePose.clear();
+        m_MontagePose.LocalTransforms.clear();
         m_Playing = false;
         m_Assigned = false;
         m_NotifyEvents.clear();
         m_Playback = {};
         m_Transition = {};
-
         m_LocalPose = m_ReferencePose;
     }
 
     bool AnimationLayer::Seek(const float time)
     {
-        if ((!m_Playback.Sequence && !m_Playback.BlendSpace) || !std::isfinite(time))
+        if (!m_Playback.IsValid() || !std::isfinite(time))
         {
             EE_CORE_ERROR("AnimationLayer requires playback and a finite seek time.")
             return false;
         }
 
-        const auto duration = GetDuration(m_Playback);
-        const auto sampled = SampleTime(time, duration, m_Playback.Looping);
+        const auto targetTime = m_Playback.GetSeekPhase(time);
 
-        const auto targetTime = m_Playback.BlendSpace && duration > 0.0f
-            ? sampled / duration
-            : sampled;
-
-        if (!SetPlayback(m_Playback, {}, 1.0f, targetTime, 0.0f))
+        auto candidate = m_Playback;
+        if (!candidate.SeekPhase(targetTime))
             return false;
 
-        if (!m_Montage.Montage)
-            CancelActiveNotifies();
+        SLocalPose pose;
+        if (!candidate.Sample(targetTime, m_ReferencePose, pose))
+            return false;
+
+        m_Playback = std::move(candidate);
+        m_LocalPose = std::move(pose);
+
+        if (!m_Montage.GetAsset())
+            m_Notifies.Cancel(m_Name);
 
         m_Transition = {};
-        m_Playback.IncludeNotifyStart = false;
+        m_Playback.SuppressInitialNotifies();
         m_NotifyEvents.clear();
+
+        return true;
+    }
+
+    bool AnimationLayer::PlayMontage(
+        Ref<const AnimationMontage> montage,
+        const std::string_view startSection
+    )
+    {
+        if (!montage || !montage->GetSequence()->IsCompatibleWith(m_Skeleton))
+            return false;
+
+        SLocalPose pose;
+        const auto success = m_Montage.Play(
+            std::move(montage),
+            startSection,
+            GetLocalPose(),
+            m_LocalPose,
+            m_ReferencePose,
+            pose
+        );
+
+        if (!success) return false;
+
+        m_Notifies.Cancel(m_Name);
+        m_MontagePose = std::move(pose);
+        m_NotifyEvents.clear();
+
+        return true;
+    }
+
+    bool AnimationLayer::SetNextMontageSection(
+        const std::string_view from,
+        const std::string_view to
+    )
+    {
+        return m_Montage.SetNextSection(from, to);
+    }
+
+    bool AnimationLayer::JumpToMontageSection(const std::string_view name)
+    {
+        SLocalPose pose;
+        if (!m_Montage.Jump(name, m_LocalPose, m_ReferencePose, pose))
+            return false;
+
+        m_Notifies.Cancel(m_Name);
+        m_MontagePose = std::move(pose);
+        m_NotifyEvents.clear();
+
+        return true;
+    }
+
+    std::string_view AnimationLayer::GetCurrentMontageSection() const
+    {
+        return m_Montage.GetCurrentSection();
+    }
+
+    bool AnimationLayer::StopMontage(const std::optional<float> blendOut)
+    {
+        if (!m_Montage.Stop(blendOut))
+            return false;
+
+        m_Notifies.Cancel(m_Name);
+
+        if (!m_Montage.IsActive())
+        {
+            m_MontagePose.LocalTransforms.clear();
+            m_NotifyEvents.clear();
+        }
 
         return true;
     }
@@ -229,25 +177,45 @@ namespace Elixir
         }
 
         if (weight == 0)
-            CancelActiveNotifies();
+            m_Notifies.Cancel(m_Name);
 
         m_Weight = weight;
         return true;
     }
 
-    bool AnimationLayer::SetBlendSpaceValue(const std::span<const float> values)
+    bool AnimationLayer::SetBlendMode(const EAnimationLayerBlendMode mode)
     {
-        if (!m_Playback.BlendSpace || !m_Playback.BlendSpace->HasValidCoordinates(values))
+        if (m_Base && mode != EAnimationLayerBlendMode::Override)
         {
-            EE_CORE_ERROR("Blend coordinates must match the active blend space and be finite.")
+            EE_CORE_ERROR("Base animation layer requires Override blending.")
             return false;
         }
 
-        std::ranges::copy(values, m_Playback.Values.begin());
+        m_BlendMode = mode;
         return true;
     }
 
-    bool AnimationLayer::SetLocalPose(const std::span<const SBoneTransform> pose)
+    bool AnimationLayer::SetAdditiveReferencePose(const SLocalPose& pose)
+    {
+        if (!pose.LocalTransforms.empty() &&
+            !pose.IsValid(m_ReferencePose.LocalTransforms.size()))
+        {
+            EE_CORE_ERROR("An additive reference requires one valid local transform per bone.")
+            return false;
+        }
+
+        SLocalPose reference = pose;
+        m_AdditiveReferencePose = std::move(reference);
+
+        return true;
+    }
+
+    bool AnimationLayer::SetSourceInputs(const std::span<const float> values)
+    {
+        return m_Playback.SetInputs(values);
+    }
+
+    bool AnimationLayer::SetLocalPose(const SLocalPose& pose)
     {
         if (!m_Skeleton)
         {
@@ -255,23 +223,19 @@ namespace Elixir
             return false;
         }
 
-        const auto invalidBone = std::ranges::any_of(
-            pose,
-            [](const auto& bone) { return !bone.IsValid(); }
-        );
-
-        if (pose.size() != m_ReferencePose.size() || invalidBone)
+        if (!pose.IsValid(m_ReferencePose.LocalTransforms.size()))
         {
             EE_CORE_ERROR("AnimationLayer requires one valid transform per bone.")
             return false;
         }
 
-        CancelActiveNotifies();
+        m_Notifies.Cancel(m_Name);
 
-        std::vector local(pose.begin(), pose.end());
+        SLocalPose local = pose;
         m_LocalPose = std::move(local);
+
         m_Montage = {};
-        m_MontagePose.clear();
+        m_MontagePose.LocalTransforms.clear();
 
         m_Playback = {};
         m_Transition = {};
@@ -282,64 +246,49 @@ namespace Elixir
         return true;
     }
 
-    float AnimationLayer::GetTime() const
-    {
-        return m_Playback.BlendSpace
-            ? m_Playback.Time * GetDuration(m_Playback)
-            : m_Playback.Time;
-    }
-
     float AnimationLayer::GetNormalizedTime() const
     {
-        if (!m_Playback.Sequence && !m_Playback.BlendSpace)
-            return 0.0f;
+        if (!m_Playback.IsValid())
+            return 0;
 
-        const auto duration = GetDuration(m_Playback);
-
-        if (m_Playback.BlendSpace)
-            return duration == 0.0f && !m_Playback.Looping
-                ? 1.0f
-                : m_Playback.Time;
-
-        return duration == 0.0f
-            ? 1.0f
-            : m_Playback.Time / duration;
+        return m_Playback.GetDuration() == 0 && m_Playback.IsFinished()
+            ? 1
+            : m_Playback.GetPhase();
     }
 
-    AnimationLayer::AnimationLayer(
-        std::string name,
-        Ref<const BoneMask> mask,
-        const float weight,
-        const std::span<const SBoneTransform> referencePose
-    ) : m_Name(std::move(name)),
-        m_Mask(std::move(mask)),
-        m_Weight(weight)
+    bool AnimationLayer::BindParameters(
+        Ref<AnimationParameters> parameters,
+        const std::span<const std::string> bindings
+    )
     {
-        m_Skeleton = m_Mask ? m_Mask->GetSkeleton() : nullptr;
+        if (!parameters || !parameters->IsValid())
+            return false;
 
-        const auto invalidBone = std::ranges::any_of(
-            referencePose,
-            [](const auto& bone) { return !bone.IsValid(); }
-        );
-
-        if (m_Name.empty() ||
-            !m_Skeleton ||
-            !std::isfinite(weight) ||
-            weight < 0.0f ||
-            weight > 1.0f ||
-            referencePose.size() != m_Skeleton->GetBones().size() ||
-            invalidBone)
+        std::vector<size_t> resolved;
+        for (const auto& name : bindings)
         {
-            EE_CORE_ERROR("AnimationLayer requires a name, mask, weight, and reference pose.")
-            m_Skeleton.reset();
-            return;
+            const auto index = parameters->Find(name);
+
+            if (!index || !parameters->GetFloat(name))
+                return false;
+
+            resolved.push_back(*index);
         }
 
-        m_ReferencePose.assign(referencePose.begin(), referencePose.end());
-        Stop();
+        if (m_Playback.IsValid() && !m_Playback.BindParameters(parameters, resolved))
+            return false;
+
+        m_Parameters = std::move(parameters);
+        m_InputBindings = std::move(resolved);
+
+        return true;
     }
 
-    bool AnimationLayer::EvaluatePlayback(const float dt, SLayerEvaluation& output) const
+
+    bool AnimationLayer::EvaluatePlayback(
+        const float dt,
+        SAnimationLayerEvaluation& output
+    ) const
     {
         if (!std::isfinite(dt) || dt < 0.0f || !m_Skeleton)
         {
@@ -356,44 +305,134 @@ namespace Elixir
             return true;
         }
 
-        output.PlaybackTime = AdvancePlayback(m_Playback, dt);
-        output.TransitionSourceTime = AdvancePlayback(m_Transition.Playback, dt);
+        output.PlaybackPhase = m_Playback.Advance(dt, m_ReferencePose);
+        output.TransitionSourcePhase = m_Transition.Playback.Advance(dt, m_ReferencePose);
         output.TransitionElapsed = float(std::min(
             double(m_Transition.Elapsed) + dt,
             double(m_Transition.Duration)
         ));
 
-        const auto weight = IsTransitioning()
+        const auto weight = m_Transition.IsActive()
             ? output.TransitionElapsed / m_Transition.Duration
             : 1.0f;
 
-        return SamplePose(
+        return m_Transition.Sample(
             m_Playback,
             m_Transition.Playback,
             weight,
-            output.PlaybackTime,
-            output.TransitionSourceTime,
-            output.LocalPose
+            output.PlaybackPhase,
+            output.TransitionSourcePhase,
+            output.LocalPose,
+            m_ReferencePose
         );
     }
 
-    void AnimationLayer::Apply(SLayerEvaluation evaluation)
+    AnimationLayer::AnimationLayer(
+        std::string name,
+        Ref<const BoneMask> mask,
+        const float weight,
+        const SLocalPose& referencePose
+    ) : m_Name(std::move(name)),
+        m_Weight(weight),
+        m_Mask(std::move(mask))
     {
-        m_ActiveNotifies = std::move(evaluation.Notifies.Active);
-        m_NextNotifyActivationId = evaluation.Notifies.NextActivationId;
-        m_PendingNotifyEnds.clear();
+        m_Skeleton = m_Mask ? m_Mask->GetSkeleton() : nullptr;
 
-        if (m_Montage.Montage)
+        if (m_Name.empty() ||
+            !m_Skeleton ||
+            !std::isfinite(weight) ||
+            weight < 0.0f ||
+            weight > 1.0f ||
+            !referencePose.IsValid(m_Skeleton->GetBones().size()))
+        {
+            EE_CORE_ERROR("AnimationLayer requires a name, mask, weight, and reference pose.")
+            m_Skeleton.reset();
+            return;
+        }
+
+        m_ReferencePose = referencePose;
+        Stop();
+    }
+
+    bool AnimationLayer::BlendPose(SLocalPose& output, const SLocalPose& pose) const
+    {
+        if (!HasPose() || m_Weight == 0 || !m_Mask->HasInfluence())
+            return true;
+
+        return output.Blend(
+            pose,
+            m_Mask->GetWeights(),
+            m_Weight,
+            m_BlendMode,
+            GetAdditiveReferencePose()
+        );
+    }
+
+    bool AnimationLayer::Evaluate(
+        const float dt,
+        SAnimationLayerEvaluation& output,
+        const bool paused,
+        const bool notifiesEnabled
+    ) const
+    {
+        if (paused)
+        {
+            output.LocalPose = GetLocalPose();
+            output.PlaybackPose = m_LocalPose;
+            output.Montage.Cursor = m_Montage.GetCursor();
+            output.Advance = false;
+            output.ConsumeInitialNotifies = false;
+            m_Notifies.Begin(output.Notifies);
+            return true;
+        }
+
+        if (notifiesEnabled &&
+            m_Weight > 0 &&
+            m_Mask->HasInfluence() &&
+            !m_Montage.GetAsset())
+            m_Playback.SetNotifiesEnabled(true);
+
+        m_Transition.Playback.SetNotifiesEnabled(false);
+
+        if (!EvaluatePlayback(dt, output))
+            return false;
+
+        if (m_Montage.GetAsset())
+        {
+            if (!m_Montage.Evaluate(dt, output.Montage))
+                return false;
+
+            output.PlaybackPose = output.LocalPose;
+
+            const auto sampled = m_Montage.Sample(
+                output.Montage.Cursor,
+                output.LocalPose,
+                m_ReferencePose
+            );
+
+            if (!sampled) return false;
+        }
+
+        return EvaluateNotifyEvents(dt, output, !notifiesEnabled);
+    }
+
+    void AnimationLayer::Apply(SAnimationLayerEvaluation evaluation)
+    {
+        m_Notifies.Apply({
+            std::move(evaluation.Notifies.Active),
+            {},
+            evaluation.Notifies.NextActivationId
+        });
+
+        if (m_Montage.GetAsset())
         {
             m_LocalPose = std::move(evaluation.PlaybackPose);
             m_MontagePose = std::move(evaluation.LocalPose);
-            m_Montage.Cursor = evaluation.Montage.Cursor;
 
-            if (m_Montage.Cursor.Finished)
-            {
-                m_Montage = {};
-                m_MontagePose.clear();
-            }
+            m_Montage.Apply(evaluation.Montage.Cursor);
+
+            if (!m_Montage.IsActive())
+                m_MontagePose.LocalTransforms.clear();
         }
         else
         {
@@ -406,90 +445,41 @@ namespace Elixir
             return;
 
         if (evaluation.ConsumeInitialNotifies)
-            m_Playback.IncludeNotifyStart = false;
+            m_Playback.SuppressInitialNotifies();
 
-        m_Playback.Time = evaluation.PlaybackTime;
-        m_Transition.Playback.Time = evaluation.TransitionSourceTime;
+        m_Playback.Apply(evaluation.PlaybackPhase);
+        m_Transition.Playback.Apply(evaluation.TransitionSourcePhase);
         m_Transition.Elapsed = evaluation.TransitionElapsed;
 
         if (m_Transition.Elapsed >= m_Transition.Duration)
             m_Transition = {};
 
-        const auto duration = GetDuration(m_Playback);
-
-        const auto completed = m_Playback.BlendSpace
-            ? m_Playback.Time >= 1.0
-            : m_Playback.Time >= double(duration);
-
-        if (!IsTransitioning() &&
-            ((!m_Playback.Looping && completed) || (m_Playback.Sequence && duration == 0.0f)))
+        if (!IsTransitioning() && m_Playback.IsFinished())
             m_Playing = false;
     }
 
-    bool AnimationLayer::SamplePose(
-        const SPlayback& playback,
-        const SPlayback& source,
-        const float weight,
-        const double time,
-        const double sourceTime,
-        std::vector<SBoneTransform>& output
-    ) const
+    bool AnimationLayer::StartPlayback(AnimationPlayback playback, const float fadeDuration)
     {
-        std::vector<SBoneTransform> local;
-
-        if (!SamplePlayback(playback, local, time))
-            return false;
-
-        if (weight < 1.0f)
+        if (!playback.IsValid() || !std::isfinite(fadeDuration) || fadeDuration < 0.0f)
         {
-            const auto* pose = &m_Transition.Pose;
-
-            std::vector<SBoneTransform> sampled;
-            if (source.Sequence || source.BlendSpace)
-            {
-                if (!SamplePlayback(source, sampled, sourceTime))
-                    return false;
-                pose = &sampled;
-            }
-
-            for (size_t i = 0; i < local.size(); ++i)
-                local[i] = SBoneTransform::Blend((*pose)[i], local[i], weight);
-        }
-
-        const auto invalidBone = std::ranges::any_of(
-            local,
-            [](const auto& bone) { return !bone.IsValid(); }
-        );
-
-        if (invalidBone)
-        {
-            EE_CORE_ERROR("Animation blending produced an invalid local transform.")
+            EE_CORE_ERROR("Animation playback requires a valid source and a finite nonnegative fade duration.")
             return false;
         }
 
-        output = std::move(local);
-        return true;
-    }
-
-    bool AnimationLayer::StartPlayback(SPlayback playback, const float fadeDuration)
-    {
-        if (!std::isfinite(fadeDuration) || fadeDuration < 0.0f)
-        {
-            EE_CORE_ERROR("Animation fade duration must be finite and nonnegative.")
+        if (!playback.BindParameters(m_Parameters, m_InputBindings))
             return false;
-        }
 
         if (fadeDuration > 0.0f)
         {
-            std::vector<SBoneTransform> local;
+            SLocalPose local;
 
-            if (!SamplePlayback(playback, local, playback.Time))
+            if (!playback.Sample(playback.GetPhase(), m_ReferencePose, local))
                 return false;
 
-            STransition transition;
+            AnimationTransition transition;
             transition.Duration = fadeDuration;
 
-            if (!IsTransitioning() && (m_Playback.Sequence || m_Playback.BlendSpace))
+            if (!IsTransitioning() && m_Playback.IsValid())
                 transition.Playback = m_Playback;
             else
                 transition.Pose = m_LocalPose;
@@ -499,14 +489,15 @@ namespace Elixir
         }
         else
         {
-            if (!SetPlayback(playback, {}, 1.0f, playback.Time, 0.0f))
-                return false;
+            const auto success = SetPlayback(playback, {}, 1.0f, playback.GetPhase(), 0.0f);
+            if (!success) return false;
 
             m_Transition = {};
         }
 
-        if (!m_Montage.Montage)
-            CancelActiveNotifies();
+        if (!m_Montage.GetAsset())
+            m_Notifies.Cancel(m_Name);
+
         m_NotifyEvents.clear();
         m_Assigned = true;
         Resume();
@@ -514,159 +505,156 @@ namespace Elixir
         return true;
     }
 
-    bool AnimationLayer::SamplePlayback(
-        const SPlayback& playback,
-        std::vector<SBoneTransform>& output,
-        const double time
-    ) const
-    {
-        if (playback.Sequence)
-            return playback.Sequence->Sample(
-                time,
-                output,
-                m_ReferencePose
-            );
-
-        if (playback.BlendSpace)
-            return playback.BlendSpace->Sample(
-                playback.Values,
-                time,
-                output,
-                m_ReferencePose
-            );
-
-        return false;
-    }
-
-    double AnimationLayer::AdvancePlayback(const SPlayback& playback, const float dt)
-    {
-        const auto duration = GetDuration(playback);
-
-        if (playback.BlendSpace)
-        {
-            const auto elapsed = duration > 0.0f ? double(dt) / duration : 0.0;
-            return SampleTime(double(playback.Time) + elapsed, 1.0f, playback.Looping);
-        }
-
-        return SampleTime(double(playback.Time) + dt, duration, playback.Looping);
-    }
-
     bool AnimationLayer::SetPlayback(
-        const SPlayback& playback,
-        const SPlayback& source,
+        const AnimationPlayback& playback,
+        const AnimationPlayback& source,
         const float weight,
         const double time,
         const double sourceTime
     )
     {
-        std::vector<SBoneTransform> local;
+        SLocalPose local;
 
-        if (!SamplePose(playback, source, weight, time, sourceTime, local))
-            return false;
+        const auto sampled = m_Transition.Sample(
+            playback,
+            source,
+            weight,
+            time,
+            sourceTime,
+            local,
+            m_ReferencePose
+        );
+
+        if (!sampled) return false;
 
         m_LocalPose = std::move(local);
+
         m_Playback = playback;
-        m_Playback.Time = time;
+        m_Playback.Apply(time);
 
         return true;
     }
 
-    float AnimationLayer::GetDuration(const SPlayback& playback)
-    {
-        if (playback.Sequence)
-            return playback.Sequence->GetDuration();
-
-        return playback.BlendSpace
-            ? playback.BlendSpace->GetDuration(playback.Values)
-            : 0.0f;
-    }
-
-    bool AnimationLayer::ExtractPlaybackRootMotion(
-        const SPlayback& playback,
-        const float dt,
-        const uint32_t boneIndex,
+    bool AnimationLayer::ExtractRootMotion(
+        const SRootMotionIntervalContext& interval,
         SRootMotionDelta& output,
-        const float offset
+        const SAnimationLayerEvaluation& evaluation
     ) const
     {
-        const auto duration = GetDuration(playback);
-        if (dt == 0 || duration == 0 || (!playback.Sequence && !playback.BlendSpace))
-        {
-            output = {};
-            return true;
-        }
-
-        auto phase = (playback.BlendSpace
-            ? playback.Time
-            : playback.Time / duration);
-        phase += double(offset) / duration;
-
-        const auto end = phase + double(dt) / duration;
-
-        if (playback.Sequence)
-            return playback.Sequence->ExtractRootMotion(
-                phase,
-                end,
-                playback.Looping,
-                m_ReferencePose[boneIndex],
-                output,
-                boneIndex
-            );
-
-        return playback.BlendSpace->ExtractRootMotion(
-            playback.Values,
-            phase,
-            end,
-            playback.Looping,
-            m_ReferencePose[boneIndex],
-            output,
-            boneIndex
+        return RootMotion::Extract(
+            {
+                m_Playback,
+                m_Transition,
+                m_Montage,
+                evaluation.Montage,
+                interval,
+                m_Playing
+            },
+            output
         );
     }
 
-    bool AnimationLayer::ExtractSourceRootMotion(
+    bool AnimationLayer::EvaluateNotifyEvents(
         const float dt,
-        const uint32_t boneIndex,
-        SRootMotionDelta& output,
-        const float offset
+        SAnimationLayerEvaluation& evaluation,
+        const bool resetActivations
     ) const
     {
-        if (!m_Playing || dt == 0)
+        auto& output = evaluation.Notifies;
+        m_Notifies.Begin(output);
+
+        if (resetActivations)
+            AnimationNotifyTracker::End(output, 0, true, m_Name);
+
+        if (m_Weight == 0 || !m_Mask->HasInfluence())
         {
-            output = {};
-            return true;
+            AnimationNotifyTracker::End(output, 0, true, m_Name);
+        }
+        else if (!m_Montage.GetAsset())
+        {
+            if (m_Playing &&
+                !m_Playback.EvaluateNotifies(dt, m_Name, m_Notifies, output))
+                return false;
+        }
+        else
+        {
+            const auto& montage = evaluation.Montage;
+            for (size_t i = 0; i < montage.Intervals.size(); ++i)
+            {
+                const auto& interval = montage.Intervals[i];
+                const auto traversal = m_Montage.GetTraversal(interval);
+
+                const auto success = m_Notifies.Evaluate(
+                    traversal,
+                    m_Name,
+                    output,
+                    !m_Montage.IsStopping()
+                );
+
+                if (!success) return false;
+
+                const auto end = interval.Start.Time + interval.Duration;
+
+                const auto nextIndex = i + 1;
+                const auto nextTime = nextIndex < montage.Intervals.size()
+                    ? montage.Intervals[nextIndex].Start.Time
+                    : montage.Cursor.Time;
+
+                if (end != nextTime)
+                {
+                    AnimationNotifyTracker::End(
+                        output,
+                        interval.TimeOffset + interval.Duration,
+                        true,
+                        m_Name
+                    );
+                }
+            }
+
+            if (montage.Cursor.Finished)
+            {
+                AnimationNotifyTracker::End(output, montage.ActiveDuration, false, m_Name);
+                const auto remaining = double(dt) - montage.ActiveDuration;
+
+                if (m_Playing && remaining > 0)
+                {
+                    const auto success = m_Playback.EvaluateNotifies(
+                        remaining,
+                        m_Name,
+                        m_Notifies,
+                        output,
+                        montage.ActiveDuration
+                    );
+
+                    if (!success) return false;
+                }
+            }
         }
 
-        SRootMotionDelta target;
-        if (!ExtractPlaybackRootMotion(m_Playback, dt, boneIndex, target, offset))
-            return false;
-
-        if (!IsTransitioning())
+        if (output.Events.size() - m_Notifies.GetPendingEnds().size() >
+            AnimationSequence::MaxNotifyEventsPerUpdate)
         {
-            output = target;
-            return true;
-        }
-
-        SRootMotionDelta source;
-        if (!ExtractPlaybackRootMotion(m_Transition.Playback, dt, boneIndex, source, offset))
-            return false;
-
-        const auto elapsed = std::min(m_Transition.Elapsed + offset, m_Transition.Duration);
-        const auto remaining = m_Transition.Duration - elapsed;
-        const auto fadeTime = std::min(dt, remaining);
-        const auto startWeight = elapsed / m_Transition.Duration;
-        const auto endWeight = (elapsed + fadeTime) / m_Transition.Duration;
-        const auto weight = 1.0f - fadeTime / dt * (1.0f - (startWeight + endWeight) * 0.5f);
-
-        const auto result = SRootMotionDelta::Blend(source, target, weight);
-        if (!result.IsValid())
-        {
-            EE_CORE_ERROR("Animation transition produced invalid root motion.")
+            EE_CORE_ERROR("Animation update exceeded the notify event capacity.")
             return false;
         }
 
-        output = result;
+        std::ranges::stable_sort(output.Events, [](const auto& first, const auto& second)
+        {
+            if (first.TimeOffset != second.TimeOffset)
+                return first.TimeOffset < second.TimeOffset;
+
+            const auto priority = [](const auto type)
+            {
+                return type == EAnimationNotifyEventType::Update
+                    ? 0
+                    : type == EAnimationNotifyEventType::End
+                        ? 1
+                        : 2;
+            };
+
+            return priority(first.Type) < priority(second.Type);
+        });
+
         return true;
     }
-
 }
