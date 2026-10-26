@@ -117,7 +117,10 @@ namespace Elixir
          * @param inputs Values in the order expected by the source.
          * @return True if the inputs are accepted; otherwise, preserve the previous values.
          */
-        bool SetInputs(std::span<const float> inputs);
+        bool SetInputs(const std::span<const float> inputs)
+        {
+            return GetBaseLayer().GetPlayer().SetSourceInputs(inputs);
+        }
 
         /**
          * @brief Set numeric source inputs without restarting playback.
@@ -198,16 +201,25 @@ namespace Elixir
         const SModelPose& GetModelPose() const { return m_Frame.ModelPose; }
 
         /** @brief Get target time in seconds using the current blend-space cycle duration. */
-        float GetTime() const;
+        float GetTime() const
+        {
+            return GetBaseLayer().GetPlayer().GetTime();
+        }
 
         /** @brief Get target cycle phase in [0, 1], or zero when no animation is assigned. */
-        float GetNormalizedTime() const;
+        float GetNormalizedTime() const
+        {
+            return GetBaseLayer().GetPlayer().GetNormalizedTime();
+        }
 
         /** @brief Check whether Update advances playback or a transition. */
         bool IsPlaying() const;
 
         /** @brief Check whether the base playback is transitioning. */
-        bool IsTransitioning() const { return GetBaseLayer().IsTransitioning(); }
+        bool IsTransitioning() const
+        {
+            return GetBaseLayer().GetPlayer().IsTransitioning();
+        }
 
         /**
          * @brief Get the fixed first layer with a full-body mask and weight one.
@@ -297,7 +309,7 @@ namespace Elixir
          * @param replacement Optional layer preview used before committing a playback change.
          */
         bool ComposePose(
-            std::span<const SAnimationLayerEvaluation> evaluations,
+            std::span<const SAnimationPlayerEvaluation> evaluations,
             SLocalPose& local,
             SModelPose& model,
             const AnimationLayer* replacement = nullptr

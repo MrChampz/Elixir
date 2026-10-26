@@ -332,11 +332,11 @@ TEST_F(RootMotionTest, FailedUpperLayerCompositionPreservesBaseClockAndPreviousM
         {.BoneIndex = 1, .Scales = {{0, {-1, 1, 1}}}},
     });
     auto& upper = *mesh.GetLayer("Upper");
-    ASSERT_TRUE(upper.SetLocalPose(Mesh->GetData().ReferencePose));
-    ASSERT_TRUE(upper.Play(MakeNode(mirror), 0.5f));
+    ASSERT_TRUE(upper.GetPlayer().SetLocalPose(Mesh->GetData().ReferencePose));
+    ASSERT_TRUE(upper.GetPlayer().Play(MakeNode(mirror), 0.5f));
     EXPECT_FALSE(mesh.Update(0.25f));
     EXPECT_FLOAT_EQ(mesh.GetTime(), 0.1f);
-    EXPECT_FLOAT_EQ(upper.GetTime(), 0);
+    EXPECT_FLOAT_EQ(upper.GetPlayer().GetTime(), 0);
     EXPECT_FLOAT_EQ(mesh.GetRootMotionDelta().Translation.x, 0.1f);
     ASSERT_TRUE(mesh.Update(0.1f));
     EXPECT_FLOAT_EQ(mesh.GetTime(), 0.2f);
@@ -376,7 +376,7 @@ TEST_F(RootMotionTest, AnimatedRootAncestorsRejectTheUpdateWithoutAdvancingClock
     ASSERT_TRUE(meshHandle);
     auto& mesh = *meshHandle;
     ASSERT_TRUE(mesh.SetRootMotionEnabled(true, "Child"));
-    ASSERT_TRUE(mesh.GetBaseLayer().Play(MakeNode(MakeClip(2))));
+    ASSERT_TRUE(mesh.GetBaseLayer().GetPlayer().Play(MakeNode(MakeClip(2))));
     EXPECT_FALSE(mesh.Update(0.25f));
     EXPECT_FLOAT_EQ(mesh.GetTime(), 0);
     ExpectNear(mesh.GetRootMotionDelta(), {});
@@ -436,10 +436,10 @@ TEST_F(RootMotionTest, OuterMontageExitPreservesInnerLayerMotionForTheRemainingF
             auto* layer = animation->GetLayer("Locomotion");
             ASSERT_TRUE(layer);
             if (useMontage)
-                ASSERT_TRUE(layer->PlayMontage(inner));
+                ASSERT_TRUE(layer->GetPlayer().PlayMontage(inner));
             else
-                ASSERT_TRUE(layer->Play(MakeNode(MakeClip(3)), 1.0f));
-            ASSERT_TRUE(animation->GetBaseLayer().PlayMontage(outer));
+                ASSERT_TRUE(layer->GetPlayer().Play(MakeNode(MakeClip(3)), 1.0f));
+            ASSERT_TRUE(animation->GetBaseLayer().GetPlayer().PlayMontage(outer));
         }
 
         ASSERT_TRUE(large->Update(0.4f));
@@ -509,33 +509,37 @@ TEST_F(RootMotionTest, LayerSubintervalClipsMontageAndKeepsTheContinuingPlayback
     });
     ASSERT_TRUE(montage);
     auto& layer = animation->GetBaseLayer();
-    ASSERT_TRUE(layer.PlayMontage(montage));
+    ASSERT_TRUE(layer.GetPlayer().PlayMontage(montage));
     const auto& reference = Mesh->GetData().ReferencePose.LocalTransforms[0];
     SRootMotionDelta output;
 
-    ASSERT_TRUE(layer.ExtractRootMotion({reference, 0, 0.5f, 0.125f}, output));
+    ASSERT_TRUE(layer.GetPlayer().ExtractRootMotion({reference, 0, 0.5f, 0.125f}, output));
     EXPECT_NEAR(output.Translation.x, 1.75f, 1e-5f);
-    ASSERT_TRUE(layer.ExtractRootMotion({reference, 0, 0.5f, 0.25f}, output));
+    ASSERT_TRUE(layer.GetPlayer().ExtractRootMotion({reference, 0, 0.5f, 0.25f}, output));
     EXPECT_NEAR(output.Translation.x, 1.5f, 1e-5f);
-    EXPECT_FLOAT_EQ(layer.GetTime(), 0);
-    EXPECT_DOUBLE_EQ(layer.GetMontageTime(), 0);
+    EXPECT_FLOAT_EQ(layer.GetPlayer().GetTime(), 0);
+    EXPECT_DOUBLE_EQ(layer.GetPlayer().GetMontageTime(), 0);
 
-    ASSERT_TRUE(layer.ExtractRootMotion({reference, 0, 0.25f, 0.75f}, output));
+    ASSERT_TRUE(layer.GetPlayer().ExtractRootMotion({reference, 0, 0.25f, 0.75f}, output));
     EXPECT_NEAR(output.Translation.x, 0.5f, 1e-5f);
-    ASSERT_TRUE(layer.ExtractRootMotion({reference, 0, 0, 0.25f}, output));
+    ASSERT_TRUE(layer.GetPlayer().ExtractRootMotion({reference, 0, 0, 0.25f}, output));
     ExpectNear(output, {});
 
-    SAnimationLayerEvaluation invalidEvaluation;
+    SAnimationPlayerEvaluation invalidEvaluation;
     invalidEvaluation.Montage.ActiveDuration = 0.25;
     invalidEvaluation.Montage.Intervals.push_back({{}, 0.25, 0.1});
     output.Translation.x = 7;
-    EXPECT_FALSE(layer.ExtractRootMotion({reference, 0, 0.25f}, output, invalidEvaluation));
+    EXPECT_FALSE(layer.GetPlayer().ExtractRootMotion(
+        {reference, 0, 0.25f},
+        output,
+        invalidEvaluation
+    ));
     EXPECT_FLOAT_EQ(output.Translation.x, 7);
-    EXPECT_FLOAT_EQ(layer.GetTime(), 0);
-    EXPECT_DOUBLE_EQ(layer.GetMontageTime(), 0);
+    EXPECT_FLOAT_EQ(layer.GetPlayer().GetTime(), 0);
+    EXPECT_DOUBLE_EQ(layer.GetPlayer().GetMontageTime(), 0);
 
-    layer.Pause();
-    ASSERT_TRUE(layer.ExtractRootMotion({reference, 0, 0.5f, 0.25f}, output));
+    layer.GetPlayer().Pause();
+    ASSERT_TRUE(layer.GetPlayer().ExtractRootMotion({reference, 0, 0.5f, 0.25f}, output));
     ExpectNear(output, {});
 }
 

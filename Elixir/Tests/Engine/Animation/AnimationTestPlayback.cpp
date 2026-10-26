@@ -6,7 +6,8 @@ bool PlayWithInputs(Elixir::AnimationTestCharacter& mesh,
     Elixir::Ref<const Elixir::AnimationNode> source, const std::span<const float> values,
     const float fadeDuration, const bool looping)
 {
-    return mesh.GetBaseLayer().Play(MakeNode(std::move(source)), values, fadeDuration, looping) &&
+    auto& player = mesh.GetBaseLayer().GetPlayer();
+    return player.Play(MakeNode(std::move(source)), values, fadeDuration, looping) &&
         mesh.GetAnimation().RefreshPose();
 }
 
@@ -22,6 +23,7 @@ bool PlayWithInputs(Elixir::Animation& animation,
     Elixir::Ref<const Elixir::AnimationNode> source,
     const std::initializer_list<float> values, const float fadeDuration, const bool looping)
 {
-    return animation.GetBaseLayer().Play(MakeNode(std::move(source)), values, fadeDuration, looping) &&
+    auto& player = animation.GetBaseLayer().GetPlayer();
+    return player.Play(MakeNode(std::move(source)), values, fadeDuration, looping) &&
         animation.RefreshPose();
 }

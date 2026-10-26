@@ -153,10 +153,10 @@ TEST_F(AnimationNotifyDurationTest, PauseRetainsWindowsAndResumeUsesTheSameActiv
     ASSERT_TRUE(instance.Update(1));
     EXPECT_TRUE(instance.GetNotifyEvents().empty());
     instance.Resume();
-    instance.GetBaseLayer().Pause();
+    instance.GetBaseLayer().GetPlayer().Pause();
     ASSERT_TRUE(instance.Update(1));
     EXPECT_TRUE(instance.GetNotifyEvents().empty());
-    instance.GetBaseLayer().Resume();
+    instance.GetBaseLayer().GetPlayer().Resume();
     ASSERT_TRUE(instance.Update(0.25f));
     ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
     EXPECT_EQ(instance.GetNotifyEvents()[0].Type, EType::Update);
@@ -205,7 +205,7 @@ TEST_F(AnimationNotifyDurationTest, MutingEndsAnActiveWindowAndUnmutingReentersA
     const auto mask = BoneMask::Create("All", Mesh->GetSkeleton(), {1, 1});
     ASSERT_TRUE(instance.AddLayer("Action", mask));
     auto* layer = instance.GetLayer("Action");
-    ASSERT_TRUE(layer->Play(MakeNode(Window(0, 1))));
+    ASSERT_TRUE(layer->GetPlayer().Play(MakeNode(Window(0, 1))));
     ASSERT_TRUE(instance.Update(0.25f));
     ASSERT_TRUE(layer->SetWeight(0));
     ASSERT_TRUE(instance.Update(0.25f));
@@ -225,10 +225,10 @@ TEST_F(AnimationNotifyDurationTest, MontageJumpEndsTheWindowWithoutEmittingSkipp
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
-    ASSERT_TRUE(layer.PlayMontage(Montage(clip,
+    ASSERT_TRUE(layer.GetPlayer().PlayMontage(Montage(clip,
         {{"Attack", 0}, {"Skip", 0.5f}, {"Recovery", 0.75f}})));
     ASSERT_TRUE(instance.Update(0.25f));
-    ASSERT_TRUE(layer.JumpToMontageSection("Recovery"));
+    ASSERT_TRUE(layer.GetPlayer().JumpToMontageSection("Recovery"));
     ASSERT_TRUE(instance.Update(0));
     ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
     EXPECT_EQ(instance.GetNotifyEvents()[0].GetName(), "Hit");
@@ -243,7 +243,7 @@ TEST_F(AnimationNotifyDurationTest, AdjacentSectionsRetainTheActivationAcrossThe
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
-    ASSERT_TRUE(layer.PlayMontage(Montage(Window(0, 1), {{"A", 0}, {"B", 0.5f}})));
+    ASSERT_TRUE(layer.GetPlayer().PlayMontage(Montage(Window(0, 1), {{"A", 0}, {"B", 0.5f}})));
     ASSERT_TRUE(instance.Update(0.75f));
     const auto events = instance.GetNotifyEvents();
     ASSERT_EQ(events.size(), 3);
@@ -261,7 +261,7 @@ TEST_F(AnimationNotifyDurationTest, AutomaticNonadjacentLinksEndThenBeginNewActi
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
-    ASSERT_TRUE(layer.PlayMontage(Montage(Window(0, 1),
+    ASSERT_TRUE(layer.GetPlayer().PlayMontage(Montage(Window(0, 1),
         {{"A", 0, "C"}, {"Skip", 0.25f}, {"C", 0.75f, ""}})));
     ASSERT_TRUE(instance.Update(0.375f));
     const auto events = instance.GetNotifyEvents();
@@ -278,7 +278,7 @@ TEST_F(AnimationNotifyDurationTest, MontageCompletionClosesWindowsThatExtendBeyo
     const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
-    ASSERT_TRUE(instance.GetBaseLayer().PlayMontage(Montage(Window(0, 1),
+    ASSERT_TRUE(instance.GetBaseLayer().GetPlayer().PlayMontage(Montage(Window(0, 1),
         {{"Attack", 0, ""}, {"Unused", 0.5f}})));
     ASSERT_TRUE(instance.Update(1));
     const auto events = instance.GetNotifyEvents();
@@ -295,9 +295,9 @@ TEST_F(AnimationNotifyDurationTest, ExplicitMontageExitCancelsImmediatelyAndDoes
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
-    ASSERT_TRUE(layer.PlayMontage(Montage(Window(0, 1))));
+    ASSERT_TRUE(layer.GetPlayer().PlayMontage(Montage(Window(0, 1))));
     ASSERT_TRUE(instance.Update(0.25f));
-    ASSERT_TRUE(layer.StopMontage(0.5f));
+    ASSERT_TRUE(layer.GetPlayer().StopMontage(0.5f));
     ASSERT_TRUE(instance.Update(0.1f));
     ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
     EXPECT_TRUE(instance.GetNotifyEvents()[0].Cancelled);
@@ -312,7 +312,7 @@ TEST_F(AnimationNotifyDurationTest, LayerRemovalRetainsTheEndAndTypedPayloadAfte
     auto& instance = *instanceHandle;
     const auto mask = BoneMask::Create("All", Mesh->GetSkeleton(), {1, 1});
     ASSERT_TRUE(instance.AddLayer("Action", mask));
-    ASSERT_TRUE(instance.GetLayer("Action")->Play(MakeNode(Window(0, 1))));
+    ASSERT_TRUE(instance.GetLayer("Action")->GetPlayer().Play(MakeNode(Window(0, 1))));
     ASSERT_TRUE(instance.Update(0.25f));
     ASSERT_TRUE(instance.RemoveLayer("Action"));
     instance.Pause();
@@ -409,7 +409,7 @@ TEST_F(AnimationNotifyDurationTest, FailedCompositionPreservesActiveIdentityAndP
         ASSERT_TRUE(instance.AddLayer(name, mask));
         auto* layer = instance.GetLayer(name);
         ASSERT_TRUE(layer->SetBlendMode(EAnimationLayerBlendMode::Additive));
-        ASSERT_TRUE(layer->SetLocalPose(pose));
+        ASSERT_TRUE(layer->GetPlayer().SetLocalPose(pose));
     }
     EXPECT_FALSE(instance.Update(0.25f));
     EXPECT_EQ(instance.GetNotifyEvents()[0].ActivationId, id);
@@ -502,7 +502,7 @@ TEST_F(AnimationNotifyDurationTest, ClearLayersTransfersEveryPendingEndAndDoesNo
     for (const auto* name : {"A", "B"})
     {
         ASSERT_TRUE(instance.AddLayer(name, mask));
-        ASSERT_TRUE(instance.GetLayer(name)->Play(MakeNode(Window(0, 1))));
+        ASSERT_TRUE(instance.GetLayer(name)->GetPlayer().Play(MakeNode(Window(0, 1))));
     }
     ASSERT_TRUE(instance.Update(0.25f));
     ASSERT_TRUE(instance.GetLayer("A")->SetWeight(0));
@@ -528,15 +528,15 @@ TEST_F(AnimationNotifyDurationTest, UnderlyingPlaybackChangesPreserveMontageWind
     auto& instance = *instanceHandle;
     ASSERT_TRUE(instance.Play(MakeNode(Sequence)));
     auto& layer = instance.GetBaseLayer();
-    ASSERT_TRUE(layer.PlayMontage(Montage(Window(0, 1))));
+    ASSERT_TRUE(layer.GetPlayer().PlayMontage(Montage(Window(0, 1))));
     ASSERT_TRUE(instance.Update(0.25f));
     const auto id = instance.GetNotifyEvents()[0].ActivationId;
-    ASSERT_TRUE(layer.Play(MakeNode(Sequence), 0.5f));
+    ASSERT_TRUE(layer.GetPlayer().Play(MakeNode(Sequence), 0.5f));
     ASSERT_TRUE(instance.Update(0.25f));
     ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
     EXPECT_EQ(instance.GetNotifyEvents()[0].Type, EType::Update);
     EXPECT_EQ(instance.GetNotifyEvents()[0].ActivationId, id);
-    ASSERT_TRUE(layer.StopMontage(0));
+    ASSERT_TRUE(layer.GetPlayer().StopMontage(0));
     ASSERT_TRUE(instance.Update(0));
     ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
     EXPECT_TRUE(instance.GetNotifyEvents()[0].Cancelled);
@@ -549,10 +549,10 @@ TEST_F(AnimationNotifyDurationTest, ReplacingAMontageClosesThenOpensAnotherActiv
     auto& instance = *instanceHandle;
     auto& layer = instance.GetBaseLayer();
     const auto action = Montage(Window(0, 1));
-    ASSERT_TRUE(layer.PlayMontage(action));
+    ASSERT_TRUE(layer.GetPlayer().PlayMontage(action));
     ASSERT_TRUE(instance.Update(0.25f));
     const auto id = instance.GetNotifyEvents()[0].ActivationId;
-    ASSERT_TRUE(layer.PlayMontage(action));
+    ASSERT_TRUE(layer.GetPlayer().PlayMontage(action));
     ASSERT_TRUE(instance.Update(0.25f));
     const auto events = instance.GetNotifyEvents();
     ASSERT_EQ(events.size(), 3);
@@ -612,7 +612,7 @@ TEST_F(AnimationNotifyDurationTest, SourceWindowsResumeAtTheirCurrentPhaseAfterA
     ASSERT_TRUE(instance.Play(MakeNode(Window(0, 1))));
     ASSERT_TRUE(instance.Update(0.25f));
     auto& layer = instance.GetBaseLayer();
-    ASSERT_TRUE(layer.PlayMontage(Montage(Sequence,
+    ASSERT_TRUE(layer.GetPlayer().PlayMontage(Montage(Sequence,
         {{"Action", 0, ""}, {"Unused", 0.25f}})));
     ASSERT_TRUE(instance.Update(0.5f));
     const auto events = instance.GetNotifyEvents();
@@ -662,7 +662,7 @@ TEST_F(AnimationNotifyDurationTest, InstantAndWindowEventsShareOneChronologicalB
     ASSERT_TRUE(instance.Update(1));
 
     const auto events = instance.GetNotifyEvents();
-    const auto layerEvents = instance.GetBaseLayer().GetNotifyEvents();
+    const auto layerEvents = instance.GetBaseLayer().GetPlayer().GetNotifyEvents();
     ASSERT_EQ(events.size(), 5);
     ASSERT_EQ(layerEvents.size(), events.size());
     EXPECT_EQ(events[0].Type, EType::Instant);

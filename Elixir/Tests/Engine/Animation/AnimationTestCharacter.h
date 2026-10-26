@@ -175,7 +175,7 @@ namespace Elixir
         bool IsPlaying() const;
 
         /** @brief Check whether the base playback is transitioning. */
-        bool IsTransitioning() const { return GetBaseLayer().IsTransitioning(); }
+        bool IsTransitioning() const { return GetBaseLayer().GetPlayer().IsTransitioning(); }
 
         /**
          * @brief Get the fixed first layer with a full-body mask and weight one.

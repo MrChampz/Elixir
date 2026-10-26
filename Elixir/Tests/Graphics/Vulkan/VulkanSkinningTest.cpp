@@ -104,7 +104,8 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
                 if (frame == 2)
                     ASSERT_TRUE(firstInstance.GetLayer("Action")->SetBlendMode(
                         EAnimationLayerBlendMode::Additive));
-                ASSERT_TRUE(firstInstance.GetLayer("Action")->Play(MakeNode(action)));
+                auto& player = firstInstance.GetLayer("Action")->GetPlayer();
+                ASSERT_TRUE(player.Play(MakeNode(action)));
                 const auto montage = AnimationMontage::Create({
                     .Name = "ActionMontage", .Sequence = action,
                     .BlendIn = 0.25f, .BlendOut = 0.25f,
@@ -112,12 +113,12 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
                         {"End", 0.75f, ""}}
                 });
                 ASSERT_TRUE(montage);
-                ASSERT_TRUE(firstInstance.GetLayer("Action")->PlayMontage(montage));
+                ASSERT_TRUE(player.PlayMontage(montage));
                 ASSERT_TRUE(firstInstance.Update(frame == 3 ? 0.375f : 0.125f));
-                EXPECT_NEAR(firstInstance.GetLayer("Action")->GetMontageWeight(), 0.5f, 1e-6f);
+                EXPECT_NEAR(player.GetMontageWeight(), 0.5f, 1e-6f);
                 EXPECT_EQ(firstInstance.GetNotifyEvents().size(), frame == 3 ? 5u : 2u);
                 if (frame == 3)
-                    EXPECT_EQ(firstInstance.GetLayer("Action")->GetCurrentMontageSection(), "End");
+                    EXPECT_EQ(player.GetCurrentMontageSection(), "End");
                 if (frame == 3)
                 {
                     EXPECT_EQ(firstInstance.GetLocalPose().LocalTransforms[0].Translation,

@@ -166,7 +166,7 @@ namespace Elixir
          * @brief Enable notification tracking in nested controls for the next evaluation.
          * @param enabled Whether the enclosing composition can publish source events.
          */
-        void SetNotifiesEnabled(bool enabled) const;
+        void SetNotifiesEnabled(bool enabled);
 
         /**
          * @brief Extract root movement over an interval of the current playback.

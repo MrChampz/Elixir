@@ -291,9 +291,11 @@ namespace Elixir
 
         if (const auto* layers = std::get_if<SAnimationLayerSources>(&state.Sources))
         {
-            return layers->Layers.empty()
-                ? SAnimationPlaybackInterval{}
-                : layers->Layers.front()->m_Playback.GetPlaybackInterval(dt, offset);
+            if (layers->Layers.empty())
+                return {};
+
+            const auto& player = layers->Layers.front()->GetPlayer();
+            return player.GetPlayback().GetPlaybackInterval(dt, offset);
         }
 
         const auto& sources = std::get<SSequenceSources>(state.Sources);
@@ -374,7 +376,7 @@ namespace Elixir
         return AnimationNodeQuery(GetEvaluationState()).GetLayerCount();
     }
 
-    void AnimationPlayback::SetNotifiesEnabled(const bool enabled) const
+    void AnimationPlayback::SetNotifiesEnabled(const bool enabled)
     {
         m_NotifiesEnabled = enabled;
     }

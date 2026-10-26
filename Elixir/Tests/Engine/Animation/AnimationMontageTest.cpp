@@ -68,17 +68,17 @@ TEST_F(AnimationMontageTest, SourceKeepsAdvancingAndReturnsWithoutRestarting)
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
     ASSERT_TRUE(instance.Play(MakeNode(Clip(1))));
-    auto& layer = instance.GetBaseLayer();
-    ASSERT_TRUE(layer.PlayMontage(Action()));
+    auto& player = instance.GetBaseLayer().GetPlayer();
+    ASSERT_TRUE(player.PlayMontage(Action()));
     ASSERT_TRUE(instance.Update(0.1f));
-    EXPECT_NEAR(layer.GetMontageWeight(), 0.5f, 1e-6f);
+    EXPECT_NEAR(player.GetMontageWeight(), 0.5f, 1e-6f);
     EXPECT_NEAR(instance.GetLocalPose().LocalTransforms[0].Translation.x, 5.15f, 1e-5f);
-    EXPECT_NEAR(layer.GetTime(), 0.1f, 1e-6f);
+    EXPECT_NEAR(player.GetTime(), 0.1f, 1e-6f);
     ASSERT_TRUE(instance.Update(0.8f));
     EXPECT_NEAR(instance.GetLocalPose().LocalTransforms[0].Translation.x, 6.35f, 1e-5f);
     ASSERT_TRUE(instance.Update(0.2f));
-    EXPECT_FALSE(layer.GetMontage());
-    EXPECT_NEAR(layer.GetTime(), 0.1f, 1e-5f);
+    EXPECT_FALSE(player.GetMontage());
+    EXPECT_NEAR(player.GetTime(), 0.1f, 1e-5f);
     EXPECT_NEAR(instance.GetLocalPose().LocalTransforms[0].Translation.x, 0.1f, 1e-5f);
 }
 
@@ -87,18 +87,18 @@ TEST_F(AnimationMontageTest, UnassignedAndCompletedLayersCanPlayActions)
     const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
-    auto& layer = instance.GetBaseLayer();
-    ASSERT_TRUE(layer.PlayMontage(Action(0, 0)));
+    auto& player = instance.GetBaseLayer().GetPlayer();
+    ASSERT_TRUE(player.PlayMontage(Action(0, 0)));
     EXPECT_TRUE(instance.IsPlaying());
     ASSERT_TRUE(instance.Update(0.5f));
     EXPECT_FLOAT_EQ(instance.GetLocalPose().LocalTransforms[0].Translation.x, 11);
     ASSERT_TRUE(instance.Update(0.5f));
-    EXPECT_FALSE(layer.GetMontage());
+    EXPECT_FALSE(player.GetMontage());
     EXPECT_FALSE(instance.IsPlaying());
     EXPECT_FLOAT_EQ(instance.GetLocalPose().LocalTransforms[0].Translation.x, 0);
     ASSERT_TRUE(instance.Play(MakeNode(Clip(1)), false));
     ASSERT_TRUE(instance.Update(1));
-    ASSERT_TRUE(layer.PlayMontage(Action()));
+    ASSERT_TRUE(player.PlayMontage(Action()));
     ASSERT_TRUE(instance.Update(0.5f));
     EXPECT_FLOAT_EQ(instance.GetLocalPose().LocalTransforms[0].Translation.x, 11);
     ASSERT_TRUE(instance.Update(1));
@@ -110,19 +110,19 @@ TEST_F(AnimationMontageTest, InstanceAndLayerPauseFreezeActionAndEvents)
     const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
-    auto& layer = instance.GetBaseLayer();
-    ASSERT_TRUE(layer.PlayMontage(Action()));
+    auto& player = instance.GetBaseLayer().GetPlayer();
+    ASSERT_TRUE(player.PlayMontage(Action()));
     instance.Pause();
     ASSERT_TRUE(instance.Update(0.5f));
-    EXPECT_DOUBLE_EQ(layer.GetMontageTime(), 0);
+    EXPECT_DOUBLE_EQ(player.GetMontageTime(), 0);
     instance.Resume();
     ASSERT_TRUE(instance.Update(0.25f));
-    layer.Pause();
+    player.Pause();
     ASSERT_TRUE(instance.Update(0.5f));
-    EXPECT_DOUBLE_EQ(layer.GetMontageTime(), 0.25);
-    layer.Resume();
+    EXPECT_DOUBLE_EQ(player.GetMontageTime(), 0.25);
+    player.Resume();
     ASSERT_TRUE(instance.Update(0.25f));
-    EXPECT_DOUBLE_EQ(layer.GetMontageTime(), 0.5);
+    EXPECT_DOUBLE_EQ(player.GetMontageTime(), 0.5);
     ASSERT_TRUE(instance.Update(0));
     EXPECT_TRUE(instance.GetNotifyEvents().empty());
 }
@@ -132,20 +132,20 @@ TEST_F(AnimationMontageTest, ReplacementStartsAtVisiblePoseAndObeysInterruptionP
     const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
-    auto& layer = instance.GetBaseLayer();
-    ASSERT_TRUE(layer.PlayMontage(Action(0, 0)));
+    auto& player = instance.GetBaseLayer().GetPlayer();
+    ASSERT_TRUE(player.PlayMontage(Action(0, 0)));
     ASSERT_TRUE(instance.Update(0.5f));
-    const auto previous = layer.GetLocalPose().LocalTransforms[0].Translation.x;
+    const auto previous = player.GetLocalPose().LocalTransforms[0].Translation.x;
     const auto replacement = Action(0.2f, 0.2f, false);
-    ASSERT_TRUE(layer.PlayMontage(replacement));
-    EXPECT_FLOAT_EQ(layer.GetLocalPose().LocalTransforms[0].Translation.x, previous);
+    ASSERT_TRUE(player.PlayMontage(replacement));
+    EXPECT_FLOAT_EQ(player.GetLocalPose().LocalTransforms[0].Translation.x, previous);
     ASSERT_TRUE(instance.Update(0));
     EXPECT_FLOAT_EQ(instance.GetLocalPose().LocalTransforms[0].Translation.x, previous);
-    EXPECT_FALSE(layer.PlayMontage(Action()));
-    EXPECT_FALSE(layer.StopMontage());
-    EXPECT_EQ(layer.GetMontage(), replacement);
+    EXPECT_FALSE(player.PlayMontage(Action()));
+    EXPECT_FALSE(player.StopMontage());
+    EXPECT_EQ(player.GetMontage(), replacement);
     ASSERT_TRUE(instance.Update(1));
-    EXPECT_FALSE(layer.GetMontage());
+    EXPECT_FALSE(player.GetMontage());
 }
 
 TEST_F(AnimationMontageTest, ExplicitExitStartsAtCurrentWeightAndDoesNotRestart)
@@ -153,21 +153,21 @@ TEST_F(AnimationMontageTest, ExplicitExitStartsAtCurrentWeightAndDoesNotRestart)
     const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
-    auto& layer = instance.GetBaseLayer();
-    ASSERT_TRUE(layer.PlayMontage(Action()));
+    auto& player = instance.GetBaseLayer().GetPlayer();
+    ASSERT_TRUE(player.PlayMontage(Action()));
     ASSERT_TRUE(instance.Update(0.1f));
-    ASSERT_TRUE(layer.StopMontage(0.2f));
-    EXPECT_NEAR(layer.GetMontageWeight(), 0.5f, 1e-6f);
+    ASSERT_TRUE(player.StopMontage(0.2f));
+    EXPECT_NEAR(player.GetMontageWeight(), 0.5f, 1e-6f);
     ASSERT_TRUE(instance.Update(0.1f));
-    EXPECT_NEAR(layer.GetMontageWeight(), 0.25f, 1e-6f);
-    ASSERT_TRUE(layer.StopMontage(1));
+    EXPECT_NEAR(player.GetMontageWeight(), 0.25f, 1e-6f);
+    ASSERT_TRUE(player.StopMontage(1));
     ASSERT_TRUE(instance.Update(0.11f));
-    EXPECT_FALSE(layer.GetMontage());
-    ASSERT_TRUE(layer.PlayMontage(Action()));
-    EXPECT_FALSE(layer.StopMontage(-1));
-    EXPECT_TRUE(layer.GetMontage());
-    ASSERT_TRUE(layer.StopMontage(0));
-    EXPECT_FALSE(layer.GetMontage());
+    EXPECT_FALSE(player.GetMontage());
+    ASSERT_TRUE(player.PlayMontage(Action()));
+    EXPECT_FALSE(player.StopMontage(-1));
+    EXPECT_TRUE(player.GetMontage());
+    ASSERT_TRUE(player.StopMontage(0));
+    EXPECT_FALSE(player.GetMontage());
 }
 
 TEST_F(AnimationMontageTest, EventsUseActionTimelineThenResumeSourceWithinTheSameFrame)
@@ -178,7 +178,7 @@ TEST_F(AnimationMontageTest, EventsUseActionTimelineThenResumeSourceWithinTheSam
     ASSERT_TRUE(instance.Play(MakeNode(Clip(1, 0, {{"Source", 0.2f}}))));
     auto action = AnimationMontage::Create({.Name = "Events", .Sequence =
         Clip(2, 0, {{"Start", 0}, {"Hit", 0.5f}, {"End", 1}})});
-    ASSERT_TRUE(instance.GetBaseLayer().PlayMontage(action));
+    ASSERT_TRUE(instance.GetBaseLayer().GetPlayer().PlayMontage(action));
     ASSERT_TRUE(instance.Update(1.3f));
     const auto events = instance.GetNotifyEvents();
     ASSERT_EQ(events.size(), 4);
@@ -203,13 +203,13 @@ TEST_F(AnimationMontageTest, MutedMaskedLayerStillCompletesWithoutEvents)
     auto* layer = instance.GetLayer("Action");
     const auto action = AnimationMontage::Create({.Name = "Muted", .Sequence =
         Clip(2, 0, {{"Hit", 0.5f}})});
-    ASSERT_TRUE(layer->PlayMontage(action));
+    ASSERT_TRUE(layer->GetPlayer().PlayMontage(action));
     ASSERT_TRUE(instance.Update(0.5f));
-    EXPECT_DOUBLE_EQ(layer->GetMontageTime(), 0.5);
+    EXPECT_DOUBLE_EQ(layer->GetPlayer().GetMontageTime(), 0.5);
     EXPECT_TRUE(instance.GetNotifyEvents().empty());
     EXPECT_FLOAT_EQ(instance.GetLocalPose().LocalTransforms[0].Translation.x, 0);
     ASSERT_TRUE(instance.Update(0.5f));
-    EXPECT_FALSE(layer->GetMontage());
+    EXPECT_FALSE(layer->GetPlayer().GetMontage());
 }
 
 TEST_F(AnimationMontageTest, FailedCompositionPreservesActionClockPoseAndPreviousEvents)
@@ -217,7 +217,7 @@ TEST_F(AnimationMontageTest, FailedCompositionPreservesActionClockPoseAndPreviou
     const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
-    ASSERT_TRUE(instance.GetBaseLayer().PlayMontage(Action()));
+    ASSERT_TRUE(instance.GetBaseLayer().GetPlayer().PlayMontage(Action()));
     ASSERT_TRUE(instance.Update(0.25f));
     const auto before = instance.GetLocalPose().LocalTransforms[0].Translation.x;
     const auto mask = BoneMask::Create("All", Mesh->GetSkeleton(), {1, 1});
@@ -226,13 +226,13 @@ TEST_F(AnimationMontageTest, FailedCompositionPreservesActionClockPoseAndPreviou
     ASSERT_TRUE(layer->SetBlendMode(EAnimationLayerBlendMode::Additive));
     auto pose = Mesh->GetData().ReferencePose;
     pose.LocalTransforms[0].Translation.x = std::numeric_limits<float>::max();
-    ASSERT_TRUE(layer->SetLocalPose(pose));
+    ASSERT_TRUE(layer->GetPlayer().SetLocalPose(pose));
     ASSERT_TRUE(instance.AddLayer("OverflowAgain", mask));
     layer = instance.GetLayer("OverflowAgain");
     ASSERT_TRUE(layer->SetBlendMode(EAnimationLayerBlendMode::Additive));
-    ASSERT_TRUE(layer->SetLocalPose(pose));
+    ASSERT_TRUE(layer->GetPlayer().SetLocalPose(pose));
     EXPECT_FALSE(instance.Update(0.25f));
-    EXPECT_DOUBLE_EQ(instance.GetBaseLayer().GetMontageTime(), 0.25);
+    EXPECT_DOUBLE_EQ(instance.GetBaseLayer().GetPlayer().GetMontageTime(), 0.25);
     EXPECT_FLOAT_EQ(instance.GetLocalPose().LocalTransforms[0].Translation.x, before);
 }
 
@@ -243,12 +243,12 @@ TEST_F(AnimationMontageTest, RootMotionBlendsVelocitiesAndHandlesExitWithinLarge
     auto& instance = *instanceHandle;
     ASSERT_TRUE(instance.Play(MakeNode(Clip(1))));
     ASSERT_TRUE(instance.SetRootMotionEnabled(true));
-    ASSERT_TRUE(instance.GetBaseLayer().PlayMontage(Action()));
+    ASSERT_TRUE(instance.GetBaseLayer().GetPlayer().PlayMontage(Action()));
     ASSERT_TRUE(instance.Update(1.5f));
-    EXPECT_FALSE(instance.GetBaseLayer().GetMontage());
+    EXPECT_FALSE(instance.GetBaseLayer().GetPlayer().GetMontage());
     EXPECT_NEAR(instance.GetRootMotionDelta().Translation.x, 2.3f, 1e-5f);
     EXPECT_FLOAT_EQ(instance.GetLocalPose().LocalTransforms[0].Translation.x, 0);
-    ASSERT_TRUE(instance.GetBaseLayer().PlayMontage(Action(0, 0)));
+    ASSERT_TRUE(instance.GetBaseLayer().GetPlayer().PlayMontage(Action(0, 0)));
     ASSERT_TRUE(instance.Update(0.5f));
     EXPECT_NEAR(instance.GetRootMotionDelta().Translation.x, 1, 1e-5f);
 }
@@ -269,14 +269,14 @@ TEST_F(AnimationMontageTest, ControllerChangesUnderlyingSourceWithoutOverwriting
     auto& instance = *instanceHandle;
     AnimationGraphTestDriver animation(controller, instance);
     ASSERT_TRUE(animation.Update(0));
-    auto& layer = instance.GetBaseLayer();
-    ASSERT_TRUE(layer.PlayMontage(Action(0, 0)));
+    auto& player = instance.GetBaseLayer().GetPlayer();
+    ASSERT_TRUE(player.PlayMontage(Action(0, 0)));
     ASSERT_TRUE(animation.SetBool("Switch", true));
     ASSERT_TRUE(animation.Update(0.5f));
     EXPECT_EQ(animation.GetCurrentState(), "B");
     EXPECT_FLOAT_EQ(instance.GetLocalPose().LocalTransforms[0].Translation.x, 11);
     ASSERT_TRUE(animation.Update(0.6f));
-    EXPECT_FALSE(layer.GetMontage());
+    EXPECT_FALSE(player.GetMontage());
     EXPECT_NEAR(instance.GetLocalPose().LocalTransforms[0].Translation.x, 0.3f, 1e-5f);
 }
 
@@ -289,17 +289,17 @@ TEST_F(AnimationMontageTest, SharedAssetHasIndependentClocksAndExplicitResetCanc
     ASSERT_TRUE(secondHandle);
     auto& second = *secondHandle;
     const auto action = Action();
-    ASSERT_TRUE(first.GetBaseLayer().PlayMontage(action));
-    ASSERT_TRUE(second.GetBaseLayer().PlayMontage(action));
+    ASSERT_TRUE(first.GetBaseLayer().GetPlayer().PlayMontage(action));
+    ASSERT_TRUE(second.GetBaseLayer().GetPlayer().PlayMontage(action));
     ASSERT_TRUE(first.Update(0.5f));
     ASSERT_TRUE(second.Update(0.25f));
-    EXPECT_DOUBLE_EQ(first.GetBaseLayer().GetMontageTime(), 0.5);
-    EXPECT_DOUBLE_EQ(second.GetBaseLayer().GetMontageTime(), 0.25);
+    EXPECT_DOUBLE_EQ(first.GetBaseLayer().GetPlayer().GetMontageTime(), 0.5);
+    EXPECT_DOUBLE_EQ(second.GetBaseLayer().GetPlayer().GetMontageTime(), 0.25);
     first.Stop();
-    EXPECT_FALSE(first.GetBaseLayer().GetMontage());
+    EXPECT_FALSE(first.GetBaseLayer().GetPlayer().GetMontage());
     ASSERT_TRUE(second.SetLocalPose(Mesh->GetData().ReferencePose));
-    EXPECT_FALSE(second.GetBaseLayer().GetMontage());
-    EXPECT_FALSE(second.GetBaseLayer().PlayMontage(nullptr));
+    EXPECT_FALSE(second.GetBaseLayer().GetPlayer().GetMontage());
+    EXPECT_FALSE(second.GetBaseLayer().GetPlayer().PlayMontage(nullptr));
 }
 
 TEST_F(AnimationMontageTest, UnassignedLayerEmitsTypedEventsOnceAndPauseDoesNotConsumeStart)
@@ -308,14 +308,14 @@ TEST_F(AnimationMontageTest, UnassignedLayerEmitsTypedEventsOnceAndPauseDoesNotC
     const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
-    auto& layer = instance.GetBaseLayer();
+    auto& player = instance.GetBaseLayer().GetPlayer();
     const auto action = AnimationMontage::Create({.Name = "Hit", .Sequence =
         Clip(1, 0, {{"Hit", 0, 0, SHit{}}})});
-    ASSERT_TRUE(layer.PlayMontage(action));
-    layer.Pause();
+    ASSERT_TRUE(player.PlayMontage(action));
+    player.Pause();
     ASSERT_TRUE(instance.Update(0.5f));
     EXPECT_TRUE(instance.GetNotifyEvents().empty());
-    layer.Resume();
+    player.Resume();
     ASSERT_TRUE(instance.Update(0));
     EXPECT_TRUE(instance.GetNotifyEvents().empty());
     ASSERT_TRUE(instance.Update(0.25f));
@@ -325,7 +325,7 @@ TEST_F(AnimationMontageTest, UnassignedLayerEmitsTypedEventsOnceAndPauseDoesNotC
     EXPECT_EQ(event.GetPayload<SHit>()->Damage, 7);
     ASSERT_TRUE(instance.Update(0.25f));
     EXPECT_TRUE(instance.GetNotifyEvents().empty());
-    ASSERT_TRUE(layer.StopMontage(0));
+    ASSERT_TRUE(player.StopMontage(0));
     EXPECT_EQ(event.GetPayload<SHit>()->Damage, 7);
 }
 
@@ -343,10 +343,10 @@ TEST_F(AnimationMontageTest, BlendSpaceCoordinatesContinueUpdatingUnderAction)
     auto& instance = *instanceHandle;
     AnimationGraphTestDriver animation(controller, instance);
     ASSERT_TRUE(animation.Update(0));
-    ASSERT_TRUE(instance.GetBaseLayer().PlayMontage(Action(0, 0)));
+    ASSERT_TRUE(instance.GetBaseLayer().GetPlayer().PlayMontage(Action(0, 0)));
     ASSERT_TRUE(animation.SetFloat("Speed", 1));
     ASSERT_TRUE(animation.Update(1.25f));
-    EXPECT_FALSE(instance.GetBaseLayer().GetMontage());
+    EXPECT_FALSE(instance.GetBaseLayer().GetPlayer().GetMontage());
     EXPECT_NEAR(instance.GetLocalPose().LocalTransforms[0].Translation.x, 0.75f, 1e-5f);
 }
 
@@ -359,7 +359,7 @@ TEST_F(AnimationMontageTest, MaskAndAdditiveModeApplyAfterMontagePoseComposition
     ASSERT_TRUE(instance.AddLayer("Additive", mask, 0.5f));
     auto* layer = instance.GetLayer("Additive");
     ASSERT_TRUE(layer->SetBlendMode(EAnimationLayerBlendMode::Additive));
-    ASSERT_TRUE(layer->PlayMontage(Action(0, 0)));
+    ASSERT_TRUE(layer->GetPlayer().PlayMontage(Action(0, 0)));
     ASSERT_TRUE(instance.Update(0.5f));
     EXPECT_FLOAT_EQ(instance.GetLocalPose().LocalTransforms[0].Translation.x, 2.75f);
     EXPECT_EQ(instance.GetLocalPose().LocalTransforms[1].Translation, Mesh->GetData().ReferencePose.LocalTransforms[1].Translation);
@@ -377,9 +377,9 @@ TEST_F(AnimationMontageTest, CombinedActionAndResumedEventsRespectCapacityTransa
     ASSERT_TRUE(instanceHandle);
     auto& instance = *instanceHandle;
     ASSERT_TRUE(instance.Play(MakeNode(Clip(1, 0, {{"Source", 0.2f}}))));
-    ASSERT_TRUE(instance.GetBaseLayer().PlayMontage(action));
+    ASSERT_TRUE(instance.GetBaseLayer().GetPlayer().PlayMontage(action));
     EXPECT_FALSE(instance.Update(1.5f));
-    EXPECT_DOUBLE_EQ(instance.GetBaseLayer().GetMontageTime(), 0);
+    EXPECT_DOUBLE_EQ(instance.GetBaseLayer().GetPlayer().GetMontageTime(), 0);
     EXPECT_FLOAT_EQ(instance.GetTime(), 0);
     EXPECT_TRUE(instance.GetNotifyEvents().empty());
     ASSERT_TRUE(instance.Update(0.6f));

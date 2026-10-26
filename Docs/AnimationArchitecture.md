@@ -16,6 +16,9 @@ Implementação em `feature/skinned-animations`, sobre `22c13eee`.
 | `SequenceNode`, `BlendSpaceNode`, `StateMachineNode` | Referências aos recursos usados pelo grafo. |
 | `AnimationGraph` | Parâmetros e conexão explícita com o nó de saída. |
 | `Animation` | Artefato de execução com parâmetros, controles, clocks e frame publicado. |
+| `AnimationLayer` | Nome, máscara, peso, modo de blend e referência aditiva da composição. |
+| `AnimationPlayer` | Reprodução, transições, montage, notifies e avaliação de uma fonte. |
+| `AnimationPlayback` | Fonte avaliada, entradas e posição de reprodução normalizada. |
 | `SkeletalMeshInstance` | Mesh fixa e matrizes de referência para renderização sem animação. |
 
 SequenceNode, BlendSpaceNode, StateMachineNode e BlendNode implementam `AnimationNode`.
@@ -141,12 +144,23 @@ Notifies de todos os inputs ativos são agregados. Silenciamento cancela as ativ
 retomada cria novas identidades. Uma saída de montage no meio do frame retoma as notificações
 do grafo somente no intervalo restante, preservando offsets e duração dos Updates.
 
+Cada `AnimationLayer` possui um `AnimationPlayer`. Operações de reprodução são acessadas por
+`layer.GetPlayer().Play(source)`, enquanto `layer.SetWeight(weight)` e as demais configurações
+de composição permanecem na camada. O player também pode ser criado sem uma camada, com nome,
+skeleton e pose de referência próprios.
+
+`AnimationPlayer::Evaluate` produz um `SAnimationPlayerEvaluation` com pose, eventos e clocks
+candidatos. `Animation` e `BlendNodeEvaluator` compõem esses resultados antes de chamar
+`AnimationPlayer::Apply`. Uma falha na composição descarta os candidatos e preserva o frame
+publicado. Máscaras sem influência e peso zero silenciam o player, mas mantêm seus clocks
+avançando. O player recebe essa política sem conhecer máscaras ou modos de blend.
+
 `AnimationTransition`, `AnimationMontagePlayback` e `AnimationNotifyTracker` possuem os estados
 de seus respectivos conceitos. `SLocalPose` concentra validação e blending local; `SModelPose` valida matrizes acumuladas.
 `RootMotion` contém as operações de movimento.
 Os contextos de root motion validam referência, fase, duração e intervalos de montage.
-A extração de uma composição consulta a camada base por sua API de movimento, preservando
-transições e montages também quando o intervalo começa no meio do frame. Os intervalos
+A extração de uma composição consulta o player da camada base por sua API de movimento,
+preservando transições e montages também quando o intervalo começa no meio do frame. Os intervalos
 avaliados da montage são recortados ao trecho solicitado, e o tempo após sua saída continua
 pela fonte da camada, com o offset original.
 
@@ -184,3 +198,7 @@ Validação desta revisão: build de Dissolve e Elixir.UnitTests aprovado, 694 t
 26 testes Vulkan aprovados. No Dissolve foram conferidos ataque, janela de hitbox, recovery
 e retorno à animação contínua, com mesh e pose submetidas separadamente. O log da execução
 não registrou erros ou falhas de validação Vulkan.
+
+Na extração de `AnimationPlayer`, Dissolve e Elixir.UnitTests compilaram no macOS arm64.
+Passaram 700 testes de CPU e 26 testes Vulkan. Os novos testes exercitam avaliação sem
+camada, publicação conjunta de pose, clocks e eventos, e cópias com reprodução independente.

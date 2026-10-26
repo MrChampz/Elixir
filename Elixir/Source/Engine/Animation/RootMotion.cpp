@@ -216,12 +216,12 @@ namespace Elixir
             const auto& base = *layers.Layers.front();
 
             if (!layers.Prepared)
-                return base.ExtractRootMotion(context.Interval, output);
+                return base.GetPlayer().ExtractRootMotion(context.Interval, output);
 
             if (layers.Evaluations.size() != layers.Layers.size())
                 return false;
 
-            return base.ExtractRootMotion(
+            return base.GetPlayer().ExtractRootMotion(
                 context.Interval,
                 output,
                 layers.Evaluations.front()

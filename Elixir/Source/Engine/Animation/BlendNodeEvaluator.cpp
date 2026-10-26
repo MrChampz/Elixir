@@ -47,7 +47,7 @@ namespace Elixir
         if (!m_NotifiesEnabled)
         {
             for (const auto& layer : m_Layers)
-                layer->m_Playback.SetNotifiesEnabled(false);
+                layer->GetPlayer().GetPlayback().SetNotifiesEnabled(false);
         }
 
         output.Phase = context.Advance
@@ -81,10 +81,10 @@ namespace Elixir
             {
                 m_Evaluations[i].Notifies.Active.clear();
                 m_Evaluations[i].Notifies.Events.clear();
-                m_Layers[i]->m_Playback.SetNotifiesEnabled(false);
+                m_Layers[i]->GetPlayer().GetPlayback().SetNotifiesEnabled(false);
             }
 
-            m_Layers[i]->Apply(std::move(m_Evaluations[i]));
+            m_Layers[i]->GetPlayer().Apply(std::move(m_Evaluations[i]));
         }
 
         m_Prepared = false;
@@ -93,8 +93,11 @@ namespace Elixir
     bool BlendNodeEvaluator::Reset(const double phase)
     {
         for (const auto& layer : m_Layers)
-            if (!layer->Seek(float(phase * layer->m_Playback.GetDuration())))
+        {
+            auto& player = layer->GetPlayer();
+            if (!player.Seek(float(phase * player.GetPlayback().GetDuration())))
                 return false;
+        }
 
         m_Prepared = false;
         return true;
@@ -104,14 +107,14 @@ namespace Elixir
     {
         const auto nonePlaying = std::ranges::none_of(
             m_Layers,
-            [](const auto& layer) { return layer->IsPlaying(); }
+            [](const auto& layer) { return layer->GetPlayer().IsPlaying(); }
         );
         const auto finished = !m_Layers.empty() && nonePlaying;
 
         return {
             .Duration = m_Layers.empty()
                 ? 0
-                : m_Layers.front()->m_Playback.GetDuration(),
+                : m_Layers.front()->GetPlayer().GetPlayback().GetDuration(),
             .Continuous = true,
             .Finished = finished,
             .Sources = SAnimationLayerSources{
@@ -122,7 +125,7 @@ namespace Elixir
             },
             .PrimaryPlayback = m_Layers.empty()
                 ? nullptr
-                : &m_Layers.front()->m_Playback
+                : &m_Layers.front()->GetPlayer().GetPlayback()
         };
     }
 
@@ -143,8 +146,11 @@ namespace Elixir
         m_Evaluations.resize(m_Layers.size());
 
         for (size_t i = 0; i < m_Layers.size(); ++i)
-            if (!m_Layers[i]->Evaluate(dt, m_Evaluations[i], false, m_NotifiesEnabled))
+        {
+            auto& player = m_Layers[i]->GetPlayer();
+            if (!player.Evaluate(dt, m_Evaluations[i], false, m_NotifiesEnabled))
                 return std::numeric_limits<double>::quiet_NaN();
+        }
 
         if (!Compose(m_Pose, true))
             return std::numeric_limits<double>::quiet_NaN();
@@ -206,8 +212,8 @@ namespace Elixir
 
             if (!layer->SetBlendMode(input.BlendMode) ||
                 !layer->SetAdditiveReferencePose(input.AdditiveReferencePose) ||
-                !layer->BindParameters(m_Parameters, input.InputParameters) ||
-                !layer->Play(input.Node, 0.0f, input.Looping))
+                !layer->GetPlayer().BindParameters(m_Parameters, input.InputParameters) ||
+                !layer->GetPlayer().Play(input.Node, 0.0f, input.Looping))
                 return false;
 
             layers.push_back(std::move(layer));
@@ -223,13 +229,13 @@ namespace Elixir
 
         output = prepared
             ? m_Evaluations.front().LocalPose
-            : m_Layers.front()->GetLocalPose();
+            : m_Layers.front()->GetPlayer().GetLocalPose();
 
         for (size_t i = 1; i < m_Layers.size(); ++i)
         {
             const auto& pose = prepared
                 ? m_Evaluations[i].LocalPose
-                : m_Layers[i]->GetLocalPose();
+                : m_Layers[i]->GetPlayer().GetLocalPose();
 
             if (!m_Layers[i]->BlendPose(output, pose))
                 return false;

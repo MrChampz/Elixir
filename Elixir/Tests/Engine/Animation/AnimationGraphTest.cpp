@@ -618,7 +618,7 @@ TEST_F(AnimationGraphTest, OneGraphDrivesIndependentMachinesAndAdvancesEveryLaye
     EXPECT_EQ(instance.GetCurrentState("UpperBody"), "Attack");
     EXPECT_TRUE(instance.GetCurrentState("Missing").empty());
     EXPECT_FLOAT_EQ(mesh.GetTime(), 0.5f);
-    EXPECT_FLOAT_EQ(mesh.GetLayer("UpperBody")->GetTime(), 0.5f);
+    EXPECT_FLOAT_EQ(mesh.GetLayer("UpperBody")->GetPlayer().GetTime(), 0.5f);
     EXPECT_FLOAT_EQ(mesh.GetLocalPose().LocalTransforms[0].Translation.x, 2);
     EXPECT_FLOAT_EQ(mesh.GetLocalPose().LocalTransforms[1].Translation.y, 3);
     ASSERT_TRUE(instance.SetBool("Attack", false));
@@ -663,7 +663,7 @@ TEST_F(AnimationGraphTest, SharedParametersDriveAllMachinesAndResetRestartsThemT
     EXPECT_EQ(instance.GetCurrentState(), "Idle");
     EXPECT_EQ(instance.GetCurrentState("UpperBody"), "Idle");
     EXPECT_FLOAT_EQ(mesh.GetTime(), 0.1f);
-    EXPECT_FLOAT_EQ(mesh.GetLayer("UpperBody")->GetTime(), 0.1f);
+    EXPECT_FLOAT_EQ(mesh.GetLayer("UpperBody")->GetPlayer().GetTime(), 0.1f);
     EXPECT_FLOAT_EQ(mesh.GetLayer("UpperBody")->GetWeight(), 0.5f);
     EXPECT_FLOAT_EQ(other.GetTime(), 0.25f);
 }
@@ -697,8 +697,8 @@ TEST_F(AnimationGraphTest, GraphConfiguresOrderedOverrideAndAdditiveLayersWithOw
     EXPECT_EQ(mesh.GetLayerCount(), 3);
     EXPECT_EQ(mesh.GetLayer("Recoil")->GetBlendMode(), EAnimationLayerBlendMode::Additive);
     EXPECT_FLOAT_EQ(mesh.GetLocalPose().LocalTransforms[1].Translation.y, 3.5f);
-    EXPECT_FLOAT_EQ(mesh.GetLayer("Action")->GetTime(), 0.5f);
-    EXPECT_FLOAT_EQ(mesh.GetLayer("Recoil")->GetTime(), 0.5f);
+    EXPECT_FLOAT_EQ(mesh.GetLayer("Action")->GetPlayer().GetTime(), 0.5f);
+    EXPECT_FLOAT_EQ(mesh.GetLayer("Recoil")->GetPlayer().GetTime(), 0.5f);
     ASSERT_EQ(mesh.GetNotifyEvents().size(), 2);
     EXPECT_EQ(mesh.GetNotifyEvents()[0].LayerName, "Action");
     EXPECT_EQ(mesh.GetNotifyEvents()[1].LayerName, "Recoil");
@@ -741,13 +741,13 @@ TEST_F(AnimationGraphTest, CreatingAnAnimationDoesNotReplaceExistingMeshPlayback
     ASSERT_TRUE(mesh);
     const auto mask = BoneMask::FromBone("Child", Mesh->GetSkeleton(), "Child");
     ASSERT_TRUE(mesh->AddLayer("Existing", mask));
-    ASSERT_TRUE(mesh->GetLayer("Existing")->Play(MakeNode(Walk)));
+    ASSERT_TRUE(mesh->GetLayer("Existing")->GetPlayer().Play(MakeNode(Walk)));
     ASSERT_TRUE(mesh->Update(0.25f));
 
     auto animation = controller->CreateAnimation(Mesh->GetData().ReferencePose);
     ASSERT_TRUE(animation);
     EXPECT_EQ(mesh->GetLayerCount(), 2);
-    EXPECT_FLOAT_EQ(mesh->GetLayer("Existing")->GetTime(), 0.25f);
+    EXPECT_FLOAT_EQ(mesh->GetLayer("Existing")->GetPlayer().GetTime(), 0.25f);
     EXPECT_EQ(animation->GetLayerCount(), 1);
     EXPECT_EQ(animation->GetCurrentState(), "Idle");
     EXPECT_TRUE(mesh->ReplaceAnimation(std::move(animation)));
@@ -825,22 +825,22 @@ TEST_F(AnimationGraphTest, GlobalPauseAndIndividualLayerPauseKeepIndependentCloc
     AnimationGraphTestDriver instance(CreateTestGraph(info), mesh);
     ASSERT_TRUE(instance.Update(0.25f));
     auto& action = *mesh.GetLayer("Action");
-    action.Pause();
+    action.GetPlayer().Pause();
     ASSERT_TRUE(instance.Update(0.25f));
     EXPECT_FLOAT_EQ(mesh.GetTime(), 0.5f);
-    EXPECT_FLOAT_EQ(action.GetTime(), 0.25f);
+    EXPECT_FLOAT_EQ(action.GetPlayer().GetTime(), 0.25f);
     mesh.Pause();
     ASSERT_TRUE(instance.Update(1));
     EXPECT_FLOAT_EQ(mesh.GetTime(), 0.5f);
-    EXPECT_FLOAT_EQ(action.GetTime(), 0.25f);
+    EXPECT_FLOAT_EQ(action.GetPlayer().GetTime(), 0.25f);
     mesh.Resume();
     ASSERT_TRUE(instance.Update(0.25f));
     EXPECT_FLOAT_EQ(mesh.GetTime(), 0.75f);
-    EXPECT_FLOAT_EQ(action.GetTime(), 0.25f);
-    action.Resume();
+    EXPECT_FLOAT_EQ(action.GetPlayer().GetTime(), 0.25f);
+    action.GetPlayer().Resume();
     ASSERT_TRUE(instance.Update(0.25f));
     EXPECT_FLOAT_EQ(mesh.GetTime(), 1);
-    EXPECT_FLOAT_EQ(action.GetTime(), 0.5f);
+    EXPECT_FLOAT_EQ(action.GetPlayer().GetTime(), 0.5f);
 }
 
 TEST_F(AnimationGraphTest, FailedCompositionKeepsEveryLayerClockAndLastValidPose)
@@ -869,11 +869,11 @@ TEST_F(AnimationGraphTest, FailedCompositionKeepsEveryLayerClockAndLastValidPose
     EXPECT_FALSE(instance.Update(0.5f));
     EXPECT_EQ(instance.GetCurrentState("Action"), "Idle");
     EXPECT_FLOAT_EQ(mesh.GetTime(), 0.25f);
-    EXPECT_FLOAT_EQ(mesh.GetLayer("Action")->GetTime(), 0.25f);
+    EXPECT_FLOAT_EQ(mesh.GetLayer("Action")->GetPlayer().GetTime(), 0.25f);
     EXPECT_FLOAT_EQ(mesh.GetLocalPose().LocalTransforms[1].Scale.x, 1);
     ASSERT_TRUE(instance.Update(0.25f));
     EXPECT_FLOAT_EQ(mesh.GetTime(), 0.5f);
-    EXPECT_FLOAT_EQ(mesh.GetLayer("Action")->GetTime(), 0.25f);
+    EXPECT_FLOAT_EQ(mesh.GetLayer("Action")->GetPlayer().GetTime(), 0.25f);
     EXPECT_FLOAT_EQ(mesh.GetLocalPose().LocalTransforms[1].Scale.x, 0.5f);
 }
 
@@ -980,8 +980,8 @@ TEST_F(AnimationGraphTest, DirectAndMachineSourcesShareParametersAndComposeInLay
     EXPECT_EQ(instance.GetCurrentState("Action"), "Attack");
     EXPECT_TRUE(instance.GetCurrentState("Recoil").empty());
     EXPECT_FLOAT_EQ(mesh.GetTime(), 0.5f);
-    EXPECT_FLOAT_EQ(mesh.GetLayer("Action")->GetTime(), 0.5f);
-    EXPECT_FLOAT_EQ(mesh.GetLayer("Recoil")->GetTime(), 0.5f);
+    EXPECT_FLOAT_EQ(mesh.GetLayer("Action")->GetPlayer().GetTime(), 0.5f);
+    EXPECT_FLOAT_EQ(mesh.GetLayer("Recoil")->GetPlayer().GetTime(), 0.5f);
     EXPECT_FLOAT_EQ(mesh.GetLocalPose().LocalTransforms[0].Translation.x, 4);
     EXPECT_FLOAT_EQ(mesh.GetLocalPose().LocalTransforms[1].Translation.y, 4);
     ASSERT_EQ(mesh.GetNotifyEvents().size(), 1);

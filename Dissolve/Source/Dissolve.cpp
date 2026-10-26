@@ -747,35 +747,37 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
     if (!upperBody || !comparisonAction || !recoil)
         return;
     const auto action = m_ActionRequest.exchange(0, std::memory_order_relaxed);
-    if (action == 1 && upperBody->GetMontage())
+    if (action == 1 && upperBody->GetPlayer().GetMontage())
     {
-        if (!upperBody->JumpToMontageSection("Recovery") ||
-            !comparisonAction->JumpToMontageSection("Recovery"))
+        if (!upperBody->GetPlayer().JumpToMontageSection("Recovery") ||
+            !comparisonAction->GetPlayer().JumpToMontageSection("Recovery"))
             return;
     }
     else if (action == 2)
     {
-        if (!upperBody->GetMontage())
+        if (!upperBody->GetPlayer().GetMontage())
         {
-            if (!upperBody->PlayMontage(m_PunchMontage) ||
-                !comparisonAction->PlayMontage(m_PunchMontage))
+            if (!upperBody->GetPlayer().PlayMontage(m_PunchMontage) ||
+                !comparisonAction->GetPlayer().PlayMontage(m_PunchMontage))
                 return;
         }
         else
         {
-            const auto section = upperBody->GetCurrentMontageSection();
+            const auto section = upperBody->GetPlayer().GetCurrentMontageSection();
             const auto next = section == "Attack1" ? "Attack2"
                 : section == "Attack2" ? "Attack3" : "";
-            if (*next && (!upperBody->SetNextMontageSection(section, next) ||
-                !comparisonAction->SetNextMontageSection(section, next)))
+            if (*next && (!upperBody->GetPlayer().SetNextMontageSection(section, next) ||
+                !comparisonAction->GetPlayer().SetNextMontageSection(section, next)))
                 return;
         }
     }
     const auto dodge = m_DodgeRequested.exchange(false, std::memory_order_relaxed);
-    if (dodge && (!m_Animation->GetLayer("Locomotion")->PlayMontage(m_DodgeMontage) ||
-        !m_ComparisonAnimation->GetLayer("Locomotion")->PlayMontage(m_DodgeMontage)))
+    auto& locomotion = m_Animation->GetLayer("Locomotion")->GetPlayer();
+    auto& comparisonLocomotion = m_ComparisonAnimation->GetLayer("Locomotion")->GetPlayer();
+    if (dodge && (!locomotion.PlayMontage(m_DodgeMontage) ||
+        !comparisonLocomotion.PlayMontage(m_DodgeMontage)))
         return;
-    const auto dodgeActive = bool(m_Animation->GetLayer("Locomotion")->GetMontage());
+    const auto dodgeActive = bool(locomotion.GetMontage());
     const auto layerWeight = m_LayerWeight.load(std::memory_order_relaxed);
     const auto targetWeight = !dodgeActive && m_LayerEnabled.load(std::memory_order_relaxed)
         ? 1.0f : 0.0f;
@@ -802,7 +804,7 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
     m_RootMotionDistance.store(glm::length(glm::vec3(m_CharacterMotion[3])),
         std::memory_order_relaxed);
 
-    const auto section = upperBody->GetCurrentMontageSection();
+    const auto section = upperBody->GetPlayer().GetCurrentMontageSection();
     const auto sectionIndex = section == "Attack1" ? 1 : section == "Attack2" ? 2
         : section == "Attack3" ? 3 : section == "Recovery" ? 4 : 0;
     m_ComboSection.store(sectionIndex, std::memory_order_relaxed);

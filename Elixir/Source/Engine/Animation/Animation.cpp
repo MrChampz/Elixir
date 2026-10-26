@@ -36,7 +36,7 @@ namespace Elixir
     )
     {
         auto* layer = GetLayer(layerName);
-        return layer && layer->BindParameters(m_Parameters, bindings);
+        return layer && layer->GetPlayer().BindParameters(m_Parameters, bindings);
     }
 
     bool Animation::RefreshPose()
@@ -66,7 +66,7 @@ namespace Elixir
     )
     {
         auto candidate = GetBaseLayer();
-        if (!candidate.Play(std::move(source), fadeDuration, looping) ||
+        if (!candidate.GetPlayer().Play(std::move(source), fadeDuration, looping) ||
             !ApplyBaseLayer(candidate))
             return false;
 
@@ -77,14 +77,14 @@ namespace Elixir
 
     void Animation::Stop()
     {
-        GetBaseLayer().Stop();
+        GetBaseLayer().GetPlayer().Stop();
         ClearLayers();
         m_Frame.NotifyEvents.clear();
         m_Frame.RootMotion = {};
 
         m_Paused = false;
 
-        m_Frame.LocalPose = GetBaseLayer().GetLocalPose();
+        m_Frame.LocalPose = GetBaseLayer().GetPlayer().GetLocalPose();
         m_Frame.ModelPose.Matrices.clear();
 
         if (m_Skeleton)
@@ -94,7 +94,7 @@ namespace Elixir
     bool Animation::Seek(const float time)
     {
         auto candidate = GetBaseLayer();
-        return candidate.Seek(time) && ApplyBaseLayer(candidate);
+        return candidate.GetPlayer().Seek(time) && ApplyBaseLayer(candidate);
     }
 
     bool Animation::Update(const float dt)
@@ -114,20 +114,20 @@ namespace Elixir
         }
 
         const auto advance = m_Paused ? 0.0f : dt;
-        std::vector<SAnimationLayerEvaluation> evaluations(m_Layers.size());
+        std::vector<SAnimationPlayerEvaluation> evaluations(m_Layers.size());
 
         auto events = m_PendingNotifyEnds;
         size_t generatedEvents = 0;
 
         for (size_t i = 0; i < m_Layers.size(); ++i)
         {
-            if (!m_Layers[i]->Evaluate(advance, evaluations[i], m_Paused))
+            if (!m_Layers[i]->GetPlayer().Evaluate(advance, evaluations[i], m_Paused))
                 return false;
 
             const auto& layerEvents = evaluations[i].Notifies.Events;
 
             const auto authoredEvents = layerEvents.size() -
-                m_Layers[i]->m_Notifies.GetPendingEnds().size();
+                m_Layers[i]->GetPlayer().GetPendingNotifyEnds().size();
 
             const auto maxEvents = Sequence::MaxNotifyEventsPerUpdate - generatedEvents;
 
@@ -150,7 +150,7 @@ namespace Elixir
                 .DeltaSeconds = advance,
             };
 
-            const auto success = GetBaseLayer().ExtractRootMotion(
+            const auto success = GetBaseLayer().GetPlayer().ExtractRootMotion(
                 interval,
                 movement,
                 evaluations.front()
@@ -186,18 +186,12 @@ namespace Elixir
         };
 
         for (size_t i = 0; i < m_Layers.size(); ++i)
-            m_Layers[i]->Apply(std::move(evaluations[i]));
+            m_Layers[i]->GetPlayer().Apply(std::move(evaluations[i]));
 
         m_Frame = std::move(frame);
         m_PendingNotifyEnds.clear();
 
         return true;
-    }
-
-
-    bool Animation::SetInputs(const std::span<const float> inputs)
-    {
-        return GetBaseLayer().SetSourceInputs(inputs);
     }
 
     bool Animation::SetRootMotionEnabled(
@@ -284,11 +278,11 @@ namespace Elixir
 
     bool Animation::SetParameters(std::vector<SAnimationParameter> definitions)
     {
-        if (GetLayerCount() != 1 || GetBaseLayer().HasPose())
+        if (GetLayerCount() != 1 || GetBaseLayer().GetPlayer().HasPose())
             return false;
 
         auto parameters = CreateRef<AnimationParameters>(std::move(definitions));
-        if (!parameters->IsValid() || !GetBaseLayer().BindParameters(parameters))
+        if (!parameters->IsValid() || !GetBaseLayer().GetPlayer().BindParameters(parameters))
             return false;
 
         m_Parameters = std::move(parameters);
@@ -299,14 +293,14 @@ namespace Elixir
     {
         const auto* layer = GetLayer(layerName);
         return layer
-            ? layer->GetCurrentState()
+            ? layer->GetPlayer().GetCurrentState()
             : std::string_view{};
     }
 
     bool Animation::SetLocalPose(const SLocalPose& pose)
     {
         auto candidate = GetBaseLayer();
-        if (!m_Skeleton || !candidate.SetLocalPose(pose))
+        if (!m_Skeleton || !candidate.GetPlayer().SetLocalPose(pose))
             return false;
 
         SLocalPose local = pose;
@@ -330,21 +324,11 @@ namespace Elixir
         return true;
     }
 
-    float Animation::GetTime() const
-    {
-        return GetBaseLayer().GetTime();
-    }
-
-    float Animation::GetNormalizedTime() const
-    {
-        return GetBaseLayer().GetNormalizedTime();
-    }
-
     bool Animation::IsPlaying() const
     {
         const auto someLayerPlaying = std::ranges::any_of(
             m_Layers,
-            [](const auto& layer) { return layer->IsPlaying(); }
+            [](const auto& layer) { return layer->GetPlayer().IsPlaying(); }
         );
         return !m_Paused && someLayerPlaying;
     }
@@ -376,7 +360,7 @@ namespace Elixir
             m_ReferencePose
         ));
 
-        if (!layer->BindParameters(m_Parameters))
+        if (!layer->GetPlayer().BindParameters(m_Parameters))
             return false;
 
         m_Layers.push_back(std::move(layer));
@@ -390,7 +374,7 @@ namespace Elixir
                 return layer.get();
 
         for (const auto& layer : m_Layers)
-            if (auto* nested = layer->m_Playback.GetLayer(name))
+            if (auto* nested = layer->GetPlayer().GetPlayback().GetLayer(name))
                 return nested;
 
         return nullptr;
@@ -403,7 +387,7 @@ namespace Elixir
                 return layer.get();
 
         for (const auto& layer : m_Layers)
-            if (const auto* nested = layer->m_Playback.GetLayer(name))
+            if (const auto* nested = layer->GetPlayer().GetPlayback().GetLayer(name))
                 return nested;
 
         return nullptr;
@@ -413,7 +397,7 @@ namespace Elixir
     {
         size_t count = 0;
         for (const auto& layer : m_Layers)
-            count += std::max(size_t(1), layer->m_Playback.GetLayerCount());
+            count += std::max(size_t(1), layer->GetPlayer().GetPlayback().GetLayerCount());
 
         return count;
     }
@@ -462,8 +446,8 @@ namespace Elixir
 
     void Animation::QueueLayerNotifyEnds(AnimationLayer& layer)
     {
-        layer.m_Notifies.Cancel(layer.GetName());
-        const auto& pending = layer.m_Notifies.GetPendingEnds();
+        layer.GetPlayer().CancelNotifies();
+        const auto& pending = layer.GetPlayer().GetPendingNotifyEnds();
 
         m_PendingNotifyEnds.insert(
             m_PendingNotifyEnds.end(),
@@ -500,7 +484,7 @@ namespace Elixir
         ));
 
         base->m_Base = true;
-        base->BindParameters(m_Parameters);
+        base->GetPlayer().BindParameters(m_Parameters);
 
         m_Layers.push_back(std::move(base));
 
@@ -508,7 +492,7 @@ namespace Elixir
     }
 
     bool Animation::ComposePose(
-        const std::span<const SAnimationLayerEvaluation> evaluations,
+        const std::span<const SAnimationPlayerEvaluation> evaluations,
         SLocalPose& local,
         SModelPose& model,
         const AnimationLayer* replacement
@@ -525,7 +509,7 @@ namespace Elixir
                 : *m_Layers[i];
 
             const auto& pose = evaluations.empty()
-                ? layer.GetLocalPose()
+                ? layer.GetPlayer().GetLocalPose()
                 : evaluations[i].LocalPose;
 
             if (!layer.BlendPose(local, pose))

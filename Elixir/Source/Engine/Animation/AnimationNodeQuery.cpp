@@ -23,19 +23,19 @@ namespace Elixir
             const auto parent = name.substr(0, separator);
 
             for (const auto& layer : sources->Layers)
-                if (layer->m_Name == parent)
-                    return layer->m_Playback.GetLayer(name.substr(separator + 1));
+                if (layer->GetName() == parent)
+                    return layer->GetPlayer().GetPlayback().GetLayer(name.substr(separator + 1));
         }
 
         for (const auto& layer : sources->Layers)
-            if (layer->m_Name == name)
+            if (layer->GetName() == name)
                 return layer.get();
 
         AnimationLayer* result = nullptr;
 
         for (const auto& layer : sources->Layers)
         {
-            if (auto* child = layer->m_Playback.GetLayer(name))
+            if (auto* child = layer->GetPlayer().GetPlayback().GetLayer(name))
             {
                 if (result) return nullptr;
                 result = child;
@@ -58,7 +58,7 @@ namespace Elixir
 
         size_t count = 0;
         for (const auto& layer : sources->Layers)
-            count += std::max(size_t(1), layer->m_Playback.GetLayerCount());
+            count += std::max(size_t(1), layer->GetPlayer().GetPlayback().GetLayerCount());
 
         return count;
     }
@@ -83,7 +83,7 @@ namespace Elixir
 
         const auto transitioning = std::ranges::any_of(
             sources->Layers,
-            [](const auto& layer) { return layer->IsTransitioning(); }
+            [](const auto& layer) { return layer->GetPlayer().IsTransitioning(); }
         );
 
         return transitioning;

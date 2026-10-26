@@ -355,7 +355,7 @@ auto& animation = meshInstance.GetAnimation();
 animation.SetController(controller);
 
 animation.GetParameters().SetFloat("Forward", speed);
-animation.GetLayer("UpperBody")->PlayMontage(combo);
+animation.GetLayer("UpperBody")->GetPlayer().PlayMontage(combo);
 
 meshInstance.Update(deltaSeconds);
 
@@ -367,7 +367,7 @@ for (const auto& event : animation.GetNotifyEvents())
 
 O exemplo omite o tratamento dos retornos para mostrar a navegação. `SetController` deve
 validar e preparar suas camadas antes de substituir o estado anterior. O uso manual sem
-controller continua disponível através de `animation.GetBaseLayer().Play(sequence)`.
+controller continua disponível através de `animation.GetBaseLayer().GetPlayer().Play(sequence)`.
 
 Cada personagem possui sua própria `AnimationInstance` e seus componentes mutáveis.
 O asset `AnimationController` pode ser compartilhado. A criação de instâncias de fontes

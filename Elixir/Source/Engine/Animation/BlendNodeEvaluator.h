@@ -92,7 +92,7 @@ namespace Elixir
         Ref<AnimationParameters> m_Parameters;
         const BlendNode* m_Source;
         mutable std::vector<Scope<AnimationLayer>> m_Layers;
-        std::vector<SAnimationLayerEvaluation> m_Evaluations;
+        std::vector<SAnimationPlayerEvaluation> m_Evaluations;
         SLocalPose m_Pose;
         bool m_Prepared = false;
         bool m_NotifiesEnabled = true;

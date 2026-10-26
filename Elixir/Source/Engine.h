@@ -80,6 +80,7 @@
 #include <Engine/Animation/StateMachine.h>
 #include <Engine/Animation/AnimationMontage.h>
 #include <Engine/Animation/AnimationLayer.h>
+#include <Engine/Animation/AnimationPlayer.h>
 #include <Engine/Animation/AnimationPlayback.h>
 #include <Engine/Animation/SequenceNode.h>
 #include <Engine/Animation/BlendSpaceNode.h>

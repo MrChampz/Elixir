@@ -8,7 +8,7 @@ namespace Elixir
     class AnimationPlayback;
     class AnimationTransition;
     class AnimationLayer;
-    struct SAnimationLayerEvaluation;
+    struct SAnimationPlayerEvaluation;
 
     /** One borrowed clip and its contribution to a source. */
     struct SSequenceContribution
@@ -50,7 +50,7 @@ namespace Elixir
     {
         std::span<const Scope<AnimationLayer>> Layers;
 
-        std::span<const SAnimationLayerEvaluation> Evaluations;
+        std::span<const SAnimationPlayerEvaluation> Evaluations;
 
         bool Prepared = false;
 

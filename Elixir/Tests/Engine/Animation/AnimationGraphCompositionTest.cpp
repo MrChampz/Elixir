@@ -199,8 +199,8 @@ TEST(AnimationGraphCompositionTest, ReusedNodesExposeIndependentControlsByQualif
     ASSERT_TRUE(first);
     ASSERT_TRUE(second);
     EXPECT_NE(first, second);
-    ASSERT_TRUE(first->Seek(0.5f));
-    EXPECT_FLOAT_EQ(second->GetTime(), 0);
+    ASSERT_TRUE(first->GetPlayer().Seek(0.5f));
+    EXPECT_FLOAT_EQ(second->GetPlayer().GetTime(), 0);
     ASSERT_TRUE(animation->Update(0.1f));
     EXPECT_EQ(std::ranges::count_if(animation->GetNotifyEvents(), [](const auto& event)
         { return event.LayerName == "First/Action"; }), 2);
@@ -217,7 +217,7 @@ TEST(AnimationGraphCompositionTest, MutedGraphInputsRestartWindowsWithNewActivat
     ASSERT_TRUE(animation->Play(MakeNode(Clip(mesh, 0))));
     ASSERT_TRUE(animation->AddLayer("Overlay", Mask(mesh)));
     auto* layer = animation->GetLayer("Overlay");
-    ASSERT_TRUE(layer->Play(MakeNode(graph->GetOutput())));
+    ASSERT_TRUE(layer->GetPlayer().Play(MakeNode(graph->GetOutput())));
     ASSERT_TRUE(animation->Update(0.1f));
     ASSERT_EQ(animation->GetNotifyEvents().size(), 2);
     const auto firstId = animation->GetNotifyEvents()[0].ActivationId;
@@ -254,7 +254,7 @@ TEST(AnimationGraphCompositionTest, MontageExitRestoresAllGraphWindowsWithinTheS
     const auto action = Sequence::Create("Action", mesh->GetSkeleton(), 0.2f, {});
     const auto montage = AnimationMontage::Create({.Name = "Action", .Sequence = action,
         .BlendIn = 0, .BlendOut = 0});
-    ASSERT_TRUE(animation->GetBaseLayer().PlayMontage(montage));
+    ASSERT_TRUE(animation->GetBaseLayer().GetPlayer().PlayMontage(montage));
     ASSERT_TRUE(animation->Update(0.3f));
     const auto events = animation->GetNotifyEvents();
     EXPECT_EQ(std::ranges::count_if(events, [](const auto& event)
