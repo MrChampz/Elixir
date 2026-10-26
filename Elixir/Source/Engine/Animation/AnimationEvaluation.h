@@ -1,10 +1,10 @@
 #pragma once
 
 #include <Engine/Animation/Pose.h>
-#include <Engine/Animation/BlendSpace.h>
 
 namespace Elixir
 {
+    class Sequence;
     class AnimationPlayback;
     class AnimationTransition;
     class AnimationLayer;
@@ -66,7 +66,7 @@ namespace Elixir
     >;
 
     /** Resolved timing and source data; playback owns the actual clock. */
-    struct SAnimationNodeState
+    struct ELIXIR_API SAnimationNodeState
     {
         /** Effective cycle duration in seconds. */
         float Duration = 0;
@@ -85,6 +85,22 @@ namespace Elixir
         std::string_view StateName;
 
         bool Transitioning = false;
+
+        /**
+         * @brief Find a unique named layer, including qualified child paths.
+         * @param name Layer name or slash-separated path.
+         * @return Null if the layer is absent or its unqualified name is ambiguous.
+         */
+        AnimationLayer* GetLayer(std::string_view name) const;
+
+        /** @brief Count leaf layers exposed by this state. */
+        size_t GetLayerCount() const;
+
+        /** @brief Get the active machine state's name, if exposed. */
+        std::string_view GetCurrentState() const;
+
+        /** @brief Check whether a child layer or active state is transitioning. */
+        bool IsTransitioning() const;
     };
 
     /** Explicit inputs for sampling or preparing one node frame. */

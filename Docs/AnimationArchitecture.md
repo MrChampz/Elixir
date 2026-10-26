@@ -119,7 +119,7 @@ validação; `Reset` descarta candidatos e reposiciona os filhos quando o playba
 
 `AnimationInputBindings` retém os valores, parâmetros e índices de inputs, validando alterações
 antes de substituir o binding anterior. A atualização normal reutiliza o buffer de valores.
-`AnimationNodeQuery` consulta camadas, caminhos e estados de execução descritos pelos nós;
+`SAnimationNodeState` consulta suas camadas, caminhos e estados de execução;
 `GetLayer` e `GetCurrentState` não fazem parte da interface do avaliador.
 
 Os consumidores leem as fontes efetivamente escolhidas pela avaliação: contribuições de

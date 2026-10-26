@@ -1,7 +1,6 @@
 #include "epch.h"
 #include "AnimationPlayback.h"
 
-#include <Engine/Animation/AnimationNodeQuery.h>
 #include <Engine/Animation/AnimationLayer.h>
 #include <Engine/Animation/AnimationNotifyTracker.h>
 
@@ -196,7 +195,7 @@ namespace Elixir
 
     bool AnimationPlayback::IsTransitioning() const
     {
-        return AnimationNodeQuery(GetEvaluationState()).IsTransitioning();
+        return GetEvaluationState().IsTransitioning();
     }
 
     double AnimationPlayback::GetSeekPhase(const float seconds) const
@@ -236,7 +235,7 @@ namespace Elixir
 
     std::string_view AnimationPlayback::GetCurrentState() const
     {
-        return AnimationNodeQuery(GetEvaluationState()).GetCurrentState();
+        return GetEvaluationState().GetCurrentState();
     }
 
     bool AnimationPlayback::Sample(
@@ -368,12 +367,12 @@ namespace Elixir
 
     AnimationLayer* AnimationPlayback::GetLayer(const std::string_view name) const
     {
-        return AnimationNodeQuery(GetEvaluationState()).GetLayer(name);
+        return GetEvaluationState().GetLayer(name);
     }
 
     size_t AnimationPlayback::GetLayerCount() const
     {
-        return AnimationNodeQuery(GetEvaluationState()).GetLayerCount();
+        return GetEvaluationState().GetLayerCount();
     }
 
     void AnimationPlayback::SetNotifiesEnabled(const bool enabled)

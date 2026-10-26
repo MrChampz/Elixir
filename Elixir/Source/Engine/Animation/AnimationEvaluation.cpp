@@ -1,19 +1,19 @@
 #include "epch.h"
-#include "AnimationNodeQuery.h"
-#include "AnimationLayer.h"
+#include "AnimationEvaluation.h"
+
+#include <Engine/Animation/AnimationLayer.h>
 
 namespace Elixir
 {
-    AnimationNodeQuery::AnimationNodeQuery(SAnimationNodeState state)
-        : m_State(std::move(state)) {}
+    /* SAnimationNodeState */
 
-    AnimationLayer* AnimationNodeQuery::GetLayer(const std::string_view name) const
+    AnimationLayer* SAnimationNodeState::GetLayer(const std::string_view name) const
     {
-        const auto* sources = std::get_if<SAnimationLayerSources>(&m_State.Sources);
+        const auto* sources = std::get_if<SAnimationLayerSources>(&Sources);
         if (!sources)
         {
-            return m_State.PrimaryPlayback
-                ? m_State.PrimaryPlayback->GetLayer(name)
+            return PrimaryPlayback
+                ? PrimaryPlayback->GetLayer(name)
                 : nullptr;
         }
 
@@ -45,14 +45,14 @@ namespace Elixir
         return result;
     }
 
-    size_t AnimationNodeQuery::GetLayerCount() const
+    size_t SAnimationNodeState::GetLayerCount() const
     {
-        const auto* sources = std::get_if<SAnimationLayerSources>(&m_State.Sources);
+        const auto* sources = std::get_if<SAnimationLayerSources>(&Sources);
 
         if (!sources)
         {
-            return m_State.PrimaryPlayback
-                ? m_State.PrimaryPlayback->GetLayerCount()
+            return PrimaryPlayback
+                ? PrimaryPlayback->GetLayerCount()
                 : 0;
         }
 
@@ -63,22 +63,22 @@ namespace Elixir
         return count;
     }
 
-    std::string_view AnimationNodeQuery::GetCurrentState() const
+    std::string_view SAnimationNodeState::GetCurrentState() const
     {
-        if (!m_State.StateName.empty())
-            return m_State.StateName;
+        if (!StateName.empty())
+            return StateName;
 
-        return m_State.PrimaryPlayback
-            ? m_State.PrimaryPlayback->GetCurrentState()
+        return PrimaryPlayback
+            ? PrimaryPlayback->GetCurrentState()
             : std::string_view{};
     }
 
-    bool AnimationNodeQuery::IsTransitioning() const
+    bool SAnimationNodeState::IsTransitioning() const
     {
-        if (m_State.Transitioning)
+        if (Transitioning)
             return true;
 
-        const auto* sources = std::get_if<SAnimationLayerSources>(&m_State.Sources);
+        const auto* sources = std::get_if<SAnimationLayerSources>(&Sources);
         if (!sources) return false;
 
         const auto transitioning = std::ranges::any_of(
