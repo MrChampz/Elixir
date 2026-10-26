@@ -5,7 +5,7 @@
 
 namespace Elixir
 {
-    class AnimationNodeEvaluator;
+    class AnimationEvaluator;
 
     /** Immutable pose-producing connection within one animation graph. */
     class ELIXIR_API AnimationNode
@@ -24,7 +24,7 @@ namespace Elixir
         ) const;
 
         /** @brief Create independent execution state retained by a playback. */
-        virtual Scope<AnimationNodeEvaluator> CreateEvaluator() const = 0;
+        virtual Scope<AnimationEvaluator> CreateEvaluator() const = 0;
 
         /**
          * @brief Check whether this node can animate the supplied skeleton.

@@ -1,12 +1,12 @@
 #pragma once
 
-#include <Engine/Animation/AnimationNodeEvaluator.h>
+#include <Engine/Animation/AnimationEvaluator.h>
 #include <Engine/Animation/Sequence.h>
 
 namespace Elixir
 {
     /** Independent pose evaluation and child state for a Sequence resource. */
-    class ELIXIR_API SequenceEvaluator final : public AnimationNodeEvaluator
+    class ELIXIR_API SequenceEvaluator final : public AnimationEvaluator
     {
     public:
         /**
@@ -16,7 +16,7 @@ namespace Elixir
         explicit SequenceEvaluator(const Sequence& source);
 
         /** @brief Copy independent node state. */
-        Scope<AnimationNodeEvaluator> Clone() const override;
+        Scope<AnimationEvaluator> Clone() const override;
 
         /**
          * @brief Consume numeric inputs and shared character parameters.

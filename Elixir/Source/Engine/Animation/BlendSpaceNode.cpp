@@ -15,7 +15,7 @@ namespace Elixir
         return Ref<BlendSpaceNode>(new BlendSpaceNode(std::move(resource)));
     }
 
-    Scope<AnimationNodeEvaluator> BlendSpaceNode::CreateEvaluator() const
+    Scope<AnimationEvaluator> BlendSpaceNode::CreateEvaluator() const
     {
         return CreateScope<BlendSpaceEvaluator>(*m_Resource);
     }

@@ -102,7 +102,7 @@ namespace Elixir
         ));
     }
 
-    Scope<AnimationNodeEvaluator> BlendNode::CreateEvaluator() const
+    Scope<AnimationEvaluator> BlendNode::CreateEvaluator() const
     {
         return CreateScope<BlendNodeEvaluator>(*this);
     }

@@ -2,7 +2,7 @@
 
 #include <Engine/Animation/Pose.h>
 #include <Engine/Animation/AnimationNode.h>
-#include <Engine/Animation/AnimationNodeEvaluator.h>
+#include <Engine/Animation/AnimationEvaluator.h>
 #include <Engine/Animation/AnimationInputBindings.h>
 #include <Engine/Animation/AnimationPlaybackInterval.h>
 
@@ -198,7 +198,7 @@ namespace Elixir
         bool m_IncludeNotifyStart = true;
         mutable bool m_PositiveAdvance = false;
 
-        Scope<AnimationNodeEvaluator> m_Evaluator;
+        Scope<AnimationEvaluator> m_Evaluator;
         mutable SAnimationEvaluation m_Evaluation;
         Ref<const AnimationNode> m_Node;
         mutable AnimationInputBindings m_Inputs;

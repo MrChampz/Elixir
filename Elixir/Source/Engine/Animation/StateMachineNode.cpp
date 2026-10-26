@@ -18,7 +18,7 @@ namespace Elixir
     StateMachineNode::StateMachineNode(Ref<const StateMachine> resource)
         : m_Resource(std::move(resource)) {}
 
-    Scope<AnimationNodeEvaluator> StateMachineNode::CreateEvaluator() const
+    Scope<AnimationEvaluator> StateMachineNode::CreateEvaluator() const
     {
         return CreateScope<StateMachineEvaluator>(*m_Resource);
     }

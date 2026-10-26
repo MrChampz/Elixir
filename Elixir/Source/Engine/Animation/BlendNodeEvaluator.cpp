@@ -7,7 +7,7 @@ namespace Elixir
     BlendNodeEvaluator::BlendNodeEvaluator(const BlendNode& source)
         : m_Source(&source) {}
 
-    Scope<AnimationNodeEvaluator> BlendNodeEvaluator::Clone() const
+    Scope<AnimationEvaluator> BlendNodeEvaluator::Clone() const
     {
         auto copy = CreateScope<BlendNodeEvaluator>(*m_Source);
         copy->m_Parameters = m_Parameters;

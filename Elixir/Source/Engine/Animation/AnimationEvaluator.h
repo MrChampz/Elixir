@@ -6,13 +6,13 @@
 namespace Elixir
 {
     /** Evaluates one node while retaining only its independent node-specific state. */
-    class ELIXIR_API AnimationNodeEvaluator
+    class ELIXIR_API AnimationEvaluator
     {
     public:
-        virtual ~AnimationNodeEvaluator();
+        virtual ~AnimationEvaluator();
 
         /** @brief Copy committed node state for an independent candidate command. */
-        virtual Scope<AnimationNodeEvaluator> Clone() const = 0;
+        virtual Scope<AnimationEvaluator> Clone() const = 0;
 
         /**
          * @brief Consume resolved inputs without owning parameter bindings or a clock.

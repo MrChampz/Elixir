@@ -14,7 +14,7 @@ namespace Elixir
         m_Playback = AnimationPlayback(state.Node, values, state.Looping);
     }
 
-    Scope<AnimationNodeEvaluator> StateMachineEvaluator::Clone() const
+    Scope<AnimationEvaluator> StateMachineEvaluator::Clone() const
     {
         auto copy = CreateScope<StateMachineEvaluator>(*this);
         copy->m_NextPlayback.reset();

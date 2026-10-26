@@ -1,4 +1,4 @@
-#include <Engine/Animation/AnimationNodeEvaluator.h>
+#include <Engine/Animation/AnimationEvaluator.h>
 #include <Engine/Animation/AnimationPlayback.h>
 #include <Engine/Animation/AnimationNotifyTracker.h>
 
@@ -12,7 +12,7 @@ using namespace Elixir;
 namespace
 {
     /** Samples a resource without implementing clocks, notifications, or root motion. */
-    class MinimalEvaluator final : public AnimationNodeEvaluator
+    class MinimalEvaluator final : public AnimationEvaluator
     {
     public:
         /**
@@ -23,7 +23,7 @@ namespace
             : m_Sequence(std::move(sequence)), m_Source{m_Sequence.get(), 1} {}
 
         /** @brief Copy sampling state without sharing a clock. */
-        Scope<AnimationNodeEvaluator> Clone() const override
+        Scope<AnimationEvaluator> Clone() const override
         {
             return CreateScope<MinimalEvaluator>(*this);
         }
@@ -94,7 +94,7 @@ namespace
         }
 
         /** @brief Create an independent evaluator without event or movement methods. */
-        Scope<AnimationNodeEvaluator> CreateEvaluator() const override
+        Scope<AnimationEvaluator> CreateEvaluator() const override
         {
             return CreateScope<MinimalEvaluator>(m_Sequence);
         }

@@ -6,7 +6,7 @@ namespace Elixir
     BlendSpaceEvaluator::BlendSpaceEvaluator(const BlendSpace& source)
         : m_Source(&source) {}
 
-    Scope<AnimationNodeEvaluator> BlendSpaceEvaluator::Clone() const
+    Scope<AnimationEvaluator> BlendSpaceEvaluator::Clone() const
     {
         return CreateScope<BlendSpaceEvaluator>(*this);
     }

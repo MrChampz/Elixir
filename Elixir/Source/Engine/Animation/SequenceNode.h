@@ -17,7 +17,7 @@ namespace Elixir
         static Ref<SequenceNode> Create(Ref<const Sequence> resource);
 
         /** @brief Create independent playback for this node connection. */
-        Scope<AnimationNodeEvaluator> CreateEvaluator() const override;
+        Scope<AnimationEvaluator> CreateEvaluator() const override;
 
         /** @brief Inspect the immutable resource referenced by this node. */
         const Ref<const Sequence>& GetSequence() const { return m_Resource; }

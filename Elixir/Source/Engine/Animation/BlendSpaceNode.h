@@ -17,7 +17,7 @@ namespace Elixir
         static Ref<BlendSpaceNode> Create(Ref<const BlendSpace> resource);
 
         /** @brief Create independent playback for this node connection. */
-        Scope<AnimationNodeEvaluator> CreateEvaluator() const override;
+        Scope<AnimationEvaluator> CreateEvaluator() const override;
 
         /** @brief Get the skeleton required by the retained resource. */
         const Ref<const Skeleton>& GetSkeleton() const override;

@@ -1,12 +1,12 @@
 #pragma once
 
-#include <Engine/Animation/AnimationNodeEvaluator.h>
+#include <Engine/Animation/AnimationEvaluator.h>
 #include <Engine/Animation/BlendSpace.h>
 
 namespace Elixir
 {
     /** Independent pose evaluation and child state for a BlendSpace resource. */
-    class ELIXIR_API BlendSpaceEvaluator final : public AnimationNodeEvaluator
+    class ELIXIR_API BlendSpaceEvaluator final : public AnimationEvaluator
     {
     public:
         /**
@@ -16,7 +16,7 @@ namespace Elixir
         explicit BlendSpaceEvaluator(const BlendSpace& source);
 
         /** @brief Copy independent node state. */
-        Scope<AnimationNodeEvaluator> Clone() const override;
+        Scope<AnimationEvaluator> Clone() const override;
 
         /**
          * @brief Consume numeric inputs and shared character parameters.

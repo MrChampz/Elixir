@@ -56,7 +56,7 @@ namespace
         const Ref<const Skeleton>& GetSkeleton() const override { return m_Clip->GetSkeleton(); }
 
         /** @brief Create independent sampling state without a new engine-side type branch. */
-        Scope<AnimationNodeEvaluator> CreateEvaluator() const override
+        Scope<AnimationEvaluator> CreateEvaluator() const override
         {
             return SequenceNode::Create(m_Clip)->CreateEvaluator();
         }

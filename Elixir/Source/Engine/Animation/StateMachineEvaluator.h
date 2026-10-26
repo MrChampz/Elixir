@@ -1,13 +1,13 @@
 #pragma once
 
-#include <Engine/Animation/AnimationNodeEvaluator.h>
+#include <Engine/Animation/AnimationEvaluator.h>
 #include <Engine/Animation/StateMachine.h>
 #include <Engine/Animation/AnimationTransition.h>
 
 namespace Elixir
 {
     /** Independent pose evaluation and child state for a StateMachine resource. */
-    class ELIXIR_API StateMachineEvaluator final : public AnimationNodeEvaluator
+    class ELIXIR_API StateMachineEvaluator final : public AnimationEvaluator
     {
     public:
         /**
@@ -17,7 +17,7 @@ namespace Elixir
         explicit StateMachineEvaluator(const StateMachine& source);
 
         /** @brief Copy independent node state. */
-        Scope<AnimationNodeEvaluator> Clone() const override;
+        Scope<AnimationEvaluator> Clone() const override;
 
         /**
          * @brief Consume numeric inputs and shared character parameters.

@@ -7,7 +7,7 @@ namespace Elixir
       : m_Source(&source),
         m_Contribution{ &source, 1 } {}
 
-    Scope<AnimationNodeEvaluator> SequenceEvaluator::Clone() const
+    Scope<AnimationEvaluator> SequenceEvaluator::Clone() const
     {
         return CreateScope<SequenceEvaluator>(*this);
     }

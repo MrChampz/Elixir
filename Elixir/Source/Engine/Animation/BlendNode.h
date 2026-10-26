@@ -78,7 +78,7 @@ namespace Elixir
         );
 
         /** @brief Create independent execution for this composition and its children. */
-        Scope<AnimationNodeEvaluator> CreateEvaluator() const override;
+        Scope<AnimationEvaluator> CreateEvaluator() const override;
 
         /**
          * @brief Validate named bindings required by all connected sources.

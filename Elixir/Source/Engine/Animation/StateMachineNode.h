@@ -17,7 +17,7 @@ namespace Elixir
         static Ref<StateMachineNode> Create(Ref<const StateMachine> resource);
 
         /** @brief Create independent playback for this node connection. */
-        Scope<AnimationNodeEvaluator> CreateEvaluator() const override;
+        Scope<AnimationEvaluator> CreateEvaluator() const override;
 
         /**
          * @brief Validate the retained machine's conditions and child node bindings.

@@ -19,7 +19,7 @@ namespace Elixir
     SequenceNode::SequenceNode(Ref<const Sequence> resource)
         : m_Resource(std::move(resource)) {}
 
-    Scope<AnimationNodeEvaluator> SequenceNode::CreateEvaluator() const
+    Scope<AnimationEvaluator> SequenceNode::CreateEvaluator() const
     {
         return CreateScope<SequenceEvaluator>(*m_Resource);
     }

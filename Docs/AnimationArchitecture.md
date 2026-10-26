@@ -109,7 +109,7 @@ Um futuro sistema de Playables pode configurar fontes e composição nessa mesma
 
 ## Avaliação e publicação
 
-`AnimationPlayback` controla fase, looping, conclusão e seek. O `AnimationNodeEvaluator`
+`AnimationPlayback` controla fase, looping, conclusão e seek. O `AnimationEvaluator`
 possui somente os contratos `Clone`, `Configure`, `GetState`, `Evaluate`, `Apply` e `Reset`.
 `Configure` recebe valores já resolvidos; a interface não controla bindings numéricos nem relógio.
 Máquinas conservam os índices das suas condições e configuram os playbacks dos estados.
