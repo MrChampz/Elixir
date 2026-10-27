@@ -54,7 +54,7 @@ namespace Elixir::Aether::Modules
             std::string seedParameter;
             if (context.HasField(object, "seed"))
             {
-                // UInt operands preserve the full seed without floating-point conversion.
+                // Integer literals preserve all seed bits; scalar bindings convert at runtime.
                 auto field = object["seed"];
                 std::string_view value;
                 if (!field.get_string().get(value))

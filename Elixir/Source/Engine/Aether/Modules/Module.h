@@ -161,6 +161,10 @@ namespace Elixir::Aether::Modules
 
         /**
          * @brief Compile an unsigned integer literal or named parameter binding.
+         *
+         * Float parameters convert numerically and require an integer default in [0, 2^32).
+         * Invalid runtime float values resolve to zero. UInt parameters retain all their bits.
+         *
          * @param value Literal used when no named parameter matches.
          * @param parameter Optional parameter name; empty selects the literal.
          * @return The operand, or an invalid operand that Emit rejects when compilation fails.

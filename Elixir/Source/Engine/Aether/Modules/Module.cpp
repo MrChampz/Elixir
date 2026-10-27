@@ -63,6 +63,13 @@ namespace Elixir::Aether::Modules
             }
 
             const auto& definition = m_Parameters[index];
+            if (input == EOperandInput::UInt && declared == EParameterType::Float &&
+                !IsValidUIntScalar(definition.Value.x))
+            {
+                EE_CORE_ERROR("Unsigned particle bindings require an integer in [0, 2^32).");
+                m_Valid = false;
+                return { static_cast<EOperandInput>(UINT8_MAX), 0 };
+            }
             const auto count = GetParameterWordCount(definition.Type);
 
             if (std::size_t(definition.WordOffset) + count > OperandIndexMask)

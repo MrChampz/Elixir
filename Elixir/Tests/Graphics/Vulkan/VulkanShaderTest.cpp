@@ -27,6 +27,8 @@
 #include <Engine/GUI/Renderer/TextRenderPass.h>
 #include <chrono>
 #include <filesystem>
+#include <limits>
+#include <Graphics/Vulkan/VulkanBuffer.h>
 
 
 
@@ -670,5 +672,79 @@ TEST(VulkanShaderTest, MissingSimulationShadersStopInitialization)
             EXPECT_FALSE(simulator.Simulate(submission, command));
         }
         directory.CopyComputeShader(name);
+    }
+}
+
+TEST(VulkanShaderTest, ConvertsRuntimeScalarParametersToUIntWithAndWithoutCache)
+{
+    const auto context = VulkanTestContext::Get().GetGraphicsContext();
+    ShaderLoader loader(context);
+    const auto shader = loader.LoadShader(
+        ELIXIR_TEST_SHADER_DIR,
+        "UIntParameterConversion",
+        EShaderStage::Compute
+    );
+    ASSERT_TRUE(shader);
+    const auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
+    ASSERT_TRUE(pipeline);
+    using namespace Aether::Core;
+    const auto scalar = EncodeOperandReference(
+        EOperandSource::Parameter,
+        EOperandFormat::Float,
+        0
+    );
+    const auto integer = EncodeOperandReference(
+        EOperandSource::Parameter,
+        EOperandFormat::UInt,
+        1
+    );
+    const std::array<uint32_t, 4> references{scalar, integer, integer, scalar};
+    const auto operands = StorageBuffer::Create(
+        context,
+        sizeof(references),
+        references.data()
+    );
+    const auto constants = StorageBuffer::Create(context, sizeof(uint32_t));
+    const auto parameters = DynamicStorageBuffer::Create(context, 2 * sizeof(uint32_t));
+    const auto output = StorageBuffer::Create(context, sizeof(references));
+    auto info = StagingBuffer::CreateBufferInfo(sizeof(references), nullptr);
+    info.Usage = EBufferUsage::TransferDst;
+    const Ref<StagingBuffer> readback = CreateRef<VulkanStagingBuffer>(context, info);
+    ASSERT_TRUE(operands && constants && parameters && output && readback);
+    shader->BindStorageBuffer("operands", operands);
+    shader->BindStorageBuffer("constants", constants);
+    shader->BindStorageBuffer("parameters", parameters);
+    shader->BindStorageBuffer("results", output);
+    const std::array values{
+        0.0f, 17.0f, 65537.0f, 16777216.0f, 4294967040.0f, -1.0f, 1.5f,
+        4294967296.0f, std::numeric_limits<float>::infinity(),
+        std::numeric_limits<float>::quiet_NaN()
+    };
+    for (const float value : values)
+    {
+        SCOPED_TRACE(value);
+        const std::array<uint32_t, 2> words{std::bit_cast<uint32_t>(value), UINT32_MAX};
+        parameters->UpdateData(words.data(), sizeof(words));
+        const auto command = context->GetUploadCommandBuffer();
+        command->Begin();
+        parameters->Barrier(
+            command,
+            EPipelineStage::ComputeShader,
+            EPipelineAccess::ShaderRead
+        );
+        output->Barrier(command, EPipelineStage::ComputeShader, EPipelineAccess::ShaderWrite);
+        pipeline->Bind(command);
+        command->Dispatch(1);
+        output->Barrier(command, EPipelineStage::Transfer, EPipelineAccess::TransferRead);
+        output->Copy(command, readback);
+        command->Flush();
+        std::array<uint32_t, 4> result{};
+        std::memcpy(result.data(), readback->Map(), sizeof(result));
+        readback->Unmap();
+        const auto expected = IsValidUIntScalar(value) ? static_cast<uint32_t>(value) : 0u;
+        EXPECT_EQ(result[0], expected);
+        EXPECT_EQ(result[1], UINT32_MAX);
+        EXPECT_EQ(result[2], UINT32_MAX);
+        EXPECT_EQ(result[3], expected);
     }
 }

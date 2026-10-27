@@ -4,6 +4,8 @@
 #include <Engine/Aether/Core/CompiledParameter.h>
 #include <Engine/Aether/Core/Particle.h>
 
+#include <cmath>
+
 namespace Elixir::Aether::Core
 {
     /** @brief Identifies where an operand obtains its value. */
@@ -190,7 +192,7 @@ namespace Elixir::Aether::Core
     )
     {
         if (actual == EOperandInput::UInt)
-            return declared == EParameterType::UInt;
+            return declared == EParameterType::UInt || declared == EParameterType::Float;
 
         if (declared == EParameterType::Unspecified)
             return actual == EOperandInput::Float || actual == EOperandInput::Float3 ||
@@ -203,6 +205,17 @@ namespace Elixir::Aether::Core
             declared == EParameterType::Float3 || declared == EParameterType::Float4;
 
         return vector && (actual == EOperandInput::Float3 || actual == EOperandInput::Float4);
+    }
+
+    /**
+     * @brief Checks whether a scalar can be converted to an unsigned integer exactly.
+     * @param value Scalar to validate before conversion.
+     * @return True for finite, nonnegative integers smaller than 2 to the power of 32.
+     */
+    inline bool IsValidUIntScalar(const float value)
+    {
+        return std::isfinite(value) && value >= 0 && value < 4294967296.0f &&
+            std::floor(value) == value;
     }
 
     /** @brief Stores a typed operand while a module is being compiled. */
@@ -301,7 +314,9 @@ namespace Elixir::Aether::Core
 
                     return valueWidth == width &&
                         format == GetParameterOperandFormat(definition.Type) &&
-                        IsParameterOperandType(definition.Type, actual);
+                        IsParameterOperandType(definition.Type, actual) &&
+                        (actual != UInt || definition.Type != EParameterType::Float ||
+                            IsValidUIntScalar(definition.Value.x));
                 }
 
                 if (offset > OperandIndexMask - width)

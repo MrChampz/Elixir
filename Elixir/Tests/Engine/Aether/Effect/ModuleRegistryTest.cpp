@@ -6,6 +6,7 @@
 #include <limits>
 
 #include <Engine/Aether/Core/Operand.h>
+#include "../TestInstanceRegistry.h"
 #include <Engine/Aether/Effect/Effect.h>
 #include <Engine/Aether/Effect/ModuleRegistry.h>
 #include <Engine/Aether/Core/Operations/RandomRange.h>
@@ -552,4 +553,30 @@ TEST(ModuleRegistryTest, ValidatesModuleExecutionTargetsAndCurlParameterBindings
     std::string error;
     EXPECT_FALSE(Effect::LoadEffectText(R"({"name":"Bad","emitters":[{"name":"Sprite","maxParticles":1,"spawnRate":0,
         "updateModules":[{"type":"ApplyGravity","target":"StrandPoints","gravity":[0,-1,0]}]}]})", &error));
+}
+
+TEST(ModuleRegistryTest, CompilesCurlSeedBindingFromJSON)
+{
+    const auto system = Effect::LoadEffectText(R"({
+        "name":"Bound curl seed",
+        "parameters":{"Seed":17},
+        "emitters":[{
+            "name":"Particles", "maxParticles":1, "spawnRate":0,
+            "updateModules":[{"type":"ApplyCurlNoise", "seed":"$Seed"}]
+        }]
+    })");
+    ASSERT_TRUE(system);
+    TestInstanceRegistry runtime;
+    const auto instance = runtime.CreateRegisteredInstance(system);
+    ASSERT_TRUE(instance);
+    Elixir::Aether::Rendering::FrameSubmission submission;
+    ASSERT_TRUE(submission.Submit(*instance));
+    const auto& compiled = submission.GetRenderProxies().front()->GetCompiledSystem();
+    const auto& program = compiled.ModuleData;
+    ASSERT_EQ(program.Operations.size(), 1u);
+    const auto reference = program.Operands.at(program.Operations[0].OperandOffset + 3);
+    EXPECT_EQ(Core::GetOperandSource(reference), Core::EOperandSource::Parameter);
+    EXPECT_EQ(Core::GetOperandFormat(reference), Core::EOperandFormat::Float);
+    ASSERT_EQ(compiled.Parameters.size(), 1u);
+    EXPECT_FLOAT_EQ(compiled.Parameters[0].Value.x, 17.0f);
 }
