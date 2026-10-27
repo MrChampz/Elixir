@@ -102,18 +102,6 @@ namespace Elixir
             SModelPose& output
         ) const;
 
-        /** @brief Compare bone names and parent indices for direct animation sharing. */
-        bool IsCompatible(const Skeleton& other) const;
-
-        /** @brief Find a bone by name, or return -1. */
-        int32_t FindBone(std::string_view name) const;
-
-        /** @brief Get the asset name. */
-        const std::string& GetName() const { return m_Name; }
-
-        /** @brief Get bones in parent-before-child order. */
-        const std::vector<SBone>& GetBones() const { return m_Bones; }
-
     private:
         /**
          * @brief Store a validated bone hierarchy.
