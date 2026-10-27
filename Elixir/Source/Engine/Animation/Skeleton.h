@@ -89,21 +89,6 @@ namespace Elixir
             std::vector<SSkeletonSocket> sockets = {}
         );
 
-        /**
-         * @brief Clone the hierarchy with replacement sockets, or return null on failure.
-         * @param sockets Complete replacement list; empty removes all sockets in the clone.
-         */
-        Ref<Skeleton> WithSockets(std::vector<SSkeletonSocket> sockets) const;
-
-        /** @brief Get immutable attachment points in their authored order. */
-        const std::vector<SSkeletonSocket>& GetSockets() const { return m_Sockets; }
-
-        /**
-         * @brief Find a socket's index, or return -1 for an unknown name.
-         * @param name Case-sensitive attachment name.
-         */
-        int32_t FindSocket(std::string_view name) const;
-
         /** @brief Get the asset name. */
         const std::string& GetName() const { return m_Name; }
 
@@ -118,21 +103,19 @@ namespace Elixir
         int32_t FindBone(std::string_view name) const;
 
         /**
-         * @brief Compare bone names and parent indices for animation sharing.
-         * @param other Skeleton to compare with this skeleton.
+         * @brief Clone the hierarchy with replacement sockets, or return null on failure.
+         * @param sockets Complete replacement list; empty removes all sockets in the clone.
          */
-        bool IsCompatible(const Skeleton& other) const;
+        Ref<Skeleton> WithSockets(std::vector<SSkeletonSocket> sockets) const;
+
+        /** @brief Get immutable attachment points in their authored order. */
+        const std::vector<SSkeletonSocket>& GetSockets() const { return m_Sockets; }
 
         /**
-         * @brief Compose a local pose into skeleton-space matrices.
-         * @param localPose One valid parent-relative transform per bone.
-         * @param output Receives one matrix per bone on success.
-         * @return False for an invalid pose or result; output remains unchanged on failure.
+         * @brief Find a socket's index, or return -1 for an unknown name.
+         * @param name Case-sensitive attachment name.
          */
-        bool BuildModelPose(
-            const SLocalPose& localPose,
-            SModelPose& output
-        ) const;
+        int32_t FindSocket(std::string_view name) const;
 
         /**
          * @brief Get an attachment matrix from a final pose in skeleton space.
@@ -158,6 +141,23 @@ namespace Elixir
         std::optional<glm::mat4> GetSocketTransform(
             size_t socketIndex,
             const SModelPose& modelPose
+        ) const;
+
+        /**
+         * @brief Compare bone names and parent indices for animation sharing.
+         * @param other Skeleton to compare with this skeleton.
+         */
+        bool IsCompatible(const Skeleton& other) const;
+
+        /**
+         * @brief Compose a local pose into skeleton-space matrices.
+         * @param localPose One valid parent-relative transform per bone.
+         * @param output Receives one matrix per bone on success.
+         * @return False for an invalid pose or result; output remains unchanged on failure.
+         */
+        bool BuildModelPose(
+            const SLocalPose& localPose,
+            SModelPose& output
         ) const;
 
     private:

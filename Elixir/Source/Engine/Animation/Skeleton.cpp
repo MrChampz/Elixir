@@ -125,6 +125,76 @@ namespace Elixir
         ));
     }
 
+    int32_t Skeleton::FindBone(const std::string_view name) const
+    {
+        for (size_t i = 0; i < m_Bones.size(); ++i)
+            if (m_Bones[i].Name == name)
+                return int32_t(i);
+
+        return -1;
+    }
+
+    Ref<Skeleton> Skeleton::WithSockets(std::vector<SSkeletonSocket> sockets) const
+    {
+        return Create(m_Name, m_Bones, std::move(sockets));
+    }
+
+    int32_t Skeleton::FindSocket(const std::string_view name) const
+    {
+        for (size_t i = 0; i < m_Sockets.size(); ++i)
+            if (m_Sockets[i].Name == name)
+                return int32_t(i);
+
+        return -1;
+    }
+
+    std::optional<glm::mat4> Skeleton::GetSocketTransform(
+        const std::string_view name,
+        const SModelPose& modelPose
+    ) const
+    {
+        const auto index = FindSocket(name);
+        return index < 0 ? std::nullopt : GetSocketTransform(size_t(index), modelPose);
+    }
+
+    std::optional<glm::mat4> Skeleton::GetSocketTransform(
+        const size_t socketIndex,
+        const SModelPose& modelPose
+    ) const
+    {
+        if (socketIndex >= m_Sockets.size() || !modelPose.IsValid(m_Bones.size()))
+            return std::nullopt;
+
+        const auto& socket = m_Sockets[socketIndex];
+        const auto result =
+            modelPose.Matrices[socket.BoneIndex] * socket.RelativeTransform.ToMatrix();
+
+        for (int c = 0; c < 4; ++c)
+            for (int r = 0; r < 4; ++r)
+                if (!std::isfinite(result[c][r]))
+                {
+                    EE_CORE_ERROR("Socket '{}' exceeds the supported matrix range.", socket.Name)
+                    return std::nullopt;
+                }
+
+        return result;
+    }
+
+    bool Skeleton::IsCompatible(const Skeleton& other) const
+    {
+        if (m_Bones.size() != other.m_Bones.size())
+            return false;
+
+        for (size_t i = 0; i < m_Bones.size(); ++i)
+        {
+            if (m_Bones[i].Name != other.m_Bones[i].Name ||
+                m_Bones[i].ParentIndex != other.m_Bones[i].ParentIndex)
+                return false;
+        }
+
+        return true;
+    }
+
     bool Skeleton::BuildModelPose(
         const SLocalPose& localPose,
         SModelPose& output
@@ -166,85 +236,11 @@ namespace Elixir
         return true;
     }
 
-    bool Skeleton::IsCompatible(const Skeleton& other) const
-    {
-        if (m_Bones.size() != other.m_Bones.size())
-            return false;
-
-        for (size_t i = 0; i < m_Bones.size(); ++i)
-        {
-            if (m_Bones[i].Name != other.m_Bones[i].Name ||
-                m_Bones[i].ParentIndex != other.m_Bones[i].ParentIndex)
-                return false;
-        }
-
-        return true;
-    }
-
-    int32_t Skeleton::FindBone(const std::string_view name) const
-    {
-        for (size_t i = 0; i < m_Bones.size(); ++i)
-            if (m_Bones[i].Name == name)
-                return int32_t(i);
-
-        return -1;
-    }
-
-    std::optional<glm::mat4> Skeleton::GetSocketTransform(
-        const std::string_view name,
-        const SModelPose& modelPose
-    ) const
-    {
-        const auto index = FindSocket(name);
-        return index < 0 ? std::nullopt : GetSocketTransform(size_t(index), modelPose);
-    }
-
-    std::optional<glm::mat4> Skeleton::GetSocketTransform(
-        const size_t socketIndex,
-        const SModelPose& modelPose
-    ) const
-    {
-        if (socketIndex >= m_Sockets.size() || !modelPose.IsValid(m_Bones.size()))
-            return std::nullopt;
-
-        const auto& socket = m_Sockets[socketIndex];
-        const auto result = modelPose.Matrices[socket.BoneIndex] *
-            socket.RelativeTransform.ToMatrix();
-        for (int c = 0; c < 4; ++c)
-        {
-            for (int r = 0; r < 4; ++r)
-            {
-                if (!std::isfinite(result[c][r]))
-                {
-                    EE_CORE_ERROR("Socket '{}' exceeds the supported matrix range.", socket.Name)
-                    return std::nullopt;
-                }
-            }
-        }
-        return result;
-    }
-
     Skeleton::Skeleton(
         std::string name,
         std::vector<SBone> bones,
         std::vector<SSkeletonSocket> sockets
-    )
-      : m_Name(std::move(name)),
+    ) : m_Name(std::move(name)),
         m_Bones(std::move(bones)),
         m_Sockets(std::move(sockets)) {}
-
-    Ref<Skeleton> Skeleton::WithSockets(std::vector<SSkeletonSocket> sockets) const
-    {
-        return Create(m_Name, m_Bones, std::move(sockets));
-    }
-
-    int32_t Skeleton::FindSocket(const std::string_view name) const
-    {
-        for (size_t i = 0; i < m_Sockets.size(); ++i)
-            if (m_Sockets[i].Name == name)
-                return int32_t(i);
-
-        return -1;
-    }
-
 }
