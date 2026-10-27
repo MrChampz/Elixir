@@ -78,45 +78,13 @@ namespace Elixir
         return Create(m_Name, m_Bones, std::move(sockets));
     }
 
-    int32_t Skeleton::FindSocket(const std::string_view name) const
+    const SSkeletonSocket* Skeleton::GetSocket(const std::string_view name) const
     {
-        for (size_t i = 0; i < m_Sockets.size(); ++i)
-            if (m_Sockets[i].Name == name)
-                return int32_t(i);
+        for (const auto& socket : m_Sockets)
+            if (socket.Name == name)
+                return &socket;
 
-        return -1;
-    }
-
-    std::optional<glm::mat4> Skeleton::GetSocketTransform(
-        const std::string_view name,
-        const SModelPose& modelPose
-    ) const
-    {
-        const auto index = FindSocket(name);
-        return index < 0 ? std::nullopt : GetSocketTransform(size_t(index), modelPose);
-    }
-
-    std::optional<glm::mat4> Skeleton::GetSocketTransform(
-        const size_t socketIndex,
-        const SModelPose& modelPose
-    ) const
-    {
-        if (socketIndex >= m_Sockets.size() || !modelPose.IsValid(m_Bones.size()))
-            return std::nullopt;
-
-        const auto& socket = m_Sockets[socketIndex];
-        const auto result =
-            modelPose.Matrices[socket.BoneIndex] * socket.RelativeTransform.ToMatrix();
-
-        for (int c = 0; c < 4; ++c)
-            for (int r = 0; r < 4; ++r)
-                if (!std::isfinite(result[c][r]))
-                {
-                    EE_CORE_ERROR("Socket '{}' exceeds the supported matrix range.", socket.Name)
-                    return std::nullopt;
-                }
-
-        return result;
+        return nullptr;
     }
 
     bool Skeleton::IsCompatible(const Skeleton& other) const

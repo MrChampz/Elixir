@@ -984,16 +984,18 @@ void Dissolve::DrawGeometry()
             {
                 const auto& pose = animation ? animation->GetModelPose()
                     : instance.GetReferenceModelPose();
-                const auto socket = instance.GetMesh()->GetSkeleton()->GetSocketTransform(
-                    "WeaponGrip",
-                    pose
-                );
+                const auto& skeleton = instance.GetMesh()->GetSkeleton();
+                const auto* socket = skeleton->GetSocket("WeaponGrip");
                 if (socket)
                 {
-                    m_AttachmentRenderer->Render(
-                        m_AttachmentMesh,
-                        transform * movement * *socket
-                    );
+                    const auto attachment = socket->GetTransform(pose);
+                    if (attachment)
+                    {
+                        m_AttachmentRenderer->Render(
+                            m_AttachmentMesh,
+                            transform * movement * *attachment
+                        );
+                    }
                 }
             }
         };

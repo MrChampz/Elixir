@@ -60,36 +60,11 @@ namespace Elixir
         const std::vector<SSkeletonSocket>& GetSockets() const { return m_Sockets; }
 
         /**
-         * @brief Find a socket's index, or return -1 for an unknown name.
-         * @param name Case-sensitive attachment name.
-         */
-        int32_t FindSocket(std::string_view name) const;
-
-        /**
-         * @brief Get an attachment matrix from a final pose in skeleton space.
-         *
-         * Multiply the result by the character world transform to place an attachment.
-         * The pose includes animation layers and root-motion locking, without inverse binds.
-         *
+         * @brief Get an immutable attachment point by name.
          * @param name Case-sensitive socket name in this skeleton.
-         * @param modelPose Final model-space pose using this skeleton's bone order.
-         * @return Empty for a missing socket, invalid pose, or nonfinite result.
+         * @return The socket, or null when absent; valid for this skeleton's lifetime.
          */
-        std::optional<glm::mat4> GetSocketTransform(
-            std::string_view name,
-            const SModelPose& modelPose
-        ) const;
-
-        /**
-         * @brief Read an attachment matrix using a cached socket index.
-         * @param socketIndex Index in this skeleton's GetSockets().
-         * @param modelPose Final model-space pose using this skeleton's bone order.
-         * @return Empty for an invalid index, pose, or nonfinite result.
-         */
-        std::optional<glm::mat4> GetSocketTransform(
-            size_t socketIndex,
-            const SModelPose& modelPose
-        ) const;
+        const SSkeletonSocket* GetSocket(std::string_view name) const;
 
         /**
          * @brief Compare bone names and parent indices for animation sharing.
