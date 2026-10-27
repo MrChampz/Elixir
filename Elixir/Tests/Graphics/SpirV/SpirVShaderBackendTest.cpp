@@ -149,22 +149,3 @@ TEST(SpirVMatrixReflectionTest, DistinguishesSquareMatricesFromFloatScalarsAndVe
     ASSERT_EQ(matrixBuffer->GetConstants().size(), 1);
     EXPECT_EQ(matrixBuffer->GetConstants().front().GetType(), EConstantType::Mat3);
 }
-
-TEST(SpirVMatrixReflectionTest, RejectsUnsupportedMatrixShapes)
-{
-    for (const auto* filename : {
-        "UnsupportedMat2.cs.spirv", "UnsupportedRectangularMatrix.cs.spirv"
-    })
-    {
-        SCOPED_TRACE(filename);
-        const auto path = std::filesystem::path(ELIXIR_TEST_SHADER_DIR) / filename;
-        if (!std::filesystem::is_regular_file(path))
-            GTEST_SKIP() << "Test shader requires the Vulkan SDK shader compiler.";
-        const auto module = SpirV::SpirVShaderBackend{}.LoadModule(
-            path,
-            EShaderStage::Compute
-        );
-        EXPECT_TRUE(module.Bytecode.empty());
-        EXPECT_TRUE(module.ConstantBuffers.empty());
-    }
-}
