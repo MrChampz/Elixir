@@ -206,8 +206,11 @@ namespace Elixir::Aether
          */
         std::optional<SParameter> GetParameterDefault(std::string_view name) const;
 
-        /** @brief Compile the authored system into immutable runtime data. */
-        SCompiledSystem Compile() const;
+        /**
+         * @brief Compile the authored system into immutable runtime data.
+         * @return Compiled data, or no value if parameter or module compilation fails.
+         */
+        std::optional<SCompiledSystem> Compile() const;
 
         UUID m_UUID;
         mutable uint32_t m_CompilationRevision = 0;

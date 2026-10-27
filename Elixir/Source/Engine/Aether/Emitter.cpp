@@ -45,7 +45,7 @@ namespace Elixir::Aether
         m_TriggerDelaySeconds = delaySeconds;
     }
 
-    SCompiledEmitter Emitter::Compile(
+    std::optional<SCompiledEmitter> Emitter::Compile(
         const ParameterStore& paramStore,
         const std::vector<SCompiledParameter>& params,
         SCompiledModuleData& program
@@ -115,6 +115,9 @@ namespace Elixir::Aether
                 module->Compile(context);
         }
         emitter.StrandUpdateOperationCount = uint32_t(program.Operations.size()) - emitter.StrandUpdateOperationOffset;
+
+        if (!context.IsValid())
+            return std::nullopt;
 
         return emitter;
     }

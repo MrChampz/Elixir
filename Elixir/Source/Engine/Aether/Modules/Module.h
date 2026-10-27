@@ -122,13 +122,18 @@ namespace Elixir::Aether::Modules
          * @brief Append one operation to the compiled system.
          *
          * The operand count and types must match the operation definition. Invalid arguments
-         * are logged and leave the operation and operand tables unchanged.
+         * are logged and leave the operation and operand tables unchanged. Any failure marks
+         * this context invalid and prevents subsequent operations from being appended.
          *
          * @param type Operation to emit.
          * @param target Destination particle attribute.
          * @param operands Typed operands in operation-definition order.
          */
-        void Emit(EOperationType type, EParticleAttribute target, std::initializer_list<SGPUOperand> operands);
+        void Emit(
+            EOperationType type,
+            EParticleAttribute target,
+            std::initializer_list<SGPUOperand> operands
+        );
 
         /**
          * @brief Compile a scalar literal or named parameter binding.
@@ -189,16 +194,19 @@ namespace Elixir::Aether::Modules
          */
         SGPUOperand Curve(std::string_view name);
 
+        /** @brief Report whether all operand and operation compilation steps succeeded. */
+        bool IsValid() const { return m_Valid; }
+
     private:
         /**
          * @brief Intern typed literal words or resolve a named parameter binding.
-         * @param type Logical operand type.
+         * @param input Logical operand type.
          * @param words Raw literal words used when no parameter matches.
          * @param parameter Optional parameter name to resolve.
          * @return The operand, or an invalid operand for a type mismatch or range overflow.
          */
         SGPUOperand Literal(
-            EOperandInput type,
+            EOperandInput input,
             std::span<const uint32_t> words,
             std::string_view parameter
         );
@@ -207,6 +215,8 @@ namespace Elixir::Aether::Modules
         const std::vector<SCompiledParameter>& m_Parameters;
         std::string_view m_EmitterName;
         float m_GravityScale;
+
+        bool m_Valid = true;
 
         // Includes the logical type in each key to preserve literal identity.
         std::map<std::array<uint32_t, 5>, uint32_t> m_Literals;

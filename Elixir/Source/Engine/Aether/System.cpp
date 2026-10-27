@@ -71,11 +71,11 @@ namespace Elixir::Aether
         return *found;
     }
 
-    SCompiledSystem System::Compile() const
+    std::optional<SCompiledSystem> System::Compile() const
     {
         SCompiledSystem system;
         system.SourceId = m_UUID;
-        system.CompilationRevision = ++m_CompilationRevision;
+        system.CompilationRevision = m_CompilationRevision + 1;
 
         auto parameters = BuildExposedParameters();
 
@@ -131,37 +131,49 @@ namespace Elixir::Aether
         }
 
         system.Parameters = CompileParameters(parameters);
-        if (system.Parameters.size() != parameters.size()) return system;
+        if (system.Parameters.size() != parameters.size())
+            return std::nullopt;
 
         system.DefaultParameterWords = PackParameterValues(system.Parameters);
 
         if (system.DefaultParameterWords.size() > OperandIndexMask)
         {
             EE_CORE_ERROR("Aether parameter table exceeds the operand word range.");
-            return system;
+            return std::nullopt;
         }
 
         for (const auto& emitter : m_Emitters)
+        {
             for (const auto& module : emitter->m_Modules)
+            {
                 if (!module->SupportsTarget(module->GetTarget()) ||
-                    (module->GetTarget() == EModuleTarget::StrandPoints && emitter->GetRenderMode() != EParticleRenderMode::Strand))
+                    (module->GetTarget() == EModuleTarget::StrandPoints &&
+                        emitter->GetRenderMode() != EParticleRenderMode::Strand))
                 {
                     EE_CORE_ERROR("Aether module target is incompatible with its emitter.");
-                    return system;
+                    return std::nullopt;
                 }
+            }
+        }
 
         uint32_t localParticleOffset = 0;
         system.Emitters.reserve(m_Emitters.size());
 
         for (const auto& emitter : m_Emitters)
         {
-            auto compiled = emitter->Compile(
+            auto result = emitter->Compile(
                 m_Parameters,
                 system.Parameters,
                 system.ModuleData
             );
+
+            if (!result)
+                return std::nullopt;
+
+            auto compiled = std::move(*result);
             compiled.LocalParticleOffset = localParticleOffset;
             compiled.LocalStrandPointOffset = system.TotalStrandPoints;
+
             if (compiled.RenderMode == EParticleRenderMode::Strand)
             {
                 const uint64_t count = uint64_t(compiled.MaxParticles) * compiled.Strand.PointCount;
@@ -171,8 +183,9 @@ namespace Elixir::Aether
                     system.Emitters.clear();
                     system.TotalMaxParticles = 0;
                     system.TotalStrandPoints = 0;
-                    return system;
+                    return std::nullopt;
                 }
+
                 system.TotalStrandPoints += uint32_t(count);
             }
 
@@ -237,6 +250,7 @@ namespace Elixir::Aether
             );
         }
 
+        ++m_CompilationRevision;
         return system;
     }
 }

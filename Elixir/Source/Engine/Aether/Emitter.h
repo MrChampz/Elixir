@@ -343,8 +343,14 @@ namespace Elixir::Aether
         /** Checks whether the current material was assigned by the effect resolver. */
         bool HasResolvedMaterial() const { return m_MaterialIsResolved; }
 
-        // Compiles this emitter into internal GPU-ready runtime data.
-        SCompiledEmitter Compile(
+        /**
+         * @brief Compile this emitter into internal GPU-ready runtime data.
+         * @param paramStore System parameters used to resolve emitter settings.
+         * @param params Compiled parameters available to module bindings.
+         * @param program Shared operation tables; discard them if compilation fails.
+         * @return Compiled data, or no value if a module fails to compile.
+         */
+        std::optional<SCompiledEmitter> Compile(
             const ParameterStore& paramStore,
             const std::vector<SCompiledParameter>& params,
             SCompiledModuleData& program
