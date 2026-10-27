@@ -250,6 +250,65 @@ TEST_F(VulkanImageTest, TextureAssetsAndDirectImagesShareOneDescriptorRegistrati
     EXPECT_TRUE(batch.GetCommands().empty());
 }
 
+TEST_F(VulkanImageTest, MaterialBindingsRetainSharedImagesUntilTheirLastTextureIsUnused)
+{
+    class SharedImageTexture final : public Texture
+    {
+    public:
+        explicit SharedImageTexture(Ref<Image> image) : Texture(std::move(image), {}) {}
+    };
+
+    ASSERT_TRUE(Context->RunRenderTaskAndWait([&]
+    {
+        Materials::Rendering::TextureRegistry registry(Context);
+        const auto pool = static_cast<VulkanGraphicsContext*>(Context)->GetBindlessDescriptorPool();
+        const auto source = Texture2D::Create(Context, EImageFormat::R8G8B8A8_UNORM, 1, 1);
+        ASSERT_TRUE(source);
+        auto first = CreateRef<SharedImageTexture>(source->GetImage());
+        const auto second = CreateRef<SharedImageTexture>(source->GetImage());
+        EXPECT_NE(first->GetUUID(), second->GetUUID());
+        const auto fallback = registry.GetFallbackIndex();
+        ASSERT_NE(fallback, UINT32_MAX);
+
+        registry.BeginFrame(1);
+        EXPECT_EQ(registry.Resolve(first), fallback);
+        registry.EndFrame();
+        const auto handle = pool->GetImageHandle(source->GetImage());
+        ASSERT_TRUE(handle.IsValid());
+
+        // A new asset sharing an already published image must not wait another submission.
+        registry.BeginFrame(2);
+        EXPECT_EQ(registry.Resolve(second), handle.Index);
+        EXPECT_EQ(registry.Find(first), handle.Index);
+        registry.EndFrame();
+        EXPECT_EQ(pool->GetImage(handle), source->GetImage());
+        EXPECT_EQ(registry.GetImageSet()->GetImageCount(), 2u);
+
+        first.reset();
+        registry.BeginFrame(3);
+        EXPECT_EQ(registry.Resolve(second), handle.Index);
+        registry.EndFrame();
+        EXPECT_EQ(pool->GetImage(handle), source->GetImage());
+
+        registry.BeginFrame(4);
+        registry.EndFrame();
+        Context->WaitForSubmittedFrames();
+        EXPECT_FALSE(pool->GetImage(handle));
+        EXPECT_EQ(registry.GetImageSet()->GetImageCount(), 1u);
+
+        registry.BeginFrame(5);
+        EXPECT_EQ(registry.Resolve(second), fallback);
+        registry.EndFrame();
+        registry.BeginFrame(6);
+        const auto rebound = registry.Resolve(second);
+        ASSERT_TRUE(rebound);
+        EXPECT_NE(*rebound, fallback);
+        EXPECT_NE(*rebound, UINT32_MAX);
+        registry.EndFrame();
+        EXPECT_EQ(registry.GetImageSet()->GetImageCount(), 2u);
+    }));
+}
+
 TEST_F(VulkanImageTest, MaterialTextureRegistrationFailureIsReportedAcrossSubmissions)
 {
     class MissingImageTexture final : public Texture

@@ -9,7 +9,8 @@ namespace Elixir::Materials::Rendering
      * @brief Manages bindless texture bindings used by material rendering.
      *
      * Newly added bindings use the fallback texture until descriptor updates become
-     * visible to a later submission.
+     * visible to a later submission. Texture assets sharing an image share one binding and
+     * retirement lifetime.
      */
     class ELIXIR_API TextureRegistry final
     {
@@ -91,8 +92,8 @@ namespace Elixir::Materials::Rendering
         /** @brief Keeps bindings alive while deferred releases are pending. */
         struct SBindingState
         {
-            std::unordered_map<Ref<Texture>, STextureBinding> Bindings;
-            std::unordered_map<Ref<Texture>, uint64_t> Retirements;
+            std::unordered_map<Ref<Image>, STextureBinding> Bindings;
+            std::unordered_map<Ref<Image>, uint64_t> Retirements;
             uint64_t NextRetirement = 1;
         };
 
@@ -100,7 +101,7 @@ namespace Elixir::Materials::Rendering
         Ref<Sampler> m_Sampler;
         SResourceHandle m_FallbackTextureHandle;
         Ref<SBindingState> m_BindingState;
-        std::unordered_set<Ref<Texture>> m_ReferencedTextures;
+        std::unordered_set<Ref<Image>> m_ReferencedImages;
 
         uint64_t m_SubmissionSerial = 0;
 

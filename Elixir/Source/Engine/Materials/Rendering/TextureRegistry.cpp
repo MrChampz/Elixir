@@ -26,7 +26,7 @@ namespace Elixir::Materials::Rendering
     void TextureRegistry::BeginFrame(const uint64_t submissionSerial)
     {
         m_SubmissionSerial = submissionSerial;
-        m_ReferencedTextures.clear();
+        m_ReferencedImages.clear();
     }
 
     void TextureRegistry::EndFrame()
@@ -34,29 +34,33 @@ namespace Elixir::Materials::Rendering
         auto& bindings = m_BindingState->Bindings;
         for (auto binding = bindings.begin(); binding != bindings.end();)
         {
-            if (m_ReferencedTextures.contains(binding->first))
+            if (m_ReferencedImages.contains(binding->first))
             {
                 ++binding;
                 continue;
             }
 
-            const Ref<Texture> texture = binding->first;
+            const Ref<Image> image = binding->first;
             const SResourceHandle handle = binding->second.Handle;
             binding = bindings.erase(binding);
 
             const Ref<SBindingState> state = m_BindingState;
             const Ref<ImageSet> textures = m_Textures;
-            const uint64_t retirement = state->NextRetirement++;
-            state->Retirements[texture] = retirement;
-            m_GraphicsContext->DeferResourceRelease([state, textures, texture, handle, retirement]()
-            {
-                const auto retired = state->Retirements.find(texture);
-                if (retired == state->Retirements.end() || retired->second != retirement)
-                    return;
 
-                state->Retirements.erase(retired);
-                textures->RemoveTexture(handle);
-            });
+            const uint64_t retirement = state->NextRetirement++;
+            state->Retirements[image] = retirement;
+            
+            m_GraphicsContext->DeferResourceRelease(
+                [state, textures, image, handle, retirement]()
+                {
+                    const auto retired = state->Retirements.find(image);
+                    if (retired == state->Retirements.end() || retired->second != retirement)
+                        return;
+
+                    state->Retirements.erase(retired);
+                    textures->RemoveImage(handle);
+                }
+            );
         }
     }
 
@@ -68,19 +72,26 @@ namespace Elixir::Materials::Rendering
         if (!texture)
             return GetFallbackIndex();
 
-        m_ReferencedTextures.insert(texture);
-        m_BindingState->Retirements.erase(texture);
+        const auto& image = texture->GetImage();
+        if (!image) return std::nullopt;
 
-        const auto found = m_BindingState->Bindings.find(texture);
+        m_ReferencedImages.insert(image);
+        m_BindingState->Retirements.erase(image);
+
+        const auto found = m_BindingState->Bindings.find(texture->GetImage());
         if (found != m_BindingState->Bindings.end())
             return Find(texture);
 
         // Bindless descriptor updates become visible before the next render callback.
-        const auto handle = m_Textures->AddTexture(texture);
+        const auto handle = m_Textures->AddImage(image);
         if (!handle.IsValid())
             return std::nullopt;
 
-        m_BindingState->Bindings.emplace(texture, STextureBinding{
+        // The fallback registration remains owned by the registry for its entire lifetime.
+        if (handle == m_FallbackTextureHandle)
+            return GetFallbackIndex();
+
+        m_BindingState->Bindings.emplace(image, STextureBinding{
             .Handle = handle,
             .ReadySubmission = m_SubmissionSerial + 1,
         });
@@ -93,7 +104,7 @@ namespace Elixir::Materials::Rendering
         if (!texture)
             return GetFallbackIndex();
 
-        const auto found = m_BindingState->Bindings.find(texture);
+        const auto found = m_BindingState->Bindings.find(texture->GetImage());
         if (found == m_BindingState->Bindings.end())
             return GetFallbackIndex();
 
