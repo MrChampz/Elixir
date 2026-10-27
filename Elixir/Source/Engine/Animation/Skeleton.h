@@ -1,51 +1,12 @@
 #pragma once
 
-#include <Engine/Core/Core.h>
-
-#include <glm/gtc/quaternion.hpp>
-#include <optional>
+#include <Engine/Animation/BoneTransform.h>
+#include <Engine/Animation/SkeletonSocket.h>
 
 namespace Elixir
 {
     struct SLocalPose;
     struct SModelPose;
-
-    /** @brief Stores a bone transform relative to its parent. */
-    struct ELIXIR_API SBoneTransform
-    {
-        static constexpr float BoneTransformTolerance = 1e-5f;
-
-        glm::vec3 Translation{};
-        glm::quat Rotation{ 1.0f, 0.0f, 0.0f, 0.0f };
-        glm::vec3 Scale{ 1.0f };
-
-        /**
-         * @brief Interpolate local translation, scale, and shortest-path rotation.
-         * @param from Source transform with a unit quaternion.
-         * @param to Target transform with a unit quaternion.
-         * @param weight Target weight in [0, 1].
-         * @return Mixed transform; opposite scale signs can produce zero scale.
-         */
-        static SBoneTransform Blend(
-            const SBoneTransform& from,
-            const SBoneTransform& to,
-            float weight
-        );
-
-        /** @brief Compose translation, rotation, and scale into a matrix. */
-        glm::mat4 ToMatrix() const;
-
-        /**
-         * @brief Check whether another transform differs only within the comparison tolerance.
-         * @param other Transform to compare with this transform.
-         * @return True when translation, scale, and rotation are nearly equal.
-         * @pre Both transforms are valid.
-         */
-        bool IsNearlyEqual(const SBoneTransform& other) const;
-
-        /** @brief Check for finite values, a unit quaternion, and nonzero scale. */
-        bool IsValid() const;
-    };
 
     /** @brief Defines one bone in a shared skeleton. */
     struct SBone
@@ -55,19 +16,6 @@ namespace Elixir
         /** Index of an earlier bone, or -1 for a root. */
         int32_t ParentIndex = -1;
         SBoneTransform ReferenceTransform;
-    };
-
-    /** Defines an attachment point relative to one skeleton bone. */
-    struct SSkeletonSocket
-    {
-        /** Unique nonempty name within the skeleton. */
-        std::string Name;
-
-        /** Index in Skeleton::GetBones(), independent of mesh skin palettes. */
-        uint32_t BoneIndex = 0;
-
-        /** Offset in the bone's local space, including attachment rotation and scale. */
-        SBoneTransform RelativeTransform;
     };
 
     /** @brief Stores an immutable bone hierarchy shared by meshes and animations. */
