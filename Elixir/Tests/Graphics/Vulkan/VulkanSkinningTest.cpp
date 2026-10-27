@@ -1,3 +1,6 @@
+#include "../../Engine/Animation/AnimationTestNodes.h"
+#include <Engine/Animation/Animation.h>
+#include "../../Engine/Animation/AnimationTestPlayback.h"
 #include <Engine/Animation/BlendSpace2D.h>
 #include <Engine/Animation/BlendSpace1D.h>
 #include <gtest/gtest.h>
@@ -41,40 +44,88 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
 
         for (int frame = 0; frame < 4; ++frame)
         {
-            SkeletalMeshInstance firstInstance(mesh), secondInstance(mesh);
+            const auto firstInstanceHandle = Animation::Create(mesh->GetSkeleton(), mesh->GetData().ReferencePose);
+            ASSERT_TRUE(firstInstanceHandle);
+            auto& firstInstance = *firstInstanceHandle;
+            const auto secondInstanceHandle = Animation::Create(mesh->GetSkeleton(), mesh->GetData().ReferencePose);
+            ASSERT_TRUE(secondInstanceHandle);
+            auto& secondInstance = *secondInstanceHandle;
             if (frame > 0)
             {
-                auto animation = AnimationSequence::Create("Blend", mesh->GetSkeleton(), 2, {
-                    { .BoneIndex = 0, .Translations = {{ 0, { 2, 1, -1 } }},
+                auto animation = Sequence::Create("Blend", mesh->GetSkeleton(), 2, {
+                    { .BoneIndex = 0, .Translations = {
+                        { 0, { 2, 1, -1 } }, { 2, { 4, 3, -1 } },
+                      },
                       .Rotations = {{ 0, glm::angleAxis(1.0f, glm::vec3(0, 0, 1)) }},
                       .Scales = {{ 0, { 2, 3, 1 } }} },
-                });
-                const auto reference = AnimationSequence::Create(
-                    "Reference", mesh->GetSkeleton(), 1, {}
+                }, {{ "LeftFootPlant", 0.2f }, { "RightFootPlant", 1.2f }});
+                const auto reference = Sequence::Create(
+                    "Reference", mesh->GetSkeleton(), 1, {},
+                    {{ "LeftFootPlant", 0.25f }, { "RightFootPlant", 0.75f }}
                 );
                 const auto space = BlendSpace1D::Create("Locomotion", {
                     { 0.0f, reference }, { 1.0f, animation },
                 });
                 if (frame == 3)
                 {
-                    const auto lateral = AnimationSequence::Create("Lateral", mesh->GetSkeleton(),
-                        3, {{ .BoneIndex = 1, .Translations = {{ 0, { -2, 1, 3 } }} }});
+                    ASSERT_TRUE(firstInstance.SetRootMotionEnabled(true));
+                    const auto lateral = Sequence::Create("Lateral", mesh->GetSkeleton(),
+                        3, {{ .BoneIndex = 1, .Translations = {
+                            { 0, { -2, 1, 3 } }, { 3, { 1, 4, 3 } },
+                        } }}, {{ "RightFootPlant", 0.3f }, { "LeftFootPlant", 1.8f }});
                     const auto plane = BlendSpace2D::Create("Plane", {
                         {{ 0, 0 }, reference }, {{ 1, 0 }, animation }, {{ 0, 1 }, lateral },
                     });
-                    ASSERT_TRUE(firstInstance.Play(plane, { 0.25f, 0.25f }, 2.0f));
+                    ASSERT_TRUE(PlayWithInputs(firstInstance, MakeNode(plane), { 0.25f, 0.25f }, 2.0f));
                 }
                 else
-                    ASSERT_TRUE(firstInstance.Play(space, { 0.5f }, 2.0f));
+                    ASSERT_TRUE(PlayWithInputs(firstInstance, MakeNode(space), { 0.5f }, 2.0f));
                 ASSERT_TRUE(firstInstance.Update(float(frame) * 0.5f));
                 ASSERT_TRUE(firstInstance.IsTransitioning());
             }
             auto pose = secondInstance.GetLocalPose();
-            pose[0].Scale = {-2, 3, 0.5f};
-            pose[0].Translation = {float(frame), 2, -1};
-            pose[1].Translation = {3, -2, float(frame)};
-            pose[1].Rotation = glm::angleAxis(0.7f, glm::normalize(glm::vec3(1, 2, 3)));
+            pose.LocalTransforms[0].Scale = {-2, 3, 0.5f};
+            pose.LocalTransforms[0].Translation = {float(frame), 2, -1};
+            pose.LocalTransforms[1].Translation = {3, -2, float(frame)};
+            pose.LocalTransforms[1].Rotation = glm::angleAxis(0.7f, glm::normalize(glm::vec3(1, 2, 3)));
             ASSERT_TRUE(secondInstance.SetLocalPose(pose));
+            if (frame > 0)
+            {
+                auto mask = BoneMask::FromBone("Action", mesh->GetSkeleton(),
+                    mesh->GetSkeleton()->GetBones()[1].Name);
+                auto action = Sequence::Create("Layer", mesh->GetSkeleton(), 1, {
+                    { .BoneIndex = 1, .Translations = {
+                        { 0, { 1, 2, 3 } }, { 1, { 3, 4, 5 } },
+                    } },
+                });
+                action = action->WithNotifies({{"Active", 0, 1}});
+                ASSERT_TRUE(action);
+                ASSERT_TRUE(firstInstance.AddLayer("Action", mask, 0.65f));
+                if (frame == 2)
+                    ASSERT_TRUE(firstInstance.GetLayer("Action")->SetBlendMode(
+                        EAnimationLayerBlendMode::Additive));
+                auto& player = firstInstance.GetLayer("Action")->GetPlayer();
+                ASSERT_TRUE(player.Play(MakeNode(action)));
+                const auto montage = AnimationMontage::Create({
+                    .Name = "ActionMontage", .Sequence = action,
+                    .BlendIn = 0.25f, .BlendOut = 0.25f,
+                    .Sections = {{"Start", 0, "End"}, {"Skip", 0.25f},
+                        {"End", 0.75f, ""}}
+                });
+                ASSERT_TRUE(montage);
+                ASSERT_TRUE(player.PlayMontage(montage));
+                ASSERT_TRUE(firstInstance.Update(frame == 3 ? 0.375f : 0.125f));
+                EXPECT_NEAR(player.GetMontageWeight(), 0.5f, 1e-6f);
+                EXPECT_EQ(firstInstance.GetNotifyEvents().size(), frame == 3 ? 5u : 2u);
+                if (frame == 3)
+                    EXPECT_EQ(player.GetCurrentMontageSection(), "End");
+                if (frame == 3)
+                {
+                    EXPECT_EQ(firstInstance.GetLocalPose().LocalTransforms[0].Translation,
+                        mesh->GetData().ReferencePose.LocalTransforms[0].Translation);
+                    EXPECT_TRUE(firstInstance.GetRootMotionDelta().IsValid());
+                }
+            }
             SkinningBatch batch;
             ASSERT_TRUE(batch.Append(*mesh, firstInstance.GetModelPose(), geometry.Get()->VertexOffset,
                 first.Get()->VertexOffset, 4));
@@ -197,7 +248,9 @@ TEST(VulkanSkinningTest, RejectsVertexBuffersWithoutStorageUsage)
         ASSERT_TRUE(output.IsValid());
         const auto mesh = SkinningTests::MakeMesh();
         ASSERT_TRUE(mesh);
-        SkeletalMeshInstance instance(mesh);
+        const auto instanceHandle = Animation::Create(mesh->GetSkeleton(), mesh->GetData().ReferencePose);
+        ASSERT_TRUE(instanceHandle);
+        auto& instance = *instanceHandle;
         SkinningBatch batch;
         ASSERT_TRUE(batch.Append(*mesh, instance.GetModelPose(), 0, 0, 2));
         ShaderLoader loader(context);
@@ -230,10 +283,12 @@ TEST(VulkanSkinningTest, ProcessesOneThousandIndependentCharactersInOneBatch)
         expected.reserve(instanceCount);
         for (uint32_t i = 0; i < instanceCount; ++i)
         {
-            SkeletalMeshInstance instance(mesh);
+            const auto instanceHandle = Animation::Create(mesh->GetSkeleton(), mesh->GetData().ReferencePose);
+            ASSERT_TRUE(instanceHandle);
+            auto& instance = *instanceHandle;
             auto pose = instance.GetLocalPose();
-            pose[0].Translation = {float(i), float(i % 13), -float(i % 7)};
-            pose[1].Translation = {0, float(i % 5), 1};
+            pose.LocalTransforms[0].Translation = {float(i), float(i % 13), -float(i % 7)};
+            pose.LocalTransforms[1].Translation = {0, float(i % 5), 1};
             ASSERT_TRUE(instance.SetLocalPose(pose));
             ASSERT_TRUE(batch.Append(*mesh, instance.GetModelPose(), geometry.Get()->VertexOffset,
                 result.Get()->VertexOffset + i * vertexCount, instanceCount * 2));

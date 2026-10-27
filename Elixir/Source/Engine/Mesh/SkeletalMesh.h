@@ -1,6 +1,7 @@
 #pragma once
 
-#include <Engine/Animation/AnimationSequence.h>
+#include <Engine/Animation/Pose.h>
+#include <Engine/Animation/Sequence.h>
 #include <Engine/Mesh/Mesh.h>
 
 namespace Elixir
@@ -43,7 +44,7 @@ namespace Elixir
          * Mesh-specific local reference pose; an empty input uses the shared skeleton
          * reference pose.
          */
-        std::vector<SBoneTransform> ReferencePose;
+        SLocalPose ReferencePose;
 
         std::vector<SSkeletalMeshVertex> Vertices;
 
@@ -61,7 +62,7 @@ namespace Elixir
         std::vector<glm::mat4> InverseBindMatrices;
 
         /** Separate animation assets imported with this model. */
-        std::vector<Ref<const AnimationSequence>> Animations;
+        std::vector<Ref<const Sequence>> Animations;
     };
 
     /** @brief Stores immutable skinned geometry independently from its runtime pose. */
@@ -94,7 +95,7 @@ namespace Elixir
         const SMeshBounds& GetLocalBounds() const { return m_LocalBounds; }
 
         /** @brief Get the separate animation assets associated with this model. */
-        const std::vector<Ref<const AnimationSequence>>& GetAnimations() const
+        const std::vector<Ref<const Sequence>>& GetAnimations() const
         {
             return m_Data.Animations;
         }
@@ -113,7 +114,7 @@ namespace Elixir
          *     remains unchanged.
          */
         bool SkinVertices(
-            std::span<const glm::mat4> modelPose,
+            const SModelPose& modelPose,
             std::vector<SStaticMeshVertex>& output
         ) const;
 

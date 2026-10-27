@@ -71,11 +71,22 @@
 #include <Engine/Mesh/SkeletalMeshRenderer.h>
 
 #include <Engine/Animation/Skeleton.h>
-#include <Engine/Animation/AnimationSequence.h>
+#include <Engine/Animation/BoneMask.h>
+#include <Engine/Animation/Pose.h>
+#include <Engine/Animation/Sequence.h>
 #include <Engine/Animation/BlendSpace.h>
 #include <Engine/Animation/BlendSpace1D.h>
 #include <Engine/Animation/BlendSpace2D.h>
-#include <Engine/Animation/AnimationController.h>
-#include <Engine/Animation/AnimationControllerInstance.h>
+#include <Engine/Animation/StateMachine.h>
+#include <Engine/Animation/AnimationMontage.h>
+#include <Engine/Animation/AnimationLayer.h>
+#include <Engine/Animation/AnimationPlayer.h>
+#include <Engine/Animation/AnimationPlayback.h>
+#include <Engine/Animation/SequenceNode.h>
+#include <Engine/Animation/BlendSpaceNode.h>
+#include <Engine/Animation/StateMachineNode.h>
+#include <Engine/Animation/BlendNode.h>
+#include <Engine/Animation/Animation.h>
+#include <Engine/Animation/AnimationGraph.h>
 
 #include <Engine/Aether/System.h>

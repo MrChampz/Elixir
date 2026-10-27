@@ -1,3 +1,4 @@
+#include <Engine/Animation/Pose.h>
 #include "Dissolve.h"
 
 #include "Engine/Materials/Nodes/Color.h"
@@ -18,6 +19,27 @@
 #include <Engine/Materials/Nodes/Panner.h>
 
 using namespace Elixir::Materials::Nodes;
+
+namespace
+{
+    /** Time spent fading the held final punch pose back to the continuing source. */
+    constexpr float ComboRecoveryDuration = 0.3f;
+
+    /** Identifies the foot associated with a locomotion event. */
+    enum class EFoot : uint8_t { Left = 1, Right = 2 };
+
+    /** Carries application-specific footstep data without engine-owned gameplay types. */
+    struct SFootstepNotifyPayload
+    {
+        EFoot Foot;
+    };
+
+    /** Supplies game-defined damage settings for the demonstration's active attack window. */
+    struct SAttackWindowPayload
+    {
+        uint32_t Damage = 12;
+    };
+}
 
 std::array<Ref<Aether::System>, 2> m_ParticleSystems;
 std::array<Ref<Aether::SystemInstance>, 2> m_ParticleSystemInstances;
@@ -147,10 +169,16 @@ Dissolve::Dissolve()
             mesh = std::move(*loaded);
 
             const auto& bounds = mesh->GetLocalBounds();
-            m_CameraController->FrameBounds(bounds.Min, bounds.Max);
+            const auto separation = (bounds.Max.y - bounds.Min.y) * 0.7f;
+            m_CameraController->FrameBounds(
+                bounds.Min - glm::vec3(separation, 0, 0),
+                bounds.Max + glm::vec3(separation, 0, 0)
+            );
+            m_CameraController->SetDistance((bounds.Max.y - bounds.Min.y) * 2.0f);
 
-            m_MeshInstance = CreateScope<SkeletalMeshInstance>(mesh);
-            InitializeAnimationController();
+            m_MeshInstance = SkeletalMeshInstance::Create(mesh);
+            m_ComparisonInstance = SkeletalMeshInstance::Create(mesh);
+            InitializeAnimationGraph();
         }
     }
 
@@ -218,19 +246,53 @@ Dissolve::Dissolve()
 
     const auto panel = CreateRef<GUI::Canvas>();
     const auto instructions = CreateRef<GUI::TextBlock>(
-        "WASD: move | Shift/R: run | Arrows: blend X/Y | Space: idle"
+        "WASD/Arrows: direction | 1/2/3: movement presets | Shift/R: run"
     );
     instructions->SetFontSize(20.0f);
     panel->AddChild(instructions)
         .SetAnchors(GUI::SAnchors::TopLeft())
         .SetPosition({20, 20})
-        .SetSize({650, 30});
-    m_AnimationStatus = CreateRef<GUI::TextBlock>("BlendSpace2D | X: 0.00 | Y: 0.00");
+        .SetSize({1100, 30});
+    const auto playbackInstructions = CreateRef<GUI::TextBlock>(
+        "P: pause | N: frame | F: contact | Space: idle | U: recoil on/off | I/O: recoil 0.5/1"
+    );
+    playbackInstructions->SetFontSize(18.0f);
+    panel->AddChild(playbackInstructions)
+        .SetAnchors(GUI::SAnchors::TopLeft())
+        .SetPosition({20, 50})
+        .SetSize({1000, 30});
+    for (const auto& [position, caption] : std::array{
+        std::pair{0.25f, "ROOT LOCKED"}, std::pair{0.75f, "ROOT MOTION + RECOIL"}
+    })
+    {
+        const auto label = CreateRef<GUI::TextBlock>(caption);
+        label->SetFontSize(24.0f);
+        panel->AddChild(label)
+            .SetAnchors({position, 0, position, 0})
+            .SetAlignment({0.5f, 0})
+            .SetPosition({0, 190})
+            .SetSize({260, 35});
+    }
+    const auto layerInstructions = CreateRef<GUI::TextBlock>(
+        "J: recovery | K: start/chain combo | L: action on/off | B: dodge montage | V: reset"
+    );
+    layerInstructions->SetFontSize(18.0f);
+    panel->AddChild(layerInstructions)
+        .SetAnchors(GUI::SAnchors::TopLeft())
+        .SetPosition({20, 80})
+        .SetSize({1100, 30});
+    m_AnimationStatus = CreateRef<GUI::TextBlock>("KayKit animation layers");
     m_AnimationStatus->SetFontSize(20.0f);
     panel->AddChild(m_AnimationStatus)
         .SetAnchors(GUI::SAnchors::TopLeft())
-        .SetPosition({20, 55})
-        .SetSize({650, 30});
+        .SetPosition({20, 110})
+        .SetSize({1100, 30});
+    m_NotifyStatus = CreateRef<GUI::TextBlock>("Hitbox OFF | Window updates 0 | Cancelled 0");
+    m_NotifyStatus->SetFontSize(18.0f);
+    panel->AddChild(m_NotifyStatus)
+        .SetAnchors(GUI::SAnchors::TopLeft())
+        .SetPosition({20, 140})
+        .SetSize({1100, 30});
     m_GUIManager->SetRoot(panel);
 
     m_GraphicsContext->SetClearColor({0.015f, 0.025f, 0.06f, 1.0f});
@@ -256,17 +318,101 @@ void Dissolve::OnGUI(const Timestep frameTime)
     if (m_AnimationStatus)
         m_AnimationStatus->SetText(
             std::format(
-                "BlendSpace2D | X: {:.2f} | Y: {:.2f}",
-                m_AnimationStrafe.load(std::memory_order_relaxed),
-                m_AnimationForward.load(std::memory_order_relaxed)
+                "Phase {:.2f} | {} | Steps {} / {} | {} | Actions {} | Recoil {:.2f} | Shots {} | Root {:.2f}",
+                m_AnimationPhase.load(std::memory_order_relaxed),
+                m_AnimationPaused.load(std::memory_order_relaxed) ? "PAUSED" : "PLAYING",
+                m_ComparisonSteps.load(std::memory_order_relaxed),
+                m_SynchronizedSteps.load(std::memory_order_relaxed),
+                std::array{"WAVE", "ATTACK 1", "ATTACK 2", "ATTACK 3", "RECOVERY"}
+                    [m_ComboSection.load(std::memory_order_relaxed)],
+                m_ActionEvents.load(std::memory_order_relaxed),
+                m_RecoilEnabled.load(std::memory_order_relaxed)
+                    ? m_RecoilStrength.load(std::memory_order_relaxed) : 0.0f,
+                m_RecoilEvents.load(std::memory_order_relaxed),
+                m_RootMotionDistance.load(std::memory_order_relaxed)
             )
         );
+    if (m_NotifyStatus)
+        m_NotifyStatus->SetText(std::format(
+            "Hitbox {} | Window updates {} | Cancelled {}",
+            m_HitboxActive.load(std::memory_order_relaxed) ? "ON" : "OFF",
+            m_NotifyUpdates.load(std::memory_order_relaxed),
+            m_CancelledNotifies.load(std::memory_order_relaxed)
+        ));
 }
 
 void Dissolve::Prepare(const Timestep frameTime)
 {
     EE_PROFILE_ZONE_SCOPED()
     Application::Prepare(frameTime);
+
+    const auto dodge = InputManager::IsKeyPressed(EE_KEY_B);
+    if (dodge && !m_DodgeKeyPressed)
+        m_DodgeRequested.store(true, std::memory_order_relaxed);
+    m_DodgeKeyPressed = dodge;
+    const auto resetMotion = InputManager::IsKeyPressed(EE_KEY_V);
+    if (resetMotion && !m_ResetMotionKeyPressed)
+        m_ResetMotion.store(true, std::memory_order_relaxed);
+    m_ResetMotionKeyPressed = resetMotion;
+
+    const auto recoil = InputManager::IsKeyPressed(EE_KEY_U);
+    if (recoil && !m_RecoilKeyPressed)
+        m_RecoilEnabled.store(!m_RecoilEnabled.load(std::memory_order_relaxed),
+            std::memory_order_relaxed);
+    m_RecoilKeyPressed = recoil;
+    if (InputManager::IsKeyPressed(EE_KEY_I))
+        m_RecoilStrength.store(0.5f, std::memory_order_relaxed);
+    if (InputManager::IsKeyPressed(EE_KEY_O))
+        m_RecoilStrength.store(1.0f, std::memory_order_relaxed);
+
+    const auto wave = InputManager::IsKeyPressed(EE_KEY_J);
+    const auto punch = InputManager::IsKeyPressed(EE_KEY_K);
+    const auto toggleLayer = InputManager::IsKeyPressed(EE_KEY_L);
+    if (wave && !m_WaveKeyPressed)
+        m_ActionRequest.store(1, std::memory_order_relaxed);
+    if (punch && !m_PunchKeyPressed)
+        m_ActionRequest.store(2, std::memory_order_relaxed);
+    if (toggleLayer && !m_LayerKeyPressed)
+        m_LayerEnabled.store(!m_LayerEnabled.load(std::memory_order_relaxed),
+            std::memory_order_relaxed);
+    m_WaveKeyPressed = wave;
+    m_PunchKeyPressed = punch;
+    m_LayerKeyPressed = toggleLayer;
+
+    const auto pause = InputManager::IsKeyPressed(EE_KEY_P);
+    if (pause && !m_PauseKeyPressed)
+        m_AnimationPaused.store(!m_AnimationPaused.load(std::memory_order_relaxed),
+            std::memory_order_relaxed);
+    m_PauseKeyPressed = pause;
+    const auto stepFrame = InputManager::IsKeyPressed(EE_KEY_N);
+    if (stepFrame && !m_StepKeyPressed)
+    {
+        m_AnimationPaused.store(true, std::memory_order_relaxed);
+        m_StepAnimation.store(true, std::memory_order_relaxed);
+    }
+    m_StepKeyPressed = stepFrame;
+    const auto contact = InputManager::IsKeyPressed(EE_KEY_F);
+    if (contact && !m_ContactKeyPressed)
+    {
+        m_AnimationPaused.store(true, std::memory_order_relaxed);
+        m_SeekContact.store(true, std::memory_order_relaxed);
+    }
+    m_ContactKeyPressed = contact;
+    if (InputManager::IsKeyPressed(EE_KEY_1))
+    {
+        m_ManualStrafe = 0.0f;
+        m_ManualForward = 2.25f;
+    }
+    if (InputManager::IsKeyPressed(EE_KEY_2))
+    {
+        m_ManualStrafe = 1.0f;
+        m_ManualForward = 1.0f;
+    }
+    if (InputManager::IsKeyPressed(EE_KEY_3))
+    {
+        m_ManualStrafe = -1.5f;
+        m_ManualForward = -0.75f;
+    }
 
     const auto forward = float(InputManager::IsKeyPressed(EE_KEY_UP)) -
                          float(InputManager::IsKeyPressed(EE_KEY_DOWN));
@@ -310,7 +456,7 @@ void Dissolve::Render(const Timestep frameTime)
     DrawGeometry();
     m_SkeletalMeshRenderer->EndFrame();
 
-    aether.Render(m_CameraController->GetCamera(), m_SceneTarget);
+    // Keep particle effects out of the locomotion comparison.
 }
 
 void Dissolve::OnEvent(Event& event)
@@ -319,10 +465,10 @@ void Dissolve::OnEvent(Event& event)
     m_CameraController->ProcessEvent(event);
 }
 
-void Dissolve::InitializeAnimationController()
+void Dissolve::InitializeAnimationGraph()
 {
     const auto& animations = m_MeshInstance->GetMesh()->GetAnimations();
-    const auto findAnimation = [&](const std::string_view name) -> Ref<const AnimationSequence>
+    const auto findAnimation = [&](const std::string_view name) -> Ref<const Sequence>
     {
         const auto found = std::ranges::find_if(
             animations,
@@ -335,60 +481,253 @@ void Dissolve::InitializeAnimationController()
     };
 
     const auto idle = findAnimation("Idle_A");
-    const auto walk = findAnimation("Walking_A");
-    const auto run = findAnimation("Running_A");
-    const auto backward = findAnimation("Walking_Backwards");
-    const auto left = findAnimation("Running_Strafe_Left");
-    const auto right = findAnimation("Running_Strafe_Right");
-    if (!idle || !walk || !run || !backward || !left || !right)
+    const auto walkSource = findAnimation("Walking_A");
+    const auto runSource = findAnimation("Running_A");
+    const auto backwardSource = findAnimation("Walking_Backwards");
+    const auto leftSource = findAnimation("Running_Strafe_Left");
+    const auto rightSource = findAnimation("Running_Strafe_Right");
+    if (!idle || !walkSource || !runSource || !backwardSource || !leftSource || !rightSource)
     {
         EE_CORE_ERROR("KayKit locomotion requires all six directional animations.")
         return;
     }
+    const auto addFootsteps = [](
+        const Ref<const Sequence>& clip,
+        const float leftTime,
+        const float rightTime
+    )
+    {
+        return clip->WithNotifies({
+            { "Footstep", leftTime, 0, SFootstepNotifyPayload{ EFoot::Left } },
+            { "Footstep", rightTime, 0, SFootstepNotifyPayload{ EFoot::Right } },
+        });
+    };
+
+    const auto walk = addFootsteps(walkSource, 0.3217778f, 0.8622223f);
+    const auto run = addFootsteps(runSource, 0.1146667f, 0.5146667f);
+    const auto backward = addFootsteps(backwardSource, 0.8160000f, 0.2826667f);
+    const auto left = addFootsteps(leftSource, 0.1493333f, 0.5613333f);
+    const auto right = addFootsteps(rightSource, 0.1573333f, 0.5453333f);
+    if (!walk || !run || !backward || !left || !right)
+        return;
+
+    // Authored at the lowest ankle position during full support; see the comparison notes.
+    const auto syncWalk = walk->WithSyncMarkers({
+        { "LeftFootPlant", 0.3217778f },
+        { "RightFootPlant", 0.8622223f },
+    });
+    const auto syncRun = run->WithSyncMarkers({
+        { "LeftFootPlant", 0.1146667f },
+        { "RightFootPlant", 0.5146667f },
+    });
+    const auto syncBackward = backward->WithSyncMarkers({
+        { "LeftFootPlant", 0.8160000f },
+        { "RightFootPlant", 0.2826667f },
+    });
+    const auto syncLeft = left->WithSyncMarkers({
+        { "LeftFootPlant", 0.1493333f },
+        { "RightFootPlant", 0.5613333f },
+    });
+    const auto syncRight = right->WithSyncMarkers({
+        { "LeftFootPlant", 0.1573333f },
+        { "RightFootPlant", 0.5453333f },
+    });
+    if (!syncWalk || !syncRun || !syncBackward || !syncLeft || !syncRight)
+        return;
+
     const auto blendSpace = BlendSpace2D::Create(
-        "KayKitLocomotion", {
-                                {{0, 0}, idle},
-                                {{0, 1.5f}, walk},
-                                {{0, 3}, run},
-                                {{0, -1.5f}, backward},
-                                {{-3, 0}, left},
-                                {{3, 0}, right},
-                            }
+        "KayKitSynchronized",
+        {
+            { { 0, 0 }, idle },
+            { { 0, 1.5f }, syncWalk },
+            { { 0, 3 }, syncRun },
+            { { 0, -1.5f }, syncBackward },
+            { { -3, 0 }, syncLeft },
+            { { 3, 0 }, syncRight },
+        }
     );
     if (!blendSpace)
         return;
 
-    const auto controller = AnimationController::Create({
-        .Name = "KayKitLocomotion",
-        .InitialState = "Locomotion",
+    const auto wave = findAnimation("Waving");
+    const auto punch = findAnimation("Melee_Unarmed_Attack_Punch_A");
+    const auto upperBody = BoneMask::FromBone("UpperBody", mesh->GetSkeleton(), "spine");
+    const auto recoilMask = BoneMask::FromBone("Recoil", mesh->GetSkeleton(), "chest");
+    const auto recoilAnimation = CreateRecoilAnimation();
+    if (!wave || !punch || !upperBody || !recoilMask || !recoilAnimation)
+        return;
+
+    const auto waveAnimation = wave->WithNotifies({{ "WavePeak", wave->GetDuration() * 0.5f }});
+    const auto punchAnimation = punch->WithNotifies({{ "PunchHit", punch->GetDuration() * 0.45f }});
+    if (!waveAnimation || !punchAnimation)
+        return;
+
+    const auto dodgeLeft = findAnimation("Dodge_Left");
+    if (!dodgeLeft)
+        return;
+
+    const auto comboAnimation = CreateComboAnimation(punchAnimation);
+    if (!comboAnimation)
+        return;
+    const auto attackDuration = punchAnimation->GetDuration();
+    const auto punchMontage = AnimationMontage::Create({
+        .Name = "PunchCombo",
+        .Sequence = comboAnimation,
+        .BlendIn = 0.1f,
+        .BlendOut = ComboRecoveryDuration,
+        .Sections = {
+            { "Attack1", 0, "Recovery" },
+            { "Attack2", attackDuration, "Recovery" },
+            { "Attack3", attackDuration * 2, "Recovery" },
+            { "Recovery", attackDuration * 3 }
+        }
+    });
+    const auto dodgeMontage = AnimationMontage::Create({
+        .Name = "Dodge", .Sequence = dodgeLeft, .BlendIn = 0.05f, .BlendOut = 0.05f
+    });
+    if (!punchMontage || !dodgeMontage)
+        return;
+
+    const auto graph = AnimationGraph::Create({
+        .Name = "KayKitCharacter",
         .Parameters = {
             { "Strafe", 0.0f },
-            { "Forward", 0.0f }
+            { "Forward", 0.0f },
         },
-        .States = {{
-            .Name = "Locomotion",
-            .BlendSpace = blendSpace,
-            .BlendParameters = { "Strafe", "Forward" },
-        }},
+        .Output = BlendNode::Create("CharacterComposition", {
+            {
+                .Name = "Locomotion",
+                .Node = BlendSpaceNode::Create(blendSpace),
+                .InputParameters = { "Strafe", "Forward" }
+            },
+            { .Name = "UpperBody", .Mask = upperBody, .Node = SequenceNode::Create(waveAnimation) },
+            {
+                .Name = "Recoil",
+                .Mask = recoilMask,
+                .BlendMode = EAnimationLayerBlendMode::Additive,
+                .Node = SequenceNode::Create(recoilAnimation)
+            },
+        }),
     });
-    if (!controller)
+
+    if (!graph) return;
+
+    auto animation = graph->CreateAnimation(m_MeshInstance->GetMesh()->GetData().ReferencePose);
+    auto comparisonAnimation = graph->CreateAnimation(
+        m_ComparisonInstance->GetMesh()->GetData().ReferencePose);
+    if (!animation || !comparisonAnimation) return;
+
+    m_Animation = std::move(animation);
+    m_ComparisonAnimation = std::move(comparisonAnimation);
+
+    auto& instance = *m_Animation;
+    auto& comparison = *m_ComparisonAnimation;
+
+    if (!m_Animation->SetRootMotionEnabled(true, "root") ||
+        !m_ComparisonAnimation->SetRootMotionEnabled(true, "root") ||
+        !instance.Update(0.0f) || !comparison.Update(0.0f) ||
+        !m_ComparisonAnimation->GetLayer("Recoil")->SetWeight(0.0f))
         return;
 
-    auto instance = CreateScope<AnimationControllerInstance>(
-        controller,
-        *m_MeshInstance
+    m_LocomotionSpace = blendSpace;
+    m_PunchMontage = punchMontage;
+    m_DodgeMontage = dodgeMontage;
+    m_ContactPhase = syncLeft->GetSyncMarkers().front().Time / syncLeft->GetDuration();
+    m_AnimationGraph = graph;
+    EE_CORE_INFO("KayKit sections: K starts or chains attacks, J jumps to recovery, B dodges.")
+}
+
+Ref<const Sequence> Dissolve::CreateComboAnimation(
+    const Ref<const Sequence>& attack
+)
+{
+    const auto& reference = m_MeshInstance->GetMesh()->GetData().ReferencePose;
+    std::vector<SBoneAnimationTrack> tracks(reference.LocalTransforms.size());
+    for (size_t i = 0; i < tracks.size(); ++i)
+        tracks[i].BoneIndex = uint32_t(i);
+
+    const auto attackDuration = attack->GetDuration();
+    const auto recoveryStart = attackDuration * 3;
+    for (int section = 0; section < 4; ++section)
+    {
+        const auto duration = section == 3 ? ComboRecoveryDuration : attackDuration;
+        const auto start = section == 3 ? recoveryStart : attackDuration * float(section);
+        const auto frames = int(std::ceil(duration * 60));
+        for (int frame = 0; frame <= frames; ++frame)
+        {
+            const auto time = duration * float(frame) / float(frames);
+            const auto timelineTime = start + time;
+            SLocalPose pose;
+            const auto sampleTime = section == 3 ? attackDuration : time;
+            if (!attack->Sample(sampleTime, pose, reference))
+                return nullptr;
+            for (size_t bone = 0; bone < tracks.size(); ++bone)
+            {
+                auto& track = tracks[bone];
+                // A shared boundary uses the following section's first sample.
+                if (!track.Translations.empty() &&
+                    timelineTime <= track.Translations.back().Time)
+                {
+                    track.Translations.pop_back();
+                    track.Rotations.pop_back();
+                    track.Scales.pop_back();
+                }
+                track.Translations.push_back({timelineTime, pose.LocalTransforms[bone].Translation});
+                track.Rotations.push_back({timelineTime, pose.LocalTransforms[bone].Rotation});
+                track.Scales.push_back({timelineTime, pose.LocalTransforms[bone].Scale});
+            }
+        }
+    }
+    std::vector<SAnimationNotify> notifies;
+    for (int i = 0; i < 3; ++i)
+        notifies.push_back({"PunchHit", attackDuration * (float(i) + 0.45f)});
+    for (int i = 0; i < 3; ++i)
+        notifies.push_back({"AttackHitbox", attackDuration * (float(i) + 0.3f),
+            attackDuration * 0.35f, SAttackWindowPayload{}});
+    return Sequence::Create("PunchCombo", attack->GetSkeleton(),
+        recoveryStart + ComboRecoveryDuration, std::move(tracks), {}, std::move(notifies));
+}
+
+Ref<const Sequence> Dissolve::CreateRecoilAnimation()
+{
+    const auto& skeleton = m_MeshInstance->GetMesh()->GetSkeleton();
+    const auto chest = skeleton->FindBone("chest");
+    if (chest < 0)
+    {
+        EE_CORE_ERROR("The recoil demo requires a chest bone.")
+        return nullptr;
+    }
+
+    const auto& reference = m_MeshInstance->GetMesh()->GetData().ReferencePose.LocalTransforms[size_t(chest)];
+    SBoneAnimationTrack track;
+    track.BoneIndex = uint32_t(chest);
+    track.Translations = {
+        { 0.0f, reference.Translation },
+        { 0.08f, reference.Translation + glm::vec3(0, 0.03f, -0.04f) },
+        { 0.22f, reference.Translation },
+        { 0.65f, reference.Translation },
+    };
+    track.Rotations = {
+        { 0.0f, reference.Rotation },
+        { 0.08f, glm::angleAxis(glm::radians(-18.0f), glm::vec3(1, 0, 0)) * reference.Rotation },
+        { 0.22f, glm::angleAxis(glm::radians(3.0f), glm::vec3(1, 0, 0)) * reference.Rotation },
+        { 0.65f, reference.Rotation },
+    };
+    return Sequence::Create(
+        "RecoilPulse",
+        skeleton,
+        0.65f,
+        { std::move(track) },
+        {},
+        {
+            { "RecoilPeak", 0.08f }
+        }
     );
-
-    if (!instance->Update(0.0f))
-        return;
-
-    m_AnimationController = std::move(instance);
-    EE_CORE_INFO("KayKit 2D: WASD to move, Shift/R to run, arrows set X/Y, Space resets.")
 }
 
 void Dissolve::UpdateAnimation(const float deltaSeconds)
 {
-    if (!m_AnimationController)
+    if (!m_AnimationGraph)
         return;
 
     const auto requested = m_RequestedForward.load(std::memory_order_relaxed);
@@ -399,11 +738,143 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
     const auto strafe = m_AnimationStrafe.load(std::memory_order_relaxed);
     const auto targetStrafe = m_RequestedStrafe.load(std::memory_order_relaxed);
     const auto nextStrafe = strafe + std::clamp(targetStrafe - strafe, -step, step);
-    if (!m_AnimationController->SetFloat("Forward", forward) ||
-        !m_AnimationController->SetFloat("Strafe", nextStrafe) ||
-        !m_AnimationController->Update(deltaSeconds))
+    const auto paused = m_AnimationPaused.load(std::memory_order_relaxed);
+    const auto advance = m_StepAnimation.exchange(false, std::memory_order_relaxed)
+        ? 1.0f / 30.0f : (paused ? 0.0f : deltaSeconds);
+    auto* upperBody = m_Animation->GetLayer("UpperBody");
+    auto* comparisonAction = m_ComparisonAnimation->GetLayer("UpperBody");
+    auto* recoil = m_Animation->GetLayer("Recoil");
+    if (!upperBody || !comparisonAction || !recoil)
+        return;
+    const auto action = m_ActionRequest.exchange(0, std::memory_order_relaxed);
+    if (action == 1 && upperBody->GetPlayer().GetMontage())
+    {
+        if (!upperBody->GetPlayer().JumpToMontageSection("Recovery") ||
+            !comparisonAction->GetPlayer().JumpToMontageSection("Recovery"))
+            return;
+    }
+    else if (action == 2)
+    {
+        if (!upperBody->GetPlayer().GetMontage())
+        {
+            if (!upperBody->GetPlayer().PlayMontage(m_PunchMontage) ||
+                !comparisonAction->GetPlayer().PlayMontage(m_PunchMontage))
+                return;
+        }
+        else
+        {
+            const auto section = upperBody->GetPlayer().GetCurrentMontageSection();
+            const auto next = section == "Attack1" ? "Attack2"
+                : section == "Attack2" ? "Attack3" : "";
+            if (*next && (!upperBody->GetPlayer().SetNextMontageSection(section, next) ||
+                !comparisonAction->GetPlayer().SetNextMontageSection(section, next)))
+                return;
+        }
+    }
+    const auto dodge = m_DodgeRequested.exchange(false, std::memory_order_relaxed);
+    auto& locomotion = m_Animation->GetLayer("Locomotion")->GetPlayer();
+    auto& comparisonLocomotion = m_ComparisonAnimation->GetLayer("Locomotion")->GetPlayer();
+    if (dodge && (!locomotion.PlayMontage(m_DodgeMontage) ||
+        !comparisonLocomotion.PlayMontage(m_DodgeMontage)))
+        return;
+    const auto dodgeActive = bool(locomotion.GetMontage());
+    const auto layerWeight = m_LayerWeight.load(std::memory_order_relaxed);
+    const auto targetWeight = !dodgeActive && m_LayerEnabled.load(std::memory_order_relaxed)
+        ? 1.0f : 0.0f;
+    const auto nextWeight = layerWeight +
+        std::clamp(targetWeight - layerWeight, -advance * 4.0f, advance * 4.0f);
+    const auto recoilWeight = m_RecoilEnabled.load(std::memory_order_relaxed)
+        ? m_RecoilStrength.load(std::memory_order_relaxed) : 0.0f;
+    if (!upperBody->SetWeight(nextWeight) || !comparisonAction->SetWeight(nextWeight) ||
+        !recoil->SetWeight(recoilWeight))
+        return;
+    m_LayerWeight.store(nextWeight, std::memory_order_relaxed);
+
+    if (!m_Animation->GetParameters().SetFloat("Forward", forward) ||
+        !m_Animation->GetParameters().SetFloat("Strafe", nextStrafe) ||
+        !m_ComparisonAnimation->GetParameters().SetFloat("Forward", forward) ||
+        !m_ComparisonAnimation->GetParameters().SetFloat("Strafe", nextStrafe) ||
+        !m_Animation->Update(advance) ||
+        !m_ComparisonAnimation->Update(advance))
         return;
 
+    m_CharacterMotion *= m_Animation->GetRootMotionDelta().ToMatrix();
+    if (m_ResetMotion.exchange(false, std::memory_order_relaxed))
+        m_CharacterMotion = glm::mat4(1);
+    m_RootMotionDistance.store(glm::length(glm::vec3(m_CharacterMotion[3])),
+        std::memory_order_relaxed);
+
+    const auto section = upperBody->GetPlayer().GetCurrentMontageSection();
+    const auto sectionIndex = section == "Attack1" ? 1 : section == "Attack2" ? 2
+        : section == "Attack3" ? 3 : section == "Recovery" ? 4 : 0;
+    m_ComboSection.store(sectionIndex, std::memory_order_relaxed);
+
+    if (m_SeekContact.exchange(false, std::memory_order_relaxed))
+    {
+        const auto duration = m_LocomotionSpace->GetDuration(std::array{nextStrafe, forward});
+        if (!m_Animation->Seek(m_ContactPhase * duration) ||
+            !m_ComparisonAnimation->Seek(m_ContactPhase * duration))
+            return;
+    }
+
+    for (const auto& event : m_Animation->GetNotifyEvents())
+    {
+        if (event.LayerName != "UpperBody" ||
+            event.GetName() != "AttackHitbox")
+            continue;
+        const auto* payload = event.GetPayload<SAttackWindowPayload>();
+        if (!payload)
+        {
+            EE_CORE_ERROR("Attack window requires an SAttackWindowPayload.")
+            continue;
+        }
+        switch (event.Type)
+        {
+            case EAnimationNotifyEventType::Instant:
+                break;
+            case EAnimationNotifyEventType::Begin:
+                m_HitboxActive.store(true, std::memory_order_relaxed);
+                break;
+            case EAnimationNotifyEventType::Update:
+                // A game would query targets during this active interval.
+                m_NotifyUpdates.fetch_add(1, std::memory_order_relaxed);
+                break;
+            case EAnimationNotifyEventType::End:
+                m_HitboxActive.store(false, std::memory_order_relaxed);
+                if (event.Cancelled)
+                    m_CancelledNotifies.fetch_add(1, std::memory_order_relaxed);
+                break;
+        }
+    }
+
+    // The application maps generic animation events to feedback for this demo.
+    for (const auto& event : m_Animation->GetNotifyEvents())
+    {
+        if (event.Type != EAnimationNotifyEventType::Instant)
+            continue;
+
+        if (event.LayerName == "UpperBody")
+            m_ActionEvents.fetch_add(1, std::memory_order_relaxed);
+        if (event.LayerName == "Recoil")
+            m_RecoilEvents.fetch_add(1, std::memory_order_relaxed);
+        if (event.GetName() == "Footstep")
+        {
+            const auto* payload = event.GetPayload<SFootstepNotifyPayload>();
+            if (!payload)
+            {
+                EE_CORE_ERROR("Footstep notify requires an SFootstepNotifyPayload.")
+                continue;
+            }
+
+            m_SynchronizedSteps.fetch_add(1, std::memory_order_relaxed);
+            m_LastFoot.store(int(payload->Foot), std::memory_order_relaxed);
+        }
+    }
+    for (const auto& event : m_ComparisonAnimation->GetNotifyEvents())
+        if (event.GetName() == "Footstep")
+            m_ComparisonSteps.fetch_add(1, std::memory_order_relaxed);
+
+    m_AnimationPhase.store(m_Animation->GetNormalizedTime(), std::memory_order_relaxed);
     m_AnimationForward.store(forward, std::memory_order_relaxed);
     m_AnimationStrafe.store(nextStrafe, std::memory_order_relaxed);
 }
@@ -415,11 +886,30 @@ void Dissolve::DrawGeometry()
         // Show the mannequin from an angle that keeps all limbs visible.
         const auto& bounds = m_MeshInstance->GetMesh()->GetLocalBounds();
         const auto center = (bounds.Min + bounds.Max) * 0.5f;
-        const auto transform =
-            glm::translate(glm::mat4(1), center) *
-            glm::rotate(glm::mat4(1), glm::radians(25.0f), glm::vec3(0, 1, 0)) *
-            glm::translate(glm::mat4(1), -center);
-        m_SkeletalMeshRenderer->Render(*m_MeshInstance, transform);
+        const auto separation = (bounds.Max.y - bounds.Min.y) * 0.7f;
+        const auto& cameraPosition = m_CameraController->GetCamera().GetPosition();
+        const auto centerDirection = cameraPosition - center;
+        const auto centerYaw = std::atan2(centerDirection.x, centerDirection.z);
+        const auto renderInstance = [&](const SkeletalMeshInstance& instance,
+            const Animation* animation, const float offset)
+        {
+            const auto position = center + glm::vec3(offset, 0, 0);
+            const auto direction = cameraPosition - position;
+            // Compensate perspective bearing so both copies show the same viewing angle.
+            const auto correction = std::atan2(direction.x, direction.z) - centerYaw;
+            const auto transform = glm::translate(glm::mat4(1), position) *
+                glm::rotate(glm::mat4(1), glm::radians(25.0f) + correction,
+                    glm::vec3(0, 1, 0)) *
+                glm::translate(glm::mat4(1), -center);
+            const auto movement = &instance == m_MeshInstance.get()
+                ? m_CharacterMotion : glm::mat4(1);
+            if (animation)
+                m_SkeletalMeshRenderer->Render(instance, animation->GetModelPose(), transform * movement);
+            else
+                m_SkeletalMeshRenderer->Render(instance, transform * movement);
+        };
+        renderInstance(*m_ComparisonInstance, m_ComparisonAnimation.get(), separation);
+        renderInstance(*m_MeshInstance, m_Animation.get(), -separation);
     }
 }
 

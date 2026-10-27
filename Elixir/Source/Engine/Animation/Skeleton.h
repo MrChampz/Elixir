@@ -6,9 +6,14 @@
 
 namespace Elixir
 {
+    struct SLocalPose;
+    struct SModelPose;
+
     /** @brief Stores a bone transform relative to its parent. */
     struct ELIXIR_API SBoneTransform
     {
+        static constexpr float BoneTransformTolerance = 1e-5f;
+
         glm::vec3 Translation{};
         glm::quat Rotation{ 1.0f, 0.0f, 0.0f, 0.0f };
         glm::vec3 Scale{ 1.0f };
@@ -28,6 +33,14 @@ namespace Elixir
 
         /** @brief Compose translation, rotation, and scale into a matrix. */
         glm::mat4 ToMatrix() const;
+
+        /**
+         * @brief Check whether another transform differs only within the comparison tolerance.
+         * @param other Transform to compare with this transform.
+         * @return True when translation, scale, and rotation are nearly equal.
+         * @pre Both transforms are valid.
+         */
+        bool IsNearlyEqual(const SBoneTransform& other) const;
 
         /** @brief Check for finite values, a unit quaternion, and nonzero scale. */
         bool IsValid() const;
@@ -85,8 +98,8 @@ namespace Elixir
          * @return False for an invalid pose or result; output remains unchanged on failure.
          */
         bool BuildModelPose(
-            std::span<const SBoneTransform> localPose,
-            std::vector<glm::mat4>& output
+            const SLocalPose& localPose,
+            SModelPose& output
         ) const;
 
     private:

@@ -1,6 +1,8 @@
 #include "epch.h"
 #include "BlendSpace2D.h"
 
+#include <Engine/Animation/AnimationEvaluation.h>
+
 namespace Elixir
 {
     namespace
@@ -93,8 +95,8 @@ namespace Elixir
     bool BlendSpace2D::Sample(
         const glm::vec2 value,
         const float phase,
-        std::vector<SBoneTransform>& output,
-        const std::span<const SBoneTransform> referencePose
+        SLocalPose& output,
+        const SLocalPose& referencePose
     ) const
     {
         return BlendSpace::Sample(
@@ -174,7 +176,7 @@ namespace Elixir
 
     void BlendSpace2D::FindSamples(
         const std::span<const float> values,
-        std::pmr::vector<SContribution>& output
+        std::pmr::vector<SSequenceContribution>& output
     ) const
     {
         const auto blend = GetWeights({values[0], values[1]});
@@ -187,7 +189,8 @@ namespace Elixir
       : BlendSpace(
             std::move(name),
             samples.front().Sequence->GetSkeleton(),
-            2
+            2,
+            FindSynchronizationSequence(samples)
         ),
         m_Samples(std::move(samples)) {}
 
