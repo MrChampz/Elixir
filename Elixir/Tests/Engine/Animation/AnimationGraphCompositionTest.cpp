@@ -3,12 +3,17 @@
 #include <Engine/Animation/AnimationGraph.h>
 #include <Engine/Animation/StateMachine.h>
 #include <Engine/Animation/BlendSpace1D.h>
+#include <Engine/Animation/BlendNodeEvaluator.h>
 #include <Engine/Mesh/SkeletalMeshInstance.h>
 #include "../Mesh/SkinningTestData.h"
 
 #include <unordered_map>
+#include <type_traits>
 
 using namespace Elixir;
+
+static_assert(!std::is_copy_constructible_v<BlendNodeEvaluator>);
+static_assert(!std::is_copy_assignable_v<BlendNodeEvaluator>);
 
 namespace
 {

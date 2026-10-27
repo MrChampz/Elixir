@@ -53,6 +53,9 @@ namespace Elixir
         /** @brief Describe resolved timing and contributing sources. */
         SAnimationNodeState GetState() const override;
 
+        BlendNodeEvaluator(const BlendNodeEvaluator& other) = delete;
+        BlendNodeEvaluator& operator=(const BlendNodeEvaluator& other) = delete;
+
     private:
         /**
          * @brief Prepare child clocks and candidate poses.
