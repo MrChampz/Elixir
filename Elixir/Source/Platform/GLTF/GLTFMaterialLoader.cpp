@@ -471,7 +471,7 @@ namespace Elixir
             material->SetBlendMode(GetBlendMode(source.alphaMode));
             material->SetDoubleSided(source.doubleSided);
 
-            // Cloth and ClearCoat are separate material types; sheen takes precedence.
+            // Prefer transmission, then sheen, then clear coat.
             if (source.transmission && source.transmission->transmissionFactor > 0)
             {
                 material->SetShadingModel(EMaterialShadingModel::Transmission);
@@ -1049,7 +1049,8 @@ namespace Elixir
 
                 // In glTF, clearCoatNormalTexture belongs to the external
                 // clear-coat layer.
-                if (textures.ClearCoatNormal)
+                if (textures.ClearCoatNormal &&
+                    material->GetShadingModel() == EMaterialShadingModel::ClearCoat)
                 {
                     EE_CORE_ASSERT(material->DefineParameter("ClearCoatNormalTexture", {
                         .Kind = EMaterialParameterKind::Texture,
