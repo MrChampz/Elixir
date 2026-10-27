@@ -456,8 +456,14 @@ namespace Elixir
 
             // Read one optional or required attribute with the expected shape.
             template<typename TValue, typename TAssign>
-            bool ReadAttribute(const fastgltf::Primitive& primitive, const std::string_view name,
-                const fastgltf::AccessorType type, const size_t count, const bool required, TAssign assign) const
+            bool ReadAttribute(
+                const fastgltf::Primitive& primitive,
+                const std::string_view name,
+                const fastgltf::AccessorType type,
+                const size_t count,
+                const bool required,
+                TAssign assign
+            ) const
             {
                 const auto attribute = primitive.findAttribute(name);
                 if (attribute == primitive.attributes.end()) return !required;
@@ -502,16 +508,58 @@ namespace Elixir
                 }
                 auto& vertices = output.Vertices;
                 vertices.resize(count);
-                if (!ReadAttribute<fastgltf::math::fvec3>(primitive, "POSITION", fastgltf::AccessorType::Vec3, count, true,
-                        [&](const auto& v, const size_t i) { vertices[i].Position = { v.x(), v.y(), v.z() }; }) ||
-                    !ReadAttribute<fastgltf::math::fvec3>(primitive, "NORMAL", fastgltf::AccessorType::Vec3, count, false,
-                        [&](const auto& v, const size_t i) { vertices[i].Normal = { v.x(), v.y(), v.z() }; }) ||
-                    !ReadAttribute<fastgltf::math::fvec4>(primitive, "TANGENT", fastgltf::AccessorType::Vec4, count, false,
-                        [&](const auto& v, const size_t i) { vertices[i].Tangent = { v.x(), v.y(), v.z(), v.w() }; }) ||
-                    !ReadAttribute<fastgltf::math::fvec2>(primitive, "TEXCOORD_0", fastgltf::AccessorType::Vec2, count, false,
-                        [&](const auto& v, const size_t i) { vertices[i].TexCoord = { v.x(), v.y() }; }) ||
-                    !ReadAttribute<fastgltf::math::fvec2>(primitive, "TEXCOORD_1", fastgltf::AccessorType::Vec2, count, false,
-                        [&](const auto& v, const size_t i) { vertices[i].TexCoord1 = { v.x(), v.y() }; }))
+                const auto attributesValid = ReadAttribute<fastgltf::math::fvec3>(
+                    primitive,
+                    "POSITION",
+                    fastgltf::AccessorType::Vec3,
+                    count,
+                    true,
+                    [&](const auto& v, const size_t i)
+                    {
+                        vertices[i].Position = { v.x(), v.y(), v.z() };
+                    }
+                ) && ReadAttribute<fastgltf::math::fvec3>(
+                    primitive,
+                    "NORMAL",
+                    fastgltf::AccessorType::Vec3,
+                    count,
+                    false,
+                    [&](const auto& v, const size_t i)
+                    {
+                        vertices[i].Normal = { v.x(), v.y(), v.z() };
+                    }
+                ) && ReadAttribute<fastgltf::math::fvec4>(
+                    primitive,
+                    "TANGENT",
+                    fastgltf::AccessorType::Vec4,
+                    count,
+                    false,
+                    [&](const auto& v, const size_t i)
+                    {
+                        vertices[i].Tangent = { v.x(), v.y(), v.z(), v.w() };
+                    }
+                ) && ReadAttribute<fastgltf::math::fvec2>(
+                    primitive,
+                    "TEXCOORD_0",
+                    fastgltf::AccessorType::Vec2,
+                    count,
+                    false,
+                    [&](const auto& v, const size_t i)
+                    {
+                        vertices[i].TexCoord = { v.x(), v.y() };
+                    }
+                ) && ReadAttribute<fastgltf::math::fvec2>(
+                    primitive,
+                    "TEXCOORD_1",
+                    fastgltf::AccessorType::Vec2,
+                    count,
+                    false,
+                    [&](const auto& v, const size_t i)
+                    {
+                        vertices[i].TexCoord1 = { v.x(), v.y() };
+                    }
+                );
+                if (!attributesValid)
                 {
                     ReportError("Primitive contains missing or mismatched attributes.");
                     return false;
@@ -711,7 +759,7 @@ namespace Elixir
                 }
 
                 for (const auto& bone : bones)
-                    m_Result.ReferencePose.push_back(bone.ReferenceTransform);
+                    m_Result.ReferencePose.LocalTransforms.push_back(bone.ReferenceTransform);
 
                 auto meshSkeleton = Skeleton::Create(
                     m_Result.Name + "_Skeleton",
@@ -1063,7 +1111,7 @@ namespace Elixir
 
                     if (tracks.empty()) continue;
 
-                    auto sequence = AnimationSequence::Create(
+                    auto sequence = Sequence::Create(
                         std::string(animation.name),
                         m_Result.Skeleton,
                         duration,

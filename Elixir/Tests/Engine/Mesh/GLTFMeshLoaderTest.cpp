@@ -1,8 +1,11 @@
+#include <Engine/Animation/Pose.h>
+#include "../Animation/AnimationTestNodes.h"
+#include "../Animation/AnimationTestCharacter.h"
 #include <gtest/gtest.h>
 
 #include <Platform/GLTF/GLTFMeshLoader.h>
 #include <Engine/Graphics/GraphicsContext.h>
-#include <Engine/Mesh/SkeletalMeshInstance.h>
+
 #include <Engine/Materials/DefaultMaterials.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <chrono>
@@ -163,11 +166,13 @@ TEST_F(GLTFMeshLoaderTest, ImportsSeparateAssetsAndDeformsFromAnExternalBuffer)
     ASSERT_TRUE(mesh);
     EXPECT_EQ(mesh->GetSkeleton(), animation->GetSkeleton());
     ASSERT_EQ(mesh->GetAnimations().size(), 1);
-    SkeletalMeshInstance meshInstance(mesh);
+    const auto meshInstanceHandle = AnimationTestCharacter::Create(mesh);
+    ASSERT_TRUE(meshInstanceHandle);
+    auto& meshInstance = *meshInstanceHandle;
     std::vector<SStaticMeshVertex> vertices;
     ASSERT_TRUE(mesh->SkinVertices(meshInstance.GetModelPose(), vertices));
     EXPECT_NEAR(vertices[0].Position.y, 1, 1e-5f);
-    ASSERT_TRUE(meshInstance.Play(animation));
+    ASSERT_TRUE(meshInstance.Play(MakeNode(animation)));
     ASSERT_TRUE(meshInstance.Update(1));
     ASSERT_TRUE(mesh->SkinVertices(meshInstance.GetModelPose(), vertices));
     EXPECT_NEAR(vertices[0].Position.x, 2, 1e-5f);
@@ -242,11 +247,11 @@ TEST_F(GLTFMeshLoaderTest, SupportsStepAnimation)
     Replace("\"interpolation\":\"LINEAR\"", "\"interpolation\":\"STEP\"");
     auto source = Loader.LoadSkeletalMesh(Context, Write());
     ASSERT_TRUE(source);
-    std::vector<SBoneTransform> pose;
+    SLocalPose pose;
     ASSERT_TRUE(source->Animations[0]->Sample(1, pose));
-    EXPECT_FLOAT_EQ(pose[1].Translation.y, 1);
+    EXPECT_FLOAT_EQ(pose.LocalTransforms[1].Translation.y, 1);
     ASSERT_TRUE(source->Animations[0]->Sample(2, pose));
-    EXPECT_FLOAT_EQ(pose[1].Translation.y, 3);
+    EXPECT_FLOAT_EQ(pose.LocalTransforms[1].Translation.y, 3);
 }
 
 TEST_F(GLTFMeshLoaderTest, RejectsTruncatedAccessorStorage)
@@ -285,8 +290,10 @@ TEST_F(GLTFMeshLoaderTest, CombinesAllMeshNodesIntoOneAsset)
     ASSERT_TRUE(mesh);
     EXPECT_EQ(mesh->GetSections().size(), 2);
     EXPECT_EQ(mesh->GetAnimations().size(), 1);
-    SkeletalMeshInstance meshInstance(mesh);
-    ASSERT_TRUE(meshInstance.Play(mesh->GetAnimations()[0]));
+    const auto meshInstanceHandle = AnimationTestCharacter::Create(mesh);
+    ASSERT_TRUE(meshInstanceHandle);
+    auto& meshInstance = *meshInstanceHandle;
+    ASSERT_TRUE(meshInstance.Play(MakeNode(mesh->GetAnimations()[0])));
     ASSERT_TRUE(meshInstance.Update(1));
     std::vector<SStaticMeshVertex> vertices;
     ASSERT_TRUE(mesh->SkinVertices(meshInstance.GetModelPose(), vertices));
@@ -309,7 +316,9 @@ TEST_F(GLTFMeshLoaderTest, CombinesDifferentSkinsWithTheirOwnPaletteOrder)
     EXPECT_EQ(source->InverseBindMatrices[2], glm::mat4(1));
     auto mesh = CreateMesh(std::move(*source));
     ASSERT_TRUE(mesh);
-    SkeletalMeshInstance meshInstance(mesh);
+    const auto meshInstanceHandle = AnimationTestCharacter::Create(mesh);
+    ASSERT_TRUE(meshInstanceHandle);
+    auto& meshInstance = *meshInstanceHandle;
     std::vector<SStaticMeshVertex> vertices;
     ASSERT_TRUE(mesh->SkinVertices(meshInstance.GetModelPose(), vertices));
     EXPECT_EQ(vertices[0].Position, glm::vec3(2, 1, 0));
@@ -327,7 +336,9 @@ TEST_F(GLTFMeshLoaderTest, IncludesRigidMeshAttachmentsInTheModel)
     EXPECT_GE(source->Skeleton->FindBone("Attachment"), 0);
     auto mesh = CreateMesh(std::move(*source));
     ASSERT_TRUE(mesh);
-    SkeletalMeshInstance meshInstance(mesh);
+    const auto meshInstanceHandle = AnimationTestCharacter::Create(mesh);
+    ASSERT_TRUE(meshInstanceHandle);
+    auto& meshInstance = *meshInstanceHandle;
     std::vector<SStaticMeshVertex> vertices;
     ASSERT_TRUE(mesh->SkinVertices(meshInstance.GetModelPose(), vertices));
     EXPECT_EQ(vertices[3].Position, glm::vec3(7, 1, 0));

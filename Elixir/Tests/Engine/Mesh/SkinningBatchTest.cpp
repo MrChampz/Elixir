@@ -1,3 +1,4 @@
+#include <Engine/Animation/Animation.h>
 #include <gtest/gtest.h>
 #include <Engine/Mesh/SkinningBatch.h>
 #include "SkinningTestData.h"
@@ -21,9 +22,14 @@ TEST(SkinningBatchTest, BatchesIndependentPosesAndPartialWorkgroups)
 {
     const auto mesh = SkinningTests::MakeMesh(129);
     ASSERT_TRUE(mesh);
-    SkeletalMeshInstance first(mesh), second(mesh);
+    const auto firstHandle = Animation::Create(mesh->GetSkeleton(), mesh->GetData().ReferencePose);
+    ASSERT_TRUE(firstHandle);
+    auto& first = *firstHandle;
+    const auto secondHandle = Animation::Create(mesh->GetSkeleton(), mesh->GetData().ReferencePose);
+    ASSERT_TRUE(secondHandle);
+    auto& second = *secondHandle;
     auto pose = second.GetLocalPose();
-    pose[1].Translation = {5, 2, -3};
+    pose.LocalTransforms[1].Translation = {5, 2, -3};
     ASSERT_TRUE(second.SetLocalPose(pose));
     SkinningBatch batch;
     ASSERT_TRUE(batch.Append(*mesh, first.GetModelPose(), 7, 17, 4));
@@ -36,7 +42,7 @@ TEST(SkinningBatchTest, BatchesIndependentPosesAndPartialWorkgroups)
     EXPECT_EQ(batch.GetBlocks()[1].FirstVertex, 128);
     EXPECT_EQ(batch.GetBlocks()[2].JobIndex, 1);
     EXPECT_EQ(batch.GetBlocks()[2].FirstVertex, 0);
-    const auto expected = second.GetModelPose()[1] * mesh->GetData().InverseBindMatrices[0];
+    const auto expected = second.GetModelPose().Matrices[1] * mesh->GetData().InverseBindMatrices[0];
     EXPECT_EQ(batch.GetMatrices()[2], expected);
     EXPECT_NE(batch.GetMatrices()[0], batch.GetMatrices()[2]);
 }
@@ -45,14 +51,16 @@ TEST(SkinningBatchTest, RejectsCapacityOverflowAndInvalidPosesWithoutChangingThe
 {
     const auto mesh = SkinningTests::MakeMesh();
     ASSERT_TRUE(mesh);
-    SkeletalMeshInstance instance(mesh);
+    const auto instanceHandle = Animation::Create(mesh->GetSkeleton(), mesh->GetData().ReferencePose);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     SkinningBatch batch;
     ASSERT_TRUE(batch.Append(*mesh, instance.GetModelPose(), 0, 0, 2));
     EXPECT_FALSE(batch.Append(*mesh, instance.GetModelPose(), 0, 3, 3));
     EXPECT_FALSE(batch.Append(*mesh, {}, 0, 3, 10));
     EXPECT_FALSE(batch.Append(*mesh, instance.GetModelPose(), UINT32_MAX, 0, 10));
     auto pose = instance.GetModelPose();
-    pose[1][0][0] = std::numeric_limits<float>::quiet_NaN();
+    pose.Matrices[1][0][0] = std::numeric_limits<float>::quiet_NaN();
     EXPECT_FALSE(batch.Append(*mesh, pose, 0, 3, 10));
     EXPECT_EQ(batch.GetJobs().size(), 1);
     EXPECT_EQ(batch.GetMatrices().size(), 2);
@@ -67,7 +75,9 @@ TEST(SkinningBatchTest, ManyCharactersShareSourceAndUseDistinctOutputRanges)
 {
     const auto mesh = SkinningTests::MakeMesh(300);
     ASSERT_TRUE(mesh);
-    SkeletalMeshInstance instance(mesh);
+    const auto instanceHandle = Animation::Create(mesh->GetSkeleton(), mesh->GetData().ReferencePose);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
     SkinningBatch batch;
     for (uint32_t i = 0; i < 1000; ++i)
         ASSERT_TRUE(batch.Append(*mesh, instance.GetModelPose(), 123, i * 300, 2000));

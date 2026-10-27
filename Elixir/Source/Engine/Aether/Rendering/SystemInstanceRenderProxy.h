@@ -30,7 +30,6 @@ namespace Elixir::Aether::Rendering
     public:
         /**
          * @brief Returns a resolved parameter value by compiled-table index.
-         *
          * @param parameterIndex Index in SCompiledSystem::Parameters.
          * @return The instance override when present; otherwise, the compiled
          * default value.
@@ -72,10 +71,17 @@ namespace Elixir::Aether::Rendering
             return value;
         }
 
-        /** @brief Returns the native payload as a span that remains valid while this proxy is alive. */
+        /**
+         * @brief Get the native parameter payload words.
+         * @return A span that remains valid while this proxy is alive.
+         */
         std::span<const uint32_t> GetParameterWords() const { return *m_ParameterWords; }
 
-        /** @brief Returns an unsigned parameter without converting its bits to float. */
+        /**
+         * @brief Read an unsigned parameter without numeric conversion.
+         * @param parameterIndex Index in SCompiledSystem::Parameters.
+         * @return The value, or zero for an invalid index or a non-UInt parameter.
+         */
         uint32_t GetParameterUInt(const uint32_t parameterIndex) const
         {
             if (parameterIndex >= m_CompiledSystem->Parameters.size() ||
@@ -110,7 +116,17 @@ namespace Elixir::Aether::Rendering
         const glm::mat4& GetWorldTransform() const { return m_WorldTransform; }
 
     private:
-        // Stores immutable state already resolved by SystemInstance.
+        /**
+         * @brief Store immutable state resolved by SystemInstance.
+         * @param key Internal identity of the source instance.
+         * @param revision Compiled-system selection revision.
+         * @param parameterRevision Resolved parameter-value revision.
+         * @param system Compiled system selected by the instance.
+         * @param worldTransform World transform selected by the instance.
+         * @param parameterWords Immutable parameter payload words addressed by the compiled
+         * table.
+         * @pre system and parameterWords are not null.
+         */
         SystemInstanceRenderProxy(
             const SSystemInstanceKey& key,
             uint32_t revision,
@@ -120,7 +136,7 @@ namespace Elixir::Aether::Rendering
             Ref<const ResolvedParameterWords> parameterWords
         );
 
-        // Returns the internal identity used by Renderer instance records.
+        /** @brief Get the internal identity used by renderer records. */
         const SSystemInstanceKey& GetKey() const { return m_Key; }
 
         SSystemInstanceKey m_Key;

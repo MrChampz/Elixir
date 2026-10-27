@@ -63,7 +63,7 @@ namespace Elixir
          */
         bool Append(
             const SkeletalMesh& mesh,
-            std::span<const glm::mat4> modelPose,
+            const SModelPose& modelPose,
             uint32_t sourceVertexOffset,
             uint32_t outputVertexOffset,
             uint32_t boneCapacity

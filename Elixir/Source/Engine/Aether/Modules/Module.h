@@ -22,10 +22,10 @@ namespace Elixir::Aether::Modules
     {
         std::vector<SGPUOperation> Operations;
 
-        /** @brief Four-byte source references addressed by each instruction. */
+        /** Four-byte source references addressed by each instruction. */
         std::vector<uint32_t> Operands;
 
-        /** @brief Literal bit patterns packed without float4 padding. */
+        /** Literal bit patterns packed without float4 padding. */
         std::vector<uint32_t> Constants;
 
         /**
@@ -112,35 +112,84 @@ namespace Elixir::Aether::Modules
         float GetGravityScale() const { return m_GravityScale; }
 
         /**
-         * @brief Appends one operation to the compiled system.
-         * The operand count and types must match the operation definition.
-         * Invalid arguments are logged and leave the operation and operand tables unchanged.
+         * @brief Append one operation to the compiled system.
+         *
+         * The operand count and types must match the operation definition. Invalid arguments
+         * are logged and leave the operation and operand tables unchanged.
+         *
+         * @param type Operation to emit.
+         * @param target Destination particle attribute.
+         * @param operands Typed operands in operation-definition order.
          */
         void Emit(EOperationType type, EParticleAttribute target, std::initializer_list<SGPUOperand> operands);
 
-        /** @brief Compiles a scalar literal or optional named binding. */
+        /**
+         * @brief Compile a scalar literal or named parameter binding.
+         * @param value Literal used when no named parameter matches.
+         * @param parameter Optional parameter name; empty selects the literal.
+         * @return The operand, or an invalid operand that Emit rejects when compilation fails.
+         */
         SGPUOperand Scalar(float value, std::string_view parameter = "");
 
-        /** @brief Compiles a three-component literal or optional named binding. */
+        /**
+         * @brief Compile a three-component literal or named parameter binding.
+         * @param value Literal used when no named parameter matches.
+         * @param parameter Optional parameter name; empty selects the literal.
+         * @return The operand, or an invalid operand that Emit rejects when compilation fails.
+         */
         SGPUOperand Vector(glm::vec3 value, std::string_view parameter = "");
 
-        /** @brief Compiles a four-component literal or optional named binding. */
+        /**
+         * @brief Compile a four-component literal or named parameter binding.
+         * @param value Literal used when no named parameter matches.
+         * @param parameter Optional parameter name; empty selects the literal.
+         * @return The operand, or an invalid operand that Emit rejects when compilation fails.
+         */
         SGPUOperand Value(glm::vec4 value, std::string_view parameter = "");
 
-        /** @brief Compiles an unsigned integer without converting it to float. */
+        /**
+         * @brief Compile an unsigned integer literal or named parameter binding.
+         * @param value Literal used when no named parameter matches.
+         * @param parameter Optional parameter name; empty selects the literal.
+         * @return The operand, or an invalid operand that Emit rejects when compilation fails.
+         */
         SGPUOperand UInt(uint32_t value, std::string_view parameter = "");
 
-        /** @brief Compiles a particle input, or the constant one for None. */
+        /**
+         * @brief Compile a dynamic particle input.
+         * @param input Runtime input; None selects the constant one.
+         * @return A scalar operand to pass to Emit, which validates the input reference.
+         */
         SGPUOperand Dynamic(EDynamicInput input);
 
-        /** @brief Compiles an attribute read with the supplied logical type. */
+        /**
+         * @brief Compile an attribute read with a logical type.
+         * @param attribute Particle attribute to read.
+         * @param type Logical type expected by the operation.
+         * @return An attribute operand to pass to Emit, which validates the reference and
+         * type.
+         */
         static SGPUOperand Attribute(EParticleAttribute attribute, EOperandInput type);
 
-        /** @brief Compiles a curve reference, preserving missing-curve defaults. */
+        /**
+         * @brief Compile a curve reference with a missing-curve default.
+         *
+         * An absent curve uses the missing-curve sentinel so the shader can use its default.
+         *
+         * @param name Curve name resolved in emitter scope before system scope.
+         * @return A curve operand, or an invalid operand when its offset exceeds the supported
+         * range.
+         */
         SGPUOperand Curve(std::string_view name);
 
     private:
-        // Interns typed literal words or resolves a named parameter binding.
+        /**
+         * @brief Intern typed literal words or resolve a named parameter binding.
+         * @param type Logical operand type.
+         * @param words Raw literal words used when no parameter matches.
+         * @param parameter Optional parameter name to resolve.
+         * @return The operand, or an invalid operand for a type mismatch or range overflow.
+         */
         SGPUOperand Literal(
             EOperandInput type,
             std::span<const uint32_t> words,
@@ -160,10 +209,19 @@ namespace Elixir::Aether::Modules
     class ELIXIR_API Module
     {
     public:
+        /**
+         * @brief Create a module for a particle lifetime phase.
+         * @param phase Phase in which the module emits operations.
+         */
         explicit Module(EModulePhase phase = EModulePhase::Spawn);
+
+        /** @brief Release the module through its common interface. */
         virtual ~Module();
 
-        /** @brief Appends this module's GPU operations to the supplied context. */
+        /**
+         * @brief Append this module's GPU operations to the supplied context.
+         * @param context Compilation context that receives operations and resolves parameters.
+         */
         virtual void Compile(ModuleCompileContext& context) const = 0;
 
         /** @brief Returns the phase in which this module is compiled. */
@@ -177,6 +235,7 @@ namespace Elixir::Aether::Modules
     class ELIXIR_API SpawnModule : public Module
     {
     protected:
+        /** @brief Create a module that runs when a particle is spawned. */
         SpawnModule() : Module(EModulePhase::Spawn) {}
     };
 
@@ -184,6 +243,7 @@ namespace Elixir::Aether::Modules
     class ELIXIR_API UpdateModule : public Module
     {
     protected:
+        /** @brief Create a module that runs when a particle is updated. */
         UpdateModule() : Module(EModulePhase::Update) {}
     };
 }

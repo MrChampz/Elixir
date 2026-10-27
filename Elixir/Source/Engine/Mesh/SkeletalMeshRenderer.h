@@ -31,12 +31,13 @@ namespace Elixir
 
         /**
          * Output capacity per frame slot, shared by all submitted instances. VertexStride must
-         * match sizeof(SStaticMeshVertex). Draws reuse indices from SourceGeometry.
+         * match sizeof(SStaticMeshVertex). No output index buffer is needed: draws reuse
+         * indices from SourceGeometry.
          * VertexUsage must include VertexBuffer and StorageBuffer.
          */
         SGeometryPoolConfig FrameGeometry{
             1'000'000,
-            3'000'000,
+            0,
             sizeof(SStaticMeshVertex),
             EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer
         };
@@ -92,6 +93,16 @@ namespace Elixir
         );
 
         /**
+         * @brief Render a skeletal mesh in its reference pose without animation.
+         * @param instance Fixed mesh and reference model matrices.
+         * @param transform Model-to-world matrix.
+         */
+        bool Render(
+            const SkeletalMeshInstance& instance,
+            const glm::mat4& transform = glm::mat4(1)
+        );
+
+        /**
          * @brief Append an instance's current pose and surface draws to the frame.
          *
          * Uploads uncached source geometry, reserves a separate output range, and captures
@@ -99,7 +110,8 @@ namespace Elixir
          * The sorter calculates each section's depth; SectionSorter uses reference-pose bounds
          * by default, rather than deformed triangle depths.
          *
-         * @param instance Supplies a mesh and its current skeleton-space model pose.
+         * @param instance Supplies the fixed mesh asset.
+         * @param modelPose Explicit skeleton-space pose produced by an animation or another system.
          * @param transform Model-to-world matrix used by the draw and depth strategy.
          * @return True if the instance was added to the batch. Returns false if the frame is
          * closed, the mesh or pose is invalid, or geometry or bone capacity is insufficient.
@@ -107,6 +119,7 @@ namespace Elixir
          */
         bool Render(
             const SkeletalMeshInstance& instance,
+            const SModelPose& modelPose,
             const glm::mat4& transform = glm::mat4(1)
         );
 

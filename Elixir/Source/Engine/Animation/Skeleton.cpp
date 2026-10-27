@@ -1,6 +1,8 @@
 #include "epch.h"
 #include "Skeleton.h"
 
+#include <Engine/Animation/Pose.h>
+
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace Elixir
@@ -25,6 +27,22 @@ namespace Elixir
         return glm::translate(glm::mat4(1.0f), Translation) *
             glm::mat4_cast(Rotation) *
             glm::scale(glm::mat4(1.0f), Scale);
+    }
+
+    bool SBoneTransform::IsNearlyEqual(const SBoneTransform& other) const
+    {
+        constexpr auto tolerance = glm::vec3(BoneTransformTolerance);
+
+        const auto translationDelta = glm::abs(Translation - other.Translation);
+        const auto scaleDelta = glm::abs(Scale - other.Scale);
+        const auto rotationAlignment = std::abs(glm::dot(Rotation, other.Rotation));
+
+        const auto translationChanged =
+            glm::any(glm::greaterThan(translationDelta, tolerance));
+        const auto scaleChanged = glm::any(glm::greaterThan(scaleDelta, tolerance));
+        const auto rotationChanged = rotationAlignment < 1.0f - BoneTransformTolerance;
+
+        return !translationChanged && !scaleChanged && !rotationChanged;
     }
 
     bool SBoneTransform::IsValid() const
@@ -107,6 +125,105 @@ namespace Elixir
         ));
     }
 
+    bool Skeleton::BuildModelPose(
+        const SLocalPose& localPose,
+        SModelPose& output
+    ) const
+    {
+        if (!localPose.IsValid(m_Bones.size()))
+        {
+            EE_CORE_ERROR("Skeleton pose must contain one valid transform per bone.")
+            return false;
+        }
+
+        SModelPose result;
+        result.Matrices.resize(localPose.LocalTransforms.size());
+
+        for (size_t i = 0; i < localPose.LocalTransforms.size(); ++i)
+        {
+            const auto parent = m_Bones[i].ParentIndex;
+            const auto parentTransform = parent < 0
+                ? glm::mat4(1.0f)
+                : result.Matrices[parent];
+
+            result.Matrices[i] = parentTransform * localPose.LocalTransforms[i].ToMatrix();
+
+            for (int c = 0; c < 4; ++c)
+            {
+                for (int r = 0; r < 4; ++r)
+                {
+                    if (!std::isfinite(result.Matrices[i][c][r]))
+                    {
+                        EE_CORE_ERROR("Skeleton pose exceeds the supported matrix range.")
+                        return false;
+                    }
+                }
+            }
+        }
+
+        output = std::move(result);
+
+        return true;
+    }
+
+    bool Skeleton::IsCompatible(const Skeleton& other) const
+    {
+        if (m_Bones.size() != other.m_Bones.size())
+            return false;
+
+        for (size_t i = 0; i < m_Bones.size(); ++i)
+        {
+            if (m_Bones[i].Name != other.m_Bones[i].Name ||
+                m_Bones[i].ParentIndex != other.m_Bones[i].ParentIndex)
+                return false;
+        }
+
+        return true;
+    }
+
+    int32_t Skeleton::FindBone(const std::string_view name) const
+    {
+        for (size_t i = 0; i < m_Bones.size(); ++i)
+            if (m_Bones[i].Name == name)
+                return int32_t(i);
+
+        return -1;
+    }
+
+    std::optional<glm::mat4> Skeleton::GetSocketTransform(
+        const std::string_view name,
+        const SModelPose& modelPose
+    ) const
+    {
+        const auto index = FindSocket(name);
+        return index < 0 ? std::nullopt : GetSocketTransform(size_t(index), modelPose);
+    }
+
+    std::optional<glm::mat4> Skeleton::GetSocketTransform(
+        const size_t socketIndex,
+        const SModelPose& modelPose
+    ) const
+    {
+        if (socketIndex >= m_Sockets.size() || !modelPose.IsValid(m_Bones.size()))
+            return std::nullopt;
+
+        const auto& socket = m_Sockets[socketIndex];
+        const auto result = modelPose.Matrices[socket.BoneIndex] *
+            socket.RelativeTransform.ToMatrix();
+        for (int c = 0; c < 4; ++c)
+        {
+            for (int r = 0; r < 4; ++r)
+            {
+                if (!std::isfinite(result[c][r]))
+                {
+                    EE_CORE_ERROR("Socket '{}' exceeds the supported matrix range.", socket.Name)
+                    return std::nullopt;
+                }
+            }
+        }
+        return result;
+    }
+
     Skeleton::Skeleton(
         std::string name,
         std::vector<SBone> bones,
@@ -130,72 +247,4 @@ namespace Elixir
         return -1;
     }
 
-    int32_t Skeleton::FindBone(const std::string_view name) const
-    {
-        for (size_t i = 0; i < m_Bones.size(); ++i)
-            if (m_Bones[i].Name == name)
-                return int32_t(i);
-
-        return -1;
-    }
-
-    bool Skeleton::IsCompatible(const Skeleton& other) const
-    {
-        if (m_Bones.size() != other.m_Bones.size())
-            return false;
-
-        for (size_t i = 0; i < m_Bones.size(); ++i)
-        {
-            if (m_Bones[i].Name != other.m_Bones[i].Name ||
-                m_Bones[i].ParentIndex != other.m_Bones[i].ParentIndex)
-                return false;
-        }
-
-        return true;
-    }
-
-    bool Skeleton::BuildModelPose(
-        const std::span<const SBoneTransform> localPose,
-        std::vector<glm::mat4>& output
-    ) const
-    {
-        const auto invalidTransform = std::ranges::any_of(
-            localPose,
-            [](const auto& t) { return !t.IsValid(); }
-        );
-
-        if (localPose.size() != m_Bones.size() || invalidTransform)
-        {
-            EE_CORE_ERROR("Skeleton pose must contain one valid transform per bone.")
-            return false;
-        }
-
-        std::vector<glm::mat4> result(localPose.size());
-
-        for (size_t i = 0; i < localPose.size(); ++i)
-        {
-            const auto parent = m_Bones[i].ParentIndex;
-            const auto parentTransform = parent < 0
-                ? glm::mat4(1.0f)
-                : result[parent];
-
-            result[i] = parentTransform * localPose[i].ToMatrix();
-
-            for (int c = 0; c < 4; ++c)
-            {
-                for (int r = 0; r < 4; ++r)
-                {
-                    if (!std::isfinite(result[i][c][r]))
-                    {
-                        EE_CORE_ERROR("Skeleton pose exceeds the supported matrix range.")
-                        return false;
-                    }
-                }
-            }
-        }
-
-        output = std::move(result);
-
-        return true;
-    }
 }

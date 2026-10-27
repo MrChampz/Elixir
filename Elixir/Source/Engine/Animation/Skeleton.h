@@ -3,12 +3,18 @@
 #include <Engine/Core/Core.h>
 
 #include <glm/gtc/quaternion.hpp>
+#include <optional>
 
 namespace Elixir
 {
+    struct SLocalPose;
+    struct SModelPose;
+
     /** @brief Stores a bone transform relative to its parent. */
     struct ELIXIR_API SBoneTransform
     {
+        static constexpr float BoneTransformTolerance = 1e-5f;
+
         glm::vec3 Translation{};
         glm::quat Rotation{ 1.0f, 0.0f, 0.0f, 0.0f };
         glm::vec3 Scale{ 1.0f };
@@ -28,6 +34,14 @@ namespace Elixir
 
         /** @brief Compose translation, rotation, and scale into a matrix. */
         glm::mat4 ToMatrix() const;
+
+        /**
+         * @brief Check whether another transform differs only within the comparison tolerance.
+         * @param other Transform to compare with this transform.
+         * @return True when translation, scale, and rotation are nearly equal.
+         * @pre Both transforms are valid.
+         */
+        bool IsNearlyEqual(const SBoneTransform& other) const;
 
         /** @brief Check for finite values, a unit quaternion, and nonzero scale. */
         bool IsValid() const;
@@ -96,19 +110,54 @@ namespace Elixir
         /** @brief Get bones in parent-before-child order. */
         const std::vector<SBone>& GetBones() const { return m_Bones; }
 
-        /** @brief Find a bone by name, or return -1. */
+        /**
+         * @brief Find a bone by name.
+         * @param name Bone name to find.
+         * @return The bone index, or -1 when absent.
+         */
         int32_t FindBone(std::string_view name) const;
 
-        /** @brief Compare bone names and parent indices for direct animation sharing. */
+        /**
+         * @brief Compare bone names and parent indices for animation sharing.
+         * @param other Skeleton to compare with this skeleton.
+         */
         bool IsCompatible(const Skeleton& other) const;
 
         /**
-         * @brief Compose a local pose into skeleton-space matrices; leave output unchanged
-         * on failure.
+         * @brief Compose a local pose into skeleton-space matrices.
+         * @param localPose One valid parent-relative transform per bone.
+         * @param output Receives one matrix per bone on success.
+         * @return False for an invalid pose or result; output remains unchanged on failure.
          */
         bool BuildModelPose(
-            std::span<const SBoneTransform> localPose,
-            std::vector<glm::mat4>& output
+            const SLocalPose& localPose,
+            SModelPose& output
+        ) const;
+
+        /**
+         * @brief Get an attachment matrix from a final pose in skeleton space.
+         *
+         * Multiply the result by the character world transform to place an attachment.
+         * The pose includes animation layers and root-motion locking, without inverse binds.
+         *
+         * @param name Case-sensitive socket name in this skeleton.
+         * @param modelPose Final model-space pose using this skeleton's bone order.
+         * @return Empty for a missing socket, invalid pose, or nonfinite result.
+         */
+        std::optional<glm::mat4> GetSocketTransform(
+            std::string_view name,
+            const SModelPose& modelPose
+        ) const;
+
+        /**
+         * @brief Read an attachment matrix using a cached socket index.
+         * @param socketIndex Index in this skeleton's GetSockets().
+         * @param modelPose Final model-space pose using this skeleton's bone order.
+         * @return Empty for an invalid index, pose, or nonfinite result.
+         */
+        std::optional<glm::mat4> GetSocketTransform(
+            size_t socketIndex,
+            const SModelPose& modelPose
         ) const;
 
     private:
