@@ -39,6 +39,9 @@ class Dissolve final : public Elixir::Application
         const Ref<const Sequence>& attack
     );
 
+    /** @brief Load the socket character without stopping application setup on failure. */
+    void InitializeSocketCharacter();
+
     /** @brief Create a rigid baton attached to the right-hand socket. */
     void InitializeSocketAttachment();
 
