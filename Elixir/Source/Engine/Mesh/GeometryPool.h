@@ -23,6 +23,8 @@ namespace Elixir
     struct SGeometryPoolConfig
     {
         uint32_t VertexCapacity = 4'000'000;
+
+        /** Maximum index count; zero disables index buffer creation and indexed allocations. */
         uint32_t IndexCapacity = 12'000'000;
 
         /** Byte stride of source or output vertices; the default is the Surface layout. */
@@ -38,6 +40,7 @@ namespace Elixir
     /**
      * @brief Owns shared GPU geometry buffers for upload, compute, and drawing.
      *
+     * An index buffer is optional. Vertex-only uploads and allocations work in either mode.
      * Geometry remains valid until all submitted draws using it complete.
      */
     class ELIXIR_API GeometryPool final
@@ -57,7 +60,7 @@ namespace Elixir
 
         /**
          * @brief Upload static source geometry matching the pool vertex stride.
-         * @param data Source vertices and section-local triangle indices.
+         * @param data Source vertices and optional section-local triangle indices.
          * @return An owning allocation, or an empty allocation for invalid data or upload
          * failure.
          */
@@ -65,7 +68,7 @@ namespace Elixir
 
         /**
          * @brief Upload skeletal source geometry matching the pool vertex stride.
-         * @param data Source vertices and section-local triangle indices.
+         * @param data Source vertices and optional section-local triangle indices.
          * @return An owning allocation, or an empty allocation for invalid data or upload
          * failure.
          */
@@ -74,7 +77,8 @@ namespace Elixir
         /**
          * @brief Reserve geometry without uploading vertices.
          * @param vertexCount Nonzero number of vertices to reserve.
-         * @param indexCount Number of indices to reserve; zero reserves no index range.
+         * @param indexCount Indices to reserve; zero reserves none. Nonzero requires index
+         * capacity.
          * @return An allocation, or an empty allocation for invalid input or insufficient
          * capacity.
          */
@@ -86,7 +90,9 @@ namespace Elixir
          */
         void Reset();
 
-        /** @brief Check whether both GPU buffers were created. */
+        /**
+         * @brief Check whether the vertex buffer and any configured index buffer were created.
+         */
         bool IsValid() const;
 
         /**
@@ -99,7 +105,7 @@ namespace Elixir
         /** @brief Get the shared vertex buffer. */
         const Ref<VertexBuffer>& GetVertexBuffer() const { return m_VertexBuffer; }
 
-        /** @brief Get the shared index buffer. */
+        /** @brief Get the shared index buffer, or null when IndexCapacity is zero. */
         const Ref<DynamicIndexBuffer>& GetIndexBuffer() const { return m_IndexBuffer; }
 
         /** @brief Get the configured byte stride of vertices. */
@@ -111,7 +117,8 @@ namespace Elixir
          * @param vertices First source vertex byte; must not be null.
          * @param vertexCount Nonzero number of source vertices.
          * @param stride Byte stride of each source vertex; must match the pool stride.
-         * @param indices Nonempty section-local triangle indices.
+         * @param indices Optional section-local triangle indices. Nonempty input requires index
+         * capacity.
          * @return An owning allocation, or an empty allocation if validation or upload fails.
          */
         GeometryAllocation UploadData(

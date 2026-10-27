@@ -19,7 +19,7 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
     ASSERT_TRUE(context->RunRenderTaskAndWait([&]
     {
         GeometryPool source(*context, {300, 12, sizeof(SSkeletalMeshVertex), EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer});
-        GeometryPool output(*context, {300, 12, sizeof(SStaticMeshVertex), EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer});
+        GeometryPool output(*context, {300, 0, sizeof(SStaticMeshVertex), EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer});
         const auto prefixMesh = SkinningTests::MakeMesh();
         const auto mesh = SkinningTests::MakeMesh(129);
         ASSERT_TRUE(prefixMesh);
@@ -171,7 +171,7 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
         output.Reset();
         EXPECT_FALSE(first.IsValid());
         EXPECT_FALSE(second.IsValid());
-        auto reused = output.Allocate(129, 3);
+        auto reused = output.Allocate(129);
         ASSERT_TRUE(reused.IsValid());
         EXPECT_EQ(reused.Get()->VertexOffset, 0);
         EXPECT_EQ(reused.Get()->IndexOffset, 0);
@@ -202,6 +202,88 @@ TEST(VulkanSkinningTest, GeometryPoolRejectsMismatchedLayoutsAndExhaustion)
         EXPECT_FALSE(second.IsValid());
         auto all = pool.Allocate(6, 3);
         EXPECT_TRUE(all.IsValid());
+    }));
+}
+
+TEST(VulkanSkinningTest, VertexOnlyGeometryWorksWithAndWithoutAnIndexBuffer)
+{
+    auto* context = VulkanTestContext::Get().GetGraphicsContext();
+    ASSERT_TRUE(context->RunRenderTaskAndWait([&]
+    {
+        for (const uint32_t indexCapacity : {0u, 3u})
+        {
+            SCOPED_TRACE(indexCapacity);
+            GeometryPool pool(*context, {6, indexCapacity, sizeof(SStaticMeshVertex)});
+            ASSERT_TRUE(pool.IsValid());
+            EXPECT_EQ(bool(pool.GetIndexBuffer()), indexCapacity > 0);
+
+            SStaticMeshData data;
+            data.Vertices.resize(3);
+            data.Vertices[0].Position = {1, 2, 3};
+            auto uploaded = pool.Upload(data);
+            ASSERT_TRUE(uploaded.IsValid());
+            EXPECT_EQ(uploaded.Get()->VertexOffset, 0);
+            EXPECT_EQ(uploaded.Get()->IndexCount, 0);
+
+            auto info = StagingBuffer::CreateBufferInfo(
+                3 * sizeof(SStaticMeshVertex),
+                nullptr
+            );
+            info.Usage = EBufferUsage::TransferDst;
+            const Ref<StagingBuffer> readback =
+                CreateRef<Vulkan::VulkanStagingBuffer>(context, info);
+            ASSERT_TRUE(readback->IsValid());
+            const auto cmd = context->GetUploadCommandBuffer();
+            cmd->Begin();
+            pool.GetVertexBuffer()->Barrier(
+                cmd,
+                EPipelineStage::Transfer,
+                EPipelineAccess::TransferRead
+            );
+            SBufferCopy copy{.Size = 3 * sizeof(SStaticMeshVertex)};
+            pool.GetVertexBuffer()->Copy(cmd, readback, std::span{&copy, 1});
+            cmd->Flush();
+            const auto* vertices = static_cast<const SStaticMeshVertex*>(readback->Map());
+            ASSERT_NE(vertices, nullptr);
+            EXPECT_EQ(vertices[0].Position, data.Vertices[0].Position);
+            readback->Unmap();
+
+            if (indexCapacity == 0)
+            {
+                EXPECT_FALSE(pool.Allocate(3, 1).IsValid());
+                data.Indices = {0, 1, 2};
+                EXPECT_FALSE(pool.Upload(data).IsValid());
+            }
+            auto remaining = pool.Allocate(3, indexCapacity);
+            ASSERT_TRUE(remaining.IsValid());
+            EXPECT_EQ(remaining.Get()->VertexOffset, 3);
+            EXPECT_FALSE(pool.Allocate(1).IsValid());
+
+            remaining.Reset();
+            context->WaitForSubmittedFrames();
+            auto released = pool.Allocate(3, indexCapacity);
+            ASSERT_TRUE(released.IsValid());
+            EXPECT_EQ(released.Get()->VertexOffset, 3);
+            EXPECT_EQ(released.Get()->IndexOffset, 0);
+
+            pool.Reset();
+            EXPECT_FALSE(uploaded.IsValid());
+            EXPECT_FALSE(released.IsValid());
+            auto all = pool.Allocate(6, indexCapacity);
+            ASSERT_TRUE(all.IsValid());
+            EXPECT_EQ(all.Get()->VertexOffset, 0);
+            EXPECT_EQ(all.Get()->IndexOffset, 0);
+        }
+
+        const auto mesh = SkinningTests::MakeMesh();
+        ASSERT_TRUE(mesh);
+        GeometryPool skeletal(*context, {3, 0, sizeof(SSkeletalMeshVertex)});
+        auto data = mesh->GetData();
+        data.Indices.clear();
+        auto uploaded = skeletal.Upload(data);
+        ASSERT_TRUE(uploaded.IsValid());
+        EXPECT_EQ(uploaded.Get()->IndexCount, 0);
+        EXPECT_FALSE(skeletal.GetIndexBuffer());
     }));
 }
 
@@ -273,7 +355,7 @@ TEST(VulkanSkinningTest, ProcessesOneThousandIndependentCharactersInOneBatch)
         const auto mesh = SkinningTests::MakeMesh(vertexCount);
         ASSERT_TRUE(mesh);
         GeometryPool source(*context, {vertexCount, 3, sizeof(SSkeletalMeshVertex), EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer});
-        GeometryPool output(*context, {vertexCount * instanceCount, 3, sizeof(SStaticMeshVertex), EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer});
+        GeometryPool output(*context, {vertexCount * instanceCount, 0, sizeof(SStaticMeshVertex), EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer});
         auto geometry = source.Upload(mesh->GetData());
         auto result = output.Allocate(vertexCount * instanceCount);
         ASSERT_TRUE(geometry.IsValid());
