@@ -72,7 +72,11 @@ namespace Elixir
         SkeletalMesh(const SkeletalMesh&) = delete;
         SkeletalMesh& operator=(const SkeletalMesh&) = delete;
 
-        /** @brief Validate geometry, sections, materials, and skin bindings, or return null. */
+        /**
+         * @brief Validate geometry, sections, materials, and skin bindings.
+         * @param data Source geometry and skin bindings; weights are normalized on success.
+         * @return The mesh, or null for invalid input.
+         */
         static Ref<SkeletalMesh> Create(SSkeletalMeshData data);
 
         /** @brief Get the asset display name. */
@@ -105,7 +109,9 @@ namespace Elixir
         /**
          * @brief Deform source vertices into skeleton space for a model pose.
          * @param modelPose One skeleton-space matrix per bone.
-         * @param output Receives vertices only when every result is valid.
+         * @param output Receives deformed vertices only when every result is valid.
+         * @return False for an invalid pose, skin transform, or deformed vertex; output
+         *     remains unchanged.
          */
         bool SkinVertices(
             const SModelPose& modelPose,
@@ -113,6 +119,10 @@ namespace Elixir
         ) const;
 
     private:
+        /**
+         * @brief Store validated geometry and build its reference bounds.
+         * @param data Validated source geometry and skin bindings.
+         */
         explicit SkeletalMesh(SSkeletalMeshData data);
 
         SSkeletalMeshData m_Data;

@@ -93,7 +93,8 @@ namespace Elixir
         /**
          * @brief Bind a buffer that was created with uniform usage.
          * @param name Shader constant resource binding name.
-         * @param buffer Buffer with UniformBuffer usage and sufficient capacity for the resource.
+         * @param buffer Buffer with UniformBuffer usage and sufficient capacity for the
+         * resource.
          */
         virtual void BindConstantBuffer(const std::string& name, const Ref<Buffer>& buffer) = 0;
 
