@@ -201,7 +201,7 @@ namespace Elixir
             max = glm::max(max, glm::dvec2(sample.Position));
         }
 
-        m_Center = (min + min) * 0.5;
+        m_Center = (min + max) * 0.5;
         m_Extent = std::max(max.x - min.x, max.y - min.y);
 
         if (m_Extent == 0.0) return false;
