@@ -3,8 +3,6 @@
 #include <Engine/Core/Core.h>
 #include <Engine/Materials/Rendering/MaterialRenderProxy.h>
 
-#include <functional>
-
 namespace Elixir::Materials::Rendering
 {
     /**
@@ -36,8 +34,9 @@ namespace Elixir::Materials::Rendering
     class ELIXIR_API FrameTable final
     {
     public:
-        /** @brief Resolves a texture into an index usable by the GPU. */
-        using TextureIndexResolver = std::function<uint32_t(const Ref<Texture>&)>;
+        /** Resolves a GPU texture index, or returns no value when registration fails. */
+        using TextureIndexResolver =
+            std::function<std::optional<uint32_t>(const Ref<Texture>&)>;
 
         /**
          * @brief Creates an empty material frame table.
@@ -58,7 +57,7 @@ namespace Elixir::Materials::Rendering
          * Adding an existing material returns its current index.
          *
          * @param material Resolved material data to add.
-         * @return The material table index, or no value when the table is full.
+         * @return The material table index, or no value when full or texture resolution fails.
          */
         std::optional<uint32_t> Add(const MaterialRenderProxy& material);
 
@@ -76,8 +75,12 @@ namespace Elixir::Materials::Rendering
         uint32_t GetCount() const { return static_cast<uint32_t>(m_Data.size()); }
 
     private:
-        /** @brief Builds the GPU data for a resolved material. */
-        SMaterialFrameData BuildData(const MaterialRenderProxy& material) const;
+        /**
+         * @brief Build material data without publishing partially resolved texture indices.
+         * @param material Material whose values and textures are resolved.
+         * @return Complete data, or no value if a texture cannot be resolved.
+         */
+        std::optional<SMaterialFrameData> BuildData(const MaterialRenderProxy& material) const;
 
         uint32_t m_Capacity = 0;
         uint32_t m_FallbackTextureIndex = 0;

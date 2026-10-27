@@ -38,11 +38,12 @@ namespace Elixir::Materials::Rendering
          * @brief Resolves a texture to an index in the material image set.
          *
          * A newly registered texture returns the fallback index until it is ready.
+         * Failed registrations return no value and can be retried by later calls.
          *
          * @param texture Texture to resolve.
-         * @return A usable texture index.
+         * @return A usable texture index, or no value if registration fails.
          */
-        uint32_t Resolve(const Ref<Texture>& texture);
+        std::optional<uint32_t> Resolve(const Ref<Texture>& texture);
 
         /**
          * @brief Finds the usable index for an already resolved texture.

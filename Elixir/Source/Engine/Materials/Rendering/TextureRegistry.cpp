@@ -60,8 +60,11 @@ namespace Elixir::Materials::Rendering
         }
     }
 
-    uint32_t TextureRegistry::Resolve(const Ref<Texture>& texture)
+    std::optional<uint32_t> TextureRegistry::Resolve(const Ref<Texture>& texture)
     {
+        if (!m_FallbackTextureHandle.IsValid())
+            return std::nullopt;
+
         if (!texture)
             return GetFallbackIndex();
 
@@ -74,6 +77,9 @@ namespace Elixir::Materials::Rendering
 
         // Bindless descriptor updates become visible before the next render callback.
         const auto handle = m_Textures->AddTexture(texture);
+        if (!handle.IsValid())
+            return std::nullopt;
+
         m_BindingState->Bindings.emplace(texture, STextureBinding{
             .Handle = handle,
             .ReadySubmission = m_SubmissionSerial + 1,

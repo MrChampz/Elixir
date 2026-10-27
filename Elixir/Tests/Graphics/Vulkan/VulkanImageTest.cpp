@@ -4,6 +4,7 @@
 #include <Engine/GUI/Renderer/RenderBatch.h>
 #include <Engine/Graphics/ImageSet.h>
 #include <Engine/Materials/Rendering/Renderer.h>
+#include <Engine/Materials/Rendering/TextureRegistry.h>
 #include <Graphics/Vulkan/VulkanImage.h>
 #include <Graphics/Vulkan/VulkanBuffer.h>
 #include <Graphics/Vulkan/VulkanCommandBuffer.h>
@@ -247,6 +248,45 @@ TEST_F(VulkanImageTest, TextureAssetsAndDirectImagesShareOneDescriptorRegistrati
     batch.Clear();
     batch.AddImage(attachmentOnly, {}, {1, 1, 1, 1});
     EXPECT_TRUE(batch.GetCommands().empty());
+}
+
+TEST_F(VulkanImageTest, MaterialTextureRegistrationFailureIsReportedAcrossSubmissions)
+{
+    class MissingImageTexture final : public Texture
+    {
+    public:
+        MissingImageTexture() : Texture(nullptr, {}) {}
+    };
+
+    ASSERT_TRUE(Context->RunRenderTaskAndWait([&]
+    {
+        Materials::Rendering::TextureRegistry registry(Context);
+        const auto fallback = registry.GetFallbackIndex();
+        ASSERT_NE(fallback, UINT32_MAX);
+        const auto rejected = CreateRef<MissingImageTexture>();
+        const auto valid = Texture2D::Create(Context, EImageFormat::R8G8B8A8_UNORM, 1, 1);
+        ASSERT_TRUE(valid);
+
+        for (uint64_t submission = 1; submission <= 3; ++submission)
+        {
+            registry.BeginFrame(submission);
+            EXPECT_FALSE(registry.Resolve(rejected));
+            EXPECT_FALSE(registry.Resolve(rejected));
+            EXPECT_EQ(registry.Find(rejected), fallback);
+            EXPECT_EQ(registry.Resolve(nullptr), fallback);
+            const auto index = registry.Resolve(valid);
+            ASSERT_TRUE(index);
+            if (submission == 1)
+                EXPECT_EQ(*index, fallback);
+            else
+            {
+                EXPECT_NE(*index, fallback);
+                EXPECT_NE(*index, UINT32_MAX);
+            }
+            registry.EndFrame();
+        }
+        EXPECT_EQ(registry.GetImageSet()->GetImageCount(), 2u);
+    }));
 }
 
 TEST_F(VulkanImageTest, NormalMapMipsAreGeneratedByImageAndUploaded)

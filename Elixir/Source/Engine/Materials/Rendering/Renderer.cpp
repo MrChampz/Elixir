@@ -84,6 +84,13 @@ namespace Elixir::Materials::Rendering
             return result;
         }
 
+        if (m_Textures.GetFallbackIndex() == UINT32_MAX)
+        {
+            EE_CORE_ERROR("Material fallback texture registration failed.")
+            m_Textures.EndFrame();
+            return result;
+        }
+
         FrameTable materialTable{
             m_MaterialCapacity,
             m_Textures.GetFallbackIndex(),
@@ -338,8 +345,11 @@ namespace Elixir::Materials::Rendering
             if (!resolved.Item || !resolved.Proxy) continue;
 
             const auto materialIndex = materialTable.Add(*resolved.Proxy);
-            EE_CORE_ASSERT(materialIndex, "Material frame capacity was exceeded.")
-            if (!materialIndex) continue;
+            if (!materialIndex)
+            {
+                EE_CORE_ERROR("Material frame capacity exceeded or texture registration failed.")
+                continue;
+            }
 
             prepared.Items.push_back({
                 .Item = resolved.Item,
