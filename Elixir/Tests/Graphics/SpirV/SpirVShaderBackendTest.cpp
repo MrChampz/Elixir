@@ -91,3 +91,80 @@ TEST_F(SpirVShaderBackendTest, ReflectsIntegerVectorElementsInStorageBuffers)
         EXPECT_EQ(found->GetConstants().front().GetType(), type);
     }
 }
+
+TEST(SpirVMatrixReflectionTest, DistinguishesSquareMatricesFromFloatScalarsAndVectors)
+{
+    const auto path = std::filesystem::path(ELIXIR_TEST_SHADER_DIR)
+        / "MatrixReflection.cs.spirv";
+    if (!std::filesystem::is_regular_file(path))
+        GTEST_SKIP() << "Test shader requires the Vulkan SDK shader compiler.";
+    const auto module = SpirV::SpirVShaderBackend{}.LoadModule(path, EShaderStage::Compute);
+    ASSERT_FALSE(module.Bytecode.empty());
+    ASSERT_EQ(module.ConstantBuffers.size(), 1);
+    ASSERT_EQ(module.PushConstants.size(), 1);
+
+    const auto& constants = module.ConstantBuffers.front().GetConstants();
+    const auto nested = std::ranges::find_if(constants, [](const auto& constant)
+    {
+        return constant.GetName() == "Nested";
+    });
+    ASSERT_NE(nested, constants.end());
+    EXPECT_EQ(nested->GetType(), EConstantType::Struct);
+    EXPECT_EQ(nested->GetSize(), 140);
+
+    const std::array expected{
+        std::pair{"F1", EConstantType::Float},
+        std::pair{"F2", EConstantType::Float2},
+        std::pair{"F3", EConstantType::Float3},
+        std::pair{"F4", EConstantType::Float4},
+        std::pair{"M3", EConstantType::Mat3},
+        std::pair{"M4", EConstantType::Mat4},
+    };
+    const std::array<std::span<const ShaderConstant>, 2> groups{
+        constants,
+        module.PushConstants.front().GetConstants(),
+    };
+    for (const auto group : groups)
+    {
+        for (const auto& [name, type] : expected)
+        {
+            SCOPED_TRACE(name);
+            const auto found = std::ranges::find_if(group, [name](const auto& constant)
+            {
+                return constant.GetName() == name;
+            });
+            ASSERT_NE(found, group.end());
+            EXPECT_EQ(found->GetType(), type);
+        }
+    }
+
+    const auto matrixBuffer = std::ranges::find_if(
+        module.StorageBuffers,
+        [](const auto& buffer)
+        {
+            return buffer.GetName() == "matrixInput";
+        }
+    );
+    ASSERT_NE(matrixBuffer, module.StorageBuffers.end());
+    ASSERT_EQ(matrixBuffer->GetConstants().size(), 1);
+    EXPECT_EQ(matrixBuffer->GetConstants().front().GetType(), EConstantType::Mat3);
+}
+
+TEST(SpirVMatrixReflectionTest, RejectsUnsupportedMatrixShapes)
+{
+    for (const auto* filename : {
+        "UnsupportedMat2.cs.spirv", "UnsupportedRectangularMatrix.cs.spirv"
+    })
+    {
+        SCOPED_TRACE(filename);
+        const auto path = std::filesystem::path(ELIXIR_TEST_SHADER_DIR) / filename;
+        if (!std::filesystem::is_regular_file(path))
+            GTEST_SKIP() << "Test shader requires the Vulkan SDK shader compiler.";
+        const auto module = SpirV::SpirVShaderBackend{}.LoadModule(
+            path,
+            EShaderStage::Compute
+        );
+        EXPECT_TRUE(module.Bytecode.empty());
+        EXPECT_TRUE(module.ConstantBuffers.empty());
+    }
+}
