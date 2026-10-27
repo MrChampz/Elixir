@@ -8,9 +8,9 @@ namespace Elixir
     Ref<StaticMesh> StaticMesh::Create(
         std::string name,
         GeometryAllocation geometry,
-        std::vector<SStaticMeshSection> sections,
+        std::vector<SMeshSection> sections,
         std::vector<Ref<Material>> materials,
-        SStaticMeshBounds localBounds
+        SMeshBounds localBounds
     )
     {
         if (!geometry.IsValid())
@@ -60,22 +60,15 @@ namespace Elixir
 
     const BufferLayout& StaticMesh::GetVertexLayout()
     {
-        static const BufferLayout layout = {{
-            { EDataType::Float3, "Position"  },
-            { EDataType::Float3, "Normal"    },
-            { EDataType::Float4, "Tangent"   },
-            { EDataType::Float2, "TexCoord"  },
-            { EDataType::Float2, "TexCoord1" },
-        }};
-        return layout;
+        return GetMeshVertexLayout();
     }
 
     StaticMesh::StaticMesh(
         std::string name,
         GeometryAllocation geometry,
-        std::vector<SStaticMeshSection> sections,
+        std::vector<SMeshSection> sections,
         std::vector<Ref<Material>> materials,
-        const SStaticMeshBounds& localBounds
+        const SMeshBounds& localBounds
     ) : m_Name(std::move(name)),
         m_Geometry(std::move(geometry)),
         m_Sections(std::move(sections)),

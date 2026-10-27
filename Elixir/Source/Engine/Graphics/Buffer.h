@@ -188,10 +188,27 @@ namespace Elixir
 
         [[nodiscard]] BufferAddress GetAddress() const { return m_Address; }
 
+        /**
+         * @brief Create a vertex buffer with transfer and device-address support.
+         * @param context Graphics context that owns the buffer.
+         * @param size Buffer capacity in bytes.
+         * @param data Initial bytes to upload, or null to leave contents uninitialized.
+         */
         static Ref<VertexBuffer> Create(
             const GraphicsContext* context,
             size_t size,
             const void* data = nullptr
+        );
+
+        /**
+         * @brief Create a vertex buffer with explicit uses, such as storage access.
+         * @param context Graphics context that owns the buffer.
+         * @param info Buffer data, explicit usage flags, and memory preferences.
+         * @return An empty reference if VertexBuffer usage is missing.
+         */
+        static Ref<VertexBuffer> Create(
+            const GraphicsContext* context,
+            const SBufferCreateInfo& info
         );
 
         static SBufferCreateInfo CreateBufferInfo(size_t size, const void* data);
@@ -327,10 +344,27 @@ namespace Elixir
             cmd->BindBuffer<T>(this, args...);
         }
 
+        /**
+         * @brief Create a storage buffer with transfer support and device-local memory.
+         * @param context Graphics context that owns the buffer.
+         * @param size Buffer capacity in bytes.
+         * @param data Initial bytes to upload, or null to leave the contents uninitialized.
+         */
         static Ref<StorageBuffer> Create(
             const GraphicsContext* context,
             size_t size,
             const void* data = nullptr
+        );
+
+        /**
+         * @brief Create a storage buffer with explicitly combined usage flags.
+         * @param context Graphics context that owns the buffer.
+         * @param info Size, initial data, usage flags, and memory preferences.
+         * @return An empty reference if the storage usage flag is missing.
+         */
+        static Ref<StorageBuffer> Create(
+            const GraphicsContext* context,
+            const SBufferCreateInfo& info
         );
 
         static SBufferCreateInfo CreateBufferInfo(size_t size, const void* data);
@@ -401,16 +435,16 @@ namespace Elixir
             const void* data = nullptr
         );
 
-        virtual ~PushConstantBuffer() = default;
+        ~PushConstantBuffer() = default;
 
-        virtual void* Map();
-        virtual void Unmap(uint32_t size) {}
-        virtual void Unmap(uint32_t offset, uint32_t size) {}
+        void* Map();
+        static void Unmap(uint32_t size) {}
+        static void Unmap(uint32_t offset, uint32_t size) {}
 
         const UUID& GetUUID() const { return m_UUID; }
-        virtual SBuffer& GetBuffer() { return m_Buffer; }
-        virtual const SBuffer& GetBuffer() const { return m_Buffer; }
-        virtual uint32_t GetSize() const { return m_Size; }
+        SBuffer& GetBuffer() { return m_Buffer; }
+        const SBuffer& GetBuffer() const { return m_Buffer; }
+        uint32_t GetSize() const { return m_Size; }
 
         bool operator==(const PushConstantBuffer& other) const
         {

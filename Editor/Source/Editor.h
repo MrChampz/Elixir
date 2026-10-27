@@ -43,7 +43,7 @@ private:
     Scope<ArcBallCameraController> m_SceneCamera;
     ViewportPanel* m_ScenePanel = nullptr;
     bool m_SceneOrbitDragging = false, m_ScenePanDragging = false;
-    SStaticMeshLighting m_SceneLighting;
+    SMeshLighting m_SceneLighting;
     Scope<EditorUI> m_EditorUI;
     // Chooses a document viewer from the asset format.
     void OpenAsset(const std::filesystem::path& asset);

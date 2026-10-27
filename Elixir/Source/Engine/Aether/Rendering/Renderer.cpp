@@ -259,17 +259,17 @@ namespace Elixir::Aether::Rendering
             const std::array ribbonStorageBuffers{
                 SStorageBufferBinding{
                     .Name = "particles",
-                    .Buffer = MaterialStorageBuffer{ resource->ParticleStateBuffer },
+                    .Buffer = { resource->ParticleStateBuffer },
                 },
                 SStorageBufferBinding{
                     .Name = "emitters",
-                    .Buffer = MaterialStorageBuffer{ frame.GetEmitterBuffer() },
+                    .Buffer = { frame.GetEmitterBuffer() },
                 },
             };
 
             const std::array strandStorageBuffers{
-                SStorageBufferBinding{ .Name = "particles", .Buffer = MaterialStorageBuffer{resource->ParticleStateBuffer} },
-                SStorageBufferBinding{ .Name = "strandPoints", .Buffer = MaterialStorageBuffer{resource->StrandPointBuffer} },
+                SStorageBufferBinding{ .Name = "particles", .Buffer = { resource->ParticleStateBuffer } },
+                SStorageBufferBinding{ .Name = "strandPoints", .Buffer = { resource->StrandPointBuffer } },
             };
 
             const SGeometryIndices indices{

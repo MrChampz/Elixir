@@ -2,7 +2,8 @@
 
 #include "VFXDocument.h"
 #include <algorithm>
-#include <charconv>
+#include <locale>
+#include <sstream>
 #include <cmath>
 
 namespace EditorVFX
@@ -27,8 +28,13 @@ namespace EditorVFX
             return TimelineNumber(parameter, emitter, system, depth + 1);
         }
         float number = 0;
-        const auto result = std::from_chars(value->Text.data(), value->Text.data() + value->Text.size(), number);
-        return result.ec == std::errc{} && result.ptr == value->Text.data() + value->Text.size() && std::isfinite(number) ? std::max(0.0f, number) : 0;
+        if (value->Text.empty() || value->Text.front() == '+' ||
+            value->Text.find_first_of("xX") != std::string::npos) return 0;
+        std::istringstream input(value->Text);
+        input.imbue(std::locale::classic());
+        input >> std::noskipws >> number;
+        if (input.fail() || !input.eof() || !std::isfinite(number)) return 0;
+        return std::max(0.0f, number);
     }
 
     /**

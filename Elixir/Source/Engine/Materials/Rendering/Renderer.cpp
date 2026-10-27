@@ -683,20 +683,10 @@ namespace Elixir::Materials::Rendering
 
         for (const auto& binding : request.ExternalResources.StorageBuffers)
         {
-            std::visit(
-                [&state, &binding](const auto& buffer)
-                {
-                    using TBuffer = std::remove_cvref_t<decltype(buffer)>;
-
-                    state.ExternalResources.push_back({
-                        .Name = std::string(binding.Name),
-                        .Type = std::is_same_v<TBuffer, Ref<StorageBuffer>>
-                            ? EDescriptorBindingType::StorageBuffer
-                            : EDescriptorBindingType::DynamicStorageBuffer
-                    });
-                },
-                binding.Buffer
-            );
+            state.ExternalResources.push_back({
+                .Name = std::string(binding.Name),
+                .Type = EDescriptorBindingType::StorageBuffer,
+            });
         }
 
         for (const auto& binding : request.ExternalResources.Textures)
@@ -733,15 +723,7 @@ namespace Elixir::Materials::Rendering
             shader->BindConstantBuffer(binding.Name, binding.Buffer);
 
         for (const auto& binding : request.ExternalResources.StorageBuffers)
-        {
-            std::visit(
-                [&shader, &binding](const auto& buffer)
-                {
-                    shader->BindStorageBuffer(binding.Name, buffer);
-                },
-                binding.Buffer
-            );
-        }
+            shader->BindStorageBuffer(binding.Name, binding.Buffer);
 
         for (const auto& binding : request.ExternalResources.Textures)
             shader->BindTexture(binding.Name, binding.Texture);

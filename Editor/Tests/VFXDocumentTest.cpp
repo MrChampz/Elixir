@@ -142,3 +142,35 @@ TEST(VFXTimelineTest, LocalLifetimeOverridesSystemParameterAndOverlappingBurstsM
     EXPECT_EQ(intervals[0].Start, 1);
     EXPECT_EQ(intervals[0].End, 5);
 }
+
+TEST(VFXTimelineTest, ReadsCompleteFiniteNumbersAndClampsNegativeValues)
+{
+    const Value empty;
+    for (const auto& [text, expected] : std::vector<std::pair<std::string, float>>{
+        {"0", 0}, {"1.25", 1.25f}, {"2e2", 200}, {".5", 0.5f}, {"-2", 0},
+        {"", 0}, {" 2", 0}, {"2 ", 0}, {"2junk", 0}, {"+2", 0},
+        {"nan", 0}, {"inf", 0}, {"1e99", 0}, {"0x10", 0}
+    })
+    {
+        SCOPED_TRACE(text);
+        Value number;
+        number.Type = EValueType::Number;
+        number.Text = text;
+        EXPECT_FLOAT_EQ(TimelineNumber(&number, empty, empty), expected);
+    }
+}
+
+TEST(VFXTimelineTest, ResolvesLocalParametersBeforeSystemParameters)
+{
+    Value local;
+    Value system;
+    Value reference;
+    reference.Type = EValueType::String;
+    reference.Text = "$rate";
+    local.Object["parameters"].Object["rate"].Text = "2.5";
+    system.Object["parameters"].Object["rate"].Text = "7.5";
+    EXPECT_FLOAT_EQ(TimelineNumber(&reference, local, system), 2.5f);
+    EXPECT_FLOAT_EQ(TimelineNumber(&reference, {}, system), 7.5f);
+    EXPECT_FLOAT_EQ(TimelineNumber(&reference, {}, {}), 0);
+    EXPECT_FLOAT_EQ(TimelineNumber(nullptr, local, system), 0);
+}

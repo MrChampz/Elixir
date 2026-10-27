@@ -60,9 +60,33 @@
 #include <Engine/GUI/Button.h>
 #include <Engine/GUI/TextBlock.h>
 
+#include <Engine/Mesh/Mesh.h>
+#include <Engine/Mesh/MeshLighting.h>
+#include <Engine/Mesh/MeshLoader.h>
+#include <Engine/Mesh/MeshLoaderRegistry.h>
 #include <Engine/Mesh/StaticMesh.h>
-#include <Engine/Mesh/StaticMeshLoader.h>
-#include <Engine/Mesh/StaticMeshLoaderRegistry.h>
 #include <Engine/Mesh/StaticMeshRenderer.h>
+#include <Engine/Mesh/SkeletalMesh.h>
+#include <Engine/Mesh/SkeletalMeshInstance.h>
+#include <Engine/Mesh/SkeletalMeshRenderer.h>
+
+#include <Engine/Animation/Skeleton.h>
+#include <Engine/Animation/BoneMask.h>
+#include <Engine/Animation/Pose.h>
+#include <Engine/Animation/Sequence.h>
+#include <Engine/Animation/BlendSpace.h>
+#include <Engine/Animation/BlendSpace1D.h>
+#include <Engine/Animation/BlendSpace2D.h>
+#include <Engine/Animation/StateMachine.h>
+#include <Engine/Animation/AnimationMontage.h>
+#include <Engine/Animation/AnimationLayer.h>
+#include <Engine/Animation/AnimationPlayer.h>
+#include <Engine/Animation/AnimationPlayback.h>
+#include <Engine/Animation/SequenceNode.h>
+#include <Engine/Animation/BlendSpaceNode.h>
+#include <Engine/Animation/StateMachineNode.h>
+#include <Engine/Animation/BlendNode.h>
+#include <Engine/Animation/Animation.h>
+#include <Engine/Animation/AnimationGraph.h>
 
 #include <Engine/Aether/System.h>

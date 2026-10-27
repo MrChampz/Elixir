@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Mesh/GeometryAllocation.h>
+#include <Engine/Mesh/Mesh.h>
 
 namespace Elixir
 {
@@ -9,7 +10,7 @@ namespace Elixir
 
     struct SGeometry;
 
-    /** @brief Stores the vertex attributes supported by static meshes. */
+    /** @brief Stores surface vertex attributes for static mesh geometry. */
     struct SStaticMeshVertex
     {
         /** Vertex position in mesh-local units. */
@@ -28,35 +29,15 @@ namespace Elixir
         glm::vec2 TexCoord1{};
     };
 
-    /** @brief Defines an axis-aligned bound in mesh-local space. */
-    struct SStaticMeshBounds
-    {
-        glm::vec3 Min{};
-        glm::vec3 Max{};
-    };
-
-    /** @brief Describes one drawable range in a static mesh. */
-    struct SStaticMeshSection
-    {
-        uint32_t FirstIndex = 0;
-        uint32_t IndexCount = 0;
-        uint32_t VertexOffset = 0;
-        uint32_t MaterialIndex = 0;
-        SStaticMeshBounds LocalBounds;
-
-        /** Maps baked mesh directions back to source mesh space for volume thickness. */
-        glm::mat3 VolumeToLocal{ 1.0f };
-    };
-
-    /** @brief Stores CPU geometry loaded from one mesh asset. */
+    /** @brief Stores CPU geometry, draw sections, and materials for a static mesh. */
     struct SStaticMeshData
     {
         std::string Name;
         std::vector<SStaticMeshVertex> Vertices;
         std::vector<uint32_t> Indices;
-        std::vector<SStaticMeshSection> Sections;
+        std::vector<SMeshSection> Sections;
         std::vector<Ref<Material>> Materials;
-        SStaticMeshBounds LocalBounds;
+        SMeshBounds LocalBounds;
     };
 
     /**
@@ -80,9 +61,9 @@ namespace Elixir
         static Ref<StaticMesh> Create(
             std::string name,
             GeometryAllocation geometry,
-            std::vector<SStaticMeshSection> sections,
+            std::vector<SMeshSection> sections,
             std::vector<Ref<Material>> materials,
-            SStaticMeshBounds localBounds
+            SMeshBounds localBounds
         );
 
         /** @brief Get the vertex layout used by every static mesh section. */
@@ -95,27 +76,27 @@ namespace Elixir
         const SGeometry* GetGeometry() const { return m_Geometry.Get(); }
 
         /** @brief Get the immutable sections of this mesh. */
-        const std::vector<SStaticMeshSection>& GetSections() const { return m_Sections; }
+        const std::vector<SMeshSection>& GetSections() const { return m_Sections; }
 
         /** @brief Get the materials referenced by mesh sections. */
         const std::vector<Ref<Material>>& GetMaterials() const { return m_Materials; }
 
         /** @brief Get the mesh bound in mesh-local space. */
-        const SStaticMeshBounds& GetLocalBounds() const { return m_LocalBounds; }
+        const SMeshBounds& GetLocalBounds() const { return m_LocalBounds; }
 
     private:
         explicit StaticMesh(
             std::string name,
             GeometryAllocation geometry,
-            std::vector<SStaticMeshSection> sections,
+            std::vector<SMeshSection> sections,
             std::vector<Ref<Material>> materials,
-            const SStaticMeshBounds& localBounds
+            const SMeshBounds& localBounds
         );
 
         std::string m_Name;
         GeometryAllocation m_Geometry;
-        std::vector<SStaticMeshSection> m_Sections;
+        std::vector<SMeshSection> m_Sections;
         std::vector<Ref<Material>> m_Materials;
-        SStaticMeshBounds m_LocalBounds;
+        SMeshBounds m_LocalBounds;
     };
 }

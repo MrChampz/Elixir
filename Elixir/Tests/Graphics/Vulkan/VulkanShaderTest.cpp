@@ -73,7 +73,7 @@ namespace
         for (uint32_t cycle = 0; cycle < cycles; ++cycle)
         {
             auto info = MakeShaderInfo();
-            info.Compute->ConstantBuffers.emplace_back("Constants", 2, 0);
+            info.Compute->ConstantBuffers.emplace_back("Constants", 2, 0, 16);
             const auto shader = CreateRef<VulkanShader>(context, std::move(info));
             ASSERT_TRUE(shader->IsValid());
             ASSERT_EQ(shader->GetDescriptorSetLayouts().size(), 3u);
@@ -91,7 +91,12 @@ namespace
         VkPhysicalDeviceProperties properties{};
         vkGetPhysicalDeviceProperties(context->GetGPU(), &properties);
         auto info = MakeShaderInfo();
-        info.Compute->ConstantBuffers.emplace_back("Constants", properties.limits.maxBoundDescriptorSets, 0);
+        info.Compute->ConstantBuffers.emplace_back(
+            "Constants",
+            properties.limits.maxBoundDescriptorSets,
+            0,
+            16
+        );
         const auto shader = CreateRef<VulkanShader>(context, std::move(info));
         EXPECT_FALSE(shader->IsValid());
         EXPECT_EQ(shader->GetPipelineLayout(), VK_NULL_HANDLE);
@@ -100,7 +105,12 @@ namespace
         shader->Bind(nullptr, nullptr);
 
         auto factoryInfo = MakeShaderInfo();
-        factoryInfo.Compute->ConstantBuffers.emplace_back("Constants", properties.limits.maxBoundDescriptorSets, 0);
+        factoryInfo.Compute->ConstantBuffers.emplace_back(
+            "Constants",
+            properties.limits.maxBoundDescriptorSets,
+            0,
+            16
+        );
         EXPECT_EQ(Shader::Create(context, std::move(factoryInfo)), nullptr);
         EXPECT_NE(Shader::Create(context, MakeShaderInfo()), nullptr);
     }

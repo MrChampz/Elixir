@@ -9,11 +9,16 @@ namespace Elixir::Aether::Core
     /** @brief Stores a parameter's default data and location in the compiled buffer. */
     struct SCompiledParameter : SParameter
     {
-        /** @brief Offset from the instance's parameter base, in four-byte words. */
+        /** Offset from the instance's parameter base, in four-byte words. */
         uint32_t WordOffset = 0;
     };
 
-    /** @brief Copies authored parameters and assigns consecutive offsets at their native sizes. */
+    /**
+     * @brief Assign consecutive native-width word offsets to authored parameters.
+     * @param parameters Authored parameters in compiled-table order.
+     * @return Compiled parameters, or an empty vector for an empty input, invalid type, or
+     * overflow.
+     */
     inline std::vector<SCompiledParameter> CompileParameters(std::span<const SParameter> parameters)
     {
         std::vector<SCompiledParameter> compiled;
@@ -33,7 +38,12 @@ namespace Elixir::Aether::Core
         return compiled;
     }
 
-    /** @brief Packs compiled defaults as raw words, preserving float and uint bit patterns. */
+    /**
+     * @brief Pack compiled defaults as raw words without changing their bit patterns.
+     * @param parameters Compiled parameters with consecutive native-width word offsets.
+     * @return Packed words, or an empty vector for an empty input, invalid type, offset, or
+     * overflow.
+     */
     inline std::vector<uint32_t> PackParameterValues(std::span<const SCompiledParameter> parameters)
     {
         uint32_t offset = 0;

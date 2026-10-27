@@ -216,29 +216,19 @@ namespace Elixir::SpirV
                 {
                     case spirv_cross::SPIRType::Struct:
                         cstruct = ParseConstantStruct(spirv, memberType, memberName);
+                        if (!cstruct) return {};
                         break;
                     case spirv_cross::SPIRType::Boolean:
                         type = EConstantType::Bool;
                         break;
                     case spirv_cross::SPIRType::Int:
-                        type = EConstantType::Int;
+                        type = GetIntConstantType(memberType);
                         break;
                     case spirv_cross::SPIRType::UInt:
-                        type = EConstantType::UInt;
+                        type = GetUIntConstantType(memberType);
                         break;
                     case spirv_cross::SPIRType::Float:
-                        if (memberType.vecsize == 1)
-                            type = EConstantType::Float;
-                        else if (memberType.vecsize == 2)
-                            type = EConstantType::Float2;
-                        else if (memberType.vecsize == 3)
-                            type = EConstantType::Float3;
-                        else if (memberType.vecsize == 4 && memberType.columns == 1)
-                            type = EConstantType::Float4;
-                        else if (memberType.vecsize == 4 && memberType.columns == 3)
-                            type = EConstantType::Mat3;
-                        else if (memberType.vecsize == 4 && memberType.columns == 4)
-                            type = EConstantType::Mat4;
+                        type = GetFloatConstantType(memberType);
                         break;
                     default:
                         EE_CORE_ASSERT(false, "Unknown Constant Type!");
@@ -281,7 +271,13 @@ namespace Elixir::SpirV
 
             const auto& baseType = spirv.get_type(resource.base_type_id);
 
-            auto buffer = ShaderConstantBuffer(name, set, binding);
+            const auto size = spirv.get_declared_struct_size(baseType);
+            if (size > UINT32_MAX)
+            {
+                EE_CORE_ERROR("Shader constant buffer exceeds the supported byte range.")
+                continue;
+            }
+            auto buffer = ShaderConstantBuffer(name, set, binding, (uint32_t)size);
 
             // Loop through all members of the Uniform Buffer, and create a ShaderConstant
             // for each them.
@@ -297,29 +293,19 @@ namespace Elixir::SpirV
                 {
                     case spirv_cross::SPIRType::Struct:
                         cstruct = ParseConstantStruct(spirv, memberType, memberName);
+                        if (!cstruct) return {};
                         break;
                     case spirv_cross::SPIRType::Boolean:
                         type = EConstantType::Bool;
                         break;
                     case spirv_cross::SPIRType::Int:
-                        type = EConstantType::Int;
+                        type = GetIntConstantType(memberType);
                         break;
                     case spirv_cross::SPIRType::UInt:
-                        type = EConstantType::UInt;
+                        type = GetUIntConstantType(memberType);
                         break;
                     case spirv_cross::SPIRType::Float:
-                        if (memberType.vecsize == 1)
-                            type = EConstantType::Float;
-                        else if (memberType.vecsize == 2)
-                            type = EConstantType::Float2;
-                        else if (memberType.vecsize == 3)
-                            type = EConstantType::Float3;
-                        else if (memberType.vecsize == 4 && memberType.columns == 1)
-                            type = EConstantType::Float4;
-                        else if (memberType.vecsize == 4 && memberType.columns == 3)
-                            type = EConstantType::Mat3;
-                        else if (memberType.vecsize == 4 && memberType.columns == 4)
-                            type = EConstantType::Mat4;
+                        type = GetFloatConstantType(memberType);
                         break;
                     default:
                         EE_CORE_ASSERT(false, "Unknown Constant Type!");
@@ -379,29 +365,19 @@ namespace Elixir::SpirV
                 {
                     case spirv_cross::SPIRType::Struct:
                         cstruct = ParseConstantStruct(spirv, memberType, memberName);
+                        if (!cstruct) return {};
                         break;
                     case spirv_cross::SPIRType::Boolean:
                         type = EConstantType::Bool;
                         break;
                     case spirv_cross::SPIRType::Int:
-                        type = EConstantType::Int;
+                        type = GetIntConstantType(memberType);
                         break;
                     case spirv_cross::SPIRType::UInt:
-                        type = EConstantType::UInt;
+                        type = GetUIntConstantType(memberType);
                         break;
                     case spirv_cross::SPIRType::Float:
-                        if (memberType.vecsize == 1)
-                            type = EConstantType::Float;
-                        else if (memberType.vecsize == 2)
-                            type = EConstantType::Float2;
-                        else if (memberType.vecsize == 3)
-                            type = EConstantType::Float3;
-                        else if (memberType.vecsize == 4 && memberType.columns == 1)
-                            type = EConstantType::Float4;
-                        else if (memberType.vecsize == 4 && memberType.columns == 3)
-                            type = EConstantType::Mat3;
-                        else if (memberType.vecsize == 4 && memberType.columns == 4)
-                            type = EConstantType::Mat4;
+                        type = GetFloatConstantType(memberType);
                         break;
                     default:
                         EE_CORE_ASSERT(false, "Unknown Constant Type!");
@@ -460,6 +436,59 @@ namespace Elixir::SpirV
         }
     }
 
+    EConstantType SpirVShaderBackend::GetIntConstantType(const spirv_cross::SPIRType& type)
+    {
+        constexpr std::array types{
+            EConstantType::Int,
+            EConstantType::Int2,
+            EConstantType::Int3,
+            EConstantType::Int4
+        };
+
+        return types[type.vecsize - 1];
+    }
+
+    EConstantType SpirVShaderBackend::GetUIntConstantType(const spirv_cross::SPIRType& type)
+    {
+        constexpr std::array types{
+            EConstantType::UInt,
+            EConstantType::UInt2,
+            EConstantType::UInt3,
+            EConstantType::UInt4
+        };
+
+        return types[type.vecsize - 1];
+    }
+
+    EConstantType SpirVShaderBackend::GetFloatConstantType(const spirv_cross::SPIRType& type)
+    {
+        if (type.columns == 3 && type.vecsize == 3)
+            return EConstantType::Mat3;
+
+        if (type.columns == 4 && type.vecsize == 4)
+            return EConstantType::Mat4;
+
+        if (type.columns == 1)
+        {
+            constexpr std::array types{
+                EConstantType::Float,
+                EConstantType::Float2,
+                EConstantType::Float3,
+                EConstantType::Float4
+            };
+
+            return types[type.vecsize - 1];
+        }
+
+        EE_CORE_ERROR(
+            "Unsupported SPIR-V float shape: {} rows, {} columns.",
+            type.vecsize,
+            type.columns
+        )
+
+        return EConstantType::Float;
+    }
+
     Scope<ShaderConstantStruct> SpirVShaderBackend::ParseConstantStruct(
         const spirv_cross::Compiler& spirv,
         spirv_cross::SPIRType type,
@@ -480,29 +509,19 @@ namespace Elixir::SpirV
             {
                 case spirv_cross::SPIRType::Struct:
                     fieldStruct = ParseConstantStruct(spirv, baseType, fieldName);
+                    if (!fieldStruct) return {};
                     break;
                 case spirv_cross::SPIRType::Boolean:
                     fieldType = EConstantType::Bool;
                     break;
                 case spirv_cross::SPIRType::Int:
-                    fieldType = EConstantType::Int;
+                    fieldType = GetIntConstantType(baseType);
                     break;
                 case spirv_cross::SPIRType::UInt:
-                    fieldType = EConstantType::UInt;
+                    fieldType = GetUIntConstantType(baseType);
                     break;
                 case spirv_cross::SPIRType::Float:
-                    if (baseType.vecsize == 1)
-                        fieldType = EConstantType::Float;
-                    else if (baseType.vecsize == 2)
-                        fieldType = EConstantType::Float2;
-                    else if (baseType.vecsize == 3)
-                        fieldType = EConstantType::Float3;
-                    else if (baseType.vecsize == 4 && baseType.columns == 1)
-                        fieldType = EConstantType::Float4;
-                    else if (baseType.vecsize == 4 && baseType.columns == 3)
-                        fieldType = EConstantType::Mat3;
-                    else if (baseType.vecsize == 4 && baseType.columns == 4)
-                        fieldType = EConstantType::Mat4;
+                    fieldType = GetFloatConstantType(baseType);
                     break;
                 default:
                     EE_CORE_ASSERT(false, "Unknown Constant Type!");

@@ -117,7 +117,7 @@ namespace Elixir::Vulkan
          * Flush dirty descriptors to the GPU.
          * This should be called after any updates to ensure changes are visible in shaders.
          */
-        void FlushDescriptors();
+        ELIXIR_API void FlushDescriptors();
 
         /**
          * Register a sampled image and get its handle in the bindless array.
@@ -153,7 +153,7 @@ namespace Elixir::Vulkan
          * @param handle The handle to look up.
          * @return The image associated with the handle, or nullptr if not found.
          */
-        Ref<Image> GetImage(SResourceHandle handle) const;
+        ELIXIR_API Ref<Image> GetImage(SResourceHandle handle) const;
 
         /**
          * Get the maximum number of images.

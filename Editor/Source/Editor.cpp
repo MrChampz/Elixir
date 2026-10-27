@@ -7,7 +7,7 @@
 #include "UI/Panels/MeshPanel.h"
 #include "UI/Panels/StrandsPanel.h"
 #include "Assets/MeshAssets.h"
-#include <Engine/Mesh/StaticMeshLoaderRegistry.h>
+#include <Engine/Mesh/MeshLoaderRegistry.h>
 #include "Environment.h"
 #include <iostream>
 
@@ -55,11 +55,11 @@ void Editor::LoadStrandScene()
     m_StrandScene.Manager = CreateScope<Aether::Manager>(m_GraphicsContext.get(), m_ShaderLoader.get(),
         GetMaterialRegistry(), *m_StrandScene.Materials);
     const auto root = std::filesystem::path(ELIXIR_EDITOR_PROJECT_ROOT);
-    if (auto mesh = StaticMeshLoaderRegistry::Load(root / "Assets/Meshes/StrandScene/StrandScene.gltf"))
+    if (auto mesh = MeshLoaderRegistry::LoadStaticMesh(root / "Assets/Meshes/StrandScene/StrandScene.gltf"))
     {
         m_StrandScene.Mesh = *mesh;
-        m_StrandScene.Renderer = CreateScope<StaticMeshRenderer>(m_GraphicsContext.get(),
-            *m_StrandScene.Materials, StaticMeshLoaderRegistry::GetGeometryPool());
+        m_StrandScene.Renderer = CreateScope<StaticMeshRenderer>(*m_GraphicsContext,
+            *m_StrandScene.Materials, *MeshLoaderRegistry::GetGeometryPool());
     }
     else EE_CORE_ERROR("Could not load the strand scene reference objects.");
     auto panel = CreateScope<StrandsPanel>(*m_StrandScene.Manager, *m_GraphicsContext,
@@ -74,7 +74,7 @@ void Editor::LoadDefaultScene()
 {
     const auto scenePath = std::filesystem::path(ELIXIR_EDITOR_PROJECT_ROOT) /
         "Assets" / "Meshes" / "Sponza" / "glTF" / "Sponza.gltf";
-    if (auto loaded = StaticMeshLoaderRegistry::Load(scenePath))
+    if (auto loaded = MeshLoaderRegistry::LoadStaticMesh(scenePath))
     {
         m_SceneMesh = std::move(*loaded);
         const auto environment = Environment::Load(*m_GraphicsContext,
@@ -102,8 +102,8 @@ void Editor::LoadDefaultScene()
             .DirectionalLightIntensity = 2.2f,
             .DebugView = ESurfaceDebugView::Composite,
         };
-        m_SceneRenderer = CreateScope<StaticMeshRenderer>(m_GraphicsContext.get(),
-            GetMaterialSystem(), StaticMeshLoaderRegistry::GetGeometryPool());
+        m_SceneRenderer = CreateScope<StaticMeshRenderer>(*m_GraphicsContext,
+            GetMaterialSystem(), *MeshLoaderRegistry::GetGeometryPool());
         const auto extent = m_Window->GetFramebufferExtent();
         const float aspect = extent.Height ? static_cast<float>(extent.Width) / extent.Height : 1.0f;
         const auto& bounds = m_SceneMesh->GetLocalBounds();
@@ -145,7 +145,7 @@ void Editor::OpenMeshAsset(const std::filesystem::path& asset)
 {
     for (auto& document : m_MeshDocuments)
         if (document.Path == asset) { m_EditorUI->ActivateTab(document.Tab); return; }
-    const auto loaded = StaticMeshLoaderRegistry::Load(asset);
+    const auto loaded = MeshLoaderRegistry::LoadStaticMesh(asset);
     if (!loaded || !*loaded)
     {
         m_EditorUI->SetAssetBrowserStatus("Could not load mesh: " + asset.filename().string());
@@ -155,8 +155,8 @@ void Editor::OpenMeshAsset(const std::filesystem::path& asset)
     document.Path = asset;
     document.Mesh = *loaded;
     if (!ResizePreview(document, {512, 512, 1})) return;
-    document.Renderer = CreateScope<StaticMeshRenderer>(m_GraphicsContext.get(),
-        *document.Materials, StaticMeshLoaderRegistry::GetGeometryPool());
+    document.Renderer = CreateScope<StaticMeshRenderer>(*m_GraphicsContext,
+        *document.Materials, *MeshLoaderRegistry::GetGeometryPool());
     auto panel = CreateScope<MeshPanel>(*m_GraphicsContext, document.Mesh, asset);
     document.Panel = panel.get();
     document.Tab = m_EditorUI->AddDocument(std::move(panel), asset.stem().string(),

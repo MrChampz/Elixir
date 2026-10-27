@@ -111,23 +111,6 @@ namespace Elixir::Aether::Simulation
             uint32_t ResetPending = 0;
         };
 
-        // Mirrors one CoreV1 particle state in GPU storage.
-        struct alignas(16) SGPUParticle
-        {
-            glm::vec3   Position{};
-            float       Size{};
-            glm::vec3   Velocity{};
-            float       Age{};
-            glm::vec4   Transform{};
-            glm::vec3   Tangent{};
-            uint32_t    RibbonId = 0;
-            glm::vec4   Color{};
-            uint32_t    EmitterIndex = 0;
-            uint32_t    LinkOrder = 0;
-            float       Lifetime{};
-            float       Alive{};
-        };
-
         // Identifies the system instance processed by scheduler compute dispatches.
         struct SSchedulePushConstants
         {
@@ -218,7 +201,6 @@ namespace Elixir::Aether::Simulation
         m_ResourcePool(m_Limits, m_ParticleStateLayouts),
         m_GraphicsContext(context)
     {
-        static_assert(sizeof(SGPUParticle) == PARTICLE_STATE_CORE_V1_STRIDE);
         EE_CORE_ASSERT(context, "Aether Simulator requires a graphics context.")
         EE_CORE_ASSERT(shaderLoader, "Aether Simulator requires a shader loader.")
         EE_CORE_INFO("Initializing Aether Simulator.")
@@ -483,9 +465,15 @@ namespace Elixir::Aether::Simulation
             EE_CORE_ASSERT(runtime, "Particle state layout requires a simulation runtime.")
             if (!runtime) continue;
 
+            auto particleInfo = StorageBuffer::CreateBufferInfo(
+                descriptor.ParticleStateStride * descriptor.ParticleCapacity,
+                nullptr
+            );
+            particleInfo.Usage |= EBufferUsage::VertexBuffer;
+
             runtime->ParticleStateBuffer = StorageBuffer::Create(
                 m_GraphicsContext,
-                descriptor.ParticleStateStride * descriptor.ParticleCapacity
+                particleInfo
             );
         }
 

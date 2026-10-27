@@ -144,28 +144,58 @@ namespace Elixir::Vulkan
 
     void VulkanShader::SetConstantBuffer(const std::string& name, void* data, const size_t size)
     {
-        if (const auto binding = GetShaderBinding(name))
+        const auto binding = GetShaderBinding(name);
+        if (!binding || !m_Resources.ConstantBuffers.contains(*binding))
         {
-            if (m_ConstantBuffers.contains(*binding))
-            {
-                const auto& buffer = m_ConstantBuffers.at(*binding);
-                const auto mapped = buffer->Map();
-                Memory::Memcpy(mapped, data, size);
-                buffer->Unmap();
-            }
-            else
-            {
-                const auto buffer = UniformBuffer::Create(
-                    m_GraphicsContext,
-                    size,
-                    data
-                );
-                BindConstantBuffer(name, buffer);
-            }
+            EE_CORE_ERROR("No constant buffer binding named \"{0}\" found in shader...", name)
             return;
         }
 
-        EE_CORE_ERROR("No constant buffer binding named \"{0}\" found in shader...", name)
+        if (!data || size == 0 || size > m_GraphicsContext->GetMaxConstantBufferRange())
+        {
+            EE_CORE_ERROR("Constant buffer updates require data and a supported byte count.")
+            return;
+        }
+
+        const auto found = m_ConstantBuffers.find(*binding);
+        if (found == m_ConstantBuffers.end())
+        {
+            const auto capacity = std::max<size_t>(
+                size,
+                m_Resources.ConstantBuffers.at(*binding).GetSize()
+            );
+
+            if (capacity > m_GraphicsContext->GetMaxConstantBufferRange())
+            {
+                EE_CORE_ERROR("Shader constant buffer exceeds the device uniform range.")
+                return;
+            }
+
+            const auto buffer = UniformBuffer::Create(m_GraphicsContext, capacity);
+            if (!buffer || !buffer->IsValid()) return;
+
+            buffer->UpdateData(data, size);
+            BindConstantBuffer(name, buffer);
+
+            return;
+        }
+
+        const auto buffer = std::dynamic_pointer_cast<DynamicBuffer>(found->second);
+        if (!buffer || size > buffer->GetSize())
+        {
+            EE_CORE_ERROR("Constant buffer updates require a mappable buffer with enough space.")
+            return;
+        }
+
+        const auto mapped = buffer->Map();
+        if (!mapped)
+        {
+            EE_CORE_ERROR("Constant buffer could not be mapped for an update.")
+            return;
+        }
+
+        Memory::Memcpy(mapped, data, size);
+        buffer->Unmap();
     }
 
     void VulkanShader::BindTexture(const std::string& name, const Ref<Texture>& texture)
@@ -232,47 +262,53 @@ namespace Elixir::Vulkan
 
     void VulkanShader::BindStorageBuffer(
         const std::string& name,
-        const Ref<StorageBuffer>& buffer
+        const Ref<Buffer>& buffer
     )
     {
-        if (const auto binding = GetShaderBinding(name))
+        if (!buffer || !buffer->IsValid() ||
+            !HasAnyFlags(buffer->GetUsage(), EBufferUsage::StorageBuffer) ||
+            buffer->GetSize() == 0 ||
+            buffer->GetSize() > m_GraphicsContext->GetMaxStorageBufferRange())
         {
-            if (m_DescriptorSets.Set(*binding, DescriptorValue{ buffer }))
-                m_StorageBuffers[*binding] = buffer;
+            EE_CORE_ERROR("Storage binding requires a valid buffer with storage usage and range.")
             return;
         }
 
-        EE_CORE_ERROR("No storage buffer binding named \"{0}\" found in shader...", name)
-    }
-
-    void VulkanShader::BindStorageBuffer(
-        const std::string& name,
-        const Ref<DynamicStorageBuffer>& buffer
-    )
-    {
-        if (const auto binding = GetShaderBinding(name))
+        const auto binding = GetShaderBinding(name);
+        if (!binding || !m_Resources.StorageBuffers.contains(*binding))
         {
-            if (m_DescriptorSets.Set(*binding, DescriptorValue{ buffer }))
-                m_DynStorageBuffers[*binding] = buffer;
+            EE_CORE_ERROR("No storage buffer binding named \"{0}\" found in shader...", name)
             return;
         }
 
-        EE_CORE_ERROR("No storage buffer binding named \"{0}\" found in shader...", name)
+        if (m_DescriptorSets.Set(*binding, DescriptorValue{ buffer }))
+            m_StorageBuffers[*binding] = buffer;
     }
 
     void VulkanShader::BindConstantBuffer(
         const std::string& name,
-        const Ref<UniformBuffer>& buffer
+        const Ref<Buffer>& buffer
     )
     {
-        if (const auto binding = GetShaderBinding(name))
+        const auto binding = GetShaderBinding(name);
+        if (!binding || !m_Resources.ConstantBuffers.contains(*binding))
         {
-            if (m_DescriptorSets.Set(*binding, DescriptorValue{ buffer }))
-                m_ConstantBuffers[*binding] = buffer;
+            EE_CORE_ERROR("No constant buffer binding named \"{0}\" found in shader...", name)
             return;
         }
 
-        EE_CORE_ERROR("No constant buffer binding named \"{0}\" found in shader...", name)
+        if (!buffer || !buffer->IsValid() ||
+            !HasAnyFlags(buffer->GetUsage(), EBufferUsage::UniformBuffer) ||
+            buffer->GetSize() < m_Resources.ConstantBuffers.at(*binding).GetSize() ||
+            buffer->GetSize() == 0 ||
+            buffer->GetSize() > m_GraphicsContext->GetMaxConstantBufferRange())
+        {
+            EE_CORE_ERROR("Constant binding requires a valid buffer with uniform usage and range.")
+            return;
+        }
+
+        if (m_DescriptorSets.Set(*binding, DescriptorValue{ buffer }))
+            m_ConstantBuffers[*binding] = buffer;
     }
 
     std::vector<VkDescriptorSet> VulkanShader::GetDescriptorSets() const
@@ -640,61 +676,23 @@ namespace Elixir::Vulkan
 
     VkWriteDescriptorSet VulkanShader::GetWriteDescriptorSet(
         const SShaderBinding binding,
-        const Ref<StorageBuffer>& buffer
+        const Ref<Buffer>& buffer
     ) const
     {
-        const auto& resource = m_Resources.StorageBuffers.at(binding);
-        const auto buf = std::static_pointer_cast<VulkanStorageBuffer>(buffer);
-
-        m_BufferInfoCache[binding] = buf->GetVulkanDescriptorInfo();
+        const auto uniform = m_Resources.ConstantBuffers.contains(binding);
+        m_BufferInfoCache[binding] = {
+            .buffer = TryToGetVulkanBuffer(buffer.get()),
+            .offset = 0,
+            .range = buffer->GetSize(),
+        };
 
         VkWriteDescriptorSet writeSet = {};
         writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeSet.dstSet = m_DescriptorSets.GetCurrent()[resource.GetSet()];
-        writeSet.dstBinding = resource.GetBinding();
-        writeSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        writeSet.descriptorCount = 1;
-        writeSet.pBufferInfo = &m_BufferInfoCache[binding];
-
-        return writeSet;
-    }
-
-    VkWriteDescriptorSet VulkanShader::GetWriteDescriptorSet(
-        const SShaderBinding binding,
-        const Ref<DynamicStorageBuffer>& buffer
-    ) const
-    {
-        const auto& resource = m_Resources.StorageBuffers.at(binding);
-        const auto buf = std::static_pointer_cast<VulkanDynamicStorageBuffer>(buffer);
-
-        m_BufferInfoCache[binding] = buf->GetVulkanDescriptorInfo();
-
-        VkWriteDescriptorSet writeSet = {};
-        writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeSet.dstSet = m_DescriptorSets.GetCurrent()[resource.GetSet()];
-        writeSet.dstBinding = resource.GetBinding();
-        writeSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        writeSet.descriptorCount = 1;
-        writeSet.pBufferInfo = &m_BufferInfoCache[binding];
-
-        return writeSet;
-    }
-
-    VkWriteDescriptorSet VulkanShader::GetWriteDescriptorSet(
-        const SShaderBinding binding,
-        const Ref<UniformBuffer>& buffer
-    ) const
-    {
-        const auto& resource = m_Resources.ConstantBuffers.at(binding);
-        const auto buf = std::static_pointer_cast<VulkanUniformBuffer>(buffer);
-
-        m_BufferInfoCache[binding] = buf->GetVulkanDescriptorInfo();
-
-        VkWriteDescriptorSet writeSet = {};
-        writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeSet.dstSet = m_DescriptorSets.GetCurrent()[resource.GetSet()];
-        writeSet.dstBinding = resource.GetBinding();
-        writeSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writeSet.dstSet = m_DescriptorSets.GetCurrent()[binding.Set];
+        writeSet.dstBinding = binding.Binding;
+        writeSet.descriptorType = uniform
+            ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+            : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         writeSet.descriptorCount = 1;
         writeSet.pBufferInfo = &m_BufferInfoCache[binding];
 

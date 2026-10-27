@@ -1,7 +1,7 @@
 project("Elixir")
 
 # Files
-file(GLOB_RECURSE SOURCES
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_LIST_DIR}/Source/*.h"
     "${CMAKE_CURRENT_LIST_DIR}/Source/*.cpp"
 )
@@ -52,6 +52,7 @@ function(apply_properties_and_definitions target)
 
     target_compile_definitions(${target} PRIVATE
         GLFW_INCLUDE_NONE
+        GLM_ENABLE_EXPERIMENTAL
         $<$<CONFIG:Debug>:EE_DEBUG>
         $<$<CONFIG:Release>:EE_RELEASE>
         $<$<CONFIG:Dist>:EE_DIST>

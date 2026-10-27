@@ -3,6 +3,7 @@
 #include "spirv_cross.hpp"
 
 #include <Engine/Graphics/Shader/ShaderBackend.h>
+#include <optional>
 
 namespace spirv_cross
 {
@@ -58,6 +59,27 @@ namespace Elixir::SpirV
 
         static uint32_t CalculateResourceCount(spirv_cross::SPIRType type);
         static EResourceDimension GetResourceDimension(spv::Dim dimension);
+
+        /**
+         * @brief Map a 32-bit integer scalar or vector to its engine constant type.
+         * @param type SPIR-V integer type, including its signedness and vector width.
+         * @return The constant type.
+         */
+        static EConstantType GetIntConstantType(const spirv_cross::SPIRType& type);
+
+        /**
+         * @brief Map a 32-bit integer scalar or vector to its engine constant type.
+         * @param type SPIR-V integer type, including its signedness and vector width.
+         * @return The constant type.
+         */
+        static EConstantType GetUIntConstantType(const spirv_cross::SPIRType& type);
+
+        /**
+         * @brief Map a float scalar, vector, or supported square matrix to its constant type.
+         * @param type SPIR-V float type, including its row and column counts.
+         * @return The constant type.
+         */
+        static EConstantType GetFloatConstantType(const spirv_cross::SPIRType& type);
 
         static Scope<ShaderConstantStruct> ParseConstantStruct(
             const spirv_cross::Compiler& spirv,

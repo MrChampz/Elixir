@@ -64,6 +64,12 @@ namespace Elixir
             size_t size
         ) = 0;
 
+        /**
+         * @brief Update a CPU-mappable constant buffer, or create one when none is bound.
+         * @param name Shader constant resource binding name.
+         * @param data Bytes to upload; must not be null.
+         * @param size Number of bytes to upload, within the bound buffer capacity.
+         */
         virtual void SetConstantBuffer(const std::string& name, void* data, size_t size) = 0;
 
         /**
@@ -79,9 +85,21 @@ namespace Elixir
         virtual void BindImageSet(const std::string& name, const Ref<ImageSet>& set) = 0;
 
         virtual void BindSampler(const std::string& name, const Ref<Sampler>& sampler) = 0;
-        virtual void BindStorageBuffer(const std::string& name, const Ref<StorageBuffer>& buffer) = 0;
-        virtual void BindStorageBuffer(const std::string& name, const Ref<DynamicStorageBuffer>& buffer) = 0;
-        virtual void BindConstantBuffer(const std::string& name, const Ref<UniformBuffer>& buffer) = 0;
+
+        /**
+         * @brief Bind a buffer that was created with storage usage.
+         * @param name Shader storage resource binding name.
+         * @param buffer Buffer with StorageBuffer usage, including a vertex buffer.
+         */
+        virtual void BindStorageBuffer(const std::string& name, const Ref<Buffer>& buffer) = 0;
+
+        /**
+         * @brief Bind a buffer that was created with uniform usage.
+         * @param name Shader constant resource binding name.
+         * @param buffer Buffer with UniformBuffer usage and sufficient capacity for the
+         * resource.
+         */
+        virtual void BindConstantBuffer(const std::string& name, const Ref<Buffer>& buffer) = 0;
 
         /**
          * @brief Checks whether the shader declares a named binding.
@@ -152,10 +170,9 @@ namespace Elixir
         std::unordered_map<SShaderBinding, Ref<Texture>> m_Textures;
         std::unordered_map<SShaderBinding, Ref<ImageSet>> m_ImageSets;
         std::unordered_map<SShaderBinding, Ref<Sampler>> m_Samplers;
-        std::unordered_map<SShaderBinding, Ref<StorageBuffer>> m_StorageBuffers;
-        std::unordered_map<SShaderBinding, Ref<DynamicStorageBuffer>> m_DynStorageBuffers;
+        std::unordered_map<SShaderBinding, Ref<Buffer>> m_StorageBuffers;
         // TODO: Rename to ConstantBuffer
-        std::unordered_map<SShaderBinding, Ref<UniformBuffer>> m_ConstantBuffers;
+        std::unordered_map<SShaderBinding, Ref<Buffer>> m_ConstantBuffers;
         std::unordered_map<SShaderBinding, Ref<PushConstantBuffer>> m_PushConstants;
 
         const GraphicsContext* m_GraphicsContext;

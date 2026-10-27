@@ -24,15 +24,38 @@ namespace Elixir
     class ELIXIR_API ArcBallCameraController final : public CameraController
     {
       public:
+        /**
+         * @brief Create an orbit camera controller.
+         * @param fovDegrees Vertical field of view in degrees.
+         * @param aspectRatio Viewport width divided by height.
+         */
         ArcBallCameraController(float fovDegrees, float aspectRatio);
 
+        /**
+         * @brief Process an input or framebuffer resize event.
+         * @param event Event to dispatch to the controller handlers.
+         */
         void ProcessEvent(Event& event) override;
 
+        /** @brief Get the controlled camera. */
         Camera& GetCamera() override { return m_Camera; }
+
+        /** @brief Get the controlled camera. */
         const Camera& GetCamera() const override { return m_Camera; }
+
+        /** @brief Get the controlled perspective camera. */
         PerspectiveCamera& GetPerspectiveCamera() { return m_Camera; }
 
+        /**
+         * @brief Move the orbit target and update the camera.
+         * @param target Target position in world space.
+         */
         void SetTarget(const glm::vec3& target);
+
+        /**
+         * @brief Set the orbit distance within the configured limits.
+         * @param distance Requested distance from the target in world units.
+         */
         void SetDistance(float distance);
 
         /**
@@ -47,11 +70,39 @@ namespace Elixir
          */
         void SetOrbitPitch(float pitchDegrees);
 
+        /**
+         * @brief Center the camera on finite bounds and fit them within its field of view.
+         *
+         * Invalid bounds or an unsupported fitting distance are logged and leave the camera
+         * unchanged.
+         *
+         * @param min Finite minimum corner; each component must not exceed max.
+         * @param max Finite maximum corner.
+         */
+        void FrameBounds(const glm::vec3& min, const glm::vec3& max);
+
+        /**
+         * @brief Set the orbit input sensitivity.
+         * @param sensitivity Degrees of orbit rotation per pixel.
+         */
         void SetOrbitSensitivity(const float sensitivity) { m_OrbitSensitivity = sensitivity; }
+
+        /**
+         * @brief Set the pan input sensitivity.
+         * @param sensitivity Pan scale per pixel, multiplied by orbit distance.
+         */
         void SetPanSensitivity(const float sensitivity) { m_PanSensitivity = sensitivity; }
+
+        /**
+         * @brief Set the zoom input sensitivity.
+         * @param sensitivity Distance change per scroll tick.
+         */
         void SetZoomSensitivity(const float sensitivity) { m_ZoomSensitivity = sensitivity; }
 
+        /** @brief Get the orbit target in world space. */
         const glm::vec3& GetTarget() const { return m_Target; }
+
+        /** @brief Get the orbit distance in world units. */
         float GetDistance() const { return m_Distance; }
 
       protected:
