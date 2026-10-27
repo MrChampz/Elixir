@@ -34,7 +34,7 @@ public:
 private:
     // Creates the persistent strand playground and its scene resources.
     void LoadStrandScene();
-    // Loads Sponza and sets up its camera and lighting.
+    /** @brief Initializes shared preview lighting and loads Sponza with its camera. */
     void LoadDefaultScene();
     // Routes orbit, pan and zoom input outside scene controls.
     void ProcessSceneCameraEvent(Event& event, bool inputBlocked);
@@ -44,6 +44,7 @@ private:
     ViewportPanel* m_ScenePanel = nullptr;
     bool m_SceneOrbitDragging = false, m_ScenePanDragging = false;
     SMeshLighting m_SceneLighting;
+    bool m_SceneLightingReady = false;
     Scope<EditorUI> m_EditorUI;
     // Chooses a document viewer from the asset format.
     void OpenAsset(const std::filesystem::path& asset);

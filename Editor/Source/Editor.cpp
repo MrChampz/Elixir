@@ -72,36 +72,39 @@ void Editor::LoadStrandScene()
 
 void Editor::LoadDefaultScene()
 {
+    const auto environment = Environment::Load(
+        *m_GraphicsContext,
+        std::filesystem::path(ELIXIR_EDITOR_PROJECT_ROOT) /
+            "Assets" / "Textures" / "white_home_studio_2k.hdr"
+    );
+    if (!environment || !environment->GetEnvironment() || !environment->GetIrradiance() ||
+        !environment->GetPrefiltered() || !environment->GetSampler() ||
+        !environment->GetSampler()->IsValid())
+    {
+        EE_CORE_ERROR("Could not create lighting resources for the editor scenes.");
+        return;
+    }
+    m_SceneLighting = {
+        .Environment = {
+            .Environment = environment->GetEnvironment(),
+            .Irradiance = environment->GetIrradiance(),
+            .Prefiltered = environment->GetPrefiltered(),
+            .Sampler = environment->GetSampler(),
+            .Intensity = 1.5f,
+            .MaxLod = Environment::GetMaxLod(),
+        },
+        .DirectionalLightDirection = glm::normalize(glm::vec3{-0.5f, 0.65f, -0.55f}),
+        .DirectionalLightColor = {1.0f, 0.96f, 0.9f},
+        .DirectionalLightIntensity = 2.2f,
+        .DebugView = ESurfaceDebugView::Composite,
+    };
+    m_SceneLightingReady = true;
+
     const auto scenePath = std::filesystem::path(ELIXIR_EDITOR_PROJECT_ROOT) /
         "Assets" / "Meshes" / "Sponza" / "glTF" / "Sponza.gltf";
     if (auto loaded = MeshLoaderRegistry::LoadStaticMesh(scenePath))
     {
         m_SceneMesh = std::move(*loaded);
-        const auto environment = Environment::Load(*m_GraphicsContext,
-            std::filesystem::path(ELIXIR_EDITOR_PROJECT_ROOT) /
-                "Assets" / "Textures" / "white_home_studio_2k.hdr");
-        if (!environment || !environment->GetEnvironment() || !environment->GetIrradiance() ||
-            !environment->GetPrefiltered() || !environment->GetSampler() ||
-            !environment->GetSampler()->IsValid())
-        {
-            EE_CORE_ERROR("Could not create lighting resources for the default scene.");
-            m_SceneMesh.reset();
-            return;
-        }
-        m_SceneLighting = {
-            .Environment = {
-                .Environment = environment->GetEnvironment(),
-                .Irradiance = environment->GetIrradiance(),
-                .Prefiltered = environment->GetPrefiltered(),
-                .Sampler = environment->GetSampler(),
-                .Intensity = 1.5f,
-                .MaxLod = Environment::GetMaxLod(),
-            },
-            .DirectionalLightDirection = glm::normalize(glm::vec3{-0.5f, 0.65f, -0.55f}),
-            .DirectionalLightColor = {1.0f, 0.96f, 0.9f},
-            .DirectionalLightIntensity = 2.2f,
-            .DebugView = ESurfaceDebugView::Composite,
-        };
         m_SceneRenderer = CreateScope<StaticMeshRenderer>(*m_GraphicsContext,
             GetMaterialSystem(), *MeshLoaderRegistry::GetGeometryPool());
         const auto extent = m_Window->GetFramebufferExtent();
@@ -287,7 +290,7 @@ void Editor::Render(const Timestep frameTime)
     EE_PROFILE_ZONE_SCOPED()
     Application::Render(frameTime);
     const bool sceneActive = IsSceneActive();
-    if (sceneActive && m_SceneRenderer && m_SceneCamera)
+    if (sceneActive && m_SceneLightingReady && m_SceneRenderer && m_SceneCamera)
     {
         const auto extent = m_SceneTarget->GetExtent();
         if (extent.Height) m_SceneCamera->GetPerspectiveCamera().SetAspectRatio(static_cast<float>(extent.Width) / extent.Height);
@@ -304,7 +307,8 @@ void Editor::Render(const Timestep frameTime)
         {
             m_GraphicsContext->Clear(m_StrandScene.HDRTarget);
             const auto& camera = m_StrandScene.Panel->GetCamera();
-            if (m_StrandScene.Renderer && m_StrandScene.Panel->ShouldShowReferenceObjects())
+            if (m_SceneLightingReady && m_StrandScene.Renderer &&
+                m_StrandScene.Panel->ShouldShowReferenceObjects())
             {
                 m_StrandScene.Renderer->BeginFrame(camera, m_SceneLighting);
                 m_StrandScene.Renderer->Render(m_StrandScene.Mesh);
@@ -342,9 +346,12 @@ void Editor::Render(const Timestep frameTime)
         if (!document.Panel->IsActive()) continue;
         document.Materials->BeginFrame();
         m_GraphicsContext->Clear(document.HDRTarget);
-        document.Renderer->BeginFrame(document.Panel->GetCamera(), m_SceneLighting);
-        document.Renderer->Render(document.Mesh);
-        document.Renderer->EndFrame();
+        if (m_SceneLightingReady)
+        {
+            document.Renderer->BeginFrame(document.Panel->GetCamera(), m_SceneLighting);
+            document.Renderer->Render(document.Mesh);
+            document.Renderer->EndFrame();
+        }
         document.Materials->RenderFrame();
         document.PostProcess->Apply(document.HDRTarget, document.DisplayTarget);
         const auto command = m_GraphicsContext->GetSecondaryCommandBuffer();
