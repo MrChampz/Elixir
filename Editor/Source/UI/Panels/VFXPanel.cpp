@@ -646,6 +646,7 @@ bool VFXPanel::CompilePreview()
             {
                 const auto& previous = old->GetMaterialDescription(); const auto& next = emitter->GetMaterialDescription();
                 const bool unchanged = (!previous && !next) || (previous && next && previous->BaseColor == next->BaseColor &&
+                    previous->BlendMode == next->BlendMode &&
                     previous->Opacity == next->Opacity && previous->Emissive == next->Emissive && previous->BaseColorTexturePath == next->BaseColorTexturePath);
                 if (unchanged) emitter->SetMaterial(old->GetMaterial());
             }
