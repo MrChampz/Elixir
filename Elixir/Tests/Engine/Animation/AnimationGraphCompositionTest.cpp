@@ -57,6 +57,106 @@ TEST(AnimationGraphCompositionTest, SequenceAndBlendSpaceConnectDirectlyToTheOut
     EXPECT_FLOAT_EQ(movement->GetLocalPose().LocalTransforms[0].Translation.x, 4);
 }
 
+TEST(AnimationGraphCompositionTest, PausedBlendChildrenResumeWithoutRestartingTheirParent)
+{
+    const auto mesh = SkinningTests::MakeMesh();
+    ASSERT_TRUE(mesh);
+    for (const auto looping : {false, true})
+    {
+        for (const auto nested : {false, true})
+        {
+            SCOPED_TRACE(
+                ::testing::Message() << "looping=" << looping << " nested=" << nested
+            );
+            const auto blend = BlendNode::Create("Blend", {{
+                .Name = "Child",
+                .Node = MakeNode(Clip(mesh, 4)),
+                .Looping = looping
+            }});
+            ASSERT_TRUE(blend);
+            const auto output = nested
+                ? BlendNode::Create("Outer", {{.Name = "Inner", .Node = blend}})
+                : blend;
+            const auto graph = AnimationGraph::Create({.Name = "Graph", .Output = output});
+            ASSERT_TRUE(graph);
+            const auto animation = graph->CreateAnimation(mesh->GetData().ReferencePose);
+            ASSERT_TRUE(animation);
+            ASSERT_TRUE(animation->Update(0.25f));
+            ASSERT_TRUE(animation->GetLayer("Child"));
+            animation->GetLayer("Child")->GetPlayer().Pause();
+
+            ASSERT_TRUE(animation->Update(0.25f));
+            EXPECT_FLOAT_EQ(animation->GetLayer("Child")->GetPlayer().GetTime(), 0.25f);
+            EXPECT_FALSE(animation->GetBaseLayer().GetPlayer().GetPlayback().IsFinished());
+            EXPECT_TRUE(animation->GetBaseLayer().GetPlayer().IsPlaying());
+
+            animation->GetLayer("Child")->GetPlayer().Resume();
+            ASSERT_TRUE(animation->Update(0.25f));
+            EXPECT_FLOAT_EQ(animation->GetLayer("Child")->GetPlayer().GetTime(), 0.5f);
+            EXPECT_TRUE(animation->GetBaseLayer().GetPlayer().IsPlaying());
+        }
+    }
+}
+
+TEST(AnimationGraphCompositionTest, CompletedBlendChildrenWaitForAPausedMontageToFinish)
+{
+    const auto mesh = SkinningTests::MakeMesh();
+    ASSERT_TRUE(mesh);
+    const auto clip = Clip(mesh, 4);
+    const auto blend = BlendNode::Create("Blend", {{
+        .Name = "Child",
+        .Node = MakeNode(clip),
+        .Looping = false
+    }});
+    const auto graph = AnimationGraph::Create({.Name = "Graph", .Output = blend});
+    ASSERT_TRUE(graph);
+    const auto animation = graph->CreateAnimation(mesh->GetData().ReferencePose);
+    ASSERT_TRUE(animation);
+    ASSERT_TRUE(animation->GetLayer("Child"));
+    auto& child = animation->GetLayer("Child")->GetPlayer();
+    ASSERT_TRUE(child.Seek(1.0f));
+    const auto montage = AnimationMontage::Create({
+        .Name = "Action",
+        .Sequence = clip,
+        .BlendIn = 0,
+        .BlendOut = 0
+    });
+    ASSERT_TRUE(montage);
+    ASSERT_TRUE(child.PlayMontage(montage));
+    child.Pause();
+
+    ASSERT_TRUE(animation->Update(0.25f));
+    EXPECT_TRUE(animation->GetBaseLayer().GetPlayer().IsPlaying());
+    EXPECT_FALSE(animation->GetBaseLayer().GetPlayer().GetPlayback().IsFinished());
+    EXPECT_DOUBLE_EQ(animation->GetLayer("Child")->GetPlayer().GetMontageTime(), 0);
+
+    animation->GetLayer("Child")->GetPlayer().Resume();
+    ASSERT_TRUE(animation->Update(1.0f));
+    EXPECT_FALSE(animation->GetLayer("Child")->GetPlayer().GetMontage());
+    EXPECT_TRUE(animation->GetBaseLayer().GetPlayer().GetPlayback().IsFinished());
+    EXPECT_FALSE(animation->GetBaseLayer().GetPlayer().IsPlaying());
+}
+
+TEST(AnimationGraphCompositionTest, StoppedBlendChildrenDoNotKeepTheirParentPlaying)
+{
+    const auto mesh = SkinningTests::MakeMesh();
+    ASSERT_TRUE(mesh);
+    const auto blend = BlendNode::Create("Blend", {{
+        .Name = "Child",
+        .Node = MakeNode(Clip(mesh, 4))
+    }});
+    const auto graph = AnimationGraph::Create({.Name = "Graph", .Output = blend});
+    ASSERT_TRUE(graph);
+    const auto animation = graph->CreateAnimation(mesh->GetData().ReferencePose);
+    ASSERT_TRUE(animation);
+    ASSERT_TRUE(animation->GetLayer("Child"));
+    animation->GetLayer("Child")->GetPlayer().Stop();
+
+    ASSERT_TRUE(animation->Update(0.25f));
+    EXPECT_TRUE(animation->GetBaseLayer().GetPlayer().GetPlayback().IsFinished());
+    EXPECT_FALSE(animation->GetBaseLayer().GetPlayer().IsPlaying());
+}
+
 TEST(AnimationGraphCompositionTest, NestedNodesComposeTheirOutputsInsteadOfFlatteningInputs)
 {
     const auto mesh = SkinningTests::MakeMesh();

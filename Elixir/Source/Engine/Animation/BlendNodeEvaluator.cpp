@@ -92,11 +92,17 @@ namespace Elixir
 
     SAnimationNodeState BlendNodeEvaluator::GetState() const
     {
-        const auto nonePlaying = std::ranges::none_of(
+        const auto allFinished = std::ranges::all_of(
             m_Layers,
-            [](const auto& layer) { return layer->GetPlayer().IsPlaying(); }
+            [](const auto& layer)
+            {
+                const auto& player = layer->GetPlayer();
+                const auto& playback = player.GetPlayback();
+                return !player.GetMontage() && !player.IsTransitioning() &&
+                    (!playback.IsValid() || playback.IsFinished());
+            }
         );
-        const auto finished = !m_Layers.empty() && nonePlaying;
+        const auto finished = !m_Layers.empty() && allFinished;
 
         return {
             .Duration = m_Layers.empty()
