@@ -29,10 +29,15 @@ namespace Elixir
         if (WaitForCompletion && from->Looping)
             return false;
 
-        return std::ranges::all_of(Conditions, [](const auto& condition)
-        {
-            return condition.IsValid();
-        });
+        const auto conditionsValid = std::ranges::all_of(
+            Conditions,
+            [](const auto& condition)
+            {
+                return condition.IsValid();
+            }
+        );
+
+        return conditionsValid;
     }
 
     /* SStateMachineCreateInfo */
@@ -58,10 +63,15 @@ namespace Elixir
         if (!names.contains(InitialState))
             return false;
 
-        return std::ranges::all_of(Transitions, [&](const auto& transition)
-        {
-            return transition.IsValid(States);
-        });
+        const auto transitionsValid = std::ranges::all_of(
+            Transitions,
+            [&](const auto& transition)
+            {
+                return transition.IsValid(States);
+            }
+        );
+        
+        return transitionsValid;
     }
 
     /* StateMachine */
