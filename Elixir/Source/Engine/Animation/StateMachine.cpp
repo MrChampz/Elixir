@@ -70,7 +70,7 @@ namespace Elixir
                 return transition.IsValid(States);
             }
         );
-        
+
         return transitionsValid;
     }
 

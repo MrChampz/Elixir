@@ -290,6 +290,9 @@ namespace Elixir
         /** @brief Remove all nonbase layers; the next Update rebuilds the base pose. */
         void ClearLayers();
 
+        Animation(const Animation& other) = delete;
+        Animation& operator=(const Animation& other) = delete;
+
       private:
         /**
          * @brief Retain a fixed skeleton and copy its mesh-specific reference pose.

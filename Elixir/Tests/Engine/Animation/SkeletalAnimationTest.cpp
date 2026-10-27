@@ -636,6 +636,8 @@ TEST(AnimationTestCharacterTest, CrossFadeUsesMeshSpecificDefaultsAndIndependent
 
 TEST(AnimationTestCharacterTest, MeshOwnershipIsFixedAtConstruction)
 {
+    static_assert(!std::is_copy_constructible_v<Animation>);
+    static_assert(!std::is_copy_assignable_v<Animation>);
     static_assert(!std::is_default_constructible_v<AnimationTestCharacter>);
     static_assert(!std::is_copy_assignable_v<AnimationTestCharacter>);
     static_assert(!std::is_move_assignable_v<AnimationTestCharacter>);
