@@ -22,6 +22,11 @@
 #include <Engine/Materials/MaterialRegistry.h>
 #include <Engine/Camera/PerspectiveCamera.h>
 #include <Engine/Core/Timer.h>
+#include <Engine/GUI/Renderer/DebugRenderPass.h>
+#include <Engine/GUI/Renderer/QuadRenderPass.h>
+#include <Engine/GUI/Renderer/TextRenderPass.h>
+#include <chrono>
+#include <filesystem>
 
 
 
@@ -571,4 +576,99 @@ TEST(VulkanShaderTest, LifetimeDeathPolicyPreservesSimulationNormalizedAgeAndExp
     EXPECT_EQ(roots[3 * 6].w, 6); // NormalizedAge saturates at one instead of freezing at zero
     EXPECT_EQ(roots[4 * 6 + 5].w, 1);
     EXPECT_GT(glm::length(glm::vec3(roots[4 * 6 + 1]) - glm::vec3(1, 0, 0)), 0.000001f); // Particle-target curl updates velocity.
+}
+
+namespace
+{
+    /** Uses an isolated working directory to test unavailable shader files. */
+    class ScopedShaderDirectory final
+    {
+    public:
+        /** @brief Creates and selects an empty temporary shader directory. */
+        ScopedShaderDirectory() : m_Previous(std::filesystem::current_path())
+        {
+            const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
+            m_Temporary = std::filesystem::temp_directory_path() /
+                ("elixir-shader-failure-" + std::to_string(stamp));
+            std::filesystem::create_directories(m_Temporary / "Shaders" / "Aether");
+            std::filesystem::current_path(m_Temporary);
+        }
+
+        /** @brief Restores the working directory and removes the temporary files. */
+        ~ScopedShaderDirectory()
+        {
+            std::error_code error;
+            std::filesystem::current_path(m_Previous, error);
+            std::filesystem::remove_all(m_Temporary, error);
+        }
+
+        /**
+         * @brief Makes a shader available for the next initialization attempt.
+         * @param name Name of the compute shader to copy from the build directory.
+         */
+        void CopyComputeShader(const std::string_view name) const
+        {
+            const auto filename = std::string(name) + ".cs.spirv";
+            std::filesystem::copy_file(
+                m_Previous / "Shaders" / "Aether" / filename,
+                m_Temporary / "Shaders" / "Aether" / filename
+            );
+        }
+
+    private:
+        std::filesystem::path m_Previous;
+        std::filesystem::path m_Temporary;
+    };
+}
+
+TEST(VulkanShaderTest, MissingGUIShadersDisablePasses)
+{
+    const auto context = VulkanTestContext::Get().GetGraphicsContext();
+    ShaderLoader loader(context);
+    ScopedShaderDirectory directory;
+    const Ref<UniformBuffer> perFrame;
+    GUI::QuadRenderPass quads(context, &loader, 1.0f, perFrame);
+    GUI::TextRenderPass text(context, &loader, 1.0f, perFrame);
+    GUI::DebugRenderPass debug(context, &loader, 1.0f, perFrame);
+    const std::array<GUI::RenderPass*, 3> passes{&quads, &text, &debug};
+    const std::array<GUI::SDrawCommand, 1> commands{};
+    for (auto* pass : passes)
+    {
+        pass->BeginFrame();
+        EXPECT_EQ(pass->AppendRange(commands), 0u);
+        pass->EndFrame();
+        EXPECT_FALSE(pass->HasData());
+        EXPECT_EQ(pass->GetInstanceCount(), 0u);
+        pass->Bind(nullptr);
+        pass->Render(nullptr, 0, 1);
+    }
+}
+
+TEST(VulkanShaderTest, MissingSimulationShadersStopInitialization)
+{
+    const auto context = VulkanTestContext::Get().GetGraphicsContext();
+    ShaderLoader loader(context);
+    ScopedShaderDirectory directory;
+    const std::array<std::string_view, 7> shaders{
+        "ParticlesSchedulerBegin",
+        "ParticlesSchedulerInitEmitters",
+        "ParticlesSchedulerScheduleEmitters",
+        "ParticlesSchedulerFinalize",
+        "ParticlesSpawn",
+        "ParticlesUpdate",
+        "StrandsUpdate"
+    };
+    const Aether::Rendering::FrameSubmission submission;
+    const auto command = context->GetSecondaryCommandBuffer();
+    ASSERT_TRUE(command);
+    for (const auto name : shaders)
+    {
+        SCOPED_TRACE(name);
+        {
+            Aether::Simulation::Simulator simulator(context, &loader);
+            simulator.BeginFrame(Timestep(0.016f));
+            EXPECT_FALSE(simulator.Simulate(submission, command));
+        }
+        directory.CopyComputeShader(name);
+    }
 }

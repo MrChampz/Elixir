@@ -193,11 +193,19 @@ namespace Elixir::Aether::Simulation
             std::vector<const SSubmittedSystemInstance*> Instances;
         };
 
-        // Initializes Aether shaders, pipelines, layouts, and shared GPU buffers.
-        void Init(const ShaderLoader* shaderLoader);
+        /**
+         * @brief Initializes the scheduler and particle simulation shaders and pipelines.
+         * @param shaderLoader Loader used to create the simulation shaders.
+         * @return Whether all required shaders loaded successfully.
+         */
+        bool Init(const ShaderLoader* shaderLoader);
 
-        // Create the GPU runtime for the built-in CoreV1 particle-state layout.
-        void CreateCoreV1ParticleStateLayoutRuntime(const ShaderLoader* shaderLoader);
+        /**
+         * @brief Creates the GPU runtime for the built-in CoreV1 particle-state layout.
+         * @param shaderLoader Loader used to create the particle and strand shaders.
+         * @return Whether all required shaders loaded successfully.
+         */
+        bool CreateCoreV1ParticleStateLayoutRuntime(const ShaderLoader* shaderLoader);
 
         // Creates shared GPU buffers sized from the configured resource-pool limits.
         void CreateBuffers();

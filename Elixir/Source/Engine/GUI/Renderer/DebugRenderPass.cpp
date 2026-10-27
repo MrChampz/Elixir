@@ -15,6 +15,7 @@ namespace Elixir::GUI
     {
         EE_CORE_TRACE("Initializing GUI: DebugRenderPass.")
         InitRenderPass(shaderLoader);
+        if (!m_Shader || !m_Pipeline) return;
         BindShaderParameters();
     }
 
@@ -30,6 +31,8 @@ namespace Elixir::GUI
 
     uint32_t DebugRenderPass::AppendRange(std::span<const SDrawCommand> commands)
     {
+        if (!m_Shader || !m_Pipeline) return 0;
+
         const auto firstVertex = (uint32_t)m_Vertices.size();
 
         for (const auto& drawCmd : commands)
@@ -40,6 +43,8 @@ namespace Elixir::GUI
 
     void DebugRenderPass::Bind(const Ref<CommandBuffer>& cmd)
     {
+        m_CanRender = false;
+        if (!m_Shader || !m_Pipeline) return;
         m_Pipeline->Bind(cmd);
         auto* geometry = m_GeometrySlots.UpdateCurrent([this](SGeometryBuffer& slot)
         {
@@ -109,6 +114,11 @@ namespace Elixir::GUI
         });
 
         m_Shader = shaderLoader->LoadShader("./Shaders/", "Debug");
+        if (!m_Shader)
+        {
+            EE_CORE_ERROR("Could not load the Debug shader; disabling the GUI debug pass.");
+            return;
+        }
 
         PipelineBuilder builder;
         builder.SetShader(m_Shader);

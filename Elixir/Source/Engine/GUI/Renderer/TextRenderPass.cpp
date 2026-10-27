@@ -16,6 +16,7 @@ namespace Elixir::GUI
     {
         EE_CORE_TRACE("Initializing GUI: TextRenderPass.")
         InitRenderPass(shaderLoader);
+        if (!m_Shader || !m_Pipeline) return;
         BindShaderParameters();
     }
 
@@ -31,6 +32,8 @@ namespace Elixir::GUI
 
     uint32_t TextRenderPass::AppendRange(const std::span<const SDrawCommand> commands)
     {
+        if (!m_Shader || !m_Pipeline) return 0;
+
         const auto firstInstance = (uint32_t)m_Quads.size();
 
         for (const auto& drawCmd : commands)
@@ -41,6 +44,8 @@ namespace Elixir::GUI
 
     void TextRenderPass::Bind(const Ref<CommandBuffer>& cmd)
     {
+        m_CanRender = false;
+        if (!m_Shader || !m_Pipeline) return;
         m_Pipeline->Bind(cmd);
         auto* geometry = m_GeometrySlots.UpdateCurrent([this](SGeometryBuffer& slot)
         {
@@ -116,6 +121,11 @@ namespace Elixir::GUI
         });
 
         m_Shader = shaderLoader->LoadShader("./Shaders/", "Text");
+        if (!m_Shader)
+        {
+            EE_CORE_ERROR("Could not load the Text shader; disabling the GUI text pass.");
+            return;
+        }
 
         PipelineBuilder builder;
         builder.SetShader(m_Shader);

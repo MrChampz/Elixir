@@ -214,7 +214,7 @@ namespace Elixir::Aether::Simulation
             return;
         }
 
-        Init(shaderLoader);
+        if (!Init(shaderLoader)) return;
         CreateBuffers();
         if (!m_StrandPointBuffer || !m_StrandPointBuffer->IsValid()) return;
         BindShaderParameters();
@@ -361,7 +361,7 @@ namespace Elixir::Aether::Simulation
         m_UnsupportedParticleStateLayoutInstances.erase(key);
     }
 
-    void Simulator::Init(const ShaderLoader* shaderLoader)
+    bool Simulator::Init(const ShaderLoader* shaderLoader)
     {
         m_SchedulerBeginShader = shaderLoader->LoadShader(
             "./Shaders/Aether/",
@@ -369,6 +369,11 @@ namespace Elixir::Aether::Simulation
             "ParticlesSchedulerBegin",
             EShaderStage::Compute
         );
+        if (!m_SchedulerBeginShader)
+        {
+            EE_CORE_ERROR("Could not load the Aether scheduler begin shader.");
+            return false;
+        }
 
         m_SchedulerInitEmittersShader = shaderLoader->LoadShader(
             "./Shaders/Aether/",
@@ -376,6 +381,11 @@ namespace Elixir::Aether::Simulation
             "ParticlesSchedulerInitEmitters",
             EShaderStage::Compute
         );
+        if (!m_SchedulerInitEmittersShader)
+        {
+            EE_CORE_ERROR("Could not load the Aether scheduler emitter initialization shader.");
+            return false;
+        }
 
         m_SchedulerScheduleEmittersShader = shaderLoader->LoadShader(
             "./Shaders/Aether/",
@@ -383,6 +393,11 @@ namespace Elixir::Aether::Simulation
             "ParticlesSchedulerScheduleEmitters",
             EShaderStage::Compute
         );
+        if (!m_SchedulerScheduleEmittersShader)
+        {
+            EE_CORE_ERROR("Could not load the Aether scheduler emitter scheduling shader.");
+            return false;
+        }
 
         m_SchedulerFinalizeShader = shaderLoader->LoadShader(
             "./Shaders/Aether/",
@@ -390,6 +405,11 @@ namespace Elixir::Aether::Simulation
             "ParticlesSchedulerFinalize",
             EShaderStage::Compute
         );
+        if (!m_SchedulerFinalizeShader)
+        {
+            EE_CORE_ERROR("Could not load the Aether scheduler finalize shader.");
+            return false;
+        }
 
         SPipelineCreateInfo pipelineInfo{};
         pipelineInfo.Shader = m_SchedulerBeginShader;
@@ -407,10 +427,10 @@ namespace Elixir::Aether::Simulation
         pipelineInfo.Shader = m_SchedulerFinalizeShader;
         m_SchedulerFinalizePipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
 
-        CreateCoreV1ParticleStateLayoutRuntime(shaderLoader);
+        return CreateCoreV1ParticleStateLayoutRuntime(shaderLoader);
     }
 
-    void Simulator::CreateCoreV1ParticleStateLayoutRuntime(const ShaderLoader* shaderLoader)
+    bool Simulator::CreateCoreV1ParticleStateLayoutRuntime(const ShaderLoader* shaderLoader)
     {
         EE_CORE_ASSERT(
             m_ParticleStateLayouts.Find(EParticleStateLayout::CoreV1),
@@ -434,6 +454,11 @@ namespace Elixir::Aether::Simulation
             "ParticlesSpawn",
             EShaderStage::Compute
         );
+        if (!runtime.SpawnShader)
+        {
+            EE_CORE_ERROR("Could not load the Aether particle spawn shader.");
+            return false;
+        }
 
         runtime.UpdateShader = shaderLoader->LoadShader(
             "./Shaders/Aether/",
@@ -441,6 +466,11 @@ namespace Elixir::Aether::Simulation
             "ParticlesUpdate",
             EShaderStage::Compute
         );
+        if (!runtime.UpdateShader)
+        {
+            EE_CORE_ERROR("Could not load the Aether particle update shader.");
+            return false;
+        }
 
         SPipelineCreateInfo pipelineInfo{};
         pipelineInfo.Shader = runtime.SpawnShader;
@@ -452,9 +482,14 @@ namespace Elixir::Aether::Simulation
         runtime.StrandShader = shaderLoader->LoadShader(
             "./Shaders/Aether/", std::array<std::string_view, 1>{ "StrandsUpdate" },
             "StrandsUpdate", EShaderStage::Compute);
-        if (!runtime.StrandShader) return;
+        if (!runtime.StrandShader)
+        {
+            EE_CORE_ERROR("Could not load the Aether strand update shader.");
+            return false;
+        }
         pipelineInfo.Shader = runtime.StrandShader;
         runtime.StrandPipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
+        return true;
     }
 
     void Simulator::CreateBuffers()
