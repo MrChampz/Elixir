@@ -31,12 +31,13 @@ namespace Elixir
 
         /**
          * Output capacity per frame slot, shared by all submitted instances. VertexStride must
-         * match sizeof(SStaticMeshVertex). Draws reuse indices from SourceGeometry.
+         * match sizeof(SStaticMeshVertex). No output index buffer is needed: draws reuse
+         * indices from SourceGeometry.
          * VertexUsage must include VertexBuffer and StorageBuffer.
          */
         SGeometryPoolConfig FrameGeometry{
             1'000'000,
-            3'000'000,
+            0,
             sizeof(SStaticMeshVertex),
             EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer
         };
