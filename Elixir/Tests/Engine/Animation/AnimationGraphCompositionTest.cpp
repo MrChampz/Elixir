@@ -157,6 +157,66 @@ TEST(AnimationGraphCompositionTest, StoppedBlendChildrenDoNotKeepTheirParentPlay
     EXPECT_FALSE(animation->GetBaseLayer().GetPlayer().IsPlaying());
 }
 
+TEST(AnimationGraphCompositionTest, DuplicateNestedNamesAcrossOuterLayersAreAmbiguous)
+{
+    const auto mesh = SkinningTests::MakeMesh();
+    ASSERT_TRUE(mesh);
+    const auto source = MakeNode(Clip(mesh, 4));
+    const auto blend = BlendNode::Create("Blend", {
+        {.Name = "Locomotion", .Node = source},
+        {.Name = "Action", .Mask = Mask(mesh), .Weight = 0.5f, .Node = source}
+    });
+    ASSERT_TRUE(blend);
+
+    for (const auto firstIsBase : {false, true})
+    {
+        SCOPED_TRACE(firstIsBase);
+        const auto animation = Animation::Create(
+            mesh->GetSkeleton(),
+            mesh->GetData().ReferencePose
+        );
+        ASSERT_TRUE(animation);
+        ASSERT_TRUE(animation->Play(firstIsBase ? MakeNode(blend) : source));
+        if (!firstIsBase)
+        {
+            ASSERT_TRUE(animation->AddLayer("First", Mask(mesh)));
+            ASSERT_TRUE(animation->GetLayer("First")->GetPlayer().Play(blend));
+        }
+        ASSERT_TRUE(animation->AddLayer("Second", Mask(mesh)));
+        ASSERT_TRUE(animation->GetLayer("Second")->GetPlayer().Play(blend));
+
+        auto* firstOuter = firstIsBase
+            ? &animation->GetBaseLayer()
+            : animation->GetLayer("First");
+        auto* secondOuter = animation->GetLayer("Second");
+        ASSERT_TRUE(firstOuter);
+        ASSERT_TRUE(secondOuter);
+        auto* first = firstOuter->GetPlayer().GetPlayback().GetLayer("Action");
+        auto* second = secondOuter->GetPlayer().GetPlayback().GetLayer("Action");
+        ASSERT_TRUE(first);
+        ASSERT_TRUE(second);
+        ASSERT_NE(first, second);
+        ASSERT_TRUE(first->SetWeight(0.25f));
+        ASSERT_TRUE(second->SetWeight(0.75f));
+
+        const Animation& inspected = *animation;
+        EXPECT_EQ(animation->GetLayer("Action"), nullptr);
+        EXPECT_EQ(inspected.GetLayer("Action"), nullptr);
+        EXPECT_FALSE(animation->SetLayerWeight("Action", 0));
+        EXPECT_FALSE(inspected.GetLayerWeight("Action").has_value());
+        EXPECT_FLOAT_EQ(first->GetWeight(), 0.25f);
+        EXPECT_FLOAT_EQ(second->GetWeight(), 0.75f);
+        EXPECT_EQ(animation->GetLayer("Second"), secondOuter);
+        EXPECT_EQ(inspected.GetLayer("Second"), secondOuter);
+
+        ASSERT_TRUE(animation->RemoveLayer("Second"));
+        EXPECT_EQ(animation->GetLayer("Action"), first);
+        EXPECT_EQ(inspected.GetLayer("Action"), first);
+        ASSERT_TRUE(animation->SetLayerWeight("Action", 0.5f));
+        EXPECT_FLOAT_EQ(first->GetWeight(), 0.5f);
+    }
+}
+
 TEST(AnimationGraphCompositionTest, NestedNodesComposeTheirOutputsInsteadOfFlatteningInputs)
 {
     const auto mesh = SkinningTests::MakeMesh();

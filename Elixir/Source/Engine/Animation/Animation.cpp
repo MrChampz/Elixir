@@ -373,11 +373,18 @@ namespace Elixir
             if (layer->GetName() == name)
                 return layer.get();
 
+        AnimationLayer* result = nullptr;
+        
         for (const auto& layer : m_Layers)
+        {
             if (auto* nested = layer->GetPlayer().GetPlayback().GetLayer(name))
-                return nested;
+            {
+                if (result) return nullptr;
+                result = nested;
+            }
+        }
 
-        return nullptr;
+        return result;
     }
 
     const AnimationLayer* Animation::GetLayer(const std::string_view name) const
@@ -386,11 +393,18 @@ namespace Elixir
             if (layer->GetName() == name)
                 return layer.get();
 
-        for (const auto& layer : m_Layers)
-            if (const auto* nested = layer->GetPlayer().GetPlayback().GetLayer(name))
-                return nested;
+        const AnimationLayer* result = nullptr;
 
-        return nullptr;
+        for (const auto& layer : m_Layers)
+        {
+            if (const auto* nested = layer->GetPlayer().GetPlayback().GetLayer(name))
+            {
+                if (result) return nullptr;
+                result = nested;
+            }
+        }
+
+        return result;
     }
 
     size_t Animation::GetLayerCount() const
