@@ -82,6 +82,81 @@ TEST_F(AnimationMontageTest, SourceKeepsAdvancingAndReturnsWithoutRestarting)
     EXPECT_NEAR(instance.GetLocalPose().LocalTransforms[0].Translation.x, 0.1f, 1e-5f);
 }
 
+TEST_F(AnimationMontageTest, MontageReleaseWrapsTheResumedSourceNotifyInterval)
+{
+    for (const auto withNotifies : {false, true})
+    {
+        SCOPED_TRACE(withNotifies);
+        const auto instance = AnimationTestCharacter::Create(Mesh);
+        ASSERT_TRUE(instance);
+        const auto source = withNotifies
+            ? Clip(1, 0, {{"Suppressed", 0.002f}, {"Resumed", 0.008f}})
+            : Clip(1);
+        ASSERT_TRUE(source);
+        ASSERT_TRUE(instance->Play(MakeNode(source)));
+        ASSERT_TRUE(instance->Seek(0.995f));
+
+        const auto action = Sequence::Create("ShortAction", Mesh->GetSkeleton(), 0.010f, {});
+        const auto montage = AnimationMontage::Create({
+            .Name = "ShortAction",
+            .Sequence = action,
+            .BlendIn = 0,
+            .BlendOut = 0
+        });
+        ASSERT_TRUE(montage);
+        auto& player = instance->GetBaseLayer().GetPlayer();
+        ASSERT_TRUE(player.PlayMontage(montage));
+
+        ASSERT_TRUE(instance->Update(0.016f));
+        EXPECT_FALSE(player.GetMontage());
+        EXPECT_NEAR(player.GetTime(), 0.011f, 1e-6f);
+        EXPECT_NEAR(instance->GetLocalPose().LocalTransforms[0].Translation.x, 0.011f, 1e-6f);
+        const auto events = instance->GetNotifyEvents();
+        if (withNotifies)
+        {
+            ASSERT_EQ(events.size(), 1);
+            EXPECT_EQ(events[0].GetName(), "Resumed");
+            EXPECT_NEAR(events[0].TimeOffset, 0.013, 1e-6);
+        }
+        else
+            EXPECT_TRUE(events.empty());
+
+        ASSERT_TRUE(instance->Update(0.016f));
+        EXPECT_NEAR(player.GetTime(), 0.027f, 1e-6f);
+        EXPECT_TRUE(instance->GetNotifyEvents().empty());
+    }
+}
+
+TEST_F(AnimationMontageTest, MontageReleaseClampsTheResumedNonloopingSourceNotifyInterval)
+{
+    const auto instance = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instance);
+    ASSERT_TRUE(instance->Play(MakeNode(Clip(1, 0, {{"SuppressedEnd", 1.0f}})), false));
+    ASSERT_TRUE(instance->Seek(0.995f));
+
+    const auto action = Sequence::Create("ShortAction", Mesh->GetSkeleton(), 0.010f, {});
+    const auto montage = AnimationMontage::Create({
+        .Name = "ShortAction",
+        .Sequence = action,
+        .BlendIn = 0,
+        .BlendOut = 0
+    });
+    ASSERT_TRUE(montage);
+    auto& player = instance->GetBaseLayer().GetPlayer();
+    ASSERT_TRUE(player.PlayMontage(montage));
+
+    ASSERT_TRUE(instance->Update(0.016f));
+    EXPECT_FALSE(player.GetMontage());
+    EXPECT_FLOAT_EQ(player.GetTime(), 1.0f);
+    EXPECT_FLOAT_EQ(instance->GetLocalPose().LocalTransforms[0].Translation.x, 1.0f);
+    EXPECT_FALSE(player.IsPlaying());
+    EXPECT_TRUE(instance->GetNotifyEvents().empty());
+
+    ASSERT_TRUE(instance->Update(0.016f));
+    EXPECT_FLOAT_EQ(player.GetTime(), 1.0f);
+    EXPECT_TRUE(instance->GetNotifyEvents().empty());
+}
+
 TEST_F(AnimationMontageTest, UnassignedAndCompletedLayersCanPlayActions)
 {
     const auto instanceHandle = AnimationTestCharacter::Create(Mesh);

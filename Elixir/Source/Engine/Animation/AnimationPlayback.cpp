@@ -301,7 +301,10 @@ namespace Elixir
 
         const auto phaseOffset = state.Duration > 0 ? offset / state.Duration : 0;
         const auto phaseDelta = state.Duration > 0 ? dt / state.Duration : 0;
-        const auto phase = m_Phase + phaseOffset;
+        const auto offsetPhase = m_Phase + phaseOffset;
+        const auto phase = m_Looping
+            ? std::fmod(offsetPhase, 1.0)
+            : std::clamp(offsetPhase, 0.0, 1.0);
 
         return {
             .Sequence = sources.NotifySequence
