@@ -107,6 +107,11 @@ namespace Elixir
 
             glfwSetWindowUserPointer(m_Window, &m_Data);
 
+            double cursorX = 0.0;
+            double cursorY = 0.0;
+            glfwGetCursorPos(m_Window, &cursorX, &cursorY);
+            m_Data.CursorPosition = {static_cast<float>(cursorX), static_cast<float>(cursorY)};
+
             // Set GLFW callbacks
 
             glfwSetWindowSizeCallback(m_Window, [](GLFWwindow* window, const int width, const int height)
