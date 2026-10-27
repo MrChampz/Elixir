@@ -50,7 +50,13 @@ namespace Elixir
         Skeleton(const Skeleton&) = delete;
         Skeleton& operator=(const Skeleton&) = delete;
 
-        /** @brief Create a hierarchy with unique names and parents before children, or return null. */
+        /**
+         * @brief Create a skeleton from a validated bone hierarchy.
+         * @param name Asset display name.
+         * @param bones Nonempty bones with unique names, valid transforms, and parents before
+         * children.
+         * @return The skeleton, or null for invalid input.
+         */
         static Ref<Skeleton> Create(std::string name, std::vector<SBone> bones);
 
         /** @brief Get the asset name. */
@@ -59,15 +65,24 @@ namespace Elixir
         /** @brief Get bones in parent-before-child order. */
         const std::vector<SBone>& GetBones() const { return m_Bones; }
 
-        /** @brief Find a bone by name, or return -1. */
+        /**
+         * @brief Find a bone by name.
+         * @param name Bone name to find.
+         * @return The bone index, or -1 when absent.
+         */
         int32_t FindBone(std::string_view name) const;
 
-        /** @brief Compare bone names and parent indices for direct animation sharing. */
+        /**
+         * @brief Compare bone names and parent indices for animation sharing.
+         * @param other Skeleton to compare with this skeleton.
+         */
         bool IsCompatible(const Skeleton& other) const;
 
         /**
-         * @brief Compose a local pose into skeleton-space matrices; leave output unchanged
-         * on failure.
+         * @brief Compose a local pose into skeleton-space matrices.
+         * @param localPose One valid parent-relative transform per bone.
+         * @param output Receives one matrix per bone on success.
+         * @return False for an invalid pose or result; output remains unchanged on failure.
          */
         bool BuildModelPose(
             std::span<const SBoneTransform> localPose,
@@ -75,6 +90,12 @@ namespace Elixir
         ) const;
 
     private:
+        /**
+         * @brief Store a validated bone hierarchy.
+         * @param name Asset display name.
+         * @param bones Nonempty bones with unique names, valid transforms, and parents before
+         * children.
+         */
         Skeleton(std::string name, std::vector<SBone> bones);
 
         std::string m_Name;

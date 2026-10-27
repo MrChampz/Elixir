@@ -5,42 +5,46 @@
 
 namespace Elixir::Aether::Core::Operations
 {
-    /** @brief Defines the arguments and allowed destinations for SetPositionVortexRibbonPath. */
+    /**
+     * @brief Defines the arguments and allowed destinations for SetPositionVortexRibbonPath.
+     */
     class SetPositionVortexRibbonPath final : public Operation
     {
     public:
         /** @brief Identifies the argument positions for SetPositionVortexRibbonPath. */
         struct Inputs
         {
-            /** @brief Position of the Center argument for SetPositionVortexRibbonPath. */
+            /** Position of the Center argument for SetPositionVortexRibbonPath. */
             static constexpr uint32_t Center = 0;
 
-            /** @brief Position of the OrbitSpeed argument for SetPositionVortexRibbonPath. */
+            /** Position of the OrbitSpeed argument for SetPositionVortexRibbonPath. */
             static constexpr uint32_t OrbitSpeed = 1;
 
-            /** @brief Position of the BaseRadius argument for SetPositionVortexRibbonPath. */
+            /** Position of the BaseRadius argument for SetPositionVortexRibbonPath. */
             static constexpr uint32_t BaseRadius = 2;
 
-            /** @brief Position of the RadiusAmplitude argument for SetPositionVortexRibbonPath. */
+            /** Position of the RadiusAmplitude argument for SetPositionVortexRibbonPath. */
             static constexpr uint32_t RadiusAmplitude = 3;
 
-            /** @brief Position of the RadiusSpeed argument for SetPositionVortexRibbonPath. */
+            /** Position of the RadiusSpeed argument for SetPositionVortexRibbonPath. */
             static constexpr uint32_t RadiusSpeed = 4;
 
-            /** @brief Position of the PulseAmplitude argument for SetPositionVortexRibbonPath. */
+            /** Position of the PulseAmplitude argument for SetPositionVortexRibbonPath. */
             static constexpr uint32_t PulseAmplitude = 5;
 
-            /** @brief Position of the PulseSpeed argument for SetPositionVortexRibbonPath. */
+            /** Position of the PulseSpeed argument for SetPositionVortexRibbonPath. */
             static constexpr uint32_t PulseSpeed = 6;
 
-            /** @brief Position of the CurlAmplitude argument for SetPositionVortexRibbonPath. */
+            /** Position of the CurlAmplitude argument for SetPositionVortexRibbonPath. */
             static constexpr uint32_t CurlAmplitude = 7;
 
-            /** @brief Position of the DepthAmplitude argument for SetPositionVortexRibbonPath. */
+            /** Position of the DepthAmplitude argument for SetPositionVortexRibbonPath. */
             static constexpr uint32_t DepthAmplitude = 8;
         };
 
-        /** @brief Returns the input definition and destination rules for SetPositionVortexRibbonPath. */
+        /**
+         * @brief Get the input definition and destination rules for the vortex ribbon path.
+         */
         const SOperationDefinition& GetDefinition() const override
         {
             static constexpr std::array inputs{
@@ -63,7 +67,10 @@ namespace Elixir::Aether::Core::Operations
             return definition;
         }
 
-        /** @brief Checks whether this operation supports the destination attribute. */
+        /**
+         * @brief Check whether the vortex ribbon path supports a destination attribute.
+         * @param target Particle attribute that the operation would write.
+         */
         bool IsValidTarget(const EParticleAttribute target) const override
         {
             return target <= EParticleAttribute::Temp3 &&

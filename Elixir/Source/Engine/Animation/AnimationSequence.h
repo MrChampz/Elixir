@@ -40,7 +40,15 @@ namespace Elixir
         AnimationSequence(const AnimationSequence&) = delete;
         AnimationSequence& operator=(const AnimationSequence&) = delete;
 
-        /** @brief Create a sequence with ordered finite keys in [0, duration], or return null. */
+        /**
+         * @brief Create an animation sequence from validated bone tracks.
+         * @param name Asset display name.
+         * @param skeleton Skeleton that defines track bone indices.
+         * @param duration Finite nonnegative duration in seconds.
+         * @param tracks Tracks with unique valid bone indices and ordered finite keys in
+         * [0, duration].
+         * @return The sequence, or null for invalid input.
+         */
         static Ref<AnimationSequence> Create(
             std::string name, Ref<const Skeleton> skeleton,
             float duration,
@@ -48,8 +56,12 @@ namespace Elixir
         );
 
         /**
-         * @brief Sample a clamped time into a full local pose; leave output unchanged on failure.
-         * @param referencePose Optional mesh-specific defaults for channels without keys.
+         * @brief Sample a clamped time into a complete local pose.
+         * @param time Finite sample time in seconds, clamped to [0, duration].
+         * @param output Receives one local transform per bone on success.
+         * @param referencePose Optional mesh defaults; empty uses the skeleton reference pose.
+         * @return False for invalid input or output transforms; output remains unchanged on
+         * failure.
          */
         bool Sample(
             float time,
@@ -67,6 +79,14 @@ namespace Elixir
         float GetDuration() const { return m_Duration; }
 
     private:
+        /**
+         * @brief Store validated animation tracks.
+         * @param name Asset display name.
+         * @param skeleton Skeleton that defines track bone indices.
+         * @param duration Finite nonnegative duration in seconds.
+         * @param tracks Tracks with unique valid bone indices and ordered finite keys in
+         * [0, duration].
+         */
         AnimationSequence(
             std::string name,
             Ref<const Skeleton> skeleton,
