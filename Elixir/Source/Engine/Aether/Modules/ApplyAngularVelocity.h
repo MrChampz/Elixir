@@ -2,7 +2,7 @@
 
 #include <utility>
 
-#include <Engine/Aether/Modules/DynamicInput.h>
+#include <Engine/Aether/Core/DynamicInput.h>
 #include <Engine/Aether/Modules/Module.h>
 #include <Engine/Aether/Effect/ModuleParseContext.h>
 
@@ -19,14 +19,14 @@ namespace Elixir::Aether::Modules
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit({
-                Core::EParticleOp::AddWithDelta,
-                Core::EParticleAttribute::Rotation,
-                context.FindParameter(m_ParamName),
-                UINT32_MAX,
-                { m_RadiansPerSecond, 0.0f, 0.0f, 0.0f },
-                { (float)((uint32_t)m_Input), 0.0f, 0.0f, 0.0f }
-            });
+            context.Emit(
+                EOperationType::AddWithDelta,
+                EParticleAttribute::Rotation,
+                {
+                    context.Scalar(m_RadiansPerSecond, m_ParamName),
+                    context.Dynamic(m_Input)
+                }
+            );
         }
 
         /** @brief Binds a named parameter to the configured value and returns this module. */

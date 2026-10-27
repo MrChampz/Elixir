@@ -1,45 +1,49 @@
 #include "epch.h"
 #include "Simulator.h"
-#include "ParticleOpData.h"
 
 #include <Engine/Core/Timer.h>
+#include <Engine/Aether/Core/Operation.h>
 
 namespace Elixir::Aether::Simulation
 {
     using namespace Core;
     using namespace Modules;
-    using Detail::SParticleOpData;
-    using Detail::ToOpData;
     using Rendering::SystemInstanceRenderProxy;
     using Rendering::FrameSubmission;
 
     namespace
     {
-
         struct alignas(16) SParamsData
         {
             glm::vec4 Time{};
             glm::vec4 Viewport{};
         };
 
-        struct SEmitterData
+        struct alignas(16) SGPUEmitter
         {
-            glm::vec4 MetaA{};
-            glm::vec4 MetaB{};
-            glm::vec4 MetaC{};
-            glm::vec4 MetaD{};
+            uint32_t    LocalParticleOffset{};
+            uint32_t    MaxParticles{};
+            uint32_t    SpawnOperationOffset{};
+            uint32_t    SpawnOperationCount{};
+            uint32_t    UpdateOperationOffset{};
+            uint32_t    UpdateOperationCount{};
+            uint32_t    TriggerTargetOffset{};
+            uint32_t    TriggerTargetCount{};
+            uint32_t    RenderMode{};
+            float       SpawnRatePerSecond{};
+            float       GravityScale{};
+            float       BurstIntervalSeconds{};
+            uint32_t    BurstCount{};
+            uint32_t    IsTriggerDriven{};
         };
 
-        struct SParameterData
-        {
-            glm::vec4 Value{};
-        };
-
-        struct SSystemInstanceData
+        struct SGPUSystemInstance
         {
             uint32_t ParticleBaseOffset = 0;
             uint32_t EmitterBaseOffset = 0;
-            uint32_t OpBaseOffset = 0;
+            uint32_t OperationBaseOffset = 0;
+            uint32_t OperandBaseOffset = 0;
+            uint32_t ConstantBaseOffset = 0;
             uint32_t ParameterBaseOffset = 0;
 
             uint32_t EmitterStateBaseOffset = 0;
@@ -55,7 +59,7 @@ namespace Elixir::Aether::Simulation
             uint32_t ParticleStateLayoutIndex = 0;
         };
 
-        struct SEmitterInstanceStateData
+        struct SGPUEmitterInstanceState
         {
             float SpawnAccumulator = 0.0f;
             float BurstAccumulator = 0.0f;
@@ -65,7 +69,7 @@ namespace Elixir::Aether::Simulation
             uint32_t Generation = 0;
         };
 
-        struct SSpawnRequestData
+        struct SGPUSpawnRequest
         {
             uint32_t SpawnCursor = 0;
             uint32_t SpawnCount = 0;
@@ -73,42 +77,31 @@ namespace Elixir::Aether::Simulation
             uint32_t Generation = 0;
         };
 
-        struct STriggerTargetData
+        struct SGPUTriggerTarget
         {
             uint32_t TargetEmitterIndex = 0;
             uint32_t BurstCount = 0;
             float DelaySeconds = 0.0f;
         };
 
-        struct STriggerEventData
+        struct SGPUTriggerEvent
         {
             float RemainingDelaySeconds = 0.0f;
             uint32_t SpawnCount = 0;
             uint32_t Generation = 0;
         };
 
-        struct STriggerQueueStateData
+        struct SGPUTriggerQueueState
         {
             uint32_t Count = 0;
             uint32_t OverflowCount = 0;
         };
 
-        struct SSystemSchedulerStateData
+        struct SGPUSystemSchedulerState
         {
             uint32_t Generation = 0;
             uint32_t ActiveTriggerBufferIndex = 0;
             uint32_t ResetPending = 0;
-        };
-
-        // Mirrors one CoreV1 particle state in GPU storage.
-        struct alignas(16) SGPUParticleState
-        {
-            glm::vec4 PositionSize{};
-            glm::vec4 VelocityAge{};
-            glm::vec4 Transform{};
-            glm::vec4 TangentRibbonId{};
-            glm::vec4 Color{};
-            glm::vec4 Metadata{};
         };
 
         // Identifies the system instance processed by scheduler compute dispatches.
@@ -127,59 +120,37 @@ namespace Elixir::Aether::Simulation
         // Update dispatches use the same ABI as scheduler dispatches.
         using SUpdatePushConstants = SSchedulePushConstants;
 
-        SEmitterData ToEmitterData(
+        SGPUEmitter ToEmitterData(
             const SCompiledEmitter& emitter,
-            uint32_t opBaseOffset,
+            uint32_t operationBaseOffset,
             uint32_t triggerTargetBaseOffset
         )
         {
-            SEmitterData desc{};
-            desc.MetaA = {
-                emitter.LocalParticleOffset,
-                emitter.MaxParticles,
-                opBaseOffset + emitter.SpawnOpOffset,
-                emitter.SpawnOpCount
+            return {
+                .LocalParticleOffset = emitter.LocalParticleOffset,
+                .MaxParticles = emitter.MaxParticles,
+                .SpawnOperationOffset = operationBaseOffset + emitter.SpawnOperationOffset,
+                .SpawnOperationCount = emitter.SpawnOperationCount,
+                .UpdateOperationOffset = operationBaseOffset + emitter.UpdateOperationOffset,
+                .UpdateOperationCount = emitter.UpdateOperationCount,
+                .TriggerTargetOffset = triggerTargetBaseOffset + emitter.TriggerTargetOffset,
+                .TriggerTargetCount = emitter.TriggerTargetCount,
+                .RenderMode = uint32_t(emitter.RenderMode),
+                .SpawnRatePerSecond = emitter.SpawnRatePerSecond,
+                .GravityScale = emitter.GravityScale,
+                .BurstIntervalSeconds = emitter.BurstIntervalSeconds,
+                .BurstCount = emitter.BurstCount,
+                .IsTriggerDriven = emitter.IsTriggerDriven ? 1u : 0u,
             };
-
-            desc.MetaB = {
-                opBaseOffset + emitter.UpdateOpOffset,
-                emitter.UpdateOpCount,
-                triggerTargetBaseOffset + emitter.TriggerTargetOffset,
-                emitter.TriggerTargetCount
-            };
-
-            desc.MetaC = {
-                (float)emitter.RenderMode,
-                emitter.SpawnRatePerSecond,
-                emitter.GravityScale,
-                emitter.BurstIntervalSeconds
-            };
-
-            desc.MetaD = {
-                (float)emitter.BurstCount,
-                emitter.IsTriggerDriven ? 1.0f : 0.0f,
-                0.0f,
-                0.0f
-            };
-
-            return desc;
         }
 
-        STriggerTargetData ToTriggerTargetData(const SCompiledTriggerTarget& target)
+        SGPUTriggerTarget ToTriggerTargetData(const SCompiledTriggerTarget& target)
         {
             return {
                 .TargetEmitterIndex = target.TargetEmitterIndex,
                 .BurstCount = target.BurstCount,
                 .DelaySeconds = target.DelaySeconds,
             };
-        }
-
-        SParameterData ToParameterData(const SGPUParameter& parameter)
-        {
-            SParameterData desc{};
-            desc.Value = parameter.Value;
-
-            return desc;
         }
 
         glm::mat4 GetParticleRenderTransform(
@@ -202,10 +173,17 @@ namespace Elixir::Aether::Simulation
         m_ResourcePool(m_Limits, m_ParticleStateLayouts),
         m_GraphicsContext(context)
     {
-        static_assert(sizeof(SGPUParticleState) == PARTICLE_STATE_CORE_V1_STRIDE);
         EE_CORE_ASSERT(context, "Aether Simulator requires a graphics context.")
         EE_CORE_ASSERT(shaderLoader, "Aether Simulator requires a shader loader.")
         EE_CORE_INFO("Initializing Aether Simulator.")
+
+        if (!context || !shaderLoader ||
+            m_Limits.ConstantCapacity > UINT32_MAX / sizeof(uint32_t) ||
+            m_Limits.ParameterWordCapacity > UINT32_MAX / sizeof(uint32_t))
+        {
+            EE_CORE_ERROR("Aether requires a graphics context, a shader loader, and value buffers within the 32-bit byte address range.");
+            return;
+        }
 
         Init(shaderLoader);
         CreateBuffers();
@@ -214,6 +192,7 @@ namespace Elixir::Aether::Simulation
 
     void Simulator::BeginFrame(const Timestep& timestep)
     {
+        if (!m_ConstantBuffer || !m_ParameterBuffer) return;
         ProcessCompletedRetirements();
         m_LastDeltaTimeSeconds = timestep.GetSeconds();
         m_ElapsedTimeSeconds += timestep.GetSeconds();
@@ -225,6 +204,7 @@ namespace Elixir::Aether::Simulation
     )
     {
         EE_CORE_ASSERT(cmd, "Aether simulation requires a command buffer.")
+        if (!cmd || !m_ConstantBuffer || !m_ParameterBuffer) return nullptr;
 
         const auto serial = ++m_SubmissionSerial;
 
@@ -372,32 +352,38 @@ namespace Elixir::Aether::Simulation
             EE_CORE_ASSERT(runtime, "Particle state layout requires a simulation runtime.")
             if (!runtime) continue;
 
+            auto particleInfo = StorageBuffer::CreateBufferInfo(
+                descriptor.ParticleStateStride * descriptor.ParticleCapacity,
+                nullptr
+            );
+            particleInfo.Usage |= EBufferUsage::VertexBuffer;
+
             runtime->ParticleStateBuffer = StorageBuffer::Create(
                 m_GraphicsContext,
-                descriptor.ParticleStateStride * descriptor.ParticleCapacity
+                particleInfo
             );
         }
 
         m_EmitterStateBuffer = StorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SEmitterInstanceStateData) * m_Limits.EmitterCapacity
+            sizeof(SGPUEmitterInstanceState) * m_Limits.EmitterCapacity
         );
 
         m_SpawnRequestBuffer = StorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SSpawnRequestData) * m_Limits.EmitterCapacity
+            sizeof(SGPUSpawnRequest) * m_Limits.EmitterCapacity
         );
 
         m_TriggerTargetBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(STriggerTargetData) * m_Limits.TriggerTargetCapacity
+            sizeof(SGPUTriggerTarget) * m_Limits.TriggerTargetCapacity
         );
 
         for (auto& buffer : m_TriggerEventBuffers)
         {
             buffer = StorageBuffer::Create(
                 m_GraphicsContext,
-                sizeof(STriggerEventData) *
+                sizeof(SGPUTriggerEvent) *
                     m_Limits.EmitterCapacity *
                     m_Limits.TriggerEventCapacityPerEmitter
             );
@@ -406,32 +392,42 @@ namespace Elixir::Aether::Simulation
 
         m_TriggerQueueStateBuffer = StorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(STriggerQueueStateData) * m_Limits.EmitterCapacity * 2
+            sizeof(SGPUTriggerQueueState) * m_Limits.EmitterCapacity * 2
         );
 
         m_SystemInstanceBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SSystemInstanceData) * m_Limits.MaxSystemInstances
+            sizeof(SGPUSystemInstance) * m_Limits.MaxSystemInstances
         );
 
         m_SystemSchedulerStateBuffer = StorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SSystemSchedulerStateData) * m_Limits.MaxSystemInstances
+            sizeof(SGPUSystemSchedulerState) * m_Limits.MaxSystemInstances
         );
 
         m_EmitterBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SEmitterData) * m_Limits.EmitterCapacity
+            sizeof(SGPUEmitter) * m_Limits.EmitterCapacity
         );
 
-        m_OpBuffer = DynamicStorageBuffer::Create(
+        m_OperationBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SParticleOpData) * m_Limits.OpCapacity
+            sizeof(SGPUOperation) * m_Limits.OperationCapacity
+        );
+
+        m_OperandBuffer = DynamicStorageBuffer::Create(
+            m_GraphicsContext,
+            sizeof(uint32_t) * m_Limits.OperandCapacity
+        );
+
+        m_ConstantBuffer = DynamicStorageBuffer::Create(
+            m_GraphicsContext,
+            sizeof(uint32_t) * std::max<std::size_t>(1, m_Limits.ConstantCapacity)
         );
 
         m_ParameterBuffer = DynamicStorageBuffer::Create(
             m_GraphicsContext,
-            sizeof(SParameterData) * m_Limits.ParameterCapacity
+            sizeof(uint32_t) * std::max<std::size_t>(1, m_Limits.ParameterWordCapacity)
         );
 
         m_ParamsBuffer = UniformBuffer::Create(
@@ -563,7 +559,9 @@ namespace Elixir::Aether::Simulation
         runtime.SpawnShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
         runtime.SpawnShader->BindStorageBuffer("emitters", m_EmitterBuffer);
         runtime.SpawnShader->BindStorageBuffer("spawnRequests", m_SpawnRequestBuffer);
-        runtime.SpawnShader->BindStorageBuffer("ops", m_OpBuffer);
+        runtime.SpawnShader->BindStorageBuffer("operations", m_OperationBuffer);
+        runtime.SpawnShader->BindStorageBuffer("operands", m_OperandBuffer);
+        runtime.SpawnShader->BindStorageBuffer("constants", m_ConstantBuffer);
         runtime.SpawnShader->BindStorageBuffer("parameters", m_ParameterBuffer);
         runtime.SpawnShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
 
@@ -577,7 +575,9 @@ namespace Elixir::Aether::Simulation
         runtime.UpdateShader->BindStorageBuffer("particles", runtime.ParticleStateBuffer);
         runtime.UpdateShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
         runtime.UpdateShader->BindStorageBuffer("emitters", m_EmitterBuffer);
-        runtime.UpdateShader->BindStorageBuffer("ops", m_OpBuffer);
+        runtime.UpdateShader->BindStorageBuffer("operations", m_OperationBuffer);
+        runtime.UpdateShader->BindStorageBuffer("operands", m_OperandBuffer);
+        runtime.UpdateShader->BindStorageBuffer("constants", m_ConstantBuffer);
         runtime.UpdateShader->BindStorageBuffer("parameters", m_ParameterBuffer);
         runtime.UpdateShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
     }
@@ -661,11 +661,13 @@ namespace Elixir::Aether::Simulation
         const auto& system = proxy.GetCompiledSystem();
         const auto& allocation = record.Allocation;
 
-        const SSystemInstanceData data
+        const SGPUSystemInstance data
         {
             .ParticleBaseOffset = allocation.Particles.Offset,
             .EmitterBaseOffset = allocation.Emitters.Offset,
-            .OpBaseOffset = allocation.Ops.Offset,
+            .OperationBaseOffset = allocation.Operations.Offset,
+            .OperandBaseOffset = allocation.Operands.Offset,
+            .ConstantBaseOffset = allocation.Constants.Offset,
             .ParameterBaseOffset = allocation.Parameters.Offset,
             .EmitterStateBaseOffset = allocation.EmitterStates.Offset,
             .SpawnRequestBaseOffset = allocation.SpawnRequests.Offset,
@@ -692,28 +694,42 @@ namespace Elixir::Aether::Simulation
     {
         const auto& system = proxy.GetCompiledSystem();
 
-        auto* emitters = (SEmitterData*)m_EmitterBuffer->Map();
+        auto* emitters = (SGPUEmitter*)m_EmitterBuffer->Map();
         for (uint32_t i = 0; i < allocation.Emitters.Count; ++i)
         {
             emitters[allocation.Emitters.Offset + i] = ToEmitterData(
                 system.Emitters[i],
-                allocation.Ops.Offset,
+                allocation.Operations.Offset,
                 allocation.TriggerTargets.Offset
             );
         }
 
-        auto* ops = (SParticleOpData*)m_OpBuffer->Map();
-        for (uint32_t i = 0; i < allocation.Ops.Count; ++i)
+        // Shared references remain relative to the compiled program and the instance.
+        if (allocation.UploadProgram)
         {
-            ops[allocation.Ops.Offset + i] = ToOpData(
-                system.Ops[i],
-                allocation.Parameters.Offset
-            );
+            if (allocation.Operations.Count)
+                m_OperationBuffer->UpdateData(
+                    system.ModuleData.Operations.data(),
+                    allocation.Operations.Count * sizeof(SGPUOperation),
+                    allocation.Operations.Offset * sizeof(SGPUOperation)
+                );
+            if (allocation.Operands.Count)
+                m_OperandBuffer->UpdateData(
+                    system.ModuleData.Operands.data(),
+                    allocation.Operands.Count * sizeof(uint32_t),
+                    allocation.Operands.Offset * sizeof(uint32_t)
+                );
+            if (allocation.Constants.Count)
+                m_ConstantBuffer->UpdateData(
+                    system.ModuleData.Constants.data(),
+                    allocation.Constants.Count * sizeof(uint32_t),
+                    allocation.Constants.Offset * sizeof(uint32_t)
+                );
         }
 
         UploadInstanceParameters(proxy, allocation);
 
-        auto* targets = (STriggerTargetData*)m_TriggerTargetBuffer->Map();
+        auto* targets = (SGPUTriggerTarget*)m_TriggerTargetBuffer->Map();
         for (uint32_t i = 0; i < allocation.TriggerTargets.Count; ++i)
             targets[allocation.TriggerTargets.Offset + i] =
                 ToTriggerTargetData(system.TriggerTargets[i]);
@@ -724,10 +740,20 @@ namespace Elixir::Aether::Simulation
         const SSystemInstanceAllocation& allocation
     ) const
     {
-        auto* parameters = (SParameterData*)m_ParameterBuffer->Map();
-        for (uint32_t i = 0; i < allocation.Parameters.Count; ++i)
-            parameters[allocation.Parameters.Offset + i].Value =
-                proxy.GetParameterValue(i);
+        const auto words = proxy.GetParameterWords();
+
+        EE_CORE_ASSERT(
+            words.size() == allocation.Parameters.Count,
+            "Aether parameter upload does not match its allocation."
+        )
+        if (words.size() != allocation.Parameters.Count || words.empty())
+            return;
+
+        m_ParameterBuffer->UpdateData(
+            words.data(),
+            words.size_bytes(),
+            std::size_t(allocation.Parameters.Offset) * sizeof(uint32_t)
+        );
     }
 
     Simulator::SParticleStateLayoutRuntime* Simulator::FindParticleStateLayoutRuntime(
@@ -981,7 +1007,7 @@ namespace Elixir::Aether::Simulation
                 };
 
                 runtime->SpawnShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
-                cmd->Dispatch((maxParticles + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
+                cmd->Dispatch((maxParticles + SPAWN_GROUP_SIZE - 1) / SPAWN_GROUP_SIZE);
             }
         }
 
@@ -1003,7 +1029,7 @@ namespace Elixir::Aether::Simulation
             };
 
             runtime->UpdateShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
-            cmd->Dispatch((instance->Allocation.Particles.Count + COMPUTE_GROUP_SIZE - 1) / COMPUTE_GROUP_SIZE);
+            cmd->Dispatch((instance->Allocation.Particles.Count + UPDATE_GROUP_SIZE - 1) / UPDATE_GROUP_SIZE);
         }
     }
 

@@ -14,6 +14,7 @@ namespace Elixir::Vulkan
             VulkanDynamicBuffer<StagingBuffer>,
             VulkanDynamicBuffer<UniformBuffer>,
             VulkanBaseBuffer<StorageBuffer>,
+            VulkanDynamicBuffer<DynamicStorageBuffer>,
             VulkanBaseBuffer<VertexBuffer>,
             VulkanDynamicBuffer<DynamicVertexBuffer>,
             VulkanBaseBuffer<IndexBuffer>,
@@ -328,7 +329,9 @@ namespace Elixir::Vulkan
         VulkanVertexBuffer::CreateBuffer(info);
         VulkanVertexBuffer::InitBuffer(info.Buffer);
         VulkanVertexBuffer::CreateDescriptorInfo();
-        CreateBufferAddress();
+
+        if (HasAnyFlags(info.Usage, EBufferUsage::ShaderDeviceAddress))
+            CreateBufferAddress();
     }
 
     VulkanVertexBuffer::~VulkanVertexBuffer()

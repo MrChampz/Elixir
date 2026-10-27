@@ -36,8 +36,8 @@ namespace Elixir::Aether
 
     SCompiledEmitter Emitter::Compile(
         const ParameterStore& paramStore,
-        const std::vector<SGPUParameter>& params,
-        std::vector<SGPUParticleOp>& ops
+        const std::vector<SCompiledParameter>& params,
+        SCompiledModuleData& program
     ) const
     {
         SCompiledEmitter emitter;
@@ -46,21 +46,34 @@ namespace Elixir::Aether
         emitter.SimulationSpace = m_SimulationSpace;
         emitter.MaxParticles = m_MaxParticles;
         emitter.GravityScale = paramStore.GetFloat("GravityScale", 1.0f);
-        emitter.SpawnOpOffset = (uint32_t)ops.size();
+        emitter.SpawnOperationOffset = (uint32_t)program.Operations.size();
         emitter.SpawnRatePerSecond = m_SpawnRate;
         emitter.TriggerDelaySeconds = m_TriggerDelaySeconds;
         emitter.BurstCount = m_BurstCount;
         emitter.BurstIntervalSeconds = m_BurstIntervalSeconds;
 
-        const uint32_t spawnRateParamIndex =
-            FindScopedParameterIndex(params, m_Name, m_SpawnRateParamName);
+        const uint32_t spawnRateParamIndex = FindScopedParameterIndex(
+            params,
+            m_Name,
+            m_SpawnRateParamName
+        );
+
         if (spawnRateParamIndex != UINT32_MAX)
-            emitter.SpawnRatePerSecond = params[spawnRateParamIndex].Value.x;
+        {
+            if (params[spawnRateParamIndex].Type == EParameterType::UInt)
+            {
+                EE_CORE_ERROR("Aether spawn rate requires a floating-point parameter.");
+            }
+            else
+            {
+                emitter.SpawnRatePerSecond = params[spawnRateParamIndex].Value.x;
+            }
+        }
 
         if (m_Material)
             emitter.Material = m_Material;
 
-        ModuleCompileContext context(ops, params, m_Name, emitter.GravityScale);
+        ModuleCompileContext context(program, params, m_Name, emitter.GravityScale);
 
         for (const auto& module : m_Modules)
         {
@@ -70,8 +83,8 @@ namespace Elixir::Aether
             module->Compile(context);
         }
 
-        emitter.SpawnOpCount = (uint32_t)ops.size() - emitter.SpawnOpOffset;
-        emitter.UpdateOpOffset = (uint32_t)ops.size();
+        emitter.SpawnOperationCount = (uint32_t)program.Operations.size() - emitter.SpawnOperationOffset;
+        emitter.UpdateOperationOffset = (uint32_t)program.Operations.size();
 
         for (const auto& module : m_Modules)
         {
@@ -81,7 +94,7 @@ namespace Elixir::Aether
             module->Compile(context);
         }
 
-        emitter.UpdateOpCount = (uint32_t)ops.size() - emitter.UpdateOpOffset;
+        emitter.UpdateOperationCount = (uint32_t)program.Operations.size() - emitter.UpdateOperationOffset;
 
         return emitter;
     }

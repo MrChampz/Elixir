@@ -65,8 +65,14 @@ namespace Elixir::Aether::Simulation
     class ELIXIR_API Simulator final
     {
     public:
-        /** Number of threads used by Aether compute shader dispatches. */
+        /** Number of threads used by emitter scheduler dispatches. */
         static constexpr uint32_t COMPUTE_GROUP_SIZE = 256;
+
+        /** Number of threads used by spawn dispatches. */
+        static constexpr uint32_t SPAWN_GROUP_SIZE = 256;
+
+        /** Number of threads used by update dispatches. */
+        static constexpr uint32_t UPDATE_GROUP_SIZE = 256;
 
         /**
          * @brief Creates the GPU resources required for particle simulation.
@@ -105,7 +111,7 @@ namespace Elixir::Aether::Simulation
          *
          * @param submission Immutable system instances requested for the frame.
          * @param cmd Command buffer that receives the simulation commands.
-         * @return Immutable render data produced by the simulation.
+         * @return Immutable render data, or no frame when initialization failed or cmd is null.
          *
          * @pre cmd is not null and is recording commands.
          * @pre BeginFrame() was called for the current frame.
@@ -280,7 +286,9 @@ namespace Elixir::Aether::Simulation
 
         Ref<DynamicStorageBuffer> m_SystemInstanceBuffer;
         Ref<DynamicStorageBuffer> m_EmitterBuffer;
-        Ref<DynamicStorageBuffer> m_OpBuffer;
+        Ref<DynamicStorageBuffer> m_OperationBuffer;
+        Ref<DynamicStorageBuffer> m_OperandBuffer;
+        Ref<DynamicStorageBuffer> m_ConstantBuffer;
         Ref<DynamicStorageBuffer> m_ParameterBuffer;
         Ref<UniformBuffer> m_ParamsBuffer;
 

@@ -3,6 +3,8 @@ using namespace testing;
 
 #include <Engine/Core/Executor/Executor.h>
 #include <Engine/Graphics/CommandBuffer.h>
+#include <Engine/Graphics/Shader/ShaderLoader.h>
+#include <Engine/Graphics/Pipeline/Pipeline.h>
 #include <Graphics/Vulkan/VulkanBuffer.h>
 
 #include "VulkanTestContext.h"
@@ -21,6 +23,112 @@ class VulkanBufferTest : public Test
 };
 
 GraphicsContext* VulkanBufferTest::Context = nullptr;
+
+TEST_F(VulkanBufferTest, GenericBuffersBindAsUniformAndStorageWithoutChangingDescriptorTypes)
+{
+    ASSERT_TRUE(Context->RunRenderTaskAndWait([&]
+    {
+        ShaderLoader loader(Context);
+        auto shader = loader.LoadShader(
+            ELIXIR_TEST_SHADER_DIR, "BufferBindings", EShaderStage::Compute
+        );
+        ASSERT_TRUE(shader);
+        auto pipeline = ComputePipeline::Create(Context, { .Shader = shader });
+        ASSERT_TRUE(pipeline);
+
+        std::array<uint32_t, 4> values{13, 29, 0, 0};
+        auto info = VertexBuffer::CreateBufferInfo(sizeof(values), values.data());
+        info.Usage |= EBufferUsage::UniformBuffer | EBufferUsage::StorageBuffer;
+        const Ref<Buffer> source = VertexBuffer::Create(Context, info);
+        const auto output = StorageBuffer::Create(Context, sizeof(uint32_t));
+        ASSERT_TRUE(source && source->IsValid());
+        ASSERT_TRUE(output && output->IsValid());
+
+        auto readbackInfo = StagingBuffer::CreateBufferInfo(sizeof(uint32_t), nullptr);
+        readbackInfo.Usage = EBufferUsage::TransferDst;
+        const Ref<StagingBuffer> readback = CreateRef<VulkanStagingBuffer>(Context, readbackInfo);
+        shader->BindConstantBuffer("constants", source);
+        shader->BindStorageBuffer("inputValues", source);
+        shader->BindStorageBuffer("outputValues", output);
+
+        const auto dispatch = [&]
+        {
+            const auto cmd = Context->GetUploadCommandBuffer();
+            cmd->Begin();
+            source->Barrier(cmd, EPipelineStage::ComputeShader,
+                EPipelineAccess::UniformRead | EPipelineAccess::ShaderRead);
+            output->Barrier(cmd, EPipelineStage::ComputeShader, EPipelineAccess::ShaderWrite);
+            pipeline->Bind(cmd);
+            cmd->Dispatch(1);
+            output->Barrier(cmd, EPipelineStage::Transfer, EPipelineAccess::TransferRead);
+            output->Copy(cmd, readback);
+            cmd->Flush();
+            const auto result = *static_cast<const uint32_t*>(readback->Map());
+            readback->Unmap();
+            return result;
+        };
+        EXPECT_EQ(dispatch(), 42);
+
+        shader->BindConstantBuffer("constants", output);
+        shader->BindConstantBuffer("inputValues", source);
+        shader->BindConstantBuffer("constants", nullptr);
+        values[0] = 17;
+        shader->SetConstantBuffer("constants", values.data(), sizeof(values));
+        EXPECT_EQ(dispatch(), 42);
+
+        const auto uniform = UniformBuffer::Create(Context, sizeof(values), values.data());
+        ASSERT_TRUE(uniform && uniform->IsValid());
+        shader->BindConstantBuffer("constants", uniform);
+        values[0] = 23;
+        shader->SetConstantBuffer("constants", values.data(), sizeof(values));
+        EXPECT_EQ(dispatch(), 52);
+
+        std::array<uint32_t, 8> oversized{};
+        shader->SetConstantBuffer("constants", oversized.data(), sizeof(oversized));
+        EXPECT_EQ(dispatch(), 52);
+
+        const SBufferCreateInfo undersizedInfo{
+            .Buffer = SBuffer(sizeof(uint32_t)),
+            .Usage = EBufferUsage::UniformBuffer | EBufferUsage::TransferDst,
+            .AllocationInfo = { .PreferredFlags = EMemoryProperty::DeviceLocal },
+        };
+        const auto undersized = Buffer::Create(Context, undersizedInfo);
+        ASSERT_TRUE(undersized && undersized->IsValid());
+        ASSERT_LT(undersized->GetSize(), sizeof(values));
+        shader->BindConstantBuffer("constants", undersized);
+        EXPECT_EQ(dispatch(), 52);
+
+        shader = loader.LoadShader(ELIXIR_TEST_SHADER_DIR, "BufferBindings", EShaderStage::Compute);
+        ASSERT_TRUE(shader);
+        pipeline = ComputePipeline::Create(Context, { .Shader = shader });
+        ASSERT_TRUE(pipeline);
+        shader->BindStorageBuffer("inputValues", source);
+        shader->BindStorageBuffer("outputValues", output);
+        shader->SetConstantBuffer("constants", values.data(), sizeof(values));
+        EXPECT_EQ(dispatch(), 52);
+        values[0] = 31;
+        shader->SetConstantBuffer("constants", values.data(), sizeof(values));
+        EXPECT_EQ(dispatch(), 60);
+    }));
+}
+
+TEST_F(VulkanBufferTest, VertexBufferSupportsExplicitStorageUsageWithoutChangingType)
+{
+    const auto vertex = VertexBuffer::Create(Context, 256);
+    ASSERT_TRUE(vertex && vertex->IsValid());
+    EXPECT_FALSE(HasAnyFlags(vertex->GetUsage(), EBufferUsage::StorageBuffer));
+
+    auto info = VertexBuffer::CreateBufferInfo(256, nullptr);
+    info.Usage |= EBufferUsage::StorageBuffer;
+    const auto storageVertex = VertexBuffer::Create(Context, info);
+    ASSERT_TRUE(storageVertex && storageVertex->IsValid());
+    EXPECT_TRUE(HasAnyFlags(storageVertex->GetUsage(), EBufferUsage::StorageBuffer));
+    EXPECT_TRUE(HasAnyFlags(storageVertex->GetUsage(), EBufferUsage::VertexBuffer));
+    EXPECT_GT(storageVertex->GetAddress(), 0);
+
+    info.Usage = EBufferUsage::StorageBuffer;
+    EXPECT_FALSE(VertexBuffer::Create(Context, info));
+}
 
 TEST_F(VulkanBufferTest, VulkanBaseBuffer_IsNotConstructibleAndAssignable)
 {

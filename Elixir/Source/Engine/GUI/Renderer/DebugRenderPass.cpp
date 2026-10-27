@@ -87,8 +87,8 @@ namespace Elixir::GUI
         const BufferLayout bufferLayout({
             {
                 {
-                    { EDataType::Vec2,  "Position" },
-                    { EDataType::Vec4,  "Color"    },
+                    { EDataType::Float2,  "Position" },
+                    { EDataType::Float4,  "Color"    },
                 }
             }
         });

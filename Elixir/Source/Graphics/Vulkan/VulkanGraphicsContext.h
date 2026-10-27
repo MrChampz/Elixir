@@ -85,6 +85,25 @@ namespace Elixir::Vulkan
 
         Extent3D GetSwapchainExtent() const override { return m_SwapchainExtent;}
 
+        /** @brief Get the device limit for one storage-buffer descriptor range. */
+        uint64_t GetMaxStorageBufferRange() const override
+        {
+            return m_GPUProperties.limits.maxStorageBufferRange;
+        }
+
+        /** @brief Get the device limit for one constant-buffer descriptor range. */
+        uint64_t GetMaxConstantBufferRange() const
+        {
+            return m_GPUProperties.limits.maxUniformBufferRange;
+        }
+
+        /** @brief Get the device limits for compute workgroup counts along X, Y, and Z. */
+        glm::uvec3 GetMaxComputeWorkGroupCount() const override
+        {
+            const auto& counts = m_GPUProperties.limits.maxComputeWorkGroupCount;
+            return { counts[0], counts[1], counts[2] };
+        }
+
         SFrameData& GetCurrentFrame() { return m_Frames[GetFrameIndex()]; }
 
         VkInstance GetInstance() const { return m_Instance; }

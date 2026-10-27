@@ -4,6 +4,7 @@
 #include "Engine/Event/WindowEvent.h"
 #include "Engine/Event/MouseEvent.h"
 #include "Engine/Input/InputCodes.h"
+#include "glm/gtx/compatibility.hpp"
 
 namespace Elixir
 {
@@ -46,6 +47,43 @@ namespace Elixir
     void ArcBallCameraController::SetDistance(const float distance)
     {
         m_Distance = glm::clamp(distance, m_MinDistance, m_MaxDistance);
+        UpdateCameraFromOrbit();
+    }
+
+    void ArcBallCameraController::FrameBounds(const glm::vec3& min, const glm::vec3& max)
+    {
+        if (!glm::all(glm::isfinite(min)) ||
+            !glm::all(glm::isfinite(max)) ||
+            glm::any(glm::greaterThan(min, max)))
+        {
+            EE_CORE_ERROR("ArcBallCameraController requires finite ordered bounds.")
+            return;
+        }
+
+        const float radius = glm::length((max - min) * 0.5f);
+        const float vAngle = glm::radians(m_Camera.GetFieldOfView()) * 0.5f;
+        const float hAngle = std::atan(std::tan(vAngle) * m_Camera.GetAspectRatio());
+
+        float distance = radius * 1.1f / std::sin(std::min(vAngle, hAngle));
+        distance = std::max(m_MinDistance, distance);
+
+        if (!std::isfinite(distance))
+        {
+            EE_CORE_ERROR("ArcBallCameraController bounds exceed the supported distance.")
+            return;
+        }
+
+        m_Target = glm::vec3((glm::dvec3(min) + glm::dvec3(max)) * 0.5);
+        m_Distance = distance;
+        m_MaxDistance = std::max(m_MaxDistance, distance * 4.0f);
+
+        m_Camera.SetProjection(
+            m_Camera.GetFieldOfView(),
+            m_Camera.GetAspectRatio(),
+            m_Camera.GetNearPlane(),
+            std::max(m_Camera.GetFarPlane(), distance + radius * 4.0f)
+        );
+
         UpdateCameraFromOrbit();
     }
 

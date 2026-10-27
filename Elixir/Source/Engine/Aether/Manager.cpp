@@ -75,8 +75,9 @@ namespace Elixir::Aether
         const auto frame = GetSimulator().Simulate(*submission, cmd);
         cmd->End();
         m_GraphicsContext->EnqueueSecondaryCommandBuffer(cmd);
+        if (!frame) return;
 
-        MaterialRenderScene scene = GetRenderer().BuildRenderScene(*frame, camera);
+        const MaterialRenderScene scene = GetRenderer().BuildRenderScene(*frame, camera);
         m_MaterialSystem.Submit(scene);
     }
 

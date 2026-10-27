@@ -25,22 +25,16 @@ namespace Elixir::Aether::Modules
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {
-            const uint32_t tangentialParamIndex = context.FindParameter(m_TangentialParamName);
-            const uint32_t radialParamIndex = context.FindParameter(m_RadialParamName);
-            context.Emit({
-                Core::EParticleOp::ApplyVortex,
-                Core::EParticleAttribute::Velocity,
-                context.FindParameter(m_CenterParamName),
-                context.FindParameter(m_NormalParamName),
-                { m_Center, 0.0f },
-                { m_Normal, 0.0f },
+            context.Emit(
+                EOperationType::ApplyVortex,
+                EParticleAttribute::Velocity,
                 {
-                    m_TangentialStrength,
-                    m_RadialStrength,
-                    (float)(tangentialParamIndex == UINT32_MAX ? -1 : (int32_t)tangentialParamIndex),
-                    (float)(radialParamIndex == UINT32_MAX ? -1 : (int32_t)radialParamIndex),
+                    context.Vector(m_Center, m_CenterParamName),
+                    context.Vector(m_Normal, m_NormalParamName),
+                    context.Scalar(m_TangentialStrength, m_TangentialParamName),
+                    context.Scalar(m_RadialStrength, m_RadialParamName)
                 }
-            });
+            );
         }
 
         /** @brief Binds named parameters to the configured values and returns this module. */

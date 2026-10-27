@@ -37,30 +37,37 @@ namespace Elixir
     }
 
     StaticMeshRenderer::StaticMeshRenderer(
-        const GraphicsContext* context,
+        const GraphicsContext& context,
         MaterialSystem& materialSystem,
         const GeometryPool& geometryPool
-    ) : m_MaterialSystem(materialSystem),
+    ) : m_Sorter(CreateScope<SectionSorter>()),
+        m_FrameBuffers(context),
         m_GeometryPool(geometryPool),
-        m_Context(context),
-        m_FrameBuffers(*context)
+        m_MaterialSystem(materialSystem),
+        m_Context(context)
     {
-        EE_CORE_ASSERT(m_Context, "StaticMeshRenderer requires a graphics context")
-
         constexpr SSurfaceFrameData frameData;
-        m_FrameBuffers.ForEach([this, &frameData](Ref<UniformBuffer>& frameBuffer)
+        m_FrameBuffers.ForEach([&](Ref<UniformBuffer>& buffer)
         {
-            frameBuffer = UniformBuffer::Create(m_Context, sizeof(frameData), &frameData);
+            buffer = UniformBuffer::Create(&m_Context, sizeof(frameData), &frameData);
         });
     }
 
     void StaticMeshRenderer::BeginFrame(
         const Camera& camera,
-        const SStaticMeshLighting& lighting
+        const SMeshLighting& lighting
     )
     {
-        const auto extent = m_Context->GetRenderTarget()->GetExtent();
+        if (m_Recording ||
+            !m_GeometryPool.IsValid() ||
+            m_GeometryPool.GetVertexStride() != sizeof(SStaticMeshVertex))
+        {
+            EE_CORE_ERROR("StaticMeshRenderer requires a closed frame and a valid Surface geometry pool.")
+            return;
+        }
 
+        m_Recording = true;
+        const auto extent = m_Context.GetRenderTarget()->GetExtent();
         m_View = camera.GetViewMatrix();
 
         const auto lightDirection = glm::normalize(lighting.DirectionalLightDirection);
@@ -120,32 +127,35 @@ namespace Elixir
         });
     }
 
-    void StaticMeshRenderer::Render(const Ref<StaticMesh>& mesh)
+    bool StaticMeshRenderer::Render(
+        const Ref<const StaticMesh>& mesh,
+        const glm::mat4& transform
+    )
     {
-        if (!mesh) return;
+        if (!m_Recording || !mesh) return false;
 
         const auto geometry = mesh->GetGeometry();
-        if (!geometry) return;
+        if (!geometry) return false;
 
         const auto& materials = mesh->GetMaterials();
+        m_Sorter->SetContext({ .Model = transform, .View = m_View });
 
         for (const auto& section : mesh->GetSections())
         {
             if (section.MaterialIndex >= materials.size()) continue;
 
-            const auto instance = GetDefaultInstance(materials[section.MaterialIndex]);
-            if (!instance) continue;
+            const auto material = GetDefaultInstance(materials[section.MaterialIndex]);
+            if (!material) continue;
 
-            const glm::vec3 center = (section.LocalBounds.Min + section.LocalBounds.Max) * 0.5f;
-            const float sortDepth = -(m_View * glm::vec4(center, 1.0f)).z;
+            const auto depth = m_Sorter->CalculateDepth(section);
 
             m_Scene.Add({
                 .Pass = EMaterialPass::Surface,
-                .Material = instance,
-                .SortDepth = sortDepth,
+                .Material = material,
+                .SortDepth = depth,
                 .GeometryIndex = m_GeometryIndex,
                 .PushConstants = SMaterialPushConstants::Create(
-                    SSurfacePushConstants{},
+                    SSurfacePushConstants{ .Model = transform },
                     offsetof(SSurfacePushConstants, MaterialIndex)
                 ),
                 .IndexedDraw = SIndexedDrawCommand{
@@ -155,11 +165,26 @@ namespace Elixir
                 },
             });
         }
+
+        return true;
     }
 
     void StaticMeshRenderer::EndFrame()
     {
+        if (!m_Recording)
+        {
+            EE_CORE_ERROR("StaticMeshRenderer has no open frame to submit.")
+            return;
+        }
+
+        m_Recording = false;
         m_MaterialSystem.Submit(std::move(m_Scene));
+    }
+
+    void StaticMeshRenderer::SetSorter(Scope<Sorter> sorter)
+    {
+        if (!sorter) return;
+        m_Sorter = std::move(sorter);
     }
 
     Ref<MaterialInstance> StaticMeshRenderer::GetDefaultInstance(const Ref<Material>& material)
@@ -168,9 +193,7 @@ namespace Elixir
 
         const auto existing = m_DefaultInstances.find(material.get());
         if (existing != m_DefaultInstances.end())
-        {
             return existing->second;
-        }
 
         const auto instance = material->CreateInstance();
         m_DefaultInstances.emplace(material.get(), instance);

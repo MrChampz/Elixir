@@ -18,14 +18,14 @@ namespace Elixir::Aether::Modules
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit({
-                Core::EParticleOp::RandomRange,
-                Core::EParticleAttribute::Lifetime,
-                context.FindParameter(m_MinSecondsParamName),
-                context.FindParameter(m_MaxSecondsParamName),
-                { m_MinSeconds, 0.0f, 0.0f, 0.0f },
-                { m_MaxSeconds, 0.0f, 0.0f, 0.0f }
-            });
+            context.Emit(
+                EOperationType::RandomRange,
+                EParticleAttribute::Lifetime,
+                {
+                    context.Scalar(m_MinSeconds, m_MinSecondsParamName),
+                    context.Scalar(m_MaxSeconds, m_MaxSecondsParamName)
+                }
+            );
         }
 
         /** @brief Binds named parameters to the configured values and returns this module. */

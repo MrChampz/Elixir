@@ -9,7 +9,7 @@ namespace Elixir::Aether
 
     Ref<SystemInstance> System::CreateInstance()
     {
-        return Ref<SystemInstance>(new SystemInstance(shared_from_this()));
+        return CreateRef<SystemInstance>(shared_from_this());
     }
 
     Emitter& System::AddEmitter(
@@ -33,7 +33,7 @@ namespace Elixir::Aether
         return nullptr;
     }
 
-    std::vector<SGPUParameter> System::BuildExposedParameters() const
+    std::vector<SParameter> System::BuildExposedParameters() const
     {
         auto parameters = m_Parameters.Compile();
 
@@ -47,7 +47,7 @@ namespace Elixir::Aether
         return parameters;
     }
 
-    std::optional<glm::vec4> System::GetParameterDefault(std::string_view name) const
+    std::optional<SParameter> System::GetParameterDefault(std::string_view name) const
     {
         const auto parameters = BuildExposedParameters();
         const auto found = std::ranges::find_if(parameters, [&name](const auto& param)
@@ -58,7 +58,7 @@ namespace Elixir::Aether
         if (found == parameters.end())
             return std::nullopt;
 
-        return found->Value;
+        return *found;
     }
 
     SCompiledSystem System::Compile() const
@@ -67,7 +67,7 @@ namespace Elixir::Aether
         system.SourceId = m_UUID;
         system.CompilationRevision = ++m_CompilationRevision;
 
-        system.Parameters = BuildExposedParameters();
+        auto parameters = BuildExposedParameters();
 
         const auto systemCurves = m_Curves.Compile();
         system.Curves.insert(system.Curves.end(), systemCurves.begin(), systemCurves.end());
@@ -86,12 +86,12 @@ namespace Elixir::Aether
             system.ColorCurves.insert(system.ColorCurves.end(), emitterColorCurves.begin(), emitterColorCurves.end());
         }
 
-        system.ExposedParameters.reserve(system.Parameters.size());
+        system.ExposedParameters.reserve(parameters.size());
 
-        for (uint32_t i = 0; i < system.Parameters.size(); ++i)
+        for (uint32_t i = 0; i < parameters.size(); ++i)
         {
             system.ExposedParameters.push_back({
-                .Name = system.Parameters[i].Name,
+                .Name = parameters[i].Name,
                 .ParameterIndex = i,
             });
         }
@@ -106,15 +106,29 @@ namespace Elixir::Aether
             if (samples.size() < 8)
                 samples.resize(8, samples.back());
 
-            system.Parameters.push_back({ curve.Name + ":0", CurveChunk(samples, 0) });
-            system.Parameters.push_back({ curve.Name + ":1", CurveChunk(samples, 1) });
+            parameters.push_back({ .Name = curve.Name + ":0", .Value = CurveChunk(samples, 0) });
+            parameters.push_back({ .Name = curve.Name + ":1", .Value = CurveChunk(samples, 1) });
         }
 
         for (const auto& curve : system.ColorCurves)
         {
             const auto baked = BakeColorCurve(curve.Samples);
             for (std::size_t i = 0; i < 8; ++i)
-                system.Parameters.push_back({ curve.Name + ":" + std::to_string(i), baked[i] });
+                parameters.push_back({
+                    .Name = curve.Name + ":" + std::to_string(i),
+                    .Value = baked[i]
+                });
+        }
+
+        system.Parameters = CompileParameters(parameters);
+        if (system.Parameters.size() != parameters.size()) return system;
+
+        system.DefaultParameterWords = PackParameterValues(system.Parameters);
+
+        if (system.DefaultParameterWords.size() > OperandIndexMask)
+        {
+            EE_CORE_ERROR("Aether parameter table exceeds the operand word range.");
+            return system;
         }
 
         uint32_t localParticleOffset = 0;
@@ -125,7 +139,7 @@ namespace Elixir::Aether
             auto compiled = emitter->Compile(
                 m_Parameters,
                 system.Parameters,
-                system.Ops
+                system.ModuleData
             );
             compiled.LocalParticleOffset = localParticleOffset;
 
@@ -134,6 +148,8 @@ namespace Elixir::Aether
 
             system.Emitters.push_back(compiled);
         }
+
+        system.ModuleData.CompactConstants();
 
         std::vector<std::vector<SCompiledTriggerTarget>> targetsBySource(system.Emitters.size());
 

@@ -16,14 +16,15 @@ namespace Elixir::Aether::Modules
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit({
-                Core::EParticleOp::SampleDisk,
-                Core::EParticleAttribute::Position,
-                UINT32_MAX,
-                UINT32_MAX,
-                { m_Center, m_Radius },
-                { m_Normal, 0.0f }
-            });
+            context.Emit(
+                EOperationType::SampleDisk,
+                EParticleAttribute::Position,
+                {
+                    context.Vector(m_Center),
+                    context.Scalar(m_Radius),
+                    context.Vector(m_Normal)
+                }
+            );
         }
 
         /** @brief Returns the configured center. */

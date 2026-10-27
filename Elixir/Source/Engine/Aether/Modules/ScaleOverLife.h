@@ -4,7 +4,7 @@
 
 #include <utility>
 
-#include <Engine/Aether/Modules/DynamicInput.h>
+#include <Engine/Aether/Core/DynamicInput.h>
 #include <Engine/Aether/Modules/Module.h>
 #include <Engine/Aether/Effect/ModuleParseContext.h>
 
@@ -23,64 +23,58 @@ namespace Elixir::Aether::Modules
         {
             if (!m_CurveName.empty())
             {
-                context.Emit({
-                    Core::EParticleOp::SampleCurve,
-                    Core::EParticleAttribute::Temp0,
-                    context.FindCurve(m_CurveName),
-                    UINT32_MAX,
-                    { (float)(uint32_t)m_CurveInput, 0.0f, 0.0f, 0.0f },
-                });
-
+                context.Emit(
+                    EOperationType::SampleCurve,
+                    EParticleAttribute::Temp0,
+                    {
+                        context.Curve(m_CurveName),
+                        context.Dynamic(m_CurveInput)
+                    }
+                );
                 const float scaleRange = m_EndScale - m_StartScale;
                 if (std::abs(scaleRange - 1.0f) > 0.0001f)
-                {
-                    context.Emit({
-                        Core::EParticleOp::Mul,
-                        Core::EParticleAttribute::Temp0,
-                        UINT32_MAX,
-                        UINT32_MAX,
-                        { scaleRange, 0.0f, 0.0f, 0.0f },
-                    });
-                }
-
+                    context.Emit(
+                        EOperationType::Mul,
+                        EParticleAttribute::Temp0,
+                        {
+                            context.Scalar(scaleRange)
+                        }
+                    );
                 if (std::abs(m_StartScale) > 0.0001f)
-                {
-                    context.Emit({
-                        Core::EParticleOp::Add,
-                        Core::EParticleAttribute::Temp0,
-                        UINT32_MAX,
-                        UINT32_MAX,
-                        { m_StartScale, 0.0f, 0.0f, 0.0f },
-                    });
-                }
+                    context.Emit(
+                        EOperationType::Add,
+                        EParticleAttribute::Temp0,
+                        {
+                            context.Scalar(m_StartScale)
+                        }
+                    );
+                context.Emit(
+                    EOperationType::Clamp,
+                    EParticleAttribute::Temp0,
+                    {
+                        context.Value(glm::vec4(0.0f)),
+                        context.Value(glm::vec4(4.0f))
+                    }
+                );
 
-                context.Emit({
-                    Core::EParticleOp::Clamp,
-                    Core::EParticleAttribute::Temp0,
-                    UINT32_MAX,
-                    UINT32_MAX,
-                    glm::vec4(0.0f),
-                    glm::vec4(4.0f),
-                });
-
-                context.Emit({
-                    Core::EParticleOp::CopyFromAttribute,
-                    Core::EParticleAttribute::Scale,
-                    UINT32_MAX,
-                    UINT32_MAX,
-                    { (float)(uint32_t)Core::EParticleAttribute::Temp0, 0.0f, 0.0f, 0.0f },
-                });
+                context.Emit(
+                    EOperationType::CopyFromAttribute,
+                    EParticleAttribute::Scale,
+                    {
+                        context.Attribute(EParticleAttribute::Temp0, EOperandInput::Float)
+                    }
+                );
             }
             else
             {
-                context.Emit({
-                    Core::EParticleOp::LerpOverLife,
-                    Core::EParticleAttribute::Scale,
-                    context.FindParameter(m_StartScaleParamName),
-                    context.FindParameter(m_EndScaleParamName),
-                    { m_StartScale, 0.0f, 0.0f, 0.0f },
-                    { m_EndScale, 0.0f, 0.0f, 0.0f }
-                });
+                context.Emit(
+                    EOperationType::LerpOverLife,
+                    EParticleAttribute::Scale,
+                    {
+                        context.Scalar(m_StartScale, m_StartScaleParamName),
+                        context.Scalar(m_EndScale, m_EndScaleParamName)
+                    }
+                );
             }
         }
 

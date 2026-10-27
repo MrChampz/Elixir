@@ -2,6 +2,7 @@
 
 #include <Engine/Aether/Emitter.h>
 #include <Engine/Aether/Core/ParameterStore.h>
+#include <Engine/Aether/Core/CompiledParameter.h>
 #include <Engine/Aether/Core/CurveStore.h>
 #include <Engine/Aether/Core/ColorCurveStore.h>
 #include <Engine/Aether/Core/ParticleStateLayout.h>
@@ -64,9 +65,14 @@ namespace Elixir::Aether
         std::vector<SCompiledEmitter> Emitters;
         std::vector<SCompiledTriggerTarget> TriggerTargets;
 
-        std::vector<SGPUParticleOp> Ops;
+        SCompiledModuleData ModuleData;
 
-        std::vector<SGPUParameter> Parameters;
+        /** Defaults and native word offsets for numeric parameters and curve chunks. */
+        std::vector<SCompiledParameter> Parameters;
+
+        /** Packed default words copied into each instance's parameter snapshot. */
+        std::vector<uint32_t> DefaultParameterWords;
+
         std::vector<SExposedParameter> ExposedParameters;
         std::vector<SGPUCurve> Curves;
         std::vector<SGPUColorCurve> ColorCurves;
@@ -95,7 +101,6 @@ namespace Elixir::Aether
       public:
         /**
          * @brief Creates an empty particle effect definition.
-         *
          * @param name Display name for the effect.
          */
         explicit System(const std::string& name);
@@ -133,7 +138,6 @@ namespace Elixir::Aether
 
         /**
          * @brief Finds an emitter by name.
-         *
          * @param name Name of the emitter to find.
          * @return The matching emitter, or null when no emitter has this name.
          */
@@ -182,13 +186,17 @@ namespace Elixir::Aether
         ColorCurveStore& GetColorCurves() { return m_ColorCurves; }
 
       private:
-        // Builds the authored parameters that can be overridden by instances.
-        std::vector<SGPUParameter> BuildExposedParameters() const;
+        /** @brief Build the authored parameters that instances can override. */
+        std::vector<SParameter> BuildExposedParameters() const;
 
-        // Returns an authored parameter default before an instance is compiled.
-        std::optional<glm::vec4> GetParameterDefault(std::string_view name) const;
+        /**
+         * @brief Get an authored parameter default before compilation.
+         * @param name Exposed parameter name to find.
+         * @return The authored default, or no value when absent.
+         */
+        std::optional<SParameter> GetParameterDefault(std::string_view name) const;
 
-        // Compiles the authored system into immutable runtime data.
+        /** @brief Compile the authored system into immutable runtime data. */
         SCompiledSystem Compile() const;
 
         UUID m_UUID;

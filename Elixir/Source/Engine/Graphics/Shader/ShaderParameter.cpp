@@ -125,8 +125,12 @@ namespace Elixir
     ShaderConstantBuffer::ShaderConstantBuffer(
         const std::string& name,
         const uint32_t set,
-        const uint32_t binding
-    ) : m_Name(name), m_Set(set), m_Binding(binding) {}
+        const uint32_t binding,
+        const uint32_t size
+    ) : m_Name(name),
+        m_Set(set),
+        m_Binding(binding),
+        m_Size(size) {}
 
     void ShaderConstantBuffer::PushConstant(ShaderConstant&& constant)
     {
@@ -139,7 +143,6 @@ namespace Elixir
         }
 
         constant.SetOffset(offset);
-        m_Size += constant.GetSize();
         m_Constants.push_back(std::move(constant));
     }
 

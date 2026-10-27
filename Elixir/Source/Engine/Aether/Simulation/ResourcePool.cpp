@@ -10,8 +10,10 @@ namespace Elixir::Aether::Core
         m_FreeInstanceSlots(MakeFreeRanges(limits.MaxSystemInstances)),
         m_InstanceGenerations(limits.MaxSystemInstances, 0),
         m_FreeEmitters(MakeFreeRanges(limits.EmitterCapacity)),
-        m_FreeOps(MakeFreeRanges(limits.OpCapacity)),
-        m_FreeParameters(MakeFreeRanges(limits.ParameterCapacity)),
+        m_FreeOperations(MakeFreeRanges(limits.OperationCapacity)),
+        m_FreeOperands(MakeFreeRanges(limits.OperandCapacity)),
+        m_FreeConstants(MakeFreeRanges(limits.ConstantCapacity)),
+        m_FreeParameters(MakeFreeRanges(limits.ParameterWordCapacity)),
         m_FreeTriggerTargets(MakeFreeRanges(limits.TriggerTargetCapacity)),
         m_FreeEmitterStates(MakeFreeRanges(limits.EmitterCapacity)),
         m_FreeSpawnRequests(MakeFreeRanges(limits.EmitterCapacity)),
@@ -35,8 +37,10 @@ namespace Elixir::Aether::Core
     {
         const auto particleCount = system.TotalMaxParticles;
         const auto emitterCount = (uint32_t)system.Emitters.size();
-        const auto opCount = (uint32_t)system.Ops.size();
-        const auto parameterCount = (uint32_t)system.Parameters.size();
+        const auto operationCount = (uint32_t)system.ModuleData.Operations.size();
+        const auto operandCount = (uint32_t)system.ModuleData.Operands.size();
+        const auto constantCount = (uint32_t)system.ModuleData.Constants.size();
+        const auto parameterCount = (uint32_t)system.DefaultParameterWords.size();
         const auto triggerTargetCount = (uint32_t)system.TriggerTargets.size();
         const auto emitterStateCount = emitterCount;
         const auto spawnRequestCount = emitterCount;
@@ -54,7 +58,25 @@ namespace Elixir::Aether::Core
         const auto instanceSlot = AllocateRange(m_FreeInstanceSlots, 1);
         allocation.Particles = AllocateRange(*particleFreeRanges, particleCount);
         allocation.Emitters = AllocateRange(m_FreeEmitters, emitterCount);
-        allocation.Ops = AllocateRange(m_FreeOps, opCount);
+        const auto sharedProgram = std::ranges::find_if(m_Programs, [&system](const auto& program)
+        {
+            return program.SourceId == system.SourceId && program.CompilationRevision == system.CompilationRevision;
+        });
+        if (sharedProgram != m_Programs.end())
+        {
+            ++sharedProgram->ReferenceCount;
+            allocation.ProgramAllocationId = sharedProgram->Id;
+            allocation.Operations = sharedProgram->Operations;
+            allocation.Operands = sharedProgram->Operands;
+            allocation.Constants = sharedProgram->Constants;
+        }
+        else
+        {
+            allocation.Operations = AllocateRange(m_FreeOperations, operationCount);
+            allocation.Operands = AllocateRange(m_FreeOperands, operandCount);
+            allocation.Constants = AllocateRange(m_FreeConstants, constantCount);
+            allocation.UploadProgram = true;
+        }
         allocation.Parameters = AllocateRange(m_FreeParameters, parameterCount);
         allocation.TriggerTargets = AllocateRange(m_FreeTriggerTargets, triggerTargetCount);
         allocation.EmitterStates = AllocateRange(m_FreeEmitterStates, emitterStateCount);
@@ -67,7 +89,9 @@ namespace Elixir::Aether::Core
             instanceSlot.Count == 0 ||
             allocation.Particles.Count != particleCount ||
             allocation.Emitters.Count != emitterCount ||
-            allocation.Ops.Count != opCount ||
+            allocation.Operations.Count != operationCount ||
+            allocation.Operands.Count != operandCount ||
+            allocation.Constants.Count != constantCount ||
             allocation.Parameters.Count != parameterCount ||
             allocation.TriggerTargets.Count != triggerTargetCount ||
             allocation.EmitterStates.Count != emitterStateCount ||
@@ -82,6 +106,14 @@ namespace Elixir::Aether::Core
             return std::nullopt;
         }
 
+        if (allocation.UploadProgram)
+        {
+            allocation.ProgramAllocationId = m_NextProgramAllocationId++;
+            m_Programs.push_back({
+                allocation.ProgramAllocationId, system.SourceId, system.CompilationRevision, 1,
+                allocation.Operations, allocation.Operands, allocation.Constants
+            });
+        }
         allocation.InstanceIndex = instanceSlot.Offset;
 
         auto& generation = m_InstanceGenerations[allocation.InstanceIndex];
@@ -106,7 +138,7 @@ namespace Elixir::Aether::Core
 
         ReleaseRange(*particleFreeRanges, allocation.Particles);
         ReleaseRange(m_FreeEmitters, allocation.Emitters);
-        ReleaseRange(m_FreeOps, allocation.Ops);
+        ReleaseProgram(allocation);
         ReleaseRange(m_FreeParameters, allocation.Parameters);
         ReleaseRange(m_FreeTriggerTargets, allocation.TriggerTargets);
         ReleaseRange(m_FreeEmitterStates, allocation.EmitterStates);
@@ -116,6 +148,21 @@ namespace Elixir::Aether::Core
 
         if (allocation.InstanceIndex != UINT32_MAX)
             ReleaseRange(m_FreeInstanceSlots, { allocation.InstanceIndex, 1 });
+    }
+
+    void ResourcePool::ReleaseProgram(const SSystemInstanceAllocation& allocation)
+    {
+        if (allocation.ProgramAllocationId != 0)
+        {
+            const auto found = std::ranges::find(m_Programs, allocation.ProgramAllocationId, &SProgramAllocation::Id);
+            EE_CORE_ASSERT(found != m_Programs.end(), "Aether attempted to release an unknown program.")
+            if (found == m_Programs.end()) return;
+            if (--found->ReferenceCount != 0) return;
+            m_Programs.erase(found);
+        }
+        ReleaseRange(m_FreeOperations, allocation.Operations);
+        ReleaseRange(m_FreeOperands, allocation.Operands);
+        ReleaseRange(m_FreeConstants, allocation.Constants);
     }
 
     SBufferRange ResourcePool::AllocateRange(

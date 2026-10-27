@@ -8,7 +8,7 @@
 #include <magic_enum/magic_enum.hpp>
 #include <simdjson.h>
 
-#include <Engine/Aether/Modules/DynamicInput.h>
+#include <Engine/Aether/Core/DynamicInput.h>
 #include <Engine/Aether/Modules/Module.h>
 
 namespace Elixir::Aether::Effect
@@ -68,13 +68,14 @@ namespace Elixir::Aether::Effect
                 return 0.0f;
             }
 
-            const auto converted = ToFiniteFloat(value);
-            if (!converted)
+            const auto finite = ToFiniteFloat(value);
+            if (!finite)
             {
                 Fail("Field '{}' must be a finite float.", key);
                 return 0.0f;
             }
-            return *converted;
+
+            return *finite;
         }
 
         /** @brief Reads a required integer within the uint32 range. */
@@ -176,13 +177,14 @@ namespace Elixir::Aether::Effect
                     return result;
                 }
 
-                const auto converted = ToFiniteFloat(value);
-                if (!converted)
+                const auto finite = ToFiniteFloat(value);
+                if (!finite)
                 {
                     Fail("Field '{}' must be a finite float.", key);
                     return result;
                 }
-                result.Value = *converted;
+
+                result.Value = *finite;
                 return result;
             }
 
@@ -291,9 +293,9 @@ namespace Elixir::Aether::Effect
         /* Enums */
 
         /** @brief Reads a dynamic input name, using None when absent. */
-        Modules::EDynamicInput ParseDynamicInput(simdjson::ondemand::object& object, std::string_view key)
+        Core::EDynamicInput ParseDynamicInput(simdjson::ondemand::object& object, std::string_view key)
         {
-            constexpr auto result = Modules::EDynamicInput::None;
+            constexpr auto result = Core::EDynamicInput::None;
 
             if (Failed() || !HasField(object, key))
                 return result;
@@ -301,7 +303,7 @@ namespace Elixir::Aether::Effect
             const std::string value = RequireString(object, key);
             if (Failed()) return result;
 
-            if (const auto input = magic_enum::enum_cast<Modules::EDynamicInput>(value))
+            if (const auto input = magic_enum::enum_cast<Core::EDynamicInput>(value))
                 return *input;
 
             Fail("Unknown dynamic input '{}'.", value);
@@ -333,13 +335,14 @@ namespace Elixir::Aether::Effect
                     return result;
                 }
 
-                const auto converted = ToFiniteFloat(value);
-                if (!converted)
+                const auto finite = ToFiniteFloat(value);
+                if (!finite)
                 {
                     Fail("Field array element must be a finite float.");
                     return result;
                 }
-                result[i++] = *converted;
+
+                result[i++] = *finite;
             }
 
             return result;
@@ -350,11 +353,10 @@ namespace Elixir::Aether::Effect
         static std::optional<float> ToFiniteFloat(const double value)
         {
             if (!std::isfinite(value) ||
-                std::abs(value) > static_cast<double>(std::numeric_limits<float>::max()))
-            {
+                std::abs(value) > (double)std::numeric_limits<float>::max())
                 return std::nullopt;
-            }
-            return static_cast<float>(value);
+
+            return float(value);
         }
 
         // Removes the dollar prefix from a parameter reference.

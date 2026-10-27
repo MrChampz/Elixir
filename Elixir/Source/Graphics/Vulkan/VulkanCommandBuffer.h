@@ -121,8 +121,6 @@ namespace Elixir::Vulkan
         VkCommandPool m_CommandPool;
         VkCommandBuffer m_CommandBuffer;
 
-        VkCommandBufferInheritanceInfo* m_InheritanceInfo;
-
         const VulkanGraphicsContext* m_GraphicsContext;
     };
 }

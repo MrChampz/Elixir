@@ -1,31 +1,31 @@
 #include "ParticlesSchedulerCommon.hlsl"
 
 [[vk::binding(1, 0)]]
-StructuredBuffer<Emitter> emitters;
+StructuredBuffer<SGPUEmitter> emitters;
 
 [[vk::binding(4, 0)]]
-StructuredBuffer<SystemInstance> instances;
+StructuredBuffer<SGPUSystemInstance> instances;
 
 [[vk::binding(5, 0)]]
-RWStructuredBuffer<EmitterInstanceState> emitterStates;
+RWStructuredBuffer<SGPUEmitterInstanceState> emitterStates;
 
 [[vk::binding(6, 0)]]
-RWStructuredBuffer<SpawnRequest> spawnRequests;
+RWStructuredBuffer<SGPUSpawnRequest> spawnRequests;
 
 [[vk::binding(7, 0)]]
-StructuredBuffer<TriggerTarget> triggerTargets;
+StructuredBuffer<SGPUTriggerTarget> triggerTargets;
 
 [[vk::binding(8, 0)]]
-RWStructuredBuffer<TriggerEvent> triggerEventsA;
+RWStructuredBuffer<SGPUTriggerEvent> triggerEventsA;
 
 [[vk::binding(9, 0)]]
-RWStructuredBuffer<TriggerEvent> triggerEventsB;
+RWStructuredBuffer<SGPUTriggerEvent> triggerEventsB;
 
 [[vk::binding(10, 0)]]
-RWStructuredBuffer<TriggerQueueState> triggerQueueStates;
+RWStructuredBuffer<SGPUTriggerQueueState> triggerQueueStates;
 
 [[vk::binding(11, 0)]]
-StructuredBuffer<SystemSchedulerState> schedulerStates;
+StructuredBuffer<SGPUSystemSchedulerState> schedulerStates;
 
 cbuffer cbParams : register(b0)
 {
@@ -42,7 +42,7 @@ struct PushConstants
 PushConstants pc;
 
 void AppendTriggerEvent(
-    SystemInstance instance,
+    SGPUSystemInstance instance,
     uint writeBufferIndex,
     uint targetEmitterIndex,
     float delaySeconds,
@@ -65,7 +65,7 @@ void AppendTriggerEvent(
         return;
     }
 
-    TriggerEvent event;
+    SGPUTriggerEvent event;
     event.RemainingDelaySeconds = delaySeconds;
     event.SpawnCount = spawnCount;
     event.Generation = instance.Generation;
@@ -80,24 +80,24 @@ void AppendTriggerEvent(
 [numthreads(256, 1, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
-    SystemInstance instance = instances[pc.InstanceIndex];
+    SGPUSystemInstance instance = instances[pc.InstanceIndex];
 
     uint localEmitterIndex = dispatchThreadId.x;
     if (localEmitterIndex >= instance.EmitterCount)
         return;
 
     uint emitterIndex = instance.EmitterBaseOffset + localEmitterIndex;
-    Emitter emitter = emitters[emitterIndex];
-    EmitterInstanceState state = emitterStates[EmitterStateIndex(instance, localEmitterIndex)];
+    SGPUEmitter emitter = emitters[emitterIndex];
+    SGPUEmitterInstanceState state = emitterStates[EmitterStateIndex(instance, localEmitterIndex)];
 
     if (state.Generation != instance.Generation)
         return;
 
-    SystemSchedulerState scheduler = schedulerStates[pc.InstanceIndex];
+    SGPUSystemSchedulerState scheduler = schedulerStates[pc.InstanceIndex];
     uint readBufferIndex = scheduler.ActiveTriggerBufferIndex;
     uint writeBufferIndex = 1 - readBufferIndex;
 
-    uint maxParticles = (uint)emitter.MetaA.y;
+    uint maxParticles = emitter.MaxParticles;
     uint triggeredSpawnCount = 0;
 
     uint readQueueIndex = TriggerQueueStateIndex(instance, readBufferIndex, localEmitterIndex);
@@ -110,7 +110,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     {
         uint eventIndex = TriggerEventIndex(instance, localEmitterIndex, eventSlot);
 
-        TriggerEvent event;
+        SGPUTriggerEvent event;
         if (readBufferIndex == 0)
             event = triggerEventsA[eventIndex];
         else
@@ -139,13 +139,13 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         }
     }
 
-    state.SpawnAccumulator += max(emitter.MetaC.y, 0.0f) * Time.x;
+    state.SpawnAccumulator += max(emitter.SpawnRatePerSecond, 0.0f) * Time.x;
     uint spawnCount = min((uint)state.SpawnAccumulator, maxParticles);
     state.SpawnAccumulator -= (float)spawnCount;
 
-    bool isTriggerDriven = emitter.MetaD.y > 0.5f;
-    uint burstCount = (uint)emitter.MetaD.x;
-    float burstInterval = emitter.MetaC.w;
+    bool isTriggerDriven = emitter.IsTriggerDriven != 0u;
+    uint burstCount = emitter.BurstCount;
+    float burstInterval = emitter.BurstIntervalSeconds;
 
     if (!isTriggerDriven && burstCount > 0 && burstInterval > 0.0f)
     {
@@ -160,12 +160,12 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             state.BurstAccumulator -= burstInterval;
             spawnCount = min(maxParticles, spawnCount + burstCount);
 
-            uint targetOffset = (uint)emitter.MetaB.z;
-            uint targetCount = (uint)emitter.MetaB.w;
+            uint targetOffset = emitter.TriggerTargetOffset;
+            uint targetCount = emitter.TriggerTargetCount;
 
             for (uint targetIndex = 0; targetIndex < targetCount; ++targetIndex)
             {
-                TriggerTarget target = triggerTargets[targetOffset + targetIndex];
+                SGPUTriggerTarget target = triggerTargets[targetOffset + targetIndex];
                 AppendTriggerEvent(
                     instance,
                     writeBufferIndex,
@@ -181,7 +181,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
     spawnCount = min(maxParticles, spawnCount + triggeredSpawnCount);
 
-    SpawnRequest request;
+    SGPUSpawnRequest request;
     request.SpawnCursor = state.BufferCursor;
     request.SpawnCount = spawnCount;
     request.EmissionIndex = state.EmissionIndex;

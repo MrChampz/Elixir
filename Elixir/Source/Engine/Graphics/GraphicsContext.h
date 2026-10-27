@@ -141,6 +141,12 @@ namespace Elixir
 
         virtual Extent3D GetSwapchainExtent() const = 0;
 
+        /** @brief Get the largest byte range that can be bound as one storage buffer. */
+        virtual uint64_t GetMaxStorageBufferRange() const = 0;
+
+        /** @brief Get the maximum compute workgroup counts per dispatch along X, Y, and Z. */
+        virtual glm::uvec3 GetMaxComputeWorkGroupCount() const = 0;
+
         static Scope<GraphicsContext> Create(EGraphicsAPI api, Executor* executor, const Window* window);
 
       protected:

@@ -7,21 +7,21 @@ float3 SafeNormalize(float3 value, float3 fallback)
     return value * rsqrt(lengthSquared);
 }
 
-bool IsAlive(ParticleState particle)
+bool IsAlive(SGPUParticle particle)
 {
-    return particle.Metadata.w >= 0.5 &&
+    return particle.Alive >= 0.5 &&
         particle.Color.a > 0.0001 &&
-        particle.PositionSize.w > 0.0001;
+        particle.Size > 0.0001;
 }
 
-bool SameRibbon(float a, float b)
+bool SameRibbon(uint a, uint b)
 {
-    return abs(a - b) < 0.5;
+    return a == b;
 }
 
-uint LinkOrder(ParticleState particle)
+uint LinkOrder(SGPUParticle particle)
 {
-    return asuint(particle.Metadata.y);
+    return particle.LinkOrder;
 }
 
 // Maximum number of interleaved ribbons per emitter. Particles belonging to the
@@ -35,14 +35,14 @@ uint LinkOrder(ParticleState particle)
 bool TryBuildSegment(
     uint localIndex,
     uint particleBaseOffset,
-    Emitter emitter,
-    out ParticleState startParticle,
-    out ParticleState endParticle,
+    SGPUEmitter emitter,
+    out SGPUParticle startParticle,
+    out SGPUParticle endParticle,
     out uint endLocalIndex
 )
 {
-    uint particleOffset = particleBaseOffset + (uint)emitter.MetaA.x;
-    uint particleCount  = (uint)emitter.MetaA.y;
+    uint particleOffset = particleBaseOffset + emitter.LocalParticleOffset;
+    uint particleCount  = emitter.MaxParticles;
 
     startParticle = particles[particleOffset + localIndex];
     endParticle   = startParticle;
@@ -51,7 +51,7 @@ bool TryBuildSegment(
     if (!IsAlive(startParticle))
         return false;
 
-    float ribbonId      = startParticle.TangentRibbonId.w;
+    uint ribbonId       = startParticle.RibbonId;
     uint startLinkOrder = LinkOrder(startParticle);
     uint bestLinkDelta  = 0xFFFFFFFFu; // UINT_MAX
     bool  found         = false;
@@ -64,14 +64,14 @@ bool TryBuildSegment(
     for (uint step = 1u; step <= windowSize; ++step)
     {
         uint candidateLocalIndex = (localIndex + step) % particleCount;
-        ParticleState candidate  = particles[particleOffset + candidateLocalIndex];
+        SGPUParticle candidate  = particles[particleOffset + candidateLocalIndex];
         uint candidateLinkOrder  = LinkOrder(candidate);
 
         // Compare before subtracting: if candidateLinkOrder <= startLinkOrder the
         // subtraction would wrap around to a near-UINT_MAX value and falsely pass
         // the range check, connecting the ribbon start to stale/old-cycle particles.
         if (!IsAlive(candidate) ||
-            !SameRibbon(candidate.TangentRibbonId.w, ribbonId) ||
+            !SameRibbon(candidate.RibbonId, ribbonId) ||
             candidateLinkOrder <= startLinkOrder)
             continue;
 
@@ -91,12 +91,12 @@ bool TryBuildSegment(
 float3 BuildSegmentSide(
     float3 p0,
     float3 p1,
-    ParticleState startParticle,
-    ParticleState endParticle
+    SGPUParticle startParticle,
+    SGPUParticle endParticle
 )
 {
     float3 tangentFallback = SafeNormalize(
-        startParticle.TangentRibbonId.xyz + endParticle.TangentRibbonId.xyz,
+        startParticle.Tangent + endParticle.Tangent,
         float3(1.0, 0.0, 0.0)
     );
 
@@ -120,9 +120,9 @@ float3 BuildDirectionSide(float3 viewDirection, float3 direction, float3 referen
     return side;
 }
 
-float3 BuildParticleSide(ParticleState particle, float3 referenceSide)
+float3 BuildParticleSide(SGPUParticle particle, float3 referenceSide)
 {
-    float3 tangentFallback = SafeNormalize(particle.TangentRibbonId.xyz, float3(1.0, 0.0, 0.0));
-    float3 viewDirection = SafeNormalize(CameraPos - particle.PositionSize.xyz, float3(0.0, 0.0, 1.0));
+    float3 tangentFallback = SafeNormalize(particle.Tangent, float3(1.0, 0.0, 0.0));
+    float3 viewDirection = SafeNormalize(CameraPos - particle.Position, float3(0.0, 0.0, 1.0));
     return BuildDirectionSide(viewDirection, tangentFallback, referenceSide);
 }

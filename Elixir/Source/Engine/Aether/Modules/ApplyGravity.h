@@ -18,14 +18,14 @@ namespace Elixir::Aether::Modules
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit({
-                Core::EParticleOp::AddWithDelta,
-                Core::EParticleAttribute::Velocity,
-                context.FindParameter(m_ParamName),
-                UINT32_MAX,
-                { m_Gravity * context.GetGravityScale(), 0.0f },
-                {}
-            });
+            context.Emit(
+                EOperationType::AddWithDelta,
+                EParticleAttribute::Velocity,
+                {
+                    context.Vector(m_Gravity * context.GetGravityScale(), m_ParamName),
+                    context.Dynamic(EDynamicInput::None)
+                }
+            );
         }
 
         /** @brief Binds a named parameter to the configured value and returns this module. */

@@ -1,11 +1,15 @@
 #include <gtest/gtest.h>
+#include <bit>
 
 #include <array>
 #include <format>
 #include <limits>
 
+#include <Engine/Aether/Core/Operand.h>
 #include <Engine/Aether/Effect/Effect.h>
 #include <Engine/Aether/Effect/ModuleRegistry.h>
+#include <Engine/Aether/Core/Operations/RandomRange.h>
+#include <Engine/Aether/Core/Operations/SampleCurve.h>
 #include <Engine/Aether/Modules/ApplyAngularVelocity.h>
 #include <Engine/Aether/Modules/ApplyGravity.h>
 #include <Engine/Aether/Modules/ApplyLinearDrag.h>
@@ -28,7 +32,6 @@
 #include <Engine/Aether/Modules/SetVelocityCone.h>
 #include <Engine/Aether/Modules/SizeOverLife.h>
 
-
 using namespace Elixir;
 using namespace Elixir::Aether;
 using namespace Elixir::Aether::Modules;
@@ -45,7 +48,7 @@ namespace
         /** @brief Emits the test value as a literal operation. */
         void Compile(ModuleCompileContext& context) const override
         {
-            context.Emit({ .Data0 = glm::vec4(m_Value) });
+            context.Emit(EOperationType::SetLiteral, EParticleAttribute::Color, { context.Value(glm::vec4(m_Value)) });
         }
 
         /** @brief Reads the test value from its JSON object. */
@@ -257,8 +260,8 @@ TEST(ModuleRegistryTest, CreatesScaleOverLifeFromJson)
 TEST(ModuleRegistryTest, CompilesDefaultAndExplicitCurveInputsFromJson)
 {
     const std::array modules{
-        std::pair{ "ColorOverLife", Elixir::Aether::Core::EParticleOp::SampleColorCurve },
-        std::pair{ "ScaleOverLife", Elixir::Aether::Core::EParticleOp::SampleCurve },
+        std::pair{ "ColorOverLife", Elixir::Aether::Core::EOperationType::SampleColorCurve },
+        std::pair{ "ScaleOverLife", Elixir::Aether::Core::EOperationType::SampleCurve },
     };
     const std::array inputs{
         std::pair{ "", EDynamicInput::NormalizedAge },
@@ -276,13 +279,21 @@ TEST(ModuleRegistryTest, CompilesDefaultAndExplicitCurveInputsFromJson)
             ASSERT_FALSE(context.Failed()) << context.GetError();
             ASSERT_TRUE(module);
 
-            std::vector<SGPUParticleOp> operations;
-            const std::vector<Elixir::Aether::Core::SGPUParameter> parameters;
-            ModuleCompileContext compileContext(operations, parameters, "Test", 1.0f);
+            SCompiledModuleData program;
+            auto& operations = program.Operations;
+            const std::vector<Elixir::Aether::Core::SCompiledParameter> parameters;
+            ModuleCompileContext compileContext(program, parameters, "Test", 1.0f);
             module->Compile(compileContext);
             ASSERT_FALSE(operations.empty());
             EXPECT_EQ(operations[0].Type, operation);
-            EXPECT_FLOAT_EQ(operations[0].Data0.x, static_cast<float>(input));
+            const auto operand = program.Operands[operations[0].OperandOffset + Operations::SampleCurve::Inputs::Input];
+            if (input == EDynamicInput::None)
+            {
+                EXPECT_EQ(Core::GetOperandSource(operand), Core::EOperandSource::Constant);
+                EXPECT_EQ(Core::GetOperandFormat(operand), Core::EOperandFormat::Float);
+                EXPECT_EQ(program.Constants.at(operand & Core::OperandIndexMask), std::bit_cast<uint32_t>(1.0f));
+            }
+            else EXPECT_EQ(operand, (uint32_t(Core::EOperandSource::DynamicInput) << Core::OperandSourceShift) | uint32_t(input));
         }
     }
 }
@@ -431,6 +442,29 @@ TEST(ModuleRegistryTest, EffectLoaderRejectsUnknownTypesAndWrongPhases)
     std::filesystem::remove(filepath);
 }
 
+TEST(ModuleRegistryTest, EffectLoaderPreservesNativeVectorParameterWidths)
+{
+    const auto filepath = std::filesystem::temp_directory_path() / ("Elixir-native-parameters-" + UUID().ToString() + ".json");
+    {
+        std::ofstream file(filepath);
+        file << R"({"name":"Native parameters","parameters":{"Pair":[1,2],"Direction":[3,4,5],"Tint":[6,7,8,9]},"emitters":[]})";
+    }
+    const auto system = Effect::LoadEffectFile(filepath);
+    std::filesystem::remove(filepath);
+    ASSERT_TRUE(system);
+    const auto& store = system->GetParameters();
+    EXPECT_EQ(store.GetFloat2("Pair"), glm::vec2(1, 2));
+    EXPECT_EQ(store.GetFloat3("Direction"), glm::vec3(3, 4, 5));
+    EXPECT_EQ(store.GetFloat4("Tint"), glm::vec4(6, 7, 8, 9));
+    const glm::vec4 fallback{10, 11, 12, 13};
+    EXPECT_EQ(store.GetFloat4("Pair", fallback), fallback);
+    EXPECT_EQ(store.GetFloat4("Direction", fallback), fallback);
+    EXPECT_EQ(store.GetFloat4("Missing", fallback), fallback);
+    const auto parameters = store.Compile();
+    const auto compiled = Core::CompileParameters(parameters);
+    EXPECT_EQ(Core::PackParameterValues(compiled).size() * sizeof(uint32_t), 36u);
+}
+
 TEST(ModuleRegistryTest, CreatesAndCompilesModulesRegisteredOutsideTheEngine)
 {
     Effect::ModuleParseContext context;
@@ -438,10 +472,11 @@ TEST(ModuleRegistryTest, CreatesAndCompilesModulesRegisteredOutsideTheEngine)
     ASSERT_FALSE(context.Failed()) << context.GetError();
     ASSERT_TRUE(module);
     EXPECT_EQ(module->GetPhase(), EModulePhase::Spawn);
-    std::vector<SGPUParticleOp> operations;
-    const std::vector<Elixir::Aether::Core::SGPUParameter> parameters;
-    ModuleCompileContext compileContext(operations, parameters, "Test", 1.0f);
+    SCompiledModuleData program;
+    auto& operations = program.Operations;
+    const std::vector<Elixir::Aether::Core::SCompiledParameter> parameters;
+    ModuleCompileContext compileContext(program, parameters, "Test", 1.0f);
     module->Compile(compileContext);
     ASSERT_EQ(operations.size(), 1u);
-    EXPECT_EQ(operations[0].Data0, glm::vec4(7.0f));
+    EXPECT_FLOAT_EQ(std::bit_cast<float>(program.Constants[program.Operands[0] & Core::OperandIndexMask]), 7.0f);
 }
