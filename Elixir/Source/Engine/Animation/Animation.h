@@ -199,14 +199,14 @@ namespace Elixir
          */
         bool SetLocalPose(const SLocalPose& pose);
 
-        /** @brief Inspect scalar channels sampled with the published local pose. */
-        const AnimationCurveValues& GetCurveValues() const { return GetLocalPose().Curves; }
-
         /** @brief Get one parent-relative transform per skeleton bone. */
         const SLocalPose& GetLocalPose() const { return m_Frame.LocalPose; }
 
         /** @brief Get one skeleton-space matrix per skeleton bone. */
         const SModelPose& GetModelPose() const { return m_Frame.ModelPose; }
+
+        /** @brief Inspect scalar channels sampled with the published local pose. */
+        const AnimationCurveValues& GetCurveValues() const { return m_Frame.Curves; }
 
         /** @brief Get target time in seconds using the current blend-space cycle duration. */
         float GetTime() const
@@ -335,12 +335,14 @@ namespace Elixir
          * @param evaluations Evaluated layers, or empty to use their current local poses.
          * @param local Receives the complete blended local pose.
          * @param model Receives the complete skeleton-space pose.
+         * @param curves Receives channels composed from the same candidate layer frames.
          * @param replacement Optional layer preview used before committing a playback change.
          */
         bool ComposePose(
             std::span<const SAnimationPlayerEvaluation> evaluations,
             SLocalPose& local,
             SModelPose& model,
+            AnimationCurveValues& curves,
             const AnimationLayer* replacement = nullptr
         ) const;
 
@@ -366,8 +368,13 @@ namespace Elixir
          * @brief Validate pose corrections and preserve the extracted movement frame.
          * @param local Candidate transforms modified by each modifier in order.
          * @param model Receives model matrices rebuilt after each successful correction.
+         * @param curves Candidate scalar channels borrowed read-only by each modifier.
          */
-        bool ApplyPoseModifiers(SLocalPose& local, SModelPose& model) const;
+        bool ApplyPoseModifiers(
+            SLocalPose& local,
+            SModelPose& model,
+            const AnimationCurveValues& curves
+        ) const;
 
         std::vector<Ref<const PoseModifier>> m_PoseModifiers;
         Ref<AnimationParameters> m_Parameters = CreateRef<AnimationParameters>();

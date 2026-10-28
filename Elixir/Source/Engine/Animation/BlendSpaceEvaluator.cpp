@@ -26,7 +26,13 @@ namespace Elixir
     {
         output.Phase = context.Phase;
         output.Sources = GetState().Sources;
-        return Sample(context.Phase, context.ReferencePose, output.Pose);
+
+        return Sample(
+            context.Phase,
+            context.ReferencePose,
+            output.Pose,
+            output.Curves
+        );
     }
 
     SAnimationNodeState BlendSpaceEvaluator::GetState() const
@@ -45,10 +51,12 @@ namespace Elixir
     bool BlendSpaceEvaluator::Sample(
         const double phase,
         const SLocalPose& referencePose,
-        SLocalPose& output
+        SLocalPose& output,
+        AnimationCurveValues& curves
     ) const
     {
         SLocalPose pose, next;
+        AnimationCurveValues result, nextCurves;
         const auto* synchronization = m_Source->GetSynchronizationSequence().get();
 
         float total = 0;
@@ -60,12 +68,14 @@ namespace Elixir
                 ? sample.Sequence->GetSynchronizedTime(float(phase), *synchronization)
                 : float(phase * sample.Sequence->GetDuration());
 
-            if (!sample.Sequence->Sample(time, next, referencePose))
+            if (!sample.Sequence->Sample(time, next, referencePose) ||
+                !sample.Sequence->SampleCurves(time, nextCurves))
                 return false;
 
             if (total == 0)
             {
                 pose = next;
+                result = nextCurves;
             }
             else
             {
@@ -73,7 +83,8 @@ namespace Elixir
                     return false;
 
                 const auto weight = sample.Weight / (total + sample.Weight);
-                if (!pose.Curves.Blend(next.Curves, weight)) return false;
+                if (!result.Blend(nextCurves, weight))
+                    return false;
 
                 for (size_t bone = 0; bone < pose.LocalTransforms.size(); ++bone)
                 {
@@ -91,6 +102,8 @@ namespace Elixir
         if (total <= 0) return false;
 
         output = std::move(pose);
+        curves = std::move(result);
+
         return true;
     }
 

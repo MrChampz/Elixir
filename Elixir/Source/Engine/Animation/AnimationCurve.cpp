@@ -18,6 +18,7 @@ namespace Elixir
             EE_CORE_ERROR("Animation curves require a name and a finite scalar value.")
             return false;
         }
+
         m_Values.insert_or_assign(std::move(name), value);
         return true;
     }
@@ -29,18 +30,25 @@ namespace Elixir
             EE_CORE_ERROR("Animation curve blend weight must be in [0, 1].")
             return false;
         }
+
         AnimationCurveValues result;
+
         for (const auto& [name, value] : m_Values)
         {
-            const auto blended = double(value) * (1.0 - weight) +
-                double(target.GetValue(name)) * weight;
-            if (!result.SetValue(name, float(blended))) return false;
-        }
-        for (const auto& [name, value] : target.m_Values)
-        {
-            if (!m_Values.contains(name) && !result.SetValue(name, float(double(value) * weight)))
+            const auto blended =
+                double(value) * (1.0 - weight) + double(target.GetValue(name)) * weight;
+
+            if (!result.SetValue(name, float(blended)))
                 return false;
         }
+
+        for (const auto& [name, value] : target.m_Values)
+        {
+            if (!m_Values.contains(name) &&
+                !result.SetValue(name, float(double(value) * weight)))
+                return false;
+        }
+
         *this = std::move(result);
         return true;
     }
@@ -56,19 +64,27 @@ namespace Elixir
             EE_CORE_ERROR("Animation curve layer weight must be in [0, 1].")
             return false;
         }
+
         auto result = *this;
+
         for (const auto& [name, value] : layer.m_Values)
         {
             const auto source = double(GetValue(name));
-            const auto blended = additive ? source + double(value) * weight
+            const auto blended = additive
+                ? source + double(value) * weight
                 : source * (1.0 - weight) + double(value) * weight;
-            if (!std::isfinite(blended) || std::abs(blended) > std::numeric_limits<float>::max())
+
+            if (!std::isfinite(blended) ||
+                std::abs(blended) > std::numeric_limits<float>::max())
             {
                 EE_CORE_ERROR("Animation curve layer composition exceeds the scalar range.")
                 return false;
             }
-            if (!result.SetValue(name, float(blended))) return false;
+
+            if (!result.SetValue(name, float(blended)))
+                return false;
         }
+
         *this = std::move(result);
         return true;
     }

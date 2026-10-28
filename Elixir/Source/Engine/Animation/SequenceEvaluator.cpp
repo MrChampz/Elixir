@@ -27,11 +27,18 @@ namespace Elixir
     {
         output.Phase = context.Phase;
         output.Sources = GetState().Sources;
-        return m_Source->Sample(
-            float(context.Phase * m_Source->GetDuration()),
+
+        const auto time = float(context.Phase * m_Source->GetDuration());
+
+        const auto sampled = m_Source->Sample(
+            time,
             output.Pose,
             context.ReferencePose
         );
+
+        const auto curvesSampled = m_Source->SampleCurves(time, output.Curves);
+
+        return sampled && curvesSampled;
     }
 
     SAnimationNodeState SequenceEvaluator::GetState() const

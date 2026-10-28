@@ -74,16 +74,7 @@ namespace Elixir
             }
         }
 
-        const auto hasInfluence = std::ranges::any_of(
-            weights,
-            [](const float weight) { return weight > 0; }
-        );
-        if (layerWeight == 0 || !hasInfluence) return true;
-        return Curves.ApplyLayer(
-            pose.Curves,
-            layerWeight,
-            mode == EAnimationLayerBlendMode::Additive
-        );
+        return true;
     }
 
     /* SModelPose */

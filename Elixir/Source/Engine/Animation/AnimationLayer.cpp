@@ -75,4 +75,18 @@ namespace Elixir
         );
     }
 
+    bool AnimationLayer::BlendCurves(
+        AnimationCurveValues& output,
+        const AnimationCurveValues& curves
+    ) const
+    {
+        if (!m_Player.HasPose() || m_Weight == 0 || !m_Mask->HasInfluence())
+            return true;
+
+        return output.ApplyLayer(
+            curves,
+            m_Weight,
+            m_BlendMode == EAnimationLayerBlendMode::Additive
+        );
+    }
 }

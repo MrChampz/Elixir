@@ -68,8 +68,14 @@ namespace Elixir
          * @param phase Requested normalized position.
          * @param referencePose Defaults for unanimated channels.
          * @param output Receives the local pose.
+         * @param curves Receives scalar channels from the same sampled children.
          */
-        bool Sample(double phase, const SLocalPose& referencePose, SLocalPose& output) const;
+        bool Sample(
+            double phase,
+            const SLocalPose& referencePose,
+            SLocalPose& output,
+            AnimationCurveValues& curves
+        ) const;
 
         /**
          * @brief Construct child controls once sampling defaults are available.
@@ -80,15 +86,21 @@ namespace Elixir
         /**
          * @brief Compose the current or candidate poses of all connected controls.
          * @param output Receives the composed pose.
+         * @param curves Receives scalar channels composed using the layer policies.
          * @param prepared Use candidate evaluation poses instead of published poses.
          */
-        bool Compose(SLocalPose& output, bool prepared) const;
+        bool Compose(
+            SLocalPose& output,
+            AnimationCurveValues& curves,
+            bool prepared
+        ) const;
 
         Ref<AnimationParameters> m_Parameters;
         const BlendNode* m_Source;
         mutable std::vector<Scope<AnimationLayer>> m_Layers;
         std::vector<SAnimationPlayerEvaluation> m_Evaluations;
         SLocalPose m_Pose;
+        AnimationCurveValues m_Curves;
         bool m_Prepared = false;
         /** Default publication policy for the current candidate, not future evaluations. */
         bool m_PreparedNotifiesEnabled = true;

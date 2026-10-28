@@ -29,9 +29,12 @@ namespace Elixir
         Ref<const AnimationMontage> montage,
         const std::string_view section,
         const SLocalPose& visible,
+        const AnimationCurveValues& visibleCurves,
         const SLocalPose& continuing,
+        const AnimationCurveValues& continuingCurves,
         const SLocalPose& referencePose,
-        SLocalPose& output
+        SLocalPose& output,
+        AnimationCurveValues& outputCurves
     )
     {
         if (!montage || (IsActive() && !m_State.Montage->IsInterruptible()))
@@ -55,15 +58,20 @@ namespace Elixir
             state.NextSections.push_back(state.Montage->GetNextSection(i));
 
         if (IsActive() && state.Montage->GetBlendIn() > 0)
+        {
             state.SourcePose = visible;
+            state.SourceCurves = visibleCurves;
+        }
 
         auto pose = continuing;
+        auto curves = continuingCurves;
 
-        if (!candidate.Sample(state.Cursor, pose, referencePose))
+        if (!candidate.Sample(state.Cursor, pose, curves, referencePose))
             return false;
 
         *this = std::move(candidate);
         output = std::move(pose);
+        outputCurves = std::move(curves);
 
         return true;
     }
@@ -102,10 +110,14 @@ namespace Elixir
         return true;
     }
 
-    bool AnimationMontagePlayback::Jump(const std::string_view name,
+    bool AnimationMontagePlayback::Jump(
+        const std::string_view name,
         const SLocalPose& continuing,
+        const AnimationCurveValues& continuingCurves,
         const SLocalPose& referencePose,
-        SLocalPose& output)
+        SLocalPose& output,
+        AnimationCurveValues& outputCurves
+    )
     {
         if (!IsActive() || IsStopping()) return false;
 
@@ -118,12 +130,16 @@ namespace Elixir
         cursor.IncludeNotifyStart = true;
 
         auto pose = continuing;
-        if (!Sample(cursor, pose, referencePose))
+        auto curves = continuingCurves;
+
+        if (!Sample(cursor, pose, curves, referencePose))
             return false;
 
         m_State.Cursor = cursor;
 
         output = std::move(pose);
+        outputCurves = std::move(curves);
+
         return true;
     }
 
@@ -361,6 +377,7 @@ namespace Elixir
     bool AnimationMontagePlayback::Sample(
         const SAnimationMontageCursor& cursor,
         SLocalPose& pose,
+        AnimationCurveValues& curves,
         const SLocalPose& referencePose
     ) const
     {
@@ -372,7 +389,10 @@ namespace Elixir
             return true;
 
         SLocalPose sampled;
-        if (!montage->GetSequence()->Sample(float(cursor.Time), sampled, referencePose))
+        AnimationCurveValues sampledCurves;
+
+        if (!montage->GetSequence()->Sample(float(cursor.Time), sampled, referencePose) ||
+            !montage->GetSequence()->SampleCurves(float(cursor.Time), sampledCurves))
             return false;
 
         const auto fadeIn = montage->GetBlendIn();
@@ -420,9 +440,10 @@ namespace Elixir
         }
 
         if (!m_State.SourcePose.LocalTransforms.empty() && sourceWeight > 0 &&
-            !pose.Curves.Blend(m_State.SourcePose.Curves, sourceWeight))
+            !curves.Blend(m_State.SourceCurves, sourceWeight))
             return false;
-        return pose.Curves.Blend(sampled.Curves, weight);
+
+        return curves.Blend(sampledCurves, weight);
     }
 
 }

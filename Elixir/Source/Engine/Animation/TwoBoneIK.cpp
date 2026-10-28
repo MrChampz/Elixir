@@ -110,6 +110,7 @@ namespace Elixir
                     !std::isfinite(constraint.PolePosition[i]))
                     return false;
             }
+
             return (!constraint.WeightCurve || !constraint.WeightCurve->empty()) &&
                 std::isfinite(constraint.Weight) &&
                 constraint.Weight >= 0 &&
@@ -650,9 +651,13 @@ namespace Elixir
         {
             if (constraint.WeightCurve)
             {
-                const auto value = pose.Curves.GetValue(*constraint.WeightCurve);
+                const auto value = context.Curves
+                    ? context.Curves->GetValue(*constraint.WeightCurve)
+                    : 0.0f;
+
                 constraint.Weight *= std::clamp(value, 0.0f, 1.0f);
             }
+
             if (constraint.Weight == 0) continue;
 
             const auto target = ResolveTarget(

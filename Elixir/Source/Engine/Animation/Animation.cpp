@@ -43,13 +43,15 @@ namespace Elixir
     {
         SLocalPose local;
         SModelPose model;
+        AnimationCurveValues curves;
 
-        if (!ComposePose({}, local, model))
+        if (!ComposePose({}, local, model, curves))
             return false;
 
         m_Frame.LocalPose = std::move(local);
         m_Frame.ModelPose = std::move(model);
         m_Frame.RootMotion = {};
+        m_Frame.Curves = std::move(curves);
 
         return true;
     }
@@ -88,6 +90,7 @@ namespace Elixir
 
         m_Frame.LocalPose = GetBaseLayer().GetPlayer().GetLocalPose();
         m_Frame.ModelPose.Matrices.clear();
+        m_Frame.Curves = {};
 
         if (m_Skeleton)
             m_Skeleton->BuildModelPose(m_Frame.LocalPose, m_Frame.ModelPose);
@@ -174,8 +177,9 @@ namespace Elixir
 
         SLocalPose local;
         SModelPose model;
+        AnimationCurveValues curves;
 
-        if (!ComposePose(evaluations, local, model))
+        if (!ComposePose(evaluations, local, model, curves))
             return false;
 
         std::ranges::stable_sort(events, {}, &SAnimationNotifyEvent::TimeOffset);
@@ -184,7 +188,8 @@ namespace Elixir
             std::move(local),
             std::move(model),
             std::move(events),
-            movement
+            movement,
+            std::move(curves)
         };
 
         for (size_t i = 0; i < m_Layers.size(); ++i)
@@ -261,8 +266,9 @@ namespace Elixir
 
         SLocalPose local;
         SModelPose model;
+        AnimationCurveValues curves;
 
-        if (!ComposePose({}, local, model))
+        if (!ComposePose({}, local, model, curves))
         {
             m_RootMotionEnabled = previous;
             m_RootMotionBone = previousBone;
@@ -274,7 +280,8 @@ namespace Elixir
         m_Frame.LocalPose = std::move(local);
         m_Frame.ModelPose = std::move(model);
         m_Frame.RootMotion = {};
-        
+        m_Frame.Curves = std::move(curves);
+
         return true;
     }
 
@@ -306,12 +313,14 @@ namespace Elixir
             return false;
 
         SLocalPose local = pose;
-        local.Curves = {};
+
         if (m_RootMotionEnabled && !LockRootMotion(local))
             return false;
 
         SModelPose model;
-        if (!ApplyPoseModifiers(local, model))
+        AnimationCurveValues curves;
+
+        if (!ApplyPoseModifiers(local, model, curves))
             return false;
 
         GetBaseLayer() = candidate;
@@ -323,6 +332,7 @@ namespace Elixir
 
         m_Frame.LocalPose = std::move(local);
         m_Frame.ModelPose = std::move(model);
+        m_Frame.Curves = std::move(curves);
 
         return true;
     }
@@ -517,12 +527,14 @@ namespace Elixir
         const std::span<const SAnimationPlayerEvaluation> evaluations,
         SLocalPose& local,
         SModelPose& model,
+        AnimationCurveValues& curves,
         const AnimationLayer* replacement
     ) const
     {
         if (!m_Skeleton) return false;
 
         local = m_ReferencePose;
+        curves = {};
 
         for (size_t i = 0; i < m_Layers.size(); ++i)
         {
@@ -534,31 +546,38 @@ namespace Elixir
                 ? layer.GetPlayer().GetLocalPose()
                 : evaluations[i].LocalPose;
 
-            if (!layer.BlendPose(local, pose))
+            const auto& layerCurves = evaluations.empty()
+                ? layer.GetPlayer().GetCurveValues()
+                : evaluations[i].Curves;
+
+            if (!layer.BlendPose(local, pose) ||
+                !layer.BlendCurves(curves, layerCurves))
                 return false;
 
             if (i == 0 && m_RootMotionEnabled && !LockRootMotion(local))
                 return false;
         }
 
-        return ApplyPoseModifiers(local, model);
+        return ApplyPoseModifiers(local, model, curves);
     }
 
     bool Animation::ApplyBaseLayer(const AnimationLayer& layer)
     {
         SLocalPose local;
         SModelPose model;
+        AnimationCurveValues curves;
 
-        if (!ComposePose({}, local, model, &layer))
+        if (!ComposePose({}, local, model, curves, &layer))
             return false;
 
         auto& baseLayer = GetBaseLayer();
         baseLayer = layer;
 
+        m_Frame.NotifyEvents.clear();
         m_Frame.LocalPose = std::move(local);
         m_Frame.ModelPose = std::move(model);
-        m_Frame.NotifyEvents.clear();
         m_Frame.RootMotion = {};
+        m_Frame.Curves = std::move(curves);
 
         return true;
     }
@@ -603,29 +622,42 @@ namespace Elixir
         );
     }
 
-    bool Animation::ApplyPoseModifiers(SLocalPose& local, SModelPose& model) const
+    bool Animation::ApplyPoseModifiers(
+        SLocalPose& local,
+        SModelPose& model,
+        const AnimationCurveValues& curves
+    ) const
     {
-        if (!m_Skeleton->BuildModelPose(local, model)) return false;
+        if (!m_Skeleton->BuildModelPose(local, model))
+            return false;
+
         const SPoseModifierContext context{
             .Rig = *m_Skeleton,
             .RootMotionBone = m_RootMotionEnabled
-                ? std::optional<uint32_t>(m_RootMotionBone) : std::nullopt
+                ? std::optional(m_RootMotionBone)
+                : std::nullopt,
+            .Curves = &curves
         };
+
         for (const auto& modifier : m_PoseModifiers)
         {
             const auto lockedRoot = m_RootMotionEnabled
-                ? model.Matrices[m_RootMotionBone] : glm::mat4(1);
+                ? model.Matrices[m_RootMotionBone]
+                : glm::mat4(1);
+
             if (!modifier->Apply(context, local) ||
                 !m_Skeleton->BuildModelPose(local, model))
                 return false;
+
             if (m_RootMotionEnabled)
             {
                 for (int column = 0; column < 4; ++column)
                 {
                     for (int row = 0; row < 4; ++row)
                     {
-                        const auto delta = model.Matrices[m_RootMotionBone][column][row] -
-                            lockedRoot[column][row];
+                        const auto matrix = model.Matrices[m_RootMotionBone][column][row];
+                        const auto delta = matrix - lockedRoot[column][row];
+
                         if (std::abs(delta) > SBoneTransform::BoneTransformTolerance)
                         {
                             EE_CORE_ERROR("A pose modifier changed the extracted root frame.")
@@ -635,6 +667,7 @@ namespace Elixir
                 }
             }
         }
+
         return true;
     }
 }

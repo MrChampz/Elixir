@@ -43,12 +43,6 @@ namespace Elixir
         ) const;
 
         /**
-        * @brief Check whether this asset uses a compatible skeleton.
-        * @param skeleton Skeleton whose bone layout will receive sampled poses.
-        */
-        bool IsCompatibleWith(const Ref<const Skeleton>& skeleton) const;
-
-        /**
          * @brief Sample weighted scalar tracks on the same marker timeline as the pose.
          * @param values One finite coordinate per axis.
          * @param phase Finite cycle phase, clamped to [0, 1].
@@ -59,6 +53,12 @@ namespace Elixir
             float phase,
             AnimationCurveValues& output
         ) const;
+
+        /**
+        * @brief Check whether this asset uses a compatible skeleton.
+        * @param skeleton Skeleton whose bone layout will receive sampled poses.
+        */
+        bool IsCompatibleWith(const Ref<const Skeleton>& skeleton) const;
 
         /**
          * @brief Blend root movement from contributing clips on the marker timeline.

@@ -3,6 +3,7 @@
 #include <Engine/Animation/Pose.h>
 #include <Engine/Animation/Skeleton.h>
 #include <Engine/Animation/RootMotion.h>
+#include <Engine/Animation/AnimationCurve.h>
 
 namespace Elixir
 {
@@ -148,23 +149,6 @@ namespace Elixir
         ) const;
 
         /**
-         * @brief Sample scalar tracks at a clamped time; preserve output on failure.
-         * @param time Finite sequence time in seconds.
-         * @param output Receives all authored curves, including zero values.
-         */
-        bool SampleCurves(float time, AnimationCurveValues& output) const;
-
-        /**
-         * @brief Copy this sequence with scalar tracks, preserving all other metadata.
-         * @param curves Unique named tracks; empty removes all curves.
-         * @return A new sequence, or null for invalid names, keys, or interpolation.
-         */
-        Ref<Sequence> WithCurves(std::vector<SAnimationCurve> curves) const;
-
-        /** @brief Get immutable authored scalar tracks. */
-        const std::vector<SAnimationCurve>& GetCurves() const { return m_Curves; }
-
-        /**
          * @brief Extract rigid movement of a selected bone over a forward phase interval.
          *
          * Looping intervals may cross cycle boundaries in either positive or negative
@@ -268,6 +252,23 @@ namespace Elixir
             const Sequence* reference = nullptr,
             bool includeStart = false
         ) const;
+
+        /**
+         * @brief Sample scalar tracks at a clamped time; preserve output on failure.
+         * @param time Finite sequence time in seconds.
+         * @param output Receives all authored curves, including zero values.
+         */
+        bool SampleCurves(float time, AnimationCurveValues& output) const;
+
+        /**
+         * @brief Copy this sequence with scalar tracks, preserving all other metadata.
+         * @param curves Unique named tracks; empty removes all curves.
+         * @return A new sequence, or null for invalid names, keys, or interpolation.
+         */
+        Ref<Sequence> WithCurves(std::vector<SAnimationCurve> curves) const;
+
+        /** @brief Get immutable authored scalar tracks. */
+        const std::vector<SAnimationCurve>& GetCurves() const { return m_Curves; }
 
         /** @brief Get the asset name. */
         const std::string& GetName() const { return m_Name; }

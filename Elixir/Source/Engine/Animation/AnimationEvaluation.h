@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Animation/Pose.h>
+#include <Engine/Animation/AnimationCurve.h>
 
 namespace Elixir
 {
@@ -133,5 +134,8 @@ namespace Elixir
 
         /** Borrowed sources consumed before the owning evaluator is changed or released. */
         TAnimationEvaluationSources Sources;
+
+        /** Sampled scalar channels evaluated with the candidate pose. */
+        AnimationCurveValues Curves;
     };
 }

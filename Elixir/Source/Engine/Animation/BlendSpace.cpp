@@ -55,49 +55,6 @@ namespace Elixir
         return true;
     }
 
-    bool BlendSpace::SampleCurves(
-        const std::span<const float> values,
-        const float phase,
-        AnimationCurveValues& output
-    ) const
-    {
-        if (!HasValidCoordinates(values) || !std::isfinite(phase))
-        {
-            EE_CORE_ERROR("Animation curves require valid blend-space coordinates and phase.")
-            return false;
-        }
-        std::array<std::byte, 256> storage;
-        std::pmr::monotonic_buffer_resource resource(storage.data(), storage.size());
-        std::pmr::vector<SSequenceContribution> samples(&resource);
-        FindSamples(values, samples);
-        AnimationCurveValues result;
-        double total = 0;
-        for (const auto& sample : samples)
-        {
-            if (!sample.Sequence || !std::isfinite(sample.Weight) || sample.Weight < 0)
-            {
-                EE_CORE_ERROR("Blend space produced an invalid curve contribution.")
-                return false;
-            }
-            if (sample.Weight == 0) continue;
-            const auto time = m_SynchronizationSequence
-                ? sample.Sequence->GetSynchronizedTime(phase, *m_SynchronizationSequence)
-                : std::clamp(phase, 0.0f, 1.0f) * sample.Sequence->GetDuration();
-            AnimationCurveValues next;
-            if (!sample.Sequence->SampleCurves(time, next) ||
-                !result.Blend(next, float(sample.Weight / (total + sample.Weight))))
-                return false;
-            total += sample.Weight;
-        }
-        if (total <= 0)
-        {
-            EE_CORE_ERROR("Blend space requires a positive total curve contribution.")
-            return false;
-        }
-        output = std::move(result);
-        return true;
-    }
-
     bool BlendSpace::Sample(
         const std::span<const float> values,
         const float phase,
@@ -156,7 +113,6 @@ namespace Elixir
                 }
 
                 const auto weight = float(sample.Weight / (total + sample.Weight));
-                if (!pose.Curves.Blend(next.Curves, weight)) return false;
 
                 for (size_t bone = 0; bone < pose.LocalTransforms.size(); ++bone)
                     pose.LocalTransforms[bone] = SBoneTransform::Blend(
@@ -185,6 +141,62 @@ namespace Elixir
         }
 
         output = std::move(pose);
+        return true;
+    }
+
+
+
+    bool BlendSpace::SampleCurves(
+        const std::span<const float> values,
+        const float phase,
+        AnimationCurveValues& output
+    ) const
+    {
+        if (!HasValidCoordinates(values) || !std::isfinite(phase))
+        {
+            EE_CORE_ERROR("Animation curves require valid blend-space coordinates and phase.")
+            return false;
+        }
+
+        std::array<std::byte, 256> storage;
+        std::pmr::monotonic_buffer_resource resource(storage.data(), storage.size());
+
+        std::pmr::vector<SSequenceContribution> samples(&resource);
+        FindSamples(values, samples);
+
+        AnimationCurveValues result;
+
+        double total = 0;
+        for (const auto& sample : samples)
+        {
+            if (!sample.Sequence || !std::isfinite(sample.Weight) || sample.Weight < 0)
+            {
+                EE_CORE_ERROR("Blend space produced an invalid curve contribution.")
+                return false;
+            }
+
+            if (sample.Weight == 0) continue;
+
+            const auto time = m_SynchronizationSequence
+                ? sample.Sequence->GetSynchronizedTime(phase, *m_SynchronizationSequence)
+                : std::clamp(phase, 0.0f, 1.0f) * sample.Sequence->GetDuration();
+
+            AnimationCurveValues next;
+
+            if (!sample.Sequence->SampleCurves(time, next) ||
+                !result.Blend(next, float(sample.Weight / (total + sample.Weight))))
+                return false;
+
+            total += sample.Weight;
+        }
+
+        if (total <= 0)
+        {
+            EE_CORE_ERROR("Blend space requires a positive total curve contribution.")
+            return false;
+        }
+
+        output = std::move(result);
         return true;
     }
 

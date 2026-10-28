@@ -118,6 +118,16 @@ namespace Elixir
          */
         bool BlendPose(SLocalPose& output, const SLocalPose& pose) const;
 
+        /**
+         * @brief Compose authored scalar channels using the layer weight and blend mode.
+         * @param output Accumulated channels modified only on success.
+         * @param curves Candidate channels from this layer's player.
+         */
+        bool BlendCurves(
+            AnimationCurveValues& output,
+            const AnimationCurveValues& curves
+        ) const;
+
         std::string m_Name;
         EAnimationLayerBlendMode m_BlendMode = EAnimationLayerBlendMode::Override;
         float m_Weight = 1;

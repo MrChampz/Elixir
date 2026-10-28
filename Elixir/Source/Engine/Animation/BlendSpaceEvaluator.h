@@ -47,8 +47,14 @@ namespace Elixir
          * @param phase Normalized sampling position.
          * @param referencePose Defaults for unanimated channels.
          * @param output Receives the blended pose.
+         * @param curves Receives scalar channels blended from the same contributions.
          */
-        bool Sample(double phase, const SLocalPose& referencePose, SLocalPose& output) const;
+        bool Sample(
+            double phase,
+            const SLocalPose& referencePose,
+            SLocalPose& output,
+            AnimationCurveValues& curves
+        ) const;
 
         /**
          * @brief Resolve contributions when the coordinates change.

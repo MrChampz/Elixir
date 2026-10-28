@@ -1,9 +1,9 @@
 #pragma once
 
 #include <Engine/Animation/AnimationPlayback.h>
+#include <Engine/Animation/AnimationTransition.h>
 #include <Engine/Animation/AnimationMontagePlayback.h>
 #include <Engine/Animation/AnimationNotifyTracker.h>
-#include <Engine/Animation/AnimationTransition.h>
 
 namespace Elixir
 {
@@ -15,6 +15,12 @@ namespace Elixir
 
         /** Continuing source pose before applying a montage. */
         SLocalPose PlaybackPose;
+
+        /** Visible scalar channels after applying the active montage. */
+        AnimationCurveValues Curves;
+
+        /** Continuing scalar channels before applying the active montage. */
+        AnimationCurveValues PlaybackCurves;
 
         /** Candidate montage cursor and visited section intervals. */
         SAnimationMontageEvaluation Montage;
@@ -273,13 +279,16 @@ namespace Elixir
          */
         bool SetLocalPose(const SLocalPose& pose);
 
-        /** @brief Inspect scalar channels sampled with the published local pose. */
-        const AnimationCurveValues& GetCurveValues() const { return GetLocalPose().Curves; }
-
         /** @brief Get one parent-relative transform per skeleton bone. */
         const SLocalPose& GetLocalPose() const
         {
             return m_Montage.GetAsset() ? m_MontagePose : m_LocalPose;
+        }
+
+        /** @brief Inspect scalar channels sampled with the published local pose. */
+        const AnimationCurveValues& GetCurveValues() const
+        {
+            return m_Montage.GetAsset() ? m_MontageCurves : m_Curves;
         }
 
         /** @brief Get source time in seconds, independent of any active montage. */
@@ -420,6 +429,8 @@ namespace Elixir
         SLocalPose m_ReferencePose;
         SLocalPose m_LocalPose;
 
+        AnimationCurveValues m_Curves;
+
         bool m_Assigned = false;
         bool m_Playing = false;
 
@@ -431,6 +442,7 @@ namespace Elixir
 
         AnimationMontagePlayback m_Montage;
         SLocalPose m_MontagePose;
+        AnimationCurveValues m_MontageCurves;
 
         AnimationTransition m_Transition;
         AnimationPlayback m_Playback;

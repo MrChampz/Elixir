@@ -33,7 +33,9 @@ namespace Elixir
         if (paused)
         {
             output.LocalPose = GetLocalPose();
+            output.Curves = GetCurveValues();
             output.PlaybackPose = m_LocalPose;
+            output.PlaybackCurves = m_Curves;
             output.Montage.Cursor = m_Montage.GetCursor();
             output.Advance = false;
             output.ConsumeInitialNotifies = false;
@@ -56,10 +58,12 @@ namespace Elixir
                 return false;
 
             output.PlaybackPose = output.LocalPose;
+            output.PlaybackCurves = output.Curves;
 
             const auto sampled = m_Montage.Sample(
                 output.Montage.Cursor,
                 output.LocalPose,
+                output.Curves,
                 m_ReferencePose
             );
 
@@ -80,16 +84,22 @@ namespace Elixir
         if (m_Montage.GetAsset())
         {
             m_LocalPose = std::move(evaluation.PlaybackPose);
+            m_Curves = std::move(evaluation.PlaybackCurves);
             m_MontagePose = std::move(evaluation.LocalPose);
+            m_MontageCurves = std::move(evaluation.Curves);
 
             m_Montage.Apply(evaluation.Montage.Cursor);
 
             if (!m_Montage.IsActive())
+            {
                 m_MontagePose.LocalTransforms.clear();
+                m_MontageCurves = {};
+            }
         }
         else
         {
             m_LocalPose = std::move(evaluation.LocalPose);
+            m_Curves = std::move(evaluation.Curves);
         }
 
         m_NotifyEvents = std::move(evaluation.Notifies.Events);
@@ -165,12 +175,14 @@ namespace Elixir
         m_Notifies.Cancel(m_Name);
         m_Montage = {};
         m_MontagePose.LocalTransforms.clear();
+        m_MontageCurves = {};
         m_Playing = false;
         m_Assigned = false;
         m_NotifyEvents.clear();
         m_Playback = {};
         m_Transition = {};
         m_LocalPose = m_ReferencePose;
+        m_Curves = {};
     }
 
     bool AnimationPlayer::Seek(const float time)
@@ -187,12 +199,13 @@ namespace Elixir
         if (!candidate.SeekPhase(targetTime))
             return false;
 
-        SLocalPose pose;
-        if (!candidate.Sample(targetTime, m_ReferencePose, pose))
+        SAnimationEvaluation sampled;
+        if (!candidate.Sample(targetTime, m_ReferencePose, sampled))
             return false;
 
         m_Playback = std::move(candidate);
-        m_LocalPose = std::move(pose);
+        m_LocalPose = std::move(sampled.Pose);
+        m_Curves = std::move(sampled.Curves);
 
         if (!m_Montage.GetAsset())
             m_Notifies.Cancel(m_Name);
@@ -213,19 +226,25 @@ namespace Elixir
             return false;
 
         SLocalPose pose;
+        AnimationCurveValues curves;
+
         const auto success = m_Montage.Play(
             std::move(montage),
             startSection,
             GetLocalPose(),
+            GetCurveValues(),
             m_LocalPose,
+            m_Curves,
             m_ReferencePose,
-            pose
+            pose,
+            curves
         );
 
         if (!success) return false;
 
-        m_Notifies.Cancel(m_Name);
         m_MontagePose = std::move(pose);
+        m_MontageCurves = std::move(curves);
+        m_Notifies.Cancel(m_Name);
         m_NotifyEvents.clear();
 
         return true;
@@ -242,11 +261,22 @@ namespace Elixir
     bool AnimationPlayer::JumpToMontageSection(const std::string_view name)
     {
         SLocalPose pose;
-        if (!m_Montage.Jump(name, m_LocalPose, m_ReferencePose, pose))
-            return false;
+        AnimationCurveValues curves;
 
-        m_Notifies.Cancel(m_Name);
+        const auto jumped = m_Montage.Jump(
+            name,
+            m_LocalPose,
+            m_Curves,
+            m_ReferencePose,
+            pose,
+            curves
+        );
+
+        if (!jumped) return false;
+
         m_MontagePose = std::move(pose);
+        m_MontageCurves = std::move(curves);
+        m_Notifies.Cancel(m_Name);
         m_NotifyEvents.clear();
 
         return true;
@@ -267,6 +297,7 @@ namespace Elixir
         if (!m_Montage.IsActive())
         {
             m_MontagePose.LocalTransforms.clear();
+            m_MontageCurves = {};
             m_NotifyEvents.clear();
         }
 
@@ -300,11 +331,12 @@ namespace Elixir
         m_Notifies.Cancel(m_Name);
 
         SLocalPose local = pose;
-        local.Curves = {};
         m_LocalPose = std::move(local);
+        m_Curves = {};
 
         m_Montage = {};
         m_MontagePose.LocalTransforms.clear();
+        m_MontageCurves = {};
 
         m_Playback = {};
         m_Transition = {};
@@ -419,6 +451,7 @@ namespace Elixir
         if (!m_Playing)
         {
             output.LocalPose = m_LocalPose;
+            output.Curves = m_Curves;
             return true;
         }
 
@@ -433,15 +466,24 @@ namespace Elixir
             ? output.TransitionElapsed / m_Transition.Duration
             : 1.0f;
 
-        return m_Transition.Sample(
+        SAnimationEvaluation sampled;
+
+        const auto success = m_Transition.Sample(
             m_Playback,
             m_Transition.Playback,
             weight,
             output.PlaybackPhase,
             output.TransitionSourcePhase,
-            output.LocalPose,
+            sampled,
             m_ReferencePose
         );
+
+        if (!success) return false;
+
+        output.LocalPose = std::move(sampled.Pose);
+        output.Curves = std::move(sampled.Curves);
+
+        return true;
     }
 
     bool AnimationPlayer::StartPlayback(AnimationPlayback playback, const float fadeDuration)
@@ -466,9 +508,14 @@ namespace Elixir
             transition.Duration = fadeDuration;
 
             if (!IsTransitioning() && m_Playback.IsValid())
+            {
                 transition.Playback = m_Playback;
+            }
             else
+            {
                 transition.Pose = m_LocalPose;
+                transition.Curves = m_Curves;
+            }
 
             m_Transition = std::move(transition);
             m_Playback = std::move(playback);
@@ -506,7 +553,7 @@ namespace Elixir
         const double sourceTime
     )
     {
-        SLocalPose local;
+        SAnimationEvaluation sample;
 
         const auto sampled = m_Transition.Sample(
             playback,
@@ -514,13 +561,14 @@ namespace Elixir
             weight,
             time,
             sourceTime,
-            local,
+            sample,
             m_ReferencePose
         );
 
         if (!sampled) return false;
 
-        m_LocalPose = std::move(local);
+        m_LocalPose = std::move(sample.Pose);
+        m_Curves = std::move(sample.Curves);
 
         m_Playback = playback;
         m_Playback.Apply(time);

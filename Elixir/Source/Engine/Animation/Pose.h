@@ -1,23 +1,19 @@
 #pragma once
 
 #include <Engine/Animation/Skeleton.h>
-#include <Engine/Animation/AnimationCurve.h>
 
 namespace Elixir
 {
     enum class EAnimationLayerBlendMode : uint8_t;
 
     /**
-     * Stores parent-relative bone transforms and sampled scalar channels for one pose.
+     * Stores bone transforms relative to their parents in skeleton bone order.
      * The caller supplies the skeleton that defines the order and parent hierarchy.
      */
     struct ELIXIR_API SLocalPose
     {
         /** One transform per bone, relative to that bone's parent. */
         std::vector<SBoneTransform> LocalTransforms;
-
-        /** Sampled scalar channels published and blended with this pose. */
-        AnimationCurveValues Curves;
 
         /**
          * @brief Check that the pose contains one valid local transform per bone.
@@ -30,8 +26,7 @@ namespace Elixir
          * @brief Blend another local pose into this pose.
          * @param pose Pose to apply, using the same skeleton bone order.
          * @param weights One mask weight per bone, each in [0, 1].
-         * @param layerWeight Overall contribution in [0, 1], multiplied by each bone weight.
-         * Curves use this weight when the mask contains any positive bone weight.
+         * @param layerWeight Overall contribution in [0, 1], multiplied by each mask weight.
          * @param mode Override interpolation or additive blending.
          * @param reference Reference pose used to compute additive differences;
          * ignored for Override.

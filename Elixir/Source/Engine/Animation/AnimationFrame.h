@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Animation/Pose.h>
+#include <Engine/Animation/AnimationCurve.h>
 #include <Engine/Animation/AnimationNotifyEvent.h>
 
 namespace Elixir
@@ -12,6 +13,9 @@ namespace Elixir
         SModelPose ModelPose;
         std::vector<SAnimationNotifyEvent> NotifyEvents;
         SRootMotionDelta RootMotion;
+
+        /** Scalar channels published atomically with the pose and playback events. */
+        AnimationCurveValues Curves;
 
         /**
          * @brief Check pose sizes and finite transforms before publication.

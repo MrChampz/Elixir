@@ -50,7 +50,7 @@ namespace Elixir
         if (!std::isfinite(output.Phase))
             return false;
 
-        if (!Sample(output.Phase, context.ReferencePose, output.Pose))
+        if (!Sample(output.Phase, context.ReferencePose, output.Pose, output.Curves))
             return false;
 
         output.Sources = GetState().Sources;
@@ -148,7 +148,7 @@ namespace Elixir
                 return std::numeric_limits<double>::quiet_NaN();
         }
 
-        if (!Compose(m_Pose, true))
+        if (!Compose(m_Pose, m_Curves, true))
             return std::numeric_limits<double>::quiet_NaN();
 
         m_Prepared = true;
@@ -159,7 +159,8 @@ namespace Elixir
     bool BlendNodeEvaluator::Sample(
         const double phase,
         const SLocalPose& referencePose,
-        SLocalPose& output
+        SLocalPose& output,
+        AnimationCurveValues& curves
     ) const
     {
         if (!std::isfinite(phase) || !Initialize(referencePose))
@@ -168,10 +169,11 @@ namespace Elixir
         if (m_Prepared)
         {
             output = m_Pose;
+            curves = m_Curves;
             return true;
         }
 
-        return Compose(output, false);
+        return Compose(output, curves, false);
     }
 
     bool BlendNodeEvaluator::Initialize(const SLocalPose& referencePose) const
@@ -219,7 +221,11 @@ namespace Elixir
         return true;
     }
 
-    bool BlendNodeEvaluator::Compose(SLocalPose& output, const bool prepared) const
+    bool BlendNodeEvaluator::Compose(
+        SLocalPose& output,
+        AnimationCurveValues& curves,
+        const bool prepared
+    ) const
     {
         if (m_Layers.empty()) return false;
 
@@ -227,13 +233,22 @@ namespace Elixir
             ? m_Evaluations.front().LocalPose
             : m_Layers.front()->GetPlayer().GetLocalPose();
 
+        curves = prepared
+            ? m_Evaluations.front().Curves
+            : m_Layers.front()->GetPlayer().GetCurveValues();
+
         for (size_t i = 1; i < m_Layers.size(); ++i)
         {
             const auto& pose = prepared
                 ? m_Evaluations[i].LocalPose
                 : m_Layers[i]->GetPlayer().GetLocalPose();
 
-            if (!m_Layers[i]->BlendPose(output, pose))
+            const auto& layerCurves = prepared
+                ? m_Evaluations[i].Curves
+                : m_Layers[i]->GetPlayer().GetCurveValues();
+
+            if (!m_Layers[i]->BlendPose(output, pose) ||
+                !m_Layers[i]->BlendCurves(curves, layerCurves))
                 return false;
         }
 

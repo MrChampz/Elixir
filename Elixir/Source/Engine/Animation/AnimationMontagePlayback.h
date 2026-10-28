@@ -63,17 +63,23 @@ namespace Elixir
          * @param montage Retained immutable action.
          * @param section Optional initial section name.
          * @param visible Current visible pose for an interrupted entrance.
+         * @param visibleCurves Scalar channels captured with the visible pose.
          * @param continuing Continuing source pose under the action.
+         * @param continuingCurves Scalar channels from the continuing source.
          * @param referencePose Mesh-specific reference pose.
          * @param output Receives the action's initial visible pose.
+         * @param outputCurves Receives the initial visible scalar channels.
          */
         bool Play(
             Ref<const AnimationMontage> montage,
             std::string_view section,
             const SLocalPose& visible,
+            const AnimationCurveValues& visibleCurves,
             const SLocalPose& continuing,
+            const AnimationCurveValues& continuingCurves,
             const SLocalPose& referencePose,
-            SLocalPose& output
+            SLocalPose& output,
+            AnimationCurveValues& outputCurves
         );
 
         /**
@@ -87,14 +93,18 @@ namespace Elixir
          * @brief Jump silently and validate the resulting pose.
          * @param name Existing destination section.
          * @param continuing Continuing source pose.
+         * @param continuingCurves Scalar channels from the continuing source.
          * @param referencePose Mesh-specific defaults.
          * @param output Receives the pose at the destination.
+         * @param outputCurves Receives scalar channels at the destination.
          */
         bool Jump(
             std::string_view name,
             const SLocalPose& continuing,
+            const AnimationCurveValues& continuingCurves,
             const SLocalPose& referencePose,
-            SLocalPose& output
+            SLocalPose& output,
+            AnimationCurveValues& outputCurves
         );
 
         /**
@@ -164,11 +174,13 @@ namespace Elixir
          * @brief Blend the action onto a continuing pose.
          * @param cursor Action position and elapsed time.
          * @param pose Continuing pose modified on success.
+         * @param curves Continuing scalar channels blended with the action.
          * @param referencePose Mesh-specific defaults for sampling.
          */
         bool Sample(
             const SAnimationMontageCursor& cursor,
             SLocalPose& pose,
+            AnimationCurveValues& curves,
             const SLocalPose& referencePose
         ) const;
 
@@ -202,6 +214,9 @@ namespace Elixir
              * replacement's entrance. Empty when blending directly from the continuing pose.
              */
             SLocalPose SourcePose;
+
+            /** Scalar channels captured with an interrupted montage's visible pose. */
+            AnimationCurveValues SourceCurves;
         };
 
         /**

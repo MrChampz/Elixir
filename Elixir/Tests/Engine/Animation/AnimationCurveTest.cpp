@@ -13,6 +13,25 @@ using namespace Elixir::Tests::IK;
 
 namespace
 {
+    /** Uses candidate frame curves to correct a pose and reject excessive values. */
+    class CurveDrivenTranslation final : public PoseModifier
+    {
+    public:
+        /**
+         * @brief Move the first bone using Grip values no greater than one half.
+         * @param context Candidate frame curves borrowed from the animation.
+         * @param pose Candidate transforms modified only for accepted values.
+         */
+        bool Apply(const SPoseModifierContext& context, SLocalPose& pose) const override
+        {
+            if (!context.Curves) return false;
+            const auto value = context.Curves->GetValue("Grip");
+            if (value > 0.5f) return false;
+            pose.LocalTransforms[0].Translation.x = value;
+            return true;
+        }
+    };
+
     class AnimationCurveTest : public testing::Test
     {
     protected:
@@ -460,4 +479,47 @@ TEST_F(AnimationCurveTest, NestedBlendNodesComposeCurvesWithTheirChildPoses)
     EXPECT_FLOAT_EQ(Playback->GetCurveValues().GetValue("Grip"), 8);
     ASSERT_TRUE(Playback->Seek(0.5f));
     EXPECT_FLOAT_EQ(Playback->GetCurveValues().GetValue("Grip"), 8);
+}
+
+TEST_F(AnimationCurveTest, PlaybackSamplesPoseAndScalarChannelsInSeparateResults)
+{
+    AnimationPlayback playback(MakeNode(Ramp));
+    ASSERT_TRUE(playback.IsValid());
+    SAnimationEvaluation evaluation;
+    ASSERT_TRUE(playback.Sample(0.75, Mesh->GetData().ReferencePose, evaluation));
+    EXPECT_DOUBLE_EQ(evaluation.Phase, 0.75);
+    EXPECT_FLOAT_EQ(evaluation.Curves.GetValue("Grip"), 0.75f);
+    EXPECT_EQ(evaluation.Pose.LocalTransforms.size(), Mesh->GetSkeleton()->GetBones().size());
+
+    SLocalPose pose;
+    ASSERT_TRUE(playback.Sample(0.75, Mesh->GetData().ReferencePose, pose));
+    for (size_t bone = 0; bone < pose.LocalTransforms.size(); ++bone)
+        EXPECT_TRUE(pose.LocalTransforms[bone].IsNearlyEqual(
+            evaluation.Pose.LocalTransforms[bone]
+        ));
+}
+
+TEST_F(AnimationCurveTest, ModifiersReadCandidateCurvesBeforeAtomicFramePublication)
+{
+    const std::array<Ref<const PoseModifier>, 1> modifiers{
+        CreateRef<CurveDrivenTranslation>()
+    };
+    ASSERT_TRUE(Playback->SetPoseModifiers(modifiers));
+    ASSERT_TRUE(Playback->Play(MakeNode(Ramp->WithNotifies({{"Hit", 0.5f}}))));
+    ASSERT_TRUE(Playback->Update(0.25f));
+    EXPECT_FLOAT_EQ(Playback->GetFrame().Curves.GetValue("Grip"), 0.25f);
+    EXPECT_FLOAT_EQ(Playback->GetLocalPose().LocalTransforms[0].Translation.x, 0.25f);
+
+    EXPECT_FALSE(Playback->Update(0.5f));
+    EXPECT_FLOAT_EQ(Playback->GetTime(), 0.25f);
+    EXPECT_FLOAT_EQ(Playback->GetCurveValues().GetValue("Grip"), 0.25f);
+    const auto& playerCurves = Playback->GetBaseLayer().GetPlayer().GetCurveValues();
+    EXPECT_FLOAT_EQ(playerCurves.GetValue("Grip"), 0.25f);
+    EXPECT_FLOAT_EQ(Playback->GetLocalPose().LocalTransforms[0].Translation.x, 0.25f);
+    EXPECT_TRUE(Playback->GetNotifyEvents().empty());
+
+    ASSERT_TRUE(Playback->SetLocalPose(Mesh->GetData().ReferencePose));
+    EXPECT_TRUE(Playback->GetFrame().Curves.GetValues().empty());
+    Playback->Stop();
+    EXPECT_TRUE(Playback->GetCurveValues().GetValues().empty());
 }

@@ -131,6 +131,18 @@ namespace Elixir
         ) const;
 
         /**
+         * @brief Sample pose and scalar channels at one normalized phase.
+         * @param phase Source phase in [0, 1].
+         * @param referencePose Mesh-specific defaults for bone channels.
+         * @param output Receives candidate pose, curves, phase, and source contributions.
+         */
+        bool Sample(
+            double phase,
+            const SLocalPose& referencePose,
+            SAnimationEvaluation& output
+        ) const;
+
+        /**
          * @brief Resolve the notification interval without selecting source types.
          * @param dt Elapsed source seconds.
          * @param offset Frame seconds preceding this interval.
