@@ -150,9 +150,14 @@ namespace Elixir
                 [](const float value) { return std::isfinite(value); }
             );
 
+            const auto interpolationValid =
+                curve.Interpolation == EAnimationCurveInterpolation::Step ||
+                curve.Interpolation == EAnimationCurveInterpolation::Linear;
+
             if (curve.Name.empty() ||
                 curveNames.contains(curve.Name) ||
                 curve.Keys.empty() ||
+                !interpolationValid ||
                 !keysValid)
             {
                 EE_CORE_ERROR("Sequence contains invalid or duplicate scalar curves.")
