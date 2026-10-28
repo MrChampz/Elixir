@@ -41,9 +41,13 @@ namespace Elixir
         bool HasValidTargetRotation(const std::optional<glm::quat>& target)
         {
             if (!target) return true;
+
             const auto& rotation = *target;
+
             for (int i = 0; i < 4; ++i)
-                if (!std::isfinite(rotation[i])) return false;
+                if (!std::isfinite(rotation[i]))
+                    return false;
+
             return std::abs(glm::dot(rotation, rotation) - 1.0f) < 1e-4f;
         }
 
@@ -60,7 +64,8 @@ namespace Elixir
                     return false;
             }
             return std::isfinite(constraint.Weight) &&
-                constraint.Weight >= 0 && constraint.Weight <= 1 &&
+                constraint.Weight >= 0 &&
+                constraint.Weight <= 1 &&
                 HasValidTargetRotation(constraint.TargetRotation);
         }
         /** Identifies the two segments and their accumulated parent orientation. */
@@ -394,17 +399,23 @@ namespace Elixir
             SLocalPose& pose
         )
         {
-            if (!constraint.TargetRotation) return;
+            if (!constraint.TargetRotation)
+                return;
+
             auto& transforms = pose.LocalTransforms;
-            const auto blendedRoot = glm::normalize(
-                chain.ParentRotation * glm::dquat(transforms[chain.Root].Rotation)
-            );
-            const auto blendedMiddle = glm::normalize(
-                blendedRoot * glm::dquat(transforms[chain.Middle].Rotation)
-            );
-            const auto currentEnd = glm::normalize(
-                blendedMiddle * glm::dquat(transforms[chain.End].Rotation)
-            );
+
+            auto blendedRoot = chain.ParentRotation *
+                glm::dquat(transforms[chain.Root].Rotation);
+            blendedRoot = glm::normalize(blendedRoot);
+
+            auto blendedMiddle = blendedRoot *
+                glm::dquat(transforms[chain.Middle].Rotation);
+            blendedMiddle = glm::normalize(blendedMiddle);
+
+            auto currentEnd = blendedMiddle *
+                glm::dquat(transforms[chain.End].Rotation);
+            currentEnd = glm::normalize(currentEnd);
+
             const auto targetEnd = glm::normalize(
                 glm::slerp(
                     currentEnd,
@@ -412,9 +423,9 @@ namespace Elixir
                     double(constraint.Weight)
                 )
             );
-            transforms[chain.End].Rotation = glm::quat(
-                glm::normalize(glm::conjugate(blendedMiddle) * targetEnd)
-            );
+
+            transforms[chain.End].Rotation =
+                glm::quat(glm::normalize(glm::conjugate(blendedMiddle) * targetEnd));
         }
 
     }
@@ -487,6 +498,7 @@ namespace Elixir
 
             const auto desired = FindReachableSegments(geometry, constraint);
             const auto rotations = SolveRotations(chain, geometry, desired, pose);
+
             BlendLocalRotations(constraint, chain, rotations, pose);
             ApplyTargetRotation(constraint, chain, pose);
 
