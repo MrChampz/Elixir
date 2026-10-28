@@ -42,8 +42,14 @@ class Dissolve final : public Elixir::Application
     /** @brief Load the socket character without stopping application setup on failure. */
     void InitializeSocketCharacter();
 
-    /** @brief Create a rigid baton attached to the right-hand socket. */
+    /** @brief Create a rigid baton and configure its two hand-grip references. */
     void InitializeSocketAttachment();
+
+    /** @brief Calibrate both hand grips and attach the IK modifier to the animation. */
+    bool InitializeAttachmentIK();
+
+    /** @brief Build the baton geometry, material, and renderer. */
+    void InitializeBaton();
 
     /** @brief Submit the complete model to its renderer. */
     void DrawGeometry();
@@ -92,9 +98,13 @@ class Dissolve final : public Elixir::Application
     bool m_IKKeyPressed = false;
     std::atomic<bool> m_IKRotationEnabled = true;
     bool m_IKRotationKeyPressed = false;
-    const glm::quat m_IKTargetRotation{1, 0, 0, 0};
-    uint32_t m_IKEndBone = UINT32_MAX;
-    const glm::vec3 m_IKTarget{0.5f, 1.05f, -0.25f};
+    /** Aligns the baton with skeleton +X through the imported wrist-to-weapon offset. */
+    glm::quat m_IKDriverRotation{1, 0, 0, 0};
+    /** Left-wrist offset from its grip, expressed in SupportGrip coordinates. */
+    SBoneTransform m_IKSupportOffset;
+    uint32_t m_IKDriverBone = 0;
+    uint32_t m_IKEndBone = 0;
+    const glm::vec3 m_IKTarget{-0.2f, 1.02f, -0.28f};
     /** Recoil controls published to the rendering thread; strength stays in [0, 1]. */
     std::atomic<bool> m_RecoilEnabled = true;
     std::atomic<float> m_RecoilStrength = 1.0f;

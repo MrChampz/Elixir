@@ -4,13 +4,16 @@
 
 namespace Elixir
 {
+    /** Selects a bone index or socket name in the solver's fixed skeleton. */
+    using TIKTargetReference = std::variant<uint32_t, std::string>;
+
     /** Adjusts two connected segments toward a skeleton-space target without stretching. */
     struct STwoBoneIKConstraint
     {
         /** End bone; its parent and grandparent form the two directly connected segments. */
         uint32_t EndBoneIndex = 0;
 
-        /** Desired end position in the same model space as the supplied skeleton pose. */
+        /** End position in skeleton space, or a local offset when TargetReference is set. */
         glm::vec3 TargetPosition{};
 
         /** Skeleton-space point toward which the middle joint bends. */
@@ -19,8 +22,18 @@ namespace Elixir
         /** Rotation blend in [0, 1]; zero preserves the animated pose exactly. */
         float Weight = 1.0f;
 
-        /** Optional unit quaternion in skeleton space; absent preserves end local rotation. */
+        /**
+         * Optional unit rotation in skeleton space or the selected reference frame.
+         * Absent preserves the end bone's local rotation.
+         */
         std::optional<glm::quat> TargetRotation;
+
+        /**
+         * Optional bone index or socket name defining the target frame. Absent uses
+         * skeleton space. Position and rotation become offsets in this frame; the pole
+         * remains in skeleton space. Read from the current pose at this constraint's turn.
+         */
+        std::optional<TIKTargetReference> TargetReference;
     };
 
     /** Owns gameplay-configured limb constraints and solves them on candidate poses. */
@@ -37,7 +50,11 @@ namespace Elixir
         /**
          * @brief Replace ordered limb targets without changing animation playback.
          *
-         * Targets and poles use skeleton space. Each end bone's parent and grandparent
+         * Targets use skeleton space unless a bone or socket reference is selected.
+         * References use the current pose, including earlier constraints. A reference must
+         * remain outside the subtree of every active chain at or after its follower.
+         * Rotation references require uniform positive scales through ancestors and sockets.
+         * Poles always use skeleton space. Each end bone's parent and grandparent
          * form its chain. Active chains require nonzero lengths and uniform positive scales.
          * Parent rotations solve position; an optional target also controls end orientation.
          * The target blends from the end orientation produced by the position correction.
@@ -47,7 +64,7 @@ namespace Elixir
          * Configure and evaluate this solver on the same thread.
          *
          * @param constraints Copied ordered list; empty disables corrections.
-         * @return False for invalid settings or bones; retain the previous constraints.
+         * @return False for invalid settings, bones, or references; retain previous constraints.
          */
         bool SetConstraints(std::span<const STwoBoneIKConstraint> constraints);
 

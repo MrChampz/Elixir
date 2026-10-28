@@ -7,67 +7,6 @@ namespace Elixir
 {
     namespace
     {
-        /**
-         * @brief Choose a stable unit vector perpendicular to a unit direction.
-         * @param direction Unit segment direction.
-         */
-        glm::dvec3 Perpendicular(const glm::dvec3& direction)
-        {
-            const auto axis = std::abs(direction.z) < 0.9
-                ? glm::dvec3(0, 0, 1)
-                : glm::dvec3(0, 1, 0);
-
-            return glm::normalize(glm::cross(direction, axis));
-        }
-
-        /**
-         * @brief Rotate one unit vector onto another, including opposite directions.
-         * @param from Source unit vector.
-         * @param to Destination unit vector.
-         */
-        glm::dquat RotationBetween(const glm::dvec3& from, const glm::dvec3& to)
-        {
-            const auto cosine = glm::clamp(glm::dot(from, to), -1.0, 1.0);
-            if (cosine < -1.0 + 1e-12)
-                return glm::dquat(0, Perpendicular(from));
-
-            return glm::normalize(glm::dquat(1.0 + cosine, glm::cross(from, to)));
-        }
-
-        /**
-         * @brief Check an optional target orientation for finite unit-quaternion components.
-         * @param target Optional skeleton-space orientation.
-         */
-        bool HasValidTargetRotation(const std::optional<glm::quat>& target)
-        {
-            if (!target) return true;
-
-            const auto& rotation = *target;
-
-            for (int i = 0; i < 4; ++i)
-                if (!std::isfinite(rotation[i]))
-                    return false;
-
-            return std::abs(glm::dot(rotation, rotation) - 1.0f) < 1e-4f;
-        }
-
-        /**
-         * @brief Check skeleton-space target and blend settings without changing the pose.
-         * @param constraint Target, pole, optional orientation, and weight.
-         */
-        bool HasValidSettings(const STwoBoneIKConstraint& constraint)
-        {
-            for (int i = 0; i < 3; ++i)
-            {
-                if (!std::isfinite(constraint.TargetPosition[i]) ||
-                    !std::isfinite(constraint.PolePosition[i]))
-                    return false;
-            }
-            return std::isfinite(constraint.Weight) &&
-                constraint.Weight >= 0 &&
-                constraint.Weight <= 1 &&
-                HasValidTargetRotation(constraint.TargetRotation);
-        }
         /** Identifies the two segments and their accumulated parent orientation. */
         struct SIKChain
         {
@@ -100,6 +39,82 @@ namespace Elixir
             glm::quat Root;
             glm::quat Middle;
         };
+
+        /** Identifies a validated bone frame with an optional socket offset. */
+        struct SIKReference
+        {
+            uint32_t BoneIndex;
+            const SSkeletonSocket* Socket = nullptr;
+        };
+
+        /** Stores one resolved target in skeleton space for the current solve. */
+        struct SIKTarget
+        {
+            glm::dvec3 Position;
+            std::optional<glm::dquat> Rotation;
+        };
+
+        /**
+         * @brief Choose a stable unit vector perpendicular to a unit direction.
+         * @param direction Unit segment direction.
+         */
+        glm::dvec3 Perpendicular(const glm::dvec3& direction)
+        {
+            const auto axis = std::abs(direction.z) < 0.9
+                ? glm::dvec3(0, 0, 1)
+                : glm::dvec3(0, 1, 0);
+
+            return glm::normalize(glm::cross(direction, axis));
+        }
+
+        /**
+         * @brief Rotate one unit vector onto another, including opposite directions.
+         * @param from Source unit vector.
+         * @param to Destination unit vector.
+         */
+        glm::dquat RotationBetween(const glm::dvec3& from, const glm::dvec3& to)
+        {
+            const auto cosine = glm::clamp(glm::dot(from, to), -1.0, 1.0);
+            if (cosine < -1.0 + 1e-12)
+                return glm::dquat(0, Perpendicular(from));
+
+            return glm::normalize(glm::dquat(1.0 + cosine, glm::cross(from, to)));
+        }
+
+        /**
+         * @brief Check an optional target orientation for finite unit-quaternion components.
+         * @param target Optional unit orientation in skeleton space or the reference frame.
+         */
+        bool HasValidTargetRotation(const std::optional<glm::quat>& target)
+        {
+            if (!target) return true;
+
+            const auto& rotation = *target;
+
+            for (int i = 0; i < 4; ++i)
+                if (!std::isfinite(rotation[i]))
+                    return false;
+
+            return std::abs(glm::dot(rotation, rotation) - 1.0f) < 1e-4f;
+        }
+
+        /**
+         * @brief Check skeleton-space target and blend settings without changing the pose.
+         * @param constraint Target, pole, optional orientation, and weight.
+         */
+        bool HasValidSettings(const STwoBoneIKConstraint& constraint)
+        {
+            for (int i = 0; i < 3; ++i)
+            {
+                if (!std::isfinite(constraint.TargetPosition[i]) ||
+                    !std::isfinite(constraint.PolePosition[i]))
+                    return false;
+            }
+            return std::isfinite(constraint.Weight) &&
+                constraint.Weight >= 0 &&
+                constraint.Weight <= 1 &&
+                HasValidTargetRotation(constraint.TargetRotation);
+        }
 
         /**
          * @brief Validate one constraint without replacing the configured list.
@@ -144,6 +159,107 @@ namespace Elixir
             return scale.x > 0 &&
                 std::abs(scale.x - scale.y) <= tolerance &&
                 std::abs(scale.x - scale.z) <= tolerance;
+        }
+
+        /**
+         * @brief Find a target frame in the solver's fixed skeleton.
+         * @param skeleton Hierarchy and sockets defining the reference.
+         * @param reference Bone index or socket name.
+         */
+        std::optional<SIKReference> FindTargetReference(
+            const Skeleton& skeleton,
+            const TIKTargetReference& reference
+        )
+        {
+            if (const auto* bone = std::get_if<uint32_t>(&reference))
+            {
+                if (*bone < skeleton.GetBones().size())
+                    return SIKReference{ *bone };
+            }
+            else if (const auto* name = std::get_if<std::string>(&reference))
+            {
+                if (const auto* socket = skeleton.GetSocket(*name))
+                    return SIKReference{ socket->BoneIndex, socket };
+            }
+
+            EE_CORE_ERROR("IK target reference must identify an existing bone or socket.")
+            return std::nullopt;
+        }
+
+        /**
+         * @brief Resolve a target from the current candidate pose without using prior frames.
+         * @param skeleton Hierarchy and sockets defining reference indices.
+         * @param constraint Target frame and local offsets.
+         * @param local Current parent-relative transforms.
+         * @param model Current skeleton-space matrices, including earlier constraints.
+         */
+        std::optional<SIKTarget> ResolveTarget(
+            const Skeleton& skeleton,
+            const STwoBoneIKConstraint& constraint,
+            const std::span<const SBoneTransform> local,
+            const std::span<const glm::mat4> model
+        )
+        {
+            SIKTarget result{ glm::dvec3(constraint.TargetPosition) };
+
+            if (constraint.TargetRotation)
+                result.Rotation = glm::normalize(glm::dquat(*constraint.TargetRotation));
+
+            if (!constraint.TargetReference)
+                return result;
+
+            const auto reference = FindTargetReference(skeleton, *constraint.TargetReference);
+            if (!reference) return std::nullopt;
+
+            auto frame = glm::dmat4(model[reference->BoneIndex]);
+
+            if (reference->Socket)
+                frame *= glm::dmat4(reference->Socket->RelativeTransform.ToMatrix());
+
+            result.Position = glm::dvec3(frame * glm::dvec4(result.Position, 1));
+
+            for (int i = 0; i < 3; ++i)
+            {
+                if (!std::isfinite(result.Position[i]))
+                {
+                    EE_CORE_ERROR("IK target reference produced a nonfinite position.")
+                    return std::nullopt;
+                }
+            }
+
+            if (!result.Rotation) return result;
+
+            glm::dquat rotation(1, 0, 0, 0);
+
+            for (auto bone = int32_t(reference->BoneIndex);
+                bone >= 0;
+                bone = skeleton.GetBones()[size_t(bone)].ParentIndex)
+            {
+                if (!HasUniformPositiveScale(local[size_t(bone)].Scale))
+                {
+                    EE_CORE_ERROR("IK rotation references require uniform positive ancestor scales.")
+                    return std::nullopt;
+                }
+
+                rotation = glm::dquat(local[size_t(bone)].Rotation) * rotation;
+            }
+
+            if (reference->Socket)
+            {
+                const auto& offset = reference->Socket->RelativeTransform;
+
+                if (!HasUniformPositiveScale(offset.Scale))
+                {
+                    EE_CORE_ERROR("IK rotation references require uniform positive socket scale.")
+                    return std::nullopt;
+                }
+
+                rotation *= glm::dquat(offset.Rotation);
+            }
+
+            result.Rotation = glm::normalize(rotation * *result.Rotation);
+
+            return result;
         }
 
         /**
@@ -254,18 +370,20 @@ namespace Elixir
         /**
          * @brief Clamp the target to the chain's reach and select a stable bend plane.
          * @param geometry Current joint positions and valid segment lengths.
-         * @param constraint Target and pole in skeleton space.
+         * @param constraint Pole in skeleton space.
+         * @param targetPosition Resolved skeleton-space end target.
          * @return Desired segment vectors with the original chain lengths.
          */
         SDesiredSegments FindReachableSegments(
             const SChainGeometry& geometry,
-            const STwoBoneIKConstraint& constraint
+            const STwoBoneIKConstraint& constraint,
+            const glm::dvec3& targetPosition
         )
         {
             const auto firstLength = geometry.FirstLength;
             const auto secondLength = geometry.SecondLength;
 
-            const auto target = glm::dvec3(constraint.TargetPosition) - geometry.Start;
+            const auto target = targetPosition - geometry.Start;
             const auto targetDistance = glm::length(target);
 
             const auto currentDirection = geometry.Tip - geometry.Start;
@@ -390,16 +508,18 @@ namespace Elixir
         /**
          * @brief Blend the end bone toward an optional skeleton-space orientation.
          * @param constraint Optional target orientation and shared rotation weight.
+         * @param target Resolved skeleton-space target.
          * @param chain Bone indices and accumulated parent orientation.
          * @param pose Candidate pose after blending the two parent rotations.
          */
         void ApplyTargetRotation(
             const STwoBoneIKConstraint& constraint,
+            const SIKTarget& target,
             const SIKChain& chain,
             SLocalPose& pose
         )
         {
-            if (!constraint.TargetRotation)
+            if (!target.Rotation)
                 return;
 
             auto& transforms = pose.LocalTransforms;
@@ -419,7 +539,7 @@ namespace Elixir
             const auto targetEnd = glm::normalize(
                 glm::slerp(
                     currentEnd,
-                    glm::normalize(glm::dquat(*constraint.TargetRotation)),
+                    *target.Rotation,
                     double(constraint.Weight)
                 )
             );
@@ -452,6 +572,46 @@ namespace Elixir
         for (const auto& constraint : constraints)
             if (!ValidateConstraint(constraint, *m_Skeleton))
                 return false;
+
+        for (size_t i = 0; i < constraints.size(); ++i)
+        {
+            const auto& constraint = constraints[i];
+            if (!constraint.TargetReference)
+                continue;
+
+            const auto& skeleton = *m_Skeleton;
+
+            const auto reference = FindTargetReference(skeleton, *constraint.TargetReference);
+            if (!reference) return false;
+
+            if (constraint.Weight == 0)
+                continue;
+
+            // A reference must be stable after its follower is solved.
+            for (size_t j = i; j < constraints.size(); ++j)
+            {
+                if (constraints[j].Weight == 0)
+                    continue;
+
+                const auto& bones = skeleton.GetBones();
+                const auto middle = bones[constraints[j].EndBoneIndex].ParentIndex;
+                const auto root = bones[size_t(middle)].ParentIndex;
+
+                for (auto bone = int32_t(reference->BoneIndex);
+                    bone >= 0;
+                    bone = bones[size_t(bone)].ParentIndex)
+                {
+                    if (bone == root)
+                    {
+                        EE_CORE_ERROR(
+                            "IK target references must precede their followers "
+                            "and avoid feedback."
+                        )
+                        return false;
+                    }
+                }
+            }
+        }
 
         // Preserve overlapping input; ordinary per-frame changes reuse existing capacity.
         for (const auto& existing : m_Constraints)
@@ -489,6 +649,15 @@ namespace Elixir
         {
             if (constraint.Weight == 0) continue;
 
+            const auto target = ResolveTarget(
+                *m_Skeleton,
+                constraint,
+                pose.LocalTransforms,
+                model.Matrices
+            );
+
+            if (!target) return false;
+
             SIKChain chain;
             SChainGeometry geometry;
 
@@ -496,11 +665,11 @@ namespace Elixir
                 !MeasureChain(chain, model, geometry))
                 return false;
 
-            const auto desired = FindReachableSegments(geometry, constraint);
+            const auto desired = FindReachableSegments(geometry, constraint, target->Position);
             const auto rotations = SolveRotations(chain, geometry, desired, pose);
 
             BlendLocalRotations(constraint, chain, rotations, pose);
-            ApplyTargetRotation(constraint, chain, pose);
+            ApplyTargetRotation(constraint, *target, chain, pose);
 
             if (!skeleton.BuildModelPose(pose, model))
                 return false;
