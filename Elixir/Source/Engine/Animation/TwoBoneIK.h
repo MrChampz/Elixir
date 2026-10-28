@@ -2,8 +2,6 @@
 
 #include <Engine/Animation/PoseModifier.h>
 
-#include <variant>
-
 namespace Elixir
 {
     /** Selects a bone index or socket name in the solver's fixed skeleton. */
