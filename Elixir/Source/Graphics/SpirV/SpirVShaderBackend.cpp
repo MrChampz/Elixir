@@ -462,16 +462,29 @@ namespace Elixir::SpirV
 
     EConstantType SpirVShaderBackend::GetFloatConstantType(const spirv_cross::SPIRType& type)
     {
-        if (type.vecsize == 2)
-            return EConstantType::Float2;
-        if (type.vecsize == 3)
-            return EConstantType::Float3;
-        if (type.vecsize == 4 && type.columns == 1)
-            return EConstantType::Float4;
-        if (type.vecsize == 4 && type.columns == 3)
+        if (type.columns == 3 && type.vecsize == 3)
             return EConstantType::Mat3;
-        if (type.vecsize == 4 && type.columns == 4)
+
+        if (type.columns == 4 && type.vecsize == 4)
             return EConstantType::Mat4;
+
+        if (type.columns == 1)
+        {
+            constexpr std::array types{
+                EConstantType::Float,
+                EConstantType::Float2,
+                EConstantType::Float3,
+                EConstantType::Float4
+            };
+
+            return types[type.vecsize - 1];
+        }
+
+        EE_CORE_ERROR(
+            "Unsupported SPIR-V float shape: {} rows, {} columns.",
+            type.vecsize,
+            type.columns
+        )
 
         return EConstantType::Float;
     }

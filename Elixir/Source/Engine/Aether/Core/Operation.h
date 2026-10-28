@@ -49,13 +49,13 @@ namespace Elixir::Aether::Core
     {
         EOperationType Type;
 
-        /** @brief Expected operand input type at each argument position. */
+        /** Expected operand input type at each argument position. */
         std::span<const EOperandInput> Inputs;
 
-        /** @brief Indicates whether the spawn shader executes this operation. */
+        /** Indicates whether the spawn shader executes this operation. */
         bool SupportsSpawn;
 
-        /** @brief Indicates whether the update shader executes this operation. */
+        /** Indicates whether the update shader executes this operation. */
         bool SupportsUpdate;
     };
 
@@ -69,7 +69,10 @@ namespace Elixir::Aether::Core
         /** @brief Returns the operand input types and supported execution phases. */
         virtual const SOperationDefinition& GetDefinition() const = 0;
 
-        /** @brief Checks whether the operation supports the supplied destination attribute. */
+        /**
+         * @brief Check whether this operation supports a destination attribute.
+         * @param target Particle attribute that the operation would write.
+         */
         virtual bool IsValidTarget(const EParticleAttribute target) const = 0;
     };
 }

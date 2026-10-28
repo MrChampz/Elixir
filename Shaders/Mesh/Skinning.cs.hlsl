@@ -130,8 +130,8 @@ void main(uint3 groupId : SV_GroupID, uint lane : SV_GroupIndex)
         ? skinnedPosition
         : position;
 
-    float2 texCoord  = sourceVertices.Load2(source + VERTEX_TEXCOORD_OFFSET);
-    float2 texCoord1 = sourceVertices.Load2(source + VERTEX_TEXCOORD1_OFFSET);
+    uint2 texCoord  = sourceVertices.Load2(source + VERTEX_TEXCOORD_OFFSET);
+    uint2 texCoord1 = sourceVertices.Load2(source + VERTEX_TEXCOORD1_OFFSET);
 
     outputVertices.Store3(target + VERTEX_POSITION_OFFSET,  asuint(finalPosition));
     outputVertices.Store3(target + VERTEX_NORMAL_OFFSET,    asuint(skinnedNormal));

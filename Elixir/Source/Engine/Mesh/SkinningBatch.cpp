@@ -12,7 +12,7 @@ namespace Elixir
 
     bool SkinningBatch::Append(
         const SkeletalMesh& mesh,
-        const std::span<const glm::mat4> modelPose,
+        const SModelPose& modelPose,
         const uint32_t sourceVertexOffset,
         const uint32_t outputVertexOffset,
         const uint32_t boneCapacity
@@ -21,7 +21,7 @@ namespace Elixir
         const auto& data = mesh.GetData();
         const auto count = data.BoneMap.size();
 
-        if (modelPose.size() != mesh.GetSkeleton()->GetBones().size() ||
+        if (!modelPose.IsValid(mesh.GetSkeleton()->GetBones().size()) ||
             m_Matrices.size() > boneCapacity ||
             count > (boneCapacity - m_Matrices.size()) ||
             data.Vertices.size() > (UINT32_MAX - sourceVertexOffset) ||
@@ -34,7 +34,7 @@ namespace Elixir
         const auto firstBone = (uint32_t)m_Matrices.size();
         for (size_t i = 0; i < count; ++i)
         {
-            const auto matrix = modelPose[data.BoneMap[i]] * data.InverseBindMatrices[i];
+            const auto matrix = modelPose.Matrices[data.BoneMap[i]] * data.InverseBindMatrices[i];
             for (int c = 0; c < 4; ++c)
             {
                 if ((glm::any(glm::isnan(matrix[c])) || glm::any(glm::isinf(matrix[c]))))

@@ -51,7 +51,8 @@ namespace Elixir::Vulkan
         /**
          * @brief Bind a buffer after checking uniform usage, capacity, and device limits.
          * @param name Shader constant resource binding name.
-         * @param buffer Buffer with UniformBuffer usage and sufficient capacity for the resource.
+         * @param buffer Buffer with UniformBuffer usage and sufficient capacity for the
+         * resource.
          */
         void BindConstantBuffer(const std::string& name, const Ref<Buffer>& buffer) override;
 

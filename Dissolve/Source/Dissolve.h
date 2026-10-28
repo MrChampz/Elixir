@@ -26,20 +26,21 @@ class Dissolve final : public Elixir::Application
     void UpdateAnimation(float deltaSeconds);
 
     /** @brief Configure directional locomotion driven by two numeric parameters. */
-    void InitializeAnimationController();
+    void InitializeAnimationGraph();
 
     /** @brief Create a chest recoil sequence relative to the mesh reference pose. */
-    Ref<const AnimationSequence> CreateRecoilAnimation();
+    Ref<const Sequence> CreateRecoilAnimation();
 
     /**
-     * @brief Build a demonstration timeline with three attacks and a recovery range.
+     * @brief Build three attacks followed by a held end pose for the exit fade.
      * @param attack Source punch sequence sampled at 60 Hz.
-     * @param recovery Source wave sequence used for the final return pose.
      */
-    Ref<const AnimationSequence> CreateComboAnimation(
-        const Ref<const AnimationSequence>& attack,
-        const Ref<const AnimationSequence>& recovery
+    Ref<const Sequence> CreateComboAnimation(
+        const Ref<const Sequence>& attack
     );
+
+    /** @brief Load the socket character without stopping application setup on failure. */
+    void InitializeSocketCharacter();
 
     /** @brief Create a rigid baton attached to the right-hand socket. */
     void InitializeSocketAttachment();
@@ -53,11 +54,12 @@ class Dissolve final : public Elixir::Application
     Scope<GeometryPool> m_AttachmentGeometryPool;
     Scope<StaticMeshRenderer> m_AttachmentRenderer;
     Ref<const StaticMesh> m_AttachmentMesh;
-    Scope<SkeletalMeshInstance> m_MeshInstance;
-    Scope<SkeletalMeshInstance> m_ComparisonInstance;
+    Ref<SkeletalMeshInstance> m_MeshInstance;
+    Ref<SkeletalMeshInstance> m_ComparisonInstance;
+    Ref<Animation> m_Animation;
+    Ref<Animation> m_ComparisonAnimation;
 
-    Scope<AnimationControllerInstance> m_AnimationController;
-    Scope<AnimationControllerInstance> m_ComparisonController;
+    Ref<const AnimationGraph> m_AnimationGraph;
     Ref<const BlendSpace> m_LocomotionSpace;
     Ref<const AnimationMontage> m_PunchMontage;
     Ref<const AnimationMontage> m_DodgeMontage;
@@ -77,18 +79,19 @@ class Dissolve final : public Elixir::Application
     std::atomic<uint64_t> m_ActionEvents = 0;
     std::atomic<int> m_ComboSection = 0;
     std::atomic<bool> m_HitboxActive = false;
-    std::atomic<uint64_t> m_NotifyStateUpdates = 0;
-    std::atomic<uint64_t> m_CancelledNotifyStates = 0;
-    Ref<GUI::TextBlock> m_NotifyStateStatus;
+    std::atomic<uint64_t> m_NotifyUpdates = 0;
+    std::atomic<uint64_t> m_CancelledNotifies = 0;
+    Ref<GUI::TextBlock> m_NotifyStatus;
     bool m_WaveKeyPressed = false;
     bool m_PunchKeyPressed = false;
     bool m_LayerKeyPressed = false;
 
-    /** Recoil controls published to the rendering thread; strength stays in [0, 1]. */
+    /** Left-arm IK settings consumed by animation updates. */
     std::atomic<bool> m_IKEnabled = true;
     bool m_IKKeyPressed = false;
-    uint32_t m_IKEndBone = 0;
+    uint32_t m_IKEndBone = UINT32_MAX;
     const glm::vec3 m_IKTarget{0.5f, 1.05f, -0.25f};
+    /** Recoil controls published to the rendering thread; strength stays in [0, 1]. */
     std::atomic<bool> m_RecoilEnabled = true;
     std::atomic<float> m_RecoilStrength = 1.0f;
     std::atomic<uint64_t> m_RecoilEvents = 0;

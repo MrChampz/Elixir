@@ -3,7 +3,6 @@
 #include <Engine/Graphics/Buffer.h>
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Mesh/GeometryAllocation.h>
-#include <Engine/Mesh/Mesh.h>
 #include <Engine/Mesh/StaticMesh.h>
 
 namespace Elixir
@@ -24,6 +23,8 @@ namespace Elixir
     struct SGeometryPoolConfig
     {
         uint32_t VertexCapacity = 4'000'000;
+
+        /** Maximum index count; zero disables index buffer creation and indexed allocations. */
         uint32_t IndexCapacity = 12'000'000;
 
         /** Byte stride of source or output vertices; the default is the Surface layout. */
@@ -39,6 +40,7 @@ namespace Elixir
     /**
      * @brief Owns shared GPU geometry buffers for upload, compute, and drawing.
      *
+     * An index buffer is optional. Vertex-only uploads and allocations work in either mode.
      * Geometry remains valid until all submitted draws using it complete.
      */
     class ELIXIR_API GeometryPool final
@@ -57,20 +59,29 @@ namespace Elixir
         );
 
         /**
-         * @brief Upload CPU mesh data into the shared GPU buffers.
-         * @return An allocation that owns the uploaded geometry, or an empty allocation
-         * when the data is invalid or the pool lacks capacity.
+         * @brief Upload static source geometry matching the pool vertex stride.
+         * @param data Source vertices and optional section-local triangle indices.
+         * @return An owning allocation, or an empty allocation for invalid data or upload
+         * failure.
          */
         GeometryAllocation Upload(const SStaticMeshData& data);
 
         /**
-         * @brief Upload skeletal source vertices and indices; the pool stride must match them.
-         * @return An allocation that owns the uploaded geometry, or an empty allocation
-         * when the data is invalid or the pool lacks capacity.
+         * @brief Upload skeletal source geometry matching the pool vertex stride.
+         * @param data Source vertices and optional section-local triangle indices.
+         * @return An owning allocation, or an empty allocation for invalid data or upload
+         * failure.
          */
         GeometryAllocation Upload(const SSkeletalMeshData& data);
 
-        /** @brief Reserve geometry without uploading vertices; zero indices are allowed. */
+        /**
+         * @brief Reserve geometry without uploading vertices.
+         * @param vertexCount Nonzero number of vertices to reserve.
+         * @param indexCount Indices to reserve; zero reserves none. Nonzero requires index
+         * capacity.
+         * @return An allocation, or an empty allocation for invalid input or insufficient
+         * capacity.
+         */
         GeometryAllocation Allocate(uint32_t vertexCount, uint32_t indexCount = 0);
 
         /**
@@ -79,23 +90,37 @@ namespace Elixir
          */
         void Reset();
 
-        /** @brief Check whether both GPU buffers were created. */
+        /**
+         * @brief Check whether the vertex buffer and any configured index buffer were created.
+         */
         bool IsValid() const;
 
-        /** @brief Get geometry metadata for a valid handle. */
+        /**
+         * @brief Get geometry metadata for a live handle.
+         * @param handle Allocation handle to resolve.
+         * @return Geometry metadata, or null for an invalid or expired handle.
+         */
         const SGeometry* Get(SHandle<SGeometry> handle) const;
 
         /** @brief Get the shared vertex buffer. */
         const Ref<VertexBuffer>& GetVertexBuffer() const { return m_VertexBuffer; }
 
-        /** @brief Get the shared index buffer. */
+        /** @brief Get the shared index buffer, or null when IndexCapacity is zero. */
         const Ref<DynamicIndexBuffer>& GetIndexBuffer() const { return m_IndexBuffer; }
 
         /** @brief Get the configured byte stride of vertices. */
         uint32_t GetVertexStride() const { return m_VertexStride; }
 
     private:
-        // Upload geometry bytes after validating the configured vertex stride.
+        /**
+         * @brief Upload geometry bytes after checking the configured vertex stride.
+         * @param vertices First source vertex byte; must not be null.
+         * @param vertexCount Nonzero number of source vertices.
+         * @param stride Byte stride of each source vertex; must match the pool stride.
+         * @param indices Optional section-local triangle indices. Nonempty input requires index
+         * capacity.
+         * @return An owning allocation, or an empty allocation if validation or upload fails.
+         */
         GeometryAllocation UploadData(
             const void* vertices,
             uint32_t vertexCount,
@@ -130,24 +155,42 @@ namespace Elixir
             std::vector<uint32_t> FreeSlots;
         };
 
-        /** @brief Defers a geometry release until submitted draws no longer use it. */
+        /**
+         * @brief Defer a geometry release until submitted draws finish.
+         * @param handle Allocation handle to release.
+         */
         void Free(SHandle<SGeometry> handle);
 
-        /** @brief Releases a geometry range when its handle is valid. */
+        /**
+         * @brief Release a geometry range when its handle is valid.
+         * @param state Pool state that owns the allocation.
+         * @param handle Allocation handle to release.
+         */
         static void FreeCompleted(SGeometryPoolState& state, SHandle<SGeometry> handle);
 
-        /** @brief Check whether this allocation still identifies live pool geometry. */
+        /**
+         * @brief Check whether an allocation still identifies live pool geometry.
+         * @param handle Allocation handle to check.
+         */
         bool IsValid(const SHandle<SGeometry>& handle) const;
 
-        /** @brief Check whether a handle identifies live geometry in a pool state. */
+        /**
+         * @brief Check whether a handle identifies live geometry in a pool state.
+         * @param state Pool state that owns the allocation.
+         * @param handle Allocation handle to check.
+         */
         static bool IsHandleValid(
             const SGeometryPoolState& state,
             const SHandle<SGeometry>& handle
         );
 
         /**
-         * @brief Allocate one contiguous range in a pool buffer.
-         * @return First element offset, or std::nullopt when capacity is exhausted.
+         * @brief Allocate a contiguous range in a pool buffer.
+         * @param freeRanges Reusable ranges updated when a range is allocated.
+         * @param nextOffset End of the occupied buffer prefix, advanced when needed.
+         * @param capacity Maximum number of buffer elements.
+         * @param count Number of contiguous elements to reserve.
+         * @return First element offset, or no value when capacity is exhausted.
          */
         static std::optional<uint32_t> AllocateRange(
             std::vector<SGeometryPoolRange>& freeRanges,
@@ -156,7 +199,11 @@ namespace Elixir
             uint32_t count
         );
 
-        /** @brief Release a range and merge it with adjacent free ranges. */
+        /**
+         * @brief Release a range and merge it with adjacent free ranges.
+         * @param freeRanges Reusable ranges to update.
+         * @param range Element range to release.
+         */
         static void FreeRange(
             std::vector<SGeometryPoolRange>& freeRanges,
             SGeometryPoolRange range
