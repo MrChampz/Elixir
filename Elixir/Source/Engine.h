@@ -70,6 +70,8 @@
 #include <Engine/Mesh/SkeletalMeshInstance.h>
 #include <Engine/Mesh/SkeletalMeshRenderer.h>
 
+#include <Engine/Animation/BoneTransform.h>
+#include <Engine/Animation/SkeletonSocket.h>
 #include <Engine/Animation/Skeleton.h>
 #include <Engine/Animation/BoneMask.h>
 #include <Engine/Animation/Pose.h>

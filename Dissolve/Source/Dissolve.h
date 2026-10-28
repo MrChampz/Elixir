@@ -39,12 +39,21 @@ class Dissolve final : public Elixir::Application
         const Ref<const Sequence>& attack
     );
 
+    /** @brief Load the socket character without stopping application setup on failure. */
+    void InitializeSocketCharacter();
+
+    /** @brief Create a rigid baton attached to the right-hand socket. */
+    void InitializeSocketAttachment();
+
     /** @brief Submit the complete model to its renderer. */
     void DrawGeometry();
 
     Scope<Environment> m_Environment;
 
     Scope<SkeletalMeshRenderer> m_SkeletalMeshRenderer;
+    Scope<GeometryPool> m_AttachmentGeometryPool;
+    Scope<StaticMeshRenderer> m_AttachmentRenderer;
+    Ref<const StaticMesh> m_AttachmentMesh;
     Ref<SkeletalMeshInstance> m_MeshInstance;
     Ref<SkeletalMeshInstance> m_ComparisonInstance;
     Ref<Animation> m_Animation;

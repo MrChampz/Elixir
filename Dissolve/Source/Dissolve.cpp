@@ -7,6 +7,7 @@
 #include <Engine/Core/Entrypoint.h>
 #include <Engine/Aether/Manager.h>
 #include <Engine/GUI/Canvas.h>
+#include <Engine/Materials/Nodes/Constant.h>
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -162,24 +163,7 @@ Dissolve::Dissolve()
             EE_CORE_ERROR("Dissolve particle emitter 'FlameCore' was not found.")
         }
 
-        if (auto loaded = MeshLoaderRegistry::LoadSkeletalMesh(
-                "./Assets/Meshes/KayKitCharacter/Locomotion.glb"
-            ))
-        {
-            mesh = std::move(*loaded);
-
-            const auto& bounds = mesh->GetLocalBounds();
-            const auto separation = (bounds.Max.y - bounds.Min.y) * 0.7f;
-            m_CameraController->FrameBounds(
-                bounds.Min - glm::vec3(separation, 0, 0),
-                bounds.Max + glm::vec3(separation, 0, 0)
-            );
-            m_CameraController->SetDistance((bounds.Max.y - bounds.Min.y) * 2.0f);
-
-            m_MeshInstance = SkeletalMeshInstance::Create(mesh);
-            m_ComparisonInstance = SkeletalMeshInstance::Create(mesh);
-            InitializeAnimationGraph();
-        }
+        InitializeSocketCharacter();
     }
 
     {
@@ -303,6 +287,9 @@ Dissolve::Dissolve()
 
 Dissolve::~Dissolve()
 {
+    m_AttachmentRenderer.reset();
+    m_AttachmentMesh.reset();
+    m_AttachmentGeometryPool.reset();
     m_SkeletalMeshRenderer.reset();
     mesh.reset();
     s_LightingSetup = {};
@@ -453,8 +440,12 @@ void Dissolve::Render(const Timestep frameTime)
 
     UpdateAnimation(frameTime.GetSeconds());
     m_SkeletalMeshRenderer->BeginFrame(m_CameraController->GetCamera(), s_LightingSetup);
+    if (m_AttachmentRenderer)
+        m_AttachmentRenderer->BeginFrame(m_CameraController->GetCamera(), s_LightingSetup);
     DrawGeometry();
     m_SkeletalMeshRenderer->EndFrame();
+    if (m_AttachmentRenderer)
+        m_AttachmentRenderer->EndFrame();
 
     // Keep particle effects out of the locomotion comparison.
 }
@@ -879,6 +870,105 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
     m_AnimationStrafe.store(nextStrafe, std::memory_order_relaxed);
 }
 
+void Dissolve::InitializeSocketCharacter()
+{
+    if (auto loaded = MeshLoaderRegistry::LoadSkeletalMesh(
+        "./Assets/Meshes/KayKitCharacter/Locomotion.glb"
+    ))
+    {
+        auto data = (*loaded)->GetData();
+        const auto hand = data.Skeleton->FindBone("handslot.r");
+        if (hand < 0)
+        {
+            EE_CORE_ERROR("Socket demonstration requires the right-hand attachment bone.")
+            return;
+        }
+
+        data.Skeleton = data.Skeleton->WithSockets({{
+            .Name = "WeaponGrip", .BoneIndex = uint32_t(hand),
+            .RelativeTransform = {
+                .Rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(1, 0, 0))
+            }
+        }});
+        if (!data.Skeleton) return;
+        mesh = SkeletalMesh::Create(std::move(data));
+        if (!mesh) return;
+
+        const auto& bounds = mesh->GetLocalBounds();
+        const auto separation = (bounds.Max.y - bounds.Min.y) * 0.7f;
+        m_CameraController->FrameBounds(
+            bounds.Min - glm::vec3(separation, 0, 0),
+            bounds.Max + glm::vec3(separation, 0, 0)
+        );
+        m_CameraController->SetDistance((bounds.Max.y - bounds.Min.y) * 2.0f);
+
+        m_MeshInstance = SkeletalMeshInstance::Create(mesh);
+        m_ComparisonInstance = SkeletalMeshInstance::Create(mesh);
+        InitializeAnimationGraph();
+        InitializeSocketAttachment();
+    }
+}
+
+void Dissolve::InitializeSocketAttachment()
+{
+    SStaticMeshData data;
+    data.Name = "SocketBaton";
+    const std::array<glm::vec3, 8> corners = {{
+        {-0.035f, 0, -0.035f}, {0.035f, 0, -0.035f},
+        {0.035f, 0.5f, -0.035f}, {-0.035f, 0.5f, -0.035f},
+        {-0.035f, 0, 0.035f}, {0.035f, 0, 0.035f},
+        {0.035f, 0.5f, 0.035f}, {-0.035f, 0.5f, 0.035f}
+    }};
+    const std::array<uint32_t, 36> triangles = {
+        0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7,
+        0, 4, 7, 0, 7, 3, 1, 2, 6, 1, 6, 5,
+        0, 1, 5, 0, 5, 4, 3, 7, 6, 3, 6, 2
+    };
+    for (size_t i = 0; i < triangles.size(); i += 3)
+    {
+        const auto tangent = glm::normalize(corners[triangles[i + 1]] - corners[triangles[i]]);
+        const auto edge = corners[triangles[i + 2]] - corners[triangles[i]];
+        const auto normal = glm::normalize(glm::cross(tangent, edge));
+        for (size_t j = 0; j < 3; ++j)
+        {
+            data.Indices.push_back(uint32_t(data.Vertices.size()));
+            data.Vertices.push_back({ .Position = corners[triangles[i + j]],
+                .Normal = normal, .Tangent = glm::vec4(tangent, 1) });
+        }
+    }
+    data.LocalBounds = {.Min = {-0.035f, 0, -0.035f}, .Max = {0.035f, 0.5f, 0.035f}};
+    data.Sections = {{.IndexCount = uint32_t(data.Indices.size()), .LocalBounds = data.LocalBounds}};
+    MaterialGraph graph;
+    const auto color = graph.AddNode<Constant>(
+        glm::vec4(1, 0.2f, 0.025f, 1),
+        EMaterialValueType::Float4
+    );
+    graph.SetChannel(EMaterialChannel::BaseColor, color);
+    auto material = CreateRef<Material>("SocketBaton", EMaterialUsage::Surface);
+    material->SetGraph(std::move(graph));
+    if (!GetMaterialRegistry().Register(material)) return;
+    data.Materials = {std::move(material)};
+    m_AttachmentGeometryPool = CreateScope<GeometryPool>(
+        *m_GraphicsContext,
+        SGeometryPoolConfig{.VertexCapacity = 36, .IndexCapacity = 36}
+    );
+    auto geometry = m_AttachmentGeometryPool->Upload(data);
+    if (!geometry.IsValid()) return;
+    m_AttachmentMesh = StaticMesh::Create(
+        data.Name,
+        std::move(geometry),
+        std::move(data.Sections),
+        std::move(data.Materials),
+        data.LocalBounds
+    );
+    if (!m_AttachmentMesh) return;
+    m_AttachmentRenderer = CreateScope<StaticMeshRenderer>(
+        *m_GraphicsContext,
+        GetMaterialSystem(),
+        *m_AttachmentGeometryPool
+    );
+}
+
 void Dissolve::DrawGeometry()
 {
     if (m_SkeletalMeshRenderer && m_MeshInstance)
@@ -907,6 +997,24 @@ void Dissolve::DrawGeometry()
                 m_SkeletalMeshRenderer->Render(instance, animation->GetModelPose(), transform * movement);
             else
                 m_SkeletalMeshRenderer->Render(instance, transform * movement);
+            if (m_AttachmentRenderer)
+            {
+                const auto& pose = animation ? animation->GetModelPose()
+                    : instance.GetReferenceModelPose();
+                const auto& skeleton = instance.GetMesh()->GetSkeleton();
+                const auto* socket = skeleton->GetSocket("WeaponGrip");
+                if (socket)
+                {
+                    const auto attachment = socket->GetTransform(pose);
+                    if (attachment)
+                    {
+                        m_AttachmentRenderer->Render(
+                            m_AttachmentMesh,
+                            transform * movement * *attachment
+                        );
+                    }
+                }
+            }
         };
         renderInstance(*m_ComparisonInstance, m_ComparisonAnimation.get(), separation);
         renderInstance(*m_MeshInstance, m_Animation.get(), -separation);
