@@ -45,6 +45,12 @@ class Dissolve final : public Elixir::Application
     /** @brief Create a rigid baton and configure its two hand-grip references. */
     void InitializeSocketAttachment();
 
+    /** @brief Calibrate both hand grips and attach the IK modifier to the animation. */
+    bool InitializeAttachmentIK();
+
+    /** @brief Build the baton geometry, material, and renderer. */
+    void InitializeBaton();
+
     /** @brief Submit the complete model to its renderer. */
     void DrawGeometry();
 

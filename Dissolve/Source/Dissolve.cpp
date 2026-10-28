@@ -962,26 +962,32 @@ void Dissolve::InitializeSocketCharacter()
 
 void Dissolve::InitializeSocketAttachment()
 {
+    if (!InitializeAttachmentIK()) return;
+    InitializeBaton();
+}
+
+bool Dissolve::InitializeAttachmentIK()
+{
     const auto wrist = mesh->GetSkeleton()->FindBone("wrist.l");
     const auto driver = mesh->GetSkeleton()->FindBone("wrist.r");
     const auto leftGrip = mesh->GetSkeleton()->FindBone("handslot.l");
     if (wrist < 0 || driver < 0 || leftGrip < 0)
     {
         EE_CORE_ERROR("Two-bone IK demonstration requires both wrists and the left grip.")
-        return;
+        return false;
     }
     m_IKEndBone = uint32_t(wrist);
     m_IKDriverBone = uint32_t(driver);
     SModelPose reference;
-    if (!mesh->GetSkeleton()->BuildModelPose(mesh->GetData().ReferencePose, reference)) return;
+    if (!mesh->GetSkeleton()->BuildModelPose(mesh->GetData().ReferencePose, reference)) return false;
     const auto wristFromGrip = glm::inverse(reference.Matrices[size_t(leftGrip)]) *
         reference.Matrices[size_t(wrist)];
     m_IKSupportOffset.Translation = glm::vec3(wristFromGrip[3]);
     m_IKSupportOffset.Rotation = glm::normalize(glm::quat_cast(glm::mat3(wristFromGrip)));
     const auto* socket = mesh->GetSkeleton()->GetSocket("WeaponGrip");
-    if (!socket) return;
+    if (!socket) return false;
     const auto weaponFrame = socket->GetTransform(reference);
-    if (!weaponFrame) return;
+    if (!weaponFrame) return false;
     const auto wristRotation = glm::normalize(
         glm::quat_cast(glm::mat3(reference.Matrices[size_t(driver)]))
     );
@@ -995,11 +1001,16 @@ void Dissolve::InitializeSocketAttachment()
     if (m_Animation)
     {
         const auto modifier = TwoBoneIK::Create(mesh->GetSkeleton());
-        if (!modifier) return;
+        if (!modifier) return false;
         const std::array<Ref<const PoseModifier>, 1> modifiers{modifier};
-        if (!m_Animation->SetPoseModifiers(modifiers)) return;
+        if (!m_Animation->SetPoseModifiers(modifiers)) return false;
         m_IKModifier = modifier;
     }
+    return true;
+}
+
+void Dissolve::InitializeBaton()
+{
     SStaticMeshData data;
     data.Name = "SocketBaton";
     const std::array<glm::vec3, 8> corners = {{
