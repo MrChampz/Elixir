@@ -16,8 +16,11 @@ namespace Elixir
         /** Skeleton-space point toward which the middle joint bends. */
         glm::vec3 PolePosition{};
 
-        /** Local rotation blend in [0, 1]; zero preserves the animated pose exactly. */
+        /** Rotation blend in [0, 1]; zero preserves the animated pose exactly. */
         float Weight = 1.0f;
+
+        /** Optional unit quaternion in skeleton space; absent preserves end local rotation. */
+        std::optional<glm::quat> TargetRotation;
     };
 
     /** Owns gameplay-configured limb constraints and solves them on candidate poses. */
@@ -36,12 +39,15 @@ namespace Elixir
          *
          * Targets and poles use skeleton space. Each end bone's parent and grandparent
          * form its chain. Active chains require nonzero lengths and uniform positive scales.
-         * Only parent rotations change. Unreachable targets clamp without stretching.
+         * Parent rotations solve position; an optional target also controls end orientation.
+         * The target blends from the end orientation produced by the position correction.
+         * Without a target rotation, preserve the end bone's local rotation.
+         * Unreachable targets clamp without stretching.
          * Later constraints use earlier results. Weight blends rotations, not end positions.
          * Configure and evaluate this solver on the same thread.
          *
          * @param constraints Copied ordered list; empty disables corrections.
-         * @return False for invalid bones, targets, poles, or weights; retain the old list.
+         * @return False for invalid settings or bones; retain the previous constraints.
          */
         bool SetConstraints(std::span<const STwoBoneIKConstraint> constraints);
 

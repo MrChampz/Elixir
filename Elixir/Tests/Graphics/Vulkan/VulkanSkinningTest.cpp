@@ -427,6 +427,7 @@ TEST(VulkanSkinningTest, TwoBoneIKPoseReachesComputeSkinning)
             vertex.Weights = {1, 0, 0, 0};
         }
         data.Vertices[0].Position = {2, 0, 0};
+        data.Vertices[1].Position = {1, 0, 0};
         const auto mesh = SkeletalMesh::Create(std::move(data));
         ASSERT_TRUE(mesh);
         const auto animation = Animation::Create(
@@ -434,7 +435,10 @@ TEST(VulkanSkinningTest, TwoBoneIKPoseReachesComputeSkinning)
             mesh->GetData().ReferencePose
         );
         ASSERT_TRUE(animation);
-        const STwoBoneIKConstraint constraint{2, {1, 1, 0}, {0, 2, 0}};
+        const STwoBoneIKConstraint constraint{
+            2, {1, 1, 0}, {0, 2, 0}, 1,
+            glm::angleAxis(glm::radians(90.0f), glm::vec3(0, 0, 1))
+        };
         const auto ik = TwoBoneIK::Create(mesh->GetSkeleton());
         ASSERT_TRUE(ik);
         ASSERT_TRUE(ik->SetConstraints(std::span(&constraint, 1)));
@@ -445,6 +449,8 @@ TEST(VulkanSkinningTest, TwoBoneIKPoseReachesComputeSkinning)
         ASSERT_TRUE(mesh->SkinVertices(animation->GetModelPose(), expected));
         EXPECT_NEAR(expected[0].Position.x, 1, 1e-5f);
         EXPECT_NEAR(expected[0].Position.y, 1, 1e-5f);
+        EXPECT_NEAR(expected[1].Position.x, 1, 1e-5f);
+        EXPECT_NEAR(expected[1].Position.y, 0, 1e-5f);
         GeometryPool source(*context, {3, 3, sizeof(SSkeletalMeshVertex),
             EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer});
         GeometryPool output(*context, {3, 3, sizeof(SStaticMeshVertex),

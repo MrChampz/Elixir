@@ -258,7 +258,8 @@ Dissolve::Dissolve()
             .SetSize({260, 35});
     }
     const auto layerInstructions = CreateRef<GUI::TextBlock>(
-        "J: recovery | K: start/chain combo | L: action on/off | B: dodge | V: reset | G: left arm IK"
+        "J: recovery | K: start/chain combo | L: action on/off | B: dodge | "
+        "V: reset | G: IK | H: IK rotation"
     );
     layerInstructions->SetFontSize(18.0f);
     panel->AddChild(layerInstructions)
@@ -351,6 +352,15 @@ void Dissolve::Prepare(const Timestep frameTime)
         );
     }
     m_IKKeyPressed = ik;
+    const auto ikRotation = InputManager::IsKeyPressed(EE_KEY_H);
+    if (ikRotation && !m_IKRotationKeyPressed)
+    {
+        m_IKRotationEnabled.store(
+            !m_IKRotationEnabled.load(std::memory_order_relaxed),
+            std::memory_order_relaxed
+        );
+    }
+    m_IKRotationKeyPressed = ikRotation;
 
     const auto recoil = InputManager::IsKeyPressed(EE_KEY_U);
     if (recoil && !m_RecoilKeyPressed)
@@ -797,7 +807,9 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
             .EndBoneIndex = m_IKEndBone,
             .TargetPosition = m_IKTarget,
             .PolePosition = {0.9f, 0.8f, -0.2f},
-            .Weight = m_IKEnabled.load(std::memory_order_relaxed) ? 1.0f : 0.0f
+            .Weight = m_IKEnabled.load(std::memory_order_relaxed) ? 1.0f : 0.0f,
+            .TargetRotation = m_IKRotationEnabled.load(std::memory_order_relaxed)
+                ? std::optional(m_IKTargetRotation) : std::nullopt
         };
         if (!m_IKModifier->SetConstraints(std::span(&constraint, 1))) return;
     }
@@ -899,9 +911,10 @@ void Dissolve::InitializeSocketCharacter()
     {
         auto data = (*loaded)->GetData();
         const auto hand = data.Skeleton->FindBone("handslot.r");
-        if (hand < 0)
+        const auto wrist = data.Skeleton->FindBone("wrist.l");
+        if (hand < 0 || wrist < 0)
         {
-            EE_CORE_ERROR("Socket demonstration requires the right-hand attachment bone.")
+            EE_CORE_ERROR("Socket demonstration requires the right hand and left wrist.")
             return;
         }
 
@@ -910,6 +923,8 @@ void Dissolve::InitializeSocketCharacter()
             .RelativeTransform = {
                 .Rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(1, 0, 0))
             }
+        }, {
+            .Name = "IKGrip", .BoneIndex = uint32_t(wrist)
         }});
         if (!data.Skeleton) return;
         mesh = SkeletalMesh::Create(std::move(data));
@@ -1038,6 +1053,23 @@ void Dissolve::DrawGeometry()
                 const auto target = glm::translate(glm::mat4(1), m_IKTarget) *
                     glm::scale(glm::mat4(1), glm::vec3(1.8f, 0.15f, 1.8f));
                 m_AttachmentRenderer->Render(m_AttachmentMesh, transform * movement * target);
+                const auto& skeleton = instance.GetMesh()->GetSkeleton();
+                const auto* grip = skeleton->GetSocket("IKGrip");
+                if (grip)
+                {
+                    const auto& pose = animation ? animation->GetModelPose()
+                        : instance.GetReferenceModelPose();
+                    const auto socket = grip->GetTransform(pose);
+                    if (socket)
+                    {
+                        const auto pointer = *socket *
+                            glm::scale(glm::mat4(1), glm::vec3(0.4f, 0.6f, 0.4f));
+                        m_AttachmentRenderer->Render(
+                            m_AttachmentMesh,
+                            transform * movement * pointer
+                        );
+                    }
+                }
             }
             if (m_AttachmentRenderer)
             {

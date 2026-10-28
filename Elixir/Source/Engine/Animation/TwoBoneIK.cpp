@@ -35,8 +35,25 @@ namespace Elixir
         }
 
         /**
+         * @brief Check an optional target orientation for finite unit-quaternion components.
+         * @param target Optional skeleton-space orientation.
+         */
+        bool HasValidTargetRotation(const std::optional<glm::quat>& target)
+        {
+            if (!target) return true;
+
+            const auto& rotation = *target;
+
+            for (int i = 0; i < 4; ++i)
+                if (!std::isfinite(rotation[i]))
+                    return false;
+
+            return std::abs(glm::dot(rotation, rotation) - 1.0f) < 1e-4f;
+        }
+
+        /**
          * @brief Check skeleton-space target and blend settings without changing the pose.
-         * @param constraint Requested target, pole, and weight.
+         * @param constraint Target, pole, optional orientation, and weight.
          */
         bool HasValidSettings(const STwoBoneIKConstraint& constraint)
         {
@@ -48,7 +65,8 @@ namespace Elixir
             }
             return std::isfinite(constraint.Weight) &&
                 constraint.Weight >= 0 &&
-                constraint.Weight <= 1;
+                constraint.Weight <= 1 &&
+                HasValidTargetRotation(constraint.TargetRotation);
         }
         /** Identifies the two segments and their accumulated parent orientation. */
         struct SIKChain
@@ -96,7 +114,10 @@ namespace Elixir
         {
             if (!HasValidSettings(constraint))
             {
-                EE_CORE_ERROR("Two-bone IK requires finite targets and a weight in [0, 1].")
+                EE_CORE_ERROR(
+                    "Two-bone IK requires finite targets, a unit target rotation, "
+                    "and weight in [0, 1]."
+                )
                 return false;
             }
 
@@ -366,6 +387,47 @@ namespace Elixir
             );
             transforms[middle].Rotation = glm::normalize(middleRotation);
         }
+        /**
+         * @brief Blend the end bone toward an optional skeleton-space orientation.
+         * @param constraint Optional target orientation and shared rotation weight.
+         * @param chain Bone indices and accumulated parent orientation.
+         * @param pose Candidate pose after blending the two parent rotations.
+         */
+        void ApplyTargetRotation(
+            const STwoBoneIKConstraint& constraint,
+            const SIKChain& chain,
+            SLocalPose& pose
+        )
+        {
+            if (!constraint.TargetRotation)
+                return;
+
+            auto& transforms = pose.LocalTransforms;
+
+            auto blendedRoot = chain.ParentRotation *
+                glm::dquat(transforms[chain.Root].Rotation);
+            blendedRoot = glm::normalize(blendedRoot);
+
+            auto blendedMiddle = blendedRoot *
+                glm::dquat(transforms[chain.Middle].Rotation);
+            blendedMiddle = glm::normalize(blendedMiddle);
+
+            auto currentEnd = blendedMiddle *
+                glm::dquat(transforms[chain.End].Rotation);
+            currentEnd = glm::normalize(currentEnd);
+
+            const auto targetEnd = glm::normalize(
+                glm::slerp(
+                    currentEnd,
+                    glm::normalize(glm::dquat(*constraint.TargetRotation)),
+                    double(constraint.Weight)
+                )
+            );
+
+            transforms[chain.End].Rotation =
+                glm::quat(glm::normalize(glm::conjugate(blendedMiddle) * targetEnd));
+        }
+
     }
 
     Ref<TwoBoneIK> TwoBoneIK::Create(Ref<const Skeleton> skeleton)
@@ -436,7 +498,9 @@ namespace Elixir
 
             const auto desired = FindReachableSegments(geometry, constraint);
             const auto rotations = SolveRotations(chain, geometry, desired, pose);
+
             BlendLocalRotations(constraint, chain, rotations, pose);
+            ApplyTargetRotation(constraint, chain, pose);
 
             if (!skeleton.BuildModelPose(pose, model))
                 return false;

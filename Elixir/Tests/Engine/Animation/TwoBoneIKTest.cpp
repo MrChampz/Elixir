@@ -1,85 +1,13 @@
 #include <gtest/gtest.h>
-#include "../Mesh/SkinningTestData.h"
+#include "TwoBoneIKTestUtils.h"
 #include <limits>
 #include <Engine/Animation/Animation.h>
 #include <Engine/Animation/TwoBoneIK.h>
 #include <Engine/Animation/SequenceNode.h>
 
 using namespace Elixir;
+using namespace Elixir::Tests::IK;
 
-namespace
-{
-    /** @brief Create a straight two-segment limb, a tip child, and a root sibling. */
-    Ref<SkeletalMesh> MakeIKMesh()
-    {
-        auto data = SkinningTests::MakeMesh()->GetData();
-        data.Skeleton = Skeleton::Create("Limb", {
-            {.Name = "Root"},
-            {.Name = "Middle", .ParentIndex = 0,
-                .ReferenceTransform = {.Translation = {1, 0, 0}}},
-            {.Name = "End", .ParentIndex = 1,
-                .ReferenceTransform = {.Translation = {1, 0, 0}}},
-            {.Name = "Finger", .ParentIndex = 2,
-                .ReferenceTransform = {.Translation = {0.2f, 0, 0}}},
-            {.Name = "Sibling", .ParentIndex = 0,
-                .ReferenceTransform = {.Translation = {0, 1, 0}}}
-        }, {{.Name = "Grip", .BoneIndex = 2}});
-        data.ReferencePose.LocalTransforms.clear();
-        return SkeletalMesh::Create(std::move(data));
-    }
-
-    /**
-     * @brief Create independent animation state for a test mesh.
-     * @param mesh Mesh supplying the fixed skeleton and reference pose.
-     */
-    Ref<Animation> MakeIKAnimation(const Ref<const SkeletalMesh>& mesh)
-    {
-        if (!mesh) return nullptr;
-        return Animation::Create(mesh->GetSkeleton(), mesh->GetData().ReferencePose);
-    }
-
-    /**
-     * @brief Compare a position with a tolerance suitable for float pose matrices.
-     * @param actual Solved position.
-     * @param expected Target position.
-     */
-    void ExpectPosition(const glm::vec3& actual, const glm::vec3& expected)
-    {
-        EXPECT_NEAR(actual.x, expected.x, 1e-4f);
-        EXPECT_NEAR(actual.y, expected.y, 1e-4f);
-        EXPECT_NEAR(actual.z, expected.z, 1e-4f);
-    }
-
-    /**
-     * @brief Attach a separately configured solver to an animation's generic pipeline.
-     * @param animation Animation that retains the modifier during pose evaluation.
-     */
-    Ref<TwoBoneIK> AttachIK(Animation& animation)
-    {
-        const auto solver = TwoBoneIK::Create(animation.GetSkeleton());
-        if (!solver) return nullptr;
-        const std::array<Ref<const PoseModifier>, 1> modifiers{solver};
-        return animation.SetPoseModifiers(modifiers) ? solver : nullptr;
-    }
-
-    /**
-     * @brief Configure one limb target on an external solver.
-     * @param solver Modifier to configure.
-     * @param target Skeleton-space destination.
-     * @param pole Skeleton-space bend point.
-     * @param weight Rotation blend weight.
-     */
-    bool SetTarget(
-        TwoBoneIK& solver,
-        glm::vec3 target,
-        glm::vec3 pole = {0, 2, 0},
-        float weight = 1
-    )
-    {
-        const STwoBoneIKConstraint constraint{2, target, pole, weight};
-        return solver.SetConstraints(std::span(&constraint, 1));
-    }
-}
 
 TEST(TwoBoneIKTest, ReachesTargetPreservesLengthsAndUpdatesSocketsAndDescendants)
 {
