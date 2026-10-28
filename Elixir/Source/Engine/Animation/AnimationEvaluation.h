@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/Animation/Pose.h>
+#include <Engine/Animation/AnimationSample.h>
 
 namespace Elixir
 {
@@ -126,7 +126,7 @@ namespace Elixir
     /** Candidate pose and clock position, published only after frame validation. */
     struct SAnimationEvaluation
     {
-        SLocalPose Pose;
+        SAnimationSample Sample;
 
         /** Candidate normalized position; does not change the published playback clock. */
         double Phase = 0;

@@ -66,7 +66,7 @@ namespace
             output.Sources = GetState().Sources;
             return m_Sequence->Sample(
                 float(context.Phase * m_Sequence->GetDuration()),
-                output.Pose,
+                output.Sample.Pose,
                 context.ReferencePose
             );
         }

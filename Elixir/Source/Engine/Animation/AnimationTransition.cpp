@@ -1,6 +1,7 @@
 #include "epch.h"
-#include <Engine/Animation/Pose.h>
 #include "AnimationTransition.h"
+
+#include <Engine/Animation/Pose.h>
 
 namespace Elixir
 {
@@ -14,41 +15,67 @@ namespace Elixir
         const SLocalPose& referencePose
     ) const
     {
+        SAnimationSample evaluation;
+        if (!Sample(playback, source, weight, time, sourceTime, evaluation, referencePose))
+            return false;
+
+        output = std::move(evaluation.Pose);
+        return true;
+    }
+
+    bool AnimationTransition::Sample(
+        const AnimationPlayback& playback,
+        const AnimationPlayback& source,
+        const float weight,
+        const double time,
+        const double sourceTime,
+        SAnimationSample& output,
+        const SLocalPose& referencePose
+    ) const
+    {
         if (!std::isfinite(weight) || weight < 0 || weight > 1)
             return false;
 
-        SLocalPose local;
-        if (!playback.Sample(time, referencePose, local))
+        SAnimationSample result;
+        if (!playback.Sample(time, referencePose, result))
             return false;
 
         if (weight < 1.0f)
         {
-            const auto* pose = &Pose;
+            const auto* pose = &SourceSample.Pose;
+            auto curves = SourceSample.Curves;
 
-            SLocalPose sampled;
+            SAnimationSample sampled;
             if (source.IsValid())
             {
                 if (!source.Sample(sourceTime, referencePose, sampled))
                     return false;
-                pose = &sampled;
+
+                pose = &sampled.Pose;
+                curves = std::move(sampled.Curves);
             }
 
-            if (pose->LocalTransforms.size() != local.LocalTransforms.size())
+            if (pose->LocalTransforms.size() != result.Pose.LocalTransforms.size())
             {
                 EE_CORE_ERROR("Animation transition requires matching source and target poses.")
                 return false;
             }
 
-            for (size_t i = 0; i < local.LocalTransforms.size(); ++i)
-                local.LocalTransforms[i] = SBoneTransform::Blend(
+            if (!curves.Blend(result.Curves, weight))
+                return false;
+
+            result.Curves = std::move(curves);
+
+            for (size_t i = 0; i < result.Pose.LocalTransforms.size(); ++i)
+                result.Pose.LocalTransforms[i] = SBoneTransform::Blend(
                     pose->LocalTransforms[i],
-                    local.LocalTransforms[i],
+                    result.Pose.LocalTransforms[i],
                     weight
                 );
         }
 
         const auto invalidBone = std::ranges::any_of(
-            local.LocalTransforms,
+            result.Pose.LocalTransforms,
             [](const auto& bone) { return !bone.IsValid(); }
         );
 
@@ -58,7 +85,7 @@ namespace Elixir
             return false;
         }
 
-        output = std::move(local);
+        output = std::move(result);
         return true;
     }
 
@@ -123,6 +150,6 @@ namespace Elixir
             std::isfinite(Elapsed) &&
             Elapsed >= 0 &&
             Elapsed <= Duration &&
-            (!IsActive() || Playback.IsValid() || !Pose.LocalTransforms.empty());
+            (!IsActive() || Playback.IsValid() || !SourceSample.Pose.LocalTransforms.empty());
     }
 }

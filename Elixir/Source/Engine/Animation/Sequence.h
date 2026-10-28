@@ -3,6 +3,7 @@
 #include <Engine/Animation/Pose.h>
 #include <Engine/Animation/Skeleton.h>
 #include <Engine/Animation/RootMotion.h>
+#include <Engine/Animation/AnimationCurve.h>
 
 namespace Elixir
 {
@@ -122,13 +123,16 @@ namespace Elixir
          * @param syncMarkers Unique named markers at distinct times in [0, duration).
          * Markers are sorted during creation.
          * @param notifies Named events on a positive-duration timeline, sorted stably by time.
+         * @param curves Unique named scalar tracks with finite ordered keys.
          */
         static Ref<Sequence> Create(
-            std::string name, Ref<const Skeleton> skeleton,
+            std::string name,
+            Ref<const Skeleton> skeleton,
             float duration,
             std::vector<SBoneAnimationTrack> tracks,
             std::vector<SAnimationSyncMarker> syncMarkers = {},
-            std::vector<SAnimationNotify> notifies = {}
+            std::vector<SAnimationNotify> notifies = {},
+            std::vector<SAnimationCurve> curves = {}
         );
 
         /**
@@ -249,6 +253,23 @@ namespace Elixir
             bool includeStart = false
         ) const;
 
+        /**
+         * @brief Sample scalar tracks at a clamped time; preserve output on failure.
+         * @param time Finite sequence time in seconds.
+         * @param output Receives all authored curves, including zero values.
+         */
+        bool SampleCurves(float time, AnimationCurveValues& output) const;
+
+        /**
+         * @brief Copy this sequence with scalar tracks, preserving all other metadata.
+         * @param curves Unique named tracks; empty removes all curves.
+         * @return A new sequence, or null for invalid names, keys, or interpolation.
+         */
+        Ref<Sequence> WithCurves(std::vector<SAnimationCurve> curves) const;
+
+        /** @brief Get immutable authored scalar tracks. */
+        const std::vector<SAnimationCurve>& GetCurves() const { return m_Curves; }
+
         /** @brief Get the asset name. */
         const std::string& GetName() const { return m_Name; }
 
@@ -267,6 +288,7 @@ namespace Elixir
          * @param tracks Validated bone tracks.
          * @param syncMarkers Validated cycle markers in ascending time order.
          * @param notifies Validated events in stable ascending time order.
+         * @param curves Validated scalar tracks.
          */
         Sequence(
             std::string name,
@@ -274,7 +296,8 @@ namespace Elixir
             float duration,
             std::vector<SBoneAnimationTrack> tracks,
             std::vector<SAnimationSyncMarker> syncMarkers,
-            std::vector<SAnimationNotify> notifies
+            std::vector<SAnimationNotify> notifies,
+            std::vector<SAnimationCurve> curves
         );
 
         std::string m_Name;
@@ -283,5 +306,6 @@ namespace Elixir
         std::vector<SBoneAnimationTrack> m_Tracks;
         std::vector<SAnimationSyncMarker> m_SyncMarkers;
         std::vector<SAnimationNotify> m_Notifies;
+        std::vector<SAnimationCurve> m_Curves;
     };
 }

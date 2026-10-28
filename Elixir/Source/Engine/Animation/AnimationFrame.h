@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/Animation/Pose.h>
+#include <Engine/Animation/AnimationSample.h>
 #include <Engine/Animation/AnimationNotifyEvent.h>
 
 namespace Elixir
@@ -8,7 +8,8 @@ namespace Elixir
     /** Complete result published only after every source and layer evaluates successfully. */
     struct ELIXIR_API SAnimationFrame
     {
-        SLocalPose LocalPose;
+        /** Bone transforms and scalar channels published atomically for this frame. */
+        SAnimationSample Sample;
         SModelPose ModelPose;
         std::vector<SAnimationNotifyEvent> NotifyEvents;
         SRootMotionDelta RootMotion;

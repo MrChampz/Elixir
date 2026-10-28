@@ -110,7 +110,9 @@ namespace Elixir
                     !std::isfinite(constraint.PolePosition[i]))
                     return false;
             }
-            return std::isfinite(constraint.Weight) &&
+
+            return (!constraint.WeightCurve || !constraint.WeightCurve->empty()) &&
+                std::isfinite(constraint.Weight) &&
                 constraint.Weight >= 0 &&
                 constraint.Weight <= 1 &&
                 HasValidTargetRotation(constraint.TargetRotation);
@@ -645,8 +647,17 @@ namespace Elixir
         if (!skeleton.BuildModelPose(pose, model))
             return false;
 
-        for (const auto& constraint : m_Constraints)
+        for (auto constraint : m_Constraints)
         {
+            if (constraint.WeightCurve)
+            {
+                const auto value = context.Curves
+                    ? context.Curves->GetValue(*constraint.WeightCurve)
+                    : 0.0f;
+
+                constraint.Weight *= std::clamp(value, 0.0f, 1.0f);
+            }
+
             if (constraint.Weight == 0) continue;
 
             const auto target = ResolveTarget(

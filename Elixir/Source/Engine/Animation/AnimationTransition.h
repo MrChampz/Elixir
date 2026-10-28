@@ -12,8 +12,8 @@ namespace Elixir
         /** Outgoing playback that continues advancing during the transition. */
         AnimationPlayback Playback;
 
-        /** Captured source pose used when there is no outgoing playback. */
-        SLocalPose Pose;
+        /** Captured pose and scalar channels used when there is no outgoing playback. */
+        SAnimationSample SourceSample;
 
         /** Finite nonnegative transition duration in seconds; zero disables the fade. */
         float Duration = 0;
@@ -38,6 +38,26 @@ namespace Elixir
             double time,
             double sourceTime,
             SLocalPose& output,
+            const SLocalPose& referencePose
+        ) const;
+
+        /**
+         * @brief Sample and blend the target pose and scalar channels together.
+         * @param playback Target playback.
+         * @param source Outgoing playback, if assigned.
+         * @param weight Target contribution in [0, 1].
+         * @param time Target normalized phase.
+         * @param sourceTime Outgoing normalized phase.
+         * @param output Receives the blended pose and scalar channels.
+         * @param referencePose Mesh-specific sampling defaults for bone channels.
+         */
+        bool Sample(
+            const AnimationPlayback& playback,
+            const AnimationPlayback& source,
+            float weight,
+            double time,
+            double sourceTime,
+            SAnimationSample& output,
             const SLocalPose& referencePose
         ) const;
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Animation/Pose.h>
+#include <Engine/Animation/AnimationCurve.h>
 
 namespace Elixir
 {
@@ -12,6 +13,9 @@ namespace Elixir
 
         /** Extracted root-motion bone whose model transform must remain unchanged, if any. */
         std::optional<uint32_t> RootMotionBone;
+
+        /** Borrowed scalar channels for this candidate frame; null means no curves. */
+        const AnimationCurveValues* Curves = nullptr;
     };
 
     /** Corrects candidate poses independently of animation playback and gameplay controls. */

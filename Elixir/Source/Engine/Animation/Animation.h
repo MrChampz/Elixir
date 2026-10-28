@@ -193,6 +193,9 @@ namespace Elixir
             return m_Frame.NotifyEvents;
         }
 
+        /** @brief Inspect the published bone transforms and scalar channels together. */
+        const SAnimationSample& GetSample() const { return m_Frame.Sample; }
+
         /**
          * @brief Set the base local pose, stop playback, and remove nonbase layers on success.
          * @param pose One valid parent-relative transform per skeleton bone.
@@ -200,10 +203,13 @@ namespace Elixir
         bool SetLocalPose(const SLocalPose& pose);
 
         /** @brief Get one parent-relative transform per skeleton bone. */
-        const SLocalPose& GetLocalPose() const { return m_Frame.LocalPose; }
+        const SLocalPose& GetLocalPose() const { return m_Frame.Sample.Pose; }
 
         /** @brief Get one skeleton-space matrix per skeleton bone. */
         const SModelPose& GetModelPose() const { return m_Frame.ModelPose; }
+
+        /** @brief Inspect scalar channels sampled with the published local pose. */
+        const AnimationCurveValues& GetCurveValues() const { return m_Frame.Sample.Curves; }
 
         /** @brief Get target time in seconds using the current blend-space cycle duration. */
         float GetTime() const
@@ -330,13 +336,13 @@ namespace Elixir
         /**
          * @brief Compose ordered layer poses and validate the final model matrices.
          * @param evaluations Evaluated layers, or empty to use their current local poses.
-         * @param local Receives the complete blended local pose.
+         * @param sample Receives the pose and curves composed from candidate layer frames.
          * @param model Receives the complete skeleton-space pose.
          * @param replacement Optional layer preview used before committing a playback change.
          */
         bool ComposePose(
             std::span<const SAnimationPlayerEvaluation> evaluations,
-            SLocalPose& local,
+            SAnimationSample& sample,
             SModelPose& model,
             const AnimationLayer* replacement = nullptr
         ) const;
@@ -361,10 +367,13 @@ namespace Elixir
 
         /**
          * @brief Validate pose corrections and preserve the extracted movement frame.
-         * @param local Candidate transforms modified by each modifier in order.
+         * @param sample Candidate pose and read-only curves for each modifier.
          * @param model Receives model matrices rebuilt after each successful correction.
          */
-        bool ApplyPoseModifiers(SLocalPose& local, SModelPose& model) const;
+        bool ApplyPoseModifiers(
+            SAnimationSample& sample,
+            SModelPose& model
+        ) const;
 
         std::vector<Ref<const PoseModifier>> m_PoseModifiers;
         Ref<AnimationParameters> m_Parameters = CreateRef<AnimationParameters>();

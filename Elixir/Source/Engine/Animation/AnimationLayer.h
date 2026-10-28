@@ -111,12 +111,11 @@ namespace Elixir
         AnimationLayer& operator=(AnimationLayer&& other) noexcept = default;
 
         /**
-         * @brief Blend the player's pose into a candidate using this layer's settings.
-         * @param output Underlying local pose to modify; discard it on failure.
-         * @param pose Absolute local pose produced by this layer's player.
-         * @return False for invalid dimensions or invalid resulting transforms.
+         * @brief Blend a sampled pose and scalar channels using this layer's settings.
+         * @param output Accumulated sample; discard it if composition fails.
+         * @param sample Candidate sample from this layer's player.
          */
-        bool BlendPose(SLocalPose& output, const SLocalPose& pose) const;
+        bool BlendSample(SAnimationSample& output, const SAnimationSample& sample) const;
 
         std::string m_Name;
         EAnimationLayerBlendMode m_BlendMode = EAnimationLayerBlendMode::Override;

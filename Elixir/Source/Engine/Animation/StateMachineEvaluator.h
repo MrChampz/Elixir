@@ -65,9 +65,13 @@ namespace Elixir
          * @brief Sample committed or candidate child data.
          * @param phase Requested normalized position.
          * @param referencePose Defaults for unanimated channels.
-         * @param output Receives the local pose.
+         * @param output Receives the local pose and sampled scalar channels.
          */
-        bool Sample(double phase, const SLocalPose& referencePose, SLocalPose& output) const;
+        bool Sample(
+            double phase,
+            const SLocalPose& referencePose,
+            SAnimationSample& output
+        ) const;
 
         /**
          * @brief Create and bind one state's independent source playback.
@@ -100,8 +104,8 @@ namespace Elixir
         AnimationTransition m_Transition;
         std::optional<AnimationTransition> m_NextTransition;
 
-        SLocalPose m_VisiblePose;
-        SLocalPose m_NextPose;
+        SAnimationSample m_VisibleSample;
+        SAnimationSample m_NextSample;
 
         size_t m_NextState = 0;
         double m_NextPhase = 0;
