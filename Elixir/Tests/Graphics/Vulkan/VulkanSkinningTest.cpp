@@ -1,5 +1,6 @@
 #include "../../Engine/Animation/AnimationTestNodes.h"
 #include <Engine/Animation/Animation.h>
+#include <Engine/Animation/TwoBoneIK.h>
 #include "../../Engine/Animation/AnimationTestPlayback.h"
 #include <Engine/Animation/BlendSpace2D.h>
 #include <Engine/Animation/BlendSpace1D.h>
@@ -434,7 +435,11 @@ TEST(VulkanSkinningTest, TwoBoneIKPoseReachesComputeSkinning)
         );
         ASSERT_TRUE(animation);
         const STwoBoneIKConstraint constraint{2, {1, 1, 0}, {0, 2, 0}};
-        ASSERT_TRUE(animation->SetTwoBoneIKConstraints(std::span(&constraint, 1)));
+        const auto ik = TwoBoneIK::Create(mesh->GetSkeleton());
+        ASSERT_TRUE(ik);
+        ASSERT_TRUE(ik->SetConstraints(std::span(&constraint, 1)));
+        const std::array<Ref<const PoseModifier>, 1> modifiers{ik};
+        ASSERT_TRUE(animation->SetPoseModifiers(modifiers));
         ASSERT_TRUE(animation->Update(0));
         std::vector<SStaticMeshVertex> expected;
         ASSERT_TRUE(mesh->SkinVertices(animation->GetModelPose(), expected));

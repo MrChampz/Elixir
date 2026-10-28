@@ -791,7 +791,7 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
         return;
     m_LayerWeight.store(nextWeight, std::memory_order_relaxed);
 
-    if (m_IKEndBone != UINT32_MAX)
+    if (m_IKModifier)
     {
         const STwoBoneIKConstraint constraint{
             .EndBoneIndex = m_IKEndBone,
@@ -799,7 +799,7 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
             .PolePosition = {0.9f, 0.8f, -0.2f},
             .Weight = m_IKEnabled.load(std::memory_order_relaxed) ? 1.0f : 0.0f
         };
-        if (!m_Animation->SetTwoBoneIKConstraints(std::span(&constraint, 1))) return;
+        if (!m_IKModifier->SetConstraints(std::span(&constraint, 1))) return;
     }
 
     if (!m_Animation->GetParameters().SetFloat("Forward", forward) ||
@@ -939,6 +939,14 @@ void Dissolve::InitializeSocketAttachment()
         return;
     }
     m_IKEndBone = uint32_t(wrist);
+    if (m_Animation)
+    {
+        const auto modifier = TwoBoneIK::Create(mesh->GetSkeleton());
+        if (!modifier) return;
+        const std::array<Ref<const PoseModifier>, 1> modifiers{modifier};
+        if (!m_Animation->SetPoseModifiers(modifiers)) return;
+        m_IKModifier = modifier;
+    }
     SStaticMeshData data;
     data.Name = "SocketBaton";
     const std::array<glm::vec3, 8> corners = {{

@@ -58,6 +58,7 @@ class Dissolve final : public Elixir::Application
     Ref<SkeletalMeshInstance> m_ComparisonInstance;
     Ref<Animation> m_Animation;
     Ref<Animation> m_ComparisonAnimation;
+    Ref<TwoBoneIK> m_IKModifier;
 
     Ref<const AnimationGraph> m_AnimationGraph;
     Ref<const BlendSpace> m_LocomotionSpace;

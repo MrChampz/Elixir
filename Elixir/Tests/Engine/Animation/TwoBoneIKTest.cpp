@@ -2,6 +2,7 @@
 #include "../Mesh/SkinningTestData.h"
 #include <limits>
 #include <Engine/Animation/Animation.h>
+#include <Engine/Animation/TwoBoneIK.h>
 #include <Engine/Animation/SequenceNode.h>
 
 using namespace Elixir;
@@ -50,21 +51,33 @@ namespace
     }
 
     /**
-     * @brief Configure one limb target on an animation.
-     * @param instance Instance to configure.
+     * @brief Attach a separately configured solver to an animation's generic pipeline.
+     * @param animation Animation that retains the modifier during pose evaluation.
+     */
+    Ref<TwoBoneIK> AttachIK(Animation& animation)
+    {
+        const auto solver = TwoBoneIK::Create(animation.GetSkeleton());
+        if (!solver) return nullptr;
+        const std::array<Ref<const PoseModifier>, 1> modifiers{solver};
+        return animation.SetPoseModifiers(modifiers) ? solver : nullptr;
+    }
+
+    /**
+     * @brief Configure one limb target on an external solver.
+     * @param solver Modifier to configure.
      * @param target Skeleton-space destination.
      * @param pole Skeleton-space bend point.
      * @param weight Rotation blend weight.
      */
     bool SetTarget(
-        Animation& instance,
+        TwoBoneIK& solver,
         glm::vec3 target,
         glm::vec3 pole = {0, 2, 0},
         float weight = 1
     )
     {
         const STwoBoneIKConstraint constraint{2, target, pole, weight};
-        return instance.SetTwoBoneIKConstraints(std::span(&constraint, 1));
+        return solver.SetConstraints(std::span(&constraint, 1));
     }
 }
 
@@ -74,7 +87,9 @@ TEST(TwoBoneIKTest, ReachesTargetPreservesLengthsAndUpdatesSocketsAndDescendants
     const auto animation = MakeIKAnimation(mesh);
     ASSERT_TRUE(animation);
     auto& instance = *animation;
-    ASSERT_TRUE(SetTarget(instance, {1, 1, 0}));
+    const auto ik = AttachIK(instance);
+    ASSERT_TRUE(ik);
+    ASSERT_TRUE(SetTarget(*ik, {1, 1, 0}));
     EXPECT_FLOAT_EQ(instance.GetModelPose().Matrices[2][3].x, 2);
     ASSERT_TRUE(instance.Update(0));
     const auto& model = instance.GetModelPose().Matrices;
@@ -103,8 +118,12 @@ TEST(TwoBoneIKTest, PoleSelectsOppositeBend)
     ASSERT_TRUE(secondHandle);
     auto& first = *firstHandle;
     auto& second = *secondHandle;
-    ASSERT_TRUE(SetTarget(first, {1, 1, 0}, {0, 2, 0}));
-    ASSERT_TRUE(SetTarget(second, {1, 1, 0}, {2, 0, 0}));
+    const auto firstIK = AttachIK(first);
+    const auto secondIK = AttachIK(second);
+    ASSERT_TRUE(firstIK);
+    ASSERT_TRUE(secondIK);
+    ASSERT_TRUE(SetTarget(*firstIK, {1, 1, 0}, {0, 2, 0}));
+    ASSERT_TRUE(SetTarget(*secondIK, {1, 1, 0}, {2, 0, 0}));
     ASSERT_TRUE(first.Update(0));
     ASSERT_TRUE(second.Update(0));
     ExpectPosition(glm::vec3(first.GetModelPose().Matrices[1][3]), {0, 1, 0});
@@ -118,11 +137,13 @@ TEST(TwoBoneIKTest, ZeroWeightIsExactAndPartialWeightBlendsLocalRotations)
     const auto animation = MakeIKAnimation(mesh);
     ASSERT_TRUE(animation);
     auto& instance = *animation;
+    const auto ik = AttachIK(instance);
+    ASSERT_TRUE(ik);
     const auto initial = instance.GetModelPose().Matrices;
-    ASSERT_TRUE(SetTarget(instance, {1, 1, 0}, {0, 2, 0}, 0));
+    ASSERT_TRUE(SetTarget(*ik, {1, 1, 0}, {0, 2, 0}, 0));
     ASSERT_TRUE(instance.Update(0));
     EXPECT_EQ(instance.GetModelPose().Matrices, initial);
-    ASSERT_TRUE(SetTarget(instance, {1, 1, 0}, {0, 2, 0}, 0.5f));
+    ASSERT_TRUE(SetTarget(*ik, {1, 1, 0}, {0, 2, 0}, 0.5f));
     ASSERT_TRUE(instance.Update(0));
     const auto angle = glm::angle(instance.GetLocalPose().LocalTransforms[0].Rotation);
     EXPECT_NEAR(angle, glm::radians(45.0f), 1e-5f);
@@ -136,7 +157,9 @@ TEST(TwoBoneIKTest, FarTargetsClampWithoutStretching)
     const auto animation = MakeIKAnimation(mesh);
     ASSERT_TRUE(animation);
     auto& instance = *animation;
-    ASSERT_TRUE(SetTarget(instance, {0, 100, 0}));
+    const auto ik = AttachIK(instance);
+    ASSERT_TRUE(ik);
+    ASSERT_TRUE(SetTarget(*ik, {0, 100, 0}));
     ASSERT_TRUE(instance.Update(0));
     ExpectPosition(glm::vec3(instance.GetModelPose().Matrices[2][3]), {0, 2, 0});
 }
@@ -149,7 +172,9 @@ TEST(TwoBoneIKTest, NearTargetsClampToUnequalSegmentReach)
     const auto animation = MakeIKAnimation(mesh);
     ASSERT_TRUE(animation);
     auto& instance = *animation;
-    ASSERT_TRUE(SetTarget(instance, {0.1f, 0, 0}));
+    const auto ik = AttachIK(instance);
+    ASSERT_TRUE(ik);
+    ASSERT_TRUE(SetTarget(*ik, {0.1f, 0, 0}));
     ASSERT_TRUE(instance.Update(0));
     ExpectPosition(glm::vec3(instance.GetModelPose().Matrices[2][3]), {1, 0, 0});
 }
@@ -162,7 +187,9 @@ TEST(TwoBoneIKTest, CoincidentTargetAndDegeneratePolesRemainFinite)
     const auto animation = MakeIKAnimation(mesh);
     ASSERT_TRUE(animation);
     auto& instance = *animation;
-        ASSERT_TRUE(SetTarget(instance, target, {0, 0, 0}));
+    const auto ik = AttachIK(instance);
+    ASSERT_TRUE(ik);
+        ASSERT_TRUE(SetTarget(*ik, target, {0, 0, 0}));
         ASSERT_TRUE(instance.Update(0));
         ExpectPosition(glm::vec3(instance.GetModelPose().Matrices[2][3]), target);
         for (const auto& transform : instance.GetLocalPose().LocalTransforms)
@@ -176,7 +203,9 @@ TEST(TwoBoneIKTest, SupportsAThreeDimensionalLegTarget)
     const auto animation = MakeIKAnimation(mesh);
     ASSERT_TRUE(animation);
     auto& instance = *animation;
-    ASSERT_TRUE(SetTarget(instance, {0, -1, 1}, {1, -1, 0}));
+    const auto ik = AttachIK(instance);
+    ASSERT_TRUE(ik);
+    ASSERT_TRUE(SetTarget(*ik, {0, -1, 1}, {1, -1, 0}));
     ASSERT_TRUE(instance.Update(0));
     ExpectPosition(glm::vec3(instance.GetModelPose().Matrices[2][3]), {0, -1, 1});
     EXPECT_GT(instance.GetModelPose().Matrices[1][3].x, 0);
@@ -197,10 +226,12 @@ TEST(TwoBoneIKTest, RespectsRotatedUniformlyScaledAncestors)
     const auto animation = MakeIKAnimation(mesh);
     ASSERT_TRUE(animation);
     auto& instance = *animation;
+    const auto ik = AttachIK(instance);
+    ASSERT_TRUE(ik);
     const auto target = glm::vec3(instance.GetModelPose().Matrices[0] * glm::vec4(1, 1, 0, 1));
     const auto pole = glm::vec3(instance.GetModelPose().Matrices[0] * glm::vec4(0, 2, 0, 1));
     const STwoBoneIKConstraint constraint{3, target, pole};
-    ASSERT_TRUE(instance.SetTwoBoneIKConstraints(std::span(&constraint, 1)));
+    ASSERT_TRUE(ik->SetConstraints(std::span(&constraint, 1)));
     ASSERT_TRUE(instance.Update(0));
     ExpectPosition(glm::vec3(instance.GetModelPose().Matrices[3][3]), target);
 }
@@ -211,20 +242,22 @@ TEST(TwoBoneIKTest, RejectsInvalidSettingsAndPreservesConfiguration)
     const auto animation = MakeIKAnimation(mesh);
     ASSERT_TRUE(animation);
     auto& instance = *animation;
-    ASSERT_TRUE(SetTarget(instance, {1, 1, 0}));
+    const auto ik = AttachIK(instance);
+    ASSERT_TRUE(ik);
+    ASSERT_TRUE(SetTarget(*ik, {1, 1, 0}));
     for (const auto weight : {-1.0f, 1.1f, std::numeric_limits<float>::quiet_NaN()})
-        EXPECT_FALSE(SetTarget(instance, {1, 0, 0}, {0, 1, 0}, weight));
-    EXPECT_FALSE(SetTarget(instance, {std::numeric_limits<float>::infinity(), 0, 0}));
-    EXPECT_FALSE(SetTarget(instance, {}, {0, std::numeric_limits<float>::quiet_NaN(), 0}));
+        EXPECT_FALSE(SetTarget(*ik, {1, 0, 0}, {0, 1, 0}, weight));
+    EXPECT_FALSE(SetTarget(*ik, {std::numeric_limits<float>::infinity(), 0, 0}));
+    EXPECT_FALSE(SetTarget(*ik, {}, {0, std::numeric_limits<float>::quiet_NaN(), 0}));
     for (const auto bone : {0u, 1u, 20u})
     {
         const STwoBoneIKConstraint constraint{.EndBoneIndex = bone};
-        EXPECT_FALSE(instance.SetTwoBoneIKConstraints(std::span(&constraint, 1)));
+        EXPECT_FALSE(ik->SetConstraints(std::span(&constraint, 1)));
     }
-    ASSERT_EQ(instance.GetTwoBoneIKConstraints().size(), 1);
-    ExpectPosition(instance.GetTwoBoneIKConstraints()[0].TargetPosition, {1, 1, 0});
-    EXPECT_TRUE(instance.SetTwoBoneIKConstraints(instance.GetTwoBoneIKConstraints()));
-    EXPECT_FALSE(Animation::Create(nullptr, {}));
+    ASSERT_EQ(ik->GetConstraints().size(), 1);
+    ExpectPosition(ik->GetConstraints()[0].TargetPosition, {1, 1, 0});
+    EXPECT_TRUE(ik->SetConstraints(ik->GetConstraints()));
+    EXPECT_FALSE(TwoBoneIK::Create(nullptr));
 }
 
 TEST(TwoBoneIKTest, FailedEvaluationPreservesPlaybackPoseAndNotifyBatch)
@@ -237,16 +270,18 @@ TEST(TwoBoneIKTest, FailedEvaluationPreservesPlaybackPoseAndNotifyBatch)
     const auto animation = MakeIKAnimation(mesh);
     ASSERT_TRUE(animation);
     auto& instance = *animation;
+    const auto ik = AttachIK(instance);
+    ASSERT_TRUE(ik);
     ASSERT_TRUE(instance.Play(SequenceNode::Create(sequence)));
     ASSERT_TRUE(instance.Update(0.1f));
     ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
-    ASSERT_TRUE(SetTarget(instance, {1, 1, 0}));
+    ASSERT_TRUE(SetTarget(*ik, {1, 1, 0}));
     const auto pose = instance.GetModelPose().Matrices;
     EXPECT_FALSE(instance.Update(0.2f));
     EXPECT_EQ(instance.GetModelPose().Matrices, pose);
     EXPECT_FLOAT_EQ(instance.GetTime(), 0.1f);
     ASSERT_EQ(instance.GetNotifyEvents().size(), 1);
-    ASSERT_TRUE(instance.SetTwoBoneIKConstraints({}));
+    ASSERT_TRUE(ik->SetConstraints({}));
     EXPECT_TRUE(instance.Update(0.2f));
 }
 
@@ -260,9 +295,11 @@ TEST(TwoBoneIKTest, RejectsZeroLengthsAndNegativeScalesOnlyWhenActive)
     const auto animation = MakeIKAnimation(mesh);
     ASSERT_TRUE(animation);
     auto& instance = *animation;
-        ASSERT_TRUE(SetTarget(instance, {1, 1, 0}));
+    const auto ik = AttachIK(instance);
+    ASSERT_TRUE(ik);
+        ASSERT_TRUE(SetTarget(*ik, {1, 1, 0}));
         EXPECT_FALSE(instance.Update(0));
-        ASSERT_TRUE(SetTarget(instance, {1, 1, 0}, {0, 1, 0}, 0));
+        ASSERT_TRUE(SetTarget(*ik, {1, 1, 0}, {0, 1, 0}, 0));
         EXPECT_TRUE(instance.Update(0));
     }
     auto data = MakeIKMesh()->GetData();
@@ -271,7 +308,9 @@ TEST(TwoBoneIKTest, RejectsZeroLengthsAndNegativeScalesOnlyWhenActive)
     const auto animation = MakeIKAnimation(mesh);
     ASSERT_TRUE(animation);
     auto& instance = *animation;
-    ASSERT_TRUE(SetTarget(instance, {1, 1, 0}));
+    const auto ik = AttachIK(instance);
+    ASSERT_TRUE(ik);
+    ASSERT_TRUE(SetTarget(*ik, {1, 1, 0}));
     EXPECT_FALSE(instance.Update(0));
 }
 
@@ -281,6 +320,8 @@ TEST(TwoBoneIKTest, ReadsAfterAdditiveLayersAndMontagesWithoutChangingTheirPlayb
     const auto animation = MakeIKAnimation(mesh);
     ASSERT_TRUE(animation);
     auto& instance = *animation;
+    const auto ik = AttachIK(instance);
+    ASSERT_TRUE(ik);
     const auto sequence = Sequence::Create("Lift", mesh->GetSkeleton(), 1, {{
         .BoneIndex = 0, .Translations = {{0, {0, 0, 0}}, {1, {0, 1, 0}}}
     }});
@@ -292,7 +333,7 @@ TEST(TwoBoneIKTest, ReadsAfterAdditiveLayersAndMontagesWithoutChangingTheirPlayb
         .Name = "Lift", .Sequence = sequence, .BlendIn = 0, .BlendOut = 0
     });
     ASSERT_TRUE(layer->GetPlayer().PlayMontage(montage));
-    ASSERT_TRUE(SetTarget(instance, {1, 1, 0}));
+    ASSERT_TRUE(SetTarget(*ik, {1, 1, 0}));
     ASSERT_TRUE(instance.Update(0.5f));
     ExpectPosition(glm::vec3(instance.GetModelPose().Matrices[2][3]), {1, 1, 0});
     EXPECT_FLOAT_EQ(layer->GetPlayer().GetMontageTime(), 0.5f);
@@ -305,16 +346,18 @@ TEST(TwoBoneIKTest, UpdatingPausedTargetsDoesNotAccumulateCorrections)
     const auto animation = MakeIKAnimation(mesh);
     ASSERT_TRUE(animation);
     auto& instance = *animation;
-    ASSERT_TRUE(SetTarget(instance, {1, 1, 0}, {0, 2, 0}, 0.5f));
+    const auto ik = AttachIK(instance);
+    ASSERT_TRUE(ik);
+    ASSERT_TRUE(SetTarget(*ik, {1, 1, 0}, {0, 2, 0}, 0.5f));
     instance.Pause();
     ASSERT_TRUE(instance.Update(0));
     const auto pose = instance.GetModelPose().Matrices;
     ASSERT_TRUE(instance.Update(1));
     EXPECT_EQ(instance.GetModelPose().Matrices, pose);
-    ASSERT_TRUE(SetTarget(instance, {0, 1, 0}));
+    ASSERT_TRUE(SetTarget(*ik, {0, 1, 0}));
     ASSERT_TRUE(instance.Update(0));
     ExpectPosition(glm::vec3(instance.GetModelPose().Matrices[2][3]), {0, 1, 0});
-    ASSERT_TRUE(instance.SetTwoBoneIKConstraints({}));
+    ASSERT_TRUE(ik->SetConstraints({}));
     ASSERT_TRUE(instance.Update(0));
     ExpectPosition(glm::vec3(instance.GetModelPose().Matrices[2][3]), {2, 0, 0});
 }
@@ -325,11 +368,14 @@ TEST(TwoBoneIKTest, ManualPoseIsSolvedAndStopRestoresReferencePose)
     const auto animation = MakeIKAnimation(mesh);
     ASSERT_TRUE(animation);
     auto& instance = *animation;
-    ASSERT_TRUE(SetTarget(instance, {1, 1, 0}));
+    const auto ik = AttachIK(instance);
+    ASSERT_TRUE(ik);
+    ASSERT_TRUE(SetTarget(*ik, {1, 1, 0}));
     ASSERT_TRUE(instance.SetLocalPose(instance.GetLocalPose()));
     ExpectPosition(glm::vec3(instance.GetModelPose().Matrices[2][3]), {1, 1, 0});
     instance.Stop();
-    EXPECT_TRUE(instance.GetTwoBoneIKConstraints().empty());
+    EXPECT_TRUE(instance.GetPoseModifiers().empty());
+    EXPECT_EQ(ik->GetConstraints().size(), 1u);
     ExpectPosition(glm::vec3(instance.GetModelPose().Matrices[2][3]), {2, 0, 0});
 }
 
@@ -339,10 +385,12 @@ TEST(TwoBoneIKTest, LaterConstraintsUseThePoseProducedByEarlierOnes)
     const auto animation = MakeIKAnimation(mesh);
     ASSERT_TRUE(animation);
     auto& instance = *animation;
+    const auto ik = AttachIK(instance);
+    ASSERT_TRUE(ik);
     const std::array<STwoBoneIKConstraint, 2> constraints = {{
         {2, {1, 1, 0}, {0, 2, 0}}, {2, {1, -1, 0}, {0, -2, 0}}
     }};
-    ASSERT_TRUE(instance.SetTwoBoneIKConstraints(constraints));
+    ASSERT_TRUE(ik->SetConstraints(constraints));
     ASSERT_TRUE(instance.Update(0));
     ExpectPosition(glm::vec3(instance.GetModelPose().Matrices[2][3]), {1, -1, 0});
 }
@@ -353,8 +401,10 @@ TEST(TwoBoneIKTest, ProtectsTheExtractedRootMotionFrame)
     const auto animation = MakeIKAnimation(mesh);
     ASSERT_TRUE(animation);
     auto& instance = *animation;
+    const auto ik = AttachIK(instance);
+    ASSERT_TRUE(ik);
     ASSERT_TRUE(instance.SetRootMotionEnabled(true));
-    ASSERT_TRUE(SetTarget(instance, {1, 1, 0}));
+    ASSERT_TRUE(SetTarget(*ik, {1, 1, 0}));
     EXPECT_FALSE(instance.Update(0));
     ASSERT_TRUE(instance.SetRootMotionEnabled(false));
     ASSERT_TRUE(instance.Update(0));
@@ -362,4 +412,26 @@ TEST(TwoBoneIKTest, ProtectsTheExtractedRootMotionFrame)
     EXPECT_FALSE(instance.SetRootMotionEnabled(true));
     EXPECT_FALSE(instance.IsRootMotionEnabled());
     EXPECT_EQ(instance.GetModelPose().Matrices, pose);
+}
+
+TEST(TwoBoneIKTest, ProcessesStandalonePosesAndRejectsIncompatibleContexts)
+{
+    const auto mesh = MakeIKMesh();
+    const auto& skeleton = mesh->GetSkeleton();
+    const auto solver = TwoBoneIK::Create(skeleton);
+    ASSERT_TRUE(solver);
+    ASSERT_TRUE(SetTarget(*solver, {1, 1, 0}));
+    auto pose = mesh->GetData().ReferencePose;
+    ASSERT_TRUE(solver->Apply({*skeleton, std::nullopt}, pose));
+    SModelPose model;
+    ASSERT_TRUE(skeleton->BuildModelPose(pose, model));
+    ExpectPosition(glm::vec3(model.Matrices[2][3]), {1, 1, 0});
+    auto bones = skeleton->GetBones();
+    bones[0].Name = "DifferentRoot";
+    const auto incompatible = Skeleton::Create("DifferentRig", std::move(bones));
+    ASSERT_TRUE(incompatible);
+    EXPECT_FALSE(solver->Apply({*incompatible, std::nullopt}, pose));
+    EXPECT_FALSE(solver->Apply({*skeleton, UINT32_MAX}, pose));
+    SLocalPose invalid;
+    EXPECT_FALSE(solver->Apply({*skeleton, std::nullopt}, invalid));
 }

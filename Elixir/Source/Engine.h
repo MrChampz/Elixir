@@ -71,11 +71,12 @@
 #include <Engine/Mesh/SkeletalMeshRenderer.h>
 
 #include <Engine/Animation/BoneTransform.h>
-#include <Engine/Animation/SkeletonSocket.h>
-#include <Engine/Animation/Skeleton.h>
-#include <Engine/Animation/TwoBoneIK.h>
 #include <Engine/Animation/BoneMask.h>
+#include <Engine/Animation/Skeleton.h>
+#include <Engine/Animation/SkeletonSocket.h>
 #include <Engine/Animation/Pose.h>
+#include <Engine/Animation/PoseModifier.h>
+#include <Engine/Animation/TwoBoneIK.h>
 #include <Engine/Animation/Sequence.h>
 #include <Engine/Animation/BlendSpace.h>
 #include <Engine/Animation/BlendSpace1D.h>
