@@ -77,6 +77,7 @@ namespace Elixir
             m_PreviousSample = m_Sample;
             m_PoseDeltaSeconds = evaluation.DeltaSeconds;
         }
+
         m_Notifies.Apply({
             std::move(evaluation.Notifies.Active),
             {},
@@ -181,6 +182,7 @@ namespace Elixir
         m_Playback = {};
         m_Transition = {};
         m_Sample = { m_ReferencePose };
+
         ResetPoseHistory();
     }
 
@@ -204,6 +206,7 @@ namespace Elixir
 
         m_Playback = std::move(candidate);
         m_Sample = std::move(sample);
+
         ResetPoseHistory();
 
         if (!m_Montage.GetAsset())
@@ -321,6 +324,7 @@ namespace Elixir
 
         SLocalPose local = pose;
         m_Sample = { std::move(local) };
+
         ResetPoseHistory();
 
         m_Montage = {};
@@ -479,9 +483,7 @@ namespace Elixir
         const EAnimationTransitionMode mode
     )
     {
-        if (!playback.IsValid() || !std::isfinite(fadeDuration) || fadeDuration < 0.0f ||
-            (mode != EAnimationTransitionMode::CrossFade &&
-                mode != EAnimationTransitionMode::Inertialization))
+        if (!playback.IsValid() || !std::isfinite(fadeDuration) || fadeDuration < 0.0f)
         {
             EE_CORE_ERROR("Animation playback requires a valid source and a finite nonnegative fade duration.")
             return false;
@@ -513,9 +515,13 @@ namespace Elixir
                 if (!captured) return false;
             }
             else if (!IsTransitioning() && m_Playback.IsValid())
+            {
                 transition.Playback = m_Playback;
+            }
             else
+            {
                 transition.SourceSample = m_Sample;
+            }
 
             m_Transition = std::move(transition);
             m_Playback = std::move(playback);
@@ -568,6 +574,7 @@ namespace Elixir
         if (!sampled) return false;
 
         m_Sample = std::move(sample);
+
         ResetPoseHistory();
 
         m_Playback = playback;

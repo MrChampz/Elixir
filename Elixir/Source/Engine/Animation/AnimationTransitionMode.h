@@ -1,7 +1,5 @@
 #pragma once
 
-#include <cstdint>
-
 namespace Elixir
 {
     /** Selects how playback changes converge to the destination animation. */

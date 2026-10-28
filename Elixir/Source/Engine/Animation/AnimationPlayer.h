@@ -413,9 +413,6 @@ namespace Elixir
             EAnimationTransitionMode mode
         );
 
-        /** @brief Discard velocity history after a timeline discontinuity. */
-        void ResetPoseHistory();
-
         /**
          * @brief Compose sampled local transforms after blending the fade source.
          * @param playback Target playback to evaluate and store on success.
@@ -431,6 +428,9 @@ namespace Elixir
             double time,
             double sourceTime
         );
+
+        /** @brief Discard velocity history after a timeline discontinuity. */
+        void ResetPoseHistory();
 
         /**
          * @brief Evaluate notifications on the pose and section playback timeline.
@@ -448,12 +448,13 @@ namespace Elixir
         std::string m_Name;
 
         Ref<const Skeleton> m_Skeleton;
-        SAnimationSample m_Sample;
 
         /** Accepted source history before montage, layer composition, and pose modifiers. */
         SAnimationSample m_PreviousSample;
-        float m_PoseDeltaSeconds = 0;
+
+        SAnimationSample m_Sample;
         SLocalPose m_ReferencePose;
+        float m_PoseDeltaSeconds = 0;
 
         bool m_Assigned = false;
         bool m_Playing = false;

@@ -100,6 +100,7 @@ namespace Elixir
             m_PreviousSample = std::move(m_StartSample);
             m_PoseDeltaSeconds = m_NextDeltaSeconds;
         }
+
         std::swap(m_VisibleSample, m_NextSample);
 
         m_NextPlayback.reset();
@@ -143,13 +144,16 @@ namespace Elixir
     {
         const auto dt = context.DeltaSeconds;
         m_NextDeltaSeconds = dt;
+
         const auto& referencePose = context.ReferencePose;
 
         m_Prepared = false;
         m_NextPlayback.reset();
         m_NextTransition.reset();
-        m_NextState = m_State;
+
         m_StartSample = m_VisibleSample;
+        m_NextState = m_State;
+
         if (m_StartSample.Pose.LocalTransforms.empty() &&
             !m_Playback.Sample(m_Playback.GetPhase(), referencePose, m_StartSample))
             return std::numeric_limits<double>::quiet_NaN();
@@ -180,6 +184,7 @@ namespace Elixir
                 {
                     const auto& current = m_StartSample;
                     const auto hasMotion = m_Playback.CanAdvance() || m_Transition.IsActive();
+
                     const auto captured = fade.CaptureInertialization(
                         next,
                         current,
@@ -187,10 +192,14 @@ namespace Elixir
                         m_PoseDeltaSeconds,
                         referencePose
                     );
-                    if (!captured) return std::numeric_limits<double>::quiet_NaN();
+
+                    if (!captured)
+                        return std::numeric_limits<double>::quiet_NaN();
                 }
                 else if (!m_Transition.IsActive())
+                {
                     fade.Playback = m_Playback;
+                }
                 else
                 {
                     fade.SourceSample = m_VisibleSample;

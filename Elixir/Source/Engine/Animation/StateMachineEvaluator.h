@@ -104,13 +104,15 @@ namespace Elixir
         AnimationTransition m_Transition;
         std::optional<AnimationTransition> m_NextTransition;
 
-        SAnimationSample m_VisibleSample;
-        SAnimationSample m_PreviousSample;
         /** Source sample at the start of the candidate interval, committed with its result. */
         SAnimationSample m_StartSample;
+
+        SAnimationSample m_VisibleSample;
+        SAnimationSample m_PreviousSample;
         float m_PoseDeltaSeconds = 0;
-        float m_NextDeltaSeconds = 0;
+
         SAnimationSample m_NextSample;
+        float m_NextDeltaSeconds = 0;
 
         size_t m_NextState = 0;
         double m_NextPhase = 0;

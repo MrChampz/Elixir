@@ -42,7 +42,8 @@ namespace Elixir
 
         if (weight < 1.0f && Mode == EAnimationTransitionMode::Inertialization)
         {
-            if (!ApplyInertialization(double(weight) * Duration, result)) return false;
+            if (!ApplyInertialization(double(weight) * Duration, result))
+                return false;
         }
         else if (weight < 1.0f)
         {

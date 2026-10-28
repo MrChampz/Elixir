@@ -26,23 +26,6 @@ namespace Elixir
         EAnimationTransitionMode Mode = EAnimationTransitionMode::CrossFade;
 
         /**
-         * @brief Capture pose and velocity offsets against a new destination.
-         * @param playback Destination playback at its initial phase.
-         * @param sourceSample Last accepted source sample before montage and composition.
-         * @param previous Previous accepted source sample, or null when unavailable.
-         * @param deltaSeconds Seconds between accepted samples; zero disables velocity
-         * history.
-         * @param referencePose Defaults for unanimated destination bone channels.
-         */
-        bool CaptureInertialization(
-            const AnimationPlayback& playback,
-            const SAnimationSample& sourceSample,
-            const SAnimationSample* previous,
-            float deltaSeconds,
-            const SLocalPose& referencePose
-        );
-
-        /**
          * @brief Sample the target and blend its outgoing contribution.
          * @param playback Target playback.
          * @param source Outgoing playback, if assigned.
@@ -81,6 +64,23 @@ namespace Elixir
             SAnimationSample& output,
             const SLocalPose& referencePose
         ) const;
+
+        /**
+         * @brief Capture pose and velocity offsets against a new destination.
+         * @param playback Destination playback at its initial phase.
+         * @param sourceSample Last accepted source sample before montage and composition.
+         * @param previous Previous accepted source sample, or null when unavailable.
+         * @param deltaSeconds Seconds between accepted samples; zero disables velocity
+         * history.
+         * @param referencePose Defaults for unanimated destination bone channels.
+         */
+        bool CaptureInertialization(
+            const AnimationPlayback& playback,
+            const SAnimationSample& sourceSample,
+            const SAnimationSample* previous,
+            float deltaSeconds,
+            const SLocalPose& referencePose
+        );
 
         /**
          * @brief Extract root movement from playback and blend it with the outgoing transition.
