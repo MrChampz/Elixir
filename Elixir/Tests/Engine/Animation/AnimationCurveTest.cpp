@@ -176,8 +176,14 @@ TEST_F(AnimationCurveTest, SamplesBlendSpaceWithMissingCurvesAsZeroAndSharedMark
 
 TEST_F(AnimationCurveTest, SamplesTwoDimensionalInteriorWeights)
 {
-    const auto space = BlendSpace2D::Create("Space", {
-        {{0, 0}, Constant(0)}, {{1, 0}, Constant(4)}, {{0, 1}, Constant(8)}});
+    const auto space = BlendSpace2D::Create(
+        "Space",
+        {
+            {{0, 0}, Constant(0)},
+            {{1, 0}, Constant(4)},
+            {{0, 1}, Constant(8)}
+        }
+    );
     ASSERT_TRUE(space);
     AnimationCurveValues values;
     const std::array coordinates = {0.25f, 0.25f};
@@ -279,8 +285,14 @@ TEST_F(AnimationCurveTest, MontageCurvesUseEntranceReplacementAndExplicitExitEnv
 {
     auto& instance = *Playback;
     ASSERT_TRUE(instance.Play(MakeNode(Constant(2))));
-    const auto action = AnimationMontage::Create({.Name = "Action", .Sequence = Constant(10),
-        .BlendIn = 0.4f, .BlendOut = 0.2f});
+    const auto action = AnimationMontage::Create(
+        {
+            .Name = "Action",
+            .Sequence = Constant(10),
+            .BlendIn = 0.4f,
+            .BlendOut = 0.2f
+        }
+    );
     ASSERT_TRUE(action);
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.GetPlayer().PlayMontage(action));
@@ -301,9 +313,15 @@ TEST_F(AnimationCurveTest, MontageSectionJumpAndNaturalCompletionSampleCurrentTi
 {
     auto& instance = *Playback;
     ASSERT_TRUE(instance.Play(MakeNode(Constant(2))));
-    const auto action = AnimationMontage::Create({.Name = "Action", .Sequence = Ramp,
-        .BlendIn = 0, .BlendOut = 0.1f,
-        .Sections = {{"First", 0}, {"Second", 0.5f}}});
+    const auto action = AnimationMontage::Create(
+        {
+            .Name = "Action",
+            .Sequence = Ramp,
+            .BlendIn = 0,
+            .BlendOut = 0.1f,
+            .Sections = {{"First", 0}, {"Second", 0.5f}}
+        }
+    );
     ASSERT_TRUE(action);
     auto& layer = instance.GetBaseLayer();
     ASSERT_TRUE(layer.GetPlayer().PlayMontage(action));
