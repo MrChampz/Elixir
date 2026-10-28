@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/Animation/Pose.h>
+#include <Engine/Animation/AnimationSample.h>
 #include <Engine/Animation/AnimationMontage.h>
 #include <Engine/Animation/AnimationPlaybackInterval.h>
 
@@ -62,24 +62,18 @@ namespace Elixir
          * @brief Start an action and validate its initial visible pose before replacement.
          * @param montage Retained immutable action.
          * @param section Optional initial section name.
-         * @param visible Current visible pose for an interrupted entrance.
-         * @param visibleCurves Scalar channels captured with the visible pose.
-         * @param continuing Continuing source pose under the action.
-         * @param continuingCurves Scalar channels from the continuing source.
+         * @param visible Current visible sample captured for an interrupted entrance.
+         * @param continuing Continuing source sample under the action.
          * @param referencePose Mesh-specific reference pose.
-         * @param output Receives the action's initial visible pose.
-         * @param outputCurves Receives the initial visible scalar channels.
+         * @param output Receives the action's initial visible sample.
          */
         bool Play(
             Ref<const AnimationMontage> montage,
             std::string_view section,
-            const SLocalPose& visible,
-            const AnimationCurveValues& visibleCurves,
-            const SLocalPose& continuing,
-            const AnimationCurveValues& continuingCurves,
+            const SAnimationSample& visible,
+            const SAnimationSample& continuing,
             const SLocalPose& referencePose,
-            SLocalPose& output,
-            AnimationCurveValues& outputCurves
+            SAnimationSample& output
         );
 
         /**
@@ -92,19 +86,15 @@ namespace Elixir
         /**
          * @brief Jump silently and validate the resulting pose.
          * @param name Existing destination section.
-         * @param continuing Continuing source pose.
-         * @param continuingCurves Scalar channels from the continuing source.
+         * @param continuing Continuing source sample.
          * @param referencePose Mesh-specific defaults.
-         * @param output Receives the pose at the destination.
-         * @param outputCurves Receives scalar channels at the destination.
+         * @param output Receives the sample at the destination.
          */
         bool Jump(
             std::string_view name,
-            const SLocalPose& continuing,
-            const AnimationCurveValues& continuingCurves,
+            const SAnimationSample& continuing,
             const SLocalPose& referencePose,
-            SLocalPose& output,
-            AnimationCurveValues& outputCurves
+            SAnimationSample& output
         );
 
         /**
@@ -173,14 +163,12 @@ namespace Elixir
         /**
          * @brief Blend the action onto a continuing pose.
          * @param cursor Action position and elapsed time.
-         * @param pose Continuing pose modified on success.
-         * @param curves Continuing scalar channels blended with the action.
+         * @param sample Continuing sample blended with the action.
          * @param referencePose Mesh-specific defaults for sampling.
          */
         bool Sample(
             const SAnimationMontageCursor& cursor,
-            SLocalPose& pose,
-            AnimationCurveValues& curves,
+            SAnimationSample& sample,
             const SLocalPose& referencePose
         ) const;
 
@@ -209,14 +197,8 @@ namespace Elixir
             /** Advance the assigned montage; false while paused or unassigned. */
             bool Playing = false;
 
-            /**
-             * Visible pose captured when replacing an active montage, used to smooth its
-             * replacement's entrance. Empty when blending directly from the continuing pose.
-             */
-            SLocalPose SourcePose;
-
-            /** Scalar channels captured with an interrupted montage's visible pose. */
-            AnimationCurveValues SourceCurves;
+            /** Visible sample captured to smooth an interrupted montage's entrance. */
+            SAnimationSample SourceSample;
         };
 
         /**

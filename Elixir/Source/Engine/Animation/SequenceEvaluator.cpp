@@ -32,11 +32,11 @@ namespace Elixir
 
         const auto sampled = m_Source->Sample(
             time,
-            output.Pose,
+            output.Sample.Pose,
             context.ReferencePose
         );
 
-        const auto curvesSampled = m_Source->SampleCurves(time, output.Curves);
+        const auto curvesSampled = m_Source->SampleCurves(time, output.Sample.Curves);
 
         return sampled && curvesSampled;
     }

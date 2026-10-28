@@ -70,7 +70,7 @@ namespace Elixir
         bool Sample(
             double phase,
             const SLocalPose& referencePose,
-            SAnimationEvaluation& output
+            SAnimationSample& output
         ) const;
 
         /**
@@ -104,9 +104,8 @@ namespace Elixir
         AnimationTransition m_Transition;
         std::optional<AnimationTransition> m_NextTransition;
 
-        SLocalPose m_VisiblePose;
-        AnimationCurveValues m_VisibleCurves;
-        SAnimationEvaluation m_NextEvaluation;
+        SAnimationSample m_VisibleSample;
+        SAnimationSample m_NextSample;
 
         size_t m_NextState = 0;
         double m_NextPhase = 0;

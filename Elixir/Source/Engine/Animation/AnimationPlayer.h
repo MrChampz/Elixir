@@ -10,17 +10,11 @@ namespace Elixir
     /** Candidate pose, notifications, and clocks produced by one player. */
     struct SAnimationPlayerEvaluation
     {
-        /** Visible local pose after applying any active montage. */
-        SLocalPose LocalPose;
+        /** Visible pose and scalar channels after applying any active montage. */
+        SAnimationSample Sample;
 
-        /** Continuing source pose before applying a montage. */
-        SLocalPose PlaybackPose;
-
-        /** Visible scalar channels after applying the active montage. */
-        AnimationCurveValues Curves;
-
-        /** Continuing scalar channels before applying the active montage. */
-        AnimationCurveValues PlaybackCurves;
+        /** Continuing source sample before applying a montage. */
+        SAnimationSample PlaybackSample;
 
         /** Candidate montage cursor and visited section intervals. */
         SAnimationMontageEvaluation Montage;
@@ -273,6 +267,12 @@ namespace Elixir
             return SetSourceInputs(std::span(values.begin(), values.size()));
         }
 
+        /** @brief Inspect the visible pose and scalar channels from one evaluation. */
+        const SAnimationSample& GetSample() const
+        {
+            return m_Montage.GetAsset() ? m_MontageSample : m_Sample;
+        }
+
         /**
          * @brief Set a complete local pose and stop playback; preserve state on failure.
          * @param pose One valid parent-relative transform per skeleton bone.
@@ -282,13 +282,13 @@ namespace Elixir
         /** @brief Get one parent-relative transform per skeleton bone. */
         const SLocalPose& GetLocalPose() const
         {
-            return m_Montage.GetAsset() ? m_MontagePose : m_LocalPose;
+            return GetSample().Pose;
         }
 
         /** @brief Inspect scalar channels sampled with the published local pose. */
         const AnimationCurveValues& GetCurveValues() const
         {
-            return m_Montage.GetAsset() ? m_MontageCurves : m_Curves;
+            return GetSample().Curves;
         }
 
         /** @brief Get source time in seconds, independent of any active montage. */
@@ -426,10 +426,8 @@ namespace Elixir
         std::string m_Name;
 
         Ref<const Skeleton> m_Skeleton;
+        SAnimationSample m_Sample;
         SLocalPose m_ReferencePose;
-        SLocalPose m_LocalPose;
-
-        AnimationCurveValues m_Curves;
 
         bool m_Assigned = false;
         bool m_Playing = false;
@@ -441,8 +439,7 @@ namespace Elixir
         std::vector<size_t> m_InputBindings;
 
         AnimationMontagePlayback m_Montage;
-        SLocalPose m_MontagePose;
-        AnimationCurveValues m_MontageCurves;
+        SAnimationSample m_MontageSample;
 
         AnimationTransition m_Transition;
         AnimationPlayback m_Playback;

@@ -30,8 +30,7 @@ namespace Elixir
         return Sample(
             context.Phase,
             context.ReferencePose,
-            output.Pose,
-            output.Curves
+            output.Sample
         );
     }
 
@@ -51,12 +50,10 @@ namespace Elixir
     bool BlendSpaceEvaluator::Sample(
         const double phase,
         const SLocalPose& referencePose,
-        SLocalPose& output,
-        AnimationCurveValues& curves
+        SAnimationSample& output
     ) const
     {
-        SLocalPose pose, next;
-        AnimationCurveValues result, nextCurves;
+        SAnimationSample result, next;
         const auto* synchronization = m_Source->GetSynchronizationSequence().get();
 
         float total = 0;
@@ -68,29 +65,28 @@ namespace Elixir
                 ? sample.Sequence->GetSynchronizedTime(float(phase), *synchronization)
                 : float(phase * sample.Sequence->GetDuration());
 
-            if (!sample.Sequence->Sample(time, next, referencePose) ||
-                !sample.Sequence->SampleCurves(time, nextCurves))
+            if (!sample.Sequence->Sample(time, next.Pose, referencePose) ||
+                !sample.Sequence->SampleCurves(time, next.Curves))
                 return false;
 
             if (total == 0)
             {
-                pose = next;
-                result = nextCurves;
+                result = next;
             }
             else
             {
-                if (pose.LocalTransforms.size() != next.LocalTransforms.size())
+                if (result.Pose.LocalTransforms.size() != next.Pose.LocalTransforms.size())
                     return false;
 
                 const auto weight = sample.Weight / (total + sample.Weight);
-                if (!result.Blend(nextCurves, weight))
+                if (!result.Curves.Blend(next.Curves, weight))
                     return false;
 
-                for (size_t bone = 0; bone < pose.LocalTransforms.size(); ++bone)
+                for (size_t bone = 0; bone < result.Pose.LocalTransforms.size(); ++bone)
                 {
-                    pose.LocalTransforms[bone] = SBoneTransform::Blend(
-                        pose.LocalTransforms[bone],
-                        next.LocalTransforms[bone],
+                    result.Pose.LocalTransforms[bone] = SBoneTransform::Blend(
+                        result.Pose.LocalTransforms[bone],
+                        next.Pose.LocalTransforms[bone],
                         weight
                     );
                 }
@@ -101,8 +97,7 @@ namespace Elixir
 
         if (total <= 0) return false;
 
-        output = std::move(pose);
-        curves = std::move(result);
+        output = std::move(result);
 
         return true;
     }

@@ -481,21 +481,27 @@ TEST_F(AnimationCurveTest, NestedBlendNodesComposeCurvesWithTheirChildPoses)
     EXPECT_FLOAT_EQ(Playback->GetCurveValues().GetValue("Grip"), 8);
 }
 
-TEST_F(AnimationCurveTest, PlaybackSamplesPoseAndScalarChannelsInSeparateResults)
+TEST_F(AnimationCurveTest, PlaybackSamplesPoseAndScalarChannelsTogether)
 {
     AnimationPlayback playback(MakeNode(Ramp));
     ASSERT_TRUE(playback.IsValid());
     SAnimationEvaluation evaluation;
     ASSERT_TRUE(playback.Sample(0.75, Mesh->GetData().ReferencePose, evaluation));
     EXPECT_DOUBLE_EQ(evaluation.Phase, 0.75);
-    EXPECT_FLOAT_EQ(evaluation.Curves.GetValue("Grip"), 0.75f);
-    EXPECT_EQ(evaluation.Pose.LocalTransforms.size(), Mesh->GetSkeleton()->GetBones().size());
+    EXPECT_FLOAT_EQ(evaluation.Sample.Curves.GetValue("Grip"), 0.75f);
+    EXPECT_EQ(
+        evaluation.Sample.Pose.LocalTransforms.size(),
+        Mesh->GetSkeleton()->GetBones().size()
+    );
+    SAnimationSample sample;
+    ASSERT_TRUE(playback.Sample(0.75, Mesh->GetData().ReferencePose, sample));
+    EXPECT_FLOAT_EQ(sample.Curves.GetValue("Grip"), 0.75f);
 
     SLocalPose pose;
     ASSERT_TRUE(playback.Sample(0.75, Mesh->GetData().ReferencePose, pose));
     for (size_t bone = 0; bone < pose.LocalTransforms.size(); ++bone)
         EXPECT_TRUE(pose.LocalTransforms[bone].IsNearlyEqual(
-            evaluation.Pose.LocalTransforms[bone]
+            evaluation.Sample.Pose.LocalTransforms[bone]
         ));
 }
 
@@ -507,7 +513,7 @@ TEST_F(AnimationCurveTest, ModifiersReadCandidateCurvesBeforeAtomicFramePublicat
     ASSERT_TRUE(Playback->SetPoseModifiers(modifiers));
     ASSERT_TRUE(Playback->Play(MakeNode(Ramp->WithNotifies({{"Hit", 0.5f}}))));
     ASSERT_TRUE(Playback->Update(0.25f));
-    EXPECT_FLOAT_EQ(Playback->GetFrame().Curves.GetValue("Grip"), 0.25f);
+    EXPECT_FLOAT_EQ(Playback->GetFrame().Sample.Curves.GetValue("Grip"), 0.25f);
     EXPECT_FLOAT_EQ(Playback->GetLocalPose().LocalTransforms[0].Translation.x, 0.25f);
 
     EXPECT_FALSE(Playback->Update(0.5f));
@@ -519,7 +525,7 @@ TEST_F(AnimationCurveTest, ModifiersReadCandidateCurvesBeforeAtomicFramePublicat
     EXPECT_TRUE(Playback->GetNotifyEvents().empty());
 
     ASSERT_TRUE(Playback->SetLocalPose(Mesh->GetData().ReferencePose));
-    EXPECT_TRUE(Playback->GetFrame().Curves.GetValues().empty());
+    EXPECT_TRUE(Playback->GetFrame().Sample.Curves.GetValues().empty());
     Playback->Stop();
     EXPECT_TRUE(Playback->GetCurveValues().GetValues().empty());
 }

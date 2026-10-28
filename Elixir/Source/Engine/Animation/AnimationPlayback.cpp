@@ -248,7 +248,21 @@ namespace Elixir
         if (!Sample(phase, referencePose, evaluation))
             return false;
 
-        output = std::move(evaluation.Pose);
+        output = std::move(evaluation.Sample.Pose);
+        return true;
+    }
+
+    bool AnimationPlayback::Sample(
+        const double phase,
+        const SLocalPose& referencePose,
+        SAnimationSample& output
+    ) const
+    {
+        SAnimationEvaluation evaluation;
+        if (!Sample(phase, referencePose, evaluation))
+            return false;
+
+        output = std::move(evaluation.Sample);
         return true;
     }
 

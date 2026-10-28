@@ -71,7 +71,7 @@ namespace Elixir
 
         output.Sources = GetState().Sources;
 
-        return Sample(output.Phase, context.ReferencePose, output);
+        return Sample(output.Phase, context.ReferencePose, output.Sample);
     }
 
 
@@ -95,8 +95,7 @@ namespace Elixir
 
         m_State = m_NextState;
 
-        std::swap(m_VisiblePose, m_NextEvaluation.Pose);
-        std::swap(m_VisibleCurves, m_NextEvaluation.Curves);
+        std::swap(m_VisibleSample, m_NextSample);
 
         m_NextPlayback.reset();
         m_NextTransition.reset();
@@ -167,8 +166,7 @@ namespace Elixir
                     fade.Playback = m_Playback;
                 else
                 {
-                    fade.Pose = m_VisiblePose;
-                    fade.Curves = m_VisibleCurves;
+                    fade.SourceSample = m_VisibleSample;
                 }
             }
 
@@ -198,7 +196,7 @@ namespace Elixir
             weight,
             m_NextPhase,
             m_OutgoingPhase,
-            m_NextEvaluation,
+            m_NextSample,
             referencePose
         );
 
@@ -213,26 +211,18 @@ namespace Elixir
     bool StateMachineEvaluator::Sample(
         const double phase,
         const SLocalPose& referencePose,
-        SAnimationEvaluation& output
+        SAnimationSample& output
     ) const
     {
         if (!std::isfinite(phase)) return false;
 
         if (m_Prepared)
         {
-            output.Pose = m_NextEvaluation.Pose;
-            output.Curves = m_NextEvaluation.Curves;
+            output = m_NextSample;
             return true;
         }
 
-        SAnimationEvaluation sampled;
-        if (!m_Playback.Sample(phase, referencePose, sampled))
-            return false;
-
-        output.Pose = std::move(sampled.Pose);
-        output.Curves = std::move(sampled.Curves);
-
-        return true;
+        return m_Playback.Sample(phase, referencePose, output);
     }
 
     bool StateMachineEvaluator::CreatePlayback(

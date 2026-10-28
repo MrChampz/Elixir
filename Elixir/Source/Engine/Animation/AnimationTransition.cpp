@@ -15,7 +15,7 @@ namespace Elixir
         const SLocalPose& referencePose
     ) const
     {
-        SAnimationEvaluation evaluation;
+        SAnimationSample evaluation;
         if (!Sample(playback, source, weight, time, sourceTime, evaluation, referencePose))
             return false;
 
@@ -29,23 +29,23 @@ namespace Elixir
         const float weight,
         const double time,
         const double sourceTime,
-        SAnimationEvaluation& output,
+        SAnimationSample& output,
         const SLocalPose& referencePose
     ) const
     {
         if (!std::isfinite(weight) || weight < 0 || weight > 1)
             return false;
 
-        SAnimationEvaluation result;
+        SAnimationSample result;
         if (!playback.Sample(time, referencePose, result))
             return false;
 
         if (weight < 1.0f)
         {
-            const auto* pose = &Pose;
-            auto curves = Curves;
+            const auto* pose = &SourceSample.Pose;
+            auto curves = SourceSample.Curves;
 
-            SAnimationEvaluation sampled;
+            SAnimationSample sampled;
             if (source.IsValid())
             {
                 if (!source.Sample(sourceTime, referencePose, sampled))
@@ -150,6 +150,6 @@ namespace Elixir
             std::isfinite(Elapsed) &&
             Elapsed >= 0 &&
             Elapsed <= Duration &&
-            (!IsActive() || Playback.IsValid() || !Pose.LocalTransforms.empty());
+            (!IsActive() || Playback.IsValid() || !SourceSample.Pose.LocalTransforms.empty());
     }
 }

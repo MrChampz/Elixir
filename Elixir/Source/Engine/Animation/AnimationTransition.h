@@ -12,11 +12,8 @@ namespace Elixir
         /** Outgoing playback that continues advancing during the transition. */
         AnimationPlayback Playback;
 
-        /** Captured source pose used when there is no outgoing playback. */
-        SLocalPose Pose;
-
-        /** Scalar channels captured with a frozen transition source pose. */
-        AnimationCurveValues Curves;
+        /** Captured pose and scalar channels used when there is no outgoing playback. */
+        SAnimationSample SourceSample;
 
         /** Finite nonnegative transition duration in seconds; zero disables the fade. */
         float Duration = 0;
@@ -60,7 +57,7 @@ namespace Elixir
             float weight,
             double time,
             double sourceTime,
-            SAnimationEvaluation& output,
+            SAnimationSample& output,
             const SLocalPose& referencePose
         ) const;
 

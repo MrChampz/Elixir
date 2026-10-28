@@ -61,30 +61,25 @@ namespace Elixir
         return true;
     }
 
-    bool AnimationLayer::BlendPose(SLocalPose& output, const SLocalPose& pose) const
-    {
-        if (!m_Player.HasPose() || m_Weight == 0 || !m_Mask->HasInfluence())
-            return true;
-
-        return output.Blend(
-            pose,
-            m_Mask->GetWeights(),
-            m_Weight,
-            m_BlendMode,
-            GetAdditiveReferencePose()
-        );
-    }
-
-    bool AnimationLayer::BlendCurves(
-        AnimationCurveValues& output,
-        const AnimationCurveValues& curves
+    bool AnimationLayer::BlendSample(
+        SAnimationSample& output,
+        const SAnimationSample& sample
     ) const
     {
         if (!m_Player.HasPose() || m_Weight == 0 || !m_Mask->HasInfluence())
             return true;
 
-        return output.ApplyLayer(
-            curves,
+        const auto poseBlended = output.Pose.Blend(
+            sample.Pose,
+            m_Mask->GetWeights(),
+            m_Weight,
+            m_BlendMode,
+            GetAdditiveReferencePose()
+        );
+        if (!poseBlended) return false;
+
+        return output.Curves.ApplyLayer(
+            sample.Curves,
             m_Weight,
             m_BlendMode == EAnimationLayerBlendMode::Additive
         );
