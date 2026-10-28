@@ -1,53 +1,10 @@
 #include "epch.h"
 #include "Skeleton.h"
 
-#include <glm/gtc/matrix_transform.hpp>
+#include <Engine/Animation/Pose.h>
 
 namespace Elixir
 {
-    /* SBoneTransform */
-
-    SBoneTransform SBoneTransform::Blend(
-        const SBoneTransform& from,
-        const SBoneTransform& to,
-        const float weight
-    )
-    {
-        return {
-            .Translation = glm::mix(from.Translation, to.Translation, weight),
-            .Rotation = glm::normalize(glm::slerp(from.Rotation, to.Rotation, weight)),
-            .Scale = glm::mix(from.Scale, to.Scale, weight),
-        };
-    }
-
-    glm::mat4 SBoneTransform::ToMatrix() const
-    {
-        return glm::translate(glm::mat4(1.0f), Translation) *
-            glm::mat4_cast(Rotation) *
-            glm::scale(glm::mat4(1.0f), Scale);
-    }
-
-    bool SBoneTransform::IsValid() const
-    {
-        for (int i = 0; i < 3; ++i)
-        {
-            if (!std::isfinite(Translation[i]) ||
-                !std::isfinite(Scale[i]) ||
-                std::abs(Scale[i]) < 1e-8f)
-                return false;
-        }
-
-        for (int i = 0; i < 4; ++i)
-        {
-            if (!std::isfinite(Rotation[i]))
-                return false;
-        }
-
-        return std::abs(glm::dot(Rotation, Rotation) - 1.0f) < 1e-4f;
-    }
-
-    /* Skeleton */
-
     Ref<Skeleton> Skeleton::Create(
         std::string name,
         std::vector<SBone> bones,
@@ -107,29 +64,6 @@ namespace Elixir
         ));
     }
 
-    Skeleton::Skeleton(
-        std::string name,
-        std::vector<SBone> bones,
-        std::vector<SSkeletonSocket> sockets
-    )
-      : m_Name(std::move(name)),
-        m_Bones(std::move(bones)),
-        m_Sockets(std::move(sockets)) {}
-
-    Ref<Skeleton> Skeleton::WithSockets(std::vector<SSkeletonSocket> sockets) const
-    {
-        return Create(m_Name, m_Bones, std::move(sockets));
-    }
-
-    int32_t Skeleton::FindSocket(const std::string_view name) const
-    {
-        for (size_t i = 0; i < m_Sockets.size(); ++i)
-            if (m_Sockets[i].Name == name)
-                return int32_t(i);
-
-        return -1;
-    }
-
     int32_t Skeleton::FindBone(const std::string_view name) const
     {
         for (size_t i = 0; i < m_Bones.size(); ++i)
@@ -137,6 +71,20 @@ namespace Elixir
                 return int32_t(i);
 
         return -1;
+    }
+
+    Ref<Skeleton> Skeleton::WithSockets(std::vector<SSkeletonSocket> sockets) const
+    {
+        return Create(m_Name, m_Bones, std::move(sockets));
+    }
+
+    const SSkeletonSocket* Skeleton::GetSocket(const std::string_view name) const
+    {
+        for (const auto& socket : m_Sockets)
+            if (socket.Name == name)
+                return &socket;
+
+        return nullptr;
     }
 
     bool Skeleton::IsCompatible(const Skeleton& other) const
@@ -155,37 +103,33 @@ namespace Elixir
     }
 
     bool Skeleton::BuildModelPose(
-        const std::span<const SBoneTransform> localPose,
-        std::vector<glm::mat4>& output
+        const SLocalPose& localPose,
+        SModelPose& output
     ) const
     {
-        const auto invalidTransform = std::ranges::any_of(
-            localPose,
-            [](const auto& t) { return !t.IsValid(); }
-        );
-
-        if (localPose.size() != m_Bones.size() || invalidTransform)
+        if (!localPose.IsValid(m_Bones.size()))
         {
             EE_CORE_ERROR("Skeleton pose must contain one valid transform per bone.")
             return false;
         }
 
-        std::vector<glm::mat4> result(localPose.size());
+        SModelPose result;
+        result.Matrices.resize(localPose.LocalTransforms.size());
 
-        for (size_t i = 0; i < localPose.size(); ++i)
+        for (size_t i = 0; i < localPose.LocalTransforms.size(); ++i)
         {
             const auto parent = m_Bones[i].ParentIndex;
             const auto parentTransform = parent < 0
                 ? glm::mat4(1.0f)
-                : result[parent];
+                : result.Matrices[parent];
 
-            result[i] = parentTransform * localPose[i].ToMatrix();
+            result.Matrices[i] = parentTransform * localPose.LocalTransforms[i].ToMatrix();
 
             for (int c = 0; c < 4; ++c)
             {
                 for (int r = 0; r < 4; ++r)
                 {
-                    if (!std::isfinite(result[i][c][r]))
+                    if (!std::isfinite(result.Matrices[i][c][r]))
                     {
                         EE_CORE_ERROR("Skeleton pose exceeds the supported matrix range.")
                         return false;
@@ -198,4 +142,12 @@ namespace Elixir
 
         return true;
     }
+
+    Skeleton::Skeleton(
+        std::string name,
+        std::vector<SBone> bones,
+        std::vector<SSkeletonSocket> sockets
+    ) : m_Name(std::move(name)),
+        m_Bones(std::move(bones)),
+        m_Sockets(std::move(sockets)) {}
 }

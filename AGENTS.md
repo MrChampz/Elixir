@@ -4,6 +4,22 @@
 
 - Never use `b` as a prefix or suffix to denote a `bool`. Prefer concise names that are clear from their context, such as `Cancelled` or `Completed`; use predicates such as `IsVisible`, `HasFocus`, `CanRender`, or `ShouldUpdate` when needed for clarity.
 
+## C++ formatting
+
+- Keep all function parameters or call arguments on the same line when they fit within the 95-character line limit. Otherwise, place each parameter or argument on its own line, with the opening parenthesis after the function name and the closing parenthesis on a separate line. Do not mix multiple parameters or arguments on one line with others on separate lines. Apply this rule to declarations, definitions, constructors, and calls.
+- Do not reformat existing code without the user's confirmation.
+- Never place a lambda inside an `if` condition or a `return` expression, including lambdas passed to algorithms such as `std::ranges::all_of`. Evaluate the expression first and store its result in a clearly named variable, then use that variable in the condition or return statement.
+
+```cpp
+void FuncX(
+    int x,
+    int y,
+    int z
+)
+{
+}
+```
+
 ## Engine error handling
 
 - Do not add `static_assert` to Engine code. Keep compile-time validation in tests.

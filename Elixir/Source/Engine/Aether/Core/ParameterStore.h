@@ -30,17 +30,21 @@ namespace Elixir::Aether::Core
     /** @brief Stores one named parameter and its declared authoring type. */
     struct SParameter
     {
-        /** @brief Name used to bind defaults and instance overrides. */
+        /** Name used to bind defaults and instance overrides. */
         std::string Name;
 
-        /** @brief Declared type, or Unspecified for low-level compiled values. */
+        /** Declared type, or Unspecified for low-level compiled values. */
         EParameterType Type = EParameterType::Unspecified;
 
-        /** @brief CPU default; UInt stores its bits in x and unused components are zero. */
+        /** CPU default; UInt stores its bits in x and unused components are zero. */
         glm::vec4 Value{};
     };
 
-    /** @brief Returns the native word count, or zero for an unsupported type. */
+    /**
+     * @brief Get the native storage width of a parameter.
+     * @param type Declared parameter type.
+     * @return Number of four-byte words, or zero for an unsupported type.
+     */
     constexpr uint32_t GetParameterWordCount(const EParameterType type)
     {
         switch (type)
@@ -56,7 +60,11 @@ namespace Elixir::Aether::Core
         return 0;
     }
 
-    /** @brief Packs an unsigned integer into a float4 slot without a numeric conversion. */
+    /**
+     * @brief Pack an unsigned integer without numeric conversion.
+     * @param value Unsigned value to encode.
+     * @return Payload with the raw bits in x and zero in the remaining components.
+     */
     inline glm::vec4 EncodeUIntParameter(const uint32_t value)
     {
         glm::vec4 payload{};
@@ -64,7 +72,10 @@ namespace Elixir::Aether::Core
         return payload;
     }
 
-    /** @brief Reads an unsigned integer's bits from the first component of a float4 slot. */
+    /**
+     * @brief Read an unsigned integer from a float payload.
+     * @param payload Payload whose x component contains the raw integer bits.
+     */
     inline uint32_t DecodeUIntParameter(const glm::vec4& payload)
     {
         uint32_t value = 0;
@@ -76,41 +87,92 @@ namespace Elixir::Aether::Core
     class ELIXIR_API ParameterStore
     {
       public:
-        /** @brief Returns a scalar default, or the fallback when its name is absent. */
+        /**
+         * @brief Get a scalar default.
+         * @param name Parameter name.
+         * @param fallback Value used when the name is absent or has another type.
+         * @return The stored value, or fallback.
+         */
         float GetFloat(const std::string& name, float fallback = 0.0f) const;
 
-        /** @brief Sets a scalar default, replacing any other type with the same name. */
+        /**
+         * @brief Set a scalar default, replacing any type with the same name.
+         * @param name Parameter name.
+         * @param value Default value to store.
+         */
         void SetFloat(const std::string& name, float value);
 
-        /** @brief Returns a four-component default, or the fallback when the name is absent or has another type. */
+        /**
+         * @brief Get a four-component default.
+         * @param name Parameter name.
+         * @param fallback Value used when the name is absent or has another type.
+         * @return The stored value, or fallback.
+         */
         glm::vec4 GetFloat4(const std::string& name, const glm::vec4& fallback = glm::vec4()) const;
 
-        /** @brief Sets a four-component default, replacing any other type with the same name. */
+        /**
+         * @brief Set a four-component default, replacing any type with the same name.
+         * @param name Parameter name.
+         * @param value Default value to store.
+         */
         void SetFloat4(const std::string& name, const glm::vec4& value);
 
-        /** @brief Returns a two-component default, or the fallback when absent. */
+        /**
+         * @brief Get a two-component default.
+         * @param name Parameter name.
+         * @param fallback Value used when the name is absent or has another type.
+         * @return The stored value, or fallback.
+         */
         glm::vec2 GetFloat2(const std::string& name, const glm::vec2& fallback = {}) const;
 
-        /** @brief Sets a two-component default, replacing any other type with the same name. */
+        /**
+         * @brief Set a two-component default, replacing any type with the same name.
+         * @param name Parameter name.
+         * @param value Default value to store.
+         */
         void SetFloat2(const std::string& name, const glm::vec2& value);
 
-        /** @brief Returns a three-component default, or the fallback when absent. */
+        /**
+         * @brief Get a three-component default.
+         * @param name Parameter name.
+         * @param fallback Value used when the name is absent or has another type.
+         * @return The stored value, or fallback.
+         */
         glm::vec3 GetFloat3(const std::string& name, const glm::vec3& fallback = {}) const;
 
-        /** @brief Sets a three-component default, replacing any other type with the same name. */
+        /**
+         * @brief Set a three-component default, replacing any type with the same name.
+         * @param name Parameter name.
+         * @param value Default value to store.
+         */
         void SetFloat3(const std::string& name, const glm::vec3& value);
 
-        /** @brief Returns an unsigned integer default, or the fallback when absent. */
+        /**
+         * @brief Get an unsigned integer default.
+         * @param name Parameter name.
+         * @param fallback Value used when the name is absent or has another type.
+         * @return The stored value, or fallback.
+         */
         uint32_t GetUInt(const std::string& name, uint32_t fallback = 0) const;
 
-        /** @brief Sets an unsigned integer default without converting it to float. */
+        /**
+         * @brief Set an unsigned integer default, replacing any type with the same name.
+         * @param name Parameter name.
+         * @param value Default value to store.
+         */
         void SetUInt(const std::string& name, uint32_t value);
 
-        /** @brief Compiles typed defaults with the optional scope prefix. */
+        /**
+         * @brief Compile typed defaults with an optional scope prefix.
+         * @param prefix Text prepended to each name; include a scope separator when needed.
+         */
         std::vector<SParameter> Compile(const std::string& prefix = "") const;
 
       private:
-        // Removes an existing name before assigning its replacement type.
+        /**
+         * @brief Remove an existing name before replacing its type.
+         * @param name Parameter name to remove from all type tables.
+         */
         void Erase(const std::string& name);
 
         std::map<std::string, float> m_Float;
@@ -120,7 +182,13 @@ namespace Elixir::Aether::Core
         std::map<std::string, uint32_t> m_UInt;
     };
 
-    /** @brief Finds a named parameter, or returns UINT32_MAX when absent. */
+    /**
+     * @brief Find a named parameter.
+     * @tparam Parameter Table element type with a Name member.
+     * @param parameters Parameter table to search.
+     * @param name Exact parameter name.
+     * @return The first matching index, or UINT32_MAX when absent.
+     */
     template<typename Parameter>
     uint32_t FindParameterIndex(
         const std::vector<Parameter>& parameters,
@@ -135,7 +203,14 @@ namespace Elixir::Aether::Core
         return UINT32_MAX;
     }
 
-    /** @brief Finds an emitter-local parameter before checking the system scope. */
+    /**
+     * @brief Find an emitter-local parameter before checking the system scope.
+     * @tparam Parameter Table element type with a Name member.
+     * @param parameters Parameter table to search.
+     * @param emitterName Emitter name used as the local scope prefix.
+     * @param parameterName Unscoped parameter name; empty names are not resolved.
+     * @return The first matching index, or UINT32_MAX when absent.
+     */
     template<typename Parameter>
     uint32_t FindScopedParameterIndex(
         const std::vector<Parameter>& parameters,

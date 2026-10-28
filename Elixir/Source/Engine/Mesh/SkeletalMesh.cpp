@@ -52,13 +52,13 @@ namespace Elixir
             return nullptr;
         }
 
-        if (data.ReferencePose.empty())
+        if (data.ReferencePose.LocalTransforms.empty())
         {
             for (const auto& bone : data.Skeleton->GetBones())
-                data.ReferencePose.push_back(bone.ReferenceTransform);
+                data.ReferencePose.LocalTransforms.push_back(bone.ReferenceTransform);
         }
 
-        std::vector<glm::mat4> referenceModel;
+        SModelPose referenceModel;
         if (!data.Skeleton->BuildModelPose(data.ReferencePose, referenceModel))
             return nullptr;
 
@@ -185,11 +185,11 @@ namespace Elixir
       : m_Data(std::move(data)) {}
 
     bool SkeletalMesh::SkinVertices(
-        const std::span<const glm::mat4> modelPose,
+        const SModelPose& modelPose,
         std::vector<SStaticMeshVertex>& output
     ) const
     {
-        if (modelPose.size() != GetSkeleton()->GetBones().size())
+        if (!modelPose.IsValid(GetSkeleton()->GetBones().size()))
         {
             EE_CORE_ERROR("SkeletalMesh requires one model transform per skeleton bone.")
             return false;
@@ -198,7 +198,7 @@ namespace Elixir
         std::vector<glm::mat4> palette(m_Data.BoneMap.size());
         for (size_t i = 0; i < palette.size(); ++i)
         {
-            palette[i] = modelPose[m_Data.BoneMap[i]] * m_Data.InverseBindMatrices[i];
+            palette[i] = modelPose.Matrices[m_Data.BoneMap[i]] * m_Data.InverseBindMatrices[i];
             if (!ValidMatrix(palette[i]))
             {
                 EE_CORE_ERROR("SkeletalMesh received an invalid model pose.")

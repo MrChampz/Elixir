@@ -32,6 +32,7 @@ namespace Elixir::Aether
         friend class SystemInstance;
         friend class Manager;
 
+        /** @brief Get the hash of the internal instance UUID. */
         std::size_t GetHashParams() const
         {
             return m_Id.GetHashParams();
@@ -48,13 +49,13 @@ namespace Elixir::Aether
     /** @brief Stores one typed override and its binding to the current compilation. */
     struct SParameterOverride
     {
-        /** @brief Declared type retained to reject incompatible recompilations. */
+        /** Declared type retained to reject incompatible recompilations. */
         EParameterType Type = EParameterType::Unspecified;
 
-        /** @brief CPU payload; UInt uses the raw bits of x. */
+        /** CPU payload; UInt uses the raw bits of x. */
         glm::vec4 Value{};
 
-        /** @brief Index in Parameters, or UINT32_MAX before the first compilation. */
+        /** Index in Parameters, or UINT32_MAX before the first compilation. */
         uint32_t ParameterIndex = UINT32_MAX;
     };
 
@@ -87,7 +88,6 @@ namespace Elixir::Aether
     public:
         /**
          * @brief Creates an immutable runtime-state snapshot.
-         *
          * @param key Internal identity of the source instance.
          * @param revision Revision of the compiled-system selection.
          * @param parameterRevision Revision of the resolved parameter values.
@@ -132,10 +132,10 @@ namespace Elixir::Aether
         const glm::mat4& GetWorldTransform() const { return m_WorldTransform; }
 
     private:
-        // Returns the internal identity used by frame and renderer bookkeeping.
+        /** @brief Returns the internal identity used by frame and renderer bookkeeping. */
         const SSystemInstanceKey& GetKey() const { return m_Key; }
 
-        // Returns the immutable renderer-facing state derived from this snapshot.
+        /** @brief Returns the immutable renderer-facing state derived from this snapshot. */
         const Ref<const Rendering::SystemInstanceRenderProxy>& GetRenderProxy() const
         {
             return m_RenderProxy;
@@ -178,7 +178,7 @@ namespace Elixir::Aether
 
     public:
         /**
-         * @brief Creates an unregistered from an authored System.
+         * @brief Creates an unregistered instance from an authored System.
          * @param system Authored system to instantiate.
          */
         explicit SystemInstance(Ref<System> system);
@@ -188,22 +188,52 @@ namespace Elixir::Aether
         SystemInstance(SystemInstance&&) = delete;
         SystemInstance& operator=(SystemInstance&&) = delete;
 
-        /** @brief Sets an override only when the exposed parameter is Float. */
+        /**
+         * @brief Set an override for an exposed Float parameter.
+         * @param name Name of the exposed parameter.
+         * @param value Override value to store.
+         * @return False when the name is unknown or the declared type does not match.
+         */
         bool SetParameterOverride(const std::string& name, float value);
 
-        /** @brief Sets an override only when the exposed parameter is Float2. */
+        /**
+         * @brief Set an override for an exposed Float2 parameter.
+         * @param name Name of the exposed parameter.
+         * @param value Override value to store.
+         * @return False when the name is unknown or the declared type does not match.
+         */
         bool SetParameterOverride(const std::string& name, const glm::vec2& value);
 
-        /** @brief Sets an override only when the exposed parameter is Float3. */
+        /**
+         * @brief Set an override for an exposed Float3 parameter.
+         * @param name Name of the exposed parameter.
+         * @param value Override value to store.
+         * @return False when the name is unknown or the declared type does not match.
+         */
         bool SetParameterOverride(const std::string& name, const glm::vec3& value);
 
-        /** @brief Sets an override only when the exposed parameter is Float4. */
+        /**
+         * @brief Set an override for an exposed Float4 parameter.
+         * @param name Name of the exposed parameter.
+         * @param value Override value to store.
+         * @return False when the name is unknown or the declared type does not match.
+         */
         bool SetParameterOverride(const std::string& name, const glm::vec4& value);
 
-        /** @brief Sets an unsigned integer override only when the exposed parameter is UInt. */
+        /**
+         * @brief Set an override for an exposed UInt parameter.
+         * @param name Name of the exposed parameter.
+         * @param value Override value to store.
+         * @return False when the name is unknown or the declared type does not match.
+         */
         bool SetParameterOverride(const std::string& name, uint32_t value);
 
-        /** @brief Returns an exposed UInt value, or no value for an unknown name or different type. */
+        /**
+         * @brief Get the effective value of an exposed UInt parameter.
+         * @param name Name of the exposed parameter.
+         * @return The override or default, or no value for an unknown name or a different
+         *     type.
+         */
         std::optional<uint32_t> GetParameterUInt(const std::string& name) const;
 
         /**
@@ -228,7 +258,8 @@ namespace Elixir::Aether
          * returns the default value from the selected compiled system.
          *
          * @param name Name of the exposed parameter.
-         * @return Floating-point components, or no value for UInt parameters and unknown names.
+         * @return Floating-point components, or no value for UInt parameters and unknown
+         *     names.
          */
         std::optional<glm::vec4> GetParameterValue(const std::string& name) const;
 
@@ -245,59 +276,92 @@ namespace Elixir::Aether
         void SetWorldTransform(const glm::mat4& worldTransform);
 
     private:
-        // Stores a type-checked payload while holding the snapshot lock.
+        /**
+         * @brief Store a checked payload while holding the snapshot lock.
+         * @param name Exposed parameter name.
+         * @param value Payload to store; unused components are cleared.
+         * @param type Required type, or no value to accept floating-point parameter types.
+         * @return False for an unknown name or incompatible type.
+         */
         bool StoreParameterOverride(
             const std::string& name,
             const glm::vec4& value,
             std::optional<EParameterType> type
         );
 
-        // Finds a compiled default, or keeps the authored default alive in the supplied optional.
+        /**
+         * @brief Find a compiled or authored parameter default.
+         * @param name Exposed parameter name.
+         * @param authored Retains the authored default when no compiled system is selected.
+         * @return The default, or null when absent.
+         */
         const SParameter* FindParameterDefinition(
             const std::string& name,
             std::optional<SParameter>& authored
         ) const;
 
-        // Returns the authored System retained before the first submission.
+        /** @brief Returns the authored System retained before the first submission. */
         Ref<System> GetSourceSystem() const;
 
-        // Reserves the instance for its first runtime submission.
+        /** @brief Reserves the instance for its first runtime submission. */
         bool TryBeginSubmission();
 
-        // Cancels a failed first submission so that it can be retried.
+        /** @brief Cancels a failed first submission so that it can be retried. */
         void CancelSubmission();
 
-        // Applies the first compilation and releases the authored System.
+        /**
+         * @brief Apply the first compilation and release the authored system.
+         * @param system Compiled data belonging to this instance source system.
+         * @return True when the pending first submission is initialized.
+         */
         bool Initialize(Ref<const SCompiledSystem> system);
 
-        // Replaces the internal compilation after rebuilding the same source asset.
+        /**
+         * @brief Replace the compilation after rebuilding the same source asset.
+         * @param system Non-null compiled data belonging to this instance source system.
+         */
         void ApplyCompilation(Ref<const SCompiledSystem> system);
 
-        // Captures the current immutable state without retaining the mutex.
+        /** @brief Captures the current immutable state without retaining the mutex. */
         Ref<const SystemInstanceSnapshot> CaptureSnapshot() const;
 
-        // Publishes the current mutable state as an immutable snapshot.
+        /** @brief Publishes the current mutable state as an immutable snapshot. */
         void PublishSnapshot();
 
-        // Finds the compiled mapping for an exposed runtime parameter.
+        /**
+         * @brief Find the compiled mapping for an exposed parameter.
+         * @param system Compiled system to search.
+         * @param name Exposed parameter name.
+         * @return The mapping, or null when absent.
+         */
         static const SExposedParameter* FindExposedParameter(
             const SCompiledSystem& system,
             std::string_view name
         );
 
-        // Resolves one compiled parameter against the instance overrides.
+        /**
+         * @brief Resolve a parameter against the instance overrides.
+         * @param parameter Parameter definition and default payload.
+         * @param overrides Named overrides to check for a compatible value.
+         * @return The compatible override, or the default payload.
+         */
         static glm::vec4 ResolveParameterValue(
             const SParameter& parameter,
             const ParameterOverridesMap& overrides
         );
 
-        // Resolves all compiled parameters into immutable renderer table order.
+        /**
+         * @brief Resolve compiled parameters into an immutable table of payload words.
+         * @param system Compiled system that defines the parameter order and word offsets.
+         * @param overrides Named overrides to apply when their types match.
+         * @return Shared immutable words containing overrides or compiled defaults.
+         */
         static Ref<const ResolvedParameterWords> ResolveParameterWords(
             const SCompiledSystem& system,
             const ParameterOverridesMap& overrides
         );
 
-        // Returns the internal identity used by Manager and Renderer.
+        /** @brief Get the internal identity used by Manager and Renderer. */
         const SSystemInstanceKey& GetKey() const { return m_Key; }
 
         SSystemInstanceKey m_Key;
