@@ -15,28 +15,15 @@ namespace Elixir
         std::vector<SSequenceContribution>& output
     ) const
     {
-        if (!HasValidCoordinates(values))
-            return false;
-
         std::pmr::vector<SSequenceContribution> samples;
-        FindSamples(values, samples);
+        if (!ResolveSamples(values, samples))
+            return false;
 
         float total = 0;
         for (const auto& sample : samples)
-        {
-            if (!sample.Sequence ||
-                !std::isfinite(sample.Weight) ||
-                sample.Weight < 0 ||
-                !sample.Sequence->IsCompatibleWith(m_Skeleton))
-            {
-                EE_CORE_ERROR("Blend space produced an invalid source contribution.")
-                return false;
-            }
-
             total += sample.Weight;
-        }
 
-        if (!std::isfinite(total) || total <= 0)
+        if (!std::isfinite(total))
             return false;
 
         std::vector<SSequenceContribution> resolved;
@@ -62,9 +49,9 @@ namespace Elixir
         const SLocalPose& referencePose
     ) const
     {
-        if (!HasValidCoordinates(values) || !std::isfinite(phase))
+        if (!std::isfinite(phase))
         {
-            EE_CORE_ERROR("Blend-space coordinates and phase must be valid and finite.")
+            EE_CORE_ERROR("Blend-space sample phase must be finite.")
             return false;
         }
 
@@ -73,24 +60,17 @@ namespace Elixir
         std::pmr::monotonic_buffer_resource resource(storage.data(), storage.size());
 
         std::pmr::vector<SSequenceContribution> samples(&resource);
-        FindSamples(values, samples);
+        if (!ResolveSamples(values, samples))
+            return false;
 
         SLocalPose pose, next;
 
         double total = 0;
         for (const auto& sample : samples)
         {
-            if (!sample.Sequence || !std::isfinite(sample.Weight) || sample.Weight < 0)
-            {
-                EE_CORE_ERROR("Blend space produced an invalid contribution.")
-                return false;
-            }
-
             if (sample.Weight == 0) continue;
 
-            const auto time = m_SynchronizationSequence
-                ? sample.Sequence->GetSynchronizedTime(phase, *m_SynchronizationSequence)
-                : std::clamp(phase, 0.0f, 1.0f) * sample.Sequence->GetDuration();
+            const auto time = GetSampleTime(*sample.Sequence, phase);
 
             const auto sampled = sample.Sequence->Sample(
                 time,
@@ -152,9 +132,9 @@ namespace Elixir
         AnimationCurveValues& output
     ) const
     {
-        if (!HasValidCoordinates(values) || !std::isfinite(phase))
+        if (!std::isfinite(phase))
         {
-            EE_CORE_ERROR("Animation curves require valid blend-space coordinates and phase.")
+            EE_CORE_ERROR("Animation curve sample phase must be finite.")
             return false;
         }
 
@@ -162,25 +142,17 @@ namespace Elixir
         std::pmr::monotonic_buffer_resource resource(storage.data(), storage.size());
 
         std::pmr::vector<SSequenceContribution> samples(&resource);
-        FindSamples(values, samples);
+        if (!ResolveSamples(values, samples))
+            return false;
 
         AnimationCurveValues result;
 
         double total = 0;
         for (const auto& sample : samples)
         {
-            if (!sample.Sequence || !std::isfinite(sample.Weight) || sample.Weight < 0)
-            {
-                EE_CORE_ERROR("Blend space produced an invalid curve contribution.")
-                return false;
-            }
-
             if (sample.Weight == 0) continue;
 
-            const auto time = m_SynchronizationSequence
-                ? sample.Sequence->GetSynchronizedTime(phase, *m_SynchronizationSequence)
-                : std::clamp(phase, 0.0f, 1.0f) * sample.Sequence->GetDuration();
-
+            const auto time = GetSampleTime(*sample.Sequence, phase);
             AnimationCurveValues next;
 
             if (!sample.Sequence->SampleCurves(time, next) ||
@@ -389,4 +361,50 @@ namespace Elixir
         m_Skeleton(std::move(skeleton)),
         m_DimensionCount(dimensionCount),
         m_SynchronizationSequence(std::move(synchronizationSequence)) {}
+
+
+    bool BlendSpace::ResolveSamples(
+        const std::span<const float> values,
+        std::pmr::vector<SSequenceContribution>& output
+    ) const
+    {
+        if (!HasValidCoordinates(values))
+        {
+            EE_CORE_ERROR("Blend-space coordinates must match the axes and be finite.")
+            return false;
+        }
+
+        FindSamples(values, output);
+
+        double total = 0;
+        for (const auto& sample : output)
+        {
+            if (!sample.Sequence ||
+                !std::isfinite(sample.Weight) ||
+                sample.Weight < 0 ||
+                !sample.Sequence->IsCompatibleWith(m_Skeleton))
+            {
+                EE_CORE_ERROR("Blend space produced an invalid source contribution.")
+                return false;
+            }
+
+            total += sample.Weight;
+        }
+
+        if (!std::isfinite(total) || total <= 0)
+        {
+            EE_CORE_ERROR("Blend space requires a positive finite total sample weight.")
+            return false;
+        }
+
+        return true;
+    }
+
+    float BlendSpace::GetSampleTime(const Sequence& sequence, const double phase) const
+    {
+        if (m_SynchronizationSequence)
+            return sequence.GetSynchronizedTime(float(phase), *m_SynchronizationSequence);
+
+        return float(std::clamp(phase, 0.0, 1.0) * sequence.GetDuration());
+    }
 }

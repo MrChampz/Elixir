@@ -54,16 +54,13 @@ namespace Elixir
     ) const
     {
         SAnimationSample result, next;
-        const auto* synchronization = m_Source->GetSynchronizationSequence().get();
 
         float total = 0;
         for (const auto& sample : m_Samples)
         {
             if (sample.Weight == 0) continue;
 
-            const auto time = synchronization
-                ? sample.Sequence->GetSynchronizedTime(float(phase), *synchronization)
-                : float(phase * sample.Sequence->GetDuration());
+            const auto time = m_Source->GetSampleTime(*sample.Sequence, phase);
 
             if (!sample.Sequence->Sample(time, next.Pose, referencePose) ||
                 !sample.Sequence->SampleCurves(time, next.Curves))

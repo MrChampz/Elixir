@@ -547,3 +547,62 @@ TEST_F(AnimationCurveTest, ModifiersReadCandidateCurvesBeforeAtomicFramePublicat
     Playback->Stop();
     EXPECT_TRUE(Playback->GetCurveValues().GetValues().empty());
 }
+
+TEST_F(AnimationCurveTest, BlendSpacePoseCurvesAndPlaybackShareTheSamplingTimeline)
+{
+    for (const bool synchronized : {false, true})
+    {
+        SCOPED_TRACE(synchronized);
+        auto first = Sequence::Create(
+            "First",
+            Mesh->GetSkeleton(),
+            1,
+            {{.BoneIndex = 0, .Translations = {{0, {0, 0, 0}}, {1, {1, 0, 0}}}}},
+            {},
+            {},
+            {{"Grip", {{0, 0}, {1, 1}}}}
+        );
+        auto second = Sequence::Create(
+            "Second",
+            Mesh->GetSkeleton(),
+            2,
+            {{.BoneIndex = 0, .Translations = {{0, {0, 0, 0}}, {2, {2, 0, 0}}}}},
+            {},
+            {},
+            {{"Grip", {{0, 0}, {2, 2}}}}
+        );
+        ASSERT_TRUE(first);
+        ASSERT_TRUE(second);
+        if (synchronized)
+        {
+            first = first->WithSyncMarkers({{"A", 0}, {"B", 0.5f}});
+            second = second->WithSyncMarkers({{"A", 0}, {"B", 1.5f}});
+            ASSERT_TRUE(first);
+            ASSERT_TRUE(second);
+        }
+        const auto space = BlendSpace1D::Create("Timeline", {{0, first}, {1, second}});
+        ASSERT_TRUE(space);
+        ASSERT_TRUE(PlayWithInputs(*Playback, MakeNode(space), {0.5f}, 0, false));
+        const std::array coordinates{0.5f};
+        for (const float phase : {-1.0f, 0.0f, 0.25f, 0.5f, 0.9f, 1.0f, 2.0f})
+        {
+            SCOPED_TRACE(phase);
+            SLocalPose pose;
+            AnimationCurveValues curves;
+            ASSERT_TRUE(space->Sample(coordinates, phase, pose));
+            ASSERT_TRUE(space->SampleCurves(coordinates, phase, curves));
+            const auto expected = curves.GetValue("Grip");
+            EXPECT_NEAR(pose.LocalTransforms[0].Translation.x, expected, 1e-5f);
+            const auto time = space->GetDuration(coordinates) * std::clamp(phase, 0.0f, 1.0f);
+            ASSERT_TRUE(Playback->Seek(time));
+            EXPECT_NEAR(Playback->GetCurveValues().GetValue("Grip"), expected, 1e-5f);
+            EXPECT_NEAR(
+                Playback->GetLocalPose().LocalTransforms[0].Translation.x,
+                expected,
+                1e-5f
+            );
+            if (phase == 0.5f)
+                EXPECT_NEAR(expected, synchronized ? 1.0f : 0.75f, 1e-5f);
+        }
+    }
+}
