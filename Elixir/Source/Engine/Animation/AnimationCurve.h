@@ -2,6 +2,13 @@
 
 #include <Engine/Core/Core.h>
 
+#include <cstdint>
+#include <functional>
+#include <map>
+#include <string>
+#include <string_view>
+#include <vector>
+
 namespace Elixir
 {
     /** Selects interpolation between adjacent scalar keys. */
