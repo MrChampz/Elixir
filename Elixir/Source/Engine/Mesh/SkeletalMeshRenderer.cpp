@@ -181,6 +181,15 @@ namespace Elixir
         const glm::mat4& transform
     )
     {
+        return Render(instance, instance.GetReferenceModelPose(), transform);
+    }
+
+    bool SkeletalMeshRenderer::Render(
+        const SkeletalMeshInstance& instance,
+        const SModelPose& modelPose,
+        const glm::mat4& transform
+    )
+    {
         if (!m_Recording || !instance.GetMesh())
         {
             EE_CORE_ERROR("SkeletalMeshRenderer requires an open frame and a mesh instance.")
@@ -201,7 +210,7 @@ namespace Elixir
 
         const auto appended = m_Batch.Append(
             *mesh,
-            instance.GetModelPose(),
+            modelPose,
             source->VertexOffset,
             output->VertexOffset,
             m_Config.BoneCapacity

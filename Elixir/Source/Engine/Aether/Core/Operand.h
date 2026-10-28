@@ -69,31 +69,43 @@ namespace Elixir::Aether::Core
         Target
     };
 
-    /** @brief Number of low bits preceding the three-bit source field. */
+    /** Number of low bits preceding the three-bit source field. */
     inline constexpr uint32_t OperandSourceShift = 29;
 
-    /** @brief Number of low bits preceding the three-bit format field. */
+    /** Number of low bits preceding the three-bit format field. */
     inline constexpr uint32_t OperandFormatShift = 26;
 
-    /** @brief Masks the format bits after shifting the reference. */
+    /** Masks the format bits after shifting the reference. */
     inline constexpr uint32_t OperandFormatMask = 0x7u;
 
-    /** @brief Masks the 26-bit word offset or immediate payload. */
+    /** Masks the 26-bit word offset or immediate payload. */
     inline constexpr uint32_t OperandIndexMask = 0x03ffffffu;
 
-    /** @brief Returns the origin encoded in an operand reference. */
+    /**
+     * @brief Get the origin encoded in an operand reference.
+     * @param reference Packed operand reference.
+     */
     constexpr EOperandSource GetOperandSource(const uint32_t reference)
     {
         return EOperandSource(reference >> OperandSourceShift);
     }
 
-    /** @brief Returns the payload format encoded in an operand reference. */
+    /**
+     * @brief Get the payload format encoded in an operand reference.
+     * @param reference Packed operand reference.
+     */
     constexpr EOperandFormat GetOperandFormat(const uint32_t reference)
     {
         return EOperandFormat((reference >> OperandFormatShift) & OperandFormatMask);
     }
 
-    /** @brief Packs origin, format, and index, or returns UINT32_MAX for an invalid field. */
+    /**
+     * @brief Pack an operand origin, format, and payload.
+     * @param source Origin of the operand value.
+     * @param format Storage format of the value.
+     * @param index Source-relative word offset or immediate payload; at most OperandIndexMask.
+     * @return Packed reference, or UINT32_MAX for an invalid field.
+     */
     inline uint32_t EncodeOperandReference(
         const EOperandSource source,
         const EOperandFormat format,
@@ -112,7 +124,11 @@ namespace Elixir::Aether::Core
             | (uint32_t(format) << OperandFormatShift) | index;
     }
 
-    /** @brief Returns the numeric word count, or zero for a curve or unsupported format. */
+    /**
+     * @brief Get the numeric storage width of an operand.
+     * @param format Operand storage format.
+     * @return Number of words, or zero for a curve or unsupported format.
+     */
     constexpr uint32_t GetOperandFormatWordCount(const EOperandFormat format)
     {
         switch (format)
@@ -126,7 +142,11 @@ namespace Elixir::Aether::Core
         }
     }
 
-    /** @brief Returns a concrete type's storage format, or an invalid format for Target. */
+    /**
+     * @brief Get the storage format for a concrete logical type.
+     * @param type Logical operand type.
+     * @return Storage format, or an invalid format for Target or an unsupported type.
+     */
     constexpr EOperandFormat GetOperandTypeFormat(const EOperandInput type)
     {
         switch (type)
@@ -140,7 +160,11 @@ namespace Elixir::Aether::Core
         }
     }
 
-    /** @brief Returns a parameter's stored format, or an invalid format for an unsupported type. */
+    /**
+     * @brief Get the stored format of a parameter.
+     * @param type Declared parameter type.
+     * @return Storage format, or an invalid format for an unsupported type.
+     */
     constexpr EOperandFormat GetParameterOperandFormat(const EParameterType type)
     {
         switch (type)
@@ -155,7 +179,11 @@ namespace Elixir::Aether::Core
         }
     }
 
-    /** @brief Checks whether a declared parameter can supply a logical operand type. */
+    /**
+     * @brief Check whether a parameter can supply a logical operand type.
+     * @param declared Declared parameter type.
+     * @param actual Logical type required by the operand.
+     */
     constexpr bool IsParameterOperandType(
         const EParameterType declared,
         const EOperandInput actual
@@ -180,24 +208,27 @@ namespace Elixir::Aether::Core
     /** @brief Stores a typed operand while a module is being compiled. */
     struct SGPUOperand
     {
-        /** @brief Logical value type used to validate the operation argument. */
+        /** Logical value type used to validate the operation argument. */
         EOperandInput Type;
 
-        /** @brief Packed three-bit origin, three-bit format, and 26-bit source-relative payload. */
+        /** Packed three-bit origin, three-bit format, and 26-bit source-relative payload. */
         uint32_t Reference;
     };
 
     /** @brief Provides read-only tables used to validate operand references. */
     struct SOperandValidationContext
     {
-        /** @brief Packed 32-bit constant words available to the operand. */
+        /** Packed 32-bit constant words available to the operand. */
         std::span<const uint32_t> Constants;
 
-        /** @brief Compiled parameters available to the operand and curve references. */
+        /** Compiled parameters available to the operand and curve references. */
         std::span<const SCompiledParameter> Parameters;
     };
 
-    /** @brief Returns the logical operand type of a particle attribute. */
+    /**
+     * @brief Get the logical operand type of a particle attribute.
+     * @param attribute Particle attribute to read.
+     */
     inline EOperandInput GetAttributeOperandType(const EParticleAttribute attribute)
     {
         switch (attribute)
@@ -219,7 +250,10 @@ namespace Elixir::Aether::Core
         }
     }
 
-    /** @brief Returns an attribute's stored format; temporary registers hold four components. */
+    /**
+     * @brief Get an attribute storage format; temporary registers hold four components.
+     * @param attribute Particle attribute to read.
+     */
     inline EOperandFormat GetAttributeOperandFormat(const EParticleAttribute attribute)
     {
         if (attribute >= EParticleAttribute::Temp0 && attribute <= EParticleAttribute::Temp3)
@@ -227,7 +261,12 @@ namespace Elixir::Aether::Core
         return GetOperandTypeFormat(GetAttributeOperandType(attribute));
     }
 
-    /** @brief Checks whether an operand's type and reference match its source and available tables. */
+    /**
+     * @brief Check an operand type and reference against its source and tables.
+     * @param operand Typed operand to validate.
+     * @param context Constant and parameter tables addressed by the reference.
+     * @return True when the reference is valid for the declared logical type.
+     */
     inline bool IsValidOperand(
         const SGPUOperand& operand,
         const SOperandValidationContext& context

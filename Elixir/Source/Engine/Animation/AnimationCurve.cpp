@@ -46,7 +46,9 @@ namespace Elixir
     }
 
     bool AnimationCurveValues::ApplyLayer(
-        const AnimationCurveValues& layer, const float weight, const bool additive
+        const AnimationCurveValues& layer,
+        const float weight,
+        const bool additive
     )
     {
         if (!std::isfinite(weight) || weight < 0 || weight > 1)

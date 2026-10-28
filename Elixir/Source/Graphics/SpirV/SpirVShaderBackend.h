@@ -75,8 +75,8 @@ namespace Elixir::SpirV
         static EConstantType GetUIntConstantType(const spirv_cross::SPIRType& type);
 
         /**
-         * @brief Map a float scalar or vector to its engine constant type.
-         * @param type SPIR-V float type, including its vector width.
+         * @brief Map a float scalar, vector, or supported square matrix to its constant type.
+         * @param type SPIR-V float type, including its row and column counts.
          * @return The constant type.
          */
         static EConstantType GetFloatConstantType(const spirv_cross::SPIRType& type);

@@ -1,14 +1,27 @@
 #pragma once
 
-#include <Engine/Animation/AnimationSequence.h>
+#include <Engine/Animation/Pose.h>
+#include <Engine/Animation/Sequence.h>
 
 namespace Elixir
 {
+    struct SSequenceContribution;
+
     /** Samples synchronized animation cycles using an arbitrary number of numeric axes. */
     class ELIXIR_API BlendSpace
     {
     public:
         virtual ~BlendSpace();
+
+        /**
+         * @brief Calculate and validate source contributions once for subsequent sampling.
+         * @param values Finite input coordinates matching the space's dimension count.
+         * @param output Receives normalized positive contributions on success.
+         */
+        bool CalculateContributions(
+            std::span<const float> values,
+            std::vector<SSequenceContribution>& output
+        ) const;
 
         /**
          * @brief Sample weighted local poses at a shared cycle phase.
@@ -25,9 +38,15 @@ namespace Elixir
         bool Sample(
             std::span<const float> values,
             float phase,
-            std::vector<SBoneTransform>& output,
-            std::span<const SBoneTransform> referencePose = {}
+            SLocalPose& output,
+            const SLocalPose& referencePose = {}
         ) const;
+
+        /**
+        * @brief Check whether this asset uses a compatible skeleton.
+        * @param skeleton Skeleton whose bone layout will receive sampled poses.
+        */
+        bool IsCompatibleWith(const Ref<const Skeleton>& skeleton) const;
 
         /**
          * @brief Sample weighted scalar tracks on the same marker timeline as the pose.
@@ -35,8 +54,11 @@ namespace Elixir
          * @param phase Finite cycle phase, clamped to [0, 1].
          * @param output Receives blended values; unchanged on failure. Missing curves use zero.
          */
-        bool SampleCurves(std::span<const float> values, float phase,
-            AnimationCurveValues& output) const;
+        bool SampleCurves(
+            std::span<const float> values,
+            float phase,
+            AnimationCurveValues& output
+        ) const;
 
         /**
          * @brief Blend root movement from contributing clips on the marker timeline.
@@ -80,10 +102,10 @@ namespace Elixir
          * @return Borrowed clip, or null for invalid coordinates or contributions.
          * @pre Keep this blend space alive while using the returned pointer.
          */
-        const AnimationSequence* GetNotifySource(std::span<const float> values) const;
+        const Sequence* GetNotifySource(std::span<const float> values) const;
 
         /** @brief Get the fixed marker reference, or null for normalized sampling. */
-        const Ref<const AnimationSequence>& GetSynchronizationSequence() const
+        const Ref<const Sequence>& GetSynchronizationSequence() const
         {
             return m_SynchronizationSequence;
         }
@@ -98,13 +120,6 @@ namespace Elixir
         const Ref<const Skeleton>& GetSkeleton() const { return m_Skeleton; }
 
     protected:
-        /** Borrows a sample animation and gives its nonnegative contribution. */
-        struct SContribution
-        {
-            const AnimationSequence* Sequence;
-            float Weight;
-        };
-
         /**
          * @brief Store metadata validated by the concrete asset factory.
          * @param name Asset name.
@@ -116,7 +131,7 @@ namespace Elixir
             std::string name,
             Ref<const Skeleton> skeleton,
             size_t dimensionCount,
-            Ref<const AnimationSequence> synchronizationSequence = nullptr
+            Ref<const Sequence> synchronizationSequence = nullptr
         );
 
         /**
@@ -126,7 +141,7 @@ namespace Elixir
          * @return The fixed reference, or null when no clip has markers.
          */
         template<typename TSamples>
-        static Ref<const AnimationSequence> FindSynchronizationSequence(
+        static Ref<const Sequence> FindSynchronizationSequence(
             const TSamples& samples
         )
         {
@@ -146,13 +161,13 @@ namespace Elixir
          */
         virtual void FindSamples(
             std::span<const float> values,
-            std::pmr::vector<SContribution>& output
+            std::pmr::vector<SSequenceContribution>& output
         ) const = 0;
 
     private:
         std::string m_Name;
         Ref<const Skeleton> m_Skeleton;
         size_t m_DimensionCount;
-        Ref<const AnimationSequence> m_SynchronizationSequence;
+        Ref<const Sequence> m_SynchronizationSequence;
     };
 }

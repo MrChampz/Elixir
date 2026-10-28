@@ -1,11 +1,15 @@
 #include <gtest/gtest.h>
 #include <Engine/Animation/BlendSpace1D.h>
 #include <Engine/Animation/BlendSpace2D.h>
-#include <Engine/Animation/AnimationControllerInstance.h>
+#include "TwoBoneIKTestUtils.h"
+#include "AnimationTestNodes.h"
+#include <Engine/Animation/BlendNode.h>
+#include "AnimationTestPlayback.h"
 #include "../Mesh/SkinningTestData.h"
 #include <limits>
 
 using namespace Elixir;
+using namespace Elixir::Tests::IK;
 
 namespace
 {
@@ -17,9 +21,18 @@ namespace
         {
             Mesh = SkinningTests::MakeMesh();
             ASSERT_TRUE(Mesh);
-            Ramp = AnimationSequence::Create("Ramp", Mesh->GetSkeleton(), 1, {}, {}, {}, {},
-                {{"Grip", {{0, 0}, {1, 1}}}});
+            Ramp = Sequence::Create(
+                "Ramp",
+                Mesh->GetSkeleton(),
+                1,
+                {},
+                {},
+                {},
+                {{"Grip", {{0, 0}, {1, 1}}}}
+            );
             ASSERT_TRUE(Ramp);
+            Playback = MakeIKAnimation(Mesh);
+            ASSERT_TRUE(Playback);
         }
 
         /**
@@ -27,13 +40,14 @@ namespace
          * @param value Scalar value held over the complete cycle.
          * @param name Curve name.
          */
-        Ref<AnimationSequence> Constant(float value, std::string name = "Grip") const
+        Ref<Sequence> Constant(float value, std::string name = "Grip") const
         {
             return Ramp->WithCurves({{std::move(name), {{0, value}}}});
         }
 
         Ref<SkeletalMesh> Mesh;
-        Ref<AnimationSequence> Ramp;
+        Ref<Sequence> Ramp;
+        Ref<Animation> Playback;
     };
 }
 
@@ -73,8 +87,15 @@ TEST_F(AnimationCurveTest, RejectsInvalidNamesKeysAndInterpolation)
         {{"Grip", {{0, 1}}, EAnimationCurveInterpolation(255)}}
     };
     for (const auto& curves : invalid) EXPECT_FALSE(Ramp->WithCurves(curves));
-    const auto still = AnimationSequence::Create("Still", Mesh->GetSkeleton(), 0, {}, {}, {}, {},
-        {{"Grip", {{0, 7}}}});
+    const auto still = Sequence::Create(
+        "Still",
+        Mesh->GetSkeleton(),
+        0,
+        {},
+        {},
+        {},
+        {{"Grip", {{0, 7}}}}
+    );
     ASSERT_TRUE(still);
     AnimationCurveValues values;
     ASSERT_TRUE(still->SampleCurves(1, values));
@@ -84,14 +105,14 @@ TEST_F(AnimationCurveTest, RejectsInvalidNamesKeysAndInterpolation)
 TEST_F(AnimationCurveTest, MetadataCopiesRetainCurvesAndReplacingCurvesKeepsMetadata)
 {
     const auto clip = Ramp->WithSyncMarkers({{"Contact", 0.25f}})
-        ->WithNotifies({{"Hit", 0.5f}})->WithNotifyStates({{"Window", 0.2f, 0.7f}});
+        ->WithNotifies({{"Hit", 0.5f}, {"Window", 0.2f, 0.5f}});
     ASSERT_TRUE(clip);
     ASSERT_EQ(clip->GetCurves().size(), 1);
     const auto copy = clip->WithCurves({{"Other", {{0, 3}}}});
     ASSERT_TRUE(copy);
     EXPECT_EQ(copy->GetSyncMarkers().size(), 1);
-    EXPECT_EQ(copy->GetNotifies().size(), 1);
-    EXPECT_EQ(copy->GetNotifyStates().size(), 1);
+    EXPECT_EQ(copy->GetNotifies().size(), 2);
+    EXPECT_FLOAT_EQ(copy->GetNotifies()[0].Duration, 0.5f);
     AnimationCurveValues values;
     ASSERT_TRUE(clip->SampleCurves(0.5f, values));
     EXPECT_FLOAT_EQ(values.GetValue("Grip"), 0.5f);
@@ -113,17 +134,24 @@ TEST_F(AnimationCurveTest, LinearInterpolationHandlesOppositeFloatExtremes)
 TEST_F(AnimationCurveTest, SamplesBlendSpaceWithMissingCurvesAsZeroAndSharedMarkerTimes)
 {
     const auto first = Ramp->WithSyncMarkers({{"A", 0}, {"B", 0.5f}});
-    const auto second = AnimationSequence::Create("Second", Mesh->GetSkeleton(), 2, {},
-        {{"A", 0}, {"B", 1.5f}}, {}, {}, {{"Grip", {{0, 0}, {2, 2}}}});
+    const auto second = Sequence::Create(
+        "Second",
+        Mesh->GetSkeleton(),
+        2,
+        {},
+        {{"A", 0}, {"B", 1.5f}},
+        {},
+        {{"Grip", {{0, 0}, {2, 2}}}}
+    );
     const auto space = BlendSpace1D::Create("Space", {{0, first}, {1, second}});
     ASSERT_TRUE(space);
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(space, {0.5f}, 0, false));
+    auto& instance = *Playback;
+    ASSERT_TRUE(PlayWithInputs(instance, MakeNode(space), {0.5f}, 0, false));
     ASSERT_TRUE(instance.Seek(space->GetDuration(0.5f) * 0.5f));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 1);
     const auto empty = Ramp->WithCurves({});
     const auto missing = BlendSpace1D::Create("Missing", {{0, Constant(4)}, {1, empty}});
-    ASSERT_TRUE(instance.Play(missing, {0.75f}));
+    ASSERT_TRUE(PlayWithInputs(instance, MakeNode(missing), {0.75f}));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 1);
 }
 
@@ -142,8 +170,8 @@ TEST_F(AnimationCurveTest, SamplesTwoDimensionalInteriorWeights)
 
 TEST_F(AnimationCurveTest, PlaybackLoopsSeeksPausesAndResetsWithPose)
 {
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Ramp));
+    auto& instance = *Playback;
+    ASSERT_TRUE(instance.Play(MakeNode(Ramp)));
     ASSERT_TRUE(instance.Update(1.25f));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 0.25f);
     ASSERT_TRUE(instance.Seek(0.75f));
@@ -152,49 +180,49 @@ TEST_F(AnimationCurveTest, PlaybackLoopsSeeksPausesAndResetsWithPose)
     ASSERT_TRUE(instance.Update(0.2f));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 0.75f);
     instance.Resume();
-    ASSERT_TRUE(instance.Play(Ramp, false));
+    ASSERT_TRUE(instance.Play(MakeNode(Ramp), false));
     ASSERT_TRUE(instance.Update(2));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 1);
     ASSERT_TRUE(instance.Update(1));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 1);
     ASSERT_TRUE(instance.SetLocalPose(Mesh->GetData().ReferencePose));
     EXPECT_TRUE(instance.GetCurveValues().GetValues().empty());
-    ASSERT_TRUE(instance.Play(Ramp));
+    ASSERT_TRUE(instance.Play(MakeNode(Ramp)));
     instance.Stop();
     EXPECT_TRUE(instance.GetCurveValues().GetValues().empty());
 }
 
 TEST_F(AnimationCurveTest, InterruptedFadesCaptureVisibleCurveValues)
 {
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Constant(0)));
-    ASSERT_TRUE(instance.Play(Constant(8), 1.0f));
+    auto& instance = *Playback;
+    ASSERT_TRUE(instance.Play(MakeNode(Constant(0))));
+    ASSERT_TRUE(instance.Play(MakeNode(Constant(8)), 1.0f));
     ASSERT_TRUE(instance.Update(0.25f));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 2);
-    ASSERT_TRUE(instance.Play(Constant(10), 1.0f));
+    ASSERT_TRUE(instance.Play(MakeNode(Constant(10)), 1.0f));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 2);
     ASSERT_TRUE(instance.Update(0.5f));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 6);
-    ASSERT_TRUE(instance.Play(Ramp->WithCurves({}), 1.0f));
+    ASSERT_TRUE(instance.Play(MakeNode(Ramp->WithCurves({})), 1.0f));
     ASSERT_TRUE(instance.Update(0.5f));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 3);
 }
 
 TEST_F(AnimationCurveTest, LayersOverrideAuthoredNamesAndAddFromZeroRegardlessOfBoneWeight)
 {
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Constant(4)));
+    auto& instance = *Playback;
+    ASSERT_TRUE(instance.Play(MakeNode(Constant(4))));
     const auto mask = BoneMask::Create("Partial", Mesh->GetSkeleton(), {0, 0.1f});
     ASSERT_TRUE(instance.AddLayer("Overlay", mask, 0.5f));
     auto* layer = instance.GetLayer("Overlay");
-    ASSERT_TRUE(layer->Play(Constant(8)));
+    ASSERT_TRUE(layer->GetPlayer().Play(MakeNode(Constant(8))));
     ASSERT_TRUE(instance.Update(0));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 6);
-    EXPECT_FLOAT_EQ(layer->GetCurveValues().GetValue("Grip"), 8);
+    EXPECT_FLOAT_EQ(layer->GetPlayer().GetCurveValues().GetValue("Grip"), 8);
     ASSERT_TRUE(layer->SetBlendMode(EAnimationLayerBlendMode::Additive));
     ASSERT_TRUE(instance.Update(0));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 8);
-    ASSERT_TRUE(layer->Play(Constant(3, "Recoil")));
+    ASSERT_TRUE(layer->GetPlayer().Play(MakeNode(Constant(3, "Recoil"))));
     ASSERT_TRUE(instance.Update(0));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 4);
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Recoil"), 1.5f);
@@ -209,19 +237,19 @@ TEST_F(AnimationCurveTest, LayersOverrideAuthoredNamesAndAddFromZeroRegardlessOf
 TEST_F(AnimationCurveTest, OverflowRejectsFrameWithoutAdvancingPoseCurvesClocksOrEvents)
 {
     const auto max = std::numeric_limits<float>::max();
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Constant(max)));
+    auto& instance = *Playback;
+    ASSERT_TRUE(instance.Play(MakeNode(Constant(max))));
     const auto mask = BoneMask::Create("All", Mesh->GetSkeleton(), {1, 1});
     ASSERT_TRUE(instance.AddLayer("Add", mask));
     auto* layer = instance.GetLayer("Add");
-    ASSERT_TRUE(layer->Play(Constant(max)->WithNotifies({{"Hit", 0.1f}})));
+    ASSERT_TRUE(layer->GetPlayer().Play(MakeNode(Constant(max)->WithNotifies({{"Hit", 0.1f}}))));
     ASSERT_TRUE(layer->SetBlendMode(EAnimationLayerBlendMode::Additive));
-    const auto pose = instance.GetModelPose();
+    const auto pose = instance.GetModelPose().Matrices;
     EXPECT_FALSE(instance.Update(0.25f));
     EXPECT_FLOAT_EQ(instance.GetTime(), 0);
-    EXPECT_FLOAT_EQ(layer->GetTime(), 0);
+    EXPECT_FLOAT_EQ(layer->GetPlayer().GetTime(), 0);
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), max);
-    EXPECT_EQ(instance.GetModelPose(), pose);
+    EXPECT_EQ(instance.GetModelPose().Matrices, pose);
     EXPECT_TRUE(instance.GetNotifyEvents().empty());
     ASSERT_TRUE(layer->SetWeight(0));
     ASSERT_TRUE(instance.Update(0.25f));
@@ -230,43 +258,43 @@ TEST_F(AnimationCurveTest, OverflowRejectsFrameWithoutAdvancingPoseCurvesClocksO
 
 TEST_F(AnimationCurveTest, MontageCurvesUseEntranceReplacementAndExplicitExitEnvelopes)
 {
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Constant(2)));
+    auto& instance = *Playback;
+    ASSERT_TRUE(instance.Play(MakeNode(Constant(2))));
     const auto action = AnimationMontage::Create({.Name = "Action", .Sequence = Constant(10),
         .BlendIn = 0.4f, .BlendOut = 0.2f});
     ASSERT_TRUE(action);
     auto& layer = instance.GetBaseLayer();
-    ASSERT_TRUE(layer.PlayMontage(action));
+    ASSERT_TRUE(layer.GetPlayer().PlayMontage(action));
     ASSERT_TRUE(instance.Update(0.2f));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 6);
-    ASSERT_TRUE(layer.PlayMontage(action));
-    EXPECT_FLOAT_EQ(layer.GetCurveValues().GetValue("Grip"), 6);
+    ASSERT_TRUE(layer.GetPlayer().PlayMontage(action));
+    EXPECT_FLOAT_EQ(layer.GetPlayer().GetCurveValues().GetValue("Grip"), 6);
     ASSERT_TRUE(instance.Update(0.2f));
     // Source 2 blended toward captured 6 by 0.5, then action 10 by 0.5.
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 7);
-    ASSERT_TRUE(layer.StopMontage(0.2f));
+    ASSERT_TRUE(layer.GetPlayer().StopMontage(0.2f));
     ASSERT_TRUE(instance.Update(0.2f));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 2);
-    EXPECT_FALSE(layer.GetMontage());
+    EXPECT_FALSE(layer.GetPlayer().GetMontage());
 }
 
 TEST_F(AnimationCurveTest, MontageSectionJumpAndNaturalCompletionSampleCurrentTimeline)
 {
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Constant(2)));
+    auto& instance = *Playback;
+    ASSERT_TRUE(instance.Play(MakeNode(Constant(2))));
     const auto action = AnimationMontage::Create({.Name = "Action", .Sequence = Ramp,
         .BlendIn = 0, .BlendOut = 0.1f,
         .Sections = {{"First", 0}, {"Second", 0.5f}}});
     ASSERT_TRUE(action);
     auto& layer = instance.GetBaseLayer();
-    ASSERT_TRUE(layer.PlayMontage(action));
-    ASSERT_TRUE(layer.JumpToMontageSection("Second"));
-    EXPECT_FLOAT_EQ(layer.GetCurveValues().GetValue("Grip"), 0.5f);
+    ASSERT_TRUE(layer.GetPlayer().PlayMontage(action));
+    ASSERT_TRUE(layer.GetPlayer().JumpToMontageSection("Second"));
+    EXPECT_FLOAT_EQ(layer.GetPlayer().GetCurveValues().GetValue("Grip"), 0.5f);
     ASSERT_TRUE(instance.Update(0.25f));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 0.75f);
     ASSERT_TRUE(instance.Update(0.25f));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 2);
-    EXPECT_FALSE(layer.GetMontage());
+    EXPECT_FALSE(layer.GetPlayer().GetMontage());
 }
 
 TEST(AnimationCurveValuesTest, InvalidMutationAndOverflowAreTransactionalAndAliasesWork)
@@ -288,94 +316,148 @@ TEST(AnimationCurveValuesTest, InvalidMutationAndOverflowAreTransactionalAndAlia
 TEST_F(AnimationCurveTest, CurveBindingControlsIKInTheSameFrameAndClampsOnlyItsWeight)
 {
     auto data = Mesh->GetData();
-    data.Skeleton = Skeleton::Create("Limb", {
-        {.Name = "Root"}, {.Name = "Middle", .ParentIndex = 0,
-            .ReferenceTransform = {.Translation = {1, 0, 0}}},
-        {.Name = "End", .ParentIndex = 1,
-            .ReferenceTransform = {.Translation = {1, 0, 0}}}
-    });
-    data.ReferencePose.clear();
+    data.Skeleton = Skeleton::Create(
+        "Limb",
+        {
+            {.Name = "Root"}, {.Name = "Middle", .ParentIndex = 0,
+                .ReferenceTransform = {.Translation = {1, 0, 0}}},
+            {.Name = "End", .ParentIndex = 1,
+                .ReferenceTransform = {.Translation = {1, 0, 0}}}
+        }
+    );
+    data.ReferencePose.LocalTransforms.clear();
     const auto mesh = SkeletalMesh::Create(std::move(data));
     ASSERT_TRUE(mesh);
-    SkeletalMeshInstance instance(mesh);
-    const auto clip = AnimationSequence::Create("IK", mesh->GetSkeleton(), 1, {}, {}, {}, {},
-        {{"Grip", {{0, -1}, {1, 3}}}});
-    ASSERT_TRUE(instance.Play(clip, false));
+    const auto handle = MakeIKAnimation(mesh);
+    ASSERT_TRUE(handle);
+    auto& instance = *handle;
+    const auto solver = AttachIK(instance);
+    ASSERT_TRUE(solver);
+    const auto clip = Sequence::Create(
+        "IK",
+        mesh->GetSkeleton(),
+        1,
+        {},
+        {},
+        {},
+        {{"Grip", {{0, -1}, {1, 3}}}}
+    );
+    ASSERT_TRUE(instance.Play(MakeNode(clip), false));
     STwoBoneIKConstraint constraint{
         .EndBoneIndex = 2, .TargetPosition = {1, 1, 0}, .PolePosition = {0, 2, 0},
         .WeightCurve = "Grip"
     };
-    ASSERT_TRUE(instance.SetTwoBoneIKConstraints(std::span(&constraint, 1)));
+    ASSERT_TRUE(solver->SetConstraints(std::span(&constraint, 1)));
     ASSERT_TRUE(instance.Update(0.25f));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 0);
-    EXPECT_FLOAT_EQ(instance.GetModelPose()[2][3].x, 2);
+    EXPECT_FLOAT_EQ(instance.GetModelPose().Matrices[2][3].x, 2);
     ASSERT_TRUE(instance.Update(0.25f));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 1);
-    EXPECT_NEAR(instance.GetModelPose()[2][3].x, 1, 1e-4f);
-    EXPECT_NEAR(instance.GetModelPose()[2][3].y, 1, 1e-4f);
+    EXPECT_NEAR(instance.GetModelPose().Matrices[2][3].x, 1, 1e-4f);
+    EXPECT_NEAR(instance.GetModelPose().Matrices[2][3].y, 1, 1e-4f);
     ASSERT_TRUE(instance.Update(0.5f));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 3);
-    EXPECT_NEAR(instance.GetModelPose()[2][3].y, 1, 1e-4f);
+    EXPECT_NEAR(instance.GetModelPose().Matrices[2][3].y, 1, 1e-4f);
     constraint.WeightCurve = "Missing";
-    ASSERT_TRUE(instance.SetTwoBoneIKConstraints(std::span(&constraint, 1)));
+    ASSERT_TRUE(solver->SetConstraints(std::span(&constraint, 1)));
     ASSERT_TRUE(instance.Update(0));
-    EXPECT_FLOAT_EQ(instance.GetModelPose()[2][3].x, 2);
+    EXPECT_FLOAT_EQ(instance.GetModelPose().Matrices[2][3].x, 2);
     constraint.WeightCurve = "";
-    EXPECT_FALSE(instance.SetTwoBoneIKConstraints(std::span(&constraint, 1)));
+    EXPECT_FALSE(solver->SetConstraints(std::span(&constraint, 1)));
 }
 
-TEST_F(AnimationCurveTest, ControllerStateTransitionsBlendCurvesWithoutExtraParameters)
+TEST_F(AnimationCurveTest, StateMachineTransitionsBlendCurvesWithoutExtraParameters)
 {
-    const auto controller = AnimationController::Create({
-        .Name = "Controller", .Parameters = {{"Attack", false}},
-        .Layers = {{.StateMachine = {
-            .InitialState = "Idle",
-            .States = {{.Name = "Idle", .Sequence = Constant(2)},
-                {.Name = "Attack", .Sequence = Constant(10)}},
-            .Transitions = {{.From = "Idle", .To = "Attack",
-                .Conditions = {{"Attack", EAnimationComparison::Equal, true}},
-                .FadeDuration = 1}}
-        }}}
+    const auto machine = StateMachine::Create({
+        .InitialState = "Idle",
+        .States = {
+            {.Name = "Idle", .Node = MakeNode(Constant(2))},
+            {.Name = "Attack", .Node = MakeNode(Constant(10))}
+        },
+        .Transitions = {{
+            .From = "Idle", .To = "Attack",
+            .Conditions = {{"Attack", EAnimationComparison::Equal, true}},
+            .FadeDuration = 1
+        }}
     });
-    ASSERT_TRUE(controller);
-    SkeletalMeshInstance mesh(Mesh);
-    AnimationControllerInstance instance(controller, mesh);
+    ASSERT_TRUE(machine);
+    auto& instance = *Playback;
+    ASSERT_TRUE(instance.SetParameters({{"Attack", false}}));
+    ASSERT_TRUE(instance.Play(MakeNode(machine)));
     ASSERT_TRUE(instance.Update(0));
-    EXPECT_FLOAT_EQ(mesh.GetCurveValues().GetValue("Grip"), 2);
-    ASSERT_TRUE(instance.SetBool("Attack", true));
+    EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 2);
+    ASSERT_TRUE(instance.GetParameters().SetBool("Attack", true));
     ASSERT_TRUE(instance.Update(0.5f));
-    EXPECT_FLOAT_EQ(mesh.GetCurveValues().GetValue("Grip"), 6);
+    EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 6);
     ASSERT_TRUE(instance.Update(0.5f));
-    EXPECT_FLOAT_EQ(mesh.GetCurveValues().GetValue("Grip"), 10);
+    EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 10);
 }
 
 TEST_F(AnimationCurveTest, EmptyBoneMaskSuppressesScalarLayerContribution)
 {
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Constant(4)));
+    auto& instance = *Playback;
+    ASSERT_TRUE(instance.Play(MakeNode(Constant(4))));
     const auto mask = BoneMask::Create("None", Mesh->GetSkeleton(), {0, 0});
     ASSERT_TRUE(instance.AddLayer("Muted", mask));
-    ASSERT_TRUE(instance.GetLayer("Muted")->Play(Constant(10)));
+    ASSERT_TRUE(instance.GetLayer("Muted")->GetPlayer().Play(MakeNode(Constant(10))));
     ASSERT_TRUE(instance.Update(0.5f));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 4);
-    EXPECT_FLOAT_EQ(instance.GetLayer("Muted")->GetTime(), 0.5f);
+    EXPECT_FLOAT_EQ(instance.GetLayer("Muted")->GetPlayer().GetTime(), 0.5f);
 }
 
 TEST_F(AnimationCurveTest, FailedPoseCompositionRetainsPreviouslyPublishedCurves)
 {
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(Constant(2)));
+    auto& instance = *Playback;
+    ASSERT_TRUE(instance.Play(MakeNode(Constant(2))));
     const auto mask = BoneMask::Create("All", Mesh->GetSkeleton(), {1, 1});
     ASSERT_TRUE(instance.AddLayer("Overlay", mask, 0.5f));
-    const auto clip = AnimationSequence::Create("Reflection", Mesh->GetSkeleton(), 1,
-        {{.BoneIndex = 0, .Scales = {{0, {-1, -1, -1}}}}}, {}, {}, {},
-        {{"Grip", {{0, 10}}}});
+    const auto clip = Sequence::Create(
+        "Reflection",
+        Mesh->GetSkeleton(),
+        1,
+        {{.BoneIndex = 0, .Scales = {{0, {-1, -1, -1}}}}},
+        {},
+        {},
+        {{"Grip", {{0, 10}}}}
+    );
     ASSERT_TRUE(clip);
-    ASSERT_TRUE(instance.GetLayer("Overlay")->Play(clip));
-    const auto pose = instance.GetModelPose();
+    ASSERT_TRUE(instance.GetLayer("Overlay")->GetPlayer().Play(MakeNode(clip)));
+    const auto pose = instance.GetModelPose().Matrices;
     EXPECT_FALSE(instance.Update(0.25f));
     EXPECT_FLOAT_EQ(instance.GetCurveValues().GetValue("Grip"), 2);
-    EXPECT_EQ(instance.GetModelPose(), pose);
+    EXPECT_EQ(instance.GetModelPose().Matrices, pose);
     EXPECT_FLOAT_EQ(instance.GetTime(), 0);
-    EXPECT_FLOAT_EQ(instance.GetLayer("Overlay")->GetTime(), 0);
+    EXPECT_FLOAT_EQ(instance.GetLayer("Overlay")->GetPlayer().GetTime(), 0);
+}
+
+TEST_F(AnimationCurveTest, NestedBlendNodesComposeCurvesWithTheirChildPoses)
+{
+    const auto mask = BoneMask::Create("All", Mesh->GetSkeleton(), {1, 1});
+    ASSERT_TRUE(mask);
+    const auto inner = BlendNode::Create(
+        "Inner",
+        {
+            {.Name = "Base", .Node = MakeNode(Constant(2))},
+            {.Name = "Overlay", .Mask = mask, .Weight = 0.5f, .Node = MakeNode(Constant(10))}
+        }
+    );
+    ASSERT_TRUE(inner);
+    const auto outer = BlendNode::Create(
+        "Outer",
+        {
+            {.Name = "Base", .Node = inner},
+            {
+                .Name = "Add", .Mask = mask, .Weight = 0.5f,
+                .BlendMode = EAnimationLayerBlendMode::Additive,
+                .Node = MakeNode(Constant(4))
+            }
+        }
+    );
+    ASSERT_TRUE(outer);
+    ASSERT_TRUE(Playback->Play(outer));
+    EXPECT_FLOAT_EQ(Playback->GetCurveValues().GetValue("Grip"), 8);
+    ASSERT_TRUE(Playback->Update(0.25f));
+    EXPECT_FLOAT_EQ(Playback->GetCurveValues().GetValue("Grip"), 8);
+    ASSERT_TRUE(Playback->Seek(0.5f));
+    EXPECT_FLOAT_EQ(Playback->GetCurveValues().GetValue("Grip"), 8);
 }
