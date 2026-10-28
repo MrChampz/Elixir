@@ -650,12 +650,12 @@ namespace Elixir
             if (constraint.Weight == 0) continue;
 
             const auto target = ResolveTarget(
-                skeleton,
+                *m_Skeleton,
                 constraint,
                 pose.LocalTransforms,
                 model.Matrices
             );
-            
+
             if (!target) return false;
 
             SIKChain chain;

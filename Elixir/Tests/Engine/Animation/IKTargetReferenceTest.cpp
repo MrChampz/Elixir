@@ -362,3 +362,38 @@ TEST(IKTargetReferenceTest, RelativeTargetsUseTheSamePartialWeightAsSkeletonTarg
         glm::quat_cast(glm::mat3(absolute.GetModelPose().Matrices[3]))
     );
 }
+
+TEST(IKTargetReferenceTest, CompatibleRigsKeepTheSolversValidatedSocketDefinitions)
+{
+    const auto mesh = MakeReferenceMesh();
+    ASSERT_TRUE(mesh);
+    const auto& skeleton = mesh->GetSkeleton();
+    const auto solver = TwoBoneIK::Create(skeleton);
+    ASSERT_TRUE(solver);
+    auto follower = Follower();
+    follower.TargetReference = std::string("TargetGrip");
+    ASSERT_TRUE(solver->SetConstraints(std::span(&follower, 1)));
+
+    const std::array rigs{
+        skeleton->WithSockets({}),
+        skeleton->WithSockets({{.Name = "TargetGrip", .BoneIndex = 3}})
+    };
+    const auto rotation = glm::angleAxis(0.6f, glm::vec3(0, 0, 1));
+    for (const auto& rig : rigs)
+    {
+        ASSERT_TRUE(rig);
+        SCOPED_TRACE(rig->GetSockets().empty() ? "Absent socket" : "Socket in follower chain");
+        ASSERT_TRUE(skeleton->IsCompatible(*rig));
+        auto pose = mesh->GetData().ReferencePose;
+        pose.LocalTransforms[7].Translation = {0.2f, 0.8f, 0};
+        pose.LocalTransforms[7].Rotation = rotation;
+        const auto applied = solver->Apply({*rig}, pose);
+        EXPECT_TRUE(applied);
+        if (!applied) continue;
+
+        SModelPose model;
+        ASSERT_TRUE(rig->BuildModelPose(pose, model));
+        ExpectPosition(glm::vec3(model.Matrices[3][3]), {0.2f, 0.8f, 0});
+        ExpectRotation(model.Matrices[3], rotation);
+    }
+}
