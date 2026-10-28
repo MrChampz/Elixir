@@ -50,6 +50,322 @@ namespace Elixir
                 constraint.Weight >= 0 &&
                 constraint.Weight <= 1;
         }
+        /** Identifies the two segments and their accumulated parent orientation. */
+        struct SIKChain
+        {
+            uint32_t Root;
+            uint32_t Middle;
+            uint32_t End;
+            glm::dquat ParentRotation{1, 0, 0, 0};
+        };
+
+        /** Stores current joint positions and segment lengths in skeleton-space units. */
+        struct SChainGeometry
+        {
+            glm::dvec3 Start;
+            glm::dvec3 Joint;
+            glm::dvec3 Tip;
+            double FirstLength;
+            double SecondLength;
+        };
+
+        /** Stores reachable segment directions with their original lengths. */
+        struct SDesiredSegments
+        {
+            glm::dvec3 First;
+            glm::dvec3 Second;
+        };
+
+        /** Stores solved parent-relative rotations before applying the constraint weight. */
+        struct SLocalRotations
+        {
+            glm::quat Root;
+            glm::quat Middle;
+        };
+
+        /**
+         * @brief Validate one constraint without replacing the configured list.
+         * @param constraint Requested target, pole, weight, and end bone.
+         * @param skeleton Rig whose direct ancestors define the chain.
+         * @return False for invalid settings or an end bone without two direct ancestors.
+         */
+        bool ValidateConstraint(
+            const STwoBoneIKConstraint& constraint,
+            const Skeleton& skeleton
+        )
+        {
+            if (!HasValidSettings(constraint))
+            {
+                EE_CORE_ERROR("Two-bone IK requires finite targets and a weight in [0, 1].")
+                return false;
+            }
+
+            const auto& bones = skeleton.GetBones();
+
+            if (constraint.EndBoneIndex >= bones.size() ||
+                bones[constraint.EndBoneIndex].ParentIndex < 0 ||
+                bones[size_t(bones[constraint.EndBoneIndex].ParentIndex)].ParentIndex < 0)
+            {
+                EE_CORE_ERROR("Two-bone IK requires an end bone with two direct ancestors.")
+                return false;
+            }
+
+            return true;
+        }
+
+        /**
+         * @brief Check whether a scale supports rigid two-segment solving.
+         * @param scale Finite local scale of an active chain bone or ancestor.
+         */
+        bool HasUniformPositiveScale(const glm::vec3& scale)
+        {
+            const auto tolerance = 1e-5f * std::abs(scale.x);
+            return scale.x > 0 &&
+                std::abs(scale.x - scale.y) <= tolerance &&
+                std::abs(scale.x - scale.z) <= tolerance;
+        }
+
+        /**
+         * @brief Check that solving the chain cannot rotate the extracted movement frame.
+         * @param context Rig and optional extracted root-motion bone.
+         * @param chain The two parent bones that the solver would rotate.
+         * @return False when either writable bone is the extracted root or an ancestor.
+         */
+        bool PreservesRootMotion(const SPoseModifierContext& context, const SIKChain& chain)
+        {
+            if (!context.RootMotionBone) return true;
+
+            const auto& bones = context.Rig.GetBones();
+
+            for (auto bone = int32_t(*context.RootMotionBone);
+                bone >= 0;
+                bone = bones[size_t(bone)].ParentIndex)
+            {
+                if (uint32_t(bone) == chain.Root || uint32_t(bone) == chain.Middle)
+                {
+                    EE_CORE_ERROR("Two-bone IK cannot rotate the root-motion bone or its ancestors.")
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /**
+         * @brief Resolve the chain and validate scales and the protected root frame.
+         * @param context Validated rig and optional extracted root-motion bone.
+         * @param constraint Previously validated constraint defining the end bone.
+         * @param pose Current candidate transforms, including earlier constraints.
+         * @param chain Receives bone indices and accumulated parent orientation.
+         * @return False if the chain changes the extracted root frame or uses invalid scales.
+         */
+        bool PrepareChain(
+            const SPoseModifierContext& context,
+            const STwoBoneIKConstraint& constraint,
+            const SLocalPose& pose,
+            SIKChain& chain
+        )
+        {
+            const auto& bones = context.Rig.GetBones();
+            const auto& transforms = pose.LocalTransforms;
+
+            chain.End = constraint.EndBoneIndex;
+            chain.Middle = uint32_t(bones[chain.End].ParentIndex);
+            chain.Root = uint32_t(bones[chain.Middle].ParentIndex);
+
+            if (!PreservesRootMotion(context, chain))
+                return false;
+
+            for (auto bone = int32_t(chain.Root);
+                bone >= 0;
+                bone = bones[size_t(bone)].ParentIndex)
+            {
+                if (!HasUniformPositiveScale(transforms[size_t(bone)].Scale))
+                {
+                    EE_CORE_ERROR("Two-bone IK requires uniform positive scales through its ancestors.")
+                    return false;
+                }
+
+                if (uint32_t(bone) != chain.Root)
+                {
+                    chain.ParentRotation =
+                        glm::dquat(transforms[size_t(bone)].Rotation) * chain.ParentRotation;
+                }
+            }
+
+            if (!HasUniformPositiveScale(transforms[chain.Middle].Scale))
+            {
+                EE_CORE_ERROR("Two-bone IK requires uniform positive scales on both segments.")
+                return false;
+            }
+
+            return true;
+        }
+
+        /**
+         * @brief Measure the current skeleton-space chain without changing its pose.
+         * @param chain Bone indices resolved for the current constraint.
+         * @param model Current accumulated matrices, including earlier constraints.
+         * @param geometry Receives joint positions and segment lengths.
+         * @return False when either segment is shorter than the supported minimum.
+         */
+        bool MeasureChain(
+            const SIKChain& chain,
+            const SModelPose& model,
+            SChainGeometry& geometry
+        )
+        {
+            geometry.Start = glm::dvec3(model.Matrices[chain.Root][3]);
+            geometry.Joint = glm::dvec3(model.Matrices[chain.Middle][3]);
+            geometry.Tip = glm::dvec3(model.Matrices[chain.End][3]);
+            geometry.FirstLength = glm::length(geometry.Joint - geometry.Start);
+            geometry.SecondLength = glm::length(geometry.Tip - geometry.Joint);
+
+            if (geometry.FirstLength < 1e-8 || geometry.SecondLength < 1e-8)
+            {
+                EE_CORE_ERROR("Two-bone IK requires nonzero segment lengths.")
+                return false;
+            }
+
+            return true;
+        }
+
+        /**
+         * @brief Clamp the target to the chain's reach and select a stable bend plane.
+         * @param geometry Current joint positions and valid segment lengths.
+         * @param constraint Target and pole in skeleton space.
+         * @return Desired segment vectors with the original chain lengths.
+         */
+        SDesiredSegments FindReachableSegments(
+            const SChainGeometry& geometry,
+            const STwoBoneIKConstraint& constraint
+        )
+        {
+            const auto firstLength = geometry.FirstLength;
+            const auto secondLength = geometry.SecondLength;
+
+            const auto target = glm::dvec3(constraint.TargetPosition) - geometry.Start;
+            const auto targetDistance = glm::length(target);
+
+            const auto currentDirection = geometry.Tip - geometry.Start;
+            const auto currentDistance = glm::length(currentDirection);
+
+            const auto forward = targetDistance > 1e-12
+                ? target / targetDistance
+                : currentDistance > 1e-12
+                    ? currentDirection / currentDistance
+                    : (geometry.Joint - geometry.Start) / firstLength;
+
+            auto bend = glm::dvec3(constraint.PolePosition) - geometry.Start;
+            bend -= forward * glm::dot(bend, forward);
+
+            if (glm::length(bend) < 1e-8)
+            {
+                bend = geometry.Joint - geometry.Start;
+                bend -= forward * glm::dot(bend, forward);
+            }
+
+            bend = glm::length(bend) < 1e-8
+                ? Perpendicular(forward)
+                : glm::normalize(bend);
+
+            const auto distance = glm::clamp(
+                targetDistance,
+                std::abs(firstLength - secondLength),
+                firstLength + secondLength
+            );
+
+            const auto along = distance > 1e-12
+                ? (firstLength * firstLength - secondLength * secondLength +
+                        distance * distance) / (2.0 * distance)
+                : 0.0;
+
+            const auto heightSquared = std::max(
+                0.0,
+                firstLength * firstLength - along * along
+            );
+            const auto height = std::sqrt(heightSquared);
+
+            const auto desiredFirst = forward * along + bend * height;
+            return { desiredFirst, forward * distance - desiredFirst };
+        }
+
+        /**
+         * @brief Calculate parent-relative rotations that align both chain segments.
+         * @param chain Bone indices and accumulated parent orientation.
+         * @param geometry Current joint positions and segment lengths.
+         * @param desired Reachable segment vectors selected for the target and pole.
+         * @param pose Current candidate local rotations.
+         * @return Solved root and middle rotations before blending.
+         */
+        SLocalRotations SolveRotations(
+            const SIKChain& chain,
+            const SChainGeometry& geometry,
+            const SDesiredSegments& desired,
+            const SLocalPose& pose
+        )
+        {
+            const auto& transforms = pose.LocalTransforms;
+
+            const auto rootDelta = RotationBetween(
+                (geometry.Joint - geometry.Start) / geometry.FirstLength,
+                glm::normalize(desired.First)
+            );
+            const auto oldRoot = glm::normalize(
+                chain.ParentRotation * glm::dquat(transforms[chain.Root].Rotation)
+            );
+            const auto newRoot = glm::normalize(rootDelta * oldRoot);
+
+            const auto oldMiddle =
+                glm::normalize(oldRoot * glm::dquat(transforms[chain.Middle].Rotation));
+            const auto middleDelta = RotationBetween(
+                rootDelta * ((geometry.Tip - geometry.Joint) / geometry.SecondLength),
+                glm::normalize(desired.Second)
+            );
+            const auto newMiddle = glm::normalize(middleDelta * rootDelta * oldMiddle);
+
+            return {
+                glm::quat(glm::normalize(glm::conjugate(chain.ParentRotation) * newRoot)),
+                glm::quat(glm::normalize(glm::conjugate(newRoot) * newMiddle))
+            };
+        }
+
+        /**
+         * @brief Blend solved rotations into the candidate without changing other channels.
+         * @param constraint Weight applied to both local rotations.
+         * @param chain Bone indices identifying the two writable rotations.
+         * @param rotations Solved parent-relative rotations.
+         * @param pose Candidate local pose modified in place.
+         */
+        void BlendLocalRotations(
+            const STwoBoneIKConstraint& constraint,
+            const SIKChain& chain,
+            const SLocalRotations& rotations,
+            SLocalPose& pose
+        )
+        {
+            auto& transforms = pose.LocalTransforms;
+
+            const auto root = chain.Root;
+            const auto middle = chain.Middle;
+
+            const auto& rootLocal = rotations.Root;
+            const auto& middleLocal = rotations.Middle;
+
+            const auto rootRotation = glm::slerp(
+                transforms[root].Rotation,
+                rootLocal,
+                constraint.Weight
+            );
+            transforms[root].Rotation = glm::normalize(rootRotation);
+
+            const auto middleRotation = glm::slerp(
+                transforms[middle].Rotation,
+                middleLocal,
+                constraint.Weight
+            );
+            transforms[middle].Rotation = glm::normalize(middleRotation);
+        }
     }
 
     Ref<TwoBoneIK> TwoBoneIK::Create(Ref<const Skeleton> skeleton)
@@ -72,23 +388,8 @@ namespace Elixir
         }
 
         for (const auto& constraint : constraints)
-        {
-            if (!HasValidSettings(constraint))
-            {
-                EE_CORE_ERROR("Two-bone IK requires finite targets and a weight in [0, 1].")
+            if (!ValidateConstraint(constraint, *m_Skeleton))
                 return false;
-            }
-
-            const auto& bones = m_Skeleton->GetBones();
-
-            if (constraint.EndBoneIndex >= bones.size() ||
-                bones[constraint.EndBoneIndex].ParentIndex < 0 ||
-                bones[size_t(bones[constraint.EndBoneIndex].ParentIndex)].ParentIndex < 0)
-            {
-                EE_CORE_ERROR("Two-bone IK requires an end bone with two direct ancestors.")
-                return false;
-            }
-        }
 
         // Preserve overlapping input; ordinary per-frame changes reuse existing capacity.
         for (const auto& existing : m_Constraints)
@@ -122,158 +423,20 @@ namespace Elixir
         if (!skeleton.BuildModelPose(pose, model))
             return false;
 
-        auto& transforms = pose.LocalTransforms;
-        const auto& matrices = model.Matrices;
-
         for (const auto& constraint : m_Constraints)
         {
             if (constraint.Weight == 0) continue;
 
-            const auto end = constraint.EndBoneIndex;
-            const auto middle = uint32_t(bones[end].ParentIndex);
-            const auto root = uint32_t(bones[middle].ParentIndex);
+            SIKChain chain;
+            SChainGeometry geometry;
 
-            if (context.RootMotionBone)
-            {
-                for (auto bone = int32_t(*context.RootMotionBone);
-                    bone >= 0;
-                    bone = bones[size_t(bone)].ParentIndex)
-                {
-                    if (uint32_t(bone) == root || uint32_t(bone) == middle)
-                    {
-                        EE_CORE_ERROR("Two-bone IK cannot rotate the root-motion bone or its ancestors.")
-                        return false;
-                    }
-                }
-            }
-
-            glm::dquat parentRotation(1, 0, 0, 0);
-
-            for (auto bone = int32_t(root); bone >= 0; bone = bones[size_t(bone)].ParentIndex)
-            {
-                const auto& scale = transforms[size_t(bone)].Scale;
-                const auto tolerance = 1e-5f * std::abs(scale.x);
-
-                if (scale.x <= 0 ||
-                    std::abs(scale.x - scale.y) > tolerance ||
-                    std::abs(scale.x - scale.z) > tolerance)
-                {
-                    EE_CORE_ERROR("Two-bone IK requires uniform positive scales through its ancestors.")
-                    return false;
-                }
-
-                if (uint32_t(bone) != root)
-                {
-                    parentRotation =
-                        glm::dquat(transforms[size_t(bone)].Rotation) * parentRotation;
-                }
-            }
-
-            const auto& middleScale = transforms[middle].Scale;
-            const auto tolerance = 1e-5f * std::abs(middleScale.x);
-
-            if (middleScale.x <= 0 ||
-                std::abs(middleScale.x - middleScale.y) > tolerance ||
-                std::abs(middleScale.x - middleScale.z) > tolerance)
-            {
-                EE_CORE_ERROR("Two-bone IK requires uniform positive scales on both segments.")
+            if (!PrepareChain(context, constraint, pose, chain) ||
+                !MeasureChain(chain, model, geometry))
                 return false;
-            }
 
-            const glm::dvec3 start(matrices[root][3]);
-            const glm::dvec3 joint(matrices[middle][3]);
-            const glm::dvec3 tip(matrices[end][3]);
-
-            const auto firstLength = glm::length(joint - start);
-            const auto secondLength = glm::length(tip - joint);
-
-            if (firstLength < 1e-8 || secondLength < 1e-8)
-            {
-                EE_CORE_ERROR("Two-bone IK requires nonzero segment lengths.")
-                return false;
-            }
-
-            const auto target = glm::dvec3(constraint.TargetPosition) - start;
-            const auto targetDistance = glm::length(target);
-            const auto currentDirection = tip - start;
-            const auto currentDistance = glm::length(currentDirection);
-
-            const auto forward = targetDistance > 1e-12
-                ? target / targetDistance
-                : currentDistance > 1e-12
-                    ? currentDirection / currentDistance
-                    : (joint - start) / firstLength;
-
-            auto bend = glm::dvec3(constraint.PolePosition) - start;
-            bend -= forward * glm::dot(bend, forward);
-
-            if (glm::length(bend) < 1e-8)
-            {
-                bend = joint - start;
-                bend -= forward * glm::dot(bend, forward);
-            }
-
-            bend = glm::length(bend) < 1e-8
-                ? Perpendicular(forward)
-                : glm::normalize(bend);
-
-            const auto distance = glm::clamp(
-                targetDistance,
-                std::abs(firstLength - secondLength),
-                firstLength + secondLength
-            );
-
-            const auto along = distance > 1e-12
-                ? (firstLength * firstLength - secondLength * secondLength +
-                        distance * distance) / (2.0 * distance)
-                : 0.0;
-
-            const auto heightSquared = std::max(
-                0.0,
-                firstLength * firstLength - along * along
-            );
-            const auto height = std::sqrt(heightSquared);
-
-            const auto desiredFirst = forward * along + bend * height;
-            const auto desiredSecond = forward * distance - desiredFirst;
-
-            const auto rootDelta = RotationBetween(
-                (joint - start) / firstLength,
-                glm::normalize(desiredFirst)
-            );
-
-            const auto oldRoot =
-                glm::normalize(parentRotation * glm::dquat(transforms[root].Rotation));
-            const auto newRoot = glm::normalize(rootDelta * oldRoot);
-
-            const auto oldMiddle =
-                glm::normalize(oldRoot * glm::dquat(transforms[middle].Rotation));
-            const auto middleDelta = RotationBetween(
-                rootDelta * ((tip - joint) / secondLength),
-                glm::normalize(desiredSecond)
-            );
-            const auto newMiddle = glm::normalize(middleDelta * rootDelta * oldMiddle);
-
-            const auto rootLocal =
-                glm::quat(glm::normalize(glm::conjugate(parentRotation) * newRoot));
-            const auto middleLocal =
-                glm::quat(glm::normalize(glm::conjugate(newRoot) * newMiddle));
-
-            transforms[root].Rotation = glm::normalize(
-                glm::slerp(
-                    transforms[root].Rotation,
-                    rootLocal,
-                    constraint.Weight
-                )
-            );
-
-            transforms[middle].Rotation = glm::normalize(
-                glm::slerp(
-                    transforms[middle].Rotation,
-                    middleLocal,
-                    constraint.Weight
-                )
-            );
+            const auto desired = FindReachableSegments(geometry, constraint);
+            const auto rotations = SolveRotations(chain, geometry, desired, pose);
+            BlendLocalRotations(constraint, chain, rotations, pose);
 
             if (!skeleton.BuildModelPose(pose, model))
                 return false;
