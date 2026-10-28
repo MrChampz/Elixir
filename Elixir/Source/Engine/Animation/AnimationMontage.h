@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/Animation/AnimationSequence.h>
+#include <Engine/Animation/Sequence.h>
 
 namespace Elixir
 {
@@ -20,7 +20,7 @@ namespace Elixir
     struct SAnimationMontageCreateInfo
     {
         std::string Name;
-        Ref<const AnimationSequence> Sequence;
+        Ref<const Sequence> Sequence;
 
         /** Seconds to reach full contribution, starting at the sequence beginning. */
         float BlendIn = 0.15f;
@@ -50,7 +50,7 @@ namespace Elixir
         const std::string& GetName() const { return m_Info.Name; }
 
         /** @brief Get the sequence played once by this action. */
-        const Ref<const AnimationSequence>& GetSequence() const { return m_Info.Sequence; }
+        const Ref<const Sequence>& GetSequence() const { return m_Info.Sequence; }
 
         /** @brief Get the entrance duration in seconds. */
         float GetBlendIn() const { return m_Info.BlendIn; }

@@ -73,7 +73,7 @@ namespace Elixir
             return;
         }
 
-        m_Target = (min + max) * 0.5f;
+        m_Target = glm::vec3((glm::dvec3(min) + glm::dvec3(max)) * 0.5);
         m_Distance = distance;
         m_MaxDistance = std::max(m_MaxDistance, distance * 4.0f);
 

@@ -1,6 +1,8 @@
 #include "epch.h"
 #include "BlendSpace1D.h"
 
+#include <Engine/Animation/AnimationEvaluation.h>
+
 namespace Elixir
 {
     Ref<BlendSpace1D> BlendSpace1D::Create(
@@ -50,8 +52,8 @@ namespace Elixir
     bool BlendSpace1D::Sample(
         const float value,
         const float phase,
-        std::vector<SBoneTransform>& output,
-        const std::span<const SBoneTransform> referencePose
+        SLocalPose& output,
+        const SLocalPose& referencePose
     ) const
     {
         return BlendSpace::Sample(
@@ -69,7 +71,7 @@ namespace Elixir
 
     void BlendSpace1D::FindSamples(
         const std::span<const float> values,
-        std::pmr::vector<SContribution>& output
+        std::pmr::vector<SSequenceContribution>& output
     ) const
     {
         const auto segment = FindSegment(values[0]);
