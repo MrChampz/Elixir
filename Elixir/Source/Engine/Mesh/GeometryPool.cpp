@@ -19,12 +19,14 @@ namespace Elixir
         m_VertexStride = config.VertexStride;
 
         if (config.VertexCapacity == 0 ||
-            config.IndexCapacity == 0 ||
             config.VertexStride == 0 ||
             config.VertexStride % sizeof(uint32_t) != 0 ||
             uint64_t(config.VertexCapacity) * config.VertexStride > UINT32_MAX)
         {
-            EE_CORE_ERROR("GeometryPool requires nonzero capacities and a word-aligned stride within the 32-bit byte range.")
+            EE_CORE_ERROR(
+                "GeometryPool requires nonzero vertex capacity and a word-aligned stride "
+                "within the 32-bit byte range."
+            )
             return;
         }
 
@@ -41,10 +43,13 @@ namespace Elixir
         };
         m_VertexBuffer = VertexBuffer::Create(&context, vertexInfo);
 
-        m_IndexBuffer = DynamicIndexBuffer::Create(
-            &context,
-            size_t(config.IndexCapacity) * sizeof(uint32_t)
-        );
+        if (config.IndexCapacity > 0)
+        {
+            m_IndexBuffer = DynamicIndexBuffer::Create(
+                &context,
+                size_t(config.IndexCapacity) * sizeof(uint32_t)
+            );
+        }
 
         if (!IsValid())
             EE_CORE_ERROR("GeometryPool failed to create its GPU buffers.")
@@ -53,7 +58,7 @@ namespace Elixir
     bool GeometryPool::IsValid() const
     {
         return m_VertexBuffer && m_VertexBuffer->IsValid() &&
-            m_IndexBuffer && m_IndexBuffer->IsValid();
+            (m_State->IndexCapacity == 0 || (m_IndexBuffer && m_IndexBuffer->IsValid()));
     }
 
     GeometryAllocation GeometryPool::Upload(const SStaticMeshData& data)
@@ -87,7 +92,6 @@ namespace Elixir
     {
         if (!vertices ||
             vertexCount == 0 ||
-            indices.empty() ||
             indices.size() > UINT32_MAX ||
             stride != m_VertexStride
         )
@@ -142,11 +146,14 @@ namespace Elixir
 
         cmd->Flush();
 
-        m_IndexBuffer->UpdateData(
-            indices.data(),
-            indices.size_bytes(),
-            size_t(geometry->IndexOffset) * sizeof(uint32_t)
-        );
+        if (!indices.empty())
+        {
+            m_IndexBuffer->UpdateData(
+                indices.data(),
+                indices.size_bytes(),
+                size_t(geometry->IndexOffset) * sizeof(uint32_t)
+            );
+        }
 
         return allocation;
     }

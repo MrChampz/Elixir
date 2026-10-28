@@ -1,6 +1,10 @@
+#include <Engine/Animation/Pose.h>
+#include "AnimationTestNodes.h"
+#include "AnimationTestCharacter.h"
+#include "AnimationTestPlayback.h"
 #include <gtest/gtest.h>
 
-#include <Engine/Animation/AnimationControllerInstance.h>
+#include "AnimationGraphTestDriver.h"
 #include <Engine/Animation/BlendSpace1D.h>
 #include <Engine/Animation/BlendSpace2D.h>
 #include "../Mesh/SkinningTestData.h"
@@ -36,10 +40,10 @@ namespace
          * @param duration Duration in seconds.
          * @param markers Optional synchronization markers.
          */
-        Ref<AnimationSequence> MakeSequence(std::string name, float duration,
+        Ref<Sequence> MakeSequence(std::string name, float duration,
             std::vector<SAnimationSyncMarker> markers = {}) const
         {
-            return AnimationSequence::Create(std::move(name), Mesh->GetSkeleton(), duration, {
+            return Sequence::Create(std::move(name), Mesh->GetSkeleton(), duration, {
                 { .BoneIndex = 0, .Translations = {
                     { 0, { 0, 0, 0 } }, { duration, { duration, 0, 0 } },
                 } },
@@ -47,9 +51,9 @@ namespace
         }
 
         Ref<SkeletalMesh> Mesh;
-        Ref<AnimationSequence> Reference;
-        Ref<AnimationSequence> Target;
-        Ref<AnimationSequence> Rotated;
+        Ref<Sequence> Reference;
+        Ref<Sequence> Target;
+        Ref<Sequence> Rotated;
     };
 }
 
@@ -128,7 +132,7 @@ TEST_F(AnimationSyncMarkerTest, RejectsInvalidMarkersAndMarkersOnStaticSequences
 {
     const auto create = [&](std::vector<SAnimationSyncMarker> markers)
     {
-        return AnimationSequence::Create("Invalid", Mesh->GetSkeleton(), 4, {},
+        return Sequence::Create("Invalid", Mesh->GetSkeleton(), 4, {},
             std::move(markers));
     };
     EXPECT_FALSE(create({{ "", 1 }}));
@@ -139,8 +143,8 @@ TEST_F(AnimationSyncMarkerTest, RejectsInvalidMarkersAndMarkersOnStaticSequences
     EXPECT_FALSE(create({{ "Left", 1 }, { "Right", 1 }}));
     EXPECT_FALSE(create({{ "Left", std::numeric_limits<float>::quiet_NaN() }}));
     EXPECT_FALSE(create({{ "Left", 1 }, { "Right", std::numeric_limits<float>::infinity() }}));
-    EXPECT_FALSE(AnimationSequence::Create("Static", Mesh->GetSkeleton(), 0, {}, {{ "Left", 0 }}));
-    EXPECT_TRUE(AnimationSequence::Create("Static", Mesh->GetSkeleton(), 0, {}));
+    EXPECT_FALSE(Sequence::Create("Static", Mesh->GetSkeleton(), 0, {}, {{ "Left", 0 }}));
+    EXPECT_TRUE(Sequence::Create("Static", Mesh->GetSkeleton(), 0, {}));
     EXPECT_TRUE(create({{ "Left", 0 }, { "Right", 3 }}));
 }
 
@@ -154,10 +158,10 @@ TEST_F(AnimationSyncMarkerTest, AnnotationCopiesTracksAndLeavesTheOriginalSequen
     EXPECT_EQ(marked->GetName(), plain->GetName());
     EXPECT_EQ(marked->GetSkeleton(), plain->GetSkeleton());
     EXPECT_FLOAT_EQ(marked->GetDuration(), plain->GetDuration());
-    std::vector<SBoneTransform> originalPose, markedPose;
+    SLocalPose originalPose, markedPose;
     ASSERT_TRUE(plain->Sample(3.5f, originalPose));
     ASSERT_TRUE(marked->Sample(3.5f, markedPose));
-    EXPECT_EQ(markedPose[0].Translation, originalPose[0].Translation);
+    EXPECT_EQ(markedPose.LocalTransforms[0].Translation, originalPose.LocalTransforms[0].Translation);
     const auto removed = marked->WithSyncMarkers({});
     ASSERT_TRUE(removed);
     EXPECT_TRUE(removed->GetSyncMarkers().empty());
@@ -169,28 +173,30 @@ TEST_F(AnimationSyncMarkerTest, OneDimensionalBlendsKeepAStableReferenceAcrossWe
 {
     const auto space = BlendSpace1D::Create("Locomotion", {{ 1, Target }, { 0, Reference }});
     ASSERT_TRUE(space);
-    std::vector<SBoneTransform> pose;
+    SLocalPose pose;
     ASSERT_TRUE(space->Sample(0.5f, 0.5f, pose));
-    EXPECT_FLOAT_EQ(pose[0].Translation.x, 2.5f);
+    EXPECT_FLOAT_EQ(pose.LocalTransforms[0].Translation.x, 2.5f);
     ASSERT_TRUE(space->Sample(1, 0.5f, pose));
-    EXPECT_FLOAT_EQ(pose[0].Translation.x, 3);
+    EXPECT_FLOAT_EQ(pose.LocalTransforms[0].Translation.x, 3);
     ASSERT_TRUE(space->Sample(0, 0.5f, pose));
-    EXPECT_FLOAT_EQ(pose[0].Translation.x, 2);
+    EXPECT_FLOAT_EQ(pose.LocalTransforms[0].Translation.x, 2);
     EXPECT_FLOAT_EQ(space->GetDuration(0.5f), 6);
     for (const float coordinate : { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f })
     {
         ASSERT_TRUE(space->Sample(coordinate, 0.25f, pose));
-        EXPECT_FLOAT_EQ(pose[0].Translation.x, 1);
+        EXPECT_FLOAT_EQ(pose.LocalTransforms[0].Translation.x, 1);
     }
-    SkeletalMeshInstance instance(Mesh);
-    ASSERT_TRUE(instance.Play(space, { 0.5f }));
+    const auto instanceHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(instanceHandle);
+    auto& instance = *instanceHandle;
+    ASSERT_TRUE(PlayWithInputs(instance, MakeNode(space), { 0.5f }));
     ASSERT_TRUE(instance.Update(3));
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 0.5f);
-    EXPECT_FLOAT_EQ(instance.GetLocalPose()[0].Translation.x, 2.5f);
-    ASSERT_TRUE(instance.SetBlendSpaceValue({ 1 }));
+    EXPECT_FLOAT_EQ(instance.GetLocalPose().LocalTransforms[0].Translation.x, 2.5f);
+    ASSERT_TRUE(instance.SetInputs({ 1 }));
     ASSERT_TRUE(instance.Update(0));
     EXPECT_FLOAT_EQ(instance.GetNormalizedTime(), 0.5f);
-    EXPECT_FLOAT_EQ(instance.GetLocalPose()[0].Translation.x, 3);
+    EXPECT_FLOAT_EQ(instance.GetLocalPose().LocalTransforms[0].Translation.x, 3);
 }
 
 TEST_F(AnimationSyncMarkerTest, TwoDimensionalBlendsSynchronizeAllThreeContributions)
@@ -199,77 +205,79 @@ TEST_F(AnimationSyncMarkerTest, TwoDimensionalBlendsSynchronizeAllThreeContribut
         {{ 0, 0 }, Reference }, {{ 2, 0 }, Target }, {{ 0, 2 }, Rotated },
     });
     ASSERT_TRUE(space);
-    std::vector<SBoneTransform> pose;
+    SLocalPose pose;
     ASSERT_TRUE(space->Sample({ 0.5f, 0.5f }, 0.5f, pose));
-    EXPECT_FLOAT_EQ(pose[0].Translation.x, 3.15625f);
+    EXPECT_FLOAT_EQ(pose.LocalTransforms[0].Translation.x, 3.15625f);
     EXPECT_FLOAT_EQ(space->GetDuration({ 0.5f, 0.5f }), 5.5f);
     // Rotated is the dominant clip, while Reference still defines the shared phase.
     ASSERT_TRUE(space->Sample({ 0, 2 }, 0.5f, pose));
-    EXPECT_FLOAT_EQ(pose[0].Translation.x, 5.625f);
+    EXPECT_FLOAT_EQ(pose.LocalTransforms[0].Translation.x, 5.625f);
     const auto reordered = BlendSpace2D::Create("Reordered", {
         {{ 0, 2 }, Rotated }, {{ 2, 0 }, Target }, {{ 0, 0 }, Reference },
     });
     ASSERT_TRUE(reordered);
     ASSERT_TRUE(reordered->Sample({ 0.5f, 0.5f }, 0.5f, pose));
-    EXPECT_FLOAT_EQ(pose[0].Translation.x, 3.15625f);
+    EXPECT_FLOAT_EQ(pose.LocalTransforms[0].Translation.x, 3.15625f);
 }
 
 TEST_F(AnimationSyncMarkerTest, MixedMarkedAndUnmarkedSamplesKeepTheNormalizedFallback)
 {
-    const auto idle = AnimationSequence::Create("Idle", Mesh->GetSkeleton(), 0, {});
+    const auto idle = Sequence::Create("Idle", Mesh->GetSkeleton(), 0, {});
     const auto plain = MakeSequence("Plain", 8);
     const auto space = BlendSpace1D::Create("Mixed", {
         { 0, idle }, { 1, Reference }, { 2, Target }, { 3, plain },
     });
     ASSERT_TRUE(space);
-    std::vector<SBoneTransform> pose;
+    SLocalPose pose;
     ASSERT_TRUE(space->Sample(0, 0.5f, pose));
-    EXPECT_FLOAT_EQ(pose[0].Translation.x, 0);
+    EXPECT_FLOAT_EQ(pose.LocalTransforms[0].Translation.x, 0);
     ASSERT_TRUE(space->Sample(2, 0.5f, pose));
-    EXPECT_FLOAT_EQ(pose[0].Translation.x, 3);
+    EXPECT_FLOAT_EQ(pose.LocalTransforms[0].Translation.x, 3);
     ASSERT_TRUE(space->Sample(2.5f, 0.5f, pose));
-    EXPECT_FLOAT_EQ(pose[0].Translation.x, 3.5f);
+    EXPECT_FLOAT_EQ(pose.LocalTransforms[0].Translation.x, 3.5f);
     ASSERT_TRUE(space->Sample(3, 0.5f, pose));
-    EXPECT_FLOAT_EQ(pose[0].Translation.x, 4);
+    EXPECT_FLOAT_EQ(pose.LocalTransforms[0].Translation.x, 4);
     auto preserved = Mesh->GetData().ReferencePose;
-    preserved[0].Translation.x = 99;
+    preserved.LocalTransforms[0].Translation.x = 99;
     EXPECT_FALSE(space->Sample(1, std::numeric_limits<float>::infinity(), preserved));
-    EXPECT_FLOAT_EQ(preserved[0].Translation.x, 99);
+    EXPECT_FLOAT_EQ(preserved.LocalTransforms[0].Translation.x, 99);
 }
 
 TEST_F(AnimationSyncMarkerTest, ControllerPlaybackRetainsMarkerPhaseThroughPauseSeekAndFades)
 {
     const auto space = BlendSpace1D::Create("Locomotion", {{ 0, Reference }, { 1, Target }});
-    const auto controller = AnimationController::Create({
+    const auto controller = CreateTestGraph({
         .Name = "Controller",
         .Parameters = {{ "Speed", 0.5f }},
-        .Layers = {{ .StateMachine = {
+        .Layers = {{ .Node = MakeNode(StateMachine::Create({
             .InitialState = "Locomotion",
-            .States = {{ .Name = "Locomotion", .BlendSpace = space, .BlendParameters = { "Speed" } }}
-        } }},
+            .States = {{ .Name = "Locomotion", .Node = MakeNode(space), .InputParameters = { "Speed" } }}
+        })) }},
     });
     ASSERT_TRUE(controller);
-    SkeletalMeshInstance mesh(Mesh);
-    AnimationControllerInstance instance(controller, mesh);
+    const auto meshHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(meshHandle);
+    auto& mesh = *meshHandle;
+    AnimationGraphTestDriver instance(controller, mesh);
     ASSERT_TRUE(instance.Update(1.5f));
     EXPECT_FLOAT_EQ(mesh.GetNormalizedTime(), 0.25f);
-    EXPECT_FLOAT_EQ(mesh.GetLocalPose()[0].Translation.x, 1);
+    EXPECT_FLOAT_EQ(mesh.GetLocalPose().LocalTransforms[0].Translation.x, 1);
     mesh.Pause();
     ASSERT_TRUE(instance.Update(1));
     EXPECT_FLOAT_EQ(mesh.GetNormalizedTime(), 0.25f);
     mesh.Resume();
     ASSERT_TRUE(mesh.Seek(3));
     EXPECT_FLOAT_EQ(mesh.GetNormalizedTime(), 0.5f);
-    EXPECT_FLOAT_EQ(mesh.GetLocalPose()[0].Translation.x, 2.5f);
+    EXPECT_FLOAT_EQ(mesh.GetLocalPose().LocalTransforms[0].Translation.x, 2.5f);
     ASSERT_TRUE(instance.SetFloat("Speed", 1));
     ASSERT_TRUE(instance.Update(0));
-    EXPECT_FLOAT_EQ(mesh.GetLocalPose()[0].Translation.x, 3);
-    ASSERT_TRUE(mesh.Play(Reference, 1.0f));
+    EXPECT_FLOAT_EQ(mesh.GetLocalPose().LocalTransforms[0].Translation.x, 3);
+    ASSERT_TRUE(mesh.Play(MakeNode(Reference), 1.0f));
     ASSERT_TRUE(mesh.Update(0));
-    EXPECT_FLOAT_EQ(mesh.GetLocalPose()[0].Translation.x, 3);
+    EXPECT_FLOAT_EQ(mesh.GetLocalPose().LocalTransforms[0].Translation.x, 3);
     ASSERT_TRUE(mesh.Update(1));
     EXPECT_FALSE(mesh.IsTransitioning());
-    EXPECT_FLOAT_EQ(mesh.GetLocalPose()[0].Translation.x, 1);
+    EXPECT_FLOAT_EQ(mesh.GetLocalPose().LocalTransforms[0].Translation.x, 1);
 }
 
 TEST_F(AnimationSyncMarkerTest, RemappingHandlesLargeAndSmallFiniteCycleDurations)

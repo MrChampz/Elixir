@@ -1,3 +1,7 @@
+#include "../../Engine/Animation/AnimationTestNodes.h"
+#include <Engine/Animation/Animation.h>
+#include <Engine/Animation/TwoBoneIK.h>
+#include "../../Engine/Animation/AnimationTestPlayback.h"
 #include <Engine/Animation/BlendSpace2D.h>
 #include <Engine/Animation/BlendSpace1D.h>
 #include <gtest/gtest.h>
@@ -16,7 +20,7 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
     ASSERT_TRUE(context->RunRenderTaskAndWait([&]
     {
         GeometryPool source(*context, {300, 12, sizeof(SSkeletalMeshVertex), EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer});
-        GeometryPool output(*context, {300, 12, sizeof(SStaticMeshVertex), EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer});
+        GeometryPool output(*context, {300, 0, sizeof(SStaticMeshVertex), EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer});
         const auto prefixMesh = SkinningTests::MakeMesh();
         const auto mesh = SkinningTests::MakeMesh(129);
         ASSERT_TRUE(prefixMesh);
@@ -41,17 +45,22 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
 
         for (int frame = 0; frame < 4; ++frame)
         {
-            SkeletalMeshInstance firstInstance(mesh), secondInstance(mesh);
+            const auto firstInstanceHandle = Animation::Create(mesh->GetSkeleton(), mesh->GetData().ReferencePose);
+            ASSERT_TRUE(firstInstanceHandle);
+            auto& firstInstance = *firstInstanceHandle;
+            const auto secondInstanceHandle = Animation::Create(mesh->GetSkeleton(), mesh->GetData().ReferencePose);
+            ASSERT_TRUE(secondInstanceHandle);
+            auto& secondInstance = *secondInstanceHandle;
             if (frame > 0)
             {
-                auto animation = AnimationSequence::Create("Blend", mesh->GetSkeleton(), 2, {
+                auto animation = Sequence::Create("Blend", mesh->GetSkeleton(), 2, {
                     { .BoneIndex = 0, .Translations = {
                         { 0, { 2, 1, -1 } }, { 2, { 4, 3, -1 } },
                       },
                       .Rotations = {{ 0, glm::angleAxis(1.0f, glm::vec3(0, 0, 1)) }},
                       .Scales = {{ 0, { 2, 3, 1 } }} },
                 }, {{ "LeftFootPlant", 0.2f }, { "RightFootPlant", 1.2f }});
-                const auto reference = AnimationSequence::Create(
+                const auto reference = Sequence::Create(
                     "Reference", mesh->GetSkeleton(), 1, {},
                     {{ "LeftFootPlant", 0.25f }, { "RightFootPlant", 0.75f }}
                 );
@@ -61,42 +70,43 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
                 if (frame == 3)
                 {
                     ASSERT_TRUE(firstInstance.SetRootMotionEnabled(true));
-                    const auto lateral = AnimationSequence::Create("Lateral", mesh->GetSkeleton(),
+                    const auto lateral = Sequence::Create("Lateral", mesh->GetSkeleton(),
                         3, {{ .BoneIndex = 1, .Translations = {
                             { 0, { -2, 1, 3 } }, { 3, { 1, 4, 3 } },
                         } }}, {{ "RightFootPlant", 0.3f }, { "LeftFootPlant", 1.8f }});
                     const auto plane = BlendSpace2D::Create("Plane", {
                         {{ 0, 0 }, reference }, {{ 1, 0 }, animation }, {{ 0, 1 }, lateral },
                     });
-                    ASSERT_TRUE(firstInstance.Play(plane, { 0.25f, 0.25f }, 2.0f));
+                    ASSERT_TRUE(PlayWithInputs(firstInstance, MakeNode(plane), { 0.25f, 0.25f }, 2.0f));
                 }
                 else
-                    ASSERT_TRUE(firstInstance.Play(space, { 0.5f }, 2.0f));
+                    ASSERT_TRUE(PlayWithInputs(firstInstance, MakeNode(space), { 0.5f }, 2.0f));
                 ASSERT_TRUE(firstInstance.Update(float(frame) * 0.5f));
                 ASSERT_TRUE(firstInstance.IsTransitioning());
             }
             auto pose = secondInstance.GetLocalPose();
-            pose[0].Scale = {-2, 3, 0.5f};
-            pose[0].Translation = {float(frame), 2, -1};
-            pose[1].Translation = {3, -2, float(frame)};
-            pose[1].Rotation = glm::angleAxis(0.7f, glm::normalize(glm::vec3(1, 2, 3)));
+            pose.LocalTransforms[0].Scale = {-2, 3, 0.5f};
+            pose.LocalTransforms[0].Translation = {float(frame), 2, -1};
+            pose.LocalTransforms[1].Translation = {3, -2, float(frame)};
+            pose.LocalTransforms[1].Rotation = glm::angleAxis(0.7f, glm::normalize(glm::vec3(1, 2, 3)));
             ASSERT_TRUE(secondInstance.SetLocalPose(pose));
             if (frame > 0)
             {
                 auto mask = BoneMask::FromBone("Action", mesh->GetSkeleton(),
                     mesh->GetSkeleton()->GetBones()[1].Name);
-                auto action = AnimationSequence::Create("Layer", mesh->GetSkeleton(), 1, {
+                auto action = Sequence::Create("Layer", mesh->GetSkeleton(), 1, {
                     { .BoneIndex = 1, .Translations = {
                         { 0, { 1, 2, 3 } }, { 1, { 3, 4, 5 } },
                     } },
                 });
-                action = action->WithNotifyStates({{"Active", 0, 1}});
+                action = action->WithNotifies({{"Active", 0, 1}});
                 ASSERT_TRUE(action);
                 ASSERT_TRUE(firstInstance.AddLayer("Action", mask, 0.65f));
                 if (frame == 2)
                     ASSERT_TRUE(firstInstance.GetLayer("Action")->SetBlendMode(
                         EAnimationLayerBlendMode::Additive));
-                ASSERT_TRUE(firstInstance.GetLayer("Action")->Play(action));
+                auto& player = firstInstance.GetLayer("Action")->GetPlayer();
+                ASSERT_TRUE(player.Play(MakeNode(action)));
                 const auto montage = AnimationMontage::Create({
                     .Name = "ActionMontage", .Sequence = action,
                     .BlendIn = 0.25f, .BlendOut = 0.25f,
@@ -104,16 +114,16 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
                         {"End", 0.75f, ""}}
                 });
                 ASSERT_TRUE(montage);
-                ASSERT_TRUE(firstInstance.GetLayer("Action")->PlayMontage(montage));
+                ASSERT_TRUE(player.PlayMontage(montage));
                 ASSERT_TRUE(firstInstance.Update(frame == 3 ? 0.375f : 0.125f));
-                EXPECT_NEAR(firstInstance.GetLayer("Action")->GetMontageWeight(), 0.5f, 1e-6f);
-                EXPECT_EQ(firstInstance.GetNotifyStateEvents().size(), frame == 3 ? 5u : 2u);
+                EXPECT_NEAR(player.GetMontageWeight(), 0.5f, 1e-6f);
+                EXPECT_EQ(firstInstance.GetNotifyEvents().size(), frame == 3 ? 5u : 2u);
                 if (frame == 3)
-                    EXPECT_EQ(firstInstance.GetLayer("Action")->GetCurrentMontageSection(), "End");
+                    EXPECT_EQ(player.GetCurrentMontageSection(), "End");
                 if (frame == 3)
                 {
-                    EXPECT_EQ(firstInstance.GetLocalPose()[0].Translation,
-                        mesh->GetData().ReferencePose[0].Translation);
+                    EXPECT_EQ(firstInstance.GetLocalPose().LocalTransforms[0].Translation,
+                        mesh->GetData().ReferencePose.LocalTransforms[0].Translation);
                     EXPECT_TRUE(firstInstance.GetRootMotionDelta().IsValid());
                 }
             }
@@ -162,7 +172,7 @@ TEST(VulkanSkinningTest, BatchedComputeMatchesCpuWithSharedSourceAndIndependentP
         output.Reset();
         EXPECT_FALSE(first.IsValid());
         EXPECT_FALSE(second.IsValid());
-        auto reused = output.Allocate(129, 3);
+        auto reused = output.Allocate(129);
         ASSERT_TRUE(reused.IsValid());
         EXPECT_EQ(reused.Get()->VertexOffset, 0);
         EXPECT_EQ(reused.Get()->IndexOffset, 0);
@@ -193,6 +203,88 @@ TEST(VulkanSkinningTest, GeometryPoolRejectsMismatchedLayoutsAndExhaustion)
         EXPECT_FALSE(second.IsValid());
         auto all = pool.Allocate(6, 3);
         EXPECT_TRUE(all.IsValid());
+    }));
+}
+
+TEST(VulkanSkinningTest, VertexOnlyGeometryWorksWithAndWithoutAnIndexBuffer)
+{
+    auto* context = VulkanTestContext::Get().GetGraphicsContext();
+    ASSERT_TRUE(context->RunRenderTaskAndWait([&]
+    {
+        for (const uint32_t indexCapacity : {0u, 3u})
+        {
+            SCOPED_TRACE(indexCapacity);
+            GeometryPool pool(*context, {6, indexCapacity, sizeof(SStaticMeshVertex)});
+            ASSERT_TRUE(pool.IsValid());
+            EXPECT_EQ(bool(pool.GetIndexBuffer()), indexCapacity > 0);
+
+            SStaticMeshData data;
+            data.Vertices.resize(3);
+            data.Vertices[0].Position = {1, 2, 3};
+            auto uploaded = pool.Upload(data);
+            ASSERT_TRUE(uploaded.IsValid());
+            EXPECT_EQ(uploaded.Get()->VertexOffset, 0);
+            EXPECT_EQ(uploaded.Get()->IndexCount, 0);
+
+            auto info = StagingBuffer::CreateBufferInfo(
+                3 * sizeof(SStaticMeshVertex),
+                nullptr
+            );
+            info.Usage = EBufferUsage::TransferDst;
+            const Ref<StagingBuffer> readback =
+                CreateRef<Vulkan::VulkanStagingBuffer>(context, info);
+            ASSERT_TRUE(readback->IsValid());
+            const auto cmd = context->GetUploadCommandBuffer();
+            cmd->Begin();
+            pool.GetVertexBuffer()->Barrier(
+                cmd,
+                EPipelineStage::Transfer,
+                EPipelineAccess::TransferRead
+            );
+            SBufferCopy copy{.Size = 3 * sizeof(SStaticMeshVertex)};
+            pool.GetVertexBuffer()->Copy(cmd, readback, std::span{&copy, 1});
+            cmd->Flush();
+            const auto* vertices = static_cast<const SStaticMeshVertex*>(readback->Map());
+            ASSERT_NE(vertices, nullptr);
+            EXPECT_EQ(vertices[0].Position, data.Vertices[0].Position);
+            readback->Unmap();
+
+            if (indexCapacity == 0)
+            {
+                EXPECT_FALSE(pool.Allocate(3, 1).IsValid());
+                data.Indices = {0, 1, 2};
+                EXPECT_FALSE(pool.Upload(data).IsValid());
+            }
+            auto remaining = pool.Allocate(3, indexCapacity);
+            ASSERT_TRUE(remaining.IsValid());
+            EXPECT_EQ(remaining.Get()->VertexOffset, 3);
+            EXPECT_FALSE(pool.Allocate(1).IsValid());
+
+            remaining.Reset();
+            context->WaitForSubmittedFrames();
+            auto released = pool.Allocate(3, indexCapacity);
+            ASSERT_TRUE(released.IsValid());
+            EXPECT_EQ(released.Get()->VertexOffset, 3);
+            EXPECT_EQ(released.Get()->IndexOffset, 0);
+
+            pool.Reset();
+            EXPECT_FALSE(uploaded.IsValid());
+            EXPECT_FALSE(released.IsValid());
+            auto all = pool.Allocate(6, indexCapacity);
+            ASSERT_TRUE(all.IsValid());
+            EXPECT_EQ(all.Get()->VertexOffset, 0);
+            EXPECT_EQ(all.Get()->IndexOffset, 0);
+        }
+
+        const auto mesh = SkinningTests::MakeMesh();
+        ASSERT_TRUE(mesh);
+        GeometryPool skeletal(*context, {3, 0, sizeof(SSkeletalMeshVertex)});
+        auto data = mesh->GetData();
+        data.Indices.clear();
+        auto uploaded = skeletal.Upload(data);
+        ASSERT_TRUE(uploaded.IsValid());
+        EXPECT_EQ(uploaded.Get()->IndexCount, 0);
+        EXPECT_FALSE(skeletal.GetIndexBuffer());
     }));
 }
 
@@ -239,7 +331,9 @@ TEST(VulkanSkinningTest, RejectsVertexBuffersWithoutStorageUsage)
         ASSERT_TRUE(output.IsValid());
         const auto mesh = SkinningTests::MakeMesh();
         ASSERT_TRUE(mesh);
-        SkeletalMeshInstance instance(mesh);
+        const auto instanceHandle = Animation::Create(mesh->GetSkeleton(), mesh->GetData().ReferencePose);
+        ASSERT_TRUE(instanceHandle);
+        auto& instance = *instanceHandle;
         SkinningBatch batch;
         ASSERT_TRUE(batch.Append(*mesh, instance.GetModelPose(), 0, 0, 2));
         ShaderLoader loader(context);
@@ -262,7 +356,7 @@ TEST(VulkanSkinningTest, ProcessesOneThousandIndependentCharactersInOneBatch)
         const auto mesh = SkinningTests::MakeMesh(vertexCount);
         ASSERT_TRUE(mesh);
         GeometryPool source(*context, {vertexCount, 3, sizeof(SSkeletalMeshVertex), EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer});
-        GeometryPool output(*context, {vertexCount * instanceCount, 3, sizeof(SStaticMeshVertex), EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer});
+        GeometryPool output(*context, {vertexCount * instanceCount, 0, sizeof(SStaticMeshVertex), EBufferUsage::VertexBuffer | EBufferUsage::StorageBuffer});
         auto geometry = source.Upload(mesh->GetData());
         auto result = output.Allocate(vertexCount * instanceCount);
         ASSERT_TRUE(geometry.IsValid());
@@ -272,10 +366,12 @@ TEST(VulkanSkinningTest, ProcessesOneThousandIndependentCharactersInOneBatch)
         expected.reserve(instanceCount);
         for (uint32_t i = 0; i < instanceCount; ++i)
         {
-            SkeletalMeshInstance instance(mesh);
+            const auto instanceHandle = Animation::Create(mesh->GetSkeleton(), mesh->GetData().ReferencePose);
+            ASSERT_TRUE(instanceHandle);
+            auto& instance = *instanceHandle;
             auto pose = instance.GetLocalPose();
-            pose[0].Translation = {float(i), float(i % 13), -float(i % 7)};
-            pose[1].Translation = {0, float(i % 5), 1};
+            pose.LocalTransforms[0].Translation = {float(i), float(i % 13), -float(i % 7)};
+            pose.LocalTransforms[1].Translation = {0, float(i % 5), 1};
             ASSERT_TRUE(instance.SetLocalPose(pose));
             ASSERT_TRUE(batch.Append(*mesh, instance.GetModelPose(), geometry.Get()->VertexOffset,
                 result.Get()->VertexOffset + i * vertexCount, instanceCount * 2));
@@ -325,7 +421,7 @@ TEST(VulkanSkinningTest, TwoBoneIKPoseReachesComputeSkinning)
             {.Name = "Target", .ParentIndex = 0,
                 .ReferenceTransform = {.Translation = {1, 0, 0}}}
         });
-        data.ReferencePose.clear();
+        data.ReferencePose.LocalTransforms.clear();
         data.BoneMap = {3};
         data.InverseBindMatrices = {glm::translate(glm::mat4(1), glm::vec3(-2, 0, 0))};
         for (auto& vertex : data.Vertices)
@@ -334,20 +430,36 @@ TEST(VulkanSkinningTest, TwoBoneIKPoseReachesComputeSkinning)
             vertex.Weights = {1, 0, 0, 0};
         }
         data.Vertices[0].Position = {2, 0, 0};
+        data.Vertices[1].Position = {1, 0, 0};
         const auto mesh = SkeletalMesh::Create(std::move(data));
         ASSERT_TRUE(mesh);
-        SkeletalMeshInstance instance(mesh);
-        const auto targetAnimation = AnimationSequence::Create("Target", mesh->GetSkeleton(), 1, {{
-            .BoneIndex = 4, .Translations = {{0, {1, 0, 0}}, {1, {1, 2, 0}}},
-            .Rotations = {{0, glm::angleAxis(0.5f, glm::vec3(0, 0, 1))}}
-        }});
-        ASSERT_TRUE(instance.Play(targetAnimation, false));
-        const STwoBoneIKConstraint constraint{3, {}, {0, 2, 0}, 1,
-            glm::angleAxis(glm::radians(90.0f) - 0.5f, glm::vec3(0, 0, 1)), uint32_t(4)};
-        ASSERT_TRUE(instance.SetTwoBoneIKConstraints(std::span(&constraint, 1)));
-        ASSERT_TRUE(instance.Update(0.5f));
+        const auto animation = Animation::Create(
+            mesh->GetSkeleton(),
+            mesh->GetData().ReferencePose
+        );
+        ASSERT_TRUE(animation);
+        const auto targetAnimation = Sequence::Create(
+            "Target",
+            mesh->GetSkeleton(),
+            1,
+            {{
+                .BoneIndex = 4, .Translations = {{0, {1, 0, 0}}, {1, {1, 2, 0}}},
+                .Rotations = {{0, glm::angleAxis(0.5f, glm::vec3(0, 0, 1))}}
+            }}
+        );
+        ASSERT_TRUE(animation->Play(SequenceNode::Create(targetAnimation), false));
+        const STwoBoneIKConstraint constraint{
+            3, {}, {0, 2, 0}, 1,
+            glm::angleAxis(glm::radians(90.0f) - 0.5f, glm::vec3(0, 0, 1)), uint32_t(4)
+        };
+        const auto ik = TwoBoneIK::Create(mesh->GetSkeleton());
+        ASSERT_TRUE(ik);
+        ASSERT_TRUE(ik->SetConstraints(std::span(&constraint, 1)));
+        const std::array<Ref<const PoseModifier>, 1> modifiers{ik};
+        ASSERT_TRUE(animation->SetPoseModifiers(modifiers));
+        ASSERT_TRUE(animation->Update(0.5f));
         std::vector<SStaticMeshVertex> expected;
-        ASSERT_TRUE(mesh->SkinVertices(instance.GetModelPose(), expected));
+        ASSERT_TRUE(mesh->SkinVertices(animation->GetModelPose(), expected));
         EXPECT_NEAR(expected[0].Position.x, 1, 1e-5f);
         EXPECT_NEAR(expected[0].Position.y, 1, 1e-5f);
         EXPECT_NEAR(expected[1].Position.x, 1, 1e-5f);
@@ -361,7 +473,7 @@ TEST(VulkanSkinningTest, TwoBoneIKPoseReachesComputeSkinning)
         ASSERT_TRUE(geometry.IsValid());
         ASSERT_TRUE(result.IsValid());
         SkinningBatch batch;
-        ASSERT_TRUE(batch.Append(*mesh, instance.GetModelPose(),
+        ASSERT_TRUE(batch.Append(*mesh, animation->GetModelPose(),
             geometry.Get()->VertexOffset, result.Get()->VertexOffset, 3));
         ShaderLoader loader(context);
         SkinningPass pass(*context, loader);

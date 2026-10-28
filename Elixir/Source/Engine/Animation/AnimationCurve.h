@@ -1,16 +1,21 @@
 #pragma once
 
+#include <Engine/Core/Core.h>
+
+#include <cstdint>
+#include <functional>
 #include <map>
 #include <string>
 #include <string_view>
 #include <vector>
-#include <cstdint>
-#include <Engine/Core/Core.h>
 
 namespace Elixir
 {
     /** Selects interpolation between adjacent scalar keys. */
-    enum class EAnimationCurveInterpolation : uint8_t { Step, Linear };
+    enum class EAnimationCurveInterpolation : uint8_t
+    {
+        Step, Linear
+    };
 
     /** Stores a finite scalar value at a sequence time in seconds. */
     struct SAnimationCurveKey
@@ -23,8 +28,10 @@ namespace Elixir
     struct SAnimationCurve
     {
         std::string Name;
+
         /** Nonempty keys with strictly increasing times within the sequence duration. */
         std::vector<SAnimationCurveKey> Keys;
+
         EAnimationCurveInterpolation Interpolation = EAnimationCurveInterpolation::Linear;
     };
 

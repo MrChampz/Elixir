@@ -1,6 +1,9 @@
+#include "AnimationTestNodes.h"
+#include "AnimationTestCharacter.h"
+#include "AnimationTestPlayback.h"
 #include <gtest/gtest.h>
 #include <Engine/Animation/BlendSpace1D.h>
-#include <Engine/Animation/AnimationControllerInstance.h>
+#include "AnimationGraphTestDriver.h"
 #include "../Mesh/SkinningTestData.h"
 #include <limits>
 
@@ -24,9 +27,9 @@ namespace
          * @param degrees End rotation around local Y.
          * @param offset Authored starting translation, independent of the reference pose.
          */
-        Ref<AnimationSequence> MakeClip(float distance, float degrees = 0, float offset = 0)
+        Ref<Sequence> MakeClip(float distance, float degrees = 0, float offset = 0)
         {
-            return AnimationSequence::Create("Motion", Mesh->GetSkeleton(), 1, {{
+            return Sequence::Create("Motion", Mesh->GetSkeleton(), 1, {{
                 .BoneIndex = 0,
                 .Translations = {{ 0, {offset, 0, 0} }, { 1, {offset + distance, 0, 0} }},
                 .Rotations = {{ 0, {1, 0, 0, 0} },
@@ -54,17 +57,19 @@ namespace
 
 TEST_F(RootMotionTest, DisabledByDefaultAndEnabledPoseMovesOnlyThroughTheExtractedDelta)
 {
-    SkeletalMeshInstance mesh(Mesh);
-    ASSERT_TRUE(mesh.Play(MakeClip(2), false));
+    const auto meshHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(meshHandle);
+    auto& mesh = *meshHandle;
+    ASSERT_TRUE(mesh.Play(MakeNode(MakeClip(2)), false));
     EXPECT_FALSE(mesh.IsRootMotionEnabled());
     ASSERT_TRUE(mesh.Update(0.25f));
-    EXPECT_FLOAT_EQ(mesh.GetLocalPose()[0].Translation.x, 0.5f);
+    EXPECT_FLOAT_EQ(mesh.GetLocalPose().LocalTransforms[0].Translation.x, 0.5f);
     EXPECT_FLOAT_EQ(mesh.GetRootMotionDelta().Translation.x, 0);
     ASSERT_TRUE(mesh.SetRootMotionEnabled(true));
-    EXPECT_FLOAT_EQ(mesh.GetLocalPose()[0].Translation.x, 0);
+    EXPECT_FLOAT_EQ(mesh.GetLocalPose().LocalTransforms[0].Translation.x, 0);
     ASSERT_TRUE(mesh.Update(0.25f));
     EXPECT_FLOAT_EQ(mesh.GetRootMotionDelta().Translation.x, 0.5f);
-    EXPECT_FLOAT_EQ(mesh.GetLocalPose()[0].Translation.x, 0);
+    EXPECT_FLOAT_EQ(mesh.GetLocalPose().LocalTransforms[0].Translation.x, 0);
     ASSERT_TRUE(mesh.Update(1));
     EXPECT_FLOAT_EQ(mesh.GetRootMotionDelta().Translation.x, 1);
     EXPECT_FLOAT_EQ(mesh.GetTime(), 1);
@@ -74,9 +79,11 @@ TEST_F(RootMotionTest, DisabledByDefaultAndEnabledPoseMovesOnlyThroughTheExtract
 
 TEST_F(RootMotionTest, LoopBoundaryAndMultipleCyclesPreserveForwardMovement)
 {
-    SkeletalMeshInstance mesh(Mesh);
+    const auto meshHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(meshHandle);
+    auto& mesh = *meshHandle;
     ASSERT_TRUE(mesh.SetRootMotionEnabled(true));
-    ASSERT_TRUE(mesh.Play(MakeClip(2)));
+    ASSERT_TRUE(mesh.Play(MakeNode(MakeClip(2))));
     ASSERT_TRUE(mesh.Update(0.75f));
     EXPECT_FLOAT_EQ(mesh.GetRootMotionDelta().Translation.x, 1.5f);
     ASSERT_TRUE(mesh.Update(0.5f));
@@ -90,7 +97,7 @@ TEST_F(RootMotionTest, LoopBoundaryAndMultipleCyclesPreserveForwardMovement)
 TEST_F(RootMotionTest, TurningCyclesComposeRigidMovementAndAreIndependentOfFramePartition)
 {
     const auto clip = MakeClip(1, 90);
-    const auto& reference = Mesh->GetData().ReferencePose[0];
+    const auto& reference = Mesh->GetData().ReferencePose.LocalTransforms[0];
     SRootMotionDelta cycle, full, partitioned;
     ASSERT_TRUE(clip->ExtractRootMotion(0, 1, true, reference, cycle));
     ASSERT_TRUE(clip->ExtractRootMotion(0, 2, true, reference, full));
@@ -108,7 +115,7 @@ TEST_F(RootMotionTest, TurningCyclesComposeRigidMovementAndAreIndependentOfFrame
 
 TEST_F(RootMotionTest, ReferenceRootOrientationConvertsMovementToMeshSpace)
 {
-    auto reference = Mesh->GetData().ReferencePose[0];
+    auto reference = Mesh->GetData().ReferencePose.LocalTransforms[0];
     reference.Rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0, 1, 0));
     SRootMotionDelta motion;
     ASSERT_TRUE(MakeClip(2)->ExtractRootMotion(0, 0.5, false, reference, motion));
@@ -118,9 +125,11 @@ TEST_F(RootMotionTest, ReferenceRootOrientationConvertsMovementToMeshSpace)
 
 TEST_F(RootMotionTest, SeekPauseZeroDeltaAndPlaybackChangesDoNotGenerateMovement)
 {
-    SkeletalMeshInstance mesh(Mesh);
+    const auto meshHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(meshHandle);
+    auto& mesh = *meshHandle;
     ASSERT_TRUE(mesh.SetRootMotionEnabled(true));
-    ASSERT_TRUE(mesh.Play(MakeClip(2)));
+    ASSERT_TRUE(mesh.Play(MakeNode(MakeClip(2))));
     ASSERT_TRUE(mesh.Update(0.25f));
     ASSERT_TRUE(mesh.Seek(0.75f));
     ExpectNear(mesh.GetRootMotionDelta(), {});
@@ -132,7 +141,7 @@ TEST_F(RootMotionTest, SeekPauseZeroDeltaAndPlaybackChangesDoNotGenerateMovement
     mesh.Resume();
     ASSERT_TRUE(mesh.Update(0.25f));
     EXPECT_FLOAT_EQ(mesh.GetRootMotionDelta().Translation.x, 0.5f);
-    ASSERT_TRUE(mesh.Play(MakeClip(3, 0, 100)));
+    ASSERT_TRUE(mesh.Play(MakeNode(MakeClip(3, 0, 100))));
     ExpectNear(mesh.GetRootMotionDelta(), {});
     ASSERT_TRUE(mesh.Update(0.1f));
     EXPECT_NEAR(mesh.GetRootMotionDelta().Translation.x, 0.3f, 1e-5f);
@@ -142,36 +151,42 @@ TEST_F(RootMotionTest, SeekPauseZeroDeltaAndPlaybackChangesDoNotGenerateMovement
 
 TEST_F(RootMotionTest, FadeBlendsMovementRatherThanAbsoluteRootPositions)
 {
-    SkeletalMeshInstance mesh(Mesh);
+    const auto meshHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(meshHandle);
+    auto& mesh = *meshHandle;
     ASSERT_TRUE(mesh.SetRootMotionEnabled(true));
-    ASSERT_TRUE(mesh.Play(MakeClip(1)));
+    ASSERT_TRUE(mesh.Play(MakeNode(MakeClip(1))));
     ASSERT_TRUE(mesh.Update(0.25f));
-    ASSERT_TRUE(mesh.Play(MakeClip(3, 0, 100), 1.0f));
+    ASSERT_TRUE(mesh.Play(MakeNode(MakeClip(3, 0, 100)), 1.0f));
     ASSERT_TRUE(mesh.Update(0.5f));
     EXPECT_NEAR(mesh.GetRootMotionDelta().Translation.x, 0.75f, 1e-5f);
     ASSERT_TRUE(mesh.Update(0.5f));
     EXPECT_NEAR(mesh.GetRootMotionDelta().Translation.x, 1.25f, 1e-5f);
-    EXPECT_FLOAT_EQ(mesh.GetLocalPose()[0].Translation.x, 0);
+    EXPECT_FLOAT_EQ(mesh.GetLocalPose().LocalTransforms[0].Translation.x, 0);
 }
 
 TEST_F(RootMotionTest, FadeCompletionWithinALargeUpdateIncludesTheRemainingTargetMovement)
 {
-    SkeletalMeshInstance mesh(Mesh);
+    const auto meshHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(meshHandle);
+    auto& mesh = *meshHandle;
     ASSERT_TRUE(mesh.SetRootMotionEnabled(true));
-    ASSERT_TRUE(mesh.Play(MakeClip(1)));
-    ASSERT_TRUE(mesh.Play(MakeClip(3), 1.0f));
+    ASSERT_TRUE(mesh.Play(MakeNode(MakeClip(1))));
+    ASSERT_TRUE(mesh.Play(MakeNode(MakeClip(3)), 1.0f));
     ASSERT_TRUE(mesh.Update(2));
     EXPECT_NEAR(mesh.GetRootMotionDelta().Translation.x, 5, 1e-5f);
 }
 
 TEST_F(RootMotionTest, InterruptedFadeUsesStationarySnapshotWithoutAnOffsetJump)
 {
-    SkeletalMeshInstance mesh(Mesh);
+    const auto meshHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(meshHandle);
+    auto& mesh = *meshHandle;
     ASSERT_TRUE(mesh.SetRootMotionEnabled(true));
-    ASSERT_TRUE(mesh.Play(MakeClip(1)));
-    ASSERT_TRUE(mesh.Play(MakeClip(3), 1.0f));
+    ASSERT_TRUE(mesh.Play(MakeNode(MakeClip(1))));
+    ASSERT_TRUE(mesh.Play(MakeNode(MakeClip(3)), 1.0f));
     ASSERT_TRUE(mesh.Update(0.25f));
-    ASSERT_TRUE(mesh.Play(MakeClip(5, 0, 200), 1.0f));
+    ASSERT_TRUE(mesh.Play(MakeNode(MakeClip(5, 0, 200)), 1.0f));
     ASSERT_TRUE(mesh.Update(0.5f));
     EXPECT_NEAR(mesh.GetRootMotionDelta().Translation.x, 0.625f, 1e-5f);
 }
@@ -179,12 +194,14 @@ TEST_F(RootMotionTest, InterruptedFadeUsesStationarySnapshotWithoutAnOffsetJump)
 TEST_F(RootMotionTest, BlendSpaceWeightsBlendDeltasWithoutJumpsWhenCoordinatesChange)
 {
     const auto space = BlendSpace1D::Create("Move", {{0, MakeClip(2)}, {1, MakeClip(4)}});
-    SkeletalMeshInstance mesh(Mesh);
+    const auto meshHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(meshHandle);
+    auto& mesh = *meshHandle;
     ASSERT_TRUE(mesh.SetRootMotionEnabled(true));
-    ASSERT_TRUE(mesh.Play(space, {0.5f}));
+    ASSERT_TRUE(PlayWithInputs(mesh, MakeNode(space), {0.5f}));
     ASSERT_TRUE(mesh.Update(0.25f));
     EXPECT_NEAR(mesh.GetRootMotionDelta().Translation.x, 0.75f, 1e-5f);
-    ASSERT_TRUE(mesh.SetBlendSpaceValue({1}));
+    ASSERT_TRUE(mesh.SetInputs({1}));
     ASSERT_TRUE(mesh.Update(0.25f));
     EXPECT_NEAR(mesh.GetRootMotionDelta().Translation.x, 1, 1e-5f);
     ASSERT_TRUE(mesh.Update(0.75f));
@@ -196,7 +213,7 @@ TEST_F(RootMotionTest, MarkerMappingKeepsContinuousRootMovementAcrossTheClipBoun
     const auto first = MakeClip(1)->WithSyncMarkers({{"L", 0.25f}, {"R", 0.75f}});
     const auto second = MakeClip(2)->WithSyncMarkers({{"L", 0.1f}, {"R", 0.6f}});
     const auto space = BlendSpace1D::Create("Marked", {{0, first}, {1, second}});
-    const auto& reference = Mesh->GetData().ReferencePose[0];
+    const auto& reference = Mesh->GetData().ReferencePose.LocalTransforms[0];
     SRootMotionDelta motion;
     ASSERT_TRUE(space->ExtractRootMotion(std::array{0.5f}, 0, 1, true, reference, motion));
     EXPECT_NEAR(motion.Translation.x, 1.5f, 1e-5f);
@@ -213,50 +230,55 @@ TEST_F(RootMotionTest, MarkerMappingKeepsContinuousRootMovementAcrossTheClipBoun
 TEST_F(RootMotionTest, InvalidOrExcessiveIntervalsPreserveOutputAndAllMeshClocks)
 {
     const auto clip = MakeClip(1);
-    const auto& reference = Mesh->GetData().ReferencePose[0];
+    const auto& reference = Mesh->GetData().ReferencePose.LocalTransforms[0];
     SRootMotionDelta output{glm::vec3(7, 0, 0)};
     EXPECT_FALSE(clip->ExtractRootMotion(1, 0, true, reference, output));
     EXPECT_FALSE(clip->ExtractRootMotion(0, std::numeric_limits<double>::infinity(),
         true, reference, output));
     EXPECT_FLOAT_EQ(output.Translation.x, 7);
-    SkeletalMeshInstance mesh(Mesh);
+    const auto meshHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(meshHandle);
+    auto& mesh = *meshHandle;
     ASSERT_TRUE(mesh.SetRootMotionEnabled(true));
-    ASSERT_TRUE(mesh.Play(clip));
+    ASSERT_TRUE(mesh.Play(MakeNode(clip)));
     ASSERT_TRUE(mesh.Update(0.25f));
     EXPECT_FALSE(mesh.Update(4097));
     EXPECT_FLOAT_EQ(mesh.GetTime(), 0.25f);
     EXPECT_FLOAT_EQ(mesh.GetRootMotionDelta().Translation.x, 0.25f);
-    EXPECT_FLOAT_EQ(mesh.GetLocalPose()[0].Translation.x, 0);
+    EXPECT_FLOAT_EQ(mesh.GetLocalPose().LocalTransforms[0].Translation.x, 0);
 }
 
 TEST_F(RootMotionTest, ControllerUpdatesRootMotionAndOtherLayersDoNotDriveTheCharacter)
 {
-    const auto controller = AnimationController::Create({
+    const auto controller = CreateTestGraph({
         .Name = "Root", .Layers = {
-            {.Sequence = MakeClip(2)},
+            {.Node = MakeNode(MakeClip(2))},
             {.Name = "UpperBody", .Mask = BoneMask::FromBone("Child", Mesh->GetSkeleton(), "Child"),
-                .Sequence = MakeClip(100)},
+                .Node = MakeNode(MakeClip(100))},
         },
     });
     ASSERT_TRUE(controller);
-    SkeletalMeshInstance mesh(Mesh);
+    const auto meshHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(meshHandle);
+    auto& mesh = *meshHandle;
+    AnimationGraphTestDriver instance(controller, mesh);
     ASSERT_TRUE(mesh.SetRootMotionEnabled(true));
-    AnimationControllerInstance instance(controller, mesh);
     ASSERT_TRUE(instance.Update(0.25f));
     EXPECT_FLOAT_EQ(mesh.GetRootMotionDelta().Translation.x, 0.5f);
-    EXPECT_FLOAT_EQ(mesh.GetLocalPose()[0].Translation.x, 0);
+    EXPECT_FLOAT_EQ(mesh.GetLocalPose().LocalTransforms[0].Translation.x, 0);
 }
 
 TEST_F(RootMotionTest, MissingRootTrackStaticClipsAndInvalidMeshAreSafe)
 {
-    SkeletalMeshInstance invalid(nullptr);
-    EXPECT_FALSE(invalid.SetRootMotionEnabled(true));
-    SkeletalMeshInstance mesh(Mesh);
+    EXPECT_FALSE(AnimationTestCharacter::Create(nullptr));
+    const auto meshHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(meshHandle);
+    auto& mesh = *meshHandle;
     ASSERT_TRUE(mesh.SetRootMotionEnabled(true));
-    ASSERT_TRUE(mesh.Play(AnimationSequence::Create("Empty", Mesh->GetSkeleton(), 1, {})));
+    ASSERT_TRUE(mesh.Play(MakeNode(Sequence::Create("Empty", Mesh->GetSkeleton(), 1, {}))));
     ASSERT_TRUE(mesh.Update(0.5f));
     ExpectNear(mesh.GetRootMotionDelta(), {});
-    ASSERT_TRUE(mesh.Play(AnimationSequence::Create("Static", Mesh->GetSkeleton(), 0, {})));
+    ASSERT_TRUE(mesh.Play(MakeNode(Sequence::Create("Static", Mesh->GetSkeleton(), 0, {}))));
     ASSERT_TRUE(mesh.Update(1));
     ExpectNear(mesh.GetRootMotionDelta(), {});
     ASSERT_TRUE(mesh.SetRootMotionEnabled(false));
@@ -280,15 +302,17 @@ TEST_F(RootMotionTest, CyclicMarkerNamesPreserveUnwrappedPhaseAndMatchPoseSampli
 
 TEST_F(RootMotionTest, ManualPoseLocksTheRootAndClearsThePreviousMovement)
 {
-    SkeletalMeshInstance mesh(Mesh);
+    const auto meshHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(meshHandle);
+    auto& mesh = *meshHandle;
     ASSERT_TRUE(mesh.SetRootMotionEnabled(true));
-    ASSERT_TRUE(mesh.Play(MakeClip(2)));
+    ASSERT_TRUE(mesh.Play(MakeNode(MakeClip(2))));
     ASSERT_TRUE(mesh.Update(0.25f));
     auto pose = Mesh->GetData().ReferencePose;
-    pose[0].Translation.x = 10;
+    pose.LocalTransforms[0].Translation.x = 10;
     ASSERT_TRUE(mesh.SetLocalPose(pose));
-    EXPECT_FLOAT_EQ(mesh.GetLocalPose()[0].Translation.x, 0);
-    EXPECT_FLOAT_EQ(mesh.GetModelPose()[0][3].x, 0);
+    EXPECT_FLOAT_EQ(mesh.GetLocalPose().LocalTransforms[0].Translation.x, 0);
+    EXPECT_FLOAT_EQ(mesh.GetModelPose().Matrices[0][3].x, 0);
     ExpectNear(mesh.GetRootMotionDelta(), {});
     ASSERT_TRUE(mesh.Update(0.5f));
     ExpectNear(mesh.GetRootMotionDelta(), {});
@@ -296,21 +320,23 @@ TEST_F(RootMotionTest, ManualPoseLocksTheRootAndClearsThePreviousMovement)
 
 TEST_F(RootMotionTest, FailedUpperLayerCompositionPreservesBaseClockAndPreviousMovement)
 {
-    SkeletalMeshInstance mesh(Mesh);
+    const auto meshHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(meshHandle);
+    auto& mesh = *meshHandle;
     ASSERT_TRUE(mesh.SetRootMotionEnabled(true));
-    ASSERT_TRUE(mesh.Play(MakeClip(1)));
+    ASSERT_TRUE(mesh.Play(MakeNode(MakeClip(1))));
     ASSERT_TRUE(mesh.Update(0.1f));
     const auto mask = BoneMask::FromBone("Child", Mesh->GetSkeleton(), "Child");
     ASSERT_TRUE(mesh.AddLayer("Upper", mask));
-    const auto mirror = AnimationSequence::Create("Mirror", Mesh->GetSkeleton(), 1, {
+    const auto mirror = Sequence::Create("Mirror", Mesh->GetSkeleton(), 1, {
         {.BoneIndex = 1, .Scales = {{0, {-1, 1, 1}}}},
     });
     auto& upper = *mesh.GetLayer("Upper");
-    ASSERT_TRUE(upper.SetLocalPose(Mesh->GetData().ReferencePose));
-    ASSERT_TRUE(upper.Play(mirror, 0.5f));
+    ASSERT_TRUE(upper.GetPlayer().SetLocalPose(Mesh->GetData().ReferencePose));
+    ASSERT_TRUE(upper.GetPlayer().Play(MakeNode(mirror), 0.5f));
     EXPECT_FALSE(mesh.Update(0.25f));
     EXPECT_FLOAT_EQ(mesh.GetTime(), 0.1f);
-    EXPECT_FLOAT_EQ(upper.GetTime(), 0);
+    EXPECT_FLOAT_EQ(upper.GetPlayer().GetTime(), 0);
     EXPECT_FLOAT_EQ(mesh.GetRootMotionDelta().Translation.x, 0.1f);
     ASSERT_TRUE(mesh.Update(0.1f));
     EXPECT_FLOAT_EQ(mesh.GetTime(), 0.2f);
@@ -320,22 +346,24 @@ TEST_F(RootMotionTest, FailedUpperLayerCompositionPreservesBaseClockAndPreviousM
 TEST_F(RootMotionTest, NamedRootUnderARotatedScaledWrapperMovesInMeshSpace)
 {
     auto data = Mesh->GetData();
-    data.ReferencePose[0].Translation = {5, 0, 0};
-    data.ReferencePose[0].Rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0, 1, 0));
-    data.ReferencePose[0].Scale = glm::vec3(2);
+    data.ReferencePose.LocalTransforms[0].Translation = {5, 0, 0};
+    data.ReferencePose.LocalTransforms[0].Rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0, 1, 0));
+    data.ReferencePose.LocalTransforms[0].Scale = glm::vec3(2);
     const auto wrapped = SkeletalMesh::Create(data);
     ASSERT_TRUE(wrapped);
-    const auto clip = AnimationSequence::Create("ChildMotion", wrapped->GetSkeleton(), 1, {
+    const auto clip = Sequence::Create("ChildMotion", wrapped->GetSkeleton(), 1, {
         {.BoneIndex = 1, .Translations = {{0, {0, 0, 0}}, {1, {1, 0, 0}}}},
     });
-    SkeletalMeshInstance mesh(wrapped);
+    const auto meshHandle = AnimationTestCharacter::Create(wrapped);
+    ASSERT_TRUE(meshHandle);
+    auto& mesh = *meshHandle;
     ASSERT_TRUE(mesh.SetRootMotionEnabled(true, "Child"));
-    ASSERT_TRUE(mesh.Play(clip));
+    ASSERT_TRUE(mesh.Play(MakeNode(clip)));
     ASSERT_TRUE(mesh.Update(0.25f));
     EXPECT_NEAR(mesh.GetRootMotionDelta().Translation.x, 0, 1e-5f);
     EXPECT_NEAR(mesh.GetRootMotionDelta().Translation.z, -0.5f, 1e-5f);
-    EXPECT_EQ(mesh.GetLocalPose()[1].Translation, data.ReferencePose[1].Translation);
-    EXPECT_EQ(mesh.GetLocalPose()[0].Translation, data.ReferencePose[0].Translation);
+    EXPECT_EQ(mesh.GetLocalPose().LocalTransforms[1].Translation, data.ReferencePose.LocalTransforms[1].Translation);
+    EXPECT_EQ(mesh.GetLocalPose().LocalTransforms[0].Translation, data.ReferencePose.LocalTransforms[0].Translation);
     EXPECT_FALSE(mesh.SetRootMotionEnabled(true, "Missing"));
     EXPECT_TRUE(mesh.IsRootMotionEnabled());
     ASSERT_TRUE(mesh.Update(0.25f));
@@ -344,9 +372,11 @@ TEST_F(RootMotionTest, NamedRootUnderARotatedScaledWrapperMovesInMeshSpace)
 
 TEST_F(RootMotionTest, AnimatedRootAncestorsRejectTheUpdateWithoutAdvancingClocks)
 {
-    SkeletalMeshInstance mesh(Mesh);
+    const auto meshHandle = AnimationTestCharacter::Create(Mesh);
+    ASSERT_TRUE(meshHandle);
+    auto& mesh = *meshHandle;
     ASSERT_TRUE(mesh.SetRootMotionEnabled(true, "Child"));
-    ASSERT_TRUE(mesh.GetBaseLayer().Play(MakeClip(2)));
+    ASSERT_TRUE(mesh.GetBaseLayer().GetPlayer().Play(MakeNode(MakeClip(2))));
     EXPECT_FALSE(mesh.Update(0.25f));
     EXPECT_FLOAT_EQ(mesh.GetTime(), 0);
     ExpectNear(mesh.GetRootMotionDelta(), {});
@@ -355,12 +385,199 @@ TEST_F(RootMotionTest, AnimatedRootAncestorsRejectTheUpdateWithoutAdvancingClock
 TEST_F(RootMotionTest, NonuniformRootAncestorsRejectExtractionConfiguration)
 {
     auto data = Mesh->GetData();
-    data.ReferencePose[0].Scale = {1, 2, 1};
+    data.ReferencePose.LocalTransforms[0].Scale = {1, 2, 1};
     const auto wrapped = SkeletalMesh::Create(data);
     ASSERT_TRUE(wrapped);
-    SkeletalMeshInstance mesh(wrapped);
+    const auto meshHandle = AnimationTestCharacter::Create(wrapped);
+    ASSERT_TRUE(meshHandle);
+    auto& mesh = *meshHandle;
     EXPECT_FALSE(mesh.SetRootMotionEnabled(true, "Child"));
     EXPECT_FALSE(mesh.IsRootMotionEnabled());
     ASSERT_TRUE(mesh.SetRootMotionEnabled(true));
     EXPECT_TRUE(mesh.IsRootMotionEnabled());
+}
+
+TEST_F(RootMotionTest, OuterMontageExitPreservesInnerLayerMotionForTheRemainingFrame)
+{
+    for (const auto useMontage : {false, true})
+    {
+        SCOPED_TRACE(useMontage);
+        const auto composition = BlendNode::Create("Composition", {
+            {.Name = "Locomotion", .Node = MakeNode(MakeClip(1))}
+        });
+        const auto graph = AnimationGraph::Create({
+            .Name = "Motion",
+            .Output = MakeNode(composition)
+        });
+        ASSERT_TRUE(graph);
+        const auto large = graph->CreateAnimation(Mesh->GetData().ReferencePose);
+        const auto partitioned = graph->CreateAnimation(Mesh->GetData().ReferencePose);
+        ASSERT_TRUE(large);
+        ASSERT_TRUE(partitioned);
+
+        const auto inner = AnimationMontage::Create({
+            .Name = "Inner",
+            .Sequence = MakeClip(2),
+            .BlendIn = 0,
+            .BlendOut = 0
+        });
+        const auto outer = AnimationMontage::Create({
+            .Name = "Outer",
+            .Sequence = Sequence::Create("Still", Mesh->GetSkeleton(), 0.2f, {}),
+            .BlendIn = 0,
+            .BlendOut = 0
+        });
+        ASSERT_TRUE(inner);
+        ASSERT_TRUE(outer);
+
+        for (const auto& animation : {large, partitioned})
+        {
+            ASSERT_TRUE(animation->SetRootMotionEnabled(true));
+            auto* layer = animation->GetLayer("Locomotion");
+            ASSERT_TRUE(layer);
+            if (useMontage)
+                ASSERT_TRUE(layer->GetPlayer().PlayMontage(inner));
+            else
+                ASSERT_TRUE(layer->GetPlayer().Play(MakeNode(MakeClip(3)), 1.0f));
+            ASSERT_TRUE(animation->GetBaseLayer().GetPlayer().PlayMontage(outer));
+        }
+
+        ASSERT_TRUE(large->Update(0.4f));
+        ASSERT_TRUE(partitioned->Update(0.2f));
+        const auto first = partitioned->GetRootMotionDelta();
+        ASSERT_TRUE(partitioned->Update(0.2f));
+        const auto combined = first * partitioned->GetRootMotionDelta();
+        ExpectNear(large->GetRootMotionDelta(), combined);
+        const auto expectedDistance = useMontage ? 0.4f : 0.32f;
+        EXPECT_NEAR(large->GetRootMotionDelta().Translation.x, expectedDistance, 1e-5f);
+    }
+}
+
+TEST_F(RootMotionTest, AverageFadeWeightDependsOnFramePartitionForChangingRootVelocity)
+{
+    const auto target = Sequence::Create("DelayedMotion", Mesh->GetSkeleton(), 1, {{
+        .BoneIndex = 0,
+        .Translations = {{0, {0, 0, 0}}, {0.5f, {0, 0, 0}}, {1, {1, 0, 0}}},
+        .Rotations = {
+            {0, {1, 0, 0, 0}},
+            {0.5f, {1, 0, 0, 0}},
+            {1, glm::angleAxis(glm::radians(90.0f), glm::vec3(0, 1, 0))}
+        }
+    }});
+    ASSERT_TRUE(target);
+    const auto large = Animation::Create(Mesh->GetSkeleton(), Mesh->GetData().ReferencePose);
+    const auto partitioned = Animation::Create(
+        Mesh->GetSkeleton(),
+        Mesh->GetData().ReferencePose
+    );
+    ASSERT_TRUE(large);
+    ASSERT_TRUE(partitioned);
+    for (const auto& animation : {large, partitioned})
+    {
+        ASSERT_TRUE(animation->SetRootMotionEnabled(true));
+        ASSERT_TRUE(animation->Play(MakeNode(MakeClip(0)), false));
+        ASSERT_TRUE(animation->Play(MakeNode(target), 1.0f, false));
+    }
+
+    ASSERT_TRUE(large->Update(1));
+    ASSERT_TRUE(partitioned->Update(0.5f));
+    const auto first = partitioned->GetRootMotionDelta();
+    ASSERT_TRUE(partitioned->Update(0.5f));
+    const auto combined = first * partitioned->GetRootMotionDelta();
+
+    // Characterize the current approximation; average weight does not integrate velocity.
+    EXPECT_NEAR(large->GetRootMotionDelta().Translation.x, 0.5f, 1e-5f);
+    EXPECT_NEAR(combined.Translation.x, 0.75f, 1e-5f);
+    EXPECT_NEAR(glm::degrees(glm::angle(large->GetRootMotionDelta().Rotation)), 45, 1e-4f);
+    EXPECT_NEAR(glm::degrees(glm::angle(combined.Rotation)), 67.5f, 1e-4f);
+}
+
+TEST_F(RootMotionTest, LayerSubintervalClipsMontageAndKeepsTheContinuingPlaybackOffset)
+{
+    const auto animation = Animation::Create(
+        Mesh->GetSkeleton(),
+        Mesh->GetData().ReferencePose
+    );
+    ASSERT_TRUE(animation);
+    ASSERT_TRUE(animation->Play(MakeNode(MakeClip(2))));
+    const auto montage = AnimationMontage::Create({
+        .Name = "Action",
+        .Sequence = MakeClip(4),
+        .BlendIn = 0,
+        .BlendOut = 0,
+        .Sections = {{"Start", 0, "End"}, {"Skipped", 0.25f}, {"End", 0.75f}}
+    });
+    ASSERT_TRUE(montage);
+    auto& layer = animation->GetBaseLayer();
+    ASSERT_TRUE(layer.GetPlayer().PlayMontage(montage));
+    const auto& reference = Mesh->GetData().ReferencePose.LocalTransforms[0];
+    SRootMotionDelta output;
+
+    ASSERT_TRUE(layer.GetPlayer().ExtractRootMotion({reference, 0, 0.5f, 0.125f}, output));
+    EXPECT_NEAR(output.Translation.x, 1.75f, 1e-5f);
+    ASSERT_TRUE(layer.GetPlayer().ExtractRootMotion({reference, 0, 0.5f, 0.25f}, output));
+    EXPECT_NEAR(output.Translation.x, 1.5f, 1e-5f);
+    EXPECT_FLOAT_EQ(layer.GetPlayer().GetTime(), 0);
+    EXPECT_DOUBLE_EQ(layer.GetPlayer().GetMontageTime(), 0);
+
+    ASSERT_TRUE(layer.GetPlayer().ExtractRootMotion({reference, 0, 0.25f, 0.75f}, output));
+    EXPECT_NEAR(output.Translation.x, 0.5f, 1e-5f);
+    ASSERT_TRUE(layer.GetPlayer().ExtractRootMotion({reference, 0, 0, 0.25f}, output));
+    ExpectNear(output, {});
+
+    SAnimationPlayerEvaluation invalidEvaluation;
+    invalidEvaluation.Montage.ActiveDuration = 0.25;
+    invalidEvaluation.Montage.Intervals.push_back({{}, 0.25, 0.1});
+    output.Translation.x = 7;
+    EXPECT_FALSE(layer.GetPlayer().ExtractRootMotion(
+        {reference, 0, 0.25f},
+        output,
+        invalidEvaluation
+    ));
+    EXPECT_FLOAT_EQ(output.Translation.x, 7);
+    EXPECT_FLOAT_EQ(layer.GetPlayer().GetTime(), 0);
+    EXPECT_DOUBLE_EQ(layer.GetPlayer().GetMontageTime(), 0);
+
+    layer.GetPlayer().Pause();
+    ASSERT_TRUE(layer.GetPlayer().ExtractRootMotion({reference, 0, 0.5f, 0.25f}, output));
+    ExpectNear(output, {});
+}
+
+TEST_F(RootMotionTest, InvalidContextsPreserveOutputEvenForEmptyOrZeroLengthPlayback)
+{
+    const auto& reference = Mesh->GetData().ReferencePose.LocalTransforms[0];
+    auto invalidReference = reference;
+    invalidReference.Rotation = {0, 0, 0, 0};
+    const auto infinity = std::numeric_limits<float>::infinity();
+    const std::array intervals{
+        SRootMotionIntervalContext{reference, 0, -1, 0},
+        SRootMotionIntervalContext{reference, 0, 0, -1},
+        SRootMotionIntervalContext{reference, 0, infinity, 0},
+        SRootMotionIntervalContext{reference, 0, 0, infinity},
+        SRootMotionIntervalContext{invalidReference, 0, 0, 0}
+    };
+    AnimationPlayback playback;
+    AnimationTransition transition;
+    SRootMotionDelta output{glm::vec3(7, 0, 0)};
+    for (const auto& interval : intervals)
+    {
+        EXPECT_FALSE(interval.IsValid());
+        EXPECT_FALSE(playback.ExtractRootMotion(interval, output));
+        EXPECT_FLOAT_EQ(output.Translation.x, 7);
+        EXPECT_FALSE(transition.ExtractRootMotion(playback, interval, output));
+        EXPECT_FLOAT_EQ(output.Translation.x, 7);
+    }
+
+    SAnimationNodeState state;
+    const SRootMotionIntervalContext interval{reference};
+    const SAnimationMotionContext context{state, interval, infinity};
+    EXPECT_FALSE(context.IsValid());
+    EXPECT_FALSE(RootMotion::Extract(context, output));
+    EXPECT_FLOAT_EQ(output.Translation.x, 7);
+
+    state.Duration = -1;
+    const SAnimationMotionContext invalidDuration{state, interval};
+    EXPECT_FALSE(invalidDuration.IsValid());
+    EXPECT_FALSE(RootMotion::Extract(invalidDuration, output));
+    EXPECT_FLOAT_EQ(output.Translation.x, 7);
 }
