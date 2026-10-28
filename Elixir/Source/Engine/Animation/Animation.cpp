@@ -78,7 +78,9 @@ namespace Elixir
     void Animation::Stop()
     {
         GetBaseLayer().GetPlayer().Stop();
+
         ClearLayers();
+        m_PoseModifiers.clear();
         m_Frame.NotifyEvents.clear();
         m_Frame.RootMotion = {};
 
@@ -308,7 +310,7 @@ namespace Elixir
             return false;
 
         SModelPose model;
-        if (!m_Skeleton->BuildModelPose(local, model))
+        if (!ApplyPoseModifiers(local, model))
             return false;
 
         GetBaseLayer() = candidate;
@@ -458,24 +460,29 @@ namespace Elixir
         return true;
     }
 
-    void Animation::QueueLayerNotifyEnds(AnimationLayer& layer)
-    {
-        layer.GetPlayer().CancelNotifies();
-        const auto& pending = layer.GetPlayer().GetPendingNotifyEnds();
-
-        m_PendingNotifyEnds.insert(
-            m_PendingNotifyEnds.end(),
-            pending.begin(),
-            pending.end()
-        );
-    }
-
     void Animation::ClearLayers()
     {
         for (size_t i = 1; i < m_Layers.size(); ++i)
             QueueLayerNotifyEnds(*m_Layers[i]);
 
         m_Layers.erase(m_Layers.begin() + 1, m_Layers.end());
+    }
+
+    bool Animation::SetPoseModifiers(const std::span<const Ref<const PoseModifier>> modifiers)
+    {
+        for (const auto& modifier : modifiers)
+        {
+            if (!modifier)
+            {
+                EE_CORE_ERROR("Animation pose modifiers must not be null.")
+                return false;
+            }
+        }
+
+        std::vector replacement(modifiers.begin(), modifiers.end());
+        m_PoseModifiers = std::move(replacement);
+
+        return true;
     }
 
     Animation::Animation(
@@ -533,7 +540,7 @@ namespace Elixir
                 return false;
         }
 
-        return m_Skeleton->BuildModelPose(local, model);
+        return ApplyPoseModifiers(local, model);
     }
 
     bool Animation::ApplyBaseLayer(const AnimationLayer& layer)
@@ -580,6 +587,53 @@ namespace Elixir
         pose.LocalTransforms[m_RootMotionBone].Rotation =
             reference.LocalTransforms[m_RootMotionBone].Rotation;
 
+        return true;
+    }
+
+    void Animation::QueueLayerNotifyEnds(AnimationLayer& layer)
+    {
+        layer.GetPlayer().CancelNotifies();
+        const auto& pending = layer.GetPlayer().GetPendingNotifyEnds();
+
+        m_PendingNotifyEnds.insert(
+            m_PendingNotifyEnds.end(),
+            pending.begin(),
+            pending.end()
+        );
+    }
+
+    bool Animation::ApplyPoseModifiers(SLocalPose& local, SModelPose& model) const
+    {
+        if (!m_Skeleton->BuildModelPose(local, model)) return false;
+        const SPoseModifierContext context{
+            .Rig = *m_Skeleton,
+            .RootMotionBone = m_RootMotionEnabled
+                ? std::optional<uint32_t>(m_RootMotionBone) : std::nullopt
+        };
+        for (const auto& modifier : m_PoseModifiers)
+        {
+            const auto lockedRoot = m_RootMotionEnabled
+                ? model.Matrices[m_RootMotionBone] : glm::mat4(1);
+            if (!modifier->Apply(context, local) ||
+                !m_Skeleton->BuildModelPose(local, model))
+                return false;
+            if (m_RootMotionEnabled)
+            {
+                for (int column = 0; column < 4; ++column)
+                {
+                    for (int row = 0; row < 4; ++row)
+                    {
+                        const auto delta = model.Matrices[m_RootMotionBone][column][row] -
+                            lockedRoot[column][row];
+                        if (std::abs(delta) > SBoneTransform::BoneTransformTolerance)
+                        {
+                            EE_CORE_ERROR("A pose modifier changed the extracted root frame.")
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
         return true;
     }
 }

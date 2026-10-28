@@ -246,7 +246,7 @@ Dissolve::Dissolve()
         .SetPosition({20, 50})
         .SetSize({1000, 30});
     for (const auto& [position, caption] : std::array{
-        std::pair{0.25f, "ROOT LOCKED"}, std::pair{0.75f, "ROOT MOTION + RECOIL"}
+        std::pair{0.25f, "ROOT LOCKED"}, std::pair{0.75f, "ROOT MOTION + IK"}
     })
     {
         const auto label = CreateRef<GUI::TextBlock>(caption);
@@ -258,7 +258,7 @@ Dissolve::Dissolve()
             .SetSize({260, 35});
     }
     const auto layerInstructions = CreateRef<GUI::TextBlock>(
-        "J: recovery | K: start/chain combo | L: action on/off | B: dodge montage | V: reset"
+        "J: recovery | K: start/chain combo | L: action on/off | B: dodge | V: reset | G: left arm IK"
     );
     layerInstructions->SetFontSize(18.0f);
     panel->AddChild(layerInstructions)
@@ -341,6 +341,16 @@ void Dissolve::Prepare(const Timestep frameTime)
     if (resetMotion && !m_ResetMotionKeyPressed)
         m_ResetMotion.store(true, std::memory_order_relaxed);
     m_ResetMotionKeyPressed = resetMotion;
+
+    const auto ik = InputManager::IsKeyPressed(EE_KEY_G);
+    if (ik && !m_IKKeyPressed)
+    {
+        m_IKEnabled.store(
+            !m_IKEnabled.load(std::memory_order_relaxed),
+            std::memory_order_relaxed
+        );
+    }
+    m_IKKeyPressed = ik;
 
     const auto recoil = InputManager::IsKeyPressed(EE_KEY_U);
     if (recoil && !m_RecoilKeyPressed)
@@ -781,6 +791,17 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
         return;
     m_LayerWeight.store(nextWeight, std::memory_order_relaxed);
 
+    if (m_IKModifier)
+    {
+        const STwoBoneIKConstraint constraint{
+            .EndBoneIndex = m_IKEndBone,
+            .TargetPosition = m_IKTarget,
+            .PolePosition = {0.9f, 0.8f, -0.2f},
+            .Weight = m_IKEnabled.load(std::memory_order_relaxed) ? 1.0f : 0.0f
+        };
+        if (!m_IKModifier->SetConstraints(std::span(&constraint, 1))) return;
+    }
+
     if (!m_Animation->GetParameters().SetFloat("Forward", forward) ||
         !m_Animation->GetParameters().SetFloat("Strafe", nextStrafe) ||
         !m_ComparisonAnimation->GetParameters().SetFloat("Forward", forward) ||
@@ -911,6 +932,21 @@ void Dissolve::InitializeSocketCharacter()
 
 void Dissolve::InitializeSocketAttachment()
 {
+    const auto wrist = mesh->GetSkeleton()->FindBone("wrist.l");
+    if (wrist < 0)
+    {
+        EE_CORE_ERROR("Two-bone IK demonstration requires the left wrist.")
+        return;
+    }
+    m_IKEndBone = uint32_t(wrist);
+    if (m_Animation)
+    {
+        const auto modifier = TwoBoneIK::Create(mesh->GetSkeleton());
+        if (!modifier) return;
+        const std::array<Ref<const PoseModifier>, 1> modifiers{modifier};
+        if (!m_Animation->SetPoseModifiers(modifiers)) return;
+        m_IKModifier = modifier;
+    }
     SStaticMeshData data;
     data.Name = "SocketBaton";
     const std::array<glm::vec3, 8> corners = {{
@@ -997,6 +1033,12 @@ void Dissolve::DrawGeometry()
                 m_SkeletalMeshRenderer->Render(instance, animation->GetModelPose(), transform * movement);
             else
                 m_SkeletalMeshRenderer->Render(instance, transform * movement);
+            if (m_AttachmentRenderer && &instance == m_MeshInstance.get())
+            {
+                const auto target = glm::translate(glm::mat4(1), m_IKTarget) *
+                    glm::scale(glm::mat4(1), glm::vec3(1.8f, 0.15f, 1.8f));
+                m_AttachmentRenderer->Render(m_AttachmentMesh, transform * movement * target);
+            }
             if (m_AttachmentRenderer)
             {
                 const auto& pose = animation ? animation->GetModelPose()

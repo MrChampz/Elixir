@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Animation/Pose.h>
+#include <Engine/Animation/PoseModifier.h>
 #include <Engine/Animation/Skeleton.h>
 #include <Engine/Animation/BoneMask.h>
 #include <Engine/Animation/AnimationLayer.h>
@@ -82,7 +83,11 @@ namespace Elixir
             bool looping = true
         );
 
-        /** @brief Stop the base, remove nonbase layers, and restore the reference pose. */
+        /**
+         * @brief Stop playback and restore the reference pose.
+         *
+         * Remove nonbase layers and detach modifiers without changing their configuration.
+         */
         void Stop();
 
         /** @brief Pause playback while preserving the current pose and time. */
@@ -290,6 +295,24 @@ namespace Elixir
         /** @brief Remove all nonbase layers; the next Update rebuilds the base pose. */
         void ClearLayers();
 
+        /**
+         * @brief Retain ordered corrections applied before publishing each candidate pose.
+         *
+         * Changes take effect on the next evaluation, including paused Update(0), Seek,
+         * Play, and SetLocalPose. A failed correction preserves the previous frame and clocks.
+         * Stop detaches modifiers but does not modify their externally owned configuration.
+         *
+         * @param modifiers Corrections in execution order; empty removes all corrections.
+         * @return False for a null modifier; retain the previous list on failure.
+         */
+        bool SetPoseModifiers(std::span<const Ref<const PoseModifier>> modifiers);
+
+        /** @brief Inspect modifiers retained until the next replacement or Stop. */
+        std::span<const Ref<const PoseModifier>> GetPoseModifiers() const
+        {
+            return m_PoseModifiers;
+        }
+
         Animation(const Animation& other) = delete;
         Animation& operator=(const Animation& other) = delete;
 
@@ -336,6 +359,14 @@ namespace Elixir
          */
         void QueueLayerNotifyEnds(AnimationLayer& layer);
 
+        /**
+         * @brief Validate pose corrections and preserve the extracted movement frame.
+         * @param local Candidate transforms modified by each modifier in order.
+         * @param model Receives model matrices rebuilt after each successful correction.
+         */
+        bool ApplyPoseModifiers(SLocalPose& local, SModelPose& model) const;
+
+        std::vector<Ref<const PoseModifier>> m_PoseModifiers;
         Ref<AnimationParameters> m_Parameters = CreateRef<AnimationParameters>();
 
         const Ref<const Skeleton> m_Skeleton;

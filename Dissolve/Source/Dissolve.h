@@ -58,6 +58,7 @@ class Dissolve final : public Elixir::Application
     Ref<SkeletalMeshInstance> m_ComparisonInstance;
     Ref<Animation> m_Animation;
     Ref<Animation> m_ComparisonAnimation;
+    Ref<TwoBoneIK> m_IKModifier;
 
     Ref<const AnimationGraph> m_AnimationGraph;
     Ref<const BlendSpace> m_LocomotionSpace;
@@ -86,6 +87,11 @@ class Dissolve final : public Elixir::Application
     bool m_PunchKeyPressed = false;
     bool m_LayerKeyPressed = false;
 
+    /** Left-arm IK settings consumed by animation updates. */
+    std::atomic<bool> m_IKEnabled = true;
+    bool m_IKKeyPressed = false;
+    uint32_t m_IKEndBone = UINT32_MAX;
+    const glm::vec3 m_IKTarget{0.5f, 1.05f, -0.25f};
     /** Recoil controls published to the rendering thread; strength stays in [0, 1]. */
     std::atomic<bool> m_RecoilEnabled = true;
     std::atomic<float> m_RecoilStrength = 1.0f;
