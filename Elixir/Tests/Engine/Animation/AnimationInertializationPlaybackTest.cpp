@@ -71,7 +71,11 @@ TEST_F(AnimationInertializationTest, BlendSpaceDestinationUsesCurrentCoordinates
     ASSERT_TRUE(instance.Play(MakeNode(Moving)));
     ASSERT_TRUE(instance.Update(0.1f));
     ASSERT_TRUE(instance.GetBaseLayer().GetPlayer().Play(
-        MakeNode(space), {0.5f}, 0.5f, false, Inertialization
+        MakeNode(space),
+        {0.5f},
+        0.5f,
+        false,
+        Inertialization
     ));
     ASSERT_TRUE(instance.RefreshPose());
     ASSERT_TRUE(instance.Update(0.5f));
@@ -124,7 +128,10 @@ TEST_F(AnimationInertializationTest, InvalidModesAndDurationsPreserveAcceptedPla
     EXPECT_FALSE(instance.Play(MakeNode(Target), 1.0f, false, EAnimationTransitionMode(255)));
     EXPECT_FALSE(instance.Play(MakeNode(Target), -1.0f, false, Inertialization));
     EXPECT_FALSE(instance.Play(
-        MakeNode(Target), std::numeric_limits<float>::infinity(), false, Inertialization
+        MakeNode(Target),
+        std::numeric_limits<float>::infinity(),
+        false,
+        Inertialization
     ));
     EXPECT_EQ(instance.GetModelPose().Matrices, pose);
     EXPECT_FLOAT_EQ(instance.GetTime(), 0.1f);
@@ -180,7 +187,10 @@ TEST_F(
     const auto mask = BoneMask::Create("All", Mesh->GetSkeleton(), {1, 1});
     ASSERT_TRUE(instance.AddLayer("InvalidComposition", mask, 0.5f));
     const auto reflection = Sequence::Create(
-        "Reflection", Mesh->GetSkeleton(), 5, {{.BoneIndex = 0, .Scales = {{0, {-1, -1, -1}}}}}
+        "Reflection",
+        Mesh->GetSkeleton(),
+        5,
+        {{.BoneIndex = 0, .Scales = {{0, {-1, -1, -1}}}}}
     );
     ASSERT_TRUE(
         instance.GetLayer("InvalidComposition")->GetPlayer().Play(MakeNode(reflection))
@@ -198,7 +208,8 @@ TEST_F(
         control.GetLocalPose().LocalTransforms[0].Translation
     );
     EXPECT_FLOAT_EQ(
-        instance.GetCurveValues().GetValue("Value"), control.GetCurveValues().GetValue("Value")
+        instance.GetCurveValues().GetValue("Value"),
+        control.GetCurveValues().GetValue("Value")
     );
 }
 
@@ -228,14 +239,17 @@ TEST_F(AnimationInertializationTest, CrossFadeCanEnterAndLeaveAnInertialTransiti
     ASSERT_TRUE(instance.Update(0.0001f));
     EXPECT_NEAR(
         (instance.GetLocalPose().LocalTransforms[0].Translation.x - current) / 0.0001f,
-        velocity, 0.02f
+        velocity,
+        0.02f
     );
     const auto smoothed = instance.GetLocalPose().LocalTransforms[0].Translation.x;
     ASSERT_TRUE(instance.Play(MakeNode(Clip(0)), 0.5f));
     EXPECT_FLOAT_EQ(instance.GetLocalPose().LocalTransforms[0].Translation.x, smoothed);
     ASSERT_TRUE(instance.Update(0.25f));
     EXPECT_NEAR(
-        instance.GetLocalPose().LocalTransforms[0].Translation.x, smoothed * 0.5f, 1e-5f
+        instance.GetLocalPose().LocalTransforms[0].Translation.x,
+        smoothed * 0.5f,
+        1e-5f
     );
 }
 

@@ -18,10 +18,14 @@ namespace Elixir::Tests::Inertia
     Ref<Sequence> AnimationInertializationFixture::Clip(float start, float speed) const
     {
         return Sequence::Create(
-            "Clip", Mesh->GetSkeleton(), 5,
+            "Clip",
+            Mesh->GetSkeleton(),
+            5,
             {{.BoneIndex = 0,
               .Translations = {{0, {start, 0, 0}}, {5, {start + 5 * speed, 0, 0}}}}},
-            {}, {}, {{"Value", {{0, start}, {5, start + 5 * speed}}}}
+            {},
+            {},
+            {{"Value", {{0, start}, {5, start + 5 * speed}}}}
         );
     }
 

@@ -38,7 +38,8 @@ TEST_F(AnimationInertializationTest, PreservesPoseAndOutgoingVelocityAtDestinati
     EXPECT_FLOAT_EQ(instance.GetLocalPose().LocalTransforms[0].Translation.x, position);
     ASSERT_TRUE(instance.Update(0.0001f));
     EXPECT_NEAR(
-        (instance.GetLocalPose().LocalTransforms[0].Translation.x - position) / 0.0001f, 2,
+        (instance.GetLocalPose().LocalTransforms[0].Translation.x - position) / 0.0001f,
+        2,
         0.01f
     );
     EXPECT_NEAR(instance.GetCurveValues().GetValue("Value"), position + 0.0002f, 1e-5f);
@@ -77,7 +78,8 @@ TEST_F(AnimationInertializationTest, ConvergesToDestinationPoseCurvesAndVelocity
     EXPECT_NEAR(instance.GetLocalPose().LocalTransforms[0].Translation.x, 8.5f, 1e-5f);
     EXPECT_NEAR(instance.GetCurveValues().GetValue("Value"), 8.5f, 1e-5f);
     EXPECT_NEAR(
-        (instance.GetLocalPose().LocalTransforms[0].Translation.x - previous) / 0.0001f, -3,
+        (instance.GetLocalPose().LocalTransforms[0].Translation.x - previous) / 0.0001f,
+        -3,
         0.02f
     );
     EXPECT_FALSE(instance.GetBaseLayer().GetPlayer().IsTransitioning());
@@ -88,7 +90,9 @@ TEST_F(AnimationInertializationTest, ConvergesToDestinationPoseCurvesAndVelocity
 TEST_F(AnimationInertializationTest, PreservesNoncommutingAngularVelocityAndUnitRotations)
 {
     const auto source = Sequence::Create(
-        "Source", Mesh->GetSkeleton(), 5,
+        "Source",
+        Mesh->GetSkeleton(),
+        5,
         {{.BoneIndex = 0,
           .Rotations = {
               {0, glm::quat(1, 0, 0, 0)}, {5, glm::angleAxis(2.5f, glm::vec3(0, 0, 1))}
@@ -96,7 +100,9 @@ TEST_F(AnimationInertializationTest, PreservesNoncommutingAngularVelocityAndUnit
     );
     const auto targetStart = glm::angleAxis(1.4f, glm::normalize(glm::vec3(1, 2, 0)));
     const auto target = Sequence::Create(
-        "Target", Mesh->GetSkeleton(), 5,
+        "Target",
+        Mesh->GetSkeleton(),
+        5,
         {{.BoneIndex = 0,
           .Rotations = {
               {0, targetStart}, {5, glm::angleAxis(1.0f, glm::vec3(0, 1, 0)) * targetStart}
@@ -129,10 +135,16 @@ TEST_F(AnimationInertializationTest, QuaternionSignsAndHalfTurnsKeepShortestFini
 {
     const auto halfTurn = glm::angleAxis(glm::pi<float>(), glm::vec3(0, 1, 0));
     const auto first = Sequence::Create(
-        "First", Mesh->GetSkeleton(), 1, {{.BoneIndex = 0, .Rotations = {{0, halfTurn}}}}
+        "First",
+        Mesh->GetSkeleton(),
+        1,
+        {{.BoneIndex = 0, .Rotations = {{0, halfTurn}}}}
     );
     const auto second = Sequence::Create(
-        "Second", Mesh->GetSkeleton(), 1, {{.BoneIndex = 0, .Rotations = {{0, -halfTurn}}}}
+        "Second",
+        Mesh->GetSkeleton(),
+        1,
+        {{.BoneIndex = 0, .Rotations = {{0, -halfTurn}}}}
     );
     auto& instance = *Playback;
     ASSERT_TRUE(instance.Play(MakeNode(first)));
@@ -140,7 +152,8 @@ TEST_F(AnimationInertializationTest, QuaternionSignsAndHalfTurnsKeepShortestFini
     ASSERT_TRUE(instance.Play(MakeNode(second), 0.2f, true, Inertialization));
     ASSERT_TRUE(instance.Update(0.1f));
     EXPECT_NEAR(
-        std::abs(glm::dot(instance.GetLocalPose().LocalTransforms[0].Rotation, halfTurn)), 1,
+        std::abs(glm::dot(instance.GetLocalPose().LocalTransforms[0].Rotation, halfTurn)),
+        1,
         1e-5f
     );
     ASSERT_TRUE(instance.Play(MakeNode(Moving), 0.2f, true, Inertialization));
@@ -151,10 +164,16 @@ TEST_F(AnimationInertializationTest, QuaternionSignsAndHalfTurnsKeepShortestFini
 TEST_F(AnimationInertializationTest, SignedLogarithmicScalePreservesReflectionsAndAvoidsZero)
 {
     const auto source = Sequence::Create(
-        "Source", Mesh->GetSkeleton(), 1, {{.BoneIndex = 0, .Scales = {{0, {-2, 2, 2}}}}}
+        "Source",
+        Mesh->GetSkeleton(),
+        1,
+        {{.BoneIndex = 0, .Scales = {{0, {-2, 2, 2}}}}}
     );
     const auto target = Sequence::Create(
-        "Target", Mesh->GetSkeleton(), 1, {{.BoneIndex = 0, .Scales = {{0, {-8, 8, 8}}}}}
+        "Target",
+        Mesh->GetSkeleton(),
+        1,
+        {{.BoneIndex = 0, .Scales = {{0, {-8, 8, 8}}}}}
     );
     auto& instance = *Playback;
     ASSERT_TRUE(instance.Play(MakeNode(source)));
@@ -230,18 +249,22 @@ TEST_F(AnimationInertializationTest, FrameSubdivisionDoesNotChangeCapturedOffset
         ASSERT_TRUE(subdivided.Update(0.05f));
     EXPECT_NEAR(
         single.GetLocalPose().LocalTransforms[0].Translation.x,
-        subdivided.GetLocalPose().LocalTransforms[0].Translation.x, 1e-5f
+        subdivided.GetLocalPose().LocalTransforms[0].Translation.x,
+        1e-5f
     );
     EXPECT_NEAR(
         single.GetCurveValues().GetValue("Value"),
-        subdivided.GetCurveValues().GetValue("Value"), 1e-5f
+        subdivided.GetCurveValues().GetValue("Value"),
+        1e-5f
     );
 }
 
 TEST_F(AnimationInertializationTest, DestinationProbeStaysInsideShortCycles)
 {
     const auto shortClip = Sequence::Create(
-        "Short", Mesh->GetSkeleton(), 0.003f,
+        "Short",
+        Mesh->GetSkeleton(),
+        0.003f,
         {{.BoneIndex = 0, .Translations = {{0, {1, 0, 0}}, {0.003f, {1.3f, 0, 0}}}}}
     );
     ASSERT_TRUE(shortClip);
@@ -258,7 +281,10 @@ TEST_F(AnimationInertializationTest, OverflowRejectsFrameBeforeNarrowingDoubleOf
     ASSERT_TRUE(instance.Play(MakeNode(Clip(0, 1e30f)), false));
     ASSERT_TRUE(instance.Update(1));
     ASSERT_TRUE(instance.Play(
-        MakeNode(Clip(0)), std::numeric_limits<float>::max(), false, Inertialization
+        MakeNode(Clip(0)),
+        std::numeric_limits<float>::max(),
+        false,
+        Inertialization
     ));
     const auto pose = instance.GetModelPose().Matrices;
     EXPECT_FALSE(instance.Update(1e38f));

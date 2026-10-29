@@ -103,7 +103,8 @@ namespace Elixir
     {
         SAnimationSample targetSample, nextSample;
 
-        // Resolve entry transitions before measuring motion, and retain that state for playback.
+        // Resolve entry transitions before measuring motion.
+        // Retain the resolved state for destination playback.
         auto destination = playback;
 
         const auto initialPhase = destination.Advance(0, referencePose);
@@ -188,7 +189,8 @@ namespace Elixir
 
             bone.Rotation.Value = RotationVector(relative);
             bone.Rotation.Velocity = RotationVectorVelocity(
-                bone.Rotation.Value, sourceVelocity - relative * targetVelocity
+                bone.Rotation.Value,
+                sourceVelocity - relative * targetVelocity
             );
 
             bone.ScaleSign = glm::sign(target[i].Scale);
