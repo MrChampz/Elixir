@@ -1,10 +1,11 @@
 #include "epch.h"
 #include "ArcBallCameraController.h"
 
-#include "Engine/Event/WindowEvent.h"
-#include "Engine/Event/MouseEvent.h"
-#include "Engine/Input/InputCodes.h"
-#include "glm/gtx/compatibility.hpp"
+#include <Engine/Event/WindowEvent.h>
+#include <Engine/Event/MouseEvent.h>
+#include <Engine/Input/InputCodes.h>
+
+#include <glm/gtx/compatibility.hpp>
 
 namespace Elixir
 {
@@ -47,6 +48,18 @@ namespace Elixir
     void ArcBallCameraController::SetDistance(const float distance)
     {
         m_Distance = glm::clamp(distance, m_MinDistance, m_MaxDistance);
+        UpdateCameraFromOrbit();
+    }
+
+    void ArcBallCameraController::SetOrbitYaw(const float yawDegrees)
+    {
+        m_Yaw = yawDegrees;
+        UpdateCameraFromOrbit();
+    }
+
+    void ArcBallCameraController::SetOrbitPitch(const float pitchDegrees)
+    {
+        m_Pitch = glm::clamp(pitchDegrees, -89.0f, 89.0f);
         UpdateCameraFromOrbit();
     }
 

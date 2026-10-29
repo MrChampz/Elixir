@@ -1,14 +1,13 @@
 #include "epch.h"
 #include "ScrollBox.h"
 
+#include <Engine/Input/InputCodes.h>
 #include <Engine/GUI/Slot.h>
 
 namespace Elixir::GUI
 {
     ScrollBox::ScrollBox()
-      : m_ScrollBarStyle(GetDefaultStyles().GetWidgetStyle<SScrollBarStyle>())
-    {
-    }
+      : m_ScrollBarStyle(GetDefaultStyles().GetWidgetStyle<SScrollBarStyle>()) {}
 
     void ScrollBox::SetStyle(const SScrollBarStyle& style)
     {
@@ -250,66 +249,140 @@ namespace Elixir::GUI
         return glm::clamp(offset, glm::vec2(0.0f), maxOffset);
     }
 
+    ScrollBox::SScrollbarGeometry ScrollBox::GetScrollbarGeometry(const bool vertical) const
+    {
+        const int axis = vertical ? 1 : 0;
+        const float scrollbarThickness = m_ScrollBarStyle.Thickness;
+        const auto contentViewportSize = CrossAxisSpace(m_Geometry.Size, m_ScrollbarVisibility);
+        glm::vec2 trackPosition = m_Geometry.Position;
+        glm::vec2 trackSize;
+
+        if (vertical)
+        {
+            trackPosition.x += contentViewportSize.x;
+            trackSize = { scrollbarThickness, contentViewportSize.y };
+        }
+        else
+        {
+            trackPosition.y += contentViewportSize.y;
+            trackSize = { contentViewportSize.x, scrollbarThickness };
+        }
+
+        const float contentLength = m_ContentSize[axis];
+        const float viewportLength = contentViewportSize[axis];
+        const float contentOverflow = contentLength - viewportLength;
+
+        SScrollbarGeometry geometry{};
+        geometry.Track = { trackPosition, trackSize };
+        geometry.MaxScroll = std::max(0.0f, contentOverflow);
+
+        const float trackLength = trackSize[axis];
+        float thumbLength = trackLength;
+
+        if (contentLength > 0)
+        {
+            const float proportionalThumbLength = trackLength * viewportLength / contentLength;
+            const float minThumbLength = m_ScrollBarStyle.MinimumThumbLength;
+            const float thumbLengthMin = std::max(proportionalThumbLength, minThumbLength);
+            thumbLength = std::min(trackLength, thumbLengthMin);
+        }
+
+        geometry.Thumb = geometry.Track;
+        geometry.Thumb.Size[axis] = thumbLength;
+
+        if (geometry.MaxScroll > 0)
+        {
+            const float scrollProgress = m_ScrollOffset[axis] / geometry.MaxScroll;
+            const float thumbTravelLength = trackLength - thumbLength;
+            const float thumbOffset = scrollProgress * thumbTravelLength;
+            geometry.Thumb.Position[axis] += thumbOffset;
+        }
+
+        return geometry;
+    }
+
+    SInputReply ScrollBox::HandleMouseDown(const MouseButtonPressedEvent& event)
+    {
+        if (!IsEnabled() || !m_ShowScrollbar || event.GetMouseButton() != EE_MOUSE_BUTTON_LEFT)
+            return Widget::HandleMouseDown(event);
+
+        const glm::vec2 position{ event.GetX(), event.GetY() };
+
+        for (const int axis : { 1, 0 })
+        {
+            const auto visibility = axis == 1
+                ? m_ScrollbarVisibility.Vertical
+                : m_ScrollbarVisibility.Horizontal;
+
+            if (!visibility)
+                continue;
+
+            const auto geometry = GetScrollbarGeometry(axis == 1);
+            if (!geometry.Track.Contains(position)) continue;
+
+            m_DragAxis = axis;
+            m_DragGrabOffset = geometry.Thumb.Contains(position)
+                ? position[axis] - geometry.Thumb.Position[axis]
+                : geometry.Thumb.Size[axis] * 0.5f;
+            m_Pressed = true;
+
+            DragScrollbar(position);
+            MarkRenderDirty();
+
+            return SInputReply::HandledAndCaptured();
+        }
+
+        return Widget::HandleMouseDown(event);
+    }
+
+    void ScrollBox::DragScrollbar(const glm::vec2& position)
+    {
+        const auto geometry = GetScrollbarGeometry(m_DragAxis == 1);
+        const float travel = geometry.Track.Size[m_DragAxis] - geometry.Thumb.Size[m_DragAxis];
+        if (travel <= 0) return;
+
+        auto offset = m_ScrollOffset;
+        const auto delta = position[m_DragAxis] - geometry.Track.Position[m_DragAxis];
+        const auto axisOffset = delta - m_DragGrabOffset;
+
+        offset[m_DragAxis] = std::clamp(axisOffset / travel, 0.0f, 1.0f);
+        offset[m_DragAxis] *= geometry.MaxScroll;
+
+        SetScrollOffset(offset);
+    }
+
+    SInputReply ScrollBox::HandleMouseMove(const MouseMovedEvent& event)
+    {
+        if (m_DragAxis < 0) return Widget::HandleMouseMove(event);
+
+        if (IsEnabled() && m_ShowScrollbar)
+            DragScrollbar({event.GetX(), event.GetY()});
+
+        return SInputReply::Handled();
+    }
+
+    SInputReply ScrollBox::HandleMouseUp(const MouseButtonReleasedEvent& event)
+    {
+        if (m_DragAxis < 0 || event.GetMouseButton() != EE_MOUSE_BUTTON_LEFT)
+            return Widget::HandleMouseUp(event);
+
+        m_DragAxis = -1;
+        m_Pressed = false;
+        MarkRenderDirty();
+
+        return SInputReply::Handled();
+    }
+
     void ScrollBox::AddScrollbar(
         RenderBatch& batch,
         const int zOrder,
         const bool vertical,
-        const SScrollbarVisibility& visibility
+        const SScrollbarVisibility&
     ) const
     {
         const auto& appearance = m_ScrollBarStyle.Resolve(GetInteractionState());
-        const float thickness = m_ScrollBarStyle.Thickness;
-        const glm::vec2 contentViewport = CrossAxisSpace(m_Geometry.Size, visibility);
-
-        if (vertical)
-        {
-            const SRect track = {
-                { m_Geometry.Position.x + contentViewport.x, m_Geometry.Position.y },
-                { thickness, contentViewport.y }
-            };
-
-            const float maxScroll = m_ContentSize.y - contentViewport.y;
-            const float thumbHeight = std::min(
-                track.Size.y,
-                std::max(
-                    track.Size.y * (contentViewport.y / m_ContentSize.y),
-                    m_ScrollBarStyle.MinimumThumbLength
-                )
-            );
-            const float scrollRatio = maxScroll > 0.0f ? m_ScrollOffset.y / maxScroll : 0.0f;
-
-            const SRect thumb = {
-                { track.Position.x, track.Position.y + scrollRatio * (track.Size.y - thumbHeight) },
-                { thickness, thumbHeight }
-            };
-
-            batch.AddBrush(appearance.Track, track, zOrder);
-            batch.AddBrush(appearance.Thumb, thumb, zOrder + 1);
-        }
-        else
-        {
-            const SRect track = {
-                { m_Geometry.Position.x, m_Geometry.Position.y + contentViewport.y },
-                { contentViewport.x, thickness }
-            };
-
-            const float maxScroll = m_ContentSize.x - contentViewport.x;
-            const float thumbWidth = std::min(
-                track.Size.x,
-                std::max(
-                    track.Size.x * (contentViewport.x / m_ContentSize.x),
-                    m_ScrollBarStyle.MinimumThumbLength
-                )
-            );
-            const float scrollRatio = maxScroll > 0.0f ? m_ScrollOffset.x / maxScroll : 0.0f;
-
-            const SRect thumb = {
-                { track.Position.x + scrollRatio * (track.Size.x - thumbWidth), track.Position.y },
-                { thumbWidth, thickness }
-            };
-
-            batch.AddBrush(appearance.Track, track, zOrder);
-            batch.AddBrush(appearance.Thumb, thumb, zOrder + 1);
-        }
+        const auto geometry = GetScrollbarGeometry(vertical);
+        batch.AddBrush(appearance.Track, geometry.Track, zOrder);
+        batch.AddBrush(appearance.Thumb, geometry.Thumb, zOrder + 1);
     }
 }

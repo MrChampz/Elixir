@@ -8,11 +8,11 @@ namespace Elixir::Vulkan
 {
     using namespace Elixir;
 
-    class VulkanTextureSet;
+    class VulkanImageSet;
 
     class ELIXIR_API VulkanShader final : public Shader
     {
-        friend class VulkanTextureSet;
+        friend class VulkanImageSet;
       public:
         VulkanShader(const GraphicsContext* context, SShaderCreateInfo&& info);
         ~VulkanShader() override;
@@ -37,7 +37,10 @@ namespace Elixir::Vulkan
 
         void BindImage(const std::string& name, const Ref<Image>& image) override;
         void BindTexture(const std::string& name, const Ref<Texture>& texture) override;
-        void BindTextureSet(const std::string& name, const Ref<TextureSet>& set) override;
+
+        /** @brief Binds an image set to a named shader resource. */
+        void BindImageSet(const std::string& name, const Ref<ImageSet>& set) override;
+
         void BindSampler(const std::string& name, const Ref<Sampler>& sampler) override;
 
         /**
@@ -59,6 +62,13 @@ namespace Elixir::Vulkan
         const std::vector<VkDescriptorSetLayout>& GetDescriptorSetLayouts() const { return m_DescriptorSetLayouts; }
         std::vector<VkDescriptorSet> GetDescriptorSets() const;
         const VkPipelineLayout& GetPipelineLayout() const { return m_PipelineLayout; }
+
+        /**
+         * @brief Returns whether descriptor layouts, descriptor sets, and the pipeline
+         * layout were created.
+         */
+        bool IsValid() const { return m_Valid; }
+
         std::vector<VkPushConstantRange> GetPushConstantRanges() const;
 
       protected:
@@ -121,11 +131,13 @@ namespace Elixir::Vulkan
             DescriptorValue
         >;
 
+        bool m_Valid = true;
+
         DescriptorSetState m_DescriptorSets;
         std::vector<VkDescriptorSetLayout> m_DescriptorSetLayouts;
         std::optional<uint32_t> m_BindlessSetIndex;
 
-        VkPipelineLayout m_PipelineLayout;
+        VkPipelineLayout m_PipelineLayout = VK_NULL_HANDLE;
 
         mutable std::unordered_map<SShaderBinding, std::vector<VkDescriptorImageInfo>> m_ImageInfoCache;
         mutable std::unordered_map<SShaderBinding, VkDescriptorBufferInfo> m_BufferInfoCache;

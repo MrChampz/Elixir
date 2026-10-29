@@ -19,9 +19,13 @@ namespace Elixir::Materials::Rendering
         if (m_Data.size() >= m_Capacity)
             return std::nullopt;
 
+        auto data = BuildData(material);
+        if (!data) return std::nullopt;
+
         const auto index = (uint32_t)m_Data.size();
-        m_Data.push_back(BuildData(material));
+        m_Data.push_back(std::move(*data));
         m_Indices.emplace(&material, index);
+
         return index;
     }
 
@@ -34,7 +38,9 @@ namespace Elixir::Materials::Rendering
         return found->second;
     }
 
-    SMaterialFrameData FrameTable::BuildData(const MaterialRenderProxy& material) const
+    std::optional<SMaterialFrameData> FrameTable::BuildData(
+        const MaterialRenderProxy& material
+    ) const
     {
         SMaterialFrameData data{};
         std::ranges::fill(data.TextureIndices, m_FallbackTextureIndex);
@@ -52,7 +58,14 @@ namespace Elixir::Materials::Rendering
         for (size_t slot = 0; slot < textureCount; ++slot)
         {
             if (textures[slot])
-                data.TextureIndices[slot] = m_TextureIndexResolver(textures[slot]);
+            {
+                const auto index = m_TextureIndexResolver(textures[slot]);
+
+                if (!index)
+                    return std::nullopt;
+
+                data.TextureIndices[slot] = *index;
+            }
         }
 
         return data;

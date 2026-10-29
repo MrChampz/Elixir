@@ -5,6 +5,7 @@
 #include <utility>
 
 #include <Engine/Aether/Rendering/FrameSubmission.h>
+#include <Engine/Aether/Manager.h>
 #include <Engine/Aether/Simulation/Simulator.h>
 #include <Engine/Aether/Core/Operation.h>
 
@@ -46,4 +47,46 @@ TEST(SimulatorTest, MetricsContainOnlySimulationResults)
     EXPECT_EQ(metrics.SubmissionSerial, 12u);
     EXPECT_EQ(metrics.SubmittedSystemInstanceCount, 3u);
     EXPECT_EQ(metrics.SimulationBatchCount, 2u);
+}
+
+namespace
+{
+    template <typename T>
+    concept HasReplay = requires(T& manager, const Camera& camera, const Ref<Image>& target)
+    {
+        manager.Replay(camera, target, 1.0f);
+    };
+
+    template <typename T>
+    concept HasSimulatorReplay = requires(T& simulator, const FrameSubmission& submission,
+        const Ref<CommandBuffer>& cmd)
+    {
+        simulator.Replay(submission, cmd, 1.0f);
+    };
+
+    template <typename T>
+    concept HasPublicRenderSteps = requires(T& manager, const Camera& camera, const Ref<Image>& target)
+    {
+        manager.RenderSteps(camera, target, std::span<const float>{}, 0.0f);
+    };
+
+    class ExtendedManager final : public Aether::Manager
+    {
+    public:
+        using Manager::RenderSteps;
+    };
+}
+
+static_assert(!std::is_final_v<Aether::Manager>);
+static_assert(std::has_virtual_destructor_v<Aether::Manager>);
+static_assert(!HasReplay<Aether::Manager>);
+static_assert(!HasSimulatorReplay<Simulator>);
+static_assert(!HasPublicRenderSteps<Aether::Manager>);
+static_assert(HasPublicRenderSteps<ExtendedManager>);
+
+TEST(ManagerTest, ProtectedSimulationExtensionLinksOutsideTheEngine)
+{
+    // Referencing the protected method checks its DLL export when tests link on Windows.
+    const auto renderSteps = &ExtendedManager::RenderSteps;
+    EXPECT_NE(renderSteps, nullptr);
 }

@@ -51,26 +51,22 @@ namespace Elixir
         return nullptr;
     }
 
-    Ref<TextureSet> Shader::GetTextureSet(const std::string& name) const
+    Ref<ImageSet> Shader::GetImageSet(const std::string& name) const
     {
         if (const auto binding = GetShaderBinding(name))
-        {
-            return GetTextureSet(*binding);
-        }
+            return GetImageSet(*binding);
 
-        EE_CORE_ERROR("No texture set binding named \"{0}\" found in shader...", name)
+        EE_CORE_ERROR("No image set binding named \"{0}\" found in shader...", name)
         return nullptr;
     }
 
-    Ref<TextureSet> Shader::GetTextureSet(SShaderBinding binding) const
+    Ref<ImageSet> Shader::GetImageSet(SShaderBinding binding) const
     {
-        if (m_TextureSets.contains(binding))
-        {
-            return m_TextureSets.at(binding);
-        }
+        if (m_ImageSets.contains(binding))
+            return m_ImageSets.at(binding);
 
         EE_CORE_ERROR(
-            "No texture set for (set \"{0}\", binding \"{1}\") in shader...", binding.Set,
+            "No image set for (set \"{0}\", binding \"{1}\") in shader...", binding.Set,
             binding.Binding
         )
         return nullptr;
@@ -111,7 +107,10 @@ namespace Elixir
         switch (context->GetAPI())
         {
             case EGraphicsAPI::Vulkan:
-                return CreateRef<Vulkan::VulkanShader>(context, std::move(info));
+            {
+                const auto shader = CreateRef<Vulkan::VulkanShader>(context, std::move(info));
+                return shader->IsValid() ? shader : nullptr;
+            }
             default:
                 EE_CORE_ASSERT(false, "Unknown GraphicsAPI!")
                 return nullptr;

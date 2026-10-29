@@ -21,6 +21,10 @@ struct MaterialPushConstants
 {
     float4x4    WorldTransform;
     uint        MaterialIndex;
+    float3      Padding;
+    float4      VolumeToLocal0;
+    float4      VolumeToLocal1;
+    float4      VolumeToLocal2;
 };
 
 [[vk::push_constant]]

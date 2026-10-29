@@ -12,10 +12,11 @@ namespace Elixir::GUI
         const ShaderLoader* shaderLoader,
         const float dpiScale,
         const Ref<UniformBuffer>& perFrameCB
-    ) : m_DPIScale(dpiScale), m_PerFrameConstantBuffer(perFrameCB), m_GraphicsContext(context)
+    ) : m_GeometrySlots(*context), m_DPIScale(dpiScale), m_PerFrameConstantBuffer(perFrameCB), m_GraphicsContext(context)
     {
         EE_CORE_TRACE("Initializing GUI: TextRenderPass.")
         InitRenderPass(shaderLoader);
+        if (!m_Shader || !m_Pipeline) return;
         BindShaderParameters();
     }
 
@@ -26,15 +27,13 @@ namespace Elixir::GUI
 
     void TextRenderPass::EndFrame()
     {
-        if (!m_Quads.empty())
-        {
-            EnsureQuadBufferCapacity(m_Quads.size());
-            m_QuadBuffer->UpdateData(m_Quads.data(),  m_Quads.size() * sizeof(SQuad));
-        }
+        m_GeometrySlots.MarkChanged();
     }
 
     uint32_t TextRenderPass::AppendRange(const std::span<const SDrawCommand> commands)
     {
+        if (!m_Shader || !m_Pipeline) return 0;
+
         const auto firstInstance = (uint32_t)m_Quads.size();
 
         for (const auto& drawCmd : commands)
@@ -45,8 +44,31 @@ namespace Elixir::GUI
 
     void TextRenderPass::Bind(const Ref<CommandBuffer>& cmd)
     {
+        m_CanRender = false;
+        if (!m_Shader || !m_Pipeline) return;
         m_Pipeline->Bind(cmd);
-        m_QuadBuffer->Bind(cmd);
+        auto* geometry = m_GeometrySlots.UpdateCurrent([this](SGeometryBuffer& slot)
+        {
+            if (m_Quads.empty()) return true;
+            if (!slot.Buffer || m_Quads.size() > slot.Capacity)
+            {
+                const size_t capacity = GrowBufferCapacity(slot.Capacity, m_Quads.size());
+                auto buffer = DynamicVertexBuffer::Create(m_GraphicsContext, capacity * sizeof(SQuad));
+                if (!buffer || !buffer->IsValid())
+                {
+                    EE_CORE_ERROR("Failed to allocate GUI geometry buffer.")
+                    return false;
+                }
+                buffer->SetLayout(m_BufferLayout);
+                // The current slot's fence has completed; its previous buffer can be released.
+                slot.Buffer = std::move(buffer);
+                slot.Capacity = capacity;
+            }
+            slot.Buffer->UpdateData(m_Quads.data(), m_Quads.size() * sizeof(SQuad));
+            return true;
+        });
+        m_CanRender = geometry && geometry->Buffer;
+        if (m_CanRender) geometry->Buffer->Bind(cmd);
     }
 
     void TextRenderPass::Render(
@@ -55,6 +77,7 @@ namespace Elixir::GUI
         const uint32_t instanceCount
     )
     {
+        if (!m_CanRender) return;
         cmd->Draw(6, instanceCount, 0, firstInstance);
     }
 
@@ -83,19 +106,26 @@ namespace Elixir::GUI
         const BufferLayout bufferLayout({
             {
                 {
-                    { EDataType::Float2, "Position"    },
-                    { EDataType::Float2, "Size"        },
-                    { EDataType::Float4, "TexCoords"   },
-                    { EDataType::Float4, "Color"       },
-                    { EDataType::UInt, "AtlasIndex"  },
-                    { EDataType::Float2, "UnitRange"   },
-                    { EDataType::Float4, "ScissorRect" },
+                    { EDataType::Float2, "Position"        },
+                    { EDataType::Float2, "Size"             },
+                    { EDataType::Float4, "TexCoords"        },
+                    { EDataType::Float4, "Color"            },
+                    { EDataType::UInt,   "AtlasIndex"       },
+                    { EDataType::Float2, "UnitRange"        },
+                    { EDataType::Float4, "ClipRect"      },
+                    { EDataType::Float4, "RoundedClipRect"  },
+                    { EDataType::Float4, "ClipCornerRadius" },
                 },
                 EInputRate::Instance
             }
         });
 
         m_Shader = shaderLoader->LoadShader("./Shaders/", "Text");
+        if (!m_Shader)
+        {
+            EE_CORE_ERROR("Could not load the Text shader; disabling the GUI text pass.");
+            return;
+        }
 
         PipelineBuilder builder;
         builder.SetShader(m_Shader);
@@ -109,15 +139,13 @@ namespace Elixir::GUI
         m_Pipeline = builder.Build(m_GraphicsContext);
 
         m_Quads.reserve(MAX_CHARACTERS);
-        m_QuadBuffer = DynamicVertexBuffer::Create(m_GraphicsContext, MAX_CHARACTERS * sizeof(SQuad));
-        m_QuadBuffer->SetLayout(bufferLayout);
-        m_QuadCapacity = MAX_CHARACTERS;
+        m_BufferLayout = bufferLayout;
     }
 
     void TextRenderPass::BindShaderParameters() const
     {
         m_Shader->BindConstantBuffer("cbPerFrame", m_PerFrameConstantBuffer);
-        m_Shader->BindTextureSet("atlases", FontManager::GetAtlasesTextureSet());
+        m_Shader->BindImageSet("atlases", FontManager::GetAtlasesImageSet());
 
         const auto sampler = SamplerBuilder()
             .SetMagFilter(ESamplerFilter::Linear)
@@ -126,20 +154,6 @@ namespace Elixir::GUI
             .SetAddressModeV(ESamplerAddressMode::ClampToEdge)
             .Build(m_GraphicsContext);
         m_Shader->BindSampler("atlasSampler", sampler);
-    }
-
-    void TextRenderPass::EnsureQuadBufferCapacity(const size_t requiredCapacity)
-    {
-        if (requiredCapacity <= m_QuadCapacity)
-            return;
-
-        const size_t newCapacity = GrowBufferCapacity(m_QuadCapacity, requiredCapacity);
-        auto buffer = DynamicVertexBuffer::Create(m_GraphicsContext, newCapacity * sizeof(SQuad));
-        buffer->SetLayout(m_QuadBuffer->GetLayout());
-
-        m_RetiredQuadBuffers.push_back(std::move(m_QuadBuffer));
-        m_QuadBuffer = std::move(buffer);
-        m_QuadCapacity = newCapacity;
     }
 
     void TextRenderPass::BuildTextGeometry(const SDrawCommand& cmd)
@@ -220,9 +234,11 @@ namespace Elixir::GUI
             .Color = cmd.Color,
             .AtlasIndex = cmd.Font->GetAtlasHandle().Index,
             .UnitRange = cmd.Font->GetUnitRange(),
-            .ScissorRect = cmd.ScissorRect.IsValid()
-                ? cmd.ScissorRect * m_DPIScale
-                : cmd.ScissorRect
+            .ClipRect = cmd.ClipRect.IsValid()
+                ? cmd.ClipRect * m_DPIScale
+                : cmd.ClipRect,
+            .RoundedClipRect = cmd.RoundedClipRect * m_DPIScale,
+            .ClipCornerRadius = cmd.ClipCornerRadius * m_DPIScale,
         };
 
         m_Quads.push_back(quad);

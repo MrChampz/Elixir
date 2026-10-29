@@ -618,7 +618,7 @@ namespace Elixir
     {
         return {
             .Buffer = SBuffer(data, size),
-            .Usage = EBufferUsage::UniformBuffer,
+            .Usage = EBufferUsage::UniformBuffer | EBufferUsage::TransferDst,
             .AllocationInfo = {
                 .PreferredFlags = EMemoryProperty::HostVisible | EMemoryProperty::HostCoherent
             }
@@ -647,7 +647,8 @@ namespace Elixir
         const GraphicsContext* context,
         const size_t size,
         const void* data
-    ) : m_GraphicsContext(context), m_Size(size)
+    ) : m_Size(size),
+        m_GraphicsContext(context)
     {
         EE_PROFILE_ZONE_SCOPED()
 

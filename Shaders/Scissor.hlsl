@@ -1,6 +1,6 @@
 static const float4 INVALID_RECT = float4(-1, -1, -1, -1);
 
-bool IsScissorRectValid(float4 scissorRect)
+bool IsClipRectValid(float4 clipRect)
 {
-    return any(scissorRect != INVALID_RECT);
+    return any(clipRect != INVALID_RECT);
 }

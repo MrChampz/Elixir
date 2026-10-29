@@ -1,9 +1,15 @@
 #include <gtest/gtest.h>
 
 #include <Engine/Graphics/Texture.h>
+#include <Engine/GUI/Renderer/RenderBatch.h>
+#include <Engine/Graphics/ImageSet.h>
+#include <Engine/Materials/Rendering/Renderer.h>
+#include <Engine/Materials/Rendering/TextureRegistry.h>
 #include <Graphics/Vulkan/VulkanImage.h>
 #include <Graphics/Vulkan/VulkanBuffer.h>
 #include <Graphics/Vulkan/VulkanCommandBuffer.h>
+#include <Graphics/Vulkan/VulkanGraphicsContext.h>
+#include <Graphics/Vulkan/VulkanDescriptorPool.h>
 #include "VulkanTestContext.h"
 
 #include <array>
@@ -59,6 +65,34 @@ class VulkanImageTest : public testing::Test
 };
 
 GraphicsContext* VulkanImageTest::Context = nullptr;
+
+TEST_F(VulkanImageTest, MaterialRendererAcceptsIndependentMatchingAttachments)
+{
+    const auto color = Image::Create(Context, {
+        .Width = 96, .Height = 48, .Format = EImageFormat::R16G16B16A16_SFLOAT,
+        .Usage = EImageUsage::ColorAttachment | EImageUsage::Sampled,
+        .InitialLayout = EImageLayout::General,
+    });
+    const auto depth = Image::Create(Context, {
+        .Width = 96, .Height = 48, .Format = EImageFormat::D32_SFLOAT,
+        .Usage = EImageUsage::DepthStencilAttachment,
+        .InitialLayout = EImageLayout::DepthAttachment,
+    });
+    const auto mismatchedDepth = Image::Create(Context, {
+        .Width = 48, .Height = 48, .Format = EImageFormat::D32_SFLOAT,
+        .Usage = EImageUsage::DepthStencilAttachment,
+        .InitialLayout = EImageLayout::DepthAttachment,
+    });
+    ASSERT_TRUE(color && depth && mismatchedDepth);
+    Materials::Rendering::Renderer renderer(Context, 8, color);
+    EXPECT_TRUE(renderer.SetRenderTargets(color, depth));
+    EXPECT_FALSE(renderer.SetRenderTargets(color, mismatchedDepth));
+    EXPECT_FALSE(renderer.SetRenderTargets(color, color));
+    EXPECT_FALSE(renderer.SetRenderTargets(nullptr, depth));
+    EXPECT_TRUE(renderer.SetRenderTargets(color, depth));
+    // Publish the fallback texture as a frame would before releasing the renderer.
+    static_cast<VulkanGraphicsContext*>(Context)->GetBindlessDescriptorPool()->FlushDescriptors();
+}
 
 TEST_F(VulkanImageTest, VulkanImageCannotBeCopiedOrMoved)
 {
@@ -131,6 +165,187 @@ TEST_F(VulkanImageTest, TextureOwnsAnInitializedImageAndMetadata)
     EXPECT_EQ(ReadMip(image, 3), (std::vector<uint8_t>{128, 128, 128, 128}));
     texture.reset();
     EXPECT_TRUE(image->IsValid());
+}
+
+TEST_F(VulkanImageTest, GUICommandRetainsThePreviewImageDirectly)
+{
+    auto image = Image::Create(Context, {
+        .Width = 64, .Height = 32, .Type = EImageType::_2D,
+        .Format = EImageFormat::R16G16B16A16_SFLOAT,
+        .Usage = EImageUsage::Sampled | EImageUsage::ColorAttachment,
+        .InitialLayout = EImageLayout::General,
+    });
+    ASSERT_TRUE(image);
+    const auto handle = TryToGetVulkanImageHandle(image.get());
+    const std::weak_ptr<Image> retained = image;
+    GUI::RenderBatch batch;
+    batch.AddImage(image, {{12, 24}, {64, 32}}, {1, 1, 1, 1}, 3);
+    batch.Clip({{12, 24}, {64, 32}});
+    ASSERT_EQ(batch.GetCommands().size(), 1u);
+    const auto& command = batch.GetCommands().front();
+    EXPECT_EQ(command.Image, image);
+    EXPECT_EQ(command.TextureMapping, GUI::ETextureMapping::Stretch);
+    EXPECT_EQ(command.Geometry.Position, glm::vec2(12, 24));
+    EXPECT_EQ(command.RoundedClipRect.Size, glm::vec2(64, 32));
+    EXPECT_EQ(command.ZOrder, 3);
+    image.reset();
+    EXPECT_FALSE(retained.expired());
+    EXPECT_EQ(TryToGetVulkanImageHandle(command.Image.get()), handle);
+    batch.Clear();
+    EXPECT_TRUE(retained.expired());
+
+    batch.AddImage(nullptr, {}, {1, 1, 1, 1});
+    batch.AddImage(Image::Create(Context, EImageFormat::R8G8B8A8_UNORM, 4), {}, {1, 1, 1, 1});
+    batch.AddImage(Image::Create(Context, {
+        .Width = 8, .Height = 8, .Format = EImageFormat::D32_SFLOAT,
+        .Usage = EImageUsage::Sampled | EImageUsage::DepthStencilAttachment,
+        .InitialLayout = EImageLayout::DepthAttachment,
+    }), {}, {1, 1, 1, 1});
+    EXPECT_TRUE(batch.GetCommands().empty());
+}
+
+TEST_F(VulkanImageTest, TextureAssetsAndDirectImagesShareOneDescriptorRegistration)
+{
+    const auto texture = Texture2D::Create(Context, EImageFormat::R8G8B8A8_UNORM, 8, 8, nullptr);
+    ASSERT_TRUE(texture);
+    GUI::RenderBatch batch;
+    batch.AddTexture(texture, {{0, 0}, {32, 32}}, {2, 3, 4, 5}, {1, 1, 1, 1});
+    batch.AddIcon(texture, {{0, 0}, {16, 16}}, {1, 1, 1, 1});
+    ASSERT_EQ(batch.GetCommands().size(), 2u);
+    EXPECT_EQ(batch.GetCommands()[0].Image, texture->GetImage());
+    EXPECT_EQ(batch.GetCommands()[0].TextureMapping, GUI::ETextureMapping::NineSlice);
+    EXPECT_EQ(batch.GetCommands()[0].Border, glm::vec4(2, 3, 4, 5));
+    EXPECT_EQ(batch.GetCommands()[1].Image, texture->GetImage());
+    EXPECT_EQ(batch.GetCommands()[1].TextureMapping, GUI::ETextureMapping::Stretch);
+    const auto first = ImageSet::Create(Context);
+    const auto second = ImageSet::Create(Context);
+    const auto pool = static_cast<VulkanGraphicsContext*>(Context)->GetBindlessDescriptorPool();
+    const auto originalCount = pool->GetImageCount();
+    const auto textureHandle = first->AddTexture(texture);
+    ASSERT_TRUE(textureHandle.IsValid());
+    EXPECT_EQ(first->AddImage(texture->GetImage()), textureHandle);
+    EXPECT_EQ(first->GetImageCount(), 1u);
+    EXPECT_EQ(second->AddImage(texture->GetImage()), textureHandle);
+    EXPECT_EQ(pool->GetImageCount(), originalCount + 1);
+    first->RemoveImage(textureHandle);
+    EXPECT_EQ(pool->GetImage(textureHandle), texture->GetImage());
+    EXPECT_EQ(first->GetImageCount(), 0u);
+    first->RemoveImage(textureHandle); // A set cannot release another set's registration.
+    EXPECT_EQ(pool->GetImage(textureHandle), texture->GetImage());
+    second->Clear();
+    EXPECT_EQ(second->GetImageCount(), 0u);
+    EXPECT_FALSE(pool->GetImage(textureHandle));
+    EXPECT_EQ(pool->GetImageCount(), originalCount);
+    pool->FlushDescriptors(); // Removed images must not remain in pending descriptor writes.
+    EXPECT_FALSE(first->AddImage(nullptr).IsValid());
+    const auto attachmentOnly = Image::Create(Context, {
+        .Width = 8, .Height = 8, .Format = EImageFormat::R8G8B8A8_UNORM,
+        .Usage = EImageUsage::ColorAttachment,
+        .InitialLayout = EImageLayout::General,
+    });
+    ASSERT_TRUE(attachmentOnly && attachmentOnly->IsValid());
+    EXPECT_FALSE(first->AddImage(attachmentOnly).IsValid());
+    batch.Clear();
+    batch.AddImage(attachmentOnly, {}, {1, 1, 1, 1});
+    EXPECT_TRUE(batch.GetCommands().empty());
+}
+
+TEST_F(VulkanImageTest, MaterialBindingsRetainSharedImagesUntilTheirLastTextureIsUnused)
+{
+    class SharedImageTexture final : public Texture
+    {
+    public:
+        explicit SharedImageTexture(Ref<Image> image) : Texture(std::move(image), {}) {}
+    };
+
+    ASSERT_TRUE(Context->RunRenderTaskAndWait([&]
+    {
+        Materials::Rendering::TextureRegistry registry(Context);
+        const auto pool = static_cast<VulkanGraphicsContext*>(Context)->GetBindlessDescriptorPool();
+        const auto source = Texture2D::Create(Context, EImageFormat::R8G8B8A8_UNORM, 1, 1);
+        ASSERT_TRUE(source);
+        auto first = CreateRef<SharedImageTexture>(source->GetImage());
+        const auto second = CreateRef<SharedImageTexture>(source->GetImage());
+        EXPECT_NE(first->GetUUID(), second->GetUUID());
+        const auto fallback = registry.GetFallbackIndex();
+        ASSERT_NE(fallback, UINT32_MAX);
+
+        registry.BeginFrame(1);
+        EXPECT_EQ(registry.Resolve(first), fallback);
+        registry.EndFrame();
+        const auto handle = pool->GetImageHandle(source->GetImage());
+        ASSERT_TRUE(handle.IsValid());
+
+        // A new asset sharing an already published image must not wait another submission.
+        registry.BeginFrame(2);
+        EXPECT_EQ(registry.Resolve(second), handle.Index);
+        EXPECT_EQ(registry.Find(first), handle.Index);
+        registry.EndFrame();
+        EXPECT_EQ(pool->GetImage(handle), source->GetImage());
+        EXPECT_EQ(registry.GetImageSet()->GetImageCount(), 2u);
+
+        first.reset();
+        registry.BeginFrame(3);
+        EXPECT_EQ(registry.Resolve(second), handle.Index);
+        registry.EndFrame();
+        EXPECT_EQ(pool->GetImage(handle), source->GetImage());
+
+        registry.BeginFrame(4);
+        registry.EndFrame();
+        Context->WaitForSubmittedFrames();
+        EXPECT_FALSE(pool->GetImage(handle));
+        EXPECT_EQ(registry.GetImageSet()->GetImageCount(), 1u);
+
+        registry.BeginFrame(5);
+        EXPECT_EQ(registry.Resolve(second), fallback);
+        registry.EndFrame();
+        registry.BeginFrame(6);
+        const auto rebound = registry.Resolve(second);
+        ASSERT_TRUE(rebound);
+        EXPECT_NE(*rebound, fallback);
+        EXPECT_NE(*rebound, UINT32_MAX);
+        registry.EndFrame();
+        EXPECT_EQ(registry.GetImageSet()->GetImageCount(), 2u);
+    }));
+}
+
+TEST_F(VulkanImageTest, MaterialTextureRegistrationFailureIsReportedAcrossSubmissions)
+{
+    class MissingImageTexture final : public Texture
+    {
+    public:
+        MissingImageTexture() : Texture(nullptr, {}) {}
+    };
+
+    ASSERT_TRUE(Context->RunRenderTaskAndWait([&]
+    {
+        Materials::Rendering::TextureRegistry registry(Context);
+        const auto fallback = registry.GetFallbackIndex();
+        ASSERT_NE(fallback, UINT32_MAX);
+        const auto rejected = CreateRef<MissingImageTexture>();
+        const auto valid = Texture2D::Create(Context, EImageFormat::R8G8B8A8_UNORM, 1, 1);
+        ASSERT_TRUE(valid);
+
+        for (uint64_t submission = 1; submission <= 3; ++submission)
+        {
+            registry.BeginFrame(submission);
+            EXPECT_FALSE(registry.Resolve(rejected));
+            EXPECT_FALSE(registry.Resolve(rejected));
+            EXPECT_EQ(registry.Find(rejected), fallback);
+            EXPECT_EQ(registry.Resolve(nullptr), fallback);
+            const auto index = registry.Resolve(valid);
+            ASSERT_TRUE(index);
+            if (submission == 1)
+                EXPECT_EQ(*index, fallback);
+            else
+            {
+                EXPECT_NE(*index, fallback);
+                EXPECT_NE(*index, UINT32_MAX);
+            }
+            registry.EndFrame();
+        }
+        EXPECT_EQ(registry.GetImageSet()->GetImageCount(), 2u);
+    }));
 }
 
 TEST_F(VulkanImageTest, NormalMapMipsAreGeneratedByImageAndUploaded)

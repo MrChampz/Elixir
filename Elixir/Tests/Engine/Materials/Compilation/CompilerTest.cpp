@@ -50,13 +50,17 @@ TEST(CompilerTest, DoesNotAliasParticleUsageShadersToSurfaceShader)
     const auto& spriteShader = material.GetShader(EMaterialShaderVariant::ParticleSprite);
     const auto& ribbonShader = material.GetShader(EMaterialShaderVariant::ParticleRibbon);
     const auto& meshShader = material.GetShader(EMaterialShaderVariant::ParticleMesh);
+    const auto& strandShader = material.GetShader(EMaterialShaderVariant::ParticleStrand);
 
     EXPECT_EQ(&surfaceShader, &material.SurfaceShader);
     EXPECT_EQ(&spriteShader, &material.ParticleSpriteShader);
     EXPECT_EQ(&ribbonShader, &material.ParticleRibbonShader);
     EXPECT_EQ(&meshShader, &material.ParticleMeshShader);
+    EXPECT_EQ(&strandShader, &material.ParticleStrandShader);
     EXPECT_FALSE(ribbonShader);
     EXPECT_FALSE(meshShader);
+    EXPECT_FALSE(strandShader);
     EXPECT_NE(&ribbonShader, &material.SurfaceShader);
     EXPECT_NE(&meshShader, &material.SurfaceShader);
+    EXPECT_NE(&strandShader, &material.SurfaceShader);
 }

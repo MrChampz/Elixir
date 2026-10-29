@@ -22,6 +22,17 @@ namespace Elixir::Aether
         SetMaterial(material->CreateInstance());
     }
 
+    bool Emitter::SetStrandSettings(const SStrandSettings& settings)
+    {
+        if (!settings.IsValid())
+        {
+            EE_CORE_ERROR("Invalid strand settings for emitter '{}'.", m_Name);
+            return false;
+        }
+        m_Strand = settings;
+        return true;
+    }
+
     void Emitter::SetBurst(const uint32_t count, const float intervalSeconds)
     {
         m_BurstCount = count;
@@ -34,7 +45,7 @@ namespace Elixir::Aether
         m_TriggerDelaySeconds = delaySeconds;
     }
 
-    SCompiledEmitter Emitter::Compile(
+    std::optional<SCompiledEmitter> Emitter::Compile(
         const ParameterStore& paramStore,
         const std::vector<SCompiledParameter>& params,
         SCompiledModuleData& program
@@ -43,6 +54,8 @@ namespace Elixir::Aether
         SCompiledEmitter emitter;
         emitter.Id = m_Id;
         emitter.RenderMode = m_RenderMode;
+        emitter.Strand = m_Strand;
+        emitter.KillOnLifetimeExpired = m_KillOnLifetimeExpired;
         emitter.SimulationSpace = m_SimulationSpace;
         emitter.MaxParticles = m_MaxParticles;
         emitter.GravityScale = paramStore.GetFloat("GravityScale", 1.0f);
@@ -88,13 +101,23 @@ namespace Elixir::Aether
 
         for (const auto& module : m_Modules)
         {
-            if (module->GetPhase() != EModulePhase::Update)
+            if (module->GetPhase() != EModulePhase::Update || module->GetTarget() != EModuleTarget::Particle)
                 continue;
 
             module->Compile(context);
         }
 
         emitter.UpdateOperationCount = (uint32_t)program.Operations.size() - emitter.UpdateOperationOffset;
+        emitter.StrandUpdateOperationOffset = uint32_t(program.Operations.size());
+        for (const auto& module : m_Modules)
+        {
+            if (module->GetPhase() == EModulePhase::Update && module->GetTarget() == EModuleTarget::StrandPoints)
+                module->Compile(context);
+        }
+        emitter.StrandUpdateOperationCount = uint32_t(program.Operations.size()) - emitter.StrandUpdateOperationOffset;
+
+        if (!context.IsValid())
+            return std::nullopt;
 
         return emitter;
     }

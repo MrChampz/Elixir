@@ -25,7 +25,7 @@ namespace Elixir::Aether::Effect
      *
      * @note The caller owns registration and later creation of a MaterialInstance.
      */
-    Ref<Material> CreateMaterial(
+    ELIXIR_API Ref<Material> CreateMaterial(
         std::string name,
         const SMaterialDescription& desc
     );

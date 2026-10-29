@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Engine/Graphics/Sampler.h>
-#include <Engine/Graphics/TextureSet.h>
+#include <Engine/Graphics/ImageSet.h>
 
 namespace Elixir::Materials::Rendering
 {
@@ -9,7 +9,8 @@ namespace Elixir::Materials::Rendering
      * @brief Manages bindless texture bindings used by material rendering.
      *
      * Newly added bindings use the fallback texture until descriptor updates become
-     * visible to a later submission.
+     * visible to a later submission. Texture assets sharing an image share one binding and
+     * retirement lifetime.
      */
     class ELIXIR_API TextureRegistry final
     {
@@ -35,14 +36,15 @@ namespace Elixir::Materials::Rendering
         void EndFrame();
 
         /**
-         * @brief Resolves a texture to an index in the material texture set.
+         * @brief Resolves a texture to an index in the material image set.
          *
          * A newly registered texture returns the fallback index until it is ready.
+         * Failed registrations return no value and can be retried by later calls.
          *
          * @param texture Texture to resolve.
-         * @return A usable texture index.
+         * @return A usable texture index, or no value if registration fails.
          */
-        uint32_t Resolve(const Ref<Texture>& texture);
+        std::optional<uint32_t> Resolve(const Ref<Texture>& texture);
 
         /**
          * @brief Finds the usable index for an already resolved texture.
@@ -54,8 +56,8 @@ namespace Elixir::Materials::Rendering
         /** @brief Gets the index of the fallback texture. */
         uint32_t GetFallbackIndex() const { return m_FallbackTextureHandle.Index; }
 
-        /** @brief Gets the texture set used by material rendering. */
-        const Ref<TextureSet>& GetTextureSet() const { return m_Textures; }
+        /** @brief Returns the image set used by material rendering. */
+        const Ref<ImageSet>& GetImageSet() const { return m_Textures; }
 
         /** @brief Gets the sampler used with material textures. */
         const Ref<Sampler>& GetSampler() const { return m_Sampler; }
@@ -64,7 +66,7 @@ namespace Elixir::Materials::Rendering
         /** @brief Stores a texture binding and submission where it becomes available. */
         struct STextureBinding
         {
-            /** @brief Handle of the texture in the texture set. */
+            /** @brief Handle of the texture in the image set. */
             SResourceHandle Handle{};
 
             /** @brief First submission that can use Handle. */
@@ -90,16 +92,16 @@ namespace Elixir::Materials::Rendering
         /** @brief Keeps bindings alive while deferred releases are pending. */
         struct SBindingState
         {
-            std::unordered_map<Ref<Texture>, STextureBinding> Bindings;
-            std::unordered_map<Ref<Texture>, uint64_t> Retirements;
+            std::unordered_map<Ref<Image>, STextureBinding> Bindings;
+            std::unordered_map<Ref<Image>, uint64_t> Retirements;
             uint64_t NextRetirement = 1;
         };
 
-        Ref<TextureSet> m_Textures;
+        Ref<ImageSet> m_Textures;
         Ref<Sampler> m_Sampler;
         SResourceHandle m_FallbackTextureHandle;
         Ref<SBindingState> m_BindingState;
-        std::unordered_set<Ref<Texture>> m_ReferencedTextures;
+        std::unordered_set<Ref<Image>> m_ReferencedImages;
 
         uint64_t m_SubmissionSerial = 0;
 

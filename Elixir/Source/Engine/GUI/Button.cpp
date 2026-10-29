@@ -85,7 +85,10 @@ namespace Elixir::GUI
             m_Padding.GetTotalVertical()
         );
 
-        return glm::max(desiredSize, m_MinDesiredSize);
+        if (!HasContent() && m_Text.empty())
+            return glm::max(desiredSize, glm::vec2(120.0f, 40.0f));
+
+        return desiredSize;
     }
 
     void Button::LayoutChildren(const SRect& allocatedSpace)
@@ -120,15 +123,17 @@ namespace Elixir::GUI
             const auto textSize = MeasureTextSize(displayText);
             const auto textPos = CalculateTextPosition(textSize);
 
-            batch.AddText(
+            RenderBatch label;
+            label.AddText(
                 displayText,
                 { textPos, textSize },
                 m_Font,
                 m_FontSize,
                 appearance.Foreground,
-                zOrder + 1,
-                m_Geometry
+                zOrder + 1
             );
+            label.Clip(m_Geometry);
+            batch.Append(label, 0);
         }
     }
 

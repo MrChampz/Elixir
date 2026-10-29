@@ -33,8 +33,12 @@ struct SGPUEmitter
     float BurstIntervalSeconds;
     uint  BurstCount;
     uint  IsTriggerDriven;
-    uint  Padding0;
+    uint  KillOnLifetimeExpired;
     uint  Padding1;
+    uint  StrandUpdateOperationOffset;
+    uint  StrandUpdateOperationCount;
+    uint  Padding2;
+    uint  Padding3;
 };
 
 struct SGPUSystemInstance

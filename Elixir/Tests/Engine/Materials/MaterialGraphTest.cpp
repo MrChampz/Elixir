@@ -370,3 +370,44 @@ TEST(MaterialGraphTest, GeneratesExponentialRadialGradientForOpacity)
     EXPECT_NE(hlsl.find(", 3.000000)"), std::string::npos);
     EXPECT_NE(hlsl.find("surface.Opacity ="), std::string::npos);
 }
+
+
+TEST(MaterialGraphTest, TransmissionAndCoverageRemainIndependentScalarChannels)
+{
+    MaterialGraph graph;
+    const auto transmission = graph.AddNode<Constant>(glm::vec4(0.8f, 0.2f, 0, 1), EMaterialValueType::Float4);
+    const auto opacity = graph.AddNode<Constant>(glm::vec4(0.25f), EMaterialValueType::Float);
+    const auto ior = graph.AddNode<Parameter>("IOR", EMaterialValueType::Float);
+    graph.SetChannel(EMaterialChannel::Transmission, transmission);
+    graph.SetChannel(EMaterialChannel::Opacity, opacity);
+    graph.SetChannel(EMaterialChannel::IOR, ior);
+    const auto hlsl = graph.GenerateHLSL();
+    EXPECT_NE(hlsl.find("surface.Transmission = (n" + std::to_string(transmission) + ").x;"), std::string::npos);
+    EXPECT_NE(hlsl.find("surface.Opacity = n" + std::to_string(opacity) + ";"), std::string::npos);
+    EXPECT_NE(hlsl.find("surface.IOR = n" + std::to_string(ior) + ";"), std::string::npos);
+}
+
+TEST(MaterialGraphTest, VolumeThicknessUsesGreenChannelAndPreservesAttenuationColor)
+{
+    MaterialGraph graph;
+    const auto texture = graph.AddNode<TextureSample>("ThicknessTexture", ETextureSampleType::Mask);
+    const auto green = graph.AddNode<ComponentMask>(1);
+    graph.Connect(texture, green, 0);
+    const auto factor = graph.AddNode<Parameter>("ThicknessFactor", EMaterialValueType::Float);
+    const auto thickness = graph.AddNode<Multiply>();
+    graph.Connect(factor, thickness, 0);
+    graph.Connect(green, thickness, 1);
+    const auto distance = graph.AddNode<Parameter>("AttenuationDistance", EMaterialValueType::Float4);
+    const auto color = graph.AddNode<Parameter>("AttenuationColor", EMaterialValueType::Float4);
+    graph.SetChannel(EMaterialChannel::Thickness, thickness);
+    graph.SetChannel(EMaterialChannel::AttenuationDistance, distance);
+    graph.SetChannel(EMaterialChannel::AttenuationColor, color);
+    const auto hlsl = graph.GenerateHLSL({
+        .Textures = {{ "ThicknessTexture", "mat.TextureIndices[0]" }},
+    });
+    EXPECT_NE(hlsl.find("surface.Thickness = n" + std::to_string(thickness) + ";"), std::string::npos);
+    EXPECT_NE(hlsl.find("surface.AttenuationDistance = (n" + std::to_string(distance) + ").x;"), std::string::npos);
+    EXPECT_NE(hlsl.find("surface.AttenuationColor = (n" + std::to_string(color) + ").rgb;"), std::string::npos);
+    EXPECT_NE(hlsl.find("(n" + std::to_string(texture) + ").y"), std::string::npos);
+    EXPECT_EQ(hlsl.find("surface.Opacity ="), std::string::npos);
+}

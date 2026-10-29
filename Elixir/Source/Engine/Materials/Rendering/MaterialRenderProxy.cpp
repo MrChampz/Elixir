@@ -20,6 +20,7 @@ namespace Elixir::Materials::Rendering
         auto proxy = CreateRef<MaterialRenderProxy>();
         proxy->m_CompiledMaterial = std::move(material);
         proxy->m_InstanceRevision = instance.GetRevision();
+        proxy->m_ShadingModel = parent->GetShadingModel();
         proxy->m_BlendMode = parent->GetBlendMode();
         proxy->m_DoubleSided = parent->IsDoubleSided();
         proxy->m_AlphaCutoff = parent->GetAlphaCutoff();

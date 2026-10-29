@@ -1,401 +1,975 @@
 {
-  "name": "Fire And Fireworks",
-  "parameters": {
-    "gravityScale": 1.0,
-    "flame_start": [1.00, 0.86, 0.34, 0.92],
-    "flame_end": [0.48, 0.06, 0.02, 0.00],
-    "ember_start": [1.00, 0.74, 0.22, 0.86],
-    "ember_end": [0.84, 0.18, 0.02, 0.00],
-    "smoke_start": [0.34, 0.34, 0.38, 0.18],
-    "smoke_end": [0.08, 0.08, 0.10, 0.00],
-    "trail_start": [1.00, 0.92, 0.72, 0.84],
-    "trail_end": [0.74, 0.32, 0.10, 0.00],
-    "burst_a_start": [1.00, 0.50, 0.22, 0.96],
-    "burst_a_end": [0.96, 0.08, 0.06, 0.00],
-    "burst_b_start": [0.42, 0.90, 1.00, 0.92],
-    "burst_b_end": [0.12, 0.38, 1.00, 0.00],
-    "burst_c_start": [1.00, 0.96, 0.70, 0.96],
-    "burst_c_end": [0.96, 0.68, 0.12, 0.00]
-  },
-  "curves": {
-    "flame_scale_curve": [0.52, 0.84, 1.00, 1.08, 0.94, 0.68, 0.36, 0.12],
-    "ember_scale_curve": [0.44, 0.80, 1.00, 0.94, 0.74, 0.50, 0.24, 0.08],
-    "smoke_scale_curve": [0.24, 0.56, 0.82, 1.00, 1.08, 1.00, 0.76, 0.30],
-    "trail_scale_curve": [0.22, 0.46, 0.72, 0.92, 1.00, 0.82, 0.42, 0.10],
-    "burst_scale_curve": [0.20, 0.52, 0.88, 1.10, 1.00, 0.74, 0.38, 0.08]
-  },
   "colorCurves": {
-    "flame_color_curve": [
-      [1.00, 0.94, 0.56, 0.96],
-      [1.00, 0.86, 0.34, 0.92],
-      [1.00, 0.70, 0.20, 0.84],
-      [0.98, 0.48, 0.10, 0.70],
-      [0.90, 0.26, 0.06, 0.52],
-      [0.74, 0.14, 0.04, 0.32],
-      [0.58, 0.08, 0.02, 0.14],
-      [0.48, 0.06, 0.02, 0.00]
-    ],
-    "ember_color_curve": [
-      [1.00, 0.82, 0.34, 0.92],
-      [1.00, 0.74, 0.22, 0.86],
-      [1.00, 0.58, 0.14, 0.74],
-      [0.98, 0.40, 0.08, 0.56],
-      [0.94, 0.24, 0.04, 0.36],
-      [0.90, 0.16, 0.02, 0.22],
-      [0.86, 0.12, 0.02, 0.10],
-      [0.84, 0.18, 0.02, 0.00]
-    ],
-    "smoke_color_curve": [
-      [0.40, 0.40, 0.44, 0.18],
-      [0.34, 0.34, 0.38, 0.18],
-      [0.28, 0.28, 0.32, 0.16],
-      [0.22, 0.22, 0.26, 0.13],
-      [0.18, 0.18, 0.22, 0.09],
-      [0.14, 0.14, 0.18, 0.06],
-      [0.10, 0.10, 0.12, 0.03],
-      [0.08, 0.08, 0.10, 0.00]
-    ],
-    "trail_color_curve": [
-      [1.00, 0.96, 0.80, 0.88],
-      [1.00, 0.92, 0.72, 0.84],
-      [0.98, 0.80, 0.48, 0.70],
-      [0.96, 0.66, 0.28, 0.54],
-      [0.88, 0.50, 0.16, 0.38],
-      [0.82, 0.40, 0.12, 0.24],
-      [0.78, 0.34, 0.10, 0.10],
-      [0.74, 0.32, 0.10, 0.00]
-    ],
     "burst_a_curve": [
-      [1.00, 0.66, 0.34, 1.00],
-      [1.00, 0.50, 0.22, 0.96],
-      [1.00, 0.36, 0.16, 0.84],
-      [0.98, 0.22, 0.12, 0.66],
-      [0.98, 0.16, 0.10, 0.46],
-      [0.98, 0.12, 0.08, 0.28],
-      [0.96, 0.10, 0.06, 0.12],
-      [0.96, 0.08, 0.06, 0.00]
+      [1.0,0.66,0.34,1.0],
+      [1.0,0.5,0.22,0.96],
+      [1.0,0.36,0.16,0.84],
+      [0.98,0.22,0.12,0.66],
+      [0.98,0.16,0.1,0.46],
+      [0.98,0.12,0.08,0.28],
+      [0.96,0.1,0.06,0.12],
+      [0.96,0.08,0.06,0.0]
     ],
     "burst_b_curve": [
-      [0.60, 0.96, 1.00, 0.98],
-      [0.42, 0.90, 1.00, 0.92],
-      [0.30, 0.80, 1.00, 0.82],
-      [0.22, 0.68, 1.00, 0.64],
-      [0.18, 0.56, 1.00, 0.46],
-      [0.14, 0.48, 1.00, 0.28],
-      [0.12, 0.42, 1.00, 0.12],
-      [0.12, 0.38, 1.00, 0.00]
+      [0.6,0.96,1.0,0.98],
+      [0.42,0.9,1.0,0.92],
+      [0.3,0.8,1.0,0.82],
+      [0.22,0.68,1.0,0.64],
+      [0.18,0.56,1.0,0.46],
+      [0.14,0.48,1.0,0.28],
+      [0.12,0.42,1.0,0.12],
+      [0.12,0.38,1.0,0.0]
     ],
     "burst_c_curve": [
-      [1.00, 1.00, 0.84, 1.00],
-      [1.00, 0.96, 0.70, 0.96],
-      [1.00, 0.88, 0.48, 0.84],
-      [1.00, 0.80, 0.28, 0.66],
-      [1.00, 0.76, 0.20, 0.48],
-      [0.98, 0.72, 0.16, 0.30],
-      [0.96, 0.70, 0.14, 0.12],
-      [0.96, 0.68, 0.12, 0.00]
+      [1.0,1.0,0.84,1.0],
+      [1.0,0.96,0.7,0.96],
+      [1.0,0.88,0.48,0.84],
+      [1.0,0.8,0.28,0.66],
+      [1.0,0.76,0.2,0.48],
+      [0.98,0.72,0.16,0.3],
+      [0.96,0.7,0.14,0.12],
+      [0.96,0.68,0.12,0.0]
+    ],
+    "ember_color_curve": [
+      [1.0,0.82,0.34,0.92],
+      [1.0,0.74,0.22,0.86],
+      [1.0,0.58,0.14,0.74],
+      [0.98,0.4,0.08,0.56],
+      [0.94,0.24,0.04,0.36],
+      [0.9,0.16,0.02,0.22],
+      [0.86,0.12,0.02,0.1],
+      [0.84,0.18,0.02,0.0]
+    ],
+    "flame_color_curve": [
+      [1.0,0.94,0.56,0.96],
+      [1.0,0.86,0.34,0.92],
+      [1.0,0.7,0.2,0.84],
+      [0.98,0.48,0.1,0.7],
+      [0.9,0.26,0.06,0.52],
+      [0.74,0.14,0.04,0.32],
+      [0.58,0.08,0.02,0.14],
+      [0.48,0.06,0.02,0.0]
+    ],
+    "smoke_color_curve": [
+      [0.4,0.4,0.44,0.18],
+      [0.34,0.34,0.38,0.18],
+      [0.28,0.28,0.32,0.16],
+      [0.22,0.22,0.26,0.13],
+      [0.18,0.18,0.22,0.09],
+      [0.14,0.14,0.18,0.06],
+      [0.1,0.1,0.12,0.03],
+      [0.08,0.08,0.1,0.0]
+    ],
+    "trail_color_curve": [
+      [1.0,0.96,0.8,0.88],
+      [1.0,0.92,0.72,0.84],
+      [0.98,0.8,0.48,0.7],
+      [0.96,0.66,0.28,0.54],
+      [0.88,0.5,0.16,0.38],
+      [0.82,0.4,0.12,0.24],
+      [0.78,0.34,0.1,0.1],
+      [0.74,0.32,0.1,0.0]
     ],
     "vortex_curve": [
-      [0.88, 0.54, 1.00, 0.78],
-      [0.76, 0.42, 0.98, 0.72],
-      [0.62, 0.34, 0.96, 0.64],
-      [0.46, 0.26, 0.92, 0.52],
-      [0.30, 0.22, 0.86, 0.38],
-      [0.22, 0.18, 0.76, 0.24],
-      [0.16, 0.14, 0.66, 0.10],
-      [0.12, 0.12, 0.58, 0.00]
+      [0.88,0.54,1.0,0.78],
+      [0.76,0.42,0.98,0.72],
+      [0.62,0.34,0.96,0.64],
+      [0.46,0.26,0.92,0.52],
+      [0.3,0.22,0.86,0.38],
+      [0.22,0.18,0.76,0.24],
+      [0.16,0.14,0.66,0.1],
+      [0.12,0.12,0.58,0.0]
     ]
+  },
+  "curves": {
+    "burst_scale_curve": [0.2,0.52,0.88,1.1,1.0,0.74,0.38,0.08],
+    "ember_scale_curve": [0.44,0.8,1.0,0.94,0.74,0.5,0.24,0.08],
+    "flame_scale_curve": [0.52,0.84,1.0,1.08,0.94,0.68,0.36,0.12],
+    "smoke_scale_curve": [0.24,0.56,0.82,1.0,1.08,1.0,0.76,0.3],
+    "trail_scale_curve": [0.22,0.46,0.72,0.92,1.0,0.82,0.42,0.1]
   },
   "emitters": [
     {
-      "name": "FlameCore",
-      "renderMode": "Sprite",
-      "material": { "color": "$flame_start", "emissive": [1.25, 0.15, 0.01, 0.0], "texture": "Assets/Textures/SoftGlow.png" },
+      "material": {
+        "color": "$flame_start",
+        "emissive": [1.25,0.15,0.01,0.0],
+        "texture": "Assets/Textures/SoftGlow.png"
+      },
       "maxParticles": 2200,
-      "spawnRate": "$spawn_rate",
+      "name": "FlameCore",
       "parameters": {
-        "spawn_rate": 320.0,
-        "gravity": [0.0, 0.26, 0.0, 0.0],
-        "drag": 0.18
+        "drag": 0.18,
+        "gravity": [0.0,0.26,0.0,0.0],
+        "spawn_rate": 320.0
       },
+      "renderMode": "Sprite",
       "spawnModules": [
-        { "type": "SetPositionBox", "min": [-0.16, -0.96, -0.16], "max": [0.16, -0.82, 0.16] },
-        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 1.24, "minSpeed": 0.12, "maxSpeed": 0.50 },
-        { "type": "SetLifetime", "min": 0.8, "max": 1.4 },
-        { "type": "SetSize", "min": 0.1925, "max": 0.3849 },
-        { "type": "SetScale", "min": 0.7, "max": 1.18 },
-        { "type": "SetColor", "color": "$flame_start" }
+        {
+          "max": [0.16,-0.82,0.16],
+          "min": [-0.16,-0.96,-0.16],
+          "type": "SetPositionBox"
+        },
+        {
+          "angle": 1.24,
+          "direction": [0.0,1.0,0.0],
+          "maxSpeed": 0.5,
+          "minSpeed": 0.12,
+          "type": "SetVelocityCone"
+        },
+        {
+          "max": 1.4,
+          "min": 0.8,
+          "type": "SetLifetime"
+        },
+        {
+          "max": 0.3849,
+          "min": 0.1925,
+          "type": "SetSize"
+        },
+        {
+          "max": 1.18,
+          "min": 0.7,
+          "type": "SetScale"
+        },
+        {
+          "color": "$flame_start",
+          "type": "SetColor"
+        }
       ],
+      "spawnRate": "$spawn_rate",
       "updateModules": [
-        { "type": "ApplyGravity", "gravity": "$gravity" },
-        { "type": "ApplyLinearDrag", "drag": "$drag" },
-        { "type": "ColorOverLife", "start": "$flame_start", "end": "$flame_end", "curve": "flame_color_curve", "input": "NormalizedAge" },
-        { "type": "SizeOverLife", "start": 0.3208, "end": 0.0642 },
-        { "type": "ScaleOverLife", "start": 0.52, "end": 0.12, "curve": "flame_scale_curve", "input": "NormalizedAge" },
-        { "type": "KillOutsideBounds", "min": [-1.5, -1.2, -1.5], "max": [1.5, 1.35, 1.5] }
+        {
+          "gravity": "$gravity",
+          "type": "ApplyGravity"
+        },
+        {
+          "drag": "$drag",
+          "type": "ApplyLinearDrag"
+        },
+        {
+          "curve": "flame_color_curve",
+          "end": "$flame_end",
+          "input": "NormalizedAge",
+          "start": "$flame_start",
+          "type": "ColorOverLife"
+        },
+        {
+          "end": 0.0642,
+          "start": 0.3208,
+          "type": "SizeOverLife"
+        },
+        {
+          "curve": "flame_scale_curve",
+          "end": 0.12,
+          "input": "NormalizedAge",
+          "start": 0.52,
+          "type": "ScaleOverLife"
+        },
+        {
+          "max": [1.5,1.35,1.5],
+          "min": [-1.5,-1.2,-1.5],
+          "type": "KillOutsideBounds"
+        }
       ]
     },
     {
-      "name": "EmberSparks",
-      "renderMode": "Sprite",
-      "material": { "color": "$ember_start", "emissive": [0.90, 0.08, 0.01, 0.0], "texture": "Assets/Textures/SoftGlow.png" },
+      "material": {
+        "color": "$ember_start",
+        "emissive": [0.9,0.08,0.01,0.0],
+        "texture": "Assets/Textures/SoftGlow.png"
+      },
       "maxParticles": 1200,
-      "spawnRate": "$spawn_rate",
+      "name": "EmberSparks",
       "parameters": {
-        "spawn_rate": 96.0,
-        "gravity": [0.0, 0.08, 0.0, 0.0],
-        "drag": 0.05
+        "drag": 0.05,
+        "gravity": [0.0,0.08,0.0,0.0],
+        "spawn_rate": 96.0
       },
+      "renderMode": "Sprite",
       "spawnModules": [
-        { "type": "SetPositionDisk", "center": [0.0, -0.88, 0.0], "radius": 0.08 },
-        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 1.10, "minSpeed": 0.28, "maxSpeed": 0.82 },
-        { "type": "SetLifetime", "min": 1.0, "max": 1.8 },
-        { "type": "SetSize", "min": 0.0802, "max": 0.1604 },
-        { "type": "SetScale", "min": 0.6, "max": 1.2 },
-        { "type": "SetColor", "color": "$ember_start" }
+        {
+          "center": [0.0,-0.88,0.0],
+          "radius": 0.08,
+          "type": "SetPositionDisk"
+        },
+        {
+          "angle": 1.1,
+          "direction": [0.0,1.0,0.0],
+          "maxSpeed": 0.82,
+          "minSpeed": 0.28,
+          "type": "SetVelocityCone"
+        },
+        {
+          "max": 1.8,
+          "min": 1.0,
+          "type": "SetLifetime"
+        },
+        {
+          "max": 0.1604,
+          "min": 0.0802,
+          "type": "SetSize"
+        },
+        {
+          "max": 1.2,
+          "min": 0.6,
+          "type": "SetScale"
+        },
+        {
+          "color": "$ember_start",
+          "type": "SetColor"
+        }
       ],
+      "spawnRate": "$spawn_rate",
       "updateModules": [
-        { "type": "ApplyGravity", "gravity": "$gravity" },
-        { "type": "ApplyLinearDrag", "drag": "$drag" },
-        { "type": "ColorOverLife", "start": "$ember_start", "end": "$ember_end", "curve": "ember_color_curve", "input": "NormalizedAge" },
-        { "type": "SizeOverLife", "start": 0.1283, "end": 0.0321 },
-        { "type": "ScaleOverLife", "start": 0.44, "end": 0.08, "curve": "ember_scale_curve", "input": "NormalizedAge" },
-        { "type": "KillOutsideBounds", "min": [-1.5, -1.2, -1.5], "max": [1.5, 1.35, 1.5] }
+        {
+          "gravity": "$gravity",
+          "type": "ApplyGravity"
+        },
+        {
+          "drag": "$drag",
+          "type": "ApplyLinearDrag"
+        },
+        {
+          "curve": "ember_color_curve",
+          "end": "$ember_end",
+          "input": "NormalizedAge",
+          "start": "$ember_start",
+          "type": "ColorOverLife"
+        },
+        {
+          "end": 0.0321,
+          "start": 0.1283,
+          "type": "SizeOverLife"
+        },
+        {
+          "curve": "ember_scale_curve",
+          "end": 0.08,
+          "input": "NormalizedAge",
+          "start": 0.44,
+          "type": "ScaleOverLife"
+        },
+        {
+          "max": [1.5,1.35,1.5],
+          "min": [-1.5,-1.2,-1.5],
+          "type": "KillOutsideBounds"
+        }
       ]
     },
     {
-      "name": "SmokePlume",
-      "renderMode": "Sprite",
-      "material": { "color": "$smoke_start", "texture": "Assets/Textures/SoftGlow.png" },
+      "material": {
+        "color": "$smoke_start",
+        "texture": "Assets/Textures/SoftGlow.png"
+      },
       "maxParticles": 1000,
-      "spawnRate": "$spawn_rate",
+      "name": "SmokePlume",
       "parameters": {
-        "spawn_rate": 72.0,
-        "gravity": [0.0, 0.06, 0.0, 0.0],
-        "drag": 0.14
+        "drag": 0.14,
+        "gravity": [0.0,0.06,0.0,0.0],
+        "spawn_rate": 72.0
       },
+      "renderMode": "Sprite",
       "spawnModules": [
-        { "type": "SetPositionBox", "min": [-0.16, -0.92, -0.16], "max": [0.16, -0.78, 0.16] },
-        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 1.26, "minSpeed": 0.04, "maxSpeed": 0.18 },
-        { "type": "SetLifetime", "min": 2.4, "max": 3.8 },
-        { "type": "SetSize", "min": 0.0887, "max": 0.2453 },
-        { "type": "SetScale", "min": 0.24, "max": 0.66 },
-        { "type": "SetColor", "color": "$smoke_start" }
+        {
+          "max": [0.16,-0.78,0.16],
+          "min": [-0.16,-0.92,-0.16],
+          "type": "SetPositionBox"
+        },
+        {
+          "angle": 1.26,
+          "direction": [0.0,1.0,0.0],
+          "maxSpeed": 0.18,
+          "minSpeed": 0.04,
+          "type": "SetVelocityCone"
+        },
+        {
+          "max": 3.8,
+          "min": 2.4,
+          "type": "SetLifetime"
+        },
+        {
+          "max": 0.2453,
+          "min": 0.0887,
+          "type": "SetSize"
+        },
+        {
+          "max": 0.66,
+          "min": 0.24,
+          "type": "SetScale"
+        },
+        {
+          "color": "$smoke_start",
+          "type": "SetColor"
+        }
       ],
+      "spawnRate": "$spawn_rate",
       "updateModules": [
-        { "type": "ApplyGravity", "gravity": "$gravity" },
-        { "type": "ApplyLinearDrag", "drag": "$drag" },
-        { "type": "ColorOverLife", "start": "$smoke_start", "end": "$smoke_end", "curve": "smoke_color_curve", "input": "NormalizedAge" },
-        { "type": "ScaleOverLife", "start": 0.24, "end": 1.26, "curve": "smoke_scale_curve", "input": "NormalizedAge" },
-        { "type": "KillOutsideBounds", "min": [-1.5, -1.2, -1.5], "max": [1.5, 1.35, 1.5] }
+        {
+          "gravity": "$gravity",
+          "type": "ApplyGravity"
+        },
+        {
+          "drag": "$drag",
+          "type": "ApplyLinearDrag"
+        },
+        {
+          "curve": "smoke_color_curve",
+          "end": "$smoke_end",
+          "input": "NormalizedAge",
+          "start": "$smoke_start",
+          "type": "ColorOverLife"
+        },
+        {
+          "curve": "smoke_scale_curve",
+          "end": 1.26,
+          "input": "NormalizedAge",
+          "start": 0.24,
+          "type": "ScaleOverLife"
+        },
+        {
+          "max": [1.5,1.35,1.5],
+          "min": [-1.5,-1.2,-1.5],
+          "type": "KillOutsideBounds"
+        }
       ]
     },
     {
+      "material": {
+        "color": [0.88,0.54,1.0,0.78],
+        "emissive": [0.4,0.1,0.6,0.0],
+        "texture": "Assets/Textures/SoftGlow.png"
+      },
+      "maxParticles": 1800,
       "name": "VortexSprites",
-      "renderMode": "Sprite",
-      "material": { "color": [0.88, 0.54, 1.00, 0.78], "emissive": [0.40, 0.10, 0.60, 0.0], "texture": "Assets/Textures/SoftGlow.png" },
-      "maxParticles": 1800,
-      "spawnRate": "$spawn_rate",
       "parameters": {
+        "drag": 0.1,
         "spawn_rate": 210.0,
-        "vortex_center": [0.0, -0.10, 0.0, 0.0],
-        "vortex_tangential": 1.85,
+        "vortex_center": [0.0,-0.1,0.0,0.0],
         "vortex_radial": -0.46,
-        "drag": 0.10
+        "vortex_tangential": 1.85
       },
+      "renderMode": "Sprite",
       "spawnModules": [
-        { "type": "SetPositionDisk", "center": [0.84, -0.10, 0.84], "radius": 0.34 },
-        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 0.0, "minSpeed": 0.02, "maxSpeed": 0.12 },
-        { "type": "SetLifetime", "min": 2.0, "max": 3.0 },
-        { "type": "SetSize", "min": 0.1604, "max": 0.2887 },
-        { "type": "SetScale", "min": 0.82, "max": 1.28 },
-        { "type": "SetColor", "color": [0.88, 0.54, 1.00, 0.78] }
+        {
+          "center": [0.84,-0.1,0.84],
+          "radius": 0.34,
+          "type": "SetPositionDisk"
+        },
+        {
+          "angle": 0.0,
+          "direction": [0.0,1.0,0.0],
+          "maxSpeed": 0.12,
+          "minSpeed": 0.02,
+          "type": "SetVelocityCone"
+        },
+        {
+          "max": 3.0,
+          "min": 2.0,
+          "type": "SetLifetime"
+        },
+        {
+          "max": 0.2887,
+          "min": 0.1604,
+          "type": "SetSize"
+        },
+        {
+          "max": 1.28,
+          "min": 0.82,
+          "type": "SetScale"
+        },
+        {
+          "color": [0.88,0.54,1.0,0.78],
+          "type": "SetColor"
+        }
       ],
+      "spawnRate": "$spawn_rate",
       "updateModules": [
-        { "type": "ApplyVortex", "center": "$vortex_center", "tangential": "$vortex_tangential", "radial": "$vortex_radial" },
-        { "type": "ApplyLinearDrag", "drag": "$drag" },
-        { "type": "ColorOverLife", "start": [0.88, 0.54, 1.00, 0.78], "end": [0.12, 0.12, 0.58, 0.00], "curve": "vortex_curve", "input": "NormalizedAge" },
-        { "type": "SizeOverLife", "start": 0.2726, "end": 0.0642 },
-        { "type": "ScaleOverLife", "start": 1.16, "end": 0.28, "curve": "trail_scale_curve", "input": "NormalizedAge" },
-        { "type": "KillOutsideBounds", "min": [-5, -1.2, -5], "max": [5, 1.35, 5] }
+        {
+          "center": "$vortex_center",
+          "radial": "$vortex_radial",
+          "tangential": "$vortex_tangential",
+          "type": "ApplyVortex"
+        },
+        {
+          "drag": "$drag",
+          "type": "ApplyLinearDrag"
+        },
+        {
+          "curve": "vortex_curve",
+          "end": [0.12,0.12,0.58,0.0],
+          "input": "NormalizedAge",
+          "start": [0.88,0.54,1.0,0.78],
+          "type": "ColorOverLife"
+        },
+        {
+          "end": 0.0642,
+          "start": 0.2726,
+          "type": "SizeOverLife"
+        },
+        {
+          "curve": "trail_scale_curve",
+          "end": 0.28,
+          "input": "NormalizedAge",
+          "start": 1.16,
+          "type": "ScaleOverLife"
+        },
+        {
+          "max": [5,1.35,5],
+          "min": [-5,-1.2,-5],
+          "type": "KillOutsideBounds"
+        }
       ]
     },
     {
+      "burst": {
+        "count": 14,
+        "interval": 1.25
+      },
+      "material": {
+        "color": "$trail_start",
+        "emissive": [0.8,0.15,0.02,0.0],
+        "texture": "Assets/Textures/SoftGlow.png"
+      },
+      "maxParticles": 220,
       "name": "RocketOrange",
-      "renderMode": "Sprite",
-      "material": { "color": "$trail_start", "emissive": [0.80, 0.15, 0.02, 0.0], "texture": "Assets/Textures/SoftGlow.png" },
-      "maxParticles": 220,
-      "spawnRate": "$spawn_rate",
-      "burst": { "count": 14, "interval": 1.25 },
       "parameters": {
-        "spawn_rate": 0.0,
-        "gravity": [0.0, -0.10, 0.0, 0.0],
-        "drag": 0.02
+        "drag": 0.02,
+        "gravity": [0.0,-0.1,0.0,0.0],
+        "spawn_rate": 0.0
       },
+      "renderMode": "Sprite",
       "spawnModules": [
-        { "type": "SetPositionDisk", "center": [-0.58, -0.98, -0.58], "radius": 0.03 },
-        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 1.46, "minSpeed": 1.12, "maxSpeed": 1.36 },
-        { "type": "SetLifetime", "min": 1.2, "max": 1.5 },
-        { "type": "SetSize", "min": 0.1283, "max": 0.2406 },
-        { "type": "SetScale", "min": 0.24, "max": 0.56 },
-        { "type": "SetColor", "color": "$trail_start" }
+        {
+          "center": [-0.58,-0.98,-0.58],
+          "radius": 0.03,
+          "type": "SetPositionDisk"
+        },
+        {
+          "angle": 1.46,
+          "direction": [0.0,1.0,0.0],
+          "maxSpeed": 1.36,
+          "minSpeed": 1.12,
+          "type": "SetVelocityCone"
+        },
+        {
+          "max": 1.5,
+          "min": 1.2,
+          "type": "SetLifetime"
+        },
+        {
+          "max": 0.2406,
+          "min": 0.1283,
+          "type": "SetSize"
+        },
+        {
+          "max": 0.56,
+          "min": 0.24,
+          "type": "SetScale"
+        },
+        {
+          "color": "$trail_start",
+          "type": "SetColor"
+        }
       ],
+      "spawnRate": "$spawn_rate",
       "updateModules": [
-        { "type": "ApplyGravity", "gravity": "$gravity" },
-        { "type": "ApplyLinearDrag", "drag": "$drag" },
-        { "type": "ColorOverLife", "start": "$trail_start", "end": "$trail_end", "curve": "trail_color_curve", "input": "NormalizedAge" },
-        { "type": "SizeOverLife", "start": 0.2245, "end": 0.0321 },
-        { "type": "ScaleOverLife", "start": 0.20, "end": 0.06, "curve": "trail_scale_curve", "input": "NormalizedAge" },
-        { "type": "KillOutsideBounds", "min": [-1.5, -1.2, -1.5], "max": [1.5, 1.35, 1.5] }
+        {
+          "gravity": "$gravity",
+          "type": "ApplyGravity"
+        },
+        {
+          "drag": "$drag",
+          "type": "ApplyLinearDrag"
+        },
+        {
+          "curve": "trail_color_curve",
+          "end": "$trail_end",
+          "input": "NormalizedAge",
+          "start": "$trail_start",
+          "type": "ColorOverLife"
+        },
+        {
+          "end": 0.0321,
+          "start": 0.2245,
+          "type": "SizeOverLife"
+        },
+        {
+          "curve": "trail_scale_curve",
+          "end": 0.06,
+          "input": "NormalizedAge",
+          "start": 0.2,
+          "type": "ScaleOverLife"
+        },
+        {
+          "max": [1.5,1.35,1.5],
+          "min": [-1.5,-1.2,-1.5],
+          "type": "KillOutsideBounds"
+        }
       ]
     },
     {
+      "burst": {
+        "count": 14,
+        "interval": 1.55
+      },
+      "material": {
+        "color": "$trail_start",
+        "emissive": [0.05,0.25,1.0,0.0],
+        "texture": "Assets/Textures/SoftGlow.png"
+      },
+      "maxParticles": 220,
       "name": "RocketBlue",
-      "renderMode": "Sprite",
-      "material": { "color": "$trail_start", "emissive": [0.05, 0.25, 1.00, 0.0], "texture": "Assets/Textures/SoftGlow.png" },
-      "maxParticles": 220,
-      "spawnRate": "$spawn_rate",
-      "burst": { "count": 14, "interval": 1.55 },
       "parameters": {
-        "spawn_rate": 0.0,
-        "gravity": [0.0, -0.10, 0.0, 0.0],
-        "drag": 0.02
+        "drag": 0.02,
+        "gravity": [0.0,-0.1,0.0,0.0],
+        "spawn_rate": 0.0
       },
+      "renderMode": "Sprite",
       "spawnModules": [
-        { "type": "SetPositionDisk", "center": [0.86, -0.98, 0.54], "radius": 0.05 },
-        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 1.42, "minSpeed": 1.24, "maxSpeed": 1.42 },
-        { "type": "SetLifetime", "min": 1.3, "max": 1.6 },
-        { "type": "SetSize", "min": 0.1283, "max": 0.2406 },
-        { "type": "SetScale", "min": 0.24, "max": 0.56 },
-        { "type": "SetColor", "color": "$trail_start" }
+        {
+          "center": [0.86,-0.98,0.54],
+          "radius": 0.05,
+          "type": "SetPositionDisk"
+        },
+        {
+          "angle": 1.42,
+          "direction": [0.0,1.0,0.0],
+          "maxSpeed": 1.42,
+          "minSpeed": 1.24,
+          "type": "SetVelocityCone"
+        },
+        {
+          "max": 1.6,
+          "min": 1.3,
+          "type": "SetLifetime"
+        },
+        {
+          "max": 0.2406,
+          "min": 0.1283,
+          "type": "SetSize"
+        },
+        {
+          "max": 0.56,
+          "min": 0.24,
+          "type": "SetScale"
+        },
+        {
+          "color": "$trail_start",
+          "type": "SetColor"
+        }
       ],
+      "spawnRate": "$spawn_rate",
       "updateModules": [
-        { "type": "ApplyGravity", "gravity": "$gravity" },
-        { "type": "ApplyLinearDrag", "drag": "$drag" },
-        { "type": "ColorOverLife", "start": "$trail_start", "end": "$trail_end", "curve": "trail_color_curve", "input": "NormalizedAge" },
-        { "type": "SizeOverLife", "start": 0.2245, "end": 0.0321 },
-        { "type": "ScaleOverLife", "start": 0.20, "end": 0.06, "curve": "trail_scale_curve", "input": "NormalizedAge" },
-        { "type": "KillOutsideBounds", "min": [-1.5, -1.2, -1.5], "max": [1.5, 1.35, 1.5] }
+        {
+          "gravity": "$gravity",
+          "type": "ApplyGravity"
+        },
+        {
+          "drag": "$drag",
+          "type": "ApplyLinearDrag"
+        },
+        {
+          "curve": "trail_color_curve",
+          "end": "$trail_end",
+          "input": "NormalizedAge",
+          "start": "$trail_start",
+          "type": "ColorOverLife"
+        },
+        {
+          "end": 0.0321,
+          "start": 0.2245,
+          "type": "SizeOverLife"
+        },
+        {
+          "curve": "trail_scale_curve",
+          "end": 0.06,
+          "input": "NormalizedAge",
+          "start": 0.2,
+          "type": "ScaleOverLife"
+        },
+        {
+          "max": [1.5,1.35,1.5],
+          "min": [-1.5,-1.2,-1.5],
+          "type": "KillOutsideBounds"
+        }
       ]
     },
     {
-      "name": "RocketGold",
-      "renderMode": "Sprite",
-      "material": { "color": "$trail_start", "emissive": [0.80, 0.45, 0.05, 0.0], "texture": "Assets/Textures/SoftGlow.png" },
+      "burst": {
+        "count": 16,
+        "interval": 1.85
+      },
+      "material": {
+        "color": "$trail_start",
+        "emissive": [0.8,0.45,0.05,0.0],
+        "texture": "Assets/Textures/SoftGlow.png"
+      },
       "maxParticles": 240,
-      "spawnRate": "$spawn_rate",
-      "burst": { "count": 16, "interval": 1.85 },
+      "name": "RocketGold",
       "parameters": {
-        "spawn_rate": 0.0,
-        "gravity": [0.0, -0.10, 0.0, 0.0],
-        "drag": 0.02
+        "drag": 0.02,
+        "gravity": [0.0,-0.1,0.0,0.0],
+        "spawn_rate": 0.0
       },
+      "renderMode": "Sprite",
       "spawnModules": [
-        { "type": "SetPositionDisk", "center": [0.18, -0.98, 0.18], "radius": 0.03 },
-        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 1.42, "minSpeed": 1.44, "maxSpeed": 1.63 },
-        { "type": "SetLifetime", "min": 1.45, "max": 1.75 },
-        { "type": "SetSize", "min": 0.1283, "max": 0.2406 },
-        { "type": "SetScale", "min": 0.26, "max": 0.60 },
-        { "type": "SetColor", "color": "$trail_start" }
+        {
+          "center": [0.18,-0.98,0.18],
+          "radius": 0.03,
+          "type": "SetPositionDisk"
+        },
+        {
+          "angle": 1.42,
+          "direction": [0.0,1.0,0.0],
+          "maxSpeed": 1.63,
+          "minSpeed": 1.44,
+          "type": "SetVelocityCone"
+        },
+        {
+          "max": 1.75,
+          "min": 1.45,
+          "type": "SetLifetime"
+        },
+        {
+          "max": 0.2406,
+          "min": 0.1283,
+          "type": "SetSize"
+        },
+        {
+          "max": 0.6,
+          "min": 0.26,
+          "type": "SetScale"
+        },
+        {
+          "color": "$trail_start",
+          "type": "SetColor"
+        }
       ],
+      "spawnRate": "$spawn_rate",
       "updateModules": [
-        { "type": "ApplyGravity", "gravity": "$gravity" },
-        { "type": "ApplyLinearDrag", "drag": "$drag" },
-        { "type": "ColorOverLife", "start": "$trail_start", "end": "$trail_end", "curve": "trail_color_curve", "input": "NormalizedAge" },
-        { "type": "SizeOverLife", "start": 0.2245, "end": 0.0321 },
-        { "type": "ScaleOverLife", "start": 0.22, "end": 0.06, "curve": "trail_scale_curve", "input": "NormalizedAge" },
-        { "type": "KillOutsideBounds", "min": [-1.5, -1.2, -1.5], "max": [1.5, 1.35, 1.5] }
+        {
+          "gravity": "$gravity",
+          "type": "ApplyGravity"
+        },
+        {
+          "drag": "$drag",
+          "type": "ApplyLinearDrag"
+        },
+        {
+          "curve": "trail_color_curve",
+          "end": "$trail_end",
+          "input": "NormalizedAge",
+          "start": "$trail_start",
+          "type": "ColorOverLife"
+        },
+        {
+          "end": 0.0321,
+          "start": 0.2245,
+          "type": "SizeOverLife"
+        },
+        {
+          "curve": "trail_scale_curve",
+          "end": 0.06,
+          "input": "NormalizedAge",
+          "start": 0.22,
+          "type": "ScaleOverLife"
+        },
+        {
+          "max": [1.5,1.35,1.5],
+          "min": [-1.5,-1.2,-1.5],
+          "type": "KillOutsideBounds"
+        }
       ]
     },
     {
+      "burst": {
+        "count": 140,
+        "interval": 1.25
+      },
+      "material": {
+        "color": "$burst_a_start",
+        "emissive": [0.8,0.05,0.01,0.0],
+        "texture": "Assets/Textures/SoftGlow.png"
+      },
+      "maxParticles": 1800,
       "name": "BurstOrange",
-      "renderMode": "Sprite",
-      "material": { "color": "$burst_a_start", "emissive": [0.80, 0.05, 0.01, 0.0], "texture": "Assets/Textures/SoftGlow.png" },
-      "maxParticles": 1800,
-      "spawnRate": "$spawn_rate",
-      "trigger": { "source": "RocketOrange", "delay": 1.18 },
-      "burst": { "count": 140, "interval": 1.25 },
       "parameters": {
-        "spawn_rate": 0.0,
-        "gravity": [0.0, -0.26, 0.0, 0.0],
-        "drag": 0.08
+        "drag": 0.08,
+        "gravity": [0.0,-0.26,0.0,0.0],
+        "spawn_rate": 0.0
       },
+      "renderMode": "Sprite",
       "spawnModules": [
-        { "type": "SetPositionDisk", "center": [-0.58, 0.66, -0.58], "radius": 0.03 },
-        { "type": "SetVelocityCone", "direction":  [0.0, 1.0, 0.0], "angle": 6.2831853, "minSpeed": 0.18, "maxSpeed": 0.86 },
-        { "type": "SetLifetime", "min": 0.9, "max": 1.6 },
-        { "type": "SetSize", "min": 0.1283, "max": 0.2406 },
-        { "type": "SetScale", "min": 0.48, "max": 0.96 },
-        { "type": "SetColor", "color": "$burst_a_start" }
+        {
+          "center": [-0.58,0.66,-0.58],
+          "radius": 0.03,
+          "type": "SetPositionDisk"
+        },
+        {
+          "angle": 6.2831853,
+          "direction": [0.0,1.0,0.0],
+          "maxSpeed": 0.86,
+          "minSpeed": 0.18,
+          "type": "SetVelocityCone"
+        },
+        {
+          "max": 1.6,
+          "min": 0.9,
+          "type": "SetLifetime"
+        },
+        {
+          "max": 0.2406,
+          "min": 0.1283,
+          "type": "SetSize"
+        },
+        {
+          "max": 0.96,
+          "min": 0.48,
+          "type": "SetScale"
+        },
+        {
+          "color": "$burst_a_start",
+          "type": "SetColor"
+        }
       ],
+      "spawnRate": "$spawn_rate",
+      "trigger": {
+        "delay": 1.18,
+        "source": "RocketOrange"
+      },
       "updateModules": [
-        { "type": "ApplyGravity", "gravity": "$gravity" },
-        { "type": "ApplyLinearDrag", "drag": "$drag" },
-        { "type": "ColorOverLife", "start": "$burst_a_start", "end": "$burst_a_end", "curve": "burst_a_curve", "input": "NormalizedAge" },
-        { "type": "SizeOverLife", "start": 0.2245, "end": 0.0481 },
-        { "type": "ScaleOverLife", "start": 0.42, "end": 0.10, "curve": "burst_scale_curve", "input": "NormalizedAge" },
-        { "type": "KillOutsideBounds", "min": [-1.5, -1.2, -1.5], "max": [1.5, 1.35, 1.5] }
+        {
+          "gravity": "$gravity",
+          "type": "ApplyGravity"
+        },
+        {
+          "drag": "$drag",
+          "type": "ApplyLinearDrag"
+        },
+        {
+          "curve": "burst_a_curve",
+          "end": "$burst_a_end",
+          "input": "NormalizedAge",
+          "start": "$burst_a_start",
+          "type": "ColorOverLife"
+        },
+        {
+          "end": 0.0481,
+          "start": 0.2245,
+          "type": "SizeOverLife"
+        },
+        {
+          "curve": "burst_scale_curve",
+          "end": 0.1,
+          "input": "NormalizedAge",
+          "start": 0.42,
+          "type": "ScaleOverLife"
+        },
+        {
+          "max": [1.5,1.35,1.5],
+          "min": [-1.5,-1.2,-1.5],
+          "type": "KillOutsideBounds"
+        }
       ]
     },
     {
+      "burst": {
+        "count": 176,
+        "interval": 1.55
+      },
+      "material": {
+        "color": "$burst_b_start",
+        "emissive": [0.05,0.3,1.0,0.0],
+        "texture": "Assets/Textures/SoftGlow.png"
+      },
+      "maxParticles": 1800,
       "name": "BurstBlue",
-      "renderMode": "Sprite",
-      "material": { "color": "$burst_b_start", "emissive": [0.05, 0.30, 1.00, 0.0], "texture": "Assets/Textures/SoftGlow.png" },
-      "maxParticles": 1800,
-      "spawnRate": "$spawn_rate",
-      "trigger": { "source": "RocketBlue", "delay": 1.12 },
-      "burst": { "count": 176, "interval": 1.55 },
       "parameters": {
-        "spawn_rate": 0.0,
-        "gravity": [0.0, -0.24, 0.0, 0.0],
-        "drag": 0.07
+        "drag": 0.07,
+        "gravity": [0.0,-0.24,0.0,0.0],
+        "spawn_rate": 0.0
       },
+      "renderMode": "Sprite",
       "spawnModules": [
-        { "type": "SetPositionDisk", "center": [0.86, 0.44, 0.54], "radius": 0.06 },
-        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 6.2831853, "minSpeed": 0.16, "maxSpeed": 0.82 },
-        { "type": "SetLifetime", "min": 0.9, "max": 1.5 },
-        { "type": "SetSize", "min": 0.2085, "max": 0.3529 },
-        { "type": "SetScale", "min": 0.78, "max": 1.34 },
-        { "type": "SetColor", "color": "$burst_b_start" }
+        {
+          "center": [0.86,0.44,0.54],
+          "radius": 0.06,
+          "type": "SetPositionDisk"
+        },
+        {
+          "angle": 6.2831853,
+          "direction": [0.0,1.0,0.0],
+          "maxSpeed": 0.82,
+          "minSpeed": 0.16,
+          "type": "SetVelocityCone"
+        },
+        {
+          "max": 1.5,
+          "min": 0.9,
+          "type": "SetLifetime"
+        },
+        {
+          "max": 0.3529,
+          "min": 0.2085,
+          "type": "SetSize"
+        },
+        {
+          "max": 1.34,
+          "min": 0.78,
+          "type": "SetScale"
+        },
+        {
+          "color": "$burst_b_start",
+          "type": "SetColor"
+        }
       ],
+      "spawnRate": "$spawn_rate",
+      "trigger": {
+        "delay": 1.12,
+        "source": "RocketBlue"
+      },
       "updateModules": [
-        { "type": "ApplyGravity", "gravity": "$gravity" },
-        { "type": "ApplyLinearDrag", "drag": "$drag" },
-        { "type": "ColorOverLife", "start": "$burst_b_start", "end": "$burst_b_end", "curve": "burst_b_curve", "input": "NormalizedAge" },
-        { "type": "SizeOverLife", "start": 0.3368, "end": 0.0802 },
-        { "type": "ScaleOverLife", "start": 0.72, "end": 0.16, "curve": "burst_scale_curve", "input": "NormalizedAge" },
-        { "type": "KillOutsideBounds", "min": [-1.5, -1.2, -1.5], "max": [1.5, 1.35, 1.5] }
+        {
+          "gravity": "$gravity",
+          "type": "ApplyGravity"
+        },
+        {
+          "drag": "$drag",
+          "type": "ApplyLinearDrag"
+        },
+        {
+          "curve": "burst_b_curve",
+          "end": "$burst_b_end",
+          "input": "NormalizedAge",
+          "start": "$burst_b_start",
+          "type": "ColorOverLife"
+        },
+        {
+          "end": 0.0802,
+          "start": 0.3368,
+          "type": "SizeOverLife"
+        },
+        {
+          "curve": "burst_scale_curve",
+          "end": 0.16,
+          "input": "NormalizedAge",
+          "start": 0.72,
+          "type": "ScaleOverLife"
+        },
+        {
+          "max": [1.5,1.35,1.5],
+          "min": [-1.5,-1.2,-1.5],
+          "type": "KillOutsideBounds"
+        }
       ]
     },
     {
-      "name": "BurstGold",
-      "renderMode": "Sprite",
-      "material": { "color": "$burst_c_start", "emissive": [1.00, 0.50, 0.05, 0.0], "texture": "Assets/Textures/SoftGlow.png" },
-      "maxParticles": 2000,
-      "spawnRate": "$spawn_rate",
-      "trigger": { "source": "RocketGold", "delay": 1.18 },
-      "burst": { "count": 192, "interval": 1.85 },
-      "parameters": {
-        "spawn_rate": 0.0,
-        "gravity": [0.0, -0.28, 0.0, 0.0],
-        "drag": 0.06
+      "burst": {
+        "count": 192,
+        "interval": 1.85
       },
+      "material": {
+        "color": "$burst_c_start",
+        "emissive": [1.0,0.5,0.05,0.0],
+        "texture": "Assets/Textures/SoftGlow.png"
+      },
+      "maxParticles": 2000,
+      "name": "BurstGold",
+      "parameters": {
+        "drag": 0.06,
+        "gravity": [0.0,-0.28,0.0,0.0],
+        "spawn_rate": 0.0
+      },
+      "renderMode": "Sprite",
       "spawnModules": [
-        { "type": "SetPositionDisk", "center": [0.18, 0.76, 0.18], "radius": 0.07 },
-        { "type": "SetVelocityCone", "direction": [0.0, 1.0, 0.0], "angle": 6.2831853, "minSpeed": 0.18, "maxSpeed": 0.92 },
-        { "type": "SetLifetime", "min": 1.0, "max": 1.7 },
-        { "type": "SetSize", "min": 0.2245, "max": 0.3849 },
-        { "type": "SetScale", "min": 0.86, "max": 1.46 },
-        { "type": "SetColor", "color": "$burst_c_start" }
+        {
+          "center": [0.18,0.76,0.18],
+          "radius": 0.07,
+          "type": "SetPositionDisk"
+        },
+        {
+          "angle": 6.2831853,
+          "direction": [0.0,1.0,0.0],
+          "maxSpeed": 0.92,
+          "minSpeed": 0.18,
+          "type": "SetVelocityCone"
+        },
+        {
+          "max": 1.7,
+          "min": 1.0,
+          "type": "SetLifetime"
+        },
+        {
+          "max": 0.3849,
+          "min": 0.2245,
+          "type": "SetSize"
+        },
+        {
+          "max": 1.46,
+          "min": 0.86,
+          "type": "SetScale"
+        },
+        {
+          "color": "$burst_c_start",
+          "type": "SetColor"
+        }
       ],
+      "spawnRate": "$spawn_rate",
+      "trigger": {
+        "delay": 1.18,
+        "source": "RocketGold"
+      },
       "updateModules": [
-        { "type": "ApplyGravity", "gravity": "$gravity" },
-        { "type": "ApplyLinearDrag", "drag": "$drag" },
-        { "type": "ColorOverLife", "start": "$burst_c_start", "end": "$burst_c_end", "curve": "burst_c_curve", "input": "NormalizedAge" },
-        { "type": "SizeOverLife", "start": 0.3849, "end": 0.0962 },
-        { "type": "ScaleOverLife", "start": 0.82, "end": 0.18, "curve": "burst_scale_curve", "input": "NormalizedAge" },
-        { "type": "KillOutsideBounds", "min": [-1.5, -1.2, -1.5], "max": [1.5, 1.35, 1.5] }
+        {
+          "gravity": "$gravity",
+          "type": "ApplyGravity"
+        },
+        {
+          "drag": "$drag",
+          "type": "ApplyLinearDrag"
+        },
+        {
+          "curve": "burst_c_curve",
+          "end": "$burst_c_end",
+          "input": "NormalizedAge",
+          "start": "$burst_c_start",
+          "type": "ColorOverLife"
+        },
+        {
+          "end": 0.0962,
+          "start": 0.3849,
+          "type": "SizeOverLife"
+        },
+        {
+          "curve": "burst_scale_curve",
+          "end": 0.18,
+          "input": "NormalizedAge",
+          "start": 0.82,
+          "type": "ScaleOverLife"
+        },
+        {
+          "max": [1.5,1.35,1.5],
+          "min": [-1.5,-1.2,-1.5],
+          "type": "KillOutsideBounds"
+        }
       ]
     }
-  ]
+  ],
+  "name": "Fire And Fireworks",
+  "parameters": {
+    "burst_a_end": [0.96,0.08,0.06,0.0],
+    "burst_a_start": [1.0,0.5,0.22,0.96],
+    "burst_b_end": [0.12,0.38,1.0,0.0],
+    "burst_b_start": [0.42,0.9,1.0,0.92],
+    "burst_c_end": [0.96,0.68,0.12,0.0],
+    "burst_c_start": [1.0,0.96,0.7,0.96],
+    "ember_end": [0.84,0.18,0.02,0.0],
+    "ember_start": [1.0,0.74,0.22,0.86],
+    "flame_end": [0.48,0.06,0.02,0.0],
+    "flame_start": [1.0,0.86,0.34,0.92],
+    "gravityScale": 1.0,
+    "smoke_end": [0.08,0.08,0.1,0.0],
+    "smoke_start": [0.34,0.34,0.38,0.18],
+    "trail_end": [0.74,0.32,0.1,0.0],
+    "trail_start": [1.0,0.92,0.72,0.84]
+  }
 }

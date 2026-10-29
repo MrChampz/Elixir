@@ -16,6 +16,9 @@ namespace Elixir::GUI
          */
         void ClearChildren();
 
+        /** @brief Removes a child and releases its slot and parent link. */
+        void RemoveChild(const Ref<Widget>& child) override;
+
         SPadding GetPadding() const { return m_Padding; }
         void SetPadding(const SPadding& padding);
 
@@ -37,10 +40,6 @@ namespace Elixir::GUI
         size_t GetChildCount() const override { return GetSlotCount(); }
 
         Ref<Widget> GetChildAt(size_t index) const override;
-
-        // Remove a child widget from this panel: drops the slot holding it and clears the
-        // child's parent back-pointer (via DetachChild), marking layout dirty.
-        void RemoveChild(const Ref<Widget>& child) override;
 
         void BuildDrawCommands(RenderBatch& batch, int zOrder) override;
 

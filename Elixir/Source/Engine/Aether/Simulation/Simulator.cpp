@@ -2,6 +2,7 @@
 #include "Simulator.h"
 
 #include <Engine/Core/Timer.h>
+#include <cmath>
 #include <Engine/Aether/Core/Operation.h>
 
 namespace Elixir::Aether::Simulation
@@ -35,6 +36,12 @@ namespace Elixir::Aether::Simulation
             float       BurstIntervalSeconds{};
             uint32_t    BurstCount{};
             uint32_t    IsTriggerDriven{};
+            uint32_t    KillOnLifetimeExpired = 1;
+            uint32_t    Padding = 0;
+            uint32_t    StrandUpdateOperationOffset = 0;
+            uint32_t    StrandUpdateOperationCount = 0;
+            uint32_t    Padding2 = 0;
+            uint32_t    Padding3 = 0;
         };
 
         struct SGPUSystemInstance
@@ -117,6 +124,24 @@ namespace Elixir::Aether::Simulation
             uint32_t EmitterIndex = 0;
         };
 
+        // Matches the strand compute push-constant layout (108 bytes).
+        struct SStrandPushConstants
+        {
+            glm::mat4 RootTransform{1.0f};
+            uint32_t ParticleOffset = 0;
+            uint32_t PointOffset = 0;
+            uint32_t PointCount = 0;
+            uint32_t StrandCount = 0;
+            float SegmentLength = 0;
+            float Stiffness = 0;
+            float Damping = 0;
+
+            uint32_t Generation = 0;
+            uint32_t SolverIterations = 0;
+            uint32_t InstanceIndex = 0;
+            uint32_t EmitterIndex = 0;
+        };
+
         // Update dispatches use the same ABI as scheduler dispatches.
         using SUpdatePushConstants = SSchedulePushConstants;
 
@@ -141,6 +166,9 @@ namespace Elixir::Aether::Simulation
                 .BurstIntervalSeconds = emitter.BurstIntervalSeconds,
                 .BurstCount = emitter.BurstCount,
                 .IsTriggerDriven = emitter.IsTriggerDriven ? 1u : 0u,
+                .KillOnLifetimeExpired = emitter.KillOnLifetimeExpired ? 1u : 0u,
+                .StrandUpdateOperationOffset = operationBaseOffset + emitter.StrandUpdateOperationOffset,
+                .StrandUpdateOperationCount = emitter.StrandUpdateOperationCount,
             };
         }
 
@@ -178,6 +206,7 @@ namespace Elixir::Aether::Simulation
         EE_CORE_INFO("Initializing Aether Simulator.")
 
         if (!context || !shaderLoader ||
+            m_Limits.StrandPointCapacity > INT32_MAX / (3 * sizeof(glm::vec4)) ||
             m_Limits.ConstantCapacity > UINT32_MAX / sizeof(uint32_t) ||
             m_Limits.ParameterWordCapacity > UINT32_MAX / sizeof(uint32_t))
         {
@@ -185,8 +214,9 @@ namespace Elixir::Aether::Simulation
             return;
         }
 
-        Init(shaderLoader);
+        if (!Init(shaderLoader)) return;
         CreateBuffers();
+        if (!m_StrandPointBuffer || !m_StrandPointBuffer->IsValid()) return;
         BindShaderParameters();
     }
 
@@ -194,6 +224,7 @@ namespace Elixir::Aether::Simulation
     {
         if (!m_ConstantBuffer || !m_ParameterBuffer) return;
         ProcessCompletedRetirements();
+        m_ParameterUploads[m_GraphicsContext->GetFrameIndex()].clear();
         m_LastDeltaTimeSeconds = timestep.GetSeconds();
         m_ElapsedTimeSeconds += timestep.GetSeconds();
     }
@@ -203,36 +234,111 @@ namespace Elixir::Aether::Simulation
         const Ref<CommandBuffer>& cmd
     )
     {
+        return RecordSteps(submission, cmd, std::span(&m_LastDeltaTimeSeconds, 1),
+            m_ElapsedTimeSeconds - m_LastDeltaTimeSeconds);
+    }
+
+    Ref<const RenderFrame> Simulator::RecordSteps(
+        const FrameSubmission& submission,
+        const Ref<CommandBuffer>& cmd,
+        const std::span<const float> steps,
+        const float initialTime
+    )
+    {
         EE_CORE_ASSERT(cmd, "Aether simulation requires a command buffer.")
-        if (!cmd || !m_ConstantBuffer || !m_ParameterBuffer) return nullptr;
+
+        if (!cmd || !m_ConstantBuffer || !m_ParameterBuffer ||
+            !m_StrandPointBuffer || !m_StrandPointBuffer->IsValid() || steps.empty())
+            return nullptr;
+
+        const auto invalidStep = std::ranges::any_of(steps, [](const float step) {
+            return !std::isfinite(step) || step < 0;
+        });
+
+        if (!std::isfinite(initialTime) || initialTime < 0 || invalidStep)
+        {
+            EE_CORE_ERROR("Aether simulation requires finite, nonnegative step and initial times.");
+            return nullptr;
+        }
 
         const auto serial = ++m_SubmissionSerial;
-
         m_LastMetrics = {
             .SubmissionSerial = serial,
-            .DeltaTimeSeconds = m_LastDeltaTimeSeconds,
-            .ElapsedTimeSeconds = m_ElapsedTimeSeconds,
+            .DeltaTimeSeconds = steps.back(),
+            .ElapsedTimeSeconds = initialTime,
             .RequestedSystemInstanceCount = submission.GetRenderProxies().size(),
             .TriggerEventCapacityPerEmitter = m_Limits.TriggerEventCapacityPerEmitter,
         };
 
-        const auto extent = m_GraphicsContext->GetRenderTarget()->GetExtent();
-        const SParamsData params{
-            .Time = { m_LastDeltaTimeSeconds, m_ElapsedTimeSeconds, 0.0f, 0.0f },
-            .Viewport = { (float)extent.Width, (float)extent.Height, 0.0f, 0.0f },
-        };
-        m_ParamsBuffer->UpdateData(&params, sizeof(params));
-
-        auto instances = ResolveSubmittedInstances(submission);
-
+        const auto instances = ResolveSubmittedInstances(submission);
         const auto batches = BuildSimulationBatches(instances);
-        m_LastMetrics.SimulationBatchCount = batches.size();
+        const auto extent = m_GraphicsContext->GetRenderTarget()->GetExtent();
 
-        for (const auto& batch : batches)
-            SimulateBatch(cmd, batch);
+        std::vector<SParamsData> parameters;
+        parameters.reserve(steps.size());
+
+        float elapsed = initialTime;
+        for (const float step : steps)
+        {
+            elapsed += step;
+            parameters.push_back({
+                .Time = { step, elapsed, 0, 0 },
+                .Viewport = { (float)extent.Width, (float)extent.Height, 0, 0 }
+            });
+        }
+
+        const auto upload = StagingBuffer::Create(
+            m_GraphicsContext,
+            parameters.size() * sizeof(SParamsData),
+            parameters.data()
+        );
+        if (!upload || !upload->IsValid())
+        {
+            EE_CORE_ERROR("Could not allocate Aether simulation time upload.");
+            return nullptr;
+        }
+
+        m_ParameterUploads[m_GraphicsContext->GetFrameIndex()].push_back(upload);
+
+        for (size_t index = 0; index < steps.size(); ++index)
+        {
+            m_ParamsBuffer->Barrier(
+                cmd,
+                EPipelineStage::Transfer,
+                EPipelineAccess::TransferWrite
+            );
+
+            SBufferCopy region{
+                .SrcOffset = index * sizeof(SParamsData),
+                .DstOffset = 0,
+                .Size = sizeof(SParamsData)
+            };
+
+            cmd->CopyBuffer(
+                upload,
+                m_ParamsBuffer,
+                std::span(&region, 1)
+            );
+
+            m_ParamsBuffer->Barrier(
+                cmd,
+                EPipelineStage::ComputeShader,
+                EPipelineAccess::UniformRead
+            );
+
+            for (const auto& batch : batches)
+                SimulateBatch(cmd, batch);
+        }
 
         for (const auto& batch : batches)
             PublishRenderBarrier(cmd, batch.ParticleStateLayout);
+
+        m_LastDeltaTimeSeconds = steps.back();
+        m_ElapsedTimeSeconds = elapsed;
+
+        m_LastMetrics.DeltaTimeSeconds = m_LastDeltaTimeSeconds;
+        m_LastMetrics.ElapsedTimeSeconds = elapsed;
+        m_LastMetrics.SimulationBatchCount = batches.size();
 
         return CreateRef<RenderFrame>(
             BuildRenderResources(),
@@ -255,7 +361,7 @@ namespace Elixir::Aether::Simulation
         m_UnsupportedParticleStateLayoutInstances.erase(key);
     }
 
-    void Simulator::Init(const ShaderLoader* shaderLoader)
+    bool Simulator::Init(const ShaderLoader* shaderLoader)
     {
         m_SchedulerBeginShader = shaderLoader->LoadShader(
             "./Shaders/Aether/",
@@ -263,6 +369,11 @@ namespace Elixir::Aether::Simulation
             "ParticlesSchedulerBegin",
             EShaderStage::Compute
         );
+        if (!m_SchedulerBeginShader)
+        {
+            EE_CORE_ERROR("Could not load the Aether scheduler begin shader.");
+            return false;
+        }
 
         m_SchedulerInitEmittersShader = shaderLoader->LoadShader(
             "./Shaders/Aether/",
@@ -270,6 +381,11 @@ namespace Elixir::Aether::Simulation
             "ParticlesSchedulerInitEmitters",
             EShaderStage::Compute
         );
+        if (!m_SchedulerInitEmittersShader)
+        {
+            EE_CORE_ERROR("Could not load the Aether scheduler emitter initialization shader.");
+            return false;
+        }
 
         m_SchedulerScheduleEmittersShader = shaderLoader->LoadShader(
             "./Shaders/Aether/",
@@ -277,6 +393,11 @@ namespace Elixir::Aether::Simulation
             "ParticlesSchedulerScheduleEmitters",
             EShaderStage::Compute
         );
+        if (!m_SchedulerScheduleEmittersShader)
+        {
+            EE_CORE_ERROR("Could not load the Aether scheduler emitter scheduling shader.");
+            return false;
+        }
 
         m_SchedulerFinalizeShader = shaderLoader->LoadShader(
             "./Shaders/Aether/",
@@ -284,6 +405,11 @@ namespace Elixir::Aether::Simulation
             "ParticlesSchedulerFinalize",
             EShaderStage::Compute
         );
+        if (!m_SchedulerFinalizeShader)
+        {
+            EE_CORE_ERROR("Could not load the Aether scheduler finalize shader.");
+            return false;
+        }
 
         SPipelineCreateInfo pipelineInfo{};
         pipelineInfo.Shader = m_SchedulerBeginShader;
@@ -301,10 +427,10 @@ namespace Elixir::Aether::Simulation
         pipelineInfo.Shader = m_SchedulerFinalizeShader;
         m_SchedulerFinalizePipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
 
-        CreateCoreV1ParticleStateLayoutRuntime(shaderLoader);
+        return CreateCoreV1ParticleStateLayoutRuntime(shaderLoader);
     }
 
-    void Simulator::CreateCoreV1ParticleStateLayoutRuntime(const ShaderLoader* shaderLoader)
+    bool Simulator::CreateCoreV1ParticleStateLayoutRuntime(const ShaderLoader* shaderLoader)
     {
         EE_CORE_ASSERT(
             m_ParticleStateLayouts.Find(EParticleStateLayout::CoreV1),
@@ -328,6 +454,11 @@ namespace Elixir::Aether::Simulation
             "ParticlesSpawn",
             EShaderStage::Compute
         );
+        if (!runtime.SpawnShader)
+        {
+            EE_CORE_ERROR("Could not load the Aether particle spawn shader.");
+            return false;
+        }
 
         runtime.UpdateShader = shaderLoader->LoadShader(
             "./Shaders/Aether/",
@@ -335,6 +466,11 @@ namespace Elixir::Aether::Simulation
             "ParticlesUpdate",
             EShaderStage::Compute
         );
+        if (!runtime.UpdateShader)
+        {
+            EE_CORE_ERROR("Could not load the Aether particle update shader.");
+            return false;
+        }
 
         SPipelineCreateInfo pipelineInfo{};
         pipelineInfo.Shader = runtime.SpawnShader;
@@ -342,6 +478,18 @@ namespace Elixir::Aether::Simulation
 
         pipelineInfo.Shader = runtime.UpdateShader;
         runtime.UpdatePipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
+
+        runtime.StrandShader = shaderLoader->LoadShader(
+            "./Shaders/Aether/", std::array<std::string_view, 1>{ "StrandsUpdate" },
+            "StrandsUpdate", EShaderStage::Compute);
+        if (!runtime.StrandShader)
+        {
+            EE_CORE_ERROR("Could not load the Aether strand update shader.");
+            return false;
+        }
+        pipelineInfo.Shader = runtime.StrandShader;
+        runtime.StrandPipeline = ComputePipeline::Create(m_GraphicsContext, pipelineInfo);
+        return true;
     }
 
     void Simulator::CreateBuffers()
@@ -363,6 +511,15 @@ namespace Elixir::Aether::Simulation
                 particleInfo
             );
         }
+
+        m_StrandPointBuffer = StorageBuffer::Create(m_GraphicsContext,
+            3 * sizeof(glm::vec4) * std::max<size_t>(1, m_Limits.StrandPointCapacity));
+        if (!m_StrandPointBuffer || !m_StrandPointBuffer->IsValid())
+        {
+            EE_CORE_ERROR("Could not allocate Aether strand point storage.");
+            return;
+        }
+        m_StrandPointBuffer->Clear();
 
         m_EmitterStateBuffer = StorageBuffer::Create(
             m_GraphicsContext,
@@ -546,6 +703,21 @@ namespace Elixir::Aether::Simulation
             "Aether cannot bind and uninitialized particle state layout runtime."
         )
         if (!runtime.ParticleStateBuffer) return;
+
+        if (runtime.StrandShader)
+        {
+            constexpr SStrandPushConstants strandPushConstants{};
+            runtime.StrandShader->SetPushConstant("pc", (void*)&strandPushConstants, sizeof(strandPushConstants));
+            runtime.StrandShader->BindStorageBuffer("particles", runtime.ParticleStateBuffer);
+            runtime.StrandShader->BindStorageBuffer("strandPoints", m_StrandPointBuffer);
+            runtime.StrandShader->BindStorageBuffer("emitters", m_EmitterBuffer);
+            runtime.StrandShader->BindStorageBuffer("instances", m_SystemInstanceBuffer);
+            runtime.StrandShader->BindStorageBuffer("operations", m_OperationBuffer);
+            runtime.StrandShader->BindStorageBuffer("operands", m_OperandBuffer);
+            runtime.StrandShader->BindStorageBuffer("constants", m_ConstantBuffer);
+            runtime.StrandShader->BindStorageBuffer("parameters", m_ParameterBuffer);
+            runtime.StrandShader->BindConstantBuffer("cbParams", m_ParamsBuffer);
+        }
 
         constexpr SSpawnPushConstants spawnPushConstants{};
 
@@ -864,6 +1036,7 @@ namespace Elixir::Aether::Simulation
             resources.push_back({
                 .Layout = runtime.Key,
                 .ParticleStateBuffer = runtime.ParticleStateBuffer,
+                .StrandPointBuffer = m_StrandPointBuffer,
             });
         }
 
@@ -894,6 +1067,8 @@ namespace Elixir::Aether::Simulation
                     .EmitterIndex = emitterIndex,
                     .LocalParticleOffset = emitter.LocalParticleOffset,
                     .ParticleCount = emitter.MaxParticles,
+                    .StrandPointOffset = instance.Allocation.StrandPoints.Offset + emitter.LocalStrandPointOffset,
+                    .Strand = emitter.Strand,
                 });
             }
         }
@@ -1031,6 +1206,36 @@ namespace Elixir::Aether::Simulation
             runtime->UpdateShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
             cmd->Dispatch((instance->Allocation.Particles.Count + UPDATE_GROUP_SIZE - 1) / UPDATE_GROUP_SIZE);
         }
+
+        // Strand roots consume the updated particle positions; points persist across steps.
+        particleBuffer->Barrier(cmd, EPipelineStage::ComputeShader, EPipelineAccess::ShaderRead);
+        m_StrandPointBuffer->Barrier(cmd, EPipelineStage::ComputeShader,
+            EPipelineAccess::ShaderRead | EPipelineAccess::ShaderWrite);
+        runtime->StrandPipeline->Bind(cmd);
+        for (const auto* instance : batch.Instances)
+        {
+            for (const auto& emitter : instance->Proxy->GetCompiledSystem().Emitters)
+            {
+                if (emitter.RenderMode != EParticleRenderMode::Strand || emitter.MaxParticles == 0) continue;
+                const auto& settings = emitter.Strand;
+                const SStrandPushConstants pc{
+                    .RootTransform = GetParticleRenderTransform(emitter, *instance->Proxy),
+                    .ParticleOffset = instance->Allocation.Particles.Offset + emitter.LocalParticleOffset,
+                    .PointOffset = instance->Allocation.StrandPoints.Offset + emitter.LocalStrandPointOffset,
+                    .PointCount = settings.PointCount,
+                    .StrandCount = emitter.MaxParticles,
+                    .SegmentLength = settings.SegmentLength,
+                    .Stiffness = settings.Stiffness,
+                    .Damping = settings.Damping,
+                    .Generation = instance->Allocation.Generation,
+                    .SolverIterations = settings.SolverIterations,
+                    .InstanceIndex = instance->Allocation.InstanceIndex,
+                    .EmitterIndex = instance->Allocation.Emitters.Offset + uint32_t(&emitter - instance->Proxy->GetCompiledSystem().Emitters.data()),
+                };
+                runtime->StrandShader->SetPushConstant(cmd, "pc", (void*)&pc, sizeof(pc));
+                cmd->Dispatch((emitter.MaxParticles + UPDATE_GROUP_SIZE - 1) / UPDATE_GROUP_SIZE);
+            }
+        }
     }
 
     void Simulator::PublishRenderBarrier(
@@ -1042,6 +1247,7 @@ namespace Elixir::Aether::Simulation
         EE_CORE_ASSERT(runtime, "Aether particle state layout runtime is missing.")
         if (!runtime) return;
 
+        m_StrandPointBuffer->Barrier(cmd, EPipelineStage::VertexShader, EPipelineAccess::ShaderRead);
         runtime->ParticleStateBuffer->Barrier(
             cmd,
             EPipelineStage::VertexShader | EPipelineStage::VertexInput,
@@ -1092,5 +1298,9 @@ namespace Elixir::Aether::Simulation
             int32_t(allocation.Particles.Offset * layout->ParticleStateStride),
             allocation.Particles.Count * layout->ParticleStateStride
         );
+        if (allocation.StrandPoints.Count != 0)
+            m_StrandPointBuffer->Fill(0,
+                int32_t(allocation.StrandPoints.Offset * 3 * sizeof(glm::vec4)),
+                allocation.StrandPoints.Count * 3 * sizeof(glm::vec4));
     }
 }

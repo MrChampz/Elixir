@@ -6,6 +6,7 @@
 #include <limits>
 
 #include <Engine/Aether/Core/Operand.h>
+#include "../TestInstanceRegistry.h"
 #include <Engine/Aether/Effect/Effect.h>
 #include <Engine/Aether/Effect/ModuleRegistry.h>
 #include <Engine/Aether/Core/Operations/RandomRange.h>
@@ -412,7 +413,7 @@ TEST(ModuleRegistryTest, UnknownTypesReturnNullWithoutConsumingFields)
 TEST(ModuleRegistryTest, LoadsExistingEffectAssets)
 {
     const auto root = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path().parent_path().parent_path().parent_path();
-    for (const auto* asset : { "FireAndFireworks.json", "RainStorm.json", "RibbonGarden.json", "RibbonVortex.json" })
+    for (const auto* asset : { "FireAndFireworks.json", "RainStorm.json", "RibbonGarden.json", "RibbonVortex.json", "GPUStrands.json" })
     {
         SCOPED_TRACE(asset);
         const auto system = Elixir::Aether::Effect::LoadEffectFile(root / "Assets" / "VFX" / asset);
@@ -479,4 +480,103 @@ TEST(ModuleRegistryTest, CreatesAndCompilesModulesRegisteredOutsideTheEngine)
     module->Compile(compileContext);
     ASSERT_EQ(operations.size(), 1u);
     EXPECT_FLOAT_EQ(std::bit_cast<float>(program.Constants[program.Operands[0] & Core::OperandIndexMask]), 7.0f);
+}
+
+TEST(ModuleRegistryTest, LoadsStrandSettingsAndRejectsInvalidRanges)
+{
+    std::string error;
+    const auto system = Effect::LoadEffectText(R"({"name":"Strands","emitters":[
+        {"name":"Root","renderMode":"Strand","simulationSpace":"Local","maxParticles":4,"spawnRate":0,
+         "strand":{"points":32,"gravity":[0,-1,0],"radialSegments":6},"material":{"blendMode":"Opaque"}}]})", &error);
+    ASSERT_TRUE(system) << error;
+    const auto& emitter = *system->GetEmitters().front();
+    EXPECT_EQ(emitter.GetRenderMode(), EParticleRenderMode::Strand);
+    EXPECT_EQ(emitter.GetSimulationSpace(), EParticleSimulationSpace::Local);
+    EXPECT_EQ(emitter.GetStrandSettings().PointCount, 32);
+    EXPECT_EQ(emitter.GetStrandSettings().RadialSegments, 6);
+    ASSERT_TRUE(emitter.GetMaterialDescription());
+    EXPECT_EQ(emitter.GetMaterialDescription()->BlendMode, Elixir::Materials::EMaterialBlendMode::Opaque);
+    for (const auto* fields : {R"("points":1)", R"("points":97)", R"("segmentLength":0)",
+        R"("damping":1.1)", R"("stiffness":-1)", R"("solverIterations":0)",
+        R"("radialSegments":2)", R"("subdivisions":9)", R"("gravity":[0,1])"})
+    {
+        SCOPED_TRACE(fields);
+        const std::string json = std::string(R"({"name":"Bad","emitters":[{"name":"Root","renderMode":"Strand","maxParticles":1,"spawnRate":0,"strand":{)") + fields + "}}]}";
+        EXPECT_FALSE(Effect::LoadEffectText(json, &error));
+        EXPECT_FALSE(error.empty());
+    }
+}
+
+TEST(ModuleRegistryTest, LoadsLifetimeDeathPolicyAndRejectsNonBooleanValues)
+{
+    std::string error;
+    const auto system = Effect::LoadEffectText(R"({"name":"State","emitters":[
+        {"name":"Default","maxParticles":1,"spawnRate":0},
+        {"name":"Persistent","maxParticles":1,"spawnRate":0,"particleState":{"killOnLifetimeExpired":false}},
+        {"name":"Finite","maxParticles":1,"spawnRate":0,"particleState":{"killOnLifetimeExpired":true}}]})", &error);
+    ASSERT_TRUE(system) << error;
+    ASSERT_EQ(system->GetEmitters().size(), 3);
+    EXPECT_TRUE(system->GetEmitters()[0]->ShouldKillOnLifetimeExpired());
+    EXPECT_FALSE(system->GetEmitters()[1]->ShouldKillOnLifetimeExpired());
+    EXPECT_TRUE(system->GetEmitters()[2]->ShouldKillOnLifetimeExpired());
+    for (const auto* state : {"false", "null", R"({"killOnLifetimeExpired":0})", R"({"killOnLifetimeExpired":"false"})"})
+    {
+        SCOPED_TRACE(state);
+        const std::string json = std::string(R"({"name":"Bad","emitters":[{"name":"Root","maxParticles":1,"spawnRate":0,"particleState":)") + state + "}]}";
+        EXPECT_FALSE(Effect::LoadEffectText(json, &error));
+        EXPECT_FALSE(error.empty());
+    }
+}
+
+TEST(ModuleRegistryTest, ValidatesModuleExecutionTargetsAndCurlParameterBindings)
+{
+    Effect::ModuleParseContext context;
+    const auto gravity = CreateRegistered("ApplyGravity", R"({"gravity":[0,-1,0]})", context);
+    ASSERT_TRUE(gravity);
+    EXPECT_EQ(gravity->GetTarget(), EModuleTarget::Particle);
+    const auto curl = CreateRegistered("ApplyCurlNoise", R"({"target":"StrandPoints","strength":"$Strength","frequency":2.2,"scrollVelocity":[0.1,0.2,0.3],"seed":"$Seed"})", context);
+    ASSERT_TRUE(curl) << context.GetError();
+    EXPECT_EQ(curl->GetTarget(), EModuleTarget::StrandPoints);
+    for (const auto& entry : {
+        std::pair{"ColorOverLife", R"({"target":"StrandPoints","start":[1,1,1,1],"end":[1,1,1,1]})"},
+        std::pair{"SetLifetime", R"({"target":"StrandPoints","min":1,"max":2})"},
+        std::pair{"ApplyGravity", R"({"target":"Unknown","gravity":[0,-1,0]})"},
+        std::pair{"ApplyGravity", R"({"target":3,"gravity":[0,-1,0]})"},
+        std::pair{"ApplyCurlNoise", R"({"frequency":0})"},
+        std::pair{"ApplyCurlNoise", R"({"strength":-1})"}
+    })
+    {
+        Effect::ModuleParseContext invalid;
+        EXPECT_FALSE(CreateRegistered(entry.first, entry.second, invalid));
+        EXPECT_TRUE(invalid.Failed());
+    }
+    std::string error;
+    EXPECT_FALSE(Effect::LoadEffectText(R"({"name":"Bad","emitters":[{"name":"Sprite","maxParticles":1,"spawnRate":0,
+        "updateModules":[{"type":"ApplyGravity","target":"StrandPoints","gravity":[0,-1,0]}]}]})", &error));
+}
+
+TEST(ModuleRegistryTest, CompilesCurlSeedBindingFromJSON)
+{
+    const auto system = Effect::LoadEffectText(R"({
+        "name":"Bound curl seed",
+        "parameters":{"Seed":17},
+        "emitters":[{
+            "name":"Particles", "maxParticles":1, "spawnRate":0,
+            "updateModules":[{"type":"ApplyCurlNoise", "seed":"$Seed"}]
+        }]
+    })");
+    ASSERT_TRUE(system);
+    TestInstanceRegistry runtime;
+    const auto instance = runtime.CreateRegisteredInstance(system);
+    ASSERT_TRUE(instance);
+    Elixir::Aether::Rendering::FrameSubmission submission;
+    ASSERT_TRUE(submission.Submit(*instance));
+    const auto& compiled = submission.GetRenderProxies().front()->GetCompiledSystem();
+    const auto& program = compiled.ModuleData;
+    ASSERT_EQ(program.Operations.size(), 1u);
+    const auto reference = program.Operands.at(program.Operations[0].OperandOffset + 3);
+    EXPECT_EQ(Core::GetOperandSource(reference), Core::EOperandSource::Parameter);
+    EXPECT_EQ(Core::GetOperandFormat(reference), Core::EOperandFormat::Float);
+    ASSERT_EQ(compiled.Parameters.size(), 1u);
+    EXPECT_FLOAT_EQ(compiled.Parameters[0].Value.x, 17.0f);
 }

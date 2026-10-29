@@ -54,18 +54,36 @@ namespace Elixir::GUI
         }
     }
 
-    void Manager::Render()
+    void Manager::PrepareFrame()
     {
-        if (m_Layers.empty() || !m_Layers[0].Root || !m_Layers[0].Root->IsRenderVisible())
-            return;
-
-        if (NeedsRebuild())
+        auto frame = GetPublishedFrame();
+        if (NeedsRebuild() || !frame)
         {
             AssembleFrame();
-            m_Renderer->Rebuild(m_RenderBatch);
+            frame = CreateRef<RenderBatch>(m_RenderBatch);
+            {
+                std::lock_guard lock(m_FrameMutex);
+                m_PublishedFrame = frame;
+            }
             MarkRebuilt();
         }
+    }
 
+    Ref<const RenderBatch> Manager::GetPublishedFrame() const
+    {
+        std::lock_guard lock(m_FrameMutex);
+        return m_PublishedFrame;
+    }
+
+    void Manager::Render()
+    {
+        const auto frame = GetPublishedFrame();
+        if (!frame || !m_Renderer) return;
+        if (frame != m_LastDrawnFrame)
+        {
+            m_Renderer->Rebuild(*frame);
+            m_LastDrawnFrame = frame;
+        }
         m_Renderer->Draw();
     }
 
@@ -76,6 +94,53 @@ namespace Elixir::GUI
         dispatcher.Dispatch<KeyPressedEvent>(EE_BIND_EVENT_FN(Manager::HandleKeyPressed));
         dispatcher.Dispatch<KeyTypedEvent>(EE_BIND_EVENT_FN(Manager::HandleKeyTyped));
         dispatcher.Dispatch<MouseScrolledEvent>(EE_BIND_EVENT_FN(Manager::HandleMouseScrolled));
+        dispatcher.Dispatch<MouseButtonPressedEvent>(EE_BIND_EVENT_FN(Manager::HandleMouseButtonPressed));
+        dispatcher.Dispatch<MouseButtonReleasedEvent>(EE_BIND_EVENT_FN(Manager::HandleMouseButtonReleased));
+        dispatcher.Dispatch<MouseMovedEvent>(EE_BIND_EVENT_FN(Manager::HandleMouseMoved));
+    }
+
+    bool Manager::HandleMouseButtonPressed(const MouseButtonPressedEvent& event)
+    {
+        if (event.GetMouseButton() != EE_MOUSE_BUTTON_LEFT) return false;
+
+        m_MousePos = { event.GetX(), event.GetY() };
+        m_WasMouseDown = true;
+        m_LastMousePos = m_MousePos;
+
+        DismissPopupsOutside(m_MousePos);
+        ProcessMousePress(UpdatePointerHover());
+
+        return false;
+    }
+
+    bool Manager::HandleMouseButtonReleased(const MouseButtonReleasedEvent& event)
+    {
+        if (event.GetMouseButton() != EE_MOUSE_BUTTON_LEFT) return false;
+
+        m_MousePos = { event.GetX(), event.GetY() };
+        m_WasMouseDown = false;
+        m_LastMousePos = m_MousePos;
+
+        ProcessMouseRelease(UpdatePointerHover());
+
+        return false;
+    }
+
+    bool Manager::HandleMouseMoved(const MouseMovedEvent& event)
+    {
+        m_MousePos = { event.GetX(), event.GetY() };
+        m_LastMousePos = m_MousePos;
+
+        ProcessMouseMove(UpdatePointerHover());
+
+        return false;
+    }
+
+    std::vector<Ref<Widget>> Manager::UpdatePointerHover()
+    {
+        const auto path = GetHitPath(m_MousePos);
+        UpdateHoverPath(path);
+        return path;
     }
 
     void Manager::SetRoot(const Ref<Panel>& root)
@@ -135,6 +200,8 @@ namespace Elixir::GUI
     void Manager::AssembleFrame()
     {
         m_RenderBatch.Clear();
+        if (m_Layers.empty() || !m_Layers[0].Root || !m_Layers[0].Root->IsRenderVisible())
+            return;
 
         int zCursor = 0;
         bool rebuilt = false;

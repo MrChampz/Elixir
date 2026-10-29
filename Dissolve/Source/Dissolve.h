@@ -2,13 +2,11 @@
 
 #include <Engine.h>
 
-#include <atomic>
-
 #include "Environment.h"
 
 class Dissolve final : public Elixir::Application
 {
-  public:
+public:
     Dissolve();
     ~Dissolve() override;
 
@@ -18,7 +16,7 @@ class Dissolve final : public Elixir::Application
 
     void OnEvent(Event& event) override;
 
-  private:
+private:
     /**
      * @brief Apply the requested movement and advance the animation state machine.
      * @param deltaSeconds Elapsed time in seconds since the previous frame.

@@ -1,3 +1,4 @@
-/Meshes
+/Meshes/*
+!/Meshes/StrandScene/
 
 *.hdr

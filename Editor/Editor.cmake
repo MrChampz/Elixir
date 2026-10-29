@@ -7,6 +7,11 @@ file(GLOB_RECURSE SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/Source/*.h"
     "${CMAKE_CURRENT_LIST_DIR}/Source/*.cpp"
 )
+# Reuse Dissolve's HDR environment baking for the Editor scene.
+list(APPEND SOURCES
+    "${CMAKE_SOURCE_DIR}/Dissolve/Source/Environment.cpp"
+    "${CMAKE_SOURCE_DIR}/Elixir/Vendor/stb/stb_image.cpp"
+)
 add_executable(${PROJECT_NAME} ${SOURCES})
 
 # Set output name
@@ -32,6 +37,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 # Compile definitions
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
+    ELIXIR_EDITOR_PROJECT_ROOT="${CMAKE_SOURCE_DIR}"
     $<$<BOOL:${ELIXIR_PROFILE}>:EE_PROFILE>
     $<$<CONFIG:Debug>:EE_DEBUG>
     $<$<CONFIG:Release>:EE_RELEASE>
@@ -58,6 +64,8 @@ endif()
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Elixir/Source
+    ${CMAKE_SOURCE_DIR}/Dissolve/Source
+    ${CMAKE_SOURCE_DIR}/Elixir/Vendor/stb
 )
 
 # Linking
@@ -67,3 +75,16 @@ add_dependencies(${PROJECT_NAME}
 )
 
 link_target_to_engine(${PROJECT_NAME})
+
+if (BUILD_TESTING)
+    add_executable(Editor.UnitTests
+        "${CMAKE_CURRENT_LIST_DIR}/Tests/VFXAssetsTest.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Source/Assets/VFXAssets.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Tests/VFXDocumentTest.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Source/VFX/VFXDocument.cpp"
+    )
+    target_include_directories(Editor.UnitTests PRIVATE "${CMAKE_CURRENT_LIST_DIR}/Source")
+    target_link_libraries(Editor.UnitTests PRIVATE GTest::gtest_main simdjson)
+    include(GoogleTest)
+    gtest_discover_tests(Editor.UnitTests)
+endif()

@@ -23,8 +23,7 @@ namespace Elixir::Aether::Effect
             EMaterialUsage::Particle
         );
 
-        const auto result = material->SetBlendMode(EMaterialBlendMode::Translucent);
-        EE_CORE_ASSERT(result, "Particle materials must enable translucent blending.")
+        material->SetBlendMode(desc.BlendMode);
 
         MaterialGraph graph;
 

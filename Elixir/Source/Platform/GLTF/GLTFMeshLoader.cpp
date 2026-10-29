@@ -21,7 +21,10 @@ namespace Elixir
             fastgltf::Extensions::KHR_materials_specular |
             fastgltf::Extensions::KHR_texture_transform |
             fastgltf::Extensions::KHR_materials_clearcoat |
-            fastgltf::Extensions::KHR_materials_sheen;
+            fastgltf::Extensions::KHR_materials_sheen |
+            fastgltf::Extensions::KHR_materials_transmission |
+            fastgltf::Extensions::KHR_materials_ior |
+            fastgltf::Extensions::KHR_materials_volume;
 
         // Check storage and cross-references before parser validation or accessor iteration.
         bool ValidateStorage(const fastgltf::Asset& asset)
@@ -256,7 +259,8 @@ namespace Elixir
                             .IndexCount = uint32_t(surface.Indices.size()),
                             .VertexOffset = uint32_t(result.Vertices.size()),
                             .MaterialIndex = surface.MaterialIndex,
-                            .LocalBounds = surface.Bounds
+                            .LocalBounds = surface.Bounds,
+                            .VolumeToLocal = glm::inverse(glm::mat3(transform))
                         });
 
                         result.Vertices.insert(

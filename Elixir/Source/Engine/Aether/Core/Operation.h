@@ -29,6 +29,7 @@ namespace Elixir::Aether::Core
         Clamp = 18,
         CopyFromAttribute = 19,
         ApplyVortex = 20,
+        ApplyCurlNoise = 21,
     };
     
     /** @brief Stores the fixed 16-byte header of a compiled particle instruction. */

@@ -2,15 +2,18 @@
 //
 // The compiler replaces both markers below. The graph marker provides the
 // material values, while the shading-model marker selects Unlit, Lit, or
-// ClearCoat, Subsurface, or Cloth at shader-compilation time.
+// ClearCoat, Subsurface, Cloth, or Transmission at shader-compilation time.
 
 // __SHADING_MODEL__
 
-#define MATERIAL_SHADING_MODEL_UNLIT      0
-#define MATERIAL_SHADING_MODEL_LIT        1
-#define MATERIAL_SHADING_MODEL_CLEAR_COAT 2
-#define MATERIAL_SHADING_MODEL_SUBSURFACE 3
-#define MATERIAL_SHADING_MODEL_CLOTH      4
+#define MATERIAL_SHADING_MODEL_UNLIT        0
+#define MATERIAL_SHADING_MODEL_LIT          1
+#define MATERIAL_SHADING_MODEL_CLEAR_COAT   2
+#define MATERIAL_SHADING_MODEL_SUBSURFACE   3
+#define MATERIAL_SHADING_MODEL_CLOTH        4
+#define MATERIAL_SHADING_MODEL_TRANSMISSION 5
+
+static const float INFINITY = asfloat(0x7F800000u);
 
 [[vk::binding(0, 0)]]
 cbuffer cbFrame : register(b0)
@@ -59,10 +62,24 @@ Texture2D prefilteredTexture : register(t3);
 [[vk::binding(3, 2)]]
 SamplerState environmentSampler : register(s1);
 
+#if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_TRANSMISSION
+
+[[vk::binding(4, 2)]]
+Texture2D sceneColorTexture;
+
+[[vk::binding(5, 2)]]
+SamplerState sceneColorSampler;
+
+#endif
+
 struct PushConstants
 {
     float4x4 Model;
     uint MaterialIndex;
+    float3 Padding;
+    float4 VolumeToLocal0;
+    float4 VolumeToLocal1;
+    float4 VolumeToLocal2;
 };
 
 [[vk::push_constant]]
@@ -97,6 +114,11 @@ struct Surface
     float   ClearCoat;
     float   ClearCoatRoughness;
     float3  ClearCoatBottomNormal;
+    float   Transmission;
+    float   IOR;
+    float   Thickness;
+    float   AttenuationDistance;
+    float3  AttenuationColor;
 };
 
 static const uint NO_TEXTURE = 0xFFFFFFFFu;
@@ -195,6 +217,49 @@ float3 SampleSpecular(float3 dir, float roughness)
     return lerp(env, prefiltered, smoothstep(0.12f, 0.35f, r));
 }
 
+#if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_TRANSMISSION
+
+// Microfacet roughness filters the background around the projected exit point.
+float3 SampleTransmission(float2 pixel, float roughness, float ior)
+{
+    uint width, height;
+    sceneColorTexture.GetDimensions(width, height);
+
+    float2 dimensions = float2(width, height);
+    float2 uv = pixel / dimensions;
+    float2 halfTexel = 0.5f / dimensions;
+
+    float filteredRoughness = roughness * saturate(2.0f * (ior - 1.0f));
+
+    float radius = filteredRoughness * filteredRoughness * min(width, height) * 0.04f;
+    if (radius < 0.5f)
+        return sceneColorTexture.SampleLevel(
+            sceneColorSampler,
+            clamp(uv, halfTexel, 1.0f - halfTexel),
+            0
+        ).rgb;
+
+    float3 result = 0.0f.xxx;
+
+    // A deterministic disk avoids temporal noise and works without a scene-color mip chain.
+    [unroll] for (uint sample = 0; sample < 16; ++sample)
+    {
+        float angle = sample * 2.39996323f;
+        float diskRadius = sqrt((sample + 0.5f) / 16.0f);
+        float2 offset = float2(cos(angle), sin(angle)) * diskRadius * radius / dimensions;
+
+        result += sceneColorTexture.SampleLevel(
+            sceneColorSampler,
+            clamp(uv + offset, halfTexel, 1.0f - halfTexel),
+            0
+        ).rgb;
+    }
+
+    return result / 16.0f;
+}
+
+#endif
+
 float DistributionGGX(float NdotH, float roughness)
 {
     const float alpha = roughness * roughness;
@@ -284,6 +349,11 @@ float4 main(PSInput input) : SV_Target0
     surface.ClearCoat = 0.0f;
     surface.ClearCoatRoughness = 0.0f;
     surface.ClearCoatBottomNormal = float3(0.0f, 0.0f, 1.0f);
+    surface.Transmission = 0.0f;
+    surface.IOR = 1.5f;
+    surface.Thickness = 0.0f;
+    surface.AttenuationDistance = INFINITY;
+    surface.AttenuationColor = 1.0f.xxx;
 
     // __GRAPH_BODY__
 
@@ -298,11 +368,18 @@ float4 main(PSInput input) : SV_Target0
 #endif
 
     float roughness = clamp(surface.Roughness, 0.045f, 1.0f);
+    float ior = max(surface.IOR, 1.0f);
+
+    // glTF also permits zero IOR to represent an infinitely reflective dielectric.
+    float dielectricReflectance = surface.IOR == 0.0f
+        ? 1.0f
+        : pow((ior - 1.0f) / (ior + 1.0f), 2.0f);
 
     float3 dielectricF0 = min(
-        0.04f.xxx * surface.SpecularColor * surface.Specular,
+        dielectricReflectance.xxx * surface.SpecularColor * surface.Specular,
         1.0f.xxx
     );
+
     float3 F0 = lerp(dielectricF0, surface.BaseColor, surface.Metallic);
 
     // surface.Normal is tangent-space. Transform it into world space through
@@ -426,6 +503,54 @@ float4 main(PSInput input) : SV_Target0
             color += coatDirectContribution;
         }
     }
+#endif
+
+#if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_TRANSMISSION
+
+    const float transmission = saturate(surface.Transmission);
+    float2 transmissionPixel = input.ClipPos.xy;
+    float3 volumeTransmittance = 1.0f.xxx;
+
+    const float thickness = max(surface.Thickness, 0.0f);
+    if (thickness > 0.0f)
+    {
+        // Approximate the exit point using the thickness map and Snell's law.
+        const float3 refractedDirection = normalize(refract(-V, N, 1.0f / ior));
+        const float3 sourceDirection = float3(
+            dot(pc.VolumeToLocal0.xyz, refractedDirection),
+            dot(pc.VolumeToLocal1.xyz, refractedDirection),
+            dot(pc.VolumeToLocal2.xyz, refractedDirection)
+        );
+        const float pathLength = thickness / max(length(sourceDirection), 1e-6f);
+        const float3 exitPosition = input.WorldPos + refractedDirection * pathLength;
+        const float4 exitClip = mul(ViewProj, float4(exitPosition, 1.0f));
+
+        if (exitClip.w > 1e-4f)
+        {
+            uint width, height;
+            sceneColorTexture.GetDimensions(width, height);
+            transmissionPixel = (exitClip.xy / exitClip.w * 0.5f + 0.5f) * float2(width, height);
+        }
+
+        // Beer-Lambert absorption: T(x) = color^(x / attenuationDistance).
+        if (isfinite(surface.AttenuationDistance) && surface.AttenuationDistance > 0.0f)
+            volumeTransmittance = pow(
+                saturate(surface.AttenuationColor),
+                (pathLength / surface.AttenuationDistance).xxx
+            );
+    }
+
+    const float3 background = SampleTransmission(transmissionPixel, roughness, ior);
+
+    // Transmission replaces diffuse scattering while leaving the specular layer intact.
+    const float3 transmitted = background *
+        surface.BaseColor *
+        volumeTransmittance *
+        diffuseWeightIBL *
+        transmission;
+    color -= (diffuseIBLContribution + directDiffuseContribution) * transmission;
+    color += transmitted;
+
 #endif
 
     if (DebugView == SURFACE_DEBUG_BASE_COLOR)
