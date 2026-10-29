@@ -62,11 +62,12 @@ namespace Elixir
     bool Animation::Play(
         Ref<const AnimationNode> source,
         const float fadeDuration,
-        const bool looping
+        const bool looping,
+        const EAnimationTransitionMode mode
     )
     {
         auto candidate = GetBaseLayer();
-        if (!candidate.GetPlayer().Play(std::move(source), fadeDuration, looping) ||
+        if (!candidate.GetPlayer().Play(std::move(source), fadeDuration, looping, mode) ||
             !ApplyBaseLayer(candidate))
             return false;
 

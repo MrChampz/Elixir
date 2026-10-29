@@ -70,17 +70,23 @@ namespace Elixir
         /**
          * @brief Blend into a compatible animation source at its initial position.
          *
-         * Both sequences advance during the fade. An interrupted fade starts from the
-         * current blended pose. Zero duration switches immediately. Preserve state on failure.
+         * CrossFade advances both sources. Inertialization samples only the destination
+         * and decays pose and velocity offsets from accepted source samples. Without history,
+         * outgoing velocity is zero. Signed scale changes must preserve reflection signs.
+         * Zero duration switches immediately. Preserve state on failure.
+         * Montages keep their cross-fade envelopes. Inertialized root motion uses the
+         * destination immediately; root locking and pose modifiers run after smoothing.
          *
          * @param source Animation source to play.
          * @param fadeDuration Finite nonnegative transition duration in seconds.
          * @param looping Wrap playback at the end of the target animation.
+         * @param mode Cross-fade sources or decay offsets from the accepted source motion.
          */
         bool Play(
             Ref<const AnimationNode> source,
             float fadeDuration,
-            bool looping = true
+            bool looping = true,
+            EAnimationTransitionMode mode = EAnimationTransitionMode::CrossFade
         );
 
         /**

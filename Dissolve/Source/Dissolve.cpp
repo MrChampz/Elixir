@@ -254,7 +254,7 @@ Dissolve::Dissolve()
         panel->AddChild(label)
             .SetAnchors({position, 0, position, 0})
             .SetAlignment({0.5f, 0})
-            .SetPosition({0, 190})
+            .SetPosition({0, 220})
             .SetSize({260, 35});
     }
     const auto layerInstructions = CreateRef<GUI::TextBlock>(
@@ -277,6 +277,15 @@ Dissolve::Dissolve()
     panel->AddChild(m_NotifyStatus)
         .SetAnchors(GUI::SAnchors::TopLeft())
         .SetPosition({20, 140})
+        .SetSize({1100, 30});
+    const auto transitionInstructions = CreateRef<GUI::TextBlock>(
+        "T: wave/punch | Left: cross-fade | Right: inertialization | "
+        "G/U: disable IK/recoil to compare"
+    );
+    transitionInstructions->SetFontSize(18.0f);
+    panel->AddChild(transitionInstructions)
+        .SetAnchors(GUI::SAnchors::TopLeft())
+        .SetPosition({20, 170})
         .SetSize({1100, 30});
     m_GUIManager->SetRoot(panel);
 
@@ -311,7 +320,10 @@ void Dissolve::OnGUI(const Timestep frameTime)
                 m_AnimationPaused.load(std::memory_order_relaxed) ? "PAUSED" : "PLAYING",
                 m_ComparisonSteps.load(std::memory_order_relaxed),
                 m_SynchronizedSteps.load(std::memory_order_relaxed),
-                std::array{"WAVE", "ATTACK 1", "ATTACK 2", "ATTACK 3", "RECOVERY"}
+                std::array{
+                    m_TransitionToPunch.load(std::memory_order_relaxed) ? "PUNCH" : "WAVE",
+                    "ATTACK 1", "ATTACK 2", "ATTACK 3", "RECOVERY"
+                }
                     [m_ComboSection.load(std::memory_order_relaxed)],
                 m_ActionEvents.load(std::memory_order_relaxed),
                 m_RecoilEnabled.load(std::memory_order_relaxed)
@@ -334,6 +346,11 @@ void Dissolve::Prepare(const Timestep frameTime)
 {
     EE_PROFILE_ZONE_SCOPED()
     Application::Prepare(frameTime);
+
+    const auto transition = InputManager::IsKeyPressed(EE_KEY_T);
+    if (transition && !m_TransitionKeyPressed)
+        m_TransitionRequested.store(true, std::memory_order_relaxed);
+    m_TransitionKeyPressed = transition;
 
     const auto dodge = InputManager::IsKeyPressed(EE_KEY_B);
     if (dodge && !m_DodgeKeyPressed)
@@ -642,6 +659,7 @@ void Dissolve::InitializeAnimationGraph()
         !m_ComparisonAnimation->GetLayer("Recoil")->SetWeight(0.0f))
         return;
 
+    m_TransitionSources = {waveAnimation, punchAnimation};
     m_LocomotionSpace = blendSpace;
     m_PunchMontage = punchMontage;
     m_DodgeMontage = dodgeMontage;
@@ -800,6 +818,29 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
                 !comparisonAction->GetPlayer().SetNextMontageSection(section, next)))
                 return;
         }
+    }
+    if (!upperBody->GetPlayer().GetMontage() &&
+        !comparisonAction->GetPlayer().GetMontage() &&
+        m_TransitionRequested.exchange(false, std::memory_order_relaxed))
+    {
+        const auto toPunch = !m_TransitionToPunch.load(std::memory_order_relaxed);
+        const auto& source = m_TransitionSources[toPunch ? 1 : 0];
+        const auto node = SequenceNode::Create(source);
+        const auto started = upperBody->GetPlayer().Play(
+            node,
+            0.35f,
+            true,
+            EAnimationTransitionMode::Inertialization
+        );
+        if (!started) return;
+        const auto comparisonStarted = comparisonAction->GetPlayer().Play(
+            node,
+            0.35f,
+            true,
+            EAnimationTransitionMode::CrossFade
+        );
+        if (!comparisonStarted) return;
+        m_TransitionToPunch.store(toPunch, std::memory_order_relaxed);
     }
     const auto dodge = m_DodgeRequested.exchange(false, std::memory_order_relaxed);
     auto& locomotion = m_Animation->GetLayer("Locomotion")->GetPlayer();

@@ -34,6 +34,9 @@ namespace Elixir
         /** Publish source clocks when this evaluation is applied. */
         bool Advance = false;
 
+        /** Elapsed source seconds accepted with this candidate sample. */
+        float DeltaSeconds = 0;
+
         /** Consume start-point events only after a positive time advance is published. */
         bool ConsumeInitialNotifies = false;
     };
@@ -93,17 +96,23 @@ namespace Elixir
         /**
          * @brief Blend into a compatible animation source at its initial position.
          *
-         * Both sequences advance during the fade. An interrupted fade starts from the
-         * current blended pose. Zero duration switches immediately. Preserve state on failure.
+         * CrossFade advances both sources. Inertialization samples only the destination
+         * and decays pose and velocity offsets from accepted source samples. Without history,
+         * outgoing velocity is zero. Signed scale changes must preserve reflection signs.
+         * Zero duration switches immediately. Preserve state on failure.
+         * Montages keep their cross-fade envelopes. Inertialized root motion uses the
+         * destination immediately; root locking and pose modifiers run after smoothing.
          *
          * @param source Animation source to play.
          * @param fadeDuration Finite nonnegative transition duration in seconds.
          * @param looping Wrap playback at the end of the target animation.
+         * @param mode Cross-fade sources or decay offsets from the accepted source motion.
          */
         bool Play(
             Ref<const AnimationNode> source,
             float fadeDuration,
-            bool looping = true
+            bool looping = true,
+            EAnimationTransitionMode mode = EAnimationTransitionMode::CrossFade
         );
 
         /**
@@ -112,12 +121,14 @@ namespace Elixir
          * @param values Numeric inputs required by the concrete source.
          * @param fadeDuration Finite nonnegative fade duration in seconds.
          * @param looping Wrap the normalized cycle phase at one.
+         * @param mode Transition method used for a positive fade duration.
          */
         bool Play(
             Ref<const AnimationNode> source,
             std::span<const float> values,
             float fadeDuration = 0.0f,
-            bool looping = true
+            bool looping = true,
+            EAnimationTransitionMode mode = EAnimationTransitionMode::CrossFade
         );
 
         /**
@@ -126,19 +137,22 @@ namespace Elixir
          * @param values Numeric inputs required by the concrete source.
          * @param fadeDuration Finite nonnegative fade duration in seconds.
          * @param looping Wrap the cycle phase at one.
+         * @param mode Transition method used for a positive fade duration.
          */
         bool Play(
             Ref<const AnimationNode> source,
             const std::initializer_list<float> values,
             const float fadeDuration = 0.0f,
-            const bool looping = true
+            const bool looping = true,
+            const EAnimationTransitionMode mode = EAnimationTransitionMode::CrossFade
         )
         {
             return Play(
                 std::move(source),
                 std::span(values.begin(), values.size()),
                 fadeDuration,
-                looping
+                looping,
+                mode
             );
         }
 
@@ -391,8 +405,13 @@ namespace Elixir
          * @brief Start validated playback and capture the fade source.
          * @param playback Compatible target sequence or blend space at time zero.
          * @param fadeDuration Finite nonnegative duration in seconds.
+         * @param mode Validated smoothing method.
          */
-        bool StartPlayback(AnimationPlayback playback, float fadeDuration);
+        bool StartPlayback(
+            AnimationPlayback playback,
+            float fadeDuration,
+            EAnimationTransitionMode mode
+        );
 
         /**
          * @brief Compose sampled local transforms after blending the fade source.
@@ -410,6 +429,9 @@ namespace Elixir
             double sourceTime
         );
 
+        /** @brief Discard velocity history after a timeline discontinuity. */
+        void ResetPoseHistory();
+
         /**
          * @brief Evaluate notifications on the pose and section playback timeline.
          * @param resetActivations Start fresh candidate windows after enclosing suppression.
@@ -426,8 +448,13 @@ namespace Elixir
         std::string m_Name;
 
         Ref<const Skeleton> m_Skeleton;
+
+        /** Accepted source history before montage, layer composition, and pose modifiers. */
+        SAnimationSample m_PreviousSample;
+
         SAnimationSample m_Sample;
         SLocalPose m_ReferencePose;
+        float m_PoseDeltaSeconds = 0;
 
         bool m_Assigned = false;
         bool m_Playing = false;

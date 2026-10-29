@@ -1,18 +1,19 @@
 #pragma once
 
 #include <Engine/Animation/AnimationPlayback.h>
-#include <Engine/Animation/Pose.h>
+#include <Engine/Animation/AnimationTransitionMode.h>
+#include <Engine/Animation/AnimationInertialization.h>
 
 namespace Elixir
 {
-    /** Cross-fades playback or a frozen pose into a separately owned destination. */
+    /** Smooths source changes by cross-fading or decaying captured motion offsets. */
     class ELIXIR_API AnimationTransition
     {
     public:
         /** Outgoing playback that continues advancing during the transition. */
         AnimationPlayback Playback;
 
-        /** Captured pose and scalar channels used when there is no outgoing playback. */
+        /** Frozen source sample used by interrupted cross-fades. */
         SAnimationSample SourceSample;
 
         /** Finite nonnegative transition duration in seconds; zero disables the fade. */
@@ -20,6 +21,9 @@ namespace Elixir
 
         /** Elapsed transition time in seconds, clamped to [0, Duration]. */
         float Elapsed = 0;
+
+        /** Inertialization releases the outgoing source and uses destination root motion. */
+        EAnimationTransitionMode Mode = EAnimationTransitionMode::CrossFade;
 
         /**
          * @brief Sample the target and blend its outgoing contribution.
@@ -62,10 +66,29 @@ namespace Elixir
         ) const;
 
         /**
+         * @brief Capture pose and velocity offsets against a new destination.
+         * @param playback Destination playback; receives its resolved entry state on success.
+         * @param sourceSample Last accepted source sample before montage and composition.
+         * @param previous Previous accepted source sample, or null when unavailable.
+         * @param deltaSeconds Seconds between accepted samples; zero disables velocity
+         * history.
+         * @param referencePose Defaults for unanimated destination bone channels.
+         */
+        bool CaptureInertialization(
+            AnimationPlayback& playback,
+            const SAnimationSample& sourceSample,
+            const SAnimationSample* previous,
+            float deltaSeconds,
+            const SLocalPose& referencePose
+        );
+
+        /**
          * @brief Extract root movement from playback and blend it with the outgoing transition.
          *
-         * Use the mean fade weight over the interval. This approximation can vary with
-         * frame partition when root velocity changes or translation combines with rotation.
+         * Inertialization uses destination movement immediately.
+         * CrossFade uses the mean fade weight over the interval. This approximation can vary
+         * with frame partition when root velocity changes or translation combines with
+         * rotation.
          *
          * @param playback Target playback whose movement contributes to the result.
          * @param interval Root reference transform, bone index, and interval to extract.
@@ -83,5 +106,8 @@ namespace Elixir
 
         /** @brief Validate timing and the exclusive live or frozen transition origin. */
         bool IsValid() const;
+
+    private:
+        AnimationInertialization m_Inertialization;
     };
 }
