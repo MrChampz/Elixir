@@ -1,8 +1,8 @@
 #pragma once
 
 #include <Engine/Animation/AnimationPlayback.h>
-#include <Engine/Animation/Pose.h>
 #include <Engine/Animation/AnimationTransitionMode.h>
+#include <Engine/Animation/AnimationInertialization.h>
 
 namespace Elixir
 {
@@ -13,7 +13,7 @@ namespace Elixir
         /** Outgoing playback that continues advancing during the transition. */
         AnimationPlayback Playback;
 
-        /** Captured pose and scalar channels used when there is no outgoing playback. */
+        /** Frozen source sample used by interrupted cross-fades. */
         SAnimationSample SourceSample;
 
         /** Finite nonnegative transition duration in seconds; zero disables the fade. */
@@ -106,35 +106,8 @@ namespace Elixir
 
         /** @brief Validate timing and the exclusive live or frozen transition origin. */
         bool IsValid() const;
+
     private:
-        struct SInertialVector
-        {
-            glm::dvec3 Value{};
-            glm::dvec3 Velocity{};
-        };
-
-        struct SInertialScalar
-        {
-            double Value = 0;
-            double Velocity = 0;
-        };
-
-        struct SBoneInertia
-        {
-            SInertialVector Translation;
-            SInertialVector Rotation;
-            SInertialVector Scale;
-            glm::vec3 ScaleSign{1};
-        };
-
-        /**
-         * @brief Decay captured offsets over a candidate destination sample.
-         * @param elapsed Transition seconds clamped to the configured duration.
-         * @param sample Candidate pose and curves; discard on failure.
-         */
-        bool ApplyInertialization(double elapsed, SAnimationSample& sample) const;
-
-        std::vector<SBoneInertia> m_BoneOffsets;
-        std::map<std::string, SInertialScalar, std::less<>> m_CurveOffsets;
+        AnimationInertialization m_Inertialization;
     };
 }

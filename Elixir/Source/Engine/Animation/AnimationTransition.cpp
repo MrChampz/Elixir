@@ -3,6 +3,8 @@
 
 #include <Engine/Animation/Pose.h>
 
+#include <limits>
+
 namespace Elixir
 {
     bool AnimationTransition::Sample(
@@ -42,7 +44,7 @@ namespace Elixir
 
         if (weight < 1.0f && Mode == EAnimationTransitionMode::Inertialization)
         {
-            if (!ApplyInertialization(double(weight) * Duration, result))
+            if (!m_Inertialization.Apply(double(weight) * Duration, Duration, result))
                 return false;
         }
         else if (weight < 1.0f)
@@ -91,6 +93,60 @@ namespace Elixir
         }
 
         output = std::move(result);
+        return true;
+    }
+
+    bool AnimationTransition::CaptureInertialization(
+        AnimationPlayback& playback,
+        const SAnimationSample& sourceSample,
+        const SAnimationSample* previous,
+        const float deltaSeconds,
+        const SLocalPose& referencePose
+    )
+    {
+        SAnimationSample targetSample, nextSample;
+
+        // Resolve entry transitions before measuring motion.
+        // Retain the resolved state for destination playback.
+        auto destination = playback;
+
+        const auto initialPhase = destination.Advance(0, referencePose);
+
+        if (!destination.Sample(initialPhase, referencePose, targetSample))
+            return false;
+
+        destination.Apply(initialPhase);
+
+        // A short forward probe measures destination motion without advancing its clock.
+        const auto duration = destination.GetDuration();
+
+        auto probe = destination;
+        const auto probeSeconds = duration > 0
+            ? std::min(
+                  1.0f / 120.0f,
+                  std::max(duration * 0.01f, std::numeric_limits<float>::denorm_min())
+              )
+            : 1.0f / 120.0f;
+
+        const auto nextPhase = probe.Advance(probeSeconds, referencePose);
+        if (!probe.Sample(nextPhase, referencePose, nextSample))
+            return false;
+
+        AnimationInertialization inertia;
+        const auto captured = inertia.Capture(
+            sourceSample,
+            previous,
+            deltaSeconds,
+            targetSample,
+            nextSample,
+            probeSeconds
+        );
+
+        if (!captured) return false;
+
+        m_Inertialization = std::move(inertia);
+        playback = std::move(destination);
+
         return true;
     }
 
@@ -150,13 +206,19 @@ namespace Elixir
 
     bool AnimationTransition::IsValid() const
     {
-        return (Mode == EAnimationTransitionMode::CrossFade ||
-                Mode == EAnimationTransitionMode::Inertialization) &&
-            std::isfinite(Duration) &&
-            Duration >= 0 &&
-            std::isfinite(Elapsed) &&
-            Elapsed >= 0 &&
-            Elapsed <= Duration &&
-            (!IsActive() || Playback.IsValid() || !SourceSample.Pose.LocalTransforms.empty());
+        if (Mode != EAnimationTransitionMode::CrossFade &&
+            Mode != EAnimationTransitionMode::Inertialization)
+            return false;
+
+        if (!std::isfinite(Duration) || Duration < 0 ||
+            !std::isfinite(Elapsed) || Elapsed < 0 || Elapsed > Duration)
+            return false;
+
+        if (!IsActive()) return true;
+
+        if (Mode == EAnimationTransitionMode::Inertialization)
+            return m_Inertialization.IsCaptured();
+
+        return Playback.IsValid() || !SourceSample.Pose.LocalTransforms.empty();
     }
 }
