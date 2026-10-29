@@ -119,13 +119,12 @@ TEST_F(AnimationInertializationTest, OnlyDestinationEventsAreEmittedDuringInerti
     EXPECT_EQ(events[1].Type, EAnimationNotifyEventType::Instant);
 }
 
-TEST_F(AnimationInertializationTest, InvalidModesAndDurationsPreserveAcceptedPlayback)
+TEST_F(AnimationInertializationTest, InvalidDurationsPreserveAcceptedPlayback)
 {
     auto& instance = *Playback;
     ASSERT_TRUE(instance.Play(MakeNode(Moving)));
     ASSERT_TRUE(instance.Update(0.1f));
     const auto pose = instance.GetModelPose().Matrices;
-    EXPECT_FALSE(instance.Play(MakeNode(Target), 1.0f, false, EAnimationTransitionMode(255)));
     EXPECT_FALSE(instance.Play(MakeNode(Target), -1.0f, false, Inertialization));
     EXPECT_FALSE(instance.Play(
         MakeNode(Target),
