@@ -54,19 +54,38 @@ namespace Elixir::GUI
         }
     }
 
-    void Manager::Render()
+    Ref<const RenderBatch> Manager::CaptureFrame()
     {
         if (m_Layers.empty() || !m_Layers[0].Root || !m_Layers[0].Root->IsRenderVisible())
-            return;
+            return nullptr;
 
-        if (NeedsRebuild())
+        if (!m_PublishedFrame || NeedsRebuild())
         {
             AssembleFrame();
-            m_Renderer->Rebuild(m_RenderBatch);
+            m_PublishedFrame = CreateRef<RenderBatch>(m_RenderBatch);
             MarkRebuilt();
+        }
+        
+        return m_PublishedFrame;
+    }
+
+    void Manager::Render(const Ref<const RenderBatch>& frame)
+    {
+        if (!frame || !m_Renderer)
+            return;
+
+        if (m_RenderedFrame != frame)
+        {
+            m_Renderer->Rebuild(*frame);
+            m_RenderedFrame = frame;
         }
 
         m_Renderer->Draw();
+    }
+
+    void Manager::Render()
+    {
+        Render(CaptureFrame());
     }
 
     void Manager::ProcessEvent(Event& event)

@@ -42,6 +42,11 @@ namespace Elixir
         // Implementations must not record GPU commands from this method.
         virtual void Prepare(Timestep frameTime) {}
 
+        /**
+         * @brief Record world rendering directly on the rendering thread.
+         * @param frameTime Elapsed application frame time captured for this callback.
+         * @pre Consume retained animation results instead of reading mutable playback state.
+         */
         virtual void Render(Timestep frameTime) {}
         virtual void OnEvent(Event& event);
 

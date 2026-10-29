@@ -34,6 +34,21 @@ namespace Elixir::GUI
 
         void ArrangeLayout(const Extent2D& extent) const;
         void Update(Timestep frameTime);
+
+        /**
+         * @brief Capture immutable draw commands from the game-thread widget tree.
+         * @return Shared commands, or null when the root is not visible.
+         */
+        Ref<const RenderBatch> CaptureFrame();
+
+        /**
+         * @brief Render captured draw commands without accessing the widget tree.
+         * @param frame Immutable commands retained for this render task.
+         * @pre Call from the rendering thread.
+         */
+        void Render(const Ref<const RenderBatch>& frame);
+
+        /** @brief Capture and render immediately when both phases use the same thread. */
         void Render();
 
         void ProcessEvent(Event& event);
@@ -175,6 +190,8 @@ namespace Elixir::GUI
 
         Scope<Renderer> m_Renderer;
         RenderBatch m_RenderBatch;
+        Ref<const RenderBatch> m_PublishedFrame;
+        Ref<const RenderBatch> m_RenderedFrame;
 
         // Index 0 is the UI root; anything above it is a popup, topmost last.
         std::vector<SLayer> m_Layers;

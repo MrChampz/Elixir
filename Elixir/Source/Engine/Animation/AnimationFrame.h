@@ -5,7 +5,9 @@
 
 namespace Elixir
 {
-    /** Complete result published only after every source and layer evaluates successfully. */
+    /**
+     * Complete result shared immutably after every source and layer evaluates successfully.
+     */
     struct ELIXIR_API SAnimationFrame
     {
         /** Bone transforms and scalar channels published atomically for this frame. */

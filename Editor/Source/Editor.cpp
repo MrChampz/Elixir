@@ -47,8 +47,6 @@ void Editor::OnGUI(const Timestep frameTime)
 
 void Editor::Render(const Timestep frameTime)
 {
-    EE_PROFILE_ZONE_SCOPED()
-    Application::Render(frameTime);
     m_GraphicsContext->Clear();
 }
 

@@ -6,9 +6,10 @@ namespace Elixir
     ThreadPool::ThreadPool(const size_t numThreads, const std::string& name)
         : m_Name(name)
     {
-        const auto threads = numThreads == 0
+        const auto requestedThreads = numThreads == 0
             ? GetNumHardwareThreads()
             : numThreads;
+        const auto threads = std::max(size_t(1), requestedThreads);
 
         m_Workers.reserve(threads);
 
@@ -17,6 +18,8 @@ namespace Elixir
             auto worker = CreateScope<Thread>(this, i, "Worker " + std::to_string(i));
             m_Workers.push_back(std::move(worker));
         }
+
+        m_WorkersReady.count_down();
     }
 
     ThreadPool::~ThreadPool()
@@ -29,10 +32,12 @@ namespace Elixir
 
     void ThreadPool::Shutdown()
     {
-        if (!m_Running)
-            return;
+        {
+            std::lock_guard lock(m_Mutex);
+            if (!m_Running.exchange(false))
+                return;
+        }
 
-        m_Running = false;
         m_Condition.notify_all();
 
         for (const auto& worker : m_Workers)
@@ -40,6 +45,36 @@ namespace Elixir
 
         Executable discarted;
         while (m_Queue.try_dequeue(discarted)) {}
+    }
+
+    bool ThreadPool::TryEnqueue(Executable executable, WaitGroup* group)
+    {
+        if (!executable)
+            return false;
+
+        std::lock_guard lock(m_Mutex);
+        if (!m_Running)
+            return false;
+
+        Executable task = [executable = std::move(executable), group]() mutable
+        {
+            executable();
+            if (group)
+                group->Done();
+        };
+
+        if (group)
+            group->Add(1);
+
+        if (!m_Queue.enqueue(std::move(task)))
+        {
+            if (group)
+                group->Done();
+            return false;
+        }
+
+        m_Condition.notify_one();
+        return true;
     }
 
     Executable ThreadPool::GetExecutableForWorker(const size_t workerIndex)

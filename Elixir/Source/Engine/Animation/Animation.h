@@ -12,12 +12,17 @@ namespace Elixir
     /**
      * @brief Owns character sources, ordered layers, and completely published animation
      * frames.
+     *
+     * Access each instance from one thread at a time. Independent instances may update
+     * concurrently when shared resources remain unchanged and custom nodes and modifiers
+     * support concurrent evaluation. Borrowed pose and frame references remain valid until
+     * the next mutation. Use GetFrameSnapshot to retain a result for queued rendering.
      */
     class ELIXIR_API Animation final
     {
     public:
         /**
-         * @brief Create an animation without requiring a controller.
+         * @brief Create an animation registered for automatic application updates.
          * @param skeleton Skeleton retained for the animation's lifetime.
          * @param referencePose Sampling defaults copied on creation, one per skeleton bone.
          * @return A new animation, or null for an invalid skeleton or reference pose.
@@ -31,6 +36,8 @@ namespace Elixir
          * @brief Advance playback, transition, and instantaneous events; preserve state on
          * failure.
          *
+         * Application evaluates this method on workers automatically. Disable automatic
+         * updates before manually advancing an instance to avoid updating it twice.
          * All layers advance together unless paused individually. Animation Pause freezes
          * every layer. Muted layers and empty masks emit no events. Layer events retain
          * their source sequence and layer name. The combined event limit applies to all
@@ -44,6 +51,16 @@ namespace Elixir
          * @param dt Finite nonnegative elapsed time in seconds.
          */
         bool Update(float dt);
+
+        /**
+         * @brief Let the animation manager schedule this instance's updates.
+         * @param managed True by default; use false for explicit offline or manual updates.
+         * @pre Change this setting outside animation evaluation.
+         */
+        void SetManaged(bool managed) { m_Managed = managed; }
+
+        /** @brief Check whether the animation manager schedules this instance's updates. */
+        bool IsManaged() const { return m_Managed; }
 
         /**
          * @brief Bind a layer's source inputs to this animation's named parameters.
@@ -169,10 +186,21 @@ namespace Elixir
          * Stop, manual pose changes, and extraction toggles clear it. Failed updates keep
          * the previous delta; consume it only after successful updates.
          */
-        const SRootMotionDelta& GetRootMotionDelta() const { return m_Frame.RootMotion; }
+        const SRootMotionDelta& GetRootMotionDelta() const { return m_Frame->RootMotion; }
 
-        /** @brief Get the last completely validated character frame. */
-        const SAnimationFrame& GetFrame() const { return m_Frame; }
+        /**
+         * @brief Borrow the last completely validated character frame.
+         * @return Frame valid until the next mutation; use GetFrameSnapshot to retain it.
+         */
+        const SAnimationFrame& GetFrame() const { return *m_Frame; }
+
+        /**
+         * @brief Retain the current immutable animation result for queued rendering.
+         * @return Shared frame data that remains unchanged across later updates or Stop.
+         * @pre Acquire on the game thread after evaluation, then capture the returned
+         * reference in render commands. Do not access this instance during evaluation.
+         */
+        Ref<const SAnimationFrame> GetFrameSnapshot() const { return m_Frame; }
 
         /** @brief Get the fixed skeleton used to evaluate this animation. */
         const Ref<const Skeleton>& GetSkeleton() const { return m_Skeleton; }
@@ -196,11 +224,11 @@ namespace Elixir
          */
         std::span<const SAnimationNotifyEvent> GetNotifyEvents() const
         {
-            return m_Frame.NotifyEvents;
+            return m_Frame->NotifyEvents;
         }
 
         /** @brief Inspect the published bone transforms and scalar channels together. */
-        const SAnimationSample& GetSample() const { return m_Frame.Sample; }
+        const SAnimationSample& GetSample() const { return m_Frame->Sample; }
 
         /**
          * @brief Set the base local pose, stop playback, and remove nonbase layers on success.
@@ -209,13 +237,13 @@ namespace Elixir
         bool SetLocalPose(const SLocalPose& pose);
 
         /** @brief Get one parent-relative transform per skeleton bone. */
-        const SLocalPose& GetLocalPose() const { return m_Frame.Sample.Pose; }
+        const SLocalPose& GetLocalPose() const { return m_Frame->Sample.Pose; }
 
         /** @brief Get one skeleton-space matrix per skeleton bone. */
-        const SModelPose& GetModelPose() const { return m_Frame.ModelPose; }
+        const SModelPose& GetModelPose() const { return m_Frame->ModelPose; }
 
         /** @brief Inspect scalar channels sampled with the published local pose. */
-        const AnimationCurveValues& GetCurveValues() const { return m_Frame.Sample.Curves; }
+        const AnimationCurveValues& GetCurveValues() const { return m_Frame->Sample.Curves; }
 
         /** @brief Get target time in seconds using the current blend-space cycle duration. */
         float GetTime() const
@@ -381,6 +409,8 @@ namespace Elixir
             SModelPose& model
         ) const;
 
+        bool m_Managed = true;
+
         std::vector<Ref<const PoseModifier>> m_PoseModifiers;
         Ref<AnimationParameters> m_Parameters = CreateRef<AnimationParameters>();
 
@@ -391,7 +421,10 @@ namespace Elixir
         std::vector<Scope<AnimationLayer>> m_Layers;
         std::vector<SAnimationNotifyEvent> m_PendingNotifyEnds;
 
-        SAnimationFrame m_Frame;
+        // Published results are replaced, never modified while a render command
+        // retains them.
+        Ref<const SAnimationFrame> m_Frame;
+
         bool m_Paused = false;
 
         bool m_RootMotionEnabled = false;

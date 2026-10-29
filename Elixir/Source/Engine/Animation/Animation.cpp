@@ -2,6 +2,7 @@
 #include "Animation.h"
 
 #include <Engine/Animation/Pose.h>
+#include <Engine/Animation/AnimationManager.h>
 
 namespace Elixir
 {
@@ -27,6 +28,7 @@ namespace Elixir
             return nullptr;
         }
 
+        AnimationManager::Get().Register(animation);
         return animation;
     }
 
@@ -47,9 +49,12 @@ namespace Elixir
         if (!ComposePose({}, sample, model))
             return false;
 
-        m_Frame.Sample = std::move(sample);
-        m_Frame.ModelPose = std::move(model);
-        m_Frame.RootMotion = {};
+        auto frame = *m_Frame;
+        frame.Sample = std::move(sample);
+        frame.ModelPose = std::move(model);
+        frame.RootMotion = {};
+
+        m_Frame = CreateRef<SAnimationFrame>(std::move(frame));
 
         return true;
     }
@@ -79,19 +84,17 @@ namespace Elixir
     void Animation::Stop()
     {
         GetBaseLayer().GetPlayer().Stop();
-
         ClearLayers();
         m_PoseModifiers.clear();
-        m_Frame.NotifyEvents.clear();
-        m_Frame.RootMotion = {};
-
         m_Paused = false;
 
-        m_Frame.Sample = GetBaseLayer().GetPlayer().GetSample();
-        m_Frame.ModelPose.Matrices.clear();
+        SAnimationFrame frame;
+        frame.Sample = GetBaseLayer().GetPlayer().GetSample();
 
         if (m_Skeleton)
-            m_Skeleton->BuildModelPose(m_Frame.Sample.Pose, m_Frame.ModelPose);
+            m_Skeleton->BuildModelPose(frame.Sample.Pose, frame.ModelPose);
+
+        m_Frame = CreateRef<SAnimationFrame>(std::move(frame));
     }
 
     bool Animation::Seek(const float time)
@@ -110,9 +113,13 @@ namespace Elixir
 
         if (!m_Skeleton)
         {
-            m_Frame.NotifyEvents = std::move(m_PendingNotifyEnds);
+            auto frame = *m_Frame;
+            frame.NotifyEvents = std::move(m_PendingNotifyEnds);
+            frame.RootMotion = {};
+
+            m_Frame = CreateRef<SAnimationFrame>(std::move(frame));
             m_PendingNotifyEnds.clear();
-            m_Frame.RootMotion = {};
+
             return true;
         }
 
@@ -191,7 +198,7 @@ namespace Elixir
         for (size_t i = 0; i < m_Layers.size(); ++i)
             m_Layers[i]->GetPlayer().Apply(std::move(evaluations[i]));
 
-        m_Frame = std::move(frame);
+        m_Frame = CreateRef<SAnimationFrame>(std::move(frame));
         m_PendingNotifyEnds.clear();
 
         return true;
@@ -272,9 +279,12 @@ namespace Elixir
             return false;
         }
 
-        m_Frame.Sample = std::move(sample);
-        m_Frame.ModelPose = std::move(model);
-        m_Frame.RootMotion = {};
+        auto frame = *m_Frame;
+        frame.Sample = std::move(sample);
+        frame.ModelPose = std::move(model);
+        frame.RootMotion = {};
+
+        m_Frame = CreateRef<SAnimationFrame>(std::move(frame));
 
         return true;
     }
@@ -319,12 +329,12 @@ namespace Elixir
         GetBaseLayer() = candidate;
         ClearLayers();
 
-        m_Frame.NotifyEvents.clear();
-        m_Frame.RootMotion = {};
-        m_Paused = false;
+        SAnimationFrame frame;
+        frame.Sample = std::move(sample);
+        frame.ModelPose = std::move(model);
 
-        m_Frame.Sample = std::move(sample);
-        m_Frame.ModelPose = std::move(model);
+        m_Frame = CreateRef<SAnimationFrame>(std::move(frame));
+        m_Paused = false;
 
         return true;
     }
@@ -557,10 +567,11 @@ namespace Elixir
         auto& baseLayer = GetBaseLayer();
         baseLayer = layer;
 
-        m_Frame.NotifyEvents.clear();
-        m_Frame.Sample = std::move(sample);
-        m_Frame.ModelPose = std::move(model);
-        m_Frame.RootMotion = {};
+        SAnimationFrame frame;
+        frame.Sample = std::move(sample);
+        frame.ModelPose = std::move(model);
+
+        m_Frame = CreateRef<SAnimationFrame>(std::move(frame));
 
         return true;
     }

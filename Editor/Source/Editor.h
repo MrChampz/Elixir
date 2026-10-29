@@ -11,6 +11,10 @@ public:
     ~Editor() override;
 
     void OnGUI(Timestep frameTime) override;
+    /**
+     * @brief Clear the editor world target on the rendering thread.
+     * @param frameTime Elapsed application frame time.
+     */
     void Render(Timestep frameTime) override;
 
     void OnEvent(Event& event) override;

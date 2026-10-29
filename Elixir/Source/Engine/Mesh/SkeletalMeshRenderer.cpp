@@ -176,6 +176,21 @@ namespace Elixir
         frame.GeometryIndex = m_Scene.AddGeometry(std::move(geometry));
     }
 
+    bool SkeletalMeshRenderer::Render(const SSkeletalMeshRenderSnapshot& snapshot)
+    {
+        if (!snapshot.Instance)
+        {
+            EE_CORE_ERROR("Skeletal mesh render snapshot requires a mesh instance.")
+            return false;
+        }
+
+        const auto& pose = snapshot.Frame
+            ? snapshot.Frame->ModelPose
+            : snapshot.Instance->GetReferenceModelPose();
+
+        return Render(*snapshot.Instance, pose, snapshot.Transform);
+    }
+
     bool SkeletalMeshRenderer::Render(
         const SkeletalMeshInstance& instance,
         const glm::mat4& transform

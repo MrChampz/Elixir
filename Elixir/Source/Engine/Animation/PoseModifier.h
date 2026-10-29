@@ -29,7 +29,8 @@ namespace Elixir
          *
          * Animation rebuilds model matrices and validates the result after each modifier.
          * Preserve the extracted root-motion bone's model transform when one is provided.
-         * Read and configure modifiers on the same thread that evaluates their poses.
+         * Finish configuration before evaluation. Do not change modifier state while a pose
+         * is being evaluated. Shared modifiers must support concurrent const evaluation.
          *
          * @param context Rig and protected movement frame for this evaluation.
          * @param pose Candidate local transforms; changes are discarded if evaluation fails.
