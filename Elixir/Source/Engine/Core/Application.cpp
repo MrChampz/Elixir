@@ -18,6 +18,7 @@
 #include <Engine/Materials/MaterialSystem.h>
 #include <Engine/Materials/MaterialRegistry.h>
 #include <Engine/Mesh/MeshLoaderRegistry.h>
+#include <Engine/Animation/AnimationManager.h>
 #include <Engine/Aether/Manager.h>
 
 namespace Elixir
@@ -187,6 +188,9 @@ namespace Elixir
                 OnWindowClose(event);
             }
 
+            if (!m_Running)
+                break;
+
             if (m_Minimized)
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -209,15 +213,32 @@ namespace Elixir
             m_GUIManager->Update(frameTime);
 
             Prepare(frameTime);
+            if (!m_Running)
+                break;
 
-            m_GraphicsContext->RenderFrame([this, frameTime]()
+            const auto animationStep = PrepareAnimations(frameTime);
+            if (!m_Running)
+                break;
+
+            const auto animationsUpdated = AnimationManager::Get().Update(
+                animationStep,
+                m_Executor
+            );
+
+            OnAnimationsUpdated(frameTime, animationsUpdated);
+            if (!m_Running)
+                break;
+
+            const auto guiFrame = m_GUIManager->CaptureFrame();
+
+            m_GraphicsContext->RenderFrame([this, frameTime, guiFrame]()
             {
                 m_MaterialSystem->BeginFrame();
                 m_GraphicsContext->Clear(m_SceneTarget);
                 Render(frameTime);
                 m_MaterialSystem->RenderFrame();
                 m_PostProcessor->Apply(m_SceneTarget, m_GraphicsContext->GetRenderTarget());
-                m_GUIManager->Render();
+                m_GUIManager->Render(guiFrame);
             });
 
             EE_PROFILE_FRAME_MARK_NAMED(EE_PROFILE_MAIN_LOOP)

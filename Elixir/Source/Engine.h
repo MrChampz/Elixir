@@ -68,6 +68,7 @@
 #include <Engine/Mesh/StaticMeshRenderer.h>
 #include <Engine/Mesh/SkeletalMesh.h>
 #include <Engine/Mesh/SkeletalMeshInstance.h>
+#include <Engine/Mesh/SkeletalMeshRenderSnapshot.h>
 #include <Engine/Mesh/SkeletalMeshRenderer.h>
 
 #include <Engine/Animation/BoneTransform.h>
@@ -92,5 +93,6 @@
 #include <Engine/Animation/BlendNode.h>
 #include <Engine/Animation/Animation.h>
 #include <Engine/Animation/AnimationGraph.h>
+#include <Engine/Animation/AnimationManager.h>
 
 #include <Engine/Aether/System.h>

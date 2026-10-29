@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Mesh/SkeletalMeshInstance.h>
+#include <Engine/Mesh/SkeletalMeshRenderSnapshot.h>
 #include <Engine/Mesh/GeometryPool.h>
 #include <Engine/Mesh/MeshLighting.h>
 #include <Engine/Mesh/SkinningPass.h>
@@ -75,6 +76,13 @@ namespace Elixir
 
         /** @brief Wait for submitted GPU work before releasing owned geometry and buffers. */
         ~SkeletalMeshRenderer();
+
+        /**
+         * @brief Collect a captured draw without reading mutable game or animation state.
+         * @param snapshot Mesh, matrices, and placement retained by the render task.
+         * @return False if the snapshot is invalid or frame capacity is exhausted.
+         */
+        bool Render(const SSkeletalMeshRenderSnapshot& snapshot);
 
         /**
          * @brief Begin collecting skeletal instances for the current frame slot.

@@ -1,5 +1,7 @@
 #include "../../Engine/Animation/AnimationTestNodes.h"
 #include <Engine/Animation/Animation.h>
+#include <Engine/Animation/AnimationManager.h>
+#include <Engine/Mesh/SkeletalMeshRenderSnapshot.h>
 #include <Engine/Animation/TwoBoneIK.h>
 #include "../../Engine/Animation/AnimationTestPlayback.h"
 #include <Engine/Animation/BlendSpace2D.h>
@@ -11,6 +13,10 @@
 #include <Graphics/Vulkan/VulkanBuffer.h>
 #include "VulkanTestContext.h"
 #include "../../Engine/Mesh/SkinningTestData.h"
+
+#include <chrono>
+#include <future>
+#include <thread>
 
 using namespace Elixir;
 
@@ -492,4 +498,107 @@ TEST(VulkanSkinningTest, TwoBoneIKPoseReachesComputeSkinning)
                 EXPECT_NEAR(actual[i].Position[axis], expected[i].Position[axis], 1e-5f);
         readback->Unmap();
     }));
+}
+
+TEST(VulkanSkinningTest, GameThreadUpdatesWhileRenderingAnEarlierPoseSnapshot)
+{
+    auto* context = VulkanTestContext::Get().GetGraphicsContext();
+    const auto mesh = SkinningTests::MakeMesh();
+    ASSERT_TRUE(mesh);
+    const auto source = Sequence::Create(
+        "Move",
+        mesh->GetSkeleton(),
+        1,
+        {{.BoneIndex = 0, .Translations = {{0, {0, 0, 0}}, {1, {2, 0, 0}}}}}
+    );
+    ASSERT_TRUE(source);
+    const auto animation = Animation::Create(
+        mesh->GetSkeleton(),
+        mesh->GetData().ReferencePose
+    );
+    const auto instance = SkeletalMeshInstance::Create(mesh);
+    ASSERT_TRUE(animation);
+    ASSERT_TRUE(instance);
+    ASSERT_TRUE(animation->Play(MakeNode(source)));
+    const SSkeletalMeshRenderSnapshot snapshot{
+        instance,
+        animation->GetFrameSnapshot(),
+        glm::mat4(1)
+    };
+    const auto previousPose = snapshot.Frame->ModelPose.Matrices;
+    std::vector<glm::mat4> renderedPose;
+    std::promise<void> readerStarted;
+    auto started = readerStarted.get_future();
+    std::promise<void> releaseReader;
+    auto released = releaseReader.get_future();
+    std::promise<void> readerFinished;
+    auto finished = readerFinished.get_future();
+    bool readerReleased = false;
+    const auto readPose = [&, snapshot]
+    {
+        readerStarted.set_value();
+        const auto status = released.wait_for(std::chrono::seconds(2));
+        readerReleased = status == std::future_status::ready;
+        renderedPose = snapshot.Frame->ModelPose.Matrices;
+        readerFinished.set_value();
+    };
+    ASSERT_TRUE(context->EnqueueRenderTask(readPose));
+    EXPECT_EQ(started.wait_for(std::chrono::seconds(1)), std::future_status::ready);
+
+    EXPECT_TRUE(AnimationManager::Get().Update(0.25f, Executor::Get()));
+    EXPECT_EQ(finished.wait_for(std::chrono::seconds(0)), std::future_status::timeout);
+    EXPECT_NE(animation->GetModelPose().Matrices, previousPose);
+    EXPECT_FLOAT_EQ(animation->GetTime(), 0.25f);
+    releaseReader.set_value();
+    EXPECT_EQ(finished.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+    const auto completed = context->RunRenderTaskAndWait([] {});
+    ASSERT_TRUE(completed);
+    EXPECT_TRUE(readerReleased);
+    EXPECT_EQ(renderedPose, previousPose);
+}
+
+TEST(VulkanSkinningTest, RenderQueueConsumesTransferredAnimationFramesInOrder)
+{
+    auto* context = VulkanTestContext::Get().GetGraphicsContext();
+    const auto mesh = SkinningTests::MakeMesh();
+    ASSERT_TRUE(mesh);
+    const auto source = Sequence::Create(
+        "Move",
+        mesh->GetSkeleton(),
+        1,
+        {{.BoneIndex = 0, .Translations = {{0, {0, 0, 0}}, {1, {2, 0, 0}}}}}
+    );
+    ASSERT_TRUE(source);
+    const auto animation = Animation::Create(
+        mesh->GetSkeleton(),
+        mesh->GetData().ReferencePose
+    );
+    ASSERT_TRUE(animation);
+    ASSERT_TRUE(animation->Play(MakeNode(source)));
+    const auto first = animation->GetFrameSnapshot();
+    Ref<const SAnimationFrame> renderOwned;
+    std::vector<Ref<const SAnimationFrame>> rendered;
+    const auto transferFirst = [&, first] { renderOwned = first; };
+    EXPECT_TRUE(context->EnqueueRenderTask(transferFirst));
+    EXPECT_TRUE(animation->Update(0.25f));
+    const auto second = animation->GetFrameSnapshot();
+    const auto draw = [&]
+    {
+        EXPECT_TRUE(context->IsRenderThread());
+        rendered.push_back(renderOwned);
+    };
+    EXPECT_TRUE(context->EnqueueRenderTask(draw));
+    const auto transferSecond = [&, second] { renderOwned = second; };
+    EXPECT_TRUE(context->EnqueueRenderTask(transferSecond));
+    EXPECT_TRUE(animation->Update(0.25f));
+    EXPECT_TRUE(context->EnqueueRenderTask(draw));
+    const auto completed = context->RunRenderTaskAndWait([] {});
+    ASSERT_TRUE(completed);
+    ASSERT_EQ(rendered.size(), 2);
+    ASSERT_TRUE(rendered[0]);
+    ASSERT_TRUE(rendered[1]);
+    EXPECT_EQ(rendered[0], first);
+    EXPECT_EQ(rendered[1], second);
+    EXPECT_NE(rendered[1], animation->GetFrameSnapshot());
+    EXPECT_NE(rendered[0]->ModelPose.Matrices, rendered[1]->ModelPose.Matrices);
 }

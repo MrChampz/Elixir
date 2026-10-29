@@ -13,6 +13,12 @@ namespace Elixir
         friend class ThreadPool;
 
       public:
+        /**
+         * @brief Start a worker after its members are initialized.
+         * @param pool Owning pool whose startup barrier precedes task execution.
+         * @param index Worker index within the owning pool.
+         * @param name Label used for logging and profiling.
+         */
         explicit Thread(ThreadPool* pool, size_t index, const std::string& name);
         Thread(
           ThreadPool* pool,

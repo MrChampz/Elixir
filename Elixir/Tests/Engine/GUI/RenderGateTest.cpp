@@ -104,3 +104,47 @@ TEST(RenderGateTest, RootSwapTriggersRebuildEvenWhenEpochUnchanged)
     // ...yet the gate must still rebuild, driven purely by the root-pointer change.
     EXPECT_TRUE(manager.NeedsRebuild());
 }
+TEST(RenderGateTest, CapturedCommandsRemainUnchangedWhenTheWidgetTreeAdvances)
+{
+    Manager manager;
+    const auto root = CreateRef<VerticalBox>();
+    const SColor firstColor{1, 0, 0, 1};
+    const SColor nextColor{0, 0, 1, 1};
+    root->SetBackgroundColor(EStyleLayer::Normal, firstColor);
+    manager.SetRoot(root);
+    manager.ArrangeLayout({100, 100});
+    const auto first = manager.CaptureFrame();
+    ASSERT_TRUE(first);
+    ASSERT_FALSE(first->GetCommands().empty());
+    EXPECT_EQ(first->GetCommands().front().Color, firstColor);
+    root->SetBackgroundColor(EStyleLayer::Normal, nextColor);
+    const auto next = manager.CaptureFrame();
+    ASSERT_TRUE(next);
+    ASSERT_FALSE(next->GetCommands().empty());
+    EXPECT_NE(first, next);
+    EXPECT_EQ(first->GetCommands().front().Color, firstColor);
+    EXPECT_EQ(next->GetCommands().front().Color, nextColor);
+}
+
+TEST(RenderGateTest, UnchangedWidgetTreesReuseThePublishedSnapshot)
+{
+    Manager manager;
+    manager.SetRoot(CreateRef<VerticalBox>());
+    manager.ArrangeLayout({100, 100});
+    const auto first = manager.CaptureFrame();
+    ASSERT_TRUE(first);
+    EXPECT_EQ(manager.CaptureFrame(), first);
+}
+
+TEST(RenderGateTest, HiddenRootsDoNotPublishDrawCommands)
+{
+    Manager manager;
+    const auto root = CreateRef<VerticalBox>();
+    manager.SetRoot(root);
+    manager.ArrangeLayout({100, 100});
+    ASSERT_TRUE(manager.CaptureFrame());
+    root->SetVisibility(EVisibility::Hidden);
+    EXPECT_FALSE(manager.CaptureFrame());
+    root->SetVisibility(EVisibility::Visible);
+    EXPECT_TRUE(manager.CaptureFrame());
+}

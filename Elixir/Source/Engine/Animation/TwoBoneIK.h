@@ -68,7 +68,8 @@ namespace Elixir
          * Without a target rotation, preserve the end bone's local rotation.
          * Unreachable targets clamp without stretching.
          * Later constraints use earlier results. Weight blends rotations, not end positions.
-         * Configure and evaluate this solver on the same thread.
+         * Finish configuration before evaluation and leave constraints unchanged until all
+         * evaluations finish. Independent poses may use this solver concurrently.
          *
          * @param constraints Copied ordered list; empty disables corrections.
          * @return False for invalid settings, bones, or references; retain previous constraints.
