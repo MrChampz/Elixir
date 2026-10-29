@@ -91,6 +91,10 @@ namespace
 
 TEST_F(AnimationManagerTest, EvaluatesIndependentPosesOnOverlappingWorkerThreads)
 {
+    // Executor reserves two hardware threads and always creates at least one worker.
+    if (std::thread::hardware_concurrency() <= 3)
+        GTEST_SKIP() << "Executor has fewer than two worker threads.";
+
     const auto other = CreatePlayback();
     ASSERT_TRUE(other);
     const auto modifier = CreateRef<ConcurrentModifier>();
