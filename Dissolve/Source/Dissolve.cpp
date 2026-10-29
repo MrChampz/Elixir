@@ -647,6 +647,9 @@ void Dissolve::InitializeAnimationGraph()
         m_ComparisonInstance->GetMesh()->GetData().ReferencePose);
     if (!animation || !comparisonAnimation) return;
 
+    animation->SetManaged(false);
+    comparisonAnimation->SetManaged(false);
+
     m_Animation = std::move(animation);
     m_ComparisonAnimation = std::move(comparisonAnimation);
 
