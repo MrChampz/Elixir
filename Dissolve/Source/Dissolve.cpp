@@ -794,27 +794,6 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
     auto* recoil = m_Animation->GetLayer("Recoil");
     if (!upperBody || !comparisonAction || !recoil)
         return;
-    if (m_TransitionRequested.exchange(false, std::memory_order_relaxed))
-    {
-        const auto toPunch = !m_TransitionToPunch.load(std::memory_order_relaxed);
-        const auto& source = m_TransitionSources[toPunch ? 1 : 0];
-        const auto node = SequenceNode::Create(source);
-        const auto started = upperBody->GetPlayer().Play(
-            node,
-            0.35f,
-            true,
-            EAnimationTransitionMode::Inertialization
-        );
-        if (!started) return;
-        const auto comparisonStarted = comparisonAction->GetPlayer().Play(
-            node,
-            0.35f,
-            true,
-            EAnimationTransitionMode::CrossFade
-        );
-        if (!comparisonStarted) return;
-        m_TransitionToPunch.store(toPunch, std::memory_order_relaxed);
-    }
     const auto action = m_ActionRequest.exchange(0, std::memory_order_relaxed);
     if (action == 1 && upperBody->GetPlayer().GetMontage())
     {
@@ -839,6 +818,29 @@ void Dissolve::UpdateAnimation(const float deltaSeconds)
                 !comparisonAction->GetPlayer().SetNextMontageSection(section, next)))
                 return;
         }
+    }
+    if (!upperBody->GetPlayer().GetMontage() &&
+        !comparisonAction->GetPlayer().GetMontage() &&
+        m_TransitionRequested.exchange(false, std::memory_order_relaxed))
+    {
+        const auto toPunch = !m_TransitionToPunch.load(std::memory_order_relaxed);
+        const auto& source = m_TransitionSources[toPunch ? 1 : 0];
+        const auto node = SequenceNode::Create(source);
+        const auto started = upperBody->GetPlayer().Play(
+            node,
+            0.35f,
+            true,
+            EAnimationTransitionMode::Inertialization
+        );
+        if (!started) return;
+        const auto comparisonStarted = comparisonAction->GetPlayer().Play(
+            node,
+            0.35f,
+            true,
+            EAnimationTransitionMode::CrossFade
+        );
+        if (!comparisonStarted) return;
+        m_TransitionToPunch.store(toPunch, std::memory_order_relaxed);
     }
     const auto dodge = m_DodgeRequested.exchange(false, std::memory_order_relaxed);
     auto& locomotion = m_Animation->GetLayer("Locomotion")->GetPlayer();
