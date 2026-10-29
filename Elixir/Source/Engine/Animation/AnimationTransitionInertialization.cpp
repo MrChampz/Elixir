@@ -207,6 +207,12 @@ namespace Elixir
         for (const auto& name : targetSample.Curves.GetValues() | std::views::keys)
             m_CurveOffsets.try_emplace(name);
 
+        if (hasHistory)
+        {
+            for (const auto& name : previous->Curves.GetValues() | std::views::keys)
+                m_CurveOffsets.try_emplace(name);
+        }
+
         for (auto& [name, curve] : m_CurveOffsets)
         {
             curve.Value = double(sourceSample.Curves.GetValue(name)) -

@@ -187,6 +187,32 @@ TEST_F(
     EXPECT_TRUE(instance.GetCurveValues().GetValues().empty());
 }
 
+TEST_F(AnimationInertializationTest, CurvesOnlyInPreviousSamplePreserveOutgoingVelocity)
+{
+    const auto withoutCurves = Clip(0)->WithCurves({});
+    const auto space = BlendSpace1D::Create("Space", {{0, Clip(2)}, {1, withoutCurves}});
+    ASSERT_TRUE(space);
+    auto& player = Playback->GetBaseLayer().GetPlayer();
+    ASSERT_TRUE(player.Play(MakeNode(space), {0}));
+    ASSERT_TRUE(Playback->Update(0.1f));
+    ASSERT_FLOAT_EQ(Playback->GetCurveValues().GetValue("Value"), 2);
+
+    ASSERT_TRUE(player.SetSourceInputs({1}));
+    ASSERT_TRUE(Playback->Update(0.1f));
+    ASSERT_TRUE(Playback->GetCurveValues().GetValues().empty());
+    ASSERT_TRUE(Playback->Play(MakeNode(withoutCurves), 0.5f, false, Inertialization));
+    ASSERT_TRUE(Playback->Update(0));
+    EXPECT_FLOAT_EQ(Playback->GetCurveValues().GetValue("Value"), 0);
+
+    ASSERT_TRUE(Playback->Update(0.0001f));
+    EXPECT_NEAR(Playback->GetCurveValues().GetValue("Value") / 0.0001f, -20, 0.01f);
+    ASSERT_TRUE(Playback->Update(0.2499f));
+    EXPECT_NEAR(Playback->GetCurveValues().GetValue("Value"), -1.5625f, 1e-5f);
+    ASSERT_TRUE(Playback->Update(0.25f));
+    EXPECT_FLOAT_EQ(Playback->GetCurveValues().GetValue("Value"), 0);
+    EXPECT_TRUE(Playback->GetCurveValues().GetValues().empty());
+}
+
 TEST_F(AnimationInertializationTest, FrameSubdivisionDoesNotChangeCapturedOffsetDecay)
 {
     auto& single = *Playback;
