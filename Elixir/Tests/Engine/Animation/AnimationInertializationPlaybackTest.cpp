@@ -281,6 +281,59 @@ TEST_F(
     EXPECT_EQ(Playback->GetCurrentState(), "Third");
 }
 
+TEST_F(AnimationInertializationTest, DestinationEntryTransitionPreservesPoseAndCurveContinuity)
+{
+    const auto source = MakeNode(Clip(0));
+    const auto destination = MakeNode(StateMachine::Create(
+        {.InitialState = "Entry",
+         .States =
+             {{.Name = "Entry", .Node = source},
+              {.Name = "Target", .Node = MakeNode(Clip(10))}},
+         .Transitions = {{.From = "Entry", .To = "Target", .FadeDuration = 0}}}
+    ));
+    ASSERT_TRUE(destination);
+
+    for (const auto nested : {false, true})
+    {
+        SCOPED_TRACE(nested);
+        const auto instance = CreatePlayback();
+        ASSERT_TRUE(instance);
+        ASSERT_TRUE(instance->SetParameters({{"Change", false}}));
+        if (nested)
+        {
+            const auto machine = StateMachine::Create(
+                {.InitialState = "Source",
+                 .States =
+                     {{.Name = "Source", .Node = source},
+                      {.Name = "Destination", .Node = destination}},
+                 .Transitions = {
+                     {.From = "Source",
+                      .To = "Destination",
+                      .Conditions = {{"Change", EAnimationComparison::Equal, true}},
+                      .FadeDuration = 0.5f,
+                      .Mode = Inertialization}
+                 }}
+            );
+            ASSERT_TRUE(machine);
+            ASSERT_TRUE(instance->Play(MakeNode(machine)));
+            ASSERT_TRUE(instance->GetParameters().SetBool("Change", true));
+        }
+        else
+        {
+            ASSERT_TRUE(instance->Play(source));
+            ASSERT_TRUE(instance->Play(destination, 0.5f, true, Inertialization));
+        }
+
+        ASSERT_TRUE(instance->Update(0.001f));
+        EXPECT_NEAR(instance->GetLocalPose().LocalTransforms[0].Translation.x, 0, 1e-5f);
+        EXPECT_NEAR(instance->GetCurveValues().GetValue("Value"), 0, 1e-5f);
+        EXPECT_NEAR(instance->GetTime(), 0.001f, 1e-6f);
+        ASSERT_TRUE(instance->Update(0.5f));
+        EXPECT_FLOAT_EQ(instance->GetLocalPose().LocalTransforms[0].Translation.x, 10);
+        EXPECT_FLOAT_EQ(instance->GetCurveValues().GetValue("Value"), 10);
+    }
+}
+
 TEST_F(AnimationInertializationTest, StateMachineSeekDiscardsPreviousVelocityHistory)
 {
     const auto machine = StateMachine::Create(

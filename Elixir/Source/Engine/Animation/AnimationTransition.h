@@ -67,7 +67,7 @@ namespace Elixir
 
         /**
          * @brief Capture pose and velocity offsets against a new destination.
-         * @param playback Destination playback at its initial phase.
+         * @param playback Destination playback; receives its resolved entry state on success.
          * @param sourceSample Last accepted source sample before montage and composition.
          * @param previous Previous accepted source sample, or null when unavailable.
          * @param deltaSeconds Seconds between accepted samples; zero disables velocity
@@ -75,7 +75,7 @@ namespace Elixir
          * @param referencePose Defaults for unanimated destination bone channels.
          */
         bool CaptureInertialization(
-            const AnimationPlayback& playback,
+            AnimationPlayback& playback,
             const SAnimationSample& sourceSample,
             const SAnimationSample* previous,
             float deltaSeconds,

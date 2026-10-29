@@ -94,28 +94,35 @@ namespace Elixir
     }
 
     bool AnimationTransition::CaptureInertialization(
-        const AnimationPlayback& playback,
+        AnimationPlayback& playback,
         const SAnimationSample& sourceSample,
         const SAnimationSample* previous,
         const float deltaSeconds,
         const SLocalPose& referencePose
     )
     {
-        // A short forward probe measures destination motion without advancing its clock.
-        const auto duration = playback.GetDuration();
+        SAnimationSample targetSample, nextSample;
 
+        // Resolve entry transitions before measuring motion, and retain that state for playback.
+        auto destination = playback;
+
+        const auto initialPhase = destination.Advance(0, referencePose);
+
+        if (!destination.Sample(initialPhase, referencePose, targetSample))
+            return false;
+
+        destination.Apply(initialPhase);
+
+        // A short forward probe measures destination motion without advancing its clock.
+        const auto duration = destination.GetDuration();
+
+        auto probe = destination;
         const auto probeSeconds = duration > 0
             ? std::min(
                   1.0f / 120.0f,
                   std::max(duration * 0.01f, std::numeric_limits<float>::denorm_min())
               )
             : 1.0f / 120.0f;
-
-        SAnimationSample targetSample, nextSample;
-
-        auto probe = playback;
-        if (!playback.Sample(playback.GetPhase(), referencePose, targetSample))
-            return false;
 
         const auto nextPhase = probe.Advance(probeSeconds, referencePose);
         if (!probe.Sample(nextPhase, referencePose, nextSample))
@@ -211,6 +218,8 @@ namespace Elixir
             curve.Velocity -= (double(nextSample.Curves.GetValue(name)) -
                 targetSample.Curves.GetValue(name)) / double(probeSeconds);
         }
+
+        playback = std::move(destination);
 
         return true;
     }
