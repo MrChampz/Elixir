@@ -216,18 +216,7 @@ namespace Elixir
             if (!m_Running)
                 break;
 
-            const auto animationStep = PrepareAnimations(frameTime);
-            if (!m_Running)
-                break;
-
-            const auto animationsUpdated = AnimationManager::Get().Update(
-                animationStep,
-                m_Executor
-            );
-
-            OnAnimationsUpdated(frameTime, animationsUpdated);
-            if (!m_Running)
-                break;
+            AnimationManager::Get().Update(frameTime);
 
             const auto guiFrame = m_GUIManager->CaptureFrame();
 

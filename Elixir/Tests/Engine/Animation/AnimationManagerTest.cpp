@@ -2,9 +2,9 @@
 #include "AnimationTestNodes.h"
 
 #include <Engine/Animation/AnimationManager.h>
+#include <Engine/Core/Timer.h>
 #include <Engine/Mesh/SkeletalMeshRenderSnapshot.h>
 #include <Engine/Animation/AnimationGraph.h>
-#include <Engine/Core/Executor/Executor.h>
 
 #include <atomic>
 #include <chrono>
@@ -91,7 +91,6 @@ namespace
 
 TEST_F(AnimationManagerTest, EvaluatesIndependentPosesOnOverlappingWorkerThreads)
 {
-    auto& executor = Executor::Get();
     const auto other = CreatePlayback();
     ASSERT_TRUE(other);
     const auto modifier = CreateRef<ConcurrentModifier>();
@@ -100,12 +99,11 @@ TEST_F(AnimationManagerTest, EvaluatesIndependentPosesOnOverlappingWorkerThreads
     ASSERT_TRUE(other->SetPoseModifiers(modifiers));
     modifier->Enable();
 
-    EXPECT_TRUE(AnimationManager::Get().Update(0.1f, executor));
+    EXPECT_TRUE(AnimationManager::Get().Update(Timestep(0.1f)));
 }
 
 TEST_F(AnimationManagerTest, SharedGraphMatchesSequentialPosesCurvesRootMotionAndEvents)
 {
-    auto& executor = Executor::Get();
     const auto source = Moving->WithNotifies({{"Start", 0}, {"Step", 0.05f}});
     const auto machine = StateMachine::Create(
         {.InitialState = "Moving",
@@ -161,7 +159,7 @@ TEST_F(AnimationManagerTest, SharedGraphMatchesSequentialPosesCurvesRootMotionAn
             }
             ASSERT_TRUE(serial[i]->Update(0.016f));
         }
-        ASSERT_TRUE(AnimationManager::Get().Update(0.016f, executor));
+        ASSERT_TRUE(AnimationManager::Get().Update(Timestep(0.016f)));
 
         for (size_t i = 0; i < serial.size(); ++i)
         {
@@ -200,19 +198,16 @@ TEST_F(AnimationManagerTest, SharedGraphMatchesSequentialPosesCurvesRootMotionAn
 
 TEST_F(AnimationManagerTest, RejectsInvalidDurationBeforeStartingAnyInstance)
 {
-    auto& executor = Executor::Get();
     ASSERT_TRUE(Playback->Play(MakeNode(Moving)));
-    EXPECT_FALSE(AnimationManager::Get().Update(-1, executor));
+    EXPECT_FALSE(AnimationManager::Get().Update(Timestep(-1)));
     EXPECT_FALSE(AnimationManager::Get().Update(
-        std::numeric_limits<float>::quiet_NaN(),
-        executor
+        Timestep(std::numeric_limits<float>::quiet_NaN())
     ));
     EXPECT_FALSE(AnimationManager::Get().Update(
-        std::numeric_limits<float>::infinity(),
-        executor
+        Timestep(std::numeric_limits<float>::infinity())
     ));
     EXPECT_FLOAT_EQ(Playback->GetTime(), 0);
-    EXPECT_TRUE(AnimationManager::Get().Update(0, executor));
+    EXPECT_TRUE(AnimationManager::Get().Update(Timestep(0)));
     EXPECT_FLOAT_EQ(Playback->GetTime(), 0);
 }
 
@@ -224,11 +219,11 @@ TEST_F(AnimationManagerTest, FactoryRegistersInstancesAndManualPlaybackCanOptOut
     ASSERT_TRUE(other->Play(MakeNode(Moving)));
     EXPECT_TRUE(Playback->IsManaged());
     other->SetManaged(false);
-    ASSERT_TRUE(AnimationManager::Get().Update(0.1f, Executor::Get()));
+    ASSERT_TRUE(AnimationManager::Get().Update(Timestep(0.1f)));
     EXPECT_FLOAT_EQ(Playback->GetTime(), 0.1f);
     EXPECT_FLOAT_EQ(other->GetTime(), 0);
     other->SetManaged(true);
-    ASSERT_TRUE(AnimationManager::Get().Update(0.1f, Executor::Get()));
+    ASSERT_TRUE(AnimationManager::Get().Update(Timestep(0.1f)));
     EXPECT_FLOAT_EQ(Playback->GetTime(), 0.2f);
     EXPECT_FLOAT_EQ(other->GetTime(), 0.1f);
 }
@@ -240,13 +235,12 @@ TEST_F(AnimationManagerTest, RegistryDoesNotRetainDestroyedInstances)
     const std::weak_ptr<Animation> observed = transient;
     transient.reset();
     EXPECT_TRUE(observed.expired());
-    ASSERT_TRUE(AnimationManager::Get().Update(0.1f, Executor::Get()));
+    ASSERT_TRUE(AnimationManager::Get().Update(Timestep(0.1f)));
     EXPECT_TRUE(observed.expired());
 }
 
 TEST_F(AnimationManagerTest, FailedInstancePreservesItsFrameAndOtherJobsStillFinish)
 {
-    auto& executor = Executor::Get();
     const auto other = CreatePlayback();
     ASSERT_TRUE(other);
     ASSERT_TRUE(Playback->Play(MakeNode(Moving)));
@@ -264,7 +258,7 @@ TEST_F(AnimationManagerTest, FailedInstancePreservesItsFrameAndOtherJobsStillFin
     ASSERT_TRUE(Playback->GetLayer("Invalid")->GetPlayer().Play(MakeNode(reflection)));
     const auto previousFrame = Playback->GetFrameSnapshot();
     const auto previousPose = Playback->GetModelPose().Matrices;
-    EXPECT_FALSE(AnimationManager::Get().Update(0.1f, executor));
+    EXPECT_FALSE(AnimationManager::Get().Update(Timestep(0.1f)));
     EXPECT_EQ(Playback->GetFrameSnapshot(), previousFrame);
     EXPECT_EQ(Playback->GetModelPose().Matrices, previousPose);
     EXPECT_FLOAT_EQ(Playback->GetTime(), 0);
@@ -282,7 +276,7 @@ TEST_F(AnimationManagerTest, GraphInstancesJoinAutomaticallyAndAdvanceExactlyOnc
     const auto second = graph->CreateAnimation(Mesh->GetData().ReferencePose);
     ASSERT_TRUE(first);
     ASSERT_TRUE(second);
-    ASSERT_TRUE(AnimationManager::Get().Update(0.125f, Executor::Get()));
+    ASSERT_TRUE(AnimationManager::Get().Update(Timestep(0.125f)));
     EXPECT_FLOAT_EQ(first->GetTime(), 0.125f);
     EXPECT_FLOAT_EQ(second->GetTime(), 0.125f);
 }
@@ -303,10 +297,10 @@ TEST_F(AnimationManagerTest, InstancesCreatedDuringEvaluationJoinTheNextFrame)
     const std::array<Ref<const PoseModifier>, 1> modifiers{modifier};
     ASSERT_TRUE(Playback->SetPoseModifiers(modifiers));
     enabled = true;
-    ASSERT_TRUE(AnimationManager::Get().Update(0.1f, Executor::Get()));
+    ASSERT_TRUE(AnimationManager::Get().Update(Timestep(0.1f)));
     ASSERT_TRUE(created);
     EXPECT_FLOAT_EQ(created->GetTime(), 0);
-    ASSERT_TRUE(AnimationManager::Get().Update(0.1f, Executor::Get()));
+    ASSERT_TRUE(AnimationManager::Get().Update(Timestep(0.1f)));
     EXPECT_FLOAT_EQ(created->GetTime(), 0.1f);
 }
 
@@ -317,13 +311,13 @@ TEST_F(AnimationManagerTest, NestedUpdatesAreRejectedWithoutWaitingForTheirOwnWo
     const auto callback = [&]
     {
         if (enabled)
-            nestedSucceeded = AnimationManager::Get().Update(0.1f, Executor::Get());
+            nestedSucceeded = AnimationManager::Get().Update(Timestep(0.1f));
     };
     const auto modifier = CreateRef<CallbackModifier>(callback);
     const std::array<Ref<const PoseModifier>, 1> modifiers{modifier};
     ASSERT_TRUE(Playback->SetPoseModifiers(modifiers));
     enabled = true;
-    ASSERT_TRUE(AnimationManager::Get().Update(0.1f, Executor::Get()));
+    ASSERT_TRUE(AnimationManager::Get().Update(Timestep(0.1f)));
     EXPECT_FALSE(nestedSucceeded);
 }
 
@@ -337,7 +331,7 @@ TEST_F(AnimationManagerTest, RenderSnapshotsRetainMeshesAndDoNotChangeWithLaterF
     const auto previousPose = first.Frame->ModelPose.Matrices;
     instance.reset();
     EXPECT_FALSE(observed.expired());
-    ASSERT_TRUE(AnimationManager::Get().Update(0.1f, Executor::Get()));
+    ASSERT_TRUE(AnimationManager::Get().Update(Timestep(0.1f)));
     EXPECT_EQ(first.Frame->ModelPose.Matrices, previousPose);
     EXPECT_NE(Playback->GetModelPose().Matrices, previousPose);
     first.Instance.reset();

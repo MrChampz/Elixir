@@ -43,24 +43,6 @@ namespace Elixir
         virtual void Prepare(Timestep frameTime) {}
 
         /**
-         * @brief Configure animations before the system dispatches their worker tasks.
-         * @param frameTime Elapsed application frame time.
-         * @return Animation step in seconds; return zero to evaluate without advancing time.
-         * @pre Runs on the game thread while earlier render tasks may still be executing.
-         * Do not record GPU commands from this method.
-         */
-        virtual float PrepareAnimations(Timestep frameTime) { return frameTime.GetSeconds(); }
-
-        /**
-         * @brief Consume animation results after every submitted worker task has finished.
-         * @param frameTime Elapsed application frame time.
-         * @param succeeded True if every participating animation updated successfully.
-         * @pre Runs on the game thread before the next render task is queued.
-         * Do not record GPU commands from this method.
-         */
-        virtual void OnAnimationsUpdated(Timestep frameTime, bool succeeded) {}
-
-        /**
          * @brief Record world rendering directly on the rendering thread.
          * @param frameTime Elapsed application frame time captured for this callback.
          * @pre Consume retained animation results instead of reading mutable playback state.

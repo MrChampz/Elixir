@@ -1,6 +1,7 @@
 #include "../../Engine/Animation/AnimationTestNodes.h"
 #include <Engine/Animation/Animation.h>
 #include <Engine/Animation/AnimationManager.h>
+#include <Engine/Core/Timer.h>
 #include <Engine/Mesh/SkeletalMeshRenderSnapshot.h>
 #include <Engine/Animation/TwoBoneIK.h>
 #include "../../Engine/Animation/AnimationTestPlayback.h"
@@ -545,7 +546,7 @@ TEST(VulkanSkinningTest, GameThreadUpdatesWhileRenderingAnEarlierPoseSnapshot)
     ASSERT_TRUE(context->EnqueueRenderTask(readPose));
     EXPECT_EQ(started.wait_for(std::chrono::seconds(1)), std::future_status::ready);
 
-    EXPECT_TRUE(AnimationManager::Get().Update(0.25f, Executor::Get()));
+    EXPECT_TRUE(AnimationManager::Get().Update(Timestep(0.25f)));
     EXPECT_EQ(finished.wait_for(std::chrono::seconds(0)), std::future_status::timeout);
     EXPECT_NE(animation->GetModelPose().Matrices, previousPose);
     EXPECT_FLOAT_EQ(animation->GetTime(), 0.25f);

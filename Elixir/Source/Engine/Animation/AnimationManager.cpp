@@ -3,6 +3,7 @@
 
 #include <Engine/Animation/Animation.h>
 #include <Engine/Core/Executor/Executor.h>
+#include <Engine/Core/Timer.h>
 
 #include <atomic>
 #include <cmath>
@@ -11,9 +12,12 @@ namespace Elixir
 {
     AnimationManager& AnimationManager::Get()
     {
-        static AnimationManager manager;
+        static AnimationManager manager(Executor::Get());
         return manager;
     }
+
+    AnimationManager::AnimationManager(Executor& executor)
+      : m_Executor(executor) {}
 
     void AnimationManager::Register(const Ref<Animation>& animation)
     {
@@ -21,8 +25,9 @@ namespace Elixir
         m_Animations.emplace_back(animation);
     }
 
-    bool AnimationManager::Update(const float deltaSeconds, Executor& executor)
+    bool AnimationManager::Update(const Timestep frameTime)
     {
+        const auto deltaSeconds = frameTime.GetSeconds();
         if (!std::isfinite(deltaSeconds) || deltaSeconds < 0)
         {
             EE_CORE_ERROR("Animation updates require a finite nonnegative frame duration.")
@@ -66,7 +71,7 @@ namespace Elixir
                     succeeded.store(false, std::memory_order_relaxed);
             };
 
-            const auto submitted = executor.TryEnqueue(std::move(evaluate), &completion);
+            const auto submitted = m_Executor.TryEnqueue(std::move(evaluate), &completion);
             if (!submitted)
             {
                 EE_CORE_ERROR("Animation manager could not queue a worker job.")

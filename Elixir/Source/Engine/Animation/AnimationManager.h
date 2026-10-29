@@ -9,6 +9,7 @@ namespace Elixir
 {
     class Animation;
     class Executor;
+    class Timestep;
 
     /**
      * @brief Manage registered animation instances.
@@ -30,20 +31,22 @@ namespace Elixir
          * A failed animation keeps its last published frame. Other registered animations
          * may still advance.
          *
-         * @param deltaSeconds Finite nonnegative elapsed time in seconds.
-         * @param executor Dispatcher available until the managed updates finish.
+         * @param frameTime Finite nonnegative elapsed frame time.
          * @return True if every participating animation updated successfully.
          * @pre Call on the game thread, outside executor workers. Configure instances before
          * this call and consume results afterward. Do not overlap updates or change shared
          * animation resources during evaluation. Shared custom evaluators must be thread-safe.
          */
-        bool Update(float deltaSeconds, Executor& executor);
+        bool Update(Timestep frameTime);
 
     private:
         friend class Animation;
 
-        /** @brief Create an empty animation registry. */
-        AnimationManager() = default;
+        /**
+         * @brief Create an animation registry with its update dispatcher.
+         * @param executor Dispatcher that remains alive while managed updates are used.
+         */
+        explicit AnimationManager(Executor& executor);
 
         /**
          * @brief Register a new animation without taking ownership.
@@ -51,6 +54,8 @@ namespace Elixir
          */
         void Register(const Ref<Animation>& animation);
 
+        /** Update dispatcher supplied once during construction. */
+        Executor& m_Executor;
         std::mutex m_RegistryMutex;
         std::mutex m_UpdateMutex;
         std::vector<WeakRef<Animation>> m_Animations;
