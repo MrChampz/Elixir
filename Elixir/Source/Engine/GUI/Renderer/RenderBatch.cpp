@@ -48,10 +48,30 @@ namespace Elixir::GUI
         const float opacity
     )
     {
-        m_Commands.reserve(m_Commands.size() + other.m_Commands.size());
-        for (const auto& command : other.m_Commands)
+        const auto sourceCount = other.m_Commands.size();
+        const auto maximum = m_Commands.max_size();
+
+        if (sourceCount > maximum - m_Commands.size())
         {
-            m_Commands.push_back(command);
+            EE_CORE_ERROR("GUI draw commands exceed the supported batch size.")
+            return;
+        }
+
+        const auto required = m_Commands.size() + sourceCount;
+        const auto capacity = m_Commands.capacity();
+
+        if (required > capacity)
+        {
+            const auto grown = capacity <= maximum / 2
+                ? capacity * 2
+                : maximum;
+            m_Commands.reserve(std::max(required, grown));
+        }
+
+        // Capture the original count so appending a batch to itself remains safe.
+        for (size_t i = 0; i < sourceCount; ++i)
+        {
+            m_Commands.push_back(other.m_Commands[i]);
             auto& cmd = m_Commands.back();
             ApplyPresentation(cmd, zOffset, clipRect, offset, opacity);
         }

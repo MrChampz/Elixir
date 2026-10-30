@@ -78,3 +78,44 @@ TEST(RenderPassTest, KeepsSufficientBufferCapacity)
     EXPECT_EQ(GrowBufferCapacity(10'000, 8'000), 10'000u);
     EXPECT_EQ(GrowBufferCapacity(0, 1), 1u);
 }
+
+TEST(RenderBatchTest, SmallAppendsUseAmortizedCapacityGrowth)
+{
+    RenderBatch source;
+    AddRectAt(source, 0);
+    RenderBatch destination;
+    size_t reallocations = 0;
+    size_t previousCapacity = 0;
+    constexpr size_t count = 4096;
+    for (size_t i = 0; i < count; ++i)
+    {
+        destination.Append(source, int(i), {{-1, -1}, {-1, -1}});
+        const auto capacity = destination.GetCommands().capacity();
+        if (capacity != previousCapacity)
+            ++reallocations;
+        previousCapacity = capacity;
+    }
+    EXPECT_LT(reallocations, 32u);
+    ASSERT_EQ(destination.GetCommands().size(), count);
+    EXPECT_EQ(destination.GetCommands().back().ZOrder, int(count - 1));
+    EXPECT_EQ(source.GetCommands().size(), 1u);
+}
+
+TEST(RenderBatchTest, SelfAppendCopiesOriginalCommandsWithoutModifyingThem)
+{
+    RenderBatch batch;
+    const std::string label(96, 'x');
+    batch.AddText(label, {{1, 2}, {20, 10}}, {}, 16, {1, 1, 1, 1}, 4);
+    batch.Append(batch, 10, {{-1, -1}, {-1, -1}}, {3, 4}, 0.5f);
+    ASSERT_EQ(batch.GetCommands().size(), 2u);
+    const auto& original = batch.GetCommands()[0];
+    const auto& appended = batch.GetCommands()[1];
+    EXPECT_EQ(original.Text, label);
+    EXPECT_EQ(original.Geometry.Position, glm::vec2(1, 2));
+    EXPECT_EQ(original.ZOrder, 4);
+    EXPECT_FLOAT_EQ(original.Color.A, 1);
+    EXPECT_EQ(appended.Text, label);
+    EXPECT_EQ(appended.Geometry.Position, glm::vec2(4, 6));
+    EXPECT_EQ(appended.ZOrder, 14);
+    EXPECT_FLOAT_EQ(appended.Color.A, 0.5f);
+}

@@ -1,7 +1,7 @@
 #pragma once
 
+#include <Engine/Graphics/RenderableSnapshot.h>
 #include <Engine/Mesh/SkeletalMeshInstance.h>
-#include <Engine/Mesh/SkeletalMeshRenderSnapshot.h>
 #include <Engine/Mesh/GeometryPool.h>
 #include <Engine/Mesh/MeshLighting.h>
 #include <Engine/Mesh/SkinningPass.h>
@@ -82,7 +82,7 @@ namespace Elixir
          * @param snapshot Mesh, matrices, and placement retained by the render task.
          * @return False if the snapshot is invalid or frame capacity is exhausted.
          */
-        bool Render(const SSkeletalMeshRenderSnapshot& snapshot);
+        bool Render(const SRenderableSnapshot& snapshot);
 
         /**
          * @brief Begin collecting skeletal instances for the current frame slot.

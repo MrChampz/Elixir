@@ -48,6 +48,7 @@
 #include <Engine/Graphics/FrameSlotState.h>
 #include <Engine/Graphics/Pipeline/PipelineBuilder.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
+#include <Engine/Graphics/RenderableSnapshot.h>
 
 #include <Engine/Font/Font.h>
 #include <Engine/Font/FontManager.h>
@@ -68,7 +69,6 @@
 #include <Engine/Mesh/StaticMeshRenderer.h>
 #include <Engine/Mesh/SkeletalMesh.h>
 #include <Engine/Mesh/SkeletalMeshInstance.h>
-#include <Engine/Mesh/SkeletalMeshRenderSnapshot.h>
 #include <Engine/Mesh/SkeletalMeshRenderer.h>
 
 #include <Engine/Animation/BoneTransform.h>
