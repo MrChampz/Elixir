@@ -1,9 +1,10 @@
 #pragma once
 
 #include <Engine/Graphics/FrameSlotState.h>
+#include <Engine/Graphics/RenderableSnapshot.h>
 #include <Engine/Mesh/MeshLighting.h>
-#include <Engine/Mesh/StaticMesh.h>
 #include <Engine/Mesh/Sorter.h>
+#include <Engine/Mesh/StaticMesh.h>
 #include <Engine/Materials/Rendering/MaterialRenderScene.h>
 
 namespace Elixir
@@ -52,6 +53,13 @@ namespace Elixir
             const Camera& camera,
             const SMeshLighting& lighting
         );
+
+        /**
+         * @brief Collect a captured draw without reading mutable game state.
+         * @param snapshot Static mesh and placement retained by the render task.
+         * @return False if static mesh data is absent or the draw cannot be collected.
+         */
+        bool Render(const SRenderableSnapshot& snapshot);
 
         /**
          * @brief Collect indexed surface draws for one static mesh.

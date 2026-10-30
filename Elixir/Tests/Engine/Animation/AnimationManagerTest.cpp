@@ -3,7 +3,7 @@
 
 #include <Engine/Animation/AnimationManager.h>
 #include <Engine/Core/Timer.h>
-#include <Engine/Mesh/SkeletalMeshRenderSnapshot.h>
+#include <Engine/Graphics/RenderableSnapshot.h>
 #include <Engine/Animation/AnimationGraph.h>
 
 #include <atomic>
@@ -331,14 +331,18 @@ TEST_F(AnimationManagerTest, RenderSnapshotsRetainMeshesAndDoNotChangeWithLaterF
     ASSERT_TRUE(instance);
     ASSERT_TRUE(Playback->Play(MakeNode(Moving)));
     const std::weak_ptr<SkeletalMeshInstance> observed = instance;
-    SSkeletalMeshRenderSnapshot first{instance, Playback->GetFrameSnapshot(), glm::mat4(1)};
-    const auto previousPose = first.Frame->ModelPose.Matrices;
+    SRenderableSnapshot first{
+        .Transform = glm::mat4(1),
+        .Data = SSkeletalMeshRenderData{instance, Playback->GetFrameSnapshot()}
+    };
+    auto& data = std::get<SSkeletalMeshRenderData>(first.Data);
+    const auto previousPose = data.Frame->ModelPose.Matrices;
     instance.reset();
     EXPECT_FALSE(observed.expired());
     ASSERT_TRUE(AnimationManager::Get().Update(Timestep(0.1f)));
-    EXPECT_EQ(first.Frame->ModelPose.Matrices, previousPose);
+    EXPECT_EQ(data.Frame->ModelPose.Matrices, previousPose);
     EXPECT_NE(Playback->GetModelPose().Matrices, previousPose);
-    first.Instance.reset();
+    data.Instance.reset();
     EXPECT_TRUE(observed.expired());
 }
 

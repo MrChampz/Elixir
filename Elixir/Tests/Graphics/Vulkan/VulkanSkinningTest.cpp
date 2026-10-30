@@ -2,7 +2,7 @@
 #include <Engine/Animation/Animation.h>
 #include <Engine/Animation/AnimationManager.h>
 #include <Engine/Core/Timer.h>
-#include <Engine/Mesh/SkeletalMeshRenderSnapshot.h>
+#include <Engine/Graphics/RenderableSnapshot.h>
 #include <Engine/Animation/TwoBoneIK.h>
 #include "../../Engine/Animation/AnimationTestPlayback.h"
 #include <Engine/Animation/BlendSpace2D.h>
@@ -521,12 +521,12 @@ TEST(VulkanSkinningTest, GameThreadUpdatesWhileRenderingAnEarlierPoseSnapshot)
     ASSERT_TRUE(animation);
     ASSERT_TRUE(instance);
     ASSERT_TRUE(animation->Play(MakeNode(source)));
-    const SSkeletalMeshRenderSnapshot snapshot{
-        instance,
-        animation->GetFrameSnapshot(),
-        glm::mat4(1)
+    const SRenderableSnapshot snapshot{
+        .Transform = glm::mat4(1),
+        .Data = SSkeletalMeshRenderData{instance, animation->GetFrameSnapshot()}
     };
-    const auto previousPose = snapshot.Frame->ModelPose.Matrices;
+    const auto previousPose = std::get<SSkeletalMeshRenderData>(snapshot.Data)
+        .Frame->ModelPose.Matrices;
     std::vector<glm::mat4> renderedPose;
     std::promise<void> readerStarted;
     auto started = readerStarted.get_future();
@@ -540,7 +540,8 @@ TEST(VulkanSkinningTest, GameThreadUpdatesWhileRenderingAnEarlierPoseSnapshot)
         readerStarted.set_value();
         const auto status = released.wait_for(std::chrono::seconds(2));
         readerReleased = status == std::future_status::ready;
-        renderedPose = snapshot.Frame->ModelPose.Matrices;
+        renderedPose = std::get<SSkeletalMeshRenderData>(snapshot.Data)
+            .Frame->ModelPose.Matrices;
         readerFinished.set_value();
     };
     ASSERT_TRUE(context->EnqueueRenderTask(readPose));

@@ -1,9 +1,9 @@
 #include "epch.h"
 #include "StaticMeshRenderer.h"
 
-#include <Engine/Mesh/GeometryPool.h>
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/GraphicsContext.h>
+#include <Engine/Mesh/GeometryPool.h>
 #include <Engine/Materials/MaterialInstance.h>
 #include <Engine/Materials/MaterialSystem.h>
 
@@ -125,6 +125,18 @@ namespace Elixir
             }},
             .IndexBuffer = m_GeometryPool.GetIndexBuffer().get(),
         });
+    }
+
+    bool StaticMeshRenderer::Render(const SRenderableSnapshot& snapshot)
+    {
+        const auto* data = std::get_if<SStaticMeshRenderData>(&snapshot.Data);
+        if (!data)
+        {
+            EE_CORE_ERROR("Renderable snapshot requires static mesh data.")
+            return false;
+        }
+
+        return Render(data->Mesh, snapshot.Transform);
     }
 
     bool StaticMeshRenderer::Render(
