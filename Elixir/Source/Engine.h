@@ -14,7 +14,6 @@
 #include <Engine/Core/Platform.h>
 #include <Engine/Core/Executor/Executor.h>
 #include <Engine/Core/Executor/WaitGroup.h>
-#include <Engine/Core/RenderableSnapshot.h>
 
 #include <Engine/Event/Event.h>
 #include <Engine/Event/ApplicationEvent.h>
@@ -49,6 +48,7 @@
 #include <Engine/Graphics/FrameSlotState.h>
 #include <Engine/Graphics/Pipeline/PipelineBuilder.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
+#include <Engine/Graphics/RenderableSnapshot.h>
 
 #include <Engine/Font/Font.h>
 #include <Engine/Font/FontManager.h>
