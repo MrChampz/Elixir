@@ -14,6 +14,7 @@
 #include <Engine/Core/Platform.h>
 #include <Engine/Core/Executor/Executor.h>
 #include <Engine/Core/Executor/WaitGroup.h>
+#include <Engine/Core/RenderableSnapshot.h>
 
 #include <Engine/Event/Event.h>
 #include <Engine/Event/ApplicationEvent.h>
@@ -68,7 +69,6 @@
 #include <Engine/Mesh/StaticMeshRenderer.h>
 #include <Engine/Mesh/SkeletalMesh.h>
 #include <Engine/Mesh/SkeletalMeshInstance.h>
-#include <Engine/Mesh/SkeletalMeshRenderSnapshot.h>
 #include <Engine/Mesh/SkeletalMeshRenderer.h>
 
 #include <Engine/Animation/BoneTransform.h>

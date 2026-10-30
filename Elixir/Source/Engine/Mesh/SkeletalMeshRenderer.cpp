@@ -3,10 +3,10 @@
 
 #include <Engine/Camera/Camera.h>
 #include <Engine/Graphics/GraphicsContext.h>
+#include <Engine/Mesh/StaticMesh.h>
 #include <Engine/Materials/MaterialInstance.h>
 #include <Engine/Materials/MaterialSystem.h>
 
-#include <Engine/Mesh/StaticMesh.h>
 
 namespace Elixir
 {
@@ -176,19 +176,20 @@ namespace Elixir
         frame.GeometryIndex = m_Scene.AddGeometry(std::move(geometry));
     }
 
-    bool SkeletalMeshRenderer::Render(const SSkeletalMeshRenderSnapshot& snapshot)
+    bool SkeletalMeshRenderer::Render(const SRenderableSnapshot& snapshot)
     {
-        if (!snapshot.Instance)
+        const auto* data = std::get_if<SSkeletalMeshRenderData>(&snapshot.Data);
+        if (!data || !data->Instance)
         {
-            EE_CORE_ERROR("Skeletal mesh render snapshot requires a mesh instance.")
+            EE_CORE_ERROR("Renderable snapshot requires skeletal mesh data and an instance.")
             return false;
         }
 
-        const auto& pose = snapshot.Frame
-            ? snapshot.Frame->ModelPose
-            : snapshot.Instance->GetReferenceModelPose();
+        const auto& pose = data->Frame
+            ? data->Frame->ModelPose
+            : data->Instance->GetReferenceModelPose();
 
-        return Render(*snapshot.Instance, pose, snapshot.Transform);
+        return Render(*data->Instance, pose, snapshot.Transform);
     }
 
     bool SkeletalMeshRenderer::Render(
