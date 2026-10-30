@@ -88,7 +88,8 @@ namespace Elixir::GUI
          * intersected with clipRect; a command with no ScissorRect of its own adopts clipRect
          * verbatim, when clipRect itself is valid.
          *
-         * Used to assemble the per-widget command caches into the frame batch.
+         * Used to assemble the per-widget command caches into the frame batch. Storage grows
+         * geometrically. Self-append copies only the commands present when the call starts.
          *
          * @param other Batch whose commands are copied in.
          * @param zOffset Value added to each appended command's ZOrder.
