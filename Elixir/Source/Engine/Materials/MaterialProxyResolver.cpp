@@ -13,7 +13,11 @@ namespace Elixir::Materials
         if (!instance || !instance->GetParent())
             return nullptr;
 
-        const auto compiled = m_CompilationCache.GetOrCompile(instance->GetParent());
+        const auto compiled = m_CompilationCache.GetOrCompile(
+            instance->GetParent(),
+            instance->GetStaticValues()
+        );
+
         return compiled
             ? MaterialRenderProxy::Create(compiled, *instance)
             : nullptr;

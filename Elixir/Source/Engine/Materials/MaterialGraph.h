@@ -4,6 +4,9 @@
 
 namespace Elixir::Materials
 {
+    namespace Compilation { class MaterialGraphEmitter; }
+    using namespace Compilation;
+
     /**
      * @brief Defines a surface property driven by a material graph.
      */
@@ -56,13 +59,9 @@ namespace Elixir::Materials
 
         /** @brief Tangent-space normal of the layer below clear coat. */
         ClearCoatBottomNormal,
-    };
 
-    /** @brief Maps material parameter names to generated HLSL expressions. */
-    struct SMaterialGraphBindings
-    {
-        std::unordered_map<std::string, std::string> Values;
-        std::unordered_map<std::string, std::string> Textures;
+        /** World-space displacement applied before vertex projection. */
+        WorldPositionOffset,
     };
 
     /**
@@ -73,7 +72,9 @@ namespace Elixir::Materials
      */
     class ELIXIR_API MaterialGraph
     {
-    public:
+        friend class MaterialGraphEmitter;
+
+      public:
         MaterialGraph() = default;
 
         MaterialGraph(const MaterialGraph&) = delete;
@@ -90,6 +91,8 @@ namespace Elixir::Materials
         }
 
         uint32_t AddNode(Scope<MaterialNode> node);
+
+        const MaterialNode* FindNode(uint32_t id) const;
 
         /**
          * @brief Connects a node output to an input slot.
@@ -109,38 +112,15 @@ namespace Elixir::Materials
         void SetChannel(EMaterialChannel channel, uint32_t nodeId);
 
         /**
-         * @brief Checks that nodes and their connections form a valid graph.
-         * @param parameters Defines the material parameters available to graph nodes.
-         * @param error Receives a description when validation fails.
-         * @return `true` when the graph can be compiled safely.
+         * @brief Checks whether a surface channel has an output.
+         * @param channel Surface channel to inspect.
          */
-        bool Validate(
-            const MaterialNodeValidationContext& parameters,
-            std::string* error = nullptr
-        ) const;
+        bool HasChannel(const EMaterialChannel channel) const
+        {
+            return m_Channels.contains(channel);
+        }
 
-        /** @brief Generates HLSL statements for the configured surface channels. */
-        std::string GenerateHLSL() const;
-
-        /**
-         * @brief Generates HLSL statements for the configured surface channels.
-         * @param bindings Expressions that replace named material parameters.
-         * @return Generated HLSL that uses the supplied parameter bindings.
-         */
-        std::string GenerateHLSL(const SMaterialGraphBindings& bindings) const;
-
-        const MaterialNode* FindNode(uint32_t id) const;
-
-    private:
-        /** @brief Emits HLSL for a node and its dependencies. */
-        SMaterialExpression EmitNode(
-            uint32_t id,
-            std::unordered_map<uint32_t, SMaterialExpression>& emitted,
-            std::unordered_set<uint32_t>& visiting,
-            std::string& body,
-            const SMaterialGraphBindings* bindings
-        ) const;
-
+      private:
         struct SGraphNode
         {
             Scope<MaterialNode> Node;

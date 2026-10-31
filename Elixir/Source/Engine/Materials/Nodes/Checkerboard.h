@@ -16,12 +16,15 @@ namespace Elixir::Materials::Nodes
          * @param scale The checkerboard scale.
          */
         explicit Checkerboard(const float scale)
-          : MaterialNode({{
-                "UV",
-                EMaterialValueType::Float2,
-                "input.TexCoord",
-                EMaterialValueType::Float2
-            }}),
+          : MaterialNode({
+              {
+                    "UV",
+                    EMaterialValueType::Float2,
+                    "",
+                    EMaterialValueType::Float2,
+                    EMaterialInputDefaultSource::TexCoord
+                }
+            }),
             m_Scale(scale) {}
 
         std::string_view GetTypeName() const override { return "Material.Checkerboard"; }

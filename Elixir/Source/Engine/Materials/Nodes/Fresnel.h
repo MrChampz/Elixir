@@ -16,7 +16,8 @@ namespace Elixir::Materials::Nodes
         SMaterialExpression Emit(const MaterialEmitContext& context) const override
         {
             return {
-                .Code = "pow(saturate(1.0 - dot(N, V)), 5.0)",
+                .Code = "pow(saturate(1.0 - dot(" + context.Normal() + ", " +
+                    context.ViewDirection() + ")), 5.0)",
                 .ValueType = EMaterialValueType::Float
             };
         }

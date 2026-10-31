@@ -25,10 +25,10 @@ namespace Elixir::Materials::Nodes
             return false;
         }
 
-        SMaterialExpression Emit(const MaterialEmitContext&) const override
+        SMaterialExpression Emit(const MaterialEmitContext& context) const override
         {
             return {
-                .Code = "input.Color",
+                .Code = context.Color(),
                 .ValueType = EMaterialValueType::Float4
             };
         }

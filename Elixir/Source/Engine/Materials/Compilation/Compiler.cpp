@@ -4,6 +4,7 @@
 #include <Engine/Materials/Material.h>
 #include <Engine/Materials/MaterialGraph.h>
 #include <Engine/Materials/MaterialParameter.h>
+#include <Engine/Materials/Compilation/MaterialShaderSourceBuilder.h>
 
 namespace Elixir::Materials::Compilation
 {
@@ -38,50 +39,15 @@ namespace Elixir::Materials::Compilation
 
             return ss.str();
         }
-
-        std::string ValueExpression(const SCompiledParameter& parameter)
-        {
-            std::string value = "mat.Values[" + std::to_string(parameter.Slot) + "]";
-
-            switch (parameter.ValueType)
-            {
-                case EMaterialValueType::Float:    return value + ".x";
-                case EMaterialValueType::Float2:   return value + ".xy";
-                case EMaterialValueType::Float3:   return value + ".xyz";
-                case EMaterialValueType::Float4:   return value;
-            }
-
-            return value;
-        }
-
-        std::string GenerateGraphHLSL(
-            const MaterialGraph& graph,
-            const SCompiledMaterial& material
-        )
-        {
-            SMaterialGraphBindings bindings;
-
-            for (const auto& parameter : material.Parameters)
-            {
-                const auto expression = parameter.Kind == EMaterialParameterKind::Texture
-                    ? "mat.TextureIndices[" + std::to_string(parameter.Slot) + "]"
-                    : ValueExpression(parameter);
-
-                auto& destination = parameter.Kind == EMaterialParameterKind::Texture
-                    ? bindings.Textures
-                    : bindings.Values;
-
-                destination[parameter.Name] = expression;
-            }
-
-            return graph.GenerateHLSL(bindings);
-        }
     }
 
-    SCompileResult Compiler::Build(const Material& material)
+    SCompileResult Compiler::Build(
+        const Material& material,
+        const std::unordered_map<std::string, bool>& staticValues
+    )
     {
         std::string diagnostics;
-        if (!material.ValidateGraph(&diagnostics))
+        if (!material.ValidateGraph(&diagnostics, staticValues))
             return { .Diagnostics = std::move(diagnostics) };
 
         std::vector<std::pair<std::string, SMaterialParameterDefinition>> parameters(
@@ -90,7 +56,6 @@ namespace Elixir::Materials::Compilation
         );
         std::ranges::sort(parameters, {}, &decltype(parameters)::value_type::first);
 
-        SMaterialGraphBindings bindings;
         std::vector<SCompiledParameter> layout;
         uint32_t valueSlot = 0;
         uint32_t textureSlot = 0;
@@ -104,24 +69,32 @@ namespace Elixir::Materials::Compilation
             if (slot >= 32)
                 return { .Diagnostics = "Material parameter capacity exceeded." };
 
-            layout.push_back({ name, definition.Kind, definition.ValueType, slot });
+            layout.push_back({
+                name,
+                definition.Kind,
+                definition.ValueType,
+                slot
+            });
 
-            if (definition.Kind == EMaterialParameterKind::Texture)
-                bindings.Textures[name] = "mat.TextureIndices[" + std::to_string(slot++) + "]";
-            else
-                bindings.Values[name] = "mat.Values[" + std::to_string(slot++) + "]";
+            ++slot;
         }
 
         const auto compiled = CreateRef<SCompiledMaterial>();
         compiled->Usage = material.GetUsage();
         compiled->MaterialRevision = material.GetRevision();
         compiled->Parameters = std::move(layout);
+        compiled->StaticValues = staticValues;
+
         return { .Material = compiled };
     }
 
-    SCompileResult Compiler::Compile(const ShaderLoader* loader, const Material& material)
+    SCompileResult Compiler::Compile(
+        const ShaderLoader* loader,
+        const Material& material,
+        const std::unordered_map<std::string, bool>& staticValues
+    )
     {
-        auto result = Build(material);
+        auto result = Build(material, staticValues);
         if (!result) return result;
 
         if (material.GetUsage() == EMaterialUsage::Surface)
@@ -141,32 +114,6 @@ namespace Elixir::Materials::Compilation
         }
 
         return result;
-    }
-
-    std::string Compiler::InjectBody(
-        const std::string& hlsl,
-        const std::string& graphBody,
-        const EMaterialShadingModel shadingModel
-    )
-    {
-        std::string out = hlsl;
-
-        constexpr std::string_view graphMarker = "// __GRAPH_BODY__";
-        if (const auto pos = out.find(graphMarker); pos != std::string::npos)
-            out.replace(pos, graphMarker.size(), graphBody);
-
-        constexpr std::string_view shadingModelMarker = "// __SHADING_MODEL__";
-        if (const auto pos = out.find(shadingModelMarker); pos != std::string::npos)
-        {
-            const auto value = (uint8_t)shadingModel;
-            out.replace(
-                pos,
-                shadingModelMarker.size(),
-                "#define MATERIAL_SHADING_MODEL " + std::to_string(value)
-            );
-        }
-
-        return out;
     }
 
     SCompileResult Compiler::CompileSurface(
@@ -194,25 +141,50 @@ namespace Elixir::Materials::Compilation
         // modules, so stray files (like the generated.hlsl) never look like a
         // shader module to the loader. The .hlsl source lives outside that dir.
         const fs::path loadDir = s_GeneratedDir / name;
+
         std::error_code error;
         fs::create_directories(loadDir, error);
 
         const fs::path vertexSourcePath = s_GeneratedDir / (name + ".src.vs.hlsl");
         {
             std::ofstream out(vertexSourcePath, std::ios::binary);
-            out << vertexHlsl;
+
+            const auto source = MaterialShaderSourceBuilder::Build(
+                vertexHlsl,
+                material,
+                *result.Material,
+                EShaderStage::Vertex
+            );
+
+            if (!source)
+            {
+                result.Diagnostics = source.Diagnostics;
+                result.Material.reset();
+                return result;
+            }
+
+            out << source.Source;
         }
 
         const fs::path pixelSourcePath = s_GeneratedDir / (name + ".src.ps.hlsl");
         {
             std::ofstream out(pixelSourcePath, std::ios::binary);
 
-            const auto graphHlsl = GenerateGraphHLSL(material.GetGraph(), *result.Material);
-            out << InjectBody(
+            const auto source = MaterialShaderSourceBuilder::Build(
                 pixelHlsl,
-                graphHlsl,
-                material.GetShadingModel()
+                material,
+                *result.Material,
+                EShaderStage::Pixel
             );
+
+            if (!source)
+            {
+                result.Diagnostics = source.Diagnostics;
+                result.Material.reset();
+                return result;
+            }
+
+            out << source.Source;
         }
 
         const fs::path dxc = FindDXC();
@@ -293,11 +265,25 @@ namespace Elixir::Materials::Compilation
         {
             std::ofstream out(pixelSourcePath, std::ios::binary);
 
-            const auto graphHlsl = GenerateGraphHLSL(material.GetGraph(), *result.Material);
-            out << InjectBody(pixelHlsl, graphHlsl);
+            const auto source = MaterialShaderSourceBuilder::Build(
+                pixelHlsl,
+                material,
+                *result.Material,
+                EShaderStage::Pixel
+            );
+
+            if (!source)
+            {
+                result.Diagnostics = source.Diagnostics;
+                result.Material.reset();
+                return result;
+            }
+
+            out << source.Source;
         }
 
         const fs::path dxc = FindDXC();
+
         const auto compileStage = [&dxc](
             const fs::path& sourcePath,
             const fs::path& spvPath,
@@ -374,8 +360,21 @@ namespace Elixir::Materials::Compilation
         {
             std::ofstream out(pixelSourcePath, std::ios::binary);
 
-            const auto graphHlsl = GenerateGraphHLSL(material.GetGraph(), *result.Material);
-            out << InjectBody(pixelHlsl, graphHlsl);
+            const auto source = MaterialShaderSourceBuilder::Build(
+                pixelHlsl,
+                material,
+                *result.Material,
+                EShaderStage::Pixel
+            );
+
+            if (!source)
+            {
+                result.Diagnostics = source.Diagnostics;
+                result.Material.reset();
+                return result;
+            }
+
+            out << source.Source;
         }
 
         // Compile the generated pixel shader to SPIR-V with DXC.
@@ -458,8 +457,21 @@ namespace Elixir::Materials::Compilation
         {
             std::ofstream out(pixelSourcePath, std::ios::binary);
 
-            const auto graphHlsl = GenerateGraphHLSL(material.GetGraph(), *result.Material);
-            out << InjectBody(pixelHlsl, graphHlsl);
+            const auto source = MaterialShaderSourceBuilder::Build(
+                pixelHlsl,
+                material,
+                *result.Material,
+                EShaderStage::Pixel
+            );
+
+            if (!source)
+            {
+                result.Diagnostics = source.Diagnostics;
+                result.Material.reset();
+                return result;
+            }
+
+            out << source.Source;
         }
 
         // Compile the generated pixel shader to SPIR-V with DXC.

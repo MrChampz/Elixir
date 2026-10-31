@@ -210,9 +210,13 @@ namespace Elixir::Materials
         /**
          * @brief Validates parameter references in the material graph.
          * @param[out] error Optional destination for a validation error message.
+         * @param staticValues Compile-time choices used to validate vertex dependencies.
          * @return `true` if all graph parameter references are valid.
          */
-        bool ValidateGraph(std::string* error = nullptr) const;
+        bool ValidateGraph(
+            std::string* error = nullptr,
+            const std::unordered_map<std::string, bool>& staticValues = {}
+        ) const;
 
         /** @brief Returns the material name. */
         const std::string& GetName() const { return m_Name; }
