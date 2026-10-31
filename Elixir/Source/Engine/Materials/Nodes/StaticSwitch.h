@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Materials/Material.h>
+#include <Engine/Materials/Compilation/MaterialGraphBindings.h>
 
 namespace Elixir::Materials::Nodes
 {
@@ -15,7 +16,7 @@ namespace Elixir::Materials::Nodes
          */
         explicit StaticSwitch(std::string name, const bool defaultValue = false)
           : MaterialNode({
-              {
+                {
                     "True",
                     EMaterialValueType::Float4,
                     "0.0",

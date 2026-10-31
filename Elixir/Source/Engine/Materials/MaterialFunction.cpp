@@ -1,5 +1,6 @@
 #include "epch.h"
 #include "MaterialFunction.h"
+#include "Compilation/MaterialGraphEmitter.h"
 
 namespace Elixir::Materials
 {
@@ -84,21 +85,15 @@ namespace Elixir::Materials
             }
         }
 
-        return m_Graph.Validate(FunctionLookup(parameters, m_Inputs), &error);
-    }
-
-    SMaterialExpression MaterialFunction::Emit(
-        const SMaterialGraphBindings& bindings,
-        const EShaderStage stage
-    ) const
-    {
-        return m_Graph.GenerateExpression(m_Output, bindings, stage);
+        const MaterialGraphEmitter emitter(m_Graph, {});
+        return emitter.Validate(FunctionLookup(parameters, m_Inputs), &error);
     }
 
     EShaderStage MaterialFunction::GetSupportedStages(
         const SMaterialGraphBindings* bindings
     ) const
     {
-        return m_Graph.GetSupportedStages(m_Output, bindings);
+        const MaterialGraphEmitter emitter(m_Graph, {});
+        return emitter.GetSupportedStages(m_Output, bindings);
     }
 }

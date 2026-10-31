@@ -12,18 +12,19 @@ namespace Elixir::Materials::Nodes
         Noise()
           : MaterialNode({
               {
-                  "UV",
-                  EMaterialValueType::Float2,
-                  "input.TexCoord",
-                  EMaterialValueType::Float2
+                    "UV",
+                    EMaterialValueType::Float2,
+                    "",
+                    EMaterialValueType::Float2,
+                    EMaterialInputDefaultSource::TexCoord
               },
               {
-                 "Scale",
-                 EMaterialValueType::Float,
-                 "1.0",
-                 EMaterialValueType::Float
+                    "Scale",
+                    EMaterialValueType::Float,
+                    "1.0",
+                    EMaterialValueType::Float
               }
-          }) {}
+            }) {}
 
         /** @copydoc MaterialNode::GetTypeName */
         std::string_view GetTypeName() const override { return "Material.Noise"; }

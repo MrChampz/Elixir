@@ -1,3 +1,4 @@
+#include "MaterialGraphTestEmission.h"
 #include <gtest/gtest.h>
 
 #include <Engine/Materials/Compilation/CompilationCache.h>
@@ -15,6 +16,7 @@
 #include <Engine/Materials/Nodes/TextureSample.h>
 
 using namespace Elixir;
+using namespace Elixir::Materials::Tests;
 using namespace Elixir::Materials;
 using namespace Elixir::Materials::Nodes;
 using namespace Elixir::Materials::Compilation;
@@ -73,7 +75,7 @@ TEST(MaterialGraphFeaturesTest, NestedFunctionsInheritBindingsAndKeepArgumentsLo
     DefineOffset(material);
     ASSERT_TRUE(Compiler::Build(*material));
     const auto source =
-        material->GetGraph().GenerateHLSL({.Values = {{"Offset", "mat.Values[3].x"}}});
+        EmitGraph(material->GetGraph(), {.Values = {{"Offset", "mat.Values[3].x"}}});
     EXPECT_NE(source.find("5.000000"), std::string::npos);
     EXPECT_NE(source.find("2.000000"), std::string::npos);
     EXPECT_NE(source.find("mat.Values[3].x"), std::string::npos);
@@ -87,7 +89,7 @@ TEST(MaterialGraphFeaturesTest, ConnectedFunctionInputsOverrideDefaults)
     const auto call = graph.AddNode<FunctionCall>(MakeFunction());
     graph.Connect(value, call, 0);
     graph.SetChannel(EMaterialChannel::Metallic, call);
-    const auto source = graph.GenerateHLSL();
+    const auto source = EmitGraph(graph);
     EXPECT_NE(source.find("7.000000"), std::string::npos);
     EXPECT_EQ(source.find("2.000000"), std::string::npos);
 }
@@ -126,8 +128,8 @@ TEST(MaterialGraphFeaturesTest, StaticSwitchOmitsTheUnselectedBranch)
     graph.Connect(first, choice, 0);
     graph.Connect(second, choice, 1);
     graph.SetChannel(EMaterialChannel::Metallic, choice);
-    const auto defaults = graph.GenerateHLSL();
-    const auto overridden = graph.GenerateHLSL({.StaticValues = {{"Feature", false}}});
+    const auto defaults = EmitGraph(graph);
+    const auto overridden = EmitGraph(graph, {.StaticValues = {{"Feature", false}}});
     EXPECT_NE(defaults.find("123.0"), std::string::npos);
     EXPECT_EQ(defaults.find("456.0"), std::string::npos);
     EXPECT_EQ(overridden.find("123.0"), std::string::npos);
@@ -158,8 +160,8 @@ TEST(MaterialGraphFeaturesTest, WorldPositionOffsetIsGeneratedOnlyForTheVertexSt
     const auto position = graph.AddNode<Position>();
     graph.SetChannel(EMaterialChannel::WorldPositionOffset, position);
     graph.SetChannel(EMaterialChannel::BaseColor, position);
-    const auto pixel = graph.GenerateHLSL();
-    const auto vertex = graph.GenerateHLSL({}, EShaderStage::Vertex);
+    const auto pixel = EmitGraph(graph);
+    const auto vertex = EmitGraph(graph, {}, EShaderStage::Vertex);
     EXPECT_NE(pixel.find("input.WorldPos"), std::string::npos);
     EXPECT_EQ(pixel.find("worldPositionOffset"), std::string::npos);
     EXPECT_NE(vertex.find("worldPos"), std::string::npos);
@@ -225,7 +227,7 @@ TEST(MaterialGraphFeaturesTest, TextureSettingsControlSamplerMipAndOutputType)
     );
     graph.SetChannel(EMaterialChannel::Opacity, texture);
     const auto source =
-        graph.GenerateHLSL({.Textures = {{"Texture", "mat.TextureIndices[2]"}}});
+        EmitGraph(graph, {.Textures = {{"Texture", "mat.TextureIndices[2]"}}});
     EXPECT_NE(source.find(".SampleLevel(pointClamp"), std::string::npos);
     EXPECT_NE(source.find(".a"), std::string::npos);
     EXPECT_NE(source.find("float n"), std::string::npos);
@@ -236,13 +238,13 @@ TEST(MaterialGraphFeaturesTest, VertexTexturesUseExplicitLodAndNoiseEmitsSmoothI
     MaterialGraph graph;
     const auto texture = graph.AddNode<TextureSample>("Texture");
     graph.SetChannel(EMaterialChannel::WorldPositionOffset, texture);
-    const auto vertex = graph.GenerateHLSL({}, EShaderStage::Vertex);
+    const auto vertex = EmitGraph(graph, {}, EShaderStage::Vertex);
     EXPECT_NE(vertex.find(".SampleLevel("), std::string::npos);
     EXPECT_EQ(vertex.find(".Sample("), std::string::npos);
     MaterialGraph noiseGraph;
     const auto noise = noiseGraph.AddNode<Noise>();
     noiseGraph.SetChannel(EMaterialChannel::Roughness, noise);
-    const auto source = noiseGraph.GenerateHLSL();
+    const auto source = EmitGraph(noiseGraph);
     EXPECT_NE(source.find("lerp(lerp("), std::string::npos);
     EXPECT_NE(source.find("floor("), std::string::npos);
 }
@@ -312,7 +314,7 @@ TEST(MaterialGraphFeaturesTest, CustomExpressionsConvertTypedInputsAndStaticBool
     );
     graph.Connect(choice, custom, 0);
     graph.SetChannel(EMaterialChannel::Roughness, custom);
-    const auto source = graph.GenerateHLSL({.StaticValues = {{"Enabled", true}}});
+    const auto source = EmitGraph(graph, {.StaticValues = {{"Enabled", true}}});
     EXPECT_NE(source.find("= 1.0;"), std::string::npos);
     EXPECT_NE(source.find("sin((n"), std::string::npos);
     EXPECT_EQ(source.find("{0}"), std::string::npos);
@@ -326,10 +328,10 @@ TEST(MaterialGraphFeaturesTest, SupportedStagesIntersectDependenciesAndRespectSt
     const auto choice = graph.AddNode<StaticSwitch>("PixelOnly", true);
     graph.Connect(pixel, choice, 0);
     graph.Connect(value, choice, 1);
-    EXPECT_EQ(graph.GetSupportedStages(choice), EShaderStage::Pixel);
+    EXPECT_EQ(SupportedStages(graph, choice), EShaderStage::Pixel);
     SMaterialGraphBindings bindings;
     bindings.StaticValues["PixelOnly"] = false;
-    EXPECT_EQ(graph.GetSupportedStages(choice, &bindings), EShaderStage::All);
+    EXPECT_EQ(SupportedStages(graph, choice, &bindings), EShaderStage::All);
 }
 
 TEST(MaterialGraphFeaturesTest, NestedFunctionsKeepTheEmissionStageOutsideParameterBindings)
@@ -349,8 +351,10 @@ TEST(MaterialGraphFeaturesTest, NestedFunctionsKeepTheEmissionStageOutsideParame
         nested
     );
     EXPECT_EQ(outer->GetSupportedStages(), EShaderStage::Vertex | EShaderStage::Pixel);
-    const auto vertex = outer->Emit({}, EShaderStage::Vertex);
-    const auto pixel = outer->Emit({}, EShaderStage::Pixel);
+    MaterialGraph graph;
+    const auto call = graph.AddNode<FunctionCall>(outer);
+    const auto vertex = EmitExpression(graph, call, {}, EShaderStage::Vertex);
+    const auto pixel = EmitExpression(graph, call, {}, EShaderStage::Pixel);
     EXPECT_NE(vertex.Code.find("worldPos"), std::string::npos);
     EXPECT_EQ(vertex.Code.find("input.WorldPos"), std::string::npos);
     EXPECT_NE(pixel.Code.find("input.WorldPos"), std::string::npos);
@@ -377,8 +381,8 @@ TEST(MaterialGraphFeaturesTest, ConcreteStagesRejectMasksAndSentinels)
     MaterialGraph graph;
     const auto value = graph.AddNode<Constant>(glm::vec4(1), EMaterialValueType::Float);
     graph.SetChannel(EMaterialChannel::Metallic, value);
-    EXPECT_TRUE(graph.GenerateHLSL({}, EShaderStage::Geometry).empty());
-    EXPECT_TRUE(graph.GenerateHLSL({}, EShaderStage::Vertex | EShaderStage::Pixel).empty());
+    EXPECT_TRUE(EmitGraph(graph, {}, EShaderStage::Geometry).empty());
+    EXPECT_TRUE(EmitGraph(graph, {}, EShaderStage::Vertex | EShaderStage::Pixel).empty());
 }
 
 TEST(MaterialGraphFeaturesTest, NonPixelTextureExpressionsUseExplicitLod)
@@ -387,11 +391,11 @@ TEST(MaterialGraphFeaturesTest, NonPixelTextureExpressionsUseExplicitLod)
     const auto texture = graph.AddNode<TextureSample>("Texture");
     for (const auto stage : {EShaderStage::Geometry, EShaderStage::Compute})
     {
-        const auto expression = graph.GenerateExpression(texture, {}, stage);
+        const auto expression = EmitExpression(graph, texture, {}, stage);
         EXPECT_NE(expression.Code.find(".SampleLevel("), std::string::npos);
         EXPECT_EQ(expression.Code.find(".Sample("), std::string::npos);
     }
-    const auto pixel = graph.GenerateExpression(texture, {}, EShaderStage::Pixel);
+    const auto pixel = EmitExpression(graph, texture, {}, EShaderStage::Pixel);
     EXPECT_NE(pixel.Code.find(".Sample("), std::string::npos);
 }
 
@@ -405,10 +409,10 @@ TEST(MaterialGraphFeaturesTest, CustomExpressionsDeclareStageMasks)
         std::vector<SMaterialNodeInput>{},
         stages
     );
-    EXPECT_EQ(graph.GetSupportedStages(custom), stages);
-    const auto compute = graph.GenerateExpression(custom, {}, EShaderStage::Compute);
+    EXPECT_EQ(SupportedStages(graph, custom), stages);
+    const auto compute = EmitExpression(graph, custom, {}, EShaderStage::Compute);
     EXPECT_NE(compute.Code.find("42.0"), std::string::npos);
-    const auto pixel = graph.GenerateExpression(custom, {}, EShaderStage::Pixel);
+    const auto pixel = EmitExpression(graph, custom, {}, EShaderStage::Pixel);
     EXPECT_EQ(pixel.Code, "0.0");
     graph.SetChannel(EMaterialChannel::Metallic, custom);
     const auto material = CreateRef<Material>("InvalidPixelStage");

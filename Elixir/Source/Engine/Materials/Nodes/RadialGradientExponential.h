@@ -18,20 +18,26 @@ namespace Elixir::Materials::Nodes
          * @param exponent Controls the falloff shape. Higher values create a sharper fade.
          */
         RadialGradientExponential(
-            const glm::vec2& center,
-            const float radius,
-            const float exponent
-        ) : MaterialNode({{
+          const glm::vec2& center,
+          const float radius,
+          const float exponent
+        ) : MaterialNode({
+            {
                 "UV",
                 EMaterialValueType::Float2,
-                "input.TexCoord",
-                EMaterialValueType::Float2
-            }}),
-            m_Center(center),
-            m_Radius(radius),
-            m_Exponent(exponent) {}
+                "",
+                EMaterialValueType::Float2,
+                EMaterialInputDefaultSource::TexCoord
+            }
+          }),
+          m_Center(center),
+          m_Radius(radius),
+          m_Exponent(exponent) {}
 
-        std::string_view GetTypeName() const override { return "Material.RadialGradientExponential"; }
+        std::string_view GetTypeName() const override
+        {
+            return "Material.RadialGradientExponential";
+        }
 
         SMaterialExpression Emit(const MaterialEmitContext& context) const override
         {

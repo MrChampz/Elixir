@@ -4,6 +4,9 @@
 #include <Engine/Graphics/Shader/ShaderLoader.h>
 #include <Engine/Materials/Compilation/Compiler.h>
 #include <Engine/Materials/Nodes/FunctionCall.h>
+#include <Engine/Materials/Nodes/Add.h>
+#include <Engine/Materials/Nodes/Panner.h>
+#include <Engine/Materials/Nodes/Position.h>
 #include <Engine/Materials/Nodes/FunctionInput.h>
 #include <Engine/Materials/Nodes/StaticSwitch.h>
 #include <Engine/Materials/Nodes/TextureSample.h>
@@ -74,6 +77,8 @@ TEST(VulkanMaterialGraphTest, CompilesFunctionsStaticChoicesAndVertexTextureSamp
                         .MipMode = ETextureSampleMipMode::Level
                     }
                 );
+                const auto panner = functionGraph.AddNode<Panner>(glm::vec2(.1f));
+                functionGraph.Connect(panner, texture, 0);
                 const auto function = CreateRef<MaterialFunction>(
                     std::move(functionGraph),
                     std::vector<SMaterialFunctionInput>{},
@@ -85,7 +90,13 @@ TEST(VulkanMaterialGraphTest, CompilesFunctionsStaticChoicesAndVertexTextureSamp
                 graph.Connect(call, choice, 0);
                 graph.SetChannel(EMaterialChannel::BaseColor, choice);
                 if (usage == EMaterialUsage::Surface)
-                    graph.SetChannel(EMaterialChannel::WorldPositionOffset, choice);
+                {
+                    const auto position = graph.AddNode<Position>();
+                    const auto offset = graph.AddNode<Add>();
+                    graph.Connect(position, offset, 0);
+                    graph.Connect(choice, offset, 1);
+                    graph.SetChannel(EMaterialChannel::WorldPositionOffset, offset);
+                }
                 const auto material = CreateRef<Material>("CompiledFeatures", usage);
                 ASSERT_TRUE(material->DefineParameter(
                     "Texture",

@@ -1,3 +1,4 @@
+#include "MaterialGraphTestEmission.h"
 #include <gtest/gtest.h>
 
 #include <Engine/Materials/MaterialGraph.h>
@@ -23,6 +24,7 @@
 #include <Engine/Materials/Nodes/Color.h>
 
 using namespace Elixir;
+using namespace Elixir::Materials::Tests;
 using namespace Elixir::Materials;
 using namespace Elixir::Materials::Nodes;
 
@@ -44,7 +46,7 @@ TEST(MaterialGraphTest, GeneratesMultiplyBaseColor)
     graph.Connect(parameter, multiply, 1);
     graph.SetChannel(EMaterialChannel::BaseColor, multiply);
 
-    const auto hlsl = graph.GenerateHLSL();
+    const auto hlsl = EmitGraph(graph);
 
     EXPECT_NE(hlsl.find("mat.BaseColorFactor"), std::string::npos);
     EXPECT_NE(hlsl.find("float4(1"), std::string::npos);
@@ -65,7 +67,7 @@ TEST(MaterialGraphTest, PreservesClearCoatLayerNormals)
     graph.SetChannel(EMaterialChannel::ClearCoatBottomNormal, baseNormal);
     graph.SetChannel(EMaterialChannel::Normal, coatNormal);
 
-    const auto hlsl = graph.GenerateHLSL();
+    const auto hlsl = EmitGraph(graph);
     EXPECT_NE(hlsl.find("mat.BaseNormal"), std::string::npos);
     EXPECT_NE(hlsl.find("mat.CoatNormal"), std::string::npos);
     EXPECT_NE(hlsl.find("surface.ClearCoatBottomNormal = n" + std::to_string(baseNormal) + ";"), std::string::npos);
@@ -84,7 +86,7 @@ TEST(MaterialGraphTest, ScalarChannelsAndSharedNode)
     graph.SetChannel(EMaterialChannel::Metallic, metallic);
     graph.SetChannel(EMaterialChannel::Roughness, metallic);
 
-    const auto hlsl = graph.GenerateHLSL();
+    const auto hlsl = EmitGraph(graph);
 
     EXPECT_NE(hlsl.find("surface.Metallic ="), std::string::npos);
     EXPECT_NE(hlsl.find("surface.Roughness ="), std::string::npos);
@@ -100,7 +102,7 @@ TEST(MaterialGraphTest, UsesDefaultsForUnconnectedUnaryNodes)
     graph.SetChannel(EMaterialChannel::BaseColor, graph.AddNode<OneMinus>());
     graph.SetChannel(EMaterialChannel::Emissive, graph.AddNode<Saturate>());
 
-    const auto hlsl = graph.GenerateHLSL();
+    const auto hlsl = EmitGraph(graph);
 
     EXPECT_NE(hlsl.find("(1.0 - 0.0)"), std::string::npos);
     EXPECT_NE(hlsl.find("saturate(0.0)"), std::string::npos);
@@ -115,7 +117,7 @@ TEST(MaterialGraphTest, RoutesTextureAlphaToOpacity)
     graph.SetChannel(EMaterialChannel::BaseColor, texture);
     graph.SetChannel(EMaterialChannel::Opacity, alpha);
 
-    const auto hlsl = graph.GenerateHLSL({ .Textures = {{ "Albedo", "mat.TextureIndices[0]" }} });
+    const auto hlsl = EmitGraph(graph, { .Textures = {{ "Albedo", "mat.TextureIndices[0]" }} });
     EXPECT_NE(hlsl.find("surface.BaseColor"), std::string::npos);
     EXPECT_NE(hlsl.find("surface.Opacity"), std::string::npos);
     EXPECT_NE(hlsl.find(
@@ -130,7 +132,7 @@ TEST(MaterialGraphTest, EmitsColor)
     MaterialGraph graph;
     graph.SetChannel(EMaterialChannel::BaseColor, graph.AddNode<Color>());
 
-    const auto hlsl = graph.GenerateHLSL();
+    const auto hlsl = EmitGraph(graph, {}, EShaderStage::Pixel, EMaterialUsage::Particle);
 
     EXPECT_NE(hlsl.find("input.Color"), std::string::npos);
 }
@@ -150,7 +152,7 @@ TEST(MaterialGraphTest, RoutesSpecularInputs)
     graph.SetChannel(EMaterialChannel::Specular, specular);
     graph.SetChannel(EMaterialChannel::SpecularColor, specularColor);
 
-    const auto hlsl = graph.GenerateHLSL({
+    const auto hlsl = EmitGraph(graph, {
         .Values = {
             { "SpecularFactor", "mat.Values[0].x" },
             { "SpecularColorFactor", "mat.Values[1].xyz" },
@@ -177,7 +179,7 @@ TEST(MaterialGraphTest, RoutesClothInputs)
     graph.SetChannel(EMaterialChannel::FuzzColor, fuzzColor);
     graph.SetChannel(EMaterialChannel::FuzzRoughness, fuzzRoughness);
 
-    const auto hlsl = graph.GenerateHLSL({
+    const auto hlsl = EmitGraph(graph, {
         .Values = {
             { "FuzzColorFactor", "mat.Values[0].xyz" },
             { "FuzzRoughnessFactor", "mat.Values[1].x" },
@@ -195,7 +197,7 @@ TEST(MaterialGraphTest, SelectsSecondStaticMeshTextureCoordinate)
     const auto texCoord = graph.AddNode<TexCoord>(1);
     graph.SetChannel(EMaterialChannel::BaseColor, texCoord);
 
-    const auto hlsl = graph.GenerateHLSL();
+    const auto hlsl = EmitGraph(graph);
 
     EXPECT_NE(hlsl.find("input.TexCoord1"), std::string::npos);
     EXPECT_NE(hlsl.find("surface.BaseColor"), std::string::npos);
@@ -251,7 +253,7 @@ TEST(MaterialGraphTest, GeneratesStaticTextureCoordinateTransform)
     graph.Connect(transformed, texture, 0);
     graph.SetChannel(EMaterialChannel::BaseColor, texture);
 
-    const auto hlsl = graph.GenerateHLSL({
+    const auto hlsl = EmitGraph(graph, {
         .Values = {
             { "UVScale", "mat.Values[0].xy" },
             { "UVOffset", "mat.Values[1].xy" },
@@ -288,7 +290,7 @@ TEST(MaterialGraphTest, GeneratesNormalTextureSamplingAndFlattening)
     graph.Connect(flatness, flatten, 1);
     graph.SetChannel(EMaterialChannel::Normal, flatten);
 
-    const auto hlsl = graph.GenerateHLSL({
+    const auto hlsl = EmitGraph(graph, {
         .Values = {{ "NormalScale", "mat.Values[0].x" }},
         .Textures = {{ "NormalTexture", "mat.TextureIndices[0]" }}
     });
@@ -315,7 +317,7 @@ TEST(MaterialGraphTest, ScalesNormalMapXYComponentsWithoutChangingZ)
     graph.Connect(scale, scaledNormal, 1);
     graph.SetChannel(EMaterialChannel::Normal, scaledNormal);
 
-    const auto hlsl = graph.GenerateHLSL({
+    const auto hlsl = EmitGraph(graph, {
         .Values = {{ "NormalScale", "mat.Values[0].x" }},
         .Textures = {{ "NormalTexture", "mat.TextureIndices[0]" }}
     });
@@ -347,7 +349,7 @@ TEST(MaterialGraphTest, InterpolatesAmbientOcclusionFromOne)
     graph.Connect(strength, lerp, 2);
     graph.SetChannel(EMaterialChannel::AmbientOcclusion, lerp);
 
-    const auto hlsl = graph.GenerateHLSL({
+    const auto hlsl = EmitGraph(graph, {
         .Values = {
             { "Occlusion", "mat.Values[0].x" },
             { "OcclusionStrength", "mat.Values[1].x" }
@@ -369,7 +371,7 @@ TEST(MaterialGraphTest, GeneratesExponentialRadialGradientForOpacity)
     );
     graph.SetChannel(EMaterialChannel::Opacity, gradient);
 
-    const auto hlsl = graph.GenerateHLSL();
+    const auto hlsl = EmitGraph(graph);
 
     EXPECT_NE(hlsl.find("length((input.TexCoord - float2(0.250000, 0.750000)) / 0.400000)"), std::string::npos);
     EXPECT_NE(hlsl.find("pow(saturate(1.0 -"), std::string::npos);

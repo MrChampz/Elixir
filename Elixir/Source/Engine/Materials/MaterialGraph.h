@@ -4,6 +4,9 @@
 
 namespace Elixir::Materials
 {
+    namespace Compilation { class MaterialGraphEmitter; }
+    using namespace Compilation;
+
     /**
      * @brief Defines a surface property driven by a material graph.
      */
@@ -61,26 +64,6 @@ namespace Elixir::Materials
         WorldPositionOffset,
     };
 
-    /** @brief Maps material parameter names to generated HLSL expressions. */
-    struct SMaterialGraphBindings
-    {
-        std::unordered_map<std::string, std::string> Values;
-
-        std::unordered_map<std::string, std::string> Textures;
-
-        /** Compile-time choices shared by nested function calls. */
-        std::unordered_map<std::string, bool> StaticValues;
-
-        /** Arguments of the current function call. */
-        std::unordered_map<std::string, SMaterialExpression> FunctionInputs;
-
-        /** Bindless texture array exposed by the selected shader template. */
-        std::string TextureArray = "textures";
-
-        /** Default wrapping linear sampler exposed by the template. */
-        std::string TextureSampler = "texSampler";
-    };
-
     /**
      * @brief Stores a node graph that defines material surface properties.
      *
@@ -89,7 +72,9 @@ namespace Elixir::Materials
      */
     class ELIXIR_API MaterialGraph
     {
-    public:
+        friend class MaterialGraphEmitter;
+
+      public:
         MaterialGraph() = default;
 
         MaterialGraph(const MaterialGraph&) = delete;
@@ -127,45 +112,6 @@ namespace Elixir::Materials
         void SetChannel(EMaterialChannel channel, uint32_t nodeId);
 
         /**
-         * @brief Checks that nodes and their connections form a valid graph.
-         * @param parameters Defines the material parameters available to graph nodes.
-         * @param error Receives a description when validation fails.
-         * @param bindings Compile-time choices used to check vertex dependencies.
-         * @return `true` when the graph can be compiled safely.
-         */
-        bool Validate(
-            const MaterialNodeValidationContext& parameters,
-            std::string* error = nullptr,
-            const SMaterialGraphBindings* bindings = nullptr
-        ) const;
-
-        /** @brief Generates HLSL statements for the configured surface channels. */
-        std::string GenerateHLSL() const;
-
-        /**
-         * @brief Generates HLSL statements for the configured surface channels.
-         * @param bindings Expressions that replace named material parameters.
-         * @param stage One shader stage; surface outputs currently support Vertex and Pixel.
-         * @return Generated HLSL that uses the supplied parameter bindings.
-         */
-        std::string GenerateHLSL(
-            const SMaterialGraphBindings& bindings,
-            EShaderStage stage = EShaderStage::Pixel
-        ) const;
-
-        /**
-         * @brief Expands one output into an inline expression for a function call.
-         * @param nodeId Function output node.
-         * @param bindings Parameters and arguments inherited by the call.
-         * @param stage One concrete shader stage inherited from the caller.
-         */
-        SMaterialExpression GenerateExpression(
-            uint32_t nodeId,
-            const SMaterialGraphBindings& bindings,
-            EShaderStage stage = EShaderStage::Pixel
-        ) const;
-
-        /**
          * @brief Checks whether a surface channel has an output.
          * @param channel Surface channel to inspect.
          */
@@ -174,37 +120,7 @@ namespace Elixir::Materials
             return m_Channels.contains(channel);
         }
 
-        /**
-         * @brief Return the stages supported by an output and its active dependencies.
-         * @param nodeId Output to inspect.
-         * @param bindings Compile-time choices used to select active branches.
-         */
-        EShaderStage GetSupportedStages(
-            uint32_t nodeId,
-            const SMaterialGraphBindings* bindings = nullptr
-        ) const;
-
       private:
-        /**
-         * @brief Emit a node and its dependencies.
-         * @param id Node to emit.
-         * @param emitted Expressions already emitted for this graph evaluation.
-         * @param visiting Nodes in the current dependency path.
-         * @param body Receives statements for non-inline evaluation.
-         * @param bindings Material parameters, static choices, and function arguments.
-         * @param stage Concrete shader stage for this emission.
-         * @param inlineExpression Expand expressions without local variable declarations.
-         */
-        SMaterialExpression EmitNode(
-            uint32_t id,
-            std::unordered_map<uint32_t, SMaterialExpression>& emitted,
-            std::unordered_set<uint32_t>& visiting,
-            std::string& body,
-            const SMaterialGraphBindings* bindings,
-            EShaderStage stage,
-            bool inlineExpression = false
-        ) const;
-
         struct SGraphNode
         {
             Scope<MaterialNode> Node;

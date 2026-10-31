@@ -2,9 +2,47 @@
 #include "Material.h"
 
 #include <Engine/Materials/MaterialInstance.h>
+#include <Engine/Materials/Compilation/MaterialGraphEmitter.h>
 
 namespace Elixir::Materials
 {
+    using namespace Compilation;
+
+    namespace
+    {
+        class ParameterLookup final : public MaterialNodeValidationContext
+        {
+        public:
+            explicit ParameterLookup(const Material& material)
+              : m_Material(material) {}
+
+            bool HasValueParameter(
+                const std::string_view name,
+                const EMaterialValueType type
+            ) const override
+            {
+                const auto* parameter = m_Material.FindParameter(std::string(name));
+                return parameter &&
+                    parameter->Kind == EMaterialParameterKind::Value &&
+                    parameter->ValueType == type;
+            }
+
+            bool HasTextureParameter(const std::string_view name) const override
+            {
+                const auto* parameter = m_Material.FindParameter(std::string(name));
+                return parameter && parameter->Kind == EMaterialParameterKind::Texture;
+            }
+
+            EMaterialUsage GetUsage() const override
+            {
+                return m_Material.GetUsage();
+            }
+
+        private:
+            const Material& m_Material;
+        };
+    }
+
     Ref<MaterialInstance> Material::CreateInstance()
     {
         return CreateRef<MaterialInstance>(shared_from_this());
@@ -111,40 +149,11 @@ namespace Elixir::Materials
         const std::unordered_map<std::string, bool>& staticValues
     ) const
     {
-        class ParameterLookup final : public MaterialNodeValidationContext
-        {
-        public:
-            explicit ParameterLookup(const Material& material) : m_Material(material) {}
-
-            bool HasValueParameter(
-                const std::string_view name,
-                const EMaterialValueType type
-            ) const override
-            {
-                const auto* parameter = m_Material.FindParameter(std::string(name));
-                return parameter && parameter->Kind == EMaterialParameterKind::Value &&
-                    parameter->ValueType == type;
-            }
-
-            bool HasTextureParameter(const std::string_view name) const override
-            {
-                const auto* parameter = m_Material.FindParameter(std::string(name));
-                return parameter && parameter->Kind == EMaterialParameterKind::Texture;
-            }
-
-            EMaterialUsage GetUsage() const override
-            {
-                return m_Material.GetUsage();
-            }
-
-        private:
-            const Material& m_Material;
-        };
-
         SMaterialGraphBindings bindings;
         bindings.StaticValues = staticValues;
 
-        return m_Graph.Validate(ParameterLookup(*this), error, &bindings);
+        return MaterialGraphEmitter(m_Graph, {}, bindings)
+            .Validate(ParameterLookup(*this), error, &bindings);
     }
 
     bool Material::IsValueCompatible(

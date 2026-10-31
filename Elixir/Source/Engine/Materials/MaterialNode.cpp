@@ -2,7 +2,9 @@
 #include "MaterialNode.h"
 
 #include <Engine/Materials/Material.h>
-#include <Engine/Materials/MaterialGraph.h>
+#include <Engine/Materials/Compilation/MaterialGraphEmitter.h>
+#include <Engine/Materials/MaterialFunction.h>
+#include <Engine/Materials/Nodes/TextureSample.h>
 
 namespace Elixir::Materials
 {
@@ -118,6 +120,138 @@ namespace Elixir::Materials
         return Components(left) >= Components(right) ? left : right;
     }
 
+    EShaderStage MaterialEmitContext::GetStage() const
+    {
+        return m_Environment.Stage;
+    }
+
+    std::string MaterialEmitContext::Require(
+        const std::string& expression,
+        const std::string_view name
+    ) const
+    {
+        if (!expression.empty())
+            return expression;
+
+        if (m_Diagnostics.empty())
+            m_Diagnostics = "Shader input is unavailable: " + std::string(name);
+
+        return "0.0";
+    }
+
+    std::string MaterialEmitContext::WorldPosition() const
+    {
+        return Require(m_Environment.WorldPosition, "world position");
+    }
+
+    std::string MaterialEmitContext::TexCoord(const uint32_t index) const
+    {
+        if (index < m_Environment.TexCoords.size())
+            return Require(m_Environment.TexCoords[index], "texture coordinates");
+        return Require({}, "texture coordinate channel");
+    }
+
+    std::string MaterialEmitContext::Time() const
+    {
+        return Require(m_Environment.Time, "time");
+    }
+
+    std::string MaterialEmitContext::Color() const
+    {
+        return Require(m_Environment.Color, "color");
+    }
+
+    std::string MaterialEmitContext::Normal() const
+    {
+        return Require(m_Environment.Normal, "normal");
+    }
+
+    std::string MaterialEmitContext::ViewDirection() const
+    {
+        return Require(m_Environment.ViewDirection, "view direction");
+    }
+
+    SMaterialExpression MaterialEmitContext::DefaultInput(
+        const SMaterialNodeInput& input
+    ) const
+    {
+        if (input.DefaultSource == EMaterialInputDefaultSource::TexCoord)
+            return { TexCoord(), EMaterialValueType::Float2 };
+
+        if (input.DefaultSource == EMaterialInputDefaultSource::TexCoord1)
+            return { TexCoord(1), EMaterialValueType::Float2 };
+
+        return { input.DefaultExpression, input.DefaultValueType };
+    }
+
+    std::string MaterialEmitContext::SampleTexture(
+        const std::string& name,
+        const SMaterialExpression& uv,
+        const SMaterialExpression& mip,
+        const STextureSampleSettings& settings
+    ) const
+    {
+        using namespace Nodes;
+
+        const auto textures = Require(m_Environment.TextureArray, "texture array");
+
+        const auto texture = textures + "[" + TextureParameter(name) + "]";
+        const auto uvExp = Widen(uv, EMaterialValueType::Float2);
+        const auto mipExp = Widen(mip, EMaterialValueType::Float);
+
+        const size_t samplerIndex = (settings.Filter == ETextureSampleFilter::Point ? 2 : 0) +
+                                    (settings.Address == ETextureSampleAddress::Clamp ? 1 : 0);
+
+        const auto sampler = Require(
+            m_Environment.TextureSamplers[samplerIndex],
+            "sampler"
+        );
+
+        if (settings.MipMode == ETextureSampleMipMode::Bias)
+        {
+            if (GetStage() != EShaderStage::Pixel)
+            {
+                if (m_Diagnostics.empty())
+                    m_Diagnostics = "Texture mip bias requires Pixel stage.";
+
+                return "float4(0, 0, 0, 0)";
+            }
+
+            return texture + ".SampleBias(" + sampler + ", " + uvExp + ", " + mipExp + ")";
+        }
+
+        if (GetStage() != EShaderStage::Pixel ||
+            settings.MipMode == ETextureSampleMipMode::Level)
+        {
+            const auto level = settings.MipMode == ETextureSampleMipMode::Auto
+                ? "0.0"
+                : mipExp;
+            return texture + ".SampleLevel(" + sampler + ", " + uvExp + ", " + level + ")";
+        }
+
+        return texture + ".Sample(" + sampler + ", " + uvExp + ")";
+    }
+
+    SMaterialExpression MaterialEmitContext::CallFunction(
+        const MaterialFunction& function
+    ) const
+    {
+        auto bindings = m_Bindings ? *m_Bindings : SMaterialGraphBindings{};
+        bindings.FunctionInputs.clear();
+
+        const auto& inputs = function.GetInputs();
+        for (uint32_t slot = 0; slot < inputs.size(); ++slot)
+            bindings.FunctionInputs.emplace(inputs[slot].Name, Input(slot));
+
+        Compilation::MaterialGraphEmitter emitter(function.m_Graph, m_Environment, bindings);
+        const auto expression = emitter.GenerateExpression(function.m_Output);
+
+        if (m_Diagnostics.empty())
+            m_Diagnostics = emitter.GetDiagnostics();
+
+        return expression;
+    }
+
     bool MaterialEmitContext::IsValidStage(const EShaderStage stage)
     {
         switch (stage)
@@ -137,9 +271,10 @@ namespace Elixir::Materials
     MaterialEmitContext::MaterialEmitContext(
         const std::vector<SMaterialExpression>& inputs,
         const SMaterialGraphBindings* bindings,
-        const EShaderStage stage
+        const SMaterialEmissionEnvironment& environment,
+        std::string& diagnostics
     ) : m_Inputs(inputs),
         m_Bindings(bindings),
-        m_Stage(stage) {
-    }
+        m_Environment(environment),
+        m_Diagnostics(diagnostics) {}
 }

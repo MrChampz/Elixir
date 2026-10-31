@@ -18,6 +18,8 @@ namespace Elixir::Materials
      */
     class ELIXIR_API MaterialFunction final
     {
+        friend class MaterialEmitContext;
+
       public:
         /**
          * @brief Take ownership of a reusable function graph.
@@ -39,16 +41,6 @@ namespace Elixir::Materials
         bool Validate(
             const MaterialNodeValidationContext& parameters,
             std::string& error
-        ) const;
-
-        /**
-         * @brief Expand the output with the caller's parameter and argument bindings.
-         * @param bindings Bindings for this call.
-         * @param stage Concrete shader stage inherited from the caller.
-         */
-        SMaterialExpression Emit(
-            const SMaterialGraphBindings& bindings,
-            EShaderStage stage = EShaderStage::Pixel
         ) const;
 
         /**

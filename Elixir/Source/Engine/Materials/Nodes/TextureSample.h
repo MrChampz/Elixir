@@ -47,22 +47,16 @@ namespace Elixir::Materials::Nodes
     /** Select the numeric components returned by a sample. */
     enum class ETextureSampleOutput : uint8_t
     {
-        Default,
-        R,
-        G,
-        B,
-        A,
-        RGB,
-        RGBA
+        Default, R, G, B, A, RGB, RGBA
     };
 
     /** Configure texture sampling independently of the parameter value. */
     struct STextureSampleSettings
     {
-        ETextureSampleAddress Address  = ETextureSampleAddress::Wrap;
-        ETextureSampleFilter  Filter   = ETextureSampleFilter::Linear;
-        ETextureSampleMipMode MipMode  = ETextureSampleMipMode::Auto;
-        ETextureSampleOutput  Output   = ETextureSampleOutput::Default;
+        ETextureSampleAddress Address = ETextureSampleAddress::Wrap;
+        ETextureSampleFilter  Filter  = ETextureSampleFilter::Linear;
+        ETextureSampleMipMode MipMode = ETextureSampleMipMode::Auto;
+        ETextureSampleOutput  Output  = ETextureSampleOutput::Default;
     };
 
     /** @brief Samples a named texture material parameter using a declared semantic. */
@@ -80,22 +74,23 @@ namespace Elixir::Materials::Nodes
           const ETextureSampleType type = ETextureSampleType::Color,
           const STextureSampleSettings settings = {}
         ) : MaterialNode({
-            {
-                "UV",
-                EMaterialValueType::Float2,
-                "input.TexCoord",
-                EMaterialValueType::Float2
-            },
-            {
-                "Mip",
-                EMaterialValueType::Float,
-                "0.0",
-                EMaterialValueType::Float
-            }
-          }),
-          m_ParameterName(std::move(parameterName)),
-          m_SampleType(type),
-          m_Settings(settings) {}
+                {
+                    "UV",
+                    EMaterialValueType::Float2,
+                    "",
+                    EMaterialValueType::Float2,
+                    EMaterialInputDefaultSource::TexCoord
+                },
+                {
+                    "Mip",
+                    EMaterialValueType::Float,
+                    "0.0",
+                    EMaterialValueType::Float
+                }
+            }),
+            m_ParameterName(std::move(parameterName)),
+            m_SampleType(type),
+            m_Settings(settings) {}
 
         /** @copydoc MaterialNode::GetTypeName */
         std::string_view GetTypeName() const override { return "Material.TextureSample"; }
@@ -124,48 +119,14 @@ namespace Elixir::Materials::Nodes
         /** @copydoc MaterialNode::Emit */
         SMaterialExpression Emit(const MaterialEmitContext& context) const override
         {
+            const auto sample = context.SampleTexture(
+                m_ParameterName,
+                context.Input(0),
+                context.Input(1),
+                m_Settings
+            );
+
             const auto index = context.TextureParameter(m_ParameterName);
-            const auto uv = context.Widen(context.Input(0), EMaterialValueType::Float2);
-            const auto mip = context.Widen(context.Input(1), EMaterialValueType::Float);
-            const auto bindings = context.GetBindings();
-
-            const auto array = bindings
-                ? bindings->TextureArray
-                : "textures";
-
-            std::string sampler = bindings
-                ? bindings->TextureSampler
-                : "texSampler";
-
-            const bool clamp = m_Settings.Address == ETextureSampleAddress::Clamp;
-
-            if (m_Settings.Filter == ETextureSampleFilter::Point)
-                sampler = clamp ? "pointClamp" : "pointWrap";
-            else if (clamp)
-                sampler = "linearClamp";
-
-            const bool explicitLod = context.GetStage() != EShaderStage::Pixel;
-
-            std::string sample;
-            if (explicitLod || m_Settings.MipMode == ETextureSampleMipMode::Level)
-            {
-                const auto level = m_Settings.MipMode == ETextureSampleMipMode::Auto
-                    ? std::string("0.0")
-                    : mip;
-
-                sample = array + "[" + index + "]"
-                    ".SampleLevel(" + sampler + ", " + uv + ", " + level + ")";
-            }
-            else if (m_Settings.MipMode == ETextureSampleMipMode::Bias)
-            {
-                sample = array + "[" + index + "]"
-                    ".SampleBias(" + sampler + ", " + uv + ", " + mip + ")";
-            }
-            else
-            {
-                sample = array + "[" + index + "].Sample(" + sampler + ", " + uv + ")";
-            }
-
             const bool normal = m_SampleType == ETextureSampleType::Normal;
 
             const auto fallback = normal

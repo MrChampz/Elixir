@@ -2,16 +2,38 @@
 
 #include <Engine/Graphics/GraphicsTypes.h>
 
-#include <vector>
-#include <optional>
-#include <string_view>
-
 namespace Elixir::Materials
 {
+    namespace Compilation
+    {
+        class MaterialGraphEmitter;
+        struct SMaterialGraphBindings;
+        struct SMaterialEmissionEnvironment;
+    }
+    using namespace Compilation;
+
+    namespace Nodes { struct STextureSampleSettings; }
+    using namespace Nodes;
+
     class MaterialFunction;
-    struct SMaterialGraphBindings;
     enum class EMaterialValueType : uint8_t;
     enum class EMaterialUsage : uint8_t;
+
+    /**
+     * @brief Select the default value source for an unconnected material node input.
+     * Connected inputs use their source node and ignore this setting.
+    */
+    enum class EMaterialInputDefaultSource : uint8_t
+    {
+        /** Use DefaultExpression with the type declared by DefaultValueType. */
+        Expression,
+
+        /** Resolve texture-coordinate channel zero through the emission context. */
+        TexCoord,
+
+        /** Resolve texture-coordinate channel one through the emission context. */
+        TexCoord1
+    };
 
     /**
      * @brief Describes one input accepted by a material node.
@@ -29,6 +51,9 @@ namespace Elixir::Materials
 
         /** @brief Type produced by the default expression. */
         EMaterialValueType DefaultValueType;
+
+        /** Default value source used when this input is not connected.  */
+        EMaterialInputDefaultSource DefaultSource = EMaterialInputDefaultSource::Expression;
     };
 
     /**
@@ -55,7 +80,10 @@ namespace Elixir::Materials
          * @param type The parameter type.
          * @return True if the value parameter exists for the requested type.
          */
-        virtual bool HasValueParameter(std::string_view name, EMaterialValueType type) const = 0;
+        virtual bool HasValueParameter(
+            std::string_view name,
+            EMaterialValueType type
+        ) const = 0;
 
         /**
          * @brief Checks whether a texture parameter exists.
@@ -83,7 +111,7 @@ namespace Elixir::Materials
      */
     class ELIXIR_API MaterialEmitContext
     {
-        friend class MaterialGraph;
+        friend class MaterialGraphEmitter;
 
     public:
         /** @brief Gets a resolved input expression. */
@@ -106,7 +134,10 @@ namespace Elixir::Materials
         ) const;
 
         /** @brief Converts an expression to a requested value type. */
-        static std::string Widen(const SMaterialExpression& expression, EMaterialValueType type);
+        static std::string Widen(
+            const SMaterialExpression& expression,
+            EMaterialValueType type
+        );
 
         /** @brief Gets the HLSL type name for a material value type. */
         static const char* TypeName(EMaterialValueType type);
@@ -120,8 +151,55 @@ namespace Elixir::Materials
         /** @brief Returns the bindings inherited by nested expressions. */
         const SMaterialGraphBindings* GetBindings() const { return m_Bindings; }
 
+        /** @brief Return the world position available to this shader evaluation. */
+        std::string WorldPosition() const;
+
+        /**
+         * @brief Return a texture-coordinate channel.
+         * @param index Zero-based coordinate channel.
+         */
+        std::string TexCoord(uint32_t index = 0) const;
+
+        /** @brief Return elapsed shader time in seconds. */
+        std::string Time() const;
+
+        /** @brief Return the color supplied by the geometry renderer. */
+        std::string Color() const;
+
+        /** @brief Return the normal available at the graph evaluation point. */
+        std::string Normal() const;
+
+        /** @brief Return the view direction available at the graph evaluation point. */
+        std::string ViewDirection() const;
+
+        /**
+         * @brief Resolve an unconnected input from its semantic or literal default.
+         * @param input Input definition.
+         */
+        SMaterialExpression DefaultInput(const SMaterialNodeInput& input) const;
+
+        /**
+         * @brief Sample a texture using the resources and capabilities of this stage.
+         * @param name Texture parameter name.
+         * @param uv Resolved texture coordinates.
+         * @param mip Resolved LOD or bias.
+         * @param settings Sampler and mip selection.
+         */
+        std::string SampleTexture(
+            const std::string& name,
+            const SMaterialExpression& uv,
+            const SMaterialExpression& mip,
+            const STextureSampleSettings& settings
+        ) const;
+
+        /**
+         * @brief Evaluate a reusable function with this context's inputs and environment.
+         * @param function Immutable function to evaluate.
+         */
+        SMaterialExpression CallFunction(const MaterialFunction& function) const;
+
         /** @brief Return the single shader stage used by this emission. */
-        EShaderStage GetStage() const { return m_Stage; }
+        EShaderStage GetStage() const;
 
         /**
          * @brief Check that a stage identifies one concrete shader stage.
@@ -134,17 +212,27 @@ namespace Elixir::Materials
          * @brief Bind inputs and parameters for one shader emission.
          * @param inputs Resolved node arguments.
          * @param bindings Material parameters and function arguments.
-         * @param stage Concrete shader stage for this emission.
+         * @param environment Inputs and resources available in this template.
+         * @param diagnostics Receives the first unavailable-input diagnostic.
          */
         MaterialEmitContext(
             const std::vector<SMaterialExpression>& inputs,
             const SMaterialGraphBindings* bindings,
-            EShaderStage stage
+            const SMaterialEmissionEnvironment& environment,
+            std::string& diagnostics
         );
+
+        /**
+         * @brief Resolve an input or record a missing-resource diagnostic.
+         * @param expression HLSL supplied by the template environment.
+         * @param name Semantic input used in diagnostics.
+         */
+        std::string Require(const std::string& expression, std::string_view name) const;
 
         const std::vector<SMaterialExpression>& m_Inputs;
         const SMaterialGraphBindings* m_Bindings;
-        EShaderStage m_Stage;
+        const SMaterialEmissionEnvironment& m_Environment;
+        std::string& m_Diagnostics;
     };
 
     /**

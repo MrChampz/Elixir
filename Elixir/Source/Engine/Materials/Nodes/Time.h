@@ -15,7 +15,10 @@ namespace Elixir::Materials::Nodes
 
         SMaterialExpression Emit(const MaterialEmitContext& context) const override
         {
-            return { .Code = "Time", .ValueType = EMaterialValueType::Float };
+            return {
+                .Code = context.Time(),
+                .ValueType = EMaterialValueType::Float
+            };
         }
     };
 }

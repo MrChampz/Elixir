@@ -66,7 +66,9 @@ namespace Elixir::Materials::Nodes
             const SMaterialGraphBindings* bindings = nullptr
         ) const override
         {
-            return m_Function ? m_Function->GetSupportedStages(bindings) : EShaderStage::None;
+            return m_Function
+                ? m_Function->GetSupportedStages(bindings)
+                : EShaderStage::None;
         }
 
         /** @copydoc MaterialNode::Emit */
@@ -75,17 +77,7 @@ namespace Elixir::Materials::Nodes
             if (!m_Function)
                 return { "0.0", EMaterialValueType::Float };
 
-            auto bindings = context.GetBindings()
-                ? *context.GetBindings()
-                : SMaterialGraphBindings{};
-
-            bindings.FunctionInputs.clear();
-
-            const auto& inputs = m_Function->GetInputs();
-            for (uint32_t slot = 0; slot < inputs.size(); ++slot)
-                bindings.FunctionInputs.emplace(inputs[slot].Name, context.Input(slot));
-
-            return m_Function->Emit(bindings, context.GetStage());
+            return context.CallFunction(*m_Function);
         }
 
       private:

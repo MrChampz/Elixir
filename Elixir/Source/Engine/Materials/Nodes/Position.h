@@ -35,12 +35,7 @@ namespace Elixir::Materials::Nodes
         /** @copydoc MaterialNode::Emit */
         SMaterialExpression Emit(const MaterialEmitContext& context) const override
         {
-            return {
-                context.GetStage() == EShaderStage::Vertex
-                    ? "worldPos"
-                    : "input.WorldPos",
-                EMaterialValueType::Float3
-            };
+            return { context.WorldPosition(), EMaterialValueType::Float3 };
         }
     };
 }
