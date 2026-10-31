@@ -376,13 +376,16 @@ namespace Elixir::Materials::Rendering
         bool BindDescriptorResources(const Ref<Shader>& shader, const SPassRequest& request);
 
         uint32_t m_MaterialCapacity = 0;
-        FrameSlotState<SFrameSlot> m_FrameSlots;
+
         TextureRegistry m_Textures;
+        std::array<Ref<Sampler>, 3> m_Samplers;
         std::unordered_map<SPipelineKey, Ref<GraphicsPipeline>, SPipelineKeyHasher> m_Pipelines;
         std::unordered_map<const Shader*, SDescriptorBindingState> m_DescriptorBindings;
 
         Ref<Image> m_SceneTarget;
+        FrameSlotState<SFrameSlot> m_FrameSlots;
         uint64_t m_CurrentFrameNumber = UINT64_MAX;
+
         const GraphicsContext* m_Context = nullptr;
     };
 }

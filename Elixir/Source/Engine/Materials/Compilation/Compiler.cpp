@@ -56,10 +56,18 @@ namespace Elixir::Materials::Compilation
 
         std::string GenerateGraphHLSL(
             const MaterialGraph& graph,
-            const SCompiledMaterial& material
+            const SCompiledMaterial& material,
+            const EShaderStage stage = EShaderStage::Pixel
         )
         {
             SMaterialGraphBindings bindings;
+            bindings.StaticValues = material.StaticValues;
+
+            if (material.GetUsage() == EMaterialUsage::Particle)
+            {
+                bindings.TextureArray = "sprites";
+                bindings.TextureSampler = "spriteSampler";
+            }
 
             for (const auto& parameter : material.Parameters)
             {
@@ -74,14 +82,17 @@ namespace Elixir::Materials::Compilation
                 destination[parameter.Name] = expression;
             }
 
-            return graph.GenerateHLSL(bindings);
+            return graph.GenerateHLSL(bindings, stage);
         }
     }
 
-    SCompileResult Compiler::Build(const Material& material)
+    SCompileResult Compiler::Build(
+        const Material& material,
+        const std::unordered_map<std::string, bool>& staticValues
+    )
     {
         std::string diagnostics;
-        if (!material.ValidateGraph(&diagnostics))
+        if (!material.ValidateGraph(&diagnostics, staticValues))
             return { .Diagnostics = std::move(diagnostics) };
 
         std::vector<std::pair<std::string, SMaterialParameterDefinition>> parameters(
@@ -116,12 +127,18 @@ namespace Elixir::Materials::Compilation
         compiled->Usage = material.GetUsage();
         compiled->MaterialRevision = material.GetRevision();
         compiled->Parameters = std::move(layout);
+        compiled->StaticValues = staticValues;
+
         return { .Material = compiled };
     }
 
-    SCompileResult Compiler::Compile(const ShaderLoader* loader, const Material& material)
+    SCompileResult Compiler::Compile(
+        const ShaderLoader* loader,
+        const Material& material,
+        const std::unordered_map<std::string, bool>& staticValues
+    )
     {
-        auto result = Build(material);
+        auto result = Build(material, staticValues);
         if (!result) return result;
 
         if (material.GetUsage() == EMaterialUsage::Surface)
@@ -200,7 +217,18 @@ namespace Elixir::Materials::Compilation
         const fs::path vertexSourcePath = s_GeneratedDir / (name + ".src.vs.hlsl");
         {
             std::ofstream out(vertexSourcePath, std::ios::binary);
-            out << vertexHlsl;
+
+            const auto graphHlsl = GenerateGraphHLSL(
+                material.GetGraph(),
+                *result.Material,
+                EShaderStage::Vertex
+            );
+
+            const auto wpo = material.GetGraph()
+                .HasChannel(EMaterialChannel::WorldPositionOffset);
+
+            out << "#define GRAPH_HAS_WPO " << (wpo ? 1 : 0) << "\n";
+            out << InjectBody(vertexHlsl, graphHlsl);
         }
 
         const fs::path pixelSourcePath = s_GeneratedDir / (name + ".src.ps.hlsl");
@@ -208,6 +236,9 @@ namespace Elixir::Materials::Compilation
             std::ofstream out(pixelSourcePath, std::ios::binary);
 
             const auto graphHlsl = GenerateGraphHLSL(material.GetGraph(), *result.Material);
+            const auto wpo =
+                material.GetGraph().HasChannel(EMaterialChannel::WorldPositionOffset);
+            out << "#define GRAPH_HAS_WPO " << (wpo ? 1 : 0) << "\n";
             out << InjectBody(
                 pixelHlsl,
                 graphHlsl,

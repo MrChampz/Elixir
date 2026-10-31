@@ -19,6 +19,21 @@ namespace Elixir::Materials
         return slot < m_Inputs.size() ? m_Inputs[slot] : s_ZeroExpression;
     }
 
+    SMaterialExpression MaterialEmitContext::FunctionInput(
+        const std::string& name,
+        const EMaterialValueType type
+    ) const
+    {
+        if (!m_Bindings)
+            return { "0.0", type };
+
+        const auto found = m_Bindings->FunctionInputs.find(name);
+        if (found == m_Bindings->FunctionInputs.end())
+            return { "0.0", type };
+
+        return { Widen(found->second, type), type };
+    }
+
     std::string MaterialEmitContext::ValueParameter(const std::string& name) const
     {
         if (m_Bindings && m_Bindings->Values.contains(name))
@@ -103,10 +118,28 @@ namespace Elixir::Materials
         return Components(left) >= Components(right) ? left : right;
     }
 
+    bool MaterialEmitContext::IsValidStage(const EShaderStage stage)
+    {
+        switch (stage)
+        {
+            case EShaderStage::Vertex:
+            case EShaderStage::Hull:
+            case EShaderStage::Domain:
+            case EShaderStage::Geometry:
+            case EShaderStage::Pixel:
+            case EShaderStage::Compute:
+                return true;
+            default:
+                return false;
+        }
+    }
+
     MaterialEmitContext::MaterialEmitContext(
         const std::vector<SMaterialExpression>& inputs,
-        const SMaterialGraphBindings* bindings
+        const SMaterialGraphBindings* bindings,
+        const EShaderStage stage
     ) : m_Inputs(inputs),
-        m_Bindings(bindings) {
+        m_Bindings(bindings),
+        m_Stage(stage) {
     }
 }

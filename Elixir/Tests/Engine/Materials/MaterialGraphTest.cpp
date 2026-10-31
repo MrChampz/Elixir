@@ -118,7 +118,10 @@ TEST(MaterialGraphTest, RoutesTextureAlphaToOpacity)
     const auto hlsl = graph.GenerateHLSL({ .Textures = {{ "Albedo", "mat.TextureIndices[0]" }} });
     EXPECT_NE(hlsl.find("surface.BaseColor"), std::string::npos);
     EXPECT_NE(hlsl.find("surface.Opacity"), std::string::npos);
-    EXPECT_NE(hlsl.find("SampleTex"), std::string::npos);
+    EXPECT_NE(hlsl.find(
+        "textures[mat.TextureIndices[0]].Sample(texSampler,"),
+        std::string::npos
+    );
     EXPECT_NE(hlsl.find(".w"), std::string::npos);
 }
 
@@ -262,7 +265,10 @@ TEST(MaterialGraphTest, GeneratesStaticTextureCoordinateTransform)
     EXPECT_NE(hlsl.find("sin("), std::string::npos);
     EXPECT_NE(hlsl.find("mat.Values[0].xy"), std::string::npos);
     EXPECT_NE(hlsl.find("mat.Values[1].xy"), std::string::npos);
-    EXPECT_NE(hlsl.find("SampleTex(mat.TextureIndices[0]"), std::string::npos);
+    EXPECT_NE(hlsl.find(
+        "textures[mat.TextureIndices[0]].Sample(texSampler,"),
+        std::string::npos
+    );
 }
 
 TEST(MaterialGraphTest, GeneratesNormalTextureSamplingAndFlattening)
@@ -287,7 +293,7 @@ TEST(MaterialGraphTest, GeneratesNormalTextureSamplingAndFlattening)
         .Textures = {{ "NormalTexture", "mat.TextureIndices[0]" }}
     });
 
-    EXPECT_NE(hlsl.find("SampleNormal(mat.TextureIndices[0], input.TexCoord)"), std::string::npos);
+    EXPECT_NE(hlsl.find("DecodeNormal("), std::string::npos);
     EXPECT_NE(hlsl.find("lerp(1.0"), std::string::npos);
     EXPECT_NE(hlsl.find("surface.Normal ="), std::string::npos);
 }
@@ -315,7 +321,7 @@ TEST(MaterialGraphTest, ScalesNormalMapXYComponentsWithoutChangingZ)
     });
 
     EXPECT_NE(hlsl.find("normalize(float3("), std::string::npos);
-    EXPECT_NE(hlsl.find("SampleNormal(mat.TextureIndices[0], input.TexCoord)"), std::string::npos);
+    EXPECT_NE(hlsl.find("DecodeNormal("), std::string::npos);
     EXPECT_EQ(hlsl.find("lerp(1.0"), std::string::npos);
 }
 

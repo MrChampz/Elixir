@@ -37,6 +37,9 @@ namespace Elixir::Materials::Compilation
      */
     struct SCompiledMaterial
     {
+        /** Compile-time overrides captured by this shader variant. */
+        std::unordered_map<std::string, bool> StaticValues;
+
         /** @brief Source material revision used during compilation. */
         uint32_t MaterialRevision = 0;
 
@@ -109,22 +112,31 @@ namespace Elixir::Materials::Compilation
     class ELIXIR_API Compiler
     {
     public:
-        /**
-         * @brief Validates a material graph and builds its parameter layout.
-         * @param material Material to validate and lower.
-         * @return Compiled metadata, or diagnostics when validation fails.
-         * @note This phase does not invoke the shader compiler.
-         */
-        static SCompileResult Build(const Material& material);
+      /**
+       * @brief Validates a material graph and builds its parameter layout.
+       * @param material Material to validate and lower.
+       * @param staticValues Compile-time overrides for named switches.
+       * @return Compiled metadata, or diagnostics when validation fails.
+       * @note This phase does not invoke the shader compiler.
+       */
+      static SCompileResult Build(
+          const Material& material,
+          const std::unordered_map<std::string, bool>& staticValues = {}
+      );
 
-        /**
-         * @brief Compiles a material graph into render-ready shader programs.
-         * @param loader Shader loader used to load generated SPIR-V programs.
-         * @param material Material to compile.
-         * @return Compiled material data, or diagnostics when compilation fails.
-         * @pre loader is valid.
-         */
-        static SCompileResult Compile(const ShaderLoader* loader, const Material& material);
+      /**
+       * @brief Compiles a material graph into render-ready shader programs.
+       * @param loader Shader loader used to load generated SPIR-V programs.
+       * @param material Material to compile.
+       * @param staticValues Compile-time overrides for named switches.
+       * @return Compiled material data, or diagnostics when compilation fails.
+       * @pre loader is valid.
+       */
+      static SCompileResult Compile(
+          const ShaderLoader* loader,
+          const Material& material,
+          const std::unordered_map<std::string, bool>& staticValues = {}
+      );
 
     private:
         /** @brief Replaces shader-template markers with generated material code. */

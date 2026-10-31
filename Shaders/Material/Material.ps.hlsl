@@ -6,6 +6,8 @@
 
 // __SHADING_MODEL__
 
+#include "../Material/NormalSampling.hlsl"
+
 #define MATERIAL_SHADING_MODEL_UNLIT      0
 #define MATERIAL_SHADING_MODEL_LIT        1
 #define MATERIAL_SHADING_MODEL_CLEAR_COAT 2
@@ -99,6 +101,15 @@ struct Surface
     float3  ClearCoatBottomNormal;
 };
 
+[[vk::binding(8, 0)]]
+SamplerState linearClamp;
+
+[[vk::binding(9, 0)]]
+SamplerState pointWrap;
+
+[[vk::binding(10, 0)]]
+SamplerState pointClamp;
+
 static const uint NO_TEXTURE = 0xFFFFFFFFu;
 static const uint PREFILTER_LEVEL_COUNT = 6u;
 static const uint SURFACE_DEBUG_COMPOSITE = 0u;
@@ -108,20 +119,6 @@ static const uint SURFACE_DEBUG_SPECULAR_IBL = 3u;
 static const uint SURFACE_DEBUG_DIRECT_DIFFUSE = 4u;
 static const uint SURFACE_DEBUG_DIRECT_SPECULAR = 5u;
 static const uint SURFACE_DEBUG_CLEAR_COAT = 6u;
-
-float4 SampleTex(uint index, float2 uv)
-{
-    return textures[index].Sample(texSampler, uv);
-}
-
-float3 SampleNormal(uint index, float2 uv)
-{
-    if (index == NO_TEXTURE)
-        return float3(0.0f, 0.0f, 1.0f);
-
-    const float3 packedNormal = SampleTex(index, uv).xyz;
-    return normalize(packedNormal * 2.0f - 1.0f);
-}
 
 float2 DirToEquirect(float3 dir)
 {

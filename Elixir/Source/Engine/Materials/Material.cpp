@@ -106,7 +106,10 @@ namespace Elixir::Materials
         return parameter && IsValueCompatible(*parameter, value);
     }
 
-    bool Material::ValidateGraph(std::string* error) const
+    bool Material::ValidateGraph(
+        std::string* error,
+        const std::unordered_map<std::string, bool>& staticValues
+    ) const
     {
         class ParameterLookup final : public MaterialNodeValidationContext
         {
@@ -138,7 +141,10 @@ namespace Elixir::Materials
             const Material& m_Material;
         };
 
-        return m_Graph.Validate(ParameterLookup(*this), error);
+        SMaterialGraphBindings bindings;
+        bindings.StaticValues = staticValues;
+
+        return m_Graph.Validate(ParameterLookup(*this), error, &bindings);
     }
 
     bool Material::IsValueCompatible(
