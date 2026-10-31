@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Engine/Materials/Compilation/TextureSamplingOptions.h>
 #include <Engine/Materials/Material.h>
 #include <Engine/Materials/MaterialNode.h>
 
@@ -26,24 +27,6 @@ namespace Elixir::Materials::Nodes
         Mask,
     };
 
-    /** Select texture addressing outside the unit UV rectangle. */
-    enum class ETextureSampleAddress : uint8_t
-    {
-        Wrap, Clamp
-    };
-
-    /** Select interpolation between texels. */
-    enum class ETextureSampleFilter : uint8_t
-    {
-        Linear, Point
-    };
-
-    /** Select implicit derivatives, an explicit level, or a derivative bias. */
-    enum class ETextureSampleMipMode : uint8_t
-    {
-        Auto, Level, Bias
-    };
-
     /** Select the numeric components returned by a sample. */
     enum class ETextureSampleOutput : uint8_t
     {
@@ -53,10 +36,10 @@ namespace Elixir::Materials::Nodes
     /** Configure texture sampling independently of the parameter value. */
     struct STextureSampleSettings
     {
-        ETextureSampleAddress Address = ETextureSampleAddress::Wrap;
-        ETextureSampleFilter  Filter  = ETextureSampleFilter::Linear;
-        ETextureSampleMipMode MipMode = ETextureSampleMipMode::Auto;
-        ETextureSampleOutput  Output  = ETextureSampleOutput::Default;
+        ETextureAddress Address = ETextureAddress::Wrap;
+        ETextureFilter  Filter  = ETextureFilter::Linear;
+        ETextureMipMode MipMode = ETextureMipMode::Auto;
+        ETextureSampleOutput Output  = ETextureSampleOutput::Default;
     };
 
     /** @brief Samples a named texture material parameter using a declared semantic. */
@@ -98,7 +81,7 @@ namespace Elixir::Materials::Nodes
         /** @copydoc MaterialNode::GetSupportedStages */
         EShaderStage GetSupportedStages(const SMaterialGraphBindings* bindings) const override
         {
-            return m_Settings.MipMode == ETextureSampleMipMode::Bias
+            return m_Settings.MipMode == ETextureMipMode::Bias
                 ? EShaderStage::Pixel
                 : EShaderStage::All;
         }
@@ -119,11 +102,17 @@ namespace Elixir::Materials::Nodes
         /** @copydoc MaterialNode::Emit */
         SMaterialExpression Emit(const MaterialEmitContext& context) const override
         {
+            const STextureSamplingOptions options{
+                .Address = m_Settings.Address,
+                .Filter = m_Settings.Filter,
+                .MipMode = m_Settings.MipMode
+            };
+
             const auto sample = context.SampleTexture(
                 m_ParameterName,
                 context.Input(0),
                 context.Input(1),
-                m_Settings
+                options
             );
 
             const auto index = context.TextureParameter(m_ParameterName);

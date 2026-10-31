@@ -4,7 +4,7 @@
 #include <Engine/Materials/Material.h>
 #include <Engine/Materials/Compilation/MaterialGraphEmitter.h>
 #include <Engine/Materials/MaterialFunction.h>
-#include <Engine/Materials/Nodes/TextureSample.h>
+#include <Engine/Materials/Compilation/TextureSamplingOptions.h>
 
 namespace Elixir::Materials
 {
@@ -188,26 +188,24 @@ namespace Elixir::Materials
         const std::string& name,
         const SMaterialExpression& uv,
         const SMaterialExpression& mip,
-        const STextureSampleSettings& settings
+        const STextureSamplingOptions& options
     ) const
     {
-        using namespace Nodes;
-
         const auto textures = Require(m_Environment.TextureArray, "texture array");
 
         const auto texture = textures + "[" + TextureParameter(name) + "]";
         const auto uvExp = Widen(uv, EMaterialValueType::Float2);
         const auto mipExp = Widen(mip, EMaterialValueType::Float);
 
-        const size_t samplerIndex = (settings.Filter == ETextureSampleFilter::Point ? 2 : 0) +
-                                    (settings.Address == ETextureSampleAddress::Clamp ? 1 : 0);
+        const size_t samplerIndex = (options.Filter == ETextureFilter::Point ? 2 : 0) +
+                                    (options.Address == ETextureAddress::Clamp ? 1 : 0);
 
         const auto sampler = Require(
             m_Environment.TextureSamplers[samplerIndex],
             "sampler"
         );
 
-        if (settings.MipMode == ETextureSampleMipMode::Bias)
+        if (options.MipMode == ETextureMipMode::Bias)
         {
             if (GetStage() != EShaderStage::Pixel)
             {
@@ -221,9 +219,9 @@ namespace Elixir::Materials
         }
 
         if (GetStage() != EShaderStage::Pixel ||
-            settings.MipMode == ETextureSampleMipMode::Level)
+            options.MipMode == ETextureMipMode::Level)
         {
-            const auto level = settings.MipMode == ETextureSampleMipMode::Auto
+            const auto level = options.MipMode == ETextureMipMode::Auto
                 ? "0.0"
                 : mipExp;
             return texture + ".SampleLevel(" + sampler + ", " + uvExp + ", " + level + ")";

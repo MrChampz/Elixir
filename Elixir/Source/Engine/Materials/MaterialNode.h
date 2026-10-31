@@ -9,11 +9,9 @@ namespace Elixir::Materials
         class MaterialGraphEmitter;
         struct SMaterialGraphBindings;
         struct SMaterialEmissionEnvironment;
+        struct STextureSamplingOptions;
     }
     using namespace Compilation;
-
-    namespace Nodes { struct STextureSampleSettings; }
-    using namespace Nodes;
 
     class MaterialFunction;
     enum class EMaterialValueType : uint8_t;
@@ -183,13 +181,13 @@ namespace Elixir::Materials
          * @param name Texture parameter name.
          * @param uv Resolved texture coordinates.
          * @param mip Resolved LOD or bias.
-         * @param settings Sampler and mip selection.
+         * @param options Sampler and mip selection.
          */
         std::string SampleTexture(
             const std::string& name,
             const SMaterialExpression& uv,
             const SMaterialExpression& mip,
-            const STextureSampleSettings& settings
+            const STextureSamplingOptions& options
         ) const;
 
         /**
