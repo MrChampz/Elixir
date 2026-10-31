@@ -219,9 +219,9 @@ TEST(MaterialGraphFeaturesTest, TextureSettingsControlSamplerMipAndOutputType)
         "Texture",
         ETextureSampleType::Mask,
         STextureSampleSettings{
-            .Address = ETextureSampleAddress::Clamp,
-            .Filter = ETextureSampleFilter::Point,
-            .MipMode = ETextureSampleMipMode::Level,
+            .Address = ETextureAddress::Clamp,
+            .Filter = ETextureFilter::Point,
+            .MipMode = ETextureMipMode::Level,
             .Output = ETextureSampleOutput::A
         }
     );

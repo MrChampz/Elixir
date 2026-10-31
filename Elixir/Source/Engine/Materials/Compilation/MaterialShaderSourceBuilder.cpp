@@ -2,6 +2,7 @@
 
 #include <Engine/Materials/Compilation/MaterialGraphEmitter.h>
 #include <Engine/Materials/Compilation/Compiler.h>
+#include <Engine/Materials/Compilation/MaterialShaderDefines.h>
 #include <Engine/Materials/Compilation/MaterialShaderSourceBuilder.h>
 
 namespace Elixir::Materials::Compilation
@@ -122,13 +123,13 @@ namespace Elixir::Materials::Compilation
             );
         }
 
-        if (stage == EShaderStage::Vertex && material.GetUsage() == EMaterialUsage::Surface)
-        {
-            const auto wpo = material.GetGraph()
-                .HasChannel(EMaterialChannel::WorldPositionOffset);
+        const auto defines = MaterialShaderDefines::Resolve(material, stage);
 
-            source = "#define GRAPH_HAS_WPO " + std::to_string(wpo ? 1 : 0) + "\n" + source;
-        }
+        std::string definitions;
+        for (const auto& define : defines)
+            definitions += "#define " + define.Name + " " + define.Value + "\n";
+
+        source.insert(0, definitions);
 
         if (source.empty())
             return { .Diagnostics = "Material shader template produced empty source." };

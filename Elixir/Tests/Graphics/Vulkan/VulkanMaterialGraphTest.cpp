@@ -72,9 +72,9 @@ TEST(VulkanMaterialGraphTest, CompilesFunctionsStaticChoicesAndVertexTextureSamp
                     "Texture",
                     ETextureSampleType::Mask,
                     STextureSampleSettings{
-                        .Address = ETextureSampleAddress::Clamp,
-                        .Filter = ETextureSampleFilter::Point,
-                        .MipMode = ETextureSampleMipMode::Level
+                        .Address = ETextureAddress::Clamp,
+                        .Filter = ETextureFilter::Point,
+                        .MipMode = ETextureMipMode::Level
                     }
                 );
                 const auto panner = functionGraph.AddNode<Panner>(glm::vec2(.1f));

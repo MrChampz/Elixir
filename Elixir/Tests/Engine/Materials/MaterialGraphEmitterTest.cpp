@@ -62,7 +62,7 @@ TEST(MaterialGraphEmitterTest, NestedFunctionsInheritResourcesAndParameterBindin
     const auto texture = inner.AddNode<TextureSample>(
         "Texture",
         ETextureSampleType::Mask,
-        STextureSampleSettings{.Address = ETextureSampleAddress::Clamp}
+        STextureSampleSettings{.Address = ETextureAddress::Clamp}
     );
     const auto function = CreateRef<MaterialFunction>(
         std::move(inner),
@@ -200,4 +200,33 @@ TEST(MaterialGraphEmitterTest, SourceBuilderOwnsTemplateDefinesAndRejectsMissing
     EXPECT_FALSE(invalid);
     EXPECT_TRUE(invalid.Source.empty());
     EXPECT_FALSE(invalid.Diagnostics.empty());
+}
+
+TEST(MaterialGraphEmitterTest, SourceBuilderDisablesDisplacementForGraphsWithoutThatOutput)
+{
+    const auto material = CreateRef<Material>("NoDisplacement");
+    MaterialGraph graph;
+    const auto color = graph.AddNode<Constant>(glm::vec4(1), EMaterialValueType::Float3);
+    graph.SetChannel(EMaterialChannel::BaseColor, color);
+    material->SetGraph(std::move(graph));
+    const auto compiled = Compiler::Build(*material);
+    ASSERT_TRUE(compiled);
+
+    const auto vertex = MaterialShaderSourceBuilder::Build(
+        "// __GRAPH_BODY__",
+        *material,
+        *compiled.Material,
+        EShaderStage::Vertex
+    );
+    ASSERT_TRUE(vertex) << vertex.Diagnostics;
+    EXPECT_NE(vertex.Source.find("#define GRAPH_HAS_WPO 0\n"), std::string::npos);
+
+    const auto pixel = MaterialShaderSourceBuilder::Build(
+        "// __GRAPH_BODY__",
+        *material,
+        *compiled.Material,
+        EShaderStage::Pixel
+    );
+    ASSERT_TRUE(pixel) << pixel.Diagnostics;
+    EXPECT_EQ(pixel.Source.find("GRAPH_HAS_WPO"), std::string::npos);
 }
