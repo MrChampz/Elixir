@@ -79,13 +79,32 @@ TEST(VulkanMaterialGraphTest, CompilesFunctionsStaticChoicesAndVertexTextureSamp
                 );
                 const auto panner = functionGraph.AddNode<Panner>(glm::vec2(.1f));
                 functionGraph.Connect(panner, texture, 0);
+                auto functionOutput = texture;
+                for (int i = 0; i < 20; ++i)
+                {
+                    const auto add = functionGraph.AddNode<Add>();
+                    functionGraph.Connect(functionOutput, add, 0);
+                    functionGraph.Connect(functionOutput, add, 1);
+                    functionOutput = add;
+                }
                 const auto function = CreateRef<MaterialFunction>(
                     std::move(functionGraph),
                     std::vector<SMaterialFunctionInput>{},
-                    texture
+                    functionOutput
+                );
+                MaterialGraph wrapperGraph;
+                const auto first = wrapperGraph.AddNode<FunctionCall>(function);
+                const auto second = wrapperGraph.AddNode<FunctionCall>(function);
+                const auto sum = wrapperGraph.AddNode<Add>();
+                wrapperGraph.Connect(first, sum, 0);
+                wrapperGraph.Connect(second, sum, 1);
+                const auto wrapper = CreateRef<MaterialFunction>(
+                    std::move(wrapperGraph),
+                    std::vector<SMaterialFunctionInput>{},
+                    sum
                 );
                 MaterialGraph graph;
-                const auto call = graph.AddNode<FunctionCall>(function);
+                const auto call = graph.AddNode<FunctionCall>(wrapper);
                 const auto choice = graph.AddNode<StaticSwitch>("Enabled", true);
                 graph.Connect(call, choice, 0);
                 graph.SetChannel(EMaterialChannel::BaseColor, choice);

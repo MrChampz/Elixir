@@ -6,6 +6,16 @@
 
 namespace Elixir::Materials::Compilation
 {
+    /** Stores an expression and the local statements required to evaluate it. */
+    struct SMaterialExpressionSource
+    {
+        /** Expression evaluated after Statements have run. */
+        SMaterialExpression Expression;
+
+        /** Local declarations emitted once for each shared dependency. */
+        std::string Statements;
+    };
+
     /** @brief Traverse a material graph for validation and shader code emission. */
     class ELIXIR_API MaterialGraphEmitter final
     {
@@ -15,11 +25,13 @@ namespace Elixir::Materials::Compilation
          * @param graph Graph kept alive throughout emission.
          * @param environment Available shader inputs and resources.
          * @param bindings Parameter expressions and compile-time arguments.
+         * @param localPrefix HLSL identifier prefix unique to this function call.
          */
         MaterialGraphEmitter(
             const MaterialGraph& graph,
             const SMaterialEmissionEnvironment& environment,
-            const SMaterialGraphBindings& bindings = {}
+            const SMaterialGraphBindings& bindings = {},
+            std::string localPrefix = "n"
         );
 
         /**
@@ -38,10 +50,11 @@ namespace Elixir::Materials::Compilation
         std::string GenerateHLSL();
 
         /**
-         * @brief Expand one reusable function output as an inline expression.
+         * @brief Generate one output and the local statements needed to evaluate it.
          * @param nodeId Output node to evaluate.
+         * @return Output expression and statements to insert before it in the same scope.
          */
-        SMaterialExpression GenerateExpression(uint32_t nodeId);
+        SMaterialExpressionSource GenerateExpression(uint32_t nodeId);
 
         /**
          * @brief Intersect the stage masks of an output and its active dependencies.
@@ -64,20 +77,19 @@ namespace Elixir::Materials::Compilation
          * @param visiting Current dependency path.
          * @param body Receives local statements.
          * @param bindings Parameter expressions and function arguments.
-         * @param inlineExpression Whether to inline expressions instead of declaring locals.
          */
         SMaterialExpression EmitNode(
             uint32_t id,
             std::unordered_map<uint32_t, SMaterialExpression>& emitted,
             std::unordered_set<uint32_t>& visiting,
             std::string& body,
-            const SMaterialGraphBindings* bindings,
-            bool inlineExpression = false
+            const SMaterialGraphBindings* bindings
         );
 
         const MaterialGraph& m_Graph;
         SMaterialEmissionEnvironment m_Environment;
         SMaterialGraphBindings m_Bindings;
         std::string m_Diagnostics;
+        std::string m_LocalPrefix;
     };
 }

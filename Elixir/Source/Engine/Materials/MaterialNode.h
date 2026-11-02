@@ -212,12 +212,16 @@ namespace Elixir::Materials
          * @param bindings Material parameters and function arguments.
          * @param environment Inputs and resources available in this template.
          * @param diagnostics Receives the first unavailable-input diagnostic.
+         * @param statements Receives statements emitted by nested function calls.
+         * @param localPrefix Unique prefix for locals declared by nested function calls.
          */
         MaterialEmitContext(
             const std::vector<SMaterialExpression>& inputs,
             const SMaterialGraphBindings* bindings,
             const SMaterialEmissionEnvironment& environment,
-            std::string& diagnostics
+            std::string& diagnostics,
+            std::string& statements,
+            std::string localPrefix
         );
 
         /**
@@ -231,6 +235,8 @@ namespace Elixir::Materials
         const SMaterialGraphBindings* m_Bindings;
         const SMaterialEmissionEnvironment& m_Environment;
         std::string& m_Diagnostics;
+        std::string& m_Statements;
+        std::string m_LocalPrefix;
     };
 
     /**

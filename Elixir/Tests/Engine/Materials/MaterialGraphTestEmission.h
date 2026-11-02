@@ -31,7 +31,7 @@ namespace Elixir::Materials::Tests
      * @param bindings Parameter expressions.
      * @param stage Concrete stage for expression emission.
      */
-    inline SMaterialExpression EmitExpression(
+    inline Compilation::SMaterialExpressionSource EmitExpression(
         const MaterialGraph& graph,
         uint32_t output,
         const Compilation::SMaterialGraphBindings& bindings,

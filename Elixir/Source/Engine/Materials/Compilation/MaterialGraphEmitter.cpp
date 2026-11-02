@@ -184,10 +184,12 @@ namespace Elixir::Materials::Compilation
     MaterialGraphEmitter::MaterialGraphEmitter(
         const MaterialGraph& graph,
         const SMaterialEmissionEnvironment& environment,
-        const SMaterialGraphBindings& bindings
+        const SMaterialGraphBindings& bindings,
+        std::string localPrefix
     ) : m_Graph(graph),
         m_Environment(environment),
-        m_Bindings(bindings) {}
+        m_Bindings(bindings),
+        m_LocalPrefix(std::move(localPrefix)) {}
 
     std::string MaterialGraphEmitter::GenerateHLSL()
     {
@@ -240,7 +242,7 @@ namespace Elixir::Materials::Compilation
         return body;
     }
 
-    SMaterialExpression MaterialGraphEmitter::GenerateExpression(const uint32_t nodeId)
+    SMaterialExpressionSource MaterialGraphEmitter::GenerateExpression(const uint32_t nodeId)
     {
         m_Diagnostics.clear();
 
@@ -252,22 +254,22 @@ namespace Elixir::Materials::Compilation
         {
             m_Diagnostics = "Material expression does not support the requested shader stage.";
             EE_CORE_ERROR("{}", m_Diagnostics)
-            return { "0.0", EMaterialValueType::Float };
+            return { .Expression = { "0.0", EMaterialValueType::Float } };
         }
 
         std::string body;
         std::unordered_map<uint32_t, SMaterialExpression> emitted;
         std::unordered_set<uint32_t> visiting;
 
-        const auto expression = EmitNode(nodeId, emitted, visiting, body, &bindings, true);
+        const auto expression = EmitNode(nodeId, emitted, visiting, body, &bindings);
 
         if (!m_Diagnostics.empty())
         {
             EE_CORE_ERROR("{}", m_Diagnostics)
-            return { "0.0", EMaterialValueType::Float };
+            return { .Expression = { "0.0", EMaterialValueType::Float } };
         }
 
-        return expression;
+        return { .Expression = expression, .Statements = std::move(body) };
     }
 
     EShaderStage MaterialGraphEmitter::GetSupportedStages(
@@ -318,8 +320,7 @@ namespace Elixir::Materials::Compilation
         std::unordered_map<uint32_t, SMaterialExpression>& emitted,
         std::unordered_set<uint32_t>& visiting,
         std::string& body,
-        const SMaterialGraphBindings* bindings,
-        const bool inlineExpression
+        const SMaterialGraphBindings* bindings
     )
     {
         if (const auto it = emitted.find(id); it != emitted.end())
@@ -343,7 +344,15 @@ namespace Elixir::Materials::Compilation
 
         const auto selected = node.Node->SelectInput(bindings);
 
-        const MaterialEmitContext context(inputs, bindings, m_Environment, m_Diagnostics);
+        const std::string variable = m_LocalPrefix + std::to_string(id);
+        const MaterialEmitContext context(
+            inputs,
+            bindings,
+            m_Environment,
+            m_Diagnostics,
+            body,
+            variable + "_"
+        );
         for (size_t slot = 0; slot < definitions.size(); ++slot)
         {
             const int32_t source = slot < node.Inputs.size() ? node.Inputs[slot] : -1;
@@ -360,8 +369,7 @@ namespace Elixir::Materials::Compilation
                     emitted,
                     visiting,
                     body,
-                    bindings,
-                    inlineExpression
+                    bindings
                 ));
             else
                 inputs.push_back(context.DefaultInput(definitions[slot]));
@@ -369,15 +377,6 @@ namespace Elixir::Materials::Compilation
 
         SMaterialExpression expression = node.Node->Emit(context);
 
-        if (inlineExpression)
-        {
-            expression.Code = "(" + expression.Code + ")";
-            visiting.erase(id);
-            emitted.emplace(id, expression);
-            return expression;
-        }
-
-        const std::string variable = "n" + std::to_string(id);
         body += "   " + std::string(MaterialEmitContext::TypeName(expression.ValueType)) +
                 " " + variable + " = " + expression.Code + ";\n";
         expression.Code = variable;

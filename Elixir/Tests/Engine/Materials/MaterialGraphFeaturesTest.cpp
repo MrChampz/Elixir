@@ -355,9 +355,9 @@ TEST(MaterialGraphFeaturesTest, NestedFunctionsKeepTheEmissionStageOutsideParame
     const auto call = graph.AddNode<FunctionCall>(outer);
     const auto vertex = EmitExpression(graph, call, {}, EShaderStage::Vertex);
     const auto pixel = EmitExpression(graph, call, {}, EShaderStage::Pixel);
-    EXPECT_NE(vertex.Code.find("worldPos"), std::string::npos);
-    EXPECT_EQ(vertex.Code.find("input.WorldPos"), std::string::npos);
-    EXPECT_NE(pixel.Code.find("input.WorldPos"), std::string::npos);
+    EXPECT_NE(vertex.Statements.find("worldPos"), std::string::npos);
+    EXPECT_EQ(vertex.Statements.find("input.WorldPos"), std::string::npos);
+    EXPECT_NE(pixel.Statements.find("input.WorldPos"), std::string::npos);
 }
 
 TEST(MaterialGraphFeaturesTest, ConcreteStagesRejectMasksAndSentinels)
@@ -392,11 +392,11 @@ TEST(MaterialGraphFeaturesTest, NonPixelTextureExpressionsUseExplicitLod)
     for (const auto stage : {EShaderStage::Geometry, EShaderStage::Compute})
     {
         const auto expression = EmitExpression(graph, texture, {}, stage);
-        EXPECT_NE(expression.Code.find(".SampleLevel("), std::string::npos);
-        EXPECT_EQ(expression.Code.find(".Sample("), std::string::npos);
+        EXPECT_NE(expression.Statements.find(".SampleLevel("), std::string::npos);
+        EXPECT_EQ(expression.Statements.find(".Sample("), std::string::npos);
     }
     const auto pixel = EmitExpression(graph, texture, {}, EShaderStage::Pixel);
-    EXPECT_NE(pixel.Code.find(".Sample("), std::string::npos);
+    EXPECT_NE(pixel.Statements.find(".Sample("), std::string::npos);
 }
 
 TEST(MaterialGraphFeaturesTest, CustomExpressionsDeclareStageMasks)
@@ -411,11 +411,62 @@ TEST(MaterialGraphFeaturesTest, CustomExpressionsDeclareStageMasks)
     );
     EXPECT_EQ(SupportedStages(graph, custom), stages);
     const auto compute = EmitExpression(graph, custom, {}, EShaderStage::Compute);
-    EXPECT_NE(compute.Code.find("42.0"), std::string::npos);
+    EXPECT_NE(compute.Statements.find("42.0"), std::string::npos);
     const auto pixel = EmitExpression(graph, custom, {}, EShaderStage::Pixel);
-    EXPECT_EQ(pixel.Code, "0.0");
+    EXPECT_EQ(pixel.Expression.Code, "0.0");
     graph.SetChannel(EMaterialChannel::Metallic, custom);
     const auto material = CreateRef<Material>("InvalidPixelStage");
     material->SetGraph(std::move(graph));
     EXPECT_FALSE(Compiler::Build(*material));
+}
+
+TEST(MaterialGraphFeaturesTest, SharedFunctionIntermediatesKeepGeneratedSourceBounded)
+{
+    MaterialGraph functionGraph;
+    auto output = functionGraph.AddNode<FunctionInput>("Value", EMaterialValueType::Float);
+    for (int i = 0; i < 20; ++i)
+    {
+        const auto add = functionGraph.AddNode<Add>();
+        functionGraph.Connect(output, add, 0);
+        functionGraph.Connect(output, add, 1);
+        output = add;
+    }
+    const auto function = CreateRef<MaterialFunction>(
+        std::move(functionGraph),
+        std::vector<SMaterialFunctionInput>{
+            {"Value", EMaterialValueType::Float, glm::vec4(3)}
+        },
+        output
+    );
+
+    MaterialGraph wrapperGraph;
+    const auto input = wrapperGraph.AddNode<FunctionInput>("Value", EMaterialValueType::Float);
+    const auto nested = wrapperGraph.AddNode<FunctionCall>(function);
+    wrapperGraph.Connect(input, nested, 0);
+    const auto wrapper = CreateRef<MaterialFunction>(
+        std::move(wrapperGraph),
+        std::vector<SMaterialFunctionInput>{
+            {"Value", EMaterialValueType::Float, glm::vec4(3)}
+        },
+        nested
+    );
+
+    MaterialGraph graph;
+    const auto value = graph.AddNode<Constant>(glm::vec4(7), EMaterialValueType::Float);
+    const auto first = graph.AddNode<FunctionCall>(wrapper);
+    const auto second = graph.AddNode<FunctionCall>(wrapper);
+    graph.Connect(value, first, 0);
+    const auto sum = graph.AddNode<Add>();
+    graph.Connect(first, sum, 0);
+    graph.Connect(second, sum, 1);
+    graph.SetChannel(EMaterialChannel::Metallic, sum);
+    graph.SetChannel(EMaterialChannel::Roughness, sum);
+
+    const auto source = EmitGraph(graph);
+    ASSERT_FALSE(source.empty());
+    EXPECT_LT(source.size(), 10'000u);
+    EXPECT_NE(source.find("7.000000"), std::string::npos);
+    EXPECT_NE(source.find("3.000000"), std::string::npos);
+    EXPECT_NE(source.find("surface.Metallic"), std::string::npos);
+    EXPECT_NE(source.find("surface.Roughness"), std::string::npos);
 }

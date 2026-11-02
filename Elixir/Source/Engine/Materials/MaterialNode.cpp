@@ -238,13 +238,24 @@ namespace Elixir::Materials
         for (uint32_t slot = 0; slot < inputs.size(); ++slot)
             bindings.FunctionInputs.emplace(inputs[slot].Name, Input(slot));
 
-        Compilation::MaterialGraphEmitter emitter(function.m_Graph, m_Environment, bindings);
+        MaterialGraphEmitter emitter(
+            function.m_Graph,
+            m_Environment,
+            bindings,
+            m_LocalPrefix
+        );
+
         const auto expression = emitter.GenerateExpression(function.m_Output);
 
         if (m_Diagnostics.empty())
             m_Diagnostics = emitter.GetDiagnostics();
 
-        return expression;
+        if (!m_Diagnostics.empty())
+            return { "0.0", EMaterialValueType::Float };
+
+        m_Statements += expression.Statements;
+
+        return expression.Expression;
     }
 
     bool MaterialEmitContext::IsValidStage(const EShaderStage stage)
@@ -267,9 +278,13 @@ namespace Elixir::Materials
         const std::vector<SMaterialExpression>& inputs,
         const SMaterialGraphBindings* bindings,
         const SMaterialEmissionEnvironment& environment,
-        std::string& diagnostics
+        std::string& diagnostics,
+        std::string& statements,
+        std::string localPrefix
     ) : m_Inputs(inputs),
         m_Bindings(bindings),
         m_Environment(environment),
-        m_Diagnostics(diagnostics) {}
+        m_Diagnostics(diagnostics),
+        m_Statements(statements),
+        m_LocalPrefix(std::move(localPrefix)) {}
 }
