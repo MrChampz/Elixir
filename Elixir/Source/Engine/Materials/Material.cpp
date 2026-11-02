@@ -98,6 +98,16 @@ namespace Elixir::Materials
         return true;
     }
 
+    bool Material::SetTangentSpaceNormal(const bool enabled)
+    {
+        if (m_TangentSpaceNormal == enabled)
+            return false;
+
+        m_TangentSpaceNormal = enabled;
+        ++m_Revision;
+        return true;
+    }
+
     bool Material::SetDefaultParameter(const std::string& name, const SMaterialParameter& value)
     {
         const auto it  = m_Parameters.find(name);

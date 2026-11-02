@@ -75,20 +75,26 @@ float4 main(PSInput input) : SV_Target0
 {
     CompiledMaterial mat = materials[pc.MaterialIndex];
 
+    const float3 geometricNormal = normalize(input.Normal);
+    float3 N = geometricNormal;
+    const float3 V = normalize(CameraPos - input.WorldPos);
+
     Surface surface;
     surface.BaseColor = float3(1.0f, 1.0f, 1.0f);
-    surface.Normal = float3(0.0f, 0.0f, 1.0f);
     surface.Metallic = 0.0f;
     surface.Roughness = 0.5f;
     surface.Opacity = 1.0f;
     surface.Emissive = float3(0.0f, 0.0f, 0.0f);
 
-    const float3 geometricNormal = normalize(input.Normal);
-    float3 N = geometricNormal;
-    const float3 V = normalize(CameraPos - input.WorldPos);
+#if MATERIAL_TANGENT_SPACE_NORMAL
+    surface.Normal = float3(0.0f, 0.0f, 1.0f);
+#else
+    surface.Normal = geometricNormal;
+#endif
 
     // __GRAPH_BODY__
 
+#if MATERIAL_TANGENT_SPACE_NORMAL
     const float3 positionX = ddx(input.WorldPos);
     const float3 positionY = ddy(input.WorldPos);
     const float2 texCoordX = ddx(input.TexCoord);
@@ -114,6 +120,10 @@ float4 main(PSInput input) : SV_Target0
             N = normalize(mul(normalize(surface.Normal), tangentBasis));
         }
     }
+
+#else
+    N = normalize(surface.Normal);
+#endif
 
     static const uint MATERIAL_BLEND_MASK = 1u;
     if (mat.BlendMode == MATERIAL_BLEND_MASK)

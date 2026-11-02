@@ -182,7 +182,7 @@ TEST(MaterialGraphEmitterTest, SourceBuilderOwnsTemplateDefinesAndRejectsMissing
     );
     ASSERT_TRUE(vertex) << vertex.Diagnostics;
     EXPECT_TRUE(vertex.Diagnostics.empty());
-    EXPECT_NE(vertex.Source.find("#define GRAPH_HAS_WPO 1"), std::string::npos);
+    EXPECT_EQ(vertex.Source.find("MATERIAL_TANGENT_SPACE_NORMAL"), std::string::npos);
     const auto pixel = MaterialShaderSourceBuilder::Build(
         "// shader template\n// __GRAPH_BODY__",
         *material,
@@ -191,7 +191,7 @@ TEST(MaterialGraphEmitterTest, SourceBuilderOwnsTemplateDefinesAndRejectsMissing
     );
     ASSERT_TRUE(pixel) << pixel.Diagnostics;
     EXPECT_TRUE(pixel.Diagnostics.empty());
-    EXPECT_EQ(pixel.Source.find("GRAPH_HAS_WPO"), std::string::npos);
+    EXPECT_NE(pixel.Source.find("#define MATERIAL_TANGENT_SPACE_NORMAL 1"), std::string::npos);
     const auto invalid = MaterialShaderSourceBuilder::Build(
         "no marker",
         *material,
@@ -203,9 +203,10 @@ TEST(MaterialGraphEmitterTest, SourceBuilderOwnsTemplateDefinesAndRejectsMissing
     EXPECT_FALSE(invalid.Diagnostics.empty());
 }
 
-TEST(MaterialGraphEmitterTest, SourceBuilderDisablesDisplacementForGraphsWithoutThatOutput)
+TEST(MaterialGraphEmitterTest, SourceBuilderSelectsWorldSpaceNormalsForPixelShaders)
 {
-    const auto material = CreateRef<Material>("NoDisplacement");
+    const auto material = CreateRef<Material>("WorldSpaceNormals");
+    ASSERT_TRUE(material->SetTangentSpaceNormal(false));
     MaterialGraph graph;
     const auto color = graph.AddNode<Constant>(glm::vec4(1), EMaterialValueType::Float3);
     graph.SetChannel(EMaterialChannel::BaseColor, color);
@@ -214,22 +215,22 @@ TEST(MaterialGraphEmitterTest, SourceBuilderDisablesDisplacementForGraphsWithout
     ASSERT_TRUE(compiled);
 
     const auto vertex = MaterialShaderSourceBuilder::Build(
-        "// __GRAPH_BODY__",
+        "// shader template\n// __GRAPH_BODY__",
         *material,
         *compiled.Material,
         EShaderStage::Vertex
     );
     ASSERT_TRUE(vertex) << vertex.Diagnostics;
-    EXPECT_NE(vertex.Source.find("#define GRAPH_HAS_WPO 0\n"), std::string::npos);
+    EXPECT_EQ(vertex.Source.find("MATERIAL_TANGENT_SPACE_NORMAL"), std::string::npos);
 
     const auto pixel = MaterialShaderSourceBuilder::Build(
-        "// __GRAPH_BODY__",
+        "// shader template\n// __GRAPH_BODY__",
         *material,
         *compiled.Material,
         EShaderStage::Pixel
     );
     ASSERT_TRUE(pixel) << pixel.Diagnostics;
-    EXPECT_EQ(pixel.Source.find("GRAPH_HAS_WPO"), std::string::npos);
+    EXPECT_NE(pixel.Source.find("#define MATERIAL_TANGENT_SPACE_NORMAL 0"), std::string::npos);
 }
 
 TEST(MaterialGraphEmitterTest, RepeatedRequestsResetFunctionDeclarationsAndLocalNames)

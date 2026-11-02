@@ -266,7 +266,6 @@ float4 main(PSInput input) : SV_Target0
     // Defaults; the graph overrides whichever channels it drives.
     Surface surface;
     surface.BaseColor = float3(0.8f, 0.8f, 0.8f);
-    surface.Normal = float3(0.0f, 0.0f, 1.0f);
     surface.Metallic = 0.0f;
     surface.Roughness = 0.5f;
     surface.Opacity = 1.0f;
@@ -280,7 +279,14 @@ float4 main(PSInput input) : SV_Target0
     surface.SpecularColor = float3(1.0f, 1.0f, 1.0f);
     surface.ClearCoat = 0.0f;
     surface.ClearCoatRoughness = 0.0f;
-    surface.ClearCoatBottomNormal = float3(0.0f, 0.0f, 1.0f);
+
+    #if MATERIAL_TANGENT_SPACE_NORMAL
+        surface.Normal = float3(0.0f, 0.0f, 1.0f);
+    #else
+        surface.Normal = N;
+    #endif
+
+    surface.ClearCoatBottomNormal = surface.Normal;
 
     // __GRAPH_BODY__
 
@@ -302,18 +308,27 @@ float4 main(PSInput input) : SV_Target0
     );
     float3 F0 = lerp(dielectricF0, surface.BaseColor, surface.Metallic);
 
-    // surface.Normal is tangent-space. Transform it into world space through
-    // the orthonormal tangent basis reconstructed from the mesh vertex data.
-    float3 tangentNormal = normalize(surface.Normal);
-    float3 tangent = normalize(input.Tangent.xyz - N * dot(N, input.Tangent.xyz));
-    float3 bitangent = cross(N, tangent) * input.Tangent.w;
+#if MATERIAL_TANGENT_SPACE_NORMAL
+    const float3 tangent = normalize(input.Tangent.xyz - N * dot(N, input.Tangent.xyz));
+    const float3 bitangent = cross(N, tangent) * input.Tangent.w;
     const float3x3 tangentBasis = float3x3(tangent, bitangent, N);
 
+    const float3 materialNormal = normalize(mul(normalize(surface.Normal), tangentBasis));
 #if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_CLEAR_COAT
-    const float3 coatNormal = normalize(mul(tangentNormal, tangentBasis));
+    const float3 coatNormal = materialNormal;
     N = normalize(mul(normalize(surface.ClearCoatBottomNormal), tangentBasis));
 #else
-    N = normalize(mul(tangentNormal, tangentBasis));
+    N = materialNormal;
+#endif
+
+#else
+
+#if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_CLEAR_COAT
+    const float3 coatNormal = normalize(surface.Normal);
+    N = normalize(surface.ClearCoatBottomNormal);
+#else
+    N = normalize(surface.Normal);
+#endif
 #endif
 
     roughness = FilterSpecularRoughness(roughness, N);

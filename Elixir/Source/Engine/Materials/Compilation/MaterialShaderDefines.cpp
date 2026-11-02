@@ -1,6 +1,5 @@
 #include "epch.h"
-
-#include <Engine/Materials/Compilation/MaterialShaderDefines.h>
+#include "MaterialShaderDefines.h"
 
 namespace Elixir::Materials::Compilation
 {
@@ -16,22 +15,26 @@ namespace Elixir::Materials::Compilation
         };
 
         /**
-         * @brief Report whether the material supplies a vertex displacement output.
-         * @param material Graph whose output channels are inspected.
+         * @brief Resolve the input space shared by material normal channels.
+         * @param material Material whose normal space setting is inspected.
          */
-        std::string WorldPositionOffsetValue(const Material& material)
+        std::string TangentSpaceNormalValue(const Material& material)
         {
-            return material.GetGraph().HasChannel(EMaterialChannel::WorldPositionOffset)
-                ? "1"
-                : "0";
+            return material.UsesTangentSpaceNormal() ? "1" : "0";
         }
 
         constexpr SShaderDefineRule s_Rules[]{
             {
-                "GRAPH_HAS_WPO",
+                "MATERIAL_TANGENT_SPACE_NORMAL",
                 EMaterialUsage::Surface,
-                EShaderStage::Vertex,
-                WorldPositionOffsetValue
+                EShaderStage::Pixel,
+                TangentSpaceNormalValue
+            },
+            {
+                "MATERIAL_TANGENT_SPACE_NORMAL",
+                EMaterialUsage::Particle,
+                EShaderStage::Pixel,
+                TangentSpaceNormalValue
             }
         };
     }

@@ -74,7 +74,7 @@ SamplerState pointWrap;
 [[vk::binding(10, 0)]]
 SamplerState pointClamp;
 
-// Evaluate the same graph at nearby positions to preserve smooth mesh normals.
+// Evaluate vertex displacement without changing the mesh normal or tangent.
 float3 EvaluateWorldPositionOffset(float3 worldPos, VSInput input)
 {
     CompiledMaterial mat = materials[pc.MaterialIndex];
@@ -93,36 +93,7 @@ VSOutput main(VSInput input)
     float3 worldNormal = normalize(mul((float3x3)pc.WorldTransform, input.Normal));
     float3 worldTangent = normalize(mul((float3x3)pc.WorldTransform, input.Tangent.xyz));
 
-    const float3 displacedPosition = worldPos + EvaluateWorldPositionOffset(worldPos, input);
-
-#if GRAPH_HAS_WPO
-    if (dot(input.Tangent.xyz, input.Tangent.xyz) > 1e-8)
-    {
-        const float3 tangent = normalize(worldTangent - worldNormal *
-            dot(worldNormal, worldTangent));
-        const float3 bitangent = cross(worldNormal, tangent) * input.Tangent.w;
-
-        const float epsilon = 0.01;
-
-        const float3 tangentPosition = worldPos + tangent * epsilon;
-        const float3 bitangentPosition = worldPos + bitangent * epsilon;
-
-        const float3 displacedTangent = tangentPosition +
-            EvaluateWorldPositionOffset(tangentPosition, input) - displacedPosition;
-        const float3 displacedBitangent = bitangentPosition +
-            EvaluateWorldPositionOffset(bitangentPosition, input) - displacedPosition;
-
-        const float3 normal = cross(displacedTangent, displacedBitangent);
-
-        if (dot(normal, normal) > 1e-12)
-        {
-            const float3 candidate = normalize(normal);
-            worldNormal = dot(candidate, worldNormal) < 0.0 ? -candidate : candidate;
-        }
-    }
-#endif
-
-    worldPos = displacedPosition;
+    worldPos += EvaluateWorldPositionOffset(worldPos, input);
 
     output.ClipPos = mul(ViewProj, float4(worldPos, 1.0));
     output.WorldPos = worldPos;

@@ -15,7 +15,7 @@ namespace Elixir::Materials
         /** @brief Surface base color. */
         BaseColor,
 
-        /** @brief Surface normal. */
+        /** Surface normal in world or tangent space */
         Normal,
 
         /** @brief Surface metallic value. */
@@ -57,7 +57,7 @@ namespace Elixir::Materials
         /** @brief Roughness of the clear-coat layer. */
         ClearCoatRoughness,
 
-        /** @brief Tangent-space normal of the layer below clear coat. */
+        /** Base-layer normal in the same input space as the Normal channel. */
         ClearCoatBottomNormal,
 
         /** World-space displacement applied before vertex projection. */

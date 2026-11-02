@@ -5,11 +5,13 @@
 #include <Engine/Materials/Compilation/Compiler.h>
 #include <Engine/Materials/Nodes/FunctionCall.h>
 #include <Engine/Materials/Nodes/Add.h>
+#include <Engine/Materials/Nodes/Constant.h>
 #include <Engine/Materials/Nodes/Panner.h>
 #include <Engine/Materials/Nodes/Position.h>
 #include <Engine/Materials/Nodes/FunctionInput.h>
 #include <Engine/Materials/Nodes/StaticSwitch.h>
 #include <Engine/Materials/Nodes/TextureSample.h>
+#include <Engine/Materials/Nodes/TexCoord.h>
 
 using namespace Elixir::Materials;
 using namespace Elixir::Materials::Nodes;
@@ -65,8 +67,38 @@ TEST(VulkanMaterialGraphTest, CompilesFunctionsStaticChoicesAndVertexTextureSamp
         {
             ShaderWorkspace workspace;
             ShaderLoader loader(context);
-            for (const auto usage : {EMaterialUsage::Surface, EMaterialUsage::Particle})
+            /** Select the shader paths covered by material compilation. */
+            struct SConfiguration
             {
+                EMaterialUsage Usage;
+                uint32_t UVChannel;
+                bool TangentSpace;
+                EMaterialShadingModel ShadingModel;
+            };
+            const std::array configurations{
+                SConfiguration{
+                    EMaterialUsage::Surface, 0u, true, EMaterialShadingModel::Lit
+                },
+                SConfiguration{
+                    EMaterialUsage::Surface, 1u, false, EMaterialShadingModel::Lit
+                },
+                SConfiguration{
+                    EMaterialUsage::Surface, 0u, true, EMaterialShadingModel::ClearCoat
+                },
+                SConfiguration{
+                    EMaterialUsage::Surface, 1u, false, EMaterialShadingModel::ClearCoat
+                },
+                SConfiguration{
+                    EMaterialUsage::Particle, 0u, true, EMaterialShadingModel::Lit
+                },
+                SConfiguration{
+                    EMaterialUsage::Particle, 1u, false, EMaterialShadingModel::Lit
+                }
+            };
+            for (const auto& configuration : configurations)
+            {
+                const auto usage = configuration.Usage;
+                const auto uvChannel = configuration.UVChannel;
                 MaterialGraph functionGraph;
                 const auto texture = functionGraph.AddNode<TextureSample>(
                     "Texture",
@@ -78,6 +110,8 @@ TEST(VulkanMaterialGraphTest, CompilesFunctionsStaticChoicesAndVertexTextureSamp
                     }
                 );
                 const auto panner = functionGraph.AddNode<Panner>(glm::vec2(.1f));
+                const auto coordinates = functionGraph.AddNode<TexCoord>(uvChannel);
+                functionGraph.Connect(coordinates, panner, 0);
                 functionGraph.Connect(panner, texture, 0);
                 auto functionOutput = texture;
                 for (int i = 0; i < 20; ++i)
@@ -108,6 +142,13 @@ TEST(VulkanMaterialGraphTest, CompilesFunctionsStaticChoicesAndVertexTextureSamp
                 const auto choice = graph.AddNode<StaticSwitch>("Enabled", true);
                 graph.Connect(call, choice, 0);
                 graph.SetChannel(EMaterialChannel::BaseColor, choice);
+                const auto normal = graph.AddNode<Constant>(
+                    glm::vec4(0.2f, 0.7f, 1.0f, 0.0f),
+                    EMaterialValueType::Float3
+                );
+                graph.SetChannel(EMaterialChannel::Normal, normal);
+                if (configuration.ShadingModel == EMaterialShadingModel::ClearCoat)
+                    graph.SetChannel(EMaterialChannel::ClearCoatBottomNormal, normal);
                 if (usage == EMaterialUsage::Surface)
                 {
                     const auto position = graph.AddNode<Position>();
@@ -117,6 +158,8 @@ TEST(VulkanMaterialGraphTest, CompilesFunctionsStaticChoicesAndVertexTextureSamp
                     graph.SetChannel(EMaterialChannel::WorldPositionOffset, offset);
                 }
                 const auto material = CreateRef<Material>("CompiledFeatures", usage);
+                material->SetTangentSpaceNormal(configuration.TangentSpace);
+                material->SetShadingModel(configuration.ShadingModel);
                 ASSERT_TRUE(material->DefineParameter(
                     "Texture",
                     {.Kind = EMaterialParameterKind::Texture,
