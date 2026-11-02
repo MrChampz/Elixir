@@ -1,6 +1,14 @@
 #ifndef ELIXIR_MATERIAL_NORMAL_TRANSFORMS_HLSL
 #define ELIXIR_MATERIAL_NORMAL_TRANSFORMS_HLSL
 
+// Build a world-space basis from a normal and a tangent with handedness in w.
+float3x3 BuildTangentBasis(float3 normal, float4 tangent)
+{
+    const float3 direction = normalize(tangent.xyz - normal * dot(normal, tangent.xyz));
+    const float3 bitangent = cross(normal, direction) * tangent.w;
+    return float3x3(direction, bitangent, normal);
+}
+
 // Transform a tangent-space normal through a supplied world-space basis.
 float3 TangentNormalToWorld(float3 tangentNormal, float3x3 tangentBasis)
 {
@@ -32,14 +40,13 @@ float3 TangentNormalToWorld(
 
         if (tangentLengthSquared > 1e-6f)
         {
-            const float3 tangent = normalize(
-                uvTangent - geometricNormal * dot(geometricNormal, uvTangent)
-            );
-            const float handedness = dot(cross(tangent, uvBitangent), geometricNormal) < 0.0f
+            const float handedness = dot(cross(uvTangent, uvBitangent), geometricNormal) < 0.0f
                 ? -1.0f
                 : 1.0f;
-            const float3 bitangent = cross(geometricNormal, tangent) * handedness;
-            const float3x3 tangentBasis = float3x3(tangent, bitangent, geometricNormal);
+            const float3x3 tangentBasis = BuildTangentBasis(
+                geometricNormal,
+                float4(uvTangent, handedness)
+            );
             return TangentNormalToWorld(tangentNormal, tangentBasis);
         }
     }

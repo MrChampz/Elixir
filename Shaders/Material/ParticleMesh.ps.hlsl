@@ -97,7 +97,6 @@ float4 main(PSInput input) : SV_Target0
 
 #if MATERIAL_TANGENT_SPACE_NORMAL
     N = TangentNormalToWorld(surface.Normal, geometricNormal, input.WorldPos, input.TexCoord);
-
 #else
     N = normalize(surface.Normal);
 #endif

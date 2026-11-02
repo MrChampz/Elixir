@@ -310,26 +310,22 @@ float4 main(PSInput input) : SV_Target0
     float3 F0 = lerp(dielectricF0, surface.BaseColor, surface.Metallic);
 
 #if MATERIAL_TANGENT_SPACE_NORMAL
-    const float3 tangent = normalize(input.Tangent.xyz - N * dot(N, input.Tangent.xyz));
-    const float3 bitangent = cross(N, tangent) * input.Tangent.w;
-    const float3x3 tangentBasis = float3x3(tangent, bitangent, N);
-
+    const float3x3 tangentBasis = BuildTangentBasis(N, input.Tangent);
     const float3 materialNormal = TangentNormalToWorld(surface.Normal, tangentBasis);
+    const float3 bottomNormal = TangentNormalToWorld(
+        surface.ClearCoatBottomNormal,
+        tangentBasis
+    );
+#else
+    const float3 materialNormal = normalize(surface.Normal);
+    const float3 bottomNormal = normalize(surface.ClearCoatBottomNormal);
+#endif
+
 #if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_CLEAR_COAT
     const float3 coatNormal = materialNormal;
-    N = TangentNormalToWorld(surface.ClearCoatBottomNormal, tangentBasis);
+    N = bottomNormal;
 #else
     N = materialNormal;
-#endif
-
-#else
-
-#if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_CLEAR_COAT
-    const float3 coatNormal = normalize(surface.Normal);
-    N = normalize(surface.ClearCoatBottomNormal);
-#else
-    N = normalize(surface.Normal);
-#endif
 #endif
 
     roughness = FilterSpecularRoughness(roughness, N);
