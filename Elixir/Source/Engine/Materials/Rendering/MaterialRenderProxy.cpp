@@ -14,7 +14,8 @@ namespace Elixir::Materials::Rendering
 
         if (!material ||
             !parent ||
-            material->MaterialRevision != parent->GetRevision())
+            material->MaterialRevision != parent->GetRevision() ||
+            material->StaticValues != instance.GetStaticValues())
             return nullptr;
 
         auto proxy = CreateRef<MaterialRenderProxy>();

@@ -3,6 +3,21 @@
 
 namespace Elixir::Materials
 {
+    bool MaterialInstance::SetStaticBool(const std::string& name, const bool value)
+    {
+        if (name.empty())
+            return false;
+
+        const auto found = m_StaticValues.find(name);
+        if (found != m_StaticValues.end() && found->second == value)
+            return true;
+
+        m_StaticValues.insert_or_assign(name, value);
+        ++m_Revision;
+
+        return true;
+    }
+
     bool MaterialInstance::SetScalar(const std::string& name, const float value)
     {
         return SetOverride(name, SMaterialParameter::MakeScalar(value));

@@ -1,13 +1,35 @@
 #pragma once
 
-#include <vector>
-#include <string_view>
+#include <Engine/Graphics/GraphicsTypes.h>
 
 namespace Elixir::Materials
 {
-    struct SMaterialGraphBindings;
+    namespace Compilation
+    {
+        class MaterialGraphEmitter;
+        class MaterialEmitContext;
+        struct SMaterialGraphBindings;
+    }
+    using namespace Compilation;
+
     enum class EMaterialValueType : uint8_t;
     enum class EMaterialUsage : uint8_t;
+
+    /**
+     * @brief Select the default value source for an unconnected material node input.
+     * Connected inputs use their source node and ignore this setting.
+    */
+    enum class EMaterialInputDefaultSource : uint8_t
+    {
+        /** Use DefaultExpression with the type declared by DefaultValueType. */
+        Expression,
+
+        /** Resolve texture-coordinate channel zero through the emission context. */
+        TexCoord,
+
+        /** Resolve texture-coordinate channel one through the emission context. */
+        TexCoord1
+    };
 
     /**
      * @brief Describes one input accepted by a material node.
@@ -25,6 +47,9 @@ namespace Elixir::Materials
 
         /** @brief Type produced by the default expression. */
         EMaterialValueType DefaultValueType;
+
+        /** Default value source used when this input is not connected.  */
+        EMaterialInputDefaultSource DefaultSource = EMaterialInputDefaultSource::Expression;
     };
 
     /**
@@ -51,7 +76,10 @@ namespace Elixir::Materials
          * @param type The parameter type.
          * @return True if the value parameter exists for the requested type.
          */
-        virtual bool HasValueParameter(std::string_view name, EMaterialValueType type) const = 0;
+        virtual bool HasValueParameter(
+            std::string_view name,
+            EMaterialValueType type
+        ) const = 0;
 
         /**
          * @brief Checks whether a texture parameter exists.
@@ -60,47 +88,18 @@ namespace Elixir::Materials
          */
         virtual bool HasTextureParameter(std::string_view name) const = 0;
 
+        /**
+         * @brief Checks an input declared by the enclosing material function.
+         * @param name Function input name.
+         * @param type Expected numeric type.
+         */
+        virtual bool HasFunctionInput(std::string_view name, EMaterialValueType type) const
+        {
+            return false;
+        }
+
         /** @brief Returns the renderer usage of the material being validated. */
         virtual EMaterialUsage GetUsage() const = 0;
-    };
-
-    /**
-     * @brief Gives a node access to resolved inputs and material parameter bindings.
-     */
-    class ELIXIR_API MaterialEmitContext
-    {
-        friend class MaterialGraph;
-
-    public:
-        /** @brief Gets a resolved input expression. */
-        const SMaterialExpression& Input(uint32_t slot) const;
-
-        /** @brief Gets the HLSL expression bound to a value parameter. */
-        std::string ValueParameter(const std::string& name) const;
-
-        /** @brief Gets the HLSL expression bound to a texture parameter. */
-        std::string TextureParameter(const std::string& name) const;
-
-        /** @brief Converts an expression to a requested value type. */
-        static std::string Widen(const SMaterialExpression& expression, EMaterialValueType type);
-
-        /** @brief Gets the HLSL type name for a material value type. */
-        static const char* TypeName(EMaterialValueType type);
-
-        /** @brief Gets the component count of a material value type. */
-        static int Components(EMaterialValueType type);
-
-        /** @brief Gets the wider of two material value types. */
-        static EMaterialValueType Wider(EMaterialValueType left, EMaterialValueType right);
-
-    private:
-        MaterialEmitContext(
-            const std::vector<SMaterialExpression>& inputs,
-            const SMaterialGraphBindings* bindings
-        );
-
-        const std::vector<SMaterialExpression>& m_Inputs;
-        const SMaterialGraphBindings* m_Bindings;
     };
 
     /**
@@ -114,7 +113,11 @@ namespace Elixir::Materials
         /** @brief Gets the stable identifier used by tools and serialization. */
         virtual std::string_view GetTypeName() const = 0;
 
-        /** @brief Validates node-specific references against material parameters. */
+        /**
+         * @brief Validates node-specific references against material parameters.
+         * @param parameters Parameter and function-argument schema.
+         * @param error Receives a diagnostic on failure.
+         */
         virtual bool Validate(
             const MaterialNodeValidationContext& parameters,
             std::string& error
@@ -123,8 +126,33 @@ namespace Elixir::Materials
             return true;
         }
 
-        /** @brief Emits the HLSL expression represented by this node. */
+        /**
+         * @brief Emits the HLSL expression represented by this node.
+         * @param context Resolved inputs and compile-time bindings.
+         */
         virtual SMaterialExpression Emit(const MaterialEmitContext& context) const = 0;
+
+        /**
+         * @brief Selects one input at compile time, or all inputs when empty.
+         * @param bindings Compile-time graph bindings.
+         */
+        virtual std::optional<uint32_t> SelectInput(
+            const SMaterialGraphBindings* bindings
+        ) const
+        {
+            return std::nullopt;
+        }
+
+        /**
+         * @brief Return the shader stages supported by this node.
+         * @param bindings Compile-time choices inherited from the caller.
+         */
+        virtual EShaderStage GetSupportedStages(
+            const SMaterialGraphBindings* bindings = nullptr
+        ) const
+        {
+            return EShaderStage::All;
+        }
 
         /** @brief Gets the input slots defined by the node. */
         const std::vector<SMaterialNodeInput>& GetInputs() const { return m_Inputs; }

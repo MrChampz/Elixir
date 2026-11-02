@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Engine/Materials/Material.h>
-#include <Engine/Materials/MaterialNode.h>
+#include <Engine/Materials/Compilation/MaterialEmitContext.h>
 
 namespace Elixir::Materials::Nodes
 {
@@ -12,12 +12,15 @@ namespace Elixir::Materials::Nodes
     {
     public:
         explicit Panner(const glm::vec2& speed)
-          : MaterialNode({{
-                "UV",
-                EMaterialValueType::Float2,
-                "input.TexCoord",
-                EMaterialValueType::Float2
-            }}),
+          : MaterialNode({
+                {
+                    "UV",
+                    EMaterialValueType::Float2,
+                    "",
+                    EMaterialValueType::Float2,
+                    EMaterialInputDefaultSource::TexCoord
+                }
+            }),
             m_Speed(speed) {}
 
         std::string_view GetTypeName() const override { return "Material.Panner"; }
@@ -26,9 +29,10 @@ namespace Elixir::Materials::Nodes
         {
             const auto speed = "float2(" + std::to_string(m_Speed.x) + ", " +
                 std::to_string(m_Speed.y) + ")";
+            const auto expr = context.Widen(context.Input(0), EMaterialValueType::Float2);
+
             return {
-                .Code = "(" + context.Widen(context.Input(0), EMaterialValueType::Float2) +
-                    " + Time * " + speed + ")",
+                .Code = "(" + expr + " + " + context.Time() + " * " + speed + ")",
                 .ValueType = EMaterialValueType::Float2
             };
         }

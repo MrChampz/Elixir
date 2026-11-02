@@ -2,6 +2,7 @@
 #include "Renderer.h"
 
 #include <Engine/Graphics/Image.h>
+#include <Engine/Graphics/Sampler.h>
 #include <Engine/Graphics/Pipeline/PipelineBuilder.h>
 #include <Engine/Materials/MaterialSystem.h>
 #include <Engine/Materials/Rendering/MaterialRenderScene.h>
@@ -13,9 +14,9 @@ namespace Elixir::Materials::Rendering
         const Ref<Image>& sceneTarget,
         const uint32_t materialCapacity
     ) : m_MaterialCapacity(materialCapacity),
-        m_FrameSlots(*context),
         m_Textures(context),
         m_SceneTarget(sceneTarget),
+        m_FrameSlots(*context),
         m_Context(context)
     {
         EE_CORE_ASSERT(context, "Material renderer requires a graphics context.")
@@ -24,6 +25,26 @@ namespace Elixir::Materials::Rendering
             m_MaterialCapacity > 0,
             "Material renderer frame capacity must be greater than zero."
         )
+
+        for (size_t i = 0; i < m_Samplers.size(); ++i)
+        {
+            SSamplerCreateInfo settings;
+
+            if (i > 0)
+            {
+                settings.MinFilter = ESamplerFilter::Nearest;
+                settings.MagFilter = ESamplerFilter::Nearest;
+                settings.MipmapMode = ESamplerMipmapMode::Nearest;
+            }
+
+            if (i != 1)
+            {
+                settings.AddressModeU = ESamplerAddressMode::ClampToEdge;
+                settings.AddressModeV = ESamplerAddressMode::ClampToEdge;
+            }
+
+            m_Samplers[i] = Sampler::Create(context, settings);
+        }
 
         m_FrameSlots.ForEach([this, context](SFrameSlot& slot)
         {
@@ -598,6 +619,18 @@ namespace Elixir::Materials::Rendering
             shader->BindTextureSet("textures", m_Textures.GetTextureSet());
         if (shader->HasBinding("texSampler"))
             shader->BindSampler("texSampler", m_Textures.GetSampler());
+
+        constexpr std::array samplerNames{
+            "linearClamp",
+            "pointWrap",
+            "pointClamp"
+        };
+
+        for (size_t i = 0; i < samplerNames.size(); ++i)
+        {
+            if (shader->HasBinding(samplerNames[i]))
+                shader->BindSampler(samplerNames[i], m_Samplers[i]);
+        }
 
         return true;
     }

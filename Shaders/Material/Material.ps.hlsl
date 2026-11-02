@@ -6,6 +6,9 @@
 
 // __SHADING_MODEL__
 
+#include "../Material/NormalSampling.hlsl"
+#include "../Material/NormalTransforms.hlsl"
+
 #define MATERIAL_SHADING_MODEL_UNLIT      0
 #define MATERIAL_SHADING_MODEL_LIT        1
 #define MATERIAL_SHADING_MODEL_CLEAR_COAT 2
@@ -99,6 +102,15 @@ struct Surface
     float3  ClearCoatBottomNormal;
 };
 
+[[vk::binding(8, 0)]]
+SamplerState linearClamp;
+
+[[vk::binding(9, 0)]]
+SamplerState pointWrap;
+
+[[vk::binding(10, 0)]]
+SamplerState pointClamp;
+
 static const uint NO_TEXTURE = 0xFFFFFFFFu;
 static const uint PREFILTER_LEVEL_COUNT = 6u;
 static const uint SURFACE_DEBUG_COMPOSITE = 0u;
@@ -108,20 +120,6 @@ static const uint SURFACE_DEBUG_SPECULAR_IBL = 3u;
 static const uint SURFACE_DEBUG_DIRECT_DIFFUSE = 4u;
 static const uint SURFACE_DEBUG_DIRECT_SPECULAR = 5u;
 static const uint SURFACE_DEBUG_CLEAR_COAT = 6u;
-
-float4 SampleTex(uint index, float2 uv)
-{
-    return textures[index].Sample(texSampler, uv);
-}
-
-float3 SampleNormal(uint index, float2 uv)
-{
-    if (index == NO_TEXTURE)
-        return float3(0.0f, 0.0f, 1.0f);
-
-    const float3 packedNormal = SampleTex(index, uv).xyz;
-    return normalize(packedNormal * 2.0f - 1.0f);
-}
 
 float2 DirToEquirect(float3 dir)
 {
@@ -269,7 +267,6 @@ float4 main(PSInput input) : SV_Target0
     // Defaults; the graph overrides whichever channels it drives.
     Surface surface;
     surface.BaseColor = float3(0.8f, 0.8f, 0.8f);
-    surface.Normal = float3(0.0f, 0.0f, 1.0f);
     surface.Metallic = 0.0f;
     surface.Roughness = 0.5f;
     surface.Opacity = 1.0f;
@@ -283,7 +280,14 @@ float4 main(PSInput input) : SV_Target0
     surface.SpecularColor = float3(1.0f, 1.0f, 1.0f);
     surface.ClearCoat = 0.0f;
     surface.ClearCoatRoughness = 0.0f;
-    surface.ClearCoatBottomNormal = float3(0.0f, 0.0f, 1.0f);
+
+    #if MATERIAL_TANGENT_SPACE_NORMAL
+        surface.Normal = float3(0.0f, 0.0f, 1.0f);
+    #else
+        surface.Normal = N;
+    #endif
+
+    surface.ClearCoatBottomNormal = surface.Normal;
 
     // __GRAPH_BODY__
 
@@ -305,18 +309,23 @@ float4 main(PSInput input) : SV_Target0
     );
     float3 F0 = lerp(dielectricF0, surface.BaseColor, surface.Metallic);
 
-    // surface.Normal is tangent-space. Transform it into world space through
-    // the orthonormal tangent basis reconstructed from the mesh vertex data.
-    float3 tangentNormal = normalize(surface.Normal);
-    float3 tangent = normalize(input.Tangent.xyz - N * dot(N, input.Tangent.xyz));
-    float3 bitangent = cross(N, tangent) * input.Tangent.w;
-    const float3x3 tangentBasis = float3x3(tangent, bitangent, N);
+#if MATERIAL_TANGENT_SPACE_NORMAL
+    const float3x3 tangentBasis = BuildTangentBasis(N, input.Tangent);
+    const float3 materialNormal = TangentNormalToWorld(surface.Normal, tangentBasis);
+    const float3 bottomNormal = TangentNormalToWorld(
+        surface.ClearCoatBottomNormal,
+        tangentBasis
+    );
+#else
+    const float3 materialNormal = normalize(surface.Normal);
+    const float3 bottomNormal = normalize(surface.ClearCoatBottomNormal);
+#endif
 
 #if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_CLEAR_COAT
-    const float3 coatNormal = normalize(mul(tangentNormal, tangentBasis));
-    N = normalize(mul(normalize(surface.ClearCoatBottomNormal), tangentBasis));
+    const float3 coatNormal = materialNormal;
+    N = bottomNormal;
 #else
-    N = normalize(mul(tangentNormal, tangentBasis));
+    N = materialNormal;
 #endif
 
     roughness = FilterSpecularRoughness(roughness, N);

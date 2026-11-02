@@ -33,17 +33,21 @@ namespace Elixir::Materials::Compilation
          * material. Otherwise, it rebuilds the material before returning it.
          *
          * @param material Material to compile or retrieve.
+         * @param staticValues Compile-time overrides used to select a cached shader variant.
          * @return Compiled material data, or null when material is null or compilation fails.
          */
-        Ref<const SCompiledMaterial> GetOrCompile(const Ref<Material>& material);
+        Ref<const SCompiledMaterial> GetOrCompile(
+            const Ref<Material>& material,
+            const std::unordered_map<std::string, bool>& staticValues = {}
+        );
 
     private:
         /** @brief Stores the source material, compiled revision, and cached result. */
         struct SEntry
         {
             Ref<Material> Source;
+            std::unordered_map<std::string, Ref<const SCompiledMaterial>> Variants;
             uint32_t Revision = 0;
-            Ref<const SCompiledMaterial> Compiled;
         };
 
         const ShaderLoader* m_ShaderLoader = nullptr;
