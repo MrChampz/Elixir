@@ -7,6 +7,7 @@
 // __SHADING_MODEL__
 
 #include "../Material/NormalSampling.hlsl"
+#include "../Material/NormalTransforms.hlsl"
 
 #define MATERIAL_SHADING_MODEL_UNLIT      0
 #define MATERIAL_SHADING_MODEL_LIT        1
@@ -313,10 +314,10 @@ float4 main(PSInput input) : SV_Target0
     const float3 bitangent = cross(N, tangent) * input.Tangent.w;
     const float3x3 tangentBasis = float3x3(tangent, bitangent, N);
 
-    const float3 materialNormal = normalize(mul(normalize(surface.Normal), tangentBasis));
+    const float3 materialNormal = TangentNormalToWorld(surface.Normal, tangentBasis);
 #if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_CLEAR_COAT
     const float3 coatNormal = materialNormal;
-    N = normalize(mul(normalize(surface.ClearCoatBottomNormal), tangentBasis));
+    N = TangentNormalToWorld(surface.ClearCoatBottomNormal, tangentBasis);
 #else
     N = materialNormal;
 #endif
