@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Engine/Materials/Compilation/MaterialEmitContext.h>
 #include <Engine/Materials/Material.h>
 #include <Engine/Materials/Compilation/MaterialGraphBindings.h>
 

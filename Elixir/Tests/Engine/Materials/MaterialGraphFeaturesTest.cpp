@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 
 #include <Engine/Materials/Compilation/CompilationCache.h>
+#include <Engine/Materials/Compilation/MaterialEmitContext.h>
 #include <Engine/Materials/MaterialInstance.h>
 #include <Engine/Materials/Nodes/Add.h>
 #include <Engine/Materials/Nodes/Constant.h>

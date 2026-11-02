@@ -1,11 +1,11 @@
 #include "epch.h"
-#include "MaterialNode.h"
+#include "MaterialEmitContext.h"
 
 #include <Engine/Materials/Material.h>
 #include <Engine/Materials/Compilation/MaterialGraphEmitter.h>
 #include <Engine/Materials/Compilation/TextureSamplingOptions.h>
 
-namespace Elixir::Materials
+namespace Elixir::Materials::Compilation
 {
     namespace
     {

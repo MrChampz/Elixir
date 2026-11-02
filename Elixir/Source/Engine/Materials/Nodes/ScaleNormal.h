@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/Materials/MaterialNode.h>
+#include <Engine/Materials/Compilation/MaterialEmitContext.h>
 
 namespace Elixir::Materials::Nodes
 {

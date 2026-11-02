@@ -1,8 +1,10 @@
 #include "epch.h"
 #include "MaterialGraphEmitter.h"
 
+
 #include <Engine/Materials/Material.h>
 #include <Engine/Materials/MaterialFunction.h>
+#include <Engine/Materials/Compilation/MaterialEmitContext.h>
 #include <Engine/Materials/Compilation/MaterialShaderSourceBuilder.h>
 
 namespace Elixir::Materials::Compilation

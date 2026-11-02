@@ -4,6 +4,8 @@
 #include <Engine/Materials/Compilation/MaterialEmissionEnvironment.h>
 #include <Engine/Materials/Compilation/MaterialGraphBindings.h>
 
+namespace Elixir::Materials { class MaterialFunction; }
+
 namespace Elixir::Materials::Compilation
 {
     /** Stores an expression and the local statements required to evaluate it. */
@@ -19,7 +21,7 @@ namespace Elixir::Materials::Compilation
     /** @brief Traverse a material graph for validation and shader code emission. */
     class ELIXIR_API MaterialGraphEmitter final
     {
-        friend class ::Elixir::Materials::MaterialEmitContext;
+        friend class MaterialEmitContext;
 
       public:
         /**
