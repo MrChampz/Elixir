@@ -2,6 +2,7 @@
 #include "MaterialGraphEmitter.h"
 
 #include <Engine/Materials/Material.h>
+#include <Engine/Materials/MaterialFunction.h>
 #include <Engine/Materials/Compilation/MaterialShaderSourceBuilder.h>
 
 namespace Elixir::Materials::Compilation
@@ -194,6 +195,8 @@ namespace Elixir::Materials::Compilation
     std::string MaterialGraphEmitter::GenerateHLSL()
     {
         m_Diagnostics.clear();
+        m_Statements.clear();
+        m_FunctionCallCount = 0;
 
         const auto stage = m_Environment.Stage;
         const auto& bindings = m_Bindings;
@@ -206,7 +209,6 @@ namespace Elixir::Materials::Compilation
             return {};
         }
 
-        std::string body;
         std::unordered_map<uint32_t, SMaterialExpression> emitted;
         std::unordered_set<uint32_t> visiting;
 
@@ -224,13 +226,13 @@ namespace Elixir::Materials::Compilation
                 return {};
             }
 
-            const auto expression = EmitNode(nodeId, emitted, visiting, body, &bindings);
+            const auto expression = EmitNode(nodeId, emitted, visiting);
             const auto destination = vertexOutput
                  ? std::string("worldPositionOffset")
                  : "surface." + std::string(ChannelName(channel));
 
             const auto coerced = CoerceForChannel(expression, channel);
-            body += "   " + destination + " = " + coerced + ";\n";
+            m_Statements += "   " + destination + " = " + coerced + ";\n";
         }
 
         if (!m_Diagnostics.empty())
@@ -239,12 +241,14 @@ namespace Elixir::Materials::Compilation
             return {};
         }
 
-        return body;
+        return m_Statements;
     }
 
     SMaterialExpressionSource MaterialGraphEmitter::GenerateExpression(const uint32_t nodeId)
     {
         m_Diagnostics.clear();
+        m_Statements.clear();
+        m_FunctionCallCount = 0;
 
         const auto stage = m_Environment.Stage;
         const auto& bindings = m_Bindings;
@@ -257,11 +261,10 @@ namespace Elixir::Materials::Compilation
             return { .Expression = { "0.0", EMaterialValueType::Float } };
         }
 
-        std::string body;
         std::unordered_map<uint32_t, SMaterialExpression> emitted;
         std::unordered_set<uint32_t> visiting;
 
-        const auto expression = EmitNode(nodeId, emitted, visiting, body, &bindings);
+        const auto expression = EmitNode(nodeId, emitted, visiting);
 
         if (!m_Diagnostics.empty())
         {
@@ -269,7 +272,7 @@ namespace Elixir::Materials::Compilation
             return { .Expression = { "0.0", EMaterialValueType::Float } };
         }
 
-        return { .Expression = expression, .Statements = std::move(body) };
+        return { .Expression = expression, .Statements = std::move(m_Statements) };
     }
 
     EShaderStage MaterialGraphEmitter::GetSupportedStages(
@@ -318,9 +321,7 @@ namespace Elixir::Materials::Compilation
     SMaterialExpression MaterialGraphEmitter::EmitNode(
         const uint32_t id,
         std::unordered_map<uint32_t, SMaterialExpression>& emitted,
-        std::unordered_set<uint32_t>& visiting,
-        std::string& body,
-        const SMaterialGraphBindings* bindings
+        std::unordered_set<uint32_t>& visiting
     )
     {
         if (const auto it = emitted.find(id); it != emitted.end())
@@ -342,17 +343,18 @@ namespace Elixir::Materials::Compilation
         std::vector<SMaterialExpression> inputs;
         inputs.reserve(definitions.size());
 
-        const auto selected = node.Node->SelectInput(bindings);
+        const auto selected = node.Node->SelectInput(&m_Bindings);
 
         const std::string variable = m_LocalPrefix + std::to_string(id);
+
         const MaterialEmitContext context(
             inputs,
-            bindings,
+            &m_Bindings,
             m_Environment,
-            m_Diagnostics,
-            body,
-            variable + "_"
+            *this,
+            m_Diagnostics
         );
+
         for (size_t slot = 0; slot < definitions.size(); ++slot)
         {
             const int32_t source = slot < node.Inputs.size() ? node.Inputs[slot] : -1;
@@ -364,26 +366,59 @@ namespace Elixir::Materials::Compilation
             }
 
             if (source >= 0)
-                inputs.push_back(EmitNode(
-                    (uint32_t)source,
-                    emitted,
-                    visiting,
-                    body,
-                    bindings
-                ));
+                inputs.push_back(EmitNode((uint32_t)source, emitted, visiting));
             else
                 inputs.push_back(context.DefaultInput(definitions[slot]));
         }
 
         SMaterialExpression expression = node.Node->Emit(context);
 
-        body += "   " + std::string(MaterialEmitContext::TypeName(expression.ValueType)) +
-                " " + variable + " = " + expression.Code + ";\n";
+        m_Statements += "   " +
+            std::string(MaterialEmitContext::TypeName(expression.ValueType)) +
+            " " + variable + " = " + expression.Code + ";\n";
         expression.Code = variable;
 
         visiting.erase(id);
         emitted.emplace(id, expression);
 
         return expression;
+    }
+
+    SMaterialExpression MaterialGraphEmitter::CallFunction(
+        const MaterialFunction& function,
+        const std::vector<SMaterialExpression>& inputs
+    )
+    {
+        const auto& arguments = function.GetInputs();
+
+        if (inputs.size() != arguments.size())
+        {
+            if (m_Diagnostics.empty())
+                m_Diagnostics = "Material function argument count does not match.";
+
+            EE_CORE_ERROR("{}", m_Diagnostics)
+            return { "0.0", EMaterialValueType::Float };
+        }
+
+        auto bindings = m_Bindings;
+        bindings.FunctionInputs.clear();
+
+        for (size_t slot = 0; slot < arguments.size(); ++slot)
+            bindings.FunctionInputs.emplace(arguments[slot].Name, inputs[slot]);
+
+        const auto prefix = m_LocalPrefix + "f" + std::to_string(m_FunctionCallCount++) + "_";
+
+        MaterialGraphEmitter emitter(function.m_Graph, m_Environment, bindings, prefix);
+        const auto source = emitter.GenerateExpression(function.m_Output);
+
+        if (m_Diagnostics.empty())
+            m_Diagnostics = emitter.GetDiagnostics();
+
+        if (!m_Diagnostics.empty())
+            return { "0.0", EMaterialValueType::Float };
+
+        m_Statements += source.Statements;
+
+        return source.Expression;
     }
 }

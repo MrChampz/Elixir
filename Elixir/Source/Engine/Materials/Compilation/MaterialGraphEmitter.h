@@ -19,6 +19,8 @@ namespace Elixir::Materials::Compilation
     /** @brief Traverse a material graph for validation and shader code emission. */
     class ELIXIR_API MaterialGraphEmitter final
     {
+        friend class ::Elixir::Materials::MaterialEmitContext;
+
       public:
         /**
          * @brief Bind an immutable graph to one shader environment.
@@ -75,21 +77,29 @@ namespace Elixir::Materials::Compilation
          * @param id Node to evaluate.
          * @param emitted Previously evaluated nodes.
          * @param visiting Current dependency path.
-         * @param body Receives local statements.
-         * @param bindings Parameter expressions and function arguments.
          */
         SMaterialExpression EmitNode(
             uint32_t id,
             std::unordered_map<uint32_t, SMaterialExpression>& emitted,
-            std::unordered_set<uint32_t>& visiting,
-            std::string& body,
-            const SMaterialGraphBindings* bindings
+            std::unordered_set<uint32_t>& visiting
+        );
+
+        /**
+         * @brief Emit a function call and append its local declarations.
+         * @param function Immutable function to evaluate.
+         * @param inputs Resolved arguments in the function's declared order.
+         */
+        SMaterialExpression CallFunction(
+            const MaterialFunction& function,
+            const std::vector<SMaterialExpression>& inputs
         );
 
         const MaterialGraph& m_Graph;
         SMaterialEmissionEnvironment m_Environment;
         SMaterialGraphBindings m_Bindings;
-        std::string m_Diagnostics;
+        std::string m_Statements;
+        uint32_t m_FunctionCallCount = 0;
         std::string m_LocalPrefix;
+        std::string m_Diagnostics;
     };
 }

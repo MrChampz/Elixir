@@ -18,7 +18,7 @@ namespace Elixir::Materials
      */
     class ELIXIR_API MaterialFunction final
     {
-        friend class MaterialEmitContext;
+        friend class Compilation::MaterialGraphEmitter;
 
       public:
         /**

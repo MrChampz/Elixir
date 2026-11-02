@@ -5,6 +5,7 @@
 #include <Engine/Materials/Nodes/Constant.h>
 #include <Engine/Materials/Nodes/Fresnel.h>
 #include <Engine/Materials/Nodes/FunctionCall.h>
+#include <Engine/Materials/Nodes/FunctionInput.h>
 #include <Engine/Materials/Nodes/Noise.h>
 #include <Engine/Materials/Nodes/Panner.h>
 #include <Engine/Materials/Nodes/Position.h>
@@ -229,4 +230,46 @@ TEST(MaterialGraphEmitterTest, SourceBuilderDisablesDisplacementForGraphsWithout
     );
     ASSERT_TRUE(pixel) << pixel.Diagnostics;
     EXPECT_EQ(pixel.Source.find("GRAPH_HAS_WPO"), std::string::npos);
+}
+
+TEST(MaterialGraphEmitterTest, RepeatedRequestsResetFunctionDeclarationsAndLocalNames)
+{
+    MaterialGraph functionGraph;
+    const auto input = functionGraph.AddNode<FunctionInput>(
+        "Value",
+        EMaterialValueType::Float
+    );
+    const auto function = CreateRef<MaterialFunction>(
+        std::move(functionGraph),
+        std::vector<SMaterialFunctionInput>{
+            {"Value", EMaterialValueType::Float, glm::vec4(3)}
+        },
+        input
+    );
+    MaterialGraph graph;
+    const auto first = graph.AddNode<FunctionCall>(function);
+    const auto second = graph.AddNode<FunctionCall>(function);
+    graph.SetChannel(EMaterialChannel::Metallic, first);
+    graph.SetChannel(EMaterialChannel::Roughness, second);
+    const auto environment = MaterialShaderSourceBuilder::CreateEnvironment(
+        EMaterialUsage::Surface,
+        EShaderStage::Pixel
+    );
+    MaterialGraphEmitter emitter(graph, environment);
+
+    const auto source = emitter.GenerateHLSL();
+    ASSERT_FALSE(source.empty());
+    EXPECT_EQ(emitter.GenerateHLSL(), source);
+
+    const auto expression = emitter.GenerateExpression(first);
+    ASSERT_FALSE(expression.Statements.empty());
+    const auto repeated = emitter.GenerateExpression(first);
+    EXPECT_EQ(repeated.Expression.Code, expression.Expression.Code);
+    EXPECT_EQ(repeated.Statements, expression.Statements);
+    EXPECT_EQ(emitter.GenerateHLSL(), source);
+
+    emitter.GenerateExpression(999);
+    EXPECT_FALSE(emitter.GetDiagnostics().empty());
+    EXPECT_EQ(emitter.GenerateHLSL(), source);
+    EXPECT_TRUE(emitter.GetDiagnostics().empty());
 }
