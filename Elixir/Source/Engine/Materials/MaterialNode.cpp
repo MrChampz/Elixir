@@ -200,10 +200,7 @@ namespace Elixir::Materials
         const size_t samplerIndex = (options.Filter == ETextureFilter::Point ? 2 : 0) +
                                     (options.Address == ETextureAddress::Clamp ? 1 : 0);
 
-        const auto sampler = Require(
-            m_Environment.TextureSamplers[samplerIndex],
-            "sampler"
-        );
+        const auto sampler = Require(m_Environment.TextureSamplers[samplerIndex], "sampler");
 
         if (options.MipMode == ETextureMipMode::Bias)
         {

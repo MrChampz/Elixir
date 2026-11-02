@@ -20,6 +20,11 @@ namespace Elixir::Materials
             ) : m_Parent(parent),
                 m_Inputs(inputs) {}
 
+            /**
+             * @brief Check a value parameter against the caller's schema.
+             * @param name Value parameter name.
+             * @param type Expected value type.
+             */
             bool HasValueParameter(
                 const std::string_view name,
                 const EMaterialValueType type
@@ -28,11 +33,20 @@ namespace Elixir::Materials
                 return m_Parent.HasValueParameter(name, type);
             }
 
+            /**
+             * @brief Check whether the caller declares a texture parameter.
+             * @param name Texture parameter name.
+             */
             bool HasTextureParameter(const std::string_view name) const override
             {
                 return m_Parent.HasTextureParameter(name);
             }
 
+            /**
+             * @brief Check an argument declared by this function.
+             * @param name Function argument name.
+             * @param type Expected argument type.
+             */
             bool HasFunctionInput(
                 const std::string_view name,
                 const EMaterialValueType type
@@ -47,6 +61,7 @@ namespace Elixir::Materials
                 return false;
             }
 
+            /** @brief Return the caller's renderer usage. */
             EMaterialUsage GetUsage() const override { return m_Parent.GetUsage(); }
 
         private:
