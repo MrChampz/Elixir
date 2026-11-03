@@ -17,7 +17,10 @@ namespace Elixir
 
     bool SAnimationTransition::IsValid(const std::span<const SAnimationState> states) const
     {
-        if (!std::isfinite(FadeDuration) || FadeDuration < 0)
+        if (!std::isfinite(FadeDuration) ||
+            FadeDuration < 0 ||
+            (Mode != EAnimationTransitionMode::CrossFade &&
+                Mode != EAnimationTransitionMode::Inertialization))
             return false;
 
         const auto from = std::ranges::find(states, From, &SAnimationState::Name);

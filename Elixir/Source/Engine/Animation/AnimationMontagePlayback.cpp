@@ -28,10 +28,10 @@ namespace Elixir
     bool AnimationMontagePlayback::Play(
         Ref<const AnimationMontage> montage,
         const std::string_view section,
-        const SLocalPose& visible,
-        const SLocalPose& continuing,
+        const SAnimationSample& visible,
+        const SAnimationSample& continuing,
         const SLocalPose& referencePose,
-        SLocalPose& output
+        SAnimationSample& output
     )
     {
         if (!montage || (IsActive() && !m_State.Montage->IsInterruptible()))
@@ -55,15 +55,17 @@ namespace Elixir
             state.NextSections.push_back(state.Montage->GetNextSection(i));
 
         if (IsActive() && state.Montage->GetBlendIn() > 0)
-            state.SourcePose = visible;
+        {
+            state.SourceSample = visible;
+        }
 
-        auto pose = continuing;
+        auto sample = continuing;
 
-        if (!candidate.Sample(state.Cursor, pose, referencePose))
+        if (!candidate.Sample(state.Cursor, sample, referencePose))
             return false;
 
         *this = std::move(candidate);
-        output = std::move(pose);
+        output = std::move(sample);
 
         return true;
     }
@@ -102,10 +104,12 @@ namespace Elixir
         return true;
     }
 
-    bool AnimationMontagePlayback::Jump(const std::string_view name,
-        const SLocalPose& continuing,
+    bool AnimationMontagePlayback::Jump(
+        const std::string_view name,
+        const SAnimationSample& continuing,
         const SLocalPose& referencePose,
-        SLocalPose& output)
+        SAnimationSample& output
+    )
     {
         if (!IsActive() || IsStopping()) return false;
 
@@ -117,13 +121,15 @@ namespace Elixir
         cursor.Time = m_State.Montage->GetSections()[*section].StartTime;
         cursor.IncludeNotifyStart = true;
 
-        auto pose = continuing;
-        if (!Sample(cursor, pose, referencePose))
+        auto sample = continuing;
+
+        if (!Sample(cursor, sample, referencePose))
             return false;
 
         m_State.Cursor = cursor;
 
-        output = std::move(pose);
+        output = std::move(sample);
+
         return true;
     }
 
@@ -360,7 +366,7 @@ namespace Elixir
 
     bool AnimationMontagePlayback::Sample(
         const SAnimationMontageCursor& cursor,
-        SLocalPose& pose,
+        SAnimationSample& sample,
         const SLocalPose& referencePose
     ) const
     {
@@ -368,11 +374,14 @@ namespace Elixir
         if (!montage) return true;
 
         const auto weight = GetWeight(cursor);
-        if (weight == 0 && (m_State.SourcePose.LocalTransforms.empty() || cursor.Finished))
+        const auto hasSource = !m_State.SourceSample.Pose.LocalTransforms.empty();
+        if (weight == 0 && (!hasSource || cursor.Finished))
             return true;
 
-        SLocalPose sampled;
-        if (!montage->GetSequence()->Sample(float(cursor.Time), sampled, referencePose))
+        SAnimationSample sampled;
+
+        if (!montage->GetSequence()->Sample(float(cursor.Time), sampled.Pose, referencePose) ||
+            !montage->GetSequence()->SampleCurves(float(cursor.Time), sampled.Curves))
             return false;
 
         const auto fadeIn = montage->GetBlendIn();
@@ -395,31 +404,35 @@ namespace Elixir
                 1.0
             ));
 
-        for (size_t i = 0; i < pose.LocalTransforms.size(); ++i)
+        for (size_t i = 0; i < sample.Pose.LocalTransforms.size(); ++i)
         {
-            if (!m_State.SourcePose.LocalTransforms.empty() && sourceWeight > 0)
+            if (!m_State.SourceSample.Pose.LocalTransforms.empty() && sourceWeight > 0)
             {
-                pose.LocalTransforms[i] = SBoneTransform::Blend(
-                    pose.LocalTransforms[i],
-                    m_State.SourcePose.LocalTransforms[i],
+                sample.Pose.LocalTransforms[i] = SBoneTransform::Blend(
+                    sample.Pose.LocalTransforms[i],
+                    m_State.SourceSample.Pose.LocalTransforms[i],
                     sourceWeight
                 );
             }
 
-            pose.LocalTransforms[i] = SBoneTransform::Blend(
-                pose.LocalTransforms[i],
-                sampled.LocalTransforms[i],
+            sample.Pose.LocalTransforms[i] = SBoneTransform::Blend(
+                sample.Pose.LocalTransforms[i],
+                sampled.Pose.LocalTransforms[i],
                 weight
             );
 
-            if (!pose.LocalTransforms[i].IsValid())
+            if (!sample.Pose.LocalTransforms[i].IsValid())
             {
                 EE_CORE_ERROR("Montage blending produced an invalid local transform.")
                 return false;
             }
         }
 
-        return true;
+        if (!m_State.SourceSample.Pose.LocalTransforms.empty() && sourceWeight > 0 &&
+            !sample.Curves.Blend(m_State.SourceSample.Curves, sourceWeight))
+            return false;
+
+        return sample.Curves.Blend(sampled.Curves, weight);
     }
 
 }

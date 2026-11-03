@@ -51,14 +51,17 @@ namespace Elixir
         UpdateCameraFromOrbit();
     }
 
-    void ArcBallCameraController::SetOrbitYaw(const float yawDegrees)
+    void ArcBallCameraController::SetOrbitAngles(
+        const float yawDegrees,
+        const float pitchDegrees
+    )
     {
-        m_Yaw = yawDegrees;
-        UpdateCameraFromOrbit();
-    }
-
-    void ArcBallCameraController::SetOrbitPitch(const float pitchDegrees)
-    {
+        if (!std::isfinite(yawDegrees) || !std::isfinite(pitchDegrees))
+        {
+            EE_CORE_ERROR("Orbit angles must be finite.")
+            return;
+        }
+        m_Yaw = std::fmod(yawDegrees, 360.0f);
         m_Pitch = glm::clamp(pitchDegrees, -89.0f, 89.0f);
         UpdateCameraFromOrbit();
     }

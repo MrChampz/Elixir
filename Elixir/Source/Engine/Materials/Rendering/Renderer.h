@@ -261,7 +261,7 @@ namespace Elixir::Materials::Rendering
 
     private:
         // Selects the shader variant that implements a material render pass.
-        static EMaterialShaderVariant GetShaderVariant(EMaterialPass pass);
+        static Compilation::EMaterialShaderVariant GetShaderVariant(EMaterialPass pass);
 
         /** Identifies the type of a cached descriptor binding. */
         enum class EDescriptorBindingType : uint8_t
@@ -396,14 +396,17 @@ namespace Elixir::Materials::Rendering
         bool BindDescriptorResources(const Ref<Shader>& shader, const SPassRequest& request);
 
         uint32_t m_MaterialCapacity = 0;
-        FrameSlotState<SFrameSlot> m_FrameSlots;
+
         TextureRegistry m_Textures;
+        std::array<Ref<Sampler>, 3> m_Samplers;
         std::unordered_map<SPipelineKey, Ref<GraphicsPipeline>, SPipelineKeyHasher> m_Pipelines;
         std::unordered_map<const Shader*, SDescriptorBindingState> m_DescriptorBindings;
 
         Ref<Image> m_ColorTarget;
         Ref<Image> m_DepthTarget;
+        FrameSlotState<SFrameSlot> m_FrameSlots;
         uint64_t m_CurrentFrameNumber = UINT64_MAX;
+
         const GraphicsContext* m_Context = nullptr;
     };
 }

@@ -133,8 +133,7 @@ void MeshPanel::FrameMesh()
         std::max(100.0f, distance + radius * 4));
     m_Camera.SetTarget((bounds.Min + bounds.Max) * 0.5f);
     m_Camera.SetDistance(distance);
-    m_Camera.SetOrbitYaw(-65);
-    m_Camera.SetOrbitPitch(15);
+    m_Camera.SetOrbitAngles(-65, 15);
     m_Camera.SetZoomSensitivity(std::max(0.05f, radius * 0.1f));
 }
 

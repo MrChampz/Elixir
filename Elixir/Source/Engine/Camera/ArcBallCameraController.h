@@ -59,16 +59,11 @@ namespace Elixir
         void SetDistance(float distance);
 
         /**
-         * @brief Sets the horizontal orbit angle and updates the camera.
-         * @param yawDegrees Angle around the Y axis, measured from positive X.
+         * @brief Set the viewing angle around the orbit target.
+         * @param yawDegrees Finite horizontal angle in degrees.
+         * @param pitchDegrees Finite elevation in degrees, clamped to [-89, 89].
          */
-        void SetOrbitYaw(float yawDegrees);
-
-        /**
-         * @brief Sets the vertical orbit angle and updates the camera.
-         * @param pitchDegrees Angle above the XZ plane, clamped to -89 through 89 degrees.
-         */
-        void SetOrbitPitch(float pitchDegrees);
+        void SetOrbitAngles(float yawDegrees, float pitchDegrees);
 
         /**
          * @brief Center the camera on finite bounds and fit them within its field of view.

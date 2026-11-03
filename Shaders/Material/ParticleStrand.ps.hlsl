@@ -1,6 +1,9 @@
 // Shader variant for EMaterialUsage::Particle. The generated graph body writes
 // Surface fields using planar UVs, time, material values and textures.
 
+#include "../Material/NormalSampling.hlsl"
+#include "../Material/NormalTransforms.hlsl"
+
 [[vk::binding(0, 0)]]
 cbuffer cbFrame : register(b0)
 {
@@ -66,10 +69,14 @@ struct Surface
     float3  Emissive;
 };
 
-float4 SampleTex(uint index, float2 uv)
-{
-    return sprites[index].Sample(spriteSampler, uv);
-}
+[[vk::binding(8, 0)]]
+SamplerState linearClamp;
+
+[[vk::binding(9, 0)]]
+SamplerState pointWrap;
+
+[[vk::binding(10, 0)]]
+SamplerState pointClamp;
 
 float4 main(PSInput input) : SV_Target0
 {
@@ -78,7 +85,6 @@ float4 main(PSInput input) : SV_Target0
 
     Surface surface;
     surface.BaseColor = float3(1.0f, 1.0f, 1.0f);
-    surface.Normal = float3(0.0f, 0.0f, 1.0f);
     surface.Metallic = 0.0f;
     surface.Roughness = 0.5f;
     surface.Opacity = 1.0f;
@@ -88,33 +94,19 @@ float4 main(PSInput input) : SV_Target0
     float3 N = geometricNormal;
     const float3 V = normalize(CameraPos - input.WorldPos);
 
+#if MATERIAL_TANGENT_SPACE_NORMAL
+    surface.Normal = float3(0.0f, 0.0f, 1.0f);
+#else
+    surface.Normal = geometricNormal;
+#endif
+
     // __GRAPH_BODY__
 
-    const float3 positionX = ddx(input.WorldPos);
-    const float3 positionY = ddy(input.WorldPos);
-    const float2 texCoordX = ddx(input.TexCoord);
-    const float2 texCoordY = ddy(input.TexCoord);
-    const float determinant = texCoordX.x * texCoordY.y - texCoordX.y * texCoordY.x;
-
-    if (abs(determinant) > 1e-6f)
-    {
-        const float3 uvTangent = (positionX * texCoordY.y - positionY * texCoordX.y) / determinant;
-        const float3 uvBitangent = (positionY * texCoordX.x - positionX * texCoordY.x) / determinant;
-        const float tangentLengthSquared = dot(uvTangent, uvTangent);
-
-        if (tangentLengthSquared > 1e-6f)
-        {
-            const float3 tangent = normalize(
-                uvTangent - geometricNormal * dot(geometricNormal, uvTangent)
-            );
-            const float handedness = dot(cross(tangent, uvBitangent), geometricNormal) < 0.0f
-                ? -1.0f
-                : 1.0f;
-            const float3 bitangent = cross(geometricNormal, tangent) * handedness;
-            const float3x3 tangentBasis = float3x3(tangent, bitangent, geometricNormal);
-            N = normalize(mul(normalize(surface.Normal), tangentBasis));
-        }
-    }
+#if MATERIAL_TANGENT_SPACE_NORMAL
+    N = TangentNormalToWorld(surface.Normal, geometricNormal, input.WorldPos, input.TexCoord);
+#else
+    N = normalize(surface.Normal);
+#endif
 
     static const uint MATERIAL_BLEND_MASK = 1u;
     if (mat.BlendMode == MATERIAL_BLEND_MASK)

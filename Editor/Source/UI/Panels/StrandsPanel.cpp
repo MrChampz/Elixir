@@ -129,8 +129,7 @@ void StrandsPanel::ResetPosition()
     if (m_Instance) m_Instance->SetWorldTransform(glm::mat4(1));
     m_Camera.SetTarget({0, 0, 0});
     m_Camera.SetDistance(2.55f);
-    m_Camera.SetOrbitYaw(90);
-    m_Camera.SetOrbitPitch(glm::degrees(-0.446f));
+    m_Camera.SetOrbitAngles(90, glm::degrees(-0.446f));
     m_Camera.SetZoomSensitivity(0.15f);
     StopNavigation();
 }

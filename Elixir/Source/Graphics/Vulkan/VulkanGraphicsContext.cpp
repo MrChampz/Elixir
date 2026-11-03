@@ -162,13 +162,13 @@ namespace Elixir
             m_RenderTarget.reset();
             m_DepthStencilRenderTarget.reset();
 
+            m_DescriptorPool.reset();
+            m_BindlessDescriptorPool.reset();
+
             DumpAllocatorStats(m_Allocator);
             m_DeletionQueue.Flush();
 
             DestroySwapchain();
-
-            m_DescriptorPool.reset();
-            m_BindlessDescriptorPool.reset();
 
             for (int i = 0; i < m_FramesInFlight; i++)
             {

@@ -24,6 +24,32 @@ class VulkanBufferTest : public Test
 
 GraphicsContext* VulkanBufferTest::Context = nullptr;
 
+TEST_F(VulkanBufferTest, DefaultCopyRetainsItsRegionUntilCommandsAreRecorded)
+{
+    auto copy = []
+    {
+        std::array<uint32_t, 32> expected{};
+        for (uint32_t i = 0; i < expected.size(); ++i)
+            expected[i] = i * 17 + 3;
+        const auto source = StagingBuffer::Create(Context, sizeof(expected), expected.data());
+        auto info = StagingBuffer::CreateBufferInfo(sizeof(expected), nullptr);
+        info.Usage = EBufferUsage::TransferDst;
+        const Ref<StagingBuffer> destination = CreateRef<VulkanStagingBuffer>(Context, info);
+        ASSERT_TRUE(source && destination);
+        const auto cmd = Context->GetUploadCommandBuffer();
+        cmd->Begin();
+        source->Copy(cmd.get(), destination.get());
+        cmd->Flush();
+        const auto* values = static_cast<const uint32_t*>(destination->Map());
+        ASSERT_NE(values, nullptr);
+        for (size_t i = 0; i < expected.size(); ++i)
+            EXPECT_EQ(values[i], expected[i]);
+        destination->Unmap();
+    };
+    const auto completed = Context->RunRenderTaskAndWait(copy);
+    ASSERT_TRUE(completed);
+}
+
 TEST_F(VulkanBufferTest, GenericBuffersBindAsUniformAndStorageWithoutChangingDescriptorTypes)
 {
     ASSERT_TRUE(Context->RunRenderTaskAndWait([&]

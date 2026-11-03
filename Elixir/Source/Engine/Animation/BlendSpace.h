@@ -10,6 +10,8 @@ namespace Elixir
     /** Samples synchronized animation cycles using an arbitrary number of numeric axes. */
     class ELIXIR_API BlendSpace
     {
+        friend class BlendSpaceEvaluator;
+
     public:
         virtual ~BlendSpace();
 
@@ -40,6 +42,18 @@ namespace Elixir
             float phase,
             SLocalPose& output,
             const SLocalPose& referencePose = {}
+        ) const;
+
+        /**
+         * @brief Sample weighted scalar tracks on the same marker timeline as the pose.
+         * @param values One finite coordinate per axis.
+         * @param phase Finite cycle phase, clamped to [0, 1].
+         * @param output Receives blended values; unchanged on failure. Missing curves use zero.
+         */
+        bool SampleCurves(
+            std::span<const float> values,
+            float phase,
+            AnimationCurveValues& output
         ) const;
 
         /**
@@ -153,6 +167,23 @@ namespace Elixir
         ) const = 0;
 
     private:
+        /**
+         * @brief Resolve and validate weighted clips for direct or cached sampling.
+         * @param values Finite coordinates matching the asset dimensions.
+         * @param output Candidate contributions; discard them on failure.
+         */
+        bool ResolveSamples(
+            std::span<const float> values,
+            std::pmr::vector<SSequenceContribution>& output
+        ) const;
+
+        /**
+         * @brief Map a shared blend-space phase to one sequence's sampling time.
+         * @param sequence Contributing clip compatible with this blend space.
+         * @param phase Finite cycle phase, clamped to [0, 1].
+         */
+        float GetSampleTime(const Sequence& sequence, double phase) const;
+
         std::string m_Name;
         Ref<const Skeleton> m_Skeleton;
         size_t m_DimensionCount;

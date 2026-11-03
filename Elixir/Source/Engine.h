@@ -48,6 +48,7 @@
 #include <Engine/Graphics/FrameSlotState.h>
 #include <Engine/Graphics/Pipeline/PipelineBuilder.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
+#include <Engine/Graphics/RenderableSnapshot.h>
 
 #include <Engine/Font/Font.h>
 #include <Engine/Font/FontManager.h>
@@ -70,9 +71,13 @@
 #include <Engine/Mesh/SkeletalMeshInstance.h>
 #include <Engine/Mesh/SkeletalMeshRenderer.h>
 
-#include <Engine/Animation/Skeleton.h>
+#include <Engine/Animation/BoneTransform.h>
 #include <Engine/Animation/BoneMask.h>
+#include <Engine/Animation/Skeleton.h>
+#include <Engine/Animation/SkeletonSocket.h>
 #include <Engine/Animation/Pose.h>
+#include <Engine/Animation/PoseModifier.h>
+#include <Engine/Animation/TwoBoneIK.h>
 #include <Engine/Animation/Sequence.h>
 #include <Engine/Animation/BlendSpace.h>
 #include <Engine/Animation/BlendSpace1D.h>
@@ -88,5 +93,6 @@
 #include <Engine/Animation/BlendNode.h>
 #include <Engine/Animation/Animation.h>
 #include <Engine/Animation/AnimationGraph.h>
+#include <Engine/Animation/AnimationManager.h>
 
 #include <Engine/Aether/System.h>

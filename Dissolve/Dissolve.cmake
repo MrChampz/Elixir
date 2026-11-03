@@ -3,7 +3,7 @@ include (Utils.cmake)
 project("Dissolve")
 
 # Files
-file(GLOB_RECURSE SOURCES
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_LIST_DIR}/Source/*.h"
     "${CMAKE_CURRENT_LIST_DIR}/Source/*.cpp"
 )

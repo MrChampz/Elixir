@@ -6,16 +6,26 @@
 namespace Elixir
 {
     Thread::Thread(ThreadPool* pool, const size_t index, const std::string& name)
-        : Thread(pool, index, name, std::thread(&Thread::WorkerLoop, this)) {}
+        : Thread(pool, index, name, std::thread{})
+    {
+        m_Thread = std::thread(&Thread::WorkerLoop, this);
+    }
     
     Thread::Thread(
         ThreadPool* pool,
         const size_t index,
         const std::string& name,
         std::thread thread
-    ) : m_Pool(pool), m_WorkerIndex(index), m_Name(name), m_Thread(std::move(thread))
+    ) : m_Pool(pool),
+        m_WorkerIndex(index),
+        m_Name(name),
+        m_Thread(std::move(thread))
     {
-        EE_CORE_TRACE("Thread created: [Name = {0}, ThreadPool = {1}]", m_Name, m_Pool->GetName())
+        EE_CORE_TRACE(
+            "Thread created: [Name = {0}, ThreadPool = {1}]",
+            m_Name,
+            m_Pool->GetName()
+        )
     }
 
     Thread::~Thread()
@@ -50,6 +60,8 @@ namespace Elixir
 
     void Thread::WorkerLoop()
     {
+        m_Pool->m_WorkersReady.wait();
+
         EE_CORE_TRACE("Thread started: [Name = {0}, ThreadPool = {1}]", m_Name, m_Pool->GetName())
 
         std::ostringstream name;
@@ -61,6 +73,9 @@ namespace Elixir
             if (const auto executable = AcquireWork())
                 executable();
         }
+
+        while (const auto executable = AcquireWork())
+            executable();
     }
 
     Executable Thread::AcquireWork()

@@ -23,7 +23,7 @@ TEST(AnimationPlayerTest, EvaluationPublishesPoseClocksAndNotificationsOnlyWhenA
     EXPECT_FLOAT_EQ(player.GetTime(), 0);
     EXPECT_FLOAT_EQ(player.GetLocalPose().LocalTransforms[0].Translation.x, 0);
     EXPECT_TRUE(player.GetNotifyEvents().empty());
-    EXPECT_FLOAT_EQ(evaluation.LocalPose.LocalTransforms[0].Translation.x, 0.5f);
+    EXPECT_FLOAT_EQ(evaluation.Sample.Pose.LocalTransforms[0].Translation.x, 0.5f);
     ASSERT_EQ(evaluation.Notifies.Events.size(), 1);
     EXPECT_EQ(evaluation.Notifies.Events[0].LayerName, "Standalone");
 

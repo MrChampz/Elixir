@@ -86,7 +86,8 @@ namespace Elixir
         const float duration,
         std::vector<SBoneAnimationTrack> tracks,
         std::vector<SAnimationSyncMarker> syncMarkers,
-        std::vector<SAnimationNotify> notifies
+        std::vector<SAnimationNotify> notifies,
+        std::vector<SAnimationCurve> curves
     )
     {
         if (!skeleton || !std::isfinite(duration) || duration < 0)
@@ -138,6 +139,33 @@ namespace Elixir
         {
             return first.Time < second.Time;
         });
+
+        std::unordered_set<std::string> curveNames;
+
+        for (const auto& curve : curves)
+        {
+            const auto keysValid = ValidateKeys(
+                curve.Keys,
+                duration,
+                [](const float value) { return std::isfinite(value); }
+            );
+
+            const auto interpolationValid =
+                curve.Interpolation == EAnimationCurveInterpolation::Step ||
+                curve.Interpolation == EAnimationCurveInterpolation::Linear;
+
+            if (curve.Name.empty() ||
+                curveNames.contains(curve.Name) ||
+                curve.Keys.empty() ||
+                !interpolationValid ||
+                !keysValid)
+            {
+                EE_CORE_ERROR("Sequence contains invalid or duplicate scalar curves.")
+                return nullptr;
+            }
+
+            curveNames.insert(curve.Name);
+        }
 
         std::unordered_set<uint32_t> indices;
 
@@ -191,7 +219,8 @@ namespace Elixir
             duration,
             std::move(tracks),
             std::move(syncMarkers),
-            std::move(notifies)
+            std::move(notifies),
+            std::move(curves)
         ));
     }
 
@@ -201,13 +230,15 @@ namespace Elixir
         const float duration,
         std::vector<SBoneAnimationTrack> tracks,
         std::vector<SAnimationSyncMarker> syncMarkers,
-        std::vector<SAnimationNotify> notifies
+        std::vector<SAnimationNotify> notifies,
+        std::vector<SAnimationCurve> curves
     ) : m_Name(std::move(name)),
         m_Skeleton(std::move(skeleton)),
         m_Duration(duration),
         m_Tracks(std::move(tracks)),
         m_SyncMarkers(std::move(syncMarkers)),
-        m_Notifies(std::move(notifies)) {}
+        m_Notifies(std::move(notifies)),
+        m_Curves(std::move(curves)) {}
 
     bool Sequence::Sample(
         const float time,
@@ -478,7 +509,8 @@ namespace Elixir
             m_Duration,
             m_Tracks,
             std::move(syncMarkers),
-            m_Notifies
+            m_Notifies,
+            m_Curves
         );
     }
 
@@ -580,7 +612,8 @@ namespace Elixir
             m_Duration,
             m_Tracks,
             m_SyncMarkers,
-            std::move(notifies)
+            std::move(notifies),
+            m_Curves
         );
     }
 
@@ -731,6 +764,55 @@ namespace Elixir
         });
 
         output = std::move(intervals);
+        return true;
+    }
+
+    Ref<Sequence> Sequence::WithCurves(std::vector<SAnimationCurve> curves) const
+    {
+        return Create(
+            m_Name,
+            m_Skeleton,
+            m_Duration,
+            m_Tracks,
+            m_SyncMarkers,
+            m_Notifies,
+            std::move(curves)
+        );
+    }
+
+    bool Sequence::SampleCurves(const float time, AnimationCurveValues& output) const
+    {
+        if (!std::isfinite(time))
+        {
+            EE_CORE_ERROR("Animation curve sample time must be finite.")
+            return false;
+        }
+
+        AnimationCurveValues result;
+        const auto sampleTime = std::clamp(time, 0.0f, m_Duration);
+
+        for (const auto& curve : m_Curves)
+        {
+            const auto mode = curve.Interpolation == EAnimationCurveInterpolation::Step
+                ? EBoneInterpolation::Step
+                : EBoneInterpolation::Linear;
+
+            const auto value = SampleKeys(
+                curve.Keys,
+                sampleTime,
+                mode,
+                0.0f,
+                [](const float first, const float second, const float weight)
+                {
+                    return float(double(first) * (1.0 - weight) + double(second) * weight);
+                }
+            );
+
+            if (!result.SetValue(curve.Name, value))
+                return false;
+        }
+
+        output = std::move(result);
         return true;
     }
 }

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Engine/Materials/Material.h>
-#include <Engine/Materials/MaterialNode.h>
+#include <Engine/Materials/Compilation/MaterialEmitContext.h>
 
 namespace Elixir::Materials::Nodes
 {
@@ -15,7 +15,10 @@ namespace Elixir::Materials::Nodes
 
         SMaterialExpression Emit(const MaterialEmitContext& context) const override
         {
-            return { .Code = "Time", .ValueType = EMaterialValueType::Float };
+            return {
+                .Code = context.Time(),
+                .ValueType = EMaterialValueType::Float
+            };
         }
     };
 }

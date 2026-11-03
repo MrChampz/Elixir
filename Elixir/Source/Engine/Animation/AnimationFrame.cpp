@@ -6,7 +6,7 @@ namespace Elixir
 {
     bool SAnimationFrame::IsValid(const size_t boneCount) const
     {
-        return LocalPose.IsValid(boneCount) && ModelPose.IsValid(boneCount) &&
+        return Sample.Pose.IsValid(boneCount) && ModelPose.IsValid(boneCount) &&
             RootMotion.IsValid();
     }
 }

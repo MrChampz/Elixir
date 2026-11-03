@@ -71,7 +71,7 @@ namespace Elixir
 
         output.Sources = GetState().Sources;
 
-        return Sample(output.Phase, context.ReferencePose, output.Pose);
+        return Sample(output.Phase, context.ReferencePose, output.Sample);
     }
 
 
@@ -95,7 +95,13 @@ namespace Elixir
 
         m_State = m_NextState;
 
-        std::swap(m_VisiblePose, m_NextPose);
+        if (m_NextDeltaSeconds > 0)
+        {
+            m_PreviousSample = std::move(m_StartSample);
+            m_PoseDeltaSeconds = m_NextDeltaSeconds;
+        }
+
+        std::swap(m_VisibleSample, m_NextSample);
 
         m_NextPlayback.reset();
         m_NextTransition.reset();
@@ -109,6 +115,9 @@ namespace Elixir
             return false;
 
         m_Transition = {};
+        m_VisibleSample = {};
+        m_PreviousSample = {};
+        m_PoseDeltaSeconds = 0;
         m_NextPlayback.reset();
         m_NextTransition.reset();
         m_Prepared = false;
@@ -134,12 +143,20 @@ namespace Elixir
     double StateMachineEvaluator::Prepare(const SAnimationEvaluationContext& context)
     {
         const auto dt = context.DeltaSeconds;
+        m_NextDeltaSeconds = dt;
+
         const auto& referencePose = context.ReferencePose;
 
         m_Prepared = false;
         m_NextPlayback.reset();
         m_NextTransition.reset();
+
+        m_StartSample = m_VisibleSample;
         m_NextState = m_State;
+
+        if (m_StartSample.Pose.LocalTransforms.empty() &&
+            !m_Playback.Sample(m_Playback.GetPhase(), referencePose, m_StartSample))
+            return std::numeric_limits<double>::quiet_NaN();
 
         const auto& info = m_Source->GetCreateInfo();
         for (const auto index : m_Source->GetTransitions(m_State))
@@ -159,13 +176,34 @@ namespace Elixir
 
             AnimationTransition fade;
             fade.Duration = transition.FadeDuration;
+            fade.Mode = transition.Mode;
 
             if (fade.IsActive())
             {
-                if (!m_Transition.IsActive())
+                if (fade.Mode == EAnimationTransitionMode::Inertialization)
+                {
+                    const auto& current = m_StartSample;
+                    const auto hasMotion = m_Playback.CanAdvance() || m_Transition.IsActive();
+
+                    const auto captured = fade.CaptureInertialization(
+                        next,
+                        current,
+                        hasMotion ? &m_PreviousSample : nullptr,
+                        m_PoseDeltaSeconds,
+                        referencePose
+                    );
+
+                    if (!captured)
+                        return std::numeric_limits<double>::quiet_NaN();
+                }
+                else if (!m_Transition.IsActive())
+                {
                     fade.Playback = m_Playback;
+                }
                 else
-                    fade.Pose = m_VisiblePose;
+                {
+                    fade.SourceSample = m_VisibleSample;
+                }
             }
 
             m_NextPlayback = std::move(next);
@@ -194,7 +232,7 @@ namespace Elixir
             weight,
             m_NextPhase,
             m_OutgoingPhase,
-            m_NextPose,
+            m_NextSample,
             referencePose
         );
 
@@ -209,14 +247,14 @@ namespace Elixir
     bool StateMachineEvaluator::Sample(
         const double phase,
         const SLocalPose& referencePose,
-        SLocalPose& output
+        SAnimationSample& output
     ) const
     {
         if (!std::isfinite(phase)) return false;
 
         if (m_Prepared)
         {
-            output = m_NextPose;
+            output = m_NextSample;
             return true;
         }
 

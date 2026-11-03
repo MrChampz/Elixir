@@ -74,6 +74,17 @@ namespace Elixir::Materials
          */
         const SMaterialParameter* GetResolvedParameter(const std::string& name) const;
 
+        /**
+         * @brief Override a named compile-time switch for this instance.
+         * @param name Static switch name declared by the graph or a nested function.
+         * @param value Branch selected at the next material compilation.
+         * @return True when a nonempty name is accepted.
+         */
+        bool SetStaticBool(const std::string& name, bool value);
+
+        /** @brief Return the compile-time overrides used for shader variants. */
+        const auto& GetStaticValues() const { return m_StaticValues; }
+
         /** @brief Returns the parent material. */
         const Ref<Material>& GetParent() const { return m_Parent; }
 
@@ -89,6 +100,7 @@ namespace Elixir::Materials
 
         Ref<Material> m_Parent;
         std::unordered_map<std::string, SMaterialParameter> m_Overrides;
+        std::unordered_map<std::string, bool> m_StaticValues;
         uint32_t m_Revision = 1;
     };
 }

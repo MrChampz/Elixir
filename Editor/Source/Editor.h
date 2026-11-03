@@ -25,7 +25,10 @@ public:
 
     /** @brief Updates the active editor panel. */
     void OnGUI(Timestep frameTime) override;
-    /** @brief Renders document previews into their own targets. */
+    /**
+     * @brief Render document previews into their own targets on the rendering thread.
+     * @param frameTime Elapsed application frame time.
+     */
     void Render(Timestep frameTime) override;
 
     /** @brief Routes application events and VFX camera input. */

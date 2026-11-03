@@ -54,37 +54,37 @@ namespace Elixir::GUI
         }
     }
 
-    void Manager::PrepareFrame()
+    Ref<const RenderBatch> Manager::CaptureFrame()
     {
-        auto frame = GetPublishedFrame();
-        if (NeedsRebuild() || !frame)
+        if (m_Layers.empty() || !m_Layers[0].Root || !m_Layers[0].Root->IsRenderVisible())
+            return nullptr;
+
+        if (!m_PublishedFrame || NeedsRebuild())
         {
             AssembleFrame();
-            frame = CreateRef<RenderBatch>(m_RenderBatch);
-            {
-                std::lock_guard lock(m_FrameMutex);
-                m_PublishedFrame = frame;
-            }
+            m_PublishedFrame = CreateRef<RenderBatch>(m_RenderBatch);
             MarkRebuilt();
         }
+
+        return m_PublishedFrame;
     }
 
-    Ref<const RenderBatch> Manager::GetPublishedFrame() const
+    void Manager::Render(const Ref<const RenderBatch>& frame)
     {
-        std::lock_guard lock(m_FrameMutex);
-        return m_PublishedFrame;
+        if (!frame || !m_Renderer)
+            return;
+
+        if (m_RenderedFrame != frame)
+        {
+            m_Renderer->Rebuild(*frame);
+            m_RenderedFrame = frame;
+        }
+        m_Renderer->Draw();
     }
 
     void Manager::Render()
     {
-        const auto frame = GetPublishedFrame();
-        if (!frame || !m_Renderer) return;
-        if (frame != m_LastDrawnFrame)
-        {
-            m_Renderer->Rebuild(*frame);
-            m_LastDrawnFrame = frame;
-        }
-        m_Renderer->Draw();
+        Render(CaptureFrame());
     }
 
     void Manager::ProcessEvent(Event& event)

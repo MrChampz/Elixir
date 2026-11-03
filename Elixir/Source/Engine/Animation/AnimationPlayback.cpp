@@ -244,12 +244,40 @@ namespace Elixir
         SLocalPose& output
     ) const
     {
+        SAnimationEvaluation evaluation;
+        if (!Sample(phase, referencePose, evaluation))
+            return false;
+
+        output = std::move(evaluation.Sample.Pose);
+        return true;
+    }
+
+    bool AnimationPlayback::Sample(
+        const double phase,
+        const SLocalPose& referencePose,
+        SAnimationSample& output
+    ) const
+    {
+        SAnimationEvaluation evaluation;
+        if (!Sample(phase, referencePose, evaluation))
+            return false;
+
+        output = std::move(evaluation.Sample);
+        return true;
+    }
+
+    bool AnimationPlayback::Sample(
+        const double phase,
+        const SLocalPose& referencePose,
+        SAnimationEvaluation& output
+    ) const
+    {
         if (!m_Evaluator || !std::isfinite(phase))
             return false;
 
         if (m_Prepared && phase == m_Evaluation.Phase)
         {
-            output = m_Evaluation.Pose;
+            output = m_Evaluation;
             return true;
         }
 
@@ -266,7 +294,7 @@ namespace Elixir
         if (!m_Evaluator->Evaluate(context, evaluation))
             return false;
 
-        output = std::move(evaluation.Pose);
+        output = std::move(evaluation);
         return true;
     }
 

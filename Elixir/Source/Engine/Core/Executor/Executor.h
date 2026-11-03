@@ -60,6 +60,18 @@ namespace Elixir
             }
         }
 
+        /**
+         * @brief Submit a worker task and report whether it was accepted.
+         * @param executable Task to execute; must not throw.
+         * @param group Optional barrier kept alive until accepted tasks finish.
+         * @return False if workers are unavailable or submission fails.
+         * @pre Serialize submission with executor shutdown.
+         */
+        bool TryEnqueue(Executable executable, WaitGroup* group = nullptr)
+        {
+            return m_WorkerPool && m_WorkerPool->TryEnqueue(std::move(executable), group);
+        }
+
         void ShutdownWorkerPool()
         {
             if (m_WorkerPool)
@@ -83,7 +95,8 @@ namespace Elixir
             m_RenderPool = CreateScope<ThreadPool>(1, "Rendering");
 
             // Max hardware threads subtracted by 1 render thread and 1 main thread.
-            const auto workers = GetNumHardwareThreads() - 2;
+            const auto hardwareThreads = GetNumHardwareThreads();
+            const auto workers = hardwareThreads > 2 ? hardwareThreads - 2 : 1;
             m_WorkerPool = CreateScope<ThreadPool>(workers, "Workers");
         }
 

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <mutex>
-
 #include <Engine/Event/KeyEvent.h>
 #include <Engine/Event/WindowEvent.h>
 #include <Engine/GUI/Renderer/Renderer.h>
@@ -40,16 +38,19 @@ namespace Elixir::GUI
         void Update(Timestep frameTime);
 
         /**
-         * Prepares and publishes the current frame's draw commands internally.
-         * Unchanged frames reuse the previously prepared snapshot.
-         * @pre Called on the UI thread after widget updates and final layout.
+         * @brief Capture immutable draw commands from the game-thread widget tree.
+         * @return Shared commands, or null when the root is not visible.
          */
-        void PrepareFrame();
+        Ref<const RenderBatch> CaptureFrame();
 
         /**
-         * Draws the latest prepared frame without accessing widgets or their caches.
-         * @pre Called on the render thread after waiting for the current frame slot's fence.
+         * @brief Render captured draw commands without accessing the widget tree.
+         * @param frame Immutable commands retained for this render task.
+         * @pre Call from the rendering thread.
          */
+        void Render(const Ref<const RenderBatch>& frame);
+
+        /** @brief Capture and render immediately when both phases use the same thread. */
         void Render();
 
         void ProcessEvent(Event& event);
@@ -124,9 +125,6 @@ namespace Elixir::GUI
         void SetFocusedWidget(const Ref<Widget>& widget);
 
     private:
-        // Acquires the latest immutable snapshot without accessing UI-thread state.
-        Ref<const RenderBatch> GetPublishedFrame() const;
-
         bool HandleFramebufferResize(const FramebufferResizeEvent& event) const;
         bool HandleKeyTyped(const KeyTypedEvent& event) const;
 
@@ -209,9 +207,7 @@ namespace Elixir::GUI
         // Mutable assembly state belongs only to the UI thread.
         RenderBatch m_RenderBatch;
         Ref<const RenderBatch> m_PublishedFrame;
-        mutable std::mutex m_FrameMutex;
-        // Only the render thread reads or changes this reference.
-        Ref<const RenderBatch> m_LastDrawnFrame;
+        Ref<const RenderBatch> m_RenderedFrame;
 
         // Index 0 is the UI root; anything above it is a popup, topmost last.
         std::vector<SLayer> m_Layers;

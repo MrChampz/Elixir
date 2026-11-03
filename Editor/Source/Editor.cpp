@@ -117,8 +117,7 @@ void Editor::LoadDefaultScene()
             glm::max(glm::length(size) * 4.0f, 100.0f));
         m_SceneCamera->SetTarget({center.x, bounds.Min.y + size.y * 0.12f, center.z});
         m_SceneCamera->SetDistance(size.x * 0.35f);
-        m_SceneCamera->SetOrbitYaw(0.0f);
-        m_SceneCamera->SetOrbitPitch(0.0f);
+        m_SceneCamera->SetOrbitAngles(0.0f, 0.0f);
     }
     else EE_CORE_ERROR("Could not load the default Sponza scene: {}", scenePath.string());
 }
@@ -288,7 +287,7 @@ void Editor::OnGUI(const Timestep frameTime)
 void Editor::Render(const Timestep frameTime)
 {
     EE_PROFILE_ZONE_SCOPED()
-    Application::Render(frameTime);
+    m_GraphicsContext->Clear();
     const bool sceneActive = IsSceneActive();
     if (sceneActive && m_SceneLightingReady && m_SceneRenderer && m_SceneCamera)
     {

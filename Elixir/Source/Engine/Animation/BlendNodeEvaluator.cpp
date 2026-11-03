@@ -50,7 +50,7 @@ namespace Elixir
         if (!std::isfinite(output.Phase))
             return false;
 
-        if (!Sample(output.Phase, context.ReferencePose, output.Pose))
+        if (!Sample(output.Phase, context.ReferencePose, output.Sample))
             return false;
 
         output.Sources = GetState().Sources;
@@ -148,7 +148,7 @@ namespace Elixir
                 return std::numeric_limits<double>::quiet_NaN();
         }
 
-        if (!Compose(m_Pose, true))
+        if (!Compose(m_Sample, true))
             return std::numeric_limits<double>::quiet_NaN();
 
         m_Prepared = true;
@@ -159,7 +159,7 @@ namespace Elixir
     bool BlendNodeEvaluator::Sample(
         const double phase,
         const SLocalPose& referencePose,
-        SLocalPose& output
+        SAnimationSample& output
     ) const
     {
         if (!std::isfinite(phase) || !Initialize(referencePose))
@@ -167,7 +167,7 @@ namespace Elixir
 
         if (m_Prepared)
         {
-            output = m_Pose;
+            output = m_Sample;
             return true;
         }
 
@@ -219,24 +219,27 @@ namespace Elixir
         return true;
     }
 
-    bool BlendNodeEvaluator::Compose(SLocalPose& output, const bool prepared) const
+    bool BlendNodeEvaluator::Compose(
+        SAnimationSample& output,
+        const bool prepared
+    ) const
     {
         if (m_Layers.empty()) return false;
 
         output = prepared
-            ? m_Evaluations.front().LocalPose
-            : m_Layers.front()->GetPlayer().GetLocalPose();
+            ? m_Evaluations.front().Sample
+            : m_Layers.front()->GetPlayer().GetSample();
 
         for (size_t i = 1; i < m_Layers.size(); ++i)
         {
-            const auto& pose = prepared
-                ? m_Evaluations[i].LocalPose
-                : m_Layers[i]->GetPlayer().GetLocalPose();
+            const auto& sample = prepared
+                ? m_Evaluations[i].Sample
+                : m_Layers[i]->GetPlayer().GetSample();
 
-            if (!m_Layers[i]->BlendPose(output, pose))
+            if (!m_Layers[i]->BlendSample(output, sample))
                 return false;
         }
 
-        return output.IsValid(m_Source->GetSkeleton()->GetBones().size());
+        return output.Pose.IsValid(m_Source->GetSkeleton()->GetBones().size());
     }
 }

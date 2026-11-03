@@ -1,6 +1,8 @@
 // Shader variant for EMaterialUsage::Particle. The generated graph body writes
 // Surface fields using UV, material values and textures.
 
+#include "../Material/NormalSampling.hlsl"
+
 [[vk::binding(0, 0)]]
 cbuffer cbFrame : register(b0)
 {
@@ -59,10 +61,14 @@ struct Surface
     float3  Emissive;
 };
 
-float4 SampleTex(uint index, float2 uv)
-{
-    return sprites[index].Sample(spriteSampler, uv);
-}
+[[vk::binding(8, 0)]]
+SamplerState linearClamp;
+
+[[vk::binding(9, 0)]]
+SamplerState pointWrap;
+
+[[vk::binding(10, 0)]]
+SamplerState pointClamp;
 
 float4 main(PSInput input) : SV_Target0
 {

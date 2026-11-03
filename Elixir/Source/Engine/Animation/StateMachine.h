@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Animation/AnimationNode.h>
+#include <Engine/Animation/AnimationTransitionMode.h>
 
 namespace Elixir
 {
@@ -31,6 +32,9 @@ namespace Elixir
 
         /** Require a nonlooping source to reach its end and finish its incoming fade. */
         bool WaitForCompletion = false;
+
+        /** Selects source cross-fading or destination-only inertialization. */
+        EAnimationTransitionMode Mode = EAnimationTransitionMode::CrossFade;
 
         /**
          * @brief Validate endpoints, timing, and intrinsic conditions against the graph.

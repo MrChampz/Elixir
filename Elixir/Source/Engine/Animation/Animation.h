@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Animation/Pose.h>
+#include <Engine/Animation/PoseModifier.h>
 #include <Engine/Animation/Skeleton.h>
 #include <Engine/Animation/BoneMask.h>
 #include <Engine/Animation/AnimationLayer.h>
@@ -11,12 +12,17 @@ namespace Elixir
     /**
      * @brief Owns character sources, ordered layers, and completely published animation
      * frames.
+     *
+     * Access each instance from one thread at a time. Independent instances may update
+     * concurrently when shared resources remain unchanged and custom nodes and modifiers
+     * support concurrent evaluation. Borrowed pose and frame references remain valid until
+     * the next mutation. Use GetFrameSnapshot to retain a result for queued rendering.
      */
     class ELIXIR_API Animation final
     {
     public:
         /**
-         * @brief Create an animation without requiring a controller.
+         * @brief Create an animation registered for automatic application updates.
          * @param skeleton Skeleton retained for the animation's lifetime.
          * @param referencePose Sampling defaults copied on creation, one per skeleton bone.
          * @return A new animation, or null for an invalid skeleton or reference pose.
@@ -30,6 +36,8 @@ namespace Elixir
          * @brief Advance playback, transition, and instantaneous events; preserve state on
          * failure.
          *
+         * Application evaluates this method on workers automatically. Disable automatic
+         * updates before manually advancing an instance to avoid updating it twice.
          * All layers advance together unless paused individually. Animation Pause freezes
          * every layer. Muted layers and empty masks emit no events. Layer events retain
          * their source sequence and layer name. The combined event limit applies to all
@@ -43,6 +51,16 @@ namespace Elixir
          * @param dt Finite nonnegative elapsed time in seconds.
          */
         bool Update(float dt);
+
+        /**
+         * @brief Let the animation manager schedule this instance's updates.
+         * @param managed True by default; use false for explicit offline or manual updates.
+         * @pre Change this setting outside animation evaluation.
+         */
+        void SetManaged(bool managed) { m_Managed = managed; }
+
+        /** @brief Check whether the animation manager schedules this instance's updates. */
+        bool IsManaged() const { return m_Managed; }
 
         /**
          * @brief Bind a layer's source inputs to this animation's named parameters.
@@ -69,20 +87,30 @@ namespace Elixir
         /**
          * @brief Blend into a compatible animation source at its initial position.
          *
-         * Both sequences advance during the fade. An interrupted fade starts from the
-         * current blended pose. Zero duration switches immediately. Preserve state on failure.
+         * CrossFade advances both sources. Inertialization samples only the destination
+         * and decays pose and velocity offsets from accepted source samples. Without history,
+         * outgoing velocity is zero. Signed scale changes must preserve reflection signs.
+         * Zero duration switches immediately. Preserve state on failure.
+         * Montages keep their cross-fade envelopes. Inertialized root motion uses the
+         * destination immediately; root locking and pose modifiers run after smoothing.
          *
          * @param source Animation source to play.
          * @param fadeDuration Finite nonnegative transition duration in seconds.
          * @param looping Wrap playback at the end of the target animation.
+         * @param mode Cross-fade sources or decay offsets from the accepted source motion.
          */
         bool Play(
             Ref<const AnimationNode> source,
             float fadeDuration,
-            bool looping = true
+            bool looping = true,
+            EAnimationTransitionMode mode = EAnimationTransitionMode::CrossFade
         );
 
-        /** @brief Stop the base, remove nonbase layers, and restore the reference pose. */
+        /**
+         * @brief Stop playback and restore the reference pose.
+         *
+         * Remove nonbase layers and detach modifiers without changing their configuration.
+         */
         void Stop();
 
         /** @brief Pause playback while preserving the current pose and time. */
@@ -158,10 +186,21 @@ namespace Elixir
          * Stop, manual pose changes, and extraction toggles clear it. Failed updates keep
          * the previous delta; consume it only after successful updates.
          */
-        const SRootMotionDelta& GetRootMotionDelta() const { return m_Frame.RootMotion; }
+        const SRootMotionDelta& GetRootMotionDelta() const { return m_Frame->RootMotion; }
 
-        /** @brief Get the last completely validated character frame. */
-        const SAnimationFrame& GetFrame() const { return m_Frame; }
+        /**
+         * @brief Borrow the last completely validated character frame.
+         * @return Frame valid until the next mutation; use GetFrameSnapshot to retain it.
+         */
+        const SAnimationFrame& GetFrame() const { return *m_Frame; }
+
+        /**
+         * @brief Retain the current immutable animation result for queued rendering.
+         * @return Shared frame data that remains unchanged across later updates or Stop.
+         * @pre Acquire on the game thread after evaluation, then capture the returned
+         * reference in render commands. Do not access this instance during evaluation.
+         */
+        Ref<const SAnimationFrame> GetFrameSnapshot() const { return m_Frame; }
 
         /** @brief Get the fixed skeleton used to evaluate this animation. */
         const Ref<const Skeleton>& GetSkeleton() const { return m_Skeleton; }
@@ -185,8 +224,11 @@ namespace Elixir
          */
         std::span<const SAnimationNotifyEvent> GetNotifyEvents() const
         {
-            return m_Frame.NotifyEvents;
+            return m_Frame->NotifyEvents;
         }
+
+        /** @brief Inspect the published bone transforms and scalar channels together. */
+        const SAnimationSample& GetSample() const { return m_Frame->Sample; }
 
         /**
          * @brief Set the base local pose, stop playback, and remove nonbase layers on success.
@@ -195,10 +237,13 @@ namespace Elixir
         bool SetLocalPose(const SLocalPose& pose);
 
         /** @brief Get one parent-relative transform per skeleton bone. */
-        const SLocalPose& GetLocalPose() const { return m_Frame.LocalPose; }
+        const SLocalPose& GetLocalPose() const { return m_Frame->Sample.Pose; }
 
         /** @brief Get one skeleton-space matrix per skeleton bone. */
-        const SModelPose& GetModelPose() const { return m_Frame.ModelPose; }
+        const SModelPose& GetModelPose() const { return m_Frame->ModelPose; }
+
+        /** @brief Inspect scalar channels sampled with the published local pose. */
+        const AnimationCurveValues& GetCurveValues() const { return m_Frame->Sample.Curves; }
 
         /** @brief Get target time in seconds using the current blend-space cycle duration. */
         float GetTime() const
@@ -290,6 +335,24 @@ namespace Elixir
         /** @brief Remove all nonbase layers; the next Update rebuilds the base pose. */
         void ClearLayers();
 
+        /**
+         * @brief Retain ordered corrections applied before publishing each candidate pose.
+         *
+         * Changes take effect on the next evaluation, including paused Update(0), Seek,
+         * Play, and SetLocalPose. A failed correction preserves the previous frame and clocks.
+         * Stop detaches modifiers but does not modify their externally owned configuration.
+         *
+         * @param modifiers Corrections in execution order; empty removes all corrections.
+         * @return False for a null modifier; retain the previous list on failure.
+         */
+        bool SetPoseModifiers(std::span<const Ref<const PoseModifier>> modifiers);
+
+        /** @brief Inspect modifiers retained until the next replacement or Stop. */
+        std::span<const Ref<const PoseModifier>> GetPoseModifiers() const
+        {
+            return m_PoseModifiers;
+        }
+
         Animation(const Animation& other) = delete;
         Animation& operator=(const Animation& other) = delete;
 
@@ -307,13 +370,13 @@ namespace Elixir
         /**
          * @brief Compose ordered layer poses and validate the final model matrices.
          * @param evaluations Evaluated layers, or empty to use their current local poses.
-         * @param local Receives the complete blended local pose.
+         * @param sample Receives the pose and curves composed from candidate layer frames.
          * @param model Receives the complete skeleton-space pose.
          * @param replacement Optional layer preview used before committing a playback change.
          */
         bool ComposePose(
             std::span<const SAnimationPlayerEvaluation> evaluations,
-            SLocalPose& local,
+            SAnimationSample& sample,
             SModelPose& model,
             const AnimationLayer* replacement = nullptr
         ) const;
@@ -336,6 +399,19 @@ namespace Elixir
          */
         void QueueLayerNotifyEnds(AnimationLayer& layer);
 
+        /**
+         * @brief Validate pose corrections and preserve the extracted movement frame.
+         * @param sample Candidate pose and read-only curves for each modifier.
+         * @param model Receives model matrices rebuilt after each successful correction.
+         */
+        bool ApplyPoseModifiers(
+            SAnimationSample& sample,
+            SModelPose& model
+        ) const;
+
+        bool m_Managed = true;
+
+        std::vector<Ref<const PoseModifier>> m_PoseModifiers;
         Ref<AnimationParameters> m_Parameters = CreateRef<AnimationParameters>();
 
         const Ref<const Skeleton> m_Skeleton;
@@ -345,7 +421,10 @@ namespace Elixir
         std::vector<Scope<AnimationLayer>> m_Layers;
         std::vector<SAnimationNotifyEvent> m_PendingNotifyEnds;
 
-        SAnimationFrame m_Frame;
+        // Published results are replaced, never modified while a render command
+        // retains them.
+        Ref<const SAnimationFrame> m_Frame;
+
         bool m_Paused = false;
 
         bool m_RootMotionEnabled = false;

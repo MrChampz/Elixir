@@ -263,10 +263,17 @@ namespace Elixir::Vulkan
             buffers.push_back(TryToGetVulkanBuffer(buffer));
         }
 
-        if (offsets.size() == 0)
+        std::vector<uint64_t> defaultOffsets;
+        if (offsets.empty())
         {
-            std::array<uint64_t, 1> defaultOffset = { 0 };
-            offsets = defaultOffset;
+            defaultOffsets.resize(bindingCount, 0);
+            offsets = defaultOffsets;
+        }
+
+        if (vertexBuffers.size() < bindingCount || offsets.size() < bindingCount)
+        {
+            EE_CORE_ERROR("Vertex bindings require one buffer and offset per binding.")
+            return;
         }
 
         vkCmdBindVertexBuffers(
@@ -293,10 +300,17 @@ namespace Elixir::Vulkan
             buffers.push_back(TryToGetVulkanBuffer(buffer));
         }
 
-        if (offsets.size() == 0)
+        std::vector<uint64_t> defaultOffsets;
+        if (offsets.empty())
         {
-            std::array<uint64_t, 1> defaultOffset = { 0 };
-            offsets = defaultOffset;
+            defaultOffsets.resize(bindingCount, 0);
+            offsets = defaultOffsets;
+        }
+
+        if (vertexBuffers.size() < bindingCount || offsets.size() < bindingCount)
+        {
+            EE_CORE_ERROR("Vertex bindings require one buffer and offset per binding.")
+            return;
         }
 
         vkCmdBindVertexBuffers(
@@ -323,10 +337,17 @@ namespace Elixir::Vulkan
             buffers.push_back(TryToGetVulkanBuffer(buffer));
         }
 
-        if (offsets.size() == 0)
+        std::vector<uint64_t> defaultOffsets;
+        if (offsets.empty())
         {
-            std::array<uint64_t, 1> defaultOffset = { 0 };
-            offsets = defaultOffset;
+            defaultOffsets.resize(bindingCount, 0);
+            offsets = defaultOffsets;
+        }
+
+        if (vertexBuffers.size() < bindingCount || offsets.size() < bindingCount)
+        {
+            EE_CORE_ERROR("Vertex bindings require one buffer and offset per binding.")
+            return;
         }
 
         vkCmdBindVertexBuffers(

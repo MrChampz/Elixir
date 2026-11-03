@@ -129,14 +129,10 @@ namespace Elixir::Vulkan
 
         EE_CORE_ASSERT(vk_Dst != VK_NULL_HANDLE, "Invalid destination buffer!")
 
-        std::span copyRegions = regions;
-
-        if (copyRegions.empty())
-        {
-            const auto& size = this->GetSize();
-            SBufferCopy defaultRegion[] = { SBufferCopy::Default(size) };
-            copyRegions = std::span(defaultRegion);
-        }
+        SBufferCopy defaultRegion = SBufferCopy::Default(this->GetSize());
+        const auto copyRegions = regions.empty()
+            ? std::span(&defaultRegion, 1)
+            : regions;
 
         std::vector<VkBufferCopy> bufferCopies(copyRegions.size());
 

@@ -168,6 +168,20 @@ namespace Elixir::Materials
         bool IsDoubleSided() const { return m_DoubleSided; }
 
         /**
+         * @brief Select the normal input space used by lit material passes.
+         *
+         * Normal and ClearCoatBottomNormal share this setting. Graph outputs are not
+         * converted automatically. Unconnected normal channels keep the mesh orientation.
+         *
+         * @param enabled True for tangent space; false for world space.
+         * @return True when the setting changed and the material revision increased.
+         */
+        bool SetTangentSpaceNormal(bool enabled);
+
+        /** @brief Report whether Normal and ClearCoatBottomNormal use tangent space. */
+        bool UsesTangentSpaceNormal() const { return m_TangentSpaceNormal; }
+
+        /**
          * @brief Updates a parameter default value.
          * @param name Parameter name.
          * @param value Compatible value to store.
@@ -216,9 +230,13 @@ namespace Elixir::Materials
         /**
          * @brief Validates parameter references in the material graph.
          * @param[out] error Optional destination for a validation error message.
+         * @param staticValues Compile-time choices used to validate vertex dependencies.
          * @return `true` if all graph parameter references are valid.
          */
-        bool ValidateGraph(std::string* error = nullptr) const;
+        bool ValidateGraph(
+            std::string* error = nullptr,
+            const std::unordered_map<std::string, bool>& staticValues = {}
+        ) const;
 
         /** @brief Returns the material name. */
         const std::string& GetName() const { return m_Name; }
@@ -242,8 +260,10 @@ namespace Elixir::Materials
         EMaterialUsage m_Usage = EMaterialUsage::Surface;
         EMaterialShadingModel m_ShadingModel = EMaterialShadingModel::Lit;
         EMaterialBlendMode m_BlendMode = EMaterialBlendMode::Opaque;
-        bool m_DoubleSided = false;
         float m_AlphaCutoff = 0.5f;
+        bool m_DoubleSided = false;
+        bool m_TangentSpaceNormal = true;
+
         uint32_t m_Revision = 1;
     };
 

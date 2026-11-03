@@ -92,7 +92,8 @@ namespace Elixir::GUI
          * from the caller's position in the widget tree. Intersects ancestor rectangles
          * while preserving the local clip set by Clip().
          *
-         * Used to assemble the per-widget command caches into the frame batch.
+         * Used to assemble the per-widget command caches into the frame batch. Storage grows
+         * geometrically. Self-append copies only the commands present when the call starts.
          *
          * @param other Batch whose commands are copied in.
          * @param zOffset Value added to each appended command's ZOrder.
