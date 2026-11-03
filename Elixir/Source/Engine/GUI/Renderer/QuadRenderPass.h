@@ -10,7 +10,7 @@
 
 namespace Elixir::GUI
 {
-    class QuadRenderPass final : public RenderPass
+    class ELIXIR_API QuadRenderPass final : public RenderPass
     {
       public:
         static constexpr size_t MAX_QUADS = 10000;

@@ -146,7 +146,7 @@ namespace Elixir::Vulkan
          * @param image The image to look up.
          * @return The handle for the image, or an invalid handle if not found.
          */
-        SResourceHandle GetImageHandle(const Ref<Image>& image) const;
+        ELIXIR_API SResourceHandle GetImageHandle(const Ref<Image>& image) const;
 
         /**
          * Get the image associated with a handle.

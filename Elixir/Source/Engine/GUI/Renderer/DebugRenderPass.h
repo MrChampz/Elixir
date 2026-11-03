@@ -9,7 +9,7 @@
 
 namespace Elixir::GUI
 {
-    class DebugRenderPass final : public RenderPass
+    class ELIXIR_API DebugRenderPass final : public RenderPass
     {
       public:
         static constexpr size_t MAX_LINES = 10000;
