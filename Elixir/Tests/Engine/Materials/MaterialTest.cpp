@@ -192,3 +192,17 @@ TEST(MaterialTest, CreatesInstancesThatKeepTheirParentAlive)
     ASSERT_TRUE(parent);
     EXPECT_EQ(instance->GetParent(), parent);
 }
+
+
+TEST(MaterialTest, TransmissionDoesNotChangeAlphaCoverageOrParticleShading)
+{
+    Material surface("Thin glass");
+    ASSERT_TRUE(surface.SetShadingModel(EMaterialShadingModel::Transmission));
+    EXPECT_EQ(surface.GetBlendMode(), EMaterialBlendMode::Opaque);
+    ASSERT_TRUE(surface.SetBlendMode(EMaterialBlendMode::Masked));
+    EXPECT_EQ(surface.GetShadingModel(), EMaterialShadingModel::Transmission);
+
+    Material particle("Particle", EMaterialUsage::Particle);
+    EXPECT_FALSE(particle.SetShadingModel(EMaterialShadingModel::Transmission));
+    EXPECT_EQ(particle.GetShadingModel(), EMaterialShadingModel::Lit);
+}

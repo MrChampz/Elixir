@@ -71,6 +71,14 @@ namespace Elixir::GUI
 
         CanvasSlot& AddChild(const Ref<Widget>& child) override;
 
+        /** @brief Limits child drawing and hit testing to this canvas when enabled. */
+        void SetClipChildren(const bool clip)
+        {
+            if (m_ClipChildren == clip) return;
+            m_ClipChildren = clip;
+            MarkRenderDirty();
+        }
+
         /**
          * @brief Set the Canvas size.
          *
@@ -78,13 +86,14 @@ namespace Elixir::GUI
          * children are absolutely positioned, so there is no general way to derive "how big
          * this panel wants to be" from them. This is the configured value ComputeDesiredSize
          * reports, capped to whatever the parent actually offers (same rule ScrollBox
-         * follows) - it does not clip or otherwise constrain children placed outside it.
+         * follows) - children outside it are clipped only when SetClipChildren is enabled.
          *
          * @param size The desired size.
          */
         void SetSize(const glm::vec2& size);
 
       protected:
+        bool ClipsChildren() const override { return m_ClipChildren; }
         glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) override;
         void LayoutChildren(const SRect& allocatedSpace) override;
 
@@ -93,5 +102,6 @@ namespace Elixir::GUI
 
         // The size this Canvas wants to occupy in the parent layout if no constraints.
         glm::vec2 m_Size;
+        bool m_ClipChildren = false;
     };
 }

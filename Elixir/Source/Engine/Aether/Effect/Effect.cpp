@@ -8,6 +8,8 @@
 #include <Engine/Aether/Effect/MaterialDescription.h>
 #include <Engine/Aether/Effect/MaterialFactory.h>
 #include <Engine/Aether/Effect/ModuleRegistry.h>
+#include <Engine/Aether/Modules/ApplyCurlNoise.h>
+#include <Engine/Aether/Modules/ApplyGravity.h>
 
 namespace Elixir::Aether::Effect
 {
@@ -25,6 +27,16 @@ namespace Elixir::Aether::Effect
             Ref<System> Parse(od::object& root);
 
         private:
+            // Reads the optional authoring toggle without hiding invalid values.
+            bool IsEnabled(od::object& object)
+            {
+                if (!HasField(object, "enabled")) return true;
+                bool enabled = true;
+                if (object["enabled"].get_bool().get(enabled))
+                    Fail("Field 'enabled' must be a boolean.");
+                return enabled;
+            }
+
             EParticleRenderMode ParseRenderMode(od::object& object, const std::string_view key)
             {
                 constexpr auto result = EParticleRenderMode::Sprite;
@@ -40,6 +52,69 @@ namespace Elixir::Aether::Effect
 
                 Fail("Unknown render mode '{}'.", value);
                 return result;
+            }
+
+            // Reads particle death policy independently of authored lifetime values.
+            void ParseParticleState(Emitter& emitter, od::object& json)
+            {
+                if (!HasField(json, "particleState")) return;
+                od::object state;
+                if (json["particleState"].get_object().get(state))
+                {
+                    Fail("'particleState' must be an object.");
+                    return;
+                }
+                if (!HasField(state, "killOnLifetimeExpired")) return;
+                bool enabled = true;
+                if (state["killOnLifetimeExpired"].get_bool().get(enabled))
+                {
+                    Fail("'killOnLifetimeExpired' must be a boolean.");
+                    return;
+                }
+                emitter.SetKillOnLifetimeExpired(enabled);
+            }
+
+            // Reads optional strand physics and tube settings.
+            void ParseStrand(Emitter& emitter, od::object& json)
+            {
+                if (!HasField(json, "strand")) return;
+                od::object object;
+                if (json["strand"].get_object().get(object))
+                {
+                    Fail("'strand' must be an object.");
+                    return;
+                }
+                SStrandSettings settings;
+                if (HasField(object, "points")) settings.PointCount = RequireUInt(object, "points");
+                if (HasField(object, "segmentLength")) settings.SegmentLength = RequireFloat(object, "segmentLength");
+                if (HasField(object, "stiffness")) settings.Stiffness = RequireFloat(object, "stiffness");
+                if (HasField(object, "damping")) settings.Damping = RequireFloat(object, "damping");
+                // Translate earlier strand assets to the same explicit force modules.
+                if ((HasField(object, "gravity") || HasField(object, "sway")) && emitter.GetRenderMode() != EParticleRenderMode::Strand)
+                {
+                    Fail("Strand forces require a Strand emitter.");
+                    return;
+                }
+                if (HasField(object, "gravity"))
+                {
+                    auto force = CreateScope<ApplyGravity>(RequireFloatVec<3>(object, "gravity"));
+                    force->SetTarget(EModuleTarget::StrandPoints);
+                    emitter.AddModule(std::move(force));
+                }
+                if (HasField(object, "sway"))
+                {
+                    const float strength = RequireFloat(object, "sway");
+                    if (strength < 0) { Fail("Strand sway must be nonnegative."); return; }
+                    auto force = CreateScope<ApplyCurlNoise>(strength);
+                    force->SetTarget(EModuleTarget::StrandPoints);
+                    emitter.AddModule(std::move(force));
+                }
+                if (HasField(object, "widthScale")) settings.WidthScale = RequireFloat(object, "widthScale");
+                if (HasField(object, "solverIterations")) settings.SolverIterations = RequireUInt(object, "solverIterations");
+                if (HasField(object, "radialSegments")) settings.RadialSegments = RequireUInt(object, "radialSegments");
+                if (HasField(object, "subdivisions")) settings.Subdivisions = RequireUInt(object, "subdivisions");
+                if (Failed()) return;
+                if (!emitter.SetStrandSettings(settings)) Fail("Invalid strand settings.");
             }
 
             /* Parameter/curve blocks */
@@ -273,6 +348,11 @@ namespace Elixir::Aether::Effect
                     return;
                 }
 
+                if (module->GetTarget() == EModuleTarget::StrandPoints && emitter.GetRenderMode() != EParticleRenderMode::Strand)
+                {
+                    Fail("StrandPoints modules require a Strand emitter.");
+                    return;
+                }
                 emitter.AddModule(std::move(module));
             }
 
@@ -307,7 +387,8 @@ namespace Elixir::Aether::Effect
                         return;
                     }
 
-                    BuildModule(emitter, module, spawn ? EModulePhase::Spawn : EModulePhase::Update);
+                    if (IsEnabled(module))
+                        BuildModule(emitter, module, spawn ? EModulePhase::Spawn : EModulePhase::Update);
                 }
             }
 
@@ -361,6 +442,13 @@ namespace Elixir::Aether::Effect
                 desc.Opacity = color.w;
                 desc.Emissive = glm::vec3(emissive);
                 desc.BaseColorTexturePath = ParseString(material, "texture");
+                if (HasField(material, "blendMode"))
+                {
+                    const auto value = RequireString(material, "blendMode");
+                    const auto blend = magic_enum::enum_cast<EMaterialBlendMode>(value);
+                    if (!blend) { Fail("Unknown material blend mode '{}'.", value); return std::nullopt; }
+                    desc.BlendMode = *blend;
+                }
 
                 return desc;
             }
@@ -368,6 +456,7 @@ namespace Elixir::Aether::Effect
             void ParseEmitter(const Ref<System>& system, od::object& json)
             {
                 if (Failed()) return;
+                if (!IsEnabled(json) || Failed()) return;
 
                 const std::string name = RequireString(json, "name");
                 const auto renderMode = ParseRenderMode(json, "renderMode");
@@ -378,6 +467,17 @@ namespace Elixir::Aether::Effect
 
                 auto& emitter = system->AddEmitter(name, maxParticles, spawnRate.Value);
                 emitter.SetRenderMode(renderMode);
+                if (HasField(json, "simulationSpace"))
+                {
+                    const auto value = RequireString(json, "simulationSpace");
+                    const auto space = magic_enum::enum_cast<EParticleSimulationSpace>(value);
+                    if (!space) { Fail("Unknown simulation space '{}'.", value); return; }
+                    emitter.SetSimulationSpace(*space);
+                }
+                ParseParticleState(emitter, json);
+                if (Failed()) return;
+                ParseStrand(emitter, json);
+                if (Failed()) return;
 
                 LoadParameters(json, emitter.GetParameters());
                 if (Failed()) return;
@@ -472,8 +572,6 @@ namespace Elixir::Aether::Effect
 
     Ref<System> LoadEffectFile(const std::filesystem::path& filepath)
     {
-        od::parser parser;
-
         auto json = simdjson::padded_string::load(filepath.string());
         if (const auto error = json.error())
         {
@@ -482,18 +580,28 @@ namespace Elixir::Aether::Effect
             return nullptr;
         }
 
-        auto document = parser.iterate(json.value());
-        if (const auto error = document.error())
+        return LoadEffectText(std::string_view(json.value().data(), json.value().size()));
+    }
+
+    Ref<System> LoadEffectText(const std::string_view source, std::string* error)
+    {
+        if (error) error->clear();
+        od::parser parser;
+        const simdjson::padded_string json(source);
+        auto document = parser.iterate(json);
+        if (const auto parseError = document.error())
         {
-            const auto message = simdjson::error_message(error);
-            EE_CORE_ERROR("Failed to parse effect asset '{}': {}", filepath.string(), message)
+            const auto message = simdjson::error_message(parseError);
+            EE_CORE_ERROR("Failed to parse effect data: {}", message)
+            if (error) *error = message;
             return nullptr;
         }
 
         od::object root;
         if (document.get_object().get(root))
         {
-            EE_CORE_ERROR("Effect asset root must be an object: {}", filepath.string())
+            EE_CORE_ERROR("Effect asset root must be an object.")
+            if (error) *error = "Effect asset root must be an object.";
             return nullptr;
         }
 
@@ -502,7 +610,7 @@ namespace Elixir::Aether::Effect
         if (effectParser.Failed())
         {
             EE_CORE_ERROR("{}", effectParser.GetError());
-            EE_CORE_ERROR("    in effect asset: {}", filepath.string());
+            if (error) *error = effectParser.GetError();
         }
         return system;
     }

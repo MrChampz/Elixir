@@ -7,7 +7,7 @@ namespace Elixir
 {
     bool FontManager::s_Initialized = false;
     Scope<FontBackend> FontManager::s_FontBackend = nullptr;
-    Ref<TextureSet> FontManager::s_FontsAtlases = nullptr;
+    Ref<ImageSet> FontManager::s_FontsAtlases = nullptr;
     std::unordered_map<std::string, Ref<Font>> FontManager::s_Fonts;
     const GraphicsContext* FontManager::s_GraphicsContext = nullptr;
 
@@ -19,7 +19,7 @@ namespace Elixir
         {
             s_GraphicsContext = context;
             s_FontBackend = CreateScope<FreeTypeFontBackend>(s_GraphicsContext);
-            s_FontsAtlases = TextureSet::Create(context);
+            s_FontsAtlases = ImageSet::Create(context);
             s_Initialized = true;
             EE_CORE_INFO("Font Manager initialized.")
 
@@ -77,7 +77,7 @@ namespace Elixir
         EE_CORE_TRACE("Loading font: {0}", filepath.string())
         const auto font = s_FontBackend->Load(filepath);
 
-        // Bind the atlas to atlases texture set and save the returned index
+        // Bind the atlas to atlases image set and save the returned index
         const auto handle = s_FontsAtlases->AddTexture(font->GetMTSDF());
         font->SetAtlasHandle(handle);
 

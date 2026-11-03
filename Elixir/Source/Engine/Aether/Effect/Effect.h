@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Aether/System.h>
+#include <string_view>
 
 namespace Elixir::Aether::Effect
 {
@@ -17,4 +18,7 @@ namespace Elixir::Aether::Effect
      * @return Null when the file cannot be read or contains invalid effect data.
      */
     ELIXIR_API Ref<System> LoadEffectFile(const std::filesystem::path& filepath);
+
+    /** @brief Parses effect authoring data from memory and optionally returns the validation error. */
+    ELIXIR_API Ref<System> LoadEffectText(std::string_view source, std::string* error = nullptr);
 }

@@ -131,7 +131,10 @@ namespace Elixir::Aether::Runtime
             return nullptr;
         }
 
-        return CreateRef<SCompiledSystem>(system.Compile());
+        auto compiled = system.Compile();
+        if (!compiled) return nullptr;
+
+        return CreateRef<SCompiledSystem>(std::move(*compiled));
     }
 
     bool InstanceRegistry::IsManagedInstance(const Ref<SystemInstance>& instance) const

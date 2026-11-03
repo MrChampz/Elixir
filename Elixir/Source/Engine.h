@@ -43,7 +43,7 @@
 #include <Engine/Graphics/Sampler.h>
 #include <Engine/Graphics/Image.h>
 #include <Engine/Graphics/Texture.h>
-#include <Engine/Graphics/TextureSet.h>
+#include <Engine/Graphics/ImageSet.h>
 #include <Engine/Graphics/TextureLoader.h>
 #include <Engine/Graphics/FrameSlotState.h>
 #include <Engine/Graphics/Pipeline/PipelineBuilder.h>

@@ -21,6 +21,7 @@
 #include <Engine/Aether/Core/Operations/Clamp.h>
 #include <Engine/Aether/Core/Operations/CopyFromAttribute.h>
 #include <Engine/Aether/Core/Operations/ApplyVortex.h>
+#include <Engine/Aether/Core/Operations/ApplyCurlNoise.h>
 
 namespace Elixir::Aether::Core
 {
@@ -50,6 +51,7 @@ namespace Elixir::Aether::Core
         static const Clamp clamp;
         static const CopyFromAttribute copyFromAttribute;
         static const ApplyVortex applyVortex;
+        static const ApplyCurlNoise applyCurlNoise;
 
         static const Operation* const operations[]{
             &setLiteral,
@@ -72,7 +74,8 @@ namespace Elixir::Aether::Core
             &mul,
             &clamp,
             &copyFromAttribute,
-            &applyVortex
+            &applyVortex,
+            &applyCurlNoise
         };
 
         return operations;

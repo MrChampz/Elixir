@@ -58,9 +58,7 @@ namespace Elixir
     }
 
     Texture2D::Texture2D(Ref<Image> image, const STextureCreateInfo& info)
-        : Texture(std::move(image), info)
-    {
-    }
+        : Texture(std::move(image), info) {}
 
     Ref<Texture2D> Texture2D::Create(const GraphicsContext* context, const STexture2DCreateInfo& info)
     {

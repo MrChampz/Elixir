@@ -14,10 +14,11 @@ namespace Elixir::GUI
         const ShaderLoader* shaderLoader,
         const float dpiScale,
         const Ref<UniformBuffer>& perFrameCB
-    ) : m_DPIScale(dpiScale), m_PerFrameConstantBuffer(perFrameCB), m_GraphicsContext(context)
+    ) : m_GeometrySlots(*context), m_DPIScale(dpiScale), m_PerFrameConstantBuffer(perFrameCB), m_GraphicsContext(context)
     {
         EE_CORE_TRACE("Initializing GUI: QuadRenderPass.")
         InitRenderPass(shaderLoader);
+        if (!m_Shader || !m_Pipeline) return;
         BindShaderParameters();
     }
 
@@ -34,15 +35,13 @@ namespace Elixir::GUI
 
     void QuadRenderPass::EndFrame()
     {
-        if (!m_Quads.empty())
-        {
-            EnsureQuadBufferCapacity(m_Quads.size());
-            m_QuadBuffer->UpdateData(m_Quads.data(),  m_Quads.size() * sizeof(SQuad));
-        }
+        m_GeometrySlots.MarkChanged();
     }
 
     uint32_t QuadRenderPass::AppendRange(const std::span<const SDrawCommand> commands)
     {
+        if (!m_Shader || !m_Pipeline) return 0;
+
         const auto firstInstance = (uint32_t)m_Quads.size();
 
         for (const auto& drawCmd : commands)
@@ -53,8 +52,31 @@ namespace Elixir::GUI
 
     void QuadRenderPass::Bind(const Ref<CommandBuffer>& cmd)
     {
+        m_CanRender = false;
+        if (!m_Shader || !m_Pipeline) return;
         m_Pipeline->Bind(cmd);
-        m_QuadBuffer->Bind(cmd);
+        auto* geometry = m_GeometrySlots.UpdateCurrent([this](SGeometryBuffer& slot)
+        {
+            if (m_Quads.empty()) return true;
+            if (!slot.Buffer || m_Quads.size() > slot.Capacity)
+            {
+                const size_t capacity = GrowBufferCapacity(slot.Capacity, m_Quads.size());
+                auto buffer = DynamicVertexBuffer::Create(m_GraphicsContext, capacity * sizeof(SQuad));
+                if (!buffer || !buffer->IsValid())
+                {
+                    EE_CORE_ERROR("Failed to allocate GUI geometry buffer.")
+                    return false;
+                }
+                buffer->SetLayout(m_BufferLayout);
+                // The current slot's fence has completed; its previous buffer can be released.
+                slot.Buffer = std::move(buffer);
+                slot.Capacity = capacity;
+            }
+            slot.Buffer->UpdateData(m_Quads.data(), m_Quads.size() * sizeof(SQuad));
+            return true;
+        });
+        m_CanRender = geometry && geometry->Buffer;
+        if (m_CanRender) geometry->Buffer->Bind(cmd);
     }
 
     void QuadRenderPass::Render(
@@ -63,6 +85,7 @@ namespace Elixir::GUI
         const uint32_t instanceCount
     )
     {
+        if (!m_CanRender) return;
         cmd->Draw(6, instanceCount, 0, firstInstance);
     }
 
@@ -98,16 +121,23 @@ namespace Elixir::GUI
                     { EDataType::Float4,  "DropShadow"        },
                     { EDataType::Float4,  "Color"             },
                     { EDataType::Float4,  "OutlineColor"      },
-                    { EDataType::Float, "OutlineThickness"  },
-                    { EDataType::UInt,  "TextureIndex"      },
-                    { EDataType::UInt,  "TextureMapping"    },
-                    { EDataType::Float4,  "ScissorRect"       },
+                    { EDataType::Float,   "OutlineThickness"  },
+                    { EDataType::UInt,    "TextureIndex"      },
+                    { EDataType::UInt,    "TextureMapping"    },
+                    { EDataType::Float4,  "ClipRect"       },
+                    { EDataType::Float4,  "RoundedClipRect"   },
+                    { EDataType::Float4,  "ClipCornerRadius"  },
                 },
                 EInputRate::Instance
             }
         });
 
         m_Shader = shaderLoader->LoadShader("./Shaders/", "GUI");
+        if (!m_Shader)
+        {
+            EE_CORE_ERROR("Could not load the GUI shader; disabling the GUI quad pass.");
+            return;
+        }
 
         PipelineBuilder builder;
         builder.SetShader(m_Shader);
@@ -121,9 +151,7 @@ namespace Elixir::GUI
         m_Pipeline = builder.Build(m_GraphicsContext);
 
         m_Quads.reserve(MAX_QUADS);
-        m_QuadBuffer = DynamicVertexBuffer::Create(m_GraphicsContext, MAX_QUADS * sizeof(SQuad));
-        m_QuadBuffer->SetLayout(bufferLayout);
-        m_QuadCapacity = MAX_QUADS;
+        m_BufferLayout = bufferLayout;
 
         m_WhiteTexture = Texture2D::Create(
             m_GraphicsContext,
@@ -132,14 +160,14 @@ namespace Elixir::GUI
             &Color::WhiteAlpha
         );
 
-        m_TextureSet = TextureSet::Create(m_GraphicsContext);
-        m_WhiteTextureHandle = m_TextureSet->AddTexture(m_WhiteTexture);
+        m_ImageSet = ImageSet::Create(m_GraphicsContext);
+        m_WhiteTextureHandle = m_ImageSet->AddTexture(m_WhiteTexture);
     }
 
     void QuadRenderPass::BindShaderParameters() const
     {
         m_Shader->BindConstantBuffer("cbPerFrame", m_PerFrameConstantBuffer);
-        m_Shader->BindTextureSet("textures", m_TextureSet);
+        m_Shader->BindImageSet("textures", m_ImageSet);
         m_Shader->SetPushConstant("pcWhiteTexture", (void*)&m_WhiteTextureHandle.Index, sizeof(uint32_t));
 
         const auto sampler = SamplerBuilder()
@@ -149,22 +177,12 @@ namespace Elixir::GUI
         m_Shader->BindSampler("samplerState", sampler);
     }
 
-    void QuadRenderPass::EnsureQuadBufferCapacity(const size_t requiredCapacity)
-    {
-        if (requiredCapacity <= m_QuadCapacity)
-            return;
-
-        const size_t newCapacity = GrowBufferCapacity(m_QuadCapacity, requiredCapacity);
-        auto buffer = DynamicVertexBuffer::Create(m_GraphicsContext, newCapacity * sizeof(SQuad));
-        buffer->SetLayout(m_QuadBuffer->GetLayout());
-
-        m_RetiredQuadBuffers.push_back(std::move(m_QuadBuffer));
-        m_QuadBuffer = std::move(buffer);
-        m_QuadCapacity = newCapacity;
-    }
-
     void QuadRenderPass::BuildRectGeometry(const SDrawCommand& cmd)
     {
+        const auto imageHandle = cmd.Image
+            ? m_ImageSet->AddImage(cmd.Image)
+            : m_WhiteTextureHandle;
+
         const SQuad quad = {
             .Position = cmd.Geometry.Position * m_DPIScale,
             .Size = cmd.Geometry.Size * m_DPIScale,
@@ -174,13 +192,15 @@ namespace Elixir::GUI
             .Color = cmd.Color,
             .OutlineColor = cmd.Outline.Color,
             .OutlineThickness = cmd.Outline.Thickness * m_DPIScale,
-            .TextureIndex = cmd.Texture
-                ? m_TextureSet->AddTexture(cmd.Texture).Index
+            .TextureIndex = imageHandle.IsValid()
+                ? imageHandle.Index
                 : m_WhiteTextureHandle.Index,
             .TextureMapping = (uint32_t)cmd.TextureMapping,
-            .ScissorRect = cmd.ScissorRect.IsValid()
-                ? cmd.ScissorRect * m_DPIScale
-                : cmd.ScissorRect
+            .ClipRect = cmd.ClipRect.IsValid()
+                ? cmd.ClipRect * m_DPIScale
+                : cmd.ClipRect,
+            .RoundedClipRect = cmd.RoundedClipRect * m_DPIScale,
+            .ClipCornerRadius = cmd.ClipCornerRadius * m_DPIScale,
         };
 
         m_Quads.push_back(quad);

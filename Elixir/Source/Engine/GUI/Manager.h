@@ -33,6 +33,8 @@ namespace Elixir::GUI
         void Shutdown();
 
         void ArrangeLayout(const Extent2D& extent) const;
+
+        /** Updates widget state on the UI thread. */
         void Update(Timestep frameTime);
 
         /**
@@ -96,6 +98,7 @@ namespace Elixir::GUI
          */
         bool WantsMouse() const;
 
+        /** Returns the last assembled batch for inspection on the UI thread. */
         const RenderBatch& GetRenderBatch() const { return m_RenderBatch; }
 
     protected:
@@ -128,6 +131,18 @@ namespace Elixir::GUI
         // Hit-tests the current pointer position before bubbling a wheel tick leaf -> root,
         // stopping at the first widget whose HandleMouseScrolled reports EventHandled.
         bool HandleMouseScrolled(const MouseScrolledEvent& event);
+
+        // Routes a native left-button press after dismissing popups outside the pointer.
+        bool HandleMouseButtonPressed(const MouseButtonPressedEvent& event);
+
+        // Routes a native left-button release without waiting for frame polling.
+        bool HandleMouseButtonReleased(const MouseButtonReleasedEvent& event);
+
+        // Routes native pointer movement without waiting for frame polling.
+        bool HandleMouseMoved(const MouseMovedEvent& event);
+
+        // Updates hover state and returns the hit path at the current pointer position.
+        std::vector<Ref<Widget>> UpdatePointerHover();
 
         // Clears focus, press, capture and hover state that can otherwise keep a removed
         // layer's subtree alive and receiving input.
@@ -189,6 +204,7 @@ namespace Elixir::GUI
         );
 
         Scope<Renderer> m_Renderer;
+        // Mutable assembly state belongs only to the UI thread.
         RenderBatch m_RenderBatch;
         Ref<const RenderBatch> m_PublishedFrame;
         Ref<const RenderBatch> m_RenderedFrame;
@@ -232,8 +248,7 @@ namespace Elixir::GUI
         // rendering at a stale {0,0} geometry for one frame.
         mutable Extent2D m_LastExtent{};
 
-        // Dirty epoch of the last frame we assembled + uploaded. When it still matches the
-        // current epoch, the batch and GPU buffers are reused and only the draws are re-issued.
+        // UI-thread gate: the last assembled snapshot's dirty epoch.
         uint64_t m_LastRenderedEpoch = 0;
 
         // Bumped on every layer stack mutation (SetRoot, PushPopup, PopPopup, ClearPopups).

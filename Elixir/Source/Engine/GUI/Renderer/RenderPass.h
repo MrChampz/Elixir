@@ -31,8 +31,8 @@ namespace Elixir::GUI
         virtual void BeginFrame() = 0;
 
         /**
-         * @brief Uploads the geometry accumulated across this frame's AppendRange calls
-         * to the GPU in a single call.
+         * @brief Completes a new CPU geometry revision after all AppendRange calls.
+         * GPU uploads occur when Bind selects the fence-protected frame slot.
          *
          * Called once per frame, on every registered pass, after the last AppendRange.
          */
@@ -52,7 +52,8 @@ namespace Elixir::GUI
         virtual uint32_t AppendRange(std::span<const SDrawCommand> commands) = 0;
 
         /**
-         * @brief Binds this pass's pipeline and vertex buffer.
+         * @brief Uploads stale geometry for the current frame slot and binds it.
+         * @pre The graphics context has waited for the current slot's fence.
          *
          * The Renderer calls this only when the pass differs from the one used by the
          * previous draw item.

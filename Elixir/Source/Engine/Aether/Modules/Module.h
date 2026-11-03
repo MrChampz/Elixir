@@ -17,6 +17,13 @@ namespace Elixir::Aether::Modules
         Spawn, Update
     };
 
+    /** @brief Selects which simulation receives an update module. */
+    enum class EModuleTarget : uint8_t
+    {
+        Particle,
+        StrandPoints
+    };
+
     /** @brief Stores compiled instructions, references, and packed literal words. */
     struct SCompiledModuleData
     {
@@ -115,13 +122,18 @@ namespace Elixir::Aether::Modules
          * @brief Append one operation to the compiled system.
          *
          * The operand count and types must match the operation definition. Invalid arguments
-         * are logged and leave the operation and operand tables unchanged.
+         * are logged and leave the operation and operand tables unchanged. Any failure marks
+         * this context invalid and prevents subsequent operations from being appended.
          *
          * @param type Operation to emit.
          * @param target Destination particle attribute.
          * @param operands Typed operands in operation-definition order.
          */
-        void Emit(EOperationType type, EParticleAttribute target, std::initializer_list<SGPUOperand> operands);
+        void Emit(
+            EOperationType type,
+            EParticleAttribute target,
+            std::initializer_list<SGPUOperand> operands
+        );
 
         /**
          * @brief Compile a scalar literal or named parameter binding.
@@ -149,6 +161,10 @@ namespace Elixir::Aether::Modules
 
         /**
          * @brief Compile an unsigned integer literal or named parameter binding.
+         *
+         * Float parameters convert numerically and require an integer default in [0, 2^32).
+         * Invalid runtime float values resolve to zero. UInt parameters retain all their bits.
+         *
          * @param value Literal used when no named parameter matches.
          * @param parameter Optional parameter name; empty selects the literal.
          * @return The operand, or an invalid operand that Emit rejects when compilation fails.
@@ -182,16 +198,19 @@ namespace Elixir::Aether::Modules
          */
         SGPUOperand Curve(std::string_view name);
 
+        /** @brief Report whether all operand and operation compilation steps succeeded. */
+        bool IsValid() const { return m_Valid; }
+
     private:
         /**
          * @brief Intern typed literal words or resolve a named parameter binding.
-         * @param type Logical operand type.
+         * @param input Logical operand type.
          * @param words Raw literal words used when no parameter matches.
          * @param parameter Optional parameter name to resolve.
          * @return The operand, or an invalid operand for a type mismatch or range overflow.
          */
         SGPUOperand Literal(
-            EOperandInput type,
+            EOperandInput input,
             std::span<const uint32_t> words,
             std::string_view parameter
         );
@@ -200,6 +219,8 @@ namespace Elixir::Aether::Modules
         const std::vector<SCompiledParameter>& m_Parameters;
         std::string_view m_EmitterName;
         float m_GravityScale;
+
+        bool m_Valid = true;
 
         // Includes the logical type in each key to preserve literal identity.
         std::map<std::array<uint32_t, 5>, uint32_t> m_Literals;
@@ -227,8 +248,18 @@ namespace Elixir::Aether::Modules
         /** @brief Returns the phase in which this module is compiled. */
         EModulePhase GetPhase() const { return m_Phase; }
 
+        /** @brief Returns the execution target; existing modules default to Particle. */
+        EModuleTarget GetTarget() const { return m_Target; }
+
+        /** @brief Selects an execution target; unsupported targets log an error and leave the selection unchanged. */
+        bool SetTarget(EModuleTarget target);
+
+        /** @brief Reports whether this module can run against the selected simulation. */
+        virtual bool SupportsTarget(EModuleTarget target) const { return target == EModuleTarget::Particle; }
+
     private:
         EModulePhase m_Phase;
+        EModuleTarget m_Target = EModuleTarget::Particle;
     };
 
     /** @brief Base class for modules that run when a particle is created. */

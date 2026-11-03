@@ -33,7 +33,9 @@ struct PS_INPUT
     float  OutlineThickness : OUTLINE1;             // Outline thickness
     uint   TextureIndex     : TEXTURE;              // Texture index
     uint   TextureMapping   : TEXTURE_MAPPING;      // 0 = stretch, 1 = nine-slice
-    float4 ScissorRect      : SCISSOR;              // Scissor rect (x, y, width, height)
+    float4 ClipRect         : CLIP_RECT;            // (x, y, width, height)
+    float4 RoundedClipRect  : ROUNDED_CLIP;         // (x, y, width, height)
+    float4 ClipCornerRadius : CLIP_RADIUS;          // (top-left, top-right, bottom-right, bottom-left)
 };
 
 #define SCALE 6.0f // in pixels
@@ -223,12 +225,19 @@ float4 ApplyInsetShadow(float4 color, float4 shadow, float2 localPos, float2 hal
 float4 main(PS_INPUT input) : SV_TARGET
 {
     // Discard pixels outside the scissor rect
-    if (IsScissorRectValid(input.ScissorRect) &&
-       (input.ClipPos.x < input.ScissorRect.x ||
-        input.ClipPos.y < input.ScissorRect.y ||
-        input.ClipPos.x > input.ScissorRect.x + input.ScissorRect.z ||
-        input.ClipPos.y > input.ScissorRect.y + input.ScissorRect.w))
+    if (IsClipRectValid(input.ClipRect) &&
+       (input.ClipPos.x < input.ClipRect.x ||
+        input.ClipPos.y < input.ClipRect.y ||
+        input.ClipPos.x > input.ClipRect.x + input.ClipRect.z ||
+        input.ClipPos.y > input.ClipRect.y + input.ClipRect.w))
         discard;
+
+    if (input.RoundedClipRect.z >= 0 && input.RoundedClipRect.w >= 0)
+    {
+        float2 clipHalfSize = input.RoundedClipRect.zw * 0.5;
+        float2 clipPosition = input.ClipPos.xy - (input.RoundedClipRect.xy + clipHalfSize);
+        clip(-SDFRect(clipPosition, clipHalfSize, input.ClipCornerRadius));
+    }
 
     float4 color = input.Color;
     float2 texCoords = input.TexCoord;

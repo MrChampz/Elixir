@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <bit>
 #include <cstring>
+#include <limits>
 
 #include <Engine/Aether/System.h>
 #include <Engine/Aether/Core/Operand.h>
@@ -279,9 +280,12 @@ TEST(ModuleCompileTest, RequiresUnsignedRibbonIdsForDestinationsAndAttributeRead
     EXPECT_TRUE(program.Operations.empty());
     EXPECT_TRUE(program.Operands.empty());
 
-    context.Emit(EOperationType::SetLiteral, EParticleAttribute::RibbonId, {context.UInt(UINT32_MAX)});
-    context.Emit(EOperationType::CopyFromAttribute, EParticleAttribute::RibbonId,
-        {context.Attribute(EParticleAttribute::RibbonId, EOperandInput::UInt)});
+    EXPECT_FALSE(context.IsValid());
+    ModuleCompileContext validContext(program, parameters, "", 1);
+    validContext.Emit(EOperationType::SetLiteral, EParticleAttribute::RibbonId,
+        {validContext.UInt(UINT32_MAX)});
+    validContext.Emit(EOperationType::CopyFromAttribute, EParticleAttribute::RibbonId,
+        {validContext.Attribute(EParticleAttribute::RibbonId, EOperandInput::UInt)});
     ASSERT_EQ(program.Operations.size(), 2u);
     EXPECT_EQ(Reference(program, 1, Operations::CopyFromAttribute::Inputs::Value),
         Encoded(EOperandSource::ParticleAttribute, GetAttributeOperandFormat(EParticleAttribute(uint32_t(EParticleAttribute::RibbonId))), uint32_t(EParticleAttribute::RibbonId)));
@@ -633,4 +637,89 @@ TEST(OperandValidationTest, UsesStoredFormatsForAttributesAndTemporaryRegisters)
         uint32_t(EParticleAttribute::RibbonId))}, context));
     EXPECT_FALSE(IsValidOperand({EOperandInput::UInt, Encoded(EOperandSource::ParticleAttribute, EOperandFormat::Float4,
         uint32_t(EParticleAttribute::RibbonId))}, context));
+}
+
+TEST(ModuleCompileTest, OperationFailureRemainsInvalidAfterAValidOperation)
+{
+    SCompiledModuleData program;
+    const std::vector<Elixir::Aether::Core::SCompiledParameter> parameters;
+    ModuleCompileContext context(program, parameters, "Emitter", 1);
+    ASSERT_TRUE(context.IsValid());
+    const auto value = context.Scalar(1);
+    context.Emit(EOperationType::SetLiteral, EParticleAttribute::Lifetime, {});
+    EXPECT_FALSE(context.IsValid());
+    context.Emit(EOperationType::SetLiteral, EParticleAttribute::Lifetime, {value});
+    EXPECT_FALSE(context.IsValid());
+    EXPECT_TRUE(program.Operations.empty());
+    EXPECT_TRUE(program.Operands.empty());
+}
+
+TEST(ModuleCompileTest, IgnoringAnInvalidOperandStillFailsCompilation)
+{
+    SCompiledModuleData program;
+    ParameterStore store;
+    store.SetFloat("Gravity", 1);
+    const auto parameters = CompileParameters(store.Compile());
+    ModuleCompileContext context(program, parameters, "Emitter", 1);
+    context.Vector({0, -9, 0}, "Gravity");
+    EXPECT_FALSE(context.IsValid());
+    EXPECT_TRUE(program.Operations.empty());
+}
+
+TEST(ModuleCompileTest, ConvertsScalarParametersForUnsignedBindings)
+{
+    for (const float value : {0.0f, 17.0f, 65537.0f, 16777216.0f, 4294967040.0f})
+    {
+        SCOPED_TRACE(value);
+        const auto parameters = CompileParameters(std::vector<SParameter>{
+            {.Name = "Seed", .Type = EParameterType::Float, .Value = {value, 0, 0, 0}}
+        });
+        SCompiledModuleData program;
+        ModuleCompileContext context(program, parameters, "", 1);
+        const auto operand = context.UInt(0, "Seed");
+        EXPECT_TRUE(context.IsValid());
+        EXPECT_TRUE(IsValidOperand(operand, {{}, parameters}));
+        EXPECT_EQ(operand.Type, EOperandInput::UInt);
+        EXPECT_EQ(GetOperandSource(operand.Reference), EOperandSource::Parameter);
+        EXPECT_EQ(GetOperandFormat(operand.Reference), EOperandFormat::Float);
+        EXPECT_EQ(operand.Reference & OperandIndexMask, parameters[0].WordOffset);
+    }
+}
+
+TEST(ModuleCompileTest, RejectsInvalidScalarDefaultsForUnsignedBindings)
+{
+    for (const float value : {-1.0f, 1.5f, 4294967296.0f,
+        std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()})
+    {
+        SCOPED_TRACE(value);
+        const auto parameters = CompileParameters(std::vector<SParameter>{
+            {.Name = "Seed", .Type = EParameterType::Float, .Value = {value, 0, 0, 0}}
+        });
+        SCompiledModuleData program;
+        ModuleCompileContext context(program, parameters, "", 1);
+        const auto operand = context.UInt(0, "Seed");
+        EXPECT_FALSE(context.IsValid());
+        EXPECT_FALSE(IsValidOperand(operand, {{}, parameters}));
+        const SGPUOperand forged{
+            EOperandInput::UInt,
+            Encoded(EOperandSource::Parameter, EOperandFormat::Float, 0)
+        };
+        EXPECT_FALSE(IsValidOperand(forged, {{}, parameters}));
+    }
+}
+
+TEST(ModuleCompileTest, RejectsVectorParametersForUnsignedBindings)
+{
+    for (const auto type : {EParameterType::Float2, EParameterType::Float3,
+        EParameterType::Float4, EParameterType::Unspecified})
+    {
+        const auto parameters = CompileParameters(std::vector<SParameter>{
+            {.Name = "Seed", .Type = type}
+        });
+        SCompiledModuleData program;
+        ModuleCompileContext context(program, parameters, "", 1);
+        const auto operand = context.UInt(0, "Seed");
+        EXPECT_FALSE(context.IsValid());
+        EXPECT_FALSE(IsValidOperand(operand, {{}, parameters}));
+    }
 }

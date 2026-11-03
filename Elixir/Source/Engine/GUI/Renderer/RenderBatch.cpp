@@ -26,15 +26,18 @@ namespace Elixir::GUI
             command.InsetShadow.w *= opacity;
             command.DropShadow.w *= opacity;
 
-            if (command.ScissorRect.IsValid())
+            if (command.RoundedClipRect.IsValid())
+                command.RoundedClipRect.Position += offset;
+
+            if (command.ClipRect.IsValid())
             {
-                command.ScissorRect.Position += offset;
+                command.ClipRect.Position += offset;
                 if (clipRect.IsValid())
-                    command.ScissorRect = SRect::Intersect(command.ScissorRect, clipRect);
+                    command.ClipRect = SRect::Intersect(command.ClipRect, clipRect);
             }
             else if (clipRect.IsValid())
             {
-                command.ScissorRect = clipRect;
+                command.ClipRect = clipRect;
             }
         }
 
@@ -74,6 +77,21 @@ namespace Elixir::GUI
             m_Commands.push_back(other.m_Commands[i]);
             auto& cmd = m_Commands.back();
             ApplyPresentation(cmd, zOffset, clipRect, offset, opacity);
+        }
+    }
+
+    void RenderBatch::Clip(const SRect& rect, const float radius)
+    {
+        Clip(rect, glm::vec4(radius));
+    }
+
+    void RenderBatch::Clip(const SRect& rect, const glm::vec4& radii)
+    {
+        for (auto& command : m_Commands)
+        {
+            if (command.Type == EDrawCommandType::DebugRect) continue;
+            command.RoundedClipRect = rect;
+            command.ClipCornerRadius = glm::max(radii, glm::vec4(0));
         }
     }
 
@@ -118,13 +136,12 @@ namespace Elixir::GUI
     void RenderBatch::AddBrush(
         const SBrush& brush,
         const SRect& rect,
-        const int zOrder,
-        const SRect& scissorRect
+        const int zOrder
     )
     {
         if (brush.Texture)
         {
-            AddTexture(brush.Texture, rect, brush.Borders, brush.Color, zOrder, scissorRect);
+            AddTexture(brush.Texture, rect, brush.Borders, brush.Color, zOrder);
             return;
         }
 
@@ -135,8 +152,7 @@ namespace Elixir::GUI
             brush.InsetShadow,
             brush.DropShadow,
             brush.Outline,
-            zOrder,
-            scissorRect
+            zOrder
         );
     }
 
@@ -147,8 +163,7 @@ namespace Elixir::GUI
         const glm::vec4 insetShadow,
         const glm::vec4 dropShadow,
         const SOutline outline,
-        const int zOrder,
-        const SRect& scissorRect
+        const int zOrder
     )
     {
         SDrawCommand cmd;
@@ -160,7 +175,6 @@ namespace Elixir::GUI
         cmd.DropShadow = dropShadow;
         cmd.Outline = outline;
         cmd.ZOrder = zOrder;
-        cmd.ScissorRect = scissorRect;
 
         m_Commands.push_back(cmd);
     }
@@ -171,8 +185,7 @@ namespace Elixir::GUI
         const Ref<Font>& font,
         const float fontSize,
         const SColor& color,
-        const int zOrder,
-        const SRect& scissorRect
+        const int zOrder
     )
     {
         SDrawCommand cmd;
@@ -183,7 +196,38 @@ namespace Elixir::GUI
         cmd.Font = font;
         cmd.FontSize = fontSize;
         cmd.ZOrder = zOrder;
-        cmd.ScissorRect = scissorRect;
+
+        m_Commands.push_back(cmd);
+    }
+
+    void RenderBatch::AddImage(
+        const Ref<Image>& image,
+        const SRect& rect,
+        const SColor& tint,
+        const int zOrder,
+        const ETextureMapping mapping,
+        const glm::vec4& borders
+    )
+    {
+        if (!image ||
+            !image->IsValid() ||
+            image->GetType() != EImageType::_2D ||
+            image->GetArrayLayers() != 1 ||
+            image->GetAspect() != EImageAspect::Color ||
+            !(image->GetUsage() & EImageUsage::Sampled))
+        {
+            EE_CORE_ERROR("GUI image drawing requires a valid sampled two-dimensional color image.");
+            return;
+        }
+
+        SDrawCommand cmd;
+        cmd.Type = EDrawCommandType::Rect;
+        cmd.Geometry = rect;
+        cmd.Color = tint;
+        cmd.Image = image;
+        cmd.Border = borders;
+        cmd.TextureMapping = mapping;
+        cmd.ZOrder = zOrder;
 
         m_Commands.push_back(cmd);
     }
@@ -193,43 +237,30 @@ namespace Elixir::GUI
         const SRect& rect,
         const glm::vec4& borders,
         const SColor& tint,
-        const int zOrder,
-        const SRect& scissorRect
+        const int zOrder
     )
     {
-        SDrawCommand cmd;
-        cmd.Type = EDrawCommandType::Rect;
-        cmd.Geometry = rect;
-        cmd.Color = tint;
-        cmd.Texture = texture;
-        cmd.Border = borders;
-        cmd.TextureMapping = ETextureMapping::NineSlice;
-        cmd.ZOrder = zOrder;
-        cmd.ScissorRect = scissorRect;
-
-        m_Commands.push_back(cmd);
+        if (texture)
+            AddImage(
+                texture->GetImage(),
+                rect,
+                tint,
+                zOrder,
+                ETextureMapping::NineSlice,
+                borders
+            );
     }
 
     void RenderBatch::AddIcon(
         const Ref<Texture2D>& texture,
         const SRect& rect,
         const SColor& color,
-        const int zOrder,
-        const SRect& scissorRect
+        const int zOrder
     )
     {
         if (!texture) return;
 
-        SDrawCommand cmd;
-        cmd.Type = EDrawCommandType::Rect;
-        cmd.Geometry = rect;
-        cmd.Color = color;
-        cmd.Texture = texture;
-        cmd.TextureMapping = ETextureMapping::Stretch;
-        cmd.ZOrder = zOrder;
-        cmd.ScissorRect = scissorRect;
-
-        m_Commands.push_back(cmd);
+        AddImage(texture->GetImage(), rect, color, zOrder);
     }
 
     void RenderBatch::AddDebugRect(const SRect& rect, const SColor& color)

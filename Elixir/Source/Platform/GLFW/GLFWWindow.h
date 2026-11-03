@@ -12,6 +12,8 @@ namespace Elixir::GLFW
         Extent2D WindowExtent;
         Extent2D FramebufferExtent;
         Window::EventCallbackFn EventCallback;
+        /** Cursor position in logical window coordinates, ordered with input events. */
+        glm::vec2 CursorPosition{};
     };
 
     class GLFWWindow final : public Window

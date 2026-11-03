@@ -3,6 +3,7 @@
 #include <Engine/Graphics/Buffer.h>
 #include <Engine/Materials/MaterialInstance.h>
 #include <Engine/Aether/Core/Particle.h>
+#include <Engine/Aether/Core/StrandSettings.h>
 #include <Engine/Aether/Core/ParticleStateLayout.h>
 #include <Engine/Aether/Core/ResourceAllocation.h>
 
@@ -21,6 +22,8 @@ namespace Elixir::Aether::Simulation
     {
         Core::EParticleStateLayout Layout = Core::EParticleStateLayout::CoreV1;
         Ref<StorageBuffer> ParticleStateBuffer;
+        /** @brief Retains the persistent strand points until this frame is recorded. */
+        Ref<StorageBuffer> StrandPointBuffer;
     };
 
     /**
@@ -40,6 +43,10 @@ namespace Elixir::Aether::Simulation
         uint32_t EmitterIndex = 0;
         uint32_t LocalParticleOffset = 0;
         uint32_t ParticleCount = 0;
+        /** @brief Absolute point offset in the shared strand buffer. */
+        uint32_t StrandPointOffset = 0;
+        /** @brief Immutable solver and tessellation settings for this draw. */
+        Core::SStrandSettings Strand;
     };
 
     /**

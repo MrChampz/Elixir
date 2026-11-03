@@ -7,6 +7,7 @@ namespace Elixir::Aether::Core
         const SResourcePoolLimits& limits,
         const ParticleStateLayoutRegistry& layouts
     ) : m_Limits(limits),
+        m_FreeStrandPoints(MakeFreeRanges(limits.StrandPointCapacity)),
         m_FreeInstanceSlots(MakeFreeRanges(limits.MaxSystemInstances)),
         m_InstanceGenerations(limits.MaxSystemInstances, 0),
         m_FreeEmitters(MakeFreeRanges(limits.EmitterCapacity)),
@@ -57,6 +58,7 @@ namespace Elixir::Aether::Core
 
         const auto instanceSlot = AllocateRange(m_FreeInstanceSlots, 1);
         allocation.Particles = AllocateRange(*particleFreeRanges, particleCount);
+        allocation.StrandPoints = AllocateRange(m_FreeStrandPoints, system.TotalStrandPoints);
         allocation.Emitters = AllocateRange(m_FreeEmitters, emitterCount);
         const auto sharedProgram = std::ranges::find_if(m_Programs, [&system](const auto& program)
         {
@@ -88,6 +90,7 @@ namespace Elixir::Aether::Core
         const bool allocationFailed =
             instanceSlot.Count == 0 ||
             allocation.Particles.Count != particleCount ||
+            allocation.StrandPoints.Count != system.TotalStrandPoints ||
             allocation.Emitters.Count != emitterCount ||
             allocation.Operations.Count != operationCount ||
             allocation.Operands.Count != operandCount ||
@@ -137,6 +140,7 @@ namespace Elixir::Aether::Core
         if (!particleFreeRanges) return;
 
         ReleaseRange(*particleFreeRanges, allocation.Particles);
+        ReleaseRange(m_FreeStrandPoints, allocation.StrandPoints);
         ReleaseRange(m_FreeEmitters, allocation.Emitters);
         ReleaseProgram(allocation);
         ReleaseRange(m_FreeParameters, allocation.Parameters);

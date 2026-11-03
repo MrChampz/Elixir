@@ -15,6 +15,12 @@ namespace Elixir::Aether::Modules
         explicit ApplyGravity(glm::vec3 gravity)
             : m_Gravity(gravity) {}
 
+        /** @brief Supports particle velocity and free strand points. */
+        bool SupportsTarget(EModuleTarget target) const override
+        {
+            return target == EModuleTarget::Particle || target == EModuleTarget::StrandPoints;
+        }
+
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {
@@ -44,7 +50,7 @@ namespace Elixir::Aether::Modules
         /** @brief Creates this module from its serialized fields. */
         static Scope<Module> Create(Effect::ModuleParseContext& context, simdjson::ondemand::object& object)
         {
-            const auto gravity = context.ParseFloat4(object, "gravity");
+            const auto gravity = context.ParseFloat4(object, "gravity", glm::vec4(0), true);
             auto module = CreateScope<ApplyGravity>(glm::vec3{ gravity.Value });
             module->BindParameter(gravity.Param);
             return module;

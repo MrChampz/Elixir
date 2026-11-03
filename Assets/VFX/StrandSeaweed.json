@@ -1,0 +1,100 @@
+{
+  "name": "Seaweed",
+  "emitters": [
+    {
+      "name": "Seaweed",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 48,
+      "spawnRate": 0,
+      "strand": {
+        "points": 28,
+        "segmentLength": 0.035,
+        "stiffness": 0.8,
+        "damping": 0.965,
+        "widthScale": 0.23,
+        "solverIterations": 8,
+        "radialSegments": 5,
+        "subdivisions": 3
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            -0.6,
+            -0.6,
+            -0.12
+          ],
+          "max": [
+            0.6,
+            -0.6,
+            0.12
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 14,
+          "max": 22
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.12,
+            0.65,
+            0.27,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            0,
+            0.75,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.25,
+          "frequency": 1.6,
+          "scrollVelocity": [
+            0.16,
+            0.04,
+            0.08
+          ],
+          "seed": 17
+        }
+      ],
+      "burst": {
+        "count": 48,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    }
+  ]
+}

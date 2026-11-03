@@ -12,6 +12,7 @@ namespace Elixir::Materials::Compilation
         ParticleSprite,
         ParticleRibbon,
         ParticleMesh,
+        ParticleStrand,
     };
 
     /**
@@ -58,6 +59,9 @@ namespace Elixir::Materials::Compilation
         /** @brief Shader variant used by particle mesh rendering. */
         Ref<Shader> ParticleMeshShader;
 
+        /** @brief Shader variant used by persistent strand tubes. */
+        Ref<Shader> ParticleStrandShader;
+
         /** @brief Parameter layout shared by the material graph and GPU data. */
         std::vector<SCompiledParameter> Parameters;
 
@@ -81,6 +85,8 @@ namespace Elixir::Materials::Compilation
                     return ParticleRibbonShader;
                 case EMaterialShaderVariant::ParticleMesh:
                     return ParticleMeshShader;
+                case EMaterialShaderVariant::ParticleStrand:
+                    return ParticleStrandShader;
                 default:
                     static const Ref<Shader> unsupportedUsageShader;
                     return unsupportedUsageShader;
@@ -153,11 +159,12 @@ namespace Elixir::Materials::Compilation
             SCompileResult result
         );
 
-        /** @brief Compiles the particle ribbon shader program. */
-        static SCompileResult CompileParticleRibbon(
+        /** @brief Compiles a particle geometry shader that reads storage buffers. */
+        static SCompileResult CompileParticleGeometry(
             const ShaderLoader* loader,
             const Material& material,
-            SCompileResult result
+            SCompileResult result,
+            EMaterialShaderVariant variant
         );
 
         /** @brief Compiles the particle mesh shader program. */

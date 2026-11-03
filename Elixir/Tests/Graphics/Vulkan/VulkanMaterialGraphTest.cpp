@@ -89,6 +89,12 @@ TEST(VulkanMaterialGraphTest, CompilesFunctionsStaticChoicesAndVertexTextureSamp
                     EMaterialUsage::Surface, 1u, false, EMaterialShadingModel::ClearCoat
                 },
                 SConfiguration{
+                    EMaterialUsage::Surface, 0u, true, EMaterialShadingModel::Transmission
+                },
+                SConfiguration{
+                    EMaterialUsage::Surface, 1u, false, EMaterialShadingModel::Transmission
+                },
+                SConfiguration{
                     EMaterialUsage::Particle, 0u, true, EMaterialShadingModel::Lit
                 },
                 SConfiguration{
@@ -180,6 +186,7 @@ TEST(VulkanMaterialGraphTest, CompilesFunctionsStaticChoicesAndVertexTextureSamp
                     {
                         ASSERT_TRUE(result.Material->ParticleMeshShader);
                         ASSERT_TRUE(result.Material->ParticleRibbonShader);
+                        ASSERT_TRUE(result.Material->ParticleStrandShader);
                     }
                 }
             }

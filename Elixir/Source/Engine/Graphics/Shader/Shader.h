@@ -2,7 +2,7 @@
 
 #include <Engine/Graphics/Sampler.h>
 #include <Engine/Graphics/Texture.h>
-#include <Engine/Graphics/TextureSet.h>
+#include <Engine/Graphics/ImageSet.h>
 #include <Engine/Graphics/Pipeline/Pipeline.h>
 #include <Engine/Graphics/Shader/ShaderBinding.h>
 #include <Engine/Graphics/Shader/ShaderModule.h>
@@ -80,7 +80,10 @@ namespace Elixir
         virtual void BindImage(const std::string& name, const Ref<Image>& image) = 0;
 
         virtual void BindTexture(const std::string& name, const Ref<Texture>& texture) = 0;
-        virtual void BindTextureSet(const std::string& name, const Ref<TextureSet>& set) = 0;
+
+        /** @brief Binds a sampled-image descriptor array to a named shader resource. */
+        virtual void BindImageSet(const std::string& name, const Ref<ImageSet>& set) = 0;
+
         virtual void BindSampler(const std::string& name, const Ref<Sampler>& sampler) = 0;
 
         /**
@@ -112,8 +115,11 @@ namespace Elixir
         virtual Ref<Texture> GetTexture(const std::string& name) const;
         virtual Ref<Texture> GetTexture(SShaderBinding binding) const;
 
-        virtual Ref<TextureSet> GetTextureSet(const std::string& name) const;
-        virtual Ref<TextureSet> GetTextureSet(SShaderBinding binding) const;
+        /** @brief Returns the image set bound to a named resource, or null if none is bound. */
+        virtual Ref<ImageSet> GetImageSet(const std::string& name) const;
+
+        /** @brief Returns the image set at a resource binding, or null if none is bound. */
+        virtual Ref<ImageSet> GetImageSet(SShaderBinding binding) const;
 
         virtual Ref<Sampler> GetSampler(const std::string& name) const;
         virtual Ref<Sampler> GetSampler(SShaderBinding binding) const;
@@ -162,7 +168,7 @@ namespace Elixir
         std::unordered_map<std::string, SShaderBinding> m_BindingLookup;
         std::unordered_map<SShaderBinding, Ref<Image>> m_Images;
         std::unordered_map<SShaderBinding, Ref<Texture>> m_Textures;
-        std::unordered_map<SShaderBinding, Ref<TextureSet>> m_TextureSets;
+        std::unordered_map<SShaderBinding, Ref<ImageSet>> m_ImageSets;
         std::unordered_map<SShaderBinding, Ref<Sampler>> m_Samplers;
         std::unordered_map<SShaderBinding, Ref<Buffer>> m_StorageBuffers;
         // TODO: Rename to ConstantBuffer

@@ -1,0 +1,100 @@
+{
+  "name": "Hanging Cables",
+  "emitters": [
+    {
+      "name": "Hanging Cables",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 12,
+      "spawnRate": 0,
+      "strand": {
+        "points": 40,
+        "segmentLength": 0.04,
+        "stiffness": 1,
+        "damping": 0.985,
+        "widthScale": 0.18,
+        "solverIterations": 16,
+        "radialSegments": 6,
+        "subdivisions": 3
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            -0.55,
+            0.65,
+            0
+          ],
+          "max": [
+            0.55,
+            0.65,
+            0
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 14,
+          "max": 18
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.15,
+            0.23,
+            0.32,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            0,
+            -1.8,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 0.025,
+          "frequency": 1.4,
+          "scrollVelocity": [
+            0.06,
+            0,
+            0
+          ],
+          "seed": 17
+        }
+      ],
+      "burst": {
+        "count": 12,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    }
+  ]
+}

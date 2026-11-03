@@ -1,6 +1,7 @@
 #pragma once
 
 #include <glm/glm.hpp>
+#include <Engine/Materials/Material.h>
 
 namespace Elixir::Aether::Effect
 {
@@ -19,5 +20,7 @@ namespace Elixir::Aether::Effect
         float Opacity = 1.0f;
         glm::vec3 Emissive{ 0.0f };
         std::string BaseColorTexturePath;
+        /** @brief Controls blending and depth writes; existing effects default to translucent. */
+        Materials::EMaterialBlendMode BlendMode = Materials::EMaterialBlendMode::Translucent;
     };
 }

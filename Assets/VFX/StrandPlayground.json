@@ -1,0 +1,101 @@
+{
+  "name": "Strand Playground",
+  "emitters": [
+    {
+      "name": "Tentacles",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 80,
+      "spawnRate": 0,
+      "strand": {
+        "points": 20,
+        "segmentLength": 0.063,
+        "stiffness": 0.95,
+        "damping": 0.89,
+        "widthScale": 0.35,
+        "solverIterations": 12,
+        "radialSegments": 8,
+        "subdivisions": 4
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionDisk",
+          "center": [
+            0,
+            0,
+            0
+          ],
+          "radius": 0.013,
+          "normal": [
+            0,
+            0,
+            1
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 30,
+          "max": 34
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.95,
+            0.14,
+            0.1,
+            1
+          ]
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "target": "StrandPoints",
+          "gravity": [
+            -0.8,
+            -0.35,
+            0
+          ]
+        },
+        {
+          "type": "ApplyCurlNoise",
+          "target": "StrandPoints",
+          "strength": 2.6,
+          "frequency": 2.2,
+          "scrollVelocity": [
+            0.12,
+            0.09,
+            0.07
+          ],
+          "seed": 0
+        }
+      ],
+      "burst": {
+        "count": 80,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      }
+    }
+  ]
+}

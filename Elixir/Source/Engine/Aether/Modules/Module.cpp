@@ -47,6 +47,9 @@ namespace Elixir::Aether::Modules
         const std::string_view parameter
     )
     {
+        if (!m_Valid)
+            return { static_cast<EOperandInput>(UINT8_MAX), 0 };
+
         const auto index = FindParameter(parameter);
         if (index != UINT32_MAX)
         {
@@ -55,15 +58,24 @@ namespace Elixir::Aether::Modules
             if (!IsParameterOperandType(declared, input))
             {
                 EE_CORE_ERROR("Particle parameter type does not match its binding.");
+                m_Valid = false;
                 return { static_cast<EOperandInput>(UINT8_MAX), 0 };
             }
 
             const auto& definition = m_Parameters[index];
+            if (input == EOperandInput::UInt && declared == EParameterType::Float &&
+                !IsValidUIntScalar(definition.Value.x))
+            {
+                EE_CORE_ERROR("Unsigned particle bindings require an integer in [0, 2^32).");
+                m_Valid = false;
+                return { static_cast<EOperandInput>(UINT8_MAX), 0 };
+            }
             const auto count = GetParameterWordCount(definition.Type);
 
             if (std::size_t(definition.WordOffset) + count > OperandIndexMask)
             {
                 EE_CORE_ERROR("Particle parameter offset exceeds the operand word range.");
+                m_Valid = false;
                 return { static_cast<EOperandInput>(UINT8_MAX), 0 };
             }
 
@@ -91,6 +103,7 @@ namespace Elixir::Aether::Modules
         if (m_ModuleData.Constants.size() + words.size() > OperandIndexMask)
         {
             EE_CORE_ERROR("Particle constant pool exceeds 26 bits.");
+            m_Valid = false;
             return { static_cast<EOperandInput>(UINT8_MAX), 0 };
         }
 
@@ -191,6 +204,7 @@ namespace Elixir::Aether::Modules
         if (index != UINT32_MAX && index >= OperandIndexMask)
         {
             EE_CORE_ERROR("Particle curve index collides with the missing-curve sentinel.");
+            m_Valid = false;
             return { static_cast<EOperandInput>(UINT8_MAX), 0 };
         }
 
@@ -210,10 +224,13 @@ namespace Elixir::Aether::Modules
         const std::initializer_list<SGPUOperand> operands
     )
     {
+        if (!m_Valid) return;
+
         const auto* operation = FindOperation(type);
         if (!operation)
         {
             EE_CORE_ERROR("Unknown particle operation.");
+            m_Valid = false;
             return;
         }
 
@@ -223,18 +240,21 @@ namespace Elixir::Aether::Modules
         if (operands.size() > UINT32_MAX)
         {
             EE_CORE_ERROR("Particle operation exceeds the 32-bit argument-count range.");
+            m_Valid = false;
             return;
         }
 
         if (inputs.size() != operands.size())
         {
             EE_CORE_ERROR("Particle operation argument count does not match its definition.");
+            m_Valid = false;
             return;
         }
 
         if (!operation->IsValidTarget(target))
         {
             EE_CORE_ERROR("Invalid destination for the particle operation.");
+            m_Valid = false;
             return;
         }
 
@@ -261,12 +281,14 @@ namespace Elixir::Aether::Modules
             if (!matches)
             {
                 EE_CORE_ERROR("Particle operation argument type does not match its definition.");
+                m_Valid = false;
                 return;
             }
 
             if (!IsValidOperand(operand, validationContext))
             {
                 EE_CORE_ERROR("Particle operand reference does not match its source.");
+                m_Valid = false;
                 return;
             }
         }
@@ -274,6 +296,7 @@ namespace Elixir::Aether::Modules
         if (m_ModuleData.Operands.size() + operands.size() > UINT32_MAX)
         {
             EE_CORE_ERROR("Particle operand table exceeds uint32 range.");
+            m_Valid = false;
             return;
         }
 
@@ -295,4 +318,15 @@ namespace Elixir::Aether::Modules
     Module::Module(const EModulePhase phase) : m_Phase(phase) {}
 
     Module::~Module() = default;
+
+    bool Module::SetTarget(const EModuleTarget target)
+    {
+        if (!SupportsTarget(target) || (m_Phase != EModulePhase::Update && target != EModuleTarget::Particle))
+        {
+            EE_CORE_ERROR("Module does not support the requested execution target.");
+            return false;
+        }
+        m_Target = target;
+        return true;
+    }
 }

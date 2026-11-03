@@ -65,3 +65,21 @@ TEST(MaterialRenderProxyTest, CapturesDoubleSidedSetting)
     ASSERT_TRUE(proxy);
     EXPECT_TRUE(proxy->IsDoubleSided());
 }
+
+
+TEST(MaterialRenderProxyTest, CapturesTransmissionWithoutChangingOpaqueCoverage)
+{
+    const auto material = CreateRef<Material>("Transmission");
+    ASSERT_TRUE(material->SetShadingModel(EMaterialShadingModel::Transmission));
+    const auto compiled = Compiler::Build(*material).Material;
+    ASSERT_TRUE(compiled);
+    MaterialInstance instance(material);
+    const auto proxy = MaterialRenderProxy::Create(compiled, instance);
+    ASSERT_TRUE(proxy);
+    EXPECT_EQ(proxy->GetShadingModel(), EMaterialShadingModel::Transmission);
+    EXPECT_EQ(proxy->GetBlendMode(), EMaterialBlendMode::Opaque);
+
+    ASSERT_TRUE(material->SetShadingModel(EMaterialShadingModel::Lit));
+    EXPECT_EQ(proxy->GetShadingModel(), EMaterialShadingModel::Transmission);
+    EXPECT_EQ(MaterialRenderProxy::Create(compiled, instance), nullptr);
+}

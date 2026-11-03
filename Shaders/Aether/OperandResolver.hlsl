@@ -214,6 +214,17 @@ struct SOperandResolver
         return DecodeVector3(argument);
     }
 
+    /**
+     * @brief Converts a numeric scalar to an unsigned integer, or zero for invalid values.
+     * @param value Finite, nonnegative integer smaller than 2 to the power of 32.
+     */
+    uint ConvertScalarToUInt(float value)
+    {
+        if (!isfinite(value) || value < 0.0 || value >= 4294967296.0 || floor(value) != value)
+            return 0u;
+        return uint(value);
+    }
+
     /** @brief Returns all 32 bits of an unsigned integer operand. */
     uint DecodeUInt(uint argument)
     {
@@ -224,6 +235,10 @@ struct SOperandResolver
         if ((source == OperandSource_Constant || source == OperandSource_Parameter) &&
             GetOperandFormat(reference) == OperandFormat_UInt)
             return Load(reference, GetValueAddress(reference));
+
+        if (source == OperandSource_Parameter &&
+            GetOperandFormat(reference) == OperandFormat_Float)
+            return ConvertScalarToUInt(asfloat(Load(reference, GetValueAddress(reference))));
 
         if (source == OperandSource_Immediate)
             return index;
@@ -239,6 +254,10 @@ struct SOperandResolver
         if (argument < 2u)
         {
             float4 value = CachedValues[argument];
+            uint reference = GetOperandReference(argument);
+            if (GetOperandSource(reference) == OperandSource_Parameter &&
+                GetOperandFormat(reference) == OperandFormat_Float)
+                return ConvertScalarToUInt(value.x);
             return uint(value.x) | (uint(value.y) << 16u);
         }
         return DecodeUInt(argument);

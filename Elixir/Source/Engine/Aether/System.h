@@ -78,6 +78,8 @@ namespace Elixir::Aether
         std::vector<SGPUColorCurve> ColorCurves;
 
         uint32_t TotalMaxParticles = 0;
+        /** @brief Number of persistent strand control points required by one instance. */
+        uint32_t TotalStrandPoints = 0;
     };
 
     /**
@@ -156,6 +158,14 @@ namespace Elixir::Aether
         const std::string& GetName() const { return m_Name; }
 
         /**
+         * @brief Exchanges authoring data while preserving both systems' identities and
+         * compilation revisions.
+         * @pre Serialize this call with compilation and recompile before publishing the
+         * new definition.
+         */
+        void Swap(System& other);
+
+        /**
          * @brief Returns the system's emitters.
          * @return Read-only list of emitters owned by this system.
          */
@@ -196,8 +206,11 @@ namespace Elixir::Aether
          */
         std::optional<SParameter> GetParameterDefault(std::string_view name) const;
 
-        /** @brief Compile the authored system into immutable runtime data. */
-        SCompiledSystem Compile() const;
+        /**
+         * @brief Compile the authored system into immutable runtime data.
+         * @return Compiled data, or no value if parameter or module compilation fails.
+         */
+        std::optional<SCompiledSystem> Compile() const;
 
         UUID m_UUID;
         mutable uint32_t m_CompilationRevision = 0;

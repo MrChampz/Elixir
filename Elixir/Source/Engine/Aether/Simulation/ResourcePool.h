@@ -103,6 +103,7 @@ namespace Elixir::Aether::Core
         };
         std::vector<SParticleStateLayoutAllocator> m_ParticleStateLayoutAllocators;
 
+        std::vector<SBufferRange> m_FreeStrandPoints;
         std::vector<SBufferRange> m_FreeInstanceSlots;
         std::vector<uint32_t> m_InstanceGenerations;
 

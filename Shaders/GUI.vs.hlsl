@@ -23,7 +23,9 @@ struct VS_INPUT
     float  OutlineThickness : OUTLINE1;             // Outline thickness
     uint   TextureIndex     : TEXTURE;              // Texture index
     uint   TextureMapping   : TEXTURE_MAPPING;      // 0 = stretch, 1 = nine-slice
-    float4 ScissorRect      : SCISSOR;              // Scissor rect (x, y, width, height)
+    float4 ClipRect         : CLIP_RECT;            // (x, y, width, height)
+    float4 RoundedClipRect  : ROUNDED_CLIP;         // (x, y, width, height)
+    float4 ClipCornerRadius : CLIP_RADIUS;          // (top-left, top-right, bottom-right, bottom-left)
 
     uint VertexId : SV_VertexID;
     uint InstanceId : SV_InstanceID;
@@ -44,7 +46,9 @@ struct VS_OUTPUT
     float  OutlineThickness : OUTLINE1;             // Outline thickness
     uint   TextureIndex     : TEXTURE;              // Texture index
     uint   TextureMapping   : TEXTURE_MAPPING;      // Texture mapping mode
-    float4 ScissorRect      : SCISSOR;              // Scissor rect (x, y, width, height)
+    float4 ClipRect      : CLIP_RECT;              // Clip rect (x, y, width, height)
+    float4 RoundedClipRect  : ROUNDED_CLIP;
+    float4 ClipCornerRadius : CLIP_RADIUS;
 };
 
 VS_OUTPUT main(VS_INPUT input)
@@ -102,7 +106,9 @@ VS_OUTPUT main(VS_INPUT input)
     output.OutlineThickness = input.OutlineThickness;
     output.TextureIndex = input.TextureIndex;
     output.TextureMapping = input.TextureMapping;
-    output.ScissorRect = input.ScissorRect;
+    output.ClipRect = input.ClipRect;
+    output.RoundedClipRect = input.RoundedClipRect;
+    output.ClipCornerRadius = input.ClipCornerRadius;
 
     return output;
 }

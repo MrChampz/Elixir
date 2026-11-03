@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <Engine/Aether/Modules/ApplyGravity.h>
 #include <atomic>
 #include <thread>
 
@@ -194,4 +195,55 @@ TEST(InstanceRegistryTest, AcceptsConcurrentRegistrations)
     ASSERT_TRUE(submission);
     EXPECT_EQ(accepted.load(std::memory_order_relaxed), instanceCount);
     EXPECT_EQ(submission->GetInstanceCount(), instanceCount);
+}
+
+TEST(InstanceRegistryTest, RejectsInvalidModuleBindingsAndAllowsRetry)
+{
+    TestInstanceRegistry runtime;
+    const auto system = CreateRef<System>("Invalid binding");
+    system->GetParameters().SetFloat("Gravity", 1);
+    auto& emitter = system->AddEmitter("Particles", 8, 1);
+    auto gravity = CreateScope<Modules::ApplyGravity>(glm::vec3(0, -9, 0));
+    gravity->BindParameter("Gravity");
+    emitter.AddModule(std::move(gravity));
+    const auto instance = system->CreateInstance();
+    ASSERT_TRUE(instance);
+    EXPECT_FALSE(runtime.Registry.Register(instance));
+    system->GetParameters().SetFloat3("Gravity", {0, -9, 0});
+    ASSERT_TRUE(runtime.Registry.Register(instance));
+    const auto proxy = Capture(instance);
+    ASSERT_TRUE(proxy);
+    EXPECT_EQ(proxy->GetCompiledSystem().CompilationRevision, 1u);
+}
+
+TEST(InstanceRegistryTest, FailedModuleRecompilePreservesLiveAndCachedCompilation)
+{
+    TestInstanceRegistry runtime;
+    const auto system = CreateRef<System>("Preserved compilation");
+    system->GetParameters().SetFloat3("Gravity", {0, -9, 0});
+    auto& emitter = system->AddEmitter("Particles", 8, 1);
+    auto gravity = CreateScope<Modules::ApplyGravity>(glm::vec3(0, -9, 0));
+    gravity->BindParameter("Gravity");
+    emitter.AddModule(std::move(gravity));
+    const auto instance = runtime.CreateRegisteredInstance(system);
+    ASSERT_TRUE(instance);
+    const auto before = Capture(instance);
+    ASSERT_TRUE(before);
+    system->GetParameters().SetFloat("Gravity", 1);
+    EXPECT_FALSE(runtime.Registry.Recompile(system));
+    const auto after = Capture(instance);
+    ASSERT_TRUE(after);
+    EXPECT_EQ(&after->GetCompiledSystem(), &before->GetCompiledSystem());
+    EXPECT_EQ(after->GetRevision(), before->GetRevision());
+    const auto second = runtime.CreateRegisteredInstance(system);
+    ASSERT_TRUE(second);
+    const auto cached = Capture(second);
+    ASSERT_TRUE(cached);
+    EXPECT_EQ(&cached->GetCompiledSystem(), &before->GetCompiledSystem());
+    system->GetParameters().SetFloat3("Gravity", {0, -5, 0});
+    ASSERT_TRUE(runtime.Registry.Recompile(system));
+    const auto repaired = Capture(instance);
+    ASSERT_TRUE(repaired);
+    EXPECT_EQ(repaired->GetCompiledSystem().CompilationRevision,
+        before->GetCompiledSystem().CompilationRevision + 1);
 }

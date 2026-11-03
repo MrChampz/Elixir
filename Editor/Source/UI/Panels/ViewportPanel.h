@@ -21,9 +21,15 @@ public:
     const char* GetName() const override { return "Viewport"; }
 
     Ref<GUI::Widget> Build() override;
-    void OnUpdate(Timestep frameTime) override;
+    /** @brief Advances panel and reopen-button transitions even when another tab is active. */
+    void UpdateOverlayAnimations(Timestep frameTime) override;
+    /** @brief Returns whether a point lies in the scene area outside floating panels. */
+    bool CanNavigateAt(const glm::vec2& point) const;
 
 private:
+    Ref<GUI::Widget> m_Root, m_Toolbar;
+    // Closes and restores panels through their existing animated close controls.
+    void OnOverlaysHidden(bool hidden) override;
     // root is the panel's own Canvas - every floating piece below anchors into it directly,
     // the same way EditorUI anchors the menu/tab bars into its own root Canvas.
     void BuildToolbar(const Ref<GUI::Canvas>& root);
@@ -75,6 +81,7 @@ private:
 
     // --- Hierarchy state ---
     Ref<GUI::Widget> m_HierarchyPanel;
+    bool m_HierarchyOpen = true, m_HierarchyWasOpen = true;
     Ref<GUI::Widget> m_HierarchyPanelToggle;
     Scope<GUI::WidgetAnimation> m_HierarchyPanelAnimation;
     Scope<GUI::WidgetAnimation> m_HierarchyPanelToggleAnimation;
@@ -84,10 +91,11 @@ private:
         Ref<GUI::TextBlock> Label;
     };
     std::vector<SHierarchyRow> m_HierarchyRows;
-    int m_SelectedHierarchyIndex = 2; // "Player", matching the mock's initial selection
+    int m_SelectedHierarchyIndex = 1; // Select the default scene mesh.
 
     // --- Inspector state (stand-in for a real selected-entity data model) ---
     Ref<GUI::Widget> m_InspectorPanel;
+    bool m_InspectorOpen = true, m_InspectorWasOpen = true;
     Ref<GUI::Widget> m_InspectorPanelToggle;
     Scope<GUI::WidgetAnimation> m_InspectorPanelAnimation;
     Scope<GUI::WidgetAnimation> m_InspectorPanelToggleAnimation;
